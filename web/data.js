@@ -15,7 +15,7 @@
  * ==========================================================================*/
 window.Yokup = (function(){
   const CFG = window.YOKUP_CONFIG || { BACKEND:'local' };
-  const BACKEND = CFG.BACKEND === 'api' ? 'api' : 'local';
+  const BACKEND = ['api','supabase'].includes(CFG.BACKEND) ? CFG.BACKEND : 'local';
   const API = (CFG.YOKUP_API || '').replace(/\/+$/,'');
   const OMNIP_API = 'https://omnipublicity-api.csilvasantin.workers.dev';
 
@@ -248,7 +248,105 @@ window.Yokup = (function(){
       getRatings, addRating, getRatingForIntervention, getPendingStores, addStore, updateStore };
   })();
 
-  const BK = BACKEND === 'api' ? Api : Local;
+  /* ==========================================================================
+   * BACKEND 'supabase' — la web habla DIRECTO con Supabase (PostgREST), sin worker.
+   *   Usa la anon key (pública) + RLS demo. Tablas: schema-demo.sql.
+   *   Cache en memoria + escritura optimista, igual que 'api'.
+   * ========================================================================*/
+  const Supa = (function(){
+    const URL = (CFG.SUPABASE_URL||'').replace(/\/+$/,'');
+    const KEY = CFG.SUPABASE_ANON_KEY||'';
+    const cache = { interventions:[], technicians:[], ratings:[], stores:[] };
+    let activeTechId = (()=>{ try{return localStorage.getItem('yokup.active_tech.v1');}catch(e){return null;} })();
+    const H = (extra)=>({ apikey:KEY, Authorization:'Bearer '+KEY, 'Content-Type':'application/json', ...(extra||{}) });
+
+    async function sel(table){
+      const r = await fetch(`${URL}/rest/v1/${table}?select=*&order=created_at.desc`, { headers:H() });
+      if(!r.ok) throw new Error('supabase GET '+table+' '+r.status+': '+await r.text());
+      return await r.json();
+    }
+    async function ins(table,row){
+      const r = await fetch(`${URL}/rest/v1/${table}`, { method:'POST', headers:H({Prefer:'return=minimal'}), body:JSON.stringify(row) });
+      if(!r.ok) throw new Error('supabase POST '+table+' '+r.status+': '+await r.text());
+    }
+    async function upd(table,id,patch){
+      const r = await fetch(`${URL}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, { method:'PATCH', headers:H({Prefer:'return=minimal'}), body:JSON.stringify(patch) });
+      if(!r.ok) throw new Error('supabase PATCH '+table+' '+r.status+': '+await r.text());
+    }
+    const fireIns=(t,r)=>ins(t,r).catch(e=>console.error('[supabase] insert failed',t,e));
+    const fireUpd=(t,id,p)=>upd(t,id,p).catch(e=>console.error('[supabase] update failed',t,id,e));
+
+    async function hydrate(){
+      try{
+        const [iv,tc,rt,st] = await Promise.all([
+          sel('interventions'), sel('technicians'), sel('ratings'), sel('stores'),
+        ]);
+        cache.interventions = iv||[]; cache.technicians = tc||[]; cache.ratings = rt||[]; cache.stores = st||[];
+        // Si la BD está vacía, sembramos las intervenciones demo (una sola vez).
+        if(!cache.interventions.length){
+          for(const s of seedInterventions()){ cache.interventions.push(s); fireIns('interventions',s); }
+        }
+      }catch(e){ console.error('[supabase] hydrate failed', e); }
+    }
+
+    const getInterventions=()=>cache.interventions;
+    function addIntervention(iv){
+      iv.id=iv.id||('iv-'+Date.now()); iv.created_at=iv.created_at||nowISO(); iv.status=iv.status||'nueva';
+      cache.interventions.unshift(iv); fireIns('interventions',iv); return iv;
+    }
+    function updateIntervention(id,patch){
+      const i=cache.interventions.findIndex(x=>x.id===id);
+      if(i<0) return null; cache.interventions[i]={...cache.interventions[i],...patch};
+      fireUpd('interventions',id,patch); return cache.interventions[i];
+    }
+    function resetInterventions(){ return cache.interventions; }
+
+    const getTechnicians=()=>cache.technicians;
+    function addTechnician(t){
+      t.id=t.id||('tech-'+Date.now()); t.status='pendiente'; t.rating_avg=0; t.rating_n=0; t.created_at=nowISO();
+      cache.technicians.unshift(t); activeTechId=t.id;
+      try{localStorage.setItem('yokup.active_tech.v1',t.id);}catch(e){}
+      fireIns('technicians',t); return t;
+    }
+    function getActiveTechnician(){
+      if(!cache.technicians.length) return null;
+      return cache.technicians.find(t=>t.id===activeTechId)||cache.technicians[0];
+    }
+    function setActiveTechnician(id){ activeTechId=id; try{localStorage.setItem('yokup.active_tech.v1',id);}catch(e){} }
+    const getTechnicianById=(id)=>cache.technicians.find(t=>t.id===id)||null;
+    function updateTechnician(id,patch){
+      const i=cache.technicians.findIndex(t=>t.id===id);
+      if(i<0) return null; cache.technicians[i]={...cache.technicians[i],...patch};
+      fireUpd('technicians',id,patch); return cache.technicians[i];
+    }
+
+    const getRatings=()=>cache.ratings;
+    function addRating({intervention_id,technician_id,store_id,stars,comment}){
+      const r={id:'rt-'+Date.now(),intervention_id,technician_id,store_id,stars:Number(stars),comment:comment||'',created_at:nowISO()};
+      cache.ratings.unshift(r); fireIns('ratings',r);
+      if(technician_id){ const t=cache.technicians.find(x=>x.id===technician_id);
+        if(t){ const n=(t.rating_n||0)+1; const avg=Math.round(((t.rating_avg||0)*(t.rating_n||0)+r.stars)/n*100)/100;
+          t.rating_avg=avg; t.rating_n=n; fireUpd('technicians',technician_id,{rating_avg:avg,rating_n:n}); } }
+      return r;
+    }
+    const getRatingForIntervention=(id)=>cache.ratings.find(r=>r.intervention_id===id)||null;
+
+    const getPendingStores=()=>cache.stores;
+    function addStore(s){
+      s.id=s.id||('store-'+Date.now()); s.created_at=nowISO(); s.region=s.region||regionFromAddr(s.addr);
+      cache.stores.unshift(s); fireIns('stores',s); return s;
+    }
+    function updateStore(id,patch){
+      const i=cache.stores.findIndex(s=>s.id===id);
+      if(i<0) return null; cache.stores[i]={...cache.stores[i],...patch};
+      fireUpd('stores',id,patch); return cache.stores[i];
+    }
+    return { hydrate, getInterventions, addIntervention, updateIntervention, resetInterventions,
+      getTechnicians, addTechnician, getActiveTechnician, setActiveTechnician, getTechnicianById, updateTechnician,
+      getRatings, addRating, getRatingForIntervention, getPendingStores, addStore, updateStore };
+  })();
+
+  const BK = BACKEND === 'supabase' ? Supa : BACKEND === 'api' ? Api : Local;
   // Las páginas pueden `await Yokup.ready` antes de pintar (instantáneo en 'local').
   const ready = BK.hydrate();
 
