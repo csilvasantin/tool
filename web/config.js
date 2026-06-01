@@ -10,10 +10,11 @@
  *   2. Despliega el worker (yokup/api) con sus secrets — ver api/README.md.
  *   3. Pon aquí YOKUP_API con la URL del worker y cambia BACKEND a 'api'.
  *
- * ESTADO (2026-06-01): web ya en producción (GitHub Pages, www.carlossilva.info/yokup/).
- * Falta SOLO el paso 3: desplegar el worker y pegar su URL abajo. El worker ya tiene
- * www.carlossilva.info en ALLOWED_ORIGINS, así que en cuanto pongas la URL real y
- * BACKEND:'api', el frontend de producción hablará con Supabase sin más cambios.
+ * ESTADO (2026-06-01): web servida por GitHub Pages; destino de producción
+ * https://www.yokup.com/tool/ (pendiente DNS — ver README "Estado de despliegue").
+ * El worker ya tiene www.yokup.com en ALLOWED_ORIGINS, así que en cuanto pongas la URL
+ * real del worker y BACKEND:'api', el frontend de producción hablará con Supabase.
+ * Todas las rutas del front son relativas → funciona bajo cualquier subruta (/tool).
  * ==========================================================================*/
 window.YOKUP_CONFIG = {
   BACKEND: 'local',                                  // 'local' | 'api'  ← cambiar a 'api' tras desplegar
