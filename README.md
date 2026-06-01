@@ -10,10 +10,11 @@ desde **Admira** vía webhook. Al cerrar, el centro **valora al técnico**.
 
 ## Estado de despliegue
 
-- **Web (destino producción)**: **https://www.yokup.com/tool/** servida por GitHub Pages.
-  El repo ya publica `web/` vía `.github/workflows/pages.yml` en cada push que toque `web/`.
-  **Pendiente (DNS, lo haces tú)**: apuntar `yokup.com` a GitHub Pages y fijar la subruta
-  `/tool`. Ver "Cómo dejar la web en www.yokup.com/tool" más abajo.
+- **Web (live ahora)**: **http://www.carlossilva.info/tool/** y https://csilvasantin.github.io/tool/
+  (repo `csilvasantin/tool`, publicado por `.github/workflows/pages.yml` en cada push a `web/`).
+- **Web (destino final)**: **https://www.yokup.com/tool/**. Repo ya renombrado a `tool` (✓ subruta).
+  **Pendiente (DNS, lo haces tú)**: apuntar `www.yokup.com` a GitHub Pages (custom domain + CNAME a
+  `csilvasantin.github.io`). Ver "Cómo dejar la web en www.yokup.com/tool" más abajo.
 - **Backend**: hoy en modo `local` (demo en localStorage). Para activar Supabase falta solo
   desplegar el worker y poner su URL en `web/config.js` — ver [`api/README.md`](api/README.md).
   El worker ya tiene `www.yokup.com` en `ALLOWED_ORIGINS`.
@@ -22,9 +23,8 @@ desde **Admira** vía webhook. Al cerrar, el centro **valora al técnico**.
 
 GitHub Pages sirve un repo en `<dominio>/<nombre-repo>/`. Para que la subruta sea `/tool`:
 
-1. **Renombrar el repo a `tool`** (Settings → General → Rename) → la web pasa a
-   `…github.io/tool/` y, con dominio propio, a `www.yokup.com/tool/`.
-   *(Alternativa: dejar el repo `yokup` y servir en `/yokup`, o usar un proxy /tool.)*
+1. **Repo renombrado a `tool`** ✓ → la web ya sale en `…github.io/tool/` y, con dominio
+   propio, en `www.yokup.com/tool/`.
 2. **Dominio**: Settings → Pages → Custom domain `www.yokup.com`; crea el `CNAME`
    en tu DNS apuntando a `csilvasantin.github.io`. (El fichero `web/CNAME` se puede
    versionar si quieres fijarlo en el repo.)
