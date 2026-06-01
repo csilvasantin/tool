@@ -15,9 +15,12 @@ desde **Admira** vía webhook. Al cerrar, el centro **valora al técnico**.
 - **Web (destino final)**: **https://www.yokup.com/tool/**. Repo ya renombrado a `tool` (✓ subruta).
   **Pendiente (DNS, lo haces tú)**: apuntar `www.yokup.com` a GitHub Pages (custom domain + CNAME a
   `csilvasantin.github.io`). Ver "Cómo dejar la web en www.yokup.com/tool" más abajo.
-- **Backend**: hoy en modo `local` (demo en localStorage). Para activar Supabase falta solo
-  desplegar el worker y poner su URL en `web/config.js` — ver [`api/README.md`](api/README.md).
-  El worker ya tiene `www.yokup.com` en `ALLOWED_ORIGINS`.
+- **Backend**: ✅ **en producción con Supabase** (modo `supabase`, directo desde el navegador
+  con la anon key + RLS demo, sin worker). Proyecto `aswwjkfejdfglpxlgbjl` (eu-central-1).
+  Esquema: `db/schema-demo.sql` + `db/rls-demo.sql`. Verificado el ciclo completo escribiendo
+  en la BD real. La arquitectura con worker (`api/`) queda disponible como alternativa futura.
+  > Nota seguridad: la anon key en `config.js` es pública por diseño; RLS demo abre acceso
+  > anónimo (aceptable para demo). Endurecer con Supabase Auth antes de producción real.
 
 ### Cómo dejar la web en www.yokup.com/tool
 
