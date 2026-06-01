@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yokup — Cómo funciona (vídeo)</title>
+<meta name="description" content="Explainer animado de Yokup: cómo una incidencia recorre todo el ciclo, de la detección automática en Admira a la valoración del técnico.">
+<link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
+<link rel="stylesheet" href="yokup.css">
+<script defer src="yokup-nav.js"></script>
+</head>
+<body>
+<nav class="yk-nav" data-active="video"></nav>
+
+<div class="player">
+  <div class="stage" id="stage">
+    <!-- 0 · intro -->
+    <div class="scene intro" data-dur="4500">
+      <div class="ico">🛠️</div>
+      <div class="step">Yokup</div>
+      <h2>Cada avería del punto de venta, <span class="g">resuelta y trazada</span></h2>
+      <p>Conectamos estancos, kioscos y loterías con técnicos instaladores. Mira el recorrido completo de una incidencia.</p>
+    </div>
+
+    <!-- 1 · detecta -->
+    <div class="scene" data-dur="5000">
+      <div class="ico">🖥️</div>
+      <div class="step">Fase 1 · Se detecta</div>
+      <h2>Admira ve que un equipo falla</h2>
+      <p>La pantalla del estanco deja de emitir. Admira lo detecta y crea la incidencia automáticamente.</p>
+      <div class="chip"><i>🖥️</i><i class="flash">⚠️</i><i>🔇</i></div>
+      <span class="who">⚙ Admira</span>
+    </div>
+
+    <!-- 2 · publica -->
+    <div class="scene" data-dur="4500">
+      <div class="ico">📡</div>
+      <div class="step">Fase 2 · Se publica</div>
+      <h2>Yokup la publica en el tablón</h2>
+      <p>La intervención aparece en el tablón de trabajos de la zona del punto de venta, lista para que alguien la tome.</p>
+      <span class="who">Yokup</span>
+    </div>
+
+    <!-- 3 · acepta -->
+    <div class="scene" data-dur="5000">
+      <div class="ico">🙋</div>
+      <div class="step">Fase 3 · Se acepta</div>
+      <h2>Un instalador la acepta</h2>
+      <p>Un técnico cualificado de la zona —freelance o empresa— ve el trabajo entre los suyos y lo acepta.</p>
+      <span class="who">Instalador</span>
+    </div>
+
+    <!-- 4 · resuelve -->
+    <div class="scene" data-dur="5000">
+      <div class="ico">✅</div>
+      <div class="step">Fase 4 · Se resuelve</div>
+      <h2>Interviene en sitio y lo resuelve</h2>
+      <p>El técnico acude al punto de venta, repara el equipo y marca la intervención como resuelta. La pantalla vuelve a emitir.</p>
+      <div class="chip"><i>🖥️</i><i>▶️</i><i>🔊</i></div>
+      <span class="who">Instalador</span>
+    </div>
+
+    <!-- 5 · valora -->
+    <div class="scene" data-dur="5000">
+      <div class="ico">⭐</div>
+      <div class="step">Fase 5 · Se valora</div>
+      <h2>El punto de venta valora el trabajo</h2>
+      <p>El estanquero puntúa la intervención. Esa valoración alimenta la reputación del técnico y la calidad de la red.</p>
+      <div class="chip" style="font-size:18px">★★★★★</div>
+      <span class="who">Punto de venta</span>
+    </div>
+
+    <!-- 6 · outro -->
+    <div class="scene outro" data-dur="5000">
+      <div class="ico">🔁</div>
+      <div class="step">El bucle</div>
+      <h2>Detecta · Publica · Acepta · Resuelve · <span class="g">Valora</span></h2>
+      <p>Todo queda registrado, medido y valorado. Sin llamadas perdidas ni grupos de WhatsApp.</p>
+      <div class="scene-cards">
+        <a class="cta punto" href="alta-punto.html">🏪 Soy punto de venta</a>
+        <a class="cta inst" href="alta-instalador.html">🛠️ Soy instalador</a>
+      </div>
+    </div>
+
+    <div class="timeline" id="timeline"></div>
+  </div>
+
+  <div class="controls">
+    <button class="play" id="play">⏸ Pausa</button>
+    <button id="prev">⏮ Anterior</button>
+    <button id="next">Siguiente ⏭</button>
+    <button id="restart">↺ Reiniciar</button>
+    <div class="dots" id="dots"></div>
+  </div>
+</div>
+
+<script>
+const scenes=[...document.querySelectorAll('.scene')];
+const tl=document.getElementById('timeline');
+const dots=document.getElementById('dots');
+scenes.forEach((s,i)=>{
+  const seg=document.createElement('div'); seg.className='seg';
+  seg.innerHTML='<div class="fill"></div>'; tl.appendChild(seg);
+  const d=document.createElement('div'); d.className='dot'; d.title='Escena '+(i+1);
+  d.addEventListener('click',()=>go(i)); dots.appendChild(d);
+});
+const segs=[...tl.children], dotEls=[...dots.children];
+let idx=0, playing=true, timer=null;
+
+function paint(){
+  scenes.forEach((s,i)=>s.classList.toggle('on',i===idx));
+  dotEls.forEach((d,i)=>d.classList.toggle('on',i===idx));
+  segs.forEach((seg,i)=>{
+    const fill=seg.querySelector('.fill');
+    seg.classList.remove('active','done');
+    if(i<idx){ seg.classList.add('done'); fill.style.transition='none'; fill.style.width='100%'; }
+    else if(i>idx){ fill.style.transition='none'; fill.style.width='0'; }
+  });
+}
+function runBar(){
+  const seg=segs[idx], fill=seg.querySelector('.fill');
+  const dur=+scenes[idx].dataset.dur||4500;
+  seg.classList.add('active');
+  fill.style.transition='none'; fill.style.width='0';
+  // forzar reflow y animar
+  void fill.offsetWidth;
+  fill.style.transition='width '+dur+'ms linear'; fill.style.width='100%';
+}
+function schedule(){
+  clearTimeout(timer);
+  const dur=+scenes[idx].dataset.dur||4500;
+  timer=setTimeout(()=>{ idx=(idx+1)%scenes.length; render(true); }, dur);
+}
+function render(autoplaying){
+  paint();
+  if(playing){ runBar(); schedule(); }
+}
+function go(i){ idx=(i+scenes.length)%scenes.length; render(); }
+function setPlaying(p){
+  playing=p; document.getElementById('play').textContent = p?'⏸ Pausa':'▶ Reproducir';
+  if(p){ render(); } else { clearTimeout(timer); segs[idx].querySelector('.fill').style.transition='none'; }
+}
+document.getElementById('play').addEventListener('click',()=>setPlaying(!playing));
+document.getElementById('next').addEventListener('click',()=>go(idx+1));
+document.getElementById('prev').addEventListener('click',()=>go(idx-1));
+document.getElementById('restart').addEventListener('click',()=>{ idx=0; setPlaying(true); });
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight') go(idx+1); else if(e.key==='ArrowLeft') go(idx-1);
+  else if(e.key===' '){ e.preventDefault(); setPlaying(!playing); }
+});
+render(); // arranca en autoplay
+</script>
+</body>
+</html>

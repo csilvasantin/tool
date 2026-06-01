@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yokup — Equipos por punto de venta</title>
+<link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
+<link rel="stylesheet" href="yokup.css">
+<script defer src="yokup-nav.js"></script>
+</head>
+<body>
+<nav class="yk-nav" data-active="equipos"></nav>
+<div class="wrap">
+  <h1>Equipos por punto de venta</h1>
+  <div class="sub">Cada equipo es una <em>surface</em> del catálogo Admira (omnipublicity-api). Reporta una incidencia directamente sobre el equipo.</div>
+  <div id="stores"><div class="loading">Cargando catálogo…</div></div>
+</div>
+
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script>
+const TYPE_ICON={pantalla:'🖥️',escaparate:'🪟',mostrador:'🧾',vending:'🥤',pwa:'📱',audio:'🎵',kiosk:'🕹️',otro:'📦'};
+async function boot(){
+  // Puntos dados de alta a mano (recién registrados) primero, luego el catálogo Admira.
+  const nuevos=Yokup.getPendingStoresAsStores();
+  const admira=await Yokup.loadStores();
+  const stores=[...nuevos, ...admira];
+  const el=document.getElementById('stores');
+  el.innerHTML=stores.map(s=>`
+    <div style="margin:0 0 26px">
+      <div class="row"><h3 style="margin:0">${s.name} ${s.is_new?'<span class="pill" style="color:var(--good);border-color:rgba(124,255,178,.4)">nuevo · alta manual</span>':''}</h3>
+        <span class="yk-tail">${s.region||''}</span></div>
+      <div class="meta" style="margin:2px 0 12px">${s.kind} · ${s.addr}</div>
+      <div class="grid">
+        ${s.surfaces.map(eq=>`
+          <div class="card">
+            <div class="row"><span class="pill">${TYPE_ICON[eq.type]||''} ${eq.type}</span>
+              <span class="meta">${eq.status}</span></div>
+            <h3 style="font-size:15px">${eq.name}</h3>
+            <button class="btn" data-store="${s.id}" data-name="${s.name}" data-region="${s.region||''}" data-surf="${eq.name}" data-type="${eq.type}">Reportar incidencia</button>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+  document.querySelectorAll('[data-surf]').forEach(b=>b.addEventListener('click',()=>{
+    Yokup.addIntervention({store_id:b.dataset.store, store_name:b.dataset.name, region:b.dataset.region,
+      surface:b.dataset.surf, surface_type:b.dataset.type, type:'incidencia', origin:'manual', priority:'media',
+      title:'Incidencia en '+b.dataset.surf, description:'Reportada desde el catálogo de equipos.'});
+    b.textContent='✓ Incidencia creada · ver en Panel'; b.disabled=true; b.style.opacity=.6;
+  }));
+}
+Yokup.ready.then(boot);
+</script>
+</body>
+</html>

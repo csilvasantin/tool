@@ -1,0 +1,15 @@
+name = "yokup-api"
+main = "src/index.js"
+compatibility_date = "2025-07-18"
+
+# Secrets (set con `wrangler secret put`, NUNCA en el repo):
+#   SUPABASE_URL           -> https://<ref>.supabase.co
+#   SUPABASE_SERVICE_ROLE  -> service_role key (privilegiada; solo vive en el worker)
+
+[observability]
+enabled = true
+
+# Cuando montes el dominio en Cloudflare, descomenta:
+# [[routes]]
+# pattern = "yokup-api.<tu-zona>/*"
+# zone_name = "<tu-zona>"

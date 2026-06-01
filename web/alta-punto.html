@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yokup — Alta de punto de venta</title>
+<link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
+<link rel="stylesheet" href="yokup.css">
+<script defer src="yokup-nav.js"></script>
+</head>
+<body>
+<nav class="yk-nav" data-active="punto"></nav>
+
+<header class="hero" style="padding-bottom:32px">
+  <p class="eyebrow">Para puntos de venta</p>
+  <h1>Da de alta tu <span class="g">punto de venta</span></h1>
+  <p class="lede">Estancos, kioscos, loterías o cualquier centro con pantallas, hilo musical o kioscos.
+     En cuanto estés dado de alta, las incidencias de tus equipos se gestionan solas.</p>
+</header>
+
+<section class="band" style="border-top:0;padding-top:0">
+  <div class="two">
+
+    <!-- Explicación -->
+    <div class="side punto">
+      <span class="tag">Qué consigues</span>
+      <h3>Tus averías, resueltas sin perseguir a nadie</h3>
+      <p class="who">Así funciona una vez te das de alta:</p>
+      <ol class="steps">
+        <li><b>Registras tu punto y tus equipos</b><span>Si ya estás en Admira, importamos tus equipos automáticamente. Si no, los añades aquí.</span></li>
+        <li><b>Las incidencias entran solas</b><span>Cuando un equipo deja de funcionar, Admira abre la incidencia sin que tengas que hacer nada.</span></li>
+        <li><b>Un instalador la toma</b><span>Se publica en tu zona y un técnico cualificado la acepta. Ves el estado en tu panel.</span></li>
+        <li><b>Tú valoras</b><span>Al cerrarse, puntúas el trabajo. Cuanto mejor el técnico, antes vuelve a estar todo en marcha.</span></li>
+      </ol>
+      <div class="note">¿Ya operas con Admira? Marca la casilla del formulario y enlazamos tus equipos
+        existentes; no tendrás que darlos de alta uno a uno.</div>
+    </div>
+
+    <!-- Formulario -->
+    <div class="side">
+      <span class="tag" style="color:var(--brand)">Formulario de alta</span>
+      <h3>Tus datos</h3>
+      <p class="who">Demo: por ahora se guarda en este navegador. En producción crea el punto en Yokup.</p>
+      <form class="form" id="f">
+        <div class="field"><label>Nombre del punto de venta *</label>
+          <input name="name" required placeholder="Ej: Estanco Santa Rosa"></div>
+        <div class="field"><label>Tipo de centro *</label>
+          <select name="kind" required>
+            <option value="">Selecciona…</option>
+            <option>Estanco</option><option>Kiosco / prensa</option><option>Lotería</option>
+            <option>Vapeo</option><option>Otro retail</option>
+          </select></div>
+        <div class="field"><label>Dirección y ciudad *</label>
+          <input name="addr" required placeholder="Calle… · Ciudad"></div>
+        <div class="field"><label>Persona de contacto y teléfono</label>
+          <input name="contact" placeholder="Nombre · 6XX XXX XXX"></div>
+        <div class="field"><label>¿Qué equipos tienes? *</label>
+          <div class="checks">
+            <label class="chk"><input type="checkbox" name="eq" value="pantalla"> 🖥️ Pantallas</label>
+            <label class="chk"><input type="checkbox" name="eq" value="escaparate"> 🪟 Escaparate</label>
+            <label class="chk"><input type="checkbox" name="eq" value="mostrador"> 🧾 Mostrador</label>
+            <label class="chk"><input type="checkbox" name="eq" value="vending"> 🥤 Vending</label>
+            <label class="chk"><input type="checkbox" name="eq" value="audio"> 🎵 Hilo musical</label>
+            <label class="chk"><input type="checkbox" name="eq" value="kiosk"> 🕹️ Kiosco interactivo</label>
+          </div></div>
+        <div class="field"><label class="chk" style="display:inline-flex">
+          <input type="checkbox" name="admira"> Ya soy cliente de Admira (importar mis equipos)</label></div>
+        <button type="submit" class="cta punto" style="width:100%;justify-content:center">Dar de alta mi punto</button>
+        <div id="ok"></div>
+      </form>
+    </div>
+
+  </div>
+</section>
+
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script>
+document.getElementById('f').addEventListener('submit',e=>{
+  e.preventDefault();
+  const fd=new FormData(e.target);
+  const eq=[...e.target.querySelectorAll('input[name=eq]:checked')].map(c=>c.value);
+  if(!eq.length){ alert('Selecciona al menos un tipo de equipo.'); return; }
+  const s=Yokup.addStore({ name:fd.get('name'), kind:fd.get('kind'), addr:fd.get('addr'),
+    contact:fd.get('contact'), equipment:eq, from_admira:!!fd.get('admira') });
+  document.getElementById('ok').innerHTML=
+    `<div class="ok-msg">✓ <b>${s.name}</b> dado de alta con ${eq.length} tipo(s) de equipo.
+     ${s.from_admira?'Importaremos tus equipos desde Admira.':'Tus equipos quedan registrados.'}
+     Las incidencias empezarán a llegar a tu <a href="panel.html">panel</a>.</div>`;
+  e.target.reset();
+});
+</script>
+</body>
+</html>

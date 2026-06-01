@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yokup — Panel de intervenciones</title>
+<link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
+<link rel="stylesheet" href="yokup.css">
+<script defer src="yokup-nav.js"></script>
+</head>
+<body>
+<nav class="yk-nav" data-active="dashboard"></nav>
+<div class="wrap">
+  <div class="row" style="align-items:flex-end">
+    <div>
+      <h1>Panel de intervenciones</h1>
+      <div class="sub">Incidencias, instalaciones y mantenimientos sobre los equipos de cada punto de venta.</div>
+    </div>
+    <button class="btn" id="new">+ Nueva intervención</button>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <h3 style="margin:6px 0 12px">Últimas intervenciones</h3>
+  <div id="list" class="grid"><div class="loading">Cargando…</div></div>
+</div>
+
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script>
+const TYPE_LABEL={incidencia:'Incidencia',instalacion:'Instalación',desinstalacion:'Desinstalación',mantenimiento:'Mantenimiento'};
+const fmt=d=>new Date(d).toLocaleDateString('es-ES',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+
+function kpiBlock(items){
+  const open=items.filter(i=>!['cerrada','cancelada'].includes(i.status)).length;
+  const fromAdmira=items.filter(i=>i.origin==='admira').length;
+  const urgent=items.filter(i=>['alta','critica'].includes(i.priority)&&!['cerrada','cancelada'].includes(i.status)).length;
+  const inProgress=items.filter(i=>i.status==='en_curso').length;
+  const k=[['Abiertas',open],['Urgentes',urgent],['En curso',inProgress],['Desde Admira',fromAdmira]];
+  document.getElementById('kpis').innerHTML=k.map(([l,n])=>`<div class="kpi"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+}
+function techName(id){ const t=id&&Yokup.getTechnicianById(id); return t?t.name:'el técnico'; }
+function rateBlock(i){
+  // Resuelta y sin valorar → selector de estrellas para el punto de venta.
+  if(i.status==='resuelta' && !Yokup.getRatingForIntervention(i.id)){
+    return `<div class="rate" data-rate="${i.id}" data-tech="${i.technician_id||''}" data-store="${i.store_id||''}">
+      <div class="meta" style="margin:10px 0 6px">Valora el trabajo de <b>${techName(i.technician_id)}</b>:</div>
+      <div class="stars">${[1,2,3,4,5].map(s=>`<span class="star" data-s="${s}">★</span>`).join('')}</div>
+      <textarea class="rate-c" rows="2" placeholder="Comentario (opcional)"></textarea>
+      <button class="btn rate-go" disabled>Enviar valoración</button>
+    </div>`;
+  }
+  const r=Yokup.getRatingForIntervention(i.id);
+  if(r){ return `<div class="meta" style="margin-top:10px">Valorado: <b style="color:var(--accent,#ffd866)">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</b>${r.comment?' · "'+r.comment+'"':''}</div>`; }
+  return '';
+}
+function card(i){
+  return `<div class="card">
+    <div class="row"><span class="pill">${TYPE_LABEL[i.type]||i.type}</span>
+      <span class="st st-${i.status}">${i.status}</span></div>
+    <h3>${i.title}</h3>
+    <div class="meta">${i.store_name} · ${i.surface||''} · ${i.region||''}</div>
+    <div class="meta" style="margin:8px 0">${i.description||''}</div>
+    <div class="row"><span class="meta">${i.origin==='admira'?'⚙ auto · Admira':'✎ manual'} · ${fmt(i.created_at)}</span>
+      <span class="meta prio-${i.priority}">${i.priority}</span></div>
+    ${rateBlock(i)}
+  </div>`;
+}
+function wireRatings(){
+  document.querySelectorAll('.rate').forEach(box=>{
+    let chosen=0;
+    const stars=box.querySelectorAll('.star');
+    const paint=n=>stars.forEach(st=>st.classList.toggle('on', Number(st.dataset.s)<=n));
+    stars.forEach(st=>{
+      st.addEventListener('mouseenter',()=>paint(Number(st.dataset.s)));
+      st.addEventListener('mouseleave',()=>paint(chosen));
+      st.addEventListener('click',()=>{chosen=Number(st.dataset.s); paint(chosen);
+        box.querySelector('.rate-go').disabled=false;});
+    });
+    box.querySelector('.rate-go').addEventListener('click',()=>{
+      if(!chosen) return;
+      Yokup.addRating({intervention_id:box.dataset.rate, technician_id:box.dataset.tech,
+        store_id:box.dataset.store, stars:chosen, comment:box.querySelector('.rate-c').value.trim()});
+      Yokup.updateIntervention(box.dataset.rate,{status:'cerrada'});
+      boot();
+    });
+  });
+}
+async function boot(){
+  const items=Yokup.getInterventions();
+  kpiBlock(items);
+  document.getElementById('list').innerHTML = items.length
+    ? items.map(card).join('') : '<div class="muted">Sin intervenciones todavía.</div>';
+  wireRatings();
+}
+document.getElementById('new').addEventListener('click', async ()=>{
+  const st=await Yokup.loadStores();
+  const store=st[Math.floor(st.length/2)]||st[0]; if(!store) return alert('No hay stores cargados');
+  const surf=(store.surfaces[0]||{});
+  Yokup.addIntervention({store_id:store.id, store_name:store.name, region:store.region,
+    surface:surf.name||'', type:'incidencia', origin:'manual', priority:'media',
+    title:'Nueva incidencia en '+(surf.name||store.name),
+    description:'Creada manualmente desde el panel (demo F0).'});
+  boot();
+});
+Yokup.ready.then(boot);
+</script>
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yokup — Tablón de trabajos</title>
+<link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
+<link rel="stylesheet" href="yokup.css">
+<script defer src="yokup-nav.js"></script>
+</head>
+<body>
+<nav class="yk-nav" data-active="marketplace"></nav>
+<div class="wrap">
+  <h1>Tablón de trabajos</h1>
+  <div class="sub">Intervenciones disponibles. Como instalador, ves filtrados los trabajos de tus zonas y especialidades.</div>
+
+  <div id="who"></div>
+
+  <div id="mine-wrap" style="display:none">
+    <h3 style="margin:26px 0 12px">Mis trabajos en curso <span class="meta" id="mine-count"></span></h3>
+    <div id="mine" class="grid"></div>
+  </div>
+
+  <h3 style="margin:26px 0 12px" id="avail-h">Trabajos disponibles</h3>
+  <div class="row" style="gap:10px;margin:0 0 18px">
+    <select id="zone" class="btn ghost" style="cursor:pointer"></select>
+    <span class="yk-tail" id="count"></span>
+  </div>
+
+  <div id="list" class="grid"><div class="loading">Cargando…</div></div>
+</div>
+
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script>
+const TYPE_LABEL={incidencia:'Incidencia',instalacion:'Instalación',desinstalacion:'Desinstalación',mantenimiento:'Mantenimiento'};
+const SURF_LABEL={pantalla:'Pantalla',escaparate:'Escaparate',mostrador:'Mostrador',vending:'Vending',audio:'Audio',kiosk:'Kiosco',pwa:'PWA',otro:'Otro'};
+const fmt=d=>new Date(d).toLocaleDateString('es-ES',{day:'2-digit',month:'short'});
+const AVAILABLE=['nueva','publicada'];
+let mineMode=true;
+
+const tech=()=>Yokup.getActiveTechnician();
+const zoneOk=(i,t)=>!t||!t.zones||!t.zones.length|| t.zones.includes(i.region);
+const skillOk=(i,t)=>!t||!t.skills||!t.skills.length|| !i.surface_type || t.skills.includes(i.surface_type);
+
+function whoBanner(){
+  const t=tech(); const el=document.getElementById('who');
+  if(!t){
+    el.innerHTML=`<div class="note" style="margin:0">Aún no hay ningún instalador dado de alta en este navegador.
+      <a href="alta-instalador.html">Date de alta como instalador</a> para ver el tablón filtrado por tus zonas y especialidades.</div>`;
+    mineMode=false; return;
+  }
+  const rating = t.rating_n
+    ? `<span class="pill" style="color:var(--accent,#ffd866);border-color:rgba(255,216,102,.4)">★ ${t.rating_avg.toFixed(1)} · ${t.rating_n} valoración${t.rating_n>1?'es':''}</span>`
+    : `<span class="pill">★ sin valoraciones aún</span>`;
+  el.innerHTML=`<div class="side inst" style="padding:16px 18px">
+    <div class="row" style="align-items:flex-start">
+      <div>
+        <span class="tag">Viendo como instalador</span>
+        <h3 style="margin:6px 0 4px;font-size:18px">${t.name} <span class="meta">· ${t.kind}</span> ${rating}</h3>
+        <div class="meta">Zonas: ${(t.zones||[]).join(', ')||'—'} · Especialidades: ${(t.skills||[]).map(s=>SURF_LABEL[s]||s).join(', ')||'—'}</div>
+      </div>
+      <button class="btn ghost" id="toggle">${mineMode?'Ver todos los trabajos':'Solo mis trabajos'}</button>
+    </div></div>`;
+  document.getElementById('toggle').addEventListener('click',()=>{mineMode=!mineMode; whoBanner(); render();});
+}
+
+// ---- Mis trabajos (aceptados / en curso / resueltos) del técnico activo ----
+const STEP_NEXT={aceptada:'en_curso', en_curso:'resuelta'};
+const STEP_LABEL={aceptada:'Empezar intervención', en_curso:'Marcar como resuelta'};
+function mineCard(i){
+  const next=STEP_NEXT[i.status];
+  const action = next
+    ? `<button class="btn" data-advance="${i.id}" data-next="${next}">${STEP_LABEL[i.status]}</button>`
+    : (i.status==='resuelta'
+        ? `<div class="meta" style="margin-top:10px">⏳ Esperando valoración del punto de venta</div>`
+        : `<div class="meta" style="margin-top:10px">✓ Cerrada${Yokup.getRatingForIntervention(i.id)?' · ★ '+Yokup.getRatingForIntervention(i.id).stars:''}</div>`);
+  return `<div class="card">
+    <div class="row"><span class="pill">${TYPE_LABEL[i.type]||i.type}</span>
+      <span class="st st-${i.status}">${i.status}</span></div>
+    <h3>${i.title}</h3>
+    <div class="meta">${i.store_name} · ${i.surface||''} · ${i.region||''}</div>
+    ${action}
+  </div>`;
+}
+function renderMine(){
+  const t=tech(); const wrap=document.getElementById('mine-wrap');
+  if(!t){ wrap.style.display='none'; return; }
+  const mine=Yokup.getInterventions().filter(i=>i.technician_id===t.id
+    && ['aceptada','en_curso','resuelta','valorada','cerrada'].includes(i.status));
+  if(!mine.length){ wrap.style.display='none'; return; }
+  wrap.style.display='block';
+  document.getElementById('mine-count').textContent='· '+mine.length;
+  document.getElementById('mine').innerHTML=mine.map(mineCard).join('');
+  document.querySelectorAll('[data-advance]').forEach(b=>b.addEventListener('click',()=>{
+    Yokup.updateIntervention(b.dataset.advance,{status:b.dataset.next});
+    refresh();
+  }));
+}
+
+function matchPills(i,t){
+  if(!t||!mineMode) return '';
+  const z=zoneOk(i,t), s=skillOk(i,t);
+  return `<div style="margin:6px 0 2px">
+    <span class="st ${z?'st-resuelta':'st-cancelada'}">${z?'✓':'✗'} zona</span>
+    <span class="st ${s?'st-resuelta':'st-cancelada'}">${s?'✓':'✗'} especialidad</span></div>`;
+}
+function card(i,t){
+  return `<div class="card">
+    <div class="row"><span class="pill">${TYPE_LABEL[i.type]||i.type}</span>
+      <span class="meta prio-${i.priority}">prioridad ${i.priority}</span></div>
+    <h3>${i.title}</h3>
+    <div class="meta">${i.store_name} · ${i.surface||''} · ${i.region||''}</div>
+    ${matchPills(i,t)}
+    <div class="meta" style="margin:8px 0">${i.description||''}</div>
+    <div class="row"><span class="meta">Publicada ${fmt(i.created_at)}</span></div>
+    <button class="btn" data-accept="${i.id}">Aceptar trabajo</button>
+  </div>`;
+}
+function render(){
+  const t=tech();
+  const zoneSel=document.getElementById('zone');
+  zoneSel.parentElement.style.display = mineMode ? 'none' : 'flex';
+  let items=Yokup.getInterventions().filter(i=>AVAILABLE.includes(i.status));
+  if(mineMode && t){
+    items=items.filter(i=>zoneOk(i,t)&&skillOk(i,t));
+    document.getElementById('count').textContent=items.length+' para ti';
+  } else {
+    const zone=zoneSel.value;
+    if(zone&&zone!=='*') items=items.filter(i=>i.region===zone);
+    document.getElementById('count').textContent=items.length+' disponibles';
+  }
+  document.getElementById('list').innerHTML = items.length
+    ? items.map(i=>card(i,t)).join('')
+    : `<div class="muted">${mineMode?'No hay trabajos que encajen con tus zonas y especialidades ahora mismo.':'No hay trabajos disponibles en esta zona.'}</div>`;
+  document.querySelectorAll('[data-accept]').forEach(b=>b.addEventListener('click',()=>{
+    Yokup.updateIntervention(b.dataset.accept,{status:'aceptada', technician_id:(tech()||{}).id});
+    refresh();
+  }));
+}
+function refresh(){ whoBanner(); renderMine(); render(); }
+function boot(){
+  const zones=[...new Set(Yokup.getInterventions().map(i=>i.region).filter(Boolean))].sort();
+  document.getElementById('zone').innerHTML='<option value="*">Todas las zonas</option>'+
+    zones.map(z=>`<option value="${z}">${z}</option>`).join('');
+  document.getElementById('zone').addEventListener('change',render);
+  mineMode = !!tech();
+  refresh();
+}
+Yokup.ready.then(boot);
+</script>
+</body>
+</html>

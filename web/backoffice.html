@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yokup — Back-office del operador</title>
+<link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
+<link rel="stylesheet" href="yokup.css">
+<script defer src="yokup-nav.js"></script>
+</head>
+<body>
+<nav class="yk-nav" data-active="backoffice"></nav>
+<div class="wrap">
+  <h1>Back-office del operador</h1>
+  <div class="sub">Supervisa todas las intervenciones, asigna técnicos, valida altas y mira las métricas de la red.</div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="ops">Operativa</button>
+    <button class="tab" data-tab="altas">Altas <span class="b" id="b-altas">0</span></button>
+    <button class="tab" data-tab="metrics">Métricas</button>
+  </div>
+
+  <section id="tab-ops">
+    <div class="filters">
+      <select id="f-status"><option value="">Todos los estados</option></select>
+      <select id="f-zone"><option value="">Todas las zonas</option></select>
+      <select id="f-prio"><option value="">Toda prioridad</option><option>critica</option><option>alta</option><option>media</option><option>baja</option></select>
+      <select id="f-origin"><option value="">Todo origen</option><option value="admira">Admira</option><option value="manual">Manual</option></select>
+      <input id="f-q" placeholder="Buscar…" style="flex:1;min-width:160px">
+      <span class="yk-tail" id="ops-count" style="align-self:center"></span>
+    </div>
+    <table class="tbl"><thead><tr>
+      <th>Intervención</th><th>Punto · equipo</th><th>Zona</th><th>Prioridad</th><th>Estado</th><th>Técnico</th><th>Acciones</th>
+    </tr></thead><tbody id="ops-rows"></tbody></table>
+  </section>
+
+  <section id="tab-altas" style="display:none">
+    <h3 style="margin:6px 0 12px">Técnicos pendientes de validación</h3>
+    <div id="tech-pending"></div>
+    <h3 style="margin:26px 0 12px">Puntos de venta dados de alta</h3>
+    <div id="store-pending"></div>
+  </section>
+
+  <section id="tab-metrics" style="display:none">
+    <div class="op-kpis" id="m-kpis"></div>
+    <h3 style="margin:6px 0 12px">Carga por zona <span class="meta">(intervenciones abiertas)</span></h3>
+    <div class="bars" id="m-zones"></div>
+    <h3 style="margin:26px 0 12px">Ranking de técnicos <span class="meta">(por valoración media)</span></h3>
+    <div class="rank" id="m-rank"></div>
+  </section>
+</div>
+
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script>
+const TYPE_LABEL={incidencia:'Incidencia',instalacion:'Instalación',desinstalacion:'Desinstalación',mantenimiento:'Mantenimiento'};
+const SURF_LABEL={pantalla:'Pantalla',escaparate:'Escaparate',mostrador:'Mostrador',vending:'Vending',audio:'Audio',kiosk:'Kiosco',pwa:'PWA',otro:'Otro'};
+const STATUSES=['nueva','publicada','aceptada','en_curso','resuelta','cerrada','cancelada'];
+const OPEN=s=>!['cerrada','cancelada'].includes(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---------- Tabs ----------
+function showTab(id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===id));
+  ['ops','altas','metrics'].forEach(s=>document.getElementById('tab-'+s).style.display = s===id?'block':'none');
+  if(id==='altas') renderAltas(); if(id==='metrics') renderMetrics(); if(id==='ops') renderOps();
+}
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>showTab(t.dataset.tab)));
+
+// ---------- Operativa: supervisar + asignar/reasignar ----------
+function validTechs(){ return Yokup.getTechnicians().filter(t=>t.status==='activo'); }
+function techOptions(sel){
+  return '<option value="">— sin asignar —</option>'+validTechs().map(t=>
+    `<option value="${t.id}" ${t.id===sel?'selected':''}>${esc(t.name)} (${(t.skills||[]).map(s=>SURF_LABEL[s]||s).join('/')||'—'})</option>`).join('');
+}
+function opsRow(i){
+  const t=i.technician_id?Yokup.getTechnicianById(i.technician_id):null;
+  const canCancel=OPEN(i.status);
+  return `<tr data-id="${i.id}">
+    <td><div class="t-title">${esc(i.title)}</div><div class="meta">${TYPE_LABEL[i.type]||i.type} · ${i.origin==='admira'?'⚙ Admira':'✎ manual'}</div></td>
+    <td>${esc(i.store_name)}<div class="meta">${esc(i.surface||'')}</div></td>
+    <td>${esc(i.region||'')}</td>
+    <td class="prio-${i.priority}">${i.priority}</td>
+    <td><span class="st st-${i.status}">${i.status}</span></td>
+    <td><select class="assign" data-assign="${i.id}">${techOptions(t&&t.id)}</select></td>
+    <td>
+      ${canCancel?`<button class="mini bad" data-cancel="${i.id}">Cancelar</button>`:''}
+    </td>
+  </tr>`;
+}
+function renderOps(){
+  const all=Yokup.getInterventions();
+  // poblar selects de filtro una vez
+  const fs=document.getElementById('f-status');
+  if(fs.options.length===1) STATUSES.forEach(s=>fs.add(new Option(s,s)));
+  const fz=document.getElementById('f-zone');
+  if(fz.options.length===1) [...new Set(all.map(i=>i.region).filter(Boolean))].sort().forEach(z=>fz.add(new Option(z,z)));
+
+  const st=fs.value, zo=fz.value, pr=document.getElementById('f-prio').value,
+        og=document.getElementById('f-origin').value, q=document.getElementById('f-q').value.toLowerCase();
+  let rows=all.filter(i=>
+    (!st||i.status===st)&&(!zo||i.region===zo)&&(!pr||i.priority===pr)&&(!og||i.origin===og)&&
+    (!q || (i.title+' '+i.store_name+' '+(i.surface||'')).toLowerCase().includes(q)));
+  document.getElementById('ops-count').textContent=rows.length+' de '+all.length;
+  document.getElementById('ops-rows').innerHTML = rows.length
+    ? rows.map(opsRow).join('') : '<tr><td colspan="7" class="muted">Sin resultados.</td></tr>';
+
+  document.querySelectorAll('[data-assign]').forEach(sel=>sel.addEventListener('change',()=>{
+    const id=sel.dataset.assign, tid=sel.value||null;
+    // asignar publica el trabajo si estaba 'nueva'; reasignar mantiene estado salvo que se quite el técnico
+    const iv=Yokup.getInterventions().find(x=>x.id===id);
+    const patch={technician_id:tid};
+    if(tid && (iv.status==='nueva'||iv.status==='publicada')) patch.status='aceptada';
+    if(!tid && ['aceptada','en_curso'].includes(iv.status)) patch.status='publicada';
+    Yokup.updateIntervention(id,patch); renderOps();
+  }));
+  document.querySelectorAll('[data-cancel]').forEach(b=>b.addEventListener('click',()=>{
+    if(confirm('¿Cancelar esta intervención?')){ Yokup.updateIntervention(b.dataset.cancel,{status:'cancelada'}); renderOps(); }
+  }));
+}
+['f-status','f-zone','f-prio','f-origin'].forEach(id=>document.getElementById(id).addEventListener('change',renderOps));
+document.getElementById('f-q').addEventListener('input',renderOps);
+
+// ---------- Altas: validar técnicos y puntos ----------
+function renderAltas(){
+  const techs=Yokup.getTechnicians();
+  const pend=techs.filter(t=>t.status==='pendiente');
+  document.getElementById('b-altas').textContent=pend.length;
+  document.getElementById('tech-pending').innerHTML = techs.length
+    ? `<table class="tbl"><thead><tr><th>Técnico</th><th>Tipo</th><th>Zonas</th><th>Especialidades</th><th>Estado</th><th>Acción</th></tr></thead><tbody>`+
+      techs.map(t=>`<tr>
+        <td><div class="t-title">${esc(t.name)}</div><div class="meta">${esc(t.contact||'')}</div></td>
+        <td>${esc(t.kind)}</td>
+        <td>${esc((t.zones||[]).join(', '))}</td>
+        <td>${esc((t.skills||[]).map(s=>SURF_LABEL[s]||s).join(', '))}</td>
+        <td><span class="st st-${t.status==='activo'?'resuelta':(t.status==='suspendido'||t.status==='baja'?'cancelada':'publicada')}">${t.status}</span></td>
+        <td>${t.status==='pendiente'
+          ? `<button class="mini good" data-ok-tech="${t.id}">Aprobar</button> <button class="mini bad" data-no-tech="${t.id}">Rechazar</button>`
+          : (t.status==='activo'?`<button class="mini ghost" data-susp-tech="${t.id}">Suspender</button>`:`<button class="mini" data-ok-tech="${t.id}">Reactivar</button>`)}</td>
+      </tr>`).join('')+`</tbody></table>`
+    : '<div class="muted">Aún no hay técnicos dados de alta.</div>';
+
+  const stores=Yokup.getPendingStores();
+  document.getElementById('store-pending').innerHTML = stores.length
+    ? `<table class="tbl"><thead><tr><th>Punto</th><th>Tipo</th><th>Dirección</th><th>Equipos</th><th>Admira</th><th>Estado</th></tr></thead><tbody>`+
+      stores.map(s=>`<tr>
+        <td class="t-title">${esc(s.name)}</td><td>${esc(s.kind||'')}</td><td>${esc(s.addr||'')}</td>
+        <td>${esc((s.equipment||[]).map(e=>SURF_LABEL[e]||e).join(', '))}</td>
+        <td>${s.from_admira?'✓':'—'}</td>
+        <td>${s.status==='rechazado'?'<span class="st st-cancelada">rechazado</span>':'<span class="st st-resuelta">activo</span>'}</td>
+      </tr>`).join('')+`</tbody></table>`
+    : '<div class="muted">Aún no se ha dado de alta ningún punto manualmente.</div>';
+
+  document.querySelectorAll('[data-ok-tech]').forEach(b=>b.addEventListener('click',()=>{Yokup.updateTechnician(b.dataset.okTech,{status:'activo'}); renderAltas();}));
+  document.querySelectorAll('[data-no-tech]').forEach(b=>b.addEventListener('click',()=>{Yokup.updateTechnician(b.dataset.noTech,{status:'baja'}); renderAltas();}));
+  document.querySelectorAll('[data-susp-tech]').forEach(b=>b.addEventListener('click',()=>{Yokup.updateTechnician(b.dataset.suspTech,{status:'suspendido'}); renderAltas();}));
+}
+
+// ---------- Métricas ----------
+function renderMetrics(){
+  const all=Yokup.getInterventions(), techs=Yokup.getTechnicians();
+  const open=all.filter(i=>OPEN(i.status));
+  const k=[
+    ['Total', all.length],
+    ['Abiertas', open.length],
+    ['En curso', all.filter(i=>i.status==='en_curso').length],
+    ['Resueltas (pdte. valorar)', all.filter(i=>i.status==='resuelta').length],
+    ['Cerradas', all.filter(i=>i.status==='cerrada').length],
+    ['Técnicos activos', techs.filter(t=>t.status==='activo').length],
+  ];
+  document.getElementById('m-kpis').innerHTML=k.map(([l,n])=>`<div class="kpi"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+
+  // carga por zona
+  const byZone={}; open.forEach(i=>{const z=i.region||'Sin zona'; byZone[z]=(byZone[z]||0)+1;});
+  const max=Math.max(1,...Object.values(byZone));
+  const zones=Object.entries(byZone).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('m-zones').innerHTML = zones.length
+    ? zones.map(([z,n])=>`<div class="bar-row"><span>${esc(z)}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/max*100)}%"></div></div>
+        <span class="meta">${n}</span></div>`).join('')
+    : '<div class="muted">Sin intervenciones abiertas.</div>';
+
+  // ranking de técnicos
+  const ranked=techs.filter(t=>t.rating_n>0).sort((a,b)=>b.rating_avg-a.rating_avg).slice(0,10);
+  document.getElementById('m-rank').innerHTML = ranked.length
+    ? ranked.map((t,i)=>`<div class="rank-row"><span class="pos">${i+1}</span>
+        <span class="nm">${esc(t.name)} <span class="meta">· ${esc((t.zones||[]).join(', '))}</span></span>
+        <span class="sc">★ ${t.rating_avg.toFixed(1)} · ${t.rating_n}</span></div>`).join('')
+    : '<div class="muted">Todavía no hay técnicos con valoraciones.</div>';
+}
+
+Yokup.ready.then(()=>showTab('ops'));
+// refrescar contador de altas al cargar aunque estés en otra pestaña
+Yokup.ready.then(()=>{ document.getElementById('b-altas').textContent=Yokup.getTechnicians().filter(t=>t.status==='pendiente').length; });
+</script>
+</body>
+</html>
