@@ -8,6 +8,14 @@ desde **Admira** vía webhook. Al cerrar, el centro **valora al técnico**.
 
 > Definición completa y decisiones: [`docs/00-definicion.md`](docs/00-definicion.md)
 
+## Estado de despliegue
+
+- **Web (producción)**: GitHub Pages → **http://www.carlossilva.info/yokup/**
+  Redespliega solo en cada push que toque `web/` (workflow `.github/workflows/pages.yml`).
+- **Backend**: hoy en modo `local` (demo en localStorage). Para activar Supabase falta solo
+  desplegar el worker y poner su URL en `web/config.js` — ver [`api/README.md`](api/README.md).
+  El worker ya tiene `www.carlossilva.info` en `ALLOWED_ORIGINS`.
+
 ## Estructura
 
 ```

@@ -25,8 +25,14 @@
  */
 
 const ALLOWED_ORIGINS = new Set([
+  // Producción actual (GitHub Pages bajo dominio de la cuenta).
+  "https://www.carlossilva.info",
+  "http://www.carlossilva.info",
+  "https://csilvasantin.github.io",   // fallback github.io
+  // Dominio propio futuro (cuando se monte yokup.app).
   "https://yokup.app",
   "https://www.yokup.app",
+  // Desarrollo local.
   "http://localhost:8788",
   "http://localhost:8770",
   "http://127.0.0.1:8788",
@@ -192,7 +198,7 @@ async function body(request) { try { return await request.json(); } catch { retu
 
 function cors(request) {
   const origin = request.headers.get("Origin") || "";
-  const allowed = ALLOWED_ORIGINS.has(origin) ? origin : "https://yokup.app";
+  const allowed = ALLOWED_ORIGINS.has(origin) ? origin : "https://www.carlossilva.info";
   return {
     "Access-Control-Allow-Origin": allowed,
     "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
