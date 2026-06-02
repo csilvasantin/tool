@@ -10,11 +10,13 @@ desde **Admira** vía webhook. Al cerrar, el centro **valora al técnico**.
 
 ## Estado de despliegue
 
-- **Web (live ahora)**: **http://www.carlossilva.info/tool/** y https://csilvasantin.github.io/tool/
-  (repo `csilvasantin/tool`, publicado por `.github/workflows/pages.yml` en cada push a `web/`).
-- **Web (destino final)**: **https://www.yokup.com/tool/**. Repo ya renombrado a `tool` (✓ subruta).
-  **Pendiente (DNS, lo haces tú)**: apuntar `www.yokup.com` a GitHub Pages (custom domain + CNAME a
-  `csilvasantin.github.io`). Ver "Cómo dejar la web en www.yokup.com/tool" más abajo.
+- **Web (live)**: **https://csilvasantin.github.io/tool/** (repo `csilvasantin/tool`,
+  publicado por `.github/workflows/pages.yml` en cada push a `web/`).
+- **Auth**: ✅ login real con **Supabase magic link**. Lectura pública; escribir requiere sesión
+  (RLS: anon SELECT, authenticated ALL). Redirect URLs y Site URL configuradas en Supabase.
+- **Nota dominio**: el repo de usuario `csilvasantin.github.io` tenía un `CNAME=pixeria.com`
+  (dominio en venta, sin DNS) que tumbaba toda la cuenta Pages; se eliminó. Si se quiere
+  `yokup.com/tool`, liberar `www.yokup.com` del repo `yarig-startups` y fijar el dominio aquí.
 - **Backend**: ✅ **en producción con Supabase** (modo `supabase`, directo desde el navegador
   con la anon key + RLS demo, sin worker). Proyecto `aswwjkfejdfglpxlgbjl` (eu-central-1).
   Esquema: `db/schema-demo.sql` + `db/rls-demo.sql`. Verificado el ciclo completo escribiendo
