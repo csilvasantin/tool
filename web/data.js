@@ -258,7 +258,13 @@ window.Yokup = (function(){
     const KEY = CFG.SUPABASE_ANON_KEY||'';
     const cache = { interventions:[], technicians:[], ratings:[], stores:[] };
     let activeTechId = (()=>{ try{return localStorage.getItem('yokup.active_tech.v1');}catch(e){return null;} })();
-    const H = (extra)=>({ apikey:KEY, Authorization:'Bearer '+KEY, 'Content-Type':'application/json', ...(extra||{}) });
+    // Lectura: anon key basta. Escritura: usa el JWT del usuario logueado (RLS lo exige).
+    const A = window.YokupAuth;
+    async function authBearer(){
+      if(!A) return KEY;
+      try{ const tk = await A.ensureFresh(); return tk || KEY; }catch(e){ return KEY; }
+    }
+    const H = (extra, bearer)=>({ apikey:KEY, Authorization:'Bearer '+(bearer||KEY), 'Content-Type':'application/json', ...(extra||{}) });
 
     async function sel(table){
       const r = await fetch(`${URL}/rest/v1/${table}?select=*&order=created_at.desc`, { headers:H() });
@@ -266,11 +272,13 @@ window.Yokup = (function(){
       return await r.json();
     }
     async function ins(table,row){
-      const r = await fetch(`${URL}/rest/v1/${table}`, { method:'POST', headers:H({Prefer:'return=minimal'}), body:JSON.stringify(row) });
+      const b = await authBearer();
+      const r = await fetch(`${URL}/rest/v1/${table}`, { method:'POST', headers:H({Prefer:'return=minimal'}, b), body:JSON.stringify(row) });
       if(!r.ok) throw new Error('supabase POST '+table+' '+r.status+': '+await r.text());
     }
     async function upd(table,id,patch){
-      const r = await fetch(`${URL}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, { method:'PATCH', headers:H({Prefer:'return=minimal'}), body:JSON.stringify(patch) });
+      const b = await authBearer();
+      const r = await fetch(`${URL}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, { method:'PATCH', headers:H({Prefer:'return=minimal'}, b), body:JSON.stringify(patch) });
       if(!r.ok) throw new Error('supabase PATCH '+table+' '+r.status+': '+await r.text());
     }
     const fireIns=(t,r)=>ins(t,r).catch(e=>console.error('[supabase] insert failed',t,e));
@@ -282,9 +290,13 @@ window.Yokup = (function(){
           sel('interventions'), sel('technicians'), sel('ratings'), sel('stores'),
         ]);
         cache.interventions = iv||[]; cache.technicians = tc||[]; cache.ratings = rt||[]; cache.stores = st||[];
-        // Si la BD está vacía, sembramos las intervenciones demo (una sola vez).
-        if(!cache.interventions.length){
+        // Si la BD está vacía Y hay sesión (escribir requiere auth), sembramos el demo.
+        const canWrite = A ? !!(await A.ensureFresh()) : true;
+        if(!cache.interventions.length && canWrite){
           for(const s of seedInterventions()){ cache.interventions.push(s); fireIns('interventions',s); }
+        } else if(!cache.interventions.length){
+          // Sin sesión: mostramos el seed solo en memoria (no se persiste hasta loguearse).
+          for(const s of seedInterventions()) cache.interventions.push(s);
         }
       }catch(e){ console.error('[supabase] hydrate failed', e); }
     }

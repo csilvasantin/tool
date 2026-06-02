@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Yokup — Panel de intervenciones</title>
 <link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
-<link rel="stylesheet" href="yokup.css">
-<script defer src="yokup-nav.js"></script>
+<link rel="stylesheet" href="yokup.css?v=20260602">
+<script defer src="yokup-nav.js?v=20260602"></script>
 </head>
 <body>
 <nav class="yk-nav" data-active="dashboard"></nav>
@@ -25,8 +25,9 @@
   <div id="list" class="grid"><div class="loading">Cargando…</div></div>
 </div>
 
-<script src="config.js"></script>
-<script src="data.js"></script>
+<script src="config.js?v=20260602"></script>
+<script src="auth.js?v=20260602"></script>
+<script src="data.js?v=20260602"></script>
 <script>
 const TYPE_LABEL={incidencia:'Incidencia',instalacion:'Instalación',desinstalacion:'Desinstalación',mantenimiento:'Mantenimiento'};
 const fmt=d=>new Date(d).toLocaleDateString('es-ES',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
@@ -104,6 +105,9 @@ document.getElementById('new').addEventListener('click', async ()=>{
   boot();
 });
 Yokup.ready.then(boot);
+YokupAuth.ready.then(()=>YokupAuth.writeGate('.wrap','Inicia sesión para crear o valorar intervenciones.'));
+YokupAuth.onChange(()=>{ const g=document.querySelector('.wrap .yk-gate'); if(YokupAuth.user()&&g) g.remove(); });
+document.getElementById('new').addEventListener('click',(e)=>{ if(!YokupAuth.user()){ e.stopImmediatePropagation(); YokupAuth.requireAuth(); } }, true);
 </script>
 </body>
 </html>

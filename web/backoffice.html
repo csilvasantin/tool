@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Yokup — Back-office del operador</title>
 <link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
-<link rel="stylesheet" href="yokup.css">
-<script defer src="yokup-nav.js"></script>
+<link rel="stylesheet" href="yokup.css?v=20260602">
+<script defer src="yokup-nav.js?v=20260602"></script>
 </head>
 <body>
 <nav class="yk-nav" data-active="backoffice"></nav>
@@ -50,8 +50,9 @@
   </section>
 </div>
 
-<script src="config.js"></script>
-<script src="data.js"></script>
+<script src="config.js?v=20260602"></script>
+<script src="auth.js?v=20260602"></script>
+<script src="data.js?v=20260602"></script>
 <script>
 const TYPE_LABEL={incidencia:'Incidencia',instalacion:'Instalación',desinstalacion:'Desinstalación',mantenimiento:'Mantenimiento'};
 const SURF_LABEL={pantalla:'Pantalla',escaparate:'Escaparate',mostrador:'Mostrador',vending:'Vending',audio:'Audio',kiosk:'Kiosco',pwa:'PWA',otro:'Otro'};
@@ -190,6 +191,8 @@ function renderMetrics(){
 }
 
 Yokup.ready.then(()=>showTab('ops'));
+YokupAuth.ready.then(()=>YokupAuth.writeGate('.wrap','Inicia sesión para asignar técnicos y validar altas.'));
+YokupAuth.onChange(()=>{ const g=document.querySelector('.wrap .yk-gate'); if(YokupAuth.user()&&g) g.remove(); });
 // refrescar contador de altas al cargar aunque estés en otra pestaña
 Yokup.ready.then(()=>{ document.getElementById('b-altas').textContent=Yokup.getTechnicians().filter(t=>t.status==='pendiente').length; });
 </script>

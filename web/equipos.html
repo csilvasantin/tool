@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Yokup — Equipos por punto de venta</title>
 <link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
-<link rel="stylesheet" href="yokup.css">
-<script defer src="yokup-nav.js"></script>
+<link rel="stylesheet" href="yokup.css?v=20260602">
+<script defer src="yokup-nav.js?v=20260602"></script>
 </head>
 <body>
 <nav class="yk-nav" data-active="equipos"></nav>
@@ -16,8 +16,9 @@
   <div id="stores"><div class="loading">Cargando catálogo…</div></div>
 </div>
 
-<script src="config.js"></script>
-<script src="data.js"></script>
+<script src="config.js?v=20260602"></script>
+<script src="auth.js?v=20260602"></script>
+<script src="data.js?v=20260602"></script>
 <script>
 const TYPE_ICON={pantalla:'🖥️',escaparate:'🪟',mostrador:'🧾',vending:'🥤',pwa:'📱',audio:'🎵',kiosk:'🕹️',otro:'📦'};
 async function boot(){
@@ -49,6 +50,8 @@ async function boot(){
   }));
 }
 Yokup.ready.then(boot);
+YokupAuth.ready.then(()=>YokupAuth.writeGate('.wrap','Inicia sesión para reportar incidencias.'));
+YokupAuth.onChange(()=>{ const g=document.querySelector('.wrap .yk-gate'); if(YokupAuth.user()&&g) g.remove(); });
 </script>
 </body>
 </html>

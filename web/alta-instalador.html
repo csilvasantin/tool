@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Yokup — Alta de instalador</title>
 <link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
-<link rel="stylesheet" href="yokup.css">
-<script defer src="yokup-nav.js"></script>
+<link rel="stylesheet" href="yokup.css?v=20260602">
+<script defer src="yokup-nav.js?v=20260602"></script>
 </head>
 <body>
 <nav class="yk-nav" data-active="instalador"></nav>
@@ -71,11 +71,15 @@
   </div>
 </section>
 
-<script src="config.js"></script>
-<script src="data.js"></script>
+<script src="config.js?v=20260602"></script>
+<script src="auth.js?v=20260602"></script>
+<script src="data.js?v=20260602"></script>
 <script>
+YokupAuth.ready.then(()=>YokupAuth.writeGate('.form','Inicia sesión para darte de alta como instalador.'));
+YokupAuth.onChange(()=>{ if(YokupAuth.user()){ const g=document.querySelector('.form .yk-gate'); if(g) g.remove(); } });
 document.getElementById('f').addEventListener('submit',e=>{
   e.preventDefault();
+  if(!YokupAuth.requireAuth()) return;
   const fd=new FormData(e.target);
   const sk=[...e.target.querySelectorAll('input[name=sk]:checked')].map(c=>c.value);
   if(!sk.length){ alert('Selecciona al menos una especialidad.'); return; }
