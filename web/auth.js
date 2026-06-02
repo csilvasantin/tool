@@ -42,12 +42,11 @@ window.YokupAuth = (function(){
   }
 
   // Enlace mágico: redirige de vuelta a la página actual con el token en el hash.
+  // GoTrue toma redirect_to como QUERY param de /otp (no en el body).
   async function signInWithEmail(email){
     const redirect = location.origin + location.pathname;
-    return api('otp', { email, create_user:true, gotrue_meta_security:{},
-      options:{ email_redirect_to: redirect } });
-    // Nota: el endpoint /otp acepta email_redirect_to vía query en algunos despliegues;
-    // se añade abajo por compatibilidad.
+    const path = 'otp?redirect_to=' + encodeURIComponent(redirect);
+    return api(path, { email, create_user:true, gotrue_meta_security:{} });
   }
 
   async function signOut(){
