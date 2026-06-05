@@ -296,6 +296,4 @@ section.band .lede{color:var(--mut);max-width:720px;margin:0 0 28px}
   background:var(--brand-gradient);-webkit-background-clip:text;background-clip:text;
   color:transparent;text-decoration:none}
 .yk-foot .b:hover{text-decoration:none;filter:brightness(1.06)}
-.yk-foot .links a:last-child{color:var(--good)}
-.yk-foot .links a:last-child:hover{color:#a8ffcb}
 .yk-foot .links{display:flex;gap:16px;flex-wrap:wrap;margin-left:auto}
