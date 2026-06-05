@@ -113,6 +113,7 @@ h1{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
   font-weight:700;font-size:14px;cursor:pointer;border:1px solid transparent}
 .cta.punto{background:var(--brand);color:#1a0e00}
 .cta.inst{background:var(--brand2);color:#001b20}
+.cta.outline-inst{background:transparent;color:var(--brand2);border-color:rgba(98,233,255,.42)}
 .cta.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
 .cta:hover{filter:brightness(1.07);text-decoration:none}
 .hero-links{display:flex;gap:18px;flex-wrap:wrap;margin-top:16px}
