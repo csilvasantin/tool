@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="yk-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffb454"/>
+      <stop offset="55%" stop-color="#ffd37a"/>
+      <stop offset="100%" stop-color="#78f3ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#06101a"/>
+  <path d="M18 16h10l7 13 7-13h10L40 37v11H30V37z" fill="url(#yk-glow)"/>
+  <circle cx="48" cy="48" r="6" fill="#78f3ff"/>
+</svg>
