@@ -7,10 +7,10 @@
 <meta name="description" content="Yokup conecta los puntos de venta (estancos, kioscos, loterías…) con técnicos instaladores. Las incidencias entran solas desde Admira; un instalador las acepta, las resuelve y el punto las valora.">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
-<link rel="stylesheet" href="yokup.css?v=20260605za">
-<script defer src="config.js?v=20260605za"></script>
-<script defer src="auth.js?v=20260605za"></script>
-<script defer src="yokup-nav.js?v=20260605za"></script>
+<link rel="stylesheet" href="yokup.css?v=20260605zb">
+<script defer src="config.js?v=20260605zb"></script>
+<script defer src="auth.js?v=20260605zb"></script>
+<script defer src="yokup-nav.js?v=20260605zb"></script>
 </head>
 <body>
 <nav class="yk-nav" data-active="home"></nav>
@@ -160,8 +160,8 @@
   canvas.width=vw;
   canvas.height=vh;
   const ctx=canvas.getContext('2d');
-  const fontSize=Math.min(vw*0.22, 280);
-  const letterGap=Math.max(38, Math.floor(fontSize*0.26));
+  const fontSize=Math.min(vw*0.19, 244);
+  const letterGap=Math.max(34, Math.floor(fontSize*0.24));
   const scaleY=1.28;
   const word='YOKUP';
   ctx.fillStyle='#fff';
@@ -178,7 +178,7 @@
     cursor+=widths[i]+letterGap;
   });
   ctx.restore();
-  const step=Math.max(14, Math.floor(fontSize/10));
+  const step=Math.max(13, Math.floor(fontSize/10.5));
   for(let y=0;y<vh;y+=step){
     for(let x=0;x<vw;x+=step){
       const alpha=ctx.getImageData(x,y,1,1).data[3];
@@ -187,7 +187,7 @@
       img.className='yk-intro-logo';
       img.src='media/intro-y.png';
       img.alt='';
-      const size=step*1.16 + Math.random()*7;
+      const size=step*1.08 + Math.random()*6;
       const rot=-10+Math.random()*20;
       const delay=Math.random()*0.75;
       const dur=2.4+Math.random()*1.35;
