@@ -7,17 +7,17 @@
 <meta name="description" content="Yokup conecta los puntos de venta (estancos, kioscos, loterías…) con técnicos instaladores. Las incidencias entran solas desde Admira; un instalador las acepta, las resuelve y el punto las valora.">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
-<link rel="stylesheet" href="yokup.css?v=20260605b">
-<script defer src="config.js?v=20260605b"></script>
-<script defer src="auth.js?v=20260605b"></script>
-<script defer src="yokup-nav.js?v=20260605b"></script>
+<link rel="stylesheet" href="yokup.css?v=20260605c">
+<script defer src="config.js?v=20260605c"></script>
+<script defer src="auth.js?v=20260605c"></script>
+<script defer src="yokup-nav.js?v=20260605c"></script>
 </head>
 <body>
 <nav class="yk-nav" data-active="home"></nav>
 
 <!-- HERO -->
 <header class="hero">
-  <p class="eyebrow">Intervenciones técnicas · punto de venta</p>
+  <p class="eyebrow">Admira detecta · Yokup coordina · el técnico resuelve</p>
   <h1>Cada avería, instalación o mantenimiento de tu punto de venta, <span class="g">resuelto y trazado</span>.</h1>
   <p class="lede">Yokup conecta los <b>puntos de venta</b> —estancos, kioscos, loterías, centros con pantallas,
      hilo musical o kioscos interactivos— con <b>técnicos instaladores</b> (freelance o empresas). Las
@@ -25,10 +25,39 @@
      va, las resuelve y tú valoras el trabajo.</p>
   <div class="ctas">
     <a class="cta punto" href="alta-punto.html">🏪 Dar de alta mi punto de venta</a>
-    <a class="cta inst"  href="alta-instalador.html">🛠️ Darme de alta como instalador</a>
-    <a class="cta ghost" href="#como">Ver cómo funciona ↓</a>
+    <a class="cta ghost"  href="alta-instalador.html">🛠️ Darme de alta como instalador</a>
+  </div>
+  <div class="hero-links">
+    <a href="panel.html">Ver el panel (demo) →</a>
+    <a href="#como">Ver cómo funciona ↓</a>
   </div>
 </header>
+
+<!-- ADMIRA -->
+<section class="band admira-band">
+  <p class="eyebrow">Integración con Admira</p>
+  <h2>La incidencia nace automáticamente desde el sistema</h2>
+  <p class="lede">Yokup no depende de que el punto de venta llame, explique el fallo o abra un ticket manual.
+     Cuando Admira detecta que una surface, un equipo de audio o un kiosco deja de responder,
+     crea la incidencia y la publica en el flujo operativo con el contexto técnico necesario.</p>
+  <div class="admira-grid">
+    <div class="admira-card">
+      <span class="admira-k">01</span>
+      <h3>Detección</h3>
+      <p>Admira identifica el fallo del equipo en origen y dispara el alta de la incidencia.</p>
+    </div>
+    <div class="admira-card">
+      <span class="admira-k">02</span>
+      <h3>Contexto</h3>
+      <p>Yokup recibe punto de venta, zona, tipo de equipo y estado operativo sin reentrada manual.</p>
+    </div>
+    <div class="admira-card">
+      <span class="admira-k">03</span>
+      <h3>Publicación</h3>
+      <p>La intervención entra directamente en el tablón para que el técnico adecuado la acepte.</p>
+    </div>
+  </div>
+</section>
 
 <!-- EL BUCLE -->
 <section class="band" id="como">
@@ -90,27 +119,6 @@
       <a class="cta inst" href="alta-instalador.html">Darme de alta como instalador →</a>
     </div>
 
-  </div>
-</section>
-
-<!-- TIPOS DE EQUIPO -->
-<section class="band">
-  <p class="eyebrow">Qué cubre</p>
-  <h2>Cualquier equipo del punto de venta</h2>
-  <p class="lede">Si está en el punto de venta y puede fallar, Yokup gestiona su intervención.</p>
-  <div class="types">
-    <div class="type"><span class="e">🖥️</span> Cartelería digital (pantallas)</div>
-    <div class="type"><span class="e">🪟</span> Escaparate digital</div>
-    <div class="type"><span class="e">🧾</span> Paneles de mostrador</div>
-    <div class="type"><span class="e">🥤</span> Vending digital</div>
-    <div class="type"><span class="e">🎵</span> Audio · hilo musical</div>
-    <div class="type"><span class="e">🕹️</span> Kioscos interactivos · metahumans</div>
-    <div class="type"><span class="e">📱</span> PWA / apps del punto</div>
-  </div>
-  <div class="ctas" style="margin-top:30px">
-    <a class="cta punto" href="alta-punto.html">🏪 Soy punto de venta</a>
-    <a class="cta inst"  href="alta-instalador.html">🛠️ Soy instalador</a>
-    <a class="cta ghost" href="panel.html">Ver el panel (demo) →</a>
   </div>
 </section>
 

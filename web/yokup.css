@@ -115,10 +115,24 @@ h1{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
 .cta.inst{background:var(--brand2);color:#001b20}
 .cta.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
 .cta:hover{filter:brightness(1.07);text-decoration:none}
+.hero-links{display:flex;gap:18px;flex-wrap:wrap;margin-top:16px}
+.hero-links a{color:var(--mut);font-size:14px;font-weight:600}
+.hero-links a:hover{color:var(--ink);text-decoration:none}
 
 section.band{max-width:1100px;margin:0 auto;padding:54px 22px;border-top:1px solid var(--line)}
 section.band h2{font-size:26px;margin:0 0 8px;letter-spacing:-.01em}
 section.band .lede{color:var(--mut);max-width:720px;margin:0 0 28px}
+
+/* Integracion Admira */
+.admira-band{padding-top:42px}
+.admira-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:880px){.admira-grid{grid-template-columns:1fr}}
+.admira-card{background:linear-gradient(180deg,rgba(9,20,29,.98),rgba(7,15,23,.98));
+  border:1px solid rgba(98,233,255,.18);border-radius:14px;padding:18px}
+.admira-k{display:inline-block;font-family:monospace;font-size:11px;letter-spacing:.14em;
+  color:var(--brand2);margin-bottom:8px}
+.admira-card h3{margin:0 0 6px;font-size:16px}
+.admira-card p{margin:0;color:var(--mut);font-size:13px;line-height:1.55}
 
 /* Flujo / bucle */
 .flow{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;align-items:stretch}
