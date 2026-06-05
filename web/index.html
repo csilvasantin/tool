@@ -7,10 +7,10 @@
 <meta name="description" content="Yokup conecta los puntos de venta (estancos, kioscos, loterías…) con técnicos instaladores. Las incidencias entran solas desde Admira; un instalador las acepta, las resuelve y el punto las valora.">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
-<link rel="stylesheet" href="yokup.css?v=20260605x">
-<script defer src="config.js?v=20260605x"></script>
-<script defer src="auth.js?v=20260605x"></script>
-<script defer src="yokup-nav.js?v=20260605x"></script>
+<link rel="stylesheet" href="yokup.css?v=20260605y">
+<script defer src="config.js?v=20260605y"></script>
+<script defer src="auth.js?v=20260605y"></script>
+<script defer src="yokup-nav.js?v=20260605y"></script>
 </head>
 <body>
 <nav class="yk-nav" data-active="home"></nav>
@@ -160,14 +160,20 @@
   canvas.width=vw;
   canvas.height=vh;
   const ctx=canvas.getContext('2d');
-  const fontSize=Math.min(vw*0.15, 170);
+  const fontSize=Math.min(vw*0.14, 160);
+  const letterGap=Math.max(26, Math.floor(fontSize*0.22));
+  const word='YOKUP';
   ctx.fillStyle='#fff';
-  ctx.textAlign='center';
   ctx.textBaseline='middle';
   ctx.font=`800 ${fontSize}px system-ui, sans-serif`;
-  ctx.fillText('YOKUP', vw/2, vh/2);
-  const step=Math.max(14, Math.floor(fontSize/8));
-  const yOffset=vh/2-fontSize*0.38;
+  const widths=[...word].map(ch=>ctx.measureText(ch).width);
+  const totalWidth=widths.reduce((a,b)=>a+b,0)+letterGap*(word.length-1);
+  let cursor=(vw-totalWidth)/2;
+  [...word].forEach((ch,i)=>{
+    ctx.fillText(ch,cursor, vh/2);
+    cursor+=widths[i]+letterGap;
+  });
+  const step=Math.max(10, Math.floor(fontSize/11));
   for(let y=0;y<vh;y+=step){
     for(let x=0;x<vw;x+=step){
       const alpha=ctx.getImageData(x,y,1,1).data[3];
@@ -176,7 +182,7 @@
       img.className='yk-intro-logo';
       img.src='media/intro-y.png';
       img.alt='';
-      const size=step*0.95 + Math.random()*6;
+      const size=step*0.92 + Math.random()*4;
       const rot=-10+Math.random()*20;
       const delay=Math.random()*0.9;
       const dur=2.8+Math.random()*1.6;
