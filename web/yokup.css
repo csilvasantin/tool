@@ -297,6 +297,8 @@ section.band .lede{color:#b5d0da;max-width:720px;margin:0 0 28px}
 
 /* Footer */
 .yk-foot{border-top:1px solid var(--line);margin-top:20px;background:rgba(2,8,13,.6)}
+.yk-foot-mark{display:flex;justify-content:center;padding:44px 22px 8px}
+.yk-foot-mark img{width:min(180px,38vw);height:auto;display:block;filter:drop-shadow(0 18px 42px rgba(0,0,0,.36))}
 .yk-foot-inner{max-width:1100px;margin:0 auto;padding:30px 22px;display:flex;flex-wrap:wrap;
   gap:18px;align-items:center;color:#9ebfcb;font-size:13px}
 .yk-foot a{color:#9ebfcb;text-decoration:none} .yk-foot a:hover{color:var(--ink);text-decoration:none}

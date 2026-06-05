@@ -59,6 +59,9 @@
   }
   window.YokupOpenLogin = openLogin;
   const footHTML=()=>`
+    <div class="yk-foot-mark">
+      <img src="logo-mark.svg" alt="Yokup" loading="lazy">
+    </div>
     <div class="yk-foot-inner">
       <a class="b" href="index.html">Yokup</a>
       <span>· Intervenciones técnicas para el punto de venta</span>
