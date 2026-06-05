@@ -136,11 +136,12 @@ h1{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
 .yk-intro-rain{position:absolute;inset:0;overflow:hidden}
 .yk-intro-logo{position:absolute;top:-18vh;left:0;width:var(--size,52px);height:auto;display:block;
   opacity:.95;filter:drop-shadow(0 10px 24px rgba(0,0,0,.34));
-  animation:ykIntroRain var(--dur,2.9s) linear forwards;animation-delay:var(--delay,0s)}
+  animation:ykIntroRain var(--dur,3.6s) linear forwards;animation-delay:var(--delay,0s)}
 @keyframes ykIntroRain{
   0%{transform:translate3d(0,-12vh,0) rotate(var(--rot,0deg));opacity:0}
   6%{opacity:.98}
-  100%{transform:translate3d(0,142vh,0) rotate(calc(var(--rot,0deg) + 28deg));opacity:.98}
+  82%{opacity:.98}
+  100%{transform:translate3d(0,168vh,0) rotate(calc(var(--rot,0deg) + 32deg));opacity:0}
 }
 
 section.band{max-width:1100px;margin:0 auto;padding:54px 22px;border-top:1px solid var(--line)}
