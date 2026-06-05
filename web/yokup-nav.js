@@ -60,13 +60,13 @@
   window.YokupOpenLogin = openLogin;
   const footHTML=()=>`
     <div class="yk-foot-inner">
-      <span class="b">Yokup</span>
+      <a class="b" href="index.html">Yokup</a>
       <span>· Intervenciones técnicas para el punto de venta</span>
       <span class="links">
         <a href="alta-punto.html">Soy punto</a>
         <a href="alta-instalador.html">Soy instalador</a>
         <a href="panel.html">Panel</a>
-        <a href="https://app.admira.live/" target="_blank" rel="noopener">↗ Admira</a>
+        <a href="https://admira.com/es/" target="_blank" rel="noopener">↗ Admira</a>
       </span>
     </div>`;
   function mount(){
