@@ -12,7 +12,7 @@
   ];
   const html = (active)=>`
     <div class="yk-nav-inner">
-      <a class="yk-brand" href="index.html">Yo<span class="k">kup</span></a>
+      <a class="yk-brand" href="index.html">Yokup</a>
       <div class="yk-links">
         ${LINKS.map(l=>`<a href="${l.href}" ${l.ext?'target="_blank" rel="noopener"':''} class="${active===l.id?'active':''}">${l.label}</a>`).join('')}
       </div>

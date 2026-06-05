@@ -21,9 +21,10 @@ h1{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
   backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .yk-nav-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:22px;
   padding:11px 22px;flex-wrap:nowrap}
-.yk-brand{font-family:monospace;font-weight:800;letter-spacing:.14em;color:var(--brand);
+.yk-brand{font-family:monospace;font-weight:800;letter-spacing:.14em;
+  background:linear-gradient(90deg,var(--brand),var(--brand2));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
   font-size:15px;flex-shrink:0}
-.yk-brand .k{color:var(--ink)}
 .yk-links{display:flex;gap:18px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
   scrollbar-width:none}
 .yk-links::-webkit-scrollbar{display:none}
