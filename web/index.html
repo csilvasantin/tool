@@ -7,10 +7,10 @@
 <meta name="description" content="Yokup conecta los puntos de venta (estancos, kioscos, loterías…) con técnicos instaladores. Las incidencias entran solas desde Admira; un instalador las acepta, las resuelve y el punto las valora.">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
-<link rel="stylesheet" href="yokup.css?v=20260605r">
-<script defer src="config.js?v=20260605r"></script>
-<script defer src="auth.js?v=20260605r"></script>
-<script defer src="yokup-nav.js?v=20260605r"></script>
+<link rel="stylesheet" href="yokup.css?v=20260605s">
+<script defer src="config.js?v=20260605s"></script>
+<script defer src="auth.js?v=20260605s"></script>
+<script defer src="yokup-nav.js?v=20260605s"></script>
 </head>
 <body>
 <nav class="yk-nav" data-active="home"></nav>
@@ -150,22 +150,30 @@
 (()=>{
   const intro=document.createElement('div');
   intro.className='yk-intro';
-  intro.innerHTML=`
-    <div class="yk-intro-core" aria-hidden="true">
-      <div class="yk-intro-logos">
-        <img class="yk-intro-logo" src="favicon.png" alt="" style="--delay:1.34s">
-        <img class="yk-intro-logo" src="favicon.png" alt="" style="--delay:1.46s">
-        <img class="yk-intro-logo" src="favicon.png" alt="" style="--delay:1.58s">
-        <img class="yk-intro-logo" src="favicon.png" alt="" style="--delay:1.70s">
-        <img class="yk-intro-logo" src="favicon.png" alt="" style="--delay:1.82s">
-      </div>
-      <div class="yk-intro-word">
-        <span>Y</span><span>O</span><span>K</span><span>U</span><span>P</span>
-      </div>
-    </div>`;
+  const rain=document.createElement('div');
+  rain.className='yk-intro-rain';
+  const total=100;
+  for(let i=0;i<total;i++){
+    const img=document.createElement('img');
+    img.className='yk-intro-logo';
+    img.src='media/intro-y.png';
+    img.alt='';
+    const left=Math.random()*100;
+    const size=28+Math.random()*52;
+    const delay=Math.random()*1.25;
+    const dur=1.9+Math.random()*1.35;
+    const rot=-28+Math.random()*56;
+    img.style.left=`${left}%`;
+    img.style.setProperty('--size',`${size}px`);
+    img.style.setProperty('--delay',`${delay}s`);
+    img.style.setProperty('--dur',`${dur}s`);
+    img.style.setProperty('--rot',`${rot}deg`);
+    rain.appendChild(img);
+  }
+  intro.appendChild(rain);
   document.body.appendChild(intro);
-  setTimeout(()=>intro.classList.add('out'),2200);
-  setTimeout(()=>intro.remove(),2750);
+  setTimeout(()=>intro.classList.add('out'),2450);
+  setTimeout(()=>intro.remove(),3000);
 })();
 </script>
 </body>

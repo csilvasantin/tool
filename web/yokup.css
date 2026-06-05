@@ -129,20 +129,22 @@ h1{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
 .hero-links a:hover{color:var(--ink);text-decoration:none}
 
 /* Intro de entrada */
-.yk-intro{position:fixed;inset:0;z-index:120;display:flex;align-items:center;justify-content:center;
-  background:radial-gradient(circle at 50% 38%,rgba(255,154,47,.10),transparent 30%),rgba(2,8,13,.94);
+.yk-intro{position:fixed;inset:0;z-index:120;overflow:hidden;
+  background:rgba(2,8,13,.12);
   pointer-events:none;opacity:1;transition:opacity .45s ease}
 .yk-intro.out{opacity:0}
-.yk-intro-core{display:flex;flex-direction:column;align-items:center;gap:18px;padding:24px}
-.yk-intro-logos{display:grid;grid-template-columns:repeat(5,minmax(48px,84px));gap:14px;align-items:end}
-.yk-intro-logo{width:min(7vw,68px);height:auto;display:block;filter:drop-shadow(0 10px 24px rgba(0,0,0,.34));
-  animation:ykIntroFall 1.2s ease-in forwards;animation-delay:var(--delay,1.45s)}
-.yk-intro-word{display:flex;gap:clamp(8px,1vw,14px);font-family:monospace;font-weight:800;
-  letter-spacing:.18em;text-transform:uppercase;font-size:clamp(28px,7vw,72px);color:#eef8fb}
-.yk-intro-word span{opacity:.96}
+.yk-intro-rain{position:absolute;inset:0;overflow:hidden}
+.yk-intro-logo{position:absolute;top:-18vh;left:0;width:var(--size,52px);height:auto;display:block;
+  opacity:.95;filter:drop-shadow(0 10px 24px rgba(0,0,0,.34));
+  animation:ykIntroRain var(--dur,2.4s) linear forwards;animation-delay:var(--delay,0s)}
 @keyframes ykIntroFall{
   0%{transform:translateY(0) rotate(0deg);opacity:1}
   100%{transform:translateY(65vh) rotate(22deg);opacity:0}
+}
+@keyframes ykIntroRain{
+  0%{transform:translate3d(0,-12vh,0) rotate(var(--rot,0deg));opacity:0}
+  8%{opacity:.98}
+  100%{transform:translate3d(0,125vh,0) rotate(calc(var(--rot,0deg) + 28deg));opacity:0}
 }
 
 section.band{max-width:1100px;margin:0 auto;padding:54px 22px;border-top:1px solid var(--line)}
