@@ -63,7 +63,10 @@
   window.YokupOpenLogin = openLogin;
   const footHTML=()=>`
     <div class="yk-foot-inner">
-      <a class="b" href="index.html">Yokup</a>
+      <a class="b" href="index.html">
+        <img src="favicon.png" alt="Yokup">
+        <span>Yokup</span>
+      </a>
       <span>· Intervenciones técnicas para el punto de venta</span>
       <span class="links">
         <a href="alta-punto.html">Soy punto</a>

@@ -304,8 +304,10 @@ section.band .lede{color:#b5d0da;max-width:720px;margin:0 0 28px}
 .yk-foot-inner{max-width:1100px;margin:0 auto;padding:30px 22px;display:flex;flex-wrap:wrap;
   gap:18px;align-items:center;color:#9ebfcb;font-size:13px}
 .yk-foot a{color:#9ebfcb;text-decoration:none} .yk-foot a:hover{color:var(--ink);text-decoration:none}
-.yk-foot .b{font-family:monospace;font-weight:800;letter-spacing:.14em;
+.yk-foot .b{display:inline-flex;align-items:center;gap:10px;font-family:monospace;font-weight:800;letter-spacing:.14em;
   background:var(--brand-gradient);-webkit-background-clip:text;background-clip:text;
   color:transparent;text-decoration:none}
+.yk-foot .b img{width:24px;height:24px;border-radius:6px;display:block;flex-shrink:0}
+.yk-foot .b span{background:var(--brand-gradient);-webkit-background-clip:text;background-clip:text;color:transparent}
 .yk-foot .b:hover{text-decoration:none;filter:brightness(1.06)}
 .yk-foot .links{display:flex;gap:16px;flex-wrap:wrap;margin-left:auto}
