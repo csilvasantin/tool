@@ -128,6 +128,23 @@ h1{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
 .hero-links a{color:var(--mut);font-size:14px;font-weight:600}
 .hero-links a:hover{color:var(--ink);text-decoration:none}
 
+/* Intro de entrada */
+.yk-intro{position:fixed;inset:0;z-index:120;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(circle at 50% 38%,rgba(255,154,47,.10),transparent 30%),rgba(2,8,13,.94);
+  pointer-events:none;opacity:1;transition:opacity .45s ease}
+.yk-intro.out{opacity:0}
+.yk-intro-core{display:flex;flex-direction:column;align-items:center;gap:18px;padding:24px}
+.yk-intro-logos{display:grid;grid-template-columns:repeat(5,minmax(48px,84px));gap:14px;align-items:end}
+.yk-intro-logo{width:min(7vw,68px);height:auto;display:block;filter:drop-shadow(0 10px 24px rgba(0,0,0,.34));
+  animation:ykIntroFall 1.2s ease-in forwards;animation-delay:var(--delay,1.45s)}
+.yk-intro-word{display:flex;gap:clamp(8px,1vw,14px);font-family:monospace;font-weight:800;
+  letter-spacing:.18em;text-transform:uppercase;font-size:clamp(28px,7vw,72px);color:#eef8fb}
+.yk-intro-word span{opacity:.96}
+@keyframes ykIntroFall{
+  0%{transform:translateY(0) rotate(0deg);opacity:1}
+  100%{transform:translateY(65vh) rotate(22deg);opacity:0}
+}
+
 section.band{max-width:1100px;margin:0 auto;padding:54px 22px;border-top:1px solid var(--line)}
 section.band h2{font-size:26px;margin:0 0 8px;letter-spacing:-.01em}
 section.band .lede{color:#b5d0da;max-width:720px;margin:0 0 28px}
