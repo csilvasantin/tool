@@ -7,10 +7,10 @@
 <meta name="description" content="Yokup conecta los puntos de venta (estancos, kioscos, loterías…) con técnicos instaladores. Las incidencias entran solas desde Admira; un instalador las acepta, las resuelve y el punto las valora.">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
-<link rel="stylesheet" href="yokup.css?v=20260605t">
-<script defer src="config.js?v=20260605t"></script>
-<script defer src="auth.js?v=20260605t"></script>
-<script defer src="yokup-nav.js?v=20260605t"></script>
+<link rel="stylesheet" href="yokup.css?v=20260605u">
+<script defer src="config.js?v=20260605u"></script>
+<script defer src="auth.js?v=20260605u"></script>
+<script defer src="yokup-nav.js?v=20260605u"></script>
 </head>
 <body>
 <nav class="yk-nav" data-active="home"></nav>
@@ -150,6 +150,8 @@
 (()=>{
   const intro=document.createElement('div');
   intro.className='yk-intro';
+  const backdrop=document.createElement('div');
+  backdrop.className='yk-intro-backdrop';
   const rain=document.createElement('div');
   rain.className='yk-intro-rain';
   const total=180;
@@ -170,6 +172,7 @@
     img.style.setProperty('--rot',`${rot}deg`);
     rain.appendChild(img);
   }
+  intro.appendChild(backdrop);
   intro.appendChild(rain);
   document.body.appendChild(intro);
   setTimeout(()=>intro.classList.add('out'),1500);
