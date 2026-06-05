@@ -12,10 +12,10 @@
     var(--brand2) 58%,
     var(--brand2) 100%);
   --brand-gradient-soft:linear-gradient(90deg,
-    rgba(255,154,47,.88) 0%,
-    rgba(255,154,47,.88) 46%,
-    rgba(98,233,255,.86) 60%,
-    rgba(98,233,255,.86) 100%);
+    rgba(255,154,47,.92) 0%,
+    rgba(255,154,47,.90) 40%,
+    rgba(98,233,255,.88) 64%,
+    rgba(98,233,255,.90) 100%);
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
