@@ -131,15 +131,15 @@ h1{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
 /* Intro de entrada */
 .yk-intro{position:fixed;inset:0;z-index:120;overflow:hidden;pointer-events:none}
 .yk-intro.out{opacity:1}
-.yk-intro-backdrop{position:absolute;inset:0;background:rgba(2,8,13,.18);opacity:1;transition:opacity 1.6s ease}
+.yk-intro-backdrop{position:absolute;inset:0;background:rgba(2,8,13,.96);opacity:1;transition:opacity 1.25s ease}
 .yk-intro.out .yk-intro-backdrop{opacity:0}
 .yk-intro-field{position:absolute;inset:0;overflow:hidden}
 .yk-intro-logo{position:absolute;left:0;top:0;width:var(--size,22px);height:auto;display:block;
-  opacity:.98;filter:drop-shadow(0 8px 20px rgba(0,0,0,.34));transform:translate3d(var(--x,0),var(--y,0),0) rotate(var(--rot,0deg));
+  opacity:.98;filter:drop-shadow(0 12px 28px rgba(0,0,0,.40));transform:translate3d(var(--x,0),var(--y,0),0) rotate(var(--rot,0deg));
   transition:transform .55s ease, opacity .55s ease}
 .yk-intro.fall .yk-intro-logo{
   transform:translate3d(var(--x,0),calc(var(--y,0) + 155vh),0) rotate(calc(var(--rot,0deg) + var(--fall-rot,28deg)));
-  transition:transform var(--dur,2.9s) linear, opacity .9s ease var(--dur,2.9s);
+  transition:transform var(--dur,2.6s) linear, opacity .9s ease var(--dur,2.6s);
   transition-delay:var(--delay,0s),var(--delay,0s);
   opacity:0;
 }
