@@ -131,7 +131,7 @@ h1{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
 /* Intro de entrada */
 .yk-intro{position:fixed;inset:0;z-index:120;overflow:hidden;pointer-events:none}
 .yk-intro.out{opacity:1}
-.yk-intro-backdrop{position:absolute;inset:0;background:rgba(2,8,13,.96);opacity:1;transition:opacity 1.25s ease}
+.yk-intro-backdrop{position:absolute;inset:0;background:#000;opacity:1;transition:opacity 1.25s ease}
 .yk-intro.out .yk-intro-backdrop{opacity:0}
 .yk-intro-field{position:absolute;inset:0;overflow:hidden}
 .yk-intro-logo{position:absolute;left:0;top:0;width:var(--size,22px);height:auto;display:block;
