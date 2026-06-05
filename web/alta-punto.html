@@ -6,8 +6,8 @@
 <title>Yokup — Alta de punto de venta</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
-<link rel="stylesheet" href="yokup.css?v=20260605a">
-<script defer src="yokup-nav.js?v=20260605a"></script>
+<link rel="stylesheet" href="yokup.css?v=20260605b">
+<script defer src="yokup-nav.js?v=20260605b"></script>
 </head>
 <body>
 <nav class="yk-nav" data-active="punto"></nav>
@@ -74,9 +74,9 @@
   </div>
 </section>
 
-<script src="config.js?v=20260605a"></script>
-<script src="auth.js?v=20260605a"></script>
-<script src="data.js?v=20260605a"></script>
+<script src="config.js?v=20260605b"></script>
+<script src="auth.js?v=20260605b"></script>
+<script src="data.js?v=20260605b"></script>
 <script>
 YokupAuth.ready.then(()=>YokupAuth.writeGate('.form','Inicia sesión para dar de alta tu punto.'));
 YokupAuth.onChange(()=>{ if(YokupAuth.user()){ const g=document.querySelector('.form .yk-gate'); if(g) g.remove(); } });

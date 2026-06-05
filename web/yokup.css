@@ -1,11 +1,16 @@
 /* Yokup — estilos base. Reutiliza la paleta Admira con acento propio (amber). */
 :root{
   --bg:#02080d; --ink:#e7f6fb; --mut:#7aa7b5;
-  --brand:#ffb454;            /* acento Yokup (intervenciones / herramienta) */
-  --brand2:#78f3ff;           /* azul Admira para vínculos al ecosistema */
+  --brand:#ff9a2f;            /* naranja Yokup: intervención, aviso, acción */
+  --brand2:#62e9ff;           /* azul Yokup: sistema, trazabilidad, coordinación */
   --good:#7CFFB2; --warn:#ff8a66; --bad:#ff5d6c;
   --card:#0a1620; --card2:#0d1c28; --line:rgba(120,243,255,.16);
   --radius:14px;
+  --brand-gradient:linear-gradient(90deg,
+    var(--brand) 0%,
+    var(--brand) 42%,
+    var(--brand2) 58%,
+    var(--brand2) 100%);
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
@@ -22,7 +27,7 @@ h1{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
 .yk-nav-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:22px;
   padding:11px 22px;flex-wrap:nowrap}
 .yk-brand{font-family:monospace;font-weight:800;letter-spacing:.14em;
-  background:linear-gradient(90deg,var(--brand),var(--brand2));
+  background:var(--brand-gradient);
   -webkit-background-clip:text;background-clip:text;color:transparent;
   font-size:15px;flex-shrink:0}
 .yk-links{display:flex;gap:18px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
@@ -96,7 +101,7 @@ h1{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
   background:radial-gradient(ellipse at 20% -10%,rgba(255,180,84,.10),transparent 55%),
              radial-gradient(ellipse at 95% 10%,rgba(120,243,255,.08),transparent 55%)}
 .hero h1{font-size:clamp(34px,5vw,56px);line-height:1.04;letter-spacing:-.02em;max-width:880px;margin:0 0 18px}
-.hero h1 .g{background:linear-gradient(90deg,var(--brand),var(--brand2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero h1 .g{background:var(--brand-gradient);-webkit-background-clip:text;background-clip:text;color:transparent}
 .hero .lede{font-size:18px;color:var(--mut);max-width:680px;margin:0 0 28px;line-height:1.6}
 .ctas{display:flex;gap:12px;flex-wrap:wrap}
 .cta{display:inline-flex;align-items:center;gap:9px;padding:13px 22px;border-radius:10px;
@@ -178,7 +183,7 @@ section.band .lede{color:var(--mut);max-width:720px;margin:0 0 28px}
 .scene p{color:var(--mut);font-size:clamp(14px,1.8vw,18px);max-width:620px;margin:0 0 8px;line-height:1.5}
 .scene .who{margin-top:14px;font-family:monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
   color:var(--brand2);border:1px solid var(--line);border-radius:999px;padding:4px 12px}
-.scene.intro h2 .g,.scene.outro h2 .g{background:linear-gradient(90deg,var(--brand),var(--brand2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.scene.intro h2 .g,.scene.outro h2 .g{background:var(--brand-gradient);-webkit-background-clip:text;background-clip:text;color:transparent}
 /* mini-pantalla animada del primer plano */
 .chip{display:flex;gap:6px;margin-top:8px}
 .chip i{width:30px;height:20px;border-radius:4px;background:var(--card2);border:1px solid var(--line);font-style:normal;display:flex;align-items:center;justify-content:center;font-size:11px}
@@ -187,7 +192,7 @@ section.band .lede{color:var(--mut);max-width:720px;margin:0 0 28px}
 /* progreso por fases */
 .timeline{position:absolute;left:0;right:0;bottom:0;display:flex;height:5px;gap:2px;padding:0 2px 2px}
 .timeline .seg{flex:1;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden}
-.timeline .seg .fill{height:100%;width:0;background:linear-gradient(90deg,var(--brand),var(--brand2))}
+.timeline .seg .fill{height:100%;width:0;background:var(--brand-gradient)}
 .timeline .seg.done .fill{width:100%}
 .timeline .seg.active .fill{width:100%;transition:width linear}
 .controls{display:flex;align-items:center;gap:14px;margin:18px auto 0;max-width:960px}
@@ -227,7 +232,7 @@ section.band .lede{color:var(--mut);max-width:720px;margin:0 0 28px}
 .bars{display:flex;flex-direction:column;gap:10px}
 .bar-row{display:grid;grid-template-columns:140px 1fr 44px;gap:10px;align-items:center;font-size:13px}
 .bar-track{background:var(--card2);border:1px solid var(--line);border-radius:999px;height:12px;overflow:hidden}
-.bar-fill{height:100%;background:linear-gradient(90deg,var(--brand),var(--brand2))}
+.bar-fill{height:100%;background:var(--brand-gradient)}
 .rank{display:flex;flex-direction:column;gap:8px}
 .rank-row{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);
   border-radius:10px;padding:10px 14px}
