@@ -56,6 +56,7 @@ Tip: sin tocar config, puedes forzar el backend con `?backend=api` en la URL.
 | GET/POST | `/api/stores` | puntos dados de alta en Yokup |
 | GET/POST | `/api/ratings` | valoraciones (recalcula rating del técnico) |
 | POST | `/api/ingest/admira` | webhook de Admira (idempotente, firmado) — F1 |
+| POST | `/api/telegram/webhook` | actualizaciones del bot de Telegram + Grok — ver [`../docs/telegram-grok.md`](../docs/telegram-grok.md) |
 
 ## Notas de diseño
 - **Idempotencia del webhook**: `webhook_inbox` dedupe por `(source, event_id)`; si llega

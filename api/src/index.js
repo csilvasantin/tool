@@ -22,7 +22,12 @@
  *   GET    /api/ratings?intervention_id=...
  *   POST   /api/ratings                        {intervention_id,technician_id,stars,...}
  *   POST   /api/ingest/admira                  webhook firmado de Admira (idempotente)
+ *   POST   /api/telegram/webhook                actualizaciones del bot de Telegram (Grok)
  */
+
+import { handleUpdate } from "./bot.js";
+import { tgSend, verifyTelegram } from "./telegram.js";
+import { triageIntervention } from "./grok.js";
 
 const ALLOWED_ORIGINS = new Set([
   // Producción: la web vive en https://www.yokup.com/tool/ (el Origin es solo host).
@@ -94,6 +99,15 @@ async function route(p, request, env, url) {
   if (resource === "ingest" && id === "admira" && m === "POST")
     return { body: await ingestAdmira(env, request), status: 202 };
 
+  // ---- webhook del bot de Telegram ----
+  if (resource === "telegram" && id === "webhook" && m === "POST") {
+    if (!verifyTelegram(env, request)) { const e = new Error("bad telegram secret"); e.status = 401; throw e; }
+    const update = await body(request);
+    // No bloqueamos la respuesta a Telegram con el procesado (evita reintentos).
+    await handleUpdate(env, update, { sb }).catch(err => console.error("tg handleUpdate", err));
+    return { body: { ok: true } };
+  }
+
   return { body: { error: "not found", path: p }, status: 404 };
 }
 
@@ -147,7 +161,25 @@ async function ingestAdmira(env, request) {
     source_event: eventId,
   });
   await sb(env, "PATCH", `webhook_inbox?id=eq.${enc(inbox.id)}`, { processed: true });
-  return { created: Array.isArray(iv) ? iv[0] : iv, event_id: eventId };
+  const created = Array.isArray(iv) ? iv[0] : iv;
+  await notifyNewIntervention(env, created).catch(e => console.error("tg notify", e));
+  return { created, event_id: eventId };
+}
+
+// Avisa al grupo GrokControl de una intervención nueva, con triaje de Grok.
+// Degrada en silencio: si Telegram/Grok no están configurados, no rompe la ingesta.
+async function notifyNewIntervention(env, iv) {
+  const chat = env.TELEGRAM_CHAT_GROKCONTROL;
+  if (!chat || !env.TELEGRAM_BOT_TOKEN || !iv) return;
+  const tri = await triageIntervention(env, iv);
+  const summary = tri?.summary || iv.title;
+  const priority = tri?.priority || iv.priority;
+  await tgSend(env, chat, [
+    `🆕 *Nueva intervención* — ${iv.type}`,
+    `[${priority}] ${summary}`,
+    `Punto: ${iv.store_id}`,
+    `\`${iv.id}\``,
+  ].join("\n"));
 }
 
 // HMAC-SHA256 de la firma de Admira (cabecera X-Yokup-Signature). Si no hay secret, acepta (dev).
