@@ -7,23 +7,23 @@ repos de pixeria (`pixeria.com` Astro y `pixeria` HTML), conservando el historia
 > acceso de lectura/escritura a los repos pixeria). Hay que correrlo en una sesión cuyo
 > **repo principal sea `csilvasantin/pixeria.com`** y con `pixeria` + `tool` también en scope.
 
-## Decisión pendiente: ¿qué pasa con los dos repos pixeria?
+## Decisión tomada: opción A
 
-- **A) `pixeria.com` (Astro) es la versión nueva** que sustituye a `pixeria` (HTML).
-  → Base = Astro; el HTML entra archivado en `legacy/` o se descarta.
-- **B) Son cosas distintas** (landing vs sitio de referencia) que conviven.
-  → Cada uno en su carpeta dentro del monorepo.
-
-Este plan asume **principal = `pixeria.com` (Astro)** y deja sitio a ambos.
+**`pixeria.com` (Astro) es la versión nueva y manda.** Sustituye a `pixeria` (HTML).
+- Base/raíz del monorepo = sitio Astro `pixeria.com`.
+- `pixeria` (HTML) se **archiva** en `legacy/pixeria-html/` (subtree, conserva historia y
+  es reversible). Si prefieres descartarlo del todo, basta con no traerlo.
+- `tool` (Yokup) entra en `apps/yokup/`.
 
 ## Estructura propuesta
 
 ```
-pixeria.com/                  (raíz = www.pixeria.com, Astro)
+pixeria.com/                  (raíz = www.pixeria.com, Astro — manda)
 ├─ src/ astro.config.* ...    (sitio Astro existente, intacto)
 ├─ apps/
-│  ├─ yokup/                  ← csilvasantin/tool  (web/ + api/ + db/ + docs/)
-│  └─ pixeria-legacy/         ← csilvasantin/pixeria (HTML) [opción B; o legacy/ en A]
+│  └─ yokup/                  ← csilvasantin/tool  (web/ + api/ + db/ + docs/)
+├─ legacy/
+│  └─ pixeria-html/           ← csilvasantin/pixeria (HTML, archivado) [opcional]
 └─ docs/fusion.md             (notas de la fusión)
 ```
 
@@ -41,10 +41,10 @@ git remote add yokup   <URL_de_tool>
 git fetch yokup
 git subtree add --prefix=apps/yokup yokup main
 
-# 2) pixeria (HTML) como subtree  [opción B]
+# 2) pixeria (HTML) archivado como subtree  [opcional en opción A]
 git remote add pxhtml  <URL_de_pixeria>
 git fetch pxhtml
-git subtree add --prefix=apps/pixeria-legacy pxhtml main
+git subtree add --prefix=legacy/pixeria-html pxhtml main
 
 git push origin main
 ```
@@ -67,10 +67,17 @@ se conserva (a diferencia de copiar archivos). Para actualizar luego desde el or
    `apps/yokup/`.
 4. **Secrets del Worker** (Supabase, Telegram, Grok): siguen en Cloudflare, no en el repo.
 
+## Independiente del ordenador (clave)
+
+Tras la fusión, **replicar el SessionStart hook** en el monorepo (`.claude/hooks/` +
+`.claude/settings.json`, como en `tool`) para que cualquier máquina/sesión arranque
+preparada (deps de Astro + del Worker). Nada vive en la máquina; todo en repo + Cloudflare.
+
 ## Checklist para abrir la sesión correcta
 
-- [ ] Sesión con **principal = `csilvasantin/pixeria.com`** (write).
+- [x] Decisión: **opción A** (`pixeria.com` Astro manda, sustituye al HTML).
+- [ ] Sesión con **principal = `csilvasantin/pixeria.com`** (con permiso de escritura).
 - [ ] Añadir en scope: `csilvasantin/pixeria` y `csilvasantin/tool`.
-- [ ] Confirmar opción A o B (arriba).
-- [ ] Ejecutar los `git subtree add`.
-- [ ] Ajustar build/deploy y dominio.
+- [ ] Ejecutar los `git subtree add` (yokup → `apps/yokup`, html → `legacy/pixeria-html`).
+- [ ] Replicar el SessionStart hook en el monorepo.
+- [ ] Ajustar build/deploy unificado (Astro raíz + Yokup en subpath) y dominio/CNAME.
