@@ -10,7 +10,10 @@
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",
     "secret:url": "wrangler secret put SUPABASE_URL",
-    "secret:key": "wrangler secret put SUPABASE_SERVICE_ROLE"
+    "secret:key": "wrangler secret put SUPABASE_SERVICE_ROLE",
+    "secret:tg-token": "wrangler secret put TELEGRAM_BOT_TOKEN",
+    "secret:tg-secret": "wrangler secret put TELEGRAM_SECRET_TOKEN",
+    "secret:xai": "wrangler secret put XAI_API_KEY"
   },
   "devDependencies": {
     "wrangler": "^4.93.0"

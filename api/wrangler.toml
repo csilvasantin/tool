@@ -5,9 +5,22 @@ compatibility_date = "2025-07-18"
 # Secrets (set con `wrangler secret put`, NUNCA en el repo):
 #   SUPABASE_URL           -> https://<ref>.supabase.co
 #   SUPABASE_SERVICE_ROLE  -> service_role key (privilegiada; solo vive en el worker)
+#   ADMIRA_WEBHOOK_SECRET  -> HMAC del webhook de Admira (opcional en dev)
+#   TELEGRAM_BOT_TOKEN     -> token del bot de @BotFather
+#   TELEGRAM_SECRET_TOKEN  -> valida que el POST del webhook viene de Telegram
+#   XAI_API_KEY            -> clave de la API de Grok (api.x.ai)
 
 [observability]
 enabled = true
+
+# Chat ids de los grupos de Telegram y modelos de Grok. No son secretos, pero
+# pueden ir como secret si prefieres. Rellena con los valores reales (del otro
+# equipo) o muévelos a `wrangler secret put`.
+[vars]
+# TELEGRAM_CHAT_GROKCONTROL = "-100..."
+# TELEGRAM_CHAT_GROKADMIRANEXT = "-100..."
+XAI_MODEL = "grok-4"
+XAI_VISION_MODEL = "grok-2-vision-1212"
 
 # Cuando montes el dominio en Cloudflare, descomenta:
 # [[routes]]
