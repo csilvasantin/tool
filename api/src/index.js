@@ -58,33 +58,33 @@ async function route(p, request, env, url) {
 
   if (resource === "health") return { body: { ok: true, ts: Date.now() } };
 
-  // ---- interventions ----
+  // ---- interventions ----  (esquema demo: tablas en plural)
   if (resource === "interventions") {
-    if (m === "GET")   return { body: await sb(env, "GET", "intervention?order=created_at.desc") };
-    if (m === "POST")  return { body: await sb(env, "POST", "intervention", await body(request)), status: 201 };
+    if (m === "GET")   return { body: await sb(env, "GET", "interventions?order=created_at.desc") };
+    if (m === "POST")  return { body: await sb(env, "POST", "interventions", await body(request)), status: 201 };
     if (m === "PATCH" && id)
-      return { body: await sb(env, "PATCH", `intervention?id=eq.${enc(id)}`, await body(request)) };
+      return { body: await sb(env, "PATCH", `interventions?id=eq.${enc(id)}`, await body(request)) };
   }
 
   // ---- technicians ----
   if (resource === "technicians") {
-    if (m === "GET")  return { body: await sb(env, "GET", "technician?order=created_at.desc") };
-    if (m === "POST") return { body: await sb(env, "POST", "technician", await body(request)), status: 201 };
+    if (m === "GET")  return { body: await sb(env, "GET", "technicians?order=created_at.desc") };
+    if (m === "POST") return { body: await sb(env, "POST", "technicians", await body(request)), status: 201 };
     if (m === "PATCH" && id)
-      return { body: await sb(env, "PATCH", `technician?id=eq.${enc(id)}`, await body(request)) };
+      return { body: await sb(env, "PATCH", `technicians?id=eq.${enc(id)}`, await body(request)) };
   }
 
   // ---- stores (altas manuales de puntos en Yokup) ----
   if (resource === "stores") {
-    if (m === "GET")  return { body: await sb(env, "GET", "store?order=synced_at.desc") };
-    if (m === "POST") return { body: await sb(env, "POST", "store", await body(request)), status: 201 };
+    if (m === "GET")  return { body: await sb(env, "GET", "stores?order=created_at.desc") };
+    if (m === "POST") return { body: await sb(env, "POST", "stores", await body(request)), status: 201 };
   }
 
   // ---- ratings ----
   if (resource === "ratings") {
     if (m === "GET") {
       const iv = url.searchParams.get("intervention_id");
-      const q = iv ? `rating?intervention_id=eq.${enc(iv)}` : "rating?order=created_at.desc";
+      const q = iv ? `ratings?intervention_id=eq.${enc(iv)}` : "ratings?order=created_at.desc";
       return { body: await sb(env, "GET", q) };
     }
     if (m === "POST") return { body: await addRating(env, await body(request)), status: 201 };
@@ -101,14 +101,14 @@ async function route(p, request, env, url) {
 
 // Inserta valoración y recalcula rating_avg/rating_n del técnico (media incremental).
 async function addRating(env, payload) {
-  const rows = await sb(env, "POST", "rating", payload);
+  const rows = await sb(env, "POST", "ratings", payload);
   const r = Array.isArray(rows) ? rows[0] : rows;
   if (r && r.technician_id) {
-    const techs = await sb(env, "GET", `technician?id=eq.${enc(r.technician_id)}&select=rating_avg,rating_n`);
+    const techs = await sb(env, "GET", `technicians?id=eq.${enc(r.technician_id)}&select=rating_avg,rating_n`);
     const t = techs[0] || { rating_avg: 0, rating_n: 0 };
     const n = (t.rating_n || 0) + 1;
     const avg = Math.round((((t.rating_avg || 0) * (t.rating_n || 0)) + r.stars) / n * 100) / 100;
-    await sb(env, "PATCH", `technician?id=eq.${enc(r.technician_id)}`, { rating_avg: avg, rating_n: n });
+    await sb(env, "PATCH", `technicians?id=eq.${enc(r.technician_id)}`, { rating_avg: avg, rating_n: n });
   }
   return r;
 }
@@ -137,12 +137,17 @@ async function ingestAdmira(env, request) {
     const err = new Error("invalid signature"); err.status = 401; throw err;
   }
 
-  // Mapea el evento Admira -> intervención.
-  const iv = await sb(env, "POST", "intervention", {
-    store_id: payload.store_id, surface_id: payload.surface_id || null,
+  // Mapea el evento Admira -> intervención (esquema demo: id de texto, campos planos).
+  const iv = await sb(env, "POST", "interventions", {
+    id: "iv-adm-" + (eventId || crypto.randomUUID()),
+    store_id: payload.store_id || null,
+    store_name: payload.store_name || null,
+    region: payload.region || null,
+    surface: payload.surface || null,
+    surface_type: payload.surface_type || null,
     type: payload.type || "incidencia", origin: "admira", status: "nueva",
     priority: payload.priority || "media",
-    title: payload.title || "Incidencia detectada en " + (payload.surface || payload.store_id),
+    title: payload.title || "Incidencia detectada en " + (payload.surface || payload.store_id || "punto de venta"),
     description: payload.description || "",
     source_event: eventId,
   });

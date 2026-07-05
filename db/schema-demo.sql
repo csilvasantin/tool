@@ -66,6 +66,23 @@ create table if not exists stores (
   created_at  timestamptz not null default now()
 );
 
+-- Buzón de webhooks (ingesta Admira, F1). Idempotencia por (source, event_id).
+-- Lo escribe SOLO el worker yokup-api con service_role (salta RLS); no lo toca el navegador.
+create table if not exists webhook_inbox (
+  id           uuid primary key default gen_random_uuid(),
+  source       text not null default 'admira',
+  event_id     text,                             -- id externo para dedupe
+  signature_ok boolean not null default false,
+  payload_raw  jsonb not null,
+  processed    boolean not null default false,
+  error        text,
+  received_at  timestamptz not null default now()
+);
+create unique index if not exists uq_inbox_event on webhook_inbox(source, event_id) where event_id is not null;
+-- RLS activado SIN política: el rol anónimo queda denegado (deny-by-default); solo
+-- el service_role del worker puede leer/escribir (bypassea RLS). No exponer payloads crudos.
+alter table public.webhook_inbox enable row level security;
+
 -- ---- RLS modo demo (acceso anónimo) — ver advertencia en rls-demo.sql ----
 do $$
 declare t text;
