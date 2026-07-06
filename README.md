@@ -10,13 +10,19 @@ desde **Admira** vía webhook. Al cerrar, el centro **valora al técnico**.
 
 ## Estado de despliegue
 
-- **Web (live)**: **https://csilvasantin.github.io/tool/** (repo `csilvasantin/tool`,
-  publicado por `.github/workflows/pages.yml` en cada push a `web/`).
-- **Auth**: ✅ login real con **Supabase magic link**. Lectura pública; escribir requiere sesión
-  (RLS: anon SELECT, authenticated ALL). Redirect URLs y Site URL configuradas en Supabase.
-- **Nota dominio**: el repo de usuario `csilvasantin.github.io` tenía un `CNAME=pixeria.com`
-  (dominio en venta, sin DNS) que tumbaba toda la cuenta Pages; se eliminó. Si se quiere
-  `yokup.com/tool`, liberar `www.yokup.com` del repo `yarig-startups` y fijar el dominio aquí.
+- **Web (live)**: **https://www.yokup.com/tool/** (y **https://yokup.com/tool/**). El dominio
+  `yokup.com` está fijado en ESTE repo (`web/CNAME`); la app vive en la subruta `/tool/` y la
+  raíz redirige a `/tool/`. Publicado por `.github/workflows/pages.yml` (carpeta `web/`) en cada
+  push a `main`.
+- **Estructura de la web**: la app está en `web/tool/` (todos los HTML/JS/CSS/media). En la raíz
+  `web/` sólo quedan `CNAME` (dominio), `index.html` (redirección a `/tool/`) y `404.html`
+  (reenvía enlaces antiguos de la raíz a `/tool/…`; para paths ya bajo `/tool/` muestra un 404
+  simple). Todas las rutas internas son relativas, así que funcionan igual bajo `/tool/`.
+- **Auth**: ✅ login real con **Supabase magic link**. El redirect del enlace mágico usa
+  `location.origin + location.pathname`, por lo que vuelve correctamente a la página bajo `/tool/`.
+  Lectura pública; escribir requiere sesión (RLS: anon SELECT, authenticated ALL).
+  ⚠️ Añadir en el dashboard de Supabase (proyecto `aswwjkfejdfglpxlgbjl`) las Redirect URLs /
+  Site URL con el nuevo path: `https://www.yokup.com/tool/*` y `https://yokup.com/tool/*`.
 - **Backend**: ✅ **en producción con Supabase** (modo `supabase`, directo desde el navegador
   con la anon key + RLS demo, sin worker). Proyecto `aswwjkfejdfglpxlgbjl` (eu-central-1).
   Esquema: `db/schema-demo.sql` + `db/rls-demo.sql`. Verificado el ciclo completo escribiendo
@@ -26,14 +32,17 @@ desde **Admira** vía webhook. Al cerrar, el centro **valora al técnico**.
 
 ### Cómo dejar la web en www.yokup.com/tool
 
-GitHub Pages sirve un repo en `<dominio>/<nombre-repo>/`. Para que la subruta sea `/tool`:
+Ya está montado así. El dominio custom (`web/CNAME` = `yokup.com`) hace que Pages sirva desde
+la raíz del dominio, y la subruta `/tool/` la damos nosotros con la carpeta `web/tool/`:
 
-1. **Repo renombrado a `tool`** ✓ → la web ya sale en `…github.io/tool/` y, con dominio
-   propio, en `www.yokup.com/tool/`.
-2. **Dominio**: Settings → Pages → Custom domain `www.yokup.com`; crea el `CNAME`
-   en tu DNS apuntando a `csilvasantin.github.io`. (El fichero `web/CNAME` se puede
-   versionar si quieres fijarlo en el repo.)
-3. **CORS del worker** ya contempla `https://www.yokup.com`.
+1. **Dominio fijado en el repo**: `web/CNAME` contiene `yokup.com` (no tocar; si se moviera a
+   `web/tool/` Pages perdería el dominio). DNS y config de Pages ya apuntan aquí.
+2. **App en subruta**: todo el frontend vive en `web/tool/`, por lo que se sirve en
+   `https://www.yokup.com/tool/` (y `https://yokup.com/tool/`).
+3. **Raíz → /tool/**: `web/index.html` redirige (meta refresh + `location.replace('/tool/')`).
+4. **Enlaces antiguos**: `web/404.html` reenvía paths viejos de la raíz (p.ej. `/panel.html`) a
+   `/tool/…`.
+5. **CORS del worker** ya contempla `https://www.yokup.com`.
 
 ## Estructura
 

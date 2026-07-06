@@ -3,214 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Yokup — Intervenciones técnicas para el punto de venta</title>
-<meta name="description" content="Yokup conecta los puntos de venta (estancos, kioscos, loterías…) con técnicos instaladores. Las incidencias entran solas desde Admira; un instalador las acepta, las resuelve y el punto las valora.">
-<link rel="icon" type="image/png" href="favicon.png">
-<link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
-<link rel="stylesheet" href="yokup.css?v=20260605zb">
-<script defer src="config.js?v=20260605zb"></script>
-<script defer src="auth.js?v=20260605zb"></script>
-<script defer src="yokup-nav.js?v=20260605zb"></script>
+<title>Yokup</title>
+<meta name="robots" content="noindex">
+<meta http-equiv="refresh" content="0; url=/tool/">
+<link rel="canonical" href="https://www.yokup.com/tool/">
+<link rel="icon" type="image/svg+xml" href="/tool/favicon.svg">
+<style>
+  :root { color-scheme: dark; }
+  html,body{ height:100%; margin:0; }
+  body{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:100vh; gap:18px;
+    background:#0b0d10; color:#e7e9ee;
+    font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; text-align:center;
+  }
+  img{ width:56px; height:56px; }
+  a{ color:#7cc4ff; }
+  .muted{ color:#8b93a1; font-size:14px; }
+</style>
+<script>
+  // Redirección inmediata a /tool/ (el meta refresh es el respaldo).
+  location.replace('/tool/');
+</script>
 </head>
 <body>
-<nav class="yk-nav" data-active="home"></nav>
-
-<!-- HERO -->
-<header class="hero">
-  <p class="eyebrow">Admira detecta · Yokup coordina · el técnico resuelve</p>
-  <h1>Cada avería, instalación o mantenimiento de tu punto de venta, <span class="g">resuelto y trazado</span>.</h1>
-  <p class="lede">Yokup conecta los <b>puntos de venta</b> —estancos, kioscos, loterías, centros con pantallas,
-     hilo musical o kioscos interactivos— con <b>técnicos instaladores</b> (freelance o empresas). Las
-     incidencias se dan de alta <b>solas desde <a class="admira-link" href="https://admira.com/es/" target="_blank" rel="noreferrer">Admira</a></b> cuando un equipo falla; un técnico las acepta,
-     va, las resuelve y tú valoras el trabajo.</p>
-  <div class="ctas">
-    <a class="cta punto" href="alta-punto.html">🏪 Dar de alta mi punto de venta</a>
-    <a class="cta inst"  href="alta-instalador.html">🛠️ Darme de alta como instalador</a>
-  </div>
-  <div class="hero-links">
-    <a href="panel.html">Ver el panel (demo) →</a>
-    <a href="#como">Ver cómo funciona ↓</a>
-  </div>
-</header>
-
-<!-- ADMIRA -->
-<section class="band admira-band">
-  <p class="eyebrow">Integración con Admira</p>
-  <h2>La incidencia nace automáticamente desde el sistema</h2>
-  <p class="lede">Yokup no depende de que el punto de venta llame, explique el fallo o abra un ticket manual.
-     Cuando Admira detecta que una surface, un equipo de audio o un kiosco deja de responder,
-     crea la incidencia y la publica en el flujo operativo con el contexto técnico necesario.</p>
-  <div class="admira-grid">
-    <div class="admira-card">
-      <span class="admira-k">01</span>
-      <h3>Detección</h3>
-      <p>Admira identifica el fallo del equipo en origen y dispara el alta de la incidencia.</p>
-    </div>
-    <div class="admira-card">
-      <span class="admira-k">02</span>
-      <h3>Contexto</h3>
-      <p>Yokup recibe punto de venta, zona, tipo de equipo y estado operativo sin reentrada manual.</p>
-    </div>
-    <div class="admira-card">
-      <span class="admira-k">03</span>
-      <h3>Publicación</h3>
-      <p>La intervención entra directamente en el tablón para que el técnico adecuado la acepte.</p>
-    </div>
-  </div>
-</section>
-
-<!-- EL BUCLE -->
-<section class="band" id="como">
-  <p class="eyebrow">El bucle</p>
-  <h2>Cómo funciona, de principio a fin</h2>
-  <p class="lede">Una incidencia recorre siempre el mismo camino. Automático cuando la detecta Admira;
-     también puedes abrirla a mano.</p>
-  <div class="flow">
-    <div class="fnode"><div class="num">01</div><h4>Se detecta</h4>
-      <p>Admira ve que una pantalla, el audio o un kiosko deja de funcionar y crea la incidencia.</p>
-      <span class="who">⚙ Admira</span></div>
-    <div class="fnode"><div class="num">02</div><h4>Se publica</h4>
-      <p>Yokup la publica en el tablón de trabajos de la zona del punto de venta.</p>
-      <span class="who">Yokup</span></div>
-    <div class="fnode"><div class="num">03</div><h4>Se acepta</h4>
-      <p>Un instalador disponible en esa zona acepta el trabajo y se compromete.</p>
-      <span class="who">Instalador</span></div>
-    <div class="fnode"><div class="num">04</div><h4>Se resuelve</h4>
-      <p>El técnico interviene en sitio, reporta lo hecho y marca la intervención como resuelta.</p>
-      <span class="who">Instalador</span></div>
-    <div class="fnode"><div class="num">05</div><h4>Se valora</h4>
-      <p>El punto de venta puntúa el trabajo. La valoración alimenta la reputación del técnico.</p>
-      <span class="who">Punto de venta</span></div>
-  </div>
-</section>
-
-<!-- DOS CARAS -->
-<section class="band">
-  <p class="eyebrow">Dos formas de entrar</p>
-  <h2>Según quién seas, te das de alta distinto</h2>
-  <p class="lede">Yokup es un marketplace de dos caras: quien <b>necesita</b> el servicio y quien lo <b>presta</b>.</p>
-  <div class="two">
-
-    <!-- PUNTO DE VENTA -->
-    <div class="side punto">
-      <span class="tag">Para puntos de venta</span>
-      <h3>🏪 Soy un estanco, kiosco, lotería o centro</h3>
-      <p class="who">Tienes pantallas, hilo musical o kioscos y quieres que, cuando algo falle, alguien lo arregle rápido.</p>
-      <ol class="steps">
-        <li><b>Da de alta tu punto</b><span>Tus datos y tus equipos. Si ya estás en Admira, se sincroniza solo: no repites nada.</span></li>
-        <li><b>Las incidencias se crean solas</b><span>Cuando un equipo falla, Admira abre la incidencia automáticamente. También puedes abrirla tú a mano.</span></li>
-        <li><b>Un instalador la acepta y va</b><span>El trabajo se publica en su zona y un técnico cualificado lo toma. Sigues el estado en todo momento.</span></li>
-        <li><b>Valoras la intervención</b><span>Al cerrarse, puntúas al técnico. Así mejora el servicio para todos.</span></li>
-      </ol>
-      <a class="cta punto" href="alta-punto.html">Dar de alta mi punto →</a>
-    </div>
-
-    <!-- INSTALADOR -->
-    <div class="side inst">
-      <span class="tag">Para instaladores</span>
-      <h3>🛠️ Soy técnico freelance o empresa</h3>
-      <p class="who">Instalas y reparas equipos en punto de venta y quieres un flujo constante de trabajos cerca de ti.</p>
-      <ol class="steps">
-        <li><b>Date de alta</b><span>Indica si eres freelance o empresa, tus zonas de trabajo y en qué equipos eres especialista.</span></li>
-        <li><b>Ves trabajos en el tablón</b><span>Las intervenciones disponibles aparecen filtradas por tu zona y tus especialidades.</span></li>
-        <li><b>Aceptas, ejecutas y reportas</b><span>Tomas el trabajo, intervienes en sitio y dejas constancia de lo realizado.</span></li>
-        <li><b>Acumulas reputación</b><span>Cada valoración del cliente sube tu puntuación y te da acceso a más y mejores trabajos.</span></li>
-      </ol>
-      <a class="cta inst" href="alta-instalador.html">Darme de alta como instalador →</a>
-    </div>
-
-  </div>
-</section>
-
-<!-- POR QUÉ FUNCIONA -->
-<section class="band">
-  <p class="eyebrow">Por qué funciona</p>
-  <h2>Trazabilidad y reputación en cada intervención</h2>
-  <p class="lede">Nada se pierde por teléfono ni en un grupo de WhatsApp. Todo queda registrado, medido y valorado.</p>
-  <div class="stats">
-    <div class="stat"><div class="n">100%</div><div class="l">de las intervenciones trazadas, de alta a cierre</div></div>
-    <div class="stat"><div class="n">⚙ Auto</div><div class="l">alta automática de incidencias desde Admira</div></div>
-    <div class="stat"><div class="n">★ 1–5</div><div class="l">valoración del técnico en cada trabajo</div></div>
-    <div class="stat"><div class="n">x zona</div><div class="l">los trabajos llegan al técnico adecuado y cercano</div></div>
-  </div>
-</section>
-
-<!-- CIERRE -->
-<div class="closer">
-  <div class="box">
-    <h2>¿Listo para empezar?</h2>
-    <p>Elige tu lado. Das de alta en un minuto y empiezas a operar.</p>
-    <div class="ctas" style="justify-content:center">
-      <a class="cta punto" href="alta-punto.html">🏪 Dar de alta mi punto de venta</a>
-      <a class="cta inst"  href="alta-instalador.html">🛠️ Darme de alta como instalador</a>
-    </div>
-  </div>
-</div>
-<script>
-(()=>{
-  const intro=document.createElement('div');
-  intro.className='yk-intro';
-  const backdrop=document.createElement('div');
-  backdrop.className='yk-intro-backdrop';
-  const field=document.createElement('div');
-  field.className='yk-intro-field';
-  const canvas=document.createElement('canvas');
-  const vw=window.innerWidth;
-  const vh=window.innerHeight;
-  canvas.width=vw;
-  canvas.height=vh;
-  const ctx=canvas.getContext('2d');
-  const fontSize=Math.min(vw*0.19, 244);
-  const letterGap=Math.max(34, Math.floor(fontSize*0.24));
-  const scaleY=1.28;
-  const word='YOKUP';
-  ctx.fillStyle='#fff';
-  ctx.textBaseline='middle';
-  ctx.font=`800 ${fontSize}px system-ui, sans-serif`;
-  const widths=[...word].map(ch=>ctx.measureText(ch).width);
-  const totalWidth=widths.reduce((a,b)=>a+b,0)+letterGap*(word.length-1);
-  let cursor=(vw-totalWidth)/2;
-  ctx.save();
-  ctx.translate(0, vh*(1-scaleY)/2);
-  ctx.scale(1,scaleY);
-  [...word].forEach((ch,i)=>{
-    ctx.fillText(ch,cursor, vh/2/scaleY);
-    cursor+=widths[i]+letterGap;
-  });
-  ctx.restore();
-  const step=Math.max(13, Math.floor(fontSize/10.5));
-  for(let y=0;y<vh;y+=step){
-    for(let x=0;x<vw;x+=step){
-      const alpha=ctx.getImageData(x,y,1,1).data[3];
-      if(alpha<10) continue;
-      const img=document.createElement('img');
-      img.className='yk-intro-logo';
-      img.src='media/intro-y.png';
-      img.alt='';
-      const size=step*1.08 + Math.random()*6;
-      const rot=-10+Math.random()*20;
-      const delay=Math.random()*0.75;
-      const dur=2.4+Math.random()*1.35;
-      const fallRot=-36+Math.random()*72;
-      img.style.setProperty('--size',`${size}px`);
-      img.style.setProperty('--x',`${x-size/2}px`);
-      img.style.setProperty('--y',`${y-size/2}px`);
-      img.style.setProperty('--rot',`${rot}deg`);
-      img.style.setProperty('--delay',`${delay}s`);
-      img.style.setProperty('--dur',`${dur}s`);
-      img.style.setProperty('--fall-rot',`${fallRot}deg`);
-      field.appendChild(img);
-    }
-  }
-  intro.appendChild(backdrop);
-  intro.appendChild(field);
-  document.body.appendChild(intro);
-  setTimeout(()=>{
-    intro.classList.add('fall');
-    intro.classList.add('out');
-  },2000);
-  setTimeout(()=>intro.remove(),5200);
-})();
-</script>
+  <img src="/tool/logo-mark.svg" alt="Yokup" onerror="this.style.display='none'">
+  <p>Redirigiendo a <a href="/tool/">yokup.com/tool</a>…</p>
+  <p class="muted">Si no ocurre nada, pulsa el enlace.</p>
 </body>
 </html>

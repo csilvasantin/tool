@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yokup — página no encontrada</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/tool/favicon.svg">
+<style>
+  :root { color-scheme: dark; }
+  html,body{ height:100%; margin:0; }
+  body{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:100vh; gap:16px; padding:24px; box-sizing:border-box;
+    background:#0b0d10; color:#e7e9ee;
+    font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; text-align:center;
+  }
+  img{ width:56px; height:56px; }
+  h1{ font-size:22px; margin:0; }
+  a{ color:#7cc4ff; }
+  .muted{ color:#8b93a1; font-size:14px; }
+</style>
+<script>
+  // Compatibilidad con enlaces antiguos servidos desde la raíz (antes la app
+  // vivía en /). Si el path NO empieza por /tool/ y parece una página vieja de
+  // la app, lo reenviamos a /tool + path. Si ya está bajo /tool/, mostramos 404.
+  (function(){
+    var p = location.pathname;
+    if (p.indexOf('/tool/') === 0) return;           // 404 real dentro de la app
+    // Páginas/recursos conocidos de la app antigua en la raíz.
+    var LOOKS_OLD = /^\/(index\.html)?$|^\/(alta-punto|alta-instalador|panel|marketplace|equipos|backoffice|video)\.html$|^\/(auth|config|data|yokup-nav)\.js$|^\/yokup\.css$|^\/favicon\.(png|svg)$|^\/logo-mark\.svg$|^\/media\//;
+    if (LOOKS_OLD.test(p)) {
+      location.replace('/tool' + p + location.search + location.hash);
+    }
+  })();
+</script>
+</head>
+<body>
+  <img src="/tool/logo-mark.svg" alt="Yokup" onerror="this.style.display='none'">
+  <h1>Página no encontrada</h1>
+  <p class="muted">Esta dirección no existe.</p>
+  <p><a href="/tool/">Ir a Yokup →</a></p>
+</body>
+</html>
