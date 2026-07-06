@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yokup — Reportar incidencia por voz</title>
+<meta name="description" content="Central de incidencias por voz de Yokup: pulsa, habla natural y el sistema crea la incidencia clasificada por IA con la transcripción y el audio como evidencia.">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
+<link rel="stylesheet" href="yokup.css?v=20260706voz">
+<script defer src="yokup-nav.js?v=20260706voz"></script>
+<style>
+  .voz-wrap{max-width:640px;margin:0 auto}
+  .mic-panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:28px 24px;text-align:center;margin:18px 0}
+  .mic-btn{width:120px;height:120px;border-radius:50%;border:0;cursor:pointer;
+    background:var(--brand);color:#1a0e00;font-size:44px;line-height:1;
+    display:inline-flex;align-items:center;justify-content:center;
+    transition:transform .15s, box-shadow .15s;box-shadow:0 8px 24px rgba(255,154,47,.35)}
+  .mic-btn:hover{transform:translateY(-2px)}
+  .mic-btn[disabled]{opacity:.5;cursor:not-allowed}
+  .mic-btn.rec{background:var(--bad);color:#fff;animation:pulse 1.2s infinite;
+    box-shadow:0 0 0 0 rgba(255,93,108,.6)}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,93,108,.55)}
+    70%{box-shadow:0 0 0 22px rgba(255,93,108,0)}100%{box-shadow:0 0 0 0 rgba(255,93,108,0)}}
+  .mic-hint{color:var(--mut);font-size:14px;margin-top:16px;min-height:20px}
+  .transcript-box{background:var(--card2);border:1px solid var(--line);border-radius:12px;
+    padding:14px 16px;margin:16px 0;text-align:left;min-height:64px;font-size:15px;line-height:1.5}
+  .transcript-box .interim{color:var(--mut)}
+  .transcript-box.empty{color:var(--mut);font-style:italic}
+  .field{text-align:left;margin:12px 0}
+  .field label{display:block;font-size:12px;color:var(--mut);margin-bottom:5px}
+  .field input,.field textarea{width:100%;box-sizing:border-box;background:var(--card2);
+    border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:10px 12px;font-size:14px}
+  .field textarea{resize:vertical;min-height:70px}
+  .audio-row{margin:10px 0;text-align:left}
+  .audio-row audio{width:100%;margin-top:6px}
+  .actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+  .actions .btn{margin-top:0;flex:1;text-align:center;min-width:140px;border:0;cursor:pointer;font:inherit}
+  .result{margin-top:16px;padding:14px 16px;border-radius:12px;font-size:14px;text-align:left;display:none}
+  .result.ok{background:rgba(124,255,178,.08);border:1px solid var(--good);display:block}
+  .result.err{background:rgba(255,93,108,.08);border:1px solid var(--bad);display:block}
+  .result .tags{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+  .tag{font-family:monospace;font-size:11px;padding:3px 8px;border-radius:6px;
+    background:rgba(98,233,255,.12);border:1px solid var(--line);color:var(--brand2)}
+  .unsupported{background:rgba(255,138,102,.1);border:1px solid var(--warn);
+    border-radius:12px;padding:12px 14px;margin:12px 0;font-size:14px;display:none}
+  /* honeypot: oculto para humanos, lo rellenan los bots */
+  .hp{position:absolute;left:-9999px;opacity:0;height:0;overflow:hidden}
+</style>
+</head>
+<body>
+<nav class="yk-nav" data-active="voz"></nav>
+<div class="wrap">
+  <div class="voz-wrap">
+    <h1>🎙️ Reportar incidencia por voz</h1>
+    <div class="sub">Pulsa el micro y describe el problema con naturalidad — por ejemplo:
+      «la pantalla principal no se enciende». La IA crea la incidencia, la clasifica y
+      la manda al equipo técnico. La transcripción y el audio quedan como evidencia.</div>
+
+    <div class="unsupported" id="unsupported">
+      ⚠️ Tu navegador no soporta el reconocimiento de voz (Web Speech API). Usa Chrome o Edge
+      en escritorio/Android, o escribe la incidencia a mano en el cuadro de abajo y pulsa «Crear incidencia».
+    </div>
+
+    <div class="mic-panel">
+      <button class="mic-btn" id="mic" aria-label="Grabar incidencia por voz">🎙️</button>
+      <div class="mic-hint" id="hint">Pulsa para empezar a hablar</div>
+    </div>
+
+    <div class="field">
+      <label for="transcript">Transcripción (edítala si hace falta)</label>
+      <div class="transcript-box empty" id="transcript" role="textbox">Aquí aparecerá lo que digas…</div>
+    </div>
+
+    <div class="audio-row" id="audioRow" style="display:none">
+      <label style="font-size:12px;color:var(--mut)">Audio grabado (evidencia adjunta)</label>
+      <audio id="audio" controls></audio>
+    </div>
+
+    <div class="field">
+      <label for="punto">Punto de venta / ubicación (opcional)</label>
+      <input id="punto" type="text" placeholder="Ej: Tienda Gran Vía — escaparate">
+    </div>
+    <div class="field">
+      <label for="contact">Contacto para el técnico (opcional)</label>
+      <input id="contact" type="text" placeholder="Nombre y teléfono/email">
+    </div>
+
+    <!-- honeypot anti-bot: un humano no lo ve ni lo rellena -->
+    <div class="hp" aria-hidden="true"><label>No rellenar<input id="hp" tabindex="-1" autocomplete="off"></label></div>
+
+    <div class="actions">
+      <button class="btn ghost" id="clear" type="button">Limpiar</button>
+      <button class="btn" id="send" type="button" disabled>Crear incidencia</button>
+    </div>
+
+    <div class="result" id="result"></div>
+  </div>
+</div>
+
+<script src="config.js?v=20260706voz"></script>
+<script>
+/* ============================================================================
+ * Yokup — Central de Incidencias por Voz · TRAMO A (Web Speech API + MediaRecorder)
+ *
+ * Punto de entrada: este widget. El responsable del punto pulsa el micro, habla,
+ * y al pulsar «Crear incidencia» la transcripción se envía al Worker admira-telegram
+ * (POST /api/voz-incidencia), que la clasifica con LLM (Claude, clave server-side) y
+ * crea la incidencia en el mismo backend de tareas Yokup (source=yokup).
+ *
+ * - STT: window.SpeechRecognition || window.webkitSpeechRecognition, lang es-ES.
+ * - Audio: MediaRecorder graba en paralelo para adjuntarlo como evidencia. En el MVP
+ *   el blob NO se sube (ver TODO R2 en docs/voz-incidencias.md); se manda solo el
+ *   metadato (duración) en audio_note. El audio se reproduce localmente para el usuario.
+ *
+ * TRAMO B (esqueleto, NO activar) al final del archivo: Cloudflare Realtime Agents +
+ * RealtimeKit para voz de baja latencia (ElevenLabs) y futuro teléfono/PSTN.
+ * ==========================================================================*/
+(function(){
+  var API = (window.YOKUP_CONFIG && window.YOKUP_CONFIG.ADMIRA_API)
+    || 'https://admira-telegram.csilvasantin.workers.dev';
+
+  var micBtn   = document.getElementById('mic');
+  var hint     = document.getElementById('hint');
+  var tBox     = document.getElementById('transcript');
+  var sendBtn  = document.getElementById('send');
+  var clearBtn = document.getElementById('clear');
+  var result   = document.getElementById('result');
+  var audioRow = document.getElementById('audioRow');
+  var audioEl  = document.getElementById('audio');
+
+  var finalText = '';       // transcripción confirmada
+  var recognizing = false;
+  var mediaRecorder = null, audioChunks = [], audioBlob = null, recStart = 0;
+
+  // ---- Web Speech API (STT) --------------------------------------------------
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var recognition = null;
+  if (SR) {
+    recognition = new SR();
+    recognition.lang = 'es-ES';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = function(e){
+      var interim = '';
+      for (var i = e.resultIndex; i < e.results.length; i++){
+        var chunk = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += chunk + ' ';
+        else interim += chunk;
+      }
+      renderTranscript(interim);
+      refreshSendState();
+    };
+    recognition.onerror = function(e){
+      hint.textContent = 'Error de reconocimiento: ' + (e.error||'desconocido') + '. Puedes escribir a mano.';
+    };
+    recognition.onend = function(){
+      if (recognizing){ // reintenta si el navegador corta solo
+        try { recognition.start(); } catch(_){}
+      }
+    };
+  } else {
+    document.getElementById('unsupported').style.display = 'block';
+    // sin STT: la caja de transcripción pasa a editable a mano
+    tBox.setAttribute('contenteditable','true');
+  }
+
+  function renderTranscript(interim){
+    var html = escapeHtml(finalText);
+    if (interim) html += '<span class="interim">' + escapeHtml(interim) + '</span>';
+    tBox.classList.toggle('empty', !html);
+    tBox.innerHTML = html || 'Aquí aparecerá lo que digas…';
+  }
+  function currentText(){
+    // permite edición manual: leemos el texto visible salvo el placeholder
+    if (tBox.classList.contains('empty')) return '';
+    return (tBox.innerText || '').trim();
+  }
+  function refreshSendState(){ sendBtn.disabled = currentText().length < 3; }
+
+  // ---- MediaRecorder (audio evidencia) --------------------------------------
+  function startAudio(){
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    navigator.mediaDevices.getUserMedia({ audio:true }).then(function(stream){
+      audioChunks = [];
+      try { mediaRecorder = new MediaRecorder(stream); }
+      catch(_){ return; }
+      mediaRecorder.ondataavailable = function(ev){ if (ev.data.size) audioChunks.push(ev.data); };
+      mediaRecorder.onstop = function(){
+        audioBlob = new Blob(audioChunks, { type: (mediaRecorder.mimeType||'audio/webm') });
+        audioEl.src = URL.createObjectURL(audioBlob);
+        audioRow.style.display = 'block';
+        stream.getTracks().forEach(function(t){ t.stop(); }); // suelta el micro
+      };
+      recStart = Date.now();
+      mediaRecorder.start();
+    }).catch(function(){ /* sin permiso de micro → seguimos solo con STT/texto */ });
+  }
+  function stopAudio(){ if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop(); }
+  function audioSeconds(){ return recStart ? Math.round((Date.now()-recStart)/1000) : 0; }
+
+  // ---- Botón micro -----------------------------------------------------------
+  micBtn.addEventListener('click', function(){
+    if (!recognition){ micBtn.disabled = true; return; }
+    if (!recognizing) startRec(); else stopRec();
+  });
+  function startRec(){
+    recognizing = true;
+    micBtn.classList.add('rec'); micBtn.textContent = '⏹';
+    hint.textContent = 'Escuchando… habla ahora. Pulsa para terminar.';
+    result.className = 'result';
+    try { recognition.start(); } catch(_){}
+    startAudio();
+  }
+  function stopRec(){
+    recognizing = false;
+    micBtn.classList.remove('rec'); micBtn.textContent = '🎙️';
+    hint.textContent = 'Grabación lista. Revisa el texto y pulsa «Crear incidencia».';
+    try { recognition.stop(); } catch(_){}
+    stopAudio();
+    refreshSendState();
+  }
+
+  // ---- Editar a mano actualiza el estado del botón ---------------------------
+  tBox.addEventListener('input', function(){ finalText = currentText()+' '; refreshSendState(); });
+
+  clearBtn.addEventListener('click', function(){
+    finalText=''; renderTranscript(''); refreshSendState();
+    audioBlob=null; audioRow.style.display='none'; audioEl.removeAttribute('src');
+    result.className='result';
+    document.getElementById('punto').value=''; document.getElementById('contact').value='';
+  });
+
+  // ---- Enviar al Worker ------------------------------------------------------
+  sendBtn.addEventListener('click', function(){
+    var transcript = currentText();
+    if (transcript.length < 3) return;
+    if (recognizing) stopRec();
+    sendBtn.disabled = true; sendBtn.textContent = 'Creando…';
+    result.className = 'result';
+
+    var body = {
+      transcript: transcript,
+      source: 'yokup',
+      punto: document.getElementById('punto').value.trim(),
+      contact: document.getElementById('contact').value.trim(),
+      hp: document.getElementById('hp').value,               // honeypot
+      audio_note: audioBlob ? ('grabación de voz ~' + audioSeconds() + 's') : ''
+    };
+    // Identidad del reporter si hay sesión Yokup (auth.js opcional en esta página).
+    try { if (window.YokupAuth && YokupAuth.user()) body.reporter = YokupAuth.user().email; } catch(_){}
+
+    fetch(API + '/api/voz-incidencia', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      sendBtn.textContent = 'Crear incidencia';
+      if (d && d.ok){
+        result.className = 'result ok';
+        result.innerHTML = '✅ <b>Incidencia #' + d.id + ' creada</b> y enviada al equipo técnico.'
+          + '<div class="tags">'
+          + '<span class="tag">' + (d.title||'') + '</span>'
+          + '<span class="tag">tipo: ' + (d.tipologia||'—') + '</span>'
+          + '<span class="tag">urgencia: ' + (d.urgencia||'—') + '</span>'
+          + '<span class="tag">clasificador: ' + (d.classifier||'—') + '</span>'
+          + '</div>'
+          + (d.resumen ? '<div style="margin-top:8px;color:var(--mut)">' + escapeHtml(d.resumen) + '</div>' : '');
+        finalText=''; // listo para la siguiente
+      } else {
+        result.className = 'result err';
+        result.textContent = '❌ No se pudo crear la incidencia: ' + ((d&&d.error)||'error desconocido');
+        sendBtn.disabled = false;
+      }
+    })
+    .catch(function(err){
+      result.className = 'result err';
+      result.textContent = '❌ Error de red: ' + err.message;
+      sendBtn.textContent = 'Crear incidencia'; sendBtn.disabled = false;
+    });
+  });
+
+  function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+})();
+
+/* ============================================================================
+ * TRAMO B — ESQUELETO (NO ACTIVAR). Cloudflare Realtime Agents + RealtimeKit.
+ *
+ * Sustituye la captura STT del navegador por un agente de voz de baja latencia
+ * (ElevenLabs TTS/STT), y habilita el futuro canal teléfono/PSTN (v2).
+ *
+ * Claves que FALTAN (dejar en la Cúpula / Secrets Store, NUNCA en el navegador):
+ *   - REALTIMEKIT_APP_ID     (Cloudflare RealtimeKit — id de la app)
+ *   - REALTIMEKIT_API_KEY    (RealtimeKit — auth server-side para emitir tokens de sesión)
+ *   - ELEVENLABS_API_KEY     (voz TTS/STT del agente)
+ *
+ * Flujo previsto:
+ *   1) El navegador pide al Worker un token de sesión RealtimeKit (server-side, con
+ *      REALTIMEKIT_APP_ID/REALTIMEKIT_API_KEY). El token es efímero y con scope.
+ *   2) El SDK de RealtimeKit abre el canal WebRTC de voz; el Realtime Agent
+ *      (Cloudflare Agents SDK, clase con withVoice / @cloudflare/voice) transcribe y
+ *      dialoga con ElevenLabs.
+ *   3) Al cerrar, el Agent llama internamente a la MISMA lógica de clasificación +
+ *      creación de incidencia (POST /api/voz-incidencia o RPC del Agent) → tabla tasks.
+ *
+ * --- pseudocódigo, comentado a propósito ---
+ * async function iniciarVozRealtime(){
+ *   const { token } = await fetch(API + '/api/rtk-token', {method:'POST'}).then(r=>r.json());
+ *   // appId lo resuelve el servidor; authToken es el token efímero emitido por el Worker
+ *   const rtk = await RealtimeKit.init({ authToken: token });
+ *   rtk.on('transcript', (t)=>{ ...pintar transcripción en vivo en la caja... });
+ *   rtk.on('end', async ({transcript, audioUrl})=>{
+ *     await fetch(API + '/api/voz-incidencia', {method:'POST',
+ *       body: JSON.stringify({ transcript, source:'yokup', audio_url:audioUrl })});
+ *   });
+ * }
+ *
+ * Doc completa y pasos de activación: web/tool/docs/voz-incidencias.md
+ * ==========================================================================*/
+</script>
+</body>
+</html>
