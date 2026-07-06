@@ -2,9 +2,14 @@ name = "yokup-api"
 main = "src/index.js"
 compatibility_date = "2025-07-18"
 
-# Secrets (set con `wrangler secret put`, NUNCA en el repo):
-#   SUPABASE_URL           -> https://<ref>.supabase.co
-#   SUPABASE_SERVICE_ROLE  -> service_role key (privilegiada; solo vive en el worker)
+# Backend de datos: Cloudflare D1 (SQLite). El binding se llama DB dentro del Worker.
+[[d1_databases]]
+binding = "DB"
+database_name = "yokup-db"
+database_id = "0c087ca2-ae5b-4589-a377-e9e615603c8d"
+
+# Secret opcional (set con `wrangler secret put`, NUNCA en el repo):
+#   ADMIRA_WEBHOOK_SECRET -> HMAC del webhook de Admira (F1). Sin él, modo dev (acepta).
 
 [observability]
 enabled = true

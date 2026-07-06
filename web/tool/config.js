@@ -2,27 +2,27 @@
  * Yokup — configuración del frontend.
  *
  * BACKEND:
- *   'local'    -> mock en localStorage (demo, sin servidor). Valor por defecto.
+ *   'local'    -> mock en localStorage (demo, sin servidor).
+ *   'api'      -> Cloudflare Worker yokup-api + D1 (SQLite). MODO ACTUAL (producción).
  *   'supabase' -> la web habla DIRECTO con Supabase (PostgREST) con la anon key.
- *                 Tablas: db/schema-demo.sql + db/rls-demo.sql. SIN worker.
- *   'api'      -> Cloudflare Worker yokup-api + Supabase (arquitectura con worker).
+ *                 ⚠️ ROLLBACK / OBSOLETO: el proyecto Supabase original ya no existe
+ *                 (NXDOMAIN). Se mantiene la config solo como referencia de rollback.
  *
- * Para 'supabase' (lo que estamos montando):
- *   1. Crear proyecto Supabase y ejecutar db/schema-demo.sql (incluye RLS demo).
- *   2. Project Settings → API: copiar Project URL y la anon key (PÚBLICA).
- *   3. Rellenar SUPABASE_URL / SUPABASE_ANON_KEY abajo y poner BACKEND: 'supabase'.
+ * Modo 'api' (actual): el navegador habla SOLO con el Worker yokup-api, que lee/escribe
+ * la base D1 'yokup-db'. No hay claves en el navegador; el control de datos vive en el
+ * Worker (fase 2 añadirá auth Google/whitelist estilo admira.live).
  *
- * La anon key es pública por diseño (va en el navegador). La service_role NUNCA aquí.
+ * Forzar backend en la URL con ?backend=api|local|supabase (útil para probar).
  * ==========================================================================*/
 window.YOKUP_CONFIG = {
-  BACKEND: 'supabase',                   // 'local' | 'supabase' | 'api'
+  BACKEND: 'api',                        // 'local' | 'api' | 'supabase'
 
-  // Backend 'supabase' (directo):
-  SUPABASE_URL: 'https://aswwjkfejdfglpxlgbjl.supabase.co',                      // ej: https://abcdxyz.supabase.co
-  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzd3dqa2ZlamRmZ2xweGxnYmpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyOTkxNDYsImV4cCI6MjA5NTg3NTE0Nn0.bHaSsgewInO9jI8bwb5E15CokHoo2br6wFQAPS60sVk',                 // anon/public key (NO la service_role)
+  // Backend 'api' (Cloudflare Worker + D1) — MODO ACTUAL:
+  YOKUP_API: 'https://yokup-api.csilvasantin.workers.dev',
 
-  // Backend 'api' (worker), opcional:
-  YOKUP_API: 'https://yokup-api.<tu-subdominio>.workers.dev',
+  // Backend 'supabase' (directo) — OBSOLETO, solo rollback histórico (proyecto caído):
+  SUPABASE_URL: 'https://aswwjkfejdfglpxlgbjl.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzd3dqa2ZlamRmZ2xweGxnYmpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyOTkxNDYsImV4cCI6MjA5NTg3NTE0Nn0.bHaSsgewInO9jI8bwb5E15CokHoo2br6wFQAPS60sVk',
 };
 
 // Forzar backend con ?backend=supabase|api|local en la URL (útil para probar).

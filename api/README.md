@@ -1,48 +1,58 @@
 # yokup-api — Cloudflare Worker
 
-API entre el frontend estático de Yokup y **Supabase** (PostgREST). La `service_role`
-key vive **solo** aquí como secret del worker; nunca llega al navegador.
+API entre el frontend estático de Yokup y **Cloudflare D1** (SQLite). D1 es la fuente
+de verdad; el navegador nunca ve claves ni toca la base directamente.
 
 ```
-navegador (web/) ──fetch──▶ yokup-api (Worker) ──REST service_role──▶ Supabase (Postgres)
+navegador (web/tool) ──fetch──▶ yokup-api (Worker) ──binding env.DB──▶ D1 (yokup-db)
 ```
 
-## Puesta en marcha (todo lo que necesitas hacer tú)
+> Migrado desde Supabase (jul 2026). El modo `supabase` del frontend queda como
+> rollback histórico, pero el proyecto Supabase original ya no existe (NXDOMAIN).
 
-### 1. Crear el proyecto Supabase
-1. En [supabase.com](https://supabase.com) crea un proyecto nuevo.
-2. SQL Editor → pega y ejecuta [`../db/schema.sql`](../db/schema.sql).
-3. Project Settings → API: copia la **Project URL** y la **service_role** key
-   (la secreta, no la anon). La service_role NO se pone en el frontend.
+## Recursos desplegados
 
-### 2. Desplegar el worker
+| Qué | Valor |
+|-----|-------|
+| Worker | `https://yokup-api.csilvasantin.workers.dev` |
+| D1 database | `yokup-db` — id `0c087ca2-ae5b-4589-a377-e9e615603c8d` |
+| Binding en el Worker | `env.DB` |
+
+## Puesta en marcha / mantenimiento
+
 ```bash
-cd yokup/api
+cd api
 npm install
 npx wrangler login                 # una vez
 
-# Secrets (no se guardan en el repo):
-npm run secret:url                 # pega la Project URL  (https://<ref>.supabase.co)
-npm run secret:key                 # pega la service_role key
-# Opcional, para validar el webhook de Admira (F1):
+# Crear la base (ya hecha; solo si montas otra):
+# npx wrangler d1 create yokup-db   -> copia el database_id a wrangler.toml
+
+# Aplicar esquema y seed (idempotentes):
+npx wrangler d1 execute yokup-db --remote --file=../db/schema-d1.sql
+npx wrangler d1 execute yokup-db --remote --file=../db/seed-d1.sql
+
+# (Opcional) Secret para validar el webhook de Admira (F1):
 npx wrangler secret put ADMIRA_WEBHOOK_SECRET
 
-npm run deploy                     # imprime la URL: https://yokup-api.<sub>.workers.dev
+npm run deploy                     # imprime la URL del Worker
 npm run tail                       # logs en vivo
 ```
 
-### 3. Conectar el frontend
-En [`../web/config.js`](../web/config.js):
+## Conectar el frontend
+
+En [`../web/tool/config.js`](../web/tool/config.js):
 ```js
 window.YOKUP_CONFIG = {
-  BACKEND: 'api',                                  // cambia 'local' -> 'api'
-  YOKUP_API: 'https://yokup-api.<sub>.workers.dev' // la URL que imprimió el deploy
+  BACKEND: 'api',
+  YOKUP_API: 'https://yokup-api.csilvasantin.workers.dev',
 };
 ```
-Tip: sin tocar config, puedes forzar el backend con `?backend=api` en la URL.
+Tip: sin tocar config, fuerza el backend con `?backend=api` en la URL.
 
-> Añade tu dominio de producción a `ALLOWED_ORIGINS` en `src/index.js` (ahora trae
-> `yokup.app` y `localhost:8788`).
+CORS: el Worker refleja el Origin solo si está en `ALLOWED_ORIGINS` (`src/index.js`);
+ya incluye `https://www.yokup.com`, `https://yokup.com`, `csilvasantin.github.io` y
+localhost. Cualquier otro Origin recibe fallback a `https://www.yokup.com` (no reflejado).
 
 ## Endpoints
 
@@ -57,10 +67,23 @@ Tip: sin tocar config, puedes forzar el backend con `?backend=api` en la URL.
 | GET/POST | `/api/ratings` | valoraciones (recalcula rating del técnico) |
 | POST | `/api/ingest/admira` | webhook de Admira (idempotente, firmado) — F1 |
 
+Las respuestas de POST/PATCH devuelven la fila en un **array** de un elemento
+(compatibilidad con el frontend, que esperaba `return=representation` de PostgREST).
+
 ## Notas de diseño
+
+- **D1/SQLite**: los arrays (`zones`, `skills`, `equipment`) se guardan como JSON TEXT y
+  se rehidratan a arrays al leer; los booleanos (`from_admira`) como INTEGER 0/1. Ver
+  el mapeo en `JSON_ARRAY_COLS` / `BOOL_COLS` de `src/index.js` y `db/schema-d1.sql`.
 - **Idempotencia del webhook**: `webhook_inbox` dedupe por `(source, event_id)`; si llega
   repetido, no crea otra intervención.
-- **Firma**: HMAC-SHA256 del body con `ADMIRA_WEBHOOK_SECRET` (cabecera `X-Yokup-Signature: sha256=…`).
-  Si el secret no está configurado, acepta (modo dev) — configúralo antes de exponer el webhook.
-- **Rating**: el cálculo de media incremental se hace server-side en `/api/ratings` y
-  también optimista en el cliente, para que el número aparezca al instante.
+- **Firma**: HMAC-SHA256 del body con `ADMIRA_WEBHOOK_SECRET` (cabecera
+  `X-Yokup-Signature: sha256=…`). Si el secret no está configurado, acepta (modo dev) —
+  configúralo antes de exponer el webhook.
+- **Rating**: la media incremental se recalcula server-side en `/api/ratings` y también
+  optimista en el cliente, para que el número aparezca al instante.
+
+## Pendiente (fase 2)
+
+- **Auth**: Google/whitelist estilo admira.live. Hoy la API es abierta (demo). Antes de
+  producción real, añadir capa de identidad y restringir escrituras.

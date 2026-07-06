@@ -2,15 +2,14 @@
   "name": "yokup-api",
   "version": "0.1.0",
   "private": true,
-  "description": "Cloudflare Worker — API de Yokup entre el frontend estático y Supabase (REST con service_role).",
+  "description": "Cloudflare Worker — API de Yokup entre el frontend estático y Cloudflare D1 (SQLite).",
   "main": "src/index.js",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",
-    "secret:url": "wrangler secret put SUPABASE_URL",
-    "secret:key": "wrangler secret put SUPABASE_SERVICE_ROLE"
+    "secret:webhook": "wrangler secret put ADMIRA_WEBHOOK_SECRET"
   },
   "devDependencies": {
     "wrangler": "^4.93.0"

@@ -1,13 +1,15 @@
 /**
  * yokup-api — Cloudflare Worker
- * API entre el frontend estático de Yokup y Supabase (PostgREST).
+ * API entre el frontend estático de Yokup y Cloudflare D1 (SQLite).
  *
- * La service_role key vive SOLO aquí (secret del worker), nunca en el navegador.
- * El frontend habla con este worker; el worker habla con Supabase con privilegios.
+ * El frontend (web/tool/data.js, modo 'api') habla SOLO con este worker; el worker
+ * lee/escribe D1 con el binding `env.DB`. No hay Supabase: D1 es la fuente de verdad.
+ * (Supabase queda como rollback: revertir config.js a BACKEND:'supabase'.)
  *
- * Secrets (wrangler secret put):
- *   SUPABASE_URL           https://<ref>.supabase.co
- *   SUPABASE_SERVICE_ROLE  service_role key
+ * Binding (wrangler.toml):
+ *   DB   -> D1 database 'yokup-db'
+ * Secret opcional (wrangler secret put):
+ *   ADMIRA_WEBHOOK_SECRET  HMAC del webhook de Admira (sin él: modo dev, acepta)
  *
  * Rutas (todas bajo /api):
  *   GET    /api/health
@@ -35,6 +37,14 @@ const ALLOWED_ORIGINS = new Set([
   "http://127.0.0.1:8788",
 ]);
 
+// Columnas que en el frontend son arrays (se guardan como JSON TEXT en D1).
+const JSON_ARRAY_COLS = {
+  technicians: ["zones", "skills"],
+  stores: ["equipment"],
+};
+// Columnas booleanas (INTEGER 0/1 en D1).
+const BOOL_COLS = { stores: ["from_admira"] };
+
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS")
@@ -47,7 +57,7 @@ export default {
       const res = await route(parts.slice(1), request, env, url);
       return json(request, res.body, res.status || 200);
     } catch (e) {
-      return json(request, { error: String(e && e.message || e) }, e.status || 500);
+      return json(request, { error: String((e && e.message) || e) }, e.status || 500);
     }
   },
 };
@@ -58,34 +68,37 @@ async function route(p, request, env, url) {
 
   if (resource === "health") return { body: { ok: true, ts: Date.now() } };
 
-  // ---- interventions ----  (esquema demo: tablas en plural)
+  // ---- interventions ----
   if (resource === "interventions") {
-    if (m === "GET")   return { body: await sb(env, "GET", "interventions?order=created_at.desc") };
-    if (m === "POST")  return { body: await sb(env, "POST", "interventions", await body(request)), status: 201 };
-    if (m === "PATCH" && id)
-      return { body: await sb(env, "PATCH", `interventions?id=eq.${enc(id)}`, await body(request)) };
+    if (m === "GET") return { body: await listAll(env, "interventions") };
+    if (m === "POST") return { body: await insert(env, "interventions", await body(request)), status: 201 };
+    if (m === "PATCH" && id) return { body: await patch(env, "interventions", id, await body(request)) };
   }
 
   // ---- technicians ----
   if (resource === "technicians") {
-    if (m === "GET")  return { body: await sb(env, "GET", "technicians?order=created_at.desc") };
-    if (m === "POST") return { body: await sb(env, "POST", "technicians", await body(request)), status: 201 };
-    if (m === "PATCH" && id)
-      return { body: await sb(env, "PATCH", `technicians?id=eq.${enc(id)}`, await body(request)) };
+    if (m === "GET") return { body: await listAll(env, "technicians") };
+    if (m === "POST") return { body: await insert(env, "technicians", await body(request)), status: 201 };
+    if (m === "PATCH" && id) return { body: await patch(env, "technicians", id, await body(request)) };
   }
 
   // ---- stores (altas manuales de puntos en Yokup) ----
   if (resource === "stores") {
-    if (m === "GET")  return { body: await sb(env, "GET", "stores?order=created_at.desc") };
-    if (m === "POST") return { body: await sb(env, "POST", "stores", await body(request)), status: 201 };
+    if (m === "GET") return { body: await listAll(env, "stores") };
+    if (m === "POST") return { body: await insert(env, "stores", await body(request)), status: 201 };
   }
 
   // ---- ratings ----
   if (resource === "ratings") {
     if (m === "GET") {
       const iv = url.searchParams.get("intervention_id");
-      const q = iv ? `ratings?intervention_id=eq.${enc(iv)}` : "ratings?order=created_at.desc";
-      return { body: await sb(env, "GET", q) };
+      if (iv) {
+        const r = await env.DB.prepare(
+          "SELECT * FROM ratings WHERE intervention_id = ? ORDER BY created_at DESC"
+        ).bind(iv).all();
+        return { body: hydrateRows("ratings", r.results) };
+      }
+      return { body: await listAll(env, "ratings") };
     }
     if (m === "POST") return { body: await addRating(env, await body(request)), status: 201 };
   }
@@ -97,18 +110,105 @@ async function route(p, request, env, url) {
   return { body: { error: "not found", path: p }, status: 404 };
 }
 
-// --- Lógica de negocio que toca varias tablas -----------------------------
+// --- CRUD genérico sobre D1 -------------------------------------------------
+
+// Defaults por tabla (equivalen a los DEFAULT del esquema demo y a lo que hace data.js).
+function withDefaults(table, row) {
+  const now = new Date().toISOString();
+  const r = { ...row };
+  if (r.created_at == null) r.created_at = now;
+  if (table === "interventions") {
+    r.id = r.id || "iv-" + Date.now();
+    r.type = r.type || "incidencia";
+    r.origin = r.origin || "manual";
+    r.status = r.status || "nueva";
+    r.priority = r.priority || "media";
+    if (r.title == null) r.title = "Intervención";
+  } else if (table === "technicians") {
+    r.id = r.id || "tech-" + Date.now();
+    r.status = r.status || "pendiente";
+    if (r.rating_avg == null) r.rating_avg = 0;
+    if (r.rating_n == null) r.rating_n = 0;
+    if (r.zones == null) r.zones = [];
+    if (r.skills == null) r.skills = [];
+  } else if (table === "ratings") {
+    r.id = r.id || "rt-" + Date.now();
+  } else if (table === "stores") {
+    r.id = r.id || "store-" + Date.now();
+    if (r.equipment == null) r.equipment = [];
+    if (r.from_admira == null) r.from_admira = false;
+  }
+  return r;
+}
+
+// Serializa un valor de app -> valor de D1 (arrays/bools/objetos a TEXT).
+function toDb(table, col, val) {
+  if ((JSON_ARRAY_COLS[table] || []).includes(col))
+    return JSON.stringify(Array.isArray(val) ? val : val == null ? [] : [val]);
+  if ((BOOL_COLS[table] || []).includes(col)) return val ? 1 : 0;
+  if (val != null && typeof val === "object") return JSON.stringify(val);
+  return val;
+}
+
+// Deserializa una fila de D1 -> forma de app (TEXT JSON -> arrays, INTEGER -> bool).
+function hydrateRow(table, row) {
+  if (!row) return row;
+  const out = { ...row };
+  for (const col of JSON_ARRAY_COLS[table] || []) {
+    if (typeof out[col] === "string") { try { out[col] = JSON.parse(out[col]); } catch { out[col] = []; } }
+    else if (out[col] == null) out[col] = [];
+  }
+  for (const col of BOOL_COLS[table] || []) out[col] = !!out[col];
+  return out;
+}
+function hydrateRows(table, rows) { return (rows || []).map((r) => hydrateRow(table, r)); }
+
+async function listAll(env, table) {
+  const r = await env.DB.prepare(`SELECT * FROM ${table} ORDER BY created_at DESC`).all();
+  return hydrateRows(table, r.results);
+}
+
+async function insert(env, table, payload) {
+  const row = withDefaults(table, payload);
+  const cols = Object.keys(row);
+  const placeholders = cols.map(() => "?").join(", ");
+  const vals = cols.map((c) => toDb(table, c, row[c]));
+  await env.DB.prepare(
+    `INSERT INTO ${table} (${cols.join(", ")}) VALUES (${placeholders})`
+  ).bind(...vals).run();
+  const back = await env.DB.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(row.id).first();
+  return [hydrateRow(table, back)]; // el frontend espera un array (PostgREST return=representation)
+}
+
+async function patch(env, table, id, payload) {
+  const cols = Object.keys(payload).filter((c) => c !== "id");
+  if (!cols.length) {
+    const cur = await env.DB.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(id).first();
+    return cur ? [hydrateRow(table, cur)] : [];
+  }
+  const setClause = cols.map((c) => `${c} = ?`).join(", ");
+  const vals = cols.map((c) => toDb(table, c, payload[c]));
+  await env.DB.prepare(`UPDATE ${table} SET ${setClause} WHERE id = ?`).bind(...vals, id).run();
+  const back = await env.DB.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(id).first();
+  return back ? [hydrateRow(table, back)] : [];
+}
+
+// --- Lógica de negocio que toca varias tablas -------------------------------
 
 // Inserta valoración y recalcula rating_avg/rating_n del técnico (media incremental).
 async function addRating(env, payload) {
-  const rows = await sb(env, "POST", "ratings", payload);
+  const rows = await insert(env, "ratings", payload);
   const r = Array.isArray(rows) ? rows[0] : rows;
   if (r && r.technician_id) {
-    const techs = await sb(env, "GET", `technicians?id=eq.${enc(r.technician_id)}&select=rating_avg,rating_n`);
-    const t = techs[0] || { rating_avg: 0, rating_n: 0 };
-    const n = (t.rating_n || 0) + 1;
-    const avg = Math.round((((t.rating_avg || 0) * (t.rating_n || 0)) + r.stars) / n * 100) / 100;
-    await sb(env, "PATCH", `technicians?id=eq.${enc(r.technician_id)}`, { rating_avg: avg, rating_n: n });
+    const t = await env.DB.prepare(
+      "SELECT rating_avg, rating_n FROM technicians WHERE id = ?"
+    ).bind(r.technician_id).first();
+    if (t) {
+      const n = (t.rating_n || 0) + 1;
+      const avg = Math.round((((t.rating_avg || 0) * (t.rating_n || 0)) + r.stars) / n * 100) / 100;
+      await env.DB.prepare("UPDATE technicians SET rating_avg = ?, rating_n = ? WHERE id = ?")
+        .bind(avg, n, r.technician_id).run();
+    }
   }
   return r;
 }
@@ -120,25 +220,27 @@ async function ingestAdmira(env, request) {
 
   // Idempotencia: si ya existe ese event_id procesado, no duplicar.
   if (eventId) {
-    const seen = await sb(env, "GET",
-      `webhook_inbox?source=eq.admira&event_id=eq.${enc(eventId)}&select=id,processed`);
-    if (seen.length) return { duplicate: true, event_id: eventId };
+    const seen = await env.DB.prepare(
+      "SELECT id, processed FROM webhook_inbox WHERE source = 'admira' AND event_id = ?"
+    ).bind(eventId).first();
+    if (seen) return { duplicate: true, event_id: eventId };
   }
 
   const signatureOk = await verifySignature(env, request, payload);
-  const inboxRows = await sb(env, "POST", "webhook_inbox", {
-    source: "admira", event_id: eventId, signature_ok: signatureOk,
-    payload_raw: payload, processed: false,
-  });
-  const inbox = Array.isArray(inboxRows) ? inboxRows[0] : inboxRows;
+  const inboxId = crypto.randomUUID();
+  await env.DB.prepare(
+    `INSERT INTO webhook_inbox (id, source, event_id, signature_ok, payload_raw, processed)
+     VALUES (?, 'admira', ?, ?, ?, 0)`
+  ).bind(inboxId, eventId, signatureOk ? 1 : 0, JSON.stringify(payload)).run();
 
   if (!signatureOk) {
-    await sb(env, "PATCH", `webhook_inbox?id=eq.${enc(inbox.id)}`, { error: "bad signature" });
+    await env.DB.prepare("UPDATE webhook_inbox SET error = 'bad signature' WHERE id = ?")
+      .bind(inboxId).run();
     const err = new Error("invalid signature"); err.status = 401; throw err;
   }
 
   // Mapea el evento Admira -> intervención (esquema demo: id de texto, campos planos).
-  const iv = await sb(env, "POST", "interventions", {
+  const ivRows = await insert(env, "interventions", {
     id: "iv-adm-" + (eventId || crypto.randomUUID()),
     store_id: payload.store_id || null,
     store_name: payload.store_name || null,
@@ -151,8 +253,8 @@ async function ingestAdmira(env, request) {
     description: payload.description || "",
     source_event: eventId,
   });
-  await sb(env, "PATCH", `webhook_inbox?id=eq.${enc(inbox.id)}`, { processed: true });
-  return { created: Array.isArray(iv) ? iv[0] : iv, event_id: eventId };
+  await env.DB.prepare("UPDATE webhook_inbox SET processed = 1 WHERE id = ?").bind(inboxId).run();
+  return { created: Array.isArray(ivRows) ? ivRows[0] : ivRows, event_id: eventId };
 }
 
 // HMAC-SHA256 de la firma de Admira (cabecera X-Yokup-Signature). Si no hay secret, acepta (dev).
@@ -164,7 +266,7 @@ async function verifySignature(env, request, payload) {
     "raw", new TextEncoder().encode(secret),
     { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(JSON.stringify(payload)));
-  const hex = [...new Uint8Array(mac)].map(b => b.toString(16).padStart(2, "0")).join("");
+  const hex = [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, "0")).join("");
   return timingSafeEqual(hex, sig.replace(/^sha256=/, ""));
 }
 function timingSafeEqual(a, b) {
@@ -173,29 +275,8 @@ function timingSafeEqual(a, b) {
   return r === 0;
 }
 
-// --- Cliente Supabase REST (PostgREST) ------------------------------------
-
-async function sb(env, method, path, payload) {
-  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE) {
-    const e = new Error("worker sin SUPABASE_URL / SUPABASE_SERVICE_ROLE configurados"); e.status = 503; throw e;
-  }
-  const headers = {
-    apikey: env.SUPABASE_SERVICE_ROLE,
-    Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE}`,
-    "Content-Type": "application/json",
-  };
-  if (method === "POST" || method === "PATCH") headers["Prefer"] = "return=representation";
-  const r = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
-    method, headers, body: payload != null ? JSON.stringify(payload) : undefined,
-  });
-  const text = await r.text();
-  if (!r.ok) { const e = new Error(`supabase ${r.status}: ${text}`); e.status = r.status; throw e; }
-  return text ? JSON.parse(text) : null;
-}
-
 // --- helpers ---------------------------------------------------------------
 
-const enc = encodeURIComponent;
 async function body(request) { try { return await request.json(); } catch { return {}; } }
 
 function cors(request) {
