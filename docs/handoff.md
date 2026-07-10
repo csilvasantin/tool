@@ -58,6 +58,14 @@ Luego (detalle y comandos en `docs/plan-fusion-pixeria.md`):
 - **Scope GitHub**: esta sesión fijada a `csilvasantin/tool`; sin `add_repo`/`list_repos`.
 - **`send_later`** no disponible → no hay auto-check-in programado del PR.
 
+## Arranque del espacio de trabajo (macOS)
+
+Para levantar el entorno de 4 escritorios igual en cualquier Mac:
+`scripts/workspace/start-workspace.sh` (yabai + jq). Layout: Spaces 1-3 con navegador a
+la izquierda y CLI de LLM a la derecha (1: Chrome admira + Claude · 2: Chrome gmail +
+Codex · 3: Firefox + Grok), Space 4: Safari a pantalla completa. Instalación y ajustes
+(perfiles de Chrome, SIP de yabai, comandos de CLI) en `scripts/workspace/README.md`.
+
 ## Suscripción activa
 
 Sesión **suscrita a la actividad del PR #1** (comentarios de revisión / CI). No hay CI
