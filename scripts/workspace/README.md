@@ -71,6 +71,25 @@ Abre Chrome (dos perfiles), Firefox, Safari y tres terminales con los CLIs, y lo
 por mitades en los Spaces 1-4. Es idempotente en lo esencial: si lo relanzas, abre ventanas
 nuevas y las recoloca (cierra las que sobren si no las quieres duplicadas).
 
+## 4. Auto-arranque al iniciar sesión (opcional)
+
+Para que el espacio de trabajo se monte solo al encender/iniciar sesión (sin teclear
+`handon`), instala el LaunchAgent:
+
+```bash
+scripts/workspace/install-autostart.sh
+```
+
+Genera `~/Library/LaunchAgents/com.csilvasantin.handon.plist` apuntando a este repo y lo
+carga. Espera a que yabai esté listo antes de colocar ventanas (el login es una carrera).
+
+```bash
+launchctl start com.csilvasantin.handon    # probarlo ahora, sin reiniciar
+# logs: /tmp/handon.out.log  /tmp/handon.err.log
+# quitar: launchctl unload ~/Library/LaunchAgents/com.csilvasantin.handon.plist && \
+#         rm ~/Library/LaunchAgents/com.csilvasantin.handon.plist
+```
+
 ## Notas / límites
 
 - Pensado para **un solo monitor** (el del portátil). Con monitor externo, los Spaces se
