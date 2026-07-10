@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+# HandON — enciende y gestiona tu espacio de trabajo en macOS (yabai).
+#
+#   handon            coloca las ventanas en los 4 Spaces (= handon up)
+#   handon up         idem
+#   handon install    instala yabai + jq y enlaza el comando 'handon' en el PATH
+#   handon autostart  ejecuta HandON al iniciar sesión (LaunchAgent)
+#   handon autostart off   quita el auto-arranque
+#   handon help
+#
+# Layout (un monitor):
+#   Space 1: Chrome (perfil admira) [izq] + CLI Claude [der]
+#   Space 2: Chrome (perfil gmail)  [izq] + CLI Codex  [der]
+#   Space 3: Firefox                [izq] + CLI Grok   [der]
+#   Space 4: Safari a pantalla completa
+#
+# Config por-máquina en ~/.handon.conf (así este script es idéntico en todos los
+# equipos). Ejemplo:
+#   CHROME_PROFILE_ADMIRA="Default"
+#   CHROME_PROFILE_GMAIL="Profile 1"
+#   TERMINAL_APP="Terminal"      # o iTerm2
+#   CLAUDE_CMD="claude"; CODEX_CMD="codex"; GROK_CMD="grok"
+set -euo pipefail
+
+HANDON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LABEL="com.csilvasantin.handon"
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+
+# ── Config: valores por defecto <- ~/.handon.conf <- entorno ────────────────
+CHROME_PROFILE_ADMIRA="Default"
+CHROME_PROFILE_GMAIL="Profile 1"
+TERMINAL_APP="Terminal"
+CLAUDE_CMD="claude"; CODEX_CMD="codex"; GROK_CMD="grok"
+# shellcheck disable=SC1090
+[ -f "$HOME/.handon.conf" ] && . "$HOME/.handon.conf"
+
+die() { echo "✗ $*" >&2; exit 1; }
+
+# ── Helpers de yabai ────────────────────────────────────────────────────────
+preflight() {
+  command -v yabai >/dev/null || die "yabai no está instalado (usa: handon install)."
+  command -v jq    >/dev/null || die "jq no está instalado (usa: handon install)."
+  yabai -m query --spaces >/dev/null 2>&1 || die "yabai no responde: yabai --start-service"
+}
+max_id_for_app() {
+  yabai -m query --windows | jq -r --arg app "$1" '[.[] | select(.app==$app) | .id] | max // 0'
+}
+wait_new_window() {
+  local app="$1" before="$2" tries=50 id
+  while [ "$tries" -gt 0 ]; do
+    id=$(yabai -m query --windows | jq -r --arg app "$app" --argjson before "$before" \
+      '[.[] | select(.app==$app and .id>$before) | .id] | max // empty')
+    [ -n "$id" ] && { printf '%s' "$id"; return 0; }
+    sleep 0.3; tries=$((tries-1))
+  done
+  return 1
+}
+ensure_float() {
+  local id="$1" f
+  f=$(yabai -m query --windows --window "$id" | jq -r '."is-floating"')
+  [ "$f" = "false" ] && yabai -m window "$id" --toggle float || true
+}
+place() {  # id side(left|right|full) space
+  local id="$1" side="$2" space="$3"
+  yabai -m window "$id" --space "$space" 2>/dev/null || true
+  ensure_float "$id"
+  case "$side" in
+    left)  yabai -m window "$id" --grid 1:2:0:0:1:1 ;;
+    right) yabai -m window "$id" --grid 1:2:1:0:1:1 ;;
+    full)  yabai -m window "$id" --grid 1:1:0:0:1:1 ;;
+  esac
+}
+ensure_spaces() {
+  local have; have=$(yabai -m query --spaces | jq 'length')
+  while [ "$have" -lt 4 ]; do yabai -m space --create; have=$((have+1)); done
+}
+open_chrome_profile() {
+  local before after; before=$(max_id_for_app "Google Chrome")
+  open -na "Google Chrome" --args --profile-directory="$1" --new-window
+  after=$(wait_new_window "Google Chrome" "$before") || die "Chrome no abrió (perfil $1)"
+  printf '%s' "$after"
+}
+open_term() {
+  local before after; before=$(max_id_for_app "$TERMINAL_APP")
+  osascript -e "tell application \"$TERMINAL_APP\" to do script \"$1\"" >/dev/null
+  after=$(wait_new_window "$TERMINAL_APP" "$before") || die "Terminal no abrió ($1)"
+  printf '%s' "$after"
+}
+
+# ── Subcomandos ─────────────────────────────────────────────────────────────
+cmd_up() {
+  # Con --login espera a que yabai arranque (carrera del inicio de sesión).
+  if [ "${1:-}" = "--login" ]; then
+    for _ in $(seq 1 80); do yabai -m query --spaces >/dev/null 2>&1 && break; sleep 0.5; done
+  fi
+  preflight
+  ensure_spaces
+
+  echo "· Space 1: Chrome ($CHROME_PROFILE_ADMIRA) + Claude"
+  place "$(open_chrome_profile "$CHROME_PROFILE_ADMIRA")" left  1
+  place "$(open_term "$CLAUDE_CMD")"                       right 1
+
+  echo "· Space 2: Chrome ($CHROME_PROFILE_GMAIL) + Codex"
+  place "$(open_chrome_profile "$CHROME_PROFILE_GMAIL")"   left  2
+  place "$(open_term "$CODEX_CMD")"                        right 2
+
+  echo "· Space 3: Firefox + Grok"
+  local ff_before; ff_before=$(max_id_for_app "Firefox")
+  open -na "Firefox"
+  place "$(wait_new_window "Firefox" "$ff_before" || max_id_for_app "Firefox")" left 3
+  place "$(open_term "$GROK_CMD")"                         right 3
+
+  echo "· Space 4: Safari (pantalla completa)"
+  local sf_before; sf_before=$(max_id_for_app "Safari")
+  open -a "Safari"
+  place "$(wait_new_window "Safari" "$sf_before" || max_id_for_app "Safari")" full 4
+
+  yabai -m space --focus 1
+  echo "✓ HandON: espacio de trabajo montado."
+}
+
+cmd_install() {
+  echo "▶ HandON install"
+  command -v brew >/dev/null 2>&1 || die "Instala Homebrew primero: https://brew.sh"
+  echo "· yabai, skhd y jq…"
+  brew install koekeishiya/formulae/yabai koekeishiya/formulae/skhd jq
+  yabai --start-service || true
+  skhd  --start-service || true
+  local bin; bin="$(brew --prefix)/bin"
+  if [ -w "$bin" ]; then
+    ln -sf "$HANDON_DIR/handon" "$bin/handon"; echo "· Comando 'handon' enlazado en $bin/handon"
+  else
+    echo "· Enlaza a mano:  ln -sf \"$HANDON_DIR/handon\" \"$bin/handon\""
+  fi
+  cat <<'EOF'
+
+✓ Software instalado.
+⚠ Paso MANUAL (no automatizable): SIP + scripting addition de yabai. Sin esto las
+  ventanas no saltan entre Spaces.
+  1) Recovery → Terminal → csrutil enable --without fs --without debug --without nvram
+     (o csrutil disable). Reinicia.
+  2) sudo yabai --load-sa
+  Guía: https://github.com/koekeishiya/yabai/wiki/Disabling-System-Integrity-Protection
+
+Después crea ~/.handon.conf con tus perfiles de Chrome y ejecuta:  handon
+EOF
+}
+
+cmd_autostart() {
+  if [ "${1:-}" = "off" ]; then
+    launchctl unload "$PLIST" 2>/dev/null || true
+    rm -f "$PLIST"; echo "✓ Auto-arranque desactivado."; return
+  fi
+  mkdir -p "$HOME/Library/LaunchAgents"
+  cat > "$PLIST" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>$LABEL</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>$HANDON_DIR/handon</string>
+        <string>up</string>
+        <string>--login</string>
+    </array>
+    <key>RunAtLoad</key><true/>
+    <key>EnvironmentVariables</key>
+    <dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
+    <key>StandardOutPath</key><string>/tmp/handon.out.log</string>
+    <key>StandardErrorPath</key><string>/tmp/handon.err.log</string>
+</dict>
+</plist>
+PLIST
+  launchctl unload "$PLIST" 2>/dev/null || true
+  launchctl load "$PLIST"
+  echo "✓ Auto-arranque instalado: $PLIST"
+  echo "  Probar ya:   launchctl start $LABEL"
+  echo "  Logs:        /tmp/handon.out.log  /tmp/handon.err.log"
+  echo "  Quitar:      handon autostart off"
+}
+
+cmd_help() { sed -n '2,20p' "$HANDON_DIR/handon" | sed 's/^# \{0,1\}//'; }
+
+# ── Dispatcher ──────────────────────────────────────────────────────────────
+case "${1:-up}" in
+  up|"")      shift || true; cmd_up "${1:-}" ;;
+  install)    cmd_install ;;
+  autostart)  shift; cmd_autostart "${1:-}" ;;
+  help|-h|--help) cmd_help ;;
+  *) die "Subcomando desconocido: $1  (prueba: handon help)" ;;
+esac

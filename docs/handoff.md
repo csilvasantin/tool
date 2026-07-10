@@ -58,13 +58,18 @@ Luego (detalle y comandos en `docs/plan-fusion-pixeria.md`):
 - **Scope GitHub**: esta sesión fijada a `csilvasantin/tool`; sin `add_repo`/`list_repos`.
 - **`send_later`** no disponible → no hay auto-check-in programado del PR.
 
-## Arranque del espacio de trabajo (macOS)
+## HandON — espacio de trabajo (macOS)
 
-Para levantar el entorno de 4 escritorios igual en cualquier Mac:
-`scripts/workspace/start-workspace.sh` (yabai + jq). Layout: Spaces 1-3 con navegador a
-la izquierda y CLI de LLM a la derecha (1: Chrome admira + Claude · 2: Chrome gmail +
-Codex · 3: Firefox + Grok), Space 4: Safari a pantalla completa. Instalación y ajustes
-(perfiles de Chrome, SIP de yabai, comandos de CLI) en `scripts/workspace/README.md`.
+Un solo comando **`handon`** (carpeta `HandON/`, sin scripts sueltos) monta los 4
+escritorios en cualquier Mac. Layout: Spaces 1-3 con navegador a la izquierda y CLI de
+LLM a la derecha (1: Chrome admira + Claude · 2: Chrome gmail + Codex · 3: Firefox +
+Grok), Space 4: Safari a pantalla completa.
+
+- `HandON/handon install` — instala yabai+jq y enlaza el comando.
+- `handon` — monta el espacio de trabajo.
+- `handon autostart` — auto-arranque al iniciar sesión.
+- Config por-máquina en `~/.handon.conf` (perfiles de Chrome, CLIs). El script es idéntico
+  en todos los equipos. Paso manual: SIP para yabai. Detalle en `HandON/README.md`.
 
 ## Suscripción activa
 
