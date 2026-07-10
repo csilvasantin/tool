@@ -44,11 +44,28 @@ Edita las variables al principio de `start-workspace.sh` (o expórtalas antes de
   export GROK_CMD="grok"       # Grok CLI
   ```
 
-## 3. Arrancar
+## 3. Arrancar con `handon`
+
+El comando **`handon`** enciende el espacio de trabajo (es un lanzador de
+`start-workspace.sh`, ejecutable desde cualquier carpeta).
+
+Instálalo una vez en tu Mac (elige uno):
 
 ```bash
-scripts/workspace/start-workspace.sh
+# a) symlink en un dir del PATH (Apple Silicon usa /opt/homebrew/bin)
+ln -sf "$PWD/scripts/workspace/handon" /opt/homebrew/bin/handon      # o /usr/local/bin/handon
+
+# b) alias en ~/.zshrc (ajusta la ruta del repo)
+echo 'alias handon="$HOME/ruta/al/repo/scripts/workspace/handon"' >> ~/.zshrc && source ~/.zshrc
 ```
+
+Luego, desde donde sea:
+
+```bash
+handon
+```
+
+(O directamente `scripts/workspace/start-workspace.sh` sin instalar nada.)
 
 Abre Chrome (dos perfiles), Firefox, Safari y tres terminales con los CLIs, y los reparte
 por mitades en los Spaces 1-4. Es idempotente en lo esencial: si lo relanzas, abre ventanas

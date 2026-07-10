@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# handon — "enciende" el espacio de trabajo (arranca start-workspace.sh).
+# Funciona desde cualquier directorio: resuelve su propia ubicación.
+set -euo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "$DIR/start-workspace.sh" "$@"
