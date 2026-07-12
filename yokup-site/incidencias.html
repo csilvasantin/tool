@@ -10,7 +10,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
-<link rel="stylesheet" href="/yk-frame.css?v=r5">
+<link rel="stylesheet" href="/yk-frame.css?v=r6">
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -23,13 +23,6 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:4px 0 
 .src{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}.src b{color:var(--brand)}
 h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .sub{color:var(--mut);font-size:14.5px;margin-bottom:14px}
-.projsel{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 16px;padding:8px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(180deg,var(--card),var(--bg))}
-.projsel .pl{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);padding:0 6px 0 4px}
-.proj{display:flex;align-items:center;gap:8px;text-decoration:none;font-family:var(--mono);font-size:12px;color:var(--mut);border:1px solid var(--line);border-radius:10px;padding:8px 13px;background:var(--card);transition:.15s;white-space:nowrap}
-.proj em{font-style:normal;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
-.proj:hover{border-color:var(--line2);color:var(--ink)}
-.proj.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
-.proj.on em{color:rgba(2,8,13,.62)}
 .kb{display:flex;gap:8px;margin-bottom:16px}
 .kb input{flex:1;font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:11px;padding:12px 14px;outline:none}
 .kb input:focus{border-color:var(--violet)}
@@ -71,13 +64,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 </head>
 <body data-yk-title="SOPORTE">
 <div class="wrap">
-  <!-- La barra Yokup (yk-frame v3) aporta logo, rótulo y reloj; aquí sólo el título de la vista. -->
-  <!-- Conmutador de PROYECTO: dos proyectos del MISMO helpdesk -->
-  <div class="projsel">
-    <span class="pl">Proyecto</span>
-    <a class="proj on" href="/incidencias">🖥 admira.tv <em>flota DOOH</em></a>
-    <a class="proj" href="/admira-live">🌐 www.admira.live <em>encolados</em></a>
-  </div>
+  <!-- La barra Yokup (yk-frame) aporta logo, rótulo, selector de PROYECTO y reloj. -->
 
   <h1>Soporte de incidencias</h1>
   <p class="sub">Helpdesk con <b style="color:var(--violet)">IA</b> para la flota DOOH de admira.tv. El agente abre el ticket, la IA lo diagnostica y asigna, y lanzas la asistencia en vivo.</p>
@@ -187,6 +174,6 @@ document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{ document.querySelec
 load(); setInterval(load,12000);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
-<script src="/yk-frame.js?v=r5"></script>
+<script src="/yk-frame.js?v=r6"></script>
 </body>
 </html>

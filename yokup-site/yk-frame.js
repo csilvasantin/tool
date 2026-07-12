@@ -25,8 +25,16 @@
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.12.07.2026.r4";
+  var VERSION = "v.12.07.2026.r5";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
+
+  // Proyectos del MISMO helpdesk. El activo se deduce de la ruta (ver
+  // activeProjectKey): /admira-live -> admira.live; el resto -> admira.tv.
+  var PROJECTS = {
+    "admira.tv":   { icon: "🖥", name: "www.admira.tv",   short: "admira.tv",   sub: "flota DOOH", href: "/incidencias" },
+    "admira.live": { icon: "🌐", name: "www.admira.live", short: "admira.live", sub: "encolados",  href: "/admira-live" }
+  };
+  var PROJECT_ORDER = ["admira.tv", "admira.live"];
 
   // Referencias de la home (los 4 primeros son anclas de la landing)
   var NAV = [
@@ -66,6 +74,13 @@
     return map[seg] || "";
   }
 
+  // proyecto activo según la ruta: cualquier variante con «admira-live» es
+  // admira.live; en el resto del perímetro, admira.tv.
+  function activeProjectKey() {
+    var p = location.pathname.replace(/\/+$/, "").toLowerCase();
+    return (p.indexOf("admira-live") >= 0) ? "admira.live" : "admira.tv";
+  }
+
   function build() {
     if (document.getElementById("yk-frame")) return;
     document.documentElement.classList.add("yk-framed"); // aplica padding-top al body
@@ -100,9 +115,12 @@
       nav.appendChild(a);
     });
 
-    // FLOTA admira.tv · reloj
+    // [PROYECTO ACTIVO ▾] — desplegable que absorbe el antiguo rótulo de flota
+    var proj = buildProjMenu();
+
+    // reloj (el rótulo estático de flota lo asume ahora el selector de proyecto)
     var meta = el("div", "yk-meta",
-      '<span class="yk-meta-lbl">Flota <b>admira.tv</b> · </span><span class="yk-clock">—</span>');
+      '<span class="yk-sep" aria-hidden="true">·</span><span class="yk-clock">—</span>');
 
     // [icono AVANZADO] [icono EXPERTO] al extremo derecho
     var icoR = icon("yk-ico yk-ico-adv", "right", "◨", "Avanzado");
@@ -112,6 +130,7 @@
     bar.appendChild(logo);
     bar.appendChild(page);
     bar.appendChild(nav);
+    bar.appendChild(proj);
     bar.appendChild(meta);
     bar.appendChild(icoR);
     bar.appendChild(icoB);
@@ -157,6 +176,78 @@
 
     // --- botones del EXPERTO (fetch al worker + volcado JSON) ---
     wireExpertFetch(root);
+  }
+
+  // desplegable de PROYECTO en la barra: el proyecto activo se lee en el botón,
+  // el menú (clic, no hover) ofrece cambiar al otro y navega. Cierre por clic
+  // fuera y Escape (Escape cierra ANTES el menú que los paneles: capture phase).
+  function buildProjMenu() {
+    var active = activeProjectKey();
+    var ap = PROJECTS[active];
+
+    var wrap = el("div", "yk-proj");
+
+    var btn = el("button", "yk-proj-btn",
+      '<span class="yk-proj-ic" aria-hidden="true">' + ap.icon + '</span>' +
+      '<span class="yk-proj-nm">' +
+        '<b class="yk-pj-full">' + ap.name + '</b>' +
+        '<b class="yk-pj-short">' + ap.short + '</b>' +
+      '</span>' +
+      '<span class="yk-proj-cx" aria-hidden="true">▾</span>');
+    btn.type = "button";
+    btn.id = "yk-proj-btn";
+    btn.setAttribute("aria-haspopup", "menu");
+    btn.setAttribute("aria-expanded", "false");
+    btn.setAttribute("aria-label", "Proyecto activo: " + ap.name + ". Cambiar de proyecto");
+    btn.title = "Proyecto · " + ap.name;
+
+    var menu = el("div", "yk-proj-menu");
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-labelledby", "yk-proj-btn");
+    PROJECT_ORDER.forEach(function (k) {
+      var p = PROJECTS[k];
+      var on = (k === active);
+      var a = el("a", "yk-proj-opt" + (on ? " on" : ""),
+        '<span class="yk-proj-ic" aria-hidden="true">' + p.icon + '</span>' +
+        '<span class="yk-proj-txt"><b>' + p.name + '</b><em>' + p.sub + '</em></span>');
+      a.href = p.href;
+      a.setAttribute("role", "menuitem");
+      if (on) a.setAttribute("aria-current", "true");
+      menu.appendChild(a);
+    });
+
+    wrap.appendChild(btn);
+    wrap.appendChild(menu);
+
+    function isMenuOpen() { return wrap.classList.contains("open"); }
+    function setMenu(open) {
+      wrap.classList.toggle("open", open);
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var open = !isMenuOpen();
+      setMenu(open);
+      if (open) { var f = menu.querySelector("a"); if (f) f.focus(); }
+    });
+
+    // clic fuera cierra
+    document.addEventListener("click", function (e) {
+      if (isMenuOpen() && !wrap.contains(e.target)) setMenu(false);
+    });
+
+    // Escape en CAPTURA: si el menú está abierto, lo cierra y frena el evento
+    // para que el handler de paneles (fase burbuja) no se dispare.
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && isMenuOpen()) {
+        setMenu(false);
+        btn.focus();
+        e.stopPropagation();
+      }
+    }, true);
+
+    return wrap;
   }
 
   // botón-icono cuadrático de la barra
