@@ -1,0 +1,169 @@
+/* ============================================================================
+ * yk-frame.css — Marco CUADRÁTICO de AdmiraNeXT para el perímetro de seguridad
+ * de Yokup. Tres raíles OVERLAY (flotan ENCIMA, no encogen el contenido):
+ *   · IZQUIERDA  → OPCIONES   (plegado con translateX(-103%))
+ *   · DERECHA    → AVANZADAS  (plegado con translateX(103%))
+ *   · INFERIOR   → EXPERTO    (plegado con translateY(103%))
+ * Pestañas fijas en los propios bordes, SIEMPRE visibles. Estética terminal
+ * oscuro / fósforo-cian / monospace de la casa (sci-fi 80s/90s).
+ * Los colores salen de las CSS vars de cada página, con fallback embebido.
+ * ==========================================================================*/
+
+:root{
+  --yk-rail-w: 300px;      /* ancho de raíles laterales */
+  --yk-rail-h: 240px;      /* alto del raíl inferior */
+  --yk-tab: 34px;          /* grosor de las pestañas */
+  --yk-avatar-safe: 132px; /* esquina inf-dcha reservada para la burbuja avatar */
+  --yk-z: 2147483000;      /* por debajo del gate de acceso.js, por encima de todo lo demás */
+  /* fallbacks por si la página no define los tokens */
+  --yk-bg: var(--card, #0a1620);
+  --yk-bg2: var(--bg, #02080d);
+  --yk-ink: var(--ink, #dff8ff);
+  --yk-mut: var(--mut, #75aab9);
+  --yk-dim: var(--dim, #4d7a88);
+  --yk-brand: var(--brand, #78f3ff);
+  --yk-line: var(--line, rgba(120,243,255,.16));
+  --yk-line2: var(--line2, rgba(120,243,255,.30));
+  --yk-mono: var(--mono, ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace);
+}
+
+/* El contenido NO se toca: los raíles flotan encima. Nada de márgenes. */
+
+.yk-rail{
+  position: fixed;
+  z-index: var(--yk-z);
+  background: linear-gradient(180deg, var(--yk-bg), var(--yk-bg2));
+  border: 1px solid var(--yk-line2);
+  box-shadow: 0 0 40px rgba(0,0,0,.6), inset 0 0 40px rgba(120,243,255,.03);
+  transition: transform .28s cubic-bezier(.4,.0,.2,1);
+  overflow: auto;
+  font-family: var(--yk-mono);
+  color: var(--yk-ink);
+  scrollbar-width: thin;
+}
+.yk-rail::-webkit-scrollbar{ width:8px; height:8px }
+.yk-rail::-webkit-scrollbar-thumb{ background: var(--yk-line2); border-radius:8px }
+
+/* --- raíl IZQUIERDO (OPCIONES) --- */
+.yk-rail-left{
+  top:0; bottom:0; left:0;
+  width: var(--yk-rail-w);
+  border-left: 0;
+  border-top: 0; border-bottom: 0;
+  transform: translateX(-103%);
+  padding: 16px 14px 22px;
+}
+.yk-open-left .yk-rail-left{ transform: translateX(0) }
+
+/* --- raíl DERECHO (AVANZADAS) --- */
+.yk-rail-right{
+  top:0; bottom:0; right:0;
+  width: var(--yk-rail-w);
+  border-right: 0;
+  border-top: 0; border-bottom: 0;
+  transform: translateX(103%);
+  padding: 16px 14px 22px;
+}
+.yk-open-right .yk-rail-right{ transform: translateX(0) }
+
+/* --- raíl INFERIOR (EXPERTO) --- deja libre la esquina inf-dcha del avatar --- */
+.yk-rail-bottom{
+  left:0; right: var(--yk-avatar-safe); bottom:0;
+  height: var(--yk-rail-h);
+  border-left: 0; border-right: 0; border-bottom: 0;
+  transform: translateY(103%);
+  padding: 14px 16px 16px;
+}
+.yk-open-bottom .yk-rail-bottom{ transform: translateY(0) }
+
+/* --- cabeceras de raíl --- */
+.yk-hd{
+  font-size: 10.5px; letter-spacing:.14em; text-transform:uppercase;
+  color: var(--yk-brand); font-weight:700;
+  padding-bottom: 10px; margin-bottom: 12px;
+  border-bottom: 1px solid var(--yk-line);
+  display:flex; align-items:center; gap:8px;
+}
+.yk-hd::before{ content:""; width:7px; height:7px; border-radius:50%;
+  background: var(--yk-brand); box-shadow:0 0 10px var(--yk-brand) }
+
+/* Contenedores donde caen los nodos movidos: verticalizar y ocupar el ancho */
+.yk-slot{ display:flex; flex-direction:column; align-items:stretch; gap:8px }
+.yk-slot :is(button, a.simBtn, a.bellBtn, .tab, .btn){ width:100%; text-align:left }
+.yk-slot .tabs, .yk-slot .tools{ display:flex; flex-direction:column; gap:8px; width:100% }
+/* dentro del EXPERTO los botones van en fila, no apilados a full-width */
+.yk-expert > .yk-slot{ flex:1; min-height:0 }
+.yk-slot .yk-expert-btns button{ width:auto; text-align:center }
+.yk-empty{
+  font-size: 11px; letter-spacing:.06em; text-transform:uppercase;
+  color: var(--yk-dim); padding: 8px 2px; opacity:.8;
+}
+
+/* --- Panel EXPERTO --- */
+.yk-expert{ display:flex; flex-direction:column; height:100%; gap:10px }
+.yk-expert-btns{ display:flex; gap:8px; flex-wrap:wrap }
+.yk-expert-btns button{
+  font-family: var(--yk-mono); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase;
+  padding: 8px 12px; border-radius:8px; cursor:pointer;
+  color: var(--yk-brand); background: rgba(120,243,255,.06);
+  border: 1px dashed var(--yk-line2); transition:.15s;
+}
+.yk-expert-btns button:hover{ background: rgba(120,243,255,.14); border-style:solid }
+.yk-expert-out{
+  flex:1; min-height:0; overflow:auto; margin:0;
+  font-family: var(--yk-mono); font-size:11px; line-height:1.5;
+  color: var(--yk-mut); white-space:pre-wrap; word-break:break-word;
+  background: rgba(2,8,13,.5); border:1px solid var(--yk-line); border-radius:10px;
+  padding: 10px 12px;
+}
+.yk-ver{ font-size:10px; letter-spacing:.08em; text-transform:uppercase; color: var(--yk-dim) }
+.yk-ver b{ color: var(--yk-brand) }
+
+/* ============================ PESTAÑAS ==================================== */
+.yk-tab{
+  position: fixed;
+  z-index: calc(var(--yk-z) + 1);
+  font-family: var(--yk-mono);
+  font-size: 10.5px; letter-spacing:.18em; text-transform:uppercase; font-weight:700;
+  color: var(--yk-bg2);
+  background: var(--yk-brand);
+  border: 0; cursor: pointer;
+  box-shadow: 0 0 18px rgba(120,243,255,.35);
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  transition: transform .28s cubic-bezier(.4,.0,.2,1), filter .15s;
+  user-select:none;
+}
+.yk-tab:hover{ filter: brightness(1.12) }
+
+/* pestañas laterales: verticales, centradas en el borde */
+.yk-tab-left, .yk-tab-right{
+  top:50%;
+  writing-mode: vertical-rl;
+  height: 128px; width: var(--yk-tab);
+  margin-top: -64px;
+}
+.yk-tab-left{ left:0; border-radius: 0 10px 10px 0; transform: translateX(0) }
+.yk-open-left .yk-tab-left{ transform: translateX(var(--yk-rail-w)) }
+.yk-tab-right{ right:0; border-radius: 10px 0 0 10px; transform: translateX(0) }
+.yk-tab-right .yk-lbl{ transform: rotate(180deg) }
+.yk-open-right .yk-tab-right{ transform: translateX(calc(-1 * var(--yk-rail-w))) }
+
+/* pestaña inferior: horizontal, CENTRADA (no tapa la esquina del avatar) */
+.yk-tab-bottom{
+  bottom:0; left:50%;
+  width: 148px; height: var(--yk-tab);
+  margin-left: -74px;
+  border-radius: 10px 10px 0 0;
+  transform: translateY(0);
+}
+.yk-open-bottom .yk-tab-bottom{ transform: translateY(calc(-1 * var(--yk-rail-h))) }
+
+/* estado "abierto" en la propia pestaña */
+.yk-tab .yk-caret{ font-size:9px; opacity:.75 }
+
+/* ============================ MÓVIL ≤520px =============================== */
+@media (max-width: 520px){
+  :root{ --yk-rail-w: 92vw; --yk-rail-h: 78vh; --yk-avatar-safe: 0px; }
+  .yk-rail-bottom{ right:0 }
+  .yk-tab-left, .yk-tab-right{ height: 104px; margin-top:-52px }
+}

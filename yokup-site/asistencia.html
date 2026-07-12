@@ -7,6 +7,7 @@
 <title>Asistencia en vivo · Yokup</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<link rel="stylesheet" href="/yk-frame.css">
 <style>
 :root{
   --bg:#02080d; --card:#0a1620; --ink:#dff8ff; --mut:#75aab9; --dim:#4d7a88;
@@ -72,9 +73,9 @@ video{width:100%;height:100%;object-fit:cover;display:block;background:#0a1620}
     <div class="panel">
       <div class="selfbox"><video id="local" autoplay playsinline muted></video><div class="vwrap self" style="position:absolute;inset:0;border:0;background:transparent"><div class="lbl">Tú</div></div></div>
       <div class="count"><b id="nCount">1</b> · en la sala</div>
-      <div>
+      <div data-yk-slot="right">
         <h3>Invitar</h3>
-        <div class="field" style="margin:8px 0 6px">Enlace de la sala:</div>
+        <div class="field" style="margin:8px 0 6px">Enlace de la sala (id + URL, pulsa para copiar):</div>
         <div class="link" id="shareLink" title="Copiar">—</div>
       </div>
       <div class="row">
@@ -221,5 +222,6 @@ $("recBtn").onclick = (e)=>{
 
 start();
 </script>
+<script src="/yk-frame.js"></script>
 </body>
 </html>

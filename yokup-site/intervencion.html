@@ -7,6 +7,7 @@
 <title>Ficha de intervención · Yokup</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<link rel="stylesheet" href="/yk-frame.css">
 <style>
 :root{
   --bg:#02080d; --card:#0a1620; --card2:#0d1c28; --ink:#dff8ff; --mut:#75aab9; --dim:#4d7a88;
@@ -95,6 +96,12 @@ h1{font-size:clamp(24px,3.4vw,34px);letter-spacing:-.02em;margin:6px 0}
   </div>
 
   <div class="foot">Yokup · ficha de intervención · asistencia vinculada al id <b id="idF">INT-BCN-214</b></div>
+
+  <!-- EXPERTO: JSON crudo del estado de la flota (endpoint /incidents) -->
+  <div class="yk-expert-btns" data-yk-slot="bottom">
+    <button data-yk-fetch="/incidents">incidents JSON</button>
+  </div>
+  <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa «incidents JSON» para volcar el estado crudo de la flota.</pre>
 </div>
 <script>
 const id = new URLSearchParams(location.search).get("id") || "INT-BCN-214";
@@ -111,5 +118,6 @@ fetch("https://yokup-rtc.csilvasantin.workers.dev/incidents").then(r=>r.json()).
   if(s.locName||s.loc) document.getElementById("ivLoc").textContent=(s.locName||s.loc)+" · admira.tv";
 }).catch(()=>{});
 </script>
+<script src="/yk-frame.js"></script>
 </body>
 </html>
