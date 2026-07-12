@@ -2,22 +2,32 @@
  * yk-frame.js — Marco CUADRÁTICO de AdmiraNeXT para el perímetro de Yokup.
  * Script CLÁSICO (sin módulos). Se inicializa tras DOMContentLoaded.
  *
- * Monta tres raíles OVERLAY (izquierda=OPCIONES, derecha=AVANZADAS,
- * inferior=EXPERTO), plegados por defecto (transform ±103%), con pestañas
- * fijas en los bordes. NO encoge el contenido: los raíles flotan encima.
+ * CANON refinado (2026-07-12): una UX cuadrática tiene 4 menús (superior,
+ * inferior y los dos laterales). NO se explicitan con pestañas en los bordes,
+ * sino con ICONOS FIJOS en las esquinas superiores:
+ *   · arriba-IZQUIERDA (solo)        → OPCIONES  → panel lateral IZQUIERDO
+ *   · arriba-DERECHA, a la izquierda → AVANZADO  → panel lateral DERECHO
+ *   · arriba-DERECHA, extremo dcho   → EXPERTO   → panel INFERIOR
+ *
+ * Los tres paneles son OVERLAY (position:fixed, translateX/Y ±103%), plegados
+ * por defecto. NO encogen el contenido: flotan encima. La esquina inferior
+ * derecha queda libre para la burbuja del avatar.
+ *
+ * Los iconos van position:fixed en las esquinas (LECCIÓN vieja: nunca dentro
+ * de una topbar que pueda scrollear, o desaparecen).
  *
  * Mecánica de slots: MUEVE (no clona, para preservar los handlers ya
  * enlazados por la página) los nodos [data-yk-slot="left|right|bottom"] al
- * raíl correspondiente. Si un slot no tiene nodos, muestra «— sin opciones».
+ * panel correspondiente. Si un slot no tiene nodos, muestra «— sin opciones».
  *
- * Estado abierto/plegado por panel en localStorage.
- * NO toca acceso.js ni avatar-widget.js.
+ * Estado abierto/plegado por panel en localStorage. Cierre con el propio icono
+ * (toggle) y con Escape. NO toca acceso.js ni avatar-widget.js.
  * ==========================================================================*/
 (function () {
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.12.07.2026.r1";
+  var VERSION = "v.12.07.2026.r3";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
 
   function el(tag, cls, html) {
@@ -38,13 +48,13 @@
     var root = el("div", "yk-frame");
     root.id = "yk-frame";
 
-    // --- raíles ---
+    // --- paneles (raíles OVERLAY) ---
     var railL = el("aside", "yk-rail yk-rail-left");
     railL.appendChild(el("div", "yk-hd", "OPCIONES"));
     var slotL = el("div", "yk-slot"); railL.appendChild(slotL);
 
     var railR = el("aside", "yk-rail yk-rail-right");
-    railR.appendChild(el("div", "yk-hd", "AVANZADAS"));
+    railR.appendChild(el("div", "yk-hd", "AVANZADO"));
     var slotR = el("div", "yk-slot"); railR.appendChild(slotR);
 
     var railB = el("aside", "yk-rail yk-rail-bottom");
@@ -53,16 +63,15 @@
     var slotB = el("div", "yk-slot"); expert.appendChild(slotB);
     railB.appendChild(expert);
 
-    // --- pestañas ---
-    var tabL = el("button", "yk-tab yk-tab-left",
-      '<span class="yk-lbl">OPCIONES</span>');
-    var tabR = el("button", "yk-tab yk-tab-right",
-      '<span class="yk-lbl">AVANZADAS</span>');
-    var tabB = el("button", "yk-tab yk-tab-bottom",
-      '<span class="yk-lbl">EXPERTO</span>');
+    // --- ICONOS FIJOS en las esquinas superiores ---
+    // arriba-izquierda (solo): OPCIONES → panel izquierdo
+    var icoL = icon("yk-ico yk-ico-left", "left", "▤", "Opciones");
+    // arriba-derecha: AVANZADO (a la izquierda) + EXPERTO (extremo derecho)
+    var icoR = icon("yk-ico yk-ico-adv", "right", "◨", "Avanzado");
+    var icoB = icon("yk-ico yk-ico-exp", "bottom", "▦", "Experto");
 
     root.appendChild(railL); root.appendChild(railR); root.appendChild(railB);
-    root.appendChild(tabL);  root.appendChild(tabR);  root.appendChild(tabB);
+    root.appendChild(icoL);  root.appendChild(icoR);  root.appendChild(icoB);
     document.body.appendChild(root);
 
     // --- MOVER los nodos marcados a su slot ---
@@ -71,12 +80,31 @@
     fillSlot(slotB, "bottom", expert);
 
     // --- estado abierto/plegado por panel ---
-    wire(tabL, "left");
-    wire(tabR, "right");
-    wire(tabB, "bottom");
+    wire(icoL, "left");
+    wire(icoR, "right");
+    wire(icoB, "bottom");
+
+    // --- cerrar cualquier panel abierto con Escape ---
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") {
+        ["left", "right", "bottom"].forEach(function (p) { if (isOpen(p)) setOpen(p, false); });
+      }
+    });
 
     // --- botones del EXPERTO (fetch al worker + volcado JSON) ---
     wireExpertFetch(root);
+  }
+
+  // botón-icono cuadrático fijo en esquina
+  function icon(cls, panel, glyph, label) {
+    var b = el("button", cls,
+      '<span class="yk-ico-gl" aria-hidden="true">' + glyph + '</span>' +
+      '<span class="yk-ico-lbl">' + label + '</span>');
+    b.type = "button";
+    b.title = label;
+    b.setAttribute("aria-label", label);
+    b.setAttribute("data-yk-panel", panel);
+    return b;
   }
 
   function fillSlot(slot, name, expertHost) {
@@ -90,7 +118,7 @@
         slot.appendChild(n);
       });
     }
-    // el raíl inferior SIEMPRE lleva pie de versión
+    // el panel inferior SIEMPRE lleva pie de versión
     if (name === "bottom" && expertHost) {
       expertHost.appendChild(el("div", "yk-ver",
         'yokup · perímetro de seguridad · <b>' + VERSION + '</b>'));
@@ -101,12 +129,15 @@
   function setOpen(panel, v) {
     try { localStorage.setItem(LS + panel, v ? "1" : "0"); } catch (e) {}
     document.documentElement.classList.toggle("yk-open-" + panel, !!v);
+    // reflejar el estado en el icono
+    var ico = document.querySelector('.yk-ico[data-yk-panel="' + panel + '"]');
+    if (ico) ico.setAttribute("aria-pressed", v ? "true" : "false");
   }
 
-  function wire(tab, panel) {
+  function wire(ico, panel) {
     // restaurar estado guardado
     setOpen(panel, isOpen(panel));
-    tab.addEventListener("click", function () {
+    ico.addEventListener("click", function () {
       setOpen(panel, !isOpen(panel));
     });
   }

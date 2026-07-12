@@ -1,18 +1,27 @@
 /* ============================================================================
  * yk-frame.css — Marco CUADRÁTICO de AdmiraNeXT para el perímetro de seguridad
- * de Yokup. Tres raíles OVERLAY (flotan ENCIMA, no encogen el contenido):
+ * de Yokup. Tres paneles OVERLAY (flotan ENCIMA, no encogen el contenido):
  *   · IZQUIERDA  → OPCIONES   (plegado con translateX(-103%))
- *   · DERECHA    → AVANZADAS  (plegado con translateX(103%))
+ *   · DERECHA    → AVANZADO   (plegado con translateX(103%))
  *   · INFERIOR   → EXPERTO    (plegado con translateY(103%))
- * Pestañas fijas en los propios bordes, SIEMPRE visibles. Estética terminal
- * oscuro / fósforo-cian / monospace de la casa (sci-fi 80s/90s).
- * Los colores salen de las CSS vars de cada página, con fallback embebido.
+ *
+ * CANON refinado (2026-07-12): NO hay pestañas en los bordes. Los menús se
+ * abren con ICONOS FIJOS en las esquinas superiores (position:fixed, nunca
+ * dentro de una topbar que pueda scrollear):
+ *   · arriba-IZQUIERDA (solo)        → OPCIONES
+ *   · arriba-DERECHA, a la izquierda → AVANZADO
+ *   · arriba-DERECHA, extremo dcho   → EXPERTO
+ *
+ * Estética terminal oscuro / fósforo-cian / monospace de la casa (sci-fi
+ * 80s/90s). Los colores salen de las CSS vars de cada página, con fallback.
  * ==========================================================================*/
 
 :root{
-  --yk-rail-w: 300px;      /* ancho de raíles laterales */
-  --yk-rail-h: 240px;      /* alto del raíl inferior */
-  --yk-tab: 34px;          /* grosor de las pestañas */
+  --yk-rail-w: 300px;      /* ancho de paneles laterales */
+  --yk-rail-h: 240px;      /* alto del panel inferior */
+  --yk-ico: 34px;          /* lado de los iconos cuadráticos */
+  --yk-ico-gap: 8px;       /* separación entre iconos contiguos */
+  --yk-ico-inset: 9px;     /* margen a los bordes de la ventana */
   --yk-avatar-safe: 132px; /* esquina inf-dcha reservada para la burbuja avatar */
   --yk-z: 2147483000;      /* por debajo del gate de acceso.js, por encima de todo lo demás */
   /* fallbacks por si la página no define los tokens */
@@ -27,7 +36,7 @@
   --yk-mono: var(--mono, ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace);
 }
 
-/* El contenido NO se toca: los raíles flotan encima. Nada de márgenes. */
+/* El contenido NO se toca: los paneles flotan encima. Nada de márgenes. */
 
 .yk-rail{
   position: fixed;
@@ -44,29 +53,29 @@
 .yk-rail::-webkit-scrollbar{ width:8px; height:8px }
 .yk-rail::-webkit-scrollbar-thumb{ background: var(--yk-line2); border-radius:8px }
 
-/* --- raíl IZQUIERDO (OPCIONES) --- */
+/* --- panel IZQUIERDO (OPCIONES) --- */
 .yk-rail-left{
   top:0; bottom:0; left:0;
   width: var(--yk-rail-w);
   border-left: 0;
   border-top: 0; border-bottom: 0;
   transform: translateX(-103%);
-  padding: 16px 14px 22px;
+  padding: 58px 14px 22px;  /* hueco superior para no chocar con el icono fijo */
 }
 .yk-open-left .yk-rail-left{ transform: translateX(0) }
 
-/* --- raíl DERECHO (AVANZADAS) --- */
+/* --- panel DERECHO (AVANZADO) --- */
 .yk-rail-right{
   top:0; bottom:0; right:0;
   width: var(--yk-rail-w);
   border-right: 0;
   border-top: 0; border-bottom: 0;
   transform: translateX(103%);
-  padding: 16px 14px 22px;
+  padding: 58px 14px 22px;  /* hueco superior para no chocar con los iconos fijos */
 }
 .yk-open-right .yk-rail-right{ transform: translateX(0) }
 
-/* --- raíl INFERIOR (EXPERTO) --- deja libre la esquina inf-dcha del avatar --- */
+/* --- panel INFERIOR (EXPERTO) --- deja libre la esquina inf-dcha del avatar --- */
 .yk-rail-bottom{
   left:0; right: var(--yk-avatar-safe); bottom:0;
   height: var(--yk-rail-h);
@@ -76,7 +85,7 @@
 }
 .yk-open-bottom .yk-rail-bottom{ transform: translateY(0) }
 
-/* --- cabeceras de raíl --- */
+/* --- cabeceras de panel --- */
 .yk-hd{
   font-size: 10.5px; letter-spacing:.14em; text-transform:uppercase;
   color: var(--yk-brand); font-weight:700;
@@ -119,51 +128,63 @@
 .yk-ver{ font-size:10px; letter-spacing:.08em; text-transform:uppercase; color: var(--yk-dim) }
 .yk-ver b{ color: var(--yk-brand) }
 
-/* ============================ PESTAÑAS ==================================== */
-.yk-tab{
+/* ===================== ICONOS CUADRÁTICOS (esquinas) ===================== */
+.yk-ico{
   position: fixed;
-  z-index: calc(var(--yk-z) + 1);
+  z-index: calc(var(--yk-z) + 2);   /* siempre por encima de los paneles */
+  top: var(--yk-ico-inset);
+  width: var(--yk-ico); height: var(--yk-ico);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:1px;
   font-family: var(--yk-mono);
-  font-size: 10.5px; letter-spacing:.18em; text-transform:uppercase; font-weight:700;
+  cursor: pointer;
+  color: var(--yk-brand);
+  /* fondo SÓLIDO: legible sobre cualquier cabecera de página, «digno» */
+  background: var(--yk-bg2);
+  border: 1px solid var(--yk-line2);
+  border-radius: 8px;
+  box-shadow: 0 0 14px rgba(0,0,0,.55), inset 0 0 12px rgba(120,243,255,.05);
+  transition: transform .28s cubic-bezier(.4,.0,.2,1),
+              background .15s, border-color .15s, color .15s, box-shadow .15s;
+  user-select:none;
+  -webkit-tap-highlight-color: transparent;
+}
+.yk-ico:hover{
+  border-color: var(--yk-brand);
+  background: rgba(120,243,255,.10);
+  box-shadow: 0 0 18px rgba(120,243,255,.30);
+}
+.yk-ico-gl{ font-size: 15px; line-height:1 }
+.yk-ico-lbl{
+  font-size: 5.4px; letter-spacing:.06em; text-transform:uppercase;
+  color: var(--yk-mut); line-height:1; margin-top:1px;
+}
+
+/* posición de cada icono */
+.yk-ico-left{ left: var(--yk-ico-inset) }
+/* arriba-derecha: EXPERTO en el extremo, AVANZADO inmediatamente a su izquierda */
+.yk-ico-exp{ right: var(--yk-ico-inset) }
+.yk-ico-adv{ right: calc(var(--yk-ico-inset) + var(--yk-ico) + var(--yk-ico-gap)) }
+
+/* estado ABIERTO: icono «encendido» (relleno) */
+.yk-ico[aria-pressed="true"]{
   color: var(--yk-bg2);
   background: var(--yk-brand);
-  border: 0; cursor: pointer;
-  box-shadow: 0 0 18px rgba(120,243,255,.35);
-  display:flex; align-items:center; justify-content:center; gap:6px;
-  transition: transform .28s cubic-bezier(.4,.0,.2,1), filter .15s;
-  user-select:none;
+  border-color: var(--yk-brand);
+  box-shadow: 0 0 18px rgba(120,243,255,.45);
 }
-.yk-tab:hover{ filter: brightness(1.12) }
+.yk-ico[aria-pressed="true"] .yk-ico-lbl{ color: rgba(2,8,13,.72) }
 
-/* pestañas laterales: verticales, centradas en el borde */
-.yk-tab-left, .yk-tab-right{
-  top:50%;
-  writing-mode: vertical-rl;
-  height: 128px; width: var(--yk-tab);
-  margin-top: -64px;
-}
-.yk-tab-left{ left:0; border-radius: 0 10px 10px 0; transform: translateX(0) }
-.yk-open-left .yk-tab-left{ transform: translateX(var(--yk-rail-w)) }
-.yk-tab-right{ right:0; border-radius: 10px 0 0 10px; transform: translateX(0) }
-.yk-tab-right .yk-lbl{ transform: rotate(180deg) }
-.yk-open-right .yk-tab-right{ transform: translateX(calc(-1 * var(--yk-rail-w))) }
-
-/* pestaña inferior: horizontal, CENTRADA (no tapa la esquina del avatar) */
-.yk-tab-bottom{
-  bottom:0; left:50%;
-  width: 148px; height: var(--yk-tab);
-  margin-left: -74px;
-  border-radius: 10px 10px 0 0;
-  transform: translateY(0);
-}
-.yk-open-bottom .yk-tab-bottom{ transform: translateY(calc(-1 * var(--yk-rail-h))) }
-
-/* estado "abierto" en la propia pestaña */
-.yk-tab .yk-caret{ font-size:9px; opacity:.75 }
+/* el icono viaja con su panel para seguir siendo el botón de cierre (toggle) */
+.yk-open-left  .yk-ico-left{ transform: translateX(calc(var(--yk-rail-w) - var(--yk-ico) - var(--yk-ico-inset) - var(--yk-ico-inset))) }
+.yk-open-right .yk-ico-adv{ transform: translateX(calc(-1 * (var(--yk-rail-w) - var(--yk-ico) - var(--yk-ico-inset) - var(--yk-ico-inset)))) }
+/* EXPERTO (panel inferior) no se solapa con su icono superior: no viaja */
 
 /* ============================ MÓVIL ≤520px =============================== */
 @media (max-width: 520px){
   :root{ --yk-rail-w: 92vw; --yk-rail-h: 78vh; --yk-avatar-safe: 0px; }
   .yk-rail-bottom{ right:0 }
-  .yk-tab-left, .yk-tab-right{ height: 104px; margin-top:-52px }
+  /* en móvil los iconos no viajan con el cajón (ocuparía casi toda la pantalla) */
+  .yk-open-left  .yk-ico-left{ transform: none }
+  .yk-open-right .yk-ico-adv{ transform: none }
 }
