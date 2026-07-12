@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yokup — Alta de instalador</title>
+<meta name="description" content="Únete a Yokup como técnico instalador (freelance o empresa): acepta trabajos por zona, ejecuta intervenciones en puntos de venta y construye tu reputación.">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="stylesheet" href="https://csilvasantin.github.io/admira-design/tokens.css">
+<link rel="stylesheet" href="yokup.css?v=20260605zb">
+<script defer src="yokup-nav.js?v=20260605zb"></script>
+</head>
+<body>
+<nav class="yk-nav" data-active="instalador"></nav>
+
+<header class="hero" style="padding-bottom:32px">
+  <p class="eyebrow">Para instaladores</p>
+  <h1>Date de alta como <span class="solid-inst">instalador</span></h1>
+  <p class="lede">Freelance o empresa de instalación y reparación. Recibe trabajos cerca de ti,
+     acéptalos cuando te encajen y construye tu reputación con cada intervención.</p>
+</header>
+
+<section class="band" style="border-top:0;padding-top:0">
+  <div class="two">
+
+    <!-- Explicación -->
+    <div class="side inst">
+      <span class="tag">Cómo trabajas con Yokup</span>
+      <h3>Trabajos cerca, sin buscar clientes</h3>
+      <p class="who">Una vez dado de alta:</p>
+      <ol class="steps">
+        <li><b>Configuras tu perfil</b><span>Freelance o empresa, las zonas que cubres y los equipos en los que eres especialista.</span></li>
+        <li><b>Ves el tablón filtrado</b><span>Solo aparecen los trabajos de tus zonas y tus especialidades. Nada de ruido.</span></li>
+        <li><b>Aceptas y ejecutas</b><span>Tomas el trabajo, intervienes en el punto de venta y reportas lo realizado.</span></li>
+        <li><b>Subes de reputación</b><span>El cliente te valora. Mejor puntuación = acceso a más y mejores intervenciones.</span></li>
+      </ol>
+      <div class="note">El alta queda en estado <b>pendiente</b> hasta que el equipo de Yokup valida tus datos.
+        Después empiezas a ver trabajos en el <a href="marketplace.html">tablón</a>.</div>
+    </div>
+
+    <!-- Formulario -->
+    <div class="side">
+      <span class="tag" style="color:var(--brand2)">Formulario de alta</span>
+      <h3>Tu perfil técnico</h3>
+      <p class="who">Demo: por ahora se guarda en este navegador. En producción crea tu perfil en Yokup.</p>
+      <form class="form" id="f">
+        <div class="field"><label>Nombre o razón social *</label>
+          <input name="name" required placeholder="Ej: Juan Pérez / TecnoRetail S.L."></div>
+        <div class="field"><label>Tipo *</label>
+          <select name="kind" required>
+            <option value="">Selecciona…</option>
+            <option value="freelance">Freelance</option>
+            <option value="empresa">Empresa</option>
+          </select></div>
+        <div class="field"><label>Email y teléfono *</label>
+          <input name="contact" required placeholder="correo@dominio.com · 6XX XXX XXX"></div>
+        <div class="field"><label>Zonas que cubres *</label>
+          <input name="zones" required placeholder="Madrid, Toledo, Guadalajara"></div>
+        <div class="field"><label>Especialidades (qué equipos atiendes) *</label>
+          <div class="checks">
+            <label class="chk"><input type="checkbox" name="sk" value="pantalla"> 🖥️ Pantallas</label>
+            <label class="chk"><input type="checkbox" name="sk" value="escaparate"> 🪟 Escaparate</label>
+            <label class="chk"><input type="checkbox" name="sk" value="mostrador"> 🧾 Mostrador</label>
+            <label class="chk"><input type="checkbox" name="sk" value="vending"> 🥤 Vending</label>
+            <label class="chk"><input type="checkbox" name="sk" value="audio"> 🎵 Audio</label>
+            <label class="chk"><input type="checkbox" name="sk" value="kiosk"> 🕹️ Kioscos</label>
+          </div></div>
+        <button type="submit" class="cta inst" style="width:100%;justify-content:center">Darme de alta como instalador</button>
+        <div id="ok"></div>
+      </form>
+    </div>
+
+  </div>
+</section>
+
+<script src="config.js?v=20260605zb"></script>
+<script src="auth.js?v=20260605zb"></script>
+<script src="data.js?v=20260605b"></script>
+<script>
+YokupAuth.ready.then(()=>YokupAuth.writeGate('.form','Inicia sesión para darte de alta como instalador.'));
+YokupAuth.onChange(()=>{ if(YokupAuth.user()){ const g=document.querySelector('.form .yk-gate'); if(g) g.remove(); } });
+document.getElementById('f').addEventListener('submit',e=>{
+  e.preventDefault();
+  if(!YokupAuth.requireAuth()) return;
+  const fd=new FormData(e.target);
+  const sk=[...e.target.querySelectorAll('input[name=sk]:checked')].map(c=>c.value);
+  if(!sk.length){ alert('Selecciona al menos una especialidad.'); return; }
+  const zones=(fd.get('zones')||'').split(',').map(z=>z.trim()).filter(Boolean);
+  const t=Yokup.addTechnician({ name:fd.get('name'), kind:fd.get('kind'), contact:fd.get('contact'),
+    zones, skills:sk });
+  document.getElementById('ok').innerHTML=
+    `<div class="ok-msg">✓ <b>${t.name}</b> (${t.kind}) dado de alta — estado <b>pendiente de validación</b>.
+     Cubres ${zones.length} zona(s) y ${sk.length} especialidad(es).
+     En cuanto te validemos verás trabajos en el <a href="marketplace.html">tablón</a>.</div>`;
+  e.target.reset();
+});
+</script>
+</body>
+</html>
