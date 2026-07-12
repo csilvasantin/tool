@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/acceso.js"></script>
+<title>Ticket · Yokup Soporte</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#02080d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
+<link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+.wrap{max-width:820px;margin:0 auto;padding:22px 24px 48px}
+nav{display:flex;align-items:center;justify-content:space-between;padding:4px 0 18px}
+.logo{font-family:var(--mono);font-weight:700;letter-spacing:.14em;font-size:15px;text-transform:uppercase;display:flex;align-items:center;gap:9px}.logo b{color:var(--brand)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--brand);box-shadow:0 0 22px rgba(120,243,255,.5)}
+.back{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);text-decoration:none}.back:hover{color:var(--brand)}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.tid{font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--brand)}
+h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
+.meta{font-family:var(--mono);font-size:11.5px;color:var(--mut);display:flex;gap:14px;flex-wrap:wrap}.meta .scr{color:var(--brand)}
+.badge{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:999px;white-space:nowrap;display:flex;align-items:center;gap:6px}.badge i{width:7px;height:7px;border-radius:50%}
+.b-open{color:var(--warn);border:1px solid rgba(255,136,102,.5);background:rgba(255,136,102,.08)}.b-open i{background:var(--warn)}
+.b-prog{color:var(--accent);border:1px solid rgba(255,216,102,.4)}.b-prog i{background:var(--accent)}
+.b-res{color:var(--good);border:1px solid rgba(136,255,170,.35)}.b-res i{background:var(--good)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}
+.btn{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:11px 15px;border-radius:10px;border:1px solid var(--line2);color:var(--ink);background:rgba(10,22,32,.6);cursor:pointer;transition:.2s;text-decoration:none;display:inline-block}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.live{background:var(--accent);color:#1a1200;border-color:var(--accent)}.btn.live:hover{background:#ffe49a}
+.btn.res{border-color:rgba(136,255,170,.4);color:var(--good)}.btn.ai{border-color:rgba(170,136,255,.4);color:var(--violet)}
+.sum{border:1px solid rgba(170,136,255,.3);background:rgba(170,136,255,.05);border-radius:12px;padding:14px 16px;margin-bottom:18px;display:none}
+.sum.show{display:block}.sum h4{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--violet);margin-bottom:8px}.sum p{font-size:14px;line-height:1.6}
+.tl{border-left:2px solid var(--line);margin-left:8px;padding-left:20px;display:flex;flex-direction:column;gap:18px}
+.ev{position:relative}
+.ev::before{content:"";position:absolute;left:-27px;top:3px;width:12px;height:12px;border-radius:50%;background:var(--card);border:2px solid var(--line2)}
+.ev.ai::before{border-color:var(--violet)}.ev.note::before{border-color:var(--brand)}.ev.status::before,.ev.recover::before{border-color:var(--good)}.ev.log::before{border-color:var(--warn)}
+.ev .eh{font-family:var(--mono);font-size:11px;color:var(--mut);display:flex;gap:10px;margin-bottom:5px}.ev .eh b{color:var(--ink)}
+.ev .et{font-size:14px;line-height:1.55;color:var(--ink);white-space:pre-wrap}
+.ev.ai .et{color:var(--ink)}.ev.ai .eh b{color:var(--violet)}
+.composer{margin-top:24px;border:1px solid var(--line);border-radius:14px;background:var(--card);padding:16px}
+.composer h3{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--brand);margin-bottom:10px}
+.composer textarea{width:100%;min-height:80px;font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 13px;outline:none;resize:vertical}
+.composer textarea:focus{border-color:var(--brand)}
+.crow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.crow .btn{flex:0 0 auto}
+.foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
+.load{color:var(--dim);font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:30px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <a href="/incidencias" style="text-decoration:none;color:inherit"><div class="logo"><span class="dot"></span>Yo<b>kup</b> · Ticket</div></a>
+    <a href="/incidencias" class="back">← Bandeja</a>
+  </nav>
+  <div id="root"><div class="load">Cargando ticket…</div></div>
+</div>
+
+<script>
+const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
+const id=new URLSearchParams(location.search).get("id")||"";
+const $=x=>document.getElementById(x);
+function ago(ms){ if(!ms)return"—"; let s=Math.round((Date.now()-ms)/1000); if(s<60)return s+"s"; if(s<3600)return Math.round(s/60)+"m"; if(s<86400)return Math.round(s/3600)+"h"; return Math.round(s/86400)+"d"; }
+function hm(ms){ return new Date(ms).toTimeString().slice(0,5); }
+function esc(x){ return String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c])); }
+const ICON={log:"🤖",assign:"🧭",ai:"🧠",note:"👷",status:"🔄",recover:"✅"};
+
+async function render(){
+  let d; try{ const r=await fetch(WORKER+"/ticket?id="+encodeURIComponent(id),{cache:"no-store"}); d=await r.json(); }catch(e){ $("root").innerHTML='<div class="load">No se pudo cargar el ticket.</div>'; return; }
+  if(d.error){ $("root").innerHTML='<div class="load">Ticket no encontrado.</div>'; return; }
+  const t=d.ticket, ev=d.events||[];
+  const sb=t.status==="open"?"b-open":(t.status==="resolved"?"b-res":"b-prog");
+  const stt=t.status==="open"?"Abierta":(t.status==="resolved"?"Resuelta":"En curso");
+  const actionBtns = t.status!=="resolved"
+    ? `<button class="btn" onclick="setStatus('in_progress')">En curso</button><button class="btn res" onclick="setStatus('resolved')">✓ Resolver</button>`
+    : `<button class="btn" onclick="setStatus('open')">Reabrir</button>`;
+  $("root").innerHTML=`
+    <div class="head">
+      <div>
+        <div class="tid">${esc(t.id)} · ${t.source==='agent-iot'?'🤖 abierto por Agente IoT':'👤 manual'}</div>
+        <h1>${esc(t.subject)}</h1>
+        <div class="meta"><span class="scr">${esc(t.screen)}</span>${t.loc?'<span>'+esc(t.loc)+'</span>':''}<span>abierto hace ${ago(t.created_at)}</span><span>👷 ${esc(t.assignee)}</span>${t.priority?'<span>prioridad '+esc(t.priority)+'</span>':''}</div>
+      </div>
+      <span class="badge ${sb}"><i></i>${stt}</span>
+    </div>
+    <div class="actions">
+      <a class="btn live" href="/asistencia?room=${encodeURIComponent(t.screen)}">🎥 Asistencia en vivo</a>
+      ${actionBtns}
+      <button class="btn ai" onclick="summary()">🧠 Resumen IA</button>
+      <a class="btn" href="https://admira.tv/cms.html" target="_blank" rel="noopener">admira.tv ↗</a>
+    </div>
+    <div class="sum" id="sum"><h4>🧠 Resumen IA</h4><p id="sumtext"></p></div>
+    <div class="tl">${ev.map(e=>`<div class="ev ${esc(e.kind)}"><div class="eh"><b>${esc(e.author)}</b><span>${hm(e.ts)}</span></div><div class="et">${esc(e.text)}</div></div>`).join("")||'<div class="load">Sin actividad.</div>'}</div>
+    <div class="composer">
+      <h3>Añadir nota</h3>
+      <textarea id="note" placeholder="Escribe una nota del técnico…"></textarea>
+      <div class="crow">
+        <button class="btn" onclick="addNote()">Añadir nota</button>
+        <button class="btn ai" onclick="suggest()">🧠 Sugerir respuesta</button>
+      </div>
+    </div>
+    <div class="foot">Yokup · ticket persistido en <b>D1</b> · IA <b>Workers AI</b></div>`;
+}
+window.setStatus=async(s)=>{ await fetch(WORKER+"/ticket/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id,status:s,author:"Técnico"})}); render(); };
+window.addNote=async()=>{ const v=$("note").value.trim(); if(!v)return; await fetch(WORKER+"/ticket/note",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id,author:"Técnico",text:v})}); $("note").value=""; render(); };
+window.summary=async()=>{ $("sum").classList.add("show"); $("sumtext").textContent="Generando resumen…"; try{ const r=await fetch(WORKER+"/ai-summary",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id})}); const d=await r.json(); $("sumtext").textContent=d.text||"Sin resumen."; }catch(e){ $("sumtext").textContent="No disponible."; } };
+window.suggest=async()=>{ const ta=$("note"); const old=ta.value; ta.value="🧠 pensando…"; try{ const r=await fetch(WORKER+"/ai-suggest",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id})}); const d=await r.json(); ta.value=d.text||old; }catch(e){ ta.value=old; } };
+if(!id){ $("root").innerHTML='<div class="load">Falta el id del ticket.</div>'; } else render();
+</script>
+<script type="module" src="/avatar-widget.js?v=3"></script>
+</body>
+</html>

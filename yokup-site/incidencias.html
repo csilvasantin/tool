@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/acceso.js"></script>
+<title>Soporte de incidencias · Yokup</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#02080d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
+<link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+.wrap{max-width:1100px;margin:0 auto;padding:22px 24px 48px}
+nav{display:flex;align-items:center;justify-content:space-between;padding:4px 0 14px}
+.logo{font-family:var(--mono);font-weight:700;letter-spacing:.14em;font-size:15px;text-transform:uppercase;display:flex;align-items:center;gap:9px}.logo b{color:var(--brand)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--brand);box-shadow:0 0 22px rgba(120,243,255,.5);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.src{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}.src b{color:var(--brand)}
+h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
+.sub{color:var(--mut);font-size:14.5px;margin-bottom:14px}
+.kb{display:flex;gap:8px;margin-bottom:16px}
+.kb input{flex:1;font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:11px;padding:12px 14px;outline:none}
+.kb input:focus{border-color:var(--violet)}
+.kb button{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:0 16px;border-radius:11px;border:1px solid rgba(170,136,255,.4);color:var(--violet);background:rgba(170,136,255,.08);cursor:pointer}
+.kb button:hover{background:rgba(170,136,255,.16)}
+.kbans{border:1px solid rgba(170,136,255,.3);background:rgba(170,136,255,.05);border-radius:12px;padding:14px 16px;margin-bottom:16px;display:none}
+.kbans.show{display:block}
+.kbans h4{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--violet);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.kbans p{font-size:14px;line-height:1.6;color:var(--ink)}
+.kbans .srcs{margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--mut)}
+.kpis{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.kpi{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--line);border-radius:10px;padding:9px 13px;background:var(--card);color:var(--mut);display:flex;align-items:center;gap:8px}
+.kpi b{font-size:16px;color:var(--ink)}.kpi.a b{color:var(--warn)}.kpi.b b{color:var(--accent)}.kpi.c b{color:var(--good)}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;border-radius:9px;border:1px solid var(--line);color:var(--mut);background:var(--card);cursor:pointer;transition:.2s}
+.tab.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
+.tools{display:flex;gap:8px}
+.simBtn,.bellBtn{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:8px 12px;border-radius:9px;border:1px dashed var(--line2);color:var(--mut);background:transparent;cursor:pointer}
+.simBtn:hover{color:var(--warn);border-color:var(--warn)}.bellBtn:hover{color:var(--accent);border-color:var(--accent)}.bellBtn.on{color:var(--good);border-style:solid;border-color:rgba(136,255,170,.4)}
+.list{border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.tk{border-bottom:1px solid var(--line);background:var(--card);transition:.15s;text-decoration:none;color:inherit;display:block}
+.tk:last-child{border-bottom:0}.tk:hover{background:var(--card2)}
+.tk.open{border-left:3px solid var(--warn)}
+.hd{display:grid;grid-template-columns:8px 96px 1fr auto;gap:14px;align-items:center;padding:14px 16px}
+.pri{width:8px;height:8px;border-radius:50%}.pri.urgente{background:var(--warn);box-shadow:0 0 10px var(--warn)}.pri.alta{background:var(--accent)}.pri.media,.pri.baja{background:var(--good);opacity:.5}
+.tkid{font-family:var(--mono);font-size:12px;color:var(--brand)}.tkid .st{display:block;font-size:9.5px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase;margin-top:3px}
+.subj .t{font-size:14.5px;font-weight:600;color:var(--ink)}.subj .m{font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap}.subj .m .scr{color:var(--brand)}
+.right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+.badge{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:5px 9px;border-radius:999px;white-space:nowrap;display:flex;align-items:center;gap:6px}.badge i{width:6px;height:6px;border-radius:50%}
+.b-open{color:var(--warn);border:1px solid rgba(255,136,102,.5);background:rgba(255,136,102,.08)}.b-open i{background:var(--warn);animation:blink 1s infinite}
+.b-prog{color:var(--accent);border:1px solid rgba(255,216,102,.4);background:rgba(255,216,102,.06)}.b-prog i{background:var(--accent)}
+.b-res{color:var(--good);border:1px solid rgba(136,255,170,.35);background:rgba(136,255,170,.06)}.b-res i{background:var(--good)}
+.sla{font-family:var(--mono);font-size:10.5px;color:var(--warn)}.who{font-family:var(--mono);font-size:10.5px;color:var(--mut)}
+.empty{padding:36px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+.foot{margin-top:24px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
+@media(max-width:720px){.hd{grid-template-columns:8px 1fr}.tkid,.right{grid-column:2}.right{justify-content:flex-start}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <a href="/" style="text-decoration:none;color:inherit"><div class="logo"><span class="dot"></span>Yo<b>kup</b> · Soporte</div></a>
+    <div class="src">flota <b>admira.tv</b> · <span id="tick">—</span></div>
+  </nav>
+  <h1>Soporte de incidencias</h1>
+  <p class="sub">Helpdesk con <b style="color:var(--violet)">IA</b> para la flota DOOH de admira.tv. El agente abre el ticket, la IA lo diagnostica y asigna, y lanzas la asistencia en vivo.</p>
+
+  <div class="kb">
+    <input id="kbq" placeholder="🤖 Pregunta a la base de conocimiento IA (p.ej. «pantalla sin red»)…" onkeydown="if(event.key==='Enter')askKb()">
+    <button onclick="askKb()">Preguntar</button>
+  </div>
+  <div class="kbans" id="kbans"><h4>🤖 Base de conocimiento · IA</h4><p id="kbtext"></p><div class="srcs" id="kbsrcs"></div></div>
+
+  <div class="kpis">
+    <div class="kpi a"><b id="kOpen">—</b> abiertas</div>
+    <div class="kpi b"><b id="kProg">—</b> en curso</div>
+    <div class="kpi c"><b id="kRes">—</b> resueltas</div>
+    <div class="kpi"><b id="kMttr">—</b> MTTR</div>
+  </div>
+
+  <div class="bar">
+    <div class="tabs">
+      <button class="tab on" data-f="activas">Activas</button>
+      <button class="tab" data-f="open">Abiertas</button>
+      <button class="tab" data-f="in_progress">En curso</button>
+      <button class="tab" data-f="resolved">Resueltas</button>
+      <button class="tab" data-f="todas">Todas</button>
+    </div>
+    <div class="tools">
+      <a class="simBtn" href="/agentes" style="text-decoration:none">👥 Agentes</a>
+      <button class="bellBtn" id="bellBtn">🔔 Avisos</button>
+      <button class="simBtn" id="simBtn">⚡ Simular caída</button>
+    </div>
+  </div>
+
+  <div class="list" id="list"><div class="empty">Cargando tickets…</div></div>
+  <div class="foot">Yokup · helpdesk con IA · persistencia <b>D1</b> · triaje/resumen/KB <b>Workers AI</b> · datos flota <b>admira.tv</b></div>
+</div>
+
+<script>
+const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
+let FILTER="activas", seen=new Set(JSON.parse(localStorage.getItem("yk_seen")||"[]"));
+const $=id=>document.getElementById(id);
+function ago(ms){ if(!ms) return "—"; let s=Math.round((Date.now()-ms)/1000); if(s<60)return "hace "+s+"s"; if(s<3600)return "hace "+Math.round(s/60)+"m"; if(s<86400)return "hace "+Math.round(s/3600)+"h"; return "hace "+Math.round(s/86400)+"d"; }
+function slaLeft(created){ const left=created+7200000-Date.now(); if(left<=0)return "SLA vencido"; const m=Math.round(left/60000); return "SLA "+(m>=60?Math.floor(m/60)+"h "+(m%60)+"m":m+"m"); }
+function esc(x){ return String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c])); }
+
+async function askKb(){
+  const q=$("kbq").value.trim(); if(!q)return;
+  $("kbans").classList.add("show"); $("kbtext").textContent="Buscando en incidencias resueltas…"; $("kbsrcs").textContent="";
+  try{ const r=await fetch(WORKER+"/kb-search?q="+encodeURIComponent(q)); const d=await r.json();
+    $("kbtext").textContent=d.text||"Sin resultados."; $("kbsrcs").textContent=(d.sources&&d.sources.length)?("Fuentes: "+d.sources.map(s=>"#"+s.id).join(", ")):""; }
+  catch(e){ $("kbtext").textContent="La base de conocimiento no responde ahora."; }
+}
+
+async function load(){
+  let d; try{ const r=await fetch(WORKER+"/tickets",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
+  const tks=d.tickets||[], st=d.stats||{};
+  $("kOpen").textContent=st.open??"—"; $("kProg").textContent=st.in_progress??"—"; $("kRes").textContent=st.resolved??"—"; $("kMttr").textContent=(st.mttr!=null?st.mttr+" min":"—");
+  $("tick").textContent=new Date().toTimeString().slice(0,8);
+  // avisos: nuevas abiertas no vistas
+  tks.filter(t=>t.status==="open"&&!seen.has(t.id)).forEach(t=>{ notify(t); seen.add(t.id); });
+  localStorage.setItem("yk_seen",JSON.stringify([...seen]));
+  let list=tks;
+  if(FILTER==="activas") list=tks.filter(t=>t.status!=="resolved");
+  else if(FILTER!=="todas") list=tks.filter(t=>t.status===FILTER);
+  const el=$("list");
+  if(!list.length){ el.innerHTML='<div class="empty">Sin tickets en este filtro ✓</div>'; return; }
+  el.innerHTML=list.map(t=>{
+    const sb=t.status==="open"?"b-open":(t.status==="resolved"?"b-res":"b-prog");
+    const stt=t.status==="open"?"Abierta":(t.status==="resolved"?"Resuelta":"En curso");
+    return `<a class="tk ${t.status==='open'?'open':''}" href="/ticket?id=${encodeURIComponent(t.id)}">
+      <div class="hd">
+        <div class="pri ${esc(t.priority)}"></div>
+        <div class="tkid">${esc(t.id)}<span class="st">${t.source==='agent-iot'?'🤖 Agente IoT':'👤 Manual'}</span></div>
+        <div class="subj"><div class="t">${esc(t.subject)}</div><div class="m"><span class="scr">${esc(t.screen)}</span>${t.loc?'<span>'+esc(t.loc)+'</span>':''}<span>${ago(t.created_at)}</span></div></div>
+        <div class="right">${t.status==='open'?'<span class="sla">'+slaLeft(t.created_at)+'</span>':''}<span class="who">👷 ${esc(t.assignee)}</span><span class="badge ${sb}"><i></i>${stt}</span></div>
+      </div></a>`;
+  }).join("");
+}
+function notify(t){
+  if(!("Notification" in window)||Notification.permission!=="granted")return;
+  try{ new Notification("🔴 Nueva incidencia · "+t.id,{body:t.subject+" — "+t.screen+" · "+t.assignee, tag:t.id}); }catch(e){}
+}
+const VAPID="BDqJIroeM7TZyFufMupmO6v9q-b4ahgGZ3JJL-E_5Kj1d4pBsHSVlsr-ju2J1vpr9zoMVwXWZUMudqXJ9KRVri4";
+function urlB64(b){ const pad="=".repeat((4-b.length%4)%4); const s=(b+pad).replace(/-/g,"+").replace(/_/g,"/"); const raw=atob(s); return Uint8Array.from([...raw].map(c=>c.charCodeAt(0))); }
+async function enablePush(){
+  try{
+    if(!("serviceWorker" in navigator)||!("PushManager" in window)){ if("Notification" in window) await Notification.requestPermission(); return; }
+    const reg=await navigator.serviceWorker.register("/sw.js");
+    const perm=await Notification.requestPermission(); if(perm!=="granted") return;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:urlB64(VAPID)});
+    await fetch(WORKER+"/push/subscribe",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(sub)});
+    $("bellBtn").classList.add("on"); $("bellBtn").textContent="🔔 Avisos ON";
+  }catch(e){}
+}
+$("bellBtn").onclick=enablePush;
+if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
+if(("Notification" in window)&&Notification.permission==="granted"){ $("bellBtn").classList.add("on"); $("bellBtn").textContent="🔔 Avisos ON"; }
+$("simBtn").onclick=async()=>{ $("simBtn").textContent="creando…"; try{ await fetch(WORKER+"/ticket/simulate",{method:"POST"}); }catch(e){} $("simBtn").textContent="⚡ Simular caída"; FILTER="activas"; document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x.dataset.f==="activas")); load(); };
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{ document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on")); b.classList.add("on"); FILTER=b.dataset.f; load(); });
+load(); setInterval(load,12000);
+</script>
+<script type="module" src="/avatar-widget.js?v=3"></script>
+</body>
+</html>

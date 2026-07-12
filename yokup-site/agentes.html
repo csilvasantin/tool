@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/acceso.js"></script>
+<title>Panel de agentes · Yokup Soporte</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#02080d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
+<link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+.wrap{max-width:1000px;margin:0 auto;padding:22px 24px 48px}
+nav{display:flex;align-items:center;justify-content:space-between;padding:4px 0 16px}
+.logo{font-family:var(--mono);font-weight:700;letter-spacing:.14em;font-size:15px;text-transform:uppercase;display:flex;align-items:center;gap:9px}.logo b{color:var(--brand)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--brand);box-shadow:0 0 22px rgba(120,243,255,.5);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.back{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);text-decoration:none}.back:hover{color:var(--brand)}
+h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
+.sub{color:var(--mut);font-size:14.5px;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.ag{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:20px}
+.ag.busy{border-color:rgba(255,136,102,.4)}
+.top{display:flex;align-items:center;gap:13px;margin-bottom:14px}
+.av{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,rgba(120,243,255,.22),rgba(255,216,102,.14));display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:15px;color:var(--brand);flex:0 0 auto}
+.who b{font-size:16px;display:block}.who span{font-family:var(--mono);font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.skills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.skills span{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);border:1px solid var(--line);border-radius:7px;padding:4px 8px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
+.stat{border:1px solid var(--line);border-radius:9px;padding:9px 4px}
+.stat b{font-family:var(--sans);font-weight:700;font-size:18px;display:block}.stat.o b{color:var(--warn)}.stat.p b{color:var(--accent)}.stat.r b{color:var(--good)}.stat.m b{color:var(--brand)}
+.stat span{font-family:var(--mono);font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
+.bar{height:5px;border-radius:99px;background:rgba(255,255,255,.06);margin-top:14px;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--good),var(--accent),var(--warn))}
+.load{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-top:7px;display:flex;justify-content:space-between}
+.foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <a href="/incidencias" style="text-decoration:none;color:inherit"><div class="logo"><span class="dot"></span>Yo<b>kup</b> · Agentes</div></a>
+    <a href="/incidencias" class="back">← Bandeja</a>
+  </nav>
+  <h1>Panel de agentes</h1>
+  <p class="sub">Técnicos de la red Yokup: carga actual, especialidad, zona y rendimiento (auto-asignación por IA).</p>
+  <div class="grid" id="grid"><div style="color:var(--dim);font-family:var(--mono);padding:20px">Cargando…</div></div>
+  <div class="foot">Yokup · panel de agentes · datos <b>D1</b> · asignación por <b>IA</b> (skills + zona)</div>
+</div>
+<script>
+const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
+const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+function initials(n){ return n.split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase(); }
+async function load(){
+  let d; try{ const r=await fetch(WORKER+"/agents",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
+  const ags=d.agents||[];
+  document.getElementById("grid").innerHTML=ags.map(a=>{
+    const active=(a.open||0)+(a.in_progress||0);
+    const total=active+(a.resolved||0);
+    const pct=total?Math.round(active/total*100):0;
+    return `<div class="ag ${active>0?'busy':''}">
+      <div class="top"><div class="av">${esc(initials(a.name))}</div><div class="who"><b>${esc(a.name)}</b><span>${esc(a.zone)}</span></div></div>
+      <div class="skills">${String(a.skills||"").split(",").map(s=>`<span>${esc(s.trim())}</span>`).join("")}</div>
+      <div class="stats">
+        <div class="stat o"><b>${a.open||0}</b><span>abiertas</span></div>
+        <div class="stat p"><b>${a.in_progress||0}</b><span>en curso</span></div>
+        <div class="stat r"><b>${a.resolved||0}</b><span>resueltas</span></div>
+        <div class="stat m"><b>${a.mttr!=null?a.mttr:"—"}</b><span>MTTR min</span></div>
+      </div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="load"><span>carga activa</span><span>${active} ticket${active===1?'':'s'}</span></div>
+    </div>`;
+  }).join("");
+}
+load(); setInterval(load,12000);
+</script>
+<script type="module" src="/avatar-widget.js?v=3"></script>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>App Yokup · para el técnico</title>
+<meta name="theme-color" content="#02080d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
+<link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<style>
+:root{
+  --bg:#02080d; --card:#0a1620; --ink:#dff8ff; --mut:#75aab9; --dim:#4d7a88;
+  --brand:#78f3ff; --accent:#ffd866; --good:#88ffaa;
+  --line:rgba(120,243,255,.16); --line2:rgba(120,243,255,.30);
+  --sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);
+  --mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(700px 400px at 50% 0%,rgba(120,243,255,.10),transparent 60%)}
+.wrap{position:relative;max-width:600px;margin:0 auto;padding:34px 24px 60px;text-align:center}
+.icon{width:88px;height:88px;border-radius:22px;margin:0 auto 18px;display:block}
+.logo{font-family:var(--mono);font-weight:700;letter-spacing:.14em;font-size:14px;text-transform:uppercase;color:var(--mut)}
+h1{font-size:clamp(26px,6vw,36px);letter-spacing:-.02em;margin:10px 0 8px}
+.sub{color:var(--mut);font-size:16px;line-height:1.55;margin-bottom:30px}
+.card{border:1px solid var(--line);border-radius:16px;background:var(--card);padding:24px;text-align:left;margin-bottom:16px}
+.card h3{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--brand);display:flex;align-items:center;gap:9px;margin-bottom:12px}
+.card p{color:var(--mut);font-size:14px;line-height:1.55;margin-bottom:14px}
+.btn{font-family:var(--mono);font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:14px 20px;border-radius:11px;border:1px solid var(--line2);color:var(--ink);background:rgba(10,22,32,.6);cursor:pointer;transition:.2s;text-decoration:none;display:block;text-align:center}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.solid{background:var(--accent);color:#1a1200;border-color:var(--accent);box-shadow:0 0 26px rgba(255,216,102,.3)}
+.btn.solid:hover{background:#ffe49a;color:#1a1200}
+.steps{list-style:none;counter-reset:s}
+.steps li{counter-increment:s;color:var(--mut);font-size:14px;line-height:1.5;padding:8px 0 8px 34px;position:relative}
+.steps li::before{content:counter(s);position:absolute;left:0;top:7px;width:22px;height:22px;border-radius:50%;border:1px solid var(--line2);color:var(--brand);font-family:var(--mono);font-size:12px;display:grid;place-items:center}
+.note{font-size:12px;color:var(--dim);line-height:1.5;margin-top:8px}
+.foot{margin-top:24px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.foot b{color:var(--brand)}
+a.plain{color:var(--brand);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img class="icon" src="/app/icon-512.png" alt="Yokup">
+  <div class="logo">Yokup · técnico de campo</div>
+  <h1>La app Yokup</h1>
+  <p class="sub">Instálala en tu móvil para recibir intervenciones, abrir la asistencia en vivo y trabajar en campo — con acceso directo desde tu pantalla de inicio.</p>
+
+  <div class="card">
+    <h3>🤖 Android</h3>
+    <p>Descarga e instala el APK. Si el móvil lo pide, permite «instalar apps de orígenes desconocidos» para esta descarga.</p>
+    <a class="btn solid" href="/app/yokup.apk" download>Descargar APK (3,9 MB)</a>
+    <div class="note">Versión 1.0 · com.yokup.yokupero</div>
+  </div>
+
+  <div class="card">
+    <h3>🍎 iPhone / iPad</h3>
+    <p>Instálala como app desde Safari (sin App Store):</p>
+    <ol class="steps">
+      <li>Abre <a class="plain" href="/">yokup.com</a> en <b style="color:var(--ink)">Safari</b>.</li>
+      <li>Pulsa el botón <b style="color:var(--ink)">Compartir</b> (el cuadrado con la flecha).</li>
+      <li>Elige <b style="color:var(--ink)">«Añadir a pantalla de inicio»</b>.</li>
+    </ol>
+    <div class="note">Aparecerá el icono de Yokup como una app más.</div>
+  </div>
+
+  <div class="foot">Yokup · app de campo · <b>yokup.com/app</b></div>
+</div>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "Yokup",
+  "short_name": "Yokup",
+  "description": "Yokup — asistencia y operación de campo",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#02080d",
+  "theme_color": "#02080d",
+  "icons": [
+    { "src": "/app/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/app/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
