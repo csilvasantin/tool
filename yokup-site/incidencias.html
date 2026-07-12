@@ -62,12 +62,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 @media(max-width:720px){.hd{grid-template-columns:8px 1fr}.tkid,.right{grid-column:2}.right{justify-content:flex-start}}
 </style>
 </head>
-<body>
+<body data-yk-title="SOPORTE">
 <div class="wrap">
-  <nav>
-    <a href="/" style="text-decoration:none;color:inherit"><div class="logo"><span class="dot"></span>Yo<b>kup</b> · Soporte</div></a>
-    <div class="src">flota <b>admira.tv</b> · <span id="tick">—</span></div>
-  </nav>
+  <!-- La barra Yokup (yk-frame v3) aporta logo, rótulo y reloj; aquí sólo el título de la vista. -->
   <h1>Soporte de incidencias</h1>
   <p class="sub">Helpdesk con <b style="color:var(--violet)">IA</b> para la flota DOOH de admira.tv. El agente abre el ticket, la IA lo diagnostica y asigna, y lanzas la asistencia en vivo.</p>
 
@@ -130,7 +127,7 @@ async function load(){
   let d; try{ const r=await fetch(WORKER+"/tickets",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
   const tks=d.tickets||[], st=d.stats||{};
   $("kOpen").textContent=st.open??"—"; $("kProg").textContent=st.in_progress??"—"; $("kRes").textContent=st.resolved??"—"; $("kMttr").textContent=(st.mttr!=null?st.mttr+" min":"—");
-  $("tick").textContent=new Date().toTimeString().slice(0,8);
+  // el reloj lo pinta la barra Yokup (yk-frame)
   // avisos: nuevas abiertas no vistas
   tks.filter(t=>t.status==="open"&&!seen.has(t.id)).forEach(t=>{ notify(t); seen.add(t.id); });
   localStorage.setItem("yk_seen",JSON.stringify([...seen]));

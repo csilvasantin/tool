@@ -2,33 +2,42 @@
  * yk-frame.js — Marco CUADRÁTICO de AdmiraNeXT para el perímetro de Yokup.
  * Script CLÁSICO (sin módulos). Se inicializa tras DOMContentLoaded.
  *
- * CANON refinado (2026-07-12): una UX cuadrática tiene 4 menús (superior,
- * inferior y los dos laterales). NO se explicitan con pestañas en los bordes,
- * sino con ICONOS FIJOS en las esquinas superiores:
- *   · arriba-IZQUIERDA (solo)        → OPCIONES  → panel lateral IZQUIERDO
- *   · arriba-DERECHA, a la izquierda → AVANZADO  → panel lateral DERECHO
- *   · arriba-DERECHA, extremo dcho   → EXPERTO   → panel INFERIOR
+ * yk-frame v3 (2026-07-12, canon precisado por Carlos):
+ *   · Construye la BARRA SUPERIOR REAL (.yk-bar) como entidad propia del sitio,
+ *     fixed y de ancho completo:
+ *       [icono OPCIONES] · logotipo YO KUP (→ /) · rótulo de la página ·
+ *       referencias de la home · FLOTA admira.tv + reloj ·
+ *       [icono AVANZADO] [icono EXPERTO]
+ *   · Los tres paneles OVERLAY nacen bajo la barra (top: alto de la barra) y NO
+ *     encogen el contenido: flotan encima. La esquina inf-dcha queda para el avatar.
+ *   · Los ICONOS viven DENTRO de la barra y NO se mueven: toggle + Escape, con
+ *     estado encendido (aria-pressed) cuando su panel está abierto.
+ *   · El reloj lo pinta la barra (intervalo propio); las páginas ya no lo llevan.
  *
- * Los tres paneles son OVERLAY (position:fixed, translateX/Y ±103%), plegados
- * por defecto. NO encogen el contenido: flotan encima. La esquina inferior
- * derecha queda libre para la burbuja del avatar.
+ * Mecánica de slots: MUEVE (no clona, para preservar los handlers ya enlazados
+ * por la página) los nodos [data-yk-slot="left|right|bottom"] al panel
+ * correspondiente. Si un slot no tiene nodos, muestra «— sin opciones».
  *
- * Los iconos van position:fixed en las esquinas (LECCIÓN vieja: nunca dentro
- * de una topbar que pueda scrollear, o desaparecen).
- *
- * Mecánica de slots: MUEVE (no clona, para preservar los handlers ya
- * enlazados por la página) los nodos [data-yk-slot="left|right|bottom"] al
- * panel correspondiente. Si un slot no tiene nodos, muestra «— sin opciones».
- *
- * Estado abierto/plegado por panel en localStorage. Cierre con el propio icono
- * (toggle) y con Escape. NO toca acceso.js ni avatar-widget.js.
+ * Estado abierto/plegado por panel en localStorage. NO toca acceso.js ni
+ * avatar-widget.js.
  * ==========================================================================*/
 (function () {
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.12.07.2026.r3";
+  var VERSION = "v.12.07.2026.r4";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
+
+  // Referencias de la home (los 4 primeros son anclas de la landing)
+  var NAV = [
+    ["Plataforma",   "/#plataforma"],
+    ["Agentes IoT",  "/#como"],
+    ["as a Service", "/#xaas"],
+    ["Equipo",       "/#equipo"],
+    ["Incidencias",  "/incidencias"],
+    ["Asistencia",   "/asistencia"],
+    ["App",          "/app"]
+  ];
 
   function el(tag, cls, html) {
     var n = document.createElement(tag);
@@ -42,13 +51,70 @@
     try { return new URLSearchParams(location.search).get("id") || ""; } catch (e) { return ""; }
   }
 
+  // rótulo de la página actual: data-yk-title del <body>, o derivado de la ruta
+  function pageTitle() {
+    var t = document.body.getAttribute("data-yk-title");
+    if (t) return t;
+    var seg = location.pathname.replace(/\/+$/, "").split("/").pop() || "";
+    seg = seg.replace(/\.html$/, "").toLowerCase();
+    var map = {
+      incidencias: "SOPORTE", ticket: "TICKET", agentes: "AGENTES",
+      asistencia: "ASISTENCIA", intervencion: "INTERVENCIÓN"
+    };
+    return map[seg] || "";
+  }
+
   function build() {
     if (document.getElementById("yk-frame")) return;
+    document.documentElement.classList.add("yk-framed"); // aplica padding-top al body
 
     var root = el("div", "yk-frame");
     root.id = "yk-frame";
 
-    // --- paneles (raíles OVERLAY) ---
+    // ------------------------- BARRA SUPERIOR ------------------------------
+    var bar = el("header", "yk-bar");
+    bar.setAttribute("role", "banner");
+
+    // [icono OPCIONES] al extremo izquierdo
+    var icoL = icon("yk-ico yk-ico-left", "left", "▤", "Opciones");
+
+    // logotipo YO KUP (→ /)
+    var logo = el("a", "yk-logo",
+      '<span class="yk-dot" aria-hidden="true"></span>Yo<b>kup</b>');
+    logo.href = "/";
+    logo.setAttribute("aria-label", "Yokup · inicio");
+
+    // rótulo de la página
+    var pt = pageTitle();
+    var page = el("span", "yk-page", pt);
+    if (!pt) page.style.display = "none";
+
+    // referencias de la home
+    var nav = el("nav", "yk-nav");
+    nav.setAttribute("aria-label", "Secciones de Yokup");
+    NAV.forEach(function (r) {
+      var a = el("a", null, r[0]);
+      a.href = r[1];
+      nav.appendChild(a);
+    });
+
+    // FLOTA admira.tv · reloj
+    var meta = el("div", "yk-meta",
+      '<span class="yk-meta-lbl">Flota <b>admira.tv</b> · </span><span class="yk-clock">—</span>');
+
+    // [icono AVANZADO] [icono EXPERTO] al extremo derecho
+    var icoR = icon("yk-ico yk-ico-adv", "right", "◨", "Avanzado");
+    var icoB = icon("yk-ico yk-ico-exp", "bottom", "▦", "Experto");
+
+    bar.appendChild(icoL);
+    bar.appendChild(logo);
+    bar.appendChild(page);
+    bar.appendChild(nav);
+    bar.appendChild(meta);
+    bar.appendChild(icoR);
+    bar.appendChild(icoB);
+
+    // ------------------------- PANELES (raíles) ----------------------------
     var railL = el("aside", "yk-rail yk-rail-left");
     railL.appendChild(el("div", "yk-hd", "OPCIONES"));
     var slotL = el("div", "yk-slot"); railL.appendChild(slotL);
@@ -63,15 +129,8 @@
     var slotB = el("div", "yk-slot"); expert.appendChild(slotB);
     railB.appendChild(expert);
 
-    // --- ICONOS FIJOS en las esquinas superiores ---
-    // arriba-izquierda (solo): OPCIONES → panel izquierdo
-    var icoL = icon("yk-ico yk-ico-left", "left", "▤", "Opciones");
-    // arriba-derecha: AVANZADO (a la izquierda) + EXPERTO (extremo derecho)
-    var icoR = icon("yk-ico yk-ico-adv", "right", "◨", "Avanzado");
-    var icoB = icon("yk-ico yk-ico-exp", "bottom", "▦", "Experto");
-
+    root.appendChild(bar);
     root.appendChild(railL); root.appendChild(railR); root.appendChild(railB);
-    root.appendChild(icoL);  root.appendChild(icoR);  root.appendChild(icoB);
     document.body.appendChild(root);
 
     // --- MOVER los nodos marcados a su slot ---
@@ -91,11 +150,14 @@
       }
     });
 
+    // --- reloj de la barra (intervalo propio) ---
+    startClock();
+
     // --- botones del EXPERTO (fetch al worker + volcado JSON) ---
     wireExpertFetch(root);
   }
 
-  // botón-icono cuadrático fijo en esquina
+  // botón-icono cuadrático de la barra
   function icon(cls, panel, glyph, label) {
     var b = el("button", cls,
       '<span class="yk-ico-gl" aria-hidden="true">' + glyph + '</span>' +
@@ -125,11 +187,20 @@
     }
   }
 
+  function startClock() {
+    var paint = function () {
+      var c = document.querySelector(".yk-clock");
+      if (c) c.textContent = new Date().toTimeString().slice(0, 8);
+    };
+    paint();
+    setInterval(paint, 1000);
+  }
+
   function isOpen(panel) { return localStorage.getItem(LS + panel) === "1"; }
   function setOpen(panel, v) {
     try { localStorage.setItem(LS + panel, v ? "1" : "0"); } catch (e) {}
     document.documentElement.classList.toggle("yk-open-" + panel, !!v);
-    // reflejar el estado en el icono
+    // reflejar el estado en el icono (encendido/apagado)
     var ico = document.querySelector('.yk-ico[data-yk-panel="' + panel + '"]');
     if (ico) ico.setAttribute("aria-pressed", v ? "true" : "false");
   }
