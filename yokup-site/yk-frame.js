@@ -35,6 +35,7 @@
     ["as a Service", "/#xaas"],
     ["Equipo",       "/#equipo"],
     ["Incidencias",  "/incidencias"],
+    ["admira.live",  "/admira-live"],
     ["Asistencia",   "/asistencia"],
     ["App",          "/app"]
   ];
@@ -59,6 +60,7 @@
     seg = seg.replace(/\.html$/, "").toLowerCase();
     var map = {
       incidencias: "SOPORTE", ticket: "TICKET", agentes: "AGENTES",
+      "admira-live": "ADMIRA.LIVE",
       asistencia: "ASISTENCIA", intervencion: "INTERVENCIÓN"
     };
     return map[seg] || "";

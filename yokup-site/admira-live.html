@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/acceso.js"></script>
+<title>www.admira.live · encolados · Yokup</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#02080d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
+<link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<link rel="stylesheet" href="/yk-frame.css?v=r5">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--red:#ff5566;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+.wrap{max-width:1100px;margin:0 auto;padding:22px 24px 48px}
+h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
+.sub{color:var(--mut);font-size:14.5px;margin-bottom:14px}
+
+/* ---- Selector de PROYECTO (mismo helpdesk, dos proyectos) ---- */
+.projsel{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 16px;padding:8px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(180deg,var(--card),var(--bg))}
+.projsel .pl{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);padding:0 6px 0 4px}
+.proj{display:flex;align-items:center;gap:8px;text-decoration:none;font-family:var(--mono);font-size:12px;color:var(--mut);border:1px solid var(--line);border-radius:10px;padding:8px 13px;background:var(--card);transition:.15s;white-space:nowrap}
+.proj em{font-style:normal;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
+.proj:hover{border-color:var(--line2);color:var(--ink)}
+.proj.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
+.proj.on em{color:rgba(2,8,13,.62)}
+
+.kpis{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.kpi{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--line);border-radius:10px;padding:9px 13px;background:var(--card);color:var(--mut);display:flex;align-items:center;gap:8px}
+.kpi b{font-size:16px;color:var(--ink)}
+.kpi.a b{color:var(--warn)}.kpi.b b{color:var(--accent)}.kpi.c b{color:var(--red)}.kpi.d b{color:var(--good)}.kpi.e b{color:var(--brand)}
+
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;border-radius:9px;border:1px solid var(--line);color:var(--mut);background:var(--card);cursor:pointer;transition:.2s}
+.tab.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
+.kb{display:flex;gap:8px;margin:0}
+.kb input,.kb select{font-family:var(--sans);font-size:13.5px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;outline:none}
+.kb input{flex:1;min-width:120px}
+.kb input:focus,.kb select:focus{border-color:var(--violet)}
+label.fl{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:2px 0 5px}
+
+/* ---- Acciones masivas (AVANZADO) ---- */
+.mass{display:flex;flex-direction:column;gap:8px}
+.mass button{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:10px 12px;border-radius:10px;border:1px solid var(--line2);color:var(--mut);background:rgba(120,243,255,.05);cursor:pointer;text-align:left;transition:.15s}
+.mass button:hover{color:var(--ink);border-color:var(--brand)}
+.mass .hint{font-family:var(--mono);font-size:10.5px;color:var(--dim);line-height:1.5}
+
+/* ---- Cola de tickets ---- */
+.list{border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.tk{border-bottom:1px solid var(--line);background:var(--card);transition:.15s}
+.tk:last-child{border-bottom:0}.tk:hover{background:var(--card2)}
+.tk.st-pending{border-left:3px solid var(--warn)}
+.tk.st-blocked{border-left:3px solid var(--red)}
+.tk.st-in_progress{border-left:3px solid var(--accent)}
+.hd{display:grid;grid-template-columns:22px 92px 1fr auto;gap:14px;align-items:start;padding:14px 16px}
+.sel{margin-top:3px;width:16px;height:16px;accent-color:var(--brand);cursor:pointer}
+.tkid{font-family:var(--mono);font-size:12px;color:var(--brand)}.tkid .st{display:block;font-size:9.5px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase;margin-top:3px}
+.subj .t{font-size:14px;line-height:1.5;color:var(--ink);cursor:pointer}
+.subj .t.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.subj .m{font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap}
+.subj .m .to{color:var(--brand)}.subj .m .mach{color:var(--violet)}.subj .m .fr{color:var(--mut)}
+.right{display:flex;flex-direction:column;align-items:flex-end;gap:9px}
+.badge{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:5px 9px;border-radius:999px;white-space:nowrap;display:flex;align-items:center;gap:6px}.badge i{width:6px;height:6px;border-radius:50%}
+.b-pending{color:var(--warn);border:1px solid rgba(255,136,102,.5);background:rgba(255,136,102,.08)}.b-pending i{background:var(--warn);animation:blink 1s infinite}
+.b-in_progress{color:var(--accent);border:1px solid rgba(255,216,102,.4);background:rgba(255,216,102,.06)}.b-in_progress i{background:var(--accent)}
+.b-blocked{color:var(--red);border:1px solid rgba(255,85,102,.5);background:rgba(255,85,102,.08)}.b-blocked i{background:var(--red);animation:blink 1s infinite}
+.b-ack,.b-done{color:var(--good);border:1px solid rgba(136,255,170,.35);background:rgba(136,255,170,.06)}.b-ack i,.b-done i{background:var(--good)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.act{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;padding:6px 9px;border-radius:8px;border:1px solid var(--line);color:var(--mut);background:transparent;cursor:pointer;transition:.15s}
+.act:hover{color:var(--ink);border-color:var(--line2)}
+.act.a-ack:hover{color:var(--good);border-color:rgba(136,255,170,.5)}
+.act.a-prog:hover{color:var(--accent);border-color:rgba(255,216,102,.5)}
+.act.a-block:hover{color:var(--red);border-color:rgba(255,85,102,.5)}
+.act.a-done:hover{color:var(--good);border-color:rgba(136,255,170,.5)}
+.age{font-family:var(--mono);font-size:10.5px;color:var(--mut)}.age.old{color:var(--warn)}
+.empty{padding:36px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+.foot{margin-top:24px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
+.foot a{color:var(--violet);text-decoration:none}
+@media(max-width:720px){.hd{grid-template-columns:22px 1fr}.tkid,.right{grid-column:2}.right{align-items:flex-start}.acts{justify-content:flex-start}}
+</style>
+</head>
+<body data-yk-title="ADMIRA.LIVE">
+<div class="wrap">
+  <!-- La barra Yokup (yk-frame) aporta logo, rótulo «ADMIRA.LIVE», referencias y reloj. -->
+
+  <!-- Conmutador de PROYECTO: dos proyectos del MISMO helpdesk -->
+  <div class="projsel">
+    <span class="pl">Proyecto</span>
+    <a class="proj" href="/incidencias">🖥 admira.tv <em>flota DOOH</em></a>
+    <a class="proj on" href="/admira-live">🌐 www.admira.live <em>encolados</em></a>
+  </div>
+
+  <h1>Encolados de la flota</h1>
+  <p class="sub">Seguimiento de las peticiones encoladas a los agentes de la flota (Neo, Morfeo, Trinity, Oráculo, Smith…) desde <b style="color:var(--violet)">admira.live</b>. Cada encargo es un ticket: ACK, en curso, bloqueado o hecho.</p>
+
+  <div class="kpis">
+    <div class="kpi a"><b id="kPend">—</b> pendientes</div>
+    <div class="kpi b"><b id="kProg">—</b> en curso</div>
+    <div class="kpi c"><b id="kBlock">—</b> bloqueadas</div>
+    <div class="kpi d"><b id="kDone">—</b> hechas</div>
+    <div class="kpi"><b id="kOld">—</b> pendiente + viejo</div>
+    <div class="kpi e"><b id="kTot">—</b> en cola</div>
+  </div>
+
+  <div class="bar">
+    <div class="tabs" id="tabs">
+      <button class="tab on" data-f="todas">Todas</button>
+      <button class="tab" data-f="pending">Pendientes</button>
+      <button class="tab" data-f="in_progress">En curso</button>
+      <button class="tab" data-f="blocked">Bloqueadas</button>
+      <button class="tab" data-f="ack">ACK</button>
+      <button class="tab" data-f="done">Hechas</button>
+    </div>
+  </div>
+
+  <!-- OPCIONES (raíl izquierdo): filtros -->
+  <div data-yk-slot="left">
+    <label class="fl">Buscar en la cola</label>
+    <div class="kb"><input id="q" placeholder="texto o remitente…" oninput="render()"></div>
+    <label class="fl" style="margin-top:14px">Destinatario (persona)</label>
+    <div class="kb"><select id="fPersona" onchange="render()"><option value="">Todas las personas</option></select></div>
+    <label class="fl" style="margin-top:14px">Estado</label>
+    <div class="kb"><select id="fEstado" onchange="syncTabsFromSelect();render()">
+      <option value="todas">Todos</option>
+      <option value="pending">Pendientes</option>
+      <option value="in_progress">En curso</option>
+      <option value="blocked">Bloqueadas</option>
+      <option value="ack">ACK</option>
+      <option value="done">Hechas</option>
+    </select></div>
+    <p class="mass hint" style="margin-top:16px">Auto-refresco cada 30 s · fuente <b style="color:var(--brand)">bot-inbox</b> (sin auth).</p>
+  </div>
+
+  <!-- AVANZADO (raíl derecho): acciones masivas -->
+  <div class="mass" data-yk-slot="right">
+    <p class="hint">Acciones en lote sobre la cola visible. Marca las tarjetas con su casilla para operar sobre la selección.</p>
+    <button id="mAckAvisos">✓ ACK de todos los avisos informativos (🐇)</button>
+    <button id="mDoneSel">✓ Marcar hechas las seleccionadas (<span id="nSel">0</span>)</button>
+    <button id="mClearSel">✗ Limpiar selección</button>
+    <p class="hint" id="massMsg"></p>
+  </div>
+
+  <div class="list" id="list"><div class="empty">Cargando cola…</div></div>
+  <div class="foot">Yokup · proyecto <b>www.admira.live</b> · cola de encargos <b>bot-inbox</b> (worker admira-telegram) · <a href="/incidencias">← admira.tv (flota DOOH)</a></div>
+
+  <!-- EXPERTO (raíl inferior): JSON crudo del inbox -->
+  <div class="yk-expert-btns" data-yk-slot="bottom">
+    <button id="rawBtn">inbox JSON</button>
+  </div>
+  <pre class="yk-expert-out" id="rawOut" data-yk-slot="bottom">Pulsa «inbox JSON» para volcar la respuesta cruda de /api/public/inbox.</pre>
+</div>
+
+<script>
+const INBOX="https://admira-telegram.csilvasantin.workers.dev";
+let ITEMS=[], FILTER="todas", SEL=new Set();
+const $=id=>document.getElementById(id);
+function esc(x){ return String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c])); }
+// ts a veces en ms, a veces en segundos: normaliza a ms
+function tsMs(ts){ ts=Number(ts)||0; return ts<1e12 ? ts*1000 : ts; }
+function ago(ms){ if(!ms) return "—"; let s=Math.round((Date.now()-ms)/1000); if(s<0)s=0; if(s<60)return "hace "+s+"s"; if(s<3600)return "hace "+Math.round(s/60)+"m"; if(s<86400)return "hace "+Math.round(s/3600)+"h"; return "hace "+Math.round(s/86400)+"d"; }
+function isAviso(it){ const f=(it.from_name||""); return /white rabbit/i.test(f) || /^🐇/.test((it.text||"").trim()); }
+
+async function load(){
+  let d; try{ const r=await fetch(INBOX+"/api/public/inbox",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
+  ITEMS=(d.items||[]).slice();
+  // rellenar el selector de personas
+  const sel=$("fPersona"), cur=sel.value;
+  const personas=[...new Set(ITEMS.map(x=>x.target_persona).filter(Boolean))].sort();
+  sel.innerHTML='<option value="">Todas las personas</option>'+personas.map(p=>`<option>${esc(p)}</option>`).join("");
+  sel.value=cur;
+  render();
+}
+
+function kpis(){
+  const c={pending:0,in_progress:0,blocked:0,done:0,ack:0};
+  let oldest=null;
+  ITEMS.forEach(it=>{ if(it.status in c) c[it.status]++; if(it.status==="pending"){ const t=tsMs(it.ts); if(oldest==null||t<oldest) oldest=t; } });
+  $("kPend").textContent=c.pending; $("kProg").textContent=c.in_progress; $("kBlock").textContent=c.blocked;
+  $("kDone").textContent=c.done; $("kTot").textContent=ITEMS.length;
+  $("kOld").textContent=oldest!=null?ago(oldest).replace("hace ",""):"—";
+}
+
+function render(){
+  kpis();
+  const q=$("q").value.trim().toLowerCase();
+  const fp=$("fPersona").value;
+  let list=ITEMS.slice();
+  if(FILTER!=="todas") list=list.filter(t=>t.status===FILTER);
+  if(fp) list=list.filter(t=>t.target_persona===fp);
+  if(q) list=list.filter(t=>((t.text||"")+" "+(t.from_name||"")+" "+(t.target_persona||"")).toLowerCase().includes(q));
+  $("nSel").textContent=SEL.size;
+  const el=$("list");
+  if(!list.length){ el.innerHTML='<div class="empty">Sin encargos en este filtro ✓</div>'; return; }
+  el.innerHTML=list.map(t=>{
+    const stt={pending:"Pendiente",in_progress:"En curso",blocked:"Bloqueada",ack:"ACK",done:"Hecha"}[t.status]||esc(t.status);
+    const sb="b-"+(t.status||"pending");
+    const oldMs=tsMs(t.ts); const old=(t.status==="pending"&&(Date.now()-oldMs)>86400000)?" old":"";
+    const dest=esc(t.target_persona||"—")+(t.target_machine?` <span class="mach">@${esc(t.target_machine)}</span>`:"");
+    const checked=SEL.has(t.id)?"checked":"";
+    return `<div class="tk st-${esc(t.status)}">
+      <div class="hd">
+        <input type="checkbox" class="sel" data-id="${t.id}" ${checked} onchange="toggleSel(${t.id},this.checked)">
+        <div class="tkid">#${esc(t.id)}<span class="st">${t.task_id?'task '+esc(t.task_id):'sin task'}</span></div>
+        <div class="subj">
+          <div class="t clamp" onclick="this.classList.toggle('clamp')" title="Pulsa para expandir">${esc(t.text)||'<i style="color:var(--dim)">(sin texto)</i>'}</div>
+          <div class="m"><span class="to">→ ${dest}</span><span class="fr">de ${esc(t.from_name||"—")}</span><span class="age${old}">${ago(oldMs)}</span></div>
+        </div>
+        <div class="right">
+          <span class="badge ${sb}"><i></i>${stt}</span>
+          <div class="acts">
+            <button class="act a-ack" onclick="doAck(${t.id})">ACK</button>
+            <button class="act a-prog" onclick="doStatus(${t.id},'in_progress')">En curso</button>
+            <button class="act a-block" onclick="doStatus(${t.id},'blocked')">Bloqueada</button>
+            <button class="act a-done" onclick="doStatus(${t.id},'done')">Hecha</button>
+          </div>
+        </div>
+      </div></div>`;
+  }).join("");
+}
+
+function toggleSel(id,on){ if(on) SEL.add(id); else SEL.delete(id); $("nSel").textContent=SEL.size; }
+
+function optimistic(id,status){ const it=ITEMS.find(x=>x.id===id); if(it) it.status=status; render(); }
+async function doAck(id){
+  optimistic(id,"ack");
+  try{ await fetch(INBOX+"/api/bot-inbox/"+id+"/ack",{method:"POST"}); }catch(e){}
+  setTimeout(load,600);
+}
+async function doStatus(id,status){
+  optimistic(id,status);
+  try{ await fetch(INBOX+"/api/bot-inbox/"+id+"/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({status:status,commit:"",url:""})}); }catch(e){}
+  setTimeout(load,600);
+}
+
+// --- filtros: pestañas <-> selector de estado ---
+function setFilter(f){ FILTER=f; document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x.dataset.f===f)); $("fEstado").value=f; render(); }
+function syncTabsFromSelect(){ FILTER=$("fEstado").value; document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x.dataset.f===FILTER)); }
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>setFilter(b.dataset.f));
+
+// --- acciones masivas ---
+$("mAckAvisos").onclick=async()=>{
+  const av=ITEMS.filter(t=>isAviso(t)&&t.status==="pending");
+  if(!av.length){ $("massMsg").textContent="No hay avisos informativos pendientes."; return; }
+  $("massMsg").textContent="ACK a "+av.length+" aviso(s)…";
+  for(const t of av){ optimistic(t.id,"ack"); try{ await fetch(INBOX+"/api/bot-inbox/"+t.id+"/ack",{method:"POST"}); }catch(e){} }
+  $("massMsg").textContent="✓ "+av.length+" aviso(s) marcados ACK."; setTimeout(load,700);
+};
+$("mDoneSel").onclick=async()=>{
+  if(!SEL.size){ $("massMsg").textContent="Selección vacía."; return; }
+  const ids=[...SEL]; $("massMsg").textContent="Marcando hechas "+ids.length+"…";
+  for(const id of ids){ optimistic(id,"done"); try{ await fetch(INBOX+"/api/bot-inbox/"+id+"/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({status:"done",commit:"",url:""})}); }catch(e){} }
+  SEL.clear(); $("massMsg").textContent="✓ "+ids.length+" marcadas hechas."; setTimeout(load,700);
+};
+$("mClearSel").onclick=()=>{ SEL.clear(); $("massMsg").textContent="Selección limpiada."; render(); };
+
+// --- EXPERTO: JSON crudo del inbox (worker admira-telegram, no yokup-rtc) ---
+$("rawBtn").onclick=async()=>{
+  $("rawOut").textContent="… solicitando /api/public/inbox";
+  try{ const r=await fetch(INBOX+"/api/public/inbox",{cache:"no-store"}); $("rawOut").textContent=JSON.stringify(await r.json(),null,2); }
+  catch(e){ $("rawOut").textContent="El worker admira-telegram no responde ahora."; }
+};
+
+load(); setInterval(load,30000);
+</script>
+<script type="module" src="/avatar-widget.js?v=3"></script>
+<script src="/yk-frame.js?v=r5"></script>
+</body>
+</html>
