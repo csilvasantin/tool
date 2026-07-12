@@ -123,10 +123,6 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
   box-shadow: 0 0 14px rgba(120,243,255,.25);
 }
 .yk-ico-gl{ font-size: 15px; line-height: 1 }
-.yk-ico-lbl{
-  font-size: 8.5px; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--yk-mut); line-height: 1;
-}
 /* estado ABIERTO: icono «encendido» (relleno) — NO se mueve */
 .yk-ico[aria-pressed="true"]{
   color: var(--yk-bg2);
@@ -134,7 +130,6 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
   border-color: var(--yk-brand);
   box-shadow: 0 0 16px rgba(120,243,255,.45);
 }
-.yk-ico[aria-pressed="true"] .yk-ico-lbl{ color: rgba(2,8,13,.72) }
 
 /* =============================== PANELES ================================= */
 .yk-rail{
@@ -237,6 +232,5 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
   :root{ --yk-rail-w: 92vw; --yk-rail-h: 78vh; --yk-avatar-safe: 0px; }
   .yk-rail-bottom{ right:0 }
   .yk-nav, .yk-meta, .yk-page{ display:none }
-  .yk-ico-lbl{ display:none }   /* solo el glifo, para que quepan */
   .yk-bar{ gap:10px }
 }

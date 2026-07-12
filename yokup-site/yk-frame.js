@@ -159,9 +159,9 @@
 
   // botón-icono cuadrático de la barra
   function icon(cls, panel, glyph, label) {
+    // canon 2026-07-12: el botón es SOLO el glifo; el rótulo vive en el tooltip
     var b = el("button", cls,
-      '<span class="yk-ico-gl" aria-hidden="true">' + glyph + '</span>' +
-      '<span class="yk-ico-lbl">' + label + '</span>');
+      '<span class="yk-ico-gl" aria-hidden="true">' + glyph + '</span>');
     b.type = "button";
     b.title = label;
     b.setAttribute("aria-label", label);
