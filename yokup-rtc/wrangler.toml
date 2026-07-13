@@ -1,0 +1,46 @@
+# yokup-rtc — Worker del helpdesk Yokup (API tickets + realtime WebRTC + IA).
+# Fuente RECUPERADA de producción (Cloudflare) el 2026-07-13 y ampliada con el
+# modelo MISIONES·TAREAS (mission_tasks + endpoints /mission/*). Espejo del prod,
+# igual que se hizo con yokup-site. Deploy: `cd yokup-rtc && npx wrangler deploy`.
+#
+# Los secretos (TURN_TOKEN, VAPID_PRIVATE, YK_SESSION_SECRET) NO viven aquí: ya
+# están puestos en el Worker (wrangler secret) y wrangler los preserva al desplegar.
+name = "yokup-rtc"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+[observability]
+enabled = true
+
+# Reconcilia flota→tickets cada 2 min aunque nadie mire la bandeja.
+[triggers]
+crons = ["*/2 * * * *"]
+
+# D1 (SQLite) — tickets, events, subs, mission_tasks.
+[[d1_databases]]
+binding = "DB"
+database_name = "yokup-tickets"
+database_id = "fc2d2810-0fb9-46bb-b05c-14c41fbd1b65"
+
+# Workers AI — triaje, KB, copiloto y proposición de plan (misiones·tareas).
+[ai]
+binding = "AI"
+
+# Vectorize — base de conocimiento semántica de incidencias resueltas.
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "yokup-kb"
+
+# Durable Object — sala de señalización WebRTC (asistencia en vivo).
+[[durable_objects.bindings]]
+name = "ROOM"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
+
+# Variables en claro (los secretos van aparte, vía `wrangler secret put`).
+[vars]
+TURN_KEY_ID = "e20e7a6b4f6f24a19d40eb81ce6a26e7"
+VAPID_PUBLIC = "BDqJIroeM7TZyFufMupmO6v9q-b4ahgGZ3JJL-E_5Kj1d4pBsHSVlsr-ju2J1vpr9zoMVwXWZUMudqXJ9KRVri4"

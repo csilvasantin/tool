@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/acceso.js"></script>
+<title>Informes · Yokup Soporte</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#02080d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
+<link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<link rel="stylesheet" href="/yk-frame.css?v=r7">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+.wrap{max-width:1000px;margin:0 auto;padding:22px 24px 48px}
+nav{display:flex;align-items:center;justify-content:space-between;padding:4px 0 16px}
+.back{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);text-decoration:none}.back:hover{color:var(--brand)}
+h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
+.sub{color:var(--mut);font-size:14.5px;margin-bottom:20px}.sub b{color:var(--violet)}
+.reps{display:flex;flex-direction:column;gap:12px}
+.rep{border:1px solid var(--line);border-radius:13px;background:var(--card);padding:15px 17px;transition:.15s}
+.rep:hover{background:var(--card2)}
+.rhd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-family:var(--mono);margin-bottom:8px}
+.mid{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--brand);text-decoration:none}.mid:hover{text-decoration:underline}
+.rcode{font-size:10px;color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:2px 7px;letter-spacing:.04em}
+.rstatus{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
+.s-pending{color:var(--accent);border:1px solid rgba(255,216,102,.4);background:rgba(255,216,102,.06)}
+.s-in_progress{color:var(--brand);border:1px solid rgba(120,243,255,.4);background:rgba(120,243,255,.06)}
+.s-done{color:var(--good);border:1px solid rgba(136,255,170,.35);background:rgba(136,255,170,.06)}
+.rown{font-size:10px;color:var(--mut);margin-left:auto}
+.rttl{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:3px}
+.rmeta{font-family:var(--mono);font-size:11px;color:var(--mut);margin-bottom:9px}.rmeta .scr{color:var(--brand)}
+.rbody{font-size:13.5px;line-height:1.55;color:var(--ink);border-left:2px solid var(--line2);padding:2px 0 2px 12px;white-space:pre-wrap}
+.rts{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin-top:9px}
+.empty{border:1px dashed var(--line2);border-radius:14px;padding:44px 24px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12.5px;letter-spacing:.04em;line-height:1.7}
+.empty b{color:var(--mut);display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
+</style>
+</head>
+<body data-yk-title="INFORMES" data-yk-nav='[{"label":"MISIONES","panel":"left"},{"label":"TAREAS","panel":"right"},{"label":"INCIDENCIAS","href":"/incidencias"},{"label":"INFORMES","href":"/informes","active":true}]'>
+<div class="wrap">
+  <nav>
+    <a href="/incidencias" class="back">← Bandeja</a>
+  </nav>
+  <h1>Informes</h1>
+  <p class="sub">Superficie de reporte de los <b>infraagentes</b> 📝. Cada tarea con parte redactado, por misión, ordenada por lo más reciente.</p>
+
+  <div class="reps" id="reps"><div class="empty"><b>Cargando informes…</b>Reuniendo los partes de todas las misiones.</div></div>
+  <div class="foot">Yokup · informes · tareas con <b>report</b> · fuente <b>D1</b> (mission_tasks)</div>
+
+  <!-- EXPERTO: JSON crudo de tickets del worker yokup-rtc -->
+  <div class="yk-expert-btns" data-yk-slot="bottom">
+    <button data-yk-fetch="/tickets">tickets JSON</button>
+  </div>
+  <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa «tickets JSON» para volcar los datos crudos del worker.</pre>
+</div>
+<script>
+const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
+const $=id=>document.getElementById(id);
+const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+function ago(ms){ if(!ms) return "—"; let s=Math.round((Date.now()-ms)/1000); if(s<60)return "hace "+s+"s"; if(s<3600)return "hace "+Math.round(s/60)+"m"; if(s<86400)return "hace "+Math.round(s/3600)+"h"; return "hace "+Math.round(s/86400)+"d"; }
+const OWN_ICON={principal:"🧠",subagente:"⚙️",infraagente:"📝"};
+const ST_LABEL={pending:"pendiente",in_progress:"en curso",done:"hecha"};
+
+async function load(){
+  let d; try{ const r=await fetch(WORKER+"/tickets",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
+  const tks=d.tickets||[];
+  const all=[];
+  await Promise.all(tks.map(async t=>{
+    try{
+      const r=await fetch(WORKER+"/mission/"+encodeURIComponent(t.id)+"/tasks",{cache:"no-store"});
+      const dd=await r.json();
+      (dd.tasks||[]).forEach(task=>{
+        if(task.report && String(task.report).trim())
+          all.push(Object.assign({},task,{subject:t.subject,screen:t.screen}));
+      });
+    }catch(e){}
+  }));
+  all.sort((a,b)=>(b.updated_at||0)-(a.updated_at||0));
+  render(all);
+}
+function render(list){
+  const box=$("reps");
+  if(!list.length){
+    box.innerHTML='<div class="empty"><b>Sin informes todavía</b>Los infraagentes reportan aquí — en cuanto una tarea tenga parte redactado, aparecerá en esta lista.</div>';
+    return;
+  }
+  box.innerHTML=list.map(t=>{
+    const own=OWN_ICON[t.owner]||"⚙️";
+    const st=t.status||"pending";
+    return `<div class="rep">
+      <div class="rhd">
+        <a class="mid" href="/ticket?id=${encodeURIComponent(t.mission_id)}" title="Abrir la misión">🎯 ${esc(t.mission_id)}</a>
+        <span class="rcode" title="Código de tarea">${esc(t.code)}</span>
+        <span class="rstatus s-${esc(st)}">${esc(ST_LABEL[st]||st)}</span>
+        <span class="rown" title="${esc(t.owner||'')}">${own} ${esc(t.owner||'')}</span>
+      </div>
+      <div class="rttl">${esc(t.title)}</div>
+      <div class="rmeta"><span class="scr">${esc(t.screen||'')}</span> · misión: ${esc(t.subject||'')}</div>
+      <div class="rbody">${esc(t.report)}</div>
+      <div class="rts">actualizado ${ago(t.updated_at)}</div>
+    </div>`;
+  }).join("");
+}
+load(); setInterval(load,15000);
+</script>
+<script type="module" src="/avatar-widget.js?v=3"></script>
+<script src="/yk-frame.js?v=r7"></script>
+</body>
+</html>

@@ -94,6 +94,8 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
   color: var(--yk-mut); text-decoration: none; white-space: nowrap; transition: .15s;
 }
 .yk-nav a:hover{ color: var(--yk-ink) }
+.yk-nav a.on{ color: var(--yk-brand); font-weight: 700 }
+.yk-nav a[data-yk-open]{ cursor: pointer }
 
 /* ===================== SELECTOR DE PROYECTO (desplegable) ================= */
 /* Absorbe el antiguo rótulo «FLOTA admira.tv»: el botón lee el proyecto activo

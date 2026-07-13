@@ -74,6 +74,29 @@
     return map[seg] || "";
   }
 
+  // menú de la barra por página: <body data-yk-nav="…">. Acepta JSON (array de
+  // items {label,href?,panel?,active?} o pares [label,href]) o una lista simple
+  // separada por «|» de pares «Label:href». Sin el atributo, cae al menú global.
+  function pageNav() {
+    var raw = document.body.getAttribute("data-yk-nav");
+    if (raw) {
+      try {
+        var j = JSON.parse(raw);
+        if (Array.isArray(j) && j.length) {
+          return j.map(function (it) {
+            return Array.isArray(it) ? { label: it[0], href: it[1] } : it;
+          });
+        }
+      } catch (e) {
+        return raw.split("|").map(function (s) {
+          var p = s.split(":");
+          return { label: (p[0] || "").trim(), href: (p.slice(1).join(":") || "").trim() || null };
+        }).filter(function (x) { return x.label; });
+      }
+    }
+    return NAV.map(function (r) { return { label: r[0], href: r[1] }; });
+  }
+
   // proyecto activo según la ruta: cualquier variante con «admira-live» es
   // admira.live; en el resto del perímetro, admira.tv.
   function activeProjectKey() {
@@ -106,21 +129,25 @@
     var page = el("span", "yk-page", pt);
     if (!pt) page.style.display = "none";
 
-    // referencias de la home
+    // menú de la barra: por página (body[data-yk-nav]) o el global por defecto
     var nav = el("nav", "yk-nav");
     nav.setAttribute("aria-label", "Secciones de Yokup");
-    NAV.forEach(function (r) {
-      var a = el("a", null, r[0]);
-      a.href = r[1];
+    pageNav().forEach(function (it) {
+      var a = el("a", it.active ? "on" : null, it.label);
+      a.href = it.href || "#";
+      if (it.active) a.setAttribute("aria-current", "page");
+      if (it.panel) {
+        // MISIONES/TAREAS: abre/enfoca el raíl izquierdo/derecho en vez de navegar
+        a.setAttribute("data-yk-open", it.panel);
+        a.addEventListener("click", function (e) { e.preventDefault(); setOpen(it.panel, true); });
+      }
       nav.appendChild(a);
     });
 
     // [PROYECTO ACTIVO ▾] — desplegable que absorbe el antiguo rótulo de flota
     var proj = buildProjMenu();
 
-    // reloj (el rótulo estático de flota lo asume ahora el selector de proyecto)
-    var meta = el("div", "yk-meta",
-      '<span class="yk-sep" aria-hidden="true">·</span><span class="yk-clock">—</span>');
+    // (el reloj de la barra se retiró — canon 2026-07-13, Carlos)
 
     // [icono AVANZADO] [icono EXPERTO] al extremo derecho
     var icoR = icon("yk-ico yk-ico-adv", "right", "◨", "Avanzado");
@@ -131,17 +158,22 @@
     bar.appendChild(page);
     bar.appendChild(nav);
     bar.appendChild(proj);
-    bar.appendChild(meta);
     bar.appendChild(icoR);
     bar.appendChild(icoB);
 
     // ------------------------- PANELES (raíles) ----------------------------
+    // Rótulos por página: <body data-yk-rail-left="…" data-yk-rail-right="…">.
+    // Sin atributos, se mantiene el canon OPCIONES / AVANZADO (resto de páginas
+    // intactas). En incidencias son MISIONES / TAREAS (modelo misiones·tareas).
+    var railLeftLabel = document.body.getAttribute("data-yk-rail-left") || "OPCIONES";
+    var railRightLabel = document.body.getAttribute("data-yk-rail-right") || "AVANZADO";
+
     var railL = el("aside", "yk-rail yk-rail-left");
-    railL.appendChild(el("div", "yk-hd", "OPCIONES"));
+    railL.appendChild(el("div", "yk-hd", railLeftLabel));
     var slotL = el("div", "yk-slot"); railL.appendChild(slotL);
 
     var railR = el("aside", "yk-rail yk-rail-right");
-    railR.appendChild(el("div", "yk-hd", "AVANZADO"));
+    railR.appendChild(el("div", "yk-hd", railRightLabel));
     var slotR = el("div", "yk-slot"); railR.appendChild(slotR);
 
     var railB = el("aside", "yk-rail yk-rail-bottom");
@@ -170,9 +202,6 @@
         ["left", "right", "bottom"].forEach(function (p) { if (isOpen(p)) setOpen(p, false); });
       }
     });
-
-    // --- reloj de la barra (intervalo propio) ---
-    startClock();
 
     // --- botones del EXPERTO (fetch al worker + volcado JSON) ---
     wireExpertFetch(root);
@@ -278,15 +307,6 @@
       expertHost.appendChild(el("div", "yk-ver",
         'yokup · perímetro de seguridad · <b>' + VERSION + '</b>'));
     }
-  }
-
-  function startClock() {
-    var paint = function () {
-      var c = document.querySelector(".yk-clock");
-      if (c) c.textContent = new Date().toTimeString().slice(0, 8);
-    };
-    paint();
-    setInterval(paint, 1000);
   }
 
   function isOpen(panel) { return localStorage.getItem(LS + panel) === "1"; }
