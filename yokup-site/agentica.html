@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/acceso.js"></script>
+<title>Plataforma agéntica · Yokup</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#02080d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
+<link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<link rel="stylesheet" href="/yk-frame.css?v=r7">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 24px 48px}
+h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
+.sub{color:var(--mut);font-size:15px;margin-bottom:26px;max-width:760px}.sub b{color:var(--brand)}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:6px}
+.shd{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--brand);margin:34px 0 12px;display:flex;align-items:center;gap:10px}
+.shd::after{content:"";flex:1;height:1px;background:var(--line)}
+.shd .tot{color:var(--mut);letter-spacing:.04em;font-size:10px;border:1px solid var(--line);border-radius:999px;padding:3px 9px}
+
+/* PULSO DE LA FLOTA */
+.pulse{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.ag{border:1px solid var(--line);border-radius:13px;background:var(--card);padding:14px 16px;position:relative;overflow:hidden}
+.ag::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--good);box-shadow:0 0 12px var(--good)}
+.ag .top{display:flex;align-items:center;gap:9px;font-family:var(--mono);margin-bottom:7px}
+.ag .dot{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 14px var(--good);animation:blink 2s infinite;flex:none}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.ag b{font-size:13.5px;color:var(--ink)}
+.ag .rt{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:2px 6px;margin-left:auto}
+.ag .mach{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;color:var(--brand);margin-bottom:6px}
+.ag .focus{font-size:12px;line-height:1.5;color:var(--mut);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ag .meta{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin-top:8px;display:flex;gap:10px}
+.ag .meta .mode{color:var(--accent)}
+.pulse .off{border:1px dashed var(--line2);border-radius:13px;padding:24px 18px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;line-height:1.7;grid-column:1/-1}
+
+/* XPERIENCIAS EN VIVO — marcos cuadráticos con feed real (doctrina: nada de capturas) */
+.xp{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:900px){.xp{grid-template-columns:1fr}}
+.frame{border:1px solid var(--line2);border-radius:14px;background:var(--card);overflow:hidden}
+.frame .fhd{display:flex;align-items:center;gap:9px;padding:10px 14px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
+.frame .fhd .live{color:var(--warn);display:inline-flex;align-items:center;gap:5px}
+.frame .fhd .live i{width:6px;height:6px;border-radius:50%;background:var(--warn);animation:blink 1s infinite}
+.frame .fhd a{margin-left:auto;color:var(--brand);text-decoration:none;font-size:10px}.frame .fhd a:hover{text-decoration:underline}
+.frame iframe{display:block;width:100%;height:420px;border:0;background:#000}
+
+/* MÓDULOS */
+.mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.mod{border:1px solid var(--line);border-radius:13px;background:var(--card);padding:16px 17px;text-decoration:none;color:inherit;transition:.18s;display:block}
+.mod:hover{background:var(--card2);border-color:var(--line2);box-shadow:0 0 22px rgba(120,243,255,.14)}
+.mod .mi{font-size:20px;margin-bottom:9px}
+.mod b{display:block;font-size:14px;margin-bottom:4px}
+.mod span{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--mut);line-height:1.5;display:block}
+.mod em{font-family:var(--mono);font-style:normal;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--brand);display:block;margin-top:9px}
+
+.foot{margin-top:30px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
+</style>
+</head>
+<body data-yk-title="AGÉNTICA" data-yk-nav='[{"label":"AGÉNTICA","href":"/agentica","active":true},{"label":"MISIONES","href":"/incidencias#misiones"},{"label":"TAREAS","href":"/incidencias#tareas"},{"label":"INCIDENCIAS","href":"/incidencias"},{"label":"INFORMES","href":"/informes"}]'>
+<div class="wrap">
+  <div class="eyebrow">Yokup · Xpace OS</div>
+  <h1>Plataforma agéntica de gestión de Xperiencias</h1>
+  <p class="sub">Agentes que <b>ven cada Xpace y actúan solos</b>: vigilan la emisión, abren la misión, la descomponen en tareas y reportan — el humano entra solo donde es irreducible.</p>
+
+  <div class="shd">Pulso de la flota <span class="tot" id="pulseN">—</span></div>
+  <div class="pulse" id="pulse"><div class="off">Tomando el pulso de la flota…</div></div>
+
+  <div class="shd">Xperiencias en vivo</div>
+  <div class="xp">
+    <div class="frame">
+      <div class="fhd"><span class="live"><i></i>en vivo</span> Mapa de Xpaces · Clear Channel <a href="https://www.clearchannel.tv/" target="_blank" rel="noopener">abrir ↗</a></div>
+      <iframe loading="lazy" src="https://www.clearchannel.tv/" title="Mapa de Xpaces Clear Channel"></iframe>
+    </div>
+    <div class="frame">
+      <div class="fhd"><span class="live"><i></i>en vivo</span> Parrilla Xtanco <a href="https://www.clearchannel.tv/parrilla/" target="_blank" rel="noopener">abrir ↗</a></div>
+      <iframe loading="lazy" src="https://www.clearchannel.tv/parrilla/" title="Parrilla Xtanco"></iframe>
+    </div>
+  </div>
+
+  <div class="shd">Módulos</div>
+  <div class="mods">
+    <a class="mod" href="/incidencias"><div class="mi">🎯</div><b>Misiones</b><span>Incidencias de la flota descompuestas en tareas a/b/c — el helpdesk agéntico.</span><em>/incidencias →</em></a>
+    <a class="mod" href="/informes"><div class="mi">📝</div><b>Informes</b><span>Partes de los infraagentes: cada tarea reportada, por misión.</span><em>/informes →</em></a>
+    <a class="mod" href="/agentes"><div class="mi">👥</div><b>Agentes</b><span>La red de técnicos: carga, skills, zona y rendimiento.</span><em>/agentes →</em></a>
+    <a class="mod" href="/admira-live"><div class="mi">🌐</div><b>Encolados admira.live</b><span>La cola de encargos de los agentes de silicio, como tickets.</span><em>/admira-live →</em></a>
+    <a class="mod" href="/asistencia"><div class="mi">🎥</div><b>Asistencia</b><span>Vídeo en vivo técnico ↔ soporte sobre el Xpace (WebRTC).</span><em>/asistencia →</em></a>
+  </div>
+
+  <div class="foot">yokup · plataforma agéntica de xperiencias · pulso <b>admira-telegram</b> · feeds <b>clearchannel.tv</b> · <b>v.2026.07.13.r1</b></div>
+
+  <!-- EXPERTO: JSON crudo del worker -->
+  <div class="yk-expert-btns" data-yk-slot="bottom">
+    <button data-yk-fetch="/tickets">tickets JSON</button>
+    <button data-yk-fetch="/tickets" data-yk-pick="stats">stats JSON</button>
+  </div>
+  <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
+</div>
+
+<script>
+/* PULSO DE LA FLOTA — presencia viva de los agentes (frescos < 10 min). */
+const PRESENCE="https://admira-telegram.csilvasantin.workers.dev/api/presence";
+const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+function agoS(s){ if(!s)return "—"; let d=Math.round(Date.now()/1000-s); if(d<60)return "hace "+d+"s"; if(d<3600)return "hace "+Math.round(d/60)+"m"; return "hace "+Math.round(d/3600)+"h"; }
+async function pulse(){
+  let d; try{ const r=await fetch(PRESENCE,{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
+  const now=Date.now()/1000;
+  const fresh=(d.presence||[]).filter(p=>p.updated && (now-p.updated)<600)
+    .sort((a,b)=>(b.updated||0)-(a.updated||0));
+  const n=document.getElementById("pulseN"); if(n) n.textContent=fresh.length+" agente"+(fresh.length===1?"":"s")+" latiendo";
+  const box=document.getElementById("pulse");
+  if(!fresh.length){ box.innerHTML='<div class="off">Ahora mismo ningún agente late (&lt;10 min). La flota respira en ciclos — vuelve a mirar en un rato.</div>'; return; }
+  box.innerHTML=fresh.map(p=>`<div class="ag">
+    <div class="top"><span class="dot"></span><b>${esc(p.persona)}</b><span class="rt">${esc(p.runtime||"")}</span></div>
+    <div class="mach">⌂ ${esc(p.machine||"")}</div>
+    <div class="focus" title="${esc(p.focus||"")}">${esc(p.focus||"—")}</div>
+    <div class="meta"><span class="mode">${esc(p.mode||"")}</span><span>${agoS(p.updated)}</span></div>
+  </div>`).join("");
+}
+pulse(); setInterval(pulse,60000);
+</script>
+<script type="module" src="/avatar-widget.js?v=3"></script>
+<script src="/yk-frame.js?v=r7"></script>
+</body>
+</html>

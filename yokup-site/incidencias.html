@@ -143,6 +143,10 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
+// Llegadas desde /agentica: #misiones / #tareas abren su raíl (yk-frame restaura
+// el estado de localStorage al construirse, más abajo en el <body>).
+try{ if(location.hash==="#misiones") localStorage.setItem("yk_frame_open_left","1");
+     else if(location.hash==="#tareas") localStorage.setItem("yk_frame_open_right","1"); }catch(e){}
 let FILTER="activas", seen=new Set(JSON.parse(localStorage.getItem("yk_seen")||"[]"));
 let SELECTED=localStorage.getItem("yk_mission")||"";  // misión activa (id de ticket)
 const $=id=>document.getElementById(id);
