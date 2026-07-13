@@ -11,6 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r7">
+<link rel="stylesheet" href="/yk-misiones.css?v=r1">
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -43,53 +44,11 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .tools{display:flex;gap:8px}
 .simBtn,.bellBtn{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:8px 12px;border-radius:9px;border:1px dashed var(--line2);color:var(--mut);background:transparent;cursor:pointer}
 .simBtn:hover{color:var(--warn);border-color:var(--warn)}.bellBtn:hover{color:var(--accent);border-color:var(--accent)}.bellBtn.on{color:var(--good);border-style:solid;border-color:rgba(136,255,170,.4)}
-.list{border:1px solid var(--line);border-radius:14px;overflow:hidden}
-.tk{border-bottom:1px solid var(--line);background:var(--card);transition:.15s;text-decoration:none;color:inherit;display:block}
-.tk:last-child{border-bottom:0}.tk:hover{background:var(--card2)}
-.tk.open{border-left:3px solid var(--warn)}
-.hd{display:grid;grid-template-columns:8px 96px 1fr auto;gap:14px;align-items:center;padding:14px 16px}
-.pri{width:8px;height:8px;border-radius:50%}.pri.urgente{background:var(--warn);box-shadow:0 0 10px var(--warn)}.pri.alta{background:var(--accent)}.pri.media,.pri.baja{background:var(--good);opacity:.5}
-.tkid{font-family:var(--mono);font-size:12px;color:var(--brand)}.tkid .st{display:block;font-size:9.5px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase;margin-top:3px}
-.subj .t{font-size:14.5px;font-weight:600;color:var(--ink)}.subj .m{font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap}.subj .m .scr{color:var(--brand)}
-.right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
-.badge{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:5px 9px;border-radius:999px;white-space:nowrap;display:flex;align-items:center;gap:6px}.badge i{width:6px;height:6px;border-radius:50%}
-.b-open{color:var(--warn);border:1px solid rgba(255,136,102,.5);background:rgba(255,136,102,.08)}.b-open i{background:var(--warn);animation:blink 1s infinite}
-.b-prog{color:var(--accent);border:1px solid rgba(255,216,102,.4);background:rgba(255,216,102,.06)}.b-prog i{background:var(--accent)}
-.b-res{color:var(--good);border:1px solid rgba(136,255,170,.35);background:rgba(136,255,170,.06)}.b-res i{background:var(--good)}
-.sla{font-family:var(--mono);font-size:10.5px;color:var(--warn)}.who{font-family:var(--mono);font-size:10.5px;color:var(--mut)}
-.empty{padding:36px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
 .foot{margin-top:24px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
-@media(max-width:720px){.hd{grid-template-columns:8px 1fr}.tkid,.right{grid-column:2}.right{justify-content:flex-start}}
-
-/* ===== MODELO MISIONES · TAREAS ===== */
-/* MISIÓN activa: la fila se resalta (borde/glow cian) al seleccionarla. */
-.tk{cursor:pointer}
-.tk.sel{border-left:3px solid var(--brand);background:var(--card2);box-shadow:inset 0 0 0 1px rgba(120,243,255,.45),0 0 18px rgba(120,243,255,.22)}
-.tkopen{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--brand);border:1px solid var(--line2);border-radius:7px;padding:4px 9px;text-decoration:none;white-space:nowrap}
-.tkopen:hover{background:rgba(120,243,255,.12)}
-/* Árbol de TAREAS en el raíl derecho */
-.tree{font-family:var(--mono)}
-.tree .thd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
-.tree .tmid{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--brand);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tree .tcount{font-size:10px;color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:3px 8px;white-space:nowrap}
-.tree .empty2{font-family:var(--sans);color:var(--dim);font-size:12px;line-height:1.55;padding:4px 0 10px}.tree .empty2 b{color:var(--mut)}
-.tree .propose{font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:9px 12px;border-radius:9px;border:1px solid rgba(170,136,255,.4);color:var(--violet);background:rgba(170,136,255,.08);cursor:pointer;width:100%}
-.tree .propose:hover{background:rgba(170,136,255,.16)}.tree .propose:disabled{opacity:.55;cursor:default}
-.step{margin-bottom:10px}
-.node{display:flex;align-items:flex-start;gap:7px;padding:4px 0}
-.node.sub{padding-left:18px}
-.chip{flex:none;cursor:pointer;border:none;background:transparent;font-size:14px;line-height:1.15;padding:0;width:16px;text-align:center}
-.chip.pending{color:var(--accent)}.chip.in_progress{color:var(--brand)}.chip.done{color:var(--good)}
-.node .scode{flex:none;font-size:9.5px;color:var(--dim);width:15px;padding-top:2px}
-.node .ttl{flex:1;font-size:12px;line-height:1.4;color:var(--ink)}
-.node.sub .ttl{color:var(--mut);font-size:11.5px}
-.node.done .ttl{text-decoration:line-through;opacity:.65}
-.node .own{flex:none;font-size:12px;opacity:.85;cursor:default;padding-top:1px}
-.tsep{height:1px;background:var(--line);margin:4px 0 10px}
-.tsep-lbl{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+/* La lista de misiones y el árbol de tareas viven en /yk-misiones.css (compartido). */
 </style>
 </head>
-<body data-yk-title="SOPORTE" data-yk-rail-left="MISIONES" data-yk-rail-right="TAREAS" data-yk-nav='[{"label":"MISIONES","panel":"left"},{"label":"TAREAS","panel":"right"},{"label":"INCIDENCIAS","href":"/incidencias","active":true},{"label":"INFORMES","href":"/informes"}]'>
+<body data-yk-title="SOPORTE" data-yk-rail-left="MISIONES" data-yk-rail-right="TAREAS" data-yk-nav='[{"label":"AGÉNTICA","href":"/agentica"},{"label":"MISIONES","href":"/misiones"},{"label":"TAREAS","href":"/tareas"},{"label":"INCIDENCIAS","href":"/incidencias","active":true},{"label":"INFORMES","href":"/informes"}]'>
 <div class="wrap">
   <!-- La barra Yokup (yk-frame) aporta logo, rótulo, selector de PROYECTO y reloj. -->
 
@@ -141,18 +100,16 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
 </div>
 
+<script src="/yk-misiones.js?v=r1"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
-// Llegadas desde /agentica: #misiones / #tareas abren su raíl (yk-frame restaura
-// el estado de localStorage al construirse, más abajo en el <body>).
+// Compat: llegadas antiguas con #misiones / #tareas abren su raíl (el nav ya no lo usa).
 try{ if(location.hash==="#misiones") localStorage.setItem("yk_frame_open_left","1");
      else if(location.hash==="#tareas") localStorage.setItem("yk_frame_open_right","1"); }catch(e){}
 let FILTER="activas", seen=new Set(JSON.parse(localStorage.getItem("yk_seen")||"[]"));
-let SELECTED=localStorage.getItem("yk_mission")||"";  // misión activa (id de ticket)
 const $=id=>document.getElementById(id);
-function ago(ms){ if(!ms) return "—"; let s=Math.round((Date.now()-ms)/1000); if(s<60)return "hace "+s+"s"; if(s<3600)return "hace "+Math.round(s/60)+"m"; if(s<86400)return "hace "+Math.round(s/3600)+"h"; return "hace "+Math.round(s/86400)+"d"; }
-function slaLeft(created){ const left=created+7200000-Date.now(); if(left<=0)return "SLA vencido"; const m=Math.round(left/60000); return "SLA "+(m>=60?Math.floor(m/60)+"h "+(m%60)+"m":m+"m"); }
-function esc(x){ return String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c])); }
+// Modelo MISIONES·TAREAS compartido (fila, selección con glow, árbol abc/123).
+YkMisiones.init({worker:WORKER, treeId:"taskTree"});
 
 async function askKb(){
   const q=$("kbq").value.trim(); if(!q)return;
@@ -175,80 +132,9 @@ async function load(){
   else if(FILTER!=="todas") list=tks.filter(t=>t.status===FILTER);
   const el=$("list");
   if(!list.length){ el.innerHTML='<div class="empty">Sin tickets en este filtro ✓</div>'; return; }
-  el.innerHTML=list.map(t=>{
-    const sb=t.status==="open"?"b-open":(t.status==="resolved"?"b-res":"b-prog");
-    const stt=t.status==="open"?"Abierta":(t.status==="resolved"?"Resuelta":"En curso");
-    // Fila = MISIÓN. Click en la fila la activa; la navegación a la ficha vive en "abrir →".
-    return `<div class="tk ${t.status==='open'?'open':''} ${t.id===SELECTED?'sel':''}" data-id="${esc(t.id)}">
-      <div class="hd">
-        <div class="pri ${esc(t.priority)}"></div>
-        <div class="tkid">${esc(t.id)}<span class="st">${t.source==='agent-iot'?'🤖 Agente IoT':'👤 Manual'}</span></div>
-        <div class="subj"><div class="t">${esc(t.subject)}</div><div class="m"><span class="scr">${esc(t.screen)}</span>${t.loc?'<span>'+esc(t.loc)+'</span>':''}<span>${ago(t.created_at)}</span></div></div>
-        <div class="right">${t.status==='open'?'<span class="sla">'+slaLeft(t.created_at)+'</span>':''}<span class="who">👷 ${esc(t.assignee)}</span><span class="badge ${sb}"><i></i>${stt}</span><a class="tkopen" href="/ticket?id=${encodeURIComponent(t.id)}">abrir →</a></div>
-      </div></div>`;
-  }).join("");
-  // MISIÓN: click en la fila la selecciona (salvo el enlace "abrir →").
-  document.querySelectorAll(".tk").forEach(row=>{
-    row.addEventListener("click",e=>{ if(e.target.closest(".tkopen"))return; selectMission(row.dataset.id); });
-  });
-  // Refresco del árbol de TAREAS junto al load() (si hay misión activa visible).
-  if(SELECTED && document.querySelector('.tk[data-id="'+cssq(SELECTED)+'"]')) renderTaskTree(SELECTED);
-}
-
-// ===== MODELO MISIONES · TAREAS =====
-function cssq(s){ return String(s).replace(/["\\]/g,"\\$&"); }
-function selectMission(id){
-  SELECTED=id; try{localStorage.setItem("yk_mission",id)}catch(e){}
-  document.querySelectorAll(".tk").forEach(r=>r.classList.toggle("sel", r.dataset.id===id));
-  renderTaskTree(id);
-}
-const OWN_ICON={principal:"🧠",subagente:"⚙️",infraagente:"📝"};
-const CHIP={pending:"○",in_progress:"◐",done:"●"};
-const NEXT_ST={pending:"in_progress",in_progress:"done",done:"pending"};
-function taskNode(t,isSub){
-  const own=OWN_ICON[t.owner]||"⚙️";
-  return `<div class="node ${isSub?'sub ':''}${esc(t.status)}" data-code="${esc(t.code)}">`+
-    `<button class="chip ${esc(t.status)}" data-code="${esc(t.code)}" title="${esc(t.status)} · clic para avanzar">${CHIP[t.status]||'○'}</button>`+
-    `<span class="scode">${esc(t.code)}</span>`+
-    `<span class="ttl"${t.report?' title="'+esc(t.report)+'"':''}>${esc(t.title)}</span>`+
-    `<span class="own" title="${esc(t.owner||'')}">${own}</span></div>`;
-}
-async function renderTaskTree(id){
-  const box=$("taskTree"); if(!box) return;
-  if(!id){ box.innerHTML='<div class="empty2">Selecciona una <b>misión</b> (incidencia) en la lista para ver y planificar sus <b>tareas</b>.</div>'; return; }
-  let tasks=[];
-  try{ const r=await fetch(WORKER+"/mission/"+encodeURIComponent(id)+"/tasks",{cache:"no-store"}); const d=await r.json(); tasks=d.tasks||[]; }
-  catch(e){ box.innerHTML='<div class="empty2">No se pudieron cargar las tareas de esta misión.</div>'; return; }
-  const subN=tasks.filter(t=>t.code.length===2).length;
-  const header=`<div class="thd"><span class="tmid" title="Misión activa">🎯 ${esc(id)}</span><span class="tcount" title="subtareas definidas / máx 9">${subN}/9</span></div>`;
-  if(!tasks.length){
-    box.innerHTML=header+'<div class="empty2">Esta misión aún no tiene plan de tareas.</div><button class="propose" id="proposeBtn">🧠 Proponer plan (IA)</button>';
-    const pb=$("proposeBtn"); if(pb) pb.onclick=()=>proposePlan(id);
-    return;
-  }
-  const byCode={}; tasks.forEach(t=>byCode[t.code]=t);
-  let html=header;
-  ["a","b","c"].forEach(c=>{
-    if(!byCode[c] && !tasks.some(t=>t.code[0]===c)) return;
-    html+='<div class="step">';
-    if(byCode[c]) html+=taskNode(byCode[c],false);
-    ["1","2","3"].forEach(n=>{ if(byCode[c+n]) html+=taskNode(byCode[c+n],true); });
-    html+='</div>';
-  });
-  box.innerHTML=html;
-  box.querySelectorAll(".chip").forEach(ch=>ch.onclick=()=>advanceStatus(id,ch.dataset.code));
-}
-async function advanceStatus(id,code){
-  const node=$("taskTree").querySelector('.node[data-code="'+cssq(code)+'"]');
-  const cur=node?["pending","in_progress","done"].find(s=>node.classList.contains(s))||"pending":"pending";
-  const next=NEXT_ST[cur]||"in_progress";
-  try{ await fetch(WORKER+"/mission/"+encodeURIComponent(id)+"/task/"+encodeURIComponent(code)+"/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({status:next})}); }catch(e){}
-  renderTaskTree(id);
-}
-async function proposePlan(id){
-  const pb=$("proposeBtn"); if(pb){pb.disabled=true;pb.textContent="🧠 Proponiendo plan…";}
-  try{ await fetch(WORKER+"/mission/"+encodeURIComponent(id)+"/plan",{method:"POST"}); }catch(e){}
-  renderTaskTree(id);
+  // Fila = MISIÓN (compartida): click selecciona; «abrir →» navega a la ficha.
+  el.innerHTML=list.map(t=>YkMisiones.rowHtml(t)).join("");
+  YkMisiones.bindRows(el);   // + refresco del árbol de TAREAS junto al load()
 }
 function notify(t){
   if(!("Notification" in window)||Notification.permission!=="granted")return;
