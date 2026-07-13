@@ -10,18 +10,16 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
-<link rel="stylesheet" href="/yk-frame.css?v=r7">
+<link rel="stylesheet" href="/yk-frame.css?v=r8">
 <link rel="stylesheet" href="/yk-misiones.css?v=r1">
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
 .wrap{max-width:1100px;margin:0 auto;padding:22px 24px 48px}
-nav{display:flex;align-items:center;justify-content:space-between;padding:4px 0 14px}
-.logo{font-family:var(--mono);font-weight:700;letter-spacing:.14em;font-size:15px;text-transform:uppercase;display:flex;align-items:center;gap:9px}.logo b{color:var(--brand)}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--brand);box-shadow:0 0 22px rgba(120,243,255,.5);animation:blink 2s infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-.src{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}.src b{color:var(--brand)}
+/* (fuera el CSS del header legacy — nav{space-between}/.logo/.dot/.src: sin
+   markup ya, y el nav{} elemento se filtraba al menú de la barra yk-frame y
+   lo esparcía a todo el ancho) */
 h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .sub{color:var(--mut);font-size:14.5px;margin-bottom:14px}
 .kb{display:flex;gap:8px;margin-bottom:16px}
@@ -48,7 +46,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 /* La lista de misiones y el árbol de tareas viven en /yk-misiones.css (compartido). */
 </style>
 </head>
-<body data-yk-title="SOPORTE" data-yk-rail-left="MISIONES" data-yk-rail-right="TAREAS" data-yk-nav='[{"label":"AGÉNTICA","href":"/agentica"},{"label":"MISIONES","href":"/misiones"},{"label":"TAREAS","href":"/tareas"},{"label":"INCIDENCIAS","href":"/incidencias","active":true},{"label":"INFORMES","href":"/informes"}]'>
+<body data-yk-title="INCIDENCIAS" data-yk-rail-left="MISIONES" data-yk-rail-right="TAREAS" data-yk-zone="app">
 <div class="wrap">
   <!-- La barra Yokup (yk-frame) aporta logo, rótulo, selector de PROYECTO y reloj. -->
 
@@ -161,6 +159,6 @@ document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{ document.querySelec
 load(); setInterval(load,12000);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
-<script src="/yk-frame.js?v=r7"></script>
+<script src="/yk-frame.js?v=r8"></script>
 </body>
 </html>

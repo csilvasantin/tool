@@ -25,8 +25,21 @@
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.12.07.2026.r5";
+  var VERSION = "v.13.07.2026.r6";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
+
+  // NAV DE PLATAFORMA — fuente ÚNICA del menú tras la DMZ (zona app). Las
+  // páginas de plataforma declaran <body data-yk-zone="app"> y nada más: los
+  // items y el activo (deducido del pathname) salen de aquí, idénticos en
+  // todas — no pueden divergir. Solo las intros/homes públicas llevan menú
+  // propio (data-yk-nav o el NAV global de abajo).
+  var APP_NAV = [
+    ["AGÉNTICA",    "/agentica"],
+    ["MISIONES",    "/misiones"],
+    ["TAREAS",      "/tareas"],
+    ["INCIDENCIAS", "/incidencias"],
+    ["INFORMES",    "/informes"]
+  ];
 
   // Proyectos del MISMO helpdesk. El activo se deduce de la ruta (ver
   // activeProjectKey): /admira-live -> admira.live; el resto -> admira.tv.
@@ -67,17 +80,24 @@
     var seg = location.pathname.replace(/\/+$/, "").split("/").pop() || "";
     seg = seg.replace(/\.html$/, "").toLowerCase();
     var map = {
-      incidencias: "SOPORTE", ticket: "TICKET", agentes: "AGENTES",
-      "admira-live": "ADMIRA.LIVE",
+      incidencias: "INCIDENCIAS", ticket: "TICKET", agentes: "AGENTES",
+      "admira-live": "ADMIRA.LIVE", misiones: "MISIONES", tareas: "TAREAS",
+      agentica: "AGÉNTICA", informes: "INFORMES",
       asistencia: "ASISTENCIA", intervencion: "INTERVENCIÓN"
     };
     return map[seg] || "";
   }
 
-  // menú de la barra por página: <body data-yk-nav="…">. Acepta JSON (array de
-  // items {label,href?,panel?,active?} o pares [label,href]) o una lista simple
-  // separada por «|» de pares «Label:href». Sin el atributo, cae al menú global.
+  // menú de la barra: zona app (body[data-yk-zone="app"]) → APP_NAV único con
+  // activo por pathname; si no, por página (body[data-yk-nav], JSON o lista
+  // «Label:href|…»); sin nada, el menú global de la home.
   function pageNav() {
+    if (document.body.getAttribute("data-yk-zone") === "app") {
+      var path = (location.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+      return APP_NAV.map(function (r) {
+        return { label: r[0], href: r[1], active: (path === r[1] || path === r[1] + ".html") };
+      });
+    }
     var raw = document.body.getAttribute("data-yk-nav");
     if (raw) {
       try {

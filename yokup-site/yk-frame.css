@@ -84,6 +84,9 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
 /* referencias de la home — zona central compresible (scroll horizontal interno) */
 .yk-nav{
   display: flex; align-items: center; gap: 15px;
+  /* blindaje: grupo compacto tras el rótulo SIEMPRE — un nav{} legacy de la
+     página (p.ej. justify-content:space-between) no puede esparcir el menú */
+  justify-content: flex-start !important;
   flex: 1 1 auto; min-width: 0;
   overflow-x: auto; padding: 4px 2px;
   scrollbar-width: none; -ms-overflow-style: none;
