@@ -359,7 +359,10 @@ async function missionRoute(req, env, url) {
     const b = await req.json().catch(() => ({}));
     const row = await setTaskStatus(env, mid, code, b.status, b.report, b.owner);
     if (!row) return json({ error: "not-found" }, 404);
-    return json({ ok: true, task: row });
+    // El árbol manda: si con esta tarea la misión arranca o queda concluida, el
+    // encargo del bot-inbox se entera (solo en las transiciones reales).
+    const fleet = await fleetReconcileMission(env, mid);
+    return json({ ok: true, task: row, fleet });
   }
   if (sub === "plan" && req.method === "POST") {
     return json({ tasks: await proposePlan(env, mid) });
@@ -499,6 +502,100 @@ async function fleetSync(env) {
 }
 __name(fleetSync, "fleetSync");
 
+// ---- VUELTA: yokup → bot-inbox ---------------------------------------------
+// El estado viajaba en un solo sentido (encargo → misión). Ahora, cuando el árbol
+// de tareas avanza en yokup, el ENCARGO del bot-inbox se entera: así el agente ve
+// en su buzón lo que Carlos ha marcado aquí.
+//
+// OJO: /api/bot-inbox/:id/status publica un mensaje en el grupo de Telegram cada
+// vez que se llama. Por eso NO se propaga cada clic en una subtarea: solo las
+// transiciones REALES del encargo (pendiente → en curso → hecho), comparando
+// antes contra el estado que ya tenía. Si no cambia nada, no se escribe ni se
+// avisa.
+function fleetInboxId(mid) {
+  const m = /^FLT-(\d+)$/.exec(String(mid || ""));
+  return m ? m[1] : null;
+}
+__name(fleetInboxId, "fleetInboxId");
+
+async function fleetPushStatus(env, ticket, status) {
+  const id = fleetInboxId(ticket.id);
+  if (!id || !env.TELEGRAM) return false;
+  try {
+    const r = await env.TELEGRAM.fetch(new Request(
+      `https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/${id}/status`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          status,
+          persona: ticket.assignee || "",
+          machine: ticket.loc || "",
+          verification: "Estado marcado en yokup.com/misiones (plan de tareas abc/123)."
+        })
+      }
+    ));
+    return r.ok;
+  } catch (e) {
+    return false;
+  }
+}
+__name(fleetPushStatus, "fleetPushStatus");
+
+// Deriva el estado de la MISIÓN a partir de su árbol y, si ha cambiado de verdad,
+// lo baja al encargo del bot-inbox. Idempotente.
+async function fleetReconcileMission(env, mid) {
+  const t = await env.DB.prepare("SELECT id,source,status,assignee,loc FROM tickets WHERE id=?").bind(mid).first();
+  if (!t || t.source !== "fleet") return null;
+  const tasks = await listMissionTasks(env, mid);
+  if (!tasks.length) return null;
+  const allDone = tasks.every((x) => x.status === "done");
+  const started = tasks.some((x) => x.status !== "pending");
+  const next = allDone ? "resolved" : started ? "in_progress" : "open";
+  if (next === t.status) return null;            // sin cambio → ni escribe ni avisa al grupo
+  const now = Date.now();
+  await env.DB.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=? WHERE id=?")
+    .bind(next, now, next === "resolved" ? now : null, mid).run();
+  const inboxStatus = next === "resolved" ? "done" : next === "in_progress" ? "in_progress" : "pending";
+  const pushed = await fleetPushStatus(env, t, inboxStatus);
+  await addEvent(env, mid, next === "resolved" ? "recover" : "log", "yokup",
+    `La misión pasa a ${next} por su árbol de tareas. Encargo #${fleetInboxId(mid)} → ${inboxStatus.toUpperCase()}${pushed ? "" : " (no se pudo avisar al bot-inbox)"}.`);
+  return { mission: mid, status: next, inbox: inboxStatus, pushed };
+}
+__name(fleetReconcileMission, "fleetReconcileMission");
+
+// Barrido: deriva el estado de TODAS las misiones de flota con plan y baja al
+// bot-inbox las que hayan cambiado. Va en el cron para que la vuelta no dependa de
+// que el cambio haya pasado por el endpoint (un chip marcado, un UPDATE, otro
+// cliente). Una sola consulta agregada — no una por misión.
+async function fleetReconcileAll(env) {
+  const { results } = await env.DB.prepare(
+    `SELECT t.id, t.status, t.assignee, t.loc,
+            COUNT(m.code) AS total,
+            SUM(CASE WHEN m.status='done' THEN 1 ELSE 0 END) AS done,
+            SUM(CASE WHEN m.status<>'pending' THEN 1 ELSE 0 END) AS started
+       FROM tickets t JOIN mission_tasks m ON m.mission_id = t.id
+      WHERE t.source='fleet'
+      GROUP BY t.id`
+  ).all();
+  const now = Date.now();
+  const changed = [];
+  for (const r of results || []) {
+    if (!r.total) continue;
+    const next = r.done === r.total ? "resolved" : r.started > 0 ? "in_progress" : "open";
+    if (next === r.status) continue;
+    await env.DB.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=? WHERE id=?")
+      .bind(next, now, next === "resolved" ? now : null, r.id).run();
+    const inboxStatus = next === "resolved" ? "done" : next === "in_progress" ? "in_progress" : "pending";
+    const pushed = await fleetPushStatus(env, r, inboxStatus);
+    await addEvent(env, r.id, "status", "yokup",
+      `La misión pasa a ${next} por su árbol de tareas (${r.done}/${r.total}). Encargo #${fleetInboxId(r.id)} → ${inboxStatus.toUpperCase()}${pushed ? "" : " (no se pudo avisar al bot-inbox)"}.`);
+    changed.push({ id: r.id, status: next, inbox: inboxStatus, pushed });
+  }
+  return { ok: true, changed, count: changed.length };
+}
+__name(fleetReconcileAll, "fleetReconcileAll");
+
 // Planifica en bloque las misiones de flota VIVAS que aún no tienen árbol de
 // tareas. Idempotente: solo toca las que están sin plan, así que repetir la
 // llamada no regenera nada ni duplica coste de IA. Se limita por tanda porque
@@ -595,6 +692,10 @@ var index_default = {
       await ensureSchema(env);
       return json(await fleetPlanPending(env, url.searchParams.get("limit")));
     }
+    if (url.pathname === "/fleet/reconcile" && req.method === "POST") {
+      await ensureSchema(env);
+      return json(await fleetReconcileAll(env));
+    }
     if (PROTECTED.has(url.pathname) || url.pathname.startsWith("/mission/")) {
       const sess = await requireAuth(env, req);
       if (!sess) return json({ error: "unauthorized" }, 401);
@@ -679,6 +780,14 @@ var index_default = {
         const resolvedAt = b.status === "resolved" ? now : null;
         await env.DB.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=? WHERE id=?").bind(b.status, now, resolvedAt, b.id).run();
         await addEvent(env, b.id, "status", b.author || "T\xE9cnico", `Estado \u2192 ${b.status}${b.note ? ": " + b.note : ""}`);
+        // Cerrar (o reabrir) a mano una misi\u00f3n de FLOTA baja tambi\u00e9n al encargo.
+        {
+          const t = await env.DB.prepare("SELECT id,source,assignee,loc FROM tickets WHERE id=?").bind(b.id).first();
+          if (t && t.source === "fleet") {
+            const inboxStatus = b.status === "resolved" ? "done" : b.status === "in_progress" ? "in_progress" : "pending";
+            await fleetPushStatus(env, t, inboxStatus);
+          }
+        }
         if (b.status === "resolved" && env.VECTORIZE) {
           const t = await env.DB.prepare("SELECT * FROM tickets WHERE id=?").bind(b.id).first();
           const ev = await env.DB.prepare("SELECT text FROM events WHERE ticket_id=?").bind(b.id).all();
@@ -883,6 +992,12 @@ T\xC9CNICO: ${q}`, 160);
     // para no disparar el gasto de IA en un tick.
     try {
       await fleetPlanPending(env, 3);
+    } catch (e) {
+    }
+    // …y el avance del árbol baja al encargo del bot-inbox. Va DESPUÉS del sync:
+    // el sync trae lo que dice el buzón, esto devuelve lo que dice el plan.
+    try {
+      await fleetReconcileAll(env);
     } catch (e) {
     }
   }
