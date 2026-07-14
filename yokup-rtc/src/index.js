@@ -287,23 +287,55 @@ function defaultPlan() {
   ];
 }
 __name(defaultPlan, "defaultPlan");
+// Plan de respaldo para una misión de FLOTA (encargo a un agente), cuando la IA
+// no devuelve un JSON usable.
+function defaultFleetPlan() {
+  return [
+    { code: "a", title: "Entender el encargo y su alcance", subtasks: ["Leer el encargo completo en el bot-inbox", "Localizar el proyecto y los ficheros implicados", "Acusar recibo (ACK) del encargo"] },
+    { code: "b", title: "Ejecutar el encargo", subtasks: ["Hacer el cambio en la m\xE1quina que corresponde", "Desplegar a la URL p\xFAblica"] },
+    { code: "c", title: "Verificar y reportar", subtasks: ["Verificar en real, con captura por el camino del usuario", "Reportar a Carlos y al grupo, y marcar el encargo hecho"] }
+  ];
+}
+__name(defaultFleetPlan, "defaultFleetPlan");
+
 // Propone el plan 3×(≤3) con Workers AI a partir del ticket (misión) y lo guarda.
+// OJO: hay DOS mundos y no se planifican igual. Una misión de CAMPO es una avería
+// de una pantalla DOOH; una de FLOTA es un encargo de Carlos a un agente de
+// software. Con el prompt de campo, la IA planificaba los encargos como si fueran
+// pantallas rotas («verificar si la pantalla Morfeo está encendida»).
 async function proposePlan(env, mid) {
   const t = await env.DB.prepare("SELECT * FROM tickets WHERE id=?").bind(mid).first();
   const subject = t ? t.subject : "Incidencia";
   const screen = t ? t.screen || "" : "";
   const loc = t ? t.loc || "" : "";
   const triage = t ? t.ai_triage || "" : "";
-  const prompt = `Eres el agente principal del helpdesk Yokup (mantenimiento de pantallas DOOH de admira.tv). Descomp\xF3n la RESOLUCI\xD3N de esta incidencia en un PLAN de EXACTAMENTE 3 pasos con c\xF3digos "a", "b", "c". Cada paso puede tener hasta 3 subtareas concretas (verificaci\xF3n o ejecuci\xF3n). Pasos concretos y accionables para resolver la aver\xEDa, en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
+  const isFleet = !!t && t.source === "fleet";
+  let prompt;
+  if (isFleet) {
+    // El texto íntegro del encargo es el primer evento de la misión (fleetSync).
+    const ev = await env.DB.prepare("SELECT text FROM events WHERE ticket_id=? ORDER BY id ASC LIMIT 1").bind(mid).first();
+    const full = (ev && ev.text) || subject;
+    prompt = `Eres el agente principal de AdmiraNeXT, un equipo de agentes de IA que desarrolla software (webs, workers de Cloudflare, players de se\xF1alizaci\xF3n). Carlos, el arquitecto, ha hecho este ENCARGO al agente "${t.assignee || "un agente"}"${loc ? ' que corre en el ordenador "' + loc + '"' : ""}.
+
+ENCARGO:
+${String(full).slice(0, 900)}
+
+Descomp\xF3n el encargo en un PLAN de EXACTAMENTE 3 pasos con c\xF3digos "a", "b", "c", cada uno con hasta 3 subtareas. Doctrina del equipo: los pasos los ejecuta un subagente y la verificaci\xF3n/reporte la cubre un infraagente; nada se da por hecho sin verificarlo en real y publicarlo a su URL p\xFAblica. Pasos concretos y accionables SOBRE ESTE ENCARGO (no inventes averías de hardware ni pantallas: esto es trabajo de software), en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
+
+Responde SOLO con un array JSON v\xE1lido, sin texto adicional, con esta forma exacta:
+[{"code":"a","title":"...","subtasks":["...","..."]},{"code":"b","title":"...","subtasks":["..."]},{"code":"c","title":"...","subtasks":["..."]}]`;
+  } else {
+    prompt = `Eres el agente principal del helpdesk Yokup (mantenimiento de pantallas DOOH de admira.tv). Descomp\xF3n la RESOLUCI\xD3N de esta incidencia en un PLAN de EXACTAMENTE 3 pasos con c\xF3digos "a", "b", "c". Cada paso puede tener hasta 3 subtareas concretas (verificaci\xF3n o ejecuci\xF3n). Pasos concretos y accionables para resolver la aver\xEDa, en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
 
 INCIDENCIA: ${subject}${screen ? " — pantalla " + screen : ""}${loc ? " (" + loc + ")" : ""}.
 ${triage ? "TRIAJE IA:\n" + triage : ""}
 
 Responde SOLO con un array JSON v\xE1lido, sin texto adicional, con esta forma exacta:
 [{"code":"a","title":"...","subtasks":["...","..."]},{"code":"b","title":"...","subtasks":["..."]},{"code":"c","title":"...","subtasks":["..."]}]`;
+  }
   const raw = await aiRun(env, prompt, 500);
   let tasks = flattenSteps(parsePlanJson(raw));
-  if (!tasks.length) tasks = flattenSteps(defaultPlan());
+  if (!tasks.length) tasks = flattenSteps(isFleet ? defaultFleetPlan() : defaultPlan());
   return saveMissionPlan(env, mid, tasks);
 }
 __name(proposePlan, "proposePlan");
@@ -467,6 +499,36 @@ async function fleetSync(env) {
 }
 __name(fleetSync, "fleetSync");
 
+// Planifica en bloque las misiones de flota VIVAS que aún no tienen árbol de
+// tareas. Idempotente: solo toca las que están sin plan, así que repetir la
+// llamada no regenera nada ni duplica coste de IA. Se limita por tanda porque
+// cada plan es una llamada a Workers AI.
+async function fleetPlanPending(env, limit) {
+  const n = Math.max(1, Math.min(+limit || 5, 20));
+  const { results } = await env.DB.prepare(
+    `SELECT t.id FROM tickets t
+      WHERE t.source='fleet' AND t.status!='resolved'
+        AND NOT EXISTS (SELECT 1 FROM mission_tasks m WHERE m.mission_id = t.id)
+      ORDER BY t.created_at DESC LIMIT ?`
+  ).bind(n).all();
+  const ids = (results || []).map((r) => r.id);
+  const planned = [];
+  for (const id of ids) {
+    try {
+      const tasks = await proposePlan(env, id);
+      if (tasks && tasks.length) planned.push(id);
+    } catch (e) {
+    }
+  }
+  // pendientes que quedan tras esta tanda
+  const left = (await env.DB.prepare(
+    `SELECT COUNT(*) c FROM tickets t WHERE t.source='fleet' AND t.status!='resolved'
+       AND NOT EXISTS (SELECT 1 FROM mission_tasks m WHERE m.mission_id = t.id)`
+  ).first())?.c || 0;
+  return { ok: true, planned, count: planned.length, pending: left };
+}
+__name(fleetPlanPending, "fleetPlanPending");
+
 // Lectura PÚBLICA para admira.live/status. El árbol de tareas va EMBEBIDO: los
 // /mission/* viven tras el perímetro (Google) y status no pasa el gate. No
 // expone nada que el bot-inbox público no publique ya.
@@ -528,6 +590,10 @@ var index_default = {
     if (url.pathname === "/fleet/sync" && req.method === "POST") {
       await ensureSchema(env);
       return json(await fleetSync(env));
+    }
+    if (url.pathname === "/fleet/plan" && req.method === "POST") {
+      await ensureSchema(env);
+      return json(await fleetPlanPending(env, url.searchParams.get("limit")));
     }
     if (PROTECTED.has(url.pathname) || url.pathname.startsWith("/mission/")) {
       const sess = await requireAuth(env, req);
@@ -811,6 +877,12 @@ T\xC9CNICO: ${q}`, 160);
     }
     try {
       await fleetSync(env);
+    } catch (e) {
+    }
+    // Las misiones nuevas van cogiendo su árbol de tareas solas, en tandas cortas
+    // para no disparar el gasto de IA en un tick.
+    try {
+      await fleetPlanPending(env, 3);
     } catch (e) {
     }
   }
