@@ -57,7 +57,9 @@ YkMisiones.init({worker:WORKER});
 let GROUPS=[];  // [{mission:{...ticket}, tasks:[...]}]
 
 async function load(){
-  let d; try{ const r=await fetch(WORKER+"/tickets",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
+  // scope=todas: el árbol de tareas es el mismo modelo para las misiones de la
+  // flota (encargos a los agentes) y las de campo (incidencias de pantallas).
+  let d; try{ const r=await fetch(WORKER+"/tickets?scope=todas",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
   const tks=d.tickets||[];
   const groups=[];
   // Mismo criterio que /informes: un fetch por misión (bandeja acotada a 100).

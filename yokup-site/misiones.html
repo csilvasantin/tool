@@ -31,7 +31,15 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 <body data-yk-title="MISIONES" data-yk-rail-left="MISIONES" data-yk-rail-right="TAREAS" data-yk-zone="app">
 <div class="wrap">
   <h1>Misiones</h1>
-  <p class="sub">Lo que hay que hacer. Cada misión se descompone en <b>tareas</b> a/b/c (hasta 3 subtareas por paso, máx 9): el arquitecto y el agente principal definen el plan, los <b>subagentes</b> ⚙️ lo ejecutan y los <b>infraagentes</b> 📝 reportan.</p>
+  <p class="sub">Lo que hay que hacer. Cada misión se descompone en <b>tareas</b> a/b/c (hasta 3 subtareas por paso, máx 9): el arquitecto y el agente principal definen el plan, los <b>subagentes</b> ⚙️ lo ejecutan y los <b>infraagentes</b> 📝 reportan. Las misiones de la <b>flota</b> son los encargos a los agentes (se ven vivos en <a href="https://www.admira.live/status/" target="_blank" rel="noopener" style="color:var(--brand)">admira.live/status</a>); las de <b>campo</b>, las incidencias de pantallas.</p>
+
+  <!-- ÁMBITO: yokup es el gestor único del trabajo, pero son dos mundos distintos
+       y no deben mezclarse en la misma lista (comparten tabla en D1). -->
+  <div class="tabs" id="scopeTabs">
+    <button class="tab on" data-s="fleet">🤖 Flota · agentes</button>
+    <button class="tab" data-s="campo">🏗️ Campo · pantallas</button>
+    <button class="tab" data-s="todas">Todas</button>
+  </div>
 
   <div class="kpis">
     <div class="kpi a"><b id="kOpen">—</b> activas</div>
@@ -67,11 +75,12 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 let FILTER="activas";
+let SCOPE="fleet";     // ámbito por defecto: el trabajo de los agentes
 const $=id=>document.getElementById(id);
 YkMisiones.init({worker:WORKER, treeId:"taskTree"});
 
 async function load(){
-  let d; try{ const r=await fetch(WORKER+"/tickets",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
+  let d; try{ const r=await fetch(WORKER+"/tickets?scope="+SCOPE,{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
   const tks=d.tickets||[], st=d.stats||{};
   $("kOpen").textContent=st.open??"—"; $("kProg").textContent=st.in_progress??"—"; $("kRes").textContent=st.resolved??"—"; $("kMttr").textContent=(st.mttr!=null?st.mttr+" min":"—");
   let list=tks;
@@ -82,7 +91,16 @@ async function load(){
   el.innerHTML=list.map(t=>YkMisiones.rowHtml(t)).join("");
   YkMisiones.bindRows(el);   // click=misión activa + refresco del árbol de tareas
 }
-document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{ document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on")); b.classList.add("on"); FILTER=b.dataset.f; load(); });
+// filtros de estado (raíl izquierdo)
+document.querySelectorAll('[data-yk-slot="left"] .tab').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('[data-yk-slot="left"] .tab').forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); FILTER=b.dataset.f; load();
+});
+// ámbito: flota (agentes) / campo (pantallas) / todas
+document.querySelectorAll('#scopeTabs .tab').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#scopeTabs .tab').forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); SCOPE=b.dataset.s; load();
+});
 load(); setInterval(load,12000);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>

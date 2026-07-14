@@ -386,16 +386,122 @@ async function reconcile(env) {
   return screens;
 }
 __name(reconcile, "reconcile");
-async function listTickets(env) {
-  const { results } = await env.DB.prepare("SELECT * FROM tickets ORDER BY (status='open') DESC, (status='in_progress') DESC, created_at DESC LIMIT 100").all();
+// scope: 'campo' (incidencias DOOH, por defecto) | 'fleet' (misiones de los agentes)
+// | 'todas'. Sin esta separación las misiones de flota inundaban la bandeja de
+// incidencias de Clear Channel, que comparte tabla.
+async function listTickets(env, scope) {
+  const where = scope === "fleet" ? "WHERE source='fleet'" : scope === "todas" ? "" : "WHERE source IS NULL OR source!='fleet'";
+  const { results } = await env.DB.prepare(
+    `SELECT * FROM tickets ${where} ORDER BY (status='open') DESC, (status='in_progress') DESC, created_at DESC LIMIT 100`
+  ).all();
   return results || [];
 }
 __name(listTickets, "listTickets");
-async function stats(env) {
-  const open = (await env.DB.prepare("SELECT COUNT(*) c FROM tickets WHERE status='open'").first())?.c || 0;
-  const prog = (await env.DB.prepare("SELECT COUNT(*) c FROM tickets WHERE status='in_progress'").first())?.c || 0;
-  const res = (await env.DB.prepare("SELECT COUNT(*) c FROM tickets WHERE status='resolved'").first())?.c || 0;
-  const mttrRow = await env.DB.prepare("SELECT AVG(resolved_at-created_at) m FROM tickets WHERE status='resolved' AND resolved_at IS NOT NULL").first();
+
+// ---- MISIONES DE FLOTA (agentes AdmiraNeXT) --------------------------------
+// Doctrina (Carlos, 14-07-2026): yokup.com es el GESTOR ÚNICO del trabajo. Los
+// encargos del bot-inbox de la flota (worker admira-telegram) se ingieren aquí
+// como MISIONES source='fleet' con su mismo árbol de tareas abc/123, y
+// admira.live/status deja de inventarse la misión: pasa a ser el VISOR que las
+// lee de /fleet/missions.
+// Se pide por el service binding TELEGRAM (ver wrangler.toml): un fetch normal a
+// este host hace loopback contra el propio yokup-rtc (mismo subdominio
+// workers.dev) y devuelve su 404. El host se conserva porque admira-telegram
+// enruta por hostname: con "https://admira-telegram/" a secas también da 404.
+var FLEET_INBOX = "https://admira-telegram.csilvasantin.workers.dev/api/public/inbox?limit=200";
+// Estado del encargo → estado de la misión. 'ack' es acuse de recibo, no avance.
+var FLEET_ST = { pending: "open", ack: "open", in_progress: "in_progress", done: "resolved" };
+
+function fleetSubject(text) {
+  const line = String(text || "").split("\n")[0].trim();
+  if (!line) return "Encargo de la flota";
+  return line.length > 120 ? line.slice(0, 117) + "…" : line;
+}
+__name(fleetSubject, "fleetSubject");
+// OJO: `screen` tiene un índice ÚNICO entre las no resueltas (idx_open_screen),
+// así que NO puede ser la máquina a secas — dos encargos abiertos del mismo
+// ordenador chocarían al insertar. Se firma con el id del encargo: único y
+// legible en la bandeja. La máquina va en `loc` y la persona en `assignee`.
+function fleetScreen(it) {
+  return `${it.target_persona || "?"}\xB7${it.target_machine || "?"} #${it.id}`;
+}
+__name(fleetScreen, "fleetScreen");
+
+async function fleetSync(env) {
+  let items = [];
+  try {
+    if (!env.TELEGRAM) return { ok: false, error: "no-telegram-binding", created: 0, updated: 0 };
+    const r = await env.TELEGRAM.fetch(new Request(FLEET_INBOX, { headers: { accept: "application/json" } }));
+    if (!r.ok) return { ok: false, error: "inbox-http-" + r.status, created: 0, updated: 0 };
+    const d = await r.json();
+    items = d.items || [];
+  } catch (e) {
+    return { ok: false, error: "inbox-unreachable: " + (e && e.message || e), created: 0, updated: 0 };
+  }
+  const now = Date.now();
+  let created = 0, updated = 0;
+  for (const it of items) {
+    if (!it || !it.id) continue;
+    const id = "FLT-" + it.id;
+    const st = FLEET_ST[it.status] || "open";
+    const ts = it.ts ? it.ts * 1e3 : now;
+    const prev = await env.DB.prepare("SELECT id,status FROM tickets WHERE id=?").bind(id).first();
+    if (!prev) {
+      await env.DB.prepare(
+        "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at,resolved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"
+      ).bind(
+        id, fleetScreen(it), fleetSubject(it.text), it.target_machine || "", it.from_name || "",
+        st, "normal", it.target_persona || "", "fleet", "", ts, now,
+        st === "resolved" ? (it.done_at ? it.done_at * 1e3 : now) : null
+      ).run();
+      // El texto íntegro del encargo queda como primer evento de la misión.
+      await addEvent(env, id, "log", it.from_name || "Carlos", String(it.text || ""));
+      created++;
+    } else if (prev.status !== st) {
+      await env.DB.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=? WHERE id=?")
+        .bind(st, now, st === "resolved" ? now : null, id).run();
+      updated++;
+    }
+  }
+  return { ok: true, seen: items.length, created, updated };
+}
+__name(fleetSync, "fleetSync");
+
+// Lectura PÚBLICA para admira.live/status. El árbol de tareas va EMBEBIDO: los
+// /mission/* viven tras el perímetro (Google) y status no pasa el gate. No
+// expone nada que el bot-inbox público no publique ya.
+async function fleetMissions(env) {
+  const { results } = await env.DB.prepare(
+    "SELECT id,screen,subject,loc,role,status,assignee,created_at,updated_at FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
+  ).all();
+  const rows = results || [];
+  if (!rows.length) return [];
+  const ph = rows.map(() => "?").join(",");
+  const { results: tks } = await env.DB.prepare(
+    `SELECT mission_id,code,title,status,owner FROM mission_tasks WHERE mission_id IN (${ph}) ORDER BY code`
+  ).bind(...rows.map((r) => r.id)).all();
+  const byMission = {};
+  for (const t of tks || []) (byMission[t.mission_id] = byMission[t.mission_id] || []).push(t);
+  return rows.map((r) => {
+    const tasks = byMission[r.id] || [];
+    return Object.assign({}, r, {
+      machine: r.loc,
+      persona: r.assignee,
+      source: "fleet",
+      tasks,
+      progress: { done: tasks.filter((t) => t.status === "done").length, total: tasks.length }
+    });
+  });
+}
+__name(fleetMissions, "fleetMissions");
+async function stats(env, scope) {
+  // Mismos ámbitos que listTickets: los KPIs de la bandeja de campo no pueden
+  // contar las misiones de flota (dispararían «abiertas» a decenas).
+  const sc = scope === "fleet" ? "source='fleet'" : scope === "todas" ? "1=1" : "(source IS NULL OR source!='fleet')";
+  const open = (await env.DB.prepare(`SELECT COUNT(*) c FROM tickets WHERE ${sc} AND status='open'`).first())?.c || 0;
+  const prog = (await env.DB.prepare(`SELECT COUNT(*) c FROM tickets WHERE ${sc} AND status='in_progress'`).first())?.c || 0;
+  const res = (await env.DB.prepare(`SELECT COUNT(*) c FROM tickets WHERE ${sc} AND status='resolved'`).first())?.c || 0;
+  const mttrRow = await env.DB.prepare(`SELECT AVG(resolved_at-created_at) m FROM tickets WHERE ${sc} AND status='resolved' AND resolved_at IS NOT NULL`).first();
   const mttr = mttrRow && mttrRow.m ? Math.round(mttrRow.m / 6e4) : null;
   return { open, in_progress: prog, resolved: res, mttr };
 }
@@ -412,6 +518,16 @@ var index_default = {
       const wl = await whitelist();
       if (!wl.has(email)) return json({ ok: false, error: "no autorizado" }, 403);
       return json({ ok: true, token: await makeSession(env, email), email });
+    }
+    // Misiones de FLOTA: lectura pública (la consume admira.live/status, que no
+    // pasa el gate Google) y sync idempotente. Van ANTES del perímetro.
+    if (url.pathname === "/fleet/missions") {
+      await ensureSchema(env);
+      return json({ missions: await fleetMissions(env) });
+    }
+    if (url.pathname === "/fleet/sync" && req.method === "POST") {
+      await ensureSchema(env);
+      return json(await fleetSync(env));
     }
     if (PROTECTED.has(url.pathname) || url.pathname.startsWith("/mission/")) {
       const sess = await requireAuth(env, req);
@@ -457,8 +573,11 @@ var index_default = {
     if (url.pathname === "/tickets") {
       try {
         await ensureSchema(env);
-        await reconcile(env);
-        return json({ tickets: await listTickets(env), stats: await stats(env), roster: ROSTER });
+        const scope = url.searchParams.get("scope") || "campo";
+        // La bandeja de campo reconcilia pantallas; la de flota se nutre del sync
+        // del bot-inbox (cron cada 2 min), no de las pantallas DOOH.
+        if (scope !== "fleet") await reconcile(env);
+        return json({ tickets: await listTickets(env, scope), stats: await stats(env, scope), roster: ROSTER });
       } catch (e) {
         return json({ error: String(e) }, 500);
       }
@@ -678,11 +797,20 @@ T\xC9CNICO: ${q}`, 160);
     }
     return new Response("yokup-rtc \xB7 helpdesk API + realtime", { headers: CORS });
   },
-  // Cron: reconcilia la flota→tickets cada 2 min aunque nadie mire la bandeja.
+  // Cron cada 2 min: reconcilia pantallas→tickets y encargos de la flota→misiones,
+  // aunque nadie mire la bandeja. Un fallo en uno no debe tumbar al otro.
   async scheduled(event, env, ctx) {
     try {
       await ensureSchema(env);
+    } catch (e) {
+      return;
+    }
+    try {
       await reconcile(env);
+    } catch (e) {
+    }
+    try {
+      await fleetSync(env);
     } catch (e) {
     }
   }

@@ -26,6 +26,14 @@ database_id = "fc2d2810-0fb9-46bb-b05c-14c41fbd1b65"
 [ai]
 binding = "AI"
 
+# Bot-inbox de la flota (encargos de Carlos a los agentes) → misiones source='fleet'.
+# Va por SERVICE BINDING y no por https://admira-telegram.csilvasantin.workers.dev:
+# los dos Workers comparten subdominio workers.dev, así que un fetch normal hace
+# loopback contra el propio yokup-rtc y devolvía 404.
+[[services]]
+binding = "TELEGRAM"
+service = "admira-telegram"
+
 # Vectorize — base de conocimiento semántica de incidencias resueltas.
 [[vectorize]]
 binding = "VECTORIZE"
