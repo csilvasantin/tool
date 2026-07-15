@@ -476,6 +476,12 @@ function fleetEsMision(it) {
   if (!t) return false;
   if (/^soy\s+.{2,60}?(corriendo en|en el ordenador)/i.test(t)) return false;
   if (/^(ack\b|✓|✅|rel[eé] en verde|busco contexto|deploy\b|desplegado\b|recibido\b)/i.test(t)) return false;
+  // Auto-anuncios de PRESENCIA de un agente (no son encargos): un bot que avisa de
+  // que está disponible («… en <máquina> operativo · llamadme», «vuelvo a conectar»,
+  // «sigo vivo», «a la orden»). Se distinguen del encargo por estos marcadores, que
+  // no aparecen en una orden de trabajo. Pedido por Carlos (2026-07-15).
+  if (/\b(llamadme|avisadme si (me )?necesit\w*|a la orden|vuelvo a (conectar|estar)|reconectad\w*|sigo (vivo|aqu[ií]|operativ\w*|online)|estoy (de vuelta|online|operativ\w*|aqu[ií] y listo))\b/i.test(t)) return false;
+  if (/\ben\s+\S+\s+(ya\s+)?operativ[oa]\b/i.test(t)) return false;   // «X en <máquina> operativo»
   return true;
 }
 __name(fleetEsMision, "fleetEsMision");
