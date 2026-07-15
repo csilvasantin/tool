@@ -111,10 +111,12 @@
   // ------- fila de MISIÓN (idéntica en /incidencias y /misiones) -------
   // ESTADOS canónicos (Carlos, 2026-07-15): Sin asignar · Asignada · En curso ·
   // Finalizada. «Abierta» era ruido: mezclaba pendiente-de-asignar con asignada.
+  // Asignada = tiene AGENTE o EQUIPO (una misión «solo máquina» también está
+  // asignada: la resuelve quien esté en ese equipo).
   function estadoDe(t) {
     if (t.status === "resolved") return { c: "b-res", l: "Finalizada" };
     if (t.status === "in_progress") return { c: "b-prog", l: "En curso" };
-    return t.assignee ? { c: "b-open", l: "Asignada" } : { c: "b-sina", l: "Sin asignar" };
+    return (t.assignee || t.loc || t.machine) ? { c: "b-open", l: "Asignada" } : { c: "b-sina", l: "Sin asignar" };
   }
 
   function rowHtml(t) {

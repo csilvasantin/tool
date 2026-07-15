@@ -74,13 +74,14 @@ h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
 </div>
 
 <!-- yk-misiones aporta canonMachine (nombres canónicos de máquina) al selector de asignación -->
-<script src="/yk-misiones.js?v=r11"></script>
+<script src="/yk-misiones.js?v=r12"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 const TG="https://admira-telegram.csilvasantin.workers.dev";
 const NAV="https://admira-navegadores.csilvasantin.workers.dev";
 const id=new URLSearchParams(location.search).get("id")||"";
 const esFlota=/^FLT-\d+$/.test(id);
+let TICKET=null;
 const $=x=>document.getElementById(x);
 // volver a la bandeja de ORIGEN (Carlos, 2026-07-15: abrías una misión y volvías a incidencias)
 document.getElementById("backLink").href=esFlota?"/misiones":"/incidencias";
@@ -94,6 +95,7 @@ async function render(){
   let d; try{ const r=await fetch(WORKER+"/ticket?id="+encodeURIComponent(id),{cache:"no-store"}); d=await r.json(); }catch(e){ $("root").innerHTML='<div class="load">No se pudo cargar el ticket.</div>'; return; }
   if(d.error){ $("root").innerHTML='<div class="load">Ticket no encontrado.</div>'; return; }
   const t=d.ticket, ev=d.events||[];
+  TICKET=t;   // lo usa reasignar() para saber si la misión tiene ya agente
   const sb=t.status==="open"?"b-open":(t.status==="resolved"?"b-res":"b-prog");
   const stt=t.status==="open"?"Abierta":(t.status==="resolved"?"Resuelta":"En curso");
   const actionBtns = t.status!=="resolved"
@@ -164,6 +166,23 @@ async function llenaAsig(){
       Object.entries(maqs).sort((a,b)=>a[0].localeCompare(b[0])).map(([c,raw])=>'<option value="'+esc(raw)+'">'+esc(c)+'</option>').join("");
   }catch(e){}
 }
+// Al asignar SOLO equipo: busca un AGENTE LIBRE en esa máquina (principal, con
+// latido de presencia <15 min y menos encargos abiertos) y se lo lleva puesto.
+async function agenteLibreEn(maquina){
+  try{
+    const [pr,ib]=await Promise.all([
+      fetch(TG+"/api/presence",{cache:"no-store"}).then(r=>r.json()),
+      fetch(TG+"/api/public/inbox",{cache:"no-store"}).then(r=>r.json())
+    ]);
+    const now=Date.now()/1000, objetivo=YkMisiones.canonMachine(maquina);
+    const carga={};
+    for(const it of (ib.items||[])) if(it.target_persona&&it.status!=="done") carga[it.target_persona]=(carga[it.target_persona]||0)+1;
+    const cand=[...new Set((pr.presence||[])
+      .filter(p=>p.persona&&esPrincipal(p.persona)&&p.machine&&YkMisiones.canonMachine(p.machine)===objetivo&&(now-(p.updated||0))<900)
+      .map(p=>p.persona))];
+    return cand.sort((a,b)=>(carga[a]||0)-(carga[b]||0))[0]||"";
+  }catch(e){ return ""; }
+}
 window.reasignar=async()=>{
   const a=$("rAgente").value, m=$("rEquipo").value, msg=$("rMsg");
   const body={by:"yokup-ticket"};
@@ -171,13 +190,21 @@ window.reasignar=async()=>{
   if(m!=="__keep") body.machine=m;
   if(!("persona" in body)&&!("machine" in body)){ msg.textContent="elige agente y/o equipo"; return; }
   msg.textContent="reasignando…";
+  let nota="";
+  // equipo elegido sin tocar el agente (y sin agente actual) → auto agente libre
+  if(("machine" in body)&&body.machine&&a==="__keep"&&!(TICKET&&TICKET.assignee)){
+    const libre=await agenteLibreEn(body.machine);
+    if(libre){ body.persona=libre; nota=" · agente libre en ese equipo: "+libre; }
+    else nota=" · sin agente vivo en ese equipo: la tomará quien esté allí";
+  }
   try{
     const num=id.replace(/^FLT-/,"");
     const r=await fetch(TG+"/api/bot-inbox/"+num+"/reassign",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
     const d=await r.json();
     if(!d.ok) throw new Error(d.error||"error "+r.status);
     await fetch(WORKER+"/fleet/sync",{method:"POST"}).catch(()=>{});
-    msg.textContent="✓ reasignada"; render();
+    msg.textContent="✓ reasignada — le llega por su bot-inbox y el watcher de la máquina la inyecta en su CLI"+nota;
+    render();
   }catch(err){ msg.textContent="✗ "+(err&&err.message||err); }
 };
 window.setStatus=async(s)=>{ await fetch(WORKER+"/ticket/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id,status:s,author:"Técnico"})}); render(); };
