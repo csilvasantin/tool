@@ -154,9 +154,35 @@ function bindHead(el){
   });
 }
 
+// Una orden DIFUNDIDA («PARA TODOS») crea en el bot-inbox una misión por agente
+// (fan-out para el ACK por Telegram), así que en el tablero salían N filas idénticas.
+// Se colapsan por asunto+equipo en UNA misión con todos sus agentes y su progreso.
+// Solo en la bandeja de FLOTA (en campo, dos incidencias con el mismo texto son
+// distintas y no deben fundirse). Representante = la de id más bajo (la que abre «abrir →»).
+function agrupaFlota(tks){
+  const norm=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/\s+/g," ").trim();
+  const num=x=>parseInt(String(x).replace(/\D/g,""),10)||0;
+  const by=new Map();
+  tks.forEach(t=>{ const k=norm(t.subject)+"||"+YkMisiones.machineOf(t);
+    (by.get(k)||by.set(k,[]).get(k)).push(t); });
+  const out=[];
+  by.forEach(ms=>{
+    if(ms.length===1){ out.push(ms[0]); return; }
+    const s=ms.slice().sort((a,b)=>num(a.id)-num(b.id));
+    const rep=Object.assign({},s[0]);
+    const agents=[...new Set(s.map(m=>m.assignee).filter(Boolean))];
+    const n=s.length, done=s.filter(m=>m.status==="resolved").length, prog=s.filter(m=>m.status==="in_progress").length;
+    rep._agents=agents; rep._ids=s.map(m=>m.id); rep._n=n; rep._done=done;
+    rep.status = done===n ? "resolved" : prog>0 ? "in_progress" : "open";
+    rep.assignee = agents.length<=1 ? (agents[0]||rep.assignee||"") : (agents.length+" agentes ("+done+"/"+n+")");
+    out.push(rep);
+  });
+  return out;
+}
+
 async function load(){
   let d; try{ const r=await fetch(WORKER+"/tickets?scope="+SCOPE,{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
-  const tks=d.tickets||[], st=d.stats||{};
+  const tks=(SCOPE==="fleet") ? agrupaFlota(d.tickets||[]) : (d.tickets||[]), st=d.stats||{};
   // KPIs por ESTADO canónico, calculados de las misiones vivas (no del stats crudo)
   const estL=t=>YkMisiones.estadoDe(t).l;
   $("kSin").textContent=tks.filter(t=>estL(t)==="Sin asignar").length;
@@ -171,21 +197,23 @@ async function load(){
   else if(FILTER!=="todas") base=base.filter(t=>t.status===FILTER);
   // Selectores CRUZADOS y solo con quien TIENE misiones en el contexto actual:
   // agentes según el equipo elegido, equipos según el agente elegido.
+  // agentes reales del grupo (una misión difundida agrupa varios): _agents si existe.
+  const agentesDe=t=>t._agents||(t.assignee?[t.assignee]:[]);
   llenaSel("selAgente","🤖 Agente · todos",[...new Set(base
     .filter(t=>!$("selEquipo").value||YkMisiones.machineOf(t)===$("selEquipo").value)
-    .map(t=>t.assignee).filter(Boolean))].sort());
+    .flatMap(agentesDe).filter(Boolean))].sort());
   llenaSel("selEquipo","🖥 Equipo · todos",[...new Set(base
-    .filter(t=>!$("selAgente").value||t.assignee===$("selAgente").value)
+    .filter(t=>!$("selAgente").value||agentesDe(t).includes($("selAgente").value))
     .map(t=>YkMisiones.machineOf(t)).filter(Boolean))].sort());
   let list=base;
-  if($("selAgente").value) list=list.filter(t=>t.assignee===$("selAgente").value);
+  if($("selAgente").value) list=list.filter(t=>agentesDe(t).includes($("selAgente").value));
   if($("selEquipo").value) list=list.filter(t=>YkMisiones.machineOf(t)===$("selEquipo").value);
   // buscador: título, id, agente, equipo y screen — sin distinguir mayúsculas ni acentos
   const q=($("busca").value||"").trim();
   if(q){
     const nrm=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
     const nq=nrm(q);
-    list=list.filter(t=>[t.subject,t.id,t.assignee,YkMisiones.machineOf(t),t.screen].some(v=>nrm(v).includes(nq)));
+    list=list.filter(t=>[t.subject,t.id,t.assignee,agentesDe(t).join(" "),YkMisiones.machineOf(t),t.screen].some(v=>nrm(v).includes(nq)));
   }
   const sk=SORTERS[SORT.k]||SORTERS.fecha;
   list=list.slice().sort((a,b)=>{const va=sk(a),vb=sk(b);const c=va<vb?-1:(va>vb?1:0);return SORT.dir==="asc"?c:-c;});
