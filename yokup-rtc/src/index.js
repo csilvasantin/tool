@@ -766,6 +766,28 @@ var index_default = {
       await ensureSchema(env);
       return json(await fleetSync(env));
     }
+    // VÍA PARA AGENTES (sin gate Google): deja el INFORME del InfraAgente en yokup, para
+    // que aparezca en /informes. Cierra la doctrina «toda tarea acaba en un informe».
+    // Se guarda como una mission_task 'done' (code z1) con el report. Acepta FLT-<id> o el
+    // número de encargo pelado. Carlos, 2026-07-15 (los agentes no cruzan el perímetro).
+    if (url.pathname === "/fleet/informe" && req.method === "POST") {
+      await ensureSchema(env);
+      let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
+      let mid = String(b.mission || b.id || "").trim();
+      if (/^#?\d+$/.test(mid)) mid = "FLT-" + mid.replace(/^#/, "");
+      const report = String(b.report || "").slice(0, 2000).trim();
+      const owner = String(b.owner || "infraagente").slice(0, 24);
+      if (!mid || !report) return json({ ok: false, error: "mission y report requeridos" }, 400);
+      const t = await env.DB.prepare("SELECT id FROM tickets WHERE id=?").bind(mid).first();
+      if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
+      const now = Date.now();
+      await env.DB.prepare(
+        "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,updated_at) VALUES(?,?,?,?,?,?,?) " +
+        "ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report, status='done', owner=excluded.owner, updated_at=excluded.updated_at"
+      ).bind(mid, "z1", "Informe del InfraAgente", "done", owner, report, now).run();
+      await addEvent(env, mid, "log", owner, "📝 Informe: " + report.slice(0, 240));
+      return json({ ok: true, mission: mid });
+    }
     if (url.pathname === "/fleet/plan" && req.method === "POST") {
       await ensureSchema(env);
       return json(await fleetPlanPending(env, url.searchParams.get("limit")));
