@@ -43,6 +43,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .alta-pa input{accent-color:var(--warn);width:14px;height:14px;cursor:pointer;margin:0}
 .alta-pa.on{color:var(--warn);border-color:var(--warn)}
 .alta-hint{flex-basis:100%;font-family:var(--mono);font-size:11px;line-height:1.5;letter-spacing:.03em;color:var(--warn);opacity:.92}
+/* 🎯 Detección desde el texto del alta: a dónde irá la misión según lo escrito. */
+.alta-det{flex-basis:100%;font-family:var(--mono);font-size:11px;line-height:1.5;letter-spacing:.03em;color:var(--brand);opacity:.95;overflow-wrap:anywhere}
+.alta-det b{color:var(--accent)}
 #scopeTabs select{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 10px;cursor:pointer;max-width:240px}
 #scopeTabs select.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
 #busca{flex:1 1 170px;min-width:150px;font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 10px;outline:none}
@@ -112,6 +115,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
     </label>
     <button class="alta-go" type="submit">＋ Dar de alta</button>
     <div class="alta-hint" id="altaPaHint" hidden>⚠️ Prioridad absoluta: la máquina destino se entrega a la IA <b>aunque haya humanos delante</b> (se fuerza a «desatendida» ~2 h). Úsalo solo cuando la misión no pueda esperar.</div>
+    <div class="alta-det" id="altaDetectHint" hidden></div>
     <div class="alta-msg" id="altaMsg"></div>
   </form>
 
@@ -144,7 +148,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
-  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r20</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r21</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -377,6 +381,110 @@ function autoRandom(){
   const prin=UNIV.filter(esAsignable); const p=prin.length?prin[Math.floor(Math.random()*prin.length)]:"Neo";
   return {persona:p,machine:""};
 }
+// ── PARSEO DEL TEXTO DEL ALTA (Carlos, 2026-07-15) ──────────────────────────
+// Al escribir la misión, se lee del PROPIO texto a qué MÁQUINA y a qué AGENTE/LLM
+// va, y se fija ALTA_SEL en consecuencia (prevalece sobre el selector manual).
+// Ej.: «dibuja una nave en el macbookpro14 con grok» → Smith + MacBookPro14.
+// Los alias de máquina se generan DINÁMICAMENTE del nombre canónico Y del raw
+// (ComputerName real: p.ej. «MacBookProNegro14» aún produce negro14/pro14/...),
+// así vale para cualquier máquina de la flota sin tabla fija.
+const stripAcc=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"");
+// canon -> raw (ComputerName real) de todas las máquinas conocidas (MAQS+SOLOMAQ).
+function todasMaquinas(){
+  const out=new Map();
+  for(const p in MAQS) for(const [canon,i] of Object.entries(MAQS[p])) if(!out.has(canon)) out.set(canon,i.raw);
+  for(const [canon,i] of Object.entries(SOLOMAQ)) if(!out.has(canon)) out.set(canon,i.raw||canon);
+  return out;
+}
+// Alias razonables de un nombre de máquina: segmenta por camelCase/dígitos y
+// combina línea (pro/air/mini) · color (negro/azul/plata…) · tamaño (14/16).
+function aliasesDeCanon(nombre){
+  const set=new Set();
+  const add=a=>{ if(a&&a.length>=4&&!/^\d+$/.test(a)) set.add(a); };
+  add(normM(stripAcc(nombre)));                                   // macbookpro14 / macbookpronegro14
+  const segs=stripAcc(nombre)
+    .replace(/([a-z])([A-Z])/g,"$1 $2")
+    .replace(/([a-zA-Z])(\d)/g,"$1 $2")
+    .replace(/(\d)([a-zA-Z])/g,"$1 $2")
+    .split(/[\s._·-]+/).filter(Boolean).map(s=>s.toLowerCase());
+  const filler=new Set(["mac","book"]);
+  const lineas=new Set(["pro","air","mini","studio","imac"]);
+  const sig=segs.filter(s=>!filler.has(s));                       // significativos
+  const nums=sig.filter(s=>/^\d+$/.test(s));
+  const linea=sig.find(s=>lineas.has(s))||"";
+  const colores=sig.filter(s=>!/^\d+$/.test(s)&&!lineas.has(s));  // negro, azul, plata…
+  add(sig.join(""));                                              // pronegro14 / airazul
+  colores.forEach(c=>{ add(c); nums.forEach(n=>add(c+n)); });     // negro, negro14
+  if(linea){ nums.forEach(n=>add(linea+n)); colores.forEach(c=>add(linea+c)); }  // pro14, airazul
+  colores.forEach(c=>{ if(linea) add("macbook"+linea+c); });      // macbookpronegro
+  if(linea) nums.forEach(n=>add("macbook"+linea+n));              // macbookpro14 / macbookpro16
+  if(sig.length===1) add("mac"+sig[0]);                           // macmini
+  return [...set];
+}
+// Deduce la MÁQUINA nombrada en el texto (la coincidencia más específica gana).
+// Alias largos (o con dígito) valen por substring; los cortos (color, mini),
+// solo palabra entera — así «plataforma»/«administrar» no cuelan un match flojo.
+function detectaMaquina(txt){
+  const full=normM(stripAcc(txt));
+  const wordSet=new Set(stripAcc(txt).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).map(w=>normM(w)));
+  let best=null;
+  for(const [canon,raw] of todasMaquinas()){
+    const aliases=new Set([...aliasesDeCanon(canon),...aliasesDeCanon(raw)]);
+    for(const a of aliases){
+      const canSub=a.length>=6||(/\d/.test(a)&&a.length>=5);
+      if(((canSub&&full.includes(a))||wordSet.has(a))&&(!best||a.length>best.len)) best={raw,canon,len:a.length};
+    }
+  }
+  return best?{raw:best.raw,canon:best.canon}:null;
+}
+// Agente de una categoría (Claude/Codex/Grok): online (y en la máquina dada si se
+// dio), si no cualquiera online, si no el primero, si no el fijo de la categoría.
+function pickAgenteCat(cat,maqRaw){
+  const cand=UNIV.filter(p=>esAsignable(p)&&catDe(p)===cat);
+  const onlineOn=p=>Object.values(MAQS[p]||{}).some(i=>i.online&&(!maqRaw||i.raw===maqRaw));
+  const anyOn=p=>Object.values(MAQS[p]||{}).some(i=>i.online);
+  return cand.find(onlineOn)||cand.find(anyOn)||cand[0]||Object.keys(RT_FIJO).find(p=>RT_FIJO[p]===cat)||null;
+}
+// Deduce el AGENTE/LLM del texto: nombre directo (neo/morfeo/…) o LLM
+// (grok→Smith · codex→Codex online · claude→Claude online).
+const AG_ALIAS={neo:"Neo",morfeo:"Morfeo",trinity:"Trinity",oraculo:"Oráculo",smith:"Smith",whiterabbit:"WhiteRabbit"};
+function detectaAgente(txt,maqRaw){
+  const full=normM(stripAcc(txt));
+  const words=new Set(stripAcc(txt).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  for(const [al,p] of Object.entries(AG_ALIAS)) if(words.has(al)||(al==="whiterabbit"&&full.includes("whiterabbit"))) return {persona:p};
+  if(words.has("grok")) return {persona:"Smith"};
+  const cat=words.has("codex")?"Codex":(words.has("claude")?"Claude":null);
+  if(cat){ const p=pickAgenteCat(cat,maqRaw); if(p) return {persona:p}; }
+  return null;
+}
+// Al escribir (o enviar): fija ALTA_SEL desde el texto y pinta un HINT sutil.
+function detectaAlta(){
+  const txt=$("altaTxt").value, hint=$("altaDetectHint");
+  const maq=detectaMaquina(txt);
+  const ag=detectaAgente(txt,maq&&maq.raw);
+  if(!maq&&!ag){                                   // nada claro → respeta el selector
+    if(ALTA_SEL.fromText){ ALTA_SEL={auto:true}; renderAltaBtn(); }
+    if(hint){ hint.hidden=true; hint.textContent=""; }
+    return;
+  }
+  let persona=ag?ag.persona:"", machine=maq?maq.raw:"", canon=maq?maq.canon:"";
+  if(persona&&!machine){                           // agente sin máquina → su máquina online
+    const on=Object.entries(MAQS[persona]||{}).find(([,i])=>i.online);
+    if(on){ machine=on[1].raw; canon=on[0]; }
+  }
+  const cm=canon||(machine?YkMisiones.canonMachine(machine):"");
+  const label=persona?(persona+(cm?" · "+cm:" · cualquier máquina")):("🖥 "+cm);
+  const choca=!ALTA_SEL.auto&&!ALTA_SEL.fromText&&(ALTA_SEL.persona!==persona||ALTA_SEL.machine!==machine);
+  ALTA_SEL={auto:false,persona,machine,label,fromText:true};
+  renderAltaBtn();
+  if(hint){
+    hint.innerHTML="🎯 detectado en el texto: <b>"+esc(persona||"cualquier agente")+"</b> · <b>"+esc(cm||"—")+"</b>"+
+      (persona&&!maq?" (su máquina online)":"")+(choca?" · prevalece sobre el selector":"");
+    hint.hidden=false;
+  }
+}
+let detT; $("altaTxt").addEventListener("input",()=>{ clearTimeout(detT); detT=setTimeout(detectaAlta,300); });
+
 function pickerAlta(anchor){
   cerrarPicker();
   const el=document.createElement("div");
@@ -452,6 +560,7 @@ if(paChk){
 $("alta").onsubmit=async e=>{
   e.preventDefault();
   const txt=$("altaTxt").value.trim(); if(!txt) return;
+  clearTimeout(detT); detectaAlta();   // honra lo ESCRITO aunque el debounce no saltara aún
   // Prioridad absoluta → antepone el marcador que el watcher detecta.
   const pa=!!(paChk&&paChk.checked);
   const encargo=pa ? "[PRIORIDAD ABSOLUTA] "+txt : txt;
@@ -478,7 +587,7 @@ $("alta").onsubmit=async e=>{
     }
     const destino=persona?(persona+(maquina?" en "+YkMisiones.canonMachine(maquina):"")):("la máquina "+YkMisiones.canonMachine(maquina)+" (quien esté allí)");
     msg.className="alta-msg ok"; msg.textContent="✓ FLT-"+d.id+(pa?" ⚡PA":"")+" dada de alta y asignada a "+destino+rayo;
-    $("altaTxt").value="";
+    $("altaTxt").value=""; detectaAlta();   // limpia texto → resetea detección y hint
     if(paChk){ paChk.checked=false; if(paWrap){paWrap.classList.remove("on");paWrap.style.setProperty("color","");paWrap.style.setProperty("border-color","");} if(paHint)paHint.hidden=true; }
     radar(); load();
   }catch(err){
