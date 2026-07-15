@@ -510,6 +510,10 @@ async function fleetSync(env) {
     const ts = epochMs(it.ts, now);
     const prev = await env.DB.prepare("SELECT id,status FROM tickets WHERE id=?").bind(id).first();
     if (!prev) {
+      // ANTI-RESURRECCIÓN: un encargo ya cerrado que nunca fue ticket NO nace como
+      // ticket resuelto (la ventana de done de 7 días del public/inbox revivía como
+      // lápidas los encargos limpiados a mano — p.ej. las máquinas fantasma Luna).
+      if (st === "resolved") continue;
       await env.DB.prepare(
         "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at,resolved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(
