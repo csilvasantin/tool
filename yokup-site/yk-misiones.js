@@ -57,13 +57,42 @@
   }
   function selected() { return SELECTED; }
 
+  // ---- Nombre CANÓNICO de máquina -------------------------------------------
+  // Los encargos llegan con el nombre en formatos dispares (minúsculas, con
+  // espacios, alias) y el selector sacaba duplicados del mismo equipo.
+  // Canónico = el ComputerName real de cada Mac. DECISIÓN Carlos (2026-07-15):
+  // «MacBookAirPlata» es el Air de 14; el de 16 es «MacBookAir16plata»
+  // (y «macbookair16» es un alias suyo, NO otra máquina).
+  var MAQ_ALIAS = { macbookair16: "macbookair16plata" };
+  var MAQ_NOMBRE = {
+    macbookpronegro14: "MacBookProNegro14",
+    macbookpro16: "MacBook Pro 16",
+    macbookair16plata: "MacBookAir16plata",
+    macbookairplata: "MacBookAirPlata",
+    macbookairazul: "MacBookAirAzul",
+    macbookaircrema: "MacBookAirCrema",
+    macbookairrosa: "MacBookAirRosa",
+    macbookairluna: "MacBookAirLuna",
+    macbookairluna1: "MacBookAirLuna1",
+    macmini: "MacMini",
+    asuszenbook: "ASUS Zenbook",
+    dgxspark: "DGX Spark",
+    thinkstationpgx: "ThinkStation PGX"
+  };
+  function canonMachine(raw) {
+    var n = String(raw || "").toLowerCase().replace(/[\s·._-]+/g, "");
+    n = MAQ_ALIAS[n] || n;
+    return MAQ_NOMBRE[n] || raw;
+  }
+
   // Máquina donde corre/se solventa la misión: loc (target_machine del encargo)
   // o, en tickets de flota antiguos, incrustada en screen «Persona·Máquina #id».
   // Exportada: la usan los selectores de /misiones para filtrar por equipo.
+  // Devuelve SIEMPRE el nombre canónico (dedupe de formatos y alias).
   function machineOf(t) {
     var maq = t.machine || t.loc || "";
     if (!maq) { var mm = /^[^·]+·(.+?)\s+#\d+$/.exec(t.screen || ""); if (mm) maq = mm[1]; }
-    return maq === "?" ? "" : maq;
+    return maq === "?" ? "" : canonMachine(maq);
   }
 
   // ------- fila de MISIÓN (idéntica en /incidencias y /misiones) -------
@@ -181,7 +210,7 @@
 
   window.YkMisiones = {
     init: init, selected: selected, selectMission: selectMission,
-    rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf,
+    rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine,
     renderTaskTree: renderTaskTree, refreshTree: refreshTree,
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,
     nextStatus: nextStatus, postStatus: postStatus, postPlan: postPlan,

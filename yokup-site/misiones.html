@@ -94,7 +94,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
-  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r5</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r6</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -104,7 +104,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r3"></script>
+<script src="/yk-misiones.js?v=r4"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 let FILTER="activas";
@@ -185,8 +185,9 @@ async function radar(){
     MAQS={};
     for(const p of (pr.presence||[])){
       if(!p.persona||!p.machine||!esPrincipal(p.persona)) continue;
+      const maq=YkMisiones.canonMachine(p.machine);   // nombre canónico (dedupe alias)
       (MAQS[p.persona]=MAQS[p.persona]||{});
-      const m=MAQS[p.persona][p.machine]=MAQS[p.persona][p.machine]||{online:false,norm:normM(p.machine)};
+      const m=MAQS[p.persona][maq]=MAQS[p.persona][maq]||{online:false,norm:normM(maq)};
       if((now-(p.updated||0))<900) m.online=true;
     }
     CARGA_P={}; CARGA_PM={};
@@ -194,7 +195,7 @@ async function radar(){
       if(!it.target_persona||it.status==="done") continue;
       CARGA_P[it.target_persona]=(CARGA_P[it.target_persona]||0)+1;
       if(it.target_machine) {
-        const k=it.target_persona+"|"+normM(it.target_machine);
+        const k=it.target_persona+"|"+normM(YkMisiones.canonMachine(it.target_machine));
         CARGA_PM[k]=(CARGA_PM[k]||0)+1;
       }
     }
