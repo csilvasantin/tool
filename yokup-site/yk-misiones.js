@@ -127,23 +127,49 @@
     // cada .rz es la línea divisoria — se arrastra y ajusta la variable CSS de SU
     // columna (--c-*) para TODAS las tarjetas a la vez; se persiste en localStorage.
     var rz = function (col, side) { return '<span class="rz" data-col="' + col + '"' + (side ? ' data-side="' + side + '"' : "") + ' title="⇔ arrastra para redimensionar"></span>'; };
+    var dv = durVal(t);
     return '<div class="tk ' + (t.status === "open" ? "open" : "") + " " + (t.id === SELECTED ? "sel" : "") + '" data-id="' + esc(t.id) + '">' +
       '<div class="hd">' +
         '<div class="pri ' + esc(t.priority) + '"></div>' +
-        '<div class="tkid">' + esc(t.id) + '<span class="st">' + (t.source === "agent-iot" ? "🤖 Agente IoT" : "👤 Manual") + "</span>" +
-          (maq ? '<span class="mach">🖥 ' + esc(maq) + "</span>" : '<span class="mach dim">🖥 sin máquina</span>') + "</div>" +
+        '<div class="tkid">' + esc(t.id) + '<span class="st">' + (t.source === "agent-iot" ? "🤖 Agente IoT" : "👤 Manual") + "</span></div>" +
         '<div class="subj">' + rz("id", "r") + '<div class="t">' + esc(t.subject) + '</div><div class="m"><span class="scr">' + esc(t.screen) + "</span>" +
           (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span></div></div>" +
+        // Fecha + DURACIÓN: de asignada a finalizada (o transcurrido si sigue viva).
         '<div class="cel rtiempo">' + rz("fch") + '<span class="fch2" title="fecha de creación de la misión">📅 ' + fechaCorta(t.created_at) + "</span>" +
-          (t.status === "open" ? '<span class="sla">' + slaLeft(t.created_at) + "</span>" : "") + "</div>" +
+          (dv ? '<span class="dur' + (dv.run ? " run" : "") + '" title="' + esc(dv.tip) + '">⏱ ' + esc(dv.txt) + "</span>" : "") + "</div>" +
+        // ORDENADOR (entre Fecha y Agente).
+        '<div class="cel ord">' + rz("ord") + (maq ? '<span class="mach2">🖥 ' + esc(maq) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>') + "</div>" +
         '<div class="cel">' + rz("who") + '<span class="who">👷 ' + esc(t.assignee) + "</span></div>" +
-        '<div class="cel">' + rz("est") + '<span class="badge ' + sb + '"><i></i>' + stt + "</span></div>" +
-        '<div class="cel">' + rz("abrir") + '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a></div>' +
+        // Estado + ABRIR apilado (abrir debajo de la insignia).
+        '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"><i></i>' + stt + "</span>" +
+          '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a></div>' +
       "</div></div>";
+  }
+  // Duración de la misión: de ASIGNADA (created_at, el encargo nace ya asignado) a
+  // FINALIZADA (resolved_at). Si sigue viva, el tiempo TRANSCURRIDO hasta ahora (run).
+  // Epoch tolerante a s/ms (fleet guarda ms; el guardia normaliza por si acaso).
+  function _ms(v) { v = +v || 0; return v > 4102444800 ? v : v * 1000; }
+  function durFmt(ms) {
+    if (ms == null || ms < 0) return "";
+    var s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60), d = Math.floor(h / 24);
+    if (d > 0) return d + "d " + (h % 24) + "h";
+    if (h > 0) return h + "h " + (m % 60) + "m";
+    if (m > 0) return m + "m";
+    return s + "s";
+  }
+  function durVal(t) {
+    var start = _ms(t.created_at);
+    if (!start) return null;
+    if (t.status === "resolved") {
+      var end = _ms(t.resolved_at || t.updated_at);
+      if (!end || end < start) return null;
+      return { txt: durFmt(end - start), run: false, tip: "de asignada a finalizada" };
+    }
+    return { txt: durFmt(Date.now() - start), run: true, tip: "transcurrido desde que se asignó" };
   }
 
   // ---- Redimensionado de columnas de la lista -------------------------------
-  var COLVARS = { id: "--c-id", fch: "--c-fch", who: "--c-who", est: "--c-est", abrir: "--c-abrir" };
+  var COLVARS = { id: "--c-id", fch: "--c-fch", ord: "--c-ord", who: "--c-who", est: "--c-est" };
   function initColResize() {
     if (initColResize._done) return; initColResize._done = true;
     // Tope RELATIVO al ancho de la lista: ninguna columna puede pasar del 35%

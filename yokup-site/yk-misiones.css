@@ -17,7 +17,7 @@
  * (el sujeto absorbe el resto). Las líneas divisorias .rz son arrastrables. */
 /* minmax(0, var(--c-*)): en pantallas/anchos justos las columnas fijas ENCOGEN
  * proporcionalmente en vez de desbordar sobre la misión (responsive). */
-.hd{display:grid;grid-template-columns:8px minmax(0,var(--c-id,120px)) minmax(140px,1fr) minmax(0,var(--c-fch,140px)) minmax(0,var(--c-who,150px)) minmax(0,var(--c-est,118px)) minmax(0,var(--c-abrir,92px));gap:0;align-items:center;padding:14px 16px}
+.hd{display:grid;grid-template-columns:8px minmax(0,var(--c-id,110px)) minmax(140px,1fr) minmax(0,var(--c-fch,120px)) minmax(0,var(--c-ord,128px)) minmax(0,var(--c-who,132px)) minmax(0,var(--c-est,124px));gap:0;align-items:center;padding:14px 16px}
 .pri{width:8px;height:8px;border-radius:50%}.pri.urgente{background:var(--warn);box-shadow:0 0 10px var(--warn)}.pri.alta{background:var(--accent)}.pri.media,.pri.baja{background:var(--good);opacity:.5}
 .tkid{font-family:var(--mono);font-size:12px;color:var(--brand)}.tkid .st{display:block;font-size:9.5px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase;margin-top:3px}
 .tkid .mach{display:block;font-size:9.5px;color:var(--mut);letter-spacing:.04em;margin-top:2px}.tkid .mach.dim{color:var(--dim)}
@@ -27,7 +27,7 @@
 .subj .t{font-size:14.5px;font-weight:600;color:var(--ink)}.subj .m{font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap}.subj .m .scr{color:var(--brand)}
 /* Cada celda es un CARRIL: nada se sale de él — lo que no cabe, se recorta con … */
 .cel{position:relative;align-self:stretch;display:flex;align-items:center;justify-content:flex-end;padding:0 12px;min-width:0;overflow:hidden}
-.cel .who,.cel .badge,.cel .sla,.cel .fch2{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cel .who,.cel .badge,.cel .sla,.cel .fch2,.cel .mach2,.cel .dur{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* Divisor vertical SUTIL y arrastrable (col-resize). Al pasar el ratón, se enciende. */
 .rz{position:absolute;left:0;top:-8px;bottom:-8px;width:9px;cursor:col-resize;z-index:2}
 .rz::before{content:"";position:absolute;left:4px;top:0;bottom:0;width:1px;background:rgba(120,243,255,.10)}
@@ -40,6 +40,13 @@
 .sla{font-family:var(--mono);font-size:10.5px;color:var(--warn)}.who{font-family:var(--mono);font-size:10.5px;color:var(--mut)}
 .cel.rtiempo{flex-direction:column;justify-content:center;align-items:flex-end;gap:3px}
 .fch2{font-family:var(--mono);font-size:10.5px;color:var(--mut);white-space:nowrap}
+/* Duración: de asignada a finalizada (o transcurrido si sigue viva, en ámbar). */
+.dur{font-family:var(--mono);font-size:10.5px;color:var(--good)}.dur.run{color:var(--accent)}
+/* Columna ORDENADOR (entre Fecha y Agente). */
+.cel.ord{justify-content:flex-start}
+.mach2{font-family:var(--mono);font-size:10.5px;color:var(--mut);display:inline-flex;align-items:center;gap:5px}.mach2.dim{color:var(--dim)}
+/* Estado + ABRIR apilados (ABRIR debajo de la insignia). */
+.cel.est{flex-direction:column;align-items:flex-start;justify-content:center;gap:7px}
 /* Cabecera de COLUMNAS estilo hoja de cálculo: misma rejilla que las filas;
  * clic en un título = ordenar por esa columna (▲ asc / ▼ desc). */
 .lhead{padding:9px 16px;border-bottom:1px solid var(--line);background:rgba(120,243,255,.035)}
