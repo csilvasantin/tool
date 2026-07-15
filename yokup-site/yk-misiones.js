@@ -72,8 +72,8 @@
     macbookairazul: "MacBookAirAzul",
     macbookaircrema: "MacBookAirCrema",
     macbookairrosa: "MacBookAirRosa",
-    macbookairluna: "MacBookAirLuna",
-    macbookairluna1: "MacBookAirLuna1",
+    // OJO: MacBookAirLuna/Luna1 NO existen (Carlos, 2026-07-15) — eran máquinas
+    // fantasma de unos encargos mal dirigidos; no las legitimes aquí.
     macmini: "MacMini",
     asuszenbook: "ASUS Zenbook",
     dgxspark: "DGX Spark",
