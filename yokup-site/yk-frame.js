@@ -34,7 +34,7 @@
   // todas — no pueden divergir. Solo las intros/homes públicas llevan menú
   // propio (data-yk-nav o el NAV global de abajo).
   var APP_NAV = [
-    ["AGÉNTICA",    "/agentica"],
+    ["DASHBOARD",   "/agentica"],
     ["MISIONES",    "/misiones"],
     ["TAREAS",      "/tareas"],
     ["INCIDENCIAS", "/incidencias"],
@@ -82,7 +82,7 @@
     var map = {
       incidencias: "INCIDENCIAS", ticket: "TICKET", agentes: "AGENTES",
       "admira-live": "ADMIRA.LIVE", misiones: "MISIONES", tareas: "TAREAS",
-      agentica: "AGÉNTICA", informes: "INFORMES",
+      agentica: "DASHBOARD", informes: "INFORMES",
       asistencia: "ASISTENCIA", intervencion: "INTERVENCIÓN"
     };
     return map[seg] || "";
@@ -144,15 +144,22 @@
     logo.href = "/";
     logo.setAttribute("aria-label", "Yokup · inicio");
 
-    // rótulo de la página
+    // menú de la barra (se calcula ya para deducir el ítem activo)
+    var navItems = pageNav();
+    var activeLbl = "";
+    for (var _i = 0; _i < navItems.length; _i++) { if (navItems[_i].active) { activeLbl = navItems[_i].label; break; } }
+
+    // rótulo de la página — se OCULTA si coincide con el ítem ACTIVO del menú, para
+    // no duplicarlo (p.ej. «DASHBOARD DASHBOARD» en /agentica). En páginas fuera del
+    // menú (p.ej. /ticket → «TICKET») el rótulo sigue mostrándose.
     var pt = pageTitle();
     var page = el("span", "yk-page", pt);
-    if (!pt) page.style.display = "none";
+    if (!pt || (activeLbl && pt === activeLbl)) page.style.display = "none";
 
     // menú de la barra: por página (body[data-yk-nav]) o el global por defecto
     var nav = el("nav", "yk-nav");
     nav.setAttribute("aria-label", "Secciones de Yokup");
-    pageNav().forEach(function (it) {
+    navItems.forEach(function (it) {
       var a = el("a", it.active ? "on" : null, it.label);
       a.href = it.href || "#";
       if (it.active) a.setAttribute("aria-current", "page");
