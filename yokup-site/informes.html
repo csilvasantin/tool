@@ -19,7 +19,14 @@ body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-
 nav{display:flex;align-items:center;justify-content:space-between;padding:4px 0 16px}
 .back{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);text-decoration:none}.back:hover{color:var(--brand)}
 h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
-.sub{color:var(--mut);font-size:14.5px;margin-bottom:20px}.sub b{color:var(--violet)}
+.sub{color:var(--mut);font-size:14.5px;margin-bottom:14px}.sub b{color:var(--violet)}
+/* Filtro por FECHA del informe (updated_at) — por defecto: hoy. Igual que /tareas. */
+.tfilter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
+.tf{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;border-radius:9px;border:1px solid var(--line);color:var(--mut);background:var(--card);cursor:pointer;transition:.2s}
+.tf:hover{color:var(--brand);border-color:var(--line2)}
+.tf.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
+.tf-date{font-family:var(--mono);font-size:11px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:9px;padding:7px 10px;outline:none;cursor:pointer;color-scheme:dark}
+.tf-date:focus,.tf-date.on{border-color:var(--brand)}
 .reps{display:flex;flex-direction:column;gap:12px}
 .rep{border:1px solid var(--line);border-radius:13px;background:var(--card);padding:15px 17px;transition:.15s}
 .rep:hover{background:var(--card2)}
@@ -46,7 +53,16 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
     <a href="/incidencias" class="back">← Bandeja</a>
   </nav>
   <h1>Informes</h1>
-  <p class="sub">Superficie de reporte de los <b>infraagentes</b> 📝. Cada tarea con parte redactado, por misión, ordenada por lo más reciente.</p>
+  <p class="sub">Superficie de reporte de los <b>infraagentes</b> 📝. Cada tarea acaba en un parte: cómo ha ido y si hubo incidencias. Por misión, ordenada por fecha — hoy primero.</p>
+
+  <!-- Filtro por FECHA del informe. Por defecto sólo los de HOY (igual que /tareas). -->
+  <div class="tfilter" id="tfilter">
+    <button class="tf on" data-r="hoy">Hoy</button>
+    <button class="tf" data-r="ayer">Ayer</button>
+    <button class="tf" data-r="7d">Últimos 7 días</button>
+    <button class="tf" data-r="todas">Todas</button>
+    <input class="tf-date" id="tfDate" type="date" title="Ver los informes de un día concreto">
+  </div>
 
   <div class="reps" id="reps"><div class="empty"><b>Cargando informes…</b>Reuniendo los partes de todas las misiones.</div></div>
   <div class="foot">Yokup · informes · tareas con <b>report</b> · fuente <b>D1</b> (mission_tasks)</div>
@@ -65,6 +81,27 @@ function ago(ms){ if(!ms) return "—"; let s=Math.round((Date.now()-ms)/1000); 
 const OWN_ICON={principal:"🧠",subagente:"⚙️",infraagente:"📝"};
 const ST_LABEL={pending:"pendiente",in_progress:"en curso",done:"hecha"};
 
+// ── FILTRO POR FECHA del informe (updated_at = cuándo lo reportó el infraagente).
+// Por defecto sólo los de HOY (Carlos, 2026-07-15). Filtra sobre lo ya cargado.
+let ALL=[], DFILTER={mode:"hoy", day:""};
+const _ms=v=>{v=+v||0;return v>4102444800?v:v*1000;};
+const _pad=n=>(n<10?"0":"")+n;
+const _ymd=d=>d.getFullYear()+"-"+_pad(d.getMonth()+1)+"-"+_pad(d.getDate());
+function dayBounds(ymd){ const[y,m,d]=ymd.split("-").map(Number); const s=new Date(y,m-1,d,0,0,0,0).getTime(); return [s,s+86400000]; }
+function inRange(when){
+  const c=_ms(when); if(!c) return false;
+  if(DFILTER.mode==="todas") return true;
+  if(DFILTER.mode==="7d") return c>=Date.now()-7*86400000;
+  let ymd;
+  if(DFILTER.mode==="dia") ymd=DFILTER.day;
+  else if(DFILTER.mode==="ayer"){ const d=new Date(); d.setDate(d.getDate()-1); ymd=_ymd(d); }
+  else ymd=_ymd(new Date());
+  if(!ymd) return true;
+  const [s,e]=dayBounds(ymd); return c>=s && c<e;
+}
+function filterLabel(){ return DFILTER.mode==="hoy"?"de hoy":DFILTER.mode==="ayer"?"de ayer":DFILTER.mode==="7d"?"de los últimos 7 días":DFILTER.mode==="dia"?("del "+DFILTER.day):null; }
+function applyFilter(){ render(ALL.filter(t=>inRange(t.updated_at))); }
+
 async function load(){
   let d; try{ const r=await fetch(WORKER+"/tickets",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
   const tks=d.tickets||[];
@@ -80,12 +117,15 @@ async function load(){
     }catch(e){}
   }));
   all.sort((a,b)=>(b.updated_at||0)-(a.updated_at||0));
-  render(all);
+  ALL=all; applyFilter();
 }
 function render(list){
   const box=$("reps");
   if(!list.length){
-    box.innerHTML='<div class="empty"><b>Sin informes todavía</b>Los infraagentes reportan aquí — en cuanto una tarea tenga parte redactado, aparecerá en esta lista.</div>';
+    const lbl=filterLabel();
+    box.innerHTML=lbl
+      ? '<div class="empty"><b>Sin informes '+esc(lbl)+'</b>No hay partes con esa fecha. Prueba otro día o pulsa <b style="display:inline">Todas</b>.</div>'
+      : '<div class="empty"><b>Sin informes todavía</b>Los infraagentes reportan aquí — en cuanto una tarea tenga parte redactado, aparecerá en esta lista.</div>';
     return;
   }
   box.innerHTML=list.map(t=>{
@@ -105,6 +145,21 @@ function render(list){
     </div>`;
   }).join("");
 }
+// Filtro de fecha: presets + día concreto. Instantáneo (filtra lo ya cargado).
+$("tfilter").querySelectorAll(".tf").forEach(b=>b.onclick=()=>{
+  DFILTER={mode:b.dataset.r, day:""};
+  $("tfilter").querySelectorAll(".tf").forEach(x=>x.classList.toggle("on",x===b));
+  $("tfDate").classList.remove("on"); $("tfDate").value="";
+  applyFilter();
+});
+$("tfDate").onchange=()=>{
+  if(!$("tfDate").value) return;
+  DFILTER={mode:"dia", day:$("tfDate").value};
+  $("tfilter").querySelectorAll(".tf").forEach(x=>x.classList.remove("on"));
+  $("tfDate").classList.add("on");
+  applyFilter();
+};
+
 load(); setInterval(load,15000);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
