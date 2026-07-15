@@ -462,6 +462,17 @@ function fleetScreen(it) {
 }
 __name(fleetScreen, "fleetScreen");
 
+// El bot-inbox ha mandado ts unas veces en segundos y otras ya en milisegundos;
+// multiplicar a ciegas por 1000 metió created_at en MICROsegundos y el MTTR
+// salió negativo de miles de millones de minutos. Normaliza cualquier época a ms.
+function epochMs(v, fallback) {
+  let n = Number(v);
+  if (!n || !isFinite(n)) return fallback;
+  while (n > 1e14) n = n / 1e3;
+  return Math.round(n > 1e11 ? n : n * 1e3);
+}
+__name(epochMs, "epochMs");
+
 async function fleetSync(env) {
   let items = [];
   try {
@@ -479,7 +490,7 @@ async function fleetSync(env) {
     if (!it || !it.id) continue;
     const id = "FLT-" + it.id;
     const st = FLEET_ST[it.status] || "open";
-    const ts = it.ts ? it.ts * 1e3 : now;
+    const ts = epochMs(it.ts, now);
     const prev = await env.DB.prepare("SELECT id,status FROM tickets WHERE id=?").bind(id).first();
     if (!prev) {
       await env.DB.prepare(
@@ -487,7 +498,7 @@ async function fleetSync(env) {
       ).bind(
         id, fleetScreen(it), fleetSubject(it.text), it.target_machine || "", it.from_name || "",
         st, "normal", it.target_persona || "", "fleet", "", ts, now,
-        st === "resolved" ? (it.done_at ? it.done_at * 1e3 : now) : null
+        st === "resolved" ? epochMs(it.done_at, now) : null
       ).run();
       // El texto íntegro del encargo queda como primer evento de la misión.
       await addEvent(env, id, "log", it.from_name || "Carlos", String(it.text || ""));
@@ -660,7 +671,8 @@ async function stats(env, scope) {
   const open = (await env.DB.prepare(`SELECT COUNT(*) c FROM tickets WHERE ${sc} AND status='open'`).first())?.c || 0;
   const prog = (await env.DB.prepare(`SELECT COUNT(*) c FROM tickets WHERE ${sc} AND status='in_progress'`).first())?.c || 0;
   const res = (await env.DB.prepare(`SELECT COUNT(*) c FROM tickets WHERE ${sc} AND status='resolved'`).first())?.c || 0;
-  const mttrRow = await env.DB.prepare(`SELECT AVG(resolved_at-created_at) m FROM tickets WHERE ${sc} AND status='resolved' AND resolved_at IS NOT NULL`).first();
+  // Solo deltas cuerdos: ni negativos ni >1 año (un timestamp corrupto no debe reventar el KPI).
+  const mttrRow = await env.DB.prepare(`SELECT AVG(resolved_at-created_at) m FROM tickets WHERE ${sc} AND status='resolved' AND resolved_at IS NOT NULL AND resolved_at >= created_at AND resolved_at - created_at < 31536000000`).first();
   const mttr = mttrRow && mttrRow.m ? Math.round(mttrRow.m / 6e4) : null;
   return { open, in_progress: prog, resolved: res, mttr };
 }
@@ -825,7 +837,7 @@ var index_default = {
     if (url.pathname === "/agents") {
       try {
         await ensureSchema(env);
-        const { results } = await env.DB.prepare("SELECT assignee, status, COUNT(*) n, AVG(CASE WHEN status='resolved' THEN resolved_at-created_at END) mttr FROM tickets GROUP BY assignee,status").all();
+        const { results } = await env.DB.prepare("SELECT assignee, status, COUNT(*) n, AVG(CASE WHEN status='resolved' AND resolved_at >= created_at AND resolved_at - created_at < 31536000000 THEN resolved_at-created_at END) mttr FROM tickets GROUP BY assignee,status").all();
         const map = {};
         for (const r of results || []) {
           const a = map[r.assignee] || (map[r.assignee] = { open: 0, in_progress: 0, resolved: 0, mttr: null });
