@@ -78,9 +78,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
     <button class="tab" data-s="todas">Todas</button>
     <select id="selAgente" title="Filtrar por agente"><option value="">🤖 Agente · todos</option></select>
     <select id="selEquipo" title="Filtrar por equipo/máquina"><option value="">🖥 Equipo · todos</option></select>
-    <select id="selOrden" title="Ordenar por antigüedad">
-      <option value="recientes">⏱ Recientes primero</option>
-      <option value="antiguas">⏱ Antiguas primero</option>
+    <select id="selOrden" title="Ordenar por fecha de misión">
+      <option value="recientes">📅 Fecha · recientes primero</option>
+      <option value="antiguas">📅 Fecha · antiguas primero</option>
     </select>
     <input id="busca" type="search" placeholder="🔎 Buscar misión…" title="Buscar en título, id, agente y equipo">
   </div>
@@ -98,7 +98,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
-  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r9</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r10</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -108,7 +108,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r6"></script>
+<script src="/yk-misiones.js?v=r7"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 let FILTER="activas";

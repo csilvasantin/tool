@@ -48,6 +48,15 @@
     var m = Math.round(left / 60000);
     return "SLA " + (m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + "m");
   }
+  // Fecha ABSOLUTA de la misión (dd/mm hh:mm) — el «hace X» relativo se queda,
+  // pero la tarjeta pinta también la fecha real (pedido Carlos, 2026-07-15).
+  function fechaCorta(ms) {
+    if (!ms) return "";
+    var d = new Date(ms > 4102444800 ? ms : ms * 1000);
+    if (isNaN(d)) return "";
+    var p = function (n) { return (n < 10 ? "0" : "") + n; };
+    return p(d.getDate()) + "/" + p(d.getMonth() + 1) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
 
   function init(opts) {
     opts = opts || {};
@@ -110,7 +119,7 @@
         '<div class="tkid">' + esc(t.id) + '<span class="st">' + (t.source === "agent-iot" ? "🤖 Agente IoT" : "👤 Manual") + "</span>" +
           (maq ? '<span class="mach">🖥 ' + esc(maq) + "</span>" : '<span class="mach dim">🖥 sin máquina</span>') + "</div>" +
         '<div class="subj"><div class="t">' + esc(t.subject) + '</div><div class="m"><span class="scr">' + esc(t.screen) + "</span>" +
-          (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span></div></div>" +
+          (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + '<span class="fch" title="fecha de la misión">📅 ' + fechaCorta(t.created_at) + "</span><span>" + ago(t.created_at) + "</span></div></div>" +
         '<div class="right">' + (t.status === "open" ? '<span class="sla">' + slaLeft(t.created_at) + "</span>" : "") +
           '<span class="who">👷 ' + esc(t.assignee) + '</span><span class="badge ' + sb + '"><i></i>' + stt + "</span>" +
           '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a></div>' +
