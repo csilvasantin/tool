@@ -144,8 +144,16 @@
   var COLVARS = { id: "--c-id", fch: "--c-fch", who: "--c-who", est: "--c-est", abrir: "--c-abrir" };
   function initColResize() {
     if (initColResize._done) return; initColResize._done = true;
+    // Tope RELATIVO al ancho de la lista: ninguna columna puede pasar del 35%
+    // (dejaría a la misión sin carril y el contenido invadía la columna vecina).
+    function tope() {
+      var l = document.querySelector(".list");
+      return l ? Math.max(160, Math.round(l.getBoundingClientRect().width * 0.35)) : 420;
+    }
     var saved = {}; try { saved = JSON.parse(localStorage.getItem("yk_cols") || "{}"); } catch (e) {}
-    for (var k in saved) if (COLVARS[k] && saved[k] > 0) document.documentElement.style.setProperty(COLVARS[k], saved[k] + "px");
+    for (var k in saved) if (COLVARS[k] && saved[k] > 0) {
+      document.documentElement.style.setProperty(COLVARS[k], Math.max(56, Math.min(tope(), saved[k])) + "px");
+    }
     var drag = null;
     document.addEventListener("mousedown", function (e) {
       var h = e.target && e.target.closest && e.target.closest(".rz"); if (!h) return;
@@ -160,7 +168,7 @@
       if (!drag) return;
       var dx = e.clientX - drag.x;
       var w = Math.round(drag.side === "r" ? drag.w + dx : drag.w - dx);
-      document.documentElement.style.setProperty(COLVARS[drag.col], Math.max(56, Math.min(520, w)) + "px");
+      document.documentElement.style.setProperty(COLVARS[drag.col], Math.max(56, Math.min(tope(), w)) + "px");
     });
     document.addEventListener("mouseup", function () {
       if (!drag) return;
