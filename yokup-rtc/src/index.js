@@ -510,7 +510,7 @@ async function fleetSync(env) {
     const id = "FLT-" + it.id;
     const st = FLEET_ST[it.status] || "open";
     const ts = epochMs(it.ts, now);
-    const prev = await env.DB.prepare("SELECT id,status FROM tickets WHERE id=?").bind(id).first();
+    const prev = await env.DB.prepare("SELECT id,status,assignee,loc FROM tickets WHERE id=?").bind(id).first();
     if (!prev) {
       // ANTI-RESURRECCIÓN: un encargo ya cerrado que nunca fue ticket NO nace como
       // ticket resuelto (la ventana de done de 7 días del public/inbox revivía como
@@ -526,10 +526,15 @@ async function fleetSync(env) {
       // El texto íntegro del encargo queda como primer evento de la misión.
       await addEvent(env, id, "log", it.from_name || "Carlos", String(it.text || ""));
       created++;
-    } else if (prev.status !== st) {
-      await env.DB.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=? WHERE id=?")
-        .bind(st, now, st === "resolved" ? now : null, id).run();
-      updated++;
+    } else {
+      // Propaga también los cambios de ASIGNACIÓN (reasignar agente/máquina desde
+      // la vista detalle actualiza el encargo; el ticket debe reflejarlo).
+      const asig = it.target_persona || "", loc = it.target_machine || "";
+      if (prev.status !== st || prev.assignee !== asig || (prev.loc || "") !== loc) {
+        await env.DB.prepare("UPDATE tickets SET status=?, assignee=?, loc=?, screen=?, updated_at=?, resolved_at=? WHERE id=?")
+          .bind(st, asig, loc, fleetScreen(it), now, st === "resolved" ? now : null, id).run();
+        updated++;
+      }
     }
   }
   return { ok: true, seen: items.length, created, updated };

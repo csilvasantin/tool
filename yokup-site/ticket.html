@@ -30,6 +30,12 @@ h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
 .b-res{color:var(--good);border:1px solid rgba(136,255,170,.35)}.b-res i{background:var(--good)}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}
 .btn{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:11px 15px;border-radius:10px;border:1px solid var(--line2);color:var(--ink);background:rgba(10,22,32,.6);cursor:pointer;transition:.2s;text-decoration:none;display:inline-block}
+.asig{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:18px;background:var(--card)}
+.asig h3{font-size:13px;margin-bottom:10px}
+.asig .crow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.asig select{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:9px;padding:9px 10px;cursor:pointer;max-width:260px}
+.asig .rmsg{font-family:var(--mono);font-size:11px;color:var(--mut)}
+.asig .rhint{font-size:12px;color:var(--dim);margin-top:9px;line-height:1.5}
 .btn:hover{border-color:var(--brand);color:var(--brand)}
 .btn.live{background:var(--accent);color:#1a1200;border-color:var(--accent)}.btn.live:hover{background:#ffe49a}
 .btn.res{border-color:rgba(136,255,170,.4);color:var(--good)}.btn.ai{border-color:rgba(170,136,255,.4);color:var(--violet)}
@@ -55,7 +61,8 @@ h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
 <body data-yk-title="TICKET">
 <div class="wrap">
   <nav>
-    <a href="/incidencias" class="back">← Bandeja</a>
+    <!-- Volver a la bandeja de ORIGEN: misiones de flota (FLT-) o incidencias (INC-) -->
+    <a href="/incidencias" class="back" id="backLink">← Bandeja</a>
   </nav>
   <div id="root"><div class="load">Cargando ticket…</div></div>
 
@@ -66,10 +73,18 @@ h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa «ticket JSON» para volcar la entidad cruda del worker.</pre>
 </div>
 
+<!-- yk-misiones aporta canonMachine (nombres canónicos de máquina) al selector de asignación -->
+<script src="/yk-misiones.js?v=r11"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
+const TG="https://admira-telegram.csilvasantin.workers.dev";
+const NAV="https://admira-navegadores.csilvasantin.workers.dev";
 const id=new URLSearchParams(location.search).get("id")||"";
+const esFlota=/^FLT-\d+$/.test(id);
 const $=x=>document.getElementById(x);
+// volver a la bandeja de ORIGEN (Carlos, 2026-07-15: abrías una misión y volvías a incidencias)
+document.getElementById("backLink").href=esFlota?"/misiones":"/incidencias";
+document.getElementById("backLink").textContent=esFlota?"← Misiones":"← Incidencias";
 function ago(ms){ if(!ms)return"—"; let s=Math.round((Date.now()-ms)/1000); if(s<60)return s+"s"; if(s<3600)return Math.round(s/60)+"m"; if(s<86400)return Math.round(s/3600)+"h"; return Math.round(s/86400)+"d"; }
 function hm(ms){ return new Date(ms).toTimeString().slice(0,5); }
 function esc(x){ return String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c])); }
@@ -99,6 +114,17 @@ async function render(){
       <button class="btn ai" onclick="summary()">🧠 Resumen IA</button>
       <a class="btn" href="https://admira.tv/cms.html" target="_blank" rel="noopener">admira.tv ↗</a>
     </div>
+    ${esFlota?`
+    <div class="asig">
+      <h3>🧭 Asignación</h3>
+      <div class="crow">
+        <select id="rAgente"><option value="__keep">🤖 Agente · sin cambiar</option></select>
+        <select id="rEquipo"><option value="__keep">🖥 Equipo · sin cambiar</option></select>
+        <button class="btn" onclick="reasignar()">Reasignar</button>
+        <span class="rmsg" id="rMsg"></span>
+      </div>
+      <p class="rhint">Actual: 👷 ${esc(t.assignee||"sin agente")} · 🖥 ${esc(t.loc||"sin equipo")}. Al reasignar, la misión vuelve a «Asignada» (o «Sin asignar») y el destinatario la recibe en su bot-inbox.</p>
+    </div>`:""}
     <div class="sum" id="sum"><h4>🧠 Resumen IA</h4><p id="sumtext"></p></div>
     <div class="tl">${ev.map(e=>`<div class="ev ${esc(e.kind)}"><div class="eh"><b>${esc(e.author)}</b><span>${hm(e.ts)}</span></div><div class="et">${esc(e.text)}</div></div>`).join("")||'<div class="load">Sin actividad.</div>'}</div>
     <div class="composer">
@@ -110,7 +136,50 @@ async function render(){
       </div>
     </div>
     <div class="foot">Yokup · ticket persistido en <b>D1</b> · IA <b>Workers AI</b></div>`;
+  if(esFlota) llenaAsig();
 }
+
+// ---- REASIGNACIÓN (solo misiones de flota FLT-) -----------------------------
+// Agentes principales + máquinas vivas (presence + executor de navegadores).
+const AGENTES=["Neo","Morfeo","Trinity","Oráculo","Smith","WhiteRabbit"];
+const esPrincipal=p=>!/^(sub|infra)/i.test(p)&&p!=="Cypher";
+async function llenaAsig(){
+  try{
+    const [pr,nav]=await Promise.all([
+      fetch(TG+"/api/presence",{cache:"no-store"}).then(r=>r.json()).catch(()=>({presence:[]})),
+      fetch(NAV+"/api/browsers",{cache:"no-store"}).then(r=>r.json()).catch(()=>({browsers:[]}))
+    ]);
+    const personas=[...new Set([...AGENTES,...(pr.presence||[]).map(p=>p.persona).filter(p=>p&&esPrincipal(p))])];
+    const maqs={};
+    for(const p of (pr.presence||[])) if(p.machine) maqs[YkMisiones.canonMachine(p.machine)]=p.machine;
+    for(const b of (nav.browsers||[])){
+      const raw=b.machine||"";
+      if(!raw||/obsoleto|probe|ident|verify|pendiente|huella|\bno\b/i.test(raw)) continue;
+      if((Date.now()-(b.ts||0))>900000) continue;
+      const c=YkMisiones.canonMachine(raw); if(!maqs[c]) maqs[c]=raw;
+    }
+    $("rAgente").innerHTML='<option value="__keep">🤖 Agente · sin cambiar</option><option value="">— sin agente</option>'+
+      personas.map(p=>'<option value="'+esc(p)+'">'+esc(p)+'</option>').join("");
+    $("rEquipo").innerHTML='<option value="__keep">🖥 Equipo · sin cambiar</option><option value="">— sin equipo</option>'+
+      Object.entries(maqs).sort((a,b)=>a[0].localeCompare(b[0])).map(([c,raw])=>'<option value="'+esc(raw)+'">'+esc(c)+'</option>').join("");
+  }catch(e){}
+}
+window.reasignar=async()=>{
+  const a=$("rAgente").value, m=$("rEquipo").value, msg=$("rMsg");
+  const body={by:"yokup-ticket"};
+  if(a!=="__keep") body.persona=a;
+  if(m!=="__keep") body.machine=m;
+  if(!("persona" in body)&&!("machine" in body)){ msg.textContent="elige agente y/o equipo"; return; }
+  msg.textContent="reasignando…";
+  try{
+    const num=id.replace(/^FLT-/,"");
+    const r=await fetch(TG+"/api/bot-inbox/"+num+"/reassign",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||"error "+r.status);
+    await fetch(WORKER+"/fleet/sync",{method:"POST"}).catch(()=>{});
+    msg.textContent="✓ reasignada"; render();
+  }catch(err){ msg.textContent="✗ "+(err&&err.message||err); }
+};
 window.setStatus=async(s)=>{ await fetch(WORKER+"/ticket/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id,status:s,author:"Técnico"})}); render(); };
 window.addNote=async()=>{ const v=$("note").value.trim(); if(!v)return; await fetch(WORKER+"/ticket/note",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id,author:"Técnico",text:v})}); $("note").value=""; render(); };
 window.summary=async()=>{ $("sum").classList.add("show"); $("sumtext").textContent="Generando resumen…"; try{ const r=await fetch(WORKER+"/ai-summary",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id})}); const d=await r.json(); $("sumtext").textContent=d.text||"Sin resumen."; }catch(e){ $("sumtext").textContent="No disponible."; } };
