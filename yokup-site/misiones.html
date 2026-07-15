@@ -84,7 +84,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
-  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r1</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r2</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -128,12 +128,19 @@ load(); setInterval(load,12000);
 
 // ---- ALTA de misiones de flota ---------------------------------------------
 // La misión nace como ENCARGO del bot-inbox (admira-telegram); yokup-rtc la
-// reconcilia a ticket FLT-<id>. "Libre" = con latido de presencia reciente
-// (<15 min) y menos encargos abiertos (pending/ack/in_progress) en el inbox.
+// reconcilia a ticket FLT-<id>. El selector desglosa cada persona en SUS
+// máquinas (parejas vistas en /api/presence, 🟢 = latido <15 min) con las
+// encargos abiertos por pareja. "Libre" = pareja online con menos abiertas
+// (de persona y de pareja). El alta fija target_persona Y target_machine
+// (el routing por máquina del worker hace el resto).
 const TG="https://admira-telegram.csilvasantin.workers.dev";
-const AGENTES=["Neo","Morfeo","Trinity","Oráculo","Smith","White Rabbit"];
+const AGENTES=["Neo","Morfeo","Trinity","Oráculo","Smith","WhiteRabbit"];
+// Solo agentes PRINCIPALES: los sub*/infra* los gobierna su principal (no se les
+// asignan misiones desde aquí) y Cypher es el nombre legado de Smith.
+const esPrincipal=p=>!/^(sub|infra)/i.test(p)&&p!=="Cypher";
 const esc=s=>String(s).replace(/[<>&"]/g,"");
-let ONLINE=new Set(), CARGA={}, LIBRE=null;
+const normM=s=>String(s||"").toLowerCase().replace(/[\s·._-]+/g,"");
+let MAQS={}, CARGA_P={}, CARGA_PM={}, LIBRE=null;   // MAQS: persona -> {maq:{online,norm}}
 
 async function radar(){
   try{
@@ -142,35 +149,64 @@ async function radar(){
       fetch(TG+"/api/public/inbox",{cache:"no-store"}).then(r=>r.json())
     ]);
     const now=Date.now()/1000;
-    ONLINE=new Set((pr.presence||[]).filter(p=>p.persona&&(now-(p.updated||0))<900).map(p=>p.persona));
-    CARGA={};
+    MAQS={};
+    for(const p of (pr.presence||[])){
+      if(!p.persona||!p.machine||!esPrincipal(p.persona)) continue;
+      (MAQS[p.persona]=MAQS[p.persona]||{});
+      const m=MAQS[p.persona][p.machine]=MAQS[p.persona][p.machine]||{online:false,norm:normM(p.machine)};
+      if((now-(p.updated||0))<900) m.online=true;
+    }
+    CARGA_P={}; CARGA_PM={};
     for(const it of (ib.items||[])){
       if(!it.target_persona||it.status==="done") continue;
-      CARGA[it.target_persona]=(CARGA[it.target_persona]||0)+1;
+      CARGA_P[it.target_persona]=(CARGA_P[it.target_persona]||0)+1;
+      if(it.target_machine) {
+        const k=it.target_persona+"|"+normM(it.target_machine);
+        CARGA_PM[k]=(CARGA_PM[k]||0)+1;
+      }
     }
   }catch(e){ /* sin red: se mantiene el último radar */ }
-  const univ=[...new Set([...AGENTES,...ONLINE])];
-  const rank=p=>[ONLINE.has(p)?0:1, CARGA[p]||0, univ.indexOf(p)];
-  LIBRE=univ.slice().sort((a,b)=>{const A=rank(a),B=rank(b);return A[0]-B[0]||A[1]-B[1]||A[2]-B[2];})[0]||"Neo";
+  const univ=[...new Set([...AGENTES,...Object.keys(MAQS)])];
+  // mejor pareja online: menos abiertas de pareja, luego menos de persona
+  let best=null;
+  const menor=(a,b)=>a[0]!==b[0]?a[0]<b[0]:(a[1]!==b[1]?a[1]<b[1]:a[2]<b[2]);
+  for(const p of univ) for(const [maq,i] of Object.entries(MAQS[p]||{})){
+    if(!i.online) continue;
+    const key=[CARGA_PM[p+"|"+i.norm]||0, CARGA_P[p]||0, univ.indexOf(p)];
+    if(!best||menor(key,best.key)) best={p,maq,key};
+  }
+  LIBRE=best?{p:best.p,maq:best.maq}:{p:univ[0]||"Neo",maq:""};
   const sel=$("altaAgente"), keep=sel.value;
-  sel.innerHTML='<option value="">🎯 Auto · libre: '+esc(LIBRE)+'</option>'+
-    univ.map(p=>'<option value="'+esc(p)+'">'+(ONLINE.has(p)?"🟢":"⚪")+' '+esc(p)+' · '+(CARGA[p]||0)+' abiertas</option>').join("");
-  sel.value=keep;
+  let html='<option value="">🎯 Auto · libre: '+esc(LIBRE.p)+(LIBRE.maq?" · "+esc(LIBRE.maq):"")+'</option>';
+  for(const p of univ){
+    const maqs=Object.entries(MAQS[p]||{});
+    const on=maqs.some(([,i])=>i.online);
+    html+='<optgroup label="'+(on?"🟢":"⚪")+' '+esc(p)+' · '+(CARGA_P[p]||0)+' abiertas">';
+    html+='<option value="'+esc(p)+'|">'+esc(p)+' · cualquier máquina</option>';
+    for(const [maq,i] of maqs.sort((a,b)=>(b[1].online-a[1].online)||a[0].localeCompare(b[0]))){
+      html+='<option value="'+esc(p)+'|'+esc(maq)+'">'+(i.online?"🟢":"⚪")+' '+esc(p)+' en '+esc(maq)+' · '+(CARGA_PM[p+"|"+i.norm]||0)+' abiertas</option>';
+    }
+    html+='</optgroup>';
+  }
+  sel.innerHTML=html;
+  sel.value=keep&&[...sel.options].some(o=>o.value===keep)?keep:"";
 }
 
 $("alta").onsubmit=async e=>{
   e.preventDefault();
   const txt=$("altaTxt").value.trim(); if(!txt) return;
-  const persona=$("altaAgente").value||LIBRE||"Neo";
+  const v=$("altaAgente").value;
+  const persona=v?v.split("|")[0]:(LIBRE&&LIBRE.p)||"Neo";
+  const maquina=v?(v.split("|")[1]||""):(LIBRE&&LIBRE.maq)||"";
   const go=document.querySelector(".alta-go"), msg=$("altaMsg");
   go.disabled=true; msg.className="alta-msg"; msg.textContent="Dando de alta…";
   try{
     const r=await fetch(TG+"/api/bot-inbox",{method:"POST",headers:{"content-type":"application/json"},
-      body:JSON.stringify({target_persona:persona,text:txt,from:"yokup-misiones"})});
+      body:JSON.stringify({target_persona:persona,target_machine:maquina,text:txt,from:"yokup-misiones"})});
     const d=await r.json();
     if(!d.ok) throw new Error(d.error||"error "+r.status);
     await fetch(WORKER+"/fleet/sync",{method:"POST"}).catch(()=>{});
-    msg.className="alta-msg ok"; msg.textContent="✓ FLT-"+d.id+" dada de alta y asignada a "+persona;
+    msg.className="alta-msg ok"; msg.textContent="✓ FLT-"+d.id+" dada de alta y asignada a "+persona+(maquina?" en "+maquina:"");
     $("altaTxt").value=""; radar(); load();
   }catch(err){
     msg.className="alta-msg err"; msg.textContent="✗ no se pudo crear: "+esc(err&&err.message||err);
