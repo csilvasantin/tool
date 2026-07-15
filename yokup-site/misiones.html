@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r8">
-<link rel="stylesheet" href="/yk-misiones.css?v=r3">
+<link rel="stylesheet" href="/yk-misiones.css?v=r4">
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -69,13 +69,12 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
     <div class="alta-msg" id="altaMsg"></div>
   </form>
 
-  <!-- ÁMBITO + SELECTORES/ORDENADORES en una sola línea (Carlos, 2026-07-15).
+  <!-- SELECTORES/ORDENADORES + BUSCADOR en una sola línea (Carlos, 2026-07-15).
+       Misiones = SOLO flota·agentes: el ámbito campo·pantallas se fue con su
+       botón (las incidencias viven en /incidencias) y el buscador subió aquí.
        Los selectores solo ofrecen agentes/equipos CON misiones en el contexto
        actual, cruzados entre sí (sin combinaciones vacías). -->
   <div class="tabs" id="scopeTabs">
-    <button class="tab on" data-s="fleet">🤖 Flota · agentes</button>
-    <button class="tab" data-s="campo">🏗️ Campo · pantallas</button>
-    <button class="tab" data-s="todas">Todas</button>
     <select id="selAgente" title="Filtrar por agente"><option value="">🤖 Agente · todos</option></select>
     <select id="selEquipo" title="Filtrar por equipo/máquina"><option value="">🖥 Equipo · todos</option></select>
     <select id="selOrden" title="Ordenar por fecha de misión">
@@ -98,7 +97,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
-  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r11</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r12</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -108,7 +107,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r8"></script>
+<script src="/yk-misiones.js?v=r9"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 let FILTER="activas";
@@ -164,11 +163,6 @@ let buscaT; $("busca").oninput=()=>{ clearTimeout(buscaT); buscaT=setTimeout(loa
 document.querySelectorAll('[data-yk-slot="left"] .tab').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('[data-yk-slot="left"] .tab').forEach(x=>x.classList.remove("on"));
   b.classList.add("on"); FILTER=b.dataset.f; load();
-});
-// ámbito: flota (agentes) / campo (pantallas) / todas
-document.querySelectorAll('#scopeTabs .tab').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('#scopeTabs .tab').forEach(x=>x.classList.remove("on"));
-  b.classList.add("on"); SCOPE=b.dataset.s; load();
 });
 load(); setInterval(load,12000);
 

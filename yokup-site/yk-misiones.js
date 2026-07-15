@@ -113,25 +113,62 @@
     var sb = t.status === "open" ? "b-open" : (t.status === "resolved" ? "b-res" : "b-prog");
     var stt = t.status === "open" ? "Abierta" : (t.status === "resolved" ? "Resuelta" : "En curso");
     var maq = machineOf(t);
+    // COLUMNAS con separador vertical sutil y REDIMENSIONABLES (Carlos, 2026-07-15):
+    // cada .rz es la línea divisoria — se arrastra y ajusta la variable CSS de SU
+    // columna (--c-*) para TODAS las tarjetas a la vez; se persiste en localStorage.
+    var rz = function (col, side) { return '<span class="rz" data-col="' + col + '"' + (side ? ' data-side="' + side + '"' : "") + ' title="⇔ arrastra para redimensionar"></span>'; };
     return '<div class="tk ' + (t.status === "open" ? "open" : "") + " " + (t.id === SELECTED ? "sel" : "") + '" data-id="' + esc(t.id) + '">' +
       '<div class="hd">' +
         '<div class="pri ' + esc(t.priority) + '"></div>' +
         '<div class="tkid">' + esc(t.id) + '<span class="st">' + (t.source === "agent-iot" ? "🤖 Agente IoT" : "👤 Manual") + "</span>" +
           (maq ? '<span class="mach">🖥 ' + esc(maq) + "</span>" : '<span class="mach dim">🖥 sin máquina</span>') + "</div>" +
-        '<div class="subj"><div class="t">' + esc(t.subject) + '</div><div class="m"><span class="scr">' + esc(t.screen) + "</span>" +
+        '<div class="subj">' + rz("id", "r") + '<div class="t">' + esc(t.subject) + '</div><div class="m"><span class="scr">' + esc(t.screen) + "</span>" +
           (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span></div></div>" +
-        '<div class="right"><span class="rtiempo"><span class="fch2" title="fecha de creación de la misión">📅 ' + fechaCorta(t.created_at) + "</span>" +
-          (t.status === "open" ? '<span class="sla">' + slaLeft(t.created_at) + "</span>" : "") + "</span>" +
-          '<span class="who">👷 ' + esc(t.assignee) + '</span><span class="badge ' + sb + '"><i></i>' + stt + "</span>" +
-          '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a></div>' +
+        '<div class="cel rtiempo">' + rz("fch") + '<span class="fch2" title="fecha de creación de la misión">📅 ' + fechaCorta(t.created_at) + "</span>" +
+          (t.status === "open" ? '<span class="sla">' + slaLeft(t.created_at) + "</span>" : "") + "</div>" +
+        '<div class="cel">' + rz("who") + '<span class="who">👷 ' + esc(t.assignee) + "</span></div>" +
+        '<div class="cel">' + rz("est") + '<span class="badge ' + sb + '"><i></i>' + stt + "</span></div>" +
+        '<div class="cel">' + rz("abrir") + '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a></div>' +
       "</div></div>";
+  }
+
+  // ---- Redimensionado de columnas de la lista -------------------------------
+  var COLVARS = { id: "--c-id", fch: "--c-fch", who: "--c-who", est: "--c-est", abrir: "--c-abrir" };
+  function initColResize() {
+    if (initColResize._done) return; initColResize._done = true;
+    var saved = {}; try { saved = JSON.parse(localStorage.getItem("yk_cols") || "{}"); } catch (e) {}
+    for (var k in saved) if (COLVARS[k] && saved[k] > 0) document.documentElement.style.setProperty(COLVARS[k], saved[k] + "px");
+    var drag = null;
+    document.addEventListener("mousedown", function (e) {
+      var h = e.target && e.target.closest && e.target.closest(".rz"); if (!h) return;
+      e.preventDefault(); e.stopPropagation();
+      var col = h.dataset.col;
+      var cur = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(COLVARS[col]));
+      if (!cur) { var cell = h.parentElement; cur = cell ? cell.getBoundingClientRect().width : 120; }
+      drag = { col: col, side: h.dataset.side || "l", x: e.clientX, w: cur };
+      document.body.style.cursor = "col-resize";
+    }, true);
+    document.addEventListener("mousemove", function (e) {
+      if (!drag) return;
+      var dx = e.clientX - drag.x;
+      var w = Math.round(drag.side === "r" ? drag.w + dx : drag.w - dx);
+      document.documentElement.style.setProperty(COLVARS[drag.col], Math.max(56, Math.min(520, w)) + "px");
+    });
+    document.addEventListener("mouseup", function () {
+      if (!drag) return;
+      var out = {};
+      for (var k in COLVARS) { var v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(COLVARS[k])); if (v) out[k] = v; }
+      try { localStorage.setItem("yk_cols", JSON.stringify(out)); } catch (e) {}
+      drag = null; document.body.style.cursor = "";
+    });
   }
 
   // click en la fila = seleccionar misión (el enlace «abrir →» sigue navegando)
   function bindRows(container) {
+    initColResize();
     (container || document).querySelectorAll(".tk").forEach(function (row) {
       row.addEventListener("click", function (e) {
-        if (e.target.closest(".tkopen")) return;
+        if (e.target.closest(".tkopen") || e.target.closest(".rz")) return;
         selectMission(row.dataset.id);
       });
     });

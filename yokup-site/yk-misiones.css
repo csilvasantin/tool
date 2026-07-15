@@ -13,24 +13,33 @@
 .tk.open{border-left:3px solid var(--warn)}
 /* MISIÓN activa: la fila se resalta (borde/glow cian) al seleccionarla. */
 .tk.sel{border-left:3px solid var(--brand);background:var(--card2);box-shadow:inset 0 0 0 1px rgba(120,243,255,.45),0 0 18px rgba(120,243,255,.22)}
-.hd{display:grid;grid-template-columns:8px 96px 1fr auto;gap:14px;align-items:center;padding:14px 16px}
+/* Rejilla de COLUMNAS compartida por todas las filas: anchos en variables --c-*
+ * (el sujeto absorbe el resto). Las líneas divisorias .rz son arrastrables. */
+.hd{display:grid;grid-template-columns:8px var(--c-id,120px) minmax(0,1fr) var(--c-fch,140px) var(--c-who,150px) var(--c-est,118px) var(--c-abrir,92px);gap:0;align-items:center;padding:14px 16px}
 .pri{width:8px;height:8px;border-radius:50%}.pri.urgente{background:var(--warn);box-shadow:0 0 10px var(--warn)}.pri.alta{background:var(--accent)}.pri.media,.pri.baja{background:var(--good);opacity:.5}
 .tkid{font-family:var(--mono);font-size:12px;color:var(--brand)}.tkid .st{display:block;font-size:9.5px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase;margin-top:3px}
 .tkid .mach{display:block;font-size:9.5px;color:var(--mut);letter-spacing:.04em;margin-top:2px}.tkid .mach.dim{color:var(--dim)}
+.tkid{padding-right:10px}
+.subj{position:relative;padding:0 14px;align-self:stretch;display:flex;flex-direction:column;justify-content:center}
 .subj .t{font-size:14.5px;font-weight:600;color:var(--ink)}.subj .m{font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap}.subj .m .scr{color:var(--brand)}
-.right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+.cel{position:relative;align-self:stretch;display:flex;align-items:center;justify-content:flex-end;padding:0 12px;min-width:0}
+.cel .who,.cel .badge{overflow:hidden;text-overflow:ellipsis}
+/* Divisor vertical SUTIL y arrastrable (col-resize). Al pasar el ratón, se enciende. */
+.rz{position:absolute;left:0;top:-8px;bottom:-8px;width:9px;cursor:col-resize;z-index:2}
+.rz::before{content:"";position:absolute;left:4px;top:0;bottom:0;width:1px;background:rgba(120,243,255,.10)}
+.rz:hover::before{background:rgba(120,243,255,.5);box-shadow:0 0 6px rgba(120,243,255,.35)}
 .badge{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:5px 9px;border-radius:999px;white-space:nowrap;display:flex;align-items:center;gap:6px}.badge i{width:6px;height:6px;border-radius:50%}
 .b-open{color:var(--warn);border:1px solid rgba(255,136,102,.5);background:rgba(255,136,102,.08)}.b-open i{background:var(--warn);animation:ykm-blink 1s infinite}
 .b-prog{color:var(--accent);border:1px solid rgba(255,216,102,.4);background:rgba(255,216,102,.06)}.b-prog i{background:var(--accent)}
 .b-res{color:var(--good);border:1px solid rgba(136,255,170,.35);background:rgba(136,255,170,.06)}.b-res i{background:var(--good)}
 .sla{font-family:var(--mono);font-size:10.5px;color:var(--warn)}.who{font-family:var(--mono);font-size:10.5px;color:var(--mut)}
-.rtiempo{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.cel.rtiempo{flex-direction:column;justify-content:center;align-items:flex-end;gap:3px}
 .fch2{font-family:var(--mono);font-size:10.5px;color:var(--mut);white-space:nowrap}
 .empty{padding:36px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
 .tkopen{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--brand);border:1px solid var(--line2);border-radius:7px;padding:4px 9px;text-decoration:none;white-space:nowrap}
 .tkopen:hover{background:rgba(120,243,255,.12)}
 @keyframes ykm-blink{0%,100%{opacity:1}50%{opacity:.3}}
-@media(max-width:720px){.hd{grid-template-columns:8px 1fr}.tkid,.right{grid-column:2}.right{justify-content:flex-start}}
+@media(max-width:720px){.hd{grid-template-columns:8px 1fr;gap:6px}.tkid,.subj,.cel{grid-column:2}.subj{padding:0}.cel{justify-content:flex-start;padding:2px 0}.cel.rtiempo{align-items:flex-start}.rz{display:none}}
 
 /* ------- Árbol de TAREAS abc/123 ------- */
 .tree{font-family:var(--mono)}
