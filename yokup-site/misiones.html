@@ -35,10 +35,21 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .alta-go:disabled{opacity:.5;cursor:wait}
 .alta-msg{flex-basis:100%;font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--dim);min-height:14px}
 .alta-msg.ok{color:var(--good)}.alta-msg.err{color:var(--warn)}
+.orden{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.orden select{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 10px;cursor:pointer;max-width:260px}
+.orden select.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
 </style>
 </head>
 <body data-yk-title="MISIONES" data-yk-rail-left="MISIONES" data-yk-rail-right="TAREAS" data-yk-zone="app">
 <div class="wrap">
+  <!-- DATOS GENERALES arriba del todo (Carlos, 2026-07-15) -->
+  <div class="kpis">
+    <div class="kpi a"><b id="kOpen">—</b> activas</div>
+    <div class="kpi b"><b id="kProg">—</b> en curso</div>
+    <div class="kpi c"><b id="kRes">—</b> concluidas</div>
+    <div class="kpi"><b id="kMttr">—</b> t. medio de conclusión</div>
+  </div>
+
   <h1>Misiones</h1>
   <p class="sub">Lo que hay que hacer. Cada misión se descompone en <b>tareas</b> a/b/c (hasta 3 subtareas por paso, máx 9): el arquitecto y el agente principal definen el plan, los <b>subagentes</b> ⚙️ lo ejecutan y los <b>infraagentes</b> 📝 reportan. Las misiones de la <b>flota</b> son los encargos a los agentes (se ven vivos en <a href="https://www.admira.live/status/" target="_blank" rel="noopener" style="color:var(--brand)">admira.live/status</a>); las de <b>campo</b>, las incidencias de pantallas.</p>
 
@@ -64,11 +75,15 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
     <button class="tab" data-s="todas">Todas</button>
   </div>
 
-  <div class="kpis">
-    <div class="kpi a"><b id="kOpen">—</b> activas</div>
-    <div class="kpi b"><b id="kProg">—</b> en curso</div>
-    <div class="kpi c"><b id="kRes">—</b> concluidas</div>
-    <div class="kpi"><b id="kMttr">—</b> t. medio de conclusión</div>
+  <!-- SELECTORES/ORDENADORES (donde estaban los KPIs): por agente, por equipo
+       (máquina, misma extracción que la tarjeta) y por antigüedad. -->
+  <div class="orden">
+    <select id="selAgente" title="Filtrar por agente"><option value="">🤖 Agente · todos</option></select>
+    <select id="selEquipo" title="Filtrar por equipo/máquina"><option value="">🖥 Equipo · todos</option></select>
+    <select id="selOrden" title="Ordenar por antigüedad">
+      <option value="recientes">⏱ Recientes primero</option>
+      <option value="antiguas">⏱ Antiguas primero</option>
+    </select>
   </div>
 
   <!-- Raíl MISIONES: filtros. Raíl TAREAS: árbol de la misión seleccionada. -->
@@ -84,7 +99,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
-  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r3</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r4</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -94,7 +109,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r2"></script>
+<script src="/yk-misiones.js?v=r3"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 let FILTER="activas";
@@ -102,18 +117,35 @@ let SCOPE="fleet";     // ámbito por defecto: el trabajo de los agentes
 const $=id=>document.getElementById(id);
 YkMisiones.init({worker:WORKER, treeId:"taskTree"});
 
+// Rellena un selector con opciones únicas conservando la elección actual.
+function llenaSel(id, etiqueta, valores){
+  const sel=$(id), keep=sel.value;
+  sel.innerHTML='<option value="">'+etiqueta+'</option>'+
+    valores.map(v=>'<option value="'+v.replace(/[<>&"]/g,"")+'">'+v.replace(/[<>&"]/g,"")+'</option>').join("");
+  sel.value=[...sel.options].some(o=>o.value===keep)?keep:"";
+  sel.classList.toggle("on",!!sel.value);
+}
+
 async function load(){
   let d; try{ const r=await fetch(WORKER+"/tickets?scope="+SCOPE,{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
   const tks=d.tickets||[], st=d.stats||{};
   $("kOpen").textContent=st.open??"—"; $("kProg").textContent=st.in_progress??"—"; $("kRes").textContent=st.resolved??"—"; $("kMttr").textContent=(st.mttr!=null?st.mttr+" min":"—");
+  // selectores por agente y por equipo (máquina), a partir de lo que hay
+  llenaSel("selAgente","🤖 Agente · todos",[...new Set(tks.map(t=>t.assignee).filter(Boolean))].sort());
+  llenaSel("selEquipo","🖥 Equipo · todos",[...new Set(tks.map(t=>YkMisiones.machineOf(t)).filter(Boolean))].sort());
   let list=tks;
-  if(FILTER==="activas") list=tks.filter(t=>t.status!=="resolved");
-  else if(FILTER!=="todas") list=tks.filter(t=>t.status===FILTER);
+  if(FILTER==="activas") list=list.filter(t=>t.status!=="resolved");
+  else if(FILTER!=="todas") list=list.filter(t=>t.status===FILTER);
+  if($("selAgente").value) list=list.filter(t=>t.assignee===$("selAgente").value);
+  if($("selEquipo").value) list=list.filter(t=>YkMisiones.machineOf(t)===$("selEquipo").value);
+  list=list.slice().sort((a,b)=>$("selOrden").value==="antiguas"?(a.created_at-b.created_at):(b.created_at-a.created_at));
   const el=$("list");
   if(!list.length){ el.innerHTML='<div class="empty">Sin misiones en este filtro ✓</div>'; return; }
   el.innerHTML=list.map(t=>YkMisiones.rowHtml(t)).join("");
   YkMisiones.bindRows(el);   // click=misión activa + refresco del árbol de tareas
 }
+// selectores/ordenadores: cualquier cambio repinta
+["selAgente","selEquipo","selOrden"].forEach(id=>$(id).onchange=()=>{ $(id).classList.toggle("on",!!$(id).value&&id!=="selOrden"); load(); });
 // filtros de estado (raíl izquierdo)
 document.querySelectorAll('[data-yk-slot="left"] .tab').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('[data-yk-slot="left"] .tab').forEach(x=>x.classList.remove("on"));

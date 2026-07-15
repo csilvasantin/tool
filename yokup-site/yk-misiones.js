@@ -57,15 +57,20 @@
   }
   function selected() { return SELECTED; }
 
+  // Máquina donde corre/se solventa la misión: loc (target_machine del encargo)
+  // o, en tickets de flota antiguos, incrustada en screen «Persona·Máquina #id».
+  // Exportada: la usan los selectores de /misiones para filtrar por equipo.
+  function machineOf(t) {
+    var maq = t.machine || t.loc || "";
+    if (!maq) { var mm = /^[^·]+·(.+?)\s+#\d+$/.exec(t.screen || ""); if (mm) maq = mm[1]; }
+    return maq === "?" ? "" : maq;
+  }
+
   // ------- fila de MISIÓN (idéntica en /incidencias y /misiones) -------
   function rowHtml(t) {
     var sb = t.status === "open" ? "b-open" : (t.status === "resolved" ? "b-res" : "b-prog");
     var stt = t.status === "open" ? "Abierta" : (t.status === "resolved" ? "Resuelta" : "En curso");
-    // Máquina donde corre/se solventa la misión: loc (target_machine del encargo)
-    // o, en tickets de flota antiguos, incrustada en screen «Persona·Máquina #id».
-    var maq = t.machine || t.loc || "";
-    if (!maq) { var mm = /^[^·]+·(.+?)\s+#\d+$/.exec(t.screen || ""); if (mm) maq = mm[1]; }
-    if (maq === "?") maq = "";
+    var maq = machineOf(t);
     return '<div class="tk ' + (t.status === "open" ? "open" : "") + " " + (t.id === SELECTED ? "sel" : "") + '" data-id="' + esc(t.id) + '">' +
       '<div class="hd">' +
         '<div class="pri ' + esc(t.priority) + '"></div>' +
@@ -176,7 +181,7 @@
 
   window.YkMisiones = {
     init: init, selected: selected, selectMission: selectMission,
-    rowHtml: rowHtml, bindRows: bindRows,
+    rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf,
     renderTaskTree: renderTaskTree, refreshTree: refreshTree,
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,
     nextStatus: nextStatus, postStatus: postStatus, postPlan: postPlan,
