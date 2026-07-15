@@ -34,6 +34,13 @@ binding = "AI"
 binding = "TELEGRAM"
 service = "admira-telegram"
 
+# ⚡ Nudge inmediato al CLI del agente: /fleet/nudge → admira-navegadores /api/cmd
+# (mismo subdominio workers.dev → binding para no hacer loopback). El Bearer va en
+# el secreto NAV_CMD_TOKEN (= NAV_EXECUTOR_TOKEN de la bóveda).
+[[services]]
+binding = "NAVEGADORES"
+service = "admira-navegadores"
+
 # Vectorize — base de conocimiento semántica de incidencias resueltas.
 [[vectorize]]
 binding = "VECTORIZE"

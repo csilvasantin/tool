@@ -203,7 +203,21 @@ window.reasignar=async()=>{
     const d=await r.json();
     if(!d.ok) throw new Error(d.error||"error "+r.status);
     await fetch(WORKER+"/fleet/sync",{method:"POST"}).catch(()=>{});
-    msg.textContent="✓ reasignada — le llega por su bot-inbox y el watcher de la máquina la inyecta en su CLI"+nota;
+    // ⚡ REAL-TIME: si la misión tiene máquina, inyección INMEDIATA en el CLI del
+    // agente vía /fleet/nudge (executor local, ~5s) — el bot-inbox queda de respaldo.
+    const maqDest=("machine" in body)?body.machine:((TICKET&&TICKET.loc)||"");
+    const perDest=("persona" in body)?body.persona:((TICKET&&TICKET.assignee)||"");
+    let rayo="";
+    if(maqDest){
+      try{
+        const n=await fetch(WORKER+"/fleet/nudge",{method:"POST",headers:{"content-type":"application/json"},
+          body:JSON.stringify({machine:maqDest,persona:perDest,
+            text:"⚡ Misión "+id+" reasignada a ti desde yokup.com/misiones: «"+((TICKET&&TICKET.subject)||"")+"». Es el encargo #"+num+" de tu bot-inbox: reclámalo con bash ~/Claude/admira-vault/bot-inbox-claim.sh "+num+" y ponte con ella."})});
+        const nd=await n.json().catch(()=>({}));
+        rayo=nd.ok?" · ⚡ inyectada en su CLI al instante":" · (nudge no disponible: le llegará por el watcher ~20s)";
+      }catch(e){ rayo=" · (nudge no disponible: le llegará por el watcher ~20s)"; }
+    }
+    msg.textContent="✓ reasignada"+rayo+nota;
     render();
   }catch(err){ msg.textContent="✗ "+(err&&err.message||err); }
 };

@@ -11,7 +11,7 @@ var json = /* @__PURE__ */ __name((o, s = 200) => new Response(JSON.stringify(o)
 var AUTH_CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
 var WL_API = "https://admira-whitelist.csilvasantin.workers.dev";
 var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@admira.com", "agonzalez@admira.com", "jsedano@admira.com"];
-var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe"]);
+var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge"]);
 var _wl = { at: 0, set: null };
 async function whitelist() {
   if (_wl.set && Date.now() - _wl.at < 3e5) return _wl.set;
@@ -551,6 +551,30 @@ __name(fleetSync, "fleetSync");
 // transiciones REALES del encargo (pendiente → en curso → hecho), comparando
 // antes contra el estado que ya tenía. Si no cambia nada, no se escribe ni se
 // avisa.
+// ⚡ NUDGE inmediato al CLI del agente (Carlos, 2026-07-15: «mundo en real time,
+// sin retrasos gratuitos»): encola un cmd `prompt` en admira-navegadores
+// (deviceId local-<máquina>, misma convención que el executor y que el Directo
+// de admira.live/status); el executor de esa máquina lo inyecta en su sesión
+// viva (~5s de poll) — tmux «claude» o app Claude. PROTEGIDO por la sesión del
+// perímetro; el Bearer del worker de navegadores va en el secreto NAV_CMD_TOKEN.
+async function fleetNudge(env, b) {
+  const machine = String(b.machine || "").trim();
+  const text = String(b.text || "").trim().slice(0, 1500);
+  const persona = String(b.persona || "").trim().slice(0, 40);
+  if (!machine || !text) return { ok: false, error: "machine y text requeridos" };
+  if (!env.NAV_CMD_TOKEN) return { ok: false, error: "sin secreto NAV_CMD_TOKEN" };
+  if (!env.NAVEGADORES) return { ok: false, error: "sin binding NAVEGADORES" };
+  const deviceId = "local-" + machine.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const r = await env.NAVEGADORES.fetch(new Request("https://admira-navegadores.csilvasantin.workers.dev/api/cmd", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: "Bearer " + env.NAV_CMD_TOKEN },
+    body: JSON.stringify({ deviceId, action: "prompt", text, persona })
+  }));
+  const d = await r.json().catch(() => ({}));
+  return { ok: !!(r.ok && d.ok), id: d.id || null, deviceId, error: d.error || null };
+}
+__name(fleetNudge, "fleetNudge");
+
 function fleetInboxId(mid) {
   const m = /^FLT-(\d+)$/.exec(String(mid || ""));
   return m ? m[1] : null;
@@ -746,6 +770,10 @@ var index_default = {
       } catch (e) {
         return json({ error: String(e) }, 500);
       }
+    }
+    if (url.pathname === "/fleet/nudge" && req.method === "POST") {
+      let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
+      try { return json(await fleetNudge(env, b)); } catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
     if (url.pathname === "/turn") {
       try {

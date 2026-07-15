@@ -104,7 +104,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
-  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r17</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r18</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -314,8 +314,19 @@ $("alta").onsubmit=async e=>{
     const d=await r.json();
     if(!d.ok) throw new Error(d.error||"error "+r.status);
     await fetch(WORKER+"/fleet/sync",{method:"POST"}).catch(()=>{});
+    // ⚡ REAL-TIME: con máquina destino, inyección inmediata en el CLI del agente
+    let rayo="";
+    if(maquina){
+      try{
+        const n=await fetch(WORKER+"/fleet/nudge",{method:"POST",headers:{"content-type":"application/json"},
+          body:JSON.stringify({machine:maquina,persona:persona,
+            text:"⚡ Nueva misión FLT-"+d.id+" para ti desde yokup.com/misiones: «"+txt+"». Encargo #"+d.id+" de tu bot-inbox: reclámalo con bash ~/Claude/admira-vault/bot-inbox-claim.sh "+d.id+" y ponte con ella."})});
+        const nd=await n.json().catch(()=>({}));
+        rayo=nd.ok?" · ⚡ en su CLI ya":"";
+      }catch(e){}
+    }
     const destino=persona?(persona+(maquina?" en "+YkMisiones.canonMachine(maquina):"")):("la máquina "+YkMisiones.canonMachine(maquina)+" (quien esté allí)");
-    msg.className="alta-msg ok"; msg.textContent="✓ FLT-"+d.id+" dada de alta y asignada a "+destino;
+    msg.className="alta-msg ok"; msg.textContent="✓ FLT-"+d.id+" dada de alta y asignada a "+destino+rayo;
     $("altaTxt").value=""; radar(); load();
   }catch(err){
     msg.className="alta-msg err"; msg.textContent="✗ no se pudo crear: "+esc(err&&err.message||err);
