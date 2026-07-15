@@ -109,9 +109,17 @@
   }
 
   // ------- fila de MISIÓN (idéntica en /incidencias y /misiones) -------
+  // ESTADOS canónicos (Carlos, 2026-07-15): Sin asignar · Asignada · En curso ·
+  // Finalizada. «Abierta» era ruido: mezclaba pendiente-de-asignar con asignada.
+  function estadoDe(t) {
+    if (t.status === "resolved") return { c: "b-res", l: "Finalizada" };
+    if (t.status === "in_progress") return { c: "b-prog", l: "En curso" };
+    return t.assignee ? { c: "b-open", l: "Asignada" } : { c: "b-sina", l: "Sin asignar" };
+  }
+
   function rowHtml(t) {
-    var sb = t.status === "open" ? "b-open" : (t.status === "resolved" ? "b-res" : "b-prog");
-    var stt = t.status === "open" ? "Abierta" : (t.status === "resolved" ? "Resuelta" : "En curso");
+    var est = estadoDe(t);
+    var sb = est.c, stt = est.l;
     var maq = machineOf(t);
     // COLUMNAS con separador vertical sutil y REDIMENSIONABLES (Carlos, 2026-07-15):
     // cada .rz es la línea divisoria — se arrastra y ajusta la variable CSS de SU
@@ -261,7 +269,7 @@
 
   window.YkMisiones = {
     init: init, selected: selected, selectMission: selectMission,
-    rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine,
+    rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine, estadoDe: estadoDe,
     renderTaskTree: renderTaskTree, refreshTree: refreshTree,
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,
     nextStatus: nextStatus, postStatus: postStatus, postPlan: postPlan,

@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r8">
-<link rel="stylesheet" href="/yk-misiones.css?v=r5">
+<link rel="stylesheet" href="/yk-misiones.css?v=r6">
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -23,7 +23,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .sub{color:var(--mut);font-size:14.5px;margin-bottom:16px}.sub b{color:var(--brand)}
 .kpis{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .kpi{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--line);border-radius:10px;padding:9px 13px;background:var(--card);color:var(--mut);display:flex;align-items:center;gap:8px}
-.kpi b{font-size:16px;color:var(--ink)}.kpi.a b{color:var(--warn)}.kpi.b b{color:var(--accent)}.kpi.c b{color:var(--good)}
+.kpi b{font-size:16px;color:var(--ink)}.kpi.a b{color:var(--warn)}.kpi.b b{color:var(--accent)}.kpi.c b{color:var(--good)}.kpi.v b{color:var(--violet)}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .tab{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;border-radius:9px;border:1px solid var(--line);color:var(--mut);background:var(--card);cursor:pointer;transition:.2s}
 .tab.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
@@ -46,11 +46,13 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 </head>
 <body data-yk-title="MISIONES" data-yk-rail-left="MISIONES" data-yk-rail-right="TAREAS" data-yk-zone="app">
 <div class="wrap">
-  <!-- DATOS GENERALES arriba del todo (Carlos, 2026-07-15) -->
+  <!-- DATOS GENERALES arriba del todo. ESTADOS canónicos (Carlos, 2026-07-15):
+       sin asignar · asignadas · en curso · finalizadas. Nada de «abiertas». -->
   <div class="kpis">
-    <div class="kpi a"><b id="kOpen">—</b> activas</div>
+    <div class="kpi v"><b id="kSin">—</b> sin asignar</div>
+    <div class="kpi a"><b id="kAsig">—</b> asignadas</div>
     <div class="kpi b"><b id="kProg">—</b> en curso</div>
-    <div class="kpi c"><b id="kRes">—</b> concluidas</div>
+    <div class="kpi c"><b id="kRes">—</b> finalizadas</div>
     <div class="kpi"><b id="kMttr">—</b> t. medio de conclusión</div>
   </div>
 
@@ -91,9 +93,10 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   <!-- Raíl MISIONES: filtros. Raíl TAREAS: árbol de la misión seleccionada. -->
   <div class="tabs" data-yk-slot="left">
     <button class="tab on" data-f="activas">Activas</button>
-    <button class="tab" data-f="open">Abiertas</button>
+    <button class="tab" data-f="sin">Sin asignar</button>
+    <button class="tab" data-f="asignadas">Asignadas</button>
     <button class="tab" data-f="in_progress">En curso</button>
-    <button class="tab" data-f="resolved">Concluidas</button>
+    <button class="tab" data-f="resolved">Finalizadas</button>
     <button class="tab" data-f="todas">Todas</button>
   </div>
   <div class="tree" id="taskTree" data-yk-slot="right">
@@ -101,7 +104,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
-  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r13</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r14</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -111,7 +114,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r9"></script>
+<script src="/yk-misiones.js?v=r10"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 let FILTER="activas";
@@ -135,7 +138,7 @@ const SORTERS={
   subject:t=>String(t.subject||"").toLowerCase(),
   fecha:t=>t.created_at||0,
   agente:t=>String(t.assignee||"").toLowerCase(),
-  estado:t=>({open:0,in_progress:1,resolved:2}[t.status]??3)
+  estado:t=>({"Sin asignar":0,"Asignada":1,"En curso":2,"Finalizada":3}[YkMisiones.estadoDe(t).l]??4)
 };
 function headHtml(){
   const col=(k,l)=>'<div class="lh'+(SORT.k===k?" on":"")+'" data-k="'+k+'" title="ordenar por '+l.toLowerCase()+'">'+l+(SORT.k===k?(SORT.dir==="asc"?" ▲":" ▼"):"")+"</div>";
@@ -154,9 +157,17 @@ function bindHead(el){
 async function load(){
   let d; try{ const r=await fetch(WORKER+"/tickets?scope="+SCOPE,{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
   const tks=d.tickets||[], st=d.stats||{};
-  $("kOpen").textContent=st.open??"—"; $("kProg").textContent=st.in_progress??"—"; $("kRes").textContent=st.resolved??"—"; $("kMttr").textContent=(st.mttr!=null?st.mttr+" min":"—");
+  // KPIs por ESTADO canónico, calculados de las misiones vivas (no del stats crudo)
+  const estL=t=>YkMisiones.estadoDe(t).l;
+  $("kSin").textContent=tks.filter(t=>estL(t)==="Sin asignar").length;
+  $("kAsig").textContent=tks.filter(t=>estL(t)==="Asignada").length;
+  $("kProg").textContent=tks.filter(t=>estL(t)==="En curso").length;
+  $("kRes").textContent=tks.filter(t=>estL(t)==="Finalizada").length;
+  $("kMttr").textContent=(st.mttr!=null?st.mttr+" min":"—");
   let base=tks;
   if(FILTER==="activas") base=base.filter(t=>t.status!=="resolved");
+  else if(FILTER==="sin") base=base.filter(t=>estL(t)==="Sin asignar");
+  else if(FILTER==="asignadas") base=base.filter(t=>estL(t)==="Asignada");
   else if(FILTER!=="todas") base=base.filter(t=>t.status===FILTER);
   // Selectores CRUZADOS y solo con quien TIENE misiones en el contexto actual:
   // agentes según el equipo elegido, equipos según el agente elegido.
