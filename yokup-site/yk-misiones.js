@@ -139,7 +139,9 @@
           (dv ? '<span class="dur' + (dv.run ? " run" : "") + '" title="' + esc(dv.tip) + '">⏱ ' + esc(dv.txt) + "</span>" : "") + "</div>" +
         // ORDENADOR (entre Fecha y Agente).
         '<div class="cel ord">' + rz("ord") + (maq ? '<span class="mach2">🖥 ' + esc(maq) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>') + "</div>" +
-        '<div class="cel">' + rz("who") + '<span class="who">👷 ' + esc(t.assignee) + "</span></div>" +
+        // Celda de AGENTE con clase `agc` (target del picker de reasignación en
+        // /misiones; inocua en /incidencias, que no la cablea). Carlos, 2026-07-15.
+        '<div class="cel agc">' + rz("who") + '<span class="who">👷 ' + esc(t.assignee) + "</span></div>" +
         // Estado + ABRIR apilado (abrir debajo de la insignia).
         '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"><i></i>' + stt + "</span>" +
           '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a></div>' +
