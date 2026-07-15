@@ -469,7 +469,9 @@ __name(fleetScreen, "fleetScreen");
 // anunciados por bot-say («DEPLOY …»). Pedido por Carlos (2026-07-15): los
 // mensajes de Telegram que no son misiones NO se elevan a misión ni a tarea.
 function fleetEsMision(it) {
-  if (!it.target_persona) return false;
+  // Destinatario = persona O máquina («solo máquina: quien esté allí» del alta
+  // de yokup.com/misiones). Sin ninguno de los dos, es charla.
+  if (!it.target_persona && !it.target_machine) return false;
   const t = String(it.text || "").trim();
   if (!t) return false;
   if (/^soy\s+.{2,60}?(corriendo en|en el ordenador)/i.test(t)) return false;

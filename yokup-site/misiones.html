@@ -98,7 +98,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
-  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r8</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r9</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -108,7 +108,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r5"></script>
+<script src="/yk-misiones.js?v=r6"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 let FILTER="activas";
@@ -186,30 +186,45 @@ const AGENTES=["Neo","Morfeo","Trinity","Oráculo","Smith","WhiteRabbit"];
 const esPrincipal=p=>!/^(sub|infra)/i.test(p)&&p!=="Cypher";
 const esc=s=>String(s).replace(/[<>&"]/g,"");
 const normM=s=>String(s||"").toLowerCase().replace(/[\s·._-]+/g,"");
-let MAQS={}, CARGA_P={}, CARGA_PM={}, LIBRE=null;   // MAQS: persona -> {maq:{online,norm}}
+const NAV="https://admira-navegadores.csilvasantin.workers.dev";
+// MAQS: persona -> {canon:{online,norm,raw}} · el VALUE del option lleva el raw
+// (ComputerName real) para que el claim del worker case; la etiqueta, el canónico.
+let MAQS={}, SOLOMAQ={}, CARGA_P={}, CARGA_PM={}, CARGA_M={}, LIBRE=null;
 
 async function radar(){
   try{
-    const [pr,ib]=await Promise.all([
+    const [pr,ib,nav]=await Promise.all([
       fetch(TG+"/api/presence",{cache:"no-store"}).then(r=>r.json()),
-      fetch(TG+"/api/public/inbox",{cache:"no-store"}).then(r=>r.json())
+      fetch(TG+"/api/public/inbox",{cache:"no-store"}).then(r=>r.json()),
+      fetch(NAV+"/api/browsers",{cache:"no-store"}).then(r=>r.json()).catch(()=>({browsers:[]}))
     ]);
     const now=Date.now()/1000;
     MAQS={};
     for(const p of (pr.presence||[])){
       if(!p.persona||!p.machine||!esPrincipal(p.persona)) continue;
-      const maq=YkMisiones.canonMachine(p.machine);   // nombre canónico (dedupe alias)
+      const canon=YkMisiones.canonMachine(p.machine);
       (MAQS[p.persona]=MAQS[p.persona]||{});
-      const m=MAQS[p.persona][maq]=MAQS[p.persona][maq]||{online:false,norm:normM(maq)};
+      const m=MAQS[p.persona][canon]=MAQS[p.persona][canon]||{online:false,norm:normM(canon),raw:p.machine};
       if((now-(p.updated||0))<900) m.online=true;
     }
-    CARGA_P={}; CARGA_PM={};
+    // Máquinas VIVAS según el executor de navegadores — aunque nadie latiera en
+    // presence (caso MacBookAirPlata): asignables como «solo máquina».
+    SOLOMAQ={};
+    for(const b of (nav.browsers||[])){
+      const raw=b.machine||"";
+      if(!raw||/obsoleto|probe|ident|verify|pendiente|huella|\bno\b/i.test(raw)) continue;
+      if((Date.now()-(b.ts||0))>900000) continue;
+      const canon=YkMisiones.canonMachine(raw);
+      if(!SOLOMAQ[canon]) SOLOMAQ[canon]={raw:raw,norm:normM(canon)};
+    }
+    CARGA_P={}; CARGA_PM={}; CARGA_M={};
     for(const it of (ib.items||[])){
-      if(!it.target_persona||it.status==="done") continue;
-      CARGA_P[it.target_persona]=(CARGA_P[it.target_persona]||0)+1;
-      if(it.target_machine) {
-        const k=it.target_persona+"|"+normM(YkMisiones.canonMachine(it.target_machine));
-        CARGA_PM[k]=(CARGA_PM[k]||0)+1;
+      if(it.status==="done") continue;
+      if(it.target_persona) CARGA_P[it.target_persona]=(CARGA_P[it.target_persona]||0)+1;
+      if(it.target_machine){
+        const nm=normM(YkMisiones.canonMachine(it.target_machine));
+        CARGA_M[nm]=(CARGA_M[nm]||0)+1;
+        if(it.target_persona) CARGA_PM[it.target_persona+"|"+nm]=(CARGA_PM[it.target_persona+"|"+nm]||0)+1;
       }
     }
   }catch(e){ /* sin red: se mantiene el último radar */ }
@@ -220,9 +235,9 @@ async function radar(){
   for(const p of univ) for(const [maq,i] of Object.entries(MAQS[p]||{})){
     if(!i.online) continue;
     const key=[CARGA_PM[p+"|"+i.norm]||0, CARGA_P[p]||0, univ.indexOf(p)];
-    if(!best||menor(key,best.key)) best={p,maq,key};
+    if(!best||menor(key,best.key)) best={p,maq,raw:i.raw,key};
   }
-  LIBRE=best?{p:best.p,maq:best.maq}:{p:univ[0]||"Neo",maq:""};
+  LIBRE=best?{p:best.p,maq:best.maq,raw:best.raw}:{p:univ[0]||"Neo",maq:"",raw:""};
   const sel=$("altaAgente"), keep=sel.value;
   let html='<option value="">🎯 Auto · libre: '+esc(LIBRE.p)+(LIBRE.maq?" · "+esc(LIBRE.maq):"")+'</option>';
   for(const p of univ){
@@ -231,7 +246,15 @@ async function radar(){
     html+='<optgroup label="'+(on?"🟢":"⚪")+' '+esc(p)+' · '+(CARGA_P[p]||0)+' abiertas">';
     html+='<option value="'+esc(p)+'|">'+esc(p)+' · cualquier máquina</option>';
     for(const [maq,i] of maqs.sort((a,b)=>(b[1].online-a[1].online)||a[0].localeCompare(b[0]))){
-      html+='<option value="'+esc(p)+'|'+esc(maq)+'">'+(i.online?"🟢":"⚪")+' '+esc(p)+' en '+esc(maq)+' · '+(CARGA_PM[p+"|"+i.norm]||0)+' abiertas</option>';
+      html+='<option value="'+esc(p)+'|'+esc(i.raw)+'">'+(i.online?"🟢":"⚪")+' '+esc(p)+' en '+esc(maq)+' · '+(CARGA_PM[p+"|"+i.norm]||0)+' abiertas</option>';
+    }
+    html+='</optgroup>';
+  }
+  const solo=Object.entries(SOLOMAQ).sort((a,b)=>a[0].localeCompare(b[0]));
+  if(solo.length){
+    html+='<optgroup label="🖥 Solo máquina · quien esté allí">';
+    for(const [canon,i] of solo){
+      html+='<option value="|'+esc(i.raw)+'">🖥 '+esc(canon)+' · '+(CARGA_M[i.norm]||0)+' abiertas</option>';
     }
     html+='</optgroup>';
   }
@@ -244,7 +267,7 @@ $("alta").onsubmit=async e=>{
   const txt=$("altaTxt").value.trim(); if(!txt) return;
   const v=$("altaAgente").value;
   const persona=v?v.split("|")[0]:(LIBRE&&LIBRE.p)||"Neo";
-  const maquina=v?(v.split("|")[1]||""):(LIBRE&&LIBRE.maq)||"";
+  const maquina=v?(v.split("|")[1]||""):(LIBRE&&LIBRE.raw)||"";
   const go=document.querySelector(".alta-go"), msg=$("altaMsg");
   go.disabled=true; msg.className="alta-msg"; msg.textContent="Dando de alta…";
   try{
@@ -253,7 +276,8 @@ $("alta").onsubmit=async e=>{
     const d=await r.json();
     if(!d.ok) throw new Error(d.error||"error "+r.status);
     await fetch(WORKER+"/fleet/sync",{method:"POST"}).catch(()=>{});
-    msg.className="alta-msg ok"; msg.textContent="✓ FLT-"+d.id+" dada de alta y asignada a "+persona+(maquina?" en "+maquina:"");
+    const destino=persona?(persona+(maquina?" en "+YkMisiones.canonMachine(maquina):"")):("la máquina "+YkMisiones.canonMachine(maquina)+" (quien esté allí)");
+    msg.className="alta-msg ok"; msg.textContent="✓ FLT-"+d.id+" dada de alta y asignada a "+destino;
     $("altaTxt").value=""; radar(); load();
   }catch(err){
     msg.className="alta-msg err"; msg.textContent="✗ no se pudo crear: "+esc(err&&err.message||err);

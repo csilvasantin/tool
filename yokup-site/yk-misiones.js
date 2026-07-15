@@ -63,10 +63,14 @@
   // Canónico = el ComputerName real de cada Mac. DECISIÓN Carlos (2026-07-15):
   // «MacBookAirPlata» es el Air de 14; el de 16 es «MacBookAir16plata»
   // (y «macbookair16» es un alias suyo, NO otra máquina).
-  var MAQ_ALIAS = { macbookair16: "macbookair16plata" };
+  // SIMPLIFICACIÓN (Carlos, 2026-07-15): los MacBookPro sin color, por tamaño —
+  // solo hay dos: MacBookPro14 (antes «MacBookProNegro14») y MacBookPro16.
+  // OJO: es nombre de PANTALLA; el target_machine de los encargos viaja con el
+  // ComputerName real de cada Mac (si no, el claim daría wrong-machine).
+  var MAQ_ALIAS = { macbookair16: "macbookair16plata", macbookpronegro14: "macbookpro14" };
   var MAQ_NOMBRE = {
-    macbookpronegro14: "MacBookProNegro14",
-    macbookpro16: "MacBook Pro 16",
+    macbookpro14: "MacBookPro14",
+    macbookpro16: "MacBookPro16",
     macbookair16plata: "MacBookAir16plata",
     macbookairplata: "MacBookAirPlata",
     macbookairazul: "MacBookAirAzul",
