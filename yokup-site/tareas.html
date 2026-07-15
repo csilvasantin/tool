@@ -18,7 +18,14 @@
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
 .wrap{max-width:1100px;margin:0 auto;padding:22px 24px 48px}
 h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
-.sub{color:var(--mut);font-size:14.5px;margin-bottom:20px}.sub b{color:var(--brand)}
+.sub{color:var(--mut);font-size:14.5px;margin-bottom:14px}.sub b{color:var(--brand)}
+/* Filtro por FECHA de creación de la misión (por defecto: hoy). */
+.tfilter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
+.tf{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;border-radius:9px;border:1px solid var(--line);color:var(--mut);background:var(--card);cursor:pointer;transition:.2s}
+.tf:hover{color:var(--brand);border-color:var(--line2)}
+.tf.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
+.tf-date{font-family:var(--mono);font-size:11px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:9px;padding:7px 10px;outline:none;cursor:pointer;color-scheme:dark}
+.tf-date:focus,.tf-date.on{border-color:var(--brand)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;align-items:start}
 .mcard{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:16px 17px}
 .mcard .mhd{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-family:var(--mono);margin-bottom:6px}
@@ -38,6 +45,15 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <h1>Tareas</h1>
   <p class="sub">Los pasos en que se descompone cada misión: <b>a/b/c</b> con hasta 3 subtareas por paso (máx 9). Chips clicables ○◐● para avanzar estado; ⚙️ ejecutan los subagentes, 📝 reportan los infraagentes. Agrupado por misión, lo más reciente primero.</p>
 
+  <!-- Filtro por FECHA de creación de la misión. Por defecto sólo las de HOY. -->
+  <div class="tfilter" id="tfilter">
+    <button class="tf on" data-r="hoy">Hoy</button>
+    <button class="tf" data-r="ayer">Ayer</button>
+    <button class="tf" data-r="7d">Últimos 7 días</button>
+    <button class="tf" data-r="todas">Todas</button>
+    <input class="tf-date" id="tfDate" type="date" title="Ver las tareas de un día concreto">
+  </div>
+
   <div class="grid" id="grid"><div class="bigempty"><b>Cargando tareas…</b>Reuniendo los planes de todas las misiones.</div></div>
   <div class="foot">Yokup · tareas de todas las misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b></div>
 
@@ -56,11 +72,36 @@ const esc=YkMisiones.esc;
 YkMisiones.init({worker:WORKER});
 let GROUPS=[];  // [{mission:{...ticket}, tasks:[...]}]
 
+// ── FILTRO POR FECHA (de creación de la misión) ──────────────────────────────
+// Por defecto sólo salen las creadas HOY (Carlos, 2026-07-15). Los presets y el
+// selector de día cambian el rango y recargan. created_at tolerante a s/ms.
+let DFILTER={mode:"hoy", day:""};
+const _ms=v=>{v=+v||0;return v>4102444800?v:v*1000;};
+const _pad=n=>(n<10?"0":"")+n;
+const _ymd=d=>d.getFullYear()+"-"+_pad(d.getMonth()+1)+"-"+_pad(d.getDate());
+function dayBounds(ymd){ const[y,m,d]=ymd.split("-").map(Number); const s=new Date(y,m-1,d,0,0,0,0).getTime(); return [s,s+86400000]; }
+function inRange(created){
+  const c=_ms(created); if(!c) return false;
+  if(DFILTER.mode==="todas") return true;
+  if(DFILTER.mode==="7d") return c>=Date.now()-7*86400000;
+  let ymd;
+  if(DFILTER.mode==="dia") ymd=DFILTER.day;
+  else if(DFILTER.mode==="ayer"){ const d=new Date(); d.setDate(d.getDate()-1); ymd=_ymd(d); }
+  else ymd=_ymd(new Date()); // hoy
+  if(!ymd) return true;
+  const [s,e]=dayBounds(ymd); return c>=s && c<e;
+}
+function filterLabel(){
+  return DFILTER.mode==="hoy"?"creadas hoy":DFILTER.mode==="ayer"?"creadas ayer":
+    DFILTER.mode==="7d"?"de los últimos 7 días":DFILTER.mode==="dia"?("del "+DFILTER.day):null;
+}
+
 async function load(){
   // scope=todas: el árbol de tareas es el mismo modelo para las misiones de la
   // flota (encargos a los agentes) y las de campo (incidencias de pantallas).
   let d; try{ const r=await fetch(WORKER+"/tickets?scope=todas",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
-  const tks=d.tickets||[];
+  // Filtra por fecha ANTES de traer los árboles (menos peticiones): sólo las del rango.
+  const tks=(d.tickets||[]).filter(t=>inRange(t.created_at));
   const groups=[];
   // Mismo criterio que /informes: un fetch por misión (bandeja acotada a 100).
   await Promise.all(tks.map(async t=>{
@@ -76,7 +117,10 @@ async function load(){
 function render(){
   const box=$("grid");
   if(!GROUPS.length){
-    box.innerHTML='<div class="bigempty"><b>Ninguna misión tiene plan todavía</b>Entra en <a href="/misiones">Misiones</a>, selecciona una y pulsa «🧠 Proponer plan (IA)» — su árbol a/b/c aparecerá aquí.</div>';
+    const lbl=filterLabel();
+    box.innerHTML=lbl
+      ? '<div class="bigempty"><b>Sin tareas '+esc(lbl)+'</b>No hay misiones con plan en esa fecha. Prueba otro día o pulsa <b style="display:inline">Todas</b>.</div>'
+      : '<div class="bigempty"><b>Ninguna misión tiene plan todavía</b>Entra en <a href="/misiones">Misiones</a>, selecciona una y pulsa «🧠 Proponer plan (IA)» — su árbol a/b/c aparecerá aquí.</div>';
     return;
   }
   box.innerHTML=GROUPS.map(g=>`<div class="mcard" data-id="${esc(g.mission.id)}">
@@ -96,6 +140,23 @@ function render(){
     });
   });
 }
+// Cableado del filtro de fecha: presets + selector de día. Cambiar recarga.
+$("tfilter").querySelectorAll(".tf").forEach(b=>b.onclick=()=>{
+  DFILTER={mode:b.dataset.r, day:""};
+  $("tfilter").querySelectorAll(".tf").forEach(x=>x.classList.toggle("on",x===b));
+  $("tfDate").classList.remove("on"); $("tfDate").value="";
+  $("grid").innerHTML='<div class="bigempty"><b>Cargando…</b>Filtrando por fecha.</div>';
+  load();
+});
+$("tfDate").onchange=()=>{
+  if(!$("tfDate").value) return;
+  DFILTER={mode:"dia", day:$("tfDate").value};
+  $("tfilter").querySelectorAll(".tf").forEach(x=>x.classList.remove("on"));
+  $("tfDate").classList.add("on");
+  $("grid").innerHTML='<div class="bigempty"><b>Cargando…</b>Filtrando por fecha.</div>';
+  load();
+};
+
 load(); setInterval(load,15000);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
