@@ -615,6 +615,11 @@ async function fleetReconcileMission(env, mid) {
   const allDone = tasks.every((x) => x.status === "done");
   const started = tasks.some((x) => x.status !== "pending");
   const next = allDone ? "resolved" : started ? "in_progress" : "open";
+  // No DEGRADAR una misión FINALIZADA a mano: el reconciliador por árbol solo PROMUEVE
+  // (open→in_progress→resolved). El árbol se auto-genera y nadie marca sus subtareas
+  // (queda 0/N), así que sin esta guarda reabría cada 2 min el FINALIZAR humano. Reabrir
+  // es acción manual (botón REABRIR → /ticket/status), nunca del cron.
+  if (t.status === "resolved" && next !== "resolved") return null;
   if (next === t.status) return null;            // sin cambio → ni escribe ni avisa al grupo
   const now = Date.now();
   await env.DB.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=? WHERE id=?")
@@ -646,6 +651,9 @@ async function fleetReconcileAll(env) {
   for (const r of results || []) {
     if (!r.total) continue;
     const next = r.done === r.total ? "resolved" : r.started > 0 ? "in_progress" : "open";
+    // No reabrir un FINALIZAR humano desde el árbol auto-generado (ver fleetReconcileMission):
+    // el barrido solo promueve, nunca degrada un resolved. Reabrir = botón REABRIR manual.
+    if (r.status === "resolved" && next !== "resolved") continue;
     if (next === r.status) continue;
     await env.DB.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=? WHERE id=?")
       .bind(next, now, next === "resolved" ? now : null, r.id).run();
