@@ -462,6 +462,22 @@ function fleetScreen(it) {
 }
 __name(fleetScreen, "fleetScreen");
 
+// ¿Es un encargo DE VERDAD o charla de Telegram que se coló en el inbox?
+// Una MISIÓN exige destinatario; y aun con destinatario se descarta el ruido
+// típico del grupo: saludos de identidad («Soy X y estoy corriendo en…»),
+// acuses/relés («ACK…», «Relé en verde…», «Busco contexto…») y despliegues
+// anunciados por bot-say («DEPLOY …»). Pedido por Carlos (2026-07-15): los
+// mensajes de Telegram que no son misiones NO se elevan a misión ni a tarea.
+function fleetEsMision(it) {
+  if (!it.target_persona) return false;
+  const t = String(it.text || "").trim();
+  if (!t) return false;
+  if (/^soy\s+.{2,60}?(corriendo en|en el ordenador)/i.test(t)) return false;
+  if (/^(ack\b|✓|✅|rel[eé] en verde|busco contexto|deploy\b|desplegado\b|recibido\b)/i.test(t)) return false;
+  return true;
+}
+__name(fleetEsMision, "fleetEsMision");
+
 // El bot-inbox ha mandado ts unas veces en segundos y otras ya en milisegundos;
 // multiplicar a ciegas por 1000 metió created_at en MICROsegundos y el MTTR
 // salió negativo de miles de millones de minutos. Normaliza cualquier época a ms.
@@ -488,6 +504,7 @@ async function fleetSync(env) {
   let created = 0, updated = 0;
   for (const it of items) {
     if (!it || !it.id) continue;
+    if (!fleetEsMision(it)) continue;   // charla de Telegram: ni misión ni tarea
     const id = "FLT-" + it.id;
     const st = FLEET_ST[it.status] || "open";
     const ts = epochMs(it.ts, now);
