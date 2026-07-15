@@ -103,7 +103,12 @@ function filterLabel(){ return DFILTER.mode==="hoy"?"de hoy":DFILTER.mode==="aye
 function applyFilter(){ render(ALL.filter(t=>inRange(t.updated_at))); }
 
 async function load(){
-  let d; try{ const r=await fetch(WORKER+"/tickets",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
+  // scope=fleet: los informes viven en el árbol de tareas de las misiones de FLOTA
+  // (source='fleet'). Sin scope, /tickets devuelve sólo campo/DOOH y se perdían TODOS
+  // los partes. Y las misiones con informe están RESUELTAS → ordenan al final, así que
+  // 'todas' (LIMIT 100, mezclado con campo) las cortaría; 'fleet' (52 < 100) las trae
+  // todas. (Carlos, 2026-07-16: «seguimos sin informes».)
+  let d; try{ const r=await fetch(WORKER+"/tickets?scope=fleet",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
   const tks=d.tickets||[];
   const all=[];
   await Promise.all(tks.map(async t=>{
