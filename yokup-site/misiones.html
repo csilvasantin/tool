@@ -26,12 +26,35 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .tab{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;border-radius:9px;border:1px solid var(--line);color:var(--mut);background:var(--card);cursor:pointer;transition:.2s}
 .tab.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
 .foot{margin-top:24px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
+.alta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.alta-txt{flex:1 1 320px;min-width:220px;font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 13px;outline:none;transition:.2s}
+.alta-txt:focus{border-color:var(--line2)}
+.alta-txt::placeholder{color:var(--dim)}
+.alta-agente{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 10px;cursor:pointer;max-width:280px}
+.alta-go{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:11px 15px;border-radius:10px;border:1px solid var(--brand);color:#02080d;background:var(--brand);cursor:pointer;transition:.2s}
+.alta-go:disabled{opacity:.5;cursor:wait}
+.alta-msg{flex-basis:100%;font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--dim);min-height:14px}
+.alta-msg.ok{color:var(--good)}.alta-msg.err{color:var(--warn)}
 </style>
 </head>
 <body data-yk-title="MISIONES" data-yk-rail-left="MISIONES" data-yk-rail-right="TAREAS" data-yk-zone="app">
 <div class="wrap">
   <h1>Misiones</h1>
   <p class="sub">Lo que hay que hacer. Cada misión se descompone en <b>tareas</b> a/b/c (hasta 3 subtareas por paso, máx 9): el arquitecto y el agente principal definen el plan, los <b>subagentes</b> ⚙️ lo ejecutan y los <b>infraagentes</b> 📝 reportan. Las misiones de la <b>flota</b> son los encargos a los agentes (se ven vivos en <a href="https://www.admira.live/status/" target="_blank" rel="noopener" style="color:var(--brand)">admira.live/status</a>); las de <b>campo</b>, las incidencias de pantallas.</p>
+
+  <!-- ALTA DE MISIÓN (flota): texto + asignación a un agente concreto, o en Auto
+       al que esté libre (con latido de presencia y menos encargos abiertos).
+       Crea el ENCARGO en el bot-inbox (admira-telegram) y fuerza /fleet/sync
+       para que aparezca aquí como FLT-<id> sin esperar al cron de 2 min. -->
+  <form class="alta" id="alta" autocomplete="off">
+    <input class="alta-txt" id="altaTxt" type="text" maxlength="4000"
+           placeholder="Nueva misión para la flota… (Enter para darla de alta)">
+    <select class="alta-agente" id="altaAgente" title="Asignar a">
+      <option value="">🎯 Auto · al que esté libre</option>
+    </select>
+    <button class="alta-go" type="submit">＋ Dar de alta</button>
+    <div class="alta-msg" id="altaMsg"></div>
+  </form>
 
   <!-- ÁMBITO: yokup es el gestor único del trabajo, pero son dos mundos distintos
        y no deben mezclarse en la misma lista (comparten tabla en D1). -->
@@ -61,7 +84,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
-  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r1</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -102,6 +125,59 @@ document.querySelectorAll('#scopeTabs .tab').forEach(b=>b.onclick=()=>{
   b.classList.add("on"); SCOPE=b.dataset.s; load();
 });
 load(); setInterval(load,12000);
+
+// ---- ALTA de misiones de flota ---------------------------------------------
+// La misión nace como ENCARGO del bot-inbox (admira-telegram); yokup-rtc la
+// reconcilia a ticket FLT-<id>. "Libre" = con latido de presencia reciente
+// (<15 min) y menos encargos abiertos (pending/ack/in_progress) en el inbox.
+const TG="https://admira-telegram.csilvasantin.workers.dev";
+const AGENTES=["Neo","Morfeo","Trinity","Oráculo","Smith","White Rabbit"];
+const esc=s=>String(s).replace(/[<>&"]/g,"");
+let ONLINE=new Set(), CARGA={}, LIBRE=null;
+
+async function radar(){
+  try{
+    const [pr,ib]=await Promise.all([
+      fetch(TG+"/api/presence",{cache:"no-store"}).then(r=>r.json()),
+      fetch(TG+"/api/public/inbox",{cache:"no-store"}).then(r=>r.json())
+    ]);
+    const now=Date.now()/1000;
+    ONLINE=new Set((pr.presence||[]).filter(p=>p.persona&&(now-(p.updated||0))<900).map(p=>p.persona));
+    CARGA={};
+    for(const it of (ib.items||[])){
+      if(!it.target_persona||it.status==="done") continue;
+      CARGA[it.target_persona]=(CARGA[it.target_persona]||0)+1;
+    }
+  }catch(e){ /* sin red: se mantiene el último radar */ }
+  const univ=[...new Set([...AGENTES,...ONLINE])];
+  const rank=p=>[ONLINE.has(p)?0:1, CARGA[p]||0, univ.indexOf(p)];
+  LIBRE=univ.slice().sort((a,b)=>{const A=rank(a),B=rank(b);return A[0]-B[0]||A[1]-B[1]||A[2]-B[2];})[0]||"Neo";
+  const sel=$("altaAgente"), keep=sel.value;
+  sel.innerHTML='<option value="">🎯 Auto · libre: '+esc(LIBRE)+'</option>'+
+    univ.map(p=>'<option value="'+esc(p)+'">'+(ONLINE.has(p)?"🟢":"⚪")+' '+esc(p)+' · '+(CARGA[p]||0)+' abiertas</option>').join("");
+  sel.value=keep;
+}
+
+$("alta").onsubmit=async e=>{
+  e.preventDefault();
+  const txt=$("altaTxt").value.trim(); if(!txt) return;
+  const persona=$("altaAgente").value||LIBRE||"Neo";
+  const go=document.querySelector(".alta-go"), msg=$("altaMsg");
+  go.disabled=true; msg.className="alta-msg"; msg.textContent="Dando de alta…";
+  try{
+    const r=await fetch(TG+"/api/bot-inbox",{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({target_persona:persona,text:txt,from:"yokup-misiones"})});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||"error "+r.status);
+    await fetch(WORKER+"/fleet/sync",{method:"POST"}).catch(()=>{});
+    msg.className="alta-msg ok"; msg.textContent="✓ FLT-"+d.id+" dada de alta y asignada a "+persona;
+    $("altaTxt").value=""; radar(); load();
+  }catch(err){
+    msg.className="alta-msg err"; msg.textContent="✗ no se pudo crear: "+esc(err&&err.message||err);
+  }
+  go.disabled=false;
+};
+radar(); setInterval(radar,60000);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-frame.js?v=r8"></script>
