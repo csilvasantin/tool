@@ -119,8 +119,9 @@
         '<div class="tkid">' + esc(t.id) + '<span class="st">' + (t.source === "agent-iot" ? "🤖 Agente IoT" : "👤 Manual") + "</span>" +
           (maq ? '<span class="mach">🖥 ' + esc(maq) + "</span>" : '<span class="mach dim">🖥 sin máquina</span>') + "</div>" +
         '<div class="subj"><div class="t">' + esc(t.subject) + '</div><div class="m"><span class="scr">' + esc(t.screen) + "</span>" +
-          (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + '<span class="fch" title="fecha de la misión">📅 ' + fechaCorta(t.created_at) + "</span><span>" + ago(t.created_at) + "</span></div></div>" +
-        '<div class="right">' + (t.status === "open" ? '<span class="sla">' + slaLeft(t.created_at) + "</span>" : "") +
+          (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span></div></div>" +
+        '<div class="right"><span class="rtiempo"><span class="fch2" title="fecha de creación de la misión">📅 ' + fechaCorta(t.created_at) + "</span>" +
+          (t.status === "open" ? '<span class="sla">' + slaLeft(t.created_at) + "</span>" : "") + "</span>" +
           '<span class="who">👷 ' + esc(t.assignee) + '</span><span class="badge ' + sb + '"><i></i>' + stt + "</span>" +
           '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a></div>' +
       "</div></div>";
