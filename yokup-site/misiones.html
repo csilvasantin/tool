@@ -11,13 +11,15 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r8">
-<link rel="stylesheet" href="/yk-misiones.css?v=r4">
+<link rel="stylesheet" href="/yk-misiones.css?v=r5">
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
 .wrap{max-width:1100px;margin:0 auto;padding:22px 24px 48px}
-h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
+h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;display:flex;align-items:center;gap:10px}
+.tgl{font-size:15px;line-height:1;color:var(--dim);background:transparent;border:1px solid var(--line);border-radius:7px;padding:3px 8px;cursor:pointer;transition:.2s}
+.tgl:hover{color:var(--brand);border-color:var(--line2)}
 .sub{color:var(--mut);font-size:14.5px;margin-bottom:16px}.sub b{color:var(--brand)}
 .kpis{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .kpi{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--line);border-radius:10px;padding:9px 13px;background:var(--card);color:var(--mut);display:flex;align-items:center;gap:8px}
@@ -52,8 +54,10 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
     <div class="kpi"><b id="kMttr">—</b> t. medio de conclusión</div>
   </div>
 
-  <h1>Misiones</h1>
-  <p class="sub">Lo que hay que hacer. Cada misión se descompone en <b>tareas</b> a/b/c (hasta 3 subtareas por paso, máx 9): el arquitecto y el agente principal definen el plan, los <b>subagentes</b> ⚙️ lo ejecutan y los <b>infraagentes</b> 📝 reportan. Las misiones de la <b>flota</b> son los encargos a los agentes (se ven vivos en <a href="https://www.admira.live/status/" target="_blank" rel="noopener" style="color:var(--brand)">admira.live/status</a>); las de <b>campo</b>, las incidencias de pantallas.</p>
+  <!-- Explicación PLEGADA por defecto (triangulito junto al titular): se gana
+       una franja entera para ver más misiones (Carlos, 2026-07-15). -->
+  <h1>Misiones <button id="introTgl" class="tgl" title="desplegar/plegar la explicación" aria-expanded="false">▸</button></h1>
+  <p class="sub" id="intro" hidden>Lo que hay que hacer. Cada misión se descompone en <b>tareas</b> a/b/c (hasta 3 subtareas por paso, máx 9): el arquitecto y el agente principal definen el plan, los <b>subagentes</b> ⚙️ lo ejecutan y los <b>infraagentes</b> 📝 reportan. Las misiones de la <b>flota</b> son los encargos a los agentes (se ven vivos en <a href="https://www.admira.live/status/" target="_blank" rel="noopener" style="color:var(--brand)">admira.live/status</a>); las de <b>campo</b>, las incidencias de pantallas.</p>
 
   <!-- ALTA DE MISIÓN (flota): texto + asignación a un agente concreto, o en Auto
        al que esté libre (con latido de presencia y menos encargos abiertos).
@@ -97,7 +101,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
-  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r12</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r13</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -122,6 +126,29 @@ function llenaSel(id, etiqueta, valores){
     valores.map(v=>'<option value="'+v.replace(/[<>&"]/g,"")+'">'+v.replace(/[<>&"]/g,"")+'</option>').join("");
   sel.value=[...sel.options].some(o=>o.value===keep)?keep:"";
   sel.classList.toggle("on",!!sel.value);
+}
+
+// ORDEN estilo hoja de cálculo: clic en el título de la columna alterna ▲/▼.
+let SORT={k:"fecha",dir:"desc"};
+const SORTERS={
+  id:t=>parseInt(String(t.id).replace(/\D/g,""),10)||0,
+  subject:t=>String(t.subject||"").toLowerCase(),
+  fecha:t=>t.created_at||0,
+  agente:t=>String(t.assignee||"").toLowerCase(),
+  estado:t=>({open:0,in_progress:1,resolved:2}[t.status]??3)
+};
+function headHtml(){
+  const col=(k,l)=>'<div class="lh'+(SORT.k===k?" on":"")+'" data-k="'+k+'" title="ordenar por '+l.toLowerCase()+'">'+l+(SORT.k===k?(SORT.dir==="asc"?" ▲":" ▼"):"")+"</div>";
+  return '<div class="hd lhead"><div></div>'+col("id","ID")+col("subject","Misión")+col("fecha","Fecha")+col("agente","Agente")+col("estado","Estado")+"<div></div></div>";
+}
+function bindHead(el){
+  el.querySelectorAll(".lhead .lh").forEach(h=>h.onclick=()=>{
+    const k=h.dataset.k;
+    if(SORT.k===k) SORT.dir=SORT.dir==="asc"?"desc":"asc";
+    else SORT={k:k,dir:k==="fecha"?"desc":"asc"};
+    if(SORT.k==="fecha") $("selOrden").value=SORT.dir==="asc"?"antiguas":"recientes";
+    load();
+  });
 }
 
 async function load(){
@@ -149,16 +176,22 @@ async function load(){
     const nq=nrm(q);
     list=list.filter(t=>[t.subject,t.id,t.assignee,YkMisiones.machineOf(t),t.screen].some(v=>nrm(v).includes(nq)));
   }
-  list=list.slice().sort((a,b)=>$("selOrden").value==="antiguas"?(a.created_at-b.created_at):(b.created_at-a.created_at));
+  const sk=SORTERS[SORT.k]||SORTERS.fecha;
+  list=list.slice().sort((a,b)=>{const va=sk(a),vb=sk(b);const c=va<vb?-1:(va>vb?1:0);return SORT.dir==="asc"?c:-c;});
   const el=$("list");
-  if(!list.length){ el.innerHTML='<div class="empty">Sin misiones en este filtro ✓</div>'; return; }
-  el.innerHTML=list.map(t=>YkMisiones.rowHtml(t)).join("");
+  if(!list.length){ el.innerHTML=headHtml()+'<div class="empty">Sin misiones en este filtro ✓</div>'; bindHead(el); return; }
+  el.innerHTML=headHtml()+list.map(t=>YkMisiones.rowHtml(t)).join("");
+  bindHead(el);
   YkMisiones.bindRows(el);   // click=misión activa + refresco del árbol de tareas
 }
 // selectores/ordenadores: cualquier cambio repinta
 ["selAgente","selEquipo","selOrden"].forEach(id=>$(id).onchange=()=>{ $(id).classList.toggle("on",!!$(id).value&&id!=="selOrden"); load(); });
 // buscador con debounce (repinta 250ms después de dejar de teclear)
 let buscaT; $("busca").oninput=()=>{ clearTimeout(buscaT); buscaT=setTimeout(load,250); };
+// el selector de fecha y la cabecera de columna quedan sincronizados
+$("selOrden").onchange=()=>{ SORT={k:"fecha",dir:$("selOrden").value==="antiguas"?"asc":"desc"}; load(); };
+// triangulito del titular: explicación plegada por defecto
+$("introTgl").onclick=()=>{ const p=$("intro"), abierto=p.hidden; p.hidden=!abierto; $("introTgl").textContent=abierto?"▾":"▸"; $("introTgl").setAttribute("aria-expanded",String(abierto)); };
 // filtros de estado (raíl izquierdo)
 document.querySelectorAll('[data-yk-slot="left"] .tab').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('[data-yk-slot="left"] .tab').forEach(x=>x.classList.remove("on"));

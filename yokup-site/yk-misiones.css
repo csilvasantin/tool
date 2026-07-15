@@ -35,6 +35,14 @@
 .sla{font-family:var(--mono);font-size:10.5px;color:var(--warn)}.who{font-family:var(--mono);font-size:10.5px;color:var(--mut)}
 .cel.rtiempo{flex-direction:column;justify-content:center;align-items:flex-end;gap:3px}
 .fch2{font-family:var(--mono);font-size:10.5px;color:var(--mut);white-space:nowrap}
+/* Cabecera de COLUMNAS estilo hoja de cálculo: misma rejilla que las filas;
+ * clic en un título = ordenar por esa columna (▲ asc / ▼ desc). */
+.lhead{padding:9px 16px;border-bottom:1px solid var(--line);background:rgba(120,243,255,.035)}
+.lhead .lh{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);cursor:pointer;white-space:nowrap;padding:0 12px;text-align:right;user-select:none}
+.lhead .lh[data-k="id"]{text-align:left;padding:0 10px 0 0}
+.lhead .lh[data-k="subject"]{text-align:left;padding:0 14px}
+.lhead .lh:hover,.lhead .lh.on{color:var(--brand)}
+@media(max-width:720px){.lhead{display:none}}
 .empty{padding:36px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
 .tkopen{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--brand);border:1px solid var(--line2);border-radius:7px;padding:4px 9px;text-decoration:none;white-space:nowrap}
 .tkopen:hover{background:rgba(120,243,255,.12)}
