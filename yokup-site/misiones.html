@@ -37,6 +37,12 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .alta-go:disabled{opacity:.5;cursor:wait}
 .alta-msg{flex-basis:100%;font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--dim);min-height:14px}
 .alta-msg.ok{color:var(--good)}.alta-msg.err{color:var(--warn)}
+/* ⚡ Prioridad absoluta: entrega la máquina destino a la IA aunque haya humanos. */
+.alta-pa{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 12px;cursor:pointer;user-select:none;transition:.2s;white-space:nowrap}
+.alta-pa:hover{border-color:var(--line2)}
+.alta-pa input{accent-color:var(--warn);width:14px;height:14px;cursor:pointer;margin:0}
+.alta-pa.on{color:var(--warn);border-color:var(--warn)}
+.alta-hint{flex-basis:100%;font-family:var(--mono);font-size:11px;line-height:1.5;letter-spacing:.03em;color:var(--warn);opacity:.92}
 #scopeTabs select{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 10px;cursor:pointer;max-width:240px}
 #scopeTabs select.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
 #busca{flex:1 1 170px;min-width:150px;font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 10px;outline:none}
@@ -101,7 +107,11 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
     <input class="alta-txt" id="altaTxt" type="text" maxlength="4000"
            placeholder="Nueva misión para la flota… (Enter para darla de alta)">
     <button type="button" class="alta-agente" id="altaAgentBtn" aria-haspopup="menu" aria-expanded="false" title="Asignar a — pulsa para elegir agente y máquina">🎯 Auto · aleatorio <span class="cv">▾</span></button>
+    <label class="alta-pa" id="altaPaWrap" title="Prioridad absoluta: entrega la máquina destino a la IA aunque haya un humano delante — la fuerza a «desatendida» durante 2 h para que el agente trabaje sin interrupción.">
+      <input type="checkbox" id="altaPa"> ⚡ Prioridad absoluta
+    </label>
     <button class="alta-go" type="submit">＋ Dar de alta</button>
+    <div class="alta-hint" id="altaPaHint" hidden>⚠️ Prioridad absoluta: la máquina destino se entrega a la IA <b>aunque haya humanos delante</b> (se fuerza a «desatendida» ~2 h). Úsalo solo cuando la misión no pueda esperar.</div>
     <div class="alta-msg" id="altaMsg"></div>
   </form>
 
@@ -134,7 +144,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
-  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r19</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r20</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -425,16 +435,33 @@ function pickerAlta(anchor){
 }
 $("altaAgentBtn").addEventListener("click",e=>{ e.stopPropagation(); const abierto=PICKER&&PICKER.el&&PICKER.el.getAttribute("aria-label")==="Asignar la nueva misión"; cerrarPicker(); if(!abierto) pickerAlta(e.currentTarget); });
 
+// ⚡ PRIORIDAD ABSOLUTA: el toggle marca la misión para que el agent-inbox-watcher
+// (grep «prioridad absoluta|absolute priority|[PA]») fuerce la máquina destino a
+// «desatendida» 2 h. Solo cambia el texto del encargo; muestra un aviso claro.
+const paChk=$("altaPa"), paWrap=$("altaPaWrap"), paHint=$("altaPaHint");
+if(paChk){
+  // Inline (además de la clase .on) porque el perímetro de seguridad usa capas de cascada
+  // que ganan por especificidad a .alta-pa.on; el estilo inline sí manda siempre.
+  const syncPa=()=>{ const on=paChk.checked;
+    if(paWrap){ paWrap.classList.toggle("on",on);
+      // setProperty (no «.style.color=var(...)») porque el setter directo rechaza var().
+      paWrap.style.setProperty("color",on?"var(--warn)":""); paWrap.style.setProperty("border-color",on?"var(--warn)":""); }
+    if(paHint) paHint.hidden=!on; };
+  paChk.addEventListener("change",syncPa); syncPa();
+}
 $("alta").onsubmit=async e=>{
   e.preventDefault();
   const txt=$("altaTxt").value.trim(); if(!txt) return;
+  // Prioridad absoluta → antepone el marcador que el watcher detecta.
+  const pa=!!(paChk&&paChk.checked);
+  const encargo=pa ? "[PRIORIDAD ABSOLUTA] "+txt : txt;
   const pick=ALTA_SEL.auto?autoRandom():{persona:ALTA_SEL.persona||"",machine:ALTA_SEL.machine||""};
   const persona=pick.persona, maquina=pick.machine;
   const go=document.querySelector(".alta-go"), msg=$("altaMsg");
   go.disabled=true; msg.className="alta-msg"; msg.textContent="Dando de alta…";
   try{
     const r=await fetch(TG+"/api/bot-inbox",{method:"POST",headers:{"content-type":"application/json"},
-      body:JSON.stringify({target_persona:persona,target_machine:maquina,text:txt,from:"yokup-misiones"})});
+      body:JSON.stringify({target_persona:persona,target_machine:maquina,text:encargo,from:"yokup-misiones"})});
     const d=await r.json();
     if(!d.ok) throw new Error(d.error||"error "+r.status);
     await fetch(WORKER+"/fleet/sync",{method:"POST"}).catch(()=>{});
@@ -450,8 +477,10 @@ $("alta").onsubmit=async e=>{
       }catch(e){}
     }
     const destino=persona?(persona+(maquina?" en "+YkMisiones.canonMachine(maquina):"")):("la máquina "+YkMisiones.canonMachine(maquina)+" (quien esté allí)");
-    msg.className="alta-msg ok"; msg.textContent="✓ FLT-"+d.id+" dada de alta y asignada a "+destino+rayo;
-    $("altaTxt").value=""; radar(); load();
+    msg.className="alta-msg ok"; msg.textContent="✓ FLT-"+d.id+(pa?" ⚡PA":"")+" dada de alta y asignada a "+destino+rayo;
+    $("altaTxt").value="";
+    if(paChk){ paChk.checked=false; if(paWrap){paWrap.classList.remove("on");paWrap.style.setProperty("color","");paWrap.style.setProperty("border-color","");} if(paHint)paHint.hidden=true; }
+    radar(); load();
   }catch(err){
     msg.className="alta-msg err"; msg.textContent="✗ no se pudo crear: "+esc(err&&err.message||err);
   }
