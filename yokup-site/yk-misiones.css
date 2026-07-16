@@ -17,7 +17,9 @@
  * (el sujeto absorbe el resto). Las líneas divisorias .rz son arrastrables. */
 /* minmax(0, var(--c-*)): en pantallas/anchos justos las columnas fijas ENCOGEN
  * proporcionalmente en vez de desbordar sobre la misión (responsive). */
-.hd{display:grid;grid-template-columns:8px minmax(0,var(--c-id,110px)) minmax(140px,1fr) minmax(0,var(--c-fch,120px)) minmax(0,var(--c-ord,128px)) minmax(0,var(--c-who,132px)) minmax(0,var(--c-est,124px));gap:0;align-items:center;padding:14px 16px}
+/* Defaults: ID y Fecha son de ancho ~FIJO (FLT-999 · 16/07 11:37) → estrechas;
+ * la Misión (1fr) se lleva el espacio ganado. (Carlos, 2026-07-16) */
+.hd{display:grid;grid-template-columns:8px minmax(0,var(--c-id,92px)) minmax(140px,1fr) minmax(0,var(--c-fch,104px)) minmax(0,var(--c-ord,128px)) minmax(0,var(--c-who,132px)) minmax(0,var(--c-est,124px));gap:0;align-items:center;padding:14px 16px}
 .pri{width:8px;height:8px;border-radius:50%}.pri.urgente{background:var(--warn);box-shadow:0 0 10px var(--warn)}.pri.alta{background:var(--accent)}.pri.media,.pri.baja{background:var(--good);opacity:.5}
 .tkid{font-family:var(--mono);font-size:12px;color:var(--brand)}.tkid .st{display:block;font-size:9.5px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase;margin-top:3px}
 .tkid .mach{display:block;font-size:9.5px;color:var(--mut);letter-spacing:.04em;margin-top:2px}.tkid .mach.dim{color:var(--dim)}
