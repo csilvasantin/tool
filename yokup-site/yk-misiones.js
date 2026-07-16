@@ -300,6 +300,32 @@
       .then(function (r) { return r.json(); })
       .then(function (d) { return d.tasks || []; });
   }
+  // TODAS las tareas de TODAS las misiones en UNA petición (endpoint agregado
+  // /tasks/all): reemplaza el N+1 de /tareas y /informes. Cada tarea trae
+  // adjuntos subject/screen/loc/created_at de su misión.
+  function fetchAllTasks(scope) {
+    var q = scope ? "?scope=" + encodeURIComponent(scope) : "";
+    return window.fetch(CFG.worker + "/tasks/all" + q, { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { return d.tasks || []; });
+  }
+  // Agrupa el array plano de /tasks/all por misión → [{mission, tasks}], la forma
+  // que consumen /tareas e /informes. Preserva el orden de aparición.
+  function groupByMission(rows) {
+    var by = {}, order = [];
+    (rows || []).forEach(function (t) {
+      if (!by[t.mission_id]) {
+        by[t.mission_id] = { mission: {
+          id: t.mission_id, subject: t.subject, screen: t.screen, loc: t.loc,
+          source: t.source, assignee: t.assignee, status: t.mission_status,
+          created_at: t.mission_created
+        }, tasks: [] };
+        order.push(t.mission_id);
+      }
+      by[t.mission_id].tasks.push(t);
+    });
+    return order.map(function (id) { return by[id]; });
+  }
   function postStatus(id, code, status) {
     return window.fetch(CFG.worker + "/mission/" + encodeURIComponent(id) + "/task/" + encodeURIComponent(code) + "/status", {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: status })
@@ -348,6 +374,7 @@
     renderTaskTree: renderTaskTree, refreshTree: refreshTree,
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,
     nextStatus: nextStatus, postStatus: postStatus, postPlan: postPlan,
-    fetchTasks: fetchTasks, esc: esc, ago: ago, slaLeft: slaLeft
+    fetchTasks: fetchTasks, fetchAllTasks: fetchAllTasks, groupByMission: groupByMission,
+    esc: esc, ago: ago, slaLeft: slaLeft
   };
 })();

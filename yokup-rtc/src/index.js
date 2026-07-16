@@ -11,7 +11,7 @@ var json = /* @__PURE__ */ __name((o, s = 200) => new Response(JSON.stringify(o)
 var AUTH_CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
 var WL_API = "https://admira-whitelist.csilvasantin.workers.dev";
 var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@admira.com", "agonzalez@admira.com", "jsedano@admira.com"];
-var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge"]);
+var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge"]);
 var _wl = { at: 0, set: null };
 async function whitelist() {
   if (_wl.set && Date.now() - _wl.at < 3e5) return _wl.set;
@@ -183,6 +183,26 @@ async function listMissionTasks(env, mid) {
   return results || [];
 }
 __name(listMissionTasks, "listMissionTasks");
+// TODAS las tareas de TODAS las misiones en UNA query (JOIN con tickets), para
+// que /tareas e /informes no hagan N+1 (un /mission/<id>/tasks por misión, cada
+// 15 s). Cada fila trae adjuntos los datos de su misión (subject/screen/loc/…)
+// para agrupar/filtrar en cliente sin más peticiones. `scope` filtra igual que
+// listTickets/stats. Sin LIMIT: recoge todas (evita el corte de 100 de /tickets).
+async function listAllMissionTasks(env, scope) {
+  const where = scope === "fleet" ? "WHERE t.source='fleet'"
+    : scope === "todas" ? ""
+    : "WHERE t.source IS NULL OR t.source!='fleet'";
+  const { results } = await env.DB.prepare(
+    `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.report, m.updated_at,
+            t.subject, t.screen, t.loc, t.source, t.assignee,
+            t.status AS mission_status, t.created_at AS mission_created
+       FROM mission_tasks m JOIN tickets t ON t.id = m.mission_id
+       ${where}
+       ORDER BY m.mission_id, m.code`
+  ).all();
+  return results || [];
+}
+__name(listAllMissionTasks, "listAllMissionTasks");
 // Guarda el plan completo (reemplaza el anterior). Valida codes y tope de 3
 // subtareas por paso (→ máx 9 subtareas). Devuelve el plan resultante.
 async function saveMissionPlan(env, mid, tasks) {
@@ -912,6 +932,15 @@ var index_default = {
         // del bot-inbox (cron cada 2 min), no de las pantallas DOOH.
         if (scope !== "fleet") await reconcile(env);
         return json({ tickets: await listTickets(env, scope), stats: await stats(env, scope), roster: ROSTER });
+      } catch (e) {
+        return json({ error: String(e) }, 500);
+      }
+    }
+    if (url.pathname === "/tasks/all") {
+      try {
+        await ensureSchema(env);
+        const scope = url.searchParams.get("scope") || "todas";
+        return json({ tasks: await listAllMissionTasks(env, scope) });
       } catch (e) {
         return json({ error: String(e) }, 500);
       }

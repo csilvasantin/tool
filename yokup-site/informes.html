@@ -108,19 +108,12 @@ async function load(){
   // los partes. Y las misiones con informe están RESUELTAS → ordenan al final, así que
   // 'todas' (LIMIT 100, mezclado con campo) las cortaría; 'fleet' (52 < 100) las trae
   // todas. (Carlos, 2026-07-16: «seguimos sin informes».)
-  let d; try{ const r=await fetch(WORKER+"/tickets?scope=fleet",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
-  const tks=d.tickets||[];
-  const all=[];
-  await Promise.all(tks.map(async t=>{
-    try{
-      const r=await fetch(WORKER+"/mission/"+encodeURIComponent(t.id)+"/tasks",{cache:"no-store"});
-      const dd=await r.json();
-      (dd.tasks||[]).forEach(task=>{
-        if(task.report && String(task.report).trim())
-          all.push(Object.assign({},task,{subject:t.subject,screen:t.screen}));
-      });
-    }catch(e){}
-  }));
+  // UNA sola petición al endpoint agregado /tasks/all?scope=fleet (antes:
+  // /tickets + un fetch de tareas por misión = N+1). Cada fila ya trae
+  // subject/screen de su misión, y sin el LIMIT 100 de /tickets. Fetch directo
+  // (esta página no carga yk-misiones.js).
+  let d; try{ const r=await fetch(WORKER+"/tasks/all?scope=fleet",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
+  const all=(d.tasks||[]).filter(t=>t.report && String(t.report).trim());
   all.sort((a,b)=>(b.updated_at||0)-(a.updated_at||0));
   ALL=all; applyFilter();
 }

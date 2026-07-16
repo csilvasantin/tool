@@ -64,7 +64,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa «misiones JSON» para volcar los datos crudos del worker.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r16"></script>
+<script src="/yk-misiones.js?v=r17"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 const $=id=>document.getElementById(id);
@@ -99,17 +99,11 @@ function filterLabel(){
 async function load(){
   // scope=todas: el árbol de tareas es el mismo modelo para las misiones de la
   // flota (encargos a los agentes) y las de campo (incidencias de pantallas).
-  let d; try{ const r=await fetch(WORKER+"/tickets?scope=todas",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
-  // Filtra por fecha ANTES de traer los árboles (menos peticiones): sólo las del rango.
-  const tks=(d.tickets||[]).filter(t=>inRange(t.created_at));
-  const groups=[];
-  // Mismo criterio que /informes: un fetch por misión (bandeja acotada a 100).
-  await Promise.all(tks.map(async t=>{
-    try{
-      const tasks=await YkMisiones.fetchTasks(t.id);
-      if(tasks.length) groups.push({mission:t, tasks});
-    }catch(e){}
-  }));
+  // UNA sola petición al endpoint agregado /tasks/all (antes: /tickets + un
+  // fetch por misión = N+1, cada 15 s; ahora una query D1 con JOIN).
+  let rows; try{ rows=await YkMisiones.fetchAllTasks("todas"); }catch(e){ return; }
+  // Agrupa por misión y filtra por fecha de creación (sólo las del rango).
+  const groups=YkMisiones.groupByMission(rows).filter(g=>inRange(g.mission.created_at));
   groups.sort((a,b)=>Math.max(...b.tasks.map(x=>x.updated_at||0))-Math.max(...a.tasks.map(x=>x.updated_at||0)));
   GROUPS=groups;
   render();
