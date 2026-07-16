@@ -23,8 +23,16 @@
 /* Columna CAPTURA del proyecto (entre ID y Misión): referencia visual. */
 .cel.shot{padding:0 8px;justify-content:center;align-items:center}
 .shot-lnk{display:block;width:100%;line-height:0}
-.shot-img{width:100%;max-width:112px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:6px;border:1px solid var(--line2);background:var(--card2);display:block}
+.shot-img{width:100%;max-width:112px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:6px;border:1px solid var(--line2);background:var(--card2);display:block;cursor:zoom-in;transition:.15s}
+.shot-img:hover{border-color:var(--brand);box-shadow:0 0 10px rgba(120,243,255,.25)}
 .shot-none{color:var(--dim);font-family:var(--mono);font-size:12px}
+/* Lightbox de la miniatura (clic → captura en grande). */
+#yk-lightbox{position:fixed;inset:0;z-index:9998;background:rgba(2,8,13,.92);display:none;align-items:center;justify-content:center;padding:24px;cursor:zoom-out}
+#yk-lightbox.show{display:flex}
+#yk-lightbox .ykl-box{max-width:min(1100px,94vw);display:flex;flex-direction:column;gap:10px;align-items:center}
+#yk-lightbox .ykl-img{max-width:100%;max-height:82vh;border-radius:12px;border:1px solid var(--line2);box-shadow:0 20px 60px rgba(0,0,0,.6);background:var(--card2)}
+#yk-lightbox .ykl-open{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--brand);text-decoration:none;border:1px solid var(--line2);border-radius:9px;padding:8px 13px;cursor:pointer}
+#yk-lightbox .ykl-open:hover{background:rgba(120,243,255,.12)}
 .pri{width:8px;height:8px;border-radius:50%}.pri.urgente{background:var(--warn);box-shadow:0 0 10px var(--warn)}.pri.alta{background:var(--accent)}.pri.media,.pri.baja{background:var(--good);opacity:.5}
 .tkid{font-family:var(--mono);font-size:12px;color:var(--brand)}.tkid .st{display:block;font-size:9.5px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase;margin-top:3px}
 .tkid .mach{display:block;font-size:9.5px;color:var(--mut);letter-spacing:.04em;margin-top:2px}.tkid .mach.dim{color:var(--dim)}

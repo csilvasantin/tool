@@ -124,6 +124,24 @@
   // miniatura de una web (thum.io; cargada directa desde el navegador — las IPs de
   // datacenter la bloquean, pero el navegador del usuario es residencial).
   function shotUrl(web, w) { return "https://image.thum.io/get/width/" + (w || 240) + "/crop/135/" + web; }
+  // LIGHTBOX: clic en la miniatura → captura EN GRANDE (no navega a la web).
+  function openLightbox(web) {
+    var ov = document.getElementById("yk-lightbox");
+    if (!ov) {
+      ov = document.createElement("div"); ov.id = "yk-lightbox";
+      ov.innerHTML = '<div class="ykl-box"><img class="ykl-img" alt=""><a class="ykl-open" target="_blank" rel="noopener"></a></div>';
+      document.body.appendChild(ov);
+      ov.addEventListener("click", function (e) { if (e.target === ov || e.target.classList.contains("ykl-img")) ov.classList.remove("show"); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") ov.classList.remove("show"); });
+    }
+    ov.querySelector(".ykl-img").src = "https://image.thum.io/get/width/1100/" + web;   // grande, sin crop (web completa)
+    var op = ov.querySelector(".ykl-open"); op.href = web; op.textContent = "abrir " + web.replace(/^https?:\/\/(www\.)?/, "") + " ↗";
+    ov.classList.add("show");
+  }
+  document.addEventListener("click", function (e) {
+    var img = e.target.closest && e.target.closest(".shot-img");
+    if (img && img.dataset.shot) { e.preventDefault(); openLightbox(img.dataset.shot); }
+  });
 
   // ------- fila de MISIÓN (idéntica en /incidencias y /misiones) -------
   // ESTADOS canónicos (Carlos, 2026-07-15): Sin asignar · Asignada · En curso ·
@@ -150,7 +168,7 @@
         '<div class="pri ' + esc(t.priority) + '"></div>' +
         '<div class="tkid">' + esc(t.id) + '<span class="st">' + (t.source === "agent-iot" ? "🤖 Agente IoT" : "👤 Manual") + "</span></div>" +
         '<div class="cel shot">' + (function () { var p = proyectoDe(t);
-          return p ? '<a class="shot-lnk" href="' + esc(p) + '" target="_blank" rel="noopener" title="' + esc(p) + '"><img class="shot-img" loading="lazy" src="' + esc(shotUrl(p, 240)) + '" alt=""></a>' : '<span class="shot-none" title="sin proyecto detectado">—</span>'; })() + "</div>" +
+          return p ? '<img class="shot-img" loading="lazy" src="' + esc(shotUrl(p, 240)) + '" data-shot="' + esc(p) + '" alt="" title="ampliar · ' + esc(p) + '">' : '<span class="shot-none" title="sin proyecto detectado">—</span>'; })() + "</div>" +
         '<div class="subj">' + rz("id", "r") + '<div class="t">' + esc(t.subject) + '</div><div class="m"><span class="scr">' + esc(t.screen) + "</span>" +
           (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span></div></div>" +
         // Fecha + DURACIÓN: de asignada a finalizada (o transcurrido si sigue viva).
@@ -233,7 +251,7 @@
     initColResize();
     (container || document).querySelectorAll(".tk").forEach(function (row) {
       row.addEventListener("click", function (e) {
-        if (e.target.closest(".tkopen") || e.target.closest(".rz")) return;
+        if (e.target.closest(".tkopen") || e.target.closest(".rz") || e.target.closest(".shot-img")) return;
         selectMission(row.dataset.id);
       });
     });
