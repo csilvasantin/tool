@@ -303,6 +303,29 @@
   // TODAS las tareas de TODAS las misiones en UNA petición (endpoint agregado
   // /tasks/all): reemplaza el N+1 de /tareas y /informes. Cada tarea trae
   // adjuntos subject/screen/loc/created_at de su misión.
+  // HALO en el previo del proyecto cuando HAY un agente trabajando la misión:
+  // su máquina (canónica) o su agente asignado está VIVO en presencia y la
+  // misión no está resuelta. `live` = { machines:Set(canon), personas:Set(lower) }.
+  // (Carlos, FLT-761 — prioridad absoluta.)
+  function markWorking(container, tickets, live) {
+    live = live || {};
+    var lm = live.machines, lp = live.personas;
+    var byId = {};
+    (tickets || []).forEach(function (t) { byId[t.id] = t; });
+    (container || document).querySelectorAll(".tk").forEach(function (row) {
+      var t = byId[row.dataset.id]; if (!t) return;
+      var img = row.querySelector(".shot-img"); if (!img) return;
+      var maq = machineOf(t);   // ya canónica
+      // una misión difundida agrupa varios agentes (_agents); vale con que UNO viva
+      var pers = (t._agents && t._agents.length ? t._agents : [t.assignee])
+        .map(function (x) { return String(x || "").toLowerCase(); });
+      var alive = (maq && lm && lm.has(maq)) ||
+        (lp && pers.some(function (p) { return p && lp.has(p); }));
+      var activa = t.status !== "resolved";
+      img.classList.toggle("working", !!(alive && activa));
+    });
+  }
+
   function fetchAllTasks(scope) {
     var q = scope ? "?scope=" + encodeURIComponent(scope) : "";
     return window.fetch(CFG.worker + "/tasks/all" + q, { cache: "no-store" })
@@ -375,6 +398,6 @@
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,
     nextStatus: nextStatus, postStatus: postStatus, postPlan: postPlan,
     fetchTasks: fetchTasks, fetchAllTasks: fetchAllTasks, groupByMission: groupByMission,
-    esc: esc, ago: ago, slaLeft: slaLeft
+    markWorking: markWorking, esc: esc, ago: ago, slaLeft: slaLeft
   };
 })();

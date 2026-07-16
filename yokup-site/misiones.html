@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r8">
-<link rel="stylesheet" href="/yk-misiones.css?v=r11">
+<link rel="stylesheet" href="/yk-misiones.css?v=r12">
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -203,7 +203,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r17"></script>
+<script src="/yk-misiones.js?v=r18"></script>
 <script src="/yk-adjuntos.js?v=r2"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
@@ -271,6 +271,25 @@ function agrupaFlota(tks){
   return out;
 }
 
+// FLT-761 (Carlos, prioridad absoluta): el previo del proyecto lleva un HALO
+// cuando hay un agente TRABAJANDO la misión — su máquina o su agente está VIVO
+// en presencia (<15 min, mismo criterio que el radar). Fire-and-forget: no
+// retrasa el pintado; el halo aparece un instante después.
+async function marcarHalos(container, list){
+  const live={machines:new Set(),personas:new Set()};
+  try{
+    const pr=await fetch(TG+"/api/presence",{cache:"no-store"}).then(r=>r.json());
+    const now=Date.now()/1000;
+    for(const p of (pr.presence||[])){
+      if((now-(p.updated||0))<900){
+        if(p.machine) live.machines.add(YkMisiones.canonMachine(p.machine));
+        if(p.persona) live.personas.add(String(p.persona).toLowerCase());
+      }
+    }
+  }catch(e){ return; }
+  YkMisiones.markWorking(container, list, live);
+}
+
 async function load(){
   let d; try{ const r=await fetch(WORKER+"/tickets?scope="+SCOPE,{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
   const tks=(SCOPE==="fleet") ? agrupaFlota(d.tickets||[]) : (d.tickets||[]), st=d.stats||{};
@@ -317,6 +336,7 @@ async function load(){
   el.innerHTML=headHtml()+list.map(t=>YkMisiones.rowHtml(t)).join("");
   bindHead(el);
   YkMisiones.bindRows(el);   // click=misión activa + refresco del árbol de tareas
+  marcarHalos(el, list);     // FLT-761: halo en el previo si hay agente trabajando
 }
 // selectores/ordenadores: cualquier cambio repinta
 ["selAgente","selEquipo","selOrden"].forEach(id=>$(id).onchange=()=>{ $(id).classList.toggle("on",!!$(id).value&&id!=="selOrden"); load(); });

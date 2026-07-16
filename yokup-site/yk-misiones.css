@@ -25,6 +25,14 @@
 .shot-lnk{display:block;width:100%;line-height:0}
 .shot-img{width:100%;max-width:112px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:6px;border:1px solid var(--line2);background:var(--card2);display:block;cursor:zoom-in;transition:.15s}
 .shot-img:hover{border-color:var(--brand);box-shadow:0 0 10px rgba(120,243,255,.25)}
+/* HALO del previo cuando HAY un agente trabajando la misión (máquina/agente vivo
+   en presencia y misión no resuelta). Carlos, FLT-761 · prioridad absoluta. */
+@keyframes yk-working-halo{
+  0%,100%{ box-shadow:0 0 0 1px var(--brand,#78f3ff), 0 0 8px 1px rgba(120,243,255,.35); }
+  50%    { box-shadow:0 0 0 1px var(--brand,#78f3ff), 0 0 17px 5px rgba(120,243,255,.70); }
+}
+.shot-img.working{ border-color:var(--brand,#78f3ff); animation:yk-working-halo 1.7s ease-in-out infinite; }
+@media (prefers-reduced-motion:reduce){ .shot-img.working{ animation:none; box-shadow:0 0 0 1px var(--brand,#78f3ff),0 0 14px 3px rgba(120,243,255,.6); } }
 .shot-none{color:var(--dim);font-family:var(--mono);font-size:12px}
 /* Lightbox de la miniatura (clic → captura en grande). */
 #yk-lightbox{position:fixed;inset:0;z-index:9998;background:rgba(2,8,13,.92);display:none;align-items:center;justify-content:center;padding:24px;cursor:zoom-out}
