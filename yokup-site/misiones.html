@@ -512,6 +512,18 @@ function pickAgenteCat(cat,maqRaw){
   const anyOn=p=>Object.values(MAQS[p]||{}).some(i=>i.online);
   return cand.find(onlineOn)||cand.find(anyOn)||cand[0]||Object.keys(RT_FIJO).find(p=>RT_FIJO[p]===cat)||null;
 }
+// FRENTE 3 (Carlos, entrega): agente principal VIVO en una máquina concreta —
+// "quien esté allí" resuelto a un nombre. De los principales con esa máquina
+// online (presencia <15 min), el de menos encargos abiertos. "" si no hay nadie.
+function agenteVivoEnMaquina(maqRaw){
+  const canon=YkMisiones.canonMachine(maqRaw);
+  const cand=UNIV.filter(p=>esAsignable(p)&&MAQS[p]&&MAQS[p][canon]&&MAQS[p][canon].online);
+  if(!cand.length) return "";
+  // prioridad de la flota Claude>Codex>Grok (reference_agent_identity); a igual
+  // prioridad, el de menos encargos abiertos.
+  const prio=p=>{const rt=(RUNTIME[p]||"").toLowerCase();return /claude/.test(rt)?0:/codex/.test(rt)?1:/grok/.test(rt)?2:3;};
+  return cand.slice().sort((a,b)=>prio(a)-prio(b)||(CARGA_P[a]||0)-(CARGA_P[b]||0))[0];
+}
 // Deduce el AGENTE/LLM del texto: nombre directo (neo/morfeo/…) o LLM
 // (grok→Smith · codex→Codex online · claude→Claude online).
 const AG_ALIAS={neo:"Neo",morfeo:"Morfeo",trinity:"Trinity",oraculo:"Oráculo",smith:"Smith",whiterabbit:"WhiteRabbit"};
@@ -640,7 +652,11 @@ $("alta").onsubmit=async e=>{
   const img=altaAdj.bloque();          // "🖼 Imágenes adjuntas: …" o ""
   const encargo=(pa ? "[PRIORIDAD ABSOLUTA] "+txt : txt)+img;
   const pick=ALTA_SEL.auto?autoRandom():{persona:ALTA_SEL.persona||"",machine:ALTA_SEL.machine||""};
-  const persona=pick.persona, maquina=pick.machine;
+  let persona=pick.persona; const maquina=pick.machine;
+  // FRENTE 3 (Carlos): encargo "solo máquina" (sin persona) → resolver el agente
+  // principal VIVO que hay allí, para que el encargo NOMBRE a un destinatario
+  // (deja de quedar target_persona vacío = "quien esté allí" sin resolver).
+  if(!persona && maquina){ const v=agenteVivoEnMaquina(maquina); if(v) persona=v; }
   const go=document.querySelector(".alta-go"), msg=$("altaMsg");
   go.disabled=true; msg.className="alta-msg"; msg.textContent="Dando de alta…";
   try{
