@@ -62,6 +62,11 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .fl-chip:hover{border-color:var(--line2);color:var(--brand)}
 .fl-chip.st-pending{border-left:2px solid var(--warn)}.fl-chip.st-in_progress{border-left:2px solid var(--accent)}.fl-chip.st-sinasig{border-left:2px solid var(--violet)}
 .fl-none{font-family:var(--mono);font-size:9.5px;color:var(--dim);margin-top:4px}
+/* Trabaja sin FLT → misión de facto (ámbar) + botón formalizar. */
+.fl-cur{font-family:var(--mono);font-size:10px;letter-spacing:.03em;color:var(--accent);margin-top:5px}.fl-cur span{color:var(--mut)}
+.fl-form{margin-top:6px;font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--brand);background:transparent;border:1px dashed var(--line2);border-radius:7px;padding:4px 8px;cursor:pointer;transition:.15s}
+.fl-form:hover{background:rgba(120,243,255,.1);border-style:solid}
+.fl-form:disabled{opacity:.6;cursor:wait}
 /* 📎 Adjuntar imágenes a la misión (paste/drop/picker → R2). */
 .alta-adj{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 12px;cursor:pointer;white-space:nowrap;transition:.2s}
 .alta-adj:hover{border-color:var(--line2);color:var(--brand)}
@@ -188,7 +193,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
-  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.16.r2</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.16.r3</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -652,7 +657,7 @@ radar(); setInterval(radar,60000);
 // 🛰 RESUMEN DE FLOTA (modo avanzado) — TODAS las máquinas de AdmiraNeXT y qué
 // hace cada una: presencia (agente + foco) + misiones activas. (Carlos, 2026-07-16)
 // ============================================================================
-let MIS_ALL=[];
+let MIS_ALL=[], FL_BY_MAQ={};
 const FLOTA_BASE=["MacBookAirRosa","MacBookAirAzul","MacBookAirCrema","MacBookAirPlata","MacBookAir16plata","MacBookProNegro14","MacBookPro16","MacMini","DGX Spark","ThinkStation PGX","ASUS Zenbook"];
 const FL_EM={MacBookAirRosa:"🩷",MacBookAirAzul:"🔵",MacBookAirCrema:"🟡",MacBookAirPlata:"⚪",MacBookAir16plata:"⚪",MacBookPro14:"⬛",MacBookPro16:"⬛",MacMini:"🖥","DGX Spark":"⚡","ThinkStation PGX":"🖥","ASUS Zenbook":"💻"};
 const _foco=s=>{ s=String(s||""); return s.length>150?s.slice(0,149)+"…":s; };
@@ -664,8 +669,9 @@ async function renderFlota(){
   for(const p of pres){
     if(!p.machine||!esPrincipal(p.persona)) continue;
     const c=YkMisiones.canonMachine(p.machine), cur=byMaq[c];
-    if(!cur||(p.updated||0)>(cur.updated||0)) byMaq[c]={persona:p.persona,runtime:p.runtime||"",focus:p.focus||"",updated:p.updated||0,online:(now-(p.updated||0))<900};
+    if(!cur||(p.updated||0)>(cur.updated||0)) byMaq[c]={persona:p.persona,raw:p.machine,runtime:p.runtime||"",focus:p.focus||"",updated:p.updated||0,online:(now-(p.updated||0))<900};
   }
+  FL_BY_MAQ=byMaq;   // para el botón «formalizar» (necesita persona+raw+focus)
   const misBy={};
   (MIS_ALL||[]).forEach(m=>{ if(m.status==="resolved") return; const c=YkMisiones.machineOf(m); if(!c) return; (misBy[c]=misBy[c]||[]).push(m); });
   const univ=[...new Set([...FLOTA_BASE.map(x=>YkMisiones.canonMachine(x)),...Object.keys(byMaq),...Object.keys(misBy)])].filter(Boolean)
@@ -677,17 +683,43 @@ async function renderFlota(){
     const ag=pr?(esc(pr.persona||"—")+(pr.runtime?" · "+esc(pr.runtime):"")):"—";
     const foco=pr&&pr.focus?esc(_foco(pr.focus)):(on?"sin foco reportado":"en reposo");
     const mis=misBy[c]||[];
-    const misHtml=mis.length
-      ? '<div class="fl-mis">'+mis.slice(0,4).map(m=>{ const st=YkMisiones.estadoDe(m).l;
-          const cl=st==="Sin asignar"?"sinasig":(m.status==="in_progress"?"in_progress":"pending");
-          return '<a class="fl-chip st-'+cl+'" href="https://www.yokup.com/ticket?id='+encodeURIComponent(m.id)+'" target="_blank" rel="noopener" title="'+esc(m.subject||"")+'">'+esc(m.id)+'</a>'; }).join('')
-          +(mis.length>4?'<span class="fl-chip">+'+(mis.length-4)+'</span>':'')+'</div>'
-      : '<div class="fl-none">sin misiones activas</div>';
+    let misHtml;
+    if(mis.length){
+      misHtml='<div class="fl-mis">'+mis.slice(0,4).map(m=>{ const st=YkMisiones.estadoDe(m).l;
+        const cl=st==="Sin asignar"?"sinasig":(m.status==="in_progress"?"in_progress":"pending");
+        return '<a class="fl-chip st-'+cl+'" href="https://www.yokup.com/ticket?id='+encodeURIComponent(m.id)+'" target="_blank" rel="noopener" title="'+esc(m.subject||"")+'">'+esc(m.id)+'</a>'; }).join('')
+        +(mis.length>4?'<span class="fl-chip">+'+(mis.length-4)+'</span>':'')+'</div>';
+    } else if(on && pr && pr.focus){
+      // Trabaja (foco vivo) pero sin FLT: es una MISIÓN DE FACTO — se reconoce y se
+      // puede FORMALIZAR (registrarla como misión FLT en yokup con un clic).
+      misHtml='<div class="fl-cur">⚙️ en misión · <span>su foco</span></div>'
+        +'<button class="fl-form" data-form="'+esc(c)+'" title="Registrar el foco actual como misión FLT en yokup (asignada a esta máquina)">📌 formalizar como misión</button>';
+    } else if(on){
+      misHtml='<div class="fl-none">sin misión asignada</div>';
+    } else {
+      misHtml='<div class="fl-none">en reposo</div>';
+    }
     return '<div class="fl-card '+(on?"on":"off")+'"><div class="fl-top"><span>'+(FL_EM[c]||"🖥")+'</span><span class="fl-nm">'+esc(c)+'</span><span class="fl-dot"></span><span class="fl-ag">'+ag+'</span></div>'
       +'<div class="fl-focus'+(pr&&pr.focus?"":" idle")+'">'+foco+'</div>'+misHtml+'</div>';
   }).join('');
 }
 renderFlota(); setInterval(renderFlota,45000);
+// FORMALIZAR: el foco de una máquina que trabaja sin FLT → misión FLT en yokup,
+// asignada a esa máquina+agente (mismo canal que el alta). Delegado UNA vez.
+$("flotaList").addEventListener("click", async e=>{
+  const b=e.target.closest(".fl-form"); if(!b) return;
+  const info=FL_BY_MAQ[b.dataset.form]; if(!info||!info.focus){ return; }
+  b.disabled=true; const old=b.textContent; b.textContent="📌 registrando…";
+  const texto="[misión formalizada desde el foco de "+(info.persona||"?")+"] "+info.focus;
+  try{
+    const r=await fetch(TG+"/api/bot-inbox",{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({target_persona:info.persona||"",target_machine:info.raw||"",text:texto,from:"yokup-flota"})});
+    const d=await r.json(); if(!d.ok) throw new Error(d.error||"error "+r.status);
+    await fetch(WORKER+"/fleet/sync",{method:"POST"}).catch(()=>{});
+    b.textContent="✓ FLT-"+d.id;
+    setTimeout(()=>{ load(); },900);   // load() recarga misiones y repinta la flota
+  }catch(err){ b.disabled=false; b.textContent="✗ reintentar"; }
+});
 
 // ============================================================================
 // REASIGNAR desde la LISTA: clic en la celda ORDENADOR o AGENTE de una misión
