@@ -43,6 +43,25 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .alta-pa input{accent-color:var(--warn);width:14px;height:14px;cursor:pointer;margin:0}
 .alta-pa.on{color:var(--warn);border-color:var(--warn)}
 .alta-hint{flex-basis:100%;font-family:var(--mono);font-size:11px;line-height:1.5;letter-spacing:.03em;color:var(--warn);opacity:.92}
+/* 🛰 RESUMEN DE FLOTA (modo avanzado, raíl derecho) — qué hace cada máquina. */
+.flota{margin-bottom:16px}
+.flota-hd{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--brand);margin-bottom:9px;display:flex;align-items:center;gap:8px}
+.flota-cnt{color:var(--mut);font-size:9.5px}
+.flota-list{display:flex;flex-direction:column;gap:7px}
+.fl-card{border:1px solid var(--line);border-left-width:3px;border-radius:9px;padding:8px 10px;background:var(--card)}
+.fl-card.on{border-left-color:var(--good)}.fl-card.off{border-left-color:var(--dim);opacity:.72}
+.fl-top{display:flex;align-items:center;gap:6px}
+.fl-nm{font-family:var(--mono);font-size:11px;color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fl-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--dim)}
+.fl-card.on .fl-dot{background:var(--good);box-shadow:0 0 7px var(--good)}
+.fl-ag{margin-left:auto;flex:none;font-family:var(--mono);font-size:9.5px;color:var(--mut);white-space:nowrap}
+.fl-focus{font-size:11px;line-height:1.4;color:var(--mut);margin-top:4px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.fl-focus.idle{color:var(--dim);font-style:italic}
+.fl-mis{margin-top:5px;display:flex;gap:5px;flex-wrap:wrap}
+.fl-chip{font-family:var(--mono);font-size:9px;letter-spacing:.03em;border:1px solid var(--line);border-radius:6px;padding:2px 6px;color:var(--mut);text-decoration:none}
+.fl-chip:hover{border-color:var(--line2);color:var(--brand)}
+.fl-chip.st-pending{border-left:2px solid var(--warn)}.fl-chip.st-in_progress{border-left:2px solid var(--accent)}.fl-chip.st-sinasig{border-left:2px solid var(--violet)}
+.fl-none{font-family:var(--mono);font-size:9.5px;color:var(--dim);margin-top:4px}
 /* 📎 Adjuntar imágenes a la misión (paste/drop/picker → R2). */
 .alta-adj{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 12px;cursor:pointer;white-space:nowrap;transition:.2s}
 .alta-adj:hover{border-color:var(--line2);color:var(--brand)}
@@ -97,7 +116,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 #ykToast.err{border-color:rgba(255,136,102,.55);color:var(--warn)}
 </style>
 </head>
-<body data-yk-title="MISIONES" data-yk-rail-left="MISIONES" data-yk-rail-right="TAREAS" data-yk-zone="app">
+<body data-yk-title="MISIONES" data-yk-rail-left="MISIONES" data-yk-rail-right="AVANZADO" data-yk-zone="app">
 <div class="wrap">
   <!-- DATOS GENERALES arriba del todo. ESTADOS canónicos (Carlos, 2026-07-15):
        sin asignar · asignadas · en curso · finalizadas. Nada de «abiertas». -->
@@ -158,12 +177,18 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
     <button class="tab" data-f="resolved">Finalizadas</button>
     <button class="tab" data-f="todas">Todas</button>
   </div>
+  <!-- MODO AVANZADO: resumen de TODA la flota AdmiraNeXT — qué hace cada máquina
+       y sus misiones activas (Carlos, 2026-07-16). Encima del árbol de tareas. -->
+  <div class="flota" id="flota" data-yk-slot="right">
+    <div class="flota-hd">🛰 Flota · qué hace cada máquina <span class="flota-cnt" id="flotaCnt"></span></div>
+    <div class="flota-list" id="flotaList"><div class="empty2">Cargando flota…</div></div>
+  </div>
   <div class="tree" id="taskTree" data-yk-slot="right">
     <div class="empty2">Selecciona una <b>misión</b> en la lista para ver y planificar sus <b>tareas</b>.</div>
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
-  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.16.r1</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.16.r2</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -247,6 +272,7 @@ async function load(){
   // Índice de misiones para el picker de reasignación (equipo/agente actuales por id).
   ROWS_BY_ID={};
   tks.forEach(t=>{ ROWS_BY_ID[t.id]={maq:YkMisiones.machineOf(t)||"",rawmaq:(t.machine||t.loc||""),agente:t.assignee||"",subject:t.subject||"",loc:t.loc||""}; });
+  MIS_ALL=tks; try{ renderFlota(); }catch(e){}   // resumen de flota (modo avanzado)
   // KPIs por ESTADO canónico, calculados de las misiones vivas (no del stats crudo)
   const estL=t=>YkMisiones.estadoDe(t).l;
   $("kSin").textContent=tks.filter(t=>estL(t)==="Sin asignar").length;
@@ -621,6 +647,47 @@ $("alta").onsubmit=async e=>{
   go.disabled=false;
 };
 radar(); setInterval(radar,60000);
+
+// ============================================================================
+// 🛰 RESUMEN DE FLOTA (modo avanzado) — TODAS las máquinas de AdmiraNeXT y qué
+// hace cada una: presencia (agente + foco) + misiones activas. (Carlos, 2026-07-16)
+// ============================================================================
+let MIS_ALL=[];
+const FLOTA_BASE=["MacBookAirRosa","MacBookAirAzul","MacBookAirCrema","MacBookAirPlata","MacBookAir16plata","MacBookProNegro14","MacBookPro16","MacMini","DGX Spark","ThinkStation PGX","ASUS Zenbook"];
+const FL_EM={MacBookAirRosa:"🩷",MacBookAirAzul:"🔵",MacBookAirCrema:"🟡",MacBookAirPlata:"⚪",MacBookAir16plata:"⚪",MacBookPro14:"⬛",MacBookPro16:"⬛",MacMini:"🖥","DGX Spark":"⚡","ThinkStation PGX":"🖥","ASUS Zenbook":"💻"};
+const _foco=s=>{ s=String(s||""); return s.length>150?s.slice(0,149)+"…":s; };
+async function renderFlota(){
+  const list=$("flotaList"); if(!list) return;
+  let pres=[];
+  try{ pres=((await (await fetch(TG+"/api/presence",{cache:"no-store"})).json()).presence)||[]; }catch(e){}
+  const now=Date.now()/1000, byMaq={};
+  for(const p of pres){
+    if(!p.machine||!esPrincipal(p.persona)) continue;
+    const c=YkMisiones.canonMachine(p.machine), cur=byMaq[c];
+    if(!cur||(p.updated||0)>(cur.updated||0)) byMaq[c]={persona:p.persona,runtime:p.runtime||"",focus:p.focus||"",updated:p.updated||0,online:(now-(p.updated||0))<900};
+  }
+  const misBy={};
+  (MIS_ALL||[]).forEach(m=>{ if(m.status==="resolved") return; const c=YkMisiones.machineOf(m); if(!c) return; (misBy[c]=misBy[c]||[]).push(m); });
+  const univ=[...new Set([...FLOTA_BASE.map(x=>YkMisiones.canonMachine(x)),...Object.keys(byMaq),...Object.keys(misBy)])].filter(Boolean)
+    .sort((a,b)=>{ const oa=(byMaq[a]&&byMaq[a].online)?0:1, ob=(byMaq[b]&&byMaq[b].online)?0:1; return oa-ob||a.localeCompare(b); });
+  const online=univ.filter(c=>byMaq[c]&&byMaq[c].online).length;
+  $("flotaCnt").textContent=online+"/"+univ.length+" vivas";
+  list.innerHTML=univ.map(c=>{
+    const pr=byMaq[c], on=!!(pr&&pr.online);
+    const ag=pr?(esc(pr.persona||"—")+(pr.runtime?" · "+esc(pr.runtime):"")):"—";
+    const foco=pr&&pr.focus?esc(_foco(pr.focus)):(on?"sin foco reportado":"en reposo");
+    const mis=misBy[c]||[];
+    const misHtml=mis.length
+      ? '<div class="fl-mis">'+mis.slice(0,4).map(m=>{ const st=YkMisiones.estadoDe(m).l;
+          const cl=st==="Sin asignar"?"sinasig":(m.status==="in_progress"?"in_progress":"pending");
+          return '<a class="fl-chip st-'+cl+'" href="https://www.yokup.com/ticket?id='+encodeURIComponent(m.id)+'" target="_blank" rel="noopener" title="'+esc(m.subject||"")+'">'+esc(m.id)+'</a>'; }).join('')
+          +(mis.length>4?'<span class="fl-chip">+'+(mis.length-4)+'</span>':'')+'</div>'
+      : '<div class="fl-none">sin misiones activas</div>';
+    return '<div class="fl-card '+(on?"on":"off")+'"><div class="fl-top"><span>'+(FL_EM[c]||"🖥")+'</span><span class="fl-nm">'+esc(c)+'</span><span class="fl-dot"></span><span class="fl-ag">'+ag+'</span></div>'
+      +'<div class="fl-focus'+(pr&&pr.focus?"":" idle")+'">'+foco+'</div>'+misHtml+'</div>';
+  }).join('');
+}
+renderFlota(); setInterval(renderFlota,45000);
 
 // ============================================================================
 // REASIGNAR desde la LISTA: clic en la celda ORDENADOR o AGENTE de una misión
