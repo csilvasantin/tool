@@ -92,11 +92,15 @@
       zone.addEventListener("dragleave", function () { zone.classList.remove("yk-drag"); });
       zone.addEventListener("drop", fromDrop);
     }
-    document.addEventListener("paste", function (e) {
-      // solo si el compositor de esta zona está "activo" (visible en viewport)
-      if (!zone || zone.offsetParent === null) return;
-      fromClipboard(e);
-    });
+    // Paste GLOBAL (para el alta, que se pinta una vez). En vistas que re-renderan
+    // el compositor (ticket.html), pásalo globalPaste:false y usa el paste de la
+    // zona/textarea — así no se acumulan listeners en document.
+    if (opts.globalPaste !== false) {
+      document.addEventListener("paste", function (e) {
+        if (!zone || zone.offsetParent === null) return;   // solo si esta zona está visible
+        fromClipboard(e);
+      });
+    }
 
     var api = {
       add: add,

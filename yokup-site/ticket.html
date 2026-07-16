@@ -53,6 +53,14 @@ h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
 .composer h3{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--brand);margin-bottom:10px}
 .composer textarea{width:100%;min-height:80px;font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 13px;outline:none;resize:vertical}
 .composer textarea:focus{border-color:var(--brand)}
+.composer.yk-drag{outline:2px dashed var(--brand);outline-offset:4px;border-radius:14px}
+.yk-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 0}
+.yk-adj{position:relative;width:56px;height:56px;border-radius:9px;overflow:hidden;border:1px solid var(--line2);background:var(--card);display:flex;align-items:center;justify-content:center}
+.yk-adj img{width:100%;height:100%;object-fit:cover;display:block}
+.yk-adj.up{border-style:dashed}.yk-adj.err{border-color:var(--warn)}
+.yk-adj-sp{font-size:18px;animation:ykspin 1.4s linear infinite}@keyframes ykspin{to{transform:rotate(360deg)}}
+.yk-adj-x{position:absolute;top:2px;right:2px;width:18px;height:18px;line-height:16px;text-align:center;border-radius:50%;border:none;background:rgba(2,8,13,.82);color:var(--ink);font-size:13px;cursor:pointer;padding:0}
+.yk-adj-x:hover{background:var(--warn);color:#02080d}
 .crow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .crow .btn{flex:0 0 auto}
 .foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
@@ -76,8 +84,10 @@ h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
 
 <!-- yk-misiones aporta canonMachine (nombres canónicos de máquina) al selector de asignación -->
 <script src="/yk-misiones.js?v=r14"></script>
+<script src="/yk-adjuntos.js?v=r2"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
+YkAdjuntos.init(WORKER);
 const TG="https://admira-telegram.csilvasantin.workers.dev";
 const NAV="https://admira-navegadores.csilvasantin.workers.dev";
 const id=new URLSearchParams(location.search).get("id")||"";
@@ -130,16 +140,30 @@ async function render(){
     </div>`:""}
     <div class="sum" id="sum"><h4>🧠 Resumen IA</h4><p id="sumtext"></p></div>
     <div class="tl">${ev.map(e=>`<div class="ev ${esc(e.kind)}"><div class="eh"><b>${esc(e.author)}</b><span>${hm(e.ts)}</span></div><div class="et">${esc(e.text)}</div></div>`).join("")||'<div class="load">Sin actividad.</div>'}</div>
-    <div class="composer">
+    <div class="composer" id="composer">
       <h3>Añadir nota</h3>
-      <textarea id="note" placeholder="Escribe una nota del técnico…"></textarea>
+      <textarea id="note" placeholder="Escribe una nota del técnico… (pega ⌘V o arrastra una imagen para adjuntarla)"></textarea>
+      <div class="yk-thumbs" id="noteThumbs" style="display:none"></div>
       <div class="crow">
         <button class="btn" onclick="addNote()">Añadir nota</button>
+        <button type="button" class="btn" id="noteAdjBtn" title="Adjuntar imagen — o pega/arrastra sobre la nota">📎 Imagen</button>
+        <input type="file" id="noteAdjFile" accept="image/*" multiple hidden>
         <button class="btn ai" onclick="suggest()">🧠 Sugerir respuesta</button>
       </div>
     </div>
     <div class="foot">Yokup · ticket persistido en <b>D1</b> · IA <b>Workers AI</b></div>`;
   if(esFlota) llenaAsig();
+  montaAdjuntos();   // el composer se recrea en cada render → re-engancha
+}
+
+// 📎 Adjuntos de la NOTA (paste local, no global: el composer se re-renderiza).
+let noteAdj=null;
+function montaAdjuntos(){
+  const comp=$("composer"), file=$("noteAdjFile"), btn=$("noteAdjBtn"), th=$("noteThumbs");
+  if(!comp||!file) return;
+  noteAdj=YkAdjuntos.attach({zone:comp, thumbs:th, globalPaste:false});
+  btn.onclick=()=>file.click();
+  file.onchange=e=>{ Array.from(e.target.files||[]).forEach(f=>noteAdj.add(f)); e.target.value=""; };
 }
 
 // ---- REASIGNACIÓN (solo misiones de flota FLT-) -----------------------------
@@ -223,7 +247,14 @@ window.reasignar=async()=>{
   }catch(err){ msg.textContent="✗ "+(err&&err.message||err); }
 };
 window.setStatus=async(s)=>{ await fetch(WORKER+"/ticket/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id,status:s,author:"Técnico"})}); render(); };
-window.addNote=async()=>{ const v=$("note").value.trim(); if(!v)return; await fetch(WORKER+"/ticket/note",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id,author:"Técnico",text:v})}); $("note").value=""; render(); };
+window.addNote=async()=>{
+  const img=noteAdj?noteAdj.bloque():"";
+  const v=$("note").value.trim();
+  if(!v && !img) return;
+  if(noteAdj && noteAdj.pending()>0){ $("note").placeholder="⏳ espera a que suban las imágenes…"; return; }
+  await fetch(WORKER+"/ticket/note",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id,author:"Técnico",text:(v||"(imagen adjunta)")+img})});
+  $("note").value=""; if(noteAdj)noteAdj.clear(); render();
+};
 window.summary=async()=>{ $("sum").classList.add("show"); $("sumtext").textContent="Generando resumen…"; try{ const r=await fetch(WORKER+"/ai-summary",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id})}); const d=await r.json(); $("sumtext").textContent=d.text||"Sin resumen."; }catch(e){ $("sumtext").textContent="No disponible."; } };
 window.suggest=async()=>{ const ta=$("note"); const old=ta.value; ta.value="🧠 pensando…"; try{ const r=await fetch(WORKER+"/ai-suggest",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id})}); const d=await r.json(); ta.value=d.text||old; }catch(e){ ta.value=old; } };
 if(!id){ $("root").innerHTML='<div class="load">Falta el id del ticket.</div>'; } else render();
