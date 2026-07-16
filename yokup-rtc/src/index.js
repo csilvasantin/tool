@@ -777,6 +777,39 @@ var index_default = {
       const publicUrl = `${url.origin}/media/${key}`;
       return json({ ok: true, url: publicUrl, key });
     }
+    // GET /shot?url=<web del proyecto> → PÚBLICO: miniatura de la web (referencia
+    // visual de la misión). Captura vía mShots y la CACHEA en R2 (sin token ni
+    // puppeteer). Anti-SSRF: solo dominios de la flota. (Carlos, 2026-07-16)
+    if (url.pathname === "/shot" && req.method === "GET") {
+      if (!env.MEDIA) return json({ error: "sin bucket MEDIA" }, 500);
+      const target = url.searchParams.get("url") || "";
+      const ALLOW = /^https?:\/\/(www\.)?(pixeria\.com|xpaceos\.com|yokup\.com|admira\.live|admira\.tv|admira\.store|clearchannel\.tv|admiranext\.com|carlossilva\.info)(\/|$|\?)/i;
+      if (!ALLOW.test(target)) return json({ error: "dominio no permitido" }, 400);
+      const digest = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(target));
+      const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
+      const key = "shot/" + hash + ".png";
+      const FRESH = 12 * 3600 * 1000;   // 12h de caché por web
+      const cached = await env.MEDIA.get(key);
+      if (cached) {
+        const age = Date.now() - parseInt((cached.customMetadata && cached.customMetadata.ts) || "0", 10);
+        if (age < FRESH) {
+          const h = new Headers(CORS); h.set("content-type", "image/png"); h.set("cache-control", "public, max-age=3600");
+          return new Response(cached.body, { headers: h });
+        }
+      }
+      let buf = null, ct = "image/png";
+      try {
+        const r = await fetch("https://image.thum.io/get/width/480/crop/300/" + target, { cf: { cacheTtl: 0 } });
+        buf = await r.arrayBuffer();
+        ct = r.headers.get("content-type") || "image/png";
+      } catch (e) { /* sin captura */ }
+      // Solo cachear si es una imagen real (no un HTML de error ~pequeño).
+      const real = buf && buf.byteLength > 3500 && /^image\//i.test(ct);
+      if (real) await env.MEDIA.put(key, buf, { httpMetadata: { contentType: ct }, customMetadata: { ts: String(Date.now()), ct: ct } });
+      else if (cached) { const h = new Headers(CORS); h.set("content-type", (cached.customMetadata && cached.customMetadata.ct) || "image/png"); h.set("cache-control", "public, max-age=600"); return new Response(cached.body, { headers: h }); }
+      const h = new Headers(CORS); h.set("content-type", real ? ct : "image/png"); h.set("cache-control", real ? "public, max-age=3600" : "no-store");
+      return new Response(real ? buf : new ArrayBuffer(0), { headers: h, status: real ? 200 : 502 });
+    }
     if (url.pathname === "/auth/login" && req.method === "POST") {
       const b = await req.json().catch(() => ({}));
       const g = await verifyGoogle(b.credential || "");

@@ -108,6 +108,23 @@
     return maq === "?" ? "" : canonMachine(maq);
   }
 
+  // Proyecto PRINCIPAL de una misión, deducido de su texto → web para la miniatura.
+  // (Carlos, 2026-07-16: referencia visual de en qué está el agente/máquina.)
+  var PROY = [
+    ["pixeria", "https://www.pixeria.com"], ["xpaceos", "https://www.xpaceos.com"], ["xpace os", "https://www.xpaceos.com"],
+    ["yokup", "https://www.yokup.com"], ["clearchannel", "https://www.clearchannel.tv"],
+    ["admira.live", "https://www.admira.live"], ["admira.tv", "https://www.admira.tv"],
+    ["admiranext", "https://admiranext.com"], ["ainimation", "https://ainimation.studio"], ["digitalavatar", "https://digitalavatar.ai"]
+  ];
+  function proyectoDe(t) {
+    var s = ((t && (t.subject || "")) + " " + (t && (t.screen || "")) + " " + (t && (t.loc || ""))).toLowerCase();
+    for (var i = 0; i < PROY.length; i++) if (s.indexOf(PROY[i][0]) >= 0) return PROY[i][1];
+    return "";
+  }
+  // miniatura de una web (thum.io; cargada directa desde el navegador — las IPs de
+  // datacenter la bloquean, pero el navegador del usuario es residencial).
+  function shotUrl(web, w) { return "https://image.thum.io/get/width/" + (w || 240) + "/crop/135/" + web; }
+
   // ------- fila de MISIÓN (idéntica en /incidencias y /misiones) -------
   // ESTADOS canónicos (Carlos, 2026-07-15): Sin asignar · Asignada · En curso ·
   // Finalizada. «Abierta» era ruido: mezclaba pendiente-de-asignar con asignada.
@@ -132,6 +149,8 @@
       '<div class="hd">' +
         '<div class="pri ' + esc(t.priority) + '"></div>' +
         '<div class="tkid">' + esc(t.id) + '<span class="st">' + (t.source === "agent-iot" ? "🤖 Agente IoT" : "👤 Manual") + "</span></div>" +
+        '<div class="cel shot">' + (function () { var p = proyectoDe(t);
+          return p ? '<a class="shot-lnk" href="' + esc(p) + '" target="_blank" rel="noopener" title="' + esc(p) + '"><img class="shot-img" loading="lazy" src="' + esc(shotUrl(p, 240)) + '" alt=""></a>' : '<span class="shot-none" title="sin proyecto detectado">—</span>'; })() + "</div>" +
         '<div class="subj">' + rz("id", "r") + '<div class="t">' + esc(t.subject) + '</div><div class="m"><span class="scr">' + esc(t.screen) + "</span>" +
           (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span></div></div>" +
         // Fecha + DURACIÓN: de asignada a finalizada (o transcurrido si sigue viva).
