@@ -46,6 +46,12 @@ service = "admira-navegadores"
 binding = "VECTORIZE"
 index_name = "yokup-kb"
 
+# R2 — imágenes adjuntas a las misiones (paste/drop desde el navegador o Telegram).
+# El LLM recibe la URL pública (GET /media/:key) en el texto del encargo y la ve.
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "yokup-media"
+
 # Durable Object — sala de señalización WebRTC (asistencia en vivo).
 [[durable_objects.bindings]]
 name = "ROOM"

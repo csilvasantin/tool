@@ -747,6 +747,36 @@ var index_default = {
   async fetch(req, env) {
     const url = new URL(req.url);
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+    // ── MEDIA (imágenes de misiones) ──────────────────────────────────────────
+    // GET /media/<key> → PÚBLICO: sirve la imagen de R2 (el LLM la ve por URL).
+    if (url.pathname.startsWith("/media/") && req.method === "GET") {
+      if (!env.MEDIA) return json({ error: "sin bucket MEDIA" }, 500);
+      const key = decodeURIComponent(url.pathname.slice("/media/".length));
+      const obj = await env.MEDIA.get(key);
+      if (!obj) return json({ error: "not found" }, 404);
+      const h = new Headers(CORS);
+      h.set("content-type", obj.httpMetadata?.contentType || "application/octet-stream");
+      h.set("cache-control", "public, max-age=31536000, immutable");
+      return new Response(obj.body, { headers: h });
+    }
+    // POST /media → PROTEGIDO (sesión del perímetro): sube una imagen a R2 y
+    // devuelve su URL pública. Body = bytes de la imagen; content-type = el suyo.
+    if (url.pathname === "/media" && req.method === "POST") {
+      const sess = await requireAuth(env, req);
+      if (!sess) return json({ error: "unauthorized" }, 401);
+      if (!env.MEDIA) return json({ error: "sin bucket MEDIA" }, 500);
+      const ct = req.headers.get("content-type") || "application/octet-stream";
+      if (!/^image\//i.test(ct)) return json({ error: "solo imágenes" }, 415);
+      const buf = await req.arrayBuffer();
+      if (!buf.byteLength) return json({ error: "vacío" }, 400);
+      if (buf.byteLength > 12 * 1024 * 1024) return json({ error: "máx 12MB" }, 413);
+      const ext = (ct.split("/")[1] || "png").split(";")[0].replace(/[^a-z0-9]/gi, "") || "png";
+      const rand = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const key = `m/${rand}.${ext}`;
+      await env.MEDIA.put(key, buf, { httpMetadata: { contentType: ct } });
+      const publicUrl = `${url.origin}/media/${key}`;
+      return json({ ok: true, url: publicUrl, key });
+    }
     if (url.pathname === "/auth/login" && req.method === "POST") {
       const b = await req.json().catch(() => ({}));
       const g = await verifyGoogle(b.credential || "");

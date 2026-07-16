@@ -43,6 +43,18 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .alta-pa input{accent-color:var(--warn);width:14px;height:14px;cursor:pointer;margin:0}
 .alta-pa.on{color:var(--warn);border-color:var(--warn)}
 .alta-hint{flex-basis:100%;font-family:var(--mono);font-size:11px;line-height:1.5;letter-spacing:.03em;color:var(--warn);opacity:.92}
+/* 📎 Adjuntar imágenes a la misión (paste/drop/picker → R2). */
+.alta-adj{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 12px;cursor:pointer;white-space:nowrap;transition:.2s}
+.alta-adj:hover{border-color:var(--line2);color:var(--brand)}
+.alta.yk-drag{outline:2px dashed var(--brand);outline-offset:4px;border-radius:12px}
+.yk-thumbs{flex-basis:100%;display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.yk-adj{position:relative;width:56px;height:56px;border-radius:9px;overflow:hidden;border:1px solid var(--line2);background:var(--card);display:flex;align-items:center;justify-content:center}
+.yk-adj img{width:100%;height:100%;object-fit:cover;display:block}
+.yk-adj.up{border-style:dashed}.yk-adj.err{border-color:var(--warn)}
+.yk-adj-sp{font-size:18px;animation:ykspin 1.4s linear infinite}
+@keyframes ykspin{to{transform:rotate(360deg)}}
+.yk-adj-x{position:absolute;top:2px;right:2px;width:18px;height:18px;line-height:16px;text-align:center;border-radius:50%;border:none;background:rgba(2,8,13,.82);color:var(--ink);font-size:13px;cursor:pointer;padding:0}
+.yk-adj-x:hover{background:var(--warn);color:#02080d}
 /* 🎯 Detección desde el texto del alta: a dónde irá la misión según lo escrito. */
 .alta-det{flex-basis:100%;font-family:var(--mono);font-size:11px;line-height:1.5;letter-spacing:.03em;color:var(--brand);opacity:.95;overflow-wrap:anywhere}
 .alta-det b{color:var(--accent)}
@@ -113,9 +125,12 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
     <label class="alta-pa" id="altaPaWrap" title="Prioridad absoluta: entrega la máquina destino a la IA aunque haya un humano delante — la fuerza a «desatendida» durante 2 h para que el agente trabaje sin interrupción.">
       <input type="checkbox" id="altaPa"> ⚡ Prioridad absoluta
     </label>
+    <button type="button" class="alta-adj" id="altaAdjBtn" title="Adjuntar imagen — o pega (⌘V, también desde Telegram) o arrastra sobre el campo">📎 Imagen</button>
+    <input type="file" id="altaAdjFile" accept="image/*" multiple hidden>
     <button class="alta-go" type="submit">＋ Dar de alta</button>
     <div class="alta-hint" id="altaPaHint" hidden>⚠️ Prioridad absoluta: la máquina destino se entrega a la IA <b>aunque haya humanos delante</b> (se fuerza a «desatendida» ~2 h). Úsalo solo cuando la misión no pueda esperar.</div>
     <div class="alta-det" id="altaDetectHint" hidden></div>
+    <div class="yk-thumbs" id="altaThumbs" style="display:none"></div>
     <div class="alta-msg" id="altaMsg"></div>
   </form>
 
@@ -148,7 +163,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
-  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.15.r21</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.16.r1</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -159,6 +174,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 </div>
 
 <script src="/yk-misiones.js?v=r14"></script>
+<script src="/yk-adjuntos.js?v=r1"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 let FILTER="activas";
@@ -557,13 +573,21 @@ if(paChk){
     if(paHint) paHint.hidden=!on; };
   paChk.addEventListener("change",syncPa); syncPa();
 }
+// 📎 Adjuntos de imagen del alta (paste/drop sobre el form, o botón 📎).
+YkAdjuntos.init(WORKER);
+const altaAdj=YkAdjuntos.attach({zone:$("alta"), thumbs:$("altaThumbs")});
+$("altaAdjBtn").onclick=()=>$("altaAdjFile").click();
+$("altaAdjFile").onchange=e=>{ Array.from(e.target.files||[]).forEach(f=>altaAdj.add(f)); e.target.value=""; };
+
 $("alta").onsubmit=async e=>{
   e.preventDefault();
   const txt=$("altaTxt").value.trim(); if(!txt) return;
+  if(altaAdj.pending()>0){ $("altaMsg").className="alta-msg"; $("altaMsg").textContent="⏳ espera a que suban las imágenes…"; return; }
   clearTimeout(detT); detectaAlta();   // honra lo ESCRITO aunque el debounce no saltara aún
   // Prioridad absoluta → antepone el marcador que el watcher detecta.
   const pa=!!(paChk&&paChk.checked);
-  const encargo=pa ? "[PRIORIDAD ABSOLUTA] "+txt : txt;
+  const img=altaAdj.bloque();          // "🖼 Imágenes adjuntas: …" o ""
+  const encargo=(pa ? "[PRIORIDAD ABSOLUTA] "+txt : txt)+img;
   const pick=ALTA_SEL.auto?autoRandom():{persona:ALTA_SEL.persona||"",machine:ALTA_SEL.machine||""};
   const persona=pick.persona, maquina=pick.machine;
   const go=document.querySelector(".alta-go"), msg=$("altaMsg");
@@ -586,8 +610,9 @@ $("alta").onsubmit=async e=>{
       }catch(e){}
     }
     const destino=persona?(persona+(maquina?" en "+YkMisiones.canonMachine(maquina):"")):("la máquina "+YkMisiones.canonMachine(maquina)+" (quien esté allí)");
-    msg.className="alta-msg ok"; msg.textContent="✓ FLT-"+d.id+(pa?" ⚡PA":"")+" dada de alta y asignada a "+destino+rayo;
-    $("altaTxt").value=""; detectaAlta();   // limpia texto → resetea detección y hint
+    const nimg=altaAdj.urls().length;
+    msg.className="alta-msg ok"; msg.textContent="✓ FLT-"+d.id+(pa?" ⚡PA":"")+(nimg?" 🖼×"+nimg:"")+" dada de alta y asignada a "+destino+rayo;
+    $("altaTxt").value=""; altaAdj.clear(); detectaAlta();   // limpia texto+imágenes → resetea detección y hint
     if(paChk){ paChk.checked=false; if(paWrap){paWrap.classList.remove("on");paWrap.style.setProperty("color","");paWrap.style.setProperty("border-color","");} if(paHint)paHint.hidden=true; }
     radar(); load();
   }catch(err){
