@@ -29,8 +29,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .tab.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
 .foot{margin-top:24px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
 .alta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
-.alta-txt{flex:1 1 320px;min-width:220px;font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 13px;outline:none;transition:.2s}
-.alta-txt:focus{border-color:var(--line2)}
+.alta-field{position:relative;flex:1 1 320px;min-width:220px;background:var(--card);border:1px solid var(--line);border-radius:10px;transition:.2s}
+.alta-field:focus-within{border-color:var(--line2)}
+.alta-txt{width:100%;font-family:var(--sans);font-size:14px;color:var(--ink);background:transparent;border:0;border-radius:10px;padding:11px 46px 11px 13px;outline:none}
 .alta-txt::placeholder{color:var(--dim)}
 .alta-agente{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 10px;cursor:pointer;max-width:280px}
 .alta-go{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:11px 15px;border-radius:10px;border:1px solid var(--brand);color:#02080d;background:var(--brand);cursor:pointer;transition:.2s}
@@ -72,8 +73,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .fl-form:hover{background:rgba(120,243,255,.1);border-style:solid}
 .fl-form:disabled{opacity:.6;cursor:wait}
 /* 📎 Adjuntar imágenes a la misión (paste/drop/picker → R2). */
-.alta-adj{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 12px;cursor:pointer;white-space:nowrap;transition:.2s}
-.alta-adj:hover{border-color:var(--line2);color:var(--brand)}
+.alta-adj{position:absolute;right:6px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:32px;height:32px;color:var(--mut);background:transparent;border:0;border-radius:8px;padding:0;cursor:pointer;transition:.2s;font-size:16px}
+.alta-adj:hover{color:var(--brand);background:rgba(120,243,255,.08)}
 .alta.yk-drag{outline:2px dashed var(--brand);outline-offset:4px;border-radius:12px}
 .yk-thumbs{flex-basis:100%;display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
 .yk-adj{position:relative;width:56px;height:56px;border-radius:9px;overflow:hidden;border:1px solid var(--line2);background:var(--card);display:flex;align-items:center;justify-content:center}
@@ -163,15 +164,17 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
        Crea el ENCARGO en el bot-inbox (admira-telegram) y fuerza /fleet/sync
        para que aparezca aquí como FLT-<id> sin esperar al cron de 2 min. -->
   <form class="alta" id="alta" autocomplete="off">
-    <input class="alta-txt" id="altaTxt" type="text" maxlength="4000"
-           placeholder="Nueva misión para la flota… (Enter para darla de alta)">
+    <div class="alta-field">
+      <input class="alta-txt" id="altaTxt" type="text" maxlength="4000"
+             placeholder="Nueva misión para la flota… (Enter para crearla)">
+      <button type="button" class="alta-adj" id="altaAdjBtn" title="Adjuntar imagen — o pega (⌘V, también desde Telegram)" aria-label="Adjuntar imagen">📎</button>
+    </div>
     <button type="button" class="alta-agente" id="altaAgentBtn" aria-haspopup="menu" aria-expanded="false" title="Asignar a — pulsa para elegir agente y máquina">🎯 Auto · aleatorio <span class="cv">▾</span></button>
     <label class="alta-pa" id="altaPaWrap" title="Prioridad: entrega la máquina destino a la IA aunque haya un humano delante — la fuerza a «desatendida» durante 2 h para que el agente trabaje sin interrupción.">
       <input type="checkbox" id="altaPa"> ⚡ Prioridad
     </label>
-    <button type="button" class="alta-adj" id="altaAdjBtn" title="Adjuntar imagen — o pega (⌘V, también desde Telegram) o arrastra sobre el campo">📎 Imagen</button>
     <input type="file" id="altaAdjFile" accept="image/*" multiple hidden>
-    <button class="alta-go" type="submit">＋ Dar de alta</button>
+    <button class="alta-go" type="submit">＋ Crear misión</button>
     <div class="alta-hint" id="altaPaHint" hidden>⚠️ Prioridad: la máquina destino se entrega a la IA <b>aunque haya humanos delante</b> (se fuerza a «desatendida» ~2 h). Úsalo solo cuando la misión no pueda esperar.</div>
     <div class="alta-det" id="altaDetectHint" hidden></div>
     <div class="yk-thumbs" id="altaThumbs" style="display:none"></div>
