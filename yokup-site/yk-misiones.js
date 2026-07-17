@@ -128,7 +128,7 @@
   // image.thum.io directo desde cada navegador). w se ignora: /shot da 480×300.
   function shotUrl(web, w) { return CFG.worker + "/shot?url=" + encodeURIComponent(web); }
   // LIGHTBOX: clic en la miniatura → captura EN GRANDE (no navega a la web).
-  function openLightbox(web) {
+  function openLightbox(web, direct) {
     var ov = document.getElementById("yk-lightbox");
     if (!ov) {
       ov = document.createElement("div"); ov.id = "yk-lightbox";
@@ -137,13 +137,15 @@
       ov.addEventListener("click", function (e) { if (e.target === ov || e.target.classList.contains("ykl-img")) ov.classList.remove("show"); });
       document.addEventListener("keydown", function (e) { if (e.key === "Escape") ov.classList.remove("show"); });
     }
-    ov.querySelector(".ykl-img").src = "https://image.thum.io/get/width/1100/" + web;   // grande, sin crop (web completa)
-    var op = ov.querySelector(".ykl-open"); op.href = web; op.textContent = "abrir " + web.replace(/^https?:\/\/(www\.)?/, "") + " ↗";
+    ov.querySelector(".ykl-img").src = direct ? web : "https://image.thum.io/get/width/1100/" + web;
+    var op = ov.querySelector(".ykl-open"); op.href = web; op.textContent = direct ? "abrir pantallazo ↗" : "abrir " + web.replace(/^https?:\/\/(www\.)?/, "") + " ↗";
     ov.classList.add("show");
   }
   document.addEventListener("click", function (e) {
     var img = e.target.closest && e.target.closest(".shot-img");
-    if (img && img.dataset.shot) { e.preventDefault(); openLightbox(img.dataset.shot); }
+    if (img && (img.dataset.proof || img.dataset.shot)) {
+      e.preventDefault(); openLightbox(img.dataset.proof || img.dataset.shot, !!img.dataset.proof);
+    }
   });
 
   // ------- fila de MISIÓN (idéntica en /incidencias y /misiones) -------
@@ -166,11 +168,16 @@
     // columna (--c-*) para TODAS las tarjetas a la vez; se persiste en localStorage.
     var rz = function (col, side) { return '<span class="rz" data-col="' + col + '"' + (side ? ' data-side="' + side + '"' : "") + ' title="⇔ arrastra para redimensionar"></span>'; };
     var dv = durVal(t);
+    var proof = String(t.proof_image || "");
+    var rt = String(t.agent_runtime || "");
+    var host = t.agent_host === "cli" ? "CLI" : t.agent_host === "app" ? "Desktop" : "";
+    var surface = [rt, host].filter(Boolean).join(" · ");
     return '<div class="tk ' + (t.status === "open" ? "open" : "") + " " + (t.id === SELECTED ? "sel" : "") + '" data-id="' + esc(t.id) + '">' +
       '<div class="hd">' +
         '<div class="pri ' + esc(t.priority) + '"></div>' +
         '<div class="tkid">' + esc(t.id) + '<span class="st">' + ({ "agent-iot": "🖥 Pantalla DOOH", monitor: "🌐 Servicio", service: "🌐 Servicio", agent: "🤖 Agente", agente: "🤖 Agente", presence: "🖥 Máquina", machine: "🖥 Máquina", fleet: "🎯 Misión" }[t.source] || "👤 Manual") + "</span></div>" +
         '<div class="cel shot">' + (function () { var p = proyectoDe(t);
+          if (proof) return '<img class="shot-img proof" loading="lazy" src="' + esc(proof) + '" data-proof="' + esc(proof) + '" alt="Pantallazo final" title="pantallazo del trabajo realizado">';
           return p ? '<img class="shot-img" loading="lazy" src="' + esc(shotUrl(p, 240)) + '" data-shot="' + esc(p) + '" alt="" title="ampliar · ' + esc(p) + '">' : '<span class="shot-none" title="sin proyecto detectado">—</span>'; })() + "</div>" +
         '<div class="subj">' + rz("id", "r") + '<div class="t">' + esc(t.subject) + '</div><div class="m"><span class="scr">' + esc(String(t.screen || "").replace(/^(svc|maq|agt|service|machine|agent):/, "").replace(/^https?:\/\/(www\.)?/, "")) + "</span>" +
           (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span></div></div>" +
@@ -181,7 +188,7 @@
         '<div class="cel ord">' + rz("ord") + (maq ? '<span class="mach2">🖥 ' + esc(maq) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>') + "</div>" +
         // Celda de AGENTE con clase `agc` (target del picker de reasignación en
         // /misiones; inocua en /incidencias, que no la cablea). Carlos, 2026-07-15.
-        '<div class="cel agc">' + rz("who") + '<span class="who">👷 ' + esc(t.assignee) + "</span></div>" +
+        '<div class="cel agc">' + rz("who") + '<span class="who"><span>👷 ' + esc(t.assignee) + '</span><small class="agent-surface">' + esc(surface) + "</small></span></div>" +
         // Estado + ABRIR apilado (abrir debajo de la insignia).
         '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"><i></i>' + stt + "</span>" +
           '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a></div>' +

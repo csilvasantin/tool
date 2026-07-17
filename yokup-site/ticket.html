@@ -246,7 +246,7 @@ window.reasignar=async()=>{
     render();
   }catch(err){ msg.textContent="✗ "+(err&&err.message||err); }
 };
-window.setStatus=async(s)=>{ await fetch(WORKER+"/ticket/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id,status:s,author:"Técnico"})}); render(); };
+window.setStatus=async(s)=>{ const r=await fetch(WORKER+"/ticket/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id,status:s,author:"Técnico"})}); const d=await r.json().catch(()=>({})); if(!d.ok){ alert(d.error||"No se pudo cambiar el estado"); return; } render(); };
 window.addNote=async()=>{
   const img=noteAdj?noteAdj.bloque():"";
   const v=$("note").value.trim();

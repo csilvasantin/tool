@@ -160,8 +160,23 @@ async function ensureSchema(env) {
   // image: URL pública de la captura de prueba del informe (R2 /media/…). La tabla
   // ya existe en prod, así que la columna se añade idempotente (ignora "duplicate").
   await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN image TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN proof_image TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN agent_runtime TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN agent_host TEXT").catch(() => {});
 }
 __name(ensureSchema, "ensureSchema");
+
+async function hasMissionProof(env, mid) {
+  const row = await env.DB.prepare(
+    "SELECT proof_image FROM tickets WHERE id=?"
+  ).bind(mid).first();
+  if (row && row.proof_image) return true;
+  const task = await env.DB.prepare(
+    "SELECT image FROM mission_tasks WHERE mission_id=? AND image IS NOT NULL AND image<>'' ORDER BY updated_at DESC LIMIT 1"
+  ).bind(mid).first();
+  return !!(task && task.image);
+}
+__name(hasMissionProof, "hasMissionProof");
 
 // ---- MODELO MISIONES · TAREAS ----------------------------------------------
 // Una MISIÓN es el ticket/incidencia. Sus TAREAS son los pasos para concluirla:
@@ -600,6 +615,10 @@ __name(listTickets, "listTickets");
 var FLEET_INBOX = "https://admira-telegram.csilvasantin.workers.dev/api/public/inbox?limit=200";
 // Estado del encargo → estado de la misión. 'ack' es acuse de recibo, no avance.
 var FLEET_ST = { pending: "open", ack: "open", in_progress: "in_progress", done: "resolved" };
+// La captura pasa a ser contrato de cierre desde este despliegue. Las misiones
+// históricas terminadas antes no se reabren: no existe forma honesta de fabricar
+// hoy un pantallazo retroactivo de aquel trabajo.
+var PROOF_REQUIRED_AFTER = 1784313450000; // 2026-07-17T18:37:30Z
 
 function fleetSubject(text) {
   const line = String(text || "").split("\n")[0].trim();
@@ -668,9 +687,16 @@ async function fleetSync(env) {
     if (!it || !it.id) continue;
     if (!fleetEsMision(it)) continue;   // charla de Telegram: ni misión ni tarea
     const id = "FLT-" + it.id;
-    const st = FLEET_ST[it.status] || "open";
+    let st = FLEET_ST[it.status] || "open";
     const ts = epochMs(it.ts, now);
-    const prev = await env.DB.prepare("SELECT id,status,assignee,loc FROM tickets WHERE id=?").bind(id).first();
+    const prev = await env.DB.prepare("SELECT id,status,assignee,loc,proof_image FROM tickets WHERE id=?").bind(id).first();
+    // Un DONE del agente no basta: Yokup sólo finaliza cuando el cierre incluye
+    // un pantallazo real del trabajo. El bot puede haber terminado, pero la misión
+    // permanece EN CURSO hasta que /fleet/informe registre proof_image.
+    const proofRequired = st === "resolved" && epochMs(it.done_at, now) >= PROOF_REQUIRED_AFTER;
+    if (proofRequired && !(prev && (prev.proof_image || await hasMissionProof(env, id)))) {
+      st = "in_progress";
+    }
     if (!prev) {
       // ANTI-RESURRECCIÓN, pero SIN perder misiones rápidas (Carlos, 2026-07-17):
       // un encargo cerrado hace MUCHO que nunca fue ticket es una lápida (limpieza
@@ -747,6 +773,11 @@ async function fleetNudge(env, b) {
   }));
   const d = await r.json().catch(() => ({}));
   const ok = !!(r.ok && d.ok);
+  if (ok && missionId && (runtime || host)) {
+    await env.DB.prepare(
+      "UPDATE tickets SET agent_runtime=?,agent_host=?,updated_at=? WHERE id=?"
+    ).bind(runtime, host, Date.now(), missionId).run();
+  }
   let started = false;
   let statusPushed = false;
   // La cola del executor es el primer hecho fiable de que el agente ya recibió
@@ -811,7 +842,8 @@ async function fleetReconcileMission(env, mid) {
   if (!tasks.length) return null;
   const allDone = tasks.every((x) => x.status === "done");
   const started = tasks.some((x) => x.status !== "pending");
-  const next = allDone ? "resolved" : started ? "in_progress" : "open";
+  const proof = allDone ? await hasMissionProof(env, mid) : false;
+  const next = allDone && proof ? "resolved" : started || allDone ? "in_progress" : "open";
   // No DEGRADAR una misión FINALIZADA a mano: el reconciliador por árbol solo PROMUEVE
   // (open→in_progress→resolved). El árbol se auto-genera y nadie marca sus subtareas
   // (queda 0/N), así que sin esta guarda reabría cada 2 min el FINALIZAR humano. Reabrir
@@ -847,7 +879,9 @@ async function fleetReconcileAll(env) {
   const changed = [];
   for (const r of results || []) {
     if (!r.total) continue;
-    const next = r.done === r.total ? "resolved" : r.started > 0 ? "in_progress" : "open";
+    const allDone = r.done === r.total;
+    const proof = allDone ? await hasMissionProof(env, r.id) : false;
+    const next = allDone && proof ? "resolved" : r.started > 0 || allDone ? "in_progress" : "open";
     // No reabrir un FINALIZAR humano desde el árbol auto-generado (ver fleetReconcileMission):
     // el barrido solo promueve, nunca degrada un resolved. Reabrir = botón REABRIR manual.
     if (r.status === "resolved" && next !== "resolved") continue;
@@ -899,7 +933,7 @@ __name(fleetPlanPending, "fleetPlanPending");
 // expone nada que el bot-inbox público no publique ya.
 async function fleetMissions(env) {
   const { results } = await env.DB.prepare(
-    "SELECT id,screen,subject,loc,role,status,assignee,created_at,updated_at FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
+    "SELECT id,screen,subject,loc,role,status,assignee,agent_runtime,agent_host,proof_image,created_at,updated_at FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
   ).all();
   const rows = results || [];
   if (!rows.length) return [];
@@ -1063,11 +1097,12 @@ var index_default = {
       if (/^#?\d+$/.test(mid)) mid = "FLT-" + mid.replace(/^#/, "");
       const report = String(b.report || "").slice(0, 2000).trim();
       const owner = String(b.owner || "infraagente").slice(0, 24);
-      // Captura de prueba opcional: solo aceptamos una URL http(s) (idealmente del
-      // propio /media de la flota). Cierra la doctrina «reportar = captura real».
+      // Captura de prueba OBLIGATORIA: una misión de flota no puede finalizar
+      // sin el pantallazo real del trabajo realizado.
       let image = String(b.image || "").trim().slice(0, 500);
       if (image && !/^https?:\/\//i.test(image)) image = "";
       if (!mid || !report) return json({ ok: false, error: "mission y report requeridos" }, 400);
+      if (!image) return json({ ok: false, error: "pantallazo image requerido para cerrar" }, 400);
       const t = await env.DB.prepare("SELECT id FROM tickets WHERE id=?").bind(mid).first();
       if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
       const now = Date.now();
@@ -1075,7 +1110,11 @@ var index_default = {
         "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,image,updated_at) VALUES(?,?,?,?,?,?,?,?) " +
         "ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report, status='done', owner=excluded.owner, image=COALESCE(excluded.image, mission_tasks.image), updated_at=excluded.updated_at"
       ).bind(mid, "z1", "Informe del InfraAgente", "done", owner, report, image || null, now).run();
+      await env.DB.prepare(
+        "UPDATE tickets SET proof_image=?,updated_at=? WHERE id=?"
+      ).bind(image, now, mid).run();
       await addEvent(env, mid, "log", owner, "📝 Informe: " + report.slice(0, 240));
+      await addEvent(env, mid, "proof", owner, "📸 Pantallazo final: " + image);
       return json({ ok: true, mission: mid });
     }
     // Ingesta UNIVERSAL de incidencias (Carlos, 2026-07-17): cualquier sistema,
@@ -1206,6 +1245,18 @@ var index_default = {
         if (!ids.length || !["open", "in_progress", "resolved"].includes(status)) {
           return json({ ok: false, error: "ids (array) y status (open|in_progress|resolved) requeridos" }, 400);
         }
+        if (status === "resolved") {
+          const missing = [];
+          for (const id of ids) {
+            const t = await env.DB.prepare("SELECT source FROM tickets WHERE id=?").bind(id).first();
+            if (t && t.source === "fleet" && !(await hasMissionProof(env, id))) missing.push(id);
+          }
+          if (missing.length) return json({
+            ok: false,
+            error: "No se puede finalizar sin pantallazo del trabajo realizado",
+            missing_proof: missing
+          }, 409);
+        }
         const now = Date.now();
         const resolvedAt = status === "resolved" ? now : null;
         const author = String(b.author || "Misiones (bloque)").slice(0, 40);
@@ -1237,13 +1288,17 @@ var index_default = {
       try {
         const b = await req.json();
         await ensureSchema(env);
+        const current = await env.DB.prepare("SELECT id,source,assignee,loc FROM tickets WHERE id=?").bind(b.id).first();
+        if (b.status === "resolved" && current && current.source === "fleet" && !(await hasMissionProof(env, b.id))) {
+          return json({ ok: false, error: "No se puede finalizar sin pantallazo del trabajo realizado", missing_proof: [b.id] }, 409);
+        }
         const now = Date.now();
         const resolvedAt = b.status === "resolved" ? now : null;
         await env.DB.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=? WHERE id=?").bind(b.status, now, resolvedAt, b.id).run();
         await addEvent(env, b.id, "status", b.author || "T\xE9cnico", `Estado \u2192 ${b.status}${b.note ? ": " + b.note : ""}`);
         // Cerrar (o reabrir) a mano una misi\u00f3n de FLOTA baja tambi\u00e9n al encargo.
         {
-          const t = await env.DB.prepare("SELECT id,source,assignee,loc FROM tickets WHERE id=?").bind(b.id).first();
+          const t = current;
           if (t && t.source === "fleet") {
             const inboxStatus = b.status === "resolved" ? "done" : b.status === "in_progress" ? "in_progress" : "pending";
             await fleetPushStatus(env, t, inboxStatus);

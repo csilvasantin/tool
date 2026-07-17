@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r8">
-<link rel="stylesheet" href="/yk-misiones.css?v=r13">
+<link rel="stylesheet" href="/yk-misiones.css?v=r14">
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -239,7 +239,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r21"></script>
+<script src="/yk-misiones.js?v=r22"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
@@ -315,15 +315,15 @@ async function aplicarBloque(){
   const lbl={in_progress:"En curso",resolved:"Finalizada",open:"Reabrir"}[status]||status;
   if(!confirm("Cambiar "+real.length+" misión(es) a «"+lbl+"»?\n(se avisa UNA sola vez al grupo)")) return;
   const btn=$("bulkApply"), old=btn.textContent; btn.disabled=true; btn.textContent="Aplicando…";
-  let ok=false, upd=0;
+  let ok=false, upd=0, err="";
   try{
     const r=await fetch(WORKER+"/tickets/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({ids:real,status,author:"Misiones (bloque)"})});
-    const d=await r.json(); ok=!!(d&&d.ok); upd=d&&d.updated||0;
+    const d=await r.json(); ok=!!(d&&d.ok); upd=d&&d.updated||0; err=d&&d.error||"";
   }catch(e){}
   btn.disabled=false; btn.textContent=old;
   SEL.clear(); $("bulkEstado").value="";
   await load();
-  alert(ok?("Estado actualizado en "+upd+" misión(es). Aviso único al grupo."):"No se pudo aplicar el cambio.");
+  alert(ok?("Estado actualizado en "+upd+" misión(es). Aviso único al grupo."):(err||"No se pudo aplicar el cambio."));
 }
 function bindHead(el){
   el.querySelectorAll(".lhead .lh").forEach(h=>h.onclick=()=>{
@@ -368,6 +368,7 @@ function agrupaFlota(tks){
 async function marcarHalos(container, list){
   const live={machines:new Set(),personas:new Set()};
   const act={};   // "persona_lower|maquina_canon" -> {focus, proj, img, _u}
+  const surfaces={}; // misma clave -> {runtime,host,_u}; respaldo para misiones antiguas
   try{
     const pr=await fetch(TG+"/api/presence",{cache:"no-store"}).then(r=>r.json());
     const now=Date.now()/1000;
@@ -375,6 +376,10 @@ async function marcarHalos(container, list){
       if((now-(p.updated||0))<900){
         if(p.machine) live.machines.add(YkMisiones.canonMachine(p.machine));
         if(p.persona) live.personas.add(String(p.persona).toLowerCase());
+        if(p.persona&&p.machine){
+          const sk=String(p.persona).toLowerCase()+"|"+YkMisiones.canonMachine(p.machine);
+          if(!surfaces[sk]||(p.updated||0)>surfaces[sk]._u) surfaces[sk]={runtime:p.runtime||"",host:p.host||"",_u:p.updated||0};
+        }
         // FOCO en vivo del agente (para el previo con actividad real, Carlos 2026-07-17)
         if(p.persona && p.machine && (p.focus||p.task)){
           const k=String(p.persona).toLowerCase()+"|"+YkMisiones.canonMachine(p.machine);
@@ -385,6 +390,16 @@ async function marcarHalos(container, list){
   }catch(e){ return; }
   YkMisiones.markWorking(container, list, live);
   YkMisiones.fillActivity(container, list, act);   // previo = qué hace el agente ahora
+  // La misión conserva runtime/superficie en D1; para las históricas anteriores
+  // a ese campo se completa desde la presencia real del mismo agente+máquina.
+  const byId={}; list.forEach(t=>{byId[t.id]=t;});
+  container.querySelectorAll(".tk").forEach(row=>{
+    const t=byId[row.dataset.id], out=row.querySelector(".agent-surface");
+    if(!t||!out||out.textContent.trim()) return;
+    const maq=YkMisiones.machineOf(t), agents=t._agents||[t.assignee];
+    let s=null; for(const a of agents){ s=surfaces[String(a||"").toLowerCase()+"|"+maq]; if(s) break; }
+    if(s){ const h=s.host==="cli"?"CLI":s.host==="app"?"Desktop":""; out.textContent=[s.runtime,h].filter(Boolean).join(" · "); }
+  });
 }
 
 async function load(){
@@ -1021,8 +1036,11 @@ async function reasignarMision(id,cambio){
     const maqDest=("machine" in body)?body.machine:(info.rawmaq||"");
     const perDest=("persona" in body)?body.persona:(info.agente||"");
     if(maqDest){
+      const mc=YkMisiones.canonMachine(maqDest);
+      const sf=(perDest&&MAQS[perDest]&&MAQS[perDest][mc])||{};
       fetch(WORKER+"/fleet/nudge",{method:"POST",headers:{"content-type":"application/json"},
         body:JSON.stringify({machine:maqDest,persona:perDest,missionId:id,
+          runtime:sf.runtime||RUNTIME[perDest]||"",host:sf.host||"",
           text:"⚡ Misión "+id+" reasignada a ti desde yokup.com/misiones: «"+(info.subject||"")+"». Es el encargo #"+num+" de tu bot-inbox: reclámalo con bash ~/Claude/admira-vault/bot-inbox-claim.sh "+num+" y ponte con ella."})}).catch(()=>{});
     }
     toast("✓ FLT-"+num+" reasignada",true);
