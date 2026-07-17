@@ -326,6 +326,38 @@
     });
   }
 
+  // El previo deja de ser la home genérica de la web y pasa a mostrar la
+  // ACTIVIDAD EN VIVO del agente de la misión: su FOCO actual (de /api/presence)
+  // — «qué está haciendo ahora mismo» — y su proof-of-play si lo hay. Si el
+  // agente no está vivo, se queda la miniatura que pintó rowHtml. (Carlos, la
+  // crítica de que el previo «no servía».) `act` = { "persona_lower|maq_canon":
+  // {focus, proj, img, _u} }.
+  function fillActivity(container, tickets, act) {
+    if (!act) return;
+    var byId = {};
+    (tickets || []).forEach(function (t) { byId[t.id] = t; });
+    (container || document).querySelectorAll(".tk").forEach(function (row) {
+      var t = byId[row.dataset.id]; if (!t) return;
+      if (t.status === "resolved") return;         // solo misiones vivas
+      var cell = row.querySelector(".cel.shot"); if (!cell) return;
+      var maq = machineOf(t);
+      var pers = (t._agents && t._agents.length ? t._agents : [t.assignee]);
+      var a = null;
+      for (var i = 0; i < pers.length && !a; i++) {
+        var k = String(pers[i] || "").toLowerCase() + "|" + maq;
+        if (act[k] && (act[k].focus || act[k].img)) a = act[k];
+      }
+      if (!a) return;                               // sin actividad → miniatura
+      var foco = String(a.focus || "").replace(/^\s*el arquitecto me pide:\s*/i, "").trim();
+      cell.innerHTML =
+        '<div class="live-act" title="' + esc(a.focus || "") + '">' +
+          '<div class="la-hd"><span class="la-dot"></span>EN VIVO</div>' +
+          (a.img ? '<img class="la-shot" loading="lazy" src="' + esc(a.img) + '" alt="">' : '') +
+          '<div class="la-focus">' + esc(foco || "trabajando…") + '</div>' +
+        '</div>';
+    });
+  }
+
   function fetchAllTasks(scope) {
     var q = scope ? "?scope=" + encodeURIComponent(scope) : "";
     return window.fetch(CFG.worker + "/tasks/all" + q, { cache: "no-store" })
@@ -398,6 +430,6 @@
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,
     nextStatus: nextStatus, postStatus: postStatus, postPlan: postPlan,
     fetchTasks: fetchTasks, fetchAllTasks: fetchAllTasks, groupByMission: groupByMission,
-    markWorking: markWorking, esc: esc, ago: ago, slaLeft: slaLeft
+    markWorking: markWorking, fillActivity: fillActivity, esc: esc, ago: ago, slaLeft: slaLeft
   };
 })();
