@@ -572,11 +572,17 @@ __name(reconcile, "reconcile");
 // scope: 'campo' (incidencias DOOH, por defecto) | 'fleet' (misiones de los agentes)
 // | 'todas'. Sin esta separación las misiones de flota inundaban la bandeja de
 // incidencias de Clear Channel, que comparte tabla.
-async function listTickets(env, scope) {
+// PAGINACIÓN (Carlos, 2026-07-17): las misiones de flota RESUELTAS se acumulan (con el
+// arreglo de misiones rápidas nacen aún más) y el viejo LIMIT 100 fijo cortaba las más
+// antiguas en «Todas»/«Finalizadas». Ahora el defecto sube a 300 (las activas siempre
+// caben, van ordenadas primero) y se acepta ?limit (cap 1000) y ?offset para paginar.
+function pageLimit(v) { const n = parseInt(v, 10); return n > 0 ? Math.min(1000, n) : 300; }
+function pageOffset(v) { const n = parseInt(v, 10); return n > 0 ? n : 0; }
+async function listTickets(env, scope, limit, offset) {
   const where = scope === "fleet" ? "WHERE source='fleet'" : scope === "todas" ? "" : "WHERE source IS NULL OR source!='fleet'";
   const { results } = await env.DB.prepare(
-    `SELECT * FROM tickets ${where} ORDER BY (status='open') DESC, (status='in_progress') DESC, created_at DESC LIMIT 100`
-  ).all();
+    `SELECT * FROM tickets ${where} ORDER BY (status='open') DESC, (status='in_progress') DESC, created_at DESC LIMIT ? OFFSET ?`
+  ).bind(pageLimit(limit), pageOffset(offset)).all();
   return results || [];
 }
 __name(listTickets, "listTickets");
@@ -1117,7 +1123,8 @@ var index_default = {
         // La bandeja de campo reconcilia pantallas; la de flota se nutre del sync
         // del bot-inbox (cron cada 2 min), no de las pantallas DOOH.
         if (scope !== "fleet") await reconcile(env);
-        return json({ tickets: await listTickets(env, scope), stats: await stats(env, scope), roster: ROSTER });
+        const limit = url.searchParams.get("limit"), offset = url.searchParams.get("offset");
+        return json({ tickets: await listTickets(env, scope, limit, offset), stats: await stats(env, scope), roster: ROSTER });
       } catch (e) {
         return json({ error: String(e) }, 500);
       }
