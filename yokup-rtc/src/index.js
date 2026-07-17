@@ -1097,6 +1097,8 @@ var index_default = {
       if (/^#?\d+$/.test(mid)) mid = "FLT-" + mid.replace(/^#/, "");
       const report = String(b.report || "").slice(0, 2000).trim();
       const owner = String(b.owner || "infraagente").slice(0, 24);
+      const runtime = String(b.runtime || "").trim().slice(0, 20);
+      const host = /^(app|cli)$/.test(String(b.host || "").trim()) ? String(b.host).trim() : "";
       // Captura de prueba OBLIGATORIA: una misión de flota no puede finalizar
       // sin el pantallazo real del trabajo realizado.
       let image = String(b.image || "").trim().slice(0, 500);
@@ -1111,8 +1113,8 @@ var index_default = {
         "ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report, status='done', owner=excluded.owner, image=COALESCE(excluded.image, mission_tasks.image), updated_at=excluded.updated_at"
       ).bind(mid, "z1", "Informe del InfraAgente", "done", owner, report, image || null, now).run();
       await env.DB.prepare(
-        "UPDATE tickets SET proof_image=?,updated_at=? WHERE id=?"
-      ).bind(image, now, mid).run();
+        "UPDATE tickets SET proof_image=?,agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),updated_at=? WHERE id=?"
+      ).bind(image, runtime, host, now, mid).run();
       await addEvent(env, mid, "log", owner, "📝 Informe: " + report.slice(0, 240));
       await addEvent(env, mid, "proof", owner, "📸 Pantallazo final: " + image);
       return json({ ok: true, mission: mid });
