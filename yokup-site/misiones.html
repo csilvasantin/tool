@@ -37,7 +37,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .alta-go:disabled{opacity:.5;cursor:wait}
 .alta-msg{flex-basis:100%;font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--dim);min-height:14px}
 .alta-msg.ok{color:var(--good)}.alta-msg.err{color:var(--warn)}
-/* ⚡ Prioridad absoluta: entrega la máquina destino a la IA aunque haya humanos. */
+/* ⚡ Prioridad: entrega la máquina destino a la IA aunque haya humanos. */
 .alta-pa{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 12px;cursor:pointer;user-select:none;transition:.2s;white-space:nowrap}
 .alta-pa:hover{border-color:var(--line2)}
 .alta-pa input{accent-color:var(--warn);width:14px;height:14px;cursor:pointer;margin:0}
@@ -109,16 +109,21 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .yk-pick-it .ck{color:var(--brand);font-size:11px;flex:none}
 .yk-pick-it .kg{color:var(--dim);margin-left:auto;font-size:10px;padding-left:10px;flex:none}
 .yk-pick-it.none{color:var(--dim)}
-/* Alta: botón-selector + acordeón agente→máquinas (colapsado por defecto). */
+/* Alta: botón-selector + acordeón equipo→agentes (colapsado por defecto). */
 .alta-agente .cv{color:var(--dim);font-size:9px}
 .yk-pick-agent{display:flex;align-items:center;gap:7px;width:100%;text-align:left;background:transparent;border:0;color:var(--ink);font-family:var(--mono);font-size:11.5px;padding:8px 9px;border-radius:8px;cursor:pointer;transition:.12s}
 .yk-pick-agent:hover,.yk-pick-agent:focus{background:rgba(120,243,255,.10);outline:none}
 .yk-pick-agent .cv{color:var(--dim);flex:none;font-size:9px;transition:.15s;width:10px;text-align:center}
 .yk-pick-agent.open .cv{transform:rotate(90deg)}
 .yk-pick-agent .kg{color:var(--dim);margin-left:auto;font-size:10px;flex:none}
+.yk-pick-agent .machine-state{margin-left:auto;color:var(--dim);font-size:9.5px;white-space:nowrap}
 .yk-pick-machines{display:none;padding-left:13px;margin:1px 0 4px;border-left:1px solid var(--line)}
 .yk-pick-machines.open{display:block}
 .yk-pick-machines .yk-pick-it{font-size:11px}
+.yk-pick-it.offline{opacity:.42;color:var(--mut)}
+.yk-pick-it.offline:hover,.yk-pick-it.offline:focus{opacity:.75}
+.yk-pick-it .agent-state{margin-left:auto;font-size:9.5px;color:var(--dim);white-space:nowrap}
+.yk-pick-it.online .agent-state{color:var(--good)}
 #ykToast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);z-index:10000;font-family:var(--mono);font-size:12px;letter-spacing:.03em;padding:11px 16px;border-radius:11px;background:var(--card2);border:1px solid var(--line2);color:var(--ink);box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:.25s;max-width:min(90vw,440px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #ykToast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #ykToast.ok{border-color:rgba(136,255,170,.5);color:var(--good)}
@@ -161,13 +166,13 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
     <input class="alta-txt" id="altaTxt" type="text" maxlength="4000"
            placeholder="Nueva misión para la flota… (Enter para darla de alta)">
     <button type="button" class="alta-agente" id="altaAgentBtn" aria-haspopup="menu" aria-expanded="false" title="Asignar a — pulsa para elegir agente y máquina">🎯 Auto · aleatorio <span class="cv">▾</span></button>
-    <label class="alta-pa" id="altaPaWrap" title="Prioridad absoluta: entrega la máquina destino a la IA aunque haya un humano delante — la fuerza a «desatendida» durante 2 h para que el agente trabaje sin interrupción.">
-      <input type="checkbox" id="altaPa"> ⚡ Prioridad absoluta
+    <label class="alta-pa" id="altaPaWrap" title="Prioridad: entrega la máquina destino a la IA aunque haya un humano delante — la fuerza a «desatendida» durante 2 h para que el agente trabaje sin interrupción.">
+      <input type="checkbox" id="altaPa"> ⚡ Prioridad
     </label>
     <button type="button" class="alta-adj" id="altaAdjBtn" title="Adjuntar imagen — o pega (⌘V, también desde Telegram) o arrastra sobre el campo">📎 Imagen</button>
     <input type="file" id="altaAdjFile" accept="image/*" multiple hidden>
     <button class="alta-go" type="submit">＋ Dar de alta</button>
-    <div class="alta-hint" id="altaPaHint" hidden>⚠️ Prioridad absoluta: la máquina destino se entrega a la IA <b>aunque haya humanos delante</b> (se fuerza a «desatendida» ~2 h). Úsalo solo cuando la misión no pueda esperar.</div>
+    <div class="alta-hint" id="altaPaHint" hidden>⚠️ Prioridad: la máquina destino se entrega a la IA <b>aunque haya humanos delante</b> (se fuerza a «desatendida» ~2 h). Úsalo solo cuando la misión no pueda esperar.</div>
     <div class="alta-det" id="altaDetectHint" hidden></div>
     <div class="yk-thumbs" id="altaThumbs" style="display:none"></div>
     <div class="alta-msg" id="altaMsg"></div>
@@ -454,8 +459,8 @@ load(); setInterval(load,12000);
 
 // ---- ALTA de misiones de flota ---------------------------------------------
 // La misión nace como ENCARGO del bot-inbox (admira-telegram); yokup-rtc la
-// reconcilia a ticket FLT-<id>. El selector desglosa cada persona en SUS
-// máquinas (parejas vistas en /api/presence, 🟢 = latido <15 min) con las
+// reconcilia a ticket FLT-<id>. El selector desglosa cada equipo en SUS
+// agentes (parejas vistas en /api/presence, 🟢 = latido <15 min) con los
 // encargos abiertos por pareja. "Libre" = pareja online con menos abiertas
 // (de persona y de pareja). El alta fija target_persona Y target_machine
 // (el routing por máquina del worker hace el resto).
@@ -467,7 +472,7 @@ const esPrincipal=p=>!/^(sub|infra)/i.test(p)&&p!=="Cypher";
 const esc=s=>String(s).replace(/[<>&"]/g,"");
 const normM=s=>String(s||"").toLowerCase().replace(/[\s·._-]+/g,"");
 const NAV="https://admira-navegadores.csilvasantin.workers.dev";
-// MAQS: persona -> {canon:{online,norm,raw}} · el VALUE del option lleva el raw
+// MAQS: persona -> {canon:{online,norm,raw,runtime,host,inject,updated}} · el VALUE lleva el raw
 // (ComputerName real) para que el claim del worker case; la etiqueta, el canónico.
 let MAQS={}, SOLOMAQ={}, CARGA_P={}, CARGA_PM={}, CARGA_M={}, LIBRE=null, UNIV=[], ALTA_SEL={auto:true};
 // RUNTIME: persona -> LLM que la anima (Claude/Codex/Grok), leído de presence.
@@ -486,12 +491,15 @@ async function radar(){
     MAQS={}; RUNTIME={};
     for(const p of (pr.presence||[])){
       // Runtime por persona (aunque no tenga máquina ahora): alimenta las categorías.
-      if(p.persona&&p.runtime&&esPrincipal(p.persona)&&!RUNTIME[p.persona]) RUNTIME[p.persona]=p.runtime;
+      if(p.persona&&p.runtime&&esPrincipal(p.persona)) RUNTIME[p.persona]=p.runtime;
       if(!p.persona||!p.machine||!esPrincipal(p.persona)) continue;
       const canon=YkMisiones.canonMachine(p.machine);
       (MAQS[p.persona]=MAQS[p.persona]||{});
-      const m=MAQS[p.persona][canon]=MAQS[p.persona][canon]||{online:false,norm:normM(canon),raw:p.machine};
-      if((now-(p.updated||0))<900) m.online=true;
+      const prev=MAQS[p.persona][canon];
+      if(!prev||(p.updated||0)>=(prev.updated||0)) MAQS[p.persona][canon]={
+        online:(now-(p.updated||0))<900,norm:normM(canon),raw:p.machine,
+        runtime:p.runtime||RUNTIME[p.persona]||"",host:p.host||"",inject:p.inject?1:0,updated:p.updated||0
+      };
     }
     // Máquinas VIVAS según el executor de navegadores — aunque nadie latiera en
     // presence (caso MacBookAirPlata): asignables como «solo máquina».
@@ -528,9 +536,9 @@ async function radar(){
   renderAltaBtn();   // el selector del alta se pinta en su acordeón al abrirlo
 }
 
-// ── SELECTOR del ALTA: acordeón agente→máquinas, COLAPSADO por defecto. ──────
-// Al abrir sólo se ven los agentes (por categoría Matrix); al pulsar uno se
-// despliega EN QUÉ MÁQUINAS está disponible. AUTO = aleatorio (no nombra a nadie).
+// ── SELECTOR del ALTA: acordeón equipo→agentes, COLAPSADO por defecto. ───────
+// Cada equipo despliega todos los agentes principales. Los operativos muestran
+// su runtime y superficie real; los no arrancados permanecen visibles en gris.
 function renderAltaBtn(){
   const b=$("altaAgentBtn"); if(!b) return;
   const lbl=ALTA_SEL.auto ? "🎯 Auto · aleatorio" : (ALTA_SEL.label||ALTA_SEL.persona||"—");
@@ -669,27 +677,38 @@ function pickerAlta(anchor){
   el.className="yk-picker"; el.setAttribute("role","menu"); el.setAttribute("aria-label","Asignar la nueva misión");
   let html='<div class="yk-picker-hd">Asignar a</div>';
   html+=itHtml("__auto","🎯 Auto · aleatorio","al azar",ALTA_SEL.auto);
-  const cats={Claude:[],Codex:[],Grok:[]};
-  UNIV.filter(esAsignable).forEach(p=>{ (cats[catDe(p)]||cats.Claude).push(p); });
-  ["Claude","Codex","Grok"].forEach(cat=>{
-    const ags=cats[cat]||[]; if(!ags.length) return;
-    html+='<div class="yk-picker-grp">'+CAT_HDR[cat]+'</div>';
-    ags.forEach(p=>{
-      const maqs=Object.entries(MAQS[p]||{}).sort((a,b)=>(b[1].online-a[1].online)||a[0].localeCompare(b[0]));
-      const on=maqs.some(([,i])=>i.online);
-      const abierto=!ALTA_SEL.auto&&ALTA_SEL.persona===p;
-      html+='<button type="button" class="yk-pick-agent'+(abierto?" open":"")+'"><span class="cv">▸</span><span class="lb">'+(on?"🟢":"⚪")+' '+esc(p)+'</span><span class="kg">'+(CARGA_P[p]||0)+' ab.</span></button>';
-      html+='<div class="yk-pick-machines'+(abierto?" open":"")+'">';
-      html+=itHtml(p+"|","· cualquier máquina","",!ALTA_SEL.auto&&ALTA_SEL.persona===p&&!ALTA_SEL.machine);
-      maqs.forEach(([maq,i])=>{ html+=itHtml(p+"|"+i.raw,(i.online?"🟢":"⚪")+" en "+maq,(CARGA_PM[p+"|"+i.norm]||0)+" ab.",!ALTA_SEL.auto&&ALTA_SEL.persona===p&&ALTA_SEL.machine===i.raw); });
-      html+='</div>';
-    });
-  });
-  const solo=Object.entries(SOLOMAQ).sort((a,b)=>a[0].localeCompare(b[0]));
-  if(solo.length){
-    html+='<div class="yk-picker-grp">🖥 Solo máquina · quien esté allí</div>';
-    solo.forEach(([canon,i])=>{ html+=itHtml("|"+i.raw,"🖥 "+canon,(CARGA_M[i.norm]||0)+" ab.",!ALTA_SEL.auto&&!ALTA_SEL.persona&&ALTA_SEL.machine===i.raw); });
+  const personas=UNIV.filter(esAsignable).sort((a,b)=>a.localeCompare(b));
+  const equipos=new Map();
+  for(const p of personas) for(const [canon,i] of Object.entries(MAQS[p]||{})){
+    if(!equipos.has(canon)) equipos.set(canon,{raw:i.raw,norm:i.norm});
   }
+  for(const [canon,i] of Object.entries(SOLOMAQ)) if(!equipos.has(canon)) equipos.set(canon,{raw:i.raw,norm:i.norm});
+  const orden=[...equipos.entries()].sort((a,b)=>{
+    const vivos=c=>personas.some(p=>MAQS[p]&&MAQS[p][c]&&MAQS[p][c].online);
+    return Number(vivos(b[0]))-Number(vivos(a[0]))||a[0].localeCompare(b[0]);
+  });
+  html+='<div class="yk-picker-grp">🖥 Equipos y agentes</div>';
+  orden.forEach(([canon,maq])=>{
+    const vivos=personas.filter(p=>MAQS[p]&&MAQS[p][canon]&&MAQS[p][canon].online);
+    const abierto=!ALTA_SEL.auto&&ALTA_SEL.machine&&YkMisiones.canonMachine(ALTA_SEL.machine)===canon;
+    html+='<button type="button" class="yk-pick-agent'+(abierto?" open":"")+'"><span class="cv">▸</span><span class="lb">🖥 '+esc(canon)+'</span><span class="machine-state">'+(vivos.length?vivos.length+' operativos':'sin agentes')+'</span></button>';
+    html+='<div class="yk-pick-machines'+(abierto?" open":"")+'">';
+    html+=itHtml("|"+maq.raw,"· cualquier agente",(CARGA_M[maq.norm]||0)+" ab.",!ALTA_SEL.auto&&!ALTA_SEL.persona&&ALTA_SEL.machine===maq.raw);
+    personas.slice().sort((a,b)=>{
+      const ao=!!(MAQS[a]&&MAQS[a][canon]&&MAQS[a][canon].online), bo=!!(MAQS[b]&&MAQS[b][canon]&&MAQS[b][canon].online);
+      return Number(bo)-Number(ao)||a.localeCompare(b);
+    }).forEach(p=>{
+      const info=MAQS[p]&&MAQS[p][canon], on=!!(info&&info.online);
+      const runtime=(info&&info.runtime)||RUNTIME[p]||RT_FIJO[p]||"";
+      const superficie=info&&info.host==="cli"?"CLI":info&&info.host==="app"?(info.inject?"Desktop + CLI":"Desktop"):"no arrancado";
+      const label=(on?"🟢 ":"⚪ ")+p+(runtime?" · "+runtime:"");
+      const meta=on?superficie:"no arrancado";
+      const selected=!ALTA_SEL.auto&&ALTA_SEL.persona===p&&YkMisiones.canonMachine(ALTA_SEL.machine)===canon;
+      html+='<button class="yk-pick-it '+(on?'online':'offline')+(selected?' on':'')+'" role="menuitem" data-val="'+esc(p+'|'+maq.raw)+'">'+
+        (selected?'<span class="ck">✓</span>':'')+'<span class="lb">'+esc(label)+'</span><span class="agent-state">'+esc(meta)+'</span></button>';
+    });
+    html+='</div>';
+  });
   el.innerHTML=html;
   document.body.appendChild(el);
   posicionaPicker(el,anchor);
@@ -721,7 +740,7 @@ function pickerAlta(anchor){
 }
 $("altaAgentBtn").addEventListener("click",e=>{ e.stopPropagation(); const abierto=PICKER&&PICKER.el&&PICKER.el.getAttribute("aria-label")==="Asignar la nueva misión"; cerrarPicker(); if(!abierto) pickerAlta(e.currentTarget); });
 
-// ⚡ PRIORIDAD ABSOLUTA: el toggle marca la misión para que el agent-inbox-watcher
+// ⚡ PRIORIDAD: el toggle marca la misión para que el agent-inbox-watcher
 // (grep «prioridad absoluta|absolute priority|[PA]») fuerce la máquina destino a
 // «desatendida» 2 h. Solo cambia el texto del encargo; muestra un aviso claro.
 const paChk=$("altaPa"), paWrap=$("altaPaWrap"), paHint=$("altaPaHint");
@@ -746,7 +765,7 @@ $("alta").onsubmit=async e=>{
   const txt=$("altaTxt").value.trim(); if(!txt) return;
   if(altaAdj.pending()>0){ $("altaMsg").className="alta-msg"; $("altaMsg").textContent="⏳ espera a que suban las imágenes…"; return; }
   clearTimeout(detT); detectaAlta();   // honra lo ESCRITO aunque el debounce no saltara aún
-  // Prioridad absoluta → antepone el marcador que el watcher detecta.
+  // Prioridad → conserva el marcador interno que el watcher detecta.
   const pa=!!(paChk&&paChk.checked);
   const img=altaAdj.bloque();          // "🖼 Imágenes adjuntas: …" o ""
   const encargo=(pa ? "[PRIORIDAD ABSOLUTA] "+txt : txt)+img;
@@ -777,7 +796,7 @@ $("alta").onsubmit=async e=>{
     }
     const destino=persona?(persona+(maquina?" en "+YkMisiones.canonMachine(maquina):"")):("la máquina "+YkMisiones.canonMachine(maquina)+" (quien esté allí)");
     const nimg=altaAdj.urls().length;
-    msg.className="alta-msg ok"; msg.textContent="✓ FLT-"+d.id+(pa?" ⚡PA":"")+(nimg?" 🖼×"+nimg:"")+" dada de alta y asignada a "+destino+rayo;
+    msg.className="alta-msg ok"; msg.textContent="✓ FLT-"+d.id+(pa?" ⚡ PRIORIDAD":"")+(nimg?" 🖼×"+nimg:"")+" dada de alta y asignada a "+destino+rayo;
     $("altaTxt").value=""; altaAdj.clear(); detectaAlta();   // limpia texto+imágenes → resetea detección y hint
     if(paChk){ paChk.checked=false; if(paWrap){paWrap.classList.remove("on");paWrap.style.setProperty("color","");paWrap.style.setProperty("border-color","");} if(paHint)paHint.hidden=true; }
     radar(); load();
