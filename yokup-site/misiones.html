@@ -305,20 +305,17 @@ async function aplicarBloque(){
   const real=[...new Set([...SEL].flatMap(id=>REP_IDS[id]||[id]))];
   if(!real.length) return;
   const lbl={in_progress:"En curso",resolved:"Finalizada",open:"Reabrir"}[status]||status;
-  if(!confirm("Cambiar "+real.length+" misión(es) a «"+lbl+"»?\n(cada misión de flota avisa a su encargo en Telegram)")) return;
-  const btn=$("bulkApply"), old=btn.textContent; btn.disabled=true;
-  let ok=0, err=0;
-  for(const id of real){
-    try{
-      const r=await fetch(WORKER+"/ticket/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id,status,author:"Misiones (bloque)"})});
-      const d=await r.json(); (d&&d.ok)?ok++:err++;
-    }catch(e){ err++; }
-    btn.textContent="Aplicando… "+(ok+err)+"/"+real.length;
-  }
+  if(!confirm("Cambiar "+real.length+" misión(es) a «"+lbl+"»?\n(se avisa UNA sola vez al grupo)")) return;
+  const btn=$("bulkApply"), old=btn.textContent; btn.disabled=true; btn.textContent="Aplicando…";
+  let ok=false, upd=0;
+  try{
+    const r=await fetch(WORKER+"/tickets/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({ids:real,status,author:"Misiones (bloque)"})});
+    const d=await r.json(); ok=!!(d&&d.ok); upd=d&&d.updated||0;
+  }catch(e){}
   btn.disabled=false; btn.textContent=old;
   SEL.clear(); $("bulkEstado").value="";
   await load();
-  alert("Estado actualizado: "+ok+" ok"+(err?(" · "+err+" con error"):"")+".");
+  alert(ok?("Estado actualizado en "+upd+" misión(es). Aviso único al grupo."):"No se pudo aplicar el cambio.");
 }
 function bindHead(el){
   el.querySelectorAll(".lhead .lh").forEach(h=>h.onclick=()=>{

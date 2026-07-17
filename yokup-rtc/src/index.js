@@ -12,7 +12,7 @@ var json = /* @__PURE__ */ __name((o, s = 200) => new Response(JSON.stringify(o)
 var AUTH_CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
 var WL_API = "https://admira-whitelist.csilvasantin.workers.dev";
 var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@admira.com", "agonzalez@admira.com", "jsedano@admira.com"];
-var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge"]);
+var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge"]);
 var _wl = { at: 0, set: null };
 async function whitelist() {
   if (_wl.set && Date.now() - _wl.at < 3e5) return _wl.set;
@@ -1157,6 +1157,45 @@ var index_default = {
         await addEvent(env, b.id, "note", b.author || "T\xE9cnico", String(b.text || "").slice(0, 2e3));
         await env.DB.prepare("UPDATE tickets SET updated_at=?, status=CASE WHEN status='open' THEN 'in_progress' ELSE status END WHERE id=?").bind(Date.now(), b.id).run();
         return json({ ok: true });
+      } catch (e) {
+        return json({ error: String(e) }, 500);
+      }
+    }
+    // CAMBIO DE ESTADO EN BLOQUE (Carlos, 2026-07-17): varias/todas las misiones a la vez
+    // desde yokup.com/misiones, con UN SOLO aviso al grupo (no uno por misión). Actualiza
+    // los tickets + baja el estado a los encargos de flota en bloque (/bot-inbox/bulk-status).
+    if (url.pathname === "/tickets/status" && req.method === "POST") {
+      try {
+        const b = await req.json();
+        await ensureSchema(env);
+        const ids = Array.isArray(b.ids) ? [...new Set(b.ids.map((x) => String(x)).filter(Boolean))] : [];
+        const status = b.status;
+        if (!ids.length || !["open", "in_progress", "resolved"].includes(status)) {
+          return json({ ok: false, error: "ids (array) y status (open|in_progress|resolved) requeridos" }, 400);
+        }
+        const now = Date.now();
+        const resolvedAt = status === "resolved" ? now : null;
+        const author = String(b.author || "Misiones (bloque)").slice(0, 40);
+        const fleetInboxIds = [];
+        let updated = 0;
+        for (const id of ids) {
+          await env.DB.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=? WHERE id=?").bind(status, now, resolvedAt, id).run();
+          await addEvent(env, id, "status", author, `Estado → ${status} (cambio en bloque)`);
+          const iid = fleetInboxId(id);
+          if (iid) fleetInboxIds.push(iid);
+          updated++;
+        }
+        // UNA sola notificación al grupo + estados de encargo actualizados en bloque.
+        if (fleetInboxIds.length && env.TELEGRAM) {
+          const inboxStatus = status === "resolved" ? "done" : status === "in_progress" ? "in_progress" : "pending";
+          try {
+            await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
+              method: "POST", headers: { "content-type": "application/json" },
+              body: JSON.stringify({ ids: fleetInboxIds, status: inboxStatus, by: author, note: "Cambio en bloque desde yokup.com/misiones." })
+            }));
+          } catch (e) {}
+        }
+        return json({ ok: true, updated });
       } catch (e) {
         return json({ error: String(e) }, 500);
       }
