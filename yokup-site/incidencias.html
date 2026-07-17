@@ -51,7 +51,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <!-- La barra Yokup (yk-frame) aporta logo, rótulo, selector de PROYECTO y reloj. -->
 
   <h1>Soporte de incidencias</h1>
-  <p class="sub">Helpdesk con <b style="color:var(--violet)">IA</b> para la flota DOOH de admira.tv. El agente abre el ticket, la IA lo diagnostica y asigna, y lanzas la asistencia en vivo.</p>
+  <p class="sub">Punto único de <b>todas</b> las incidencias de AdmiraNeXT: <b style="color:var(--brand)">🖥 pantallas DOOH</b>, <b style="color:var(--brand)">🌐 servicios/webs caídos</b>, <b style="color:var(--brand)">🖥 máquinas de la flota</b> y <b style="color:var(--brand)">🤖 agentes bloqueados</b>. La <b style="color:var(--violet)">IA</b> las diagnostica y asigna; lanzas la asistencia en vivo.</p>
 
   <div class="kb">
     <input id="kbq" placeholder="🤖 Pregunta a la base de conocimiento IA (p.ej. «pantalla sin red»)…" onkeydown="if(event.key==='Enter')askKb()">
@@ -98,7 +98,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r20"></script>
+<script src="/yk-misiones.js?v=r21"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 // Compat: llegadas antiguas con #misiones / #tareas abren su raíl (el nav ya no lo usa).

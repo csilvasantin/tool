@@ -488,6 +488,61 @@ async function checkWebs(env) {
   }
 }
 __name(checkWebs, "checkWebs");
+
+// Máquinas de la flota que DEBEN estar 24/7. Sólo se vigilan las que laten
+// presencia de forma fiable (canónico: minúsculas sin símbolos). Los players
+// Linux (dgx-spark, lenovo-thinkstation) NO laten presencia estable y viven tras
+// Tailscale (inalcanzables desde el Worker) → NO se incluyen aquí para no generar
+// falsos positivos permanentes; se añadirán cuando tengan heartbeat propio.
+// Ampliar la lista es la única palanca para vigilar más equipos. Carlos 2026-07-17.
+var CRITICAL_MACHINES = [
+  { canon: "macmini", name: "Mac Mini" }
+];
+// Umbral de caída: si el latido más fresco de la máquina supera estos minutos, se
+// considera offline. La presencia late ~cada 3 min; 20 min = varios latidos perdidos.
+var MACHINE_OFFLINE_MIN = 20;
+var PRESENCE_URL = "https://admira-telegram.csilvasantin.workers.dev/api/presence";
+
+function canonMachine(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+__name(canonMachine, "canonMachine");
+
+async function checkMachines(env) {
+  if (!env.TELEGRAM) return;
+  let rows = [];
+  try {
+    const r = await env.TELEGRAM.fetch(new Request(PRESENCE_URL, { headers: { accept: "application/json" } }));
+    const d = await r.json();
+    rows = Array.isArray(d) ? d : (d.rows || d.presence || []);
+  } catch (e) { return; }   // sin presencia no inventamos incidencias
+  // Latido más fresco por máquina (canónico).
+  const fresh = {};
+  for (const row of rows) {
+    const c = canonMachine(row && row.machine);
+    if (!c) continue;
+    let u = (row && (row.updated || row.updated_at || row.ts)) || 0;
+    if (u && u < 4102444800) u *= 1000;   // s → ms
+    if (!fresh[c] || u > fresh[c]) fresh[c] = u;
+  }
+  const now = Date.now();
+  for (const m of CRITICAL_MACHINES) {
+    const last = fresh[m.canon] || 0;
+    const ageMin = last ? (now - last) / 60000 : Infinity;
+    const resource = "maq:" + m.canon;
+    if (ageMin > MACHINE_OFFLINE_MIN) {
+      const hace = last ? "hace " + Math.round(ageMin) + " min" : "sin latido registrado";
+      await createIncident(env, {
+        resource, kind: "machine", source: "monitor", severity: "urgente", project: m.name,
+        subject: "Máquina offline: " + m.name + " (" + hace + ")",
+        detail: m.name + " es un equipo 24/7 y ha dejado de latir presencia (" + hace + "). Revisa que esté encendido, con red y con sus agentes arrancados.",
+        by: "Monitor de flota"
+      });
+    } else {
+      await resolveIncident(env, resource, "Monitor de flota", m.name + " vuelve a latir (hace " + Math.round(ageMin) + " min).");
+    }
+  }
+}
+__name(checkMachines, "checkMachines");
+
 async function reconcile(env) {
   let screens = [];
   try {
@@ -1286,7 +1341,7 @@ T\xC9CNICO: ${q}`, 160);
     // Monitor de servicios/webs (~cada 10 min; el cron dispara cada 2).
     try {
       const min = new Date(event.scheduledTime || Date.now()).getUTCMinutes();
-      if (min % 10 < 2) await checkWebs(env);
+      if (min % 10 < 2) { await checkWebs(env); await checkMachines(env); }
     } catch (e) {
     }
     try {
