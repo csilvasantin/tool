@@ -55,6 +55,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .fl-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--dim)}
 .fl-card.on .fl-dot{background:var(--good);box-shadow:0 0 7px var(--good)}
 .fl-ag{margin-left:auto;flex:none;font-family:var(--mono);font-size:9.5px;color:var(--mut);white-space:nowrap}
+.fl-host{flex:none;font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:6px;white-space:nowrap;border:1px solid var(--line)}
+.fl-host.cli{color:var(--good);border-color:rgba(136,255,170,.4);background:rgba(136,255,170,.08)}
+.fl-host.app{color:var(--accent);border-color:rgba(255,216,102,.35);background:rgba(255,216,102,.07)}
 .fl-focus{font-size:11px;line-height:1.4;color:var(--mut);margin-top:4px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .fl-focus.idle{color:var(--dim);font-style:italic}
 .fl-mis{margin-top:5px;display:flex;gap:5px;flex-wrap:wrap}
@@ -712,7 +715,7 @@ async function renderFlota(){
   for(const p of pres){
     if(!p.machine||!esPrincipal(p.persona)) continue;
     const c=YkMisiones.canonMachine(p.machine), cur=byMaq[c];
-    if(!cur||(p.updated||0)>(cur.updated||0)) byMaq[c]={persona:p.persona,raw:p.machine,runtime:p.runtime||"",focus:p.focus||"",updated:p.updated||0,online:(now-(p.updated||0))<900};
+    if(!cur||(p.updated||0)>(cur.updated||0)) byMaq[c]={persona:p.persona,raw:p.machine,runtime:p.runtime||"",focus:p.focus||"",host:p.host||"",updated:p.updated||0,online:(now-(p.updated||0))<900};
   }
   FL_BY_MAQ=byMaq;   // para el botón «formalizar» (necesita persona+raw+focus)
   const misBy={};
@@ -724,6 +727,9 @@ async function renderFlota(){
   list.innerHTML=univ.map(c=>{
     const pr=byMaq[c], on=!!(pr&&pr.online);
     const ag=pr?(esc(pr.persona||"—")+(pr.runtime?" · "+esc(pr.runtime):"")):"—";
+    // Superficie del agente: CLI en tmux (inyectable) vs Desktop app (no inyectable).
+    const host=(on&&pr&&pr.host==="cli")?'<span class="fl-host cli" title="CLI en tmux — se le puede inyectar trabajo">⌨️ CLI</span>'
+      :(on&&pr&&pr.host==="app")?'<span class="fl-host app" title="Desktop app — no inyectable por tmux">🪟 Desktop</span>':"";
     const foco=pr&&pr.focus?esc(_foco(pr.focus)):(on?"sin foco reportado":"en reposo");
     const mis=misBy[c]||[];
     let misHtml;
@@ -742,7 +748,7 @@ async function renderFlota(){
     } else {
       misHtml='<div class="fl-none">en reposo</div>';
     }
-    return '<div class="fl-card '+(on?"on":"off")+'"><div class="fl-top"><span>'+(FL_EM[c]||"🖥")+'</span><span class="fl-nm">'+esc(c)+'</span><span class="fl-dot"></span><span class="fl-ag">'+ag+'</span></div>'
+    return '<div class="fl-card '+(on?"on":"off")+'"><div class="fl-top"><span>'+(FL_EM[c]||"🖥")+'</span><span class="fl-nm">'+esc(c)+'</span><span class="fl-dot"></span><span class="fl-ag">'+ag+'</span>'+host+'</div>'
       +'<div class="fl-focus'+(pr&&pr.focus?"":" idle")+'">'+foco+'</div>'+misHtml+'</div>';
   }).join('');
 }
