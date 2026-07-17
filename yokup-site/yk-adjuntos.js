@@ -73,12 +73,18 @@
     }
 
     function fromClipboard(e) {
+      // El paste de la zona burbujea hasta document. Sin esta marca, el mismo
+      // ClipboardEvent se procesaba dos veces (dos subidas y dos miniaturas).
+      if (e.__ykAdjuntosHandled) return;
       var dt = e.clipboardData; if (!dt) return;
       var got = false;
       Array.prototype.forEach.call(dt.items || [], function (i) {
         if (i.kind === "file" && /^image\//i.test(i.type)) { var f = i.getAsFile(); if (f) { add(f); got = true; } }
       });
-      if (got) e.preventDefault();   // no pegar la ruta/binario como texto
+      if (got) {
+        e.__ykAdjuntosHandled = true;
+        e.preventDefault();          // no pegar la ruta/binario como texto
+      }
     }
     function fromDrop(e) {
       e.preventDefault(); zone.classList.remove("yk-drag");
