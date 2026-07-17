@@ -197,13 +197,13 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   </div>
 
   <!-- Raíl MISIONES: filtros. Raíl TAREAS: árbol de la misión seleccionada. -->
-  <div class="tabs" data-yk-slot="left">
-    <button class="tab on" data-f="activas">Activas</button>
-    <button class="tab" data-f="sin">Sin asignar</button>
-    <button class="tab" data-f="asignadas">Asignadas</button>
-    <button class="tab" data-f="in_progress">En curso</button>
-    <button class="tab" data-f="resolved">Finalizadas</button>
-    <button class="tab" data-f="todas">Todas</button>
+  <div class="tabs" id="missionStateTabs" data-yk-slot="left">
+    <button class="tab on" data-f="activas" aria-pressed="true">Activas</button>
+    <button class="tab" data-f="sin" aria-pressed="false">Sin asignar</button>
+    <button class="tab" data-f="asignadas" aria-pressed="false">Asignadas</button>
+    <button class="tab" data-f="in_progress" aria-pressed="false">En curso</button>
+    <button class="tab" data-f="resolved" aria-pressed="false">Finalizadas</button>
+    <button class="tab" data-f="todas" aria-pressed="false">Todas</button>
   </div>
   <!-- MODO AVANZADO: resumen de TODA la flota AdmiraNeXT — qué hace cada máquina
        y sus misiones activas (Carlos, 2026-07-16). Encima del árbol de tareas. -->
@@ -453,10 +453,13 @@ let buscaT; $("busca").oninput=()=>{ clearTimeout(buscaT); buscaT=setTimeout(loa
 $("selOrden").onchange=()=>{ SORT={k:"fecha",dir:$("selOrden").value==="antiguas"?"asc":"desc"}; load(); };
 // triangulito del titular: explicación plegada por defecto
 $("introTgl").onclick=()=>{ const p=$("intro"), abierto=p.hidden; p.hidden=!abierto; $("introTgl").textContent=abierto?"▾":"▸"; $("introTgl").setAttribute("aria-expanded",String(abierto)); };
-// filtros de estado (raíl izquierdo)
-document.querySelectorAll('[data-yk-slot="left"] .tab').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('[data-yk-slot="left"] .tab').forEach(x=>x.classList.remove("on"));
-  b.classList.add("on"); FILTER=b.dataset.f; load();
+// Filtros de estado: se referencian por un ID estable. yk-frame MUEVE este nodo
+// al raíl y elimina data-yk-slot; consultar después por ese atributo dejaba de
+// encontrar los botones y acumulaba la clase .on en todos ellos.
+const STATE_TABS=[...document.querySelectorAll("#missionStateTabs .tab")];
+STATE_TABS.forEach(b=>b.onclick=()=>{
+  STATE_TABS.forEach(x=>{ const active=x===b; x.classList.toggle("on",active); x.setAttribute("aria-pressed",String(active)); });
+  FILTER=b.dataset.f; load();
 });
 load(); setInterval(load,12000);
 
