@@ -1,3 +1,4 @@
+import puppeteer from "@cloudflare/puppeteer";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -818,11 +819,26 @@ var index_default = {
         }
       }
       let buf = null, ct = "image/png";
+      // 1) Captura PROPIA con Browser Rendering (SIN marca de agua): 960×600 de la
+      //    parte superior de la web. Si no está disponible o falla, cae a thum.io.
       try {
-        const r = await fetch("https://image.thum.io/get/width/480/crop/300/" + target, { cf: { cacheTtl: 0 } });
-        buf = await r.arrayBuffer();
-        ct = r.headers.get("content-type") || "image/png";
-      } catch (e) { /* sin captura */ }
+        const browser = await puppeteer.launch(env.BROWSER);
+        try {
+          const page = await browser.newPage();
+          await page.setViewport({ width: 960, height: 600, deviceScaleFactor: 1 });
+          await page.goto(target, { waitUntil: "networkidle0", timeout: 15e3 });
+          buf = await page.screenshot({ type: "png", clip: { x: 0, y: 0, width: 960, height: 600 } });
+          ct = "image/png";
+        } finally { await browser.close(); }
+      } catch (e) { buf = null; }
+      // 2) Fallback: thum.io (con marca de agua) si Browser Rendering no dio imagen.
+      if (!buf || buf.byteLength < 3500) {
+        try {
+          const r = await fetch("https://image.thum.io/get/width/480/crop/300/" + target, { cf: { cacheTtl: 0 } });
+          buf = await r.arrayBuffer();
+          ct = r.headers.get("content-type") || "image/png";
+        } catch (e) { /* sin captura */ }
+      }
       // Solo cachear si es una imagen real (no un HTML de error ~pequeño).
       const real = buf && buf.byteLength > 3500 && /^image\//i.test(ct);
       if (real) await env.MEDIA.put(key, buf, { httpMetadata: { contentType: ct }, customMetadata: { ts: String(Date.now()), ct: ct } });

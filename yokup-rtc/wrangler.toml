@@ -8,6 +8,7 @@
 name = "yokup-rtc"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]  # @cloudflare/puppeteer usa node:buffer (Browser Rendering)
 
 [observability]
 enabled = true
@@ -25,6 +26,11 @@ database_id = "fc2d2810-0fb9-46bb-b05c-14c41fbd1b65"
 # Workers AI — triaje, KB, copiloto y proposición de plan (misiones·tareas).
 [ai]
 binding = "AI"
+
+# Browser Rendering — captura PROPIA de webs para /shot (sin la marca de agua de
+# thum.io). Requiere Workers Paid (ya en uso por D1/R2/Vectorize). Carlos 2026-07-17.
+[browser]
+binding = "BROWSER"
 
 # Bot-inbox de la flota (encargos de Carlos a los agentes) → misiones source='fleet'.
 # Va por SERVICE BINDING y no por https://admira-telegram.csilvasantin.workers.dev:
