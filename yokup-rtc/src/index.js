@@ -157,6 +157,9 @@ async function ensureSchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS subs (endpoint TEXT PRIMARY KEY, created_at INTEGER)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_tasks (mission_id TEXT, code TEXT, title TEXT, status TEXT DEFAULT 'pending', owner TEXT, report TEXT, updated_at INTEGER, PRIMARY KEY (mission_id, code))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_mtasks_mission ON mission_tasks(mission_id)");
+  // image: URL pública de la captura de prueba del informe (R2 /media/…). La tabla
+  // ya existe en prod, así que la columna se añade idempotente (ignora "duplicate").
+  await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN image TEXT").catch(() => {});
 }
 __name(ensureSchema, "ensureSchema");
 
@@ -179,7 +182,7 @@ function ownerFor(code, title) {
 __name(ownerFor, "ownerFor");
 async function listMissionTasks(env, mid) {
   const { results } = await env.DB.prepare(
-    "SELECT mission_id, code, title, status, owner, report, updated_at FROM mission_tasks WHERE mission_id=? ORDER BY code"
+    "SELECT mission_id, code, title, status, owner, report, image, updated_at FROM mission_tasks WHERE mission_id=? ORDER BY code"
   ).bind(mid).all();
   return results || [];
 }
@@ -194,7 +197,7 @@ async function listAllMissionTasks(env, scope) {
     : scope === "todas" ? ""
     : "WHERE t.source IS NULL OR t.source!='fleet'";
   const { results } = await env.DB.prepare(
-    `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.report, m.updated_at,
+    `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.report, m.image, m.updated_at,
             t.subject, t.screen, t.loc, t.source, t.assignee,
             t.status AS mission_status, t.created_at AS mission_created
        FROM mission_tasks m JOIN tickets t ON t.id = m.mission_id
@@ -989,6 +992,23 @@ var index_default = {
       await ensureSchema(env);
       return json(await fleetSync(env));
     }
+    // VÍA PARA AGENTES (sin gate Google): sube la CAPTURA DE PRUEBA a R2 y devuelve su
+    // URL pública, para adjuntarla luego al informe (/fleet/informe con {image}). Espejo
+    // de POST /media pero sin perímetro, como el resto de /fleet/* (los agentes no lo cruzan).
+    // Body = bytes de la imagen; content-type = el suyo. Carlos, 2026-07-17.
+    if (url.pathname === "/fleet/media" && req.method === "POST") {
+      if (!env.MEDIA) return json({ ok: false, error: "sin bucket MEDIA" }, 500);
+      const ct = req.headers.get("content-type") || "application/octet-stream";
+      if (!/^image\//i.test(ct)) return json({ ok: false, error: "solo imágenes" }, 415);
+      const buf = await req.arrayBuffer();
+      if (!buf.byteLength) return json({ ok: false, error: "vacío" }, 400);
+      if (buf.byteLength > 12 * 1024 * 1024) return json({ ok: false, error: "máx 12MB" }, 413);
+      const ext = (ct.split("/")[1] || "png").split(";")[0].replace(/[^a-z0-9]/gi, "") || "png";
+      const rand = [...crypto.getRandomValues(new Uint8Array(8))].map((x) => x.toString(16).padStart(2, "0")).join("");
+      const key = `fleet/${rand}.${ext}`;
+      await env.MEDIA.put(key, buf, { httpMetadata: { contentType: ct } });
+      return json({ ok: true, url: `${url.origin}/media/${key}`, key });
+    }
     // VÍA PARA AGENTES (sin gate Google): deja el INFORME del InfraAgente en yokup, para
     // que aparezca en /informes. Cierra la doctrina «toda tarea acaba en un informe».
     // Se guarda como una mission_task 'done' (code z1) con el report. Acepta FLT-<id> o el
@@ -1000,14 +1020,18 @@ var index_default = {
       if (/^#?\d+$/.test(mid)) mid = "FLT-" + mid.replace(/^#/, "");
       const report = String(b.report || "").slice(0, 2000).trim();
       const owner = String(b.owner || "infraagente").slice(0, 24);
+      // Captura de prueba opcional: solo aceptamos una URL http(s) (idealmente del
+      // propio /media de la flota). Cierra la doctrina «reportar = captura real».
+      let image = String(b.image || "").trim().slice(0, 500);
+      if (image && !/^https?:\/\//i.test(image)) image = "";
       if (!mid || !report) return json({ ok: false, error: "mission y report requeridos" }, 400);
       const t = await env.DB.prepare("SELECT id FROM tickets WHERE id=?").bind(mid).first();
       if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
       const now = Date.now();
       await env.DB.prepare(
-        "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,updated_at) VALUES(?,?,?,?,?,?,?) " +
-        "ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report, status='done', owner=excluded.owner, updated_at=excluded.updated_at"
-      ).bind(mid, "z1", "Informe del InfraAgente", "done", owner, report, now).run();
+        "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,image,updated_at) VALUES(?,?,?,?,?,?,?,?) " +
+        "ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report, status='done', owner=excluded.owner, image=COALESCE(excluded.image, mission_tasks.image), updated_at=excluded.updated_at"
+      ).bind(mid, "z1", "Informe del InfraAgente", "done", owner, report, image || null, now).run();
       await addEvent(env, mid, "log", owner, "📝 Informe: " + report.slice(0, 240));
       return json({ ok: true, mission: mid });
     }

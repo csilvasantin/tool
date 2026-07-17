@@ -41,6 +41,10 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .rttl{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:3px}
 .rmeta{font-family:var(--mono);font-size:11px;color:var(--mut);margin-bottom:9px}.rmeta .scr{color:var(--brand)}
 .rbody{font-size:13.5px;line-height:1.55;color:var(--ink);border-left:2px solid var(--line2);padding:2px 0 2px 12px;white-space:pre-wrap}
+.rshot{display:block;margin:11px 0 2px;max-width:440px}
+.rshot img{max-width:100%;border:1px solid var(--line);border-radius:9px;display:block}
+.rshot:hover img{border-color:var(--line2)}
+.rshot .cap{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin-top:5px}
 .rts{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin-top:9px}
 .empty{border:1px dashed var(--line2);border-radius:14px;padding:44px 24px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12.5px;letter-spacing:.04em;line-height:1.7}
 .empty b{color:var(--mut);display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
@@ -139,6 +143,7 @@ function render(list){
       <div class="rttl">${esc(t.title)}</div>
       <div class="rmeta"><span class="scr">${esc(t.screen||'')}</span> · misión: ${esc(t.subject||'')}</div>
       <div class="rbody">${esc(t.report)}</div>
+      ${t.image?`<a class="rshot" href="${esc(t.image)}" target="_blank" rel="noopener" title="Abrir la captura de prueba a tamaño completo"><img src="${esc(t.image)}" alt="Captura de prueba del informe" loading="lazy"><div class="cap">📷 Captura de prueba</div></a>`:""}
       <div class="rts">actualizado ${ago(t.updated_at)}</div>
     </div>`;
   }).join("");
