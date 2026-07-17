@@ -316,7 +316,13 @@ async function load(){
   $("kRes").textContent=tks.filter(t=>estL(t)==="Finalizada").length;
   $("kMttr").textContent=(st.mttr!=null?st.mttr+" min":"—");
   let base=tks;
-  if(FILTER==="activas") base=base.filter(t=>t.status!=="resolved");
+  // «Activas» oculta las resueltas, PERO mantiene las de FLOTA finalizadas hace poco
+  // (<3 h): las misiones de la desktop app se cierran en segundos, así que si no, se
+  // asignan y nunca se llegan a ver en el tablero por defecto. (Carlos, 2026-07-17.)
+  if(FILTER==="activas"){
+    const _ms=v=>{v=+v||0;return v>4102444800?v:v*1000;}, FRESH=3*3600*1000;
+    base=base.filter(t=>t.status!=="resolved" || (t.source==="fleet" && (Date.now()-_ms(t.resolved_at||t.updated_at))<FRESH));
+  }
   else if(FILTER==="sin") base=base.filter(t=>estL(t)==="Sin asignar");
   else if(FILTER==="asignadas") base=base.filter(t=>estL(t)==="Asignada");
   else if(FILTER!=="todas") base=base.filter(t=>t.status===FILTER);

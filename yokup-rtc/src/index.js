@@ -666,10 +666,14 @@ async function fleetSync(env) {
     const ts = epochMs(it.ts, now);
     const prev = await env.DB.prepare("SELECT id,status,assignee,loc FROM tickets WHERE id=?").bind(id).first();
     if (!prev) {
-      // ANTI-RESURRECCIÓN: un encargo ya cerrado que nunca fue ticket NO nace como
-      // ticket resuelto (la ventana de done de 7 días del public/inbox revivía como
-      // lápidas los encargos limpiados a mano — p.ej. las máquinas fantasma Luna).
-      if (st === "resolved") continue;
+      // ANTI-RESURRECCIÓN, pero SIN perder misiones rápidas (Carlos, 2026-07-17):
+      // un encargo cerrado hace MUCHO que nunca fue ticket es una lápida (limpieza
+      // manual revivida por la ventana de done de 7 días del public/inbox — p.ej. las
+      // máquinas fantasma Luna) → no nace. PERO una misión REAL que se completa rápido
+      // (la desktop app cierra en segundos, ANTES de que el cron de 2 min la pille
+      // activa) llega ya 'resolved' y SÍ debe nacer, o nunca aparecería en /misiones.
+      // Umbral: solo saltamos las cerradas hace más de 6 h.
+      if (st === "resolved" && (now - epochMs(it.done_at, ts)) > 6 * 3600 * 1e3) continue;
       await env.DB.prepare(
         "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at,resolved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(
