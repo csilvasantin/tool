@@ -236,7 +236,7 @@ window.reasignar=async()=>{
     if(maqDest){
       try{
         const n=await fetch(WORKER+"/fleet/nudge",{method:"POST",headers:{"content-type":"application/json"},
-          body:JSON.stringify({machine:maqDest,persona:perDest,
+          body:JSON.stringify({machine:maqDest,persona:perDest,missionId:id,
             text:"⚡ Misión "+id+" reasignada a ti desde yokup.com/misiones: «"+((TICKET&&TICKET.subject)||"")+"». Es el encargo #"+num+" de tu bot-inbox: reclámalo con bash ~/Claude/admira-vault/bot-inbox-claim.sh "+num+" y ponte con ella."})});
         const nd=await n.json().catch(()=>({}));
         rayo=nd.ok?" · ⚡ inyectada en su CLI al instante":" · (nudge no disponible: le llegará por el watcher ~20s)";

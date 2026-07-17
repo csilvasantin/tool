@@ -794,10 +794,10 @@ $("alta").onsubmit=async e=>{
     if(maquina){
       try{
         const n=await fetch(WORKER+"/fleet/nudge",{method:"POST",headers:{"content-type":"application/json"},
-          body:JSON.stringify({machine:maquina,persona:persona,
+          body:JSON.stringify({machine:maquina,persona:persona,missionId:"FLT-"+d.id,
             text:"⚡ Nueva misión FLT-"+d.id+" para ti desde yokup.com/misiones: «"+txt+"». Encargo #"+d.id+" de tu bot-inbox: reclámalo con bash ~/Claude/admira-vault/bot-inbox-claim.sh "+d.id+" y ponte con ella."})});
         const nd=await n.json().catch(()=>({}));
-        rayo=nd.ok?" · ⚡ en su CLI ya":"";
+        rayo=nd.ok?(nd.started?" · ⚡ en curso en su CLI":" · ⚡ en su CLI ya"):"";
       }catch(e){}
     }
     const destino=persona?(persona+(maquina?" en "+YkMisiones.canonMachine(maquina):"")):("la máquina "+YkMisiones.canonMachine(maquina)+" (quien esté allí)");
@@ -1012,7 +1012,7 @@ async function reasignarMision(id,cambio){
     const perDest=("persona" in body)?body.persona:(info.agente||"");
     if(maqDest){
       fetch(WORKER+"/fleet/nudge",{method:"POST",headers:{"content-type":"application/json"},
-        body:JSON.stringify({machine:maqDest,persona:perDest,
+        body:JSON.stringify({machine:maqDest,persona:perDest,missionId:id,
           text:"⚡ Misión "+id+" reasignada a ti desde yokup.com/misiones: «"+(info.subject||"")+"». Es el encargo #"+num+" de tu bot-inbox: reclámalo con bash ~/Claude/admira-vault/bot-inbox-claim.sh "+num+" y ponte con ella."})}).catch(()=>{});
     }
     toast("✓ FLT-"+num+" reasignada",true);

@@ -725,6 +725,9 @@ async function fleetNudge(env, b) {
   const machine = String(b.machine || "").trim();
   const text = String(b.text || "").trim().slice(0, 1500);
   const persona = String(b.persona || "").trim().slice(0, 40);
+  const missionId = /^FLT-\d+$/.test(String(b.missionId || "").trim())
+    ? String(b.missionId).trim()
+    : "";
   if (!machine || !text) return { ok: false, error: "machine y text requeridos" };
   if (!env.NAV_CMD_TOKEN) return { ok: false, error: "sin secreto NAV_CMD_TOKEN" };
   if (!env.NAVEGADORES) return { ok: false, error: "sin binding NAVEGADORES" };
@@ -735,7 +738,29 @@ async function fleetNudge(env, b) {
     body: JSON.stringify({ deviceId, action: "prompt", text, persona })
   }));
   const d = await r.json().catch(() => ({}));
-  return { ok: !!(r.ok && d.ok), id: d.id || null, deviceId, error: d.error || null };
+  const ok = !!(r.ok && d.ok);
+  let started = false;
+  let statusPushed = false;
+  // La cola del executor es el primer hecho fiable de que el agente ya recibió
+  // el trabajo. No esperamos al cron: así incluso una misión que termina en menos
+  // de dos minutos pasa por EN CURSO antes de llegar a FINALIZADA.
+  if (ok && missionId) {
+    const ticket = await env.DB.prepare(
+      "SELECT id,source,status,assignee,loc FROM tickets WHERE id=?"
+    ).bind(missionId).first();
+    if (ticket && ticket.source === "fleet" && ticket.status === "open") {
+      const updated = await env.DB.prepare(
+        "UPDATE tickets SET status='in_progress',updated_at=? WHERE id=? AND status='open'"
+      ).bind(Date.now(), missionId).run();
+      started = Number(updated.meta?.changes || 0) > 0;
+      if (started) {
+        statusPushed = await fleetPushStatus(env, ticket, "in_progress");
+        await addEvent(env, missionId, "log", "yokup",
+          `Misión entregada al CLI de ${persona || "su agente"} en ${machine}; pasa a EN CURSO${statusPushed ? "" : " (sincronización del bot-inbox pendiente)"}.`);
+      }
+    }
+  }
+  return { ok, id: d.id || null, deviceId, started, statusPushed, error: d.error || null };
 }
 __name(fleetNudge, "fleetNudge");
 
