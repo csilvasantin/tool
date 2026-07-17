@@ -123,6 +123,17 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 #ykToast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #ykToast.ok{border-color:rgba(136,255,170,.5);color:var(--good)}
 #ykToast.err{border-color:rgba(255,136,102,.55);color:var(--warn)}
+/* Selección múltiple de misiones → cambio de estado en bloque (Carlos, 2026-07-17) */
+.selall,.selrow{accent-color:var(--brand);cursor:pointer;width:15px;height:15px;flex:none;margin:0}
+.idh{display:flex;align-items:center;gap:7px}
+.tkid .selrow{margin-right:7px;vertical-align:middle}
+.bulkbar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:9997;display:flex;align-items:center;gap:12px;background:var(--card2);border:1px solid var(--line2);border-radius:12px;padding:11px 16px;box-shadow:0 14px 44px rgba(0,0,0,.6),0 0 0 1px rgba(120,243,255,.08);font-family:var(--mono);font-size:12px;max-width:calc(100vw - 24px);flex-wrap:wrap;justify-content:center}
+.bulkbar[hidden]{display:none}
+#bulkN{color:var(--brand);letter-spacing:.04em}
+.bulkbar select{font-family:var(--mono);font-size:12px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer}
+.bulkbar button{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:8px 13px;border-radius:8px;cursor:pointer;border:1px solid var(--line);transition:.15s}
+#bulkApply{background:var(--brand);color:#02080d;border-color:var(--brand)}#bulkApply:disabled{opacity:.6;cursor:wait}
+#bulkClear{background:transparent;color:var(--mut)}#bulkClear:hover{color:var(--brand);border-color:var(--line2)}
 </style>
 </head>
 <body data-yk-title="MISIONES" data-yk-rail-left="MISIONES" data-yk-rail-right="AVANZADO" data-yk-zone="app">
@@ -197,6 +208,19 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
+
+  <!-- Barra de acción en bloque: aparece al seleccionar ≥1 misión (checkbox de la columna ID). -->
+  <div class="bulkbar" id="bulkbar" hidden>
+    <span id="bulkN">0 seleccionadas</span>
+    <select id="bulkEstado" title="Nuevo estado para las misiones seleccionadas">
+      <option value="">Cambiar estado…</option>
+      <option value="in_progress">▶ En curso</option>
+      <option value="resolved">✓ Finalizada</option>
+      <option value="open">↺ Reabrir</option>
+    </select>
+    <button id="bulkApply">Aplicar</button>
+    <button id="bulkClear">Quitar selección</button>
+  </div>
   <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.16.r6</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
@@ -213,6 +237,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 let FILTER="activas";
 let SCOPE="fleet";     // ámbito por defecto: el trabajo de los agentes
+let SEL=new Set(), LAST_LIST=[], REP_IDS={};   // selección múltiple para cambio de estado en bloque
 const $=id=>document.getElementById(id);
 YkMisiones.init({worker:WORKER, treeId:"taskTree"});
 
@@ -237,7 +262,63 @@ const SORTERS={
 };
 function headHtml(){
   const col=(k,l)=>'<div class="lh'+(SORT.k===k?" on":"")+'" data-k="'+k+'" title="ordenar por '+l.toLowerCase()+'">'+l+(SORT.k===k?(SORT.dir==="asc"?" ▲":" ▼"):"")+"</div>";
-  return '<div class="hd lhead"><div></div>'+col("id","ID")+'<div class="lh-static">Proyecto</div>'+col("subject","Misión")+col("fecha","Fecha")+col("ordenador","Ordenador")+col("agente","Agente")+col("estado","Estado")+"</div>";
+  // Columna ID con «seleccionar todas» + etiqueta ordenable. El clic en el checkbox no ordena.
+  const idArrow=SORT.k==="id"?(SORT.dir==="asc"?" ▲":" ▼"):"";
+  const idcol='<div class="lh idh'+(SORT.k==="id"?" on":"")+'" data-k="id" title="ordenar por id"><input type="checkbox" class="selall" title="Seleccionar todas las visibles" onclick="event.stopPropagation()"><span class="idlbl">ID'+idArrow+'</span></div>';
+  return '<div class="hd lhead"><div></div>'+idcol+'<div class="lh-static">Proyecto</div>'+col("subject","Misión")+col("fecha","Fecha")+col("ordenador","Ordenador")+col("agente","Agente")+col("estado","Estado")+"</div>";
+}
+// Inyecta el checkbox de selección en la casilla del ID de cada fila + cablea «seleccionar todas»
+// y la barra de acciones en bloque. La selección (SEL) se conserva entre refrescos y filtros.
+function wireBulk(el, list){
+  LAST_LIST = list||[];
+  REP_IDS = {}; LAST_LIST.forEach(t=>{ REP_IDS[t.id] = (t._ids&&t._ids.length)?t._ids:[t.id]; });
+  el.querySelectorAll(".tk").forEach(row=>{
+    const id=row.dataset.id; if(!id) return;
+    const cell=row.querySelector(".tkid"); if(!cell || cell.querySelector(".selrow")) return;
+    const cb=document.createElement("input");
+    cb.type="checkbox"; cb.className="selrow"; cb.dataset.id=id; cb.title="Seleccionar esta misión";
+    cb.checked=SEL.has(id);
+    cb.addEventListener("click",e=>e.stopPropagation());   // no activa la misión ni ordena
+    cb.addEventListener("change",e=>{ e.stopPropagation(); if(cb.checked)SEL.add(id); else SEL.delete(id); refreshBulk(el); });
+    cell.insertBefore(cb, cell.firstChild);
+  });
+  const sa=el.querySelector(".selall");
+  if(sa) sa.onchange=()=>{
+    const cbs=[...el.querySelectorAll(".selrow")];
+    cbs.forEach(c=>{ c.checked=sa.checked; if(sa.checked)SEL.add(c.dataset.id); else SEL.delete(c.dataset.id); });
+    refreshBulk(el);
+  };
+  refreshBulk(el);
+}
+function refreshBulk(el){
+  const vis=[...el.querySelectorAll(".selrow")];
+  const nVis=vis.filter(c=>SEL.has(c.dataset.id)).length;
+  const sa=el.querySelector(".selall");
+  if(sa){ sa.checked=vis.length>0 && nVis===vis.length; sa.indeterminate=nVis>0 && nVis<vis.length; }
+  const n=SEL.size, bar=$("bulkbar");
+  if(n>0){ bar.hidden=false; $("bulkN").textContent=n+" "+(n===1?"misión seleccionada":"misiones seleccionadas"); }
+  else bar.hidden=true;
+}
+async function aplicarBloque(){
+  const status=$("bulkEstado").value;
+  if(!status){ alert("Elige un estado."); return; }
+  const real=[...new Set([...SEL].flatMap(id=>REP_IDS[id]||[id]))];
+  if(!real.length) return;
+  const lbl={in_progress:"En curso",resolved:"Finalizada",open:"Reabrir"}[status]||status;
+  if(!confirm("Cambiar "+real.length+" misión(es) a «"+lbl+"»?\n(cada misión de flota avisa a su encargo en Telegram)")) return;
+  const btn=$("bulkApply"), old=btn.textContent; btn.disabled=true;
+  let ok=0, err=0;
+  for(const id of real){
+    try{
+      const r=await fetch(WORKER+"/ticket/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id,status,author:"Misiones (bloque)"})});
+      const d=await r.json(); (d&&d.ok)?ok++:err++;
+    }catch(e){ err++; }
+    btn.textContent="Aplicando… "+(ok+err)+"/"+real.length;
+  }
+  btn.disabled=false; btn.textContent=old;
+  SEL.clear(); $("bulkEstado").value="";
+  await load();
+  alert("Estado actualizado: "+ok+" ok"+(err?(" · "+err+" con error"):"")+".");
 }
 function bindHead(el){
   el.querySelectorAll(".lhead .lh").forEach(h=>h.onclick=()=>{
@@ -349,12 +430,16 @@ async function load(){
   const sk=SORTERS[SORT.k]||SORTERS.fecha;
   list=list.slice().sort((a,b)=>{const va=sk(a),vb=sk(b);const c=va<vb?-1:(va>vb?1:0);return SORT.dir==="asc"?c:-c;});
   const el=$("list");
-  if(!list.length){ el.innerHTML=headHtml()+'<div class="empty">Sin misiones en este filtro ✓</div>'; bindHead(el); return; }
+  if(!list.length){ el.innerHTML=headHtml()+'<div class="empty">Sin misiones en este filtro ✓</div>'; bindHead(el); wireBulk(el,[]); return; }
   el.innerHTML=headHtml()+list.map(t=>YkMisiones.rowHtml(t)).join("");
   bindHead(el);
   YkMisiones.bindRows(el);   // click=misión activa + refresco del árbol de tareas
   marcarHalos(el, list);     // FLT-761: halo en el previo si hay agente trabajando
+  wireBulk(el, list);        // checkboxes de selección + barra de cambio de estado en bloque
 }
+// Botones de la barra de acción en bloque (una sola vez).
+$("bulkApply").onclick=aplicarBloque;
+$("bulkClear").onclick=()=>{ SEL.clear(); document.querySelectorAll(".selrow").forEach(c=>c.checked=false); const sa=document.querySelector(".selall"); if(sa){sa.checked=false;sa.indeterminate=false;} refreshBulk($("list")); };
 // selectores/ordenadores: cualquier cambio repinta
 ["selAgente","selEquipo","selOrden"].forEach(id=>$(id).onchange=()=>{ $(id).classList.toggle("on",!!$(id).value&&id!=="selOrden"); load(); });
 // buscador con debounce (repinta 250ms después de dejar de teclear)
