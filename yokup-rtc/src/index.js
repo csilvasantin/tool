@@ -419,6 +419,75 @@ async function createTicket(env, s) {
   return id;
 }
 __name(createTicket, "createTicket");
+// Incidencia GENÉRICA (Carlos, 2026-07-17: «todas las incidencias pasan por yokup»).
+// Reutiliza la tabla tickets; source distingue el origen (monitor/presence/agent/
+// external) y kind el tipo. 1 incidencia ABIERTA por recurso (índice idx_open_screen);
+// el `resource` va prefijado por tipo (svc:/maq:/agt:) para no chocar con pantallas DOOH.
+async function createIncident(env, inc) {
+  await ensureSchema(env);
+  const resource = String((inc && (inc.resource || inc.screen)) || "").slice(0, 160);
+  if (!resource) return null;
+  const existing = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status!='resolved'").bind(resource).first();
+  if (existing) return existing.id;   // ya hay una abierta para este recurso
+  const now = Date.now();
+  const kind = String((inc && inc.kind) || "external").toLowerCase();
+  const pref = { service: "SVC", svc: "SVC", machine: "MAQ", maquina: "MAQ", agent: "AGT", agente: "AGT" }[kind] || "INC";
+  const id = (pref + "-" + now.toString(36).slice(-5) + Math.floor(Math.random() * 36).toString(36)).toUpperCase();
+  const subject = String((inc && inc.subject) || "Incidencia").slice(0, 200);
+  const project = String((inc && (inc.project || inc.loc)) || "").slice(0, 80);
+  const prio = ["urgente", "alta", "normal", "baja"].includes(inc && inc.severity) ? inc.severity : "alta";
+  const source = String((inc && inc.source) || "external").slice(0, 24);
+  const assignee = (String((inc && inc.assignee) || "").slice(0, 60)) || (ROSTER[hash(resource) % ROSTER.length].name);
+  await env.DB.prepare("INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(id, resource, subject, project, kind, "open", prio, assignee, source, "", now, now).run();
+  await addEvent(env, id, "log", (inc && inc.by) || "Monitor", (inc && inc.detail) || subject);
+  await notifySubs(env);
+  return id;
+}
+__name(createIncident, "createIncident");
+// Marca la incidencia ABIERTA de un recurso como recuperada (misma semántica que el
+// reconcile DOOH: evento 'recover', pendiente de verificación y cierre).
+async function resolveIncident(env, resource, by, note) {
+  await ensureSchema(env);
+  const open = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status!='resolved'").bind(String(resource || "")).first();
+  if (!open) return null;
+  if (await lastEventKind(env, open.id) !== "recover") {
+    await env.DB.prepare("UPDATE tickets SET updated_at=? WHERE id=?").bind(Date.now(), open.id).run();
+    await addEvent(env, open.id, "recover", by || "Monitor", note || "Recurso recuperado. Pendiente de verificaci\xF3n y cierre.");
+  }
+  return open.id;
+}
+__name(resolveIncident, "resolveIncident");
+// Monitor de SERVICIOS/webs de la flota (Carlos, 2026-07-17): el cron comprueba
+// cada web; 5xx o sin respuesta = incidencia; al recuperar, la cierra.
+var FLEET_WEBS = [
+  "https://www.pixeria.com", "https://www.xpaceos.com", "https://www.clearchannel.tv",
+  "https://www.admira.live", "https://www.admira.tv", "https://admiranext.com",
+  "https://www.yokup.com", "https://ainimation.studio", "https://api.admira.store/signage/screens"
+];
+async function checkWebs(env) {
+  for (const web of FLEET_WEBS) {
+    let down = false, code = 0;
+    try {
+      const r = await fetch(web, { method: "GET", redirect: "manual", cf: { cacheTtl: 0 }, signal: AbortSignal.timeout(12e3) });
+      code = r.status;
+      down = code >= 500 || code === 0;   // 5xx o inalcanzable = caída (3xx/4xx = vivo)
+    } catch (e) { down = true; }
+    const resource = "svc:" + web;
+    const dom = web.replace(/^https?:\/\/(www\.)?/, "").replace(/\/.*$/, "");
+    if (down) {
+      await createIncident(env, {
+        resource, kind: "service", source: "monitor", severity: "urgente", project: dom,
+        subject: "Servicio caído: " + dom + (code ? " (HTTP " + code + ")" : " (sin respuesta)"),
+        detail: "El monitor detectó que " + web + " no responde" + (code ? " (HTTP " + code + ")" : "") + ".",
+        by: "Monitor de servicios"
+      });
+    } else {
+      await resolveIncident(env, resource, "Monitor de servicios", dom + " responde de nuevo (HTTP " + code + ").");
+    }
+  }
+}
+__name(checkWebs, "checkWebs");
 async function reconcile(env) {
   let screens = [];
   try {
@@ -887,6 +956,24 @@ var index_default = {
       await addEvent(env, mid, "log", owner, "📝 Informe: " + report.slice(0, 240));
       return json({ ok: true, mission: mid });
     }
+    // Ingesta UNIVERSAL de incidencias (Carlos, 2026-07-17): cualquier sistema,
+    // monitor o agente reporta aquí y aparece en /incidencias. PÚBLICO (como
+    // /fleet/informe). Body: {subject, resource, kind, project, severity, source,
+    // detail, by}. Con {resolve:true, resource} cierra (recupera) la del recurso.
+    if (url.pathname === "/incident" && req.method === "POST") {
+      try {
+        const b = await req.json().catch(() => ({}));
+        if (b && b.resolve) {
+          const rid = await resolveIncident(env, b.resource, b.by, b.detail);
+          return json({ ok: true, resolved: rid });
+        }
+        if (!b || (!b.subject && !b.resource)) return json({ ok: false, error: "subject o resource requerido" }, 400);
+        const id = await createIncident(env, b);
+        return json({ ok: !!id, id });
+      } catch (e) {
+        return json({ ok: false, error: String(e) }, 500);
+      }
+    }
     if (url.pathname === "/fleet/plan" && req.method === "POST") {
       await ensureSchema(env);
       return json(await fleetPlanPending(env, url.searchParams.get("limit")));
@@ -1194,6 +1281,12 @@ T\xC9CNICO: ${q}`, 160);
     }
     try {
       await reconcile(env);
+    } catch (e) {
+    }
+    // Monitor de servicios/webs (~cada 10 min; el cron dispara cada 2).
+    try {
+      const min = new Date(event.scheduledTime || Date.now()).getUTCMinutes();
+      if (min % 10 < 2) await checkWebs(env);
     } catch (e) {
     }
     try {
