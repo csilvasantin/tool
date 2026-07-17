@@ -725,6 +725,9 @@ async function fleetNudge(env, b) {
   const machine = String(b.machine || "").trim();
   const text = String(b.text || "").trim().slice(0, 1500);
   const persona = String(b.persona || "").trim().slice(0, 40);
+  const priority = b.priority === true;
+  const runtime = String(b.runtime || "").trim().slice(0, 20);
+  const host = /^(app|cli)$/.test(String(b.host || "").trim()) ? String(b.host).trim() : "";
   const missionId = /^FLT-\d+$/.test(String(b.missionId || "").trim())
     ? String(b.missionId).trim()
     : "";
@@ -732,10 +735,15 @@ async function fleetNudge(env, b) {
   if (!env.NAV_CMD_TOKEN) return { ok: false, error: "sin secreto NAV_CMD_TOKEN" };
   if (!env.NAVEGADORES) return { ok: false, error: "sin binding NAVEGADORES" };
   const deviceId = "local-" + machine.toLowerCase().replace(/[^a-z0-9]/g, "");
+  // admira-navegadores conserva `url` en su cola, pero descarta campos nuevos.
+  // Lo usamos como sobre de control interno: el texto que ve el LLM queda limpio.
+  const control = priority
+    ? "agent-focus://foreground?runtime=" + encodeURIComponent(runtime) + "&host=" + encodeURIComponent(host)
+    : "";
   const r = await env.NAVEGADORES.fetch(new Request("https://admira-navegadores.csilvasantin.workers.dev/api/cmd", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: "Bearer " + env.NAV_CMD_TOKEN },
-    body: JSON.stringify({ deviceId, action: "prompt", text, persona })
+    body: JSON.stringify({ deviceId, action: "prompt", url: control, text, persona })
   }));
   const d = await r.json().catch(() => ({}));
   const ok = !!(r.ok && d.ok);
@@ -760,7 +768,7 @@ async function fleetNudge(env, b) {
       }
     }
   }
-  return { ok, id: d.id || null, deviceId, started, statusPushed, error: d.error || null };
+  return { ok, id: d.id || null, deviceId, started, statusPushed, foreground: priority, error: d.error || null };
 }
 __name(fleetNudge, "fleetNudge");
 

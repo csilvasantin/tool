@@ -784,6 +784,12 @@ $("alta").onsubmit=async e=>{
   // principal VIVO que hay allí, para que el encargo NOMBRE a un destinatario
   // (deja de quedar target_persona vacío = "quien esté allí" sin resolver).
   if(!persona && maquina){ const v=agenteVivoEnMaquina(maquina); if(v) persona=v; }
+  // Superficie REAL elegida. En prioridad viaja hasta el executor para que el
+  // trabajo quede visible en primer plano (app de escritorio o CLI/tmux).
+  const maqCanon=YkMisiones.canonMachine(maquina);
+  const superficie=(persona&&maqCanon&&MAQS[persona]&&MAQS[persona][maqCanon])||{};
+  const runtime=superficie.runtime||RUNTIME[persona]||"";
+  const host=superficie.host||"";
   const go=document.querySelector(".alta-go"), msg=$("altaMsg");
   go.disabled=true; msg.className="alta-msg"; msg.textContent="Dando de alta…";
   try{
@@ -798,6 +804,7 @@ $("alta").onsubmit=async e=>{
       try{
         const n=await fetch(WORKER+"/fleet/nudge",{method:"POST",headers:{"content-type":"application/json"},
           body:JSON.stringify({machine:maquina,persona:persona,missionId:"FLT-"+d.id,
+            priority:pa,runtime:runtime,host:host,
             text:"⚡ Nueva misión FLT-"+d.id+" para ti desde yokup.com/misiones: «"+txt+"». Encargo #"+d.id+" de tu bot-inbox: reclámalo con bash ~/Claude/admira-vault/bot-inbox-claim.sh "+d.id+" y ponte con ella."})});
         const nd=await n.json().catch(()=>({}));
         rayo=nd.ok?(nd.started?" · ⚡ en curso en su CLI":" · ⚡ en su CLI ya"):"";
