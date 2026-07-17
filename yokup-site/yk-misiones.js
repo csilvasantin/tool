@@ -123,7 +123,10 @@
   }
   // miniatura de una web (thum.io; cargada directa desde el navegador — las IPs de
   // datacenter la bloquean, pero el navegador del usuario es residencial).
-  function shotUrl(web, w) { return "https://image.thum.io/get/width/" + (w || 240) + "/crop/135/" + web; }
+  // Miniatura de la web del proyecto vía el endpoint PROPIO /shot de yokup-rtc
+  // (captura cacheada en R2, servida desde el propio dominio; antes se pegaba a
+  // image.thum.io directo desde cada navegador). w se ignora: /shot da 480×300.
+  function shotUrl(web, w) { return CFG.worker + "/shot?url=" + encodeURIComponent(web); }
   // LIGHTBOX: clic en la miniatura → captura EN GRANDE (no navega a la web).
   function openLightbox(web) {
     var ov = document.getElementById("yk-lightbox");
