@@ -706,7 +706,10 @@ function pickerAlta(anchor){
     }).forEach(p=>{
       const info=MAQS[p]&&MAQS[p][canon], on=!!(info&&info.online);
       const runtime=(info&&info.runtime)||RUNTIME[p]||RT_FIJO[p]||"";
-      const superficie=info&&info.host==="cli"?"CLI":info&&info.host==="app"?(info.inject?"Desktop + CLI":"Desktop"):"no arrancado";
+      // Algunos nodos antiguos aún no publican `host`. Un latido fresco sigue
+      // demostrando que el LLM está operativo: nunca lo contradigas con
+      // «no arrancado»; la superficie exacta aparecerá al actualizar el agente.
+      const superficie=info&&info.host==="cli"?"CLI":info&&info.host==="app"?(info.inject?"Desktop + CLI":"Desktop"):(on?"operativo":"no arrancado");
       const label=(on?"🟢 ":"⚪ ")+p+(runtime?" · "+runtime:"");
       const meta=on?superficie:"no arrancado";
       const selected=!ALTA_SEL.auto&&ALTA_SEL.persona===p&&YkMisiones.canonMachine(ALTA_SEL.machine)===canon;
