@@ -160,6 +160,8 @@ async function ensureSchema(env) {
   // image: URL pública de la captura de prueba del informe (R2 /media/…). La tabla
   // ya existe en prod, así que la columna se añade idempotente (ignora "duplicate").
   await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN image TEXT").catch(() => {});
+  // Llave de lectura del service worker (ver /push/subscribe). Idempotente.
+  await env.DB.exec("ALTER TABLE subs ADD COLUMN peek_key TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN proof_image TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN agent_runtime TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN agent_host TEXT").catch(() => {});
@@ -1386,12 +1388,45 @@ var index_default = {
         return json({ error: String(e) }, 500);
       }
     }
+    // Resumen MÍNIMO para el aviso del móvil. Público a propósito pero inútil sin
+    // la llave del dispositivo: sólo devuelve el titular de la última incidencia
+    // abierta, nunca la bandeja entera. Va ANTES del guardia: el service worker
+    // no puede autenticarse con la sesión Google.
+    if (url.pathname === "/push/peek") {
+      try {
+        await ensureSchema(env);
+        const k = url.searchParams.get("k") || "";
+        if (!k) return json({ error: "sin llave" }, 401);
+        const ok = await env.DB.prepare("SELECT 1 AS x FROM subs WHERE peek_key=?").bind(k).first();
+        if (!ok) return json({ error: "llave no válida" }, 401);
+        const t = await env.DB.prepare(
+          "SELECT id, subject, screen, assignee FROM tickets WHERE status='open' ORDER BY created_at DESC LIMIT 1"
+        ).first();
+        return json({ ok: true, ticket: t || null });
+      } catch (e) {
+        return json({ error: String(e) }, 500);
+      }
+    }
     if (url.pathname === "/push/subscribe" && req.method === "POST") {
       try {
         const b = await req.json();
         await ensureSchema(env);
-        if (b.endpoint) await env.DB.prepare("INSERT OR IGNORE INTO subs(endpoint,created_at) VALUES(?,?)").bind(b.endpoint, Date.now()).run();
-        return json({ ok: true, count: (await env.DB.prepare("SELECT COUNT(*) c FROM subs").first())?.c || 0 });
+        // LLAVE DE LECTURA DEL SERVICE WORKER. El push va SIN payload (evita la
+        // criptografía de RFC8291), así que el sw.js tiene que preguntar QUÉ
+        // incidencia anunciar. Pero /tickets está tras el perímetro Google y un
+        // service worker no lleva sesión: ese fetch daba 401 y el aviso salía
+        // siempre genérico ("se ha abierto un ticket"), sin decir cuál.
+        // Se emite aquí —esta ruta YA exige sesión— una clave aleatoria por
+        // dispositivo, que el SW usa contra /push/peek. No abre el perímetro:
+        // es por dispositivo, inadivinable, y muere con la suscripción.
+        let key = "";
+        if (b.endpoint) {
+          const prev = await env.DB.prepare("SELECT peek_key FROM subs WHERE endpoint=?").bind(b.endpoint).first();
+          key = (prev && prev.peek_key) || crypto.randomUUID().replace(/-/g, "");
+          await env.DB.prepare("INSERT INTO subs(endpoint,created_at,peek_key) VALUES(?,?,?) ON CONFLICT(endpoint) DO UPDATE SET peek_key=excluded.peek_key")
+            .bind(b.endpoint, Date.now(), key).run();
+        }
+        return json({ ok: true, key, count: (await env.DB.prepare("SELECT COUNT(*) c FROM subs").first())?.c || 0 });
       } catch (e) {
         return json({ error: String(e) }, 500);
       }

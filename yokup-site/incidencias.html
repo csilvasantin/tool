@@ -147,12 +147,24 @@ async function enablePush(){
     const perm=await Notification.requestPermission(); if(perm!=="granted") return;
     let sub=await reg.pushManager.getSubscription();
     if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:urlB64(VAPID)});
-    await fetch(WORKER+"/push/subscribe",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(sub)});
+    const r=await fetch(WORKER+"/push/subscribe",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(sub)});
+    const d=await r.json().catch(()=>({}));
+    // El aviso llega sin contenido: el service worker tiene que preguntar qué
+    // incidencia anunciar, y no puede usar la sesión Google. Se le re-registra
+    // con su llave en la URL (self.location la conserva entre reinicios) para
+    // que pueda leer /push/peek. Sin esto el aviso sale genérico.
+    if(d && d.key) await navigator.serviceWorker.register("/sw.js?k="+encodeURIComponent(d.key));
     $("bellBtn").classList.add("on"); $("bellBtn").textContent="🔔 Avisos ON";
   }catch(e){}
 }
 $("bellBtn").onclick=enablePush;
-if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
+// OJO: registrar "/sw.js" a secas en cada carga PISABA el registro con llave que
+// deja enablePush ("/sw.js?k=…"), y el aviso volvía a salir genérico. Sólo se
+// registra el pelado si no hay ya uno con llave.
+if("serviceWorker" in navigator) navigator.serviceWorker.getRegistrations()
+  .then(rs=>{ const conLlave=rs.some(r=>((r.active||r.installing||r.waiting||{}).scriptURL||"").includes("k="));
+              if(!conLlave) navigator.serviceWorker.register("/sw.js").catch(()=>{}); })
+  .catch(()=>{ navigator.serviceWorker.register("/sw.js").catch(()=>{}); });
 if(("Notification" in window)&&Notification.permission==="granted"){ $("bellBtn").classList.add("on"); $("bellBtn").textContent="🔔 Avisos ON"; }
 $("simBtn").onclick=async()=>{ $("simBtn").textContent="creando…"; try{ await fetch(WORKER+"/ticket/simulate",{method:"POST"}); }catch(e){} $("simBtn").textContent="⚡ Simular caída"; FILTER="activas"; document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x.dataset.f==="activas")); load(); };
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{ document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on")); b.classList.add("on"); FILTER=b.dataset.f; load(); });
