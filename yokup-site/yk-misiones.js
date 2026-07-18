@@ -178,7 +178,7 @@
         '<div class="tkid">' + esc(t.id) + '<span class="st">' + ({ "agent-iot": "🖥 Pantalla DOOH", monitor: "🌐 Servicio", service: "🌐 Servicio", agent: "🤖 Agente", agente: "🤖 Agente", presence: "🖥 Máquina", machine: "🖥 Máquina", fleet: "🎯 Misión" }[t.source] || "👤 Manual") + "</span></div>" +
         '<div class="cel shot">' + (function () { var p = proyectoDe(t);
           if (proof) return '<img class="shot-img proof" loading="lazy" src="' + esc(proof) + '" data-proof="' + esc(proof) + '" alt="Pantallazo final" title="pantallazo del trabajo realizado">';
-          return p ? '<img class="shot-img" loading="lazy" src="' + esc(shotUrl(p, 240)) + '" data-shot="' + esc(p) + '" alt="" title="ampliar · ' + esc(p) + '">' : '<span class="shot-none" title="sin proyecto detectado">—</span>'; })() + "</div>" +
+          return p ? '<img class="shot-img" loading="lazy" src="' + esc(shotUrl(p, 240)) + '" data-shot="' + esc(p) + '" alt="" title="ampliar · ' + esc(p) + '">' : '<img class="shot-img shot-logo" loading="lazy" src="/img/admiranext-logo.svg" alt="AdmiraNeXT" title="AdmiraNeXT · sin proyecto asignado">'; })() + "</div>" +
         '<div class="subj">' + rz("id", "r") + '<div class="t">' + esc(t.subject) + '</div><div class="m"><span class="scr">' + esc(String(t.screen || "").replace(/^(svc|maq|agt|service|machine|agent):/, "").replace(/^https?:\/\/(www\.)?/, "")) + "</span>" +
           (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span>" +
           // 📎 la misión lleva fotos adjuntas (viven en el texto de sus eventos;
