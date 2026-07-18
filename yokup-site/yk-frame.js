@@ -39,6 +39,7 @@
     ["TAREAS",      "/tareas"],
     ["INCIDENCIAS", "/incidencias"],
     ["INFORMES",    "/informes"],
+    ["EQUIPO",      "/equipo"],
     ["STATUS",      "/status"]
   ];
 
@@ -83,7 +84,7 @@
     var map = {
       incidencias: "INCIDENCIAS", ticket: "TICKET", agentes: "AGENTES",
       "admira-live": "ADMIRA.LIVE", misiones: "MISIONES", tareas: "TAREAS",
-      agentica: "DASHBOARD", informes: "INFORMES", status: "STATUS",
+      agentica: "DASHBOARD", informes: "INFORMES", status: "STATUS", equipo: "EQUIPO",
       asistencia: "ASISTENCIA", intervencion: "INTERVENCIÓN"
     };
     return map[seg] || "";

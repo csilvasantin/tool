@@ -598,8 +598,34 @@ async function listTickets(env, scope, limit, offset) {
   const { results } = await env.DB.prepare(
     `SELECT * FROM tickets ${where} ORDER BY (status='open') DESC, (status='in_progress') DESC, created_at DESC LIMIT ? OFFSET ?`
   ).bind(pageLimit(limit), pageOffset(offset)).all();
-  return results || [];
+  const rows = results || [];
+  await attachImgCount(env, rows);
+  return rows;
 }
+
+// Nº de IMÁGENES adjuntas de cada misión, para que la tarjeta de la bandeja
+// avise (📎 3) sin abrir el ticket. Las fotos viajan como URLs /media/ dentro
+// del TEXTO de los eventos, así que se cuentan ahí — con UNA sola consulta
+// agregada sobre los ids de la página (nada de N+1).
+// Los eventos kind='proof' quedan FUERA: el pantallazo de cierre ya tiene su
+// propia miniatura en la tarjeta, y contarlo sacaba un 📎 en toda misión
+// terminada — señal duplicada, no información nueva.
+async function attachImgCount(env, rows) {
+  if (!rows.length) return;
+  try {
+    const ids = rows.map((r) => r.id);
+    const ph = ids.map(() => "?").join(",");
+    const { results } = await env.DB.prepare(
+      `SELECT ticket_id, GROUP_CONCAT(text, ' ') t FROM events WHERE ticket_id IN (${ph}) AND text LIKE '%/media/%' AND (kind IS NULL OR kind != 'proof') GROUP BY ticket_id`
+    ).bind(...ids).all();
+    const map = {};
+    for (const r of results || []) map[r.ticket_id] = ((r.t || "").match(/\/media\//g) || []).length;
+    for (const r of rows) r.img_count = map[r.id] || 0;
+  } catch (e) {
+    // contador cosmético: si falla, la bandeja sigue funcionando sin el 📎
+  }
+}
+__name(attachImgCount, "attachImgCount");
 __name(listTickets, "listTickets");
 
 // ---- MISIONES DE FLOTA (agentes AdmiraNeXT) --------------------------------

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/acceso.js"></script>
+<title>Equipo de silicio · Yokup</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#02080d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
+<link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<link rel="stylesheet" href="/yk-frame.css?v=r7">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 24px 56px}
+h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 5px}
+.sub{color:var(--mut);font-size:14.5px;max-width:70ch;line-height:1.55}
+.kpis{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 22px}
+.kpi{border:1px solid var(--line);border-radius:11px;background:var(--card);padding:11px 15px;min-width:104px}
+.kpi b{font-size:21px;font-weight:700;display:block;line-height:1.1}
+.kpi span{font-family:var(--mono);font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim)}
+.kpi.viva b{color:var(--good)}.kpi.mis b{color:var(--accent)}.kpi.tot b{color:var(--brand)}
+
+.capa{margin:26px 0 12px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.capa h2{font-family:var(--mono);font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--brand)}
+.capa p{font-size:12.5px;color:var(--dim);flex:1;min-width:220px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+.ag{border:1px solid var(--line);border-radius:15px;background:var(--card);padding:19px;position:relative;overflow:hidden;transition:.2s}
+.ag::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--c,var(--brand))}
+.ag:hover{border-color:var(--line2);transform:translateY(-1px)}
+.ag.off{opacity:.62}
+.top{display:flex;align-items:center;gap:13px;margin-bottom:13px}
+.av{width:48px;height:48px;border-radius:13px;display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:17px;flex:0 0 auto;
+    color:var(--c,var(--brand));border:1px solid color-mix(in srgb,var(--c,var(--brand)) 40%,transparent);background:color-mix(in srgb,var(--c,var(--brand)) 12%,transparent)}
+.who{min-width:0;flex:1}
+.who b{font-size:17px;display:block;letter-spacing:-.01em}
+.who .rt{font-family:var(--mono);font-size:10.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.07em;display:block;margin-top:2px}
+.pulse{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:5px 9px;border-radius:999px;white-space:nowrap;display:flex;align-items:center;gap:5px;border:1px solid var(--line)}
+.pulse i{width:6px;height:6px;border-radius:50%;background:var(--dim)}
+.pulse.on{color:var(--good);border-color:rgba(136,255,170,.36)}.pulse.on i{background:var(--good);box-shadow:0 0 8px var(--good);animation:bl 2s infinite}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:.35}}
+
+.lema{font-size:13px;font-style:italic;color:var(--ink);opacity:.9;border-left:2px solid color-mix(in srgb,var(--c,var(--brand)) 45%,transparent);padding-left:11px;margin-bottom:13px}
+.rows{display:flex;flex-direction:column;gap:7px;margin-bottom:13px}
+.row{display:flex;gap:9px;font-size:12.5px;line-height:1.45}
+.row .k{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);flex:0 0 86px;padding-top:2px}
+.row .v{color:var(--ink);min-width:0;word-break:break-word}
+.row .v.mono{font-family:var(--mono);font-size:11.5px;color:var(--mut)}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:13px}
+.tags span{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);border:1px solid var(--line);border-radius:7px;padding:4px 8px}
+.mis{border-top:1px solid var(--line);padding-top:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.mis .n{font-family:var(--mono);font-size:11px;color:var(--mut)}.mis .n b{color:var(--accent)}
+.mis a{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--brand);text-decoration:none;border:1px solid var(--line2);border-radius:8px;padding:6px 10px}
+.mis a:hover{background:rgba(120,243,255,.08)}
+.foot{margin-top:30px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);line-height:1.9}.foot b{color:var(--brand)}
+.load{color:var(--dim);font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:26px 0}
+@media(max-width:620px){.row .k{flex-basis:74px}}
+</style>
+</head>
+<body data-yk-title="EQUIPO" data-yk-zone="app">
+<div class="wrap">
+  <h1>Equipo de silicio</h1>
+  <p class="sub">Los miembros no humanos de AdmiraNeXT: quién es cada uno, en qué runtime corre, de qué responde y dónde está trabajando ahora mismo. La <b>persona</b> la define el LLM activo más la cuenta — no la máquina: cualquiera puede correr en cualquier equipo de la flota.</p>
+
+  <div class="kpis">
+    <div class="kpi tot"><b id="kTot">—</b><span>Miembros</span></div>
+    <div class="kpi viva"><b id="kViva">—</b><span>Con latido</span></div>
+    <div class="kpi mis"><b id="kMis">—</b><span>Misiones activas</span></div>
+    <div class="kpi"><b id="kMaq">—</b><span>Equipos ocupados</span></div>
+  </div>
+
+  <div id="root"><div class="load">Cargando el equipo…</div></div>
+
+  <div class="foot">
+    Personas de silicio · prioridad de identidad <b>Claude &gt; Codex &gt; Grok</b><br>
+    Latido en vivo de <b>/api/presence</b> · misiones de <b>yokup</b> · técnicos humanos de campo en <b>/agentes</b>
+  </div>
+
+  <div class="yk-expert-btns" data-yk-slot="bottom">
+    <button data-yk-fetch="/tickets?scope=fleet">misiones JSON</button>
+  </div>
+  <pre class="yk-expert-out" data-yk-slot="bottom">Vuelca las misiones crudas del worker.</pre>
+</div>
+
+<script src="/yk-misiones.js?v=r22"></script>
+<script>
+const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
+const TG="https://admira-telegram.csilvasantin.workers.dev";
+const $=x=>document.getElementById(x);
+function esc(x){ return String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c])); }
+
+/* ============================================================================
+ * ROSTER DE SILICIO — fuente única de quién forma AdmiraNeXT.
+ * La persona = RUNTIME (LLM) + CUENTA, con prioridad Claude > Codex > Grok.
+ * NO la fija la máquina: el mismo agente puede levantarse en cualquier equipo.
+ * Ver la regla canónica en la bóveda (§9 principios de silicio).
+ * ==========================================================================*/
+const EQUIPO=[
+  { n:"Neo", c:"#88ffaa", ini:"NE", capa:1,
+    runtime:"Claude", cuenta:"csilva@admira.com",
+    rol:"Estrategia y producto", arq:"≈ CEO",
+    lema:"There is no spoon.",
+    hace:"Marca el rumbo del producto y decide arquitectura. Trabaja con el máximo detalle y delega la ejecución en sus subagentes.",
+    tags:["estrategia","producto","arquitectura"] },
+
+  { n:"Morfeo", c:"#ffd866", ini:"MO", capa:1,
+    runtime:"Claude", cuenta:"csilvasantin@gmail.com",
+    rol:"Tecnología e infraestructura", arq:"≈ CTO",
+    lema:"What is real?",
+    hace:"Sostiene la plataforma: workers, datos, despliegues y el pegamento entre piezas. Verifica antes de dar nada por bueno.",
+    tags:["infraestructura","workers","deploys"] },
+
+  { n:"Trinity", c:"#78f3ff", ini:"TR", capa:1,
+    runtime:"Codex", cuenta:"csilva@admira.com",
+    rol:"Ejecución precisa", arq:"≈ Ingeniería",
+    lema:"Ejecuta lo acordado, sin ruido.",
+    hace:"Convierte el plan en código concreto. Cambios acotados, reversibles y probados.",
+    tags:["código","refactor","pruebas"] },
+
+  { n:"Oráculo", c:"#aa88ff", ini:"OR", capa:1,
+    runtime:"Codex", cuenta:"csilvasantin@gmail.com",
+    rol:"Análisis y previsión", arq:"≈ Datos",
+    lema:"Ya sabes lo que voy a decir.",
+    hace:"Lee el estado de la flota y anticipa: qué se va a romper, qué falta, qué no cuadra en los números.",
+    tags:["análisis","métricas","auditoría"] },
+
+  { n:"Smith", c:"#ff8866", ini:"SM", capa:2,
+    runtime:"Grok", cuenta:"—",
+    rol:"Replicación y contraste", arq:"≈ Adversario",
+    lema:"Inevitable.",
+    hace:"Se multiplica por las máquinas del consejo y cuestiona lo que los demás dan por hecho. Segunda opinión incómoda.",
+    tags:["contraste","consejo","multiplataforma"] },
+
+  { n:"White Rabbit", c:"#dff8ff", ini:"WR", capa:2,
+    runtime:"Grok CLI", cuenta:"grok-dev",
+    rol:"Exploración en vivo", arq:"≈ Batidor",
+    lema:"Follow the white rabbit.",
+    hace:"Sale a la web y al terreno a traer contexto fresco cuando el resto se queda sin datos.",
+    tags:["web en vivo","contexto","recados"] }
+];
+
+const CAPAS={
+  1:{ t:"Capa 1 · Principales", d:"Siempre con el mejor modelo disponible. Definen estrategia y arquitectura con el máximo detalle; no ejecutan tareas mecánicas: las reparten." },
+  2:{ t:"Capa 2 · Especialistas", d:"Perfiles de apoyo con criterio propio: contrastan, exploran y cubren frentes que los principales no alcanzan." }
+};
+
+const canon=s=>YkMisiones.canonMachine(String(s||""));
+const norm=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+
+let PRES=[], MIS=[];
+
+async function cargar(){
+  const [pr,tk]=await Promise.all([
+    fetch(TG+"/api/presence",{cache:"no-store"}).then(r=>r.json()).catch(()=>({presence:[]})),
+    fetch(WORKER+"/tickets?scope=fleet&limit=300",{cache:"no-store"}).then(r=>r.json()).catch(()=>({tickets:[]}))
+  ]);
+  PRES=pr.presence||[];
+  MIS=(tk.tickets||[]).filter(t=>t.status!=="resolved");
+  pinta();
+}
+
+// latido más FRESCO de esa persona (puede estar levantada en varias máquinas)
+function presenciaDe(nombre){
+  const k=norm(nombre);
+  const mios=PRES.filter(p=>norm(p.persona)===k);       // «WhiteRabbit» ≡ «White Rabbit»
+  if(!mios.length) return null;
+  return mios.sort((a,b)=>(b.updated||0)-(a.updated||0))[0];
+}
+function misionesDe(nombre){
+  const k=norm(nombre);
+  return MIS.filter(m=>norm(m.assignee)===k);
+}
+function vivo(p){ return p && (Date.now()/1000-(p.updated||0))<900; }   // <15 min
+function hace(p){
+  if(!p||!p.updated) return "sin señal";
+  const s=Math.round(Date.now()/1000-p.updated);
+  if(s<90) return "ahora mismo";
+  if(s<3600) return "hace "+Math.round(s/60)+" min";
+  if(s<86400) return "hace "+Math.round(s/3600)+" h";
+  return "hace "+Math.round(s/86400)+" d";
+}
+
+function tarjeta(a){
+  const p=presenciaDe(a.n), on=vivo(p), ms=misionesDe(a.n);
+  const maq=p&&p.machine?canon(p.machine):"";
+  const foco=p&&p.focus?String(p.focus):"";
+  return '<div class="ag'+(on?"":" off")+'" style="--c:'+a.c+'">'+
+    '<div class="top">'+
+      '<div class="av">'+esc(a.ini)+'</div>'+
+      '<div class="who"><b>'+esc(a.n)+'</b><span class="rt">'+esc(a.runtime)+' · '+esc(a.rol)+'</span></div>'+
+      '<span class="pulse'+(on?" on":"")+'" title="'+esc(hace(p))+'"><i></i>'+(on?"vivo":"reposo")+'</span>'+
+    '</div>'+
+    '<div class="lema">«'+esc(a.lema)+'»</div>'+
+    '<div class="rows">'+
+      '<div class="row"><span class="k">Runtime</span><span class="v mono">'+esc(a.runtime)+' · '+esc(a.cuenta)+'</span></div>'+
+      '<div class="row"><span class="k">Rol</span><span class="v">'+esc(a.rol)+' <span class="v mono">'+esc(a.arq)+'</span></span></div>'+
+      '<div class="row"><span class="k">De qué responde</span><span class="v">'+esc(a.hace)+'</span></div>'+
+      '<div class="row"><span class="k">Ahora en</span><span class="v mono">'+(maq?"🖥 "+esc(maq)+" · "+esc(hace(p)):"— sin latido")+'</span></div>'+
+      (foco?'<div class="row"><span class="k">Su foco</span><span class="v">'+esc(foco)+'</span></div>':"")+
+    '</div>'+
+    '<div class="tags">'+a.tags.map(t=>"<span>"+esc(t)+"</span>").join("")+'</div>'+
+    '<div class="mis">'+
+      '<span class="n">'+(ms.length?'<b>'+ms.length+'</b> misión(es) activa(s)':"sin misiones activas")+'</span>'+
+      (ms.length?'<a href="/misiones">ver en misiones →</a>':'<a href="/misiones">asignarle una →</a>')+
+    '</div>'+
+  '</div>';
+}
+
+function pinta(){
+  const capas=[1,2];
+  $("root").innerHTML=capas.map(c=>{
+    const gente=EQUIPO.filter(a=>a.capa===c);
+    if(!gente.length) return "";
+    return '<div class="capa"><h2>'+esc(CAPAS[c].t)+'</h2><p>'+esc(CAPAS[c].d)+'</p></div>'+
+           '<div class="grid">'+gente.map(tarjeta).join("")+'</div>';
+  }).join("");
+  const vivos=EQUIPO.filter(a=>vivo(presenciaDe(a.n)));
+  const maqs=new Set(vivos.map(a=>{const p=presenciaDe(a.n);return p&&p.machine?canon(p.machine):"";}).filter(Boolean));
+  $("kTot").textContent=EQUIPO.length;
+  $("kViva").textContent=vivos.length;
+  $("kMis").textContent=MIS.length;
+  $("kMaq").textContent=maqs.size;
+}
+
+cargar();
+setInterval(cargar,45000);
+</script>
+<script type="module" src="/avatar-widget.js?v=3"></script>
+<script src="/yk-frame.js?v=r11"></script>
+</body>
+</html>
