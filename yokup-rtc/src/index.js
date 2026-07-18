@@ -12,7 +12,7 @@ var json = /* @__PURE__ */ __name((o, s = 200) => new Response(JSON.stringify(o)
 var AUTH_CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
 var WL_API = "https://admira-whitelist.csilvasantin.workers.dev";
 var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@admira.com", "agonzalez@admira.com", "jsedano@admira.com"];
-var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge"]);
+var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/equipo/machine", "/equipo/silicon"]);
 var _wl = { at: 0, set: null };
 async function whitelist() {
   if (_wl.set && Date.now() - _wl.at < 3e5) return _wl.set;
@@ -638,6 +638,7 @@ __name(listTickets, "listTickets");
 // este host hace loopback contra el propio yokup-rtc (mismo subdominio
 // workers.dev) y devuelve su 404. El host se conserva porque admira-telegram
 // enruta por hostname: con "https://admira-telegram/" a secas también da 404.
+var FLEET_API = "https://admira-fleet.csilvasantin.workers.dev";
 var FLEET_INBOX = "https://admira-telegram.csilvasantin.workers.dev/api/public/inbox?limit=200";
 // Estado del encargo → estado de la misión. 'ack' es acuse de recibo, no avance.
 var FLEET_ST = { pending: "open", ack: "open", in_progress: "in_progress", done: "resolved" };
@@ -1174,6 +1175,35 @@ var index_default = {
     if (PROTECTED.has(url.pathname) || url.pathname.startsWith("/mission/")) {
       const sess = await requireAuth(env, req);
       if (!sess) return json({ error: "unauthorized" }, 401);
+    }
+
+    // ── EQUIPO: puente de ESCRITURA hacia admira-fleet ───────────────────────
+    // La fuente de verdad del equipo (fichas de máquina + personas de silicio)
+    // es el worker admira-fleet, compartido con admira.live/control. Su escritura
+    // exige FLEET_TOKEN, que NO puede viajar al navegador → yokup-rtc firma en su
+    // nombre después de validar la sesión Google del perímetro (rutas PROTECTED).
+    if (url.pathname === "/equipo/machine" || url.pathname === "/equipo/silicon") {
+      if (req.method !== "POST") return json({ error: "method" }, 405);
+      const destino = url.pathname === "/equipo/machine" ? "/machines/profile" : "/silicon";
+      try {
+        const body = await req.json();
+        // borrado: {delete:true, id} → DELETE en el registro remoto
+        const del = body && body.delete === true;
+        const ruta = del
+          ? (destino === "/silicon" ? "/silicon/" : "/machines/profile/") + encodeURIComponent(String(body.id || ""))
+          : destino;
+        const r = await env.FLEET_SVC.fetch(new Request(FLEET_API + ruta, {
+          method: del ? "DELETE" : "POST",
+          headers: { "content-type": "application/json", authorization: "Bearer " + env.FLEET_TOKEN,
+                     // admira-fleet va tras Cloudflare y RECHAZA user-agents no navegador (error 1010)
+                     "user-agent": "Mozilla/5.0 (compatible; yokup-rtc)" },
+          body: del ? undefined : JSON.stringify(body)
+        }));
+        const d = await r.json().catch(() => ({}));
+        return json(d, r.status);
+      } catch (e) {
+        return json({ ok: false, error: String(e) }, 500);
+      }
     }
     if (url.pathname.startsWith("/mission/")) {
       try {
