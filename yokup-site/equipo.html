@@ -60,7 +60,10 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 5px}
 .row .v.falta{color:var(--warn);font-style:italic}
 
 .mdia{border:1px solid var(--line2);border-radius:12px;background:rgba(120,243,255,.04);padding:11px 12px 12px;margin-bottom:13px}
-.mdia-h{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);margin-bottom:4px}
+.mdia-h{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.mdia-sel{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--mut);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:3px 6px;cursor:pointer;max-width:150px}
+.mdia-sel:hover{border-color:var(--brand);color:var(--brand)}
+.mdia.sinmision{border-style:dashed;background:transparent}
 .mdia-n{font-size:16px;font-weight:700;color:var(--brand);letter-spacing:-.01em;margin-bottom:9px;word-break:break-all}
 .mdia-shot{display:block;border-radius:9px;overflow:hidden;border:1px solid var(--line);background:#061019;aspect-ratio:16/10}
 .mdia-shot img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block;transition:.25s}
@@ -261,6 +264,12 @@ function tarjetaSil(a){
   '</div>';
 }
 
+
+/* Proyectos de la casa para el selector rápido de misión del día. El worker de
+   capturas sólo admite estos dominios, así que fuera de la lista no hay imagen. */
+const PROYECTOS=["www.yokup.com","www.admira.live","www.admira.tv","pixeria.com",
+  "www.clearchannel.tv","xpaceos.com","admiranext.com","carlossilva.info","sin asignar"];
+
 /* MISIÓN DEL DÍA de una máquina: el proyecto al que se dedica hoy (o hasta que
    Carlos diga lo contrario). Se pinta el NOMBRE arriba y debajo una CAPTURA VIVA
    del sitio, para saber de un vistazo a qué se dedica ese ordenador sin leer nada.
@@ -276,10 +285,18 @@ function webDeProyecto(p){
 }
 function misionDelDia(m){
   const web=webDeProyecto(m.project);
-  if(!m.project) return "";
+  if(!m.project){ // sin misión: se ofrece igualmente el selector para asignarla
+    const o=PROYECTOS.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('');
+    return '<div class="mdia sinmision"><div class="mdia-h">🎯 Misión de hoy'
+      +'<select class="mdia-sel" data-maq="'+esc(m.id)+'"><option value="">— sin asignar —</option>'+o+'</select></div>'
+      +'<div class="mdia-sin">sin misión asignada · elígela arriba</div></div>'; }
   const nombre=esc(String(m.project));
+  const opts=[...new Set(PROYECTOS.concat(m.project?[String(m.project)]:[]))]
+    .map(x=>'<option value="'+esc(x)+'"'+(String(m.project)===x?' selected':'')+'>'+esc(x)+'</option>').join('');
   return '<div class="mdia">'+
-    '<div class="mdia-h">🎯 Misión de hoy</div>'+
+    '<div class="mdia-h">🎯 Misión de hoy'+
+      '<select class="mdia-sel" data-maq="'+esc(m.id)+'" title="cambiar la misión del día">'+opts+
+      '<option value="__otro">otro…</option></select></div>'+
     '<div class="mdia-n">'+nombre+'</div>'+
     (web?'<a class="mdia-shot" href="'+esc(web)+'" target="_blank" rel="noopener" title="abrir '+esc(web)+'">'+
          '<img loading="lazy" src="'+esc(WORKER+"/shot?url="+encodeURIComponent(web))+'" alt="'+nombre+'"></a>'
@@ -335,6 +352,22 @@ function pinta(){
       '<div class="grid">'+MAQ.map(tarjetaEq).join("")+'</div>';
   }
   document.querySelectorAll("[data-ed]").forEach(b=>{ b.onclick=()=>abrir(b.dataset.ed,b.dataset.id); });
+  // Selector rápido de MISIÓN DEL DÍA: guarda sin abrir el editor, porque esto
+  // se cambia a diario y no es una edición de ficha.
+  document.querySelectorAll(".mdia-sel").forEach(sel=>{
+    sel.onchange=async()=>{
+      let v=sel.value;
+      if(v==="__otro"){ v=prompt("Proyecto (dominio, p.ej. www.yokup.com):","")||""; if(!v){ pinta(); return; } }
+      const antes=sel.value; sel.disabled=true;
+      try{
+        const r=await fetch(WORKER+"/equipo/machine",{method:"POST",headers:{"content-type":"application/json"},
+          body:JSON.stringify({id:sel.dataset.maq, project:v.trim(), by:"yokup/equipo·foco"})});
+        const d=await r.json().catch(()=>({}));
+        if(!r.ok||!d.ok) throw new Error(d.error||("HTTP "+r.status));
+        await cargar();
+      }catch(e){ sel.disabled=false; sel.value=antes; alert("No se pudo cambiar la misión: "+(e&&e.message||e)); }
+    };
+  });
   const vivos=SIL.filter(a=>vivo(presenciaDe(a.name||a.id))).length;
   $("kEq").textContent=MAQ.length; $("kSil").textContent=SIL.length;
   $("kViva").textContent=vivos; $("kMis").textContent=MIS.length;
