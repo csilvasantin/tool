@@ -58,6 +58,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 5px}
 .row .v{color:var(--ink);min-width:0;word-break:break-word}
 .row .v.mono{font-family:var(--mono);font-size:11.5px;color:var(--mut)}
 .row .v.falta{color:var(--warn);font-style:italic}
+.agchip{font-family:var(--mono);font-size:10px;letter-spacing:.04em;border:1px solid var(--line);border-radius:7px;padding:2px 7px;margin:0 4px 4px 0;display:inline-block;color:var(--good)}
+.agchip.ext{color:var(--accent);border-color:rgba(255,216,102,.34)}
 .tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:13px}
 .tags span{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);border:1px solid var(--line);border-radius:7px;padding:4px 8px}
 .mis{border-top:1px solid var(--line);padding-top:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
@@ -90,19 +92,19 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 5px}
 <body data-yk-title="EQUIPO" data-yk-zone="app">
 <div class="wrap">
   <h1>Equipo</h1>
-  <p class="sub">Quién forma AdmiraNeXT: los <b>equipos</b> de la flota con su ficha (miembro, rol, ubicación, foco) y los <b>miembros de silicio</b> — las personas no humanas. Todo se edita aquí y vive en <b>admira-fleet</b>, la misma fuente que lee admira.live/control: lo que cambies en un sitio se ve en el otro.</p>
+  <p class="sub">Quién forma AdmiraNeXT, en dos planos que no se mezclan: los <b>agentes</b> — software, <i>bits</i>: una persona es un LLM más una cuenta, y puede levantarse en cualquier sitio — y las <b>máquinas</b> — hardware, <i>átomos</i>: cajas físicas con ubicación, dueño y latido. Un agente CORRE EN una máquina; ni es ella, ni depende de ella. Todo se edita aquí y vive en <b>admira-fleet</b>, la misma fuente que lee admira.live/control.</p>
 
   <div class="kpis">
-    <div class="kpi tot"><b id="kEq">—</b><span>Equipos</span></div>
-    <div class="kpi"><b id="kSil">—</b><span>Silicio</span></div>
+    <div class="kpi tot"><b id="kSil">—</b><span>Agentes · bits</span></div>
+    <div class="kpi"><b id="kEq">—</b><span>Máquinas · átomos</span></div>
     <div class="kpi viva"><b id="kViva">—</b><span>Con latido</span></div>
     <div class="kpi mis"><b id="kMis">—</b><span>Misiones activas</span></div>
     <div class="kpi gap"><b id="kGap">—</b><span>Sin ficha</span></div>
   </div>
 
   <div class="tabs">
-    <button class="tab on" data-v="silicio">🤖 Miembros de silicio</button>
-    <button class="tab" data-v="equipos">🖥 Equipos de la flota</button>
+    <button class="tab on" data-v="agentes">🤖 Agentes <small>· software · bits</small></button>
+    <button class="tab" data-v="maquinas">🖥 Máquinas <small>· hardware · átomos</small></button>
   </div>
 
   <div id="root"><div class="load">Cargando el equipo…</div></div>
@@ -159,8 +161,8 @@ const F_SIL=[
   {k:"initials",l:"Iniciales",          t:"text", ph:"MO"}
 ];
 const F_EQ=[
-  {k:"member",     l:"Miembro",         t:"text", ph:"Carlos"},
-  {k:"role",       l:"Rol de la persona",t:"text"},
+  {k:"member",     l:"Responsable (humano)", t:"text", ph:"Carlos"},
+  {k:"role",       l:"Rol del responsable",t:"text"},
   {k:"machineRole",l:"Rol del equipo",  t:"text", ph:"Servidor central / Hub"},
   {k:"location",   l:"Ubicación",       t:"text", ph:"Madrid"},
   {k:"project",    l:"Proyecto",        t:"text", ph:"admira.live"},
@@ -176,7 +178,7 @@ const CAPAS={
 
 const canon=s=>YkMisiones.canonMachine(String(s||""));
 const norm=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-let PRES=[], MIS=[], MAQ=[], SIL=[], VISTA="silicio";
+let PRES=[], MIS=[], MAQ=[], SIL=[], VISTA="agentes";
 
 async function cargar(){
   const [pr,tk,mq,si]=await Promise.all([
@@ -199,6 +201,15 @@ function presenciaMaq(id,nombre){
   const c=norm(canon(nombre||id));
   const mios=PRES.filter(p=>p.machine&&norm(canon(p.machine))===c);
   return mios.length?mios.sort((a,b)=>(b.updated||0)-(a.updated||0))[0]:null;
+}
+// Agentes vivos sobre una máquina — el puente átomos→bits. Se cruza por
+// presencia, no por la ficha: quién corre dónde cambia solo y a cada rato.
+function agentesEn(id,nombre){
+  const c=norm(canon(nombre||id)), lim=Date.now()/1000-900;
+  const vivos=PRES.filter(p=>p.machine&&norm(canon(p.machine))===c&&(p.updated||0)>lim);
+  const nombres=[...new Set(vivos.map(p=>p.persona).filter(Boolean))];
+  // se marcan los que además están dados de alta como agentes del equipo
+  return nombres.map(n=>({n, alta: SIL.some(a=>norm(a.name||a.id)===norm(n))}));
 }
 function misionesDe(nombre){ const k=norm(nombre); return MIS.filter(m=>norm(m.assignee)===k); }
 function vivo(p){ return p && (Date.now()/1000-(p.updated||0))<900; }
@@ -232,7 +243,7 @@ function tarjetaSil(a){
       fila("Runtime",esc(a.runtime||"—")+" · "+esc(a.account||"—"),"mono")+
       fila("Rol",esc(a.role||"—")+(a.archetype?' <span class="v mono">'+esc(a.archetype)+"</span>":""))+
       (a.duty?fila("De qué responde",esc(a.duty)):"")+
-      fila("Ahora en",maq?"🖥 "+esc(maq)+" · "+esc(hace(p&&p.updated)):"— sin latido","mono")+
+      fila("Corre en",maq?"🖥 "+esc(maq)+" · "+esc(hace(p&&p.updated)):"— sin latido","mono")+
       (p&&foco(p.focus)?fila("Su foco",esc(foco(p.focus))):"")+
     '</div>'+
     (tags.length?'<div class="tags">'+tags.map(t=>"<span>"+esc(t)+"</span>").join("")+'</div>':"")+
@@ -243,21 +254,32 @@ function tarjetaSil(a){
 }
 
 function tarjetaEq(m){
-  const p=presenciaMaq(m.id,m.name), on=vivo(p)||((Date.now()/1000-(m.lastSeen||0))<900);
+  const p=presenciaMaq(m.id,m.name);
+  // DOS señales distintas que no hay que confundir: la máquina late por su cuenta
+  // (registro de admira-fleet) y los agentes que corren encima laten por la suya.
+  // Una máquina con el registro rancio pero un agente vivo SÍ está encendida: se
+  // dice «vivo · por agente» en vez de cantar un «vivo» que choca con un
+  // «último latido hace 11 d».
+  const onMaq=(Date.now()/1000-(m.lastSeen||0))<900, onAg=vivo(p), on=onMaq||onAg;
+  const pulso=onMaq?"vivo":onAg?"vivo · por agente":"reposo";
   const sinFicha=!m.member&&!m.role&&!m.machineRole;
   const nom=canon(m.name||m.id);
   return '<div class="ag'+(on?"":" off")+'" style="--c:'+(sinFicha?"#ff8866":"#78f3ff")+'">'+
     '<div class="top"><div class="av">🖥</div>'+
       '<div class="who"><b>'+esc(nom)+'</b><span class="rt">'+esc(m.platform||"—")+' · '+esc(m.id)+'</span></div>'+
-      '<span class="pulse'+(on?" on":"")+'" title="'+esc(hace(m.lastSeen))+'"><i></i>'+(on?"vivo":"reposo")+'</span></div>'+
+      '<span class="pulse'+(on?" on":"")+'" title="latido propio del equipo: '+esc(hace(m.lastSeen))+'"><i></i>'+pulso+'</span></div>'+
     '<div class="rows">'+
-      fila("Miembro", m.member?esc(m.member):"sin asignar", m.member?"":"falta")+
+      fila("Responsable", m.member?esc(m.member):"sin asignar", m.member?"":"falta")+
       fila("Rol", m.role?esc(m.role):"—")+
       (m.machineRole?fila("Rol del equipo",esc(m.machineRole)):"")+
       fila("Ubicación", m.location?esc(m.location):"—","mono")+
       (m.project?fila("Proyecto",esc(m.project),"mono"):"")+
       (m.currentFocus?fila("Foco",esc(foco(m.currentFocus))):"")+
-      fila("Último latido", esc(hace(m.lastSeen)),"mono")+
+      fila("Latido propio", esc(hace(m.lastSeen))+(!onMaq&&onAg?" · pero hay un agente vivo encima":""),"mono")+
+      (function(){ const ag=agentesEn(m.id,m.name);
+        return fila("Agentes encima", ag.length
+          ? ag.map(a=>'<span class="agchip'+(a.alta?"":" ext")+'" title="'+(a.alta?"agente del equipo":"late aquí pero NO está dado de alta como agente")+'">🤖 '+esc(a.n)+(a.alta?"":" ·?")+"</span>").join(" ")
+          : "— ninguno ahora"); })()+
     '</div>'+
     '<div class="mis"><span class="n">'+(sinFicha?"⚠️ ficha por rellenar":"ficha "+esc(hace(m.profileUpdatedAt)))+'</span>'+
       '<button data-ed="eq" data-id="'+esc(m.id)+'">✏️ editar ficha</button></div>'+
@@ -265,16 +287,16 @@ function tarjetaEq(m){
 }
 
 function pinta(){
-  if(VISTA==="silicio"){
+  if(VISTA==="agentes"){
     $("root").innerHTML=[1,2].map(c=>{
       const g=SIL.filter(a=>+a.layer===c);
       return '<div class="capa"><h2>'+esc(CAPAS[c].t)+'</h2><p>'+esc(CAPAS[c].d)+'</p>'+
-             (c===1?'<button class="add" id="addSil">➕ nuevo miembro</button>':"")+'</div>'+
+             (c===1?'<button class="add" id="addSil">➕ nuevo agente</button>':"")+'</div>'+
              (g.length?'<div class="grid">'+g.map(tarjetaSil).join("")+'</div>':'<div class="load">Nadie en esta capa.</div>');
     }).join("");
     const b=$("addSil"); if(b) b.onclick=()=>abrir("sil",null);
   }else{
-    $("root").innerHTML='<div class="capa"><h2>Equipos de la flota</h2><p>Registro durable de admira-fleet: cada equipo se auto-registra y late solo; la ficha (miembro, rol, ubicación, foco) se edita aquí.</p></div>'+
+    $("root").innerHTML='<div class="capa"><h2>Máquinas · átomos</h2><p>El hardware: cajas físicas con ubicación, responsable humano y latido propio. Cada una se auto-registra y late sola; la parte humana de la ficha se edita aquí. Los agentes que corren encima son otra cosa — están en la pestaña de al lado.</p></div>'+
       '<div class="grid">'+MAQ.map(tarjetaEq).join("")+'</div>';
   }
   document.querySelectorAll("[data-ed]").forEach(b=>{ b.onclick=()=>abrir(b.dataset.ed,b.dataset.id); });
@@ -295,7 +317,7 @@ function abrir(tipo,id){
   ED={tipo,id:id||""};
   const campos=tipo==="sil"?F_SIL:F_EQ;
   const dato=(tipo==="sil"?SIL.find(x=>x.id===id):MAQ.find(x=>x.id===id))||{};
-  $("mTit").textContent = tipo==="sil" ? (id?"Editar "+(dato.name||id):"Nuevo miembro de silicio") : "Ficha de "+canon(dato.name||id);
+  $("mTit").textContent = tipo==="sil" ? (id?"Editar "+(dato.name||id):"Nuevo agente") : "Ficha de "+canon(dato.name||id);
   $("mHint").textContent = tipo==="sil"
     ? "La persona la define el runtime (LLM) + la cuenta, no la máquina. Se guarda en admira-fleet."
     : "El equipo se auto-registra y late solo; aquí se edita la parte humana de su ficha. La comparte admira.live/control.";
