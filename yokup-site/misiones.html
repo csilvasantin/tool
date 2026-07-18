@@ -13,6 +13,12 @@
 <link rel="stylesheet" href="/yk-frame.css?v=r8">
 <link rel="stylesheet" href="/yk-misiones.css?v=r15">
 <style>
+/* Segmentación dentro del raíl de opciones: apilada y a lo ancho del panel. */
+.segm{display:flex;flex-direction:column;gap:8px}
+.segm-h{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+.segm select{width:100%}
+#buscaRow{margin-bottom:12px}
+#buscaRow input{width:100%;max-width:420px}
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
@@ -145,7 +151,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 #bulkClear{background:transparent;color:var(--mut)}#bulkClear:hover{color:var(--brand);border-color:var(--line2)}
 </style>
 </head>
-<body data-yk-title="MISIONES" data-yk-rail-left="MISIONES" data-yk-rail-right="AVANZADO" data-yk-zone="app">
+<body data-yk-title="MISIONES" data-yk-rail-left="OPCIONES" data-yk-rail-right="AVANZADO" data-yk-zone="app">
 <div class="wrap">
   <!-- DATOS GENERALES arriba del todo. ESTADOS canónicos (Carlos, 2026-07-15):
        sin asignar · asignadas · en curso · finalizadas. Nada de «abiertas». -->
@@ -188,13 +194,20 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
        botón (las incidencias viven en /incidencias) y el buscador subió aquí.
        Los selectores solo ofrecen agentes/equipos CON misiones en el contexto
        actual, cruzados entre sí (sin combinaciones vacías). -->
-  <div class="tabs" id="scopeTabs">
+  <!-- SEGMENTACIÓN → raíl de OPCIONES (Carlos, 2026-07-18): agente, equipo y
+       orden se usan de vez en cuando y ocupaban una línea entera del panel
+       principal. Lo importante aquí es VER LAS MISIONES, así que se pliegan.
+       El BUSCADOR se queda a la vista: es lo que más se usa y es una sola caja. -->
+  <div class="segm" id="scopeTabs" data-yk-slot="left">
+    <div class="segm-h">Segmentar</div>
     <select id="selAgente" title="Filtrar por agente"><option value="">🤖 Agente · todos</option></select>
     <select id="selEquipo" title="Filtrar por equipo/máquina"><option value="">🖥 Equipo · todos</option></select>
     <select id="selOrden" title="Ordenar por fecha de misión">
       <option value="recientes">📅 Fecha · recientes primero</option>
       <option value="antiguas">📅 Fecha · antiguas primero</option>
     </select>
+  </div>
+  <div class="tabs" id="buscaRow">
     <input id="busca" type="search" placeholder="🔎 Buscar misión…" title="Buscar en título, id, agente y equipo">
   </div>
 
