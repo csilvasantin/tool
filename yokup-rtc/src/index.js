@@ -612,14 +612,31 @@ async function listTickets(env, scope, limit, offset) {
 // Los eventos kind='proof' quedan FUERA: el pantallazo de cierre ya tiene su
 // propia miniatura en la tarjeta, y contarlo sacaba un 📎 en toda misión
 // terminada — señal duplicada, no información nueva.
+// D1 admite como MUCHO 100 parámetros por consulta. Cualquier `IN (?,?,…)`
+// construido sobre una lista de ids revienta el worker (error 1101) en cuanto
+// la lista crece — y crece sola, con cada misión nueva. Pasó de verdad: al
+// llegar a 101 misiones de flota, /fleet/missions empezó a dar 500 y tumbó el
+// visor de admira.live/status. Este helper trocea en lotes y junta.
+const D1_MAX_VARS = 90;   // margen sobre el límite real de 100
+async function selectIn(env, ids, sqlFor) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += D1_MAX_VARS) {
+    const lote = ids.slice(i, i + D1_MAX_VARS);
+    const ph = lote.map(() => "?").join(",");
+    const { results } = await env.DB.prepare(sqlFor(ph)).bind(...lote).all();
+    for (const r of results || []) out.push(r);
+  }
+  return out;
+}
+__name(selectIn, "selectIn");
+
 async function attachImgCount(env, rows) {
   if (!rows.length) return;
   try {
     const ids = rows.map((r) => r.id);
-    const ph = ids.map(() => "?").join(",");
-    const { results } = await env.DB.prepare(
+    const results = await selectIn(env, ids, (ph) =>
       `SELECT ticket_id, GROUP_CONCAT(text, ' ') t FROM events WHERE ticket_id IN (${ph}) AND text LIKE '%/media/%' AND (kind IS NULL OR kind != 'proof') GROUP BY ticket_id`
-    ).bind(...ids).all();
+    );
     const map = {};
     for (const r of results || []) map[r.ticket_id] = ((r.t || "").match(/\/media\//g) || []).length;
     for (const r of rows) r.img_count = map[r.id] || 0;
@@ -966,10 +983,11 @@ async function fleetMissions(env) {
   ).all();
   const rows = results || [];
   if (!rows.length) return [];
-  const ph = rows.map(() => "?").join(",");
-  const { results: tks } = await env.DB.prepare(
+  // Troceado obligatorio: con LIMIT 120 y el tope de 100 variables de D1, esta
+  // consulta reventaba en cuanto había más de 100 misiones de flota.
+  const tks = await selectIn(env, rows.map((r) => r.id), (ph) =>
     `SELECT mission_id,code,title,status,owner FROM mission_tasks WHERE mission_id IN (${ph}) ORDER BY code`
-  ).bind(...rows.map((r) => r.id)).all();
+  );
   const byMission = {};
   for (const t of tks || []) (byMission[t.mission_id] = byMission[t.mission_id] || []).push(t);
   return rows.map((r) => {

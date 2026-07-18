@@ -20,10 +20,6 @@
 .hrow{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:4px 0 10px}
 .hrow h1{margin:0}
 .hrow #busca{flex:1 1 220px;max-width:460px}
-.alta-abrir{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;
-  padding:11px 18px;border-radius:11px;border:1px solid var(--brand);background:var(--brand);color:#02181d;cursor:pointer;white-space:nowrap}
-.alta-abrir:hover{background:#9df6ff}
-.alta-abrir[aria-expanded="true"]{background:transparent;color:var(--brand)}
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
@@ -174,7 +170,6 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   <div class="hrow">
     <h1>Misiones <button id="introTgl" class="tgl" title="desplegar/plegar la explicación" aria-expanded="false">▸</button></h1>
     <input id="busca" type="search" placeholder="🔎 Buscar misión…" title="Buscar en título, id, agente y equipo">
-    <button type="button" id="altaTgl" class="alta-abrir" aria-expanded="false" aria-controls="alta">＋ Crear misión</button>
   </div>
   <p class="sub" id="intro" hidden>Lo que hay que hacer. Cada misión se descompone en <b>tareas</b> a/b/c (hasta 3 subtareas por paso, máx 9): el arquitecto y el agente principal definen el plan, los <b>subagentes</b> ⚙️ lo ejecutan y los <b>infraagentes</b> 📝 reportan. Las misiones de la <b>flota</b> son los encargos a los agentes (se ven vivos en <a href="https://www.admira.live/status/" target="_blank" rel="noopener" style="color:var(--brand)">admira.live/status</a>); las de <b>campo</b>, las incidencias de pantallas.</p>
 
@@ -182,7 +177,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
        al que esté libre (con latido de presencia y menos encargos abiertos).
        Crea el ENCARGO en el bot-inbox (admira-telegram) y fuerza /fleet/sync
        para que aparezca aquí como FLT-<id> sin esperar al cron de 2 min. -->
-  <form class="alta" id="alta" autocomplete="off" hidden>
+  <form class="alta" id="alta" autocomplete="off">
     <div class="alta-field">
       <input class="alta-txt" id="altaTxt" type="text" maxlength="4000"
              placeholder="Nueva misión para la flota… (Enter para crearla)">
@@ -487,21 +482,9 @@ $("bulkClear").onclick=()=>{ SEL.clear(); document.querySelectorAll(".selrow").f
 // buscador con debounce (repinta 250ms después de dejar de teclear)
 let buscaT; $("busca").oninput=()=>{ clearTimeout(buscaT); buscaT=setTimeout(load,250); };
 
-// ALTA PLEGADA: el compositor sólo se usa al crear y ocupaba una franja entera
-// del panel. Se despliega con el botón del titular y, al abrirlo, el foco va al
-// texto para poder escribir sin un clic más. Escape lo cierra.
-(function(){
-  const f=$("alta"), b=$("altaTgl");
-  if(!f||!b) return;
-  function abrir(v){
-    f.hidden=!v;
-    b.setAttribute("aria-expanded",String(v));
-    b.textContent = v ? "✕ Cerrar" : "＋ Crear misión";
-    if(v) setTimeout(()=>{ const t=$("altaTxt"); if(t) t.focus(); },30);
-  }
-  b.onclick=()=>abrir(f.hidden);
-  document.addEventListener("keydown",e=>{ if(e.key==="Escape" && !f.hidden) abrir(false); });
-})();
+// ALTA SIEMPRE VISIBLE: el compositor de misión queda a la vista con su propio
+// botón «＋ Crear misión» (submit). Se quitó el toggle duplicado que vivía junto
+// al buscador (Carlos, 2026-07-18): una sola forma visible de crear misión.
 // el selector de fecha y la cabecera de columna quedan sincronizados
 $("selOrden").onchange=()=>{ SORT={k:"fecha",dir:$("selOrden").value==="antiguas"?"asc":"desc"}; load(); };
 // triangulito del titular: explicación plegada por defecto
