@@ -31,7 +31,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .who b{font-size:16px;display:block}.who span{font-family:var(--mono);font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
 .skills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .skills span{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);border:1px solid var(--line);border-radius:7px;padding:4px 8px}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
 .stat{border:1px solid var(--line);border-radius:9px;padding:9px 4px}
 .stat b{font-family:var(--sans);font-weight:700;font-size:18px;display:block}.stat.o b{color:var(--warn)}.stat.p b{color:var(--accent)}.stat.r b{color:var(--good)}.stat.m b{color:var(--brand)}
 .stat span{font-family:var(--mono);font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
@@ -75,7 +75,7 @@ async function load(){
         <div class="stat o"><b>${a.open||0}</b><span>abiertas</span></div>
         <div class="stat p"><b>${a.in_progress||0}</b><span>en curso</span></div>
         <div class="stat r"><b>${a.resolved||0}</b><span>resueltas</span></div>
-        <div class="stat m"><b>${a.mttr!=null?a.mttr:"—"}</b><span>MTTR min</span></div>
+        
       </div>
       <div class="bar"><i style="width:${pct}%"></i></div>
       <div class="load"><span>carga activa</span><span>${active} ticket${active===1?'':'s'}</span></div>

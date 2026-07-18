@@ -34,6 +34,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .kbans .srcs{margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--mut)}
 .kpis{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .kpi{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--line);border-radius:10px;padding:9px 13px;background:var(--card);color:var(--mut);display:flex;align-items:center;gap:8px}
+.kpi{cursor:pointer;transition:.18s;font:inherit}
+.kpi[data-f]:hover{border-color:var(--line2);color:var(--ink)}
+.kpi.on{border-color:var(--brand);background:rgba(120,243,255,.08);color:var(--brand)}
 .kpi b{font-size:16px;color:var(--ink)}.kpi.a b{color:var(--warn)}.kpi.b b{color:var(--accent)}.kpi.c b{color:var(--good)}
 .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .tabs{display:flex;gap:6px;flex-wrap:wrap}
@@ -60,10 +63,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <div class="kbans" id="kbans"><h4>🤖 Base de conocimiento · IA</h4><p id="kbtext"></p><div class="srcs" id="kbsrcs"></div></div>
 
   <div class="kpis">
-    <div class="kpi a"><b id="kOpen">—</b> abiertas</div>
-    <div class="kpi b"><b id="kProg">—</b> en curso</div>
-    <div class="kpi c"><b id="kRes">—</b> resueltas</div>
-    <div class="kpi"><b id="kMttr">—</b> MTTR</div>
+    <button class="kpi a" data-f="open"><b id="kOpen">—</b> abiertas</button>
+    <button class="kpi b" data-f="in_progress"><b id="kProg">—</b> en curso</button>
+    <button class="kpi c" data-f="resolved"><b id="kRes">—</b> resueltas</button>
   </div>
 
   <div class="bar">
@@ -120,7 +122,7 @@ async function askKb(){
 async function load(){
   let d; try{ const r=await fetch(WORKER+"/tickets",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
   const tks=d.tickets||[], st=d.stats||{};
-  $("kOpen").textContent=st.open??"—"; $("kProg").textContent=st.in_progress??"—"; $("kRes").textContent=st.resolved??"—"; $("kMttr").textContent=(st.mttr!=null?st.mttr+" min":"—");
+  $("kOpen").textContent=st.open??"—"; $("kProg").textContent=st.in_progress??"—"; $("kRes").textContent=st.resolved??"—";
   // el reloj lo pinta la barra Yokup (yk-frame)
   // avisos: nuevas abiertas no vistas
   tks.filter(t=>t.status==="open"&&!seen.has(t.id)).forEach(t=>{ notify(t); seen.add(t.id); });
@@ -166,8 +168,18 @@ if("serviceWorker" in navigator) navigator.serviceWorker.getRegistrations()
               if(!conLlave) navigator.serviceWorker.register("/sw.js").catch(()=>{}); })
   .catch(()=>{ navigator.serviceWorker.register("/sw.js").catch(()=>{}); });
 if(("Notification" in window)&&Notification.permission==="granted"){ $("bellBtn").classList.add("on"); $("bellBtn").textContent="🔔 Avisos ON"; }
-$("simBtn").onclick=async()=>{ $("simBtn").textContent="creando…"; try{ await fetch(WORKER+"/ticket/simulate",{method:"POST"}); }catch(e){} $("simBtn").textContent="⚡ Simular caída"; FILTER="activas"; document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x.dataset.f==="activas")); load(); };
-document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{ document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on")); b.classList.add("on"); FILTER=b.dataset.f; load(); });
+$("simBtn").onclick=async()=>{ $("simBtn").textContent="creando…"; try{ await fetch(WORKER+"/ticket/simulate",{method:"POST"}); }catch(e){} $("simBtn").textContent="⚡ Simular caída"; aplicaFiltro("activas"); };
+// Filtro ÚNICO: lo fijan tanto las pestañas como los KPIs de arriba (que son
+// botones, no adornos). Se sincronizan los dos grupos para que no puedan
+// contradecirse: pulsar «18 abiertas» deja marcada también la pestaña Abiertas.
+function aplicaFiltro(f){
+  FILTER=f;
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x.dataset.f===f));
+  document.querySelectorAll(".kpi[data-f]").forEach(x=>x.classList.toggle("on",x.dataset.f===f));
+  load();
+}
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>aplicaFiltro(b.dataset.f));
+document.querySelectorAll(".kpi[data-f]").forEach(b=>b.onclick=()=>aplicaFiltro(b.dataset.f));
 load(); setInterval(load,12000);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
