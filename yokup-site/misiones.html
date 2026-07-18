@@ -744,6 +744,13 @@ function pickerAlta(anchor){
     html+='<button type="button" class="yk-pick-agent'+(abierto?" open":"")+'"><span class="cv">▸</span><span class="lb">🖥 '+esc(canon)+'</span><span class="machine-state">'+(vivos.length?vivos.length+' operativos':'sin agentes')+'</span></button>';
     html+='<div class="yk-pick-machines'+(abierto?" open":"")+'">';
     html+=itHtml("|"+maq.raw,"· cualquier agente",(CARGA_M[maq.norm]||0)+" ab.",!ALTA_SEL.auto&&!ALTA_SEL.persona&&ALTA_SEL.machine===maq.raw);
+    // «Los 3 CLI» del equipo: crea una misión para cada LLM (Claude·Codex·Grok)
+    // operativo en esa máquina. Solo se ofrece si hay al menos 2 LLMs vivos.
+    {
+      const rtsVivos=new Set(vivos.map(p=>String((MAQS[p]&&MAQS[p][canon]&&MAQS[p][canon].runtime)||RUNTIME[p]||RT_FIJO[p]||"").toLowerCase()).filter(rt=>rt==="claude"||rt==="codex"||rt==="grok"));
+      if(rtsVivos.size>=2)
+        html+=itHtml("__trio|"+maq.raw,"🤖 Los 3 CLI · Claude·Codex·Grok",rtsVivos.size+" LLM",ALTA_SEL.trio&&ALTA_SEL.machine===maq.raw);
+    }
     personas.slice().sort((a,b)=>{
       const ao=!!(MAQS[a]&&MAQS[a][canon]&&MAQS[a][canon].online), bo=!!(MAQS[b]&&MAQS[b][canon]&&MAQS[b][canon].online);
       return Number(bo)-Number(ao)||a.localeCompare(b);
@@ -778,6 +785,8 @@ function pickerAlta(anchor){
     ev.stopPropagation();
     const v=it.getAttribute("data-val");
     if(v==="__auto"){ ALTA_SEL={auto:true}; }
+    else if(v.startsWith("__trio|")){ const machine=v.slice(7);
+      ALTA_SEL={auto:false,trio:true,machine:machine,label:"🤖 Los 3 CLI · "+YkMisiones.canonMachine(machine)}; }
     else { const parts=v.split("|"), persona=parts[0]||"", machine=parts[1]||"";
       const cm=machine?YkMisiones.canonMachine(machine):"";
       const label=persona ? (persona+(machine?" · "+cm:" · cualquier máquina")) : ("🖥 "+cm);
@@ -813,51 +822,68 @@ const altaAdj=YkAdjuntos.attach({zone:$("alta"), thumbs:$("altaThumbs")});
 $("altaAdjBtn").onclick=()=>$("altaAdjFile").click();
 $("altaAdjFile").onchange=e=>{ Array.from(e.target.files||[]).forEach(f=>altaAdj.add(f)); e.target.value=""; };
 
+// Las 3 personas de los 3 LLMs (Claude·Codex·Grok) OPERATIVAS en una máquina —
+// para el envío «a los 3 CLI» de un equipo. Una persona por runtime (la online).
+function trioDe(maquina){
+  const canon=YkMisiones.canonMachine(maquina), porRt={};
+  for(const p of UNIV.filter(esAsignable)){
+    const info=MAQS[p]&&MAQS[p][canon]; if(!info||!info.online) continue;
+    const rt=String(info.runtime||RUNTIME[p]||RT_FIJO[p]||"").toLowerCase();
+    if((rt==="claude"||rt==="codex"||rt==="grok") && !porRt[rt])
+      porRt[rt]={persona:p,runtime:info.runtime||rt,host:info.host||""};
+  }
+  return ["claude","codex","grok"].map(rt=>porRt[rt]).filter(Boolean);
+}
+
+// Crea UN encargo (POST bot-inbox + sync + nudge). Devuelve {id} o lanza.
+async function crearUnEncargo(persona,maquina,encargo,txtCorto,pa,runtime,host){
+  const r=await fetch(TG+"/api/bot-inbox",{method:"POST",headers:{"content-type":"application/json"},
+    body:JSON.stringify({target_persona:persona,target_machine:maquina,text:encargo,from:"yokup-misiones"})});
+  const d=await r.json(); if(!d.ok) throw new Error(d.error||"error "+r.status);
+  await fetch(WORKER+"/fleet/sync",{method:"POST"}).catch(()=>{});
+  if(maquina){ try{
+    await fetch(WORKER+"/fleet/nudge",{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({machine:maquina,persona:persona,missionId:"FLT-"+d.id,priority:pa,runtime:runtime,host:host,
+        text:"⚡ Nueva misión FLT-"+d.id+" para ti desde yokup.com/misiones: «"+txtCorto+"». Encargo #"+d.id+" de tu bot-inbox: reclámalo con bash ~/Claude/admira-vault/bot-inbox-claim.sh "+d.id+" y ponte con ella."})});
+  }catch(e){} }
+  return d;
+}
+
 $("alta").onsubmit=async e=>{
   e.preventDefault();
   const txt=$("altaTxt").value.trim(); if(!txt) return;
   if(altaAdj.pending()>0){ $("altaMsg").className="alta-msg"; $("altaMsg").textContent="⏳ espera a que suban las imágenes…"; return; }
-  clearTimeout(detT); detectaAlta();   // honra lo ESCRITO aunque el debounce no saltara aún
-  // Prioridad → conserva el marcador interno que el watcher detecta.
+  clearTimeout(detT); detectaAlta();
   const pa=!!(paChk&&paChk.checked);
-  const img=altaAdj.bloque();          // "🖼 Imágenes adjuntas: …" o ""
+  const img=altaAdj.bloque();
   const encargo=(pa ? "[PRIORIDAD ABSOLUTA] "+txt : txt)+img;
-  const pick=ALTA_SEL.auto?autoRandom():{persona:ALTA_SEL.persona||"",machine:ALTA_SEL.machine||""};
-  let persona=pick.persona; const maquina=pick.machine;
-  // FRENTE 3 (Carlos): encargo "solo máquina" (sin persona) → resolver el agente
-  // principal VIVO que hay allí, para que el encargo NOMBRE a un destinatario
-  // (deja de quedar target_persona vacío = "quien esté allí" sin resolver).
-  if(!persona && maquina){ const v=agenteVivoEnMaquina(maquina); if(v) persona=v; }
-  // Superficie REAL elegida. En prioridad viaja hasta el executor para que el
-  // trabajo quede visible en primer plano (app de escritorio o CLI/tmux).
-  const maqCanon=YkMisiones.canonMachine(maquina);
-  const superficie=(persona&&maqCanon&&MAQS[persona]&&MAQS[persona][maqCanon])||{};
-  const runtime=superficie.runtime||RUNTIME[persona]||"";
-  const host=superficie.host||"";
   const go=document.querySelector(".alta-go"), msg=$("altaMsg");
   go.disabled=true; msg.className="alta-msg"; msg.textContent="Dando de alta…";
   try{
-    const r=await fetch(TG+"/api/bot-inbox",{method:"POST",headers:{"content-type":"application/json"},
-      body:JSON.stringify({target_persona:persona,target_machine:maquina,text:encargo,from:"yokup-misiones"})});
-    const d=await r.json();
-    if(!d.ok) throw new Error(d.error||"error "+r.status);
-    await fetch(WORKER+"/fleet/sync",{method:"POST"}).catch(()=>{});
-    // ⚡ REAL-TIME: con máquina destino, inyección inmediata en el CLI del agente
-    let rayo="";
-    if(maquina){
-      try{
-        const n=await fetch(WORKER+"/fleet/nudge",{method:"POST",headers:{"content-type":"application/json"},
-          body:JSON.stringify({machine:maquina,persona:persona,missionId:"FLT-"+d.id,
-            priority:pa,runtime:runtime,host:host,
-            text:"⚡ Nueva misión FLT-"+d.id+" para ti desde yokup.com/misiones: «"+txt+"». Encargo #"+d.id+" de tu bot-inbox: reclámalo con bash ~/Claude/admira-vault/bot-inbox-claim.sh "+d.id+" y ponte con ella."})});
-        const nd=await n.json().catch(()=>({}));
-        rayo=nd.ok?(nd.started?" · ⚡ en curso en su CLI":" · ⚡ en su CLI ya"):"";
-      }catch(e){}
+    // ── MODO «Los 3 CLI»: una misión a cada LLM (Claude·Codex·Grok) del equipo ──
+    if(ALTA_SEL.trio){
+      const maquina=ALTA_SEL.machine, trio=trioDe(maquina);
+      if(!trio.length) throw new Error("no hay CLIs operativos en "+YkMisiones.canonMachine(maquina));
+      const ids=[];
+      for(const a of trio){ const d=await crearUnEncargo(a.persona,maquina,encargo,txt,pa,a.runtime,a.host); ids.push("FLT-"+d.id+" ("+a.runtime+")"); }
+      msg.className="alta-msg ok"; msg.textContent="✓ "+trio.length+" misiones en "+YkMisiones.canonMachine(maquina)+": "+ids.join(" · ")+(pa?" ⚡":"");
+      $("altaTxt").value=""; altaAdj.clear(); detectaAlta();
+      if(paChk){ paChk.checked=false; if(paWrap){paWrap.classList.remove("on");paWrap.style.setProperty("color","");paWrap.style.setProperty("border-color","");} if(paHint)paHint.hidden=true; }
+      radar(); load(); go.disabled=false; return;
     }
+    // ── envío normal (1 encargo) ──
+    const pick=ALTA_SEL.auto?autoRandom():{persona:ALTA_SEL.persona||"",machine:ALTA_SEL.machine||""};
+    let persona=pick.persona; const maquina=pick.machine;
+    if(!persona && maquina){ const v=agenteVivoEnMaquina(maquina); if(v) persona=v; }
+    const maqCanon=YkMisiones.canonMachine(maquina);
+    const superficie=(persona&&maqCanon&&MAQS[persona]&&MAQS[persona][maqCanon])||{};
+    const runtime=superficie.runtime||RUNTIME[persona]||"";
+    const host=superficie.host||"";
+    const d=await crearUnEncargo(persona,maquina,encargo,txt,pa,runtime,host);
     const destino=persona?(persona+(maquina?" en "+YkMisiones.canonMachine(maquina):"")):("la máquina "+YkMisiones.canonMachine(maquina)+" (quien esté allí)");
     const nimg=altaAdj.urls().length;
-    msg.className="alta-msg ok"; msg.textContent="✓ FLT-"+d.id+(pa?" ⚡ PRIORIDAD":"")+(nimg?" 🖼×"+nimg:"")+" dada de alta y asignada a "+destino+rayo;
-    $("altaTxt").value=""; altaAdj.clear(); detectaAlta();   // limpia texto+imágenes → resetea detección y hint
+    msg.className="alta-msg ok"; msg.textContent="✓ FLT-"+d.id+(pa?" ⚡ PRIORIDAD":"")+(nimg?" 🖼×"+nimg:"")+" dada de alta y asignada a "+destino;
+    $("altaTxt").value=""; altaAdj.clear(); detectaAlta();
     if(paChk){ paChk.checked=false; if(paWrap){paWrap.classList.remove("on");paWrap.style.setProperty("color","");paWrap.style.setProperty("border-color","");} if(paHint)paHint.hidden=true; }
     radar(); load();
   }catch(err){

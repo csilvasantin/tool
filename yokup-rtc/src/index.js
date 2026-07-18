@@ -678,6 +678,16 @@ function fleetSubject(text) {
   return line.length > 120 ? line.slice(0, 117) + "…" : line;
 }
 __name(fleetSubject, "fleetSubject");
+// Prioridad derivada del marcador [PRIORIDAD X] del texto del encargo (el mismo
+// que la tarjeta saca del título y pinta como etiqueta). Sincroniza la etiqueta
+// con el campo real (el punto de color). Carlos, 2026-07-18.
+function fleetPriority(text) {
+  const m = /\[\s*prioridad\s+(absoluta|urgente|alta|normal|media|baja)\s*\]/i.exec(String(text || ""));
+  if (!m) return "normal";
+  const p = m[1].toLowerCase();
+  return p === "absoluta" ? "urgente" : p === "media" ? "normal" : p;
+}
+__name(fleetPriority, "fleetPriority");
 // OJO: `screen` tiene un índice ÚNICO entre las no resueltas (idx_open_screen),
 // así que NO puede ser la máquina a secas — dos encargos abiertos del mismo
 // ordenador chocarían al insertar. Se firma con el id del encargo: único y
@@ -762,7 +772,7 @@ async function fleetSync(env) {
         "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at,resolved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(
         id, fleetScreen(it), fleetSubject(it.text), it.target_machine || "", it.from_name || "",
-        st, "normal", it.target_persona || "", "fleet", "", ts, now,
+        st, fleetPriority(it.text), it.target_persona || "", "fleet", "", ts, now,
         st === "resolved" ? epochMs(it.done_at, now) : null
       ).run();
       // El texto íntegro del encargo queda como primer evento de la misión.
