@@ -49,6 +49,10 @@ h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
 .ev .eh{font-family:var(--mono);font-size:11px;color:var(--mut);display:flex;gap:10px;margin-bottom:5px}.ev .eh b{color:var(--ink)}
 .ev .et{font-size:14px;line-height:1.55;color:var(--ink);white-space:pre-wrap}
 .ev.ai .et{color:var(--ink)}.ev.ai .eh b{color:var(--violet)}
+.ev-imgs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.ev-imgs a{display:block;width:132px;height:96px;border-radius:10px;overflow:hidden;border:1px solid var(--line2);background:var(--card);transition:.2s}
+.ev-imgs a:hover{border-color:var(--brand);transform:translateY(-1px)}
+.ev-imgs img{width:100%;height:100%;object-fit:cover;display:block}
 .composer{margin-top:24px;border:1px solid var(--line);border-radius:14px;background:var(--card);padding:16px}
 .composer h3{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--brand);margin-bottom:10px}
 .composer textarea{width:100%;min-height:80px;font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 13px;outline:none;resize:vertical}
@@ -102,6 +106,21 @@ function hm(ms){ return new Date(ms).toTimeString().slice(0,5); }
 function esc(x){ return String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c])); }
 const ICON={log:"🤖",assign:"🧭",ai:"🧠",note:"👷",status:"🔄",recover:"✅"};
 
+// Las imágenes adjuntas viajan como URLs dentro del TEXTO del evento (el bloque
+// que compone yk-adjuntos). Sin esto el timeline las pintaba en crudo: adjuntabas
+// una foto y luego veías «- https://…/media/m/ab.png» en vez de la foto.
+const RE_IMG=/https?:\/\/[^\s<>"]+?(?:\/media\/[^\s<>"]*|\.(?:png|jpe?g|gif|webp|avif))/gi;
+function cuerpoEvento(text){
+  const t=String(text==null?"":text);
+  const urls=[...new Set(t.match(RE_IMG)||[])];
+  if(!urls.length) return '<div class="et">'+esc(t)+'</div>';
+  // fuera la cabecera del bloque, las viñetas «- url» y las urls sueltas
+  const limpio=t.replace(/\n*🖼[^\n]*\n?/g,"\n").replace(/^[ \t]*[-•]?[ \t]*$/gm,"")
+                .split(RE_IMG).join(" ").replace(/^[ \t]*-[ \t]*$/gm,"").replace(/\n{3,}/g,"\n\n").trim();
+  return (limpio?'<div class="et">'+esc(limpio)+'</div>':"")+
+    '<div class="ev-imgs">'+urls.map(u=>'<a href="'+esc(u)+'" target="_blank" rel="noopener"><img src="'+esc(u)+'" alt="adjunto" loading="lazy"></a>').join("")+'</div>';
+}
+
 async function render(){
   let d; try{ const r=await fetch(WORKER+"/ticket?id="+encodeURIComponent(id),{cache:"no-store"}); d=await r.json(); }catch(e){ $("root").innerHTML='<div class="load">No se pudo cargar el ticket.</div>'; return; }
   if(d.error){ $("root").innerHTML='<div class="load">Ticket no encontrado.</div>'; return; }
@@ -139,7 +158,7 @@ async function render(){
       <p class="rhint">Actual: 👷 ${esc(t.assignee||"sin agente")} · 🖥 ${esc(t.loc||"sin equipo")}. Al reasignar, la misión vuelve a «Asignada» (o «Sin asignar») y el destinatario la recibe en su bot-inbox.</p>
     </div>`:""}
     <div class="sum" id="sum"><h4>🧠 Resumen IA</h4><p id="sumtext"></p></div>
-    <div class="tl">${ev.map(e=>`<div class="ev ${esc(e.kind)}"><div class="eh"><b>${esc(e.author)}</b><span>${hm(e.ts)}</span></div><div class="et">${esc(e.text)}</div></div>`).join("")||'<div class="load">Sin actividad.</div>'}</div>
+    <div class="tl">${ev.map(e=>`<div class="ev ${esc(e.kind)}"><div class="eh"><b>${esc(e.author)}</b><span>${hm(e.ts)}</span></div>${cuerpoEvento(e.text)}</div>`).join("")||'<div class="load">Sin actividad.</div>'}</div>
     <div class="composer" id="composer">
       <h3>Añadir nota</h3>
       <textarea id="note" placeholder="Escribe una nota del técnico… (pega ⌘V o arrastra una imagen para adjuntarla)"></textarea>
