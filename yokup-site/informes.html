@@ -35,7 +35,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
    cargaba). Scroll horizontal en pantallas estrechas, como una hoja real. */
 .sheet-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:13px;background:var(--card)}
 .sheet{min-width:900px}
-.grow{display:grid;grid-template-columns:minmax(130px,1.1fr) 132px minmax(220px,2.3fr) 138px 116px 128px;align-items:stretch}
+.grow{display:grid;grid-template-columns:minmax(130px,1.1fr) 132px 132px minmax(200px,2.1fr) 138px 116px 128px;align-items:stretch}
 .ghead{position:sticky;top:0;z-index:2;background:var(--card2);border-bottom:1px solid var(--line2)}
 .ghead>div{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--brand);padding:11px 13px;border-left:1px solid var(--line)}
 .ghead>div:first-child{border-left:0}
@@ -81,7 +81,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
     <a href="/incidencias" class="back">← Bandeja</a>
   </nav>
   <h1>Informes</h1>
-  <p class="sub">Superficie de reporte de los <b>infraagentes</b> 📝. Cada tarea acaba en un parte: cómo ha ido, la <b>captura de prueba</b> y si hubo incidencias. Por misión, ordenada por fecha — hoy primero.</p>
+  <p class="sub">Superficie de reporte de los <b>infraagentes</b> 📝. Cada tarea acaba en un parte: cómo ha ido, el <b>proceso</b> (el CLI trabajando), la <b>captura de prueba</b> del resultado y si hubo incidencias. Por misión, ordenada por fecha — hoy primero.</p>
 
   <!-- Filtro por FECHA del informe. Por defecto sólo los de HOY (igual que /tareas). -->
   <div class="tfilter" id="tfilter">
@@ -144,7 +144,7 @@ async function load(){
   all.sort((a,b)=>(b.updated_at||0)-(a.updated_at||0));
   ALL=all; applyFilter();
 }
-const HEAD='<div class="grow ghead"><div>Misión</div><div>Captura</div><div>Informe</div><div>Agente</div><div>Estado</div><div>Fecha</div></div>';
+const HEAD='<div class="grow ghead"><div>Misión</div><div>Proceso</div><div>Captura</div><div>Informe</div><div>Agente</div><div>Estado</div><div>Fecha</div></div>';
 function render(list){
   const box=$("reps");
   if(!list.length){
@@ -160,12 +160,18 @@ function render(list){
     const shot=t.image
       ? `<a class="shot-a" href="${esc(t.image)}" data-full="${esc(t.image)}" title="Ampliar la captura de prueba"><img class="shot-img" loading="lazy" src="${esc(t.image)}" alt="Captura de prueba"></a>`
       : `<span class="shot-none" title="sin captura de prueba">—</span>`;
+    // PROCESO: la última captura del terminal mientras el CLI trabajaba la misión
+    // (live_shot). Es el "durante"; la CAPTURA de al lado es el "después".
+    const proc=t.live_shot
+      ? `<a class="shot-a" href="${esc(t.live_shot)}" data-full="${esc(t.live_shot)}" title="Ampliar el proceso — el CLI trabajando"><img class="shot-img" loading="lazy" src="${esc(t.live_shot)}" alt="Proceso del CLI"></a>`
+      : `<span class="shot-none" title="sin captura de proceso">—</span>`;
     return `<div class="grow item">
       <div class="gc mis">
         <a class="mid" href="/ticket?id=${encodeURIComponent(t.mission_id)}" title="Abrir la misión">🎯 ${esc(t.mission_id)}</a>
         <span class="mcode">${esc(t.code)}</span>
         <div class="msubj" title="${esc(t.subject||'')}">${esc(t.subject||t.title||'')}</div>
       </div>
+      <div class="gc shot">${proc}</div>
       <div class="gc shot">${shot}</div>
       <div class="gc rep"><div class="rep-tx" title="${esc(t.report)}">${esc(t.report)}</div></div>
       <div class="gc"><span class="who" title="${esc(t.owner||'')}">${own} ${esc(t.owner||'')}</span></div>

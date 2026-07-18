@@ -221,7 +221,7 @@ async function listAllMissionTasks(env, scope) {
     : "WHERE t.source IS NULL OR t.source!='fleet'";
   const { results } = await env.DB.prepare(
     `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.report, m.image, m.updated_at,
-            t.subject, t.screen, t.loc, t.source, t.assignee,
+            t.subject, t.screen, t.loc, t.source, t.assignee, t.live_shot,
             t.status AS mission_status, t.created_at AS mission_created
        FROM mission_tasks m JOIN tickets t ON t.id = m.mission_id
        ${where}
