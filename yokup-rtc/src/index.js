@@ -165,6 +165,12 @@ async function ensureSchema(env) {
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN proof_image TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN agent_runtime TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN agent_host TEXT").catch(() => {});
+  // CAPTURA EN VIVO del CLI mientras trabaja (Carlos, 2026-07-18: «no hay nada
+  // peor que no tener feedback de cómo trabaja el equipo»). live_shot = última
+  // captura del terminal (R2), live_at = cuándo se tomó → la tarjeta enseña que
+  // el agente NO está parado, con halo si la captura es fresca.
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN live_shot TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN live_at INTEGER").catch(() => {});
 }
 __name(ensureSchema, "ensureSchema");
 
@@ -990,7 +996,7 @@ __name(fleetPlanPending, "fleetPlanPending");
 // expone nada que el bot-inbox público no publique ya.
 async function fleetMissions(env) {
   const { results } = await env.DB.prepare(
-    "SELECT id,screen,subject,loc,role,status,assignee,agent_runtime,agent_host,proof_image,created_at,updated_at FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
+    "SELECT id,screen,subject,loc,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,created_at,updated_at FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
   ).all();
   const rows = results || [];
   if (!rows.length) return [];
@@ -1128,6 +1134,26 @@ var index_default = {
     }
     // Misiones de FLOTA: lectura pública (la consume admira.live/status, que no
     // pasa el gate Google) y sync idempotente. Van ANTES del perímetro.
+    // Latido de PROGRESO del CLI: marca la misión en curso y guarda la última
+    // captura del terminal. Público como /fleet/informe (lo llama progreso-cli.sh
+    // desde la máquina del agente). Body: {mission, image} — image = URL /media.
+    if (url.pathname === "/fleet/progress" && req.method === "POST") {
+      try {
+        await ensureSchema(env);
+        const b = await req.json();
+        let mid = String(b.mission || b.id || "").trim();
+        if (/^#?\d+$/.test(mid)) mid = "FLT-" + mid.replace(/^#/, "");
+        const img = String(b.image || "").trim().slice(0, 500);
+        if (!mid) return json({ ok: false, error: "mission requerida" }, 400);
+        // No pisa una misión ya resuelta; solo abre→en curso y refresca la captura.
+        await env.DB.prepare(
+          "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END, live_shot=COALESCE(NULLIF(?,''),live_shot), live_at=?, updated_at=? WHERE id=? AND status!='resolved'"
+        ).bind(img, Date.now(), Date.now(), mid).run();
+        return json({ ok: true, mission: mid });
+      } catch (e) {
+        return json({ ok: false, error: String(e) }, 500);
+      }
+    }
     if (url.pathname === "/fleet/missions") {
       await ensureSchema(env);
       return json({ missions: await fleetMissions(env) });

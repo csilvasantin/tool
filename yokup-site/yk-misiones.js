@@ -169,6 +169,12 @@
     var rz = function (col, side) { return '<span class="rz" data-col="' + col + '"' + (side ? ' data-side="' + side + '"' : "") + ' title="⇔ arrastra para redimensionar"></span>'; };
     var dv = durVal(t);
     var proof = String(t.proof_image || "");
+    // CAPTURA EN VIVO del CLI: si la misión está EN CURSO y hay una captura
+    // reciente del terminal (<3 min), se enseña ESA con halo pulsante — el
+    // feedback de «está trabajando, no parado» (Carlos, 2026-07-18). Manda sobre
+    // el previo de la web, pero no sobre el proof final de una misión cerrada.
+    var live = String(t.live_shot || "");
+    var liveFresca = live && t.live_at && (Date.now() - (t.live_at > 4102444800000 ? t.live_at : t.live_at) < 180000);
     var rt = String(t.agent_runtime || "");
     var host = t.agent_host === "cli" ? "CLI" : t.agent_host === "app" ? "Desktop" : "";
     var surface = [rt, host].filter(Boolean).join(" · ");
@@ -178,6 +184,7 @@
         '<div class="tkid">' + esc(t.id) + '<span class="st">' + ({ "agent-iot": "🖥 Pantalla DOOH", monitor: "🌐 Servicio", service: "🌐 Servicio", agent: "🤖 Agente", agente: "🤖 Agente", presence: "🖥 Máquina", machine: "🖥 Máquina", fleet: "🎯 Misión" }[t.source] || "👤 Manual") + "</span></div>" +
         '<div class="cel shot">' + (function () { var p = proyectoDe(t);
           if (proof) return '<img class="shot-img proof" loading="lazy" src="' + esc(proof) + '" data-proof="' + esc(proof) + '" alt="Pantallazo final" title="pantallazo del trabajo realizado">';
+          if (liveFresca) return '<img class="shot-img working" loading="lazy" src="' + esc(live) + '" data-proof="' + esc(live) + '" alt="En curso" title="🔴 en vivo · el CLI está trabajando ahora">';
           return p ? '<img class="shot-img" loading="lazy" src="' + esc(shotUrl(p, 240)) + '" data-shot="' + esc(p) + '" alt="" title="ampliar · ' + esc(p) + '">' : '<img class="shot-img shot-logo" loading="lazy" src="/img/admiranext-logo.svg" alt="AdmiraNeXT" title="AdmiraNeXT · sin proyecto asignado">'; })() + "</div>" +
         '<div class="subj">' + rz("id", "r") + '<div class="t">' + esc(t.subject) + '</div><div class="m"><span class="scr">' + esc(String(t.screen || "").replace(/^(svc|maq|agt|service|machine|agent):/, "").replace(/^https?:\/\/(www\.)?/, "")) + "</span>" +
           (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span>" +
