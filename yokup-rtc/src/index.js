@@ -769,6 +769,17 @@ async function fleetSync(env) {
       if (prev.status !== st || prev.assignee !== asig || (prev.loc || "") !== loc) {
         await env.DB.prepare("UPDATE tickets SET status=?, assignee=?, loc=?, screen=?, updated_at=?, resolved_at=? WHERE id=?")
           .bind(st, asig, loc, fleetScreen(it), now, st === "resolved" ? now : null, id).run();
+        // Al FINALIZAR una misión, su árbol a/b/c no puede quedarse en «pending»
+        // para siempre (pasó con FLT-804: misión resuelta con informe y proof, y
+        // las 9 subtareas colgadas como pendientes). El cierre con informe ES la
+        // ejecución del plan: las subtareas aún pendientes se marcan hechas por
+        // cierre, con owner explícito para no fingir que alguien las trabajó
+        // una a una. Carlos, 2026-07-18.
+        if (st === "resolved" && prev.status !== "resolved") {
+          await env.DB.prepare(
+            "UPDATE mission_tasks SET status='done', owner=COALESCE(NULLIF(owner,''),'auto-cierre'), updated_at=? WHERE mission_id=? AND status='pending'"
+          ).bind(now, id).run();
+        }
         updated++;
       }
     }
