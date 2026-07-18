@@ -58,6 +58,14 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 5px}
 .row .v{color:var(--ink);min-width:0;word-break:break-word}
 .row .v.mono{font-family:var(--mono);font-size:11.5px;color:var(--mut)}
 .row .v.falta{color:var(--warn);font-style:italic}
+
+.mdia{border:1px solid var(--line2);border-radius:12px;background:rgba(120,243,255,.04);padding:11px 12px 12px;margin-bottom:13px}
+.mdia-h{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);margin-bottom:4px}
+.mdia-n{font-size:16px;font-weight:700;color:var(--brand);letter-spacing:-.01em;margin-bottom:9px;word-break:break-all}
+.mdia-shot{display:block;border-radius:9px;overflow:hidden;border:1px solid var(--line);background:#061019;aspect-ratio:16/10}
+.mdia-shot img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block;transition:.25s}
+.mdia-shot:hover img{transform:scale(1.03)}
+.mdia-sin{font-family:var(--mono);font-size:11px;color:var(--dim)}
 .agchip{font-family:var(--mono);font-size:10px;letter-spacing:.04em;border:1px solid var(--line);border-radius:7px;padding:2px 7px;margin:0 4px 4px 0;display:inline-block;color:var(--good)}
 .agchip.ext{color:var(--accent);border-color:rgba(255,216,102,.34)}
 .tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:13px}
@@ -253,6 +261,32 @@ function tarjetaSil(a){
   '</div>';
 }
 
+/* MISIÓN DEL DÍA de una máquina: el proyecto al que se dedica hoy (o hasta que
+   Carlos diga lo contrario). Se pinta el NOMBRE arriba y debajo una CAPTURA VIVA
+   del sitio, para saber de un vistazo a qué se dedica ese ordenador sin leer nada.
+   La captura la sirve el worker (/shot), que sólo admite nuestros dominios. */
+function webDeProyecto(p){
+  const s=String(p||"").trim().toLowerCase();
+  if(!s || /^sin asignar|^—|^-$/.test(s)) return "";
+  const host=s.replace(/^https?:\/\//,"").replace(/\/.*$/,"");
+  // el worker rechaza dominios de fuera: no se pide captura de lo que no va a dar
+  if(!/^(www\.)?(pixeria|xpaceos|yokup|admira\.live|admira\.tv|admira\.store|clearchannel|admiranext|carlossilva)\./.test(host+".")
+     && !/^(www\.)?(pixeria\.com|xpaceos\.com|yokup\.com|admira\.live|admira\.tv|admira\.store|clearchannel\.tv|admiranext\.com|carlossilva\.info)$/.test(host)) return "";
+  return "https://"+host;
+}
+function misionDelDia(m){
+  const web=webDeProyecto(m.project);
+  if(!m.project) return "";
+  const nombre=esc(String(m.project));
+  return '<div class="mdia">'+
+    '<div class="mdia-h">🎯 Misión de hoy</div>'+
+    '<div class="mdia-n">'+nombre+'</div>'+
+    (web?'<a class="mdia-shot" href="'+esc(web)+'" target="_blank" rel="noopener" title="abrir '+esc(web)+'">'+
+         '<img loading="lazy" src="'+esc(WORKER+"/shot?url="+encodeURIComponent(web))+'" alt="'+nombre+'"></a>'
+        :'<div class="mdia-sin">sin sitio que capturar</div>')+
+  '</div>';
+}
+
 function tarjetaEq(m){
   const p=presenciaMaq(m.id,m.name);
   // DOS señales distintas que no hay que confundir: la máquina late por su cuenta
@@ -268,6 +302,7 @@ function tarjetaEq(m){
     '<div class="top"><div class="av">🖥</div>'+
       '<div class="who"><b>'+esc(nom)+'</b><span class="rt">'+esc(m.platform||"—")+' · '+esc(m.id)+'</span></div>'+
       '<span class="pulse'+(on?" on":"")+'" title="latido propio del equipo: '+esc(hace(m.lastSeen))+'"><i></i>'+pulso+'</span></div>'+
+    misionDelDia(m)+
     '<div class="rows">'+
       fila("Responsable", m.member?esc(m.member):"sin asignar", m.member?"":"falta")+
       fila("Rol", m.role?esc(m.role):"—")+

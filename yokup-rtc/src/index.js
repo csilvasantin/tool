@@ -1059,7 +1059,12 @@ var index_default = {
         try {
           const page = await browser.newPage();
           await page.setViewport({ width: 960, height: 600, deviceScaleFactor: 1 });
-          await page.goto(target, { waitUntil: "networkidle0", timeout: 15e3 });
+          // networkidle0 NO sirve para nuestras propias webs: tienen sondeos y
+          // widgets (el avatar 3D) que mantienen la red viva, así que nunca
+          // llegaba a reposo, saltaba el timeout y caía al respaldo externo.
+          // Se espera al DOM y se dan 2,5 s para que pinte.
+          await page.goto(target, { waitUntil: "domcontentloaded", timeout: 2e4 });
+          await new Promise((r) => setTimeout(r, 2500));
           buf = await page.screenshot({ type: "png", clip: { x: 0, y: 0, width: 960, height: 600 } });
           ct = "image/png";
         } finally { await browser.close(); }
@@ -1073,7 +1078,11 @@ var index_default = {
         } catch (e) { /* sin captura */ }
       }
       // Solo cachear si es una imagen real (no un HTML de error ~pequeño).
-      const real = buf && buf.byteLength > 3500 && /^image\//i.test(ct);
+      // Y NUNCA un GIF: thum.io devuelve un GIF animado de «cargando» cuando aún
+      // no tiene la captura, pesa >3500 bytes y colaba como buena — quedaba
+      // cacheada 12 h y servida con content-type PNG. Las capturas de verdad
+      // (Browser Rendering o thum.io) son PNG o JPEG.
+      const real = buf && buf.byteLength > 3500 && /^image\/(png|jpe?g)/i.test(ct);
       if (real) await env.MEDIA.put(key, buf, { httpMetadata: { contentType: ct }, customMetadata: { ts: String(Date.now()), ct: ct } });
       else if (cached) { const h = new Headers(CORS); h.set("content-type", (cached.customMetadata && cached.customMetadata.ct) || "image/png"); h.set("cache-control", "public, max-age=600"); return new Response(cached.body, { headers: h }); }
       const h = new Headers(CORS); h.set("content-type", real ? ct : "image/png"); h.set("cache-control", real ? "public, max-age=3600" : "no-store");
