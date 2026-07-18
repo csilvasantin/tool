@@ -159,10 +159,20 @@
     return (t.assignee || t.loc || t.machine) ? { c: "b-open", l: "Asignada" } : { c: "b-sina", l: "Sin asignar" };
   }
 
+  // El marcador «[PRIORIDAD ABSOLUTA]» (o [PRIORIDAD …], [TEST …]) viajaba en el
+  // TEXTO del encargo y ensuciaba el título. Se separa: el título queda limpio y
+  // el marcador se pinta como ETIQUETA bajo el id (Carlos, 2026-07-18).
+  function prioMarca(subject) {
+    var m = /^\s*\[([^\]]+)\]\s*/.exec(String(subject || ""));
+    if (!m) return { flag: "", limpio: String(subject || "") };
+    return { flag: m[1].trim(), limpio: String(subject).slice(m[0].length) };
+  }
   function rowHtml(t) {
     var est = estadoDe(t);
     var sb = est.c, stt = est.l;
     var maq = machineOf(t);
+    var pm = prioMarca(t.subject);
+    var esPrio = /prioridad/i.test(pm.flag);
     // COLUMNAS con separador vertical sutil y REDIMENSIONABLES (Carlos, 2026-07-15):
     // cada .rz es la línea divisoria — se arrastra y ajusta la variable CSS de SU
     // columna (--c-*) para TODAS las tarjetas a la vez; se persiste en localStorage.
@@ -181,12 +191,13 @@
     return '<div class="tk ' + (t.status === "open" ? "open" : "") + " " + (t.id === SELECTED ? "sel" : "") + '" data-id="' + esc(t.id) + '">' +
       '<div class="hd">' +
         '<div class="pri ' + esc(t.priority) + '"></div>' +
-        '<div class="tkid">' + esc(t.id) + '<span class="st">' + ({ "agent-iot": "🖥 Pantalla DOOH", monitor: "🌐 Servicio", service: "🌐 Servicio", agent: "🤖 Agente", agente: "🤖 Agente", presence: "🖥 Máquina", machine: "🖥 Máquina", fleet: "🎯 Misión" }[t.source] || "👤 Manual") + "</span></div>" +
+        '<div class="tkid">' + esc(t.id) + '<span class="st">' + ({ "agent-iot": "🖥 Pantalla DOOH", monitor: "🌐 Servicio", service: "🌐 Servicio", agent: "🤖 Agente", agente: "🤖 Agente", presence: "🖥 Máquina", machine: "🖥 Máquina", fleet: "🎯 Misión" }[t.source] || "👤 Manual") + "</span>" +
+          (pm.flag ? '<span class="prioflag' + (esPrio ? " abs" : "") + '">' + (esPrio ? "⚡ " : "") + esc(pm.flag) + "</span>" : "") + "</div>" +
         '<div class="cel shot">' + (function () { var p = proyectoDe(t);
           if (proof) return '<img class="shot-img proof" loading="lazy" src="' + esc(proof) + '" data-proof="' + esc(proof) + '" alt="Pantallazo final" title="pantallazo del trabajo realizado">';
           if (liveFresca) return '<img class="shot-img working" loading="lazy" src="' + esc(live) + '" data-proof="' + esc(live) + '" alt="En curso" title="🔴 en vivo · el CLI está trabajando ahora">';
           return p ? '<img class="shot-img" loading="lazy" src="' + esc(shotUrl(p, 240)) + '" data-shot="' + esc(p) + '" alt="" title="ampliar · ' + esc(p) + '">' : '<img class="shot-img shot-logo" loading="lazy" src="/img/admiranext-logo.svg" alt="AdmiraNeXT" title="AdmiraNeXT · sin proyecto asignado">'; })() + "</div>" +
-        '<div class="subj">' + rz("id", "r") + '<div class="t">' + esc(t.subject) + '</div><div class="m"><span class="scr">' + esc(String(t.screen || "").replace(/^(svc|maq|agt|service|machine|agent):/, "").replace(/^https?:\/\/(www\.)?/, "")) + "</span>" +
+        '<div class="subj">' + rz("id", "r") + '<div class="t">' + esc(pm.limpio) + '</div><div class="m"><span class="scr">' + esc(String(t.screen || "").replace(/^(svc|maq|agt|service|machine|agent):/, "").replace(/^https?:\/\/(www\.)?/, "")) + "</span>" +
           (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span>" +
           // 📎 la misión lleva fotos adjuntas (viven en el texto de sus eventos;
           // el worker las cuenta en img_count). Avisa sin tener que abrir el ticket.
