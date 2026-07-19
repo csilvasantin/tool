@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r10">
-<link rel="stylesheet" href="/yk-misiones.css?v=r18">
+<link rel="stylesheet" href="/yk-misiones.css?v=r19">
 <style>
 /* Segmentación dentro del raíl de opciones: apilada y a lo ancho del panel. */
 .segm{display:flex;flex-direction:column;gap:8px}
@@ -33,7 +33,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .kpi{cursor:pointer;font:inherit;transition:.18s}
 .kpi[data-f]:hover{border-color:var(--line2);color:var(--ink)}
 .kpi.on{border-color:var(--brand);background:rgba(120,243,255,.08);color:var(--brand)}
-.kpi b{font-size:16px;color:var(--ink)}.kpi.a b{color:var(--warn)}.kpi.b b{color:var(--accent)}.kpi.c b{color:var(--good)}.kpi.v b{color:var(--violet)}
+.kpi b{font-size:16px;color:var(--ink)}.kpi.a b{color:var(--mut)}.kpi.b b{color:var(--accent)}.kpi.c b{color:var(--good)}.kpi.v b{color:var(--violet)}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .tab{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;border-radius:9px;border:1px solid var(--line);color:var(--mut);background:var(--card);cursor:pointer;transition:.2s}
 .tab.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
@@ -158,7 +158,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
        sin asignar · asignadas · en curso · finalizadas. Nada de «abiertas». -->
   <div class="kpis">
     <button data-f="sin" class="kpi v"><b id="kSin">—</b> sin asignar</button>
-    <button data-f="asignadas" class="kpi a"><b id="kAsig">—</b> asignadas</button>
+    <button data-f="asignadas" class="kpi a"><b id="kAsig">—</b> pendientes</button>
     <button data-f="in_progress" class="kpi b"><b id="kProg">—</b> en curso</button>
     <button data-f="resolved" class="kpi c"><b id="kRes">—</b> finalizadas</button>
   </div>
@@ -218,7 +218,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   <div class="tabs" id="missionStateTabs" data-yk-slot="left">
     <button class="tab on" data-f="activas" aria-pressed="true">Activas</button>
     <button class="tab" data-f="sin" aria-pressed="false">Sin asignar</button>
-    <button class="tab" data-f="asignadas" aria-pressed="false">Asignadas</button>
+    <button class="tab" data-f="asignadas" aria-pressed="false">Pendientes</button>
     <button class="tab" data-f="in_progress" aria-pressed="false">En curso</button>
     <button class="tab" data-f="resolved" aria-pressed="false">Finalizadas</button>
     <button class="tab" data-f="todas" aria-pressed="false">Todas</button>
@@ -258,7 +258,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r26"></script>
+<script src="/yk-misiones.js?v=r27"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
@@ -285,14 +285,14 @@ const SORTERS={
   fecha:t=>t.created_at||0,
   ordenador:t=>String(YkMisiones.machineOf(t)||"").toLowerCase(),
   agente:t=>String(t.assignee||"").toLowerCase(),
-  estado:t=>({"Sin asignar":0,"Asignada":1,"En curso":2,"Finalizada":3}[YkMisiones.estadoDe(t).l]??4)
+  estado:t=>({"Sin asignar":0,"Pendiente":1,"En curso":2,"Finalizada":3}[YkMisiones.estadoDe(t).l]??4)
 };
 function headHtml(){
   const col=(k,l)=>'<div class="lh'+(SORT.k===k?" on":"")+'" data-k="'+k+'" title="ordenar por '+l.toLowerCase()+'">'+l+(SORT.k===k?(SORT.dir==="asc"?" ▲":" ▼"):"")+"</div>";
   // Columna ID con «seleccionar todas» + etiqueta ordenable. El clic en el checkbox no ordena.
   const idArrow=SORT.k==="id"?(SORT.dir==="asc"?" ▲":" ▼"):"";
   const idcol='<div class="lh idh'+(SORT.k==="id"?" on":"")+'" data-k="id" title="ordenar por id"><input type="checkbox" class="selall" title="Seleccionar todas las visibles" onclick="event.stopPropagation()"><span class="idlbl">ID'+idArrow+'</span></div>';
-  return '<div class="hd lhead"><div></div>'+idcol+'<div class="lh-static">Proyecto</div>'+col("subject","Misión")+col("fecha","Fecha")+col("ordenador","Ordenador")+col("agente","Agente")+col("estado","Estado")+"</div>";
+  return '<div class="hd lhead"><div></div>'+idcol+'<div class="lh-static">Proyecto</div>'+col("subject","Misión")+col("fecha","Fecha")+col("ordenador","Ordenador")+col("agente","Agente/Plataforma")+col("estado","Estado")+"</div>";
 }
 // Inyecta el checkbox de selección en la casilla del ID de cada fila + cablea «seleccionar todas»
 // y la barra de acciones en bloque. La selección (SEL) se conserva entre refrescos y filtros.
@@ -450,7 +450,7 @@ async function load(){
   // KPIs por ESTADO canónico, calculados de las misiones vivas (no del stats crudo)
   const estL=t=>YkMisiones.estadoDe(t).l;
   $("kSin").textContent=tks.filter(t=>estL(t)==="Sin asignar").length;
-  $("kAsig").textContent=tks.filter(t=>estL(t)==="Asignada").length;
+  $("kAsig").textContent=tks.filter(t=>estL(t)==="Pendiente").length;
   $("kProg").textContent=tks.filter(t=>estL(t)==="En curso").length;
   $("kRes").textContent=tks.filter(t=>estL(t)==="Finalizada").length;
   let base=tks;
@@ -462,7 +462,7 @@ async function load(){
     base=base.filter(t=>t.status!=="resolved" || (t.source==="fleet" && (Date.now()-_ms(t.resolved_at||t.updated_at))<FRESH));
   }
   else if(FILTER==="sin") base=base.filter(t=>estL(t)==="Sin asignar");
-  else if(FILTER==="asignadas") base=base.filter(t=>estL(t)==="Asignada");
+  else if(FILTER==="asignadas") base=base.filter(t=>estL(t)==="Pendiente");
   else if(FILTER!=="todas") base=base.filter(t=>t.status===FILTER);
   // Selectores CRUZADOS y solo con quien TIENE misiones en el contexto actual:
   // agentes según el equipo elegido, equipos según el agente elegido.

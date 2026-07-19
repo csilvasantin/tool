@@ -29,7 +29,7 @@
   // persona tiene imagen en /avatars/<slug>.jpg se pinta el retrato con el
   // nombre DEBAJO; sin imagen (o con el ajuste apagado) degrada al 👷 clásico.
   // Pref. en localStorage yk_pref_avatars (la escribe yk-frame · AJUSTES; def. ON).
-  var AVATARES = { neo: 1, morfeo: 1, smith: 1 };
+  var AVATARES = { neo: 1, morfeo: 1, smith: 1, trinity: 1 };
   function avatarOn() { try { return localStorage.getItem("yk_pref_avatars") !== "0"; } catch (e) { return true; } }
   function avSlug(n) {
     return String(n || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
@@ -37,11 +37,14 @@
   }
   function whoHtml(name, surface) {
     var s = avSlug(name);
+    // Sin plataforma (agente sin runtime·host ahora mismo) → "Pendiente".
+    var plat = surface ? esc(surface) : "Pendiente";
+    var platCls = surface ? "agent-surface" : "agent-surface pend";
     if (avatarOn() && AVATARES[s]) {
       return '<span class="who who-av"><img class="agava" loading="lazy" src="/avatars/' + s + '.jpg" alt="">' +
-        "<span>" + esc(name) + '</span><small class="agent-surface">' + esc(surface) + "</small></span>";
+        "<span>" + esc(name) + '</span><small class="' + platCls + '">' + plat + "</small></span>";
     }
-    return '<span class="who"><span>👷 ' + esc(name) + '</span><small class="agent-surface">' + esc(surface) + "</small></span>";
+    return '<span class="who"><span>👷 ' + esc(name) + '</span><small class="' + platCls + '">' + plat + "</small></span>";
   }
   var CHIP = { pending: "○", in_progress: "◐", done: "●" };
   var NEXT_ST = { pending: "in_progress", in_progress: "done", done: "pending" };
@@ -168,14 +171,14 @@
   });
 
   // ------- fila de MISIÓN (idéntica en /incidencias y /misiones) -------
-  // ESTADOS canónicos (Carlos, 2026-07-15): Sin asignar · Asignada · En curso ·
-  // Finalizada. «Abierta» era ruido: mezclaba pendiente-de-asignar con asignada.
-  // Asignada = tiene AGENTE o EQUIPO (una misión «solo máquina» también está
-  // asignada: la resuelve quien esté en ese equipo).
+  // ESTADOS canónicos (Carlos, 2026-07-19): Sin asignar · Pendiente · En curso ·
+  // Finalizada. PENDIENTE = tiene AGENTE/EQUIPO pero aún NO reclamada (registrada,
+  // sin arrancar). Al reclamarla (bot-inbox-claim) pasa a in_progress = En curso.
+  // Antes esto se llamaba «Asignada», lo que confundía backlog con trabajo en marcha.
   function estadoDe(t) {
     if (t.status === "resolved") return { c: "b-res", l: "Finalizada" };
     if (t.status === "in_progress") return { c: "b-prog", l: "En curso" };
-    return (t.assignee || t.loc || t.machine) ? { c: "b-open", l: "Asignada" } : { c: "b-sina", l: "Sin asignar" };
+    return (t.assignee || t.loc || t.machine) ? { c: "b-pend", l: "Pendiente" } : { c: "b-sina", l: "Sin asignar" };
   }
 
   // El marcador «[PRIORIDAD ABSOLUTA]» (o [PRIORIDAD …], [TEST …]) viajaba en el
