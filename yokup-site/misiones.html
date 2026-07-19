@@ -243,6 +243,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
       <option value="in_progress">▶ En curso</option>
       <option value="resolved">✓ Finalizada</option>
       <option value="open">↺ Reabrir</option>
+      <option value="delete">🗑 Eliminar…</option>
     </select>
     <button id="bulkApply">Aplicar</button>
     <button id="bulkClear">Quitar selección</button>
@@ -330,6 +331,25 @@ async function aplicarBloque(){
   if(!status){ alert("Elige un estado."); return; }
   const real=[...new Set([...SEL].flatMap(id=>REP_IDS[id]||[id]))];
   if(!real.length) return;
+  // ELIMINAR (Carlos, 2026-07-19): borrado definitivo con DOBLE confirmación —
+  // 1) confirm con el alcance, 2) teclear ELIMINAR. Sin papelera: borra ticket,
+  // eventos y tareas (y en flota marca done el encargo para que el sync no la reviva).
+  if(status==="delete"){
+    if(!confirm("⚠️ ELIMINAR "+real.length+" misión(es) DEFINITIVAMENTE?\nSe borran la misión, sus eventos y sus tareas. No hay papelera.")) return;
+    const palabra=prompt("Confirmación final — escribe ELIMINAR para borrar "+real.length+" misión(es):");
+    if(palabra!=="ELIMINAR"){ alert("Cancelado — no se ha borrado nada."); return; }
+    const btnD=$("bulkApply"), oldD=btnD.textContent; btnD.disabled=true; btnD.textContent="Eliminando…";
+    let okD=false, nD=0, errD="";
+    try{
+      const r=await fetch(WORKER+"/tickets/delete",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({ids:real,confirm:"ELIMINAR",author:"Misiones (bloque)"})});
+      const d=await r.json(); okD=!!(d&&d.ok); nD=d&&d.deleted||0; errD=d&&d.error||"";
+    }catch(e){}
+    btnD.disabled=false; btnD.textContent=oldD;
+    SEL.clear(); $("bulkEstado").value="";
+    await load();
+    alert(okD?("Eliminada(s) "+nD+" misión(es) definitivamente."):(errD||"No se pudo eliminar."));
+    return;
+  }
   const lbl={in_progress:"En curso",resolved:"Finalizada",open:"Reabrir"}[status]||status;
   if(!confirm("Cambiar "+real.length+" misión(es) a «"+lbl+"»?\n(se avisa UNA sola vez al grupo)")) return;
   const btn=$("bulkApply"), old=btn.textContent; btn.disabled=true; btn.textContent="Aplicando…";
@@ -1120,6 +1140,6 @@ $("list").addEventListener("click",ev=>{
 },true);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
-<script src="/yk-frame.js?v=r13"></script>
+<script src="/yk-frame.js?v=r14"></script>
 </body>
 </html>

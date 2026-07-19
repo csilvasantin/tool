@@ -12,7 +12,7 @@ var json = /* @__PURE__ */ __name((o, s = 200) => new Response(JSON.stringify(o)
 var AUTH_CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
 var WL_API = "https://admira-whitelist.csilvasantin.workers.dev";
 var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@admira.com", "agonzalez@admira.com", "jsedano@admira.com"];
-var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/equipo/machine", "/equipo/silicon"]);
+var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/equipo/machine", "/equipo/silicon"]);
 var _wl = { at: 0, set: null };
 async function whitelist() {
   if (_wl.set && Date.now() - _wl.at < 3e5) return _wl.set;
@@ -1414,6 +1414,45 @@ var index_default = {
           } catch (e) {}
         }
         return json({ ok: true, updated });
+      } catch (e) {
+        return json({ error: String(e) }, 500);
+      }
+    }
+    // ELIMINAR misiones (Carlos, 2026-07-19): borrado REAL de ticket + eventos +
+    // tareas, en bloque. La UI exige doble confirmación; aquí el cinturón es el
+    // campo confirm:"ELIMINAR" obligatorio. Si la misión venía de FLOTA, su
+    // encargo del bot-inbox se marca done (nota «eliminada») para que
+    // /fleet/sync no la resucite en el siguiente ciclo.
+    if (url.pathname === "/tickets/delete" && req.method === "POST") {
+      try {
+        const b = await req.json();
+        await ensureSchema(env);
+        const ids = Array.isArray(b.ids) ? [...new Set(b.ids.map((x) => String(x)).filter(Boolean))] : [];
+        if (!ids.length || b.confirm !== "ELIMINAR") {
+          return json({ ok: false, error: 'ids (array) y confirm:"ELIMINAR" requeridos' }, 400);
+        }
+        const author = String(b.author || "Misiones (bloque)").slice(0, 40);
+        const fleetInboxIds = [];
+        let deleted = 0;
+        for (const id of ids) {
+          const t = await env.DB.prepare("SELECT id,source FROM tickets WHERE id=?").bind(id).first();
+          if (!t) continue;
+          const iid = fleetInboxId(id);
+          if (t.source === "fleet" && iid) fleetInboxIds.push(iid);
+          await env.DB.prepare("DELETE FROM events WHERE ticket_id=?").bind(id).run();
+          await env.DB.prepare("DELETE FROM mission_tasks WHERE mission_id=?").bind(id).run();
+          await env.DB.prepare("DELETE FROM tickets WHERE id=?").bind(id).run();
+          deleted++;
+        }
+        if (fleetInboxIds.length && env.TELEGRAM) {
+          try {
+            await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
+              method: "POST", headers: { "content-type": "application/json" },
+              body: JSON.stringify({ ids: fleetInboxIds, status: "done", by: author, note: "Misi\u00f3n ELIMINADA desde yokup.com/misiones." })
+            }));
+          } catch (e) {}
+        }
+        return json({ ok: true, deleted });
       } catch (e) {
         return json({ error: String(e) }, 500);
       }
