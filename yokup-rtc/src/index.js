@@ -155,6 +155,7 @@ async function ensureSchema(env) {
   await env.DB.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_open_screen ON tickets(screen) WHERE status != 'resolved'");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_ev_tkt ON events(ticket_id)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS subs (endpoint TEXT PRIMARY KEY, created_at INTEGER)");
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS prefs (key TEXT PRIMARY KEY, value TEXT, updated_at INTEGER)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_tasks (mission_id TEXT, code TEXT, title TEXT, status TEXT DEFAULT 'pending', owner TEXT, report TEXT, updated_at INTEGER, PRIMARY KEY (mission_id, code))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_mtasks_mission ON mission_tasks(mission_id)");
   // image: URL pública de la captura de prueba del informe (R2 /media/…). La tabla
@@ -1414,6 +1415,39 @@ var index_default = {
           } catch (e) {}
         }
         return json({ ok: true, updated });
+      } catch (e) {
+        return json({ error: String(e) }, 500);
+      }
+    }
+    // PERSONALIZACIÓN del perímetro (Carlos, 2026-07-19): iconos/fotos por
+    // agente y por ordenador, editados desde AJUSTES → Panel de control.
+    // Un único doc JSON en prefs('customize'): {agents:{slug:{icon,img}},
+    // machines:{slug:{icon,img}}}. LECTURA abierta (la consumen las listas);
+    // ESCRITURA con sesión del perímetro (requireAuth inline: PROTECTED es por
+    // ruta y capa los dos métodos, y el GET debe seguir abierto).
+    if (url.pathname === "/prefs/customize" && req.method === "GET") {
+      try {
+        await ensureSchema(env);
+        const row = await env.DB.prepare("SELECT value FROM prefs WHERE key='customize'").first();
+        let c = {};
+        try { c = row && row.value ? JSON.parse(row.value) : {}; } catch (e) {}
+        return json({ ok: true, customize: c });
+      } catch (e) {
+        return json({ error: String(e) }, 500);
+      }
+    }
+    if (url.pathname === "/prefs/customize" && req.method === "POST") {
+      try {
+        const sess = await requireAuth(env, req);
+        if (!sess) return json({ error: "unauthorized" }, 401);
+        const b = await req.json();
+        const c = b && b.customize && typeof b.customize === "object" ? b.customize : null;
+        if (!c) return json({ ok: false, error: "customize (objeto) requerido" }, 400);
+        const v = JSON.stringify(c);
+        if (v.length > 1e5) return json({ ok: false, error: "customize demasiado grande" }, 413);
+        await ensureSchema(env);
+        await env.DB.prepare("INSERT INTO prefs (key,value,updated_at) VALUES ('customize',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at").bind(v, Date.now()).run();
+        return json({ ok: true });
       } catch (e) {
         return json({ error: String(e) }, 500);
       }

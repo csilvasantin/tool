@@ -332,3 +332,32 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
 .yk-set-chk{ display:flex; align-items:center; gap:8px; font-size:10.5px;
   letter-spacing:.08em; text-transform:uppercase; color:var(--yk-ink); cursor:pointer }
 .yk-set-chk input{ accent-color:var(--yk-brand) }
+
+/* --- PANEL DE CONTROL · personalización (2026-07-19) --- */
+.yk-pc{ position:fixed; inset:0; z-index:calc(var(--yk-z) + 10); background:rgba(2,8,13,.72);
+  display:flex; align-items:center; justify-content:center; padding:24px;
+  font-family:var(--yk-mono); color:var(--yk-ink) }
+.yk-pc-card{ width:min(94vw,560px); max-height:86vh; display:flex; flex-direction:column;
+  background:linear-gradient(180deg,var(--yk-bg),var(--yk-bg2));
+  border:1px solid var(--yk-line2); box-shadow:0 0 60px rgba(0,0,0,.7), inset 0 0 40px rgba(120,243,255,.03);
+  padding:18px 16px }
+.yk-pc-body{ overflow:auto; display:flex; flex-direction:column; gap:8px; padding-right:4px }
+.yk-pc-row{ display:flex; align-items:center; gap:10px; border:1px solid var(--yk-line);
+  padding:6px 10px }
+.yk-pc-vis{ width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex:0 0 40px }
+.yk-pc-img{ width:40px; height:40px; object-fit:cover; object-position:center top; border:1px solid var(--yk-line2) }
+.yk-pc-ico{ font-size:22px } .yk-pc-ico.dim{ opacity:.45 }
+.yk-pc-nm{ flex:1; font-size:11.5px; letter-spacing:.06em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.yk-pc-icoin{ width:64px; font-family:inherit; font-size:14px; text-align:center; color:var(--yk-ink);
+  background:transparent; border:1px solid var(--yk-line); padding:5px 4px }
+.yk-pc-foto,.yk-pc-quitar,.yk-pc-save,.yk-pc-close{ font-family:inherit; font-size:9.5px; letter-spacing:.1em;
+  text-transform:uppercase; background:transparent; color:var(--yk-ink); border:1px solid var(--yk-line2);
+  padding:6px 9px; cursor:pointer }
+.yk-pc-foto:hover,.yk-pc-save:hover{ border-color:var(--yk-brand); color:var(--yk-brand) }
+.yk-pc-quitar{ color:var(--yk-dim) } .yk-pc-quitar:hover{ color:#ff8866; border-color:#ff8866 }
+.yk-pc-foot{ display:flex; align-items:center; gap:10px; padding-top:12px; margin-top:10px;
+  border-top:1px solid var(--yk-line) }
+.yk-pc-msg{ flex:1; font-size:10px; letter-spacing:.06em; color:var(--yk-dim) }
+.yk-pc-save{ background:var(--yk-brand); color:#02080d; border-color:var(--yk-brand); font-weight:700 }
+.yk-pc-save:hover{ color:#02080d; filter:brightness(1.1) }
+.yk-pc-save:disabled{ opacity:.6; cursor:wait }

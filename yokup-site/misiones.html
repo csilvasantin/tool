@@ -10,7 +10,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
-<link rel="stylesheet" href="/yk-frame.css?v=r10">
+<link rel="stylesheet" href="/yk-frame.css?v=r12">
 <link rel="stylesheet" href="/yk-misiones.css?v=r19">
 <style>
 /* Segmentación dentro del raíl de opciones: apilada y a lo ancho del panel. */
@@ -441,6 +441,8 @@ async function marcarHalos(container, list){
 }
 
 async function load(){
+  // la personalización (iconos/fotos del Panel de control) llega antes del primer pintado
+  try{ await (YkMisiones.customizeReady||0); }catch(e){}
   let d; try{ const r=await fetch(WORKER+"/tickets?scope="+SCOPE,{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
   const tks=(SCOPE==="fleet") ? agrupaFlota(d.tickets||[]) : (d.tickets||[]), st=d.stats||{};
   // Índice de misiones para el picker de reasignación (equipo/agente actuales por id).
@@ -1140,6 +1142,6 @@ $("list").addEventListener("click",ev=>{
 },true);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
-<script src="/yk-frame.js?v=r14"></script>
+<script src="/yk-frame.js?v=r16"></script>
 </body>
 </html>

@@ -131,3 +131,7 @@
   border:1px solid rgba(120,243,255,.28); filter:saturate(.92) }
 .tk:hover .agava{ border-color:rgba(120,243,255,.6) }
 .who-av > span{ font-size:11px }
+
+/* --- icono/foto personalizada de máquina (Panel de control) --- */
+.machava{ width:20px; height:20px; object-fit:cover; vertical-align:-5px;
+  border:1px solid rgba(120,243,255,.28); margin-right:2px }

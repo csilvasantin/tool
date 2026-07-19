@@ -25,7 +25,7 @@
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.19.07.2026.r3";
+  var VERSION = "v.19.07.2026.r5";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
 
   // NAV DE PLATAFORMA — fuente ÚNICA del menú tras la DMZ (zona app). Las
@@ -280,6 +280,15 @@
     });
     body.appendChild(avLbl);
 
+    // PANEL DE CONTROL (Carlos, 2026-07-19): personalización de ordenadores y
+    // agentes — icono o foto por cada uno, compartida en todo el perímetro
+    // (prefs 'customize' del worker, escritura con sesión).
+    var pcBtn = el("button", "yk-set-btn yk-pc-open",
+      '<span aria-hidden="true">▣</span> PANEL DE CONTROL');
+    pcBtn.type = "button";
+    pcBtn.addEventListener("click", function () { openPanelControl(); });
+    body.appendChild(pcBtn);
+
     btn.addEventListener("click", function () {
       var open = !set.classList.contains("open");
       set.classList.toggle("open", open);
@@ -292,6 +301,124 @@
     foot.appendChild(el("div", "yk-ver",
       'yokup · perímetro de seguridad · <b>' + VERSION + '</b>'));
     return foot;
+  }
+
+  // ── PANEL DE CONTROL · personalización de ordenadores y agentes ────────────
+  // Modal cuadrático: una fila por agente y por ordenador con su visual actual,
+  // un emoji (icono) y una FOTO subible (POST /fleet/media → URL en R2). Todo se
+  // guarda en UN doc {agents:{slug:{icon,img}}, machines:{slug:{icon,img}}} vía
+  // /prefs/customize (GET abierto · POST con sesión del perímetro). Las listas
+  // (yk-misiones) lo leen al cargar: la foto pisa al avatar de /avatars, el
+  // icono pisa al emoji por defecto (👷 agente · 🖥 máquina).
+  var PC_AGENTES = ["Neo", "Morfeo", "Trinity", "Oráculo", "Smith"];
+  // espejo del canon MAQ_NOMBRE de yk-misiones.js (nombres de pantalla)
+  var PC_MAQUINAS = ["MacBookPro14", "MacBookPro16", "MacBookAir16plata", "MacBookAirPlata",
+    "MacBookAirAzul", "MacBookAirCrema", "MacBookAirRosa", "MacMini", "ASUS Zenbook", "DGX Spark", "ThinkStation PGX"];
+  function pcSlug(n) {
+    return String(n || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  }
+  function openPanelControl() {
+    if (document.getElementById("yk-pc")) return;
+    setOpen("left", false);   // el raíl fuera: el panel es un overlay enfocado
+    var wrap = el("div", "yk-pc"); wrap.id = "yk-pc";
+    var card = el("div", "yk-pc-card");
+    card.appendChild(el("div", "yk-hd", "PANEL DE CONTROL · PERSONALIZACIÓN"));
+    var bodyEl = el("div", "yk-pc-body", "Cargando personalización…");
+    card.appendChild(bodyEl);
+    var foot = el("div", "yk-pc-foot");
+    var msg = el("span", "yk-pc-msg", "");
+    var save = el("button", "yk-pc-save", "GUARDAR"); save.type = "button";
+    var close = el("button", "yk-pc-close", "CERRAR"); close.type = "button";
+    foot.appendChild(msg); foot.appendChild(save); foot.appendChild(close);
+    card.appendChild(foot);
+    wrap.appendChild(card);
+    document.body.appendChild(wrap);
+    function cerrar() { wrap.remove(); document.removeEventListener("keydown", onEsc, true); }
+    function onEsc(e) { if (e.key === "Escape") { cerrar(); e.stopPropagation(); } }
+    close.addEventListener("click", cerrar);
+    wrap.addEventListener("click", function (e) { if (e.target === wrap) cerrar(); });
+    document.addEventListener("keydown", onEsc, true);
+
+    var DATA = { agents: {}, machines: {} };
+    function visual(kind, name) {
+      var d = (DATA[kind] || {})[pcSlug(name)] || {};
+      if (d.img) return '<img class="yk-pc-img" src="' + d.img + '" alt="">';
+      if (d.icon) return '<span class="yk-pc-ico">' + d.icon + "</span>";
+      // por defecto: el avatar builtin de agente si existe; si no, el emoji canónico
+      if (kind === "agents" && { neo: 1, morfeo: 1, smith: 1 }[pcSlug(name)]) {
+        return '<img class="yk-pc-img" src="/avatars/' + pcSlug(name) + '.jpg" alt="">';
+      }
+      return '<span class="yk-pc-ico dim">' + (kind === "agents" ? "👷" : "🖥") + "</span>";
+    }
+    function fila(kind, name) {
+      var s = pcSlug(name);
+      var d = (DATA[kind] || {})[s] || {};
+      var row = el("div", "yk-pc-row");
+      row.innerHTML = '<span class="yk-pc-vis">' + visual(kind, name) + "</span>" +
+        '<b class="yk-pc-nm">' + name + "</b>";
+      var ico = document.createElement("input");
+      ico.className = "yk-pc-icoin"; ico.maxLength = 4; ico.placeholder = "emoji";
+      ico.value = d.icon || "";
+      ico.addEventListener("input", function () { set(kind, s, "icon", ico.value.trim()); });
+      var file = document.createElement("input");
+      file.type = "file"; file.accept = "image/*"; file.style.display = "none";
+      var fbtn = el("button", "yk-pc-foto", "FOTO…"); fbtn.type = "button";
+      fbtn.addEventListener("click", function () { file.click(); });
+      file.addEventListener("change", function () {
+        var f = file.files && file.files[0]; if (!f) return;
+        fbtn.textContent = "subiendo…"; fbtn.disabled = true;
+        f.arrayBuffer().then(function (buf) {
+          return window.fetch(WORKER + "/fleet/media", { method: "POST", headers: { "content-type": f.type || "image/jpeg" }, body: buf });
+        }).then(function (r) { return r.json(); }).then(function (d2) {
+          if (d2 && d2.url) { set(kind, s, "img", d2.url); refresh(row, kind, name); msg.textContent = ""; }
+          else msg.textContent = "No se pudo subir la foto.";
+        }).catch(function () { msg.textContent = "No se pudo subir la foto."; })
+          .then(function () { fbtn.textContent = "FOTO…"; fbtn.disabled = false; });
+      });
+      var quitar = el("button", "yk-pc-quitar", "SIN FOTO"); quitar.type = "button";
+      quitar.title = "quitar la foto personalizada";
+      quitar.addEventListener("click", function () { set(kind, s, "img", ""); refresh(row, kind, name); });
+      row.appendChild(ico); row.appendChild(fbtn); row.appendChild(file); row.appendChild(quitar);
+      return row;
+    }
+    function set(kind, slug, campo, valor) {
+      DATA[kind] = DATA[kind] || {};
+      DATA[kind][slug] = DATA[kind][slug] || {};
+      if (valor) DATA[kind][slug][campo] = valor; else delete DATA[kind][slug][campo];
+      if (!Object.keys(DATA[kind][slug]).length) delete DATA[kind][slug];
+    }
+    function refresh(row, kind, name) {
+      var v = row.querySelector(".yk-pc-vis"); if (v) v.innerHTML = visual(kind, name);
+    }
+    function pintar() {
+      bodyEl.innerHTML = "";
+      bodyEl.appendChild(el("div", "yk-set-sec", "Agentes"));
+      PC_AGENTES.forEach(function (n) { bodyEl.appendChild(fila("agents", n)); });
+      bodyEl.appendChild(el("div", "yk-set-sec", "Ordenadores"));
+      PC_MAQUINAS.forEach(function (n) { bodyEl.appendChild(fila("machines", n)); });
+      // refleja el emoji tecleado en el visual al vuelo
+      bodyEl.addEventListener("input", function (e) {
+        if (!e.target.classList.contains("yk-pc-icoin")) return;
+        var r = e.target.closest(".yk-pc-row"); if (!r) return;
+        var nm = r.querySelector(".yk-pc-nm").textContent;
+        var kind = PC_AGENTES.indexOf(nm) >= 0 ? "agents" : "machines";
+        refresh(r, kind, nm);
+      });
+    }
+    window.fetch(WORKER + "/prefs/customize", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { DATA = (d && d.customize) || {}; DATA.agents = DATA.agents || {}; DATA.machines = DATA.machines || {}; pintar(); })
+      .catch(function () { pintar(); });
+    save.addEventListener("click", function () {
+      save.disabled = true; msg.textContent = "Guardando…";
+      window.fetch(WORKER + "/prefs/customize", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ customize: DATA }) })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.ok) { msg.textContent = "Guardado — recargando…"; setTimeout(function () { location.reload(); }, 600); }
+          else { msg.textContent = (d && d.error) || "No se pudo guardar."; save.disabled = false; }
+        })
+        .catch(function () { msg.textContent = "No se pudo guardar."; save.disabled = false; });
+    });
   }
 
   // desplegable de PROYECTO en la barra: el proyecto activo se lee en el botón,

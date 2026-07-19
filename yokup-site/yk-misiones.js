@@ -35,16 +35,43 @@
     return String(n || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
       .toLowerCase().replace(/[^a-z0-9]/g, "");
   }
+  // PERSONALIZACIÓN compartida (AJUSTES → Panel de control): {agents:{slug:
+  // {icon,img}}, machines:{…}} desde /prefs/customize. La FOTO personalizada
+  // pisa al avatar builtin; el ICONO pisa al emoji por defecto (👷 / 🖥).
+  // customizeReady: las páginas pueden esperar antes del primer pintado.
+  var CUSTOM = { agents: {}, machines: {} };
+  var customizeReady = (function () {
+    try {
+      return window.fetch("https://yokup-rtc.csilvasantin.workers.dev/prefs/customize", { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var c = (d && d.customize) || {};
+          CUSTOM.agents = c.agents || {};
+          CUSTOM.machines = c.machines || {};
+        }).catch(function () {});
+    } catch (e) { return Promise.resolve(); }
+  })();
+
   function whoHtml(name, surface) {
     var s = avSlug(name);
+    var cu = CUSTOM.agents[s] || {};
     // Sin plataforma (agente sin runtime·host ahora mismo) → "Pendiente".
     var plat = surface ? esc(surface) : "Pendiente";
     var platCls = surface ? "agent-surface" : "agent-surface pend";
-    if (avatarOn() && AVATARES[s]) {
-      return '<span class="who who-av"><img class="agava" loading="lazy" src="/avatars/' + s + '.jpg" alt="">' +
+    // FOTO del Panel de control > avatar builtin; ICONO personalizado > 👷.
+    var img = cu.img || (AVATARES[s] ? "/avatars/" + s + ".jpg" : "");
+    if (avatarOn() && img) {
+      return '<span class="who who-av"><img class="agava" loading="lazy" src="' + esc(img) + '" alt="">' +
         "<span>" + esc(name) + '</span><small class="' + platCls + '">' + plat + "</small></span>";
     }
-    return '<span class="who"><span>👷 ' + esc(name) + '</span><small class="' + platCls + '">' + plat + "</small></span>";
+    return '<span class="who"><span>' + (cu.icon ? esc(cu.icon) : "👷") + " " + esc(name) +
+      '</span><small class="' + platCls + '">' + plat + "</small></span>";
+  }
+  // Visual de la columna ORDENADOR: foto pequeña > icono personalizado > 🖥.
+  function machVisual(maq) {
+    var cu = CUSTOM.machines[avSlug(maq)] || {};
+    if (cu.img) return '<img class="machava" loading="lazy" src="' + esc(cu.img) + '" alt="">';
+    return esc(cu.icon || "🖥");
   }
   var CHIP = { pending: "○", in_progress: "◐", done: "●" };
   var NEXT_ST = { pending: "in_progress", in_progress: "done", done: "pending" };
@@ -229,7 +256,7 @@
         '<div class="cel rtiempo">' + rz("fch") + '<span class="fch2" title="fecha de creación de la misión">📅 ' + fechaCorta(t.created_at) + "</span>" +
           (dv ? '<span class="dur' + (dv.run ? " run" : "") + '" title="' + esc(dv.tip) + '">⏱ ' + esc(dv.txt) + "</span>" : "") + "</div>" +
         // ORDENADOR (entre Fecha y Agente).
-        '<div class="cel ord">' + rz("ord") + (maq ? '<span class="mach2">🖥 ' + esc(maq) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>') + "</div>" +
+        '<div class="cel ord">' + rz("ord") + (maq ? '<span class="mach2">' + machVisual(maq) + " " + esc(maq) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>') + "</div>" +
         // Celda de AGENTE con clase `agc` (target del picker de reasignación en
         // /misiones; inocua en /incidencias, que no la cablea). Carlos, 2026-07-15.
         '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, surface) + "</div>" +
@@ -484,6 +511,7 @@
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,
     nextStatus: nextStatus, postStatus: postStatus, postPlan: postPlan,
     fetchTasks: fetchTasks, fetchAllTasks: fetchAllTasks, groupByMission: groupByMission,
-    markWorking: markWorking, fillActivity: fillActivity, esc: esc, ago: ago, slaLeft: slaLeft
+    markWorking: markWorking, fillActivity: fillActivity, esc: esc, ago: ago, slaLeft: slaLeft,
+    customizeReady: customizeReady
   };
 })();
