@@ -102,7 +102,7 @@ video{width:100%;height:100%;object-fit:cover;display:block;background:#0a1620}
       <button class="btn solid bk-confirm" id="bkConfirm" disabled>Reservar cita →</button>
     </div>
     <div class="bk-ok" id="bkOk"></div>
-    <p class="bk-note">Horario provisional: L–V, 9:00–18:00, franjas de 30 min (hora peninsular). Al reservar se abre Google Calendar con la cita e invitación al equipo; queda sujeta a confirmación.</p>
+    <p class="bk-note">Horario provisional: L–V, 8:00–20:00, franjas de 30 min (hora peninsular). Al reservar se abre Google Calendar con la cita e invitación al equipo; queda sujeta a confirmación.</p>
   </section>
 
   <div class="stage">
@@ -261,7 +261,7 @@ $("recBtn").onclick = (e)=>{
 // ---- Reservar cita · asistencia humana (Google Calendar, sin backend) -------
 (function(){
   const HUMAN_EMAIL="csilvasantin@gmail.com", TZ="Europe/Madrid";
-  const HSTART=9, HEND=18, STEP=30, MAXDAYS=10;   // provisional: L-V 9-18, 30 min
+  const HSTART=8, HEND=20, STEP=30, MAXDAYS=10;   // provisional: L-V 8-20, 30 min
   const DOW=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"], MON=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
   const calDays=$("calDays"), slotsWrap=$("slotsWrap"), slotsEl=$("slots"), okEl=$("bkOk"), confirmBtn=$("bkConfirm");
   if(!calDays) return;
