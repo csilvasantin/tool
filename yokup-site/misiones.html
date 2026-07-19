@@ -152,6 +152,16 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .bulkbar button{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:8px 13px;border-radius:8px;cursor:pointer;border:1px solid var(--line);transition:.15s}
 #bulkApply{background:var(--brand);color:#02080d;border-color:var(--brand)}#bulkApply:disabled{opacity:.6;cursor:wait}
 #bulkClear{background:transparent;color:var(--mut)}#bulkClear:hover{color:var(--brand);border-color:var(--line2)}
+/* diálogo propio de ELIMINAR (sin popups nativos) */
+.delov{position:fixed;inset:0;z-index:2147483200;background:rgba(2,8,13,.72);display:flex;align-items:center;justify-content:center;padding:24px}
+.delcard{width:min(92vw,420px);background:var(--card2,#0a1620);border:1px solid #ff8866;box-shadow:0 0 50px rgba(0,0,0,.7),0 0 24px rgba(255,136,102,.18);padding:20px 18px;font-family:var(--mono)}
+.delcard .delhd{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#ff8866;font-weight:700;margin-bottom:10px}
+.delcard p{font-size:12px;line-height:1.5;color:var(--ink);margin:0 0 16px}
+.delbtns{display:flex;gap:10px;justify-content:flex-end}
+.delbtns button{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:9px 13px;border:1px solid var(--line);background:transparent;color:var(--mut);cursor:pointer}
+.delbtns .delno:hover{color:var(--brand);border-color:var(--line2)}
+.delbtns .delsi{color:#ff8866;border-color:#ff8866}
+.delbtns .delsi:hover{background:rgba(255,136,102,.14)}
 </style>
 </head>
 <body data-yk-title="MISIONES" data-yk-rail-left="OPCIONES" data-yk-rail-right="AVANZADO" data-yk-zone="app">
@@ -331,18 +341,39 @@ function refreshBulk(el){
   if(n>0){ bar.hidden=false; $("bulkN").textContent=n+" "+(n===1?"misión seleccionada":"misiones seleccionadas"); }
   else bar.hidden=true;
 }
+// Diálogo de confirmación PROPIO para eliminar (sustituye a confirm+prompt):
+// tarjeta cuadrática con el alcance y dos botones. Resuelve true solo con
+// «ELIMINAR DEFINITIVAMENTE»; Cancelar, clic fuera o Escape → false.
+function confirmaEliminar(n){
+  return new Promise(res=>{
+    const ov=document.createElement("div"); ov.className="delov";
+    ov.innerHTML='<div class="delcard">'+
+      '<div class="delhd">⚠️ Eliminar '+n+' '+(n===1?"misión":"misiones")+'</div>'+
+      '<p>Se '+(n===1?"borra definitivamente la misión, con sus eventos y sus tareas":"borran definitivamente las misiones, con sus eventos y sus tareas")+'.<br>No hay papelera.</p>'+
+      '<div class="delbtns"><button class="delno">CANCELAR</button>'+
+      '<button class="delsi">ELIMINAR DEFINITIVAMENTE</button></div></div>';
+    document.body.appendChild(ov);
+    const fin=v=>{ ov.remove(); document.removeEventListener("keydown",esc,true); res(v); };
+    const esc=e=>{ if(e.key==="Escape"){ e.stopPropagation(); fin(false); } };
+    document.addEventListener("keydown",esc,true);
+    ov.addEventListener("click",e=>{ if(e.target===ov) fin(false); });
+    ov.querySelector(".delno").onclick=()=>fin(false);
+    ov.querySelector(".delsi").onclick=()=>fin(true);
+    ov.querySelector(".delno").focus();
+  });
+}
 async function aplicarBloque(){
   const status=$("bulkEstado").value;
   if(!status){ alert("Elige un estado."); return; }
   const real=[...new Set([...SEL].flatMap(id=>REP_IDS[id]||[id]))];
   if(!real.length) return;
-  // ELIMINAR (Carlos, 2026-07-19): borrado definitivo con DOBLE confirmación —
-  // 1) confirm con el alcance, 2) teclear ELIMINAR. Sin papelera: borra ticket,
-  // eventos y tareas (y en flota marca done el encargo para que el sync no la reviva).
+  // ELIMINAR (Carlos, 2026-07-19): borrado definitivo con un diálogo de
+  // confirmación PROPIO (cuadrático, Cancelar/Eliminar) — sin popups nativos ni
+  // teclear nada (simplificado por Carlos el mismo día). Sin papelera: borra
+  // ticket, eventos y tareas (en flota marca done el encargo para que el sync
+  // no la reviva). El cinturón confirm:"ELIMINAR" del worker lo pone el código.
   if(status==="delete"){
-    if(!confirm("⚠️ ELIMINAR "+real.length+" misión(es) DEFINITIVAMENTE?\nSe borran la misión, sus eventos y sus tareas. No hay papelera.")) return;
-    const palabra=prompt("Confirmación final — escribe ELIMINAR para borrar "+real.length+" misión(es):");
-    if(palabra!=="ELIMINAR"){ alert("Cancelado — no se ha borrado nada."); return; }
+    if(!(await confirmaEliminar(real.length))) return;
     const btnD=$("bulkApply"), oldD=btnD.textContent; btnD.disabled=true; btnD.textContent="Eliminando…";
     let okD=false, nD=0, errD="";
     try{
