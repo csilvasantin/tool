@@ -361,3 +361,8 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
 .yk-pc-save{ background:var(--yk-brand); color:#02080d; border-color:var(--yk-brand); font-weight:700 }
 .yk-pc-save:hover{ color:#02080d; filter:brightness(1.1) }
 .yk-pc-save:disabled{ opacity:.6; cursor:wait }
+
+/* --- Panel de control: fila activa (pegado) y arrastre (2026-07-19) --- */
+.yk-pc-row{ cursor:pointer }
+.yk-pc-row.sel{ border-color:var(--yk-brand); box-shadow:inset 0 0 12px rgba(120,243,255,.08) }
+.yk-pc-row.drag{ border-color:var(--yk-brand); background:rgba(120,243,255,.07) }

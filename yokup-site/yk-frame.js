@@ -25,7 +25,7 @@
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.19.07.2026.r6";
+  var VERSION = "v.19.07.2026.r7";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
 
   // NAV DE PLATAFORMA — fuente ÚNICA del menú tras la DMZ (zona app). Las
@@ -333,7 +333,11 @@
     card.appendChild(foot);
     wrap.appendChild(card);
     document.body.appendChild(wrap);
-    function cerrar() { wrap.remove(); document.removeEventListener("keydown", onEsc, true); }
+    function cerrar() {
+      wrap.remove();
+      document.removeEventListener("keydown", onEsc, true);
+      document.removeEventListener("paste", onPaste);
+    }
     function onEsc(e) { if (e.key === "Escape") { cerrar(); e.stopPropagation(); } }
     close.addEventListener("click", cerrar);
     wrap.addEventListener("click", function (e) { if (e.target === wrap) cerrar(); });
@@ -344,18 +348,40 @@
       var d = (DATA[kind] || {})[pcSlug(name)] || {};
       if (d.img) return '<img class="yk-pc-img" src="' + d.img + '" alt="">';
       if (d.icon) return '<span class="yk-pc-ico">' + d.icon + "</span>";
-      // por defecto: el avatar builtin de agente si existe; si no, el emoji canónico
-      if (kind === "agents" && { neo: 1, morfeo: 1, smith: 1 }[pcSlug(name)]) {
-        return '<img class="yk-pc-img" src="/avatars/' + pcSlug(name) + '.jpg" alt="">';
+      // por defecto, SONDEO del avatar builtin (/avatars/<slug>.jpg): si el
+      // fichero existe se ve (Trinity apareció así sin tocar listas); si 404,
+      // wireProbe lo degrada al emoji canónico. Nada hardcodeado.
+      if (kind === "agents") {
+        return '<img class="yk-pc-img yk-pc-probe" src="/avatars/' + pcSlug(name) + '.jpg" alt="">';
       }
       return '<span class="yk-pc-ico dim">' + (kind === "agents" ? "👷" : "🖥") + "</span>";
     }
+    function wireProbe(row, kind) {
+      var p = row.querySelector(".yk-pc-probe");
+      if (p) p.onerror = function () {
+        this.outerHTML = '<span class="yk-pc-ico dim">' + (kind === "agents" ? "👷" : "🖥") + "</span>";
+      };
+    }
+    // Subida COMÚN de foto (selector, arrastre o pegado) → /fleet/media → URL.
+    function subeFoto(f, kind, s, row, name) {
+      if (!f || !/^image\//.test(f.type || "")) { msg.textContent = "Eso no es una imagen."; return; }
+      msg.textContent = "Subiendo foto de " + name + "…";
+      f.arrayBuffer().then(function (buf) {
+        return window.fetch(WORKER + "/fleet/media", { method: "POST", headers: { "content-type": f.type || "image/jpeg" }, body: buf });
+      }).then(function (r) { return r.json(); }).then(function (d2) {
+        if (d2 && d2.url) { set(kind, s, "img", d2.url); refresh(row, kind, name); msg.textContent = "Foto de " + name + " lista — GUARDAR para fijarla."; }
+        else msg.textContent = "No se pudo subir la foto.";
+      }).catch(function () { msg.textContent = "No se pudo subir la foto."; });
+    }
+    var selRow = null;   // fila activa: destino del PEGADO (clic para elegirla)
     function fila(kind, name) {
       var s = pcSlug(name);
       var d = (DATA[kind] || {})[s] || {};
       var row = el("div", "yk-pc-row");
       row.innerHTML = '<span class="yk-pc-vis">' + visual(kind, name) + "</span>" +
         '<b class="yk-pc-nm">' + name + "</b>";
+      wireProbe(row, kind);
+      row.title = "clic: elegir fila (pegar con ⌘V) · también puedes ARRASTRAR una imagen aquí";
       var ico = document.createElement("input");
       ico.className = "yk-pc-icoin"; ico.maxLength = 4; ico.placeholder = "emoji";
       ico.value = d.icon || "";
@@ -363,22 +389,38 @@
       var file = document.createElement("input");
       file.type = "file"; file.accept = "image/*"; file.style.display = "none";
       var fbtn = el("button", "yk-pc-foto", "FOTO…"); fbtn.type = "button";
+      fbtn.title = "elegir fichero… o arrastra/pega una imagen sobre la fila";
       fbtn.addEventListener("click", function () { file.click(); });
       file.addEventListener("change", function () {
-        var f = file.files && file.files[0]; if (!f) return;
-        fbtn.textContent = "subiendo…"; fbtn.disabled = true;
-        f.arrayBuffer().then(function (buf) {
-          return window.fetch(WORKER + "/fleet/media", { method: "POST", headers: { "content-type": f.type || "image/jpeg" }, body: buf });
-        }).then(function (r) { return r.json(); }).then(function (d2) {
-          if (d2 && d2.url) { set(kind, s, "img", d2.url); refresh(row, kind, name); msg.textContent = ""; }
-          else msg.textContent = "No se pudo subir la foto.";
-        }).catch(function () { msg.textContent = "No se pudo subir la foto."; })
-          .then(function () { fbtn.textContent = "FOTO…"; fbtn.disabled = false; });
+        subeFoto(file.files && file.files[0], kind, s, row, name);
       });
       var quitar = el("button", "yk-pc-quitar", "SIN FOTO"); quitar.type = "button";
       quitar.title = "quitar la foto personalizada";
       quitar.addEventListener("click", function () { set(kind, s, "img", ""); refresh(row, kind, name); });
       row.appendChild(ico); row.appendChild(fbtn); row.appendChild(file); row.appendChild(quitar);
+      // FILA ACTIVA (destino del pegado): clic en cualquier hueco de la fila.
+      row.addEventListener("click", function (e) {
+        if (e.target.closest("button,input")) return;
+        if (selRow) selRow.el.classList.remove("sel");
+        selRow = { el: row, kind: kind, slug: s, name: name };
+        row.classList.add("sel");
+        msg.textContent = "Fila activa: " + name + " — pega una imagen (⌘V) o arrástrala encima.";
+      });
+      // ARRASTRAR Y SOLTAR: ficheros del Finder o imágenes arrastradas de una web.
+      row.addEventListener("dragover", function (e) { e.preventDefault(); row.classList.add("drag"); });
+      row.addEventListener("dragleave", function () { row.classList.remove("drag"); });
+      row.addEventListener("drop", function (e) {
+        e.preventDefault(); row.classList.remove("drag");
+        var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) return subeFoto(f, kind, s, row, name);
+        // imagen arrastrada desde otra web → llega como URL: se guarda directa
+        var uri = e.dataTransfer && (e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain"));
+        if (uri && /^https?:\/\//.test(uri.trim())) {
+          set(kind, s, "img", uri.trim().split("\n")[0]);
+          refresh(row, kind, name);
+          msg.textContent = "Imagen de " + name + " enlazada — GUARDAR para fijarla.";
+        }
+      });
       return row;
     }
     function set(kind, slug, campo, valor) {
@@ -388,8 +430,17 @@
       if (!Object.keys(DATA[kind][slug]).length) delete DATA[kind][slug];
     }
     function refresh(row, kind, name) {
-      var v = row.querySelector(".yk-pc-vis"); if (v) v.innerHTML = visual(kind, name);
+      var v = row.querySelector(".yk-pc-vis"); if (v) { v.innerHTML = visual(kind, name); wireProbe(row, kind); }
     }
+    // PEGAR (⌘V) una imagen del portapapeles sobre la FILA ACTIVA (clic previo).
+    function onPaste(e) {
+      var items = (e.clipboardData && e.clipboardData.files) || [];
+      if (!items.length) return;
+      if (!selRow) { msg.textContent = "Haz clic en una fila primero y vuelve a pegar."; return; }
+      e.preventDefault();
+      subeFoto(items[0], selRow.kind, selRow.slug, selRow.el, selRow.name);
+    }
+    document.addEventListener("paste", onPaste);
     function pintar() {
       bodyEl.innerHTML = "";
       bodyEl.appendChild(el("div", "yk-set-sec", "Agentes"));
