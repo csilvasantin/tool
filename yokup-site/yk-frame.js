@@ -25,7 +25,7 @@
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.19.07.2026.r7";
+  var VERSION = "v.19.07.2026.r8";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
 
   // NAV DE PLATAFORMA — fuente ÚNICA del menú tras la DMZ (zona app). Las
@@ -346,7 +346,9 @@
     var DATA = { agents: {}, machines: {} };
     function visual(kind, name) {
       var d = (DATA[kind] || {})[pcSlug(name)] || {};
-      if (d.img) return '<img class="yk-pc-img" src="' + d.img + '" alt="">';
+      // la foto personalizada TAMBIÉN sondea: si su URL está rota (404, caída),
+      // wireProbe la degrada al emoji con aviso — nunca el glifo de imagen rota.
+      if (d.img) return '<img class="yk-pc-img yk-pc-probe" src="' + d.img + '" alt="">';
       if (d.icon) return '<span class="yk-pc-ico">' + d.icon + "</span>";
       // por defecto, SONDEO del avatar builtin (/avatars/<slug>.jpg): si el
       // fichero existe se ve (Trinity apareció así sin tocar listas); si 404,
@@ -359,7 +361,8 @@
     function wireProbe(row, kind) {
       var p = row.querySelector(".yk-pc-probe");
       if (p) p.onerror = function () {
-        this.outerHTML = '<span class="yk-pc-ico dim">' + (kind === "agents" ? "👷" : "🖥") + "</span>";
+        this.outerHTML = '<span class="yk-pc-ico dim" title="foto rota o inaccesible — usa SIN FOTO para limpiarla">' +
+          (kind === "agents" ? "👷" : "🖥") + "</span>";
       };
     }
     // Subida COMÚN de foto (selector, arrastre o pegado) → /fleet/media → URL.

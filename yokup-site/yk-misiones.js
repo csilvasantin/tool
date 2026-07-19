@@ -68,7 +68,7 @@
     if (avatarOn() && agents && agents.length > 1) {
       var pics = agents.slice(0, 3).map(function (a) {
         var im = agImg(a);
-        return im ? '<img class="agava" loading="lazy" src="' + esc(im) + '" alt="" title="' + esc(a) + '">' : "";
+        return im ? '<img class="agava" loading="lazy" onerror="this.remove()" src="' + esc(im) + '" alt="" title="' + esc(a) + '">' : "";
       }).filter(Boolean);
       if (pics.length) {
         return '<span class="who who-av"><span class="agstack">' + pics.join("") + "</span>" +
@@ -78,7 +78,7 @@
     // FOTO del Panel de control > avatar builtin; ICONO personalizado > 👷.
     var img = agImg(name);
     if (avatarOn() && img) {
-      return '<span class="who who-av"><img class="agava" loading="lazy" src="' + esc(img) + '" alt="">' +
+      return '<span class="who who-av"><img class="agava" loading="lazy" onerror="this.remove()" src="' + esc(img) + '" alt="">' +
         "<span>" + esc(name) + '</span><small class="' + platCls + '">' + plat + "</small></span>";
     }
     return '<span class="who"><span>' + (cu.icon ? esc(cu.icon) : "👷") + " " + esc(name) +
@@ -87,7 +87,7 @@
   // Visual de la columna ORDENADOR: foto pequeña > icono personalizado > 🖥.
   function machVisual(maq) {
     var cu = CUSTOM.machines[avSlug(maq)] || {};
-    if (cu.img) return '<img class="machava" loading="lazy" src="' + esc(cu.img) + '" alt="">';
+    if (cu.img) return '<img class="machava" loading="lazy" onerror="this.outerHTML=\'🖥\'" src="' + esc(cu.img) + '" alt="">';
     return esc(cu.icon || "🖥");
   }
   var CHIP = { pending: "○", in_progress: "◐", done: "●" };
