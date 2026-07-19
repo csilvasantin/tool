@@ -123,3 +123,10 @@
 .node .own{flex:none;font-size:12px;opacity:.85;cursor:default;padding-top:1px}
 .tsep{height:1px;background:var(--line);margin:4px 0 10px}
 .tsep-lbl{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+
+/* --- avatares de agente en la columna AGENTE (Ajustes · Personalización) --- */
+.who-av{ display:flex; flex-direction:column; align-items:center; gap:4px; text-align:center }
+.agava{ width:46px; height:46px; object-fit:cover; object-position:center top; display:block;
+  border:1px solid rgba(120,243,255,.28); filter:saturate(.92) }
+.tk:hover .agava{ border-color:rgba(120,243,255,.6) }
+.who-av > span{ font-size:11px }

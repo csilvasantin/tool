@@ -25,7 +25,7 @@
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.19.07.2026.r1";
+  var VERSION = "v.19.07.2026.r2";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
 
   // NAV DE PLATAFORMA — fuente ÚNICA del menú tras la DMZ (zona app). Las
@@ -263,6 +263,22 @@
       location.reload();
     });
     body.appendChild(out);
+
+    // PERSONALIZACIÓN (Carlos, 2026-07-19): preferencias de las columnas del
+    // perímetro. yk_pref_avatars → avatares de agente en las listas (def. ON);
+    // lo leen yk-misiones.js y quien pinte agentes. Cambiar recarga la vista.
+    body.appendChild(el("div", "yk-set-sec", "Personalización"));
+    var avLbl = el("label", "yk-set-chk");
+    var avChk = document.createElement("input");
+    avChk.type = "checkbox";
+    try { avChk.checked = localStorage.getItem("yk_pref_avatars") !== "0"; } catch (e) { avChk.checked = true; }
+    avLbl.appendChild(avChk);
+    avLbl.appendChild(el("span", null, "Avatares de agentes"));
+    avChk.addEventListener("change", function () {
+      try { localStorage.setItem("yk_pref_avatars", avChk.checked ? "1" : "0"); } catch (e) {}
+      location.reload();
+    });
+    body.appendChild(avLbl);
 
     btn.addEventListener("click", function () {
       var open = !set.classList.contains("open");

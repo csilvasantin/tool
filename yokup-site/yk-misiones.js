@@ -24,6 +24,25 @@
   var SELECTED = "";
 
   var OWN_ICON = { principal: "🧠", subagente: "⚙️", infraagente: "📝" };
+
+  // AVATARES de agente (Ajustes → PERSONALIZACIÓN, Carlos 2026-07-19): si la
+  // persona tiene imagen en /avatars/<slug>.jpg se pinta el retrato con el
+  // nombre DEBAJO; sin imagen (o con el ajuste apagado) degrada al 👷 clásico.
+  // Pref. en localStorage yk_pref_avatars (la escribe yk-frame · AJUSTES; def. ON).
+  var AVATARES = { neo: 1, morfeo: 1, smith: 1 };
+  function avatarOn() { try { return localStorage.getItem("yk_pref_avatars") !== "0"; } catch (e) { return true; } }
+  function avSlug(n) {
+    return String(n || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/[^a-z0-9]/g, "");
+  }
+  function whoHtml(name, surface) {
+    var s = avSlug(name);
+    if (avatarOn() && AVATARES[s]) {
+      return '<span class="who who-av"><img class="agava" loading="lazy" src="/avatars/' + s + '.jpg" alt="">' +
+        "<span>" + esc(name) + '</span><small class="agent-surface">' + esc(surface) + "</small></span>";
+    }
+    return '<span class="who"><span>👷 ' + esc(name) + '</span><small class="agent-surface">' + esc(surface) + "</small></span>";
+  }
   var CHIP = { pending: "○", in_progress: "◐", done: "●" };
   var NEXT_ST = { pending: "in_progress", in_progress: "done", done: "pending" };
   var STS = ["pending", "in_progress", "done"];
@@ -210,7 +229,7 @@
         '<div class="cel ord">' + rz("ord") + (maq ? '<span class="mach2">🖥 ' + esc(maq) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>') + "</div>" +
         // Celda de AGENTE con clase `agc` (target del picker de reasignación en
         // /misiones; inocua en /incidencias, que no la cablea). Carlos, 2026-07-15.
-        '<div class="cel agc">' + rz("who") + '<span class="who"><span>👷 ' + esc(t.assignee) + '</span><small class="agent-surface">' + esc(surface) + "</small></span></div>" +
+        '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, surface) + "</div>" +
         // Estado + ABRIR apilado (abrir debajo de la insignia).
         '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"><i></i>' + stt + "</span>" +
           '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a></div>' +

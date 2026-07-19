@@ -325,3 +325,10 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
   text-transform:uppercase; color:#ff8866; background:transparent;
   border:1px solid currentColor; padding:6px 10px; cursor:pointer; text-align:center }
 .yk-set-out:hover{ background:rgba(255,136,102,.08) }
+
+/* --- AJUSTES · PERSONALIZACIÓN (2026-07-19) --- */
+.yk-set-sec{ font-size:9.5px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--yk-brand); padding-top:4px; border-top:1px solid var(--yk-line) }
+.yk-set-chk{ display:flex; align-items:center; gap:8px; font-size:10.5px;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--yk-ink); cursor:pointer }
+.yk-set-chk input{ accent-color:var(--yk-brand) }
