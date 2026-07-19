@@ -25,7 +25,7 @@
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.13.07.2026.r6";
+  var VERSION = "v.19.07.2026.r1";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
 
   // NAV DE PLATAFORMA — fuente ÚNICA del menú tras la DMZ (zona app). Las
@@ -200,6 +200,9 @@
     var railL = el("aside", "yk-rail yk-rail-left");
     railL.appendChild(el("div", "yk-hd", railLeftLabel));
     var slotL = el("div", "yk-slot"); railL.appendChild(slotL);
+    // pie del raíl OPCIONES: AJUSTES + versión, abajo del todo (Carlos, 2026-07-19).
+    // Vive en el marco, no en las páginas → idéntico en toda la zona-app.
+    railL.appendChild(buildRailFoot());
 
     var railR = el("aside", "yk-rail yk-rail-right");
     railR.appendChild(el("div", "yk-hd", railRightLabel));
@@ -234,6 +237,45 @@
 
     // --- botones del EXPERTO (fetch al worker + volcado JSON) ---
     wireExpertFetch(root);
+  }
+
+  // Pie fijo del raíl OPCIONES: AJUSTES (plegado por defecto, contenido REAL de
+  // la sesión de acceso.js) y la versión del perímetro debajo, abajo del todo.
+  function buildRailFoot() {
+    var foot = el("div", "yk-rail-foot");
+
+    var set = el("div", "yk-set");
+    var btn = el("button", "yk-set-btn",
+      '<span aria-hidden="true">⚙</span> AJUSTES <span class="yk-set-cx" aria-hidden="true">▾</span>');
+    btn.type = "button";
+    btn.setAttribute("aria-expanded", "false");
+
+    var body = el("div", "yk-set-body");
+    var email = "";
+    try { email = localStorage.getItem("yk_email") || ""; } catch (e) {}
+    body.appendChild(el("div", "yk-set-row",
+      '<span class="yk-set-k">Sesión</span><b class="yk-set-v" title="' + (email || "sesión local") + '">' +
+      (email || "sesión local") + '</b>'));
+    var out = el("button", "yk-set-out", "CERRAR SESIÓN");
+    out.type = "button";
+    out.addEventListener("click", function () {
+      try { localStorage.removeItem("yk_session"); localStorage.removeItem("yk_email"); } catch (e) {}
+      location.reload();
+    });
+    body.appendChild(out);
+
+    btn.addEventListener("click", function () {
+      var open = !set.classList.contains("open");
+      set.classList.toggle("open", open);
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    set.appendChild(btn);
+    set.appendChild(body);
+
+    foot.appendChild(set);
+    foot.appendChild(el("div", "yk-ver",
+      'yokup · perímetro de seguridad · <b>' + VERSION + '</b>'));
+    return foot;
   }
 
   // desplegable de PROYECTO en la barra: el proyecto activo se lee en el botón,

@@ -301,3 +301,27 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
   .yk-proj-nm{ display: none }
   .yk-bar{ gap:10px }
 }
+
+/* --- pie del raíl OPCIONES: AJUSTES + versión, abajo del todo (2026-07-19) --- */
+.yk-rail-left{ display:flex; flex-direction:column }
+.yk-rail-left > .yk-slot{ flex:0 0 auto }
+.yk-rail-foot{ margin-top:auto; padding-top:12px; border-top:1px solid var(--yk-line);
+  display:flex; flex-direction:column; gap:10px }
+.yk-set-btn{ width:100%; text-align:left; font-family:inherit; font-size:10.5px;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--yk-ink);
+  background:transparent; border:1px solid var(--yk-line2); padding:8px 10px;
+  cursor:pointer; display:flex; align-items:center; gap:8px }
+.yk-set-btn:hover{ border-color:var(--yk-brand); color:var(--yk-brand) }
+.yk-set-cx{ margin-left:auto; transition:transform .2s }
+.yk-set.open .yk-set-cx{ transform:rotate(180deg) }
+.yk-set-body{ display:none; flex-direction:column; gap:8px; padding:10px;
+  border:1px solid var(--yk-line); border-top:0 }
+.yk-set.open .yk-set-body{ display:flex }
+.yk-set-row{ display:flex; justify-content:space-between; gap:8px; font-size:10.5px;
+  text-transform:uppercase; letter-spacing:.08em; color:var(--yk-dim) }
+.yk-set-row .yk-set-v{ color:var(--yk-ink); text-transform:none; letter-spacing:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:60% }
+.yk-set-out{ font-family:inherit; font-size:10px; letter-spacing:.12em;
+  text-transform:uppercase; color:#ff8866; background:transparent;
+  border:1px solid currentColor; padding:6px 10px; cursor:pointer; text-align:center }
+.yk-set-out:hover{ background:rgba(255,136,102,.08) }
