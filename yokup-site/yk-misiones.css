@@ -135,3 +135,9 @@
 /* --- icono/foto personalizada de máquina (Panel de control) --- */
 .machava{ width:20px; height:20px; object-fit:cover; vertical-align:-5px;
   border:1px solid rgba(120,243,255,.28); margin-right:2px }
+
+/* --- columna AGENTE centrada + pila de retratos multi-agente (2026-07-19) --- */
+.cel.agc{ justify-content:center }
+.agstack{ display:flex; flex-direction:column; align-items:center }
+.agstack .agava{ margin-top:-30px; box-shadow:0 -2px 6px rgba(0,0,0,.55) }
+.agstack .agava:first-child{ margin-top:0 }

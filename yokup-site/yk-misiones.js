@@ -52,14 +52,31 @@
     } catch (e) { return Promise.resolve(); }
   })();
 
-  function whoHtml(name, surface) {
+  // Imagen de un agente (foto del Panel de control > avatar builtin) o "".
+  function agImg(name) {
+    var s = avSlug(name), cu = CUSTOM.agents[s] || {};
+    return cu.img || (AVATARES[s] ? "/avatars/" + s + ".jpg" : "");
+  }
+  function whoHtml(name, surface, agents) {
     var s = avSlug(name);
     var cu = CUSTOM.agents[s] || {};
     // Sin plataforma (agente sin runtime·host ahora mismo) → "Pendiente".
     var plat = surface ? esc(surface) : "Pendiente";
     var platCls = surface ? "agent-surface" : "agent-surface pend";
+    // Misión DIFUNDIDA (2-3 agentes agrupados): PILA de retratos, una imagen
+    // encima de la otra (Carlos, 2026-07-19), con el rótulo del grupo debajo.
+    if (avatarOn() && agents && agents.length > 1) {
+      var pics = agents.slice(0, 3).map(function (a) {
+        var im = agImg(a);
+        return im ? '<img class="agava" loading="lazy" src="' + esc(im) + '" alt="" title="' + esc(a) + '">' : "";
+      }).filter(Boolean);
+      if (pics.length) {
+        return '<span class="who who-av"><span class="agstack">' + pics.join("") + "</span>" +
+          "<span>" + esc(name) + '</span><small class="' + platCls + '">' + plat + "</small></span>";
+      }
+    }
     // FOTO del Panel de control > avatar builtin; ICONO personalizado > 👷.
-    var img = cu.img || (AVATARES[s] ? "/avatars/" + s + ".jpg" : "");
+    var img = agImg(name);
     if (avatarOn() && img) {
       return '<span class="who who-av"><img class="agava" loading="lazy" src="' + esc(img) + '" alt="">' +
         "<span>" + esc(name) + '</span><small class="' + platCls + '">' + plat + "</small></span>";
@@ -259,7 +276,7 @@
         '<div class="cel ord">' + rz("ord") + (maq ? '<span class="mach2">' + machVisual(maq) + " " + esc(maq) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>') + "</div>" +
         // Celda de AGENTE con clase `agc` (target del picker de reasignación en
         // /misiones; inocua en /incidencias, que no la cablea). Carlos, 2026-07-15.
-        '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, surface) + "</div>" +
+        '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, surface, t._agents) + "</div>" +
         // Estado + ABRIR apilado (abrir debajo de la insignia).
         '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"><i></i>' + stt + "</span>" +
           '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a></div>' +

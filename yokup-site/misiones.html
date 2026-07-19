@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r12">
-<link rel="stylesheet" href="/yk-misiones.css?v=r19">
+<link rel="stylesheet" href="/yk-misiones.css?v=r20">
 <style>
 /* Segmentación dentro del raíl de opciones: apilada y a lo ancho del panel. */
 .segm{display:flex;flex-direction:column;gap:8px}
@@ -34,6 +34,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .kpi[data-f]:hover{border-color:var(--line2);color:var(--ink)}
 .kpi.on{border-color:var(--brand);background:rgba(120,243,255,.08);color:var(--brand)}
 .kpi b{font-size:16px;color:var(--ink)}.kpi.a b{color:var(--mut)}.kpi.b b{color:var(--accent)}.kpi.c b{color:var(--good)}.kpi.v b{color:var(--violet)}
+.kpi.kdate{color:var(--ink);color-scheme:dark;font-family:var(--mono)}
+.kpi.kdate::-webkit-calendar-picker-indicator{cursor:pointer;filter:invert(.75) sepia(1) saturate(3) hue-rotate(150deg)}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .tab{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;border-radius:9px;border:1px solid var(--line);color:var(--mut);background:var(--card);cursor:pointer;transition:.2s}
 .tab.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
@@ -161,6 +163,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
     <button data-f="asignadas" class="kpi a"><b id="kAsig">—</b> pendientes</button>
     <button data-f="in_progress" class="kpi b"><b id="kProg">—</b> en curso</button>
     <button data-f="resolved" class="kpi c"><b id="kRes">—</b> finalizadas</button>
+    <!-- DÍA del tablero (Carlos, 2026-07-19): por defecto HOY; el selector filtra
+         misiones y contadores por su fecha de creación. -->
+    <input type="date" id="selDia" class="kpi kdate" title="Día del tablero — por defecto hoy">
   </div>
 
   <!-- Explicación PLEGADA por defecto (triangulito junto al titular): se gana
@@ -258,7 +263,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r27"></script>
+<script src="/yk-misiones.js?v=r28"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
@@ -444,7 +449,17 @@ async function load(){
   // la personalización (iconos/fotos del Panel de control) llega antes del primer pintado
   try{ await (YkMisiones.customizeReady||0); }catch(e){}
   let d; try{ const r=await fetch(WORKER+"/tickets?scope="+SCOPE,{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
-  const tks=(SCOPE==="fleet") ? agrupaFlota(d.tickets||[]) : (d.tickets||[]), st=d.stats||{};
+  let tks=(SCOPE==="fleet") ? agrupaFlota(d.tickets||[]) : (d.tickets||[]); const st=d.stats||{};
+  // DÍA del tablero (selector junto a «finalizadas», def. HOY): filtra misiones
+  // — y con ellas los contadores — por su fecha de creación en el día elegido.
+  {
+    const dia=$("selDia")&&$("selDia").value;
+    if(dia){
+      const _ms=v=>{v=+v||0;return v>4102444800?v:v*1000;};
+      const d0=new Date(dia+"T00:00:00").getTime(), d1=d0+86400000;
+      tks=tks.filter(t=>{const c=_ms(t.created_at); return c>=d0&&c<d1;});
+    }
+  }
   // Índice de misiones para el picker de reasignación (equipo/agente actuales por id).
   ROWS_BY_ID={};
   tks.forEach(t=>{ ROWS_BY_ID[t.id]={maq:YkMisiones.machineOf(t)||"",rawmaq:(t.machine||t.loc||""),agente:t.assignee||"",subject:t.subject||"",loc:t.loc||""}; });
@@ -496,6 +511,9 @@ async function load(){
   marcarHalos(el, list);     // FLT-761: halo en el previo si hay agente trabajando
   wireBulk(el, list);        // checkboxes de selección + barra de cambio de estado en bloque
 }
+// Día del tablero: HOY por defecto (zona local) y recarga al cambiar de fecha.
+(function(){ const i=$("selDia"); if(i){ const d=new Date(),p=n=>(n<10?"0":"")+n;
+  i.value=d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate()); i.onchange=load; } })();
 // Botones de la barra de acción en bloque (una sola vez).
 $("bulkApply").onclick=aplicarBloque;
 $("bulkClear").onclick=()=>{ SEL.clear(); document.querySelectorAll(".selrow").forEach(c=>c.checked=false); const sa=document.querySelector(".selall"); if(sa){sa.checked=false;sa.indeterminate=false;} refreshBulk($("list")); };
@@ -1142,6 +1160,6 @@ $("list").addEventListener("click",ev=>{
 },true);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
-<script src="/yk-frame.js?v=r16"></script>
+<script src="/yk-frame.js?v=r17"></script>
 </body>
 </html>
