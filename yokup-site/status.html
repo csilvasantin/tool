@@ -55,13 +55,13 @@
     :root{
       --bg:#03060c;
       --bg2:#060b16;
-      --cyan:#22e6ff;
-      --cyan-dim:#0a7a8c;
-      --cyan-soft:rgba(34,230,255,.14);
+      --cyan:#ff2d4f;
+      --cyan-dim:#8c1f2f;
+      --cyan-soft:rgba(255,45,79,.14);
       --amber:#ffb545;
       --text:#dfeef3;
       --text-dim:#7f97a3;
-      --grid:rgba(34,230,255,.06);
+      --grid:rgba(255,45,79,.06);
       --card:rgba(6,14,24,.92);
       --off:#3a4756;
       /* r15: anchos/alto de las barras del cuadro, redimensionables por asa
@@ -132,9 +132,9 @@
     .hdr-line{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
     /* pointer-events:auto — el header deja pasar los clics al lienzo (none en .hdr), pero
        la MARCA es un enlace real a la home y debe recuperarlos (si no, pulsarla no hacía nada). */
-    .hdr .brand{font-size:13px;letter-spacing:.32em;color:var(--cyan);text-shadow:0 0 12px rgba(34,230,255,.6);font-weight:700;white-space:nowrap;text-decoration:none;pointer-events:auto;cursor:pointer}
+    .hdr .brand{font-size:13px;letter-spacing:.32em;color:var(--cyan);text-shadow:0 0 12px rgba(255,45,79,.6);font-weight:700;white-space:nowrap;text-decoration:none;pointer-events:auto;cursor:pointer}
     .hdr .brand b{color:#fff}
-    .hdr a.brand:hover,.hdr a.brand:focus-visible{text-shadow:0 0 18px rgba(34,230,255,.9)}
+    .hdr a.brand:hover,.hdr a.brand:focus-visible{text-shadow:0 0 18px rgba(255,45,79,.9)}
     .hdr .ver{font-size:11px;letter-spacing:.18em;color:var(--cyan-dim);white-space:nowrap}
     .hdr .tag{font-size:12px;color:var(--text-dim);letter-spacing:.02em}
     .hdr .tag em{color:var(--text);font-style:normal}
@@ -152,13 +152,13 @@
     .hdr .live{
       font-size:11px;letter-spacing:.14em;color:var(--cyan);
       border:1px solid var(--cyan-dim);border-radius:20px;padding:5px 12px;
-      background:rgba(34,230,255,.05);white-space:nowrap;flex:0 0 auto;
+      background:rgba(255,45,79,.05);white-space:nowrap;flex:0 0 auto;
     }
     .hdr .live .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan);margin-right:6px;animation:pulse 2s infinite}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
     /* auto-rotation progress bar (hilo fino bajo la barra superior) */
-    #rotProg{position:fixed;top:0;left:0;height:2px;z-index:23;background:rgba(34,230,255,.7);box-shadow:0 0 6px var(--cyan);width:0;transition:opacity .3s}
+    #rotProg{position:fixed;top:0;left:0;height:2px;z-index:23;background:rgba(255,45,79,.7);box-shadow:0 0 6px var(--cyan);width:0;transition:opacity .3s}
     #rotProg.paused{opacity:.2}
 
     /* ============================================================
@@ -237,7 +237,7 @@
        la MISMA paleta del sitio — v0 calamar·cian (--cyan), v1 cangrejo·verde
        de las dudas suavizado (--duda con halo tenue), v2 pulpo·hielo (--text).
        Asignación estable por hash de máquina: mismo equipo → mismo sprite/tinte. */
-    .duda-ship.act{--duda:#22e6ff;--duda-dim:rgba(34,230,255,.45);cursor:default}
+    .duda-ship.act{--duda:#ff2d4f;--duda-dim:rgba(255,45,79,.45);cursor:default}
     .duda-ship.act.v1{--duda:#57ffa8;--duda-dim:rgba(87,255,168,.30)}
     .duda-ship.act.v2{--duda:#dfeef3;--duda-dim:rgba(223,238,243,.35)}
     /* r28: 4ª variante — NAVE NODRIZA en el ámbar de los avisos del sitio */
@@ -259,7 +259,7 @@
       position:fixed;inset:0;z-index:60;
       background:rgba(1,4,10,.95);backdrop-filter:blur(12px);
       display:flex;align-items:center;justify-content:center;padding:4vh 6vw;
-      --duda:#22e6ff;--duda-dim:rgba(34,230,255,.45);
+      --duda:#ff2d4f;--duda-dim:rgba(255,45,79,.45);
     }
     #actFicha[hidden]{display:none}
     #actFicha.v1{--duda:#57ffa8;--duda-dim:rgba(87,255,168,.30)}
@@ -270,7 +270,7 @@
       position:absolute;top:0;right:0;background:none;border:1px solid var(--duda-dim);border-radius:8px;
       color:var(--duda);font:inherit;font-size:20px;line-height:1;padding:6px 12px;cursor:pointer;
     }
-    #actFicha .af-close:hover{background:rgba(34,230,255,.08)}
+    #actFicha .af-close:hover{background:rgba(255,45,79,.08)}
     #actFicha .inv{width:min(190px,32vw);height:auto;fill:var(--duda);filter:drop-shadow(0 0 28px var(--duda-dim))}
     #actFicha .inv .f1{animation:invF1 .9s steps(1) infinite}
     #actFicha .inv .f2{animation:invF2 .9s steps(1) infinite}
@@ -423,18 +423,18 @@
       position:absolute;z-index:30;min-width:240px;max-width:320px;
       background:var(--card);border:1px solid var(--cyan-dim);border-radius:12px;
       padding:14px 16px;backdrop-filter:blur(8px);
-      box-shadow:0 8px 40px rgba(0,0,0,.6),0 0 24px rgba(34,230,255,.12);
+      box-shadow:0 8px 40px rgba(0,0,0,.6),0 0 24px rgba(255,45,79,.12);
       display:none;pointer-events:none;
     }
-    #card .cn{font-size:13px;color:var(--cyan);letter-spacing:.06em;font-weight:700;margin-bottom:2px;text-shadow:0 0 8px rgba(34,230,255,.4)}
+    #card .cn{font-size:13px;color:var(--cyan);letter-spacing:.06em;font-weight:700;margin-bottom:2px;text-shadow:0 0 8px rgba(255,45,79,.4)}
     #card .cp{font-size:11px;color:var(--text);margin-bottom:9px;word-break:break-word}
     #card .cp b{color:var(--cyan)}
     #card .row{font-size:11px;color:var(--text-dim);margin:3px 0;display:flex;gap:6px}
     #card .row .lab{color:var(--cyan-dim);min-width:56px;flex:0 0 auto}
     #card .row .val{color:var(--text);word-break:break-word}
-    #card .foco{margin-top:9px;padding-top:9px;border-top:1px solid rgba(34,230,255,.14);font-size:11px;color:var(--text);line-height:1.5;font-style:italic}
+    #card .foco{margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,45,79,.14);font-size:11px;color:var(--text);line-height:1.5;font-style:italic}
     #card .stat{display:inline-block;font-size:9px;letter-spacing:.16em;padding:2px 8px;border-radius:10px;margin-top:9px}
-    #card .stat.on{color:var(--cyan);border:1px solid var(--cyan-dim);background:rgba(34,230,255,.06)}
+    #card .stat.on{color:var(--cyan);border:1px solid var(--cyan-dim);background:rgba(255,45,79,.06)}
     #card .stat.off{color:var(--text-dim);border:1px solid var(--off)}
     /* FUERA DE CARRIL: asignación de Carlos ≠ misión reportada (ámbar) */
     #card .stat.rail{color:#ffb545;border:1px solid rgba(255,181,69,.5);background:rgba(255,181,69,.07);margin-left:6px}
@@ -443,16 +443,16 @@
     #card .card-close:hover{color:var(--cyan)}
     /* r13: HISTORIAL DEL DÍA en la ficha fijada — flechas ⌨ y botones ▲▼◀▶.
        Ámbar = viendo histórico; la barra discreta de abajo = estado vivo. */
-    #card .hist-bar{display:flex;align-items:center;gap:6px;margin-top:10px;padding-top:9px;border-top:1px solid rgba(34,230,255,.14);font-size:9px;letter-spacing:.1em;color:var(--text-dim)}
+    #card .hist-bar{display:flex;align-items:center;gap:6px;margin-top:10px;padding-top:9px;border-top:1px solid rgba(255,45,79,.14);font-size:9px;letter-spacing:.1em;color:var(--text-dim)}
     #card .hist-bar .hist-pos{margin-left:auto;color:var(--cyan-dim)}
-    #card .hist-btn{background:none;border:1px solid rgba(34,230,255,.25);border-radius:5px;color:var(--cyan-dim);font-family:inherit;font-size:10px;line-height:1;padding:3px 6px;cursor:pointer}
+    #card .hist-btn{background:none;border:1px solid rgba(255,45,79,.25);border-radius:5px;color:var(--cyan-dim);font-family:inherit;font-size:10px;line-height:1;padding:3px 6px;cursor:pointer}
     #card .hist-btn:hover,#card .hist-btn:focus-visible{color:var(--cyan);border-color:var(--cyan);outline:none}
     #card .hist-block{margin-top:9px;padding:8px 10px;border:1px solid rgba(255,181,69,.55);border-radius:8px;background:rgba(255,181,69,.06)}
     #card .hist-block .hk{font-size:9px;letter-spacing:.14em;color:var(--amber);margin-bottom:5px;display:flex;gap:6px;align-items:center}
     #card .hist-block .ht{font-size:11px;color:var(--text);line-height:1.5;word-break:break-word}
     #card.hist-on{border-color:rgba(255,181,69,.7)}
     #card.hist-pulse{animation:histPulse .3s}
-    @keyframes histPulse{0%{box-shadow:0 0 0 2px rgba(255,181,69,.8)}100%{box-shadow:0 8px 40px rgba(0,0,0,.6),0 0 24px rgba(34,230,255,.12)}}
+    @keyframes histPulse{0%{box-shadow:0 0 0 2px rgba(255,181,69,.8)}100%{box-shadow:0 8px 40px rgba(0,0,0,.6),0 0 24px rgba(255,45,79,.12)}}
     /* PROOF OF PLAY: miniatura de la última captura + badge (verde Matrix / ámbar forzado).
        max-width acota la imagen para que NUNCA rompa el layout ni cause scroll horizontal. */
     #card .pop-block{margin-top:9px;padding-top:9px;border-top:1px solid rgba(61,240,138,.18)}
@@ -472,12 +472,12 @@
     #card .stat.modo-b{color:var(--amber);border-color:rgba(255,181,69,.45)}
     #card .prompt-hint{font-size:9px;letter-spacing:.1em;color:var(--cyan);opacity:.9;animation:pulse 2.2s infinite}
     #card .promptbtn{font-family:inherit;font-size:9px;letter-spacing:.14em;padding:3px 10px;border-radius:10px;
-      background:rgba(34,230,255,.10);border:1px solid var(--cyan);color:var(--cyan);cursor:pointer;
-      text-shadow:0 0 6px rgba(34,230,255,.4)}
-    #card .promptbtn:hover,#card .promptbtn:focus-visible{background:rgba(34,230,255,.22);outline:none}
+      background:rgba(255,45,79,.10);border:1px solid var(--cyan);color:var(--cyan);cursor:pointer;
+      text-shadow:0 0 6px rgba(255,45,79,.4)}
+    #card .promptbtn:hover,#card .promptbtn:focus-visible{background:rgba(255,45,79,.22);outline:none}
     #card a.ctrlbtn{text-decoration:none;display:inline-block;margin-left:6px}
     /* Compositor de PROMPT a un agente (panel EXPERTO) */
-    .prompt-composer{margin:2px 0 12px;padding:11px 12px;border:1px solid var(--cyan);border-radius:10px;background:rgba(34,230,255,.05)}
+    .prompt-composer{margin:2px 0 12px;padding:11px 12px;border:1px solid var(--cyan);border-radius:10px;background:rgba(255,45,79,.05)}
     .prompt-composer .pc-head{font-size:10px;letter-spacing:.14em;color:var(--cyan);margin-bottom:7px;text-transform:uppercase}
     .prompt-composer .pc-to{font-size:11px;color:var(--text);margin-bottom:7px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
     .prompt-composer .pc-to b{color:var(--cyan)}
@@ -488,14 +488,14 @@
     .prompt-composer textarea{width:100%;min-height:60px;resize:vertical;font-family:inherit;font-size:11px;background:#06121f;color:var(--text);border:1px solid var(--cyan-dim);border-radius:8px;padding:8px 10px;line-height:1.5}
     .prompt-composer textarea:focus{outline:none;border-color:var(--cyan)}
     .prompt-composer .pc-actions{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
-    .prompt-composer .pc-send{font-family:inherit;font-size:10px;letter-spacing:.1em;padding:6px 14px;border-radius:8px;background:rgba(34,230,255,.12);border:1px solid var(--cyan);color:var(--cyan);cursor:pointer}
-    .prompt-composer .pc-send:hover{background:rgba(34,230,255,.24)}
+    .prompt-composer .pc-send{font-family:inherit;font-size:10px;letter-spacing:.1em;padding:6px 14px;border-radius:8px;background:rgba(255,45,79,.12);border:1px solid var(--cyan);color:var(--cyan);cursor:pointer}
+    .prompt-composer .pc-send:hover{background:rgba(255,45,79,.24)}
     .prompt-composer .pc-msg{font-size:10px;color:var(--text-dim)}
     .prompt-composer .pc-msg.ok{color:var(--cyan)}
     .prompt-composer .pc-msg.err{color:#ff8a5c}
     .prompt-composer .pc-hint{font-size:8.5px;color:var(--text-dim);margin-top:6px;letter-spacing:.04em;line-height:1.5}
     /* GESTIÓN (r8): listas con 🗑 por fila en AVANZADO */
-    #gestionBox{max-height:290px;overflow-y:auto;border:1px solid rgba(34,230,255,.14);border-radius:8px;padding:6px 8px;background:rgba(2,10,20,.5)}
+    #gestionBox{max-height:290px;overflow-y:auto;border:1px solid rgba(255,45,79,.14);border-radius:8px;padding:6px 8px;background:rgba(2,10,20,.5)}
     #gestionBox .g-sec{font-size:8.5px;letter-spacing:.16em;color:var(--cyan-dim);margin:7px 0 3px}
     #gestionBox .g-sec:first-child{margin-top:1px}
     #gestionBox .g-row{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--text);padding:2px 0}
@@ -534,22 +534,22 @@
       border:1px solid var(--cyan-dim);border-radius:9px;cursor:pointer;
       transition:color .2s,border-color .2s,box-shadow .2s,background .2s;
     }
-    .pf-tg:hover,.pf-tg:focus-visible{color:var(--cyan);border-color:var(--cyan);box-shadow:0 0 14px rgba(34,230,255,.35);outline:none}
-    .pf-tg[aria-expanded="true"]{color:#eafcff;border-color:var(--cyan);background:rgba(34,230,255,.14);box-shadow:0 0 16px rgba(34,230,255,.4)}
+    .pf-tg:hover,.pf-tg:focus-visible{color:var(--cyan);border-color:var(--cyan);box-shadow:0 0 14px rgba(255,45,79,.35);outline:none}
+    .pf-tg[aria-expanded="true"]{color:#eafcff;border-color:var(--cyan);background:rgba(255,45,79,.14);box-shadow:0 0 16px rgba(255,45,79,.4)}
     .pf-tg .lb{font-size:8px;letter-spacing:.1em;display:none}
 
     /* --- paneles colapsables (superpuestos, sin pisar la galaxia) --- */
     .pf-panel{
       position:fixed;z-index:38;background:rgba(3,8,16,.92);backdrop-filter:blur(9px);
-      border:1px solid var(--cyan-dim);box-shadow:0 0 30px rgba(34,230,255,.16),0 10px 50px rgba(0,0,0,.6);
+      border:1px solid var(--cyan-dim);box-shadow:0 0 30px rgba(255,45,79,.16),0 10px 50px rgba(0,0,0,.6);
       color:var(--text);opacity:0;visibility:hidden;transition:transform .28s cubic-bezier(.2,.8,.2,1),opacity .24s;
       pointer-events:none;
     }
     .pf-panel.open{opacity:1;visibility:visible;pointer-events:auto}
     .pf-panel h4{
       font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--cyan);
-      margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(34,230,255,.16);
-      text-shadow:0 0 8px rgba(34,230,255,.4);display:flex;align-items:center;gap:8px;
+      margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(255,45,79,.16);
+      text-shadow:0 0 8px rgba(255,45,79,.4);display:flex;align-items:center;gap:8px;
     }
     .pf-panel h4::before{content:"▸";color:var(--cyan-dim)}
     .pf-close{position:absolute;top:10px;right:12px;background:none;border:0;color:var(--cyan-dim);font-size:16px;cursor:pointer;font-family:inherit;line-height:1}
@@ -568,12 +568,12 @@
       padding:11px 12px;cursor:pointer;transition:color .2s,background .2s,border-color .2s;margin-bottom:6px;
     }
     .pf-vbtn .ic{color:var(--cyan-dim);font-size:13px}
-    .pf-vbtn:hover,.pf-vbtn:focus-visible{color:var(--text);background:rgba(34,230,255,.06);border-color:rgba(34,230,255,.18);outline:none}
-    .pf-vbtn.active{color:#eafcff;background:rgba(34,230,255,.12);border-color:var(--cyan-dim);text-shadow:0 0 8px rgba(34,230,255,.5)}
+    .pf-vbtn:hover,.pf-vbtn:focus-visible{color:var(--text);background:rgba(255,45,79,.06);border-color:rgba(255,45,79,.18);outline:none}
+    .pf-vbtn.active{color:#eafcff;background:rgba(255,45,79,.12);border-color:var(--cyan-dim);text-shadow:0 0 8px rgba(255,45,79,.5)}
     .pf-vbtn.active .ic{color:var(--cyan)}
     #panelLeft .hint{font-size:9px;color:var(--text-dim);letter-spacing:.06em;margin-top:10px;line-height:1.5}
     /* pie del riel — versión en Orbitron 700 (tecnológica + negrita) y cian pleno: legible (Carlos 2026-07-11) */
-    .pf-ver{margin-top:auto;padding-top:12px;border-top:1px solid rgba(34,230,255,.12);font-family:'Orbitron','JetBrains Mono',ui-monospace,monospace;font-weight:700;font-size:10px;letter-spacing:.08em;color:var(--cyan);white-space:nowrap}
+    .pf-ver{margin-top:auto;padding-top:12px;border-top:1px solid rgba(255,45,79,.12);font-family:'Orbitron','JetBrains Mono',ui-monospace,monospace;font-weight:700;font-size:10px;letter-spacing:.08em;color:var(--cyan);white-space:nowrap}
     /* pie del riel — bloque USUARIO (patrón menú de cuenta de Claude Code): fila
        avatar+nombre+engranaje+chevron que despliega el submenú de sesión hacia arriba;
        debajo de ella queda SOLO la versión. */
@@ -582,13 +582,13 @@
        (antes caía al pliegue del scroll y el cajón la tapaba). Fondo opaco para
        que el contenido scrolleado pase por detrás sin transparentarse. */
     .pf-user{margin-top:auto;position:sticky;bottom:-18px;z-index:3;padding-top:10px;padding-bottom:14px;
-      border-top:1px solid rgba(34,230,255,.12);background:rgba(3,8,16,.96)}
+      border-top:1px solid rgba(255,45,79,.12);background:rgba(3,8,16,.96)}
     .pf-user + .pf-ver{margin-top:0;border-top:0;padding-top:8px}
     .pf-urow{display:flex;align-items:center;gap:9px;width:100%;text-align:left;font-family:inherit;
       font-size:10.5px;letter-spacing:.08em;color:var(--text-dim);background:transparent;
       border:1px solid transparent;border-radius:8px;padding:8px 10px;cursor:pointer;
       transition:color .2s,background .2s,border-color .2s}
-    .pf-urow:hover,.pf-urow:focus-visible,.pf-urow[aria-expanded="true"]{color:var(--text);background:rgba(34,230,255,.06);border-color:rgba(34,230,255,.18);outline:none}
+    .pf-urow:hover,.pf-urow:focus-visible,.pf-urow[aria-expanded="true"]{color:var(--text);background:rgba(255,45,79,.06);border-color:rgba(255,45,79,.18);outline:none}
     .pf-uava{flex:0 0 auto;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;
       font-size:10px;font-weight:bold;color:#04121d;background:var(--cyan)}
     .pf-uname{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -600,16 +600,16 @@
     .pf-uchev{color:var(--cyan-dim);font-size:9px;transition:transform .2s}
     .pf-urow[aria-expanded="true"] .pf-uchev{transform:rotate(180deg)}
     .pf-umenu{position:absolute;left:0;right:0;bottom:calc(100% + 6px);background:#06121f;
-      border:1px solid rgba(34,230,255,.25);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.6);padding:6px;z-index:5}
+      border:1px solid rgba(255,45,79,.25);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.6);padding:6px;z-index:5}
     .pf-umenu[hidden]{display:none}
-    .pf-umail{font-size:9px;color:var(--text-dim);letter-spacing:.06em;padding:7px 9px;border-bottom:1px solid rgba(34,230,255,.12);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .pf-umail{font-size:9px;color:var(--text-dim);letter-spacing:.06em;padding:7px 9px;border-bottom:1px solid rgba(255,45,79,.12);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .pf-uitem{display:flex;align-items:center;gap:8px;width:100%;text-align:left;font-family:inherit;font-size:10px;
       letter-spacing:.06em;color:var(--text-dim);background:transparent;border:0;border-radius:7px;padding:8px 9px;cursor:pointer}
-    .pf-uitem:hover,.pf-uitem:focus-visible{color:var(--text);background:rgba(34,230,255,.08);outline:none}
+    .pf-uitem:hover,.pf-uitem:focus-visible{color:var(--text);background:rgba(255,45,79,.08);outline:none}
     .pf-uitem.out:hover{color:#ff8a8a;background:rgba(255,80,80,.08)}
     /* iconos de línea (mismo lenguaje que el menú de cuenta de Codex: stroke fino, esquinas redondas) */
     .pf-uic{flex:0 0 auto;width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-    .pf-sec{margin-top:12px;padding-top:10px;border-top:1px solid rgba(34,230,255,.12)}
+    .pf-sec{margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,45,79,.12)}
     .pf-seclabel{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--cyan-dim);margin-bottom:7px}
     .pf-fbtn{
       display:flex;align-items:center;gap:8px;width:100%;text-align:left;font-family:inherit;
@@ -618,8 +618,8 @@
       transition:color .2s,background .2s,border-color .2s;
     }
     .pf-fbtn .dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px var(--cyan);flex:0 0 auto}
-    .pf-fbtn:hover,.pf-fbtn:focus-visible{color:var(--text);background:rgba(34,230,255,.06);border-color:rgba(34,230,255,.18);outline:none}
-    .pf-fbtn.active{color:#eafcff;background:rgba(34,230,255,.12);border-color:var(--cyan-dim)}
+    .pf-fbtn:hover,.pf-fbtn:focus-visible{color:var(--text);background:rgba(255,45,79,.06);border-color:rgba(255,45,79,.18);outline:none}
+    .pf-fbtn.active{color:#eafcff;background:rgba(255,45,79,.12);border-color:var(--cyan-dim)}
 
     /* DERECHA — AVANZADO (BARRA A TODA ALTURA, misma anchura que la izquierda) */
     #panelRight{top:0;bottom:0;right:0;transform:translateX(100%);width:var(--pf-w-right);padding:74px 16px 18px;border-top:0;border-bottom:0;border-right:0;border-radius:0;overflow-y:auto}
@@ -652,7 +652,7 @@
     body.pc-open .cli-wrap,body.pc-open #cliOut,body.pc-open #panelBottom>.hint{display:none}
     #panelBottom h4{margin-bottom:9px}
     .cli-wrap{display:flex;align-items:center;gap:9px;border:1px solid var(--cyan-dim);border-radius:9px;background:rgba(1,4,10,.6);padding:0 12px}
-    .cli-wrap .ps1{color:var(--cyan);font-size:12px;flex:0 0 auto;text-shadow:0 0 8px rgba(34,230,255,.5)}
+    .cli-wrap .ps1{color:var(--cyan);font-size:12px;flex:0 0 auto;text-shadow:0 0 8px rgba(255,45,79,.5)}
     .cli-wrap input{
       flex:1;background:transparent;border:0;outline:none;color:var(--text);
       font-family:inherit;font-size:12px;padding:11px 0;letter-spacing:.03em;
@@ -673,7 +673,7 @@
     #dropOverlay .drop-inner{
       border:2px dashed var(--cyan);border-radius:16px;padding:34px 46px;
       color:var(--cyan);font-size:14px;letter-spacing:.16em;text-transform:uppercase;
-      text-shadow:0 0 12px rgba(34,230,255,.6);box-shadow:0 0 40px rgba(34,230,255,.25) inset;
+      text-shadow:0 0 12px rgba(255,45,79,.6);box-shadow:0 0 40px rgba(255,45,79,.25) inset;
       display:flex;align-items:center;gap:14px;background:rgba(3,10,20,.6);
     }
     #dropOverlay .drop-ic{font-size:26px;animation:pulse 1.6s infinite}
@@ -718,10 +718,10 @@
     #rzRight{order:1}
     .pf-rz::after{
       content:"";position:absolute;top:0;bottom:0;left:3px;width:2px;
-      background:rgba(34,230,255,.10);transition:background .2s,box-shadow .2s;
+      background:rgba(255,45,79,.10);transition:background .2s,box-shadow .2s;
     }
     .pf-rz:hover::after,.pf-rz.dragging::after{
-      background:var(--cyan);box-shadow:0 0 10px rgba(34,230,255,.55);
+      background:var(--cyan);box-shadow:0 0 10px rgba(255,45,79,.55);
     }
     #rzBottom{
       position:absolute;top:0;left:0;right:0;height:8px;
@@ -729,10 +729,10 @@
     }
     #rzBottom::after{
       content:"";position:absolute;left:0;right:0;top:3px;height:2px;
-      background:rgba(34,230,255,.10);transition:background .2s,box-shadow .2s;
+      background:rgba(255,45,79,.10);transition:background .2s,box-shadow .2s;
     }
     #rzBottom:hover::after,#rzBottom.dragging::after{
-      background:var(--cyan);box-shadow:0 0 10px rgba(34,230,255,.55);
+      background:var(--cyan);box-shadow:0 0 10px rgba(255,45,79,.55);
     }
     @media (max-width:640px){
       /* móvil: los paneles siguen siendo cajón overlay — sin redimensionado */
@@ -893,7 +893,7 @@
       <label>👾 Emulador de dudas</label>
       <div class="rowval" style="gap:7px">
         <button id="emuDudasBtn" title="Inyecta 3 dudas (client-side) con persona+máquina+proyecto REALES de la presencia para ver las naves de /dudaAgente"
-                style="flex:1;min-width:0;background:rgba(34,230,255,.08);color:var(--cyan);border:1px solid var(--cyan-dim);border-radius:6px;font:inherit;font-size:9px;letter-spacing:.08em;padding:6px 8px;cursor:pointer">Lanzar /dudaAgente (3 random)</button>
+                style="flex:1;min-width:0;background:rgba(255,45,79,.08);color:var(--cyan);border:1px solid var(--cyan-dim);border-radius:6px;font:inherit;font-size:9px;letter-spacing:.08em;padding:6px 8px;cursor:pointer">Lanzar /dudaAgente (3 random)</button>
         <button id="emuDudasClr" title="Quita las dudas emuladas (las reales no se tocan)"
                 style="flex:0 0 auto;background:transparent;color:var(--text-dim);border:1px solid var(--cyan-dim);border-radius:6px;font:inherit;font-size:9px;letter-spacing:.08em;padding:6px 8px;cursor:pointer">Limpiar</button>
       </div>
@@ -917,7 +917,7 @@
         <input type="password" id="mandoTok" placeholder="token de mando" autocomplete="off"
                style="flex:1;min-width:0;background:#06121f;color:var(--text);border:1px solid var(--cyan-dim);border-radius:6px;font:inherit;font-size:10.5px;padding:5px 7px">
         <button id="mandoBtn"
-                style="background:rgba(34,230,255,.08);color:var(--cyan);border:1px solid var(--cyan-dim);border-radius:6px;font:inherit;font-size:9px;letter-spacing:.1em;padding:5px 9px;cursor:pointer">ACTIVAR</button>
+                style="background:rgba(255,45,79,.08);color:var(--cyan);border:1px solid var(--cyan-dim);border-radius:6px;font:inherit;font-size:9px;letter-spacing:.1em;padding:5px 9px;cursor:pointer">ACTIVAR</button>
       </div>
       <div class="hint" id="mandoHint" style="font-size:8.5px;color:var(--text-dim);letter-spacing:.05em;margin-top:6px;line-height:1.5">Sin token, la página es el visor de siempre. Con mando activo: clic en un nodo (vista ordenador/agente) → ASIGNAR PROYECTO ▾.</div>
     </div>
@@ -930,7 +930,7 @@
         <input type="text" id="gpNew" placeholder="www.nuevoproyecto.com" autocomplete="off"
                style="flex:1;min-width:0;background:#06121f;color:var(--text);border:1px solid var(--cyan-dim);border-radius:6px;font:inherit;font-size:10.5px;padding:5px 7px">
         <button id="gpAdd" title="Añadir proyecto a la cartera"
-                style="background:rgba(34,230,255,.08);color:var(--cyan);border:1px solid var(--cyan-dim);border-radius:6px;font:inherit;font-size:11px;padding:4px 10px;cursor:pointer">＋</button>
+                style="background:rgba(255,45,79,.08);color:var(--cyan);border:1px solid var(--cyan-dim);border-radius:6px;font:inherit;font-size:11px;padding:4px 10px;cursor:pointer">＋</button>
       </div>
       <div class="hint" id="gestionMsg" style="font-size:8.5px;color:var(--text-dim);letter-spacing:.05em;margin-top:6px;line-height:1.5;min-height:12px">Eliminar aquí lo ve TODA la flota (se anuncia en Agora).</div>
     </div>
@@ -1899,7 +1899,7 @@
         ctx.moveTo(pj[f[0]].x, pj[f[0]].y);
         for(let s=1;s<f.length;s++) ctx.lineTo(pj[f[s]].x, pj[f[s]].y);
         ctx.closePath();
-        ctx.fillStyle=`rgba(34,230,255,${0.03+0.05*zc})`;
+        ctx.fillStyle=`rgba(255,45,79,${0.03+0.05*zc})`;
         ctx.fill();
       }
       // aristas wireframe: más brillo las frontales (z alto)
@@ -1908,9 +1908,9 @@
         const zc=(a.z+b.z)/2;                 // -1..1 aprox
         const front=(zc+1)/2;                 // 0..1
         const al=0.22+0.6*front;
-        ctx.strokeStyle=`rgba(34,230,255,${al})`;
+        ctx.strokeStyle=`rgba(255,45,79,${al})`;
         ctx.lineWidth=0.8+1.6*front;
-        ctx.shadowColor=`rgba(34,230,255,${0.4+0.4*front})`; ctx.shadowBlur=6+9*front;
+        ctx.shadowColor=`rgba(255,45,79,${0.4+0.4*front})`; ctx.shadowBlur=6+9*front;
         ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
       }
       ctx.shadowBlur=0;
@@ -1938,8 +1938,8 @@
       // ── contorno de la figura (líneas brillantes, sobre el polvo) ──
       for(const [i,j] of drawEdges){
         const a=nodes[i],b=nodes[j]; if(!a||!b) continue;
-        ctx.strokeStyle='rgba(34,230,255,.45)';
-        ctx.lineWidth=1.2; ctx.shadowColor='rgba(34,230,255,.5)'; ctx.shadowBlur=7;
+        ctx.strokeStyle='rgba(255,45,79,.45)';
+        ctx.lineWidth=1.2; ctx.shadowColor='rgba(255,45,79,.5)'; ctx.shadowBlur=7;
         ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
       }
       ctx.shadowBlur=0;
@@ -1949,7 +1949,7 @@
         const a=nodes[i],b=nodes[j];
         const alpha=Math.max(0.03, 0.28*(1-d/maxD));
         const liveBoost=(a.online||b.online)?1.6:1;
-        ctx.strokeStyle=`rgba(34,230,255,${Math.min(.4,alpha*liveBoost)})`;
+        ctx.strokeStyle=`rgba(255,45,79,${Math.min(.4,alpha*liveBoost)})`;
         ctx.lineWidth=(a.online&&b.online)?1.1:0.6;
         ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
       }
@@ -1963,7 +1963,7 @@
         const live = n.online || par.online;
         // r11: órbita PAUSADA (click) → hilo sólido y más presente; en marcha → punteado
         const frz = FROZEN.has(n.id);
-        ctx.strokeStyle = frz ? 'rgba(34,230,255,.55)' : (live ? 'rgba(34,230,255,.30)' : 'rgba(120,140,160,.16)');
+        ctx.strokeStyle = frz ? 'rgba(255,45,79,.55)' : (live ? 'rgba(255,45,79,.30)' : 'rgba(120,140,160,.16)');
         ctx.lineWidth = frz ? 1.1 : 0.7; ctx.setLineDash(frz ? [] : [2,4]);
         ctx.beginPath(); ctx.moveTo(par.x,par.y); ctx.lineTo(n.x,n.y); ctx.stroke();
       }
@@ -1995,7 +1995,7 @@
 
       // halo base (respiración suave del gradiente con el latido)
       const hg=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,r*4.5);
-      if(n.online){ hg.addColorStop(0,`rgba(34,230,255,${0.28+env*0.24})`); hg.addColorStop(1,'rgba(34,230,255,0)'); }
+      if(n.online){ hg.addColorStop(0,`rgba(255,45,79,${0.28+env*0.24})`); hg.addColorStop(1,'rgba(255,45,79,0)'); }
       else { hg.addColorStop(0,'rgba(120,140,160,0.10)'); hg.addColorStop(1,'rgba(120,140,160,0)'); }
       ctx.fillStyle=hg; ctx.beginPath(); ctx.arc(n.x,n.y,r*4.5,0,7); ctx.fill();
 
@@ -2012,7 +2012,7 @@
             const al = (1-grow)*0.5*(0.35+0.65*nodeActivity(n)); // se desvanece
             if(al>0.01){
               ctx.beginPath(); ctx.arc(n.x,n.y,rr,0,7);
-              ctx.strokeStyle=`rgba(34,230,255,${al})`;
+              ctx.strokeStyle=`rgba(255,45,79,${al})`;
               ctx.lineWidth=1.3; ctx.stroke();
             }
           }
@@ -2021,15 +2021,15 @@
 
       ctx.beginPath(); ctx.arc(n.x,n.y,r,0,7);
       ctx.fillStyle = n.online ? '#eafcff' : '#4a5866';
-      ctx.shadowColor = n.online ? 'rgba(34,230,255,.9)' : 'transparent';
+      ctx.shadowColor = n.online ? 'rgba(255,45,79,.9)' : 'transparent';
       ctx.shadowBlur = n.online ? 12+env*14 : 0;
       ctx.fill(); ctx.shadowBlur=0;
-      if(n.online){ ctx.beginPath(); ctx.arc(n.x,n.y,r*0.5,0,7); ctx.fillStyle='#22e6ff'; ctx.fill(); }
+      if(n.online){ ctx.beginPath(); ctx.arc(n.x,n.y,r*0.5,0,7); ctx.fillStyle='#ff2d4f'; ctx.fill(); }
       // r11: anillo de PAUSA sobre el nodo raíz pausado (glow leve, órbita legible)
       if(!DRAW_ACTIVE && ORBIT_PAUSED===n.id){
         ctx.beginPath(); ctx.arc(n.x,n.y,r+5,0,7);
-        ctx.strokeStyle='rgba(34,230,255,.55)'; ctx.lineWidth=1.2;
-        ctx.shadowColor='rgba(34,230,255,.5)'; ctx.shadowBlur=8; ctx.stroke(); ctx.shadowBlur=0;
+        ctx.strokeStyle='rgba(255,45,79,.55)'; ctx.lineWidth=1.2;
+        ctx.shadowColor='rgba(255,45,79,.5)'; ctx.shadowBlur=8; ctx.stroke(); ctx.shadowBlur=0;
       }
       const isHover = hover && hover.id===n.id;
       if(typeof SHOW_LABELS!=='undefined' && !SHOW_LABELS && !isHover){ continue; }
@@ -2057,11 +2057,11 @@
       LBL_BOXES.push({x:_bx, y:_by, w:_bw, h:_bh});
       ctx.textAlign='center';
       ctx.fillStyle = n.online ? (isHover?'#eafcff':'#bfe9f2') : '#6f8090';
-      ctx.shadowColor=n.online?'rgba(34,230,255,.5)':'transparent'; ctx.shadowBlur=n.online?6:0;
+      ctx.shadowColor=n.online?'rgba(255,45,79,.5)':'transparent'; ctx.shadowBlur=n.online?6:0;
       ctx.fillText(n.label, n.x, n.y+r+(isSat?11:15)*nfz);
       ctx.shadowBlur=0;
       ctx.font=Math.round(9*nfz)+'px Orbitron, monospace';
-      ctx.fillStyle = n.online? 'rgba(34,230,255,.75)':'rgba(140,160,175,.5)';
+      ctx.fillStyle = n.online? 'rgba(255,45,79,.75)':'rgba(140,160,175,.5)';
       // Vista TODO: junto al agente, su LÍNEA DE MISIÓN (r12, precedencia
       // estricta: focus fresco → asignación de mando → «Sin misión»; el
       // proyecto sticky NO cuenta — sigue visible en la ficha de detalle).
@@ -5915,9 +5915,9 @@
     .yk-bar .yk-ico{ display:none !important; }
     /* HUD propio de status, anclado a la derecha de la barra Yokup */
     .yk-status-hud{ display:flex; align-items:center; gap:12px; margin-left:auto; padding-left:12px; }
-    .yk-status-hud .yk-clock{ font-family:var(--mono,ui-monospace,SFMono-Regular,Menlo,monospace); font-size:12px; letter-spacing:.14em; color:var(--cyan,#22e6ff); font-variant-numeric:tabular-nums; text-shadow:0 0 8px rgba(34,230,255,.45); white-space:nowrap; }
+    .yk-status-hud .yk-clock{ font-family:var(--mono,ui-monospace,SFMono-Regular,Menlo,monospace); font-size:12px; letter-spacing:.14em; color:var(--cyan,#ff2d4f); font-variant-numeric:tabular-nums; text-shadow:0 0 8px rgba(255,45,79,.45); white-space:nowrap; }
     /* los contadores movidos conservan su aspecto de pastilla (fuera del scope .hdr) */
-    .yk-status-hud .live{ font-size:11px; letter-spacing:.14em; color:var(--cyan); border:1px solid var(--cyan-dim); border-radius:20px; padding:5px 12px; background:rgba(34,230,255,.05); white-space:nowrap; }
+    .yk-status-hud .live{ font-size:11px; letter-spacing:.14em; color:var(--cyan); border:1px solid var(--cyan-dim); border-radius:20px; padding:5px 12px; background:rgba(255,45,79,.05); white-space:nowrap; }
     .yk-status-hud .live .dot{ display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--cyan); box-shadow:0 0 8px var(--cyan); margin-right:6px; animation:pulse 2s infinite; }
     .yk-status-hud .live.duda{ cursor:pointer; }
     .yk-status-hud .ufo-count{ font-size:12px; color:var(--text-dim); white-space:nowrap; }
