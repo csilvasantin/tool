@@ -25,7 +25,7 @@
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.19.07.2026.r10";
+  var VERSION = "v.20.07.2026.r1";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
 
   // NAV DE PLATAFORMA — fuente ÚNICA del menú tras la DMZ (zona app). Las
@@ -444,12 +444,48 @@
       subeFoto(items[0], selRow.kind, selRow.slug, selRow.el, selRow.name);
     }
     document.addEventListener("paste", onPaste);
+    // TABLERO DE MISIONES (Carlos, 2026-07-20): columnas visibles + densidad,
+    // guardado en el mismo doc compartido (DATA.board) — se aplica en /misiones.
+    var PC_COLS = [["proyecto", "Proyecto (miniatura)"], ["fecha", "Fecha y duración"],
+      ["ordenador", "Ordenador"], ["agente", "Agente / plataforma"], ["estado", "Estado + abrir"]];
+    function seccionTablero() {
+      var frag = document.createDocumentFragment();
+      frag.appendChild(el("div", "yk-set-sec", "Tablero de misiones"));
+      DATA.board = DATA.board || {};
+      DATA.board.cols = DATA.board.cols || {};
+      PC_COLS.forEach(function (c) {
+        var lbl = el("label", "yk-set-chk");
+        var chk = document.createElement("input"); chk.type = "checkbox";
+        chk.checked = DATA.board.cols[c[0]] !== 0;   // por defecto, visible
+        chk.addEventListener("change", function () {
+          if (chk.checked) delete DATA.board.cols[c[0]]; else DATA.board.cols[c[0]] = 0;
+        });
+        lbl.appendChild(chk);
+        lbl.appendChild(el("span", null, "Columna " + c[1]));
+        frag.appendChild(lbl);
+      });
+      var dens = el("div", "yk-pc-dens");
+      dens.appendChild(el("span", "yk-set-k", "Densidad"));
+      [["comoda", "CÓMODA"], ["compacta", "COMPACTA"]].forEach(function (d) {
+        var b = el("button", "yk-pc-densb" + ((DATA.board.density || "comoda") === d[0] ? " on" : ""), d[1]);
+        b.type = "button";
+        b.addEventListener("click", function () {
+          DATA.board.density = d[0];
+          dens.querySelectorAll(".yk-pc-densb").forEach(function (x) { x.classList.remove("on"); });
+          b.classList.add("on");
+        });
+        dens.appendChild(b);
+      });
+      frag.appendChild(dens);
+      return frag;
+    }
     function pintar() {
       bodyEl.innerHTML = "";
       bodyEl.appendChild(el("div", "yk-set-sec", "Agentes"));
       PC_AGENTES.forEach(function (n) { bodyEl.appendChild(fila("agents", n)); });
       bodyEl.appendChild(el("div", "yk-set-sec", "Ordenadores"));
       PC_MAQUINAS.forEach(function (n) { bodyEl.appendChild(fila("machines", n)); });
+      bodyEl.appendChild(seccionTablero());
       // refleja el emoji tecleado en el visual al vuelo
       bodyEl.addEventListener("input", function (e) {
         if (!e.target.classList.contains("yk-pc-icoin")) return;

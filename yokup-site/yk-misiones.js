@@ -39,7 +39,7 @@
   // {icon,img}}, machines:{…}} desde /prefs/customize. La FOTO personalizada
   // pisa al avatar builtin; el ICONO pisa al emoji por defecto (👷 / 🖥).
   // customizeReady: las páginas pueden esperar antes del primer pintado.
-  var CUSTOM = { agents: {}, machines: {} };
+  var CUSTOM = { agents: {}, machines: {}, board: {} };
   var customizeReady = (function () {
     try {
       return window.fetch("https://yokup-rtc.csilvasantin.workers.dev/prefs/customize", { cache: "no-store" })
@@ -48,9 +48,13 @@
           var c = (d && d.customize) || {};
           CUSTOM.agents = c.agents || {};
           CUSTOM.machines = c.machines || {};
+          CUSTOM.board = c.board || {};
         }).catch(function () {});
     } catch (e) { return Promise.resolve(); }
   })();
+  // Preferencias del TABLERO (Panel de control → Tablero de misiones):
+  // {cols:{proyecto|fecha|ordenador|agente|estado:0|1}, density:"comoda"|"compacta"}.
+  function boardPrefs() { return CUSTOM.board || {}; }
 
   // Imagen de un agente (foto del Panel de control > avatar builtin) o "".
   function agImg(name) {
@@ -529,6 +533,6 @@
     nextStatus: nextStatus, postStatus: postStatus, postPlan: postPlan,
     fetchTasks: fetchTasks, fetchAllTasks: fetchAllTasks, groupByMission: groupByMission,
     markWorking: markWorking, fillActivity: fillActivity, esc: esc, ago: ago, slaLeft: slaLeft,
-    customizeReady: customizeReady
+    customizeReady: customizeReady, boardPrefs: boardPrefs
   };
 })();

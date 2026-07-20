@@ -10,8 +10,8 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
-<link rel="stylesheet" href="/yk-frame.css?v=r13">
-<link rel="stylesheet" href="/yk-misiones.css?v=r20">
+<link rel="stylesheet" href="/yk-frame.css?v=r14">
+<link rel="stylesheet" href="/yk-misiones.css?v=r21">
 <style>
 /* Segmentación dentro del raíl de opciones: apilada y a lo ancho del panel. */
 .segm{display:flex;flex-direction:column;gap:8px}
@@ -273,7 +273,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r29"></script>
+<script src="/yk-misiones.js?v=r30"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
@@ -535,6 +535,13 @@ async function load(){
   const sk=SORTERS[SORT.k]||SORTERS.fecha;
   list=list.slice().sort((a,b)=>{const va=sk(a),vb=sk(b);const c=va<vb?-1:(va>vb?1:0);return SORT.dir==="asc"?c:-c;});
   const el=$("list");
+  // TABLERO a medida (Panel de control → Tablero): columnas ocultas y densidad.
+  {
+    const bp=(YkMisiones.boardPrefs&&YkMisiones.boardPrefs())||{}, cols=bp.cols||{};
+    el.className="list"
+      +["proyecto","fecha","ordenador","agente","estado"].filter(c=>cols[c]===0).map(c=>" hide-"+c).join("")
+      +(bp.density==="compacta"?" dens-c":"");
+  }
   if(!list.length){ el.innerHTML=headHtml()+'<div class="empty">Sin misiones en este filtro ✓</div>'; bindHead(el); wireBulk(el,[]); return; }
   el.innerHTML=headHtml()+list.map(t=>YkMisiones.rowHtml(t)).join("");
   bindHead(el);
@@ -1191,6 +1198,6 @@ $("list").addEventListener("click",ev=>{
 },true);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
-<script src="/yk-frame.js?v=r19"></script>
+<script src="/yk-frame.js?v=r20"></script>
 </body>
 </html>

@@ -366,3 +366,10 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
 .yk-pc-row{ cursor:pointer }
 .yk-pc-row.sel{ border-color:var(--yk-brand); box-shadow:inset 0 0 12px rgba(120,243,255,.08) }
 .yk-pc-row.drag{ border-color:var(--yk-brand); background:rgba(120,243,255,.07) }
+
+/* --- Panel de control · Tablero de misiones (2026-07-20) --- */
+.yk-pc-dens{ display:flex; align-items:center; gap:8px; padding:4px 0 }
+.yk-pc-dens .yk-set-k{ font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--yk-dim); flex:1 }
+.yk-pc-densb{ font-family:inherit; font-size:9.5px; letter-spacing:.1em; background:transparent;
+  color:var(--yk-ink); border:1px solid var(--yk-line2); padding:6px 10px; cursor:pointer }
+.yk-pc-densb.on{ background:var(--yk-brand); color:#02080d; border-color:var(--yk-brand); font-weight:700 }
