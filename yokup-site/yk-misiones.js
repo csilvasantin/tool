@@ -584,6 +584,6 @@
     nextStatus: nextStatus, postStatus: postStatus, postPlan: postPlan,
     fetchTasks: fetchTasks, fetchAllTasks: fetchAllTasks, groupByMission: groupByMission,
     markWorking: markWorking, fillActivity: fillActivity, esc: esc, ago: ago, slaLeft: slaLeft,
-    customizeReady: customizeReady, boardPrefs: boardPrefs
+    customizeReady: customizeReady, boardPrefs: boardPrefs, machVisual: machVisual
   };
 })();

@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r14">
-<link rel="stylesheet" href="/yk-misiones.css?v=r22">
+<link rel="stylesheet" href="/yk-misiones.css?v=r23">
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -69,12 +69,30 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   .dec-done{font-family:var(--mono);font-size:11px;padding:7px 0 0}
   .dec-done.ok{color:var(--good,#3df08a)}
   .dec-done.exp{color:var(--mut)}
+  /* Retrato REAL del agente y foto/icono del equipo en la cabecera */
+  .dec-k{display:inline-flex;align-items:center;gap:5px}
+  .dec-av{width:18px;height:18px;border-radius:4px;object-fit:cover;object-position:center top;
+    border:1px solid rgba(120,243,255,.35);display:block}
+  .dec-k.maq img.machava{width:16px;height:16px;border-radius:3px;object-fit:cover;vertical-align:middle}
+  /* BARRA DE PROGRESO de la opción que se ejecutará: el relleno avanza con el
+     reloj — cuando llega al 100% es el momento en que el agente tira con ella. */
+  .dec-opt.rec{position:relative;overflow:hidden;--fill:0%}
+  .dec-opt.rec::before{content:"";position:absolute;inset:0 auto 0 0;width:var(--fill);
+    background:linear-gradient(90deg,rgba(255,181,69,.05),rgba(255,181,69,.22));
+    border-right:2px solid var(--warn,#ffb545);transition:width 1s linear;pointer-events:none;z-index:0}
+  .dec-opt.rec > *{position:relative;z-index:1}
+  .dec.urge .dec-opt.rec::before{background:linear-gradient(90deg,rgba(255,107,107,.08),rgba(255,107,107,.3));
+    border-right-color:#ff6b6b}
+  /* triangulito del titular: la explicación va plegada (más sitio para tareas) */
+  .tgl{font-family:var(--mono);font-size:13px;line-height:1;color:var(--mut);background:transparent;
+    border:1px solid var(--line);border-radius:6px;padding:3px 7px;cursor:pointer;vertical-align:middle;margin-left:6px}
+  .tgl:hover{color:var(--brand);border-color:var(--brand)}
 </style>
 </head>
 <body data-yk-title="TAREAS" data-yk-zone="app">
 <div class="wrap">
-  <h1>Tareas</h1>
-  <p class="sub">Los pasos en que se descompone cada misión: <b>a/b/c</b> con hasta 3 subtareas por paso (máx 9). Chips clicables ○◐● para avanzar estado; ⚙️ ejecutan los subagentes, 📝 reportan los infraagentes. Agrupado por misión, lo más reciente primero.</p>
+  <h1>Tareas <button id="introTgl" class="tgl" title="desplegar/plegar la explicación" aria-expanded="false">▸</button></h1>
+  <p class="sub" id="intro" hidden>Los pasos en que se descompone cada misión: <b>a/b/c</b> con hasta 3 subtareas por paso (máx 9). Chips clicables ○◐● para avanzar estado; ⚙️ ejecutan los subagentes, 📝 reportan los infraagentes. Agrupado por misión, lo más reciente primero.</p>
 
   <!-- ═══ RELOJES DE DECISIÓN (Carlos, 2026-07-21) ═══════════════════════════
        Los equipos de silicio publican aquí lo que tienen pendiente de decidir:
@@ -105,7 +123,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa «misiones JSON» para volcar los datos crudos del worker.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r32"></script>
+<script src="/yk-misiones.js?v=r33"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 const $=id=>document.getElementById(id);
@@ -195,6 +213,7 @@ $("tfDate").onchange=()=>{
 load(); setInterval(load,15000);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
+<script src="/yk-avatar.js?v=r2"></script>
 <script src="/yk-frame.js?v=r20"></script>
 <script>
 /* ═══ RELOJES DE DECISIÓN ═══════════════════════════════════════════════════
@@ -206,6 +225,18 @@ const DECS_API = WORKER + "/decisions";
 let DECS = [];
 function decMMSS(s){ s=Math.max(0,s|0); const m=(s/60)|0; const r=s%60; return m+":"+(r<10?"0":"")+r; }
 function decEsc(x){ return String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c])); }
+// Icono o FOTO real del equipo (personalización compartida del Panel de control)
+function decMaqIco(maq){
+  try{
+    if(window.YkMisiones && YkMisiones.machVisual) return YkMisiones.machVisual(maq)+" ";
+  }catch(e){}
+  return "🖥 ";
+}
+// % de reloj consumido → cuánto se ha rellenado la opción que se ejecutará
+function decPct(d){
+  const total=Math.max(1,Math.round(((d.deadline||0)-(d.created_at||0))/1000));
+  return Math.max(0, Math.min(100, Math.round((1-(d.secondsLeft/total))*100)));
+}
 function decCard(d){
   const urge = d.status==="pending" && d.secondsLeft<=60;
   const rec = +d.recommended||0;
@@ -216,13 +247,16 @@ function decCard(d){
     cuerpo = '<div class="dec-done exp">⏱ sin respuesta — el agente siguió con la recomendada: <b>'+decEsc(d.options[rec]||"")+'</b></div>';
   } else {
     cuerpo = '<div class="dec-opts">'+d.options.map((o,i)=>
-      '<button class="dec-opt'+(i===rec?' rec':'')+'" data-dec="'+decEsc(d.id)+'" data-i="'+i+'">'+
+      '<button class="dec-opt'+(i===rec?' rec':'')+'" data-dec="'+decEsc(d.id)+'" data-i="'+i+'"'+
+      (i===rec?' data-fill="'+decEsc(d.id)+'" style="--fill:'+decPct(d)+'%"':'')+'>'+
       '<span class="n">'+(i===rec?'★':(i+1))+'</span><span>'+decEsc(o)+'</span></button>').join('')+'</div>';
   }
+  const av = (window.ykAvatar && ykAvatar.img) ? ykAvatar.img(d.agent) : "";
+  const maqIco = decMaqIco(d.machine);
   return '<div class="dec'+(urge?' urge':'')+'" data-decid="'+decEsc(d.id)+'">'+
     '<div class="dec-top">'+
-      '<span class="dec-k">🖥 '+decEsc(d.machine||"—")+'</span>'+
-      '<span class="dec-k ag">👷 '+decEsc(d.agent||"—")+'</span>'+
+      '<span class="dec-k maq">'+maqIco+decEsc(d.machine||"—")+'</span>'+
+      '<span class="dec-k ag">'+(av?'<img class="dec-av" src="'+decEsc(av)+'" alt="" onerror="this.remove()">':'👷 ')+decEsc(d.agent||"—")+'</span>'+
       '<span class="dec-k sur">'+decEsc((d.surface||"").toUpperCase()==="CLI"?"⌨ CLI":"🖥 Desktop App")+'</span>'+
       (d.status==="pending"?'<span class="dec-clock" data-clock="'+decEsc(d.id)+'">'+decMMSS(d.secondsLeft)+'</span>':'')+
     '</div>'+
@@ -249,7 +283,9 @@ setInterval(()=>{
   DECS.forEach(d=>{ if(d.status==="pending"){ d.secondsLeft=Math.max(0,d.secondsLeft-1);
     const el=document.querySelector('[data-clock="'+d.id+'"]');
     if(el){ el.textContent=decMMSS(d.secondsLeft);
-      const card=el.closest(".dec"); if(card) card.classList.toggle("urge", d.secondsLeft<=60); }
+      const card=el.closest(".dec"); if(card) card.classList.toggle("urge", d.secondsLeft<=60);
+      const bar=document.querySelector('[data-fill="'+d.id+'"]');
+      if(bar) bar.style.setProperty("--fill", decPct(d)+"%"); }
     if(d.secondsLeft===0) cambio=true; } });
   if(cambio) loadDecs();   // al vencer, refresca para reflejar el desenlace
 },1000);
@@ -264,6 +300,11 @@ document.addEventListener("click", async e=>{
   }catch(err){}
   loadDecs();
 });
+// triangulito del titular: explicación plegada por defecto (Carlos, 2026-07-21)
+(function(){ const t=document.getElementById("introTgl"), p=document.getElementById("intro");
+  if(t&&p) t.onclick=()=>{ const abierto=p.hidden; p.hidden=!abierto;
+    t.textContent=abierto?"▾":"▸"; t.setAttribute("aria-expanded",String(abierto)); }; })();
+
 loadDecs(); setInterval(loadDecs, 15000);
 
 </script>
