@@ -160,3 +160,21 @@
 .list.dens-c .who-av > span{font-size:10px}
 .list.dens-c .badge{font-size:9px;padding:3px 8px}
 .list.dens-c .tkopen{font-size:9px}
+
+/* --- CAJÓN DE DETALLE en el raíl derecho (Carlos, 2026-07-21) ---
+   La misión seleccionada muestra su ficha ENCIMA del árbol abc: asunto, estado,
+   equipo/agente, la captura de prueba y el informe. Evita saltar a /ticket. */
+.mdet{display:flex;flex-direction:column;gap:7px;padding-bottom:11px;margin-bottom:11px;
+  border-bottom:1px solid var(--line,rgba(120,243,255,.14))}
+.mdet-t{font-size:12.5px;line-height:1.32;color:var(--ink,#dff8ff);font-weight:600}
+.mdet-m{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.mdet-k{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--mut);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.mdet-img{width:100%;border-radius:6px;border:1px solid var(--line2);display:block}
+.mdet-inf{font-size:10.5px;line-height:1.45;color:var(--ink,#dff8ff);
+  background:rgba(120,243,255,.05);border-left:2px solid var(--brand,#78f3ff);
+  padding:7px 9px;max-height:150px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.mdet-inf .dim{color:var(--mut)}
+.mdet-open{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--brand,#78f3ff);text-decoration:none;align-self:flex-start}
+.mdet-open:hover{text-decoration:underline}

@@ -22,6 +22,12 @@
 
   var CFG = { worker: "", treeId: "taskTree", lsKey: "yk_mission" };
   var SELECTED = "";
+  // CAJÓN DE DETALLE (Carlos, 2026-07-21): al seleccionar una misión, el raíl
+  // derecho deja de ser solo el árbol abc y pasa a ser la ficha completa —
+  // asunto, equipo/agente, estado, captura e informe — para no tener que saltar
+  // a /ticket y perder el tablero. La ficha se cachea al pintar la fila (sin
+  // fetch extra); el informe se pide a /ticket sólo al abrir el cajón.
+  var MIS_CACHE = {};
 
   var OWN_ICON = { principal: "🧠", subagente: "⚙️", infraagente: "📝" };
 
@@ -238,6 +244,7 @@
     return { flag: m[1].trim(), limpio: String(subject).slice(m[0].length) };
   }
   function rowHtml(t) {
+    MIS_CACHE[t.id] = t;   // cajón de detalle: la ficha ya viene con la lista, sin fetch extra
     var est = estadoDe(t);
     var sb = est.c, stt = est.l;
     var maq = machineOf(t);
@@ -492,17 +499,61 @@
     return window.fetch(CFG.worker + "/mission/" + encodeURIComponent(id) + "/plan", { method: "POST" }).catch(function () {});
   }
 
+  // Ficha del cajón: cabecera con asunto, equipo/agente, estado, captura y hueco
+  // para el informe (que llega asíncrono de /ticket). Todo con lo ya cargado.
+  function detalleHtml(id) {
+    var t = MIS_CACHE[id];
+    if (!t) return "";
+    var est = estadoDe(t), maq = machineOf(t);
+    var img = t.proof_image || t.live_shot || "";
+    var agentes = (t._agents && t._agents.length) ? t._agents.join(" · ") : (t.assignee || "sin agente");
+    return '<div class="mdet">' +
+      '<div class="mdet-t">' + esc(prioMarca(t.subject).limpio) + "</div>" +
+      '<div class="mdet-m"><span class="badge ' + est.c + '"><i></i>' + est.l + "</span>" +
+        (maq ? '<span class="mdet-k">🖥 ' + esc(maq) + "</span>" : "") +
+        '<span class="mdet-k">👷 ' + esc(agentes) + "</span></div>" +
+      (img ? '<img class="mdet-img" loading="lazy" onerror="this.remove()" src="' + esc(img) + '" alt="prueba del trabajo">' : "") +
+      '<div class="mdet-inf" data-inf>· cargando informe…</div>' +
+      '<a class="mdet-open" href="/ticket?id=' + encodeURIComponent(id) + '">ficha completa e historial →</a>' +
+      "</div>";
+  }
+  // Informe: último evento con texto de /ticket (endpoint con sesión). Falla en
+  // silencio — el cajón sigue siendo útil sin él.
+  function fillInforme(id) {
+    var box = document.getElementById(CFG.treeId); if (!box) return;
+    var slot = box.querySelector("[data-inf]"); if (!slot) return;
+    window.fetch(CFG.worker + "/ticket?id=" + encodeURIComponent(id), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (SELECTED !== id) return;                       // cambió la selección mientras cargaba
+        var ev = (d && d.events) || [];
+        var inf = ev.filter(function (e) { return e && e.text && /informe|hecha|done|resuelt/i.test((e.kind || "") + " " + e.text); }).pop()
+               || ev.filter(function (e) { return e && e.text; }).pop();
+        slot.innerHTML = inf ? ('<b>' + esc(inf.author || "informe") + "</b> · " + esc(String(inf.text).slice(0, 400)))
+                             : '<span class="dim">sin informe todavía</span>';
+      })
+      .catch(function () { if (slot) slot.innerHTML = '<span class="dim">informe no disponible (¿sesión caducada?)</span>'; });
+  }
   function renderTaskTree(id) {
     var box = document.getElementById(CFG.treeId);
     if (!box) return;
     if (!id) {
-      box.innerHTML = '<div class="empty2">Selecciona una <b>misión</b> en la lista para ver y planificar sus <b>tareas</b>.</div>';
+      box.innerHTML = '<div class="empty2">Selecciona una <b>misión</b> en la lista para ver su <b>ficha</b> y sus <b>tareas</b>.</div>';
       return;
     }
+    // 1) LA FICHA VA PRIMERO y SIN esperar a nada: sus datos ya vienen con la
+    //    lista. Antes todo el cajón colgaba del fetch de tareas — si ese fetch
+    //    tardaba (o esperaba sesión), no se veía NADA. Ahora el detalle es
+    //    instantáneo y el árbol se rellena cuando llega.
+    box.innerHTML = detalleHtml(id) + '<div id="ykTreePart"><div class="empty2">· cargando tareas…</div></div>';
+    fillInforme(id);
+    var part = function () { return document.getElementById("ykTreePart"); };
     fetchTasks(id).then(function (tasks) {
+      if (SELECTED !== id) return;                      // cambió la selección mientras cargaba
+      var p = part(); if (!p) return;
       var header = '<div class="thd"><span class="tmid" title="Misión activa">🎯 ' + esc(id) + '</span><span class="tcount" title="subtareas definidas / máx 9">' + subCount(tasks) + "/9</span></div>";
       if (!tasks.length) {
-        box.innerHTML = header + '<div class="empty2">Esta misión aún no tiene plan de tareas.</div><button class="propose" id="ykProposeBtn">🧠 Proponer plan (IA)</button>';
+        p.innerHTML = header + '<div class="empty2">Esta misión aún no tiene plan de tareas.</div><button class="propose" id="ykProposeBtn">🧠 Proponer plan (IA)</button>';
         var pb = document.getElementById("ykProposeBtn");
         if (pb) pb.onclick = function () {
           pb.disabled = true; pb.textContent = "🧠 Proponiendo plan…";
@@ -510,15 +561,15 @@
         };
         return;
       }
-      box.innerHTML = header + stepsHtml(tasks);
-      box.querySelectorAll(".chip").forEach(function (ch) {
+      p.innerHTML = header + stepsHtml(tasks);
+      p.querySelectorAll(".chip").forEach(function (ch) {
         ch.onclick = function () {
           var cur = STS.find(function (s) { return ch.classList.contains(s); }) || "pending";
           postStatus(id, ch.dataset.code, nextStatus(cur)).then(function () { renderTaskTree(id); });
         };
       });
     }).catch(function () {
-      box.innerHTML = '<div class="empty2">No se pudieron cargar las tareas de esta misión.</div>';
+      var p = part(); if (p) p.innerHTML = '<div class="empty2">No se pudieron cargar las tareas de esta misión.</div>';
     });
   }
   function refreshTree() {

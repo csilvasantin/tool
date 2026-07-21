@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r14">
-<link rel="stylesheet" href="/yk-misiones.css?v=r21">
+<link rel="stylesheet" href="/yk-misiones.css?v=r22">
 <style>
 /* Segmentación dentro del raíl de opciones: apilada y a lo ancho del panel. */
 .segm{display:flex;flex-direction:column;gap:8px}
@@ -238,14 +238,17 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
     <button class="tab" data-f="resolved" aria-pressed="false">Finalizadas</button>
     <button class="tab" data-f="todas" aria-pressed="false">Todas</button>
   </div>
+  <!-- CAJÓN de la misión seleccionada: ficha + informe + árbol abc. Va ARRIBA
+       del resumen de flota (Carlos, 2026-07-21): al pinchar una misión su
+       detalle debe verse sin hacer scroll en el raíl. -->
+  <div class="tree" id="taskTree" data-yk-slot="right">
+    <div class="empty2">Selecciona una <b>misión</b> en la lista para ver y planificar sus <b>tareas</b>.</div>
+  </div>
   <!-- MODO AVANZADO: resumen de TODA la flota AdmiraNeXT — qué hace cada máquina
-       y sus misiones activas (Carlos, 2026-07-16). Encima del árbol de tareas. -->
+       y sus misiones activas (Carlos, 2026-07-16). Debajo del cajón de la misión seleccionada. -->
   <div class="flota" id="flota" data-yk-slot="right">
     <div class="flota-hd">🛰 Flota · qué hace cada máquina <span class="flota-cnt" id="flotaCnt"></span></div>
     <div class="flota-list" id="flotaList"><div class="empty2">Cargando flota…</div></div>
-  </div>
-  <div class="tree" id="taskTree" data-yk-slot="right">
-    <div class="empty2">Selecciona una <b>misión</b> en la lista para ver y planificar sus <b>tareas</b>.</div>
   </div>
 
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
@@ -273,7 +276,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r30"></script>
+<script src="/yk-misiones.js?v=r32"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
