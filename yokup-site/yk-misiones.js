@@ -13,7 +13,7 @@
  *   YkMisiones.bindRows(container)        // click=seleccionar (salvo «abrir →»)
  *   YkMisiones.refreshTree()              // repinta el árbol de la selección
  *   YkMisiones.selected()                 // id de la misión activa
- *   YkMisiones.stepsHtml(tasks)           // árbol abc/123 (para vistas globales)
+ *   YkMisiones.stepsHtml(tasks)           // árbol a…h/123 (para vistas globales)
  *   YkMisiones.subCount(tasks)            // subtareas definidas (contador n/24)
  *   YkMisiones.nextStatus(cur) / postStatus(id, code, status)
  * ==========================================================================*/
@@ -374,7 +374,7 @@
     renderTaskTree(id);
   }
 
-  // ------- árbol de TAREAS abc/123 -------
+  // ------- árbol de TAREAS a…h/123 (jornada completa: 8×3) -------
   function taskNode(t, isSub) {
     var own = OWN_ICON[t.owner] || "⚙️";
     return '<div class="node ' + (isSub ? "sub " : "") + esc(t.status) + '" data-code="' + esc(t.code) + '">' +
@@ -384,13 +384,15 @@
       '<span class="own" title="' + esc(t.owner || "") + '">' + own + "</span></div>";
   }
 
-  // html de los pasos a/b/c con sus subtareas (sin cabecera): reutilizable en
-  // el raíl de una misión y en la vista global /tareas.
+  // html de los 8 pasos a…h con sus subtareas (sin cabecera): reutilizable en
+  // el raíl de una misión y en la vista global /tareas. OJO: aquí vivía el
+  // ÚLTIMO tope del modelo de 3 pasos — el worker ya servía a…h y esta lista
+  // pintaba sólo abc, así que d…h desaparecían en silencio (Carlos, 21-07-2026).
   function stepsHtml(tasks) {
     var byCode = {};
     tasks.forEach(function (t) { byCode[t.code] = t; });
     var html = "";
-    ["a", "b", "c"].forEach(function (c) {
+    ["a", "b", "c", "d", "e", "f", "g", "h"].forEach(function (c) {
       if (!byCode[c] && !tasks.some(function (t) { return t.code[0] === c; })) return;
       html += '<div class="step">';
       if (byCode[c]) html += taskNode(byCode[c], false);
