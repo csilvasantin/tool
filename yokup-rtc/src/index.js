@@ -683,7 +683,10 @@ __name(listTickets, "listTickets");
 var FLEET_API = "https://admira-fleet.csilvasantin.workers.dev";
 var FLEET_INBOX = "https://admira-telegram.csilvasantin.workers.dev/api/public/inbox?limit=200";
 // Estado del encargo → estado de la misión. 'ack' es acuse de recibo, no avance.
-var FLEET_ST = { pending: "open", ack: "open", in_progress: "in_progress", done: "resolved" };
+// CANCELADA (Carlos, 21-jul-2026): faltaban las palabras para decir «esto no se va a
+// hacer». Sin este estado, retirar una misión obligaba a fingir que se hizo (done) — y el
+// guardarraíl de prueba la degradaba a in_progress, que miente más que dejarla abierta.
+var FLEET_ST = { pending: "open", ack: "open", in_progress: "in_progress", done: "resolved", cancelled: "cancelled" };
 // La captura pasa a ser contrato de cierre desde este despliegue. Las misiones
 // históricas terminadas antes no se reabren: no existe forma honesta de fabricar
 // hoy un pantallazo retroactivo de aquel trabajo.
@@ -772,6 +775,8 @@ async function fleetSync(env) {
     // Un DONE del agente no basta: Yokup sólo finaliza cuando el cierre incluye
     // un pantallazo real del trabajo. El bot puede haber terminado, pero la misión
     // permanece EN CURSO hasta que /fleet/informe registre proof_image.
+    // Cancelar no es fingir que se hizo: es reconocer que no se hará. Por eso NO pide prueba
+    // (solo la pide "resolved", que sí afirma trabajo realizado).
     const proofRequired = st === "resolved" && epochMs(it.done_at, now) >= PROOF_REQUIRED_AFTER;
     if (proofRequired && !(prev && (prev.proof_image || await hasMissionProof(env, id)))) {
       st = "in_progress";
@@ -784,7 +789,7 @@ async function fleetSync(env) {
       // (la desktop app cierra en segundos, ANTES de que el cron de 2 min la pille
       // activa) llega ya 'resolved' y SÍ debe nacer, o nunca aparecería en /misiones.
       // Umbral: solo saltamos las cerradas hace más de 6 h.
-      if (st === "resolved" && (now - epochMs(it.done_at, ts)) > 6 * 3600 * 1e3) continue;
+      if ((st === "resolved" || st === "cancelled") && (now - epochMs(it.done_at, ts)) > 6 * 3600 * 1e3) continue;
       await env.DB.prepare(
         "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at,resolved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(
