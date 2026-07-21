@@ -936,6 +936,9 @@ __name(fleetPushStatus, "fleetPushStatus");
 async function fleetReconcileMission(env, mid) {
   const t = await env.DB.prepare("SELECT id,source,status,assignee,loc FROM tickets WHERE id=?").bind(mid).first();
   if (!t || t.source !== "fleet") return null;
+  // Una CANCELADA no la revive el reconciliador por árbol (sus subtareas quedan
+  // 'pending' y recalcularían 'open'). Cancelar es definitivo salvo reabrir manual.
+  if (t.status === "cancelled") return { mission: mid, status: "cancelled" };
   const tasks = await listMissionTasks(env, mid);
   if (!tasks.length) return null;
   const allDone = tasks.every((x) => x.status === "done");
@@ -977,6 +980,7 @@ async function fleetReconcileAll(env) {
   const changed = [];
   for (const r of results || []) {
     if (!r.total) continue;
+    if (r.status === "cancelled") continue;   // el barrido no revive una cancelada
     const allDone = r.done === r.total;
     const proof = allDone ? await hasMissionProof(env, r.id) : false;
     const next = allDone && proof ? "resolved" : r.started > 0 || allDone ? "in_progress" : "open";
