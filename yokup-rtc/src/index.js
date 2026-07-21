@@ -161,6 +161,11 @@ async function ensureSchema(env) {
   // Si Carlos no elige antes del deadline, el agente tira con la recomendada.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS decisions (id TEXT PRIMARY KEY, machine TEXT, agent TEXT, surface TEXT, question TEXT, options TEXT, recommended INTEGER DEFAULT 0, status TEXT DEFAULT 'pending', chosen INTEGER, chosen_by TEXT, created_at INTEGER, deadline INTEGER, decided_at INTEGER)");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_dec_status ON decisions(status, deadline)");
+  // MISIÓN que engloba la decisión (Carlos, 2026-07-21): /tareas encabeza cada
+  // reloj con SU site (URL + captura). Idempotente; si el agente no lo manda, el
+  // panel lo deduce del texto de la pregunta. `mission` = etiqueta opcional.
+  await env.DB.exec("ALTER TABLE decisions ADD COLUMN url TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE decisions ADD COLUMN mission TEXT").catch(() => {});
   await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_tasks (mission_id TEXT, code TEXT, title TEXT, status TEXT DEFAULT 'pending', owner TEXT, report TEXT, updated_at INTEGER, PRIMARY KEY (mission_id, code))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_mtasks_mission ON mission_tasks(mission_id)");
   // image: URL pública de la captura de prueba del informe (R2 /media/…). La tabla
@@ -1447,10 +1452,15 @@ var index_default = {
         const mins = Math.min(60, Math.max(1, +b.minutes || 3));   // por defecto 3 min
         const now = Date.now();
         const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
-        await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline) VALUES (?,?,?,?,?,?,?,'pending',?,?)")
+        // url/mission opcionales: la MISIÓN que engloba la decisión (el panel la
+        // usa para encabezar el reloj; si no vienen, las deduce del texto).
+        const durl = String(b.url || "").slice(0, 300);
+        const dmission = String(b.mission || "").slice(0, 120);
+        await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?)")
           .bind(id, String(b.machine || "").slice(0, 60), String(b.agent || "").slice(0, 40),
                 String(b.surface || "").slice(0, 20), q, JSON.stringify(opts),
-                Math.max(0, Math.min(opts.length - 1, +b.recommended || 0)), now, now + mins * 60000).run();
+                Math.max(0, Math.min(opts.length - 1, +b.recommended || 0)), now, now + mins * 60000,
+                durl, dmission).run();
         return json({ ok: true, id, deadline: now + mins * 60000 });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
@@ -1466,6 +1476,7 @@ var index_default = {
           let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
           return { id: d.id, machine: d.machine, agent: d.agent, surface: d.surface, question: d.question,
                    options: o, recommended: d.recommended, status: d.status, chosen: d.chosen,
+                   url: d.url || "", mission: d.mission || "",
                    created_at: d.created_at, deadline: d.deadline, decided_at: d.decided_at,
                    secondsLeft: Math.max(0, Math.round((d.deadline - now) / 1000)) };
         });
