@@ -67,12 +67,32 @@
     var s = avSlug(name), cu = CUSTOM.agents[s] || {};
     return cu.img || (AVATARES[s] ? "/avatars/" + s + ".jpg" : "");
   }
-  function whoHtml(name, surface, agents) {
+  // Máquinas VIVAS (canon) según /api/browsers + presence; lo inyecta la página con
+  // setLiveMachines. null = aún sin datos → NO se alarma. (Carlos, 21-jul-2026)
+  var LIVE_MACHINES = null;
+  // Estado "máquina apagada" para una misión PENDIENTE (sin surface): si su máquina
+  // destino NO está entre las vivas, el empujón no llegó y nadie la recogerá.
+  function machOffOf(t, surface) {
+    // Sin datos de vivas (null) o set VACÍO (fetch falló / aún no cargó) → no se
+    // puede saber, así que NO se alarma: mejor «Pendiente» que un falso «apagada».
+    if (surface || !LIVE_MACHINES || !LIVE_MACHINES.size) return null;
+    var mc = canonMachine(t.machine || t.loc || "");
+    if (!mc || LIVE_MACHINES.has(mc)) return null;
+    return { since: t.created_at, machine: t.machine || t.loc || "" };
+  }
+
+  function whoHtml(name, surface, agents, machOff) {
     var s = avSlug(name);
     var cu = CUSTOM.agents[s] || {};
-    // Sin plataforma (agente sin runtime·host ahora mismo) → "Pendiente".
-    var plat = surface ? esc(surface) : "Pendiente";
-    var platCls = surface ? "agent-surface" : "agent-surface pend";
+    // Plataforma: surface (runtime·host) si la máquina respondió al empujón; si no,
+    // "Pendiente" (máquina viva, aún sin recoger) o aviso si la máquina está apagada.
+    var plat, platCls, platTitle = "";
+    if (surface) { plat = esc(surface); platCls = "agent-surface"; }
+    else if (machOff) {
+      plat = "⚠️ apagada"; platCls = "agent-surface off";
+      platTitle = "La máquina destino" + (machOff.machine ? " (" + machOff.machine + ")" : "") + " está sin señal / apagada" + (machOff.since ? " · pendiente desde " + fechaCorta(machOff.since) : "") + ": el empujón no llegó y nadie la recogerá hasta que vuelva online.";
+    } else { plat = "Pendiente"; platCls = "agent-surface pend"; }
+    var smallHtml = '<small class="' + platCls + '"' + (platTitle ? ' title="' + esc(platTitle) + '"' : "") + ">" + plat + "</small>";
     // Misión DIFUNDIDA (2-3 agentes agrupados): PILA de retratos, una imagen
     // encima de la otra (Carlos, 2026-07-19), con el rótulo del grupo debajo.
     if (avatarOn() && agents && agents.length > 1) {
@@ -82,17 +102,17 @@
       }).filter(Boolean);
       if (pics.length) {
         return '<span class="who who-av"><span class="agstack">' + pics.join("") + "</span>" +
-          "<span>" + esc(name) + '</span><small class="' + platCls + '">' + plat + "</small></span>";
+          "<span>" + esc(name) + "</span>" + smallHtml + "</span>";
       }
     }
     // FOTO del Panel de control > avatar builtin; ICONO personalizado > 👷.
     var img = agImg(name);
     if (avatarOn() && img) {
       return '<span class="who who-av"><img class="agava" loading="lazy" onerror="this.remove()" src="' + esc(img) + '" alt="">' +
-        "<span>" + esc(name) + '</span><small class="' + platCls + '">' + plat + "</small></span>";
+        "<span>" + esc(name) + "</span>" + smallHtml + "</span>";
     }
     return '<span class="who"><span>' + (cu.icon ? esc(cu.icon) : "👷") + " " + esc(name) +
-      '</span><small class="' + platCls + '">' + plat + "</small></span>";
+      "</span>" + smallHtml + "</span>";
   }
   // Visual de la columna ORDENADOR: foto pequeña > icono personalizado > 🖥.
   function machVisual(maq) {
@@ -281,13 +301,19 @@
           (+t.img_count > 0 ? '<span class="adjn" title="' + (+t.img_count) + ' imagen(es) adjunta(s) — ábrela para verlas">📎 ' + (+t.img_count) + "</span>" : "") +
           "</div></div>" +
         // Fecha + DURACIÓN: de asignada a finalizada (o transcurrido si sigue viva).
-        '<div class="cel rtiempo">' + rz("fch") + '<span class="fch2" title="fecha de creación de la misión">📅 ' + fechaCorta(t.created_at) + "</span>" +
-          (dv ? '<span class="dur' + (dv.run ? " run" : "") + '" title="' + esc(dv.tip) + '">⏱ ' + esc(dv.txt) + "</span>" : "") + "</div>" +
+        // FECHA: creación (📅) arriba, finalización (🏁) debajo, y la duración (⏱).
+        // Si la misión sigue viva, en el hueco del fin va «en curso» — nunca una hora
+        // inventada. created_at/resolved_at ya vienen; los tooltips dan la fecha. (947)
+        '<div class="cel rtiempo">' + rz("fch") +
+          '<span class="fch2" title="creada: ' + esc(fechaCorta(t.created_at)) + '">📅 ' + fechaCorta(t.created_at) + "</span>" +
+          (dv && dv.end ? '<span class="fch2 fin" title="finalizada: ' + esc(fechaCorta(dv.end)) + '">🏁 ' + fechaCorta(dv.end) + "</span>"
+            : (dv && dv.run ? '<span class="fch2 run" title="' + esc(dv.tip) + '">⏳ en curso</span>' : "")) +
+          (dv && dv.txt ? '<span class="dur' + (dv.run ? " run" : "") + '" title="' + esc(dv.tip) + '">⏱ ' + esc(dv.txt) + "</span>" : "") + "</div>" +
         // ORDENADOR (entre Fecha y Agente).
-        '<div class="cel ord">' + rz("ord") + (maq ? '<span class="mach2">' + machVisual(maq) + " " + esc(maq) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>') + "</div>" +
+        '<div class="cel ord">' + rz("ord") + (maq ? '<span class="mach2">' + machVisual(maq) + " " + (window.ykMaquina ? ykMaquina.html(maq) : esc(maq)) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>') + "</div>" +
         // Celda de AGENTE con clase `agc` (target del picker de reasignación en
         // /misiones; inocua en /incidencias, que no la cablea). Carlos, 2026-07-15.
-        '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, surface, t._agents) + "</div>" +
+        '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, surface, t._agents, machOffOf(t, surface)) + "</div>" +
         // Estado + ABRIR apilado (abrir debajo de la insignia).
         '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"><i></i>' + stt + "</span>" +
           '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a></div>' +
@@ -311,7 +337,7 @@
     if (t.status === "resolved") {
       var end = _ms(t.resolved_at || t.updated_at);
       if (!end || end < start) return null;
-      return { txt: durFmt(end - start), run: false, tip: "de asignada a finalizada" };
+      return { txt: durFmt(end - start), run: false, end: end, tip: "de asignada a finalizada" };
     }
     return { txt: durFmt(Date.now() - start), run: true, tip: "transcurrido desde que se asignó" };
   }
@@ -375,12 +401,32 @@
   }
 
   // ------- árbol de TAREAS a…h/123 (jornada completa: 8×3) -------
+  // Convierte URLs del texto en enlaces pulsables (target=_blank, rel=noopener).
+  // Escapa TODO primero (anti-XSS) y solo entonces envuelve las URLs; el clic en el
+  // enlace no debe propagar al nodo (que avanza el estado). Carlos, 21-jul-2026.
+  function linkify(s) {
+    s = String(s == null ? "" : s);
+    var re = /https?:\/\/[^\s<]+[^\s<.,;:!?)\]}"']/g, out = "", last = 0, m;
+    while ((m = re.exec(s))) {
+      out += esc(s.slice(last, m.index));
+      out += '<a href="' + esc(m[0]) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">' + esc(m[0]) + "</a>";
+      last = m.index + m[0].length;
+    }
+    return out + esc(s.slice(last));
+  }
+
   function taskNode(t, isSub) {
     var own = OWN_ICON[t.owner] || "⚙️";
+    // Texto compacto: el título se recorta a 2 líneas por CSS (.ttl line-clamp) y el
+    // texto COMPLETO —título + informe si lo hay— va en el tooltip; no se pierde nada.
+    var full = String(t.title || "") + (t.report ? " — " + t.report : "");
+    // Miniatura si la tarea tiene captura de prueba: reutiliza .shot-img → lightbox.
+    var shot = t.image ? '<img class="node-shot shot-img" loading="lazy" src="' + esc(t.image) + '" data-proof="' + esc(t.image) + '" alt="prueba" title="pantallazo de esta tarea · clic para ampliar">' : "";
     return '<div class="node ' + (isSub ? "sub " : "") + esc(t.status) + '" data-code="' + esc(t.code) + '">' +
       '<button class="chip ' + esc(t.status) + '" data-code="' + esc(t.code) + '" title="' + esc(t.status) + ' · clic para avanzar">' + (CHIP[t.status] || "○") + "</button>" +
       '<span class="scode">' + esc(t.code) + "</span>" +
-      '<span class="ttl"' + (t.report ? ' title="' + esc(t.report) + '"' : "") + ">" + esc(t.title) + "</span>" +
+      '<span class="ttl" title="' + esc(full) + '">' + linkify(t.title) + "</span>" +
+      shot +
       '<span class="own" title="' + esc(t.owner || "") + '">' + own + "</span></div>";
   }
 
@@ -581,6 +627,7 @@
   window.YkMisiones = {
     init: init, selected: selected, selectMission: selectMission,
     rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine, estadoDe: estadoDe,
+    setLiveMachines: function (set) { LIVE_MACHINES = set || null; },
     renderTaskTree: renderTaskTree, refreshTree: refreshTree,
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,
     nextStatus: nextStatus, postStatus: postStatus, postPlan: postPlan,
