@@ -228,7 +228,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
     <button id="bulkApply">Aplicar</button>
     <button id="bulkClear">Quitar selección</button>
   </div>
-  <div class="foot">Yokup · misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.16.r6</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a…h × ≤3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.16.r6</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -238,7 +238,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r33"></script>
+<script src="/yk-misiones.js?v=r34"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r1"></script>
 <script>
@@ -256,7 +256,7 @@ YkMisiones.init({worker:WORKER, treeId:"taskTree"});
 // enganchan con el flujo existente (load() lee $("busca")/$("selDia")).
 const CAB=YkCabezal.mount($("cabezal"), {
   worker:WORKER, title:"Misiones", searchPlaceholder:"🔎 Buscar misión…", manageState:false,
-  intro:'Lo que hay que hacer. Cada misión se descompone en <b>tareas</b> a/b/c (hasta 3 subtareas por paso, máx 9): el arquitecto y el agente principal definen el plan, los <b>subagentes</b> ⚙️ lo ejecutan y los <b>infraagentes</b> 📝 reportan. Las misiones de la <b>flota</b> son los encargos a los agentes (se ven vivos en <a href="https://www.admira.live/status/" target="_blank" rel="noopener" style="color:var(--brand)">admira.live/status</a>); las de <b>campo</b>, las incidencias de pantallas.',
+  intro:'Lo que hay que hacer. Cada misión se descompone en <b>tareas</b> a…h (8 pasos × hasta 3 subtareas, máx 24 — la jornada completa de un agente): el arquitecto y el agente principal definen el plan, los <b>subagentes</b> ⚙️ lo ejecutan y los <b>infraagentes</b> 📝 reportan. Las misiones de la <b>flota</b> son los encargos a los agentes (se ven vivos en <a href="https://www.admira.live/status/" target="_blank" rel="noopener" style="color:var(--brand)">admira.live/status</a>); las de <b>campo</b>, las incidencias de pantallas.',
   onState:f=>aplicaFiltro(f), onSearch:()=>load(), onDay:()=>load(), onCreated:()=>load()
 });
 // Día del tablero: HOY por defecto (load() lo lee de $("selDia").value).

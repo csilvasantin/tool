@@ -114,8 +114,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 <div class="wrap">
   <!-- CABEZAL COMPARTIDO con /misiones (Carlos, 2026-07-21): contadores por
        estado + día del tablero · título + buscador · alta de misión de flota.
-       Lo inyecta y cablea yk-cabezal.js. Cada misión se descompone en 3 tareas
-       (a/b/c) que define el agente principal y ejecuta el subagente. -->
+       Lo inyecta y cablea yk-cabezal.js. Cada misión se descompone en 8 pasos
+       a…h con hasta 3 subtareas cada uno (máx 24) — la JORNADA COMPLETA de un
+       agente: los define el agente principal y los ejecuta el subagente. -->
   <div id="cabezal"></div>
 
   <!-- ═══ RELOJES DE DECISIÓN (Carlos, 2026-07-21) ═══════════════════════════
@@ -138,7 +139,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   </div>
 
   <div class="grid" id="grid"><div class="bigempty"><b>Cargando tareas…</b>Reuniendo los planes de todas las misiones.</div></div>
-  <div class="foot">Yokup · tareas de todas las misiones · plan <b>a/b/c × ≤3</b> · persistencia <b>D1</b></div>
+  <div class="foot">Yokup · tareas de todas las misiones · plan <b>a…h × ≤3</b> · persistencia <b>D1</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -147,7 +148,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa «misiones JSON» para volcar los datos crudos del worker.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r33"></script>
+<script src="/yk-misiones.js?v=r34"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r1"></script>
 <script>
@@ -168,7 +169,7 @@ const CAB=YkCabezal.mount($("cabezal"), {
   worker:WORKER,
   title:"Tareas",
   searchPlaceholder:"🔎 Buscar tarea…",
-  intro:'Los pasos en que se descompone cada misión: <b>a/b/c</b> con hasta 3 subtareas por paso (máx 9). Chips clicables ○◐● para avanzar estado; ⚙️ ejecutan los subagentes, 📝 reportan los infraagentes. Agrupado por misión, lo más reciente primero.',
+  intro:'Los pasos en que se descompone cada misión: <b>a…h</b> (8 pasos) con hasta 3 subtareas cada uno (máx 24) — una misión = jornada completa de un agente. Chips clicables ○◐● para avanzar estado; ⚙️ ejecutan los subagentes, 📝 reportan los infraagentes. Agrupado por misión, lo más reciente primero.',
   onState:f=>{ STATE=f; render(); },
   onSearch:q=>{ SEARCH=q; render(); },
   onDay:ymd=>{ if(!ymd) return; DFILTER={mode:"dia", day:ymd};
@@ -266,7 +267,7 @@ function render(){
     return;
   }
   box.innerHTML=gs.map(g=>`<div class="mcard" data-id="${esc(g.mission.id)}">
-    <div class="mhd"><a class="mid" href="/ticket?id=${encodeURIComponent(g.mission.id)}" title="Abrir la misión">🎯 ${esc(g.mission.id)}</a><span class="tcount" title="subtareas definidas / máx 9">${YkMisiones.subCount(g.tasks)}/9</span></div>
+    <div class="mhd"><a class="mid" href="/ticket?id=${encodeURIComponent(g.mission.id)}" title="Abrir la misión">🎯 ${esc(g.mission.id)}</a><span class="tcount" title="subtareas definidas / máx 24">${YkMisiones.subCount(g.tasks)}/24</span></div>
     <div class="msub">${esc(g.mission.subject)}</div>
     <div class="mmeta"><span class="scr">${esc(g.mission.screen||"")}</span>${g.mission.loc?" · "+esc(g.mission.loc):""}</div>
     <div class="tree">${YkMisiones.stepsHtml(g.tasks)}</div>

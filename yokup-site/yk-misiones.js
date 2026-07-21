@@ -2,7 +2,7 @@
  * yk-misiones.js — Lógica compartida del modelo MISIONES · TAREAS.
  *
  * Doctrina: una MISIÓN (ticket) se descompone en 3 pasos a/b/c con hasta 3
- * subtareas cada uno (a1..c3, máx 9). Subagentes ejecutan, infraagentes
+ * subtareas cada uno (a1..h3, máx 24). Subagentes ejecutan, infraagentes
  * reportan. Este módulo es la fuente ÚNICA de la fila de misión, la selección
  * con glow y el árbol de tareas — lo usan /incidencias, /misiones y /tareas
  * para no divergir. Script clásico (sin módulos): expone window.YkMisiones.
@@ -14,7 +14,7 @@
  *   YkMisiones.refreshTree()              // repinta el árbol de la selección
  *   YkMisiones.selected()                 // id de la misión activa
  *   YkMisiones.stepsHtml(tasks)           // árbol abc/123 (para vistas globales)
- *   YkMisiones.subCount(tasks)            // subtareas definidas (contador n/9)
+ *   YkMisiones.subCount(tasks)            // subtareas definidas (contador n/24)
  *   YkMisiones.nextStatus(cur) / postStatus(id, code, status)
  * ==========================================================================*/
 (function () {
@@ -551,7 +551,7 @@
     fetchTasks(id).then(function (tasks) {
       if (SELECTED !== id) return;                      // cambió la selección mientras cargaba
       var p = part(); if (!p) return;
-      var header = '<div class="thd"><span class="tmid" title="Misión activa">🎯 ' + esc(id) + '</span><span class="tcount" title="subtareas definidas / máx 9">' + subCount(tasks) + "/9</span></div>";
+      var header = '<div class="thd"><span class="tmid" title="Misión activa">🎯 ' + esc(id) + '</span><span class="tcount" title="subtareas definidas / máx 24">' + subCount(tasks) + "/24</span></div>";
       if (!tasks.length) {
         p.innerHTML = header + '<div class="empty2">Esta misión aún no tiene plan de tareas.</div><button class="propose" id="ykProposeBtn">🧠 Proponer plan (IA)</button>';
         var pb = document.getElementById("ykProposeBtn");

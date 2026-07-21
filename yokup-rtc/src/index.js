@@ -198,9 +198,12 @@ async function hasMissionProof(env, mid) {
 __name(hasMissionProof, "hasMissionProof");
 
 // ---- MODELO MISIONES · TAREAS ----------------------------------------------
-// Una MISIÓN es el ticket/incidencia. Sus TAREAS son los pasos para concluirla:
-// 3 pasos (a,b,c), cada uno con hasta 3 subtareas (a1..a3, b1..b3, c1..c3) → máx 9.
-var TASK_CODE = /^[abc]([1-3])?$/;
+// Una MISIÓN es el ticket/incidencia. Sus TAREAS son los pasos para concluirla.
+// JORNADA COMPLETA (Carlos, 2026-07-21): 8 pasos (a..h), cada uno con hasta 3
+// subtareas (a1..a3 … h1..h3) → máx 24. Así una sola misión asignada a un
+// ordenador da trabajo para todo el día al agente que la ejecuta. Los planes
+// antiguos de 3 pasos (a/b/c) siguen siendo válidos: a-h los incluye.
+var TASK_CODE = /^[a-h]([1-3])?$/;
 var TASK_STATUS = ["pending", "in_progress", "done"];
 function validTaskCode(c) {
   return typeof c === "string" && TASK_CODE.test(c);
@@ -209,7 +212,7 @@ __name(validTaskCode, "validTaskCode");
 // Capa sugerida: los pasos (a/b/c) los ejecuta un subagente; las subtareas de
 // verificación/reporte las cubre un infraagente.
 function ownerFor(code, title) {
-  if (/^[abc]$/.test(code)) return "subagente";
+  if (/^[a-h]$/.test(code)) return "subagente";
   if (/verif|comprueb|report|valida|confirm|document|registr|informe|notific|cierr|cerra/i.test(title || "")) return "infraagente";
   return "subagente";
 }
@@ -242,11 +245,12 @@ async function listAllMissionTasks(env, scope) {
 }
 __name(listAllMissionTasks, "listAllMissionTasks");
 // Guarda el plan completo (reemplaza el anterior). Valida codes y tope de 3
-// subtareas por paso (→ máx 9 subtareas). Devuelve el plan resultante.
+// subtareas por paso sobre 8 pasos (a..h) → máx 24 subtareas: la jornada
+// completa de un agente (Carlos, 2026-07-21). Devuelve el plan resultante.
 async function saveMissionPlan(env, mid, tasks) {
   const clean = [];
   const seen = /* @__PURE__ */ new Set();
-  const subCount = { a: 0, b: 0, c: 0 };
+  const subCount = { a: 0, b: 0, c: 0, d: 0, e: 0, f: 0, g: 0, h: 0 };
   const now = Date.now();
   for (const t of tasks || []) {
     const code = String((t && t.code) || "").trim().toLowerCase();
@@ -321,9 +325,9 @@ __name(parsePlanJson, "parsePlanJson");
 // primeros pasos a los códigos a/b/c POR POSICIÓN (el "code" del LLM no es fiable)
 // y sus subtareas a a1..a3/b1..b3/c1..c3. Titles recortados a 60 caracteres.
 function flattenSteps(steps) {
-  const letters = ["a", "b", "c"];
+  const letters = ["a", "b", "c", "d", "e", "f", "g", "h"];
   const tasks = [];
-  (steps || []).slice(0, 3).forEach((step, si) => {
+  (steps || []).slice(0, 8).forEach((step, si) => {
     const code = letters[si];
     const title = String((step && (step.title || step.titulo || step.step || step.name || step.paso || step.descripcion || step.description)) || "").slice(0, 60) || "Paso " + code.toUpperCase();
     tasks.push({ code, title });
@@ -378,20 +382,22 @@ async function proposePlan(env, mid) {
 ENCARGO:
 ${String(full).slice(0, 900)}
 
-Descomp\xF3n el encargo en un PLAN de EXACTAMENTE 3 pasos con c\xF3digos "a", "b", "c", cada uno con hasta 3 subtareas. Doctrina del equipo: los pasos los ejecuta un subagente y la verificaci\xF3n/reporte la cubre un infraagente; nada se da por hecho sin verificarlo en real y publicarlo a su URL p\xFAblica. Pasos concretos y accionables SOBRE ESTE ENCARGO (no inventes averías de hardware ni pantallas: esto es trabajo de software), en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
+Descomp\xF3n el encargo en un PLAN de EXACTAMENTE 8 pasos con c\xF3digos "a", "b", "c", "d", "e", "f", "g", "h" (los OCHO), cada uno con hasta 3 subtareas. Doctrina del equipo: los pasos los ejecuta un subagente y la verificaci\xF3n/reporte la cubre un infraagente; nada se da por hecho sin verificarlo en real y publicarlo a su URL p\xFAblica. Pasos concretos y accionables SOBRE ESTE ENCARGO (no inventes averías de hardware ni pantallas: esto es trabajo de software), en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
 
 Responde SOLO con un array JSON v\xE1lido, sin texto adicional, con esta forma exacta:
-[{"code":"a","title":"...","subtasks":["...","..."]},{"code":"b","title":"...","subtasks":["..."]},{"code":"c","title":"...","subtasks":["..."]}]`;
+[{"code":"a","title":"...","subtasks":["...","...","..."]},{"code":"b","title":"...","subtasks":["...","...","..."]},{"code":"c","title":"...","subtasks":["...","...","..."]},{"code":"d","title":"...","subtasks":["...","...","..."]},{"code":"e","title":"...","subtasks":["...","...","..."]},{"code":"f","title":"...","subtasks":["...","...","..."]},{"code":"g","title":"...","subtasks":["...","...","..."]},{"code":"h","title":"...","subtasks":["...","...","..."]}]`;
   } else {
-    prompt = `Eres el agente principal del helpdesk Yokup (mantenimiento de pantallas DOOH de admira.tv). Descomp\xF3n la RESOLUCI\xD3N de esta incidencia en un PLAN de EXACTAMENTE 3 pasos con c\xF3digos "a", "b", "c". Cada paso puede tener hasta 3 subtareas concretas (verificaci\xF3n o ejecuci\xF3n). Pasos concretos y accionables para resolver la aver\xEDa, en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
+    prompt = `Eres el agente principal del helpdesk Yokup (mantenimiento de pantallas DOOH de admira.tv). Descomp\xF3n la RESOLUCI\xD3N de esta incidencia en un PLAN de EXACTAMENTE 8 pasos con c\xF3digos "a", "b", "c", "d", "e", "f", "g", "h" (los OCHO). Cada paso puede tener hasta 3 subtareas concretas (verificaci\xF3n o ejecuci\xF3n). Pasos concretos y accionables para resolver la aver\xEDa, en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
 
 INCIDENCIA: ${subject}${screen ? " — pantalla " + screen : ""}${loc ? " (" + loc + ")" : ""}.
 ${triage ? "TRIAJE IA:\n" + triage : ""}
 
 Responde SOLO con un array JSON v\xE1lido, sin texto adicional, con esta forma exacta:
-[{"code":"a","title":"...","subtasks":["...","..."]},{"code":"b","title":"...","subtasks":["..."]},{"code":"c","title":"...","subtasks":["..."]}]`;
+[{"code":"a","title":"...","subtasks":["...","...","..."]},{"code":"b","title":"...","subtasks":["...","...","..."]},{"code":"c","title":"...","subtasks":["...","...","..."]},{"code":"d","title":"...","subtasks":["...","...","..."]},{"code":"e","title":"...","subtasks":["...","...","..."]},{"code":"f","title":"...","subtasks":["...","...","..."]},{"code":"g","title":"...","subtasks":["...","...","..."]},{"code":"h","title":"...","subtasks":["...","...","..."]}]`;
   }
-  const raw = await aiRun(env, prompt, 500);
+  // 8 pasos × 3 subtareas no caben en 500 tokens: el JSON se cortaba y el
+  // parser sólo rescataba los 3 primeros pasos (Carlos, 2026-07-21).
+  const raw = await aiRun(env, prompt, 1800);
   let tasks = flattenSteps(parsePlanJson(raw));
   if (!tasks.length) tasks = flattenSteps(isFleet ? defaultFleetPlan() : defaultPlan());
   return saveMissionPlan(env, mid, tasks);
