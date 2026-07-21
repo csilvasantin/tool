@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r14">
-<link rel="stylesheet" href="/yk-misiones.css?v=r23">
+<link rel="stylesheet" href="/yk-misiones.css?v=r27">
 <link rel="stylesheet" href="/yk-cabezal.css?v=r1">
 <style>
 /* Segmentación dentro del raíl de opciones: apilada y a lo ancho del panel. */
@@ -238,12 +238,16 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa un botón para volcar el JSON crudo del worker yokup-rtc.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r35"></script>
+<script src="/yk-maquina.js?v=r1"></script>
+<script src="/yk-misiones.js?v=r41"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r1"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 let FILTER="activas";
+// Cascada de preselección: userPicked = el usuario ya tocó un filtro (no pisarle);
+// didCascade = la cascada ya corrió una vez (solo en la carga inicial). (Carlos, 21-jul-2026)
+let userPicked=false, didCascade=false;
 let SCOPE="fleet";     // ámbito por defecto: el trabajo de los agentes
 let SEL=new Set(), LAST_LIST=[], REP_IDS={};   // selección múltiple para cambio de estado en bloque
 const $=id=>document.getElementById(id);
@@ -257,7 +261,7 @@ YkMisiones.init({worker:WORKER, treeId:"taskTree"});
 const CAB=YkCabezal.mount($("cabezal"), {
   worker:WORKER, title:"Misiones", searchPlaceholder:"🔎 Buscar misión…", manageState:false,
   intro:'Lo que hay que hacer. Cada misión se descompone en <b>tareas</b> a…h (8 pasos × hasta 3 subtareas, máx 24 — la jornada completa de un agente): el arquitecto y el agente principal definen el plan, los <b>subagentes</b> ⚙️ lo ejecutan y los <b>infraagentes</b> 📝 reportan. Las misiones de la <b>flota</b> son los encargos a los agentes (se ven vivos en <a href="https://www.admira.live/status/" target="_blank" rel="noopener" style="color:var(--brand)">admira.live/status</a>); las de <b>campo</b>, las incidencias de pantallas.',
-  onState:f=>aplicaFiltro(f), onSearch:()=>load(), onDay:()=>load(), onCreated:()=>load()
+  onState:f=>{userPicked=true;aplicaFiltro(f);}, onSearch:()=>load(), onDay:()=>load(), onCreated:()=>load()
 });
 // Día del tablero: HOY por defecto (load() lo lee de $("selDia").value).
 (function(){ const d=new Date(),p=n=>(n<10?"0":"")+n; CAB.setDay(d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())); })();
@@ -480,6 +484,20 @@ async function load(){
   $("kAsig").textContent=tks.filter(t=>estL(t)==="Pendiente").length;
   $("kProg").textContent=tks.filter(t=>estL(t)==="En curso").length;
   $("kRes").textContent=tks.filter(t=>estL(t)==="Finalizada").length;
+  // CASCADA de preselección (Carlos, 21-jul-2026): en la PRIMERA carga, si el usuario
+  // no ha elegido filtro, abrir en el primero con misiones en este orden EXACTO:
+  // Pendientes → En curso → Sin asignar → Finalizadas (el primero con contador > 0).
+  // Se aplica DESPUÉS de tener los contadores (nunca a ciegas) y SOLO una vez: los
+  // refrescos (cada 12 s) y la vuelta atrás del usuario no le resetean su elección.
+  if(!userPicked && !didCascade){
+    didCascade=true;
+    const nAsig=tks.filter(t=>estL(t)==="Pendiente").length;
+    const nProg=tks.filter(t=>estL(t)==="En curso").length;
+    const nSin=tks.filter(t=>estL(t)==="Sin asignar").length;
+    const nRes=tks.filter(t=>estL(t)==="Finalizada").length;
+    const pick = nAsig>0?"asignadas" : nProg>0?"in_progress" : nSin>0?"sin" : nRes>0?"resolved" : null;
+    if(pick && pick!==FILTER){ aplicaFiltro(pick); return; }
+  }
   let base=tks;
   // «Activas» oculta las resueltas, PERO mantiene las de FLOTA finalizadas hace poco
   // (<3 h): las misiones de la desktop app se cierran en segundos, así que si no, se
@@ -554,7 +572,7 @@ function aplicaFiltro(f){
   KPI_BTNS.forEach(x=>x.classList.toggle("on",x.dataset.f===f));
   load();
 }
-STATE_TABS.forEach(b=>b.onclick=()=>aplicaFiltro(b.dataset.f));
+STATE_TABS.forEach(b=>b.onclick=()=>{userPicked=true;aplicaFiltro(b.dataset.f);});
 // (el clic en los KPIs lo reenvía yk-cabezal.js a onState → aplicaFiltro)
 load(); setInterval(load,12000);
 
@@ -612,6 +630,12 @@ async function radar(){
       const canon=YkMisiones.canonMachine(raw);
       if(!SOLOMAQ[canon]) SOLOMAQ[canon]={raw:raw,norm:normM(canon)};
     }
+    // Máquinas VIVAS (canon) = navegadores frescos (SOLOMAQ) + presencia online.
+    // Se lo pasamos a yk-misiones SIN otra petición: con esto la columna AGENTE
+    // distingue «Pendiente» (máquina viva) de «apagada» (sin señal). (#948)
+    const vivas=new Set(Object.keys(SOLOMAQ));
+    for(const per in MAQS) for(const cm in MAQS[per]) if(MAQS[per][cm]&&MAQS[per][cm].online) vivas.add(cm);
+    YkMisiones.setLiveMachines(vivas);
     CARGA_P={}; CARGA_PM={}; CARGA_M={};
     for(const it of (ib.items||[])){
       if(it.status==="done") continue;

@@ -382,12 +382,12 @@ async function proposePlan(env, mid) {
 ENCARGO:
 ${String(full).slice(0, 900)}
 
-Descomp\xF3n el encargo en un PLAN de EXACTAMENTE 8 pasos con c\xF3digos "a", "b", "c", "d", "e", "f", "g", "h" (los OCHO), cada uno con hasta 3 subtareas. Doctrina del equipo: los pasos los ejecuta un subagente y la verificaci\xF3n/reporte la cubre un infraagente; nada se da por hecho sin verificarlo en real y publicarlo a su URL p\xFAblica. Pasos concretos y accionables SOBRE ESTE ENCARGO (no inventes averías de hardware ni pantallas: esto es trabajo de software), en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
+Descomp\xF3n el encargo en un PLAN AJUSTADO A SU TAMA\xD1O: usa SOLO los pasos que el encargo REALMENTE necesite (de 1 a 8 m\xE1ximo), con c\xF3digos correlativos desde "a" (a, b, c…), cada uno con hasta 3 subtareas. Una tarea peque\xF1a (p.ej. dibujar algo, un cambio de una l\xEDnea) son 1-3 pasos, NO ocho: no rellenes con ceremonia (recibir encargo, leer instrucciones, verificar prioridad, asignar subagente). El array tendr\xE1 TANTOS objetos como pasos reales, no ocho por defecto. Doctrina del equipo: los pasos los ejecuta un subagente y la verificaci\xF3n/reporte la cubre un infraagente; nada se da por hecho sin verificarlo en real y publicarlo a su URL p\xFAblica. Pasos concretos y accionables SOBRE ESTE ENCARGO (no inventes averías de hardware ni pantallas: esto es trabajo de software), en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
 
 Responde SOLO con un array JSON v\xE1lido, sin texto adicional, con esta forma exacta:
 [{"code":"a","title":"...","subtasks":["...","...","..."]},{"code":"b","title":"...","subtasks":["...","...","..."]},{"code":"c","title":"...","subtasks":["...","...","..."]},{"code":"d","title":"...","subtasks":["...","...","..."]},{"code":"e","title":"...","subtasks":["...","...","..."]},{"code":"f","title":"...","subtasks":["...","...","..."]},{"code":"g","title":"...","subtasks":["...","...","..."]},{"code":"h","title":"...","subtasks":["...","...","..."]}]`;
   } else {
-    prompt = `Eres el agente principal del helpdesk Yokup (mantenimiento de pantallas DOOH de admira.tv). Descomp\xF3n la RESOLUCI\xD3N de esta incidencia en un PLAN de EXACTAMENTE 8 pasos con c\xF3digos "a", "b", "c", "d", "e", "f", "g", "h" (los OCHO). Cada paso puede tener hasta 3 subtareas concretas (verificaci\xF3n o ejecuci\xF3n). Pasos concretos y accionables para resolver la aver\xEDa, en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
+    prompt = `Eres el agente principal del helpdesk Yokup (mantenimiento de pantallas DOOH de admira.tv). Descomp\xF3n la RESOLUCI\xD3N de esta incidencia en un PLAN AJUSTADO A SU TAMA\xD1O: SOLO los pasos que de verdad haga falta (de 1 a 8 m\xE1ximo), con c\xF3digos correlativos desde "a" (a, b, c…). Una incidencia sencilla son 1-3 pasos, NO ocho: no rellenes con ceremonia. Cada paso puede tener hasta 3 subtareas concretas (verificaci\xF3n o ejecuci\xF3n). El array tendr\xE1 TANTOS objetos como pasos reales. Pasos concretos y accionables para resolver la aver\xEDa, en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
 
 INCIDENCIA: ${subject}${screen ? " — pantalla " + screen : ""}${loc ? " (" + loc + ")" : ""}.
 ${triage ? "TRIAJE IA:\n" + triage : ""}
@@ -1230,8 +1230,15 @@ var index_default = {
       if (image && !/^https?:\/\//i.test(image)) image = "";
       if (!mid || !report) return json({ ok: false, error: "mission y report requeridos" }, 400);
       if (!image) return json({ ok: false, error: "pantallazo image requerido para cerrar" }, 400);
-      const t = await env.DB.prepare("SELECT id FROM tickets WHERE id=?").bind(mid).first();
+      const t = await env.DB.prepare("SELECT id, assignee, status FROM tickets WHERE id=?").bind(mid).first();
       if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
+      // GUARDIA anti-firma-cruzada (Carlos, 2026-07-21): el informe lo firma quien
+      // EJECUTA (owner: subX/infraX) y debe ser la MISMA persona que el assignee de
+      // la misión. Se compara la persona BASE, quitando el prefijo sub/infra. Si no
+      // coincide, se MARCA como firma cruzada y NO se auto-cierra la misión.
+      const _pbase = s => canonMachine(String(s || "").replace(/^(sub|infra)/i, ""));
+      const assignee = String((t && t.assignee) || "").trim();
+      const crossSign = !!(assignee && owner && _pbase(owner) !== _pbase(assignee));
       const now = Date.now();
       await env.DB.prepare(
         "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,image,updated_at) VALUES(?,?,?,?,?,?,?,?) " +
@@ -1242,7 +1249,27 @@ var index_default = {
       ).bind(image, runtime, host, now, mid).run();
       await addEvent(env, mid, "log", owner, "📝 Informe: " + report.slice(0, 240));
       await addEvent(env, mid, "proof", owner, "📸 Pantallazo final: " + image);
-      return json({ ok: true, mission: mid });
+      if (crossSign) {
+        // Firma cruzada: se conserva el informe pero se avisa y NO se cierra sola.
+        await addEvent(env, mid, "log", owner, "⚠️ FIRMA CRUZADA: informe firmado por «" + owner + "» pero la misión es de «" + assignee + "». No se cierra automáticamente; requiere revisión.");
+      } else {
+        // El estado de la misión debe REFLEJAR su informe: al informar (con proof
+        // obligatorio) la misión pasa a RESUELTA, y se avanza también el encargo del
+        // bot-inbox (fuente del estado vía fleetSync) para que no reabra en el
+        // siguiente sync. Antes quedaban descuadrados: informe hecho pero misión en
+        // curso porque el ack era un segundo paso aparte. (Carlos, 2026-07-21)
+        await env.DB.prepare("UPDATE tickets SET status='resolved', resolved_at=COALESCE(resolved_at,?), updated_at=? WHERE id=? AND status!='resolved'").bind(now, now, mid).run().catch(() => {});
+        const numId = mid.replace(/^FLT-/, "");
+        if (/^\d+$/.test(numId) && env.TELEGRAM) {
+          try {
+            await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
+              method: "POST", headers: { "content-type": "application/json" },
+              body: JSON.stringify({ ids: [Number(numId)], status: "done", by: assignee || owner, note: "auto: informe con proof en yokup" })
+            }));
+          } catch (e) {}
+        }
+      }
+      return json({ ok: true, mission: mid, resolved: !crossSign, cross_signed: crossSign });
     }
     // Ingesta UNIVERSAL de incidencias (Carlos, 2026-07-17): cualquier sistema,
     // monitor o agente reporta aquí y aparece en /incidencias. PÚBLICO (como

@@ -87,7 +87,8 @@ h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
 </div>
 
 <!-- yk-misiones aporta canonMachine (nombres canónicos de máquina) al selector de asignación -->
-<script src="/yk-misiones.js?v=r35"></script>
+<script src="/yk-maquina.js?v=r1"></script>
+<script src="/yk-misiones.js?v=r41"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
@@ -136,7 +137,7 @@ async function render(){
       <div>
         <div class="tid">${esc(t.id)} · ${t.source==='agent-iot'?'🤖 abierto por Agente IoT':'👤 manual'}</div>
         <h1>${esc(t.subject)}</h1>
-        <div class="meta"><span class="scr">${esc(t.screen)}</span>${t.loc?'<span>'+esc(t.loc)+'</span>':''}<span>abierto hace ${ago(t.created_at)}</span><span>👷 ${esc(t.assignee)}</span>${t.priority?'<span>prioridad '+esc(t.priority)+'</span>':''}</div>
+        <div class="meta"><span class="scr">${esc(t.screen)}</span>${t.loc?'<span>'+(window.ykMaquina?ykMaquina.html(t.loc):esc(t.loc))+'</span>':''}<span>abierto hace ${ago(t.created_at)}</span><span>👷 ${esc(t.assignee)}</span>${t.priority?'<span>prioridad '+esc(t.priority)+'</span>':''}</div>
       </div>
       <span class="badge ${sb}"><i></i>${stt}</span>
     </div>
@@ -155,7 +156,7 @@ async function render(){
         <button class="btn" onclick="reasignar()">Reasignar</button>
         <span class="rmsg" id="rMsg"></span>
       </div>
-      <p class="rhint">Actual: 👷 ${esc(t.assignee||"sin agente")} · 🖥 ${esc(t.loc||"sin equipo")}. Al reasignar, la misión vuelve a «Asignada» (o «Sin asignar») y el destinatario la recibe en su bot-inbox.</p>
+      <p class="rhint">Actual: 👷 ${esc(t.assignee||"sin agente")} · 🖥 ${t.loc?(window.ykMaquina?ykMaquina.html(t.loc):esc(t.loc)):"sin equipo"}. Al reasignar, la misión vuelve a «Asignada» (o «Sin asignar») y el destinatario la recibe en su bot-inbox.</p>
     </div>`:""}
     <div class="sum" id="sum"><h4>🧠 Resumen IA</h4><p id="sumtext"></p></div>
     <div class="tl">${ev.map(e=>`<div class="ev ${esc(e.kind)}"><div class="eh"><b>${esc(e.author)}</b><span>${hm(e.ts)}</span></div>${cuerpoEvento(e.text)}</div>`).join("")||'<div class="load">Sin actividad.</div>'}</div>
@@ -207,7 +208,7 @@ async function llenaAsig(){
     $("rAgente").innerHTML='<option value="__keep">🤖 Agente · sin cambiar</option><option value="">— sin agente</option>'+
       personas.map(p=>'<option value="'+esc(p)+'">'+esc(p)+'</option>').join("");
     $("rEquipo").innerHTML='<option value="__keep">🖥 Equipo · sin cambiar</option><option value="">— sin equipo</option>'+
-      Object.entries(maqs).sort((a,b)=>a[0].localeCompare(b[0])).map(([c,raw])=>'<option value="'+esc(raw)+'">'+esc(c)+'</option>').join("");
+      Object.entries(maqs).sort((a,b)=>a[0].localeCompare(b[0])).map(([c,raw])=>'<option value="'+esc(raw)+'">'+esc(window.ykMaquina?ykMaquina.short(c):c)+'</option>').join("");
   }catch(e){}
 }
 // Al asignar SOLO equipo: busca un AGENTE LIBRE en esa máquina (principal, con

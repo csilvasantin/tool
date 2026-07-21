@@ -146,7 +146,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 5px}
   </div>
 </div>
 
-<script src="/yk-misiones.js?v=r35"></script>
+<script src="/yk-maquina.js?v=r1"></script>
+<script src="/yk-misiones.js?v=r41"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 const TG="https://admira-telegram.csilvasantin.workers.dev";
@@ -254,7 +255,7 @@ function tarjetaSil(a){
       fila("Runtime",esc(a.runtime||"—")+" · "+esc(a.account||"—"),"mono")+
       fila("Rol",esc(a.role||"—")+(a.archetype?' <span class="v mono">'+esc(a.archetype)+"</span>":""))+
       (a.duty?fila("De qué responde",esc(a.duty)):"")+
-      fila("Corre en",maq?"🖥 "+esc(maq)+" · "+esc(hace(p&&p.updated)):"— sin latido","mono")+
+      fila("Corre en",maq?"🖥 "+(window.ykMaquina?ykMaquina.html(maq):esc(maq))+" · "+esc(hace(p&&p.updated)):"— sin latido","mono")+
       (p&&foco(p.focus)?fila("Su foco",esc(foco(p.focus))):"")+
     '</div>'+
     (tags.length?'<div class="tags">'+tags.map(t=>"<span>"+esc(t)+"</span>").join("")+'</div>':"")+

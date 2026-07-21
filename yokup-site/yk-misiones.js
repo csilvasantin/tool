@@ -70,6 +70,11 @@
   // Máquinas VIVAS (canon) según /api/browsers + presence; lo inyecta la página con
   // setLiveMachines. null = aún sin datos → NO se alarma. (Carlos, 21-jul-2026)
   var LIVE_MACHINES = null;
+  // Runtime DEDUCIDO por doctrina de la persona (mismo mapa que yk-cabezal). Cuando el
+  // nudge no confirmó la plataforma (agent_runtime null) pero sabemos qué LLM anima a
+  // esa persona, se pinta ese runtime marcado como deducido en vez de «Pendiente»
+  // mudo: una misión puede estar EN CURSO con la plataforma vacía. (Carlos, 21-jul-2026)
+  var RT_FIJO = { neo: "Claude", morfeo: "Claude", whiterabbit: "Claude", oraculo: "Codex", trinity: "Codex", smith: "Grok" };
   // Estado "máquina apagada" para una misión PENDIENTE (sin surface): si su máquina
   // destino NO está entre las vivas, el empujón no llegó y nadie la recogerá.
   function machOffOf(t, surface) {
@@ -91,6 +96,11 @@
     else if (machOff) {
       plat = "⚠️ apagada"; platCls = "agent-surface off";
       platTitle = "La máquina destino" + (machOff.machine ? " (" + machOff.machine + ")" : "") + " está sin señal / apagada" + (machOff.since ? " · pendiente desde " + fechaCorta(machOff.since) : "") + ": el empujón no llegó y nadie la recogerá hasta que vuelva online.";
+    } else if (RT_FIJO[s]) {
+      // Plataforma DEDUCIDA por la doctrina de la persona (aún sin confirmar por la
+      // máquina): mejor decir el runtime probable que un «Pendiente» mudo. Cursiva.
+      plat = esc(RT_FIJO[s]); platCls = "agent-surface deduc";
+      platTitle = "Runtime deducido por la doctrina de " + name + " (aún sin confirmar por la máquina).";
     } else { plat = "Pendiente"; platCls = "agent-surface pend"; }
     var smallHtml = '<small class="' + platCls + '"' + (platTitle ? ' title="' + esc(platTitle) + '"' : "") + ">" + plat + "</small>";
     // Misión DIFUNDIDA (2-3 agentes agrupados): PILA de retratos, una imagen
