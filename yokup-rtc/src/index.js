@@ -156,6 +156,11 @@ async function ensureSchema(env) {
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_ev_tkt ON events(ticket_id)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS subs (endpoint TEXT PRIMARY KEY, created_at INTEGER)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS prefs (key TEXT PRIMARY KEY, value TEXT, updated_at INTEGER)");
+  // RELOJES DE DECISIÓN (Carlos, 2026-07-21): un equipo de silicio publica aquí
+  // lo que tiene pendiente de decidir, con sus 3 opciones y una cuenta atrás.
+  // Si Carlos no elige antes del deadline, el agente tira con la recomendada.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS decisions (id TEXT PRIMARY KEY, machine TEXT, agent TEXT, surface TEXT, question TEXT, options TEXT, recommended INTEGER DEFAULT 0, status TEXT DEFAULT 'pending', chosen INTEGER, chosen_by TEXT, created_at INTEGER, deadline INTEGER, decided_at INTEGER)");
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_dec_status ON decisions(status, deadline)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_tasks (mission_id TEXT, code TEXT, title TEXT, status TEXT DEFAULT 'pending', owner TEXT, report TEXT, updated_at INTEGER, PRIMARY KEY (mission_id, code))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_mtasks_mission ON mission_tasks(mission_id)");
   // image: URL pública de la captura de prueba del informe (R2 /media/…). La tabla
@@ -1425,6 +1430,79 @@ var index_default = {
     // machines:{slug:{icon,img}}}. LECTURA abierta (la consumen las listas);
     // ESCRITURA con sesión del perímetro (requireAuth inline: PROTECTED es por
     // ruta y capa los dos métodos, y el GET debe seguir abierto).
+    // ── RELOJES DE DECISIÓN ────────────────────────────────────────────────
+    // POST /decisions            (agente) publica una decisión con 3 opciones
+    // GET  /decisions            (panel /tareas) lista las vivas + recién cerradas
+    // POST /decisions/<id>/choose (Carlos) elige una opción
+    // GET  /decisions/<id>       (agente) consulta el desenlace
+    // Lectura abierta (el panel la pinta); publicar y elegir NO piden sesión a
+    // propósito: los agentes publican desde el CLI sin login de navegador.
+    if (url.pathname === "/decisions" && req.method === "POST") {
+      try {
+        await ensureSchema(env);
+        const b = await req.json();
+        const opts = Array.isArray(b.options) ? b.options.slice(0, 3).map((o) => String(o).slice(0, 160)) : [];
+        const q = String(b.question || "").trim().slice(0, 400);
+        if (!q || opts.length < 2) return json({ ok: false, error: "question y al menos 2 options requeridos" }, 400);
+        const mins = Math.min(60, Math.max(1, +b.minutes || 3));   // por defecto 3 min
+        const now = Date.now();
+        const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
+        await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline) VALUES (?,?,?,?,?,?,?,'pending',?,?)")
+          .bind(id, String(b.machine || "").slice(0, 60), String(b.agent || "").slice(0, 40),
+                String(b.surface || "").slice(0, 20), q, JSON.stringify(opts),
+                Math.max(0, Math.min(opts.length - 1, +b.recommended || 0)), now, now + mins * 60000).run();
+        return json({ ok: true, id, deadline: now + mins * 60000 });
+      } catch (e) { return json({ error: String(e) }, 500); }
+    }
+    if (url.pathname === "/decisions" && req.method === "GET") {
+      try {
+        await ensureSchema(env);
+        const now = Date.now();
+        // las vencidas sin elegir pasan a 'expired' (el agente ya tiró con la recomendada)
+        await env.DB.prepare("UPDATE decisions SET status='expired' WHERE status='pending' AND deadline < ?").bind(now).run();
+        const r = await env.DB.prepare("SELECT * FROM decisions WHERE status='pending' OR decided_at > ? OR deadline > ? ORDER BY created_at DESC LIMIT 40")
+          .bind(now - 3600000, now - 3600000).all();
+        const items = (r.results || []).map((d) => {
+          let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
+          return { id: d.id, machine: d.machine, agent: d.agent, surface: d.surface, question: d.question,
+                   options: o, recommended: d.recommended, status: d.status, chosen: d.chosen,
+                   created_at: d.created_at, deadline: d.deadline, decided_at: d.decided_at,
+                   secondsLeft: Math.max(0, Math.round((d.deadline - now) / 1000)) };
+        });
+        return json({ ok: true, items });
+      } catch (e) { return json({ error: String(e) }, 500); }
+    }
+    if (/^\/decisions\/[^/]+\/choose$/.test(url.pathname) && req.method === "POST") {
+      try {
+        await ensureSchema(env);
+        const id = decodeURIComponent(url.pathname.split("/")[2]);
+        const b = await req.json();
+        const idx = +b.choice;
+        const d = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(id).first();
+        if (!d) return json({ ok: false, error: "not_found" }, 404);
+        let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
+        if (!(idx >= 0 && idx < o.length)) return json({ ok: false, error: "choice fuera de rango" }, 400);
+        await env.DB.prepare("UPDATE decisions SET status='decided', chosen=?, chosen_by=?, decided_at=? WHERE id=?")
+          .bind(idx, String(b.by || "Carlos").slice(0, 40), Date.now(), id).run();
+        return json({ ok: true, id, chosen: idx, option: o[idx] });
+      } catch (e) { return json({ error: String(e) }, 500); }
+    }
+    if (/^\/decisions\/[^/]+$/.test(url.pathname) && req.method === "GET") {
+      try {
+        await ensureSchema(env);
+        const id = decodeURIComponent(url.pathname.split("/")[2]);
+        const d = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(id).first();
+        if (!d) return json({ ok: false, error: "not_found" }, 404);
+        let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
+        const now = Date.now();
+        const expired = d.status === "pending" && d.deadline < now;
+        return json({ ok: true, id: d.id, status: expired ? "expired" : d.status,
+                      chosen: d.chosen, recommended: d.recommended, options: o,
+                      // si venció sin respuesta, el agente tira con la recomendada
+                      effective: d.status === "decided" ? d.chosen : (expired ? d.recommended : null),
+                      secondsLeft: Math.max(0, Math.round((d.deadline - now) / 1000)) });
+      } catch (e) { return json({ error: String(e) }, 500); }
+    }
     if (url.pathname === "/prefs/customize" && req.method === "GET") {
       try {
         await ensureSchema(env);

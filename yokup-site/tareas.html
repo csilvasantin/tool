@@ -38,12 +38,53 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .bigempty b{color:var(--mut);display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .bigempty a{color:var(--brand)}
 .foot{margin-top:24px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
+
+  /* ═══ RELOJES DE DECISIÓN ═══ */
+  .decs{margin:0 0 18px;border:1px solid var(--warn,#ffb545);border-radius:12px;
+    background:rgba(255,181,69,.05);padding:13px 15px}
+  .decs-hd{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--warn,#ffb545);font-weight:700;display:flex;align-items:center;gap:9px;margin-bottom:11px}
+  .decs-n{color:var(--mut);letter-spacing:.05em}
+  .decs-list{display:flex;flex-direction:column;gap:11px}
+  .dec{border:1px solid var(--line2);border-radius:10px;background:var(--card);padding:12px 13px}
+  .dec.urge{border-color:#ff6b6b;box-shadow:0 0 18px -6px #ff6b6b}
+  .dec-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}
+  .dec-k{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--mut);border:1px solid var(--line);border-radius:6px;padding:3px 7px;white-space:nowrap}
+  .dec-k.ag{color:var(--brand,#78f3ff);border-color:rgba(120,243,255,.35)}
+  .dec-k.sur{color:#9effb0;border-color:rgba(61,240,138,.35)}
+  .dec-clock{margin-left:auto;font-family:var(--mono);font-size:15px;font-weight:700;
+    color:var(--warn,#ffb545);letter-spacing:.06em;font-variant-numeric:tabular-nums}
+  .dec.urge .dec-clock{color:#ff6b6b;animation:decblink 1s infinite}
+  @keyframes decblink{0%,100%{opacity:1}50%{opacity:.45}}
+  .dec-q{font-size:13px;line-height:1.4;color:var(--ink);margin-bottom:10px}
+  .dec-opts{display:flex;flex-direction:column;gap:6px}
+  .dec-opt{display:flex;align-items:flex-start;gap:8px;text-align:left;width:100%;
+    font-family:inherit;font-size:12px;line-height:1.35;color:var(--ink);cursor:pointer;
+    background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 10px;transition:.15s}
+  .dec-opt:hover{border-color:var(--brand,#78f3ff);background:rgba(120,243,255,.06)}
+  .dec-opt .n{font-family:var(--mono);font-size:10px;color:var(--mut);flex:none;padding-top:2px}
+  .dec-opt.rec{border-color:var(--warn,#ffb545)}
+  .dec-opt.rec .n{color:var(--warn,#ffb545)}
+  .dec-done{font-family:var(--mono);font-size:11px;padding:7px 0 0}
+  .dec-done.ok{color:var(--good,#3df08a)}
+  .dec-done.exp{color:var(--mut)}
 </style>
 </head>
 <body data-yk-title="TAREAS" data-yk-zone="app">
 <div class="wrap">
   <h1>Tareas</h1>
   <p class="sub">Los pasos en que se descompone cada misión: <b>a/b/c</b> con hasta 3 subtareas por paso (máx 9). Chips clicables ○◐● para avanzar estado; ⚙️ ejecutan los subagentes, 📝 reportan los infraagentes. Agrupado por misión, lo más reciente primero.</p>
+
+  <!-- ═══ RELOJES DE DECISIÓN (Carlos, 2026-07-21) ═══════════════════════════
+       Los equipos de silicio publican aquí lo que tienen pendiente de decidir:
+       equipo · agente · plataforma (CLI/Desktop) · cuenta atrás · 3 opciones.
+       Si la cuenta atrás llega a cero sin elegir, el agente tira con la
+       recomendada (marcada ★) — avance con red, nunca parálisis. -->
+  <section class="decs" id="decs" hidden>
+    <div class="decs-hd">⏳ Relojes de decisión <span class="decs-n" id="decsN"></span></div>
+    <div class="decs-list" id="decsList"></div>
+  </section>
 
   <!-- Filtro por FECHA de creación de la misión. Por defecto sólo las de HOY. -->
   <div class="tfilter" id="tfilter">
@@ -155,5 +196,76 @@ load(); setInterval(load,15000);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-frame.js?v=r20"></script>
+<script>
+/* ═══ RELOJES DE DECISIÓN ═══════════════════════════════════════════════════
+   Los agentes publican en POST /decisions; aquí se pintan con su cuenta atrás
+   y sus 3 opciones. Al pulsar una, se envía a /decisions/<id>/choose y el
+   agente la recoge. Si el reloj llega a 0 sin elegir, el agente ya tiró con la
+   recomendada (★) — por eso la tarjeta pasa a «siguió con la recomendada». */
+const DECS_API = WORKER + "/decisions";
+let DECS = [];
+function decMMSS(s){ s=Math.max(0,s|0); const m=(s/60)|0; const r=s%60; return m+":"+(r<10?"0":"")+r; }
+function decEsc(x){ return String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c])); }
+function decCard(d){
+  const urge = d.status==="pending" && d.secondsLeft<=60;
+  const rec = +d.recommended||0;
+  let cuerpo;
+  if(d.status==="decided"){
+    cuerpo = '<div class="dec-done ok">✓ decidido: <b>'+decEsc(d.options[d.chosen]||"")+'</b></div>';
+  } else if(d.status==="expired"){
+    cuerpo = '<div class="dec-done exp">⏱ sin respuesta — el agente siguió con la recomendada: <b>'+decEsc(d.options[rec]||"")+'</b></div>';
+  } else {
+    cuerpo = '<div class="dec-opts">'+d.options.map((o,i)=>
+      '<button class="dec-opt'+(i===rec?' rec':'')+'" data-dec="'+decEsc(d.id)+'" data-i="'+i+'">'+
+      '<span class="n">'+(i===rec?'★':(i+1))+'</span><span>'+decEsc(o)+'</span></button>').join('')+'</div>';
+  }
+  return '<div class="dec'+(urge?' urge':'')+'" data-decid="'+decEsc(d.id)+'">'+
+    '<div class="dec-top">'+
+      '<span class="dec-k">🖥 '+decEsc(d.machine||"—")+'</span>'+
+      '<span class="dec-k ag">👷 '+decEsc(d.agent||"—")+'</span>'+
+      '<span class="dec-k sur">'+decEsc((d.surface||"").toUpperCase()==="CLI"?"⌨ CLI":"🖥 Desktop App")+'</span>'+
+      (d.status==="pending"?'<span class="dec-clock" data-clock="'+decEsc(d.id)+'">'+decMMSS(d.secondsLeft)+'</span>':'')+
+    '</div>'+
+    '<div class="dec-q">'+decEsc(d.question)+'</div>'+ cuerpo + '</div>';
+}
+function renderDecs(){
+  const box=document.getElementById("decsList"), sec=document.getElementById("decs");
+  if(!box||!sec) return;
+  const vivos=DECS.filter(d=>d.status==="pending").length;
+  if(!DECS.length){ sec.hidden=true; return; }
+  sec.hidden=false;
+  document.getElementById("decsN").textContent = vivos? ("· "+vivos+" esperando tu decisión") : "· sin decisiones abiertas";
+  box.innerHTML = DECS.map(decCard).join("");
+}
+async function loadDecs(){
+  try{
+    const r=await fetch(DECS_API+"?_t="+Date.now(),{cache:"no-store"});
+    const d=await r.json(); DECS=(d&&d.items)||[]; renderDecs();
+  }catch(e){}
+}
+// cuenta atrás local cada segundo (sin machacar el worker)
+setInterval(()=>{
+  let cambio=false;
+  DECS.forEach(d=>{ if(d.status==="pending"){ d.secondsLeft=Math.max(0,d.secondsLeft-1);
+    const el=document.querySelector('[data-clock="'+d.id+'"]');
+    if(el){ el.textContent=decMMSS(d.secondsLeft);
+      const card=el.closest(".dec"); if(card) card.classList.toggle("urge", d.secondsLeft<=60); }
+    if(d.secondsLeft===0) cambio=true; } });
+  if(cambio) loadDecs();   // al vencer, refresca para reflejar el desenlace
+},1000);
+document.addEventListener("click", async e=>{
+  const b=e.target.closest(".dec-opt"); if(!b) return;
+  const id=b.dataset.dec, i=+b.dataset.i;
+  b.closest(".dec-opts").querySelectorAll(".dec-opt").forEach(x=>x.disabled=true);
+  b.textContent="⏳ enviando…";
+  try{
+    await fetch(DECS_API+"/"+encodeURIComponent(id)+"/choose",{method:"POST",
+      headers:{"content-type":"application/json"},body:JSON.stringify({choice:i,by:"Carlos"})});
+  }catch(err){}
+  loadDecs();
+});
+loadDecs(); setInterval(loadDecs, 15000);
+
+</script>
 </body>
 </html>
