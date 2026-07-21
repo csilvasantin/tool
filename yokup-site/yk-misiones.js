@@ -260,6 +260,7 @@
   // sin arrancar). Al reclamarla (bot-inbox-claim) pasa a in_progress = En curso.
   // Antes esto se llamaba «Asignada», lo que confundía backlog con trabajo en marcha.
   function estadoDe(t) {
+    if (t.status === "cancelled") return { c: "b-cancel", l: "Cancelada" };
     if (t.status === "resolved") return { c: "b-res", l: "Finalizada" };
     if (t.status === "in_progress") return { c: "b-prog", l: "En curso" };
     return (t.assignee || t.loc || t.machine) ? { c: "b-pend", l: "Pendiente" } : { c: "b-sina", l: "Sin asignar" };
@@ -325,7 +326,7 @@
         // /misiones; inocua en /incidencias, que no la cablea). Carlos, 2026-07-15.
         '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, surface, t._agents, machOffOf(t, surface)) + "</div>" +
         // Estado + ABRIR apilado (abrir debajo de la insignia).
-        '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"><i></i>' + stt + "</span>" +
+        '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"' + (t.status === "cancelled" && t.note ? ' title="' + esc(t.note) + '"' : "") + "><i></i>" + stt + "</span>" + (t.status === "cancelled" && t.note ? '<small class="cancel-note" title="' + esc(t.note) + '">' + esc(t.note) + "</small>" : "") +
           '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a></div>' +
       "</div></div>";
   }

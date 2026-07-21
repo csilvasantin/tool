@@ -174,6 +174,7 @@ async function ensureSchema(env) {
   // Llave de lectura del service worker (ver /push/subscribe). Idempotente.
   await env.DB.exec("ALTER TABLE subs ADD COLUMN peek_key TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN proof_image TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN note TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN agent_runtime TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN agent_host TEXT").catch(() => {});
   // CAPTURA EN VIVO del CLI mientras trabaja (Carlos, 2026-07-18: «no hay nada
@@ -683,9 +684,6 @@ __name(listTickets, "listTickets");
 var FLEET_API = "https://admira-fleet.csilvasantin.workers.dev";
 var FLEET_INBOX = "https://admira-telegram.csilvasantin.workers.dev/api/public/inbox?limit=200";
 // Estado del encargo → estado de la misión. 'ack' es acuse de recibo, no avance.
-// CANCELADA (Carlos, 21-jul-2026): faltaban las palabras para decir «esto no se va a
-// hacer». Sin este estado, retirar una misión obligaba a fingir que se hizo (done) — y el
-// guardarraíl de prueba la degradaba a in_progress, que miente más que dejarla abierta.
 var FLEET_ST = { pending: "open", ack: "open", in_progress: "in_progress", done: "resolved", cancelled: "cancelled" };
 // La captura pasa a ser contrato de cierre desde este despliegue. Las misiones
 // históricas terminadas antes no se reabren: no existe forma honesta de fabricar
@@ -775,13 +773,14 @@ async function fleetSync(env) {
     // Un DONE del agente no basta: Yokup sólo finaliza cuando el cierre incluye
     // un pantallazo real del trabajo. El bot puede haber terminado, pero la misión
     // permanece EN CURSO hasta que /fleet/informe registre proof_image.
-    // Cancelar no es fingir que se hizo: es reconocer que no se hará. Por eso NO pide prueba
-    // (solo la pide "resolved", que sí afirma trabajo realizado).
     const proofRequired = st === "resolved" && epochMs(it.done_at, now) >= PROOF_REQUIRED_AFTER;
     if (proofRequired && !(prev && (prev.proof_image || await hasMissionProof(env, id)))) {
       st = "in_progress";
     }
     if (!prev) {
+      // Una CANCELADA sin ticket no genera lápida: cancelar es reconocer que algo no
+      // se hará, no crear una misión nueva para enterrarla. (Carlos, 2026-07-21)
+      if (st === "cancelled") continue;
       // ANTI-RESURRECCIÓN, pero SIN perder misiones rápidas (Carlos, 2026-07-17):
       // un encargo cerrado hace MUCHO que nunca fue ticket es una lápida (limpieza
       // manual revivida por la ventana de done de 7 días del public/inbox — p.ej. las
@@ -789,7 +788,7 @@ async function fleetSync(env) {
       // (la desktop app cierra en segundos, ANTES de que el cron de 2 min la pille
       // activa) llega ya 'resolved' y SÍ debe nacer, o nunca aparecería en /misiones.
       // Umbral: solo saltamos las cerradas hace más de 6 h.
-      if ((st === "resolved" || st === "cancelled") && (now - epochMs(it.done_at, ts)) > 6 * 3600 * 1e3) continue;
+      if (st === "resolved" && (now - epochMs(it.done_at, ts)) > 6 * 3600 * 1e3) continue;
       await env.DB.prepare(
         "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at,resolved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(
@@ -801,6 +800,10 @@ async function fleetSync(env) {
       await addEvent(env, id, "log", it.from_name || "Carlos", String(it.text || ""));
       created++;
     } else {
+      // ANTI-RESURRECCIÓN de CANCELADAS: si la misión ya está cancelada en yokup, el
+      // encargo del inbox NO la revive (aunque siga 'pending' en su ventana). Solo un
+      // cancelled explícito la mantiene cancelada. (Carlos, 2026-07-21)
+      if (prev.status === "cancelled" && st !== "cancelled") continue;
       // Propaga también los cambios de ASIGNACIÓN (reasignar agente/máquina desde
       // la vista detalle actualiza el encargo; el ticket debe reflejarlo).
       const asig = it.target_persona || "", loc = it.target_machine || "";
@@ -1028,7 +1031,7 @@ __name(fleetPlanPending, "fleetPlanPending");
 // expone nada que el bot-inbox público no publique ya.
 async function fleetMissions(env) {
   const { results } = await env.DB.prepare(
-    "SELECT id,screen,subject,loc,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,created_at,updated_at FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
+    "SELECT id,screen,subject,loc,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,created_at,updated_at,note FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
   ).all();
   const rows = results || [];
   if (!rows.length) return [];
@@ -1270,6 +1273,33 @@ var index_default = {
         }
       }
       return json({ ok: true, mission: mid, resolved: !crossSign, cross_signed: crossSign });
+    }
+    // CANCELAR una misión: reconocer que NO se hará. No exige pantallazo (no se finge
+    // trabajo, se retira). Marca el ticket cancelled + nota, y cancela el encargo del
+    // bot-inbox para que no se re-inyecte ni resucite. (Carlos, 2026-07-21)
+    if (url.pathname === "/fleet/cancel" && req.method === "POST") {
+      await ensureSchema(env);
+      let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
+      let mid = String(b.mission || b.id || "").trim();
+      if (/^#?\d+$/.test(mid)) mid = "FLT-" + mid.replace(/^#/, "");
+      const note = String(b.note || b.reason || "").slice(0, 300).trim();
+      const by = String(b.by || "yokup").slice(0, 40);
+      if (!mid) return json({ ok: false, error: "mission requerida" }, 400);
+      const t = await env.DB.prepare("SELECT id,status FROM tickets WHERE id=?").bind(mid).first();
+      if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
+      const now = Date.now();
+      await env.DB.prepare("UPDATE tickets SET status='cancelled', note=?, updated_at=?, resolved_at=NULL WHERE id=?").bind(note || null, now, mid).run();
+      await addEvent(env, mid, "log", by, "🚫 Cancelada" + (note ? ": " + note : "") + ".");
+      const numId = mid.replace(/^FLT-/, "");
+      if (/^\d+$/.test(numId) && env.TELEGRAM) {
+        try {
+          await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ ids: [Number(numId)], status: "cancelled", by: by, note: note || "cancelada desde yokup" })
+          }));
+        } catch (e) {}
+      }
+      return json({ ok: true, mission: mid, cancelled: true });
     }
     // Ingesta UNIVERSAL de incidencias (Carlos, 2026-07-17): cualquier sistema,
     // monitor o agente reporta aquí y aparece en /incidencias. PÚBLICO (como
