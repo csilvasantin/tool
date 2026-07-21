@@ -213,22 +213,35 @@ async function load(){
   const groups=YkMisiones.groupByMission(rows).filter(g=>inRange(g.mission.created_at));
   groups.sort((a,b)=>Math.max(...b.tasks.map(x=>x.updated_at||0))-Math.max(...a.tasks.map(x=>x.updated_at||0)));
   GROUPS=groups;
-  // KPIs del cabezal: contadores por ESTADO canónico de las misiones del rango
-  // de fecha (antes del filtro por estado, igual que en /misiones).
-  const estL=g=>YkMisiones.estadoDe(g.mission).l;
+  // KPIs del cabezal: aquí contamos TAREAS (los pasos a/b/c en que se desglosa
+  // cada misión), NO misiones — si contáramos misiones saldría el mismo número
+  // que en /misiones, y son cosas distintas (una misión ≈ 3 tareas). Cada tarea
+  // tiene su propio estado; su bucket se deriva igual que el de una misión
+  // (done→Finalizada, in_progress→En curso, pending con dueño→Pendiente, sin
+  // dueño→Sin asignar). Se cuentan TODAS las tareas del rango de fecha.
+  const allTasks=groups.flatMap(g=>g.tasks);
   CAB.setCounts({
-    sin: groups.filter(g=>estL(g)==="Sin asignar").length,
-    asig: groups.filter(g=>estL(g)==="Pendiente").length,
-    prog: groups.filter(g=>estL(g)==="En curso").length,
-    res: groups.filter(g=>estL(g)==="Finalizada").length
+    sin: allTasks.filter(t=>taskEstado(t)==="Sin asignar").length,
+    asig: allTasks.filter(t=>taskEstado(t)==="Pendiente").length,
+    prog: allTasks.filter(t=>taskEstado(t)==="En curso").length,
+    res: allTasks.filter(t=>taskEstado(t)==="Finalizada").length
   });
   render();
+}
+// Estado canónico de UNA tarea (paso a/b/c), espejo de YkMisiones.estadoDe pero
+// sobre el estado propio de la tarea y su dueño (owner ↔ assignee de la misión).
+function taskEstado(t){
+  if(t.status==="done"||t.status==="resolved") return "Finalizada";
+  if(t.status==="in_progress") return "En curso";
+  return t.owner ? "Pendiente" : "Sin asignar";
 }
 // Filtra los grupos por el KPI de estado activo y por el buscador del cabezal.
 const STATE_LBL={sin:"Sin asignar",asignadas:"Pendiente",in_progress:"En curso",resolved:"Finalizada"};
 function visibles(){
   let gs=GROUPS;
-  if(STATE&&STATE_LBL[STATE]) gs=gs.filter(g=>YkMisiones.estadoDe(g.mission).l===STATE_LBL[STATE]);
+  // El KPI filtra por estado de TAREA: se muestran las misiones que tienen al
+  // menos una tarea en ese estado (el árbol a/b/c completo, para no perder contexto).
+  if(STATE&&STATE_LBL[STATE]) gs=gs.filter(g=>g.tasks.some(t=>taskEstado(t)===STATE_LBL[STATE]));
   if(SEARCH){
     const nrm=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
     const nq=nrm(SEARCH);
