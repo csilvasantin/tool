@@ -54,7 +54,7 @@ html[data-yk-view="list"] .mcard .mtog{display:none}
 .bigempty a{color:var(--brand)}
 .foot{margin-top:24px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
 
-  /* ═══ RELOJES DE DECISIÓN ═══ */
+  /* Estilos históricos del componente de Misiones; Tareas no lo monta. */
   .decs{margin:0 0 18px;border:1px solid var(--warn,#ffb545);border-radius:12px;
     background:rgba(255,181,69,.05);padding:13px 15px}
   .decs-hd{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
@@ -353,15 +353,13 @@ load(); setInterval(load,15000);
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-avatar.js?v=r2"></script>
 <script src="/yk-frame.js?v=r20"></script>
-<script>
-/* ═══ RELOJES DE DECISIÓN ═══════════════════════════════════════════════════
+<script type="text/plain" data-legacy="decisions-live-in-misiones">
+/* Implementación histórica; el reloj activo vive exclusivamente en /misiones.
    Los agentes publican en POST /decisions; aquí se pintan con su cuenta atrás
    y sus opciones (hasta 5 misiones + «Volver atrás»). Al pulsar una, se envía a /decisions/<id>/choose y el
    agente la recoge. Si el reloj llega a 0 sin elegir, el agente ya tiró con la
    recomendada (★) — por eso la tarjeta pasa a «siguió con la recomendada». */
-// /tareas no monta relojes: su único hogar visible es /misiones. Conservamos
-// temporalmente este bloque para no romper cachés antiguas, pero queda inerte
-// al no existir el contenedor #decs en esta página.
+// Este bloque no se ejecuta en /tareas y se retirará en una limpieza mecánica.
 if (document.getElementById("decs")) {
 const DECS_API = WORKER + "/decisions";
 let DECS = [];
