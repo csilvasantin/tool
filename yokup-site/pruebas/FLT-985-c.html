@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba FLT-983 d · la landing pública recupera menú en móvil</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--good:#88ffaa;--warn:#ff8866;--line:rgba(120,243,255,.16);--sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden}
+.wrap{max-width:1100px;margin:0 auto;padding:22px 24px 48px;min-width:0}
+h1{font-size:clamp(21px,3vw,29px);letter-spacing:-.02em;margin:4px 0 10px}
+h2{font-size:15px;letter-spacing:.06em;text-transform:uppercase;font-family:var(--mono);color:var(--brand);margin:26px 0 10px}
+.sub{color:var(--mut);font-size:14px;line-height:1.6;margin-bottom:8px}
+.sub b{color:var(--brand)}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px;margin-bottom:8px}
+.tw{overflow-x:auto}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:10px}
+td.ok{color:var(--good)}td.no{color:var(--warn)}
+figure{margin:0 0 20px}
+figure img{width:100%;max-width:100%;height:auto;border:1px solid var(--line);border-radius:12px;display:block}
+figcaption{font-family:var(--mono);font-size:11px;color:var(--dim);line-height:1.6;margin-top:8px}
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:18px}
+.foot{font-family:var(--mono);font-size:10.5px;line-height:1.7;color:var(--dim);margin-top:26px;padding-top:14px;border-top:1px solid var(--line)}
+.foot b{color:var(--mut)}
+code{font-family:var(--mono);color:var(--mut)}
+@media(max-width:520px){.wrap{padding:18px 14px 40px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Prueba FLT-985 c · «viva» es la que está en curso, el reloj donde ya se mira, y lo de subNeo comprobado</h1>
+<p class="sub">Verificación de infraNeo sobre <b>producción</b> (www.yokup.com, Cloudflare Pages) y sobre el worker
+<b>yokup-rtc</b>. Las capturas se toman con el HTML y el JS <b>idénticos byte a byte</b> a los de producción
+(cotejo con <code>cmp</code>), servidos en local sólo para saltar la verja de Google; los datos son los
+<b>reales</b> de los workers vivos.</p>
+
+<h2>c1 · viva = en curso</h2>
+<p class="sub">La ficha de proyecto contaba como «viva» todo lo que no estuviera cerrado, así que una cola de
+encargos parados se presentaba como trabajo en marcha. Ahora la consulta separa por estado
+(<code>status IN ('in_progress','open') GROUP BY project, status</code>): <b>viva = in_progress</b>, y lo
+<code>open</code> viaja aparte como <code>missions_pending</code> para poder decirlo en vez de sumarlo a
+escondidas. En /equipo, además, una misión <b>cancelada</b> ya no entra en el saco. Rótulos en singular y sin
+adverbios: «Misión en curso», «sin misión en curso».</p>
+
+<h2>c2 · el reloj abierto, donde ya se mira</h2>
+<p class="sub">/equipo monta el panel de <code>yk-decisions.js</code> —el <b>mismo módulo</b> que /misiones y
+/decisiones, sin copiar <code>card()</code>— y cada ficha de agente con reloj abierto lleva «⏳ decidiendo» en el
+mismo renglón de sus misiones. Los relojes los abre quien ejecuta (infraNeo, InfraOraculo), así que se hereda la
+capa igual que el retrato y se dice de quién es el reloj.</p>
+
+<figure><img src="FLT-985-c-equipo-1280.jpg" alt="/equipo a 1280 con el reloj de decisión arriba y la marca en la ficha de Neo">
+<figcaption>/equipo a 1280. Arriba «0 MISIÓN EN CURSO» (singular) y el <b>reloj de decisión</b> con su cuenta atrás;
+en la ficha de Neo, «⏳ INFRANEO DECIDIENDO · sin misión en curso». Retratos reales en las seis fichas: quien no
+tiene foto —White Rabbit— sale con <b>iniciales «WR»</b>, no con un emoji. El reloj de la captura es una
+<b>fila de sonda</b> de infraNeo, creada para esta prueba y <b>borrada al terminar</b>.</figcaption></figure>
+
+<h2>c3 · lo de subNeo, comprobado a mano</h2>
+<div class="tw"><table>
+<tr><th>Qué</th><th>Cómo se comprobó</th><th>Resultado</th></tr>
+<tr><td>Retrato en ficha, chips, fila Agente y ficha de decisión</td><td>DOM de /equipo y /decisiones</td><td class="ok">✓ neo.jpg, morfeo.jpg, y la foto del Panel de control para Oráculo</td></tr>
+<tr><td>Herencia de capa</td><td>InfraOraculo / infraNeo / subMorfeo</td><td class="ok">✓ llevan la cara de su persona</td></tr>
+<tr><td>Sin retrato → iniciales</td><td>Ampere (reloj real) y White Rabbit</td><td class="ok">✓ «AM» y «WR», ningún emoji</td></tr>
+<tr><td>Combo de agentes con vista previa</td><td>editor de proyecto</td><td class="ok">✓ 6 opciones + retrato del elegido</td></tr>
+<tr><td>Chips con ✕</td><td>editor de Yokup</td><td class="ok">✓ chip «Neo» con retrato y botón quitar</td></tr>
+<tr><td>Arrastre por Pointer Events</td><td>gesto real sobre el asa</td><td class="ok">✓ tras arreglar el guardado (ver abajo)</td></tr>
+<tr><td>Teclado: flechas e Inicio/Fin</td><td>foco en el asa + ArrowLeft</td><td class="ok">✓ mueve un puesto y guarda; el foco no se pierde</td></tr>
+<tr><td>Orden persistido</td><td>POST /projects/order + relectura de /projects</td><td class="ok">✓ sort_order en el worker</td></tr>
+<tr><td>Responsable de carbono a la derecha del subtítulo</td><td>getBoundingClientRect</td><td class="ok">✓ x=620 frente a x=537 del subtítulo; vacío no se pinta</td></tr>
+<tr><td>Los 4 proyectos de Carlos</td><td>/projects antes y después</td><td class="ok">✓ orden 0-3 y owner vacío, intactos</td></tr>
+<tr><td>Prod == repo</td><td>cmp del front · bundle a bundle del worker</td><td class="ok">✓ idénticos (sólo el salto de línea final del worker)</td></tr>
+<tr><td>Rutas protegidas</td><td>/mission/*/tasks, /tasks/all, /tickets</td><td class="ok">✓ 401</td></tr>
+<tr><td>Carrusel de Oráculo</td><td>mission_batches en D1</td><td class="ok">✓ intacto, la sonda no creó ninguna tanda</td></tr>
+<tr><td>Suites</td><td>node --test</td><td class="ok">✓ worker 36/36 · front 19/19</td></tr>
+</table></div>
+
+<h2>Un fallo real que salió al arrastrar de verdad</h2>
+<p class="sub">La ficha se colocaba en pantalla y el mensaje decía «✓ orden guardado» —el de la vez anterior, con el
+teclado—, pero al worker <b>no salía nada</b>: al siguiente refresco volvía a su sitio. El asa capturaba el
+puntero, y colocar la ficha la mueve de sitio con <code>insertBefore</code>; sacar de su sitio al elemento que
+tiene la captura la <b>suelta</b>, así que el <code>pointerup</code> ya no volvía al asa. Ahora el gesto se sigue
+en <code>window</code>, filtrado por <code>pointerId</code>. Se arregló y se volvió a probar arrastrando.</p>
+
+<h2>Cero scroll horizontal</h2>
+<p class="sub"><code>scrollWidth == clientWidth</code> en las 12 medidas: 320 y 375 px × (/equipo base, pestaña
+Proyectos, <b>mientras se arrastra</b> y con el <b>editor abierto</b>) + /misiones y /decisiones.</p>
+
+<div class="shots">
+<figure><img src="FLT-985-c-proyectos-320.jpg" alt="/equipo a 320"><figcaption>320 px · «MISIÓN EN CURSO» y el reloj de decisión, sin barra horizontal.</figcaption></figure>
+<figure><img src="FLT-985-c-editor-375.jpg" alt="editor a 375"><figcaption>375 px · editor abierto con «Responsable de carbono» y el combo de agentes.</figcaption></figure>
+<figure><img src="FLT-985-c-arrastre-1280.jpg" alt="arrastre"><figcaption>Arrastrando una ficha de sonda: se ve el responsable de carbono a la derecha del subtítulo, y los cuatro proyectos de Carlos sin owner.</figcaption></figure>
+<figure><img src="FLT-985-c-combo-chips-1280.jpg" alt="combo"><figcaption>Editor: combo de agentes con vista previa del retrato y chips con ✕.</figcaption></figure>
+</div>
+
+<div class="foot">
+<b>Filas de sonda creadas y borradas:</b> la decisión <code>DEC-SONDA-FLT985C2</code> (agente infraNeo, máquina Mac
+Mini — mi propia persona y mi propia máquina) y los proyectos <code>sonda-flt-985-a</code> y
+<code>sonda-flt-985-b</code>. Ninguna tocó los cuatro proyectos de Carlos.<br>
+<b>Commits:</b> 1c787ba (c1·c2) · ba47f92 (c3). <b>Worker:</b> versión 41c3d29. <b>infraNeo · FLT-985 c</b>
+</div>
+</div>
+</body>
+</html>
