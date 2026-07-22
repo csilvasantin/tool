@@ -22,26 +22,20 @@
        + ".decs-note{font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--dim,#4d7a88);margin-top:11px;padding-top:9px;border-top:1px solid var(--line)}";
   function esc(x) { return String(x == null ? "" : x).replace(/[<>&"]/g, function (c) { return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]; }); }
   function cleanProjectName(x) { return String(x || "").replace(/^misi[oó]n\s*:?\s*/i, "").replace(/\s+/g, " ").trim().slice(0, 120); }
-  function brandFromUrl(raw) {
-    var host = String(raw || "").trim().replace(/^https?:\/\//i, "").split(/[\/?#]/)[0].replace(/^www\./i, "").toLowerCase();
-    var path = String(raw || "").trim().replace(/^https?:\/\/[^/]+/i, "").toLowerCase();
-    if (!host) return "";
-    if (host === "admiranext.com" && /\/presentaciones(?:\/|$)/.test(path)) return "Generador de Presentaciones · AdmiraNeXT";
-    var known = {"admiranext.com":"AdmiraNeXT","yokup.com":"Yokup","admira.live":"Admira Live","admira.tv":"Admira TV","xpaceos.com":"XpaceOS","pixeria.pro":"Pixeria"};
-    if (known[host]) return known[host];
-    var label = host.split(".")[0].replace(/[-_]+/g, " ").trim();
-    return label ? label.replace(/\b\w/g, function (c) { return c.toUpperCase(); }) : "";
-  }
   // El proyecto lo resuelve el WORKER contra el censo (/projects) y llega ya con
-  // su nombre humano. Aquí sólo queda el respaldo honrado: si no hay proyecto y
-  // sí una URL, la marca del dominio; si no hay nada, se dice «Sin proyecto».
-  // Antes se colaba el TÍTULO DE LA MISIÓN como si fuera el proyecto y, cuando
-  // ni eso, un «Proyecto sin identificar» que era justo la queja de Carlos: la
-  // ficha fingía un dato que nadie había dado de alta.
+  // su nombre humano. Si no hay, la ficha dice «Sin proyecto» y se calla: NO se
+  // adivina de ningún otro campo.
+  // Historia de los dos apaños, los dos fuera (FLT-984 a·b y c):
+  //  · se colaba el TÍTULO DE LA MISIÓN como si fuera el proyecto, y de postre un
+  //    «Proyecto sin identificar» — la queja literal de Carlos;
+  //  · y quedaba un adivinador por DOMINIO de la url (yokup.com → «Yokup»,
+  //    admiranext.com/presentaciones → «Generador de Presentaciones · AdmiraNeXT»)
+  //    que seguía poniendo en la ficha un proyecto que nadie había dado de alta.
+  // Un hueco visible es lo que empuja a asignar el proyecto de verdad en /equipo;
+  // una etiqueta inventada lo esconde.
   function projectName(d) {
     var explicit = cleanProjectName(d && d.project);
-    if (explicit) return explicit;
-    return brandFromUrl(d && d.url) || "Sin proyecto";
+    return explicit || "Sin proyecto";
   }
   function domId(x) { return "dec-project-" + String(x || "item").replace(/[^a-z0-9_-]/gi, "-"); }
   function mmss(s) { s = Math.max(0, s | 0); return ((s / 60) | 0) + ":" + String(s % 60).padStart(2, "0"); }
