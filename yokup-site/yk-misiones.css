@@ -122,6 +122,9 @@
 .node .node-rep{flex-basis:100%;padding-left:22px;font-size:11px;line-height:1.4;color:var(--mut)}
 .node .node-rep a{color:var(--brand);text-decoration:underline;word-break:break-all}
 .node.sub{padding-left:18px}
+.step.collapsed .substeps{display:none}
+.substog{margin:1px 0 2px 22px;font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--mut);background:transparent;border:1px solid var(--line);border-radius:6px;padding:2px 7px;cursor:pointer}
+.substog:hover{color:var(--brand);border-color:var(--brand)}
 .chip{flex:none;cursor:pointer;border:none;background:transparent;font-size:14px;line-height:1.15;padding:0;width:16px;text-align:center}
 .chip.pending{color:var(--accent)}.chip.in_progress{color:var(--brand)}.chip.done{color:var(--good)}
 .node .scode{flex:none;font-size:9.5px;color:var(--dim);width:15px;padding-top:2px}

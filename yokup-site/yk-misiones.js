@@ -248,6 +248,10 @@
     ov.classList.add("show");
   }
   document.addEventListener("click", function (e) {
+    // Encapsulado: el botón de una letra despliega/pliega SUS subtareas (nivel de
+    // dentro; delegado para que valga en /tareas y /misiones sin cablear cada vista).
+    var tog = e.target.closest && e.target.closest(".substog");
+    if (tog) { var step = tog.closest(".step"); if (step) { step.classList.toggle("collapsed"); var op = !step.classList.contains("collapsed"); tog.textContent = (op ? "▾ " : "▸ ") + tog.textContent.replace(/^[▸▾]\s*/, ""); } return; }
     var img = e.target.closest && e.target.closest(".shot-img");
     if (img && (img.dataset.proof || img.dataset.shot)) {
       e.preventDefault(); openLightbox(img.dataset.proof || img.dataset.shot, !!img.dataset.proof);
@@ -454,10 +458,19 @@
     tasks.forEach(function (t) { byCode[t.code] = t; });
     var html = "";
     ["a", "b", "c", "d", "e", "f", "g", "h"].forEach(function (c) {
-      if (!byCode[c] && !tasks.some(function (t) { return t.code[0] === c; })) return;
-      html += '<div class="step">';
+      var subs = ["1", "2", "3"].map(function (n) { return byCode[c + n]; }).filter(Boolean);
+      if (!byCode[c] && !subs.length) return;
+      // Jerarquía ENCAPSULADA: las subtareas a1/a2/a3 van DENTRO de su letra y
+      // PLEGADAS por defecto — se ve a/b/c y se despliega la letra que interese.
+      // Es el nivel de DENTRO; la ficha entera se pliega aparte. (Carlos, 954/958)
+      html += '<div class="step' + (subs.length ? " has-subs collapsed" : "") + '" data-step="' + esc(c) + '">';
       if (byCode[c]) html += taskNode(byCode[c], false);
-      ["1", "2", "3"].forEach(function (n) { if (byCode[c + n]) html += taskNode(byCode[c + n], true); });
+      if (subs.length) {
+        html += '<button class="substog" type="button" title="ver/ocultar las ' + subs.length + ' subtareas">▸ ' + subs.length + " sub" + (subs.length > 1 ? "s" : "") + "</button>";
+        html += '<div class="substeps">';
+        subs.forEach(function (s) { html += taskNode(s, true); });
+        html += "</div>";
+      }
       html += "</div>";
     });
     return html;
