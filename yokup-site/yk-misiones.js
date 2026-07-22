@@ -1,8 +1,10 @@
 /* ============================================================================
  * yk-misiones.js — Lógica compartida del modelo MISIONES · TAREAS.
  *
- * Doctrina: una MISIÓN (ticket) se descompone en 3 pasos a/b/c con hasta 3
- * subtareas cada uno (a1..h3, máx 24). Subagentes ejecutan, infraagentes
+ * Doctrina — REGLA DE LOS TERCIOS: una MISIÓN (ticket) se descompone en 3 tareas
+ * a·b·c con 3 subtareas cada una (a1..c3, máx 9). Los planes ANTIGUOS con pasos
+ * d…h (modelo de 8) no se tocan: se cuentan aparte como «+n». La fila de cierre
+ * z1 la genera el worker y no cuenta. Subagentes ejecutan, infraagentes
  * reportan. Este módulo es la fuente ÚNICA de la fila de misión, la selección
  * con glow y el árbol de tareas — lo usan /incidencias, /misiones y /tareas
  * para no divergir. Script clásico (sin módulos): expone window.YkMisiones.
@@ -13,8 +15,10 @@
  *   YkMisiones.bindRows(container)        // click=seleccionar (salvo «abrir →»)
  *   YkMisiones.refreshTree()              // repinta el árbol de la selección
  *   YkMisiones.selected()                 // id de la misión activa
- *   YkMisiones.stepsHtml(tasks)           // árbol a…h/123 (para vistas globales)
- *   YkMisiones.subCount(tasks)            // subtareas definidas (contador n/24)
+ *   YkMisiones.stepsHtml(tasks)           // árbol a·b·c/1·2·3 (vistas globales)
+ *   YkMisiones.tercios(tasks)             // {done,total:3,sdone,stotal:9,extra}
+ *   YkMisiones.progHtml(p)                // chip «n/3 · n/9 (+n)»
+ *   YkMisiones.subCount(tasks)            // subtareas definidas del plan
  *   YkMisiones.nextStatus(cur) / postStatus(id, code, status)
  * ==========================================================================*/
 (function () {
@@ -457,7 +461,7 @@
     renderTaskTree(id);
   }
 
-  // ------- árbol de TAREAS a…h/123 (jornada completa: 8×3) -------
+  // ------- árbol de TAREAS a·b·c/1·2·3 (jornada completa: 3×3) -------
   // Convierte URLs del texto en enlaces pulsables (target=_blank, rel=noopener).
   // Escapa TODO primero (anti-XSS) y solo entonces envuelve las URLs; el clic en el
   // enlace no debe propagar al nodo (que avanza el estado). Carlos, 21-jul-2026.
@@ -493,7 +497,7 @@
       "</div>";
   }
 
-  // html de los 8 pasos a…h con sus subtareas (sin cabecera): reutilizable en
+  // html de los pasos del plan con sus subtareas (sin cabecera): reutilizable en
   // el raíl de una misión y en la vista global /tareas. OJO: aquí vivía el
   // ÚLTIMO tope del modelo de 3 pasos — el worker ya servía a…h y esta lista
   // pintaba sólo abc, así que d…h desaparecían en silencio (Carlos, 21-07-2026).
@@ -671,7 +675,15 @@
     fetchTasks(id).then(function (tasks) {
       if (SELECTED !== id) return;                      // cambió la selección mientras cargaba
       var p = part(); if (!p) return;
-      var header = '<div class="thd"><span class="tmid" title="Misión activa">🎯 ' + esc(id) + '</span><span class="tcount" title="subtareas definidas / máx 24">' + subCount(tasks) + "/24</span></div>";
+      // REGLA DE LOS TERCIOS (FLT-979, tarea c): la cabecera del cajón seguía
+      // contando «subtareas definidas / máx 24» — el denominador del modelo VIEJO
+      // de 8 pasos, justo lo que la misión venía a eliminar. Ahora lee en tercios
+      // igual que el chip de la fila: tareas n/3 · subtareas n/9 (+n si el plan
+      // es antiguo y arrastra pasos d…h).
+      var _tc = tercios(tasks);
+      var header = '<div class="thd"><span class="tmid" title="Misión activa">🎯 ' + esc(id) + '</span><span class="tcount" title="' +
+        esc(_tc ? _tc.done + " de " + _tc.total + " tareas · " + _tc.sdone + " de " + _tc.stotal + " subtareas (regla de los tercios)" + (_tc.extra ? " · +" + _tc.extra + " pasos de plan antiguo" : "") : "sin plan de tareas") + '">' +
+        (_tc ? _tc.done + "/" + _tc.total + (_tc.stotal ? " · " + _tc.sdone + "/" + _tc.stotal : "") + (_tc.extra ? " +" + _tc.extra : "") : "0/3") + "</span></div>";
       if (!tasks.length) {
         p.innerHTML = header + '<div class="empty2">Esta misión aún no tiene plan de tareas.</div><button class="propose" id="ykProposeBtn">🧠 Proponer plan (IA)</button>';
         var pb = document.getElementById("ykProposeBtn");
