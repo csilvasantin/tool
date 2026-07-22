@@ -62,9 +62,17 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
     font-family:inherit;font-size:12px;line-height:1.35;color:var(--ink);cursor:pointer;
     background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 10px;transition:.15s}
   .dec-opt:hover{border-color:var(--brand,#78f3ff);background:rgba(120,243,255,.06)}
+  .dec-opt:disabled{cursor:default;opacity:.72}
+  .dec-opt:disabled:hover{border-color:var(--line);background:transparent}
   .dec-opt .n{font-family:var(--mono);font-size:10px;color:var(--mut);flex:none;padding-top:2px}
   .dec-opt.rec{border-color:var(--warn,#ffb545)}
   .dec-opt.rec .n{color:var(--warn,#ffb545)}
+  .dec-opt.effective{opacity:1;border-color:var(--good,#3df08a);background:rgba(61,240,138,.09);
+    box-shadow:inset 3px 0 0 var(--good,#3df08a)}
+  .dec-opt.effective .n{color:var(--good,#3df08a);font-weight:800}
+  .dec-opt.effective.expired{border-color:var(--warn,#ffb545);background:rgba(255,181,69,.08);
+    box-shadow:inset 3px 0 0 var(--warn,#ffb545)}
+  .dec-opt.effective.expired .n{color:var(--warn,#ffb545)}
   .dec-done{font-family:var(--mono);font-size:11px;padding:7px 0 0}
   .dec-done.ok{color:var(--good,#3df08a)}
   .dec-done.exp{color:var(--mut)}
@@ -121,7 +129,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 
   <!-- ═══ RELOJES DE DECISIÓN (Carlos, 2026-07-21) ═══════════════════════════
        Los equipos de silicio publican aquí lo que tienen pendiente de decidir:
-       equipo · agente · plataforma (CLI/Desktop) · cuenta atrás · 3 opciones.
+       equipo · agente · plataforma (CLI/Desktop) · cuenta atrás · cinco caminos
+       más «Volver atrás», también visibles después del desenlace.
        Si la cuenta atrás llega a cero sin elegir, el agente tira con la
        recomendada (marcada ★) — avance con red, nunca parálisis. -->
   <section class="decs" id="decs" hidden>
@@ -328,17 +337,24 @@ function decPct(d){
 function decCard(d){
   const urge = d.status==="pending" && d.secondsLeft<=60;
   const rec = +d.recommended||0;
-  let cuerpo;
-  if(d.status==="decided"){
-    cuerpo = '<div class="dec-done ok">✓ decidido: <b>'+decEsc(d.options[d.chosen]||"")+'</b></div>';
-  } else if(d.status==="expired"){
-    cuerpo = '<div class="dec-done exp">⏱ sin respuesta — el agente siguió con la recomendada: <b>'+decEsc(d.options[rec]||"")+'</b></div>';
-  } else {
-    cuerpo = '<div class="dec-opts">'+d.options.map((o,i)=>
-      '<button class="dec-opt'+(i===rec?' rec':'')+'" data-dec="'+decEsc(d.id)+'" data-i="'+i+'"'+
-      (i===rec?' data-fill="'+decEsc(d.id)+'" style="--fill:'+decPct(d)+'%"':'')+'>'+
-      '<span class="n">'+(i===rec?'★':(i+1))+'</span><span>'+decEsc(o)+'</span></button>').join('')+'</div>';
-  }
+  const closed = d.status==="decided" || d.status==="expired";
+  const effective = d.status==="decided" ? +d.chosen : (d.status==="expired" ? rec : -1);
+  const estado = d.status==="decided"
+    ? '<div class="dec-done ok">✓ decisión aplicada: <b>'+decEsc(d.options[effective]||"")+'</b></div>'
+    : d.status==="expired"
+      ? '<div class="dec-done exp">⏱ sin respuesta — se aplicó la recomendada: <b>'+decEsc(d.options[effective]||"")+'</b></div>'
+      : '';
+  // Las opciones son también el historial de la decisión: no desaparecen al
+  // decidir ni al vencer. Cerradas quedan bloqueadas y la efectiva se resalta.
+  const opciones = '<div class="dec-opts">'+d.options.map((o,i)=>{
+    const isRec=i===rec, isEffective=closed&&i===effective;
+    const cls='dec-opt'+(!closed&&isRec?' rec':'')+(isEffective?' effective'+(d.status==="expired"?' expired':''):'');
+    const attrs=closed?' disabled aria-disabled="true"'+(isEffective?' aria-current="true"':''):
+      ' data-dec="'+decEsc(d.id)+'" data-i="'+i+'"'+(isRec?' data-fill="'+decEsc(d.id)+'" style="--fill:'+decPct(d)+'%"':'');
+    const marker=isEffective?(d.status==="expired"?'⏱':'✓'):(!closed&&isRec?'★':(i+1));
+    return '<button class="'+cls+'"'+attrs+'><span class="n">'+marker+'</span><span>'+decEsc(o)+'</span></button>';
+  }).join('')+'</div>';
+  const cuerpo = opciones + estado;
   const av = (window.ykAvatar && ykAvatar.img) ? ykAvatar.img(d.agent) : "";
   const maqIco = decMaqIco(d.machine);
   return '<div class="dec'+(urge?' urge':'')+'" data-decid="'+decEsc(d.id)+'">'+
