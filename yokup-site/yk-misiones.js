@@ -331,6 +331,9 @@
         '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, surface, t._agents, machOffOf(t, surface)) + "</div>" +
         // Estado + ABRIR apilado (abrir debajo de la insignia).
         '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"' + (t.status === "cancelled" && t.note ? ' title="' + esc(t.note) + '"' : "") + "><i></i>" + stt + "</span>" + (t.status === "cancelled" && t.note ? '<small class="cancel-note" title="' + esc(t.note) + '">' + esc(t.note) + "</small>" : "") +
+          // PROGRESO en la fila (como en /tareas): n/total REAL del plan + barra que
+          // se acerca al objetivo. Solo si la misión tiene plan. (959)
+          (t._prog && t._prog.total ? '<span class="prog' + (t._prog.done >= t._prog.total ? " full" : "") + '" title="' + t._prog.done + " de " + t._prog.total + ' pasos hechos"><span class="prog-fill" style="width:' + Math.round(100 * t._prog.done / t._prog.total) + '%"></span><b>' + t._prog.done + "/" + t._prog.total + "</b></span>" : "") +
           '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a></div>' +
       "</div></div>";
   }

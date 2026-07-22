@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r14">
-<link rel="stylesheet" href="/yk-misiones.css?v=r30">
+<link rel="stylesheet" href="/yk-misiones.css?v=r31">
 <link rel="stylesheet" href="/yk-cabezal.css?v=r1">
 <style>
 /* Segmentación dentro del raíl de opciones: apilada y a lo ancho del panel. */
@@ -239,7 +239,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 </div>
 
 <script src="/yk-maquina.js?v=r1"></script>
-<script src="/yk-misiones.js?v=r44"></script>
+<script src="/yk-misiones.js?v=r45"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r1"></script>
 <script>
@@ -540,6 +540,13 @@ async function load(){
       +(bp.density==="compacta"?" dens-c":"");
   }
   if(!list.length){ el.innerHTML=headHtml()+'<div class="empty">Sin misiones en este filtro ✓</div>'; bindHead(el); wireBulk(el,[]); return; }
+  // Progreso por misión: UNA sola petición /tasks/all (no N+1); done/total REALES del
+  // plan (no 24 fijo) para el contador y la barra de cada fila. (959)
+  try{
+    const _at=await YkMisiones.fetchAllTasks(SCOPE); const _g={};
+    (_at||[]).forEach(x=>{(_g[x.mission_id]=_g[x.mission_id]||[]).push(x);});
+    list.forEach(t=>{ const ts=_g[t.id]; if(ts&&ts.length) t._prog={done:ts.filter(x=>x.status==="done").length,total:ts.length}; });
+  }catch(e){}
   el.innerHTML=headHtml()+list.map(t=>YkMisiones.rowHtml(t)).join("");
   bindHead(el);
   YkMisiones.bindRows(el);   // click=misión activa + refresco del árbol de tareas
