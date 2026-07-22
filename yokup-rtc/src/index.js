@@ -359,6 +359,32 @@ function madridDayKey(ms) {
 }
 __name(ensureSchema, "ensureSchema");
 
+// La PRUEBA en un solo formato, decidida en un solo sitio (FLT-988 b2). Antes cada
+// endpoint aplicaba su propio /^https?:\/\//: /fleet/informe devolvía 400 y
+// /fleet/task-status TIRABA la imagen en silencio (ok:true con image:null), de ahí
+// que el pantallazo hubiera que escribirlo aparte en D1. Ahora hay una función:
+// devuelve {value} si vale, {error} con el motivo si no. Se aceptan URL http(s) y
+// data:image/… en base64 (una captura pegada tal cual).
+function normalizeProofImage(raw) {
+  const s = String(raw == null ? "" : raw).trim();
+  if (!s) return { value: null, error: "vacía" };
+  if (/^https?:\/\/\S+$/i.test(s)) {
+    if (s.length > 500) return { value: null, error: "la URL pasa de 500 caracteres; acórtala" };
+    return { value: s, error: null };
+  }
+  if (/^data:image\/(png|jpe?g|gif|webp|avif);base64,/i.test(s)) {
+    // Sin recorte mudo: una captura embebida cortada a 500 caracteres sería una
+    // imagen rota que dice ser una prueba. O entra entera, o se rechaza con motivo.
+    if (s.length > 2e5) return { value: null, error: "la captura embebida pesa " + Math.round(s.length / 1024) + " KB y el máximo son 195 KB: súbela y manda su URL http(s)" };
+    return { value: s, error: null };
+  }
+  if (/^\//.test(s) || /^[a-z]:\\/i.test(s) || /^file:/i.test(s)) {
+    return { value: null, error: "es una ruta local («" + s.slice(0, 80) + "»), y una ruta del disco de un agente no la puede ver nadie más: sube la captura y manda su URL http(s), o pega un data:image/…;base64" };
+  }
+  return { value: null, error: "no es una URL http(s) ni un data:image/…;base64 («" + s.slice(0, 80) + "»)" };
+}
+__name(normalizeProofImage, "normalizeProofImage");
+
 async function hasMissionProof(env, mid) {
   const row = await env.DB.prepare(
     "SELECT proof_image FROM tickets WHERE id=?"
@@ -667,7 +693,7 @@ async function setTaskStatus(env, mid, code, status, report, owner, image) {
   const rp = report != null ? String(report).slice(0, 2e3) : cur.report;
   const ow = owner != null ? String(owner).slice(0, 40) : cur.owner;
   // Captura PROPIA del paso: cada paso deja constancia con su enlace/miniatura. (954)
-  const im = image != null && /^https?:\/\//i.test(String(image)) ? String(image).slice(0, 500) : cur.image;
+  const im = image != null && normalizeProofImage(image).value ? normalizeProofImage(image).value : cur.image;
   await env.DB.prepare("UPDATE mission_tasks SET status=?, report=?, owner=?, image=?, updated_at=? WHERE mission_id=? AND code=?").bind(st, rp, ow, im, Date.now(), mid, code).run();
   return env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
 }
@@ -1346,6 +1372,16 @@ async function fleetReconcileMission(env, mid) {
   const started = tasks.some((x) => x.status !== "pending");
   const proof = allDone ? await hasMissionProof(env, mid) : false;
   const next = allDone && proof ? "resolved" : started || allDone ? "in_progress" : "open";
+  // ÁRBOL COMPLETO PERO SIN PRUEBA: antes esto era una degradación MUDA — la misión
+  // se quedaba «en curso» y nadie sabía por qué (FLT-982/983/984 hubo que rematarlas
+  // a mano en D1). Ahora lo dice, en su propia cronología y en la respuesta del API.
+  if (allDone && !proof && t.status !== "resolved") {
+    const txt = "⏸ El árbol está al 100% pero la misión NO puede finalizar: falta el pantallazo. Manda la captura con la última tarea (`image` en /fleet/task-status) o cierra con /fleet/informe.";
+    const last = await env.DB.prepare("SELECT text FROM events WHERE ticket_id=? ORDER BY id DESC LIMIT 1").bind(mid).first();
+    if (!last || last.text !== txt) await addEvent(env, mid, "log", "yokup", txt);
+    // Si además no había cambio de estado que escribir, se responde aquí con el motivo.
+    if (next === t.status) return { mission: mid, status: t.status, blocked: "sin-prueba", reason: txt };
+  }
   // No DEGRADAR una misión FINALIZADA a mano: el reconciliador por árbol solo PROMUEVE
   // (open→in_progress→resolved). El árbol se auto-genera y nadie marca sus subtareas
   // (queda 0/N), así que sin esta guarda reabría cada 2 min el FINALIZAR humano. Reabrir
@@ -1359,7 +1395,7 @@ async function fleetReconcileMission(env, mid) {
   const pushed = await fleetPushStatus(env, t, inboxStatus);
   await addEvent(env, mid, next === "resolved" ? "recover" : "log", "yokup",
     `La misión pasa a ${next} por su árbol de tareas. Encargo #${fleetInboxId(mid)} → ${inboxStatus.toUpperCase()}${pushed ? "" : " (no se pudo avisar al bot-inbox)"}.`);
-  return { mission: mid, status: next, inbox: inboxStatus, pushed };
+  return { mission: mid, status: next, inbox: inboxStatus, pushed, blocked: allDone && !proof ? "sin-prueba" : null };
 }
 __name(fleetReconcileMission, "fleetReconcileMission");
 
@@ -1673,10 +1709,17 @@ var index_default = {
       const host = /^(app|cli)$/.test(String(b.host || "").trim()) ? String(b.host).trim() : "";
       // Captura de prueba OBLIGATORIA: una misión de flota no puede finalizar
       // sin el pantallazo real del trabajo realizado.
-      let image = String(b.image || "").trim().slice(0, 500);
-      if (image && !/^https?:\/\//i.test(image)) image = "";
+      const rawImage = String(b.image || "").trim();
+      const normImage = normalizeProofImage(rawImage);
       if (!mid || !report) return json({ ok: false, error: "mission y report requeridos" }, 400);
-      if (!image) return json({ ok: false, error: "pantallazo image requerido para cerrar" }, 400);
+      // Mismo criterio de prueba que /fleet/task-status, y con el motivo concreto:
+      // «image requerido» no decía si faltaba o si el formato no valía (FLT-988 b2).
+      if (!normImage.value) {
+        return json({ ok: false, field: "image", error: rawImage
+          ? "image no válida: " + normImage.error
+          : "pantallazo image requerido para cerrar: manda la URL http(s) de la captura o un data:image/…;base64" }, 400);
+      }
+      const image = normImage.value;
       const t = await env.DB.prepare("SELECT id, assignee, status FROM tickets WHERE id=?").bind(mid).first();
       if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
       // GUARDIA anti-firma-cruzada (Carlos, 2026-07-21): el informe lo firma quien
@@ -1756,20 +1799,58 @@ var index_default = {
       if (/^#?\d+$/.test(mid)) mid = "FLT-" + mid.replace(/^#/, "");
       const code = String(b.code || "").toLowerCase().trim();
       if (!mid || !validTaskCode(code)) return json({ ok: false, error: "mission y code válidos requeridos" }, 400);
-      let row = await setTaskStatus(env, mid, code, b.status, b.report, b.owner || b.by, b.image);
-      if (!row) {
-        // La misión aún no tiene árbol (los planes se generan al abrirla en el
-        // navegador). Para que la evolución se vea DESDE EL PRIMER paso, se siembra
-        // aquí el plan por defecto (sin IA, instantáneo) y se reintenta. (951)
-        const tk = await env.DB.prepare("SELECT id,source FROM tickets WHERE id=?").bind(mid).first();
-        if (tk && tk.source === "fleet") {
-          await saveMissionPlan(env, mid, flattenSteps(defaultFleetPlan()));
-          row = await setTaskStatus(env, mid, code, b.status, b.report, b.owner || b.by, b.image);
+      // 1) LA PRUEBA SE ACEPTA EN EL MISMO MOVIMIENTO DEL CIERRE (FLT-988 b2). Si el
+      // formato no vale se dice, con 400 y motivo; nunca se descarta en silencio.
+      let img = null;
+      if (b.image != null && String(b.image).trim() !== "") {
+        const norm = normalizeProofImage(b.image);
+        if (!norm.value) {
+          return json({ ok: false, error: "image no válida: " + norm.error, field: "image", mission: mid, code }, 400);
         }
+        img = norm.value;
       }
-      if (!row) return json({ ok: false, error: "misión sin plan y no se pudo sembrar (¿existe la misión?)" }, 404);
+      const tk = await env.DB.prepare("SELECT id,source,proof_image FROM tickets WHERE id=?").bind(mid).first();
+      if (!tk) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
+      // La misión puede no tener árbol todavía (los planes se generan al abrirla en el
+      // navegador). Para que la evolución se vea DESDE EL PRIMER paso, se siembra aquí
+      // el plan por defecto (sin IA, instantáneo). (951)
+      let tasks = await listMissionTasks(env, mid);
+      if (!tasks.length && tk.source === "fleet") {
+        await saveMissionPlan(env, mid, flattenSteps(defaultFleetPlan()));
+        tasks = await listMissionTasks(env, mid);
+      }
+      const cur = tasks.find((t) => t.code === code);
+      if (!cur) return json({ ok: false, error: "la misión " + mid + " no tiene la tarea «" + code + "» en su plan" }, 404);
+      // 2) EL RECHAZO SE EXPLICA (FLT-988 b3). Si este marcado deja el árbol al 100%
+      // y no hay prueba por ningún lado, se responde 400 con el motivo y NO se aplica.
+      // Degradar la misión a «en curso» sin decir nada era la respuesta por defecto y
+      // dejaba el tablero mintiendo (FLT-982/983/984, rematadas a mano en D1).
+      const nextSt = TASK_STATUS.includes(b.status) ? b.status : cur.status;
+      const cierraArbol = nextSt === "done" && tasks.every((t) => t.code === code || t.status === "done");
+      if (cierraArbol && !img && !(tk.proof_image || await hasMissionProof(env, mid))) {
+        return json({
+          ok: false,
+          error: "falta la prueba: con esta tarea el árbol de " + mid + " queda al 100%, y una misión de flota no finaliza sin pantallazo del trabajo.",
+          hint: "repite esta misma llamada añadiendo «image» (URL http(s) de la captura o data:image/…;base64), o cierra con POST /fleet/informe.",
+          field: "image", mission: mid, code, applied: false
+        }, 400);
+      }
+      const row = await setTaskStatus(env, mid, code, b.status, b.report, b.owner || b.by, img);
+      if (!row) return json({ ok: false, error: "no se pudo actualizar la tarea «" + code + "» de " + mid }, 500);
+      // 3) LA PRUEBA DEL PASO ES LA PRUEBA DE LA MISIÓN. Sin este ascenso la captura se
+      // quedaba en mission_tasks.image y la ficha salía sin prueba, así que había que
+      // escribir tickets.proof_image aparte. Al cerrar manda la captura del cierre; en
+      // un paso intermedio solo rellena el hueco si aún no había ninguna.
+      if (img) {
+        if (cierraArbol) {
+          await env.DB.prepare("UPDATE tickets SET proof_image=?, updated_at=? WHERE id=?").bind(img, Date.now(), mid).run();
+        } else {
+          await env.DB.prepare("UPDATE tickets SET proof_image=COALESCE(NULLIF(proof_image,''),?), updated_at=? WHERE id=?").bind(img, Date.now(), mid).run();
+        }
+        await addEvent(env, mid, "proof", String(b.owner || b.by || "agente").slice(0, 40), "📸 Prueba de «" + code + "»: " + img);
+      }
       const fleet = await fleetReconcileMission(env, mid);
-      return json({ ok: true, task: row, fleet });
+      return json({ ok: true, task: row, proof: img, fleet });
     }
     // Ingesta UNIVERSAL de incidencias (Carlos, 2026-07-17): cualquier sistema,
     // monitor o agente reporta aquí y aparece en /incidencias. PÚBLICO (como
