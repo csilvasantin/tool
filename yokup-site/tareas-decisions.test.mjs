@@ -79,3 +79,26 @@ test('una decisión vencida conserva todas las opciones y resalta la recomendaci
   });
   assert.match(card, /se aplicó la recomendada:[\s\S]*Preparar borrador/);
 });
+
+test('una decisión cerrada enseña la misión activa y la cola persistente', () => {
+  const card = render('decided', {
+    chosen: 4,
+    batch: {
+      status: 'active',
+      items: [
+        {status: 'active', title: 'Exportación fiable PDF/PPTX'},
+        {status: 'queued', title: 'Borradores y recuperación'},
+        {status: 'queued', title: 'Brief asistido'},
+        {status: 'queued', title: 'Kit de marca'},
+        {status: 'queued', title: 'Preview en vivo'}
+      ]
+    }
+  });
+  assert.match(card, /▶ <b>activa<\/b>:[\s\S]*Exportación fiable PDF\/PPTX/);
+  assert.match(card, /cola:[\s\S]*Borradores y recuperación[\s\S]*Preview en vivo/);
+});
+
+test('Volver atrás deja constancia de que el lote fue descartado', () => {
+  const card = render('cancelled', {chosen: 5});
+  assert.match(card, /lote descartado/);
+});

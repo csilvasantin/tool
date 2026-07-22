@@ -166,6 +166,13 @@ async function ensureSchema(env) {
   // panel lo deduce del texto de la pregunta. `mission` = etiqueta opcional.
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN url TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN mission TEXT").catch(() => {});
+  // Una decisión de misiones es una tanda, no cinco trabajos independientes.
+  // Se persiste la cola para que el cierre de una active la siguiente sin abrir
+  // otro reloj ni volver a pedir a Carlos una prioridad ya decidida.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_batches (id TEXT PRIMARY KEY, decision_id TEXT UNIQUE, agent TEXT, machine TEXT, status TEXT DEFAULT 'active', pause_reason TEXT, active_mission_id TEXT, created_at INTEGER, updated_at INTEGER)");
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_batch_items (batch_id TEXT, position INTEGER, option_index INTEGER, title TEXT, mission_id TEXT, status TEXT DEFAULT 'queued', created_at INTEGER, updated_at INTEGER, PRIMARY KEY (batch_id, position))");
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_batch_items_active ON mission_batch_items(batch_id, status, position)");
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_batch_items_mission ON mission_batch_items(mission_id)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_tasks (mission_id TEXT, code TEXT, title TEXT, status TEXT DEFAULT 'pending', owner TEXT, report TEXT, updated_at INTEGER, PRIMARY KEY (mission_id, code))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_mtasks_mission ON mission_tasks(mission_id)");
   // image: URL pública de la captura de prueba del informe (R2 /media/…). La tabla
@@ -208,6 +215,157 @@ async function hasMissionProof(env, mid) {
   return !!(task && task.image);
 }
 __name(hasMissionProof, "hasMissionProof");
+
+// ---- TANDAS DE MISIONES DESDE RELOJES DE DECISIÓN -------------------------
+// Cinco opciones de misión + «Volver atrás» forman una única tanda. La opción
+// elegida va primero y las restantes hacen wrap en el orden mostrado. Nunca se
+// materializan las cuatro pendientes como tickets: así no hay misiones activas
+// duplicadas ni trabajo aparentando estar en curso antes de que le toque.
+function isBackOption(option) {
+  return /volver\s+atr[aá]s|no\s+iniciar/i.test(String(option || ""));
+}
+__name(isBackOption, "isBackOption");
+function isMissionDecision(options) {
+  return Array.isArray(options) && options.length === 6 && isBackOption(options[5]);
+}
+__name(isMissionDecision, "isMissionDecision");
+function batchIdForDecision(decisionId) {
+  return "BATCH-" + String(decisionId || "").replace(/[^A-Za-z0-9_-]/g, "-");
+}
+__name(batchIdForDecision, "batchIdForDecision");
+function missionIdForBatchItem(batchId, position) {
+  return "MIS-" + String(batchId || "").replace(/^BATCH-/, "").slice(0, 42) + "-" + String(position + 1).padStart(2, "0");
+}
+__name(missionIdForBatchItem, "missionIdForBatchItem");
+function orderedMissionOptions(options, chosen) {
+  const count = options.length - 1; // la sexta es siempre «Volver atrás»
+  const out = [];
+  for (let position = 0; position < count; position++) {
+    const optionIndex = (chosen + position) % count;
+    out.push({ position, option_index: optionIndex, title: String(options[optionIndex] || "").slice(0, 200) });
+  }
+  return out;
+}
+__name(orderedMissionOptions, "orderedMissionOptions");
+function batchMissionPlan(title) {
+  const short = String(title || "Misión").slice(0, 70);
+  return [
+    { code: "a", title: "Implementar: " + short, owner: "subagente" },
+    { code: "a1", title: "Delimitar alcance y artefactos", owner: "subagente" },
+    { code: "a2", title: "Ejecutar el cambio acordado", owner: "subagente" },
+    { code: "a3", title: "Dejar resultado reproducible", owner: "subagente" },
+    { code: "b", title: "Verificar: " + short, owner: "subagente" },
+    { code: "b1", title: "Ejecutar comprobaciones relevantes", owner: "subagente" },
+    { code: "b2", title: "Corregir hallazgos verificables", owner: "subagente" },
+    { code: "b3", title: "Entregar evidencia al Agente", owner: "subagente" },
+    { code: "c", title: "Documentar evidencia autorizada", owner: "infraagente" },
+    { code: "c1", title: "Registrar informe factual en Yokup", owner: "infraagente" },
+    { code: "c2", title: "Preparar resumen verificable", owner: "infraagente" }
+  ];
+}
+__name(batchMissionPlan, "batchMissionPlan");
+async function missionBatchSnapshot(env, batchId) {
+  const batch = await env.DB.prepare("SELECT * FROM mission_batches WHERE id=?").bind(batchId).first();
+  if (!batch) return null;
+  const { results } = await env.DB.prepare(
+    "SELECT batch_id,position,option_index,title,mission_id,status,created_at,updated_at FROM mission_batch_items WHERE batch_id=? ORDER BY position"
+  ).bind(batchId).all();
+  return { ...batch, items: results || [] };
+}
+__name(missionBatchSnapshot, "missionBatchSnapshot");
+async function batchClosureAccepted(env, missionId) {
+  const row = await env.DB.prepare(
+    "SELECT 1 AS accepted FROM events WHERE ticket_id=? AND kind='accept' LIMIT 1"
+  ).bind(missionId).first();
+  return !!row;
+}
+__name(batchClosureAccepted, "batchClosureAccepted");
+async function pauseMissionBatch(env, batchId, reason) {
+  const now = Date.now();
+  await env.DB.prepare("UPDATE mission_batches SET status='paused', pause_reason=?, updated_at=? WHERE id=? AND status='active'")
+    .bind(String(reason || "Pausada por decisión del Agente").slice(0, 300), now, batchId).run();
+  return missionBatchSnapshot(env, batchId);
+}
+__name(pauseMissionBatch, "pauseMissionBatch");
+async function batchForMission(env, missionId) {
+  const row = await env.DB.prepare("SELECT batch_id FROM mission_batch_items WHERE mission_id=? LIMIT 1").bind(missionId).first();
+  return row ? row.batch_id : null;
+}
+__name(batchForMission, "batchForMission");
+async function activateNextMissionBatchItem(env, batchId) {
+  const batch = await env.DB.prepare("SELECT * FROM mission_batches WHERE id=?").bind(batchId).first();
+  if (!batch || batch.status !== "active") return missionBatchSnapshot(env, batchId);
+  const active = await env.DB.prepare(
+    "SELECT * FROM mission_batch_items WHERE batch_id=? AND status='active' ORDER BY position LIMIT 1"
+  ).bind(batchId).first();
+  if (active) {
+    const ticket = active.mission_id && await env.DB.prepare("SELECT status FROM tickets WHERE id=?").bind(active.mission_id).first();
+    if (ticket && ticket.status === "cancelled") return pauseMissionBatch(env, batchId, "La misión activa fue cancelada expresamente.");
+    if (!ticket || ticket.status !== "resolved" || !(await batchClosureAccepted(env, active.mission_id))) {
+      return missionBatchSnapshot(env, batchId); // sin evidencia aceptada, no se avanza
+    }
+    const now = Date.now();
+    await env.DB.prepare("UPDATE mission_batch_items SET status='completed', updated_at=? WHERE batch_id=? AND position=?")
+      .bind(now, batchId, active.position).run();
+    await env.DB.prepare("UPDATE mission_batches SET active_mission_id=NULL, updated_at=? WHERE id=?")
+      .bind(now, batchId).run();
+  }
+  const next = await env.DB.prepare(
+    "SELECT * FROM mission_batch_items WHERE batch_id=? AND status='queued' ORDER BY position LIMIT 1"
+  ).bind(batchId).first();
+  if (!next) {
+    await env.DB.prepare("UPDATE mission_batches SET status='completed', active_mission_id=NULL, updated_at=? WHERE id=?")
+      .bind(Date.now(), batchId).run();
+    return missionBatchSnapshot(env, batchId);
+  }
+  const missionId = next.mission_id || missionIdForBatchItem(batchId, next.position);
+  const now = Date.now();
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)"
+  ).bind(missionId, "decision-batch:" + batch.decision_id, next.title, batch.machine || "", "mission", "in_progress", "normal", batch.agent || "", "decision-batch", "", now, now).run();
+  const existingTasks = await listMissionTasks(env, missionId);
+  if (!existingTasks.length) await saveMissionPlan(env, missionId, batchMissionPlan(next.title));
+  await env.DB.prepare("UPDATE mission_batch_items SET mission_id=?, status='active', updated_at=? WHERE batch_id=? AND position=?")
+    .bind(missionId, now, batchId, next.position).run();
+  await env.DB.prepare("UPDATE mission_batches SET active_mission_id=?, updated_at=? WHERE id=?")
+    .bind(missionId, now, batchId).run();
+  await addEvent(env, missionId, "log", "Agente", "Misión activada desde la cola " + batch.decision_id + ". Requiere evidencia y aceptación del Agente antes de avanzar.");
+  return missionBatchSnapshot(env, batchId);
+}
+__name(activateNextMissionBatchItem, "activateNextMissionBatchItem");
+async function ensureMissionBatchFromDecision(env, decision) {
+  let options = [];
+  try { options = JSON.parse(decision && decision.options || "[]"); } catch (e) {}
+  if (!decision || !isMissionDecision(options)) return null;
+  const effective = decision.status === "decided" ? Number(decision.chosen) : decision.status === "expired" ? Number(decision.recommended) : null;
+  if (!Number.isInteger(effective)) return null;
+  // «Volver atrás» no es una misión: descarta el lote de forma terminal.
+  if (effective === options.length - 1) return null;
+  const batchId = batchIdForDecision(decision.id);
+  const now = Date.now();
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO mission_batches(id,decision_id,agent,machine,status,created_at,updated_at) VALUES(?,?,?,?, 'active',?,?)"
+  ).bind(batchId, decision.id, decision.agent || "", decision.machine || "", now, now).run();
+  const existing = await env.DB.prepare("SELECT 1 AS x FROM mission_batch_items WHERE batch_id=? LIMIT 1").bind(batchId).first();
+  if (!existing) {
+    for (const item of orderedMissionOptions(options, effective)) {
+      await env.DB.prepare(
+        "INSERT INTO mission_batch_items(batch_id,position,option_index,title,status,created_at,updated_at) VALUES(?,?,?,?, 'queued',?,?)"
+      ).bind(batchId, item.position, item.option_index, item.title, now, now).run();
+    }
+  }
+  return activateNextMissionBatchItem(env, batchId);
+}
+__name(ensureMissionBatchFromDecision, "ensureMissionBatchFromDecision");
+async function expireDecisionsAndStartBatches(env) {
+  const now = Date.now();
+  await env.DB.prepare("UPDATE decisions SET status='expired' WHERE status='pending' AND deadline < ?").bind(now).run();
+  const { results } = await env.DB.prepare(
+    "SELECT * FROM decisions WHERE status IN ('decided','expired') ORDER BY created_at DESC LIMIT 100"
+  ).all();
+  for (const decision of results || []) await ensureMissionBatchFromDecision(env, decision);
+}
+__name(expireDecisionsAndStartBatches, "expireDecisionsAndStartBatches");
 
 // ---- MODELO MISIONES · TAREAS ----------------------------------------------
 // Una MISIÓN es el ticket/incidencia. Sus TAREAS son los pasos para concluirla.
@@ -1515,14 +1673,21 @@ var index_default = {
         }
         if (status === "resolved") {
           const missing = [];
+          const batchMissions = [];
           for (const id of ids) {
             const t = await env.DB.prepare("SELECT source FROM tickets WHERE id=?").bind(id).first();
             if (t && t.source === "fleet" && !(await hasMissionProof(env, id))) missing.push(id);
+            if (t && t.source === "decision-batch") batchMissions.push(id);
           }
           if (missing.length) return json({
             ok: false,
             error: "No se puede finalizar sin pantallazo del trabajo realizado",
             missing_proof: missing
+          }, 409);
+          if (batchMissions.length) return json({
+            ok: false,
+            error: "Una misión de cola exige evidencia y aceptación del Agente; ciérrala individualmente.",
+            requires_acceptance: batchMissions
           }, 409);
         }
         const now = Date.now();
@@ -1559,7 +1724,7 @@ var index_default = {
     // ESCRITURA con sesión del perímetro (requireAuth inline: PROTECTED es por
     // ruta y capa los dos métodos, y el GET debe seguir abierto).
     // ── RELOJES DE DECISIÓN ────────────────────────────────────────────────
-    // POST /decisions            (agente) publica una decisión con hasta 6 opciones
+    // POST /decisions            (agente) publica una única tanda diaria: 5 misiones + volver atrás
     // GET  /decisions            (panel /misiones) lista las vivas + recién cerradas
     // POST /decisions/<id>/choose (Carlos) elige una opción
     // GET  /decisions/<id>       (agente) consulta el desenlace
@@ -1569,10 +1734,12 @@ var index_default = {
       try {
         await ensureSchema(env);
         const b = await req.json();
-        // Hasta cinco caminos de trabajo más «Volver atrás / no ejecutar».
+        // La ventana de misión es siempre cinco caminos ejecutables más la
+        // salida terminal. No se publican mini-relojes alternativos que rompan
+        // la cola o vuelvan a pedir una decisión ya tomada.
         const opts = Array.isArray(b.options) ? b.options.slice(0, 6).map((o) => String(o).slice(0, 160)) : [];
         const q = String(b.question || "").trim().slice(0, 400);
-        if (!q || opts.length < 2) return json({ ok: false, error: "question y al menos 2 options requeridos" }, 400);
+        if (!q || !isMissionDecision(opts)) return json({ ok: false, error: "Se requieren exactamente 5 misiones y «Volver atrás» como sexta opción" }, 400);
         const mins = Math.min(60, Math.max(1, +b.minutes || 3));   // por defecto 3 min
         const now = Date.now();
         const agent = String(b.agent || "").trim().slice(0, 40);
@@ -1601,18 +1768,21 @@ var index_default = {
       try {
         await ensureSchema(env);
         const now = Date.now();
-        // las vencidas sin elegir pasan a 'expired' (el agente ya tiró con la recomendada)
-        await env.DB.prepare("UPDATE decisions SET status='expired' WHERE status='pending' AND deadline < ?").bind(now).run();
+        // Al vencer, la recomendada inicia la primera misión. El cron hace lo
+        // mismo aun cuando nadie tenga /misiones abierta.
+        await expireDecisionsAndStartBatches(env);
         const r = await env.DB.prepare("SELECT * FROM decisions WHERE status='pending' OR decided_at > ? OR deadline > ? ORDER BY created_at DESC LIMIT 40")
           .bind(now - 3600000, now - 3600000).all();
-        const items = (r.results || []).map((d) => {
+        const items = await Promise.all((r.results || []).map(async (d) => {
           let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
+          const batch = isMissionDecision(o) ? await missionBatchSnapshot(env, batchIdForDecision(d.id)) : null;
           return { id: d.id, machine: d.machine, agent: d.agent, surface: d.surface, question: d.question,
                    options: o, recommended: d.recommended, status: d.status, chosen: d.chosen,
                    url: d.url || "", mission: d.mission || "",
+                   batch,
                    created_at: d.created_at, deadline: d.deadline, decided_at: d.decided_at,
                    secondsLeft: Math.max(0, Math.round((d.deadline - now) / 1000)) };
-        });
+        }));
         return json({ ok: true, items });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
@@ -1624,26 +1794,36 @@ var index_default = {
         const idx = +b.choice;
         const d = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(id).first();
         if (!d) return json({ ok: false, error: "not_found" }, 404);
+        if (d.status !== "pending") return json({ ok: false, error: "decision_closed", status: d.status, chosen: d.chosen }, 409);
         let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
         if (!(idx >= 0 && idx < o.length)) return json({ ok: false, error: "choice fuera de rango" }, 400);
-        await env.DB.prepare("UPDATE decisions SET status='decided', chosen=?, chosen_by=?, decided_at=? WHERE id=?")
-          .bind(idx, String(b.by || "Carlos").slice(0, 40), Date.now(), id).run();
-        return json({ ok: true, id, chosen: idx, option: o[idx] });
+        const back = idx === o.length - 1 && isMissionDecision(o);
+        await env.DB.prepare("UPDATE decisions SET status=?, chosen=?, chosen_by=?, decided_at=? WHERE id=?")
+          .bind(back ? "cancelled" : "decided", idx, String(b.by || "Carlos").slice(0, 40), Date.now(), id).run();
+        const chosen = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(id).first();
+        const batch = back ? null : await ensureMissionBatchFromDecision(env, chosen);
+        return json({ ok: true, id, chosen: idx, option: o[idx], cancelled: back, batch });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     if (/^\/decisions\/[^/]+$/.test(url.pathname) && req.method === "GET") {
       try {
         await ensureSchema(env);
         const id = decodeURIComponent(url.pathname.split("/")[2]);
-        const d = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(id).first();
+        let d = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(id).first();
         if (!d) return json({ ok: false, error: "not_found" }, 404);
+        if (d.status === "pending" && d.deadline < Date.now()) {
+          await env.DB.prepare("UPDATE decisions SET status='expired' WHERE id=? AND status='pending'").bind(id).run();
+          d = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(id).first();
+        }
         let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
         const now = Date.now();
-        const expired = d.status === "pending" && d.deadline < now;
-        return json({ ok: true, id: d.id, status: expired ? "expired" : d.status,
+        const batch = await ensureMissionBatchFromDecision(env, d);
+        const expired = d.status === "expired";
+        return json({ ok: true, id: d.id, status: d.status,
                       chosen: d.chosen, recommended: d.recommended, options: o,
                       // si venció sin respuesta, el agente tira con la recomendada
-                      effective: d.status === "decided" ? d.chosen : (expired ? d.recommended : null),
+                      effective: d.status === "decided" || d.status === "cancelled" ? d.chosen : (expired ? d.recommended : null),
+                      batch,
                       secondsLeft: Math.max(0, Math.round((d.deadline - now) / 1000)) });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
@@ -1721,10 +1901,37 @@ var index_default = {
         if (b.status === "resolved" && current && current.source === "fleet" && !(await hasMissionProof(env, b.id))) {
           return json({ ok: false, error: "No se puede finalizar sin pantallazo del trabajo realizado", missing_proof: [b.id] }, 409);
         }
+        const isBatchMission = !!(current && current.source === "decision-batch");
+        const evidence = String(b.evidence || "").trim().slice(0, 2000);
+        const acceptedBy = String(b.accepted_by || "").trim().slice(0, 80);
+        if (isBatchMission && b.status === "resolved" && (!evidence || !acceptedBy)) {
+          return json({
+            ok: false,
+            error: "La cola sólo avanza con evidencia y aceptación explícita del Agente.",
+            requires: ["evidence", "accepted_by"]
+          }, 409);
+        }
         const now = Date.now();
         const resolvedAt = b.status === "resolved" ? now : null;
         await env.DB.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=? WHERE id=?").bind(b.status, now, resolvedAt, b.id).run();
         await addEvent(env, b.id, "status", b.author || "T\xE9cnico", `Estado \u2192 ${b.status}${b.note ? ": " + b.note : ""}`);
+        let batch = null;
+        if (isBatchMission) {
+          const batchId = await batchForMission(env, b.id);
+          if (b.status === "resolved") {
+            await addEvent(env, b.id, "accept", acceptedBy, "Cierre aceptado por el Agente. Evidencia: " + evidence);
+            if (/^https?:\/\//i.test(evidence)) {
+              await env.DB.prepare("UPDATE tickets SET proof_image=COALESCE(NULLIF(proof_image,''),?) WHERE id=?").bind(evidence, b.id).run();
+            }
+          }
+          if (batchId) {
+            const pauseReason = b.status === "cancelled" ? "La misión activa fue cancelada expresamente."
+              : b.status === "blocked" && b.requires_carlos === true ? "Bloqueada: requiere decisión de Carlos."
+              : b.new_priority === true || b.pause_batch === true ? "Pausada por nueva prioridad explícita del Agente."
+              : "";
+            batch = pauseReason ? await pauseMissionBatch(env, batchId, pauseReason) : await activateNextMissionBatchItem(env, batchId);
+          }
+        }
         // Cerrar (o reabrir) a mano una misi\u00f3n de FLOTA baja tambi\u00e9n al encargo.
         {
           const t = current;
@@ -1744,7 +1951,7 @@ var index_default = {
             }
           }
         }
-        return json({ ok: true });
+        return json({ ok: true, batch });
       } catch (e) {
         return json({ error: String(e) }, 500);
       }
@@ -1957,6 +2164,12 @@ T\xC9CNICO: ${q}`, 160);
       await ensureSchema(env);
     } catch (e) {
       return;
+    }
+    // Un reloj vencido no depende de que alguien deje abierta la UI: la
+    // recomendada activa la primera misión y la cola queda persistida.
+    try {
+      await expireDecisionsAndStartBatches(env);
+    } catch (e) {
     }
     try {
       await reconcile(env);

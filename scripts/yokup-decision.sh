@@ -13,7 +13,7 @@ watch_decision() {
     response="$(/usr/bin/curl -fsS --max-time 15 "$API/$id" || true)"
     status="$(printf '%s' "$response" | /usr/bin/jq -r '.status // empty' 2>/dev/null || true)"
     case "$status" in
-      decided|expired) sound Ping; exit 0 ;;
+      decided|expired|cancelled) sound Ping; exit 0 ;;
       pending) sleep 5 ;;
       *) sleep 5 ;;
     esac
