@@ -306,7 +306,7 @@ load(); setInterval(load,15000);
 <script>
 /* ═══ RELOJES DE DECISIÓN ═══════════════════════════════════════════════════
    Los agentes publican en POST /decisions; aquí se pintan con su cuenta atrás
-   y sus 3 opciones. Al pulsar una, se envía a /decisions/<id>/choose y el
+   y sus opciones (hasta 5 misiones + «Volver atrás»). Al pulsar una, se envía a /decisions/<id>/choose y el
    agente la recoge. Si el reloj llega a 0 sin elegir, el agente ya tiró con la
    recomendada (★) — por eso la tarjeta pasa a «siguió con la recomendada». */
 const DECS_API = WORKER + "/decisions";

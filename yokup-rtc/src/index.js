@@ -1508,7 +1508,7 @@ var index_default = {
     // ESCRITURA con sesión del perímetro (requireAuth inline: PROTECTED es por
     // ruta y capa los dos métodos, y el GET debe seguir abierto).
     // ── RELOJES DE DECISIÓN ────────────────────────────────────────────────
-    // POST /decisions            (agente) publica una decisión con 3 opciones
+    // POST /decisions            (agente) publica una decisión con hasta 6 opciones
     // GET  /decisions            (panel /tareas) lista las vivas + recién cerradas
     // POST /decisions/<id>/choose (Carlos) elige una opción
     // GET  /decisions/<id>       (agente) consulta el desenlace
@@ -1518,7 +1518,8 @@ var index_default = {
       try {
         await ensureSchema(env);
         const b = await req.json();
-        const opts = Array.isArray(b.options) ? b.options.slice(0, 3).map((o) => String(o).slice(0, 160)) : [];
+        // Hasta cinco caminos de trabajo más «Volver atrás / no ejecutar».
+        const opts = Array.isArray(b.options) ? b.options.slice(0, 6).map((o) => String(o).slice(0, 160)) : [];
         const q = String(b.question || "").trim().slice(0, 400);
         if (!q || opts.length < 2) return json({ ok: false, error: "question y al menos 2 options requeridos" }, 400);
         const mins = Math.min(60, Math.max(1, +b.minutes || 3));   // por defecto 3 min
