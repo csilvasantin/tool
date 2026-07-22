@@ -161,11 +161,12 @@ async function ensureSchema(env) {
   // Si Carlos no elige antes del deadline, el agente tira con la recomendada.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS decisions (id TEXT PRIMARY KEY, machine TEXT, agent TEXT, surface TEXT, question TEXT, options TEXT, recommended INTEGER DEFAULT 0, status TEXT DEFAULT 'pending', chosen INTEGER, chosen_by TEXT, created_at INTEGER, deadline INTEGER, decided_at INTEGER)");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_dec_status ON decisions(status, deadline)");
-  // MISIÓN que engloba la decisión (Carlos, 2026-07-21): /tareas encabeza cada
-  // reloj con SU site (URL + captura). Idempotente; si el agente no lo manda, el
-  // panel lo deduce del texto de la pregunta. `mission` = etiqueta opcional.
+  // Contexto que engloba la decisión. `project` es el nombre humano canónico;
+  // `mission` y `url` permiten resolver decisiones antiguas sin inferir nunca
+  // el proyecto desde la pregunta operativa.
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN url TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN mission TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE decisions ADD COLUMN project TEXT").catch(() => {});
   // Una decisión de misiones es una tanda, no cinco trabajos independientes.
   // Se persiste la cola para que el cierre de una active la siguiente sin abrir
   // otro reloj ni volver a pedir a Carlos una prioridad ya decidida.
@@ -1744,16 +1745,17 @@ var index_default = {
           return json({ ok: false, error: "daily_limit", existing: previous.id, day: today }, 409);
         }
         const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
-        // url/mission opcionales: la MISIÓN que engloba la decisión (el panel la
-        // usa para encabezar el reloj; si no vienen, las deduce del texto).
+        // Contexto opcional de la decisión. `project` debe ser un nombre humano;
+        // clientes antiguos siguen cubiertos por mission/url en el panel.
         const durl = String(b.url || "").slice(0, 300);
         const dmission = String(b.mission || "").slice(0, 120);
-        await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?)")
+        const dproject = String(b.project || "").trim().slice(0, 120);
+        await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?)")
           .bind(id, String(b.machine || "").slice(0, 60), agent,
                 String(b.surface || "").slice(0, 20), q, JSON.stringify(opts),
                 Math.max(0, Math.min(opts.length - 1, +b.recommended || 0)), now, now + mins * 60000,
-                durl, dmission).run();
-        return json({ ok: true, id, deadline: now + mins * 60000, user_override: userOverride });
+                durl, dmission, dproject).run();
+        return json({ ok: true, id, deadline: now + mins * 60000, project: dproject, user_override: userOverride });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     if (url.pathname === "/decisions" && req.method === "GET") {
@@ -1770,7 +1772,7 @@ var index_default = {
           const batch = isMissionDecision(o) ? await missionBatchSnapshot(env, batchIdForDecision(d.id)) : null;
           return { id: d.id, machine: d.machine, agent: d.agent, surface: d.surface, question: d.question,
                    options: o, recommended: d.recommended, status: d.status, chosen: d.chosen,
-                   url: d.url || "", mission: d.mission || "",
+                   url: d.url || "", mission: d.mission || "", project: d.project || "",
                    batch,
                    created_at: d.created_at, deadline: d.deadline, decided_at: d.decided_at,
                    secondsLeft: Math.max(0, Math.round((d.deadline - now) / 1000)) };
@@ -1813,6 +1815,7 @@ var index_default = {
         const expired = d.status === "expired";
         return json({ ok: true, id: d.id, status: d.status,
                       chosen: d.chosen, recommended: d.recommended, options: o,
+                      project: d.project || "", mission: d.mission || "", url: d.url || "",
                       // si venció sin respuesta, el agente tira con la recomendada
                       effective: d.status === "decided" || d.status === "cancelled" ? d.chosen : (expired ? d.recommended : null),
                       batch,

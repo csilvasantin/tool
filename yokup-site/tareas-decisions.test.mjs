@@ -7,7 +7,7 @@ const source = await readFile(new URL('./yk-decisions.js', import.meta.url), 'ut
 
 const context = vm.createContext({window: {}});
 vm.runInContext(
-  `${source}\nglobalThis.renderDecisionCard = window.YkDecisions._test.card;`,
+  `${source}\nglobalThis.renderDecisionCard = window.YkDecisions._test.card; globalThis.decisionProjectName = window.YkDecisions._test.projectName;`,
   context
 );
 
@@ -48,14 +48,24 @@ function assertAllOptionsRemainVisible(card) {
   return renderedButtons;
 }
 
+function assertProjectHeaderPrecedesDecision(card, name) {
+  assert.match(card, /<article\b[^>]*aria-labelledby=/);
+  assert.match(card, new RegExp(`PROYECTO PRINCIPAL[\\s\\S]*${name}`));
+  assert.ok(card.indexOf('dec-project') < card.indexOf('dec-top'), 'la cabecera del proyecto precede a los metadatos');
+  assert.ok(card.indexOf('dec-project') < card.indexOf('dec-q'), 'la cabecera del proyecto precede a la pregunta');
+}
+
 test('una decisión pendiente mantiene las cinco opciones y Volver atrás accionables', () => {
-  const renderedButtons = assertAllOptionsRemainVisible(render('pending'));
+  const card = render('pending', {project: 'Generador de Presentaciones · AdmiraNeXT'});
+  assertProjectHeaderPrecedesDecision(card, 'Generador de Presentaciones · AdmiraNeXT');
+  const renderedButtons = assertAllOptionsRemainVisible(card);
   assert.doesNotMatch(renderedButtons[0], /\bdisabled\b/);
   assert.match(renderedButtons[1], /class="[^"]*\brec\b/);
 });
 
 test('una decisión elegida conserva todas las opciones y resalta la aplicada', () => {
-  const card = render('decided', {chosen: 3});
+  const card = render('decided', {chosen: 3, mission: 'Generador de Presentaciones · carrusel secuencial'});
+  assertProjectHeaderPrecedesDecision(card, 'Generador de Presentaciones · AdmiraNeXT');
   const renderedButtons = assertAllOptionsRemainVisible(card);
   renderedButtons.forEach(button => {
     assert.match(button, /\bdisabled\b/);
@@ -70,7 +80,8 @@ test('una decisión elegida conserva todas las opciones y resalta la aplicada', 
 });
 
 test('una decisión vencida conserva todas las opciones y resalta la recomendación efectiva', () => {
-  const card = render('expired');
+  const card = render('expired', {url: 'https://www.admiranext.com/presentaciones/generador/'});
+  assertProjectHeaderPrecedesDecision(card, 'Generador de Presentaciones · AdmiraNeXT');
   const renderedButtons = assertAllOptionsRemainVisible(card);
   assert.match(renderedButtons[1], /class="[^"]*\beffective\b[^"]*\bexpired\b/);
   assert.match(renderedButtons[1], /aria-current="true"/);
@@ -101,4 +112,11 @@ test('una decisión cerrada enseña la misión activa y la cola persistente', ()
 test('Volver atrás deja constancia de que el lote fue descartado', () => {
   const card = render('cancelled', {chosen: 5});
   assert.match(card, /lote descartado/);
+});
+
+test('el proyecto legacy sigue mission → url → genérico y nunca usa question', () => {
+  assert.equal(context.decisionProjectName({project:'Yokup cuadrático', mission:'otra', url:'https://admiranext.com'}), 'Yokup cuadrático');
+  assert.equal(context.decisionProjectName({mission:'Generador de Presentaciones · carrusel', url:'https://yokup.com'}), 'Generador de Presentaciones · AdmiraNeXT');
+  assert.equal(context.decisionProjectName({url:'https://www.admiranext.com/presentaciones/'}), 'Generador de Presentaciones · AdmiraNeXT');
+  assert.equal(context.decisionProjectName({question:'¿Publicamos Nike?'}), 'Proyecto sin identificar');
 });
