@@ -143,17 +143,6 @@ html[data-yk-view="list"] .mcard .mtog{display:none}
        agente: los define el agente principal y los ejecuta el subagente. -->
   <div id="cabezal"></div>
 
-  <!-- ═══ RELOJES DE DECISIÓN (Carlos, 2026-07-21) ═══════════════════════════
-       Los equipos de silicio publican aquí lo que tienen pendiente de decidir:
-       equipo · agente · plataforma (CLI/Desktop) · cuenta atrás · cinco caminos
-       más «Volver atrás», también visibles después del desenlace.
-       Si la cuenta atrás llega a cero sin elegir, el agente tira con la
-       recomendada (marcada ★) — avance con red, nunca parálisis. -->
-  <section class="decs" id="decs" hidden>
-    <div class="decs-hd">⏳ Relojes de decisión <span class="decs-n" id="decsN"></span></div>
-    <div class="decs-list" id="decsList"></div>
-  </section>
-
   <!-- Presets de FECHA de creación (el día concreto se elige en el selector del
        cabezal). Por defecto sólo las de HOY. -->
   <div class="tfilter" id="tfilter">
@@ -370,6 +359,10 @@ load(); setInterval(load,15000);
    y sus opciones (hasta 5 misiones + «Volver atrás»). Al pulsar una, se envía a /decisions/<id>/choose y el
    agente la recoge. Si el reloj llega a 0 sin elegir, el agente ya tiró con la
    recomendada (★) — por eso la tarjeta pasa a «siguió con la recomendada». */
+// /tareas no monta relojes: su único hogar visible es /misiones. Conservamos
+// temporalmente este bloque para no romper cachés antiguas, pero queda inerte
+// al no existir el contenedor #decs en esta página.
+if (document.getElementById("decs")) {
 const DECS_API = WORKER + "/decisions";
 let DECS = [];
 function decMMSS(s){ s=Math.max(0,s|0); const m=(s/60)|0; const r=s%60; return m+":"+(r<10?"0":"")+r; }
@@ -530,6 +523,7 @@ document.addEventListener("click", async e=>{
 // (el triangulito del titular lo gestiona ya el cabezal compartido)
 
 loadDecs(); setInterval(loadDecs, 15000);
+}
 
 </script>
 </body>

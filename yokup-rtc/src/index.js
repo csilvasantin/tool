@@ -184,6 +184,17 @@ async function ensureSchema(env) {
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN live_shot TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN live_at INTEGER").catch(() => {});
 }
+
+// Un reloj de decisión pesa: se permite uno por agente y día natural de Madrid.
+// `user_override:true` sólo lo usa el coordinador cuando Carlos lo pide de forma
+// explícita (como en la ventana manual); queda visible en la respuesta del API.
+function madridDayKey(ms) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(ms);
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
 __name(ensureSchema, "ensureSchema");
 
 async function hasMissionProof(env, mid) {
@@ -1549,7 +1560,7 @@ var index_default = {
     // ruta y capa los dos métodos, y el GET debe seguir abierto).
     // ── RELOJES DE DECISIÓN ────────────────────────────────────────────────
     // POST /decisions            (agente) publica una decisión con hasta 6 opciones
-    // GET  /decisions            (panel /tareas) lista las vivas + recién cerradas
+    // GET  /decisions            (panel /misiones) lista las vivas + recién cerradas
     // POST /decisions/<id>/choose (Carlos) elige una opción
     // GET  /decisions/<id>       (agente) consulta el desenlace
     // Lectura abierta (el panel la pinta); publicar y elegir NO piden sesión a
@@ -1564,17 +1575,26 @@ var index_default = {
         if (!q || opts.length < 2) return json({ ok: false, error: "question y al menos 2 options requeridos" }, 400);
         const mins = Math.min(60, Math.max(1, +b.minutes || 3));   // por defecto 3 min
         const now = Date.now();
+        const agent = String(b.agent || "").trim().slice(0, 40);
+        if (!agent) return json({ ok: false, error: "agent requerido" }, 400);
+        const today = madridDayKey(now);
+        const recent = await env.DB.prepare("SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) ORDER BY created_at DESC LIMIT 200").bind(agent).all();
+        const previous = (recent.results || []).find((row) => madridDayKey(row.created_at) === today);
+        const userOverride = b.user_override === true;
+        if (previous && !userOverride) {
+          return json({ ok: false, error: "daily_limit", existing: previous.id, day: today }, 409);
+        }
         const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
         // url/mission opcionales: la MISIÓN que engloba la decisión (el panel la
         // usa para encabezar el reloj; si no vienen, las deduce del texto).
         const durl = String(b.url || "").slice(0, 300);
         const dmission = String(b.mission || "").slice(0, 120);
         await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?)")
-          .bind(id, String(b.machine || "").slice(0, 60), String(b.agent || "").slice(0, 40),
+          .bind(id, String(b.machine || "").slice(0, 60), agent,
                 String(b.surface || "").slice(0, 20), q, JSON.stringify(opts),
                 Math.max(0, Math.min(opts.length - 1, +b.recommended || 0)), now, now + mins * 60000,
                 durl, dmission).run();
-        return json({ ok: true, id, deadline: now + mins * 60000 });
+        return json({ ok: true, id, deadline: now + mins * 60000, user_override: userOverride });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     if (url.pathname === "/decisions" && req.method === "GET") {

@@ -172,6 +172,12 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
        y cablea yk-cabezal.js — UNA sola fuente del cabezal para ambas páginas. -->
   <div id="cabezal"></div>
 
+  <!-- Los relojes proponen MISIONES completas, no pasos de /tareas. -->
+  <section class="decs" id="decs" hidden>
+    <div class="decs-hd">⏳ Relojes de decisión <span class="decs-n" id="decsN"></span></div>
+    <div class="decs-list" id="decsList"></div>
+  </section>
+
   <!-- SELECTORES/ORDENADORES + BUSCADOR en una sola línea (Carlos, 2026-07-15).
        Misiones = SOLO flota·agentes: el ámbito campo·pantallas se fue con su
        botón (las incidencias viven en /incidencias) y el buscador subió aquí.
@@ -242,8 +248,10 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 <script src="/yk-misiones.js?v=r47"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r2"></script>
+<script src="/yk-decisions.js?v=20260722"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
+YkDecisions.mount({worker:WORKER});
 let FILTER="activas";
 // Cascada de preselección: userPicked = el usuario ya tocó un filtro (no pisarle);
 // didCascade = la cascada ya corrió una vez (solo en la carga inicial). (Carlos, 21-jul-2026)

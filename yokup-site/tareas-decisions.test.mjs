@@ -3,15 +3,11 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 
-const html = await readFile(new URL('./tareas.html', import.meta.url), 'utf8');
-const start = html.indexOf('function decMMSS');
-const end = html.indexOf('// ── MISIÓN', start);
-assert.notEqual(start, -1, 'No se encontró el renderer de decisiones');
-assert.notEqual(end, -1, 'No se pudo aislar el renderer de decisiones');
+const source = await readFile(new URL('./yk-decisions.js', import.meta.url), 'utf8');
 
 const context = vm.createContext({window: {}});
 vm.runInContext(
-  `${html.slice(start, end)}\nglobalThis.renderDecisionCard = decCard;`,
+  `${source}\nglobalThis.renderDecisionCard = window.YkDecisions._test.card;`,
   context
 );
 
