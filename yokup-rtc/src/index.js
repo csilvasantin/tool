@@ -325,18 +325,28 @@ __name(parsePlanJson, "parsePlanJson");
 // Aplana pasos (del LLM o del plan por defecto) a filas de tareas. Mapea los 3
 // primeros pasos a los códigos a/b/c POR POSICIÓN (el "code" del LLM no es fiable)
 // y sus subtareas a a1..a3/b1..b3/c1..c3. Titles recortados a 60 caracteres.
+// Pasos/subtareas de pura CEREMONIA (no son trabajo, son proceso): «Recibir
+// encargo», «Leer instrucciones», «Verificar prioridad», «Asignar subagente»…
+// Se filtran para que el plan se ajuste al encargo y no infle 24 pasos de nada.
+// (Carlos, 21/22-jul-2026)
+var CEREMONY_RE = /recibir\s+(el\s+)?encargo|leer\s+(las\s+|el\s+)?instrucci|verificar\s+(la\s+)?prioridad|asignar\s+(el\s+)?subagente|acceder\s+al?\s+(sistema|encargo|panel)|reclamar\s+(el\s+)?encargo|ponerse\s+con\s+la\s+misi/i;
+function stepTitle(step) {
+  return String((step && (step.title || step.titulo || step.step || step.name || step.paso || step.descripcion || step.description)) || "");
+}
 function flattenSteps(steps) {
   const letters = ["a", "b", "c", "d", "e", "f", "g", "h"];
   const tasks = [];
-  (steps || []).slice(0, 8).forEach((step, si) => {
+  const clean = (steps || []).filter((s) => { const t = stepTitle(s); return t && !CEREMONY_RE.test(t); });
+  clean.slice(0, 8).forEach((step, si) => {
     const code = letters[si];
     const title = String((step && (step.title || step.titulo || step.step || step.name || step.paso || step.descripcion || step.description)) || "").slice(0, 60) || "Paso " + code.toUpperCase();
     tasks.push({ code, title });
     const subsRaw = step && (step.subtasks || step.subtareas || step.tasks || step.tareas || step.pasos || step.items || step.steps);
-    const subs = Array.isArray(subsRaw) ? subsRaw : [];
-    subs.slice(0, 3).forEach((s, i) => {
-      const st = typeof s === "string" ? s : s && (s.title || s.text || s.name) || "";
-      if (st) tasks.push({ code: code + (i + 1), title: String(st).slice(0, 60) });
+    const subs = (Array.isArray(subsRaw) ? subsRaw : [])
+      .map((s) => typeof s === "string" ? s : (s && (s.title || s.text || s.name)) || "")
+      .filter((st) => st && !CEREMONY_RE.test(st));   // fuera la ceremonia también en subtareas
+    subs.slice(0, 3).forEach((st, i) => {
+      tasks.push({ code: code + (i + 1), title: String(st).slice(0, 60) });
     });
   });
   return tasks;
@@ -1304,6 +1314,32 @@ var index_default = {
         } catch (e) {}
       }
       return json({ ok: true, mission: mid, cancelled: true });
+    }
+    // AVANCE POR PASOS visible: el agente marca su propia subtarea (a/b/c…) conforme
+    // trabaja, para que el árbol se pinte SOLO y se vea la evolución. Igual que
+    // /mission/<id>/task/<code>/status pero PÚBLICO (vía /fleet/*), porque los agentes
+    // no cruzan la verja Google. El árbol recalcula si la misión arranca/concluye. (951)
+    if (url.pathname === "/fleet/task-status" && req.method === "POST") {
+      await ensureSchema(env);
+      let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
+      let mid = String(b.mission || b.id || "").trim();
+      if (/^#?\d+$/.test(mid)) mid = "FLT-" + mid.replace(/^#/, "");
+      const code = String(b.code || "").toLowerCase().trim();
+      if (!mid || !validTaskCode(code)) return json({ ok: false, error: "mission y code válidos requeridos" }, 400);
+      let row = await setTaskStatus(env, mid, code, b.status, b.report, b.owner || b.by);
+      if (!row) {
+        // La misión aún no tiene árbol (los planes se generan al abrirla en el
+        // navegador). Para que la evolución se vea DESDE EL PRIMER paso, se siembra
+        // aquí el plan por defecto (sin IA, instantáneo) y se reintenta. (951)
+        const tk = await env.DB.prepare("SELECT id,source FROM tickets WHERE id=?").bind(mid).first();
+        if (tk && tk.source === "fleet") {
+          await saveMissionPlan(env, mid, flattenSteps(defaultFleetPlan()));
+          row = await setTaskStatus(env, mid, code, b.status, b.report, b.owner || b.by);
+        }
+      }
+      if (!row) return json({ ok: false, error: "misión sin plan y no se pudo sembrar (¿existe la misión?)" }, 404);
+      const fleet = await fleetReconcileMission(env, mid);
+      return json({ ok: true, task: row, fleet });
     }
     // Ingesta UNIVERSAL de incidencias (Carlos, 2026-07-17): cualquier sistema,
     // monitor o agente reporta aquí y aparece en /incidencias. PÚBLICO (como
