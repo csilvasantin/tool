@@ -20,6 +20,13 @@
 #   4) diff de la región `// src/index.js` → fin del código de ambos bundles
 # Resultado: IDÉNTICOS salvo la profundidad de las rutas relativas de unenv.
 # Antes de desplegar, repite el paso 4: si sale limpio, adelante.
+#
+# Reverificado (FLT-982 c, 22-jul-2026): prod == repo BYTE A BYTE (la única
+# diferencia es un salto de línea final). OJO con el alcance del método: solo
+# compara contra la versión VIVA. El contenido de versiones ANTIGUAS no se puede
+# bajar —`/versions/<id>/content` devuelve metadatos y `content/v2?version=<id>`
+# ignora el parámetro y sirve la actual—, así que un despliegue que pisara algo
+# ya no es reconstruible a posteriori: hay que comparar ANTES de desplegar.
 name = "yokup-rtc"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
