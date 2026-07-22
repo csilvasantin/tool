@@ -251,16 +251,8 @@ function batchMissionPlan(title) {
   const short = String(title || "Misión").slice(0, 70);
   return [
     { code: "a", title: "Implementar: " + short, owner: "subagente" },
-    { code: "a1", title: "Delimitar alcance y artefactos", owner: "subagente" },
-    { code: "a2", title: "Ejecutar el cambio acordado", owner: "subagente" },
-    { code: "a3", title: "Dejar resultado reproducible", owner: "subagente" },
-    { code: "b", title: "Verificar: " + short, owner: "subagente" },
-    { code: "b1", title: "Ejecutar comprobaciones relevantes", owner: "subagente" },
-    { code: "b2", title: "Corregir hallazgos verificables", owner: "subagente" },
-    { code: "b3", title: "Entregar evidencia al Agente", owner: "subagente" },
-    { code: "c", title: "Documentar evidencia autorizada", owner: "infraagente" },
-    { code: "c1", title: "Registrar informe factual en Yokup", owner: "infraagente" },
-    { code: "c2", title: "Preparar resumen verificable", owner: "infraagente" }
+    { code: "b", title: "Verificar y entregar evidencia: " + short, owner: "subagente" },
+    { code: "c", title: "Documentar informe factual autorizado", owner: "infraagente" }
   ];
 }
 __name(batchMissionPlan, "batchMissionPlan");
