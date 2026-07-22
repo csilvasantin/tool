@@ -1257,7 +1257,14 @@
   // OJO: no es el «n/9» de yokup, que cuenta cuántas SUBTAREAS se han definido
   // (de un máximo de 9). Aquí se mide avance, allí tamaño del plan — por eso en
   // pantalla siempre va acompañado de la palabra «hechas».
+  // REGLA DE LOS TERCIOS (979): se lee «tareas hechas / 3». El `progress` que
+  // sirve el worker es COUNT(*) del árbol entero (pasos + subtareas + z1) y daba
+  // 1/13 o 1/29 — incomparable entre misiones. Aquí se recuenta con las filas
+  // EMBEBIDAS (m.tasks); si no vienen, se cae al valor del worker antes que mentir.
   function missionProgress(m){
+    const rows = (m && m.tasks) || [];
+    const top = rows.filter(r => /^[a-c]$/.test(String(r.code||'').toLowerCase()));
+    if(top.length) return top.filter(r => r.status === 'done').length + '/' + Math.min(top.length, 3);
     if(!m || !m.progress || !m.progress.total) return null;
     return m.progress.done + '/' + m.progress.total;
   }

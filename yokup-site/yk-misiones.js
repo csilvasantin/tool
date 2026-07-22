@@ -278,6 +278,44 @@
     if (!m) return { flag: "", limpio: String(subject || "") };
     return { flag: m[1].trim(), limpio: String(subject).slice(m[0].length) };
   }
+  // REGLA DE LOS TERCIOS (FLT-979): el avance de una misión se lee SIEMPRE en
+  // tercios — TAREAS a·b·c sobre 3 y SUBTAREAS a1…c3 sobre 9. Antes el contador
+  // usaba `COUNT(*)` de mission_tasks (lo que sirve el worker en `progress`), que
+  // mezcla pasos + subtareas + filas de cierre (z1) y daba 1/13, 0/12, 1/29 o
+  // 33/33: denominadores que no se pueden comparar de un vistazo.
+  // Las misiones VIEJAS con pasos d…h (modelo de 8) no se tocan ni se borran: sus
+  // filas fuera del tercio se cuentan aparte y se avisan en el title.
+  function tercios(rows) {
+    var top = [], sub = [], extra = 0, extraDone = 0;
+    (rows || []).forEach(function (r) {
+      var c = String((r && r.code) || "").trim().toLowerCase();
+      if (/^[a-c]$/.test(c)) top.push(r);
+      else if (/^[a-c][1-3]$/.test(c)) sub.push(r);
+      // z1/z2 = fila de CIERRE (informe) que genera el propio worker, no es un
+      // paso del plan: ni suma ni resta en el contador de tercios.
+      else if (c && !/^z\d*$/.test(c)) { extra++; if (r.status === "done") extraDone++; }
+    });
+    if (!top.length && !sub.length && !extra) return null;
+    var hecho = function (a) { return a.filter(function (r) { return r.status === "done"; }).length; };
+    return {
+      done: hecho(top), total: Math.min(top.length, 3) || 3,
+      sdone: hecho(sub), stotal: Math.min(sub.length, 9),
+      extra: extra, extraDone: extraDone
+    };
+  }
+  // Chip de progreso de una fila: «n/3» de tareas + «n/9» de subtareas.
+  function progHtml(p) {
+    if (!p || !p.total) return "";
+    var pct = Math.round(100 * (p.stotal ? (p.done * 3 + p.sdone) / (p.total * 3 + p.stotal) : p.done / p.total));
+    var tip = p.done + " de " + p.total + " tareas hechas"
+      + (p.stotal ? " · " + p.sdone + " de " + p.stotal + " subtareas" : "")
+      + (p.extra ? " (+" + p.extraDone + "/" + p.extra + " pasos fuera de los tercios, plan antiguo)" : "");
+    return '<span class="prog' + (p.done >= p.total && (!p.stotal || p.sdone >= p.stotal) ? " full" : "") + '" title="' + esc(tip) + '">' +
+      '<span class="prog-fill" style="width:' + pct + '%"></span>' +
+      "<b>" + p.done + "/" + p.total + "</b>" +
+      (p.stotal ? '<i class="prog-sub">' + p.sdone + "/" + p.stotal + "</i>" : "") +
+      (p.extra ? '<i class="prog-mas">+' + p.extra + "</i>" : "") + "</span>";
+  }
   function rowHtml(t) {
     MIS_CACHE[t.id] = t;   // cajón de detalle: la ficha ya viene con la lista, sin fetch extra
     var est = estadoDe(t);
@@ -331,9 +369,9 @@
         '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, surface, t._agents, machOffOf(t, surface)) + "</div>" +
         // Estado + ABRIR apilado (abrir debajo de la insignia).
         '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"' + (t.status === "cancelled" && t.note ? ' title="' + esc(t.note) + '"' : "") + "><i></i>" + stt + "</span>" + (t.status === "cancelled" && t.note ? '<small class="cancel-note" title="' + esc(t.note) + '">' + esc(t.note) + "</small>" : "") +
-          // PROGRESO en la fila (como en /tareas): n/total REAL del plan + barra que
-          // se acerca al objetivo. Solo si la misión tiene plan. (959)
-          (t._prog && t._prog.total ? '<span class="prog' + (t._prog.done >= t._prog.total ? " full" : "") + '" title="' + t._prog.done + " de " + t._prog.total + ' pasos hechos"><span class="prog-fill" style="width:' + Math.round(100 * t._prog.done / t._prog.total) + '%"></span><b>' + t._prog.done + "/" + t._prog.total + "</b></span>" : "") +
+          // PROGRESO en la fila, en TERCIOS: tareas n/3 y subtareas n/9 (979).
+          // Solo si la misión tiene plan. (959, 963)
+          progHtml(t._prog) +
           '<a class="tkopen" href="/tareas?mission=' + encodeURIComponent(t.id) + '" title="ver el plan de esta misión en /tareas">detalle ↳</a>' +
           '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a></div>' +
       "</div></div>";
@@ -664,6 +702,7 @@
     setLiveMachines: function (set) { LIVE_MACHINES = set || null; },
     renderTaskTree: renderTaskTree, refreshTree: refreshTree,
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,
+    tercios: tercios, progHtml: progHtml,
     nextStatus: nextStatus, postStatus: postStatus, postPlan: postPlan,
     fetchTasks: fetchTasks, fetchAllTasks: fetchAllTasks, groupByMission: groupByMission,
     markWorking: markWorking, fillActivity: fillActivity, esc: esc, ago: ago, slaLeft: slaLeft,

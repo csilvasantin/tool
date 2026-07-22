@@ -92,6 +92,11 @@
 .cel.est .prog{position:relative;display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:16px;margin-top:3px;border:1px solid var(--line);border-radius:5px;overflow:hidden;background:rgba(120,243,255,.04);font-family:var(--mono);font-size:9px;color:var(--mut)}
 .cel.est .prog .prog-fill{position:absolute;inset:0 auto 0 0;background:rgba(120,243,255,.16);transition:width .5s ease;z-index:0}
 .cel.est .prog b{position:relative;z-index:1;font-weight:600;letter-spacing:.03em}
+/* Tercios (979): tareas n/3 en negrita + subtareas n/9 atenuadas en el mismo chip.
+   `+n` avisa de pasos de un plan antiguo (d…h) que quedan fuera del tercio. */
+.cel.est .prog{min-width:58px;gap:4px;padding:0 5px}
+.cel.est .prog i{position:relative;z-index:1;font-style:normal;color:var(--dim);font-size:8.5px}
+.cel.est .prog .prog-mas{color:var(--warn)}
 .cel.est .prog.full{border-color:rgba(136,255,170,.4)}.cel.est .prog.full .prog-fill{background:rgba(136,255,170,.22)}.cel.est .prog.full b{color:var(--good)}
 /* Columna ORDENADOR (entre Fecha y Agente). */
 .cel.ord{justify-content:flex-start}

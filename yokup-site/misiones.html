@@ -555,9 +555,10 @@ async function load(){
   try{
     const _at=await YkMisiones.fetchAllTasks(SCOPE); const _g={};
     (_at||[]).forEach(x=>{(_g[x.mission_id]=_g[x.mission_id]||[]).push(x);});
-    // Regla de los tercios (963): el contador cuenta las TAREAS top a/b/c (n/3),
-    // como el «3/3» de Oráculo; denominador REAL del plan, nunca fijo (12/24).
-    list.forEach(t=>{ const ts=(_g[t.id]||[]).filter(x=>x.code&&x.code.length===1); if(ts.length) t._prog={done:ts.filter(x=>x.status==="done").length,total:ts.length}; });
+    // Regla de los tercios (963 → 979): TAREAS a·b·c sobre 3 y SUBTAREAS a1…c3
+    // sobre 9. Nunca el COUNT(*) crudo del árbol (daba 1/13, 0/12, 1/29), que no
+    // deja comparar dos misiones de un vistazo. El cálculo vive en YkMisiones.tercios.
+    list.forEach(t=>{ t._prog=YkMisiones.tercios(_g[t.id]||[]); });
   }catch(e){}
   el.innerHTML=headHtml()+list.map(t=>YkMisiones.rowHtml(t)).join("");
   bindHead(el);
