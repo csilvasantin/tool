@@ -120,7 +120,7 @@ el barrido no mueve nada. Y las <b>123</b> pruebas http de misiones resueltas re
 <tr><td>Prod == repo</td><td>bundle vivo de Cloudflare vs <code>wrangler deploy --dry-run</code></td><td class="ok">✓ idénticos salvo el salto de línea final</td></tr>
 <tr><td>El arreglo está en el aire</td><td><code>normalizeProofImage</code>, «sin-prueba» y el aviso del 100 % en el bundle vivo</td><td class="ok">✓ presentes</td></tr>
 <tr><td>Rutas protegidas</td><td>/tickets · /tasks/all · /stats · /agents · /incidents · /copilot · /mission/*/tasks</td><td class="ok">✓ 401 las siete</td></tr>
-<tr><td>Carrusel de Oráculo</td><td>mission_batches · mission_batch_items, antes y después</td><td class="ok">✓ 13 tandas · 61 ítems, intacto</td></tr>
+<tr><td>Carrusel de Oráculo</td><td>mission_batches · mission_batch_items, antes y después</td><td class="ok">✓ 13 tandas · 61 ítems, intacto*</td></tr>
 <tr><td>Suites</td><td><code>node --test</code></td><td class="ok">✓ worker 36/36 · front 22/22</td></tr>
 <tr><td>Sondas borradas</td><td>tickets · mission_tasks · events</td><td class="ok">✓ 0 filas <code>FLT-SONDA%</code></td></tr>
 <tr><td><b>Respaldo por el árbol deja la ficha sin prueba</b></td><td>sonda C: resolved, proof_image null</td><td class="no">✗ el hueco que creó FLT-826/830 sigue abierto</td></tr>
@@ -137,6 +137,9 @@ aparecer pruebas huérfanas como las de FLT-826 y FLT-830: cuando el cierre se a
 <b>Sondas creadas y borradas:</b> <code>FLT-SONDA988A/B/C/D</code>, firmadas infraNeo · Mac Mini —mi propia
 persona y mi propia máquina—, con sus 48 pasos y sus 9 eventos. Ninguna creó tanda del carrusel.<br>
 <b>Recuperación acotada:</b> <code>FLT-826</code> y <code>FLT-830</code>, sólo <code>proof_image</code>.<br>
+<b>*</b> Ninguna acción de esta verificación tocó el carrusel: 13 tandas y 61 ítems antes y después. Ya cerrada
+la misión, Oráculo abrió su reloj de decisión del día y el carrusel pasó a 14 tandas y 66 ítems
+(<code>BATCH-DEC-mrwmrapa85qk</code>, 00:09) — trabajo de otro agente, ajeno a esto.<br>
 <b>Commit de a·b:</b> e08f575. <b>Worker:</b> versión 22a0d79f. <b>infraNeo · FLT-988 c</b>
 </div>
 </div>
