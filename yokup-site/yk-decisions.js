@@ -32,13 +32,16 @@
     var label = host.split(".")[0].replace(/[-_]+/g, " ").trim();
     return label ? label.replace(/\b\w/g, function (c) { return c.toUpperCase(); }) : "";
   }
+  // El proyecto lo resuelve el WORKER contra el censo (/projects) y llega ya con
+  // su nombre humano. Aquí sólo queda el respaldo honrado: si no hay proyecto y
+  // sí una URL, la marca del dominio; si no hay nada, se dice «Sin proyecto».
+  // Antes se colaba el TÍTULO DE LA MISIÓN como si fuera el proyecto y, cuando
+  // ni eso, un «Proyecto sin identificar» que era justo la queja de Carlos: la
+  // ficha fingía un dato que nadie había dado de alta.
   function projectName(d) {
     var explicit = cleanProjectName(d && d.project);
     if (explicit) return explicit;
-    var mission = cleanProjectName(d && d.mission);
-    if (/generador de presentaciones/i.test(mission)) return "Generador de Presentaciones · AdmiraNeXT";
-    if (mission) return mission;
-    return brandFromUrl(d && d.url) || "Proyecto sin identificar";
+    return brandFromUrl(d && d.url) || "Sin proyecto";
   }
   function domId(x) { return "dec-project-" + String(x || "item").replace(/[^a-z0-9_-]/gi, "-"); }
   function mmss(s) { s = Math.max(0, s | 0); return ((s / 60) | 0) + ":" + String(s % 60).padStart(2, "0"); }
@@ -78,7 +81,7 @@
     var result = d.status === "decided" ? "<div class=\"dec-done ok\">✓ decisión aplicada: <b>" + esc(d.options[effective] || "") + "</b></div>" : d.status === "expired" ? "<div class=\"dec-done exp\">⏱ sin respuesta — se aplicó la recomendada: <b>" + esc(d.options[effective] || "") + "</b></div>" : d.status === "cancelled" ? "<div class=\"dec-done exp\">" + (d.parent_decision || d.batch_id ? "↩ continuación descartada: se conserva la tanda actual." : "↩ lote descartado: no se iniciará ninguna misión.") + "</div>" : "";
     var batch = d.batch, batchHtml = "";
     if (batch) { var active = (batch.items || []).filter(function (x) { return x.status === "active"; })[0]; var queued = (batch.items || []).filter(function (x) { return x.status === "queued"; }); batchHtml = "<div class=\"dec-batch" + (batch.status === "paused" ? " paused" : "") + "\">" + (batch.status === "paused" ? "⏸ <b>cola pausada</b>: " + esc(batch.pause_reason || "requiere decisión") : batch.status === "completed" ? "✓ <b>tanda completada</b>" : "▶ <b>activa</b>: " + esc(active ? active.title : "preparando") + " · cola: " + queued.map(function (x) { return esc(x.title); }).join(" → ")) + "</div>"; }
-    return "<article class=\"dec" + (pending && d.secondsLeft <= 60 ? " urge" : "") + "\" aria-labelledby=\"" + projectId + "\"><header class=\"dec-project\"><span class=\"dec-project-label\">PROYECTO PRINCIPAL</span><h3 class=\"dec-project-name\" id=\"" + projectId + "\">" + esc(project) + "</h3><span class=\"dec-project-rest\">" + remainingText + "</span></header><div class=\"dec-top\"><span class=\"dec-k\">🖥 " + esc(d.machine || "—") + "</span><span class=\"dec-k\">👷 " + esc(d.agent || "—") + "</span><span class=\"dec-k\">" + (String(d.surface || "").toUpperCase() === "CLI" ? "⌨ CLI" : "🖥 Desktop App") + "</span>" + (pending ? "<span class=\"dec-clock\" data-clock=\"" + esc(d.id) + "\" role=\"timer\" aria-label=\"Tiempo restante\">" + mmss(d.secondsLeft) + "</span>" : "") + "</div><div class=\"dec-q\">" + esc(d.question) + "</div><div class=\"dec-opts\">" + optsHtml + "</div>" + result + batchHtml + (opts && opts.stamp ? stamp(d) : "") + "</article>";
+    return "<article class=\"dec" + (pending && d.secondsLeft <= 60 ? " urge" : "") + "\" aria-labelledby=\"" + projectId + "\"><header class=\"dec-project\"><span class=\"dec-project-label\">PROYECTO</span><h3 class=\"dec-project-name\" id=\"" + projectId + "\">" + esc(project) + "</h3><span class=\"dec-project-rest\">" + remainingText + "</span></header><div class=\"dec-top\"><span class=\"dec-k\">🖥 " + esc(d.machine || "—") + "</span><span class=\"dec-k\">👷 " + esc(d.agent || "—") + "</span><span class=\"dec-k\">" + (String(d.surface || "").toUpperCase() === "CLI" ? "⌨ CLI" : "🖥 Desktop App") + "</span>" + (pending ? "<span class=\"dec-clock\" data-clock=\"" + esc(d.id) + "\" role=\"timer\" aria-label=\"Tiempo restante\">" + mmss(d.secondsLeft) + "</span>" : "") + "</div><div class=\"dec-q\">" + esc(d.question) + "</div><div class=\"dec-opts\">" + optsHtml + "</div>" + result + batchHtml + (opts && opts.stamp ? stamp(d) : "") + "</article>";
   }
   // ── HISTÓRICO ───────────────────────────────────────────────────────────────
   // Sale entero del worker. Se pide de la más reciente hacia atrás con el cursor

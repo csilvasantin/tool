@@ -226,10 +226,27 @@
     ["admira.live", "https://www.admira.live"], ["admira.tv", "https://www.admira.tv"],
     ["admiranext", "https://admiranext.com"], ["ainimation", "https://ainimation.studio"], ["digitalavatar", "https://digitalavatar.ai"]
   ];
+  // El proyecto ASIGNADO manda sobre el adivinado. Desde FLT-984 la misión lleva
+  // su proyecto del censo (`project` = id, `project_name` = nombre, y la web en
+  // /projects), así que la miniatura sale del dato y no de buscar palabras en el
+  // asunto. La búsqueda por palabras se queda SOLO como respaldo para las
+  // misiones viejas, que nadie ha asignado todavía.
+  var PROY_WEB = {};   // id del censo → web, lo rellena YkMisiones.setProyectos
   function proyectoDe(t) {
+    var pid = t && (t.project || "");
+    if (pid && PROY_WEB[String(pid).toLowerCase()]) return PROY_WEB[String(pid).toLowerCase()];
     var s = ((t && (t.subject || "")) + " " + (t && (t.screen || "")) + " " + (t && (t.loc || ""))).toLowerCase();
     for (var i = 0; i < PROY.length; i++) if (s.indexOf(PROY[i][0]) >= 0) return PROY[i][1];
     return "";
+  }
+  // Censo de proyectos (GET /projects) para resolver web y nombre sin adivinar.
+  function setProyectos(list) {
+    PROY_WEB = {};
+    (list || []).forEach(function (p) {
+      if (!p || !p.id || !p.web) return;
+      var w = String(p.web).trim();
+      PROY_WEB[String(p.id).toLowerCase()] = /^https?:\/\//i.test(w) ? w : "https://" + w;
+    });
   }
   // miniatura de una web (thum.io; cargada directa desde el navegador — las IPs de
   // datacenter la bloquean, pero el navegador del usuario es residencial).
@@ -729,6 +746,7 @@
     init: init, selected: selected, selectMission: selectMission,
     rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine, estadoDe: estadoDe,
     setLiveMachines: function (set) { LIVE_MACHINES = set || null; },
+    setProyectos: setProyectos, proyectoDe: proyectoDe,
     renderTaskTree: renderTaskTree, refreshTree: refreshTree,
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,
     tercios: tercios, progHtml: progHtml,

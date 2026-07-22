@@ -472,6 +472,13 @@ async function marcarHalos(container, list){
 async function load(){
   // la personalización (iconos/fotos del Panel de control) llega antes del primer pintado
   try{ await (YkMisiones.customizeReady||0); }catch(e){}
+  // Censo de proyectos: la miniatura de la columna PROYECTO sale del proyecto
+  // ASIGNADO a la misión, no de buscar palabras en el asunto. Se pide una vez
+  // por recarga y se queda cacheado en el módulo.
+  try{
+    const po=await fetch(WORKER+"/projects",{cache:"no-store"}).then(r=>r.json());
+    YkMisiones.setProyectos(po.projects||[]);
+  }catch(e){}
   let d; try{ const r=await fetch(WORKER+"/tickets?scope="+SCOPE,{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
   let tks=(SCOPE==="fleet") ? agrupaFlota(d.tickets||[]) : (d.tickets||[]); const st=d.stats||{};
   // DÍA del tablero (selector junto a «finalizadas», def. HOY): filtra misiones

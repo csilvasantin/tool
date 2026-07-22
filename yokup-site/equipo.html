@@ -98,6 +98,23 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 5px}
 .mbtns .del{color:var(--warn);border-color:rgba(255,136,102,.4);margin-left:auto}
 .mbtns .msg{font-family:var(--mono);font-size:11px;color:var(--mut)}
 @media(max-width:620px){.row .k{flex-basis:76px}.f2{grid-template-columns:1fr}}
+
+/* ---- proyectos ---- */
+.pchip{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--line);border-radius:999px;padding:4px 9px;color:var(--mut);white-space:nowrap}
+.pchip.on{color:var(--good);border-color:rgba(136,255,170,.36)}
+.pchip.pausado{color:var(--accent);border-color:rgba(255,216,102,.36)}
+.pchip.archivado{color:var(--dim)}
+.pweb{font-family:var(--mono);font-size:11.5px;color:var(--brand);text-decoration:none;word-break:break-all}
+.pweb:hover{text-decoration:underline}
+.pblurb{font-size:13px;line-height:1.5;color:var(--mut);margin-bottom:12px;overflow-wrap:anywhere}
+.pshot{display:block;border-radius:9px;overflow:hidden;border:1px solid var(--line);background:#061019;aspect-ratio:16/10;margin-bottom:12px}
+.pshot img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
+/* Casilleros de asignación del editor: máquinas y agentes, uno por línea. */
+.picks{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(180px,100%),1fr));gap:6px;max-height:210px;overflow:auto;border:1px solid var(--line);border-radius:9px;padding:9px;background:var(--bg)}
+.picks label{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--ink);cursor:pointer;font-family:var(--sans);text-transform:none;letter-spacing:0;margin:0;min-width:0}
+.picks label span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.picks input{width:auto;flex:0 0 auto}
+.pvacio{border:1px dashed var(--line2);border-radius:14px;padding:26px 20px;text-align:center;color:var(--mut);font-size:13.5px;line-height:1.6}
 </style>
 </head>
 <body data-yk-title="EQUIPO" data-yk-zone="app">
@@ -109,13 +126,15 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 5px}
     <div class="kpi tot"><b id="kSil">—</b><span>Agentes · bits</span></div>
     <div class="kpi"><b id="kEq">—</b><span>Máquinas · átomos</span></div>
     <div class="kpi viva"><b id="kViva">—</b><span>Con latido</span></div>
-    <div class="kpi mis"><b id="kMis">—</b><span>Misiones activas</span></div>
+    <div class="kpi mis"><b id="kMis">—</b><span>Misión activa</span></div>
+    <div class="kpi"><b id="kPro">—</b><span>Proyecto</span></div>
     <div class="kpi gap"><b id="kGap">—</b><span>Sin ficha</span></div>
   </div>
 
   <div class="tabs">
     <button class="tab on" data-v="agentes">🤖 Agentes <small>· software · bits</small></button>
     <button class="tab" data-v="maquinas">🖥 Máquinas <small>· hardware · átomos</small></button>
+    <button class="tab" data-v="proyectos">📁 Proyectos <small>· el trabajo</small></button>
   </div>
 
   <div id="root"><div class="load">Cargando el equipo…</div></div>
@@ -183,6 +202,18 @@ const F_EQ=[
   {k:"color",      l:"Color",           t:"text", ph:"plata"},
   {k:"note",       l:"Nota",            t:"area"}
 ];
+/* Un PROYECTO es la unidad de trabajo: se da de alta aquí y se asigna a las
+   máquinas y a los agentes que lo tocan. Vive en yokup-rtc (D1), no en
+   admira-fleet: admira-fleet es el censo de máquinas y personas, y los proyectos
+   son de yokup, que es quien lleva misiones y decisiones. Las asignaciones
+   apuntan a los IDS de admira-fleet — ni un censo paralelo más. */
+const F_PRO=[
+  {k:"name",  l:"Nombre",           t:"text", ph:"Yokup"},
+  {k:"blurb", l:"Descripción",      t:"area", ph:"De qué va, en una línea"},
+  {k:"web",   l:"Web",              t:"text", ph:"www.yokup.com"},
+  {k:"status",l:"Estado",           t:"sel",  opts:[["activo","Activo"],["pausado","Pausado"],["archivado","Archivado"]]},
+  {k:"color", l:"Color",            t:"text", ph:"#3df08a"}
+];
 const CAPAS={
   1:{ t:"Capa 1 · Principales", d:"Siempre con el mejor modelo disponible. Definen estrategia y arquitectura con el máximo detalle; no ejecutan tareas mecánicas: las reparten." },
   2:{ t:"Capa 2 · Especialistas", d:"Perfiles de apoyo con criterio propio: contrastan, exploran y cubren frentes que los principales no alcanzan." }
@@ -190,18 +221,28 @@ const CAPAS={
 
 const canon=s=>YkMisiones.canonMachine(String(s||""));
 const norm=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-let PRES=[], MIS=[], MAQ=[], SIL=[], VISTA="agentes";
+let PRES=[], MIS=[], MAQ=[], SIL=[], PRO=[], VISTA="agentes";
 
 async function cargar(){
-  const [pr,tk,mq,si]=await Promise.all([
+  const [pr,tk,mq,si,po]=await Promise.all([
     fetch(TG+"/api/presence",{cache:"no-store"}).then(r=>r.json()).catch(()=>({presence:[]})),
     fetch(WORKER+"/tickets?scope=fleet&limit=300",{cache:"no-store"}).then(r=>r.json()).catch(()=>({tickets:[]})),
     fetch(FLEET+"/machines",{cache:"no-store"}).then(r=>r.json()).catch(()=>({machines:[]})),
-    fetch(FLEET+"/silicon",{cache:"no-store"}).then(r=>r.json()).catch(()=>({silicon:[]}))
+    fetch(FLEET+"/silicon",{cache:"no-store"}).then(r=>r.json()).catch(()=>({silicon:[]})),
+    fetch(WORKER+"/projects",{cache:"no-store"}).then(r=>r.json()).catch(()=>({projects:[]}))
   ]);
   PRES=pr.presence||[]; MIS=(tk.tickets||[]).filter(t=>t.status!=="resolved");
-  MAQ=mq.machines||[];  SIL=si.silicon||[];
+  MAQ=mq.machines||[];  SIL=si.silicon||[];  PRO=po.projects||[];
   pinta();
+}
+const proPorId=id=>PRO.find(p=>p.id===id)||null;
+// Un valor suelto (id, nombre o dominio) → proyecto del censo. Nada de adivinar
+// por palabras: o está dado de alta, o no está.
+function proDe(v){
+  const s=String(v||"").trim().toLowerCase();
+  if(!s) return null;
+  return PRO.find(p=>p.id.toLowerCase()===s||String(p.name||"").toLowerCase()===s
+                   ||String(p.web||"").replace(/^https?:\/\//,"").toLowerCase()===s)||null;
 }
 
 function presenciaDe(nombre){
@@ -256,6 +297,8 @@ function tarjetaSil(a){
       fila("Rol",esc(a.role||"—")+(a.archetype?' <span class="v mono">'+esc(a.archetype)+"</span>":""))+
       (a.duty?fila("De qué responde",esc(a.duty)):"")+
       fila("Corre en",maq?"🖥 "+(window.ykMaquina?ykMaquina.html(maq):esc(maq))+" · "+esc(hace(p&&p.updated)):"— sin latido","mono")+
+      (function(){ const ps=PRO.filter(x=>(x.agents||[]).indexOf(a.id)>=0);
+        return fila("Proyecto", ps.length?ps.map(x=>'<span class="agchip">📁 '+esc(x.name||x.id)+'</span>').join(" "):"— sin asignar", ps.length?"":"falta"); })()+
       (p&&foco(p.focus)?fila("Su foco",esc(foco(p.focus))):"")+
     '</div>'+
     (tags.length?'<div class="tags">'+tags.map(t=>"<span>"+esc(t)+"</span>").join("")+'</div>':"")+
@@ -266,18 +309,32 @@ function tarjetaSil(a){
 }
 
 
-/* Proyectos de la casa para el selector rápido de misión del día. El worker de
-   capturas sólo admite estos dominios, así que fuera de la lista no hay imagen. */
-const PROYECTOS=["www.yokup.com","www.admira.live","www.admira.tv","pixeria.com",
-  "www.clearchannel.tv","xpaceos.com","admiranext.com","carlossilva.info","sin asignar"];
+/* Opciones del selector de misión del día. Salen del CENSO de proyectos (la
+   pestaña Proyectos), no de una lista escrita a mano. Se añaden además los
+   valores que YA tienen las máquinas y que nadie ha dado de alta todavía: son
+   datos reales, y esconderlos sería peor — salen marcados para que se vean. */
+function opcionesProyecto(actual){
+  const vivos=PRO.filter(p=>p.status!=="archivado").map(p=>[p.name, p.name]);
+  const alta=new Set(PRO.map(p=>String(p.name||"").toLowerCase()).concat(PRO.map(p=>p.id)));
+  const sueltos=[...new Set(MAQ.map(m=>String(m.project||"").trim()).filter(Boolean)
+    .concat(actual?[String(actual)]:[]))]
+    .filter(v=>!alta.has(v.toLowerCase())&&!proDe(v))
+    .map(v=>[v, v+" · sin dar de alta"]);
+  return vivos.concat(sueltos);
+}
 
 /* MISIÓN DEL DÍA de una máquina: el proyecto al que se dedica hoy (o hasta que
    Carlos diga lo contrario). Se pinta el NOMBRE arriba y debajo una CAPTURA VIVA
    del sitio, para saber de un vistazo a qué se dedica ese ordenador sin leer nada.
    La captura la sirve el worker (/shot), que sólo admite nuestros dominios. */
 function webDeProyecto(p){
-  const s=String(p||"").trim().toLowerCase();
+  let s=String(p||"").trim().toLowerCase();
   if(!s || /^sin asignar|^—|^-$/.test(s)) return "";
+  // Si el proyecto está en el censo, su web es la que puso Carlos al darlo de
+  // alta; sólo si no está se cae al viejo apaño de tratar el valor como dominio.
+  const cen=proDe(s);
+  if(cen) s=String(cen.web||"").trim().toLowerCase();
+  if(!s) return "";
   const host=s.replace(/^https?:\/\//,"").replace(/\/.*$/,"");
   // el worker rechaza dominios de fuera: no se pide captura de lo que no va a dar
   if(!/^(www\.)?(pixeria|xpaceos|yokup|admira\.live|admira\.tv|admira\.store|clearchannel|admiranext|carlossilva)\./.test(host+".")
@@ -287,13 +344,14 @@ function webDeProyecto(p){
 function misionDelDia(m){
   const web=webDeProyecto(m.project);
   if(!m.project){ // sin misión: se ofrece igualmente el selector para asignarla
-    const o=PROYECTOS.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('');
+    const o=opcionesProyecto("").map(x=>'<option value="'+esc(x[0])+'">'+esc(x[1])+'</option>').join('');
     return '<div class="mdia sinmision"><div class="mdia-h">🎯 Misión de hoy'
-      +'<select class="mdia-sel" data-maq="'+esc(m.id)+'"><option value="">— sin asignar —</option>'+o+'</select></div>'
-      +'<div class="mdia-sin">sin misión asignada · elígela arriba</div></div>'; }
+      +'<select class="mdia-sel" data-maq="'+esc(m.id)+'"><option value="">— sin asignar —</option>'+o
+      +(o?'':'<option value="__otro">otro…</option>')+'</select></div>'
+      +'<div class="mdia-sin">'+(PRO.length?'sin misión asignada · elígela arriba':'sin proyecto en el censo · date de alta uno en la pestaña Proyectos')+'</div></div>'; }
   const nombre=esc(String(m.project));
-  const opts=[...new Set(PROYECTOS.concat(m.project?[String(m.project)]:[]))]
-    .map(x=>'<option value="'+esc(x)+'"'+(String(m.project)===x?' selected':'')+'>'+esc(x)+'</option>').join('');
+  const opts=opcionesProyecto(m.project)
+    .map(x=>'<option value="'+esc(x[0])+'"'+(String(m.project)===x[0]?' selected':'')+'>'+esc(x[1])+'</option>').join('');
   return '<div class="mdia">'+
     '<div class="mdia-h">🎯 Misión de hoy'+
       '<select class="mdia-sel" data-maq="'+esc(m.id)+'" title="cambiar la misión del día">'+opts+
@@ -339,8 +397,41 @@ function tarjetaEq(m){
   '</div>';
 }
 
+/* Tarjeta de PROYECTO: qué es, dónde se ve y a quién toca. Las asignaciones se
+   pintan con el nombre real de la máquina/agente; si el id ya no existe en
+   admira-fleet se enseña el id crudo en vez de callarlo. */
+function nombreMaq(id){ const m=MAQ.find(x=>x.id===id); return m?canon(m.name||m.id):id; }
+function nombreAg(id){ const a=SIL.find(x=>x.id===id); return a?(a.name||a.id):id; }
+function tarjetaPro(p){
+  const web=webDeProyecto(p.web||p.name);
+  const est=String(p.status||"activo");
+  return '<div class="ag'+(est==="archivado"?" off":"")+'" style="--c:'+esc(p.color||"#3df08a")+'">'+
+    '<div class="top"><div class="av">📁</div>'+
+      '<div class="who"><b>'+esc(p.name||p.id)+'</b><span class="rt">'+esc(p.id)+'</span></div>'+
+      '<span class="pchip '+esc(est)+(est==="activo"?" on":"")+'">'+esc(est)+'</span></div>'+
+    (p.blurb?'<div class="pblurb">'+esc(p.blurb)+'</div>':"")+
+    (web?'<a class="pshot" href="'+esc(web)+'" target="_blank" rel="noopener" title="abrir '+esc(web)+'">'+
+         '<img loading="lazy" src="'+esc(WORKER+"/shot?url="+encodeURIComponent(web))+'" alt="'+esc(p.name||p.id)+'"></a>':"")+
+    '<div class="rows">'+
+      fila("Web", p.web?'<a class="pweb" href="'+esc(/^https?:\/\//.test(p.web)?p.web:"https://"+p.web)+'" target="_blank" rel="noopener">'+esc(p.web)+'</a>':"— sin web", p.web?"":"falta")+
+      fila("Máquina", p.machines.length?p.machines.map(id=>'<span class="agchip">🖥 '+esc(nombreMaq(id))+'</span>').join(" "):"— sin asignar", p.machines.length?"":"falta")+
+      fila("Agente", p.agents.length?p.agents.map(id=>'<span class="agchip">🤖 '+esc(nombreAg(id))+'</span>').join(" "):"— sin asignar", p.agents.length?"":"falta")+
+    '</div>'+
+    '<div class="mis"><span class="n">'+(p.missions?'<b>'+p.missions+'</b> misión(es) viva(s)':"sin misiones vivas")+'</span>'+
+      '<button data-ed="pro" data-id="'+esc(p.id)+'">✏️ editar</button>'+
+      '<a href="/misiones">ver misiones →</a></div>'+
+  '</div>';
+}
+
 function pinta(){
-  if(VISTA==="agentes"){
+  if(VISTA==="proyectos"){
+    $("root").innerHTML='<div class="capa"><h2>Proyectos · el trabajo</h2>'+
+      '<p>En qué se trabaja. Un proyecto se da de alta aquí y se asigna a las máquinas y a los agentes que lo tocan — puede tocar varios de cada. Es el nombre que sale luego en la ficha de cada decisión y de cada misión: sin alta, la ficha dice «sin proyecto» y no se inventa ninguno.</p>'+
+      '<button class="add" id="addPro">➕ nuevo proyecto</button></div>'+
+      (PRO.length?'<div class="grid">'+PRO.map(tarjetaPro).join("")+'</div>'
+                 :'<div class="pvacio">Todavía no hay ningún proyecto dado de alta.<br>Empieza por el que tengas entre manos: nombre, web y a quién toca.</div>');
+    const b=$("addPro"); if(b) b.onclick=()=>abrir("pro",null);
+  }else if(VISTA==="agentes"){
     $("root").innerHTML=[1,2].map(c=>{
       const g=SIL.filter(a=>+a.layer===c);
       return '<div class="capa"><h2>'+esc(CAPAS[c].t)+'</h2><p>'+esc(CAPAS[c].d)+'</p>'+
@@ -365,6 +456,12 @@ function pinta(){
           body:JSON.stringify({id:sel.dataset.maq, project:v.trim(), by:"yokup/equipo·foco"})});
         const d=await r.json().catch(()=>({}));
         if(!r.ok||!d.ok) throw new Error(d.error||("HTTP "+r.status));
+        // Si el proyecto está dado de alta, la máquina queda además asignada a
+        // él en el censo: elegirlo aquí y verlo en la pestaña Proyectos es lo
+        // mismo. Si no lo está, no se crea nada a espaldas de Carlos.
+        const cen=proDe(v.trim());
+        if(cen) await fetch(WORKER+"/projects/assign",{method:"POST",headers:{"content-type":"application/json"},
+          body:JSON.stringify({project:cen.id, kind:"machine", ref:sel.dataset.maq})}).catch(()=>{});
         await cargar();
       }catch(e){ sel.disabled=false; sel.value=antes; alert("No se pudo cambiar la misión: "+(e&&e.message||e)); }
     };
@@ -372,6 +469,7 @@ function pinta(){
   const vivos=SIL.filter(a=>vivo(presenciaDe(a.name||a.id))).length;
   $("kEq").textContent=MAQ.length; $("kSil").textContent=SIL.length;
   $("kViva").textContent=vivos; $("kMis").textContent=MIS.length;
+  $("kPro").textContent=PRO.filter(p=>p.status!=="archivado").length;
   $("kGap").textContent=MAQ.filter(m=>!m.member&&!m.role&&!m.machineRole).length;
 }
 
@@ -384,11 +482,15 @@ document.querySelectorAll(".tab").forEach(t=>{ t.onclick=()=>{
 let ED={tipo:"",id:""};
 function abrir(tipo,id){
   ED={tipo,id:id||""};
-  const campos=tipo==="sil"?F_SIL:F_EQ;
-  const dato=(tipo==="sil"?SIL.find(x=>x.id===id):MAQ.find(x=>x.id===id))||{};
-  $("mTit").textContent = tipo==="sil" ? (id?"Editar "+(dato.name||id):"Nuevo agente") : "Ficha de "+canon(dato.name||id);
+  const campos=tipo==="sil"?F_SIL:tipo==="pro"?F_PRO:F_EQ;
+  const dato=(tipo==="sil"?SIL.find(x=>x.id===id):tipo==="pro"?PRO.find(x=>x.id===id):MAQ.find(x=>x.id===id))||{};
+  $("mTit").textContent = tipo==="sil" ? (id?"Editar "+(dato.name||id):"Nuevo agente")
+    : tipo==="pro" ? (id?"Editar "+(dato.name||id):"Nuevo proyecto")
+    : "Ficha de "+canon(dato.name||id);
   $("mHint").textContent = tipo==="sil"
     ? "La persona la define el runtime (LLM) + la cuenta, no la máquina. Se guarda en admira-fleet."
+    : tipo==="pro"
+    ? "El proyecto vive en yokup y se asigna a las máquinas y agentes del censo de admira-fleet. Su nombre es el que sale en la ficha de cada decisión y de cada misión."
     : "El equipo se auto-registra y late solo; aquí se edita la parte humana de su ficha. La comparte admira.live/control.";
   $("mForm").innerHTML=campos.map(f=>{
     let v=dato[f.k]; if(Array.isArray(v)) v=v.join(", ");
@@ -397,9 +499,22 @@ function abrir(tipo,id){
     if(f.t==="sel")  return '<div class="f"><label>'+esc(f.l)+'</label><select data-k="'+f.k+'">'+f.opts.map(o=>'<option value="'+o[0]+'"'+(String(v)===o[0]?" selected":"")+'>'+esc(o[1])+'</option>').join("")+'</select></div>';
     return '<div class="f"><label>'+esc(f.l)+'</label><input data-k="'+f.k+'" value="'+esc(v)+'" placeholder="'+esc(f.ph||"")+'"></div>';
   }).join("");
+  // ASIGNACIÓN del proyecto: máquinas y agentes, por casilla. Los ids son los de
+  // admira-fleet, así que lo marcado aquí y lo que enseña la pestaña de al lado
+  // son la misma cosa.
+  if(tipo==="pro"){
+    const marc=(arr,x)=>(arr||[]).indexOf(x)>=0?" checked":"";
+    $("mForm").innerHTML+=
+      '<div class="f"><label>Máquinas del proyecto</label><div class="picks" id="pickMaq">'+
+        (MAQ.length?MAQ.map(m=>'<label><input type="checkbox" value="'+esc(m.id)+'"'+marc(dato.machines,m.id)+'><span>🖥 '+esc(canon(m.name||m.id))+'</span></label>').join("")
+                   :'<span class="mdia-sin">sin máquinas en el censo</span>')+'</div></div>'+
+      '<div class="f"><label>Agentes del proyecto</label><div class="picks" id="pickAg">'+
+        (SIL.length?SIL.map(a=>'<label><input type="checkbox" value="'+esc(a.id)+'"'+marc(dato.agents,a.id)+'><span>🤖 '+esc(a.name||a.id)+'</span></label>').join("")
+                   :'<span class="mdia-sin">sin agentes en el censo</span>')+'</div></div>';
+  }
   // el id de un equipo no se inventa (lo fija la máquina al registrarse); el de
   // una persona nueva se deriva del nombre en el worker.
-  $("mDel").style.display = (tipo==="sil"&&id) ? "" : "none";
+  $("mDel").style.display = ((tipo==="sil"||tipo==="pro")&&id) ? "" : "none";
   $("mMsg").textContent="";
   $("mod").classList.add("on");
 }
@@ -413,11 +528,15 @@ $("mSave").onclick=async()=>{
     if(el.dataset.k==="tags") body.tags=v?v.split(",").map(s=>s.trim()).filter(Boolean):[];
     else body[el.dataset.k]=v;
   });
+  if(ED.tipo==="pro"){
+    const marcados=sel=>[...document.querySelectorAll("#"+sel+" input:checked")].map(c=>c.value);
+    body.machines=marcados("pickMaq"); body.agents=marcados("pickAg");
+  }
   if(ED.id) body.id=ED.id;
-  if(ED.tipo==="sil"&&!ED.id&&!body.name){ $("mMsg").textContent="pon un nombre"; return; }
+  if((ED.tipo==="sil"||ED.tipo==="pro")&&!ED.id&&!body.name){ $("mMsg").textContent="pon un nombre"; return; }
   $("mMsg").textContent="guardando…";
   try{
-    const r=await fetch(WORKER+(ED.tipo==="sil"?"/equipo/silicon":"/equipo/machine"),
+    const r=await fetch(WORKER+(ED.tipo==="sil"?"/equipo/silicon":ED.tipo==="pro"?"/projects":"/equipo/machine"),
       {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
     const d=await r.json().catch(()=>({}));
     if(!r.ok||!d.ok) throw new Error(d.error||("HTTP "+r.status));
@@ -430,7 +549,10 @@ $("mDel").onclick=async()=>{
   if(!ED.id||!confirm("¿Dar de baja a "+ED.id+"?")) return;
   $("mMsg").textContent="borrando…";
   try{
-    const r=await fetch(WORKER+"/equipo/silicon",{method:"POST",headers:{"content-type":"application/json"},
+    const r=ED.tipo==="pro"
+      ? await fetch(WORKER+"/projects/delete",{method:"POST",headers:{"content-type":"application/json"},
+          body:JSON.stringify({id:ED.id})})
+      : await fetch(WORKER+"/equipo/silicon",{method:"POST",headers:{"content-type":"application/json"},
       body:JSON.stringify({delete:true,id:ED.id})});
     const d=await r.json().catch(()=>({}));
     if(!r.ok||!d.ok) throw new Error(d.error||("HTTP "+r.status));

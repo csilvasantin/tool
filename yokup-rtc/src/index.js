@@ -193,7 +193,119 @@ async function ensureSchema(env) {
   // el agente NO está parado, con halo si la captura es fresca.
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN live_shot TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN live_at INTEGER").catch(() => {});
+  // PROYECTOS (Carlos, 2026-07-22: «en equipo tenemos que poder dar de alta
+  // proyectos y asignárselos a ordenadores o agentes»). Antes el proyecto era
+  // texto libre repetido en tres sitios —la lista fija de equipo.html, el
+  // adivinador por palabras de yk-misiones.js y la columna `project` de
+  // decisions—, así que /decisiones acababa enseñando «Proyecto sin identificar».
+  // Aquí vive el censo REAL, con su alta, su baja y sus asignaciones.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT, blurb TEXT, web TEXT, status TEXT DEFAULT 'activo', color TEXT, created_at INTEGER, updated_at INTEGER, updated_by TEXT)");
+  // Un proyecto toca VARIAS máquinas y VARIOS agentes. `kind` distingue los dos
+  // planos que la sección Equipo ya separa (átomos/bits) y `ref` es el id que
+  // usa admira-fleet (machines[].id / silicon[].id): NO se inventa censo nuevo.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS project_members (project_id TEXT, kind TEXT, ref TEXT, added_at INTEGER, PRIMARY KEY (project_id, kind, ref))");
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_pmembers_ref ON project_members(kind, ref)");
+  // El proyecto de una MISIÓN. No se reutiliza `loc`: en las misiones de flota
+  // `loc` es la MÁQUINA destino (fleetSync la escribe ahí), no el proyecto.
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN project TEXT").catch(() => {});
 }
+
+// ── PROYECTOS ───────────────────────────────────────────────────────────────
+// Slug estable a partir del nombre. «Admira Live» → «admira-live».
+function projectSlug(s) {
+  return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48);
+}
+__name(projectSlug, "projectSlug");
+// Índice de proyectos para resolver un valor suelto (id, nombre o dominio) al
+// proyecto canónico. Una sola consulta; quien lo necesite varias veces lo pasa.
+async function projectIndex(env) {
+  // Tolerante a que la tabla aún no exista (hay rutas que leen tickets sin haber
+  // pasado por ensureSchema): sin censo, el proyecto se devuelve tal cual.
+  let rows = [];
+  try { rows = (await env.DB.prepare("SELECT * FROM projects").all()).results || []; } catch (e) { rows = []; }
+  const byKey = new Map();
+  const key = (x) => String(x || "").trim().toLowerCase();
+  for (const p of rows) {
+    byKey.set(key(p.id), p);
+    if (p.name) byKey.set(key(p.name), p);
+    if (p.name) byKey.set(projectSlug(p.name), p);
+    if (p.web) byKey.set(key(String(p.web).replace(/^https?:\/\//, "").replace(/\/.*$/, "")), p);
+  }
+  return { rows, get: (v) => byKey.get(key(v)) || byKey.get(projectSlug(v)) || null };
+}
+__name(projectIndex, "projectIndex");
+// Lista completa con sus asignaciones (2 consultas, sin N+1) y cuántas misiones
+// vivas cuelgan de cada uno.
+async function listProjects(env) {
+  await ensureSchema(env);
+  const { results } = await env.DB.prepare("SELECT * FROM projects ORDER BY (status='activo') DESC, name COLLATE NOCASE").all();
+  const rows = results || [];
+  if (!rows.length) return [];
+  const mem = (await env.DB.prepare("SELECT project_id, kind, ref FROM project_members").all()).results || [];
+  const mis = (await env.DB.prepare("SELECT project, COUNT(*) c FROM tickets WHERE project IS NOT NULL AND project!='' AND status!='resolved' AND status!='cancelled' GROUP BY project").all()).results || [];
+  const misBy = {};
+  for (const m of mis) misBy[String(m.project).toLowerCase()] = m.c;
+  return rows.map((p) => ({
+    id: p.id, name: p.name || p.id, blurb: p.blurb || "", web: p.web || "",
+    status: p.status || "activo", color: p.color || "",
+    machines: mem.filter((m) => m.project_id === p.id && m.kind === "machine").map((m) => m.ref),
+    agents: mem.filter((m) => m.project_id === p.id && m.kind === "agent").map((m) => m.ref),
+    missions: misBy[String(p.id).toLowerCase()] || 0,
+    created_at: p.created_at, updated_at: p.updated_at, updated_by: p.updated_by || ""
+  }));
+}
+__name(listProjects, "listProjects");
+// Alta o edición. Devuelve la fila guardada. `machines`/`agents`, si vienen,
+// REEMPLAZAN la asignación entera (es lo que manda el formulario de Equipo).
+async function upsertProject(env, b) {
+  await ensureSchema(env);
+  const name = String((b && b.name) || "").trim().slice(0, 80);
+  let id = projectSlug((b && b.id) || name);
+  if (!id) return { ok: false, error: "name (o id) requerido", status: 400 };
+  const now = Date.now();
+  const prev = await env.DB.prepare("SELECT * FROM projects WHERE id=?").bind(id).first();
+  if (!prev && !name) return { ok: false, error: "name requerido para dar de alta", status: 400 };
+  const val = (k, max, def) => {
+    if (b && b[k] !== undefined && b[k] !== null) return String(b[k]).trim().slice(0, max);
+    return prev ? (prev[k] || "") : (def || "");
+  };
+  const status = ["activo", "pausado", "archivado"].includes(String((b && b.status) || "").toLowerCase())
+    ? String(b.status).toLowerCase() : (prev ? (prev.status || "activo") : "activo");
+  const row = {
+    id, name: name || (prev && prev.name) || id,
+    blurb: val("blurb", 240), web: val("web", 160).replace(/\/+$/, ""),
+    status, color: val("color", 24),
+    created_at: prev ? prev.created_at : now, updated_at: now,
+    updated_by: String((b && b.by) || "").slice(0, 60)
+  };
+  await env.DB.prepare(
+    "INSERT INTO projects (id,name,blurb,web,status,color,created_at,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?)" +
+    " ON CONFLICT(id) DO UPDATE SET name=excluded.name, blurb=excluded.blurb, web=excluded.web, status=excluded.status, color=excluded.color, updated_at=excluded.updated_at, updated_by=excluded.updated_by"
+  ).bind(row.id, row.name, row.blurb, row.web, row.status, row.color, row.created_at, row.updated_at, row.updated_by).run();
+  for (const kind of ["machine", "agent"]) {
+    const campo = kind === "machine" ? "machines" : "agents";
+    if (!b || !Array.isArray(b[campo])) continue;
+    const refs = [...new Set(b[campo].map((r) => String(r || "").trim().slice(0, 80)).filter(Boolean))].slice(0, 60);
+    await env.DB.prepare("DELETE FROM project_members WHERE project_id=? AND kind=?").bind(id, kind).run();
+    for (const ref of refs) {
+      await env.DB.prepare("INSERT OR IGNORE INTO project_members (project_id,kind,ref,added_at) VALUES (?,?,?,?)")
+        .bind(id, kind, ref, now).run();
+    }
+  }
+  return { ok: true, created: !prev, project: (await listProjects(env)).find((p) => p.id === id) || row };
+}
+__name(upsertProject, "upsertProject");
+// Resuelve el proyecto de una decisión/misión a su NOMBRE canónico. Si el valor
+// guardado no está en el censo se devuelve tal cual (no se inventa nada): es un
+// proyecto viejo escrito a mano, y mentir sobre él sería peor que enseñarlo.
+function resolveProject(idx, raw) {
+  const v = String(raw || "").trim();
+  if (!v) return { id: "", name: "" };
+  const p = idx.get(v);
+  return p ? { id: p.id, name: p.name || p.id } : { id: "", name: v };
+}
+__name(resolveProject, "resolveProject");
 
 // Un reloj de decisión pesa: se permite uno por agente y día natural de Madrid.
 // `user_override:true` sólo lo usa el coordinador cuando Carlos lo pide de forma
@@ -467,7 +579,7 @@ async function listAllMissionTasks(env, scope) {
     : "WHERE t.source IS NULL OR t.source!='fleet'";
   const { results } = await env.DB.prepare(
     `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.report, m.image, m.updated_at,
-            t.subject, t.screen, t.loc, t.source, t.assignee, t.live_shot,
+            t.subject, t.screen, t.loc, t.project, t.source, t.assignee, t.live_shot,
             t.status AS mission_status, t.created_at AS mission_created
        FROM mission_tasks m JOIN tickets t ON t.id = m.mission_id
        ${where}
@@ -871,6 +983,10 @@ async function listTickets(env, scope, limit, offset) {
   ).bind(pageLimit(limit), pageOffset(offset)).all();
   const rows = results || [];
   await attachImgCount(env, rows);
+  // Nombre humano del proyecto junto al id, para que la lista no tenga que
+  // cruzar /projects sólo para pintar un rótulo.
+  const pidx = await projectIndex(env);
+  for (const r of rows) r.project_name = resolveProject(pidx, r.project || "").name;
   return rows;
 }
 
@@ -1315,7 +1431,7 @@ __name(tercios, "tercios");
 // expone nada que el bot-inbox público no publique ya.
 async function fleetMissions(env) {
   const { results } = await env.DB.prepare(
-    "SELECT id,screen,subject,loc,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,created_at,updated_at,note FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
+    "SELECT id,screen,subject,loc,project,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,created_at,updated_at,note FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
   ).all();
   const rows = results || [];
   if (!rows.length) return [];
@@ -1326,10 +1442,14 @@ async function fleetMissions(env) {
   );
   const byMission = {};
   for (const t of tks || []) (byMission[t.mission_id] = byMission[t.mission_id] || []).push(t);
+  // `project` viaja como ID del censo; quien pinta (status, /misiones) quiere el
+  // nombre humano y no tiene por qué conocer la tabla.
+  const pidx = await projectIndex(env);
   return rows.map((r) => {
     const tasks = byMission[r.id] || [];
     return Object.assign({}, r, {
       machine: r.loc,
+      project_name: resolveProject(pidx, r.project || "").name,
       persona: r.assignee,
       source: "fleet",
       tasks,
@@ -1637,6 +1757,82 @@ var index_default = {
       await ensureSchema(env);
       return json(await fleetReconcileAll(env));
     }
+    // ── PROYECTOS ─────────────────────────────────────────────────────────────
+    // Censo de proyectos y a qué máquinas/agentes toca cada uno. ABIERTO, en el
+    // mismo carril que /fleet/* y /decisions y por el mismo motivo: los agentes
+    // escriben desde el CLI y NO cruzan la verja de Google. El front de Equipo
+    // lee y escribe por aquí igual que ellos.
+    //   GET  /projects                  lista + asignaciones + misiones vivas
+    //   POST /projects                  alta y edición (machines[]/agents[] reemplazan)
+    //   POST /projects/delete           baja  {id}
+    //   POST /projects/assign           asignar/quitar uno {project,kind,ref,remove?}
+    //   POST /projects/mission          proyecto de una misión {mission,project}
+    if (url.pathname === "/projects" && req.method === "GET") {
+      try { return json({ ok: true, projects: await listProjects(env) }); }
+      catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
+    if (url.pathname === "/projects" && req.method === "POST") {
+      try {
+        const b = await req.json().catch(() => ({}));
+        const r = await upsertProject(env, b);
+        return json(r, r.ok ? 200 : (r.status || 400));
+      } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
+    if (url.pathname === "/projects/delete" && req.method === "POST") {
+      try {
+        await ensureSchema(env);
+        const b = await req.json().catch(() => ({}));
+        const id = projectSlug((b && b.id) || "");
+        if (!id) return json({ ok: false, error: "id requerido" }, 400);
+        const prev = await env.DB.prepare("SELECT id FROM projects WHERE id=?").bind(id).first();
+        if (!prev) return json({ ok: false, error: "no existe" }, 404);
+        await env.DB.prepare("DELETE FROM project_members WHERE project_id=?").bind(id).run();
+        await env.DB.prepare("DELETE FROM projects WHERE id=?").bind(id).run();
+        // Las misiones NO se quedan apuntando a un proyecto que ya no existe.
+        await env.DB.prepare("UPDATE tickets SET project='' WHERE project=?").bind(id).run();
+        return json({ ok: true, deleted: id });
+      } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
+    if (url.pathname === "/projects/assign" && req.method === "POST") {
+      try {
+        await ensureSchema(env);
+        const b = await req.json().catch(() => ({}));
+        const idx = await projectIndex(env);
+        const p = idx.get((b && b.project) || "");
+        if (!p) return json({ ok: false, error: "project no existe en el censo" }, 404);
+        const kind = String((b && b.kind) || "").toLowerCase() === "agent" ? "agent" : "machine";
+        const ref = String((b && b.ref) || "").trim().slice(0, 80);
+        if (!ref) return json({ ok: false, error: "ref requerido (id de máquina o de agente)" }, 400);
+        if (b && b.remove) {
+          await env.DB.prepare("DELETE FROM project_members WHERE project_id=? AND kind=? AND ref=?").bind(p.id, kind, ref).run();
+        } else {
+          await env.DB.prepare("INSERT OR IGNORE INTO project_members (project_id,kind,ref,added_at) VALUES (?,?,?,?)")
+            .bind(p.id, kind, ref, Date.now()).run();
+        }
+        return json({ ok: true, project: (await listProjects(env)).find((x) => x.id === p.id) || null });
+      } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
+    if (url.pathname === "/projects/mission" && req.method === "POST") {
+      try {
+        await ensureSchema(env);
+        const b = await req.json().catch(() => ({}));
+        let mid = String((b && b.mission) || "").trim().toUpperCase();
+        if (/^#?\d+$/.test(mid)) mid = "FLT-" + mid.replace(/^#/, "");
+        if (!mid) return json({ ok: false, error: "mission requerida" }, 400);
+        const t = await env.DB.prepare("SELECT id FROM tickets WHERE id=?").bind(mid).first();
+        if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
+        const raw = String((b && b.project) || "").trim();
+        if (!raw) {   // quitar el proyecto es legítimo: mejor vacío que inventado
+          await env.DB.prepare("UPDATE tickets SET project='' , updated_at=? WHERE id=?").bind(Date.now(), mid).run();
+          return json({ ok: true, mission: mid, project: "", project_name: "" });
+        }
+        const idx = await projectIndex(env);
+        const p = idx.get(raw);
+        if (!p) return json({ ok: false, error: "el proyecto «" + raw + "» no está dado de alta; créalo en /equipo" }, 404);
+        await env.DB.prepare("UPDATE tickets SET project=?, updated_at=? WHERE id=?").bind(p.id, Date.now(), mid).run();
+        return json({ ok: true, mission: mid, project: p.id, project_name: p.name || p.id });
+      } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
     if (PROTECTED.has(url.pathname) || url.pathname.startsWith("/mission/")) {
       const sess = await requireAuth(env, req);
       if (!sess) return json({ error: "unauthorized" }, 401);
@@ -1739,6 +1935,7 @@ var index_default = {
         const id = url.searchParams.get("id");
         const t = await env.DB.prepare("SELECT * FROM tickets WHERE id=?").bind(id).first();
         if (!t) return json({ error: "not-found" }, 404);
+        t.project_name = resolveProject(await projectIndex(env), t.project || "").name;
         const { results } = await env.DB.prepare("SELECT * FROM events WHERE ticket_id=? ORDER BY id ASC").bind(id).all();
         return json({ ticket: t, events: results || [] });
       } catch (e) {
@@ -1883,7 +2080,18 @@ var index_default = {
         // clientes antiguos siguen cubiertos por mission/url en el panel.
         const durl = String(b.url || "").slice(0, 300);
         const dmission = String(b.mission || "").slice(0, 120);
-        const dproject = String(b.project || "").trim().slice(0, 120);
+        // El proyecto se guarda como ID del censo cuando está dado de alta (así
+        // renombrarlo no rompe las decisiones viejas). Si no viene y la decisión
+        // cuelga de una misión, se HEREDA de ella; si no hay ninguno, se queda
+        // vacío y la ficha dirá «Sin proyecto» — nunca se adivina.
+        let dproject = String(b.project || "").trim().slice(0, 120);
+        const pidx = await projectIndex(env);
+        const pmatch = dproject && pidx.get(dproject);
+        if (pmatch) dproject = pmatch.id;
+        if (!dproject && dmission) {
+          const tkp = await env.DB.prepare("SELECT project FROM tickets WHERE id=?").bind(dmission.toUpperCase()).first();
+          if (tkp && tkp.project) dproject = String(tkp.project);
+        }
         await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,parent_decision,batch_id) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?)")
           .bind(id, String(b.machine || "").slice(0, 60), agent,
                 String(b.surface || "").slice(0, 20), q, JSON.stringify(opts),
@@ -1929,6 +2137,17 @@ var index_default = {
         const sql = "SELECT * FROM decisions" + (where.length ? " WHERE " + where.join(" AND ") : "")
           + " ORDER BY created_at DESC LIMIT ?";
         const r = await env.DB.prepare(sql).bind(...binds, limit).all();
+        // Proyecto: se resuelve al NOMBRE del censo (una consulta para toda la
+        // página). Una decisión sin proyecto propio hereda el de su misión —de
+        // ahí salía el «Proyecto sin identificar» de la ficha— y si no hay
+        // ninguno se devuelve vacío, para que el front diga «Sin proyecto».
+        const pidxG = await projectIndex(env);
+        const misIds = [...new Set((r.results || []).map((d) => String(d.mission || "").toUpperCase()).filter(Boolean))];
+        const misProj = {};
+        if (misIds.length) {
+          const tks = await selectIn(env, misIds, (ph) => `SELECT id, project FROM tickets WHERE id IN (${ph})`);
+          for (const t of tks || []) if (t.project) misProj[t.id] = t.project;
+        }
         const items = await Promise.all((r.results || []).map(async (d, i) => {
           let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
           // El carrusel (batch) se resuelve con 2 consultas por decisión. Con la
@@ -1942,7 +2161,9 @@ var index_default = {
                    // pero nunca salía por aquí, así que el histórico no podía
                    // distinguir «lo eligió Carlos» de «venció y tiró la recomendada».
                    chosen_by: d.chosen_by || "",
-                   url: d.url || "", mission: d.mission || "", project: d.project || "",
+                   url: d.url || "", mission: d.mission || "",
+                   project: resolveProject(pidxG, d.project || misProj[String(d.mission || "").toUpperCase()] || "").name,
+                   project_id: resolveProject(pidxG, d.project || misProj[String(d.mission || "").toUpperCase()] || "").id,
                    parent_decision: d.parent_decision || "", batch_id: d.batch_id || "",
                    batch,
                    created_at: d.created_at, deadline: d.deadline, decided_at: d.decided_at,
@@ -1989,9 +2210,10 @@ var index_default = {
         const now = Date.now();
         const batch = await ensureMissionBatchFromDecision(env, d);
         const expired = d.status === "expired";
+        const pOne = resolveProject(await projectIndex(env), d.project || "");
         return json({ ok: true, id: d.id, status: d.status,
                       chosen: d.chosen, recommended: d.recommended, options: o,
-                      project: d.project || "", mission: d.mission || "", url: d.url || "",
+                      project: pOne.name, project_id: pOne.id, mission: d.mission || "", url: d.url || "",
                       parent_decision: d.parent_decision || "", batch_id: d.batch_id || "",
                       // si venció sin respuesta, el agente tira con la recomendada
                       effective: d.status === "decided" || d.status === "cancelled" ? d.chosen : (expired ? d.recommended : null),

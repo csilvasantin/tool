@@ -153,10 +153,11 @@ async function render(){
       <div class="crow">
         <select id="rAgente"><option value="__keep">🤖 Agente · sin cambiar</option></select>
         <select id="rEquipo"><option value="__keep">🖥 Equipo · sin cambiar</option></select>
+        <select id="rProyecto"><option value="__keep">📁 Proyecto · sin cambiar</option></select>
         <button class="btn" onclick="reasignar()">Reasignar</button>
         <span class="rmsg" id="rMsg"></span>
       </div>
-      <p class="rhint">Actual: 👷 ${esc(t.assignee||"sin agente")} · 🖥 ${t.loc?(window.ykMaquina?ykMaquina.html(t.loc):esc(t.loc)):"sin equipo"}. Al reasignar, la misión vuelve a «Asignada» (o «Sin asignar») y el destinatario la recibe en su bot-inbox.</p>
+      <p class="rhint">Actual: 👷 ${esc(t.assignee||"sin agente")} · 🖥 ${t.loc?(window.ykMaquina?ykMaquina.html(t.loc):esc(t.loc)):"sin equipo"} · 📁 ${esc(t.project_name||"sin proyecto")}. Al reasignar, la misión vuelve a «Asignada» (o «Sin asignar») y el destinatario la recibe en su bot-inbox. El proyecto sale del censo de <a href="/equipo">Equipo</a>.</p>
     </div>`:""}
     <div class="sum" id="sum"><h4>🧠 Resumen IA</h4><p id="sumtext"></p></div>
     <div class="tl">${ev.map(e=>`<div class="ev ${esc(e.kind)}"><div class="eh"><b>${esc(e.author)}</b><span>${hm(e.ts)}</span></div>${cuerpoEvento(e.text)}</div>`).join("")||'<div class="load">Sin actividad.</div>'}</div>
@@ -209,6 +210,13 @@ async function llenaAsig(){
       personas.map(p=>'<option value="'+esc(p)+'">'+esc(p)+'</option>').join("");
     $("rEquipo").innerHTML='<option value="__keep">🖥 Equipo · sin cambiar</option><option value="">— sin equipo</option>'+
       Object.entries(maqs).sort((a,b)=>a[0].localeCompare(b[0])).map(([c,raw])=>'<option value="'+esc(raw)+'">'+esc(window.ykMaquina?ykMaquina.short(c):c)+'</option>').join("");
+    // PROYECTO: sólo los del censo (/projects). No hay «otro…» a propósito —
+    // dar de alta un proyecto se hace en /equipo, y así no nacen por descuido.
+    const po=await fetch(WORKER+"/projects",{cache:"no-store"}).then(r=>r.json()).catch(()=>({projects:[]}));
+    const cur=(TICKET&&TICKET.project)||"";
+    $("rProyecto").innerHTML='<option value="__keep">📁 Proyecto · sin cambiar</option><option value="">— sin proyecto</option>'+
+      (po.projects||[]).filter(p=>p.status!=="archivado")
+        .map(p=>'<option value="'+esc(p.id)+'"'+(p.id===cur?" selected":"")+'>'+esc(p.name||p.id)+'</option>').join("");
   }catch(e){}
 }
 // Al asignar SOLO equipo: busca un AGENTE LIBRE en esa máquina (principal, con
@@ -230,10 +238,23 @@ async function agenteLibreEn(maquina){
 }
 window.reasignar=async()=>{
   const a=$("rAgente").value, m=$("rEquipo").value, msg=$("rMsg");
+  const pr=$("rProyecto")?$("rProyecto").value:"__keep";
   const body={by:"yokup-ticket"};
   if(a!=="__keep") body.persona=a;
   if(m!=="__keep") body.machine=m;
-  if(!("persona" in body)&&!("machine" in body)){ msg.textContent="elige agente y/o equipo"; return; }
+  // El PROYECTO no viaja por el bot-inbox (es de yokup, no del encargo): se
+  // guarda aparte y se informa aparte, para que un fallo no se coma el otro.
+  if(pr!=="__keep"){
+    try{
+      const rp=await fetch(WORKER+"/projects/mission",{method:"POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify({mission:id, project:pr})});
+      const dp=await rp.json().catch(()=>({}));
+      if(!dp.ok) throw new Error(dp.error||("HTTP "+rp.status));
+      msg.textContent="✓ proyecto: "+(dp.project_name||"sin proyecto");
+      if(!("persona" in body)&&!("machine" in body)){ setTimeout(render,700); return; }
+    }catch(e){ msg.textContent="✗ proyecto: "+((e&&e.message)||e); return; }
+  }
+  if(!("persona" in body)&&!("machine" in body)){ msg.textContent="elige agente, equipo o proyecto"; return; }
   msg.textContent="reasignando…";
   let nota="";
   // equipo elegido sin tocar el agente (y sin agente actual) → auto agente libre
