@@ -397,6 +397,28 @@ async function hasMissionProof(env, mid) {
 }
 __name(hasMissionProof, "hasMissionProof");
 
+// EL ÚNICO PUNTO DONDE LA PRUEBA ASCIENDE (FLT-989 a3/b1). Da igual por dónde se
+// cierre la misión —agente (/fleet/task-status), web (chips de /misiones) o cron
+// (fleetReconcile*/fleetSync)—: si la ficha aún no tiene proof_image y hay captura
+// de RESPALDO en algún paso (mission_tasks.image, el mismo criterio que acepta
+// hasMissionProof: la más reciente), se sube a tickets.proof_image. Así una misión
+// cerrada por respaldo NO sale finalizada con el logotipo de relleno (nacían las
+// huérfanas FLT-826/830). Idempotente: si ya hay prueba no la pisa, y hay un único
+// criterio de qué imagen asciende. Devuelve la imagen vigente (o null).
+async function ascendMissionProof(env, mid) {
+  const t = await env.DB.prepare("SELECT proof_image FROM tickets WHERE id=?").bind(mid).first();
+  if (t && t.proof_image) return t.proof_image;   // ya tiene prueba propia → no se toca
+  const task = await env.DB.prepare(
+    "SELECT image FROM mission_tasks WHERE mission_id=? AND image IS NOT NULL AND image<>'' ORDER BY updated_at DESC LIMIT 1"
+  ).bind(mid).first();
+  if (!(task && task.image)) return null;         // no hay respaldo que subir
+  await env.DB.prepare(
+    "UPDATE tickets SET proof_image=?, updated_at=? WHERE id=? AND (proof_image IS NULL OR proof_image='')"
+  ).bind(task.image, Date.now(), mid).run();
+  return task.image;
+}
+__name(ascendMissionProof, "ascendMissionProof");
+
 // ---- TANDAS DE MISIONES DESDE RELOJES DE DECISIÓN -------------------------
 // La decisión inicial (cinco misiones + «Volver atrás») crea una única tanda.
 // Las continuaciones sólo reordenan sus 1..5 elementos aún queued. Nunca se
@@ -862,6 +884,18 @@ async function addEvent(env, ticketId, kind, author, text) {
   await env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(ticketId, Date.now(), kind, author, text).run();
 }
 __name(addEvent, "addEvent");
+// La cronología es texto legible, no un almacén de imágenes: una captura pegada
+// (data:image/…;base64) puede pesar ~195 KB y addEvent NO recorta, así que se
+// duplicaría entera en events.text además de en proof_image/mission_tasks.image
+// (FLT-988 fleco). En el evento va una ETIQUETA corta; la imagen sigue completa
+// donde toca. Una URL http(s) sí se muestra entera: es corta y útil de pinchar.
+function proofLabel(img) {
+  const s = String(img == null ? "" : img);
+  const m = /^data:image\/([a-z0-9+.-]+);base64,/i.exec(s);
+  if (m) return "captura " + m[1] + " embebida (" + Math.round(s.length / 1024) + " KB)";
+  return s;
+}
+__name(proofLabel, "proofLabel");
 async function lastEventKind(env, ticketId) {
   const r = await env.DB.prepare("SELECT kind FROM events WHERE ticket_id=? ORDER BY id DESC LIMIT 1").bind(ticketId).first();
   return r ? r.kind : null;
@@ -1247,6 +1281,8 @@ async function fleetSync(env) {
           await env.DB.prepare(
             "UPDATE mission_tasks SET status='done', owner=COALESCE(NULLIF(owner,''),'auto-cierre'), updated_at=? WHERE mission_id=? AND status='pending'"
           ).bind(now, id).run();
+          // Si finaliza apoyándose en la captura de un paso, asciende por el punto único (FLT-989 b1).
+          await ascendMissionProof(env, id);
         }
         updated++;
       }
@@ -1391,6 +1427,9 @@ async function fleetReconcileMission(env, mid) {
   const now = Date.now();
   await env.DB.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=? WHERE id=?")
     .bind(next, now, next === "resolved" ? now : null, mid).run();
+  // Si esta misión FINALIZA por respaldo (árbol al 100% + captura en algún paso),
+  // la prueba asciende por el punto único para que no salga con el logotipo (FLT-989 b1).
+  if (next === "resolved") await ascendMissionProof(env, mid);
   const inboxStatus = next === "resolved" ? "done" : next === "in_progress" ? "in_progress" : "pending";
   const pushed = await fleetPushStatus(env, t, inboxStatus);
   await addEvent(env, mid, next === "resolved" ? "recover" : "log", "yokup",
@@ -1427,6 +1466,8 @@ async function fleetReconcileAll(env) {
     if (next === r.status) continue;
     await env.DB.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=? WHERE id=?")
       .bind(next, now, next === "resolved" ? now : null, r.id).run();
+    // Cierre por respaldo en el barrido: la prueba asciende por el punto único (FLT-989 b1).
+    if (next === "resolved") await ascendMissionProof(env, r.id);
     const inboxStatus = next === "resolved" ? "done" : next === "in_progress" ? "in_progress" : "pending";
     const pushed = await fleetPushStatus(env, r, inboxStatus);
     await addEvent(env, r.id, "status", "yokup",
@@ -1738,7 +1779,7 @@ var index_default = {
         "UPDATE tickets SET proof_image=?,agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),updated_at=? WHERE id=?"
       ).bind(image, runtime, host, now, mid).run();
       await addEvent(env, mid, "log", owner, "📝 Informe: " + report.slice(0, 240));
-      await addEvent(env, mid, "proof", owner, "📸 Pantallazo final: " + image);
+      await addEvent(env, mid, "proof", owner, "📸 Pantallazo final: " + proofLabel(image));
       if (crossSign) {
         // Firma cruzada: se conserva el informe pero se avisa y NO se cierra sola.
         await addEvent(env, mid, "log", owner, "⚠️ FIRMA CRUZADA: informe firmado por «" + owner + "» pero la misión es de «" + assignee + "». No se cierra automáticamente; requiere revisión.");
@@ -1805,7 +1846,9 @@ var index_default = {
       if (b.image != null && String(b.image).trim() !== "") {
         const norm = normalizeProofImage(b.image);
         if (!norm.value) {
-          return json({ ok: false, error: "image no válida: " + norm.error, field: "image", mission: mid, code }, 400);
+          // applied:false como el otro 400 de este endpoint (FLT-988): un formato
+          // inválido NO cambia nada, y quien llama debe saber que su marca no cuajó.
+          return json({ ok: false, error: "image no válida: " + norm.error, field: "image", mission: mid, code, applied: false }, 400);
         }
         img = norm.value;
       }
@@ -1847,9 +1890,13 @@ var index_default = {
         } else {
           await env.DB.prepare("UPDATE tickets SET proof_image=COALESCE(NULLIF(proof_image,''),?), updated_at=? WHERE id=?").bind(img, Date.now(), mid).run();
         }
-        await addEvent(env, mid, "proof", String(b.owner || b.by || "agente").slice(0, 40), "📸 Prueba de «" + code + "»: " + img);
+        await addEvent(env, mid, "proof", String(b.owner || b.by || "agente").slice(0, 40), "📸 Prueba de «" + code + "»: " + proofLabel(img));
       }
       const fleet = await fleetReconcileMission(env, mid);
+      // CIERRE POR RESPALDO (FLT-989 b1): si el árbol cerró SIN «image» en esta
+      // llamada pero hay captura en un paso anterior, la ficha se quedaría con el
+      // logotipo de relleno. Se sube por el punto único, con el mismo criterio.
+      if (!img && cierraArbol) await ascendMissionProof(env, mid);
       return json({ ok: true, task: row, proof: img, fleet });
     }
     // Ingesta UNIVERSAL de incidencias (Carlos, 2026-07-17): cualquier sistema,
@@ -2135,6 +2182,10 @@ var index_default = {
         for (const id of ids) {
           await env.DB.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=? WHERE id=?").bind(status, now, resolvedAt, id).run();
           await addEvent(env, id, "status", author, `Estado → ${status} (cambio en bloque)`);
+          // La vía WEB sigue el MISMO criterio que la de agente (FLT-989 b2): al finalizar,
+          // la prueba de respaldo asciende por el punto único (arriba ya se exigió, con
+          // hasMissionProof, que la haya). Si no, la ficha saldría con el logotipo.
+          if (status === "resolved") await ascendMissionProof(env, id);
           const iid = fleetInboxId(id);
           if (iid) fleetInboxIds.push(iid);
           updated++;
@@ -2480,6 +2531,9 @@ var index_default = {
         {
           const t = current;
           if (t && t.source === "fleet") {
+            // Vía WEB, mismo criterio que la de agente (FLT-989 b2): al finalizar una
+            // misión de flota, la prueba de respaldo asciende por el punto único.
+            if (b.status === "resolved") await ascendMissionProof(env, b.id);
             const inboxStatus = b.status === "resolved" ? "done" : b.status === "in_progress" ? "in_progress" : "pending";
             await fleetPushStatus(env, t, inboxStatus);
           }
