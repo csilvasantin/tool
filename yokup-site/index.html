@@ -131,7 +131,8 @@ h1 em::after{content:"";position:absolute;left:0;right:0;bottom:3px;height:9px;b
 @media(max-width:900px){
   nav{flex-wrap:wrap;row-gap:10px}
   .nav-burger{display:inline-flex}
-  .nav-cta{flex-wrap:wrap;justify-content:flex-end;gap:8px}
+  .nav-burger{order:1;margin-left:auto}
+  .nav-cta{order:2;flex-wrap:wrap;justify-content:flex-end;gap:8px}
   .nav-links{display:none;order:3;flex-basis:100%;width:100%;max-width:100%;flex-direction:column;gap:0;margin:2px 0 12px;border:1px solid var(--line2);border-radius:10px;background:rgba(10,22,32,.96);overflow:hidden}
   .nav-links.open{display:flex}
   .nav-links a{display:flex;align-items:center;min-height:48px;padding:12px 16px;font-size:11.5px;color:var(--ink);border-bottom:1px solid var(--line)}
@@ -149,8 +150,9 @@ h1 em::after{content:"";position:absolute;left:0;right:0;bottom:3px;height:9px;b
 <div class="wrap">
   <nav>
     <div class="logo"><span class="dot"></span>Yo<b>kup</b></div>
+    <button type="button" class="nav-burger" id="navBurger" aria-controls="navLinks" aria-expanded="false" aria-label="Menú">☰</button>
     <div class="nav-links" id="navLinks"><a href="#plataforma">Plataforma</a><a href="#como">Agentes IoT</a><a href="#xaas">as a Service</a><a href="#equipo">Equipo</a><a href="/incidencias">Incidencias</a><a href="/asistencia">Asistencia</a><a href="/app">App</a></div>
-    <div class="nav-cta"><a href="/agentica" class="btn access">⚡ Acceso a plataforma</a><a href="/entrar" class="btn solid">Entrar</a><button type="button" class="nav-burger" id="navBurger" aria-controls="navLinks" aria-expanded="false" aria-label="Menú">☰</button></div>
+    <div class="nav-cta"><a href="/agentica" class="btn access">⚡ Acceso a plataforma</a><a href="/entrar" class="btn solid">Entrar</a></div>
   </nav>
 
   <section class="hero">
