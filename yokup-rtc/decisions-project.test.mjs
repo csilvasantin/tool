@@ -1,30 +1,72 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {memberRefMatches, projectSlug, resolveDecisionProject} from './src/decision-project.js';
 
 const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
+const canonical = {
+  id:'generador-de-presentaciones', name:'Generador de Presentaciones',
+  web:'www.admiranext.com', status:'activo'
+};
+const exact = {
+  project:'Generador de Presentaciones', project_slug:'GENERADOR-DE-PRESENTACIONES',
+  project_web:'www.admiranext.com', agent:'Oráculo', machine:'Mac Mini'
+};
 
-test('el esquema de decisiones migra project de forma idempotente', () => {
-  assert.match(source, /ALTER TABLE decisions ADD COLUMN project TEXT/);
+test('el esquema persiste project_slug sin perder projects/project_members', () => {
+  assert.match(source, /CREATE TABLE IF NOT EXISTS projects/);
+  assert.match(source, /CREATE TABLE IF NOT EXISTS project_members/);
+  assert.match(source, /ALTER TABLE decisions ADD COLUMN project_slug TEXT/);
 });
 
-test('POST decisions acepta, limita, persiste y devuelve project', () => {
-  assert.match(source, /let dproject = String\(b\.project \|\| ""\)\.trim\(\)\.slice\(0, 120\)/);
-  assert.match(source, /INSERT INTO decisions \([^)]*url,mission,project,parent_decision,batch_id\)/);
-  assert.match(source, /durl, dmission, dproject, dparent, dbatch\)\.run\(\)/);
-  assert.match(source, /deadline: now \+ mins \* 60000, project: dproject/);
+test('POST resuelve la intersección canónica agent+machine y falla cerrado', () => {
+  assert.match(source, /async function exactDecisionProjectAssignment/);
+  assert.match(source, /SELECT project_id,kind,ref FROM project_members/);
+  assert.match(source, /matches\.length === 1 \? matches\[0\] : null/);
+  assert.match(source, /resolveDecisionProject\(b, assignment, inherited\)/);
+  assert.match(source, /code: "exact_project_required"/);
 });
 
-// FLT-984: lo que se guarda es el ID del censo y lo que se lee es el NOMBRE
-// humano, para que la ficha de /decisiones no tenga que adivinar nada.
-test('POST decisions resuelve el proyecto contra el censo y lo hereda de la misión', () => {
-  assert.match(source, /const pmatch = dproject && pidx\.get\(dproject\)/);
-  assert.match(source, /if \(pmatch\) dproject = pmatch\.id/);
-  assert.match(source, /if \(!dproject && dmission\)/);
+test('POST guarda id+slug; GET lista y detalle devuelven nombre, id y slug', () => {
+  assert.match(source, /project,project_slug,parent_decision,batch_id\) VALUES/);
+  assert.match(source, /project: projectContext\.project, project_id: dproject, project_slug: dprojectSlug/);
+  assert.match(source, /project: resolvedProject\.name, project_id: resolvedProject\.id/);
+  assert.match(source, /project_slug: d\.project_slug \|\| ""/);
+  assert.match(source, /project: pOne\.name, project_id: pOne\.id, project_slug: d\.project_slug \|\| ""/);
 });
 
-test('GET lista y detalle devuelven el nombre del proyecto y su id', () => {
-  assert.match(source, /project: resolveProject\(pidxG, d\.project \|\| misProj\[/);
-  assert.match(source, /project_id: resolveProject\(pidxG, d\.project/);
-  assert.match(source, /project: pOne\.name, project_id: pOne\.id/);
+test('los ids D1 oraculo + admira-macmini casan con los rótulos del reloj', () => {
+  assert.equal(memberRefMatches('agent','oraculo','Oráculo'), true);
+  assert.equal(memberRefMatches('machine','admira-macmini','Mac Mini'), true);
+  assert.equal(memberRefMatches('machine','admira-macbookpro16','Mac Mini'), false);
+});
+
+test('acepta sólo el contexto granular Generador de Presentaciones', () => {
+  assert.equal(projectSlug(canonical.name), 'GENERADOR-DE-PRESENTACIONES');
+  assert.deepEqual(resolveDecisionProject(exact, canonical), {
+    ok:true, project:'Generador de Presentaciones', project_id:'generador-de-presentaciones',
+    project_slug:'GENERADOR-DE-PRESENTACIONES', project_web:'www.admiranext.com',
+    agent:'Oráculo', machine:'Mac Mini'
+  });
+});
+
+test('rechaza ausencia, dominio, ambigüedad, Admira TV y fuente inexistente', () => {
+  const bad = [
+    [{agent:'Oráculo',machine:'Mac Mini'}, canonical],
+    [{project:'www.admiranext.com',project_slug:'WWW-ADMIRANEXT-COM',agent:'Oráculo',machine:'Mac Mini'}, canonical],
+    [{project:'Admira TV',project_slug:'ADMIRA-TV',agent:'Oráculo',machine:'Mac Mini'}, canonical],
+    [{...exact,project_slug:'ADMIRANEXT'}, canonical],
+    [{...exact,project_web:'admira.tv'}, canonical],
+    [exact, null],
+  ];
+  for (const [input, assignment] of bad) assert.equal(resolveDecisionProject(input, assignment).ok, false, JSON.stringify(input));
+});
+
+test('una continuación conserva raíz y asignación exactas', () => {
+  const inherited = {...exact};
+  assert.equal(resolveDecisionProject(exact, canonical, inherited).ok, true);
+  assert.equal(resolveDecisionProject({agent:'Oráculo',machine:'Mac Mini'}, canonical, inherited).ok, true);
+  assert.equal(resolveDecisionProject({...exact,project:'Admira TV',project_slug:'ADMIRA-TV'}, canonical, inherited).ok, false);
+  assert.equal(resolveDecisionProject(exact, {...canonical,name:'Admira TV',id:'admira-tv'}, inherited).ok, false);
+  assert.equal(resolveDecisionProject(exact, canonical, {...inherited,machine:'MacBook Pro'}).ok, false);
 });

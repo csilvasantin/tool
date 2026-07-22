@@ -33,6 +33,8 @@ function render(status, extra = {}) {
     secondsLeft: 90,
     created_at: 1_000,
     deadline: 301_000,
+    project: 'Generador de Presentaciones',
+    project_slug: 'GENERADOR-DE-PRESENTACIONES',
     ...extra
   });
 }
@@ -56,8 +58,8 @@ function assertProjectHeaderPrecedesDecision(card, name) {
 }
 
 test('una decisión pendiente mantiene las cinco opciones y Volver atrás accionables', () => {
-  const card = render('pending', {project: 'Generador de Presentaciones · AdmiraNeXT'});
-  assertProjectHeaderPrecedesDecision(card, 'Generador de Presentaciones · AdmiraNeXT');
+  const card = render('pending');
+  assertProjectHeaderPrecedesDecision(card, 'Generador de Presentaciones');
   const renderedButtons = assertAllOptionsRemainVisible(card);
   assert.doesNotMatch(renderedButtons[0], /\bdisabled\b/);
   assert.match(renderedButtons[1], /class="[^"]*\brec\b/);
@@ -66,8 +68,8 @@ test('una decisión pendiente mantiene las cinco opciones y Volver atrás accion
 test('una decisión elegida conserva todas las opciones y resalta la aplicada', () => {
   // El proyecto llega ya resuelto por el worker contra el censo; el título de la
   // misión se queda en su sitio y no suplanta al proyecto.
-  const card = render('decided', {chosen: 3, project: 'Generador de Presentaciones · AdmiraNeXT', mission: 'Generador de Presentaciones · carrusel secuencial'});
-  assertProjectHeaderPrecedesDecision(card, 'Generador de Presentaciones · AdmiraNeXT');
+  const card = render('decided', {chosen: 3, mission: 'Generador de Presentaciones · carrusel secuencial'});
+  assertProjectHeaderPrecedesDecision(card, 'Generador de Presentaciones');
   const renderedButtons = assertAllOptionsRemainVisible(card);
   renderedButtons.forEach(button => {
     assert.match(button, /\bdisabled\b/);
@@ -82,8 +84,8 @@ test('una decisión elegida conserva todas las opciones y resalta la aplicada', 
 });
 
 test('una decisión vencida conserva todas las opciones y resalta la recomendación efectiva', () => {
-  const card = render('expired', {project: 'Generador de Presentaciones · AdmiraNeXT', url: 'https://www.admiranext.com/presentaciones/generador/'});
-  assertProjectHeaderPrecedesDecision(card, 'Generador de Presentaciones · AdmiraNeXT');
+  const card = render('expired', {url: 'https://www.admiranext.com/presentaciones/generador/'});
+  assertProjectHeaderPrecedesDecision(card, 'Generador de Presentaciones');
   const renderedButtons = assertAllOptionsRemainVisible(card);
   assert.match(renderedButtons[1], /class="[^"]*\beffective\b[^"]*\bexpired\b/);
   assert.match(renderedButtons[1], /aria-current="true"/);
@@ -122,23 +124,26 @@ test('Volver atrás en una continuación conserva el batch actual', () => {
   assert.doesNotMatch(card, /no se iniciará ninguna misión/);
 });
 
-test('el proyecto sale del censo o no sale: ni misión, ni url, ni pregunta', () => {
-  // Lo que manda es `project`, que el worker ya resuelve al nombre del censo.
-  assert.equal(context.decisionProjectName({project:'Yokup cuadrático', mission:'otra', url:'https://admiranext.com'}), 'Yokup cuadrático');
-  // El título de la misión NO es el proyecto (apaño retirado en FLT-984 a·b).
-  assert.equal(context.decisionProjectName({mission:'Generador de Presentaciones · carrusel', url:'https://yokup.com'}), 'Sin proyecto');
-  // Ni el dominio de la url (apaño retirado en FLT-984 c): fingía proyectos que
-  // nadie había dado de alta — «Yokup», «Generador de Presentaciones · AdmiraNeXT».
-  assert.equal(context.decisionProjectName({url:'https://www.admiranext.com/presentaciones/'}), 'Sin proyecto');
-  assert.equal(context.decisionProjectName({url:'https://www.yokup.com/decisiones'}), 'Sin proyecto');
-  // Ni la pregunta.
-  assert.equal(context.decisionProjectName({question:'¿Publicamos Nike?'}), 'Sin proyecto');
+test('un reloj pending exige proyecto+slug exactos y jamás infiere mission/url/question', () => {
+  assert.equal(context.decisionProjectName({status:'pending',project:'Generador de Presentaciones',project_slug:'GENERADOR-DE-PRESENTACIONES'}), 'Generador de Presentaciones');
+  assert.equal(context.decisionProjectName({status:'pending',project:'Admira TV',project_slug:'ADMIRA-TV'}), 'Admira TV');
+  // El worker nunca entregaría Admira TV para esta pareja; la UI sólo comprueba
+  // integridad title↔slug. La autorización vive en D1, no duplicada en JS.
+  assert.equal(context.decisionProjectName({status:'pending',mission:'Generador de Presentaciones',url:'https://www.admiranext.com/presentaciones/'}), 'Sin proyecto exacto');
+  assert.equal(context.decisionProjectName({status:'pending',question:'¿Publicamos Nike?'}), 'Sin proyecto exacto');
+});
+
+test('sólo el histórico cerrado conserva fallback legacy de lectura', () => {
+  assert.equal(context.decisionProjectName({status:'decided',project:'Yokup cuadrático',mission:'otra'}), 'Yokup cuadrático');
+  assert.equal(context.decisionProjectName({status:'expired',mission:'Generador de Presentaciones · carrusel'}), 'Generador de Presentaciones · AdmiraNeXT');
+  assert.equal(context.decisionProjectName({status:'cancelled',url:'https://www.admiranext.com/presentaciones/'}), 'Generador de Presentaciones · AdmiraNeXT');
+  assert.equal(context.decisionProjectName({status:'decided',question:'¿Publicamos Nike?'}), 'Sin proyecto');
 });
 
 test('la UI muestra proyecto y misiones restantes en continuaciones 4→3→2→1', () => {
   for (const count of [4,3,2,1]) {
     const continuationOptions = Array.from({length:count}, (_, i) => `Pendiente ${i + 1}`).concat('Volver atrás');
-    const card = render('pending', {project:'Generador de Presentaciones · AdmiraNeXT', options:continuationOptions, parent_decision:'DEC-parent', batch_id:'BATCH-parent'});
+    const card = render('pending', {options:continuationOptions, parent_decision:'DEC-parent', batch_id:'BATCH-parent'});
     assert.match(card, new RegExp(`${count} misi[oó]n(?:es)? restante`));
     assert.equal(buttons(card).length, count + 1);
     assert.ok(card.indexOf('dec-project-name') < card.indexOf('dec-project-rest'));

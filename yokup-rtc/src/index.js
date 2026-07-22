@@ -1,4 +1,5 @@
 import puppeteer from "@cloudflare/puppeteer";
+import { memberRefMatches, resolveDecisionProject } from "./decision-project.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -167,6 +168,7 @@ async function ensureSchema(env) {
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN url TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN mission TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN project TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE decisions ADD COLUMN project_slug TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN parent_decision TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN batch_id TEXT").catch(() => {});
   // Una decisión de misiones es una tanda, no cinco trabajos independientes.
@@ -320,6 +322,21 @@ function resolveProject(idx, raw) {
   return p ? { id: p.id, name: p.name || p.id } : { id: "", name: v };
 }
 __name(resolveProject, "resolveProject");
+
+// Fuente canónica de un reloj: intersección en D1 del MISMO proyecto activo
+// para el agente y la máquina. Cero o más de uno son ambiguos y fallan cerrado.
+async function exactDecisionProjectAssignment(env, agent, machine) {
+  const idx = await projectIndex(env);
+  const members = (await env.DB.prepare("SELECT project_id,kind,ref FROM project_members").all()).results || [];
+  const matches = idx.rows.filter((project) => {
+    if (String(project.status || "activo").toLowerCase() !== "activo") return false;
+    const own = members.filter((member) => member.project_id === project.id);
+    return own.some((member) => member.kind === "agent" && memberRefMatches("agent", member.ref, agent)) &&
+      own.some((member) => member.kind === "machine" && memberRefMatches("machine", member.ref, machine));
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+__name(exactDecisionProjectAssignment, "exactDecisionProjectAssignment");
 
 // Un reloj de decisión pesa: se permite uno por agente y día natural de Madrid.
 // `user_override:true` sólo lo usa el coordinador cuando Carlos lo pide de forma
@@ -2072,12 +2089,13 @@ var index_default = {
         const q = String(b.question || "").trim().slice(0, 400);
         let dparent = String(b.parent_decision || "").trim().slice(0, 80);
         let dbatch = String(b.batch_id || "").trim().slice(0, 80);
+        let parent = null;
         const continuation = !!(dparent || dbatch);
         if (!q || rawOpts.length !== opts.length || (continuation ? !isContinuationMissionDecision(opts, { parent_decision: dparent || "linked" }) : !isInitialMissionDecision(opts))) {
           return json({ ok: false, error: continuation ? "La continuación requiere entre 1 y 5 misiones restantes y «Volver atrás» al final" : "La decisión inicial requiere exactamente 5 misiones y «Volver atrás» como sexta opción" }, 400);
         }
         if (continuation) {
-          const parent = dparent ? await env.DB.prepare("SELECT id,batch_id,options FROM decisions WHERE id=?").bind(dparent).first() : null;
+          parent = dparent ? await env.DB.prepare("SELECT id,batch_id,options,agent,machine,project,project_slug FROM decisions WHERE id=?").bind(dparent).first() : null;
           if (dparent && !parent) return json({ ok: false, error: "parent_decision no existe" }, 404);
           const inferredBatch = parent && (parent.batch_id || batchIdForDecision(parent.id));
           if (dbatch && inferredBatch && dbatch !== inferredBatch) return json({ ok: false, error: "parent_decision y batch_id no coinciden" }, 400);
@@ -2085,6 +2103,7 @@ var index_default = {
           const batch = dbatch && await env.DB.prepare("SELECT id,decision_id,status FROM mission_batches WHERE id=?").bind(dbatch).first();
           if (!batch || batch.status !== "active") return json({ ok: false, error: "batch_id activo requerido" }, 400);
           dparent = dparent || batch.decision_id || "";
+          if (!parent && dparent) parent = await env.DB.prepare("SELECT id,batch_id,options,agent,machine,project,project_slug FROM decisions WHERE id=?").bind(dparent).first();
           const open = await env.DB.prepare("SELECT id FROM decisions WHERE batch_id=? AND status='pending' LIMIT 1").bind(dbatch).first();
           if (open) return json({ ok: false, error: "continuation_pending", existing: open.id }, 409);
           const queued = await reconcileQueuedBatchItems(env, dbatch);
@@ -2092,10 +2111,21 @@ var index_default = {
             return json({ ok: false, error: "Las opciones deben coincidir exactamente con las misiones restantes del batch, sin completadas ni duplicados" }, 400);
           }
         }
+        const rawAgent = String(b.agent || "").trim().slice(0, 40);
+        const rawMachine = String(b.machine || "").trim().slice(0, 60);
+        const assignment = await exactDecisionProjectAssignment(env, rawAgent, rawMachine);
+        let inherited = null;
+        if (continuation && parent) {
+          const pidx = await projectIndex(env);
+          const rootProject = resolveProject(pidx, parent.project || "");
+          inherited = { agent: parent.agent, machine: parent.machine, project: rootProject.name, project_slug: parent.project_slug || "" };
+        }
+        const projectContext = resolveDecisionProject(b, assignment, inherited);
+        if (!projectContext.ok) return json({ ok: false, error: projectContext.error, code: "exact_project_required" }, 400);
         const mins = Math.min(60, Math.max(1, +b.minutes || 3));   // por defecto 3 min
         const now = Date.now();
-        const agent = String(b.agent || "").trim().slice(0, 40);
-        if (!agent) return json({ ok: false, error: "agent requerido" }, 400);
+        const agent = projectContext.agent;
+        const machine = projectContext.machine;
         // UN RELOJ VIVO A LA VEZ POR AGENTE (FLT-982 b3, sustituye a `daily_limit`).
         // La regla vieja era «uno al día por agente»: el segundo reloj de la jornada
         // se rechazaba con {error:"daily_limit"}. Eso hacía IMPOSIBLE el protocolo
@@ -2112,28 +2142,19 @@ var index_default = {
                         secondsLeft: Math.max(0, Math.round((live.deadline - now) / 1000)) }, 409);
         }
         const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
-        // Contexto opcional de la decisión. `project` debe ser un nombre humano;
-        // clientes antiguos siguen cubiertos por mission/url en el panel.
+        // mission/url son metadatos. El proyecto ya fue validado contra la
+        // intersección canónica projects+project_members; jamás se hereda del
+        // último ticket o trabajo.
         const durl = String(b.url || "").slice(0, 300);
         const dmission = String(b.mission || "").slice(0, 120);
-        // El proyecto se guarda como ID del censo cuando está dado de alta (así
-        // renombrarlo no rompe las decisiones viejas). Si no viene y la decisión
-        // cuelga de una misión, se HEREDA de ella; si no hay ninguno, se queda
-        // vacío y la ficha dirá «Sin proyecto» — nunca se adivina.
-        let dproject = String(b.project || "").trim().slice(0, 120);
-        const pidx = await projectIndex(env);
-        const pmatch = dproject && pidx.get(dproject);
-        if (pmatch) dproject = pmatch.id;
-        if (!dproject && dmission) {
-          const tkp = await env.DB.prepare("SELECT project FROM tickets WHERE id=?").bind(dmission.toUpperCase()).first();
-          if (tkp && tkp.project) dproject = String(tkp.project);
-        }
-        await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,parent_decision,batch_id) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?)")
-          .bind(id, String(b.machine || "").slice(0, 60), agent,
+        const dproject = projectContext.project_id;
+        const dprojectSlug = projectContext.project_slug;
+        await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?)")
+          .bind(id, machine, agent,
                 String(b.surface || "").slice(0, 20), q, JSON.stringify(opts),
                 Math.max(0, Math.min(opts.length - 1, +b.recommended || 0)), now, now + mins * 60000,
-                durl, dmission, dproject, dparent, dbatch).run();
-        return json({ ok: true, id, deadline: now + mins * 60000, project: dproject, parent_decision: dparent, batch_id: dbatch, continuation, user_override: userOverride });
+                durl, dmission, dproject, dprojectSlug, dparent, dbatch).run();
+        return json({ ok: true, id, deadline: now + mins * 60000, project: projectContext.project, project_id: dproject, project_slug: dprojectSlug, parent_decision: dparent, batch_id: dbatch, continuation, user_override: userOverride });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     if (url.pathname === "/decisions" && req.method === "GET") {
@@ -2186,6 +2207,9 @@ var index_default = {
         }
         const items = await Promise.all((r.results || []).map(async (d, i) => {
           let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
+          const legacyProject = d.status === "pending" ? (d.project || "")
+            : (d.project || misProj[String(d.mission || "").toUpperCase()] || "");
+          const resolvedProject = resolveProject(pidxG, legacyProject);
           // El carrusel (batch) se resuelve con 2 consultas por decisión. Con la
           // ventana de siempre son 40 como mucho; al pedir histórico largo se
           // dispararía a 1000, así que sólo se resuelve para las 40 primeras.
@@ -2198,8 +2222,8 @@ var index_default = {
                    // distinguir «lo eligió Carlos» de «venció y tiró la recomendada».
                    chosen_by: d.chosen_by || "",
                    url: d.url || "", mission: d.mission || "",
-                   project: resolveProject(pidxG, d.project || misProj[String(d.mission || "").toUpperCase()] || "").name,
-                   project_id: resolveProject(pidxG, d.project || misProj[String(d.mission || "").toUpperCase()] || "").id,
+                   project: resolvedProject.name, project_id: resolvedProject.id,
+                   project_slug: d.project_slug || "",
                    parent_decision: d.parent_decision || "", batch_id: d.batch_id || "",
                    batch,
                    created_at: d.created_at, deadline: d.deadline, decided_at: d.decided_at,
@@ -2249,7 +2273,7 @@ var index_default = {
         const pOne = resolveProject(await projectIndex(env), d.project || "");
         return json({ ok: true, id: d.id, status: d.status,
                       chosen: d.chosen, recommended: d.recommended, options: o,
-                      project: pOne.name, project_id: pOne.id, mission: d.mission || "", url: d.url || "",
+                      project: pOne.name, project_id: pOne.id, project_slug: d.project_slug || "", mission: d.mission || "", url: d.url || "",
                       parent_decision: d.parent_decision || "", batch_id: d.batch_id || "",
                       // si venció sin respuesta, el agente tira con la recomendada
                       effective: d.status === "decided" || d.status === "cancelled" ? d.chosen : (expired ? d.recommended : null),

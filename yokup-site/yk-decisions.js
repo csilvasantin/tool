@@ -29,20 +29,26 @@
        + ".decs-note{font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--dim,#4d7a88);margin-top:11px;padding-top:9px;border-top:1px solid var(--line)}";
   function esc(x) { return String(x == null ? "" : x).replace(/[<>&"]/g, function (c) { return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]; }); }
   function cleanProjectName(x) { return String(x || "").replace(/^misi[oó]n\s*:?\s*/i, "").replace(/\s+/g, " ").trim().slice(0, 120); }
-  // El proyecto lo resuelve el WORKER contra el censo (/projects) y llega ya con
-  // su nombre humano. Si no hay, la ficha dice «Sin proyecto» y se calla: NO se
-  // adivina de ningún otro campo.
-  // Historia de los dos apaños, los dos fuera (FLT-984 a·b y c):
-  //  · se colaba el TÍTULO DE LA MISIÓN como si fuera el proyecto, y de postre un
-  //    «Proyecto sin identificar» — la queja literal de Carlos;
-  //  · y quedaba un adivinador por DOMINIO de la url (yokup.com → «Yokup»,
-  //    admiranext.com/presentaciones → «Generador de Presentaciones · AdmiraNeXT»)
-  //    que seguía poniendo en la ficha un proyecto que nadie había dado de alta.
-  // Un hueco visible es lo que empuja a asignar el proyecto de verdad en /equipo;
-  // una etiqueta inventada lo esconde.
+  function projectSlug(x) { return cleanProjectName(x).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
+  function legacyBrand(raw) {
+    var value = String(raw || "").trim(), host = value.replace(/^https?:\/\//i, "").split(/[\/?#]/)[0].replace(/^www\./i, "").toLowerCase();
+    var path = value.replace(/^https?:\/\/[^/]+/i, "").toLowerCase();
+    if (host === "admiranext.com" && /\/presentaciones(?:\/|$)/.test(path)) return "Generador de Presentaciones · AdmiraNeXT";
+    return "";
+  }
   function projectName(d) {
     var explicit = cleanProjectName(d && d.project);
-    return explicit || "Sin proyecto";
+    var slug = String(d && d.project_slug || "").trim().toUpperCase();
+    // Un reloj vivo sólo muestra el proyecto que el worker resolvió contra la
+    // intersección projects+project_members. Sin slug exacto queda visible el
+    // fallo; mission/url/question no pueden rescatarlo.
+    if (!d || d.status === "pending") return explicit && slug && projectSlug(explicit) === slug ? explicit : "Sin proyecto exacto";
+    if (explicit) return explicit;
+    // Compatibilidad de LECTURA para filas cerradas anteriores a FLT-984/986.
+    // Nunca alimenta POST ni un nuevo reloj.
+    var mission = cleanProjectName(d && d.mission);
+    if (/generador de presentaciones/i.test(mission)) return "Generador de Presentaciones · AdmiraNeXT";
+    return legacyBrand(d && d.url) || "Sin proyecto";
   }
   function domId(x) { return "dec-project-" + String(x || "item").replace(/[^a-z0-9_-]/gi, "-"); }
   // Retrato del agente: 16px, del módulo compartido. Sin módulo cargado o sin
