@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r14">
 <link rel="stylesheet" href="/yk-misiones.css?v=r31">
-<link rel="stylesheet" href="/yk-cabezal.css?v=r1">
+<link rel="stylesheet" href="/yk-cabezal.css?v=r2">
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -38,6 +38,13 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .mcard.collapsed .tree,.mcard.collapsed .mmeta{display:none}
 .mcard.collapsed{padding-bottom:13px;opacity:.92}
 .mcard.collapsed .msub{margin-bottom:0}
+/* VISTA LISTA (conmutador del cabezal, 962): las fichas altas pasan a filas
+   compactas de una columna (cabecera + título, sin el árbol). Cero scroll horizontal:
+   sigue siendo una columna fluida, no una tabla desbordada. */
+html[data-yk-view="list"] .grid{grid-template-columns:1fr}
+html[data-yk-view="list"] .mcard .tree,html[data-yk-view="list"] .mcard .mmeta{display:none}
+html[data-yk-view="list"] .mcard{padding:11px 15px}
+html[data-yk-view="list"] .mcard .mtog{display:none}
 .bigempty{border:1px dashed var(--line2);border-radius:14px;padding:44px 24px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12.5px;letter-spacing:.04em;line-height:1.7;grid-column:1/-1}
 .bigempty b{color:var(--mut);display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .bigempty a{color:var(--brand)}
@@ -164,7 +171,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 
 <script src="/yk-misiones.js?v=r45"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
-<script src="/yk-cabezal.js?v=r1"></script>
+<script src="/yk-cabezal.js?v=r2"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 const $=id=>document.getElementById(id);
@@ -188,6 +195,8 @@ const CAB=YkCabezal.mount($("cabezal"), {
   title:"Tareas",
   searchPlaceholder:"🔎 Buscar tarea…",
   intro:'Los pasos en que se descompone cada misión: <b>a…h</b> (8 pasos) con hasta 3 subtareas cada uno (máx 24) — una misión = jornada completa de un agente. Chips clicables ○◐● para avanzar estado; ⚙️ ejecutan los subagentes, 📝 reportan los infraagentes. Agrupado por misión, lo más reciente primero.',
+  defaultView:"cards",   // /tareas nace en FICHAS; el conmutador la pasa a lista (962)
+  onView:()=>render(),
   onState:f=>{ STATE=f; render(); },
   onSearch:q=>{ SEARCH=q; render(); },
   onDay:ymd=>{ if(!ymd) return; DFILTER={mode:"dia", day:ymd};

@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r14">
 <link rel="stylesheet" href="/yk-misiones.css?v=r31">
-<link rel="stylesheet" href="/yk-cabezal.css?v=r1">
+<link rel="stylesheet" href="/yk-cabezal.css?v=r2">
 <style>
 /* Segmentación dentro del raíl de opciones: apilada y a lo ancho del panel. */
 .segm{display:flex;flex-direction:column;gap:8px}
@@ -241,7 +241,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 <script src="/yk-maquina.js?v=r1"></script>
 <script src="/yk-misiones.js?v=r45"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
-<script src="/yk-cabezal.js?v=r1"></script>
+<script src="/yk-cabezal.js?v=r2"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 let FILTER="activas";
@@ -261,6 +261,8 @@ YkMisiones.init({worker:WORKER, treeId:"taskTree"});
 const CAB=YkCabezal.mount($("cabezal"), {
   worker:WORKER, title:"Misiones", searchPlaceholder:"🔎 Buscar misión…", manageState:false,
   intro:'Lo que hay que hacer. Cada misión se descompone en <b>tareas</b> a…h (8 pasos × hasta 3 subtareas, máx 24 — la jornada completa de un agente): el arquitecto y el agente principal definen el plan, los <b>subagentes</b> ⚙️ lo ejecutan y los <b>infraagentes</b> 📝 reportan. Las misiones de la <b>flota</b> son los encargos a los agentes (se ven vivos en <a href="https://www.admira.live/status/" target="_blank" rel="noopener" style="color:var(--brand)">admira.live/status</a>); las de <b>campo</b>, las incidencias de pantallas.',
+  defaultView:"list",   // /misiones nace en LISTA; el conmutador la pasa a fichas (962)
+  onView:()=>load(),
   onState:f=>{userPicked=true;aplicaFiltro(f);}, onSearch:()=>load(), onDay:()=>load(), onCreated:()=>load()
 });
 // Día del tablero: HOY por defecto (load() lo lee de $("selDia").value).

@@ -53,6 +53,8 @@
         '<button data-f="in_progress" class="kpi b"><b id="kProg">—</b> en curso</button>' +
         '<button data-f="resolved" class="kpi c"><b id="kRes">—</b> finalizadas</button>' +
         '<input type="date" id="selDia" class="kpi kdate" title="Día del tablero — por defecto hoy">' +
+        // Conmutador de VISTA (fichas / lista), recuerda la elección por página. (962)
+        '<button id="viewTgl" class="kpi kview" title="Cambiar vista: fichas o lista">🗂</button>' +
       '</div>' +
       // Fila de título + buscador (el buscador es lo que más se usa: a la vista).
       '<div class="hrow">' +
@@ -101,6 +103,17 @@
       if (manageState) { STATE = (STATE === b.dataset.f) ? null : b.dataset.f; paintKpi(); }
       if (opts.onState) opts.onState(manageState ? STATE : b.dataset.f);
     });
+
+    // ── CONMUTADOR DE VISTA (fichas / lista) ───────────────────────────────
+    // La elección se recuerda POR PÁGINA (Carlos puede querer /tareas en lista y
+    // /misiones en fichas). Marca data-yk-view en <html> para que el CSS/render
+    // responda, y avisa a la página vía opts.onView. (962)
+    const viewTgl = $("viewTgl");
+    const VIEW_KEY = "yk_view_" + (location.pathname.replace(/[^a-z0-9]+/gi, "") || "x");
+    let curView = (function () { try { return localStorage.getItem(VIEW_KEY) || opts.defaultView || "cards"; } catch (e) { return opts.defaultView || "cards"; } })();
+    function setViewUI(v) { document.documentElement.setAttribute("data-yk-view", v); if (viewTgl) { viewTgl.textContent = v === "list" ? "▤" : "🗂"; viewTgl.title = "Vista: " + (v === "list" ? "lista (pulsa para fichas)" : "fichas (pulsa para lista)"); } }
+    if (viewTgl) viewTgl.onclick = function () { curView = curView === "list" ? "cards" : "list"; try { localStorage.setItem(VIEW_KEY, curView); } catch (e) {} setViewUI(curView); if (opts.onView) opts.onView(curView); };
+    setViewUI(curView);   // aplica la vista guardada al montar (sin re-render: la página ya lee getView())
 
     // ── DÍA DEL TABLERO ────────────────────────────────────────────────────
     const selDia = $("selDia");
@@ -489,6 +502,7 @@
       setActiveFilter(f) { STATE = f || null; paintKpi(); },
       getState() { return STATE; },
       getDay() { return selDia ? selDia.value : ""; },
+      getView() { return curView; },
       setDay(v) { if (selDia) selDia.value = v || ""; },
       getSearch() { return busca ? busca.value.trim() : ""; },
       refreshRadar: radar
