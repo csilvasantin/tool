@@ -76,3 +76,16 @@ test('colocar una ficha NO cuenta como editarla: updated_at no se toca', () => {
 test('un id que ya no está en el censo no tumba el guardado del orden', () => {
   assert.match(source, /const orden = \[\.\.\.new Set\(ids\)\]\.filter\(\(id\) => vivos\.has\(id\)\)/);
 });
+
+// ── FLT-985 c1 — «viva» = EN CURSO ─────────────────────────────────────────
+test('la ficha de proyecto cuenta como viva la misión EN CURSO, no la encargada', () => {
+  assert.match(source, /SELECT project, status, COUNT\(\*\) c FROM tickets WHERE project IS NOT NULL AND project!='' AND status IN \('in_progress','open'\) GROUP BY project, status/);
+  assert.match(source, /if \(m\.status === "in_progress"\) misBy\[k\] = m\.c; else pendBy\[k\] = m\.c;/);
+  // la consulta vieja sumaba TODO lo no cerrado y llamaba «viva» a una cola parada
+  assert.ok(!/status!='resolved' AND status!='cancelled' GROUP BY project/.test(source),
+    'no debe quedar la cuenta vieja de vivas (todo lo no cerrado)');
+});
+
+test('lo encargado y sin empezar viaja aparte, no se esconde', () => {
+  assert.match(source, /missions_pending: pendBy\[String\(p\.id\)\.toLowerCase\(\)\] \|\| 0/);
+});

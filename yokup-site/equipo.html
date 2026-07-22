@@ -163,6 +163,16 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 5px}
 .asa:focus-visible{box-shadow:0 0 0 2px rgba(120,243,255,.35)}
 .asa:active{cursor:grabbing}
 .ag.arrastrando{opacity:.55;border-color:var(--brand);box-shadow:0 0 0 1px var(--brand) inset}
+/* ---- misión en curso · reloj de decisión (FLT-985 c) --------------------- */
+/* Lo pendiente se dice, pero no grita: no es trabajo en marcha. */
+.mpend{color:var(--dim)}
+/* «⏳ decidiendo» en el mismo renglón que las misiones en curso; lleva a la ficha
+   completa del reloj, que está arriba en esta misma página. */
+.mis .n{min-width:0;overflow-wrap:anywhere}
+.mis a.decreloj{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:2px 6px;
+  text-decoration:none;margin-right:6px;white-space:nowrap}
+.mis a.decreloj:hover,.mis a.decreloj:focus-visible{background:rgba(255,216,102,.12);outline:none}
 .ordmsg{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin:0 0 10px}
 .ordmsg.ok{color:var(--good)}.ordmsg.err{color:var(--warn)}
 </style>
@@ -176,10 +186,19 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 5px}
     <div class="kpi tot"><b id="kSil">—</b><span>Agentes · bits</span></div>
     <div class="kpi"><b id="kEq">—</b><span>Máquinas · átomos</span></div>
     <div class="kpi viva"><b id="kViva">—</b><span>Con latido</span></div>
-    <div class="kpi mis"><b id="kMis">—</b><span>Misión activa</span></div>
+    <div class="kpi mis"><b id="kMis">—</b><span>Misión en curso</span></div>
     <div class="kpi"><b id="kPro">—</b><span>Proyecto</span></div>
     <div class="kpi gap"><b id="kGap">—</b><span>Sin ficha</span></div>
   </div>
+
+  <!-- RELOJES DE DECISIÓN, aquí y no en otro rincón (Carlos, FLT-985 c2): si un
+       agente está en momento de decisiones, se ve en la misma página donde se
+       leen sus misiones en curso. La sección la pinta el módulo compartido
+       yk-decisions.js — el mismo de /misiones y /decisiones, sin copia. -->
+  <section class="decs" id="decs" hidden>
+    <div class="decs-hd">⏳ Reloj de decisión <span class="decs-n" id="decsN"></span></div>
+    <div class="decs-list" id="decsList"></div>
+  </section>
 
   <div class="tabs">
     <button class="tab on" data-v="agentes">🤖 Agentes <small>· software · bits</small></button>
@@ -218,6 +237,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 5px}
 <script src="/yk-maquina.js?v=r1"></script>
 <script src="/yk-avatar.js?v=r2"></script>
 <script src="/yk-misiones.js?v=r47"></script>
+<script src="/yk-decisions.js?v=20260722h"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 const TG="https://admira-telegram.csilvasantin.workers.dev";
@@ -309,7 +329,9 @@ async function cargar(){
     fetch(FLEET+"/silicon",{cache:"no-store"}).then(r=>r.json()).catch(()=>({silicon:[]})),
     fetch(WORKER+"/projects",{cache:"no-store"}).then(r=>r.json()).catch(()=>({projects:[]}))
   ]);
-  PRES=pr.presence||[]; MIS=(tk.tickets||[]).filter(t=>t.status!=="resolved");
+  // Cancelada NO es misión: se caía en el mismo saco que las vivas y engordaba
+  // el contador con trabajo que nadie va a hacer.
+  PRES=pr.presence||[]; MIS=(tk.tickets||[]).filter(t=>t.status!=="resolved"&&t.status!=="cancelled");
   MAQ=mq.machines||[];  SIL=si.silicon||[];  PRO=po.projects||[];
   pinta();
 }
@@ -343,6 +365,30 @@ function agentesEn(id,nombre){
   return nombres.map(n=>({n, alta: SIL.some(a=>norm(a.name||a.id)===norm(n))}));
 }
 function misionesDe(nombre){ const k=norm(nombre); return MIS.filter(m=>norm(m.assignee)===k); }
+/* VIVA = EN CURSO (Carlos, FLT-985 c1). «Vivas» venía contando todo lo no cerrado,
+   así que una cola de encargos sin empezar se presentaba como trabajo en marcha.
+   Ahora viva es `in_progress` y lo `open` se dice aparte —«· N pendiente»— en vez
+   de sumarse a escondidas: se pierde la mentira, no el dato. */
+const enCurso=ms=>ms.filter(m=>m.status==="in_progress");
+const pendientes=ms=>ms.filter(m=>m.status!=="in_progress");
+/* MOMENTO DE DECISIONES (Carlos, FLT-985 c2). El reloj abierto de un agente sale
+   dos veces en esta misma página y en ningún rincón aparte: la FICHA entera arriba
+   —la pinta yk-decisions.js, que es quien sabe pintarla— y aquí una marca en el
+   mismo renglón donde se leen sus misiones en curso, para no tener que buscarlo.
+   La lista la trae el módulo por onData: ni una segunda consulta ni un segundo render. */
+let DEC_PEND=[];
+function relojDe(nombre){
+  const k=norm(nombre);
+  const d=DEC_PEND.filter(x=>norm(x.agent)===k)[0];
+  if(!d) return "";
+  return '<a class="decreloj" href="#decs" title="'+esc(d.question||"")+'">⏳ decidiendo</a> ';
+}
+// Rótulo del pie de una ficha. Singular y sin adverbios.
+function rotuloMisiones(nCurso,nPend){
+  if(nCurso) return '<b>'+nCurso+'</b> en curso'+(nPend?' <span class="mpend">· '+nPend+' pendiente</span>':"");
+  if(nPend)  return '<span class="mpend">sin misión en curso · '+nPend+' pendiente</span>';
+  return "sin misión en curso";
+}
 function vivo(p){ return p && (Date.now()/1000-(p.updated||0))<900; }
 function hace(ts){
   if(!ts) return "sin señal";
@@ -380,7 +426,7 @@ function tarjetaSil(a){
       (p&&foco(p.focus)?fila("Su foco",esc(foco(p.focus))):"")+
     '</div>'+
     (tags.length?'<div class="tags">'+tags.map(t=>"<span>"+esc(t)+"</span>").join("")+'</div>':"")+
-    '<div class="mis"><span class="n">'+(ms.length?'<b>'+ms.length+'</b> misión(es) activa(s)':"sin misiones activas")+'</span>'+
+    '<div class="mis"><span class="n">'+relojDe(a.name||a.id)+rotuloMisiones(enCurso(ms).length,pendientes(ms).length)+'</span>'+
       '<button data-ed="sil" data-id="'+esc(a.id)+'">✏️ editar</button>'+
       '<a href="/misiones">'+(ms.length?"ver misiones →":"asignarle una →")+'</a></div>'+
   '</div>';
@@ -500,7 +546,7 @@ function tarjetaPro(p,i){
       fila("Máquina", p.machines.length?p.machines.map(id=>'<span class="agchip">🖥 '+esc(nombreMaq(id))+'</span>').join(" "):"— sin asignar", p.machines.length?"":"falta")+
       fila("Agente", p.agents.length?p.agents.map(id=>'<span class="agchip">'+retratoMini(nombreAg(id))+esc(nombreAg(id))+'</span>').join(" "):"— sin asignar", p.agents.length?"":"falta")+
     '</div>'+
-    '<div class="mis"><span class="n">'+(p.missions?'<b>'+p.missions+'</b> misión(es) viva(s)':"sin misiones vivas")+'</span>'+
+    '<div class="mis"><span class="n">'+rotuloMisiones(+p.missions||0,+p.missions_pending||0)+'</span>'+
       '<button data-ed="pro" data-id="'+esc(p.id)+'">✏️ editar</button>'+
       '<a href="/misiones">ver misiones →</a></div>'+
   '</div>';
@@ -553,7 +599,7 @@ function pinta(){
   });
   const vivos=SIL.filter(a=>vivo(presenciaDe(a.name||a.id))).length;
   $("kEq").textContent=MAQ.length; $("kSil").textContent=SIL.length;
-  $("kViva").textContent=vivos; $("kMis").textContent=MIS.length;
+  $("kViva").textContent=vivos; $("kMis").textContent=enCurso(MIS).length;
   $("kPro").textContent=PRO.filter(p=>p.status!=="archivado").length;
   $("kGap").textContent=MAQ.filter(m=>!m.member&&!m.role&&!m.machineRole).length;
 }
@@ -787,6 +833,23 @@ $("mDel").onclick=async()=>{
 // personalización (la foto que puso Carlos pisa a la de serie). Se espera a que
 // esté para no pintar una tanda de fichas con las iniciales y cambiarlas después.
 (window.ykAvatar&&ykAvatar.ready?ykAvatar.ready:Promise.resolve()).then(cargar,cargar);
+
+// Relojes de decisión, con el MISMO módulo que /misiones y /decisiones. Al llegar
+// datos se refresca la marca «⏳ decidiendo» de las fichas, pero solo si CAMBIA la
+// lista de agentes con reloj: repintar cada 15 s le robaría el foco al asa a quien
+// esté colocando fichas con el teclado.
+let DEC_SIG=null;
+YkDecisions.mount({worker:WORKER, onData:function(ds){
+  DEC_PEND=(ds||[]).filter(function(d){ return d.status==="pending"; });
+  const sig=DEC_PEND.map(function(d){ return d.agent||""; }).sort().join("|");
+  if(sig===DEC_SIG) return;
+  DEC_SIG=sig;
+  if($("mod").classList.contains("on")) return;
+  if(document.querySelector(".ag.arrastrando")||ORD_T) return;
+  const f=document.activeElement;
+  if(f&&f.classList&&f.classList.contains("asa")) return;
+  if(MAQ.length||SIL.length||PRO.length) pinta();
+}});
 // El refresco automático NO puede pisar lo que Carlos tiene entre manos: ni un
 // editor abierto, ni una ficha a medio colocar, ni el asa con el foco puesto.
 setInterval(()=>{

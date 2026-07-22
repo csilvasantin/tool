@@ -258,16 +258,25 @@ async function listProjects(env) {
   const rows = results || [];
   if (!rows.length) return [];
   const mem = (await env.DB.prepare("SELECT project_id, kind, ref FROM project_members").all()).results || [];
-  const mis = (await env.DB.prepare("SELECT project, COUNT(*) c FROM tickets WHERE project IS NOT NULL AND project!='' AND status!='resolved' AND status!='cancelled' GROUP BY project").all()).results || [];
-  const misBy = {};
-  for (const m of mis) misBy[String(m.project).toLowerCase()] = m.c;
+  // VIVA = EN CURSO (Carlos, FLT-985 c1). Hasta aquí `missions` sumaba también las
+  // `open` —encargadas y sin empezar— y una ficha con cinco misiones en la cola
+  // decía «5 vivas» sin que nadie estuviera trabajando en ninguna. Se separan: lo
+  // que cuenta como viva es `in_progress`, y lo `open` viaja aparte para poder
+  // decirlo sin mentir en vez de esconderlo.
+  const mis = (await env.DB.prepare("SELECT project, status, COUNT(*) c FROM tickets WHERE project IS NOT NULL AND project!='' AND status IN ('in_progress','open') GROUP BY project, status").all()).results || [];
+  const misBy = {}, pendBy = {};
+  for (const m of mis) {
+    const k = String(m.project).toLowerCase();
+    if (m.status === "in_progress") misBy[k] = m.c; else pendBy[k] = m.c;
+  }
   return rows.map((p) => ({
     id: p.id, name: p.name || p.id, blurb: p.blurb || "", web: p.web || "",
     status: p.status || "activo", color: p.color || "",
     owner: p.owner || "", sort_order: p.sort_order == null ? null : Number(p.sort_order),
     machines: mem.filter((m) => m.project_id === p.id && m.kind === "machine").map((m) => m.ref),
     agents: mem.filter((m) => m.project_id === p.id && m.kind === "agent").map((m) => m.ref),
-    missions: misBy[String(p.id).toLowerCase()] || 0,
+    missions: misBy[String(p.id).toLowerCase()] || 0,               // vivas = en curso
+    missions_pending: pendBy[String(p.id).toLowerCase()] || 0,      // encargadas y sin empezar
     created_at: p.created_at, updated_at: p.updated_at, updated_by: p.updated_by || ""
   }));
 }

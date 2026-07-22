@@ -4,7 +4,12 @@
  *   · /decisiones → mount({worker, mode:"full"}): la sección propia de Carlos.
  *     Arriba las VIVAS (con reloj y opciones pulsables) y debajo el HISTÓRICO
  *     (decididas, vencidas y canceladas) con su desenlace y su fecha.
- * MISMO render de tarjeta en las dos vistas: card() es la única fuente.
+ *   · /equipo    → mount({worker, onData}): el MISMO panel live, junto a las
+ *     fichas donde se leen las misiones en curso — un reloj abierto sale donde
+ *     ya se mira, no en otra página (Carlos, FLT-985 c2). `onData(decisiones)`
+ *     se llama en cada render para que la página pueda marcar a su gente sin
+ *     abrir una segunda consulta ni un segundo render.
+ * MISMO render de tarjeta en las tres vistas: card() es la única fuente.
  *
  * HISTÓRICO REAL desde el worker (FLT-982): GET /decisions?all=1&since=0 devuelve
  * TODAS las decisiones, no solo las vivas y las cerradas de la última hora, y trae
@@ -163,7 +168,16 @@
       document.getElementById("decsN").textContent = pending ? "· " + pending + " esperando tu decisión" : "· sin decisiones abiertas";
       list.innerHTML = decisions.map(function (d) { return card(d, null); }).join("");
     }
-    function render() { return full ? renderFull() : renderLive(); }
+    function render() {
+      var out = full ? renderFull() : renderLive();
+      // Un solo módulo pinta las fichas; quien además necesite SABER que hay un
+      // reloj corriendo (la ficha de agente de /equipo, FLT-985 c2) se entera por
+      // aquí en vez de montar su propia consulta y su propio render.
+      if (typeof config.onData === "function") {
+        try { config.onData(decisions.slice()); } catch (e) {}
+      }
+      return out;
+    }
     // Vista LIVE: la consulta de siempre (vivas + cerradas recientes).
     // Vista COMPLETA: el histórico entero, paginado con `next_until`.
     async function fetchAll() {
