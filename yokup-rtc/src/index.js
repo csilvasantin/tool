@@ -339,7 +339,7 @@ function flattenSteps(steps) {
   const letters = ["a", "b", "c", "d", "e", "f", "g", "h"];
   const tasks = [];
   const clean = (steps || []).filter((s) => { const t = stepTitle(s); return t && !CEREMONY_RE.test(t); });
-  clean.slice(0, 8).forEach((step, si) => {
+  clean.slice(0, 3).forEach((step, si) => {   // REGLA DE LOS TERCIOS: 3 pasos a/b/c (963)
     const code = letters[si];
     const title = String((step && (step.title || step.titulo || step.step || step.name || step.paso || step.descripcion || step.description)) || "").slice(0, 60) || "Paso " + code.toUpperCase();
     tasks.push({ code, title });
@@ -366,9 +366,9 @@ __name(defaultPlan, "defaultPlan");
 // no devuelve un JSON usable.
 function defaultFleetPlan() {
   return [
-    { code: "a", title: "Entender el encargo y su alcance", subtasks: ["Leer el encargo completo en el bot-inbox", "Localizar el proyecto y los ficheros implicados", "Acusar recibo (ACK) del encargo"] },
-    { code: "b", title: "Ejecutar el encargo", subtasks: ["Hacer el cambio en la m\xE1quina que corresponde", "Desplegar a la URL p\xFAblica"] },
-    { code: "c", title: "Verificar y reportar", subtasks: ["Verificar en real, con captura por el camino del usuario", "Reportar a Carlos y al grupo, y marcar el encargo hecho"] }
+    { code: "a", title: "Preparar: alcance y punto de partida", subtasks: ["Localizar el proyecto y los ficheros implicados", "Reproducir el estado actual", "Definir el resultado esperado"] },
+    { code: "b", title: "Ejecutar el encargo", subtasks: ["Hacer el cambio en la m\xE1quina que corresponde", "Desplegar a la URL p\xFAblica", "Ajustar hasta que quede como se pide"] },
+    { code: "c", title: "Verificar y reportar", subtasks: ["Verificar en real, con captura por el camino del usuario", "Reportar a Carlos y al grupo", "Marcar el encargo hecho"] }
   ];
 }
 __name(defaultFleetPlan, "defaultFleetPlan");
@@ -395,20 +395,20 @@ async function proposePlan(env, mid) {
 ENCARGO:
 ${String(full).slice(0, 900)}
 
-Descomp\xF3n el encargo en un PLAN AJUSTADO A SU TAMA\xD1O: usa SOLO los pasos que el encargo REALMENTE necesite (idealmente 3 pasos a/b/c, m\xE1ximo 4), con c\xF3digos correlativos desde "a" (a, b, c…), cada uno con hasta 3 subtareas. Una tarea peque\xF1a (p.ej. dibujar algo, un cambio de una l\xEDnea) son 1-3 pasos, NO ocho: no rellenes con ceremonia (recibir encargo, leer instrucciones, verificar prioridad, asignar subagente). El array tendr\xE1 TANTOS objetos como pasos reales, no ocho por defecto. Doctrina del equipo: los pasos los ejecuta un subagente y la verificaci\xF3n/reporte la cubre un infraagente; nada se da por hecho sin verificarlo en real y publicarlo a su URL p\xFAblica. Pasos concretos y accionables SOBRE ESTE ENCARGO (no inventes averías de hardware ni pantallas: esto es trabajo de software), en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
+Descomp\xF3n el encargo en un PLAN AJUSTADO A SU TAMA\xD1O: usa SOLO los pasos que el encargo REALMENTE necesite (EXACTAMENTE 3 pasos a/b/c, cada uno con EXACTAMENTE 3 subtareas (REGLA DE LOS TERCIOS de la casa: la misi\xF3n es SIEMPRE 3 tareas x 3 subtareas, para todos los agentes por igual; lo que no quepa va al TEXTO del paso o baja a microtarea, NO se ensancha el plan)), con c\xF3digos correlativos desde "a" (a, b, c…), cada uno con EXACTAMENTE 3 subtareas. Una tarea peque\xF1a (p.ej. dibujar algo, un cambio de una l\xEDnea) son 1-3 pasos, NO ocho: no rellenes con ceremonia (recibir encargo, leer instrucciones, verificar prioridad, asignar subagente). El array tendr\xE1 TANTOS objetos como pasos reales, no ocho por defecto. Doctrina del equipo: los pasos los ejecuta un subagente y la verificaci\xF3n/reporte la cubre un infraagente; nada se da por hecho sin verificarlo en real y publicarlo a su URL p\xFAblica. Pasos concretos y accionables SOBRE ESTE ENCARGO (no inventes averías de hardware ni pantallas: esto es trabajo de software), en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
 
 Responde SOLO con un array JSON v\xE1lido, sin texto adicional, con esta forma exacta:
-[{"code":"a","title":"<qué se hace en el paso a, concreto>","subtasks":["<subtarea 1>","<subtarea 2>"]},{"code":"b","title":"<paso b, concreto>","subtasks":["<subtarea 1>","<subtarea 2>"]},{"code":"c","title":"<paso c: verificar y reportar>","subtasks":["<subtarea 1>","<subtarea 2>"]}]
-(SOLO 3 objetos a/b/c salvo que el encargo sea grande; jamás rellenes hasta 8.)`;
+[{"code":"a","title":"<paso a: concreto, dice el trabajo real>","subtasks":["<sub a1>","<sub a2>","<sub a3>"]},{"code":"b","title":"<paso b: concreto>","subtasks":["<sub b1>","<sub b2>","<sub b3>"]},{"code":"c","title":"<paso c: verificar y reportar>","subtasks":["<sub c1>","<sub c2>","<sub c3>"]}]
+(EXACTAMENTE 3 objetos a/b/c, cada uno con EXACTAMENTE 3 subtareas: 3x3. Nunca 8.)`;
   } else {
-    prompt = `Eres el agente principal del helpdesk Yokup (mantenimiento de pantallas DOOH de admira.tv). Descomp\xF3n la RESOLUCI\xD3N de esta incidencia en un PLAN AJUSTADO A SU TAMA\xD1O: SOLO los pasos que de verdad haga falta (idealmente 3 pasos a/b/c, m\xE1ximo 4), con c\xF3digos correlativos desde "a" (a, b, c…). Una incidencia sencilla son 1-3 pasos, NO ocho: no rellenes con ceremonia. Cada paso puede tener hasta 3 subtareas concretas (verificaci\xF3n o ejecuci\xF3n). El array tendr\xE1 TANTOS objetos como pasos reales. Pasos concretos y accionables para resolver la aver\xEDa, en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
+    prompt = `Eres el agente principal del helpdesk Yokup (mantenimiento de pantallas DOOH de admira.tv). Descomp\xF3n la RESOLUCI\xD3N de esta incidencia en un PLAN AJUSTADO A SU TAMA\xD1O: SOLO los pasos que de verdad haga falta (EXACTAMENTE 3 pasos a/b/c, cada uno con EXACTAMENTE 3 subtareas (REGLA DE LOS TERCIOS de la casa: la misi\xF3n es SIEMPRE 3 tareas x 3 subtareas, para todos los agentes por igual; lo que no quepa va al TEXTO del paso o baja a microtarea, NO se ensancha el plan)), con c\xF3digos correlativos desde "a" (a, b, c…). Una incidencia sencilla son 1-3 pasos, NO ocho: no rellenes con ceremonia. Cada paso lleva EXACTAMENTE 3 subtareas concretas (verificaci\xF3n o ejecuci\xF3n). El array tendr\xE1 TANTOS objetos como pasos reales. Pasos concretos y accionables para resolver la aver\xEDa, en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
 
 INCIDENCIA: ${subject}${screen ? " — pantalla " + screen : ""}${loc ? " (" + loc + ")" : ""}.
 ${triage ? "TRIAJE IA:\n" + triage : ""}
 
 Responde SOLO con un array JSON v\xE1lido, sin texto adicional, con esta forma exacta:
-[{"code":"a","title":"<qué se hace en el paso a, concreto>","subtasks":["<subtarea 1>","<subtarea 2>"]},{"code":"b","title":"<paso b, concreto>","subtasks":["<subtarea 1>","<subtarea 2>"]},{"code":"c","title":"<paso c: verificar y reportar>","subtasks":["<subtarea 1>","<subtarea 2>"]}]
-(SOLO 3 objetos a/b/c salvo que el encargo sea grande; jamás rellenes hasta 8.)`;
+[{"code":"a","title":"<paso a: concreto, dice el trabajo real>","subtasks":["<sub a1>","<sub a2>","<sub a3>"]},{"code":"b","title":"<paso b: concreto>","subtasks":["<sub b1>","<sub b2>","<sub b3>"]},{"code":"c","title":"<paso c: verificar y reportar>","subtasks":["<sub c1>","<sub c2>","<sub c3>"]}]
+(EXACTAMENTE 3 objetos a/b/c, cada uno con EXACTAMENTE 3 subtareas: 3x3. Nunca 8.)`;
   }
   // 8 pasos × 3 subtareas no caben en 500 tokens: el JSON se cortaba y el
   // parser sólo rescataba los 3 primeros pasos (Carlos, 2026-07-21).

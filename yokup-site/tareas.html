@@ -169,7 +169,7 @@ html[data-yk-view="list"] .mcard .mtog{display:none}
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa «misiones JSON» para volcar los datos crudos del worker.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r45"></script>
+<script src="/yk-misiones.js?v=r46"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r2"></script>
 <script>
@@ -294,7 +294,7 @@ function render(){
     return;
   }
   box.innerHTML=gs.map(g=>{const _op=OPEN_CARDS.has(g.mission.id);return `<div class="mcard ${_op?'':'collapsed'}" data-id="${esc(g.mission.id)}">
-    <div class="mhd"><button class="mtog" title="plegar / desplegar" aria-expanded="${_op}">${_op?'▾':'▸'}</button><a class="mid" href="/ticket?id=${encodeURIComponent(g.mission.id)}" title="Abrir la misión">🎯 ${esc(g.mission.id)}</a><span class="tcount" title="subtareas definidas / máx 24">${YkMisiones.subCount(g.tasks)}/24</span></div>
+    <div class="mhd"><button class="mtog" title="plegar / desplegar" aria-expanded="${_op}">${_op?'▾':'▸'}</button><a class="mid" href="/ticket?id=${encodeURIComponent(g.mission.id)}" title="Abrir la misión">🎯 ${esc(g.mission.id)}</a><span class="tcount" title="subtareas hechas / total del plan (regla de los tercios)">${g.tasks.filter(t=>t.code.length===2&&t.status==="done").length}/${YkMisiones.subCount(g.tasks)}</span></div>
     <div class="msub">${esc(g.mission.subject)}</div>
     <div class="mmeta"><span class="scr">${esc(g.mission.screen||"")}</span>${g.mission.loc?" · "+esc(g.mission.loc):""}</div>
     <div class="tree">${YkMisiones.stepsHtml(g.tasks)}</div>
