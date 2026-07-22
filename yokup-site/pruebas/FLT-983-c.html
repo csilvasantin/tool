@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba FLT-983 c · las 8 secciones desde el móvil</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--good:#88ffaa;--warn:#ff8866;--line:rgba(120,243,255,.16);--sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden}
+.wrap{max-width:1100px;margin:0 auto;padding:22px 24px 48px;min-width:0}
+h1{font-size:clamp(21px,3vw,29px);letter-spacing:-.02em;margin:4px 0 10px}
+h2{font-size:15px;letter-spacing:.06em;text-transform:uppercase;font-family:var(--mono);color:var(--brand);margin:26px 0 10px}
+.sub{color:var(--mut);font-size:14px;line-height:1.6;margin-bottom:8px}
+.sub b{color:var(--brand)}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px;margin-bottom:8px}
+.tw{overflow-x:auto}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:10px}
+td.ok{color:var(--good)}td.no{color:var(--warn)}
+figure{margin:0 0 20px}
+figure img{width:100%;max-width:100%;height:auto;border:1px solid var(--line);border-radius:12px;display:block}
+figcaption{font-family:var(--mono);font-size:11px;color:var(--dim);line-height:1.6;margin-top:8px}
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:18px}
+.foot{font-family:var(--mono);font-size:10.5px;line-height:1.7;color:var(--dim);margin-top:26px;padding-top:14px;border-top:1px solid var(--line)}
+.foot b{color:var(--mut)}
+@media(max-width:520px){.wrap{padding:18px 14px 40px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Prueba FLT-983 c · las 8 secciones desde el móvil</h1>
+  <p class="sub">Medido, no estimado. Todas las cifras salen de <b>scrollWidth / clientWidth</b> y de barridos con <b>elementFromPoint</b> sobre los <b>bytes exactos que sirve www.yokup.com</b> (cotejados con <code>cmp</code>, fichero a fichero). El único fichero sustituido para poder capturar es <b>acceso.js</b>, la verja de Google, que es client-side; los datos son los reales del worker.</p>
+
+  <h2>Zona app · 320 y 375 px</h2>
+  <div class="tw"><table>
+    <tr><th>Sección</th><th>320 · ancho</th><th>375 · ancho</th><th>Enlaces</th><th>Fila</th><th>Activo</th><th>Área táctil</th></tr>
+    <tr><td>Dashboard</td><td class="ok">320 = 320</td><td class="ok">375 = 375</td><td class="ok">8</td><td class="ok">44 px</td><td class="ok">aria-current</td><td class="ok">44 × 44</td></tr>
+    <tr><td>Decisiones</td><td class="ok">320 = 320</td><td class="ok">375 = 375</td><td class="ok">8</td><td class="ok">44 px</td><td class="ok">aria-current</td><td class="ok">44 × 44</td></tr>
+    <tr><td>Misiones</td><td class="ok">320 = 320</td><td class="ok">375 = 375</td><td class="ok">8</td><td class="ok">44 px</td><td class="ok">aria-current</td><td class="ok">44 × 44</td></tr>
+    <tr><td>Tareas</td><td class="ok">320 = 320</td><td class="ok">375 = 375</td><td class="ok">8</td><td class="ok">44 px</td><td class="ok">aria-current</td><td class="ok">44 × 44</td></tr>
+    <tr><td>Incidencias</td><td class="ok">320 = 320</td><td class="ok">375 = 375</td><td class="ok">8</td><td class="ok">44 px</td><td class="ok">aria-current</td><td class="ok">44 × 44</td></tr>
+    <tr><td>Informes</td><td class="ok">320 = 320</td><td class="ok">375 = 375</td><td class="ok">8</td><td class="ok">44 px</td><td class="ok">aria-current</td><td class="ok">44 × 44</td></tr>
+    <tr><td>Equipo</td><td class="ok">320 = 320</td><td class="ok">375 = 375</td><td class="ok">8</td><td class="ok">44 px</td><td class="ok">aria-current</td><td class="ok">44 × 44</td></tr>
+    <tr><td>Status</td><td class="ok">320 = 320</td><td class="ok">375 = 375</td><td class="ok">8</td><td class="ok">44 px</td><td class="ok">aria-current</td><td class="ok">44 × 44</td></tr>
+  </table></div>
+  <p class="sub">Escritorio a 1280 px: la barra sigue en <code>flex</code> con sus 8 enlaces y el activo marcado, el menú del cajón en <code>none</code>, y ninguna página desborda. La navegación se probó pulsando de verdad: el enlace cambia de página, mueve el activo y deja el cajón cerrado al aterrizar.</p>
+
+  <h2>Capturas</h2>
+  <div class="shots">
+    <figure>
+      <img src="/pruebas/FLT-983-c-secciones-320.jpg" alt="Cajón OPCIONES abierto a 320 px con las 8 secciones y DECISIONES activa">
+      <figcaption>320 px · /decisiones. Las 8 secciones dentro del cajón OPCIONES, DECISIONES en fósforo con barra lateral.</figcaption>
+    </figure>
+    <figure>
+      <img src="/pruebas/FLT-983-c-incidencias-375.jpg" alt="Cajón de incidencias a 375 px con los filtros arriba y las secciones al final">
+      <figcaption>375 px · /incidencias. El panel de trabajo manda: los filtros van primero y las secciones al final, tras una línea.</figcaption>
+    </figure>
+    <figure>
+      <img src="/pruebas/FLT-983-c-status-320.jpg" alt="Status a 320 px con el icono de opciones recuperado y el cajón abierto">
+      <figcaption>320 px · /status. El icono de OPCIONES vuelve bajo 520 px: sin él, desde status no se llegaba a ninguna otra sección.</figcaption>
+    </figure>
+    <figure>
+      <img src="/pruebas/FLT-983-c-escritorio-1280.jpg" alt="Escritorio a 1280 px con la barra de secciones intacta">
+      <figcaption>1280 px · el escritorio no cambia: barra con las 8 secciones, cajón sin menú.</figcaption>
+    </figure>
+    <figure>
+      <img src="/pruebas/FLT-983-c-landing-320.jpg" alt="Landing pública a 320 px sin menú de navegación">
+      <figcaption>320 px · la landing pública. PENDIENTE, fuera de este arreglo: no monta yk-frame, esconde su menú bajo 900 px y no lo repone.</figcaption>
+    </figure>
+  </div>
+
+  <div class="foot">
+    <b>Método</b> · bytes de producción cotejados con <code>cmp</code> contra el repo; único sustituido, <code>acceso.js</code>.<br>
+    <b>Arreglado en esta tarea</b> · el icono de OPCIONES en /status bajo 520 px · área táctil real de 44 × 44 (medía 42 × 42) · las secciones al final del cajón en misiones e incidencias · dos desbordes previos a 320 px en /tareas y /equipo.<br>
+    <b>Pendiente para misión aparte</b> · la landing pública esconde 3 destinos reales bajo 900 px sin menú de repuesto.<br>
+    <b>Sello</b> · v.22.07.2026.r3
+  </div>
+</div>
+</body>
+</html>
