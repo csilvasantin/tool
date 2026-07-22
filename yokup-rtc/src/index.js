@@ -1275,6 +1275,41 @@ async function fleetPlanPending(env, limit) {
 }
 __name(fleetPlanPending, "fleetPlanPending");
 
+// PROGRESO EN TERCIOS (FLT-982 b1). El contador crudo `COUNT(*)` de mission_tasks
+// mezclaba peras y manzanas: pasos a..h, subtareas a1..h3 y la fila z1 de CIERRE
+// que genera el propio worker — de ahí los «1/13» y «0/32» que nadie podía
+// comparar. Mismo criterio que el front (yokup-site/yk-misiones.js, función
+// `tercios`), copiado a propósito para que worker y navegador no diverjan:
+//   · tareas a·b·c        → sobre 3 (denominador FIJO)
+//   · subtareas a1..c3    → sobre 9 (denominador FIJO)
+//   · z1/z2 (cierre)      → NO cuenta, ni suma ni resta
+//   · pasos d..h y sus subtareas → aparte, en extra/extraDone
+// Denominadores fijos (Carlos, 22-jul-2026): un plan con 2 tareas no es un plan
+// de 2, es un plan de 3 INCOMPLETO — y eso se dice (incompleto/topN/subN), no se
+// disimula bajando el denominador. Nunca se inventan filas.
+function tercios(tasks) {
+  const top = [], sub = [];
+  let extra = 0, extraDone = 0;
+  for (const t of tasks || []) {
+    const c = String((t && t.code) || "").trim().toLowerCase();
+    if (/^[a-c]$/.test(c)) top.push(t);
+    else if (/^[a-c][1-3]$/.test(c)) sub.push(t);
+    else if (c && !/^z\d*$/.test(c)) { extra++; if (t.status === "done") extraDone++; }
+  }
+  // Sin plan NO hay chip: igual que el front, una misión sin ninguna fila útil
+  // devuelve null en vez de un «0/3» que aparentaría un plan que no existe.
+  if (!top.length && !sub.length && !extra) return null;
+  const hecho = (a) => a.filter((t) => t.status === "done").length;
+  return {
+    done: hecho(top), total: 3,
+    sdone: hecho(sub), stotal: 9,
+    topN: top.length, subN: sub.length,
+    incompleto: top.length < 3 || sub.length < 9,
+    extra, extraDone
+  };
+}
+__name(tercios, "tercios");
+
 // Lectura PÚBLICA para admira.live/status. El árbol de tareas va EMBEBIDO: los
 // /mission/* viven tras el perímetro (Google) y status no pasa el gate. No
 // expone nada que el bot-inbox público no publique ya.
@@ -1298,7 +1333,7 @@ async function fleetMissions(env) {
       persona: r.assignee,
       source: "fleet",
       tasks,
-      progress: { done: tasks.filter((t) => t.status === "done").length, total: tasks.length }
+      progress: tercios(tasks)
     });
   });
 }
@@ -1828,12 +1863,20 @@ var index_default = {
         const now = Date.now();
         const agent = String(b.agent || "").trim().slice(0, 40);
         if (!agent) return json({ ok: false, error: "agent requerido" }, 400);
-        const today = madridDayKey(now);
-        const recent = await env.DB.prepare("SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) ORDER BY created_at DESC LIMIT 200").bind(agent).all();
-        const previous = (recent.results || []).find((row) => madridDayKey(row.created_at) === today);
+        // UN RELOJ VIVO A LA VEZ POR AGENTE (FLT-982 b3, sustituye a `daily_limit`).
+        // La regla vieja era «uno al día por agente»: el segundo reloj de la jornada
+        // se rechazaba con {error:"daily_limit"}. Eso hacía IMPOSIBLE el protocolo
+        // que fijó Carlos —abrir una ventana de 5 minutos al cerrar CADA misión—,
+        // porque la segunda misión del día ya no podía preguntar nada.
+        // Ahora sólo estorba un reloj que siga VIVO: pending y sin vencer. Vencido
+        // (deadline pasado, lo marque o no el cron), decidido o cancelado → vía libre.
+        const live = await env.DB.prepare(
+          "SELECT id,deadline FROM decisions WHERE lower(agent)=lower(?) AND status='pending' AND deadline > ? ORDER BY created_at DESC LIMIT 1"
+        ).bind(agent, now).first();
         const userOverride = b.user_override === true;
-        if (previous && !userOverride && !continuation) {
-          return json({ ok: false, error: "daily_limit", existing: previous.id, day: today }, 409);
+        if (live && !userOverride && !continuation) {
+          return json({ ok: false, error: "live_decision", existing: live.id, deadline: live.deadline,
+                        secondsLeft: Math.max(0, Math.round((live.deadline - now) / 1000)) }, 409);
         }
         const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
         // Contexto opcional de la decisión. `project` debe ser un nombre humano;
@@ -1856,20 +1899,61 @@ var index_default = {
         // Al vencer, la recomendada inicia la primera misión. El cron hace lo
         // mismo aun cuando nadie tenga /misiones abierta.
         await expireDecisionsAndStartBatches(env);
-        const r = await env.DB.prepare("SELECT * FROM decisions WHERE status='pending' OR decided_at > ? OR deadline > ? ORDER BY created_at DESC LIMIT 40")
-          .bind(now - 3600000, now - 3600000).all();
-        const items = await Promise.all((r.results || []).map(async (d) => {
+        // HISTÓRICO (FLT-982 b2). Hasta ahora esto sólo devolvía las vivas y las
+        // cerradas de la última hora, e IGNORABA cualquier parámetro: la página
+        // /decisiones tenía que guardarse el pasado en localStorage de cada
+        // navegador. Parámetros admitidos (todos opcionales; sin ninguno el
+        // comportamiento es EXACTAMENTE el de antes, para no romper a nadie):
+        //   ?all=1            → sin la ventana de 1 h: todo el histórico
+        //   ?since=<ms>       → sólo desde ese epoch (implica all)
+        //   ?until=<ms>       → sólo hasta ese epoch (paginación hacia atrás)
+        //   ?limit=<1..500>   → tamaño de página (40 por defecto)
+        //   ?agent=<nombre>   → filtra por agente (case-insensitive)
+        //   ?status=<a,b>     → pending|decided|expired|cancelled, coma-separados
+        const qp = url.searchParams;
+        const num = (k) => { const v = qp.get(k); return v == null || v === "" ? null : (Number.isFinite(+v) ? +v : null); };
+        const since = num("since");
+        const until = num("until");
+        const all = qp.get("all") === "1" || qp.get("all") === "true" || since !== null || until !== null;
+        const limit = Math.min(500, Math.max(1, num("limit") || 40));
+        const agentQ = String(qp.get("agent") || "").trim().slice(0, 40);
+        const statusQ = String(qp.get("status") || "").split(",").map((s) => s.trim().toLowerCase())
+          .filter((s) => ["pending", "decided", "expired", "cancelled"].includes(s));
+        const where = [], binds = [];
+        // Ventana por defecto: vivas + cerradas de la última hora (lo de siempre).
+        if (!all) { where.push("(status='pending' OR decided_at > ? OR deadline > ?)"); binds.push(now - 3600000, now - 3600000); }
+        if (since !== null) { where.push("created_at >= ?"); binds.push(since); }
+        if (until !== null) { where.push("created_at <= ?"); binds.push(until); }
+        if (agentQ) { where.push("lower(agent)=lower(?)"); binds.push(agentQ); }
+        if (statusQ.length) { where.push(`status IN (${statusQ.map(() => "?").join(",")})`); binds.push(...statusQ); }
+        const sql = "SELECT * FROM decisions" + (where.length ? " WHERE " + where.join(" AND ") : "")
+          + " ORDER BY created_at DESC LIMIT ?";
+        const r = await env.DB.prepare(sql).bind(...binds, limit).all();
+        const items = await Promise.all((r.results || []).map(async (d, i) => {
           let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
-          const batch = isMissionDecision(o, d) ? await missionBatchSnapshot(env, d.batch_id || batchIdForDecision(d.id)) : null;
+          // El carrusel (batch) se resuelve con 2 consultas por decisión. Con la
+          // ventana de siempre son 40 como mucho; al pedir histórico largo se
+          // dispararía a 1000, así que sólo se resuelve para las 40 primeras.
+          const batch = (i < 40 && isMissionDecision(o, d))
+            ? await missionBatchSnapshot(env, d.batch_id || batchIdForDecision(d.id)) : null;
           return { id: d.id, machine: d.machine, agent: d.agent, surface: d.surface, question: d.question,
                    options: o, recommended: d.recommended, status: d.status, chosen: d.chosen,
+                   // QUIÉN decidió: lo escribe /decisions/<id>/choose desde siempre,
+                   // pero nunca salía por aquí, así que el histórico no podía
+                   // distinguir «lo eligió Carlos» de «venció y tiró la recomendada».
+                   chosen_by: d.chosen_by || "",
                    url: d.url || "", mission: d.mission || "", project: d.project || "",
                    parent_decision: d.parent_decision || "", batch_id: d.batch_id || "",
                    batch,
                    created_at: d.created_at, deadline: d.deadline, decided_at: d.decided_at,
                    secondsLeft: Math.max(0, Math.round((d.deadline - now) / 1000)) };
         }));
-        return json({ ok: true, items });
+        // `query` devuelve lo que REALMENTE se aplicó (un ?limit=9999 se recorta a
+        // 500) y `next_until` da el cursor para pedir la página siguiente hacia
+        // atrás: &until=<next_until-1>. null = no hay más.
+        return json({ ok: true, items, count: items.length,
+                      query: { all, since, until, limit, agent: agentQ || null, status: statusQ.length ? statusQ : null },
+                      next_until: items.length === limit ? items[items.length - 1].created_at : null });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     if (/^\/decisions\/[^/]+\/choose$/.test(url.pathname) && req.method === "POST") {

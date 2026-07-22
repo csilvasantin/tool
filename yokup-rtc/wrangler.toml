@@ -5,6 +5,21 @@
 #
 # Los secretos (TURN_TOKEN, VAPID_PRIVATE, YK_SESSION_SECRET) NO viven aquí: ya
 # están puestos en el Worker (wrangler secret) y wrangler los preserva al desplegar.
+#
+# ── DESPLEGAR DESDE EL REPO ES SEGURO (FLT-982 a, 22-jul-2026) ───────────────
+# Corrió el aviso de que producción tenía código que no estaba en el repo (el
+# guard del reloj, las tablas mission_batches/mission_batch_items del carrusel).
+# COMPROBADO y FALSO: el repo ya estaba reconciliado. Método, por si hay que
+# repetirlo — NO uses `wrangler init --from-dash`, devuelve un scaffold de 26
+# líneas y engaña:
+#   1) token OAuth de wrangler en ~/Library/Preferences/.wrangler/config/default.toml
+#   2) GET https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/workers/
+#      services/yokup-rtc/environments/production/content   (multipart, ~850 KB;
+#      el endpoint /workers/scripts/<name>/content responde 405)
+#   3) `npx wrangler deploy --dry-run --outdir=…` para bundlear el repo igual
+#   4) diff de la región `// src/index.js` → fin del código de ambos bundles
+# Resultado: IDÉNTICOS salvo la profundidad de las rutas relativas de unenv.
+# Antes de desplegar, repite el paso 4: si sale limpio, adelante.
 name = "yokup-rtc"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
