@@ -40,12 +40,15 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:20px 0
 .nav-links{display:flex;gap:26px}
 .nav-links a{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);text-decoration:none;transition:.2s}
 .nav-links a:hover{color:var(--ink)}
-.btn{font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;padding:10px 16px;border-radius:8px;border:1px solid var(--line2);color:var(--ink);background:rgba(10,22,32,.6);cursor:pointer;transition:.2s;text-decoration:none;display:inline-block}
+.btn{font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;padding:10px 16px;border-radius:8px;border:1px solid var(--line2);color:var(--ink);background:rgba(10,22,32,.6);cursor:pointer;transition:.2s;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;min-height:44px}
 .btn:hover{border-color:var(--brand);color:var(--brand)}
 .btn.solid{background:var(--accent);color:#1a1200;border-color:var(--accent);box-shadow:var(--admira-shadow-glow-amber,0 0 24px rgba(255,216,102,.4))}
 .btn.solid:hover{background:#ffe49a;color:#1a1200}
 /* ACCESO A PLATAFORMA — botón cian de la casa, mismo peso que ENTRAR o más */
 .nav-cta{display:flex;gap:10px;align-items:center}
+/* MENÚ MÓVIL — hamburguesa + cajón con los mismos enlaces (bajo 900px) */
+.nav-burger{display:none;font-family:var(--mono);font-size:15px;line-height:1;letter-spacing:0;padding:0;width:44px;min-height:44px;border-radius:8px;border:1px solid var(--line2);background:rgba(10,22,32,.6);color:var(--brand);cursor:pointer;align-items:center;justify-content:center;transition:.2s}
+.nav-burger:hover,.nav-burger[aria-expanded="true"]{border-color:var(--brand);box-shadow:0 0 18px rgba(120,243,255,.28)}
 .btn.access{background:var(--brand);color:#02222a;border-color:var(--brand);font-weight:700;box-shadow:0 0 26px rgba(120,243,255,.45)}
 .btn.access:hover{background:#a5f7ff;color:#02222a;border-color:#a5f7ff}
 @media(max-width:560px){.btn.access{padding:10px 12px}}
@@ -123,7 +126,22 @@ h1 em::after{content:"";position:absolute;left:0;right:0;bottom:3px;height:9px;b
 .rv{opacity:0;transform:translateY(18px);transition:opacity .8s cubic-bezier(.2,.7,.2,1),transform .8s cubic-bezier(.2,.7,.2,1)}
 .rv.in{opacity:1;transform:none}
 .rv.d1{transition-delay:.05s}.rv.d2{transition-delay:.13s}.rv.d3{transition-delay:.21s}.rv.d4{transition-delay:.29s}
-@media(max-width:900px){.hero{grid-template-columns:1fr;gap:28px}.nav-links{display:none}.steps,.feat,.twocol{grid-template-columns:1fr}.card.big{grid-column:span 1;flex-direction:column;align-items:flex-start}.split{grid-template-columns:1fr;gap:24px}.wrap{padding:0 20px}.band{padding:52px 0}.trust{gap:20px;flex-wrap:wrap}}
+@media(max-width:900px){.hero{grid-template-columns:1fr;gap:28px}.steps,.feat,.twocol{grid-template-columns:1fr}.card.big{grid-column:span 1;flex-direction:column;align-items:flex-start}.split{grid-template-columns:1fr;gap:24px}.wrap{padding:0 20px}.band{padding:52px 0}.trust{gap:20px;flex-wrap:wrap}}
+/* Bajo 900px los enlaces pasan al cajón que abre la hamburguesa */
+@media(max-width:900px){
+  nav{flex-wrap:wrap;row-gap:10px}
+  .nav-burger{display:inline-flex}
+  .nav-cta{flex-wrap:wrap;justify-content:flex-end;gap:8px}
+  .nav-links{display:none;order:3;flex-basis:100%;width:100%;max-width:100%;flex-direction:column;gap:0;margin:2px 0 12px;border:1px solid var(--line2);border-radius:10px;background:rgba(10,22,32,.96);overflow:hidden}
+  .nav-links.open{display:flex}
+  .nav-links a{display:flex;align-items:center;min-height:48px;padding:12px 16px;font-size:11.5px;color:var(--ink);border-bottom:1px solid var(--line)}
+  .nav-links a:last-child{border-bottom:none}
+  .nav-links a:hover,.nav-links a:active{color:var(--brand);background:rgba(120,243,255,.06)}
+}
+@media(max-width:420px){
+  .btn.access{padding:10px 10px;font-size:10.5px}
+  .btn.solid{padding:10px 14px}
+}
 </style>
   <link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/app/apple-touch-icon.png"><meta name="theme-color" content="#02080d">
 </head>
@@ -131,8 +149,8 @@ h1 em::after{content:"";position:absolute;left:0;right:0;bottom:3px;height:9px;b
 <div class="wrap">
   <nav>
     <div class="logo"><span class="dot"></span>Yo<b>kup</b></div>
-    <div class="nav-links"><a href="#plataforma">Plataforma</a><a href="#como">Agentes IoT</a><a href="#xaas">as a Service</a><a href="#equipo">Equipo</a><a href="/incidencias">Incidencias</a><a href="/asistencia">Asistencia</a><a href="/app">App</a></div>
-    <div class="nav-cta"><a href="/agentica" class="btn access">⚡ Acceso a plataforma</a><a href="/entrar" class="btn solid">Entrar</a></div>
+    <div class="nav-links" id="navLinks"><a href="#plataforma">Plataforma</a><a href="#como">Agentes IoT</a><a href="#xaas">as a Service</a><a href="#equipo">Equipo</a><a href="/incidencias">Incidencias</a><a href="/asistencia">Asistencia</a><a href="/app">App</a></div>
+    <div class="nav-cta"><a href="/agentica" class="btn access">⚡ Acceso a plataforma</a><a href="/entrar" class="btn solid">Entrar</a><button type="button" class="nav-burger" id="navBurger" aria-controls="navLinks" aria-expanded="false" aria-label="Menú">☰</button></div>
   </nav>
 
   <section class="hero">
@@ -243,6 +261,16 @@ h1 em::after{content:"";position:absolute;left:0;right:0;bottom:3px;height:9px;b
 </div>
 
 <script>
+// MENÚ MÓVIL — la hamburguesa abre y cierra el cajón de enlaces
+(function(){
+  var b=document.getElementById('navBurger'),m=document.getElementById('navLinks');
+  if(!b||!m)return;
+  function set(open){m.classList.toggle('open',open);b.setAttribute('aria-expanded',open?'true':'false');b.textContent=open?'✕':'☰';}
+  b.addEventListener('click',function(){set(!m.classList.contains('open'));});
+  m.addEventListener('click',function(e){if(e.target.tagName==='A')set(false);});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')set(false);});
+  addEventListener('resize',function(){if(innerWidth>900)set(false);});
+})();
 function tick(){var d=new Date();document.getElementById('clock').textContent=d.toTimeString().slice(0,5);}
 tick();setInterval(tick,10000);
 function runCounts(){document.querySelectorAll('[data-count]').forEach(function(el){if(el._d)return;el._d=1;var end=+el.dataset.count,cur=0,s=end/55;var id=setInterval(function(){cur+=s;if(cur>=end){cur=end;clearInterval(id);}el.textContent=Math.round(cur).toLocaleString('es-ES');},18);});}
