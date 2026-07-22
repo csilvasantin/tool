@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba FLT-988 c · el cierre cierra, y lo que no cierra lo dice</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--good:#88ffaa;--warn:#ff8866;--line:rgba(120,243,255,.16);--sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden}
+.wrap{max-width:1100px;margin:0 auto;padding:22px 24px 48px;min-width:0}
+h1{font-size:clamp(21px,3vw,29px);letter-spacing:-.02em;margin:4px 0 10px}
+h2{font-size:15px;letter-spacing:.06em;text-transform:uppercase;font-family:var(--mono);color:var(--brand);margin:26px 0 10px}
+.sub{color:var(--mut);font-size:14px;line-height:1.6;margin-bottom:8px}
+.sub b{color:var(--brand)}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px;margin-bottom:8px}
+.tw{overflow-x:auto}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:10px}
+td.ok{color:var(--good)}td.no{color:var(--warn)}
+figure{margin:0 0 20px}
+figure img{width:100%;max-width:100%;height:auto;border:1px solid var(--line);border-radius:12px;display:block}
+figcaption{font-family:var(--mono);font-size:11px;color:var(--dim);line-height:1.6;margin-top:8px}
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:18px}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;font-family:var(--mono);font-size:11px;line-height:1.65;color:var(--mut);margin-bottom:12px;max-width:100%}
+pre b{color:var(--good)}pre i{color:var(--warn);font-style:normal}
+.foot{font-family:var(--mono);font-size:10.5px;line-height:1.7;color:var(--dim);margin-top:26px;padding-top:14px;border-top:1px solid var(--line)}
+.foot b{color:var(--mut)}
+code{font-family:var(--mono);color:var(--mut)}
+@media(max-width:520px){.wrap{padding:18px 14px 40px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Prueba FLT-988 c · el cierre cierra en un solo movimiento, y lo que no cierra dice por qué</h1>
+<p class="sub">Verificación de <b>infraNeo</b> sobre el worker <b>yokup-rtc</b> en <b>producción</b> y sobre la D1
+<code>yokup-tickets</code> real. La captura se toma con el HTML, el CSS y el JS de
+<b>www.yokup.com/misiones idénticos byte a byte</b> a los de producción (cotejo con <code>cmp</code> de los doce
+ficheros implicados), servidos en local <b>sólo</b> para saltar la verja de Google; el único fichero sustituido es
+<code>acceso.js</code>, que además reconstruye las dos rutas tras la verja que /misiones necesita
+(<code>/tickets</code> y <code>/tasks/all</code>) a partir del endpoint <b>público y real</b>
+<code>/fleet/missions</code> — mismos datos, misma D1, sólo cambia el transporte— y hace los dos gestos de la
+captura (fijar el día del selector y pulsar el chip FINALIZADAS), los mismos que haría una persona con el ratón.
+Los datos son los <b>reales</b> del worker vivo. <b>Nada está inventado.</b></p>
+
+<h2>c1 · el ciclo entero, contra producción, con misiones de sonda</h2>
+<p class="sub">Cuatro sondas propias (<code>FLT-SONDA988A/B/C/D</code>), firmadas <b>infraNeo · Mac Mini</b> —mi
+persona y mi máquina—, con su árbol real de 12 pasos sembrado por el propio endpoint y dejado en 11/12. Se
+<b>borraron enteras</b> al terminar (tickets, mission_tasks y events: 4 + 48 + 9 filas). Respuestas literales de
+<code>https://yokup-rtc.csilvasantin.workers.dev</code>:</p>
+
+<pre><b>(i) cerrar CON prueba http(s) — un solo POST</b>
+POST /fleet/task-status {"mission":"FLT-SONDA988A","code":"c3","status":"done","image":"…/media/fleet/f13b0832e5360be1.png"}
+HTTP 200
+{"ok":true,"proof":"https://yokup-rtc.csilvasantin.workers.dev/media/fleet/f13b0832e5360be1.png",
+ "fleet":{"mission":"FLT-SONDA988A","status":<b>"resolved"</b>,"inbox":"done","blocked":null}}
+D1 inmediatamente después, sin tocar nada:  status=<b>resolved</b>  proof_image=<b>…f13b0832e5360be1.png</b>
+
+<b>(ii-1) cerrar SIN prueba</b>
+POST /fleet/task-status {"mission":"FLT-SONDA988B","code":"c3","status":"done"}
+HTTP <i>400</i>
+{"ok":false,"error":"falta la prueba: con esta tarea el árbol de FLT-SONDA988B queda al 100%, y una misión de
+ flota no finaliza sin pantallazo del trabajo.","hint":"repite esta misma llamada añadiendo «image» …",
+ "field":"image","mission":"FLT-SONDA988B","code":"c3",<i>"applied":false</i>}
+
+<b>(ii-2) ruta local del disco de un agente</b>   image:"/Users/csilvasantin/captura.png"
+HTTP <i>400</i>  "image no válida: es una ruta local («/Users/csilvasantin/captura.png»), y una ruta del disco de
+                 un agente no la puede ver nadie más: sube la captura y manda su URL http(s)…"
+
+<b>(ii-3) data: corrupto</b>   image:"data:image/png;base64"   (sin carga)
+HTTP <i>400</i>  "image no válida: no es una URL http(s) ni un data:image/…;base64 («data:image/png;base64»)"
+
+<b>(ii-4) data: de 205 KB</b>   HTTP <i>400</i>  "…la captura embebida pesa 205 KB y el máximo son 195 KB…"
+<b>(ii-5) URL de 560 caracteres</b>  HTTP <i>400</i>  "…la URL pasa de 500 caracteres; acórtala"
+
+D1 de FLT-SONDA988B tras los tres rechazos: tarea c3 <b>pending</b>, image <b>null</b>, report <b>null</b>,
+misión <b>in_progress</b>, proof_image <b>null</b>, y <b>ni un solo evento nuevo</b> en su cronología.
+No se aplicó nada. No se degradó nada.
+
+<b>(iii) respaldo por mission_tasks.image</b> — la prueba sólo en el árbol, cierre sin «image»
+HTTP 200  {"ok":true,"proof":null,"fleet":{"mission":"FLT-SONDA988C","status":<b>"resolved"</b>,"blocked":null}}
+
+<b>(iv) data:image/png;base64 bien formado</b>
+HTTP 200  {"ok":true,"proof":"data:image/png;base64,iVBORw0KGgo…","fleet":{…,"status":<b>"resolved"</b>}}
+D1: proof_image = data:image/png;base64,… (122 caracteres)</pre>
+
+<figure><img src="FLT-988-c-sondas-1280.jpg" alt="/misiones a 1280 con las tres sondas finalizadas y las misiones reales intactas">
+<figcaption>/misiones a 1280, filtro FINALIZADAS, con el front de producción y datos reales. <b>SONDA D</b> (cerrada
+con <code>data:image/…;base64</code>) y <b>SONDA A</b> (cerrada con URL http) salen <b>FINALIZADA</b> y con su
+prueba pintada en la ficha —el rectángulo verde es el PNG de sonda—, y ambas llegaron ahí con <b>un solo</b>
+POST. <b>SONDA C</b>, cerrada por el respaldo de <code>mission_tasks.image</code>, sale FINALIZADA pero
+<b>sin prueba en la ficha</b>: en su sitio aparece el logotipo de relleno. Ese es el hueco que queda descrito
+abajo. Las misiones reales de la lista (FLT-987, 986, 985…) conservan su estado y su captura.</figcaption></figure>
+
+<h2>c2 · degradadas cero, y dos pruebas huérfanas recuperadas</h2>
+<p class="sub">El diagnóstico de subNeo se verificó de nuevo, no se dio por bueno. Consulta agregada sobre la D1
+real (191 tickets):</p>
+<div class="tw"><table>
+<tr><th>Qué se buscó</th><th>Consulta</th><th>Resultado</th></tr>
+<tr><td>Degradadas: árbol al 100 % y estado ≠ resolved</td><td>tickets ⨝ mission_tasks GROUP BY id HAVING done=total</td><td class="ok">✓ 0 — ninguna</td></tr>
+<tr><td>Prueba huérfana: resolved, con imagen en el árbol y sin proof_image</td><td>mismo cruce, filtrando proof_image vacío</td><td class="no">FLT-826 y FLT-830 (Trinity, 18-jul) — sólo esas dos</td></tr>
+<tr><td>Misiones resolved sin prueba por ningún sitio</td><td>barrido completo</td><td class="ok">✓ 0 tras la recuperación</td></tr>
+</table></div>
+<p class="sub">Antes de tocar nada se comprobó que las dos imágenes <b>existen de verdad</b>:
+<code>b4297f1872f2979c.png</code> (HTTP <b>200</b>, image/png, 88 799 B, 1200×1200, «Misión 826 · Estrella ASCII»)
+y <code>1b82b81e0d97198f.png</code> (HTTP <b>200</b>, image/png, 59 291 B, 1200×1200, «Misión 830 · Ancla ASCII»),
+las dos firmadas por subTrinity y correspondientes a su misión. La recuperación fue un UPDATE <b>acotado a esos
+dos ids</b> y condicionado a <code>proof_image</code> vacío (1 fila cada uno), más una nota en cada cronología.
+Ningún UPDATE masivo y <b>ningún cambio de estado</b>.</p>
+<p class="sub">Barrido posterior de las <b>125</b> misiones <code>resolved</code>, antes y después: ninguna dejó
+de estar resuelta, ninguna perdió su prueba, ningún <code>resolved_at</code> cambió, y sólo dos ganaron prueba —
+las recuperadas. Un <code>POST /fleet/reconcile</code> sobre producción devolvió <code>{"changed":[],"count":0}</code>:
+el barrido no mueve nada. Y las <b>123</b> pruebas http de misiones resueltas responden <b>200</b> — todas.</p>
+
+<h2>c3 · lo que no cumple, dicho</h2>
+<div class="tw"><table>
+<tr><th>Qué</th><th>Cómo se comprobó</th><th>Resultado</th></tr>
+<tr><td>Prod == repo</td><td>bundle vivo de Cloudflare vs <code>wrangler deploy --dry-run</code></td><td class="ok">✓ idénticos salvo el salto de línea final</td></tr>
+<tr><td>El arreglo está en el aire</td><td><code>normalizeProofImage</code>, «sin-prueba» y el aviso del 100 % en el bundle vivo</td><td class="ok">✓ presentes</td></tr>
+<tr><td>Rutas protegidas</td><td>/tickets · /tasks/all · /stats · /agents · /incidents · /copilot · /mission/*/tasks</td><td class="ok">✓ 401 las siete</td></tr>
+<tr><td>Carrusel de Oráculo</td><td>mission_batches · mission_batch_items, antes y después</td><td class="ok">✓ 13 tandas · 61 ítems, intacto</td></tr>
+<tr><td>Suites</td><td><code>node --test</code></td><td class="ok">✓ worker 36/36 · front 22/22</td></tr>
+<tr><td>Sondas borradas</td><td>tickets · mission_tasks · events</td><td class="ok">✓ 0 filas <code>FLT-SONDA%</code></td></tr>
+<tr><td><b>Respaldo por el árbol deja la ficha sin prueba</b></td><td>sonda C: resolved, proof_image null</td><td class="no">✗ el hueco que creó FLT-826/830 sigue abierto</td></tr>
+<tr><td><b>El motivo del rechazo por formato no lleva <code>applied:false</code></b></td><td>(ii-2) y (ii-3)</td><td class="no">✗ no aplica nada, pero no lo dice</td></tr>
+<tr><td><b>Un <code>data:</code> grande se copia entero a la cronología</b></td><td><code>addEvent</code> no recorta</td><td class="no">✗ hasta ~195 KB por evento</td></tr>
+<tr><td><b>Sin prueba unitaria de <code>normalizeProofImage</code></b></td><td>suites del worker</td><td class="no">✗ el criterio nuevo no está cubierto</td></tr>
+</table></div>
+<p class="sub">Ninguno de los cuatro tumba lo que la misión venía a arreglar —una misión terminada y con prueba
+<b>ya cierra sola, en un solo movimiento, y el rechazo se explica</b>— pero el primero explica por qué volverían a
+aparecer pruebas huérfanas como las de FLT-826 y FLT-830: cuando el cierre se apoya en la imagen del árbol,
+<code>tickets.proof_image</code> se queda vacío y la ficha sale sin prueba. Queda anotado, no arreglado aquí.</p>
+
+<div class="foot">
+<b>Sondas creadas y borradas:</b> <code>FLT-SONDA988A/B/C/D</code>, firmadas infraNeo · Mac Mini —mi propia
+persona y mi propia máquina—, con sus 48 pasos y sus 9 eventos. Ninguna creó tanda del carrusel.<br>
+<b>Recuperación acotada:</b> <code>FLT-826</code> y <code>FLT-830</code>, sólo <code>proof_image</code>.<br>
+<b>Commit de a·b:</b> e08f575. <b>Worker:</b> versión 22a0d79f. <b>infraNeo · FLT-988 c</b>
+</div>
+</div>
+</body>
+</html>
