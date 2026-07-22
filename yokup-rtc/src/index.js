@@ -205,6 +205,15 @@ async function ensureSchema(env) {
   // usa admira-fleet (machines[].id / silicon[].id): NO se inventa censo nuevo.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS project_members (project_id TEXT, kind TEXT, ref TEXT, added_at INTEGER, PRIMARY KEY (project_id, kind, ref))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_pmembers_ref ON project_members(kind, ref)");
+  // RESPONSABLE DE CARBONO (Carlos, 2026-07-22): la persona HUMANA que responde
+  // del proyecto, por oposición al equipo de silicio. Texto libre — es un nombre,
+  // no un id: quien responde de un proyecto puede no estar en ningún censo. Si
+  // está vacío la ficha no enseña nada; no se rellena con suposiciones.
+  await env.DB.exec("ALTER TABLE projects ADD COLUMN owner TEXT").catch(() => {});
+  // ORDEN de las fichas, el que Carlos deja al arrastrarlas. Va en la tabla y no
+  // en el navegador a propósito: el orden es del proyecto, no del portátil desde
+  // el que se miró. NULL = nunca se ha tocado → cae al orden de siempre.
+  await env.DB.exec("ALTER TABLE projects ADD COLUMN sort_order INTEGER").catch(() => {});
   // El proyecto de una MISIÓN. No se reutiliza `loc`: en las misiones de flota
   // `loc` es la MÁQUINA destino (fleetSync la escribe ahí), no el proyecto.
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN project TEXT").catch(() => {});
@@ -239,7 +248,11 @@ __name(projectIndex, "projectIndex");
 // vivas cuelgan de cada uno.
 async function listProjects(env) {
   await ensureSchema(env);
-  const { results } = await env.DB.prepare("SELECT * FROM projects ORDER BY (status='activo') DESC, name COLLATE NOCASE").all();
+  // El orden manual manda; lo que nadie ha colocado todavía (sort_order NULL) cae
+  // detrás, con el orden de siempre: activos primero y por nombre.
+  const { results } = await env.DB.prepare(
+    "SELECT * FROM projects ORDER BY (sort_order IS NULL), sort_order, (status='activo') DESC, name COLLATE NOCASE"
+  ).all();
   const rows = results || [];
   if (!rows.length) return [];
   const mem = (await env.DB.prepare("SELECT project_id, kind, ref FROM project_members").all()).results || [];
@@ -249,6 +262,7 @@ async function listProjects(env) {
   return rows.map((p) => ({
     id: p.id, name: p.name || p.id, blurb: p.blurb || "", web: p.web || "",
     status: p.status || "activo", color: p.color || "",
+    owner: p.owner || "", sort_order: p.sort_order == null ? null : Number(p.sort_order),
     machines: mem.filter((m) => m.project_id === p.id && m.kind === "machine").map((m) => m.ref),
     agents: mem.filter((m) => m.project_id === p.id && m.kind === "agent").map((m) => m.ref),
     missions: misBy[String(p.id).toLowerCase()] || 0,
@@ -275,14 +289,14 @@ async function upsertProject(env, b) {
   const row = {
     id, name: name || (prev && prev.name) || id,
     blurb: val("blurb", 240), web: val("web", 160).replace(/\/+$/, ""),
-    status, color: val("color", 24),
+    status, color: val("color", 24), owner: val("owner", 80),
     created_at: prev ? prev.created_at : now, updated_at: now,
     updated_by: String((b && b.by) || "").slice(0, 60)
   };
   await env.DB.prepare(
-    "INSERT INTO projects (id,name,blurb,web,status,color,created_at,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?)" +
-    " ON CONFLICT(id) DO UPDATE SET name=excluded.name, blurb=excluded.blurb, web=excluded.web, status=excluded.status, color=excluded.color, updated_at=excluded.updated_at, updated_by=excluded.updated_by"
-  ).bind(row.id, row.name, row.blurb, row.web, row.status, row.color, row.created_at, row.updated_at, row.updated_by).run();
+    "INSERT INTO projects (id,name,blurb,web,status,color,owner,created_at,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?)" +
+    " ON CONFLICT(id) DO UPDATE SET name=excluded.name, blurb=excluded.blurb, web=excluded.web, status=excluded.status, color=excluded.color, owner=excluded.owner, updated_at=excluded.updated_at, updated_by=excluded.updated_by"
+  ).bind(row.id, row.name, row.blurb, row.web, row.status, row.color, row.owner, row.created_at, row.updated_at, row.updated_by).run();
   for (const kind of ["machine", "agent"]) {
     const campo = kind === "machine" ? "machines" : "agents";
     if (!b || !Array.isArray(b[campo])) continue;
@@ -1766,6 +1780,7 @@ var index_default = {
     //   POST /projects                  alta y edición (machines[]/agents[] reemplazan)
     //   POST /projects/delete           baja  {id}
     //   POST /projects/assign           asignar/quitar uno {project,kind,ref,remove?}
+    //   POST /projects/order            orden de las fichas {ids:[...]} (arrastrar)
     //   POST /projects/mission          proyecto de una misión {mission,project}
     if (url.pathname === "/projects" && req.method === "GET") {
       try { return json({ ok: true, projects: await listProjects(env) }); }
@@ -1810,6 +1825,27 @@ var index_default = {
             .bind(p.id, kind, ref, Date.now()).run();
         }
         return json({ ok: true, project: (await listProjects(env)).find((x) => x.id === p.id) || null });
+      } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
+    // ORDEN de las fichas. Llega la lista COMPLETA de ids tal y como han quedado
+    // en pantalla y se numera 0,1,2… Se ignoran los ids que no existan (una ficha
+    // borrada desde otra pestaña no debe tumbar el guardado entero), y si no queda
+    // ninguno válido no se toca nada: mejor dejar el orden viejo que vaciarlo.
+    if (url.pathname === "/projects/order" && req.method === "POST") {
+      try {
+        await ensureSchema(env);
+        const b = await req.json().catch(() => ({}));
+        const ids = Array.isArray(b && b.ids) ? b.ids.map((x) => projectSlug(x)).filter(Boolean) : [];
+        if (!ids.length) return json({ ok: false, error: "ids requerido (array)" }, 400);
+        const vivos = new Set(((await env.DB.prepare("SELECT id FROM projects").all()).results || []).map((r) => r.id));
+        const orden = [...new Set(ids)].filter((id) => vivos.has(id));
+        if (!orden.length) return json({ ok: false, error: "ningún id del censo" }, 404);
+        // updated_at NO se toca: colocar una ficha no es editarla, y si se tocara
+        // la ficha diría «editada ahora» cada vez que alguien la arrastra.
+        for (let i = 0; i < orden.length; i++) {
+          await env.DB.prepare("UPDATE projects SET sort_order=? WHERE id=?").bind(i, orden[i]).run();
+        }
+        return json({ ok: true, order: orden, projects: await listProjects(env) });
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
     if (url.pathname === "/projects/mission" && req.method === "POST") {

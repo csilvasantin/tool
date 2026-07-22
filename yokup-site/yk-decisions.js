@@ -14,6 +14,13 @@
   "use strict";
   var CSS = ".decs{margin:0 0 18px;border:1px solid var(--warn,#ffb545);border-radius:12px;background:rgba(255,181,69,.05);padding:13px 15px}.decs-hd{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--warn,#ffb545);font-weight:700;display:flex;gap:9px;margin-bottom:11px}.decs-n{color:var(--mut)}.decs-list,.dec-opts{display:flex;flex-direction:column;gap:8px}.dec{border:1px solid var(--line2);border-radius:10px;background:var(--card);padding:12px 13px;min-width:0}.dec.urge{border-color:#ff6b6b}.dec-project{display:grid;gap:5px;margin:-1px 0 12px;padding:0 0 11px;border-bottom:1px solid var(--line2)}.dec-project-label{font-family:var(--mono);font-size:9px;line-height:1.3;font-weight:800;letter-spacing:.15em;text-transform:uppercase;color:var(--good,#3df08a)}.dec-project-name{margin:0;color:var(--ink);font-size:clamp(16px,2.1vw,20px);line-height:1.2;font-weight:800;overflow-wrap:anywhere}.dec-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}.dec-k,.dec-clock,.dec-done{font-family:var(--mono);font-size:10px}.dec-k{color:var(--mut);border:1px solid var(--line);border-radius:6px;padding:3px 7px}.dec-clock{margin-left:auto;color:var(--warn,#ffb545);font-size:15px;font-weight:700}.dec-q{font-size:13px;line-height:1.4;color:var(--ink);margin-bottom:10px}.dec-opt{display:flex;gap:8px;text-align:left;width:100%;font:inherit;font-size:12px;color:var(--ink);cursor:pointer;background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 10px}.dec-opt:focus-visible{outline:3px solid var(--ink);outline-offset:2px}.dec-opt.rec{border-color:var(--warn,#ffb545);position:relative;overflow:hidden;--fill:0%}.dec-opt.rec:before{content:'';position:absolute;inset:0 auto 0 0;width:var(--fill);background:rgba(255,181,69,.18);transition:width 1s linear}.dec-opt span{position:relative}.dec-opt .n{font-family:var(--mono);color:var(--mut)}.dec-opt:disabled{cursor:default;opacity:.72}.dec-opt.effective{opacity:1;border-color:var(--good,#3df08a);background:rgba(61,240,138,.09);box-shadow:inset 3px 0 0 var(--good,#3df08a)}.dec-opt.effective.expired{border-color:var(--warn,#ffb545);background:rgba(255,181,69,.08);box-shadow:inset 3px 0 0 var(--warn,#ffb545)}.dec-done{padding-top:8px}.dec-done.ok{color:var(--good,#3df08a)}.dec-done.exp{color:var(--mut)}.dec-batch{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:11px;color:var(--mut)}.dec-batch b{color:var(--ink)}.dec-batch.paused{color:var(--warn,#ffb545)}@media(max-width:520px){.decs{padding:11px}.dec{padding:11px}.dec-project-name{font-size:16px}.dec-clock{width:100%;margin-left:0}.dec-opt{font-size:13px;padding:10px}}";
   CSS += ".dec-project-rest{font-family:var(--mono);font-size:10px;color:var(--mut)}";
+  /* RETRATO del agente en la ficha (FLT-985 a). Fuera el 👷: cada persona de
+     silicio tiene cara, y es la misma que enseña /misiones — sale de yk-avatar.js.
+     Quien no tenga retrato cae en sus iniciales, no en otro emoji. */
+  CSS += ".dec-k.ag{display:inline-flex;align-items:center;gap:5px}"
+       + ".dec-k.ag img.decava,.dec-k.ag .decini{width:16px;height:16px;border-radius:4px;flex:0 0 auto}"
+       + ".dec-k.ag img.decava{object-fit:cover;object-position:center top;display:block}"
+       + ".dec-k.ag .decini{display:inline-grid;place-items:center;font-size:8px;font-weight:700;border:1px solid var(--line)}";
   /* Sección propia (/decisiones): histórico + sello de fecha/autoría + vacíos. */
   CSS += ".decs.hist{border-color:var(--line2);background:transparent}.decs.hist .decs-hd{color:var(--mut)}"
        + ".dec-stamp{font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--dim,#4d7a88);margin-top:8px;padding-top:8px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:4px 12px}"
@@ -38,6 +45,18 @@
     return explicit || "Sin proyecto";
   }
   function domId(x) { return "dec-project-" + String(x || "item").replace(/[^a-z0-9_-]/gi, "-"); }
+  // Retrato del agente: 16px, del módulo compartido. Sin módulo cargado o sin
+  // foto, iniciales — nunca un icono genérico.
+  function agentePinta(n) {
+    var nom = String(n || "").trim();
+    if (!nom) return '<span class="dec-k ag">— sin agente</span>';
+    var u = "";
+    try { u = window.ykAvatar ? window.ykAvatar.img(nom) : ""; } catch (e) { u = ""; }
+    var cara = u
+      ? '<img class="decava" loading="lazy" alt="" src="' + esc(u) + '" onerror="this.remove()">'
+      : '<span class="decini">' + esc(nom.replace(/^(sub|infra)/i, "").slice(0, 2).toUpperCase()) + "</span>";
+    return '<span class="dec-k ag">' + cara + esc(nom) + "</span>";
+  }
   function mmss(s) { s = Math.max(0, s | 0); return ((s / 60) | 0) + ":" + String(s % 60).padStart(2, "0"); }
   function pct(d) { var total = Math.max(1, Math.round(((d.deadline || 0) - (d.created_at || 0)) / 1000)); return Math.max(0, Math.min(100, Math.round((1 - d.secondsLeft / total) * 100))); }
   // Fecha legible del sello del histórico.
@@ -75,7 +94,7 @@
     var result = d.status === "decided" ? "<div class=\"dec-done ok\">✓ decisión aplicada: <b>" + esc(d.options[effective] || "") + "</b></div>" : d.status === "expired" ? "<div class=\"dec-done exp\">⏱ sin respuesta — se aplicó la recomendada: <b>" + esc(d.options[effective] || "") + "</b></div>" : d.status === "cancelled" ? "<div class=\"dec-done exp\">" + (d.parent_decision || d.batch_id ? "↩ continuación descartada: se conserva la tanda actual." : "↩ lote descartado: no se iniciará ninguna misión.") + "</div>" : "";
     var batch = d.batch, batchHtml = "";
     if (batch) { var active = (batch.items || []).filter(function (x) { return x.status === "active"; })[0]; var queued = (batch.items || []).filter(function (x) { return x.status === "queued"; }); batchHtml = "<div class=\"dec-batch" + (batch.status === "paused" ? " paused" : "") + "\">" + (batch.status === "paused" ? "⏸ <b>cola pausada</b>: " + esc(batch.pause_reason || "requiere decisión") : batch.status === "completed" ? "✓ <b>tanda completada</b>" : "▶ <b>activa</b>: " + esc(active ? active.title : "preparando") + " · cola: " + queued.map(function (x) { return esc(x.title); }).join(" → ")) + "</div>"; }
-    return "<article class=\"dec" + (pending && d.secondsLeft <= 60 ? " urge" : "") + "\" aria-labelledby=\"" + projectId + "\"><header class=\"dec-project\"><span class=\"dec-project-label\">PROYECTO</span><h3 class=\"dec-project-name\" id=\"" + projectId + "\">" + esc(project) + "</h3><span class=\"dec-project-rest\">" + remainingText + "</span></header><div class=\"dec-top\"><span class=\"dec-k\">🖥 " + esc(d.machine || "—") + "</span><span class=\"dec-k\">👷 " + esc(d.agent || "—") + "</span><span class=\"dec-k\">" + (String(d.surface || "").toUpperCase() === "CLI" ? "⌨ CLI" : "🖥 Desktop App") + "</span>" + (pending ? "<span class=\"dec-clock\" data-clock=\"" + esc(d.id) + "\" role=\"timer\" aria-label=\"Tiempo restante\">" + mmss(d.secondsLeft) + "</span>" : "") + "</div><div class=\"dec-q\">" + esc(d.question) + "</div><div class=\"dec-opts\">" + optsHtml + "</div>" + result + batchHtml + (opts && opts.stamp ? stamp(d) : "") + "</article>";
+    return "<article class=\"dec" + (pending && d.secondsLeft <= 60 ? " urge" : "") + "\" aria-labelledby=\"" + projectId + "\"><header class=\"dec-project\"><span class=\"dec-project-label\">PROYECTO</span><h3 class=\"dec-project-name\" id=\"" + projectId + "\">" + esc(project) + "</h3><span class=\"dec-project-rest\">" + remainingText + "</span></header><div class=\"dec-top\"><span class=\"dec-k\">🖥 " + esc(d.machine || "—") + "</span>" + agentePinta(d.agent) + "<span class=\"dec-k\">" + (String(d.surface || "").toUpperCase() === "CLI" ? "⌨ CLI" : "🖥 Desktop App") + "</span>" + (pending ? "<span class=\"dec-clock\" data-clock=\"" + esc(d.id) + "\" role=\"timer\" aria-label=\"Tiempo restante\">" + mmss(d.secondsLeft) + "</span>" : "") + "</div><div class=\"dec-q\">" + esc(d.question) + "</div><div class=\"dec-opts\">" + optsHtml + "</div>" + result + batchHtml + (opts && opts.stamp ? stamp(d) : "") + "</article>";
   }
   // ── HISTÓRICO ───────────────────────────────────────────────────────────────
   // Sale entero del worker. Se pide de la más reciente hacia atrás con el cursor

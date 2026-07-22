@@ -43,3 +43,36 @@ test('las listas de misiones llevan el proyecto y su nombre humano', () => {
   assert.match(source, /SELECT id,screen,subject,loc,project,role,status/);
   assert.match(source, /project_name: resolveProject\(pidx, r\.project \|\| ""\)\.name/);
 });
+
+// ── FLT-985 b — orden de las fichas y responsable de carbono ────────────────
+test('el esquema añade owner (responsable de carbono) y sort_order', () => {
+  assert.match(source, /ALTER TABLE projects ADD COLUMN owner TEXT/);
+  assert.match(source, /ALTER TABLE projects ADD COLUMN sort_order INTEGER/);
+});
+
+test('el orden manual manda y lo no colocado cae detrás con el orden de siempre', () => {
+  assert.match(source, /ORDER BY \(sort_order IS NULL\), sort_order, \(status='activo'\) DESC, name COLLATE NOCASE/);
+});
+
+test('owner viaja en la lista y se guarda en el alta/edición', () => {
+  assert.match(source, /owner: p\.owner \|\| ""/);
+  assert.match(source, /owner: val\("owner", 80\)/);
+  assert.match(source, /INSERT INTO projects \(id,name,blurb,web,status,color,owner,/);
+  assert.match(source, /owner=excluded\.owner/);
+});
+
+test('/projects/order guarda el orden y va por el carril ABIERTO', () => {
+  assert.match(source, /url\.pathname === "\/projects\/order" && req\.method === "POST"/);
+  assert.match(source, /UPDATE projects SET sort_order=\? WHERE id=\?/);
+  const protegidas = source.match(/var PROTECTED = [^;]+;/)[0];
+  assert.ok(!/\/projects\/order/.test(protegidas), 'PROTECTED no debe incluir /projects/order');
+});
+
+test('colocar una ficha NO cuenta como editarla: updated_at no se toca', () => {
+  const bloque = source.match(/\/projects\/order[\s\S]{0,1400}?\n    \}/)[0];
+  assert.ok(!/updated_at/.test(bloque), 'el endpoint de orden no debe tocar updated_at');
+});
+
+test('un id que ya no está en el censo no tumba el guardado del orden', () => {
+  assert.match(source, /const orden = \[\.\.\.new Set\(ids\)\]\.filter\(\(id\) => vivos\.has\(id\)\)/);
+});
