@@ -49,6 +49,14 @@ test('la ficha del agente marca su reloj en el mismo renglón de sus misiones', 
   assert.match(equipo, /DEC_PEND=\(ds\|\|\[\]\)\.filter\(function\(d\)\{ return d\.status==="pending"; \}\)/);
 });
 
+test('el reloj de una capa marca la ficha de su persona, y se dice de quién es', () => {
+  // los relojes los abre infraNeo / subOraculo; las fichas son las de la persona
+  assert.match(equipo, /function baseAgente\(n\)\{/);
+  assert.match(equipo, /s=s\.replace\(\/\^\(sub\|infra\)\/,""\)/);
+  assert.ok(equipo.includes('(suyo?"decidiendo":esc(d.agent)+" decidiendo")'),
+    'si el reloj no es de la persona sino de su capa, se dice de quién es');
+});
+
 test('el módulo avisa de sus datos y sigue teniendo un único render', () => {
   assert.match(modulo, /if \(typeof config\.onData === "function"\)/);
   assert.ok((modulo.match(/function card\(/g) || []).length === 1, 'card\\(\\) es la única fuente de la ficha');
@@ -81,4 +89,14 @@ test('onData recibe las decisiones y un fallo suyo no deja el panel sin pintar',
   assert.equal(visto[0][0].agent, 'infraNeo');
   assert.match(nodos.decsList.innerHTML, /DEC-1/, 'el panel se pinta aunque onData reviente');
   assert.equal(nodos.decs.hidden, false);
+});
+
+// ── c3 · el arrastre tiene que GUARDAR, no solo mover ───────────────────────
+test('el arrastre se sigue en window: mover la ficha suelta la captura del asa', () => {
+  // insertBefore saca del documento al elemento capturador → se pierde la captura
+  // y el pointerup ya no vuelve al asa. Se vio arrastrando de verdad (FLT-985 c3).
+  assert.match(equipo, /window\.addEventListener\("pointerup",alSoltar\)/);
+  assert.match(equipo, /window\.addEventListener\("pointermove",alMover\)/);
+  assert.ok(!/setPointerCapture/.test(equipo), 'nada de setPointerCapture sobre el asa');
+  assert.match(equipo, /if\(ev\.pointerId!==pid\) return;/);
 });

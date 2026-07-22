@@ -377,11 +377,23 @@ const pendientes=ms=>ms.filter(m=>m.status!=="in_progress");
    mismo renglón donde se leen sus misiones en curso, para no tener que buscarlo.
    La lista la trae el módulo por onData: ni una segunda consulta ni un segundo render. */
 let DEC_PEND=[];
+// Los relojes los abre quien ejecuta —infraNeo, subOraculo—, y en esta pestaña las
+// fichas son las de la PERSONA. Se hereda la capa igual que el retrato (yk-avatar):
+// se quita el prefijo y se busca la persona al principio de lo que queda, así el
+// reloj de infraNeo marca la ficha de Neo en vez de perderse.
+function baseAgente(n){
+  let s=String(n||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  let antes; do{ antes=s; s=s.replace(/^(sub|infra)/,""); }while(s!==antes);
+  return s;
+}
 function relojDe(nombre){
-  const k=norm(nombre);
-  const d=DEC_PEND.filter(x=>norm(x.agent)===k)[0];
+  const k=baseAgente(nombre);
+  if(!k) return "";
+  const d=DEC_PEND.filter(x=>{ const b=baseAgente(x.agent); return b===k||b.indexOf(k)===0; })[0];
   if(!d) return "";
-  return '<a class="decreloj" href="#decs" title="'+esc(d.question||"")+'">⏳ decidiendo</a> ';
+  const suyo=norm(d.agent)===norm(nombre);
+  return '<a class="decreloj" href="#decs" title="'+esc(d.question||"")+'">⏳ '+
+    (suyo?"decidiendo":esc(d.agent)+" decidiendo")+'</a> ';
 }
 // Rótulo del pie de una ficha. Singular y sin adverbios.
 function rotuloMisiones(nCurso,nPend){
@@ -665,10 +677,18 @@ function montaOrden(){
     asa.addEventListener("pointerdown",e=>{
       if(e.button!==undefined&&e.button!==0) return;
       e.preventDefault();
-      try{ asa.setPointerCapture(e.pointerId); }catch(_){}
+      // El seguimiento va en WINDOW y no en el asa. Se intentó capturando el
+      // puntero EN EL ASA y NO servía: al colocar la ficha se la mueve de sitio
+      // con insertBefore, y sacar del documento al elemento que tiene la captura
+      // la SUELTA. A partir de ahí el pointerup caía en la
+      // ficha de debajo, alSoltar no llegaba a correr y el orden se veía movido
+      // pero no se guardaba: al siguiente refresco volvía como estaba.
+      // (FLT-985 c3 — se pilló arrastrando de verdad, no leyendo el código.)
+      const pid=e.pointerId;
       ficha.classList.add("arrastrando");
       let movido=false;
       const alMover=ev=>{
+        if(ev.pointerId!==pid) return;
         const bajo=document.elementFromPoint(ev.clientX,ev.clientY);
         const otra=bajo&&bajo.closest?bajo.closest(".ag[data-ord]"):null;
         if(!otra||otra===ficha||otra.parentNode!==g) return;
@@ -677,16 +697,17 @@ function montaOrden(){
         else g.insertBefore(ficha,otra);
         movido=true;
       };
-      const alSoltar=()=>{
-        asa.removeEventListener("pointermove",alMover);
-        asa.removeEventListener("pointerup",alSoltar);
-        asa.removeEventListener("pointercancel",alSoltar);
+      const alSoltar=ev=>{
+        if(ev&&ev.pointerId!==undefined&&ev.pointerId!==pid) return;
+        window.removeEventListener("pointermove",alMover);
+        window.removeEventListener("pointerup",alSoltar);
+        window.removeEventListener("pointercancel",alSoltar);
         ficha.classList.remove("arrastrando");
         if(movido) ordGuarda();
       };
-      asa.addEventListener("pointermove",alMover);
-      asa.addEventListener("pointerup",alSoltar);
-      asa.addEventListener("pointercancel",alSoltar);
+      window.addEventListener("pointermove",alMover);
+      window.addEventListener("pointerup",alSoltar);
+      window.addEventListener("pointercancel",alSoltar);
     });
     asa.addEventListener("keydown",e=>{
       const k=e.key;
