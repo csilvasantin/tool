@@ -10,7 +10,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
-<link rel="stylesheet" href="/yk-frame.css?v=r15">
+<link rel="stylesheet" href="/yk-frame.css?v=r16">
 <link rel="stylesheet" href="/yk-misiones.css?v=r34">
 <link rel="stylesheet" href="/yk-cabezal.css?v=r2">
 <style>
@@ -25,7 +25,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .tf{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;border-radius:9px;border:1px solid var(--line);color:var(--mut);background:var(--card);cursor:pointer;transition:.2s}
 .tf:hover{color:var(--brand);border-color:var(--line2)}
 .tf.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;align-items:start}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:14px;align-items:start}
 .mcard{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:16px 17px}
 .mcard .mhd{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-family:var(--mono);margin-bottom:6px}
 .mcard .mid{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--brand);text-decoration:none}.mcard .mid:hover{text-decoration:underline}
@@ -359,7 +359,7 @@ load(); setInterval(load,15000);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-avatar.js?v=r2"></script>
-<script src="/yk-frame.js?v=r22"></script>
+<script src="/yk-frame.js?v=r23"></script>
 <!-- Los relojes de decisión viven en /decisiones (sección propia, Carlos 22-07-2026)
      y en /misiones en modo vivo. La implementación histórica que aquí quedaba
      inerte (bloque no ejecutable) se retiró en FLT-981-c. -->

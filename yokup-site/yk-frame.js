@@ -25,7 +25,7 @@
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.22.07.2026.r2";
+  var VERSION = "v.22.07.2026.r3";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
 
   // NAV DE PLATAFORMA — fuente ÚNICA del menú tras la DMZ (zona app). Las
@@ -205,8 +205,16 @@
     // inalcanzables desde el teléfono (FLT-983). El MISMO menú, sin inventar
     // patrón nuevo, se replica dentro del cajón OPCIONES que ya existía; el CSS
     // solo lo muestra por debajo de 520px, así el escritorio no cambia.
-    railL.appendChild(buildRailNav(navItems));
+    // Orden dentro del cajón: si la página NO trae panel de trabajo propio, las
+    // secciones van delante (es lo único que hay). Si lo trae —misiones e
+    // incidencias, que además rotulan el cajón MISIONES—, las secciones van
+    // DETRÁS: medido a 320px, el bloque empujaba los filtros 387px hacia abajo y
+    // obligaba a desplazar el cajón entero para llegar a ellos.
+    var hasOwnPanel = !!document.querySelector('[data-yk-slot="left"]');
+    var railNav = buildRailNav(navItems);
+    if (!hasOwnPanel) railL.appendChild(railNav);
     var slotL = el("div", "yk-slot"); railL.appendChild(slotL);
+    if (hasOwnPanel) railL.appendChild(railNav);
     // pie del raíl OPCIONES: AJUSTES + versión, abajo del todo (Carlos, 2026-07-19).
     // Vive en el marco, no en las páginas → idéntico en toda la zona-app.
     railL.appendChild(buildRailFoot());

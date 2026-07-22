@@ -332,14 +332,27 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
   .yk-bar{ gap:10px }
   /* el cajón sí muestra el menú, y su bloque de secciones puede desplazarse */
   .yk-rail-nav{ display:flex; flex-direction:column; margin-bottom:14px }
+  /* cuando va detrás del panel de trabajo, el aire cambia de lado */
+  .yk-slot + .yk-rail-nav{
+    margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--yk-line);
+  }
   /* con las secciones delante, el «— sin opciones» del cajón solo estorba */
   .yk-rail-left .yk-empty{ display:none }
-  /* área táctil de 44px para los iconos de la barra SIN ensanchar la barra
-     (la barra mide 46px y a 320px no cabe un icono de 44 de lado) */
+  /* área táctil de 44x44 para los iconos de la barra SIN ensanchar la barra
+     (la barra mide 46px y a 320px no cabe un icono de 44 de lado). Se fija por
+     tamaño y no por desplazamientos: el botón es border-box con borde de 1px y
+     el pseudo-elemento se ancla a la caja de relleno, así que unos -6/-4 daban
+     42x42 medidos. Con 44x44 centrado el área es exacta sea cual sea el borde. */
   .yk-ico{ position:relative; min-width:36px; padding:0 8px }
-  .yk-ico::after{ content:""; position:absolute; top:-6px; bottom:-6px; left:-4px; right:-4px }
+  .yk-ico::after{
+    content:""; position:absolute; width:44px; height:44px;
+    left:50%; top:50%; transform:translate(-50%,-50%);
+  }
   .yk-proj-btn{ position:relative }
-  .yk-proj-btn::after{ content:""; position:absolute; top:-6px; bottom:-6px; left:-4px; right:-4px }
+  .yk-proj-btn::after{
+    content:""; position:absolute; width:100%; min-width:44px; height:44px;
+    left:50%; top:50%; transform:translate(-50%,-50%);
+  }
 }
 
 /* foco visible también en los iconos y el selector de la barra */
