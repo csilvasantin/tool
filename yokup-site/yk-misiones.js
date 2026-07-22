@@ -334,6 +334,7 @@
           // PROGRESO en la fila (como en /tareas): n/total REAL del plan + barra que
           // se acerca al objetivo. Solo si la misión tiene plan. (959)
           (t._prog && t._prog.total ? '<span class="prog' + (t._prog.done >= t._prog.total ? " full" : "") + '" title="' + t._prog.done + " de " + t._prog.total + ' pasos hechos"><span class="prog-fill" style="width:' + Math.round(100 * t._prog.done / t._prog.total) + '%"></span><b>' + t._prog.done + "/" + t._prog.total + "</b></span>" : "") +
+          '<a class="tkopen" href="/tareas?mission=' + encodeURIComponent(t.id) + '" title="ver el plan de esta misión en /tareas">detalle ↳</a>' +
           '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a></div>' +
       "</div></div>";
   }
@@ -442,7 +443,9 @@
     var shot = t.image ? '<img class="node-shot shot-img" loading="lazy" src="' + esc(t.image) + '" data-proof="' + esc(t.image) + '" alt="prueba" title="pantallazo de esta tarea · clic para ampliar">' : "";
     return '<div class="node ' + (isSub ? "sub " : "") + esc(t.status) + '" data-code="' + esc(t.code) + '">' +
       '<button class="chip ' + esc(t.status) + '" data-code="' + esc(t.code) + '" title="' + esc(t.status) + ' · clic para avanzar">' + (CHIP[t.status] || "○") + "</button>" +
-      '<span class="scode">' + esc(t.code) + "</span>" +
+      // El CÓDIGO del paso enlaza a su detalle en /tareas (foco + scroll al paso); el
+      // chip de al lado sigue AVANZANDO el estado — no le robamos el clic. (964)
+      (t.mission_id ? '<a class="scode" href="/tareas?mission=' + encodeURIComponent(t.mission_id) + "#" + esc(t.code) + '" title="ver este paso en /tareas">' + esc(t.code) + "</a>" : '<span class="scode">' + esc(t.code) + "</span>") +
       '<span class="ttl" title="' + esc(full) + '">' + linkify(t.title) + "</span>" +
       shot +
       '<span class="own" title="' + esc(t.owner || "") + '">' + own + "</span>" +

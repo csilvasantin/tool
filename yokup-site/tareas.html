@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r14">
-<link rel="stylesheet" href="/yk-misiones.css?v=r31">
+<link rel="stylesheet" href="/yk-misiones.css?v=r32">
 <link rel="stylesheet" href="/yk-cabezal.css?v=r2">
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
@@ -45,6 +45,10 @@ html[data-yk-view="list"] .grid{grid-template-columns:1fr}
 html[data-yk-view="list"] .mcard .tree,html[data-yk-view="list"] .mcard .mmeta{display:none}
 html[data-yk-view="list"] .mcard{padding:11px 15px}
 html[data-yk-view="list"] .mcard .mtog{display:none}
+/* Foco de una misión (964): breadcrumb de vuelta a la lista completa. */
+.focobar{grid-column:1/-1;display:flex;align-items:center;gap:12px;margin-bottom:4px;font-family:var(--mono);font-size:11px}
+.focobar a{color:var(--brand);text-decoration:none;border:1px solid var(--line2);border-radius:8px;padding:6px 11px}.focobar a:hover{background:rgba(120,243,255,.08)}
+.focobar .focoid{color:var(--mut);letter-spacing:.05em}
 .bigempty{border:1px dashed var(--line2);border-radius:14px;padding:44px 24px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12.5px;letter-spacing:.04em;line-height:1.7;grid-column:1/-1}
 .bigempty b{color:var(--mut);display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .bigempty a{color:var(--brand)}
@@ -169,7 +173,7 @@ html[data-yk-view="list"] .mcard .mtog{display:none}
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa «misiones JSON» para volcar los datos crudos del worker.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r46"></script>
+<script src="/yk-misiones.js?v=r47"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r2"></script>
 <script>
@@ -181,6 +185,11 @@ const esc=YkMisiones.esc;
 const OPEN_CARDS=new Set((()=>{try{return JSON.parse(localStorage.getItem("yk_tareas_open")||"[]")}catch(e){return[]}})());
 function saveOpenCards(){try{localStorage.setItem("yk_tareas_open",JSON.stringify([...OPEN_CARDS]))}catch(e){}}
 YkMisiones.init({worker:WORKER});
+// FOCO desde la URL (964): /tareas?mission=FLT-XXX muestra SOLO esa misión (con su
+// ficha ABIERTA aunque el resto vaya plegado), y #a / #b2 hace scroll y la RESALTA.
+// Enlace compartible que abre justo donde toca, en las dos vistas.
+const FOCUS=(new URLSearchParams(location.search).get("mission")||"").trim();
+if(FOCUS) OPEN_CARDS.add(FOCUS);
 let GROUPS=[];  // [{mission:{...ticket}, tasks:[...]}]
 let STATE=null; // filtro por estado (KPI): sin | asignadas | in_progress | resolved | null
 let SEARCH=""; // texto del buscador del cabezal
@@ -238,7 +247,9 @@ async function load(){
   // fetch por misión = N+1, cada 15 s; ahora una query D1 con JOIN).
   let rows; try{ rows=await YkMisiones.fetchAllTasks("todas"); }catch(e){ return; }
   // Agrupa por misión y filtra por fecha de creación (sólo las del rango).
-  const groups=YkMisiones.groupByMission(rows).filter(g=>inRange(g.mission.created_at));
+  // Con foco (?mission=), esa misión se muestra IGNORANDO el filtro de fecha (para
+  // que el enlace abra aunque sea de otro día); sin foco, sólo las del rango. (964)
+  const groups=YkMisiones.groupByMission(rows).filter(g=>FOCUS?g.mission.id===FOCUS:inRange(g.mission.created_at));
   groups.sort((a,b)=>Math.max(...b.tasks.map(x=>x.updated_at||0))-Math.max(...a.tasks.map(x=>x.updated_at||0)));
   GROUPS=groups;
   // KPIs del cabezal: aquí contamos TAREAS (los pasos a/b/c en que se desglosa
@@ -293,7 +304,9 @@ function render(){
       ' Ajusta el buscador o los contadores de arriba.</div>';
     return;
   }
-  box.innerHTML=gs.map(g=>{const _op=OPEN_CARDS.has(g.mission.id);return `<div class="mcard ${_op?'':'collapsed'}" data-id="${esc(g.mission.id)}">
+  // Breadcrumb de vuelta cuando hay foco (964): que no se quede uno atrapado.
+  const _bc = FOCUS ? '<div class="focobar"><a href="/tareas">← ver todas las misiones</a><span class="focoid">🎯 '+esc(FOCUS)+'</span></div>' : "";
+  box.innerHTML=_bc+gs.map(g=>{const _op=OPEN_CARDS.has(g.mission.id)||g.mission.id===FOCUS;return `<div class="mcard ${_op?'':'collapsed'}" data-id="${esc(g.mission.id)}">
     <div class="mhd"><button class="mtog" title="plegar / desplegar" aria-expanded="${_op}">${_op?'▾':'▸'}</button><a class="mid" href="/ticket?id=${encodeURIComponent(g.mission.id)}" title="Abrir la misión">🎯 ${esc(g.mission.id)}</a><span class="tcount" title="subtareas hechas / total del plan (regla de los tercios)">${g.tasks.filter(t=>t.code.length===2&&t.status==="done").length}/${YkMisiones.subCount(g.tasks)}</span></div>
     <div class="msub">${esc(g.mission.subject)}</div>
     <div class="mmeta"><span class="scr">${esc(g.mission.screen||"")}</span>${g.mission.loc?" · "+esc(g.mission.loc):""}</div>
@@ -320,6 +333,16 @@ function render(){
       };
     });
   });
+  // Scroll + RESALTADO al paso del hash (#a, #b2): el enlace abre justo donde toca. (964)
+  if(location.hash){
+    const code=location.hash.slice(1).replace(/[^a-z0-9]/gi,"");
+    const node=code&&box.querySelector('.node[data-code="'+code+'"]');
+    if(node){ const st=node.closest(".step"); if(st) st.classList.remove("collapsed");
+      box.querySelectorAll(".foco-step").forEach(n=>n.classList.remove("foco-step"));
+      node.classList.add("foco-step");
+      setTimeout(()=>{ try{node.scrollIntoView({behavior:"smooth",block:"center"});}catch(e){} },90);
+    }
+  }
 }
 // Cableado de los presets de fecha. Cambiar recarga y refleja el día concreto
 // en el selector del cabezal (para que ambos digan lo mismo).
