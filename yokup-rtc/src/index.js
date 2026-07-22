@@ -278,6 +278,23 @@ function continuationMissionOrder(options, chosen, queuedItems) {
   return ordered.length === queuedItems.length ? ordered : [];
 }
 __name(continuationMissionOrder, "continuationMissionOrder");
+function remainingBatchItems(items) {
+  return (items || []).filter((item) => item.status === "queued" && item.ticket_status !== "resolved" && item.ticket_status !== "cancelled");
+}
+__name(remainingBatchItems, "remainingBatchItems");
+async function reconcileQueuedBatchItems(env, batchId) {
+  const rows = await env.DB.prepare(
+    "SELECT i.*,t.status AS ticket_status FROM mission_batch_items i LEFT JOIN tickets t ON t.id=i.mission_id WHERE i.batch_id=? AND i.status='queued' ORDER BY i.position"
+  ).bind(batchId).all();
+  const stale = (rows.results || []).filter((item) => item.ticket_status === "resolved" || item.ticket_status === "cancelled");
+  if (stale.length) {
+    await env.DB.batch(stale.map((item) => env.DB.prepare(
+      "UPDATE mission_batch_items SET status=?,updated_at=? WHERE batch_id=? AND position=? AND status='queued'"
+    ).bind(item.ticket_status === "cancelled" ? "cancelled" : "completed", Date.now(), batchId, item.position)));
+  }
+  return remainingBatchItems(rows.results || []);
+}
+__name(reconcileQueuedBatchItems, "reconcileQueuedBatchItems");
 function batchMissionPlan(title) {
   const short = String(title || "Misión").slice(0, 70);
   return [
@@ -288,6 +305,7 @@ function batchMissionPlan(title) {
 }
 __name(batchMissionPlan, "batchMissionPlan");
 async function missionBatchSnapshot(env, batchId) {
+  await reconcileQueuedBatchItems(env, batchId);
   const batch = await env.DB.prepare("SELECT * FROM mission_batches WHERE id=?").bind(batchId).first();
   if (!batch) return null;
   const { results } = await env.DB.prepare(
@@ -333,9 +351,8 @@ async function activateNextMissionBatchItem(env, batchId) {
     await env.DB.prepare("UPDATE mission_batches SET active_mission_id=NULL, updated_at=? WHERE id=?")
       .bind(now, batchId).run();
   }
-  const next = await env.DB.prepare(
-    "SELECT * FROM mission_batch_items WHERE batch_id=? AND status='queued' ORDER BY position LIMIT 1"
-  ).bind(batchId).first();
+  const remaining = await reconcileQueuedBatchItems(env, batchId);
+  const next = remaining[0] || null;
   if (!next) {
     await env.DB.prepare("UPDATE mission_batches SET status='completed', active_mission_id=NULL, updated_at=? WHERE id=?")
       .bind(Date.now(), batchId).run();
@@ -370,10 +387,10 @@ async function ensureMissionBatchFromDecision(env, decision) {
   if (continuation) {
     const batch = batchId && await env.DB.prepare("SELECT id FROM mission_batches WHERE id=?").bind(batchId).first();
     if (!batch) return null;
-    const queued = await env.DB.prepare("SELECT * FROM mission_batch_items WHERE batch_id=? AND status='queued' ORDER BY position").bind(batchId).all();
-    const ordered = continuationMissionOrder(options, effective, queued.results || []);
+    const queued = await reconcileQueuedBatchItems(env, batchId);
+    const ordered = continuationMissionOrder(options, effective, queued);
     if (ordered.length) {
-      const positions = (queued.results || []).map((item) => item.position).sort((a, b) => a - b);
+      const positions = queued.map((item) => item.position).sort((a, b) => a - b);
       const statements = [];
       for (let i = 0; i < ordered.length; i++) {
         statements.push(env.DB.prepare("UPDATE mission_batch_items SET position=? WHERE batch_id=? AND position=?")
@@ -1802,8 +1819,8 @@ var index_default = {
           dparent = dparent || batch.decision_id || "";
           const open = await env.DB.prepare("SELECT id FROM decisions WHERE batch_id=? AND status='pending' LIMIT 1").bind(dbatch).first();
           if (open) return json({ ok: false, error: "continuation_pending", existing: open.id }, 409);
-          const queued = await env.DB.prepare("SELECT position,title FROM mission_batch_items WHERE batch_id=? AND status='queued' ORDER BY position").bind(dbatch).all();
-          if (!continuationMissionOrder(opts, 0, queued.results || []).length) {
+          const queued = await reconcileQueuedBatchItems(env, dbatch);
+          if (!continuationMissionOrder(opts, 0, queued).length) {
             return json({ ok: false, error: "Las opciones deben coincidir exactamente con las misiones restantes del batch, sin completadas ni duplicados" }, 400);
           }
         }
