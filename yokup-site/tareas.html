@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r14">
-<link rel="stylesheet" href="/yk-misiones.css?v=r33">
+<link rel="stylesheet" href="/yk-misiones.css?v=r34">
 <link rel="stylesheet" href="/yk-cabezal.css?v=r2">
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
@@ -194,7 +194,7 @@ const CAB=YkCabezal.mount($("cabezal"), {
   worker:WORKER,
   title:"Tareas",
   searchPlaceholder:"🔎 Buscar tarea…",
-  intro:'Los pasos en que se descompone cada misión — <b>regla de los tercios</b>: <b>3 tareas</b> a·b·c con <b>3 subtareas</b> cada una (a1…c3, máx 9) — una misión = jornada completa de un agente. Los planes antiguos con pasos d…h se cuentan aparte como «+n». Chips clicables ○◐● para avanzar estado; ⚙️ ejecutan los subagentes, 📝 reportan los infraagentes. Agrupado por misión, lo más reciente primero.',
+  intro:'Los pasos en que se descompone cada misión — <b>regla de los tercios</b>: <b>3 tareas</b> a·b·c con <b>3 subtareas</b> cada una (a1…c3, máx 9) — una misión = jornada completa de un agente. El denominador es SIEMPRE 3 y 9 para poder comparar dos misiones de un vistazo: un plan a medio definir se marca «◌ incompleto» (borde discontinuo), nunca se le baja el denominador. Los planes antiguos con pasos d…h se cuentan aparte como «+n». Chips clicables ○◐● para avanzar estado; ⚙️ ejecutan los subagentes, 📝 reportan los infraagentes. Agrupado por misión, lo más reciente primero.',
   defaultView:"cards",   // /tareas nace en FICHAS; el conmutador la pasa a lista (962)
   onView:()=>render(),
   onState:f=>{ STATE=f; render(); },

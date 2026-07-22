@@ -301,24 +301,42 @@
     });
     if (!top.length && !sub.length && !extra) return null;
     var hecho = function (a) { return a.filter(function (r) { return r.status === "done"; }).length; };
+    // DENOMINADORES FIJOS 3 y 9 (decisión de Carlos vía coordinación, 22-jul-2026).
+    // Antes el denominador era el tamaño REAL del plan (Math.min(top,3)||3 y
+    // Math.min(sub,9)), así que un plan a medio definir leía 0/2 · 0/6 y volvía a
+    // no poderse comparar con uno de 0/3 · 0/9 — justo el problema que la regla
+    // venía a matar. Un plan con 2 tareas NO es un plan de 2: es un plan de 3
+    // INCOMPLETO, y eso se dice (incompleto/topN/subN → borde discontinuo y ◌),
+    // no se disimula bajando el denominador. Nunca se inventan filas.
     return {
-      done: hecho(top), total: Math.min(top.length, 3) || 3,
-      sdone: hecho(sub), stotal: Math.min(sub.length, 9),
+      done: hecho(top), total: 3,
+      sdone: hecho(sub), stotal: 9,
+      topN: top.length, subN: sub.length,
+      incompleto: top.length < 3 || sub.length < 9,
       extra: extra, extraDone: extraDone
     };
   }
-  // Chip de progreso de una fila: «n/3» de tareas + «n/9» de subtareas.
+  // Chip de progreso de una fila: «n/3» de tareas + «n/9» de subtareas, SIEMPRE
+  // sobre 3 y 9 para que dos misiones se comparen de un vistazo. Estados:
+  //   .full     → 3/3 · 9/9, el tercio entero hecho (verde sólido).
+  //   .hechoinc → todo lo DEFINIDO está hecho, pero el plan no llega a 3×3:
+  //               cifras en verde con borde discontinuo, no se vende por pleno.
+  //   .inc      → plan incompleto (borde discontinuo + ◌); el tooltip dice
+  //               cuántas filas hay definidas de las 3 y las 9 que tocan.
   function progHtml(p) {
     if (!p || !p.total) return "";
-    var pct = Math.round(100 * (p.stotal ? (p.done * 3 + p.sdone) / (p.total * 3 + p.stotal) : p.done / p.total));
-    var tip = p.done + " de " + p.total + " tareas hechas"
-      + (p.stotal ? " · " + p.sdone + " de " + p.stotal + " subtareas" : "")
-      + (p.extra ? " (+" + p.extraDone + "/" + p.extra + " pasos fuera de los tercios, plan antiguo)" : "");
-    return '<span class="prog' + (p.done >= p.total && (!p.stotal || p.sdone >= p.stotal) ? " full" : "") + '" title="' + esc(tip) + '">' +
+    var pct = Math.round(100 * (p.done * 3 + p.sdone) / (p.total * 3 + p.stotal));
+    var pleno = p.done >= p.total && p.sdone >= p.stotal;
+    var hechoInc = !pleno && p.topN > 0 && p.done >= p.topN && p.sdone >= p.subN;
+    var tip = p.done + " de " + p.total + " tareas hechas · " + p.sdone + " de " + p.stotal + " subtareas"
+      + (p.incompleto ? " · PLAN INCOMPLETO: sólo hay " + p.topN + " de 3 tareas y " + p.subN + " de 9 subtareas definidas" : "")
+      + (p.extra ? " · +" + p.extraDone + "/" + p.extra + " pasos de un plan antiguo (d…h), fuera de los tercios" : "");
+    return '<span class="prog' + (pleno ? " full" : "") + (hechoInc ? " hechoinc" : "") + (p.incompleto ? " inc" : "") + '" title="' + esc(tip) + '">' +
       '<span class="prog-fill" style="width:' + pct + '%"></span>' +
       "<b>" + p.done + "/" + p.total + "</b>" +
-      (p.stotal ? '<i class="prog-sub">' + p.sdone + "/" + p.stotal + "</i>" : "") +
-      (p.extra ? '<i class="prog-mas">+' + p.extra + "</i>" : "") + "</span>";
+      '<i class="prog-sub">' + p.sdone + "/" + p.stotal + "</i>" +
+      (p.extra ? '<i class="prog-mas">+' + p.extra + "</i>" : "") +
+      (p.incompleto ? '<i class="prog-inc" aria-hidden="true">◌</i>' : "") + "</span>";
   }
   function rowHtml(t) {
     MIS_CACHE[t.id] = t;   // cajón de detalle: la ficha ya viene con la lista, sin fetch extra
@@ -681,9 +699,8 @@
       // igual que el chip de la fila: tareas n/3 · subtareas n/9 (+n si el plan
       // es antiguo y arrastra pasos d…h).
       var _tc = tercios(tasks);
-      var header = '<div class="thd"><span class="tmid" title="Misión activa">🎯 ' + esc(id) + '</span><span class="tcount" title="' +
-        esc(_tc ? _tc.done + " de " + _tc.total + " tareas · " + _tc.sdone + " de " + _tc.stotal + " subtareas (regla de los tercios)" + (_tc.extra ? " · +" + _tc.extra + " pasos de plan antiguo" : "") : "sin plan de tareas") + '">' +
-        (_tc ? _tc.done + "/" + _tc.total + (_tc.stotal ? " · " + _tc.sdone + "/" + _tc.stotal : "") + (_tc.extra ? " +" + _tc.extra : "") : "0/3") + "</span></div>";
+      var header = '<div class="thd"><span class="tmid" title="Misión activa">🎯 ' + esc(id) + "</span>" +
+        (_tc ? progHtml(_tc) : '<span class="tcount" title="esta misión aún no tiene plan de tareas">0/3</span>') + "</div>";
       if (!tasks.length) {
         p.innerHTML = header + '<div class="empty2">Esta misión aún no tiene plan de tareas.</div><button class="propose" id="ykProposeBtn">🧠 Proponer plan (IA)</button>';
         var pb = document.getElementById("ykProposeBtn");
