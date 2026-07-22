@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba FLT-983 d · la landing pública recupera menú en móvil</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--good:#88ffaa;--warn:#ff8866;--line:rgba(120,243,255,.16);--sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden}
+.wrap{max-width:1100px;margin:0 auto;padding:22px 24px 48px;min-width:0}
+h1{font-size:clamp(21px,3vw,29px);letter-spacing:-.02em;margin:4px 0 10px}
+h2{font-size:15px;letter-spacing:.06em;text-transform:uppercase;font-family:var(--mono);color:var(--brand);margin:26px 0 10px}
+.sub{color:var(--mut);font-size:14px;line-height:1.6;margin-bottom:8px}
+.sub b{color:var(--brand)}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px;margin-bottom:8px}
+.tw{overflow-x:auto}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:10px}
+td.ok{color:var(--good)}td.no{color:var(--warn)}
+figure{margin:0 0 20px}
+figure img{width:100%;max-width:100%;height:auto;border:1px solid var(--line);border-radius:12px;display:block}
+figcaption{font-family:var(--mono);font-size:11px;color:var(--dim);line-height:1.6;margin-top:8px}
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:18px}
+.foot{font-family:var(--mono);font-size:10.5px;line-height:1.7;color:var(--dim);margin-top:26px;padding-top:14px;border-top:1px solid var(--line)}
+.foot b{color:var(--mut)}
+code{font-family:var(--mono);color:var(--mut)}
+@media(max-width:520px){.wrap{padding:18px 14px 40px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Prueba FLT-983 d · la landing pública recupera menú en móvil</h1>
+  <p class="sub">Medido, no estimado, sobre <b>https://www.yokup.com/</b> ya publicado. Anchos con <b>scrollWidth / clientWidth</b>, áreas táctiles con <b>getBoundingClientRect</b> y alcance real de cada enlace con <b>elementFromPoint</b> en el centro de su caja. El cajón se abre pulsando la hamburguesa de verdad, no forzando la clase.</p>
+  <p class="sub">Punto de partida (FLT-983 c): index.html es una landing autónoma, no monta <code>yk-frame.js</code>, y su hoja escondía <code>.nav-links</code> bajo 900 px sin reponer nada. Se perdían <b>/incidencias</b>, <b>/asistencia</b> y <b>/app</b>, que no aparecen en ningún otro punto de la página — no hay pie con enlaces.</p>
+
+  <h2>Antes y después · 320 px</h2>
+  <div class="tw"><table>
+    <tr><th>Medida</th><th>Antes</th><th>Ahora</th></tr>
+    <tr><td>Destinos alcanzables desde el menú</td><td class="no">0 de 7</td><td class="ok">7 de 7</td></tr>
+    <tr><td>/incidencias · /asistencia · /app</td><td class="no">inalcanzables</td><td class="ok">alcanzables</td></tr>
+    <tr><td>Botón Entrar</td><td class="no">81 × 40</td><td class="ok">77 × 44</td></tr>
+    <tr><td>Hamburguesa</td><td class="no">no existía</td><td class="ok">44 × 44</td></tr>
+    <tr><td>Scroll horizontal</td><td class="ok">320 = 320</td><td class="ok">320 = 320</td></tr>
+  </table></div>
+
+  <h2>Barrido de anchos</h2>
+  <div class="tw"><table>
+    <tr><th>Ancho</th><th>scrollWidth = clientWidth</th><th>Hamburguesa</th><th>Cajón</th><th>Enlaces pulsables</th><th>Alto de fila</th><th>Entrar</th></tr>
+    <tr><td>320 · cerrado</td><td class="ok">320 = 320</td><td class="ok">44 × 44</td><td>none</td><td>—</td><td>—</td><td class="ok">44 px</td></tr>
+    <tr><td>320 · abierto</td><td class="ok">320 = 320</td><td class="ok">44 × 44</td><td class="ok">flex</td><td class="ok">7 de 7</td><td class="ok">48 px</td><td class="ok">44 px</td></tr>
+    <tr><td>375 · abierto</td><td class="ok">375 = 375</td><td class="ok">44 × 44</td><td class="ok">flex</td><td class="ok">7 de 7</td><td class="ok">48 px</td><td class="ok">44 px</td></tr>
+    <tr><td>768 · abierto</td><td class="ok">768 = 768</td><td class="ok">44 × 44</td><td class="ok">flex</td><td class="ok">7 de 7</td><td class="ok">48 px</td><td class="ok">44 px</td></tr>
+    <tr><td>1280 · escritorio</td><td class="ok">1280 = 1280</td><td class="ok">oculta</td><td class="ok">fila</td><td class="ok">7 de 7</td><td>17 px</td><td class="ok">44 px</td></tr>
+  </table></div>
+  <p class="sub">El escritorio no cambia: sobre 900 px la hamburguesa está en <code>none</code> y los 7 enlaces siguen en su fila de siempre. El cajón reutiliza <b>los mismos</b> <code>.nav-links</code> — ni un enlace duplicado que pueda quedarse atrás.</p>
+
+  <h2>Comportamiento</h2>
+  <div class="tw"><table>
+    <tr><th>Caso</th><th>Resultado</th></tr>
+    <tr><td>Pulsar la hamburguesa</td><td class="ok">abre el cajón · el rótulo pasa de ☰ a ✕ · <code>aria-expanded=true</code></td></tr>
+    <tr><td>Pulsar un enlace</td><td class="ok">navega y deja el cajón cerrado</td></tr>
+    <tr><td>Tecla Escape</td><td class="ok">cierra el cajón</td></tr>
+    <tr><td>Pasar de móvil a escritorio</td><td class="ok">el cajón se cierra solo sobre 900 px</td></tr>
+  </table></div>
+
+  <h2>Capturas</h2>
+  <div class="shots">
+    <figure>
+      <img src="/pruebas/FLT-983-d-320-cerrado.jpg" alt="Landing a 320 px con la hamburguesa junto al logo y el cajón cerrado">
+      <figcaption>320 px · cerrado. La hamburguesa va en la fila del logo, en cian de la casa; los dos botones caen debajo.</figcaption>
+    </figure>
+    <figure>
+      <img src="/pruebas/FLT-983-d-320-abierto.jpg" alt="Cajón abierto a 320 px con los siete enlaces">
+      <figcaption>320 px · abierto. Los 7 destinos, rótulos monoespaciados en singular, filas de 48 px.</figcaption>
+    </figure>
+    <figure>
+      <img src="/pruebas/FLT-983-d-375-abierto.jpg" alt="Cajón abierto a 375 px">
+      <figcaption>375 px · el mismo cajón, sin desborde.</figcaption>
+    </figure>
+    <figure>
+      <img src="/pruebas/FLT-983-d-768-abierto.jpg" alt="Cajón abierto a 768 px, tablet">
+      <figcaption>768 px · la tablet también estaba sin menú: cabe todo en una fila y el cajón se despliega debajo.</figcaption>
+    </figure>
+    <figure>
+      <img src="/pruebas/FLT-983-d-1280-escritorio.jpg" alt="Escritorio a 1280 px con la barra de enlaces intacta">
+      <figcaption>1280 px · el escritorio queda exactamente igual que antes del arreglo.</figcaption>
+    </figure>
+  </div>
+
+  <div class="foot">
+    <b>Método</b> · Chromium headless contra la URL pública, deviceScaleFactor 2; medidas en el mismo pase que la captura.<br>
+    <b>Arreglado</b> · hamburguesa + cajón bajo 900 px reutilizando los mismos enlaces · <code>/incidencias</code>, <code>/asistencia</code> y <code>/app</code> vuelven a ser alcanzables en móvil y tablet · <code>.btn</code> sube a 44 px de alto mínimo.<br>
+    <b>Sin tocar</b> · el escritorio, el layout, la paleta y el copy de la landing.<br>
+    <b>Sello</b> · v.22.07.2026.r4
+  </div>
+</div>
+</body>
+</html>
