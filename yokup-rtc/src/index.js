@@ -219,6 +219,15 @@ async function ensureSchema(env) {
   // El proyecto de una MISIÓN. No se reutiliza `loc`: en las misiones de flota
   // `loc` es la MÁQUINA destino (fleetSync la escribe ahí), no el proyecto.
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN project TEXT").catch(() => {});
+  // MISIÓN MADRE → HIJAS (FLT-990 b1). Aditivo y NULLABLE: las misiones planas de
+  // hoy quedan con parent_id NULL y se ven EXACTELY igual que antes. Solo cuelga
+  // quien se enganche a una madre por /fleet/parent.
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN parent_id TEXT").catch(() => {});
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_tickets_parent ON tickets(parent_id)").catch(() => {});
+  // REPARTO DE IDS DE FLOTA A PRUEBA DE COLISIONES (FLT-990 a2). Mapea el rowid del
+  // encargo del bot-inbox al mission_id que se le repartió, para que sea ESTABLE
+  // entre syncs aunque el id natural FLT-<rowid> ya estuviera cogido por otra misión.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_ids (inbox_id INTEGER PRIMARY KEY, mission_id TEXT UNIQUE, created_at INTEGER)").catch(() => {});
 }
 
 // ── PROYECTOS ───────────────────────────────────────────────────────────────
@@ -1211,6 +1220,75 @@ function epochMs(v, fallback) {
 }
 __name(epochMs, "epochMs");
 
+// ── REPARTO DE IDS DE FLOTA A PRUEBA DE COLISIONES (FLT-990 a) ───────────────
+// El número de una misión de flota (FLT-<n>) era, sin más, el rowid del encargo en
+// el bot-inbox de admira-telegram. Ese contador vive en OTRA base y se desincroniza
+// del espacio REAL de misiones: si una misión nace en yokup con un FLT-<n> por otra
+// vía (alta directa en D1, reloj de Oráculo), cuando el rowid del inbox alcanza ese
+// mismo <n> el sync PISABA la misión ajena — le pasó a FLT-973 y FLT-974 de Oráculo,
+// que amanecieron reasignadas a Neo. Ahora el id natural sigue siendo FLT-<rowid>
+// mientras esté LIBRE (las 167 misiones existentes ya valen su rowid y se adoptan
+// tal cual, sin duplicar); si ya está cogido por OTRA misión, el encargo recibe el
+// SIGUIENTE id realmente libre (MAX real de tickets + 1) y la ajena NO se toca.
+async function nextFreeFleetId(env, atLeast) {
+  const a = await env.DB.prepare("SELECT MAX(CAST(SUBSTR(id,5) AS INTEGER)) mx FROM tickets WHERE id GLOB 'FLT-[0-9]*'").first();
+  const b = await env.DB.prepare("SELECT MAX(inbox_id) mx FROM fleet_ids").first();
+  let n = Math.max(Number(a && a.mx) || 0, Number(b && b.mx) || 0, Number(atLeast) || 0) + 1;
+  for (let i = 0; i < 1e4; i++) {
+    const taken = await env.DB.prepare("SELECT 1 x FROM tickets WHERE id=? UNION SELECT 1 x FROM fleet_ids WHERE mission_id=?").bind("FLT-" + n, "FLT-" + n).first();
+    if (!taken) return "FLT-" + n;
+    n++;
+  }
+  return "FLT-" + n;
+}
+__name(nextFreeFleetId, "nextFreeFleetId");
+
+// ¿El ticket FLT-<rowid> que YA existe es el MISMO encargo que este item del inbox,
+// o es una misión AJENA con la que colisiona el número? El asunto guardado en las
+// misiones históricas venía a veces SIN truncar (139 chars) y otras con el recorte
+// de fleetSubject (…), así que una igualdad estricta daba falsos negativos y
+// duplicaba. Regla robusta al truncado: son el MISMO encargo si, quitado el «…»,
+// el asunto más corto es PREFIJO del más largo (dos misiones distintas divergen
+// pronto aunque compartan un «MISIÓN PRIORITARIA:» de cabecera).
+function fleetSameEncargo(storedSubject, text) {
+  const norm = (s) => String(s || "").replace(/…+$/, "").trim();
+  const a = norm(storedSubject), b = norm(fleetSubject(text));
+  if (a.length < 12 || b.length < 12) return a === b;
+  const short = a.length <= b.length ? a : b;
+  const long = a.length <= b.length ? b : a;
+  return long.startsWith(short);
+}
+__name(fleetSameEncargo, "fleetSameEncargo");
+
+// mission_id ESTABLE y sin colisiones para un encargo del inbox. Idempotente:
+// una vez repartido queda persistido en fleet_ids y se reusa en cada sync.
+async function fleetMissionId(env, it) {
+  const rowid = Number(it.id);
+  if (!Number.isFinite(rowid)) return "FLT-" + it.id;
+  const mapped = await env.DB.prepare("SELECT mission_id FROM fleet_ids WHERE inbox_id=?").bind(rowid).first();
+  if (mapped && mapped.mission_id) return mapped.mission_id;
+  const candidate = "FLT-" + rowid;
+  const prev = await env.DB.prepare("SELECT subject FROM tickets WHERE id=?").bind(candidate).first();
+  let missionId, collided = false;
+  if (!prev) {
+    missionId = candidate;                              // libre → id natural = rowid
+  } else if (fleetSameEncargo(prev.subject, it.text)) {
+    missionId = candidate;                              // el MISMO encargo ya sincronizado → adoptar (no duplica)
+  } else {
+    missionId = await nextFreeFleetId(env, rowid);      // COLISIÓN con misión ajena → no pisar, siguiente libre
+    collided = true;
+  }
+  await env.DB.prepare("INSERT OR IGNORE INTO fleet_ids(inbox_id,mission_id,created_at) VALUES(?,?,?)")
+    .bind(rowid, missionId, Date.now()).run();
+  const confirmed = await env.DB.prepare("SELECT mission_id FROM fleet_ids WHERE inbox_id=?").bind(rowid).first();
+  const finalId = confirmed && confirmed.mission_id ? confirmed.mission_id : missionId;
+  if (collided && finalId !== candidate) {
+    await addEvent(env, finalId, "log", "yokup", `Reparto de ids: ${candidate} ya pertenecía a otra misión; este encargo (#${rowid}) recibió ${finalId} para no pisarla.`).catch(() => {});
+  }
+  return finalId;
+}
+__name(fleetMissionId, "fleetMissionId");
+
 async function fleetSync(env) {
   let items = [];
   try {
@@ -1227,7 +1305,7 @@ async function fleetSync(env) {
   for (const it of items) {
     if (!it || !it.id) continue;
     if (!fleetEsMision(it)) continue;   // charla de Telegram: ni misión ni tarea
-    const id = "FLT-" + it.id;
+    const id = await fleetMissionId(env, it);   // id estable y a prueba de colisiones (FLT-990 a2)
     let st = FLEET_ST[it.status] || "open";
     const ts = epochMs(it.ts, now);
     const prev = await env.DB.prepare("SELECT id,status,assignee,loc,proof_image FROM tickets WHERE id=?").bind(id).first();
@@ -1548,7 +1626,7 @@ __name(tercios, "tercios");
 // expone nada que el bot-inbox público no publique ya.
 async function fleetMissions(env) {
   const { results } = await env.DB.prepare(
-    "SELECT id,screen,subject,loc,project,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,created_at,updated_at,note FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
+    "SELECT id,screen,subject,loc,project,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,created_at,updated_at,note,parent_id FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
   ).all();
   const rows = results || [];
   if (!rows.length) return [];
@@ -1575,6 +1653,31 @@ async function fleetMissions(env) {
   });
 }
 __name(fleetMissions, "fleetMissions");
+// Cuelga una misión HIJA de una MADRE (FLT-990 b2). Un solo nivel: la madre no
+// puede tener madre y una madre no puede volverse hija. Aditivo y reversible.
+async function fleetSetParent(env, b) {
+  const child = String(b && b.child || "").trim();
+  const parent = b && (b.parent == null || b.parent === "") ? null : String(b.parent || "").trim();
+  if (!/^FLT-\d+$/.test(child)) return { ok: false, error: "child debe ser FLT-<n>" };
+  const cRow = await env.DB.prepare("SELECT id FROM tickets WHERE id=?").bind(child).first();
+  if (!cRow) return { ok: false, error: "child no existe: " + child };
+  if (parent === null) {
+    await env.DB.prepare("UPDATE tickets SET parent_id=NULL, updated_at=? WHERE id=?").bind(Date.now(), child).run();
+    await addEvent(env, child, "log", "flota", "Misión desenganchada de su madre (vuelve a plana).").catch(() => {});
+    return { ok: true, child, parent: null };
+  }
+  if (!/^FLT-\d+$/.test(parent)) return { ok: false, error: "parent debe ser FLT-<n> o null" };
+  if (parent === child) return { ok: false, error: "una misión no puede ser su propia madre" };
+  const pRow = await env.DB.prepare("SELECT id,parent_id FROM tickets WHERE id=?").bind(parent).first();
+  if (!pRow) return { ok: false, error: "parent no existe: " + parent };
+  if (pRow.parent_id) return { ok: false, error: "la madre " + parent + " ya cuelga de " + pRow.parent_id + " (solo un nivel de agrupación)" };
+  const hasKids = await env.DB.prepare("SELECT 1 x FROM tickets WHERE parent_id=?").bind(child).first();
+  if (hasKids) return { ok: false, error: child + " ya es madre de otras; no puede volverse hija" };
+  await env.DB.prepare("UPDATE tickets SET parent_id=?, updated_at=? WHERE id=?").bind(parent, Date.now(), child).run();
+  await addEvent(env, child, "log", "flota", "Colgada de la misión madre " + parent + ".").catch(() => {});
+  return { ok: true, child, parent };
+}
+__name(fleetSetParent, "fleetSetParent");
 async function stats(env, scope) {
   // Mismos ámbitos que listTickets: los KPIs de la bandeja de campo no pueden
   // contar las misiones de flota (dispararían «abiertas» a decenas).
@@ -1920,6 +2023,16 @@ var index_default = {
     if (url.pathname === "/fleet/plan" && req.method === "POST") {
       await ensureSchema(env);
       return json(await fleetPlanPending(env, url.searchParams.get("limit")));
+    }
+    // CARRIL DE AGENTE (abierto, como el resto de /fleet/*) para colgar una misión
+    // HIJA de una misión MADRE existente — lo que por la web exige la verja Google
+    // (FLT-990 b2). No crea misiones ni inventa agrupaciones: sólo enlaza dos que YA
+    // existen. Body { child:"FLT-x", parent:"FLT-y" } cuelga x de y; parent:null la
+    // desengancha y vuelve a plana.
+    if (url.pathname === "/fleet/parent" && req.method === "POST") {
+      await ensureSchema(env);
+      let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
+      try { return json(await fleetSetParent(env, b)); } catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
     if (url.pathname === "/fleet/reconcile" && req.method === "POST") {
       await ensureSchema(env);
