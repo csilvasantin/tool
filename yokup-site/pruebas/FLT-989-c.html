@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba FLT-989 c · la prueba asciende venga por donde venga el cierre</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--good:#88ffaa;--warn:#ff8866;--line:rgba(120,243,255,.16);--sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden}
+.wrap{max-width:1100px;margin:0 auto;padding:22px 24px 48px;min-width:0}
+h1{font-size:clamp(21px,3vw,29px);letter-spacing:-.02em;margin:4px 0 10px}
+h2{font-size:15px;letter-spacing:.06em;text-transform:uppercase;font-family:var(--mono);color:var(--brand);margin:26px 0 10px}
+.sub{color:var(--mut);font-size:14px;line-height:1.6;margin-bottom:8px}
+.sub b{color:var(--brand)}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px;margin-bottom:8px}
+.tw{overflow-x:auto}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:10px}
+td.ok{color:var(--good)}td.no{color:var(--warn)}
+figure{margin:0 0 20px}
+figure img{width:100%;max-width:100%;height:auto;border:1px solid var(--line);border-radius:12px;display:block}
+figcaption{font-family:var(--mono);font-size:11px;color:var(--dim);line-height:1.6;margin-top:8px}
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:18px}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;font-family:var(--mono);font-size:11px;line-height:1.65;color:var(--mut);margin-bottom:12px;max-width:100%}
+pre b{color:var(--good)}pre i{color:var(--warn);font-style:normal}
+.foot{font-family:var(--mono);font-size:10.5px;line-height:1.7;color:var(--dim);margin-top:26px;padding-top:14px;border-top:1px solid var(--line)}
+.foot b{color:var(--mut)}
+code{font-family:var(--mono);color:var(--mut)}
+@media(max-width:520px){.wrap{padding:18px 14px 40px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Prueba FLT-989 c · la prueba asciende venga por donde venga el cierre</h1>
+<p class="sub">Verificación de <b>infraNeo · Mac Mini</b> sobre el worker <b>yokup-rtc</b> (versión desplegada
+<code>c2177bcb</code>, la del commit <code>c9f9a70</code> de subNeo) en <b>producción</b> y sobre la D1
+<code>yokup-tickets</code> real. El fix bajo prueba: <code>ascendMissionProof()</code> — un único punto donde,
+al finalizar una misión por <b>respaldo</b> (captura en un paso, no en el cierre), la prueba sube a
+<code>tickets.proof_image</code> para que la ficha NO salga con el logotipo de relleno (así nacieron las
+huérfanas FLT-826/830). <b>Nada está inventado:</b> respuestas literales del worker vivo y filas literales de la
+D1 real.</p>
+
+<h2>c1 · una sonda por cada camino de cierre, contra producción, y borradas enteras</h2>
+<p class="sub">Sondas propias de flota (<code>FLT-SONDA-I</code>, <code>-III</code>, <code>-NOP</code>), firmadas
+<b>infraNeo · Mac Mini</b>, con árbol mínimo sembrado a mano y cerrado por el <b>endpoint real</b>. Se
+<b>borraron enteras</b> al terminar (tickets + mission_tasks + events: 0 filas residuales verificado). Las
+imágenes de respaldo usadas responden <b>HTTP 200</b>.</p>
+
+<pre><b>(i) CAMINO AGENTE — POST /fleet/task-status, cierre por respaldo</b>
+paso a: done + image (respaldo)     -> HTTP 200 ok:true, fleet.status:"in_progress"
+paso b: done SIN image (cierra árbol) -> HTTP 200 ok:true, proof(llamada):null, fleet.status:<b>"resolved"</b>
+D1 después:  status=<b>resolved</b>   proof_image == image del paso a   (coincide=1)
+
+<b>(iii) CAMINO CRON — POST /fleet/reconcile (fleetReconcileAll, el mismo del cron */2min)</b>
+árbol 2/2 done + respaldo en un paso, proof vacío, status=open
+POST /fleet/reconcile -> changed:[{"id":"FLT-SONDA-III","status":<b>"resolved"</b>,"inbox":"done"}]
+D1 después:  status=<b>resolved</b>   proof_image == image del paso   (coincide=1)
+
+<b>IDEMPOTENTE</b> — re-cerrar la misma misión ya resuelta: proof_image y resolved_at <b>idénticos</b> (no cambia nada).
+<b>NO PISA PRUEBA PROPIA</b> — misión con proof_image propio + respaldo distinto en un paso:
+   tras cerrar, proof_image sigue siendo el PROPIO (veredicto: PROPIA-INTACTA), el respaldo NO lo pisa.</pre>
+<p class="sub">Camino <b>(ii) web</b> (<code>/ticket/status</code>, <code>/tickets/status</code>): ambos exigen
+sesión del perímetro — comprobado <b>HTTP 401</b> sin Bearer válido (verja activa). En el código llaman al
+<b>mismo</b> <code>ascendMissionProof()</code>, en el mismo punto, tras el mismo guardia <code>hasMissionProof</code>
+(409 si no hay prueba) que los caminos ya verificados en vivo. La cerradura por navegador autenticado
+<b>no se ejecutó en vivo</b> (requería elegir entre 3 Chrome locales logados; no se condujo el navegador del
+usuario) — queda verificado por estructura + gate, no por un cierre HTTP web propio.</p>
+
+<h2>c2 · barrido de huérfanas reales</h2>
+<p class="sub">Consulta a la D1 real: misiones <code>resolved</code> con <code>proof_image</code> vacío/null y con
+al menos un <code>mission_tasks.image</code> no vacío.</p>
+<pre>SELECT ... FROM tickets WHERE status='resolved' AND (proof_image IS NULL OR proof_image='')
+           AND EXISTS (mission_tasks con image no vacío)   -> <b>0 filas</b>
+
+resolved totales: <b>124</b>   ·   resolved sin proof_image: <b>0</b>   ·   proof_image tipo data:/placeholder/logo: <b>0</b> (124 http)
+FLT-826 / FLT-830 (las huérfanas históricas): YA recuperadas, proof_image = URL /media real y <b>distinta</b>,
+   coincide con la imagen de su paso, ambas <b>HTTP 200</b>.</pre>
+<p class="sub"><b>No quedan huérfanas que recuperar.</b> Las citadas ya tenían prueba visible (recuperación previa
+acotada por id, sin evento <code>recover</code> — el rastro que deja <code>ascendMissionProof</code>). Barrido de
+las 124 <code>resolved</code>: <b>ninguna sin prueba visible</b>. Invariante comprobado antes/después de mis
+sondas: 124 resolved · 0 sin proof · suma(resolved_at) idéntica — <b>ninguna real cambió de estado ni de
+resolved_at</b>.</p>
+
+<h2>c3 · captura honesta, y cierre canónico sin tocar D1</h2>
+<p class="sub">La captura se toma con el HTML, el CSS y el JS de <b>/misiones idénticos byte a byte al repo de
+producción</b> (mirror limpio: <code>diff -rq</code> solo señala <code>acceso.js</code>), servidos en local
+<b>sólo</b> para saltar la verja de Google; el único fichero sustituido es <code>acceso.js</code>, que reconstruye
+las dos rutas tras la verja (<code>/tickets</code> y <code>/tasks/all</code>) a partir del endpoint <b>público y
+real</b> <code>/fleet/missions</code> — mismos datos, misma D1, sólo cambia el transporte. <b>Datos reales del
+worker vivo. Stub sólo de acceso.js. Nada inventado.</b></p>
+<pre><b>CIERRE CANÓNICO — la imagen viaja EN la propia llamada de cierre (arreglo FLT-988)</b>
+POST /fleet/task-status c1 / c2 / c3  (done, sin imagen)   -> ok:true
+POST /fleet/task-status c  (done, image:"…/media/fleet/576fd07841a4920a.png")  -> ok:true, fleet.status:<b>"resolved"</b>
+D1 después:  status=<b>resolved</b>   proof_image=<b>…576fd07841a4920a.png</b>   resolved_at fijado
+             árbol: top 3/3 · subtareas 9/9 · 12/12 tareas done
+La prueba la escribió el ENDPOINT al cerrar. <b>No se escribió en `tickets` a mano.</b></pre>
+
+<div class="shots">
+<figure><img src="FLT-989-c-antes-2y3-1280.jpg" alt="/misiones a 1280, FLT-989 EN CURSO 2/3 6/9, datos reales de producción">
+<figcaption>ANTES · /misiones a 1280 con el front de producción y datos reales: FLT-989 <b>EN CURSO</b>,
+árbol <b>2/3 6/9</b> (a·b hechas, c mía pendiente). Sin scroll horizontal (scrollWidth == clientWidth == 1280).</figcaption></figure>
+<figure><img src="FLT-989-c-finalizada-1280.jpg" alt="/misiones a 1280, FLT-989 FINALIZADA 3/3 9/9 con su captura como prueba, no el logotipo">
+<figcaption>DESPUÉS · FLT-989 <b>FINALIZADA</b>, <b>3/3 9/9</b>, y la ficha muestra su <b>captura real como
+prueba</b> (la miniatura, no el logotipo de relleno) — exactamente lo que arregla FLT-989. Sin scroll horizontal.</figcaption></figure>
+</div>
+
+<div class="tw"><table>
+<tr><th>Comprobación</th><th>Método</th><th>Resultado</th></tr>
+<tr><td>Camino agente /fleet/task-status (respaldo)</td><td>sonda vivo + D1</td><td class="ok">✓ resolved + proof ascendido</td></tr>
+<tr><td>Camino cron /fleet/reconcile (respaldo)</td><td>sonda vivo + D1</td><td class="ok">✓ resolved + proof ascendido</td></tr>
+<tr><td>Idempotencia (dos veces = igual)</td><td>sonda vivo + D1</td><td class="ok">✓ sin cambios</td></tr>
+<tr><td>No pisa prueba propia</td><td>sonda vivo + D1</td><td class="ok">✓ PROPIA-INTACTA</td></tr>
+<tr><td>Camino web /ticket·/tickets/status</td><td>gate + código</td><td class="no">~ 401 activo; no cerrado en vivo por navegador</td></tr>
+<tr><td>Huérfanas reales pendientes</td><td>D1 real</td><td class="ok">✓ 0 (124 resolved, 0 sin proof)</td></tr>
+<tr><td>Invariante: ninguna resolved cambió</td><td>D1 antes/después</td><td class="ok">✓ idéntico</td></tr>
+<tr><td>Cierre FLT-989 sin tocar D1</td><td>/fleet/task-status</td><td class="ok">✓ resolved + 3/3 9/9 + proof</td></tr>
+<tr><td>Suites</td><td><code>node --test</code></td><td class="ok">✓ worker 47/47 · front 22/22</td></tr>
+</table></div>
+
+<p class="foot">infraNeo · Mac Mini — verificación sobre <b>yokup-rtc</b> (c2177bcb) y D1 <b>yokup-tickets</b> reales.
+Sondas propias firmadas y borradas enteras. Cero cambios de código, cero despliegues: carrusel de Oráculo y
+carril de decisiones intactos (suite en verde). FLT-989 a·b·c — <b>FINALIZADA</b>.</p>
+
+</div>
+</body>
+</html>
