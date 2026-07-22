@@ -167,6 +167,8 @@ async function ensureSchema(env) {
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN url TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN mission TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN project TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE decisions ADD COLUMN parent_decision TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE decisions ADD COLUMN batch_id TEXT").catch(() => {});
   // Una decisión de misiones es una tanda, no cinco trabajos independientes.
   // Se persiste la cola para que el cierre de una active la siguiente sin abrir
   // otro reloj ni volver a pedir a Carlos una prioridad ya decidida.
@@ -218,16 +220,26 @@ async function hasMissionProof(env, mid) {
 __name(hasMissionProof, "hasMissionProof");
 
 // ---- TANDAS DE MISIONES DESDE RELOJES DE DECISIÓN -------------------------
-// Cinco opciones de misión + «Volver atrás» forman una única tanda. La opción
-// elegida va primero y las restantes hacen wrap en el orden mostrado. Nunca se
-// materializan las cuatro pendientes como tickets: así no hay misiones activas
-// duplicadas ni trabajo aparentando estar en curso antes de que le toque.
+// La decisión inicial (cinco misiones + «Volver atrás») crea una única tanda.
+// Las continuaciones sólo reordenan sus 1..5 elementos aún queued. Nunca se
+// materializan pendientes como tickets ni se recuperan elementos completados.
 function isBackOption(option) {
   return /volver\s+atr[aá]s|no\s+iniciar/i.test(String(option || ""));
 }
 __name(isBackOption, "isBackOption");
-function isMissionDecision(options) {
+function isInitialMissionDecision(options) {
   return Array.isArray(options) && options.length === 6 && isBackOption(options[5]);
+}
+__name(isInitialMissionDecision, "isInitialMissionDecision");
+function isContinuationMissionDecision(options, decision) {
+  // parent_decision es el discriminante persistente. La decisión inicial recibe
+  // batch_id al resolverse, pero nunca debe convertirse por ello en continuación.
+  return !!(decision && decision.parent_decision) &&
+    Array.isArray(options) && options.length >= 2 && options.length <= 6 && isBackOption(options[options.length - 1]);
+}
+__name(isContinuationMissionDecision, "isContinuationMissionDecision");
+function isMissionDecision(options, decision) {
+  return isInitialMissionDecision(options) || isContinuationMissionDecision(options, decision);
 }
 __name(isMissionDecision, "isMissionDecision");
 function batchIdForDecision(decisionId) {
@@ -239,7 +251,7 @@ function missionIdForBatchItem(batchId, position) {
 }
 __name(missionIdForBatchItem, "missionIdForBatchItem");
 function orderedMissionOptions(options, chosen) {
-  const count = options.length - 1; // la sexta es siempre «Volver atrás»
+  const count = options.length - 1; // la última es siempre «Volver atrás»
   const out = [];
   for (let position = 0; position < count; position++) {
     const optionIndex = (chosen + position) % count;
@@ -248,6 +260,24 @@ function orderedMissionOptions(options, chosen) {
   return out;
 }
 __name(orderedMissionOptions, "orderedMissionOptions");
+function continuationMissionOrder(options, chosen, queuedItems) {
+  if (!Array.isArray(queuedItems) || !isContinuationMissionDecision(options, { parent_decision: "linked" })) return [];
+  const byTitle = new Map();
+  for (const item of queuedItems) {
+    const key = String(item && item.title || "").trim().toLocaleLowerCase("es");
+    if (!key || byTitle.has(key)) return [];
+    byTitle.set(key, item);
+  }
+  const ordered = [];
+  for (const option of orderedMissionOptions(options, chosen)) {
+    const key = String(option.title || "").trim().toLocaleLowerCase("es");
+    const item = byTitle.get(key);
+    if (!item || ordered.includes(item)) return [];
+    ordered.push(item);
+  }
+  return ordered.length === queuedItems.length ? ordered : [];
+}
+__name(continuationMissionOrder, "continuationMissionOrder");
 function batchMissionPlan(title) {
   const short = String(title || "Misión").slice(0, 70);
   return [
@@ -329,16 +359,38 @@ __name(activateNextMissionBatchItem, "activateNextMissionBatchItem");
 async function ensureMissionBatchFromDecision(env, decision) {
   let options = [];
   try { options = JSON.parse(decision && decision.options || "[]"); } catch (e) {}
-  if (!decision || !isMissionDecision(options)) return null;
+  if (!decision || !isMissionDecision(options, decision)) return null;
   const effective = decision.status === "decided" ? Number(decision.chosen) : decision.status === "expired" ? Number(decision.recommended) : null;
   if (!Number.isInteger(effective)) return null;
   // «Volver atrás» no es una misión: descarta el lote de forma terminal.
   if (effective === options.length - 1) return null;
-  const batchId = batchIdForDecision(decision.id);
+  const continuation = isContinuationMissionDecision(options, decision);
+  const batchId = continuation ? String(decision.batch_id || "") : batchIdForDecision(decision.id);
   const now = Date.now();
+  if (continuation) {
+    const batch = batchId && await env.DB.prepare("SELECT id FROM mission_batches WHERE id=?").bind(batchId).first();
+    if (!batch) return null;
+    const queued = await env.DB.prepare("SELECT * FROM mission_batch_items WHERE batch_id=? AND status='queued' ORDER BY position").bind(batchId).all();
+    const ordered = continuationMissionOrder(options, effective, queued.results || []);
+    if (ordered.length) {
+      const positions = (queued.results || []).map((item) => item.position).sort((a, b) => a - b);
+      const statements = [];
+      for (let i = 0; i < ordered.length; i++) {
+        statements.push(env.DB.prepare("UPDATE mission_batch_items SET position=? WHERE batch_id=? AND position=?")
+          .bind(-1000 - i, batchId, ordered[i].position));
+      }
+      for (let i = 0; i < ordered.length; i++) {
+        statements.push(env.DB.prepare("UPDATE mission_batch_items SET position=?, updated_at=? WHERE batch_id=? AND position=?")
+          .bind(positions[i], now, batchId, -1000 - i));
+      }
+      await env.DB.batch(statements);
+    }
+    return activateNextMissionBatchItem(env, batchId);
+  }
   await env.DB.prepare(
     "INSERT OR IGNORE INTO mission_batches(id,decision_id,agent,machine,status,created_at,updated_at) VALUES(?,?,?,?, 'active',?,?)"
   ).bind(batchId, decision.id, decision.agent || "", decision.machine || "", now, now).run();
+  await env.DB.prepare("UPDATE decisions SET batch_id=? WHERE id=? AND (batch_id IS NULL OR batch_id='')").bind(batchId, decision.id).run();
   const existing = await env.DB.prepare("SELECT 1 AS x FROM mission_batch_items WHERE batch_id=? LIMIT 1").bind(batchId).first();
   if (!existing) {
     for (const item of orderedMissionOptions(options, effective)) {
@@ -1727,12 +1779,34 @@ var index_default = {
       try {
         await ensureSchema(env);
         const b = await req.json();
-        // La ventana de misión es siempre cinco caminos ejecutables más la
-        // salida terminal. No se publican mini-relojes alternativos que rompan
-        // la cola o vuelvan a pedir una decisión ya tomada.
-        const opts = Array.isArray(b.options) ? b.options.slice(0, 6).map((o) => String(o).slice(0, 160)) : [];
+        // La ventana inicial mantiene cinco caminos + salida. Una continuación
+        // enlazada al mismo batch acepta únicamente las 1..5 misiones que aún
+        // quedan en cola + la salida terminal.
+        const rawOpts = Array.isArray(b.options) ? b.options : [];
+        const opts = rawOpts.slice(0, 6).map((o) => String(o).slice(0, 160));
         const q = String(b.question || "").trim().slice(0, 400);
-        if (!q || !isMissionDecision(opts)) return json({ ok: false, error: "Se requieren exactamente 5 misiones y «Volver atrás» como sexta opción" }, 400);
+        let dparent = String(b.parent_decision || "").trim().slice(0, 80);
+        let dbatch = String(b.batch_id || "").trim().slice(0, 80);
+        const continuation = !!(dparent || dbatch);
+        if (!q || rawOpts.length !== opts.length || (continuation ? !isContinuationMissionDecision(opts, { parent_decision: dparent || "linked" }) : !isInitialMissionDecision(opts))) {
+          return json({ ok: false, error: continuation ? "La continuación requiere entre 1 y 5 misiones restantes y «Volver atrás» al final" : "La decisión inicial requiere exactamente 5 misiones y «Volver atrás» como sexta opción" }, 400);
+        }
+        if (continuation) {
+          const parent = dparent ? await env.DB.prepare("SELECT id,batch_id,options FROM decisions WHERE id=?").bind(dparent).first() : null;
+          if (dparent && !parent) return json({ ok: false, error: "parent_decision no existe" }, 404);
+          const inferredBatch = parent && (parent.batch_id || batchIdForDecision(parent.id));
+          if (dbatch && inferredBatch && dbatch !== inferredBatch) return json({ ok: false, error: "parent_decision y batch_id no coinciden" }, 400);
+          dbatch = dbatch || inferredBatch || "";
+          const batch = dbatch && await env.DB.prepare("SELECT id,decision_id,status FROM mission_batches WHERE id=?").bind(dbatch).first();
+          if (!batch || batch.status !== "active") return json({ ok: false, error: "batch_id activo requerido" }, 400);
+          dparent = dparent || batch.decision_id || "";
+          const open = await env.DB.prepare("SELECT id FROM decisions WHERE batch_id=? AND status='pending' LIMIT 1").bind(dbatch).first();
+          if (open) return json({ ok: false, error: "continuation_pending", existing: open.id }, 409);
+          const queued = await env.DB.prepare("SELECT position,title FROM mission_batch_items WHERE batch_id=? AND status='queued' ORDER BY position").bind(dbatch).all();
+          if (!continuationMissionOrder(opts, 0, queued.results || []).length) {
+            return json({ ok: false, error: "Las opciones deben coincidir exactamente con las misiones restantes del batch, sin completadas ni duplicados" }, 400);
+          }
+        }
         const mins = Math.min(60, Math.max(1, +b.minutes || 3));   // por defecto 3 min
         const now = Date.now();
         const agent = String(b.agent || "").trim().slice(0, 40);
@@ -1741,7 +1815,7 @@ var index_default = {
         const recent = await env.DB.prepare("SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) ORDER BY created_at DESC LIMIT 200").bind(agent).all();
         const previous = (recent.results || []).find((row) => madridDayKey(row.created_at) === today);
         const userOverride = b.user_override === true;
-        if (previous && !userOverride) {
+        if (previous && !userOverride && !continuation) {
           return json({ ok: false, error: "daily_limit", existing: previous.id, day: today }, 409);
         }
         const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
@@ -1750,12 +1824,12 @@ var index_default = {
         const durl = String(b.url || "").slice(0, 300);
         const dmission = String(b.mission || "").slice(0, 120);
         const dproject = String(b.project || "").trim().slice(0, 120);
-        await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?)")
+        await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,parent_decision,batch_id) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?)")
           .bind(id, String(b.machine || "").slice(0, 60), agent,
                 String(b.surface || "").slice(0, 20), q, JSON.stringify(opts),
                 Math.max(0, Math.min(opts.length - 1, +b.recommended || 0)), now, now + mins * 60000,
-                durl, dmission, dproject).run();
-        return json({ ok: true, id, deadline: now + mins * 60000, project: dproject, user_override: userOverride });
+                durl, dmission, dproject, dparent, dbatch).run();
+        return json({ ok: true, id, deadline: now + mins * 60000, project: dproject, parent_decision: dparent, batch_id: dbatch, continuation, user_override: userOverride });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     if (url.pathname === "/decisions" && req.method === "GET") {
@@ -1769,10 +1843,11 @@ var index_default = {
           .bind(now - 3600000, now - 3600000).all();
         const items = await Promise.all((r.results || []).map(async (d) => {
           let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
-          const batch = isMissionDecision(o) ? await missionBatchSnapshot(env, batchIdForDecision(d.id)) : null;
+          const batch = isMissionDecision(o, d) ? await missionBatchSnapshot(env, d.batch_id || batchIdForDecision(d.id)) : null;
           return { id: d.id, machine: d.machine, agent: d.agent, surface: d.surface, question: d.question,
                    options: o, recommended: d.recommended, status: d.status, chosen: d.chosen,
                    url: d.url || "", mission: d.mission || "", project: d.project || "",
+                   parent_decision: d.parent_decision || "", batch_id: d.batch_id || "",
                    batch,
                    created_at: d.created_at, deadline: d.deadline, decided_at: d.decided_at,
                    secondsLeft: Math.max(0, Math.round((d.deadline - now) / 1000)) };
@@ -1791,7 +1866,7 @@ var index_default = {
         if (d.status !== "pending") return json({ ok: false, error: "decision_closed", status: d.status, chosen: d.chosen }, 409);
         let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
         if (!(idx >= 0 && idx < o.length)) return json({ ok: false, error: "choice fuera de rango" }, 400);
-        const back = idx === o.length - 1 && isMissionDecision(o);
+        const back = idx === o.length - 1 && isMissionDecision(o, d);
         await env.DB.prepare("UPDATE decisions SET status=?, chosen=?, chosen_by=?, decided_at=? WHERE id=?")
           .bind(back ? "cancelled" : "decided", idx, String(b.by || "Carlos").slice(0, 40), Date.now(), id).run();
         const chosen = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(id).first();
@@ -1816,6 +1891,7 @@ var index_default = {
         return json({ ok: true, id: d.id, status: d.status,
                       chosen: d.chosen, recommended: d.recommended, options: o,
                       project: d.project || "", mission: d.mission || "", url: d.url || "",
+                      parent_decision: d.parent_decision || "", batch_id: d.batch_id || "",
                       // si venció sin respuesta, el agente tira con la recomendada
                       effective: d.status === "decided" || d.status === "cancelled" ? d.chosen : (expired ? d.recommended : null),
                       batch,

@@ -10,8 +10,8 @@ test('el esquema de decisiones migra project de forma idempotente', () => {
 
 test('POST decisions acepta, limita, persiste y devuelve project', () => {
   assert.match(source, /const dproject = String\(b\.project \|\| ""\)\.trim\(\)\.slice\(0, 120\)/);
-  assert.match(source, /INSERT INTO decisions \([^)]*url,mission,project\)/);
-  assert.match(source, /durl, dmission, dproject\)\.run\(\)/);
+  assert.match(source, /INSERT INTO decisions \([^)]*url,mission,project,parent_decision,batch_id\)/);
+  assert.match(source, /durl, dmission, dproject, dparent, dbatch\)\.run\(\)/);
   assert.match(source, /deadline: now \+ mins \* 60000, project: dproject/);
 });
 

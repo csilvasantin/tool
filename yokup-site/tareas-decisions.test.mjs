@@ -114,9 +114,25 @@ test('Volver atrás deja constancia de que el lote fue descartado', () => {
   assert.match(card, /lote descartado/);
 });
 
+test('Volver atrás en una continuación conserva el batch actual', () => {
+  const card = render('cancelled', {chosen: 2, options:['Pendiente B','Pendiente C','Volver atrás'], parent_decision:'DEC-parent', batch_id:'BATCH-parent'});
+  assert.match(card, /continuación descartada: se conserva la tanda actual/);
+  assert.doesNotMatch(card, /no se iniciará ninguna misión/);
+});
+
 test('el proyecto legacy sigue mission → url → genérico y nunca usa question', () => {
   assert.equal(context.decisionProjectName({project:'Yokup cuadrático', mission:'otra', url:'https://admiranext.com'}), 'Yokup cuadrático');
   assert.equal(context.decisionProjectName({mission:'Generador de Presentaciones · carrusel', url:'https://yokup.com'}), 'Generador de Presentaciones · AdmiraNeXT');
   assert.equal(context.decisionProjectName({url:'https://www.admiranext.com/presentaciones/'}), 'Generador de Presentaciones · AdmiraNeXT');
   assert.equal(context.decisionProjectName({question:'¿Publicamos Nike?'}), 'Proyecto sin identificar');
+});
+
+test('la UI muestra proyecto y misiones restantes en continuaciones 4→3→2→1', () => {
+  for (const count of [4,3,2,1]) {
+    const continuationOptions = Array.from({length:count}, (_, i) => `Pendiente ${i + 1}`).concat('Volver atrás');
+    const card = render('pending', {project:'Generador de Presentaciones · AdmiraNeXT', options:continuationOptions, parent_decision:'DEC-parent', batch_id:'BATCH-parent'});
+    assert.match(card, new RegExp(`${count} misi[oó]n(?:es)? restante`));
+    assert.equal(buttons(card).length, count + 1);
+    assert.ok(card.indexOf('dec-project-name') < card.indexOf('dec-project-rest'));
+  }
 });
