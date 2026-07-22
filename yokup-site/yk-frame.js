@@ -25,7 +25,7 @@
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.22.07.2026.r1";
+  var VERSION = "v.22.07.2026.r2";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
 
   // NAV DE PLATAFORMA — fuente ÚNICA del menú tras la DMZ (zona app). Las
@@ -201,6 +201,11 @@
 
     var railL = el("aside", "yk-rail yk-rail-left");
     railL.appendChild(el("div", "yk-hd", railLeftLabel));
+    // MÓVIL (≤520px): la barra esconde .yk-nav y las secciones quedaban
+    // inalcanzables desde el teléfono (FLT-983). El MISMO menú, sin inventar
+    // patrón nuevo, se replica dentro del cajón OPCIONES que ya existía; el CSS
+    // solo lo muestra por debajo de 520px, así el escritorio no cambia.
+    railL.appendChild(buildRailNav(navItems));
     var slotL = el("div", "yk-slot"); railL.appendChild(slotL);
     // pie del raíl OPCIONES: AJUSTES + versión, abajo del todo (Carlos, 2026-07-19).
     // Vive en el marco, no en las páginas → idéntico en toda la zona-app.
@@ -583,6 +588,31 @@
     }, true);
 
     return wrap;
+  }
+
+  // MENÚ DEL CAJÓN (solo visible ≤520px, ver yk-frame.css) — mismos ítems que la
+  // barra, misma fuente única (pageNav), mismo activo. Filas de 44px, activo
+  // marcado con aria-current, y al navegar el cajón se deja CERRADO para no
+  // aterrizar en la página siguiente con el panel tapando el contenido.
+  function buildRailNav(items) {
+    var nav = el("nav", "yk-rail-nav");
+    nav.setAttribute("aria-label", "Secciones de Yokup");
+    nav.appendChild(el("div", "yk-rail-navhd", "SECCIONES"));
+    items.forEach(function (it) {
+      var a = el("a", "yk-rail-navlink" + (it.active ? " on" : ""), it.label);
+      a.href = it.href || "#";
+      if (it.active) a.setAttribute("aria-current", "page");
+      if (it.panel) {
+        a.setAttribute("data-yk-open", it.panel);
+        a.addEventListener("click", function (e) {
+          e.preventDefault(); setOpen("left", false); setOpen(it.panel, true);
+        });
+      } else {
+        a.addEventListener("click", function () { setOpen("left", false); });
+      }
+      nav.appendChild(a);
+    });
+    return nav;
   }
 
   // botón-icono cuadrático de la barra

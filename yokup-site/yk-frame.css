@@ -292,14 +292,65 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
   .yk-proj-nm .yk-pj-short{ display: inline }
 }
 
-/* ≤520px: las referencias y el reloj salen; el selector queda como icono + caret
- * (sin nombre); permanecen logo + iconos (quietos). */
+/* ============== MENÚ DE SECCIONES DEL CAJÓN (móvil) — FLT-983 ==============
+ * En escritorio la barra ya lista las secciones: aquí NO se pinta nada. Por
+ * debajo de 520px la barra las esconde, así que el mismo menú vive dentro del
+ * cajón OPCIONES. Filas de 44px de alto mínimo, activo en fósforo con barra
+ * lateral, foco visible por teclado. */
+.yk-rail-nav{ display: none }
+.yk-rail-navhd{
+  font-size: 9.5px; letter-spacing:.14em; text-transform:uppercase;
+  color: var(--yk-dim); padding: 0 2px 6px;
+}
+.yk-rail-navlink{
+  display: flex; align-items: center;
+  min-height: 44px; padding: 0 10px;
+  font-size: 12px; letter-spacing:.10em; text-transform:uppercase;
+  color: var(--yk-ink); text-decoration: none;
+  border: 1px solid transparent; border-bottom-color: var(--yk-line);
+  border-left: 2px solid transparent;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.yk-rail-navlink:hover{ color: var(--yk-brand); background: rgba(120,243,255,.06) }
+.yk-rail-navlink.on{
+  color: var(--yk-brand); font-weight: 700;
+  border-left-color: var(--yk-brand);
+  background: rgba(120,243,255,.10);
+}
+.yk-rail-navlink:focus-visible{
+  outline: 2px solid var(--yk-brand); outline-offset: -2px; color: var(--yk-brand);
+}
+
+/* ≤520px: las referencias y el reloj salen de la barra; el selector queda como
+ * icono + caret (sin nombre); permanecen logo + iconos (quietos). Las secciones
+ * NO desaparecen: se sirven en el cajón OPCIONES (.yk-rail-nav). */
 @media (max-width: 520px){
   :root{ --yk-rail-w: 92vw; --yk-rail-h: 78vh; --yk-avatar-safe: 0px; }
   .yk-rail-bottom{ right:0 }
   .yk-nav, .yk-meta, .yk-page{ display:none }
   .yk-proj-nm{ display: none }
   .yk-bar{ gap:10px }
+  /* el cajón sí muestra el menú, y su bloque de secciones puede desplazarse */
+  .yk-rail-nav{ display:flex; flex-direction:column; margin-bottom:14px }
+  /* con las secciones delante, el «— sin opciones» del cajón solo estorba */
+  .yk-rail-left .yk-empty{ display:none }
+  /* área táctil de 44px para los iconos de la barra SIN ensanchar la barra
+     (la barra mide 46px y a 320px no cabe un icono de 44 de lado) */
+  .yk-ico{ position:relative; min-width:36px; padding:0 8px }
+  .yk-ico::after{ content:""; position:absolute; top:-6px; bottom:-6px; left:-4px; right:-4px }
+  .yk-proj-btn{ position:relative }
+  .yk-proj-btn::after{ content:""; position:absolute; top:-6px; bottom:-6px; left:-4px; right:-4px }
+}
+
+/* foco visible también en los iconos y el selector de la barra */
+.yk-ico:focus-visible, .yk-proj-btn:focus-visible{
+  outline: 2px solid var(--yk-brand); outline-offset: 2px;
+}
+
+/* quien pida menos movimiento, no lo sufre */
+@media (prefers-reduced-motion: reduce){
+  .yk-rail{ transition: none }
+  .yk-logo .yk-dot{ animation: none }
 }
 
 /* --- pie del raíl OPCIONES: AJUSTES + versión, abajo del todo (2026-07-19) --- */
