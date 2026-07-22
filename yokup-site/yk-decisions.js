@@ -1,6 +1,5 @@
 /* Relojes de decisión — módulo compartido.
- *   · /misiones  → mount({worker}) o mode:"live": el panel de siempre (vivas +
- *     las recién cerradas que devuelve el worker). Comportamiento intacto.
+ *   · /misiones  → mount({worker, mode:"summary"}): sólo contador + enlace.
  *   · /decisiones → mount({worker, mode:"full"}): la sección propia de Carlos.
  *     Arriba las VIVAS (con reloj y opciones pulsables) y debajo el HISTÓRICO
  *     (decididas, vencidas y canceladas) con su desenlace y su fecha.
@@ -9,7 +8,8 @@
  *     ya se mira, no en otra página (Carlos, FLT-985 c2). `onData(decisiones)`
  *     se llama en cada render para que la página pueda marcar a su gente sin
  *     abrir una segunda consulta ni un segundo render.
- * MISMO render de tarjeta en las tres vistas: card() es la única fuente.
+ * Las tarjetas viven en /decisiones y /equipo; /misiones consume únicamente
+ * summary y jamás monta opciones ni relojes.
  *
  * HISTÓRICO REAL desde el worker (FLT-982): GET /decisions?all=1&since=0 devuelve
  * TODAS las decisiones, no solo las vivas y las cerradas de la última hora, y trae
@@ -32,6 +32,18 @@
        + ".dec-stamp b{color:var(--mut);font-weight:700}"
        + ".decs-empty{font-family:var(--mono);font-size:11px;color:var(--dim,#4d7a88);padding:4px 0}"
        + ".decs-note{font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--dim,#4d7a88);margin-top:11px;padding-top:9px;border-top:1px solid var(--line)}";
+  /* Jerarquía de /decisiones: máquina → agente → fichas. */
+  CSS += ".dec-machine{border:1px solid var(--line2);border-radius:12px;background:rgba(120,243,255,.025);padding:12px;min-width:0}"
+       + ".dec-machine+.dec-machine{margin-top:12px}.dec-machine-h,.dec-agent-h{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}"
+       + ".dec-machine-h{padding-bottom:10px;border-bottom:1px solid var(--line)}.dec-machine-h h2,.dec-agent-h h3{margin:0;overflow-wrap:anywhere}"
+       + ".dec-machine-h h2{font-size:17px}.dec-agent-h h3{font-size:13px}.dec-group-count{font-family:var(--mono);font-size:10px;color:var(--mut);white-space:nowrap}"
+       + ".dec-agent{padding-top:11px}.dec-agent+.dec-agent{margin-top:11px;border-top:1px dashed var(--line)}"
+       + ".dec-agent-title{display:inline-flex;align-items:center;gap:7px}.dec-agent-title img,.dec-agent-title .decini{width:22px;height:22px;border-radius:5px}"
+       + ".dec-agent-title img{object-fit:cover;object-position:center top}.dec-agent-title .decini{display:inline-grid;place-items:center;border:1px solid var(--line);font-family:var(--mono);font-size:9px}"
+       + ".dec-agent-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:9px;margin-top:9px;min-width:0}"
+       + ".dec-summary{margin:0 0 16px}.dec-summary a{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--line2);border-radius:10px;padding:10px 13px;background:var(--card);color:var(--ink);text-decoration:none;font-family:var(--mono);font-size:11px}"
+       + ".dec-summary a:hover,.dec-summary a:focus-visible{border-color:var(--brand);outline:none}.dec-summary strong{color:var(--warn,#ffb545);font-size:15px}"
+       + "@media(max-width:520px){.dec-machine{padding:10px}.dec-machine-h,.dec-agent-h{align-items:flex-start;flex-direction:column;gap:5px}.dec-group-count{white-space:normal}.dec-agent-cards{grid-template-columns:minmax(0,1fr)}}";
   function esc(x) { return String(x == null ? "" : x).replace(/[<>&"]/g, function (c) { return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]; }); }
   function cleanProjectName(x) { return String(x || "").replace(/^misi[oó]n\s*:?\s*/i, "").replace(/\s+/g, " ").trim().slice(0, 120); }
   function projectSlug(x) { return cleanProjectName(x).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
@@ -56,6 +68,7 @@
     return legacyBrand(d && d.url) || "Sin proyecto";
   }
   function domId(x) { return "dec-project-" + String(x || "item").replace(/[^a-z0-9_-]/gi, "-"); }
+  function groupId(prefix, x, i) { return "dec-" + prefix + "-" + String(x || "sin-dato").replace(/[^a-z0-9_-]/gi, "-") + "-" + i; }
   // Retrato del agente: 16px, del módulo compartido. Sin módulo cargado o sin
   // foto, iniciales — nunca un icono genérico.
   function agentePinta(n) {
@@ -105,7 +118,62 @@
     var result = d.status === "decided" ? "<div class=\"dec-done ok\">✓ decisión aplicada: <b>" + esc(d.options[effective] || "") + "</b></div>" : d.status === "expired" ? "<div class=\"dec-done exp\">⏱ sin respuesta — se aplicó la recomendada: <b>" + esc(d.options[effective] || "") + "</b></div>" : d.status === "cancelled" ? "<div class=\"dec-done exp\">" + (d.parent_decision || d.batch_id ? "↩ continuación descartada: se conserva la tanda actual." : "↩ lote descartado: no se iniciará ninguna misión.") + "</div>" : "";
     var batch = d.batch, batchHtml = "";
     if (batch) { var active = (batch.items || []).filter(function (x) { return x.status === "active"; })[0]; var queued = (batch.items || []).filter(function (x) { return x.status === "queued"; }); batchHtml = "<div class=\"dec-batch" + (batch.status === "paused" ? " paused" : "") + "\">" + (batch.status === "paused" ? "⏸ <b>cola pausada</b>: " + esc(batch.pause_reason || "requiere decisión") : batch.status === "completed" ? "✓ <b>tanda completada</b>" : "▶ <b>activa</b>: " + esc(active ? active.title : "preparando") + " · cola: " + queued.map(function (x) { return esc(x.title); }).join(" → ")) + "</div>"; }
-    return "<article class=\"dec" + (pending && d.secondsLeft <= 60 ? " urge" : "") + "\" aria-labelledby=\"" + projectId + "\"><header class=\"dec-project\"><span class=\"dec-project-label\">PROYECTO</span><h3 class=\"dec-project-name\" id=\"" + projectId + "\">" + esc(project) + "</h3><span class=\"dec-project-rest\">" + remainingText + "</span></header><div class=\"dec-top\"><span class=\"dec-k\">🖥 " + esc(d.machine || "—") + "</span>" + agentePinta(d.agent) + "<span class=\"dec-k\">" + (String(d.surface || "").toUpperCase() === "CLI" ? "⌨ CLI" : "🖥 Desktop App") + "</span>" + (pending ? "<span class=\"dec-clock\" data-clock=\"" + esc(d.id) + "\" role=\"timer\" aria-label=\"Tiempo restante\">" + mmss(d.secondsLeft) + "</span>" : "") + "</div><div class=\"dec-q\">" + esc(d.question) + "</div><div class=\"dec-opts\">" + optsHtml + "</div>" + result + batchHtml + (opts && opts.stamp ? stamp(d) : "") + "</article>";
+    var projectTag = opts && opts.nested ? "h4" : "h3";
+    return "<article class=\"dec" + (pending && d.secondsLeft <= 60 ? " urge" : "") + "\" aria-labelledby=\"" + projectId + "\"><header class=\"dec-project\"><span class=\"dec-project-label\">PROYECTO</span><" + projectTag + " class=\"dec-project-name\" id=\"" + projectId + "\">" + esc(project) + "</" + projectTag + "><span class=\"dec-project-rest\">" + remainingText + "</span></header><div class=\"dec-top\"><span class=\"dec-k\">🖥 " + esc(d.machine || "—") + "</span>" + agentePinta(d.agent) + "<span class=\"dec-k\">" + (String(d.surface || "").toUpperCase() === "CLI" ? "⌨ CLI" : "🖥 Desktop App") + "</span>" + (pending ? "<span class=\"dec-clock\" data-clock=\"" + esc(d.id) + "\" role=\"timer\" aria-label=\"Tiempo restante\">" + mmss(d.secondsLeft) + "</span>" : "") + "</div><div class=\"dec-q\">" + esc(d.question) + "</div><div class=\"dec-opts\">" + optsHtml + "</div>" + result + batchHtml + (opts && opts.stamp ? stamp(d) : "") + "</article>";
+  }
+  function stateCounts(items) {
+    var n = {pending:0,decided:0,expired:0,cancelled:0};
+    (items || []).forEach(function (d) { if (n[d.status] != null) n[d.status]++; });
+    return n;
+  }
+  function stateText(items) {
+    var n = stateCounts(items), bits = [];
+    if (n.pending) bits.push(n.pending + " viva" + (n.pending === 1 ? "" : "s"));
+    if (n.decided) bits.push(n.decided + " decidida" + (n.decided === 1 ? "" : "s"));
+    if (n.expired) bits.push(n.expired + " vencida" + (n.expired === 1 ? "" : "s"));
+    if (n.cancelled) bits.push(n.cancelled + " cancelada" + (n.cancelled === 1 ? "" : "s"));
+    return bits.join(" · ") || "0 decisiones";
+  }
+  function compareLabel(a, b) { return String(a || "").localeCompare(String(b || ""), "es", {sensitivity:"base",numeric:true}); }
+  function groupDecisions(items) {
+    var machines = {};
+    (items || []).forEach(function (d) {
+      var machine = String(d.machine || "Sin máquina").trim() || "Sin máquina";
+      var agent = String(d.agent || "Sin agente").trim() || "Sin agente";
+      var mk = machine.toLocaleLowerCase("es"), ak = agent.toLocaleLowerCase("es");
+      var mg = machines[mk] || (machines[mk] = {name:machine,agents:{},items:[]});
+      var ag = mg.agents[ak] || (mg.agents[ak] = {name:agent,items:[]});
+      mg.items.push(d); ag.items.push(d);
+    });
+    return Object.keys(machines).map(function (key) {
+      var machine = machines[key];
+      machine.agents = Object.keys(machine.agents).map(function (agentKey) {
+        var agent = machine.agents[agentKey];
+        agent.items.sort(function (a,b) {
+          var at = a.status === "pending" ? (+a.created_at||0) : closedAt(a);
+          var bt = b.status === "pending" ? (+b.created_at||0) : closedAt(b);
+          return bt-at || compareLabel(a.id,b.id);
+        });
+        return agent;
+      }).sort(function (a,b) { return compareLabel(a.name,b.name); });
+      return machine;
+    }).sort(function (a,b) { return compareLabel(a.name,b.name); });
+  }
+  function agentHeading(agent, id) {
+    var url = ""; try { url = window.ykAvatar ? window.ykAvatar.img(agent) : ""; } catch (e) {}
+    var face = url ? '<img alt="" loading="lazy" src="' + esc(url) + '">' : '<span class="decini">' + esc(String(agent).replace(/^(sub|infra)/i, "").slice(0,2).toUpperCase()) + '</span>';
+    return '<h3 class="dec-agent-title" id="' + id + '">' + face + '<span>' + esc(agent) + '</span></h3>';
+  }
+  function renderGroups(items, opts) {
+    var cardOpts = {nested:true,stamp:!!(opts && opts.stamp)};
+    return groupDecisions(items).map(function (machine, mi) {
+      var mid = groupId("machine", machine.name, mi);
+      var agents = machine.agents.map(function (agent, ai) {
+        var aid = groupId("agent", machine.name + "-" + agent.name, ai);
+        return '<section class="dec-agent" aria-labelledby="' + aid + '"><header class="dec-agent-h">' + agentHeading(agent.name, aid) + '<span class="dec-group-count">' + esc(stateText(agent.items)) + '</span></header><div class="dec-agent-cards">' + agent.items.map(function (d) { return card(d, cardOpts); }).join("") + '</div></section>';
+      }).join("");
+      return '<section class="dec-machine" aria-labelledby="' + mid + '"><header class="dec-machine-h"><h2 id="' + mid + '">🖥 ' + esc(machine.name) + '</h2><span class="dec-group-count">' + machine.items.length + ' · ' + esc(stateText(machine.items)) + '</span></header>' + agents + '</section>';
+    }).join("");
   }
   // ── HISTÓRICO ───────────────────────────────────────────────────────────────
   // Sale entero del worker. Se pide de la más reciente hacia atrás con el cursor
@@ -117,8 +185,10 @@
 
   function mount(config) {
     config = config || {};
-    var full = config.mode === "full";
-    var section = document.getElementById("decs"), list = document.getElementById("decsList"); if (!section || !list) return;
+    var full = config.mode === "full", summary = config.mode === "summary";
+    var section = summary ? document.getElementById("decSummary") : document.getElementById("decs");
+    var list = summary ? null : document.getElementById("decsList");
+    if (!section || (!summary && !list)) return;
     if (!document.getElementById("yk-decisions-css")) { var style = document.createElement("style"); style.id = "yk-decisions-css"; style.textContent = CSS; document.head.appendChild(style); }
     var histSec = full ? document.getElementById("decsHist") : null;
     var histList = full ? document.getElementById("decsHistList") : null;
@@ -143,7 +213,7 @@
       if (liveSig !== sig) {
         sig = liveSig;
         document.getElementById("decsN").textContent = live.length ? "· " + live.length + " esperando tu decisión" : "· sin decisiones abiertas";
-        list.innerHTML = live.length ? live.map(function (d) { return card(d, null); }).join("")
+        list.innerHTML = live.length ? renderGroups(live, null)
           : "<p class=\"decs-empty\">Ningún reloj corriendo ahora mismo. Cuando un agente abra una decisión, aparecerá aquí con su cuenta atrás.</p>";
       }
       if (!histSec || !histList) return;
@@ -151,25 +221,38 @@
       if (hSig === histSig) return;
       histSig = hSig;
       document.getElementById("decsHistN").textContent = "· " + closed.length + (closed.length === 1 ? " decisión cerrada" : " decisiones cerradas");
-      histList.innerHTML = (closed.length ? closed.map(function (d) { return card(d, {stamp: true}); }).join("")
+      histList.innerHTML = (closed.length ? renderGroups(closed, {stamp: true})
         : "<p class=\"decs-empty\">Todavía no hay decisiones cerradas.</p>")
         + "<p class=\"decs-note\">Histórico completo del worker: <code>GET /decisions?all=1&amp;since=0</code> devuelve todas las decisiones de la flota, no solo las de la última hora, y con ellas quién eligió. Se ve lo mismo desde cualquier equipo."
         + (truncated ? " Ahora mismo hay más de " + (PAGE * PAGE_MAX) + " y esta lista llega solo hasta ahí: las más antiguas quedan fuera." : "")
         + "</p>";
     }
 
-    // Vista LIVE (/misiones): exactamente el panel de siempre.
+    // /misiones: sólo un recuento enlazado. Esta rama no invoca card() y por
+    // contrato no puede introducir opciones ni relojes en esa página.
+    function renderSummary() {
+      var pending = decisions.filter(function (d) { return d.status === "pending"; }).length;
+      if (String(pending) === sig) return;
+      sig = String(pending); section.hidden = false;
+      var count = document.getElementById("decSummaryCount");
+      var label = document.getElementById("decSummaryLabel");
+      if (count) count.textContent = pending;
+      if (label) label.textContent = pending === 1 ? "decisión viva" : "decisiones vivas";
+    }
+    // /equipo: conserva el panel operativo compacto de FLT-985. No se usa en
+    // /misiones, cuya vista summary no dispone siquiera de lista de tarjetas.
     function renderLive() {
       var pending = decisions.filter(function (d) { return d.status === "pending"; }).length;
       var next = decisions.map(function (d) { return d.id + ":" + d.status + ":" + projectName(d) + ":" + JSON.stringify(d.batch || {}); }).join("|");
       section.hidden = !decisions.length;
       if (!decisions.length || next === sig) return;
       sig = next;
-      document.getElementById("decsN").textContent = pending ? "· " + pending + " esperando tu decisión" : "· sin decisiones abiertas";
-      list.innerHTML = decisions.map(function (d) { return card(d, null); }).join("");
+      var count = document.getElementById("decsN");
+      if (count) count.textContent = pending ? "· " + pending + " esperando tu decisión" : "· sin decisiones abiertas";
+      list.innerHTML = decisions.map(function (d) { return card(d); }).join("");
     }
     function render() {
-      var out = full ? renderFull() : renderLive();
+      var out = full ? renderFull() : (summary ? renderSummary() : renderLive());
       // Un solo módulo pinta las fichas; quien además necesite SABER que hay un
       // reloj corriendo (la ficha de agente de /equipo, FLT-985 c2) se entera por
       // aquí en vez de montar su propia consulta y su propio render.
@@ -196,13 +279,17 @@
     async function load() {
       try {
         if (full) { decisions = await fetchAll(); }
-        else { var r = await fetch(api + "?_t=" + Date.now(), {cache:"no-store"}), d = await r.json(); decisions = d.items || []; }
+        else {
+          var query = summary ? "?status=pending&limit=500&_t=" : "?_t=";
+          var r = await fetch(api + query + Date.now(), {cache:"no-store"}), d = await r.json();
+          decisions = d.items || [];
+        }
         render();
       } catch (e) {}
     }
     setInterval(function () { var refresh = false; decisions.forEach(function (d) { if (d.status !== "pending") return; d.secondsLeft = Math.max(0, d.secondsLeft - 1); var clock = document.querySelector("[data-clock='" + d.id + "']"); if (clock) { clock.textContent = mmss(d.secondsLeft); var fill = document.querySelector("[data-fill='" + d.id + "']"); if (fill) fill.style.setProperty("--fill", pct(d) + "%"); } if (!d.secondsLeft) refresh = true; }); if (refresh) load(); }, 1000);
-    document.addEventListener("click", async function (e) { var b = e.target.closest(".dec-opt[data-dec]"); if (!b) return; b.closest(".dec-opts").querySelectorAll("button").forEach(function (x) { x.disabled = true; }); try { await fetch(api + "/" + encodeURIComponent(b.dataset.dec) + "/choose", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({choice:+b.dataset.i,by:"Carlos"})}); } finally { load(); } });
+    if (!summary) document.addEventListener("click", async function (e) { var b = e.target.closest(".dec-opt[data-dec]"); if (!b) return; b.closest(".dec-opts").querySelectorAll("button").forEach(function (x) { x.disabled = true; }); try { await fetch(api + "/" + encodeURIComponent(b.dataset.dec) + "/choose", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({choice:+b.dataset.i,by:"Carlos"})}); } finally { load(); } });
     load(); setInterval(load, 15000);
   }
-  window.YkDecisions = {mount:mount,_test:{card:card,projectName:projectName,stamp:stamp}};
+  window.YkDecisions = {mount:mount,_test:{card:card,projectName:projectName,stamp:stamp,groupDecisions:groupDecisions,renderGroups:renderGroups,stateText:stateText}};
 })();

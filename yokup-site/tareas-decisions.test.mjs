@@ -4,10 +4,12 @@ import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 
 const source = await readFile(new URL('./yk-decisions.js', import.meta.url), 'utf8');
+const missionsHtml = await readFile(new URL('./misiones.html', import.meta.url), 'utf8');
+const decisionsHtml = await readFile(new URL('./decisiones.html', import.meta.url), 'utf8');
 
 const context = vm.createContext({window: {}});
 vm.runInContext(
-  `${source}\nglobalThis.renderDecisionCard = window.YkDecisions._test.card; globalThis.decisionProjectName = window.YkDecisions._test.projectName;`,
+  `${source}\nglobalThis.renderDecisionCard = window.YkDecisions._test.card; globalThis.decisionProjectName = window.YkDecisions._test.projectName; globalThis.groupDecisions = window.YkDecisions._test.groupDecisions; globalThis.renderDecisionGroups = window.YkDecisions._test.renderGroups; globalThis.decisionStateText = window.YkDecisions._test.stateText;`,
   context
 );
 
@@ -149,3 +151,54 @@ test('la UI muestra proyecto y misiones restantes en continuaciones 4→3→2→
     assert.ok(card.indexOf('dec-project-name') < card.indexOf('dec-project-rest'));
   }
 });
+
+test('/misiones sólo conserva contador+enlace y monta el modo summary', () => {
+  assert.match(missionsHtml, /id="decSummary"[^>]*aria-label="Resumen de decisiones"/);
+  assert.match(missionsHtml, /href="\/decisiones"/);
+  assert.match(missionsHtml, /id="decSummaryCount"/);
+  assert.match(missionsHtml, /YkDecisions\.mount\(\{worker:WORKER,mode:"summary"\}\)/);
+  assert.doesNotMatch(missionsHtml, /id="decsList"|id="decsHistList"|class="dec-opts"/);
+  const summaryBody = source.match(/function renderSummary\(\) \{[\s\S]*?\n    \}/)?.[0] || '';
+  assert.doesNotMatch(summaryBody, /card\(|dec-opts|innerHTML/);
+  assert.match(source, /\?status=pending&limit=500&_t=/);
+});
+
+test('/decisiones monta full y agrupa en orden determinista máquina → agente', () => {
+  assert.match(decisionsHtml, /YkDecisions\.mount\(\{worker:"[^"]+", mode:"full"\}\)/);
+  const items = [
+    {...renderData('decided'), id:'d4', machine:'Beta', agent:'Zeta', created_at:4},
+    {...renderData('pending'), id:'d3', machine:'Alpha', agent:'Zeta', created_at:3},
+    {...renderData('expired'), id:'d2', machine:'Alpha', agent:'Ana', created_at:2, deadline:2},
+    {...renderData('cancelled'), id:'d1', machine:'Alpha', agent:'Ana', created_at:1, decided_at:1},
+  ];
+  const groups = context.groupDecisions(items);
+  assert.deepEqual(Array.from(groups, g => g.name), ['Alpha','Beta']);
+  assert.deepEqual(Array.from(groups[0].agents, a => a.name), ['Ana','Zeta']);
+  assert.deepEqual(Array.from(groups[0].agents[0].items, d => d.id), ['d2','d1']);
+  assert.equal(context.decisionStateText(groups[0].items), '1 viva · 1 vencida · 1 cancelada');
+});
+
+test('el renderer jerárquico usa headings, recuentos, aria y cards responsive', () => {
+  const items = [
+    {...renderData('pending'), id:'live-a', machine:'Mac Mini', agent:'Oráculo'},
+    {...renderData('decided'), id:'done-a', machine:'Mac Mini', agent:'Oráculo'},
+  ];
+  const html = context.renderDecisionGroups(items, {stamp:true});
+  assert.match(html, /<section class="dec-machine" aria-labelledby="[^"]+">/);
+  assert.match(html, /<h2 id="[^"]+">🖥 Mac Mini<\/h2>/);
+  assert.match(html, /<section class="dec-agent" aria-labelledby="[^"]+">/);
+  assert.match(html, /<h3 class="dec-agent-title"[^>]*>[\s\S]*Oráculo<\/span><\/h3>/);
+  assert.match(html, /2 · 1 viva · 1 decidida/);
+  assert.equal((html.match(/<article class="dec/g) || []).length, 2);
+  assert.match(source, /grid-template-columns:repeat\(auto-fit,minmax\(min\(100%,320px\),1fr\)\)/);
+  assert.match(source, /@media\(max-width:520px\)[\s\S]*\.dec-agent-cards\{grid-template-columns:minmax\(0,1fr\)/);
+});
+
+function renderData(status) {
+  return {
+    id:`sample-${status}`, machine:'Mac Mini', agent:'Oráculo', surface:'desktop',
+    question:'¿Qué camino seguimos?', options, recommended:1, status,
+    secondsLeft:90, created_at:1_000, deadline:301_000,
+    project:'Generador de Presentaciones', project_slug:'GENERADOR-DE-PRESENTACIONES'
+  };
+}
