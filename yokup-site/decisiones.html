@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/acceso.js"></script>
+<title>Decisiones · Yokup</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#02080d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
+<link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<link rel="stylesheet" href="/yk-frame.css?v=r14">
+<style>
+/* Sección DECISIONES (Carlos, 2026-07-22): TODAS las ventanas de decisión en un
+   sitio propio — vivas arriba, histórico debajo. El render de cada ficha es el
+   compartido de /yk-decisions.js, el mismo que usa /misiones: aquí solo va el
+   chrome de la página (mismos tokens que /misiones y /tareas). */
+:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden}
+.wrap{max-width:1100px;margin:0 auto;padding:22px 24px 48px;min-width:0}
+h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px}
+.sub{color:var(--mut);font-size:14.5px;line-height:1.5;margin-bottom:16px}
+.sub b{color:var(--brand)}
+.kpis{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+.kpi{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--line);border-radius:10px;padding:9px 13px;background:var(--card);color:var(--mut);display:flex;align-items:center;gap:8px;min-width:0}
+.kpi b{font-size:16px;color:var(--ink)}
+.kpi.a b{color:var(--accent)}.kpi.b b{color:var(--good)}.kpi.c b{color:var(--mut)}.kpi.d b{color:var(--violet)}
+.foot{font-family:var(--mono);font-size:10.5px;line-height:1.6;color:var(--dim);margin-top:20px;padding-top:14px;border-top:1px solid var(--line)}
+.foot b{color:var(--mut)}
+.foot a{color:var(--brand)}
+@media(max-width:520px){
+  .wrap{padding:18px 14px 40px}
+  .kpis{gap:8px}
+  .kpi{font-size:10px;padding:8px 10px;flex:1 1 132px}
+}
+</style>
+</head>
+<body data-yk-title="DECISIONES" data-yk-zone="app">
+<div class="wrap">
+  <h1>Decisiones</h1>
+  <p class="sub">Todas las ventanas de decisión de la flota en un solo sitio. Lo que proponen son <b>misiones</b> completas, no pasos de una misión — por eso viven aquí y no en <a href="/tareas" style="color:var(--brand)">/tareas</a>. Si el reloj llega a cero sin respuesta, el agente tira con la <b>recomendada (★)</b>.</p>
+
+  <div class="kpis">
+    <div class="kpi a"><b data-dec-count="pending">0</b> vivas</div>
+    <div class="kpi b"><b data-dec-count="decided">0</b> decididas</div>
+    <div class="kpi c"><b data-dec-count="expired">0</b> vencidas</div>
+    <div class="kpi d"><b data-dec-count="cancelled">0</b> canceladas</div>
+  </div>
+
+  <!-- VIVAS: reloj corriendo y opciones pulsables (POST /decisions/<id>/choose) -->
+  <section class="decs" id="decs">
+    <div class="decs-hd">⏳ Relojes de decisión <span class="decs-n" id="decsN"></span></div>
+    <div class="decs-list" id="decsList"></div>
+  </section>
+
+  <!-- HISTÓRICO: decididas, vencidas y canceladas, con desenlace y fecha -->
+  <section class="decs hist" id="decsHist">
+    <div class="decs-hd">🗂 Histórico <span class="decs-n" id="decsHistN"></span></div>
+    <div class="decs-list" id="decsHistList"></div>
+  </section>
+
+  <div class="foot">Yokup · decisiones de toda la flota · datos de <b>yokup-rtc /decisions</b> · sello <b>v.22.07.2026.r1</b></div>
+
+  <!-- EXPERTO (raíl inferior) -->
+  <div class="yk-expert-btns" data-yk-slot="bottom">
+    <button data-yk-fetch="/decisions">decisiones JSON</button>
+  </div>
+  <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa «decisiones JSON» para volcar los datos crudos del worker.</pre>
+</div>
+
+<script type="module" src="/avatar-widget.js?v=3"></script>
+<script src="/yk-avatar.js?v=r2"></script>
+<script src="/yk-frame.js?v=r21"></script>
+<script src="/yk-decisions.js?v=20260722e"></script>
+<script>
+YkDecisions.mount({worker:"https://yokup-rtc.csilvasantin.workers.dev", mode:"full"});
+</script>
+</body>
+</html>

@@ -25,7 +25,7 @@
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.20.07.2026.r1";
+  var VERSION = "v.22.07.2026.r1";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
 
   // NAV DE PLATAFORMA — fuente ÚNICA del menú tras la DMZ (zona app). Las
@@ -35,6 +35,7 @@
   // propio (data-yk-nav o el NAV global de abajo).
   var APP_NAV = [
     ["DASHBOARD",   "/agentica"],
+    ["DECISIONES",  "/decisiones"],
     ["MISIONES",    "/misiones"],
     ["TAREAS",      "/tareas"],
     ["INCIDENCIAS", "/incidencias"],
@@ -84,6 +85,7 @@
     var map = {
       incidencias: "INCIDENCIAS", ticket: "TICKET", agentes: "AGENTES",
       "admira-live": "ADMIRA.LIVE", misiones: "MISIONES", tareas: "TAREAS",
+      decisiones: "DECISIONES",
       agentica: "DASHBOARD", informes: "INFORMES", status: "STATUS", equipo: "EQUIPO",
       asistencia: "ASISTENCIA", intervencion: "INTERVENCIÓN"
     };
