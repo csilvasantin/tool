@@ -33,6 +33,11 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .mcard .msub{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:2px}
 .mcard .mmeta{font-family:var(--mono);font-size:10.5px;color:var(--mut);margin-bottom:10px}.mcard .mmeta .scr{color:var(--brand)}
 .mcard .tree{border-top:1px solid var(--line);padding-top:10px}
+.mcard .mhd{cursor:pointer}
+.mcard .mtog{flex:none;border:none;background:transparent;color:var(--mut);font-size:12px;cursor:pointer;padding:0 2px;line-height:1}
+.mcard.collapsed .tree,.mcard.collapsed .mmeta{display:none}
+.mcard.collapsed{padding-bottom:13px;opacity:.92}
+.mcard.collapsed .msub{margin-bottom:0}
 .bigempty{border:1px dashed var(--line2);border-radius:14px;padding:44px 24px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12.5px;letter-spacing:.04em;line-height:1.7;grid-column:1/-1}
 .bigempty b{color:var(--mut);display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .bigempty a{color:var(--brand)}
@@ -157,13 +162,17 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa «misiones JSON» para volcar los datos crudos del worker.</pre>
 </div>
 
-<script src="/yk-misiones.js?v=r42"></script>
+<script src="/yk-misiones.js?v=r43"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r1"></script>
 <script>
 const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
 const $=id=>document.getElementById(id);
 const esc=YkMisiones.esc;
+// Fichas PLEGADAS por defecto (ocupan menos); recuerda en localStorage cuáles abrió
+// Carlos para no re-plegárselas. «Sino decido yo lo contrario» = por defecto plegadas. (954)
+const OPEN_CARDS=new Set((()=>{try{return JSON.parse(localStorage.getItem("yk_tareas_open")||"[]")}catch(e){return[]}})());
+function saveOpenCards(){try{localStorage.setItem("yk_tareas_open",JSON.stringify([...OPEN_CARDS]))}catch(e){}}
 YkMisiones.init({worker:WORKER});
 let GROUPS=[];  // [{mission:{...ticket}, tasks:[...]}]
 let STATE=null; // filtro por estado (KPI): sin | asignadas | in_progress | resolved | null
@@ -275,15 +284,26 @@ function render(){
       ' Ajusta el buscador o los contadores de arriba.</div>';
     return;
   }
-  box.innerHTML=gs.map(g=>`<div class="mcard" data-id="${esc(g.mission.id)}">
-    <div class="mhd"><a class="mid" href="/ticket?id=${encodeURIComponent(g.mission.id)}" title="Abrir la misión">🎯 ${esc(g.mission.id)}</a><span class="tcount" title="subtareas definidas / máx 24">${YkMisiones.subCount(g.tasks)}/24</span></div>
+  box.innerHTML=gs.map(g=>{const _op=OPEN_CARDS.has(g.mission.id);return `<div class="mcard ${_op?'':'collapsed'}" data-id="${esc(g.mission.id)}">
+    <div class="mhd"><button class="mtog" title="plegar / desplegar" aria-expanded="${_op}">${_op?'▾':'▸'}</button><a class="mid" href="/ticket?id=${encodeURIComponent(g.mission.id)}" title="Abrir la misión">🎯 ${esc(g.mission.id)}</a><span class="tcount" title="subtareas definidas / máx 24">${YkMisiones.subCount(g.tasks)}/24</span></div>
     <div class="msub">${esc(g.mission.subject)}</div>
     <div class="mmeta"><span class="scr">${esc(g.mission.screen||"")}</span>${g.mission.loc?" · "+esc(g.mission.loc):""}</div>
     <div class="tree">${YkMisiones.stepsHtml(g.tasks)}</div>
-  </div>`).join("");
+  </div>`;}).join("");
   // chips clicables: avanzan estado contra el worker y repintan
   box.querySelectorAll(".mcard").forEach(card=>{
     const mid=card.dataset.id;
+    // Plegar/desplegar: clic en la cabecera (menos el enlace al ticket) alterna, y
+    // recuerda la elección. La cabecera (id + progreso + estado) siempre visible.
+    const hd=card.querySelector(".mhd");
+    if(hd) hd.addEventListener("click",e=>{
+      if(e.target.closest("a")) return;
+      card.classList.toggle("collapsed");
+      const open=!card.classList.contains("collapsed");
+      if(open) OPEN_CARDS.add(mid); else OPEN_CARDS.delete(mid);
+      saveOpenCards();
+      const b=card.querySelector(".mtog"); if(b){b.textContent=open?"▾":"▸";b.setAttribute("aria-expanded",String(open));}
+    });
     card.querySelectorAll(".chip").forEach(ch=>{
       ch.onclick=()=>{
         const cur=["pending","in_progress","done"].find(s=>ch.classList.contains(s))||"pending";

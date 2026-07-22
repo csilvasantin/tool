@@ -438,7 +438,11 @@
       '<span class="scode">' + esc(t.code) + "</span>" +
       '<span class="ttl" title="' + esc(full) + '">' + linkify(t.title) + "</span>" +
       shot +
-      '<span class="own" title="' + esc(t.owner || "") + '">' + own + "</span></div>";
+      '<span class="own" title="' + esc(t.owner || "") + '">' + own + "</span>" +
+      // CONSTANCIA del paso: qué se hizo (report), con enlaces pulsables. Va en su
+      // propia línea (flex-wrap) para que se lea sin apretar la fila. (954)
+      (t.report && String(t.report).trim() && t.report !== t.title ? '<small class="node-rep" title="' + esc(t.report) + '">↳ ' + linkify(t.report) + "</small>" : "") +
+      "</div>";
   }
 
   // html de los 8 pasos a…h con sus subtareas (sin cabecera): reutilizable en

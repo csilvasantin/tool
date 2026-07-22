@@ -277,13 +277,15 @@ async function saveMissionPlan(env, mid, tasks) {
   return listMissionTasks(env, mid);
 }
 __name(saveMissionPlan, "saveMissionPlan");
-async function setTaskStatus(env, mid, code, status, report, owner) {
+async function setTaskStatus(env, mid, code, status, report, owner, image) {
   const cur = await env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
   if (!cur) return null;
   const st = TASK_STATUS.includes(status) ? status : cur.status;
   const rp = report != null ? String(report).slice(0, 2e3) : cur.report;
   const ow = owner != null ? String(owner).slice(0, 40) : cur.owner;
-  await env.DB.prepare("UPDATE mission_tasks SET status=?, report=?, owner=?, updated_at=? WHERE mission_id=? AND code=?").bind(st, rp, ow, Date.now(), mid, code).run();
+  // Captura PROPIA del paso: cada paso deja constancia con su enlace/miniatura. (954)
+  const im = image != null && /^https?:\/\//i.test(String(image)) ? String(image).slice(0, 500) : cur.image;
+  await env.DB.prepare("UPDATE mission_tasks SET status=?, report=?, owner=?, image=?, updated_at=? WHERE mission_id=? AND code=?").bind(st, rp, ow, im, Date.now(), mid, code).run();
   return env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
 }
 __name(setTaskStatus, "setTaskStatus");
@@ -1326,7 +1328,7 @@ var index_default = {
       if (/^#?\d+$/.test(mid)) mid = "FLT-" + mid.replace(/^#/, "");
       const code = String(b.code || "").toLowerCase().trim();
       if (!mid || !validTaskCode(code)) return json({ ok: false, error: "mission y code válidos requeridos" }, 400);
-      let row = await setTaskStatus(env, mid, code, b.status, b.report, b.owner || b.by);
+      let row = await setTaskStatus(env, mid, code, b.status, b.report, b.owner || b.by, b.image);
       if (!row) {
         // La misión aún no tiene árbol (los planes se generan al abrirla en el
         // navegador). Para que la evolución se vea DESDE EL PRIMER paso, se siembra
@@ -1334,7 +1336,7 @@ var index_default = {
         const tk = await env.DB.prepare("SELECT id,source FROM tickets WHERE id=?").bind(mid).first();
         if (tk && tk.source === "fleet") {
           await saveMissionPlan(env, mid, flattenSteps(defaultFleetPlan()));
-          row = await setTaskStatus(env, mid, code, b.status, b.report, b.owner || b.by);
+          row = await setTaskStatus(env, mid, code, b.status, b.report, b.owner || b.by, b.image);
         }
       }
       if (!row) return json({ ok: false, error: "misión sin plan y no se pudo sembrar (¿existe la misión?)" }, 404);

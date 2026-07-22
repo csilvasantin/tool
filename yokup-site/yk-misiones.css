@@ -118,7 +118,9 @@
 .tree .propose{font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:9px 12px;border-radius:9px;border:1px solid rgba(170,136,255,.4);color:var(--violet);background:rgba(170,136,255,.08);cursor:pointer;width:100%}
 .tree .propose:hover{background:rgba(170,136,255,.16)}.tree .propose:disabled{opacity:.55;cursor:default}
 .step{margin-bottom:10px}
-.node{display:flex;align-items:flex-start;gap:7px;padding:4px 0}
+.node{display:flex;align-items:flex-start;flex-wrap:wrap;gap:7px;padding:4px 0}
+.node .node-rep{flex-basis:100%;padding-left:22px;font-size:11px;line-height:1.4;color:var(--mut)}
+.node .node-rep a{color:var(--brand);text-decoration:underline;word-break:break-all}
 .node.sub{padding-left:18px}
 .chip{flex:none;cursor:pointer;border:none;background:transparent;font-size:14px;line-height:1.15;padding:0;width:16px;text-align:center}
 .chip.pending{color:var(--accent)}.chip.in_progress{color:var(--brand)}.chip.done{color:var(--good)}
