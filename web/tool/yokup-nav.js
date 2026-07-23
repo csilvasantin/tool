@@ -6,6 +6,7 @@
     { id:'punto',       label:'Soy punto',     href:'alta-punto.html' },
     { id:'instalador',  label:'Soy instalador',href:'alta-instalador.html' },
     { id:'dashboard',   label:'Panel',         href:'panel.html' },
+    { id:'voz',         label:'🎙️ Voz',        href:'voz.html' },
     { id:'marketplace', label:'Tablón',        href:'marketplace.html' },
     { id:'equipos',     label:'Equipos',       href:'equipos.html' },
     { id:'backoffice',  label:'Operador',      href:'backoffice.html' },
