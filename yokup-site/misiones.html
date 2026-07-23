@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r16">
-<link rel="stylesheet" href="/yk-misiones.css?v=r34">
+<link rel="stylesheet" href="/yk-misiones.css?v=r35">
 <link rel="stylesheet" href="/yk-cabezal.css?v=r2">
 <style>
 /* Segmentación dentro del raíl de opciones: apilada y a lo ancho del panel. */
@@ -291,6 +291,36 @@ function llenaSel(id, etiqueta, valores){
 
 // ORDEN estilo hoja de cálculo: clic en el título de la columna alterna ▲/▼.
 let SORT={k:"fecha",dir:"desc"};
+// Misiones MADRE desplegadas (FLT-990 b3). Por defecto REPLEGADAS: una madre no
+// alarga el tablero con sus hijas hasta que se abre.
+const OPEN_GRP=new Set();
+// Agrupa las filas por parent_id: cada MADRE lleva sus HIJAS en un cajón
+// replegable justo debajo, en vez de sembrarlas sueltas por la lista. Las misiones
+// planas (sin parent_id) se pintan igual que siempre. Un solo nivel (lo garantiza
+// /fleet/parent), así que una hija nunca es a su vez madre.
+function groupedHtml(list){
+  const byId={}; list.forEach(t=>{byId[t.id]=t;});
+  const kids={};
+  list.forEach(t=>{ const p=t.parent_id; if(p&&byId[p]&&p!==t.id) (kids[p]=kids[p]||[]).push(t); });
+  const esHija=t=>t.parent_id&&byId[t.parent_id]&&t.parent_id!==t.id;
+  let html="";
+  list.forEach(t=>{
+    if(esHija(t)) return;                       // se pinta bajo su madre
+    const ch=kids[t.id];
+    if(!ch||!ch.length){ html+=YkMisiones.rowHtml(t); return; }
+    const abierta=OPEN_GRP.has(t.id);
+    html+='<div class="yk-grp'+(abierta?" abierta":"")+'" data-grp="'+esc(t.id)+'">'
+        +   YkMisiones.rowHtml(t)
+        +   '<button type="button" class="yk-grp-bar" data-grp-tg="'+esc(t.id)+'" aria-expanded="'+(abierta?"true":"false")+'">'
+        +     '<span class="yk-grp-caret">▸</span><b>'+ch.length+'</b> hija'+(ch.length===1?"":"s")
+        +   '</button>'
+        +   '<div class="yk-kids'+(abierta?"":" plegado")+'" data-kids="'+esc(t.id)+'">'
+        +     ch.map(c=>YkMisiones.rowHtml(c)).join("")
+        +   '</div>'
+        + '</div>';
+  });
+  return html;
+}
 const SORTERS={
   id:t=>parseInt(String(t.id).replace(/\D/g,""),10)||0,
   subject:t=>String(t.subject||"").toLowerCase(),
@@ -571,7 +601,7 @@ async function load(){
     // deja comparar dos misiones de un vistazo. El cálculo vive en YkMisiones.tercios.
     list.forEach(t=>{ t._prog=YkMisiones.tercios(_g[t.id]||[]); });
   }catch(e){}
-  el.innerHTML=headHtml()+list.map(t=>YkMisiones.rowHtml(t)).join("");
+  el.innerHTML=headHtml()+groupedHtml(list);
   bindHead(el);
   YkMisiones.bindRows(el);   // click=misión activa + refresco del árbol de tareas
   marcarHalos(el, list);     // FLT-761: halo en el previo si hay agente trabajando
@@ -922,6 +952,21 @@ $("list").addEventListener("click",ev=>{
   const mid=row.dataset.id; if(!/^FLT-/.test(mid)) return;  // solo misiones de flota
   ev.stopPropagation(); ev.preventDefault();
   if(ordCell) pickerOrdenador(mid,ordCell); else pickerAgente(mid,agcCell);
+},true);
+
+// ---- Desplegar/replegar las HIJAS de una misión madre (FLT-990 b3) ---------
+// En captura, ANTES del listener de fila: el clic en la barra de grupo NO
+// selecciona la madre, solo abre/cierra su cajón. Sin recargar la lista.
+$("list").addEventListener("click",ev=>{
+  const bar=ev.target.closest(".yk-grp-bar"); if(!bar) return;
+  ev.stopPropagation(); ev.preventDefault();
+  const id=bar.dataset.grpTg;
+  const abierta=OPEN_GRP.has(id);
+  if(abierta) OPEN_GRP.delete(id); else OPEN_GRP.add(id);
+  const grp=bar.closest(".yk-grp"), kids=grp&&grp.querySelector(".yk-kids");
+  if(grp) grp.classList.toggle("abierta",!abierta);
+  if(kids) kids.classList.toggle("plegado",abierta);
+  bar.setAttribute("aria-expanded",abierta?"false":"true");
 },true);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>

@@ -132,6 +132,25 @@
 @keyframes ykm-blink{0%,100%{opacity:1}50%{opacity:.3}}
 @media(max-width:720px){.hd{grid-template-columns:8px 1fr;gap:6px}.tkid,.subj,.cel{grid-column:2}.subj{padding:0}.cel{justify-content:flex-start;padding:2px 0}.cel.rtiempo{align-items:flex-start}.rz{display:none}}
 
+/* ------- Misión MADRE → HIJAS (FLT-990 b3) ------- */
+/* Un grupo no ensucia el tablero: la madre se pinta como una fila normal, con una
+ * barra fina debajo que despliega/replega sus hijas. Replegado por defecto. */
+.yk-grp{border-bottom:1px solid var(--line)}
+.yk-grp>.tk{border-bottom:0}
+.yk-grp.abierta{box-shadow:inset 2px 0 0 var(--brand)}
+.yk-grp-bar{display:flex;align-items:center;gap:6px;width:100%;box-sizing:border-box;background:transparent;border:0;border-top:1px dashed var(--line);
+  padding:5px 16px;cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);text-align:left}
+.yk-grp-bar:hover{background:var(--card2);color:var(--brand)}
+.yk-grp-bar b{color:var(--brand);font-weight:600}
+.yk-grp-caret{display:inline-block;transition:transform .15s;color:var(--dim)}
+.yk-grp.abierta .yk-grp-caret{transform:rotate(90deg);color:var(--brand)}
+.yk-kids{background:var(--card2)}
+.yk-kids.plegado{display:none}
+.yk-kids>.tk{border-left:2px solid var(--brand);border-bottom:1px solid var(--line)}
+.yk-kids>.tk:last-child{border-bottom:0}
+.yk-kids>.tk .hd{padding-left:30px}
+@media(max-width:720px){.yk-kids>.tk .hd{padding-left:20px}.yk-grp-bar{padding:5px 12px}}
+
 /* ------- Árbol de TAREAS abc/123 ------- */
 .tree{font-family:var(--mono)}
 .tree .thd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
