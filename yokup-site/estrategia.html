@@ -12,6 +12,8 @@
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r14">
 <link rel="stylesheet" href="/yk-misiones.css?v=r23">
+<link href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 /* Acentos por equipo: Átomos = ámbar (materia); Bits = cian (silicio). */
@@ -169,6 +171,10 @@ h1{display:flex;align-items:center;gap:10px}
 .sm-msg{flex-basis:100%;font-family:var(--mono);font-size:11px;color:var(--mut);min-height:14px;letter-spacing:.02em}
 .sm-msg.ok{color:var(--smith)}.sm-msg.err{color:var(--warn)}
 @media(max-width:860px){.smith-machs{max-width:100%;justify-content:flex-start}.sm-sel{max-width:100%}}
+/* 🗺 Mapa de superficies Clear Channel (Barcelona) — territorio físico de Átomos. */
+.ccmap{height:210px;border-radius:12px;overflow:hidden;border:1px solid var(--atomo-line);background:var(--bg);margin-top:2px}
+.ccmap .maplibregl-ctrl-attrib,.ccmap .maplibregl-ctrl-logo{display:none!important}
+.ccmap .mapfallback{padding:24px;color:var(--mut);font-family:var(--mono);font-size:11.5px;line-height:1.6;text-align:center}
 .foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
 </style>
 </head>
@@ -215,6 +221,9 @@ h1{display:flex;align-items:center;gap:10px}
         <div class="norte" id="norteA" contenteditable="true" spellcheck="false"
              data-ph="Escribe la estrategia del hardware: qué frente físico priorizamos, qué máquinas o pantallas, en qué orden…"></div>
         <div class="tkpis" id="kpisA"></div>
+
+        <div class="blk-h">🗺 Superficies en campo <span class="n">· Clear Channel · Barcelona</span></div>
+        <div class="ccmap" id="ccmap"></div>
 
         <div class="blk-h">⏳ Relojes de decisión <span class="n" id="decsNA"></span></div>
         <div id="decsA"><div class="mempty">Sin decisiones de hardware abiertas.</div></div>
@@ -265,17 +274,40 @@ try{ YkMisiones.init({worker:WORKER}); }catch(e){}
    navegador (localStorage). Fase 2 (pendiente): persistir en el worker para
    que sea la MISMA para toda la flota. Se guarda al perder el foco.
    ═══════════════════════════════════════════════════════════════════════════ */
-function wireNorte(elId, saveId, key){
-  const el=$(elId), sv=$(saveId);
+// Fase 2: el norte vive en el worker (GET /fleet/strategy público · POST /strategy
+// protegido) → ÚNICO para toda la flota y legible por los agentes. localStorage queda
+// como caché/fallback offline y para pintado instantáneo. Si el worker aún no tiene los
+// endpoints (o sin sesión), degrada a solo-local sin romper.
+const NORTE_KEY={atomos:"estrategia.norte.atomos", bits:"estrategia.norte.bits"};
+function wireNorte(elId, saveId, team){
+  const el=$(elId), sv=$(saveId), key=NORTE_KEY[team];
   try{ el.textContent=localStorage.getItem(key)||""; }catch(e){}
   let t;
-  el.addEventListener("blur",()=>{
-    try{ localStorage.setItem(key, el.textContent.trim()); }catch(e){}
-    sv.classList.add("on"); clearTimeout(t); t=setTimeout(()=>sv.classList.remove("on"),1400);
+  el.addEventListener("blur", async ()=>{
+    const text=el.textContent.trim();
+    try{ localStorage.setItem(key, text); }catch(e){}
+    sv.textContent="✓ guardado"; sv.classList.add("on"); clearTimeout(t); t=setTimeout(()=>sv.classList.remove("on"),1700);
+    try{
+      const r=await fetch(WORKER+"/strategy",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({team,text})});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok || !d.ok) throw 0;   // catch-all del worker viejo → 200 texto → cae a solo-local
+    }catch(e){ sv.textContent="⚠ solo local"; }
   });
 }
-wireNorte("norteA","saveA","estrategia.norte.atomos");
-wireNorte("norteB","saveB","estrategia.norte.bits");
+wireNorte("norteA","saveA","atomos");
+wireNorte("norteB","saveB","bits");
+// Carga el norte COMPARTIDO del worker (si está); no pisa lo que estés editando.
+async function loadNortes(){
+  try{
+    const r=await fetch(WORKER+"/fleet/strategy?_t="+Date.now(),{cache:"no-store"});
+    if(!r.ok) return; const d=await r.json(); if(!d||!d.strategy) return;
+    [["atomos","norteA"],["bits","norteB"]].forEach(([team,elId])=>{
+      const el=$(elId); if(!el || document.activeElement===el) return;
+      const txt=String((d.strategy[team]||{}).text||"");
+      if(txt!==el.textContent){ el.textContent=txt; try{ localStorage.setItem(NORTE_KEY[team],txt);}catch(e){} }
+    });
+  }catch(e){}
+}
 
 /* ═══ MISIONES por equipo ════════════════════════════════════════════════════
    Bits  = misiones de FLOTA  → /tickets?scope=fleet (encargos a los agentes)
@@ -476,11 +508,37 @@ async function loadSmith(){
   sub.innerHTML=partes.join(" · ")+(activeN===0?" — 😴 todo Smith está <b>idle</b> (sin hacer nada)":"");
 }
 
+/* ═══ 🗺 SUPERFICIES CLEAR CHANNEL (Barcelona) — territorio físico de Átomos ═══
+   Mapa maplibre con las 109 superficies DOOH (mismo dato que la home de Yokup y
+   que clearchannel.tv). El color a/b/c es demo (i%17); cuando el hardware publique
+   estado real de cada pantalla, se pinta de ahí. Carlos, 2026-07-23. */
+(function(){
+  var el=document.getElementById('ccmap'); if(!el) return;
+  if(typeof maplibregl==='undefined'){ el.innerHTML='<div class="mapfallback">Mapa Clear Channel · 109 superficies (Barcelona)</div>'; return; }
+  var BCN=[[2.208566,41.456931],[2.204685,41.454113],[2.206464,41.455401],[2.140973,41.419423],[2.16303,41.405239],[2.158286,41.402464],[2.149624,41.375841],[2.170465,41.375047],[2.145932,41.389913],[2.176668,41.376813],[2.174706,41.379447],[2.189196,41.418784],[2.188411,41.407888],[2.083256,41.363556],[2.099244,41.359443],[2.157333,41.400264],[2.203572,41.424503],[2.18081,41.39918],[2.174718,41.416074],[2.161032,41.374154],[2.140098,41.412223],[2.140593,41.379565],[2.126879,41.403131],[2.205227,41.405265],[2.189001,41.403381],[2.153561,41.398602],[2.151949,41.39994],[2.159736,41.396025],[2.173744,41.3852],[2.17637,41.385311],[2.178045,41.386601],[2.165392,41.389231],[2.188142,41.416145],[2.172777,41.388721],[2.163162,41.385822],[2.136863,41.410023],[2.168938,41.389152],[2.144323,41.392122],[2.183467,41.385347],[2.189879,41.43531],[2.125464,41.391871],[2.163264,41.378668],[2.162244,41.377736],[2.17803,41.392786],[2.155121,41.376418],[2.117604,41.392213],[2.145521,41.393324],[2.160981,41.378503],[2.17022,41.385492],[2.133378,41.375505],[2.15418,41.382476],[2.167121,41.390079],[2.118656,41.375824],[2.149606,41.406309],[2.193681,41.413566],[2.086479,41.364497],[2.205828,41.402698],[2.221894,41.440535],[2.216798,41.433622],[2.170386,41.385195],[2.144106,41.38633],[2.164123,41.376051],[2.151706,41.390926],[2.173636,41.40395],[2.17996,41.407043],[2.126069,41.390095],[2.12056,41.38987],[2.155255,41.409729],[2.189162,41.379779],[2.212283,41.450618],[2.210585,41.45259],[2.118556,41.375702],[2.146677,41.377253],[2.20584,41.423366],[2.15208,41.36609],[2.142064,41.381099],[2.187927,41.385781],[2.156547,41.392594],[2.151684,41.383788],[2.194922,41.405568],[2.119672,41.374381],[2.119406,41.374725],[2.191553,41.386431],[2.183425,41.399448],[2.082709,41.360252],[2.083411,41.374209],[2.173815,41.380534],[2.197467,41.415428],[2.196679,41.414779],[2.18495,41.422006],[2.18091,41.420548],[2.198701,41.411635],[2.1972,41.412832],[2.20262,41.399786],[2.199062,41.404574],[2.203768,41.398914],[2.2006,41.40139],[2.21689,41.437688],[2.225574,41.438806],[2.135954,41.375593],[2.1654,41.3925],[2.1583,41.4061],[2.1539,41.4015],[2.168902,41.3877],[2.181271,41.383613],[2.189,41.369],[2.182866,41.375195],[2.149315,41.376057],[2.198741,41.441097]];
+  function st(i){return i%17===5?'b':(i%34===11?'c':'a');}
+  var COL={a:'#88ffaa',b:'#ffd866',c:'#ff8866'};
+  try{
+    var map=new maplibregl.Map({container:'ccmap',style:'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',center:[2.168,41.408],zoom:11.2,attributionControl:false,scrollZoom:false,dragRotate:false,pitchWithRotate:false});
+    map.on('load',function(){
+      var feats=BCN.map(function(p,i){return {type:'Feature',geometry:{type:'Point',coordinates:p},properties:{c:COL[st(i)]}};});
+      map.addSource('cc',{type:'geojson',data:{type:'FeatureCollection',features:feats}});
+      map.addLayer({id:'glow',type:'circle',source:'cc',paint:{'circle-radius':9,'circle-color':['get','c'],'circle-opacity':.18,'circle-blur':1}});
+      map.addLayer({id:'pts',type:'circle',source:'cc',paint:{'circle-radius':3.4,'circle-color':['get','c'],'circle-stroke-width':1,'circle-stroke-color':'rgba(2,8,13,.8)'}});
+      var t=0;setInterval(function(){t+=.08;var r=8+Math.sin(t)*3;if(map.getLayer('glow'))map.setPaintProperty('glow','circle-radius',r);},60);
+    });
+    // El panel de Átomos suele estar bajo el pliegue: al hacerse visible, resize
+    // para que las teselas pinten sin quedarse en negro.
+    try{ new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting) setTimeout(function(){ map.resize(); },100); }); }).observe(el); }catch(e){}
+  }catch(e){ el.innerHTML='<div class="mapfallback">Mapa Clear Channel · 109 superficies (Barcelona)</div>'; }
+})();
+
 // arranque + sondeos
-loadDecs(); loadMisBits(); loadMisAtomos(); loadSmith();
+loadDecs(); loadMisBits(); loadMisAtomos(); loadSmith(); loadNortes();
 setInterval(loadDecs,15000);
 setInterval(()=>{ loadMisBits(); loadMisAtomos(); },30000);
 setInterval(loadSmith,20000);
+setInterval(loadNortes,60000);
 </script>
 </body>
 </html>

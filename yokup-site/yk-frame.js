@@ -25,7 +25,7 @@
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.22.07.2026.r3";
+  var VERSION = "v.23.07.2026.r1";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
 
   // NAV DE PLATAFORMA — fuente ÚNICA del menú tras la DMZ (zona app). Las
@@ -299,7 +299,7 @@
     // agentes — icono o foto por cada uno, compartida en todo el perímetro
     // (prefs 'customize' del worker, escritura con sesión).
     var pcBtn = el("button", "yk-set-btn yk-pc-open",
-      '<span aria-hidden="true">▣</span> PANEL DE CONTROL');
+      '<span aria-hidden="true">▣</span> PERSONALIZACIÓN');
     pcBtn.type = "button";
     pcBtn.addEventListener("click", function () { openPanelControl(); });
     body.appendChild(pcBtn);
@@ -313,6 +313,13 @@
     set.appendChild(body);
 
     foot.appendChild(set);
+    // PANEL DE CONTROL → /asignaciones (Carlos, 2026-07-23): entrada del cajón
+    // OPCIONES, justo ENCIMA del sello de versión. La personalización de flota
+    // (antes «Panel de control») vive ahora dentro de AJUSTES como «Personalización».
+    var pc = el("a", "yk-set-btn",
+      '<span aria-hidden="true">▣</span> Panel de control');
+    pc.href = "/asignaciones";
+    foot.appendChild(pc);
     foot.appendChild(el("div", "yk-ver",
       'yokup · perímetro de seguridad · <b>' + VERSION + '</b>'));
     return foot;
