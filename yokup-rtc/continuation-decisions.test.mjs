@@ -74,13 +74,16 @@ test('el POST no trunca contratos largos ni admite dos continuaciones pendientes
   assert.match(source, /rawOpts\.length !== opts\.length/);
   assert.match(source, /SELECT id FROM decisions WHERE batch_id=\? AND status='pending' LIMIT 1/);
   assert.match(source, /error: "continuation_pending"/);
+  assert.match(source, /batch\.status !== "awaiting_continuation"/);
 });
 
-test('una continuación reutiliza el batch y sólo reordena filas queued', () => {
+test('una continuación reutiliza el batch, reordena queued y habilita una única activación', () => {
   const body = source.match(/async function ensureMissionBatchFromDecision\([^]*?\n\}/)?.[0] || '';
   assert.match(body, /if \(continuation\)/);
+  assert.match(body, /batch\.status !== "awaiting_continuation"/);
   assert.match(body, /reconcileQueuedBatchItems\(env, batchId\)/);
   assert.match(body, /await env\.DB\.batch\(statements\)/, 'el reordenado se aplica atómicamente');
+  assert.match(body, /SET status='active',pause_reason=NULL[\s\S]*status='awaiting_continuation'/);
   assert.match(body, /return activateNextMissionBatchItem\(env, batchId\)/);
   assert.equal((body.match(/INSERT OR IGNORE INTO mission_batches/g) || []).length, 1, 'el único INSERT pertenece a la rama inicial');
 });
