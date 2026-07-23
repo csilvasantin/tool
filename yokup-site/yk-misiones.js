@@ -74,11 +74,39 @@
   // Máquinas VIVAS (canon) según /api/browsers + presence; lo inyecta la página con
   // setLiveMachines. null = aún sin datos → NO se alarma. (Carlos, 21-jul-2026)
   var LIVE_MACHINES = null;
-  // Runtime DEDUCIDO por doctrina de la persona (mismo mapa que yk-cabezal). Cuando el
-  // nudge no confirmó la plataforma (agent_runtime null) pero sabemos qué LLM anima a
-  // esa persona, se pinta ese runtime marcado como deducido en vez de «Pendiente»
-  // mudo: una misión puede estar EN CURSO con la plataforma vacía. (Carlos, 21-jul-2026)
-  var RT_FIJO = { neo: "Claude", morfeo: "Claude", whiterabbit: "Claude", oraculo: "Codex", trinity: "Codex", smith: "Grok" };
+  // PLATAFORMA VIVA por agente (RUNTIME · SUPERFICIE) deducida de la presencia real
+  // que la página carga cada 60 s (radar → setLiveSurfaces). La 2ª línea de la celda
+  // AGENTE de una misión NO reclamada muestra la plataforma REAL del asignado
+  // (p.ej. «Claude · CLI»), no el estado del claim: el estado ya vive en su insignia.
+  // Sin presencia viva del agente → «—» honesto, nunca «Pendiente». (Carlos, 2026-07-23)
+  var LIVE_SURFACES = null;   // { claveAgente: {runtime, host} } · null = aún sin datos
+  // Clave normalizada de un agente: usa la identidad canónica (yk-agent-identity) si
+  // está cargada; si no (tests/vm sin ella), degrada a avSlug. NEO/NeoMini colapsan.
+  function agentKey(n) {
+    var id = (typeof window !== "undefined") && window.ykAgentIdentity;
+    return id && id.key ? id.key(n) : avSlug(n);
+  }
+  // Clave de la PERSONA BASE (NeoMini → neo): así la plataforma casa aunque el
+  // assignee lleve apellido de máquina y la presencia lata en pelado, o al revés.
+  function baseAgentKey(n) {
+    var id = (typeof window !== "undefined") && window.ykAgentIdentity;
+    return id && id.base && id.key ? id.key(id.base(n)) : avSlug(n);
+  }
+  // Plataforma REAL «RUNTIME · SUPERFICIE» del primer agente con presencia viva de la
+  // lista (nombre completo primero, luego persona base); "" si ninguno late. Null-safe.
+  function liveSurfaceOf(names) {
+    if (!LIVE_SURFACES) return "";
+    names = names || [];
+    for (var i = 0; i < names.length; i++) {
+      var n = names[i]; if (!n) continue;
+      var sf = LIVE_SURFACES[agentKey(n)] || LIVE_SURFACES[baseAgentKey(n)];
+      if (sf) {
+        var h = sf.host === "cli" ? "CLI" : sf.host === "app" ? "Desktop" : "";
+        return [sf.runtime, h].filter(Boolean).join(" · ");
+      }
+    }
+    return "";
+  }
   // Estado "máquina apagada" para una misión PENDIENTE (sin surface): si su máquina
   // destino NO está entre las vivas, el empujón no llegó y nadie la recogerá.
   function machOffOf(t, surface) {
@@ -93,19 +121,27 @@
   function whoHtml(name, surface, agents, machOff) {
     var s = avSlug(name);
     var cu = CUSTOM.agents[s] || {};
-    // Plataforma: surface (runtime·host) si la máquina respondió al empujón; si no,
-    // "Pendiente" (máquina viva, aún sin recoger) o aviso si la máquina está apagada.
+    // Plataforma REAL del agente asignado (RUNTIME · SUPERFICIE), nunca el estado:
+    //  · reclamada → la superficie que confirmó el propio claim;
+    //  · sin claim pero con presencia viva → deducida de esa presencia AHORA;
+    //  · máquina destino sin señal → aviso «apagada»;
+    //  · sin presencia → «—» honesto (jamás «Pendiente»: eso vive en la insignia).
     var plat, platCls, platTitle = "";
+    var names = (agents && agents.length) ? agents : [name];
     if (surface) { plat = esc(surface); platCls = "agent-surface"; }
-    else if (machOff) {
-      plat = "⚠️ apagada"; platCls = "agent-surface off";
-      platTitle = "La máquina destino" + (machOff.machine ? " (" + machOff.machine + ")" : "") + " está sin señal / apagada" + (machOff.since ? " · pendiente desde " + fechaCorta(machOff.since) : "") + ": el empujón no llegó y nadie la recogerá hasta que vuelva online.";
-    } else if (RT_FIJO[s]) {
-      // Plataforma DEDUCIDA por la doctrina de la persona (aún sin confirmar por la
-      // máquina): mejor decir el runtime probable que un «Pendiente» mudo. Cursiva.
-      plat = esc(RT_FIJO[s]); platCls = "agent-surface deduc";
-      platTitle = "Runtime deducido por la doctrina de " + name + " (aún sin confirmar por la máquina).";
-    } else { plat = "Pendiente"; platCls = "agent-surface pend"; }
+    else {
+      var live = liveSurfaceOf(names);
+      if (live) {
+        plat = esc(live); platCls = "agent-surface";
+        platTitle = "Plataforma de " + name + " según su presencia viva ahora.";
+      } else if (machOff) {
+        plat = "⚠️ apagada"; platCls = "agent-surface off";
+        platTitle = "La máquina destino" + (machOff.machine ? " (" + machOff.machine + ")" : "") + " está sin señal / apagada" + (machOff.since ? " · pendiente desde " + fechaCorta(machOff.since) : "") + ": el empujón no llegó y nadie la recogerá hasta que vuelva online.";
+      } else {
+        plat = "—"; platCls = "agent-surface pend";
+        platTitle = name + " no late en presencia ahora — plataforma desconocida.";
+      }
+    }
     var smallHtml = '<small class="' + platCls + '"' + (platTitle ? ' title="' + esc(platTitle) + '"' : "") + ">" + plat + "</small>";
     // Misión DIFUNDIDA (2-3 agentes agrupados): PILA de retratos, una imagen
     // encima de la otra (Carlos, 2026-07-19), con el rótulo del grupo debajo.
@@ -878,8 +914,10 @@
   window.YkMisiones = {
     init: init, selected: selected, selectMission: selectMission,
     rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine, estadoDe: estadoDe,
-    machOffOf: machOffOf,
+    machOffOf: machOffOf, whoHtml: whoHtml,
     setLiveMachines: function (set) { LIVE_MACHINES = set || null; },
+    setLiveSurfaces: function (m) { LIVE_SURFACES = m || null; },
+    agentKey: agentKey, baseAgentKey: baseAgentKey, liveSurfaceOf: liveSurfaceOf,
     setProyectos: setProyectos, proyectoDe: proyectoDe, workUrlOf: workUrlOf,
     renderTaskTree: renderTaskTree, refreshTree: refreshTree,
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,

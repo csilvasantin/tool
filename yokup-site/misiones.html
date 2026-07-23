@@ -259,7 +259,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 
 <script src="/yk-agent-identity.js?v=1"></script>
 <script src="/yk-maquina.js?v=r1"></script>
-<script src="/yk-misiones.js?v=r52"></script>
+<script src="/yk-misiones.js?v=r53"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r2"></script>
 <script src="/yk-decisions.js?v=20260723a"></script>
@@ -494,7 +494,6 @@ function agrupaFlota(tks){
 async function marcarHalos(container, list){
   const live={machines:new Set(),personas:new Set()};
   const act={};   // "persona_lower|maquina_canon" -> {focus, proj, img, _u}
-  const surfaces={}; // misma clave -> {runtime,host,_u}; respaldo para misiones antiguas
   try{
     const pr=await fetch(TG+"/api/presence",{cache:"no-store"}).then(r=>r.json());
     const now=Date.now()/1000;
@@ -502,10 +501,6 @@ async function marcarHalos(container, list){
       if((now-(p.updated||0))<900){
         if(p.machine) live.machines.add(YkMisiones.canonMachine(p.machine));
         if(p.persona) live.personas.add(String(p.persona).toLowerCase());
-        if(p.persona&&p.machine){
-          const sk=String(p.persona).toLowerCase()+"|"+YkMisiones.canonMachine(p.machine);
-          if(!surfaces[sk]||(p.updated||0)>surfaces[sk]._u) surfaces[sk]={runtime:p.runtime||"",host:p.host||"",_u:p.updated||0};
-        }
         // FOCO en vivo del agente (para el previo con actividad real, Carlos 2026-07-17)
         if(p.persona && p.machine && (p.focus||p.task)){
           const k=String(p.persona).toLowerCase()+"|"+YkMisiones.canonMachine(p.machine);
@@ -516,16 +511,8 @@ async function marcarHalos(container, list){
   }catch(e){ return; }
   YkMisiones.markWorking(container, list, live);
   YkMisiones.fillActivity(container, list, act);   // previo = qué hace el agente ahora
-  // La misión conserva runtime/superficie en D1; para las históricas anteriores
-  // a ese campo se completa desde la presencia real del mismo agente+máquina.
-  const byId={}; list.forEach(t=>{byId[t.id]=t;});
-  container.querySelectorAll(".tk").forEach(row=>{
-    const t=byId[row.dataset.id], out=row.querySelector(".agent-surface");
-    if(!t||!out||out.textContent.trim()) return;
-    const maq=YkMisiones.machineOf(t), agents=t._agents||[t.assignee];
-    let s=null; for(const a of agents){ s=surfaces[String(a||"").toLowerCase()+"|"+maq]; if(s) break; }
-    if(s){ const h=s.host==="cli"?"CLI":s.host==="app"?"Desktop":""; out.textContent=[s.runtime,h].filter(Boolean).join(" · "); }
-  });
+  // (La 2ª línea de la celda AGENTE — RUNTIME · SUPERFICIE — la pinta ya whoHtml
+  //  desde LIVE_SURFACES, que alimenta el radar cada 60 s: fuente única, sin parche.)
 }
 
 async function load(){
@@ -776,6 +763,22 @@ async function radar(){
     const vivas=new Set(Object.keys(SOLOMAQ));
     for(const per in MAQS) for(const cm in MAQS[per]) if(MAQS[per][cm]&&MAQS[per][cm].online) vivas.add(cm);
     YkMisiones.setLiveMachines(vivas);
+    // PLATAFORMA VIVA por agente (RUNTIME · SUPERFICIE) para la 2ª línea de la celda
+    // AGENTE de las misiones NO reclamadas: la superficie ONLINE más fresca de cada
+    // persona, indexada por nombre pelado (NeoMini) Y por persona base (Neo) para que
+    // case sea cual sea la forma del assignee o del latido. (Carlos, 2026-07-23)
+    const SURF={};
+    for(const per in MAQS){
+      let best=null;
+      for(const cm in MAQS[per]){ const i=MAQS[per][cm];
+        if(i&&i.online&&(!best||(i.updated||0)>(best.updated||0))) best=i; }
+      if(!best) continue;
+      const sf={runtime:best.runtime||RUNTIME[per]||"",host:best.host||""};
+      const kf=YkMisiones.agentKey(per), kb=YkMisiones.baseAgentKey(per);
+      if(kf&&!SURF[kf]) SURF[kf]=sf;
+      if(kb&&SURF[kb]===undefined) SURF[kb]=sf;
+    }
+    YkMisiones.setLiveSurfaces(SURF);
     CARGA_P={}; CARGA_PM={}; CARGA_M={};
     for(const it of (ib.items||[])){
       if(it.status==="done") continue;
