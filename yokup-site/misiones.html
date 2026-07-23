@@ -163,6 +163,15 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .delbtns .delno:hover{color:var(--brand);border-color:var(--line2)}
 .delbtns .delsi{color:#ff8866;border-color:#ff8866}
 .delbtns .delsi:hover{background:rgba(255,136,102,.14)}
+/* La miniatura ENLAZA al trabajo realizado (workUrlOf): pista visual mínima de que
+   es clicable — cursor de enlace (no zoom) y realce de borde al pasar por encima.
+   El clic abre el trabajo en pestaña nueva; el título dice a dónde va. (2026-07-23) */
+.shot-link{display:block;line-height:0;text-decoration:none}
+.shot-link .shot-img{cursor:pointer}
+.shot-link:hover .shot-img{border-color:var(--brand,#78f3ff);box-shadow:0 0 10px rgba(120,243,255,.3)}
+.mdet-imglink{display:block;line-height:0;text-decoration:none}
+.mdet-imglink .mdet-img{cursor:pointer;transition:.15s}
+.mdet-imglink:hover .mdet-img{border-color:var(--brand,#78f3ff);box-shadow:0 0 10px rgba(120,243,255,.3)}
 </style>
 </head>
 <body data-yk-title="MISIONES" data-yk-rail-left="OPCIONES" data-yk-rail-right="AVANZADO" data-yk-zone="app">
@@ -250,7 +259,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 
 <script src="/yk-agent-identity.js?v=1"></script>
 <script src="/yk-maquina.js?v=r1"></script>
-<script src="/yk-misiones.js?v=r51"></script>
+<script src="/yk-misiones.js?v=r52"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r2"></script>
 <script src="/yk-decisions.js?v=20260723a"></script>

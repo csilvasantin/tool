@@ -260,6 +260,67 @@
       PROY_WEB[String(p.id).toLowerCase()] = /^https?:\/\//i.test(w) ? w : "https://" + w;
     });
   }
+  // ENLACE AL TRABAJO REALIZADO (Carlos, 2026-07-23): la miniatura de la misión no
+  // es un adorno ni sólo un lightbox — es un ENLACE al trabajo ENTREGADO. Resuelve
+  // el destino EN ORDEN, sin adivinar:
+  //   1) URL de trabajo EXPLÍCITA que la misión traiga como campo propio (work_url /
+  //      url / web / link). Hoy /fleet/missions NO publica ninguno de estos campos en
+  //      el ticket; se contemplan para cuando el worker los sirva (no se toca yokup-rtc).
+  //   2) La PRIMERA URL http(s) que aparezca en los INFORMES (report) de sus tareas
+  //      —el tablero las adjunta como t._tasks (de /tasks/all, que sí trae report);
+  //      de respaldo t.tasks—, descartando la propia PRUEBA (/media/…) y las imágenes
+  //      (.png/.jpg…), y PREFIRIENDO los dominios de la casa sobre cualquier otro.
+  //   3) La web PUBLICADA del proyecto ASIGNADO (censo /projects → PROY_WEB): «dónde
+  //      vive» el trabajo del proyecto. Sólo el proyecto ASIGNADO (t.project), nunca
+  //      el adivinado por palabras (eso no es prueba del trabajo). FLT-1003 (Generador
+  //      de Presites) sale por aquí: sus informes no llevan URL, y su project
+  //      'generador-de-presites' → https://www.admiranext.com/presites.
+  //   4) Sin nada resoluble → "" (la miniatura conserva el lightbox de siempre).
+  // Función PURA y null-safe: no toca DOM ni red; sólo lee el ticket + PROY_WEB.
+  var HOUSE_DOMS = [
+    "admiranext.com", "admira.live", "yokup.com", "xpaceos.com", "pixeria.com",
+    "admira.tv", "clearchannel.tv", "ainimation.studio", "digitalavatar.ai",
+    "admira.store", "carlossilva.info", "admira.studio"
+  ];
+  function isProofUrl(u) {
+    return /\/media\//.test(u) || /\.(?:png|jpe?g|gif|webp|svg|avif|bmp|ico)(?:[?#]|$)/i.test(u);
+  }
+  function firstReportUrl(rows) {
+    if (!rows || !rows.length) return "";
+    var cands = [];
+    for (var i = 0; i < rows.length; i++) {
+      var rep = rows[i] && (rows[i].report || rows[i].informe);
+      if (!rep) continue;
+      var found = String(rep).match(/https?:\/\/[^\s)\]"'<>]+/g);
+      if (!found) continue;
+      for (var j = 0; j < found.length; j++) {
+        // recorta la puntuación de prosa pegada al final de la URL (« . , ; : ) »).
+        var u = found[j].replace(/[.,;:!?)\]}>'"»]+$/, "");
+        if (u && !isProofUrl(u)) cands.push(u);
+      }
+    }
+    if (!cands.length) return "";
+    // dominios de la casa PRIMERO, en el orden en que aparezcan.
+    for (var k = 0; k < cands.length; k++) {
+      var host = cands[k].replace(/^https?:\/\/(www\.)?/i, "").toLowerCase();
+      for (var h = 0; h < HOUSE_DOMS.length; h++) if (host.indexOf(HOUSE_DOMS[h]) === 0) return cands[k];
+    }
+    return cands[0];
+  }
+  function workUrlOf(t) {
+    if (!t) return "";
+    // 1) campo explícito en el propio ticket (hoy inexistente en /fleet/missions).
+    var direct = t.work_url || t.workUrl || t.url || t.web || t.link;
+    if (direct && /^https?:\/\//i.test(String(direct).trim())) return String(direct).trim();
+    // 2) primera URL http(s) de los informes de las tareas (casa primero).
+    var rep = firstReportUrl(t._tasks || t.tasks);
+    if (rep) return rep;
+    // 3) web publicada del proyecto ASIGNADO del censo (no la adivinada por palabras).
+    var pid = t.project ? String(t.project).toLowerCase() : "";
+    if (pid && PROY_WEB[pid]) return PROY_WEB[pid];
+    // 4) nada resoluble → la miniatura se queda en lightbox.
+    return "";
+  }
   // miniatura de una web (thum.io; cargada directa desde el navegador — las IPs de
   // datacenter la bloquean, pero el navegador del usuario es residencial).
   // Miniatura de la web del proyecto vía el endpoint PROPIO /shot de yokup-rtc
@@ -286,6 +347,9 @@
     var tog = e.target.closest && e.target.closest(".substog");
     if (tog) { var step = tog.closest(".step"); if (step) { step.classList.toggle("collapsed"); var op = !step.classList.contains("collapsed"); tog.textContent = (op ? "▾ " : "▸ ") + tog.textContent.replace(/^[▸▾]\s*/, ""); } return; }
     var img = e.target.closest && e.target.closest(".shot-img");
+    // Si la miniatura es un ENLACE al trabajo (envuelta en a.shot-link), NO se abre
+    // el lightbox: se deja que el navegador siga el enlace (pestaña nueva). (2026-07-23)
+    if (img && img.closest && img.closest(".shot-link")) return;
     if (img && (img.dataset.proof || img.dataset.shot)) {
       e.preventDefault(); openLightbox(img.dataset.proof || img.dataset.shot, !!img.dataset.proof);
     }
@@ -423,9 +487,17 @@
         '<div class="tkid">' + esc(t.id) + '<span class="st">' + ({ "agent-iot": "🖥 Pantalla DOOH", monitor: "🌐 Servicio", service: "🌐 Servicio", agent: "🤖 Agente", agente: "🤖 Agente", presence: "🖥 Máquina", machine: "🖥 Máquina", fleet: "🎯 Misión" }[t.source] || "👤 Manual") + "</span>" +
           (pm.flag ? '<span class="prioflag' + (esPrio ? " abs" : "") + '">' + (esPrio ? "⚡ " : "") + esc(pm.flag) + "</span>" : "") + "</div>" +
         '<div class="cel shot">' + (function () { var p = proyectoDe(t);
-          if (proof) return '<img class="shot-img proof" loading="lazy" src="' + esc(proof) + '" data-proof="' + esc(proof) + '" alt="Pantallazo final" title="pantallazo del trabajo realizado">';
-          if (liveFresca) return '<img class="shot-img working" loading="lazy" src="' + esc(live) + '" data-proof="' + esc(live) + '" alt="En curso" title="🔴 en vivo · el CLI está trabajando ahora">';
-          return p ? '<img class="shot-img" loading="lazy" src="' + esc(shotUrl(p, 240)) + '" data-shot="' + esc(p) + '" alt="" title="ampliar · ' + esc(p) + '">' : '<img class="shot-img shot-logo" loading="lazy" src="/img/admiranext-logo.svg" alt="AdmiraNeXT" title="AdmiraNeXT · sin proyecto asignado">'; })() + "</div>" +
+          // La miniatura es un ENLACE al trabajo realizado cuando se resuelve destino
+          // (informe/proyecto); si no, se queda como lightbox. (Carlos, 2026-07-23)
+          var work = workUrlOf(t);
+          var inner = proof
+            ? '<img class="shot-img proof" loading="lazy" src="' + esc(proof) + '" data-proof="' + esc(proof) + '" alt="Pantallazo final" title="' + (work ? "pantallazo del trabajo realizado · clic para abrir el trabajo" : "pantallazo del trabajo realizado") + '">'
+            : liveFresca
+              ? '<img class="shot-img working" loading="lazy" src="' + esc(live) + '" data-proof="' + esc(live) + '" alt="En curso" title="🔴 en vivo · el CLI está trabajando ahora">'
+              : (p ? '<img class="shot-img" loading="lazy" src="' + esc(shotUrl(p, 240)) + '" data-shot="' + esc(p) + '" alt="" title="ampliar · ' + esc(p) + '">' : '<img class="shot-img shot-logo" loading="lazy" src="/img/admiranext-logo.svg" alt="AdmiraNeXT" title="AdmiraNeXT · sin proyecto asignado">');
+          return work
+            ? '<a class="shot-link" href="' + esc(work) + '" target="_blank" rel="noopener" title="Abrir el trabajo: ' + esc(work) + '">' + inner + "</a>"
+            : inner; })() + "</div>" +
         '<div class="subj">' + rz("id", "r") + '<div class="t">' + esc(pm.limpio) + '</div><div class="m"><span class="scr">' + esc(String(t.screen || "").replace(/^(svc|maq|agt|service|machine|agent):/, "").replace(/^https?:\/\/(www\.)?/, "")) + "</span>" +
           (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span>" +
           // 📎 la misión lleva fotos adjuntas (viven en el texto de sus eventos;
@@ -714,12 +786,16 @@
     var est = estadoDe(t), maq = machineOf(t);
     var img = t.proof_image || t.live_shot || "";
     var agentes = (t._agents && t._agents.length) ? t._agents.join(" · ") : (t.assignee || "sin agente");
+    // La captura de la ficha también ENLAZA al trabajo realizado cuando hay destino.
+    var work = workUrlOf(t);
+    var imgHtml = img ? '<img class="mdet-img" loading="lazy" onerror="this.remove()" src="' + esc(img) + '" alt="prueba del trabajo">' : "";
+    if (imgHtml && work) imgHtml = '<a class="shot-link mdet-imglink" href="' + esc(work) + '" target="_blank" rel="noopener" title="Abrir el trabajo: ' + esc(work) + '">' + imgHtml + "</a>";
     return '<div class="mdet">' +
       '<div class="mdet-t">' + esc(prioMarca(t.subject).limpio) + "</div>" +
       '<div class="mdet-m"><span class="badge ' + est.c + '"><i></i>' + est.l + "</span>" +
         (maq ? '<span class="mdet-k">🖥 ' + esc(maq) + "</span>" : "") +
         '<span class="mdet-k">👷 ' + esc(agentes) + "</span></div>" +
-      (img ? '<img class="mdet-img" loading="lazy" onerror="this.remove()" src="' + esc(img) + '" alt="prueba del trabajo">' : "") +
+      imgHtml +
       '<div class="mdet-inf" data-inf>· cargando informe…</div>' +
       '<div class="mdet-actions">' +
         // «+ misión»: cuelga una misión HIJA de ésta (hereda máquina y agente). Solo
@@ -804,7 +880,7 @@
     rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine, estadoDe: estadoDe,
     machOffOf: machOffOf,
     setLiveMachines: function (set) { LIVE_MACHINES = set || null; },
-    setProyectos: setProyectos, proyectoDe: proyectoDe,
+    setProyectos: setProyectos, proyectoDe: proyectoDe, workUrlOf: workUrlOf,
     renderTaskTree: renderTaskTree, refreshTree: refreshTree,
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,
     tercios: tercios, progHtml: progHtml,
