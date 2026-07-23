@@ -3945,82 +3945,10 @@
         });
       }
 
-      // Filosofía AdmiraNeXT: siempre 3 capas por agente principal.
-      // - Agente principal: trata con el humano y dirige al equipo.
-      // - Subagente: ejecuta las tareas.
-      // - Infraagente: reporta y documenta.
-      // Si en los datos solo viene el main (o faltan capas), sintetizamos los satélites
-      // para que la estructura de 3 capas siempre sea visible en la constelación.
-      const mainsThisMachine = ags.filter(a => kinOf[norm(a.persona)].tier === 'main');
-      for(const mainA of mainsThisMachine){
-        const mainNn = norm(mainA.persona);
-        const mainId = idOf[mainNn];
-        const hasSub = ags.some(a => norm(a.persona).startsWith('sub') && agentKin(a.persona).parents.includes(mainNn));
-        const hasInfra = ags.some(a => norm(a.persona).startsWith('infra') && (agentKin(a.persona).parents.includes('sub'+mainNn) || agentKin(a.persona).parents.includes(mainNn)));
-        // Capas de agentes (AVANZADO): si el usuario oculta subs/infras, tampoco se sintetizan
-        if(!hasSub && SHOW_SUBS){
-          const subNn = 'sub' + mainNn;
-          const subId = mid + '|' + subNn + '|' + norm(mainA.runtime||'');
-          list.push({
-            id: subId, label: 'sub' + mainA.persona, sub: mainA.runtime||'', kindFor:'all-agent',
-            parentId: mainId, tier:'sub',
-            online: true, updated: Math.floor(Date.now()/1000), foco:'Ejecuta las tareas dirigidas por el agente principal', mode:'autonomo',
-            proj: '', missionLine:'Subagente (ejecutor)', decisions:0, tokens:0, reqs:0, count:1,
-            since:0, sinceExact:false, cpu:0,
-            machines:[m.machine], persona:'sub'+mainA.persona, runtime:mainA.runtime,
-            _synthetic:true
-          });
-        }
-        if(!hasInfra && SHOW_INFRA){
-          const infraNn = 'infra' + mainNn;
-          // parent should be the sub if we just added it, or main
-          const subIdForParent = mid + '|' + 'sub' + mainNn + '|' + norm(mainA.runtime||'');
-          const infraParent = list.find(x=>x.id === subIdForParent) ? subIdForParent : mainId;
-          const infraId = mid + '|' + infraNn + '|' + norm(mainA.runtime||'');
-          list.push({
-            id: infraId, label: 'infra' + mainA.persona, sub: mainA.runtime||'', kindFor:'all-agent',
-            parentId: infraParent, tier:'infra',
-            online: true, updated: Math.floor(Date.now()/1000), foco:'Reporta y documenta lo realizado por el equipo', mode:'pasivo',
-            proj: '', missionLine:'Infraagente (reportero y documentador)', decisions:0, tokens:0, reqs:0, count:1,
-            since:0, sinceExact:false, cpu:0,
-            machines:[m.machine], persona:'infra'+mainA.persona, runtime:mainA.runtime,
-            _synthetic:true
-          });
-        }
-      }
-
-      // Force explicit sub and infra for Grok (Smith) on this machine to ensure visibility
-      // per AdmiraNeXT 3-layer philosophy (agente, subagente, infraagente)
-      if (norm(m.machine) === 'macbookpro16') {
-        const smithA = ags.find(a => norm(a.persona) === 'smith');
-        if (smithA) {
-          const mainId = 'all:macbookpro16|smith|grok';
-          const subExists = list.some(n => n.id && n.id.includes('subsmith'));
-          if (!subExists) {
-            const subId = 'all:macbookpro16|subsmith|grok';
-            // Capas de agentes (AVANZADO): cada capa forzada respeta su toggle
-            if(SHOW_SUBS) list.push({
-              id: subId, label: 'subSmith', sub: 'Grok', kindFor:'all-agent',
-              parentId: mainId, tier:'sub',
-              online: true, updated: Math.floor(Date.now()/1000), foco:'Ejecuta las tareas dirigidas por el agente principal', mode:'autonomo',
-              proj: '', missionLine:'Subagente (ejecutor)', decisions:0, tokens:0, reqs:0, count:1,
-              since:0, sinceExact:false, cpu:0,
-              machines:[m.machine], persona:'subSmith', runtime:'Grok',
-              _synthetic:true
-            });
-            const infraId = 'all:macbookpro16|infrasmith|grok';
-            if(SHOW_INFRA) list.push({
-              id: infraId, label: 'infraSmith', sub: 'Grok', kindFor:'all-agent',
-              parentId: SHOW_SUBS ? subId : mainId, tier:'infra',
-              online: true, updated: Math.floor(Date.now()/1000), foco:'Reporta y documenta lo realizado por el equipo', mode:'pasivo',
-              proj: '', missionLine:'Infraagente (reportero y documentador)', decisions:0, tokens:0, reqs:0, count:1,
-              since:0, sinceExact:false, cpu:0,
-              machines:[m.machine], persona:'infraSmith', runtime:'Grok',
-              _synthetic:true
-            });
-          }
-        }
-      }
+      // Las capas se muestran únicamente cuando existe presencia real. Inventar
+      // satélites hace que agentes dormidos parezcan activos y rompe el valor
+      // operativo de /status; la jerarquía se conserva al enlazar los nodos que
+      // sí llegan del feed.
     }
     return list;
   }
