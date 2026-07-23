@@ -623,6 +623,27 @@ function normalizeProofImage(raw) {
 }
 __name(normalizeProofImage, "normalizeProofImage");
 
+// FLT-1007 c — La tubería de /fleet/media solo tragaba image/* («solo imágenes»), así
+// que el Kit de venta del Consejo (audio de la charla, vídeo y briefing en PDF) se
+// quedaba fuera. Aquí, en UN único sitio testeable, se decide qué content-type entra y
+// con qué extensión coherente se guarda el objeto R2. Se admite imagen, audio de m4a
+// (audio/mp4 y audio/x-m4a, con el alias audio/m4a por si acaso), vídeo mp4 y PDF; el
+// resto se rechaza con motivo (no en silencio). Devuelve {ok, ext} o {ok:false, error}.
+var FLEET_MEDIA_MAX = 80 * 1024 * 1024;
+function fleetMediaKind(ct) {
+  const t = String(ct == null ? "" : ct).split(";")[0].trim().toLowerCase();
+  if (!t) return { ok: false, error: "sin content-type: mándalo en la cabecera (image/*, audio/mp4|x-m4a, video/mp4 o application/pdf)" };
+  if (/^image\//.test(t)) {
+    const ext = (t.split("/")[1] || "png").replace(/[^a-z0-9]/g, "") || "png";
+    return { ok: true, ext, ct: t };
+  }
+  if (t === "audio/mp4" || t === "audio/x-m4a" || t === "audio/m4a") return { ok: true, ext: "m4a", ct: t };
+  if (t === "video/mp4") return { ok: true, ext: "mp4", ct: t };
+  if (t === "application/pdf") return { ok: true, ext: "pdf", ct: t };
+  return { ok: false, error: "content-type no admitido («" + t + "»): solo image/*, audio/mp4|x-m4a, video/mp4 o application/pdf" };
+}
+__name(fleetMediaKind, "fleetMediaKind");
+
 // Las referencias numéricas históricas siguen entrando como FLT-<n>, pero los ids
 // alfanuméricos de tandas (MIS-DEC-...) son opacos: cambiarles el case rompe la
 // clave primaria y hace que una misión existente parezca ausente.
@@ -2149,7 +2170,10 @@ var index_default = {
       const obj = await env.MEDIA.get(key);
       if (!obj) return json({ error: "not found" }, 404);
       const h = new Headers(CORS);
-      h.set("content-type", obj.httpMetadata?.contentType || "application/octet-stream");
+      // FLT-1007 c: se sirve el content-type REAL guardado. Los objetos viejos de fleet/
+      // se subieron sin metadata y hoy son TODO imágenes (las pruebas), así que su caída
+      // es image/png —no octet-stream— para que las capturas existentes sigan pintándose.
+      h.set("content-type", obj.httpMetadata?.contentType || "image/png");
       h.set("cache-control", "public, max-age=31536000, immutable");
       return new Response(obj.body, { headers: h });
     }
@@ -2274,15 +2298,35 @@ var index_default = {
     if (url.pathname === "/fleet/media" && req.method === "POST") {
       if (!env.MEDIA) return json({ ok: false, error: "sin bucket MEDIA" }, 500);
       const ct = req.headers.get("content-type") || "application/octet-stream";
-      if (!/^image\//i.test(ct)) return json({ ok: false, error: "solo imágenes" }, 415);
+      // FLT-1007 c: ya no solo image/*; el Kit de venta trae audio, vídeo y PDF.
+      const kind = fleetMediaKind(ct);
+      if (!kind.ok) return json({ ok: false, error: kind.error }, 415);
       const buf = await req.arrayBuffer();
       if (!buf.byteLength) return json({ ok: false, error: "vacío" }, 400);
-      if (buf.byteLength > 12 * 1024 * 1024) return json({ ok: false, error: "máx 12MB" }, 413);
-      const ext = (ct.split("/")[1] || "png").split(";")[0].replace(/[^a-z0-9]/gi, "") || "png";
+      if (buf.byteLength > FLEET_MEDIA_MAX) return json({ ok: false, error: "máx 80MB" }, 413);
       const rand = [...crypto.getRandomValues(new Uint8Array(8))].map((x) => x.toString(16).padStart(2, "0")).join("");
-      const key = `fleet/${rand}.${ext}`;
-      await env.MEDIA.put(key, buf, { httpMetadata: { contentType: ct } });
-      return json({ ok: true, url: `${url.origin}/media/${key}`, key });
+      const key = `fleet/${rand}.${kind.ext}`;
+      // Se guarda el content-type REAL como metadata del objeto: GET /media/<key> lo
+      // devuelve tal cual, así el navegador reproduce el audio/vídeo y abre el PDF.
+      await env.MEDIA.put(key, buf, { httpMetadata: { contentType: kind.ct } });
+      return json({ ok: true, url: `${url.origin}/media/${key}`, key, contentType: kind.ct });
+    }
+    // MANTENIMIENTO (sin gate, como el resto de /fleet/*): purga un objeto de R2 para
+    // limpiar restos de prueba. Se acepta la URL pública, «/media/<key>», «media/<key>»
+    // o el key pelado; y —salvaguarda del radio de daño en una operación irreversible—
+    // solo se permite dentro de fleet/ (las pruebas/kit), nunca m/ (subidas de usuario)
+    // ni shot/ (caché de miniaturas). Honesto: informa si el objeto existía o no.
+    if (url.pathname === "/fleet/media/delete" && req.method === "POST") {
+      if (!env.MEDIA) return json({ ok: false, error: "sin bucket MEDIA" }, 500);
+      let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
+      let key = String(b.path || b.key || "").trim();
+      if (!key) return json({ ok: false, error: "path requerido" }, 400);
+      try { if (/^https?:\/\//i.test(key)) key = new URL(key).pathname; } catch (e) {}
+      key = key.replace(/^\/+/, "").replace(/^media\//, "");
+      if (!/^fleet\//.test(key)) return json({ ok: false, error: "solo se purga dentro de fleet/<hash> (m/ y shot/ quedan fuera)" }, 400);
+      const existed = await env.MEDIA.head(key);
+      await env.MEDIA.delete(key);
+      return json({ ok: true, key, existed: !!existed });
     }
     // Reparación quirúrgica para una misión que el contrato antiguo activó de
     // forma automática. Sólo desmonta el cascarón sintético si sigue intacto:
