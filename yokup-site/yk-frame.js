@@ -25,7 +25,7 @@
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.23.07.2026.r6";
+  var VERSION = "v.23.07.2026.r7";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
 
   // NAV DE PLATAFORMA — fuente ÚNICA del menú tras la DMZ (zona app). Las
@@ -85,6 +85,14 @@
   // que rellena paintCounters tras el fetch. aria-hidden: el número es señal
   // visual y no debe leerse pegado al rótulo; el enlace ya se anuncia solo.
   function counterSpan(label, cls) {
+    // DECISIONES no lleva «curso/pend» sino CUENTA ATRÁS: span data-yk-countdown que
+    // sólo se rellena si hay un reloj de decisión vivo (deadline futuro). Ver paintDecisiones.
+    if (label === "DECISIONES") {
+      var d = el("span", cls);
+      d.setAttribute("data-yk-countdown", "1");
+      d.setAttribute("aria-hidden", "true");
+      return d;
+    }
     var key = COUNTER_KEY[label];
     if (!key) return null;
     var s = el("span", cls);
@@ -101,18 +109,46 @@
       var d = data && data[s.getAttribute("data-yk-count")];
       if (!d) { s.textContent = ""; return; }
       var curso = d.curso | 0, pend = d.pend | 0;
+      // 0/0 → nada (Carlos, 2026-07-23): sección vacía enseña sólo su rótulo limpio.
+      if (curso + pend === 0) { s.textContent = ""; s.removeAttribute("title"); return; }
       s.textContent = curso + "/" + pend;
       s.setAttribute("title", curso + " en curso · " + pend + " pendientes");
     });
   }
 
+  // DECISIONES: cuenta atrás ⏳ m:ss hacia el deadline VIVO más próximo. El tic-tac
+  // es LOCAL (setInterval 1s): un solo fetch por carga basta; al llegar a 0 se oculta
+  // sola sin recargar. Sin reloj vivo (deadline nulo o pasado) → DECISIONES limpia.
+  var _cdTimer = 0;
+  function paintDecisiones(data) {
+    var span = document.querySelector("[data-yk-countdown]");
+    if (!span) return;
+    if (_cdTimer) { window.clearInterval(_cdTimer); _cdTimer = 0; }
+    var dl = data && data.decisiones && data.decisiones.deadline;
+    if (!dl || !(dl > Date.now())) { span.textContent = ""; span.removeAttribute("title"); return; }
+    function tick() {
+      var ms = dl - Date.now();
+      if (ms <= 0) {
+        span.textContent = ""; span.removeAttribute("title");
+        if (_cdTimer) { window.clearInterval(_cdTimer); _cdTimer = 0; }
+        return;
+      }
+      var s = Math.ceil(ms / 1000), m = Math.floor(s / 60), ss = s % 60;
+      var t = m + ":" + (ss < 10 ? "0" + ss : ss);
+      span.textContent = "⏳ " + t;
+      span.setAttribute("title", "Decisi\xF3n pendiente \xB7 cierra en " + t);
+    }
+    tick();
+    _cdTimer = window.setInterval(tick, 1000);
+  }
+
   // UN fetch por página al agregado del worker. Si falla, el menú se queda sin
   // contadores (degradación silenciosa: nada de toasts ni reintentos).
   function fetchCounters() {
-    if (!document.querySelector("[data-yk-count]")) return;
+    if (!document.querySelector("[data-yk-count],[data-yk-countdown]")) return;
     window.fetch(WORKER + "/menu/contadores", { cache: "no-store" })
       .then(function (r) { return r.json(); })
-      .then(function (d) { if (d && d.ok) paintCounters(d); })
+      .then(function (d) { if (d && d.ok) { paintCounters(d); paintDecisiones(d); } })
       .catch(function () {});
   }
 

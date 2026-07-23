@@ -1762,6 +1762,14 @@ async function menuCounters(env) {
     "GROUP BY m.status"
   ).all()).results || [];
   for (const r of inf) { if (r.status === "in_progress") out.informes.curso = r.n; else if (r.status === "pending") out.informes.pend = r.n; }
+  // DECISIONES: relojes VIVOS = pending con deadline futuro (honesto: deadline>now,
+  // no me fío del barrido de expiración que sólo corre en GET /decisions). El menú
+  // pinta la cuenta atrás hacia el más próximo; sin ninguna viva, DECISIONES limpia.
+  const now = Date.now();
+  const dec = await env.DB.prepare(
+    "SELECT COUNT(*) n, MIN(deadline) nearest FROM decisions WHERE status='pending' AND deadline > ?"
+  ).bind(now).first();
+  out.decisiones = { vivas: (dec && dec.n) | 0, deadline: (dec && dec.n) ? dec.nearest : null };
   return out;
 }
 __name(menuCounters, "menuCounters");
