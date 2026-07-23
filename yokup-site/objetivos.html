@@ -74,8 +74,9 @@
   .block-sub{color:var(--dim);font-size:13.5px;line-height:1.55;max-width:66ch;margin:6px 0 18px}
 
   /* ── IDEAS (captura + lista, del worker yokup-rtc /ideas) ───────────── */
-  .add{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 16px 14px;margin-bottom:22px}
-  .add .row{display:flex;gap:10px;flex-wrap:wrap}
+  .add{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 16px 14px;margin-bottom:22px;
+    display:flex;flex-wrap:wrap;gap:10px}
+  .add .row{flex:1 1 100%;display:flex;gap:10px;flex-wrap:wrap}
   .add input,.add textarea,.add select{background:#06121a;color:var(--ink);border:1px solid var(--line);border-radius:10px;
     padding:11px 12px;font:14px/1.4 -apple-system,system-ui,sans-serif;outline:none;transition:border-color .15s}
   .add input:focus,.add textarea:focus{border-color:var(--brand)}
