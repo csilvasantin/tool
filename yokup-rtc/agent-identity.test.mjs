@@ -28,3 +28,8 @@ test("lee aliases históricos sin perder la familia operativa", () => {
   assert.equal(sameAgentFamily("Oráculo", "SubOraculo16"), true);
   assert.equal(sameAgentFamily("NeoMini", "InfraOraculoMini"), false);
 });
+
+test("una máquina vacía o desconocida nunca hereda Mini por prefijo vacío", () => {
+  assert.equal(scopedAgentIdentity("Oraculo", ""), "Oraculo");
+  assert.equal(scopedAgentIdentity("Oraculo", "equipo-desconocido"), "Oraculo");
+});

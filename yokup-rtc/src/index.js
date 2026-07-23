@@ -1,5 +1,5 @@
 import puppeteer from "@cloudflare/puppeteer";
-import { resolveDecisionProject, selectDecisionProjectAssignment } from "./decision-project.js";
+import { resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment } from "./decision-project.js";
 import { baseAgentIdentity, parseAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -2438,18 +2438,25 @@ var index_default = {
         }
         const rawAgent = String(b.agent || "").trim().slice(0, 40);
         const rawMachine = String(b.machine || "").trim().slice(0, 60);
+        const decisionIdentity = resolveDecisionIdentity(rawAgent, rawMachine);
+        if (!decisionIdentity.ok) {
+          return json({ ok: false, error: decisionIdentity.error, code: "exact_identity_required" }, 400);
+        }
+        const decisionInput = { ...b, agent: decisionIdentity.agent, machine: decisionIdentity.machine };
         // Cuando agent+machine participa en varios proyectos, la raíz debe
         // seleccionar uno por id. Las continuaciones heredan el id ya
         // autorizado de su decisión raíz. Una selección ajena falla cerrado.
         const requestedProjectId = String(b.project_id || (continuation && parent ? parent.project : "")).trim().slice(0, 120);
-        const assignment = await exactDecisionProjectAssignment(env, rawAgent, rawMachine, requestedProjectId);
+        const assignment = await exactDecisionProjectAssignment(
+          env, decisionIdentity.agent, decisionIdentity.machine, requestedProjectId
+        );
         let inherited = null;
         if (continuation && parent) {
           const pidx = await projectIndex(env);
           const rootProject = resolveProject(pidx, parent.project || "");
           inherited = { agent: parent.agent, machine: parent.machine, project_id: rootProject.id, project: rootProject.name, project_slug: parent.project_slug || "" };
         }
-        const projectContext = resolveDecisionProject(b, assignment, inherited);
+        const projectContext = resolveDecisionProject(decisionInput, assignment, inherited);
         if (!projectContext.ok) return json({ ok: false, error: projectContext.error, code: "exact_project_required" }, 400);
         const mins = Math.min(60, Math.max(1, +b.minutes || 3));   // por defecto 3 min
         const now = Date.now();

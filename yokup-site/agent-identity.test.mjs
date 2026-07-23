@@ -16,4 +16,8 @@ assert.equal(id.scoped("Smith","MacBookAirAzul","infra"),"InfraAgente Smith Azul
 assert.equal(id.base("InfraOraculoMini"),"Oraculo");
 assert.equal(id.base("subOraculo"),"Oraculo");
 assert.equal(id.base("Cypher"),"Smith");
+assert.equal(id.suffix(""),"");
+assert.equal(id.suffix("equipo-desconocido"),"");
+assert.equal(id.scoped("Oraculo",""),"Oraculo");
+assert.equal(id.scoped("Oraculo","equipo-desconocido"),"Oraculo");
 console.log("yk agent identity matrix: ok");

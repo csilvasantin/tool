@@ -33,10 +33,11 @@
   }
   function suffix(machine) {
     var k = key(machine);
+    if(!k) return "";
     for (var i=0;i<MACHINES.length;i++) {
       for (var j=0;j<MACHINES[i][1].length;j++) {
         var a=key(MACHINES[i][1][j]);
-        if(k===a || k.indexOf(a)===0 || a.indexOf(k)===0) return MACHINES[i][0];
+        if(k===a || k.indexOf(a)===0) return MACHINES[i][0];
       }
     }
     return "";

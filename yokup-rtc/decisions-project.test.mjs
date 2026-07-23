@@ -1,7 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {memberRefMatches, projectSlug, resolveDecisionProject, selectDecisionProjectAssignment} from './src/decision-project.js';
+import {
+  memberRefMatches,
+  projectSlug,
+  resolveDecisionIdentity,
+  resolveDecisionProject,
+  selectDecisionProjectAssignment,
+} from './src/decision-project.js';
 
 const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
 const canonical = {
@@ -24,8 +30,9 @@ test('POST resuelve la intersección canónica agent+machine y falla cerrado', (
   assert.match(source, /SELECT project_id,kind,ref FROM project_members/);
   assert.match(source, /selectDecisionProjectAssignment\(idx\.rows, members, agent, machine, requestedProjectId\)/);
   assert.match(source, /b\.project_id \|\| \(continuation && parent \? parent\.project/);
-  assert.match(source, /resolveDecisionProject\(b, assignment, inherited\)/);
+  assert.match(source, /resolveDecisionProject\(decisionInput, assignment, inherited\)/);
   assert.match(source, /code: "exact_project_required"/);
+  assert.match(source, /code: "exact_identity_required"/);
 });
 
 test('POST guarda id+slug; GET lista y detalle devuelven nombre, id y slug', () => {
@@ -48,8 +55,21 @@ test('acepta sólo el contexto granular Generador de Presentaciones', () => {
   assert.deepEqual(resolveDecisionProject(exact, canonical), {
     ok:true, project:'Generador de Presentaciones', project_id:'generador-de-presentaciones',
     project_slug:'GENERADOR-DE-PRESENTACIONES', project_web:'www.admiranext.com',
-    agent:'Oráculo', machine:'Mac Mini'
+    agent:'OraculoMini', machine:'Mac Mini'
   });
+});
+
+test('canoniza aliases planos y rechaza identidad scoped contradictoria', () => {
+  assert.deepEqual(resolveDecisionIdentity('Oráculo', 'Mac Mini'), {
+    ok:true, agent:'OraculoMini', machine:'Mac Mini'
+  });
+  assert.deepEqual(resolveDecisionIdentity('SubOraculo', 'Mac Mini'), {
+    ok:true, agent:'SubOraculoMini', machine:'Mac Mini'
+  });
+  assert.equal(resolveDecisionIdentity('Oraculo16', 'Mac Mini').ok, false);
+  assert.equal(resolveDecisionIdentity('InfraOraculoMini', 'MacBook Pro 16').ok, false);
+  assert.equal(resolveDecisionIdentity('Oraculo', '').ok, false);
+  assert.equal(resolveDecisionIdentity('Oraculo', 'equipo-desconocido').ok, false);
 });
 
 test('project_id selecciona de forma explícita sólo una asignación autorizada', () => {
@@ -87,4 +107,7 @@ test('una continuación conserva raíz y asignación exactas', () => {
   assert.equal(resolveDecisionProject({...exact,project:'Admira TV',project_slug:'ADMIRA-TV'}, canonical, inherited).ok, false);
   assert.equal(resolveDecisionProject(exact, {...canonical,name:'Admira TV',id:'admira-tv'}, inherited).ok, false);
   assert.equal(resolveDecisionProject(exact, canonical, {...inherited,machine:'MacBook Pro'}).ok, false);
+  assert.equal(resolveDecisionProject(exact, canonical, {...inherited,agent:'Oraculo16'}).ok, false);
+  assert.equal(resolveDecisionProject({...exact,agent:'Oraculo16'}, canonical, inherited).ok, false);
+  assert.equal(resolveDecisionProject({...exact,agent:'SubOraculo'}, canonical, inherited).ok, false);
 });

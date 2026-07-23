@@ -1,3 +1,11 @@
+import {
+  baseAgentIdentity,
+  identityKey as agentIdentityKey,
+  machineSuffix,
+  parseAgentIdentity,
+  scopedAgentIdentity,
+} from "./agent-identity.js";
+
 function text(value, limit) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, limit);
 }
@@ -19,6 +27,26 @@ export function identityKey(value, kind = "") {
 
 export function memberRefMatches(kind, ref, requested) {
   return identityKey(ref, kind) === identityKey(requested, kind);
+}
+
+// Toda decisión nueva se persiste con la identidad derivada de su equipo. Los
+// aliases planos históricos se canonizan; un apellido físico contradictorio
+// falla cerrado para no atribuir trabajo del Mini al 16 (o viceversa).
+export function resolveDecisionIdentity(agentValue, machineValue) {
+  const rawAgent = text(agentValue, 40);
+  const machine = text(machineValue, 60);
+  if (!rawAgent || !machine) return invalid("agent y machine exactos requeridos");
+  const expectedSuffix = machineSuffix(machine);
+  if (!expectedSuffix) return invalid("machine desconocida: no se puede derivar la identidad");
+  const parsed = parseAgentIdentity(rawAgent);
+  if (parsed.suffix && parsed.suffix !== expectedSuffix) {
+    return invalid(`agent ${rawAgent} contradice machine ${machine}`);
+  }
+  return {
+    ok: true,
+    agent: scopedAgentIdentity(parsed.persona, machine, parsed.role),
+    machine,
+  };
 }
 
 export function selectDecisionProjectAssignment(projects, members, agent, machine, requestedProjectId = "") {
@@ -45,9 +73,9 @@ function cleanWeb(value) {
 // helper no conoce ningún proyecto por código: valida el contrato explícito
 // contra la intersección agent+machine que resolvió D1.
 export function resolveDecisionProject(input, assignment, inherited = null) {
-  const agent = text(input && input.agent, 40);
-  const machine = text(input && input.machine, 60);
-  if (!agent || !machine) return invalid("agent y machine exactos requeridos");
+  const identity = resolveDecisionIdentity(input && input.agent, input && input.machine);
+  if (!identity.ok) return identity;
+  const { agent, machine } = identity;
   if (!assignment || !assignment.id || !assignment.name) {
     return invalid("no existe una asignación canónica única para agent+machine");
   }
@@ -60,7 +88,10 @@ export function resolveDecisionProject(input, assignment, inherited = null) {
   }
 
   if (inherited) {
-    if (!memberRefMatches("agent", inherited.agent, agent) || !memberRefMatches("machine", inherited.machine, machine)) {
+    const rootIdentity = resolveDecisionIdentity(inherited.agent, inherited.machine);
+    if (!rootIdentity.ok ||
+      agentIdentityKey(rootIdentity.agent) !== agentIdentityKey(agent) ||
+      !memberRefMatches("machine", rootIdentity.machine, machine)) {
       return invalid("agent y machine no coinciden con la decisión raíz");
     }
     if ((inherited.project_id && text(inherited.project_id, 120) !== String(assignment.id)) ||
@@ -84,4 +115,3 @@ export function resolveDecisionProject(input, assignment, inherited = null) {
     project_slug: canonicalSlug, project_web: canonicalWeb, agent, machine
   };
 }
-import { baseAgentIdentity } from "./agent-identity.js";

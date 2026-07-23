@@ -28,10 +28,11 @@ export function identityKey(value) {
 
 export function machineSuffix(machine) {
   const key = identityKey(machine);
+  if (!key) return "";
   for (const [suffix, aliases] of MACHINES) {
     if (aliases.some((alias) => {
       const candidate = identityKey(alias);
-      return key === candidate || key.startsWith(candidate) || candidate.startsWith(key);
+      return key === candidate || key.startsWith(candidate);
     })) return suffix;
   }
   return "";
