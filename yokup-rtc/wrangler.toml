@@ -46,9 +46,12 @@ custom_domain = true
 [observability]
 enabled = true
 
-# Reconcilia flota→tickets cada 2 min aunque nadie mire la bandeja.
+# Reconcilia flota→tickets cada 2 min aunque nadie mire la bandeja. El segundo
+# cron (minuto 7 de cada 3ª hora) dispara el Consejo generador de ideas (FLT-1005):
+# 8 huecos × 3h = 1 idea/silla al día. Va al minuto 7 (no :00) para separarlo del
+# reconcile de */2 (minutos pares) — así el handler scheduled sabe cuál es cuál.
 [triggers]
-crons = ["*/2 * * * *"]
+crons = ["*/2 * * * *", "7 */3 * * *"]
 
 # D1 (SQLite) — tickets, events, subs, mission_tasks.
 [[d1_databases]]

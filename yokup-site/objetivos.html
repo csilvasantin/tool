@@ -156,6 +156,23 @@
   @media(max-width:560px){ .list .lauthor,.list .ldate{display:none} }
   @media(max-width:420px){ .list .lseat{display:none} }
   @media(max-width:360px){ .list .ltag{display:none} }
+  /* ── IDEAS DEL CONSEJO (tag=consejo): firma visible «ROL · alias» + borde del
+        lado (racional teal / creativo violeta). Las humanas quedan como están. ── */
+  .bar .gen{font:700 11px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--cre);
+    border:1px solid rgba(197,140,255,.45);background:transparent;border-radius:999px;padding:7px 12px;cursor:pointer;transition:.15s;margin-left:auto}
+  .bar .gen:hover{background:rgba(197,140,255,.14);border-color:var(--cre)}
+  .bar .gen:disabled{opacity:.5;cursor:default}
+  .idea.consejo{border-left:3px solid var(--rac)}
+  .idea.consejo.cre{border-left-color:var(--cre)}
+  .idea .csign{display:inline-flex;align-items:center;gap:4px;font:700 10px/1 var(--mono);letter-spacing:.03em;
+    padding:5px 8px;border-radius:6px;white-space:nowrap;color:#04232a;background:var(--rac)}
+  .idea .csign.cre{color:#1a0a2a;background:var(--cre)}
+  .list .lrow.consejo{border-left:3px solid var(--rac)}
+  .list .lrow.consejo.cre{border-left-color:var(--cre)}
+  .list .lsign{flex:none;font:700 9.5px var(--mono);letter-spacing:.03em;white-space:nowrap;
+    padding:3px 7px;border-radius:5px;color:#04232a;background:var(--rac)}
+  .list .lrow.consejo.cre .lsign{color:#1a0a2a;background:var(--cre)}
+  @media(max-width:420px){ .list .lsign{font-size:8.5px;padding:3px 5px} }
 </style>
 </head>
 <body data-yk-title="OBJETIVOS" data-yk-zone="app">
@@ -200,7 +217,8 @@
     <button class="f" data-f="hecha">Hechas</button>
     <button class="f" data-f="mision">Misión</button>
     <button class="f" data-f="descartada">Descartadas</button>
-    <span class="viewsel" id="viewsel">
+    <button class="gen" id="genBtn" type="button" title="Genera una idea del Consejo (silla aleatoria)">✨ Idea nueva</button>
+    <span class="viewsel" id="viewsel" style="margin-left:8px">
       <button type="button" data-v="grid" title="Vista fichas">▦</button><button type="button" data-v="list" title="Vista listado">☰</button>
     </span>
   </div>
@@ -271,6 +289,11 @@ const NEXT={nueva:"estudio",estudio:"hecha",hecha:"nueva"};
 // Las 8 sillas del Consejo (== IDEA_SEATS del worker). value=seat, label=rol.
 const SEATS=[["ceo","CEO"],["cto","CTO"],["coo","COO"],["cfo","CFO"],["cco","CCO"],["cdo","CDO"],["cxo","CXO"],["cso","CSO"]];
 const SEATLABEL=Object.fromEntries(SEATS);
+// Lado de cada silla: racional (teal) las 4 primeras, creativo (violeta) las 4
+// últimas. Sirve para colorear la firma de las ideas del Consejo (tag=consejo).
+const RAC_SEATS=new Set(["ceo","cto","coo","cfo"]);
+const seatSide=s=>RAC_SEATS.has(String(s||"").toLowerCase())?"rac":"cre";
+const isConsejo=i=>i&&i.tag==="consejo";
 function seatOpts(sel){ return '<option value="">— silla —</option>'+
   SEATS.map(([v,l])=>'<option value="'+v+'"'+(v===sel?' selected':'')+'>'+l+'</option>').join(''); }
 let IDEAS=[], FILTER="", PROG=null;
@@ -286,12 +309,15 @@ function fecha(ms){ try{ return new Date(ms).toLocaleDateString("es-ES",{day:"2-
 function card(i){
   const st=STLABEL[i.status]?i.status:"nueva";
   const isMis=st==="mision"||i.mission_id;
-  return '<div class="idea">'+
-    '<div class="top"><span class="st '+st+'">'+STLABEL[st]+'</span>'+(i.tag?'<span class="tag">#'+esc(i.tag)+'</span>':'')+
+  const cons=isConsejo(i), side=cons?seatSide(i.seat):"";
+  return '<div class="idea'+(cons?' consejo '+side:'')+'">'+
+    '<div class="top"><span class="st '+st+'">'+STLABEL[st]+'</span>'+
+      (cons?'<span class="csign'+(side==="cre"?" cre":"")+'" title="Idea del Consejo">✦ '+esc(i.author||"Consejo")+'</span>'
+           :(i.tag?'<span class="tag">#'+esc(i.tag)+'</span>':''))+
       (i.mission_id?'<a class="flt" href="/tareas?mission='+encodeURIComponent(i.mission_id)+'" title="ver la misión">'+esc(i.mission_id)+' ↗</a>':'')+'</div>'+
     '<h3>'+esc(i.title)+'</h3>'+
     (i.body?'<div class="body">'+esc(i.body)+'</div>':'')+
-    '<div class="meta">'+esc(i.author||"anónimo")+' · '+fecha(i.created_at)+
+    '<div class="meta">'+(cons?'':esc(i.author||"anónimo")+' · ')+fecha(i.created_at)+
       '<span class="acts">'+
         '<select class="seatsel'+(i.seat?' set':'')+'" data-seat-for="'+esc(i.id)+'" title="silla del Consejo">'+seatOpts(i.seat||"")+'</select>'+
         (!isMis&&NEXT[st]?'<button data-adv="'+esc(i.id)+'" title="pasar a '+STLABEL[NEXT[st]]+'">→ '+STLABEL[NEXT[st]]+'</button>':'')+
@@ -306,13 +332,15 @@ function card(i){
 function listRow(i){
   const st=STLABEL[i.status]?i.status:"nueva";
   const isMis=st==="mision"||i.mission_id;
+  const cons=isConsejo(i), side=cons?seatSide(i.seat):"";
   const seatL=i.seat?(SEATLABEL[i.seat]||String(i.seat).toUpperCase()):"";
-  return '<div class="lrow">'+
+  return '<div class="lrow'+(cons?' consejo '+side:'')+'">'+
     '<span class="st '+st+'">'+STLABEL[st]+'</span>'+
     '<span class="ltitle" title="'+esc(i.title)+'">'+esc(i.title)+'</span>'+
-    (i.tag?'<span class="ltag">#'+esc(i.tag)+'</span>':'')+
-    (seatL?'<span class="lseat">'+esc(seatL)+'</span>':'')+
-    '<span class="lauthor">'+esc(i.author||"anónimo")+'</span>'+
+    (cons?'<span class="lsign">✦ '+esc(i.author||"Consejo")+'</span>'
+         :((i.tag?'<span class="ltag">#'+esc(i.tag)+'</span>':'')+
+           (seatL?'<span class="lseat">'+esc(seatL)+'</span>':'')+
+           '<span class="lauthor">'+esc(i.author||"anónimo")+'</span>'))+
     '<span class="ldate">'+fecha(i.created_at)+'</span>'+
     '<span class="lacts">'+
       (i.mission_id?'<a class="flt" href="/tareas?mission='+encodeURIComponent(i.mission_id)+'" title="ver la misión">'+esc(i.mission_id)+' ↗</a>':
@@ -399,6 +427,24 @@ async function promote(id){
   }catch(e){ toast("No se pudo crear la misión"); }
 }
 
+// «✨ Idea nueva»: pide al Consejo una idea al momento (silla ALEATORIA en el
+// worker), la pinta arriba del todo y anuncia quién la firmó. Si el filtro activo
+// la escondería, vuelve a «Todas» para que se vea.
+async function generate(){
+  const btn=$("#genBtn"); if(btn){ btn.disabled=true; btn.textContent="✨ Generando…"; }
+  try{
+    const r=await fetch(WORKER+"/ideas/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+    const d=await r.json();
+    if(d&&d.ok&&d.idea){
+      IDEAS.unshift(d.idea);
+      if(FILTER&&FILTER!==d.idea.status){ FILTER=""; document.querySelectorAll("#filters .f").forEach(x=>x.classList.toggle("on",x.dataset.f==="")); }
+      render(); loadProg();
+      toast("✨ "+(d.idea.author||"El Consejo")+": «"+d.idea.title+"»");
+    } else toast(d&&d.error?("No salió: "+d.error):"No se pudo generar");
+  }catch(e){ toast("Error de red"); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent="✨ Idea nueva"; } }
+}
+if($("#genBtn")) $("#genBtn").addEventListener("click",generate);
 $("#addForm").addEventListener("submit",async e=>{
   e.preventDefault();
   const title=$("#fTitle").value.trim(); if(!title)return;

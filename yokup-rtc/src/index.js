@@ -245,6 +245,109 @@ async function ensureIdeasSchema(env) {
 }
 __name(ensureIdeasSchema, "ensureIdeasSchema");
 
+// ── CONSEJO GENERADOR DE IDEAS DIARIAS (FLT-1005) ─────────────────────────────
+// Cada día las 8 sillas aportan una idea/objetivo para mejorar AdmiraNeXT, UNA
+// CADA 3 HORAS en rotación (8 huecos × 3h = ciclo 24h), firmada por el consejero
+// de turno desde su punto fuerte. Y a demanda («✨ Idea nueva»), silla aleatoria.
+// El orden y los alias son los del array CONSEJO de objetivos.html.
+const COUNCIL_ORDER = ["ceo", "cto", "coo", "cfo", "cco", "cdo", "cxo", "cso"];
+const COUNCIL = {
+  ceo: { role: "CEO", alias: "Steve Jobs", side: "rac", fuerte: "la visi\xF3n de producto: no sumar funciones, sino decidir qu\xE9 se queda fuera para que lo que salga lleve nuestro nombre con orgullo" },
+  cto: { role: "CTO", alias: "Steve Wozniak", side: "rac", fuerte: "la tecnolog\xEDa como cimiento: que lo que se construya sea s\xF3lido, real y sostenible en el tiempo" },
+  coo: { role: "COO", alias: "Tim Cook", side: "rac", fuerte: "la operaci\xF3n: que la m\xE1quina gire —cadena, flota de agentes, entregas y SLA—, que lo prometido se cumpla" },
+  cfo: { role: "CFO", alias: "Warren Buffett", side: "rac", fuerte: "el negocio y el coste a largo plazo: qu\xE9 renta, qu\xE9 cuesta y qu\xE9 aguanta" },
+  cco: { role: "CCO", alias: "Walt Disney", side: "cre", fuerte: "la creatividad y la marca: magia y experiencias que se recuerdan toda la vida" },
+  cdo: { role: "CDO", alias: "Dieter Rams", side: "cre", fuerte: "el dise\xF1o: menos, pero mejor; quitar hasta que solo quede lo esencial, y hacerlo bello" },
+  cxo: { role: "CXO", alias: "Howard Schultz", side: "cre", fuerte: "la experiencia y el espacio vivido: c\xF3mo se siente estar dentro del producto" },
+  cso: { role: "CSO", alias: "George Lucas", side: "cre", fuerte: "el relato: la historia que explica la idea y la hace contagiosa dentro y fuera de la casa" }
+};
+// Rotación SIN estado: silla de turno = Math.floor(horaUTC/3) sobre COUNCIL_ORDER.
+// Determinista, sin persistencia. Hora 0-2→ceo, 3-5→cto … 21-23→cso.
+function councilSeatForHour(h) {
+  return COUNCIL_ORDER[Math.floor((((h % 24) + 24) % 24) / 3)] || "ceo";
+}
+__name(councilSeatForHour, "councilSeatForHour");
+// Extrae {titulo,cuerpo} de lo que devuelva el modelo. Primero intenta un objeto
+// JSON embebido; si no, cae a «primera línea = título, resto = cuerpo».
+function parseIdeaJSON(raw) {
+  let title = "", body = "";
+  const s = String(raw || "").trim();
+  const m = s.match(/\{[\s\S]*\}/);
+  if (m) {
+    try {
+      const o = JSON.parse(m[0]);
+      title = String(o.titulo || o.title || o.t || "").trim();
+      body = String(o.cuerpo || o.body || o.detalle || o.description || "").trim();
+    } catch (e) {
+    }
+  }
+  if (!title) {
+    const lines = s.split("\n").map((x) => x.trim()).filter(Boolean);
+    if (lines.length) {
+      title = lines[0].replace(/^["'#*\-\s]+|["']+$/g, "").replace(/^(t[\xEDi]tulo|title)\s*[:：]\s*/i, "").trim();
+      body = lines.slice(1).join(" ").replace(/^(cuerpo|body|detalle)\s*[:：]\s*/i, "").trim();
+    }
+  }
+  return { title: title.slice(0, 200), body: body.slice(0, 4000) };
+}
+__name(parseIdeaJSON, "parseIdeaJSON");
+// Genera UNA idea del Consejo para `seat` con Workers AI, la firma «ROL · alias»,
+// tag «consejo», status «nueva», y la guarda en `ideas`. Devuelve la fila creada,
+// o null si la IA no dio nada usable (el llamador decide; nunca insertamos basura).
+async function generateCouncilIdea(env, seat) {
+  await ensureIdeasSchema(env);
+  if (!IDEA_SEATS.has(seat)) seat = "ceo";
+  const c = COUNCIL[seat];
+  let recent = [];
+  try {
+    recent = (await env.DB.prepare("SELECT title FROM ideas ORDER BY created_at DESC LIMIT 15").all()).results || [];
+  } catch (e) {
+  }
+  const previos = recent.map((r) => "- " + r.title).join("\n") || "(ninguna todav\xEDa)";
+  const prompt = `Eres ${c.role} del Consejo de AdmiraNeXT, con el esp\xEDritu de ${c.alias}. Tu punto fuerte es ${c.fuerte}.
+
+AdmiraNeXT es un ecosistema de se\xF1alizaci\xF3n digital (DOOH) construido por agentes de IA: yokup.com (FSM de misiones y tareas del equipo), admira.live (cockpit de la flota de agentes de IA), pixeria (creatividad con IA), xpaceos (gemelo digital de la red de pantallas) y admira.tv (emisi\xF3n del canal).
+
+Propón UNA idea u objetivo CONCRETO y accionable para MEJORAR AdmiraNeXT, mir\xE1ndolo desde tu punto fuerte (${c.role}). Que sea DISTINTA de estas ideas ya propuestas:
+${previos}
+
+Responde SOLO con un objeto JSON v\xE1lido, sin texto alrededor ni markdown, con esta forma exacta:
+{"titulo":"<frase corta, m\xE1x 90 caracteres>","cuerpo":"<2 o 3 frases: el porqu\xE9, el c\xF3mo y para qui\xE9n>"}
+Todo en espa\xF1ol.`;
+  const raw = await aiRun(env, prompt, 400);
+  const { title, body } = parseIdeaJSON(raw);
+  if (!title) return null;
+  const author = c.role + " \xB7 " + c.alias;
+  const now = Date.now();
+  const id = "IDEA-" + crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+  await env.DB.prepare("INSERT INTO ideas (id,title,body,author,tag,status,created_at,updated_at,mission_id,seat) VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .bind(id, title, body, author, "consejo", "nueva", now, now, "", seat).run();
+  return { id, title, body, author, tag: "consejo", status: "nueva", created_at: now, updated_at: now, mission_id: "", seat };
+}
+__name(generateCouncilIdea, "generateCouncilIdea");
+// Tick del cron (cada hueco de 3h): silla por hora, con idempotencia por hueco.
+// Si ya hay una idea tag=consejo creada en el hueco de 3h actual, NO genera otra.
+async function runCouncilTick(env) {
+  try {
+    await ensureIdeasSchema(env);
+    const now = Date.now();
+    const slotMs = 3 * 60 * 60 * 1e3;
+    const slotStart = Math.floor(now / slotMs) * slotMs;
+    const existing = await env.DB.prepare(
+      "SELECT id FROM ideas WHERE tag='consejo' AND created_at >= ? LIMIT 1"
+    ).bind(slotStart).first();
+    if (existing) return null;
+    const seat = councilSeatForHour(new Date(now).getUTCHours());
+    const idea = await generateCouncilIdea(env, seat);
+    if (!idea) console.log("[consejo] cron: la IA no dio idea usable (hueco " + new Date(slotStart).toISOString() + ", silla " + seat + ")");
+    return idea;
+  } catch (e) {
+    console.log("[consejo] cron error:", String(e && e.message || e));
+    return null;
+  }
+}
+__name(runCouncilTick, "runCouncilTick");
+
 // ── PROYECTOS ───────────────────────────────────────────────────────────────
 // Slug estable a partir del nombre. «Admira Live» → «admira-live».
 function projectSlug(s) {
@@ -2570,6 +2673,21 @@ var index_default = {
         return json({ ok: true, id, mission_id, status: "mision" });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
+    // POST /ideas/generate {seat?} — genera una idea del Consejo BAJO DEMANDA (el
+    // botón «✨ Idea nueva»). Sin seat → silla ALEATORIA; con seat válido → esa.
+    // Misma generación, firma «ROL · alias», tag=consejo y guardado que el cron.
+    // Devuelve la idea creada. Mismo estilo json()/CORS.
+    if (url.pathname === "/ideas/generate" && req.method === "POST") {
+      try {
+        await ensureIdeasSchema(env);
+        let b = {}; try { b = await req.json(); } catch (e) {}
+        let seat = String(b && b.seat || "").trim().toLowerCase();
+        if (!IDEA_SEATS.has(seat)) seat = COUNCIL_ORDER[Math.floor(Math.random() * COUNCIL_ORDER.length)];
+        const idea = await generateCouncilIdea(env, seat);
+        if (!idea) return json({ ok: false, error: "la IA no devolvió una idea usable; reintenta" }, 502);
+        return json({ ok: true, idea });
+      } catch (e) { return json({ error: String(e) }, 500); }
+    }
     // ── RELOJES DE DECISIÓN ────────────────────────────────────────────────
     // POST /decisions            (agente) publica una única tanda diaria: 5 misiones + volver atrás
     // GET  /decisions            (panel /misiones) lista las vivas + recién cerradas
@@ -3163,6 +3281,15 @@ T\xC9CNICO: ${q}`, 160);
     // el sync trae lo que dice el buzón, esto devuelve lo que dice el plan.
     try {
       await fleetReconcileAll(env);
+    } catch (e) {
+    }
+    // Consejo generador de ideas diarias (FLT-1005): una idea cada 3h, silla de
+    // turno. El cron dedicado dispara al MINUTO 7 (el reconcile va a minutos pares
+    // vía */2, nunca al 7): así este bloque solo corre en el hueco de 3h y no en
+    // cada tick. runCouncilTick añade idempotencia por hueco y traga sus fallos.
+    try {
+      const mm = new Date(event.scheduledTime || Date.now()).getUTCMinutes();
+      if (mm === 7) await runCouncilTick(env);
     } catch (e) {
     }
   }
