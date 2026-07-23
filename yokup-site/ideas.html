@@ -122,6 +122,31 @@
 .page-intro[open] .pi-chevron{transform:rotate(90deg)}
 .page-intro .pi-body{margin-top:10px;animation:pi-in .18s ease}
 @keyframes pi-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+  /* ── DELIBERACIÓN DEL CONSEJO (FLT-1005): ✓ a favor / ✗ en contra + firma «ROL·alias»
+        con color del lado (racional teal / creativo violeta). Ficha plegada; listado en panel. ── */
+  .idea .delib{margin:2px 0 0;border-top:1px solid var(--line);padding-top:9px}
+  .idea .delib>summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .idea .delib>summary::-webkit-details-marker{display:none}
+  .idea .delib .dh{font:800 11px/1 -apple-system,system-ui,sans-serif;color:var(--ink);letter-spacing:.02em}
+  .idea .delib .dsum{font:600 10.5px var(--mono);color:var(--mut)}
+  .idea .delib>summary:hover .dsum{color:var(--dim)}
+  .delib .regen,.idea .regen{background:transparent;border:1px dashed var(--line);color:var(--dim);border-radius:8px;
+    font:700 11px/1 var(--mono);letter-spacing:.02em;padding:7px 10px;cursor:pointer;transition:.15s}
+  .delib .regen:hover,.idea .regen:hover{color:var(--ink);border-color:var(--mut)}
+  .dl{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+  .dl.cons{margin-top:7px}
+  .pt{display:flex;gap:7px;align-items:flex-start;font-size:12px;line-height:1.45;min-width:0}
+  .pt .mk{flex:none;font:800 12px/1.35 var(--mono);color:var(--good)}
+  .pt .mk.no{color:var(--bad)}
+  .pt .tx{color:var(--dim);min-width:0}
+  .pt .sig{display:block;margin-top:3px;font:700 9px var(--mono);letter-spacing:.04em;text-transform:uppercase}
+  .pt.rac .sig{color:var(--rac)} .pt.cre .sig{color:var(--cre)}
+  .list .lacts button.delibtog{background:transparent;border:1px solid var(--line);color:var(--dim);
+    border-radius:7px;font-size:12px;padding:4px 6px;cursor:pointer;line-height:1;transition:.15s}
+  .list .lacts button.delibtog.on,.list .lacts button.delibtog:hover{color:var(--ink);border-color:var(--mut)}
+  .list .ldelib{display:none;background:var(--panel);border:1px solid var(--line);border-top:0;
+    border-radius:0 0 10px 10px;margin-top:-6px;padding:10px 12px}
+  .list .ldelib.on{display:block}
 </style>
 </head>
 <body data-yk-title="OBJETIVOS" data-yk-zone="app">
@@ -188,6 +213,18 @@ const NEXT={nueva:"estudio",estudio:"hecha",hecha:"nueva"};
 const RAC_SEATS=new Set(["ceo","cto","coo","cfo"]);
 const seatSide=s=>RAC_SEATS.has(String(s||"").toLowerCase())?"rac":"cre";
 const isConsejo=i=>i&&i.tag==="consejo";
+// ── DELIBERACIÓN DEL CONSEJO (FLT-1005) — review de GET /ideas:
+//    {pros:[{seat,by,text}×3],cons:[{seat,by,text}×3],at}. Se pinta bajo la ficha.
+const hasReview=i=>i&&i.review&&Array.isArray(i.review.pros)&&Array.isArray(i.review.cons)&&(i.review.pros.length||i.review.cons.length);
+function reviewPt(p,no){ return '<li class="pt '+seatSide(p&&p.seat)+'"><span class="mk'+(no?' no':'')+'">'+(no?'✗':'✓')+'</span>'+
+  '<span class="tx">'+esc(p&&p.text||'')+'<span class="sig">'+esc(p&&p.by||'')+'</span></span></li>'; }
+function reviewInner(i){ const rv=i.review, pros=(rv.pros||[]), cons=(rv.cons||[]);
+  return '<ul class="dl pros">'+pros.map(p=>reviewPt(p,false)).join('')+'</ul>'+
+         '<ul class="dl cons">'+cons.map(c=>reviewPt(c,true)).join('')+'</ul>'; }
+function reviewBlock(i){ if(!hasReview(i)) return ''; const rv=i.review;
+  return '<details class="delib"><summary><span class="dh">⚖️ El Consejo delibera</span>'+
+    '<span class="dsum">'+(rv.pros||[]).length+' a favor · '+(rv.cons||[]).length+' en contra</span></summary>'+
+    reviewInner(i)+'</details>'; }
 let IDEAS=[], FILTER="";
 // Vista fichas|listado, persistida (la cambia el toggle ▦/☰ de la barra).
 let VIEW=(()=>{ try{ return localStorage.getItem("yk-ideas-view")==="list"?"list":"grid"; }catch(e){ return "grid"; } })();
@@ -200,6 +237,9 @@ function card(i){
   const st=STLABEL[i.status]?i.status:"nueva";
   const isMis=st==="mision"||i.mission_id;
   const cons=isConsejo(i), side=cons?seatSide(i.seat):"";
+  const rv=hasReview(i);
+  const showDelib=rv||st==="estudio";
+  const delX='<button class="del" data-rm="'+esc(i.id)+'" title="Eliminar para siempre">✕</button>';
   return '<div class="idea'+(cons?' consejo '+side:'')+'">'+
     '<div class="top"><span class="st '+st+'">'+STLABEL[st]+'</span>'+
       (cons?'<span class="csign'+(side==="cre"?" cre":"")+'" title="Idea del Consejo">✦ '+esc(i.author||"Consejo")+'</span>'
@@ -212,9 +252,12 @@ function card(i){
         (!isMis&&NEXT[st]?'<button data-adv="'+esc(i.id)+'" title="pasar a '+STLABEL[NEXT[st]]+'">→ '+STLABEL[NEXT[st]]+'</button>':'')+
         (!isMis?'<button class="mis" data-mis="'+esc(i.id)+'" title="convertir en misión FLT (crea un encargo)">→ misión</button>':'')+
         (!isMis&&st!=="descartada"?'<button data-del="'+esc(i.id)+'" title="descartar">⊘</button>':'')+
-        '<button class="del" data-rm="'+esc(i.id)+'" title="Eliminar para siempre">✕</button>'+
+        (showDelib?'':delX)+
       '</span>'+
     '</div>'+
+    (showDelib?(rv?reviewBlock(i)
+                 :'<div class="delib pend"><button class="regen" data-regen="'+esc(i.id)+'" title="Pedir la deliberación del Consejo">⚖️ Pedir deliberación</button></div>')+
+               '<div class="rmrow">'+delX+'</div>':'')+
   '</div>';
 }
 // Fila compacta (vista listado): estado · título · etiqueta · silla · autor · fecha · acciones (→ misión y la cruz ✕).
@@ -234,9 +277,11 @@ function listRow(i){
     '<span class="lacts">'+
       (i.mission_id?'<a class="flt" href="/tareas?mission='+encodeURIComponent(i.mission_id)+'" title="ver la misión">'+esc(i.mission_id)+' ↗</a>':
         (!isMis?'<button class="mis" data-mis="'+esc(i.id)+'" title="convertir en misión FLT">→ misión</button>':''))+
+      (hasReview(i)?'<button class="delibtog" data-delib="'+esc(i.id)+'" title="El Consejo delibera">⚖️</button>':'')+
       '<button class="del" data-rm="'+esc(i.id)+'" title="Eliminar para siempre">✕</button>'+
     '</span>'+
-  '</div>';
+  '</div>'+
+  (hasReview(i)?'<div class="ldelib" data-delib-for="'+esc(i.id)+'">'+reviewInner(i)+'</div>':'');
 }
 function render(){
   const list=IDEAS.filter(i=>!FILTER||i.status===FILTER);
@@ -252,8 +297,21 @@ async function load(){
   catch(e){ toast("No pude cargar las ideas"); }
 }
 async function setStatus(id,status){
-  try{ await fetch(WORKER+"/ideas/status",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,status})});
-    const it=IDEAS.find(x=>x.id===id); if(it)it.status=status; render(); }catch(e){ toast("Error al cambiar estado"); }
+  try{ const r=await fetch(WORKER+"/ideas/status",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,status})});
+    const d=await r.json().catch(()=>({}));
+    const it=IDEAS.find(x=>x.id===id); if(it){ it.status=status; if(d&&d.review) it.review=d.review; }
+    render();
+    if(status==="estudio"){ toast(d&&d.review?"⚖️ El Consejo ha deliberado":"En estudio · el Consejo aún no opinó (toca ⚖️ para reintentar)"); }
+  }catch(e){ toast("Error al cambiar estado"); }
+}
+async function regenReview(id){
+  const it=IDEAS.find(x=>x.id===id); if(!it) return;
+  toast("⚖️ Pidiendo al Consejo…");
+  try{ const r=await fetch(WORKER+"/ideas/review",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+    const d=await r.json().catch(()=>({}));
+    if(d&&d.ok&&d.review){ it.review=d.review; render(); toast("⚖️ El Consejo ha deliberado"); }
+    else toast(d&&d.error?("No salió: "+d.error):"El Consejo no opinó; reintenta");
+  }catch(e){ toast("Error de red"); }
 }
 async function promote(id){
   const it=IDEAS.find(x=>x.id===id); if(!it) return;
@@ -321,6 +379,9 @@ $("#viewsel").addEventListener("click",e=>{ const b=e.target.closest("[data-v]")
   VIEW=b.dataset.v; try{ localStorage.setItem("yk-ideas-view",VIEW); }catch(_){} paintView(); render(); });
 paintView();
 $("#grid").addEventListener("click",e=>{
+  const dtg=e.target.closest("[data-delib]"); if(dtg){ const id=dtg.dataset.delib;
+    const p=$('.ldelib[data-delib-for="'+id+'"]'); if(p) p.classList.toggle("on"); dtg.classList.toggle("on"); return; }
+  const rg=e.target.closest("[data-regen]"); if(rg){ regenReview(rg.dataset.regen); return; }
   const rm=e.target.closest("[data-rm]"); if(rm){ del(rm.dataset.rm); return; }
   const a=e.target.closest("[data-adv]"), m=e.target.closest("[data-mis]"), d=e.target.closest("[data-del]");
   if(a){ const it=IDEAS.find(x=>x.id===a.dataset.adv); if(it)setStatus(it.id,NEXT[it.status]||"estudio"); }

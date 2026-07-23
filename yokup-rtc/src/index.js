@@ -242,6 +242,9 @@ const IDEA_SEATS = /* @__PURE__ */ new Set(["ceo", "cto", "coo", "cfo", "cco", "
 async function ensureIdeasSchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS ideas (id TEXT PRIMARY KEY, title TEXT, body TEXT, author TEXT, tag TEXT, status TEXT, created_at INTEGER, updated_at INTEGER, mission_id TEXT)");
   await env.DB.exec("ALTER TABLE ideas ADD COLUMN seat TEXT").catch(() => {});
+  // Deliberación del Consejo (FLT-1005 «En estudio»): JSON {pros:[{seat,by,text}×3],
+  // cons:[{seat,by,text}×3], at}. Migración ADITIVA e idempotente igual que `seat`.
+  await env.DB.exec("ALTER TABLE ideas ADD COLUMN review TEXT").catch(() => {});
 }
 __name(ensureIdeasSchema, "ensureIdeasSchema");
 
@@ -347,6 +350,87 @@ Todo en espa\xF1ol.`;
   return { id, title, body, author, tag: "consejo", status: "nueva", created_at: now, updated_at: now, mission_id: "", seat };
 }
 __name(generateCouncilIdea, "generateCouncilIdea");
+
+// ── DELIBERACIÓN DEL CONSEJO (FLT-1005) ──────────────────────────────────────
+// Al pasar una idea a «estudio», el resto del Consejo la debate: 3 puntos A FAVOR
+// y 3 EN CONTRA, cada uno firmado por un consejero DISTINTO (6 sillas distintas
+// entre sí y distintas del seat/autor de la idea), opinando desde su punto fuerte.
+// Firma «ROL · alias» (by) y color por lado (seat → rac/cre en el front).
+// Devuelve {pros,cons,at} o null si la IA no dio 6 textos usables (no guardamos
+// deliberaciones a medias: la idea queda en estudio sin review y se puede regenerar).
+function pickCouncilSeats(authorSeat) {
+  const avail = COUNCIL_ORDER.filter((s) => s !== authorSeat);
+  return avail.slice(0, 6); // 6 distintas (quedan 7 al quitar la del autor)
+}
+__name(pickCouncilSeats, "pickCouncilSeats");
+// Normaliza lo que devuelva el modelo (objeto ya parseado, JSON embebido en texto,
+// array de strings o de {text}) a un array de textos limpios de longitud n.
+function textsFromAI(arr, n) {
+  const out = [];
+  const src = Array.isArray(arr) ? arr : [];
+  for (let i = 0; i < n; i++) {
+    const it = src[i];
+    let t = "";
+    if (typeof it === "string") t = it;
+    else if (it && typeof it === "object") t = String(it.text || it.punto || it.motivo || it.razon || it.t || "");
+    out.push(t.trim().replace(/^["'\-•\s]+/, "").slice(0, 320));
+  }
+  return out;
+}
+__name(textsFromAI, "textsFromAI");
+function parseReviewJSON(raw) {
+  let o = null;
+  if (raw && typeof raw === "object") o = raw;
+  else {
+    const m = String(raw || "").match(/\{[\s\S]*\}/);
+    if (m) { try { o = JSON.parse(m[0]); } catch (e) {} }
+  }
+  if (!o) return { pros: [], cons: [] };
+  const pros = o.pros || o.favor || o.aFavor || o.a_favor || [];
+  const cons = o.cons || o.contra || o.enContra || o.en_contra || [];
+  return { pros, cons };
+}
+__name(parseReviewJSON, "parseReviewJSON");
+async function generateCouncilReview(env, idea) {
+  await ensureIdeasSchema(env);
+  const authorSeat = IDEA_SEATS.has(String(idea.seat || "").toLowerCase()) ? String(idea.seat).toLowerCase() : "";
+  const seats = pickCouncilSeats(authorSeat);          // 6 sillas distintas
+  const proSeats = seats.slice(0, 3), conSeats = seats.slice(3, 6);
+  const line = (s) => { const c = COUNCIL[s]; return `${c.role} (${c.alias}) — su punto fuerte: ${c.fuerte}`; };
+  const prompt = `Eres la secretaría del Consejo de AdmiraNeXT (ecosistema de señalización digital DOOH hecho por agentes de IA: yokup.com, admira.live, pixeria, xpaceos, admira.tv). El Consejo debate esta idea que acaba de pasar a ESTUDIO:
+
+TÍTULO: ${idea.title}
+DETALLE: ${idea.body || "(sin detalle)"}
+${idea.author ? "PROPONE: " + idea.author : ""}
+
+Tres consejeros la defienden (un punto A FAVOR cada uno) y tres la cuestionan (un punto EN CONTRA cada uno). Cada consejero opina EXCLUSIVAMENTE desde su punto fuerte:
+A FAVOR:
+1) ${line(proSeats[0])}
+2) ${line(proSeats[1])}
+3) ${line(proSeats[2])}
+EN CONTRA:
+4) ${line(conSeats[0])}
+5) ${line(conSeats[1])}
+6) ${line(conSeats[2])}
+
+Responde SOLO con un objeto JSON válido, sin texto alrededor ni markdown, con esta forma EXACTA (respeta el orden 1..3 a favor, 4..6 en contra):
+{"pros":["<punto a favor del consejero 1, 1 frase>","<del 2>","<del 3>"],"cons":["<punto en contra del consejero 4, 1 frase>","<del 5>","<del 6>"]}
+Cada frase concreta y en español, sin nombrar al consejero ni su rol dentro del texto.`;
+  const raw = await aiRunRaw(env, prompt, 700);
+  const { pros: rp, cons: rc } = parseReviewJSON(raw);
+  const proTx = textsFromAI(rp, 3), conTx = textsFromAI(rc, 3);
+  if (proTx.some((t) => !t) || conTx.some((t) => !t)) return null; // nada a medias
+  const sign = (s) => COUNCIL[s].role + " \xB7 " + COUNCIL[s].alias;
+  const review = {
+    pros: proSeats.map((s, i) => ({ seat: s, by: sign(s), text: proTx[i] })),
+    cons: conSeats.map((s, i) => ({ seat: s, by: sign(s), text: conTx[i] })),
+    at: Date.now()
+  };
+  await env.DB.prepare("UPDATE ideas SET review=?, updated_at=? WHERE id=?")
+    .bind(JSON.stringify(review), Date.now(), idea.id).run();
+  return review;
+}
+__name(generateCouncilReview, "generateCouncilReview");
 // Tick del cron (cada hueco de 3h): silla por hora, con idempotencia por hueco.
 // Si ya hay una idea tag=consejo creada en el hueco de 3h actual, NO genera otra.
 async function runCouncilTick(env) {
@@ -2576,8 +2660,11 @@ var index_default = {
       try {
         await ensureIdeasSchema(env);
         if (req.method === "GET") {
-          const r = await env.DB.prepare("SELECT id,title,body,author,tag,status,created_at,updated_at,mission_id,seat FROM ideas ORDER BY created_at DESC").all();
-          return json({ ideas: r.results || [] });
+          const r = await env.DB.prepare("SELECT id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,review FROM ideas ORDER BY created_at DESC").all();
+          const rows = r.results || [];
+          // `review` viaja YA PARSEADO como objeto (o null): el front lo pinta directo.
+          for (const it of rows) { if (it.review) { try { it.review = JSON.parse(it.review); } catch (e) { it.review = null; } } else it.review = null; }
+          return json({ ideas: rows });
         }
         const b = await req.json();
         const title = String(b.title || "").trim().slice(0, 200);
@@ -2665,9 +2752,41 @@ var index_default = {
         const status = String(b.status || "").trim();
         if (!id) return json({ ok: false, error: "id requerido" }, 400);
         if (!IDEA_STATUS.has(status)) return json({ ok: false, error: "status inválido" }, 400);
+        await ensureIdeasSchema(env);
+        // El cambio de estado es lo prioritario: se hace SIEMPRE y primero.
         const r = await env.DB.prepare("UPDATE ideas SET status=?, updated_at=? WHERE id=?").bind(status, Date.now(), id).run();
         if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: "not_found" }, 404);
-        return json({ ok: true, id, status });
+        // Al pasar a «estudio», el Consejo delibera UNA vez (idempotente: solo si la
+        // idea no tiene ya review). El handler `fetch(req,env)` NO recibe ctx, así que
+        // no hay waitUntil: generamos INLINE con aiRunRaw (una sola llamada, rápida) y
+        // devolvemos la review en la respuesta. Es best-effort — el estado ya quedó
+        // guardado arriba; si la IA falla, la idea queda en estudio sin review y
+        // POST /ideas/review la regenera bajo demanda. Nunca tumba el cambio de estado.
+        let review = null;
+        if (status === "estudio") {
+          try {
+            const idea = await env.DB.prepare("SELECT id,title,body,author,seat,review FROM ideas WHERE id=?").bind(id).first();
+            if (idea && !idea.review) review = await generateCouncilReview(env, idea);
+            else if (idea && idea.review) { try { review = JSON.parse(idea.review); } catch (e) {} }
+          } catch (e) { review = null; }
+        }
+        return json({ ok: true, id, status, review });
+      } catch (e) { return json({ error: String(e) }, 500); }
+    }
+    // POST /ideas/review {id} — (re)genera la deliberación del Consejo bajo demanda.
+    // Sirve cuando la IA falló al pasar a estudio, o para refrescarla. Regenera aunque
+    // ya exista (así el botón «regenerar» tiene sentido). Devuelve la review creada.
+    if (url.pathname === "/ideas/review" && req.method === "POST") {
+      try {
+        await ensureIdeasSchema(env);
+        const b = await req.json();
+        const id = String(b.id || "").trim();
+        if (!id) return json({ ok: false, error: "id requerido" }, 400);
+        const idea = await env.DB.prepare("SELECT id,title,body,author,seat FROM ideas WHERE id=?").bind(id).first();
+        if (!idea) return json({ ok: false, error: "not_found" }, 404);
+        const review = await generateCouncilReview(env, idea);
+        if (!review) return json({ ok: false, error: "la IA no devolvió una deliberación usable; reintenta" }, 502);
+        return json({ ok: true, id, review });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     // Borra una idea DE VERDAD (la cruz de las fichas de /objetivos·/ideas).
