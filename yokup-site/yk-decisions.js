@@ -83,11 +83,17 @@
   }
   function mmss(s) { s = Math.max(0, s | 0); return ((s / 60) | 0) + ":" + String(s % 60).padStart(2, "0"); }
   function pct(d) { var total = Math.max(1, Math.round(((d.deadline || 0) - (d.created_at || 0)) / 1000)); return Math.max(0, Math.min(100, Math.round((1 - d.secondsLeft / total) * 100))); }
-  // Fecha legible del sello del histórico.
+  // Hora del sello, compacta y local (Carlos: menos es más). Si cayó hoy sólo
+  // HH:MM; otro día, DD/MM · HH:MM — la hora importa siempre («a qué hora»).
   function when(ts) {
     var n = +ts || 0; if (!n) return "";
-    try { return new Date(n).toLocaleString("es-ES", {day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}); }
-    catch (e) { return new Date(n).toISOString().slice(0, 16).replace("T", " "); }
+    try {
+      var d = new Date(n), now = new Date();
+      var hm = d.toLocaleTimeString("es-ES", {hour:"2-digit",minute:"2-digit"});
+      var sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+      if (sameDay) return hm;
+      return d.toLocaleDateString("es-ES", {day:"2-digit",month:"2-digit"}) + " · " + hm;
+    } catch (e) { return new Date(n).toISOString().slice(0, 16).replace("T", " "); }
   }
   // Sello del histórico: cuándo se abrió, cuándo se cerró y quién eligió.
   // El autor sale de `chosen_by`, que ya devuelve el worker (FLT-982). Las
@@ -100,6 +106,12 @@
     if (end) bits.push("<span>" + (d.status === "expired" ? "vencida" : "cerrada") + " <b>" + esc(when(end)) + "</b></span>");
     if (d.status === "decided" || d.status === "cancelled") bits.push("<span>eligió <b>" + esc(d.chosen_by || d.by || "autor no registrado") + "</b></span>");
     else if (d.status === "expired") bits.push("<span>eligió <b>nadie · recomendada automática</b></span>");
+    // Quién EJECUTA la misión resultante: el agente en su máquina. Salvo canceladas,
+    // que no arrancan nada.
+    if (d.status !== "cancelled") {
+      var exec = esc(d.agent || "—") + (d.machine ? " · " + esc(d.machine) : "");
+      bits.push("<span>ejecuta <b>" + exec + "</b></span>");
+    }
     bits.push("<span>" + esc(d.id) + "</span>");
     return bits.length ? "<div class=\"dec-stamp\">" + bits.join("") + "</div>" : "";
   }
@@ -195,6 +207,16 @@
     // sig/histSig arrancan en null (no ""): con cero elementos la firma también es
 // "" y el primer render se saltaba, dejando la sección vacía sin su mensaje.
     var api = config.worker.replace(/\/$/, "") + "/decisions", decisions = [], sig = null, histSig = null, truncated = false;
+    // FILTRO de los chips (Carlos): null = todas; si no, un estado. Pulsar el chip
+    // activo otra vez vuelve a todas. VIVAS actúa sobre la sección de relojes;
+    // DECIDIDAS/VENCIDAS/CANCELADAS acotan el histórico a ese estado.
+    var filter = null;
+    var STATUS_LABEL = {pending:"vivas", decided:"decididas", expired:"vencidas", cancelled:"canceladas"};
+    var EMPTY_HIST = {
+      decided: "Ninguna decisión decidida todavía.",
+      expired: "Ninguna decisión vencida todavía.",
+      cancelled: "Ninguna decisión cancelada todavía."
+    };
 
     function counters(live, hist) {
       var n = {pending: live.length, decided: 0, expired: 0, cancelled: 0};
@@ -208,24 +230,57 @@
       var closed = decisions.filter(function (d) { return d.status !== "pending"; })
         .sort(function (a, b) { return closedAt(b) - closedAt(a); });
       counters(live, closed);
-      section.hidden = false;
-      var liveSig = live.map(function (d) { return d.id + ":" + projectName(d) + ":" + JSON.stringify(d.batch || {}); }).join("|");
-      if (liveSig !== sig) {
-        sig = liveSig;
-        document.getElementById("decsN").textContent = live.length ? "· " + live.length + " esperando tu decisión" : "· sin decisiones abiertas";
-        list.innerHTML = live.length ? renderGroups(live, null)
-          : "<p class=\"decs-empty\">Ningún reloj corriendo ahora mismo. Cuando un agente abra una decisión, aparecerá aquí con su cuenta atrás.</p>";
+      // Los contadores enseñan SIEMPRE el total real; el filtro sólo recorta las listas.
+      var showLive = !filter || filter === "pending";
+      var histStatus = (filter && filter !== "pending") ? filter : null;
+      var showHist = !filter || !!histStatus;
+
+      section.hidden = !showLive;
+      if (showLive) {
+        var liveSig = "f:" + filter + "|" + live.map(function (d) { return d.id + ":" + projectName(d) + ":" + JSON.stringify(d.batch || {}); }).join("|");
+        if (liveSig !== sig) {
+          sig = liveSig;
+          document.getElementById("decsN").textContent = live.length ? "· " + live.length + " esperando tu decisión" : "· sin decisiones abiertas";
+          list.innerHTML = live.length ? renderGroups(live, null)
+            : "<p class=\"decs-empty\">" + (filter === "pending" ? "Ninguna decisión viva ahora mismo." : "Ningún reloj corriendo ahora mismo.") + " Cuando un agente abra una decisión, aparecerá aquí con su cuenta atrás.</p>";
+        }
       }
       if (!histSec || !histList) return;
-      var hSig = closed.map(function (d) { return d.id + ":" + d.status + ":" + (d.chosen_by || ""); }).join("|") + "|t" + truncated;
+      histSec.hidden = !showHist;
+      if (!showHist) return;
+      var closedShown = histStatus ? closed.filter(function (d) { return d.status === histStatus; }) : closed;
+      var hSig = "f:" + filter + "|" + closedShown.map(function (d) { return d.id + ":" + d.status + ":" + (d.chosen_by || ""); }).join("|") + "|t" + truncated;
       if (hSig === histSig) return;
       histSig = hSig;
-      document.getElementById("decsHistN").textContent = "· " + closed.length + (closed.length === 1 ? " decisión cerrada" : " decisiones cerradas");
-      histList.innerHTML = (closed.length ? renderGroups(closed, {stamp: true})
-        : "<p class=\"decs-empty\">Todavía no hay decisiones cerradas.</p>")
+      document.getElementById("decsHistN").textContent = histStatus
+        ? "· " + closedShown.length + " " + STATUS_LABEL[histStatus] + " (filtrado)"
+        : "· " + closedShown.length + (closedShown.length === 1 ? " decisión cerrada" : " decisiones cerradas");
+      histList.innerHTML = (closedShown.length ? renderGroups(closedShown, {stamp: true})
+        : "<p class=\"decs-empty\">" + (histStatus ? EMPTY_HIST[histStatus] : "Todavía no hay decisiones cerradas.") + "</p>")
         + "<p class=\"decs-note\">Histórico completo del worker: <code>GET /decisions?all=1&amp;since=0</code> devuelve todas las decisiones de la flota, no solo las de la última hora, y con ellas quién eligió. Se ve lo mismo desde cualquier equipo."
         + (truncated ? " Ahora mismo hay más de " + (PAGE * PAGE_MAX) + " y esta lista llega solo hasta ahí: las más antiguas quedan fuera." : "")
         + "</p>";
+    }
+
+    // Los 4 chips de estadística son también FILTROS (sólo en /decisiones).
+    function paintChips() {
+      Array.prototype.forEach.call(document.querySelectorAll("[data-dec-count]"), function (b) {
+        var kpi = b.closest(".kpi") || b, on = filter === b.getAttribute("data-dec-count");
+        kpi.classList.toggle("active", on);
+        kpi.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+    function wireChips() {
+      Array.prototype.forEach.call(document.querySelectorAll("[data-dec-count]"), function (b) {
+        var kpi = b.closest(".kpi") || b, key = b.getAttribute("data-dec-count");
+        if (kpi.dataset.decWired) return; kpi.dataset.decWired = "1";
+        kpi.setAttribute("role", "button"); kpi.setAttribute("tabindex", "0"); kpi.setAttribute("aria-pressed", "false");
+        var label = STATUS_LABEL[key] || key;
+        kpi.setAttribute("aria-label", "Filtrar decisiones " + label);
+        function toggle() { filter = (filter === key) ? null : key; sig = null; histSig = null; paintChips(); renderFull(); }
+        kpi.addEventListener("click", toggle);
+        kpi.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); toggle(); } });
+      });
     }
 
     // /misiones: sólo un recuento enlazado. Esta rama no invoca card() y por
@@ -289,6 +344,7 @@
     }
     setInterval(function () { var refresh = false; decisions.forEach(function (d) { if (d.status !== "pending") return; d.secondsLeft = Math.max(0, d.secondsLeft - 1); var clock = document.querySelector("[data-clock='" + d.id + "']"); if (clock) { clock.textContent = mmss(d.secondsLeft); var fill = document.querySelector("[data-fill='" + d.id + "']"); if (fill) fill.style.setProperty("--fill", pct(d) + "%"); } if (!d.secondsLeft) refresh = true; }); if (refresh) load(); }, 1000);
     if (!summary) document.addEventListener("click", async function (e) { var b = e.target.closest(".dec-opt[data-dec]"); if (!b) return; b.closest(".dec-opts").querySelectorAll("button").forEach(function (x) { x.disabled = true; }); try { await fetch(api + "/" + encodeURIComponent(b.dataset.dec) + "/choose", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({choice:+b.dataset.i,by:"Carlos"})}); } finally { load(); } });
+    if (full) wireChips();
     load(); setInterval(load, 15000);
   }
   window.YkDecisions = {mount:mount,_test:{card:card,projectName:projectName,stamp:stamp,groupDecisions:groupDecisions,renderGroups:renderGroups,stateText:stateText}};

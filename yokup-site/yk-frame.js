@@ -31,7 +31,7 @@
   // reintenta UNA vez contra workers.dev (ninguna red queda peor que antes).
   var WORKER = "https://api.yokup.com";
   var WORKER_FALLBACK = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.23.07.2026.r8";
+  var VERSION = "v.23.07.2026.r9";
 
   // fetch con red de seguridad: intenta api.yokup.com y, si el fetch RECHAZA
   // (fallo de red/DNS/bloqueo, no un 4xx/5xx que sí llega), reintenta una vez
