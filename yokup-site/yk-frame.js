@@ -25,7 +25,7 @@
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.23.07.2026.r3";
+  var VERSION = "v.23.07.2026.r4";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
 
   // NAV DE PLATAFORMA — fuente ÚNICA del menú tras la DMZ (zona app). Las
@@ -33,6 +33,9 @@
   // items y el activo (deducido del pathname) salen de aquí, idénticos en
   // todas — no pueden divergir. Solo las intros/homes públicas llevan menú
   // propio (data-yk-nav o el NAV global de abajo).
+  // EQUIPO y STATUS salieron del menú superior (Carlos, 2026-07-23): son
+  // navegación de gestión, no del flujo de trabajo → viven ahora en el raíl
+  // OPCIONES (ver buildRailFoot), encima de «Panel de control».
   var APP_NAV = [
     ["DASHBOARD",   "/agentica"],
     ["OBJETIVOS",   "/objetivos"],
@@ -40,10 +43,16 @@
     ["MISIONES",    "/misiones"],
     ["TAREAS",      "/tareas"],
     ["INCIDENCIAS", "/incidencias"],
-    ["INFORMES",    "/informes"],
-    ["EQUIPO",      "/equipo"],
-    ["STATUS",      "/status"]
+    ["INFORMES",    "/informes"]
   ];
+
+  // Secciones con CONTADOR real «curso/pend» en la barra (Carlos, 2026-07-23):
+  // label → clave del agregado GET /menu/contadores. DASHBOARD y DECISIONES no
+  // llevan contador. curso = en ello ahora; pend = esperando.
+  var COUNTER_KEY = {
+    OBJETIVOS: "objetivos", MISIONES: "misiones", TAREAS: "tareas",
+    INCIDENCIAS: "incidencias", INFORMES: "informes"
+  };
 
   // Proyectos del MISMO helpdesk. El activo se deduce de la ruta (ver
   // activeProjectKey): /admira-live -> admira.live; el resto -> admira.tv.
@@ -70,6 +79,41 @@
     if (cls) n.className = cls;
     if (html != null) n.innerHTML = html;
     return n;
+  }
+
+  // CONTADOR «curso/pend» de una sección: span vacío con data-yk-count=<clave>
+  // que rellena paintCounters tras el fetch. aria-hidden: el número es señal
+  // visual y no debe leerse pegado al rótulo; el enlace ya se anuncia solo.
+  function counterSpan(label, cls) {
+    var key = COUNTER_KEY[label];
+    if (!key) return null;
+    var s = el("span", cls);
+    s.setAttribute("data-yk-count", key);
+    s.setAttribute("aria-hidden", "true");
+    return s;
+  }
+
+  // Vuelca los agregados en todos los data-yk-count del marco. Formato compacto
+  // «curso/pend» (p.ej. «2/50»); sin datos, el span queda vacío (menú limpio).
+  function paintCounters(data) {
+    var spans = document.querySelectorAll("[data-yk-count]");
+    Array.prototype.forEach.call(spans, function (s) {
+      var d = data && data[s.getAttribute("data-yk-count")];
+      if (!d) { s.textContent = ""; return; }
+      var curso = d.curso | 0, pend = d.pend | 0;
+      s.textContent = curso + "/" + pend;
+      s.setAttribute("title", curso + " en curso · " + pend + " pendientes");
+    });
+  }
+
+  // UN fetch por página al agregado del worker. Si falla, el menú se queda sin
+  // contadores (degradación silenciosa: nada de toasts ni reintentos).
+  function fetchCounters() {
+    if (!document.querySelector("[data-yk-count]")) return;
+    window.fetch(WORKER + "/menu/contadores", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.ok) paintCounters(d); })
+      .catch(function () {});
   }
 
   // id del recurso en la URL (?id=…) para el EXPERTO de ficha
@@ -173,6 +217,8 @@
         a.setAttribute("data-yk-open", it.panel);
         a.addEventListener("click", function (e) { e.preventDefault(); setOpen(it.panel, true); });
       }
+      var c = counterSpan(it.label, "yk-nav-c");
+      if (c) a.appendChild(c);
       nav.appendChild(a);
     });
 
@@ -253,6 +299,9 @@
 
     // --- botones del EXPERTO (fetch al worker + volcado JSON) ---
     wireExpertFetch(root);
+
+    // --- contadores reales «curso/pend» del menú (un fetch, degradación silenciosa) ---
+    fetchCounters();
   }
 
   // Pie fijo del raíl OPCIONES: AJUSTES (plegado por defecto, contenido REAL de
@@ -314,6 +363,18 @@
     set.appendChild(body);
 
     foot.appendChild(set);
+    // EQUIPO · STATUS (Carlos, 2026-07-23): salieron del menú SUPERIOR y viven
+    // ahora aquí, en el raíl OPCIONES, como navegación de gestión. Orden del pie:
+    // EQUIPO · STATUS · Panel de control · sello de versión.
+    var _path = (location.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+    [["◫", "EQUIPO", "/equipo"], ["◈", "STATUS", "/status"]].forEach(function (r) {
+      var on = (_path === r[2] || _path === r[2] + ".html");
+      var a = el("a", "yk-set-btn" + (on ? " on" : ""),
+        '<span aria-hidden="true">' + r[0] + '</span> ' + r[1]);
+      a.href = r[2];
+      if (on) a.setAttribute("aria-current", "page");
+      foot.appendChild(a);
+    });
     // PANEL DE CONTROL → /asignaciones (Carlos, 2026-07-23): entrada del cajón
     // OPCIONES, justo ENCIMA del sello de versión. La personalización de flota
     // (antes «Panel de control») vive ahora dentro de AJUSTES como «Personalización».
@@ -626,6 +687,8 @@
       } else {
         a.addEventListener("click", function () { setOpen("left", false); });
       }
+      var c = counterSpan(it.label, "yk-rail-navc");
+      if (c) a.appendChild(c);
       nav.appendChild(a);
     });
     return nav;

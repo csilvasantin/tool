@@ -1722,6 +1722,49 @@ async function stats(env, scope) {
   return { open, in_progress: prog, resolved: res, mttr };
 }
 __name(stats, "stats");
+// CONTADORES DEL MENÚ SUPERIOR (Carlos, 2026-07-23): un solo agregado para que
+// la barra (yk-frame.js) rotule «MISIONES 2/50» = 2 en curso / 50 esperando.
+// Semántica UNIFORME por sección: curso = «en ello ahora» (in_progress/estudio);
+// pend = «esperando» (open/pending/nueva). Lo FINALIZADO no se cuenta (no es un
+// pendiente ni un en-curso). Cada sección lee de la MISMA fuente que su página:
+//   · objetivos   → ideas            curso=estudio        pend=nueva
+//   · misiones    → tickets fleet    curso=in_progress    pend=open
+//   · tareas      → mission_tasks    curso=in_progress    pend=pending   (scope=todas, como /tareas)
+//   · incidencias → tickets !fleet   curso=in_progress    pend=open      (scope=campo, como /incidencias)
+//   · informes    → mission_tasks con report, de misiones fleet (como /informes?scope=fleet)
+//                                    curso=in_progress    pend=pending
+async function menuCounters(env) {
+  const zero = () => ({ curso: 0, pend: 0 });
+  const out = { objetivos: zero(), misiones: zero(), tareas: zero(), incidencias: zero(), informes: zero() };
+  // Tickets: misiones (fleet) e incidencias (campo) de una sola pasada.
+  const tk = (await env.DB.prepare(
+    "SELECT CASE WHEN source='fleet' THEN 'f' ELSE 'c' END sc, status, COUNT(*) n " +
+    "FROM tickets WHERE status IN ('open','in_progress') GROUP BY sc, status"
+  ).all()).results || [];
+  for (const r of tk) {
+    const dst = r.sc === "f" ? out.misiones : out.incidencias;
+    if (r.status === "in_progress") dst.curso = r.n; else if (r.status === "open") dst.pend = r.n;
+  }
+  // Objetivos = ideas.
+  const id = (await env.DB.prepare(
+    "SELECT status, COUNT(*) n FROM ideas WHERE status IN ('nueva','estudio') GROUP BY status"
+  ).all()).results || [];
+  for (const r of id) { if (r.status === "estudio") out.objetivos.curso = r.n; else if (r.status === "nueva") out.objetivos.pend = r.n; }
+  // Tareas = mission_tasks (todas).
+  const ta = (await env.DB.prepare(
+    "SELECT status, COUNT(*) n FROM mission_tasks WHERE status IN ('pending','in_progress') GROUP BY status"
+  ).all()).results || [];
+  for (const r of ta) { if (r.status === "in_progress") out.tareas.curso = r.n; else if (r.status === "pending") out.tareas.pend = r.n; }
+  // Informes = mission_tasks con parte redactado, de misiones de flota (como /informes).
+  const inf = (await env.DB.prepare(
+    "SELECT m.status, COUNT(*) n FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id " +
+    "WHERE t.source='fleet' AND m.report IS NOT NULL AND TRIM(m.report)!='' AND m.status IN ('pending','in_progress') " +
+    "GROUP BY m.status"
+  ).all()).results || [];
+  for (const r of inf) { if (r.status === "in_progress") out.informes.curso = r.n; else if (r.status === "pending") out.informes.pend = r.n; }
+  return out;
+}
+__name(menuCounters, "menuCounters");
 var index_default = {
   async fetch(req, env) {
     const url = new URL(req.url);
@@ -2166,6 +2209,19 @@ var index_default = {
         await env.DB.prepare("UPDATE tickets SET project=?, updated_at=? WHERE id=?").bind(p.id, Date.now(), mid).run();
         return json({ ok: true, mission: mid, project: p.id, project_name: p.name || p.id });
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
+    // CONTADORES DEL MENÚ SUPERIOR — PÚBLICO (agregados, sin dato sensible) para
+    // que la barra los pinte en TODA página, con o sin sesión. Cache ~30s.
+    if (url.pathname === "/menu/contadores" && req.method === "GET") {
+      try {
+        await ensureSchema(env);
+        const c = await menuCounters(env);
+        return new Response(JSON.stringify(Object.assign({ ok: true }, c)), {
+          headers: { ...CORS, "content-type": "application/json", "Cache-Control": "public, max-age=30" }
+        });
+      } catch (e) {
+        return json({ ok: false, error: String(e) }, 500);
+      }
     }
     if (PROTECTED.has(url.pathname) || url.pathname.startsWith("/mission/")) {
       const sess = await requireAuth(env, req);

@@ -99,6 +99,12 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
 .yk-nav a:hover{ color: var(--yk-ink) }
 .yk-nav a.on{ color: var(--yk-brand); font-weight: 700 }
 .yk-nav a[data-yk-open]{ cursor: pointer }
+/* CONTADOR «curso/pend» (2026-07-23): discreto, pegado al rótulo. Vacío cuando
+   no hay dato (:empty) para no dejar un hueco muerto en el menú. */
+.yk-nav-c{ margin-left:6px; font-size:9.5px; font-weight:600; letter-spacing:.02em;
+  color:var(--yk-dim); font-variant-numeric:tabular-nums }
+.yk-nav a.on .yk-nav-c{ color:var(--yk-brand) }
+.yk-nav-c:empty{ display:none }
 
 /* ===================== SELECTOR DE PROYECTO (desplegable) ================= */
 /* Absorbe el antiguo rótulo «FLOTA admira.tv»: el botón lee el proyecto activo
@@ -320,6 +326,11 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
 .yk-rail-navlink:focus-visible{
   outline: 2px solid var(--yk-brand); outline-offset: -2px; color: var(--yk-brand);
 }
+/* contador «curso/pend» del cajón (móvil): empujado a la derecha de la fila */
+.yk-rail-navc{ margin-left:auto; font-size:11px; font-weight:600;
+  color:var(--yk-dim); font-variant-numeric:tabular-nums }
+.yk-rail-navlink.on .yk-rail-navc{ color:var(--yk-brand) }
+.yk-rail-navc:empty{ display:none }
 
 /* ≤520px: las referencias y el reloj salen de la barra; el selector queda como
  * icono + caret (sin nombre); permanecen logo + iconos (quietos). Las secciones
@@ -376,6 +387,8 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
   background:transparent; border:1px solid var(--yk-line2); padding:8px 10px;
   cursor:pointer; display:flex; align-items:center; gap:8px }
 .yk-set-btn:hover{ border-color:var(--yk-brand); color:var(--yk-brand) }
+.yk-set-btn.on{ border-color:var(--yk-brand); color:var(--yk-brand);
+  background:rgba(120,243,255,.08) }
 .yk-set-cx{ margin-left:auto; transition:transform .2s }
 .yk-set.open .yk-set-cx{ transform:rotate(180deg) }
 .yk-set-body{ display:none; flex-direction:column; gap:8px; padding:10px;
