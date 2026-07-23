@@ -2545,6 +2545,19 @@ var index_default = {
         return json({ ok: true, id, status });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
+    // Borra una idea DE VERDAD (la cruz de las fichas de /objetivos·/ideas).
+    // Destructivo e irreversible por diseño: el panel muestra un confirm() con el
+    // título antes de llamar. 404 si el id no existe. Mismo estilo json()/CORS.
+    if (url.pathname === "/ideas/delete" && req.method === "POST") {
+      try {
+        const b = await req.json();
+        const id = String(b.id || "").trim();
+        if (!id) return json({ ok: false, error: "id requerido" }, 400);
+        const r = await env.DB.prepare("DELETE FROM ideas WHERE id=?").bind(id).run();
+        if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: "not_found" }, 404);
+        return json({ ok: true, id, deleted: true });
+      } catch (e) { return json({ error: String(e) }, 500); }
+    }
     if (url.pathname === "/ideas/promote" && req.method === "POST") {
       try {
         const b = await req.json();
