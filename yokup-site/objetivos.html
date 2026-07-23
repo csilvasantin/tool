@@ -363,15 +363,17 @@ function reviewBlock(i){ if(!hasReview(i)) return ''; const rv=i.review;
   return '<details class="delib"><summary><span class="dh">⚖️ El Consejo delibera</span>'+
     '<span class="dsum">'+(rv.pros||[]).length+' a favor · '+(rv.cons||[]).length+' en contra</span></summary>'+
     reviewInner(i)+'</details>'; }
-// ── KIT DE VENTA (FLT-1007) — media que trae GET /ideas: objeto {audio:{url,at}?,
-//    video:{url,at}?, pdf:{url,at}?}. Se pinta como bloque sobrio en la ficha, entre
-//    la deliberación y la ✕ final; en el listado, un indicador 🎬.
-const hasMedia=i=>i&&i.media&&(i.media.audio&&i.media.audio.url||i.media.video&&i.media.video.url||i.media.pdf&&i.media.pdf.url);
+// ── KIT DE VENTA (FLT-1007/1008) — media que trae GET /ideas: objeto {audio:{url,at}?,
+//    video:{url,at}?, pdf:{url,at}?, presentacion:{url,at}?}. Se pinta como bloque sobrio
+//    en la ficha, entre la deliberación y la ✕ final; en el listado, un indicador 🎬.
+//    La presentación (FLT-1008) es un deck del Generador de Presentaciones de AdmiraNeXT.
+const hasMedia=i=>i&&i.media&&(i.media.audio&&i.media.audio.url||i.media.video&&i.media.video.url||i.media.pdf&&i.media.pdf.url||i.media.presentacion&&i.media.presentacion.url);
 function kitBlock(i){ if(!hasMedia(i)) return ''; const m=i.media;
   return '<div class="kit"><div class="kh">🎬 Kit de venta</div>'+
     (m.audio&&m.audio.url?'<audio class="kaudio" controls preload="none" src="'+esc(m.audio.url)+'"></audio>':'')+
-    ((m.video&&m.video.url)||(m.pdf&&m.pdf.url)?'<div class="klinks">'+
+    ((m.video&&m.video.url)||(m.pdf&&m.pdf.url)||(m.presentacion&&m.presentacion.url)?'<div class="klinks">'+
       (m.video&&m.video.url?'<a class="klink" href="'+esc(m.video.url)+'" target="_blank" rel="noopener">▶ vídeo</a>':'')+
+      (m.presentacion&&m.presentacion.url?'<a class="klink" href="'+esc(m.presentacion.url)+'" target="_blank" rel="noopener">🎞️ presentación</a>':'')+
       (m.pdf&&m.pdf.url?'<a class="klink" href="'+esc(m.pdf.url)+'" target="_blank" rel="noopener">📄 PDF</a>':'')+
     '</div>':'')+'</div>';
 }
@@ -455,7 +457,7 @@ function listRow(i){
   return '<div class="lrow'+(cons?' consejo '+side:'')+'">'+
     '<span class="st '+st+'">'+STLABEL[st]+'</span>'+
     '<span class="ltitle" title="'+esc(i.title)+'">'+esc(i.title)+'</span>'+
-    (hasMedia(i)?'<span class="lkit" title="Tiene Kit de venta (audio·vídeo·pdf)">🎬</span>':'')+
+    (hasMedia(i)?'<span class="lkit" title="Tiene Kit de venta (audio·vídeo·presentación·pdf)">🎬</span>':'')+
     (cons?'<span class="lsign">✦ '+esc(i.author||"Consejo")+'</span>'
          :((i.tag?'<span class="ltag">#'+esc(i.tag)+'</span>':'')+
            (seatL?'<span class="lseat">'+esc(seatL)+'</span>':'')+

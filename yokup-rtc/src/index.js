@@ -2913,18 +2913,20 @@ var index_default = {
         return json({ ok: true, id, seat });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
-    // POST /ideas/media {id, kind:audio|video|pdf, url} — adjunta al Kit de venta
-    // (FLT-1007) un activo generado en NotebookLM. Valida kind y url http(s). Fusiona
-    // sobre el media existente (no pisa los otros dos). Devuelve la idea con media parseada.
+    // POST /ideas/media {id, kind:audio|video|pdf|presentacion, url} — adjunta al Kit
+    // de venta (FLT-1007) un activo generado en NotebookLM (audio/vídeo/PDF) o una
+    // presentación del Generador de Presentaciones de AdmiraNeXT (FLT-1008, url del
+    // deck compartible). Valida kind y url http(s). Fusiona sobre el media existente
+    // (no pisa los otros). Devuelve la idea con media parseada.
     if (url.pathname === "/ideas/media" && req.method === "POST") {
-      const MEDIA_KINDS = /* @__PURE__ */ new Set(["audio", "video", "pdf"]);
+      const MEDIA_KINDS = /* @__PURE__ */ new Set(["audio", "video", "pdf", "presentacion"]);
       try {
         await ensureIdeasSchema(env);
         const b = await req.json();
         const id = String(b.id || "").trim();
         if (!id) return json({ ok: false, error: "id requerido" }, 400);
         const kind = String(b.kind || "").trim().toLowerCase();
-        if (!MEDIA_KINDS.has(kind)) return json({ ok: false, error: "kind inválido (audio|video|pdf)" }, 400);
+        if (!MEDIA_KINDS.has(kind)) return json({ ok: false, error: "kind inválido (audio|video|pdf|presentacion)" }, 400);
         const murl = String(b.url || "").trim().slice(0, 2000);
         if (!/^https?:\/\/\S+$/i.test(murl)) return json({ ok: false, error: "url http(s) requerida" }, 400);
         const idea = await env.DB.prepare("SELECT id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,review,media FROM ideas WHERE id=?").bind(id).first();
