@@ -28,7 +28,10 @@
   .page-intro{margin:0}
   .page-intro>summary{list-style:none;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;cursor:pointer}
   .page-intro>summary::-webkit-details-marker{display:none}
-  .page-intro>summary h1{margin:0}
+  .page-intro>summary :is(h1,h2){margin:0}
+  /* El Consejo, plegado con el mismo patrón: el titular manda, un toque abre. */
+  .consejo-fold{margin-top:40px;padding-top:24px;border-top:1px solid var(--line)}
+  .consejo-fold>summary h2{font-size:clamp(19px,3vw,25px);font-weight:800;letter-spacing:-.01em}
   .page-intro .pi-toggle{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
     font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
     border:1px solid var(--line);border-radius:999px;padding:6px 11px;transition:color .15s,border-color .15s}
@@ -221,7 +224,6 @@
   <!-- ── IDEAS A DESARROLLAR: captura + lista (worker yokup-rtc /ideas) ──── -->
   <!--    Sube al primer plano: es lo que se usa a diario. El Consejo va debajo. -->
   <div class="block-hd" style="margin-top:8px;padding-top:0;border-top:0"><h2>💡 Ideas a desarrollar</h2><span class="k" id="count"></span></div>
-  <p class="block-sub">Apunta cualquier chispa —producto, mejora, experimento— antes de que se pierda. Cuando una idea esté madura, conviértela en misión FLT con un clic.</p>
 
   <form class="add" id="addForm" autocomplete="off">
     <input class="t" id="fTitle" maxlength="200" placeholder="La idea, en una frase…" required>
@@ -254,21 +256,31 @@
   <div class="grid" id="grid"></div>
   <div class="empty" id="empty" style="display:none">Aún no hay ideas. Apunta la primera arriba. ✍️</div>
 
-  <!-- ── EL CONSEJO: las ocho sillas que fijan el norte (debajo de las ideas) ─ -->
-  <div class="block-hd"><h2>🏛️ El Consejo</h2></div>
-  <p class="block-sub">Las ocho sillas que fijan el norte: el lado que ejecuta y el lado que imagina. Aquí nacen y se debaten las ideas.</p>
-  <div class="sides">
-    <div class="side rac">
-      <div class="sh"><span class="tt">Racional</span><b>◆ El lado que ejecuta</b></div>
-      <p class="sl">Producto, tecnología, operación y dinero. Convierte el sueño en algo sólido, que funciona y se sostiene.</p>
-      <div id="rac"></div>
+  <!-- ── EL CONSEJO: plegado por defecto con el patrón .page-intro (el titular es
+         el summary; un toque abre). Las sillas se pintan igual estén plegadas o
+         no: seat() rellena #rac/#cre al cargar y sus nodos [data-seat-stat] viven
+         en el DOM aunque <details> esté cerrado, así paintSeats() los encuentra. -->
+  <details class="page-intro consejo-fold">
+    <summary>
+      <h2>🏛️ El Consejo</h2>
+      <span class="pi-toggle"><span id="consejoSum">8 sillas</span> <span class="pi-chevron">›</span></span>
+    </summary>
+    <div class="pi-body">
+      <p class="block-sub">Las ocho sillas que fijan el norte: el lado que ejecuta y el lado que imagina. Aquí nacen y se debaten las ideas.</p>
+      <div class="sides">
+        <div class="side rac">
+          <div class="sh"><span class="tt">Racional</span><b>◆ El lado que ejecuta</b></div>
+          <p class="sl">Producto, tecnología, operación y dinero. Convierte el sueño en algo sólido, que funciona y se sostiene.</p>
+          <div id="rac"></div>
+        </div>
+        <div class="side cre">
+          <div class="sh"><span class="tt">Creativo</span><b>✷ El lado que imagina</b></div>
+          <p class="sl">Marca, diseño, experiencia y relato. Da alma, forma y una historia que la gente recuerda.</p>
+          <div id="cre"></div>
+        </div>
+      </div>
     </div>
-    <div class="side cre">
-      <div class="sh"><span class="tt">Creativo</span><b>✷ El lado que imagina</b></div>
-      <p class="sl">Marca, diseño, experiencia y relato. Da alma, forma y una historia que la gente recuerda.</p>
-      <div id="cre"></div>
-    </div>
-  </div>
+  </details>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -406,6 +418,8 @@ function listRow(i){
 function render(){
   const list=IDEAS.filter(i=>!FILTER||i.status===FILTER);
   $("#count").textContent=IDEAS.length+" idea"+(IDEAS.length===1?"":"s");
+  // Pizca de vida en el resumen plegado del Consejo: 8 sillas fijas + total de ideas.
+  { const cs=$("#consejoSum"); if(cs) cs.textContent="8 sillas · "+IDEAS.length+" idea"+(IDEAS.length===1?"":"s"); }
   $("#empty").style.display=(IDEAS.length&&!list.length)?"none":(IDEAS.length?"none":"block");
   const node=$("#grid");
   if(VIEW==="list"){ node.className="list"; node.innerHTML=list.map(listRow).join(""); return; }
