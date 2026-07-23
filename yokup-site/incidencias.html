@@ -47,14 +47,32 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .simBtn:hover{color:var(--warn);border-color:var(--warn)}.bellBtn:hover{color:var(--accent);border-color:var(--accent)}.bellBtn.on{color:var(--good);border-style:solid;border-color:rgba(136,255,170,.4)}
 .foot{margin-top:24px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
 /* La lista de misiones y el árbol de tareas viven en /yk-misiones.css (compartido). */
+/* intro plegable REUTILIZABLE — patrón .page-intro de /objetivos. */
+.page-intro{margin:0}
+.page-intro>summary{list-style:none;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;cursor:pointer}
+.page-intro>summary::-webkit-details-marker{display:none}
+.page-intro>summary h1{margin:0}
+.page-intro .pi-toggle{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:6px 11px;transition:color .15s,border-color .15s}
+.page-intro>summary:hover .pi-toggle{color:var(--dim);border-color:var(--mut)}
+.page-intro .pi-chevron{font-size:13px;line-height:1;transition:transform .18s}
+.page-intro[open] .pi-chevron{transform:rotate(90deg)}
+.page-intro .pi-body{margin-top:10px;animation:pi-in .18s ease}
+@keyframes pi-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 </style>
 </head>
 <body data-yk-title="INCIDENCIAS" data-yk-rail-left="MISIONES" data-yk-rail-right="TAREAS" data-yk-zone="app">
 <div class="wrap">
   <!-- La barra Yokup (yk-frame) aporta logo, rótulo, selector de PROYECTO y reloj. -->
 
-  <h1>Soporte de incidencias</h1>
-  <p class="sub">Punto único de <b>todas</b> las incidencias de AdmiraNeXT: <b style="color:var(--brand)">🖥 pantallas DOOH</b>, <b style="color:var(--brand)">🌐 servicios/webs caídos</b>, <b style="color:var(--brand)">🖥 máquinas de la flota</b> y <b style="color:var(--brand)">🤖 agentes bloqueados</b>. La <b style="color:var(--violet)">IA</b> las diagnostica y asigna; lanzas la asistencia en vivo.</p>
+  <details class="page-intro">
+    <summary>
+      <h1>Soporte de incidencias</h1>
+      <span class="pi-toggle">Qué es esto <span class="pi-chevron">›</span></span>
+    </summary>
+    <div class="pi-body">
+      <p class="sub">Punto único de <b>todas</b> las incidencias de AdmiraNeXT: <b style="color:var(--brand)">🖥 pantallas DOOH</b>, <b style="color:var(--brand)">🌐 servicios/webs caídos</b>, <b style="color:var(--brand)">🖥 máquinas de la flota</b> y <b style="color:var(--brand)">🤖 agentes bloqueados</b>. La <b style="color:var(--violet)">IA</b> las diagnostica y asigna; lanzas la asistencia en vivo.</p>
+    </div>
+  </details>
 
   <div class="kb">
     <input id="kbq" placeholder="🤖 Pregunta a la base de conocimiento IA (p.ej. «pantalla sin red»)…" onkeydown="if(event.key==='Enter')askKb()">
@@ -183,6 +201,6 @@ document.querySelectorAll(".kpi[data-f]").forEach(b=>b.onclick=()=>aplicaFiltro(
 load(); setInterval(load,12000);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
-<script src="/yk-frame.js?v=r30"></script>
+<script src="/yk-frame.js?v=r31"></script>
 </body>
 </html>

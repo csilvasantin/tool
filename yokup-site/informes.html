@@ -93,6 +93,17 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .empty b{color:var(--mut);display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
 @media(max-width:640px){.wrap{padding:16px 12px 40px}}
+/* intro plegable REUTILIZABLE — patrón .page-intro de /objetivos. */
+.page-intro{margin:0}
+.page-intro>summary{list-style:none;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;cursor:pointer}
+.page-intro>summary::-webkit-details-marker{display:none}
+.page-intro>summary h1{margin:0}
+.page-intro .pi-toggle{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:6px 11px;transition:color .15s,border-color .15s}
+.page-intro>summary:hover .pi-toggle{color:var(--dim);border-color:var(--mut)}
+.page-intro .pi-chevron{font-size:13px;line-height:1;transition:transform .18s}
+.page-intro[open] .pi-chevron{transform:rotate(90deg)}
+.page-intro .pi-body{margin-top:10px;animation:pi-in .18s ease}
+@keyframes pi-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 </style>
 </head>
 <body data-yk-title="INFORMES" data-yk-zone="app">
@@ -100,8 +111,15 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <nav>
     <a href="/incidencias" class="back">← Bandeja</a>
   </nav>
-  <h1>Informes</h1>
-  <p class="sub">Superficie de reporte de los <b>infraagentes</b> 📝. Cada tarea acaba en un parte: cómo ha ido, el <b>proceso</b> (el CLI trabajando), la <b>captura de prueba</b> del resultado y si hubo incidencias. Por misión, ordenada por fecha — hoy primero.</p>
+  <details class="page-intro">
+    <summary>
+      <h1>Informes</h1>
+      <span class="pi-toggle">Qué es esto <span class="pi-chevron">›</span></span>
+    </summary>
+    <div class="pi-body">
+      <p class="sub">Superficie de reporte de los <b>infraagentes</b> 📝. Cada tarea acaba en un parte: cómo ha ido, el <b>proceso</b> (el CLI trabajando), la <b>captura de prueba</b> del resultado y si hubo incidencias. Por misión, ordenada por fecha — hoy primero.</p>
+    </div>
+  </details>
 
   <!-- Filtro por FECHA del informe. Por defecto sólo los de HOY (igual que /tareas). -->
   <div class="tfilter" id="tfilter">
@@ -244,6 +262,6 @@ setInterval(load,15000);
 </script>
 <script src="/informe-pdf.js?v=r1"></script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
-<script src="/yk-frame.js?v=r30"></script>
+<script src="/yk-frame.js?v=r31"></script>
 </body>
 </html>

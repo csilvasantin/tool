@@ -56,13 +56,31 @@
   .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--panel2);color:var(--ink);
     border:1px solid var(--line);border-radius:10px;padding:11px 16px;font-size:13.5px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
   .toast.on{opacity:1}
+/* intro plegable REUTILIZABLE — patrón .page-intro de /objetivos. */
+.page-intro{margin:0}
+.page-intro>summary{list-style:none;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;cursor:pointer}
+.page-intro>summary::-webkit-details-marker{display:none}
+.page-intro>summary h1{margin:0}
+.page-intro .pi-toggle{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:6px 11px;transition:color .15s,border-color .15s}
+.page-intro>summary:hover .pi-toggle{color:var(--dim);border-color:var(--mut)}
+.page-intro .pi-chevron{font-size:13px;line-height:1;transition:transform .18s}
+.page-intro[open] .pi-chevron{transform:rotate(90deg)}
+.page-intro .pi-body{margin-top:10px;animation:pi-in .18s ease}
+@keyframes pi-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 </style>
 </head>
 <body data-yk-title="OBJETIVOS" data-yk-zone="app">
 <main class="wrap" id="yk-main">
   <div class="head">
-    <h1>💡 Ideas</h1>
-    <p>El cuaderno de ideas del equipo Admira — las <a href="/objetivos" style="color:var(--brand)">ideas a desarrollar</a> viven ahora en <b style="color:var(--ink)">Objetivos</b>, junto al Consejo. Apunta cualquier chispa —producto, mejora, experimento— antes de que se pierda. Y cuando una idea esté madura, conviértela en misión con un clic.</p>
+    <details class="page-intro">
+      <summary>
+        <h1>💡 Ideas</h1>
+        <span class="pi-toggle">Qué es esto <span class="pi-chevron">›</span></span>
+      </summary>
+      <div class="pi-body">
+        <p>El cuaderno de ideas del equipo Admira — las <a href="/objetivos" style="color:var(--brand)">ideas a desarrollar</a> viven ahora en <b style="color:var(--ink)">Objetivos</b>, junto al Consejo. Apunta cualquier chispa —producto, mejora, experimento— antes de que se pierda. Y cuando una idea esté madura, conviértela en misión con un clic.</p>
+      </div>
+    </details>
   </div>
 
   <form class="add" id="addForm" autocomplete="off">
@@ -185,6 +203,6 @@ load();
 
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-avatar.js?v=r2"></script>
-<script src="/yk-frame.js?v=r30"></script>
+<script src="/yk-frame.js?v=r31"></script>
 </body>
 </html>

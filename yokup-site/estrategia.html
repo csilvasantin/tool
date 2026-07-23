@@ -176,15 +176,33 @@ h1{display:flex;align-items:center;gap:10px}
 .ccmap .maplibregl-ctrl-attrib,.ccmap .maplibregl-ctrl-logo{display:none!important}
 .ccmap .mapfallback{padding:24px;color:var(--mut);font-family:var(--mono);font-size:11.5px;line-height:1.6;text-align:center}
 .foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
+/* intro plegable REUTILIZABLE — patrón .page-intro de /objetivos. */
+.page-intro{margin:0}
+.page-intro>summary{list-style:none;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;cursor:pointer}
+.page-intro>summary::-webkit-details-marker{display:none}
+.page-intro>summary h1{margin:0}
+.page-intro .pi-toggle{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:6px 11px;transition:color .15s,border-color .15s}
+.page-intro>summary:hover .pi-toggle{color:var(--dim);border-color:var(--mut)}
+.page-intro .pi-chevron{font-size:13px;line-height:1;transition:transform .18s}
+.page-intro[open] .pi-chevron{transform:rotate(90deg)}
+.page-intro .pi-body{margin-top:10px;animation:pi-in .18s ease}
+@keyframes pi-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 </style>
 </head>
 <body data-yk-title="ESTRATEGIA" data-yk-zone="app">
 <div class="wrap">
-  <h1>Estrategia <button id="introTgl" class="tgl" title="desplegar/plegar la explicación" aria-expanded="false">▸</button></h1>
-  <p class="sub" id="intro" hidden>El <b>norte</b> de cada equipo — de aquí bajan las misiones. Dos frentes que
-    empujan el mismo plan: <span class="b">◈ Bits</span> mueve el <b>silicio</b> (los agentes de la flota);
-    <span class="a">⚛ Átomos</span> mueve el <b>hardware</b> (los ordenadores y las pantallas de campo).
-    Cada equipo enseña su estrategia, sus <b>relojes de decisión</b> abiertos y las misiones vivas.</p>
+  <details class="page-intro">
+    <summary>
+      <h1>Estrategia</h1>
+      <span class="pi-toggle">Qué es esto <span class="pi-chevron">›</span></span>
+    </summary>
+    <div class="pi-body">
+      <p class="sub" id="intro">El <b>norte</b> de cada equipo — de aquí bajan las misiones. Dos frentes que
+        empujan el mismo plan: <span class="b">◈ Bits</span> mueve el <b>silicio</b> (los agentes de la flota);
+        <span class="a">⚛ Átomos</span> mueve el <b>hardware</b> (los ordenadores y las pantallas de campo).
+        Cada equipo enseña su estrategia, sus <b>relojes de decisión</b> abiertos y las misiones vivas.</p>
+    </div>
+  </details>
 
   <!-- AGENTE SMITH — Grok en CLI, se multiplica por la flota. Sonda /api/presence
        (worker admira-telegram, público: sin token) y dice en cuántas máquinas está
@@ -261,7 +279,7 @@ h1{display:flex;align-items:center;gap:10px}
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-avatar.js?v=r2"></script>
 <script src="/yk-misiones.js?v=r33"></script>
-<script src="/yk-frame.js?v=r30"></script>
+<script src="/yk-frame.js?v=r31"></script>
 <script>
 "use strict";
 const WORKER="https://api.yokup.com";
@@ -423,11 +441,8 @@ document.addEventListener("click", async e=>{
   loadDecs();
 });
 
-/* ═══ DESCRIPCIÓN PLEGABLE (triángulo canónico ▸/▾) ═══════════════════════════ */
-(function(){ const t=$("introTgl"), p=$("intro");
-  if(t&&p) t.onclick=()=>{ const abierto=p.hidden; p.hidden=!abierto;
-    t.textContent=abierto?"▾":"▸"; t.setAttribute("aria-expanded",String(abierto)); };
-})();
+/* Intro plegable: ahora es el patrón nativo .page-intro (<details>) de /objetivos
+   — sin JS. Se retiró el toggle introTgl/▸▾. */
 
 /* ═══ AGENTE SMITH — Grok en CLI, se multiplica por la flota ═══════════════════
    Lee /api/presence (worker admira-telegram, PÚBLICO — no pasa por el bearer de

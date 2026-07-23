@@ -53,6 +53,16 @@ function assertAllOptionsRemainVisible(card) {
 }
 
 function assertProjectHeaderPrecedesDecision(card, name) {
+  // VIVO: ficha completa en <article>. CERRADO: ficha PLEGADA en <details> — la
+  // fila compacta (dec-sum-project) precede al detalle plegable (dec-fold-body).
+  if (/^\s*<details\b/.test(card)) {
+    assert.match(card, /<details\b[^>]*class="dec dec-fold"[^>]*aria-labelledby=/);
+    assert.match(card, /dec-chevron/);
+    assert.match(card, new RegExp(`dec-sum-project[^>]*>${name}`));
+    assert.ok(card.indexOf('dec-sum-project') < card.indexOf('dec-fold-body'), 'la fila compacta precede al detalle');
+    assert.ok(card.indexOf('dec-fold-body') < card.indexOf('dec-q'), 'el detalle plegable contiene la pregunta');
+    return;
+  }
   assert.match(card, /<article\b[^>]*aria-labelledby=/);
   assert.match(card, new RegExp(`PROYECTO[\\s\\S]*${name}`));
   assert.ok(card.indexOf('dec-project') < card.indexOf('dec-top'), 'la cabecera del proyecto precede a los metadatos');
@@ -189,9 +199,42 @@ test('el renderer jerárquico usa headings, recuentos, aria y cards responsive',
   assert.match(html, /<section class="dec-agent" aria-labelledby="[^"]+">/);
   assert.match(html, /<h3 class="dec-agent-title"[^>]*>[\s\S]*Oráculo<\/span><\/h3>/);
   assert.match(html, /2 · 1 viva · 1 decidida/);
-  assert.equal((html.match(/<article class="dec/g) || []).length, 2);
+  // La viva se pinta completa (<article>); la cerrada, PLEGADA (<details dec-fold>).
+  assert.equal((html.match(/<article class="dec/g) || []).length, 1);
+  assert.equal((html.match(/<details class="dec dec-fold"/g) || []).length, 1);
   assert.match(source, /grid-template-columns:repeat\(auto-fit,minmax\(min\(100%,320px\),1fr\)\)/);
   assert.match(source, /@media\(max-width:520px\)[\s\S]*\.dec-agent-cards\{grid-template-columns:minmax\(0,1fr\)/);
+});
+
+test('ficha plegada: la fila compacta lleva desenlace + pie de meta y convive con el filtro', () => {
+  // El filtro por chip (renderFull) sólo recorta el array por estado; el plegado
+  // vive en card(). Se prueba que AMBOS conviven: filtrado a un estado, cada ficha
+  // cerrada sale PLEGADA (<details dec-fold>) con su meta visible en la fila.
+  const items = [
+    {...renderData('pending'),   id:'live-1', created_at:1_000},
+    {...renderData('decided'),   id:'DEC-done-1', chosen:3, decided_at:2_000, chosen_by:'Carlos'},
+    {...renderData('expired'),   id:'DEC-exp-1', deadline:3_000},
+    {...renderData('cancelled'), id:'DEC-can-1', chosen:5, decided_at:4_000, chosen_by:'Carlos'},
+  ];
+  // Filtro = "decididas": el histórico sólo pinta las decided, todas plegadas.
+  const decided = items.filter(d => d.status === 'decided');
+  const hist = context.renderDecisionGroups(decided, {stamp:true});
+  assert.equal((hist.match(/<details class="dec dec-fold"/g) || []).length, 1);
+  assert.equal((hist.match(/<article class="dec/g) || []).length, 0, 'nada vivo en el histórico filtrado');
+  // Fila compacta: desenlace ✓ + opción elegida, y el pie de meta DENTRO del summary.
+  assert.match(hist, /dec-sum-outcome ok">✓ eligió <b>Programar después<\/b>/);
+  assert.ok(hist.indexOf('dec-stamp') < hist.indexOf('dec-fold-body'), 'el pie de meta va en la fila compacta, no en el detalle');
+  assert.match(hist, /dec-stamp[\s\S]*eligió <b>Carlos<\/b>[\s\S]*DEC-done-1/);
+  // Filtro = "vivas": la sección de relojes conserva su <article> completo (no se pliega).
+  const live = items.filter(d => d.status === 'pending');
+  const liveHtml = context.renderDecisionGroups(live, null);
+  assert.match(liveHtml, /<article class="dec/);
+  assert.doesNotMatch(liveHtml, /dec-fold/);
+  // Sin filtro (todas): vivo en <article> y cerrado en <details> conviven en una misma pasada.
+  const closed = items.filter(d => d.status !== 'pending');
+  const all = context.renderDecisionGroups(live, null) + context.renderDecisionGroups(closed, {stamp:true});
+  assert.equal((all.match(/<article class="dec/g) || []).length, 1);
+  assert.equal((all.match(/<details class="dec dec-fold"/g) || []).length, 3);
 });
 
 function renderData(status) {

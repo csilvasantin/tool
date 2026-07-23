@@ -44,6 +44,23 @@
        + ".dec-summary{margin:0 0 16px}.dec-summary a{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--line2);border-radius:10px;padding:10px 13px;background:var(--card);color:var(--ink);text-decoration:none;font-family:var(--mono);font-size:11px}"
        + ".dec-summary a:hover,.dec-summary a:focus-visible{border-color:var(--brand);outline:none}.dec-summary strong{color:var(--warn,#ffb545);font-size:15px}"
        + "@media(max-width:520px){.dec-machine{padding:10px}.dec-machine-h,.dec-agent-h{align-items:flex-start;flex-direction:column;gap:5px}.dec-group-count{white-space:normal}.dec-agent-cards{grid-template-columns:minmax(0,1fr)}}";
+  /* FICHA PLEGADA (Carlos, 23-jul): lo CERRADO no ocupa pantallas — se pliega a
+     una fila con lo esencial (proyecto · desenlace ✓/⏱★/↩ · pie de meta) y abre el
+     detalle completo (pregunta, 6 opciones, cola) al pulsar el chevron o la fila.
+     Lo VIVO (relojes con cuenta atrás) NO se pliega: manda la información viva. */
+  CSS += ".dec-fold{padding:0}.dec-fold>summary{list-style:none;cursor:pointer;display:flex;gap:9px;align-items:flex-start;padding:11px 13px}"
+       + ".dec-fold>summary::-webkit-details-marker{display:none}"
+       + ".dec-fold>summary:hover{background:rgba(120,243,255,.03)}"
+       + ".dec-fold>summary:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}"
+       + ".dec-chevron{font-family:var(--mono);color:var(--mut);font-size:14px;line-height:1.3;flex:0 0 auto;transition:transform .18s;margin-top:1px}"
+       + ".dec-fold[open]>summary .dec-chevron{transform:rotate(90deg)}"
+       + ".dec-sum-main{display:grid;gap:5px;min-width:0;flex:1 1 auto}"
+       + ".dec-sum-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;min-width:0}"
+       + ".dec-sum-project{color:var(--ink);font-size:14px;font-weight:800;line-height:1.2;overflow-wrap:anywhere}"
+       + ".dec-sum-outcome{font-size:12px;line-height:1.35;color:var(--mut);overflow-wrap:anywhere}"
+       + ".dec-sum-outcome b{color:var(--ink);font-weight:700}.dec-sum-outcome.ok b{color:var(--good,#3df08a)}.dec-sum-outcome.exp b{color:var(--warn,#ffb545)}"
+       + ".dec-fold>summary .dec-stamp{border:0;margin:0;padding:0}"
+       + ".dec-fold-body{padding:11px 13px 13px;border-top:1px solid var(--line)}";
   function esc(x) { return String(x == null ? "" : x).replace(/[<>&"]/g, function (c) { return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]; }); }
   function cleanProjectName(x) { return String(x || "").replace(/^misi[oó]n\s*:?\s*/i, "").replace(/\s+/g, " ").trim().slice(0, 120); }
   function projectSlug(x) { return cleanProjectName(x).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
@@ -131,7 +148,28 @@
     var batch = d.batch, batchHtml = "";
     if (batch) { var active = (batch.items || []).filter(function (x) { return x.status === "active"; })[0]; var queued = (batch.items || []).filter(function (x) { return x.status === "queued"; }); batchHtml = "<div class=\"dec-batch" + (batch.status === "paused" ? " paused" : "") + "\">" + (batch.status === "paused" ? "⏸ <b>cola pausada</b>: " + esc(batch.pause_reason || "requiere decisión") : batch.status === "completed" ? "✓ <b>tanda completada</b>" : "▶ <b>activa</b>: " + esc(active ? active.title : "preparando") + " · cola: " + queued.map(function (x) { return esc(x.title); }).join(" → ")) + "</div>"; }
     var projectTag = opts && opts.nested ? "h4" : "h3";
-    return "<article class=\"dec" + (pending && d.secondsLeft <= 60 ? " urge" : "") + "\" aria-labelledby=\"" + projectId + "\"><header class=\"dec-project\"><span class=\"dec-project-label\">PROYECTO</span><" + projectTag + " class=\"dec-project-name\" id=\"" + projectId + "\">" + esc(project) + "</" + projectTag + "><span class=\"dec-project-rest\">" + remainingText + "</span></header><div class=\"dec-top\"><span class=\"dec-k\">🖥 " + esc(d.machine || "—") + "</span>" + agentePinta(d.agent) + "<span class=\"dec-k\">" + (String(d.surface || "").toUpperCase() === "CLI" ? "⌨ CLI" : "🖥 Desktop App") + "</span>" + (pending ? "<span class=\"dec-clock\" data-clock=\"" + esc(d.id) + "\" role=\"timer\" aria-label=\"Tiempo restante\">" + mmss(d.secondsLeft) + "</span>" : "") + "</div><div class=\"dec-q\">" + esc(d.question) + "</div><div class=\"dec-opts\">" + optsHtml + "</div>" + result + batchHtml + (opts && opts.stamp ? stamp(d) : "") + "</article>";
+    var topRow = "<div class=\"dec-top\"><span class=\"dec-k\">🖥 " + esc(d.machine || "—") + "</span>" + agentePinta(d.agent) + "<span class=\"dec-k\">" + (String(d.surface || "").toUpperCase() === "CLI" ? "⌨ CLI" : "🖥 Desktop App") + "</span>" + (pending ? "<span class=\"dec-clock\" data-clock=\"" + esc(d.id) + "\" role=\"timer\" aria-label=\"Tiempo restante\">" + mmss(d.secondsLeft) + "</span>" : "") + "</div>";
+    var body = topRow + "<div class=\"dec-q\">" + esc(d.question) + "</div><div class=\"dec-opts\">" + optsHtml + "</div>" + result + batchHtml;
+    var stampHtml = opts && opts.stamp ? stamp(d) : "";
+    // VIVO: el reloj y las opciones pulsables NO se pliegan — manda la información viva.
+    if (pending) {
+      return "<article class=\"dec" + (d.secondsLeft <= 60 ? " urge" : "") + "\" aria-labelledby=\"" + projectId + "\"><header class=\"dec-project\"><span class=\"dec-project-label\">PROYECTO</span><" + projectTag + " class=\"dec-project-name\" id=\"" + projectId + "\">" + esc(project) + "</" + projectTag + "><span class=\"dec-project-rest\">" + remainingText + "</span></header>" + body + stampHtml + "</article>";
+    }
+    // CERRADA: ficha PLEGADA por defecto. La fila compacta lleva lo esencial
+    // (proyecto · la opción que salió · pie de meta); el detalle abre al pulsar.
+    var outCls = d.status === "decided" ? "ok" : d.status === "expired" ? "exp" : "cancel";
+    var chosenText = esc(d.options && d.options[effective] || "");
+    var outcome = d.status === "decided" ? "✓ eligió <b>" + chosenText + "</b>"
+      : d.status === "expired" ? "⏱★ recomendada <b>" + chosenText + "</b>"
+      : "↩ <b>descartada</b>";
+    return "<details class=\"dec dec-fold\" aria-labelledby=\"" + projectId + "\">"
+      + "<summary class=\"dec-sum\"><span class=\"dec-chevron\" aria-hidden=\"true\">›</span><div class=\"dec-sum-main\">"
+      + "<div class=\"dec-sum-top\"><span class=\"dec-project-label\">PROYECTO</span><span class=\"dec-sum-project\" id=\"" + projectId + "\">" + esc(project) + "</span></div>"
+      + "<div class=\"dec-sum-outcome " + outCls + "\">" + outcome + "</div>"
+      + stampHtml
+      + "</div></summary>"
+      + "<div class=\"dec-fold-body\">" + body + "</div>"
+      + "</details>";
   }
   function stateCounts(items) {
     var n = {pending:0,decided:0,expired:0,cancelled:0};

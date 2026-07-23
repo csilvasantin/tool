@@ -38,12 +38,31 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px}
   .kpis{gap:8px}
   .kpi{font-size:10px;padding:8px 10px;flex:1 1 132px}
 }
+/* intro plegable REUTILIZABLE — patrón .page-intro de /objetivos (plegado por
+   defecto, píldora «Qué es esto ›» junto al titular; más espacio para lo vivo). */
+.page-intro{margin:0}
+.page-intro>summary{list-style:none;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;cursor:pointer}
+.page-intro>summary::-webkit-details-marker{display:none}
+.page-intro>summary h1{margin:0}
+.page-intro .pi-toggle{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:6px 11px;transition:color .15s,border-color .15s}
+.page-intro>summary:hover .pi-toggle{color:var(--dim);border-color:var(--mut)}
+.page-intro .pi-chevron{font-size:13px;line-height:1;transition:transform .18s}
+.page-intro[open] .pi-chevron{transform:rotate(90deg)}
+.page-intro .pi-body{margin-top:10px;animation:pi-in .18s ease}
+@keyframes pi-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 </style>
 </head>
 <body data-yk-title="DECISIONES" data-yk-zone="app">
 <div class="wrap">
-  <h1>Decisiones</h1>
-  <p class="sub">Todas las ventanas de decisión de la flota en un solo sitio. Lo que proponen son <b>misiones</b> completas, no pasos de una misión — por eso viven aquí y no en <a href="/tareas" style="color:var(--brand)">/tareas</a>. Si el reloj llega a cero sin respuesta, el agente tira con la <b>recomendada (★)</b>.</p>
+  <details class="page-intro">
+    <summary>
+      <h1>Decisiones</h1>
+      <span class="pi-toggle">Qué es esto <span class="pi-chevron">›</span></span>
+    </summary>
+    <div class="pi-body">
+      <p class="sub">Todas las ventanas de decisión de la flota en un solo sitio. Lo que proponen son <b>misiones</b> completas, no pasos de una misión — por eso viven aquí y no en <a href="/tareas" style="color:var(--brand)">/tareas</a>. Si el reloj llega a cero sin respuesta, el agente tira con la <b>recomendada (★)</b>.</p>
+    </div>
+  </details>
 
   <div class="kpis">
     <div class="kpi a"><b data-dec-count="pending">0</b> vivas</div>
@@ -64,7 +83,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px}
     <div class="decs-list" id="decsHistList"></div>
   </section>
 
-  <div class="foot">Yokup · decisiones de toda la flota · datos de <b>yokup-rtc /decisions</b> · sello <b>v.22.07.2026.r2</b></div>
+  <div class="foot">Yokup · decisiones de toda la flota · datos de <b>yokup-rtc /decisions</b> · sello <b>v.23.07.2026.r10</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -76,8 +95,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px}
 <script src="/yk-agent-identity.js?v=1"></script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-avatar.js?v=r2"></script>
-<script src="/yk-frame.js?v=r30"></script>
-<script src="/yk-decisions.js?v=20260723a"></script>
+<script src="/yk-frame.js?v=r31"></script>
+<script src="/yk-decisions.js?v=20260723b"></script>
 <script>
 YkDecisions.mount({worker:"https://api.yokup.com", mode:"full"});
 </script>

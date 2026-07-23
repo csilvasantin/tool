@@ -175,12 +175,30 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 5px}
 .mis a.decreloj:hover,.mis a.decreloj:focus-visible{background:rgba(255,216,102,.12);outline:none}
 .ordmsg{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin:0 0 10px}
 .ordmsg.ok{color:var(--good)}.ordmsg.err{color:var(--warn)}
+/* intro plegable REUTILIZABLE — patrón .page-intro de /objetivos. */
+.page-intro{margin:0}
+.page-intro>summary{list-style:none;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;cursor:pointer}
+.page-intro>summary::-webkit-details-marker{display:none}
+.page-intro>summary h1{margin:0}
+.page-intro .pi-toggle{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:6px 11px;transition:color .15s,border-color .15s}
+.page-intro>summary:hover .pi-toggle{color:var(--dim);border-color:var(--mut)}
+.page-intro .pi-chevron{font-size:13px;line-height:1;transition:transform .18s}
+.page-intro[open] .pi-chevron{transform:rotate(90deg)}
+.page-intro .pi-body{margin-top:10px;animation:pi-in .18s ease}
+@keyframes pi-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 </style>
 </head>
 <body data-yk-title="EQUIPO" data-yk-zone="app">
 <div class="wrap">
-  <h1>Equipo</h1>
-  <p class="sub">Quién forma AdmiraNeXT, en dos planos que no se mezclan: los <b>agentes</b> — software, <i>bits</i>: una persona es un LLM más una cuenta, y puede levantarse en cualquier sitio — y las <b>máquinas</b> — hardware, <i>átomos</i>: cajas físicas con ubicación, dueño y latido. Un agente CORRE EN una máquina; ni es ella, ni depende de ella. Todo se edita aquí y vive en <b>admira-fleet</b>, la misma fuente que lee admira.live/control.</p>
+  <details class="page-intro">
+    <summary>
+      <h1>Equipo</h1>
+      <span class="pi-toggle">Qué es esto <span class="pi-chevron">›</span></span>
+    </summary>
+    <div class="pi-body">
+      <p class="sub">Quién forma AdmiraNeXT, en dos planos que no se mezclan: los <b>agentes</b> — software, <i>bits</i>: una persona es un LLM más una cuenta, y puede levantarse en cualquier sitio — y las <b>máquinas</b> — hardware, <i>átomos</i>: cajas físicas con ubicación, dueño y latido. Un agente CORRE EN una máquina; ni es ella, ni depende de ella. Todo se edita aquí y vive en <b>admira-fleet</b>, la misma fuente que lee admira.live/control.</p>
+    </div>
+  </details>
 
   <div class="kpis">
     <div class="kpi tot"><b id="kSil">—</b><span>Agentes · bits</span></div>
@@ -885,6 +903,6 @@ setInterval(()=>{
 },45000);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
-<script src="/yk-frame.js?v=r30"></script>
+<script src="/yk-frame.js?v=r31"></script>
 </body>
 </html>
