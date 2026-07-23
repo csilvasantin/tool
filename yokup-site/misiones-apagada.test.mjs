@@ -90,9 +90,16 @@ test('sin datos de vivas no se alarma (mejor «pendiente» que un falso «apagad
 
 // ── b1 · el botón «+ misión» en la ficha (contrato de texto) ──────────────────
 const front = await readFile(new URL('./misiones.html', import.meta.url), 'utf8');
-test('la ficha ofrece «+ misión» solo en misiones de flota que NO son ya hijas', () => {
+test('la ficha ofrece «+ misión» (nivel 0) y «+ submisión» (nivel 1), nunca un 3er nivel', () => {
   assert.match(src, /class="mdet-addchild" data-add-child=/);
-  assert.match(src, /\/\^FLT-\\d\+\$\/\.test\(id\) && !t\.parent_id/);
+  // El botón lo decide addChildBtn por NIVEL: madre/plana → «+ misión»; hija → «+ submisión».
+  const btn = src.match(/function addChildBtn\(id, t\) \{[\s\S]*?\n  \}/)?.[0] || '';
+  assert.ok(btn, 'no se encontró addChildBtn');
+  assert.match(btn, /if \(!t\.parent_id\)/);                       // nivel 0 → + misión
+  assert.match(btn, /data-child-kind="mision"[^]*?\+ misión/);
+  assert.match(btn, /padre && !padre\.parent_id/);                 // nivel 1 (padre raíz) → + submisión
+  assert.match(btn, /data-child-kind="submision"[^]*?\+ submisión/);
+  assert.match(btn, /return "";\s*\/\/ nivel 2 o incierto/);       // nivel 2 → sin botón (no 3er nivel)
 });
 test('la página cablea el alta de la hija (bot-inbox → fleet\\/sync → fleet\\/parent)', () => {
   assert.match(front, /\.mdet-addchild/);

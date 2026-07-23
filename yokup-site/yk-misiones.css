@@ -149,7 +149,20 @@
 .yk-kids>.tk{border-left:2px solid var(--brand);border-bottom:1px solid var(--line)}
 .yk-kids>.tk:last-child{border-bottom:0}
 .yk-kids>.tk .hd{padding-left:30px}
-@media(max-width:720px){.yk-kids>.tk .hd{padding-left:20px}.yk-grp-bar{padding:5px 12px}}
+/* SEGUNDO NIVEL (madre → misión → submisión, FLT-990 c): una hija con submisiones es
+ * a su vez un grupo dentro del cajón; sus filas van al nivel de las hijas y las
+ * submisiones un escalón más adentro, con un borde algo más tenue para distinguir. */
+.yk-kids>.yk-grp{border-bottom:0}
+.yk-kids>.yk-grp>.tk{border-left:2px solid var(--brand)}
+.yk-kids>.yk-grp>.tk .hd{padding-left:30px}
+.yk-kids .yk-grp-bar{padding-left:30px}
+.yk-kids .yk-kids>.tk{border-left:2px solid var(--mut)}
+.yk-kids .yk-kids>.tk .hd,.yk-kids .yk-kids>.yk-grp>.tk .hd{padding-left:46px}
+@media(max-width:720px){
+  .yk-kids>.tk .hd,.yk-kids>.yk-grp>.tk .hd{padding-left:20px}
+  .yk-kids .yk-kids>.tk .hd,.yk-kids .yk-kids>.yk-grp>.tk .hd{padding-left:32px}
+  .yk-grp-bar{padding:5px 12px}.yk-kids .yk-grp-bar{padding-left:20px}
+}
 
 /* ------- Árbol de TAREAS abc/123 ------- */
 .tree{font-family:var(--mono)}

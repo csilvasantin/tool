@@ -1716,9 +1716,32 @@ function fleetInboxId(mid) {
   return m ? m[1] : null;
 }
 __name(fleetInboxId, "fleetInboxId");
+// El nº de encargo del bot-inbox va EMBEBIDO en el `screen` del ticket como «#<n>»
+// (fleetScreen: «persona·máquina #<inbox_id>»). Ese es el dato REAL: desde el reparto
+// anticolisión (FLT-990 a2) el id FLT-<n> puede diferir del encargo —FLT-1005 nació
+// del encargo #991— y pelar «FLT-» apuntaba a un encargo que no existía. (FLT-990 c)
+function inboxIdFromScreen(screen) {
+  const m = /#(\d+)\b/.exec(String(screen || ""));
+  return m ? m[1] : null;
+}
+__name(inboxIdFromScreen, "inboxIdFromScreen");
+// Nº de encargo REAL de una misión de flota, del dato más fiable al menos fiable:
+//   1) fleet_ids (mapa canónico inbox_id↔mission_id que dejó el propio reparto),
+//   2) el «#<n>» embebido en el `screen` del ticket,
+//   3) último recurso: pelar «FLT-» del id (roto tras el reparto, pero mejor que nada).
+async function fleetEncargoId(env, mid, screen) {
+  try {
+    const row = await env.DB.prepare("SELECT inbox_id FROM fleet_ids WHERE mission_id=?").bind(mid).first();
+    if (row && row.inbox_id != null && /^\d+$/.test(String(row.inbox_id))) return String(row.inbox_id);
+  } catch (e) {}
+  return inboxIdFromScreen(screen) || fleetInboxId(mid);
+}
+__name(fleetEncargoId, "fleetEncargoId");
 
 async function fleetPushStatus(env, ticket, status) {
-  const id = fleetInboxId(ticket.id);
+  // Dato REAL del encargo (fleet_ids → screen → pelar FLT). Antes pelaba «FLT-» a
+  // secas y, tras el reparto anticolisión, empujaba el estado a OTRO encargo. (FLT-990 c)
+  const id = await fleetEncargoId(env, ticket.id, ticket.screen);
   if (!id || !env.TELEGRAM) return false;
   try {
     const r = await env.TELEGRAM.fetch(new Request(
@@ -1744,7 +1767,7 @@ __name(fleetPushStatus, "fleetPushStatus");
 // Deriva el estado de la MISIÓN a partir de su árbol y, si ha cambiado de verdad,
 // lo baja al encargo del bot-inbox. Idempotente.
 async function fleetReconcileMission(env, mid) {
-  const t = await env.DB.prepare("SELECT id,source,status,assignee,loc FROM tickets WHERE id=?").bind(mid).first();
+  const t = await env.DB.prepare("SELECT id,source,status,assignee,loc,screen FROM tickets WHERE id=?").bind(mid).first();
   if (!t || t.source !== "fleet") return null;
   // Una CANCELADA no la revive el reconciliador por árbol (sus subtareas quedan
   // 'pending' y recalcularían 'open'). Cancelar es definitivo salvo reabrir manual.
@@ -1791,7 +1814,7 @@ __name(fleetReconcileMission, "fleetReconcileMission");
 // cliente). Una sola consulta agregada — no una por misión.
 async function fleetReconcileAll(env) {
   const { results } = await env.DB.prepare(
-    `SELECT t.id, t.status, t.assignee, t.loc,
+    `SELECT t.id, t.status, t.assignee, t.loc, t.screen,
             COUNT(m.code) AS total,
             SUM(CASE WHEN m.status='done' THEN 1 ELSE 0 END) AS done,
             SUM(CASE WHEN m.status<>'pending' THEN 1 ELSE 0 END) AS started
@@ -1922,8 +1945,10 @@ async function fleetMissions(env) {
   });
 }
 __name(fleetMissions, "fleetMissions");
-// Cuelga una misión HIJA de una MADRE (FLT-990 b2). Un solo nivel: la madre no
-// puede tener madre y una madre no puede volverse hija. Aditivo y reversible.
+// Cuelga una misión HIJA de una MADRE (FLT-990 b2 → DOS niveles, FLT-990 c). El
+// modelo es madre → misión → submisión y NADA más: profundidad máxima 2. Se permite
+// colgar bajo una hija SOLO si esa hija no es a su vez nieta (su madre debe ser
+// raíz); el 3er nivel se rechaza con mensaje claro. Aditivo y reversible.
 async function fleetSetParent(env, b) {
   const child = String(b && b.child || "").trim();
   const parent = b && (b.parent == null || b.parent === "") ? null : String(b.parent || "").trim();
@@ -1939,11 +1964,20 @@ async function fleetSetParent(env, b) {
   if (parent === child) return { ok: false, error: "una misión no puede ser su propia madre" };
   const pRow = await env.DB.prepare("SELECT id,parent_id FROM tickets WHERE id=?").bind(parent).first();
   if (!pRow) return { ok: false, error: "parent no existe: " + parent };
-  if (pRow.parent_id) return { ok: false, error: "la madre " + parent + " ya cuelga de " + pRow.parent_id + " (solo un nivel de agrupación)" };
+  // PROFUNDIDAD MÁXIMA 2. Si el parent ya es hija (tiene madre), se admite —el child
+  // sería submisión (nivel 2)— salvo que esa madre cuelgue a su vez de otra: entonces
+  // el parent ya es nieto y colgarle algo abriría un 3er nivel. Rechazo explícito.
+  if (pRow.parent_id) {
+    const gRow = await env.DB.prepare("SELECT parent_id FROM tickets WHERE id=?").bind(pRow.parent_id).first();
+    if (gRow && gRow.parent_id) return { ok: false, error: "profundidad máxima 2 (madre → misión → submisión): " + parent + " ya es una submisión, no puede tener las suyas" };
+  }
   const hasKids = await env.DB.prepare("SELECT 1 x FROM tickets WHERE parent_id=?").bind(child).first();
-  if (hasKids) return { ok: false, error: child + " ya es madre de otras; no puede volverse hija" };
+  // El child ya es madre: colgarlo empuja a SUS hijas un nivel más abajo. Solo cabe
+  // si aterriza como nivel 1 (bajo una madre raíz); bajo una hija crearía el 3er nivel.
+  if (hasKids && pRow.parent_id) return { ok: false, error: child + " ya es madre; colgarlo de " + parent + " (que ya es hija) empujaría a sus hijas a un 3er nivel" };
   await env.DB.prepare("UPDATE tickets SET parent_id=?, updated_at=? WHERE id=?").bind(parent, Date.now(), child).run();
-  await addEvent(env, child, "log", "flota", "Colgada de la misión madre " + parent + ".").catch(() => {});
+  const rotulo = pRow.parent_id ? "misión " + parent + " (como submisión)" : "misión madre " + parent;
+  await addEvent(env, child, "log", "flota", "Colgada de la " + rotulo + ".").catch(() => {});
   return { ok: true, child, parent };
 }
 __name(fleetSetParent, "fleetSetParent");
@@ -2183,8 +2217,15 @@ var index_default = {
           : "pantallazo image requerido para cerrar: manda la URL http(s) de la captura o un data:image/…;base64" }, 400);
       }
       const image = normImage.value;
-      const t = await env.DB.prepare("SELECT id, assignee, status, source FROM tickets WHERE id=?").bind(mid).first();
+      const t = await env.DB.prepare("SELECT id, assignee, status, source, screen FROM tickets WHERE id=?").bind(mid).first();
       if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
+      // AUTO-CLAIM en el ORIGEN: que llegue un informe prueba que se está trabajando;
+      // una misión que seguía «open» (Pendiente rezagado) pasa YA a in_progress, aunque
+      // luego resuelva o quede en firma cruzada. Cura de raíz del dato, no del rastro.
+      if (t.source === "fleet" && t.status === "open") {
+        await env.DB.prepare("UPDATE tickets SET status='in_progress', updated_at=? WHERE id=? AND status='open'").bind(Date.now(), mid).run().catch(() => {});
+        t.status = "in_progress";
+      }
       // GUARDIA anti-firma-cruzada (Carlos, 2026-07-21): el informe lo firma quien
       // EJECUTA (owner: subX/infraX) y debe ser la MISMA persona que el assignee de
       // la misión. Se compara la persona BASE, quitando el prefijo sub/infra. Si no
@@ -2214,7 +2255,10 @@ var index_default = {
         // curso porque el ack era un segundo paso aparte. (Carlos, 2026-07-21)
         await env.DB.prepare("UPDATE tickets SET status='resolved', resolved_at=COALESCE(resolved_at,?), updated_at=? WHERE id=? AND status!='resolved'").bind(now, now, mid).run().catch(() => {});
         batch = await acceptBatchInformeClosure(env, t, mid, owner, report);
-        const numId = mid.replace(/^FLT-/, "");
+        // Nº de encargo REAL (fleet_ids → screen → FLT), no el pelado ingenuo: tras el
+        // reparto anticolisión FLT-1005 podía cerrar el encargo #1005 inexistente en vez
+        // del #991 del que nació, y el push «done» se perdía en silencio. (FLT-990 c)
+        const numId = await fleetEncargoId(env, mid, t.screen);
         if (/^\d+$/.test(numId) && env.TELEGRAM) {
           try {
             await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
@@ -2237,12 +2281,14 @@ var index_default = {
       const note = String(b.note || b.reason || "").slice(0, 300).trim();
       const by = String(b.by || "yokup").slice(0, 40);
       if (!mid) return json({ ok: false, error: "mission requerida" }, 400);
-      const t = await env.DB.prepare("SELECT id,status FROM tickets WHERE id=?").bind(mid).first();
+      const t = await env.DB.prepare("SELECT id,status,screen FROM tickets WHERE id=?").bind(mid).first();
       if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
       const now = Date.now();
       await env.DB.prepare("UPDATE tickets SET status='cancelled', note=?, updated_at=?, resolved_at=NULL WHERE id=?").bind(note || null, now, mid).run();
       await addEvent(env, mid, "log", by, "🚫 Cancelada" + (note ? ": " + note : "") + ".");
-      const numId = mid.replace(/^FLT-/, "");
+      // Nº de encargo REAL (fleet_ids → screen → FLT): sin esto una cancelación cancelaba
+      // el encargo equivocado tras el reparto anticolisión y la misión resucitaba. (FLT-990 c)
+      const numId = await fleetEncargoId(env, mid, t.screen);
       if (/^\d+$/.test(numId) && env.TELEGRAM) {
         try {
           await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
@@ -2276,8 +2322,15 @@ var index_default = {
         }
         img = norm.value;
       }
-      const tk = await env.DB.prepare("SELECT id,source,proof_image FROM tickets WHERE id=?").bind(mid).first();
+      const tk = await env.DB.prepare("SELECT id,source,proof_image,status FROM tickets WHERE id=?").bind(mid).first();
       if (!tk) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
+      // AUTO-CLAIM en el ORIGEN: marcar un paso ES trabajar. Una misión que seguía «open»
+      // (Pendiente rezagado) pasa YA a in_progress al primer task-status, sin esperar a
+      // que el reconciliador por árbol la promueva. Cura de raíz del dato. (FLT-990 b/c)
+      if (tk.source === "fleet" && tk.status === "open") {
+        await env.DB.prepare("UPDATE tickets SET status='in_progress', updated_at=? WHERE id=? AND status='open'").bind(Date.now(), mid).run().catch(() => {});
+        tk.status = "in_progress";
+      }
       // La misión puede no tener árbol todavía (los planes se generan al abrirla en el
       // navegador). Para que la evolución se vea DESDE EL PRIMER paso, se siembra aquí
       // el plan por defecto (sin IA, instantáneo). (951)
@@ -2632,7 +2685,9 @@ var index_default = {
           // la prueba de respaldo asciende por el punto único (arriba ya se exigió, con
           // hasMissionProof, que la haya). Si no, la ficha saldría con el logotipo.
           if (status === "resolved") await ascendMissionProof(env, id);
-          const iid = fleetInboxId(id);
+          // Nº de encargo REAL (fleet_ids → screen → FLT): el cambio en bloque tocaba
+          // el encargo equivocado tras el reparto anticolisión. (FLT-990 c)
+          const iid = await fleetEncargoId(env, id);
           if (iid) fleetInboxIds.push(iid);
           updated++;
         }
@@ -3133,9 +3188,10 @@ var index_default = {
         const fleetInboxIds = [];
         let deleted = 0;
         for (const id of ids) {
-          const t = await env.DB.prepare("SELECT id,source FROM tickets WHERE id=?").bind(id).first();
+          const t = await env.DB.prepare("SELECT id,source,screen FROM tickets WHERE id=?").bind(id).first();
           if (!t) continue;
-          const iid = fleetInboxId(id);
+          // Nº de encargo REAL (fleet_ids → screen → FLT) antes de borrar el ticket. (FLT-990 c)
+          const iid = await fleetEncargoId(env, id, t.screen);
           if (t.source === "fleet" && iid) fleetInboxIds.push(iid);
           await env.DB.prepare("DELETE FROM events WHERE ticket_id=?").bind(id).run();
           await env.DB.prepare("DELETE FROM mission_tasks WHERE mission_id=?").bind(id).run();
@@ -3159,7 +3215,7 @@ var index_default = {
       try {
         const b = await req.json();
         await ensureSchema(env);
-        const current = await env.DB.prepare("SELECT id,source,assignee,loc FROM tickets WHERE id=?").bind(b.id).first();
+        const current = await env.DB.prepare("SELECT id,source,assignee,loc,screen FROM tickets WHERE id=?").bind(b.id).first();
         if (b.status === "resolved" && current && current.source === "fleet" && !(await hasMissionProof(env, b.id))) {
           return json({ ok: false, error: "No se puede finalizar sin pantallazo del trabajo realizado", missing_proof: [b.id] }, 409);
         }

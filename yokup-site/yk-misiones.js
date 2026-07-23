@@ -814,6 +814,22 @@
     return window.fetch(CFG.worker + "/mission/" + encodeURIComponent(id) + "/plan", { method: "POST" }).catch(function () {});
   }
 
+  // Botón de alta anidada según el NIVEL de la misión (FLT-990 c). Nivel 0 (madre o
+  // plana) → «+ misión»; nivel 1 (hija, su padre es raíz) → «+ submisión»; nivel 2
+  // (submisión) o profundidad incierta → nada (evita ofrecer el 3er nivel que el
+  // worker rechazaría). El padre se resuelve por la caché ya cargada con la lista.
+  function addChildBtn(id, t) {
+    if (!/^FLT-\d+$/.test(id)) return "";
+    if (!t.parent_id) {
+      return '<button type="button" class="mdet-addchild" data-add-child="' + esc(id) + '" data-child-kind="mision" title="Crear una misión hija colgada de ésta (hereda máquina y agente)">+ misión</button>';
+    }
+    var padre = MIS_CACHE[t.parent_id];
+    // Solo es hija (nivel 1) si su padre existe en caché y NO tiene madre a su vez.
+    if (padre && !padre.parent_id) {
+      return '<button type="button" class="mdet-addchild" data-add-child="' + esc(id) + '" data-child-kind="submision" title="Crear una submisión colgada de esta misión (hereda máquina y agente)">+ submisión</button>';
+    }
+    return "";                                     // nivel 2 o incierto: sin 3er nivel
+  }
   // Ficha del cajón: cabecera con asunto, equipo/agente, estado, captura y hueco
   // para el informe (que llega asíncrono de /ticket). Todo con lo ya cargado.
   function detalleHtml(id) {
@@ -834,13 +850,12 @@
       imgHtml +
       '<div class="mdet-inf" data-inf>· cargando informe…</div>' +
       '<div class="mdet-actions">' +
-        // «+ misión»: cuelga una misión HIJA de ésta (hereda máquina y agente). Solo
-        // en misiones de FLOTA que NO son ya hijas — colgar bajo una hija sería el
-        // tercer nivel, que el modelo madre→hija (un solo nivel) no soporta. La
-        // acción la cablea la página (misiones.html) por delegación. (FLT-1005 b1)
-        (/^FLT-\d+$/.test(id) && !t.parent_id
-          ? '<button type="button" class="mdet-addchild" data-add-child="' + esc(id) + '" title="Crear una misión hija colgada de ésta (hereda máquina y agente)">+ misión</button>'
-          : "") +
+        // Alta anidada, modelo de DOS niveles madre → misión → submisión (FLT-990 c):
+        // una madre/plana cuelga «+ misión» (una hija); una hija cuelga «+ submisión»
+        // (una nieta); una submisión (nivel 2) ya no cuelga nada — sería 3er nivel. El
+        // nivel se deduce del padre en caché; si no se conoce con certeza, no se ofrece.
+        // La acción la cablea la página (misiones.html) por delegación. (FLT-1005 b1)
+        addChildBtn(id, t) +
         '<a class="mdet-open" href="/ticket?id=' + encodeURIComponent(id) + '">ficha completa e historial →</a>' +
       "</div>" +
       "</div>";
@@ -919,7 +934,7 @@
     setLiveSurfaces: function (m) { LIVE_SURFACES = m || null; },
     agentKey: agentKey, baseAgentKey: baseAgentKey, liveSurfaceOf: liveSurfaceOf,
     setProyectos: setProyectos, proyectoDe: proyectoDe, workUrlOf: workUrlOf,
-    renderTaskTree: renderTaskTree, refreshTree: refreshTree,
+    renderTaskTree: renderTaskTree, refreshTree: refreshTree, addChildBtn: addChildBtn,
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,
     tercios: tercios, progHtml: progHtml,
     nextStatus: nextStatus, postStatus: postStatus, postPlan: postPlan,
