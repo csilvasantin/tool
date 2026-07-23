@@ -125,7 +125,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 </div>
 <div id="lb"><img alt="Captura de prueba a tamaño completo"></div>
 <script>
-const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
+const WORKER="https://api.yokup.com";
 const $=id=>document.getElementById(id);
 const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
 function ago(ms){ if(!ms) return "—"; let s=Math.round((Date.now()-ms)/1000); if(s<60)return "hace "+s+"s"; if(s<3600)return "hace "+Math.round(s/60)+"m"; if(s<86400)return "hace "+Math.round(s/3600)+"h"; return "hace "+Math.round(s/86400)+"d"; }
@@ -244,6 +244,6 @@ setInterval(load,15000);
 </script>
 <script src="/informe-pdf.js?v=r1"></script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
-<script src="/yk-frame.js?v=r28"></script>
+<script src="/yk-frame.js?v=r29"></script>
 </body>
 </html>

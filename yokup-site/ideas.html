@@ -95,7 +95,13 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
+// Dominio propio api.yokup.com (23-jul-2026, DEC-mrxsvdx1glyx): cura el bloqueo
+// de *.workers.dev por ISPs españoles que silenciaba las ideas según la red.
+const WORKER="https://api.yokup.com";
+const WORKER_FB="https://yokup-rtc.csilvasantin.workers.dev";
+// fetch con red de seguridad: si el host nuevo falla, reintenta una vez contra
+// workers.dev. Solo en la carga de entrada de ideas.
+const wfetch=(p,o)=>fetch(WORKER+p,o).catch(()=>fetch(WORKER_FB+p,o));
 const TG="https://admira-telegram.csilvasantin.workers.dev";
 const $=s=>document.querySelector(s);
 const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
@@ -130,7 +136,7 @@ function render(){
 }
 
 async function load(){
-  try{ const r=await fetch(WORKER+"/ideas",{cache:"no-store"}); const d=await r.json(); IDEAS=d.ideas||[]; render(); }
+  try{ const r=await wfetch("/ideas",{cache:"no-store"}); const d=await r.json(); IDEAS=d.ideas||[]; render(); }
   catch(e){ toast("No pude cargar las ideas"); }
 }
 async function setStatus(id,status){
@@ -179,6 +185,6 @@ load();
 
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-avatar.js?v=r2"></script>
-<script src="/yk-frame.js?v=r28"></script>
+<script src="/yk-frame.js?v=r29"></script>
 </body>
 </html>

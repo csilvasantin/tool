@@ -109,7 +109,7 @@ document.getElementById("idF").textContent = id;
 document.getElementById("roomV").textContent = id;
 document.getElementById("liveBtn").href = "/asistencia?room=" + encodeURIComponent(id);
 // enriquecer con el estado real de la flota admira.tv si el id es una pantalla
-fetch("https://yokup-rtc.csilvasantin.workers.dev/incidents").then(r=>r.json()).then(d=>{
+fetch("https://api.yokup.com/incidents").then(r=>r.json()).then(d=>{
   const s=(d.screens||[]).find(x=>x.screen===id); if(!s) return;
   const st=document.getElementById("ivStatus");
   if(s.online){ st.textContent="● En emisión"; st.style.borderColor="rgba(136,255,170,.4)"; st.style.color="var(--good)"; st.style.background="rgba(136,255,170,.07)"; document.getElementById("ivTitle").textContent="Pantalla operativa"; }
@@ -117,6 +117,6 @@ fetch("https://yokup-rtc.csilvasantin.workers.dev/incidents").then(r=>r.json()).
   if(s.locName||s.loc) document.getElementById("ivLoc").textContent=(s.locName||s.loc)+" · admira.tv";
 }).catch(()=>{});
 </script>
-<script src="/yk-frame.js?v=r28"></script>
+<script src="/yk-frame.js?v=r29"></script>
 </body>
 </html>

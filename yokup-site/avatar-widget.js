@@ -5,7 +5,7 @@
 import { mount } from "https://digitalavatar.ai/embed.js";
 
 mount({
-  brainUrl: "https://yokup-rtc.csilvasantin.workers.dev/copilot",
+  brainUrl: "https://api.yokup.com/copilot",
   title: "Admira · copiloto",
   greeting: "Hola, soy Admira. Puedo contarte el estado de las incidencias o ayudarte a resolver una avería.",
   placeholder: "Escribe o pulsa el micro…",

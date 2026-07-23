@@ -217,7 +217,13 @@ document.getElementById("cre").innerHTML=CONSEJO.filter(c=>c.side==="cre").map(s
 //    cual, pero envuelto en un IIFE para no colisionar con el script del Consejo
 //    de arriba (ambos declararían `esc` en el ámbito global).
 (function(){
-const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
+// Dominio propio api.yokup.com (23-jul-2026, DEC-mrxsvdx1glyx): cura el bloqueo
+// de *.workers.dev por ISPs españoles que silenciaba las ideas según la red.
+const WORKER="https://api.yokup.com";
+const WORKER_FB="https://yokup-rtc.csilvasantin.workers.dev";
+// fetch con red de seguridad: si el host nuevo falla (red/DNS/bloqueo), reintenta
+// una vez contra workers.dev. Solo en las cargas de entrada (ideas + progreso).
+const wfetch=(p,o)=>fetch(WORKER+p,o).catch(()=>fetch(WORKER_FB+p,o));
 const TG="https://admira-telegram.csilvasantin.workers.dev";
 const $=s=>document.querySelector(s);
 const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
@@ -281,12 +287,12 @@ function paintSeats(){
   });
 }
 async function loadProg(){
-  try{ const r=await fetch(WORKER+"/objetivos/progreso",{cache:"no-store"}); PROG=await r.json(); paintSeats(); }
+  try{ const r=await wfetch("/objetivos/progreso",{cache:"no-store"}); PROG=await r.json(); paintSeats(); }
   catch(e){ /* silencioso: las sillas se quedan sin marcador */ }
 }
 
 async function load(){
-  try{ const r=await fetch(WORKER+"/ideas",{cache:"no-store"}); const d=await r.json(); IDEAS=d.ideas||[]; render(); loadProg(); }
+  try{ const r=await wfetch("/ideas",{cache:"no-store"}); const d=await r.json(); IDEAS=d.ideas||[]; render(); loadProg(); }
   catch(e){ toast("No pude cargar las ideas"); }
 }
 async function setSeat(id,seat){
@@ -345,6 +351,6 @@ load();
 
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-avatar.js?v=r2"></script>
-<script src="/yk-frame.js?v=r28"></script>
+<script src="/yk-frame.js?v=r29"></script>
 </body>
 </html>

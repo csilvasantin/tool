@@ -102,7 +102,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 
 <script src="/yk-misiones.js?v=r47"></script>
 <script>
-const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
+const WORKER="https://api.yokup.com";
 // Compat: llegadas antiguas con #misiones / #tareas abren su raíl (el nav ya no lo usa).
 try{ if(location.hash==="#misiones") localStorage.setItem("yk_frame_open_left","1");
      else if(location.hash==="#tareas") localStorage.setItem("yk_frame_open_right","1"); }catch(e){}
@@ -183,6 +183,6 @@ document.querySelectorAll(".kpi[data-f]").forEach(b=>b.onclick=()=>aplicaFiltro(
 load(); setInterval(load,12000);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
-<script src="/yk-frame.js?v=r28"></script>
+<script src="/yk-frame.js?v=r29"></script>
 </body>
 </html>

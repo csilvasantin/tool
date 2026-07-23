@@ -5,7 +5,10 @@ crawleando desde `/` y `/app` (curl -A Mozilla -L) y cerrando el grafo de
 href/src/import/fetch/url(). El fuente original se perdió (scratchpad borrado); este
 directorio es ahora la fuente de verdad local.
 
-Worker de datos (externo, NO en este repo): `https://yokup-rtc.csilvasantin.workers.dev`
+Worker de datos (fuente en `../yokup-rtc/`): dominio propio `https://api.yokup.com`
+(custom domain sobre la zona yokup.com, cura el bloqueo de `*.workers.dev` por ISPs
+españoles · DEC-mrxsvdx1glyx, 23-jul-2026). Host viejo `https://yokup-rtc.csilvasantin.workers.dev`
+sigue vivo como fallback.
 
 ## Archivos reales servidos (200, contenido propio) — 15
 

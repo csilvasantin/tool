@@ -9,7 +9,7 @@
  */
 (function () {
   var CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
-  var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
+  var WORKER = "https://api.yokup.com";
   var SKEY = "yk_session";
   var rawFetch = window.fetch.bind(window);
 

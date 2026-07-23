@@ -16,7 +16,7 @@
 (function () {
   "use strict";
 
-  var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
+  var WORKER = "https://api.yokup.com";
   var AVATARES = { neo: 1, morfeo: 1, smith: 1, trinity: 1, oraculo: 1 };
   var CUSTOM = { agents: {}, machines: {} };
 

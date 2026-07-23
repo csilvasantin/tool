@@ -52,7 +52,7 @@
   var CUSTOM = { agents: {}, machines: {}, board: {} };
   var customizeReady = (function () {
     try {
-      return window.fetch("https://yokup-rtc.csilvasantin.workers.dev/prefs/customize", { cache: "no-store" })
+      return window.fetch("https://api.yokup.com/prefs/customize", { cache: "no-store" })
         .then(function (r) { return r.json(); })
         .then(function (d) {
           var c = (d && d.customize) || {};

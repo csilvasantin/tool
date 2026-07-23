@@ -24,8 +24,25 @@
 (function () {
   "use strict";
 
-  var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.23.07.2026.r7";
+  // DOMINIO PROPIO (23-jul-2026, DEC-mrxsvdx1glyx): api.yokup.com sobre la zona
+  // yokup.com (ya en Cloudflare) cura el bloqueo de *.workers.dev por ISPs
+  // españoles (188.114.96.0/22), que silenciaba contadores e ideas según la red.
+  // WORKER_FALLBACK conserva el host viejo: si el nuevo falla en una red rara, se
+  // reintenta UNA vez contra workers.dev (ninguna red queda peor que antes).
+  var WORKER = "https://api.yokup.com";
+  var WORKER_FALLBACK = "https://yokup-rtc.csilvasantin.workers.dev";
+  var VERSION = "v.23.07.2026.r8";
+
+  // fetch con red de seguridad: intenta api.yokup.com y, si el fetch RECHAZA
+  // (fallo de red/DNS/bloqueo, no un 4xx/5xx que sí llega), reintenta una vez
+  // contra el host workers.dev. Solo se usa en los puntos de entrada críticos
+  // (contadores del menú); el resto llama a WORKER directo.
+  function ykFetch(path, opts) {
+    return window.fetch(WORKER + path, opts).catch(function () {
+      return window.fetch(WORKER_FALLBACK + path, opts);
+    });
+  }
+  window.ykFetch = ykFetch;   // disponible para las páginas (ideas/objetivos)
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
 
   // NAV DE PLATAFORMA — fuente ÚNICA del menú tras la DMZ (zona app). Las
@@ -146,7 +163,7 @@
   // contadores (degradación silenciosa: nada de toasts ni reintentos).
   function fetchCounters() {
     if (!document.querySelector("[data-yk-count],[data-yk-countdown]")) return;
-    window.fetch(WORKER + "/menu/contadores", { cache: "no-store" })
+    ykFetch("/menu/contadores", { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (d) { if (d && d.ok) { paintCounters(d); paintDecisiones(d); } })
       .catch(function () {});

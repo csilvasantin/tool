@@ -1220,7 +1220,7 @@
   // Doctrina de Carlos (14-07-2026): el trabajo vive en yokup. Cada encargo del
   // bot-inbox es allí una MISIÓN con su árbol de tareas abc/123 (3 pasos × 3
   // subtareas). status NO inventa misiones: las LEE y las pinta.
-  const MISSIONS_URL  = 'https://yokup-rtc.csilvasantin.workers.dev/fleet/missions';
+  const MISSIONS_URL  = 'https://api.yokup.com/fleet/missions';
   const YOKUP_MISION  = 'https://www.yokup.com/misiones';
   let FLEET_MISSIONS   = [];   // tal cual las publica yokup
   let MISSION_BY_PERSONA = {}; // norm(persona) → misión VIVA más reciente
@@ -5834,7 +5834,7 @@
     @media (max-width:1100px){ .yk-status-hud .ufo-count{ display:none; } }
     @media (max-width:820px){ .yk-status-hud .yk-clock{ display:none; } }
   </style>
-  <script src="/yk-frame.js?v=r28"></script>
+  <script src="/yk-frame.js?v=r29"></script>
   <script>
   (function(){
     function ready(fn){ if(document.readyState!=='loading') fn(); else document.addEventListener('DOMContentLoaded',fn); }

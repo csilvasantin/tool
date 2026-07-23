@@ -1,5 +1,5 @@
 // Service Worker de Yokup — push en segundo plano (app cerrada) para avisos de incidencias.
-const API = "https://yokup-rtc.csilvasantin.workers.dev";
+const API = "https://api.yokup.com";
 
 self.addEventListener("install", (e) => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));

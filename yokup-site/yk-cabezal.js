@@ -9,7 +9,7 @@
 
    USO:
      const cab = YkCabezal.mount(document.getElementById("cabezal"), {
-       worker:  "https://yokup-rtc.csilvasantin.workers.dev",
+       worker:  "https://api.yokup.com",
        title:   "Tareas",
        intro:   "<html de la explicación plegable>",   // opcional
        search:  true,                                   // muestra el buscador
