@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/acceso.js"></script>
+<title>Asignaciones · Yokup</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#02080d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
+<link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<link rel="stylesheet" href="/yk-frame.css?v=r16">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 24px 64px}
+.head{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:2px 0 5px}
+h1 b{color:var(--brand)}
+.sub{color:var(--mut);font-size:14px;max-width:70ch;line-height:1.55}
+.spacer{flex:1 1 auto}
+.conn{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;padding:7px 12px;border-radius:999px;border:1px solid var(--line);color:var(--mut);display:flex;align-items:center;gap:7px;white-space:nowrap}
+.conn i{width:7px;height:7px;border-radius:50%;background:var(--dim)}
+.conn.ok{color:var(--good);border-color:rgba(136,255,170,.36)} .conn.ok i{background:var(--good);box-shadow:0 0 8px var(--good)}
+.conn.bad{color:var(--warn);border-color:rgba(255,136,102,.4)} .conn.bad i{background:var(--warn)}
+
+.kpis{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0 8px}
+.kpi{border:1px solid var(--line);border-radius:11px;background:var(--card);padding:11px 16px;min-width:108px}
+.kpi b{font-size:22px;font-weight:700;display:block;line-height:1.1}
+.kpi span{font-family:var(--mono);font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim)}
+.kpi.tot b{color:var(--brand)} .kpi.asg b{color:var(--good)} .kpi.gap b{color:var(--warn)} .kpi.mem b{color:var(--accent)}
+
+.capa{margin:26px 0 12px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.capa h2{font-family:var(--mono);font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--brand)}
+.capa p{font-size:12.5px;color:var(--dim);flex:1;min-width:220px}
+
+/* miembros */
+.members{display:flex;flex-wrap:wrap;gap:9px}
+.mchip{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:11px;background:var(--card);padding:9px 13px;position:relative;overflow:hidden}
+.mchip::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--c,var(--brand))}
+.mchip .em{font-size:17px}
+.mchip .role{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--ink)}
+.mchip .who{font-size:11.5px;color:var(--mut)}
+.mchip .n{font-family:var(--mono);font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:1px 9px}
+.mchip .n.dup{color:var(--accent);border-color:rgba(255,216,102,.4)}
+
+/* máquinas */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:14px}
+.ag{border:1px solid var(--line);border-radius:15px;background:var(--card);padding:18px;position:relative;overflow:hidden;transition:.2s}
+.ag::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--c,var(--dim))}
+.ag:hover{border-color:var(--line2)}
+.top{display:flex;align-items:center;gap:13px;margin-bottom:15px}
+.av{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;font-size:22px;flex:0 0 auto;
+    border:1px solid color-mix(in srgb,var(--c,var(--brand)) 40%,transparent);background:color-mix(in srgb,var(--c,var(--brand)) 12%,transparent)}
+.who2{min-width:0;flex:1}
+.who2 b{font-size:16px;display:block;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plat{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin-top:3px}
+.mname{width:100%;background:transparent;border:none;color:var(--ink);font:inherit;font-size:16px;font-weight:700;letter-spacing:-.01em;outline:none;border-bottom:1px solid transparent;padding:1px 0}
+.mname:focus{border-bottom-color:var(--brand)}
+label.lbl{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim);display:block;margin-bottom:6px}
+select.pick{width:100%;font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 12px;outline:none;cursor:pointer}
+select.pick:focus{border-color:var(--brand)}
+.asgline{font-size:12px;color:var(--mut);margin-top:11px;min-height:16px}
+.asgline b{color:var(--ink)}
+.asgline.none{color:var(--dim);font-style:italic}
+.foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--dim);display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.foot .st{color:var(--mut)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>Asignaciones <b>· Consejo ↔ Equipos</b></h1>
+      <p class="sub">Cada equipo de la flota, asociado a un miembro del Consejo. Se guarda al instante y comparte datos con el panel de admira.live — cambiarlo aquí lo cambia allí.</p>
+    </div>
+    <span class="spacer"></span>
+    <span class="conn" id="conn"><i></i> cargando…</span>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi tot"><b id="k-tot">8</b><span>Equipos</span></div>
+    <div class="kpi asg"><b id="k-asg">0</b><span>Asignados</span></div>
+    <div class="kpi gap"><b id="k-gap">8</b><span>Sin asignar</span></div>
+    <div class="kpi mem"><b id="k-mem">8</b><span>Miembros</span></div>
+  </div>
+
+  <div class="capa"><h2>Consejo</h2><p>8 roles · color: <span style="color:var(--brand)">racional</span> / <span style="color:var(--accent)">creativo</span> · nº = equipos asignados</p></div>
+  <div class="members" id="members"></div>
+
+  <div class="capa"><h2>Equipos</h2><p>elige el miembro asignado — se guarda solo</p></div>
+  <div class="grid" id="machines"></div>
+
+  <div class="foot"><span class="st" id="status">—</span><span class="spacer" style="flex:1"></span><span id="lastup"></span></div>
+</div>
+
+<script>
+const WORKER="https://admira-asignaciones.csilvasantin.workers.dev";
+const $=(s)=>document.querySelector(s);
+
+// 8 miembros del Consejo (roles C-suite · array COUNCIL, gen "leyendas").
+const MEMBERS=[
+  {id:"CEO",persona:"Steve Jobs",     member:"Carlos",        side:"racional",icon:"🏛️"},
+  {id:"CTO",persona:"Steve Wozniak",  member:"Carlos Silva",  side:"racional",icon:"⚙️"},
+  {id:"COO",persona:"Tim Cook",       member:"Nines",         side:"racional",icon:"📋"},
+  {id:"CFO",persona:"Warren Buffett", member:"Braulio Blanco",side:"racional",icon:"💰"},
+  {id:"CCO",persona:"Walt Disney",    member:"Cesar",         side:"creativo",icon:"💡"},
+  {id:"CDO",persona:"Dieter Rams",    member:"Consejero",     side:"creativo",icon:"🎨"},
+  {id:"CXO",persona:"Howard Schultz", member:"Laboratorio",   side:"creativo",icon:"🧭"},
+  {id:"CSO",persona:"George Lucas",   member:"Carla Rosa",    side:"creativo",icon:"📖"},
+];
+const MEM=Object.fromEntries(MEMBERS.map(m=>[m.id,m]));
+const sideColor=(s)=>s==="racional"?"var(--brand)":"var(--accent)";
+
+const DEFAULT_MACHINES=[
+  {id:"macmini",          name:"Mac Mini",             emoji:"🖥️",platform:"macOS"},
+  {id:"macbookpro16",     name:"MacBook Pro 16",       emoji:"💻",platform:"macOS"},
+  {id:"macbookpronegro14",name:"MacBook Pro Negro 14", emoji:"💻",platform:"macOS"},
+  {id:"dgx-spark",        name:"DGX Spark",            emoji:"🧠",platform:"Linux"},
+  {id:"macbookairplata",  name:"MacBook Air Plata",    emoji:"💻",platform:"macOS"},
+  {id:"macbookairrosa",   name:"MacBook Air Rosa",     emoji:"💻",platform:"macOS"},
+  {id:"macbookaircrema",  name:"MacBook Air Crema",    emoji:"💻",platform:"macOS"},
+  {id:"macbookairazul",   name:"MacBook Air Azul",     emoji:"💻",platform:"macOS"},
+];
+
+let MACHINES=DEFAULT_MACHINES.map(m=>({...m}));
+let ASSIGN={}; let saveTimer=null, saving=false;
+
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function conn(state,text){const p=$("#conn");p.className="conn"+(state?(" "+state):"");p.innerHTML='<i></i> '+text;}
+function counts(){const c={};MEMBERS.forEach(m=>c[m.id]=0);Object.values(ASSIGN).forEach(v=>{if(c[v]!=null)c[v]++;});return c;}
+
+async function load(){
+  conn("","cargando…");
+  try{
+    const r=await fetch(WORKER+"/assignments",{signal:AbortSignal.timeout(15000)});
+    const d=await r.json();
+    ASSIGN=(d&&d.assignments)||{};
+    if(Array.isArray(d.machines)&&d.machines.length) MACHINES=d.machines.map(m=>({...m}));
+    conn("ok","en vivo");
+    if(d.updatedAt) $("#lastup").textContent="últ. cambio: "+new Date(d.updatedAt).toLocaleString("es-ES")+(d.updatedBy?(" · "+d.updatedBy):"");
+    render();
+  }catch(e){ conn("bad",(e.message||"sin conexión")); render(); }
+}
+async function save(){
+  if(saving){ scheduleSave(); return; }
+  saving=true; $("#status").textContent="guardando…";
+  try{
+    const r=await fetch(WORKER+"/assignments",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({assignments:ASSIGN,machines:MACHINES,updatedBy:"yokup"}),signal:AbortSignal.timeout(15000)});
+    const d=await r.json(); if(!d.ok) throw new Error(d.error||"error");
+    conn("ok","en vivo"); $("#status").textContent="✓ guardado "+new Date().toLocaleTimeString("es-ES");
+    if(d.updatedAt) $("#lastup").textContent="últ. cambio: "+new Date(d.updatedAt).toLocaleString("es-ES")+" · yokup";
+  }catch(e){ conn("bad","error"); $("#status").textContent="⚠ "+(e.message||"error al guardar"); }
+  saving=false;
+}
+function scheduleSave(){ $("#status").textContent="guardando…"; clearTimeout(saveTimer); saveTimer=setTimeout(save,450); }
+
+function renderKpis(){
+  const asg=MACHINES.filter(m=>ASSIGN[m.id]).length;
+  $("#k-tot").textContent=MACHINES.length; $("#k-asg").textContent=asg;
+  $("#k-gap").textContent=MACHINES.length-asg; $("#k-mem").textContent=MEMBERS.length;
+}
+function renderMembers(){
+  const c=counts(); const el=$("#members"); el.innerHTML="";
+  MEMBERS.forEach(m=>{
+    const n=c[m.id]||0;
+    const chip=document.createElement("div"); chip.className="mchip"; chip.style.setProperty("--c",sideColor(m.side));
+    chip.innerHTML=`<span class="em">${m.icon}</span><div><div class="role">${esc(m.id)}</div><div class="who">${esc(m.member)} · ${esc(m.persona)}</div></div><span class="n ${n>1?'dup':''}">${n}</span>`;
+    el.appendChild(chip);
+  });
+}
+function renderMachines(){
+  const el=$("#machines"); el.innerHTML="";
+  MACHINES.forEach(mac=>{
+    const cur=ASSIGN[mac.id]||""; const m=MEM[cur];
+    const card=document.createElement("div"); card.className="ag"; card.style.setProperty("--c", m?sideColor(m.side):"var(--dim)");
+    const opts=`<option value="">— sin asignar —</option>`+MEMBERS.map(x=>`<option value="${x.id}" ${x.id===cur?"selected":""}>${x.icon} ${x.id} · ${esc(x.member)}</option>`).join("");
+    card.innerHTML=`
+      <div class="top">
+        <div class="av">${mac.emoji||"💻"}</div>
+        <div class="who2"><input class="mname" value="${esc(mac.name)}" data-id="${esc(mac.id)}" title="nombre del equipo (editable)"><div class="plat">${esc(mac.platform||"")}</div></div>
+      </div>
+      <label class="lbl">Miembro asignado</label>
+      <select class="pick" data-id="${esc(mac.id)}">${opts}</select>
+      <div class="asgline ${m?'':'none'}">${m?`Responsable: <b>${esc(m.member)}</b> · ${m.icon} ${esc(m.id)} (${esc(m.persona)})`:"Sin asignar"}</div>`;
+    card.querySelector("select").onchange=(e)=>{ const id=e.target.dataset.id,v=e.target.value; if(v)ASSIGN[id]=v; else delete ASSIGN[id]; render(); scheduleSave(); };
+    card.querySelector(".mname").onchange=(e)=>{ const id=e.target.dataset.id,mm=MACHINES.find(x=>x.id===id); if(mm)mm.name=e.target.value.trim()||mm.name; scheduleSave(); };
+    el.appendChild(card);
+  });
+}
+function render(){ renderKpis(); renderMembers(); renderMachines(); }
+load();
+</script>
+</body>
+</html>
