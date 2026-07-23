@@ -32,6 +32,17 @@ main = "src/index.js"
 compatibility_date = "2026-01-01"
 compatibility_flags = ["nodejs_compat"]  # @cloudflare/puppeteer usa node:buffer (Browser Rendering)
 
+# ── DOMINIO PROPIO api.yokup.com (23-jul-2026, DEC-mrxsvdx1glyx) ─────────────
+# El subdominio *.workers.dev está BLOQUEADO por algunos ISP españoles
+# (rango 188.114.96.0/22): silenciaba contadores e ideas según la red. El front
+# de www.yokup.com y la tarjeta Ideas de admira.live/control llaman ahora a
+# api.yokup.com, un custom domain sobre la MISMA zona yokup.com (ya en Cloudflare,
+# misma cuenta). Cloudflare crea el registro DNS y el certificado solos. El
+# host viejo *.workers.dev sigue vivo como fallback. CORS del worker: * (intacto).
+[[routes]]
+pattern = "api.yokup.com"
+custom_domain = true
+
 [observability]
 enabled = true
 
