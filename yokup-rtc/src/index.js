@@ -231,6 +231,20 @@ async function ensureSchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_ids (inbox_id INTEGER PRIMARY KEY, mission_id TEXT UNIQUE, created_at INTEGER)").catch(() => {});
 }
 
+// ── IDEAS / OBJETIVOS ─────────────────────────────────────────────────────────
+// Las 8 sillas del Consejo AdmiraNeXT (== array CONSEJO de yokup-site/objetivos.html):
+// CEO·CTO·COO·CFO (racional) / CCO·CDO·CXO·CSO (creativo). Una idea puede colgar de
+// una silla (`seat`, opcional) para que su progreso se pinte en /objetivos.
+const IDEA_SEATS = /* @__PURE__ */ new Set(["ceo", "cto", "coo", "cfo", "cco", "cdo", "cxo", "cso"]);
+// Asegura la tabla `ideas` y su columna `seat` (migración ADITIVA e idempotente:
+// las ideas viejas quedan con seat NULL y no se rompe nada). Se llama en cada ruta
+// /ideas* porque estas rutas NO pasan por ensureSchema (escritura sin login).
+async function ensureIdeasSchema(env) {
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS ideas (id TEXT PRIMARY KEY, title TEXT, body TEXT, author TEXT, tag TEXT, status TEXT, created_at INTEGER, updated_at INTEGER, mission_id TEXT)");
+  await env.DB.exec("ALTER TABLE ideas ADD COLUMN seat TEXT").catch(() => {});
+}
+__name(ensureIdeasSchema, "ensureIdeasSchema");
+
 // ── PROYECTOS ───────────────────────────────────────────────────────────────
 // Slug estable a partir del nombre. «Admira Live» → «admira-live».
 function projectSlug(s) {
@@ -2352,9 +2366,9 @@ var index_default = {
     if (url.pathname === "/ideas" && (req.method === "GET" || req.method === "POST")) {
       const IDEA_STATUS = /* @__PURE__ */ new Set(["nueva", "estudio", "hecha", "mision", "descartada"]);
       try {
-        await env.DB.prepare("CREATE TABLE IF NOT EXISTS ideas (id TEXT PRIMARY KEY, title TEXT, body TEXT, author TEXT, tag TEXT, status TEXT, created_at INTEGER, updated_at INTEGER, mission_id TEXT)").run();
+        await ensureIdeasSchema(env);
         if (req.method === "GET") {
-          const r = await env.DB.prepare("SELECT id,title,body,author,tag,status,created_at,updated_at,mission_id FROM ideas ORDER BY created_at DESC").all();
+          const r = await env.DB.prepare("SELECT id,title,body,author,tag,status,created_at,updated_at,mission_id,seat FROM ideas ORDER BY created_at DESC").all();
           return json({ ideas: r.results || [] });
         }
         const b = await req.json();
@@ -2363,11 +2377,76 @@ var index_default = {
         const body = String(b.body || "").trim().slice(0, 4000);
         const author = String(b.author || "").trim().slice(0, 60);
         const tag = String(b.tag || "").trim().slice(0, 40);
+        // Silla del Consejo (opcional). Un valor fuera de las 8 se ignora → seat "".
+        const seatIn = String(b.seat || "").trim().toLowerCase();
+        const seat = IDEA_SEATS.has(seatIn) ? seatIn : "";
         const now = Date.now();
         const id = "IDEA-" + (crypto.randomUUID().replace(/-/g, "").slice(0, 8));
-        await env.DB.prepare("INSERT INTO ideas (id,title,body,author,tag,status,created_at,updated_at,mission_id) VALUES (?,?,?,?,?,?,?,?,?)")
-          .bind(id, title, body, author, tag, "nueva", now, now, "").run();
-        return json({ ok: true, idea: { id, title, body, author, tag, status: "nueva", created_at: now, updated_at: now, mission_id: "" } });
+        await env.DB.prepare("INSERT INTO ideas (id,title,body,author,tag,status,created_at,updated_at,mission_id,seat) VALUES (?,?,?,?,?,?,?,?,?,?)")
+          .bind(id, title, body, author, tag, "nueva", now, now, "", seat).run();
+        return json({ ok: true, idea: { id, title, body, author, tag, status: "nueva", created_at: now, updated_at: now, mission_id: "", seat } });
+      } catch (e) { return json({ error: String(e) }, 500); }
+    }
+    // (Re)asigna la silla del Consejo a una idea. seat "" (o inválido) la desasigna.
+    if (url.pathname === "/ideas/seat" && req.method === "POST") {
+      try {
+        await ensureIdeasSchema(env);
+        const b = await req.json();
+        const id = String(b.id || "").trim();
+        if (!id) return json({ ok: false, error: "id requerido" }, 400);
+        const seatIn = String(b.seat || "").trim().toLowerCase();
+        const seat = IDEA_SEATS.has(seatIn) ? seatIn : "";
+        const r = await env.DB.prepare("UPDATE ideas SET seat=?, updated_at=? WHERE id=?").bind(seat, Date.now(), id).run();
+        if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: "not_found" }, 404);
+        return json({ ok: true, id, seat });
+      } catch (e) { return json({ error: String(e) }, 500); }
+    }
+    // Progreso por silla: para cada una de las 8, sus ideas y —para las promovidas
+    // (mission_id no vacío)— el progreso REAL de la misión leyendo tickets +
+    // mission_tasks. Null-safe con las ideas viejas sin seat (caen en "" → sin silla).
+    if (url.pathname === "/objetivos/progreso" && req.method === "GET") {
+      try {
+        await ensureIdeasSchema(env);
+        const rows = (await env.DB.prepare("SELECT id,title,status,mission_id,seat FROM ideas ORDER BY created_at DESC").all()).results || [];
+        // Cache de progreso por misión para no repetir consultas si dos ideas
+        // apuntaran a la misma misión.
+        const misCache = new Map();
+        async function missionProgress(mid) {
+          if (!mid) return { tasks_total: 0, tasks_done: 0, mission_status: null };
+          if (misCache.has(mid)) return misCache.get(mid);
+          let tasks_total = 0, tasks_done = 0, mission_status = null;
+          try {
+            const t = await env.DB.prepare("SELECT COUNT(*) total, SUM(CASE WHEN status='done' THEN 1 ELSE 0 END) done FROM mission_tasks WHERE mission_id=?").bind(mid).first();
+            tasks_total = (t && t.total) || 0;
+            tasks_done = (t && t.done) || 0;
+          } catch (e) {}
+          try {
+            const tk = await env.DB.prepare("SELECT status FROM tickets WHERE id=?").bind(mid).first();
+            mission_status = tk ? (tk.status || null) : null;
+          } catch (e) {}
+          const out = { tasks_total, tasks_done, mission_status };
+          misCache.set(mid, out);
+          return out;
+        }
+        const bySeat = new Map();
+        for (const s of IDEA_SEATS) bySeat.set(s, []);
+        const unseated = [];
+        for (const it of rows) {
+          const seat = IDEA_SEATS.has(String(it.seat || "").toLowerCase()) ? String(it.seat).toLowerCase() : "";
+          const mid = String(it.mission_id || "");
+          const prog = mid ? await missionProgress(mid) : { tasks_total: 0, tasks_done: 0, mission_status: null };
+          const entry = { id: it.id, title: it.title, status: it.status, mission_id: mid,
+            tasks_total: prog.tasks_total, tasks_done: prog.tasks_done, mission_status: prog.mission_status };
+          (seat ? bySeat.get(seat) : unseated).push(entry);
+        }
+        const seats = [...IDEA_SEATS].map((seat) => {
+          const ideas = bySeat.get(seat) || [];
+          const missions = ideas.filter((x) => x.mission_id).length;
+          const tasks_total = ideas.reduce((a, x) => a + (x.tasks_total || 0), 0);
+          const tasks_done = ideas.reduce((a, x) => a + (x.tasks_done || 0), 0);
+          return { seat, ideas, ideas_count: ideas.length, missions, tasks_total, tasks_done };
+        });
+        return json({ ok: true, seats, unseated, unseated_count: unseated.length });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     if (url.pathname === "/ideas/status" && req.method === "POST") {
