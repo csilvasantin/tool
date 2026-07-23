@@ -205,7 +205,19 @@
   function canonMachine(raw) {
     var n = String(raw || "").toLowerCase().replace(/[\s·._-]+/g, "");
     n = MAQ_ALIAS[n] || n;
-    return MAQ_NOMBRE[n] || raw;
+    if (MAQ_NOMBRE[n]) return MAQ_NOMBRE[n];
+    // El router de encargos (admira-telegram) antepone «admira-» al ComputerName
+    // real: la misión viaja con `admira-macmini` mientras la presencia y los
+    // navegadores laten con el nombre pelado `MacMini`. Sin normalizar el prefijo
+    // el canon no cuadraba y una misión en una máquina VIVA salía como «⚠ apagada»
+    // (FLT-1005). Se normaliza GENÉRICO: quitando «admira» aparece el ComputerName
+    // conocido → ese es el canónico (así vale para admira-macbookpro14, etc. sin
+    // tabla a dedo). (Carlos, 2026-07-23)
+    if (n.length > 6 && n.slice(0, 6) === "admira") {
+      var bare = MAQ_ALIAS[n.slice(6)] || n.slice(6);
+      if (MAQ_NOMBRE[bare]) return MAQ_NOMBRE[bare];
+    }
+    return raw;
   }
 
   // Máquina donde corre/se solventa la misión: loc (target_machine del encargo)
@@ -681,7 +693,16 @@
         '<span class="mdet-k">👷 ' + esc(agentes) + "</span></div>" +
       (img ? '<img class="mdet-img" loading="lazy" onerror="this.remove()" src="' + esc(img) + '" alt="prueba del trabajo">' : "") +
       '<div class="mdet-inf" data-inf>· cargando informe…</div>' +
-      '<a class="mdet-open" href="/ticket?id=' + encodeURIComponent(id) + '">ficha completa e historial →</a>' +
+      '<div class="mdet-actions">' +
+        // «+ misión»: cuelga una misión HIJA de ésta (hereda máquina y agente). Solo
+        // en misiones de FLOTA que NO son ya hijas — colgar bajo una hija sería el
+        // tercer nivel, que el modelo madre→hija (un solo nivel) no soporta. La
+        // acción la cablea la página (misiones.html) por delegación. (FLT-1005 b1)
+        (/^FLT-\d+$/.test(id) && !t.parent_id
+          ? '<button type="button" class="mdet-addchild" data-add-child="' + esc(id) + '" title="Crear una misión hija colgada de ésta (hereda máquina y agente)">+ misión</button>'
+          : "") +
+        '<a class="mdet-open" href="/ticket?id=' + encodeURIComponent(id) + '">ficha completa e historial →</a>' +
+      "</div>" +
       "</div>";
   }
   // Informe: último evento con texto de /ticket (endpoint con sesión). Falla en
@@ -753,6 +774,7 @@
   window.YkMisiones = {
     init: init, selected: selected, selectMission: selectMission,
     rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine, estadoDe: estadoDe,
+    machOffOf: machOffOf,
     setLiveMachines: function (set) { LIVE_MACHINES = set || null; },
     setProyectos: setProyectos, proyectoDe: proyectoDe,
     renderTaskTree: renderTaskTree, refreshTree: refreshTree,

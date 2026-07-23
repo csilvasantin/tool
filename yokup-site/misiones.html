@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r17">
-<link rel="stylesheet" href="/yk-misiones.css?v=r35">
+<link rel="stylesheet" href="/yk-misiones.css?v=r36">
 <link rel="stylesheet" href="/yk-cabezal.css?v=r2">
 <style>
 /* Segmentación dentro del raíl de opciones: apilada y a lo ancho del panel. */
@@ -238,7 +238,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
     <button id="bulkApply">Aplicar</button>
     <button id="bulkClear">Quitar selección</button>
   </div>
-  <div class="foot">Yokup · misiones · plan <b>a·b·c × 1·2·3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.16.r6</b></div>
+  <div class="foot">Yokup · misiones · plan <b>a·b·c × 1·2·3</b> · persistencia <b>D1</b> · planes por <b>Workers AI</b> · alta <b>v.26.07.23.r1</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
   <div class="yk-expert-btns" data-yk-slot="bottom">
@@ -250,7 +250,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 
 <script src="/yk-agent-identity.js?v=1"></script>
 <script src="/yk-maquina.js?v=r1"></script>
-<script src="/yk-misiones.js?v=r49"></script>
+<script src="/yk-misiones.js?v=r50"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r2"></script>
 <script src="/yk-decisions.js?v=20260723a"></script>
@@ -1035,6 +1035,51 @@ $("list").addEventListener("click",ev=>{
   if(kids) kids.classList.toggle("plegado",abierta);
   bar.setAttribute("aria-expanded",abierta?"false":"true");
 },true);
+
+// ---- «+ misión»: colgar una misión HIJA desde la ficha (FLT-1005 b1) --------
+// El botón vive en la ficha del cajón (#taskTree, lo pinta yk-misiones.detalleHtml
+// para misiones de flota que NO son ya hijas). Alta por el MISMO canal que el
+// resto (bot-inbox → fleet/sync), heredando persona+máquina de la madre; luego se
+// cuelga con /fleet/parent. El modelo es de UN nivel madre→hija, así que no hay
+// «+ submisión» (tercer nivel) — necesitaría cambio de worker y de render.
+$("taskTree").addEventListener("click", async ev=>{
+  const b=ev.target.closest(".mdet-addchild"); if(!b) return;
+  ev.stopPropagation(); ev.preventDefault();
+  const madre=b.dataset.addChild; if(!/^FLT-\d+$/.test(madre)) return;
+  const info=ROWS_BY_ID[madre]||{};
+  const titulo=(prompt("Título corto de la nueva misión (colgará de "+madre+", en "+(info.maq||"su máquina")+" con "+(info.agente||"su agente")+"):")||"").trim();
+  if(!titulo) return;
+  const old=b.textContent; b.disabled=true; b.textContent="creando…";
+  try{
+    // 1) alta como ENCARGO, heredando persona+máquina de la madre (mismo canal que «formalizar»)
+    const r=await fetch(TG+"/api/bot-inbox",{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({target_persona:info.agente||"",target_machine:info.rawmaq||"",text:titulo,from:"yokup-hija"})});
+    const d=await r.json(); if(!d.ok) throw new Error(d.error||"error "+r.status);
+    // 2) materializar el encargo como misión de flota (FLT-)
+    await fetch(WORKER+"/fleet/sync",{method:"POST"}).catch(()=>{});
+    // 3) localizar el FLT recién creado: su screen lleva embebido el nº de encargo (#<id>);
+    //    el id de misión NO es FLT-<nº> (hay remapeo anticolisión), así que se busca por screen.
+    let hija="";
+    try{
+      const tk=await ykf("/tickets?scope=fleet",{cache:"no-store"}).then(x=>x.json());
+      const re=new RegExp("#"+d.id+"$");
+      const hit=(tk.tickets||[]).find(t=>re.test(String(t.screen||"")));
+      if(hit) hija=hit.id;
+    }catch(_){}
+    // 4) colgarla de la madre (si no se pudo resolver el id, queda como misión suelta: honesto, no rota)
+    if(hija){
+      const pr=await fetch(WORKER+"/fleet/parent",{method:"POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify({child:hija,parent:madre})}).then(x=>x.json()).catch(()=>({}));
+      if(pr&&pr.ok) OPEN_GRP.add(madre);   // abrir el cajón de hijas para que se vea replegada bajo su madre
+    }
+    b.textContent="✓ "+(hija||"creada");
+    if(typeof toast==="function") toast(hija?("✓ "+hija+" colgada de "+madre):"✓ misión creada",true);
+    setTimeout(()=>load(),700);            // recarga: la hija aparece replegada bajo su madre con sus contadores
+  }catch(err){
+    b.disabled=false; b.textContent=old;
+    if(typeof toast==="function") toast("✗ no se pudo crear: "+((err&&err.message)||err),false,true);
+  }
+});
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-frame.js?v=r31"></script>

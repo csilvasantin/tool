@@ -235,6 +235,13 @@
   background:rgba(120,243,255,.05);border-left:2px solid var(--brand,#78f3ff);
   padding:7px 9px;max-height:150px;overflow:auto;white-space:pre-wrap;word-break:break-word}
 .mdet-inf .dim{color:var(--mut)}
+.mdet-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
 .mdet-open{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--brand,#78f3ff);text-decoration:none;align-self:flex-start}
 .mdet-open:hover{text-decoration:underline}
+/* «+ misión»: sobrio, misma escala mono que el enlace de la ficha (FLT-1005 b1). */
+.mdet-addchild{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--mut,#75aab9);background:transparent;border:1px dashed var(--line2,rgba(120,243,255,.30));
+  border-radius:7px;padding:4px 9px;cursor:pointer;transition:.15s}
+.mdet-addchild:hover{color:var(--brand,#78f3ff);border-color:var(--brand,#78f3ff)}
+.mdet-addchild:disabled{opacity:.6;cursor:default}
