@@ -36,15 +36,29 @@ h1 b{color:var(--brand)}
 .capa h2{font-family:var(--mono);font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--brand)}
 .capa p{font-size:12.5px;color:var(--dim);flex:1;min-width:220px}
 
-/* miembros */
-.members{display:flex;flex-wrap:wrap;gap:9px}
-.mchip{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:11px;background:var(--card);padding:9px 13px;position:relative;overflow:hidden}
+/* miembros del Consejo — ficha editable (nombre + alias + 3 rasgos) */
+.members{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:11px}
+.mchip{border:1px solid var(--line);border-radius:13px;background:var(--card);padding:12px 14px;position:relative;overflow:hidden}
 .mchip::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--c,var(--brand))}
-.mchip .em{font-size:17px}
+.mchip .mtop{display:flex;align-items:center;gap:10px}
+.mchip .em{font-size:18px;flex:0 0 auto}
 .mchip .role{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--ink)}
-.mchip .who{font-size:11.5px;color:var(--mut)}
-.mchip .n{font-family:var(--mono);font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:1px 9px}
-.mchip .n.dup{color:var(--accent);border-color:rgba(255,216,102,.4)}
+.mchip .n{font-family:var(--mono);font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:1px 9px;margin-left:auto}
+.mchip .n.dup{color:var(--accent);border-color:rgba(255,216,102,.4)} .mchip .n.zero{opacity:.5}
+.mchip .mcol{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.mi{background:transparent;border:none;border-bottom:1px solid transparent;color:var(--ink);font:inherit;font-size:13px;outline:none;padding:2px 0;width:100%}
+.mi::placeholder{color:var(--dim);opacity:.7}
+.mi:hover{border-bottom-color:var(--line)}
+.mi:focus{border-bottom-color:var(--brand)}
+.mi.alias{color:var(--mut);font-size:12px}
+.traits{display:flex;flex-direction:column;gap:4px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+.traits .tlbl{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.trow{display:flex;align-items:center;gap:7px}
+.trow .dot{width:5px;height:5px;border-radius:50%;background:var(--c,var(--brand));flex:0 0 auto;opacity:.8}
+.ti{background:transparent;border:none;border-bottom:1px solid transparent;color:var(--mut);font:inherit;font-size:12px;outline:none;padding:1px 0;width:100%}
+.ti::placeholder{color:var(--dim);opacity:.6}
+.ti:hover{border-bottom-color:var(--line)}
+.ti:focus{border-bottom-color:var(--brand);color:var(--ink)}
 
 /* máquinas */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:14px}
@@ -87,13 +101,13 @@ select.pick:focus{border-color:var(--brand)}
     <div class="kpi mem"><b id="k-mem">8</b><span>Miembros</span></div>
   </div>
 
-  <div class="capa"><h2>Consejo</h2><p>8 roles · color: <span style="color:var(--brand)">racional</span> / <span style="color:var(--accent)">creativo</span> · nº = equipos asignados</p></div>
+  <div class="capa"><h2>Consejo</h2><p>8 roles · nombre y alias editables · 3 rasgos por rol · color: <span style="color:var(--brand)">racional</span> / <span style="color:var(--accent)">creativo</span> · nº = equipos asignados</p></div>
   <div class="members" id="members"></div>
 
-  <div class="capa"><h2>Equipos</h2><p>elige el miembro asignado — se guarda solo</p></div>
+  <div class="capa"><h2>Equipos</h2><p>elige el miembro asignado — por nombre o por alias · se guarda solo</p></div>
   <div class="grid" id="machines"></div>
 
-  <div class="foot"><span class="st" id="status">—</span><span class="spacer" style="flex:1"></span><span id="lastup"></span></div>
+  <div class="foot"><span class="st" id="status">—</span><span class="spacer" style="flex:1"></span><span id="sello">v.23.07.2026.asig-r1</span><span id="lastup"></span></div>
 </div>
 
 <script>
@@ -101,18 +115,49 @@ const WORKER="https://admira-asignaciones.csilvasantin.workers.dev";
 const $=(s)=>document.querySelector(s);
 
 // 8 miembros del Consejo (roles C-suite · array COUNCIL, gen "leyendas").
-const MEMBERS=[
-  {id:"CEO",persona:"Steve Jobs",     member:"Carlos",        side:"racional",icon:"🏛️"},
-  {id:"CTO",persona:"Steve Wozniak",  member:"Carlos Silva",  side:"racional",icon:"⚙️"},
-  {id:"COO",persona:"Tim Cook",       member:"Nines",         side:"racional",icon:"📋"},
-  {id:"CFO",persona:"Warren Buffett", member:"Braulio Blanco",side:"racional",icon:"💰"},
-  {id:"CCO",persona:"Walt Disney",    member:"Cesar",         side:"creativo",icon:"💡"},
-  {id:"CDO",persona:"Dieter Rams",    member:"Consejero",     side:"creativo",icon:"🎨"},
-  {id:"CXO",persona:"Howard Schultz", member:"Laboratorio",   side:"creativo",icon:"🧭"},
-  {id:"CSO",persona:"George Lucas",   member:"Carla Rosa",    side:"creativo",icon:"📖"},
+// traits = 3 rasgos principales del rol (singular · menos es más). Editables.
+let MEMBERS=[
+  {id:"CEO",persona:"Steve Jobs",     member:"Carlos",        side:"racional",icon:"🏛️",traits:["visión","prioridades","última palabra"]},
+  {id:"CTO",persona:"Steve Wozniak",  member:"Carlos Silva",  side:"racional",icon:"⚙️",traits:["arquitectura","técnica","deuda a raya"]},
+  {id:"COO",persona:"Tim Cook",       member:"Nines",         side:"racional",icon:"📋",traits:["operación","procesos","fiabilidad"]},
+  {id:"CFO",persona:"Warren Buffett", member:"Braulio Blanco",side:"racional",icon:"💰",traits:["caja","métricas","coste/beneficio"]},
+  {id:"CCO",persona:"Walt Disney",    member:"Cesar",         side:"creativo",icon:"💡",traits:["marca","historia","público"]},
+  {id:"CDO",persona:"Dieter Rams",    member:"Consejero",     side:"creativo",icon:"🎨",traits:["diseño","claridad","menos es más"]},
+  {id:"CXO",persona:"Howard Schultz", member:"Laboratorio",   side:"creativo",icon:"🧭",traits:["experiencia","fricción cero","detalle"]},
+  {id:"CSO",persona:"George Lucas",   member:"Carla Rosa",    side:"creativo",icon:"📖",traits:["relato","contenido","voz"]},
 ];
-const MEM=Object.fromEntries(MEMBERS.map(m=>[m.id,m]));
+const memById=(id)=>MEMBERS.find(m=>m.id===id)||null;
 const sideColor=(s)=>s==="racional"?"var(--brand)":"var(--accent)";
+
+// Una asignación puede ser al NOMBRE o al ALIAS del miembro: se codifica "CEO#member"
+// o "CEO#persona". Compatibilidad: un valor pelado "CEO" = al nombre.
+function parseA(v){ if(!v||typeof v!=="string") return null; const i=v.indexOf("#");
+  const id=i<0?v:v.slice(0,i), face=(i<0?"member":v.slice(i+1)); return {id, face:face==="persona"?"persona":"member"}; }
+const faceLabel=(m,face)=>face==="persona"?m.persona:m.member;
+const faceOther=(m,face)=>face==="persona"?m.member:m.persona;
+
+// Persistencia de nombre/alias/rasgos por miembro en el MISMO worker compartido.
+// El worker descarta toda clave de `assignments` con prefijo reservado "__" (comprobado:
+// __members__ y __mem__:… se pierden; una clave sin ese prefijo sí persiste). Por eso
+// se guarda una clave string por miembro, "mem.CEO" -> JSON {member,persona,traits}.
+// admira.live ignora estas claves sin romperse (su counts() hace parseA y las descarta
+// por id no válido) y las reenvía intactas al guardar.
+const MEMKEY=(id)=>"mem."+id;
+const isMemKey=(k)=>typeof k==="string"&&(k.indexOf("mem.")===0||k.indexOf("__")===0);
+function saveMemberOverrides(){
+  MEMBERS.forEach(m=>{ ASSIGN[MEMKEY(m.id)]=JSON.stringify({member:m.member,persona:m.persona,traits:m.traits}); });
+}
+function applyMemberOverrides(){
+  // 1) legacy: objeto __members__ de admira.live (si algún día persistiera).
+  const legacy=ASSIGN&&ASSIGN.__members__;
+  if(legacy&&typeof legacy==="object"){ MEMBERS.forEach(m=>{ const o=legacy[m.id]; if(o){ if(o.member)m.member=o.member; if(o.persona)m.persona=o.persona; if(Array.isArray(o.traits))m.traits=o.traits.slice(0,3); } }); }
+  // 2) claves string "__mem__:<ID>" (las que el worker sí guarda) — tienen prioridad.
+  MEMBERS.forEach(m=>{ const raw=ASSIGN[MEMKEY(m.id)]; if(typeof raw==="string"){ try{ const o=JSON.parse(raw);
+    if(o&&o.member)m.member=o.member; if(o&&o.persona)m.persona=o.persona; if(o&&Array.isArray(o.traits))m.traits=o.traits.slice(0,3);
+  }catch(e){} } });
+  // normaliza siempre a 3 rasgos
+  MEMBERS.forEach(m=>{ while(m.traits.length<3)m.traits.push(""); m.traits=m.traits.slice(0,3); });
+}
 
 const DEFAULT_MACHINES=[
   {id:"macmini",          name:"Mac Mini",             emoji:"🖥️",platform:"macOS"},
@@ -130,7 +175,8 @@ let ASSIGN={}; let saveTimer=null, saving=false;
 
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function conn(state,text){const p=$("#conn");p.className="conn"+(state?(" "+state):"");p.innerHTML='<i></i> '+text;}
-function counts(){const c={};MEMBERS.forEach(m=>c[m.id]=0);Object.values(ASSIGN).forEach(v=>{if(c[v]!=null)c[v]++;});return c;}
+function counts(){const c={};MEMBERS.forEach(m=>c[m.id]=0);
+  Object.entries(ASSIGN).forEach(([k,v])=>{ if(isMemKey(k))return; const p=parseA(v); if(p&&c[p.id]!=null)c[p.id]++; });return c;}
 
 async function load(){
   conn("","cargando…");
@@ -138,6 +184,7 @@ async function load(){
     const r=await fetch(WORKER+"/assignments",{signal:AbortSignal.timeout(15000)});
     const d=await r.json();
     ASSIGN=(d&&d.assignments)||{};
+    applyMemberOverrides();
     if(Array.isArray(d.machines)&&d.machines.length) MACHINES=d.machines.map(m=>({...m}));
     conn("ok","en vivo");
     if(d.updatedAt) $("#lastup").textContent="últ. cambio: "+new Date(d.updatedAt).toLocaleString("es-ES")+(d.updatedBy?(" · "+d.updatedBy):"");
@@ -148,6 +195,7 @@ async function save(){
   if(saving){ scheduleSave(); return; }
   saving=true; $("#status").textContent="guardando…";
   try{
+    saveMemberOverrides();
     const r=await fetch(WORKER+"/assignments",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({assignments:ASSIGN,machines:MACHINES,updatedBy:"yokup"}),signal:AbortSignal.timeout(15000)});
     const d=await r.json(); if(!d.ok) throw new Error(d.error||"error");
@@ -168,16 +216,39 @@ function renderMembers(){
   MEMBERS.forEach(m=>{
     const n=c[m.id]||0;
     const chip=document.createElement("div"); chip.className="mchip"; chip.style.setProperty("--c",sideColor(m.side));
-    chip.innerHTML=`<span class="em">${m.icon}</span><div><div class="role">${esc(m.id)}</div><div class="who">${esc(m.member)} · ${esc(m.persona)}</div></div><span class="n ${n>1?'dup':''}">${n}</span>`;
+    const trows=[0,1,2].map(i=>`<div class="trow"><span class="dot"></span><input class="ti" data-t="${i}" value="${esc(m.traits[i]||"")}" placeholder="rasgo ${i+1}" title="rasgo del rol (editable)"></div>`).join("");
+    chip.innerHTML=`
+      <div class="mtop">
+        <span class="em">${m.icon}</span>
+        <div class="mcol">
+          <div class="role">${esc(m.id)}</div>
+          <input class="mi name" value="${esc(m.member)}" title="nombre real (editable)" placeholder="nombre">
+          <input class="mi alias" value="${esc(m.persona)}" title="alias (editable)" placeholder="alias">
+        </div>
+        <span class="n ${n===0?'zero':''} ${n>1?'dup':''}">${n}</span>
+      </div>
+      <div class="traits">
+        <span class="tlbl">3 rasgos del rol</span>
+        ${trows}
+      </div>`;
+    const ins=chip.querySelectorAll(".mi");
+    ins[0].onchange=(e)=>{ m.member=e.target.value.trim()||m.member; render(); scheduleSave(); };
+    ins[1].onchange=(e)=>{ m.persona=e.target.value.trim()||m.persona; render(); scheduleSave(); };
+    chip.querySelectorAll(".ti").forEach(inp=>{ inp.onchange=(e)=>{ const i=+e.target.dataset.t; m.traits[i]=e.target.value.trim(); scheduleSave(); }; });
     el.appendChild(chip);
   });
 }
 function renderMachines(){
   const el=$("#machines"); el.innerHTML="";
   MACHINES.forEach(mac=>{
-    const cur=ASSIGN[mac.id]||""; const m=MEM[cur];
+    const p=parseA(ASSIGN[mac.id]||""); const curNorm=p?(p.id+"#"+p.face):""; const m=p?memById(p.id):null;
     const card=document.createElement("div"); card.className="ag"; card.style.setProperty("--c", m?sideColor(m.side):"var(--dim)");
-    const opts=`<option value="">— sin asignar —</option>`+MEMBERS.map(x=>`<option value="${x.id}" ${x.id===cur?"selected":""}>${x.icon} ${x.id} · ${esc(x.member)}</option>`).join("");
+    // Por cada miembro, DOS opciones: su nombre y su alias (elige a cuál asocias).
+    const opts=`<option value="">— sin asignar —</option>`+MEMBERS.map(x=>
+      `<optgroup label="${x.icon} ${x.id}">`+
+      `<option value="${x.id}#member" ${curNorm===x.id+"#member"?"selected":""}>${esc(x.member)}</option>`+
+      `<option value="${x.id}#persona" ${curNorm===x.id+"#persona"?"selected":""}>${esc(x.persona)} · alias</option>`+
+      `</optgroup>`).join("");
     card.innerHTML=`
       <div class="top">
         <div class="av">${mac.emoji||"💻"}</div>
@@ -185,7 +256,7 @@ function renderMachines(){
       </div>
       <label class="lbl">Miembro asignado</label>
       <select class="pick" data-id="${esc(mac.id)}">${opts}</select>
-      <div class="asgline ${m?'':'none'}">${m?`Responsable: <b>${esc(m.member)}</b> · ${m.icon} ${esc(m.id)} (${esc(m.persona)})`:"Sin asignar"}</div>`;
+      <div class="asgline ${m?'':'none'}">${m?`Asignado a <b>${esc(faceLabel(m,p.face))}</b> · ${m.icon} ${esc(m.id)} (${esc(faceOther(m,p.face))})`:"Sin asignar"}</div>`;
     card.querySelector("select").onchange=(e)=>{ const id=e.target.dataset.id,v=e.target.value; if(v)ASSIGN[id]=v; else delete ASSIGN[id]; render(); scheduleSave(); };
     card.querySelector(".mname").onchange=(e)=>{ const id=e.target.dataset.id,mm=MACHINES.find(x=>x.id===id); if(mm)mm.name=e.target.value.trim()||mm.name; scheduleSave(); };
     el.appendChild(card);
