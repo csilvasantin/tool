@@ -403,6 +403,17 @@ function normalizeProofImage(raw) {
 }
 __name(normalizeProofImage, "normalizeProofImage");
 
+// Las referencias numéricas históricas siguen entrando como FLT-<n>, pero los ids
+// alfanuméricos de tandas (MIS-DEC-...) son opacos: cambiarles el case rompe la
+// clave primaria y hace que una misión existente parezca ausente.
+function normalizeMissionReference(raw) {
+  const value = String(raw == null ? "" : raw).trim();
+  if (/^#?\d+$/.test(value)) return "FLT-" + value.replace(/^#/, "");
+  const fleet = /^flt-(\d+)$/i.exec(value);
+  return fleet ? "FLT-" + fleet[1] : value;
+}
+__name(normalizeMissionReference, "normalizeMissionReference");
+
 async function hasMissionProof(env, mid) {
   const row = await env.DB.prepare(
     "SELECT proof_image FROM tickets WHERE id=?"
@@ -552,6 +563,14 @@ async function batchForMission(env, missionId) {
   return row ? row.batch_id : null;
 }
 __name(batchForMission, "batchForMission");
+async function acceptBatchInformeClosure(env, ticket, missionId, owner, report) {
+  if (!ticket || ticket.source !== "decision-batch") return null;
+  const agent = String(ticket.assignee || owner || "Agente").trim();
+  await addEvent(env, missionId, "accept", agent, "Cierre aceptado por el Agente mediante informe con prueba. " + String(report || "").slice(0, 180));
+  const batchId = await batchForMission(env, missionId);
+  return batchId ? activateNextMissionBatchItem(env, batchId) : null;
+}
+__name(acceptBatchInformeClosure, "acceptBatchInformeClosure");
 async function activateNextMissionBatchItem(env, batchId) {
   const batch = await env.DB.prepare("SELECT * FROM mission_batches WHERE id=?").bind(batchId).first();
   if (!batch || batch.status !== "active") return missionBatchSnapshot(env, batchId);
@@ -1927,8 +1946,7 @@ var index_default = {
     if (url.pathname === "/fleet/informe" && req.method === "POST") {
       await ensureSchema(env);
       let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
-      let mid = String(b.mission || b.id || "").trim();
-      if (/^#?\d+$/.test(mid)) mid = "FLT-" + mid.replace(/^#/, "");
+      const mid = normalizeMissionReference(b.mission || b.id);
       const report = String(b.report || "").slice(0, 2000).trim();
       const owner = String(b.owner || "infraagente").slice(0, 24);
       const runtime = String(b.runtime || "").trim().slice(0, 20);
@@ -1946,7 +1964,7 @@ var index_default = {
           : "pantallazo image requerido para cerrar: manda la URL http(s) de la captura o un data:image/…;base64" }, 400);
       }
       const image = normImage.value;
-      const t = await env.DB.prepare("SELECT id, assignee, status FROM tickets WHERE id=?").bind(mid).first();
+      const t = await env.DB.prepare("SELECT id, assignee, status, source FROM tickets WHERE id=?").bind(mid).first();
       if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
       // GUARDIA anti-firma-cruzada (Carlos, 2026-07-21): el informe lo firma quien
       // EJECUTA (owner: subX/infraX) y debe ser la MISMA persona que el assignee de
@@ -1965,6 +1983,7 @@ var index_default = {
       ).bind(image, runtime, host, now, mid).run();
       await addEvent(env, mid, "log", owner, "📝 Informe: " + report.slice(0, 240));
       await addEvent(env, mid, "proof", owner, "📸 Pantallazo final: " + proofLabel(image));
+      let batch = null;
       if (crossSign) {
         // Firma cruzada: se conserva el informe pero se avisa y NO se cierra sola.
         await addEvent(env, mid, "log", owner, "⚠️ FIRMA CRUZADA: informe firmado por «" + owner + "» pero la misión es de «" + assignee + "». No se cierra automáticamente; requiere revisión.");
@@ -1975,6 +1994,7 @@ var index_default = {
         // siguiente sync. Antes quedaban descuadrados: informe hecho pero misión en
         // curso porque el ack era un segundo paso aparte. (Carlos, 2026-07-21)
         await env.DB.prepare("UPDATE tickets SET status='resolved', resolved_at=COALESCE(resolved_at,?), updated_at=? WHERE id=? AND status!='resolved'").bind(now, now, mid).run().catch(() => {});
+        batch = await acceptBatchInformeClosure(env, t, mid, owner, report);
         const numId = mid.replace(/^FLT-/, "");
         if (/^\d+$/.test(numId) && env.TELEGRAM) {
           try {
@@ -1985,7 +2005,7 @@ var index_default = {
           } catch (e) {}
         }
       }
-      return json({ ok: true, mission: mid, resolved: !crossSign, cross_signed: crossSign });
+      return json({ ok: true, mission: mid, resolved: !crossSign, cross_signed: crossSign, batch });
     }
     // CANCELAR una misión: reconocer que NO se hará. No exige pantallazo (no se finge
     // trabajo, se retira). Marca el ticket cancelled + nota, y cancela el encargo del
@@ -2201,8 +2221,7 @@ var index_default = {
       try {
         await ensureSchema(env);
         const b = await req.json().catch(() => ({}));
-        let mid = String((b && b.mission) || "").trim().toUpperCase();
-        if (/^#?\d+$/.test(mid)) mid = "FLT-" + mid.replace(/^#/, "");
+        const mid = normalizeMissionReference(b && b.mission);
         if (!mid) return json({ ok: false, error: "mission requerida" }, 400);
         const t = await env.DB.prepare("SELECT id FROM tickets WHERE id=?").bind(mid).first();
         if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);

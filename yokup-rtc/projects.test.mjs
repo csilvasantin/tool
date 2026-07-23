@@ -6,6 +6,9 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 
 const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
+const missionReferenceSource = source.match(/function normalizeMissionReference\(raw\) \{[\s\S]*?\n\}/)?.[0] || '';
+assert.ok(missionReferenceSource, 'no se encontró normalizeMissionReference');
+const normalizeMissionReference = new Function(`${missionReferenceSource}\nreturn normalizeMissionReference;`)();
 
 test('el esquema crea projects, project_members y la columna project de tickets', () => {
   assert.match(source, /CREATE TABLE IF NOT EXISTS projects \(id TEXT PRIMARY KEY/);
@@ -37,6 +40,18 @@ test('la baja no deja misiones apuntando a un proyecto que ya no existe', () => 
 
 test('asignar una misión a un proyecto exige que el proyecto esté dado de alta', () => {
   assert.match(source, /no está dado de alta; créalo en \/equipo/);
+});
+
+test('/projects/mission conserva ids opacos y sólo canoniza referencias FLT numéricas', () => {
+  assert.equal(normalizeMissionReference('MIS-DEC-mrxrv5fy5ivl-01'), 'MIS-DEC-mrxrv5fy5ivl-01');
+  assert.equal(normalizeMissionReference('  MIS-DEC-AbC-01  '), 'MIS-DEC-AbC-01');
+  assert.equal(normalizeMissionReference('123'), 'FLT-123');
+  assert.equal(normalizeMissionReference('#456'), 'FLT-456');
+  assert.equal(normalizeMissionReference('flt-789'), 'FLT-789');
+  const start = source.indexOf('if (url.pathname === "/projects/mission" && req.method === "POST")');
+  const endpoint = source.slice(start, source.indexOf('// CONTADORES DEL MENÚ', start));
+  assert.match(endpoint, /const mid = normalizeMissionReference\(b && b\.mission\)/);
+  assert.doesNotMatch(endpoint, /toUpperCase\(\)/);
 });
 
 test('las listas de misiones llevan el proyecto y su nombre humano', () => {
