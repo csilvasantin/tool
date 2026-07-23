@@ -25,7 +25,7 @@
   "use strict";
 
   var WORKER = "https://yokup-rtc.csilvasantin.workers.dev";
-  var VERSION = "v.23.07.2026.r5";
+  var VERSION = "v.23.07.2026.r6";
   var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
 
   // NAV DE PLATAFORMA — fuente ÚNICA del menú tras la DMZ (zona app). Las

@@ -282,10 +282,13 @@ const CAB=YkCabezal.mount($("cabezal"), {
 (function(){ const d=new Date(),p=n=>(n<10?"0":"")+n; CAB.setDay(d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())); })();
 
 // Rellena un selector con opciones únicas conservando la elección actual.
+// Acepta strings ("Neo") o {v,label} ({v:"Neo",label:"🟢 Neo"}): el VALUE es el
+// nombre pelado que casa con assignee/_agents; la etiqueta puede llevar el 🟢 de vivo.
 function llenaSel(id, etiqueta, valores){
   const sel=$(id), keep=sel.value;
-  sel.innerHTML='<option value="">'+etiqueta+'</option>'+
-    valores.map(v=>'<option value="'+v.replace(/[<>&"]/g,"")+'">'+v.replace(/[<>&"]/g,"")+'</option>').join("");
+  const cln=s=>String(s==null?"":s).replace(/[<>&"]/g,"");
+  const opt=x=>{ const o=(typeof x==="string")?{v:x,label:x}:x; return '<option value="'+cln(o.v)+'">'+cln(o.label)+'</option>'; };
+  sel.innerHTML='<option value="">'+etiqueta+'</option>'+valores.map(opt).join("");
   sel.value=[...sel.options].some(o=>o.value===keep)?keep:"";
   sel.classList.toggle("on",!!sel.value);
 }
@@ -565,12 +568,26 @@ async function load(){
   // agentes según el equipo elegido, equipos según el agente elegido.
   // agentes reales del grupo (una misión difundida agrupa varios): _agents si existe.
   const agentesDe=t=>t._agents||(t.assignee?[t.assignee]:[]);
-  llenaSel("selAgente","🤖 Agente · todos",[...new Set(base
-    .filter(t=>!$("selEquipo").value||YkMisiones.machineOf(t)===$("selEquipo").value)
-    .flatMap(agentesDe).filter(Boolean))].sort());
-  llenaSel("selEquipo","🖥 Equipo · todos",[...new Set(base
-    .filter(t=>!$("selAgente").value||agentesDe(t).includes($("selAgente").value))
-    .map(t=>YkMisiones.machineOf(t)).filter(Boolean))].sort());
+  // AGENTE: agentes con misión en la vista (cruzados con el equipo) MÁS, SIEMPRE, los
+  // agentes PRINCIPALES VIVOS de la presencia (🟢 latido <15 min) aunque no tengan
+  // misión aquí — un vivo ocioso es seleccionable y da lista vacía (honesto). El 🟢 va
+  // solo en la etiqueta; el value sigue siendo el nombre pelado que casa con assignee.
+  const selEq=$("selEquipo").value, selAg=$("selAgente").value;
+  const agMision=[...new Set(base
+    .filter(t=>!selEq||YkMisiones.machineOf(t)===selEq)
+    .flatMap(agentesDe).filter(Boolean))];
+  const agVivos=agentesVivos(selEq);
+  llenaSel("selAgente","🤖 Agente · todos",
+    [...new Set([...agMision,...agVivos])].sort()
+      .map(a=>({v:a,label:(agVivos.includes(a)?"🟢 ":"")+a})));
+  // EQUIPO: simétrico — máquinas con misión en la vista MÁS las máquinas VIVAS (🟢).
+  const eqMision=[...new Set(base
+    .filter(t=>!selAg||agentesDe(t).includes(selAg))
+    .map(t=>YkMisiones.machineOf(t)).filter(Boolean))];
+  const eqVivas=maquinasVivas(selAg);
+  llenaSel("selEquipo","🖥 Equipo · todos",
+    [...new Set([...eqMision,...eqVivas])].sort()
+      .map(m=>({v:m,label:(eqVivas.includes(m)?"🟢 ":"")+m})));
   let list=base;
   if($("selAgente").value) list=list.filter(t=>agentesDe(t).includes($("selAgente").value));
   if($("selEquipo").value) list=list.filter(t=>YkMisiones.machineOf(t)===$("selEquipo").value);
@@ -660,6 +677,24 @@ let MAQS={}, SOLOMAQ={}, CARGA_P={}, CARGA_PM={}, CARGA_M={}, LIBRE=null, UNIV=[
 // Deriva la CATEGORÍA Matrix del picker de agente. ROWS_BY_ID: equipo/agente
 // actuales de cada misión (para marcar el check del picker). Carlos, 2026-07-15.
 let RUNTIME={}, ROWS_BY_ID={};
+
+// Agentes PRINCIPALES vivos (latido <15 min) leídos de la presencia del radar (MAQS).
+// Con 'maq' (canónica) se limita a los vivos EN esa máquina (cruce con selEquipo).
+// Value = nombre pelado que casa con assignee/_agents; el radar los repinta cada 60 s
+// y el poll de load() (12 s) los sube al desplegable aunque no tengan misión en la vista.
+function agentesVivos(maq){
+  return Object.keys(MAQS).filter(per=>
+    Object.entries(MAQS[per]).some(([cm,i])=>i&&i.online&&(!maq||cm===maq)));
+}
+// Máquinas VIVAS (canónicas) = navegadores frescos (SOLOMAQ) + presencia online. Con
+// 'ag' se limita a las máquinas donde ESE agente late; SOLOMAQ no lleva agente, así que
+// al fijar agente solo cuentan las de MAQS (cruce con selAgente).
+function maquinasVivas(ag){
+  const s=new Set(ag?[]:Object.keys(SOLOMAQ));
+  for(const per in MAQS) if(!ag||per===ag) for(const cm in MAQS[per])
+    if(MAQS[per][cm]&&MAQS[per][cm].online) s.add(cm);
+  return [...s];
+}
 
 async function radar(){
   try{
@@ -971,6 +1006,6 @@ $("list").addEventListener("click",ev=>{
 },true);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
-<script src="/yk-frame.js?v=r26"></script>
+<script src="/yk-frame.js?v=r27"></script>
 </body>
 </html>
