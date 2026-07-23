@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/acceso.js"></script>
+<title>Objetivos · Yokup</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#02080d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
+<link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<link rel="stylesheet" href="/yk-frame.css?v=r16">
+<style>
+  :root{ --brand:#3fd0c9; --ink:#e8f0f4; --dim:#8aa0ab; --mut:#5f7682; --line:#1a2b33;
+         --panel:#0a1720; --panel2:#0c1e28; --rac:#5bd6c0; --cre:#c58cff; --mono:ui-monospace,Menlo,monospace; }
+  *{box-sizing:border-box}
+  .wrap{max-width:1080px;margin:0 auto;padding:20px 18px 80px}
+  .head h1{font-size:clamp(24px,4vw,34px);font-weight:800;letter-spacing:-.01em;margin:0 0 6px}
+  .head p{color:var(--dim);margin:0 0 8px;max-width:66ch;font-size:14.5px;line-height:1.55}
+  .head .note{font:600 11px/1.5 var(--mono);color:var(--mut);letter-spacing:.02em}
+  .head .note b{color:var(--brand)}
+  .sides{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}
+  @media(max-width:820px){ .sides{grid-template-columns:1fr} }
+  .side{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 16px 8px}
+  .side .sh{display:flex;align-items:center;gap:9px;margin-bottom:4px}
+  .side .sh b{font-size:16px;font-weight:800;letter-spacing:-.01em}
+  .side .sh .tt{font:700 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;padding:4px 8px;border-radius:6px}
+  .side.rac .sh .tt{color:#04232a;background:var(--rac)} .side.cre .sh .tt{color:#1a0a2a;background:var(--cre)}
+  .side .sl{color:var(--dim);font-size:12.5px;margin:0 0 12px;line-height:1.5}
+  .seat{display:flex;gap:13px;padding:13px 4px;border-top:1px solid var(--line)}
+  .seat .ic{flex:none;width:42px;height:42px;border-radius:11px;display:grid;place-items:center;font-size:21px;background:#06121a;border:1px solid var(--line)}
+  .seat .body{flex:1;min-width:0}
+  .seat .rl{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .seat .rl .r{font:800 14px/1 -apple-system,system-ui,sans-serif}
+  .side.rac .seat .rl .r{color:var(--rac)} .side.cre .seat .rl .r{color:var(--cre)}
+  .seat .rl .rf{font:600 11px var(--mono);color:var(--mut);letter-spacing:.02em}
+  .seat .who{margin:4px 0 5px;font-size:12.5px;color:var(--ink)}
+  .seat .who .p{font-weight:700} .seat .who .sep{color:var(--mut);margin:0 6px}
+  .seat .who .g{font:600 9.5px var(--mono);color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+  .seat .d{color:var(--dim);font-size:12.5px;line-height:1.5;margin:0}
+</style>
+</head>
+<body>
+<main class="wrap" id="yk-main">
+  <div class="head">
+    <h1>🏛️ Objetivos</h1>
+    <p>El <b style="color:var(--ink)">Consejo AdmiraNeXT</b>: ocho sillas que fijan el norte. Cada consejero es una voz —un rol y una manera de mirar— y de ellos salen las ideas y los objetivos que después se vuelven estrategia y misiones.</p>
+    <p class="note">Cada silla tiene dos caras: una <b>leyenda</b> y un <b>coetáneo</b> · lado <b style="color:var(--rac)">racional</b> (producto, técnica, operación, dinero) y lado <b style="color:var(--cre)">creativo</b> (marca, diseño, experiencia, relato).</p>
+  </div>
+
+  <div class="sides">
+    <div class="side rac">
+      <div class="sh"><span class="tt">Racional</span><b>◆ El lado que ejecuta</b></div>
+      <p class="sl">Producto, tecnología, operación y dinero. Convierte el sueño en algo sólido, que funciona y se sostiene.</p>
+      <div id="rac"></div>
+    </div>
+    <div class="side cre">
+      <div class="sh"><span class="tt">Creativo</span><b>✷ El lado que imagina</b></div>
+      <p class="sl">Marca, diseño, experiencia y relato. Da alma, forma y una historia que la gente recuerda.</p>
+      <div id="cre"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+// Consejo AdmiraNeXT — roster reutilizado del Consejo (32.-ConsejoAdmiraNextGame/consejero.html):
+// 8 sillas C-suite, cada una con su leyenda y su coetáneo. Son los que tienen las ideas.
+const CONSEJO=[
+  {role:"CEO", rf:"Chief Executive Officer", side:"rac", icon:"🏛️", leyenda:"Steve Jobs",  coet:"Elon Musk",       d:"La visión y el producto. Su trabajo no es sumar funciones, sino decidir qué se queda fuera: «¿esto es suficientemente bueno para llevar nuestro nombre?»."},
+  {role:"CTO", rf:"Chief Technology Officer", side:"rac", icon:"⚙️", leyenda:"Steve Wozniak", coet:"Jensen Huang",   d:"La tecnología como cimiento. Mientras otros sueñan el producto, él garantiza que sea sólido, real y sostenible."},
+  {role:"COO", rf:"Chief Operations Officer", side:"rac", icon:"📋", leyenda:"Tim Cook",      coet:"Gwynne Shotwell", d:"La ejecución. Que la máquina gire: cadena, flota, entregas y SLA — que lo que se promete, se cumpla."},
+  {role:"CFO", rf:"Chief Financial Officer",  side:"rac", icon:"💰", leyenda:"Warren Buffett", coet:"Ruth Porat",     d:"El dinero y el largo plazo. Cada idea pasa por su filtro de sostenibilidad: qué renta, qué cuesta, qué aguanta."},
+  {role:"CCO", rf:"Chief Creative Officer",   side:"cre", icon:"💡", leyenda:"Walt Disney",   coet:"John Lasseter",   d:"El constructor de mundos: marca, magia y experiencias que se recuerdan toda la vida. Un producto no es solo lo que hace, sino la emoción que lo rodea."},
+  {role:"CDO", rf:"Chief Design Officer",     side:"cre", icon:"🎨", leyenda:"Dieter Rams",   coet:"Jony Ive",        d:"El diseño: menos, pero mejor. La silla que quita hasta que solo queda lo esencial, y lo hace bello."},
+  {role:"CXO", rf:"Chief Experience Officer", side:"cre", icon:"🧭", leyenda:"Howard Schultz",coet:"Carlo Ratti",     d:"La experiencia y el espacio vivido: cómo se siente estar dentro. El lugar como parte del producto."},
+  {role:"CSO", rf:"Chief Storytelling Officer",side:"cre",icon:"📖", leyenda:"George Lucas",  coet:"Ryan Reynolds",   d:"El relato. Toda idea necesita una historia que la explique y la haga contagiosa — dentro y fuera de la casa."}
+];
+const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+function seat(c){
+  return '<div class="seat"><div class="ic">'+c.icon+'</div><div class="body">'+
+    '<div class="rl"><span class="r">'+c.role+'</span><span class="rf">'+esc(c.rf)+'</span></div>'+
+    '<div class="who"><span class="p">'+esc(c.leyenda)+'</span> <span class="g">leyenda</span><span class="sep">·</span><span class="p">'+esc(c.coet)+'</span> <span class="g">coetáneo</span></div>'+
+    '<p class="d">'+esc(c.d)+'</p></div></div>';
+}
+document.getElementById("rac").innerHTML=CONSEJO.filter(c=>c.side==="rac").map(seat).join("");
+document.getElementById("cre").innerHTML=CONSEJO.filter(c=>c.side==="cre").map(seat).join("");
+</script>
+</body>
+</html>

@@ -412,7 +412,9 @@
           // Solo si la misión tiene plan. (959, 963)
           progHtml(t._prog) +
           '<a class="tkopen" href="/tareas?mission=' + encodeURIComponent(t.id) + '" title="ver el plan de esta misión en /tareas">detalle ↳</a>' +
-          '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a></div>' +
+          '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a>' +
+          (maq ? '<a class="tkopen" target="_blank" rel="noopener" href="https://www.admira.live/control?rc=admira-' + encodeURIComponent(maq) + '&name=' + encodeURIComponent(maq) + '" title="Operar esta máquina en admira.live/control (ver + ratón + teclado)">🖥 operar ↗</a>' : '') +
+          '</div>' +
       "</div></div>";
   }
   // Duración de la misión: de ASIGNADA (created_at, el encargo nace ya asignado) a
