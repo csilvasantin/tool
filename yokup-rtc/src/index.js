@@ -2318,6 +2318,60 @@ var index_default = {
     // machines:{slug:{icon,img}}}. LECTURA abierta (la consumen las listas);
     // ESCRITURA con sesión del perímetro (requireAuth inline: PROTECTED es por
     // ruta y capa los dos métodos, y el GET debe seguir abierto).
+    // ── IDEAS / OBJETIVOS ──────────────────────────────────────────────────
+    // Bandeja de ideas que consume www.yokup.com/objetivos (yokup-site/ideas.html).
+    // Tabla D1 `ideas` (ya existente): id,title,body,author,tag,status,created_at,
+    // updated_at,mission_id. Estados: nueva|estudio|hecha|mision|descartada.
+    // RESCATE FLT (23-jul-2026): estas 4 rutas eran un deploy-sin-versionar y un
+    // redeploy del repo las pisó; reimplementadas contra la tabla real y versionadas.
+    // Lectura y escritura abiertas a propósito (el panel escribe sin login), igual
+    // que /decisions. CORS lo aporta json()/CORS global.
+    if (url.pathname === "/ideas" && (req.method === "GET" || req.method === "POST")) {
+      const IDEA_STATUS = /* @__PURE__ */ new Set(["nueva", "estudio", "hecha", "mision", "descartada"]);
+      try {
+        await env.DB.prepare("CREATE TABLE IF NOT EXISTS ideas (id TEXT PRIMARY KEY, title TEXT, body TEXT, author TEXT, tag TEXT, status TEXT, created_at INTEGER, updated_at INTEGER, mission_id TEXT)").run();
+        if (req.method === "GET") {
+          const r = await env.DB.prepare("SELECT id,title,body,author,tag,status,created_at,updated_at,mission_id FROM ideas ORDER BY created_at DESC").all();
+          return json({ ideas: r.results || [] });
+        }
+        const b = await req.json();
+        const title = String(b.title || "").trim().slice(0, 200);
+        if (!title) return json({ ok: false, error: "title requerido" }, 400);
+        const body = String(b.body || "").trim().slice(0, 4000);
+        const author = String(b.author || "").trim().slice(0, 60);
+        const tag = String(b.tag || "").trim().slice(0, 40);
+        const now = Date.now();
+        const id = "IDEA-" + (crypto.randomUUID().replace(/-/g, "").slice(0, 8));
+        await env.DB.prepare("INSERT INTO ideas (id,title,body,author,tag,status,created_at,updated_at,mission_id) VALUES (?,?,?,?,?,?,?,?,?)")
+          .bind(id, title, body, author, tag, "nueva", now, now, "").run();
+        return json({ ok: true, idea: { id, title, body, author, tag, status: "nueva", created_at: now, updated_at: now, mission_id: "" } });
+      } catch (e) { return json({ error: String(e) }, 500); }
+    }
+    if (url.pathname === "/ideas/status" && req.method === "POST") {
+      const IDEA_STATUS = /* @__PURE__ */ new Set(["nueva", "estudio", "hecha", "mision", "descartada"]);
+      try {
+        const b = await req.json();
+        const id = String(b.id || "").trim();
+        const status = String(b.status || "").trim();
+        if (!id) return json({ ok: false, error: "id requerido" }, 400);
+        if (!IDEA_STATUS.has(status)) return json({ ok: false, error: "status inválido" }, 400);
+        const r = await env.DB.prepare("UPDATE ideas SET status=?, updated_at=? WHERE id=?").bind(status, Date.now(), id).run();
+        if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: "not_found" }, 404);
+        return json({ ok: true, id, status });
+      } catch (e) { return json({ error: String(e) }, 500); }
+    }
+    if (url.pathname === "/ideas/promote" && req.method === "POST") {
+      try {
+        const b = await req.json();
+        const id = String(b.id || "").trim();
+        const mission_id = String(b.mission_id || "").trim().slice(0, 40);
+        if (!id) return json({ ok: false, error: "id requerido" }, 400);
+        if (!mission_id) return json({ ok: false, error: "mission_id requerido" }, 400);
+        const r = await env.DB.prepare("UPDATE ideas SET mission_id=?, status='mision', updated_at=? WHERE id=?").bind(mission_id, Date.now(), id).run();
+        if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: "not_found" }, 404);
+        return json({ ok: true, id, mission_id, status: "mision" });
+      } catch (e) { return json({ error: String(e) }, 500); }
+    }
     // ── RELOJES DE DECISIÓN ────────────────────────────────────────────────
     // POST /decisions            (agente) publica una única tanda diaria: 5 misiones + volver atrás
     // GET  /decisions            (panel /misiones) lista las vivas + recién cerradas
