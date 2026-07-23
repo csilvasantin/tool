@@ -630,7 +630,13 @@
 
   function fetchAllTasks(scope) {
     var q = scope ? "?scope=" + encodeURIComponent(scope) : "";
-    return window.fetch(CFG.worker + "/tasks/all" + q, { cache: "no-store" })
+    // Hereda la red de seguridad del menú (yk-frame.js/ykFetch): api.yokup.com y,
+    // si RECHAZA por red, reintento contra workers.dev — así el progreso a·b·c no
+    // se pierde en redes que bloquean un host. Guarda por si ykFetch aún no cargó.
+    var p = window.ykFetch
+      ? window.ykFetch("/tasks/all" + q, { cache: "no-store" })
+      : window.fetch(CFG.worker + "/tasks/all" + q, { cache: "no-store" });
+    return p
       .then(function (r) { return r.json(); })
       .then(function (d) { return d.tasks || []; });
   }

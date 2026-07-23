@@ -10,8 +10,27 @@
 (function () {
   var CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
   var WORKER = "https://api.yokup.com";
+  // Red de seguridad (23-jul-2026): el host histórico workers.dev es el FALLBACK
+  // que usa yk-frame.js/ykFetch cuando api.yokup.com falla por red (bloqueo ISP).
+  // Debe ser FIRMABLE también: si el fallback no llevara el mismo Bearer, daría
+  // 401 y dejaría el tablero a oscuras. Solo se AÑADE este host — api.yokup.com y
+  // los terceros se comportan EXACTAMENTE igual que antes.
+  var WORKER_FALLBACK = "https://yokup-rtc.csilvasantin.workers.dev";
   var SKEY = "yk_session";
   var rawFetch = window.fetch.bind(window);
+
+  // ¿La URL apunta al worker Yokup (dominio propio o fallback)? Solo estos hosts
+  // reciben el Bearer de sesión y el manejo de 401. Prefijo ANCLADO al ORIGEN: tras
+  // el host debe venir un límite real (/, ?, # o fin) para que api.yokup.com.evil
+  // NO cuele como firmable y filtre el token a un dominio ajeno.
+  function isWorkerOrigin(u, host) {
+    if (u.indexOf(host) !== 0) return false;
+    var c = u.charAt(host.length);
+    return c === "" || c === "/" || c === "?" || c === "#";
+  }
+  function signable(u) {
+    return isWorkerOrigin(u, WORKER) || isWorkerOrigin(u, WORKER_FALLBACK);
+  }
 
   function sessionValid() {
     try { var t = localStorage.getItem(SKEY); if (!t) return false; var p = JSON.parse(atob(t.split(".")[0].replace(/-/g, "+").replace(/_/g, "/"))); return p.exp && Date.now() < p.exp - 30000; } catch (e) { return false; }
@@ -41,7 +60,7 @@
   if (sessionValid()) resolveReady();
   window.fetch = function (input, init) {
     var u = typeof input === "string" ? input : (input && input.url) || "";
-    if (u.indexOf(WORKER) !== 0) return rawFetch(input, init);
+    if (!signable(u)) return rawFetch(input, init);
     return sessionReady.then(function () {
       init = init || {};
       var h = new Headers(init.headers || {});
@@ -103,4 +122,8 @@
   }
 
   if (sessionValid()) { reveal(); } else { showGate(); }
+
+  // Gancho de pruebas (mismo patrón que YkDecisions._test): expone SÓLO el
+  // predicado firmable para el harness. No altera el comportamiento en runtime.
+  try { window.__ykAccesoTest = { signable: signable, WORKER: WORKER, WORKER_FALLBACK: WORKER_FALLBACK }; } catch (e) {}
 })();

@@ -250,12 +250,24 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 
 <script src="/yk-agent-identity.js?v=1"></script>
 <script src="/yk-maquina.js?v=r1"></script>
-<script src="/yk-misiones.js?v=r48"></script>
+<script src="/yk-misiones.js?v=r49"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r2"></script>
 <script src="/yk-decisions.js?v=20260723a"></script>
 <script>
 const WORKER="https://api.yokup.com";
+const WORKER_FALLBACK="https://yokup-rtc.csilvasantin.workers.dev";
+// ykf: fetch del tablero con la MISMA red de seguridad que el menú (yk-frame.js
+// ykFetch): api.yokup.com y, si el fetch RECHAZA por red (bloqueo ISP), reintento
+// contra workers.dev. Prefiere window.ykFetch cuando ya está cargado; si no (yk-frame
+// se carga al final del <body>, después del primer load()), replica el fallback aquí
+// mismo — así el tablero es resiliente aunque ykFetch aún no exista. El Bearer lo
+// pone acceso.js en AMBOS hosts (ya son firmables).
+function ykf(path,opts){
+  return window.ykFetch
+    ? window.ykFetch(path,opts)
+    : window.fetch(WORKER+path,opts).catch(function(){ return window.fetch(WORKER_FALLBACK+path,opts); });
+}
 YkDecisions.mount({worker:WORKER,mode:"summary"});
 let FILTER="activas";
 // Cascada de preselección: userPicked = el usuario ya tocó un filtro (no pisarle);
@@ -514,10 +526,29 @@ async function load(){
   // ASIGNADO a la misión, no de buscar palabras en el asunto. Se pide una vez
   // por recarga y se queda cacheado en el módulo.
   try{
-    const po=await fetch(WORKER+"/projects",{cache:"no-store"}).then(r=>r.json());
+    const po=await ykf("/projects",{cache:"no-store"}).then(r=>r.json());
     YkMisiones.setProyectos(po.projects||[]);
   }catch(e){}
-  let d; try{ const r=await fetch(WORKER+"/tickets?scope="+SCOPE,{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
+  // El tablero SÍ es crítico: si /tickets no carga (red caída EN LOS DOS hosts),
+  // NO se disfraza de «Sin misiones ✓» — se avisa honestamente y se ofrece reintento.
+  // (El poll de 12 s se recupera solo cuando vuelva la red; el botón fuerza ya.)
+  let d;
+  try{
+    const r=await ykf("/tickets?scope="+SCOPE,{cache:"no-store"});
+    d=await r.json();
+  }catch(e){
+    const el=$("list");
+    if(el){
+      el.innerHTML='<div class="empty board-err" style="text-transform:none;letter-spacing:normal;font-size:13px;line-height:1.55;color:#ff9977">'
+        +'No se pudo cargar el tablero. Comprueba tu conexión.<br>'
+        +'<button id="tkRetry" style="margin-top:14px;font:inherit;color:#78f3ff;background:transparent;border:1px solid rgba(120,243,255,.45);border-radius:9px;padding:6px 18px;cursor:pointer">Reintentar</button></div>';
+      const rb=$("tkRetry");
+      if(rb) rb.onclick=()=>{ el.innerHTML='<div class="empty">Cargando misiones…</div>'; load(); };
+    }
+    // Sin datos reales: los KPIs no deben mentir con un 0. Se marcan «—» (desconocido).
+    ["kSin","kAsig","kProg","kRes"].forEach(id=>{ const c=$(id); if(c) c.textContent="—"; });
+    return;
+  }
   let tks=(SCOPE==="fleet") ? agrupaFlota(d.tickets||[]) : (d.tickets||[]); const st=d.stats||{};
   // DÍA del tablero (selector junto a «finalizadas», def. HOY): filtra misiones
   // — y con ellas los contadores — por su fecha de creación en el día elegido.
