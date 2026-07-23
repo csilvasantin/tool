@@ -22,6 +22,22 @@
   .head .note{font:600 11px/1.5 var(--mono);color:var(--mut);letter-spacing:.02em}
   .head .note b{color:var(--brand)}
 
+  /* ── intro plegable REUTILIZABLE (patrón .page-intro: el titular manda, la
+        explicación se oculta en un desplegable a su lado, plegado por defecto —
+        replicable en decisiones/misiones/informes/ideas…) ─────────────────── */
+  .page-intro{margin:0}
+  .page-intro>summary{list-style:none;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;cursor:pointer}
+  .page-intro>summary::-webkit-details-marker{display:none}
+  .page-intro>summary h1{margin:0}
+  .page-intro .pi-toggle{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
+    font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
+    border:1px solid var(--line);border-radius:999px;padding:6px 11px;transition:color .15s,border-color .15s}
+  .page-intro>summary:hover .pi-toggle{color:var(--dim);border-color:var(--mut)}
+  .page-intro .pi-chevron{font-size:13px;line-height:1;transition:transform .18s}
+  .page-intro[open] .pi-chevron{transform:rotate(90deg)}
+  .page-intro .pi-body{margin-top:10px;animation:pi-in .18s ease}
+  @keyframes pi-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
   /* ── CONSEJO (8 sillas) ─────────────────────────────────────────────── */
   .sides{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}
   @media(max-width:820px){ .sides{grid-template-columns:1fr} }
@@ -84,7 +100,13 @@
   .idea .flt{margin-left:auto;font:700 10.5px var(--mono);color:var(--mis);text-decoration:none;border:1px solid var(--mis);border-radius:6px;padding:4px 7px}
   .idea .flt:hover{background:rgba(124,156,255,.14)}
   .idea h3{font-size:15.5px;font-weight:700;margin:0;line-height:1.3}
-  .idea .body{color:var(--dim);font-size:13px;line-height:1.5;white-space:pre-wrap}
+  /* body compactado por defecto (3 líneas); se expande al tocar (.open) */
+  .idea .body{color:var(--dim);font-size:13px;line-height:1.5;white-space:pre-wrap;cursor:pointer;
+    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+  .idea .body.open{-webkit-line-clamp:unset;overflow:visible}
+  .idea .body.clampable::after{content:"⌄ más";display:block;margin-top:5px;font:700 10px/1 var(--mono);
+    letter-spacing:.06em;color:var(--mut);opacity:.85}
+  .idea .body.clampable.open::after{content:"⌃ menos"}
   .idea .meta{margin-top:auto;display:flex;align-items:center;gap:8px;font:600 11px var(--mono);color:var(--mut)}
   .idea .acts{display:flex;gap:5px;margin-left:auto}
   .idea .acts button{background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:7px;
@@ -103,27 +125,21 @@
 <body data-yk-title="OBJETIVOS" data-yk-zone="app">
 <main class="wrap" id="yk-main">
   <div class="head">
-    <h1>🎯 Objetivos</h1>
-    <p>Los objetivos son las <b style="color:var(--ink)">ideas a desarrollar</b>: el norte que perseguimos. El <b style="color:var(--ink)">Consejo AdmiraNeXT</b> las debate, de ahí salen <a href="/decisiones" style="color:var(--brand)">decisiones</a>, que se convierten en <a href="/misiones" style="color:var(--brand)">misiones</a> formadas por <a href="/tareas" style="color:var(--brand)">tareas</a> — y así se consiguen los objetivos.</p>
-    <p class="note">Idea ≡ objetivo · el <b>Consejo</b> debate → <b>decisión</b> → <b>misión</b> (con tareas) → objetivo conseguido.</p>
-  </div>
-
-  <!-- ── CONSEJO: las ocho sillas que fijan el norte ────────────────────── -->
-  <div class="sides">
-    <div class="side rac">
-      <div class="sh"><span class="tt">Racional</span><b>◆ El lado que ejecuta</b></div>
-      <p class="sl">Producto, tecnología, operación y dinero. Convierte el sueño en algo sólido, que funciona y se sostiene.</p>
-      <div id="rac"></div>
-    </div>
-    <div class="side cre">
-      <div class="sh"><span class="tt">Creativo</span><b>✷ El lado que imagina</b></div>
-      <p class="sl">Marca, diseño, experiencia y relato. Da alma, forma y una historia que la gente recuerda.</p>
-      <div id="cre"></div>
-    </div>
+    <details class="page-intro">
+      <summary>
+        <h1>🎯 Objetivos</h1>
+        <span class="pi-toggle">Qué es esto <span class="pi-chevron">›</span></span>
+      </summary>
+      <div class="pi-body">
+        <p>Los objetivos son las <b style="color:var(--ink)">ideas a desarrollar</b>: el norte que perseguimos. El <b style="color:var(--ink)">Consejo AdmiraNeXT</b> las debate, de ahí salen <a href="/decisiones" style="color:var(--brand)">decisiones</a>, que se convierten en <a href="/misiones" style="color:var(--brand)">misiones</a> formadas por <a href="/tareas" style="color:var(--brand)">tareas</a> — y así se consiguen los objetivos.</p>
+        <p class="note">Idea ≡ objetivo · el <b>Consejo</b> debate → <b>decisión</b> → <b>misión</b> (con tareas) → objetivo conseguido.</p>
+      </div>
+    </details>
   </div>
 
   <!-- ── IDEAS A DESARROLLAR: captura + lista (worker yokup-rtc /ideas) ──── -->
-  <div class="block-hd"><h2>💡 Ideas a desarrollar</h2><span class="k" id="count"></span></div>
+  <!--    Sube al primer plano: es lo que se usa a diario. El Consejo va debajo. -->
+  <div class="block-hd" style="margin-top:8px;padding-top:0;border-top:0"><h2>💡 Ideas a desarrollar</h2><span class="k" id="count"></span></div>
   <p class="block-sub">Apunta cualquier chispa —producto, mejora, experimento— antes de que se pierda. Cuando una idea esté madura, conviértela en misión FLT con un clic.</p>
 
   <form class="add" id="addForm" autocomplete="off">
@@ -152,6 +168,22 @@
 
   <div class="grid" id="grid"></div>
   <div class="empty" id="empty" style="display:none">Aún no hay ideas. Apunta la primera arriba. ✍️</div>
+
+  <!-- ── EL CONSEJO: las ocho sillas que fijan el norte (debajo de las ideas) ─ -->
+  <div class="block-hd"><h2>🏛️ El Consejo</h2></div>
+  <p class="block-sub">Las ocho sillas que fijan el norte: el lado que ejecuta y el lado que imagina. Aquí nacen y se debaten las ideas.</p>
+  <div class="sides">
+    <div class="side rac">
+      <div class="sh"><span class="tt">Racional</span><b>◆ El lado que ejecuta</b></div>
+      <p class="sl">Producto, tecnología, operación y dinero. Convierte el sueño en algo sólido, que funciona y se sostiene.</p>
+      <div id="rac"></div>
+    </div>
+    <div class="side cre">
+      <div class="sh"><span class="tt">Creativo</span><b>✷ El lado que imagina</b></div>
+      <p class="sl">Marca, diseño, experiencia y relato. Da alma, forma y una historia que la gente recuerda.</p>
+      <div id="cre"></div>
+    </div>
+  </div>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -225,6 +257,12 @@ function render(){
       '</div>'+
     '</div>';
   }).join("");
+  // Marca los bodies que realmente desbordan las 3 líneas → muestran el cue "⌄ más".
+  // Los cortos se quedan sin cue ni cursor confuso.
+  $("#grid").querySelectorAll(".idea .body").forEach(b=>{
+    if(b.scrollHeight>b.clientHeight+2) b.classList.add("clampable");
+    else b.style.cursor="default";
+  });
 }
 
 // Pinta, en cada silla del Consejo, su contador de ideas + progreso de misiones
@@ -293,6 +331,8 @@ $("#addForm").addEventListener("submit",async e=>{
 $("#filters").addEventListener("click",e=>{ const b=e.target.closest(".f"); if(!b)return;
   FILTER=b.dataset.f; document.querySelectorAll("#filters .f").forEach(x=>x.classList.toggle("on",x===b)); render(); });
 $("#grid").addEventListener("click",e=>{
+  const bd=e.target.closest(".idea .body");
+  if(bd){ if(bd.classList.contains("clampable")) bd.classList.toggle("open"); return; }
   const a=e.target.closest("[data-adv]"), m=e.target.closest("[data-mis]"), d=e.target.closest("[data-del]");
   if(a){ const it=IDEAS.find(x=>x.id===a.dataset.adv); if(it)setStatus(it.id,NEXT[it.status]||"estudio"); }
   else if(m){ promote(m.dataset.mis); }
@@ -305,6 +345,6 @@ load();
 
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-avatar.js?v=r2"></script>
-<script src="/yk-frame.js?v=r25"></script>
+<script src="/yk-frame.js?v=r26"></script>
 </body>
 </html>
