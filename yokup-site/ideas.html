@@ -24,7 +24,13 @@
     padding:11px 12px;font:14px/1.4 -apple-system,system-ui,sans-serif;outline:none;transition:border-color .15s}
   .add input:focus,.add textarea:focus{border-color:var(--brand)}
   .add .t{flex:1 1 100%;font-size:15px;font-weight:600}
-  .add textarea{flex:1 1 100%;min-height:64px;resize:vertical}
+  /* caja de detalle cómoda (~5 líneas visibles) + scrollbar acorde al tema oscuro */
+  .add textarea{flex:1 1 100%;min-height:128px;resize:vertical;line-height:1.5;
+    scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+  .add textarea::-webkit-scrollbar{width:10px}
+  .add textarea::-webkit-scrollbar-track{background:transparent}
+  .add textarea::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
+  .add textarea::-webkit-scrollbar-thumb:hover{background:var(--mut)}
   .add input.a{flex:1 1 160px} .add select{flex:0 0 150px}
   .add button{margin-left:auto;background:var(--brand);color:#04232a;border:0;border-radius:10px;padding:11px 20px;
     font:800 14px/1 -apple-system,system-ui,sans-serif;cursor:pointer;transition:filter .15s}
