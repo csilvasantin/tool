@@ -49,6 +49,16 @@
     var s = slug(name), cu = CUSTOM.agents[s] || {};
     if (cu.img) return cu.img;
     if (AVATARES[s]) return "/avatars/" + s + ".jpg";
+    // La identidad visible lleva apellido de equipo (OraculoMini, Morfeo14,
+    // Agente Smith Azul). El retrato pertenece a la persona base.
+    try {
+      if (window.ykAgentIdentity) {
+        var canonical = slug(window.ykAgentIdentity.base(name));
+        var cc = CUSTOM.agents[canonical] || {};
+        if (cc.img) return cc.img;
+        if (AVATARES[canonical]) return "/avatars/" + canonical + ".jpg";
+      }
+    } catch (e) {}
     // subMorfeo / infraTrinity-guion heredan el retrato de su persona: son la misma cara
     // trabajando en otra capa, y sin esto la columna se llena de engranajes sueltos.
     // Se quita el prefijo de capa y se busca la persona AL PRINCIPIO de lo que queda,

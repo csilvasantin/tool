@@ -9,10 +9,11 @@ test('la tanda conserva el orden circular desde la misión elegida', () => {
   assert.match(source, /const count = options\.length - 1/);
 });
 
-test('el plan canónico tiene sólo tres tareas delegables: Terra, Terra y Luna', () => {
-  const body = source.match(/function batchMissionPlan\(title\) \{([\s\S]*?)\n\}/)?.[1] || '';
-  const owners = [...body.matchAll(/owner: "([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(owners, ['subagente', 'subagente', 'infraagente']);
+test('el plan canónico tiene sólo tres tareas delegables y owners ligados al equipo', () => {
+  const body = source.match(/function batchMissionPlan\(title, agent, machine\) \{([\s\S]*?)\n\}/)?.[1] || '';
+  assert.equal([...body.matchAll(/\{ code:/g)].length, 3);
+  assert.equal([...body.matchAll(/scopedAgentIdentity\(base, machine, "sub"\)/g)].length, 2);
+  assert.equal([...body.matchAll(/scopedAgentIdentity\(base, machine, "infra"\)/g)].length, 1);
 });
 
 test('la cola no avanza sin evento de aceptación del Agente', () => {

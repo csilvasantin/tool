@@ -8,7 +8,8 @@ export function projectSlug(value) {
 }
 
 export function identityKey(value, kind = "") {
-  let key = text(value, 80).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  const source = kind === "agent" ? baseAgentIdentity(value) : value;
+  let key = text(source, 80).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .toLowerCase().replace(/[^a-z0-9]+/g, "");
   // project_members guarda el id de flota `admira-macmini`, mientras los
   // relojes identifican la máquina por su rótulo `Mac Mini`.
@@ -83,3 +84,4 @@ export function resolveDecisionProject(input, assignment, inherited = null) {
     project_slug: canonicalSlug, project_web: canonicalWeb, agent, machine
   };
 }
+import { baseAgentIdentity } from "./agent-identity.js";

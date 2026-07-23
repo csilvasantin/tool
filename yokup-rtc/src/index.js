@@ -1,5 +1,6 @@
 import puppeteer from "@cloudflare/puppeteer";
 import { resolveDecisionProject, selectDecisionProjectAssignment } from "./decision-project.js";
+import { baseAgentIdentity, parseAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -498,12 +499,13 @@ async function reconcileQueuedBatchItems(env, batchId) {
   return remainingBatchItems(rows.results || []);
 }
 __name(reconcileQueuedBatchItems, "reconcileQueuedBatchItems");
-function batchMissionPlan(title) {
+function batchMissionPlan(title, agent, machine) {
   const short = String(title || "Misión").slice(0, 70);
+  const base = baseAgentIdentity(agent) || "Agente";
   return [
-    { code: "a", title: "Implementar: " + short, owner: "subagente" },
-    { code: "b", title: "Verificar y entregar evidencia: " + short, owner: "subagente" },
-    { code: "c", title: "Documentar informe factual autorizado", owner: "infraagente" }
+    { code: "a", title: "Implementar: " + short, owner: scopedAgentIdentity(base, machine, "sub") },
+    { code: "b", title: "Verificar y entregar evidencia: " + short, owner: scopedAgentIdentity(base, machine, "sub") },
+    { code: "c", title: "Documentar informe factual autorizado", owner: scopedAgentIdentity(base, machine, "infra") }
   ];
 }
 __name(batchMissionPlan, "batchMissionPlan");
@@ -567,7 +569,7 @@ async function activateNextMissionBatchItem(env, batchId) {
     "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)"
   ).bind(missionId, "decision-batch:" + batch.decision_id, next.title, batch.machine || "", "mission", "in_progress", "normal", batch.agent || "", "decision-batch", "", now, now).run();
   const existingTasks = await listMissionTasks(env, missionId);
-  if (!existingTasks.length) await saveMissionPlan(env, missionId, batchMissionPlan(next.title));
+  if (!existingTasks.length) await saveMissionPlan(env, missionId, batchMissionPlan(next.title, batch.agent, batch.machine));
   await env.DB.prepare("UPDATE mission_batch_items SET mission_id=?, status='active', updated_at=? WHERE batch_id=? AND position=?")
     .bind(missionId, now, batchId, next.position).run();
   await env.DB.prepare("UPDATE mission_batches SET active_mission_id=?, updated_at=? WHERE id=?")
@@ -652,6 +654,19 @@ function ownerFor(code, title) {
   return "subagente";
 }
 __name(ownerFor, "ownerFor");
+function scopedMissionOwner(raw, fallbackRole, assignee, machine) {
+  const value = String(raw || "").trim();
+  const generic = /^infra(?:agente)?$/i.test(value) ? "infra"
+    : /^sub(?:agente)?$/i.test(value) ? "sub" : "";
+  const missionBase = baseAgentIdentity(assignee);
+  if (!missionBase) return value;
+  const parsed = parseAgentIdentity(value);
+  if (generic || !value || sameAgentFamily(value, assignee)) {
+    return scopedAgentIdentity(missionBase, machine, generic || parsed.role || fallbackRole || "sub");
+  }
+  return value;
+}
+__name(scopedMissionOwner, "scopedMissionOwner");
 async function listMissionTasks(env, mid) {
   const { results } = await env.DB.prepare(
     "SELECT mission_id, code, title, status, owner, report, image, updated_at FROM mission_tasks WHERE mission_id=? ORDER BY code"
@@ -687,6 +702,7 @@ async function saveMissionPlan(env, mid, tasks) {
   const seen = /* @__PURE__ */ new Set();
   const subCount = { a: 0, b: 0, c: 0, d: 0, e: 0, f: 0, g: 0, h: 0 };
   const now = Date.now();
+  const mission = await env.DB.prepare("SELECT assignee,loc FROM tickets WHERE id=?").bind(mid).first();
   for (const t of tasks || []) {
     const code = String((t && t.code) || "").trim().toLowerCase();
     if (!validTaskCode(code) || seen.has(code)) continue;
@@ -698,7 +714,10 @@ async function saveMissionPlan(env, mid, tasks) {
     seen.add(code);
     const title = String((t && t.title) || "").slice(0, 120);
     const status = TASK_STATUS.includes(t && t.status) ? t.status : "pending";
-    const owner = t && t.owner ? String(t.owner).slice(0, 40) : ownerFor(code, title);
+    const suggested = t && t.owner ? String(t.owner).slice(0, 40) : ownerFor(code, title);
+    const owner = mission
+      ? scopedMissionOwner(suggested, /^infra/i.test(suggested) ? "infra" : "sub", mission.assignee, mission.loc)
+      : suggested;
     const report = t && t.report != null ? String(t.report).slice(0, 2e3) : null;
     clean.push({ mission_id: mid, code, title, status, owner, report, updated_at: now });
   }
@@ -716,7 +735,11 @@ async function setTaskStatus(env, mid, code, status, report, owner, image) {
   if (!cur) return null;
   const st = TASK_STATUS.includes(status) ? status : cur.status;
   const rp = report != null ? String(report).slice(0, 2e3) : cur.report;
-  const ow = owner != null ? String(owner).slice(0, 40) : cur.owner;
+  let ow = owner != null ? String(owner).slice(0, 40) : cur.owner;
+  if (owner != null) {
+    const mission = await env.DB.prepare("SELECT assignee,loc FROM tickets WHERE id=?").bind(mid).first();
+    if (mission) ow = scopedMissionOwner(ow, parseAgentIdentity(ow).role, mission.assignee, mission.loc);
+  }
   // Captura PROPIA del paso: cada paso deja constancia con su enlace/miniatura. (954)
   const im = image != null && normalizeProofImage(image).value ? normalizeProofImage(image).value : cur.image;
   await env.DB.prepare("UPDATE mission_tasks SET status=?, report=?, owner=?, image=?, updated_at=? WHERE mission_id=? AND code=?").bind(st, rp, ow, im, Date.now(), mid, code).run();

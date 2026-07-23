@@ -19,6 +19,7 @@
        verja ACTIVA por defecto (r7, orden de Carlos): solo usuarios de la lista
        de admira.live. ?gate=off es un escape SOLO para esa carga (no persiste),
        por si el login se rompe; ?gate=on redundante. -->
+  <script src="/yk-agent-identity.js?v=1"></script>
   <script>
   (function(){
     var GATE_DEFAULT = 'on';    // verja activa (r7) — la autoridad real sigue siendo server-side
@@ -1209,7 +1210,7 @@
   // missionForAgent() y por eso la vista MISIÓN era en realidad otra vista
   // PROYECTO. La misión de verdad la manda yokup (missionForAgent, más abajo).
   function projectRefForAgent(persona){
-    const n = norm(persona);
+    const n = norm(window.ykAgentIdentity ? ykAgentIdentity.base(persona) : persona);
     if (AGENT_MISSION[n]) return AGENT_MISSION[n];
     for (const k in AGENT_MISSION){ if (n.includes(k)) return AGENT_MISSION[k]; }
     return '';
@@ -1243,7 +1244,7 @@
   function missionIdForEncargo(id){ return 'FLT-' + id; }
   // Misión VIVA del agente (objeto de yokup) o null si no tiene ninguna.
   function missionForAgent(persona){
-    const n = norm(persona);
+    const n = norm(window.ykAgentIdentity ? ykAgentIdentity.base(persona) : persona);
     if (MISSION_BY_PERSONA[n]) return MISSION_BY_PERSONA[n];
     for (const k in MISSION_BY_PERSONA){ if (n === k) return MISSION_BY_PERSONA[k]; }
     return null;
@@ -1290,51 +1291,6 @@
            `</span></span></div>`;
   }
 
-  // Triada canonica de Oraculo (filosofia AdmiraNeXT: principal / hijo / infra).
-  // El feed vivo de Agora puede tardar en publicar identidades nuevas; esta
-  // presencia minima garantiza que /status muestre la arquitectura de 3 capas.
-  const ORACULO_TRIAD_PRESENCE = [
-    {
-      persona:'Oraculo', runtime:'Codex', machine:'MacBook Pro 16',
-      focus:'Capa 1 / principal: interfaz con Carlos, estrategia, coordinacion y cierre con evidencia.',
-      mode:'autonomo', project:'www.admiranext.com',
-    },
-    {
-      persona:'subOraculo', runtime:'Codex', machine:'MacBook Pro 16',
-      focus:'Capa 2 / hijo ejecutor: tareas concretas, trabajo pesado y verificacion sin pisar a otros agentes.',
-      mode:'autonomo', project:'www.admiranext.com',
-    },
-    {
-      persona:'InfraOraculo', runtime:'Codex', machine:'MacBook Pro 16',
-      focus:'Capa 3 / infraAgente: reporte, documentacion, salud, evidencia y handoff.',
-      mode:'autonomo', project:'www.admiranext.com',
-    },
-  ];
-  function withOraculoTriadPresence(presence, now, isFresh){
-    const rows = Array.isArray(presence) ? presence.slice() : [];
-    const byName = {};
-    rows.forEach((p,i)=>{ byName[norm(p.persona)] = {p,i}; });
-    for(const spec of ORACULO_TRIAD_PRESENCE){
-      const key = norm(spec.persona);
-      const cur = byName[key];
-      const canonical = {
-        ...spec, updated:now, since:now,
-        decisions:0, decide_at:0, tokens:0, reqs:0, cpu:0,
-      };
-      if(cur && cur.p && isFresh(cur.p.updated)){
-        cur.p.machine = cur.p.machine || canonical.machine;
-        cur.p.runtime = cur.p.runtime || canonical.runtime;
-        cur.p.focus   = cur.p.focus   || canonical.focus;
-        cur.p.mode    = cur.p.mode    || canonical.mode;
-        cur.p.project = cur.p.project || canonical.project;
-      } else if(cur){
-        rows[cur.i] = {...cur.p, ...canonical};
-      } else {
-        rows.push(canonical);
-      }
-    }
-    return rows;
-  }
 
   // -------- PROYECTOS CANÓNICOS (la cartera) --------
   // Vista POR PROYECTOS: aparecen SIEMPRE, tengan o no nodos ahora mismo.
@@ -2843,7 +2799,7 @@
       DUDA_LAST_EST=dudaEstructuradas;
       try{ renderDudas(mergeDudas(DUDA_LAST_EST||[])); }catch(e){ console.warn('dudas render',e); }
     }
-    const presence = withOraculoTriadPresence(pres && pres.presence ? pres.presence : [], SERVER_NOW, isFresh)
+    const presence = (pres && Array.isArray(pres.presence) ? pres.presence.slice() : [])
       .filter(p=>{
         const per=String(p.persona||'');
         if(!SHOW_SUBS  && /^sub/i.test(per))   return false;

@@ -38,6 +38,7 @@ test('POST guarda id+slug; GET lista y detalle devuelven nombre, id y slug', () 
 
 test('los ids D1 oraculo + admira-macmini casan con los rótulos del reloj', () => {
   assert.equal(memberRefMatches('agent','oraculo','Oráculo'), true);
+  assert.equal(memberRefMatches('agent','oraculo','InfraOraculoMini'), true);
   assert.equal(memberRefMatches('machine','admira-macmini','Mac Mini'), true);
   assert.equal(memberRefMatches('machine','admira-macbookpro16','Mac Mini'), false);
 });

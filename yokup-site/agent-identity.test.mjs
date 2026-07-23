@@ -1,0 +1,19 @@
+import assert from "node:assert/strict";
+await import("./yk-agent-identity.js");
+const id = globalThis.ykAgentIdentity;
+
+assert.equal(id.scoped("Oraculo","Mac Mini"),"OraculoMini");
+assert.equal(id.scoped("Oraculo","Mac Mini","sub"),"SubOraculoMini");
+assert.equal(id.scoped("Oraculo","Mac Mini","infra"),"InfraOraculoMini");
+assert.equal(id.scoped("Neo","MacMini"),"NeoMini");
+assert.equal(id.scoped("Morfeo","MacBookProNegro14"),"Morfeo14");
+assert.equal(id.scoped("Morfeo","MacBookPro14","sub"),"SubMorfeo14");
+assert.equal(id.scoped("Oraculo","MacBookPro16"),"Oraculo16");
+assert.equal(id.scoped("Oraculo","MacBookPro16","infra"),"InfraOraculo16");
+assert.equal(id.scoped("Smith","MacBookAirAzul"),"Agente Smith Azul");
+assert.equal(id.scoped("Smith","MacBookAirAzul","sub"),"SubAgente Smith Azul");
+assert.equal(id.scoped("Smith","MacBookAirAzul","infra"),"InfraAgente Smith Azul");
+assert.equal(id.base("InfraOraculoMini"),"Oraculo");
+assert.equal(id.base("subOraculo"),"Oraculo");
+assert.equal(id.base("Cypher"),"Smith");
+console.log("yk agent identity matrix: ok");
