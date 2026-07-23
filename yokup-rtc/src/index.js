@@ -267,10 +267,32 @@ function councilSeatForHour(h) {
   return COUNCIL_ORDER[Math.floor((((h % 24) + 24) % 24) / 3)] || "ceo";
 }
 __name(councilSeatForHour, "councilSeatForHour");
-// Extrae {titulo,cuerpo} de lo que devuelva el modelo. Primero intenta un objeto
-// JSON embebido; si no, cae a «primera línea = título, resto = cuerpo».
+// Runner de IA para el Consejo. OJO: Workers AI ya NO siempre devuelve `response`
+// como string — cuando el modelo emite JSON, la plataforma lo entrega YA PARSEADO
+// como objeto. El aiRun genérico hace text.trim() y peta con esos objetos (los
+// salta en silencio); por eso el Consejo tiene el suyo, que acepta objeto O string.
+async function aiRunRaw(env, prompt, maxTokens = 400) {
+  for (const model of AI_MODELS) {
+    try {
+      const r = await env.AI.run(model, { messages: [{ role: "user", content: prompt }], max_tokens: maxTokens });
+      const resp = r && (r.response !== void 0 ? r.response : r.result && r.result.response);
+      if (resp && typeof resp === "object") return resp;
+      if (typeof resp === "string" && resp.trim()) return resp.trim();
+    } catch (e) {
+    }
+  }
+  return null;
+}
+__name(aiRunRaw, "aiRunRaw");
+// Extrae {titulo,cuerpo} de lo que devuelva el modelo: un objeto ya parseado, un
+// objeto JSON embebido en texto, o —último recurso— «primera línea = título».
 function parseIdeaJSON(raw) {
   let title = "", body = "";
+  if (raw && typeof raw === "object") {
+    title = String(raw.titulo || raw.title || raw.t || "").trim();
+    body = String(raw.cuerpo || raw.body || raw.detalle || raw.description || "").trim();
+    return { title: title.slice(0, 200), body: body.slice(0, 4000) };
+  }
   const s = String(raw || "").trim();
   const m = s.match(/\{[\s\S]*\}/);
   if (m) {
@@ -314,7 +336,7 @@ ${previos}
 Responde SOLO con un objeto JSON v\xE1lido, sin texto alrededor ni markdown, con esta forma exacta:
 {"titulo":"<frase corta, m\xE1x 90 caracteres>","cuerpo":"<2 o 3 frases: el porqu\xE9, el c\xF3mo y para qui\xE9n>"}
 Todo en espa\xF1ol.`;
-  const raw = await aiRun(env, prompt, 400);
+  const raw = await aiRunRaw(env, prompt, 400);
   const { title, body } = parseIdeaJSON(raw);
   if (!title) return null;
   const author = c.role + " \xB7 " + c.alias;
