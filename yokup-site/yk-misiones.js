@@ -296,10 +296,38 @@
   // Finalizada. PENDIENTE = tiene AGENTE/EQUIPO pero aún NO reclamada (registrada,
   // sin arrancar). Al reclamarla (bot-inbox-claim) pasa a in_progress = En curso.
   // Antes esto se llamaba «Asignada», lo que confundía backlog con trabajo en marcha.
+  //
+  // OJO (Carlos, 2026-07-23): el «claim» (bot-inbox-claim) es UN camino a in_progress,
+  // no el único. Los agentes CLI (Claude Code) NO reclaman: ejecutan directo y dejan
+  // rastro REAL en el plan (tareas/subtareas in_progress o done, con informes). Una
+  // misión así — p.ej. FLT-1005 con tareas a·b done — se quedaba «Pendiente», absurdo.
+  // Por eso «Pendiente» exige AHORA cero rastro de trabajo: si el plan tiene algo
+  // tocado, es «En curso» aunque nadie la reclamara. Es un OR con el claim, no un
+  // reemplazo (quien reclame sigue subiendo a in_progress igual). El worker sigue
+  // dueño de `status`; esto sólo corrige el caso en que el status quedó rezagado.
+  function hayTrabajo(t) {
+    if (!t) return false;
+    // Array crudo del plan (lo adjunta el tablero como t._tasks): detecta también
+    // in_progress, no sólo hechas. Null-safe: misiones sin plan pasan de largo.
+    var rows = t._tasks;
+    if (rows && rows.length) {
+      for (var i = 0; i < rows.length; i++) {
+        var s = rows[i] && rows[i].status;
+        if (s === "in_progress" || s === "done" || s === "resolved") return true;
+      }
+    }
+    // Sin el array, el resumen en TERCIOS (t._prog) ya trae el recuento de HECHAS
+    // (tareas + subtareas + pasos antiguos). Cualquier recuento >0 = trabajo real.
+    var p = t._prog;
+    if (p && (((p.done | 0) > 0) || ((p.sdone | 0) > 0) || ((p.extraDone | 0) > 0))) return true;
+    return false;
+  }
   function estadoDe(t) {
     if (t.status === "cancelled") return { c: "b-cancel", l: "Cancelada" };
     if (t.status === "resolved") return { c: "b-res", l: "Finalizada" };
     if (t.status === "in_progress") return { c: "b-prog", l: "En curso" };
+    // Trabajo real en el plan ⇒ «En curso», nunca «Pendiente» (rastro CLI sin claim).
+    if (hayTrabajo(t)) return { c: "b-prog", l: "En curso" };
     return (t.assignee || t.loc || t.machine) ? { c: "b-pend", l: "Pendiente" } : { c: "b-sina", l: "Sin asignar" };
   }
 

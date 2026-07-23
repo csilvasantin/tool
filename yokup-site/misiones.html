@@ -250,7 +250,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 
 <script src="/yk-agent-identity.js?v=1"></script>
 <script src="/yk-maquina.js?v=r1"></script>
-<script src="/yk-misiones.js?v=r50"></script>
+<script src="/yk-misiones.js?v=r51"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r2"></script>
 <script src="/yk-decisions.js?v=20260723a"></script>
@@ -648,7 +648,10 @@ async function load(){
     // Regla de los tercios (963 → 979): TAREAS a·b·c sobre 3 y SUBTAREAS a1…c3
     // sobre 9. Nunca el COUNT(*) crudo del árbol (daba 1/13, 0/12, 1/29), que no
     // deja comparar dos misiones de un vistazo. El cálculo vive en YkMisiones.tercios.
-    list.forEach(t=>{ t._prog=YkMisiones.tercios(_g[t.id]||[]); });
+    // _prog = resumen en tercios (contador/barra). _tasks = array crudo del plan,
+    // que estadoDe usa para leer «En curso» del RASTRO REAL (tareas in_progress/done
+    // dejadas por un agente CLI que ejecuta sin reclamar), no sólo del claim. (23-jul)
+    list.forEach(t=>{ const g=_g[t.id]||null; t._prog=YkMisiones.tercios(g||[]); t._tasks=g; });
   }catch(e){}
   el.innerHTML=headHtml()+groupedHtml(list);
   bindHead(el);
