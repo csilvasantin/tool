@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/acceso.js"></script>
+<title>Ideas · Yokup</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#02080d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
+<link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<link rel="stylesheet" href="/yk-frame.css?v=r16">
+<style>
+  :root{ --brand:#3fd0c9; --ink:#e8f0f4; --dim:#8aa0ab; --mut:#5f7682; --line:#1a2b33;
+         --panel:#0a1720; --panel2:#0c1e28; --good:#46d38a; --warn:#f5b23a; --bad:#ff7a6b; --mono:ui-monospace,Menlo,monospace; }
+  *{box-sizing:border-box}
+  .wrap{max-width:1000px;margin:0 auto;padding:20px 18px 80px}
+  .head h1{font-size:clamp(24px,4vw,34px);font-weight:800;letter-spacing:-.01em;margin:0 0 6px}
+  .head p{color:var(--dim);margin:0 0 22px;max-width:60ch;font-size:14.5px;line-height:1.5}
+  /* formulario de nueva idea */
+  .add{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 16px 14px;margin-bottom:22px}
+  .add .row{display:flex;gap:10px;flex-wrap:wrap}
+  .add input,.add textarea,.add select{background:#06121a;color:var(--ink);border:1px solid var(--line);border-radius:10px;
+    padding:11px 12px;font:14px/1.4 -apple-system,system-ui,sans-serif;outline:none;transition:border-color .15s}
+  .add input:focus,.add textarea:focus{border-color:var(--brand)}
+  .add .t{flex:1 1 100%;font-size:15px;font-weight:600}
+  .add textarea{flex:1 1 100%;min-height:64px;resize:vertical}
+  .add input.a{flex:1 1 160px} .add select{flex:0 0 150px}
+  .add button{margin-left:auto;background:var(--brand);color:#04232a;border:0;border-radius:10px;padding:11px 20px;
+    font:800 14px/1 -apple-system,system-ui,sans-serif;cursor:pointer;transition:filter .15s}
+  .add button:hover{filter:brightness(1.08)} .add button:disabled{opacity:.5;cursor:default}
+  /* barra de filtros */
+  .bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .bar .f{font:700 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);
+    border:1px solid var(--line);background:transparent;border-radius:999px;padding:7px 12px;cursor:pointer}
+  .bar .f.on{color:#04232a;background:var(--brand);border-color:var(--brand)}
+  .bar .count{margin-left:auto;font:600 12px var(--mono);color:var(--mut)}
+  /* lista de ideas */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+  .idea{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px 15px 12px;display:flex;flex-direction:column;gap:8px}
+  .idea .top{display:flex;align-items:center;gap:8px}
+  .idea .st{font:700 10px/1 var(--mono);letter-spacing:.04em;text-transform:uppercase;padding:5px 8px;border-radius:6px;white-space:nowrap}
+  .st.nueva{color:#04232a;background:var(--brand)} .st.estudio{color:#04232a;background:var(--warn)}
+  .st.hecha{color:#04232a;background:var(--good)} .st.descartada{color:var(--mut);background:#132029;border:1px solid var(--line)}
+  .idea .tag{font:600 10.5px var(--mono);color:var(--brand);opacity:.85}
+  .idea h3{font-size:15.5px;font-weight:700;margin:0;line-height:1.3}
+  .idea .body{color:var(--dim);font-size:13px;line-height:1.5;white-space:pre-wrap}
+  .idea .meta{margin-top:auto;display:flex;align-items:center;gap:8px;font:600 11px var(--mono);color:var(--mut)}
+  .idea .acts{display:flex;gap:5px;margin-left:auto}
+  .idea .acts button{background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:7px;
+    font-size:12px;padding:4px 7px;cursor:pointer;line-height:1;transition:.15s}
+  .idea .acts button:hover{color:var(--ink);border-color:var(--mut)}
+  .empty{color:var(--mut);text-align:center;padding:40px 10px;font-size:14px}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--panel2);color:var(--ink);
+    border:1px solid var(--line);border-radius:10px;padding:11px 16px;font-size:13.5px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
+  .toast.on{opacity:1}
+</style>
+</head>
+<body>
+<main class="wrap" id="yk-main">
+  <div class="head">
+    <h1>💡 Ideas</h1>
+    <p>El cuaderno de ideas del equipo Admira. Apunta cualquier chispa —producto, mejora, experimento— antes de que se pierda. De aquí salen las misiones.</p>
+  </div>
+
+  <form class="add" id="addForm" autocomplete="off">
+    <input class="t" id="fTitle" maxlength="200" placeholder="La idea, en una frase…" required>
+    <textarea id="fBody" maxlength="4000" placeholder="Detalle (opcional): el porqué, cómo, para quién…"></textarea>
+    <div class="row">
+      <input class="a" id="fAuthor" maxlength="80" placeholder="Tu nombre">
+      <select id="fTag">
+        <option value="">— etiqueta —</option>
+        <option>producto</option><option>flota</option><option>ia</option>
+        <option>diseño</option><option>negocio</option><option>proceso</option><option>meta</option>
+      </select>
+      <button type="submit" id="fBtn">Añadir idea</button>
+    </div>
+  </form>
+
+  <div class="bar" id="filters">
+    <button class="f on" data-f="">Todas</button>
+    <button class="f" data-f="nueva">Nuevas</button>
+    <button class="f" data-f="estudio">En estudio</button>
+    <button class="f" data-f="hecha">Hechas</button>
+    <button class="f" data-f="descartada">Descartadas</button>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" style="display:none">Aún no hay ideas. Apunta la primera arriba. ✍️</div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
+const $=s=>document.querySelector(s);
+const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+const STATES={nueva:"nueva",estudio:"estudio",hecha:"hecha",descartada:"descartada"};
+const STLABEL={nueva:"Nueva",estudio:"En estudio",hecha:"Hecha",descartada:"Descartada"};
+const NEXT={nueva:"estudio",estudio:"hecha",hecha:"nueva"};
+let IDEAS=[], FILTER="";
+
+function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),1800); }
+function fecha(ms){ try{ return new Date(ms).toLocaleDateString("es-ES",{day:"2-digit",month:"short"}); }catch(e){ return ""; } }
+
+function render(){
+  const list=IDEAS.filter(i=>!FILTER||i.status===FILTER);
+  $("#count").textContent=IDEAS.length+" idea"+(IDEAS.length===1?"":"s");
+  $("#empty").style.display=list.length?"none":(IDEAS.length?"none":"block");
+  $("#grid").innerHTML=list.map(i=>{
+    const st=STATES[i.status]||"nueva";
+    return '<div class="idea">'+
+      '<div class="top"><span class="st '+st+'">'+STLABEL[st]+'</span>'+(i.tag?'<span class="tag">#'+esc(i.tag)+'</span>':'')+'</div>'+
+      '<h3>'+esc(i.title)+'</h3>'+
+      (i.body?'<div class="body">'+esc(i.body)+'</div>':'')+
+      '<div class="meta">'+esc(i.author||"anónimo")+' · '+fecha(i.created_at)+
+        '<span class="acts">'+
+          (NEXT[st]?'<button data-adv="'+esc(i.id)+'" title="pasar a '+STLABEL[NEXT[st]]+'">→ '+STLABEL[NEXT[st]]+'</button>':'')+
+          (st!=="descartada"?'<button data-del="'+esc(i.id)+'" title="descartar">✕</button>':'')+
+        '</span>'+
+      '</div>'+
+    '</div>';
+  }).join("");
+}
+
+async function load(){
+  try{ const r=await fetch(WORKER+"/ideas",{cache:"no-store"}); const d=await r.json(); IDEAS=d.ideas||[]; render(); }
+  catch(e){ toast("No pude cargar las ideas"); }
+}
+async function setStatus(id,status){
+  try{ await fetch(WORKER+"/ideas/status",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,status})});
+    const it=IDEAS.find(x=>x.id===id); if(it)it.status=status; render(); }catch(e){ toast("Error al cambiar estado"); }
+}
+
+$("#addForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const title=$("#fTitle").value.trim(); if(!title)return;
+  const btn=$("#fBtn"); btn.disabled=true;
+  try{
+    const body={title,body:$("#fBody").value.trim(),author:$("#fAuthor").value.trim(),tag:$("#fTag").value};
+    const r=await fetch(WORKER+"/ideas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(d.ok){ $("#fTitle").value="";$("#fBody").value="";$("#fTag").value=""; toast("Idea guardada 💡"); load(); }
+    else toast(d.error==="falta_titulo"?"Falta el título":"No se pudo guardar");
+  }catch(e){ toast("Error de red"); } finally{ btn.disabled=false; }
+});
+$("#filters").addEventListener("click",e=>{ const b=e.target.closest(".f"); if(!b)return;
+  FILTER=b.dataset.f; document.querySelectorAll("#filters .f").forEach(x=>x.classList.toggle("on",x===b)); render(); });
+$("#grid").addEventListener("click",e=>{
+  const a=e.target.closest("[data-adv]"), d=e.target.closest("[data-del]");
+  if(a){ const it=IDEAS.find(x=>x.id===a.dataset.adv); if(it)setStatus(it.id,NEXT[it.status]||"estudio"); }
+  else if(d){ setStatus(d.dataset.del,"descartada"); }
+});
+load();
+</script>
+</body>
+</html>
