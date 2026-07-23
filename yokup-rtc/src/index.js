@@ -245,6 +245,9 @@ async function ensureIdeasSchema(env) {
   // Deliberación del Consejo (FLT-1005 «En estudio»): JSON {pros:[{seat,by,text}×3],
   // cons:[{seat,by,text}×3], at}. Migración ADITIVA e idempotente igual que `seat`.
   await env.DB.exec("ALTER TABLE ideas ADD COLUMN review TEXT").catch(() => {});
+  // Kit de venta (FLT-1007): adjuntos de NotebookLM. JSON {audio:{url,at}?,
+  // video:{url,at}?, pdf:{url,at}?}. Migración ADITIVA e idempotente igual que arriba.
+  await env.DB.exec("ALTER TABLE ideas ADD COLUMN media TEXT").catch(() => {});
 }
 __name(ensureIdeasSchema, "ensureIdeasSchema");
 
@@ -345,9 +348,16 @@ Todo en espa\xF1ol.`;
   const author = c.role + " \xB7 " + c.alias;
   const now = Date.now();
   const id = "IDEA-" + crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+  // FLT-1007: las ideas del Consejo NACEN «estudio» (a debatir de inmediato). Las
+  // humanas (POST /ideas) siguen naciendo «nueva» — este automatismo es solo del Consejo.
   await env.DB.prepare("INSERT INTO ideas (id,title,body,author,tag,status,created_at,updated_at,mission_id,seat) VALUES (?,?,?,?,?,?,?,?,?,?)")
-    .bind(id, title, body, author, "consejo", "nueva", now, now, "", seat).run();
-  return { id, title, body, author, tag: "consejo", status: "nueva", created_at: now, updated_at: now, mission_id: "", seat };
+    .bind(id, title, body, author, "consejo", "estudio", now, now, "", seat).run();
+  // Deliberación INLINE al nacer (mismo best-effort que /ideas/status → estudio):
+  // el estado ya quedó guardado arriba; si la IA falla, la idea queda en estudio sin
+  // review y POST /ideas/review la regenera bajo demanda. Nunca tumba la creación.
+  let review = null;
+  try { review = await generateCouncilReview(env, { id, title, body, author, seat }); } catch (e) { review = null; }
+  return { id, title, body, author, tag: "consejo", status: "estudio", created_at: now, updated_at: now, mission_id: "", seat, review };
 }
 __name(generateCouncilIdea, "generateCouncilIdea");
 
@@ -2660,10 +2670,13 @@ var index_default = {
       try {
         await ensureIdeasSchema(env);
         if (req.method === "GET") {
-          const r = await env.DB.prepare("SELECT id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,review FROM ideas ORDER BY created_at DESC").all();
+          const r = await env.DB.prepare("SELECT id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,review,media FROM ideas ORDER BY created_at DESC").all();
           const rows = r.results || [];
-          // `review` viaja YA PARSEADO como objeto (o null): el front lo pinta directo.
-          for (const it of rows) { if (it.review) { try { it.review = JSON.parse(it.review); } catch (e) { it.review = null; } } else it.review = null; }
+          // `review` y `media` viajan YA PARSEADOS como objeto (o null): el front los pinta directo.
+          for (const it of rows) {
+            if (it.review) { try { it.review = JSON.parse(it.review); } catch (e) { it.review = null; } } else it.review = null;
+            if (it.media) { try { it.media = JSON.parse(it.media); } catch (e) { it.media = null; } } else it.media = null;
+          }
           return json({ ideas: rows });
         }
         const b = await req.json();
@@ -2694,6 +2707,31 @@ var index_default = {
         const r = await env.DB.prepare("UPDATE ideas SET seat=?, updated_at=? WHERE id=?").bind(seat, Date.now(), id).run();
         if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: "not_found" }, 404);
         return json({ ok: true, id, seat });
+      } catch (e) { return json({ error: String(e) }, 500); }
+    }
+    // POST /ideas/media {id, kind:audio|video|pdf, url} — adjunta al Kit de venta
+    // (FLT-1007) un activo generado en NotebookLM. Valida kind y url http(s). Fusiona
+    // sobre el media existente (no pisa los otros dos). Devuelve la idea con media parseada.
+    if (url.pathname === "/ideas/media" && req.method === "POST") {
+      const MEDIA_KINDS = /* @__PURE__ */ new Set(["audio", "video", "pdf"]);
+      try {
+        await ensureIdeasSchema(env);
+        const b = await req.json();
+        const id = String(b.id || "").trim();
+        if (!id) return json({ ok: false, error: "id requerido" }, 400);
+        const kind = String(b.kind || "").trim().toLowerCase();
+        if (!MEDIA_KINDS.has(kind)) return json({ ok: false, error: "kind inválido (audio|video|pdf)" }, 400);
+        const murl = String(b.url || "").trim().slice(0, 2000);
+        if (!/^https?:\/\/\S+$/i.test(murl)) return json({ ok: false, error: "url http(s) requerida" }, 400);
+        const idea = await env.DB.prepare("SELECT id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,review,media FROM ideas WHERE id=?").bind(id).first();
+        if (!idea) return json({ ok: false, error: "not_found" }, 404);
+        let media = {};
+        if (idea.media) { try { media = JSON.parse(idea.media) || {}; } catch (e) { media = {}; } }
+        media[kind] = { url: murl, at: Date.now() };
+        await env.DB.prepare("UPDATE ideas SET media=?, updated_at=? WHERE id=?").bind(JSON.stringify(media), Date.now(), id).run();
+        idea.media = media;
+        if (idea.review) { try { idea.review = JSON.parse(idea.review); } catch (e) { idea.review = null; } } else idea.review = null;
+        return json({ ok: true, id, idea });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     // Progreso por silla: para cada una de las 8, sus ideas y —para las promovidas

@@ -204,6 +204,19 @@
   .list .ldelib{display:none;background:var(--panel);border:1px solid var(--line);border-top:0;
     border-radius:0 0 10px 10px;margin-top:-6px;padding:10px 12px}
   .list .ldelib.on{display:block}
+  /* ── KIT DE VENTA (FLT-1007): adjuntos de NotebookLM (audio·vídeo·pdf). Bloque
+        sobrio entre la deliberación y la ✕ final. Indicador 🎬 en el listado. ── */
+  .idea .kit{margin:8px 0 0;border-top:1px solid var(--line);padding-top:9px}
+  .idea .kit .kh{font:800 11px/1 -apple-system,system-ui,sans-serif;color:var(--ink);letter-spacing:.02em;margin-bottom:7px}
+  .idea .kit audio.kaudio{width:100%;height:34px;margin-bottom:7px;display:block}
+  .idea .kit .klinks{display:flex;gap:7px;flex-wrap:wrap}
+  .idea .kit .klink{font:700 10.5px/1 var(--mono);letter-spacing:.03em;color:var(--brand);text-decoration:none;
+    border:1px solid var(--line);border-radius:7px;padding:6px 9px;transition:.15s;white-space:nowrap}
+  .idea .kit .klink:hover{border-color:var(--brand);background:rgba(63,208,201,.1)}
+  /* botón discreto «⧉ guion» (copia idea+deliberación al portapapeles para NotebookLM) */
+  .idea .acts button.guion{color:var(--mut);font:600 11px/1 var(--mono);letter-spacing:.02em}
+  .idea .acts button.guion:hover{color:var(--brand);border-color:var(--brand)}
+  .list .lkit{flex:none;font-size:12px;line-height:1;opacity:.9}
 </style>
 </head>
 <body data-yk-title="OBJETIVOS" data-yk-zone="app">
@@ -350,6 +363,41 @@ function reviewBlock(i){ if(!hasReview(i)) return ''; const rv=i.review;
   return '<details class="delib"><summary><span class="dh">⚖️ El Consejo delibera</span>'+
     '<span class="dsum">'+(rv.pros||[]).length+' a favor · '+(rv.cons||[]).length+' en contra</span></summary>'+
     reviewInner(i)+'</details>'; }
+// ── KIT DE VENTA (FLT-1007) — media que trae GET /ideas: objeto {audio:{url,at}?,
+//    video:{url,at}?, pdf:{url,at}?}. Se pinta como bloque sobrio en la ficha, entre
+//    la deliberación y la ✕ final; en el listado, un indicador 🎬.
+const hasMedia=i=>i&&i.media&&(i.media.audio&&i.media.audio.url||i.media.video&&i.media.video.url||i.media.pdf&&i.media.pdf.url);
+function kitBlock(i){ if(!hasMedia(i)) return ''; const m=i.media;
+  return '<div class="kit"><div class="kh">🎬 Kit de venta</div>'+
+    (m.audio&&m.audio.url?'<audio class="kaudio" controls preload="none" src="'+esc(m.audio.url)+'"></audio>':'')+
+    ((m.video&&m.video.url)||(m.pdf&&m.pdf.url)?'<div class="klinks">'+
+      (m.video&&m.video.url?'<a class="klink" href="'+esc(m.video.url)+'" target="_blank" rel="noopener">▶ vídeo</a>':'')+
+      (m.pdf&&m.pdf.url?'<a class="klink" href="'+esc(m.pdf.url)+'" target="_blank" rel="noopener">📄 PDF</a>':'')+
+    '</div>':'')+'</div>';
+}
+// Guion en texto plano (idea + deliberación) — la fuente que se pega en NotebookLM.
+function guionText(i){
+  let out=String(i.title||'')+'\n\n'; if(i.body) out+=String(i.body)+'\n\n';
+  if(hasReview(i)){ const rv=i.review;
+    out+='EL CONSEJO DELIBERA\n\nA FAVOR:\n';
+    (rv.pros||[]).forEach(p=>{ out+='- '+String(p&&p.text||'')+(p&&p.by?' ('+p.by+')':'')+'\n'; });
+    out+='\nEN CONTRA:\n';
+    (rv.cons||[]).forEach(c=>{ out+='- '+String(c&&c.text||'')+(c&&c.by?' ('+c.by+')':'')+'\n'; });
+  }
+  return out.trim();
+}
+async function copyGuion(id){
+  const it=IDEAS.find(x=>x.id===id); if(!it) return; const txt=guionText(it);
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){ await navigator.clipboard.writeText(txt); toast('⧉ Guion copiado'); return; }
+    throw new Error('no-clipboard');
+  }catch(e){
+    try{ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+      toast('⧉ Guion copiado'); }
+    catch(_){ toast('No pude copiar el guion'); }
+  }
+}
 function seatOpts(sel){ return '<option value="">— silla —</option>'+
   SEATS.map(([v,l])=>'<option value="'+v+'"'+(v===sel?' selected':'')+'>'+l+'</option>').join(''); }
 let IDEAS=[], FILTER="", PROG=null;
@@ -368,6 +416,7 @@ function card(i){
   const cons=isConsejo(i), side=cons?seatSide(i.seat):"";
   const rv=hasReview(i);
   const showDelib=rv||st==="estudio"; // en estudio siempre hay hueco de deliberación
+  const kit=kitBlock(i); // Kit de venta (FLT-1007): '' si no hay adjuntos
   const delX='<button class="del" data-rm="'+esc(i.id)+'" title="Eliminar para siempre">✕</button>';
   return '<div class="idea'+(cons?' consejo '+side:'')+'">'+
     '<div class="top"><span class="st '+st+'">'+STLABEL[st]+'</span>'+
@@ -382,14 +431,19 @@ function card(i){
         (!isMis&&NEXT[st]?'<button data-adv="'+esc(i.id)+'" title="pasar a '+STLABEL[NEXT[st]]+'">→ '+STLABEL[NEXT[st]]+'</button>':'')+
         (!isMis?'<button class="mis" data-mis="'+esc(i.id)+'" title="convertir en misión FLT (crea un encargo)">→ misión</button>':'')+
         (!isMis&&st!=="descartada"?'<button data-del="'+esc(i.id)+'" title="descartar">⊘</button>':'')+
+        // «⧉ guion» solo cuando hay deliberación (o está en estudio): es la fuente
+        // que se pega en NotebookLM para fabricar el Kit de venta.
+        (showDelib?'<button class="guion" data-guion="'+esc(i.id)+'" title="Copiar guion (idea + deliberación) para NotebookLM">⧉ guion</button>':'')+
         // Con deliberación (o en estudio), la ✕ baja DEBAJO del review (entre la
         // silla y la ✕); sin ella, se queda donde estaba, sin tocar la ficha normal.
         (showDelib?'':delX)+
       '</span>'+
     '</div>'+
+    // Deliberación → Kit de venta → ✕ final. Sin deliberación, el kit va suelto
+    // (la ✕ ya está en la fila de acciones).
     (showDelib?(rv?reviewBlock(i)
                  :'<div class="delib pend"><button class="regen" data-regen="'+esc(i.id)+'" title="Pedir la deliberación del Consejo">⚖️ Pedir deliberación</button></div>')+
-               '<div class="rmrow">'+delX+'</div>':'')+
+               kit+'<div class="rmrow">'+delX+'</div>':kit)+
   '</div>';
 }
 // Fila compacta (vista listado): estado · título · etiqueta · silla · autor · fecha · acciones (→ misión y la cruz ✕).
@@ -401,6 +455,7 @@ function listRow(i){
   return '<div class="lrow'+(cons?' consejo '+side:'')+'">'+
     '<span class="st '+st+'">'+STLABEL[st]+'</span>'+
     '<span class="ltitle" title="'+esc(i.title)+'">'+esc(i.title)+'</span>'+
+    (hasMedia(i)?'<span class="lkit" title="Tiene Kit de venta (audio·vídeo·pdf)">🎬</span>':'')+
     (cons?'<span class="lsign">✦ '+esc(i.author||"Consejo")+'</span>'
          :((i.tag?'<span class="ltag">#'+esc(i.tag)+'</span>':'')+
            (seatL?'<span class="lseat">'+esc(seatL)+'</span>':'')+
@@ -556,6 +611,7 @@ $("#grid").addEventListener("click",e=>{
   const dtg=e.target.closest("[data-delib]"); if(dtg){ const id=dtg.dataset.delib;
     const p=$('.ldelib[data-delib-for="'+id+'"]'); if(p) p.classList.toggle("on"); dtg.classList.toggle("on"); return; }
   const rg=e.target.closest("[data-regen]"); if(rg){ regenReview(rg.dataset.regen); return; }
+  const gu=e.target.closest("[data-guion]"); if(gu){ copyGuion(gu.dataset.guion); return; }
   const rm=e.target.closest("[data-rm]"); if(rm){ del(rm.dataset.rm); return; }
   const a=e.target.closest("[data-adv]"), m=e.target.closest("[data-mis]"), d=e.target.closest("[data-del]");
   if(a){ const it=IDEAS.find(x=>x.id===a.dataset.adv); if(it)setStatus(it.id,NEXT[it.status]||"estudio"); }
