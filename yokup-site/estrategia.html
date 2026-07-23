@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/acceso.js"></script>
+<title>Estrategia · Yokup</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#02080d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
+<link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<link rel="stylesheet" href="/yk-frame.css?v=r14">
+<link rel="stylesheet" href="/yk-misiones.css?v=r23">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
+/* Acentos por equipo: Átomos = ámbar (materia); Bits = cian (silicio). */
+:root{--atomo:#ffb545;--atomo-soft:rgba(255,181,69,.09);--atomo-line:rgba(255,181,69,.32);
+      --bit:#78f3ff;--bit-soft:rgba(120,243,255,.07);--bit-line:rgba(120,243,255,.30)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 24px 48px}
+h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
+.sub{color:var(--mut);font-size:14.5px;line-height:1.5;margin-bottom:20px;max-width:760px}.sub b{color:var(--brand)}
+.sub .a{color:var(--atomo)}.sub .b{color:var(--bit)}
+
+/* ═══ DOS EQUIPOS EN PARALELO ═══ */
+.teams{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+/* Orden pedido por Carlos: Bits a la IZQUIERDA, Átomos a la DERECHA. */
+.team.bits{order:1}.team.atomos{order:2}
+@media(max-width:860px){.teams{grid-template-columns:1fr}}
+.team{border:1px solid var(--line);border-radius:16px;background:var(--card);overflow:hidden}
+.team.atomos{border-color:var(--atomo-line)}
+.team.bits{border-color:var(--bit-line)}
+.team-hd{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap;padding:16px 18px 12px}
+.team.atomos .team-hd{background:linear-gradient(180deg,var(--atomo-soft),transparent)}
+.team.bits .team-hd{background:linear-gradient(180deg,var(--bit-soft),transparent)}
+.team-ico{font-size:22px;line-height:1}
+.team-name{font-size:19px;font-weight:700;letter-spacing:-.01em}
+.team.atomos .team-name{color:var(--atomo)}
+.team.bits .team-name{color:var(--bit)}
+.team-tag{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.team-body{padding:0 18px 18px}
+
+/* ── NORTE (estrategia editable del equipo) ── */
+.norte-h{font-family:var(--mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--dim);margin:6px 0 6px;display:flex;align-items:center;gap:8px}
+.norte-h .save{margin-left:auto;color:var(--good);opacity:0;transition:.3s;text-transform:none;letter-spacing:.03em}
+.norte-h .save.on{opacity:1}
+.norte{font-family:var(--sans);font-size:14px;line-height:1.55;color:var(--ink);background:var(--bg);
+  border:1px dashed var(--line2);border-radius:11px;padding:12px 14px;min-height:70px;outline:none;transition:.2s;white-space:pre-wrap}
+.norte:focus{border-style:solid}
+.team.atomos .norte:focus{border-color:var(--atomo)}
+.team.bits .norte:focus{border-color:var(--bit)}
+.norte:empty::before{content:attr(data-ph);color:var(--dim);font-style:italic}
+
+/* ── Sub-encabezado de bloque (Decisiones / Misiones) ── */
+.blk-h{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--mut);
+  margin:20px 0 10px;display:flex;align-items:center;gap:8px}
+.blk-h .n{color:var(--dim)}
+.blk-h::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* ── Tarjeta de misión (compacta) ── */
+.mis{display:flex;flex-direction:column;gap:8px}
+.mrow{display:block;text-decoration:none;border:1px solid var(--line);border-radius:10px;background:var(--card2);
+  padding:10px 12px;transition:.15s}
+.mrow:hover{border-color:var(--line2);transform:translateY(-1px)}
+.mrow .m1{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+.mrow .mid{font-family:var(--mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--brand)}
+.mrow .mst{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.05em;text-transform:uppercase;
+  border:1px solid var(--line);border-radius:999px;padding:2px 8px;color:var(--mut);white-space:nowrap}
+.mrow .mst.st-sin{color:var(--warn);border-color:rgba(255,136,102,.4)}
+.mrow .mst.st-prog{color:var(--accent);border-color:rgba(255,216,102,.4)}
+.mrow .mst.st-done{color:var(--good);border-color:rgba(136,255,170,.4)}
+.mrow .msub{font-size:13px;color:var(--ink);line-height:1.35;font-weight:500}
+.mrow .mmeta{font-family:var(--mono);font-size:10px;color:var(--mut);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap}
+.mempty{border:1px dashed var(--line);border-radius:10px;padding:20px 14px;text-align:center;
+  color:var(--dim);font-family:var(--mono);font-size:11px;letter-spacing:.04em;line-height:1.6}
+.mempty a{color:var(--brand)}
+.mmore{display:block;text-align:center;font-family:var(--mono);font-size:10px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--mut);text-decoration:none;padding:8px;border:1px solid var(--line);
+  border-radius:9px;margin-top:2px}
+.mmore:hover{color:var(--brand);border-color:var(--line2)}
+
+/* ── KPIs del equipo ── */
+.tkpis{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 2px}
+.tkpi{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+  border:1px solid var(--line);border-radius:9px;padding:7px 11px;background:var(--bg);color:var(--mut);
+  display:flex;align-items:center;gap:7px}
+.tkpi b{font-size:15px;color:var(--ink)}
+
+/* ═══ RELOJES DE DECISIÓN (reutilizado de /tareas) ═══ */
+.dec{border:1px solid var(--line2);border-radius:10px;background:var(--card2);padding:12px 13px;margin-bottom:9px}
+.dec.urge{border-color:#ff6b6b;box-shadow:0 0 18px -6px #ff6b6b}
+.dec-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}
+.dec-k{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);
+  border:1px solid var(--line);border-radius:6px;padding:3px 7px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.dec-k.ag{color:var(--brand);border-color:rgba(120,243,255,.35)}
+.dec-k.sur{color:#9effb0;border-color:rgba(61,240,138,.35)}
+.dec-clock{margin-left:auto;font-family:var(--mono);font-size:15px;font-weight:700;color:var(--atomo);
+  letter-spacing:.06em;font-variant-numeric:tabular-nums}
+.dec.urge .dec-clock{color:#ff6b6b;animation:decblink 1s infinite}
+@keyframes decblink{0%,100%{opacity:1}50%{opacity:.45}}
+.dec-q{font-size:13px;line-height:1.4;color:var(--ink);margin-bottom:10px}
+.dec-opts{display:flex;flex-direction:column;gap:6px}
+.dec-opt{display:flex;align-items:flex-start;gap:8px;text-align:left;width:100%;font-family:inherit;font-size:12px;
+  line-height:1.35;color:var(--ink);cursor:pointer;background:transparent;border:1px solid var(--line);
+  border-radius:8px;padding:8px 10px;transition:.15s}
+.dec-opt:hover{border-color:var(--brand);background:rgba(120,243,255,.06)}
+.dec-opt .n{font-family:var(--mono);font-size:10px;color:var(--mut);flex:none;padding-top:2px}
+.dec-opt.rec{border-color:var(--atomo);position:relative;overflow:hidden;--fill:0%}
+.dec-opt.rec .n{color:var(--atomo)}
+.dec-opt.rec::before{content:"";position:absolute;inset:0 auto 0 0;width:var(--fill);
+  background:linear-gradient(90deg,rgba(255,181,69,.05),rgba(255,181,69,.22));
+  border-right:2px solid var(--atomo);transition:width 1s linear;pointer-events:none;z-index:0}
+.dec-opt.rec > *{position:relative;z-index:1}
+.dec.urge .dec-opt.rec::before{background:linear-gradient(90deg,rgba(255,107,107,.08),rgba(255,107,107,.3));border-right-color:#ff6b6b}
+.dec-done{font-family:var(--mono);font-size:11px;padding:7px 0 0}
+.dec-done.ok{color:var(--good)}
+.dec-done.exp{color:var(--mut)}
+.dec-av{width:18px;height:18px;border-radius:4px;object-fit:cover;object-position:center top;border:1px solid rgba(120,243,255,.35);display:block}
+
+/* Triángulo de pliegue de la descripción (patrón canónico de la suite). */
+h1{display:flex;align-items:center;gap:10px}
+.tgl{font-family:var(--mono);font-size:13px;line-height:1;color:var(--mut);background:transparent;
+  border:1px solid var(--line);border-radius:6px;padding:4px 8px;cursor:pointer;transition:.2s}
+.tgl:hover{color:var(--brand);border-color:var(--line2)}
+
+/* ═══ AGENTE SMITH — Grok en CLI, se multiplica por la flota (Matrix) ═══ */
+:root{--smith:#6bffa1;--smith-dim:#8299a0}
+.smith{display:flex;align-items:center;gap:15px;flex-wrap:wrap;margin:2px 0 20px;padding:13px 16px;
+  border:1px solid rgba(107,255,161,.32);border-radius:14px;
+  background:linear-gradient(100deg,rgba(107,255,161,.07),transparent 70%)}
+.smith.reposo{border-color:rgba(130,153,160,.42);background:linear-gradient(100deg,rgba(130,153,160,.06),transparent 70%)}
+.smith.off{border-color:var(--line);background:var(--card)}
+.smith-ico{font-size:26px;line-height:1;filter:drop-shadow(0 0 10px rgba(107,255,161,.4))}
+.smith.reposo .smith-ico,.smith.off .smith-ico{filter:none;opacity:.65}
+.smith-main{flex:1;min-width:0}
+.smith-hd{font-size:15px;font-weight:600;color:var(--ink);display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.smith-hd b{color:var(--smith)}
+.smith.reposo .smith-hd b{color:var(--smith-dim)}
+.smith-rt{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);
+  border:1px solid var(--line);border-radius:999px;padding:2px 8px}
+.smith-sub{font-family:var(--mono);font-size:11.5px;color:var(--mut);margin-top:3px;letter-spacing:.02em}
+.smith-sub b{color:var(--ink)}
+.smith-machs{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:52%}
+.smith-chip{font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;color:var(--mut);
+  border:1px solid var(--line);border-radius:8px;padding:4px 8px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.smith-chip .dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--smith-dim)}
+.smith-chip.on{color:var(--ink);border-color:rgba(107,255,161,.4)}
+.smith-chip.on .dot{background:var(--smith);box-shadow:0 0 8px var(--smith);animation:smithpulse 1.8s infinite}
+.smith-chip .mult{color:var(--smith);font-weight:700;margin-left:2px}
+.smith-chip.idle .mult{color:var(--smith-dim)}
+@keyframes smithpulse{0%,100%{opacity:1}50%{opacity:.4}}
+/* Mando: dirigir una consulta al CLI de Grok en la máquina elegida. */
+.smith-mando{flex-basis:100%;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.sm-lb{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--smith-dim);white-space:nowrap}
+.sm-sel{font-family:var(--mono);font-size:11px;color:var(--ink);background:var(--bg);border:1px solid var(--line);
+  border-radius:9px;padding:9px 10px;cursor:pointer;max-width:230px}
+.sm-sel:focus{outline:none;border-color:var(--smith)}
+.sm-in{flex:1 1 240px;min-width:170px;font-family:var(--sans);font-size:13px;color:var(--ink);
+  background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 12px;outline:none}
+.sm-in::placeholder{color:var(--dim)}
+.sm-in:focus{border-color:var(--smith)}
+.sm-go{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#02120a;
+  background:var(--smith);border:1px solid var(--smith);border-radius:9px;padding:9px 15px;cursor:pointer;transition:.15s}
+.sm-go:hover{filter:brightness(1.08)}
+.sm-go:disabled{opacity:.5;cursor:wait}
+.sm-msg{flex-basis:100%;font-family:var(--mono);font-size:11px;color:var(--mut);min-height:14px;letter-spacing:.02em}
+.sm-msg.ok{color:var(--smith)}.sm-msg.err{color:var(--warn)}
+@media(max-width:860px){.smith-machs{max-width:100%;justify-content:flex-start}.sm-sel{max-width:100%}}
+.foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
+</style>
+</head>
+<body data-yk-title="ESTRATEGIA" data-yk-zone="app">
+<div class="wrap">
+  <h1>Estrategia <button id="introTgl" class="tgl" title="desplegar/plegar la explicación" aria-expanded="false">▸</button></h1>
+  <p class="sub" id="intro" hidden>El <b>norte</b> de cada equipo — de aquí bajan las misiones. Dos frentes que
+    empujan el mismo plan: <span class="b">◈ Bits</span> mueve el <b>silicio</b> (los agentes de la flota);
+    <span class="a">⚛ Átomos</span> mueve el <b>hardware</b> (los ordenadores y las pantallas de campo).
+    Cada equipo enseña su estrategia, sus <b>relojes de decisión</b> abiertos y las misiones vivas.</p>
+
+  <!-- AGENTE SMITH — Grok en CLI, se multiplica por la flota. Sonda /api/presence
+       (worker admira-telegram, público: sin token) y dice en cuántas máquinas está
+       vivo y si está en reposo (idle ≥10 min). Entre la estrategia y los equipos. -->
+  <section class="smith off" id="smith">
+    <span class="smith-ico">🕶️</span>
+    <div class="smith-main">
+      <div class="smith-hd">Agente <b>Smith</b> <span class="smith-rt">Grok · CLI</span></div>
+      <div class="smith-sub" id="smithSub">Sondeando la flota…</div>
+    </div>
+    <div class="smith-machs" id="smithMachs"></div>
+    <!-- MANDO: dirige una consulta directa al CLI de Grok en la máquina elegida.
+         POST /fleet/nudge SIN missionId → el executor la inyecta en la sesión
+         tmux de Grok (o la arranca). No crea misión FLT. -->
+    <form class="smith-mando" id="smithMando" autocomplete="off">
+      <span class="sm-lb">⌨ Consulta al CLI de Grok</span>
+      <select class="sm-sel" id="smithMachSel" title="Máquina destino"><option value="">— sondeando —</option></select>
+      <input class="sm-in" id="smithMsg" type="text" maxlength="1500" placeholder="Escribe tu consulta a Smith (Grok CLI) y pulsa Enviar…">
+      <button class="sm-go" id="smithSend" type="submit">➤ Enviar</button>
+      <span class="sm-msg" id="smithMandoMsg"></span>
+    </form>
+  </section>
+
+  <div class="teams">
+    <!-- ═══ ÁTOMOS — hardware / los ordenadores / campo ═══ -->
+    <section class="team atomos">
+      <div class="team-hd">
+        <span class="team-ico">⚛</span>
+        <span class="team-name">Átomos</span>
+        <span class="team-tag">hardware · ordenadores · campo</span>
+      </div>
+      <div class="team-body">
+        <div class="norte-h">Norte del equipo <span class="save" id="saveA">✓ guardado</span></div>
+        <div class="norte" id="norteA" contenteditable="true" spellcheck="false"
+             data-ph="Escribe la estrategia del hardware: qué frente físico priorizamos, qué máquinas o pantallas, en qué orden…"></div>
+        <div class="tkpis" id="kpisA"></div>
+
+        <div class="blk-h">⏳ Relojes de decisión <span class="n" id="decsNA"></span></div>
+        <div id="decsA"><div class="mempty">Sin decisiones de hardware abiertas.</div></div>
+
+        <div class="blk-h">🎯 Misiones <span class="n" id="misNA"></span></div>
+        <div class="mis" id="misA"><div class="mempty">Cargando…</div></div>
+      </div>
+    </section>
+
+    <!-- ═══ BITS — software / silicio / los agentes / flota ═══ -->
+    <section class="team bits">
+      <div class="team-hd">
+        <span class="team-ico">◈</span>
+        <span class="team-name">Bits</span>
+        <span class="team-tag">software · silicio · agentes</span>
+      </div>
+      <div class="team-body">
+        <div class="norte-h">Norte del equipo <span class="save" id="saveB">✓ guardado</span></div>
+        <div class="norte" id="norteB" contenteditable="true" spellcheck="false"
+             data-ph="Escribe la estrategia del silicio: qué persiguen los agentes, qué sites o proyectos, qué prioridad…"></div>
+        <div class="tkpis" id="kpisB"></div>
+
+        <div class="blk-h">⏳ Relojes de decisión <span class="n" id="decsNB"></span></div>
+        <div id="decsB"><div class="mempty">Sin decisiones de silicio abiertas.</div></div>
+
+        <div class="blk-h">🎯 Misiones <span class="n" id="misNB"></span></div>
+        <div class="mis" id="misB"><div class="mempty">Cargando…</div></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="foot">Yokup · <b>estrategia</b> · Átomos = hardware/campo · Bits = silicio/flota · norte <b>local (Fase 1)</b> · relojes en vivo del worker <b>yokup-rtc</b></div>
+</div>
+
+<script type="module" src="/avatar-widget.js?v=3"></script>
+<script src="/yk-avatar.js?v=r2"></script>
+<script src="/yk-misiones.js?v=r33"></script>
+<script src="/yk-frame.js?v=r20"></script>
+<script>
+"use strict";
+const WORKER="https://yokup-rtc.csilvasantin.workers.dev";
+const DECS_API=WORKER+"/decisions";
+const $=id=>document.getElementById(id);
+try{ YkMisiones.init({worker:WORKER}); }catch(e){}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NORTE editable — la estrategia de cada equipo. Fase 1: se guarda en este
+   navegador (localStorage). Fase 2 (pendiente): persistir en el worker para
+   que sea la MISMA para toda la flota. Se guarda al perder el foco.
+   ═══════════════════════════════════════════════════════════════════════════ */
+// Fase 2: el norte vive en el worker (GET /fleet/strategy público · POST /strategy
+// protegido) → ÚNICO para toda la flota y legible por los agentes. localStorage queda
+// como caché/fallback offline y para pintado instantáneo. Si el worker aún no tiene los
+// endpoints (o sin sesión), degrada a solo-local sin romper.
+const NORTE_KEY={atomos:"estrategia.norte.atomos", bits:"estrategia.norte.bits"};
+function wireNorte(elId, saveId, team){
+  const el=$(elId), sv=$(saveId), key=NORTE_KEY[team];
+  try{ el.textContent=localStorage.getItem(key)||""; }catch(e){}
+  let t;
+  el.addEventListener("blur", async ()=>{
+    const text=el.textContent.trim();
+    try{ localStorage.setItem(key, text); }catch(e){}
+    sv.textContent="✓ guardado"; sv.classList.add("on"); clearTimeout(t); t=setTimeout(()=>sv.classList.remove("on"),1700);
+    try{
+      const r=await fetch(WORKER+"/strategy",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({team,text})});
+      if(!r.ok) throw 0;
+    }catch(e){ sv.textContent="⚠ solo local"; }
+  });
+}
+wireNorte("norteA","saveA","atomos");
+wireNorte("norteB","saveB","bits");
+// Carga el norte COMPARTIDO del worker (si está); no pisa lo que estés editando.
+async function loadNortes(){
+  try{
+    const r=await fetch(WORKER+"/fleet/strategy?_t="+Date.now(),{cache:"no-store"});
+    if(!r.ok) return; const d=await r.json(); if(!d||!d.strategy) return;
+    [["atomos","norteA"],["bits","norteB"]].forEach(([team,elId])=>{
+      const el=$(elId); if(!el || document.activeElement===el) return;
+      const txt=String((d.strategy[team]||{}).text||"");
+      if(txt!==el.textContent){ el.textContent=txt; try{ localStorage.setItem(NORTE_KEY[team],txt);}catch(e){} }
+    });
+  }catch(e){}
+}
+
+/* ═══ MISIONES por equipo ════════════════════════════════════════════════════
+   Bits  = misiones de FLOTA  → /tickets?scope=fleet (encargos a los agentes)
+   Átomos= incidencias de CAMPO → /tickets            (pantallas físicas)
+   ═══════════════════════════════════════════════════════════════════════════ */
+function esc(x){ return String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c])); }
+function ms(v){ v=+v||0; return v>4102444800?v:v*1000; }
+function estadoCls(t){
+  try{ const l=YkMisiones.estadoDe(t).l;
+    if(l==="Sin asignar") return {c:"st-sin",l:"Sin asignar"};
+    if(l==="En curso")    return {c:"st-prog",l:"En curso"};
+    if(l==="Finalizada")  return {c:"st-done",l:"Hecha"};
+    return {c:"",l:l};
+  }catch(e){ return {c:"",l:t.status||""}; }
+}
+function activa(t){ try{ return YkMisiones.estadoDe(t).l!=="Finalizada"; }catch(e){ return true; } }
+function maqIco(t){
+  try{ if(YkMisiones.machVisual){ const m=YkMisiones.machineOf?YkMisiones.machineOf(t):(t.machine||t.loc); if(m) return YkMisiones.machVisual(m)+" "; } }catch(e){}
+  return "";
+}
+function misCard(t){
+  const st=estadoCls(t), id=esc(t.id||"");
+  const maq=(()=>{ try{ return esc(YkMisiones.machineOf?YkMisiones.machineOf(t):(t.machine||t.loc||"")); }catch(e){ return ""; } })();
+  const ag=esc(t.assignee||"");
+  const meta=[maq?maqIco(t)+maq:"", ag].filter(Boolean).map(x=>'<span>'+x+'</span>').join("");
+  return '<a class="mrow" href="/ticket?id='+encodeURIComponent(t.id||"")+'">'+
+    '<div class="m1"><span class="mid">'+id+'</span><span class="mst '+st.c+'">'+esc(st.l)+'</span></div>'+
+    '<div class="msub">'+esc(t.subject||t.text||"(sin título)")+'</div>'+
+    (meta?'<div class="mmeta">'+meta+'</div>':'')+'</a>';
+}
+function renderMis(listId, nId, kpiId, tks, moreHref, moreLbl){
+  const box=$(listId), viv=tks.filter(activa);
+  $(nId).textContent = viv.length ? ("· "+viv.length+" vivas") : "";
+  // KPIs por estado
+  const sin=tks.filter(t=>estadoCls(t).c==="st-sin").length;
+  const prog=tks.filter(t=>estadoCls(t).c==="st-prog").length;
+  $(kpiId).innerHTML='<span class="tkpi"><b>'+viv.length+'</b> activas</span>'+
+    '<span class="tkpi"><b>'+sin+'</b> sin asignar</span>'+
+    '<span class="tkpi"><b>'+prog+'</b> en curso</span>';
+  if(!viv.length){ box.innerHTML='<div class="mempty">Sin misiones vivas. Crea una en <a href="'+moreHref+'">'+moreLbl+'</a>.</div>'; return; }
+  const top=viv.sort((a,b)=>ms(b.created_at)-ms(a.created_at)).slice(0,6);
+  box.innerHTML=top.map(misCard).join("")+
+    (viv.length>6?'<a class="mmore" href="'+moreHref+'">ver las '+viv.length+' en '+moreLbl+' →</a>':'');
+}
+async function loadMisBits(){
+  try{ const r=await fetch(WORKER+"/tickets?scope=fleet",{cache:"no-store"}); const d=await r.json();
+    renderMis("misB","misNB","kpisB", d.tickets||[], "/misiones", "Misiones"); }catch(e){}
+}
+async function loadMisAtomos(){
+  try{ const r=await fetch(WORKER+"/tickets",{cache:"no-store"}); const d=await r.json();
+    renderMis("misA","misNA","kpisA", d.tickets||[], "/incidencias", "Incidencias"); }catch(e){}
+}
+
+/* ═══ RELOJES DE DECISIÓN ═════════════════════════════════════════════════════
+   Copiado de /tareas. Hoy todas las decisiones las publican los AGENTES → van
+   al equipo Bits. Cuando el hardware publique las suyas (campo), se repartirán.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let DECS=[];
+function decMMSS(s){ s=Math.max(0,s|0); const m=(s/60)|0,r=s%60; return m+":"+(r<10?"0":"")+r; }
+function decMaqIco(maq){ try{ if(YkMisiones.machVisual) return YkMisiones.machVisual(maq)+" "; }catch(e){} return "🖥 "; }
+function decPct(d){ const total=Math.max(1,Math.round(((d.deadline||0)-(d.created_at||0))/1000));
+  return Math.max(0,Math.min(100,Math.round((1-(d.secondsLeft/total))*100))); }
+function decCard(d){
+  const urge=d.status==="pending"&&d.secondsLeft<=60, rec=+d.recommended||0;
+  let cuerpo;
+  if(d.status==="decided"){ cuerpo='<div class="dec-done ok">✓ decidido: <b>'+esc(d.options[d.chosen]||"")+'</b></div>'; }
+  else if(d.status==="expired"){ cuerpo='<div class="dec-done exp">⏱ sin respuesta — el agente siguió con la recomendada: <b>'+esc(d.options[rec]||"")+'</b></div>'; }
+  else { cuerpo='<div class="dec-opts">'+d.options.map((o,i)=>
+      '<button class="dec-opt'+(i===rec?' rec':'')+'" data-dec="'+esc(d.id)+'" data-i="'+i+'"'+
+      (i===rec?' data-fill="'+esc(d.id)+'" style="--fill:'+decPct(d)+'%"':'')+'>'+
+      '<span class="n">'+(i===rec?'★':(i+1))+'</span><span>'+esc(o)+'</span></button>').join("")+'</div>'; }
+  const av=(window.ykAvatar&&ykAvatar.img)?ykAvatar.img(d.agent):"";
+  return '<div class="dec'+(urge?' urge':'')+'" data-decid="'+esc(d.id)+'">'+
+    '<div class="dec-top">'+
+      '<span class="dec-k maq">'+decMaqIco(d.machine)+esc(d.machine||"—")+'</span>'+
+      '<span class="dec-k ag">'+(av?'<img class="dec-av" src="'+esc(av)+'" alt="" onerror="this.remove()">':'👷 ')+esc(d.agent||"—")+'</span>'+
+      '<span class="dec-k sur">'+esc((d.surface||"").toUpperCase()==="CLI"?"⌨ CLI":"🖥 Desktop App")+'</span>'+
+      (d.status==="pending"?'<span class="dec-clock" data-clock="'+esc(d.id)+'">'+decMMSS(d.secondsLeft)+'</span>':'')+
+    '</div>'+
+    '<div class="dec-q">'+esc(d.question)+'</div>'+cuerpo+'</div>';
+}
+function renderDecs(){
+  // Segmentación por equipo: por ahora, todo lo que publican los agentes es Bits.
+  const bits=DECS, atomos=[];
+  const vivB=bits.filter(d=>d.status==="pending").length;
+  $("decsNB").textContent = vivB ? ("· "+vivB+" esperando tu decisión") : "";
+  $("decsB").innerHTML = bits.length ? bits.map(decCard).join("")
+    : '<div class="mempty">Sin decisiones de silicio abiertas.</div>';
+  $("decsA").innerHTML = atomos.length ? atomos.map(decCard).join("")
+    : '<div class="mempty">Sin decisiones de hardware abiertas.</div>';
+}
+async function loadDecs(){
+  try{ const r=await fetch(DECS_API+"?_t="+Date.now(),{cache:"no-store"});
+    const d=await r.json(); DECS=(d&&d.items)||[]; renderDecs(); }catch(e){}
+}
+setInterval(()=>{
+  let cambio=false;
+  DECS.forEach(d=>{ if(d.status==="pending"){ d.secondsLeft=Math.max(0,d.secondsLeft-1);
+    const el=document.querySelector('[data-clock="'+d.id+'"]');
+    if(el){ el.textContent=decMMSS(d.secondsLeft);
+      const card=el.closest(".dec"); if(card) card.classList.toggle("urge",d.secondsLeft<=60);
+      const bar=document.querySelector('[data-fill="'+d.id+'"]'); if(bar) bar.style.setProperty("--fill",decPct(d)+"%"); }
+    if(d.secondsLeft===0) cambio=true; } });
+  if(cambio) loadDecs();
+},1000);
+document.addEventListener("click", async e=>{
+  const b=e.target.closest(".dec-opt"); if(!b) return;
+  const id=b.dataset.dec, i=+b.dataset.i;
+  b.closest(".dec-opts").querySelectorAll(".dec-opt").forEach(x=>x.disabled=true);
+  b.textContent="⏳ enviando…";
+  try{ await fetch(DECS_API+"/"+encodeURIComponent(id)+"/choose",{method:"POST",
+    headers:{"content-type":"application/json"},body:JSON.stringify({choice:i,by:"Carlos"})}); }catch(err){}
+  loadDecs();
+});
+
+/* ═══ DESCRIPCIÓN PLEGABLE (triángulo canónico ▸/▾) ═══════════════════════════ */
+(function(){ const t=$("introTgl"), p=$("intro");
+  if(t&&p) t.onclick=()=>{ const abierto=p.hidden; p.hidden=!abierto;
+    t.textContent=abierto?"▾":"▸"; t.setAttribute("aria-expanded",String(abierto)); };
+})();
+
+/* ═══ AGENTE SMITH — Grok en CLI, se multiplica por la flota ═══════════════════
+   Lee /api/presence (worker admira-telegram, PÚBLICO — no pasa por el bearer de
+   acceso.js). Cuenta las máquinas donde Smith late fresco (<15 min) y marca cada
+   una como activa o en reposo (idle ≥10 min, doctrina de status). Varias Smith en
+   la misma máquina se cuentan como instancias (Smith se multiplica, Matrix).
+   ═══════════════════════════════════════════════════════════════════════════ */
+const PRESENCE="https://admira-telegram.csilvasantin.workers.dev/api/presence";
+const SMITH_FRESH=900;
+// «En reposo» = el PROPIO agente sin foco ni tarea declarados y no autónomo
+// (Carlos, 2026-07-23). NO el idle de la máquina (HIDIdleTime), que en cajas
+// headless como spark-1e61 es siempre 0 y mentía «activa».
+const smithWorking=r=>{ const f=String(r.focus||"").trim(), t=String(r.task||"").trim();
+  return f!=="" || t!=="" || String(r.mode||"").toLowerCase()==="autonomo"; };
+let SMITH_TARGETS=[];
+// Rellena el selector de máquina del mando, conservando la elección actual.
+function fillSmithSel(){
+  const sel=$("smithMachSel"); if(!sel) return;
+  const prev=(SMITH_TARGETS[+sel.value]||{}).machine;
+  sel.innerHTML = SMITH_TARGETS.length
+    ? SMITH_TARGETS.map((t,i)=>'<option value="'+i+'">'+esc(canonMach(t.machine))+' · '+esc(t.persona)+'</option>').join("")
+    : '<option value="">— sin Smith vivo —</option>';
+  if(prev){ const j=SMITH_TARGETS.findIndex(t=>t.machine===prev); if(j>=0) sel.value=String(j); }
+}
+// Envía la consulta al CLI de Grok de la máquina elegida (nudge sin misión).
+(function(){ const f=$("smithMando"); if(!f) return;
+  f.addEventListener("submit", async e=>{
+    e.preventDefault();
+    const sel=$("smithMachSel"), input=$("smithMsg"), btn=$("smithSend"), msg=$("smithMandoMsg");
+    const t=SMITH_TARGETS[+sel.value], text=input.value.trim();
+    if(!t){ msg.className="sm-msg err"; msg.textContent="No hay ninguna Smith viva a la que dirigirse."; return; }
+    if(!text){ msg.className="sm-msg err"; msg.textContent="Escribe la consulta primero."; input.focus(); return; }
+    btn.disabled=true; msg.className="sm-msg"; msg.textContent="⏳ Inyectando en el CLI de "+t.persona+" ("+canonMach(t.machine)+")…";
+    try{
+      const r=await fetch(WORKER+"/fleet/nudge",{method:"POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify({machine:t.machine, persona:t.persona, runtime:"grok", text})});
+      const d=await r.json().catch(()=>({}));
+      if(r.ok && d && d.ok){ msg.className="sm-msg ok";
+        msg.textContent="✓ Enviado a "+t.persona+" en "+canonMach(t.machine)+" · Grok CLI"+(d.deviceId?" ("+d.deviceId+")":"");
+        input.value=""; }
+      else { msg.className="sm-msg err"; msg.textContent="✗ "+((d&&d.error)||("error "+r.status)); }
+    }catch(err){ msg.className="sm-msg err"; msg.textContent="✗ "+(err&&err.message||err); }
+    btn.disabled=false;
+  });
+})();
+function canonMach(m){ try{ return YkMisiones.canonMachine?YkMisiones.canonMachine(m):m; }catch(e){ return m; } }
+async function loadSmith(){
+  const el=$("smith"), sub=$("smithSub"), chips=$("smithMachs");
+  let d; try{ const r=await fetch(PRESENCE+"?_t="+Date.now(),{cache:"no-store"}); d=await r.json(); }
+  catch(e){ el.className="smith off"; sub.textContent="No se pudo leer la presencia de la flota."; return; }
+  const rows=(d&&d.presence)||[], now=(d&&d.now)||Math.floor(Date.now()/1000);
+  const smith=rows.filter(r=> String(r.persona||"").toLowerCase().includes("smith")
+    && String(r.runtime||"").toLowerCase()==="grok" && (now-(+r.updated||0))<SMITH_FRESH );
+  const byM={}; smith.forEach(r=>{ const m=canonMach(r.machine||"—"); (byM[m]=byM[m]||[]).push(r); });
+  const machs=Object.keys(byM);
+  // Destinos del MANDO: por máquina RAW (la que entiende el executor: deviceId
+  // local-<machine>), con la Smith más fresca como persona → sesión tmux.
+  const tg={}; smith.forEach(r=>{ const raw=r.machine||"—";
+    if(!tg[raw] || (+r.updated||0)>(tg[raw].updated||0)) tg[raw]={machine:raw,persona:r.persona||"Smith",updated:+r.updated||0}; });
+  SMITH_TARGETS=Object.values(tg).sort((a,b)=>String(a.machine).localeCompare(String(b.machine)));
+  fillSmithSel();
+  if(!machs.length){ el.className="smith off"; sub.textContent="Ninguna instancia de Smith late ahora mismo."; chips.innerHTML=""; return; }
+  let idleN=0;
+  chips.innerHTML=machs.sort().map(m=>{
+    const rs=byM[m], act=rs.filter(smithWorking), idle=act.length===0;
+    if(idle) idleN++;
+    const mult=rs.length>1?'<span class="mult">×'+rs.length+'</span>':"";
+    const foco=(act[0]&&String(act[0].focus||"").trim())||"";
+    const ttl=idle?"en reposo · sin foco declarado":(foco?("foco: "+foco):"activa");
+    return '<span class="smith-chip '+(idle?"idle":"on")+'" title="'+esc(ttl)+'"><span class="dot"></span>'+esc(m)+mult+'</span>';
+  }).join("");
+  const activeN=machs.length-idleN;
+  el.className="smith"+(activeN===0?" reposo":"");
+  const partes=["Desplegado en <b>"+machs.length+"</b> "+(machs.length===1?"máquina":"máquinas")];
+  if(smith.length>machs.length) partes.push("<b>"+smith.length+"</b> instancias");
+  if(activeN>0) partes.push("<b>"+activeN+"</b> "+(activeN===1?"activa":"activas"));
+  if(idleN>0) partes.push("<b>"+idleN+"</b> en reposo");
+  sub.innerHTML=partes.join(" · ")+(activeN===0?" — 😴 todo Smith está <b>idle</b> (sin hacer nada)":"");
+}
+
+// arranque + sondeos
+loadDecs(); loadMisBits(); loadMisAtomos(); loadSmith(); loadNortes();
+setInterval(loadDecs,15000);
+setInterval(()=>{ loadMisBits(); loadMisAtomos(); },30000);
+setInterval(loadSmith,20000);
+setInterval(loadNortes,60000);
+</script>
+</body>
+</html>

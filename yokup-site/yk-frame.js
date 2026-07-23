@@ -35,6 +35,7 @@
   // propio (data-yk-nav o el NAV global de abajo).
   var APP_NAV = [
     ["DASHBOARD",   "/agentica"],
+    ["ESTRATEGIA",  "/estrategia"],
     ["MISIONES",    "/misiones"],
     ["TAREAS",      "/tareas"],
     ["INCIDENCIAS", "/incidencias"],
@@ -84,6 +85,7 @@
     var map = {
       incidencias: "INCIDENCIAS", ticket: "TICKET", agentes: "AGENTES",
       "admira-live": "ADMIRA.LIVE", misiones: "MISIONES", tareas: "TAREAS",
+      estrategia: "ESTRATEGIA",
       agentica: "DASHBOARD", informes: "INFORMES", status: "STATUS", equipo: "EQUIPO",
       asistencia: "ASISTENCIA", intervencion: "INTERVENCIÓN"
     };

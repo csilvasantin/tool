@@ -12,7 +12,7 @@ var json = /* @__PURE__ */ __name((o, s = 200) => new Response(JSON.stringify(o)
 var AUTH_CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
 var WL_API = "https://admira-whitelist.csilvasantin.workers.dev";
 var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@admira.com", "agonzalez@admira.com", "jsedano@admira.com"];
-var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/equipo/machine", "/equipo/silicon"]);
+var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/equipo/machine", "/equipo/silicon", "/strategy"]);
 var _wl = { at: 0, set: null };
 async function whitelist() {
   if (_wl.set && Date.now() - _wl.at < 3e5) return _wl.set;
@@ -168,6 +168,10 @@ async function ensureSchema(env) {
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN mission TEXT").catch(() => {});
   await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_tasks (mission_id TEXT, code TEXT, title TEXT, status TEXT DEFAULT 'pending', owner TEXT, report TEXT, updated_at INTEGER, PRIMARY KEY (mission_id, code))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_mtasks_mission ON mission_tasks(mission_id)");
+  // ESTRATEGIA (norte) por equipo (Carlos, 2026-07-23): el texto de estrategia de
+  // «atomos» y «bits» de /estrategia. Antes vivía en localStorage (por navegador);
+  // ahora es único para TODA la flota y lo pueden LEER los agentes (GET /fleet/strategy).
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS strategy (team TEXT PRIMARY KEY, text TEXT, updated_at INTEGER, updated_by TEXT)");
   // image: URL pública de la captura de prueba del informe (R2 /media/…). La tabla
   // ya existe en prod, así que la columna se añade idempotente (ignora "duplicate").
   await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN image TEXT").catch(() => {});
@@ -1179,6 +1183,16 @@ var index_default = {
       await ensureSchema(env);
       return json({ missions: await fleetMissions(env) });
     }
+    // ESTRATEGIA (norte) — LECTURA PÚBLICA (sin gate): la usan /estrategia y los
+    // AGENTES para alinear su trabajo con el norte del equipo. Carlos, 2026-07-23.
+    if (url.pathname === "/fleet/strategy") {
+      await ensureSchema(env);
+      const rows = ((await env.DB.prepare("SELECT team, text, updated_at, updated_by FROM strategy").all()).results) || [];
+      const by = {};
+      for (const r of rows) by[r.team] = { text: r.text || "", updated_at: r.updated_at || 0, updated_by: r.updated_by || "" };
+      const blank = { text: "", updated_at: 0, updated_by: "" };
+      return json({ ok: true, strategy: { atomos: by.atomos || blank, bits: by.bits || blank } });
+    }
     if (url.pathname === "/fleet/sync" && req.method === "POST") {
       await ensureSchema(env);
       return json(await fleetSync(env));
@@ -1262,6 +1276,22 @@ var index_default = {
     if (PROTECTED.has(url.pathname) || url.pathname.startsWith("/mission/")) {
       const sess = await requireAuth(env, req);
       if (!sess) return json({ error: "unauthorized" }, 401);
+    }
+
+    // ESTRATEGIA (norte) — ESCRITURA protegida (perímetro): guarda el norte de un
+    // equipo. team ∈ atomos|bits. La lectura es pública en /fleet/strategy. 2026-07-23.
+    if (url.pathname === "/strategy" && req.method === "POST") {
+      await ensureSchema(env);
+      let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
+      const team = String(b.team || "").toLowerCase();
+      if (team !== "atomos" && team !== "bits") return json({ ok: false, error: "team debe ser atomos|bits" }, 400);
+      const text = String(b.text || "").slice(0, 4000);
+      const sess = await requireAuth(env, req);
+      const by = (sess && sess.email) || "web";
+      const now = Date.now();
+      await env.DB.prepare("INSERT INTO strategy (team, text, updated_at, updated_by) VALUES (?,?,?,?) ON CONFLICT(team) DO UPDATE SET text=excluded.text, updated_at=excluded.updated_at, updated_by=excluded.updated_by")
+        .bind(team, text, now, by).run();
+      return json({ ok: true, team, updated_at: now, updated_by: by });
     }
 
     // ── EQUIPO: puente de ESCRITURA hacia admira-fleet ───────────────────────
