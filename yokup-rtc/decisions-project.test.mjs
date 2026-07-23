@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {memberRefMatches, projectSlug, resolveDecisionProject} from './src/decision-project.js';
+import {memberRefMatches, projectSlug, resolveDecisionProject, selectDecisionProjectAssignment} from './src/decision-project.js';
 
 const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
 const canonical = {
@@ -22,7 +22,8 @@ test('el esquema persiste project_slug sin perder projects/project_members', () 
 test('POST resuelve la intersección canónica agent+machine y falla cerrado', () => {
   assert.match(source, /async function exactDecisionProjectAssignment/);
   assert.match(source, /SELECT project_id,kind,ref FROM project_members/);
-  assert.match(source, /matches\.length === 1 \? matches\[0\] : null/);
+  assert.match(source, /selectDecisionProjectAssignment\(idx\.rows, members, agent, machine, requestedProjectId\)/);
+  assert.match(source, /b\.project_id \|\| \(continuation && parent \? parent\.project/);
   assert.match(source, /resolveDecisionProject\(b, assignment, inherited\)/);
   assert.match(source, /code: "exact_project_required"/);
 });
@@ -50,6 +51,21 @@ test('acepta sólo el contexto granular Generador de Presentaciones', () => {
   });
 });
 
+test('project_id selecciona de forma explícita sólo una asignación autorizada', () => {
+  const projects = [
+    canonical,
+    {id:'generador-de-presites',name:'Generador de Presites',web:'www.admiranext.com',status:'activo'}
+  ];
+  const members = projects.flatMap((project) => [
+    {project_id:project.id,kind:'agent',ref:'oraculo'},
+    {project_id:project.id,kind:'machine',ref:'admira-macmini'}
+  ]);
+  assert.equal(selectDecisionProjectAssignment(projects,members,'Oráculo','Mac Mini'), null);
+  assert.equal(selectDecisionProjectAssignment(projects,members,'Oráculo','Mac Mini','generador-de-presites')?.name, 'Generador de Presites');
+  assert.equal(selectDecisionProjectAssignment(projects,members,'Oráculo','Mac Mini','admira-tv'), null);
+  assert.equal(selectDecisionProjectAssignment(projects,members,'Oráculo','MacBook Pro','generador-de-presites'), null);
+});
+
 test('rechaza ausencia, dominio, ambigüedad, Admira TV y fuente inexistente', () => {
   const bad = [
     [{agent:'Oráculo',machine:'Mac Mini'}, canonical],
@@ -57,6 +73,7 @@ test('rechaza ausencia, dominio, ambigüedad, Admira TV y fuente inexistente', (
     [{project:'Admira TV',project_slug:'ADMIRA-TV',agent:'Oráculo',machine:'Mac Mini'}, canonical],
     [{...exact,project_slug:'ADMIRANEXT'}, canonical],
     [{...exact,project_web:'admira.tv'}, canonical],
+    [{...exact,project_id:'generador-de-presites'}, canonical],
     [exact, null],
   ];
   for (const [input, assignment] of bad) assert.equal(resolveDecisionProject(input, assignment).ok, false, JSON.stringify(input));

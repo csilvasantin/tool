@@ -1,5 +1,5 @@
 import puppeteer from "@cloudflare/puppeteer";
-import { memberRefMatches, resolveDecisionProject } from "./decision-project.js";
+import { resolveDecisionProject, selectDecisionProjectAssignment } from "./decision-project.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -343,16 +343,10 @@ __name(resolveProject, "resolveProject");
 
 // Fuente canónica de un reloj: intersección en D1 del MISMO proyecto activo
 // para el agente y la máquina. Cero o más de uno son ambiguos y fallan cerrado.
-async function exactDecisionProjectAssignment(env, agent, machine) {
+async function exactDecisionProjectAssignment(env, agent, machine, requestedProjectId = "") {
   const idx = await projectIndex(env);
   const members = (await env.DB.prepare("SELECT project_id,kind,ref FROM project_members").all()).results || [];
-  const matches = idx.rows.filter((project) => {
-    if (String(project.status || "activo").toLowerCase() !== "activo") return false;
-    const own = members.filter((member) => member.project_id === project.id);
-    return own.some((member) => member.kind === "agent" && memberRefMatches("agent", member.ref, agent)) &&
-      own.some((member) => member.kind === "machine" && memberRefMatches("machine", member.ref, machine));
-  });
-  return matches.length === 1 ? matches[0] : null;
+  return selectDecisionProjectAssignment(idx.rows, members, agent, machine, requestedProjectId);
 }
 __name(exactDecisionProjectAssignment, "exactDecisionProjectAssignment");
 
@@ -2367,12 +2361,16 @@ var index_default = {
         }
         const rawAgent = String(b.agent || "").trim().slice(0, 40);
         const rawMachine = String(b.machine || "").trim().slice(0, 60);
-        const assignment = await exactDecisionProjectAssignment(env, rawAgent, rawMachine);
+        // Cuando agent+machine participa en varios proyectos, la raíz debe
+        // seleccionar uno por id. Las continuaciones heredan el id ya
+        // autorizado de su decisión raíz. Una selección ajena falla cerrado.
+        const requestedProjectId = String(b.project_id || (continuation && parent ? parent.project : "")).trim().slice(0, 120);
+        const assignment = await exactDecisionProjectAssignment(env, rawAgent, rawMachine, requestedProjectId);
         let inherited = null;
         if (continuation && parent) {
           const pidx = await projectIndex(env);
           const rootProject = resolveProject(pidx, parent.project || "");
-          inherited = { agent: parent.agent, machine: parent.machine, project: rootProject.name, project_slug: parent.project_slug || "" };
+          inherited = { agent: parent.agent, machine: parent.machine, project_id: rootProject.id, project: rootProject.name, project_slug: parent.project_slug || "" };
         }
         const projectContext = resolveDecisionProject(b, assignment, inherited);
         if (!projectContext.ok) return json({ ok: false, error: projectContext.error, code: "exact_project_required" }, 400);

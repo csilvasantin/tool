@@ -20,6 +20,18 @@ export function memberRefMatches(kind, ref, requested) {
   return identityKey(ref, kind) === identityKey(requested, kind);
 }
 
+export function selectDecisionProjectAssignment(projects, members, agent, machine, requestedProjectId = "") {
+  const requested = text(requestedProjectId, 120);
+  const matches = (Array.isArray(projects) ? projects : []).filter((project) => {
+    if (!project || String(project.status || "activo").toLowerCase() !== "activo") return false;
+    const own = (Array.isArray(members) ? members : []).filter((member) => member.project_id === project.id);
+    return own.some((member) => member.kind === "agent" && memberRefMatches("agent", member.ref, agent)) &&
+      own.some((member) => member.kind === "machine" && memberRefMatches("machine", member.ref, machine));
+  });
+  if (requested) return matches.find((project) => String(project.id) === requested) || null;
+  return matches.length === 1 ? matches[0] : null;
+}
+
 function invalid(error) { return { ok: false, error }; }
 function isAggregateDomain(value) {
   return /^(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+\/?$/i.test(text(value, 120));
@@ -41,12 +53,17 @@ export function resolveDecisionProject(input, assignment, inherited = null) {
   const canonicalProject = text(assignment.name, 120);
   const canonicalSlug = projectSlug(canonicalProject);
   const canonicalWeb = cleanWeb(assignment.web);
+  const suppliedProjectId = text(input && input.project_id, 120);
+  if (suppliedProjectId && suppliedProjectId !== String(assignment.id)) {
+    return invalid("project_id no pertenece a la asignación canónica");
+  }
 
   if (inherited) {
     if (!memberRefMatches("agent", inherited.agent, agent) || !memberRefMatches("machine", inherited.machine, machine)) {
       return invalid("agent y machine no coinciden con la decisión raíz");
     }
-    if (text(inherited.project, 120) !== canonicalProject || text(inherited.project_slug, 120).toUpperCase() !== canonicalSlug) {
+    if ((inherited.project_id && text(inherited.project_id, 120) !== String(assignment.id)) ||
+      text(inherited.project, 120) !== canonicalProject || text(inherited.project_slug, 120).toUpperCase() !== canonicalSlug) {
       return invalid("la decisión raíz ya no coincide con la asignación canónica");
     }
   }
