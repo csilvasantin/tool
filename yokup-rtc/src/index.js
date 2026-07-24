@@ -487,24 +487,65 @@ Cada frase concreta y en español, sin nombrar al consejero ni su rol dentro del
   return review;
 }
 __name(generateCouncilReview, "generateCouncilReview");
-// Tick del cron (cada hueco de 3h): silla por hora, con idempotencia por hueco.
-// Si ya hay una idea tag=consejo creada en el hueco de 3h actual, NO genera otra.
+// Bitácora del cron del Consejo (auto-curación + observabilidad, FLT-1016): UNA fila
+// por hueco de 3h (slot_start PRIMARY KEY, upsert por intento) con el resultado del
+// último intento — para auditar franjas perdidas. Aditiva e idempotente; GET
+// /council/ticks la expone. Antes el fallo del tick era MUDO: una franja perdida no
+// dejaba rastro. Ahora sí.
+async function ensureCouncilTicksSchema(env) {
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS council_ticks (slot_start INTEGER PRIMARY KEY, seat TEXT, ok INTEGER, error TEXT, at INTEGER)");
+}
+__name(ensureCouncilTicksSchema, "ensureCouncilTicksSchema");
+// Anota el resultado de un intento del tick (upsert por hueco). Conserva solo los ~50
+// huecos más recientes. Best-effort ABSOLUTO: la bitácora NUNCA tumba el tick.
+async function recordCouncilTick(env, { slotStart, seat, ok, error }) {
+  try {
+    await ensureCouncilTicksSchema(env);
+    const err = ok ? "" : String(error || "").slice(0, 300);
+    await env.DB.prepare(
+      "INSERT INTO council_ticks (slot_start,seat,ok,error,at) VALUES (?,?,?,?,?)" +
+      " ON CONFLICT(slot_start) DO UPDATE SET seat=excluded.seat, ok=excluded.ok, error=excluded.error, at=excluded.at"
+    ).bind(slotStart, seat || "", ok ? 1 : 0, err, Date.now()).run();
+    await env.DB.prepare(
+      "DELETE FROM council_ticks WHERE slot_start NOT IN (SELECT slot_start FROM council_ticks ORDER BY slot_start DESC LIMIT 50)"
+    ).run();
+  } catch (e) { /* la bitácora nunca tumba el tick */ }
+}
+__name(recordCouncilTick, "recordCouncilTick");
+// Tick del cron (FLT-1016 · AUTOCURACIÓN): corre en CADA tick del scheduled (*/2). La
+// idempotencia por hueco (SELECT tag='consejo' AND created_at>=slotStart) garantiza
+// UNA sola idea por hueco de 3h y hace GRATIS el reintento: un fallo a las HH:07 se
+// recupera en el siguiente */2 (HH:08/HH:10…). Coste extra cuando la idea ya existe:
+// un SELECT por tick — aceptable. Cada intento (éxito ok=1 o fallo ok=0 con su error)
+// queda en council_ticks para poder auditar franjas perdidas.
 async function runCouncilTick(env) {
+  const slotMs = 3 * 60 * 60 * 1e3;
+  const now = Date.now();
+  const slotStart = Math.floor(now / slotMs) * slotMs;
+  const seat = councilSeatForHour(new Date(now).getUTCHours());
   try {
     await ensureIdeasSchema(env);
-    const now = Date.now();
-    const slotMs = 3 * 60 * 60 * 1e3;
-    const slotStart = Math.floor(now / slotMs) * slotMs;
     const existing = await env.DB.prepare(
       "SELECT id FROM ideas WHERE tag='consejo' AND created_at >= ? LIMIT 1"
     ).bind(slotStart).first();
-    if (existing) return null;
-    const seat = councilSeatForHour(new Date(now).getUTCHours());
+    if (existing) {
+      // El hueco ya tiene idea: nada que generar. Deja rastro de que está cubierto.
+      await recordCouncilTick(env, { slotStart, seat, ok: 1, error: "" });
+      return null;
+    }
     const idea = await generateCouncilIdea(env, seat);
-    if (!idea) console.log("[consejo] cron: la IA no dio idea usable (hueco " + new Date(slotStart).toISOString() + ", silla " + seat + ")");
+    if (!idea) {
+      const msg = "IA no dio idea usable (hueco " + new Date(slotStart).toISOString() + ", silla " + seat + ")";
+      console.log("[consejo] cron: " + msg);
+      await recordCouncilTick(env, { slotStart, seat, ok: 0, error: msg });
+      return null;
+    }
+    await recordCouncilTick(env, { slotStart, seat, ok: 1, error: "" });
     return idea;
   } catch (e) {
-    console.log("[consejo] cron error:", String(e && e.message || e));
+    const msg = String(e && e.message || e);
+    console.log("[consejo] cron error:", msg);
+    await recordCouncilTick(env, { slotStart, seat, ok: 0, error: msg });
     return null;
   }
 }
@@ -3084,6 +3125,27 @@ var index_default = {
     // redeploy del repo las pisó; reimplementadas contra la tabla real y versionadas.
     // Lectura y escritura abiertas a propósito (el panel escribe sin login), igual
     // que /decisions. CORS lo aporta json()/CORS global.
+    // GET /council/ticks — bitácora del cron del Consejo (FLT-1016), pública, JSON,
+    // últimos 20 huecos. Para auditar franjas perdidas: cada fila dice si el hueco de
+    // 3h parió idea (ok) o falló (con su error recortado). Lectura abierta, igual que
+    // /ideas. `ok` viaja como booleano y `slot` como ISO para leerlo de un vistazo.
+    if (url.pathname === "/council/ticks" && req.method === "GET") {
+      try {
+        await ensureCouncilTicksSchema(env);
+        const r = await env.DB.prepare(
+          "SELECT slot_start,seat,ok,error,at FROM council_ticks ORDER BY slot_start DESC LIMIT 20"
+        ).all();
+        const ticks = (r.results || []).map((t) => ({
+          slot_start: t.slot_start,
+          slot: new Date(t.slot_start).toISOString(),
+          seat: t.seat || "",
+          ok: !!t.ok,
+          error: t.error || "",
+          at: t.at
+        }));
+        return json({ ticks });
+      } catch (e) { return json({ error: String(e) }, 500); }
+    }
     if (url.pathname === "/ideas" && (req.method === "GET" || req.method === "POST")) {
       const IDEA_STATUS = /* @__PURE__ */ new Set(["nueva", "estudio", "hecha", "mision", "descartada"]);
       try {
@@ -3982,13 +4044,13 @@ T\xC9CNICO: ${q}`, 160);
       await fleetReconcileAll(env);
     } catch (e) {
     }
-    // Consejo generador de ideas diarias (FLT-1005): una idea cada 3h, silla de
-    // turno. El cron dedicado dispara al MINUTO 7 (el reconcile va a minutos pares
-    // vía */2, nunca al 7): así este bloque solo corre en el hueco de 3h y no en
-    // cada tick. runCouncilTick añade idempotencia por hueco y traga sus fallos.
+    // Consejo generador de ideas diarias (FLT-1005 · AUTOCURACIÓN FLT-1016): una
+    // idea cada 3h, silla de turno. runCouncilTick corre en CADA tick del */2 (antes
+    // solo al minuto 7 → UN intento por franja de 3h; un fallo puntual de IA/red
+    // perdía la franja entera EN SILENCIO). La idempotencia por hueco garantiza una
+    // sola idea por franja y hace el reintento gratis; council_ticks deja rastro.
     try {
-      const mm = new Date(event.scheduledTime || Date.now()).getUTCMinutes();
-      if (mm === 7) await runCouncilTick(env);
+      await runCouncilTick(env);
     } catch (e) {
     }
   }

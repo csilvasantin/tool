@@ -46,12 +46,15 @@ custom_domain = true
 [observability]
 enabled = true
 
-# Reconcilia flota→tickets cada 2 min aunque nadie mire la bandeja. El segundo
-# cron (minuto 7 de cada 3ª hora) dispara el Consejo generador de ideas (FLT-1005):
-# 8 huecos × 3h = 1 idea/silla al día. Va al minuto 7 (no :00) para separarlo del
-# reconcile de */2 (minutos pares) — así el handler scheduled sabe cuál es cuál.
+# Reconcilia flota→tickets cada 2 min aunque nadie mire la bandeja. El MISMO tick
+# */2 dispara el Consejo generador de ideas (FLT-1005): runCouncilTick corre en cada
+# tick y la idempotencia por hueco (SELECT tag='consejo' AND created_at>=slotStart)
+# garantiza 1 idea/silla por franja de 3h (8 huecos × 3h = 1/silla al día). Antes había
+# un segundo cron "7 */3" con gate mm===7 → UN solo intento por franja: un fallo puntual
+# de IA/red la perdía EN SILENCIO. Retirado (FLT-1016 · autocuración): el reintento es
+# gratis en el siguiente */2 y council_ticks deja rastro de cada intento.
 [triggers]
-crons = ["*/2 * * * *", "7 */3 * * *"]
+crons = ["*/2 * * * *"]
 
 # D1 (SQLite) — tickets, events, subs, mission_tasks.
 [[d1_databases]]
