@@ -104,6 +104,19 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .empty{border:1px dashed var(--line2);border-radius:14px;padding:44px 24px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12.5px;letter-spacing:.04em;line-height:1.7}
 .empty b{color:var(--mut);display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
+/* DEUDA DE INFORMES (Carlos, 24-jul-2026): las misiones terminadas SIN parte no
+   salen en la sábana de abajo — no existen como informe. Se nombran arriba, en
+   ámbar, para que la falta se vea y se pueda cerrar. Sin deuda, la banda no está. */
+.debe{border:1px solid rgba(255,180,84,.34);background:rgba(255,180,84,.06);border-radius:14px;padding:14px 16px;margin-bottom:16px}
+.debe-hd{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:#ffb454;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.debe-sub{color:var(--dim);font-size:10.5px;letter-spacing:.04em;text-transform:none}
+.debe-list{margin-top:10px;display:flex;flex-direction:column;gap:1px}
+.debe-row{display:flex;gap:12px;align-items:baseline;padding:7px 8px;border-radius:8px;text-decoration:none;color:var(--mut);font-size:13px}
+.debe-row:hover{background:rgba(255,180,84,.10);color:var(--ink)}
+.debe-row b{flex:none;font-family:var(--mono);font-size:11.5px;color:#ffb454;letter-spacing:.04em}
+.debe-tx{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.debe-ag{flex:none;font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.04em}
+@media(max-width:560px){.debe-ag{display:none}}
 @media(max-width:640px){.wrap{padding:16px 12px 40px}}
 /* intro plegable REUTILIZABLE — patrón .page-intro de /objetivos. */
 .page-intro{margin:0}
@@ -141,6 +154,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
     <button class="tf" data-r="todas">Todas</button>
     <input class="tf-date" id="tfDate" type="date" title="Ver los informes de un día concreto">
   </div>
+
+  <!-- Deuda: misiones terminadas que aún no tienen parte. Oculta si no hay ninguna. -->
+  <div class="debe" id="debe" hidden></div>
 
   <div class="sheet-wrap">
     <div class="sheet" id="reps"><div class="empty"><b>Cargando informes…</b>Reuniendo los partes de todas las misiones.</div></div>
@@ -200,6 +216,28 @@ async function load(){
   const all=(d.tasks||[]).filter(t=>t.report && String(t.report).trim());
   all.sort((a,b)=>(b.updated_at||0)-(a.updated_at||0));
   ALL=all; applyFilter();
+}
+
+// ── DEUDA DE INFORMES ───────────────────────────────────────────────────────
+// «Todas las misiones finalizadas tienen que tener su informe» (Carlos, 24-jul-2026).
+// Una misión cerrada SIN parte no aparece en la sábana —no hay nada que pintar—, así
+// que se quedaba invisible justo la que hay que perseguir. Se nombra aquí arriba.
+// NO se filtra por fecha: una deuda vieja sigue siendo deuda hoy.
+async function loadDebe(){
+  const box=$("debe"); if(!box) return;
+  let d; try{ const r=await fetch(WORKER+"/fleet/missions",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
+  const sin=(d.missions||[]).filter(m=>m.status==="resolved" && !m.has_report);
+  if(!sin.length){ box.hidden=true; box.innerHTML=""; return; }
+  sin.sort((a,b)=>(_ms(b.updated_at)||0)-(_ms(a.updated_at)||0));
+  box.hidden=false;
+  box.innerHTML='<div class="debe-hd">⚠️ '+sin.length+(sin.length===1?' misión terminada sin informe':' misiones terminadas sin informe')+
+      '<span class="debe-sub">Toda misión finalizada debe su parte</span></div>'+
+    '<div class="debe-list">'+sin.map(m=>
+      '<a class="debe-row" href="/ticket?id='+encodeURIComponent(m.id)+'" title="Abrir '+esc(m.id)+'">'+
+        '<b>'+esc(m.id)+'</b>'+
+        '<span class="debe-tx">'+esc(String(m.subject||"—").slice(0,120))+'</span>'+
+        '<span class="debe-ag">'+esc(m.assignee||m.persona||"—")+'</span>'+
+      '</a>').join("")+'</div>';
 }
 const HEAD='<div class="grow ghead"><div>Misión</div><div>Proceso</div><div>Captura</div><div>Informe</div><div>Agente</div><div>Estado</div><div>Tiempo</div></div>';
 // Miniatura clicable (lightbox) o «—» honesto. `mission`=tiñe de ámbar (proof de cierre).
@@ -309,6 +347,8 @@ $("tfDate").onchange=()=>{
 // sin esto la tabla sale con el retrato de serie y parpadea al llegar la foto propia.
 (window.ykAvatar ? ykAvatar.ready : Promise.resolve()).then(load);
 setInterval(load,15000);
+// La deuda va por su cuenta: ni depende de los avatares ni del filtro de fecha.
+loadDebe(); setInterval(loadDebe,60000);
 </script>
 <script src="/informe-pdf.js?v=r1"></script>
 <script type="module" src="/avatar-widget.js?v=3"></script>

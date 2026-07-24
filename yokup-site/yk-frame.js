@@ -123,8 +123,22 @@
   function paintCounters(data) {
     var spans = document.querySelectorAll("[data-yk-count]");
     Array.prototype.forEach.call(spans, function (s) {
-      var d = data && data[s.getAttribute("data-yk-count")];
+      var k = s.getAttribute("data-yk-count");
+      var d = data && data[k];
       if (!d) { s.textContent = ""; return; }
+      // INFORMES no es «curso/pend»: un informe no tiene estado, o está o no está
+      // (Carlos, 24-jul-2026). Aquí el par es COBERTURA — de las misiones ya
+      // terminadas, cuántas tienen su parte. Iguales = al día; si no, hay deuda.
+      if (k === "informes") {
+        var hechos = d.hechos | 0, total = d.total | 0, faltan = total - hechos;
+        if (!total) { s.textContent = ""; s.removeAttribute("title"); s.classList.remove("yk-count-debe"); return; }
+        s.textContent = hechos + "/" + total;
+        s.setAttribute("title", faltan
+          ? hechos + " de " + total + " misiones terminadas tienen su informe · faltan " + faltan
+          : "las " + total + " misiones terminadas tienen su informe");
+        s.classList.toggle("yk-count-debe", faltan > 0);
+        return;
+      }
       var curso = d.curso | 0, pend = d.pend | 0;
       // 0/0 → nada (Carlos, 2026-07-23): sección vacía enseña sólo su rótulo limpio.
       if (curso + pend === 0) { s.textContent = ""; s.removeAttribute("title"); return; }

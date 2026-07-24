@@ -2396,8 +2396,12 @@ async function fleetMissions(env) {
   if (!rows.length) return [];
   // Troceado obligatorio: con LIMIT 120 y el tope de 100 variables de D1, esta
   // consulta reventaba en cuanto había más de 100 misiones de flota.
+  // `has_report` en vez del texto del parte: quien pinta necesita saber SI existe
+  // informe (para señalar el que falta), no arrastrar 120 partes por la red.
   const tks = await selectIn(env, rows.map((r) => r.id), (ph) =>
-    `SELECT mission_id,code,title,status,owner FROM mission_tasks WHERE mission_id IN (${ph}) ORDER BY code`
+    `SELECT mission_id,code,title,status,owner,
+            CASE WHEN report IS NOT NULL AND TRIM(report)!='' THEN 1 ELSE 0 END has_report
+     FROM mission_tasks WHERE mission_id IN (${ph}) ORDER BY code`
   );
   const byMission = {};
   for (const t of tks || []) (byMission[t.mission_id] = byMission[t.mission_id] || []).push(t);
@@ -2412,6 +2416,8 @@ async function fleetMissions(env) {
       persona: r.assignee,
       source: "fleet",
       tasks,
+      // Una misión terminada SIN parte es deuda visible (Carlos, 24-jul-2026).
+      has_report: tasks.some((t) => t.has_report),
       progress: tercios(tasks)
     });
   });
@@ -2499,13 +2505,18 @@ async function menuCounters(env) {
     "SELECT status, COUNT(*) n FROM mission_tasks WHERE status IN ('pending','in_progress') GROUP BY status"
   ).all()).results || [];
   for (const r of ta) { if (r.status === "in_progress") out.tareas.curso = r.n; else if (r.status === "pending") out.tareas.pend = r.n; }
-  // Informes = mission_tasks con parte redactado, de misiones de flota (como /informes).
-  const inf = (await env.DB.prepare(
-    "SELECT m.status, COUNT(*) n FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id " +
-    "WHERE t.source='fleet' AND m.report IS NOT NULL AND TRIM(m.report)!='' AND m.status IN ('pending','in_progress') " +
-    "GROUP BY m.status"
-  ).all()).results || [];
-  for (const r of inf) { if (r.status === "in_progress") out.informes.curso = r.n; else if (r.status === "pending") out.informes.pend = r.n; }
+  // INFORMES no tienen estado: o están escritos o no están (Carlos, 24-jul-2026).
+  // Antes se contaban «en curso/pendientes» las tareas CON parte que seguían abiertas
+  // — doblemente falso: le inventaba un ciclo de vida al informe e ignoraba justo los
+  // partes ya escritos (los de tareas cerradas), que son casi todos. De ahí el «1/18».
+  // El número honesto es la COBERTURA: de las misiones de flota ya terminadas, cuántas
+  // tienen su parte. Toda misión finalizada lo debe, así que total−hechos es la deuda.
+  const inf = await env.DB.prepare(
+    "SELECT COUNT(*) total, SUM(CASE WHEN EXISTS (" +
+    "  SELECT 1 FROM mission_tasks m WHERE m.mission_id=t.id AND m.report IS NOT NULL AND TRIM(m.report)!=''" +
+    ") THEN 1 ELSE 0 END) hechos FROM tickets t WHERE t.source='fleet' AND t.status='resolved'"
+  ).first();
+  out.informes = { hechos: (inf && inf.hechos) | 0, total: (inf && inf.total) | 0 };
   // DECISIONES: relojes VIVOS = pending con deadline futuro (honesto: deadline>now,
   // no me fío del barrido de expiración que sólo corre en GET /decisions). El menú
   // pinta la cuenta atrás hacia el más próximo; sin ninguna viva, DECISIONES limpia.

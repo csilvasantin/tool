@@ -105,6 +105,10 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
   color:var(--yk-dim); font-variant-numeric:tabular-nums }
 .yk-nav a.on .yk-nav-c{ color:var(--yk-brand) }
 .yk-nav-c:empty{ display:none }
+/* INFORMES con deuda: hay misiones terminadas sin su parte. Ámbar, para que se
+   distinga de un contador normal sin gritar como una incidencia. */
+.yk-nav-c.yk-count-debe{ color:#ffb454 }
+.yk-nav a.on .yk-nav-c.yk-count-debe{ color:#ffb454 }
 
 /* ===================== SELECTOR DE PROYECTO (desplegable) ================= */
 /* Absorbe el antiguo rótulo «FLOTA admira.tv»: el botón lee el proyecto activo
