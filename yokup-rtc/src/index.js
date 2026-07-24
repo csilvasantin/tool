@@ -550,8 +550,99 @@ async function runCouncilTick(env) {
   }
 }
 __name(runCouncilTick, "runCouncilTick");
-// Throttle por isolate del enganche HTTP del Consejo (ver fetch): último intento (ms).
-var councilPiggybackAt = 0;
+
+// ── LATIDO DE LA RUTINA PROGRAMADA (FLT-1016 c · OBSERVABILIDAD + CERROJO) ─────
+// La plataforma NO dispara scheduled() en esta cuenta (verificado FLT-1016: tail
+// sin cron, council_ticks sólo se llenaba a demanda). El Consejo ya se autocuraba
+// enganchado al fetch; ahora se generaliza a TODA la rutina del tick. worker_beats
+// es aditiva e idempotente: UNA fila por rutina (routine PK, upsert) con el último
+// resultado, más la fila-cerrojo '__scheduled' que sirve de throttle GLOBAL por D1.
+// GET /worker/beats la expone para auditar que la rutina corre por latido HTTP.
+async function ensureWorkerBeatsSchema(env) {
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS worker_beats (routine TEXT PRIMARY KEY, ok INTEGER, error TEXT, at INTEGER)");
+}
+__name(ensureWorkerBeatsSchema, "ensureWorkerBeatsSchema");
+// Anota el resultado de una rutina (upsert por nombre). Best-effort ABSOLUTO: la
+// bitácora NUNCA tumba la rutina. Poda de seguridad a 100 filas (hoy son ~9).
+async function recordBeat(env, routine, ok, error) {
+  try {
+    await ensureWorkerBeatsSchema(env);
+    const err = ok ? "" : String((error && error.message) || error || "").slice(0, 300);
+    await env.DB.prepare(
+      "INSERT INTO worker_beats (routine,ok,error,at) VALUES (?,?,?,?)" +
+      " ON CONFLICT(routine) DO UPDATE SET ok=excluded.ok, error=excluded.error, at=excluded.at"
+    ).bind(routine, ok ? 1 : 0, err, Date.now()).run();
+    await env.DB.prepare(
+      "DELETE FROM worker_beats WHERE routine NOT IN (SELECT routine FROM worker_beats ORDER BY at DESC LIMIT 100)"
+    ).run();
+  } catch (e) { /* la bitácora nunca tumba la rutina */ }
+}
+__name(recordBeat, "recordBeat");
+// Cerrojo temporal GLOBAL por D1 (compare-and-swap ATÓMICO): sólo UN isolate corre
+// la rutina por ventana de minGapMs. Sin esto, dos isolates con tráfico simultáneo
+// dispararían dos veces reconcile/fleetPlan/fleetReconcile/… y duplicarían
+// incidencias, planes de IA y eventos (esas rutinas leen-y-luego-escriben). El
+// upsert condicional (DO UPDATE … WHERE at <= now-gap) sólo escribe si venció la
+// ventana; meta.changes>0 ⇒ este isolate ganó el turno. Es el MISMO D1 que serializa
+// escrituras: la carrera se decide en el motor SQLite, no en JS. El mismo cerrojo lo
+// piden el fetch y scheduled(): si el cron revive, no se solapan → cero duplicación.
+async function tryAcquireBeatLease(env, name, minGapMs) {
+  const now = Date.now();
+  try {
+    await ensureWorkerBeatsSchema(env);
+    const res = await env.DB.prepare(
+      "INSERT INTO worker_beats (routine,ok,error,at) VALUES (?,1,'',?)" +
+      " ON CONFLICT(routine) DO UPDATE SET at=excluded.at WHERE worker_beats.at <= ?"
+    ).bind(name, now, now - minGapMs).run();
+    return Number((res && res.meta && res.meta.changes) || 0) > 0;
+  } catch (e) { return false; }
+}
+__name(tryAcquireBeatLease, "tryAcquireBeatLease");
+// Edad (ms) del último latido de una rutina, o Infinity si nunca corrió. Para que las
+// rutinas caras (checkWebs/checkMachines: fetch externos) se autolimiten a su propio
+// ritmo (~10 min) con independencia de cada cuánto llegue tráfico HTTP.
+async function beatAge(env, routine) {
+  try {
+    await ensureWorkerBeatsSchema(env);
+    const r = await env.DB.prepare("SELECT at FROM worker_beats WHERE routine=?").bind(routine).first();
+    return (r && r.at) ? Date.now() - r.at : Infinity;
+  } catch (e) { return Infinity; }
+}
+__name(beatAge, "beatAge");
+// Cuerpo ÚNICO de la rutina programada. Lo llaman IGUAL el latido HTTP y el cron
+// scheduled(): cero duplicación de código. Cada sub-rutina va en su try/catch con su
+// latido en worker_beats; ninguna tumba a la siguiente ni a la respuesta HTTP (corre
+// en ctx.waitUntil, en 2º plano). Todas son idempotentes o inofensivas en repetición;
+// el cerrojo D1 evita además el solape entre isolates de las que leen-y-escriben.
+async function runScheduledRoutine(env, event) {
+  const out = {};
+  const step = async (name, fn) => {
+    try { await fn(); await recordBeat(env, name, true, ""); out[name] = { ok: true }; }
+    catch (e) { await recordBeat(env, name, false, e); out[name] = { ok: false, error: String((e && e.message) || e) }; }
+  };
+  try { await ensureSchema(env); } catch (e) { return out; }   // sin esquema no seguimos
+  // Relojes de decisión vencidos → recomendada + materialización de su tanda.
+  await step("expireDecisions", () => expireDecisionsAndStartBatches(env));
+  // Incidencias DOOH: pantallas caídas/recuperadas.
+  await step("reconcile", () => reconcile(env));
+  // Monitor de webs y máquinas 24/7: caro (fetch externos) → ~cada 10 min por su
+  // propia edad de latido, con independencia del ritmo del tráfico HTTP.
+  if (await beatAge(env, "checkWebs") >= 9.5 * 60000) {
+    await step("checkWebs", async () => { await checkWebs(env); await checkMachines(env); });
+  }
+  // Buzón de la flota → misiones/tareas (INSERT OR IGNORE: converge, no duplica).
+  await step("fleetSync", () => fleetSync(env));
+  // Árbol de tareas de las misiones nuevas, en tandas cortas (coste IA).
+  await step("fleetPlan", () => fleetPlanPending(env, 3));
+  // Avance del árbol → estado de la misión y del encargo del bot-inbox.
+  await step("fleetReconcile", () => fleetReconcileAll(env));
+  // Consejo generador (idempotente por hueco de 3h; su propia bitácora council_ticks).
+  await step("council", () => runCouncilTick(env));
+  return out;
+}
+__name(runScheduledRoutine, "runScheduledRoutine");
+// Throttle por isolate del enganche HTTP de la rutina (ver fetch): último disparo (ms).
+var scheduledPiggybackAt = 0;
 
 // ── PROYECTOS ───────────────────────────────────────────────────────────────
 // Slug estable a partir del nombre. «Admira Live» → «admira-live».
@@ -2421,21 +2512,24 @@ var index_default = {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
-    // ── AUTOCURACIÓN DEL CONSEJO, INDEPENDIENTE DEL CRON (FLT-1016) ─────────────
+    // ── AUTOCURACIÓN DE LA RUTINA PROGRAMADA, INDEPENDIENTE DEL CRON (FLT-1016 c) ─
     // DIAGNÓSTICO (23/24-jul-2026): el cron scheduled() de este worker NO se invoca
     // en esta cuenta —schedule "*/2 * * * *" registrado y confirmado por API, pero
     // wrangler tail no ve NINGUNA ejecución de cron en varias franjas y council_ticks
-    // queda vacío—. Por eso la idea del Consejo de la franja nunca nacía por sí sola
-    // (las que hay son todas a demanda). Como la API sí recibe latido HTTP constante
-    // de la flota, enganchamos aquí el tick: en 2º plano (ctx.waitUntil, sin latencia),
-    // con throttle por isolate (>=60s) + idempotencia por hueco → una sola idea por
-    // franja de 3h aunque el cron siga caído. Si el cron revive, scheduled() hace lo
-    // mismo y la idempotencia evita duplicar. Best-effort: nunca afecta a la respuesta.
+    // quedaba vacío—. Antes sólo el Consejo se autocuraba aquí; ahora enganchamos
+    // TODA la rutina del tick (reconcile, fleetSync, fleetPlan, fleetReconcile,
+    // monitores y Consejo): en 2º plano (ctx.waitUntil, sin latencia), con throttle
+    // por isolate (>=120s, la cadencia del viejo */2 con margen) + cerrojo GLOBAL por
+    // D1 (un isolate por ventana → sin dobles incidencias/planes). Si el cron revive,
+    // scheduled() usa el MISMO cuerpo y cerrojo → cero duplicación. Best-effort: nunca
+    // afecta a la respuesta.
     try {
       const _now = Date.now();
-      if (ctx && typeof ctx.waitUntil === "function" && _now - councilPiggybackAt > 60000) {
-        councilPiggybackAt = _now;
-        ctx.waitUntil(runCouncilTick(env).catch(() => {}));
+      if (ctx && typeof ctx.waitUntil === "function" && _now - scheduledPiggybackAt > 120000) {
+        scheduledPiggybackAt = _now;
+        ctx.waitUntil((async () => {
+          if (await tryAcquireBeatLease(env, "__scheduled", 120000)) await runScheduledRoutine(env, null);
+        })().catch(() => {}));
       }
     } catch (e) {}
     // ── MEDIA (imágenes de misiones) ──────────────────────────────────────────
@@ -3163,6 +3257,27 @@ var index_default = {
           at: t.at
         }));
         return json({ ticks });
+      } catch (e) { return json({ error: String(e) }, 500); }
+    }
+    // GET /worker/beats — bitácora de las rutinas del scheduled (FLT-1016 c), pública,
+    // JSON. Una fila por rutina con su último resultado (ok/error/at/edad) + la fila
+    // '__scheduled' (último disparo del cerrojo). Para auditar que la rutina corre por
+    // latido HTTP aunque el cron esté muerto.
+    if (url.pathname === "/worker/beats" && req.method === "GET") {
+      try {
+        await ensureWorkerBeatsSchema(env);
+        const r = await env.DB.prepare(
+          "SELECT routine,ok,error,at FROM worker_beats ORDER BY at DESC LIMIT 100"
+        ).all();
+        const beats = (r.results || []).map((b) => ({
+          routine: b.routine,
+          ok: !!b.ok,
+          error: b.error || "",
+          at: b.at,
+          at_iso: b.at ? new Date(b.at).toISOString() : null,
+          age_s: b.at ? Math.round((Date.now() - b.at) / 1e3) : null
+        }));
+        return json({ beats });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     if (url.pathname === "/ideas" && (req.method === "GET" || req.method === "POST")) {
@@ -4026,52 +4141,14 @@ T\xC9CNICO: ${q}`, 160);
   // Cron cada 2 min: reconcilia pantallas→tickets y encargos de la flota→misiones,
   // aunque nadie mire la bandeja. Un fallo en uno no debe tumbar al otro.
   async scheduled(event, env, ctx) {
+    // MISMO cuerpo que el latido HTTP y el MISMO cerrojo D1 (FLT-1016 c): si el cron
+    // revive, no se solapa con el latido (idempotencia total, cero duplicación de
+    // código). runScheduledRoutine hace ensureSchema y envuelve cada sub-rutina en su
+    // try/catch con su latido en worker_beats. La platafoma HOY no dispara esto —el
+    // latido HTTP lo cubre—, pero queda listo para cuando el cron vuelva.
     try {
-      await ensureSchema(env);
-    } catch (e) {
-      return;
-    }
-    // Un reloj vencido no depende de que alguien deje abierta la UI: la
-    // recomendada activa la primera misión y la cola queda persistida.
-    try {
-      await expireDecisionsAndStartBatches(env);
-    } catch (e) {
-    }
-    try {
-      await reconcile(env);
-    } catch (e) {
-    }
-    // Monitor de servicios/webs (~cada 10 min; el cron dispara cada 2).
-    try {
-      const min = new Date(event.scheduledTime || Date.now()).getUTCMinutes();
-      if (min % 10 < 2) { await checkWebs(env); await checkMachines(env); }
-    } catch (e) {
-    }
-    try {
-      await fleetSync(env);
-    } catch (e) {
-    }
-    // Las misiones nuevas van cogiendo su árbol de tareas solas, en tandas cortas
-    // para no disparar el gasto de IA en un tick.
-    try {
-      await fleetPlanPending(env, 3);
-    } catch (e) {
-    }
-    // …y el avance del árbol baja al encargo del bot-inbox. Va DESPUÉS del sync:
-    // el sync trae lo que dice el buzón, esto devuelve lo que dice el plan.
-    try {
-      await fleetReconcileAll(env);
-    } catch (e) {
-    }
-    // Consejo generador de ideas diarias (FLT-1005 · AUTOCURACIÓN FLT-1016): una
-    // idea cada 3h, silla de turno. runCouncilTick corre en CADA tick del */2 (antes
-    // solo al minuto 7 → UN intento por franja de 3h; un fallo puntual de IA/red
-    // perdía la franja entera EN SILENCIO). La idempotencia por hueco garantiza una
-    // sola idea por franja y hace el reintento gratis; council_ticks deja rastro.
-    try {
-      await runCouncilTick(env);
-    } catch (e) {
-    }
+      if (await tryAcquireBeatLease(env, "__scheduled", 120000)) await runScheduledRoutine(env, event);
+    } catch (e) {}
   }
 };
 var Room = class {
