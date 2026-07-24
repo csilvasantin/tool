@@ -181,16 +181,6 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
        y cablea yk-cabezal.js — UNA sola fuente del cabezal para ambas páginas. -->
   <div id="cabezal"></div>
 
-  <!-- Las decisiones viven en /decisiones. Aquí sólo hay recuento + acceso: ni
-       fichas, ni relojes, ni opciones pueden competir con las misiones. -->
-  <aside class="dec-summary" id="decSummary" aria-label="Resumen de decisiones" hidden>
-    <a href="/decisiones">
-      <span>⏳ Decisiones</span>
-      <span aria-live="polite"><strong id="decSummaryCount">0</strong> <span id="decSummaryLabel">decisiones vivas</span></span>
-      <span aria-hidden="true">Abrir →</span>
-    </a>
-  </aside>
-
   <!-- SELECTORES/ORDENADORES + BUSCADOR en una sola línea (Carlos, 2026-07-15).
        Misiones = SOLO flota·agentes: el ámbito campo·pantallas se fue con su
        botón (las incidencias viven en /incidencias) y el buscador subió aquí.
@@ -262,7 +252,6 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 <script src="/yk-misiones.js?v=r54"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r2"></script>
-<script src="/yk-decisions.js?v=20260723a"></script>
 <script>
 const WORKER="https://api.yokup.com";
 const WORKER_FALLBACK="https://yokup-rtc.csilvasantin.workers.dev";
@@ -277,7 +266,6 @@ function ykf(path,opts){
     ? window.ykFetch(path,opts)
     : window.fetch(WORKER+path,opts).catch(function(){ return window.fetch(WORKER_FALLBACK+path,opts); });
 }
-YkDecisions.mount({worker:WORKER,mode:"summary"});
 let FILTER="activas";
 // Cascada de preselección: userPicked = el usuario ya tocó un filtro (no pisarle);
 // didCascade = la cascada ya corrió una vez (solo en la carga inicial). (Carlos, 21-jul-2026)

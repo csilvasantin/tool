@@ -162,15 +162,18 @@ test('la UI muestra proyecto y misiones restantes en continuaciones 4→3→2→
   }
 });
 
-test('/misiones sólo conserva contador+enlace y monta el modo summary', () => {
-  assert.match(missionsHtml, /id="decSummary"[^>]*aria-label="Resumen de decisiones"/);
-  assert.match(missionsHtml, /href="\/decisiones"/);
-  assert.match(missionsHtml, /id="decSummaryCount"/);
-  assert.match(missionsHtml, /YkDecisions\.mount\(\{worker:WORKER,mode:"summary"\}\)/);
+test('/misiones ya no monta el bloque de decisiones (banner eliminado, Carlos 24-jul-2026)', () => {
+  // Carlos: «en misiones no pinta nada la ventana ni info de relojes de decisión
+  // vamos a eliminarlo». La info de relojes vive en el menú (countdown yk-frame) y
+  // en /decisiones — el tablero de misiones no la duplica. Fuera banner, su include
+  // de yk-decisions.js y su mount summary; el resto del tablero intacto.
+  assert.doesNotMatch(missionsHtml, /id="decSummary"/);
+  assert.doesNotMatch(missionsHtml, /aria-label="Resumen de decisiones"/);
+  assert.doesNotMatch(missionsHtml, /id="decSummaryCount"|id="decSummaryLabel"/);
+  assert.doesNotMatch(missionsHtml, /decisiones vivas/);
+  assert.doesNotMatch(missionsHtml, /yk-decisions\.js/);
+  assert.doesNotMatch(missionsHtml, /YkDecisions/);
   assert.doesNotMatch(missionsHtml, /id="decsList"|id="decsHistList"|class="dec-opts"/);
-  const summaryBody = source.match(/function renderSummary\(\) \{[\s\S]*?\n    \}/)?.[0] || '';
-  assert.doesNotMatch(summaryBody, /card\(|dec-opts|innerHTML/);
-  assert.match(source, /\?status=pending&limit=500&_t=/);
 });
 
 test('/decisiones monta full y agrupa en orden determinista máquina → agente', () => {
