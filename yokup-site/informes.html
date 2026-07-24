@@ -38,8 +38,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
    visible en línea (Carlos, 2026-07-17 — antes iba lazy al fondo del parte y no
    cargaba). Scroll horizontal en pantallas estrechas, como una hoja real. */
 .sheet-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:13px;background:var(--card)}
-.sheet{min-width:900px}
-.grow{display:grid;grid-template-columns:minmax(130px,1.1fr) 132px 132px minmax(200px,2.1fr) 138px 116px 128px;align-items:stretch}
+.sheet{min-width:940px}
+.grow{display:grid;grid-template-columns:minmax(130px,1.1fr) 132px 132px minmax(200px,2.1fr) 138px 116px 150px;align-items:stretch}
 .ghead{position:sticky;top:0;z-index:2;background:var(--card2);border-bottom:1px solid var(--line2)}
 .ghead>div{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--brand);padding:11px 13px;border-left:1px solid var(--line)}
 .ghead>div:first-child{border-left:0}
@@ -57,6 +57,11 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .shot-img{width:100%;max-width:104px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:6px;border:1px solid var(--line2);background:var(--card2);display:block;cursor:zoom-in;transition:.15s}
 .shot-img:hover{border-color:var(--brand);box-shadow:0 0 10px rgba(120,243,255,.25)}
 .shot-none{font-family:var(--mono);font-size:13px;color:var(--dim)}
+/* Captura de CIERRE de la MISIÓN (fallback cuando la tarea no dejó imagen propia):
+   se tiñe de ámbar (var(--accent)) para distinguirla de la prueba propia del paso
+   (borde cian). Título «proof de la misión». (Carlos, 2026-07-23.) */
+.shot-img.shot-mission{border-color:rgba(255,216,102,.55);box-shadow:0 0 0 1px rgba(255,216,102,.22) inset}
+.shot-img.shot-mission:hover{border-color:var(--accent);box-shadow:0 0 10px rgba(255,216,102,.3)}
 /* Informe (texto) */
 .gc.rep{white-space:normal}
 .rep-tx{font-size:12.5px;line-height:1.5;color:var(--ink);display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
@@ -85,6 +90,13 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .b-done{color:var(--good);border:1px solid rgba(136,255,170,.35);background:rgba(136,255,170,.06)}
 .fch{font-family:var(--mono);font-size:11px;color:var(--ink)}
 .fch .ago{color:var(--dim);font-size:10px;display:block;margin-top:2px}
+/* Columna TIEMPO: HORA INICIO → HORA FIN de la misión + duración compacta. La fecha
+   corta va ARRIBA (en ámbar) SÓLO si la misión no empezó hoy. (Carlos, 2026-07-23:
+   «lo importante no es la fecha sino la hora de inicio y fin de la misión».) */
+.tcell{font-family:var(--mono);font-size:11.5px;color:var(--ink);line-height:1.45;letter-spacing:.02em}
+.tcell .tdate{display:block;color:var(--accent);font-size:9.5px;letter-spacing:.05em;margin-bottom:1px}
+.tcell .tlive{color:var(--brand)}
+.tcell .tdur{color:var(--dim)}
 /* Lightbox de la captura a tamaño completo */
 #lb{position:fixed;inset:0;z-index:9998;background:rgba(2,8,13,.9);display:none;align-items:center;justify-content:center;padding:24px;cursor:zoom-out}
 #lb.on{display:flex}
@@ -146,15 +158,18 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 const WORKER="https://api.yokup.com";
 const $=id=>document.getElementById(id);
 const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
-function ago(ms){ if(!ms) return "—"; let s=Math.round((Date.now()-ms)/1000); if(s<60)return "hace "+s+"s"; if(s<3600)return "hace "+Math.round(s/60)+"m"; if(s<86400)return "hace "+Math.round(s/3600)+"h"; return "hace "+Math.round(s/86400)+"d"; }
-const MES=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
-function fechaCorta(ms){ if(!ms) return "—"; const d=new Date(ms); return d.getDate()+" "+MES[d.getMonth()]; }
+// ── Columna TIEMPO: hora de INICIO → hora de FIN de la MISIÓN + duración compacta.
+const p2=n=>(n<10?"0":"")+n;
+function hhmm(ms){ const d=new Date(ms); return p2(d.getHours())+":"+p2(d.getMinutes()); }
+function esHoy(ms){ const d=new Date(ms),n=new Date(); return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate(); }
+function ddmm(ms){ const d=new Date(ms); return p2(d.getDate())+"/"+p2(d.getMonth()+1); }
+function durTxt(a,b){ let m=Math.round((b-a)/60000); if(m<1)return "<1m"; if(m<60)return m+"m"; const h=Math.floor(m/60),r=m%60; return r? h+"h "+r+"m" : h+"h"; }
 const OWN_ICON={principal:"🧠",subagente:"⚙️",infraagente:"📝"};
 const ST_LABEL={pending:"pendiente",in_progress:"en curso",done:"hecha"};
 
 // ── FILTRO POR FECHA del informe (updated_at = cuándo lo reportó el infraagente).
 // Por defecto sólo los de HOY (Carlos, 2026-07-15). Filtra sobre lo ya cargado.
-let ALL=[], DFILTER={mode:"hoy", day:""};
+let ALL=[], MLAST={}, DFILTER={mode:"hoy", day:""};
 const _ms=v=>{v=+v||0;return v>4102444800?v:v*1000;};
 const _pad=n=>(n<10?"0":"")+n;
 const _ymd=d=>d.getFullYear()+"-"+_pad(d.getMonth()+1)+"-"+_pad(d.getDate());
@@ -178,11 +193,40 @@ async function load(){
   // en el árbol de tareas de las misiones de FLOTA (source='fleet'). Cada fila ya trae
   // subject/screen/image de su misión. (Carlos, 2026-07-16.)
   let d; try{ const r=await fetch(WORKER+"/tasks/all?scope=fleet",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
+  // HORA DE FIN de una misión EN CURSO: el updated_at más reciente de CUALQUIERA de
+  // sus tareas (no sólo las que ya tienen parte). Se mapea mission_id → último toque.
+  const raw=d.tasks||[]; MLAST={};
+  raw.forEach(x=>{ const u=_ms(x.updated_at); if(u && x.mission_id!=null){ const k=String(x.mission_id); if(!MLAST[k]||u>MLAST[k]) MLAST[k]=u; } });
   const all=(d.tasks||[]).filter(t=>t.report && String(t.report).trim());
   all.sort((a,b)=>(b.updated_at||0)-(a.updated_at||0));
   ALL=all; applyFilter();
 }
-const HEAD='<div class="grow ghead"><div>Misión</div><div>Proceso</div><div>Captura</div><div>Informe</div><div>Agente</div><div>Estado</div><div>Fecha</div></div>';
+const HEAD='<div class="grow ghead"><div>Misión</div><div>Proceso</div><div>Captura</div><div>Informe</div><div>Agente</div><div>Estado</div><div>Tiempo</div></div>';
+// Miniatura clicable (lightbox) o «—» honesto. `mission`=tiñe de ámbar (proof de cierre).
+function shotHTML(src,title,alt,mission){ return src
+  ? `<a class="shot-a" href="${esc(src)}" data-full="${esc(src)}" title="${esc(title)}"><img class="shot-img${mission?' shot-mission':''}" loading="lazy" src="${esc(src)}" alt="${esc(alt)}"></a>`
+  : `<span class="shot-none" title="${esc(title)}">—</span>`; }
+// Celda TIEMPO: hora INICIO (created_at de la misión) → hora FIN (resolved_at si está
+// resuelta; si no, el último updated_at de sus tareas · «en curso»). Fecha corta delante
+// SÓLO si la misión no empezó hoy. Duración compacta.
+function tiempoHTML(t){
+  const start=_ms(t.mission_created);
+  if(!start) return '<span class="tcell tdur">—</span>';
+  const resolved=_ms(t.mission_resolved);
+  const done=(t.mission_status==='resolved')||!!resolved;
+  const latest=MLAST[String(t.mission_id)]||0;
+  const endMs=resolved||(done?latest:latest);
+  const live=!done;
+  const pref=esHoy(start)?'':('<span class="tdate">'+ddmm(start)+'</span>');
+  const ini=hhmm(start);
+  let body;
+  if(endMs && endMs>=start){
+    body=ini+' → '+hhmm(endMs)+(live?' · <span class="tlive">en curso</span>':' · <span class="tdur">'+durTxt(start,endMs)+'</span>');
+  }else{
+    body=ini+' → <span class="tlive">en curso</span>';
+  }
+  return '<span class="tcell">'+pref+'⏱ '+body+'</span>';
+}
 function render(list){
   const box=$("reps");
   if(!list.length){
@@ -195,14 +239,20 @@ function render(list){
   box.innerHTML=HEAD+list.map(t=>{
     const own=OWN_ICON[t.owner]||"⚙️";
     const st=t.status||"pending";
-    const shot=t.image
-      ? `<a class="shot-a" href="${esc(t.image)}" data-full="${esc(t.image)}" title="Ampliar la captura de prueba"><img class="shot-img" loading="lazy" src="${esc(t.image)}" alt="Captura de prueba"></a>`
-      : `<span class="shot-none" title="sin captura de prueba">—</span>`;
-    // PROCESO: la última captura del terminal mientras el CLI trabajaba la misión
-    // (live_shot). Es el "durante"; la CAPTURA de al lado es el "después".
-    const proc=t.live_shot
-      ? `<a class="shot-a" href="${esc(t.live_shot)}" data-full="${esc(t.live_shot)}" title="Ampliar el proceso — el CLI trabajando"><img class="shot-img" loading="lazy" src="${esc(t.live_shot)}" alt="Proceso del CLI"></a>`
-      : `<span class="shot-none" title="sin captura de proceso">—</span>`;
+    // Dos capturas, sin «—» gratuito y sin inventar (Carlos, 2026-07-23):
+    //  · PROCESO (el «durante»): la captura del CLI trabajando (live_shot de la misión);
+    //    si no la hay, «—» honesto.
+    //  · CAPTURA (el «después»): la prueba PROPIA del paso (mission_tasks.image); si la
+    //    tarea no dejó imagen, CAE al proof de CIERRE de la misión (mission_proof, teñido
+    //    de ámbar y titulado «proof de la misión»); si tampoco hay, «—» honesto.
+    // Cada miniatura sale en UNA sola columna: nunca se repite la misma imagen.
+    const proc = shotHTML(t.live_shot,
+      t.live_shot ? "Ampliar el proceso — el CLI trabajando" : "sin captura de proceso",
+      "Proceso del CLI", false);
+    const capMission = !t.image ? (t.mission_proof||"") : "";
+    const shot = t.image
+      ? shotHTML(t.image,"Ampliar la captura de prueba","Captura de prueba",false)
+      : shotHTML(capMission, capMission?"proof de la misión — captura de cierre":"sin captura de prueba","Proof de la misión",true);
     return `<div class="grow item">
       <div class="gc mis">
         <a class="mid" href="/ticket?id=${encodeURIComponent(t.mission_id)}" title="Abrir la misión">🎯 ${esc(t.mission_id)}</a>
@@ -215,7 +265,7 @@ function render(list){
         <button class="rep-pdf" data-pdf="${esc(t.mission_id)}|${esc(t.code||'')}" title="Descargar el parte completo en PDF — con el informe entero y las dos capturas dentro del fichero">📄 PDF</button></div>
       <div class="gc">${window.ykAvatar ? ykAvatar.html(t.owner||'') : `<span class="who" title="${esc(t.owner||'')}">${own} ${esc(t.owner||'')}</span>`}</div>
       <div class="gc"><span class="badge b-${esc(st)}"><i></i>${esc(ST_LABEL[st]||st)}</span></div>
-      <div class="gc"><span class="fch">📅 ${fechaCorta(_ms(t.updated_at))}<span class="ago">${ago(_ms(t.updated_at))}</span></span></div>
+      <div class="gc">${tiempoHTML(t)}</div>
     </div>`;
   }).join("");
 }

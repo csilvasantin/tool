@@ -1073,9 +1073,15 @@ async function listAllMissionTasks(env, scope) {
     : scope === "todas" ? ""
     : "WHERE t.source IS NULL OR t.source!='fleet'";
   const { results } = await env.DB.prepare(
+    // ADITIVO (Carlos, 2026-07-23 · /informes): además de la hora de inicio de la
+    // misión (t.created_at → mission_created) traemos la de FIN (t.resolved_at →
+    // mission_resolved) y la PRUEBA de cierre de la misión (t.proof_image →
+    // mission_proof) para que la columna Captura tenga un fallback real cuando la
+    // tarea no dejó imagen propia. No rompe a /tareas: sólo añade campos.
     `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.report, m.image, m.updated_at,
             t.subject, t.screen, t.loc, t.project, t.source, t.assignee, t.live_shot,
-            t.status AS mission_status, t.created_at AS mission_created
+            t.status AS mission_status, t.created_at AS mission_created,
+            t.resolved_at AS mission_resolved, t.proof_image AS mission_proof
        FROM mission_tasks m JOIN tickets t ON t.id = m.mission_id
        ${where}
        ORDER BY m.mission_id, m.code`
