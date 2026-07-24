@@ -9,6 +9,15 @@ test("GET /decisions saca la materialización de tandas del camino crítico", ()
   assert.match(source, /await expireDecisions\(env\);[\s\S]{0,220}ctx\.waitUntil\(startDecisionBatches\(env\)/);
 });
 
+test("las lecturas dinámicas no ejecutan migraciones DDL por petición", () => {
+  assert.match(source, /var schemaReady = null;[\s\S]{0,260}schemaReady = applySchema\(env\)/);
+  const decisionsGet = source.match(/if \(url\.pathname === "\/decisions" && req\.method === "GET"\) \{([\s\S]*?)if \(\/\^\\\/decisions/);
+  const ticketsGet = source.match(/if \(url\.pathname === "\/tickets"\) \{([\s\S]*?)if \(url\.pathname === "\/tasks\/all"\)/);
+  assert.ok(decisionsGet && ticketsGet, "no se encontraron los handlers GET");
+  assert.doesNotMatch(decisionsGet[1], /ensureSchema/);
+  assert.doesNotMatch(ticketsGet[1], /ensureSchema/);
+});
+
 test("el histórico precarga carruseles en bloque y no hace N+1", () => {
   assert.match(source, /async function missionBatchSnapshots\(env, batchIds\)/);
   assert.match(source, /const batchMap = await missionBatchSnapshots\(env, batchIds\)/);

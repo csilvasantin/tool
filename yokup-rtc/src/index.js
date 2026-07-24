@@ -151,7 +151,7 @@ function hash(s) {
   return h;
 }
 __name(hash, "hash");
-async function ensureSchema(env) {
+async function applySchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY, screen TEXT, subject TEXT, loc TEXT, role TEXT, status TEXT, priority TEXT, assignee TEXT, source TEXT, ai_triage TEXT, created_at INTEGER, updated_at INTEGER, resolved_at INTEGER)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id TEXT, ts INTEGER, kind TEXT, author TEXT, text TEXT)");
   await env.DB.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_open_screen ON tickets(screen) WHERE status != 'resolved'");
@@ -231,6 +231,22 @@ async function ensureSchema(env) {
   // entre syncs aunque el id natural FLT-<rowid> ya estuviera cogido por otra misión.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_ids (inbox_id INTEGER PRIMARY KEY, mission_id TEXT UNIQUE, created_at INTEGER)").catch(() => {});
 }
+__name(applySchema, "applySchema");
+// FLT-1015 · El esquema no cambia entre dos requests del mismo isolate. La
+// implementación anterior repetía todas las CREATE/ALTER/INDEX (más de treinta
+// round-trips D1) en cada lectura dinámica. Las escrituras y el cron conservan
+// el guard, pero comparten una sola promesa; si falla se libera para reintentar.
+var schemaReady = null;
+async function ensureSchema(env) {
+  if (!schemaReady) {
+    schemaReady = applySchema(env).catch((error) => {
+      schemaReady = null;
+      throw error;
+    });
+  }
+  return schemaReady;
+}
+__name(ensureSchema, "ensureSchema");
 
 // ── IDEAS / OBJETIVOS ─────────────────────────────────────────────────────────
 // Las 8 sillas del Consejo AdmiraNeXT (== array CONSEJO de yokup-site/objetivos.html):
@@ -2836,7 +2852,6 @@ var index_default = {
     }
     if (url.pathname === "/tickets") {
       try {
-        await ensureSchema(env);
         const scope = url.searchParams.get("scope") || "campo";
         // La bandeja de campo reconcilia pantallas; la de flota se nutre del sync
         // del bot-inbox (cron cada 2 min), no de las pantallas DOOH.
@@ -3276,7 +3291,6 @@ var index_default = {
     }
     if (url.pathname === "/decisions" && req.method === "GET") {
       try {
-        await ensureSchema(env);
         const now = Date.now();
         // El cambio de estado es una sola query y debe verse en esta respuesta.
         // Materializar/reordenar tandas puede tocar decenas de filas: sigue
