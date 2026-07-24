@@ -15,7 +15,7 @@ test('el esquema de ideas añade la columna project (migración aditiva e idempo
 });
 
 test('generateCouncilIdea acepta projectHint y guarda el slug en la fila', () => {
-  assert.ok(SRC.includes("async function generateCouncilIdea(env, seat, topic, projectHint)"), "firma con projectHint");
+  assert.ok(SRC.includes("async function generateCouncilIdea(env, seat, topic, projectHint, persist = true)"), "firma con projectHint");
   // La inserción del Consejo incluye la columna project y liga projSlug.
   assert.match(SRC, /INSERT INTO ideas \(id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,project\)/);
   assert.ok(SRC.includes(', seat, projSlug).run();'), "liga projSlug en el INSERT del Consejo");
@@ -38,7 +38,7 @@ test('un projectHint válido manda; el tema explícito no mete el foco de proyec
 
 test('POST /ideas/generate lee {project} y lo pasa como hint', () => {
   assert.ok(SRC.includes('const projectHint = String(b && b.project || "").trim();'), "extrae project del body");
-  assert.ok(SRC.includes("await generateCouncilIdea(env, seat, topic, projectHint)"), "lo pasa al generador");
+  assert.ok(SRC.includes("await generateCouncilIdea(env, seat, topic, projectHint, !preview)"), "lo pasa al generador");
 });
 
 test('POST /ideas (humano) valida project contra el censo (inválido → "")', () => {

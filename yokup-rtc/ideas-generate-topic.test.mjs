@@ -65,12 +65,12 @@ test("topic se sanea: colapsa espacios y recorta a 240 caracteres", () => {
 
 // ── 2 · GUARDA sobre src/index.js (que la firma y las llamadas no deriven) ────
 test("la firma de generateCouncilIdea acepta el 3er parámetro topic", () => {
-  assert.ok(SRC.includes("async function generateCouncilIdea(env, seat, topic, projectHint)"));
+  assert.ok(SRC.includes("async function generateCouncilIdea(env, seat, topic, projectHint, persist = true)"));
 });
 
 test("la ruta POST /ideas/generate lee {topic} y lo pasa al generador", () => {
   assert.ok(SRC.includes('const topic = String(b && b.topic || "").trim();'), "extrae topic del body");
-  assert.ok(SRC.includes("await generateCouncilIdea(env, seat, topic, projectHint)"), "lo pasa al generador");
+  assert.ok(SRC.includes("await generateCouncilIdea(env, seat, topic, projectHint, !preview)"), "lo pasa al generador");
 });
 
 test("el cron NO pasa topic (la generación programada sigue libre)", () => {

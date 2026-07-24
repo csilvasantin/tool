@@ -174,13 +174,20 @@
     border:1px solid rgba(197,140,255,.45);background:transparent;border-radius:999px;padding:7px 12px;cursor:pointer;transition:.15s;margin-left:auto}
   .bar .gen:hover{background:rgba(197,140,255,.14);border-color:var(--cre)}
   .bar .gen:disabled{opacity:.5;cursor:default}
-  /* «✨ Idea nueva» ahora vive en el formulario (FLT-1010): secundario junto a
-     «Añadir idea» — tono violeta del Consejo, sin relleno, sin empujón propio. */
-  .add .gen{margin-left:0;background:transparent;color:var(--cre);
+  /* «✨ Idea nueva» vive ARRIBA A LA DERECHA del formulario (FLT-1017), en la misma
+     línea que «La idea»: tono violeta del Consejo, sin relleno. Es el que arranca el
+     borrador, así que manda en la lectura antes que los campos vacíos. */
+  .add .hd{flex:1 1 100%;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .add .hd .t{flex:1 1 240px}
+  .add .gen{margin-left:auto;flex:none;background:transparent;color:var(--cre);
     border:1px solid rgba(197,140,255,.45);border-radius:10px;padding:11px 14px;cursor:pointer;
-    font:700 11px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase}
+    font:700 11px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
   .add .gen:hover{background:rgba(197,140,255,.14);filter:none}
   .add .gen:disabled{opacity:.5;cursor:default}
+  /* Minuto de cortesía en marcha: el propio botón es la cuenta atrás Y el freno. */
+  .add .gen.wait{color:var(--brand);border-color:rgba(42,224,199,.5);background:rgba(42,224,199,.10)}
+  .add .gen.wait:hover{background:rgba(42,224,199,.18)}
+  @media(max-width:520px){ .add .gen{margin-left:0;flex:1 1 100%} }
   .idea.consejo{border-left:3px solid var(--rac)}
   .idea.consejo.cre{border-left-color:var(--cre)}
   .idea .csign{display:inline-flex;align-items:center;gap:4px;font:700 10px/1 var(--mono);letter-spacing:.03em;
@@ -255,7 +262,13 @@
   <div class="block-hd" style="margin-top:8px;padding-top:0;border-top:0"><h2>💡 Ideas a desarrollar</h2><span class="k" id="count"></span></div>
 
   <form class="add" id="addForm" autocomplete="off">
-    <input class="t" id="fTitle" maxlength="200" placeholder="La idea, en una frase…" required>
+    <!-- FLT-1017: «✨ Idea nueva» sube ARRIBA A LA DERECHA, en la línea del titular:
+         es lo primero que se ve y lo que arranca el borrador que rellena los dos
+         campos de abajo. «Añadir idea» sigue abajo, donde se cierra el alta. -->
+    <div class="hd">
+      <input class="t" id="fTitle" maxlength="200" placeholder="La idea, en una frase…" required>
+      <button class="gen" id="genBtn" type="button" title="El Consejo redacta un borrador desde el Consejero elegido y sobre un proyecto al azar; rellena los dos campos y, si no los tocas en un minuto, lo damos de alta">✨ Idea nueva</button>
+    </div>
     <textarea id="fBody" maxlength="4000" placeholder="Detalle (opcional): el porqué, cómo, para quién…"></textarea>
     <div class="row">
       <input class="a" id="fAuthor" maxlength="80" placeholder="Tu nombre">
@@ -267,7 +280,6 @@
       <select id="fSeat" title="Consejero del Consejo (opcional)"><option value="">— Consejero —</option></select>
       <select id="fProject" title="proyecto del censo (opcional)"><option value="">— proyecto —</option></select>
       <button type="submit" id="fBtn">Añadir idea</button>
-      <button class="gen" id="genBtn" type="button" title="Genera una idea del Consejo (se adapta al Consejero y al proyecto elegidos; vacíos → al azar)">✨ Idea nueva</button>
     </div>
   </form>
 
@@ -638,26 +650,61 @@ async function decide(id){
   }catch(e){ toast("Error de red"); }
 }
 
-// «✨ Idea nueva»: pide al Consejo una idea al momento y la pinta arriba del todo.
-// FLT-1010: se ADAPTA a lo elegido en el formulario — Consejero (#fSeat) → seat,
-// proyecto (#fProject) → project; ambos vacíos → al azar como antes (el worker
-// sortea silla y proyecto). El título/detalle manuales NO se tocan: son del alta
-// manual, camino aparte. La selección se MANTIENE tras generar (menos sorpresa).
-// Si el filtro activo la escondería, vuelve a «Todas» para que se vea.
+// «✨ Idea nueva» (FLT-1017): el Consejo redacta un BORRADOR y RELLENA el formulario.
+// Nada se guarda al generar — la idea nace por el camino normal (POST /ideas), y la
+// damos de alta NOSOTROS pasado un minuto si nadie ha tocado «La idea» ni «Detalle».
+// En cuanto alguien edita cualquiera de los dos, el reloj se para y el borrador se
+// queda prefijado: es tuyo, lo añades con «Añadir idea» cuando quieras.
+// Punto de vista: el Consejero de #fSeat (por defecto el CEO, que es lo que el worker
+// escoge cuando no le llega silla). Proyecto: NO mandamos ninguno a propósito, para
+// que el worker lo sortee del censo — «el proyecto aleatorio». Ambos se dejan escritos
+// en sus selectores para que se vea de quién y de qué proyecto habla el borrador.
+const AUTO_MS=60000;
+let AUTO_T=null, AUTO_TICK=null, AUTO_END=0, DRAFT=false;
+function genLabel(t){ const b=$("#genBtn"); if(b) b.textContent=t; }
+// Para el reloj y devuelve el botón a su estado de reposo. El borrador NO se borra.
+function autoStop(msg){
+  if(AUTO_T){ clearTimeout(AUTO_T); AUTO_T=null; }
+  if(AUTO_TICK){ clearInterval(AUTO_TICK); AUTO_TICK=null; }
+  const b=$("#genBtn"); if(b){ b.classList.remove("wait"); b.disabled=false; }
+  genLabel("✨ Idea nueva");
+  if(msg) toast(msg);
+}
+// El propio botón es la cuenta atrás y el freno: pulsarlo cancela el alta automática.
+function autoStart(){
+  autoStop(""); AUTO_END=Date.now()+AUTO_MS;
+  const b=$("#genBtn"); if(b){ b.classList.add("wait"); b.disabled=false; }
+  const pinta=()=>{ const s=Math.max(0,Math.round((AUTO_END-Date.now())/1000)); genLabel("✕ Cancelar · lo añado en "+s+" s"); };
+  pinta(); AUTO_TICK=setInterval(pinta,1000);
+  AUTO_T=setTimeout(()=>{
+    autoStop("");
+    if($("#fTitle").value.trim()) $("#addForm").requestSubmit();
+  },AUTO_MS);
+}
+// Editar cualquiera de los dos campos = «me lo quedo». Rellenarlos por código NO
+// dispara `input`, así que el propio borrador nunca se cancela a sí mismo.
+["#fTitle","#fBody"].forEach(sel=>{ const el=$(sel); if(el) el.addEventListener("input",()=>{
+  if(AUTO_T) autoStop("✍️ El borrador es tuyo — dale a «Añadir idea» cuando lo tengas");
+}); });
 async function generate(){
-  const btn=$("#genBtn"); if(btn){ btn.disabled=true; btn.textContent="✨ Generando…"; }
+  if(AUTO_T){ autoStop("Reloj parado — el borrador se queda como está"); return; }
+  const btn=$("#genBtn"); if(btn){ btn.disabled=true; } genLabel("✨ Generando…");
   try{
-    const seat=($("#fSeat")&&$("#fSeat").value)||"", project=($("#fProject")&&$("#fProject").value)||"";
-    const r=await fetch(WORKER+"/ideas/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({seat,project})});
+    const seat=($("#fSeat")&&$("#fSeat").value)||"";
+    const r=await fetch(WORKER+"/ideas/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({seat,preview:true})});
     const d=await r.json();
     if(d&&d.ok&&d.idea){
-      IDEAS.unshift(d.idea);
-      if(FILTER&&FILTER!==d.idea.status){ FILTER=""; document.querySelectorAll("#filters .f").forEach(x=>x.classList.toggle("on",x.dataset.f==="")); }
-      render(); loadProg();
-      toast("✨ "+(d.idea.author||"El Consejo")+": «"+d.idea.title+"»");
-    } else toast(d&&d.error?("No salió: "+d.error):"No se pudo generar");
-  }catch(e){ toast("Error de red"); }
-  finally{ if(btn){ btn.disabled=false; btn.textContent="✨ Idea nueva"; } }
+      const it=d.idea;
+      $("#fTitle").value=it.title||"";
+      $("#fBody").value=it.body||"";
+      if(it.seat&&$("#fSeat")) $("#fSeat").value=it.seat;
+      if(it.project&&$("#fProject")) $("#fProject").value=it.project;
+      if(it.author&&$("#fAuthor")&&!$("#fAuthor").value.trim()) $("#fAuthor").value=it.author;
+      DRAFT=true;                                   // firma del Consejo al darla de alta
+      toast("✨ "+(it.author||"El Consejo")+" — lo añado en 60 s si no lo tocas");
+      autoStart();
+    } else { autoStop(""); toast(d&&d.error?("No salió: "+d.error):"No se pudo generar"); }
+  }catch(e){ autoStop(""); toast("Error de red"); }
 }
 if($("#genBtn")) $("#genBtn").addEventListener("click",generate);
 $("#addForm").addEventListener("submit",async e=>{
@@ -665,10 +712,14 @@ $("#addForm").addEventListener("submit",async e=>{
   const title=$("#fTitle").value.trim(); if(!title)return;
   const btn=$("#fBtn"); btn.disabled=true;
   try{
-    const body={title,body:$("#fBody").value.trim(),author:$("#fAuthor").value.trim(),tag:$("#fTag").value,seat:$("#fSeat").value,project:$("#fProject").value};
+    // Si el texto viene de un borrador del Consejo y nadie le puso etiqueta, entra
+    // firmado «consejo»: mantiene el color del lado y la firma en la ficha (FLT-1017).
+    const tag=$("#fTag").value||(DRAFT?"consejo":"");
+    const body={title,body:$("#fBody").value.trim(),author:$("#fAuthor").value.trim(),tag,seat:$("#fSeat").value,project:$("#fProject").value};
     const r=await fetch(WORKER+"/ideas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const d=await r.json();
-    if(d.ok){ $("#fTitle").value="";$("#fBody").value="";$("#fTag").value="";$("#fSeat").value="";$("#fProject").value=""; toast("Idea guardada 💡"); load(); }
+    if(d.ok){ autoStop(""); DRAFT=false;
+      $("#fTitle").value="";$("#fBody").value="";$("#fTag").value="";$("#fSeat").value="";$("#fProject").value=""; toast("Idea guardada 💡"); load(); }
     else toast(d.error==="falta_titulo"?"Falta el título":"No se pudo guardar");
   }catch(e){ toast("Error de red"); } finally{ btn.disabled=false; }
 });

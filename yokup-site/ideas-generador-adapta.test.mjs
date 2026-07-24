@@ -23,22 +23,29 @@ for (const [name, SRC] of [['objetivos.html', OBJ], ['ideas.html', IDE]]) {
     assert.ok(!bar(SRC).includes('genBtn'), 'el ✨ ya no está en la barra de filtros');
   });
 
-  test(`${name}: «Añadir idea» (submit) precede al ✨ (jerarquía: primario, luego secundario)`, () => {
-    const f = form(SRC);
-    assert.ok(f.indexOf('id="fBtn"') < f.indexOf('id="genBtn"'), 'Añadir va antes que ✨');
-    assert.ok(f.includes('class="gen" id="genBtn" type="button"'), '✨ es .gen type=button');
+  test(`${name}: el ✨ es .gen type=button`, () => {
+    assert.ok(form(SRC).includes('class="gen" id="genBtn" type="button"'), '✨ es .gen type=button');
   });
 
-  test(`${name}: hay estilo .add .gen (secundario en el formulario)`, () => {
+  test(`${name}: hay estilo .add .gen (el ✨ dentro del formulario)`, () => {
     assert.ok(SRC.includes('.add .gen{'), 'CSS del ✨ dentro del formulario');
   });
 
-  test(`${name}: generate() lee el proyecto del formulario y lo envía en el POST`, () => {
-    assert.ok(SRC.includes('$("#fProject")'), 'lee #fProject en generate');
+  test(`${name}: generate() llama a /ideas/generate sin cuerpo vacío fijo`, () => {
     assert.ok(SRC.includes('/ideas/generate'), 'llama a /ideas/generate');
     assert.ok(!/body:"{}"/.test(SRC), 'ya no manda cuerpo vacío fijo');
   });
 }
+
+// ideas.html conserva la regla FLT-1010: el ✨ es secundario y va DESPUÉS de «Añadir».
+test('ideas.html: «Añadir idea» precede al ✨ (secundario)', () => {
+  const f = form(IDE);
+  assert.ok(f.indexOf('id="fBtn"') < f.indexOf('id="genBtn"'), 'Añadir va antes que ✨');
+});
+
+test('ideas.html: generate() lee el proyecto del formulario y lo envía', () => {
+  assert.ok(IDE.includes('$("#fProject")'), 'lee #fProject en generate');
+});
 
 // El selector de Consejero (fSeat) solo existe en objetivos.html.
 test('objetivos.html: el select de silla se renombra a «— Consejero —» (forma + ficha)', () => {
@@ -47,9 +54,40 @@ test('objetivos.html: el select de silla se renombra a «— Consejero —» (fo
   assert.ok(!OBJ.includes('— silla —'), 'ya no queda «— silla —»');
 });
 
-test('objetivos.html: generate() adapta seat+project a lo elegido en el formulario', () => {
-  assert.ok(OBJ.includes('$("#fSeat")') && OBJ.includes('$("#fProject")'), 'lee Consejero y proyecto');
-  assert.ok(OBJ.includes('body:JSON.stringify({seat,project})'), 'envía {seat, project}');
+// ── FLT-1017 (Carlos, 24-jul-2026) — el ✨ manda: sube ARRIBA A LA DERECHA, redacta
+//    un BORRADOR que rellena «La idea» y «Detalle», y si nadie los toca en un minuto
+//    lo damos de alta nosotros. Punto de vista del Consejero elegido; proyecto AL AZAR
+//    (no se manda ninguno: lo sortea el worker). Editar cualquiera de los dos = freno.
+test('objetivos.html: el ✨ va ARRIBA A LA DERECHA, antes que «Añadir idea»', () => {
+  const f = form(OBJ);
+  assert.ok(f.indexOf('id="genBtn"') < f.indexOf('id="fBtn"'), '✨ va antes que Añadir');
+  assert.ok(/<div class="hd">[\s\S]*id="fTitle"[\s\S]*id="genBtn"[\s\S]*<\/div>/.test(f),
+    '✨ comparte la línea del titular «La idea»');
+  assert.ok(OBJ.includes('.add .hd{'), 'hay CSS de la línea del titular');
+});
+
+test('objetivos.html: generate() pide BORRADOR (preview) con el Consejero elegido y sin proyecto', () => {
+  assert.ok(OBJ.includes('$("#fSeat")'), 'lee el Consejero');
+  assert.ok(OBJ.includes('body:JSON.stringify({seat,preview:true})'), 'envía {seat, preview}');
+  assert.ok(!/JSON\.stringify\(\{seat,project\}\)/.test(OBJ), 'ya NO manda proyecto: lo sortea el worker');
+});
+
+test('objetivos.html: el borrador rellena los dos campos y NO se guarda al generar', () => {
+  assert.ok(OBJ.includes('$("#fTitle").value=it.title'), 'rellena «La idea»');
+  assert.ok(OBJ.includes('$("#fBody").value=it.body'), 'rellena «Detalle»');
+  assert.ok(!/IDEAS\.unshift\(d\.idea\)/.test(OBJ), 'ya no se pinta como idea viva al generar');
+});
+
+test('objetivos.html: minuto de cortesía — alta automática y freno al editar', () => {
+  assert.ok(/const AUTO_MS=60000/.test(OBJ), 'la espera es de 60 s');
+  assert.ok(OBJ.includes('$("#addForm").requestSubmit()'), 'al expirar la damos de alta nosotros');
+  assert.ok(/\["#fTitle","#fBody"\][\s\S]*addEventListener\("input"/.test(OBJ),
+    'editar cualquiera de los dos campos para el reloj');
+  assert.ok(OBJ.includes('autoStop('), 'hay freno explícito');
+});
+
+test('objetivos.html: el borrador aceptado conserva la firma del Consejo', () => {
+  assert.ok(OBJ.includes('DRAFT?"consejo":""'), 'el alta hereda tag=consejo si vino del ✨');
 });
 
 test('ideas.html: generate() adapta project (no tiene selector de Consejero)', () => {

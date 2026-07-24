@@ -348,7 +348,11 @@ __name(parseIdeaJSON, "parseIdeaJSON");
 // Genera UNA idea del Consejo para `seat` con Workers AI, la firma «ROL · alias»,
 // tag «consejo», status «nueva», y la guarda en `ideas`. Devuelve la fila creada,
 // o null si la IA no dio nada usable (el llamador decide; nunca insertamos basura).
-async function generateCouncilIdea(env, seat, topic, projectHint) {
+// FLT-1017: con `persist=false` la idea NO se guarda ni se delibera — sale sólo como
+// borrador para que /objetivos rellene el formulario. Quien la da de alta es el
+// formulario (POST /ideas), tras el minuto de cortesía o a mano. Así una idea que
+// nadie quiso no deja rastro en la base.
+async function generateCouncilIdea(env, seat, topic, projectHint, persist = true) {
   await ensureIdeasSchema(env);
   if (!IDEA_SEATS.has(seat)) seat = "ceo";
   const c = COUNCIL[seat];
@@ -394,6 +398,11 @@ Todo en espa\xF1ol.`;
   const author = c.role + " \xB7 " + c.alias;
   const now = Date.now();
   const id = "IDEA-" + crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+  // Borrador (FLT-1017): ni INSERT ni deliberación. Sin `id`, para que nadie lo
+  // confunda con una fila viva; el alta real la hará POST /ideas con estos textos.
+  if (!persist) {
+    return { id: "", title, body, author, tag: "consejo", status: "", created_at: now, updated_at: now, mission_id: "", seat, project: projSlug, review: null, preview: true };
+  }
   // FLT-1007: las ideas del Consejo NACEN «estudio» (a debatir de inmediato). Las
   // humanas (POST /ideas) siguen naciendo «nueva» — este automatismo es solo del Consejo.
   await env.DB.prepare("INSERT INTO ideas (id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,project) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
@@ -3562,7 +3571,10 @@ var index_default = {
         if (!IDEA_SEATS.has(seat)) seat = COUNCIL_ORDER[Math.floor(Math.random() * COUNCIL_ORDER.length)];
         const topic = String(b && b.topic || "").trim();
         const projectHint = String(b && b.project || "").trim();
-        const idea = await generateCouncilIdea(env, seat, topic, projectHint);
+        // FLT-1017: `preview` devuelve el borrador sin guardarlo (lo pide /objetivos
+        // para rellenar el formulario). Sin la bandera, todo sigue igual que antes.
+        const preview = !!(b && (b.preview || b.dry_run));
+        const idea = await generateCouncilIdea(env, seat, topic, projectHint, !preview);
         if (!idea) return json({ ok: false, error: "la IA no devolvió una idea usable; reintenta" }, 502);
         return json({ ok: true, idea });
       } catch (e) { return json({ error: String(e) }, 500); }
