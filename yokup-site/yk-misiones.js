@@ -256,6 +256,17 @@
     return raw;
   }
 
+  // ID DE FLOTA para el enlace «operar» de admira.live/control. El registro
+  // (admira-fleet) usa ids en minúsculas con un único prefijo «admira-»
+  // (admira-macbookaircrema). Antes se concatenaba a pelo «admira-» + el nombre
+  // CANÓNICO, que va en CamelCase → «admira-MacBookAirCrema»; y si el nombre ya
+  // traía el prefijo, salía duplicado. (Carlos, 24-jul-2026)
+  function rcId(maq) {
+    var n = String(maq || "").toLowerCase().replace(/[\s·._-]+/g, "");
+    if (n.slice(0, 6) === "admira") n = n.slice(6);
+    return n ? "admira-" + n : "";
+  }
+
   // Máquina donde corre/se solventa la misión: loc (target_machine del encargo)
   // o, en tickets de flota antiguos, incrustada en screen «Persona·Máquina #id».
   // Exportada: la usan los selectores de /misiones para filtrar por equipo.
@@ -561,7 +572,7 @@
           progHtml(t._prog) +
           '<a class="tkopen" href="/tareas?mission=' + encodeURIComponent(t.id) + '" title="ver el plan de esta misión en /tareas">detalle ↳</a>' +
           '<a class="tkopen" href="/ticket?id=' + encodeURIComponent(t.id) + '">abrir →</a>' +
-          (maq ? '<a class="tkopen" target="_blank" rel="noopener" href="https://www.admira.live/control?rc=admira-' + encodeURIComponent(maq) + '&name=' + encodeURIComponent(maq) + '" title="Operar esta máquina en admira.live/control (ver + ratón + teclado)">🖥 operar ↗</a>' : '') +
+          (maq ? '<a class="tkopen" target="_blank" rel="noopener" href="https://www.admira.live/control?rc=' + encodeURIComponent(rcId(maq)) + '&name=' + encodeURIComponent(maq) + '" title="Operar esta máquina en admira.live/control (ver + ratón + teclado)">🖥 operar ↗</a>' : '') +
           '</div>' +
       "</div></div>";
   }
@@ -928,7 +939,7 @@
 
   window.YkMisiones = {
     init: init, selected: selected, selectMission: selectMission,
-    rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine, estadoDe: estadoDe,
+    rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine, rcId: rcId, estadoDe: estadoDe,
     machOffOf: machOffOf, whoHtml: whoHtml,
     setLiveMachines: function (set) { LIVE_MACHINES = set || null; },
     setLiveSurfaces: function (m) { LIVE_SURFACES = m || null; },
