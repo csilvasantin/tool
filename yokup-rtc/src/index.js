@@ -2677,6 +2677,20 @@ var index_default = {
       await ensureSchema(env);
       return json({ missions: await fleetMissions(env) });
     }
+    // DEUDA DE INFORMES (FLT-1018): misiones de flota TERMINADAS sin un solo parte.
+    // Consulta propia y NO la lista de /fleet/missions, que va capada a 120 y saca
+    // primero las abiertas: la deuda vieja —justo la que hay que perseguir— caía
+    // fuera de esa ventana. Sin tope de fecha: una deuda vieja sigue siendo deuda.
+    if (url.pathname === "/fleet/informes-deuda") {
+      await ensureSchema(env);
+      const { results } = await env.DB.prepare(
+        "SELECT t.id, t.subject, t.assignee, t.loc, t.updated_at FROM tickets t " +
+        "WHERE t.source='fleet' AND t.status='resolved' AND NOT EXISTS (" +
+        "  SELECT 1 FROM mission_tasks m WHERE m.mission_id=t.id AND m.report IS NOT NULL AND TRIM(m.report)!=''" +
+        ") ORDER BY t.updated_at DESC"
+      ).all();
+      return json({ ok: true, missions: results || [] });
+    }
     if (url.pathname === "/fleet/sync" && req.method === "POST") {
       await ensureSchema(env);
       return json(await fleetSync(env));

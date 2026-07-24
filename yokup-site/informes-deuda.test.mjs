@@ -9,6 +9,7 @@ import {readFile} from 'node:fs/promises';
 const FRAME = await readFile(new URL('./yk-frame.js', import.meta.url), 'utf8');
 const CSS   = await readFile(new URL('./yk-frame.css', import.meta.url), 'utf8');
 const INF   = await readFile(new URL('./informes.html', import.meta.url), 'utf8');
+const WORKER_SRC = await readFile(new URL('../yokup-rtc/src/index.js', import.meta.url), 'utf8');
 
 test('paintCounters trata INFORMES aparte del resto', () => {
   const i = FRAME.indexOf('function paintCounters(');
@@ -37,8 +38,17 @@ test('la deuda se marca visualmente y se explica en el title', () => {
 test('/informes lista las misiones terminadas sin parte', () => {
   assert.match(INF, /id="debe" hidden/, 'la banda nace oculta');
   assert.match(INF, /async function loadDebe\(\)/, 'hay carga propia de la deuda');
-  assert.match(INF, /m\.status==="resolved" && !m\.has_report/, 'terminadas y sin parte');
+  assert.match(INF, /\/fleet\/informes-deuda/, 'usa el endpoint propio, no la lista capada a 120');
   assert.match(INF, /\/ticket\?id='\+encodeURIComponent\(m\.id\)/, 'cada fila abre su misión');
+});
+
+test('el endpoint de deuda no está capado ni ordena por abiertas', () => {
+  const RTC = WORKER_SRC;
+  const i = RTC.indexOf('/fleet/informes-deuda');
+  const b = RTC.slice(i, i + 900);
+  assert.match(b, /t\.status='resolved'/, 'sólo terminadas');
+  assert.match(b, /NOT EXISTS \(/, 'sin un solo parte');
+  assert.ok(!/LIMIT/.test(b), 'sin tope: la deuda vieja también cuenta');
 });
 
 test('la deuda NO se filtra por fecha: una deuda vieja sigue siendo deuda', () => {

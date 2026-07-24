@@ -225,10 +225,11 @@ async function load(){
 // NO se filtra por fecha: una deuda vieja sigue siendo deuda hoy.
 async function loadDebe(){
   const box=$("debe"); if(!box) return;
-  let d; try{ const r=await fetch(WORKER+"/fleet/missions",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
-  const sin=(d.missions||[]).filter(m=>m.status==="resolved" && !m.has_report);
+  // Endpoint propio: /fleet/missions va capada a 120 y saca las abiertas primero,
+  // así que la deuda vieja se quedaba fuera de la ventana. Aquí vienen TODAS.
+  let d; try{ const r=await fetch(WORKER+"/fleet/informes-deuda",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
+  const sin=d.missions||[];
   if(!sin.length){ box.hidden=true; box.innerHTML=""; return; }
-  sin.sort((a,b)=>(_ms(b.updated_at)||0)-(_ms(a.updated_at)||0));
   box.hidden=false;
   box.innerHTML='<div class="debe-hd">⚠️ '+sin.length+(sin.length===1?' misión terminada sin informe':' misiones terminadas sin informe')+
       '<span class="debe-sub">Toda misión finalizada debe su parte</span></div>'+
