@@ -69,6 +69,7 @@ test('objetivos.html: el ✨ va ARRIBA A LA DERECHA, antes que «Añadir idea»'
 test('objetivos.html: generate() pide BORRADOR (preview) con el Consejero elegido y sin proyecto', () => {
   assert.ok(OBJ.includes('$("#fSeat")'), 'lee el Consejero');
   assert.ok(OBJ.includes('body:JSON.stringify({seat,preview:true})'), 'envía {seat, preview}');
+  assert.ok(OBJ.includes('$("#fSeat").value)||"ceo"'), 'sin elección, el Consejero por defecto es el CEO (lo aleatorio es el proyecto)');
   assert.ok(!/JSON\.stringify\(\{seat,project\}\)/.test(OBJ), 'ya NO manda proyecto: lo sortea el worker');
 });
 

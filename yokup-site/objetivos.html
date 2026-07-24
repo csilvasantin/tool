@@ -690,7 +690,10 @@ async function generate(){
   if(AUTO_T){ autoStop("Reloj parado — el borrador se queda como está"); return; }
   const btn=$("#genBtn"); if(btn){ btn.disabled=true; } genLabel("✨ Generando…");
   try{
-    const seat=($("#fSeat")&&$("#fSeat").value)||"";
+    // Sin Consejero elegido mandamos «ceo» A PROPÓSITO: el aleatorio de este botón
+    // es el PROYECTO, no la silla. Si no mandásemos ninguna, el worker sortearía
+    // también el Consejero y el punto de vista dejaría de ser predecible.
+    const seat=($("#fSeat")&&$("#fSeat").value)||"ceo";
     const r=await fetch(WORKER+"/ideas/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({seat,preview:true})});
     const d=await r.json();
     if(d&&d.ok&&d.idea){
@@ -698,7 +701,17 @@ async function generate(){
       $("#fTitle").value=it.title||"";
       $("#fBody").value=it.body||"";
       if(it.seat&&$("#fSeat")) $("#fSeat").value=it.seat;
-      if(it.project&&$("#fProject")) $("#fProject").value=it.project;
+      // El proyecto sorteado SIEMPRE se ve: si el censo aún no había cargado, la
+      // opción no existiría y el selector se quedaría mudo sin decir por qué.
+      const ps=$("#fProject");
+      if(it.project&&ps){
+        if(!ps.querySelector('option[value="'+it.project+'"]')){
+          const o=document.createElement("option");
+          o.value=it.project; o.textContent=(PROJ_BY[it.project]&&PROJ_BY[it.project].name)||it.project;
+          ps.appendChild(o);
+        }
+        ps.value=it.project;
+      }
       if(it.author&&$("#fAuthor")&&!$("#fAuthor").value.trim()) $("#fAuthor").value=it.author;
       DRAFT=true;                                   // firma del Consejo al darla de alta
       toast("✨ "+(it.author||"El Consejo")+" — lo añado en 60 s si no lo tocas");
