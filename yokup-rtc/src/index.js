@@ -550,6 +550,8 @@ async function runCouncilTick(env) {
   }
 }
 __name(runCouncilTick, "runCouncilTick");
+// Throttle por isolate del enganche HTTP del Consejo (ver fetch): último intento (ms).
+var councilPiggybackAt = 0;
 
 // ── PROYECTOS ───────────────────────────────────────────────────────────────
 // Slug estable a partir del nombre. «Admira Live» → «admira-live».
@@ -2419,6 +2421,23 @@ var index_default = {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+    // ── AUTOCURACIÓN DEL CONSEJO, INDEPENDIENTE DEL CRON (FLT-1016) ─────────────
+    // DIAGNÓSTICO (23/24-jul-2026): el cron scheduled() de este worker NO se invoca
+    // en esta cuenta —schedule "*/2 * * * *" registrado y confirmado por API, pero
+    // wrangler tail no ve NINGUNA ejecución de cron en varias franjas y council_ticks
+    // queda vacío—. Por eso la idea del Consejo de la franja nunca nacía por sí sola
+    // (las que hay son todas a demanda). Como la API sí recibe latido HTTP constante
+    // de la flota, enganchamos aquí el tick: en 2º plano (ctx.waitUntil, sin latencia),
+    // con throttle por isolate (>=60s) + idempotencia por hueco → una sola idea por
+    // franja de 3h aunque el cron siga caído. Si el cron revive, scheduled() hace lo
+    // mismo y la idempotencia evita duplicar. Best-effort: nunca afecta a la respuesta.
+    try {
+      const _now = Date.now();
+      if (ctx && typeof ctx.waitUntil === "function" && _now - councilPiggybackAt > 60000) {
+        councilPiggybackAt = _now;
+        ctx.waitUntil(runCouncilTick(env).catch(() => {}));
+      }
+    } catch (e) {}
     // ── MEDIA (imágenes de misiones) ──────────────────────────────────────────
     // GET /media/<key> → PÚBLICO: sirve la imagen de R2 (el LLM la ve por URL).
     if (url.pathname.startsWith("/media/") && req.method === "GET") {
