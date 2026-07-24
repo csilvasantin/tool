@@ -249,6 +249,10 @@ async function ensureIdeasSchema(env) {
   // Kit de venta (FLT-1007): adjuntos de NotebookLM. JSON {audio:{url,at}?,
   // video:{url,at}?, pdf:{url,at}?}. Migración ADITIVA e idempotente igual que arriba.
   await env.DB.exec("ALTER TABLE ideas ADD COLUMN media TEXT").catch(() => {});
+  // Proyecto del censo sobre el que gira la idea (FLT-1009): slug de `projects`
+  // (p. ej. "pixeria", "admiranext"). Las ideas del Consejo sin tema explícito nacen
+  // centradas en un proyecto AL AZAR del censo con web. Migración ADITIVA e idempotente.
+  await env.DB.exec("ALTER TABLE ideas ADD COLUMN project TEXT").catch(() => {});
 }
 __name(ensureIdeasSchema, "ensureIdeasSchema");
 
@@ -323,13 +327,29 @@ __name(parseIdeaJSON, "parseIdeaJSON");
 // Genera UNA idea del Consejo para `seat` con Workers AI, la firma «ROL · alias»,
 // tag «consejo», status «nueva», y la guarda en `ideas`. Devuelve la fila creada,
 // o null si la IA no dio nada usable (el llamador decide; nunca insertamos basura).
-async function generateCouncilIdea(env, seat, topic) {
+async function generateCouncilIdea(env, seat, topic, projectHint) {
   await ensureIdeasSchema(env);
   if (!IDEA_SEATS.has(seat)) seat = "ceo";
   const c = COUNCIL[seat];
   // FLT-1009: tema opcional (bajo demanda; el cron nunca lo pasa). Un string corto
   // que CENTRA la idea sin cambiar la voz del punto fuerte de la silla ni nada mas.
   const topicClean = String(topic || "").replace(/\s+/g, " ").trim().slice(0, 240);
+  // FLT-1009: proyecto sobre el que gira la idea. Un `projectHint` VÁLIDO (slug del
+  // censo) manda. Sin tema y sin hint, se elige un proyecto AL AZAR del censo que
+  // tenga web, para que la idea hable de algo NUESTRO y enlazable. Con tema explícito
+  // el tema manda: el proyecto solo se guarda si se pidió a mano (no se sortea).
+  const idx = await projectIndex(env);
+  let proj = null;
+  const hint = String(projectHint || "").trim();
+  if (hint) { const p = idx.get(hint); if (p) proj = p; }
+  if (!proj && !topicClean) {
+    const withWeb = (idx.rows || []).filter((p) => p && p.web && String(p.web).trim());
+    if (withWeb.length) proj = withWeb[Math.floor(Math.random() * withWeb.length)];
+  }
+  const projSlug = proj ? proj.id : "";
+  // El tema manda sobre el proyecto: si hay tema, no metemos el foco del proyecto en
+  // el prompt (aunque el slug se guarde). Sin tema, centramos la idea en el proyecto.
+  const focoProyecto = (!topicClean && proj) ? "\n\nCENTRA tu idea en un proyecto CONCRETO nuestro: \xAB" + proj.name + "\xBB (" + proj.web + "). Piensa una mejora REAL y accionable para ESE proyecto, mir\xE1ndola desde tu punto fuerte." : "";
   let recent = [];
   try {
     recent = (await env.DB.prepare("SELECT title FROM ideas ORDER BY created_at DESC LIMIT 15").all()).results || [];
@@ -341,7 +361,7 @@ async function generateCouncilIdea(env, seat, topic) {
 
 AdmiraNeXT es un ecosistema de se\xF1alizaci\xF3n digital (DOOH) construido por agentes de IA: yokup.com (FSM de misiones y tareas del equipo), admira.live (cockpit de la flota de agentes de IA), pixeria (creatividad con IA), xpaceos (gemelo digital de la red de pantallas) y admira.tv (emisi\xF3n del canal).
 
-Propón UNA idea u objetivo CONCRETO y accionable para MEJORAR AdmiraNeXT, mir\xE1ndolo desde tu punto fuerte (${c.role}).${focoTema} Que sea DISTINTA de estas ideas ya propuestas:
+Propón UNA idea u objetivo CONCRETO y accionable para MEJORAR AdmiraNeXT, mir\xE1ndolo desde tu punto fuerte (${c.role}).${focoTema}${focoProyecto} Que sea DISTINTA de estas ideas ya propuestas:
 ${previos}
 
 Responde SOLO con un objeto JSON v\xE1lido, sin texto alrededor ni markdown, con esta forma exacta:
@@ -355,14 +375,14 @@ Todo en espa\xF1ol.`;
   const id = "IDEA-" + crypto.randomUUID().replace(/-/g, "").slice(0, 8);
   // FLT-1007: las ideas del Consejo NACEN «estudio» (a debatir de inmediato). Las
   // humanas (POST /ideas) siguen naciendo «nueva» — este automatismo es solo del Consejo.
-  await env.DB.prepare("INSERT INTO ideas (id,title,body,author,tag,status,created_at,updated_at,mission_id,seat) VALUES (?,?,?,?,?,?,?,?,?,?)")
-    .bind(id, title, body, author, "consejo", "estudio", now, now, "", seat).run();
+  await env.DB.prepare("INSERT INTO ideas (id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,project) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(id, title, body, author, "consejo", "estudio", now, now, "", seat, projSlug).run();
   // Deliberación INLINE al nacer (mismo best-effort que /ideas/status → estudio):
   // el estado ya quedó guardado arriba; si la IA falla, la idea queda en estudio sin
   // review y POST /ideas/review la regenera bajo demanda. Nunca tumba la creación.
   let review = null;
   try { review = await generateCouncilReview(env, { id, title, body, author, seat }); } catch (e) { review = null; }
-  return { id, title, body, author, tag: "consejo", status: "estudio", created_at: now, updated_at: now, mission_id: "", seat, review };
+  return { id, title, body, author, tag: "consejo", status: "estudio", created_at: now, updated_at: now, mission_id: "", seat, project: projSlug, review };
 }
 __name(generateCouncilIdea, "generateCouncilIdea");
 
@@ -2878,12 +2898,13 @@ var index_default = {
       try {
         await ensureIdeasSchema(env);
         if (req.method === "GET") {
-          const r = await env.DB.prepare("SELECT id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,review,media FROM ideas ORDER BY created_at DESC").all();
+          const r = await env.DB.prepare("SELECT id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,review,media,project FROM ideas ORDER BY created_at DESC").all();
           const rows = r.results || [];
           // `review` y `media` viajan YA PARSEADOS como objeto (o null): el front los pinta directo.
           for (const it of rows) {
             if (it.review) { try { it.review = JSON.parse(it.review); } catch (e) { it.review = null; } } else it.review = null;
             if (it.media) { try { it.media = JSON.parse(it.media); } catch (e) { it.media = null; } } else it.media = null;
+            it.project = it.project || "";
           }
           return json({ ideas: rows });
         }
@@ -2896,11 +2917,16 @@ var index_default = {
         // Silla del Consejo (opcional). Un valor fuera de las 8 se ignora → seat "".
         const seatIn = String(b.seat || "").trim().toLowerCase();
         const seat = IDEA_SEATS.has(seatIn) ? seatIn : "";
+        // Proyecto del censo (opcional, FLT-1009). Se VALIDA contra el censo: un valor
+        // suelto (id, nombre o dominio) se resuelve a su slug canónico; inválido → "".
+        const projIn = String(b.project || b.projectSlug || "").trim();
+        let project = "";
+        if (projIn) { try { const p = (await projectIndex(env)).get(projIn); if (p) project = p.id; } catch (e) { project = ""; } }
         const now = Date.now();
         const id = "IDEA-" + (crypto.randomUUID().replace(/-/g, "").slice(0, 8));
-        await env.DB.prepare("INSERT INTO ideas (id,title,body,author,tag,status,created_at,updated_at,mission_id,seat) VALUES (?,?,?,?,?,?,?,?,?,?)")
-          .bind(id, title, body, author, tag, "nueva", now, now, "", seat).run();
-        return json({ ok: true, idea: { id, title, body, author, tag, status: "nueva", created_at: now, updated_at: now, mission_id: "", seat } });
+        await env.DB.prepare("INSERT INTO ideas (id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,project) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+          .bind(id, title, body, author, tag, "nueva", now, now, "", seat, project).run();
+        return json({ ok: true, idea: { id, title, body, author, tag, status: "nueva", created_at: now, updated_at: now, mission_id: "", seat, project } });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     // (Re)asigna la silla del Consejo a una idea. seat "" (o inválido) la desasigna.
@@ -3062,10 +3088,12 @@ var index_default = {
         return json({ ok: true, id, mission_id, status: "mision" });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
-    // POST /ideas/generate {seat?,topic?} — genera una idea del Consejo BAJO DEMANDA
-    // (el botón «✨ Idea nueva»). Sin seat → silla ALEATORIA; con seat válido → esa.
+    // POST /ideas/generate {seat?,topic?,project?} — genera una idea del Consejo BAJO
+    // DEMANDA (el botón «✨ Idea nueva»). Sin seat → silla ALEATORIA; con seat válido → esa.
     // `topic` opcional (string corto): si viene, la idea nace CENTRADA en ese tema,
-    // manteniendo la voz del punto fuerte de la silla. El cron NO pasa topic (libre).
+    // manteniendo la voz del punto fuerte de la silla. `project` opcional (slug del
+    // censo): fuerza el proyecto de la idea. Sin tema NI project, se sortea un proyecto
+    // del censo con web (FLT-1009). El cron NO pasa nada (libre → proyecto al azar).
     // Misma generación, firma «ROL · alias», tag=consejo y guardado que el cron.
     // Devuelve la idea creada. Mismo estilo json()/CORS.
     if (url.pathname === "/ideas/generate" && req.method === "POST") {
@@ -3075,7 +3103,8 @@ var index_default = {
         let seat = String(b && b.seat || "").trim().toLowerCase();
         if (!IDEA_SEATS.has(seat)) seat = COUNCIL_ORDER[Math.floor(Math.random() * COUNCIL_ORDER.length)];
         const topic = String(b && b.topic || "").trim();
-        const idea = await generateCouncilIdea(env, seat, topic);
+        const projectHint = String(b && b.project || "").trim();
+        const idea = await generateCouncilIdea(env, seat, topic, projectHint);
         if (!idea) return json({ ok: false, error: "la IA no devolvió una idea usable; reintenta" }, 502);
         return json({ ok: true, idea });
       } catch (e) { return json({ error: String(e) }, 500); }
