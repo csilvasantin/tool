@@ -104,6 +104,13 @@
     border:1px solid rgba(197,140,255,.45);background:transparent;border-radius:999px;padding:7px 12px;cursor:pointer;transition:.15s;margin-left:auto}
   .bar .gen:hover{background:rgba(197,140,255,.14);border-color:var(--cre)}
   .bar .gen:disabled{opacity:.5;cursor:default}
+  /* «✨ Idea nueva» ahora vive en el formulario (FLT-1010): secundario junto a
+     «Añadir idea» — tono violeta del Consejo, sin relleno, sin empujón propio. */
+  .add .gen{margin-left:0;background:transparent;color:var(--cre);
+    border:1px solid rgba(197,140,255,.45);border-radius:10px;padding:11px 14px;cursor:pointer;
+    font:700 11px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase}
+  .add .gen:hover{background:rgba(197,140,255,.14);filter:none}
+  .add .gen:disabled{opacity:.5;cursor:default}
   .idea.consejo{border-left:3px solid var(--rac)}
   .idea.consejo.cre{border-left-color:var(--cre)}
   .idea .csign{display:inline-flex;align-items:center;gap:4px;font:700 10px/1 var(--mono);letter-spacing:.03em;
@@ -186,12 +193,13 @@
     <div class="row">
       <input class="a" id="fAuthor" maxlength="80" placeholder="Tu nombre">
       <select id="fTag">
-        <option value="">— etiqueta —</option>
+        <option value="">— idea —</option>
         <option>producto</option><option>flota</option><option>ia</option>
         <option>diseño</option><option>negocio</option><option>proceso</option><option>meta</option>
       </select>
       <select id="fProject" title="proyecto del censo (opcional)"><option value="">— proyecto —</option></select>
       <button type="submit" id="fBtn">Añadir idea</button>
+      <button class="gen" id="genBtn" type="button" title="Genera una idea del Consejo (se adapta al proyecto elegido; vacío → al azar)">✨ Idea nueva</button>
     </div>
   </form>
 
@@ -202,7 +210,6 @@
     <button class="f" data-f="hecha">Hechas</button>
     <button class="f" data-f="mision">Misión</button>
     <button class="f" data-f="descartada">Descartadas</button>
-    <button class="gen" id="genBtn" type="button" title="Genera una idea del Consejo (silla aleatoria)">✨ Idea nueva</button>
     <span class="count" id="count" style="margin-left:10px"></span>
     <span class="viewsel" id="viewsel" style="margin-left:8px">
       <button type="button" data-v="grid" title="Vista fichas">▦</button><button type="button" data-v="list" title="Vista listado">☰</button>
@@ -424,12 +431,16 @@ async function del(id){
   }catch(e){ toast("Error de red"); }
 }
 
-// «✨ Idea nueva»: pide al Consejo una idea al momento (silla ALEATORIA en el
-// worker), la pinta arriba y anuncia quién la firmó.
+// «✨ Idea nueva»: pide al Consejo una idea al momento y la pinta arriba.
+// FLT-1010: se ADAPTA al proyecto (#fProject) elegido en el formulario → project;
+// vacío → al azar como antes. Esta vista no tiene selector de Consejero, así que la
+// silla la sortea el worker. El título/detalle manuales son del alta manual, aparte.
+// La selección se MANTIENE tras generar (menos sorpresa).
 async function generate(){
   const btn=$("#genBtn"); if(btn){ btn.disabled=true; btn.textContent="✨ Generando…"; }
   try{
-    const r=await fetch(WORKER+"/ideas/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+    const project=($("#fProject")&&$("#fProject").value)||"";
+    const r=await fetch(WORKER+"/ideas/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({project})});
     const d=await r.json();
     if(d&&d.ok&&d.idea){
       IDEAS.unshift(d.idea);
