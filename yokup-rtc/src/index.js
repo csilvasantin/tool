@@ -809,6 +809,44 @@ async function missionBatchSnapshot(env, batchId) {
   return { ...batch, items: results || [] };
 }
 __name(missionBatchSnapshot, "missionBatchSnapshot");
+// HISTÓRICO DE DECISIONES EN BLOQUE (FLT-1015). /decisions puede enseñar 40
+// relojes de misión por página. Resolver cada carrusel con
+// missionBatchSnapshot() hacía 3 consultas D1 por ficha (JOIN de reconciliación
+// + batch + items): 38 fichas reales = 114 round-trips y 3–6 s de espera.
+// Esta variante conserva la reconciliación, pero agrupa toda la página en tres
+// lecturas y un único batch de escrituras sólo cuando encuentra filas obsoletas.
+async function missionBatchSnapshots(env, batchIds) {
+  const ids = [...new Set((batchIds || []).map((id) => String(id || "")).filter(Boolean))];
+  const out = new Map();
+  if (!ids.length) return out;
+  const joined = await selectIn(env, ids, (ph) =>
+    `SELECT i.batch_id,i.position,i.status,t.status AS ticket_status
+     FROM mission_batch_items i LEFT JOIN tickets t ON t.id=i.mission_id
+     WHERE i.batch_id IN (${ph}) AND i.status='queued'`
+  );
+  const stale = joined.filter((item) => item.ticket_status === "resolved" || item.ticket_status === "cancelled");
+  if (stale.length) {
+    const now = Date.now();
+    await env.DB.batch(stale.map((item) => env.DB.prepare(
+      "UPDATE mission_batch_items SET status=?,updated_at=? WHERE batch_id=? AND position=? AND status='queued'"
+    ).bind(item.ticket_status === "cancelled" ? "cancelled" : "completed", now, item.batch_id, item.position)));
+  }
+  const batches = await selectIn(env, ids, (ph) =>
+    `SELECT * FROM mission_batches WHERE id IN (${ph})`
+  );
+  const items = await selectIn(env, ids, (ph) =>
+    `SELECT batch_id,position,option_index,title,mission_id,status,created_at,updated_at
+     FROM mission_batch_items WHERE batch_id IN (${ph}) ORDER BY batch_id,position`
+  );
+  const byBatch = new Map();
+  for (const item of items) {
+    if (!byBatch.has(item.batch_id)) byBatch.set(item.batch_id, []);
+    byBatch.get(item.batch_id).push(item);
+  }
+  for (const batch of batches) out.set(batch.id, { ...batch, items: byBatch.get(batch.id) || [] });
+  return out;
+}
+__name(missionBatchSnapshots, "missionBatchSnapshots");
 async function batchClosureAccepted(env, missionId) {
   const row = await env.DB.prepare(
     "SELECT 1 AS accepted FROM events WHERE ticket_id=? AND kind='accept' LIMIT 1"
@@ -1014,14 +1052,35 @@ async function ensureMissionBatchFromDecision(env, decision) {
 }
 __name(ensureMissionBatchFromDecision, "ensureMissionBatchFromDecision");
 async function expireDecisionsAndStartBatches(env) {
+  await expireDecisions(env);
+  return startDecisionBatches(env);
+}
+__name(expireDecisionsAndStartBatches, "expireDecisionsAndStartBatches");
+async function expireDecisions(env) {
   const now = Date.now();
   await env.DB.prepare("UPDATE decisions SET status='expired' WHERE status='pending' AND deadline < ?").bind(now).run();
+}
+__name(expireDecisions, "expireDecisions");
+async function startDecisionBatches(env) {
+  // Sólo decisiones que todavía no han actualizado su tanda. Antes se
+  // recorrían las 100 últimas en CADA GET, aunque 98 ya estuvieran procesadas.
+  // Para una continuación, updated_at posterior al cierre/vencimiento certifica
+  // que el orden restante ya se aplicó; para una raíz basta decision_id.
   const { results } = await env.DB.prepare(
-    "SELECT * FROM decisions WHERE status IN ('decided','expired') ORDER BY created_at DESC LIMIT 100"
+    `SELECT d.* FROM decisions d
+     LEFT JOIN mission_batches own ON own.decision_id=d.id
+     LEFT JOIN mission_batches shared ON shared.id=d.batch_id
+     WHERE d.status IN ('decided','expired') AND (
+       ((d.parent_decision IS NULL OR d.parent_decision='') AND own.id IS NULL)
+       OR
+       (d.parent_decision IS NOT NULL AND d.parent_decision<>'' AND
+        (shared.id IS NULL OR COALESCE(shared.updated_at,0) < COALESCE(d.decided_at,d.deadline,0)))
+     )
+     ORDER BY d.created_at DESC LIMIT 100`
   ).all();
   for (const decision of results || []) await ensureMissionBatchFromDecision(env, decision);
 }
-__name(expireDecisionsAndStartBatches, "expireDecisionsAndStartBatches");
+__name(startDecisionBatches, "startDecisionBatches");
 
 // ---- MODELO MISIONES · TAREAS ----------------------------------------------
 // Una MISIÓN es el ticket/incidencia. Sus TAREAS son los pasos para concluirla.
@@ -2189,7 +2248,7 @@ async function menuCounters(env) {
 }
 __name(menuCounters, "menuCounters");
 var index_default = {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
     // ── MEDIA (imágenes de misiones) ──────────────────────────────────────────
@@ -3219,9 +3278,13 @@ var index_default = {
       try {
         await ensureSchema(env);
         const now = Date.now();
-        // Al vencer, la recomendada inicia la primera misión. El cron hace lo
-        // mismo aun cuando nadie tenga /misiones abierta.
-        await expireDecisionsAndStartBatches(env);
+        // El cambio de estado es una sola query y debe verse en esta respuesta.
+        // Materializar/reordenar tandas puede tocar decenas de filas: sigue
+        // garantizado por cron y se completa en background, sin bloquear la UI.
+        await expireDecisions(env);
+        if (ctx && typeof ctx.waitUntil === "function") {
+          ctx.waitUntil(startDecisionBatches(env).catch(() => {}));
+        }
         // HISTÓRICO (FLT-982 b2). Hasta ahora esto sólo devolvía las vivas y las
         // cerradas de la última hora, e IGNORABA cualquier parámetro: la página
         // /decisiones tenía que guardarse el pasado en localStorage de cada
@@ -3263,16 +3326,22 @@ var index_default = {
           const tks = await selectIn(env, misIds, (ph) => `SELECT id, project FROM tickets WHERE id IN (${ph})`);
           for (const t of tks || []) if (t.project) misProj[t.id] = t.project;
         }
-        const items = await Promise.all((r.results || []).map(async (d, i) => {
-          let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
+        const parsed = (r.results || []).map((d) => {
+          let options = []; try { options = JSON.parse(d.options || "[]"); } catch (e) {}
+          return { d, options };
+        });
+        const batchIds = parsed.slice(0, 40)
+          .filter(({ d, options }) => isMissionDecision(options, d))
+          .map(({ d }) => d.batch_id || batchIdForDecision(d.id));
+        const batchMap = await missionBatchSnapshots(env, batchIds);
+        const items = parsed.map(({ d, options: o }, i) => {
           const legacyProject = d.status === "pending" ? (d.project || "")
             : (d.project || misProj[String(d.mission || "").toUpperCase()] || "");
           const resolvedProject = resolveProject(pidxG, legacyProject);
-          // El carrusel (batch) se resuelve con 2 consultas por decisión. Con la
-          // ventana de siempre son 40 como mucho; al pedir histórico largo se
-          // dispararía a 1000, así que sólo se resuelve para las 40 primeras.
+          // El carrusel sigue limitado a las primeras 40 fichas, pero sale del
+          // mapa precargado de la página, no de 3 queries por decisión.
           const batch = (i < 40 && isMissionDecision(o, d))
-            ? await missionBatchSnapshot(env, d.batch_id || batchIdForDecision(d.id)) : null;
+            ? (batchMap.get(d.batch_id || batchIdForDecision(d.id)) || null) : null;
           return { id: d.id, machine: d.machine, agent: d.agent, surface: d.surface, question: d.question,
                    options: o, recommended: d.recommended, status: d.status, chosen: d.chosen,
                    // QUIÉN decidió: lo escribe /decisions/<id>/choose desde siempre,
@@ -3286,7 +3355,7 @@ var index_default = {
                    batch,
                    created_at: d.created_at, deadline: d.deadline, decided_at: d.decided_at,
                    secondsLeft: Math.max(0, Math.round((d.deadline - now) / 1000)) };
-        }));
+        });
         // `query` devuelve lo que REALMENTE se aplicó (un ?limit=9999 se recorta a
         // 500) y `next_until` da el cursor para pedir la página siguiente hacia
         // atrás: &until=<next_until-1>. null = no hay más.

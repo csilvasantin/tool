@@ -524,22 +524,25 @@ async function marcarHalos(container, list){
 }
 
 async function load(){
-  // la personalización (iconos/fotos del Panel de control) llega antes del primer pintado
-  try{ await (YkMisiones.customizeReady||0); }catch(e){}
-  // Censo de proyectos: la miniatura de la columna PROYECTO sale del proyecto
-  // ASIGNADO a la misión, no de buscar palabras en el asunto. Se pide una vez
-  // por recarga y se queda cacheado en el módulo.
-  try{
-    const po=await ykf("/projects",{cache:"no-store"}).then(r=>r.json());
+  // FLT-1015 · CAMINO CRÍTICO EN PARALELO. Antes esperábamos personalización,
+  // luego proyectos y sólo entonces arrancábamos /tickets: tres latencias de red
+  // sumadas antes de pintar una sola misión. Las tres peticiones independientes
+  // empiezan ahora en el mismo tick y el primer render espera sólo a la más lenta.
+  const customizeP=Promise.resolve(YkMisiones.customizeReady||0).catch(()=>{});
+  const projectsP=ykf("/projects",{cache:"no-store"}).then(r=>r.json()).then(po=>{
     YkMisiones.setProyectos(po.projects||[]);
-  }catch(e){}
+  }).catch(()=>{});
+  const ticketsP=ykf("/tickets?scope="+SCOPE,{cache:"no-store"}).then(async r=>{
+    if(!r.ok) throw new Error("tickets "+r.status);
+    return r.json();
+  });
+  await Promise.all([customizeP,projectsP]);
   // El tablero SÍ es crítico: si /tickets no carga (red caída EN LOS DOS hosts),
   // NO se disfraza de «Sin misiones ✓» — se avisa honestamente y se ofrece reintento.
   // (El poll de 12 s se recupera solo cuando vuelva la red; el botón fuerza ya.)
   let d;
   try{
-    const r=await ykf("/tickets?scope="+SCOPE,{cache:"no-store"});
-    d=await r.json();
+    d=await ticketsP;
   }catch(e){
     const el=$("list");
     if(el){
