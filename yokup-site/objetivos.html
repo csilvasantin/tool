@@ -115,6 +115,9 @@
   @media(max-width:420px){ .list .lproj{display:none} }
   .idea .flt{margin-left:auto;font:700 10.5px var(--mono);color:var(--mis);text-decoration:none;border:1px solid var(--mis);border-radius:6px;padding:4px 7px}
   .idea .flt:hover{background:rgba(124,156,255,.14)}
+  /* ⏳ ventana de decisión abierta (POST /ideas/decide): ámbar, distinto del FLT */
+  .flt.pend{color:#e0a63a;border-color:#e0a63a}
+  .flt.pend:hover{background:rgba(224,166,58,.14)}
   .idea h3{font-size:15.5px;font-weight:700;margin:0;line-height:1.3}
   /* body compactado por defecto (3 líneas); se expande al tocar (.open) */
   .idea .body{color:var(--dim);font-size:13px;line-height:1.5;white-space:pre-wrap;cursor:pointer;
@@ -436,10 +439,15 @@ document.getElementById("fSeat").innerHTML=seatOpts("");
 function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),2200); }
 function fecha(ms){ try{ return new Date(ms).toLocaleDateString("es-ES",{day:"2-digit",month:"short"}); }catch(e){ return ""; } }
 
+// ⏳ La idea abrió un reloj de decisión (POST /ideas/decide) y aún no es misión:
+// mientras corre la ventana (o hasta que su tanda materialice la misión) mostramos
+// el enlace a /decisiones en vez del botón «→ misión».
+function hasDecision(i){ return !!(i&&i.decision_id)&&i.status!=="mision"&&!i.mission_id; }
 // Ficha (vista fichas). La cruz ✕ ELIMINA de verdad (data-rm); ⊘ descarta (data-del).
 function card(i){
   const st=STLABEL[i.status]?i.status:"nueva";
   const isMis=st==="mision"||i.mission_id;
+  const pend=hasDecision(i);
   const cons=isConsejo(i), side=cons?seatSide(i.seat):"";
   const rv=hasReview(i);
   const showDelib=rv||st==="estudio"; // en estudio siempre hay hueco de deliberación
@@ -450,14 +458,15 @@ function card(i){
       (cons?'<span class="csign'+(side==="cre"?" cre":"")+'" title="Idea del Consejo">✦ '+esc(i.author||"Consejo")+'</span>'
            :(i.tag?'<span class="tag">#'+esc(i.tag)+'</span>':''))+
       projChip(i.project,"pchip")+
-      (i.mission_id?'<a class="flt" href="/tareas?mission='+encodeURIComponent(i.mission_id)+'" title="ver la misión">'+esc(i.mission_id)+' ↗</a>':'')+'</div>'+
+      (i.mission_id?'<a class="flt" href="/tareas?mission='+encodeURIComponent(i.mission_id)+'" title="ver la misión">'+esc(i.mission_id)+' ↗</a>'
+        :(pend?'<a class="flt pend" href="/decisiones" title="Ventana de decisión abierta (3 min)">⏳ decisión ↗</a>':''))+'</div>'+
     '<h3>'+esc(i.title)+'</h3>'+
     (i.body?'<div class="body">'+esc(i.body)+'</div>':'')+
     '<div class="meta">'+(cons?'':esc(i.author||"anónimo")+' · ')+fecha(i.created_at)+
       '<span class="acts">'+
         '<select class="seatsel'+(i.seat?' set':'')+'" data-seat-for="'+esc(i.id)+'" title="silla del Consejo">'+seatOpts(i.seat||"")+'</select>'+
         (!isMis&&NEXT[st]?'<button data-adv="'+esc(i.id)+'" title="pasar a '+STLABEL[NEXT[st]]+'">→ '+STLABEL[NEXT[st]]+'</button>':'')+
-        (!isMis?'<button class="mis" data-mis="'+esc(i.id)+'" title="convertir en misión FLT (crea un encargo)">→ misión</button>':'')+
+        (!isMis&&!pend?'<button class="mis" data-mis="'+esc(i.id)+'" title="Abrir ventana de decisión (3 min · 5 opciones)">→ misión</button>':'')+
         (!isMis&&st!=="descartada"?'<button data-del="'+esc(i.id)+'" title="descartar">⊘</button>':'')+
         // «⧉ guion» solo cuando hay deliberación (o está en estudio): es la fuente
         // que se pega en NotebookLM para fabricar el Kit de venta.
@@ -478,6 +487,7 @@ function card(i){
 function listRow(i){
   const st=STLABEL[i.status]?i.status:"nueva";
   const isMis=st==="mision"||i.mission_id;
+  const pend=hasDecision(i);
   const cons=isConsejo(i), side=cons?seatSide(i.seat):"";
   const seatL=i.seat?(SEATLABEL[i.seat]||String(i.seat).toUpperCase()):"";
   return '<div class="lrow'+(cons?' consejo '+side:'')+'">'+
@@ -492,7 +502,8 @@ function listRow(i){
     '<span class="ldate">'+fecha(i.created_at)+'</span>'+
     '<span class="lacts">'+
       (i.mission_id?'<a class="flt" href="/tareas?mission='+encodeURIComponent(i.mission_id)+'" title="ver la misión">'+esc(i.mission_id)+' ↗</a>':
-        (!isMis?'<button class="mis" data-mis="'+esc(i.id)+'" title="convertir en misión FLT">→ misión</button>':''))+
+        (pend?'<a class="flt pend" href="/decisiones" title="Ventana de decisión abierta (3 min)">⏳ decisión ↗</a>':
+        (!isMis?'<button class="mis" data-mis="'+esc(i.id)+'" title="Abrir ventana de decisión (3 min · 5 opciones)">→ misión</button>':'')))+
       (hasReview(i)?'<button class="delibtog" data-delib="'+esc(i.id)+'" title="El Consejo delibera">⚖️</button>':'')+
       '<button class="del" data-rm="'+esc(i.id)+'" title="Eliminar para siempre">✕</button>'+
     '</span>'+
@@ -609,6 +620,23 @@ async function promote(id){
     toast("✓ "+flt+" creada");
   }catch(e){ toast("No se pudo crear la misión"); }
 }
+// «→ misión»: NO crea ya un FLT a mano. Abre una VENTANA DE DECISIÓN de 3 minutos
+// (POST /ideas/decide) con las 5 mejores opciones para ejecutar la idea. Si nadie
+// elige, el ciclo tira con la más adecuada y materializa la misión. Feedback
+// inmediato + enlace a /decisiones; si ya hay una decisión viva, lo refleja (⏳).
+async function decide(id){
+  const it=IDEAS.find(x=>x.id===id); if(!it) return;
+  if(it.mission_id||hasDecision(it)) return;   // ya en marcha o ya con ventana viva
+  if(!confirm('¿Convertir en misión?\n\n"'+it.title+'"\n\nSe abre una ventana de decisión de 3 minutos con las 5 mejores opciones para ejecutarla. Si no eliges, se toma la más adecuada.')) return;
+  toast("Abriendo ventana de decisión…");
+  try{
+    const r=await fetch(WORKER+"/ideas/decide",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+    const d=await r.json();
+    if(d&&d.ok){ it.decision_id=d.decision_id; render(); toast("⏳ ventana abierta · 3 min → /decisiones"); }
+    else if(d&&d.error==="live_decision"){ it.decision_id=d.existing||it.decision_id; render(); toast("⏳ ya hay una ventana de decisión viva"); }
+    else toast(d&&d.error?("No salió: "+d.error):"No se pudo abrir la decisión");
+  }catch(e){ toast("Error de red"); }
+}
 
 // «✨ Idea nueva»: pide al Consejo una idea al momento y la pinta arriba del todo.
 // FLT-1010: se ADAPTA a lo elegido en el formulario — Consejero (#fSeat) → seat,
@@ -662,7 +690,7 @@ $("#grid").addEventListener("click",e=>{
   const rm=e.target.closest("[data-rm]"); if(rm){ del(rm.dataset.rm); return; }
   const a=e.target.closest("[data-adv]"), m=e.target.closest("[data-mis]"), d=e.target.closest("[data-del]");
   if(a){ const it=IDEAS.find(x=>x.id===a.dataset.adv); if(it)setStatus(it.id,NEXT[it.status]||"estudio"); }
-  else if(m){ promote(m.dataset.mis); }
+  else if(m){ decide(m.dataset.mis); }
   else if(d){ setStatus(d.dataset.del,"descartada"); }
 });
 $("#grid").addEventListener("change",e=>{ const s=e.target.closest("[data-seat-for]"); if(s) setSeat(s.dataset.seatFor,s.value); });

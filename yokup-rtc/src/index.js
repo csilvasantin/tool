@@ -1,6 +1,7 @@
 import puppeteer from "@cloudflare/puppeteer";
-import { resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment } from "./decision-project.js";
+import { resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
 import { baseAgentIdentity, parseAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
+import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -269,6 +270,10 @@ async function ensureIdeasSchema(env) {
   // (p. ej. "pixeria", "admiranext"). Las ideas del Consejo sin tema explícito nacen
   // centradas en un proyecto AL AZAR del censo con web. Migración ADITIVA e idempotente.
   await env.DB.exec("ALTER TABLE ideas ADD COLUMN project TEXT").catch(() => {});
+  // Vínculo idea → reloj de decisión (POST /ideas/decide): id de la decisión (DEC-…)
+  // que se abrió al convertir la idea en misión. Traza el ciclo Idea→Decisión→Misión
+  // sin abrir dos ventanas para la misma idea. Migración ADITIVA e idempotente.
+  await env.DB.exec("ALTER TABLE ideas ADD COLUMN decision_id TEXT").catch(() => {});
 }
 __name(ensureIdeasSchema, "ensureIdeasSchema");
 
@@ -1097,6 +1102,112 @@ async function startDecisionBatches(env) {
   for (const decision of results || []) await ensureMissionBatchFromDecision(env, decision);
 }
 __name(startDecisionBatches, "startDecisionBatches");
+
+// ── IDEAS → DECISIÓN (POST /ideas/decide) ────────────────────────────────────
+// Al convertir una idea/objetivo en misión NO se crea ya un FLT a mano: se abre un
+// reloj de decisión de 3 minutos con las 5 MEJORES opciones para EJECUTARLA. Si
+// nadie elige en la ventana, la maquinaria de siempre tira con la recomendada (la
+// 1ª, la más adecuada) y materializa su misión. El reloj corre bajo el agente de
+// ideas (NeoMini · Mac Mini) y su proyecto de respaldo censado y asignado.
+var DECIDE_AGENT = "NeoMini";
+var DECIDE_MACHINE = "admira-macmini";
+var DECIDE_FALLBACK_PROJECT = "yokup-ideas-objetivos";  // «Yokup · ideas-objetivos»
+var DECIDE_URL = "https://www.yokup.com/decisiones";
+// Genera con Workers AI las 5 mejores opciones CONCRETAS para ejecutar la idea,
+// ordenadas de más a menos adecuada (la 1ª es la recomendada). Alimenta el prompt
+// con el título, el detalle, el proyecto y la deliberación del Consejo. Devuelve un
+// array de 5 strings, o null si la IA no dio 5 usables (con un reintento). Nunca
+// inventa relleno: sin 5 opciones reales, el handler responde 502 y se reintenta.
+async function generateDecideOptions(env, idea, projName) {
+  const delib = ideaDeliberationText(idea.review);
+  const prompt = `Eres el jefe de operaciones de AdmiraNeXT (ecosistema de se\xF1alizaci\xF3n digital DOOH hecho por agentes de IA: yokup.com, admira.live, pixeria, xpaceos, admira.tv). Hay que EJECUTAR esta idea/objetivo:
+
+T\xCDTULO: ${idea.title}
+DETALLE: ${idea.body || "(sin detalle)"}${projName ? "\nPROYECTO: " + projName : ""}${delib ? "\nDELIBERACI\xD3N DEL CONSEJO:\n" + delib : ""}
+
+Propon las 5 MEJORES maneras CONCRETAS y accionables de EJECUTAR esta idea, ordenadas de M\xC1S a MENOS adecuada (la 1\xAA es la recomendada). Cada opci\xF3n: una acci\xF3n clara en 1 frase (m\xE1x 140 caracteres), distinta de las otras, sin numerar ni repetir el t\xEDtulo.
+Responde SOLO con un objeto JSON v\xE1lido, sin texto alrededor ni markdown, con esta forma EXACTA:
+{"opciones":["<la m\xE1s adecuada>","<2\xAA>","<3\xAA>","<4\xAA>","<5\xAA>"]}
+Todo en espa\xF1ol.`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const raw = await aiRunRaw(env, prompt, 700);
+    const opts = parseDecideOptions(raw, 5);
+    if (opts.length >= 5) return opts.slice(0, 5);
+  }
+  return null;
+}
+__name(generateDecideOptions, "generateDecideOptions");
+// Abre un reloj de decisión INICIAL (5 misiones + «Volver atrás») reutilizando los
+// MISMOS guardas del handler POST /decisions: identidad canónica (agent+machine),
+// intersección de proyecto asignado en projects+project_members y el candado de UN
+// reloj vivo por agente. No cubre continuaciones (eso vive en POST /decisions): sólo
+// la tanda inicial, que es justo lo que /ideas/decide necesita. Devuelve {ok:true,
+// id, deadline, project…} o {ok:false, status, error, code?} para que el handler
+// traduzca a HTTP igual que el alta normal.
+async function openInitialMissionDecision(env, input) {
+  await ensureSchema(env);
+  const rawOpts = Array.isArray(input.options) ? input.options : [];
+  const opts = rawOpts.slice(0, 6).map((o) => String(o).slice(0, 160));
+  const q = String(input.question || "").trim().slice(0, 400);
+  if (!q || rawOpts.length !== opts.length || !isInitialMissionDecision(opts)) {
+    return { ok: false, status: 400, error: "Se requieren exactamente 5 misiones y \xABVolver atr\xE1s\xBB como sexta opci\xF3n" };
+  }
+  const identity = resolveDecisionIdentity(input.agent, input.machine);
+  if (!identity.ok) return { ok: false, status: 400, code: "exact_identity_required", error: identity.error };
+  const requestedProjectId = String(input.project_id || "").trim().slice(0, 120);
+  const assignment = await exactDecisionProjectAssignment(env, identity.agent, identity.machine, requestedProjectId);
+  const projectContext = resolveDecisionProject({ ...input, agent: identity.agent, machine: identity.machine }, assignment, null);
+  if (!projectContext.ok) return { ok: false, status: 400, code: "exact_project_required", error: projectContext.error };
+  const mins = Math.min(60, Math.max(1, +input.minutes || 3));
+  const now = Date.now();
+  const agent = projectContext.agent, machine = projectContext.machine;
+  const live = await env.DB.prepare(
+    "SELECT id,deadline FROM decisions WHERE lower(agent)=lower(?) AND status='pending' AND deadline > ? ORDER BY created_at DESC LIMIT 1"
+  ).bind(agent, now).first();
+  if (live && input.user_override !== true) {
+    return { ok: false, status: 409, error: "live_decision", existing: live.id, deadline: live.deadline,
+             secondsLeft: Math.max(0, Math.round((live.deadline - now) / 1000)) };
+  }
+  const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
+  await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?)")
+    .bind(id, machine, agent, String(input.surface || "").slice(0, 20), q, JSON.stringify(opts),
+          Math.max(0, Math.min(opts.length - 1, +input.recommended || 0)), now, now + mins * 60000,
+          String(input.url || "").slice(0, 300), String(input.mission || "").slice(0, 120),
+          projectContext.project_id, projectContext.project_slug, "", "").run();
+  return { ok: true, id, deadline: now + mins * 60000, project: projectContext.project,
+           project_id: projectContext.project_id, project_slug: projectContext.project_slug };
+}
+__name(openInitialMissionDecision, "openInitialMissionDecision");
+// Sincroniza una idea con su reloj de decisión (si lo tiene). Cuando la decisión se
+// resolvió (elegida o vencida→recomendada) y su tanda materializó la misión, la idea
+// pasa a «mision» con el mission_id de la misión activa del batch. READ-MOSTLY: sólo
+// escribe cuando hay una misión materializada; «Volver atrás» (o cancelada) no
+// convierte. La materialización en sí la hace el ciclo de /decisions (cron o GET).
+async function syncIdeaFromDecision(env, idea) {
+  const out = { status: idea.status, mission_id: idea.mission_id || "" };
+  if (!idea.decision_id || idea.status === "mision" || out.mission_id) return out;
+  const d = await env.DB.prepare("SELECT id,status,chosen,recommended,options,batch_id FROM decisions WHERE id=?").bind(idea.decision_id).first();
+  if (!d || d.status === "pending") return out;       // sin decisión, o ventana aún abierta
+  let options = []; try { options = JSON.parse(d.options || "[]"); } catch (e) {}
+  const effective = d.status === "decided" ? Number(d.chosen) : d.status === "expired" ? Number(d.recommended) : null;
+  // «Volver atrás» (o cancelada) → la idea NO se convierte en misión.
+  if (!Number.isInteger(effective) || effective === options.length - 1 || d.status === "cancelled") return out;
+  const batchId = d.batch_id || batchIdForDecision(d.id);
+  const batch = await env.DB.prepare("SELECT active_mission_id FROM mission_batches WHERE id=?").bind(batchId).first();
+  let mid = batch && batch.active_mission_id ? batch.active_mission_id : "";
+  if (!mid) {
+    const it = await env.DB.prepare(
+      "SELECT mission_id FROM mission_batch_items WHERE batch_id=? AND mission_id IS NOT NULL AND mission_id!='' ORDER BY position LIMIT 1"
+    ).bind(batchId).first();
+    mid = it && it.mission_id ? it.mission_id : "";
+  }
+  if (!mid) return out;                                 // la tanda aún no materializó ninguna misión
+  await env.DB.prepare("UPDATE ideas SET status='mision', mission_id=?, updated_at=? WHERE id=? AND status!='mision'")
+    .bind(mid, Date.now(), idea.id).run();
+  out.status = "mision"; out.mission_id = mid;
+  return out;
+}
+__name(syncIdeaFromDecision, "syncIdeaFromDecision");
 
 // ---- MODELO MISIONES · TAREAS ----------------------------------------------
 // Una MISIÓN es el ticket/incidencia. Sus TAREAS son los pasos para concluirla.
@@ -2978,13 +3089,20 @@ var index_default = {
       try {
         await ensureIdeasSchema(env);
         if (req.method === "GET") {
-          const r = await env.DB.prepare("SELECT id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,review,media,project FROM ideas ORDER BY created_at DESC").all();
+          const r = await env.DB.prepare("SELECT id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,review,media,project,decision_id FROM ideas ORDER BY created_at DESC").all();
           const rows = r.results || [];
           // `review` y `media` viajan YA PARSEADOS como objeto (o null): el front los pinta directo.
           for (const it of rows) {
             if (it.review) { try { it.review = JSON.parse(it.review); } catch (e) { it.review = null; } } else it.review = null;
             if (it.media) { try { it.media = JSON.parse(it.media); } catch (e) { it.media = null; } } else it.media = null;
             it.project = it.project || "";
+            it.decision_id = it.decision_id || "";
+            // Idea→Decisión→Misión (LAZY): si la idea abrió un reloj y su tanda ya
+            // materializó la misión, aquí pasa a «mision» con su mission_id. Sólo se
+            // consulta para las que tienen decision_id y aún no son misión.
+            if (it.decision_id && it.status !== "mision" && !it.mission_id) {
+              try { const s = await syncIdeaFromDecision(env, it); it.status = s.status; it.mission_id = s.mission_id; } catch (e) {}
+            }
           }
           return json({ ideas: rows });
         }
@@ -3166,6 +3284,70 @@ var index_default = {
         const r = await env.DB.prepare("UPDATE ideas SET mission_id=?, status='mision', updated_at=? WHERE id=?").bind(mission_id, Date.now(), id).run();
         if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: "not_found" }, 404);
         return json({ ok: true, id, mission_id, status: "mision" });
+      } catch (e) { return json({ error: String(e) }, 500); }
+    }
+    // POST /ideas/decide {id} — convierte la idea/objetivo en una VENTANA DE DECISIÓN
+    // de 3 minutos con las 5 MEJORES opciones para EJECUTARLA (generadas por Workers
+    // AI, ordenadas de más a menos adecuada) + «Volver atrás». Si nadie elige, la
+    // maquinaria de relojes tira con la recomendada (la 1ª). Abre la decisión por la
+    // función interna openInitialMissionDecision (mismos guardas que POST /decisions),
+    // bajo el agente de ideas NeoMini·Mac Mini y el proyecto de la idea si está
+    // censado Y asignado, o el de respaldo «Yokup · ideas-objetivos». IDEMPOTENTE: si
+    // la idea ya tiene una decisión VIVA (pending sin vencer), devuelve esa. NO rompe
+    // POST /ideas/promote (sigue existiendo para enlazar una misión a mano).
+    if (url.pathname === "/ideas/decide" && req.method === "POST") {
+      try {
+        await ensureIdeasSchema(env);
+        const b = await req.json();
+        const id = String(b.id || "").trim();
+        if (!id) return json({ ok: false, error: "id requerido" }, 400);
+        const idea = await env.DB.prepare("SELECT id,title,body,author,seat,review,project,status,mission_id,decision_id FROM ideas WHERE id=?").bind(id).first();
+        if (!idea) return json({ ok: false, error: "not_found" }, 404);
+        // Idempotencia: una decisión viva (pending sin vencer) → devolvemos la existente.
+        if (idea.decision_id) {
+          const prev = await env.DB.prepare("SELECT id,status,deadline FROM decisions WHERE id=?").bind(idea.decision_id).first();
+          if (prev && prev.status === "pending" && prev.deadline > Date.now()) {
+            return json({ ok: true, id, decision_id: prev.id, existing: true, deadline: prev.deadline,
+                          secondsLeft: Math.max(0, Math.round((prev.deadline - Date.now()) / 1000)), url: DECIDE_URL });
+          }
+        }
+        // Proyecto del reloj: el de la idea SÓLO si está censado Y asignado a
+        // NeoMini+Mac Mini; si no (o la idea no tiene proyecto), el de respaldo.
+        const idx = await projectIndex(env);
+        let proj = idea.project ? idx.get(idea.project) : null;
+        if (proj) {
+          const a = await exactDecisionProjectAssignment(env, DECIDE_AGENT, DECIDE_MACHINE, proj.id);
+          if (!a || String(a.id) !== String(proj.id)) proj = null;   // censado pero no asignado → respaldo
+        }
+        if (!proj) proj = idx.get(DECIDE_FALLBACK_PROJECT);
+        if (!proj) return json({ ok: false, error: "falta el proyecto de respaldo censado (yokup-ideas-objetivos)" }, 500);
+        // 5 mejores opciones para EJECUTAR la idea (IA), ordenadas de más a menos adecuada.
+        const options = await generateDecideOptions(env, idea, proj.name);
+        if (!options) return json({ ok: false, error: "la IA no devolvió 5 opciones usables; reintenta" }, 502);
+        const res = await openInitialMissionDecision(env, {
+          question: idea.title,
+          options: buildDecideDecisionOptions(options),   // 5 opciones + «Volver atrás»
+          recommended: 0,                                 // la 1ª es la más adecuada
+          minutes: 3,
+          url: DECIDE_URL,
+          surface: "web",
+          mission: idea.id,                               // traza reversa decisión→idea
+          agent: DECIDE_AGENT, machine: DECIDE_MACHINE,
+          project: proj.name, project_slug: decisionProjectSlug(proj.name),
+          project_id: proj.id, project_web: proj.web || ""
+        });
+        if (!res.ok) {
+          // Candado del modelo: un reloj vivo del agente de ideas → no se abre otro.
+          if (res.error === "live_decision") {
+            return json({ ok: false, error: "live_decision", existing: res.existing, deadline: res.deadline,
+                          secondsLeft: res.secondsLeft, url: DECIDE_URL }, 409);
+          }
+          return json({ ok: false, error: res.error, code: res.code }, res.status || 400);
+        }
+        await env.DB.prepare("UPDATE ideas SET decision_id=?, updated_at=? WHERE id=?").bind(res.id, Date.now(), id).run();
+        return json({ ok: true, id, decision_id: res.id, options, recommended: 0,
+                      deadline: res.deadline, secondsLeft: Math.max(0, Math.round((res.deadline - Date.now()) / 1000)),
+                      project: res.project, url: DECIDE_URL });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     // POST /ideas/generate {seat?,topic?,project?} — genera una idea del Consejo BAJO

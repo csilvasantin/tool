@@ -48,7 +48,7 @@ test('POST /ideas (humano) valida project contra el censo (inválido → "")', (
 });
 
 test('GET /ideas devuelve project (columna en el SELECT + normalizado)', () => {
-  assert.match(SRC, /SELECT id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,review,media,project FROM ideas/);
+  assert.match(SRC, /SELECT id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,review,media,project,decision_id FROM ideas/);
   assert.ok(SRC.includes("it.project = it.project || \"\";"), "normaliza project a cadena");
 });
 
