@@ -158,6 +158,15 @@ async function applySchema(env) {
   await env.DB.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_open_screen ON tickets(screen) WHERE status != 'resolved'");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_ev_tkt ON events(ticket_id)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS subs (endpoint TEXT PRIMARY KEY, created_at INTEGER)");
+  // NOTIFICACIONES DEL SISTEMA (FLT-1020, Carlos 24-jul-2026): «si algún equipo de
+  // AdmiraNeXT tiene una notificación del sistema hay que avisar». Un diálogo modal
+  // (permiso TCC, Gatekeeper, contraseña…) DETIENE a ese equipo y nadie se entera
+  // hasta que alguien mira su pantalla. El vigilante de cada máquina publica aquí
+  // lo que ve, con captura. `fingerprint` = máquina+dueño del diálogo: mientras el
+  // mismo diálogo siga en pantalla se ACTUALIZA la fila, no se acumulan copias.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS notifs (id TEXT PRIMARY KEY, fingerprint TEXT, machine TEXT, owner TEXT, titulo TEXT, kind TEXT, image TEXT, status TEXT DEFAULT 'abierta', first_at INTEGER, last_at INTEGER, closed_at INTEGER, seen_count INTEGER DEFAULT 1)");
+  await env.DB.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_notif_fp ON notifs(fingerprint) WHERE status='abierta'");
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_notif_st ON notifs(status, last_at)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS prefs (key TEXT PRIMARY KEY, value TEXT, updated_at INTEGER)");
   // RELOJES DE DECISIÓN (Carlos, 2026-07-21): un equipo de silicio publica aquí
   // lo que tiene pendiente de decidir, con sus 3 opciones y una cuenta atrás.
@@ -2517,6 +2526,10 @@ async function menuCounters(env) {
     ") THEN 1 ELSE 0 END) hechos FROM tickets t WHERE t.source='fleet' AND t.status='resolved'"
   ).first();
   out.informes = { hechos: (inf && inf.hechos) | 0, total: (inf && inf.total) | 0 };
+  // NOTIFICACIONES (FLT-1020): un diálogo del sistema en cualquier equipo de la
+  // flota es un equipo PARADO. Sólo cuenta lo abierto — o hay que ir o no hay nada.
+  const nt = await env.DB.prepare("SELECT COUNT(*) n FROM notifs WHERE status='abierta'").first();
+  out.notificaciones = { abiertas: (nt && nt.n) | 0 };
   // DECISIONES: relojes VIVOS = pending con deadline futuro (honesto: deadline>now,
   // no me fío del barrido de expiración que sólo corre en GET /decisions). El menú
   // pinta la cuenta atrás hacia el más próximo; sin ninguna viva, DECISIONES limpia.
@@ -2676,6 +2689,65 @@ var index_default = {
     if (url.pathname === "/fleet/missions") {
       await ensureSchema(env);
       return json({ missions: await fleetMissions(env) });
+    }
+    // ── NOTIFICACIONES DEL SISTEMA DE LA FLOTA (FLT-1020) ────────────────────
+    // Sin perímetro, como el resto de /fleet/*: quien publica es un vigilante que
+    // corre en cada máquina, sin navegador ni login. POST = «esto sigue en pantalla»
+    // (idempotente por fingerprint: refresca la fila viva en vez de duplicarla).
+    if (url.pathname === "/fleet/notificacion" && req.method === "POST") {
+      await ensureSchema(env);
+      let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
+      const machine = String(b.machine || "").trim().slice(0, 60);
+      const owner = String(b.owner || "").trim().slice(0, 80);
+      if (!machine || !owner) return json({ ok: false, error: "machine y owner requeridos" }, 400);
+      const titulo = String(b.titulo || b.title || "").trim().slice(0, 300);
+      const kind = String(b.kind || "sistema").trim().slice(0, 40);
+      const image = String(b.image || "").trim().slice(0, 400) || null;
+      // CIERRE: el vigilante avisa de que el diálogo ya no está. Se cierra la fila
+      // viva de esa huella; no se borra, para que quede el rastro de cuánto duró.
+      const fp = machine.toLowerCase() + "|" + owner.toLowerCase();
+      const now = Date.now();
+      if (b.cerrada === true || b.resuelta === true) {
+        const r = await env.DB.prepare(
+          "UPDATE notifs SET status='cerrada', closed_at=?, last_at=? WHERE fingerprint=? AND status='abierta'"
+        ).bind(now, now, fp).run();
+        return json({ ok: true, cerradas: (r.meta && r.meta.changes) | 0 });
+      }
+      const viva = await env.DB.prepare("SELECT id FROM notifs WHERE fingerprint=? AND status='abierta'").bind(fp).first();
+      if (viva) {
+        // Ya avisada: se refresca (y se queda la PRIMERA captura, que es la del
+        // momento en que apareció; sustituirla sólo si antes no había ninguna).
+        await env.DB.prepare(
+          "UPDATE notifs SET last_at=?, seen_count=seen_count+1, titulo=COALESCE(NULLIF(?,''),titulo), image=COALESCE(image,?) WHERE id=?"
+        ).bind(now, titulo, image, viva.id).run();
+        return json({ ok: true, id: viva.id, nueva: false });
+      }
+      const id = "NOTIF-" + crypto.randomUUID().replace(/-/g, "").slice(0, 10);
+      await env.DB.prepare(
+        "INSERT INTO notifs (id,fingerprint,machine,owner,titulo,kind,image,status,first_at,last_at,seen_count) VALUES (?,?,?,?,?,?,?,'abierta',?,?,1)"
+      ).bind(id, fp, machine, owner, titulo, kind, image, now, now).run();
+      return json({ ok: true, id, nueva: true });
+    }
+    // Lectura para la sección /notificaciones. Abiertas primero, más recientes arriba.
+    if (url.pathname === "/fleet/notificaciones" && req.method === "GET") {
+      await ensureSchema(env);
+      const todas = url.searchParams.get("todas") === "1";
+      const { results } = await env.DB.prepare(
+        "SELECT * FROM notifs" + (todas ? "" : " WHERE status='abierta'") +
+        " ORDER BY (status='abierta') DESC, last_at DESC LIMIT 200"
+      ).all();
+      const abiertas = (results || []).filter((n) => n.status === "abierta").length;
+      return json({ ok: true, abiertas, notificaciones: results || [] });
+    }
+    // Cierre a mano desde la propia sección (ya lo he atendido / no era nada).
+    if (url.pathname === "/fleet/notificacion/cerrar" && req.method === "POST") {
+      await ensureSchema(env);
+      let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
+      const id = String(b.id || "").trim().slice(0, 40);
+      if (!id) return json({ ok: false, error: "id requerido" }, 400);
+      const now = Date.now();
+      const r = await env.DB.prepare("UPDATE notifs SET status='cerrada', closed_at=?, last_at=? WHERE id=? AND status='abierta'").bind(now, now, id).run();
+      return json({ ok: true, cerradas: (r.meta && r.meta.changes) | 0 });
     }
     // DEUDA DE INFORMES (FLT-1018): misiones de flota TERMINADAS sin un solo parte.
     // Consulta propia y NO la lista de /fleet/missions, que va capada a 120 y saca

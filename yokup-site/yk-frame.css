@@ -109,6 +109,13 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
    distinga de un contador normal sin gritar como una incidencia. */
 .yk-nav-c.yk-count-debe{ color:#ffb454 }
 .yk-nav a.on .yk-nav-c.yk-count-debe{ color:#ffb454 }
+/* NOTIFICACIONES: equipo parado esperando a un humano. Rojo y con latido — es lo
+   único de la barra que pide ir AHORA, así que se distingue de un contador. */
+.yk-nav-c.yk-count-alarma, .yk-nav a.on .yk-nav-c.yk-count-alarma{
+  color:#0b0f14; background:#ff5f56; border-radius:999px; padding:2px 7px;
+  font-weight:800; animation:yk-alarma 1.6s ease-in-out infinite }
+@keyframes yk-alarma{ 0%,100%{ opacity:1 } 50%{ opacity:.55 } }
+@media (prefers-reduced-motion: reduce){ .yk-nav-c.yk-count-alarma{ animation:none } }
 
 /* ===================== SELECTOR DE PROYECTO (desplegable) ================= */
 /* Absorbe el antiguo rótulo «FLOTA admira.tv»: el botón lee el proyecto activo

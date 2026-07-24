@@ -60,7 +60,10 @@
     ["MISIONES",    "/misiones"],
     ["TAREAS",      "/tareas"],
     ["INCIDENCIAS", "/incidencias"],
-    ["INFORMES",    "/informes"]
+    ["INFORMES",    "/informes"],
+    // FLT-1020: un diálogo del sistema en cualquier equipo lo deja PARADO. Va en la
+    // barra para que se vea desde cualquier página, no sólo si entras a buscarlo.
+    ["NOTIFICACIONES", "/notificaciones"]
   ];
 
   // Secciones con CONTADOR real «curso/pend» en la barra (Carlos, 2026-07-23):
@@ -68,7 +71,7 @@
   // llevan contador. curso = en ello ahora; pend = esperando.
   var COUNTER_KEY = {
     OBJETIVOS: "objetivos", MISIONES: "misiones", TAREAS: "tareas",
-    INCIDENCIAS: "incidencias", INFORMES: "informes"
+    INCIDENCIAS: "incidencias", INFORMES: "informes", NOTIFICACIONES: "notificaciones"
   };
 
   // Proyectos del MISMO helpdesk. El activo se deduce de la ruta (ver
@@ -129,6 +132,16 @@
       // INFORMES no es «curso/pend»: un informe no tiene estado, o está o no está
       // (Carlos, 24-jul-2026). Aquí el par es COBERTURA — de las misiones ya
       // terminadas, cuántas tienen su parte. Iguales = al día; si no, hay deuda.
+      // NOTIFICACIONES: sólo lo abierto, y en rojo. No es un ritmo de trabajo —
+      // es un equipo PARADO esperando a que alguien pulse un botón (FLT-1020).
+      if (k === "notificaciones") {
+        var ab = d.abiertas | 0;
+        if (!ab) { s.textContent = ""; s.removeAttribute("title"); s.classList.remove("yk-count-alarma"); return; }
+        s.textContent = String(ab);
+        s.setAttribute("title", ab === 1 ? "1 equipo parado por un diálogo del sistema" : ab + " equipos parados por un diálogo del sistema");
+        s.classList.add("yk-count-alarma");
+        return;
+      }
       if (k === "informes") {
         var hechos = d.hechos | 0, total = d.total | 0, faltan = total - hechos;
         if (!total) { s.textContent = ""; s.removeAttribute("title"); s.classList.remove("yk-count-debe"); return; }

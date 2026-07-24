@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/acceso.js"></script>
+<title>Notificaciones · Yokup</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#02080d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
+<link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<link rel="stylesheet" href="/yk-frame.css?v=r18">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--alarm:#ff5f56;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 24px 48px}
+nav{display:flex;align-items:center;justify-content:space-between;padding:4px 0 16px}
+.back{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);text-decoration:none}.back:hover{color:var(--brand)}
+h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
+.sub{color:var(--mut);font-size:14.5px;margin-bottom:16px;max-width:74ch;line-height:1.55}.sub b{color:var(--alarm)}
+/* intro plegable — patrón .page-intro del resto del perímetro */
+.page-intro{border:1px solid var(--line);border-radius:14px;background:var(--card);margin-bottom:16px}
+.page-intro>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:14px 16px}
+.page-intro>summary::-webkit-details-marker{display:none}
+.pi-toggle{margin-left:auto;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.pi-body{padding:0 16px 16px}
+.tfilter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
+.tf{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;border-radius:9px;border:1px solid var(--line);color:var(--mut);background:var(--card);cursor:pointer;transition:.2s}
+.tf:hover{color:var(--brand);border-color:var(--line2)}
+.tf.on{background:var(--brand);color:#04232a;border-color:var(--brand);font-weight:700}
+/* ── Tarjeta de aviso: captura grande a la izquierda, el qué/dónde a la derecha.
+      La CAPTURA manda: lo que hay que decidir se ve en la pantalla, no en el texto. */
+.grid{display:flex;flex-direction:column;gap:14px}
+.n{display:grid;grid-template-columns:340px 1fr;gap:0;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--card)}
+.n.abierta{border-color:rgba(255,95,86,.45);box-shadow:0 0 0 1px rgba(255,95,86,.12)}
+.n .shot{background:#050d14;display:flex;align-items:center;justify-content:center;min-height:190px;border-right:1px solid var(--line)}
+.n .shot img{width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in}
+.n .shot .none{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);padding:20px;text-align:center}
+.n .body{padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.n .top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.badge{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:4px 9px;border-radius:999px;font-weight:700}
+.badge.abierta{background:var(--alarm);color:#160406}
+.badge.cerrada{background:rgba(136,255,170,.16);color:var(--good)}
+.maq{font-family:var(--mono);font-size:13px;letter-spacing:.04em;color:var(--brand);font-weight:700}
+.n h2{font-size:17px;line-height:1.35;font-weight:650;letter-spacing:-.01em}
+.n .quien{color:var(--mut);font-size:13.5px}
+.n .quien b{color:var(--ink);font-weight:600}
+.meta{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin-top:auto;padding-top:6px}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.acts a,.acts button{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--mut);cursor:pointer;text-decoration:none;transition:.18s}
+.acts a:hover,.acts button:hover{color:var(--brand);border-color:var(--line2)}
+.acts .go{color:var(--alarm);border-color:rgba(255,95,86,.45);font-weight:700}
+.acts .go:hover{background:rgba(255,95,86,.12);color:var(--alarm)}
+.empty{border:1px dashed var(--line2);border-radius:14px;padding:44px 24px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12.5px;letter-spacing:.04em;line-height:1.7}
+.empty b{color:var(--good);display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
+#lb{position:fixed;inset:0;background:rgba(2,8,13,.94);display:none;align-items:center;justify-content:center;z-index:9999;padding:24px;cursor:zoom-out}
+#lb img{max-width:100%;max-height:100%;border-radius:10px;border:1px solid var(--line2)}
+@media(max-width:760px){ .n{grid-template-columns:1fr} .n .shot{border-right:0;border-bottom:1px solid var(--line)} }
+@media(max-width:640px){.wrap{padding:16px 12px 40px}}
+</style>
+</head>
+<body data-yk-title="NOTIFICACIONES" data-yk-zone="app">
+<div class="wrap">
+  <nav><a class="back" href="/incidencias">← Bandeja</a></nav>
+
+  <details class="page-intro">
+    <summary>
+      <h1>Notificaciones</h1>
+      <span class="pi-toggle">Qué es esto <span class="pi-chevron">›</span></span>
+    </summary>
+    <div class="pi-body">
+      <p class="sub">Un diálogo del sistema en cualquier equipo de AdmiraNeXT —un permiso que pedir, una contraseña, un aviso de Gatekeeper— <b>detiene a ese equipo</b> hasta que un humano pulsa un botón. Antes nadie se enteraba hasta que alguien miraba esa pantalla por casualidad. Ahora el vigilante de cada máquina lo detecta, <b>captura la pantalla</b> y lo publica aquí.</p>
+    </div>
+  </details>
+
+  <div class="tfilter" id="filtros">
+    <button class="tf on" data-f="abiertas">Sin atender</button>
+    <button class="tf" data-f="todas">Todas</button>
+    <span class="tf" id="resumen" style="cursor:default;border-color:transparent"></span>
+  </div>
+
+  <div class="grid" id="lista"><div class="empty">Cargando…</div></div>
+  <div class="foot">Yokup · notificaciones del sistema · vigilante por máquina · fuente <b>D1</b> (notifs)</div>
+</div>
+<div id="lb"><img id="lbImg" alt=""></div>
+
+<script>
+const WORKER="https://api.yokup.com";
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const _ms=v=>{v=+v||0;return v>4102444800?v:v*1000;};
+let VISTA="abiertas", DATOS=[];
+
+function hhmm(ms){ try{ return new Date(ms).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}); }catch(e){ return ""; } }
+function ddmm(ms){ try{ return new Date(ms).toLocaleDateString("es-ES",{day:"2-digit",month:"short"}); }catch(e){ return ""; } }
+// Cuánto lleva ESPERANDO. Es el dato que decide si hay que ir corriendo o no.
+function espera(ms){
+  const s=Math.max(0,Math.round((Date.now()-ms)/1000));
+  if(s<90) return s+" s";
+  const m=Math.round(s/60); if(m<90) return m+" min";
+  const h=Math.floor(m/60); return h>=24 ? Math.floor(h/24)+" d "+(h%24)+" h" : h+" h "+(m%60)+" min";
+}
+
+// Cada dueño de diálogo, en cristiano. Lo que ve el sistema es un proceso; lo que
+// necesita saber quien lee es QUÉ le están pidiendo a esa máquina.
+const QUE={
+  usernotificationcenter:"Permiso del sistema (acceso a datos, cámara, micro, pantalla…)",
+  securityagent:"Pide contraseña de administrador",
+  coreservicesuiagent:"Gatekeeper: una app sin firmar quiere abrirse",
+  universalaccessauthwarn:"Pide permiso de Accesibilidad",
+  osascript:"Diálogo de un script",
+  loginwindow:"Diálogo de sesión (reiniciar, apagar, cerrar sesión)",
+  "software update":"Actualización de macOS esperando confirmación",
+  instalador:"Instalador esperando confirmación",
+  installer:"Instalador esperando confirmación"
+};
+const queEs=o=>QUE[String(o||"").toLowerCase()]||("Diálogo de "+(o||"el sistema"));
+
+function render(){
+  const box=$("lista");
+  const list=VISTA==="abiertas" ? DATOS.filter(n=>n.status==="abierta") : DATOS;
+  const abiertas=DATOS.filter(n=>n.status==="abierta").length;
+  $("resumen").textContent = abiertas
+    ? (abiertas===1?"1 equipo parado":abiertas+" equipos parados")
+    : "ningún equipo parado";
+  if(!list.length){
+    box.innerHTML=VISTA==="abiertas"
+      ? '<div class="empty"><b>Ningún equipo parado</b>Nadie de la flota tiene un diálogo del sistema esperando. Si aparece uno, sale aquí con su captura.</div>'
+      : '<div class="empty"><b>Sin registro</b>Todavía no se ha detectado ninguna notificación del sistema en la flota.</div>';
+    return;
+  }
+  box.innerHTML=list.map(n=>{
+    const first=_ms(n.first_at), last=_ms(n.last_at), abierta=n.status==="abierta";
+    const img=n.image
+      ? '<img src="'+esc(n.image)+'" alt="Pantalla de '+esc(n.machine)+'" loading="lazy" data-full="'+esc(n.image)+'">'
+      : '<div class="none">Sin captura<br>(el vigilante no pudo fotografiar la pantalla)</div>';
+    return '<div class="n '+(abierta?"abierta":"cerrada")+'">'+
+      '<div class="shot">'+img+'</div>'+
+      '<div class="body">'+
+        '<div class="top">'+
+          '<span class="badge '+(abierta?"abierta":"cerrada")+'">'+(abierta?"⚠ sin atender":"✓ resuelta")+'</span>'+
+          '<span class="maq">🖥 '+esc(n.machine)+'</span>'+
+        '</div>'+
+        '<h2>'+esc(queEs(n.owner))+'</h2>'+
+        (n.titulo?'<div class="quien">'+esc(n.titulo)+'</div>':'')+
+        '<div class="quien">Lo pide <b>'+esc(n.owner)+'</b></div>'+
+        '<div class="acts">'+
+          (abierta?'<a class="go" target="_blank" rel="noopener" href="https://www.admira.live/control?rc='+encodeURIComponent(rcId(n.machine))+'&name='+encodeURIComponent(n.machine)+'">🖥 operar y resolverlo ↗</a>':'')+
+          (abierta?'<button data-cerrar="'+esc(n.id)+'">✓ ya está atendido</button>':'')+
+        '</div>'+
+        '<div class="meta">'+
+          '<span>'+(abierta?"⏳ esperando "+espera(first):"⏱ duró "+espera_entre(first,_ms(n.closed_at)||last))+'</span>'+
+          '<span>📅 '+ddmm(first)+' '+hhmm(first)+'</span>'+
+          '<span>👁 visto '+(n.seen_count||1)+'×</span>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join("");
+}
+function espera_entre(a,b){ const s=Math.max(0,Math.round((b-a)/1000)); if(s<90) return s+" s"; const m=Math.round(s/60); return m<90?m+" min":Math.floor(m/60)+" h "+(m%60)+" min"; }
+
+// Mismo id de flota que usa el «operar» de /misiones: minúsculas, sin separadores
+// y un único prefijo «admira-» (FLT-1019).
+function rcId(maq){ var n=String(maq||"").toLowerCase().replace(/[\s·._-]+/g,""); if(n.slice(0,6)==="admira") n=n.slice(6); return n?"admira-"+n:""; }
+
+async function load(){
+  try{
+    const r=await fetch(WORKER+"/fleet/notificaciones?todas=1",{cache:"no-store"});
+    const d=await r.json();
+    DATOS=(d&&d.notificaciones)||[];
+  }catch(e){ return; }
+  render();
+}
+
+$("filtros").addEventListener("click",e=>{
+  const b=e.target.closest(".tf[data-f]"); if(!b) return;
+  VISTA=b.dataset.f;
+  document.querySelectorAll("#filtros .tf[data-f]").forEach(x=>x.classList.toggle("on",x===b));
+  render();
+});
+$("lista").addEventListener("click",async e=>{
+  const im=e.target.closest("img[data-full]");
+  if(im){ $("lbImg").src=im.dataset.full; $("lb").style.display="flex"; return; }
+  const b=e.target.closest("[data-cerrar]"); if(!b) return;
+  b.disabled=true; b.textContent="cerrando…";
+  try{
+    await fetch(WORKER+"/fleet/notificacion/cerrar",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:b.dataset.cerrar})});
+    await load();
+  }catch(e){ b.disabled=false; b.textContent="✓ ya está atendido"; }
+});
+$("lb").addEventListener("click",()=>{ $("lb").style.display="none"; });
+
+load(); setInterval(load,20000);
+</script>
+<script src="/yk-frame.js?v=r32"></script>
+</body>
+</html>
