@@ -323,21 +323,25 @@ __name(parseIdeaJSON, "parseIdeaJSON");
 // Genera UNA idea del Consejo para `seat` con Workers AI, la firma «ROL · alias»,
 // tag «consejo», status «nueva», y la guarda en `ideas`. Devuelve la fila creada,
 // o null si la IA no dio nada usable (el llamador decide; nunca insertamos basura).
-async function generateCouncilIdea(env, seat) {
+async function generateCouncilIdea(env, seat, topic) {
   await ensureIdeasSchema(env);
   if (!IDEA_SEATS.has(seat)) seat = "ceo";
   const c = COUNCIL[seat];
+  // FLT-1009: tema opcional (bajo demanda; el cron nunca lo pasa). Un string corto
+  // que CENTRA la idea sin cambiar la voz del punto fuerte de la silla ni nada mas.
+  const topicClean = String(topic || "").replace(/\s+/g, " ").trim().slice(0, 240);
   let recent = [];
   try {
     recent = (await env.DB.prepare("SELECT title FROM ideas ORDER BY created_at DESC LIMIT 15").all()).results || [];
   } catch (e) {
   }
   const previos = recent.map((r) => "- " + r.title).join("\n") || "(ninguna todav\xEDa)";
+  const focoTema = topicClean ? "\n\nCENTRA tu idea EXCLUSIVAMENTE en este tema: " + topicClean + "\nHabla de ese tema de verdad, en concreto; no lo cambies por otro. Manten tu voz de " + c.role + " (" + c.fuerte + "), pero la idea DEBE ser sobre ese tema." : "";
   const prompt = `Eres ${c.role} del Consejo de AdmiraNeXT, con el esp\xEDritu de ${c.alias}. Tu punto fuerte es ${c.fuerte}.
 
 AdmiraNeXT es un ecosistema de se\xF1alizaci\xF3n digital (DOOH) construido por agentes de IA: yokup.com (FSM de misiones y tareas del equipo), admira.live (cockpit de la flota de agentes de IA), pixeria (creatividad con IA), xpaceos (gemelo digital de la red de pantallas) y admira.tv (emisi\xF3n del canal).
 
-Propón UNA idea u objetivo CONCRETO y accionable para MEJORAR AdmiraNeXT, mir\xE1ndolo desde tu punto fuerte (${c.role}). Que sea DISTINTA de estas ideas ya propuestas:
+Propón UNA idea u objetivo CONCRETO y accionable para MEJORAR AdmiraNeXT, mir\xE1ndolo desde tu punto fuerte (${c.role}).${focoTema} Que sea DISTINTA de estas ideas ya propuestas:
 ${previos}
 
 Responde SOLO con un objeto JSON v\xE1lido, sin texto alrededor ni markdown, con esta forma exacta:
@@ -3058,8 +3062,10 @@ var index_default = {
         return json({ ok: true, id, mission_id, status: "mision" });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
-    // POST /ideas/generate {seat?} — genera una idea del Consejo BAJO DEMANDA (el
-    // botón «✨ Idea nueva»). Sin seat → silla ALEATORIA; con seat válido → esa.
+    // POST /ideas/generate {seat?,topic?} — genera una idea del Consejo BAJO DEMANDA
+    // (el botón «✨ Idea nueva»). Sin seat → silla ALEATORIA; con seat válido → esa.
+    // `topic` opcional (string corto): si viene, la idea nace CENTRADA en ese tema,
+    // manteniendo la voz del punto fuerte de la silla. El cron NO pasa topic (libre).
     // Misma generación, firma «ROL · alias», tag=consejo y guardado que el cron.
     // Devuelve la idea creada. Mismo estilo json()/CORS.
     if (url.pathname === "/ideas/generate" && req.method === "POST") {
@@ -3068,7 +3074,8 @@ var index_default = {
         let b = {}; try { b = await req.json(); } catch (e) {}
         let seat = String(b && b.seat || "").trim().toLowerCase();
         if (!IDEA_SEATS.has(seat)) seat = COUNCIL_ORDER[Math.floor(Math.random() * COUNCIL_ORDER.length)];
-        const idea = await generateCouncilIdea(env, seat);
+        const topic = String(b && b.topic || "").trim();
+        const idea = await generateCouncilIdea(env, seat, topic);
         if (!idea) return json({ ok: false, error: "la IA no devolvió una idea usable; reintenta" }, 502);
         return json({ ok: true, idea });
       } catch (e) { return json({ error: String(e) }, 500); }
