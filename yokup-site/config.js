@@ -17,8 +17,12 @@
 window.YOKUP_CONFIG = {
   BACKEND: 'api',                        // 'local' | 'api' | 'supabase'
 
-  // Backend 'api' (Cloudflare Worker + D1) — MODO ACTUAL:
-  YOKUP_API: 'https://yokup-api.csilvasantin.workers.dev',
+  // Backend 'api' (Cloudflare Worker + D1) — MODO ACTUAL.
+  // Dominio propio (28-jul-2026): antes apuntaba a yokup-api.csilvasantin.workers.dev,
+  // bloqueado por ISP españoles (188.114.96.0/22) → /alta-punto y /alta-instalador se
+  // veían pero podían no funcionar según la red. Mismo arreglo que api.yokup.com en
+  // yokup-rtc. El host workers.dev sigue vivo (workers_dev = true) pero ya no se usa.
+  YOKUP_API: 'https://data.yokup.com',
 
   // Backend 'supabase' (directo) — OBSOLETO, solo rollback histórico (proyecto caído):
   SUPABASE_URL: 'https://aswwjkfejdfglpxlgbjl.supabase.co',

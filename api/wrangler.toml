@@ -2,6 +2,31 @@ name = "yokup-api"
 main = "src/index.js"
 compatibility_date = "2025-07-18"
 
+# ── DOMINIO PROPIO data.yokup.com (28-jul-2026, Morfeo16) ────────────────────
+# Este worker es dependencia VIVA de /alta-punto y /alta-instalador (cargan
+# config.js + data.js), y estaba solo en *.workers.dev, bloqueado por ISP españoles
+# (188.114.96.0/22): el formulario de alta se veía pero podía no funcionar según la
+# red. Mismo arreglo que se hizo en yokup-rtc con api.yokup.com.
+#
+# `workers_dev = true` es EXPLÍCITO a propósito: al declarar rutas, wrangler lo deja
+# en false por defecto y el host workers.dev deja de enrutar (devuelve 404 / error
+# 1042). Eso es justo lo que rompió el fallback de yokup-rtc y pasó 5 días invisible.
+# Se mantiene vivo para no dejar ventana de caída mientras config.js apunta al host
+# nuevo, y como respaldo después.
+#
+# OJO con el ORDEN en TOML: estas dos claves son de nivel superior y tienen que ir
+# ANTES de cualquier tabla ([[d1_databases]], [observability]…). Si se ponen debajo,
+# el parser las mete dentro de esa tabla y wrangler avisa con «Unexpected fields
+# found in <tabla> field» y las ignora en silencio.
+workers_dev = true
+# Habilitar workers.dev activa las Preview URLs por defecto (una URL pública por
+# versión); no queremos ampliar superficie.
+preview_urls = false
+
+[[routes]]
+pattern = "data.yokup.com"
+custom_domain = true
+
 # Backend de datos: Cloudflare D1 (SQLite). El binding se llama DB dentro del Worker.
 [[d1_databases]]
 binding = "DB"
@@ -13,8 +38,3 @@ database_id = "0c087ca2-ae5b-4589-a377-e9e615603c8d"
 
 [observability]
 enabled = true
-
-# Cuando montes el dominio en Cloudflare, descomenta:
-# [[routes]]
-# pattern = "yokup-api.<tu-zona>/*"
-# zone_name = "<tu-zona>"
