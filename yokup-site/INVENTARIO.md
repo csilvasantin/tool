@@ -7,8 +7,33 @@ directorio es ahora la fuente de verdad local.
 
 Worker de datos (fuente en `../yokup-rtc/`): dominio propio `https://api.yokup.com`
 (custom domain sobre la zona yokup.com, cura el bloqueo de `*.workers.dev` por ISPs
-españoles · DEC-mrxsvdx1glyx, 23-jul-2026). Host viejo `https://yokup-rtc.csilvasantin.workers.dev`
-sigue vivo como fallback.
+españoles · DEC-mrxsvdx1glyx, 23-jul-2026).
+
+⚠️ **AVERÍA ENCONTRADA Y ARREGLADA (2026-07-28, Morfeo16).** Durante 5 días la afirmación
+«el host viejo sigue vivo como fallback» fue **FALSA**:
+`https://yokup-rtc.csilvasantin.workers.dev` devolvía **HTTP 404 de Cloudflare
+(`error code: 1042`)**. Causa: al migrar a dominio propio (DEC-mrxsvdx1glyx) se declaró SOLO
+la ruta `api.yokup.com`, y wrangler dejó `workers_dev` en false → ese hostname no enrutaba al
+worker. **Consecuencia:** la red de seguridad de `acceso.js`, `yk-frame.js`, `misiones.html`,
+`objetivos.html` e `ideas.html` (primario `api.yokup.com` → reintento `workers.dev`) no
+respaldaba nada; el reintento caía en un 404. Los tests `misiones-resiliencia.test.mjs`
+pasaban porque mockean `fetch`: validan el cableado y la firma del Bearer, no que el host
+exista — **nadie comprobaba la alcanzabilidad**.
+
+**Estado actual (verificado por HTTP, los 3 hosts a 200 con los mismos datos):**
+
+| Host | Papel | Estado |
+|------|-------|--------|
+| `api.yokup.com` | primario | ✅ vivo |
+| `rtc.yokup.com` | respaldo BUENO (nuevo) | ✅ vivo, aún no usado por el código |
+| `yokup-rtc.csilvasantin.workers.dev` | respaldo que el código usa hoy | ✅ revivido (`workers_dev = true`) |
+
+Se aplicó con `wrangler triggers deploy` (solo rutas, **sin subir código**) y con
+`preview_urls = false` para no ampliar superficie. **Pendiente (necesita OK: `acceso.js` está
+marcado NO SE TOCA):** apuntar `WORKER_FALLBACK` a `rtc.yokup.com` en los 5 ficheros, porque
+`workers.dev` está bloqueado por ISP españoles (188.114.96.0/22) y como red de seguridad nace
+tullido. Ojo: `signable()` compara exactamente 2 hosts, así que si se cambia en unos ficheros
+y no en `acceso.js`, el respaldo iría **sin Bearer → 401**.
 
 ## Archivos reales servidos (200, contenido propio) — 15
 

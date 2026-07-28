@@ -39,8 +39,33 @@ compatibility_flags = ["nodejs_compat"]  # @cloudflare/puppeteer usa node:buffer
 # api.yokup.com, un custom domain sobre la MISMA zona yokup.com (ya en Cloudflare,
 # misma cuenta). Cloudflare crea el registro DNS y el certificado solos. El
 # host viejo *.workers.dev sigue vivo como fallback. CORS del worker: * (intacto).
+#
+# ── CORRECCIÓN 2026-07-28 (Morfeo16) ─────────────────────────────────────────
+# FALSO que el host viejo siguiera vivo: al declarar SOLO esta ruta, wrangler dejó
+# `workers_dev` en false y https://yokup-rtc.csilvasantin.workers.dev devolvía
+# HTTP 404 de Cloudflare (`error code: 1042`). Efecto secundario de DEC-mrxsvdx1glyx.
+# Consecuencia: la red de seguridad de acceso.js / yk-frame.js / misiones.html /
+# objetivos.html / ideas.html (primario api.yokup.com → reintento workers.dev) NO
+# respaldaba nada; el reintento caía en un 404. Los tests de resiliencia no lo vieron
+# porque mockean fetch (validan el cableado y el Bearer, no que el host exista).
+# Arreglo en dos capas:
+#   1) `workers_dev = true` → el fallback que el código YA espera vuelve a existir,
+#      sin tocar acceso.js (marcado «NO SE TOCA» en yokup-site/INVENTARIO.md).
+#   2) `rtc.yokup.com` → segundo dominio propio, el respaldo BUENO: workers.dev está
+#      bloqueado por ISP españoles (188.114.96.0/22), así que como red de seguridad
+#      nace tullido. Queda listo para cuando se apunte ahí WORKER_FALLBACK.
+workers_dev = true
+# Al habilitar workers.dev, Cloudflare activa las Preview URLs por defecto (una URL
+# pública por versión). No queremos ampliar superficie: el objetivo era solo revivir el
+# host de respaldo, así que se dejan apagadas explícitamente.
+preview_urls = false
+
 [[routes]]
 pattern = "api.yokup.com"
+custom_domain = true
+
+[[routes]]
+pattern = "rtc.yokup.com"
 custom_domain = true
 
 [observability]
