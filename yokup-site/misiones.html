@@ -254,10 +254,10 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 <script src="/yk-cabezal.js?v=r2"></script>
 <script>
 const WORKER="https://api.yokup.com";
-const WORKER_FALLBACK="https://yokup-rtc.csilvasantin.workers.dev";
+const WORKER_FALLBACK="https://rtc.yokup.com";
 // ykf: fetch del tablero con la MISMA red de seguridad que el menú (yk-frame.js
 // ykFetch): api.yokup.com y, si el fetch RECHAZA por red (bloqueo ISP), reintento
-// contra workers.dev. Prefiere window.ykFetch cuando ya está cargado; si no (yk-frame
+// contra rtc.yokup.com. Prefiere window.ykFetch cuando ya está cargado; si no (yk-frame
 // se carga al final del <body>, después del primer load()), replica el fallback aquí
 // mismo — así el tablero es resiliente aunque ykFetch aún no exista. El Bearer lo
 // pone acceso.js en AMBOS hosts (ya son firmables).

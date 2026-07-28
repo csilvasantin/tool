@@ -1,8 +1,8 @@
 // Resiliencia del tablero de /misiones (fix 23-jul-2026, SubNeoMini).
 // Cubre las TRES piezas del fix:
-//   1) acceso.js: el wrapper de window.fetch reconoce workers.dev como host
+//   1) acceso.js: el wrapper de window.fetch reconoce el host de respaldo como
 //      FIRMABLE (mismo Bearer + 401) además de api.yokup.com, sin tocar terceros.
-//   2) misiones.html: el tablero hereda el fallback api.yokup.com→workers.dev.
+//   2) misiones.html: el tablero hereda el fallback api.yokup.com→rtc.yokup.com.
 //   3) misiones.html: un fallo de red NO se disfraza de «Sin misiones ✓» —
 //      muestra un aviso honesto con reintento y no miente en los KPIs.
 import test from 'node:test';
@@ -76,7 +76,7 @@ test('acceso.js · signable() reconoce ambos hosts del worker y rechaza terceros
   const {ctx} = runAcceso({token: jwtWithExp(3_600_000)});
   const signable = ctx.window.__ykAccesoTest.signable;
   assert.equal(signable('https://api.yokup.com/tickets'), true, 'api.yokup.com es firmable');
-  assert.equal(signable('https://yokup-rtc.csilvasantin.workers.dev/tickets'), true, 'workers.dev (fallback) es firmable');
+  assert.equal(signable('https://rtc.yokup.com/tickets'), true, 'rtc.yokup.com (fallback) es firmable');
   assert.equal(signable('https://admira-telegram.csilvasantin.workers.dev/api/presence'), false, 'un tercero NO es firmable');
   assert.equal(signable('https://example.com/x'), false, 'un tercero NO es firmable');
   // Prefijo anclado: un host que sólo EMPIEZA parecido no cuela.
@@ -88,12 +88,12 @@ test('acceso.js · CON sesión: ambos hosts del worker llevan el Bearer; el terc
   const {windowObj, calls} = runAcceso({token});
 
   await windowObj.fetch('https://api.yokup.com/tickets?scope=fleet');
-  await windowObj.fetch('https://yokup-rtc.csilvasantin.workers.dev/tickets?scope=fleet');
+  await windowObj.fetch('https://rtc.yokup.com/tickets?scope=fleet');
   await windowObj.fetch('https://admira-telegram.csilvasantin.workers.dev/api/presence');
 
   const auth = calls.map(c => c.init && c.init.headers && c.init.headers.get('Authorization'));
   assert.equal(auth[0], 'Bearer ' + token, 'api.yokup.com recibe el Bearer');
-  assert.equal(auth[1], 'Bearer ' + token, 'workers.dev (fallback) recibe el MISMO Bearer');
+  assert.equal(auth[1], 'Bearer ' + token, 'rtc.yokup.com (fallback) recibe el MISMO Bearer');
   // El tercero pasa por rawFetch intacto (sin init reconstruido con Authorization).
   const third = calls[2].init && calls[2].init.headers;
   assert.ok(!third || !third.get || !third.get('Authorization'), 'el tercero NO recibe Bearer');
@@ -105,7 +105,7 @@ test('acceso.js · SIN sesión: los hosts firmables esperan sesión; el tercero 
   // Host firmable sin sesión: el wrapper NO llama a rawFetch (espera login),
   // exactamente el comportamiento previo de api.yokup.com.
   windowObj.fetch('https://api.yokup.com/tickets');
-  windowObj.fetch('https://yokup-rtc.csilvasantin.workers.dev/tickets');
+  windowObj.fetch('https://rtc.yokup.com/tickets');
   // Tercero: pasa directo a rawFetch, sin Bearer, idéntico a hoy.
   windowObj.fetch('https://admira-telegram.csilvasantin.workers.dev/api/presence');
 
@@ -169,7 +169,7 @@ function makeBoard() {
   const fetchStub = async (url) => {
     url = String(url);
     const isApi = url.startsWith('https://api.yokup.com');
-    const isFb  = url.startsWith('https://yokup-rtc.csilvasantin.workers.dev');
+    const isFb  = url.startsWith('https://rtc.yokup.com');
     if (isApi && (state.mode === 'apiDown' || state.mode === 'bothDown')) throw new TypeError('net-api');
     if (isFb && state.mode === 'bothDown') throw new TypeError('net-fb');
     const body = url.includes('/projects') ? {projects: []}
@@ -208,9 +208,9 @@ test('tablero · fetch OK: pinta las filas de la misión', async () => {
   assert.doesNotMatch(html, /No se pudo cargar/, 'no hay aviso de error en el camino feliz');
 });
 
-test('tablero · api.yokup.com RECHAZA pero el fallback workers.dev responde: pinta filas vía fallback', async () => {
+test('tablero · api.yokup.com RECHAZA pero el fallback rtc.yokup.com responde: pinta filas vía fallback', async () => {
   const {ctx, getById, state} = makeBoard();
-  state.mode = 'apiDown';           // api.yokup.com cae; workers.dev sigue
+  state.mode = 'apiDown';           // api.yokup.com cae; rtc.yokup.com sigue
   state.tickets = [todayTicket()];
   await ctx.__load();
   const html = getById('list').innerHTML;
@@ -220,7 +220,7 @@ test('tablero · api.yokup.com RECHAZA pero el fallback workers.dev responde: pi
 
 test('tablero · AMBOS hosts caídos: aviso honesto + KPIs «—», nunca «Sin misiones ✓»', async () => {
   const {ctx, getById, state} = makeBoard();
-  state.mode = 'bothDown';          // api Y workers.dev caen
+  state.mode = 'bothDown';          // api Y rtc.yokup.com caen
   state.tickets = [todayTicket()];
   await ctx.__load();
   const html = getById('list').innerHTML;

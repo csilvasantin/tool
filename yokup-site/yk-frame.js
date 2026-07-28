@@ -27,15 +27,17 @@
   // DOMINIO PROPIO (23-jul-2026, DEC-mrxsvdx1glyx): api.yokup.com sobre la zona
   // yokup.com (ya en Cloudflare) cura el bloqueo de *.workers.dev por ISPs
   // españoles (188.114.96.0/22), que silenciaba contadores e ideas según la red.
-  // WORKER_FALLBACK conserva el host viejo: si el nuevo falla en una red rara, se
-  // reintenta UNA vez contra workers.dev (ninguna red queda peor que antes).
+  // WORKER_FALLBACK es un SEGUNDO dominio propio, rtc.yokup.com (28-jul-2026): si el
+  // primario falla en una red rara, se reintenta UNA vez contra él. Antes apuntaba a
+  // workers.dev, que devolvía 404 (quedó workers_dev=false al migrar) y además está en
+  // el rango bloqueado: el respaldo no respaldaba nada.
   var WORKER = "https://api.yokup.com";
-  var WORKER_FALLBACK = "https://yokup-rtc.csilvasantin.workers.dev";
+  var WORKER_FALLBACK = "https://rtc.yokup.com";
   var VERSION = "v.23.07.2026.r10";
 
   // fetch con red de seguridad: intenta api.yokup.com y, si el fetch RECHAZA
   // (fallo de red/DNS/bloqueo, no un 4xx/5xx que sí llega), reintenta una vez
-  // contra el host workers.dev. Solo se usa en los puntos de entrada críticos
+  // contra el host de respaldo (rtc.yokup.com). Solo se usa en los puntos críticos
   // (contadores del menú); el resto llama a WORKER directo.
   function ykFetch(path, opts) {
     return window.fetch(WORKER + path, opts).catch(function () {

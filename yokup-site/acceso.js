@@ -10,12 +10,13 @@
 (function () {
   var CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
   var WORKER = "https://api.yokup.com";
-  // Red de seguridad (23-jul-2026): el host histórico workers.dev es el FALLBACK
-  // que usa yk-frame.js/ykFetch cuando api.yokup.com falla por red (bloqueo ISP).
+  // Red de seguridad: rtc.yokup.com es el FALLBACK que usa yk-frame.js/ykFetch
+  // cuando api.yokup.com falla por red. (28-jul-2026: antes apuntaba al host
+  // workers.dev, que devolvía 404 y encima está bloqueado por ISPs españoles.)
   // Debe ser FIRMABLE también: si el fallback no llevara el mismo Bearer, daría
   // 401 y dejaría el tablero a oscuras. Solo se AÑADE este host — api.yokup.com y
   // los terceros se comportan EXACTAMENTE igual que antes.
-  var WORKER_FALLBACK = "https://yokup-rtc.csilvasantin.workers.dev";
+  var WORKER_FALLBACK = "https://rtc.yokup.com";
   var SKEY = "yk_session";
   var rawFetch = window.fetch.bind(window);
 

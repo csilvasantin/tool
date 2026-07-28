@@ -228,9 +228,9 @@
 // Dominio propio api.yokup.com (23-jul-2026, DEC-mrxsvdx1glyx): cura el bloqueo
 // de *.workers.dev por ISPs españoles que silenciaba las ideas según la red.
 const WORKER="https://api.yokup.com";
-const WORKER_FB="https://yokup-rtc.csilvasantin.workers.dev";
+const WORKER_FB="https://rtc.yokup.com";
 // fetch con red de seguridad: si el host nuevo falla, reintenta una vez contra
-// workers.dev. Solo en la carga de entrada de ideas.
+// rtc.yokup.com. Solo en la carga de entrada de ideas.
 const wfetch=(p,o)=>fetch(WORKER+p,o).catch(()=>fetch(WORKER_FB+p,o));
 const TG="https://admira-telegram.csilvasantin.workers.dev";
 const $=s=>document.querySelector(s);
