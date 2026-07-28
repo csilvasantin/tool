@@ -25,15 +25,22 @@ exista — **nadie comprobaba la alcanzabilidad**.
 | Host | Papel | Estado |
 |------|-------|--------|
 | `api.yokup.com` | primario | ✅ vivo |
-| `rtc.yokup.com` | respaldo BUENO (nuevo) | ✅ vivo, aún no usado por el código |
-| `yokup-rtc.csilvasantin.workers.dev` | respaldo que el código usa hoy | ✅ revivido (`workers_dev = true`) |
+| `rtc.yokup.com` | **respaldo en uso** (`WORKER_FALLBACK`) | ✅ vivo |
+| `yokup-rtc.csilvasantin.workers.dev` | ya no lo usa el código | ✅ revivido (`workers_dev = true`), se deja por compatibilidad |
 
 Se aplicó con `wrangler triggers deploy` (solo rutas, **sin subir código**) y con
-`preview_urls = false` para no ampliar superficie. **Pendiente (necesita OK: `acceso.js` está
-marcado NO SE TOCA):** apuntar `WORKER_FALLBACK` a `rtc.yokup.com` en los 5 ficheros, porque
-`workers.dev` está bloqueado por ISP españoles (188.114.96.0/22) y como red de seguridad nace
-tullido. Ojo: `signable()` compara exactamente 2 hosts, así que si se cambia en unos ficheros
-y no en `acceso.js`, el respaldo iría **sin Bearer → 401**.
+`preview_urls = false` para no ampliar superficie.
+
+**Cerrado (commit `0e72750`, desplegado el 2026-07-28):** `WORKER_FALLBACK`/`WORKER_FB` apuntan
+a **`rtc.yokup.com`** en los 5 ficheros (`acceso.js`, `yk-frame.js`, `misiones.html`,
+`objetivos.html`, `ideas.html`). Se tocó `acceso.js` **con OK explícito de Carlos** pese al
+«NO SE TOCA» de la tabla de abajo, porque el cambio es **todo o nada**: `signable()` compara
+EXACTAMENTE 2 hosts, así que cambiarlo en unos ficheros y no en `acceso.js` mandaría el reintento
+**sin Bearer → 401**. Motivo del cambio: `workers.dev` está bloqueado por ISP españoles
+(188.114.96.0/22) — justo los usuarios que necesitarían la red de seguridad. Tests 126/126.
+
+**Si vuelves a tocar esto, sondea los hosts por HTTP**: los tests mockean `fetch` y NO detectan
+que un host haya dejado de existir. Es lo que dejó esta avería 5 días invisible.
 
 ## Archivos reales servidos (200, contenido propio) — 15
 
