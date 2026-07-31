@@ -1079,7 +1079,7 @@
   // CENSO REAL (r39): quién existe y quién está encendido, del Mac Mini vía Tailscale
   // + un SSH de verdad. Sustituye a FLEET_URL, cuyo roster llevaba 33 días congelado
   // y no sabía si una máquina respondía. Si cae, se sigue con el roster viejo.
-  const CENSUS_URL       = 'https://macmini.tail48b61c.ts.net/api/council/fleet-census';
+  const CENSUS_URL       = '/api/fleet-census';   // mismo origen: el edge lo trae del Mini (functions/api/fleet-census.js)
   // ASIGNACIONES (FASE 1): Carlos asigna proyectos a ordenadores/agentes desde aquí.
   // GET público (lista vigente) + POST protegido con el token de mando (Bearer).
   const ASSIGN_URL       = 'https://admira-telegram.csilvasantin.workers.dev/api/assign';
@@ -2691,6 +2691,18 @@
     if(!r.ok) throw new Error(url+' '+r.status);
     return r.json();
   }
+  // r39: como jget pero con plazo. Sin esto, UN feed lento cuelga la carga
+  // ENTERA (Promise.allSettled espera a todos) y la galaxia sale vacía — pasó
+  // con el censo cuando tardaba 7 s. Ningún feed puede volver a secuestrar la página.
+  async function jgetT(url, ms=4000){
+    const ctrl=new AbortController();
+    const t=setTimeout(()=>ctrl.abort(), ms);
+    try{
+      const r=await fetch(url,{cache:'no-store',signal:ctrl.signal});
+      if(!r.ok) throw new Error(url+' '+r.status);
+      return await r.json();
+    } finally { clearTimeout(t); }
+  }
 
   // r27: FICHA de actividad a pantalla completa — mientras está abierta TODA
   // la interfaz se para. FICHA_OPEN congela frame/rotación/contadores y
@@ -2705,7 +2717,7 @@
     // 3 vivos (fleet+self) hasta que llegaba `presence` → parpadeo «3 nodos».
     let pres=null, fleet=null, asg=null;
     const presWithFallback=async()=>{ try{ return await jget(PRESENCE_URL); }catch(e){ return await jget(PRESENCE_URL_ALT); } };
-    const [rp,rf,ra,rj,rd,rm,rc]=await Promise.allSettled([ presWithFallback(), jget(FLEET_URL), jget(ASSIGN_URL), jget(PROJECTS_URL), jget(DUDAS_URL), jget(MISSIONS_URL), jget(CENSUS_URL) ]);
+    const [rp,rf,ra,rj,rd,rm,rc]=await Promise.allSettled([ presWithFallback(), jget(FLEET_URL), jget(ASSIGN_URL), jget(PROJECTS_URL), jget(DUDAS_URL), jget(MISSIONS_URL), jgetT(CENSUS_URL, 8000) ]);
     if(rp.status==='fulfilled') pres=rp.value; else console.warn('presence',rp.reason);
     if(rf.status==='fulfilled') fleet=rf.value; else console.warn('fleet',rf.reason);
     let census=null;
