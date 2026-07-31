@@ -578,8 +578,8 @@
         '<div class="cel rtiempo">' + rz("fch") +
           '<span class="fch2" title="creada: ' + esc(fechaCorta(t.created_at)) + '">📅 ' + fechaCorta(t.created_at) + "</span>" +
           (dv && dv.end ? '<span class="fch2 fin" title="finalizada: ' + esc(fechaCorta(dv.end)) + '">🏁 ' + fechaCorta(dv.end) + "</span>"
-            : (dv && dv.run ? '<span class="fch2 run" title="' + esc(dv.tip) + '">⏳ en curso</span>' : "")) +
-          (dv && dv.txt ? '<span class="dur' + (dv.run ? " run" : "") + '" title="' + esc(dv.tip) + '">⏱ ' + esc(dv.txt) + "</span>" : "") + "</div>" +
+            : (dv && dv.run ? '<span class="fch2 run' + (stt === "No concluida" ? " overdue" : "") + '" title="' + esc(dv.tip) + '">⏳ ' + (stt === "No concluida" ? "no concluida" : "en curso") + "</span>" : "")) +
+          (dv && dv.txt ? '<span class="dur' + (dv.run ? " run" : "") + (stt === "No concluida" ? " overdue" : "") + '" title="' + esc(dv.tip) + '">⏱ ' + esc(dv.txt) + "</span>" : "") + "</div>" +
         // ORDENADOR (entre Fecha y Agente).
         '<div class="cel ord">' + rz("ord") + (maq ? '<span class="mach2">' + machVisual(maq) + " " + (window.ykMaquina ? ykMaquina.html(maq) : esc(maq)) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>') + "</div>" +
         // Celda de AGENTE con clase `agc` (target del picker de reasignación en

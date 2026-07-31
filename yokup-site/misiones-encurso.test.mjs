@@ -112,3 +112,13 @@ test('filtros y etiquetas comparten el mismo estado visible a los 30 minutos', (
 test('la carga inicial prioriza No concluidas antes que Finalizadas', () => {
   assert.match(board, /nNoCon>0\?"unconcluded"[\s\S]*nRes>0\?"resolved"/);
 });
+
+test('una fila No concluida no conserva el texto contradictorio en curso', () => {
+  const html = Yk.rowHtml({
+    id: 'FLT-TARDE', status: 'in_progress', assignee: 'Neo', machine: 'MacMini',
+    _unconcluded: true, created_at: Date.now() - 31 * 60 * 1000, priority: 'normal'
+  });
+
+  assert.match(html, /⏳ no concluida/);
+  assert.doesNotMatch(html, /⏳ en curso/);
+});
