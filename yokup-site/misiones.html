@@ -574,16 +574,18 @@ async function load(){
   $("kRes").textContent=tks.filter(t=>estL(t)==="Finalizada").length;
   // CASCADA de preselección (Carlos, 21-jul-2026): en la PRIMERA carga, si el usuario
   // no ha elegido filtro, abrir en el primero con misiones en este orden EXACTO:
-  // Pendientes → En curso → Sin asignar → Finalizadas (el primero con contador > 0).
+  // Pendientes → En curso → No concluidas → Sin asignar → Finalizadas
+  // (el primero con contador > 0). Una retrasada sigue requiriendo atención.
   // Se aplica DESPUÉS de tener los contadores (nunca a ciegas) y SOLO una vez: los
   // refrescos (cada 12 s) y la vuelta atrás del usuario no le resetean su elección.
   if(!userPicked && !didCascade){
     didCascade=true;
     const nAsig=tks.filter(t=>estL(t)==="Pendiente").length;
     const nProg=tks.filter(t=>estL(t)==="En curso").length;
+    const nNoCon=tks.filter(t=>estL(t)==="No concluida").length;
     const nSin=tks.filter(t=>estL(t)==="Sin asignar").length;
     const nRes=tks.filter(t=>estL(t)==="Finalizada").length;
-    const pick = nAsig>0?"asignadas" : nProg>0?"in_progress" : nSin>0?"sin" : nRes>0?"resolved" : null;
+    const pick = nAsig>0?"asignadas" : nProg>0?"in_progress" : nNoCon>0?"unconcluded" : nSin>0?"sin" : nRes>0?"resolved" : null;
     if(pick && pick!==FILTER){ aplicaFiltro(pick); return; }
   }
   let base=tks;

@@ -12,6 +12,7 @@ import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 
 const source = await readFile(new URL('./yk-misiones.js', import.meta.url), 'utf8');
+const board = await readFile(new URL('./misiones.html', import.meta.url), 'utf8');
 
 // Contexto mínimo: el IIFE toca window.fetch (en try/catch → tolera ausencia),
 // localStorage (try/catch) y document.addEventListener al cargar. Le damos stubs
@@ -106,4 +107,8 @@ test('filtros y etiquetas comparten el mismo estado visible a los 30 minutos', (
   assert.equal(Yk.coincideEstado(tarde, 'unconcluded'), true);
   assert.equal(Yk.coincideEstado(curso, 'in_progress'), true);
   assert.equal(Yk.coincideEstado(curso, 'unconcluded'), false);
+});
+
+test('la carga inicial prioriza No concluidas antes que Finalizadas', () => {
+  assert.match(board, /nNoCon>0\?"unconcluded"[\s\S]*nRes>0\?"resolved"/);
 });
