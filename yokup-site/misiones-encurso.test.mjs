@@ -96,3 +96,14 @@ test('status explícito manda: resolved/in_progress/cancelled no los pisa el ras
   assert.equal(estL({status: 'in_progress', assignee: 'Neo'}), 'En curso');
   assert.equal(estL({status: 'cancelled', assignee: 'Neo', _tasks: [{status: 'done'}]}), 'Cancelada');
 });
+
+test('filtros y etiquetas comparten el mismo estado visible a los 30 minutos', () => {
+  const tarde = {status: 'in_progress', assignee: 'Neo', _unconcluded: true};
+  const curso = {status: 'in_progress', assignee: 'Neo', _unconcluded: false};
+
+  assert.equal(estL(tarde), 'No concluida');
+  assert.equal(Yk.coincideEstado(tarde, 'in_progress'), false);
+  assert.equal(Yk.coincideEstado(tarde, 'unconcluded'), true);
+  assert.equal(Yk.coincideEstado(curso, 'in_progress'), true);
+  assert.equal(Yk.coincideEstado(curso, 'unconcluded'), false);
+});

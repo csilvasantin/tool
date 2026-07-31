@@ -442,6 +442,18 @@
     if (hayTrabajo(t)) return { c: "b-prog", l: "En curso" };
     return (t.assignee || t.loc || t.machine) ? { c: "b-pend", l: "Pendiente" } : { c: "b-sina", l: "Sin asignar" };
   }
+  // Un único criterio para contador, insignia y filtro. El estado técnico puede
+  // seguir siendo in_progress mientras la categoría visible ya es «No concluida».
+  function coincideEstado(t, filtro) {
+    var label = estadoDe(t).l;
+    if (filtro === "sin") return label === "Sin asignar";
+    if (filtro === "asignadas") return label === "Pendiente";
+    if (filtro === "in_progress") return label === "En curso";
+    if (filtro === "unconcluded") return label === "No concluida";
+    if (filtro === "resolved") return label === "Finalizada";
+    if (filtro === "cancelled") return label === "Cancelada";
+    return true;
+  }
   function visibleId(t) {
     var raw = String((t && t.id) || ""), m = /^FLT-(\d+)$/.exec(raw);
     if (!m) return raw;
@@ -947,7 +959,7 @@
 
   window.YkMisiones = {
     init: init, selected: selected, selectMission: selectMission,
-    rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine, rcId: rcId, estadoDe: estadoDe, visibleId: visibleId,
+    rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine, rcId: rcId, estadoDe: estadoDe, coincideEstado: coincideEstado, visibleId: visibleId,
     machOffOf: machOffOf, whoHtml: whoHtml,
     setLiveMachines: function (set) { LIVE_MACHINES = set || null; },
     setLiveSurfaces: function (m) { LIVE_SURFACES = m || null; },

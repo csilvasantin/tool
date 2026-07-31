@@ -250,7 +250,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 
 <script src="/yk-agent-identity.js?v=1"></script>
 <script src="/yk-maquina.js?v=r1"></script>
-<script src="/yk-misiones.js?v=r56"></script>
+<script src="/yk-misiones.js?v=r57"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r3"></script>
 <script>
@@ -594,10 +594,7 @@ async function load(){
     const _ms=v=>{v=+v||0;return v>4102444800?v:v*1000;}, FRESH=3*3600*1000;
     base=base.filter(t=>t.status!=="cancelled" && (t.status!=="resolved" || (t.source==="fleet" && (Date.now()-_ms(t.resolved_at||t.updated_at))<FRESH)));
   }
-  else if(FILTER==="sin") base=base.filter(t=>estL(t)==="Sin asignar");
-  else if(FILTER==="asignadas") base=base.filter(t=>estL(t)==="Pendiente");
-  else if(FILTER==="unconcluded") base=base.filter(t=>estL(t)==="No concluida");
-  else if(FILTER!=="todas") base=base.filter(t=>t.status===FILTER);
+  else if(FILTER!=="todas") base=base.filter(t=>YkMisiones.coincideEstado(t,FILTER));
   // Selectores CRUZADOS y solo con quien TIENE misiones en el contexto actual:
   // agentes según el equipo elegido, equipos según el agente elegido.
   // agentes reales del grupo (una misión difundida agrupa varios): _agents si existe.
