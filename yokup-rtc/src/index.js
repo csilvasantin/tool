@@ -2254,6 +2254,7 @@ async function fleetPushStatus(env, ticket, status) {
         body: JSON.stringify({
           status,
           mission_id: ticket.id,
+          mission_created_at: ticket.created_at || null,
           persona: ticket.assignee || "",
           machine: ticket.loc || "",
           verification: "Estado marcado en yokup.com/misiones (plan de tareas abc/123)."
@@ -2705,12 +2706,12 @@ var index_default = {
         // Telegram es un espejo completo de la misión: el usuario ve el avance y
         // la captura sin tener que abrir YOKUP.
         if (env.TELEGRAM) {
-          const t = await env.DB.prepare("SELECT assignee,loc,screen FROM tickets WHERE id=?").bind(mid).first();
+          const t = await env.DB.prepare("SELECT assignee,loc,screen,created_at FROM tickets WHERE id=?").bind(mid).first();
           const iid = t && await fleetEncargoId(env, mid, t.screen);
           if (/^\d+$/.test(String(iid || ""))) {
             try { await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-inbox/"+iid+"/progress", {
               method:"POST", headers:{"content-type":"application/json"},
-              body:JSON.stringify({mission_id:mid,persona:t.assignee,machine:t.loc,detail:b.detail||"Captura de progreso recibida en YOKUP",image:img,percent:b.percent})
+              body:JSON.stringify({mission_id:mid,mission_created_at:t.created_at,persona:t.assignee,machine:t.loc,detail:b.detail||"Captura de progreso recibida en YOKUP",image:img,percent:b.percent})
             })); } catch(e) {}
           }
         }
@@ -2875,7 +2876,7 @@ var index_default = {
           : "pantallazo image requerido para cerrar: manda la URL http(s) de la captura o un data:image/…;base64" }, 400);
       }
       const image = normImage.value;
-      const t = await env.DB.prepare("SELECT id, assignee, loc, status, source, screen FROM tickets WHERE id=?").bind(mid).first();
+      const t = await env.DB.prepare("SELECT id, assignee, loc, status, source, screen, created_at FROM tickets WHERE id=?").bind(mid).first();
       if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
       // AUTO-CLAIM en el ORIGEN: que llegue un informe prueba que se está trabajando;
       // una misión que seguía «open» (Pendiente rezagado) pasa YA a in_progress, aunque
@@ -2921,7 +2922,7 @@ var index_default = {
           try {
             await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-inbox/"+numId+"/result", {
               method: "POST", headers: { "content-type": "application/json" },
-              body: JSON.stringify({ persona: assignee || owner, machine: t.loc || "", report, image, runtime, host, mission_id: mid })
+              body: JSON.stringify({ persona: assignee || owner, machine: t.loc || "", report, image, runtime, host, mission_id: mid, mission_created_at: t.created_at })
             }));
             await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
               method: "POST", headers: { "content-type": "application/json" },

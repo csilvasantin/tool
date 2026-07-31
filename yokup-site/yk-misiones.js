@@ -442,6 +442,13 @@
     if (hayTrabajo(t)) return { c: "b-prog", l: "En curso" };
     return (t.assignee || t.loc || t.machine) ? { c: "b-pend", l: "Pendiente" } : { c: "b-sina", l: "Sin asignar" };
   }
+  function visibleId(t) {
+    var raw = String((t && t.id) || ""), m = /^FLT-(\d+)$/.exec(raw);
+    if (!m) return raw;
+    var ms = +(t.created_at || 0); if (ms && ms < 4102444800) ms *= 1000;
+    var d = new Date(ms || Date.now()), p = function(n){ return (n<10?"0":"")+n; };
+    return "MIS-" + m[1] + "-" + p(d.getDate()) + "." + p(d.getMonth()+1);
+  }
 
   // El marcador «[PRIORIDAD ABSOLUTA]» (o [PRIORIDAD …], [TEST …]) viajaba en el
   // TEXTO del encargo y ensuciaba el título. Se separa: el título queda limpio y
@@ -532,7 +539,7 @@
     return '<div class="tk ' + (t.status === "open" ? "open" : "") + " " + (t.id === SELECTED ? "sel" : "") + '" data-id="' + esc(t.id) + '">' +
       '<div class="hd">' +
         '<div class="pri ' + esc(t.priority) + '"></div>' +
-        '<div class="tkid">' + esc(t.id) + '<span class="st">' + ({ "agent-iot": "🖥 Pantalla DOOH", monitor: "🌐 Servicio", service: "🌐 Servicio", agent: "🤖 Agente", agente: "🤖 Agente", presence: "🖥 Máquina", machine: "🖥 Máquina", fleet: "🎯 Misión" }[t.source] || "👤 Manual") + "</span>" +
+        '<div class="tkid" title="Referencia interna: ' + esc(t.id) + '">' + esc(visibleId(t)) + '<span class="st">' + ({ "agent-iot": "🖥 Pantalla DOOH", monitor: "🌐 Servicio", service: "🌐 Servicio", agent: "🤖 Agente", agente: "🤖 Agente", presence: "🖥 Máquina", machine: "🖥 Máquina", fleet: "🎯 Misión" }[t.source] || "👤 Manual") + "</span>" +
           (pm.flag ? '<span class="prioflag' + (esPrio ? " abs" : "") + '">' + (esPrio ? "⚡ " : "") + esc(pm.flag) + "</span>" : "") + "</div>" +
         '<div class="cel shot">' + (function () { var p = proyectoDe(t);
           // La miniatura es un ENLACE al trabajo realizado cuando se resuelve destino
@@ -940,7 +947,7 @@
 
   window.YkMisiones = {
     init: init, selected: selected, selectMission: selectMission,
-    rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine, rcId: rcId, estadoDe: estadoDe,
+    rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine, rcId: rcId, estadoDe: estadoDe, visibleId: visibleId,
     machOffOf: machOffOf, whoHtml: whoHtml,
     setLiveMachines: function (set) { LIVE_MACHINES = set || null; },
     setLiveSurfaces: function (m) { LIVE_SURFACES = m || null; },
