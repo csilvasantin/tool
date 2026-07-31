@@ -852,6 +852,22 @@ function normalizeMissionReference(raw) {
 }
 __name(normalizeMissionReference, "normalizeMissionReference");
 
+// Los agentes conocen el número del encargo del bot-inbox (#1036), no siempre el
+// id interno de Yokup. Si FLT-1036 ya estaba ocupado, fleetMissionId conserva el
+// reparto real en fleet_ids (p. ej. #1036 → FLT-1045). Toda entrada pública de la
+// flota debe consultar ese reparto antes de caer al FLT-<n> histórico.
+async function resolveFleetMissionReference(env, raw) {
+  const value = String(raw == null ? "" : raw).trim();
+  const numeric = /^#?(\d+)$/.exec(value);
+  if (numeric) {
+    const mapped = await env.DB.prepare("SELECT mission_id FROM fleet_ids WHERE inbox_id=?")
+      .bind(Number(numeric[1])).first();
+    if (mapped && mapped.mission_id) return mapped.mission_id;
+  }
+  return normalizeMissionReference(value);
+}
+__name(resolveFleetMissionReference, "resolveFleetMissionReference");
+
 async function hasMissionProof(env, mid) {
   const row = await env.DB.prepare(
     "SELECT proof_image FROM tickets WHERE id=?"
@@ -2058,7 +2074,7 @@ async function fleetSync(env) {
     const id = await fleetMissionId(env, it);   // id estable y a prueba de colisiones (FLT-990 a2)
     let st = FLEET_ST[it.status] || "open";
     const ts = epochMs(it.ts, now);
-    const prev = await env.DB.prepare("SELECT id,status,assignee,loc,proof_image FROM tickets WHERE id=?").bind(id).first();
+    const prev = await env.DB.prepare("SELECT id,status,assignee,loc,proof_image,resolved_at FROM tickets WHERE id=?").bind(id).first();
     // Un DONE del agente no basta: Yokup sólo finaliza cuando el cierre incluye
     // un pantallazo real del trabajo. El bot puede haber terminado, pero la misión
     // permanece EN CURSO hasta que /fleet/informe registre proof_image.
@@ -2093,12 +2109,17 @@ async function fleetSync(env) {
       // encargo del inbox NO la revive (aunque siga 'pending' en su ventana). Solo un
       // cancelled explícito la mantiene cancelada. (Carlos, 2026-07-21)
       if (prev.status === "cancelled" && st !== "cancelled") continue;
+      // ANTI-RESURRECCIÓN de RESUELTAS: un inbox rezagado no puede degradar una
+      // misión que Yokup ya cerró con prueba. El siguiente cierre sincronizará el
+      // bot-inbox, pero mientras tanto la verdad terminal y su fecha se conservan.
+      if (prev.status === "resolved" && st !== "cancelled" &&
+          (prev.proof_image || await hasMissionProof(env, id))) st = "resolved";
       // Propaga también los cambios de ASIGNACIÓN (reasignar agente/máquina desde
       // la vista detalle actualiza el encargo; el ticket debe reflejarlo).
       const asig = it.target_persona || "", loc = it.target_machine || "";
       if (prev.status !== st || prev.assignee !== asig || (prev.loc || "") !== loc) {
         await env.DB.prepare("UPDATE tickets SET status=?, assignee=?, loc=?, screen=?, updated_at=?, resolved_at=? WHERE id=?")
-          .bind(st, asig, loc, fleetScreen(it), now, st === "resolved" ? now : null, id).run();
+          .bind(st, asig, loc, fleetScreen(it), now, st === "resolved" ? (prev.resolved_at || now) : null, id).run();
         // Al FINALIZAR una misión, su árbol a/b/c no puede quedarse en «pending»
         // para siempre (pasó con FLT-804: misión resuelta con informe y proof, y
         // las 9 subtareas colgadas como pendientes). El cierre con informe ES la
@@ -2673,8 +2694,7 @@ var index_default = {
       try {
         await ensureSchema(env);
         const b = await req.json();
-        let mid = String(b.mission || b.id || "").trim();
-        if (/^#?\d+$/.test(mid)) mid = "FLT-" + mid.replace(/^#/, "");
+        const mid = await resolveFleetMissionReference(env, b.mission || b.id);
         const img = String(b.image || "").trim().slice(0, 500);
         if (!mid) return json({ ok: false, error: "mission requerida" }, 400);
         // No pisa una misión ya resuelta; solo abre→en curso y refresca la captura.
@@ -2811,7 +2831,7 @@ var index_default = {
     if (url.pathname === "/fleet/batch/requeue-pristine" && req.method === "POST") {
       await ensureSchema(env);
       let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
-      const mid = normalizeMissionReference(b.mission || b.id);
+      const mid = await resolveFleetMissionReference(env, b.mission || b.id);
       if (!mid) return json({ ok: false, error: "mission requerida" }, 400);
       const result = await requeuePristineBatchMission(env, mid);
       if (!result.ok) return json(result, result.status || 409);
@@ -2824,7 +2844,7 @@ var index_default = {
     if (url.pathname === "/fleet/informe" && req.method === "POST") {
       await ensureSchema(env);
       let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
-      const mid = normalizeMissionReference(b.mission || b.id);
+      const mid = await resolveFleetMissionReference(env, b.mission || b.id);
       const report = String(b.report || "").slice(0, 2000).trim();
       const owner = String(b.owner || "infraagente").slice(0, 24);
       const runtime = String(b.runtime || "").trim().slice(0, 20);
@@ -2901,8 +2921,7 @@ var index_default = {
     if (url.pathname === "/fleet/cancel" && req.method === "POST") {
       await ensureSchema(env);
       let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
-      let mid = String(b.mission || b.id || "").trim();
-      if (/^#?\d+$/.test(mid)) mid = "FLT-" + mid.replace(/^#/, "");
+      const mid = await resolveFleetMissionReference(env, b.mission || b.id);
       const note = String(b.note || b.reason || "").slice(0, 300).trim();
       const by = String(b.by || "yokup").slice(0, 40);
       if (!mid) return json({ ok: false, error: "mission requerida" }, 400);
@@ -2931,8 +2950,7 @@ var index_default = {
     if (url.pathname === "/fleet/task-status" && req.method === "POST") {
       await ensureSchema(env);
       let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
-      let mid = String(b.mission || b.id || "").trim();
-      if (/^#?\d+$/.test(mid)) mid = "FLT-" + mid.replace(/^#/, "");
+      const mid = await resolveFleetMissionReference(env, b.mission || b.id);
       const code = String(b.code || "").toLowerCase().trim();
       if (!mid || !validTaskCode(code)) return json({ ok: false, error: "mission y code válidos requeridos" }, 400);
       // 1) LA PRUEBA SE ACEPTA EN EL MISMO MOVIMIENTO DEL CIERRE (FLT-988 b2). Si el

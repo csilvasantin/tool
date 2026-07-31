@@ -457,16 +457,16 @@ function bindHead(el){
   });
 }
 
-// Una orden DIFUNDIDA («PARA TODOS») crea en el bot-inbox una misión por agente
-// (fan-out para el ACK por Telegram), así que en el tablero salían N filas idénticas.
-// Se colapsan por asunto+equipo en UNA misión con todos sus agentes y su progreso.
+// Una orden puede repetirse, pero cada agente conserva su propia misión comparable.
+// Solo se colapsan duplicados del MISMO asunto, equipo Y agente; dos ejecuciones
+// independientes (p. ej. Codex y Claude) nunca deben desaparecer bajo una sola fila.
 // Solo en la bandeja de FLOTA (en campo, dos incidencias con el mismo texto son
 // distintas y no deben fundirse). Representante = la de id más bajo (la que abre «abrir →»).
 function agrupaFlota(tks){
   const norm=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/\s+/g," ").trim();
   const num=x=>parseInt(String(x).replace(/\D/g,""),10)||0;
   const by=new Map();
-  tks.forEach(t=>{ const k=norm(t.subject)+"||"+YkMisiones.machineOf(t);
+  tks.forEach(t=>{ const k=norm(t.subject)+"||"+YkMisiones.machineOf(t)+"||"+norm(t.assignee);
     (by.get(k)||by.set(k,[]).get(k)).push(t); });
   const out=[];
   by.forEach(ms=>{
