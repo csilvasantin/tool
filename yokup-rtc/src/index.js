@@ -2253,6 +2253,7 @@ async function fleetPushStatus(env, ticket, status) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           status,
+          mission_id: ticket.id,
           persona: ticket.assignee || "",
           machine: ticket.loc || "",
           verification: "Estado marcado en yokup.com/misiones (plan de tareas abc/123)."
@@ -2709,7 +2710,7 @@ var index_default = {
           if (/^\d+$/.test(String(iid || ""))) {
             try { await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-inbox/"+iid+"/progress", {
               method:"POST", headers:{"content-type":"application/json"},
-              body:JSON.stringify({persona:t.assignee,machine:t.loc,detail:b.detail||"Captura de progreso recibida en YOKUP",image:img,percent:b.percent})
+              body:JSON.stringify({mission_id:mid,persona:t.assignee,machine:t.loc,detail:b.detail||"Captura de progreso recibida en YOKUP",image:img,percent:b.percent})
             })); } catch(e) {}
           }
         }
