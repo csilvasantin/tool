@@ -206,6 +206,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
     <button class="tab" data-f="sin" aria-pressed="false">Sin asignar</button>
     <button class="tab" data-f="asignadas" aria-pressed="false">Pendientes</button>
     <button class="tab" data-f="in_progress" aria-pressed="false">En curso</button>
+    <button class="tab" data-f="unconcluded" aria-pressed="false">No concluidas</button>
     <button class="tab" data-f="resolved" aria-pressed="false">Finalizadas</button>
     <button class="tab" data-f="todas" aria-pressed="false">Todas</button>
   </div>
@@ -541,7 +542,7 @@ async function load(){
       if(rb) rb.onclick=()=>{ el.innerHTML='<div class="empty">Cargando misiones…</div>'; load(); };
     }
     // Sin datos reales: los KPIs no deben mentir con un 0. Se marcan «—» (desconocido).
-    ["kSin","kAsig","kProg","kRes"].forEach(id=>{ const c=$(id); if(c) c.textContent="—"; });
+    ["kSin","kAsig","kProg","kNoCon","kRes"].forEach(id=>{ const c=$(id); if(c) c.textContent="—"; });
     return;
   }
   let tks=(SCOPE==="fleet") ? agrupaFlota(d.tickets||[]) : (d.tickets||[]); const st=d.stats||{};
@@ -559,11 +560,17 @@ async function load(){
   ROWS_BY_ID={};
   tks.forEach(t=>{ ROWS_BY_ID[t.id]={maq:YkMisiones.machineOf(t)||"",rawmaq:(t.machine||t.loc||""),agente:t.assignee||"",subject:t.subject||"",loc:t.loc||""}; });
   MIS_ALL=tks; try{ renderFlota(); }catch(e){}   // resumen de flota (modo avanzado)
-  // KPIs por ESTADO canónico, calculados de las misiones vivas (no del stats crudo)
+  // «No concluida» es una categoría derivada al cumplir 30 min sin cierre. Conserva
+  // el estado operativo interno para que la misión pueda seguir avanzando.
+  const _ms30=v=>{v=+v||0;return v>4102444800?v:v*1000;};
+  tks.forEach(t=>{ t._unconcluded=t.status!=="resolved"&&t.status!=="cancelled"&&
+    !!_ms30(t.created_at)&&(Date.now()-_ms30(t.created_at)>=30*60*1000); });
+  // KPIs por ESTADO visible, calculados de las misiones vivas (no del stats crudo)
   const estL=t=>YkMisiones.estadoDe(t).l;
   $("kSin").textContent=tks.filter(t=>estL(t)==="Sin asignar").length;
   $("kAsig").textContent=tks.filter(t=>estL(t)==="Pendiente").length;
   $("kProg").textContent=tks.filter(t=>estL(t)==="En curso").length;
+  $("kNoCon").textContent=tks.filter(t=>estL(t)==="No concluida").length;
   $("kRes").textContent=tks.filter(t=>estL(t)==="Finalizada").length;
   // CASCADA de preselección (Carlos, 21-jul-2026): en la PRIMERA carga, si el usuario
   // no ha elegido filtro, abrir en el primero con misiones en este orden EXACTO:
@@ -589,6 +596,7 @@ async function load(){
   }
   else if(FILTER==="sin") base=base.filter(t=>estL(t)==="Sin asignar");
   else if(FILTER==="asignadas") base=base.filter(t=>estL(t)==="Pendiente");
+  else if(FILTER==="unconcluded") base=base.filter(t=>estL(t)==="No concluida");
   else if(FILTER!=="todas") base=base.filter(t=>t.status===FILTER);
   // Selectores CRUZADOS y solo con quien TIENE misiones en el contexto actual:
   // agentes según el equipo elegido, equipos según el agente elegido.

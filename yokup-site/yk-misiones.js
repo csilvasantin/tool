@@ -436,6 +436,7 @@
   function estadoDe(t) {
     if (t.status === "cancelled") return { c: "b-cancel", l: "Cancelada" };
     if (t.status === "resolved") return { c: "b-res", l: "Finalizada" };
+    if (t._unconcluded) return { c: "b-cancel", l: "No concluida" };
     if (t.status === "in_progress") return { c: "b-prog", l: "En curso" };
     // Trabajo real en el plan ⇒ «En curso», nunca «Pendiente» (rastro CLI sin claim).
     if (hayTrabajo(t)) return { c: "b-prog", l: "En curso" };

@@ -2701,6 +2701,18 @@ var index_default = {
         await env.DB.prepare(
           "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END, live_shot=COALESCE(NULLIF(?,''),live_shot), live_at=?, updated_at=? WHERE id=? AND status!='resolved'"
         ).bind(img, Date.now(), Date.now(), mid).run();
+        // Telegram es un espejo completo de la misión: el usuario ve el avance y
+        // la captura sin tener que abrir YOKUP.
+        if (env.TELEGRAM) {
+          const t = await env.DB.prepare("SELECT assignee,loc,screen FROM tickets WHERE id=?").bind(mid).first();
+          const iid = t && await fleetEncargoId(env, mid, t.screen);
+          if (/^\d+$/.test(String(iid || ""))) {
+            try { await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-inbox/"+iid+"/progress", {
+              method:"POST", headers:{"content-type":"application/json"},
+              body:JSON.stringify({persona:t.assignee,machine:t.loc,detail:b.detail||"Captura de progreso recibida en YOKUP",image:img,percent:b.percent})
+            })); } catch(e) {}
+          }
+        }
         return json({ ok: true, mission: mid });
       } catch (e) {
         return json({ ok: false, error: String(e) }, 500);
@@ -2862,7 +2874,7 @@ var index_default = {
           : "pantallazo image requerido para cerrar: manda la URL http(s) de la captura o un data:image/…;base64" }, 400);
       }
       const image = normImage.value;
-      const t = await env.DB.prepare("SELECT id, assignee, status, source, screen FROM tickets WHERE id=?").bind(mid).first();
+      const t = await env.DB.prepare("SELECT id, assignee, loc, status, source, screen FROM tickets WHERE id=?").bind(mid).first();
       if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
       // AUTO-CLAIM en el ORIGEN: que llegue un informe prueba que se está trabajando;
       // una misión que seguía «open» (Pendiente rezagado) pasa YA a in_progress, aunque
@@ -2906,6 +2918,10 @@ var index_default = {
         const numId = await fleetEncargoId(env, mid, t.screen);
         if (/^\d+$/.test(numId) && env.TELEGRAM) {
           try {
+            await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-inbox/"+numId+"/result", {
+              method: "POST", headers: { "content-type": "application/json" },
+              body: JSON.stringify({ persona: assignee || owner, machine: t.loc || "", report, image, runtime, host, mission_id: mid })
+            }));
             await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
               method: "POST", headers: { "content-type": "application/json" },
               body: JSON.stringify({ ids: [Number(numId)], status: "done", by: assignee || owner, note: "auto: informe con proof en yokup" })

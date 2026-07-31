@@ -51,6 +51,7 @@
         '<button data-f="sin" class="kpi v"><b id="kSin">—</b> sin asignar</button>' +
         '<button data-f="asignadas" class="kpi a"><b id="kAsig">—</b> pendientes</button>' +
         '<button data-f="in_progress" class="kpi b"><b id="kProg">—</b> en curso</button>' +
+        '<button data-f="unconcluded" class="kpi a"><b id="kNoCon">—</b> no concluidas</button>' +
         '<button data-f="resolved" class="kpi c"><b id="kRes">—</b> finalizadas</button>' +
         '<input type="date" id="selDia" class="kpi kdate" title="Día del tablero — por defecto hoy">' +
         // Conmutador de VISTA (fichas / lista), recuerda la elección por página. (962)
