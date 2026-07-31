@@ -2114,6 +2114,9 @@ async function fleetSync(env) {
       // bot-inbox, pero mientras tanto la verdad terminal y su fecha se conservan.
       if (prev.status === "resolved" && st !== "cancelled" &&
           (prev.proof_image || await hasMissionProof(env, id))) st = "resolved";
+      // Telegram puede conservar unos segundos el PENDING anterior a una captura.
+      // Ese eco retrasado no invalida progreso ya confirmado por YOKUP.
+      if (prev.status === "in_progress" && st === "open") st = "in_progress";
       // Propaga también los cambios de ASIGNACIÓN (reasignar agente/máquina desde
       // la vista detalle actualiza el encargo; el ticket debe reflejarlo).
       const asig = it.target_persona || "", loc = it.target_machine || "";
@@ -2281,7 +2284,11 @@ async function fleetReconcileMission(env, mid) {
   const allDone = tasks.every((x) => x.status === "done");
   const started = tasks.some((x) => x.status !== "pending");
   const proof = allDone ? await hasMissionProof(env, mid) : false;
-  const next = allDone && proof ? "resolved" : started || allDone ? "in_progress" : "open";
+  const derived = allDone && proof ? "resolved" : started || allDone ? "in_progress" : "open";
+  // El árbol se crea con todas las subtareas pendientes. Una captura de progreso
+  // pone la misión en curso antes de que alguien toque ese árbol; por tanto, el
+  // reconciliador solo puede PROMOVER el estado, nunca borrar ese progreso real.
+  const next = t.status === "in_progress" && derived === "open" ? "in_progress" : derived;
   // ÁRBOL COMPLETO PERO SIN PRUEBA: antes esto era una degradación MUDA — la misión
   // se quedaba «en curso» y nadie sabía por qué (FLT-982/983/984 hubo que rematarlas
   // a mano en D1). Ahora lo dice, en su propia cronología y en la respuesta del API.
@@ -2333,7 +2340,10 @@ async function fleetReconcileAll(env) {
     if (r.status === "cancelled") continue;   // el barrido no revive una cancelada
     const allDone = r.done === r.total;
     const proof = allDone ? await hasMissionProof(env, r.id) : false;
-    const next = allDone && proof ? "resolved" : r.started > 0 || allDone ? "in_progress" : "open";
+    const derived = allDone && proof ? "resolved" : r.started > 0 || allDone ? "in_progress" : "open";
+    // Mismo criterio monotónico que en el reconciliado individual: un árbol 0/N
+    // no invalida una captura o un progreso que ya dejó la misión EN CURSO.
+    const next = r.status === "in_progress" && derived === "open" ? "in_progress" : derived;
     // No reabrir un FINALIZAR humano desde el árbol auto-generado (ver fleetReconcileMission):
     // el barrido solo promueve, nunca degrada un resolved. Reabrir = botón REABRIR manual.
     if (r.status === "resolved" && next !== "resolved") continue;
