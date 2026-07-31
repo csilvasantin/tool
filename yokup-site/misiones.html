@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r17">
 <link rel="stylesheet" href="/yk-misiones.css?v=r38">
-<link rel="stylesheet" href="/yk-cabezal.css?v=r2">
+<link rel="stylesheet" href="/yk-cabezal.css?v=r3">
 <style>
 /* Segmentación dentro del raíl de opciones: apilada y a lo ancho del panel. */
 .segm{display:flex;flex-direction:column;gap:8px}
@@ -34,7 +34,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .kpi{cursor:pointer;font:inherit;transition:.18s}
 .kpi[data-f]:hover{border-color:var(--line2);color:var(--ink)}
 .kpi.on{border-color:var(--brand);background:rgba(120,243,255,.08);color:var(--brand)}
-.kpi b{font-size:16px;color:var(--ink)}.kpi.a b{color:var(--mut)}.kpi.b b{color:var(--accent)}.kpi.c b{color:var(--good)}.kpi.v b{color:var(--violet)}
+.kpi b{font-size:16px;color:var(--ink)}.kpi.a b{color:var(--mut)}.kpi.b b{color:var(--accent)}.kpi.c b{color:var(--good)}.kpi.v b{color:var(--violet)}.kpi.d b{color:#ff8866}
 .kpi.kdate{color:var(--ink);color-scheme:dark;font-family:var(--mono)}
 .kpi.kdate::-webkit-calendar-picker-indicator{cursor:pointer;filter:invert(.75) sepia(1) saturate(3) hue-rotate(150deg)}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
@@ -153,16 +153,6 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .bulkbar button{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:8px 13px;border-radius:8px;cursor:pointer;border:1px solid var(--line);transition:.15s}
 #bulkApply{background:var(--brand);color:#02080d;border-color:var(--brand)}#bulkApply:disabled{opacity:.6;cursor:wait}
 #bulkClear{background:transparent;color:var(--mut)}#bulkClear:hover{color:var(--brand);border-color:var(--line2)}
-/* diálogo propio de ELIMINAR (sin popups nativos) */
-.delov{position:fixed;inset:0;z-index:2147483200;background:rgba(2,8,13,.72);display:flex;align-items:center;justify-content:center;padding:24px}
-.delcard{width:min(92vw,420px);background:var(--card2,#0a1620);border:1px solid #ff8866;box-shadow:0 0 50px rgba(0,0,0,.7),0 0 24px rgba(255,136,102,.18);padding:20px 18px;font-family:var(--mono)}
-.delcard .delhd{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#ff8866;font-weight:700;margin-bottom:10px}
-.delcard p{font-size:12px;line-height:1.5;color:var(--ink);margin:0 0 16px}
-.delbtns{display:flex;gap:10px;justify-content:flex-end}
-.delbtns button{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:9px 13px;border:1px solid var(--line);background:transparent;color:var(--mut);cursor:pointer}
-.delbtns .delno:hover{color:var(--brand);border-color:var(--line2)}
-.delbtns .delsi{color:#ff8866;border-color:#ff8866}
-.delbtns .delsi:hover{background:rgba(255,136,102,.14)}
 /* La miniatura ENLAZA al trabajo realizado (workUrlOf): pista visual mínima de que
    es clicable — cursor de enlace (no zoom) y realce de borde al pasar por encima.
    El clic abre el trabajo en pestaña nueva; el título dice a dónde va. (2026-07-23) */
@@ -203,11 +193,11 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   <!-- Raíl MISIONES: filtros. Raíl TAREAS: árbol de la misión seleccionada. -->
   <div class="tabs" id="missionStateTabs" data-yk-slot="left">
     <button class="tab on" data-f="activas" aria-pressed="true">Activas</button>
-    <button class="tab" data-f="sin" aria-pressed="false">Sin asignar</button>
     <button class="tab" data-f="asignadas" aria-pressed="false">Pendientes</button>
     <button class="tab" data-f="in_progress" aria-pressed="false">En curso</button>
     <button class="tab" data-f="unconcluded" aria-pressed="false">No concluidas</button>
     <button class="tab" data-f="resolved" aria-pressed="false">Finalizadas</button>
+    <button class="tab" data-f="cancelled" aria-pressed="false">Eliminadas</button>
     <button class="tab" data-f="todas" aria-pressed="false">Todas</button>
   </div>
   <!-- CAJÓN de la misión seleccionada: ficha + informe + árbol abc. Va ARRIBA
@@ -233,7 +223,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
       <option value="in_progress">▶ En curso</option>
       <option value="resolved">✓ Finalizada</option>
       <option value="open">↺ Reabrir</option>
-      <option value="delete">🗑 Eliminar…</option>
+      <option value="cancelled">🗑 Eliminada</option>
     </select>
     <button id="bulkApply">Aplicar</button>
     <button id="bulkClear">Quitar selección</button>
@@ -250,9 +240,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 
 <script src="/yk-agent-identity.js?v=1"></script>
 <script src="/yk-maquina.js?v=r1"></script>
-<script src="/yk-misiones.js?v=r58"></script>
+<script src="/yk-misiones.js?v=r59"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
-<script src="/yk-cabezal.js?v=r3"></script>
+<script src="/yk-cabezal.js?v=r4"></script>
 <script>
 const WORKER="https://api.yokup.com";
 const WORKER_FALLBACK="https://rtc.yokup.com";
@@ -349,7 +339,7 @@ const SORTERS={
   fecha:t=>t.created_at||0,
   ordenador:t=>String(YkMisiones.machineOf(t)||"").toLowerCase(),
   agente:t=>String(t.assignee||"").toLowerCase(),
-  estado:t=>({"Sin asignar":0,"Pendiente":1,"En curso":2,"Finalizada":3}[YkMisiones.estadoDe(t).l]??4)
+  estado:t=>({"Sin asignar":0,"Pendiente":1,"En curso":2,"No concluida":3,"Finalizada":4,"Eliminada":5}[YkMisiones.estadoDe(t).l]??6)
 };
 function headHtml(){
   const col=(k,l)=>'<div class="lh'+(SORT.k===k?" on":"")+'" data-k="'+k+'" title="ordenar por '+l.toLowerCase()+'">'+l+(SORT.k===k?(SORT.dir==="asc"?" ▲":" ▼"):"")+"</div>";
@@ -390,52 +380,15 @@ function refreshBulk(el){
   if(n>0){ bar.hidden=false; $("bulkN").textContent=n+" "+(n===1?"misión seleccionada":"misiones seleccionadas"); }
   else bar.hidden=true;
 }
-// Diálogo de confirmación PROPIO para eliminar (sustituye a confirm+prompt):
-// tarjeta cuadrática con el alcance y dos botones. Resuelve true solo con
-// «ELIMINAR DEFINITIVAMENTE»; Cancelar, clic fuera o Escape → false.
-function confirmaEliminar(n){
-  return new Promise(res=>{
-    const ov=document.createElement("div"); ov.className="delov";
-    ov.innerHTML='<div class="delcard">'+
-      '<div class="delhd">⚠️ Eliminar '+n+' '+(n===1?"misión":"misiones")+'</div>'+
-      '<p>Se '+(n===1?"borra definitivamente la misión, con sus eventos y sus tareas":"borran definitivamente las misiones, con sus eventos y sus tareas")+'.<br>No hay papelera.</p>'+
-      '<div class="delbtns"><button class="delno">CANCELAR</button>'+
-      '<button class="delsi">ELIMINAR DEFINITIVAMENTE</button></div></div>';
-    document.body.appendChild(ov);
-    const fin=v=>{ ov.remove(); document.removeEventListener("keydown",esc,true); res(v); };
-    const esc=e=>{ if(e.key==="Escape"){ e.stopPropagation(); fin(false); } };
-    document.addEventListener("keydown",esc,true);
-    ov.addEventListener("click",e=>{ if(e.target===ov) fin(false); });
-    ov.querySelector(".delno").onclick=()=>fin(false);
-    ov.querySelector(".delsi").onclick=()=>fin(true);
-    ov.querySelector(".delno").focus();
-  });
-}
 async function aplicarBloque(){
   const status=$("bulkEstado").value;
   if(!status){ alert("Elige un estado."); return; }
   const real=[...new Set([...SEL].flatMap(id=>REP_IDS[id]||[id]))];
   if(!real.length) return;
-  // ELIMINAR (Carlos, 2026-07-19): borrado definitivo con un diálogo de
-  // confirmación PROPIO (cuadrático, Cancelar/Eliminar) — sin popups nativos ni
-  // teclear nada (simplificado por Carlos el mismo día). Sin papelera: borra
-  // ticket, eventos y tareas (en flota marca done el encargo para que el sync
-  // no la reviva). El cinturón confirm:"ELIMINAR" del worker lo pone el código.
-  if(status==="delete"){
-    if(!(await confirmaEliminar(real.length))) return;
-    const btnD=$("bulkApply"), oldD=btnD.textContent; btnD.disabled=true; btnD.textContent="Eliminando…";
-    let okD=false, nD=0, errD="";
-    try{
-      const r=await fetch(WORKER+"/tickets/delete",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({ids:real,confirm:"ELIMINAR",author:"Misiones (bloque)"})});
-      const d=await r.json(); okD=!!(d&&d.ok); nD=d&&d.deleted||0; errD=d&&d.error||"";
-    }catch(e){}
-    btnD.disabled=false; btnD.textContent=oldD;
-    SEL.clear(); $("bulkEstado").value="";
-    await load();
-    alert(okD?("Eliminada(s) "+nD+" misión(es) definitivamente."):(errD||"No se pudo eliminar."));
-    return;
-  }
-  const lbl={in_progress:"En curso",resolved:"Finalizada",open:"Reabrir"}[status]||status;
+  // «Eliminada» es un estado recuperable: conserva misión, tareas, eventos y
+  // evidencias, sale de Activas y puede volver con «Reabrir». Telegram recibe
+  // cancelled para que el sincronizador no la reviva como pendiente.
+  const lbl={in_progress:"En curso",resolved:"Finalizada",open:"Reabrir",cancelled:"Eliminada"}[status]||status;
   if(!confirm("Cambiar "+real.length+" misión(es) a «"+lbl+"»?\n(se avisa UNA sola vez al grupo)")) return;
   const btn=$("bulkApply"), old=btn.textContent; btn.disabled=true; btn.textContent="Aplicando…";
   let ok=false, upd=0, err="";
@@ -475,9 +428,10 @@ function agrupaFlota(tks){
     const s=ms.slice().sort((a,b)=>num(a.id)-num(b.id));
     const rep=Object.assign({},s[0]);
     const agents=[...new Set(s.map(m=>m.assignee).filter(Boolean))];
-    const n=s.length, done=s.filter(m=>m.status==="resolved").length, prog=s.filter(m=>m.status==="in_progress").length;
+    const n=s.length, done=s.filter(m=>m.status==="resolved").length, prog=s.filter(m=>m.status==="in_progress").length,
+      cancelled=s.filter(m=>m.status==="cancelled").length;
     rep._agents=agents; rep._ids=s.map(m=>m.id); rep._n=n; rep._done=done;
-    rep.status = done===n ? "resolved" : prog>0 ? "in_progress" : "open";
+    rep.status = done===n ? "resolved" : cancelled===n ? "cancelled" : prog>0 ? "in_progress" : "open";
     rep.assignee = agents.length<=1 ? (agents[0]||rep.assignee||"") : (agents.length+" agentes ("+done+"/"+n+")");
     out.push(rep);
   });
@@ -542,7 +496,7 @@ async function load(){
       if(rb) rb.onclick=()=>{ el.innerHTML='<div class="empty">Cargando misiones…</div>'; load(); };
     }
     // Sin datos reales: los KPIs no deben mentir con un 0. Se marcan «—» (desconocido).
-    ["kSin","kAsig","kProg","kNoCon","kRes"].forEach(id=>{ const c=$(id); if(c) c.textContent="—"; });
+    ["kAsig","kProg","kNoCon","kRes","kDel"].forEach(id=>{ const c=$(id); if(c) c.textContent="—"; });
     return;
   }
   let tks=(SCOPE==="fleet") ? agrupaFlota(d.tickets||[]) : (d.tickets||[]); const st=d.stats||{};
@@ -567,14 +521,14 @@ async function load(){
     !!_ms30(t.created_at)&&(Date.now()-_ms30(t.created_at)>=30*60*1000); });
   // KPIs por ESTADO visible, calculados de las misiones vivas (no del stats crudo)
   const estL=t=>YkMisiones.estadoDe(t).l;
-  $("kSin").textContent=tks.filter(t=>estL(t)==="Sin asignar").length;
   $("kAsig").textContent=tks.filter(t=>estL(t)==="Pendiente").length;
   $("kProg").textContent=tks.filter(t=>estL(t)==="En curso").length;
   $("kNoCon").textContent=tks.filter(t=>estL(t)==="No concluida").length;
   $("kRes").textContent=tks.filter(t=>estL(t)==="Finalizada").length;
+  $("kDel").textContent=tks.filter(t=>estL(t)==="Eliminada").length;
   // CASCADA de preselección (Carlos, 21-jul-2026): en la PRIMERA carga, si el usuario
   // no ha elegido filtro, abrir en el primero con misiones en este orden EXACTO:
-  // Pendientes → En curso → No concluidas → Sin asignar → Finalizadas
+  // Pendientes → En curso → No concluidas → Finalizadas → Eliminadas
   // (el primero con contador > 0). Una retrasada sigue requiriendo atención.
   // Se aplica DESPUÉS de tener los contadores (nunca a ciegas) y SOLO una vez: los
   // refrescos (cada 12 s) y la vuelta atrás del usuario no le resetean su elección.
@@ -583,9 +537,9 @@ async function load(){
     const nAsig=tks.filter(t=>estL(t)==="Pendiente").length;
     const nProg=tks.filter(t=>estL(t)==="En curso").length;
     const nNoCon=tks.filter(t=>estL(t)==="No concluida").length;
-    const nSin=tks.filter(t=>estL(t)==="Sin asignar").length;
     const nRes=tks.filter(t=>estL(t)==="Finalizada").length;
-    const pick = nAsig>0?"asignadas" : nProg>0?"in_progress" : nNoCon>0?"unconcluded" : nSin>0?"sin" : nRes>0?"resolved" : null;
+    const nDel=tks.filter(t=>estL(t)==="Eliminada").length;
+    const pick = nAsig>0?"asignadas" : nProg>0?"in_progress" : nNoCon>0?"unconcluded" : nRes>0?"resolved" : nDel>0?"cancelled" : null;
     if(pick && pick!==FILTER){ aplicaFiltro(pick); return; }
   }
   let base=tks;

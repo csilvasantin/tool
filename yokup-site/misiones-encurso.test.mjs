@@ -95,7 +95,8 @@ test('_prog con cero hechas (plan definido pero nada tocado) ⇒ «Pendiente»',
 test('status explícito manda: resolved/in_progress/cancelled no los pisa el rastro', () => {
   assert.equal(estL({status: 'resolved', assignee: 'Neo', _tasks: [{status: 'pending'}]}), 'Finalizada');
   assert.equal(estL({status: 'in_progress', assignee: 'Neo'}), 'En curso');
-  assert.equal(estL({status: 'cancelled', assignee: 'Neo', _tasks: [{status: 'done'}]}), 'Cancelada');
+  assert.equal(estL({status: 'cancelled', assignee: 'Neo', _tasks: [{status: 'done'}]}), 'Eliminada');
+  assert.equal(Yk.coincideEstado({status: 'cancelled', assignee: 'Neo'}, 'cancelled'), true);
 });
 
 test('filtros y etiquetas comparten el mismo estado visible a los 30 minutos', () => {

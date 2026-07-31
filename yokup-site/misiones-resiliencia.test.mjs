@@ -227,7 +227,7 @@ test('tablero · AMBOS hosts caídos: aviso honesto + KPIs «—», nunca «Sin 
   assert.match(html, /No se pudo cargar el tablero/, 'muestra el aviso honesto');
   assert.match(html, /id="tkRetry"/, 'ofrece botón de reintento');
   assert.doesNotMatch(html, /Sin misiones/, 'NO se disfraza de tablero vacío');
-  for (const k of ['kSin', 'kAsig', 'kProg', 'kRes']) {
+  for (const k of ['kAsig', 'kProg', 'kNoCon', 'kRes', 'kDel']) {
     assert.equal(getById(k).textContent, '—', `el KPI ${k} no miente con un 0`);
   }
 });

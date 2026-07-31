@@ -434,7 +434,7 @@
     return false;
   }
   function estadoDe(t) {
-    if (t.status === "cancelled") return { c: "b-cancel", l: "Cancelada" };
+    if (t.status === "cancelled") return { c: "b-cancel", l: "Eliminada" };
     if (t.status === "resolved") return { c: "b-res", l: "Finalizada" };
     if (t._unconcluded) return { c: "b-cancel", l: "No concluida" };
     if (t.status === "in_progress") return { c: "b-prog", l: "En curso" };
@@ -451,7 +451,7 @@
     if (filtro === "in_progress") return label === "En curso";
     if (filtro === "unconcluded") return label === "No concluida";
     if (filtro === "resolved") return label === "Finalizada";
-    if (filtro === "cancelled") return label === "Cancelada";
+    if (filtro === "cancelled") return label === "Eliminada";
     return true;
   }
   function visibleId(t) {

@@ -19,8 +19,8 @@
        onDay:    ymd => {...},      // selector de día cambiado
        onCreated: () => {...}       // tras crear una misión de flota
      });
-     cab.setCounts({sin,asig,prog,res});   // pinta los contadores
-     cab.setActiveFilter("sin"|null);       // resalta un KPI desde fuera
+     cab.setCounts({asig,prog,noCon,res,del}); // pinta los contadores
+     cab.setActiveFilter("cancelled"|null); // resalta un KPI desde fuera
      cab.getDay(); cab.setDay(ymd);         // día del tablero
      cab.getSearch();
 
@@ -48,11 +48,11 @@
     container.innerHTML =
       // DATOS GENERALES arriba del todo: estados canónicos + día del tablero.
       '<div class="kpis">' +
-        '<button data-f="sin" class="kpi v"><b id="kSin">—</b> sin asignar</button>' +
         '<button data-f="asignadas" class="kpi a"><b id="kAsig">—</b> pendientes</button>' +
         '<button data-f="in_progress" class="kpi b"><b id="kProg">—</b> en curso</button>' +
         '<button data-f="unconcluded" class="kpi a"><b id="kNoCon">—</b> no concluidas</button>' +
         '<button data-f="resolved" class="kpi c"><b id="kRes">—</b> finalizadas</button>' +
+        '<button data-f="cancelled" class="kpi d"><b id="kDel">—</b> eliminadas</button>' +
         '<input type="date" id="selDia" class="kpi kdate" title="Día del tablero — por defecto hoy">' +
         // Conmutador de VISTA (fichas / lista), recuerda la elección por página. (962)
         '<button id="viewTgl" class="kpi kview" title="Cambiar vista: fichas o lista">🗂</button>' +
@@ -495,10 +495,11 @@
     return {
       setCounts(c) {
         c = c || {};
-        if ($("kSin")) $("kSin").textContent = c.sin != null ? c.sin : "—";
         if ($("kAsig")) $("kAsig").textContent = c.asig != null ? c.asig : "—";
         if ($("kProg")) $("kProg").textContent = c.prog != null ? c.prog : "—";
+        if ($("kNoCon")) $("kNoCon").textContent = c.noCon != null ? c.noCon : "—";
         if ($("kRes")) $("kRes").textContent = c.res != null ? c.res : "—";
+        if ($("kDel")) $("kDel").textContent = c.del != null ? c.del : "—";
       },
       setActiveFilter(f) { STATE = f || null; paintKpi(); },
       getState() { return STATE; },

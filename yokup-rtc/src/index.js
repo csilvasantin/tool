@@ -2957,7 +2957,7 @@ var index_default = {
       if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
       const now = Date.now();
       await env.DB.prepare("UPDATE tickets SET status='cancelled', note=?, updated_at=?, resolved_at=NULL WHERE id=?").bind(note || null, now, mid).run();
-      await addEvent(env, mid, "log", by, "🚫 Cancelada" + (note ? ": " + note : "") + ".");
+      await addEvent(env, mid, "log", by, "🗑 Eliminada" + (note ? ": " + note : "") + ".");
       // Nº de encargo REAL (fleet_ids → screen → FLT): sin esto una cancelación cancelaba
       // el encargo equivocado tras el reparto anticolisión y la misión resucitaba. (FLT-990 c)
       const numId = await fleetEncargoId(env, mid, t.screen);
@@ -3321,8 +3321,8 @@ var index_default = {
         await ensureSchema(env);
         const ids = Array.isArray(b.ids) ? [...new Set(b.ids.map((x) => String(x)).filter(Boolean))] : [];
         const status = b.status;
-        if (!ids.length || !["open", "in_progress", "resolved"].includes(status)) {
-          return json({ ok: false, error: "ids (array) y status (open|in_progress|resolved) requeridos" }, 400);
+        if (!ids.length || !["open", "in_progress", "resolved", "cancelled"].includes(status)) {
+          return json({ ok: false, error: "ids (array) y status (open|in_progress|resolved|cancelled) requeridos" }, 400);
         }
         if (status === "resolved") {
           const missing = [];
@@ -3363,7 +3363,7 @@ var index_default = {
         }
         // UNA sola notificación al grupo + estados de encargo actualizados en bloque.
         if (fleetInboxIds.length && env.TELEGRAM) {
-          const inboxStatus = status === "resolved" ? "done" : status === "in_progress" ? "in_progress" : "pending";
+          const inboxStatus = status === "resolved" ? "done" : status === "in_progress" ? "in_progress" : status === "cancelled" ? "cancelled" : "pending";
           try {
             await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
               method: "POST", headers: { "content-type": "application/json" },
@@ -4072,7 +4072,7 @@ var index_default = {
             // Vía WEB, mismo criterio que la de agente (FLT-989 b2): al finalizar una
             // misión de flota, la prueba de respaldo asciende por el punto único.
             if (b.status === "resolved") await ascendMissionProof(env, b.id);
-            const inboxStatus = b.status === "resolved" ? "done" : b.status === "in_progress" ? "in_progress" : "pending";
+            const inboxStatus = b.status === "resolved" ? "done" : b.status === "in_progress" ? "in_progress" : b.status === "cancelled" ? "cancelled" : "pending";
             await fleetPushStatus(env, t, inboxStatus);
           }
         }
