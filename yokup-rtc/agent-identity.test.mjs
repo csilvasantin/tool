@@ -12,7 +12,17 @@ test("aplica el apellido físico a principal, subagente e infraagente", () => {
   assert.equal(scopedAgentIdentity("Oraculo", "Mac Mini", "infra"), "InfraOraculoMini");
   assert.equal(scopedAgentIdentity("Neo", "Mac Mini"), "NeoMini");
   assert.equal(scopedAgentIdentity("Morfeo", "MacBook Pro 14"), "Morfeo14");
-  assert.equal(scopedAgentIdentity("Oraculo", "MacBook Pro 16"), "Oraculo16");
+  assert.equal(scopedAgentIdentity("Oraculo", "MacBook Pro 16"), "OraculoMBP16");
+  assert.equal(scopedAgentIdentity("Neo", "admira-macbookpro16"), "NeoMBP16");
+  assert.equal(scopedAgentIdentity("Trinity", "MacBook Pro 16"), "TrinityMBP16");
+});
+
+test("el apellido viejo del Pro 16 se sigue leyendo, pero se reescribe a MBP16", () => {
+  assert.equal(baseAgentIdentity("Neo16"), "Neo");
+  assert.equal(sameAgentFamily("Neo16", "NeoMBP16"), true);
+  // Un registro guardado como Neo16 vuelve a salir con el apellido actual.
+  assert.equal(scopedAgentIdentity("Neo16", ""), "NeoMBP16");
+  assert.equal(scopedAgentIdentity("SubMorfeo16", ""), "SubMorfeoMBP16");
 });
 
 test("conserva la forma especial de Agente Smith en los MBA de color", () => {

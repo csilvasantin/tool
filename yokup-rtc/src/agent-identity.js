@@ -1,7 +1,11 @@
 const MACHINES = [
   ["Mini", ["macmini", "mac mini", "mac mini carlos", "admira-macmini", "macmini.local"]],
   ["14", ["macbookpro14", "macbook pro 14", "macbookpronegro14", "macbook pro negro 14", "admira-macbookpronegro14"]],
-  ["16", ["macbookpro16", "macbook pro 16", "admira-macbookpro16", "macbook-pro-16"]],
+  // El apellido del Pro 16 es MBP16, no "16" a secas (Carlos, 2026-08-02). Los
+  // "Neo16"/"Morfeo16" ya guardados siguen resolviendo a su persona por
+  // parseAgentIdentity, así que no se pierde la familia; sólo dejan de llevar
+  // apellido reconocido y quedan marcados como legacy.
+  ["MBP16", ["macbookpro16", "macbook pro 16", "admira-macbookpro16", "macbook-pro-16"]],
   ["Azul", ["macbookairazul", "macbook air azul", "mba azul", "admira-macbookairazul"]],
   ["Rosa", ["macbookairrosa", "macbook air rosa", "mba rosa", "admira-macbookairrosa"]],
   ["Crema", ["macbookaircrema", "macbook air crema", "mba crema", "admira-macbookaircrema"]],
@@ -20,6 +24,9 @@ const PERSONAS = [
   ["WhiteRabbit", ["whiterabbit", "white rabbit"]],
 ];
 const AIR_SUFFIXES = new Set(["Azul", "Rosa", "Crema", "Plata", "Plata16"]);
+// Apellidos que se usaron antes y siguen vivos en datos ya guardados. Se leen,
+// pero al volver a escribir salen con el apellido actual.
+const LEGACY_SUFFIXES = new Map([["16", "MBP16"]]);
 
 export function identityKey(value) {
   return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -49,7 +56,8 @@ export function parseAgentIdentity(value) {
     for (const alias of candidates) {
       if (!key.startsWith(alias)) continue;
       const tail = key.slice(alias.length);
-      const suffix = MACHINES.map(([s]) => s).find((s) => identityKey(s) === tail) || "";
+      const suffix = MACHINES.map(([s]) => s).find((s) => identityKey(s) === tail) ||
+        LEGACY_SUFFIXES.get(tail) || "";
       return { role, persona: name, suffix, legacy: !suffix };
     }
   }
