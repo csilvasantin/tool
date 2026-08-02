@@ -1924,6 +1924,10 @@ __name(listTickets, "listTickets");
 // workers.dev) y devuelve su 404. El host se conserva porque admira-telegram
 // enruta por hostname: con "https://admira-telegram/" a secas también da 404.
 var FLEET_API = "https://admira-fleet.csilvasantin.workers.dev";
+// Contrato público operativo: elimina chat/message/note. Durante el despliegue
+// gradual puede omitir target_machine (caso real #1112); resolveFleetAssignment
+// lo reconstruye sólo si el censo proyecto+agente+máquina da una pareja única.
+// El endpoint privado exige Authorization y no se usa desde este binding.
 var FLEET_INBOX = "https://admira-telegram.csilvasantin.workers.dev/api/public/inbox?limit=200";
 // Estado del encargo → estado de la misión. 'ack' es acuse de recibo, no avance.
 var FLEET_ST = { pending: "open", ack: "open", in_progress: "in_progress", done: "resolved", cancelled: "cancelled" };
@@ -1952,8 +1956,36 @@ __name(fleetPriority, "fleetPriority");
 // así que NO puede ser la máquina a secas — dos encargos abiertos del mismo
 // ordenador chocarían al insertar. Se firma con el id del encargo: único y
 // legible en la bandeja. La máquina va en `loc` y la persona en `assignee`.
-function fleetScreen(it) {
-  return `${it.target_persona || "?"}\xB7${it.target_machine || "?"} #${it.id}`;
+function fleetAssignment(it) {
+  const machine = String(it && it.target_machine || "").trim();
+  const raw = String(it && it.target_persona || "").trim();
+  return { assignee: raw ? scopedAgentIdentity(raw, machine) : "", loc: machine, complete: !!(raw && machine) };
+}
+__name(fleetAssignment, "fleetAssignment");
+function fleetProjectHint(text) {
+  return /^\s*(?:\[[^\]]+\]\s*)?yokup(?:\.com)?\s*:/i.test(String(text || "")) ? "yokup" : "";
+}
+__name(fleetProjectHint, "fleetProjectHint");
+async function resolveFleetAssignment(env, it) {
+  const direct = fleetAssignment(it);
+  if (direct.complete) return direct;
+  const project = fleetProjectHint(it && it.text), raw = String(it && it.target_persona || "").trim();
+  if (!project || !raw) return direct;
+  const { results } = await env.DB.prepare("SELECT kind,ref FROM project_members WHERE project_id=? AND kind IN ('agent','machine')")
+    .bind(project).all();
+  const rows = results || [], agents = rows.filter((r) => r.kind === "agent").map((r) => String(r.ref || ""));
+  const machines = rows.filter((r) => r.kind === "machine").map((r) => String(r.ref || ""));
+  const key = (v) => String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const matches = machines.filter((machine) => {
+    const scoped = scopedAgentIdentity(raw, machine), report = reportAgentIdentity(raw, machine);
+    return agents.some((agent) => sameAgentFamily(agent, raw) && (key(agent) === key(scoped) || key(agent) === key(report)));
+  });
+  return matches.length === 1 ? fleetAssignment({ ...it, target_machine: matches[0] }) : direct;
+}
+__name(resolveFleetAssignment, "resolveFleetAssignment");
+function fleetScreen(it, assignment) {
+  const a = assignment || fleetAssignment(it);
+  return `${a.assignee || "?"}\xB7${a.loc || "?"} #${it.id}`;
 }
 __name(fleetScreen, "fleetScreen");
 
@@ -2038,20 +2070,34 @@ async function fleetMissionId(env, it) {
   const rowid = Number(it.id);
   if (!Number.isFinite(rowid)) return "FLT-" + it.id;
   const mapped = await env.DB.prepare("SELECT mission_id FROM fleet_ids WHERE inbox_id=?").bind(rowid).first();
-  if (mapped && mapped.mission_id) return mapped.mission_id;
+  if (mapped && mapped.mission_id) {
+    const mappedTicket = await env.DB.prepare("SELECT subject,screen,source FROM tickets WHERE id=?").bind(mapped.mission_id).first();
+    // El mapa también puede ser histórico/corrupto. Sólo autoriza una escritura
+    // sobre un ticket existente si el asunto o la referencia #inbox prueban que
+    // es el mismo encargo; una mera coincidencia numérica nunca basta.
+    if (!mappedTicket || mappedTicket.source === "fleet" &&
+        (fleetSameEncargo(mappedTicket.subject, it.text) || inboxIdFromScreen(mappedTicket.screen) === String(rowid))) {
+      return mapped.mission_id;
+    }
+  }
   const candidate = "FLT-" + rowid;
-  const prev = await env.DB.prepare("SELECT subject FROM tickets WHERE id=?").bind(candidate).first();
+  const prev = await env.DB.prepare("SELECT subject,screen,source FROM tickets WHERE id=?").bind(candidate).first();
   let missionId, collided = false;
   if (!prev) {
     missionId = candidate;                              // libre → id natural = rowid
-  } else if (fleetSameEncargo(prev.subject, it.text)) {
+  } else if (prev.source === "fleet" && (fleetSameEncargo(prev.subject, it.text) || inboxIdFromScreen(prev.screen) === String(rowid))) {
     missionId = candidate;                              // el MISMO encargo ya sincronizado → adoptar (no duplica)
   } else {
     missionId = await nextFreeFleetId(env, rowid);      // COLISIÓN con misión ajena → no pisar, siguiente libre
     collided = true;
   }
-  await env.DB.prepare("INSERT OR IGNORE INTO fleet_ids(inbox_id,mission_id,created_at) VALUES(?,?,?)")
-    .bind(rowid, missionId, Date.now()).run();
+  if (mapped && mapped.mission_id) {
+    await env.DB.prepare("UPDATE fleet_ids SET mission_id=?,created_at=? WHERE inbox_id=?")
+      .bind(missionId, Date.now(), rowid).run();
+  } else {
+    await env.DB.prepare("INSERT OR IGNORE INTO fleet_ids(inbox_id,mission_id,created_at) VALUES(?,?,?)")
+      .bind(rowid, missionId, Date.now()).run();
+  }
   const confirmed = await env.DB.prepare("SELECT mission_id FROM fleet_ids WHERE inbox_id=?").bind(rowid).first();
   const finalId = confirmed && confirmed.mission_id ? confirmed.mission_id : missionId;
   if (collided && finalId !== candidate) {
@@ -2060,6 +2106,71 @@ async function fleetMissionId(env, it) {
   return finalId;
 }
 __name(fleetMissionId, "fleetMissionId");
+
+function fleetMainTasks(subject, assignment) {
+  const short = String(subject || "Encargo de la flota").slice(0, 70);
+  const base = baseAgentIdentity(assignment.assignee) || assignment.assignee || "Agente";
+  return [
+    { code: "a", title: "Implementar: " + short, owner: scopedAgentIdentity(base, assignment.loc, "sub") },
+    { code: "b", title: "Probar y aportar evidencia: " + short, owner: scopedAgentIdentity(base, assignment.loc, "sub") },
+    { code: "c", title: "Documentar y reportar el resultado", owner: scopedAgentIdentity(base, assignment.loc, "infra") }
+  ];
+}
+__name(fleetMainTasks, "fleetMainTasks");
+async function ensureFleetMainTasks(env, missionId, subject, assignment, reassignPending) {
+  const current = await listMissionTasks(env, missionId);
+  const main = fleetMainTasks(subject, assignment), byCode = new Map(current.map((t) => [t.code, t]));
+  const now = Date.now();
+  for (const task of main) {
+    if (!byCode.has(task.code)) {
+      await env.DB.prepare("INSERT OR IGNORE INTO mission_tasks(mission_id,code,title,status,owner,report,updated_at) VALUES(?,?,?,?,?,?,?)")
+        .bind(missionId, task.code, task.title, "pending", task.owner, null, now).run();
+    }
+  }
+  if (!reassignPending) return;
+  const targetBase = String(baseAgentIdentity(assignment.assignee) || "").toLowerCase();
+  for (const task of current) {
+    const raw = String(task.owner || "");
+    if (raw && !/^(?:sub|infra)?(?:agente\s+)?(?:oraculo|oráculo|neo|morfeo|trinity|smith|cypher)/i.test(raw) && !/^(?:sub|infra)(?:agente)?$/i.test(raw)) continue;
+    // Extras vacíos de otra familia son el plan corrupto de la asignación
+    // anterior (caso Trinity en FLT-1140). Se eliminan sólo de ESTA misión;
+    // una fila iniciada, informada o de la familia correcta se preserva.
+    const ownerBase = String(baseAgentIdentity(raw) || "").toLowerCase();
+    if (!/^[abc]$/.test(task.code) && task.status === "pending" && ownerBase && ownerBase !== targetBase && !String(task.report || "").trim() && !task.image) {
+      await env.DB.prepare("DELETE FROM mission_tasks WHERE mission_id=? AND code=? AND status='pending' AND COALESCE(TRIM(report),'')='' AND COALESCE(TRIM(image),'')='' ")
+        .bind(missionId, task.code).run();
+      continue;
+    }
+    // Las tres principales tienen reparto canónico fijo; al reparar se conserva
+    // status/report/image y se corrige únicamente la identidad visible.
+    if (/^[abc]$/.test(task.code)) {
+      const owner = scopedAgentIdentity(baseAgentIdentity(assignment.assignee), assignment.loc, task.code === "c" ? "infra" : "sub");
+      if (owner && owner !== raw) await env.DB.prepare("UPDATE mission_tasks SET owner=?,updated_at=? WHERE mission_id=? AND code=?")
+        .bind(owner, now, missionId, task.code).run();
+    }
+  }
+}
+__name(ensureFleetMainTasks, "ensureFleetMainTasks");
+
+async function reconcileFleetTicket(env, id, prev, it, assignment, status, now) {
+  const asig = assignment.complete ? assignment.assignee : prev.assignee;
+  const loc = assignment.complete ? assignment.loc : (prev.loc || "");
+  const subject = fleetSubject(it.text);
+  const inferredProject = fleetProjectHint(it.text);
+  // Una señal explícita `Yokup:` corrige incluso un proyecto previo equivocado;
+  // sin señal, el sync conserva el proyecto censado y no inventa uno.
+  const project = assignment.complete ? (inferredProject || prev.project || "") : (prev.project || "");
+  const role = String(it.from_name || prev.role || "").slice(0, 80);
+  const assignmentChanged = assignment.complete && (prev.assignee !== asig || (prev.loc || "") !== loc);
+  const changed = prev.status !== status || prev.assignee !== asig || (prev.loc || "") !== loc ||
+    prev.subject !== subject || prev.source !== "fleet" || (prev.project || "") !== project || (prev.role || "") !== role;
+  if (!changed) return { changed: false, assignmentChanged: false, assignee: asig, loc, project, role, subject };
+  await env.DB.prepare("UPDATE tickets SET status=?,assignee=?,loc=?,screen=?,subject=?,source='fleet',project=?,role=?,updated_at=?,resolved_at=? WHERE id=?")
+    .bind(status, asig, loc, fleetScreen(it, { assignee: asig, loc }), subject, project, role, now, status === "resolved" ? (prev.resolved_at || now) : null, id).run();
+  if (assignmentChanged) await ensureFleetMainTasks(env, id, subject, assignment, true);
+  return { changed: true, assignmentChanged, assignee: asig, loc, project, role, subject };
+}
+__name(reconcileFleetTicket, "reconcileFleetTicket");
 
 async function fleetSync(env) {
   let items = [];
@@ -2077,10 +2188,11 @@ async function fleetSync(env) {
   for (const it of items) {
     if (!it || !it.id) continue;
     if (!fleetEsMision(it)) continue;   // charla de Telegram: ni misión ni tarea
+    const assignment = await resolveFleetAssignment(env, it);
     const id = await fleetMissionId(env, it);   // id estable y a prueba de colisiones (FLT-990 a2)
     let st = FLEET_ST[it.status] || "open";
     const ts = epochMs(it.ts, now);
-    const prev = await env.DB.prepare("SELECT id,status,assignee,loc,proof_image,resolved_at FROM tickets WHERE id=?").bind(id).first();
+    const prev = await env.DB.prepare("SELECT id,subject,project,source,role,status,assignee,loc,proof_image,resolved_at FROM tickets WHERE id=?").bind(id).first();
     // Un DONE del agente no basta: Yokup sólo finaliza cuando el cierre incluye
     // un pantallazo real del trabajo. El bot puede haber terminado, pero la misión
     // permanece EN CURSO hasta que /fleet/informe registre proof_image.
@@ -2101,14 +2213,15 @@ async function fleetSync(env) {
       // Umbral: solo saltamos las cerradas hace más de 6 h.
       if (st === "resolved" && (now - epochMs(it.done_at, ts)) > 6 * 3600 * 1e3) continue;
       await env.DB.prepare(
-        "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at,resolved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,project,role,status,priority,assignee,source,ai_triage,created_at,updated_at,resolved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(
-        id, fleetScreen(it), fleetSubject(it.text), it.target_machine || "", it.from_name || "",
-        st, fleetPriority(it.text), it.target_persona || "", "fleet", "", ts, now,
+        id, fleetScreen(it, assignment), fleetSubject(it.text), assignment.loc, fleetProjectHint(it.text), it.from_name || "",
+        st, fleetPriority(it.text), assignment.assignee, "fleet", "", ts, now,
         st === "resolved" ? epochMs(it.done_at, now) : null
       ).run();
       // El texto íntegro del encargo queda como primer evento de la misión.
       await addEvent(env, id, "log", it.from_name || "Carlos", String(it.text || ""));
+      await ensureFleetMainTasks(env, id, fleetSubject(it.text), assignment, false);
       created++;
     } else {
       // ANTI-RESURRECCIÓN de CANCELADAS: si la misión ya está cancelada en yokup, el
@@ -2123,12 +2236,10 @@ async function fleetSync(env) {
       // Telegram puede conservar unos segundos el PENDING anterior a una captura.
       // Ese eco retrasado no invalida progreso ya confirmado por YOKUP.
       if (prev.status === "in_progress" && st === "open") st = "in_progress";
-      // Propaga también los cambios de ASIGNACIÓN (reasignar agente/máquina desde
-      // la vista detalle actualiza el encargo; el ticket debe reflejarlo).
-      const asig = it.target_persona || "", loc = it.target_machine || "";
-      if (prev.status !== st || prev.assignee !== asig || (prev.loc || "") !== loc) {
-        await env.DB.prepare("UPDATE tickets SET status=?, assignee=?, loc=?, screen=?, updated_at=?, resolved_at=? WHERE id=?")
-          .bind(st, asig, loc, fleetScreen(it), now, st === "resolved" ? (prev.resolved_at || now) : null, id).run();
+      // Propaga identidad/proyecto sólo tras validar la procedencia en
+      // fleetMissionId. El helper es el mismo que cubre la regresión #1112.
+      const reconciled = await reconcileFleetTicket(env, id, prev, it, assignment, st, now);
+      if (reconciled.changed) {
         // Al FINALIZAR una misión, su árbol a/b/c no puede quedarse en «pending»
         // para siempre (pasó con FLT-804: misión resuelta con informe y proof, y
         // las 9 subtareas colgadas como pendientes). El cierre con informe ES la
