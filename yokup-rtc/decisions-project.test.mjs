@@ -111,3 +111,33 @@ test('una continuación conserva raíz y asignación exactas', () => {
   assert.equal(resolveDecisionProject({...exact,agent:'Oraculo16'}, canonical, inherited).ok, false);
   assert.equal(resolveDecisionProject({...exact,agent:'SubOraculo'}, canonical, inherited).ok, false);
 });
+
+test('un agente del Mini no cuenta como asignación del MacBook Pro 16', () => {
+  // NeoMini y NeoMBP16 comparten persona pero NO son el mismo agente. Antes se
+  // comparaba sólo por persona, así que cualquier proyecto del Mini que listara
+  // además el 16 se contaba como candidato y la asignación nunca era única.
+  assert.equal(memberRefMatches('agent', 'NeoMini', 'NeoMBP16'), false);
+  assert.equal(memberRefMatches('agent', 'NeoMBP16', 'NeoMBP16'), true);
+  // Los alias históricos sin apellido siguen casando por persona.
+  assert.equal(memberRefMatches('agent', 'Neo', 'NeoMBP16'), true);
+  assert.equal(memberRefMatches('agent', 'Neo16', 'NeoMBP16'), true);
+  assert.equal(memberRefMatches('agent', 'Morfeo16', 'NeoMBP16'), false);
+
+  // Y el caso real: con tres proyectos del Mini que listan también el 16, la
+  // asignación del 16 debe seguir siendo una sola.
+  const proyectos = [
+    { id: 'ainimation-studio', status: 'activo' },
+    { id: 'neo-metahuman', status: 'activo' },
+    { id: 'digitalavatar', status: 'activo' },
+  ];
+  const miembros = [
+    { project_id: 'ainimation-studio', kind: 'agent', ref: 'NeoMBP16' },
+    { project_id: 'ainimation-studio', kind: 'machine', ref: 'admira-macbookpro16' },
+    { project_id: 'neo-metahuman', kind: 'agent', ref: 'NeoMini' },
+    { project_id: 'neo-metahuman', kind: 'machine', ref: 'admira-macbookpro16' },
+    { project_id: 'digitalavatar', kind: 'agent', ref: 'NeoMini' },
+    { project_id: 'digitalavatar', kind: 'machine', ref: 'admira-macbookpro16' },
+  ];
+  const elegido = selectDecisionProjectAssignment(proyectos, miembros, 'NeoMBP16', 'admira-macbookpro16');
+  assert.equal(elegido?.id, 'ainimation-studio');
+});

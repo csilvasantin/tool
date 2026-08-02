@@ -26,6 +26,17 @@ export function identityKey(value, kind = "") {
 }
 
 export function memberRefMatches(kind, ref, requested) {
+  // Los agentes se comparaban sólo por PERSONA, sin apellido, así que `NeoMini`
+  // contaba como `NeoMBP16`: cualquier proyecto del Mini que listara además el
+  // MacBook Pro 16 se colaba como asignación del 16 y el sistema veía cinco
+  // candidatos donde hay uno. Cuando ambas identidades llevan apellido tienen
+  // que ser el MISMO; si la referencia va sin apellido (los alias históricos,
+  // «Neo» a secas) se sigue aceptando por persona para no romperlos.
+  if (kind === "agent") {
+    const refId = parseAgentIdentity(ref);
+    const wantId = parseAgentIdentity(requested);
+    if (refId.suffix && wantId.suffix && refId.suffix !== wantId.suffix) return false;
+  }
   return identityKey(ref, kind) === identityKey(requested, kind);
 }
 
