@@ -39,6 +39,12 @@
     DGX:"DGX Spark", PGX:"ThinkStation PGX"
   };
   var SMITH_AIR_NAMES = {MBA16:"16",MBAAzul:"Azul",MBARosa:"Rosa",MBACrema:"Crema",MBAPlata:"Plata"};
+  /* Apellido visible completo: Mini → MacMini (SmithMacMini, NeoMacMini…). */
+  var DISPLAY_SUFFIX = {
+    Mini:"MacMini", MBP14:"MBP14", MBP16:"MBP16",
+    MBA16:"MBA16", MBAAzul:"Azul", MBARosa:"Rosa", MBACrema:"Crema", MBAPlata:"Plata",
+    Zenbook:"Zenbook", DGX:"DGX", PGX:"PGX"
+  };
   function key(v) {
     return String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
       .toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -46,6 +52,8 @@
   function suffix(machine) {
     var k = key(machine);
     if(!k) return "";
+    // macmini / MacMini explícito antes de coincidencias cortas
+    if(k==="macmini" || k==="mini" || k.indexOf("macmini")===0) return "Mini";
     for (var i=0;i<MACHINES.length;i++) {
       for (var j=0;j<MACHINES[i][1].length;j++) {
         var a=key(MACHINES[i][1][j]);
@@ -59,11 +67,21 @@
     if(k.indexOf("infra")===0){role="infra";k=k.slice(5);}
     else if(k.indexOf("sub")===0){role="sub";k=k.slice(3);}
     k=k.replace(/^agente/,"");
+    // SmithMacMini / NeoMacMini / OraculoMacMini (apellido completo)
+    if(/macmini$/.test(k)){
+      var baseMac=k.slice(0,-7);
+      for(var pi=0;pi<PERSONAS.length;pi++){
+        var pn=PERSONAS[pi][1].map(function(x){return key(x).replace(/^agente/,"");});
+        if(pn.indexOf(baseMac)>=0 || key(PERSONAS[pi][0])===baseMac)
+          return {role:role,persona:PERSONAS[pi][0],suffix:"Mini",legacy:false};
+      }
+    }
     for(var i=0;i<PERSONAS.length;i++){
       var names=PERSONAS[i][1].map(function(x){return key(x).replace(/^agente/,"");})
         .sort(function(a,b){return b.length-a.length;});
       for(var j=0;j<names.length;j++) if(k.indexOf(names[j])===0){
         var tail=k.slice(names[j].length), sf=LEGACY_SUFFIXES[tail]||"";
+        if(tail==="macmini"||tail==="mini") sf="Mini";
         for(var m=0;m<MACHINES.length;m++) if(key(MACHINES[m][0])===tail){sf=MACHINES[m][0];break;}
         return {role:role,persona:PERSONAS[i][0],suffix:sf,legacy:!sf};
       }
@@ -81,25 +99,29 @@
     }
     return {role:role,persona:original,suffix:"",legacy:true};
   }
+  function nameWithSuffix(persona, sf){
+    if(!sf || sf==="SINMAQ") return persona+(sf||"");
+    if(persona==="Smith"&&SMITH_AIR_NAMES[sf]) return "Agente Smith "+SMITH_AIR_NAMES[sf];
+    var full=DISPLAY_SUFFIX[sf]||sf;
+    return persona+full;
+  }
   function scoped(persona,machine,role){
     var p=parse(persona), r=role||p.role||"main", sf=suffix(machine)||p.suffix;
-    var main=p.persona==="Smith"&&SMITH_AIR_NAMES[sf]?"Agente Smith "+SMITH_AIR_NAMES[sf]:p.persona+sf;
+    var main=nameWithSuffix(p.persona, sf);
     return (r==="sub"?"Sub":r==="infra"?"Infra":"")+main;
   }
   function display(persona,machine,role){
     var p=parse(persona), r=role||p.role||"main", sf=suffix(machine)||p.suffix||"SINMAQ";
-    var main=p.persona==="Smith"&&SMITH_AIR_NAMES[sf]?"Agente Smith "+SMITH_AIR_NAMES[sf]:p.persona+sf;
+    var main=nameWithSuffix(p.persona, sf);
     return (r==="sub"?"Sub":r==="infra"?"Infra":"")+main;
   }
   function reportDisplay(owner,machine){
-    var original=String(owner||"").trim(), p=parse(original), sf=suffix(machine);
-    if(!original||!sf)return original;
+    var original=String(owner||"").trim(), p=parse(original), sf=suffix(machine)||p.suffix;
+    if(!original)return original;
+    if(!sf)return display(p.persona, machine||"", p.role);
     var known=PERSONAS.some(function(row){return row[0]===p.persona;});
     if(!known)return original;
-    var reportSuffix={Mini:"MacMini",MBP14:"14",MBP16:"MBP16",MBA16:"Plata16",MBAAzul:"Azul",MBARosa:"Rosa",MBACrema:"Crema",MBAPlata:"Plata"}[sf];
-    if(!reportSuffix)return original;
-    var main=p.persona==="Smith"&&/^MBA/.test(sf)?"Agente Smith "+reportSuffix:p.persona+reportSuffix;
-    return (p.role==="sub"?"Sub":p.role==="infra"?"Infra":"")+main;
+    return display(p.persona, CANONICAL_MACHINES[sf]||machine, p.role);
   }
   function base(value){return parse(value).persona;}
   function canonicalMachine(value){return CANONICAL_MACHINES[parse(value).suffix]||"";}
