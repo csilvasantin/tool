@@ -5,24 +5,27 @@ import { tmpdir } from "node:os";
 import { basename, join, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { nextDeployVersion, versionFromPayload } from "./deploy-version.js";
+import { validateDeployIdentity, wranglerCommitArgs } from "./deploy-signature.mjs";
 
 // Lock estable por proyecto, fuera del directorio publicado. Un lock dentro de
 // yokup-site entra en el manifest de Pages y expone metadatos de coordinación.
 const lockPath = join(tmpdir(), "yokup-pages-deploy.lock");
 const versionPath = new URL("./version.json", import.meta.url);
 const sourceRoot = fileURLToPath(new URL("./", import.meta.url));
-const deployer = String(process.env.YOKUP_DEPLOY_AGENT || "").trim();
-
-if (!deployer) {
-  console.error("Falta YOKUP_DEPLOY_AGENT. Ejemplo: YOKUP_DEPLOY_AGENT=Oraculo node deploy.mjs");
+let deployIdentity;
+try {
+  deployIdentity = validateDeployIdentity(process.env.YOKUP_DEPLOY_AGENT, process.env.YOKUP_DEPLOY_MACHINE);
+} catch (error) {
+  console.error(error.message + ". Ejemplo: YOKUP_DEPLOY_AGENT=OraculoMini YOKUP_DEPLOY_MACHINE=MacMini node deploy.mjs");
   process.exit(2);
 }
+const { deployer, machine, signature } = deployIdentity;
 
 let lock;
 let stagingPath = "";
 try {
   lock = await open(lockPath, "wx");
-  await lock.writeFile(JSON.stringify({ deployer, pid:process.pid, startedAt:new Date().toISOString() }, null, 2));
+  await lock.writeFile(JSON.stringify({ deployer, machine, signature, pid:process.pid, startedAt:new Date().toISOString() }, null, 2));
 } catch (error) {
   if (error && error.code === "EEXIST") {
     console.error("Deploy bloqueado: otro agente ya está publicando Yokup (.yokup-deploy.lock).");
@@ -95,7 +98,7 @@ function publicArtifactFilter(source) {
   if (parts.some((part) => part.startsWith(".") || part === "node_modules" || part === "__pycache__")) return false;
   const name = basename(rel);
   if (/\.test\.mjs$/i.test(name) || /\.py$/i.test(name) || /\.md$/i.test(name) || /\.bak(?:-|$)/i.test(name)) return false;
-  if (/^deploy(?:-version)?\.(?:m?js)$/i.test(name) || /^(?:package(?:-lock)?\.json|wrangler\.toml)$/i.test(name)) return false;
+  if (/^deploy(?:-[a-z-]+)?\.(?:m?js)$/i.test(name) || /^(?:package(?:-lock)?\.json|wrangler\.toml)$/i.test(name)) return false;
   return true;
 }
 
@@ -108,16 +111,21 @@ try {
   const publicVersion = await fetch("https://www.yokup.com/version.json?deploy=" + Date.now(), { cache:"no-store" })
     .then((r) => r.ok ? r.json() : null).then(versionFromPayload).catch(() => "");
   const version = nextDeployVersion(now, [versionFromPayload(previousVersion), publicVersion]);
-  const git = execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding:"utf8" }).trim();
+  const gitFull = execFileSync("git", ["rev-parse", "HEAD"], { encoding:"utf8" }).trim();
+  const gitShort = execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding:"utf8" }).trim();
   const dirty = !!execFileSync("git", ["status", "--porcelain"], { encoding:"utf8" }).trim();
   const payload = {
     version,
     deployedAt:now.toISOString(),
     deployer,
-    git,
+    machine,
+    signature,
+    git:gitShort,
+    gitShort,
+    gitFull,
     dirty
   };
-  console.log(`Sello ${payload.version} · ${deployer}`);
+  console.log(`Sello ${payload.version} · ${signature}`);
   const tests = await testFiles(new URL("./", import.meta.url));
   if (!tests.length) throw new Error("Deploy bloqueado: no se encontraron pruebas *.test.mjs");
   await run(process.execPath, ["--test", ...tests]);
@@ -127,7 +135,8 @@ try {
   await cp(sourceRoot, stagingPath, { recursive:true, filter:publicArtifactFilter });
   await writeFile(join(stagingPath, "version.json"), JSON.stringify(payload, null, 2) + "\n");
   await stampFrameReferences(payload.version, pathToFileURL(stagingPath + sep));
-  await run("npx", ["wrangler", "pages", "deploy", stagingPath, "--project-name", "yokup", "--branch", "main", "--commit-dirty=true"]);
+  const commitArgs = wranglerCommitArgs({ gitFull, signature, version:payload.version });
+  await run("npx", ["wrangler", "pages", "deploy", stagingPath, "--project-name", "yokup", "--branch", "main", "--commit-dirty=" + dirty, ...commitArgs]);
   console.log(`Yokup publicado: ${payload.version}`);
 } catch (error) {
   console.error(error && error.message || error);
