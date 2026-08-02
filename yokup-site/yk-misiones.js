@@ -749,6 +749,18 @@
 
   function taskNode(t, isSub) {
     var own = OWN_ICON[t.owner] || "⚙️";
+    var ownerName = String(t.agent_identity || t.owner || "").trim();
+    var ownerVisual = own;
+    // /tareas carga yk-avatar antes de este módulo: una identidad operativa
+    // (Sub/Infra + persona + equipo) hereda el retrato de su persona base. En
+    // /misiones, o si la preferencia/foto no está disponible, se conserva el
+    // emoji histórico. El fallback también aparece si la imagen falla al cargar.
+    try {
+      var av = window.ykAvatar;
+      var src = ownerName && av && av.on && av.on() && av.img ? av.img(ownerName) : "";
+      if (src) ownerVisual = '<img class="node-owner-avatar" loading="lazy" src="' + esc(src) + '" alt="' + esc(ownerName) + '" onerror="this.nextElementSibling.hidden=false;this.remove()">' +
+        '<span class="node-owner-fallback" hidden aria-label="' + esc(ownerName) + '">' + own + "</span>";
+    } catch (e) {}
     // Texto compacto: el título se recorta a 2 líneas por CSS (.ttl line-clamp) y el
     // texto COMPLETO —título + informe si lo hay— va en el tooltip; no se pierde nada.
     var full = String(t.title || "") + (t.report ? " — " + t.report : "");
@@ -761,7 +773,7 @@
       (t.mission_id ? '<a class="scode" href="/tareas?mission=' + encodeURIComponent(t.mission_id) + "#" + esc(t.code) + '" title="ver este paso en /tareas">' + esc(t.code) + "</a>" : '<span class="scode">' + esc(t.code) + "</span>") +
       '<span class="ttl" title="' + esc(full) + '">' + linkify(t.title) + "</span>" +
       shot +
-      '<span class="own" title="' + esc(t.owner || "") + '">' + own + "</span>" +
+      '<span class="own" title="' + esc(ownerName) + '">' + ownerVisual + "</span>" +
       // CONSTANCIA del paso: qué se hizo (report), con enlaces pulsables. Va en su
       // propia línea (flex-wrap) para que se lea sin apretar la fila. (954)
       (t.report && String(t.report).trim() && t.report !== t.title ? '<small class="node-rep" title="' + esc(t.report) + '">↳ ' + linkify(t.report) + "</small>" : "") +
