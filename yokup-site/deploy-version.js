@@ -1,4 +1,5 @@
 const FORMAT = /^v\.(\d{2})\.(\d{2})\.(\d{4})\.r(\d+)$/i;
+const LEGACY_DATE_FIRST_FORMAT = /^v\.(\d{4})\.(\d{2})\.(\d{2})\.r(\d+)$/i;
 
 export function madridDay(date) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -12,9 +13,16 @@ export function nextDeployVersion(date, candidates) {
   const day = madridDay(date);
   let revision = 0;
   for (const raw of candidates || []) {
-    const match = FORMAT.exec(String(raw || "").trim());
-    if (!match || `${match[1]}.${match[2]}.${match[3]}` !== day) continue;
-    revision = Math.max(revision, Number(match[4]) || 0);
+    const value = String(raw || "").trim();
+    const match = FORMAT.exec(value);
+    if (match && `${match[1]}.${match[2]}.${match[3]}` === day) {
+      revision = Math.max(revision, Number(match[4]) || 0);
+      continue;
+    }
+    const legacy = LEGACY_DATE_FIRST_FORMAT.exec(value);
+    if (legacy && `${legacy[3]}.${legacy[2]}.${legacy[1]}` === day) {
+      revision = Math.max(revision, Number(legacy[4]) || 0);
+    }
   }
   return `v.${day}.r${revision + 1}`;
 }

@@ -503,6 +503,9 @@
     Array.prototype.forEach.call(document.querySelectorAll("[data-yk-version]"), function (node) {
       node.innerHTML = 'yokup · perímetro de seguridad · <b>' + VERSION + '</b>';
     });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-yk-deploy-version]"), function (node) {
+      node.textContent = VERSION;
+    });
   }
 
   function refreshPublicVersion() {

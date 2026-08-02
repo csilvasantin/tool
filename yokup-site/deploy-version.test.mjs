@@ -4,15 +4,24 @@ import { readFile } from "node:fs/promises";
 import { madridDay, nextDeployVersion, versionFromPayload } from "./deploy-version.js";
 
 const deploy = await readFile(new URL("./deploy.mjs", import.meta.url), "utf8");
+const baseline = JSON.parse(await readFile(new URL("./version.json", import.meta.url), "utf8"));
 
 test("el sello canónico usa día de Madrid y revisión diaria", () => {
   const date = new Date("2026-08-02T20:45:00Z"); // 22:45 en Madrid
   assert.equal(madridDay(date), "02.08.2026");
   assert.equal(nextDeployVersion(date, []), "v.02.08.2026.r1");
   assert.equal(nextDeployVersion(date, ["v.02.08.2026.r3", "v.02.08.2026.r7"]), "v.02.08.2026.r8");
+  assert.equal(nextDeployVersion(date, ["v.02.08.2026.r14"]), "v.02.08.2026.r15");
+  assert.equal(nextDeployVersion(date, ["v.2026.08.02.r14"]), "v.02.08.2026.r15");
 });
 
-test("un día nuevo reinicia r1 y los formatos legacy no colisionan", () => {
+test("el baseline persistente conserva r10 y sus dos releases posteriores", () => {
+  const date = new Date("2026-08-02T21:15:00Z");
+  assert.equal(baseline.version, "v.02.08.2026.r12");
+  assert.equal(nextDeployVersion(date, [versionFromPayload(baseline), "v.02.08.2026.r1"]), "v.02.08.2026.r13");
+});
+
+test("un día nuevo reinicia r1 y un timestamp legacy no se confunde con una revisión", () => {
   const date = new Date("2026-08-03T10:00:00Z");
   assert.equal(nextDeployVersion(date, ["v.02.08.2026.r99", "v.2026.08.03.120000"]), "v.03.08.2026.r1");
 });

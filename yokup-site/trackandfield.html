@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>100 m · Track &amp; Field · Yokup</title>
+<meta name="description" content="100 metros estilo Track & Field: alterna teclas o toques para sprintar. Yokup.">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="/favicon.ico?v=v.2026.08.02.track" sizes="any">
+<link rel="icon" type="image/png" href="/favicon-32x32.png?v=v.2026.08.02.track" sizes="32x32">
+<style>
+:root{
+  --bg:#02080d; --card:#0a1620; --ink:#dff8ff; --mut:#75aab9; --dim:#4d7a88;
+  --brand:#78f3ff; --accent:#ffd866; --good:#88ffaa; --warn:#ff8866; --mag:#ff6b9d;
+  --line:rgba(120,243,255,.18); --mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace;
+  --lane-h:56px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--mono);min-height:100%}
+a{color:var(--brand);text-decoration:none}
+a:hover{text-decoration:underline}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(900px 420px at 70% -10%,rgba(120,243,255,.10),transparent 55%),
+             radial-gradient(700px 400px at 10% 100%,rgba(255,216,102,.06),transparent 55%)}
+.wrap{position:relative;z-index:1;max-width:920px;margin:0 auto;padding:18px 16px 40px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-bottom:12px}
+h1{margin:0;font-size:clamp(18px,3.2vw,26px);letter-spacing:.08em;color:var(--brand);
+  text-shadow:2px 2px 0 #0a4a58}
+.sub{color:var(--mut);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.nav{margin-left:auto;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.nav a,.btn{font:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 12px;
+  border-radius:8px;cursor:pointer;min-height:40px;display:inline-flex;align-items:center;gap:6px}
+.btn.primary{background:var(--brand);color:#021018;border-color:var(--brand);font-weight:800}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn[aria-pressed="true"]{color:var(--brand);border-color:var(--brand);box-shadow:0 0 12px rgba(120,243,255,.22)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.stat{background:rgba(2,8,13,.45);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat b{display:block;font-size:clamp(16px,3vw,22px);color:var(--accent);letter-spacing:.04em}
+.stat span{font-size:10px;color:var(--dim);letter-spacing:.14em;text-transform:uppercase}
+#stage-wrap{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);
+  box-shadow:0 18px 40px rgba(0,0,0,.35);background:#041018}
+canvas#stage{display:block;width:100%;height:auto;touch-action:none;cursor:pointer}
+.hud-call{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;
+  font-size:clamp(28px,8vw,64px);font-weight:900;letter-spacing:.16em;color:var(--accent);
+  text-shadow:0 0 24px rgba(255,216,102,.55), 3px 3px 0 #000;opacity:0;transition:opacity .15s}
+.hud-call.show{opacity:1}
+.help{font-size:12px;color:var(--mut);line-height:1.65}
+.help kbd{display:inline-block;padding:2px 7px;border:1px solid var(--line);border-radius:5px;
+  background:rgba(120,243,255,.08);color:var(--brand);font:inherit;font-size:11px}
+.pads{display:none;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.pad{user-select:none;-webkit-user-select:none;min-height:88px;border-radius:14px;
+  border:2px solid var(--line);background:linear-gradient(180deg,rgba(120,243,255,.08),rgba(2,8,13,.5));
+  color:var(--brand);font-size:18px;font-weight:900;letter-spacing:.2em;display:grid;place-items:center}
+.pad:active,.pad.hot{background:rgba(120,243,255,.22);border-color:var(--brand);
+  box-shadow:inset 0 0 20px rgba(120,243,255,.15)}
+.results{display:none}
+.results.show{display:block}
+.results h2{margin:0 0 10px;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--brand)}
+.results ol{margin:0;padding-left:20px;color:var(--mut);font-size:13px;line-height:1.8}
+.results li.you{color:var(--accent);font-weight:800}
+.results .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.record{color:var(--good);font-size:12px;margin-top:8px}
+@media (max-width:720px){
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pads{display:grid}
+  .nav{margin-left:0;width:100%}
+}
+@media (prefers-reduced-motion:reduce){
+  .hud-call{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>TRACK &amp; FIELD · 100 m</h1>
+      <div class="sub">Yokup · sprint olímpico · alterna para correr</div>
+    </div>
+    <div class="nav">
+      <a href="/highscore">Highscore</a>
+      <button class="btn" type="button" id="btnSound" aria-pressed="false" title="Activar sonido">♪ Sonido</button>
+      <button class="btn primary" type="button" id="btnStart">Empezar</button>
+    </div>
+  </header>
+
+  <div class="panel stats" aria-live="polite">
+    <div class="stat"><b id="stTime">0.00</b><span>Tiempo</span></div>
+    <div class="stat"><b id="stSpeed">0</b><span>Cadencia</span></div>
+    <div class="stat"><b id="stDist">0</b><span>Metros</span></div>
+    <div class="stat"><b id="stBest">—</b><span>Récord local</span></div>
+  </div>
+
+  <div id="stage-wrap">
+    <canvas id="stage" width="900" height="420" role="img" aria-label="Pista de 100 metros"></canvas>
+    <div class="hud-call" id="call" aria-hidden="true"></div>
+  </div>
+
+  <div class="pads" aria-hidden="false">
+    <div class="pad" id="padL" data-side="L">IZQ</div>
+    <div class="pad" id="padR" data-side="R">DER</div>
+  </div>
+
+  <div class="panel help" style="margin-top:14px">
+    <p><b style="color:var(--ink)">Cómo se juega</b> — En la salida verás READY · SET · GO. En GO, <kbd>←</kbd>/<kbd>→</kbd> o <kbd>Z</kbd>/<kbd>X</kbd> o <kbd>A</kbd>/<kbd>D</kbd> <b>en alternancia</b> (o toca IZQ/DER). Si pulsas la misma tecla dos veces, pierdes ritmo. Si sales antes de GO: nulo.</p>
+    <p>Meta a 100 m. Gana el menor tiempo. Puedes competir contra 3 rivales de silicio.</p>
+  </div>
+
+  <div class="panel results" id="results">
+    <h2>Clasificación</h2>
+    <ol id="ranking"></ol>
+    <div class="record" id="recordMsg"></div>
+    <div class="actions">
+      <button class="btn primary" type="button" id="btnAgain">Otra carrera</button>
+      <a class="btn" href="/highscore">Ver Highscore flota</a>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var DISTANCE = 100;
+  var FPS = 60;
+  var START_HOLD = [900, 700, 550]; // ready, set, go flash ms
+  var LANE_COLORS = ["#ef4f43", "#78f3ff", "#ffd866", "#88ffaa"];
+  var NAMES = ["TÚ", "NeoMacMini", "OraculoMacMini", "WhiteRabbit"];
+  var STORAGE_KEY = "yokup.trackandfield.100m.best";
+
+  var canvas = document.getElementById("stage");
+  var ctx = canvas.getContext("2d");
+  var callEl = document.getElementById("call");
+  var results = document.getElementById("results");
+  var ranking = document.getElementById("ranking");
+  var recordMsg = document.getElementById("recordMsg");
+
+  var stTime = document.getElementById("stTime");
+  var stSpeed = document.getElementById("stSpeed");
+  var stDist = document.getElementById("stDist");
+  var stBest = document.getElementById("stBest");
+
+  var btnStart = document.getElementById("btnStart");
+  var btnAgain = document.getElementById("btnAgain");
+  var btnSound = document.getElementById("btnSound");
+  var padL = document.getElementById("padL");
+  var padR = document.getElementById("padR");
+
+  var best = null;
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) best = Number(raw);
+  } catch (_) {}
+  paintBest();
+
+  var state = "idle"; // idle | countdown | racing | done | false
+  var runners = [];
+  var player = null;
+  var raceStart = 0;
+  var lastFrame = 0;
+  var lastSide = null;
+  var cadenceWindow = [];
+  var falseStart = false;
+  var anim = 0;
+  var bgm = null;
+  var soundOn = false;
+
+  function paintBest() {
+    stBest.textContent = best != null && isFinite(best) ? best.toFixed(2) + "s" : "—";
+  }
+
+  function aseguraBgm() {
+    if (bgm) return bgm;
+    bgm = new Audio("/media/track-and-field.mp3?v=trackfield-1");
+    bgm.loop = true;
+    bgm.preload = "auto";
+    bgm.volume = 0.45;
+    return bgm;
+  }
+  function setSound(on) {
+    soundOn = on;
+    btnSound.setAttribute("aria-pressed", on ? "true" : "false");
+    btnSound.textContent = on ? "♪ On" : "♪ Sonido";
+    if (on) {
+      var a = aseguraBgm();
+      var p = a.play();
+      if (p && p.catch) p.catch(function () {});
+    } else if (bgm) {
+      bgm.pause();
+    }
+  }
+  btnSound.addEventListener("click", function () { setSound(!soundOn); });
+
+  function showCall(text, ms) {
+    callEl.textContent = text || "";
+    callEl.classList.toggle("show", !!text);
+    if (ms) {
+      setTimeout(function () {
+        if (callEl.textContent === text) callEl.classList.remove("show");
+      }, ms);
+    }
+  }
+
+  function makeRunner(i, isPlayer) {
+    return {
+      i: i,
+      name: NAMES[i],
+      isPlayer: !!isPlayer,
+      x: 0,           // meters 0..100
+      v: 0,           // m/s
+      power: 0,       // 0..1 drive from cadence
+      leg: 0,
+      finished: false,
+      finishTime: null,
+      // AI personality
+      aiTarget: 8.5 + Math.random() * 2.2, // desired finish ~s
+      aiNoise: 0.15 + Math.random() * 0.25,
+      aiPhase: Math.random() * Math.PI * 2
+    };
+  }
+
+  function resetRace() {
+    runners = [0, 1, 2, 3].map(function (i) { return makeRunner(i, i === 0); });
+    player = runners[0];
+    lastSide = null;
+    cadenceWindow = [];
+    falseStart = false;
+    raceStart = 0;
+    state = "idle";
+    results.classList.remove("show");
+    stTime.textContent = "0.00";
+    stSpeed.textContent = "0";
+    stDist.textContent = "0";
+    showCall("");
+    draw(0);
+  }
+
+  function startSequence() {
+    if (state === "countdown" || state === "racing") return;
+    resetRace();
+    state = "countdown";
+    btnStart.disabled = true;
+    var steps = ["READY", "SET", "GO"];
+    var i = 0;
+    function next() {
+      if (state !== "countdown") return;
+      showCall(steps[i], START_HOLD[i] - 80);
+      if (i === 2) {
+        // GO
+        state = "racing";
+        raceStart = performance.now();
+        lastFrame = raceStart;
+        requestAnimationFrame(loop);
+        setTimeout(function () { showCall(""); }, 420);
+        btnStart.disabled = false;
+        btnStart.textContent = "Reiniciar";
+        return;
+      }
+      i += 1;
+      setTimeout(next, START_HOLD[i - 1]);
+    }
+    next();
+  }
+
+  function pushCadence(now) {
+    cadenceWindow.push(now);
+    while (cadenceWindow.length && now - cadenceWindow[0] > 1000) cadenceWindow.shift();
+    return cadenceWindow.length; // taps per second-ish
+  }
+
+  function onTap(side) {
+    var now = performance.now();
+    if (state === "countdown") {
+      // only false start after SET started... treat any tap before racing as false if after first ready? Classic: after SET
+      if (callEl.textContent === "SET" || callEl.textContent === "READY") {
+        falseStart = true;
+        state = "false";
+        showCall("NULO", 1200);
+        btnStart.disabled = false;
+        btnStart.textContent = "Otra vez";
+        player.finished = true;
+        player.finishTime = 99.99;
+        endRace();
+        return;
+      }
+    }
+    if (state !== "racing" || player.finished) return;
+
+    if (lastSide === side) {
+      // same side twice: stumble
+      player.power = Math.max(0, player.power - 0.22);
+      player.v *= 0.82;
+      flashPad(side, true);
+      return;
+    }
+    lastSide = side;
+    var cps = pushCadence(now);
+    // ideal ~10-14 alternating taps/s for max
+    var drive = Math.min(1, Math.max(0, (cps - 3) / 11));
+    player.power = Math.min(1, player.power * 0.55 + drive * 0.55 + 0.12);
+    player.v = Math.min(12.2, Math.max(player.v, 2.2) + player.power * 0.85);
+    player.leg += 1;
+    flashPad(side, false);
+    stSpeed.textContent = String(cps);
+  }
+
+  function flashPad(side, bad) {
+    var el = side === "L" ? padL : padR;
+    el.classList.add("hot");
+    if (bad) el.style.borderColor = "var(--warn)";
+    setTimeout(function () {
+      el.classList.remove("hot");
+      el.style.borderColor = "";
+    }, 90);
+  }
+
+  function updateAI(r, dt, t) {
+    if (r.finished || r.isPlayer) return;
+    // target average speed for aiTarget seconds
+    var targetV = DISTANCE / r.aiTarget;
+    var wave = 0.5 + 0.5 * Math.sin(t * (2.2 + r.aiNoise) + r.aiPhase);
+    var want = targetV * (0.78 + 0.28 * wave);
+    // ease toward want
+    r.v += (want - r.v) * Math.min(1, dt * 2.4);
+    r.v = Math.max(0, Math.min(12.0, r.v));
+    r.power = Math.min(1, r.v / 12);
+    r.leg += r.v * dt * 3;
+  }
+
+  function updatePlayer(dt) {
+    if (player.finished) return;
+    // decay if not tapping
+    player.power = Math.max(0, player.power - dt * 0.55);
+    player.v = Math.max(0, player.v - dt * (1.8 + (1 - player.power) * 2.2));
+    if (player.power > 0.05) {
+      player.v = Math.min(12.2, player.v + player.power * dt * 6.5);
+    }
+  }
+
+  function step(dt, now) {
+    var t = (now - raceStart) / 1000;
+    runners.forEach(function (r) {
+      if (r.finished) return;
+      if (r.isPlayer) updatePlayer(dt);
+      else updateAI(r, dt, t);
+      r.x += r.v * dt;
+      if (r.x >= DISTANCE) {
+        r.x = DISTANCE;
+        r.finished = true;
+        r.finishTime = t;
+        r.v = 0;
+      }
+    });
+    stTime.textContent = t.toFixed(2);
+    stDist.textContent = Math.min(DISTANCE, player.x).toFixed(1);
+    stSpeed.textContent = String(cadenceWindow.filter(function (x) { return now - x <= 1000; }).length);
+
+    if (runners.every(function (r) { return r.finished; })) {
+      endRace();
+    }
+  }
+
+  function endRace() {
+    if (state === "done") return;
+    state = "done";
+    btnStart.disabled = false;
+    btnStart.textContent = "Otra carrera";
+
+    var order = runners.slice().sort(function (a, b) {
+      var ta = a.finishTime == null ? 999 : a.finishTime;
+      var tb = b.finishTime == null ? 999 : b.finishTime;
+      return ta - tb;
+    });
+
+    ranking.innerHTML = "";
+    order.forEach(function (r, idx) {
+      var li = document.createElement("li");
+      var t = r.finishTime == null ? "DNF" : r.finishTime.toFixed(2) + " s";
+      li.textContent = (idx + 1) + ". " + r.name + " — " + t;
+      if (r.isPlayer) li.className = "you";
+      ranking.appendChild(li);
+    });
+
+    recordMsg.textContent = "";
+    if (!falseStart && player.finishTime != null && player.finishTime < 90) {
+      if (best == null || player.finishTime < best) {
+        best = player.finishTime;
+        try { localStorage.setItem(STORAGE_KEY, String(best)); } catch (_) {}
+        paintBest();
+        recordMsg.textContent = "★ Nuevo récord local: " + best.toFixed(2) + " s";
+      } else {
+        recordMsg.textContent = "Tu marca: " + player.finishTime.toFixed(2) + " s · récord " + best.toFixed(2) + " s";
+      }
+    } else if (falseStart) {
+      recordMsg.textContent = "Salida nula — espera a GO.";
+    }
+
+    results.classList.add("show");
+    showCall(player.finishTime != null && player.finishTime === order[0].finishTime && !falseStart ? "¡ORO!" : "META", 1400);
+  }
+
+  function loop(now) {
+    if (state !== "racing") {
+      draw((now - raceStart) / 1000);
+      return;
+    }
+    var dt = Math.min(0.05, (now - lastFrame) / 1000);
+    lastFrame = now;
+    step(dt, now);
+    draw((now - raceStart) / 1000);
+    if (state === "racing") requestAnimationFrame(loop);
+  }
+
+  // ─── Drawing ───────────────────────────────────────────
+  function draw(t) {
+    var w = canvas.width, h = canvas.height;
+    anim = t || 0;
+    // sky / stadium
+    var g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, "#071820");
+    g.addColorStop(0.45, "#0a2030");
+    g.addColorStop(1, "#041018");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+
+    // stands stripes
+    ctx.globalAlpha = 0.15;
+    for (var s = 0; s < 12; s++) {
+      ctx.fillStyle = s % 2 ? "#78f3ff" : "#ffd866";
+      ctx.fillRect(0, 8 + s * 8, w, 4);
+    }
+    ctx.globalAlpha = 1;
+
+    // track area
+    var trackTop = 110;
+    var trackH = 260;
+    ctx.fillStyle = "#b84a32";
+    roundRect(ctx, 24, trackTop, w - 48, trackH, 12);
+    ctx.fill();
+
+    // lanes
+    var laneH = trackH / 4;
+    for (var i = 0; i < 4; i++) {
+      var y = trackTop + i * laneH;
+      ctx.strokeStyle = "rgba(255,255,255,.55)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(40, y + laneH);
+      ctx.lineTo(w - 40, y + laneH);
+      ctx.stroke();
+
+      // lane number
+      ctx.fillStyle = "rgba(255,255,255,.75)";
+      ctx.font = "bold 14px " + getComputedStyle(document.body).fontFamily;
+      ctx.fillText(String(i + 1), 48, y + laneH / 2 + 5);
+    }
+
+    // start / finish lines
+    var pad = 70;
+    var usable = w - pad * 2;
+    function xFor(meters) {
+      return pad + (Math.min(DISTANCE, Math.max(0, meters)) / DISTANCE) * usable;
+    }
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(xFor(0), trackTop + 4);
+    ctx.lineTo(xFor(0), trackTop + trackH - 4);
+    ctx.stroke();
+
+    // finish checker
+    var fx = xFor(100);
+    for (var c = 0; c < 16; c++) {
+      ctx.fillStyle = c % 2 ? "#111" : "#fff";
+      ctx.fillRect(fx - 6, trackTop + 4 + c * ((trackH - 8) / 16), 12, (trackH - 8) / 16);
+    }
+
+    // meter marks
+    ctx.fillStyle = "rgba(255,255,255,.35)";
+    ctx.font = "10px " + getComputedStyle(document.body).fontFamily;
+    for (var m = 10; m < 100; m += 10) {
+      var mx = xFor(m);
+      ctx.fillRect(mx, trackTop + trackH - 14, 1, 10);
+      ctx.fillText(String(m), mx - 6, trackTop + trackH + 14);
+    }
+
+    // title ribbon
+    ctx.fillStyle = "rgba(2,8,13,.55)";
+    roundRect(ctx, w / 2 - 120, 28, 240, 36, 8);
+    ctx.fill();
+    ctx.fillStyle = "#78f3ff";
+    ctx.font = "bold 16px " + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = "center";
+    ctx.fillText("100 METROS LISOS", w / 2, 52);
+    ctx.textAlign = "left";
+
+    // runners back to front (lane 4 to 1) — draw low lanes last for slight depth
+    for (var ri = 0; ri < 4; ri++) {
+      drawRunner(runners[ri] || makeRunner(ri, ri === 0), trackTop, laneH, xFor, t);
+    }
+
+    // power bar for player
+    if (player) {
+      var pw = 160, ph = 10;
+      var px = w - pw - 36, py = 72;
+      ctx.fillStyle = "rgba(0,0,0,.45)";
+      roundRect(ctx, px, py, pw, ph, 4); ctx.fill();
+      ctx.fillStyle = player.power > 0.7 ? "#88ffaa" : "#ffd866";
+      roundRect(ctx, px, py, pw * player.power, ph, 4); ctx.fill();
+      ctx.fillStyle = "#75aab9";
+      ctx.font = "10px " + getComputedStyle(document.body).fontFamily;
+      ctx.fillText("POTENCIA", px, py - 4);
+    }
+  }
+
+  function drawRunner(r, trackTop, laneH, xFor, t) {
+    if (!r) return;
+    var y = trackTop + r.i * laneH + laneH * 0.55;
+    var x = xFor(r.x || 0);
+    var color = LANE_COLORS[r.i % LANE_COLORS.length];
+    var bob = Math.sin((r.leg || 0) * 0.9) * 3 * Math.min(1, (r.v || 0) / 8);
+
+    // shadow
+    ctx.fillStyle = "rgba(0,0,0,.35)";
+    ctx.beginPath();
+    ctx.ellipse(x, y + 16, 14, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // body (pixel cluster)
+    ctx.save();
+    ctx.translate(x, y + bob);
+    // legs
+    var swing = Math.sin((r.leg || 0) * 1.1) * 10 * Math.min(1, (r.v || 0) / 6);
+    ctx.strokeStyle = "#2a4a7a";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "square";
+    ctx.beginPath();
+    ctx.moveTo(0, 4); ctx.lineTo(-6 - swing * 0.3, 14);
+    ctx.moveTo(0, 4); ctx.lineTo(6 + swing * 0.3, 14);
+    ctx.stroke();
+    // torso
+    ctx.fillStyle = color;
+    ctx.fillRect(-7, -10, 14, 14);
+    // head
+    ctx.fillStyle = "#f0a06b";
+    ctx.fillRect(-5, -20, 10, 10);
+    // arm
+    ctx.strokeStyle = "#f0a06b";
+    ctx.beginPath();
+    ctx.moveTo(6, -6); ctx.lineTo(12 + swing * 0.2, 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // name tag
+    ctx.fillStyle = r.isPlayer ? "#ffd866" : "rgba(223,248,255,.75)";
+    ctx.font = (r.isPlayer ? "bold " : "") + "11px " + getComputedStyle(document.body).fontFamily;
+    ctx.fillText(r.name, x - 18, trackTop + r.i * laneH + 16);
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+
+  // ─── Input ─────────────────────────────────────────────
+  var keySide = {
+    ArrowLeft: "L", KeyA: "L", KeyZ: "L", KeyQ: "L",
+    ArrowRight: "R", KeyD: "R", KeyX: "R", KeyW: "R"
+  };
+  var held = {};
+  window.addEventListener("keydown", function (e) {
+    var side = keySide[e.code];
+    if (!side) {
+      if (e.code === "Space" || e.code === "Enter") {
+        if (state === "idle" || state === "done" || state === "false") startSequence();
+        e.preventDefault();
+      }
+      return;
+    }
+    if (held[e.code]) return;
+    held[e.code] = true;
+    onTap(side);
+    e.preventDefault();
+  });
+  window.addEventListener("keyup", function (e) { held[e.code] = false; });
+
+  function bindPad(el, side) {
+    function go(ev) {
+      ev.preventDefault();
+      onTap(side);
+    }
+    el.addEventListener("pointerdown", go);
+  }
+  bindPad(padL, "L");
+  bindPad(padR, "R");
+
+  // tap canvas halves on desktop too
+  canvas.addEventListener("pointerdown", function (e) {
+    var rect = canvas.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    onTap(x < rect.width / 2 ? "L" : "R");
+  });
+
+  btnStart.addEventListener("click", function () {
+    if (state === "racing" || state === "countdown") {
+      state = "idle";
+      resetRace();
+      btnStart.textContent = "Empezar";
+      return;
+    }
+    startSequence();
+  });
+  btnAgain.addEventListener("click", function () { startSequence(); });
+
+  resetRace();
+  // idle attract: gentle AI demo positions
+  runners.forEach(function (r, i) { r.x = 4 + i * 3; });
+  draw(0);
+})();
+</script>
+</body>
+</html>

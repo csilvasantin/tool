@@ -5,6 +5,10 @@ import { readFile } from "node:fs/promises";
 const frame = await readFile(new URL("./yk-frame.js", import.meta.url), "utf8");
 const css = await readFile(new URL("./yk-frame.css", import.meta.url), "utf8");
 const sw = await readFile(new URL("./sw.js", import.meta.url), "utf8");
+const agentica = await readFile(new URL("./agentica.html", import.meta.url), "utf8");
+const decisiones = await readFile(new URL("./decisiones.html", import.meta.url), "utf8");
+const admiraLive = await readFile(new URL("./admira-live.html", import.meta.url), "utf8");
+const misiones = await readFile(new URL("./misiones.html", import.meta.url), "utf8");
 
 test("Avanzado ofrece Highscore en todas las vistas y no declara vacío falso", () => {
   assert.match(frame, /railR\.appendChild\(buildAdvancedNav\(\)\)/);
@@ -20,6 +24,15 @@ test("el sello del marco procede del deploy y se confirma con version.json", () 
   assert.match(frame, /searchParams\.get\("v"\)/);
   assert.match(frame, /fetch\("\/version\.json\?frame=" \+ Date\.now\(\), \{ cache:"no-store" \}\)/);
   assert.match(frame, /data-yk-version/);
+  assert.match(frame, /querySelectorAll\("\[data-yk-deploy-version\]"\)/);
+});
+
+test("los pies que presentan versión actual derivan del sello del deploy", () => {
+  for (const html of [agentica, misiones, decisiones, admiraLive]) {
+    assert.match(html, /data-yk-deploy-version/);
+    assert.doesNotMatch(html, /(?:versión|sello)[^<]*(?:<[^>]+>)*v\.\d{2}\.\d{2}\.\d{4}\.r\d+/i);
+  }
+  assert.doesNotMatch(agentica, /v\.13\.07\.2026\.r1/);
 });
 
 test("el service worker no cachea el shell ni explica el menú antiguo", () => {
