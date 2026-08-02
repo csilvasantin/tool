@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 
 const html = await readFile(new URL("./trackandfield.html", import.meta.url), "utf8");
 const redirects = await readFile(new URL("./_redirects", import.meta.url), "utf8");
+const deploy = await readFile(new URL("./deploy.mjs", import.meta.url), "utf8");
 
 test("/trackandfield conserva exactamente la recuperación inmutable", () => {
   assert.equal(
@@ -28,4 +29,10 @@ test("la ruta HTTP amigable precede al fallback general", () => {
   const route = redirects.indexOf("/trackandfield    /trackandfield.html    200");
   const fallback = redirects.indexOf("/*    /index.html    200");
   assert.ok(route >= 0 && fallback > route);
+});
+
+test("el sellado del shell excluye la recuperación inmutable", () => {
+  assert.match(deploy, /file\.pathname\.endsWith\("\/trackandfield\.html"\)\) continue/);
+  assert.match(deploy, /\["--test", \.\.\.tests\][\s\S]*writeFile\(versionPath/,
+    "las pruebas deben ejecutarse antes de generar sellos efímeros");
 });

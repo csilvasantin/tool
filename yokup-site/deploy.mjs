@@ -54,6 +54,9 @@ async function testFiles(dirUrl) {
 async function stampFrameReferences(version) {
   const changed = new Map();
   for (const file of await htmlFiles(new URL("./", import.meta.url))) {
+    // Recuperación canónica e inmutable: su hash forma parte del contrato público.
+    // No usa yk-frame, y tampoco debe recibir el sello de favicon del resto del shell.
+    if (file.pathname.endsWith("/trackandfield.html")) continue;
     const before = await readFile(file, "utf8");
     const stamp = encodeURIComponent(version);
     const favicon = [
@@ -97,12 +100,14 @@ try {
     git,
     dirty
   };
-  await writeFile(versionPath, JSON.stringify(payload, null, 2) + "\n");
-  previousHtml = await stampFrameReferences(payload.version);
   console.log(`Sello ${payload.version} · ${deployer}`);
   const tests = await testFiles(new URL("./", import.meta.url));
   if (!tests.length) throw new Error("Deploy bloqueado: no se encontraron pruebas *.test.mjs");
   await run(process.execPath, ["--test", ...tests]);
+  // Las pruebas validan la fuente canónica (baseline de versión y artefactos
+  // inmutables) antes de crear cambios efímeros destinados exclusivamente al deploy.
+  await writeFile(versionPath, JSON.stringify(payload, null, 2) + "\n");
+  previousHtml = await stampFrameReferences(payload.version);
   await run("npx", ["wrangler", "pages", "deploy", ".", "--project-name", "yokup", "--branch", "main", "--commit-dirty=true"]);
   console.log(`Yokup publicado: ${payload.version}`);
 } catch (error) {
