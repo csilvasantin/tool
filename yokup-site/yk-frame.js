@@ -33,7 +33,14 @@
   // el rango bloqueado: el respaldo no respaldaba nada.
   var WORKER = "https://api.yokup.com";
   var WORKER_FALLBACK = "https://rtc.yokup.com";
-  var VERSION = "v.23.07.2026.r10";
+  // Sello del deploy, capturado mientras este script sigue siendo currentScript.
+  // deploy.mjs versiona cada referencia /yk-frame.js?v=<sello>; version.json es
+  // la confirmación pública. Nunca debe volver a vivir aquí una fecha manual.
+  var FRAME_SRC = (document.currentScript && document.currentScript.src) || "";
+  var VERSION = (function () {
+    try { return new URL(FRAME_SRC, location.href).searchParams.get("v") || "versión pendiente"; }
+    catch (e) { return "versión pendiente"; }
+  })();
 
   // fetch con red de seguridad: intenta api.yokup.com y, si el fetch RECHAZA
   // (fallo de red/DNS/bloqueo, no un 4xx/5xx que sí llega), reintenta una vez
@@ -350,6 +357,10 @@
 
     var railR = el("aside", "yk-rail yk-rail-right");
     railR.appendChild(el("div", "yk-hd", railRightLabel));
+    // Entrada permanente de producto. Avanzado no puede quedar vacío en las
+    // vistas sin herramientas propias: Highscore sigue siendo accesible desde
+    // cualquier página de la zona app, sin invadir la navegación operativa.
+    railR.appendChild(buildAdvancedNav());
     var slotR = el("div", "yk-slot"); railR.appendChild(slotR);
 
     var railB = el("aside", "yk-rail yk-rail-bottom");
@@ -371,6 +382,7 @@
     wire(icoL, "left");
     wire(icoR, "right");
     wire(icoB, "bottom");
+    refreshPublicVersion();
 
     // --- cerrar cualquier panel abierto con Escape ---
     document.addEventListener("keydown", function (e) {
@@ -464,9 +476,43 @@
       '<span aria-hidden="true">▣</span> Panel de control');
     pc.href = "/asignaciones";
     foot.appendChild(pc);
-    foot.appendChild(el("div", "yk-ver",
-      'yokup · perímetro de seguridad · <b>' + VERSION + '</b>'));
+    var ver = el("div", "yk-ver",
+      'yokup · perímetro de seguridad · <b>' + VERSION + '</b>');
+    ver.setAttribute("data-yk-version", "1");
+    foot.appendChild(ver);
     return foot;
+  }
+
+  function buildAdvancedNav() {
+    var nav = el("nav", "yk-adv-nav");
+    nav.setAttribute("aria-label", "Herramientas avanzadas de Yokup");
+    var path = (location.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+    var active = path === "/highscore" || path === "/highscore.html";
+    var highscore = el("a", "yk-set-btn yk-adv-link" + (active ? " on" : ""),
+      '<span aria-hidden="true">🏃</span> HIGHSCORE');
+    highscore.href = "/highscore";
+    if (active) highscore.setAttribute("aria-current", "page");
+    nav.appendChild(highscore);
+    return nav;
+  }
+
+  function paintPublicVersion(value) {
+    var clean = String(value || "").trim();
+    if (!clean) return;
+    VERSION = clean;
+    Array.prototype.forEach.call(document.querySelectorAll("[data-yk-version]"), function (node) {
+      node.innerHTML = 'yokup · perímetro de seguridad · <b>' + VERSION + '</b>';
+    });
+  }
+
+  function refreshPublicVersion() {
+    // version.json se publica con max-age=0. El query evita intermediarios que
+    // ignoren cache:no-store y permite corregir el sello aunque yk-frame.js siga
+    // vivo unas horas en una caché anterior.
+    window.fetch("/version.json?frame=" + Date.now(), { cache:"no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && d.version) paintPublicVersion(d.version); })
+      .catch(function () {});
   }
 
   // ── PANEL DE CONTROL · personalización de ordenadores y agentes ────────────
@@ -791,7 +837,9 @@
   function fillSlot(slot, name, expertHost) {
     var nodes = document.querySelectorAll('[data-yk-slot="' + name + '"]');
     if (!nodes.length) {
-      slot.appendChild(el("div", "yk-empty", "— sin opciones en esta vista"));
+      // Avanzado siempre tiene la entrada Highscore montada fuera del slot.
+      // El mensaje de vacío sería falso y fue exactamente lo que vio Carlos.
+      if (name !== "right") slot.appendChild(el("div", "yk-empty", "— sin opciones en esta vista"));
     } else {
       // mover (no clonar): preserva los event listeners ya enlazados
       Array.prototype.forEach.call(nodes, function (n) {
@@ -801,8 +849,10 @@
     }
     // el panel inferior SIEMPRE lleva pie de versión
     if (name === "bottom" && expertHost) {
-      expertHost.appendChild(el("div", "yk-ver",
-        'yokup · perímetro de seguridad · <b>' + VERSION + '</b>'));
+      var ver = el("div", "yk-ver",
+        'yokup · perímetro de seguridad · <b>' + VERSION + '</b>');
+      ver.setAttribute("data-yk-version", "1");
+      expertHost.appendChild(ver);
     }
   }
 

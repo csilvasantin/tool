@@ -247,6 +247,8 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
   padding: 18px 14px 22px;
 }
 .yk-open-right .yk-rail-right{ transform: translateX(0) }
+.yk-adv-nav{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.yk-adv-link{text-decoration:none}
 
 /* --- panel INFERIOR (EXPERTO) — deja libre la esquina del avatar --- */
 .yk-rail-bottom{

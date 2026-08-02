@@ -1,6 +1,7 @@
 import { open, readFile, writeFile, unlink, readdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { execFileSync } from "node:child_process";
+import { nextDeployVersion, versionFromPayload } from "./deploy-version.js";
 
 const lockPath = new URL("./.yokup-deploy.lock", import.meta.url);
 const versionPath = new URL("./version.json", import.meta.url);
@@ -25,15 +26,6 @@ try {
   throw error;
 }
 
-function madridStamp(date) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone:"Europe/Madrid", year:"numeric", month:"2-digit", day:"2-digit",
-    hour:"2-digit", minute:"2-digit", second:"2-digit", hourCycle:"h23"
-  }).formatToParts(date);
-  const p = Object.fromEntries(parts.map((item) => [item.type, item.value]));
-  return `${p.year}.${p.month}.${p.day}.${p.hour}${p.minute}${p.second}`;
-}
-
 function run(command, args) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd:new URL(".", import.meta.url), stdio:"inherit", shell:false });
@@ -51,6 +43,12 @@ async function htmlFiles(dirUrl) {
     else if (/\.html$/i.test(entry.name) && !/\.bak/i.test(entry.name)) out.push(child);
   }
   return out;
+}
+
+async function testFiles(dirUrl) {
+  return (await readdir(dirUrl, { withFileTypes:true }))
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".test.mjs"))
+    .map((entry) => entry.name).sort();
 }
 
 async function stampFrameReferences(version) {
@@ -84,10 +82,16 @@ async function stampFrameReferences(version) {
 try {
   previousVersion = await readFile(versionPath, "utf8").catch(() => null);
   const now = new Date();
+  // La revisión diaria se coordina contra producción además del fichero local.
+  // El lock evita dos deploys simultáneos en este checkout; consultar el sello
+  // público evita reutilizar rN tras clonar/actualizar desde otra máquina.
+  const publicVersion = await fetch("https://www.yokup.com/version.json?deploy=" + Date.now(), { cache:"no-store" })
+    .then((r) => r.ok ? r.json() : null).then(versionFromPayload).catch(() => "");
+  const version = nextDeployVersion(now, [versionFromPayload(previousVersion), publicVersion]);
   const git = execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding:"utf8" }).trim();
   const dirty = !!execFileSync("git", ["status", "--porcelain"], { encoding:"utf8" }).trim();
   const payload = {
-    version:`v.${madridStamp(now)}`,
+    version,
     deployedAt:now.toISOString(),
     deployer,
     git,
@@ -96,7 +100,9 @@ try {
   await writeFile(versionPath, JSON.stringify(payload, null, 2) + "\n");
   previousHtml = await stampFrameReferences(payload.version);
   console.log(`Sello ${payload.version} · ${deployer}`);
-  await run(process.execPath, ["--test", "versioning.test.mjs", "favicon-contract.test.mjs", "project-web-form.test.mjs", "app-nav-consistency.test.mjs", "agent-identity.test.mjs", "identity-normative.test.mjs", "work-reference-normative.test.mjs", "highscore-visual.test.mjs", "highscore-daily.test.mjs"]);
+  const tests = await testFiles(new URL("./", import.meta.url));
+  if (!tests.length) throw new Error("Deploy bloqueado: no se encontraron pruebas *.test.mjs");
+  await run(process.execPath, ["--test", ...tests]);
   await run("npx", ["wrangler", "pages", "deploy", ".", "--project-name", "yokup", "--branch", "main", "--commit-dirty=true"]);
   console.log(`Yokup publicado: ${payload.version}`);
 } catch (error) {
