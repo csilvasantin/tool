@@ -16,7 +16,7 @@ let deployIdentity;
 try {
   deployIdentity = validateDeployIdentity(process.env.YOKUP_DEPLOY_AGENT, process.env.YOKUP_DEPLOY_MACHINE);
 } catch (error) {
-  console.error(error.message + ". Ejemplo: YOKUP_DEPLOY_AGENT=OraculoMini YOKUP_DEPLOY_MACHINE=MacMini node deploy.mjs");
+  console.error(error.message + ". Ejemplo: YOKUP_DEPLOY_AGENT=OraculoMacMini YOKUP_DEPLOY_MACHINE=MacMini node deploy.mjs");
   process.exit(2);
 }
 const { deployer, machine, signature } = deployIdentity;

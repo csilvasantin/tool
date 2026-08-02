@@ -183,8 +183,7 @@ function ddmm(ms){ const d=new Date(ms); return p2(d.getDate())+"/"+p2(d.getMont
 function durTxt(a,b){ let m=Math.round((b-a)/60000); if(m<1)return "<1m"; if(m<60)return m+"m"; const h=Math.floor(m/60),r=m%60; return r? h+"h "+r+"m" : h+"h"; }
 const OWN_ICON={principal:"🧠",subagente:"⚙️",infraagente:"📝"};
 function reportAgent(t){
-  if(t.agent_identity) return t.agent_identity;
-  const person=t.owner||"";
+  const person=t.agent_identity||t.owner||"";
   const machine=t.machine||t.target_machine||t.loc||t.mission_machine||(t.mission&&t.mission.machine)||"";
   return window.ykAgentIdentity?ykAgentIdentity.reportDisplay(person,machine):person;
 }

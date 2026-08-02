@@ -2,7 +2,7 @@
  *
  * Los nombres planos históricos se aceptan al leer. Toda UI visible debe llamar:
  *   ykAgentIdentity.display("Neo", "MacBook Pro 16")       → NeoMBP16
- *   ykAgentIdentity.display("Oraculo", "Mac Mini", "sub")  → SubOraculoMini
+ *   ykAgentIdentity.display("Oraculo", "Mac Mini", "sub")  → SubOraculoMacMini
  *   ykAgentIdentity.display("Neo", "")                     → NeoSINMAQ
  * `scoped` conserva el nombre operativo sin SINMAQ para datos/rutas heredadas.
  */
@@ -118,10 +118,13 @@
   function reportDisplay(owner,machine){
     var original=String(owner||"").trim(), p=parse(original), sf=suffix(machine)||p.suffix;
     if(!original)return original;
-    if(!sf)return display(p.persona, machine||"", p.role);
+    if(!sf)return original;
     var known=PERSONAS.some(function(row){return row[0]===p.persona;});
     if(!known)return original;
-    return display(p.persona, CANONICAL_MACHINES[sf]||machine, p.role);
+    var reportSuffix={Mini:"MacMini",MBP14:"14",MBP16:"MBP16",MBA16:"Plata16",MBAAzul:"Azul",MBARosa:"Rosa",MBACrema:"Crema",MBAPlata:"Plata"}[sf];
+    if(!reportSuffix)return original;
+    var main=p.persona==="Smith"&&/^MBA/.test(sf)?"Agente Smith "+reportSuffix:p.persona+reportSuffix;
+    return (p.role==="sub"?"Sub":p.role==="infra"?"Infra":"")+main;
   }
   function base(value){return parse(value).persona;}
   function canonicalMachine(value){return CANONICAL_MACHINES[parse(value).suffix]||"";}
