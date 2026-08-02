@@ -249,6 +249,17 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
 .yk-open-right .yk-rail-right{ transform: translateX(0) }
 .yk-adv-nav{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
 .yk-adv-link{text-decoration:none}
+.yk-project-new{color:var(--yk-brand);border-color:var(--yk-brand)}
+.yk-project-modal{position:fixed;inset:0;z-index:calc(var(--yk-z) + 20);background:rgba(2,8,13,.78);display:grid;place-items:center;padding:18px}
+.yk-project-card{width:min(94vw,620px);max-height:calc(100vh - 36px);overflow:auto;background:var(--yk-card);border:1px solid var(--yk-line2);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.yk-project-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding-bottom:12px;border-bottom:1px solid var(--yk-line)}
+.yk-project-hd b{color:var(--yk-brand);font-size:13px;letter-spacing:.12em}.yk-project-hd small{display:block;color:var(--yk-dim);font-size:9px;letter-spacing:.07em;margin-top:5px}
+.yk-project-x{border:0;background:transparent;color:var(--yk-dim);font-size:22px;line-height:1;cursor:pointer}
+.yk-project-field{display:flex;flex-direction:column;gap:6px;color:var(--yk-dim);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase}
+.yk-project-field :is(input,textarea){width:100%;background:#02080d;color:var(--yk-ink);border:1px solid var(--yk-line2);border-radius:8px;padding:9px;font:12px/1.4 var(--yk-mono)}
+.yk-project-field :is(input,textarea):focus{border-color:var(--yk-brand)}.yk-project-field textarea{min-height:66px;resize:vertical}
+.yk-project-actions{display:flex;align-items:center;gap:9px;border-top:1px solid var(--yk-line);padding-top:12px;flex-wrap:wrap}.yk-project-msg{flex:1;min-width:150px;color:var(--yk-dim);font-size:9.5px;letter-spacing:.05em}
+.yk-project-actions button{font:700 9.5px/1 var(--yk-mono);letter-spacing:.1em;padding:8px 11px;cursor:pointer;border:1px solid var(--yk-line2)}.yk-project-cancel{color:var(--yk-dim);background:transparent}.yk-project-save{color:#02080d;background:var(--yk-brand);border-color:var(--yk-brand)!important}.yk-project-save:disabled{opacity:.55;cursor:wait}
 
 /* --- panel INFERIOR (EXPERTO) — deja libre la esquina del avatar --- */
 .yk-rail-bottom{

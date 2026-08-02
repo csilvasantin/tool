@@ -88,7 +88,10 @@
   function groupId(prefix, x, i) { return "dec-" + prefix + "-" + String(x || "sin-dato").replace(/[^a-z0-9_-]/gi, "-") + "-" + i; }
   // Retrato del agente: 16px, del módulo compartido. Sin módulo cargado o sin
   // foto, iniciales — nunca un icono genérico.
-  function agentePinta(n) {
+  function agenteVisible(n, machine) {
+    return window.ykAgentIdentity ? ykAgentIdentity.display(n, machine) : String(n || "");
+  }
+  function agentePinta(n, machine) {
     var nom = String(n || "").trim();
     if (!nom) return '<span class="dec-k ag">— sin agente</span>';
     var u = "";
@@ -96,7 +99,7 @@
     var cara = u
       ? '<img class="decava" loading="lazy" alt="" src="' + esc(u) + '" onerror="this.remove()">'
       : '<span class="decini">' + esc(nom.replace(/^(sub|infra)/i, "").slice(0, 2).toUpperCase()) + "</span>";
-    return '<span class="dec-k ag">' + cara + esc(nom) + "</span>";
+    return '<span class="dec-k ag">' + cara + esc(agenteVisible(nom, machine)) + "</span>";
   }
   function mmss(s) { s = Math.max(0, s | 0); return ((s / 60) | 0) + ":" + String(s % 60).padStart(2, "0"); }
   function pct(d) { var total = Math.max(1, Math.round(((d.deadline || 0) - (d.created_at || 0)) / 1000)); return Math.max(0, Math.min(100, Math.round((1 - d.secondsLeft / total) * 100))); }
@@ -126,11 +129,15 @@
     // Quién EJECUTA la misión resultante: el agente en su máquina. Salvo canceladas,
     // que no arrancan nada.
     if (d.status !== "cancelled") {
-      var exec = esc(d.agent || "—") + (d.machine ? " · " + esc(d.machine) : "");
+      var exec = esc(agenteVisible(d.agent || "—", d.machine)) + (d.machine ? " · " + esc(d.machine) : "");
       bits.push("<span>ejecuta <b>" + exec + "</b></span>");
     }
-    bits.push("<span>" + esc(d.id) + "</span>");
+    bits.push("<span>" + esc(d.display_ref || d.id) + "</span>");
     return bits.length ? "<div class=\"dec-stamp\">" + bits.join("") + "</div>" : "";
+  }
+  function canRollbackClosedImprovement(d, i) {
+    var options=d&&d.options||[], surface=String(d&&d.surface||"").toLowerCase();
+    return (d.status==="expired"||d.status==="decided")&&(surface==="automatic"||surface==="telegram-forced")&&options.length===4&&i===options.length-1&&/volver\s+atr[aá]s|no\s+iniciar/i.test(String(options[i]||""));
   }
   function card(d, opts) {
     var pending = d.status === "pending", rec = +d.recommended || 0, closed = !pending;
@@ -139,16 +146,17 @@
     var effective = d.status === "decided" || d.status === "cancelled" ? +d.chosen : (d.status === "expired" ? rec : -1);
     var optsHtml = (d.options || []).map(function (o, i) {
       var current = closed && i === effective;
-      var cls = "dec-opt" + (!closed && i === rec ? " rec" : "") + (current ? " effective" + (d.status === "expired" ? " expired" : "") : "");
-      var attrs = closed ? " disabled aria-disabled=\"true\"" + (current ? " aria-current=\"true\"" : "") : " data-dec=\"" + esc(d.id) + "\" data-i=\"" + i + "\"" + (i === rec ? " data-fill=\"" + esc(d.id) + "\" style=\"--fill:" + pct(d) + "%\"" : "");
-      var mark = current ? (d.status === "expired" ? "⏱" : "✓") : (!closed && i === rec ? "★" : i + 1);
+      var rollback=canRollbackClosedImprovement(d,i);
+      var cls = "dec-opt" + (!closed && i === rec ? " rec" : "") + (current ? " effective" + (d.status === "expired" ? " expired" : "") : "")+(rollback?" rollback":"");
+      var attrs = closed&&!rollback ? " disabled aria-disabled=\"true\"" + (current ? " aria-current=\"true\"" : "") : " data-dec=\"" + esc(d.id) + "\" data-i=\"" + i + "\"" + (i === rec ? " data-fill=\"" + esc(d.id) + "\" style=\"--fill:" + pct(d) + "%\"" : "");
+      var mark = rollback?"↩":current ? (d.status === "expired" ? "⏱" : "✓") : (!closed && i === rec ? "★" : i + 1);
       return "<button class=\"" + cls + "\"" + attrs + "><span class=\"n\">" + mark + "</span><span>" + esc(o) + "</span></button>";
     }).join("");
     var result = d.status === "decided" ? "<div class=\"dec-done ok\">✓ decisión aplicada: <b>" + esc(d.options[effective] || "") + "</b></div>" : d.status === "expired" ? "<div class=\"dec-done exp\">⏱ sin respuesta — se aplicó la recomendada: <b>" + esc(d.options[effective] || "") + "</b></div>" : d.status === "cancelled" ? "<div class=\"dec-done exp\">" + (d.parent_decision || d.batch_id ? "↩ continuación descartada: se conserva la tanda actual." : "↩ lote descartado: no se iniciará ninguna misión.") + "</div>" : "";
     var batch = d.batch, batchHtml = "";
     if (batch) { var active = (batch.items || []).filter(function (x) { return x.status === "active"; })[0]; var queued = (batch.items || []).filter(function (x) { return x.status === "queued"; }); batchHtml = "<div class=\"dec-batch" + (batch.status === "paused" ? " paused" : "") + "\">" + (batch.status === "paused" ? "⏸ <b>cola pausada</b>: " + esc(batch.pause_reason || "requiere decisión") : batch.status === "completed" ? "✓ <b>tanda completada</b>" : "▶ <b>activa</b>: " + esc(active ? active.title : "preparando") + " · cola: " + queued.map(function (x) { return esc(x.title); }).join(" → ")) + "</div>"; }
     var projectTag = opts && opts.nested ? "h4" : "h3";
-    var topRow = "<div class=\"dec-top\"><span class=\"dec-k\">🖥 " + esc(d.machine || "—") + "</span>" + agentePinta(d.agent) + "<span class=\"dec-k\">" + (String(d.surface || "").toUpperCase() === "CLI" ? "⌨ CLI" : "🖥 Desktop App") + "</span>" + (pending ? "<span class=\"dec-clock\" data-clock=\"" + esc(d.id) + "\" role=\"timer\" aria-label=\"Tiempo restante\">" + mmss(d.secondsLeft) + "</span>" : "") + "</div>";
+    var topRow = "<div class=\"dec-top\"><span class=\"dec-k\">🖥 " + esc(d.machine || "—") + "</span>" + agentePinta(d.agent, d.machine) + "<span class=\"dec-k\">" + (String(d.surface || "").toUpperCase() === "CLI" ? "⌨ CLI" : "🖥 Desktop App") + "</span>" + (pending ? "<span class=\"dec-clock\" data-clock=\"" + esc(d.id) + "\" role=\"timer\" aria-label=\"Tiempo restante\">" + mmss(d.secondsLeft) + "</span>" : "") + "</div>";
     var body = topRow + "<div class=\"dec-q\">" + esc(d.question) + "</div><div class=\"dec-opts\">" + optsHtml + "</div>" + result + batchHtml;
     var stampHtml = opts && opts.stamp ? stamp(d) : "";
     // VIVO: el reloj y las opciones pulsables NO se pliegan — manda la información viva.
@@ -232,6 +240,11 @@
   // dice — nunca se presenta una lista recortada como si fuera completa.
   var PAGE = 500, PAGE_MAX = 4;
   function closedAt(d) { return +d.decided_at || +d.deadline || +d.created_at || 0; }
+  function ymd(ts) {
+    var d = ts instanceof Date ? ts : new Date(+ts || Date.now());
+    function p(n) { return String(n).padStart(2, "0"); }
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  }
 
   function mount(config) {
     config = config || {};
@@ -249,6 +262,11 @@
     // activo otra vez vuelve a todas. VIVAS actúa sobre la sección de relojes;
     // DECIDIDAS/VENCIDAS/CANCELADAS acotan el histórico a ese estado.
     var filter = null;
+    var dayInput = full ? document.getElementById("decisionDay") : null;
+    var selectedDay = ymd(new Date());
+    if (dayInput) { dayInput.value = selectedDay; dayInput.addEventListener("change", function () {
+      selectedDay = dayInput.value || ymd(new Date()); sig = null; histSig = null; renderFull();
+    }); }
     var STATUS_LABEL = {pending:"vivas", decided:"decididas", expired:"vencidas", cancelled:"canceladas"};
     var EMPTY_HIST = {
       decided: "Ninguna decisión decidida todavía.",
@@ -264,8 +282,9 @@
 
     // Vista COMPLETA: vivas arriba, cerradas abajo. Todo del worker.
     function renderFull() {
-      var live = decisions.filter(function (d) { return d.status === "pending"; });
-      var closed = decisions.filter(function (d) { return d.status !== "pending"; })
+      var dayItems = decisions.filter(function (d) { return ymd(d.created_at) === selectedDay; });
+      var live = dayItems.filter(function (d) { return d.status === "pending"; });
+      var closed = dayItems.filter(function (d) { return d.status !== "pending"; })
         .sort(function (a, b) { return closedAt(b) - closedAt(a); });
       counters(live, closed);
       // Los contadores enseñan SIEMPRE el total real; el filtro sólo recorta las listas.

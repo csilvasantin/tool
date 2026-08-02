@@ -30,6 +30,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px}
 .kpi[role=button]:hover{border-color:var(--line2)}
 .kpi[role=button]:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 .kpi.active{border-color:var(--brand);background:var(--card2);box-shadow:inset 0 0 0 1px var(--brand)}
+.kpi.kdate{min-width:198px;min-height:54px;margin-left:auto;color:var(--ink);color-scheme:dark;font-size:17px;letter-spacing:.05em;text-transform:none;padding:0 15px;border-radius:14px;cursor:pointer}
+.kpi.kdate::-webkit-calendar-picker-indicator{cursor:pointer;filter:invert(.75) sepia(1) saturate(3) hue-rotate(150deg)}
 .foot{font-family:var(--mono);font-size:10.5px;line-height:1.6;color:var(--dim);margin-top:20px;padding-top:14px;border-top:1px solid var(--line)}
 .foot b{color:var(--mut)}
 .foot a{color:var(--brand)}
@@ -69,6 +71,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px}
     <div class="kpi b"><b data-dec-count="decided">0</b> decididas</div>
     <div class="kpi c"><b data-dec-count="expired">0</b> vencidas</div>
     <div class="kpi d"><b data-dec-count="cancelled">0</b> canceladas</div>
+    <input type="date" id="decisionDay" class="kpi kdate" title="Día de las decisiones — por defecto hoy">
   </div>
 
   <!-- VIVAS: reloj corriendo y opciones pulsables (POST /decisions/<id>/choose) -->

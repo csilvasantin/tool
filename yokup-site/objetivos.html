@@ -96,6 +96,8 @@
     font:800 14px/1 -apple-system,system-ui,sans-serif;cursor:pointer;transition:filter .15s}
   .add button:hover{filter:brightness(1.08)} .add button:disabled{opacity:.5;cursor:default}
   .bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .bar .day{margin-left:auto;background:var(--card);color:var(--ink);color-scheme:dark;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+  .bulkbar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:9997;display:flex;gap:10px;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:11px 16px}.bulkbar[hidden]{display:none}
   .bar .f{font:700 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);
     border:1px solid var(--line);background:transparent;border-radius:999px;padding:7px 12px;cursor:pointer}
   .bar .f.on{color:#04232a;background:var(--brand);border-color:var(--brand)}
@@ -293,10 +295,12 @@
     <span class="viewsel" id="viewsel" style="margin-left:8px">
       <button type="button" data-v="grid" title="Vista fichas">▦</button><button type="button" data-v="list" title="Vista listado">☰</button>
     </span>
+    <input type="date" class="day" id="boardDay" title="Día de los objetivos — por defecto hoy">
   </div>
 
   <div class="grid" id="grid"></div>
   <div class="empty" id="empty" style="display:none">Aún no hay ideas. Apunta la primera arriba. ✍️</div>
+  <div class="bulkbar" id="bulkbar" hidden><span id="bulkN">0 objetivos seleccionados</span><select id="bulkEstado"><option value="">— estado —</option><option value="nueva">Nueva</option><option value="estudio">En estudio</option><option value="hecha">Hecha</option><option value="descartada">Descartada</option></select><button id="bulkApply" type="button">Aplicar</button><button id="bulkClear" type="button">Quitar selección</button></div>
 
   <!-- ── EL CONSEJO: plegado por defecto con el patrón .page-intro (el titular es
          el summary; un toque abre). Las sillas se pintan igual estén plegadas o
@@ -442,7 +446,10 @@ function projChip(slug,cls){ const p=PROJ_BY[slug]; if(!p) return "";
   const nm=esc(p.name||slug), u=projUrl(p.web);
   return u?'<a class="'+cls+'" href="'+esc(u)+'" target="_blank" rel="noopener" title="'+nm+' · '+esc(p.web)+'">'+nm+'</a>'
           :'<span class="'+cls+'" title="'+nm+'">'+nm+'</span>'; }
-let IDEAS=[], FILTER="", PROG=null;
+function ymd(d){const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());}
+const TODAY=ymd(new Date());
+let IDEAS=[], FILTER="", PROG=null, SEL=new Set();
+document.getElementById("boardDay").value=TODAY;
 // Vista fichas|listado, persistida (la cambia el toggle ▦/☰ de la barra).
 let VIEW=(()=>{ try{ return localStorage.getItem("yk-ideas-view")==="list"?"list":"grid"; }catch(e){ return "grid"; } })();
 // Rellena el selector de silla de la captura (fuente única SEATS).
@@ -465,7 +472,7 @@ function card(i){
   const showDelib=rv||st==="estudio"; // en estudio siempre hay hueco de deliberación
   const kit=kitBlock(i); // Kit de venta (FLT-1007): '' si no hay adjuntos
   const delX='<button class="del" data-rm="'+esc(i.id)+'" title="Eliminar para siempre">✕</button>';
-  return '<div class="idea'+(cons?' consejo '+side:'')+'">'+
+  return '<div class="idea'+(cons?' consejo '+side:'')+'"><label title="Seleccionar para cambio masivo"><input type="checkbox" data-bulk-id="'+esc(i.id)+'"'+(SEL.has(i.id)?' checked':'')+'> seleccionar</label><input type="date" data-date-for="'+esc(i.id)+'" value="'+esc(i.scheduled_for||ymd(new Date(i.created_at)))+'" title="Día planificado">'+
     '<div class="top"><span class="st '+st+'">'+STLABEL[st]+'</span>'+
       (cons?'<span class="csign'+(side==="cre"?" cre":"")+'" title="Idea del Consejo">✦ '+esc(i.author||"Consejo")+'</span>'
            :(i.tag?'<span class="tag">#'+esc(i.tag)+'</span>':''))+
@@ -502,7 +509,7 @@ function listRow(i){
   const pend=hasDecision(i);
   const cons=isConsejo(i), side=cons?seatSide(i.seat):"";
   const seatL=i.seat?(SEATLABEL[i.seat]||String(i.seat).toUpperCase()):"";
-  return '<div class="lrow'+(cons?' consejo '+side:'')+'">'+
+  return '<div class="lrow'+(cons?' consejo '+side:'')+'"><input type="checkbox" data-bulk-id="'+esc(i.id)+'"'+(SEL.has(i.id)?' checked':'')+' title="Seleccionar para cambio masivo"><input type="date" data-date-for="'+esc(i.id)+'" value="'+esc(i.scheduled_for||TODAY)+'" title="Día planificado">'+
     '<span class="st '+st+'">'+STLABEL[st]+'</span>'+
     '<span class="ltitle" title="'+esc(i.title)+'">'+esc(i.title)+'</span>'+
     (hasMedia(i)?'<span class="lkit" title="Tiene Kit de venta (audio·vídeo·presentación·pdf)">🎬</span>':'')+
@@ -523,14 +530,16 @@ function listRow(i){
   (hasReview(i)?'<div class="ldelib" data-delib-for="'+esc(i.id)+'">'+reviewInner(i)+'</div>':'');
 }
 function render(){
-  const list=IDEAS.filter(i=>!FILTER||i.status===FILTER);
+  const day=$("#boardDay").value||TODAY;
+  const list=IDEAS.filter(i=>(i.scheduled_for||ymd(new Date(i.created_at)))===day).filter(i=>!FILTER||i.status===FILTER);
   $("#count").textContent=IDEAS.length+" idea"+(IDEAS.length===1?"":"s");
   // Pizca de vida en el resumen plegado del Consejo: 8 sillas fijas + total de ideas.
   { const cs=$("#consejoSum"); if(cs) cs.textContent="8 sillas · "+IDEAS.length+" idea"+(IDEAS.length===1?"":"s"); }
   $("#empty").style.display=(IDEAS.length&&!list.length)?"none":(IDEAS.length?"none":"block");
   const node=$("#grid");
-  if(VIEW==="list"){ node.className="list"; node.innerHTML=list.map(listRow).join(""); return; }
+  if(VIEW==="list"){ node.className="list"; node.innerHTML=list.map(listRow).join(""); refreshBulk(); return; }
   node.className="grid"; node.innerHTML=list.map(card).join("");
+  refreshBulk();
   // Marca los bodies que realmente desbordan las 3 líneas → muestran el cue "⌄ más".
   // Los cortos se quedan sin cue ni cursor confuso.
   node.querySelectorAll(".idea .body").forEach(b=>{
@@ -538,6 +547,9 @@ function render(){
     else b.style.cursor="default";
   });
 }
+function refreshBulk(){const n=SEL.size,bar=$("#bulkbar");bar.hidden=!n;$("#bulkN").textContent=n+" objetivo"+(n===1?" seleccionado":"s seleccionados");}
+async function applyBulk(){const ids=[...SEL],status=$("#bulkEstado").value;if(!ids.length||!status){toast("Selecciona un estado");return;}if(!confirm("Cambiar "+ids.length+" objetivo(s) a «"+status+"»?"))return;const btn=$("#bulkApply");btn.disabled=true;try{const r=await fetch(WORKER+"/ideas/status",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids,status})});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||"error");IDEAS.forEach(i=>{if(SEL.has(i.id))i.status=status;});SEL.clear();$("#bulkEstado").value="";render();loadProg();window.dispatchEvent(new Event("yk:work-changed"));}catch(e){toast("No se pudo cambiar el estado");}finally{btn.disabled=false;}}
+async function setSchedule(id,scheduled_for){await fetch(WORKER+"/ideas/schedule",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,scheduled_for})});const it=IDEAS.find(x=>x.id===id);if(it)it.scheduled_for=scheduled_for;render();}
 
 // Pinta, en cada silla del Consejo, su contador de ideas + progreso de misiones
 // enlazadas (desde /objetivos/progreso). Null-safe: sin datos, deja la silla limpia.
@@ -728,7 +740,7 @@ $("#addForm").addEventListener("submit",async e=>{
     // Si el texto viene de un borrador del Consejo y nadie le puso etiqueta, entra
     // firmado «consejo»: mantiene el color del lado y la firma en la ficha (FLT-1017).
     const tag=$("#fTag").value||(DRAFT?"consejo":"");
-    const body={title,body:$("#fBody").value.trim(),author:$("#fAuthor").value.trim(),tag,seat:$("#fSeat").value,project:$("#fProject").value};
+    const body={title,body:$("#fBody").value.trim(),author:$("#fAuthor").value.trim(),tag,seat:$("#fSeat").value,project:$("#fProject").value,scheduled_for:$("#boardDay").value||TODAY,origin_type:"objetivo"};
     const r=await fetch(WORKER+"/ideas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const d=await r.json();
     if(d.ok){ autoStop(""); DRAFT=false;
@@ -758,6 +770,10 @@ $("#grid").addEventListener("click",e=>{
   else if(d){ setStatus(d.dataset.del,"descartada"); }
 });
 $("#grid").addEventListener("change",e=>{ const s=e.target.closest("[data-seat-for]"); if(s) setSeat(s.dataset.seatFor,s.value); });
+$("#grid").addEventListener("change",e=>{const b=e.target.closest("[data-bulk-id]");if(b){b.checked?SEL.add(b.dataset.bulkId):SEL.delete(b.dataset.bulkId);refreshBulk();}const d=e.target.closest("[data-date-for]");if(d)setSchedule(d.dataset.dateFor,d.value);});
+$("#boardDay").addEventListener("change",render);
+$("#bulkApply").addEventListener("click",applyBulk);
+$("#bulkClear").addEventListener("click",()=>{SEL.clear();render();});
 load();
 loadProjects();
 })();

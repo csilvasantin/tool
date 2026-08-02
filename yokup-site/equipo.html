@@ -252,6 +252,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 5px}
   </div>
 </div>
 
+<div class="mod" id="notasMod"><div class="box notasbox"><h3 id="notasTit">Seguimiento del proyecto</h3><div class="notaslista" id="notasLista">Cargando seguimiento…</div><div class="f"><label>Nueva nota</label><textarea id="notaTexto"></textarea></div><div class="f"><label>Autor</label><input id="notaAutor"></div><div class="mbtns"><button class="save" id="notaSave">Añadir seguimiento</button><button id="notaClose">Cerrar</button><span class="msg" id="notaMsg"></span></div></div></div>
+
 <script src="/yk-agent-identity.js?v=1"></script>
 <script src="/yk-maquina.js?v=r1"></script>
 <script src="/yk-avatar.js?v=r2"></script>
@@ -303,10 +305,16 @@ const F_PRO=[
   // De CARBONO: la persona humana que responde del proyecto, frente al equipo de
   // silicio. Texto libre — es un nombre, no un id del censo. Vacío = no se pinta.
   {k:"owner", l:"Responsable de carbono", t:"text", ph:"Carlos"},
+  {k:"responsibles_text",l:"Responsables y roles",t:"area",ph:"Carlos | Responsable principal"},
   {k:"web",   l:"Web",              t:"text", ph:"www.yokup.com"},
   {k:"status",l:"Estado",           t:"sel",  opts:[["activo","Activo"],["pausado","Pausado"],["archivado","Archivado"]]},
   {k:"color", l:"Color",            t:"text", ph:"#3df08a"}
 ];
+function responsablesDe(p){return Array.isArray(p.responsibles)&&p.responsibles.length?p.responsibles:(p.owner?[{name:p.owner,role:"Responsable principal"}]:[]);}
+function responsablesTexto(p){return responsablesDe(p||{}).map(r=>r.name+(r.role?" | "+r.role:"")).join("\n");}
+function parseResponsables(txt){return String(txt||"").split(/\n|,/).map(x=>x.trim()).filter(Boolean).map(x=>{const p=x.split("|");return{name:p.shift().trim(),role:p.join("|").trim()};});}
+function normalizaWebProyecto(value){let v=String(value||"").trim();if(!v)return "";if(!/^https?:\/\//i.test(v))v="https://"+v;const u=new URL(v);return u.href.replace(/\/$/,"");}
+function fechaSeguimiento(ms){return ms?new Date(ms).toLocaleString("es-ES",{timeZone:"Europe/Madrid"}):"";}
 const CAPAS={
   1:{ t:"Capa 1 · Principales", d:"Siempre con el mejor modelo disponible. Definen estrategia y arquitectura con el máximo detalle; no ejecutan tareas mecánicas: las reparten." },
   2:{ t:"Capa 2 · Especialistas", d:"Perfiles de apoyo con criterio propio: contrastan, exploran y cubren frentes que los principales no alcanzan." }
@@ -374,6 +382,7 @@ function presenciaMaq(id,nombre){
   const mios=PRES.filter(p=>p.machine&&norm(canon(p.machine))===c);
   return mios.length?mios.sort((a,b)=>(b.updated||0)-(a.updated||0))[0]:null;
 }
+function nombreVisibleAg(nombre,maquina){return window.ykAgentIdentity?ykAgentIdentity.display(nombre,maquina):nombre;}
 // Agentes vivos sobre una máquina — el puente átomos→bits. Se cruza por
 // presencia, no por la ficha: quién corre dónde cambia solo y a cada rato.
 function agentesEn(id,nombre){
@@ -445,7 +454,7 @@ function tarjetaSil(a){
   const tags=Array.isArray(a.tags)?a.tags:String(a.tags||"").split(",").map(s=>s.trim()).filter(Boolean);
   return '<div class="ag'+(on?"":" off")+'" style="--c:'+esc(a.color||"#78f3ff")+'">'+
     '<div class="top">'+retratoGrande(a.name||a.id, a.initials)+
-      '<div class="who"><b>'+esc(a.name||a.id)+'</b><span class="rt"><span class="sub2">'+esc(a.runtime||"—")+' · '+esc(a.role||"")+'</span></span></div>'+
+      '<div class="who"><b>'+esc(nombreVisibleAg(a.name||a.id,maq))+'</b><span class="rt"><span class="sub2">'+esc(a.runtime||"—")+' · '+esc(a.role||"")+'</span></span></div>'+
       '<span class="pulse'+(on?" on":"")+'" title="'+esc(hace(p&&p.updated))+'"><i></i>'+(on?"vivo":"reposo")+'</span></div>'+
     (a.motto?'<div class="lema">«'+esc(a.motto)+'»</div>':"")+
     '<div class="rows">'+
@@ -562,23 +571,27 @@ function nombreAg(id){ const a=SIL.find(x=>x.id===id); return a?(a.name||a.id):i
 function tarjetaPro(p,i){
   const web=webDeProyecto(p.web||p.name);
   const est=String(p.status||"activo");
+  const responsables=responsablesDe(p),ultima=p.latest_note||null;
   return '<div class="ag mov'+(est==="archivado"?" off":"")+'" style="--c:'+esc(p.color||"#3df08a")+'"'+
       ' data-ord="'+esc(p.id)+'" data-pos="'+i+'">'+
     '<button type="button" class="asa" data-asa="'+esc(p.id)+'" aria-label="Mover '+esc(p.name||p.id)+
       '" title="Arrastra para colocar la ficha · con el teclado, flechas">⠿</button>'+
     '<div class="top"><div class="av">📁</div>'+
       '<div class="who"><b>'+esc(p.name||p.id)+'</b><span class="rt"><span class="sub2">'+esc(p.id)+'</span>'+
-        (p.owner?'<span class="carb" title="responsable de carbono">'+esc(p.owner)+'</span>':"")+'</span></div>'+
+        (responsables.length?'<span class="carb" title="responsable principal">'+esc(responsables[0].name)+'</span>':"")+'</span></div>'+
       '<span class="pchip '+esc(est)+(est==="activo"?" on":"")+'">'+esc(est)+'</span></div>'+
     (p.blurb?'<div class="pblurb">'+esc(p.blurb)+'</div>':"")+
     (web?'<a class="pshot" href="'+esc(web)+'" target="_blank" rel="noopener" title="abrir '+esc(web)+'">'+
          '<img loading="lazy" src="'+esc(WORKER+"/shot?url="+encodeURIComponent(web))+'" alt="'+esc(p.name||p.id)+'"></a>':"")+
     '<div class="rows">'+
       fila("Web", p.web?'<a class="pweb" href="'+esc(/^https?:\/\//.test(p.web)?p.web:"https://"+p.web)+'" target="_blank" rel="noopener">'+esc(p.web)+'</a>':"— sin web", p.web?"":"falta")+
+      fila("Responsables",responsables.length?responsables.map(r=>'<span class="rchip"><b>'+esc(r.name)+'</b>'+(r.role?' · '+esc(r.role):'')+'</span>').join(" "):"— sin asignar",responsables.length?"":"falta")+
       fila("Máquina", p.machines.length?p.machines.map(id=>'<span class="agchip">🖥 '+esc(nombreMaq(id))+'</span>').join(" "):"— sin asignar", p.machines.length?"":"falta")+
       fila("Agente", p.agents.length?p.agents.map(id=>'<span class="agchip">'+retratoMini(nombreAg(id))+esc(nombreAg(id))+'</span>').join(" "):"— sin asignar", p.agents.length?"":"falta")+
     '</div>'+
-    '<div class="mis"><span class="n">'+rotuloMisiones(+p.missions||0,+p.missions_pending||0)+'</span>'+
+      (ultima?fila("Último seguimiento",'<span class="ultnota">'+esc(ultima.body)+'</span><small>'+esc(ultima.author||"Yokup")+' · '+esc(fechaSeguimiento(ultima.created_at))+'</small>',"seguimiento"):"")+
+    '<div class="mis"><span class="n">'+rotuloMisiones(+p.missions||0,+p.missions_pending||0)+' · '+(+p.notes_count||0)+' notas</span>'+
+      '<button data-notas="'+esc(p.id)+'">📝 seguimiento</button>'+
       '<button data-ed="pro" data-id="'+esc(p.id)+'">✏️ editar</button>'+
       '<a href="/misiones">ver misiones →</a></div>'+
   '</div>';
@@ -607,6 +620,7 @@ function pinta(){
       '<div class="grid">'+MAQ.map(tarjetaEq).join("")+'</div>';
   }
   document.querySelectorAll("[data-ed]").forEach(b=>{ b.onclick=()=>abrir(b.dataset.ed,b.dataset.id); });
+  document.querySelectorAll("[data-notas]").forEach(b=>{b.onclick=()=>abrirNotas(b.dataset.notas);});
   // Selector rápido de MISIÓN DEL DÍA: guarda sin abrir el editor, porque esto
   // se cambia a diario y no es una edición de ficha.
   document.querySelectorAll(".mdia-sel").forEach(sel=>{
@@ -793,7 +807,7 @@ function abrir(tipo,id){
     ? "El proyecto vive en yokup y se asigna a las máquinas y agentes del censo de admira-fleet. Su nombre es el que sale en la ficha de cada decisión y de cada misión."
     : "El equipo se auto-registra y late solo; aquí se edita la parte humana de su ficha. La comparte admira.live/control.";
   $("mForm").innerHTML=campos.map(f=>{
-    let v=dato[f.k]; if(Array.isArray(v)) v=v.join(", ");
+    let v=f.k==="responsibles_text"?responsablesTexto(dato):dato[f.k]; if(Array.isArray(v)) v=v.join(", ");
     v=v==null?"":String(v);
     if(f.t==="area") return '<div class="f"><label>'+esc(f.l)+'</label><textarea data-k="'+f.k+'" placeholder="'+esc(f.ph||"")+'">'+esc(v)+'</textarea></div>';
     if(f.t==="sel")  return '<div class="f"><label>'+esc(f.l)+'</label><select data-k="'+f.k+'">'+f.opts.map(o=>'<option value="'+o[0]+'"'+(String(v)===o[0]?" selected":"")+'>'+esc(o[1])+'</option>').join("")+'</select></div>';
@@ -841,6 +855,8 @@ $("mSave").onclick=async()=>{
     // Los agentes salen del combo. Si no hay censo no se manda el campo: mandar
     // [] borraría las asignaciones que ya tuviera el proyecto.
     if(SIL.length) body.agents=AG_SEL.slice();
+    try{body.web=normalizaWebProyecto(body.web);}catch(e){$("mMsg").textContent="web no válida";return;}
+    body.responsibles=parseResponsables(body.responsibles_text||""); delete body.responsibles_text;
   }
   if(ED.id) body.id=ED.id;
   if((ED.tipo==="sil"||ED.tipo==="pro")&&!ED.id&&!body.name){ $("mMsg").textContent="pon un nombre"; return; }
@@ -855,6 +871,12 @@ $("mSave").onclick=async()=>{
     setTimeout(()=>$("mod").classList.remove("on"),450);
   }catch(e){ $("mMsg").textContent="✗ "+(e&&e.message||e); }
 };
+
+let NOTAS_PROYECTO="";
+function pintaNotas(rows){$("notasLista").innerHTML=rows.length?rows.map(n=>'<article class="nota"><div>'+esc(n.body)+'</div><small>'+esc(n.author||"Yokup")+' · '+esc(fechaSeguimiento(n.created_at))+'</small></article>').join(""):'<div class="notavacia">Todavía no hay notas.</div>';}
+async function abrirNotas(id){NOTAS_PROYECTO=id;const p=PRO.find(x=>x.id===id);$("notasTit").textContent="Seguimiento · "+(p?p.name:id);$("notasMod").classList.add("on");const r=await fetch(WORKER+"/projects/notes?project="+encodeURIComponent(id),{cache:"no-store"});const d=await r.json();pintaNotas(d.notes||[]);}
+$("notaClose").onclick=()=>$("notasMod").classList.remove("on");
+$("notaSave").onclick=async()=>{const body=$("notaTexto").value.trim(),author=$("notaAutor").value.trim()||"Yokup";if(!body)return;await fetch(WORKER+"/projects/notes",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({project:NOTAS_PROYECTO,body,author})});$("notaTexto").value="";await abrirNotas(NOTAS_PROYECTO);await cargar();};
 $("mDel").onclick=async()=>{
   if(!ED.id||!confirm("¿Dar de baja a "+ED.id+"?")) return;
   $("mMsg").textContent="borrando…";

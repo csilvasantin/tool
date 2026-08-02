@@ -1,21 +1,22 @@
 /* yk-agent-identity.js — identidad visible = persona + equipo físico.
  *
- * Los nombres planos históricos se aceptan al leer. Toda UI nueva puede llamar:
- *   ykAgentIdentity.scoped("Oraculo", "Mac Mini")          → OraculoMini
- *   ykAgentIdentity.scoped("Oraculo", "Mac Mini", "sub")   → SubOraculoMini
- *   ykAgentIdentity.base("InfraOraculoMini")               → Oraculo
+ * Los nombres planos históricos se aceptan al leer. Toda UI visible debe llamar:
+ *   ykAgentIdentity.display("Neo", "MacBook Pro 16")       → NeoMBP16
+ *   ykAgentIdentity.display("Oraculo", "Mac Mini", "sub")  → SubOraculoMini
+ *   ykAgentIdentity.display("Neo", "")                     → NeoSINMAQ
+ * `scoped` conserva el nombre operativo sin SINMAQ para datos/rutas heredadas.
  */
 (function (root) {
   "use strict";
   var MACHINES = [
     ["Mini",["macmini","mac mini","mac mini carlos","admira-macmini","macmini.local"]],
-    ["14",["macbookpro14","macbook pro 14","macbookpronegro14","macbook pro negro 14","admira-macbookpronegro14"]],
-    ["16",["macbookpro16","macbook pro 16","admira-macbookpro16","macbook-pro-16"]],
-    ["Azul",["macbookairazul","macbook air azul","mba azul","admira-macbookairazul"]],
-    ["Rosa",["macbookairrosa","macbook air rosa","mba rosa","admira-macbookairrosa"]],
-    ["Crema",["macbookaircrema","macbook air crema","mba crema","admira-macbookaircrema"]],
-    ["Plata",["macbookairplata","macbook air plata","mba plata","admira-macbookairplata"]],
-    ["Plata16",["macbookair16plata","macbookair16","macbook air 16 dg","mba 16 plata","admira-macbookair16"]],
+    ["MBP14",["mbp14","macbookpro14","macbook pro 14","macbookpronegro14","macbook pro negro 14","admira-macbookpronegro14"]],
+    ["MBP16",["mbp16","macbookpro16","macbook pro 16","admira-macbookpro16","macbook-pro-16"]],
+    ["MBA16",["mba16","macbookair16plata","macbookair16","macbook air 16 dg","mba 16 plata","admira-macbookair16"]],
+    ["MBAAzul",["mbaazul","macbookairazul","macbook air azul","mba azul","admira-macbookairazul"]],
+    ["MBARosa",["mbarosa","macbookairrosa","macbook air rosa","mba rosa","admira-macbookairrosa"]],
+    ["MBACrema",["mbacrema","macbookaircrema","macbook air crema","mba crema","admira-macbookaircrema"]],
+    ["MBAPlata",["mbaplata","macbookairplata","macbook air plata","mba plata","admira-macbookairplata"]],
     ["Zenbook",["asuszenbook","asus zenbook","admira-asuszenbook"]],
     ["DGX",["dgxspark","dgx spark","dgx-spark"]],
     ["PGX",["thinkstationpgx","thinkstation pgx","thinkstation"]]
@@ -26,7 +27,18 @@
     ["Smith",["smith","cypher","agente smith"]],
     ["WhiteRabbit",["whiterabbit","white rabbit"]]
   ];
-  var AIR = {Azul:1,Rosa:1,Crema:1,Plata:1,Plata16:1};
+  var LEGACY_SUFFIXES = {
+    "14":"MBP14", "16":"MBP16", "air16":"MBA16", "plata16":"MBA16",
+    "azul":"MBAAzul", "rosa":"MBARosa", "crema":"MBACrema", "plata":"MBAPlata",
+    "sinmaq":"SINMAQ"
+  };
+  var CANONICAL_MACHINES = {
+    Mini:"Mac Mini", MBP14:"MacBookProNegro14", MBP16:"MacBook Pro 16",
+    MBA16:"MacBookAir16plata", MBAAzul:"MacBook Air Azul", MBARosa:"MacBook Air Rosa",
+    MBACrema:"MacBook Air Crema", MBAPlata:"MacBook Air Plata", Zenbook:"Asus Zenbook",
+    DGX:"DGX Spark", PGX:"ThinkStation PGX"
+  };
+  var SMITH_AIR_NAMES = {MBA16:"16",MBAAzul:"Azul",MBARosa:"Rosa",MBACrema:"Crema",MBAPlata:"Plata"};
   function key(v) {
     return String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
       .toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -37,13 +49,13 @@
     for (var i=0;i<MACHINES.length;i++) {
       for (var j=0;j<MACHINES[i][1].length;j++) {
         var a=key(MACHINES[i][1][j]);
-        if(k===a || k.indexOf(a)===0) return MACHINES[i][0];
+        if(k===key(MACHINES[i][0]) || k===a || k.indexOf(a)===0) return MACHINES[i][0];
       }
     }
     return "";
   }
   function parse(value) {
-    var k=key(value), role="main";
+    var original=String(value||"").trim(), k=key(original), role="main";
     if(k.indexOf("infra")===0){role="infra";k=k.slice(5);}
     else if(k.indexOf("sub")===0){role="sub";k=k.slice(3);}
     k=k.replace(/^agente/,"");
@@ -51,21 +63,59 @@
       var names=PERSONAS[i][1].map(function(x){return key(x).replace(/^agente/,"");})
         .sort(function(a,b){return b.length-a.length;});
       for(var j=0;j<names.length;j++) if(k.indexOf(names[j])===0){
-        var tail=k.slice(names[j].length), sf="";
+        var tail=k.slice(names[j].length), sf=LEGACY_SUFFIXES[tail]||"";
         for(var m=0;m<MACHINES.length;m++) if(key(MACHINES[m][0])===tail){sf=MACHINES[m][0];break;}
         return {role:role,persona:PERSONAS[i][0],suffix:sf,legacy:!sf};
       }
     }
-    return {role:role,persona:String(value||""),suffix:"",legacy:true};
+    var suffixes=MACHINES.map(function(m){return [key(m[0]),m[0]];});
+    Object.keys(LEGACY_SUFFIXES).forEach(function(legacy){suffixes.push([key(legacy),LEGACY_SUFFIXES[legacy]]);});
+    suffixes.sort(function(a,b){return b[0].length-a[0].length;});
+    for(var s=0;s<suffixes.length;s++){
+      var tail=suffixes[s][0], sf=suffixes[s][1];
+      if(!tail||k.length<=tail.length||k.slice(-tail.length)!==tail)continue;
+      var baseKey=k.slice(0,-tail.length);
+      var raw=original.replace(/^(?:infra|sub)/i,"").replace(/^agente\s*/i,"").trim();
+      for(var cut=raw.length;cut>0;cut--)if(key(raw.slice(0,cut))===baseKey){raw=raw.slice(0,cut).replace(/[\s._-]+$/,"");break;}
+      return {role:role,persona:raw||baseKey,suffix:sf,legacy:false};
+    }
+    return {role:role,persona:original,suffix:"",legacy:true};
   }
   function scoped(persona,machine,role){
     var p=parse(persona), r=role||p.role||"main", sf=suffix(machine)||p.suffix;
-    var main=p.persona==="Smith"&&AIR[sf]?"Agente Smith "+sf:p.persona+sf;
+    var main=p.persona==="Smith"&&SMITH_AIR_NAMES[sf]?"Agente Smith "+SMITH_AIR_NAMES[sf]:p.persona+sf;
     return (r==="sub"?"Sub":r==="infra"?"Infra":"")+main;
   }
+  function display(persona,machine,role){
+    var p=parse(persona), r=role||p.role||"main", sf=suffix(machine)||p.suffix||"SINMAQ";
+    var main=p.persona==="Smith"&&SMITH_AIR_NAMES[sf]?"Agente Smith "+SMITH_AIR_NAMES[sf]:p.persona+sf;
+    return (r==="sub"?"Sub":r==="infra"?"Infra":"")+main;
+  }
+  function reportDisplay(owner,machine){
+    var original=String(owner||"").trim(), p=parse(original), sf=suffix(machine);
+    if(!original||!sf)return original;
+    var known=PERSONAS.some(function(row){return row[0]===p.persona;});
+    if(!known)return original;
+    var reportSuffix={Mini:"MacMini",MBP14:"14",MBP16:"MBP16",MBA16:"Plata16",MBAAzul:"Azul",MBARosa:"Rosa",MBACrema:"Crema",MBAPlata:"Plata"}[sf];
+    if(!reportSuffix)return original;
+    var main=p.persona==="Smith"&&/^MBA/.test(sf)?"Agente Smith "+reportSuffix:p.persona+reportSuffix;
+    return (p.role==="sub"?"Sub":p.role==="infra"?"Infra":"")+main;
+  }
   function base(value){return parse(value).persona;}
+  function canonicalMachine(value){return CANONICAL_MACHINES[parse(value).suffix]||"";}
+  function missionPair(agent,machine,hints){
+    var rawAgent=String(agent||"").trim(), rawMachine=String(machine||"").trim();
+    if(!rawAgent)return {agent:"",machine:rawMachine};
+    var resolved=suffix(rawMachine)?rawMachine:canonicalMachine(rawAgent);
+    for(var i=0;!resolved&&i<(hints||[]).length;i++)resolved=canonicalMachine(hints[i]);
+    if(!resolved)return {agent:"",machine:rawMachine};
+    var p=parse(rawAgent);
+    return {agent:scoped(p.persona,resolved,p.role),machine:resolved};
+  }
   function same(a,b){return key(base(a))===key(base(b));}
-  var api={key:key,suffix:suffix,parse:parse,scoped:scoped,base:base,same:same};
+  var api={key:key,suffix:suffix,parse:parse,scoped:scoped,display:display,reportDisplay:reportDisplay,base:base,same:same,
+    canonicalMachine:canonicalMachine,missionPair:missionPair,
+    spec:{unknownSuffix:"SINMAQ",machines:MACHINES.map(function(m){return {suffix:m[0],aliases:m[1].slice()};})}};
   root.ykAgentIdentity=api;
   if(typeof module!=="undefined"&&module.exports) module.exports=api;
 })(typeof window!=="undefined"?window:globalThis);

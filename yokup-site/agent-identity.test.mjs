@@ -7,10 +7,10 @@ assert.equal(id.scoped("Oraculo","Mac Mini"),"OraculoMini");
 assert.equal(id.scoped("Oraculo","Mac Mini","sub"),"SubOraculoMini");
 assert.equal(id.scoped("Oraculo","Mac Mini","infra"),"InfraOraculoMini");
 assert.equal(id.scoped("Neo","MacMini"),"NeoMini");
-assert.equal(id.scoped("Morfeo","MacBookProNegro14"),"Morfeo14");
-assert.equal(id.scoped("Morfeo","MacBookPro14","sub"),"SubMorfeo14");
-assert.equal(id.scoped("Oraculo","MacBookPro16"),"Oraculo16");
-assert.equal(id.scoped("Oraculo","MacBookPro16","infra"),"InfraOraculo16");
+assert.equal(id.scoped("Morfeo","MacBookProNegro14"),"MorfeoMBP14");
+assert.equal(id.scoped("Morfeo","MacBookPro14","sub"),"SubMorfeoMBP14");
+assert.equal(id.scoped("Oraculo","MacBookPro16"),"OraculoMBP16");
+assert.equal(id.scoped("Oraculo","MacBookPro16","infra"),"InfraOraculoMBP16");
 assert.equal(id.scoped("Smith","MacBookAirAzul"),"Agente Smith Azul");
 assert.equal(id.scoped("Smith","MacBookAirAzul","sub"),"SubAgente Smith Azul");
 assert.equal(id.scoped("Smith","MacBookAirAzul","infra"),"InfraAgente Smith Azul");
@@ -21,6 +21,13 @@ assert.equal(id.suffix(""),"");
 assert.equal(id.suffix("equipo-desconocido"),"");
 assert.equal(id.scoped("Oraculo",""),"Oraculo");
 assert.equal(id.scoped("Oraculo","equipo-desconocido"),"Oraculo");
+assert.equal(id.display("Oraculo",""),"OraculoSINMAQ");
+assert.equal(id.parse("Neo16").suffix,"MBP16");
+assert.equal(id.parse("MorfeoAir16").suffix,"MBA16");
+assert.equal(id.canonicalMachine("InfraMorfeo16"),"MacBook Pro 16");
+assert.deepEqual(id.missionPair("Morfeo","MacBook Pro 16",[]),{
+  agent:"MorfeoMBP16",machine:"MacBook Pro 16"
+});
 
 const status = readFileSync(new URL("./status.html", import.meta.url), "utf8");
 assert.doesNotMatch(status, /ORACULO_TRIAD_PRESENCE/);

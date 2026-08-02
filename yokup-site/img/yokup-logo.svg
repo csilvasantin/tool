@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 32.0 291.0 126" role="img" aria-label="Yokup">
+  <title>Yokup</title>
+  <g style="--tinta:#dff8ff;--marca:#78f3ff;--punto:#88ffaa"
+     fill="none" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="-999" y="-999" width="3000" height="3000" fill="#02080d"/>
+    <path d="M7.0,40 L33.0,78" stroke="var(--tinta)"/>
+    <path d="M59.0,40 L33.0,78" stroke="var(--tinta)"/>
+    <path d="M33.0,78 L33.0,120" stroke="var(--tinta)"/>
+    <circle cx="94.0" cy="94.0" r="19.0" fill="none" stroke="var(--marca)" stroke-width="14"/>
+    <circle cx="94.0" cy="94.0" r="7" fill="var(--punto)"/>
+    <path d="M135.0,40 L135.0,120" stroke="var(--marca)"/>
+    <path d="M166.0,68 L140.0,94" stroke="var(--marca)"/>
+    <path d="M140.0,94 L168.0,120" stroke="var(--marca)"/>
+    <path d="M195.0,68 L195.0,105 A15,15 0 0 0 225.0,105 L225.0,68" stroke="var(--marca)"/>
+    <path d="M225.0,68 L225.0,120" stroke="var(--marca)"/>
+    <path d="M252.0,68 L252.0,150" stroke="var(--marca)"/>
+    <path d="M252.0,68 A30,26.0 0 0 1 252.0,120" stroke="var(--marca)"/>
+  </g>
+</svg>

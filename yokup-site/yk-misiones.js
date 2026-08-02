@@ -24,7 +24,7 @@
 (function () {
   "use strict";
 
-  var CFG = { worker: "", treeId: "taskTree", lsKey: "yk_mission" };
+  var CFG = { worker: "", treeId: "taskTree", lsKey: "yk_mission", columnMode:"machine" };
   var SELECTED = "";
   // CAJÓN DE DETALLE (Carlos, 2026-07-21): al seleccionar una misión, el raíl
   // derecho deja de ser solo el árbol abc y pasa a ser la ficha completa —
@@ -118,9 +118,22 @@
     return { since: t.created_at, machine: t.machine || t.loc || "" };
   }
 
-  function whoHtml(name, surface, agents, machOff) {
-    var s = avSlug(name);
-    var cu = CUSTOM.agents[s] || {};
+  function agentSlugs(name) {
+    var full = avSlug(name), id = (typeof window !== "undefined") && window.ykAgentIdentity;
+    var base = id && id.base ? avSlug(id.base(name)) : full;
+    return {full:full, base:base || full};
+  }
+  function agentCustom(name) {
+    var s=agentSlugs(name), full=CUSTOM.agents[s.full]||{}, base=CUSTOM.agents[s.base]||{};
+    return {icon:full.icon||base.icon||"", img:full.img||base.img||""};
+  }
+  function visibleAgent(name, machine) {
+    return window.ykAgentIdentity ? window.ykAgentIdentity.display(name, machine) : name;
+  }
+  function whoHtml(name, machine, surface, agents, machOff) {
+    if(arguments.length<=4){machOff=agents;agents=surface;surface=machine;machine="";}
+    var cu = agentCustom(name);
+    var visible = agents && agents.length > 1 ? agents.map(function(a){return visibleAgent(a,machine);}).join(" + ") : visibleAgent(name,machine);
     // Plataforma REAL del agente asignado (RUNTIME · SUPERFICIE), nunca el estado:
     //  · reclamada → la superficie que confirmó el propio claim;
     //  · sin claim pero con presencia viva → deducida de esa presencia AHORA;
@@ -152,23 +165,30 @@
       }).filter(Boolean);
       if (pics.length) {
         return '<span class="who who-av"><span class="agstack">' + pics.join("") + "</span>" +
-          "<span>" + esc(name) + "</span>" + smallHtml + "</span>";
+          "<span>" + esc(visible) + "</span>" + smallHtml + "</span>";
       }
     }
     // FOTO del Panel de control > avatar builtin; ICONO personalizado > 👷.
     var img = agImg(name);
     if (avatarOn() && img) {
       return '<span class="who who-av"><img class="agava" loading="lazy" onerror="this.remove()" src="' + esc(img) + '" alt="">' +
-        "<span>" + esc(name) + "</span>" + smallHtml + "</span>";
+        "<span>" + esc(visible) + "</span>" + smallHtml + "</span>";
     }
-    return '<span class="who"><span>' + (cu.icon ? esc(cu.icon) : "👷") + " " + esc(name) +
+    return '<span class="who"><span>' + (cu.icon ? esc(cu.icon) : "👷") + " " + esc(visible) +
       "</span>" + smallHtml + "</span>";
   }
   // Visual de la columna ORDENADOR: foto pequeña > icono personalizado > 🖥.
+  function machineTypeVisual(maq) {
+    var k=avSlug(canonMachine(maq));
+    if(k.indexOf("macmini")===0)return '<span class="machtype mach-mini" aria-label="Mac mini">▣</span>';
+    if(k.indexOf("macbookpro")===0)return '<span class="machtype mach-pro" aria-label="MacBook Pro">▰</span>';
+    if(k.indexOf("macbookair")===0)return '<span class="machtype mach-air" aria-label="MacBook Air">▱</span>';
+    return "";
+  }
   function machVisual(maq) {
     var cu = CUSTOM.machines[avSlug(maq)] || {};
     if (cu.img) return '<img class="machava" loading="lazy" onerror="this.outerHTML=\'🖥\'" src="' + esc(cu.img) + '" alt="">';
-    return esc(cu.icon || "🖥");
+    return machineTypeVisual(maq) || esc(cu.icon || "🖥");
   }
   var CHIP = { pending: "○", in_progress: "◐", done: "●" };
   var NEXT_ST = { pending: "in_progress", in_progress: "done", done: "pending" };
@@ -208,6 +228,7 @@
     opts = opts || {};
     if (opts.worker) CFG.worker = opts.worker;
     if (opts.treeId) CFG.treeId = opts.treeId;
+    if (opts.columnMode) CFG.columnMode = opts.columnMode;
     try { SELECTED = localStorage.getItem(CFG.lsKey) || ""; } catch (e) {}
   }
   function selected() { return SELECTED; }
@@ -526,6 +547,23 @@
       (p.extra ? '<i class="prog-mas">+' + p.extra + "</i>" : "") +
       (p.incompleto ? '<i class="prog-inc" aria-hidden="true">◌</i>' : "") + "</span>";
   }
+  function taskSummary(r){
+    var s=String(r&&r.title||"").trim();if(!s)return "Sin definir";
+    return s.replace(/^Implementar:\s*/i,"Implementar · ").replace(/^Verificar y entregar evidencia:\s*/i,"Verificar · ").replace(/^Documentar informe factual autorizado.*$/i,"Documentar informe");
+  }
+  function tasksAbcHtml(t){
+    var by={},active={};((t&&t._tasks)||[]).forEach(function(r){var c=String(r&&r.code||"").trim().toLowerCase();if(/^[a-c]$/.test(c)&&!by[c])by[c]=r;if(/^[a-c](?:[1-3])?$/.test(c)&&r&&r.status==="in_progress")active[c.charAt(0)]=true;});
+    var missionState=estadoDe(t).l,inferred={};
+    if(missionState==="En curso"&&!Object.keys(active).length){["a","b","c"].some(function(c){var r=by[c],s=r&&r.status;if(!r||s==="done"||s==="resolved")return false;active[c]=true;inferred[c]=true;return true;});}
+    var labels={pending:"pendiente",in_progress:"en curso",done:"hecha"};
+    var chips=["a","b","c"].map(function(c){var r=by[c],upper=c.toUpperCase();if(!r)return{status:"pending",html:'<span class="abc-task pending missing" title="Tarea '+upper+' · sin definir" aria-label="Tarea '+upper+', sin definir"><i class="abc-dot"></i><b>'+upper+'</b><span class="abc-label">Sin definir</span></span>'};var raw=r.status==="resolved"?"done":r.status,status=active[c]?"in_progress":(/^(pending|in_progress|done)$/.test(raw)?raw:"pending");var title="Tarea "+upper+(r.title?" · "+r.title:"")+" · "+labels[status]+(inferred[c]?" por secuencia A-B-C":"");return{status:status,html:'<a class="abc-task '+status+'" href="/tareas?mission='+encodeURIComponent(t.id)+'#'+c+'" title="'+esc(title)+'" aria-label="'+esc(title)+'"><i class="abc-dot"></i><b>'+upper+'</b><span class="abc-label">'+esc(taskSummary(r))+"</span>"+(status==="in_progress"?'<span class="abc-state">EN CURSO</span>':"")+"</a>"};});
+    var activeLetters=["a","b","c"].filter(function(c){return active[c];}).map(function(c){return c.toUpperCase();});
+    var traffic=missionState==="Finalizada"?{c:"traffic-green",label:"realizada",value:100}:missionState==="En curso"?{c:"traffic-yellow",label:activeLetters.length?activeLetters.join("+")+" en curso":"sin tarea activa",value:50}:{c:"traffic-red",label:(/Pendiente|Sin asignar/.test(missionState)?"sin empezar":missionState.toLowerCase()),value:0};
+    var progress='<span class="abc-mission-progress '+traffic.c+'" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+traffic.value+'" aria-label="Estado de la misión: '+esc(traffic.label)+'"><span class="abc-traffic" aria-hidden="true"><i class="red"></i><u></u><i class="yellow"></i><u></u><i class="green"></i></span></span>';
+    var activeIndex=chips.findIndex(function(chip){return chip.status==="in_progress";});
+    var list=chips.map(function(chip,index){return chip.html+(index===activeIndex?progress:"");}).join("");if(activeIndex<0)list+=progress;
+    return '<span class="abc-tasks" aria-label="Tareas A, B y C"><span class="abc-list">'+list+"</span></span>";
+  }
   function rowHtml(t) {
     MIS_CACHE[t.id] = t;   // cajón de detalle: la ficha ya viene con la lista, sin fetch extra
     var est = estadoDe(t);
@@ -579,12 +617,12 @@
           '<span class="fch2" title="creada: ' + esc(fechaCorta(t.created_at)) + '">📅 ' + fechaCorta(t.created_at) + "</span>" +
           (dv && dv.end ? '<span class="fch2 fin" title="finalizada: ' + esc(fechaCorta(dv.end)) + '">🏁 ' + fechaCorta(dv.end) + "</span>"
             : (dv && dv.run ? '<span class="fch2 run' + (stt === "No concluida" ? " overdue" : "") + '" title="' + esc(dv.tip) + '">⏳ ' + (stt === "No concluida" ? "no concluida" : "en curso") + "</span>" : "")) +
-          (dv && dv.txt ? '<span class="dur' + (dv.run ? " run" : "") + (stt === "No concluida" ? " overdue" : "") + '" title="' + esc(dv.tip) + '">⏱ ' + esc(dv.txt) + "</span>" : "") + "</div>" +
+          (dv && dv.txt ? '<span class="dur' + (dv.run ? " run yk-deadline" : "") + (stt === "No concluida" ? " overdue" : "") + '"' + (dv.run ? ' data-created="' + _ms(t.created_at) + '"' : '') + ' title="' + esc(dv.tip) + '">⏱ ' + (dv.run ? esc(deadlineText(_ms(t.created_at))) : esc(dv.txt)) + "</span>" : "") + "</div>" +
         // ORDENADOR (entre Fecha y Agente).
-        '<div class="cel ord">' + rz("ord") + (maq ? '<span class="mach2">' + machVisual(maq) + " " + (window.ykMaquina ? ykMaquina.html(maq) : esc(maq)) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>') + "</div>" +
+        '<div class="cel ord ' + (CFG.columnMode === "tasks" ? "tasks-col" : "machine-col") + '">' + rz("ord") + (CFG.columnMode === "tasks" ? tasksAbcHtml(t) : (maq ? '<span class="mach2">' + machVisual(maq) + " " + (window.ykMaquina ? ykMaquina.html(maq) : esc(maq)) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>')) + "</div>" +
         // Celda de AGENTE con clase `agc` (target del picker de reasignación en
         // /misiones; inocua en /incidencias, que no la cablea). Carlos, 2026-07-15.
-        '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, surface, t._agents, machOffOf(t, surface)) + "</div>" +
+        '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, maq, surface, t._agents, machOffOf(t, surface)) + "</div>" +
         // Estado + ABRIR apilado (abrir debajo de la insignia).
         '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"' + (t.status === "cancelled" && t.note ? ' title="' + esc(t.note) + '"' : "") + "><i></i>" + stt + "</span>" + (t.status === "cancelled" && t.note ? '<small class="cancel-note" title="' + esc(t.note) + '">' + esc(t.note) + "</small>" : "") +
           // PROGRESO en la fila, en TERCIOS: tareas n/3 y subtareas n/9 (979).
@@ -608,6 +646,20 @@
     if (m > 0) return m + "m";
     return s + "s";
   }
+  function deadlineText(start, now) {
+    var left=1800000-((now||Date.now())-start), late=left<0, sec=Math.max(0,Math.ceil(Math.abs(left)/1000));
+    var mm=Math.floor(sec/60), ss=sec%60;
+    return (late?"+":"")+String(mm).padStart(2,"0")+":"+String(ss).padStart(2,"0")+(late?" fuera de plazo":" restantes");
+  }
+  function tickMissionClocks(root) {
+    var now=Date.now(),expired=false;
+    (root||document).querySelectorAll(".yk-deadline[data-created]").forEach(function(el){
+      var start=+el.dataset.created||0,late=start&&now-start>=1800000,wasLate=el.classList.contains("overdue");
+      el.textContent="⏱ "+deadlineText(start,now); el.classList.toggle("overdue",!!late);
+      if(late&&!wasLate){var row=el.closest(".tk");if(row&&!row.dataset.deadlineExpired){row.dataset.deadlineExpired="1";expired=true;}}
+    });
+    if(expired) window.dispatchEvent(new Event("yk:mission-deadline"));
+  }
   function durVal(t) {
     var start = _ms(t.created_at);
     if (!start) return null;
@@ -629,9 +681,10 @@
       var l = document.querySelector(".list");
       return l ? Math.max(160, Math.round(l.getBoundingClientRect().width * 0.35)) : 420;
     }
+    function suelo(col) { return CFG.columnMode === "tasks" && col === "ord" ? 300 : 56; }
     var saved = {}; try { saved = JSON.parse(localStorage.getItem("yk_cols") || "{}"); } catch (e) {}
     for (var k in saved) if (COLVARS[k] && saved[k] > 0) {
-      document.documentElement.style.setProperty(COLVARS[k], Math.max(56, Math.min(tope(), saved[k])) + "px");
+      document.documentElement.style.setProperty(COLVARS[k], Math.max(suelo(k), Math.min(tope(), saved[k])) + "px");
     }
     var drag = null;
     document.addEventListener("mousedown", function (e) {
@@ -647,7 +700,7 @@
       if (!drag) return;
       var dx = e.clientX - drag.x;
       var w = Math.round(drag.side === "r" ? drag.w + dx : drag.w - dx);
-      document.documentElement.style.setProperty(COLVARS[drag.col], Math.max(56, Math.min(tope(), w)) + "px");
+      document.documentElement.style.setProperty(COLVARS[drag.col], Math.max(suelo(drag.col), Math.min(tope(), w)) + "px");
     });
     document.addEventListener("mouseup", function () {
       if (!drag) return;
@@ -661,9 +714,11 @@
   // click en la fila = seleccionar misión (el enlace «abrir →» sigue navegando)
   function bindRows(container) {
     initColResize();
+    tickMissionClocks(container || document);
+    if(!bindRows._clock) bindRows._clock=window.setInterval(function(){tickMissionClocks(document);},1000);
     (container || document).querySelectorAll(".tk").forEach(function (row) {
       row.addEventListener("click", function (e) {
-        if (e.target.closest(".tkopen") || e.target.closest(".rz") || e.target.closest(".shot-img")) return;
+        if (e.target.closest(".tkopen") || e.target.closest(".abc-task") || e.target.closest(".rz") || e.target.closest(".shot-img")) return;
         selectMission(row.dataset.id);
       });
     });
@@ -967,7 +1022,7 @@
     setProyectos: setProyectos, proyectoDe: proyectoDe, workUrlOf: workUrlOf,
     renderTaskTree: renderTaskTree, refreshTree: refreshTree, addChildBtn: addChildBtn,
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,
-    tercios: tercios, progHtml: progHtml,
+    tercios: tercios, progHtml: progHtml, tasksAbcHtml: tasksAbcHtml,
     nextStatus: nextStatus, postStatus: postStatus, postPlan: postPlan,
     fetchTasks: fetchTasks, fetchAllTasks: fetchAllTasks, groupByMission: groupByMission,
     markWorking: markWorking, fillActivity: fillActivity, esc: esc, ago: ago, slaLeft: slaLeft,

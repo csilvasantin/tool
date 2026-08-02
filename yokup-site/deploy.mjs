@@ -1,10 +1,16 @@
-import { open, readFile, writeFile, unlink, readdir } from "node:fs/promises";
+import { open, readFile, writeFile, unlink, readdir, cp, mkdtemp, rm } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { basename, join, relative, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { nextDeployVersion, versionFromPayload } from "./deploy-version.js";
 
-const lockPath = new URL("./.yokup-deploy.lock", import.meta.url);
+// Lock estable por proyecto, fuera del directorio publicado. Un lock dentro de
+// yokup-site entra en el manifest de Pages y expone metadatos de coordinación.
+const lockPath = join(tmpdir(), "yokup-pages-deploy.lock");
 const versionPath = new URL("./version.json", import.meta.url);
+const sourceRoot = fileURLToPath(new URL("./", import.meta.url));
 const deployer = String(process.env.YOKUP_DEPLOY_AGENT || "").trim();
 
 if (!deployer) {
@@ -13,8 +19,7 @@ if (!deployer) {
 }
 
 let lock;
-let previousVersion = null;
-let previousHtml = new Map();
+let stagingPath = "";
 try {
   lock = await open(lockPath, "wx");
   await lock.writeFile(JSON.stringify({ deployer, pid:process.pid, startedAt:new Date().toISOString() }, null, 2));
@@ -51,9 +56,8 @@ async function testFiles(dirUrl) {
     .map((entry) => entry.name).sort();
 }
 
-async function stampFrameReferences(version) {
-  const changed = new Map();
-  for (const file of await htmlFiles(new URL("./", import.meta.url))) {
+async function stampFrameReferences(version, rootUrl) {
+  for (const file of await htmlFiles(rootUrl)) {
     // Recuperación canónica e inmutable: su hash forma parte del contrato público.
     // No usa yk-frame, y tampoco debe recibir el sello de favicon del resto del shell.
     if (file.pathname.endsWith("/trackandfield.html")) continue;
@@ -77,13 +81,26 @@ async function stampFrameReferences(version) {
       ? /(<meta\b[^>]*\bname=["']viewport["'][^>]*>)/i
       : /(<meta\b[^>]*\bcharset=["'][^"']+["'][^>]*>)/i;
     after = after.replace(anchor, `$1\n${favicon}`);
-    if (after !== before) { changed.set(file, before); await writeFile(file, after); }
+    if (after !== before) await writeFile(file, after);
   }
-  return changed;
+}
+
+// El checkout contiene contratos, herramientas y documentación que deben seguir
+// versionados, pero Pages sólo recibe runtime y assets públicos. El staging vive
+// fuera del árbol y desaparece al terminar, sin tocar ni publicar el lock.
+function publicArtifactFilter(source) {
+  const rel = relative(sourceRoot, source);
+  if (!rel) return true;
+  const parts = rel.split(sep);
+  if (parts.some((part) => part.startsWith(".") || part === "node_modules" || part === "__pycache__")) return false;
+  const name = basename(rel);
+  if (/\.test\.mjs$/i.test(name) || /\.py$/i.test(name) || /\.md$/i.test(name) || /\.bak(?:-|$)/i.test(name)) return false;
+  if (/^deploy(?:-version)?\.(?:m?js)$/i.test(name) || /^(?:package(?:-lock)?\.json|wrangler\.toml)$/i.test(name)) return false;
+  return true;
 }
 
 try {
-  previousVersion = await readFile(versionPath, "utf8").catch(() => null);
+  const previousVersion = await readFile(versionPath, "utf8").catch(() => null);
   const now = new Date();
   // La revisión diaria se coordina contra producción además del fichero local.
   // El lock evita dos deploys simultáneos en este checkout; consultar el sello
@@ -106,16 +123,19 @@ try {
   await run(process.execPath, ["--test", ...tests]);
   // Las pruebas validan la fuente canónica (baseline de versión y artefactos
   // inmutables) antes de crear cambios efímeros destinados exclusivamente al deploy.
-  await writeFile(versionPath, JSON.stringify(payload, null, 2) + "\n");
-  previousHtml = await stampFrameReferences(payload.version);
-  await run("npx", ["wrangler", "pages", "deploy", ".", "--project-name", "yokup", "--branch", "main", "--commit-dirty=true"]);
+  stagingPath = await mkdtemp(join(tmpdir(), "yokup-pages-artifact-"));
+  await cp(sourceRoot, stagingPath, { recursive:true, filter:publicArtifactFilter });
+  await writeFile(join(stagingPath, "version.json"), JSON.stringify(payload, null, 2) + "\n");
+  await stampFrameReferences(payload.version, pathToFileURL(stagingPath + sep));
+  await run("npx", ["wrangler", "pages", "deploy", stagingPath, "--project-name", "yokup", "--branch", "main", "--commit-dirty=true"]);
   console.log(`Yokup publicado: ${payload.version}`);
 } catch (error) {
-  if (previousVersion != null) await writeFile(versionPath, previousVersion);
-  for (const [file, content] of previousHtml) await writeFile(file, content);
   console.error(error && error.message || error);
   process.exitCode = 1;
 } finally {
   await lock.close().catch(() => {});
   await unlink(lockPath).catch(() => {});
+  if (stagingPath && stagingPath.startsWith(tmpdir() + sep + "yokup-pages-artifact-")) {
+    await rm(stagingPath, { recursive:true, force:true }).catch(() => {});
+  }
 }

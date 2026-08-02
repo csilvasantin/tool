@@ -314,7 +314,9 @@
     doc.gap(6);
     campo(doc, "Misión", mid);
     campo(doc, "Tarea", code);
-    campo(doc, "Agente", (t.agent_identity || t.owner || "-") + (OWN[t.owner] ? "  (" + OWN[t.owner] + ")" : ""));
+    var machine=t.machine||t.target_machine||t.loc||t.mission_machine||(t.mission&&t.mission.machine)||"";
+    var agent=t.agent_identity||(window.ykAgentIdentity?window.ykAgentIdentity.reportDisplay(t.owner||"",machine):(t.owner||""))||"-";
+    campo(doc, "Agente", agent + (OWN[t.owner] ? "  (" + OWN[t.owner] + ")" : ""));
     campo(doc, "Ejecutor", t.assignee);
     campo(doc, "Estado", ST[t.status] || t.status);
     campo(doc, "Origen", t.source === "fleet" ? "Flota" : t.source);

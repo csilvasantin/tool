@@ -266,7 +266,7 @@ let userPicked=false, didCascade=false;
 let SCOPE="fleet";     // ámbito por defecto: el trabajo de los agentes
 let SEL=new Set(), LAST_LIST=[], REP_IDS={};   // selección múltiple para cambio de estado en bloque
 const $=id=>document.getElementById(id);
-YkMisiones.init({worker:WORKER, treeId:"taskTree"});
+YkMisiones.init({worker:WORKER, treeId:"taskTree", columnMode:"tasks"});
 
 // ── CABEZAL COMPARTIDO (mismo módulo que /tareas: yk-cabezal.js) ─────────────
 // Inyecta y cablea KPIs + día del tablero + buscador + alta de misión de flota.
@@ -348,7 +348,7 @@ function headHtml(){
   // Columna ID con «seleccionar todas» + etiqueta ordenable. El clic en el checkbox no ordena.
   const idArrow=SORT.k==="id"?(SORT.dir==="asc"?" ▲":" ▼"):"";
   const idcol='<div class="lh idh'+(SORT.k==="id"?" on":"")+'" data-k="id" title="ordenar por id"><input type="checkbox" class="selall" title="Seleccionar todas las visibles" onclick="event.stopPropagation()"><span class="idlbl">ID'+idArrow+'</span></div>';
-  return '<div class="hd lhead"><div></div>'+idcol+'<div class="lh-static">Proyecto</div>'+col("subject","Misión")+col("fecha","Fecha")+col("ordenador","Ordenador")+col("agente","Agente/Plataforma")+col("estado","Estado")+"</div>";
+  return '<div class="hd lhead"><div></div>'+idcol+'<div class="lh-static">Proyecto</div>'+col("subject","Misión")+col("fecha","Fecha")+col("ordenador","Tareas")+col("agente","Agente/Plataforma")+col("estado","Estado")+"</div>";
 }
 // Inyecta el checkbox de selección en la casilla del ID de cada fila + cablea «seleccionar todas»
 // y la barra de acciones en bloque. La selección (SEL) se conserva entre refrescos y filtros.
@@ -645,6 +645,7 @@ function aplicaFiltro(f){
 }
 STATE_TABS.forEach(b=>b.onclick=()=>{userPicked=true;aplicaFiltro(b.dataset.f);});
 // (el clic en los KPIs lo reenvía yk-cabezal.js a onState → aplicaFiltro)
+if(window.addEventListener) window.addEventListener("yk:mission-deadline",()=>load());
 load(); setInterval(load,12000);
 
 // ---- ALTA de misiones de flota ---------------------------------------------

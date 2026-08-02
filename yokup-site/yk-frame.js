@@ -205,6 +205,12 @@
       .catch(function () {});
   }
 
+  // Los contadores reflejan cambios locales sin esperar una recarga y también
+  // se reconcilian con cambios realizados por otros agentes cada 12 segundos.
+  window.addEventListener("yk:decisions-changed", fetchCounters);
+  window.addEventListener("yk:work-changed", fetchCounters);
+  window.setInterval(fetchCounters, 12000);
+
   // id del recurso en la URL (?id=…) para el EXPERTO de ficha
   function urlId() {
     try { return new URLSearchParams(location.search).get("id") || ""; } catch (e) { return ""; }
@@ -457,6 +463,12 @@
     set.appendChild(body);
 
     foot.appendChild(set);
+    // Alta rápida contra el censo canónico; disponible desde cualquier vista.
+    var newProject = el("button", "yk-set-btn yk-project-new",
+      '<span aria-hidden="true">＋</span> NUEVO PROYECTO');
+    newProject.type = "button";
+    newProject.addEventListener("click", openNewProject);
+    foot.appendChild(newProject);
     // EQUIPO · STATUS (Carlos, 2026-07-23): salieron del menú SUPERIOR y viven
     // ahora aquí, en el raíl OPCIONES, como navegación de gestión. Orden del pie:
     // EQUIPO · STATUS · Panel de control · sello de versión.
@@ -493,7 +505,97 @@
     highscore.href = "/highscore";
     if (active) highscore.setAttribute("aria-current", "page");
     nav.appendChild(highscore);
+    var normActive = path === "/normativa" || path === "/normativa.html";
+    var normativa = el("a", "yk-set-btn yk-adv-link" + (normActive ? " on" : ""),
+      '<span aria-hidden="true">§</span> NORMATIVA');
+    normativa.href = "/normativa";
+    if (normActive) normativa.setAttribute("aria-current", "page");
+    nav.appendChild(normativa);
     return nav;
+  }
+
+  function projectField(label, name, type, placeholder) {
+    var wrap = el("label", "yk-project-field");
+    wrap.appendChild(el("span", null, label));
+    var input = type === "textarea" ? document.createElement("textarea") : document.createElement("input");
+    input.name = name;
+    if (type !== "textarea") input.type = type || "text";
+    if (name === "web") { input.inputMode = "url"; input.autocomplete = "url"; }
+    if (placeholder) input.placeholder = placeholder;
+    wrap.appendChild(input);
+    return wrap;
+  }
+
+  function projectResponsibles(raw) {
+    return String(raw || "").split(/\r?\n/).map(function (line) {
+      var parts = line.split(/\s+\|\s+/);
+      return { name:(parts.shift() || "").trim(), role:parts.join(" | ").trim() };
+    }).filter(function (item) { return !!item.name; });
+  }
+
+  function normalizeProjectWeb(rawValue) {
+    var raw = String(rawValue || "").trim();
+    if (!raw) return "";
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) && !/^https?:\/\//i.test(raw)) {
+      throw new Error("la web debe empezar por http o https");
+    }
+    var candidate = /^https?:\/\//i.test(raw) ? raw : "https://" + raw;
+    var parsed;
+    try { parsed = new URL(candidate); }
+    catch (e) { throw new Error("la web no es válida"); }
+    if (!/^https?:$/.test(parsed.protocol) || !parsed.hostname || parsed.username || parsed.password) {
+      throw new Error("la web debe ser una dirección http o https válida");
+    }
+    return candidate.replace(/\/+$/, "");
+  }
+
+  function openNewProject() {
+    var modal = el("div", "yk-project-modal");
+    var card = el("form", "yk-project-card");
+    card.innerHTML = '<div class="yk-project-hd"><div><b>＋ NUEVO PROYECTO</b><small>Alta en el censo canónico de Yokup</small></div><button type="button" class="yk-project-x" aria-label="Cerrar">×</button></div>';
+    card.appendChild(projectField("Nombre *", "name", "text", "Ej. Nueva plataforma"));
+    card.appendChild(projectField("Web · opcional", "web", "text", "www.ejemplo.com"));
+    card.appendChild(projectField("Descripción", "blurb", "textarea", "Qué hace y para quién"));
+    card.appendChild(projectField("Responsables · uno por línea (Nombre | Rol)", "responsibles", "textarea", "Carlos | Dirección\nOráculo | Producto"));
+    card.appendChild(projectField("Primera nota de seguimiento", "initial_note", "textarea", "Punto de partida, siguiente hito o decisión pendiente"));
+    var foot = el("div", "yk-project-actions");
+    var msg = el("span", "yk-project-msg", "El nombre es obligatorio");
+    var cancel = el("button", "yk-project-cancel", "CANCELAR"); cancel.type = "button";
+    var save = el("button", "yk-project-save", "DAR DE ALTA"); save.type = "submit";
+    foot.appendChild(msg); foot.appendChild(cancel); foot.appendChild(save); card.appendChild(foot);
+    modal.appendChild(card); document.body.appendChild(modal);
+    var close = function () { modal.remove(); };
+    card.querySelector(".yk-project-x").addEventListener("click", close);
+    cancel.addEventListener("click", close);
+    modal.addEventListener("click", function (e) { if (e.target === modal) close(); });
+    card.elements.web.addEventListener("blur", function () {
+      if (!card.elements.web.value.trim()) return;
+      try { card.elements.web.value = normalizeProjectWeb(card.elements.web.value); msg.textContent = "El nombre es obligatorio"; }
+      catch (err) { msg.textContent = "✗ " + (err && err.message || err); }
+    });
+    card.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var name = card.elements.name.value.trim();
+      if (!name) { msg.textContent = "Escribe el nombre del proyecto"; card.elements.name.focus(); return; }
+      var web;
+      try { web = normalizeProjectWeb(card.elements.web.value); }
+      catch (err) { msg.textContent = "✗ " + (err && err.message || err); card.elements.web.focus(); return; }
+      save.disabled = true; msg.textContent = "Guardando…";
+      try {
+        var r = await fetch("https://api.yokup.com/projects", { method:"POST", headers:{"content-type":"application/json"},
+          body:JSON.stringify({ name:name, web:web, blurb:card.elements.blurb.value.trim(),
+            responsibles:projectResponsibles(card.elements.responsibles.value), initial_note:card.elements.initial_note.value.trim(),
+            note_author:"yokup·rail-opciones", status:"activo", by:"yokup·rail-opciones" }) });
+        var d = await r.json().catch(function () { return {}; });
+        if (!r.ok || !d.ok) throw new Error(d.error || ("HTTP " + r.status));
+        msg.textContent = "✓ Proyecto creado";
+        window.dispatchEvent(new CustomEvent("yk:projects-changed", { detail:d.project || null }));
+        setTimeout(function () { close(); if (/\/equipo(?:\.html)?$/.test(location.pathname)) location.reload(); }, 650);
+      } catch (err) {
+        save.disabled = false; msg.textContent = "✗ " + (err && err.message || err);
+      }
+    });
+    setTimeout(function () { card.elements.name.focus(); }, 0);
   }
 
   function paintPublicVersion(value) {
