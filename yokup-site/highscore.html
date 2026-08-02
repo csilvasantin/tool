@@ -1,0 +1,1259 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="/favicon.ico?v=v.2026.08.02.202305" sizes="any">
+<link rel="icon" type="image/png" href="/favicon-32x32.png?v=v.2026.08.02.202305" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=v.2026.08.02.202305">
+<title>Highscore · Yokup</title>
+<meta name="description" content="Marcador de la flota de agentes AdmiraNeXT: quién trabaja más, en cualquier momento.">
+<meta name="robots" content="noindex,nofollow">
+<script src="/acceso.js?v=r2"></script>
+<link rel="preload" as="image" href="/img/highscore-presite-decathlon.png">
+<link rel="stylesheet" href="/yk-frame.css?v=r19">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;
+  --brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--mag:#ff6b9d;
+  --line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);
+  --mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace;
+  --oro:#ffd866;--plata:#cfe4ec;--bronce:#e09a5a}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--mono);min-height:100vh}
+a{color:var(--brand)}
+
+.wrap{position:relative;z-index:1}
+
+/* ─────────── PANTALLA DE CARGA ─────────── */
+/* PRESITE: la carátula 16:9 ocupa todo el fondo. La interfaz queda reducida a
+   una línea de carga y la entrada; no hay caja ni figuras 4-bit sobre el arte. */
+#carga{position:fixed;inset:0;z-index:9999;
+  background:#000 url("/img/highscore-presite-decathlon.png") center center/cover no-repeat;
+  cursor:pointer;overflow:hidden;isolation:isolate}
+#carga::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:linear-gradient(180deg,rgba(0,0,0,.04) 0 58%,rgba(0,0,0,.48) 100%)}
+#carga.fuera{opacity:0;pointer-events:none;transition:opacity .5s}
+.presite-ui{position:absolute;z-index:2;left:50%;bottom:clamp(28px,7vh,76px);transform:translateX(-50%);
+  width:min(76vw,440px);text-align:center;filter:drop-shadow(0 3px 12px rgba(0,0,0,.9))}
+.barra{width:100%;height:3px;background:rgba(223,248,255,.28);overflow:hidden}
+.barra i{display:block;height:100%;width:0;background:var(--brand);box-shadow:0 0 12px var(--brand);transition:width .3s}
+.pie{font-size:10.5px;color:#fff;letter-spacing:.16em;margin-top:12px;min-height:14px;text-shadow:0 2px 8px #000}
+.pulsa{margin-top:15px;font-size:12px;font-weight:800;letter-spacing:.2em;color:var(--good);
+  text-shadow:0 2px 8px #000,0 0 14px rgba(136,255,170,.5);animation:parpa 1s ease-in-out infinite}
+@keyframes parpa{50%{opacity:.15}}
+
+/* ─────────── PÁGINA ─────────── */
+.wrap{max-width:1080px;margin:0 auto;padding:50px 18px 70px}
+header.cab{position:relative;display:grid;grid-template-columns:auto minmax(180px,1fr);grid-template-rows:auto auto;
+  align-items:center;column-gap:22px;row-gap:2px;min-height:44px;margin:0 0 8px}
+header.cab>h1{grid-column:1;grid-row:1}
+h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:0;color:var(--brand);
+  text-shadow:3px 3px 0 #0a4a58}
+.race-toggle{all:unset;display:inline-block;cursor:pointer;color:inherit;font:inherit;letter-spacing:inherit;
+  text-shadow:inherit;border-radius:5px;transition:color .16s,text-shadow .16s,transform .16s}
+.race-toggle:hover,.race-toggle:focus-visible{color:var(--ink);text-shadow:3px 3px 0 #0a4a58,0 0 12px rgba(120,243,255,.5)}
+.race-toggle:focus-visible{outline:2px solid var(--brand);outline-offset:5px}
+.race-toggle[aria-pressed="true"]{color:var(--accent);transform:translateY(1px);
+  text-shadow:3px 3px 0 #5a4310,0 0 12px rgba(255,216,102,.42)}
+.cab-tools{grid-column:1;grid-row:2;display:flex;align-items:center;justify-content:center;gap:8px}
+
+/* podio: la ilustración conserva siempre su proporción 16:9 y ocupa el mismo
+   bloque que antes ocupaban los tres cajones generados con CSS. Los datos vivos
+   quedan en placas pequeñas; el detalle completo sigue justo debajo, en la tabla. */
+.podio{position:relative;width:100%;aspect-ratio:16/9;margin:12px 0 8px;overflow:hidden;
+  isolation:isolate;background:#02080d;border:1px solid rgba(120,243,255,.12);
+  box-shadow:0 18px 46px rgba(0,0,0,.34)}
+.podio-arte{position:absolute;inset:0;z-index:0;pointer-events:none}
+.podio-arte canvas{display:block;width:100%;height:100%}
+.podio-velo{position:absolute;inset:0;background:linear-gradient(180deg,rgba(2,8,13,.03),transparent 58%,rgba(2,8,13,.22));z-index:1}
+.plaza{position:absolute;z-index:3;width:22%;display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:7px 10px;background:rgba(2,8,13,.74);border:1px solid;border-radius:6px;
+  box-shadow:0 5px 18px rgba(0,0,0,.38);backdrop-filter:blur(3px)}
+.plaza.p2{left:10%;top:62%;border-color:rgba(207,228,236,.64)}
+.plaza.p1{left:39%;top:59%;border-color:rgba(255,216,102,.72)}
+.plaza.p3{right:9%;top:66%;border-color:rgba(224,154,90,.68)}
+.plaza.podium-live::after{content:"";position:absolute;inset:-5px;border:2px solid rgba(136,255,170,.8);
+  border-radius:9px;box-shadow:0 0 8px rgba(136,255,170,.7),inset 0 0 5px rgba(136,255,170,.2);
+  pointer-events:none;animation:podium-heartbeat 1.6s ease-in-out infinite}
+@keyframes podium-heartbeat{0%,100%{opacity:.92;transform:scale(1)}45%{opacity:.3;transform:scale(1.025)}60%{opacity:.78;transform:scale(1.008)}}
+.podio .avatar,.podio .maq,.podio .maqs,.podio .bloque{display:none}
+.nom{font-size:12px;font-weight:800;letter-spacing:.03em;text-align:center;word-break:break-word;padding:0}
+.pts{display:inline-flex;align-items:center;gap:5px;font-size:18px;font-weight:900;margin:0;letter-spacing:.02em;white-space:nowrap}
+.p1 .pts{color:var(--oro)} .p2 .pts{color:var(--plata)} .p3 .pts{color:var(--bronce)}
+.podium-trend{display:inline-grid;place-items:center;min-width:1em;font-size:.72em;font-weight:950}
+.podium-trend.up{color:var(--good);text-shadow:0 0 8px rgba(136,255,170,.75);animation:score-up .8s ease-out both}
+.podium-trend.same{color:var(--dim)}
+@keyframes score-up{0%{opacity:0;transform:translateY(5px)}45%{opacity:1;transform:translateY(-2px)}100%{transform:translateY(0)}}
+.agent-name{display:inline-block}
+
+/* El latido vive en el propio número de posición: no añade otro símbolo ni roba
+   espacio. Si el agente deja de emitir, el número recupera el estilo neutro. */
+.rank-number{display:inline-grid;place-items:center;min-width:2ch;color:var(--dim);font-weight:800}
+.rank-number.live{color:var(--good);font-weight:900;transform-origin:center;
+  text-shadow:0 0 6px rgba(136,255,170,.95),0 0 13px rgba(136,255,170,.5);
+  animation:rank-heartbeat 1.6s ease-in-out infinite}
+@keyframes rank-heartbeat{0%,100%{transform:scale(1);opacity:1}45%{transform:scale(1.18);opacity:.48}60%{transform:scale(1.04);opacity:.9}}
+
+/* Carrera de refresco: una calle por CADA agente con presencia viva. La misión
+   o el foco enriquecen el rótulo, pero nunca deciden si alguien puede correr. */
+.refresh-race{position:relative;grid-column:2;grid-row:1 / span 2;min-height:44px;min-width:0;padding:0;display:flex;align-items:flex-start;overflow:hidden}
+.refresh-lanes{width:100%;display:grid;gap:2px}
+.runner-symbols{position:absolute;width:0;height:0;overflow:hidden}
+.refresh-lane{position:relative;width:100%;height:32px;min-width:0}
+.refresh-track{position:relative;width:100%;height:32px}
+.refresh-track::before{content:"";position:absolute;left:36px;right:36px;bottom:3px;height:2px;
+  background:rgba(120,243,255,.22);box-shadow:0 1px 0 rgba(255,216,102,.16)}
+.refresh-fill{position:absolute;left:36px;bottom:3px;width:0;height:2px;background:linear-gradient(90deg,var(--lane),var(--accent),var(--brand));
+  box-shadow:0 0 7px color-mix(in srgb,var(--lane) 55%,transparent)}
+.refresh-lane-p1{--lane:var(--oro);--runner-shirt:#ef4f43;--runner-stripe:#dff8ff}
+.refresh-lane-p2{--lane:var(--plata);--runner-shirt:#3477c7;--runner-stripe:#dff8ff}
+.refresh-lane-p3{--lane:var(--bronce);--runner-shirt:#3477c7;--runner-stripe:#ef4f43}
+.refresh-lane-rank{--lane:#78f3ff;--runner-shirt:#8d5fd3;--runner-stripe:#ffd866}
+.refresh-mission{position:absolute;z-index:1;left:0;top:4px;width:min(520px,46vw);
+  transform:translateX(calc(-100% - 18px));overflow:hidden;
+  color:var(--mut);font-size:14px;font-weight:750;line-height:17px;
+  letter-spacing:.035em;text-shadow:0 1px 5px #000;
+  pointer-events:none}
+.refresh-desc{display:flex;width:100%;min-width:0;flex-direction:row-reverse;justify-content:flex-start;
+  gap:.52em;overflow:hidden;color:var(--mut)}
+.refresh-word{display:inline-block;flex:0 0 auto;direction:ltr;unicode-bidi:isolate;white-space:nowrap}
+.refresh-agent{position:absolute;z-index:2;left:0;top:0;max-width:190px;
+  transform:translateX(20px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:var(--lane);font-size:14px;font-weight:900;line-height:17px;letter-spacing:.035em;
+  text-shadow:0 1px 5px #000,0 0 7px color-mix(in srgb,var(--lane) 45%,transparent);pointer-events:none;
+  will-change:left,opacity}
+.refresh-runner{position:absolute;left:0;bottom:3px;width:25px;height:30px;transform:translateX(-50%);
+  z-index:3;filter:drop-shadow(0 0 4px rgba(255,216,102,.45));will-change:left}
+.refresh-runner svg{display:block;position:absolute;inset:0;width:100%;height:100%;overflow:visible;shape-rendering:crispEdges;
+  image-rendering:pixelated;animation:runner-bob .28s steps(2,end) infinite;transform-origin:50% 75%}
+.refresh-runner .runner-shirt{fill:var(--runner-shirt)}
+.refresh-runner .runner-stripe{fill:var(--runner-stripe)}
+.refresh-runner .runner-skin{fill:var(--runner-skin)}
+.refresh-runner.runner-dark,.refresh-runner.runner-skin-dark{--runner-skin:#6f3f22;--runner-hair:#140b08}
+.refresh-runner.runner-light,.refresh-runner.runner-skin-light{--runner-skin:#f0a06b;--runner-hair:#5a3018}
+.refresh-runner .runner-hair,.refresh-runner .runner-mustache{fill:var(--runner-hair)}
+.refresh-finish{position:absolute;z-index:2;right:29px;bottom:1px;width:7px;height:34px;pointer-events:none}
+.refresh-finish::before,.refresh-finish::after{content:"";position:absolute;left:0;width:100%;height:50%;
+  border:1px solid rgba(223,248,255,.75);background:conic-gradient(#dff8ff 25%,#02080d 0 50%,#dff8ff 0 75%,#02080d 0) 0 0/6px 6px;
+  box-shadow:0 0 7px rgba(120,243,255,.48);transition:transform .45s steps(3,end),opacity .45s linear}
+.refresh-finish::before{top:0;border-bottom:0;transform-origin:bottom right}
+.refresh-finish::after{bottom:0;border-top:0;transform-origin:top right}
+.refresh-lane.finished .refresh-finish::before{transform:translate(-7px,-8px) rotate(-20deg);opacity:0}
+.refresh-lane.finished .refresh-finish::after{transform:translate(7px,8px) rotate(20deg);opacity:0}
+.runner-frame-a{animation:runner-frame-a .28s steps(1,end) infinite}
+.runner-frame-b{animation:runner-frame-b .28s steps(1,end) infinite}
+.runner-finish-win,.runner-finish-lose{display:none}
+.refresh-race.phase-ready .runner-frame-b,.refresh-race.phase-set .runner-frame-a,.refresh-race.phase-go .runner-frame-b,
+.refresh-lane.finished .runner-frame-b{display:none}
+.refresh-race.phase-ready .runner-frame-a{display:block;animation:none;opacity:1;transform:none}
+.refresh-race.phase-set .runner-frame-b{display:block;animation:none;opacity:1;transform:translateY(4px) rotate(9deg) scaleY(.78)}
+.refresh-race.phase-go .runner-frame-a{display:block;animation:none;opacity:1;transform:translateY(2px) rotate(-10deg)}
+.refresh-lane.finished .runner-frame-a,.refresh-lane.finished .runner-frame-b{display:none}
+.refresh-lane.finished.race-winner .runner-finish-win{display:block;animation:none;opacity:1;transform:none}
+.refresh-lane.finished.race-loser .runner-finish-lose{display:block;animation:none;opacity:1;transform:none}
+.race-call{position:absolute;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);
+  color:var(--accent);font-size:13px;font-weight:950;letter-spacing:.22em;text-shadow:0 0 9px #000,0 0 10px rgba(255,216,102,.45);
+  opacity:0;pointer-events:none}
+.refresh-race.phase-ready .race-call,.refresh-race.phase-set .race-call,.refresh-race.phase-go .race-call{opacity:1}
+.refresh-race.phase-ready .refresh-runner svg,.refresh-race.phase-set .refresh-runner svg,.refresh-race.phase-go .refresh-runner svg{animation:none}
+.refresh-race.paused .refresh-runner svg,.refresh-race.paused .runner-frame-a,.refresh-race.paused .runner-frame-b{animation-play-state:paused}
+@keyframes runner-bob{50%{transform:translateY(-3px) rotate(-2deg)}}
+@keyframes runner-frame-a{0%,49%{opacity:1}50%,100%{opacity:0}}
+@keyframes runner-frame-b{0%,49%{opacity:0}50%,100%{opacity:1}}
+
+/* tabla */
+.table-scroll{width:100%;margin-top:14px;overflow-x:auto;overflow-y:hidden;
+  border-top:1px solid rgba(120,243,255,.12);box-shadow:0 0 30px rgba(2,8,13,.45)}
+.tabla{width:100%;min-width:860px;border-collapse:collapse;table-layout:fixed;font-size:12.5px;
+  background:rgba(2,8,13,.68)}
+.tabla th{text-align:left;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);
+  position:relative;padding:7px 13px 7px 10px;border-bottom:2px solid var(--line2);font-weight:700;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sort-head{appearance:none;display:flex;align-items:center;gap:5px;width:100%;min-width:0;padding:0;border:0;
+  background:transparent;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;text-align:inherit;
+  cursor:pointer;white-space:nowrap}
+.tabla th.num .sort-head{justify-content:flex-end}
+.sort-head:hover,.sort-head:focus-visible{color:var(--brand);outline:none;text-shadow:0 0 7px rgba(120,243,255,.35)}
+.sort-arrow{display:inline-block;min-width:1em;color:var(--accent);font-size:9px;text-align:center}
+.tabla th[aria-sort="ascending"] .sort-head,.tabla th[aria-sort="descending"] .sort-head{color:var(--ink)}
+.tabla td{padding:8px 10px;border-bottom:1px solid var(--line);overflow:hidden;text-overflow:ellipsis}
+/* Zebra deliberadamente marcada: los puestos pares son más oscuros que los
+   impares para poder seguir una fila completa sin perderla entre números. */
+.tabla tbody tr:nth-child(odd){background:#0a1821}
+.tabla tbody tr:nth-child(even){background:#01060a}
+.tabla tbody tr:hover{background:#102b38}
+.col-resizer{position:absolute;z-index:3;top:0;right:-2px;width:9px;height:100%;cursor:col-resize;
+  touch-action:none;outline:0}
+.col-resizer::before{content:"";position:absolute;top:22%;bottom:22%;left:4px;width:1px;
+  background:rgba(120,243,255,.22);transition:background .15s,box-shadow .15s}
+.col-resizer:hover::before,.col-resizer:focus-visible::before,.col-resizer.dragging::before{
+  background:var(--brand);box-shadow:0 0 7px var(--brand)}
+body.resizing-columns{cursor:col-resize;user-select:none}
+.tabla .n{color:var(--dim);width:38px}
+.tabla .ag{font-weight:700}
+.tabla .num{text-align:right;font-variant-numeric:tabular-nums}
+.tabla .tot{text-align:right;font-weight:900;color:var(--accent);font-variant-numeric:tabular-nums}
+.project-cell{max-width:150px}
+.project-chip{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:var(--brand);font-size:10px;letter-spacing:.025em;text-decoration:none;border-bottom:1px solid rgba(120,243,255,.25)}
+.project-chip:hover{color:var(--ink);border-bottom-color:var(--brand)}
+.project-empty{color:var(--dim)}
+.activity-now{position:relative;display:inline-grid;place-items:center;min-width:2ch;color:var(--good);font-weight:900;
+  text-shadow:0 0 5px rgba(136,255,170,.95),0 0 12px rgba(136,255,170,.5);animation:work-pulse 1.15s ease-in-out infinite}
+.activity-now::after{content:"";position:absolute;inset:-4px -6px;border:1px solid rgba(136,255,170,.5);
+  border-radius:6px;box-shadow:0 0 8px rgba(136,255,170,.22);animation:work-ring 1.15s ease-in-out infinite;pointer-events:none}
+@keyframes work-pulse{50%{color:#dfffe8;text-shadow:0 0 2px rgba(136,255,170,.4);opacity:.48}}
+@keyframes work-ring{50%{transform:scale(.82);opacity:.12}}
+.rt{font-size:9.5px;color:var(--dim);letter-spacing:.06em}
+/* Ordenadores donde corre el agente. Encendido = latiendo ahora; apagado = conocido
+   pero sin latido reciente. Un agente puede estar en varios a la vez (Smith en 8). */
+.maqs{display:flex;flex-wrap:wrap;gap:4px;max-width:340px}
+.maq-b{font-size:9.5px;letter-spacing:.04em;padding:2px 6px;border:1px solid var(--line);
+  border-radius:4px;color:var(--dim);white-space:nowrap}
+.maq-b.on{color:var(--good);border-color:rgba(136,255,170,.42);background:rgba(136,255,170,.08)}
+.maq-mas{font-size:9.5px;color:var(--dim);align-self:center}
+.nota{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-top:26px}
+.nota h2{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--brand);margin:0 0 10px}
+.nota p,.nota li{font-size:11.5px;color:var(--mut);line-height:1.7;margin:0}
+.nota ul{margin:0;padding-left:18px}
+.nota b{color:var(--ink)}
+.err{border-color:rgba(255,136,102,.4);background:rgba(255,136,102,.07)}
+.err h2{color:var(--warn)}
+/* En la cabecera, NO fijo abajo a la derecha: ahí tapaba las últimas filas de la tabla. */
+.sonido{position:relative;display:grid;place-items:center;width:30px;height:30px;padding:0;background:var(--card2);
+  border:1px solid var(--line2);border-radius:50%;color:var(--dim);font-family:var(--mono);font-size:16px;cursor:pointer}
+.sonido:hover,.sonido[aria-pressed="true"]{color:var(--brand);border-color:var(--brand);box-shadow:0 0 12px rgba(120,243,255,.22)}
+.sonido[aria-pressed="false"]::after{content:"";position:absolute;width:19px;height:1px;background:currentColor;transform:rotate(-45deg)}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;
+  overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+@media (max-width:620px){.podio{margin-top:20px}.plaza{width:27%;padding:4px 5px;gap:4px;background:rgba(2,8,13,.78)}
+  .plaza.p2{left:7%;top:62%}.plaza.p1{left:36.5%;top:59%}.plaza.p3{right:6%;top:66%}
+  .nom{font-size:7px}.pts{font-size:10px}
+  .wrap{padding-top:46px}header.cab{grid-template-columns:auto minmax(90px,1fr) auto;gap:10px}h1{font-size:17px}
+  .refresh-race{padding:0 10px}.refresh-mission{width:38vw;font-size:10px;line-height:13px}.refresh-agent{max-width:105px;font-size:10px;line-height:13px}}
+@media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.activity-now,.activity-now::after,.plaza.podium-live::after,.podium-trend.up,.refresh-runner svg,.runner-frame-a,.runner-frame-b{animation:none}.runner-frame-b{display:none}}
+</style>
+</head>
+<body data-yk-title="HIGHSCORE" data-yk-zone="app">
+
+<div id="carga">
+  <div class="presite-ui">
+    <div class="barra"><i id="barra"></i></div>
+    <div class="pie" id="pieCarga">CARGANDO…</div>
+    <div class="pulsa" id="pulsa" style="visibility:hidden">PULSA PARA EMPEZAR · AUTO EN 15 S</div>
+  </div>
+</div>
+
+<div class="wrap" id="pagina" style="visibility:hidden">
+  <header class="cab">
+    <h1><button class="race-toggle" id="raceToggle" type="button" aria-pressed="false"
+      title="Pausar carrera para leer las misiones">HIGHSCORE</button></h1>
+    <div class="refresh-race" id="refreshRace" role="timer" aria-label="Próxima actualización de puntuación en 60 segundos">
+      <svg class="runner-symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+        <defs><symbol id="runnerFrameA" viewBox="0 0 24 30">
+            <g>
+              <g class="runner-skin"><rect x="10" y="1" width="7" height="7"/><rect x="8" y="8" width="10" height="3"/><rect x="4" y="13" width="3" height="6"/><rect x="19" y="5" width="3" height="6"/></g><rect class="runner-hair" x="10" y="1" width="7" height="2"/><rect class="runner-mustache" x="11" y="6" width="5" height="1"/>
+              <g class="runner-shirt" fill="var(--runner-shirt,#ef4f43)"><rect x="8" y="10" width="10" height="8"/><rect x="4" y="11" width="5" height="3"/><rect x="17" y="8" width="3" height="7"/></g>
+              <g class="runner-stripe" fill="var(--runner-stripe,#dff8ff)"><rect x="9" y="12" width="8" height="2"/></g>
+              <g fill="#3477c7"><rect x="8" y="18" width="5" height="6"/><rect x="13" y="18" width="5" height="5"/></g>
+              <g fill="#dff8ff"><rect x="4" y="23" width="8" height="3"/><rect x="15" y="22" width="4" height="6"/><rect x="18" y="26" width="5" height="3"/></g>
+            </g>
+        </symbol><symbol id="runnerFrameB" viewBox="0 0 24 30">
+            <g>
+              <g class="runner-skin"><rect x="10" y="2" width="7" height="7"/><rect x="8" y="9" width="10" height="3"/><rect x="3" y="7" width="3" height="7"/><rect x="19" y="13" width="3" height="6"/></g><rect class="runner-hair" x="10" y="2" width="7" height="2"/><rect class="runner-mustache" x="11" y="7" width="5" height="1"/>
+              <g class="runner-shirt" fill="var(--runner-shirt,#ef4f43)"><rect x="8" y="11" width="10" height="8"/><rect x="5" y="9" width="4" height="4"/><rect x="17" y="12" width="4" height="3"/></g>
+              <g class="runner-stripe" fill="var(--runner-stripe,#dff8ff)"><rect x="9" y="13" width="8" height="2"/></g>
+              <g fill="#3477c7"><rect x="8" y="19" width="5" height="5"/><rect x="13" y="19" width="5" height="6"/></g>
+              <g fill="#dff8ff"><rect x="3" y="22" width="7" height="3"/><rect x="8" y="21" width="4" height="7"/><rect x="14" y="24" width="8" height="3"/></g>
+            </g>
+        </symbol><symbol id="runnerStartReady" viewBox="0 0 24 30">
+            <g>
+              <g fill="#5a3018"><rect x="9" y="1" width="8" height="3"/><rect x="8" y="3" width="3" height="5"/></g>
+              <g class="runner-skin"><rect x="10" y="3" width="7" height="7"/><rect x="6" y="12" width="3" height="8"/><rect x="18" y="12" width="3" height="8"/></g><rect class="runner-mustache" x="11" y="8" width="5" height="1"/>
+              <g class="runner-shirt" fill="var(--runner-shirt,#ef4f43)"><rect x="9" y="10" width="9" height="9"/><rect x="7" y="11" width="3" height="5"/><rect x="17" y="11" width="3" height="5"/></g>
+              <g class="runner-stripe" fill="var(--runner-stripe,#dff8ff)"><rect x="10" y="13" width="7" height="2"/></g>
+              <g fill="#3477c7"><rect x="9" y="19" width="4" height="7"/><rect x="14" y="19" width="4" height="7"/></g>
+              <g fill="#dff8ff"><rect x="7" y="26" width="6" height="3"/><rect x="14" y="26" width="7" height="3"/></g>
+            </g>
+        </symbol><symbol id="runnerStartSet" viewBox="0 0 24 30">
+            <g>
+              <g fill="#5a3018"><rect x="17" y="12" width="6" height="3"/><rect x="20" y="14" width="3" height="5"/></g>
+              <g class="runner-skin"><rect x="16" y="15" width="6" height="5"/><rect x="4" y="19" width="3" height="7"/><rect x="18" y="20" width="3" height="7"/></g><rect class="runner-mustache" x="17" y="18" width="5" height="1"/>
+              <g class="runner-shirt" fill="var(--runner-shirt,#ef4f43)"><rect x="8" y="14" width="10" height="7"/><rect x="6" y="16" width="4" height="5"/></g>
+              <g class="runner-stripe" fill="var(--runner-stripe,#dff8ff)"><rect x="9" y="16" width="8" height="2"/></g>
+              <g fill="#3477c7"><rect x="5" y="13" width="7" height="7"/><rect x="3" y="17" width="5" height="5"/></g>
+              <g fill="#dff8ff"><rect x="1" y="21" width="7" height="3"/><rect x="3" y="25" width="5" height="3"/><rect x="17" y="27" width="6" height="2"/></g>
+            </g>
+        </symbol><symbol id="runnerStartGo" viewBox="0 0 24 30">
+            <g>
+              <g fill="#5a3018"><rect x="18" y="15" width="5" height="3"/><rect x="20" y="17" width="3" height="5"/></g>
+              <g class="runner-skin"><rect x="17" y="18" width="5" height="4"/><rect x="5" y="18" width="3" height="9"/><rect x="18" y="22" width="3" height="6"/></g><rect class="runner-mustache" x="17" y="21" width="5" height="1"/>
+              <g class="runner-shirt" fill="var(--runner-shirt,#ef4f43)"><rect x="10" y="11" width="9" height="8"/><rect x="15" y="15" width="4" height="6"/></g>
+              <g class="runner-stripe" fill="var(--runner-stripe,#dff8ff)"><rect x="11" y="13" width="7" height="2"/></g>
+              <g fill="#3477c7"><rect x="5" y="8" width="8" height="7"/><rect x="3" y="10" width="5" height="8"/></g>
+              <g fill="#dff8ff"><rect x="1" y="15" width="7" height="3"/><rect x="3" y="27" width="6" height="2"/><rect x="17" y="28" width="6" height="2"/></g>
+            </g>
+        </symbol><symbol id="runnerFinishWin" viewBox="0 0 24 30">
+            <g>
+              <g class="runner-skin"><rect x="9" y="5" width="7" height="7"/><rect x="4" y="1" width="3" height="12"/><rect x="18" y="9" width="5" height="3"/></g><rect class="runner-hair" x="9" y="5" width="7" height="2"/><rect class="runner-mustache" x="10" y="10" width="5" height="1"/>
+              <g class="runner-shirt" fill="var(--runner-shirt,#ef4f43)"><rect x="8" y="12" width="10" height="8"/><rect x="5" y="9" width="4" height="6"/><rect x="17" y="9" width="4" height="6"/></g>
+              <g class="runner-stripe" fill="var(--runner-stripe,#dff8ff)"><rect x="9" y="14" width="8" height="2"/></g>
+              <g fill="#3477c7"><rect x="8" y="20" width="5" height="7"/><rect x="13" y="20" width="5" height="7"/></g>
+              <g fill="#dff8ff"><rect x="6" y="27" width="7" height="3"/><rect x="14" y="27" width="7" height="3"/></g>
+            </g>
+        </symbol><symbol id="runnerFinishLose" viewBox="0 0 24 30">
+            <g>
+              <g class="runner-skin"><rect x="9" y="3" width="7" height="7"/><rect x="5" y="7" width="6" height="3"/><rect x="17" y="7" width="4" height="3"/><rect x="18" y="9" width="3" height="8"/></g><rect class="runner-hair" x="9" y="3" width="7" height="2"/><rect class="runner-mustache" x="10" y="8" width="5" height="1"/>
+              <g class="runner-shirt" fill="var(--runner-shirt,#ef4f43)"><rect x="8" y="11" width="10" height="9"/><rect x="6" y="12" width="3" height="6"/><rect x="17" y="12" width="3" height="6"/></g>
+              <g class="runner-stripe" fill="var(--runner-stripe,#dff8ff)"><rect x="9" y="14" width="8" height="2"/></g>
+              <g fill="#3477c7"><rect x="8" y="20" width="5" height="7"/><rect x="13" y="20" width="5" height="7"/></g>
+              <g fill="#dff8ff"><rect x="6" y="27" width="7" height="3"/><rect x="14" y="27" width="7" height="3"/></g>
+            </g>
+        </symbol></defs>
+      </svg>
+      <div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Agentes con presencia viva en carrera"></div>
+      <span class="race-call" id="raceCall" aria-hidden="true"></span>
+      <span class="sr-only" id="refreshCount">60 segundos</span>
+    </div>
+    <div class="cab-tools">
+      <button class="sonido" id="btnSonido" type="button" aria-pressed="false" title="Activar sonido">
+        <span aria-hidden="true">♪</span><span class="sr-only" id="estadoSonido">Sonido desactivado</span>
+      </button>
+    </div>
+  </header>
+  <div class="podio" id="podio"></div>
+  <div class="table-scroll" id="rankingScroll">
+    <table class="tabla" id="rankingTable">
+      <colgroup>
+        <col data-min="38"><col data-min="120"><col data-min="130"><col data-min="110"><col data-min="72">
+        <col data-min="86"><col data-min="72"><col data-min="64"><col data-min="68">
+      </colgroup>
+      <thead><tr>
+        <th class="n" data-sort-col="posicion" aria-sort="none"><button class="sort-head" type="button" data-sort="posicion">#<span class="sort-arrow" aria-hidden="true"></span></button></th>
+        <th data-sort-col="agente" aria-sort="none"><button class="sort-head" type="button" data-sort="agente">Agente<span class="sort-arrow" aria-hidden="true"></span></button></th>
+        <th data-sort-col="ordenador" aria-sort="none"><button class="sort-head" type="button" data-sort="ordenador">Ordenador<span class="sort-arrow" aria-hidden="true"></span></button></th>
+        <th data-sort-col="proyecto" aria-sort="none"><button class="sort-head" type="button" data-sort="proyecto">Proyecto<span class="sort-arrow" aria-hidden="true"></span></button></th>
+        <th class="num" data-sort-col="objetivos" aria-sort="none"><button class="sort-head" type="button" data-sort="objetivos">Objetivos<span class="sort-arrow" aria-hidden="true"></span></button></th>
+        <th class="num" data-sort-col="ventanas" aria-sort="none" title="Acumulado del día; las ventanas automáticas respetan una única apertura por hora natural"><button class="sort-head" type="button" data-sort="ventanas">Ventanas hoy<span class="sort-arrow" aria-hidden="true"></span></button></th>
+        <th class="num" data-sort-col="misiones" aria-sort="none"><button class="sort-head" type="button" data-sort="misiones">Misiones<span class="sort-arrow" aria-hidden="true"></span></button></th>
+        <th class="num" data-sort-col="tareas" aria-sort="none"><button class="sort-head" type="button" data-sort="tareas">Tareas<span class="sort-arrow" aria-hidden="true"></span></button></th>
+        <th class="num" data-sort-col="puntos" aria-sort="none"><button class="sort-head" type="button" data-sort="puntos">Puntos<span class="sort-arrow" aria-hidden="true"></span></button></th>
+      </tr></thead>
+      <tbody id="filas"></tbody>
+    </table>
+  </div>
+  <div class="nota" id="formula"></div>
+</div>
+
+<script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
+<script src="/highscore-race.js?v=v.2026.08.02.all-live-1"></script>
+<script>
+(function () {
+  "use strict";
+  var TG = "https://admira-telegram.csilvasantin.workers.dev";
+  var YK = "https://api.yokup.com";
+
+  /* ── Banda sonora: NES Track & Field (TAS «max score» by Phil).
+         Reproduce media/track-and-field.mp3 en bucle al entrar.
+         La fanfarria del podio sigue en WebAudio (remate corto). ── */
+  var ac = null, sonando = false, bgm = null;
+  var BGM_SRC = "/media/track-and-field.mp3?v=trackfield-1";
+  function nota(freq, t0, dur, vol, tipo) {
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.type = tipo || "square"; o.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(ac.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  var N = {do:261.63,re:293.66,mi:329.63,fa:349.23,sol:392.00,la:440.00,si:493.88,
+            DO:523.25,RE:587.33,MI:659.25,FA:698.46,SOL:783.99,LA:880.00,SI:987.77};
+  function aseguraBgm() {
+    if (bgm) return bgm;
+    bgm = new Audio(BGM_SRC);
+    bgm.loop = true;
+    bgm.preload = "auto";
+    bgm.volume = 0.55;
+    return bgm;
+  }
+  function pintaSonido(activo) {
+    var boton = document.getElementById("btnSonido"), estado = document.getElementById("estadoSonido");
+    boton.setAttribute("aria-pressed", activo ? "true" : "false");
+    boton.title = activo ? "Desactivar sonido" : "Activar sonido";
+    estado.textContent = activo ? "Sonido activado" : "Sonido desactivado";
+  }
+  function arranca() {
+    sonando = true; pintaSonido(true);
+    var audio = aseguraBgm();
+    var play = audio.play();
+    if (play && typeof play.catch === "function") {
+      play.catch(function () { /* autoplay bloqueado hasta otro gesto */ });
+    }
+  }
+  function para() {
+    sonando = false; pintaSonido(false);
+    if (bgm) { bgm.pause(); }
+  }
+  document.getElementById("btnSonido").addEventListener("click", function (e) { e.stopPropagation(); sonando ? para() : arranca(); });
+  function fanfarriaPodio() {   // remate corto al revelar el podio / cambio de líder
+    if (!ac) { ac = new (window.AudioContext || window.webkitAudioContext)(); }
+    if (ac.state === "suspended") { try { ac.resume(); } catch (_) {} }
+    var t = ac.currentTime + 0.02;
+    [["SOL",.5],["DO",.5],["MI",.5],["SOL",1.3]].forEach(function (n) { nota(N[n[0]], t, n[1] * 0.22, 0.11); t += n[1] * 0.26; });
+  }
+
+  /* ── PUNTUACIÓN. La fórmula se enseña en la página: nada de números mágicos. ── */
+  var PUNTOS_TAREA = 15, PUNTOS_TAREA_ACTIVA = 10;
+  var FRESCO_SEG = 15 * 60;   // un latido cuenta como «vivo» si tiene menos de 15 min
+  var ACTIVIDAD_FRESCA_MS = 30 * 60 * 1000, OBJETIVO_FRESCO_MS = 15 * 60 * 1000;
+  var PRIORIDAD_ACTIVIDAD = { objetivos:1, misiones:2, ventanas:3, tareas:4 };
+  var NO_AGENTES = ["", "-", "—"];
+  var TIME_ZONE = "Europe/Madrid";
+  var DIA_FMT = new Intl.DateTimeFormat("en-CA", {
+    timeZone:TIME_ZONE, year:"numeric", month:"2-digit", day:"2-digit"
+  });
+
+  function claveDia(epoch) {
+    var n = Number(epoch) || 0; if (n > 0 && n < 1e11) n *= 1000;
+    return n ? DIA_FMT.format(new Date(n)) : "";
+  }
+  function esHoy(epoch) { return claveDia(epoch) === claveDia(Date.now()); }
+  function comoMs(epoch) {
+    var n = Number(epoch) || 0; if (n > 0 && n < 1e11) n *= 1000; return n;
+  }
+  function esReciente(epoch, margen) {
+    var n = comoMs(epoch), edad = Date.now() - n;
+    return n > 0 && edad > -60000 && edad < margen;
+  }
+  /* mission_tasks contiene A/B/C y sus microtareas A1…C3. El Highscore cuenta
+     exactamente las tres tareas de la misión: cualquier actividad real de una
+     microtarea activa su familia, pero nunca infla A en cuatro filas. */
+  function tareasDeHoy() {
+    var familias = {};
+    datos.tareas.forEach(function (t) {
+      var m = normaliza(t.code).toLowerCase().match(/^([a-c])(?:[1-3])?$/);
+      if (!m || !esHoy(t.updated_at) || ["in_progress", "done"].indexOf(t.status) < 0) return;
+      var key = normaliza(t.mission_id) + "|" + m[1], anterior = familias[key];
+      if (!anterior || Number(t.updated_at) >= Number(anterior.updated_at)) familias[key] = t;
+    });
+    return Object.keys(familias).map(function (k) { return familias[k]; });
+  }
+
+  function pon(pct, txt) {
+    document.getElementById("barra").style.width = pct + "%";
+    if (txt) document.getElementById("pieCarga").textContent = txt;
+  }
+  function pedirDesde(base, ruta) {
+    return fetch(base + ruta, { cache: "no-store" }).then(function (r) {
+      if (!r.ok) throw new Error(ruta + " → " + r.status);
+      return r.json();
+    });
+  }
+
+  var fallos = [];
+  function seguro(ruta, saca) {
+    return pedirDesde(TG, ruta).then(saca).catch(function (e) { fallos.push(String(e.message || e)); return null; });
+  }
+  function seguroYokup(ruta, saca) {
+    return pedirDesde(YK, ruta).then(saca).catch(function (e) { fallos.push(String(e.message || e)); return null; });
+  }
+
+  var datos = { tareas: [], actividad: [], actividadMeta: null, presencia: [], misiones: [], ideas: [], decisiones: [], proyectos: [] };
+  var DAILY_CACHE_KEY = "yokup.highscore.daily.v1";
+  function guardaActividadDiaria(payload) {
+    if (!payload || !Array.isArray(payload.scores) || payload.day !== claveDia(Date.now())) return;
+    try { localStorage.setItem(DAILY_CACHE_KEY, JSON.stringify(payload)); } catch (_) {}
+  }
+  function actividadDiariaGuardada() {
+    try {
+      var payload = JSON.parse(localStorage.getItem(DAILY_CACHE_KEY) || "null");
+      return payload && payload.day === claveDia(Date.now()) && Array.isArray(payload.scores) ? payload : null;
+    } catch (_) { return null; }
+  }
+
+  pon(8, "CONECTANDO CON LA FLOTA…");
+  seguroYokup("/tasks/all?scope=fleet", function (d) { return d.tasks || []; })
+    .then(function (t) {
+      datos.tareas = t || []; pon(42, "TABLERO DE TAREAS · " + tareasDeHoy().length + " HOY");
+      return Promise.all([
+        seguroYokup("/highscore/daily", function (d) { return d; }),
+        seguroYokup("/fleet/missions", function (d) { return d.missions || []; }),
+        seguroYokup("/ideas", function (d) { return d.ideas || []; }),
+        seguroYokup("/decisions", function (d) { return d.items || d.decisions || []; }),
+        seguro("/api/presence", function (d) { return d.presence || []; }),
+        seguroYokup("/projects", function (d) { return d.projects || []; })
+      ]);
+    })
+    .then(function (r) {
+      var a = r[0] || actividadDiariaGuardada();
+      if (r[0]) guardaActividadDiaria(r[0]);
+      datos.actividadMeta = a || null; datos.actividad = a && a.scores || [];
+      datos.misiones = r[1] || []; datos.ideas = r[2] || []; datos.decisiones = r[3] || []; datos.presencia = r[4] || []; datos.proyectos = r[5] || [];
+      pon(76, "OBJETIVOS · VENTANAS · MISIONES · " + ((a && a.recorded && a.recorded.objectives) || 0) + " / " + ((a && a.recorded && a.recorded.windows) || 0) + " / " + ((a && a.recorded && a.recorded.missions) || 0));
+      pon(94, "PRESENCIA · " + datos.presencia.length + " AGENTES");
+      setTimeout(function () { pon(100, "LISTO"); listo(); }, 350);
+    });
+
+  function normaliza(s) { return String(s == null ? "" : s).trim(); }
+
+  function calcula() {
+    var por = {}, principal = {}, id = window.ykAgentIdentity, misionesPorId = {};
+    datos.misiones.forEach(function (m) { if (m && m.id) misionesPorId[normaliza(m.id)] = m; });
+    function claveProyecto(s) {
+      return normaliza(s).toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
+    }
+    function fichaProyecto(raw, contexto) {
+      var clave = claveProyecto(raw), texto = claveProyecto(contexto), encontrado = null;
+      (datos.proyectos || []).some(function (p) {
+        var claves = [p.id, p.name, p.web].map(claveProyecto).filter(Boolean);
+        var exacto = clave && claves.indexOf(clave) >= 0;
+        var citado = !clave && texto && claves.some(function (c) { return c.length > 3 && texto.indexOf(c) >= 0; });
+        if (!exacto && !citado) return false;
+        encontrado = p; return true;
+      });
+      if (encontrado) {
+        var web = normaliza(encontrado.web), etiqueta = claveProyecto(web) || normaliza(encontrado.name || encontrado.id);
+        return { label:etiqueta, url:web ? (/^https?:\/\//i.test(web) ? web : "https://" + web) : "" };
+      }
+      if (!clave && texto) {
+        (datos.proyectos || []).some(function (p) {
+          var dominio = claveProyecto(p.web), nombre = claveProyecto(p.name), slug = claveProyecto(p.id);
+          if (![dominio, nombre, slug].some(function (c) { return c && c.length > 3 && texto.indexOf(c) >= 0; })) return false;
+          var web = normaliza(p.web); encontrado = { label:dominio || normaliza(p.name || p.id), url:web ? (/^https?:\/\//i.test(web) ? web : "https://" + web) : "" }; return true;
+        });
+        if (encontrado && encontrado.label) return encontrado;
+      }
+      if (!clave) return null;
+      var pareceWeb = clave.indexOf(".") > 0;
+      return { label:clave, url:pareceWeb ? "https://" + clave : "" };
+    }
+    function datosId(n, machine) {
+      var raw = normaliza(n), parsed = id ? id.parse(raw) : {persona:raw,suffix:""};
+      var base = parsed.persona || raw, sf = id ? (id.suffix(machine) || parsed.suffix || "") : "";
+      return { base:base, suffix:sf, key:(id ? id.key(base) : base.toLowerCase()) + "|" + sf };
+    }
+    function fila(n, machine) {
+      var d = datosId(n, machine);
+      if (!d.base || NO_AGENTES.indexOf(d.base.toLowerCase()) >= 0) return null;
+      if (!por[d.key]) por[d.key] = { agente:d.base, base:d.base, suffix:d.suffix,
+        objetivos:0, ptsObjetivos:0, ventanas:0, ptsVentanas:0,
+        misiones:0, ptsMisiones:0, tareas:0, ptsTareas:0, vivo:false, haLatido:false, runtime:"",
+        maquinas:[], maquinasVivas:[], actividad:"", actividadAt:0, actividadDetalle:"",
+        proyecto:"", proyectoUrl:"", proyectoAt:0 };
+      return por[d.key];
+    }
+    function marcaProyecto(destino, raw, at, contexto) {
+      var ficha = fichaProyecto(raw, contexto), instante = Number(at) || 0;
+      if (!ficha || !ficha.label || instante < Number(destino.proyectoAt || 0)) return;
+      destino.proyecto = ficha.label; destino.proyectoUrl = ficha.url; destino.proyectoAt = instante;
+    }
+    function adoptaActividad(destino, tipo, at, detalle) {
+      if (!tipo) return;
+      var nueva = PRIORIDAD_ACTIVIDAD[tipo] || 0, actual = PRIORIDAD_ACTIVIDAD[destino.actividad] || 0;
+      if (nueva < actual || (nueva === actual && Number(at) < Number(destino.actividadAt))) return;
+      destino.actividad = tipo; destino.actividadAt = Number(at) || 0; destino.actividadDetalle = normaliza(detalle);
+    }
+    function marcaActividad(n, machine, tipo, at, detalle, proyecto, contextoProyecto) {
+      var d = datosId(n, machine), f = por[d.key];
+      if (f) { adoptaActividad(f, tipo, comoMs(at), detalle); marcaProyecto(f, proyecto, comoMs(at), contextoProyecto || detalle); }
+    }
+    function marcaAutor(author, tipo, at, detalle, proyecto) {
+      var partes = normaliza(author).split("·").map(function (p) { return p.trim(); }).filter(Boolean);
+      for (var i = partes.length - 1; i >= 0; i--) {
+        var d = datosId(partes[i], "");
+        if (por[d.key]) { adoptaActividad(por[d.key], tipo, comoMs(at), detalle); marcaProyecto(por[d.key], proyecto, comoMs(at), detalle); return; }
+      }
+    }
+    function suma(destino, origen) {
+      destino.objetivos += origen.objetivos; destino.ptsObjetivos += origen.ptsObjetivos;
+      destino.ventanas += origen.ventanas; destino.ptsVentanas += origen.ptsVentanas;
+      destino.misiones += origen.misiones; destino.ptsMisiones += origen.ptsMisiones;
+      destino.tareas += origen.tareas; destino.ptsTareas += origen.ptsTareas;
+      destino.vivo = destino.vivo || origen.vivo;
+      destino.haLatido = destino.haLatido || origen.haLatido;
+      adoptaActividad(destino, origen.actividad, origen.actividadAt, origen.actividadDetalle);
+      marcaProyecto(destino, origen.proyecto, origen.proyectoAt, origen.proyecto);
+      if (!destino.runtime) destino.runtime = origen.runtime;
+      origen.maquinas.forEach(function (m) { if (destino.maquinas.indexOf(m) < 0) destino.maquinas.push(m); });
+      origen.maquinasVivas.forEach(function (m) { if (destino.maquinasVivas.indexOf(m) < 0) destino.maquinasVivas.push(m); });
+    }
+    tareasDeHoy().forEach(function (t) {
+      var owner = normaliza(t.owner), role = /^infra(?:agente)?$/i.test(owner) ? "infra" : (/^sub(?:agente)?$/i.test(owner) ? "sub" : "");
+      var taskAgent = role && id ? id.scoped(t.assignee, t.loc, role) : (owner || t.assignee);
+      var f = fila(taskAgent, t.loc); if (!f) return;
+      f.tareas++;
+      f.ptsTareas += PUNTOS_TAREA + (["doing", "in_progress"].indexOf(t.status) >= 0 ? PUNTOS_TAREA_ACTIVA : 0);
+    });
+    datos.actividad.forEach(function (a) {
+      var f = fila(a.agent, a.machine); if (!f) return;
+      f.objetivos += Number(a.objectives) || 0;
+      f.ptsObjetivos += Number(a.objective_points) || 0;
+      f.ventanas += Number(a.windows) || 0;
+      f.ptsVentanas += Number(a.window_points) || 0;
+      f.misiones += Number(a.missions) || 0;
+      f.ptsMisiones += Number(a.mission_points) || 0;
+    });
+    // VIVO = latido RECIENTE; haLatido = existe al menos un registro histórico.
+    // Ninguno de los dos suma puntos: presencia y rendimiento son dimensiones
+    // distintas. El primero anima la posición; el segundo permite mostrar 0 o —.
+    var ahora = Date.now() / 1000;
+    datos.presencia.forEach(function (p) {
+      var f = fila(p.persona, p.machine); if (!f) return;
+      f.haLatido = true;
+      var t = Number(p.updated) || 0; if (t > 1e11) t /= 1000;      // por si llega en ms
+      var fresco = t > 0 && (ahora - t) < FRESCO_SEG;
+      var d = datosId(p.persona, p.machine), bk = id ? id.key(d.base) : d.base.toLowerCase();
+      if (d.suffix && (!principal[bk] || t > principal[bk].at)) principal[bk] = { suffix:d.suffix, at:t };
+      if (p.machine) {
+        if (f.maquinas.indexOf(p.machine) < 0) f.maquinas.push(p.machine);
+        if (fresco && f.maquinasVivas.indexOf(p.machine) < 0) f.maquinasVivas.push(p.machine);
+      }
+      if (fresco) {
+        f.vivo = true; if (p.runtime && !f.runtime) f.runtime = p.runtime;
+        marcaProyecto(f, p.project, t * 1000, p.focus);
+      }
+    });
+    // Actividad AHORA, no totales históricos. Una sola señal por agente:
+    // tarea > ventana viva > misión en curso > objetivo reciente.
+    datos.ideas.forEach(function (o) {
+      var at = o.updated_at || o.created_at;
+      if (["nueva", "estudio"].indexOf(normaliza(o.status).toLowerCase()) >= 0 && esReciente(at, OBJETIVO_FRESCO_MS))
+        marcaAutor(o.author, "objetivos", at, o.title, o.project);
+    });
+    datos.misiones.forEach(function (m) {
+      var at = m.updated_at || m.live_at || m.created_at;
+      if (normaliza(m.status).toLowerCase() === "in_progress" && esReciente(at, ACTIVIDAD_FRESCA_MS))
+        marcaActividad(m.assignee || m.persona, m.machine || m.loc, "misiones", at, m.subject,
+          m.project_name || m.project, [m.subject, m.screen].filter(Boolean).join(" "));
+    });
+    datos.decisiones.forEach(function (d) {
+      var estado = normaliza(d.status).toLowerCase(), limite = comoMs(d.deadline), vigente = !limite || limite > Date.now();
+      if (["live", "open"].indexOf(estado) >= 0 && vigente)
+        marcaActividad(d.agent, d.machine, "ventanas", d.created_at || Date.now(), d.question,
+          d.project_id || d.project, [d.project, d.url, d.question].filter(Boolean).join(" "));
+    });
+    datos.tareas.forEach(function (t) {
+      if (["doing", "in_progress"].indexOf(normaliza(t.status).toLowerCase()) < 0 || !esReciente(t.updated_at, ACTIVIDAD_FRESCA_MS)) return;
+      var owner = normaliza(t.owner), role = /^infra(?:agente)?$/i.test(owner) ? "infra" : (/^sub(?:agente)?$/i.test(owner) ? "sub" : "");
+      var taskAgent = role && id ? id.scoped(t.assignee, t.loc, role) : (owner || t.assignee);
+      var mision = misionesPorId[normaliza(t.mission_id)] || {};
+      marcaActividad(taskAgent, t.loc, "tareas", t.updated_at, t.title || t.code,
+        mision.project_name || mision.project, [mision.subject, mision.screen, t.title].filter(Boolean).join(" "));
+    });
+    // Tareas antiguas y objetivos sin equipo solo firmaban «Neo» o «Morfeo». Se adjudican a
+    // la máquina más recientemente observada de esa familia; las presencias con
+    // máquina propia siguen siendo filas separadas, así nunca se confunden MBP/MBA.
+    Object.keys(por).forEach(function (k) {
+      var f = por[k]; if (f.suffix) return;
+      var bk = id ? id.key(f.base) : f.base.toLowerCase(), pick = principal[bk];
+      if (!pick) return;
+      var targetKey = bk + "|" + pick.suffix;
+      if (!por[targetKey]) por[targetKey] = { agente:f.base, base:f.base, suffix:pick.suffix,
+        objetivos:0, ptsObjetivos:0, ventanas:0, ptsVentanas:0,
+        misiones:0, ptsMisiones:0, tareas:0, ptsTareas:0, vivo:false, haLatido:false, runtime:"", maquinas:[], maquinasVivas:[],
+        actividad:"", actividadAt:0, actividadDetalle:"", proyecto:"", proyectoUrl:"", proyectoAt:0 };
+      suma(por[targetKey], f); delete por[k];
+    });
+    var lista = Object.keys(por).map(function (k) {
+      var f = por[k];
+      f.agente = id ? id.display(f.base, f.suffix) : f.base;
+      f.total = f.ptsObjetivos + f.ptsVentanas + f.ptsMisiones + f.ptsTareas; return f;
+    });
+    lista.sort(function (a, b) { return b.total - a.total || a.agente.localeCompare(b.agente); });
+    lista.forEach(function (fila, indice) { fila.posicion = indice + 1; });
+    return lista;
+  }
+
+  var brazosTimer = null, brazosBajos = false, imagenPodio = null;
+  var puntosPodioAnteriores = Object.create(null);
+  var brazoIzq = [[497,48],[559,48],[559,112],[553,112],[553,170],[520,170],[509,145],[497,145]];
+  var brazoDer = [[721,48],[783,48],[783,145],[771,145],[760,170],[727,170],[727,112],[721,112]];
+  var borraIzq = [[495,46],[561,46],[561,114],[555,114],[555,172],[518,172],[507,147],[495,147]];
+  var borraDer = [[719,46],[785,46],[785,147],[773,147],[762,172],[725,172],[725,114],[719,114]];
+
+  function traza(ctx, puntos) {
+    ctx.beginPath(); ctx.moveTo(puntos[0][0], puntos[0][1]);
+    for (var i = 1; i < puntos.length; i++) ctx.lineTo(puntos[i][0], puntos[i][1]);
+    ctx.closePath();
+  }
+  function pintaBrazo(ctx, puntos, cx, cy, angulo) {
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(angulo * Math.PI / 180); ctx.translate(-cx, -cy);
+    traza(ctx, puntos); ctx.clip(); ctx.drawImage(imagenPodio, 0, 0, 1280, 720); ctx.restore();
+  }
+  function dibujaPodio(bajos) {
+    var canvas = document.getElementById("podioCanvas");
+    if (!canvas || !imagenPodio || !imagenPodio.complete) return;
+    var ctx = canvas.getContext("2d"); ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, 1280, 720); ctx.drawImage(imagenPodio, 0, 0, 1280, 720);
+    ctx.fillStyle = "#030911"; traza(ctx, borraIzq); ctx.fill(); traza(ctx, borraDer); ctx.fill();
+    pintaBrazo(ctx, brazoIzq, 544, 164, bajos ? -28 : 0);
+    pintaBrazo(ctx, brazoDer, 736, 164, bajos ? 28 : 0);
+  }
+  function programaBrazos() {
+    clearInterval(brazosTimer); brazosTimer = null; brazosBajos = false;
+    function listo() {
+      dibujaPodio(false);
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      brazosTimer = setInterval(function () { brazosBajos = !brazosBajos; dibujaPodio(brazosBajos); }, 900);
+    }
+    if (!imagenPodio) {
+      imagenPodio = new Image(); imagenPodio.onload = listo; imagenPodio.src = "/img/highscore-podio-pixel.png";
+    } else if (imagenPodio.complete) listo(); else imagenPodio.onload = listo;
+  }
+
+  function escenaPodio() {
+    return '<div class="podio-arte" aria-hidden="true"><canvas id="podioCanvas" width="1280" height="720"></canvas>' +
+      '<div class="podio-velo"></div></div>';
+  }
+
+  function pintaPodio(top) {
+    var orden = [top[1], top[0], top[2]], clases = ["p2", "p1", "p3"], medallas = ["2", "1", "3"];
+    document.getElementById("podio").innerHTML = escenaPodio() + orden.map(function (a, i) {
+      if (!a) return '<div class="plaza"></div>';
+      var clave = claveAgenteCarrera(a.agente), total = Number(a.total) || 0;
+      var anterior = Object.prototype.hasOwnProperty.call(puntosPodioAnteriores, clave) ? puntosPodioAnteriores[clave] : null;
+      var sube = anterior !== null && total > anterior;
+      var tendencia = sube
+        ? '<span class="podium-trend up" title="Ha ganado puntos desde el último refresco" aria-label="Sube">↑</span>'
+        : '<span class="podium-trend same" title="Mantiene la puntuación" aria-label="Sin cambio">=</span>';
+      return '<div class="plaza ' + clases[i] + (a.vivo ? ' podium-live' : '') + '"' +
+        (a.vivo ? ' title="Vivo · latido recibido hace menos de 15 minutos"' : '') + '>' +
+        '<div class="avatar">' + a.agente.charAt(0).toUpperCase() + '</div>' +
+        '<div class="nom">' + agentNameHtml(a) + '</div>' +
+        '<div class="maq">' + esc(a.runtime || "—") + '</div>' +
+        pintaMaquinas(a, 3) +
+        '<div class="pts"><span class="podium-score">' + total + '</span>' + tendencia + '</div>' +
+        '<div class="bloque">' + medallas[i] + '</div></div>';
+    }).join("");
+    top.forEach(function (a) {
+      if (a) puntosPodioAnteriores[claveAgenteCarrera(a.agente)] = Number(a.total) || 0;
+    });
+    programaBrazos();
+  }
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function agentNameHtml(a) {
+    return '<span class="agent-name">' + esc(a && a.agente || "") + '</span>';
+  }
+
+  function posicionHtml(a, posicion) {
+    var vivo = a.vivo ? " live" : "";
+    var attrs = a.vivo ? ' title="Vivo · latido recibido hace menos de 15 minutos" aria-label="Posición ' + posicion + ' · vivo"' : '';
+    return '<span class="rank-number' + vivo + '"' + attrs + '>' + posicion + '</span>';
+  }
+
+  function proyectoHtml(a) {
+    if (!a.proyecto) return '<span class="project-empty">—</span>';
+    var label = esc(a.proyecto), title = 'Proyecto activo · ' + label;
+    return a.proyectoUrl
+      ? '<a class="project-chip" href="' + esc(a.proyectoUrl) + '" target="_blank" rel="noopener" title="' + esc(title) + '">' + label + '</a>'
+      : '<span class="project-chip" title="' + esc(title) + '">' + label + '</span>';
+  }
+
+  /* Ordenadores del agente: primero los que laten AHORA (encendidos), luego los
+     conocidos sin latido reciente. `tope` recorta y añade «+N» para que el podio
+     no se desmadre — Smith corre en 8 máquinas. */
+  function pintaMaquinas(a, tope) {
+    var vivas = a.maquinasVivas.slice().sort();
+    var frias = a.maquinas.filter(function (m) { return vivas.indexOf(m) < 0; }).sort();
+    var todas = vivas.map(function (m) { return { m: m, on: true }; })
+                     .concat(frias.map(function (m) { return { m: m, on: false }; }));
+    if (!todas.length) return '<div class="maqs"><span class="maq-b">sin registro</span></div>';
+    var muestra = tope ? todas.slice(0, tope) : todas, resto = todas.length - muestra.length;
+    return '<div class="maqs" title="' + esc(todas.map(function (t) { return t.m; }).join(" · ")) + '">' +
+      muestra.map(function (t) { return '<span class="maq-b' + (t.on ? ' on' : '') + '">' + esc(t.m) + '</span>'; }).join("") +
+      (resto > 0 ? '<span class="maq-mas">+' + resto + '</span>' : '') + '</div>';
+  }
+
+  function numeroActividad(a, tipo, valor, singular) {
+    if (a.actividad !== tipo) return valor;
+    var detalle = normaliza(a.actividadDetalle), texto = detalle || singular;
+    return '<span class="activity-now" title="' + esc(texto) + '" aria-label="' + esc(valor + " " + tipo + ". " + texto) + '">' + valor + '</span>';
+  }
+
+  function numeroVentanas(a) {
+    var contenido = numeroActividad(a, "ventanas", a.ventanas, "ventana de decisión viva");
+    var ayuda = a.ventanas + " ventanas acumuladas hoy; no son simultáneas. Las automáticas abren una sola por hora natural.";
+    return '<span class="window-day-total" title="' + esc(ayuda) + '" aria-label="' + esc(ayuda) + '">' + contenido + '</span>';
+  }
+
+  function puntosHtml(a) {
+    if (a.total > 0) return a.total;
+    return a.haLatido ? "0" : "—";
+  }
+
+  /* Columnas reajustables. El primer gesto congela las medidas fluidas actuales,
+     después cada ancho se conserva en este navegador. Flechas ajustan 12 px y
+     doble clic calcula el ancho necesario para el contenido de esa columna. */
+  var COLUMNAS_KEY = "yokup.highscore.columnas.v1";
+  var ordenTabla = { campo:"", direccion:"" };
+  var DIRECCION_INICIAL = {
+    posicion:"asc", agente:"asc", ordenador:"asc", proyecto:"asc",
+    objetivos:"desc", ventanas:"desc", misiones:"desc", tareas:"desc", puntos:"desc"
+  };
+
+  function ordenadorPrincipal(a) {
+    var vivas = (a.maquinasVivas || []).slice().sort(), conocidas = (a.maquinas || []).slice().sort();
+    return normaliza(vivas[0] || conocidas[0]);
+  }
+
+  function valorOrden(fila, campo) {
+    if (campo === "posicion") return Number(fila.posicion) || 0;
+    if (campo === "agente") return normaliza(fila.agente);
+    if (campo === "ordenador") return ordenadorPrincipal(fila);
+    if (campo === "proyecto") return normaliza(fila.proyecto);
+    if (campo === "puntos") return Number(fila.total) || 0;
+    return Number(fila[campo]) || 0;
+  }
+
+  function listaOrdenada(lista) {
+    var campo = ordenTabla.campo, direccion = ordenTabla.direccion;
+    if (!campo || !direccion) return lista.slice();
+    return lista.slice().sort(function (a, b) {
+      var va = valorOrden(a, campo), vb = valorOrden(b, campo), comparacion = 0;
+      if (typeof va === "string") {
+        if (!va && vb) return 1;
+        if (va && !vb) return -1;
+        comparacion = va.localeCompare(vb, "es", { numeric:true, sensitivity:"base" });
+      } else comparacion = va - vb;
+      if (comparacion) return direccion === "asc" ? comparacion : -comparacion;
+      return (Number(a.posicion) || 0) - (Number(b.posicion) || 0);
+    });
+  }
+
+  function actualizaCabecerasOrden() {
+    document.querySelectorAll("#rankingTable thead th[data-sort-col]").forEach(function (th) {
+      var campo = th.getAttribute("data-sort-col"), activo = campo === ordenTabla.campo;
+      th.setAttribute("aria-sort", activo ? (ordenTabla.direccion === "asc" ? "ascending" : "descending") : "none");
+      var flecha = th.querySelector(".sort-arrow");
+      if (flecha) flecha.textContent = activo ? (ordenTabla.direccion === "asc" ? "▲" : "▼") : "";
+    });
+  }
+
+  function iniciaOrdenTabla() {
+    document.querySelectorAll("#rankingTable .sort-head[data-sort]").forEach(function (boton) {
+      boton.addEventListener("click", function () {
+        var campo = boton.getAttribute("data-sort");
+        if (ordenTabla.campo === campo) ordenTabla.direccion = ordenTabla.direccion === "asc" ? "desc" : "asc";
+        else { ordenTabla.campo = campo; ordenTabla.direccion = DIRECCION_INICIAL[campo] || "asc"; }
+        actualizaCabecerasOrden();
+        pintaTabla(listaOrdenada(listaCache || []));
+      });
+    });
+    actualizaCabecerasOrden();
+  }
+
+  function aplicaAnchosColumnas(anchos) {
+    var tabla = document.getElementById("rankingTable"), columnas = tabla.querySelectorAll("colgroup col"), total = 0;
+    if (!anchos || anchos.length !== columnas.length) return;
+    columnas.forEach(function (col, i) {
+      var minimo = Number(col.getAttribute("data-min")) || 48;
+      var ancho = Math.max(minimo, Math.round(Number(anchos[i]) || minimo));
+      col.style.width = ancho + "px"; total += ancho;
+    });
+    tabla.style.width = Math.max(total, tabla.parentElement.clientWidth) + "px";
+  }
+  function anchosColumnas() {
+    return Array.from(document.querySelectorAll("#rankingTable thead th"), function (th) {
+      return Math.round(th.getBoundingClientRect().width);
+    });
+  }
+  function guardaAnchosColumnas(anchos) {
+    try { localStorage.setItem(COLUMNAS_KEY, JSON.stringify(anchos)); } catch (_) {}
+  }
+  function anchoContenidoColumna(indice) {
+    var celdas = document.querySelectorAll("#rankingTable tr > :nth-child(" + (indice + 1) + ")"), maximo = 0;
+    celdas.forEach(function (celda) {
+      var copia = celda.cloneNode(true), tirador = copia.querySelector(".col-resizer");
+      if (tirador) tirador.remove();
+      copia.style.cssText = "position:fixed;left:-9999px;top:0;width:max-content;max-width:none;white-space:nowrap;visibility:hidden";
+      document.body.appendChild(copia); maximo = Math.max(maximo, Math.ceil(copia.getBoundingClientRect().width) + 22); copia.remove();
+    });
+    return Math.min(440, maximo || 80);
+  }
+  function iniciaColumnasReajustables() {
+    var tabla = document.getElementById("rankingTable"), cabeceras = tabla.querySelectorAll("thead th");
+    try { aplicaAnchosColumnas(JSON.parse(localStorage.getItem(COLUMNAS_KEY) || "null")); } catch (_) {}
+    cabeceras.forEach(function (th, indice) {
+      var nombre = th.textContent.trim() || "posición", tirador = document.createElement("span");
+      tirador.className = "col-resizer"; tirador.tabIndex = 0; tirador.setAttribute("role", "separator");
+      tirador.setAttribute("aria-orientation", "vertical");
+      tirador.setAttribute("aria-label", "Reajustar columna " + nombre);
+      tirador.title = "Arrastra para reajustar · doble clic para autoajustar";
+      tirador.addEventListener("pointerdown", function (evento) {
+        evento.preventDefault(); evento.stopPropagation();
+        var iniciales = anchosColumnas(), inicioX = evento.clientX, inicioAncho = iniciales[indice];
+        aplicaAnchosColumnas(iniciales); tirador.classList.add("dragging"); document.body.classList.add("resizing-columns");
+        tirador.setPointerCapture(evento.pointerId);
+        function mueve(e) {
+          var nuevos = iniciales.slice(), minimo = Number(tabla.querySelectorAll("colgroup col")[indice].getAttribute("data-min")) || 48;
+          nuevos[indice] = Math.max(minimo, inicioAncho + e.clientX - inicioX); aplicaAnchosColumnas(nuevos);
+        }
+        function termina() {
+          tirador.classList.remove("dragging"); document.body.classList.remove("resizing-columns");
+          guardaAnchosColumnas(anchosColumnas()); tirador.removeEventListener("pointermove", mueve); tirador.removeEventListener("pointerup", termina);
+          tirador.removeEventListener("pointercancel", termina);
+        }
+        tirador.addEventListener("pointermove", mueve); tirador.addEventListener("pointerup", termina); tirador.addEventListener("pointercancel", termina);
+      });
+      tirador.addEventListener("dblclick", function (evento) {
+        evento.preventDefault(); evento.stopPropagation(); var anchos = anchosColumnas();
+        anchos[indice] = anchoContenidoColumna(indice); aplicaAnchosColumnas(anchos); guardaAnchosColumnas(anchos);
+      });
+      tirador.addEventListener("keydown", function (evento) {
+        if (evento.key !== "ArrowLeft" && evento.key !== "ArrowRight") return;
+        evento.preventDefault(); var anchos = anchosColumnas(); anchos[indice] += evento.key === "ArrowRight" ? 12 : -12;
+        aplicaAnchosColumnas(anchos); guardaAnchosColumnas(anchos);
+      });
+      th.appendChild(tirador);
+    });
+  }
+
+  function pintaTabla(lista) {
+    document.getElementById("filas").innerHTML = lista.map(function (a, i) {
+      return '<tr><td class="n">' + posicionHtml(a, a.posicion || i + 1) + '</td>' +
+        '<td class="ag">' + agentNameHtml(a) +
+        (a.runtime ? ' <span class="rt">· ' + esc(a.runtime) + '</span>' : '') + '</td>' +
+        '<td>' + pintaMaquinas(a, 4) + '</td>' +
+        '<td class="project-cell">' + proyectoHtml(a) + '</td>' +
+        '<td class="num">' + numeroActividad(a, "objetivos", a.objetivos, "objetivo activo") + '</td>' +
+        '<td class="num">' + numeroVentanas(a) + '</td>' +
+        '<td class="num">' + numeroActividad(a, "misiones", a.misiones, "misión en curso") + '</td>' +
+        '<td class="num">' + numeroActividad(a, "tareas", a.tareas, "tarea en curso") + '</td>' +
+        '<td class="tot">' + puntosHtml(a) + '</td></tr>';
+    }).join("");
+  }
+  iniciaColumnasReajustables();
+  iniciaOrdenTabla();
+
+  function agenteDeMision(mision) {
+    var agente = mision && normaliza(mision.assignee || mision.persona || mision.agent);
+    if (agente && window.ykAgentIdentity && window.ykAgentIdentity.missionPair) {
+      var par = window.ykAgentIdentity.missionPair(agente, mision.machine || mision.loc, [mision.screen]);
+      agente = normaliza(par.agent || agente);
+    }
+    return agente;
+  }
+
+  function claveAgenteCarrera(agente) {
+    return normaliza(agente).toLowerCase().replace(/[^a-z0-9]/g, "");
+  }
+
+  function agenteDePresencia(presencia) {
+    var agente = presencia && normaliza(presencia.persona || presencia.agent || presencia.name);
+    if (agente && window.ykAgentIdentity && window.ykAgentIdentity.missionPair) {
+      var par = window.ykAgentIdentity.missionPair(agente, presencia.machine || presencia.loc, [presencia.focus]);
+      agente = normaliza(par.agent || agente);
+    }
+    return agente;
+  }
+
+  function limpiaFocoMision(foco) {
+    var texto = normaliza(foco).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    var entreComillas = texto.match(/«([^»]+)»/);
+    if (entreComillas) return normaliza(entreComillas[1]);
+    return texto.replace(/^El Arquitecto me pide:\s*/i, "")
+      .replace(/^⚡\s*Nueva misión\s+\S+\s+para ti desde\s+\S+:\s*/i, "").trim();
+  }
+
+  /* Algunas altas llegan primero por presencia y unos segundos después a
+     fleet/missions. El foco vivo evita que desaparezca un corredor durante
+     esa ventana de sincronización, sin convertir un latido antiguo en trabajo. */
+  function misionDesdePresencia(fila) {
+    var clave = claveAgenteCarrera(fila && fila.agente);
+    var recientes = (datos.presencia || []).filter(function (p) {
+      return esReciente(p.updated, FRESCO_SEG * 1000) && claveAgenteCarrera(agenteDePresencia(p)) === clave;
+    }).sort(function (a, b) { return comoMs(b.updated) - comoMs(a.updated); });
+    return recientes.length ? limpiaFocoMision(recientes[0].focus || recientes[0].task) : "";
+  }
+
+  /* La primera palabra queda pegada a la espalda del corredor. Las siguientes
+     se colocan hacia la izquierda para formar una estela legible mientras avanza. */
+  function estelaMision(asunto) {
+    return normaliza(asunto).split(/\s+/).filter(Boolean).map(function (palabra) {
+      return '<span class="refresh-word">' + esc(palabra) + '</span>';
+    }).join("");
+  }
+
+  function actualizaCarreraPodio() {
+    var contenedor = document.getElementById("refreshLanes");
+    // Fuente de calles = censo vivo completo. El fallback mantiene esta función
+    // comprobable de forma aislada y nunca vuelve a limitarla al podio.
+    var vivos = typeof YkHighscoreRace !== "undefined"
+      ? YkHighscoreRace.liveRows(listaCache || [])
+      : (listaCache || []).filter(function (fila) { return fila && fila.vivo; });
+    var activas = datos.misiones.filter(function (m) { return normaliza(m.status).toLowerCase() === "in_progress"; });
+    activas.sort(function (a, b) {
+      function instante(m) {
+        var raw = m.updated_at || m.live_at || m.created_at || 0, numero = Number(raw);
+        return numero || Date.parse(raw) || 0;
+      }
+      return instante(b) - instante(a);
+    });
+    var corredores = vivos.map(function (fila, indice) {
+      var clave = claveAgenteCarrera(fila.agente);
+      var mision = activas.find(function (m) { return claveAgenteCarrera(agenteDeMision(m)) === clave; });
+      var asunto = mision ? normaliza(mision.subject || mision.title || mision.name) : misionDesdePresencia(fila);
+      var puesto = indice + 1, agente = normaliza(fila.agente);
+      var variant = typeof YkHighscoreRace !== "undefined" ? YkHighscoreRace.runnerVariant(fila)
+        : (clave.split("").reduce(function (n, c) { return n + c.charCodeAt(0); }, 0) % 2 ? "dark" : "light");
+      var clasePuesto = puesto <= 3 ? "refresh-lane-p" + puesto : "refresh-lane-rank";
+      var focoAccesible = asunto || "presencia viva, sin foco declarado";
+      return '<div class="refresh-lane ' + clasePuesto + ' ' + (puesto === 1 ? 'race-winner' : 'race-loser') +
+        '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
+        'aria-label="Puesto ' + puesto + ', ' + esc(agente) + '. ' + esc(focoAccesible) + '">' +
+        '<div class="refresh-track"><i class="refresh-fill" data-race-role="fill"></i>' +
+        '<span class="refresh-mission" data-race-role="mission" title="' + esc(asunto || '') + '">' +
+        '<span class="refresh-desc">' + (asunto ? estelaMision(asunto) : "") + '</span></span>' +
+        '<span class="refresh-runner runner-' + variant + ' runner-skin-' + variant + '" data-race-role="runner" aria-hidden="true">' +
+        '<svg class="runner-frame-a" viewBox="0 0 24 30"><use href="#runnerFrameA"></use></svg>' +
+        '<svg class="runner-frame-b" viewBox="0 0 24 30"><use href="#runnerFrameB"></use></svg>' +
+        '<svg class="runner-finish-win" viewBox="0 0 24 30"><use href="#runnerFinishWin"></use></svg>' +
+        '<svg class="runner-finish-lose" viewBox="0 0 24 30"><use href="#runnerFinishLose"></use></svg></span>' +
+        '<span class="refresh-agent" data-race-role="agent">' + esc(agente) + '</span>' +
+        '<span class="refresh-finish" aria-hidden="true"></span></div></div>';
+    }).filter(Boolean);
+    contenedor.innerHTML = corredores.join("");
+    var carrera = document.getElementById("refreshRace");
+    carrera.setAttribute("data-lanes", String(corredores.length));
+    carrera.classList.toggle("empty", corredores.length === 0);
+  }
+
+  function pintaFormula(lista) {
+    var n = document.getElementById("formula");
+    var hoyTareas = tareasDeHoy();
+    var actividad = datos.actividadMeta || {}, pesos = actividad.weights || { objective:20, window:8, mission:40 };
+    var registrados = actividad.recorded || { objectives:0, windows:0, missions:0 };
+    var sinAutor = actividad.unattributed || { objectives:0, windows:0, missions:0 };
+    var html = '<h2>Cómo se puntúa hoy</h2><ul>' +
+      '<li>Solo cuenta la actividad del <b>día actual en Madrid</b>; el marcador vuelve a cero cada medianoche.</li>' +
+      '<li>Cada <b>objetivo creado hoy</b> por un agente identificado: <b>' + pesos.objective + '</b>.</li>' +
+      '<li>Cada <b>ventana de decisión abierta hoy</b>: <b>' + pesos.window + '</b>. Es un <b>acumulado diario, no ventanas simultáneas</b>; ' +
+      'la apertura automática admite una sola ventana por cada hora natural. Cerrarla o generar misiones no vuelve a sumarla.</li>' +
+      '<li>Cada <b>misión ejecutada hoy</b> —su primera entrada real en curso—: <b>' + pesos.mission + '</b>. Los reintentos no duplican puntos.</li>' +
+      '<li>Cada <b>tarea A·B·C trabajada hoy</b>: <b>15</b>, y <b>+10</b> si está en curso. ' +
+      'La actividad del agente, subagente e infraagente se reúne en su familia sin duplicar A1…C3.</li>' +
+      '<li><b>El latido no da puntos.</b> El propio <b>número de posición parpadea en verde</b> cuando recibió uno hace menos de 15 minutos. ' +
+      'Sin trabajo puntuable se muestra <b>0</b> si el agente ha latido alguna vez y <b>—</b> si nunca hay constancia de latido.</li>' +
+      '<li><b>Ordenador:</b> en verde el que late ahora, apagado el conocido sin latido reciente. ' +
+      'Un mismo agente corre en varios a la vez.</li>' +
+      '<li><b>Proyecto:</b> muestra el dominio del proyecto declarado por el latido o por el objetivo, ventana, misión o tarea activa. Sin evidencia aparece <b>—</b>.</li>' +
+      '<li>El <b>número verde que parpadea</b> señala qué hace el agente ahora: objetivo, ventana, misión o tarea. ' +
+      'Si ninguno parpadea, está <b>idle</b>. Solo se muestra una señal, priorizando la tarea activa.</li></ul>' +
+      '<p style="margin-top:10px">Hoy puntúan <b>' + hoyTareas.length + '</b> tareas. La bitácora ha anotado <b>' +
+      registrados.objectives + '</b> objetivos, <b>' + registrados.windows + '</b> ventanas y <b>' +
+      registrados.missions + '</b> misiones; ' + ((sinAutor.objectives || sinAutor.windows || sinAutor.missions) ? '<b>' +
+      (sinAutor.objectives + sinAutor.windows + sinAutor.missions) + '</b> eventos automáticos o sin agente no reparten puntos. ' : '') +
+      'Se comprueban además <b>' + datos.presencia.length + '</b> registros de presencia para distinguir 0 de —, sin alterar la puntuación.</p>' +
+      '<p style="margin-top:8px"><b>Identidad normativa:</b> cada rótulo une agente y máquina: ' +
+      '<b>NeoMBP16</b>, <b>MorfeoMBA16</b>… Si una actividad antigua no trae equipo, hereda el último equipo ' +
+      'observado de esa familia; sin ninguna evidencia se marca <b>SINMAQ</b>. <a href="/normativa">Ver normativa →</a></p>';
+    if (fallos.length) {
+      n.className = "nota err";
+      html += '<h2 style="margin-top:14px">No pude leer todo</h2><p>' + esc(fallos.join(" · ")) +
+              '. El marcador sale con lo que sí llegó, no con datos inventados.</p>';
+    }
+    n.innerHTML = html;
+  }
+
+  var ENTRADA_AUTOMATICA_MS = 15 * 1000;
+  var listaCache = null, entradaTimer = null, cuentaEntradaTimer = null, entradaHecha = false;
+  function programaEntradaAutomatica() {
+    var quedan = ENTRADA_AUTOMATICA_MS / 1000, pulsa = document.getElementById("pulsa");
+    function pintaCuenta() { pulsa.textContent = "PULSA PARA EMPEZAR · AUTO EN " + quedan + " S"; }
+    pintaCuenta();
+    cuentaEntradaTimer = setInterval(function () {
+      quedan -= 1;
+      if (quedan > 0) pintaCuenta();
+    }, 1000);
+    entradaTimer = setTimeout(entra, ENTRADA_AUTOMATICA_MS);
+  }
+  function agentesEnLiza(lista) {
+    return (lista || []).filter(function (fila) { return fila && fila.vivo; }).length;
+  }
+  function listo() {
+    listaCache = calcula();
+    pintaPodio(listaCache.slice(0, 3)); pintaTabla(listaOrdenada(listaCache)); pintaFormula(listaCache); actualizaCarreraPodio();
+    document.getElementById("pulsa").style.visibility = "visible";
+    var vivos = agentesEnLiza(listaCache);
+    document.getElementById("pieCarga").textContent = vivos + (vivos === 1 ? " AGENTE EN LIZA" : " AGENTES EN LIZA");
+    document.getElementById("carga").addEventListener("click", entra, { once: true });
+    document.addEventListener("keydown", entra, { once: true });
+    programaEntradaAutomatica();
+  }
+  function entra() {
+    if (entradaHecha) return;
+    entradaHecha = true;
+    clearTimeout(entradaTimer); clearInterval(cuentaEntradaTimer);
+    document.getElementById("carga").removeEventListener("click", entra);
+    document.removeEventListener("keydown", entra);
+    arranca(); fanfarriaPodio();
+    var c = document.getElementById("carga");
+    c.classList.add("fuera");
+    document.getElementById("pagina").style.visibility = "visible";
+    iniciaCarrera();
+    setTimeout(function () { c.style.display = "none"; }, 520);
+  }
+
+  /* Refresco en vivo: los tres comparten ritmo hasta media pista. Recorren ese
+     primer 50 % en 20 segundos, al doble de velocidad que el segundo 50 % del
+     carril de referencia. Las diferencias aparecen después, con metas a
+     56, 58 y 60 segundos. */
+  var REFRESCO_MS = 60 * 1000, SALIDA_MS = 3 * 1000, PASO_SALIDA_MS = 1000, CELEBRACION_MS = 2 * 1000;
+  var CICLO_MS = SALIDA_MS + REFRESCO_MS + CELEBRACION_MS, DIFERENCIA_META_MS = 2 * 1000;
+  var MARGEN_PISTA_PX = 36, CENTRO_CORREDOR_PX = 16, ADELANTO_AGENTE_PX = 20;
+  var MITAD_RAPIDA_MS = REFRESCO_MS / 3;
+  var carreraInicio = 0, carreraFrame = null, refrescando = false, carreraPausada = false, carreraTiempoPausado = 0;
+  var REDUCE_MOTION = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  function actualizaMarcador() {
+    if (refrescando) return Promise.resolve();
+    refrescando = true;
+    document.getElementById("refreshCount").textContent = "ACT.";
+    return Promise.all([
+      seguroYokup("/tasks/all?scope=fleet", function (d) { return d.tasks || []; }),
+      seguroYokup("/highscore/daily", function (d) { return d; }),
+      seguro("/api/presence", function (d) { return d.presence || []; }),
+      seguroYokup("/fleet/missions", function (d) { return d.missions || []; }),
+      seguroYokup("/ideas", function (d) { return d.ideas || []; }),
+      seguroYokup("/decisions", function (d) { return d.items || d.decisions || []; }),
+      seguroYokup("/projects", function (d) { return d.projects || []; })
+    ]).then(function (r) {
+      if (r[0]) datos.tareas = r[0];
+      if (r[1]) { guardaActividadDiaria(r[1]); datos.actividadMeta = r[1]; datos.actividad = r[1].scores || []; }
+      if (r[2]) datos.presencia = r[2];
+      if (r[3]) datos.misiones = r[3];
+      if (r[4]) datos.ideas = r[4];
+      if (r[5]) datos.decisiones = r[5];
+      if (r[6]) datos.proyectos = r[6];
+      fallos = [];
+      var l = calcula();
+      var cambioLider = listaCache && l[0] && listaCache[0] && l[0].agente !== listaCache[0].agente;
+      listaCache = l;
+      pintaPodio(l.slice(0, 3)); pintaTabla(listaOrdenada(l)); pintaFormula(l); actualizaCarreraPodio();
+      if (cambioLider && sonando) fanfarriaPodio();   // récord batido
+    }).finally(function () { refrescando = false; });
+  }
+  function progresoCarril(progresoCiclo, puesto) {
+    var transcurrido = Math.max(0, progresoCiclo * REFRESCO_MS);
+    var adelanto = typeof YkHighscoreRace !== "undefined"
+      ? YkHighscoreRace.finishAdvanceMs(puesto, DIFERENCIA_META_MS)
+      : Math.max(0, 3 - Math.max(1, puesto)) * DIFERENCIA_META_MS;
+    var duracion = REFRESCO_MS - adelanto;
+    if (transcurrido <= MITAD_RAPIDA_MS) return .5 * Math.min(1, transcurrido / MITAD_RAPIDA_MS);
+    var segundaMitad = Math.max(1, duracion - MITAD_RAPIDA_MS);
+    return .5 + .5 * Math.max(0, Math.min(1, (transcurrido - MITAD_RAPIDA_MS) / segundaMitad));
+  }
+  function pintaCarrera(progreso) {
+    document.querySelectorAll(".refresh-lane").forEach(function (carril) {
+      var puesto = Number(carril.getAttribute("data-place")) || 3;
+      var progresoAtleta = progresoCarril(progreso, puesto), pct = progresoAtleta * 100;
+      var relleno = carril.querySelector('[data-race-role="fill"]');
+      var corredor = carril.querySelector('[data-race-role="runner"]');
+      var mision = carril.querySelector('[data-race-role="mission"]');
+      var agente = carril.querySelector('[data-race-role="agent"]');
+      var ajusteCorredor = CENTRO_CORREDOR_PX * (1 - 2 * progresoAtleta);
+      var posicionCorredor = "calc(" + pct + "% + " + ajusteCorredor + "px)";
+      var recortePista = 2 * MARGEN_PISTA_PX * progresoAtleta;
+      carril.classList.toggle("finished", progresoAtleta >= 1);
+      carril.classList.toggle("race-winner", puesto === 1);
+      carril.classList.toggle("race-loser", puesto !== 1);
+      if (relleno) relleno.style.width = "calc(" + pct + "% - " + recortePista + "px)";
+      if (corredor) corredor.style.left = posicionCorredor;
+      if (mision) mision.style.left = posicionCorredor;
+      if (agente) {
+        agente.style.left = posicionCorredor;
+        var anchoAgente = Math.max(1, agente.offsetWidth);
+        var inicioAgente = progresoAtleta * carril.clientWidth + ajusteCorredor + ADELANTO_AGENTE_PX;
+        var meta = carril.clientWidth - MARGEN_PISTA_PX;
+        var cruceAgente = Math.max(0, Math.min(1, (inicioAgente + anchoAgente - meta) / anchoAgente));
+        agente.style.opacity = String(1 - cruceAgente);
+      }
+    });
+    var quedan = Math.max(0, Math.ceil((1 - progreso) * REFRESCO_MS / 1000));
+    document.getElementById("refreshCount").textContent = quedan + " S";
+    document.getElementById("refreshRace").setAttribute("aria-label", "Próxima actualización de puntuación en " + quedan + " segundos");
+  }
+  function fijaFaseSalida(fase, llamada) {
+    var carrera = document.getElementById("refreshRace");
+    ["ready", "set", "go"].forEach(function (nombre) {
+      carrera.classList.toggle("phase-" + nombre, nombre === fase);
+    });
+    document.getElementById("raceCall").textContent = llamada || "";
+  }
+  function pintaMomentoCarrera(transcurrido) {
+    transcurrido = Math.max(0, Math.min(CICLO_MS, transcurrido));
+    if (transcurrido < SALIDA_MS) {
+      var paso = Math.min(2, Math.floor(transcurrido / PASO_SALIDA_MS));
+      var fases = ["ready", "set", "go"], llamadas = ["READY", "SET", "GO"];
+      pintaCarrera(0);
+      fijaFaseSalida(fases[paso], llamadas[paso]);
+      document.getElementById("refreshCount").textContent = llamadas[paso];
+      document.getElementById("refreshRace").setAttribute("aria-label", llamadas[paso] + " · salida en " + (3 - paso) + " segundos");
+      return;
+    }
+    fijaFaseSalida("", "");
+    if (transcurrido < SALIDA_MS + REFRESCO_MS) {
+      pintaCarrera((transcurrido - SALIDA_MS) / REFRESCO_MS);
+      return;
+    }
+    pintaCarrera(1);
+    document.getElementById("refreshCount").textContent = "META";
+    document.getElementById("refreshRace").setAttribute("aria-label", "Meta · celebrando el resultado");
+  }
+  function avanzaCarrera(ahora) {
+    if (carreraPausada) return;
+    var transcurrido = Math.min(CICLO_MS, ahora - carreraInicio);
+    pintaMomentoCarrera(transcurrido);
+    if (transcurrido < CICLO_MS) {
+      carreraFrame = requestAnimationFrame(avanzaCarrera);
+      return;
+    }
+    actualizaMarcador().then(iniciaCarrera);
+  }
+  function pintaControlCarrera() {
+    var boton = document.getElementById("raceToggle"), carrera = document.getElementById("refreshRace");
+    boton.setAttribute("aria-pressed", carreraPausada ? "true" : "false");
+    boton.title = carreraPausada ? "Reanudar carrera desde el punto de pausa" : "Pausar carrera para leer las misiones";
+    carrera.classList.toggle("paused", carreraPausada);
+  }
+  function pausaOReiniciaCarrera() {
+    if (!carreraPausada) {
+      carreraTiempoPausado = Math.max(0, Math.min(CICLO_MS, performance.now() - carreraInicio));
+      carreraPausada = true;
+      cancelAnimationFrame(carreraFrame);
+      pintaMomentoCarrera(carreraTiempoPausado);
+      document.getElementById("refreshCount").textContent = "PAUSA";
+      pintaControlCarrera();
+      return;
+    }
+    carreraPausada = false;
+    carreraInicio = performance.now() - carreraTiempoPausado;
+    pintaControlCarrera();
+    if (REDUCE_MOTION) {
+      pintaMomentoCarrera(SALIDA_MS + REFRESCO_MS);
+      return;
+    }
+    pintaMomentoCarrera(carreraTiempoPausado);
+    carreraFrame = requestAnimationFrame(avanzaCarrera);
+  }
+  function iniciaCarrera() {
+    cancelAnimationFrame(carreraFrame);
+    carreraPausada = false;
+    carreraTiempoPausado = 0;
+    pintaControlCarrera();
+    carreraInicio = performance.now();
+    // Estado final legible y sin bucle RAF para quien pidió reducir movimiento.
+    if (REDUCE_MOTION) {
+      pintaMomentoCarrera(SALIDA_MS + REFRESCO_MS);
+      return;
+    }
+    pintaMomentoCarrera(0);
+    carreraFrame = requestAnimationFrame(avanzaCarrera);
+  }
+  document.getElementById("raceToggle").addEventListener("click", pausaOReiniciaCarrera);
+})();
+</script>
+<script src="/yk-frame.js?v=v.2026.08.02.202305"></script>
+</body>
+</html>
