@@ -25,10 +25,10 @@ test("Track & Field es el juego funcional y no la landing fallback", () => {
   assert.doesNotMatch(html, /<title>Yokup · plataforma agéntica<\/title>/i);
 });
 
-test("la ruta HTTP amigable precede al fallback general", () => {
-  const route = redirects.indexOf("/trackandfield    /trackandfield.html    200");
-  const fallback = redirects.indexOf("/*    /index.html    200");
-  assert.ok(route >= 0 && fallback > route);
+test("Pages sirve /trackandfield como Clean URL, sin redirección circular", () => {
+  assert.ok(html.length > 0, "trackandfield.html debe existir en la raíz publicada");
+  assert.doesNotMatch(redirects, /^\/trackandfield(?:\s|$)/m);
+  assert.match(redirects, /^\/\*\s+\/index\.html\s+200$/m);
 });
 
 test("el sellado del shell excluye la recuperación inmutable", () => {
