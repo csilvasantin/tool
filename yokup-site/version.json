@@ -1,4 +1,4 @@
 {
-  "version": "v.02.08.2026.r12",
-  "note": "Baseline canónico: r10 más dos releases posteriores antes de migrar al sello diario persistente."
+  "version": "v.02.08.2026.r14",
+  "note": "Baseline canónico: deployment inmutable 2c8d357c; evita retroceder ante sellos legacy posteriores."
 }
