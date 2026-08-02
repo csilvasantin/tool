@@ -77,6 +77,25 @@ export function scopedAgentIdentity(persona, machine, role) {
   return `${effectiveRole === "sub" ? "Sub" : effectiveRole === "infra" ? "Infra" : ""}${main}`;
 }
 
+// Identidad visible en informes. Los registros históricos pueden guardar sólo
+// la persona, una capa genérica o un apellido antiguo. La máquina de la misión
+// es la fuente física real, así que el nombre se recompone sin alterar el owner
+// persistido. En esta vista "MacMini" se escribe completo para que el apellido
+// sea inequívoco; los demás equipos conservan su sufijo compartido (MBP16, 14…).
+export function reportAgentIdentity(owner, machine) {
+  const parsed = parseAgentIdentity(owner);
+  const suffix = machineSuffix(machine);
+  const knownPersona = PERSONAS.some(([name]) => name === parsed.persona);
+  if (!suffix || !parsed.persona || !knownPersona) {
+    return String(owner || "");
+  }
+  const displaySuffix = suffix === "Mini" ? "MacMini" : suffix;
+  const main = parsed.persona === "Smith" && AIR_SUFFIXES.has(displaySuffix)
+    ? `Agente Smith ${displaySuffix}` : `${parsed.persona}${displaySuffix}`;
+  const prefix = parsed.role === "sub" ? "Sub" : parsed.role === "infra" ? "Infra" : "";
+  return `${prefix}${main}`;
+}
+
 export function sameAgentFamily(a, b) {
   return identityKey(baseAgentIdentity(a)) === identityKey(baseAgentIdentity(b));
 }

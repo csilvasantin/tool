@@ -1,6 +1,6 @@
 import puppeteer from "@cloudflare/puppeteer";
 import { resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
-import { baseAgentIdentity, parseAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
+import { baseAgentIdentity, parseAgentIdentity, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -1440,7 +1440,12 @@ async function listAllMissionTasks(env, scope) {
        ${where}
        ORDER BY m.mission_id, m.code`
   ).all();
-  return results || [];
+  return (results || []).map((task) => ({
+    ...task,
+    // Campo aditivo para /informes: owner permanece disponible, pero la
+    // identidad visible se recompone con la máquina real de tickets.loc.
+    agent_identity: reportAgentIdentity(task.owner, task.loc)
+  }));
 }
 __name(listAllMissionTasks, "listAllMissionTasks");
 // Guarda el plan completo (reemplaza el anterior). Valida codes y tope de 3
@@ -1852,9 +1857,10 @@ __name(reconcile, "reconcile");
 function pageLimit(v) { const n = parseInt(v, 10); return n > 0 ? Math.min(1000, n) : 300; }
 function pageOffset(v) { const n = parseInt(v, 10); return n > 0 ? n : 0; }
 async function listTickets(env, scope, limit, offset) {
-  const where = scope === "fleet" ? "WHERE source='fleet'" : scope === "todas" ? "" : "WHERE source IS NULL OR source!='fleet'";
+  const where = scope === "fleet" ? "WHERE t.source='fleet'" : scope === "todas" ? "" : "WHERE t.source IS NULL OR t.source!='fleet'";
   const { results } = await env.DB.prepare(
-    `SELECT * FROM tickets ${where} ORDER BY (status='open') DESC, (status='in_progress') DESC, created_at DESC LIMIT ? OFFSET ?`
+    `SELECT t.*, f.inbox_id FROM tickets t LEFT JOIN fleet_ids f ON f.mission_id=t.id
+     ${where} ORDER BY (t.status='open') DESC, (t.status='in_progress') DESC, t.created_at DESC LIMIT ? OFFSET ?`
   ).bind(pageLimit(limit), pageOffset(offset)).all();
   const rows = results || [];
   await attachImgCount(env, rows);
@@ -3292,7 +3298,9 @@ var index_default = {
       try {
         await ensureSchema(env);
         const id = url.searchParams.get("id");
-        const t = await env.DB.prepare("SELECT * FROM tickets WHERE id=?").bind(id).first();
+        const t = await env.DB.prepare(
+          "SELECT t.*, f.inbox_id FROM tickets t LEFT JOIN fleet_ids f ON f.mission_id=t.id WHERE t.id=?"
+        ).bind(id).first();
         if (!t) return json({ error: "not-found" }, 404);
         t.project_name = resolveProject(await projectIndex(env), t.project || "").name;
         const { results } = await env.DB.prepare("SELECT * FROM events WHERE ticket_id=? ORDER BY id ASC").bind(id).all();

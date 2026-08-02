@@ -264,7 +264,12 @@ window.reasignar=async()=>{
     else nota=" · sin agente vivo en ese equipo: la tomará quien esté allí";
   }
   try{
-    const num=id.replace(/^FLT-/,"");
+    // El id Yokup y el # del bot-inbox divergen cuando hubo colisión (p. ej.
+    // FLT-1136 ↔ #1110). fleet_ids llega como inbox_id; screen es respaldo
+    // histórico. Nunca se deriva el encargo pelando el id de la misión.
+    const sm=String((TICKET&&TICKET.screen)||"").match(/#(\d+)\b/);
+    const num=String((TICKET&&TICKET.inbox_id)||(sm&&sm[1])||"");
+    if(!num) throw new Error("esta misión no expone su # de encargo canónico");
     const r=await fetch(TG+"/api/bot-inbox/"+num+"/reassign",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
     const d=await r.json();
     if(!d.ok) throw new Error(d.error||"error "+r.status);

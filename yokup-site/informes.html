@@ -277,6 +277,9 @@ function render(list){
   }
   box.innerHTML=HEAD+list.map(t=>{
     const own=OWN_ICON[t.owner]||"⚙️";
+    // El feed recompone esta identidad con tickets.loc, la máquina real de la
+    // misión. owner queda como fallback durante el rollout del worker.
+    const agent=t.agent_identity||t.owner||"";
     const st=t.status||"pending";
     // Dos capturas, sin «—» gratuito y sin inventar (Carlos, 2026-07-23):
     //  · PROCESO (el «durante»): la captura del CLI trabajando (live_shot de la misión);
@@ -302,7 +305,7 @@ function render(list){
       <div class="gc shot">${shot}</div>
       <div class="gc rep"><div class="rep-tx" title="${esc(t.report)}">${esc(t.report)}</div>
         <button class="rep-pdf" data-pdf="${esc(t.mission_id)}|${esc(t.code||'')}" title="Descargar el parte completo en PDF — con el informe entero y las dos capturas dentro del fichero">📄 PDF</button></div>
-      <div class="gc">${window.ykAvatar ? ykAvatar.html(t.owner||'') : `<span class="who" title="${esc(t.owner||'')}">${own} ${esc(t.owner||'')}</span>`}</div>
+      <div class="gc">${window.ykAvatar ? ykAvatar.html(agent) : `<span class="who" title="${esc(agent)}">${own} ${esc(agent)}</span>`}</div>
       <div class="gc"><span class="badge b-${esc(st)}"><i></i>${esc(ST_LABEL[st]||st)}</span></div>
       <div class="gc">${tiempoHTML(t)}</div>
     </div>`;

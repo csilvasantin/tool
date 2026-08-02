@@ -314,7 +314,7 @@
     doc.gap(6);
     campo(doc, "Misión", mid);
     campo(doc, "Tarea", code);
-    campo(doc, "Agente", (t.owner || "-") + (OWN[t.owner] ? "  (" + OWN[t.owner] + ")" : ""));
+    campo(doc, "Agente", (t.agent_identity || t.owner || "-") + (OWN[t.owner] ? "  (" + OWN[t.owner] + ")" : ""));
     campo(doc, "Ejecutor", t.assignee);
     campo(doc, "Estado", ST[t.status] || t.status);
     campo(doc, "Origen", t.source === "fleet" ? "Flota" : t.source);

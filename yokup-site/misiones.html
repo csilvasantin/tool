@@ -512,7 +512,7 @@ async function load(){
   }
   // Índice de misiones para el picker de reasignación (equipo/agente actuales por id).
   ROWS_BY_ID={};
-  tks.forEach(t=>{ ROWS_BY_ID[t.id]={maq:YkMisiones.machineOf(t)||"",rawmaq:(t.machine||t.loc||""),agente:t.assignee||"",subject:t.subject||"",loc:t.loc||""}; });
+  tks.forEach(t=>{ ROWS_BY_ID[t.id]={maq:YkMisiones.machineOf(t)||"",rawmaq:(t.machine||t.loc||""),agente:t.assignee||"",subject:t.subject||"",loc:t.loc||"",screen:t.screen||"",inbox_id:t.inbox_id}; });
   MIS_ALL=tks; try{ renderFlota(); }catch(e){}   // resumen de flota (modo avanzado)
   // «No concluida» es una categoría derivada al cumplir 30 min sin cierre. Conserva
   // el estado operativo interno para que la misión pueda seguir avanzando.
@@ -952,12 +952,16 @@ function toast(txt,ok,err){
 
 // ---- Reasignación (mismo cableado que ticket.html reasignar) ---------------
 async function reasignarMision(id,cambio){
-  const num=String(id).replace(/^FLT-/,"");
   const info=ROWS_BY_ID[id]||{};
+  // El # de bot-inbox es un id distinto al FLT tras una colisión. El feed trae
+  // fleet_ids.inbox_id; screen conserva el respaldo histórico «#<n>».
+  const sm=String(info.screen||"").match(/#(\d+)\b/);
+  const num=String(info.inbox_id||(sm&&sm[1])||"");
   const body={by:"yokup·misiones"};
   if("persona" in cambio) body.persona=cambio.persona;
   if("machine" in cambio) body.machine=cambio.machine;
   if(!("persona" in body)&&!("machine" in body)) return;
+  if(!num){ toast("✗ la misión no expone su # de encargo canónico",false,true); return; }
   toast("reasignando…");
   try{
     const r=await fetch(TG+"/api/bot-inbox/"+num+"/reassign",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
