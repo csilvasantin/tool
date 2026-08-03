@@ -16,10 +16,10 @@ test("el sello canónico usa día, hora de Madrid y revisión diaria", () => {
   assert.equal(nextDeployVersion(date, ["v.2026.08.02.r14"]), "v.02.08.2026.r15.22:45");
 });
 
-test("el baseline persistente conserva la r14 ante un deployment legacy posterior", () => {
-  const date = new Date("2026-08-02T21:15:00Z");
-  assert.equal(baseline.version, "v.02.08.2026.r14");
-  assert.equal(nextDeployVersion(date, [versionFromPayload(baseline), "v.2026.08.02.202305"]), "v.02.08.2026.r15.23:15");
+test("el baseline persistente conserva la revisión del día ante un deployment legacy posterior", () => {
+  const date = new Date("2026-08-03T21:15:00Z");
+  assert.equal(baseline.version, "v.03.08.2026.r1.18:27");
+  assert.equal(nextDeployVersion(date, [versionFromPayload(baseline), "v.2026.08.03.202305"]), "v.03.08.2026.r2.23:15");
 });
 
 test("un día nuevo reinicia r1 y un timestamp legacy no se confunde con una revisión", () => {

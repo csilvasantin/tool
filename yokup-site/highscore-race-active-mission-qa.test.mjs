@@ -80,10 +80,10 @@ test("hay corredores negro y blanco, ambos con bigote pixelado", () => {
 });
 
 test("en meta sólo el ganador levanta el brazo y los demás se rascan la cabeza", () => {
-  assert.match(html, /id="runnerFinishWin"/);
-  assert.match(html, /id="runnerFinishLose"/);
-  assert.match(raceSource, /runnerFinishWin/);
-  assert.match(raceSource, /runnerFinishLose/);
+  assert.match(html, /id="runnerWinner"/);
+  assert.match(html, /id="runnerLoser"/);
+  assert.match(raceSource, /runnerWinner/);
+  assert.match(raceSource, /runnerLoser/);
   assert.match(cycleSource, /winner|ganador/i);
   assert.match(cycleSource, /loser|perdedor/i);
 });

@@ -75,11 +75,12 @@ test("todos los atletas pixelados recorren la línea y actualizan el marcador ca
   assert.match(html, /\.sonido\{[^}]*width:22px[^}]*height:22px[^}]*font-size:11px/);
   assert.match(html, /\.refresh-race\{[^}]*grid-column:2[^}]*grid-row:1 \/ span 2/);
   assert.match(html, /class="refresh-runner runner-' \+ variant \+ ' runner-skin-' \+ variant/);
-  assert.match(html, /<svg class="runner-frame-a" viewBox="0 0 24 30"><use href="#runnerFrameA"/);
-  assert.match(html, /class="runner-frame-a"/);
-  assert.match(html, /class="runner-frame-b"/);
-  assert.match(html, /@keyframes runner-frame-a/);
-  assert.match(html, /@keyframes runner-frame-b/);
+  assert.match(html, /<svg class="runner-run-a" viewBox="0 0 24 24"[^>]*><use href="#runnerRunA"/);
+  assert.match(html, /class="runner-run-b"/);
+  assert.match(html, /class="runner-run-c"/);
+  assert.match(html, /@keyframes runner-run-a/);
+  assert.match(html, /@keyframes runner-run-b/);
+  assert.match(html, /@keyframes runner-run-c/);
   assert.doesNotMatch(html, /class="refresh-count"/);
   assert.match(html, /class="sr-only" id="refreshCount">60 segundos/);
   assert.match(html, /var REFRESCO_MS = 60 \* 1000/);
@@ -241,17 +242,17 @@ test("todos los agentes con misión en curso tienen calles ordenadas, identidad 
   assert.match(html, /class="refresh-place refresh-place-start" aria-hidden="true">' \+ puesto/);
   assert.match(html, /class="refresh-place refresh-place-finish" aria-hidden="true">' \+ puesto/);
   assert.match(html, /\.refresh-agent\{[^}]*right:43px[^}]*top:22px[^}]*font-size:14px[^}]*line-height:17px/);
-  assert.match(html, /\.refresh-lane-p1\{--lane:var\(--oro\);--runner-shirt:#ef4f43;--runner-stripe:#dff8ff\}/);
-  assert.match(html, /\.refresh-lane-p2\{--lane:var\(--plata\);--runner-shirt:#3477c7;--runner-stripe:#dff8ff\}/);
-  assert.match(html, /\.refresh-lane-p3\{--lane:var\(--bronce\);--runner-shirt:#3477c7;--runner-stripe:#ef4f43\}/);
+  assert.match(html, /\.refresh-lane-p1\{--lane:var\(--oro\);--runner-shirt:#ffd866;--runner-stripe:#8a4a2a\}/);
+  assert.match(html, /\.refresh-lane-p2\{--lane:var\(--plata\);--runner-shirt:#e6ecf2;--runner-stripe:#3477c7\}/);
+  assert.match(html, /\.refresh-lane-p3\{--lane:var\(--bronce\);--runner-shirt:#c87f3a;--runner-stripe:#2b1b12\}/);
   assert.match(html, /\.refresh-lane-rank\{--lane:#78f3ff;--runner-shirt:#8d5fd3;--runner-stripe:#ffd866\}/);
-  assert.match(html, /\.refresh-runner\.runner-dark,\.refresh-runner\.runner-skin-dark/);
-  assert.match(html, /\.refresh-runner\.runner-light,\.refresh-runner\.runner-skin-light/);
+  assert.match(html, /\.refresh-runner\.runner-dark,\.refresh-runner\.runner-skin-dark\{--runner-skin:#9c5228;--runner-hair:#14100b\}/);
+  assert.match(html, /\.refresh-runner\.runner-light,\.refresh-runner\.runner-skin-light\{--runner-skin:#f8b98c;--runner-hair:#b45a1e\}/);
   assert.match(html, /\.runner-mustache/);
   assert.match(html, /class="runner-shirt"/);
-  assert.match(html, /class="runner-stripe"/);
-  assert.match(html, /class="runner-shirt" fill="var\(--runner-shirt,#ef4f43\)"/);
-  assert.match(html, /class="runner-stripe" fill="var\(--runner-stripe,#dff8ff\)"/);
+  assert.match(html, /class="runner-accent"/);
+  assert.match(html, /class="runner-shirt" fill="var\(--runner-shirt,#f8f8f8\)"/);
+  assert.match(html, /class="runner-accent" fill="var\(--runner-stripe,#3466cc\)"/);
   assert.match(html, /ykAgentIdentity\.missionPair\(agente, mision\.machine \|\| mision\.loc, \[mision\.screen\]\)/);
   assert.match(html, /\}\)\.filter\(Boolean\);\s*contenedor\.innerHTML = corredores\.join\(""\)/);
   assert.match(html, /carrera\.setAttribute\("data-lanes", String\(corredores\.length\)\)/);
@@ -329,19 +330,30 @@ test("todos los corredores hacen la primera mitad al doble de velocidad y solo e
   assert.equal(progreso(60000, 8), 1);
 });
 
-test("READY SET GO reutiliza los running man y la llegada muestra ganador y perdedores", () => {
+test("READY SET GO muestran su sprite real y la llegada muestra ganador y perdedores", () => {
   assert.match(html, /class="race-call" id="raceCall"/);
-  assert.match(html, /<symbol id="runnerStartReady"/);
-  assert.match(html, /<symbol id="runnerStartSet"/);
-  assert.match(html, /<symbol id="runnerStartGo"/);
-  assert.match(html, /<symbol id="runnerFinishWin"/);
-  assert.match(html, /<symbol id="runnerFinishLose"/);
-  assert.match(html, /<svg class="runner-frame-a"[^>]*><use href="#runnerFrameA"/);
-  assert.match(html, /<svg class="runner-frame-b"[^>]*><use href="#runnerFrameB"/);
-  assert.doesNotMatch(html, /<svg class="runner-start-/);
-  assert.match(html, /<svg class="runner-finish-win"[^>]*><use href="#runnerFinishWin"/);
-  assert.match(html, /<svg class="runner-finish-lose"[^>]*><use href="#runnerFinishLose"/);
+  assert.match(html, /<symbol id="runnerReady"/);
+  assert.match(html, /<symbol id="runnerSet"/);
+  assert.match(html, /<symbol id="runnerGo"/);
+  assert.match(html, /<symbol id="runnerRunA"/);
+  assert.match(html, /<symbol id="runnerRunB"/);
+  assert.match(html, /<symbol id="runnerRunC"/);
+  assert.match(html, /<symbol id="runnerWinner"/);
+  assert.match(html, /<symbol id="runnerLoser"/);
+  assert.match(html, /<svg class="runner-pose-ready"[^>]*><use href="#runnerReady"/);
+  assert.match(html, /<svg class="runner-pose-set"[^>]*><use href="#runnerSet"/);
+  assert.match(html, /<svg class="runner-pose-go"[^>]*><use href="#runnerGo"/);
+  assert.match(html, /<svg class="runner-finish-win"[^>]*><use href="#runnerWinner"/);
+  assert.match(html, /<svg class="runner-finish-lose"[^>]*><use href="#runnerLoser"/);
   assert.doesNotMatch(html, /href="#podiumRunner"/);
+  // El mecanismo viejo fingía las fases deformando los dos frames de correr.
+  // Los sprites de fase son reales: nada de rotate/scaleY ni frames A/B.
+  assert.doesNotMatch(html, /runnerFrameA|runnerFrameB|runnerStartReady|runnerFinishWin|runner-bob/);
+  assert.doesNotMatch(html, /phase-set [^{]*\{[^}]*scaleY/);
+  assert.doesNotMatch(html, /phase-go [^{]*\{[^}]*rotate/);
+  assert.match(html, /\.refresh-race\.phase-ready \.runner-pose-ready\{[^}]*display:block[^}]*opacity:1/);
+  assert.match(html, /\.refresh-race\.phase-set \.runner-pose-set\{[^}]*display:block[^}]*opacity:1/);
+  assert.match(html, /\.refresh-race\.phase-go \.runner-pose-go\{[^}]*display:block[^}]*opacity:1/);
   assert.match(html, /\.refresh-runner svg\{[^}]*position:absolute[^}]*inset:0/);
   assert.match(html, /var fases = \["ready", "set", "go"\], llamadas = \["READY", "SET", "GO"\]/);
   assert.match(html, /if \(transcurrido < SALIDA_MS\)/);
@@ -349,9 +361,6 @@ test("READY SET GO reutiliza los running man y la llegada muestra ganador y perd
   assert.match(html, /carril\.classList\.toggle\("finished", progresoAtleta >= 1\)/);
   assert.match(html, /carril\.classList\.toggle\("race-winner", puesto === 1\)/);
   assert.match(html, /carril\.classList\.toggle\("race-loser", puesto !== 1\)/);
-  assert.match(html, /\.refresh-race\.phase-ready \.runner-frame-a\{[^}]*animation:none[^}]*opacity:1/);
-  assert.match(html, /\.refresh-race\.phase-set \.runner-frame-b\{[^}]*scaleY\(\.78\)/);
-  assert.match(html, /\.refresh-race\.phase-go \.runner-frame-a\{[^}]*rotate\(-10deg\)/);
   assert.match(html, /\.refresh-lane\.finished\.race-winner \.runner-finish-win\{[^}]*display:block[^}]*opacity:1/);
   assert.match(html, /\.refresh-lane\.finished\.race-loser \.runner-finish-lose\{[^}]*display:block[^}]*opacity:1/);
   assert.match(html, /document\.getElementById\("refreshCount"\)\.textContent = "META"/);

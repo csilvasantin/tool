@@ -38,8 +38,8 @@ test("meta: ganador levanta brazo y perdedores se rascan la cabeza", () => {
   assert.equal(race.finishPose(2, true), "loser-head-scratch");
   assert.equal(race.finishPose(8, true), "loser-head-scratch");
   assert.equal(race.finishPose(1, false), "running");
-  assert.match(html, /runnerFinishWin/);
-  assert.match(html, /runnerFinishLose/);
+  assert.match(html, /runnerWinner/);
+  assert.match(html, /runnerLoser/);
   assert.match(html, /race-winner/);
   assert.match(html, /race-loser/);
   assert.match(html, /id="refreshLanes" role="list"/);

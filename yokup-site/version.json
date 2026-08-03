@@ -1,4 +1,4 @@
 {
-  "version": "v.02.08.2026.r14",
-  "note": "Baseline canónico: deployment inmutable 2c8d357c; evita retroceder ante sellos legacy posteriores."
+  "version": "v.03.08.2026.r1.18:27",
+  "note": "Baseline canónico: corredores Track & Field reales (8 sprites); evita retroceder ante sellos legacy posteriores."
 }
