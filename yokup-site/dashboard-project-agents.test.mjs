@@ -52,9 +52,10 @@ test("proyectos y equipos son compactables y enseñan sus tres recuentos",()=>{
 
 test("el mapa coloca proyectos a la izquierda y equipos con agentes a la derecha",()=>{
   assert.match(source,/id="projectAgentProjects"[\s\S]*id="projectAgentTeams"/);
-  assert.match(source,/\.pa-map\{[^}]*grid-template-columns:minmax\(300px,\.88fr\) minmax\(380px,1\.12fr\)/);
-  assert.match(source,/\.pa-agent-node \.pa-port\{left:8px\}/);
-  assert.match(source,/\.pa-project-node \.pa-port\{right:8px/);
+  assert.match(source,/\.pa-map\{[^}]*grid-template-columns:minmax\(260px,420px\) minmax\(300px,500px\)/);
+  assert.match(source,/\.pa-map\{[^}]*gap:72px;justify-content:center/);
+  assert.match(source,/\.pa-agent-node \.pa-port\{left:7px\}/);
+  assert.match(source,/\.pa-project-node \.pa-port\{right:7px/);
   assert.match(source,/const direction=b\.x>=a\.x\?1:-1/);
 });
 
@@ -70,6 +71,8 @@ test("el Dashboard carga proyectos y toma los agentes del mismo pulso físico",(
 test("cada proyecto nace como cabecera y permite expandir sus detalles",()=>{
   assert.match(source,/<details class="pa-project-node/);
   assert.match(source,/<summary class="pa-project-summary">/);
+  assert.match(source,/<div class="pa-project-main"><div class="pa-name">/);
+  assert.match(source,/<div class="pa-project-controls">'\+target\+'<span class="pa-state/);
   assert.match(source,/<span class="pa-expand">detalle<\/span>/);
   assert.match(source,/<div class="pa-project-detail">/);
   assert.match(source,/const openProjects=new Set/);
@@ -85,6 +88,12 @@ test("cada equipo físico contiene sus agentes latiendo y su flecha individual",
   assert.match(source,/data-agent-node=/);
   assert.match(source,/data-link-agent=/);
   assert.match(source,/Conectar .* con un proyecto/);
+});
+
+test("los agentes nacen compactados dentro de cada equipo",()=>{
+  assert.match(source,/const openTeams=new Set\(\[\.\.\.teamsBox\.querySelectorAll\("\[data-team-key\]\[open\]"\)\]/);
+  assert.match(source,/openTeams\.has\(team\.key\)\?' open':''/);
+  assert.doesNotMatch(source,/closedTeams\.has\(team\.key\)\?'':' open'/);
 });
 
 test("arrastrar un agente asocia primero su máquina y después el propio agente",()=>{
