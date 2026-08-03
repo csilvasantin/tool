@@ -68,7 +68,10 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .podio-velo{position:absolute;inset:0;background:linear-gradient(180deg,rgba(2,8,13,.03),transparent 58%,rgba(2,8,13,.22));z-index:1}
 .plaza{position:absolute;z-index:3;width:22%;display:flex;align-items:center;justify-content:center;gap:8px;
   padding:7px 10px;background:rgba(2,8,13,.74);border:1px solid;border-radius:6px;
-  box-shadow:0 5px 18px rgba(0,0,0,.38);backdrop-filter:blur(3px)}
+  box-shadow:0 5px 18px rgba(0,0,0,.38);backdrop-filter:blur(3px);color:inherit;text-decoration:none}
+.plaza[href]{cursor:pointer;transition:transform .16s,background .16s,box-shadow .16s}
+.plaza[href]:hover,.plaza[href]:focus-visible{transform:translateY(-2px);background:rgba(7,25,35,.92);
+  box-shadow:0 7px 22px rgba(0,0,0,.5),0 0 0 2px var(--brand);outline:none}
 .plaza.p2{left:10%;top:62%;border-color:rgba(207,228,236,.64)}
 .plaza.p1{left:39%;top:59%;border-color:rgba(255,216,102,.72)}
 .plaza.p3{right:9%;top:66%;border-color:rgba(224,154,90,.68)}
@@ -716,20 +719,29 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var tendencia = sube
         ? '<span class="podium-trend up" title="Ha ganado puntos desde el último refresco" aria-label="Sube">↑</span>'
         : '<span class="podium-trend same" title="Mantiene la puntuación" aria-label="Sin cambio">=</span>';
-      return '<div class="plaza ' + clases[i] + (a.vivo ? ' podium-live' : '') + '"' +
-        (a.vivo ? ' title="Vivo · latido recibido hace menos de 15 minutos"' : '') + '>' +
+      var detalleUrl = "/highscoreDetail?agent=" + encodeURIComponent(a.agente);
+      try { sessionStorage.setItem("yokup.highscore.detail." + clave, JSON.stringify(a)); } catch (_) {}
+      return '<a class="plaza ' + clases[i] + (a.vivo ? ' podium-live' : '') + '" href="' + esc(detalleUrl) + '"' +
+        ' aria-label="Ver detalle de ' + esc(a.agente) + ', puesto ' + medallas[i] + ', ' + total + ' puntos"' +
+        (a.vivo ? ' title="Vivo · latido recibido hace menos de 15 minutos"' : ' title="Ver detalle del agente"') + '>' +
         '<div class="avatar">' + a.agente.charAt(0).toUpperCase() + '</div>' +
         '<div class="nom">' + agentNameHtml(a) + '</div>' +
         '<div class="maq">' + esc(a.runtime || "—") + '</div>' +
         pintaMaquinas(a, 3) +
         '<div class="pts"><span class="podium-score">' + total + '</span>' + tendencia + '</div>' +
-        '<div class="bloque">' + medallas[i] + '</div></div>';
+        '<div class="bloque">' + medallas[i] + '</div></a>';
     }).join("");
     top.forEach(function (a) {
       if (a) puntosPodioAnteriores[claveAgenteCarrera(a.agente)] = Number(a.total) || 0;
     });
     programaBrazos();
   }
+
+  document.getElementById("podio").addEventListener("keydown", function (evento) {
+    var enlace = evento.target && evento.target.closest && evento.target.closest("a.plaza[href]");
+    if (!enlace || (evento.key !== " " && evento.key !== "Spacebar")) return;
+    evento.preventDefault(); enlace.click();
+  });
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
