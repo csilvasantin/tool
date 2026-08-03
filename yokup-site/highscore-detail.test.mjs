@@ -33,6 +33,20 @@ test("el detalle valida identidad, conserva vuelta y no depende de texto inventa
   assert.equal(D.validAgent("<img src=x>", ID), false);
 });
 
+test("los tres agentes visibles del snapshot de producción abren un detalle válido", () => {
+  const snapshot = ["OraculoMBA16", "NeoMacMini", "SmithMacMini"];
+  const hrefs = snapshot.map(agent => `/highscoreDetail?agent=${encodeURIComponent(agent)}`);
+  assert.deepEqual(hrefs, [
+    "/highscoreDetail?agent=OraculoMBA16",
+    "/highscoreDetail?agent=NeoMacMini",
+    "/highscoreDetail?agent=SmithMacMini"
+  ]);
+  for (const href of hrefs) {
+    const agent = new URL(href, "https://yokup.com").searchParams.get("agent");
+    assert.equal(D.validAgent(agent, ID), true, `${agent} debe superar la validación canónica`);
+  }
+});
+
 test("estadísticas y hechos usan únicamente payloads operativos atribuibles", () => {
   const now = Date.UTC(2026,7,3,10);
   const tasks = [
