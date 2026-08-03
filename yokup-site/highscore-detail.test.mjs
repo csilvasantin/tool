@@ -47,6 +47,11 @@ test("los tres agentes visibles del snapshot de producción abren un detalle vá
   }
 });
 
+test("el detalle carga la revisión que incluye SmithMacMini y no el JS antiguo", () => {
+  assert.match(detailHtml, /src="\/highscore-detail\.js\?v=flt-1150-r7-smith"/);
+  assert.doesNotMatch(detailHtml, /highscore-detail\.js\?v=flt-1150-a1/);
+});
+
 test("estadísticas y hechos usan únicamente payloads operativos atribuibles", () => {
   const now = Date.UTC(2026,7,3,10);
   const tasks = [
