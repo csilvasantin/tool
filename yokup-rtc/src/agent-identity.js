@@ -12,8 +12,8 @@ const MACHINES = [
   ["MBAPlata", ["mbaplata", "macbookairplata", "macbook air plata", "mba plata", "admira-macbookairplata"]],
   ["MBA16", ["mba16", "macbookair16plata", "macbookair16", "macbook air 16 dg", "mba 16 plata", "admira-macbookair16"]],
   ["Zenbook", ["asuszenbook", "asus zenbook", "admira-asuszenbook"]],
-  ["DGX", ["dgxspark", "dgx spark", "dgx-spark"]],
-  ["PGX", ["thinkstationpgx", "thinkstation pgx", "thinkstation"]],
+  ["DGX", ["dgxspark", "dgx spark", "dgx-spark", "spark-1e61", "spark1e61"]],
+  ["PGX", ["thinkstationpgx", "thinkstation pgx", "thinkstation", "lenovo-thinkstation", "lenovothinkstation"]],
 ];
 const PERSONAS = [
   ["Oraculo", ["oraculo", "oráculo", "oracle"]],

@@ -34,6 +34,10 @@ assert.equal(id.base("subOraculo"),"Oraculo");
 assert.equal(id.base("Cypher"),"Smith");
 assert.equal(id.suffix(""),"");
 assert.equal(id.suffix("equipo-desconocido"),"");
+// Los dos Linux laten con su hostname, no con su nombre de catálogo: sin estos
+// alias salían como SINMAQ en presencia (auditoría 2026-08-03).
+assert.equal(id.scoped("Smith","spark-1e61"),"SmithDGX");
+assert.equal(id.scoped("Smith","lenovo-thinkstation"),"SmithPGX");
 assert.equal(id.scoped("Oraculo",""),"Oraculo");
 assert.equal(id.scoped("Oraculo","equipo-desconocido"),"Oraculo");
 assert.equal(id.display("Oraculo",""),"OraculoSINMAQ");

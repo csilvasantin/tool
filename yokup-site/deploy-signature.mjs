@@ -14,8 +14,8 @@ const MACHINES = [
   { name:"MacBookAirPlata", suffix:"MBAPlata", legacySuffixes:["Plata"], aliases:["macbookairplata","macbook air plata","mba plata","admira-macbookairplata"] },
   { name:"MacBookAir16plata", suffix:"MBA16", legacySuffixes:["Plata16","Air16"], aliases:["macbookair16plata","macbook air 16 dg","macbookair16","mba 16 plata","admira-macbookair16"] },
   { name:"ASUS Zenbook", suffix:"Zenbook", aliases:["asus zenbook","asuszenbook","admira-asuszenbook"] },
-  { name:"DGX Spark", suffix:"DGX", aliases:["dgx spark","dgxspark","dgx-spark"] },
-  { name:"ThinkStation PGX", suffix:"PGX", aliases:["thinkstation pgx","thinkstationpgx","thinkstation"] }
+  { name:"DGX Spark", suffix:"DGX", aliases:["dgx spark","dgxspark","dgx-spark","spark-1e61","spark1e61"] },
+  { name:"ThinkStation PGX", suffix:"PGX", aliases:["thinkstation pgx","thinkstationpgx","thinkstation","lenovo-thinkstation","lenovothinkstation"] }
 ];
 
 function key(value) { return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, ""); }

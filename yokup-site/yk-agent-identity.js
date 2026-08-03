@@ -23,8 +23,8 @@
     ["MBACrema",["mbacrema","macbookaircrema","macbook air crema","mba crema","admira-macbookaircrema"]],
     ["MBAPlata",["mbaplata","macbookairplata","macbook air plata","mba plata","admira-macbookairplata"]],
     ["Zenbook",["asuszenbook","asus zenbook","admira-asuszenbook"]],
-    ["DGX",["dgxspark","dgx spark","dgx-spark"]],
-    ["PGX",["thinkstationpgx","thinkstation pgx","thinkstation"]]
+    ["DGX",["dgxspark","dgx spark","dgx-spark","spark-1e61","spark1e61"]],
+    ["PGX",["thinkstationpgx","thinkstation pgx","thinkstation","lenovo-thinkstation","lenovothinkstation"]]
   ];
   var PERSONAS = [
     ["Oraculo",["oraculo","oráculo","oracle"]],
