@@ -1,12 +1,13 @@
 # Tandas de misiones
 
-La ventana inicial de decisión contiene exactamente cinco misiones y una sexta
-opción terminal, **Volver atrás**.
+Cuando el equipo está desatendido, OnIdle puede abrir una ventana inicial por
+agente y hora de Madrid. Contiene exactamente tres misiones y una cuarta opción
+terminal, **Volver atrás**.
 
 Al elegir una misión (o vencer el reloj), se crea una tanda persistente:
 
 1. Se activa la opción elegida.
-2. Las otras cuatro se guardan en el orden mostrado, haciendo *wrap* desde la
+2. Las otras dos se guardan en el orden mostrado, haciendo *wrap* desde la
    elegida; no se crean tickets hasta que les toca.
 3. Un cierre válido incluye prueba y aceptación: `evidence` + `accepted_by` en
    `POST /ticket/status`, o un informe con prueba y firma válida en
@@ -15,7 +16,7 @@ Al elegir una misión (o vencer el reloj), se crea una tanda persistente:
    siguiente candidata, ni siquiera cuando el cron vuelve a procesar la
    decisión raíz.
 5. El coordinador publica una nueva `POST /decisions` de cinco minutos con
-   `parent_decision`, `batch_id`, exactamente las candidatas aún en cola y
+   `parent_decision`, `batch_id`, las candidatas aún en cola —una o dos— y
    **Volver atrás** como última opción. La elección o el vencimiento devuelve el
    lote a `active` y activa exactamente una misión.
 6. La cola se pausa ante `cancelled`, un `blocked` con

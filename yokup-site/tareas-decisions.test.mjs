@@ -17,8 +17,6 @@ const options = [
   'Aplicar ahora',
   'Preparar borrador',
   'Pedir revisión',
-  'Programar después',
-  'Delegar al equipo',
   'Volver atrás'
 ];
 
@@ -47,7 +45,7 @@ function buttons(card) {
 
 function assertAllOptionsRemainVisible(card) {
   const renderedButtons = buttons(card);
-  assert.equal(renderedButtons.length, 6, 'deben conservarse 5 opciones y Volver atrás');
+  assert.equal(renderedButtons.length, 4, 'deben conservarse 3 opciones y Volver atrás');
   options.forEach((option, index) => assert.match(renderedButtons[index], new RegExp(option)));
   return renderedButtons;
 }
@@ -69,7 +67,7 @@ function assertProjectHeaderPrecedesDecision(card, name) {
   assert.ok(card.indexOf('dec-project') < card.indexOf('dec-q'), 'la cabecera del proyecto precede a la pregunta');
 }
 
-test('una decisión pendiente mantiene las cinco opciones y Volver atrás accionables', () => {
+test('una decisión pendiente mantiene las tres opciones y Volver atrás accionables', () => {
   const card = render('pending');
   assertProjectHeaderPrecedesDecision(card, 'Generador de Presentaciones');
   const renderedButtons = assertAllOptionsRemainVisible(card);
@@ -80,19 +78,19 @@ test('una decisión pendiente mantiene las cinco opciones y Volver atrás accion
 test('una decisión elegida conserva todas las opciones y resalta la aplicada', () => {
   // El proyecto llega ya resuelto por el worker contra el censo; el título de la
   // misión se queda en su sitio y no suplanta al proyecto.
-  const card = render('decided', {chosen: 3, mission: 'Generador de Presentaciones · carrusel secuencial'});
+  const card = render('decided', {chosen: 2, mission: 'Generador de Presentaciones · carrusel secuencial'});
   assertProjectHeaderPrecedesDecision(card, 'Generador de Presentaciones');
   const renderedButtons = assertAllOptionsRemainVisible(card);
   renderedButtons.forEach(button => {
     assert.match(button, /\bdisabled\b/);
     assert.match(button, /aria-disabled="true"/);
   });
-  assert.match(renderedButtons[3], /class="[^"]*\beffective\b/);
-  assert.match(renderedButtons[3], /aria-current="true"/);
-  renderedButtons.filter((_, index) => index !== 3).forEach(button => {
+  assert.match(renderedButtons[2], /class="[^"]*\beffective\b/);
+  assert.match(renderedButtons[2], /aria-current="true"/);
+  renderedButtons.filter((_, index) => index !== 2).forEach(button => {
     assert.doesNotMatch(button, /aria-current=/);
   });
-  assert.match(card, /decisión aplicada:[\s\S]*Programar después/);
+  assert.match(card, /decisión aplicada:[\s\S]*Pedir revisión/);
 });
 
 test('una decisión vencida conserva todas las opciones y resalta la recomendación efectiva', () => {
@@ -109,24 +107,22 @@ test('una decisión vencida conserva todas las opciones y resalta la recomendaci
 
 test('una decisión cerrada enseña la misión activa y la cola persistente', () => {
   const card = render('decided', {
-    chosen: 4,
+    chosen: 2,
     batch: {
       status: 'active',
       items: [
         {status: 'active', title: 'Exportación fiable PDF/PPTX'},
         {status: 'queued', title: 'Borradores y recuperación'},
-        {status: 'queued', title: 'Brief asistido'},
-        {status: 'queued', title: 'Kit de marca'},
-        {status: 'queued', title: 'Preview en vivo'}
+        {status: 'queued', title: 'Brief asistido'}
       ]
     }
   });
   assert.match(card, /▶ <b>activa<\/b>:[\s\S]*Exportación fiable PDF\/PPTX/);
-  assert.match(card, /cola:[\s\S]*Borradores y recuperación[\s\S]*Preview en vivo/);
+  assert.match(card, /cola:[\s\S]*Borradores y recuperación[\s\S]*Brief asistido/);
 });
 
 test('Volver atrás deja constancia de que el lote fue descartado', () => {
-  const card = render('cancelled', {chosen: 5});
+  const card = render('cancelled', {chosen: 3});
   assert.match(card, /lote descartado/);
 });
 
@@ -152,7 +148,7 @@ test('sólo el histórico cerrado conserva fallback legacy de lectura', () => {
   assert.equal(context.decisionProjectName({status:'decided',question:'¿Publicamos Nike?'}), 'Sin proyecto');
 });
 
-test('la UI muestra proyecto y misiones restantes en continuaciones 4→3→2→1', () => {
+test('la UI muestra proyecto y misiones restantes en continuaciones 2→1', () => {
   for (const count of [4,3,2,1]) {
     const continuationOptions = Array.from({length:count}, (_, i) => `Pendiente ${i + 1}`).concat('Volver atrás');
     const card = render('pending', {options:continuationOptions, parent_decision:'DEC-parent', batch_id:'BATCH-parent'});
@@ -215,9 +211,9 @@ test('ficha plegada: la fila compacta lleva desenlace + pie de meta y convive co
   // cerrada sale PLEGADA (<details dec-fold>) con su meta visible en la fila.
   const items = [
     {...renderData('pending'),   id:'live-1', created_at:1_000},
-    {...renderData('decided'),   id:'DEC-done-1', chosen:3, decided_at:2_000, chosen_by:'Carlos'},
+    {...renderData('decided'),   id:'DEC-done-1', chosen:2, decided_at:2_000, chosen_by:'Carlos'},
     {...renderData('expired'),   id:'DEC-exp-1', deadline:3_000},
-    {...renderData('cancelled'), id:'DEC-can-1', chosen:5, decided_at:4_000, chosen_by:'Carlos'},
+    {...renderData('cancelled'), id:'DEC-can-1', chosen:3, decided_at:4_000, chosen_by:'Carlos'},
   ];
   // Filtro = "decididas": el histórico sólo pinta las decided, todas plegadas.
   const decided = items.filter(d => d.status === 'decided');
@@ -225,7 +221,7 @@ test('ficha plegada: la fila compacta lleva desenlace + pie de meta y convive co
   assert.equal((hist.match(/<details class="dec dec-fold"/g) || []).length, 1);
   assert.equal((hist.match(/<article class="dec/g) || []).length, 0, 'nada vivo en el histórico filtrado');
   // Fila compacta: desenlace ✓ + opción elegida, y el pie de meta DENTRO del summary.
-  assert.match(hist, /dec-sum-outcome ok">✓ eligió <b>Programar después<\/b>/);
+  assert.match(hist, /dec-sum-outcome ok">✓ eligió <b>Pedir revisión<\/b>/);
   assert.ok(hist.indexOf('dec-stamp') < hist.indexOf('dec-fold-body'), 'el pie de meta va en la fila compacta, no en el detalle');
   assert.match(hist, /dec-stamp[\s\S]*eligió <b>Carlos<\/b>[\s\S]*DEC-done-1/);
   // Filtro = "vivas": la sección de relojes conserva su <article> completo (no se pliega).
