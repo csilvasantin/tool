@@ -40,7 +40,8 @@ test("el Dashboard incluye proyectos y equipos con agentes anidados",()=>{
 
 test("proyectos y equipos son compactables y enseñan sus tres recuentos",()=>{
   assert.match(source,/<details class="pa-col" id="projectAgentProjectsPane" open>/);
-  assert.match(source,/<details class="pa-col" id="projectAgentTeamsPane" open>/);
+  assert.match(source,/<details class="pa-col" id="projectAgentTeamsPane">/);
+  assert.doesNotMatch(source,/<details class="pa-col" id="projectAgentTeamsPane" open>/);
   assert.doesNotMatch(source,/id="projectAgentAgentsPane"/);
   assert.match(source,/Proyectos <span class="pa-count" id="projectAgentProjectsN">/);
   assert.match(source,/Equipos físicos <span class="pa-count" id="projectAgentTeamsN">/);
@@ -77,13 +78,19 @@ test("el Dashboard carga proyectos y toma los agentes del mismo pulso físico",(
   assert.match(source,/pulsa <b>detalle<\/b>/);
 });
 
-test("el latido usa cuenta+runtime y retira el gemelo obsoleto de la misma máquina",()=>{
+test("el censo conserva identidades reportadas y las contrasta con el navegador físico",()=>{
+  assert.match(source,/const BROWSERS="https:\/\/admira-navegadores\.csilvasantin\.workers\.dev\/api\/browsers"/);
+  assert.match(source,/const AGENT_FRESH_SECONDS=240/);
+  assert.match(source,/const AGENT_REFRESH_MS=30000/);
   assert.match(source,/function paPresencePersona\(row\)/);
-  assert.match(source,/runtime\.includes\("claude"\).*account==="admira"\?"Neo":"Morfeo"/);
-  assert.match(source,/runtime\.includes\("codex"\).*account==="admira"\?"Trinity":"Oráculo"/);
+  assert.match(source,/if\(raw\)return raw/);
   assert.match(source,/function paFreshPresence\(rows,now\)/);
-  assert.match(source,/const slot=twin\?"twin\|"\+machine/);
-  assert.match(source,/const fresh=paFreshPresence\(d\.presence\|\|\[\],now\)/);
+  assert.doesNotMatch(source,/const slot=twin/);
+  assert.match(source,/function paVerifiedPresence\(rows,browsers,now\)/);
+  assert.match(source,/browser\.reporter&&browser\.reporter\.persona/);
+  assert.match(source,/verifiedTeams\.has\(paTeamKey\(row\.machine\)\)/);
+  assert.match(source,/const fresh=paVerifiedPresence\(d\.presence\|\|\[\],nav&&nav\.browsers\|\|\[\],now\)/);
+  assert.match(source,/setInterval\(pulse,AGENT_REFRESH_MS\)/);
 });
 
 test("cada proyecto usa una captura real de su solución en vez de una carpeta genérica",()=>{

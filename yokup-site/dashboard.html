@@ -116,7 +116,7 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
       <div class="pa-map" id="projectAgentMap">
         <svg class="pa-links" id="projectAgentSvg" aria-hidden="true" preserveAspectRatio="none"><defs><marker id="paArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"></path></marker></defs><g id="projectAgentLinks"></g><path class="pa-link-temp" id="projectAgentTemp" marker-end="url(#paArrow)"></path></svg>
         <details class="pa-col" id="projectAgentProjectsPane" open><summary class="pa-col-title">Proyectos <span class="pa-count" id="projectAgentProjectsN">—</span><button class="pa-show-all active" id="projectAgentProjectsAll" type="button" aria-pressed="true">Todos</button><button class="pa-filter" id="projectAgentProjectsUnassigned" type="button" aria-pressed="false">Sin equipo</button><button class="pa-move" type="button" data-pa-move="projects" aria-label="Mover columna Proyectos" title="Arrastra para mover · doble clic para centrar">↔</button></summary><div class="pa-list" id="projectAgentProjects"><div class="pa-loading">Cargando proyectos…</div></div></details>
-        <details class="pa-col" id="projectAgentTeamsPane" open><summary class="pa-col-title">Equipos físicos <span class="pa-count" id="projectAgentTeamsN">—</span> · Agentes <span class="pa-count" id="projectAgentAgentsN">—</span><button class="pa-show-all active" id="projectAgentTeamsAll" type="button" aria-pressed="true">Todos</button><button class="pa-filter" id="projectAgentTeamsUnassigned" type="button" aria-pressed="false">Sin proyecto</button><button class="pa-move" type="button" data-pa-move="teams" aria-label="Mover columna Equipos y agentes" title="Arrastra para mover · doble clic para centrar">↔</button></summary><div class="pa-list" id="projectAgentTeams"><div class="pa-loading">Tomando el pulso…</div></div></details>
+        <details class="pa-col" id="projectAgentTeamsPane"><summary class="pa-col-title">Equipos físicos <span class="pa-count" id="projectAgentTeamsN">—</span> · Agentes <span class="pa-count" id="projectAgentAgentsN">—</span><button class="pa-show-all active" id="projectAgentTeamsAll" type="button" aria-pressed="true">Todos</button><button class="pa-filter" id="projectAgentTeamsUnassigned" type="button" aria-pressed="false">Sin proyecto</button><button class="pa-move" type="button" data-pa-move="teams" aria-label="Mover columna Equipos y agentes" title="Arrastra para mover · doble clic para centrar">↔</button></summary><div class="pa-list" id="projectAgentTeams"><div class="pa-loading">Tomando el pulso…</div></div></details>
       </div>
     </div>
     </section>
@@ -165,9 +165,12 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
 </div>
 
 <script>
-/* PULSO DE LA FLOTA — presencia viva de los agentes (frescos < 10 min). */
+/* PULSO DE LA FLOTA — señales recientes, contrastadas con el reporter físico. */
 const PRESENCE="https://admira-telegram.csilvasantin.workers.dev/api/presence";
+const BROWSERS="https://admira-navegadores.csilvasantin.workers.dev/api/browsers";
 const PROJECTS_API="https://api.yokup.com";
+const AGENT_FRESH_SECONDS=240;
+const AGENT_REFRESH_MS=30000;
 let PROJECT_ROWS=[];
 let PROJECT_ROSTER=[];
 let PROJECT_BUSY="";
@@ -185,16 +188,22 @@ let NODE_DRAG=null;
 const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
 function agoS(s){ if(!s)return "—"; let d=Math.round(Date.now()/1000-s); if(d<60)return "hace "+d+"s"; if(d<3600)return "hace "+Math.round(d/60)+"m"; return "hace "+Math.round(d/3600)+"h"; }
 async function pulse(renderMap=true){
-  let d; try{ const r=await fetch(PRESENCE,{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
+  let d,nav; try{
+    const responses=await Promise.all([
+      fetch(PRESENCE,{cache:"no-store"}).then(r=>r.json()),
+      fetch(BROWSERS,{cache:"no-store"}).then(r=>r.json()).catch(()=>({browsers:[]}))
+    ]);d=responses[0];nav=responses[1];
+  }catch(e){ return; }
   const now=Date.now()/1000;
-  const fresh=paFreshPresence(d.presence||[],now);
-  const n=document.getElementById("pulseN"); if(n) n.textContent=fresh.length+" agente"+(fresh.length===1?"":"s")+" latiendo";
+  const fresh=paVerifiedPresence(d.presence||[],nav&&nav.browsers||[],now);
+  const verified=fresh.filter(row=>row.verified).length;
+  const n=document.getElementById("pulseN"); if(n) n.textContent=fresh.length+" señal"+(fresh.length===1?"":"es")+" activa"+(fresh.length===1?"":"s")+(verified?" · "+verified+" verificada"+(verified===1?"":"s"):"");
   const box=document.getElementById("pulse");
   PROJECT_ROSTER=paPhysicalAgents(fresh);
   if(renderMap)paRender();
-  if(!fresh.length){ box.innerHTML='<div class="off">Ahora mismo ningún agente late (&lt;10 min). La flota respira en ciclos — vuelve a mirar en un rato.</div>'; return; }
+  if(!fresh.length){ box.innerHTML='<div class="off">Ahora mismo no hay ninguna señal de agente reciente (&lt;4 min).</div>'; return; }
   box.innerHTML=fresh.map(p=>`<div class="ag">
-    <div class="top"><span class="dot"></span><b>${esc(p.persona)}</b><span class="rt">${esc(p.runtime||"")}</span></div>
+    <div class="top"><span class="dot"></span><b>${esc(p.persona)}</b><span class="rt">${esc(p.runtime||"")}${p.verified?" · verificado":" · latido reportado"}</span></div>
     <div class="mach">⌂ ${esc(p.machine||"")}</div>
     <div class="focus" title="${esc(p.focus||"")}">${esc(p.focus||"—")}</div>
     <div class="meta"><span class="mode">${esc(p.mode||"")}</span><span>${agoS(p.updated)}</span></div>
@@ -222,21 +231,43 @@ function paProjectShot(project){
 }
 function paPresencePersona(row){
   const raw=String(row&&row.persona||"").trim(),account=String(row&&row.account||"").toLowerCase(),runtime=String(row&&row.runtime||"").toLowerCase();
-  if(/^(sub|infra)/i.test(raw))return raw;
+  if(raw)return raw;
   if(runtime.includes("claude")&&(account==="admira"||account==="gmail"))return account==="admira"?"Neo":"Morfeo";
   if(runtime.includes("codex")&&(account==="admira"||account==="gmail"))return account==="admira"?"Trinity":"Oráculo";
   return raw;
 }
 function paFreshPresence(rows,now){
-  const selected=new Map(),sorted=(rows||[]).filter(row=>row.updated&&(now-row.updated)<600).sort((a,b)=>(b.updated||0)-(a.updated||0));
+  const selected=new Map(),sorted=(rows||[]).filter(row=>row.updated&&(now-row.updated)<AGENT_FRESH_SECONDS).sort((a,b)=>(b.updated||0)-(a.updated||0));
   sorted.forEach(original=>{
     const row={...original,persona:paPresencePersona(original)},parsed=window.ykAgentIdentity?ykAgentIdentity.parse(row.persona):{persona:row.persona,role:"main"};
     const base=String(parsed.persona||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase(),runtime=String(row.runtime||"").toLowerCase(),machine=String(row.machine||"").toLowerCase();
-    const twin=parsed.role==="main"&&((runtime.includes("claude")&&(base==="neo"||base==="morfeo"))||(runtime.includes("codex")&&(base==="trinity"||base==="oraculo")));
-    const slot=twin?"twin|"+machine+"|"+(runtime.includes("claude")?"claude":"codex"):"agent|"+base+"|"+machine+"|"+runtime;
+    const slot="agent|"+base+"|"+machine+"|"+runtime;
     if(!selected.has(slot))selected.set(slot,row);
   });
   return [...selected.values()].sort((a,b)=>(b.updated||0)-(a.updated||0));
+}
+function paVerifiedPresence(rows,browsers,now){
+  const reported=paFreshPresence(rows,now),byTeam=new Map();
+  reported.forEach(row=>{
+    const team=paTeamKey(row.machine);if(!team)return;
+    if(!byTeam.has(team))byTeam.set(team,[]);
+    byTeam.get(team).push(row);
+  });
+  const reporters=new Map();
+  (browsers||[]).forEach(browser=>{
+    const ts=Number(browser&&browser.ts||0)/1000,persona=String(browser&&browser.reporter&&browser.reporter.persona||"").trim(),machine=String(browser&&browser.reporter&&browser.reporter.machine||browser&&browser.machine||"").trim(),team=paTeamKey(machine);
+    if(!persona||!team||!ts||(now-ts)>=AGENT_FRESH_SECONDS||browser.online===false)return;
+    const parsed=window.ykAgentIdentity?ykAgentIdentity.parse(persona):{persona},key=team+"|"+String(parsed.persona||persona).toLowerCase(),previous=reporters.get(key);
+    if(!previous||ts>previous.verifiedAt)reporters.set(key,{persona,machine,verifiedAt:ts,team});
+  });
+  const verifiedTeams=new Set(),verified=[];
+  reporters.forEach(reporter=>{
+    const candidates=byTeam.get(reporter.team)||[],wanted=window.ykAgentIdentity?ykAgentIdentity.base(reporter.persona):reporter.persona;
+    const source=candidates.find(row=>(window.ykAgentIdentity?ykAgentIdentity.base(row.persona):row.persona)===wanted)||candidates.find(row=>String(row.runtime||"").toLowerCase().includes("claude"))||candidates[0];
+    verifiedTeams.add(reporter.team);
+    verified.push({...source,persona:reporter.persona,machine:reporter.machine,updated:Math.max(source&&source.updated||0,reporter.verifiedAt),verified:true,verifiedAt:reporter.verifiedAt});
+  });
+  return verified.concat(reported.filter(row=>!verifiedTeams.has(paTeamKey(row.machine)))).sort((a,b)=>(b.updated||0)-(a.updated||0));
 }
 function paMessage(text,kind){ const el=pa("projectAgentMsg"); el.textContent=text||""; el.className="pa-msg"+(kind?" "+kind:""); }
 function paPhysicalAgents(rows){
@@ -245,7 +276,7 @@ function paPhysicalAgents(rows){
     const id=window.ykAgentIdentity?ykAgentIdentity.display(p.persona,p.machine):String(p.persona||"")+String(p.machine||"");
     if(!id||/SINMAQ$/.test(id))return;
     const team=paTeamKey(p.machine),teamMachine=window.ykAgentIdentity&&ykAgentIdentity.canonicalMachine?ykAgentIdentity.canonicalMachine(id):(p.machine||"");
-    const agent={id,name:id,persona:p.persona||"",machine:p.machine||"",team,teamMachine:teamMachine||p.machine||"",runtime:p.runtime||"",focus:p.focus||"",updated:p.updated||0};
+    const agent={id,name:id,persona:p.persona||"",machine:p.machine||"",team,teamMachine:teamMachine||p.machine||"",runtime:p.runtime||"",focus:p.focus||"",updated:p.updated||0,verified:!!p.verified,verifiedAt:p.verifiedAt||0};
     const previous=byId.get(id); if(!previous||agent.updated>previous.updated)byId.set(id,agent);
   });
   return [...byId.values()].sort((a,b)=>(b.updated||0)-(a.updated||0)||a.id.localeCompare(b.id,"es"));
@@ -310,7 +341,7 @@ function paRender(){
       const assignedProjects=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&(project.agents||[]).includes(agent.id));
       const actions=assignedProjects.length?assignedProjects.map(project=>'<div class="pa-agent-project"><span>'+esc(project.name||project.id)+'</span><div class="pa-action-row"><button type="button" class="pa-decision" data-pa-decision="'+esc(project.id)+'" data-pa-decision-agent="'+esc(agent.id)+'"'+(PROJECT_DECISION_BUSY?' disabled':'')+'>⏳ Ventana de Decisión</button><button type="button" class="pa-mini" data-pa-agent-remove="'+esc(agent.id)+'" data-project="'+esc(project.id)+'" aria-label="Retirar '+esc(agent.id)+' de '+esc(project.name||project.id)+'">×</button></div></div>').join(""):'<div class="pa-agent-empty">Arrastra la flecha hacia un proyecto</div>';
       const selected=LINK_CLICK_AGENT===agent.id;
-      return '<article class="pa-agent-node'+(selected?' selected':'')+'" data-agent-node="'+esc(agent.id)+'"><button type="button" class="pa-port" data-link-agent="'+esc(agent.id)+'" aria-label="Conectar '+esc(agent.id)+' con un proyecto" title="Arrastra '+esc(agent.id)+' hasta un proyecto">←</button><div class="pa-node-top"><div class="pa-avatar">'+esc(paInitials(agent))+'</div><div class="pa-name"><b>'+esc(agent.id)+'</b><span>'+esc(agent.runtime||"agente")+' · '+esc(agent.teamMachine||agent.machine)+'</span></div></div><div class="pa-meta"><span class="pa-live">● latiendo</span><span>'+agoS(agent.updated)+'</span><span>'+assignedProjects.length+' proyecto'+(assignedProjects.length===1?'':'s')+'</span></div><div class="pa-actions">'+actions+'</div></article>';
+      return '<article class="pa-agent-node'+(selected?' selected':'')+'" data-agent-node="'+esc(agent.id)+'"><button type="button" class="pa-port" data-link-agent="'+esc(agent.id)+'" aria-label="Conectar '+esc(agent.id)+' con un proyecto" title="Arrastra '+esc(agent.id)+' hasta un proyecto">←</button><div class="pa-node-top"><div class="pa-avatar">'+esc(paInitials(agent))+'</div><div class="pa-name"><b>'+esc(agent.id)+'</b><span>'+esc(agent.runtime||"agente")+' · '+esc(agent.teamMachine||agent.machine)+'</span></div></div><div class="pa-meta"><span class="pa-live">● '+(agent.verified?'verificado':'latido reportado')+'</span><span>'+agoS(agent.updated)+'</span><span>'+assignedProjects.length+' proyecto'+(assignedProjects.length===1?'':'s')+'</span></div><div class="pa-actions">'+actions+'</div></article>';
     }).join("");
     const nodeKey=paNodeKey("team",team.key);
     return '<details class="pa-team-node" data-team-key="'+esc(team.key)+'" data-pa-node-key="'+esc(nodeKey)+'" style="'+paNodeVars(nodeKey)+'"'+(openTeams.has(team.key)?' open':'')+'><summary class="pa-team-summary"><div class="pa-avatar">▣</div><div class="pa-name"><b title="'+esc(team.machine)+'">'+esc(team.machine)+'</b><span>'+team.agents.length+' agente'+(team.agents.length===1?'':'s')+' · '+projectCount+' proyecto'+(projectCount===1?'':'s')+'</span></div><span class="pa-expand">agentes</span><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(team.machine)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-team="'+esc(team.key)+'" aria-label="Ocultar '+esc(team.machine)+'" title="Ocultar equipo">×</button></summary><div class="pa-team-agents">'+agents+'</div></details>';
@@ -507,7 +538,7 @@ window.addEventListener("resize",()=>requestAnimationFrame(paDrawLinks));
 pa("projectAgentScroll").addEventListener("scroll",()=>requestAnimationFrame(paDrawLinks));
 if(window.ResizeObserver)new ResizeObserver(()=>requestAnimationFrame(paDrawLinks)).observe(pa("projectAgentMap"));
 paLoad();
-setInterval(pulse,60000);
+setInterval(pulse,AGENT_REFRESH_MS);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-frame.js?v=v.2026.08.02.224605"></script>
