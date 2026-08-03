@@ -1,15 +1,15 @@
 // ── IDEAS → DECISIÓN (piezas puras, testeables sin worker) ───────────────────
 // Cuando en /objetivos·/ideas se pulsa «→ misión», el worker abre un reloj de
-// decisión de 3 minutos con las 5 MEJORES opciones para EJECUTAR la idea (más
-// «Volver atrás» de sexta). Estas funciones son el troceo puro de ese flujo: el
+// decisión de 3 minutos con las 3 MEJORES opciones para EJECUTAR la idea (más
+// «Volver atrás» de cuarta). Estas funciones son el troceo puro de ese flujo: el
 // parseo de lo que devuelva Workers AI, el resumen de la deliberación del Consejo
-// que alimenta el prompt, y el armado de las 6 opciones de la ventana. Sin efectos
+// que alimenta el prompt, y el armado de las 4 opciones de la ventana. Sin efectos
 // secundarios: se prueban directas en ideas-decide.test.mjs.
 
 // Normaliza lo que devuelva el modelo (objeto {opciones|options|...}, array, JSON
 // embebido en texto, o líneas numeradas/con viñeta) a un array de hasta `n` opciones
 // limpias. Nunca lanza: una entrada rara devuelve []. Corta a 150 caracteres.
-export function parseDecideOptions(raw, n = 5) {
+export function parseDecideOptions(raw, n = 3) {
   let arr = null;
   if (Array.isArray(raw)) arr = raw;
   else if (raw && typeof raw === "object") arr = raw.opciones || raw.options || raw.opts || raw.lista || null;
@@ -54,12 +54,12 @@ export function ideaDeliberationText(review) {
   return parts.join("\n").slice(0, 1200);
 }
 
-// Arma las opciones de la ventana de decisión: las 5 opciones de la idea (recortadas
-// a 5, sin vacías) + «Volver atrás» de sexta terminal. Es lo que consume la
-// maquinaria de relojes (isInitialMissionDecision exige EXACTAMENTE 6 con la salida
-// al final). Devuelve el array; el llamador valida que haya 5 reales antes de abrir.
+// Arma las opciones de la ventana de decisión: las 3 opciones de la idea (recortadas
+// a 3, sin vacías) + «Volver atrás» de cuarta terminal. Es lo que consume la
+// maquinaria de relojes (isInitialMissionDecision exige EXACTAMENTE 4 con la salida
+// al final). Devuelve el array; el llamador valida que haya 3 reales antes de abrir.
 export function buildDecideDecisionOptions(options) {
-  const five = (Array.isArray(options) ? options : [])
-    .map((o) => String(o || "").trim()).filter(Boolean).slice(0, 5);
-  return [...five, "Volver atrás"];
+  const three = (Array.isArray(options) ? options : [])
+    .map((o) => String(o || "").trim()).filter(Boolean).slice(0, 3);
+  return [...three, "Volver atrás"];
 }

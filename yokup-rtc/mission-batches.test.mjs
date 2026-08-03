@@ -28,7 +28,7 @@ test('/fleet/informe acepta y deja esperando continuación sólo tras proof y fi
   const endpoint = source.slice(start, end);
   assert.ok(start > 0 && end > start, 'no se encontró el endpoint /fleet/informe');
   assert.match(endpoint, /if \(!normImage\.value\) \{[\s\S]*?return json/);
-  assert.match(endpoint, /SELECT id, assignee, status, source, screen FROM tickets/);
+  assert.match(endpoint, /SELECT id, assignee, loc, status, source, screen, created_at FROM tickets/);
   assert.match(endpoint, /if \(crossSign\) \{[\s\S]*?\} else \{[\s\S]*?acceptBatchInformeClosure\(env, t, mid, owner, report\)/);
 
   const helper = source.match(/async function acceptBatchInformeClosure\([^]*?\n\}/)?.[0] || '';

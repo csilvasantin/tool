@@ -11,14 +11,14 @@ vm.runInContext(`${functions}\nglobalThis.contract={isInitialMissionDecision,isC
 const contract = context.contract;
 const back = 'Volver atrás';
 
-test('la decisión inicial conserva exactamente cinco misiones más back', () => {
-  assert.equal(contract.isInitialMissionDecision(['1','2','3','4','5',back]), true);
+test('la decisión inicial conserva exactamente tres misiones más back', () => {
+  assert.equal(contract.isInitialMissionDecision(['1','2','3',back]), true);
+  assert.equal(contract.isInitialMissionDecision(['1','2',back]), false);
   assert.equal(contract.isInitialMissionDecision(['1','2','3','4',back]), false);
-  assert.equal(contract.isInitialMissionDecision(['1','2','3','4','5','6',back]), false);
 });
 
-test('las continuaciones aceptan la secuencia 4→3→2→1 más back sólo si están enlazadas', () => {
-  for (const count of [4,3,2,1]) {
+test('las continuaciones aceptan la secuencia 2→1 más back sólo si están enlazadas', () => {
+  for (const count of [2,1]) {
     const options = Array.from({length:count}, (_, i) => `Misión ${i + 1}`).concat(back);
     assert.equal(contract.isContinuationMissionDecision(options, {parent_decision:'DEC-parent',batch_id:'BATCH-parent'}), true);
     assert.equal(contract.isContinuationMissionDecision(options, {}), false);
@@ -26,16 +26,16 @@ test('las continuaciones aceptan la secuencia 4→3→2→1 más back sólo si e
 });
 
 test('batch_id añadido a una decisión inicial no la reclasifica como continuación', () => {
-  const initial = ['1','2','3','4','5',back];
+  const initial = ['1','2','3',back];
   assert.equal(contract.isContinuationMissionDecision(initial, {batch_id:'BATCH-initial'}), false);
   assert.equal(contract.isMissionDecision(initial, {batch_id:'BATCH-initial'}), true);
 });
 
 test('la continuación rota desde chosen sin crear ni duplicar elementos', () => {
-  const queued = [1,2,3,4].map((n, position) => ({title:`Misión ${n}`,position}));
-  const ordered = contract.continuationMissionOrder(['Misión 1','Misión 2','Misión 3','Misión 4',back], 2, queued);
-  assert.deepEqual(Array.from(ordered, (item) => item.title), ['Misión 3','Misión 4','Misión 1','Misión 2']);
-  assert.equal(new Set(Array.from(ordered, (item) => item.title)).size, 4);
+  const queued = [1,2].map((n, position) => ({title:`Misión ${n}`,position}));
+  const ordered = contract.continuationMissionOrder(['Misión 1','Misión 2',back], 1, queued);
+  assert.deepEqual(Array.from(ordered, (item) => item.title), ['Misión 2','Misión 1']);
+  assert.equal(new Set(Array.from(ordered, (item) => item.title)).size, 2);
 });
 
 test('rechaza completadas reintroducidas y títulos duplicados', () => {
@@ -75,6 +75,12 @@ test('el POST no trunca contratos largos ni admite dos continuaciones pendientes
   assert.match(source, /SELECT id FROM decisions WHERE batch_id=\? AND status='pending' LIMIT 1/);
   assert.match(source, /error: "continuation_pending"/);
   assert.match(source, /batch\.status !== "awaiting_continuation"/);
+});
+
+test('OnIdle limita las ventanas iniciales por hora de Madrid y exime continuaciones', () => {
+  assert.match(source, /function madridHourKey/);
+  assert.match(source, /error: "hourly_limit"/);
+  assert.match(source, /if \(!continuation && !userOverride\)/);
 });
 
 test('una continuación reutiliza el batch, reordena queued y habilita una única activación', () => {

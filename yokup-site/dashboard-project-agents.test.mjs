@@ -17,9 +17,10 @@ test("el Dashboard vive en /dashboard y conserva /agentica sólo como retorno co
   assert.match(redirects,/^\/agentica\.html\s+\/dashboard\s+301$/m);
 });
 
-test("Pulso y Proyectos nacen compactados y se pueden desplegar",()=>{
+test("Pulso, Proyectos y Xperiencias nacen compactados y se pueden desplegar",()=>{
   assert.match(source,/<details class="dash-section" id="pulseSection">\s*<summary class="shd">Pulso de la flota/);
   assert.match(source,/<details class="dash-section" id="projectAgentSection">\s*<summary class="shd">Proyectos y agentes/);
+  assert.match(source,/<details class="dash-section" id="liveExperiencesSection">\s*<summary class="shd">Xperiencias en vivo/);
   assert.doesNotMatch(source,/<details class="dash-section"[^>]*\sopen(?:\s|>)/);
   assert.match(source,/\.dash-section\[open\]>\.shd::before/);
   assert.match(source,/projectAgentSection"\)\.addEventListener\("toggle"/);
@@ -32,6 +33,13 @@ test("el Dashboard incluye la gestión de agentes por proyecto",()=>{
   assert.match(source,/id="projectAgentSvg"/);
   assert.match(source,/id="projectAgentRefresh"/);
   assert.match(source,/aria-live="polite"/);
+});
+
+test("los proyectos aparecen antes que los agentes y las flechas recorren ambos sentidos",()=>{
+  assert.match(source,/id="projectAgentProjects"[\s\S]*id="projectAgentAgents"/);
+  assert.match(source,/\.pa-agent-node \.pa-port\{left:8px\}/);
+  assert.match(source,/\.pa-project-node \.pa-port\{right:8px/);
+  assert.match(source,/const direction=b\.x>=a\.x\?1:-1/);
 });
 
 test("el Dashboard carga proyectos y toma los agentes del mismo pulso físico",()=>{
@@ -60,4 +68,14 @@ test("las uniones persistidas se dibujan como flechas SVG y pueden retirarse",()
   assert.match(source,/marker-end="url\(#paArrow\)"/);
   assert.match(source,/project\.agents\|\|\[\]/);
   assert.match(source,/Referencia histórica; el agente no está latiendo ahora/);
+});
+
+test("cada agente conectado puede abrir mejoras del proyecto en una Ventana de Decisión",()=>{
+  assert.match(source,/PROJECT_ROWS\.filter\(project=>project\.status!=="archivado"&&\(project\.agents\|\|\[\]\)\.includes\(agent\.id\)\)/);
+  assert.match(source,/data-pa-decision=/);
+  assert.match(source,/Ventana de Decisión ·/);
+  assert.match(source,/function paOpenDecision\(projectId,agentId\)/);
+  assert.match(source,/paJson\("\/projects\/decision"/);
+  assert.match(source,/JSON\.stringify\(\{project:project\.id,agent:agent\.id,machine:agent\.machine\}\)/);
+  assert.match(source,/target\.searchParams\.set\("decision",d\.decision_id\)/);
 });

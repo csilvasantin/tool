@@ -700,8 +700,8 @@ async function listProjects(env) {
   if (!rows.length) return [];
   const mem = (await env.DB.prepare("SELECT project_id, kind, ref FROM project_members").all()).results || [];
   // VIVA = EN CURSO (Carlos, FLT-985 c1). Hasta aquí `missions` sumaba también las
-  // `open` —encargadas y sin empezar— y una ficha con cinco misiones en la cola
-  // decía «5 vivas» sin que nadie estuviera trabajando en ninguna. Se separan: lo
+  // `open` —encargadas y sin empezar— y una ficha con varias misiones en la cola
+  // decía que todas estaban vivas sin que nadie trabajara en ninguna. Se separan: lo
   // que cuenta como viva es `in_progress`, y lo `open` viaja aparte para poder
   // decirlo sin mentir en vez de esconderlo.
   const mis = (await env.DB.prepare("SELECT project, status, COUNT(*) c FROM tickets WHERE project IS NOT NULL AND project!='' AND status IN ('in_progress','open') GROUP BY project, status").all()).results || [];
@@ -782,15 +782,17 @@ async function exactDecisionProjectAssignment(env, agent, machine, requestedProj
 }
 __name(exactDecisionProjectAssignment, "exactDecisionProjectAssignment");
 
-// Un reloj de decisión pesa: se permite uno por agente y día natural de Madrid.
+// Cuando el equipo está desatendido, OnIdle permite una primera ventana por
+// agente y hora de Madrid. Las continuaciones del mismo lote no son OnIdle.
 // `user_override:true` sólo lo usa el coordinador cuando Carlos lo pide de forma
 // explícita (como en la ventana manual); queda visible en la respuesta del API.
-function madridDayKey(ms) {
+function madridHourKey(ms) {
   const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit"
+    timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", hourCycle: "h23"
   }).formatToParts(ms);
   const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${value.year}-${value.month}-${value.day}`;
+  return `${value.year}-${value.month}-${value.day}T${value.hour}`;
 }
 __name(ensureSchema, "ensureSchema");
 
@@ -903,22 +905,22 @@ async function ascendMissionProof(env, mid) {
 __name(ascendMissionProof, "ascendMissionProof");
 
 // ---- TANDAS DE MISIONES DESDE RELOJES DE DECISIÓN -------------------------
-// La decisión inicial (cinco misiones + «Volver atrás») crea una única tanda.
-// Las continuaciones sólo reordenan sus 1..5 elementos aún queued. Nunca se
+// La decisión inicial (tres misiones + «Volver atrás») crea una única tanda.
+// Las continuaciones sólo reordenan sus 1..2 elementos aún queued. Nunca se
 // materializan pendientes como tickets ni se recuperan elementos completados.
 function isBackOption(option) {
   return /volver\s+atr[aá]s|no\s+iniciar/i.test(String(option || ""));
 }
 __name(isBackOption, "isBackOption");
 function isInitialMissionDecision(options) {
-  return Array.isArray(options) && options.length === 6 && isBackOption(options[5]);
+  return Array.isArray(options) && options.length === 4 && isBackOption(options[3]);
 }
 __name(isInitialMissionDecision, "isInitialMissionDecision");
 function isContinuationMissionDecision(options, decision) {
   // parent_decision es el discriminante persistente. La decisión inicial recibe
   // batch_id al resolverse, pero nunca debe convertirse por ello en continuación.
   return !!(decision && decision.parent_decision) &&
-    Array.isArray(options) && options.length >= 2 && options.length <= 6 && isBackOption(options[options.length - 1]);
+    Array.isArray(options) && options.length >= 2 && options.length <= 3 && isBackOption(options[options.length - 1]);
 }
 __name(isContinuationMissionDecision, "isContinuationMissionDecision");
 function isMissionDecision(options, decision) {
@@ -1273,7 +1275,7 @@ __name(startDecisionBatches, "startDecisionBatches");
 
 // ── IDEAS → DECISIÓN (POST /ideas/decide) ────────────────────────────────────
 // Al convertir una idea/objetivo en misión NO se crea ya un FLT a mano: se abre un
-// reloj de decisión de 3 minutos con las 5 MEJORES opciones para EJECUTARLA. Si
+// reloj de decisión de 3 minutos con las 3 MEJORES opciones para EJECUTARLA. Si
 // nadie elige en la ventana, la maquinaria de siempre tira con la recomendada (la
 // 1ª, la más adecuada) y materializa su misión. El reloj corre bajo el agente de
 // ideas (NeoMini · Mac Mini) y su proyecto de respaldo censado y asignado.
@@ -1281,11 +1283,11 @@ var DECIDE_AGENT = "NeoMini";
 var DECIDE_MACHINE = "admira-macmini";
 var DECIDE_FALLBACK_PROJECT = "yokup-ideas-objetivos";  // «Yokup · ideas-objetivos»
 var DECIDE_URL = "https://www.yokup.com/decisiones";
-// Genera con Workers AI las 5 mejores opciones CONCRETAS para ejecutar la idea,
+// Genera con Workers AI las 3 mejores opciones CONCRETAS para ejecutar la idea,
 // ordenadas de más a menos adecuada (la 1ª es la recomendada). Alimenta el prompt
 // con el título, el detalle, el proyecto y la deliberación del Consejo. Devuelve un
-// array de 5 strings, o null si la IA no dio 5 usables (con un reintento). Nunca
-// inventa relleno: sin 5 opciones reales, el handler responde 502 y se reintenta.
+// array de 3 strings, o null si la IA no dio 3 usables (con un reintento). Nunca
+// inventa relleno: sin 3 opciones reales, el handler responde 502 y se reintenta.
 async function generateDecideOptions(env, idea, projName) {
   const delib = ideaDeliberationText(idea.review);
   const prompt = `Eres el jefe de operaciones de AdmiraNeXT (ecosistema de se\xF1alizaci\xF3n digital DOOH hecho por agentes de IA: yokup.com, admira.live, pixeria, xpaceos, admira.tv). Hay que EJECUTAR esta idea/objetivo:
@@ -1293,19 +1295,37 @@ async function generateDecideOptions(env, idea, projName) {
 T\xCDTULO: ${idea.title}
 DETALLE: ${idea.body || "(sin detalle)"}${projName ? "\nPROYECTO: " + projName : ""}${delib ? "\nDELIBERACI\xD3N DEL CONSEJO:\n" + delib : ""}
 
-Propon las 5 MEJORES maneras CONCRETAS y accionables de EJECUTAR esta idea, ordenadas de M\xC1S a MENOS adecuada (la 1\xAA es la recomendada). Cada opci\xF3n: una acci\xF3n clara en 1 frase (m\xE1x 140 caracteres), distinta de las otras, sin numerar ni repetir el t\xEDtulo.
+Propon las 3 MEJORES maneras CONCRETAS y accionables de EJECUTAR esta idea, ordenadas de M\xC1S a MENOS adecuada (la 1\xAA es la recomendada). Cada opci\xF3n: una acci\xF3n clara en 1 frase (m\xE1x 140 caracteres), distinta de las otras, sin numerar ni repetir el t\xEDtulo.
 Responde SOLO con un objeto JSON v\xE1lido, sin texto alrededor ni markdown, con esta forma EXACTA:
-{"opciones":["<la m\xE1s adecuada>","<2\xAA>","<3\xAA>","<4\xAA>","<5\xAA>"]}
+{"opciones":["<la m\xE1s adecuada>","<2\xAA>","<3\xAA>"]}
 Todo en espa\xF1ol.`;
   for (let attempt = 0; attempt < 2; attempt++) {
     const raw = await aiRunRaw(env, prompt, 700);
-    const opts = parseDecideOptions(raw, 5);
-    if (opts.length >= 5) return opts.slice(0, 5);
+    const opts = parseDecideOptions(raw, 3);
+    if (opts.length >= 3) return opts.slice(0, 3);
   }
   return null;
 }
 __name(generateDecideOptions, "generateDecideOptions");
-// Abre un reloj de decisión INICIAL (5 misiones + «Volver atrás») reutilizando los
+async function generateProjectImprovementOptions(env, project, identity) {
+  const prompt = `Eres el jefe de producto de AdmiraNeXT. Debes proponer trabajo autónomo para mejorar un proyecto real del ecosistema.
+
+PROYECTO: ${project.name || project.id}
+WEB: ${project.web || "(sin web)"}
+CONTEXTO: ${project.blurb || "(sin descripción)"}
+AGENTE EJECUTOR: ${identity.agent} · ${identity.machine}
+
+Propón las 3 MEJORES mejoras CONCRETAS, distintas y accionables que ese agente pueda ejecutar en este proyecto. Cada opción debe ser una misión clara de una frase, máximo 140 caracteres. Ordénalas de MÁS a MENOS adecuada; la primera es la recomendada. No inventes accesos, resultados ni problemas no observados.
+Responde SOLO con JSON válido, sin markdown: {"opciones":["<mejora 1>","<mejora 2>","<mejora 3>"]}`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const raw = await aiRunRaw(env, prompt, 700);
+    const options = parseDecideOptions(raw, 3);
+    if (options.length >= 3) return options.slice(0, 3);
+  }
+  return null;
+}
+__name(generateProjectImprovementOptions, "generateProjectImprovementOptions");
+// Abre un reloj de decisión INICIAL (3 misiones + «Volver atrás») reutilizando los
 // MISMOS guardas del handler POST /decisions: identidad canónica (agent+machine),
 // intersección de proyecto asignado en projects+project_members y el candado de UN
 // reloj vivo por agente. No cubre continuaciones (eso vive en POST /decisions): sólo
@@ -1315,10 +1335,10 @@ __name(generateDecideOptions, "generateDecideOptions");
 async function openInitialMissionDecision(env, input) {
   await ensureSchema(env);
   const rawOpts = Array.isArray(input.options) ? input.options : [];
-  const opts = rawOpts.slice(0, 6).map((o) => String(o).slice(0, 160));
+  const opts = rawOpts.slice(0, 4).map((o) => String(o).slice(0, 160));
   const q = String(input.question || "").trim().slice(0, 400);
   if (!q || rawOpts.length !== opts.length || !isInitialMissionDecision(opts)) {
-    return { ok: false, status: 400, error: "Se requieren exactamente 5 misiones y \xABVolver atr\xE1s\xBB como sexta opci\xF3n" };
+    return { ok: false, status: 400, error: "Se requieren exactamente 3 misiones y \xABVolver atr\xE1s\xBB como cuarta opci\xF3n" };
   }
   const identity = resolveDecisionIdentity(input.agent, input.machine);
   if (!identity.ok) return { ok: false, status: 400, code: "exact_identity_required", error: identity.error };
@@ -1335,6 +1355,12 @@ async function openInitialMissionDecision(env, input) {
   if (live && input.user_override !== true) {
     return { ok: false, status: 409, error: "live_decision", existing: live.id, deadline: live.deadline,
              secondsLeft: Math.max(0, Math.round((live.deadline - now) / 1000)) };
+  }
+  const hour = madridHourKey(now);
+  const recent = await env.DB.prepare("SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) AND (parent_decision IS NULL OR parent_decision='') ORDER BY created_at DESC LIMIT 200").bind(agent).all();
+  const previous = (recent.results || []).find((row) => madridHourKey(row.created_at) === hour);
+  if (previous && input.user_override !== true) {
+    return { ok: false, status: 409, error: "hourly_limit", existing: previous.id, hour };
   }
   const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
   await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?)")
@@ -3238,6 +3264,39 @@ var index_default = {
         return json(r, r.ok ? 200 : (r.status || 400));
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
+    if (url.pathname === "/projects/decision" && req.method === "POST") {
+      try {
+        await ensureSchema(env);
+        const b = await req.json().catch(() => ({}));
+        const identity = resolveDecisionIdentity(b.agent, b.machine);
+        if (!identity.ok) return json({ ok: false, error: identity.error, code: "exact_identity_required" }, 400);
+        const idx = await projectIndex(env);
+        const project = idx.get((b && b.project) || "");
+        if (!project || project.status === "archivado") return json({ ok: false, error: "project activo requerido" }, 404);
+        const linkedAgent = await env.DB.prepare("SELECT 1 ok FROM project_members WHERE project_id=? AND kind='agent' AND lower(ref)=lower(?) LIMIT 1")
+          .bind(project.id, identity.agent).first();
+        if (!linkedAgent) return json({ ok: false, error: "el agente no está asociado al proyecto", code: "agent_not_assigned" }, 400);
+        await env.DB.prepare("INSERT OR IGNORE INTO project_members (project_id,kind,ref,added_at) VALUES (?,'machine',?,?)")
+          .bind(project.id, identity.machine, Date.now()).run();
+        const assignment = await exactDecisionProjectAssignment(env, identity.agent, identity.machine, project.id);
+        if (!assignment) return json({ ok: false, error: "la unión agente + máquina no identifica un proyecto exacto", code: "exact_project_required" }, 400);
+        const live = await env.DB.prepare("SELECT id,deadline FROM decisions WHERE lower(agent)=lower(?) AND status='pending' AND deadline>? ORDER BY created_at DESC LIMIT 1")
+          .bind(identity.agent, Date.now()).first();
+        if (live) return json({ ok: true, existing: true, decision_id: live.id, deadline: live.deadline, url: DECIDE_URL });
+        const options = await generateProjectImprovementOptions(env, project, identity);
+        if (!options) return json({ ok: false, error: "la IA no devolvió 5 mejoras usables; reintenta" }, 502);
+        const result = await openInitialMissionDecision(env, {
+          question: "¿Qué mejora ejecutará " + identity.agent + " para " + (project.name || project.id) + "?",
+          options: buildDecideDecisionOptions(options), recommended: 0, minutes: 3,
+          url: DECIDE_URL, surface: "dashboard", mission: "project-improvement:" + project.id,
+          agent: identity.agent, machine: identity.machine,
+          project: project.name, project_slug: decisionProjectSlug(project.name), project_id: project.id, project_web: project.web || ""
+        });
+        if (!result.ok) return json({ ok: false, error: result.error, code: result.code }, result.status || 400);
+        return json({ ok: true, decision_id: result.id, options, recommended: 0, deadline: result.deadline,
+                      secondsLeft: Math.max(0, Math.round((result.deadline - Date.now()) / 1000)), project: result.project, url: DECIDE_URL });
+      } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
     if (url.pathname === "/projects/delete" && req.method === "POST") {
       try {
         await ensureSchema(env);
@@ -3770,7 +3829,7 @@ var index_default = {
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     // POST /ideas/decide {id} — convierte la idea/objetivo en una VENTANA DE DECISIÓN
-    // de 3 minutos con las 5 MEJORES opciones para EJECUTARLA (generadas por Workers
+    // de 3 minutos con las 3 MEJORES opciones para EJECUTARLA (generadas por Workers
     // AI, ordenadas de más a menos adecuada) + «Volver atrás». Si nadie elige, la
     // maquinaria de relojes tira con la recomendada (la 1ª). Abre la decisión por la
     // función interna openInitialMissionDecision (mismos guardas que POST /decisions),
@@ -3804,12 +3863,12 @@ var index_default = {
         }
         if (!proj) proj = idx.get(DECIDE_FALLBACK_PROJECT);
         if (!proj) return json({ ok: false, error: "falta el proyecto de respaldo censado (yokup-ideas-objetivos)" }, 500);
-        // 5 mejores opciones para EJECUTAR la idea (IA), ordenadas de más a menos adecuada.
+        // 3 mejores opciones para EJECUTAR la idea (IA), ordenadas de más a menos adecuada.
         const options = await generateDecideOptions(env, idea, proj.name);
-        if (!options) return json({ ok: false, error: "la IA no devolvió 5 opciones usables; reintenta" }, 502);
+        if (!options) return json({ ok: false, error: "la IA no devolvió 3 opciones usables; reintenta" }, 502);
         const res = await openInitialMissionDecision(env, {
           question: idea.title,
-          options: buildDecideDecisionOptions(options),   // 5 opciones + «Volver atrás»
+          options: buildDecideDecisionOptions(options),   // 3 opciones + «Volver atrás»
           recommended: 0,                                 // la 1ª es la más adecuada
           minutes: 3,
           url: DECIDE_URL,
@@ -3858,7 +3917,7 @@ var index_default = {
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     // ── RELOJES DE DECISIÓN ────────────────────────────────────────────────
-    // POST /decisions            (agente) publica una única tanda diaria: 5 misiones + volver atrás
+    // POST /decisions            (agente) publica una tanda horaria: 3 misiones + volver atrás
     // GET  /decisions            (panel /misiones) lista las vivas + recién cerradas
     // POST /decisions/<id>/choose (Carlos) elige una opción
     // GET  /decisions/<id>       (agente) consulta el desenlace
@@ -3868,18 +3927,18 @@ var index_default = {
       try {
         await ensureSchema(env);
         const b = await req.json();
-        // La ventana inicial mantiene cinco caminos + salida. Una continuación
-        // enlazada al mismo batch acepta únicamente las 1..5 misiones que aún
+        // La ventana inicial mantiene tres caminos + salida. Una continuación
+        // enlazada al mismo batch acepta únicamente las 1..2 misiones que aún
         // quedan en cola + la salida terminal.
         const rawOpts = Array.isArray(b.options) ? b.options : [];
-        const opts = rawOpts.slice(0, 6).map((o) => String(o).slice(0, 160));
+        const opts = rawOpts.slice(0, 4).map((o) => String(o).slice(0, 160));
         const q = String(b.question || "").trim().slice(0, 400);
         let dparent = String(b.parent_decision || "").trim().slice(0, 80);
         let dbatch = String(b.batch_id || "").trim().slice(0, 80);
         let parent = null;
         const continuation = !!(dparent || dbatch);
         if (!q || rawOpts.length !== opts.length || (continuation ? !isContinuationMissionDecision(opts, { parent_decision: dparent || "linked" }) : !isInitialMissionDecision(opts))) {
-          return json({ ok: false, error: continuation ? "La continuación requiere entre 1 y 5 misiones restantes y «Volver atrás» al final" : "La decisión inicial requiere exactamente 5 misiones y «Volver atrás» como sexta opción" }, 400);
+          return json({ ok: false, error: continuation ? "La continuación requiere entre 1 y 2 misiones restantes y «Volver atrás» al final" : "La decisión inicial requiere exactamente 3 misiones y «Volver atrás» como cuarta opción" }, 400);
         }
         if (continuation) {
           parent = dparent ? await env.DB.prepare("SELECT id,batch_id,options,agent,machine,project,project_slug FROM decisions WHERE id=?").bind(dparent).first() : null;
@@ -3940,6 +3999,12 @@ var index_default = {
         if (live && !userOverride && !continuation) {
           return json({ ok: false, error: "live_decision", existing: live.id, deadline: live.deadline,
                         secondsLeft: Math.max(0, Math.round((live.deadline - now) / 1000)) }, 409);
+        }
+        if (!continuation && !userOverride) {
+          const hour = madridHourKey(now);
+          const recent = await env.DB.prepare("SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) AND (parent_decision IS NULL OR parent_decision='') ORDER BY created_at DESC LIMIT 200").bind(agent).all();
+          const previous = (recent.results || []).find((row) => madridHourKey(row.created_at) === hour);
+          if (previous) return json({ ok: false, error: "hourly_limit", existing: previous.id, hour }, 409);
         }
         const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
         // mission/url son metadatos. El proyecto ya fue validado contra la

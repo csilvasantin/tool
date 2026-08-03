@@ -485,7 +485,7 @@ function card(i){
       '<span class="acts">'+
         '<select class="seatsel'+(i.seat?' set':'')+'" data-seat-for="'+esc(i.id)+'" title="silla del Consejo">'+seatOpts(i.seat||"")+'</select>'+
         (!isMis&&NEXT[st]?'<button data-adv="'+esc(i.id)+'" title="pasar a '+STLABEL[NEXT[st]]+'">→ '+STLABEL[NEXT[st]]+'</button>':'')+
-        (!isMis&&!pend?'<button class="mis" data-mis="'+esc(i.id)+'" title="Abrir ventana de decisión (3 min · 5 opciones)">→ misión</button>':'')+
+        (!isMis&&!pend?'<button class="mis" data-mis="'+esc(i.id)+'" title="Abrir ventana de decisión (3 min · 3 opciones)">→ misión</button>':'')+
         (!isMis&&st!=="descartada"?'<button data-del="'+esc(i.id)+'" title="descartar">⊘</button>':'')+
         // «⧉ guion» solo cuando hay deliberación (o está en estudio): es la fuente
         // que se pega en NotebookLM para fabricar el Kit de venta.
@@ -522,7 +522,7 @@ function listRow(i){
     '<span class="lacts">'+
       (i.mission_id?'<a class="flt" href="/tareas?mission='+encodeURIComponent(i.mission_id)+'" title="ver la misión">'+esc(i.mission_id)+' ↗</a>':
         (pend?'<a class="flt pend" href="/decisiones" title="Ventana de decisión abierta (3 min)">⏳ decisión ↗</a>':
-        (!isMis?'<button class="mis" data-mis="'+esc(i.id)+'" title="Abrir ventana de decisión (3 min · 5 opciones)">→ misión</button>':'')))+
+        (!isMis?'<button class="mis" data-mis="'+esc(i.id)+'" title="Abrir ventana de decisión (3 min · 3 opciones)">→ misión</button>':'')))+
       (hasReview(i)?'<button class="delibtog" data-delib="'+esc(i.id)+'" title="El Consejo delibera">⚖️</button>':'')+
       '<button class="del" data-rm="'+esc(i.id)+'" title="Eliminar para siempre">✕</button>'+
     '</span>'+

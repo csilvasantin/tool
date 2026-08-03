@@ -8,10 +8,10 @@ import {
 } from './src/ideas-decide.js';
 
 const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
-// Espejo del invariante isInitialMissionDecision de index.js (6 opciones con la
+// Espejo del invariante isInitialMissionDecision de index.js (4 opciones con la
 // salida terminal): exactamente lo que la maquinaria de relojes exige a una tanda.
 const isInitialMissionDecision = (opts) =>
-  Array.isArray(opts) && opts.length === 6 && /volver\s+atr[aá]s|no\s+iniciar/i.test(String(opts[5] || ''));
+  Array.isArray(opts) && opts.length === 4 && /volver\s+atr[aá]s|no\s+iniciar/i.test(String(opts[3] || ''));
 
 // ── parseDecideOptions: robusto a lo que devuelva Workers AI ──────────────────
 test('parseDecideOptions lee el objeto {opciones:[…]}', () => {
@@ -60,17 +60,17 @@ test('ideaDeliberationText devuelve "" sin review o con basura', () => {
   assert.equal(ideaDeliberationText({}), '');
 });
 
-// ── buildDecideDecisionOptions: 5 opciones + «Volver atrás» = decisión inicial ─
-test('buildDecideDecisionOptions arma exactamente 6 con la salida al final', () => {
+// ── buildDecideDecisionOptions: 3 opciones + «Volver atrás» = decisión inicial ─
+test('buildDecideDecisionOptions arma exactamente 4 con la salida al final', () => {
   const opts = buildDecideDecisionOptions(['1','2','3','4','5']);
-  assert.equal(opts.length, 6);
-  assert.equal(opts[5], 'Volver atrás');
+  assert.equal(opts.length, 4);
+  assert.equal(opts[3], 'Volver atrás');
   // Y es una decisión INICIAL válida para la maquinaria de relojes.
   assert.equal(isInitialMissionDecision(opts), true);
 });
-test('buildDecideDecisionOptions descarta vacías y recorta a 5', () => {
+test('buildDecideDecisionOptions descarta vacías y recorta a 3', () => {
   const opts = buildDecideDecisionOptions(['a','','b','c','d','e','f']);
-  assert.deepEqual(opts, ['a','b','c','d','e','Volver atrás']);
+  assert.deepEqual(opts, ['a','b','c','Volver atrás']);
 });
 
 // ── Wiring en index.js (mismo estilo source-string del resto del harness) ─────
@@ -117,4 +117,23 @@ test('GET /ideas expone decision_id y sincroniza lazy con la decisión resuelta'
 });
 test('el camino viejo POST /ideas/promote sigue existiendo (enlazar a mano)', () => {
   assert.match(source, /url\.pathname === "\/ideas\/promote" && req\.method === "POST"/);
+});
+
+test('POST /projects/decision abre tres mejoras para el agente físico conectado', () => {
+  assert.match(source, /url\.pathname === "\/projects\/decision" && req\.method === "POST"/);
+  assert.match(source, /generateProjectImprovementOptions\(env, project, identity\)/);
+  assert.match(source, /resolveDecisionIdentity\(b\.agent, b\.machine\)/);
+  assert.match(source, /kind='agent' AND lower\(ref\)=lower\(\?\)/);
+  assert.match(source, /INSERT OR IGNORE INTO project_members \(project_id,kind,ref,added_at\) VALUES \(\?,'machine',\?,\?\)/);
+  assert.match(source, /exactDecisionProjectAssignment\(env, identity\.agent, identity\.machine, project\.id\)/);
+  assert.match(source, /question: "\xBFQu\xE9 mejora ejecutar\xE1 " \+ identity\.agent/);
+  assert.match(source, /surface: "dashboard"/);
+  assert.match(source, /mission: "project-improvement:" \+ project\.id/);
+  assert.match(source, /options: buildDecideDecisionOptions\(options\), recommended: 0, minutes: 3/);
+});
+
+test('la decisión de proyecto respeta el reloj vivo e identifica su salida', () => {
+  assert.match(source, /if \(live\) return json\(\{ ok: true, existing: true, decision_id: live\.id/);
+  assert.match(source, /decision_id: result\.id/);
+  assert.match(source, /url: DECIDE_URL/);
 });
