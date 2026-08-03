@@ -225,19 +225,34 @@ test("los agentes nacen compactados dentro de cada equipo",()=>{
   assert.match(source,/\.pa-team-node:not\(\[open\]\)>\.pa-team-agents/);
 });
 
-test("proyectos y equipos se pueden ocultar por ficha y restaurar con Todos",()=>{
+test("proyectos y equipos se pueden ocultar por ficha y restaurar desde sus filtros",()=>{
   assert.match(source,/id="projectAgentProjectsAll"[^>]*aria-pressed="true">Todos<\/button>/);
   assert.match(source,/id="projectAgentTeamsAll"[^>]*aria-pressed="true">Todos<\/button>/);
-  assert.match(source,/const HIDDEN_PROJECTS=new Set\(\)/);
-  assert.match(source,/const HIDDEN_TEAMS=new Set\(\)/);
   assert.match(source,/data-pa-hide-project=/);
   assert.match(source,/data-pa-hide-team=/);
-  assert.match(source,/HIDDEN_PROJECTS\.add\(button\.dataset\.paHideProject\)/);
-  assert.match(source,/HIDDEN_TEAMS\.add\(button\.dataset\.paHideTeam\)/);
-  assert.match(source,/HIDDEN_PROJECTS\.clear\(\);paRender\(\)/);
-  assert.match(source,/HIDDEN_TEAMS\.clear\(\);paRender\(\)/);
-  assert.match(source,/Proyectos ocultos · pulsa Todos/);
-  assert.match(source,/Equipos ocultos · pulsa Todos/);
+  assert.match(source,/PROJECT_SCOPE=paSetScopeItem\(PROJECT_SCOPE,button\.dataset\.paHideProject,false/);
+  assert.match(source,/TEAM_SCOPE=paSetScopeItem\(TEAM_SCOPE,button\.dataset\.paHideTeam,false/);
+  assert.match(source,/recupéralo desde Opciones/);
+  assert.match(source,/recupéralo desde Avanzado/);
+});
+
+test("Opciones lista todos los proyectos y Avanzado todos los equipos con multiselección persistente",()=>{
+  assert.match(source,/data-yk-slot="left" aria-label="Filtrar proyectos del Dashboard"/);
+  assert.match(source,/id="paProjectScopeList"/);
+  assert.match(source,/data-yk-slot="right" aria-label="Filtrar equipos físicos del Dashboard"/);
+  assert.match(source,/id="paTeamScopeList"/);
+  assert.match(source,/const PROJECT_SCOPE_KEY="yokup\.dashboard\.projects\.v1"/);
+  assert.match(source,/const TEAM_SCOPE_KEY="yokup\.dashboard\.teams\.v1"/);
+  assert.match(source,/function paReadScope\(key\)/);
+  assert.match(source,/function paWriteScope\(key,scope\)/);
+  assert.match(source,/function paSetScopeItem\(scope,key,checked,keys\)/);
+  assert.match(source,/data-pa-scope-all/);
+  assert.match(source,/data-pa-scope-item/);
+  assert.match(source,/selected=scope===null\?items\.length/);
+  assert.match(source,/paScopeAllows\(PROJECT_SCOPE,project\.id\)/);
+  assert.match(source,/paScopeAllows\(TEAM_SCOPE,team\.key\)/);
+  assert.match(source,/paWriteScope\(PROJECT_SCOPE_KEY,PROJECT_SCOPE\)/);
+  assert.match(source,/paWriteScope\(TEAM_SCOPE_KEY,TEAM_SCOPE\)/);
 });
 
 test("Todos alterna con proyectos sin equipo y equipos sin proyecto",()=>{
@@ -250,8 +265,8 @@ test("Todos alterna con proyectos sin equipo y equipos sin proyecto",()=>{
   assert.match(source,/function paTeamHasProject\(team\)/);
   assert.match(source,/PROJECT_FILTER="unassigned";paRender\(\)/);
   assert.match(source,/TEAM_FILTER="unassigned";paRender\(\)/);
-  assert.match(source,/PROJECT_FILTER="all";HIDDEN_PROJECTS\.clear\(\)/);
-  assert.match(source,/TEAM_FILTER="all";HIDDEN_TEAMS\.clear\(\)/);
+  assert.match(source,/PROJECT_FILTER="all";PROJECT_SCOPE=null/);
+  assert.match(source,/TEAM_FILTER="all";TEAM_SCOPE=null/);
 });
 
 test("arrastrar un agente asocia primero su máquina y después el propio agente",()=>{
