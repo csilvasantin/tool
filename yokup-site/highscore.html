@@ -44,9 +44,9 @@ a{color:var(--brand)}
 
 /* ─────────── PÁGINA ─────────── */
 .wrap{max-width:1080px;margin:0 auto;padding:50px 18px 70px}
-header.cab{position:relative;display:grid;grid-template-columns:auto minmax(180px,1fr);grid-template-rows:auto auto;
+header.cab{position:relative;display:grid;grid-template-columns:auto minmax(180px,1fr);grid-template-rows:20px auto;
   align-items:center;column-gap:22px;row-gap:2px;min-height:44px;margin:0 0 8px}
-header.cab>h1{grid-column:1;grid-row:1}
+header.cab>h1{grid-column:1;grid-row:2}
 h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:0;color:var(--brand);
   text-shadow:3px 3px 0 #0a4a58}
 .race-toggle{all:unset;display:inline-block;cursor:pointer;color:inherit;font:inherit;letter-spacing:inherit;
@@ -55,7 +55,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .race-toggle:focus-visible{outline:2px solid var(--brand);outline-offset:5px}
 .race-toggle[aria-pressed="true"]{color:var(--accent);transform:translateY(1px);
   text-shadow:3px 3px 0 #5a4310,0 0 12px rgba(255,216,102,.42)}
-.cab-tools{grid-column:1;grid-row:2;display:flex;align-items:center;justify-content:center;gap:8px}
+.cab-tools{grid-column:1;grid-row:1;display:flex;align-items:center;justify-content:flex-start;gap:8px}
 
 /* podio: la ilustración conserva siempre su proporción 16:9 y ocupa el mismo
    bloque que antes ocupaban los tres cajones generados con CSS. Los datos vivos
@@ -102,13 +102,13 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-race{position:relative;grid-column:2;grid-row:1 / span 2;min-height:44px;min-width:0;padding:0;display:flex;align-items:flex-start;overflow:hidden}
 .refresh-lanes{width:100%;display:grid;gap:2px}
 .runner-symbols{position:absolute;width:0;height:0;overflow:hidden}
-.refresh-lane{position:relative;width:100%;height:32px;min-width:0}
-.refresh-track{position:relative;width:100%;height:32px}
+.refresh-lane{position:relative;width:100%;height:50px;min-width:0}
+.refresh-track{position:relative;width:100%;height:50px}
 .refresh-track::before{content:"";position:absolute;left:36px;right:36px;bottom:3px;height:2px;
   background:rgba(120,243,255,.22);box-shadow:0 1px 0 rgba(255,216,102,.16)}
 .refresh-fill{position:absolute;left:36px;bottom:3px;width:0;height:2px;background:linear-gradient(90deg,var(--lane),var(--accent),var(--brand));
   box-shadow:0 0 7px color-mix(in srgb,var(--lane) 55%,transparent)}
-.refresh-place{position:absolute;z-index:2;top:7px;min-width:22px;padding:1px 3px;border:1px solid color-mix(in srgb,var(--lane) 62%,transparent);
+.refresh-place{position:absolute;z-index:4;top:0;min-width:22px;padding:1px 3px;border:1px solid color-mix(in srgb,var(--lane) 62%,transparent);
   border-radius:3px;background:rgba(2,8,13,.86);color:var(--lane);font-size:10px;font-weight:950;line-height:13px;text-align:center;
   letter-spacing:.04em;text-shadow:0 0 5px color-mix(in srgb,var(--lane) 55%,transparent);pointer-events:none}
 .refresh-place-start{left:2px}.refresh-place-finish{right:2px}
@@ -116,7 +116,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-lane-p2{--lane:var(--plata);--runner-shirt:#3477c7;--runner-stripe:#dff8ff}
 .refresh-lane-p3{--lane:var(--bronce);--runner-shirt:#3477c7;--runner-stripe:#ef4f43}
 .refresh-lane-rank{--lane:#78f3ff;--runner-shirt:#8d5fd3;--runner-stripe:#ffd866}
-.refresh-mission{position:absolute;z-index:1;left:0;top:4px;width:min(520px,46vw);
+.refresh-mission{position:absolute;z-index:1;left:0;top:25px;width:min(520px,46vw);
   transform:translateX(calc(-100% - 18px));overflow:hidden;
   color:var(--mut);font-size:14px;font-weight:750;line-height:17px;
   letter-spacing:.035em;text-shadow:0 1px 5px #000;
@@ -124,11 +124,11 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-desc{display:flex;width:100%;min-width:0;flex-direction:row-reverse;justify-content:flex-start;
   gap:.52em;overflow:hidden;color:var(--mut)}
 .refresh-word{display:inline-block;flex:0 0 auto;direction:ltr;unicode-bidi:isolate;white-space:nowrap}
-.refresh-agent{position:absolute;z-index:2;left:0;top:0;max-width:190px;
-  transform:translateX(20px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+.refresh-agent{position:absolute;z-index:2;right:43px;top:22px;max-width:190px;
+  transform:translateX(0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   color:var(--lane);font-size:14px;font-weight:900;line-height:17px;letter-spacing:.035em;
   text-shadow:0 1px 5px #000,0 0 7px color-mix(in srgb,var(--lane) 45%,transparent);pointer-events:none;
-  will-change:left,opacity}
+  will-change:transform,opacity}
 .refresh-runner{position:absolute;left:0;bottom:3px;width:25px;height:30px;transform:translateX(-50%);
   z-index:3;filter:drop-shadow(0 0 4px rgba(255,216,102,.45));will-change:left}
 .refresh-runner svg{display:block;position:absolute;inset:0;width:100%;height:100%;overflow:visible;shape-rendering:crispEdges;
@@ -232,10 +232,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .err{border-color:rgba(255,136,102,.4);background:rgba(255,136,102,.07)}
 .err h2{color:var(--warn)}
 /* En la cabecera, NO fijo abajo a la derecha: ahí tapaba las últimas filas de la tabla. */
-.sonido{position:relative;display:grid;place-items:center;width:30px;height:30px;padding:0;background:var(--card2);
-  border:1px solid var(--line2);border-radius:50%;color:var(--dim);font-family:var(--mono);font-size:16px;cursor:pointer}
+.sonido{position:relative;display:grid;place-items:center;width:22px;height:22px;padding:0;background:var(--card2);
+  border:1px solid var(--line2);border-radius:50%;color:var(--dim);font-family:var(--mono);font-size:11px;cursor:pointer}
 .sonido:hover,.sonido[aria-pressed="true"]{color:var(--brand);border-color:var(--brand);box-shadow:0 0 12px rgba(120,243,255,.22)}
-.sonido[aria-pressed="false"]::after{content:"";position:absolute;width:19px;height:1px;background:currentColor;transform:rotate(-45deg)}
+.sonido[aria-pressed="false"]::after{content:"";position:absolute;width:14px;height:1px;background:currentColor;transform:rotate(-45deg)}
 .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;
   overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 @media (max-width:620px){.podio{margin-top:20px}.plaza{width:27%;padding:4px 5px;gap:4px;background:rgba(2,8,13,.78)}
@@ -1136,7 +1136,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
      56, 58 y 60 segundos. */
   var REFRESCO_MS = 60 * 1000, SALIDA_MS = 3 * 1000, PASO_SALIDA_MS = 1000, CELEBRACION_MS = 2 * 1000;
   var CICLO_MS = SALIDA_MS + REFRESCO_MS + CELEBRACION_MS, DIFERENCIA_META_MS = 2 * 1000;
-  var MARGEN_PISTA_PX = 36, CENTRO_CORREDOR_PX = 16, ADELANTO_AGENTE_PX = 20;
+  var MARGEN_PISTA_PX = 36, SALIDA_CORREDOR_PX = 17, META_CORREDOR_PX = 16;
+  var RADIO_CORREDOR_PX = 13, MARGEN_NOMBRE_META_PX = 43;
   var MITAD_RAPIDA_MS = REFRESCO_MS / 3;
   var carreraInicio = 0, carreraFrame = null, refrescando = false, carreraPausada = false, carreraTiempoPausado = 0;
   var REDUCE_MOTION = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -1186,7 +1187,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var corredor = carril.querySelector('[data-race-role="runner"]');
       var mision = carril.querySelector('[data-race-role="mission"]');
       var agente = carril.querySelector('[data-race-role="agent"]');
-      var ajusteCorredor = CENTRO_CORREDOR_PX * (1 - 2 * progresoAtleta);
+      var ajusteCorredor = SALIDA_CORREDOR_PX * (1 - progresoAtleta) - META_CORREDOR_PX * progresoAtleta;
       var posicionCorredor = "calc(" + pct + "% + " + ajusteCorredor + "px)";
       var recortePista = 2 * MARGEN_PISTA_PX * progresoAtleta;
       carril.classList.toggle("finished", progresoAtleta >= 1);
@@ -1196,11 +1197,13 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (corredor) corredor.style.left = posicionCorredor;
       if (mision) mision.style.left = posicionCorredor;
       if (agente) {
-        agente.style.left = posicionCorredor;
         var anchoAgente = Math.max(1, agente.offsetWidth);
-        var inicioAgente = progresoAtleta * carril.clientWidth + ajusteCorredor + ADELANTO_AGENTE_PX;
+        var centroCorredor = progresoAtleta * carril.clientWidth + ajusteCorredor;
+        var inicioAgente = carril.clientWidth - MARGEN_NOMBRE_META_PX - anchoAgente;
+        var empujeAgente = Math.max(0, centroCorredor + RADIO_CORREDOR_PX - inicioAgente);
         var meta = carril.clientWidth - MARGEN_PISTA_PX;
-        var cruceAgente = Math.max(0, Math.min(1, (inicioAgente + anchoAgente - meta) / anchoAgente));
+        var cruceAgente = Math.max(0, Math.min(1, (inicioAgente + anchoAgente + empujeAgente - meta) / anchoAgente));
+        agente.style.transform = "translateX(" + empujeAgente + "px)";
         agente.style.opacity = String(1 - cruceAgente);
       }
     });

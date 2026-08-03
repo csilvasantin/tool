@@ -70,8 +70,9 @@ test("la vida hace latir el propio número de posición y no añade un punto", (
 
 test("todos los atletas pixelados recorren la línea y actualizan el marcador cada 60 segundos", () => {
   assert.match(html, /<header class="cab">[\s\S]*<h1><button class="race-toggle" id="raceToggle"[\s\S]*>HIGHSCORE<\/button><\/h1>[\s\S]*class="refresh-race"[\s\S]*class="cab-tools"[\s\S]*<\/header>/);
-  assert.match(html, /header\.cab\{[^}]*grid-template-columns:auto minmax\(180px,1fr\)[^}]*grid-template-rows:auto auto/);
-  assert.match(html, /\.cab-tools\{[^}]*grid-column:1[^}]*grid-row:2[^}]*justify-content:center/);
+  assert.match(html, /header\.cab\{[^}]*grid-template-columns:auto minmax\(180px,1fr\)[^}]*grid-template-rows:20px auto/);
+  assert.match(html, /\.cab-tools\{[^}]*grid-column:1[^}]*grid-row:1[^}]*justify-content:flex-start/);
+  assert.match(html, /\.sonido\{[^}]*width:22px[^}]*height:22px[^}]*font-size:11px/);
   assert.match(html, /\.refresh-race\{[^}]*grid-column:2[^}]*grid-row:1 \/ span 2/);
   assert.match(html, /class="refresh-runner runner-' \+ variant \+ ' runner-skin-' \+ variant/);
   assert.match(html, /<svg class="runner-frame-a" viewBox="0 0 24 30"><use href="#runnerFrameA"/);
@@ -93,18 +94,21 @@ test("la pista pasa por los pies del corredor y termina en una meta visible", ()
   assert.match(html, /\.refresh-runner\{[^}]*bottom:3px[^}]*transform:translateX\(-50%\)/);
   assert.match(html, /\.refresh-finish\{[^}]*right:29px[^}]*bottom:1px/);
   assert.match(html, /\.refresh-place\{[^}]*color:var\(--lane\)[^}]*text-align:center/);
+  assert.match(html, /\.refresh-place\{[^}]*z-index:4[^}]*top:0/);
+  assert.match(html, /\.refresh-lane\{[^}]*height:50px/);
   assert.match(html, /\.refresh-place-start\{left:2px\}\.refresh-place-finish\{right:2px\}/);
   assert.match(html, /\.refresh-finish::before,\.refresh-finish::after\{[^}]*conic-gradient[^}]*transition:transform \.45s steps\(3,end\),opacity \.45s linear/);
   assert.match(html, /\.refresh-lane\.finished \.refresh-finish::before\{[^}]*translate\(-7px,-8px\)[^}]*opacity:0/);
   assert.match(html, /\.refresh-lane\.finished \.refresh-finish::after\{[^}]*translate\(7px,8px\)[^}]*opacity:0/);
   assert.match(html, /class="refresh-place refresh-place-start" aria-hidden="true">' \+ puesto[\s\S]*class="refresh-runner runner-' \+ variant[\s\S]*class="refresh-finish" aria-hidden="true"[\s\S]*class="refresh-place refresh-place-finish" aria-hidden="true">' \+ puesto/);
-  assert.match(html, /var MARGEN_PISTA_PX = 36, CENTRO_CORREDOR_PX = 16/);
-  assert.match(html, /ajusteCorredor = CENTRO_CORREDOR_PX \* \(1 - 2 \* progresoAtleta\)/);
+  assert.match(html, /var MARGEN_PISTA_PX = 36, SALIDA_CORREDOR_PX = 17, META_CORREDOR_PX = 16/);
+  assert.match(html, /ajusteCorredor = SALIDA_CORREDOR_PX \* \(1 - progresoAtleta\) - META_CORREDOR_PX \* progresoAtleta/);
   assert.match(html, /posicionCorredor = "calc\(" \+ pct \+ "% \+ " \+ ajusteCorredor \+ "px\)"/);
   assert.match(html, /relleno\.style\.width = "calc\(" \+ pct \+ "% - " \+ recortePista \+ "px\)"/);
   assert.match(html, /corredor\.style\.left = posicionCorredor/);
   assert.match(html, /mision\.style\.left = posicionCorredor/);
-  assert.match(html, /agente\.style\.left = posicionCorredor/);
+  assert.doesNotMatch(html, /agente\.style\.left = posicionCorredor/);
+  assert.match(html, /agente\.style\.transform = "translateX\(" \+ empujeAgente \+ "px\)"/);
 });
 
 test("el número de la categoría activa parpadea en verde sin confundirse con el latido", () => {
@@ -201,7 +205,7 @@ test("Ordenador agrupa equipos y mantiene dentro de cada grupo la posición real
 
 test("la primera palabra de cada misión queda pegada detrás del corredor", () => {
   assert.match(html, /<div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Agentes con misión en curso"><\/div>/);
-  assert.match(html, /\.refresh-mission\{[^}]*top:4px[^}]*translateX\(calc\(-100% - 18px\)\)/);
+  assert.match(html, /\.refresh-mission\{[^}]*top:25px[^}]*translateX\(calc\(-100% - 18px\)\)/);
   assert.match(html, /\.refresh-mission\{[^}]*font-size:14px[^}]*line-height:17px/);
   assert.match(html, /\.refresh-desc\{[^}]*flex-direction:row-reverse[^}]*justify-content:flex-start/);
   assert.match(html, /\.refresh-word\{[^}]*direction:ltr[^}]*unicode-bidi:isolate[^}]*white-space:nowrap/);
@@ -236,7 +240,7 @@ test("todos los agentes con misión en curso tienen calles ordenadas, identidad 
   assert.match(html, /'<span class="refresh-agent" data-race-role="agent">' \+ esc\(agente\) \+ '<\/span>'/);
   assert.match(html, /class="refresh-place refresh-place-start" aria-hidden="true">' \+ puesto/);
   assert.match(html, /class="refresh-place refresh-place-finish" aria-hidden="true">' \+ puesto/);
-  assert.match(html, /\.refresh-agent\{[^}]*font-size:14px[^}]*line-height:17px/);
+  assert.match(html, /\.refresh-agent\{[^}]*right:43px[^}]*top:22px[^}]*font-size:14px[^}]*line-height:17px/);
   assert.match(html, /\.refresh-lane-p1\{--lane:var\(--oro\);--runner-shirt:#ef4f43;--runner-stripe:#dff8ff\}/);
   assert.match(html, /\.refresh-lane-p2\{--lane:var\(--plata\);--runner-shirt:#3477c7;--runner-stripe:#dff8ff\}/);
   assert.match(html, /\.refresh-lane-p3\{--lane:var\(--bronce\);--runner-shirt:#3477c7;--runner-stripe:#ef4f43\}/);
@@ -278,9 +282,11 @@ test("HIGHSCORE pausa la lectura, continúa y desvanece el nombre mientras cruza
   assert.doesNotMatch(html, /carreraPausada = false;\s*pintaControlCarrera\(\);\s*iniciaCarrera\(\)/);
   assert.match(html, /function avanzaCarrera\(ahora\) \{\s*if \(carreraPausada\) return;/);
   assert.match(html, /var anchoAgente = Math\.max\(1, agente\.offsetWidth\)/);
-  assert.match(html, /inicioAgente = progresoAtleta \* carril\.clientWidth \+ ajusteCorredor \+ ADELANTO_AGENTE_PX/);
+  assert.match(html, /inicioAgente = carril\.clientWidth - MARGEN_NOMBRE_META_PX - anchoAgente/);
+  assert.match(html, /empujeAgente = Math\.max\(0, centroCorredor \+ RADIO_CORREDOR_PX - inicioAgente\)/);
   assert.match(html, /var meta = carril\.clientWidth - MARGEN_PISTA_PX/);
-  assert.match(html, /cruceAgente = Math\.max\(0, Math\.min\(1, \(inicioAgente \+ anchoAgente - meta\) \/ anchoAgente\)\)/);
+  assert.match(html, /cruceAgente = Math\.max\(0, Math\.min\(1, \(inicioAgente \+ anchoAgente \+ empujeAgente - meta\) \/ anchoAgente\)\)/);
+  assert.match(html, /agente\.style\.transform = "translateX\(" \+ empujeAgente \+ "px\)"/);
   assert.match(html, /agente\.style\.opacity = String\(1 - cruceAgente\)/);
   assert.match(html, /\.refresh-race\.paused \.refresh-runner svg[^}]*animation-play-state:paused/);
 });
