@@ -51,6 +51,7 @@ test("el Dashboard incluye proyectos y equipos con agentes anidados",()=>{
   assert.match(source,/id="projectAgentTeams"/);
   assert.match(source,/class="pa-team-agents"/);
   assert.match(source,/data-agent-node=/);
+  assert.match(source,/data-agent-online=/);
   assert.match(source,/id="projectAgentSvg"/);
   assert.match(source,/id="projectAgentRefresh"/);
   assert.match(source,/aria-live="polite"/);
@@ -305,8 +306,21 @@ test("cada unión agente-proyecto recibe un color distinto y estable dentro del 
   assert.match(source,/function paConnectionColors\(\)/);
   assert.match(source,/new Set\(PROJECT_ROWS\.flatMap/);
   assert.match(source,/index\*137\.508/);
-  assert.match(source,/stroke="'\+colors\.get\(agentNode\.dataset\.agentNode\+'\|'\+project\.id\)/);
-  assert.match(source,/\.pa-link\{fill:none;stroke-width:2;opacity:\.58/);
+  assert.match(source,/color=colors\.get\(agentNode\.dataset\.agentNode\+'\|'\+project\.id\)/);
+  assert.match(source,/\.pa-link\{fill:none;stroke-width:2;stroke-linecap:round/);
+});
+
+test("los cables activos transportan luz en ambos sentidos y los asignados solo respiran",()=>{
+  assert.match(source,/agentNode\.dataset\.agentOnline==="true"/);
+  assert.match(source,/data-link-state="active"/);
+  assert.match(source,/data-link-state="assigned"/);
+  assert.match(source,/pa-link-flow pa-link-flow-out/);
+  assert.match(source,/pa-link-flow pa-link-flow-back/);
+  assert.match(source,/pathLength="100"/);
+  assert.match(source,/@keyframes pa-data-out\{from\{stroke-dashoffset:0\}to\{stroke-dashoffset:-100\}\}/);
+  assert.match(source,/@keyframes pa-data-back\{from\{stroke-dashoffset:-100\}to\{stroke-dashoffset:0\}\}/);
+  assert.match(source,/@keyframes pa-cable-breathe/);
+  assert.match(source,/@media\(prefers-reduced-motion:reduce\)\{\.pa-link-flow\{display:none\}/);
 });
 
 test("las columnas se pueden mover horizontalmente y las flechas siguen su posición",()=>{
