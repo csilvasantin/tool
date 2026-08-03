@@ -170,7 +170,7 @@ const PRESENCE="https://admira-telegram.csilvasantin.workers.dev/api/presence";
 const BROWSERS="https://admira-navegadores.csilvasantin.workers.dev/api/browsers";
 const PROJECTS_API="https://api.yokup.com";
 const AGENT_FRESH_SECONDS=240;
-const AGENT_REFRESH_MS=30000;
+const AGENT_REFRESH_MS=3000;
 let PROJECT_ROWS=[];
 let PROJECT_ROSTER=[];
 let PROJECT_BUSY="";
@@ -248,15 +248,18 @@ function paFreshPresence(rows,now){
 }
 function paVerifiedPresence(rows,browsers,now){
   const reported=paFreshPresence(rows,now),byTeam=new Map();
+  const snapshotTeams=new Set(reported.filter(row=>row.source==="process_snapshot"&&row.verified).map(row=>paTeamKey(row.machine)).filter(Boolean));
+  const snapshots=reported.filter(row=>snapshotTeams.has(paTeamKey(row.machine))&&row.source==="process_snapshot").map(row=>({...row,verified:true}));
   reported.forEach(row=>{
     const team=paTeamKey(row.machine);if(!team)return;
+    if(snapshotTeams.has(team))return;
     if(!byTeam.has(team))byTeam.set(team,[]);
     byTeam.get(team).push(row);
   });
   const reporters=new Map();
   (browsers||[]).forEach(browser=>{
     const ts=Number(browser&&browser.ts||0)/1000,persona=String(browser&&browser.reporter&&browser.reporter.persona||"").trim(),machine=String(browser&&browser.reporter&&browser.reporter.machine||browser&&browser.machine||"").trim(),team=paTeamKey(machine);
-    if(!persona||!team||!ts||(now-ts)>=AGENT_FRESH_SECONDS||browser.online===false)return;
+    if(!persona||!team||snapshotTeams.has(team)||!ts||(now-ts)>=AGENT_FRESH_SECONDS||browser.online===false)return;
     const parsed=window.ykAgentIdentity?ykAgentIdentity.parse(persona):{persona},key=team+"|"+String(parsed.persona||persona).toLowerCase(),previous=reporters.get(key);
     if(!previous||ts>previous.verifiedAt)reporters.set(key,{persona,machine,verifiedAt:ts,team});
   });
@@ -267,7 +270,7 @@ function paVerifiedPresence(rows,browsers,now){
     verifiedTeams.add(reporter.team);
     verified.push({...source,persona:reporter.persona,machine:reporter.machine,updated:Math.max(source&&source.updated||0,reporter.verifiedAt),verified:true,verifiedAt:reporter.verifiedAt});
   });
-  return verified.concat(reported.filter(row=>!verifiedTeams.has(paTeamKey(row.machine)))).sort((a,b)=>(b.updated||0)-(a.updated||0));
+  return snapshots.concat(verified,reported.filter(row=>!snapshotTeams.has(paTeamKey(row.machine))&&!verifiedTeams.has(paTeamKey(row.machine)))).sort((a,b)=>(b.updated||0)-(a.updated||0));
 }
 function paMessage(text,kind){ const el=pa("projectAgentMsg"); el.textContent=text||""; el.className="pa-msg"+(kind?" "+kind:""); }
 function paPhysicalAgents(rows){

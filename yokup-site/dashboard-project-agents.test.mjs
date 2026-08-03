@@ -81,12 +81,15 @@ test("el Dashboard carga proyectos y toma los agentes del mismo pulso físico",(
 test("el censo conserva identidades reportadas y las contrasta con el navegador físico",()=>{
   assert.match(source,/const BROWSERS="https:\/\/admira-navegadores\.csilvasantin\.workers\.dev\/api\/browsers"/);
   assert.match(source,/const AGENT_FRESH_SECONDS=240/);
-  assert.match(source,/const AGENT_REFRESH_MS=30000/);
+  assert.match(source,/const AGENT_REFRESH_MS=3000/);
   assert.match(source,/function paPresencePersona\(row\)/);
   assert.match(source,/if\(raw\)return raw/);
   assert.match(source,/function paFreshPresence\(rows,now\)/);
   assert.doesNotMatch(source,/const slot=twin/);
   assert.match(source,/function paVerifiedPresence\(rows,browsers,now\)/);
+  assert.match(source,/row\.source==="process_snapshot"&&row\.verified/);
+  assert.match(source,/if\(snapshotTeams\.has\(team\)\)return/);
+  assert.match(source,/snapshots\.concat\(verified,reported\.filter/);
   assert.match(source,/browser\.reporter&&browser\.reporter\.persona/);
   assert.match(source,/verifiedTeams\.has\(paTeamKey\(row\.machine\)\)/);
   assert.match(source,/const fresh=paVerifiedPresence\(d\.presence\|\|\[\],nav&&nav\.browsers\|\|\[\],now\)/);
