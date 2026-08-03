@@ -20,6 +20,24 @@
 /* Defaults: ID y Fecha son de ancho ~FIJO (FLT-999 · 16/07 11:37) → estrechas;
  * la Misión (1fr) se lleva el espacio ganado. (Carlos, 2026-07-16) */
 .hd{display:grid;grid-template-columns:8px minmax(0,var(--c-id,92px)) minmax(0,var(--c-shot,124px)) minmax(140px,1fr) minmax(0,var(--c-fch,104px)) minmax(0,var(--c-ord,128px)) minmax(0,var(--c-who,132px)) minmax(0,var(--c-est,124px));gap:0;align-items:center;padding:14px 16px}
+/* /misiones fusiona ID + proyecto + previo + texto en una sola columna operativa. */
+.hd.project-id-layout{grid-template-columns:8px minmax(300px,1fr) minmax(0,var(--c-fch,104px)) minmax(300px,var(--c-ord,360px)) minmax(0,var(--c-who,132px)) minmax(0,var(--c-est,124px));padding-top:10px;padding-bottom:10px}
+.project-id-cell{position:relative;min-width:0;padding:0 14px 0 0;overflow:hidden}
+.project-id-top{display:grid;grid-template-columns:minmax(105px,.42fr) minmax(150px,1fr) 108px;align-items:center;gap:10px;min-width:0}
+.project-id-layout .tkid{display:flex;align-items:center;gap:6px;padding:0;overflow:visible;white-space:nowrap}
+.project-id-layout .tkid .prioflag{margin:0}
+.project-select-wrap{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:6px;min-width:0;font:8.5px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--dim)}
+.project-id-select{width:100%;min-width:0;border:1px solid var(--line2);border-radius:7px;background:var(--card2);color:var(--ink);padding:6px 24px 6px 8px;font:10.5px var(--mono);cursor:pointer}
+.project-id-select:focus{outline:1px solid var(--brand);box-shadow:0 0 9px rgba(120,243,255,.2)}
+.project-id-select:disabled{opacity:.6;cursor:wait}
+.project-save{grid-column:2;min-height:10px;font-style:normal;font-size:8px;line-height:1;color:var(--good);text-transform:none;letter-spacing:0}
+.project-save.err{color:var(--warn)}
+.project-id-cell>.subj{padding:7px 0 0;margin-top:7px;border-top:1px solid rgba(120,243,255,.1);min-height:34px}
+.project-id-cell>.subj .t{font-size:13px;line-height:1.3}
+.project-id-cell>.subj .m{font-size:9.5px;gap:9px;margin-top:2px}
+.project-id-cell .mission-source{color:var(--accent);text-transform:uppercase;letter-spacing:.04em}
+.project-id-layout .cel.shot{padding:0}
+.project-id-layout .shot-img{max-width:108px}
 /* Columna CAPTURA del proyecto (entre ID y Misión): referencia visual. */
 .cel.shot{padding:0 8px;justify-content:center;align-items:center}
 .shot-lnk{display:block;width:100%;line-height:0}
@@ -131,7 +149,8 @@
 .tkopen{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--brand);border:1px solid var(--line2);border-radius:7px;padding:4px 9px;text-decoration:none;white-space:nowrap}
 .tkopen:hover{background:rgba(120,243,255,.12)}
 @keyframes ykm-blink{0%,100%{opacity:1}50%{opacity:.3}}
-@media(max-width:720px){.hd{grid-template-columns:8px 1fr;gap:6px}.tkid,.subj,.cel{grid-column:2}.subj{padding:0}.cel{justify-content:flex-start;padding:2px 0}.cel.rtiempo{align-items:flex-start}.rz{display:none}}
+@media(max-width:900px){.project-id-top{grid-template-columns:minmax(94px,.34fr) minmax(130px,1fr) 86px}.project-id-layout .shot-img{max-width:86px}}
+@media(max-width:720px){.hd,.hd.project-id-layout{grid-template-columns:8px 1fr;gap:6px}.tkid,.subj,.cel,.project-id-cell{grid-column:2}.subj{padding:0}.cel{justify-content:flex-start;padding:2px 0}.cel.rtiempo{align-items:flex-start}.rz{display:none}.project-id-cell{padding:0}.project-id-top{grid-template-columns:1fr 88px}.project-id-layout .tkid{grid-column:1/-1}.project-select-wrap{grid-template-columns:1fr}.project-save{grid-column:1}.project-id-cell>.subj{padding-top:7px}}
 
 /* ------- Misión MADRE → HIJAS (FLT-990 b3) ------- */
 /* Un grupo no ensucia el tablero: la madre se pinta como una fila normal, con una

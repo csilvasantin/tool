@@ -24,7 +24,7 @@
 (function () {
   "use strict";
 
-  var CFG = { worker: "", treeId: "taskTree", lsKey: "yk_mission", columnMode:"machine" };
+  var CFG = { worker: "", treeId: "taskTree", lsKey: "yk_mission", columnMode:"machine", projectIdLayout:false };
   var SELECTED = "";
   // CAJÓN DE DETALLE (Carlos, 2026-07-21): al seleccionar una misión, el raíl
   // derecho deja de ser solo el árbol abc y pasa a ser la ficha completa —
@@ -229,6 +229,7 @@
     if (opts.worker) CFG.worker = opts.worker;
     if (opts.treeId) CFG.treeId = opts.treeId;
     if (opts.columnMode) CFG.columnMode = opts.columnMode;
+    CFG.projectIdLayout = !!opts.projectIdLayout;
     try { SELECTED = localStorage.getItem(CFG.lsKey) || ""; } catch (e) {}
   }
   function selected() { return SELECTED; }
@@ -312,6 +313,7 @@
   // asunto. La búsqueda por palabras se queda SOLO como respaldo para las
   // misiones viejas, que nadie ha asignado todavía.
   var PROY_WEB = {};   // id del censo → web, lo rellena YkMisiones.setProyectos
+  var PROY_LIST = [];  // censo completo para el selector de proyecto en /misiones
   function proyectoDe(t) {
     var pid = t && (t.project || "");
     if (pid && PROY_WEB[String(pid).toLowerCase()]) return PROY_WEB[String(pid).toLowerCase()];
@@ -322,11 +324,23 @@
   // Censo de proyectos (GET /projects) para resolver web y nombre sin adivinar.
   function setProyectos(list) {
     PROY_WEB = {};
+    PROY_LIST = (list || []).filter(function (p) { return p && p.id; }).map(function (p) {
+      return { id: String(p.id), name: String(p.name || p.id), web: String(p.web || "") };
+    });
     (list || []).forEach(function (p) {
       if (!p || !p.id || !p.web) return;
       var w = String(p.web).trim();
       PROY_WEB[String(p.id).toLowerCase()] = /^https?:\/\//i.test(w) ? w : "https://" + w;
     });
+  }
+  function missionSourceLabel(t) {
+    return ({ "agent-iot": "🖥 Pantalla DOOH", monitor: "🌐 Servicio", service: "🌐 Servicio", agent: "🤖 Agente", agente: "🤖 Agente", presence: "🖥 Máquina", machine: "🖥 Máquina", fleet: "🎯 Misión" }[t && t.source] || "👤 Manual");
+  }
+  function projectOptionsHtml(t) {
+    var current = String((t && t.project) || "").toLowerCase();
+    return '<option value="">Sin proyecto</option>' + PROY_LIST.map(function (p) {
+      return '<option value="' + esc(p.id) + '"' + (current === p.id.toLowerCase() ? " selected" : "") + '>' + esc(p.name) + " · " + esc(p.id) + "</option>";
+    }).join("");
   }
   // ENLACE AL TRABAJO REALIZADO (Carlos, 2026-07-23): la miniatura de la misión no
   // es un adorno ni sólo un lightbox — es un ENLACE al trabajo ENTREGADO. Resuelve
@@ -564,6 +578,18 @@
     var list=chips.map(function(chip,index){return chip.html+(index===activeIndex?progress:"");}).join("");if(activeIndex<0)list+=progress;
     return '<span class="abc-tasks" aria-label="Tareas A, B y C"><span class="abc-list">'+list+"</span></span>";
   }
+  function missionPreviewHtml(t, proof, live, liveFresca) {
+    var p = proyectoDe(t);
+    var work = workUrlOf(t);
+    var inner = proof
+      ? '<img class="shot-img proof" loading="lazy" src="' + esc(proof) + '" data-proof="' + esc(proof) + '" alt="Pantallazo final" title="' + (work ? "pantallazo del trabajo realizado · clic para abrir el trabajo" : "pantallazo del trabajo realizado") + '">'
+      : liveFresca
+        ? '<img class="shot-img working" loading="lazy" src="' + esc(live) + '" data-proof="' + esc(live) + '" alt="En curso" title="🔴 en vivo · el CLI está trabajando ahora">'
+        : (p ? '<img class="shot-img" loading="lazy" src="' + esc(shotUrl(p, 240)) + '" data-shot="' + esc(p) + '" alt="Previo del proyecto" title="ampliar · ' + esc(p) + '">' : '<img class="shot-img shot-logo" loading="lazy" src="/img/admiranext-logo.svg" alt="AdmiraNeXT" title="AdmiraNeXT · sin proyecto asignado">');
+    return work
+      ? '<a class="shot-link" href="' + esc(work) + '" target="_blank" rel="noopener" title="Abrir el trabajo: ' + esc(work) + '">' + inner + "</a>"
+      : inner;
+  }
   function rowHtml(t) {
     MIS_CACHE[t.id] = t;   // cajón de detalle: la ficha ya viene con la lista, sin fetch extra
     var est = estadoDe(t);
@@ -586,29 +612,26 @@
     var rt = String(t.agent_runtime || "");
     var host = t.agent_host === "cli" ? "CLI" : t.agent_host === "app" ? "Desktop" : "";
     var surface = [rt, host].filter(Boolean).join(" · ");
+    var sourceLabel = missionSourceLabel(t);
+    var idHtml = '<div class="tkid" title="Referencia interna: ' + esc(t.id) + '">' + esc(visibleId(t)) +
+      (CFG.projectIdLayout ? "" : '<span class="st">' + esc(sourceLabel) + "</span>") +
+      (pm.flag ? '<span class="prioflag' + (esPrio ? " abs" : "") + '">' + (esPrio ? "⚡ " : "") + esc(pm.flag) + "</span>" : "") + "</div>";
+    var shotHtml = '<div class="cel shot">' + missionPreviewHtml(t, proof, live, liveFresca) + "</div>";
+    var subjectHtml = '<div class="subj"><div class="t">' + esc(pm.limpio) + '</div><div class="m">' +
+      (CFG.projectIdLayout ? '<span class="mission-source" title="Origen de esta misión">Origen · ' + esc(sourceLabel) + "</span>" : "") +
+      '<span class="scr">' + esc(String(t.screen || "").replace(/^(svc|maq|agt|service|machine|agent):/, "").replace(/^https?:\/\/(www\.)?/, "")) + "</span>" +
+      (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span>" +
+      (+t.img_count > 0 ? '<span class="adjn" title="' + (+t.img_count) + ' imagen(es) adjunta(s) — ábrela para verlas">📎 ' + (+t.img_count) + "</span>" : "") +
+      "</div></div>";
+    var projectIdHtml = CFG.projectIdLayout
+      ? '<div class="project-id-cell">' + rz("id", "r") + '<div class="project-id-top">' + idHtml +
+          '<label class="project-select-wrap"><span>Proyecto</span><select class="project-id-select" data-mission="' + esc(t.id) + '" aria-label="Proyecto de ' + esc(visibleId(t)) + '">' + projectOptionsHtml(t) + '</select><i class="project-save" aria-live="polite"></i></label>' +
+          shotHtml + "</div>" + subjectHtml + "</div>"
+      : idHtml + shotHtml + subjectHtml.replace('<div class="subj">', '<div class="subj">' + rz("id", "r"));
     return '<div class="tk ' + (t.status === "open" ? "open" : "") + " " + (t.id === SELECTED ? "sel" : "") + '" data-id="' + esc(t.id) + '">' +
-      '<div class="hd">' +
+      '<div class="hd' + (CFG.projectIdLayout ? " project-id-layout" : "") + '">' +
         '<div class="pri ' + esc(t.priority) + '"></div>' +
-        '<div class="tkid" title="Referencia interna: ' + esc(t.id) + '">' + esc(visibleId(t)) + '<span class="st">' + ({ "agent-iot": "🖥 Pantalla DOOH", monitor: "🌐 Servicio", service: "🌐 Servicio", agent: "🤖 Agente", agente: "🤖 Agente", presence: "🖥 Máquina", machine: "🖥 Máquina", fleet: "🎯 Misión" }[t.source] || "👤 Manual") + "</span>" +
-          (pm.flag ? '<span class="prioflag' + (esPrio ? " abs" : "") + '">' + (esPrio ? "⚡ " : "") + esc(pm.flag) + "</span>" : "") + "</div>" +
-        '<div class="cel shot">' + (function () { var p = proyectoDe(t);
-          // La miniatura es un ENLACE al trabajo realizado cuando se resuelve destino
-          // (informe/proyecto); si no, se queda como lightbox. (Carlos, 2026-07-23)
-          var work = workUrlOf(t);
-          var inner = proof
-            ? '<img class="shot-img proof" loading="lazy" src="' + esc(proof) + '" data-proof="' + esc(proof) + '" alt="Pantallazo final" title="' + (work ? "pantallazo del trabajo realizado · clic para abrir el trabajo" : "pantallazo del trabajo realizado") + '">'
-            : liveFresca
-              ? '<img class="shot-img working" loading="lazy" src="' + esc(live) + '" data-proof="' + esc(live) + '" alt="En curso" title="🔴 en vivo · el CLI está trabajando ahora">'
-              : (p ? '<img class="shot-img" loading="lazy" src="' + esc(shotUrl(p, 240)) + '" data-shot="' + esc(p) + '" alt="" title="ampliar · ' + esc(p) + '">' : '<img class="shot-img shot-logo" loading="lazy" src="/img/admiranext-logo.svg" alt="AdmiraNeXT" title="AdmiraNeXT · sin proyecto asignado">');
-          return work
-            ? '<a class="shot-link" href="' + esc(work) + '" target="_blank" rel="noopener" title="Abrir el trabajo: ' + esc(work) + '">' + inner + "</a>"
-            : inner; })() + "</div>" +
-        '<div class="subj">' + rz("id", "r") + '<div class="t">' + esc(pm.limpio) + '</div><div class="m"><span class="scr">' + esc(String(t.screen || "").replace(/^(svc|maq|agt|service|machine|agent):/, "").replace(/^https?:\/\/(www\.)?/, "")) + "</span>" +
-          (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span>" +
-          // 📎 la misión lleva fotos adjuntas (viven en el texto de sus eventos;
-          // el worker las cuenta en img_count). Avisa sin tener que abrir el ticket.
-          (+t.img_count > 0 ? '<span class="adjn" title="' + (+t.img_count) + ' imagen(es) adjunta(s) — ábrela para verlas">📎 ' + (+t.img_count) + "</span>" : "") +
-          "</div></div>" +
+        projectIdHtml +
         // Fecha + DURACIÓN: de asignada a finalizada (o transcurrido si sigue viva).
         // FECHA: creación (📅) arriba, finalización (🏁) debajo, y la duración (⏱).
         // Si la misión sigue viva, en el hueco del fin va «en curso» — nunca una hora
@@ -718,8 +741,27 @@
     if(!bindRows._clock) bindRows._clock=window.setInterval(function(){tickMissionClocks(document);},1000);
     (container || document).querySelectorAll(".tk").forEach(function (row) {
       row.addEventListener("click", function (e) {
-        if (e.target.closest(".tkopen") || e.target.closest(".abc-task") || e.target.closest(".rz") || e.target.closest(".shot-img")) return;
+        if (e.target.closest(".tkopen") || e.target.closest(".abc-task") || e.target.closest(".rz") || e.target.closest(".shot-img") || e.target.closest(".project-id-select")) return;
         selectMission(row.dataset.id);
+      });
+    });
+    (container || document).querySelectorAll(".project-id-select").forEach(function (select) {
+      select.addEventListener("click", function (e) { e.stopPropagation(); });
+      select.addEventListener("change", function (e) {
+        e.stopPropagation();
+        var old = String((MIS_CACHE[select.dataset.mission] && MIS_CACHE[select.dataset.mission].project) || "");
+        var slot = select.parentElement && select.parentElement.querySelector(".project-save");
+        select.disabled = true; if (slot) slot.textContent = "guardando…";
+        var opts = { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({mission:select.dataset.mission, project:select.value}) };
+        var req = window.ykFetch ? window.ykFetch("/projects/mission", opts) : window.fetch(CFG.worker + "/projects/mission", opts);
+        Promise.resolve(req).then(function (r) { return r.json().then(function (d) { if (!r.ok || !d.ok) throw new Error(d.error || ("HTTP " + r.status)); return d; }); })
+          .then(function (d) {
+            var cached = MIS_CACHE[select.dataset.mission]; if (cached) { cached.project = d.project || ""; cached.project_name = d.project_name || ""; }
+            if (slot) slot.textContent = "✓ guardado";
+            window.dispatchEvent(new CustomEvent("yk:mission-project", { detail:{ mission:select.dataset.mission, project:d.project || "" } }));
+          })
+          .catch(function (err) { select.value = old; if (slot) { slot.textContent = "✕ " + String((err && err.message) || err); slot.classList.add("err"); } })
+          .finally(function () { select.disabled = false; });
       });
     });
     if (SELECTED && document.querySelector('.tk[data-id="' + cssq(SELECTED) + '"]')) renderTaskTree(SELECTED);
