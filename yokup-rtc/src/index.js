@@ -1,6 +1,6 @@
 import puppeteer from "@cloudflare/puppeteer";
-import { resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
-import { baseAgentIdentity, parseAgentIdentity, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
+import { memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
+import { baseAgentIdentity, machineSuffix, parseAgentIdentity, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -3276,10 +3276,8 @@ var index_default = {
         const linkedAgent = await env.DB.prepare("SELECT 1 ok FROM project_members WHERE project_id=? AND kind='agent' AND lower(ref)=lower(?) LIMIT 1")
           .bind(project.id, identity.agent).first();
         if (!linkedAgent) return json({ ok: false, error: "el agente no está asociado al proyecto", code: "agent_not_assigned" }, 400);
-        await env.DB.prepare("INSERT OR IGNORE INTO project_members (project_id,kind,ref,added_at) VALUES (?,'machine',?,?)")
-          .bind(project.id, identity.machine, Date.now()).run();
         const assignment = await exactDecisionProjectAssignment(env, identity.agent, identity.machine, project.id);
-        if (!assignment) return json({ ok: false, error: "la unión agente + máquina no identifica un proyecto exacto", code: "exact_project_required" }, 400);
+        if (!assignment) return json({ ok: false, error: "el equipo físico del agente no está asociado al proyecto", code: "team_not_assigned" }, 400);
         const live = await env.DB.prepare("SELECT id,deadline FROM decisions WHERE lower(agent)=lower(?) AND status='pending' AND deadline>? ORDER BY created_at DESC LIMIT 1")
           .bind(identity.agent, Date.now()).first();
         if (live) return json({ ok: true, existing: true, decision_id: live.id, deadline: live.deadline, url: DECIDE_URL });
@@ -3320,10 +3318,34 @@ var index_default = {
         const p = idx.get((b && b.project) || "");
         if (!p) return json({ ok: false, error: "project no existe en el censo" }, 404);
         const kind = String((b && b.kind) || "").toLowerCase() === "agent" ? "agent" : "machine";
-        const ref = String((b && b.ref) || "").trim().slice(0, 80);
+        let ref = String((b && b.ref) || "").trim().slice(0, 80);
         if (!ref) return json({ ok: false, error: "ref requerido (id de máquina o de agente)" }, 400);
+        if (kind === "agent" && b && b.machine) {
+          const identity = resolveDecisionIdentity(ref,b && b.machine);
+          if (!identity.ok) return json({ ok: false, error: identity.error, code: "exact_identity_required" }, 400);
+          ref = identity.agent;
+          if (!b.remove) {
+            const teams = (await env.DB.prepare("SELECT ref FROM project_members WHERE kind='machine' AND project_id=?").bind(p.id).all()).results || [];
+            if (!teams.some((row) => memberRefMatches("machine", row.ref, identity.machine))) {
+              return json({ ok: false, error: "asigna primero el proyecto al equipo físico", code: "team_not_assigned" }, 400);
+            }
+          }
+        } else if (kind === "agent" && !(b && b.remove)) {
+          return json({ ok: false, error: "machine requerida para asociar un agente", code: "exact_identity_required" }, 400);
+        }
         if (b && b.remove) {
           await env.DB.prepare("DELETE FROM project_members WHERE project_id=? AND kind=? AND ref=?").bind(p.id, kind, ref).run();
+          if (kind === "machine") {
+            const removedSuffix = machineSuffix(ref);
+            if (removedSuffix) {
+              const agents = (await env.DB.prepare("SELECT ref FROM project_members WHERE project_id=? AND kind='agent'").bind(p.id).all()).results || [];
+              for (const row of agents) {
+                if (parseAgentIdentity(row.ref).suffix === removedSuffix) {
+                  await env.DB.prepare("DELETE FROM project_members WHERE project_id=? AND kind='agent' AND ref=?").bind(p.id, row.ref).run();
+                }
+              }
+            }
+          }
         } else {
           await env.DB.prepare("INSERT OR IGNORE INTO project_members (project_id,kind,ref,added_at) VALUES (?,?,?,?)")
             .bind(p.id, kind, ref, Date.now()).run();

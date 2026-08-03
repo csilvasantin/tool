@@ -124,12 +124,20 @@ test('POST /projects/decision abre tres mejoras para el agente físico conectado
   assert.match(source, /generateProjectImprovementOptions\(env, project, identity\)/);
   assert.match(source, /resolveDecisionIdentity\(b\.agent, b\.machine\)/);
   assert.match(source, /kind='agent' AND lower\(ref\)=lower\(\?\)/);
-  assert.match(source, /INSERT OR IGNORE INTO project_members \(project_id,kind,ref,added_at\) VALUES \(\?,'machine',\?,\?\)/);
+  assert.doesNotMatch(source, /INSERT OR IGNORE INTO project_members \(project_id,kind,ref,added_at\) VALUES \(\?,'machine',\?,\?\)/);
   assert.match(source, /exactDecisionProjectAssignment\(env, identity\.agent, identity\.machine, project\.id\)/);
   assert.match(source, /question: "\xBFQu\xE9 mejora ejecutar\xE1 " \+ identity\.agent/);
   assert.match(source, /surface: "dashboard"/);
   assert.match(source, /mission: "project-improvement:" \+ project\.id/);
   assert.match(source, /options: buildDecideDecisionOptions\(options\), recommended: 0, minutes: 3/);
+});
+
+test('POST /projects/assign exige equipo antes de añadir un agente y limpia su capa al retirarlo', () => {
+  assert.match(source, /resolveDecisionIdentity\(ref,\s*b && b\.machine\)/);
+  assert.match(source, /kind='machine' AND project_id=\?/);
+  assert.match(source, /memberRefMatches\("machine", row\.ref, identity\.machine\)/);
+  assert.match(source, /code: "team_not_assigned"/);
+  assert.match(source, /parseAgentIdentity\(row\.ref\)\.suffix === removedSuffix/);
 });
 
 test('la decisión de proyecto respeta el reloj vivo e identifica su salida', () => {

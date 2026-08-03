@@ -48,30 +48,31 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
 .ag .meta .mode{color:var(--accent)}
 .pulse .off{border:1px dashed var(--line2);border-radius:13px;padding:24px 18px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;line-height:1.7;grid-column:1/-1}
 
-/* MAPA PROYECTOS × AGENTES */
+/* MAPA PROYECTOS × EQUIPOS × AGENTES */
 .pa-shell{border:1px solid var(--line2);border-radius:15px;background:linear-gradient(145deg,rgba(13,28,40,.94),rgba(6,17,25,.94));padding:16px;box-shadow:0 18px 60px rgba(0,0,0,.22);overflow:hidden}
 .pa-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
 .pa-head p{color:var(--mut);font-size:12.5px;line-height:1.55;max-width:720px}.pa-head b{color:var(--ink)}
 .pa-refresh{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--brand);border:1px solid var(--line2);border-radius:8px;background:rgba(2,8,13,.5);padding:8px 10px;cursor:pointer;white-space:nowrap}
 .pa-refresh:hover,.pa-refresh:focus-visible{border-color:var(--brand);outline:none}.pa-refresh:disabled{opacity:.45;cursor:wait}
 .pa-msg{min-height:18px;margin:0 0 10px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--dim)}.pa-msg.ok{color:var(--good)}.pa-msg.err{color:var(--warn)}
-.pa-scroll{overflow:auto;padding:2px 2px 8px;overscroll-behavior:contain}.pa-map{position:relative;display:grid;grid-template-columns:minmax(270px,1fr) minmax(160px,.7fr) minmax(300px,1fr);gap:16px;min-width:800px;align-items:start}
+.pa-scroll{overflow:auto;padding:2px 2px 8px;overscroll-behavior:contain}.pa-map{position:relative;display:grid;grid-template-columns:repeat(3,minmax(270px,1fr));gap:16px;min-width:900px;align-items:start}
 .pa-links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:1}.pa-link{fill:none;stroke-width:2;opacity:.72;filter:drop-shadow(0 0 5px currentColor)}.pa-link-temp{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-dasharray:7 5;filter:drop-shadow(0 0 7px var(--accent))}
 .pa-col{position:relative;z-index:2}.pa-col-title{display:flex;align-items:center;gap:8px;margin:0 0 9px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}.pa-col-title::after{content:"";height:1px;background:var(--line);flex:1}
-.pa-list{display:grid;gap:9px}.pa-agent-node,.pa-project-node{--pc:var(--brand);border:1px solid var(--line);border-radius:12px;background:rgba(2,8,13,.76);padding:11px 12px;position:relative;transition:border-color .15s,box-shadow .15s,transform .15s}
-.pa-agent-node{padding-left:47px}.pa-agent-node.selected{border-color:var(--accent);box-shadow:0 0 0 1px rgba(255,216,102,.2),0 0 24px rgba(255,216,102,.12)}
+.pa-list{display:grid;gap:9px}.pa-agent-node,.pa-team-node,.pa-project-node{--pc:var(--brand);border:1px solid var(--line);border-radius:12px;background:rgba(2,8,13,.76);padding:11px 12px;position:relative;transition:border-color .15s,box-shadow .15s,transform .15s}
+.pa-team-node{padding-left:47px}.pa-team-node.selected{border-color:var(--accent);box-shadow:0 0 0 1px rgba(255,216,102,.2),0 0 24px rgba(255,216,102,.12)}
 .pa-project-node{padding-right:47px}.pa-project-node::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--pc);box-shadow:0 0 14px var(--pc)}.pa-project-node.archivado{opacity:.55}.pa-project-node.drop{border-color:var(--good);box-shadow:0 0 0 2px rgba(136,255,170,.18),0 0 30px rgba(136,255,170,.14);transform:translateX(3px)}
 .pa-node-top{display:flex;gap:9px;align-items:center}.pa-avatar,.pa-folder{width:34px;height:34px;border:1px solid var(--line2);border-radius:9px;display:grid;place-items:center;background:rgba(120,243,255,.07);font:700 10px/1 var(--mono);color:var(--brand);flex:none}.pa-folder{font-size:17px;color:inherit;background:color-mix(in srgb,var(--pc) 9%,transparent);border-color:color-mix(in srgb,var(--pc) 45%,transparent)}
 .pa-name{min-width:0;flex:1}.pa-name b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pa-name span{display:block;font-family:var(--mono);font-size:8.8px;letter-spacing:.04em;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 .pa-state{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);border-radius:999px;padding:3px 7px;color:var(--mut)}.pa-state.activo{color:var(--good);border-color:rgba(136,255,170,.28)}.pa-state.pausado{color:var(--accent);border-color:rgba(255,216,102,.28)}
 .pa-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;font-family:var(--mono);font-size:8.8px;color:var(--dim)}.pa-meta a{color:var(--brand);text-decoration:none}.pa-meta a:hover{text-decoration:underline}.pa-live{color:var(--good)}
-.pa-port{position:absolute;top:50%;transform:translateY(-50%);width:30px;height:38px;border:1px solid var(--line2);border-radius:9px;background:#0b1a24;color:var(--brand);display:grid;place-items:center;font-size:18px;cursor:grab;touch-action:none}.pa-port:active{cursor:grabbing}.pa-port:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.pa-agent-node .pa-port{left:8px}.pa-project-node .pa-port{right:8px;cursor:default;color:var(--good)}
+.pa-port{position:absolute;top:50%;transform:translateY(-50%);width:30px;height:38px;border:1px solid var(--line2);border-radius:9px;background:#0b1a24;color:var(--brand);display:grid;place-items:center;font-size:18px;cursor:grab;touch-action:none}.pa-port:active{cursor:grabbing}.pa-port:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.pa-team-node .pa-port{left:8px}.pa-project-node .pa-port{right:8px;cursor:default;color:var(--good)}
 .pa-lane{position:relative;z-index:0;min-height:100%;display:grid;place-items:center;color:var(--dim);font:9px/1.55 var(--mono);letter-spacing:.08em;text-transform:uppercase;text-align:center;padding-top:32px}.pa-lane b{color:var(--accent);display:block;font-size:18px;margin-bottom:5px}.pa-lane span{max-width:130px}
 .pa-assigned{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px;min-height:22px}.pa-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:999px;padding:2px 3px 2px 7px;font:9px/1.2 var(--mono);color:var(--mut);background:rgba(120,243,255,.04)}.pa-chip.legacy{border-style:dashed;color:var(--accent)}.pa-chip button{width:17px;height:17px;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}.pa-chip button:hover{background:rgba(255,136,102,.16);color:var(--warn)}.pa-empty{font:10px/1.5 var(--mono);color:var(--warn)}
 .pa-decisions{display:grid;gap:5px;margin-top:9px}.pa-decision{width:100%;border:1px solid rgba(255,216,102,.34);border-radius:7px;background:rgba(255,216,102,.06);color:var(--accent);font:800 8.8px/1.25 var(--mono);letter-spacing:.04em;text-align:left;padding:7px 8px;cursor:pointer}.pa-decision:hover,.pa-decision:focus-visible{border-color:var(--accent);background:rgba(255,216,102,.12);outline:none}.pa-decision:disabled{opacity:.5;cursor:wait}
+.pa-team-agents{margin-top:8px;font:9px/1.45 var(--mono);color:var(--mut)}.pa-actions{display:grid;gap:6px;margin-top:9px}.pa-agent-project{border:1px solid var(--line);border-radius:8px;padding:6px;background:rgba(120,243,255,.035)}.pa-agent-project>span{display:block;font:800 8.5px/1.2 var(--mono);color:var(--mut);margin:0 2px 5px}.pa-action-row{display:flex;gap:5px}.pa-action-row .pa-decision{flex:1}.pa-mini{border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--mut);font:800 9px/1 var(--mono);padding:6px 8px;cursor:pointer}.pa-mini:hover,.pa-mini:focus-visible{color:var(--warn);border-color:var(--warn);outline:none}.pa-pick{width:100%;border:1px dashed rgba(136,255,170,.38);border-radius:7px;background:rgba(136,255,170,.05);color:var(--good);font:800 8.8px/1.25 var(--mono);text-align:left;padding:7px 8px;cursor:pointer}.pa-pick:hover,.pa-pick:focus-visible{border-color:var(--good);outline:none}
 .pa-target{margin-top:8px;width:100%;border:1px dashed var(--line2);border-radius:7px;background:transparent;color:var(--mut);font:9px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:7px;cursor:pointer}.pa-target:hover,.pa-target:focus-visible{color:var(--good);border-color:var(--good);outline:none}.pa-target:disabled{opacity:.3;cursor:not-allowed}
 .pa-loading{grid-column:1/-1;border:1px dashed var(--line);border-radius:11px;padding:24px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:10.5px}
-@media(max-width:620px){.pa-head{display:block}.pa-refresh{margin-top:10px}.pa-shell{padding:12px}.pa-scroll{margin-right:-12px}.pa-map{grid-template-columns:260px 130px 290px;gap:12px;min-width:720px}}
+@media(max-width:620px){.pa-head{display:block}.pa-refresh{margin-top:10px}.pa-shell{padding:12px}.pa-scroll{margin-right:-12px}.pa-map{grid-template-columns:repeat(3,280px);gap:12px;min-width:864px}}
 
 /* XPERIENCIAS EN VIVO — marcos cuadráticos con feed real (doctrina: nada de capturas) */
 .xp{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -97,20 +98,11 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
 </head>
 <body data-yk-title="DASHBOARD" data-yk-zone="app">
 <div class="wrap">
-  <div class="eyebrow">Yokup · Xpace OS</div>
-  <h1>Plataforma agéntica de gestión de Xperiencias</h1>
-  <p class="sub">Agentes que <b>ven cada Xpace y actúan solos</b>: vigilan la emisión, abren la misión, la descomponen en tareas y reportan — el humano entra solo donde es irreducible.</p>
-
-  <details class="dash-section" id="pulseSection">
-    <summary class="shd">Pulso de la flota <span class="tot" id="pulseN">—</span></summary>
-    <div class="dash-section-body pulse" id="pulse"><div class="off">Tomando el pulso de la flota…</div></div>
-  </details>
-
-  <details class="dash-section" id="projectAgentSection">
+  <details class="dash-section" id="projectAgentSection" open>
     <summary class="shd">Proyectos y agentes <span class="tot" id="projectAgentN">—</span></summary>
-    <section class="dash-section-body pa-shell" aria-label="Asociación de agentes a proyectos">
+    <section class="dash-section-body pa-shell" aria-label="Asociación de proyectos, equipos físicos y agentes">
     <div class="pa-head">
-      <p>Arrastra la <b>flecha de un agente físico</b> hasta un proyecto. Por ejemplo: <b>TrinityMBP14 → Yokup.com</b>. En móvil, toca la flecha, desplázate y pulsa «Conectar aquí».</p>
+      <p>Primero une un <b>proyecto con un equipo físico</b>. Después elige cuáles de los agentes que corren en ese equipo ejecutarán el proyecto y podrán abrir su Ventana de Decisión.</p>
       <button class="pa-refresh" id="projectAgentRefresh" type="button">↻ actualizar</button>
     </div>
     <div class="pa-msg" id="projectAgentMsg" role="status" aria-live="polite"></div>
@@ -118,11 +110,20 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
       <div class="pa-map" id="projectAgentMap">
         <svg class="pa-links" id="projectAgentSvg" aria-hidden="true"><defs><marker id="paArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"></path></marker></defs><g id="projectAgentLinks"></g><path class="pa-link-temp" id="projectAgentTemp" marker-end="url(#paArrow)"></path></svg>
         <div class="pa-col"><div class="pa-col-title">Proyectos</div><div class="pa-list" id="projectAgentProjects"><div class="pa-loading">Cargando proyectos…</div></div></div>
-        <div class="pa-lane"><span><b>←</b>Arrastra la flecha del agente y suéltala sobre un proyecto</span></div>
-        <div class="pa-col"><div class="pa-col-title">Agentes · persona + máquina</div><div class="pa-list" id="projectAgentAgents"><div class="pa-loading">Tomando el pulso…</div></div></div>
+        <div class="pa-col"><div class="pa-col-title">Equipos físicos</div><div class="pa-list" id="projectAgentTeams"><div class="pa-loading">Tomando el pulso…</div></div></div>
+        <div class="pa-col"><div class="pa-col-title">Agentes del equipo</div><div class="pa-list" id="projectAgentAgents"><div class="pa-loading">Tomando el pulso…</div></div></div>
       </div>
     </div>
     </section>
+  </details>
+
+  <div class="eyebrow">Yokup · Xpace OS</div>
+  <h1>Plataforma agéntica de gestión de Xperiencias</h1>
+  <p class="sub">Agentes que <b>ven cada Xpace y actúan solos</b>: vigilan la emisión, abren la misión, la descomponen en tareas y reportan — el humano entra solo donde es irreducible.</p>
+
+  <details class="dash-section" id="pulseSection">
+    <summary class="shd">Pulso de la flota <span class="tot" id="pulseN">—</span></summary>
+    <div class="dash-section-body pulse" id="pulse"><div class="off">Tomando el pulso de la flota…</div></div>
   </details>
 
   <details class="dash-section" id="liveExperiencesSection">
@@ -167,7 +168,7 @@ let PROJECT_ROSTER=[];
 let PROJECT_BUSY="";
 let PROJECT_DECISION_BUSY="";
 let LINK_DRAG=null;
-let LINK_CLICK_AGENT="";
+let LINK_CLICK_TEAM="";
 const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
 function agoS(s){ if(!s)return "—"; let d=Math.round(Date.now()/1000-s); if(d<60)return "hace "+d+"s"; if(d<3600)return "hace "+Math.round(d/60)+"m"; return "hace "+Math.round(d/3600)+"h"; }
 async function pulse(renderMap=true){
@@ -178,7 +179,7 @@ async function pulse(renderMap=true){
   const n=document.getElementById("pulseN"); if(n) n.textContent=fresh.length+" agente"+(fresh.length===1?"":"s")+" latiendo";
   const box=document.getElementById("pulse");
   PROJECT_ROSTER=paPhysicalAgents(fresh);
-  if(renderMap&&PROJECT_ROWS.length)paRender();
+  if(renderMap)paRender();
   if(!fresh.length){ box.innerHTML='<div class="off">Ahora mismo ningún agente late (&lt;10 min). La flota respira en ciclos — vuelve a mirar en un rato.</div>'; return; }
   box.innerHTML=fresh.map(p=>`<div class="ag">
     <div class="top"><span class="dot"></span><b>${esc(p.persona)}</b><span class="rt">${esc(p.runtime||"")}</span></div>
@@ -207,10 +208,28 @@ function paPhysicalAgents(rows){
   (rows||[]).forEach(p=>{
     const id=window.ykAgentIdentity?ykAgentIdentity.display(p.persona,p.machine):String(p.persona||"")+String(p.machine||"");
     if(!id||/SINMAQ$/.test(id))return;
-    const agent={id,name:id,persona:p.persona||"",machine:p.machine||"",runtime:p.runtime||"",focus:p.focus||"",updated:p.updated||0};
+    const team=paTeamKey(p.machine),teamMachine=window.ykAgentIdentity&&ykAgentIdentity.canonicalMachine?ykAgentIdentity.canonicalMachine(id):(p.machine||"");
+    const agent={id,name:id,persona:p.persona||"",machine:p.machine||"",team,teamMachine:teamMachine||p.machine||"",runtime:p.runtime||"",focus:p.focus||"",updated:p.updated||0};
     const previous=byId.get(id); if(!previous||agent.updated>previous.updated)byId.set(id,agent);
   });
   return [...byId.values()].sort((a,b)=>(b.updated||0)-(a.updated||0)||a.id.localeCompare(b.id,"es"));
+}
+function paTeamKey(machine){
+  const suffix=window.ykAgentIdentity&&ykAgentIdentity.suffix?ykAgentIdentity.suffix(machine):"";
+  return suffix||String(machine||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"");
+}
+function paTeams(){
+  const teams=new Map();
+  PROJECT_ROSTER.forEach(agent=>{
+    if(!agent.team)return;
+    if(!teams.has(agent.team))teams.set(agent.team,{key:agent.team,machine:agent.teamMachine||agent.machine,agents:[]});
+    teams.get(agent.team).agents.push(agent);
+  });
+  return [...teams.values()].sort((a,b)=>a.machine.localeCompare(b.machine,"es"));
+}
+function paProjectHasTeam(project,team){
+  const key=typeof team==="string"?team:team&&team.key;
+  return !!key&&(project.machines||[]).some(machine=>paTeamKey(machine)===key);
 }
 async function paJson(path,options){
   const r=await fetch(PROJECTS_API+path,{...(options||{}),signal:AbortSignal.timeout(15000)});
@@ -219,32 +238,43 @@ async function paJson(path,options){
   return d;
 }
 function paRender(){
-  const agentsBox=pa("projectAgentAgents"),projectsBox=pa("projectAgentProjects");
+  const agentsBox=pa("projectAgentAgents"),teamsBox=pa("projectAgentTeams"),projectsBox=pa("projectAgentProjects"),teams=paTeams();
   const byId=new Map(PROJECT_ROSTER.map(a=>[a.id,a]));
   const active=PROJECT_ROWS.filter(p=>p.status!=="archivado").length;
-  const links=PROJECT_ROWS.reduce((n,p)=>n+(Array.isArray(p.agents)?p.agents.filter(id=>byId.has(id)).length:0),0);
-  pa("projectAgentN").textContent=active+" proyectos · "+PROJECT_ROSTER.length+" agentes · "+links+" uniones";
+  const links=PROJECT_ROWS.reduce((n,p)=>n+(p.machines||[]).length+(p.agents||[]).length,0);
+  pa("projectAgentN").textContent=active+" proyectos · "+teams.length+" equipos · "+PROJECT_ROSTER.length+" agentes · "+links+" uniones";
   agentsBox.innerHTML=PROJECT_ROSTER.length?PROJECT_ROSTER.map(agent=>{
-    const selected=LINK_CLICK_AGENT===agent.id;
-    const connected=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&(project.agents||[]).includes(agent.id));
-    const decisions=connected.length?'<div class="pa-decisions">'+connected.map(project=>'<button type="button" class="pa-decision" data-pa-decision="'+esc(project.id)+'" data-pa-decision-agent="'+esc(agent.id)+'"'+(PROJECT_DECISION_BUSY?' disabled':'')+'>⏳ Ventana de Decisión · '+esc(project.name||project.id)+'</button>').join("")+'</div>':'';
-    return '<article class="pa-agent-node'+(selected?' selected':'')+'" data-agent-node="'+esc(agent.id)+'"><div class="pa-node-top"><div class="pa-avatar">'+esc(paInitials(agent))+'</div><div class="pa-name"><b>'+esc(agent.id)+'</b><span>'+esc(agent.runtime||"agente")+' · '+esc(agent.machine)+'</span></div></div><div class="pa-meta"><span class="pa-live">● latiendo</span><span>'+agoS(agent.updated)+'</span></div>'+decisions+'<button type="button" class="pa-port" data-link-agent="'+esc(agent.id)+'" aria-label="Arrastrar '+esc(agent.id)+' hacia un proyecto" title="Arrastra esta flecha hasta un proyecto">←</button></article>';
+    const eligible=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasTeam(project,agent.team));
+    const actions=eligible.length?eligible.map(project=>{
+      const connected=paProjectHasTeam(project,agent.team)&&(project.agents||[]).includes(agent.id);
+      if(!connected)return '<button type="button" class="pa-pick" data-pa-agent-assign="'+esc(project.id)+'" data-pa-agent="'+esc(agent.id)+'">＋ Ejecutar · '+esc(project.name||project.id)+'</button>';
+      return '<div class="pa-agent-project"><span>'+esc(project.name||project.id)+'</span><div class="pa-action-row"><button type="button" class="pa-decision" data-pa-decision="'+esc(project.id)+'" data-pa-decision-agent="'+esc(agent.id)+'"'+(PROJECT_DECISION_BUSY?' disabled':'')+'>⏳ Ventana de Decisión</button><button type="button" class="pa-mini" data-pa-agent-remove="'+esc(agent.id)+'" data-project="'+esc(project.id)+'" aria-label="Retirar '+esc(agent.id)+'">×</button></div></div>';
+    }).join(""):'<span class="pa-empty">Asigna primero un proyecto a '+esc(agent.teamMachine||agent.machine)+'</span>';
+    return '<article class="pa-agent-node" data-agent-node="'+esc(agent.id)+'"><div class="pa-node-top"><div class="pa-avatar">'+esc(paInitials(agent))+'</div><div class="pa-name"><b>'+esc(agent.id)+'</b><span>'+esc(agent.runtime||"agente")+' · '+esc(agent.teamMachine||agent.machine)+'</span></div></div><div class="pa-meta"><span class="pa-live">● latiendo</span><span>'+agoS(agent.updated)+'</span></div><div class="pa-actions">'+actions+'</div></article>';
   }).join(""):'<div class="pa-loading">No hay agentes con identidad física latiendo.</div>';
+  teamsBox.innerHTML=teams.length?teams.map(team=>{
+    const selected=LINK_CLICK_TEAM===team.machine,projects=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasTeam(project,team));
+    const chips=projects.length?projects.map(project=>'<span class="pa-chip">'+esc(project.name||project.id)+'</span>').join(""):'<span class="pa-empty">Sin proyectos asociados</span>';
+    return '<article class="pa-team-node'+(selected?' selected':'')+'" data-team-key="'+esc(team.key)+'"><button type="button" class="pa-port" data-link-team="'+esc(team.machine)+'" aria-label="Arrastrar '+esc(team.machine)+' hacia un proyecto" title="Arrastra este equipo hasta un proyecto">←</button><div class="pa-node-top"><div class="pa-avatar">▣</div><div class="pa-name"><b>'+esc(team.machine)+'</b><span>'+team.agents.length+' agente'+(team.agents.length===1?'':'s')+' latiendo</span></div></div><div class="pa-team-agents">'+team.agents.map(agent=>esc(agent.id)).join(' · ')+'</div><div class="pa-assigned">'+chips+'</div></article>';
+  }).join(""):'<div class="pa-loading">No hay equipos con agentes latiendo.</div>';
   if(!PROJECT_ROWS.length){projectsBox.innerHTML='<div class="pa-loading">No hay proyectos dados de alta todavía.</div>';paDrawLinks();return;}
   projectsBox.innerHTML=PROJECT_ROWS.map(project=>{
-    const assigned=Array.isArray(project.agents)?project.agents:[];
+    const assigned=Array.isArray(project.agents)?project.agents:[],assignedTeams=Array.isArray(project.machines)?project.machines:[];
     const archived=project.status==="archivado";
     const web=paWeb(project.web),busy=PROJECT_BUSY.startsWith(project.id+"|");
-    const chips=assigned.length?assigned.map(ref=>'<span class="pa-chip'+(byId.has(ref)?'':' legacy')+'" title="'+esc(byId.has(ref)?'Conexión visible':'Referencia histórica; el agente no está latiendo ahora')+'">'+esc(ref)+'<button type="button" data-pa-remove="'+esc(ref)+'" data-project="'+esc(project.id)+'" aria-label="Quitar '+esc(ref)+' de '+esc(project.name||project.id)+'"'+(busy?' disabled':'')+'>×</button></span>').join(""):'<span class="pa-empty">Sin agentes asociados</span>';
-    return '<article class="pa-project-node '+esc(project.status||"activo")+'" data-project-node="'+esc(project.id)+'" style="--pc:'+paColor(project.color)+'"><span class="pa-port" data-project-port="'+esc(project.id)+'">◆</span><div class="pa-node-top"><div class="pa-folder">📁</div><div class="pa-name"><b>'+esc(project.name||project.id)+'</b><span>'+(web?esc(new URL(web).hostname):esc(project.id))+'</span></div><span class="pa-state '+esc(project.status||"activo")+'">'+esc(project.status||"activo")+'</span></div><div class="pa-meta"><span>'+assigned.length+' agentes</span><span>'+(project.missions||0)+' en curso</span>'+(web?'<a href="'+esc(web)+'" target="_blank" rel="noopener">abrir ↗</a>':'')+'</div><div class="pa-assigned">'+chips+'</div><button class="pa-target" type="button" data-pa-target="'+esc(project.id)+'" '+((archived||!LINK_CLICK_AGENT||busy)?'disabled':'')+'>Conectar '+esc(LINK_CLICK_AGENT||'agente seleccionado')+' aquí</button></article>';
+    const teamChips=assignedTeams.length?assignedTeams.map(ref=>'<span class="pa-chip">▣ '+esc(ref)+'<button type="button" data-pa-remove-team="'+esc(ref)+'" data-project="'+esc(project.id)+'" aria-label="Quitar '+esc(ref)+' de '+esc(project.name||project.id)+'"'+(busy?' disabled':'')+'>×</button></span>').join(""):'<span class="pa-empty">Sin equipos asociados</span>';
+    const agentChips=assigned.length?assigned.map(ref=>{const row=byId.get(ref),visible=row&&paProjectHasTeam(project,row.team);return '<span class="pa-chip'+(visible?'':' legacy')+'" title="'+esc(visible?'Agente elegido dentro de su equipo':'Referencia sin equipo vivo asociado')+'">👤 '+esc(ref)+(row?'<button type="button" data-pa-agent-remove="'+esc(ref)+'" data-project="'+esc(project.id)+'" aria-label="Quitar '+esc(ref)+'"'+(busy?' disabled':'')+'>×</button>':'')+'</span>';}).join(""):'<span class="pa-empty">Sin agentes elegidos</span>';
+    return '<article class="pa-project-node '+esc(project.status||"activo")+'" data-project-node="'+esc(project.id)+'" style="--pc:'+paColor(project.color)+'"><span class="pa-port" data-project-port="'+esc(project.id)+'">◆</span><div class="pa-node-top"><div class="pa-folder">📁</div><div class="pa-name"><b>'+esc(project.name||project.id)+'</b><span>'+(web?esc(new URL(web).hostname):esc(project.id))+'</span></div><span class="pa-state '+esc(project.status||"activo")+'">'+esc(project.status||"activo")+'</span></div><div class="pa-meta"><span>'+assignedTeams.length+' equipos</span><span>'+assigned.length+' agentes</span><span>'+(project.missions||0)+' en curso</span>'+(web?'<a href="'+esc(web)+'" target="_blank" rel="noopener">abrir ↗</a>':'')+'</div><div class="pa-assigned">'+teamChips+'</div><div class="pa-assigned">'+agentChips+'</div><button class="pa-target" type="button" data-pa-target="'+esc(project.id)+'" '+((archived||!LINK_CLICK_TEAM||busy)?'disabled':'')+'>Conectar '+esc(LINK_CLICK_TEAM||'equipo seleccionado')+' aquí</button></article>';
   }).join("");
-  agentsBox.querySelectorAll("[data-link-agent]").forEach(port=>{
+  teamsBox.querySelectorAll("[data-link-team]").forEach(port=>{
     port.onpointerdown=paStartDrag;
-    port.onclick=e=>{if(e.detail===0){LINK_CLICK_AGENT=port.dataset.linkAgent;paRender();paMessage("Selecciona el proyecto de "+LINK_CLICK_AGENT);}};
+    port.onclick=e=>{if(e.detail===0){LINK_CLICK_TEAM=port.dataset.linkTeam;paRender();paMessage("Selecciona el proyecto de "+LINK_CLICK_TEAM);}};
   });
+  agentsBox.querySelectorAll("[data-pa-agent-assign]").forEach(button=>button.onclick=()=>paAssignAgent(button.dataset.paAgentAssign,button.dataset.paAgent,false));
   agentsBox.querySelectorAll("[data-pa-decision]").forEach(button=>button.onclick=()=>paOpenDecision(button.dataset.paDecision,button.dataset.paDecisionAgent));
-  projectsBox.querySelectorAll("[data-pa-target]").forEach(button=>button.onclick=()=>{if(LINK_CLICK_AGENT)paAssign(button.dataset.paTarget,LINK_CLICK_AGENT,false);});
-  projectsBox.querySelectorAll("[data-pa-remove]").forEach(button=>button.onclick=()=>paAssign(button.dataset.project,button.dataset.paRemove,true));
+  document.querySelectorAll("[data-pa-agent-remove]").forEach(button=>button.onclick=()=>paAssignAgent(button.dataset.project,button.dataset.paAgentRemove,true));
+  projectsBox.querySelectorAll("[data-pa-target]").forEach(button=>button.onclick=()=>{if(LINK_CLICK_TEAM)paAssignTeam(button.dataset.paTarget,LINK_CLICK_TEAM,false);});
+  projectsBox.querySelectorAll("[data-pa-remove-team]").forEach(button=>button.onclick=()=>paAssignTeam(button.dataset.project,button.dataset.paRemoveTeam,true));
   requestAnimationFrame(paDrawLinks);
 }
 function paPoint(element,mapRect){const r=element.getBoundingClientRect();return{x:r.left+r.width/2-mapRect.left,y:r.top+r.height/2-mapRect.top};}
@@ -252,8 +282,8 @@ function paCurve(a,b){const direction=b.x>=a.x?1:-1,bend=Math.max(45,Math.abs(b.
 function paDrawLinks(){
   const map=pa("projectAgentMap"),group=pa("projectAgentLinks"),temp=pa("projectAgentTemp"); if(!map||!group)return;
   const rect=map.getBoundingClientRect();
-  group.innerHTML=PROJECT_ROWS.flatMap(project=>(project.agents||[]).map(agent=>{
-    const source=map.querySelector('[data-link-agent="'+CSS.escape(agent)+'"]'),target=map.querySelector('[data-project-port="'+CSS.escape(project.id)+'"]');
+  group.innerHTML=PROJECT_ROWS.flatMap(project=>(project.machines||[]).map(machine=>{
+    const source=map.querySelector('[data-team-key="'+CSS.escape(paTeamKey(machine))+'"] [data-link-team]'),target=map.querySelector('[data-project-port="'+CSS.escape(project.id)+'"]');
     if(!source||!target)return'';
     return '<path class="pa-link" d="'+paCurve(paPoint(source,rect),paPoint(target,rect))+'" stroke="'+paColor(project.color)+'" marker-end="url(#paArrow)"></path>';
   })).join('');
@@ -262,7 +292,7 @@ function paDrawLinks(){
 function paStartDrag(event){
   if(PROJECT_BUSY)return; event.preventDefault();
   const map=pa("projectAgentMap"),rect=map.getBoundingClientRect(),source=paPoint(event.currentTarget,rect);
-  LINK_DRAG={agent:event.currentTarget.dataset.linkAgent,source,pointerId:event.pointerId,moved:false,startX:event.clientX,startY:event.clientY};
+  LINK_DRAG={team:event.currentTarget.dataset.linkTeam,source,pointerId:event.pointerId,moved:false,startX:event.clientX,startY:event.clientY};
   event.currentTarget.setPointerCapture(event.pointerId); pa("projectAgentTemp").setAttribute('d',paCurve(source,{x:event.clientX-rect.left,y:event.clientY-rect.top}));
 }
 function paMoveDrag(event){
@@ -276,20 +306,32 @@ function paMoveDrag(event){
 }
 function paEndDrag(event){
   if(!LINK_DRAG)return;
-  const hit=event.type==='pointercancel'?null:document.elementFromPoint(event.clientX,event.clientY),project=hit&&hit.closest&&hit.closest('[data-project-node]'),agent=LINK_DRAG.agent,tapped=!LINK_DRAG.moved&&event.type!=='pointercancel';
+  const hit=event.type==='pointercancel'?null:document.elementFromPoint(event.clientX,event.clientY),project=hit&&hit.closest&&hit.closest('[data-project-node]'),team=LINK_DRAG.team,tapped=!LINK_DRAG.moved&&event.type!=='pointercancel';
   document.querySelectorAll('[data-project-node]').forEach(node=>node.classList.remove('drop')); LINK_DRAG=null; pa("projectAgentTemp").setAttribute('d','');
-  if(project&&project.querySelector('.pa-state').textContent!=='archivado')paAssign(project.dataset.projectNode,agent,false);
-  else if(tapped){LINK_CLICK_AGENT=agent;paRender();paMessage(agent+' seleccionado · desplázate hasta el proyecto y pulsa «Conectar aquí»');}
+  if(project&&project.querySelector('.pa-state').textContent!=='archivado')paAssignTeam(project.dataset.projectNode,team,false);
+  else if(tapped){LINK_CLICK_TEAM=team;paRender();paMessage(team+' seleccionado · desplázate hasta el proyecto y pulsa «Conectar aquí»');}
 }
-async function paAssign(project,agent,remove){
+async function paAssignTeam(project,team,remove){
   if(PROJECT_BUSY)return;
-  PROJECT_BUSY=project+"|"+agent; paRender(); paMessage(remove?"Quitando agente…":"Asociando agente…");
+  PROJECT_BUSY=project+"|team|"+team; paRender(); paMessage(remove?"Quitando equipo…":"Asociando equipo…");
   try{
-    const d=await paJson("/projects/assign",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({project,kind:"agent",ref:agent,remove:!!remove})});
+    const d=await paJson("/projects/assign",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({project,kind:"machine",ref:team,remove:!!remove})});
     if(d.project) PROJECT_ROWS=PROJECT_ROWS.map(row=>row.id===d.project.id?d.project:row);
     else await paLoad();
-    LINK_CLICK_AGENT="";
-    paMessage(remove?"✓ agente retirado del proyecto":"✓ agente asociado al proyecto","ok");
+    LINK_CLICK_TEAM="";
+    paMessage(remove?"✓ equipo y sus agentes retirados del proyecto":"✓ equipo asociado · elige ahora sus agentes","ok");
+  }catch(e){paMessage("✗ "+(e&&e.message||e),"err");}
+  finally{PROJECT_BUSY="";paRender();}
+}
+async function paAssignAgent(project,agent,remove){
+  if(PROJECT_BUSY)return;
+  const row=PROJECT_ROSTER.find(item=>item.id===agent);
+  if(!row){paMessage("El agente ya no está latiendo en su equipo","err");return;}
+  PROJECT_BUSY=project+"|agent|"+agent;paRender();paMessage(remove?"Retirando agente…":"Eligiendo agente…");
+  try{
+    const d=await paJson("/projects/assign",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({project,kind:"agent",ref:agent,remove:!!remove,machine:row.machine})});
+    if(d.project)PROJECT_ROWS=PROJECT_ROWS.map(item=>item.id===d.project.id?d.project:item);else await paLoad();
+    paMessage(remove?"✓ agente retirado":"✓ agente listo para ejecutar y decidir","ok");
   }catch(e){paMessage("✗ "+(e&&e.message||e),"err");}
   finally{PROJECT_BUSY="";paRender();}
 }
@@ -307,6 +349,7 @@ async function paOpenDecision(projectId,agentId){
 async function paLoad(){
   const refresh=pa("projectAgentRefresh"); refresh.disabled=true;
   pa("projectAgentAgents").innerHTML='<div class="pa-loading">Tomando el pulso…</div>';
+  pa("projectAgentTeams").innerHTML='<div class="pa-loading">Tomando el pulso…</div>';
   pa("projectAgentProjects").innerHTML='<div class="pa-loading">Cargando proyectos…</div>';
   paMessage("Sincronizando proyectos y presencia física…");
   try{
