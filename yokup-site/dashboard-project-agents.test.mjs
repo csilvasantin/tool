@@ -69,13 +69,24 @@ test("el Dashboard aprovecha el ancho completo y escala hasta pantallas 4K",()=>
   assert.match(source,/\.frame iframe\{height:clamp\(420px,26vw,760px\)\}/);
 });
 
-test("el Dashboard carga proyectos y toma los agentes del mismo pulso físico",()=>{
+test("el Dashboard carga proyectos y separa pulso físico de asignación permanente",()=>{
   assert.match(source,/const PROJECTS_API="https:\/\/api\.yokup\.com"/);
   assert.match(source,/paJson\("\/projects"\)/);
-  assert.match(source,/PROJECT_ROSTER=paPhysicalAgents\(fresh\)/);
+  assert.match(source,/PROJECT_LIVE_ROSTER=paPhysicalAgents\(fresh\)/);
+  assert.match(source,/PROJECT_ROSTER=paProjectRoster\(PROJECT_LIVE_ROSTER,PROJECT_ROWS\)/);
   assert.match(source,/ykAgentIdentity\.display\(p\.persona,p\.machine\)/);
   assert.match(source,/Arrastra la <b>flecha de un agente<\/b>/);
   assert.match(source,/pulsa <b>detalle<\/b>/);
+});
+
+test("las asignaciones de Webmaster permanecen visibles aunque el agente no esté activo",()=>{
+  assert.match(source,/let PROJECT_LIVE_ROSTER=\[\]/);
+  assert.match(source,/function paProjectRoster\(live,projects\)/);
+  assert.match(source,/paProjectAgentRefs\(project\)/);
+  assert.match(source,/canonicalMachine\(id\)/);
+  assert.match(source,/online:false,assigned:true/);
+  assert.match(source,/asignado · sin actividad/);
+  assert.match(source,/paProjectHasAgent\(project,agent\.id\)/);
 });
 
 test("el censo conserva identidades reportadas y las contrasta con el navegador físico",()=>{
@@ -196,12 +207,20 @@ test("las uniones agente-proyecto se dibujan con flechas",()=>{
   assert.match(source,/pa\("projectAgentLinks"\)\.innerHTML=""/);
   assert.match(source,/new ResizeObserver\(\(\)=>requestAnimationFrame\(paDrawLinks\)\)\.observe\(pa\("projectAgentMap"\)\)/);
   assert.match(source,/marker-end="url\(#paArrow\)"/);
-  assert.match(source,/project\.agents\|\|\[\]/);
+  assert.match(source,/paProjectAgentRefs\(project\)/);
   assert.match(source,/data-agent-node=/);
   assert.match(source,/data-link-agent/);
   assert.match(source,/teamNode\.open&&agentNode\.getClientRects\(\)\.length/);
   assert.match(source,/teamNode\.querySelector\(':scope>\.pa-team-summary'\)/);
   assert.match(source,/!source\|\|!source\.getClientRects\(\)\.length/);
+});
+
+test("cada unión agente-proyecto recibe un color distinto y estable dentro del mapa",()=>{
+  assert.match(source,/function paConnectionColors\(\)/);
+  assert.match(source,/new Set\(PROJECT_ROWS\.flatMap/);
+  assert.match(source,/index\*137\.508/);
+  assert.match(source,/stroke="'\+colors\.get\(agent\+'\|'\+project\.id\)/);
+  assert.match(source,/\.pa-link\{fill:none;stroke-width:2;opacity:\.58/);
 });
 
 test("las columnas se pueden mover horizontalmente y las flechas siguen su posición",()=>{
