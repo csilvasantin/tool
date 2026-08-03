@@ -2068,7 +2068,7 @@ __name(fleetSameEncargo, "fleetSameEncargo");
 // una vez repartido queda persistido en fleet_ids y se reusa en cada sync.
 async function fleetMissionId(env, it) {
   const rowid = Number(it.id);
-  if (!Number.isFinite(rowid)) return "FLT-" + it.id;
+  if (!Number.isFinite(rowid)) throw new Error("El encargo no tiene un inbox_id numérico confirmable");
   const mapped = await env.DB.prepare("SELECT mission_id FROM fleet_ids WHERE inbox_id=?").bind(rowid).first();
   if (mapped && mapped.mission_id) {
     const mappedTicket = await env.DB.prepare("SELECT subject,screen,source FROM tickets WHERE id=?").bind(mapped.mission_id).first();
@@ -2091,19 +2091,35 @@ async function fleetMissionId(env, it) {
     missionId = await nextFreeFleetId(env, rowid);      // COLISIÓN con misión ajena → no pisar, siguiente libre
     collided = true;
   }
-  if (mapped && mapped.mission_id) {
-    await env.DB.prepare("UPDATE fleet_ids SET mission_id=?,created_at=? WHERE inbox_id=?")
-      .bind(missionId, Date.now(), rowid).run();
-  } else {
-    await env.DB.prepare("INSERT OR IGNORE INTO fleet_ids(inbox_id,mission_id,created_at) VALUES(?,?,?)")
-      .bind(rowid, missionId, Date.now()).run();
+  // Reservar no basta: dos sync concurrentes pueden observar el mismo hueco y
+  // competir por UNIQUE(mission_id). INSERT OR IGNORE hace perder a uno sin error;
+  // ese proceso jamás debe devolver su candidato provisional si no quedó mapeado.
+  // Reintenta con otro hueco hasta leer SU fila confirmada. Un mapa corrupto ya
+  // existente se corrige con UPDATE OR IGNORE por la misma razón.
+  const repairing = !!(mapped && mapped.mission_id);
+  for (let attempt = 0; attempt < 1e4; attempt++) {
+    if (repairing) {
+      await env.DB.prepare("UPDATE OR IGNORE fleet_ids SET mission_id=?,created_at=? WHERE inbox_id=?")
+        .bind(missionId, Date.now(), rowid).run();
+    } else {
+      await env.DB.prepare("INSERT OR IGNORE INTO fleet_ids(inbox_id,mission_id,created_at) VALUES(?,?,?)")
+        .bind(rowid, missionId, Date.now()).run();
+    }
+    const confirmed = await env.DB.prepare("SELECT mission_id FROM fleet_ids WHERE inbox_id=?").bind(rowid).first();
+    // Si otro proceso reservó antes el mismo inbox, su mapping persistido es la
+    // respuesta idempotente. Al reparar una fila inválida exigimos, en cambio,
+    // que la actualización haya quedado exactamente confirmada.
+    if (confirmed && confirmed.mission_id && (!repairing || confirmed.mission_id === missionId)) {
+      const finalId = confirmed.mission_id;
+      if (collided && finalId !== candidate) {
+        await addEvent(env, finalId, "log", "yokup", `Reparto de ids: ${candidate} ya pertenecía a otra misión; este encargo (#${rowid}) recibió ${finalId} para no pisarla.`).catch(() => {});
+      }
+      return finalId;
+    }
+    missionId = await nextFreeFleetId(env, Math.max(rowid, Number(String(missionId).replace(/^FLT-/, "")) || 0));
+    collided = true;
   }
-  const confirmed = await env.DB.prepare("SELECT mission_id FROM fleet_ids WHERE inbox_id=?").bind(rowid).first();
-  const finalId = confirmed && confirmed.mission_id ? confirmed.mission_id : missionId;
-  if (collided && finalId !== candidate) {
-    await addEvent(env, finalId, "log", "yokup", `Reparto de ids: ${candidate} ya pertenecía a otra misión; este encargo (#${rowid}) recibió ${finalId} para no pisarla.`).catch(() => {});
-  }
-  return finalId;
+  throw new Error(`No se pudo confirmar un mission_id único para el encargo #${rowid}`);
 }
 __name(fleetMissionId, "fleetMissionId");
 
