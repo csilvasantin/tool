@@ -343,8 +343,19 @@ test("READY SET GO muestran su sprite real y la llegada muestra ganador y perded
   assert.match(html, /<svg class="runner-pose-ready"[^>]*><use href="#runnerReady"/);
   assert.match(html, /<svg class="runner-pose-set"[^>]*><use href="#runnerSet"/);
   assert.match(html, /<svg class="runner-pose-go"[^>]*><use href="#runnerGo"/);
-  assert.match(html, /<svg class="runner-finish-win"[^>]*><use href="#runnerWinner"/);
-  assert.match(html, /<svg class="runner-finish-lose"[^>]*><use href="#runnerLoser"/);
+  // El gesto del final se ANIMA en dos tiempos, como en el arcade: el ganador
+  // bombea los brazos (arriba ↔ junto a la cabeza) y el perdedor se rasca la
+  // cabeza. Dos <use> alternados por keyframes steps, y el frame B existe como
+  // símbolo propio — nada de deformar el frame A.
+  assert.match(html, /<symbol id="runnerWinnerB"/);
+  assert.match(html, /<symbol id="runnerLoserB"/);
+  assert.match(html, /<svg class="runner-finish-win"[^>]*><use class="gesto-a" href="#runnerWinner"><\/use><use class="gesto-b" href="#runnerWinnerB"/);
+  assert.match(html, /<svg class="runner-finish-lose"[^>]*><use class="gesto-a" href="#runnerLoser"><\/use><use class="gesto-b" href="#runnerLoserB"/);
+  assert.match(html, /@keyframes runner-gesto-a\{0%,49%\{opacity:1\}50%,100%\{opacity:0\}\}/);
+  assert.match(html, /@keyframes runner-gesto-b\{0%,49%\{opacity:0\}50%,100%\{opacity:1\}\}/);
+  // Con prefers-reduced-motion el gesto se queda quieto en el frame A.
+  assert.match(html, /\.runner-finish-win \.gesto-a,\.runner-finish-lose \.gesto-a\{animation:none;opacity:1\}/);
+  assert.match(html, /\.runner-finish-win \.gesto-b,\.runner-finish-lose \.gesto-b\{display:none\}/);
   assert.doesNotMatch(html, /href="#podiumRunner"/);
   // El mecanismo viejo fingía las fases deformando los dos frames de correr.
   // Los sprites de fase son reales: nada de rotate/scaleY ni frames A/B.
