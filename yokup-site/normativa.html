@@ -43,6 +43,8 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
         <thead><tr><th>Persona</th><th>Equipo</th><th>Nombre visible</th></tr></thead>
         <tbody>
           <tr><td>Neo</td><td>MacBook Pro 16</td><td data-persona="Neo" data-machine="MacBook Pro 16">NeoMBP16</td></tr>
+          <tr><td>Neo</td><td>MacBook Air Azul</td><td data-persona="Neo" data-machine="MacBookAirAzul">NeoMBAAzul</td></tr>
+          <tr><td>Neo</td><td>Mac Mini</td><td data-persona="Neo" data-machine="Mac Mini">NeoMini</td></tr>
           <tr><td>Morfeo</td><td>MacBook Air 16</td><td data-persona="Morfeo" data-machine="MacBook Air 16">MorfeoMBA16</td></tr>
           <tr><td>Oraculo</td><td>MacBook Air 16</td><td data-persona="Oraculo" data-machine="MacBook Air 16">OraculoMBA16</td></tr>
           <tr><td>Trinity</td><td>MacBook Pro 16</td><td data-persona="Trinity" data-machine="MacBook Pro 16">TrinityMBP16</td></tr>
@@ -63,6 +65,19 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
         <code>Air Crema → MBACrema</code><code>Air Plata → MBAPlata</code><code>Asus → Zenbook</code>
         <code>DGX Spark → DGX</code><code>ThinkStation → PGX</code>
       </div>
+      <p>El apellido se escribe <b>exactamente como está en el diccionario</b>: es el modelo abreviado, y eso vale para todas las máquinas y todas las personas. Ni se acorta al color ni se estira al nombre completo del equipo. <b>Neo en el MacBookAirAzul es NeoMBAAzul</b> — no NeoAzul, que dice el color pero no dice qué máquina es, y hay cuatro Air. <i>(Carlos, 3 de agosto de 2026.)</i></p>
+      <table aria-label="Cómo se escribe el apellido">
+        <thead><tr><th>Así no</th><th>Por qué no</th><th>Así sí</th></tr></thead>
+        <tbody>
+          <tr><td>Neo</td><td>Sin apellido no hay identidad (regla 04)</td><td data-persona="Neo" data-machine="MacBookAirAzul">NeoMBAAzul</td></tr>
+          <tr><td>NeoAzul</td><td>El color no es el modelo</td><td data-persona="NeoAzul" data-machine="MacBookAirAzul">NeoMBAAzul</td></tr>
+          <tr><td>NeoMacBookAirAzul</td><td>El apellido va abreviado</td><td data-persona="Neo" data-machine="MacBookAirAzul">NeoMBAAzul</td></tr>
+          <tr><td>NeoMacMini</td><td>El diccionario dice «Mini»</td><td data-persona="NeoMacMini" data-machine="Mac Mini">NeoMini</td></tr>
+          <tr><td>Morfeo14</td><td>Un número no dice Pro ni Air</td><td data-persona="Morfeo14" data-machine="MacBookProNegro14">MorfeoMBP14</td></tr>
+          <tr><td>Agente Smith Azul</td><td>Apodo, no apellido</td><td data-persona="Agente Smith Azul" data-machine="MacBookAirAzul">SmithMBAAzul</td></tr>
+        </tbody>
+      </table>
+      <p>Lo mismo vale para el bot que lo transporta: <code>@ClaudeAdmiraNextBot</code> es el canal, no la identidad. En el grupo se firma con el nombre visible y su equipo.</p>
     </div>
   </section>
 

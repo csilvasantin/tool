@@ -9,17 +9,23 @@ test("Informes recompone identidad física y respeta identidad del worker",async
   ctx.window.window=ctx.window;vm.runInNewContext(id,ctx);ctx.ykAgentIdentity=ctx.window.ykAgentIdentity;
   const f=ctx.window.ykAgentIdentity.reportDisplay;
   assert.equal(f("Morfeo","MacBook Pro 16"),"MorfeoMBP16");
-  assert.equal(f("Oraculo","Mac Mini"),"OraculoMacMini");
-  assert.equal(f("SubOraculo","Mac Mini"),"SubOraculoMacMini");
+  // Informes escribe el MISMO nombre que el resto de pantallas: persona + apellido
+  // del diccionario, sin apodos ni apellidos largos (normativa reglas 02 y 03).
+  assert.equal(f("Oraculo","Mac Mini"),"OraculoMini");
+  assert.equal(f("SubOraculo","Mac Mini"),"SubOraculoMini");
   assert.equal(f("InfraMorfeo","MacBook Pro 16"),"InfraMorfeoMBP16");
-  assert.equal(f("Neo","MacBook Pro 14"),"Neo14");
-  assert.equal(f("Smith","MacBook Air Azul"),"Agente Smith Azul");
-  assert.equal(f("SubSmith","MacBook Air Rosa"),"SubAgente Smith Rosa");
-  assert.equal(f("InfraSmith","MacBook Air Crema"),"InfraAgente Smith Crema");
-  assert.equal(f("Smith","MacBook Air Plata"),"Agente Smith Plata");
-  assert.equal(f("Smith","MacBookAir16plata"),"Agente Smith Plata16");
+  assert.equal(f("Neo","MacBook Pro 14"),"NeoMBP14");
+  assert.equal(f("Neo","MacBookAirAzul"),"NeoMBAAzul");
+  assert.equal(f("Smith","MacBook Air Azul"),"SmithMBAAzul");
+  assert.equal(f("SubSmith","MacBook Air Rosa"),"SubSmithMBARosa");
+  assert.equal(f("InfraSmith","MacBook Air Crema"),"InfraSmithMBACrema");
+  assert.equal(f("Smith","MacBook Air Plata"),"SmithMBAPlata");
+  assert.equal(f("Smith","MacBookAir16plata"),"SmithMBA16");
+  // Registros antiguos ya guardados: se leen y salen normalizados.
+  assert.equal(f("NeoAzul","MacBookAirAzul"),"NeoMBAAzul");
+  assert.equal(f("OraculoMacMini","Mac Mini"),"OraculoMini");
   assert.equal(ctx.window.ykAgentIdentity.display("Neo","MacBook Pro 14"),"NeoMBP14");
-  assert.equal(ctx.window.ykAgentIdentity.display("Smith","MacBookAir16plata"),"Agente Smith 16");
+  assert.equal(ctx.window.ykAgentIdentity.display("Smith","MacBookAir16plata"),"SmithMBA16");
   assert.equal(f("Externo","Mac Mini"),"Externo");
   assert.equal(f("Oraculo",""),"Oraculo");
   assert.match(html,/const person=t\.agent_identity\|\|t\.owner\|\|""/);

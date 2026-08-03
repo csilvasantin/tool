@@ -19,10 +19,14 @@
     var candidate = identityParts(value, machine, identity), wanted = identityParts(target, "", identity);
     return candidate.base === wanted.base && candidate.suffix === wanted.suffix;
   }
+  /* Vale la identidad canónica (NeoMBAAzul) y también la escritura antigua que
+     resuelve a ella (NeoAzul, OraculoMacMini, Agente Smith Azul): los enlaces ya
+     compartidos tienen que seguir abriendo. Lo que NO vale es una persona sin
+     apellido de equipo (normativa reglas 03 y 04). */
   function validAgent(value, identity) {
     var parsed = identity.parse(value), canonical = parsed.suffix && parsed.role === "main"
       ? identity.display(parsed.persona, parsed.suffix) : "";
-    return !!canonical && key(canonical) === key(value) && /^(?:oraculo|neo|morfeo|trinity|smith|agentesmith|whiterabbit)/.test(key(canonical));
+    return !!canonical && /^(?:oraculo|neo|morfeo|trinity|smith|agentesmith|whiterabbit)/.test(key(canonical));
   }
   function taskIdentity(task, identity) {
     var owner = text(task.owner || task.agent_identity), generic = /^infra(?:agente)?$/i.test(owner) ? "infra" : /^sub(?:agente)?$/i.test(owner) ? "sub" : "";

@@ -11,7 +11,7 @@ test("aplica el apellido físico a principal, subagente e infraagente", () => {
   assert.equal(scopedAgentIdentity("Oraculo", "Mac Mini", "sub"), "SubOraculoMini");
   assert.equal(scopedAgentIdentity("Oraculo", "Mac Mini", "infra"), "InfraOraculoMini");
   assert.equal(scopedAgentIdentity("Neo", "Mac Mini"), "NeoMini");
-  assert.equal(scopedAgentIdentity("Morfeo", "MacBook Pro 14"), "Morfeo14");
+  assert.equal(scopedAgentIdentity("Morfeo", "MacBook Pro 14"), "MorfeoMBP14");
   assert.equal(scopedAgentIdentity("Oraculo", "MacBook Pro 16"), "OraculoMBP16");
   assert.equal(scopedAgentIdentity("Neo", "admira-macbookpro16"), "NeoMBP16");
   assert.equal(scopedAgentIdentity("Trinity", "MacBook Pro 16"), "TrinityMBP16");
@@ -25,10 +25,15 @@ test("el apellido viejo del Pro 16 se sigue leyendo, pero se reescribe a MBP16",
   assert.equal(scopedAgentIdentity("SubMorfeo16", ""), "SubMorfeoMBP16");
 });
 
-test("conserva la forma especial de Agente Smith en los MBA de color", () => {
-  assert.equal(scopedAgentIdentity("Smith", "MacBook Air Azul"), "Agente Smith Azul");
-  assert.equal(scopedAgentIdentity("Smith", "MacBook Air Azul", "sub"), "SubAgente Smith Azul");
-  assert.equal(scopedAgentIdentity("Smith", "MacBook Air Azul", "infra"), "InfraAgente Smith Azul");
+test("el apellido es el del diccionario, sin acortar ni apodos (regla 02)", () => {
+  assert.equal(scopedAgentIdentity("Neo", "MacBookAirAzul"), "NeoMBAAzul");
+  assert.equal(scopedAgentIdentity("Neo", "MacBookAirAzul", "sub"), "SubNeoMBAAzul");
+  assert.equal(scopedAgentIdentity("Morfeo", "MacBook Air Rosa"), "MorfeoMBARosa");
+  assert.equal(scopedAgentIdentity("Morfeo", "MacBookAir16plata"), "MorfeoMBA16");
+  // "Agente Smith Azul" se lee, pero ya no se propaga (regla 03).
+  assert.equal(scopedAgentIdentity("Smith", "MacBook Air Azul"), "SmithMBAAzul");
+  assert.equal(scopedAgentIdentity("Agente Smith Azul", ""), "SmithMBAAzul");
+  assert.equal(scopedAgentIdentity("NeoAzul", ""), "NeoMBAAzul");
 });
 
 test("lee aliases históricos sin perder la familia operativa", () => {

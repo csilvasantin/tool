@@ -15,26 +15,30 @@ test("firma exige agente completo y máquina explícita",()=>{
 });
 
 test("Oraculo, Smith, Sub e Infra firman con equipo canónico",()=>{
-  assert.deepEqual(validateDeployIdentity("OraculoMacMini","MacMini"),{deployer:"OraculoMacMini",machine:"MacMini",signature:"OraculoMacMini · MacMini"});
-  assert.deepEqual(validateDeployIdentity("SmithMacMini","Mac Mini"),{deployer:"SmithMacMini",machine:"MacMini",signature:"SmithMacMini · MacMini"});
-  assert.equal(validateDeployIdentity("SubOraculoMacMini","admira-macmini").signature,"SubOraculoMacMini · MacMini");
-  assert.equal(validateDeployIdentity("InfraOraculoMacMini","MacMini").deployer,"InfraOraculoMacMini");
-  assert.equal(validateDeployIdentity("OraculoMini","MacMini").deployer,"OraculoMacMini");
-  assert.equal(validateDeployIdentity("SmithMini","MacMini").deployer,"SmithMacMini");
+  assert.deepEqual(validateDeployIdentity("OraculoMini","MacMini"),{deployer:"OraculoMini",machine:"MacMini",signature:"OraculoMini · MacMini"});
+  assert.deepEqual(validateDeployIdentity("SmithMini","Mac Mini"),{deployer:"SmithMini",machine:"MacMini",signature:"SmithMini · MacMini"});
+  assert.equal(validateDeployIdentity("SubOraculoMini","admira-macmini").signature,"SubOraculoMini · MacMini");
+  assert.equal(validateDeployIdentity("InfraOraculoMini","MacMini").deployer,"InfraOraculoMini");
+  // Los apellidos viejos se aceptan al firmar y salen ya normalizados (regla 03).
+  assert.equal(validateDeployIdentity("OraculoMacMini","MacMini").deployer,"OraculoMini");
   assert.equal(validateDeployIdentity("Neo14","MacBook Pro 14").deployer,"NeoMBP14");
   assert.equal(validateDeployIdentity("NeoMBP14","MacBook Pro 14").deployer,"NeoMBP14");
   assert.equal(validateDeployIdentity("InfraMorfeoMBP16","MacBook Pro 16").signature,"InfraMorfeoMBP16 · MacBookPro16");
   assert.throws(()=>validateDeployIdentity("OraculoMini","MacBook Pro 16"),/no coincide/);
-  assert.equal(validateDeployIdentity("Agente Smith Azul","MacBookAirAzul").signature,"Agente Smith Azul · MacBookAirAzul");
-  assert.equal(validateDeployIdentity("SubAgente Smith Azul","MacBook Air Azul").deployer,"SubAgente Smith Azul");
-  assert.equal(validateDeployIdentity("InfraAgente Smith Azul","MBA Azul").deployer,"InfraAgente Smith Azul");
-  assert.equal(validateDeployIdentity("SmithAzul","MacBookAirAzul").deployer,"Agente Smith Azul");
+  // El Air por color firma con el apellido del diccionario, no con el color a secas.
+  assert.equal(validateDeployIdentity("NeoMBAAzul","MacBookAirAzul").signature,"NeoMBAAzul · MacBookAirAzul");
+  assert.equal(validateDeployIdentity("NeoAzul","MacBookAirAzul").deployer,"NeoMBAAzul");
+  assert.equal(validateDeployIdentity("SubNeoMBAAzul","MacBook Air Azul").deployer,"SubNeoMBAAzul");
+  assert.equal(validateDeployIdentity("MorfeoPlata16","MacBookAir16plata").deployer,"MorfeoMBA16");
+  assert.equal(validateDeployIdentity("Agente Smith Azul","MacBookAirAzul").deployer,"SmithMBAAzul");
+  assert.equal(validateDeployIdentity("InfraAgente Smith Azul","MBA Azul").deployer,"InfraSmithMBAAzul");
+  assert.equal(validateDeployIdentity("SmithAzul","MacBookAirAzul").deployer,"SmithMBAAzul");
   assert.throws(()=>validateDeployIdentity("Agente Smith Azul","MacMini"),/no coincide/);
 });
 
 test("Wrangler recibe hash y mensaje firmados sin shell",()=>{
-  const hash="a".repeat(40),args=wranglerCommitArgs({gitFull:hash,signature:"OraculoMacMini · MacMini",version:"v.03.08.2026.r1.12:00"});
-  assert.deepEqual(args,["--commit-hash",hash,"--commit-message","Yokup v.03.08.2026.r1.12:00 · OraculoMacMini · MacMini"]);
+  const hash="a".repeat(40),args=wranglerCommitArgs({gitFull:hash,signature:"OraculoMini · MacMini",version:"v.03.08.2026.r1.12:00"});
+  assert.deepEqual(args,["--commit-hash",hash,"--commit-message","Yokup v.03.08.2026.r1.12:00 · OraculoMini · MacMini"]);
   assert.match(deploy,/gitFull = execFileSync\("git", \["rev-parse", "HEAD"\]/);
   assert.match(deploy,/gitShort = execFileSync\("git", \["rev-parse", "--short", "HEAD"\]/);
   assert.match(deploy,/deployer,\s*machine,\s*signature,\s*git:gitShort,\s*gitShort,\s*gitFull,\s*dirty/s);

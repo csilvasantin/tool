@@ -1,15 +1,18 @@
 const MAX_FIELD = 80;
 const PERSONAS = ["Oraculo", "Neo", "Morfeo", "Trinity", "Smith", "WhiteRabbit"];
 const INTERNAL = /^(?:ampere|erdos|noether|sol|terra|luna|claude|codex|grok|openai|anthropic)/i;
+// Apellido canónico = diccionario de la normativa (regla 02): el modelo abreviado,
+// igual para todos. Los apellidos de la generación anterior ("Mini", "Azul", "14",
+// "Plata16") se aceptan al firmar, pero la firma sale ya con el actual (regla 03).
 const MACHINES = [
-  { name:"MacMini", suffix:"MacMini", legacySuffixes:["Mini"], aliases:["macmini","mac mini","mac mini carlos","admira-macmini","macmini.local"] },
+  { name:"MacMini", suffix:"Mini", legacySuffixes:["MacMini"], aliases:["macmini","mac mini","mac mini carlos","admira-macmini","macmini.local"] },
   { name:"MacBookPro14", suffix:"MBP14", legacySuffixes:["14"], aliases:["macbookpro14","macbook pro 14","macbookpronegro14","macbook pro negro 14","admira-macbookpronegro14"] },
-  { name:"MacBookPro16", suffix:"MBP16", aliases:["macbookpro16","macbook pro 16","admira-macbookpro16","macbook-pro-16"] },
-  { name:"MacBookAirAzul", suffix:"Azul", aliases:["macbookairazul","macbook air azul","mba azul","admira-macbookairazul"] },
-  { name:"MacBookAirRosa", suffix:"Rosa", aliases:["macbookairrosa","macbook air rosa","mba rosa","admira-macbookairrosa"] },
-  { name:"MacBookAirCrema", suffix:"Crema", aliases:["macbookaircrema","macbook air crema","mba crema","admira-macbookaircrema"] },
-  { name:"MacBookAirPlata", suffix:"Plata", aliases:["macbookairplata","macbook air plata","mba plata","admira-macbookairplata"] },
-  { name:"MacBookAir16plata", suffix:"Plata16", aliases:["macbookair16plata","macbook air 16 dg","macbookair16","mba 16 plata","admira-macbookair16"] },
+  { name:"MacBookPro16", suffix:"MBP16", legacySuffixes:["16"], aliases:["macbookpro16","macbook pro 16","admira-macbookpro16","macbook-pro-16"] },
+  { name:"MacBookAirAzul", suffix:"MBAAzul", legacySuffixes:["Azul"], aliases:["macbookairazul","macbook air azul","mba azul","admira-macbookairazul"] },
+  { name:"MacBookAirRosa", suffix:"MBARosa", legacySuffixes:["Rosa"], aliases:["macbookairrosa","macbook air rosa","mba rosa","admira-macbookairrosa"] },
+  { name:"MacBookAirCrema", suffix:"MBACrema", legacySuffixes:["Crema"], aliases:["macbookaircrema","macbook air crema","mba crema","admira-macbookaircrema"] },
+  { name:"MacBookAirPlata", suffix:"MBAPlata", legacySuffixes:["Plata"], aliases:["macbookairplata","macbook air plata","mba plata","admira-macbookairplata"] },
+  { name:"MacBookAir16plata", suffix:"MBA16", legacySuffixes:["Plata16","Air16"], aliases:["macbookair16plata","macbook air 16 dg","macbookair16","mba 16 plata","admira-macbookair16"] },
   { name:"ASUS Zenbook", suffix:"Zenbook", aliases:["asus zenbook","asuszenbook","admira-asuszenbook"] },
   { name:"DGX Spark", suffix:"DGX", aliases:["dgx spark","dgxspark","dgx-spark"] },
   { name:"ThinkStation PGX", suffix:"PGX", aliases:["thinkstation pgx","thinkstationpgx","thinkstation"] }
@@ -42,11 +45,10 @@ export function validateDeployIdentity(agentValue, machineValue) {
   const suffix = smithAir ? body.slice("Agente Smith ".length) : body.slice(persona.length);
   if (!suffix) throw new Error("YOKUP_DEPLOY_AGENT debe incluir el apellido físico");
   if (suffix !== machine.suffix && !(machine.legacySuffixes || []).includes(suffix)) throw new Error("El apellido de YOKUP_DEPLOY_AGENT no coincide con YOKUP_DEPLOY_MACHINE");
-  const airStyle = persona === "Smith" && /^(?:Azul|Rosa|Crema|Plata|Plata16)$/.test(suffix);
-  const canonicalSuffix=machine.suffix;
-  const canonicalAirStyle=persona === "Smith" && /^(?:Azul|Rosa|Crema|Plata|Plata16)$/.test(canonicalSuffix);
-  const deployer = role + (canonicalAirStyle ? "Agente Smith " + canonicalSuffix : persona + canonicalSuffix);
-  const inputStyled = role + (airStyle ? "Agente Smith " + suffix : persona + suffix);
+  // "Agente Smith Azul" sigue siendo una firma VÁLIDA de entrada, pero la firma que
+  // se publica ya no lo propaga: sale SmithMBAAzul (normativa regla 03).
+  const deployer = role + persona + machine.suffix;
+  const inputStyled = role + (smithAir ? "Agente Smith " + suffix : persona + suffix);
   const compact = role + persona + suffix;
   if (agent !== inputStyled && agent !== compact) throw new Error("YOKUP_DEPLOY_AGENT debe usar la forma canónica completa");
   return { deployer, machine:machine.name, signature:`${deployer} · ${machine.name}` };

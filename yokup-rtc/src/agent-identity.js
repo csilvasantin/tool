@@ -1,16 +1,16 @@
+// Diccionario único de apellidos (normativa regla 02). El apellido visible es el
+// modelo abreviado, igual en toda la flota: MacBookAirAzul → MBAAzul → NeoMBAAzul.
+// Los apellidos por color a secas ("Azul") y "Plata16"/"14" son de la generación
+// anterior: se siguen leyendo, no se vuelven a escribir (Carlos, 2026-08-03).
 const MACHINES = [
   ["Mini", ["macmini", "mac mini", "mac mini carlos", "admira-macmini", "macmini.local"]],
-  ["14", ["macbookpro14", "macbook pro 14", "macbookpronegro14", "macbook pro negro 14", "admira-macbookpronegro14"]],
-  // El apellido del Pro 16 es MBP16, no "16" a secas (Carlos, 2026-08-02). Los
-  // "Neo16"/"Morfeo16" ya guardados siguen resolviendo a su persona por
-  // parseAgentIdentity, así que no se pierde la familia; sólo dejan de llevar
-  // apellido reconocido y quedan marcados como legacy.
-  ["MBP16", ["macbookpro16", "macbook pro 16", "admira-macbookpro16", "macbook-pro-16"]],
-  ["Azul", ["macbookairazul", "macbook air azul", "mba azul", "admira-macbookairazul"]],
-  ["Rosa", ["macbookairrosa", "macbook air rosa", "mba rosa", "admira-macbookairrosa"]],
-  ["Crema", ["macbookaircrema", "macbook air crema", "mba crema", "admira-macbookaircrema"]],
-  ["Plata", ["macbookairplata", "macbook air plata", "mba plata", "admira-macbookairplata"]],
-  ["Plata16", ["macbookair16plata", "macbookair16", "macbook air 16 dg", "mba 16 plata", "admira-macbookair16"]],
+  ["MBP14", ["mbp14", "macbookpro14", "macbook pro 14", "macbookpronegro14", "macbook pro negro 14", "admira-macbookpronegro14"]],
+  ["MBP16", ["mbp16", "macbookpro16", "macbook pro 16", "admira-macbookpro16", "macbook-pro-16"]],
+  ["MBAAzul", ["mbaazul", "macbookairazul", "macbook air azul", "mba azul", "admira-macbookairazul"]],
+  ["MBARosa", ["mbarosa", "macbookairrosa", "macbook air rosa", "mba rosa", "admira-macbookairrosa"]],
+  ["MBACrema", ["mbacrema", "macbookaircrema", "macbook air crema", "mba crema", "admira-macbookaircrema"]],
+  ["MBAPlata", ["mbaplata", "macbookairplata", "macbook air plata", "mba plata", "admira-macbookairplata"]],
+  ["MBA16", ["mba16", "macbookair16plata", "macbookair16", "macbook air 16 dg", "mba 16 plata", "admira-macbookair16"]],
   ["Zenbook", ["asuszenbook", "asus zenbook", "admira-asuszenbook"]],
   ["DGX", ["dgxspark", "dgx spark", "dgx-spark"]],
   ["PGX", ["thinkstationpgx", "thinkstation pgx", "thinkstation"]],
@@ -23,10 +23,13 @@ const PERSONAS = [
   ["Smith", ["smith", "cypher", "agente smith"]],
   ["WhiteRabbit", ["whiterabbit", "white rabbit"]],
 ];
-const AIR_SUFFIXES = new Set(["Azul", "Rosa", "Crema", "Plata", "Plata16"]);
 // Apellidos que se usaron antes y siguen vivos en datos ya guardados. Se leen,
 // pero al volver a escribir salen con el apellido actual.
-const LEGACY_SUFFIXES = new Map([["16", "MBP16"]]);
+const LEGACY_SUFFIXES = new Map([
+  ["16", "MBP16"], ["14", "MBP14"], ["macmini", "Mini"],
+  ["azul", "MBAAzul"], ["rosa", "MBARosa"], ["crema", "MBACrema"], ["plata", "MBAPlata"],
+  ["air16", "MBA16"], ["plata16", "MBA16"],
+]);
 
 export function identityKey(value) {
   return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -72,28 +75,23 @@ export function scopedAgentIdentity(persona, machine, role) {
   const parsed = parseAgentIdentity(persona);
   const effectiveRole = role || parsed.role || "main";
   const suffix = machineSuffix(machine) || parsed.suffix;
-  const main = parsed.persona === "Smith" && AIR_SUFFIXES.has(suffix)
-    ? `Agente Smith ${suffix}` : `${parsed.persona}${suffix}`;
-  return `${effectiveRole === "sub" ? "Sub" : effectiveRole === "infra" ? "Infra" : ""}${main}`;
+  return `${effectiveRole === "sub" ? "Sub" : effectiveRole === "infra" ? "Infra" : ""}${parsed.persona}${suffix}`;
 }
 
-// Identidad visible en informes. Los registros históricos pueden guardar sólo
-// la persona, una capa genérica o un apellido antiguo. La máquina de la misión
-// es la fuente física real, así que el nombre se recompone sin alterar el owner
-// persistido. En esta vista "MacMini" se escribe completo para que el apellido
-// sea inequívoco; los demás equipos conservan su sufijo compartido (MBP16, 14…).
+// Identidad visible en informes: EL MISMO nombre que en el resto de pantallas.
+// Los registros históricos pueden guardar sólo la persona, una capa genérica o un
+// apellido antiguo; la máquina de la misión es la fuente física real, así que el
+// nombre se recompone sin alterar el owner persistido. Si no se puede recomponer,
+// se devuelve tal cual antes que inventar un apellido (normativa regla 04).
 export function reportAgentIdentity(owner, machine) {
   const parsed = parseAgentIdentity(owner);
-  const suffix = machineSuffix(machine);
+  const suffix = machineSuffix(machine) || parsed.suffix;
   const knownPersona = PERSONAS.some(([name]) => name === parsed.persona);
   if (!suffix || !parsed.persona || !knownPersona) {
     return String(owner || "");
   }
-  const displaySuffix = suffix === "Mini" ? "MacMini" : suffix;
-  const main = parsed.persona === "Smith" && AIR_SUFFIXES.has(displaySuffix)
-    ? `Agente Smith ${displaySuffix}` : `${parsed.persona}${displaySuffix}`;
   const prefix = parsed.role === "sub" ? "Sub" : parsed.role === "infra" ? "Infra" : "";
-  return `${prefix}${main}`;
+  return `${prefix}${parsed.persona}${suffix}`;
 }
 
 export function sameAgentFamily(a, b) {

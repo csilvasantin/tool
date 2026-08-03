@@ -12,11 +12,14 @@ test("matriz histórica y nueva de identidades visibles en informes", () => {
   const cases = [
     ["Morfeo", "MacBook Pro 16", "MorfeoMBP16"],
     ["Morfeo16", "admira-macbookpro16", "MorfeoMBP16"],
-    ["Oraculo", "admira-macmini", "OraculoMacMini"],
-    ["OraculoMini", "Mac Mini", "OraculoMacMini"],
+    ["Oraculo", "admira-macmini", "OraculoMini"],
+    ["OraculoMacMini", "Mac Mini", "OraculoMini"],
     ["SubTrinity16", "MacBookPro16", "SubTrinityMBP16"],
     ["InfraMorfeo", "MacBook Pro 16", "InfraMorfeoMBP16"],
-    ["InfraOraculoMini", "MacMini", "InfraOraculoMacMini"],
+    ["InfraOraculoMini", "MacMini", "InfraOraculoMini"],
+    ["Neo", "MacBookAirAzul", "NeoMBAAzul"],
+    ["NeoAzul", "MacBookAirAzul", "NeoMBAAzul"],
+    ["Agente Smith Azul", "MacBook Air Azul", "SmithMBAAzul"],
   ];
   for (const [owner, machine, expected] of cases) {
     assert.equal(reportAgentIdentity(owner, machine), expected, `${owner} @ ${machine}`);

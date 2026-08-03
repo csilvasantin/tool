@@ -1,9 +1,14 @@
 /* yk-agent-identity.js — identidad visible = persona + equipo físico.
  *
+ * El apellido visible es EXACTAMENTE el del diccionario de la norma 02, sin acortar
+ * ni traducir: MacBookAirAzul → MBAAzul, luego NeoMBAAzul (no NeoAzul), y Mac Mini →
+ * Mini, luego NeoMini (no NeoMacMini). Carlos, 2026-08-03 · normativa regla 02.
+ *
  * Los nombres planos históricos se aceptan al leer. Toda UI visible debe llamar:
- *   ykAgentIdentity.display("Neo", "MacBook Pro 16")       → NeoMBP16
- *   ykAgentIdentity.display("Oraculo", "Mac Mini", "sub")  → SubOraculoMacMini
- *   ykAgentIdentity.display("Neo", "")                     → NeoSINMAQ
+ *   ykAgentIdentity.display("Neo", "MacBook Pro 16")        → NeoMBP16
+ *   ykAgentIdentity.display("Neo", "MacBookAirAzul")        → NeoMBAAzul
+ *   ykAgentIdentity.display("Oraculo", "Mac Mini", "sub")   → SubOraculoMini
+ *   ykAgentIdentity.display("Neo", "")                      → NeoSINMAQ
  * `scoped` conserva el nombre operativo sin SINMAQ para datos/rutas heredadas.
  */
 (function (root) {
@@ -38,13 +43,10 @@
     MBACrema:"MacBook Air Crema", MBAPlata:"MacBook Air Plata", Zenbook:"Asus Zenbook",
     DGX:"DGX Spark", PGX:"ThinkStation PGX"
   };
-  var SMITH_AIR_NAMES = {MBA16:"16",MBAAzul:"Azul",MBARosa:"Rosa",MBACrema:"Crema",MBAPlata:"Plata"};
-  /* Apellido visible completo: Mini → MacMini (SmithMacMini, NeoMacMini…). */
-  var DISPLAY_SUFFIX = {
-    Mini:"MacMini", MBP14:"MBP14", MBP16:"MBP16",
-    MBA16:"MBA16", MBAAzul:"Azul", MBARosa:"Rosa", MBACrema:"Crema", MBAPlata:"Plata",
-    Zenbook:"Zenbook", DGX:"DGX", PGX:"PGX"
-  };
+  /* Apellido visible = el sufijo del diccionario, TAL CUAL. No hay tabla de apodos:
+     NeoMBAAzul, NeoMini, SmithMBAAzul. Los apellidos cortos («Azul») y los largos
+     («MacMini»), y «Agente Smith Azul», se siguen LEYENDO en parse() como legado,
+     pero no se vuelven a escribir (normativa reglas 02 y 03). */
   function key(v) {
     return String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
       .toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -101,9 +103,7 @@
   }
   function nameWithSuffix(persona, sf){
     if(!sf || sf==="SINMAQ") return persona+(sf||"");
-    if(persona==="Smith"&&SMITH_AIR_NAMES[sf]) return "Agente Smith "+SMITH_AIR_NAMES[sf];
-    var full=DISPLAY_SUFFIX[sf]||sf;
-    return persona+full;
+    return persona+sf;
   }
   function scoped(persona,machine,role){
     var p=parse(persona), r=role||p.role||"main", sf=suffix(machine)||p.suffix;
@@ -115,16 +115,15 @@
     var main=nameWithSuffix(p.persona, sf);
     return (r==="sub"?"Sub":r==="infra"?"Infra":"")+main;
   }
+  /* Los informes usan el MISMO nombre que el resto de pantallas: una identidad, una
+     forma de escribirla. Si el registro histórico no permite recomponerla, se devuelve
+     tal cual en vez de inventar apellido. */
   function reportDisplay(owner,machine){
     var original=String(owner||"").trim(), p=parse(original), sf=suffix(machine)||p.suffix;
-    if(!original)return original;
-    if(!sf)return original;
+    if(!original||!sf)return original;
     var known=PERSONAS.some(function(row){return row[0]===p.persona;});
     if(!known)return original;
-    var reportSuffix={Mini:"MacMini",MBP14:"14",MBP16:"MBP16",MBA16:"Plata16",MBAAzul:"Azul",MBARosa:"Rosa",MBACrema:"Crema",MBAPlata:"Plata"}[sf];
-    if(!reportSuffix)return original;
-    var main=p.persona==="Smith"&&/^MBA/.test(sf)?"Agente Smith "+reportSuffix:p.persona+reportSuffix;
-    return (p.role==="sub"?"Sub":p.role==="infra"?"Infra":"")+main;
+    return (p.role==="sub"?"Sub":p.role==="infra"?"Infra":"")+nameWithSuffix(p.persona,sf);
   }
   function base(value){return parse(value).persona;}
   function canonicalMachine(value){return CANONICAL_MACHINES[parse(value).suffix]||"";}

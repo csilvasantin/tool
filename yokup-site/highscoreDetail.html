@@ -99,7 +99,7 @@ h1{margin:6px 0 4px;color:var(--brand);font-size:clamp(23px,5vw,42px);word-break
       timelinePanel(hours,operationalComplete)); target.appendChild(grid);
   }
   if (!agent) { state("Falta el agente", "Abre el detalle desde uno de los tres puestos del podio o añade ?agent=<identidad-canónica>."); return; }
-  if (!DETAIL.validAgent(agent,ID)) { state("Identidad no válida", "El parámetro agent debe contener una identidad canónica con apellido de equipo, por ejemplo MorfeoMBP16 u OraculoMacMini."); return; }
+  if (!DETAIL.validAgent(agent,ID)) { state("Identidad no válida", "El parámetro agent debe contener una identidad canónica con apellido de equipo, por ejemplo MorfeoMBP16 u NeoMBAAzul."); return; }
   var snap=DETAIL.snapshot(agent);
   Promise.all([
     get(API+"/highscore/daily",function(d){return d||{scores:[]};},{scores:[]}),

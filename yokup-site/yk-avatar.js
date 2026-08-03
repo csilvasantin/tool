@@ -49,8 +49,8 @@
     var s = slug(name), cu = CUSTOM.agents[s] || {};
     if (cu.img) return cu.img;
     if (AVATARES[s]) return "/avatars/" + s + ".jpg";
-    // La identidad visible lleva apellido de equipo (OraculoMini, Morfeo14,
-    // Agente Smith Azul). El retrato pertenece a la persona base.
+    // La identidad visible lleva apellido de equipo (OraculoMini, MorfeoMBP14,
+    // NeoMBAAzul). El retrato pertenece a la persona base.
     try {
       if (window.ykAgentIdentity) {
         var canonical = slug(window.ykAgentIdentity.base(name));

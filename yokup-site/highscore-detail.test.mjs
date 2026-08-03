@@ -28,7 +28,10 @@ test("el detalle valida identidad, conserva vuelta y no depende de texto inventa
   assert.match(detailHtml, /Falta el agente/);
   assert.match(detailHtml, /Agente no encontrado/);
   assert.equal(D.validAgent("MorfeoMBP16", ID), true);
+  assert.equal(D.validAgent("NeoMBAAzul", ID), true);
+  // Escrituras antiguas: el enlace ya compartido sigue abriendo (regla 03).
   assert.equal(D.validAgent("OraculoMacMini", ID), true);
+  assert.equal(D.validAgent("NeoAzul", ID), true);
   assert.equal(D.validAgent("Morfeo", ID), false);
   assert.equal(D.validAgent("<img src=x>", ID), false);
 });
