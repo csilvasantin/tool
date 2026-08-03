@@ -331,11 +331,14 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   var TG = "https://admira-telegram.csilvasantin.workers.dev";
   var YK = "https://api.yokup.com";
 
-  /* ── Banda sonora: NES Track & Field (TAS «max score» by Phil).
-         Reproduce media/track-and-field.mp3 en bucle al entrar.
-         La fanfarria del podio sigue en WebAudio (remate corto). ── */
+  /* ── Banda sonora del presite: Track & Field (NES), 90 s tomados a partir del
+         17:22 del playthrough de NintendoComplete (Carlos, 3-ago-2026).
+         Sustituye al corte anterior de 9,1 MB: con 90 s en bucle bastan 1,4 MB,
+         y el presite deja de arrastrar nueve megas antes de la primera nota.
+         Normalizado a -16 LUFS y con fundido de entrada y salida para que el
+         bucle no dé el salto seco. La fanfarria del podio sigue en WebAudio. ── */
   var ac = null, sonando = false, bgm = null;
-  var BGM_SRC = "/media/track-and-field.mp3?v=trackfield-1";
+  var BGM_SRC = "/media/trackfield-1722.mp3?v=trackfield-1722";
   function nota(freq, t0, dur, vol, tipo) {
     var o = ac.createOscillator(), g = ac.createGain();
     o.type = tipo || "square"; o.frequency.setValueAtTime(freq, t0);
