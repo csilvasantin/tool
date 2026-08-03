@@ -68,6 +68,24 @@ test("el Dashboard carga proyectos y toma los agentes del mismo pulso físico",(
   assert.match(source,/pulsa <b>detalle<\/b>/);
 });
 
+test("el latido usa cuenta+runtime y retira el gemelo obsoleto de la misma máquina",()=>{
+  assert.match(source,/function paPresencePersona\(row\)/);
+  assert.match(source,/runtime\.includes\("claude"\).*account==="admira"\?"Neo":"Morfeo"/);
+  assert.match(source,/runtime\.includes\("codex"\).*account==="admira"\?"Trinity":"Oráculo"/);
+  assert.match(source,/function paFreshPresence\(rows,now\)/);
+  assert.match(source,/const slot=twin\?"twin\|"\+machine/);
+  assert.match(source,/const fresh=paFreshPresence\(d\.presence\|\|\[\],now\)/);
+});
+
+test("cada proyecto usa una captura real de su solución en vez de una carpeta genérica",()=>{
+  assert.match(source,/function paProjectShot\(project\)/);
+  assert.match(source,/PROJECTS_API\+"\/shot\?url="\+encodeURIComponent\(shotUrl\.href\)/);
+  assert.match(source,/project\.id==="yokup-ideas-objetivos"\?"https:\/\/www\.yokup\.com\/objetivos"/);
+  assert.match(source,/pixeria\\\.com\$\/i\.test\(shotUrl\.hostname\)\)shotUrl\.searchParams\.set\("gate","off"\)/);
+  assert.match(source,/<img loading="lazy" alt="" src=/);
+  assert.match(source,/\.pa-folder img\{[^}]*object-fit:cover;object-position:top center/);
+});
+
 test("cada proyecto nace como cabecera y permite expandir sus detalles",()=>{
   assert.match(source,/<details class="pa-project-node/);
   assert.match(source,/<summary class="pa-project-summary">/);

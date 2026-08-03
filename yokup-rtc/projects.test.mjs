@@ -104,3 +104,8 @@ test('la ficha de proyecto cuenta como viva la misión EN CURSO, no la encargada
 test('lo encargado y sin empezar viaja aparte, no se esconde', () => {
   assert.match(source, /missions_pending: pendBy\[String\(p\.id\)\.toLowerCase\(\)\] \|\| 0/);
 });
+
+test('/shot admite capturas reales de Ainimation Studio y DigitalAvatar', () => {
+  assert.match(source, /ainimation\\\.studio\|digitalavatar\\\.ai/);
+  assert.match(source, /page\.screenshot\(\{ type: "png", clip: \{ x: 0, y: 0, width: 960, height: 600 \} \}\)/);
+});

@@ -2796,7 +2796,7 @@ var index_default = {
     if (url.pathname === "/shot" && req.method === "GET") {
       if (!env.MEDIA) return json({ error: "sin bucket MEDIA" }, 500);
       const target = url.searchParams.get("url") || "";
-      const ALLOW = /^https?:\/\/(www\.)?(pixeria\.com|xpaceos\.com|yokup\.com|admira\.live|admira\.tv|admira\.store|clearchannel\.tv|admiranext\.com|carlossilva\.info)(\/|$|\?)/i;
+      const ALLOW = /^https?:\/\/(www\.)?(pixeria\.com|xpaceos\.com|yokup\.com|admira\.live|admira\.tv|admira\.store|clearchannel\.tv|admiranext\.com|ainimation\.studio|digitalavatar\.ai|carlossilva\.info)(\/|$|\?)/i;
       if (!ALLOW.test(target)) return json({ error: "dominio no permitido" }, 400);
       const digest = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(target));
       const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
