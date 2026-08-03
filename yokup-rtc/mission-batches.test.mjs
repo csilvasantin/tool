@@ -9,6 +9,14 @@ test('la tanda conserva el orden circular desde la misión elegida', () => {
   assert.match(source, /const count = options\.length - 1/);
 });
 
+test('OnIdle exige tres misiones y Volver atrás, con límite por hora de Madrid', () => {
+  assert.match(source, /options\.length === 4/);
+  assert.match(source, /isBackOption\(options\[3\]\)/);
+  assert.match(source, /function madridHourKey/);
+  assert.match(source, /error: "hourly_limit"/);
+  assert.doesNotMatch(source, /error: "daily_limit"/);
+});
+
 test('el plan canónico tiene sólo tres tareas delegables: Terra, Terra y Luna', () => {
   const body = source.match(/function batchMissionPlan\(title\) \{([\s\S]*?)\n\}/)?.[1] || '';
   const owners = [...body.matchAll(/owner: "([^"]+)"/g)].map((m) => m[1]);

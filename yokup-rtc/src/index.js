@@ -192,15 +192,16 @@ async function ensureSchema(env) {
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN live_at INTEGER").catch(() => {});
 }
 
-// Un reloj de decisión pesa: se permite uno por agente y día natural de Madrid.
+// Cuando el equipo está desatendido se permite un reloj por agente y hora de Madrid.
 // `user_override:true` sólo lo usa el coordinador cuando Carlos lo pide de forma
 // explícita (como en la ventana manual); queda visible en la respuesta del API.
-function madridDayKey(ms) {
+function madridHourKey(ms) {
   const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit"
+    timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", hourCycle: "h23"
   }).formatToParts(ms);
   const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${value.year}-${value.month}-${value.day}`;
+  return `${value.year}-${value.month}-${value.day}T${value.hour}`;
 }
 __name(ensureSchema, "ensureSchema");
 
@@ -217,16 +218,16 @@ async function hasMissionProof(env, mid) {
 __name(hasMissionProof, "hasMissionProof");
 
 // ---- TANDAS DE MISIONES DESDE RELOJES DE DECISIÓN -------------------------
-// Cinco opciones de misión + «Volver atrás» forman una única tanda. La opción
+// Tres opciones de misión + «Volver atrás» forman una única tanda. La opción
 // elegida va primero y las restantes hacen wrap en el orden mostrado. Nunca se
-// materializan las cuatro pendientes como tickets: así no hay misiones activas
+// materializan las dos pendientes como tickets: así no hay misiones activas
 // duplicadas ni trabajo aparentando estar en curso antes de que le toque.
 function isBackOption(option) {
   return /volver\s+atr[aá]s|no\s+iniciar/i.test(String(option || ""));
 }
 __name(isBackOption, "isBackOption");
 function isMissionDecision(options) {
-  return Array.isArray(options) && options.length === 6 && isBackOption(options[5]);
+  return Array.isArray(options) && options.length === 4 && isBackOption(options[3]);
 }
 __name(isMissionDecision, "isMissionDecision");
 function batchIdForDecision(decisionId) {
@@ -238,7 +239,7 @@ function missionIdForBatchItem(batchId, position) {
 }
 __name(missionIdForBatchItem, "missionIdForBatchItem");
 function orderedMissionOptions(options, chosen) {
-  const count = options.length - 1; // la sexta es siempre «Volver atrás»
+  const count = options.length - 1; // la cuarta es siempre «Volver atrás»
   const out = [];
   for (let position = 0; position < count; position++) {
     const optionIndex = (chosen + position) % count;
@@ -1716,7 +1717,7 @@ var index_default = {
     // ESCRITURA con sesión del perímetro (requireAuth inline: PROTECTED es por
     // ruta y capa los dos métodos, y el GET debe seguir abierto).
     // ── RELOJES DE DECISIÓN ────────────────────────────────────────────────
-    // POST /decisions            (agente) publica una única tanda diaria: 5 misiones + volver atrás
+    // POST /decisions            (agente) publica una tanda horaria: 3 misiones + volver atrás
     // GET  /decisions            (panel /misiones) lista las vivas + recién cerradas
     // POST /decisions/<id>/choose (Carlos) elige una opción
     // GET  /decisions/<id>       (agente) consulta el desenlace
@@ -1726,22 +1727,22 @@ var index_default = {
       try {
         await ensureSchema(env);
         const b = await req.json();
-        // La ventana de misión es siempre cinco caminos ejecutables más la
+        // La ventana de misión es siempre tres caminos ejecutables más la
         // salida terminal. No se publican mini-relojes alternativos que rompan
         // la cola o vuelvan a pedir una decisión ya tomada.
-        const opts = Array.isArray(b.options) ? b.options.slice(0, 6).map((o) => String(o).slice(0, 160)) : [];
+        const opts = Array.isArray(b.options) ? b.options.slice(0, 4).map((o) => String(o).slice(0, 160)) : [];
         const q = String(b.question || "").trim().slice(0, 400);
-        if (!q || !isMissionDecision(opts)) return json({ ok: false, error: "Se requieren exactamente 5 misiones y «Volver atrás» como sexta opción" }, 400);
+        if (!q || !isMissionDecision(opts)) return json({ ok: false, error: "Se requieren exactamente 3 misiones y «Volver atrás» como cuarta opción" }, 400);
         const mins = Math.min(60, Math.max(1, +b.minutes || 3));   // por defecto 3 min
         const now = Date.now();
         const agent = String(b.agent || "").trim().slice(0, 40);
         if (!agent) return json({ ok: false, error: "agent requerido" }, 400);
-        const today = madridDayKey(now);
+        const hour = madridHourKey(now);
         const recent = await env.DB.prepare("SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) ORDER BY created_at DESC LIMIT 200").bind(agent).all();
-        const previous = (recent.results || []).find((row) => madridDayKey(row.created_at) === today);
+        const previous = (recent.results || []).find((row) => madridHourKey(row.created_at) === hour);
         const userOverride = b.user_override === true;
         if (previous && !userOverride) {
-          return json({ ok: false, error: "daily_limit", existing: previous.id, day: today }, 409);
+          return json({ ok: false, error: "hourly_limit", existing: previous.id, hour }, 409);
         }
         const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
         // url/mission opcionales: la MISIÓN que engloba la decisión (el panel la

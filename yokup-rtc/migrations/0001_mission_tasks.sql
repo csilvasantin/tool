@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS mission_tasks (
 );
 CREATE INDEX IF NOT EXISTS idx_mtasks_mission ON mission_tasks(mission_id);
 
--- Tandas desde la ventana diaria: una elección crea una misión activa y deja
--- las otras cuatro como cola persistente. Las pendientes no son tickets hasta
+-- Tandas desde la ventana horaria: una elección crea una misión activa y deja
+-- las otras dos como cola persistente. Las pendientes no son tickets hasta
 -- que el Agente acepta con evidencia el cierre de la actual.
 CREATE TABLE IF NOT EXISTS mission_batches (
   id                TEXT PRIMARY KEY,

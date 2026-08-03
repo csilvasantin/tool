@@ -1,13 +1,14 @@
 # Tandas de misiones
 
-Cada ventana de decisión de misiones contiene exactamente cinco misiones y una
-sexta opción terminal, **Volver atrás**. El Worker sólo admite una por agente y
-día natural de Madrid, salvo `user_override:true` cuando Carlos la solicita.
+Cuando el equipo está desatendido, cada ventana de decisión de misiones contiene
+exactamente tres misiones y una cuarta opción terminal, **Volver atrás**. El
+Worker sólo admite una por agente y hora natural de Madrid, salvo
+`user_override:true` cuando Carlos la solicita.
 
 Al elegir una misión (o vencer el reloj), se crea una tanda persistente:
 
 1. Se activa la opción elegida.
-2. Las otras cuatro se guardan en el orden mostrado, haciendo *wrap* desde la
+2. Las otras dos se guardan en el orden mostrado, haciendo *wrap* desde la
    elegida; no se crean tickets hasta que les toca.
 3. Una misión sólo libera la siguiente si su cierre incluye `evidence` y
    `accepted_by` en `POST /ticket/status`. Eso escribe el evento `accept`.

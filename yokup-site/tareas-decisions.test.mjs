@@ -15,8 +15,6 @@ const options = [
   'Aplicar ahora',
   'Preparar borrador',
   'Pedir revisión',
-  'Programar después',
-  'Delegar al equipo',
   'Volver atrás'
 ];
 
@@ -43,30 +41,30 @@ function buttons(card) {
 
 function assertAllOptionsRemainVisible(card) {
   const renderedButtons = buttons(card);
-  assert.equal(renderedButtons.length, 6, 'deben conservarse 5 opciones y Volver atrás');
+  assert.equal(renderedButtons.length, 4, 'deben conservarse 3 opciones y Volver atrás');
   options.forEach((option, index) => assert.match(renderedButtons[index], new RegExp(option)));
   return renderedButtons;
 }
 
-test('una decisión pendiente mantiene las cinco opciones y Volver atrás accionables', () => {
+test('una decisión pendiente mantiene las tres opciones y Volver atrás accionables', () => {
   const renderedButtons = assertAllOptionsRemainVisible(render('pending'));
   assert.doesNotMatch(renderedButtons[0], /\bdisabled\b/);
   assert.match(renderedButtons[1], /class="[^"]*\brec\b/);
 });
 
 test('una decisión elegida conserva todas las opciones y resalta la aplicada', () => {
-  const card = render('decided', {chosen: 3});
+  const card = render('decided', {chosen: 2});
   const renderedButtons = assertAllOptionsRemainVisible(card);
   renderedButtons.forEach(button => {
     assert.match(button, /\bdisabled\b/);
     assert.match(button, /aria-disabled="true"/);
   });
-  assert.match(renderedButtons[3], /class="[^"]*\beffective\b/);
-  assert.match(renderedButtons[3], /aria-current="true"/);
-  renderedButtons.filter((_, index) => index !== 3).forEach(button => {
+  assert.match(renderedButtons[2], /class="[^"]*\beffective\b/);
+  assert.match(renderedButtons[2], /aria-current="true"/);
+  renderedButtons.filter((_, index) => index !== 2).forEach(button => {
     assert.doesNotMatch(button, /aria-current=/);
   });
-  assert.match(card, /decisión aplicada:[\s\S]*Programar después/);
+  assert.match(card, /decisión aplicada:[\s\S]*Pedir revisión/);
 });
 
 test('una decisión vencida conserva todas las opciones y resalta la recomendación efectiva', () => {
@@ -82,23 +80,21 @@ test('una decisión vencida conserva todas las opciones y resalta la recomendaci
 
 test('una decisión cerrada enseña la misión activa y la cola persistente', () => {
   const card = render('decided', {
-    chosen: 4,
+    chosen: 2,
     batch: {
       status: 'active',
       items: [
         {status: 'active', title: 'Exportación fiable PDF/PPTX'},
         {status: 'queued', title: 'Borradores y recuperación'},
-        {status: 'queued', title: 'Brief asistido'},
-        {status: 'queued', title: 'Kit de marca'},
-        {status: 'queued', title: 'Preview en vivo'}
+        {status: 'queued', title: 'Brief asistido'}
       ]
     }
   });
   assert.match(card, /▶ <b>activa<\/b>:[\s\S]*Exportación fiable PDF\/PPTX/);
-  assert.match(card, /cola:[\s\S]*Borradores y recuperación[\s\S]*Preview en vivo/);
+  assert.match(card, /cola:[\s\S]*Borradores y recuperación[\s\S]*Brief asistido/);
 });
 
 test('Volver atrás deja constancia de que el lote fue descartado', () => {
-  const card = render('cancelled', {chosen: 5});
+  const card = render('cancelled', {chosen: 3});
   assert.match(card, /lote descartado/);
 });
