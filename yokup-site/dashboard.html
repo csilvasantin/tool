@@ -72,6 +72,7 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
 .pa-assigned{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px;min-height:22px}.pa-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:999px;padding:2px 3px 2px 7px;font:9px/1.2 var(--mono);color:var(--mut);background:rgba(120,243,255,.04)}.pa-chip.legacy{border-style:dashed;color:var(--accent)}.pa-chip button{width:17px;height:17px;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}.pa-chip button:hover{background:rgba(255,136,102,.16);color:var(--warn)}.pa-empty{font:10px/1.5 var(--mono);color:var(--warn)}
 .pa-decision{width:100%;border:1px solid rgba(255,216,102,.34);border-radius:7px;background:rgba(255,216,102,.06);color:var(--accent);font:800 8.8px/1.25 var(--mono);letter-spacing:.04em;text-align:left;padding:7px 8px;cursor:pointer}.pa-decision:hover,.pa-decision:focus-visible{border-color:var(--accent);background:rgba(255,216,102,.12);outline:none}.pa-decision:disabled{opacity:.5;cursor:wait}
 .pa-team-agents{display:grid;gap:5px;padding:5px}.pa-agent-node{padding:6px 6px 6px 35px;background:rgba(7,20,29,.92)}.pa-agent-node.offline{border-style:dashed;background:rgba(31,25,13,.46)}.pa-agent-node.offline .pa-avatar{color:var(--accent);border-color:rgba(255,216,102,.34);background:rgba(255,216,102,.06)}.pa-agent-node.selected{border-color:var(--accent);box-shadow:0 0 0 1px rgba(255,216,102,.16),0 0 22px rgba(255,216,102,.1)}.pa-actions{display:grid;gap:5px;margin-top:5px}.pa-agent-project{border:1px solid var(--line);border-radius:7px;padding:5px;background:rgba(120,243,255,.035)}.pa-agent-project>span{display:block;font:800 8px/1.2 var(--mono);color:var(--mut);margin:0 2px 4px}.pa-action-row{display:flex;gap:5px}.pa-action-row .pa-decision{flex:1}.pa-mini{border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--mut);font:800 9px/1 var(--mono);padding:6px 8px;cursor:pointer}.pa-mini:hover,.pa-mini:focus-visible{color:var(--warn);border-color:var(--warn);outline:none}.pa-agent-empty{font:8.5px/1.3 var(--mono);color:var(--dim)}
+.pa-surfaces{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}.pa-surface{border:1px solid rgba(120,243,255,.16);border-radius:999px;padding:2px 5px;font:7.5px/1.2 var(--mono);color:var(--brand);background:rgba(120,243,255,.035)}.pa-family-helpers{display:grid;gap:4px;margin-top:6px}.pa-helper{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;padding:5px 7px;border-left:2px solid var(--line2);border-radius:0 6px 6px 0;background:rgba(120,243,255,.035);font-family:var(--mono)}.pa-helper b{font-size:8.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pa-helper em{font-size:7px;color:var(--accent);font-style:normal;text-transform:uppercase}.pa-helper span{grid-column:1/-1;font-size:7.3px;color:var(--dim)}.pa-chip-family{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:9px;padding:4px 4px 4px 7px;font:9px/1.2 var(--mono);color:var(--mut);background:rgba(120,243,255,.04)}.pa-chip-family.primary{border-color:rgba(255,216,102,.48);color:var(--accent)}.pa-chip-family small{display:block;color:var(--dim);font-size:7px;margin-top:2px}.pa-chip-family button{width:18px;height:18px;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}.pa-chip-family button:hover{background:rgba(255,136,102,.16);color:var(--warn)}
 .pa-team-node:not([open])>.pa-team-agents,.pa-project-node:not([open])>.pa-project-detail{display:none}
 .pa-target{border:1px dashed var(--good);border-radius:7px;background:rgba(136,255,170,.05);color:var(--good);font:800 8px/1.2 var(--mono);letter-spacing:.03em;padding:6px 7px;cursor:pointer;white-space:nowrap}.pa-target:hover,.pa-target:focus-visible{background:rgba(136,255,170,.12);outline:none}.pa-target:disabled{opacity:.45;cursor:wait}
 .pa-loading{grid-column:1/-1;border:1px dashed var(--line);border-radius:11px;padding:24px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:10.5px}
@@ -297,13 +298,32 @@ function paAgentId(value,machine){
   const parsed=ykAgentIdentity.parse(value),resolved=machine||ykAgentIdentity.canonicalMachine(value);
   return resolved?ykAgentIdentity.scoped(parsed.persona,resolved,parsed.role):String(value||"").trim();
 }
+function paFamilyId(value,machine){
+  if(!window.ykAgentIdentity)return String(value||"").replace(/^(?:Sub|Infra)/i,"").trim();
+  const parsed=ykAgentIdentity.parse(value),resolved=machine||ykAgentIdentity.canonicalMachine(value);
+  return resolved?ykAgentIdentity.scoped(parsed.persona,resolved,"main"):String(parsed.persona||value||"").trim();
+}
+function paAgentRole(value){return window.ykAgentIdentity?(ykAgentIdentity.parse(value).role||"main"):/^Sub/i.test(value)?"sub":/^Infra/i.test(value)?"infra":"main";}
 function paProjectAgentRefs(project){
   const refs=Array.isArray(project&&project.agents)?project.agents.slice():[];
   const explicit=String(project&&project.owner||project&&project.primary_responsible||"").trim();
   if(explicit&&!refs.includes(explicit))refs.push(explicit);
-  return [...new Set(refs.map(ref=>paAgentId(ref)).filter(Boolean))];
+  const firstMachine=Array.isArray(project&&project.machines)&&project.machines.length?project.machines[0]:"";
+  return [...new Set(refs.map(ref=>paAgentId(ref,(window.ykAgentIdentity&&ykAgentIdentity.canonicalMachine(ref))||firstMachine)).filter(Boolean))];
 }
+function paProjectAgentGroups(project){
+  const groups=new Map();
+  paProjectAgentRefs(project).forEach(ref=>{
+    const familyId=paFamilyId(ref),role=paAgentRole(ref);
+    if(!groups.has(familyId))groups.set(familyId,{id:familyId,refs:[],helpers:[]});
+    const group=groups.get(familyId);group.refs.push(ref);if(role!=="main")group.helpers.push(ref);
+  });
+  return [...groups.values()];
+}
+function paProjectFamilyRefs(project){return paProjectAgentGroups(project).map(group=>group.id);}
 function paProjectHasAgent(project,agent){return paProjectAgentRefs(project).includes(paAgentId(agent));}
+function paProjectHasFamily(project,family){const id=typeof family==="string"?paFamilyId(family):family&&family.id;return !!id&&paProjectFamilyRefs(project).includes(id);}
+function paProjectRefsForFamily(project,family){const id=typeof family==="string"?paFamilyId(family):family&&family.id;const group=paProjectAgentGroups(project).find(item=>item.id===id);return group?group.refs:[];}
 function paProjectRoster(live,projects){
   const bySlot=new Map((live||[]).map(agent=>{
     const id=paAgentId(agent.id,agent.teamMachine||agent.machine),instanceId=agent.instanceId||id+"|"+String(agent.runtime||"").toLowerCase()+"|"+(String(agent.host||"").toLowerCase()||"unknown");
@@ -324,9 +344,26 @@ function paTeamKey(machine){
   const suffix=window.ykAgentIdentity&&ykAgentIdentity.suffix?ykAgentIdentity.suffix(machine):"";
   return suffix||String(machine||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"");
 }
+function paAgentFamilies(rows){
+  const families=new Map();
+  (rows||[]).forEach(agent=>{
+    const id=paFamilyId(agent.id,agent.teamMachine||agent.machine),key=(agent.team||paTeamKey(agent.machine))+"|"+id;
+    if(!id)return;
+    if(!families.has(key))families.set(key,{id,instanceId:"family|"+id,team:agent.team||paTeamKey(agent.machine),teamMachine:agent.teamMachine||agent.machine,machine:agent.machine,slots:[],helpers:[],memberIds:[]});
+    const family=families.get(key),role=paAgentRole(agent.id);family.memberIds.push(agent.id);
+    if(role==="main")family.slots.push(agent);else family.helpers.push({...agent,role});
+  });
+  return [...families.values()].map(family=>{
+    const all=family.slots.concat(family.helpers),lead=(family.slots.slice().sort((a,b)=>Number(b.online)-Number(a.online)||(b.updated||0)-(a.updated||0))[0]||all[0]||{});
+    const uniqueSlots=list=>[...new Map(list.map(slot=>[String(slot.runtime||"").toLowerCase()+"|"+String(slot.host||"").toLowerCase(),slot])).values()];
+    const helperGroups=new Map();
+    family.helpers.forEach(helper=>{if(!helperGroups.has(helper.id))helperGroups.set(helper.id,{id:helper.id,role:helper.role,slots:[]});helperGroups.get(helper.id).slots.push(helper);});
+    return {...lead,...family,online:all.some(item=>item.online),assigned:all.some(item=>item.assigned),verified:all.some(item=>item.verified),updated:Math.max(0,...all.map(item=>item.updated||0)),surfaces:uniqueSlots(family.slots),helpers:[...helperGroups.values()].map(helper=>({...helper,slots:uniqueSlots(helper.slots),online:helper.slots.some(item=>item.online),assigned:helper.slots.some(item=>item.assigned)})),memberIds:[...new Set(family.memberIds)]};
+  }).sort((a,b)=>Number(b.online)-Number(a.online)||(b.updated||0)-(a.updated||0)||a.id.localeCompare(b.id,"es"));
+}
 function paTeams(){
   const teams=new Map();
-  PROJECT_ROSTER.forEach(agent=>{
+  paAgentFamilies(PROJECT_ROSTER).forEach(agent=>{
     if(!agent.team)return;
     if(!teams.has(agent.team))teams.set(agent.team,{key:agent.team,machine:agent.teamMachine||agent.machine,agents:[]});
     teams.get(agent.team).agents.push(agent);
@@ -350,7 +387,7 @@ async function paJson(path,options){
 }
 function paRender(){
   PROJECT_ROSTER=paProjectRoster(PROJECT_LIVE_ROSTER,PROJECT_ROWS);
-  const teamsBox=pa("projectAgentTeams"),projectsBox=pa("projectAgentProjects"),teams=paTeams();
+  const teamsBox=pa("projectAgentTeams"),projectsBox=pa("projectAgentProjects"),families=paAgentFamilies(PROJECT_ROSTER),teams=paTeams();
   pa("projectAgentLinks").innerHTML="";
   const filteredTeams=teams.filter(team=>TEAM_FILTER!=="unassigned"||!paTeamHasProject(team));
   const filteredProjects=PROJECT_ROWS.filter(project=>PROJECT_FILTER!=="unassigned"||!(project.machines||[]).length);
@@ -358,14 +395,14 @@ function paRender(){
   const visibleProjects=filteredProjects.filter(project=>!HIDDEN_PROJECTS.has(project.id));
   const openProjects=new Set([...projectsBox.querySelectorAll("[data-project-node][open]")].map(node=>node.dataset.projectNode));
   const openTeams=new Set([...teamsBox.querySelectorAll("[data-team-key][open]")].map(node=>node.dataset.teamKey));
-  const byId=new Map(PROJECT_ROSTER.map(a=>[a.id,a]));
+  const byId=new Map(PROJECT_ROSTER.map(a=>[a.id,a])),byFamily=new Map(families.map(a=>[a.id,a]));
   const active=PROJECT_ROWS.filter(p=>p.status!=="archivado").length;
-  const links=PROJECT_ROWS.reduce((n,p)=>n+(p.machines||[]).length+(p.agents||[]).length,0);
-  pa("projectAgentN").textContent=active+" proyectos · "+teams.length+" equipos · "+PROJECT_ROSTER.length+" agentes · "+links+" uniones";
+  const links=PROJECT_ROWS.reduce((n,p)=>n+(p.machines||[]).length+paProjectFamilyRefs(p).length,0);
+  pa("projectAgentN").textContent=active+" proyectos · "+teams.length+" equipos · "+families.length+" agentes principales · "+links+" uniones";
   const visibleActive=visibleProjects.filter(project=>project.status!=="archivado").length,visibleAgents=visibleTeams.reduce((total,team)=>total+team.agents.length,0);
   pa("projectAgentProjectsN").textContent=visibleActive+"/"+active;
   pa("projectAgentTeamsN").textContent=visibleTeams.length+"/"+teams.length;
-  pa("projectAgentAgentsN").textContent=visibleAgents+"/"+PROJECT_ROSTER.length;
+  pa("projectAgentAgentsN").textContent=visibleAgents+"/"+families.length;
   pa("projectAgentProjectsAll").classList.toggle("active",PROJECT_FILTER==="all");
   pa("projectAgentProjectsAll").setAttribute("aria-pressed",PROJECT_FILTER==="all");
   pa("projectAgentProjectsUnassigned").classList.toggle("active",PROJECT_FILTER==="unassigned");
@@ -378,28 +415,30 @@ function paRender(){
   teamsBox.innerHTML=visibleTeams.length?visibleTeams.map(team=>{
     const projectCount=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasTeam(project,team.key)).length;
     const agents=team.agents.map(agent=>{
-      const assignedProjects=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasAgent(project,agent.id));
-      const actions=assignedProjects.length?assignedProjects.map(project=>'<div class="pa-agent-project"><span>'+esc(project.name||project.id)+'</span><div class="pa-action-row"><button type="button" class="pa-decision" data-pa-decision="'+esc(project.id)+'" data-pa-decision-agent="'+esc(agent.id)+'"'+(PROJECT_DECISION_BUSY?' disabled':'')+'>⏳ Ventana de Decisión</button><button type="button" class="pa-mini" data-pa-agent-remove="'+esc(agent.id)+'" data-project="'+esc(project.id)+'" aria-label="Retirar '+esc(agent.id)+' de '+esc(project.name||project.id)+'">×</button></div></div>').join(""):'<div class="pa-agent-empty">Arrastra la flecha hacia un proyecto</div>';
+      const assignedProjects=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasFamily(project,agent));
+      const actions=assignedProjects.length?assignedProjects.map(project=>'<div class="pa-agent-project"><span>'+esc(project.name||project.id)+'</span><div class="pa-action-row"><button type="button" class="pa-decision" data-pa-decision="'+esc(project.id)+'" data-pa-decision-agent="'+esc(agent.id)+'"'+(PROJECT_DECISION_BUSY?' disabled':'')+'>⏳ Ventana de Decisión</button><button type="button" class="pa-mini" data-pa-family-remove="'+esc(agent.id)+'" data-project="'+esc(project.id)+'" aria-label="Retirar la familia '+esc(agent.id)+' de '+esc(project.name||project.id)+'">×</button></div></div>').join(""):'<div class="pa-agent-empty">Arrastra la flecha hacia un proyecto</div>';
       const selected=LINK_CLICK_AGENT===agent.id;
-      const surface=paRuntimeSurface(agent),model=String(agent.model||"").trim(),surfaceTitle=model?surface+' · '+model:surface;
-      return '<article class="pa-agent-node'+(agent.online?'':' offline')+(selected?' selected':'')+'" data-agent-node="'+esc(agent.instanceId)+'" data-agent-ref="'+esc(agent.id)+'"><button type="button" class="pa-port" data-link-agent="'+esc(agent.id)+'" aria-label="Conectar '+esc(agent.id)+' con un proyecto" title="Arrastra '+esc(agent.id)+' hasta un proyecto">←</button><div class="pa-node-top"><div class="pa-avatar">'+esc(paInitials(agent))+'</div><div class="pa-name"><b>'+esc(agent.id)+'</b><span title="'+esc(surfaceTitle)+'">'+esc(surface)+' · '+esc(agent.teamMachine||agent.machine)+'</span></div></div><div class="pa-meta"><span class="'+(agent.online?'pa-live':'pa-offline')+'">'+(agent.online?'● '+(agent.verified?'verificado':'latido reportado'):'○ asignado · sin actividad')+'</span>'+(agent.updated?'<span>'+agoS(agent.updated)+'</span>':'')+'<span>'+assignedProjects.length+' proyecto'+(assignedProjects.length===1?'':'s')+'</span></div><div class="pa-actions">'+actions+'</div></article>';
+      const surfaces=agent.surfaces.map(paRuntimeSurface),surface=surfaces.join(" + ")||"sin superficie principal activa",surfaceTitle=agent.surfaces.map(slot=>{const model=String(slot.model||"").trim(),label=paRuntimeSurface(slot);return model?label+' · '+model:label;}).join(" · ");
+      const surfaceChips=surfaces.length?'<div class="pa-surfaces">'+surfaces.map(label=>'<span class="pa-surface">'+esc(label)+'</span>').join("")+'</div>':'';
+      const helpers=agent.helpers.length?'<div class="pa-family-helpers">'+agent.helpers.map(helper=>{const helperSurfaces=helper.slots.map(paRuntimeSurface).join(" + ")||(helper.assigned?"asignado · sin actividad":"sin superficie activa"),role=helper.role==="sub"?"ejecución":"infra · QA",projects=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasAgent(project,helper.id)).length;return '<div class="pa-helper"><b>'+esc(helper.id)+'</b><em>'+esc(role)+'</em><span>'+esc(helperSurfaces)+' · '+projects+' proyecto'+(projects===1?'':'s')+'</span></div>';}).join("")+'</div>':'';
+      return '<article class="pa-agent-node'+(agent.online?'':' offline')+(selected?' selected':'')+'" data-agent-node="'+esc(agent.instanceId)+'" data-agent-family="'+esc(agent.id)+'" data-agent-ref="'+esc(agent.id)+'"><button type="button" class="pa-port" data-link-agent="'+esc(agent.id)+'" aria-label="Conectar '+esc(agent.id)+' con un proyecto" title="Arrastra '+esc(agent.id)+' hasta un proyecto">←</button><div class="pa-node-top"><div class="pa-avatar">'+esc(paInitials(agent))+'</div><div class="pa-name"><b>'+esc(agent.id)+'</b><span title="'+esc(surfaceTitle)+'">'+esc(surface)+' · '+esc(agent.teamMachine||agent.machine)+'</span></div></div>'+surfaceChips+'<div class="pa-meta"><span class="'+(agent.online?'pa-live':'pa-offline')+'">'+(agent.online?'● '+(agent.verified?'familia verificada':'familia con latido'):'○ asignado · sin actividad')+'</span>'+(agent.updated?'<span>'+agoS(agent.updated)+'</span>':'')+'<span>'+assignedProjects.length+' proyecto'+(assignedProjects.length===1?'':'s')+'</span></div>'+helpers+'<div class="pa-actions">'+actions+'</div></article>';
     }).join("");
     const nodeKey=paNodeKey("team",team.key);
-    return '<details class="pa-team-node" data-team-key="'+esc(team.key)+'" data-pa-node-key="'+esc(nodeKey)+'" style="'+paNodeVars(nodeKey)+'"'+(openTeams.has(team.key)?' open':'')+'><summary class="pa-team-summary"><div class="pa-avatar">▣</div><div class="pa-name"><b title="'+esc(team.machine)+'">'+esc(team.machine)+'</b><span>'+team.agents.length+' agente'+(team.agents.length===1?'':'s')+' · '+projectCount+' proyecto'+(projectCount===1?'':'s')+'</span></div><span class="pa-expand">agentes</span><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(team.machine)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-team="'+esc(team.key)+'" aria-label="Ocultar '+esc(team.machine)+'" title="Ocultar equipo">×</button></summary><div class="pa-team-agents">'+agents+'</div></details>';
+    return '<details class="pa-team-node" data-team-key="'+esc(team.key)+'" data-pa-node-key="'+esc(nodeKey)+'" style="'+paNodeVars(nodeKey)+'"'+(openTeams.has(team.key)?' open':'')+'><summary class="pa-team-summary"><div class="pa-avatar">▣</div><div class="pa-name"><b title="'+esc(team.machine)+'">'+esc(team.machine)+'</b><span>'+team.agents.length+' agente'+(team.agents.length===1?'':'s')+' principal'+(team.agents.length===1?'':'es')+' · '+projectCount+' proyecto'+(projectCount===1?'':'s')+'</span></div><span class="pa-expand">agentes</span><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(team.machine)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-team="'+esc(team.key)+'" aria-label="Ocultar '+esc(team.machine)+'" title="Ocultar equipo">×</button></summary><div class="pa-team-agents">'+agents+'</div></details>';
   }).join(""):'<div class="pa-loading">'+emptyTeams+'</div>';
   if(!PROJECT_ROWS.length){projectsBox.innerHTML='<div class="pa-loading">No hay proyectos dados de alta todavía.</div>';paDrawLinks();return;}
   const emptyProjects=PROJECT_FILTER==="unassigned"?"No hay proyectos sin equipo asociado.":HIDDEN_PROJECTS.size?"Proyectos ocultos · pulsa Todos":"No hay proyectos visibles.";
   projectsBox.innerHTML=visibleProjects.length?visibleProjects.map(project=>{
-    const assigned=paProjectAgentRefs(project),assignedTeams=Array.isArray(project.machines)?project.machines:[];
+    const assignedGroups=paProjectAgentGroups(project),assignedTeams=Array.isArray(project.machines)?project.machines:[];
     const archived=project.status==="archivado";
     const web=paWeb(project.web),shot=paProjectShot(project),busy=PROJECT_BUSY.startsWith(project.id+"|");
     const teamChips=assignedTeams.length?assignedTeams.map(ref=>'<span class="pa-chip">▣ '+esc(ref)+'<button type="button" data-pa-remove-team="'+esc(ref)+'" data-project="'+esc(project.id)+'" aria-label="Quitar '+esc(ref)+' de '+esc(project.name||project.id)+'"'+(busy?' disabled':'')+'>×</button></span>').join(""):'<span class="pa-empty">Sin equipos asociados</span>';
     const primary=paPrimaryResponsible(project);
-    const primaryId=paAgentId(primary);
-    const agentChips=assigned.length?assigned.map(ref=>{const row=byId.get(ref),visible=row&&paProjectHasTeam(project,row.team),isPrimary=ref===primaryId;return '<span class="pa-chip'+(visible?'':' legacy')+(isPrimary?' primary':'')+'" title="'+esc(isPrimary?'Responsable Principal':row&&!row.online?'Asignación permanente · agente sin actividad':visible?'Agente elegido dentro de su equipo':'Referencia sin equipo asociado')+'">👤 '+esc(ref)+(row?'<button type="button" data-pa-agent-remove="'+esc(ref)+'" data-project="'+esc(project.id)+'" aria-label="Quitar '+esc(ref)+'"'+(busy?' disabled':'')+'>×</button>':'')+'</span>';}).join(""):'<span class="pa-empty">Sin agentes elegidos</span>';
+    const primaryId=paFamilyId(primary,assignedTeams[0]||"");
+    const agentChips=assignedGroups.length?assignedGroups.map(group=>{const row=byFamily.get(group.id),memberRows=group.refs.map(ref=>byId.get(ref)).filter(Boolean),visible=row&&paProjectHasTeam(project,row.team),isPrimary=group.id===primaryId,helpers=group.helpers.length?'<small>'+group.helpers.map(ref=>esc(ref)).join(' · ')+'</small>':'';return '<span class="pa-chip-family'+(visible?'':' legacy')+(isPrimary?' primary':'')+'" title="'+esc(isPrimary?'Responsable Principal':memberRows.some(item=>!item.online)?'Familia asignada · algún miembro sin actividad':visible?'Agente principal y familia elegidos':'Referencia sin equipo asociado')+'"><span>👤 '+esc(group.id)+helpers+'</span><button type="button" data-pa-family-remove="'+esc(group.id)+'" data-project="'+esc(project.id)+'" aria-label="Quitar la familia '+esc(group.id)+'"'+(busy?' disabled':'')+'>×</button></span>';}).join(""):'<span class="pa-empty">Sin agentes elegidos</span>';
     const target=LINK_CLICK_AGENT&&!archived?'<button class="pa-target" type="button" data-pa-target="'+esc(project.id)+'"'+(busy?' disabled':'')+'>Conectar aquí</button>':'';
     const nodeKey=paNodeKey("project",project.id);
-    return '<details class="pa-project-node '+esc(project.status||"activo")+'" data-project-node="'+esc(project.id)+'" data-pa-node-key="'+esc(nodeKey)+'" style="--pc:'+paColor(project.color)+';'+paNodeVars(nodeKey)+'"'+(openProjects.has(project.id)?' open':'')+'><summary class="pa-project-summary"><div class="pa-folder"><span>📁</span>'+(shot?'<img loading="lazy" alt="" src="'+esc(shot)+'" onerror="this.remove()">':'')+'</div><div class="pa-project-main"><div class="pa-name"><b title="'+esc(project.name||project.id)+'">'+esc(project.name||project.id)+'</b><span>'+(web?esc(new URL(web).hostname):esc(project.id))+'</span></div><div class="pa-project-controls">'+target+'<span class="pa-state '+esc(project.status||"activo")+'">'+esc(project.status||"activo")+'</span><span class="pa-expand">detalle</span></div></div><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(project.name||project.id)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-project="'+esc(project.id)+'" aria-label="Ocultar '+esc(project.name||project.id)+'" title="Ocultar proyecto">×</button><span class="pa-port" data-project-port="'+esc(project.id)+'">◆</span></summary><div class="pa-project-detail"><div class="pa-meta"><span>'+assignedTeams.length+' equipos</span><span>'+assigned.length+' agentes</span><span>'+(project.missions||0)+' en curso</span>'+(web?'<a href="'+esc(web)+'" target="_blank" rel="noopener">abrir ↗</a>':'')+'</div><div class="pa-primary"><b>Responsable Principal</b><span>👤 '+esc(primary)+'</span></div><div class="pa-assigned">'+teamChips+'</div><div class="pa-assigned">'+agentChips+'</div></div></details>';
+    return '<details class="pa-project-node '+esc(project.status||"activo")+'" data-project-node="'+esc(project.id)+'" data-pa-node-key="'+esc(nodeKey)+'" style="--pc:'+paColor(project.color)+';'+paNodeVars(nodeKey)+'"'+(openProjects.has(project.id)?' open':'')+'><summary class="pa-project-summary"><div class="pa-folder"><span>📁</span>'+(shot?'<img loading="lazy" alt="" src="'+esc(shot)+'" onerror="this.remove()">':'')+'</div><div class="pa-project-main"><div class="pa-name"><b title="'+esc(project.name||project.id)+'">'+esc(project.name||project.id)+'</b><span>'+(web?esc(new URL(web).hostname):esc(project.id))+'</span></div><div class="pa-project-controls">'+target+'<span class="pa-state '+esc(project.status||"activo")+'">'+esc(project.status||"activo")+'</span><span class="pa-expand">detalle</span></div></div><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(project.name||project.id)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-project="'+esc(project.id)+'" aria-label="Ocultar '+esc(project.name||project.id)+'" title="Ocultar proyecto">×</button><span class="pa-port" data-project-port="'+esc(project.id)+'">◆</span></summary><div class="pa-project-detail"><div class="pa-meta"><span>'+assignedTeams.length+' equipos</span><span>'+assignedGroups.length+' agentes principales</span><span>'+(project.missions||0)+' en curso</span>'+(web?'<a href="'+esc(web)+'" target="_blank" rel="noopener">abrir ↗</a>':'')+'</div><div class="pa-primary"><b>Responsable Principal</b><span>👤 '+esc(primaryId||primary)+'</span></div><div class="pa-assigned">'+teamChips+'</div><div class="pa-assigned">'+agentChips+'</div></div></details>';
   }).join(""):'<div class="pa-loading">'+emptyProjects+'</div>';
   teamsBox.querySelectorAll("[data-link-agent]").forEach(port=>{
     port.onpointerdown=paStartDrag;
@@ -408,6 +447,7 @@ function paRender(){
   teamsBox.querySelectorAll("[data-pa-decision]").forEach(button=>button.onclick=()=>paOpenDecision(button.dataset.paDecision,button.dataset.paDecisionAgent));
   teamsBox.querySelectorAll("[data-pa-hide-team]").forEach(button=>button.onclick=event=>{event.preventDefault();event.stopPropagation();HIDDEN_TEAMS.add(button.dataset.paHideTeam);paRender();paMessage("Equipo oculto · pulsa Todos para restaurarlo");});
   document.querySelectorAll("[data-pa-agent-remove]").forEach(button=>button.onclick=()=>paAssignAgent(button.dataset.project,button.dataset.paAgentRemove,true));
+  document.querySelectorAll("[data-pa-family-remove]").forEach(button=>button.onclick=()=>paRemoveFamily(button.dataset.project,button.dataset.paFamilyRemove));
   projectsBox.querySelectorAll("[data-pa-target]").forEach(button=>button.onclick=event=>{event.preventDefault();event.stopPropagation();if(LINK_CLICK_AGENT)paConnectAgent(button.dataset.paTarget,LINK_CLICK_AGENT);});
   projectsBox.querySelectorAll("[data-pa-hide-project]").forEach(button=>button.onclick=event=>{event.preventDefault();event.stopPropagation();HIDDEN_PROJECTS.add(button.dataset.paHideProject);paRender();paMessage("Proyecto oculto · pulsa Todos para restaurarlo");});
   projectsBox.querySelectorAll("[data-pa-remove-team]").forEach(button=>button.onclick=()=>paAssignTeam(button.dataset.project,button.dataset.paRemoveTeam,true));
@@ -418,9 +458,7 @@ function paRender(){
 function paPoint(element,mapRect){const r=element.getBoundingClientRect();return{x:r.left+r.width/2-mapRect.left,y:r.top+r.height/2-mapRect.top};}
 function paCurve(a,b){const direction=b.x>=a.x?1:-1,bend=Math.max(45,Math.abs(b.x-a.x)*.48)*direction;return'M '+a.x+' '+a.y+' C '+(a.x+bend)+' '+a.y+', '+(b.x-bend)+' '+b.y+', '+b.x+' '+b.y;}
 function paConnectionColors(){
-  const keys=[...new Set(PROJECT_ROWS.flatMap(project=>paProjectAgentRefs(project).flatMap(agent=>{
-    const instances=PROJECT_ROSTER.filter(row=>row.id===agent);return(instances.length?instances:[{instanceId:agent}]).map(row=>row.instanceId+'|'+project.id);
-  })))].sort((a,b)=>a.localeCompare(b,"es")),colors=new Map();
+  const keys=[...new Set(PROJECT_ROWS.flatMap(project=>paProjectFamilyRefs(project).map(agent=>'family|'+agent+'|'+project.id)))].sort((a,b)=>a.localeCompare(b,"es")),colors=new Map();
   keys.forEach((key,index)=>colors.set(key,'hsl('+Math.round((index*137.508)%360)+' 88% 68%)'));
   return colors;
 }
@@ -467,8 +505,8 @@ function paDrawLinks(){
   const rect=map.getBoundingClientRect();svg.setAttribute("viewBox","0 0 "+Math.max(1,rect.width)+" "+Math.max(1,rect.height));
   if(!(pa("projectAgentProjectsPane").open&&pa("projectAgentTeamsPane").open)){group.innerHTML="";temp.setAttribute('d','');return;}
   const colors=paConnectionColors();
-  group.innerHTML=PROJECT_ROWS.flatMap(project=>paProjectAgentRefs(project).flatMap(agent=>{
-    const agentNodes=[...map.querySelectorAll('[data-agent-ref="'+CSS.escape(agent)+'"]')],target=map.querySelector('[data-project-port="'+CSS.escape(project.id)+'"]');
+  group.innerHTML=PROJECT_ROWS.flatMap(project=>paProjectFamilyRefs(project).flatMap(agent=>{
+    const agentNodes=[...map.querySelectorAll('[data-agent-family="'+CSS.escape(agent)+'"]')],target=map.querySelector('[data-project-port="'+CSS.escape(project.id)+'"]');
     return agentNodes.filter((agentNode,index)=>{
       const teamNode=agentNode.closest('[data-team-key]');return teamNode&&target&&teamNode.getClientRects().length&&target.getClientRects().length&&(teamNode.open||index===0);
     }).map(agentNode=>{
@@ -515,7 +553,7 @@ async function paAssignTeam(project,team,remove){
 }
 async function paConnectAgent(project,agent){
   if(PROJECT_BUSY)return;
-  const row=PROJECT_ROSTER.find(item=>item.id===agent),projectRow=PROJECT_ROWS.find(item=>item.id===project&&item.status!=="archivado");
+  const row=paAgentFamilies(PROJECT_ROSTER).find(item=>item.id===agent),projectRow=PROJECT_ROWS.find(item=>item.id===project&&item.status!=="archivado");
   if(!row||!projectRow){paMessage("No se encontró el agente físico o el proyecto","err");return;}
   const team=paTeams().find(item=>item.key===row.team),teamRef=team&&team.machine||row.teamMachine||row.machine;
   PROJECT_BUSY=project+"|agent|"+agent;paRender();paMessage("Conectando "+agent+" con "+(projectRow.name||projectRow.id)+"…");
@@ -546,9 +584,24 @@ async function paAssignAgent(project,agent,remove){
   }catch(e){paMessage("✗ "+(e&&e.message||e),"err");}
   finally{PROJECT_BUSY="";paRender();}
 }
+async function paRemoveFamily(project,familyId){
+  if(PROJECT_BUSY)return;
+  const projectRow=PROJECT_ROWS.find(item=>item.id===project),refs=paProjectRefsForFamily(projectRow,familyId);
+  if(!projectRow||!refs.length){paMessage("La familia ya no está asignada al proyecto","err");return;}
+  PROJECT_BUSY=project+"|family|"+familyId;paRender();paMessage("Retirando agente principal y auxiliares…");
+  try{
+    let current=projectRow;
+    for(const ref of refs){
+      const row=PROJECT_ROSTER.find(item=>item.id===ref),d=await paJson("/projects/assign",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({project,kind:"agent",ref,remove:true,machine:row&&row.machine||""})});
+      if(d.project){current=d.project;PROJECT_ROWS=PROJECT_ROWS.map(item=>item.id===d.project.id?d.project:item);}
+    }
+    paMessage("✓ "+familyId+" y sus auxiliares retirados","ok");
+  }catch(e){paMessage("✗ "+(e&&e.message||e),"err");}
+  finally{PROJECT_BUSY="";paRender();}
+}
 async function paOpenDecision(projectId,agentId){
   if(PROJECT_DECISION_BUSY)return;
-  const agent=PROJECT_ROSTER.find(row=>row.id===agentId),project=PROJECT_ROWS.find(row=>row.id===projectId);
+  const agent=paAgentFamilies(PROJECT_ROSTER).find(row=>row.id===agentId),project=PROJECT_ROWS.find(row=>row.id===projectId);
   if(!agent||!project){paMessage("No se encontró la unión proyecto · agente","err");return;}
   PROJECT_DECISION_BUSY=projectId+"|"+agentId;paRender();paMessage("Generando cinco mejoras para "+(project.name||project.id)+"…");
   try{

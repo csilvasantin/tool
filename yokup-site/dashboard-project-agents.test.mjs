@@ -6,6 +6,24 @@ const source=await readFile(new URL("./dashboard.html",import.meta.url),"utf8");
 const frame=await readFile(new URL("./yk-frame.js",import.meta.url),"utf8");
 const landing=await readFile(new URL("./index.html",import.meta.url),"utf8");
 const redirects=await readFile(new URL("./_redirects",import.meta.url),"utf8");
+await import("./yk-agent-identity.js");
+const identity=globalThis.ykAgentIdentity;
+
+function functionSource(name){
+  const start=source.indexOf(`function ${name}(`);assert.notEqual(start,-1,`falta ${name}`);
+  const brace=source.indexOf("{",start);let depth=0,quote="",escaped=false;
+  for(let i=brace;i<source.length;i++){
+    const char=source[i];
+    if(quote){if(escaped)escaped=false;else if(char==="\\")escaped=true;else if(char===quote)quote="";continue;}
+    if(char==='"'||char==="'"||char==='`'){quote=char;continue;}
+    if(char==="{")depth++;else if(char==="}"&&--depth===0)return source.slice(start,i+1);
+  }
+  throw new Error(`función ${name} incompleta`);
+}
+
+const familyApi=new Function("window","ykAgentIdentity",[
+  "paFamilyId","paAgentRole","paTeamKey","paAgentFamilies"
+].map(functionSource).join("\n")+"\nreturn {paAgentFamilies};")({ykAgentIdentity:identity},identity);
 
 test("el Dashboard vive en /dashboard y conserva /agentica sólo como retorno compatible",async()=>{
   await assert.rejects(access(new URL("./agentica.html",import.meta.url)),error=>error&&error.code==="ENOENT");
@@ -48,7 +66,7 @@ test("proyectos y equipos son compactables y enseñan sus tres recuentos",()=>{
   assert.match(source,/· Agentes <span class="pa-count" id="projectAgentAgentsN">/);
   assert.match(source,/pa\("projectAgentProjectsN"\)\.textContent=visibleActive\+"\/"\+active/);
   assert.match(source,/pa\("projectAgentTeamsN"\)\.textContent=visibleTeams\.length\+"\/"\+teams\.length/);
-  assert.match(source,/pa\("projectAgentAgentsN"\)\.textContent=visibleAgents\+"\/"\+PROJECT_ROSTER\.length/);
+  assert.match(source,/pa\("projectAgentAgentsN"\)\.textContent=visibleAgents\+"\/"\+families\.length/);
 });
 
 test("el mapa coloca proyectos a la izquierda y equipos con agentes a la derecha",()=>{
@@ -86,7 +104,7 @@ test("las asignaciones de Webmaster permanecen visibles aunque el agente no est�
   assert.match(source,/canonicalMachine\(id\)/);
   assert.match(source,/online:false,assigned:true/);
   assert.match(source,/asignado · sin actividad/);
-  assert.match(source,/paProjectHasAgent\(project,agent\.id\)/);
+  assert.match(source,/paProjectHasFamily\(project,agent\)/);
 });
 
 test("el censo conserva identidades reportadas y las contrasta con el navegador físico",()=>{
@@ -107,17 +125,57 @@ test("el censo conserva identidades reportadas y las contrasta con el navegador 
   assert.match(source,/setInterval\(pulse,AGENT_REFRESH_MS\)/);
 });
 
-test("modelo, envoltorio y máquina forman ranuras de presencia independientes",()=>{
+test("modelo y envoltorio son superficies internas del agente principal",()=>{
   assert.match(source,/function paHost\(value\)/);
   assert.match(source,/host==="app"\?"APP":host==="cli"\?"CLI"/);
   assert.match(source,/function paRuntimeSurface\(row\)/);
   assert.match(source,/runtime\+\(host\?" "\+host:""\)/);
   assert.match(source,/const slot="agent\|"\+base\+"\|"\+machine\+"\|"\+runtime\+"\|"\+host/);
   assert.match(source,/instanceId=id\+"\|"\+String\(runtime\)\.toLowerCase\(\)\+"\|"\+\(host\|\|"unknown"\)/);
-  assert.match(source,/data-agent-ref=/);
+  assert.match(source,/function paAgentFamilies\(rows\)/);
+  assert.match(source,/instanceId:"family\|"\+id/);
+  assert.match(source,/surfaces:uniqueSlots\(family\.slots\)/);
+  assert.match(source,/class="pa-surfaces"/);
   assert.match(source,/data-agent-node="'\+esc\(agent\.instanceId\)/);
-  assert.match(source,/paRuntimeSurface\(agent\)/);
-  assert.match(source,/agent\.model/);
+  assert.match(source,/agent\.surfaces\.map\(paRuntimeSurface\)/);
+});
+
+test("Sub e Infra se anidan en su agente principal y nunca cuentan como agentes",()=>{
+  assert.match(source,/function paFamilyId\(value,machine\)/);
+  assert.match(source,/ykAgentIdentity\.scoped\(parsed\.persona,resolved,"main"\)/);
+  assert.match(source,/if\(role==="main"\)family\.slots\.push\(agent\);else family\.helpers\.push/);
+  assert.match(source,/class="pa-family-helpers"/);
+  assert.match(source,/helper\.role==="sub"\?"ejecución":"infra · QA"/);
+  assert.match(source,/families=paAgentFamilies\(PROJECT_ROSTER\)/);
+  assert.match(source,/families\.length\+" agentes principales/);
+  assert.match(source,/visibleAgents\+"\/"\+families\.length/);
+  assert.match(source,/team\.agents\.length\+' agente'[\s\S]*' principal'/);
+  assert.doesNotMatch(source,/PROJECT_ROSTER\.length\+" agentes/);
+});
+
+test("dos superficies, Sub e Infra producen una sola familia contable",()=>{
+  const rows=[
+    {id:"NeoMini",machine:"Mac Mini",team:"Mini",teamMachine:"Mac Mini",runtime:"Claude",host:"app",online:true,updated:4},
+    {id:"NeoMini",machine:"Mac Mini",team:"Mini",teamMachine:"Mac Mini",runtime:"Claude",host:"cli",online:true,updated:3},
+    {id:"SubNeoMini",machine:"Mac Mini",team:"Mini",teamMachine:"Mac Mini",runtime:"Claude",host:"cli",online:true,updated:2},
+    {id:"InfraNeoMini",machine:"Mac Mini",team:"Mini",teamMachine:"Mac Mini",runtime:"Codex",host:"app",online:false,assigned:true,updated:0},
+    {id:"OraculoMini",machine:"Mac Mini",team:"Mini",teamMachine:"Mac Mini",runtime:"Codex",host:"app",online:true,updated:5}
+  ];
+  const families=familyApi.paAgentFamilies(rows),neo=families.find(family=>family.id==="NeoMini");
+  assert.equal(families.length,2);
+  assert.equal(neo.surfaces.length,2);
+  assert.deepEqual(neo.helpers.map(helper=>helper.id).sort(),["InfraNeoMini","SubNeoMini"]);
+  assert.equal(neo.memberIds.length,3);
+});
+
+test("las asignaciones de Sub e Infra se agrupan en una sola familia de proyecto",()=>{
+  assert.match(source,/function paProjectAgentGroups\(project\)/);
+  assert.match(source,/function paProjectFamilyRefs\(project\)/);
+  assert.match(source,/function paProjectRefsForFamily\(project,family\)/);
+  assert.match(source,/assignedGroups\.length\+' agentes principales/);
+  assert.match(source,/group\.helpers\.map\(ref=>esc\(ref\)\)/);
+  assert.match(source,/async function paRemoveFamily\(project,familyId\)/);
+  assert.match(source,/for\(const ref of refs\)/);
 });
 
 test("cada proyecto usa una captura real de su solución en vez de una carpeta genérica",()=>{
@@ -146,7 +204,7 @@ test("el detalle muestra el Responsable Principal y NeoMacMini es el valor por d
   assert.match(source,/primary_responsible\|\|project&&project\.owner\|\|"NeoMacMini"/);
   assert.match(source,/<b>Responsable Principal<\/b>/);
   assert.match(source,/class="pa-primary"/);
-  assert.match(source,/isPrimary=ref===primary/);
+  assert.match(source,/isPrimary=group\.id===primaryId/);
   assert.match(source,/isPrimary\?'Responsable Principal'/);
 });
 
