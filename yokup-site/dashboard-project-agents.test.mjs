@@ -107,6 +107,15 @@ test("cada proyecto nace como cabecera y permite expandir sus detalles",()=>{
   assert.match(source,/data-project-port=/);
 });
 
+test("el detalle muestra el Responsable Principal y NeoMacMini es el valor por defecto",()=>{
+  assert.match(source,/function paPrimaryResponsible\(project\)/);
+  assert.match(source,/primary_responsible\|\|project&&project\.owner\|\|"NeoMacMini"/);
+  assert.match(source,/<b>Responsable Principal<\/b>/);
+  assert.match(source,/class="pa-primary"/);
+  assert.match(source,/isPrimary=ref===primary/);
+  assert.match(source,/isPrimary\?'Responsable Principal'/);
+});
+
 test("cada equipo físico contiene sus agentes latiendo y su flecha individual",()=>{
   assert.match(source,/<details class="pa-team-node" data-team-key=/);
   assert.match(source,/<summary class="pa-team-summary">/);

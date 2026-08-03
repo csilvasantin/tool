@@ -219,10 +219,10 @@ async function applySchema(env) {
   // usa admira-fleet (machines[].id / silicon[].id): NO se inventa censo nuevo.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS project_members (project_id TEXT, kind TEXT, ref TEXT, added_at INTEGER, PRIMARY KEY (project_id, kind, ref))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_pmembers_ref ON project_members(kind, ref)");
-  // RESPONSABLE DE CARBONO (Carlos, 2026-07-22): la persona HUMANA que responde
-  // del proyecto, por oposición al equipo de silicio. Texto libre — es un nombre,
-  // no un id: quien responde de un proyecto puede no estar en ningún censo. Si
-  // está vacío la ficha no enseña nada; no se rellena con suposiciones.
+  // RESPONSABLE PRINCIPAL del proyecto. Se conserva la columna `owner` para no
+  // romper a los clientes históricos, pero el contrato público también lo expone
+  // como `primary_responsible`. Si aún no se ha guardado uno, el responsable por
+  // defecto compartido con AdmiraNeXT Webmaster es NeoMacMini.
   await env.DB.exec("ALTER TABLE projects ADD COLUMN owner TEXT").catch(() => {});
   // ORDEN de las fichas, el que Carlos deja al arrastrarlas. Va en la tabla y no
   // en el navegador a propósito: el orden es del proyecto, no del portátil desde
@@ -713,7 +713,9 @@ async function listProjects(env) {
   return rows.map((p) => ({
     id: p.id, name: p.name || p.id, blurb: p.blurb || "", web: p.web || "",
     status: p.status || "activo", color: p.color || "",
-    owner: p.owner || "", sort_order: p.sort_order == null ? null : Number(p.sort_order),
+    owner: p.owner || "",
+    primary_responsible: p.owner || "NeoMacMini",
+    sort_order: p.sort_order == null ? null : Number(p.sort_order),
     machines: mem.filter((m) => m.project_id === p.id && m.kind === "machine").map((m) => m.ref),
     agents: mem.filter((m) => m.project_id === p.id && m.kind === "agent").map((m) => m.ref),
     missions: misBy[String(p.id).toLowerCase()] || 0,               // vivas = en curso
@@ -738,10 +740,13 @@ async function upsertProject(env, b) {
   };
   const status = ["activo", "pausado", "archivado"].includes(String((b && b.status) || "").toLowerCase())
     ? String(b.status).toLowerCase() : (prev ? (prev.status || "activo") : "activo");
+  const primaryResponsible = b && b.primary_responsible !== undefined
+    ? String(b.primary_responsible).trim().slice(0, 80)
+    : val("owner", 80);
   const row = {
     id, name: name || (prev && prev.name) || id,
     blurb: val("blurb", 240), web: val("web", 160).replace(/\/+$/, ""),
-    status, color: val("color", 24), owner: val("owner", 80),
+    status, color: val("color", 24), owner: primaryResponsible,
     created_at: prev ? prev.created_at : now, updated_at: now,
     updated_by: String((b && b.by) || "").slice(0, 60)
   };

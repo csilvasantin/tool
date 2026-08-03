@@ -71,9 +71,16 @@ test('el orden manual manda y lo no colocado cae detrás con el orden de siempre
 
 test('owner viaja en la lista y se guarda en el alta/edición', () => {
   assert.match(source, /owner: p\.owner \|\| ""/);
-  assert.match(source, /owner: val\("owner", 80\)/);
+  assert.match(source, /const primaryResponsible = b && b\.primary_responsible !== undefined/);
+  assert.match(source, /owner: primaryResponsible/);
   assert.match(source, /INSERT INTO projects \(id,name,blurb,web,status,color,owner,/);
   assert.match(source, /owner=excluded\.owner/);
+});
+
+test('owner es el Responsable Principal compatible y NeoMacMini su valor por defecto', () => {
+  assert.match(source, /primary_responsible: p\.owner \|\| "NeoMacMini"/);
+  assert.match(source, /b && b\.primary_responsible !== undefined/);
+  assert.match(source, /owner: primaryResponsible/);
 });
 
 test('/projects/order guarda el orden y va por el carril ABIERTO', () => {
