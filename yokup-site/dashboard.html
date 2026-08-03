@@ -49,16 +49,16 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
 .pulse .off{border:1px dashed var(--line2);border-radius:13px;padding:24px 18px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;line-height:1.7;grid-column:1/-1}
 
 /* MAPA PROYECTOS × EQUIPOS × AGENTES */
-.pa-shell{border:1px solid var(--line2);border-radius:15px;background:linear-gradient(145deg,rgba(13,28,40,.94),rgba(6,17,25,.94));padding:16px;box-shadow:0 18px 60px rgba(0,0,0,.22);overflow:hidden}
+.pa-shell{border:1px solid var(--line2);border-radius:15px;background:linear-gradient(145deg,rgba(13,28,40,.94),rgba(6,17,25,.94));padding:16px;box-shadow:0 18px 60px rgba(0,0,0,.22);overflow:visible}
 .pa-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
 .pa-head p{color:var(--mut);font-size:12.5px;line-height:1.55;max-width:720px}.pa-head b{color:var(--ink)}
 .pa-refresh{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--brand);border:1px solid var(--line2);border-radius:8px;background:rgba(2,8,13,.5);padding:8px 10px;cursor:pointer;white-space:nowrap}
 .pa-refresh:hover,.pa-refresh:focus-visible{border-color:var(--brand);outline:none}.pa-refresh:disabled{opacity:.45;cursor:wait}
 .pa-msg{min-height:18px;margin:0 0 10px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--dim)}.pa-msg.ok{color:var(--good)}.pa-msg.err{color:var(--warn)}
-.pa-scroll{overflow:auto;padding:2px 2px 8px;overscroll-behavior:contain}.pa-map{position:relative;display:grid;grid-template-columns:repeat(3,minmax(270px,1fr));gap:16px;min-width:900px;align-items:start}.pa-map.agents-step{grid-template-columns:minmax(180px,.5fr) minmax(180px,.5fr) minmax(420px,1.7fr)}
+.pa-scroll{overflow:visible;padding:2px 2px 8px}.pa-map{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:10px;min-width:0;align-items:start}
 .pa-links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:1}.pa-link{fill:none;stroke-width:2;opacity:.72;filter:drop-shadow(0 0 5px currentColor)}.pa-link-temp{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-dasharray:7 5;filter:drop-shadow(0 0 7px var(--accent))}
 .pa-col{position:relative;z-index:2;min-width:0}.pa-col-title{display:flex;align-items:center;gap:8px;margin:0 0 9px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);cursor:pointer;list-style:none;user-select:none}.pa-col-title::-webkit-details-marker{display:none}.pa-col-title::before{content:"›";color:var(--accent);font-size:15px;line-height:1;transition:transform .16s}.pa-col[open]>.pa-col-title::before{transform:rotate(90deg)}.pa-col-title::after{content:"";height:1px;background:var(--line);flex:1}.pa-count{border:1px solid var(--line);border-radius:999px;padding:2px 7px;color:var(--brand);font-size:8.5px;letter-spacing:.03em}.pa-col:not([open])>.pa-col-title{margin-bottom:0}.pa-col-title:hover,.pa-col-title:focus-visible{color:var(--ink);outline:none}
-.pa-list{display:grid;gap:9px}.pa-agent-node,.pa-team-node,.pa-project-node{--pc:var(--brand);border:1px solid var(--line);border-radius:12px;background:rgba(2,8,13,.76);padding:11px 12px;position:relative;transition:border-color .15s,box-shadow .15s,transform .15s}
+.pa-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:9px}.pa-agent-node,.pa-team-node,.pa-project-node{--pc:var(--brand);border:1px solid var(--line);border-radius:12px;background:rgba(2,8,13,.76);padding:11px 12px;position:relative;transition:border-color .15s,box-shadow .15s,transform .15s}
 .pa-team-node{padding-left:47px}.pa-team-node.selected,.pa-project-node.selected{border-color:var(--accent);box-shadow:0 0 0 1px rgba(255,216,102,.2),0 0 24px rgba(255,216,102,.12)}
 .pa-project-node{padding-right:47px}.pa-project-node::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--pc);box-shadow:0 0 14px var(--pc)}.pa-project-node.archivado{opacity:.55}.pa-project-node.drop{border-color:var(--good);box-shadow:0 0 0 2px rgba(136,255,170,.18),0 0 30px rgba(136,255,170,.14);transform:translateX(3px)}
 .pa-node-top{display:flex;gap:9px;align-items:center}.pa-avatar,.pa-folder{width:34px;height:34px;border:1px solid var(--line2);border-radius:9px;display:grid;place-items:center;background:rgba(120,243,255,.07);font:700 10px/1 var(--mono);color:var(--brand);flex:none}.pa-folder{font-size:17px;color:inherit;background:color-mix(in srgb,var(--pc) 9%,transparent);border-color:color-mix(in srgb,var(--pc) 45%,transparent)}
@@ -73,7 +73,7 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
 .pa-select{width:100%;margin-top:9px;border:1px solid var(--line2);border-radius:7px;background:rgba(120,243,255,.05);color:var(--brand);font:800 8.8px/1.2 var(--mono);letter-spacing:.04em;text-align:left;padding:7px 8px;cursor:pointer}.pa-select:hover,.pa-select:focus-visible{border-color:var(--brand);outline:none}.selected>.pa-select{color:var(--accent);border-color:rgba(255,216,102,.36);background:rgba(255,216,102,.06)}
 .pa-target{margin-top:8px;width:100%;border:1px dashed var(--line2);border-radius:7px;background:transparent;color:var(--mut);font:9px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:7px;cursor:pointer}.pa-target:hover,.pa-target:focus-visible{color:var(--good);border-color:var(--good);outline:none}.pa-target:disabled{opacity:.3;cursor:not-allowed}
 .pa-loading{grid-column:1/-1;border:1px dashed var(--line);border-radius:11px;padding:24px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:10.5px}
-@media(max-width:620px){.pa-head{display:block}.pa-refresh{margin-top:10px}.pa-shell{padding:12px}.pa-scroll{margin-right:-12px}.pa-map{grid-template-columns:repeat(3,280px);gap:12px;min-width:864px}}
+@media(max-width:620px){.pa-head{display:block}.pa-refresh{margin-top:10px}.pa-shell{padding:12px}.pa-list{grid-template-columns:minmax(0,1fr)}}
 
 /* XPERIENCIAS EN VIVO — marcos cuadráticos con feed real (doctrina: nada de capturas) */
 .xp{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -103,7 +103,7 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
     <summary class="shd">Proyectos y agentes <span class="tot" id="projectAgentN">—</span></summary>
     <section class="dash-section-body pa-shell" aria-label="Asociación de proyectos, equipos físicos y agentes">
     <div class="pa-head">
-      <p>Primero une un <b>proyecto con un equipo físico</b>. Después elige cuáles de los agentes que corren en ese equipo ejecutarán el proyecto y podrán abrir su Ventana de Decisión.</p>
+      <p><b>Paso 1:</b> elige un proyecto. <b>Paso 2:</b> elige un equipo físico. <b>Paso 3:</b> escoge cuáles de sus agentes ejecutarán el proyecto y podrán abrir su Ventana de Decisión.</p>
       <button class="pa-refresh" id="projectAgentRefresh" type="button">↻ actualizar</button>
     </div>
     <div class="pa-msg" id="projectAgentMsg" role="status" aria-live="polite"></div>
@@ -111,7 +111,7 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
       <div class="pa-map" id="projectAgentMap">
         <svg class="pa-links" id="projectAgentSvg" aria-hidden="true"><defs><marker id="paArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"></path></marker></defs><g id="projectAgentLinks"></g><path class="pa-link-temp" id="projectAgentTemp" marker-end="url(#paArrow)"></path></svg>
         <details class="pa-col" id="projectAgentProjectsPane" open><summary class="pa-col-title">Proyectos <span class="pa-count" id="projectAgentProjectsN">—</span></summary><div class="pa-list" id="projectAgentProjects"><div class="pa-loading">Cargando proyectos…</div></div></details>
-        <details class="pa-col" id="projectAgentTeamsPane" open><summary class="pa-col-title">Equipos físicos <span class="pa-count" id="projectAgentTeamsN">—</span></summary><div class="pa-list" id="projectAgentTeams"><div class="pa-loading">Tomando el pulso…</div></div></details>
+        <details class="pa-col" id="projectAgentTeamsPane"><summary class="pa-col-title">Equipos físicos <span class="pa-count" id="projectAgentTeamsN">—</span></summary><div class="pa-list" id="projectAgentTeams"><div class="pa-loading">Tomando el pulso…</div></div></details>
         <details class="pa-col" id="projectAgentAgentsPane"><summary class="pa-col-title">Agentes <span class="pa-count" id="projectAgentAgentsN">0</span></summary><div class="pa-list" id="projectAgentAgents"><div class="pa-loading">Escoge primero un proyecto y un equipo.</div></div></details>
       </div>
     </div>
@@ -234,22 +234,28 @@ function paProjectHasTeam(project,team){
   const key=typeof team==="string"?team:team&&team.key;
   return !!key&&(project.machines||[]).some(machine=>paTeamKey(machine)===key);
 }
+function paShowStep(step){
+  const panes={projects:"projectAgentProjectsPane",teams:"projectAgentTeamsPane",agents:"projectAgentAgentsPane"};
+  Object.entries(panes).forEach(([name,id])=>{pa(id).open=name===step;});
+  pa("projectAgentMap").dataset.step=step;
+  requestAnimationFrame(()=>{
+    paDrawLinks();
+    const summary=pa(panes[step])&&pa(panes[step]).querySelector("summary");
+    if(summary)summary.focus({preventScroll:true});
+  });
+}
 function paFocusAgents(){
-  pa("projectAgentProjectsPane").open=false;
-  pa("projectAgentTeamsPane").open=false;
-  pa("projectAgentAgentsPane").open=true;
-  requestAnimationFrame(paDrawLinks);
+  paShowStep("agents");
 }
 function paChooseProject(projectId){
   const project=PROJECT_ROWS.find(row=>row.id===projectId&&row.status!=="archivado");
   if(!project)return;
   SELECTED_PROJECT=project.id;SELECTED_TEAM="";
-  pa("projectAgentProjectsPane").open=true;pa("projectAgentTeamsPane").open=true;pa("projectAgentAgentsPane").open=false;
-  paRender();paMessage("Proyecto "+(project.name||project.id)+" elegido · ahora escoge un equipo físico","ok");
+  paRender();paShowStep("teams");paMessage("Proyecto "+(project.name||project.id)+" elegido · ahora escoge un equipo físico","ok");
 }
 async function paChooseTeam(teamMachine){
   const project=PROJECT_ROWS.find(row=>row.id===SELECTED_PROJECT&&row.status!=="archivado");
-  if(!project){pa("projectAgentProjectsPane").open=true;paMessage("Escoge primero un proyecto","err");return;}
+  if(!project){paShowStep("projects");paMessage("Escoge primero un proyecto","err");return;}
   if(paProjectHasTeam(project,teamMachine)){
     SELECTED_TEAM=teamMachine;paRender();paFocusAgents();paMessage("✓ equipo elegido · mostrando sus agentes","ok");return;
   }
@@ -276,7 +282,7 @@ function paRender(){
   pa("projectAgentProjectsN").textContent=active;
   pa("projectAgentTeamsN").textContent=teams.length;
   pa("projectAgentAgentsN").textContent=visibleAgents.length;
-  pa("projectAgentMap").classList.toggle("agents-step",ready);
+  pa("projectAgentMap").dataset.ready=ready?"true":"false";
   agentsBox.innerHTML=ready?(visibleAgents.length?visibleAgents.map(agent=>{
     const connected=(selectedProject.agents||[]).includes(agent.id);
     const actions=!connected?'<button type="button" class="pa-pick" data-pa-agent-assign="'+esc(selectedProject.id)+'" data-pa-agent="'+esc(agent.id)+'">＋ Ejecutar · '+esc(selectedProject.name||selectedProject.id)+'</button>':'<div class="pa-agent-project"><span>'+esc(selectedProject.name||selectedProject.id)+'</span><div class="pa-action-row"><button type="button" class="pa-decision" data-pa-decision="'+esc(selectedProject.id)+'" data-pa-decision-agent="'+esc(agent.id)+'"'+(PROJECT_DECISION_BUSY?' disabled':'')+'>⏳ Ventana de Decisión</button><button type="button" class="pa-mini" data-pa-agent-remove="'+esc(agent.id)+'" data-project="'+esc(selectedProject.id)+'" aria-label="Retirar '+esc(agent.id)+'">×</button></div></div>';
@@ -314,7 +320,7 @@ function paPoint(element,mapRect){const r=element.getBoundingClientRect();return
 function paCurve(a,b){const direction=b.x>=a.x?1:-1,bend=Math.max(45,Math.abs(b.x-a.x)*.48)*direction;return'M '+a.x+' '+a.y+' C '+(a.x+bend)+' '+a.y+', '+(b.x-bend)+' '+b.y+', '+b.x+' '+b.y;}
 function paDrawLinks(){
   const map=pa("projectAgentMap"),group=pa("projectAgentLinks"),temp=pa("projectAgentTemp"); if(!map||!group)return;
-  if(map.classList.contains("agents-step")){group.innerHTML="";temp.setAttribute('d','');return;}
+  if(!(pa("projectAgentProjectsPane").open&&pa("projectAgentTeamsPane").open)){group.innerHTML="";temp.setAttribute('d','');return;}
   const rect=map.getBoundingClientRect();
   group.innerHTML=PROJECT_ROWS.flatMap(project=>(project.machines||[]).map(machine=>{
     const source=map.querySelector('[data-team-key="'+CSS.escape(paTeamKey(machine))+'"] [data-link-team]'),target=map.querySelector('[data-project-port="'+CSS.escape(project.id)+'"]');
@@ -354,7 +360,7 @@ async function paAssignTeam(project,team,remove,advance=false){
     else await paLoad();
     LINK_CLICK_TEAM="";
     if(remove&&SELECTED_PROJECT===project&&paTeamKey(SELECTED_TEAM)===paTeamKey(team)){
-      SELECTED_TEAM="";pa("projectAgentProjectsPane").open=true;pa("projectAgentTeamsPane").open=true;pa("projectAgentAgentsPane").open=false;
+      SELECTED_TEAM="";paShowStep("teams");
     }else if(!remove&&advance){SELECTED_PROJECT=project;SELECTED_TEAM=team;paFocusAgents();}
     paMessage(remove?"✓ equipo y sus agentes retirados del proyecto":"✓ equipo asociado · elige ahora sus agentes","ok");
   }catch(e){paMessage("✗ "+(e&&e.message||e),"err");}

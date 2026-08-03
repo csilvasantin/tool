@@ -39,7 +39,7 @@ test("el Dashboard incluye proyecto, equipo físico y agentes",()=>{
 
 test("cada bloque es compactable y enseña cuántos elementos contiene",()=>{
   assert.match(source,/<details class="pa-col" id="projectAgentProjectsPane" open>/);
-  assert.match(source,/<details class="pa-col" id="projectAgentTeamsPane" open>/);
+  assert.match(source,/<details class="pa-col" id="projectAgentTeamsPane">/);
   assert.match(source,/<details class="pa-col" id="projectAgentAgentsPane">/);
   assert.match(source,/Proyectos <span class="pa-count" id="projectAgentProjectsN">/);
   assert.match(source,/Equipos físicos <span class="pa-count" id="projectAgentTeamsN">/);
@@ -50,7 +50,7 @@ test("cada bloque es compactable y enseña cuántos elementos contiene",()=>{
   assert.match(source,/pa\("projectAgentAgentsN"\)\.textContent=visibleAgents\.length/);
 });
 
-test("las tres columnas respetan Proyecto → Equipo → Agentes",()=>{
+test("las tres etapas respetan Proyecto → Equipo → Agentes",()=>{
   assert.match(source,/id="projectAgentProjects"[\s\S]*id="projectAgentTeams"[\s\S]*id="projectAgentAgents"/);
   assert.match(source,/\.pa-team-node \.pa-port\{left:8px\}/);
   assert.match(source,/\.pa-project-node \.pa-port\{right:8px/);
@@ -62,7 +62,9 @@ test("el Dashboard carga proyectos y toma los agentes del mismo pulso físico",(
   assert.match(source,/paJson\("\/projects"\)/);
   assert.match(source,/PROJECT_ROSTER=paPhysicalAgents\(fresh\)/);
   assert.match(source,/ykAgentIdentity\.display\(p\.persona,p\.machine\)/);
-  assert.match(source,/Primero une un <b>proyecto con un equipo físico<\/b>/);
+  assert.match(source,/<b>Paso 1:<\/b> elige un proyecto/);
+  assert.match(source,/<b>Paso 2:<\/b> elige un equipo físico/);
+  assert.match(source,/<b>Paso 3:<\/b> escoge cuáles de sus agentes/);
 });
 
 test("arrastrar un equipo hasta un proyecto guarda la asociación física",()=>{
@@ -80,7 +82,7 @@ test("arrastrar un equipo hasta un proyecto guarda la asociación física",()=>{
 
 test("las uniones proyecto-equipo se dibujan y los agentes se eligen dentro del equipo",()=>{
   assert.match(source,/function paDrawLinks\(\)/);
-  assert.match(source,/map\.classList\.contains\("agents-step"\).*group\.innerHTML=""/);
+  assert.match(source,/pa\("projectAgentProjectsPane"\)\.open&&pa\("projectAgentTeamsPane"\)\.open/);
   assert.match(source,/marker-end="url\(#paArrow\)"/);
   assert.match(source,/project\.machines\|\|\[\]/);
   assert.match(source,/!source\.getClientRects\(\)\.length\|\|!target\.getClientRects\(\)\.length/);
@@ -94,13 +96,21 @@ test("el flujo obliga a escoger Proyecto → Equipo y entonces abre sólo sus Ag
   assert.match(source,/let SELECTED_TEAM=""/);
   assert.match(source,/function paChooseProject\(projectId\)/);
   assert.match(source,/async function paChooseTeam\(teamMachine\)/);
+  assert.match(source,/function paShowStep\(step\)/);
+  assert.match(source,/paShowStep\("teams"\)/);
+  assert.match(source,/paShowStep\("agents"\)/);
   assert.match(source,/const visibleAgents=ready\?selectedTeam\.agents:\[\]/);
-  assert.match(source,/projectAgentProjectsPane"\)\.open=false/);
-  assert.match(source,/projectAgentTeamsPane"\)\.open=false/);
-  assert.match(source,/projectAgentAgentsPane"\)\.open=true/);
+  assert.match(source,/Object\.entries\(panes\)\.forEach\(\(\[name,id\]\)=>\{pa\(id\)\.open=name===step;\}\)/);
   assert.match(source,/paAssignTeam\(project\.id,teamMachine,false,true\)/);
   assert.match(source,/data-pa-project-select=/);
   assert.match(source,/data-pa-team-select=/);
+});
+
+test("el mapa no atrapa el scroll y presenta una sola etapa vertical",()=>{
+  assert.match(source,/\.pa-scroll\{overflow:visible/);
+  assert.doesNotMatch(source,/\.pa-scroll\{[^}]*overscroll-behavior:contain/);
+  assert.match(source,/\.pa-map\{[^}]*grid-template-columns:minmax\(0,1fr\)/);
+  assert.match(source,/\.pa-list\{[^}]*repeat\(auto-fit,minmax\(260px,1fr\)\)/);
 });
 
 test("cada agente conectado puede abrir mejoras del proyecto en una Ventana de Decisión",()=>{
