@@ -20,8 +20,8 @@
 /* Defaults: ID y Fecha son de ancho ~FIJO (FLT-999 · 16/07 11:37) → estrechas;
  * la Misión (1fr) se lleva el espacio ganado. (Carlos, 2026-07-16) */
 .hd{display:grid;grid-template-columns:8px minmax(0,var(--c-id,92px)) minmax(0,var(--c-shot,124px)) minmax(140px,1fr) minmax(0,var(--c-fch,104px)) minmax(0,var(--c-ord,128px)) minmax(0,var(--c-who,132px)) minmax(0,var(--c-est,124px));gap:0;align-items:center;padding:14px 16px}
-/* /misiones fusiona ID + proyecto + previo + texto en una sola columna operativa. */
-.hd.project-id-layout{grid-template-columns:8px minmax(300px,1fr) minmax(0,var(--c-fch,104px)) minmax(300px,var(--c-ord,360px)) minmax(0,var(--c-who,132px)) minmax(0,var(--c-est,124px));padding-top:10px;padding-bottom:10px}
+/* /misiones agrupa ID + proyecto + previo y entrega el texto a su columna Misión. */
+.hd.project-id-layout{grid-template-columns:8px minmax(280px,var(--c-id,360px)) minmax(260px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,250px)) minmax(140px,var(--c-who,170px)) minmax(0,var(--c-est,124px));padding-top:10px;padding-bottom:10px}
 .project-id-cell{position:relative;min-width:0;padding:0 14px 0 0;overflow:hidden}
 .project-id-top{display:grid;grid-template-columns:minmax(105px,.42fr) minmax(150px,1fr) 108px;align-items:center;gap:10px;min-width:0}
 .project-id-layout .tkid{display:flex;align-items:center;gap:6px;padding:0;overflow:visible;white-space:nowrap}
@@ -32,10 +32,13 @@
 .project-id-select:disabled{opacity:.6;cursor:wait}
 .project-save{grid-column:2;min-height:10px;font-style:normal;font-size:8px;line-height:1;color:var(--good);text-transform:none;letter-spacing:0}
 .project-save.err{color:var(--warn)}
-.project-id-cell>.subj{padding:7px 0 0;margin-top:7px;border-top:1px solid rgba(120,243,255,.1);min-height:34px}
-.project-id-cell>.subj .t{font-size:13px;line-height:1.3}
-.project-id-cell>.subj .m{font-size:9.5px;gap:9px;margin-top:2px}
-.project-id-cell .mission-source{color:var(--accent);text-transform:uppercase;letter-spacing:.04em}
+.mission-col{position:relative;align-self:stretch;display:flex;flex-direction:column;justify-content:center;min-width:0;overflow:hidden;padding:0 12px}
+.mission-col .subj{align-self:auto;padding:0;overflow:visible}
+.mission-col .subj .t{font-size:13.5px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.mission-col .subj .m{font-size:9.5px;gap:8px;margin-top:3px}
+.mission-col .mission-source{color:var(--accent);text-transform:uppercase;letter-spacing:.04em}
+.mission-time{display:flex;align-items:center;gap:8px;min-width:0;margin-top:6px;padding-top:5px;border-top:1px solid rgba(120,243,255,.1)}
+.mission-time :is(.fch2,.dur){font-size:9px}
 .project-id-layout .cel.shot{padding:0}
 .project-id-layout .shot-img{max-width:108px}
 /* Columna CAPTURA del proyecto (entre ID y Misión): referencia visual. */
@@ -100,7 +103,7 @@
 .cel.est .cancel-note{display:block;font-family:var(--sans);font-size:10px;font-style:italic;color:var(--dim);margin-top:3px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sla{font-family:var(--mono);font-size:10.5px;color:var(--warn)}.who{font-family:var(--mono);font-size:10.5px;color:var(--mut);display:flex;flex-direction:column;align-items:center;text-align:center;line-height:1.25}.who .agent-surface{font-size:8.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--good);min-height:11px}.who .agent-surface.pend{color:var(--mut);text-transform:none;letter-spacing:normal;font-style:italic}
 .who .agent-surface.off{color:var(--warn);text-transform:none;letter-spacing:normal;font-weight:600;cursor:help}
-.tasks-col{min-width:300px;overflow:hidden}.abc-tasks{display:flex;min-width:0;width:100%}.abc-list{display:flex;align-items:center;gap:5px;min-width:0;width:100%}.abc-task{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:4px;min-width:0;flex:1 1 0;padding:5px 6px;border:1px solid var(--line);border-radius:7px;background:rgba(120,243,255,.025);color:var(--mut);text-decoration:none;font:9px var(--mono)}.abc-task:hover,.abc-task:focus-visible{border-color:var(--brand);outline:none}.abc-task b{color:var(--ink);font-size:10px}.abc-dot{width:6px;height:6px;border-radius:50%;background:var(--dim);box-shadow:0 0 0 2px rgba(77,122,136,.12)}.abc-label{grid-column:1/-1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mut)}.abc-task.done{border-color:rgba(136,255,170,.42);background:rgba(136,255,170,.06)}.abc-task.done .abc-dot{background:var(--good);box-shadow:0 0 7px var(--good)}.abc-task.in_progress{border-color:var(--warn);background:rgba(255,136,102,.09);box-shadow:inset 2px 0 0 var(--warn)}.abc-task.in_progress .abc-dot{background:var(--warn);box-shadow:0 0 8px var(--warn)}.abc-state{grid-column:1/-1;color:var(--warn);font-size:7.5px;font-weight:800;letter-spacing:.08em}.abc-task.missing{cursor:default;opacity:.52;border-style:dashed}.abc-mission-progress{display:inline-flex;align-items:center;flex:0 0 auto;padding:3px;border-radius:999px;border:1px solid var(--line);background:var(--card);margin-left:1px}.abc-traffic{display:flex;align-items:center;gap:2px}.abc-traffic i{width:7px;height:7px;border-radius:50%;opacity:.22}.abc-traffic u{width:4px;height:1px;background:var(--line)}.abc-traffic .red{background:#ff5f56}.abc-traffic .yellow{background:#ffd866}.abc-traffic .green{background:#88ffaa}.traffic-red .red,.traffic-yellow .yellow,.traffic-green .green{opacity:1;box-shadow:0 0 7px currentColor}.traffic-red{color:#ff5f56;border-color:rgba(255,95,86,.55)}.traffic-yellow{color:#ffd866;border-color:rgba(255,216,102,.55)}.traffic-green{color:#88ffaa;border-color:rgba(136,255,170,.55)}
+.tasks-col{min-width:210px;overflow:hidden}.abc-tasks{display:grid;grid-template-columns:minmax(0,1fr) 24px;align-items:stretch;gap:7px;min-width:0;width:100%}.abc-list{display:flex;flex-direction:column;gap:4px;min-width:0;width:100%}.abc-task{position:relative;display:grid;grid-template-columns:6px 12px minmax(0,1fr) auto;align-items:center;gap:5px;min-width:0;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:rgba(120,243,255,.025);color:var(--mut);text-decoration:none;font:8.5px var(--mono)}.abc-task:hover,.abc-task:focus-visible{border-color:var(--brand);outline:none}.abc-task b{color:var(--ink);font-size:9.5px}.abc-dot{width:6px;height:6px;border-radius:50%;background:var(--dim);box-shadow:0 0 0 2px rgba(77,122,136,.12)}.abc-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mut)}.abc-task.done{border-color:rgba(136,255,170,.42);background:rgba(136,255,170,.06)}.abc-task.done .abc-dot{background:var(--good);box-shadow:0 0 7px var(--good)}.abc-task.in_progress{border-color:rgba(255,216,102,.7);background:rgba(255,216,102,.08);box-shadow:inset 2px 0 0 var(--accent)}.abc-task.in_progress .abc-dot{background:var(--accent);box-shadow:0 0 8px var(--accent)}.abc-state{color:var(--accent);font-size:7px;font-weight:800;letter-spacing:.06em}.abc-task.missing{cursor:default;opacity:.52;border-style:dashed}.abc-mission-progress{display:flex;flex-direction:column;justify-content:space-around;align-items:center;gap:3px;padding:4px 3px;border-radius:8px;border:1px solid var(--line);background:var(--card)}.abc-mission-progress>i{display:flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:50%;font-style:normal;opacity:.95}.abc-mission-progress>i b{font:7px var(--mono);color:#031016}.abc-mission-progress>i.pending{background:#ff5f56;box-shadow:0 0 7px rgba(255,95,86,.65)}.abc-mission-progress>i.in_progress{background:#ffd866;box-shadow:0 0 7px rgba(255,216,102,.65)}.abc-mission-progress>i.done{background:#88ffaa;box-shadow:0 0 7px rgba(136,255,170,.65)}.traffic-red{border-color:rgba(255,95,86,.45)}.traffic-yellow{border-color:rgba(255,216,102,.5)}.traffic-green{border-color:rgba(136,255,170,.5)}
 .who .agent-surface.deduc{color:var(--brand);font-style:italic;opacity:.75;cursor:help}
 .cel.rtiempo{flex-direction:column;justify-content:center;align-items:flex-end;gap:3px}
 .fch2{font-family:var(--mono);font-size:10.5px;color:var(--mut);white-space:nowrap}
@@ -149,8 +152,8 @@
 .tkopen{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--brand);border:1px solid var(--line2);border-radius:7px;padding:4px 9px;text-decoration:none;white-space:nowrap}
 .tkopen:hover{background:rgba(120,243,255,.12)}
 @keyframes ykm-blink{0%,100%{opacity:1}50%{opacity:.3}}
-@media(max-width:900px){.project-id-top{grid-template-columns:minmax(94px,.34fr) minmax(130px,1fr) 86px}.project-id-layout .shot-img{max-width:86px}}
-@media(max-width:720px){.hd,.hd.project-id-layout{grid-template-columns:8px 1fr;gap:6px}.tkid,.subj,.cel,.project-id-cell{grid-column:2}.subj{padding:0}.cel{justify-content:flex-start;padding:2px 0}.cel.rtiempo{align-items:flex-start}.rz{display:none}.project-id-cell{padding:0}.project-id-top{grid-template-columns:1fr 88px}.project-id-layout .tkid{grid-column:1/-1}.project-select-wrap{grid-template-columns:1fr}.project-save{grid-column:1}.project-id-cell>.subj{padding-top:7px}}
+@media(max-width:1100px){.hd.project-id-layout{grid-template-columns:8px minmax(250px,var(--c-id,310px)) minmax(230px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,230px)) minmax(130px,var(--c-who,150px)) minmax(0,var(--c-est,112px))}.project-id-top{grid-template-columns:minmax(94px,.34fr) minmax(130px,1fr) 86px}.project-id-layout .shot-img{max-width:86px}}
+@media(max-width:720px){.hd,.hd.project-id-layout{grid-template-columns:8px 1fr;gap:6px}.tkid,.subj,.cel,.project-id-cell,.mission-col{grid-column:2}.subj{padding:0}.cel,.mission-col{justify-content:flex-start;padding:2px 0}.cel.rtiempo{align-items:flex-start}.rz{display:none}.project-id-cell{padding:0}.project-id-top{grid-template-columns:1fr 88px}.project-id-layout .tkid{grid-column:1/-1}.project-select-wrap{grid-template-columns:1fr}.project-save{grid-column:1}.mission-time{flex-wrap:wrap}.abc-tasks{grid-template-columns:minmax(0,1fr) 26px}}
 
 /* ------- Misión MADRE → HIJAS (FLT-990 b3) ------- */
 /* Un grupo no ensucia el tablero: la madre se pinta como una fila normal, con una
@@ -252,6 +255,7 @@
 .list.dens-c .agstack .agava{margin-top:-18px}
 .list.dens-c .subj .t{font-size:12.5px;line-height:1.3}
 .list.dens-c .subj .m{font-size:10px}
+.list.dens-c .mission-time{margin-top:3px;padding-top:3px}
 .list.dens-c .who-av > span{font-size:10px}
 .list.dens-c .badge{font-size:9px;padding:3px 8px}
 .list.dens-c .tkopen{font-size:9px}

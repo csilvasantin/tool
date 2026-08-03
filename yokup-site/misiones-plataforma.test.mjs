@@ -75,6 +75,12 @@ test('nombre completo primero + runtime Grok', () => {
   assert.equal(YK.liveSurfaceOf(['Smith']), 'Grok · CLI');
 });
 
+test('la identidad física hereda la foto de su agente base', () => {
+  const html = YK.whoHtml('SmithMBP16', 'MacBookPro16', 'Grok · CLI', ['SmithMBP16'], null);
+  assert.match(html, /class="agava"[^>]*src="\/avatars\/smith\.jpg"/);
+  assert.match(html, />SmithMBP16<\/span>/);
+});
+
 // ── Con CLAIM manda la superficie del claim (lo de siempre), sin tocar presencia. ──
 test('con claim ⇒ la superficie del claim, intacta', () => {
   setPresencia([{persona: 'NeoMini', runtime: 'Claude', host: 'cli'}]);

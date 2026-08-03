@@ -68,8 +68,8 @@
 
   // Imagen de un agente (foto del Panel de control > avatar builtin) o "".
   function agImg(name) {
-    var s = avSlug(name), cu = CUSTOM.agents[s] || {};
-    return cu.img || (AVATARES[s] ? "/avatars/" + s + ".jpg" : "");
+    var s = agentSlugs(name), full = CUSTOM.agents[s.full] || {}, base = CUSTOM.agents[s.base] || {};
+    return full.img || base.img || (AVATARES[s.base] ? "/avatars/" + s.base + ".jpg" : "");
   }
   // Máquinas VIVAS (canon) según /api/browsers + presence; lo inyecta la página con
   // setLiveMachines. null = aún sin datos → NO se alarma. (Carlos, 21-jul-2026)
@@ -571,12 +571,11 @@
     if(missionState==="En curso"&&!Object.keys(active).length){["a","b","c"].some(function(c){var r=by[c],s=r&&r.status;if(!r||s==="done"||s==="resolved")return false;active[c]=true;inferred[c]=true;return true;});}
     var labels={pending:"pendiente",in_progress:"en curso",done:"hecha"};
     var chips=["a","b","c"].map(function(c){var r=by[c],upper=c.toUpperCase();if(!r)return{status:"pending",html:'<span class="abc-task pending missing" title="Tarea '+upper+' · sin definir" aria-label="Tarea '+upper+', sin definir"><i class="abc-dot"></i><b>'+upper+'</b><span class="abc-label">Sin definir</span></span>'};var raw=r.status==="resolved"?"done":r.status,status=active[c]?"in_progress":(/^(pending|in_progress|done)$/.test(raw)?raw:"pending");var title="Tarea "+upper+(r.title?" · "+r.title:"")+" · "+labels[status]+(inferred[c]?" por secuencia A-B-C":"");return{status:status,html:'<a class="abc-task '+status+'" href="/tareas?mission='+encodeURIComponent(t.id)+'#'+c+'" title="'+esc(title)+'" aria-label="'+esc(title)+'"><i class="abc-dot"></i><b>'+upper+'</b><span class="abc-label">'+esc(taskSummary(r))+"</span>"+(status==="in_progress"?'<span class="abc-state">EN CURSO</span>':"")+"</a>"};});
-    var activeLetters=["a","b","c"].filter(function(c){return active[c];}).map(function(c){return c.toUpperCase();});
-    var traffic=missionState==="Finalizada"?{c:"traffic-green",label:"realizada",value:100}:missionState==="En curso"?{c:"traffic-yellow",label:activeLetters.length?activeLetters.join("+")+" en curso":"sin tarea activa",value:50}:{c:"traffic-red",label:(/Pendiente|Sin asignar/.test(missionState)?"sin empezar":missionState.toLowerCase()),value:0};
-    var progress='<span class="abc-mission-progress '+traffic.c+'" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+traffic.value+'" aria-label="Estado de la misión: '+esc(traffic.label)+'"><span class="abc-traffic" aria-hidden="true"><i class="red"></i><u></u><i class="yellow"></i><u></u><i class="green"></i></span></span>';
-    var activeIndex=chips.findIndex(function(chip){return chip.status==="in_progress";});
-    var list=chips.map(function(chip,index){return chip.html+(index===activeIndex?progress:"");}).join("");if(activeIndex<0)list+=progress;
-    return '<span class="abc-tasks" aria-label="Tareas A, B y C"><span class="abc-list">'+list+"</span></span>";
+    var doneCount=chips.filter(function(chip){return chip.status==="done";}).length;
+    var trafficClass=doneCount===3?"traffic-green":chips.some(function(chip){return chip.status==="in_progress";})?"traffic-yellow":"traffic-red";
+    var trafficLabel=chips.map(function(chip,index){return String.fromCharCode(65+index)+" "+labels[chip.status];}).join(", ");
+    var progress='<span class="abc-mission-progress '+trafficClass+'" role="progressbar" aria-valuemin="0" aria-valuemax="3" aria-valuenow="'+doneCount+'" aria-label="Estado de las tareas: '+esc(trafficLabel)+'">'+chips.map(function(chip,index){var code=String.fromCharCode(65+index);return '<i class="'+chip.status+'" title="'+code+' · '+labels[chip.status]+'"><b>'+code+'</b></i>';}).join("")+"</span>";
+    return '<span class="abc-tasks" aria-label="Tareas A, B y C"><span class="abc-list">'+chips.map(function(chip){return chip.html;}).join("")+"</span>"+progress+"</span>";
   }
   function missionPreviewHtml(t, proof, live, liveFresca) {
     var p = proyectoDe(t);
@@ -623,24 +622,26 @@
       (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span>" +
       (+t.img_count > 0 ? '<span class="adjn" title="' + (+t.img_count) + ' imagen(es) adjunta(s) — ábrela para verlas">📎 ' + (+t.img_count) + "</span>" : "") +
       "</div></div>";
+    var timingHtml =
+      '<span class="fch2" title="creada: ' + esc(fechaCorta(t.created_at)) + '">📅 ' + fechaCorta(t.created_at) + "</span>" +
+      (dv && dv.end ? '<span class="fch2 fin" title="finalizada: ' + esc(fechaCorta(dv.end)) + '">🏁 ' + fechaCorta(dv.end) + "</span>"
+        : (dv && dv.run ? '<span class="fch2 run' + (stt === "No concluida" ? " overdue" : "") + '" title="' + esc(dv.tip) + '">⏳ ' + (stt === "No concluida" ? "no concluida" : "en curso") + "</span>" : "")) +
+      (dv && dv.txt ? '<span class="dur' + (dv.run ? " run yk-deadline" : "") + (stt === "No concluida" ? " overdue" : "") + '"' + (dv.run ? ' data-created="' + _ms(t.created_at) + '"' : '') + ' title="' + esc(dv.tip) + '">⏱ ' + (dv.run ? esc(deadlineText(_ms(t.created_at))) : esc(dv.txt)) + "</span>" : "");
     var projectIdHtml = CFG.projectIdLayout
       ? '<div class="project-id-cell">' + rz("id", "r") + '<div class="project-id-top">' + idHtml +
           '<label class="project-select-wrap"><span>Proyecto</span><select class="project-id-select" data-mission="' + esc(t.id) + '" aria-label="Proyecto de ' + esc(visibleId(t)) + '">' + projectOptionsHtml(t) + '</select><i class="project-save" aria-live="polite"></i></label>' +
-          shotHtml + "</div>" + subjectHtml + "</div>"
+          shotHtml + "</div></div>"
       : idHtml + shotHtml + subjectHtml.replace('<div class="subj">', '<div class="subj">' + rz("id", "r"));
+    var missionHtml = CFG.projectIdLayout
+      ? '<div class="mission-col">' + rz("mis") + subjectHtml + '<div class="mission-time">' + timingHtml + "</div></div>"
+      : '<div class="cel rtiempo">' + rz("fch") + timingHtml + "</div>";
     return '<div class="tk ' + (t.status === "open" ? "open" : "") + " " + (t.id === SELECTED ? "sel" : "") + '" data-id="' + esc(t.id) + '">' +
       '<div class="hd' + (CFG.projectIdLayout ? " project-id-layout" : "") + '">' +
         '<div class="pri ' + esc(t.priority) + '"></div>' +
         projectIdHtml +
-        // Fecha + DURACIÓN: de asignada a finalizada (o transcurrido si sigue viva).
-        // FECHA: creación (📅) arriba, finalización (🏁) debajo, y la duración (⏱).
-        // Si la misión sigue viva, en el hueco del fin va «en curso» — nunca una hora
-        // inventada. created_at/resolved_at ya vienen; los tooltips dan la fecha. (947)
-        '<div class="cel rtiempo">' + rz("fch") +
-          '<span class="fch2" title="creada: ' + esc(fechaCorta(t.created_at)) + '">📅 ' + fechaCorta(t.created_at) + "</span>" +
-          (dv && dv.end ? '<span class="fch2 fin" title="finalizada: ' + esc(fechaCorta(dv.end)) + '">🏁 ' + fechaCorta(dv.end) + "</span>"
-            : (dv && dv.run ? '<span class="fch2 run' + (stt === "No concluida" ? " overdue" : "") + '" title="' + esc(dv.tip) + '">⏳ ' + (stt === "No concluida" ? "no concluida" : "en curso") + "</span>" : "")) +
-          (dv && dv.txt ? '<span class="dur' + (dv.run ? " run yk-deadline" : "") + (stt === "No concluida" ? " overdue" : "") + '"' + (dv.run ? ' data-created="' + _ms(t.created_at) + '"' : '') + ' title="' + esc(dv.tip) + '">⏱ ' + (dv.run ? esc(deadlineText(_ms(t.created_at))) : esc(dv.txt)) + "</span>" : "") + "</div>" +
+        // En /misiones el texto y los tiempos comparten la nueva columna Misión.
+        // Las vistas históricas conservan su columna Fecha independiente.
+        missionHtml +
         // ORDENADOR (entre Fecha y Agente).
         '<div class="cel ord ' + (CFG.columnMode === "tasks" ? "tasks-col" : "machine-col") + '">' + rz("ord") + (CFG.columnMode === "tasks" ? tasksAbcHtml(t) : (maq ? '<span class="mach2">' + machVisual(maq) + " " + (window.ykMaquina ? ykMaquina.html(maq) : esc(maq)) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>')) + "</div>" +
         // Celda de AGENTE con clase `agc` (target del picker de reasignación en
@@ -695,7 +696,7 @@
   }
 
   // ---- Redimensionado de columnas de la lista -------------------------------
-  var COLVARS = { id: "--c-id", fch: "--c-fch", ord: "--c-ord", who: "--c-who", est: "--c-est" };
+  var COLVARS = { id: "--c-id", mis: "--c-mis", fch: "--c-fch", ord: "--c-ord", who: "--c-who", est: "--c-est" };
   function initColResize() {
     if (initColResize._done) return; initColResize._done = true;
     // Tope RELATIVO al ancho de la lista: ninguna columna puede pasar del 35%
@@ -704,7 +705,7 @@
       var l = document.querySelector(".list");
       return l ? Math.max(160, Math.round(l.getBoundingClientRect().width * 0.35)) : 420;
     }
-    function suelo(col) { return CFG.columnMode === "tasks" && col === "ord" ? 300 : 56; }
+    function suelo(col) { return CFG.columnMode === "tasks" && col === "ord" ? 210 : 56; }
     var saved = {}; try { saved = JSON.parse(localStorage.getItem("yk_cols") || "{}"); } catch (e) {}
     for (var k in saved) if (COLVARS[k] && saved[k] > 0) {
       document.documentElement.style.setProperty(COLVARS[k], Math.max(suelo(k), Math.min(tope(), saved[k])) + "px");

@@ -348,7 +348,7 @@ function headHtml(){
   // Columna ID con «seleccionar todas» + etiqueta ordenable. El clic en el checkbox no ordena.
   const idArrow=SORT.k==="id"?(SORT.dir==="asc"?" ▲":" ▼"):"";
   const idcol='<div class="lh idh'+(SORT.k==="id"?" on":"")+'" data-k="id" title="ordenar por Proyect ID"><input type="checkbox" class="selall" title="Seleccionar todas las visibles" onclick="event.stopPropagation()"><span class="idlbl">Proyect ID'+idArrow+'</span></div>';
-  return '<div class="hd lhead project-id-layout"><div></div>'+idcol+col("fecha","Fecha")+col("ordenador","Tareas")+col("agente","Agente/Plataforma")+col("estado","Estado")+"</div>";
+  return '<div class="hd lhead project-id-layout"><div></div>'+idcol+col("subject","Misión")+col("ordenador","Tareas")+col("agente","Agente/Plataforma")+col("estado","Estado")+"</div>";
 }
 // Inyecta el checkbox de selección en la casilla del ID de cada fila + cablea «seleccionar todas»
 // y la barra de acciones en bloque. La selección (SEL) se conserva entre refrescos y filtros.
@@ -594,7 +594,7 @@ async function load(){
   {
     const bp=(YkMisiones.boardPrefs&&YkMisiones.boardPrefs())||{}, cols=bp.cols||{};
     el.className="list project-id-board"
-      +["proyecto","fecha","ordenador","agente","estado"].filter(c=>cols[c]===0).map(c=>" hide-"+c).join("")
+      +["proyecto","ordenador","agente","estado"].filter(c=>cols[c]===0).map(c=>" hide-"+c).join("")
       +(bp.density==="compacta"?" dens-c":"");
   }
   if(!list.length){ el.innerHTML=headHtml()+'<div class="empty">Sin misiones en este filtro ✓</div>'; bindHead(el); wireBulk(el,[]); return; }

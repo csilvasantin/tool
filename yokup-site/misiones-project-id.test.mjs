@@ -24,11 +24,13 @@ function loadModule() {
 test('Misiones activa la columna fusionada Proyect ID sin cambiar las otras vistas', () => {
   assert.match(board, /projectIdLayout:true/);
   assert.match(board, /<span class="idlbl">Proyect ID/);
+  assert.match(board, /col\("subject","Misión"\)/);
+  assert.doesNotMatch(board, /col\("fecha","Fecha"\)/);
   assert.doesNotMatch(board, /<div class="lh-static">Proyecto<\/div>/);
-  assert.match(css, /\.hd\.project-id-layout\{grid-template-columns:8px minmax\(300px,1fr\)/);
+  assert.match(css, /\.hd\.project-id-layout\{grid-template-columns:8px minmax\(280px,var\(--c-id,360px\)\) minmax\(260px,var\(--c-mis,1fr\)\)/);
 });
 
-test('Proyect ID coloca selector y previo arriba, y texto/origen debajo', () => {
+test('Proyect ID conserva selector y previo; Misión recibe texto, origen y tiempos', () => {
   const Yk = loadModule();
   Yk.init({worker:'https://api.yokup.com', columnMode:'tasks', projectIdLayout:true});
   Yk.setProyectos([
@@ -43,7 +45,10 @@ test('Proyect ID coloca selector y previo arriba, y texto/origen debajo', () => 
   assert.match(html, /class="hd project-id-layout"/);
   assert.match(html, /class="project-id-top"[\s\S]*class="tkid"[\s\S]*class="project-id-select"[\s\S]*class="cel shot"/);
   assert.match(html, /<option value="yokup" selected>Yokup · yokup<\/option>/);
-  assert.match(html, /class="subj"[\s\S]*Unificar ID y proyecto[\s\S]*Origen · 🎯 Misión/);
+  const projectCell=(html.match(/<div class="project-id-cell">[\s\S]*?<\/div><\/div>/)||[])[0]||'';
+  assert.doesNotMatch(projectCell, /Unificar ID y proyecto/);
+  assert.match(html, /class="mission-col"[\s\S]*Unificar ID y proyecto[\s\S]*Origen · 🎯 Misión[\s\S]*class="mission-time"[\s\S]*📅/);
+  assert.doesNotMatch(html, /class="cel rtiempo"/);
 });
 
 test('el diseño compartido conserva el formato histórico si no se activa', () => {
