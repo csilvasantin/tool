@@ -107,6 +107,19 @@ test("el censo conserva identidades reportadas y las contrasta con el navegador 
   assert.match(source,/setInterval\(pulse,AGENT_REFRESH_MS\)/);
 });
 
+test("modelo, envoltorio y máquina forman ranuras de presencia independientes",()=>{
+  assert.match(source,/function paHost\(value\)/);
+  assert.match(source,/host==="app"\?"APP":host==="cli"\?"CLI"/);
+  assert.match(source,/function paRuntimeSurface\(row\)/);
+  assert.match(source,/runtime\+\(host\?" "\+host:""\)/);
+  assert.match(source,/const slot="agent\|"\+base\+"\|"\+machine\+"\|"\+runtime\+"\|"\+host/);
+  assert.match(source,/instanceId=id\+"\|"\+String\(runtime\)\.toLowerCase\(\)\+"\|"\+\(host\|\|"unknown"\)/);
+  assert.match(source,/data-agent-ref=/);
+  assert.match(source,/data-agent-node="'\+esc\(agent\.instanceId\)/);
+  assert.match(source,/paRuntimeSurface\(agent\)/);
+  assert.match(source,/agent\.model/);
+});
+
 test("cada proyecto usa una captura real de su solución en vez de una carpeta genérica",()=>{
   assert.match(source,/function paProjectShot\(project\)/);
   assert.match(source,/PROJECTS_API\+"\/shot\?url="\+encodeURIComponent\(shotUrl\.href\)/);
@@ -142,7 +155,7 @@ test("cada equipo físico contiene sus agentes latiendo y su flecha individual",
   assert.match(source,/<summary class="pa-team-summary">/);
   assert.match(source,/<div class="pa-team-agents">/);
   assert.match(source,/team\.agents\.map\(agent=>/);
-  assert.match(source,/data-agent-node=/);
+  assert.match(source,/data-agent-ref=/);
   assert.match(source,/data-link-agent=/);
   assert.match(source,/Conectar .* con un proyecto/);
 });
@@ -219,7 +232,7 @@ test("cada unión agente-proyecto recibe un color distinto y estable dentro del 
   assert.match(source,/function paConnectionColors\(\)/);
   assert.match(source,/new Set\(PROJECT_ROWS\.flatMap/);
   assert.match(source,/index\*137\.508/);
-  assert.match(source,/stroke="'\+colors\.get\(agent\+'\|'\+project\.id\)/);
+  assert.match(source,/stroke="'\+colors\.get\(agentNode\.dataset\.agentNode\+'\|'\+project\.id\)/);
   assert.match(source,/\.pa-link\{fill:none;stroke-width:2;opacity:\.58/);
 });
 

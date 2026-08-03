@@ -205,7 +205,7 @@ async function pulse(renderMap=true){
   if(renderMap)paRender();
   if(!fresh.length){ box.innerHTML='<div class="off">Ahora mismo no hay ninguna señal de agente reciente (&lt;4 min).</div>'; return; }
   box.innerHTML=fresh.map(p=>`<div class="ag">
-    <div class="top"><span class="dot"></span><b>${esc(p.persona)}</b><span class="rt">${esc(p.runtime||"")}${p.verified?" · verificado":" · latido reportado"}</span></div>
+    <div class="top"><span class="dot"></span><b>${esc(p.persona)}</b><span class="rt">${esc(paRuntimeSurface(p))}${p.verified?" · verificado":" · latido reportado"}</span></div>
     <div class="mach">⌂ ${esc(p.machine||"")}</div>
     <div class="focus" title="${esc(p.focus||"")}">${esc(p.focus||"—")}</div>
     <div class="meta"><span class="mode">${esc(p.mode||"")}</span><span>${agoS(p.updated)}</span></div>
@@ -217,6 +217,11 @@ async function pulse(renderMap=true){
    MacBook Pro Negro 14 es, por contrato, TrinityMBP14. */
 const pa=id=>document.getElementById(id);
 function paColor(value){ return /^#[0-9a-f]{3,8}$/i.test(String(value||""))?value:"#78f3ff"; }
+function paHost(value){const host=String(value||"").trim().toLowerCase();return host==="app"?"APP":host==="cli"?"CLI":"";}
+function paRuntimeSurface(row){
+  const runtime=String(row&&row.runtime||"agente").trim()||"agente",host=paHost(row&&row.host);
+  return runtime+(host?" "+host:"");
+}
 function paInitials(agent){
   const ready=String(agent&&agent.initials||"").trim(); if(ready)return ready.slice(0,3).toUpperCase();
   return String(agent&&agent.name||agent&&agent.id||"?").trim().split(/\s+/).map(x=>x[0]).join("").slice(0,2).toUpperCase();
@@ -242,8 +247,8 @@ function paFreshPresence(rows,now){
   const selected=new Map(),sorted=(rows||[]).filter(row=>row.updated&&(now-row.updated)<AGENT_FRESH_SECONDS).sort((a,b)=>(b.updated||0)-(a.updated||0));
   sorted.forEach(original=>{
     const row={...original,persona:paPresencePersona(original)},parsed=window.ykAgentIdentity?ykAgentIdentity.parse(row.persona):{persona:row.persona,role:"main"};
-    const base=String(parsed.persona||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase(),runtime=String(row.runtime||"").toLowerCase(),machine=String(row.machine||"").toLowerCase();
-    const slot="agent|"+base+"|"+machine+"|"+runtime;
+    const base=String(parsed.persona||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase(),runtime=String(row.runtime||"").toLowerCase(),machine=String(row.machine||"").toLowerCase(),host=String(row.host||"").toLowerCase();
+    const slot="agent|"+base+"|"+machine+"|"+runtime+"|"+host;
     if(!selected.has(slot))selected.set(slot,row);
   });
   return [...selected.values()].sort((a,b)=>(b.updated||0)-(a.updated||0));
@@ -276,15 +281,16 @@ function paVerifiedPresence(rows,browsers,now){
 }
 function paMessage(text,kind){ const el=pa("projectAgentMsg"); el.textContent=text||""; el.className="pa-msg"+(kind?" "+kind:""); }
 function paPhysicalAgents(rows){
-  const byId=new Map();
+  const bySlot=new Map();
   (rows||[]).forEach(p=>{
     const id=window.ykAgentIdentity?ykAgentIdentity.display(p.persona,p.machine):String(p.persona||"")+String(p.machine||"");
     if(!id||/SINMAQ$/.test(id))return;
     const team=paTeamKey(p.machine),teamMachine=window.ykAgentIdentity&&ykAgentIdentity.canonicalMachine?ykAgentIdentity.canonicalMachine(id):(p.machine||"");
-    const agent={id,name:id,persona:p.persona||"",machine:p.machine||"",team,teamMachine:teamMachine||p.machine||"",runtime:p.runtime||"",focus:p.focus||"",updated:p.updated||0,verified:!!p.verified,verifiedAt:p.verifiedAt||0,online:true};
-    const previous=byId.get(id); if(!previous||agent.updated>previous.updated)byId.set(id,agent);
+    const host=String(p.host||"").toLowerCase(),runtime=p.runtime||"",instanceId=id+"|"+String(runtime).toLowerCase()+"|"+(host||"unknown");
+    const agent={id,instanceId,name:id,persona:p.persona||"",machine:p.machine||"",team,teamMachine:teamMachine||p.machine||"",runtime,host,model:p.model||"",focus:p.focus||"",updated:p.updated||0,verified:!!p.verified,verifiedAt:p.verifiedAt||0,online:true};
+    const previous=bySlot.get(instanceId); if(!previous||agent.updated>previous.updated)bySlot.set(instanceId,agent);
   });
-  return [...byId.values()].sort((a,b)=>(b.updated||0)-(a.updated||0)||a.id.localeCompare(b.id,"es"));
+  return [...bySlot.values()].sort((a,b)=>(b.updated||0)-(a.updated||0)||a.id.localeCompare(b.id,"es")||a.instanceId.localeCompare(b.instanceId,"es"));
 }
 function paAgentId(value,machine){
   if(!window.ykAgentIdentity)return String(value||"").trim();
@@ -299,16 +305,20 @@ function paProjectAgentRefs(project){
 }
 function paProjectHasAgent(project,agent){return paProjectAgentRefs(project).includes(paAgentId(agent));}
 function paProjectRoster(live,projects){
-  const byId=new Map((live||[]).map(agent=>[paAgentId(agent.id,agent.teamMachine||agent.machine),{...agent,id:paAgentId(agent.id,agent.teamMachine||agent.machine),online:true}]));
+  const bySlot=new Map((live||[]).map(agent=>{
+    const id=paAgentId(agent.id,agent.teamMachine||agent.machine),instanceId=agent.instanceId||id+"|"+String(agent.runtime||"").toLowerCase()+"|"+(String(agent.host||"").toLowerCase()||"unknown");
+    return[instanceId,{...agent,id,instanceId,online:true}];
+  }));
   (projects||[]).forEach(project=>paProjectAgentRefs(project).forEach(id=>{
     const machine=window.ykAgentIdentity&&ykAgentIdentity.canonicalMachine?ykAgentIdentity.canonicalMachine(id):"";
-    const current=byId.get(id);
-    if(current){byId.set(id,{...current,assigned:true});return;}
+    const current=[...bySlot.entries()].filter(([,agent])=>agent.id===id);
+    if(current.length){current.forEach(([slot,agent])=>bySlot.set(slot,{...agent,assigned:true}));return;}
     const parsed=window.ykAgentIdentity?ykAgentIdentity.parse(id):{persona:id};
     const teamMachine=machine||(project.machines||[])[0]||"Equipo sin identificar";
-    byId.set(id,{id,name:id,persona:parsed.persona||id,machine:teamMachine,team:paTeamKey(teamMachine),teamMachine,runtime:"asignación Webmaster",focus:"",updated:0,verified:false,online:false,assigned:true});
+    const instanceId=id+"|assigned";
+    bySlot.set(instanceId,{id,instanceId,name:id,persona:parsed.persona||id,machine:teamMachine,team:paTeamKey(teamMachine),teamMachine,runtime:"asignado",host:"",model:"",focus:"",updated:0,verified:false,online:false,assigned:true});
   }));
-  return [...byId.values()].sort((a,b)=>Number(b.online)-Number(a.online)||(b.updated||0)-(a.updated||0)||a.id.localeCompare(b.id,"es"));
+  return [...bySlot.values()].sort((a,b)=>Number(b.online)-Number(a.online)||(b.updated||0)-(a.updated||0)||a.id.localeCompare(b.id,"es")||a.instanceId.localeCompare(b.instanceId,"es"));
 }
 function paTeamKey(machine){
   const suffix=window.ykAgentIdentity&&ykAgentIdentity.suffix?ykAgentIdentity.suffix(machine):"";
@@ -371,7 +381,8 @@ function paRender(){
       const assignedProjects=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasAgent(project,agent.id));
       const actions=assignedProjects.length?assignedProjects.map(project=>'<div class="pa-agent-project"><span>'+esc(project.name||project.id)+'</span><div class="pa-action-row"><button type="button" class="pa-decision" data-pa-decision="'+esc(project.id)+'" data-pa-decision-agent="'+esc(agent.id)+'"'+(PROJECT_DECISION_BUSY?' disabled':'')+'>⏳ Ventana de Decisión</button><button type="button" class="pa-mini" data-pa-agent-remove="'+esc(agent.id)+'" data-project="'+esc(project.id)+'" aria-label="Retirar '+esc(agent.id)+' de '+esc(project.name||project.id)+'">×</button></div></div>').join(""):'<div class="pa-agent-empty">Arrastra la flecha hacia un proyecto</div>';
       const selected=LINK_CLICK_AGENT===agent.id;
-      return '<article class="pa-agent-node'+(agent.online?'':' offline')+(selected?' selected':'')+'" data-agent-node="'+esc(agent.id)+'"><button type="button" class="pa-port" data-link-agent="'+esc(agent.id)+'" aria-label="Conectar '+esc(agent.id)+' con un proyecto" title="Arrastra '+esc(agent.id)+' hasta un proyecto">←</button><div class="pa-node-top"><div class="pa-avatar">'+esc(paInitials(agent))+'</div><div class="pa-name"><b>'+esc(agent.id)+'</b><span>'+esc(agent.runtime||"agente")+' · '+esc(agent.teamMachine||agent.machine)+'</span></div></div><div class="pa-meta"><span class="'+(agent.online?'pa-live':'pa-offline')+'">'+(agent.online?'● '+(agent.verified?'verificado':'latido reportado'):'○ asignado · sin actividad')+'</span>'+(agent.updated?'<span>'+agoS(agent.updated)+'</span>':'')+'<span>'+assignedProjects.length+' proyecto'+(assignedProjects.length===1?'':'s')+'</span></div><div class="pa-actions">'+actions+'</div></article>';
+      const surface=paRuntimeSurface(agent),model=String(agent.model||"").trim(),surfaceTitle=model?surface+' · '+model:surface;
+      return '<article class="pa-agent-node'+(agent.online?'':' offline')+(selected?' selected':'')+'" data-agent-node="'+esc(agent.instanceId)+'" data-agent-ref="'+esc(agent.id)+'"><button type="button" class="pa-port" data-link-agent="'+esc(agent.id)+'" aria-label="Conectar '+esc(agent.id)+' con un proyecto" title="Arrastra '+esc(agent.id)+' hasta un proyecto">←</button><div class="pa-node-top"><div class="pa-avatar">'+esc(paInitials(agent))+'</div><div class="pa-name"><b>'+esc(agent.id)+'</b><span title="'+esc(surfaceTitle)+'">'+esc(surface)+' · '+esc(agent.teamMachine||agent.machine)+'</span></div></div><div class="pa-meta"><span class="'+(agent.online?'pa-live':'pa-offline')+'">'+(agent.online?'● '+(agent.verified?'verificado':'latido reportado'):'○ asignado · sin actividad')+'</span>'+(agent.updated?'<span>'+agoS(agent.updated)+'</span>':'')+'<span>'+assignedProjects.length+' proyecto'+(assignedProjects.length===1?'':'s')+'</span></div><div class="pa-actions">'+actions+'</div></article>';
     }).join("");
     const nodeKey=paNodeKey("team",team.key);
     return '<details class="pa-team-node" data-team-key="'+esc(team.key)+'" data-pa-node-key="'+esc(nodeKey)+'" style="'+paNodeVars(nodeKey)+'"'+(openTeams.has(team.key)?' open':'')+'><summary class="pa-team-summary"><div class="pa-avatar">▣</div><div class="pa-name"><b title="'+esc(team.machine)+'">'+esc(team.machine)+'</b><span>'+team.agents.length+' agente'+(team.agents.length===1?'':'s')+' · '+projectCount+' proyecto'+(projectCount===1?'':'s')+'</span></div><span class="pa-expand">agentes</span><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(team.machine)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-team="'+esc(team.key)+'" aria-label="Ocultar '+esc(team.machine)+'" title="Ocultar equipo">×</button></summary><div class="pa-team-agents">'+agents+'</div></details>';
@@ -407,7 +418,9 @@ function paRender(){
 function paPoint(element,mapRect){const r=element.getBoundingClientRect();return{x:r.left+r.width/2-mapRect.left,y:r.top+r.height/2-mapRect.top};}
 function paCurve(a,b){const direction=b.x>=a.x?1:-1,bend=Math.max(45,Math.abs(b.x-a.x)*.48)*direction;return'M '+a.x+' '+a.y+' C '+(a.x+bend)+' '+a.y+', '+(b.x-bend)+' '+b.y+', '+b.x+' '+b.y;}
 function paConnectionColors(){
-  const keys=[...new Set(PROJECT_ROWS.flatMap(project=>paProjectAgentRefs(project).map(agent=>agent+'|'+project.id)))].sort((a,b)=>a.localeCompare(b,"es")),colors=new Map();
+  const keys=[...new Set(PROJECT_ROWS.flatMap(project=>paProjectAgentRefs(project).flatMap(agent=>{
+    const instances=PROJECT_ROSTER.filter(row=>row.id===agent);return(instances.length?instances:[{instanceId:agent}]).map(row=>row.instanceId+'|'+project.id);
+  })))].sort((a,b)=>a.localeCompare(b,"es")),colors=new Map();
   keys.forEach((key,index)=>colors.set(key,'hsl('+Math.round((index*137.508)%360)+' 88% 68%)'));
   return colors;
 }
@@ -454,13 +467,16 @@ function paDrawLinks(){
   const rect=map.getBoundingClientRect();svg.setAttribute("viewBox","0 0 "+Math.max(1,rect.width)+" "+Math.max(1,rect.height));
   if(!(pa("projectAgentProjectsPane").open&&pa("projectAgentTeamsPane").open)){group.innerHTML="";temp.setAttribute('d','');return;}
   const colors=paConnectionColors();
-  group.innerHTML=PROJECT_ROWS.flatMap(project=>paProjectAgentRefs(project).map(agent=>{
-    const agentNode=map.querySelector('[data-agent-node="'+CSS.escape(agent)+'"]'),teamNode=agentNode&&agentNode.closest('[data-team-key]'),target=map.querySelector('[data-project-port="'+CSS.escape(project.id)+'"]');
-    if(!teamNode||!target||!teamNode.getClientRects().length||!target.getClientRects().length)return'';
-    const source=teamNode.open&&agentNode.getClientRects().length?agentNode.querySelector('[data-link-agent]'):teamNode.querySelector(':scope>.pa-team-summary');
-    if(!source||!source.getClientRects().length)return'';
-    const sourcePoint=paPoint(source,rect);if(!teamNode.open)sourcePoint.x=source.getBoundingClientRect().left-rect.left;
-    return '<path class="pa-link" d="'+paCurve(sourcePoint,paPoint(target,rect))+'" stroke="'+colors.get(agent+'|'+project.id)+'" marker-end="url(#paArrow)"></path>';
+  group.innerHTML=PROJECT_ROWS.flatMap(project=>paProjectAgentRefs(project).flatMap(agent=>{
+    const agentNodes=[...map.querySelectorAll('[data-agent-ref="'+CSS.escape(agent)+'"]')],target=map.querySelector('[data-project-port="'+CSS.escape(project.id)+'"]');
+    return agentNodes.filter((agentNode,index)=>{
+      const teamNode=agentNode.closest('[data-team-key]');return teamNode&&target&&teamNode.getClientRects().length&&target.getClientRects().length&&(teamNode.open||index===0);
+    }).map(agentNode=>{
+      const teamNode=agentNode.closest('[data-team-key]'),source=teamNode.open&&agentNode.getClientRects().length?agentNode.querySelector('[data-link-agent]'):teamNode.querySelector(':scope>.pa-team-summary');
+      if(!source||!source.getClientRects().length)return'';
+      const sourcePoint=paPoint(source,rect);if(!teamNode.open)sourcePoint.x=source.getBoundingClientRect().left-rect.left;
+      return '<path class="pa-link" d="'+paCurve(sourcePoint,paPoint(target,rect))+'" stroke="'+colors.get(agentNode.dataset.agentNode+'|'+project.id)+'" marker-end="url(#paArrow)"></path>';
+    });
   })).join('');
   if(!LINK_DRAG)temp.setAttribute('d','');
 }
