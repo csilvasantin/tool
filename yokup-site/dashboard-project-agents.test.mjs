@@ -114,6 +114,7 @@ test("arrastrar un agente asocia primero su máquina y después el propio agente
 test("las uniones agente-proyecto se dibujan con flechas",()=>{
   assert.match(source,/function paDrawLinks\(\)/);
   assert.match(source,/pa\("projectAgentProjectsPane"\)\.open&&pa\("projectAgentTeamsPane"\)\.open/);
+  assert.match(source,/\["projectAgentProjectsPane","projectAgentTeamsPane"\]\.forEach\(id=>pa\(id\)\.addEventListener\("toggle",\(\)=>\{paDrawLinks\(\);requestAnimationFrame\(paDrawLinks\);\}\)\)/);
   assert.match(source,/marker-end="url\(#paArrow\)"/);
   assert.match(source,/project\.agents\|\|\[\]/);
   assert.match(source,/data-agent-node=/);

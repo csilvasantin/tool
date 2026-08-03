@@ -385,6 +385,7 @@ async function paLoad(){
 }
 pa("projectAgentRefresh").onclick=paLoad;
 pa("projectAgentSection").addEventListener("toggle",event=>{if(event.currentTarget.open)requestAnimationFrame(paDrawLinks);});
+["projectAgentProjectsPane","projectAgentTeamsPane"].forEach(id=>pa(id).addEventListener("toggle",()=>{paDrawLinks();requestAnimationFrame(paDrawLinks);}));
 window.addEventListener("pointermove",paMoveDrag);
 window.addEventListener("pointerup",paEndDrag);
 window.addEventListener("pointercancel",paEndDrag);
