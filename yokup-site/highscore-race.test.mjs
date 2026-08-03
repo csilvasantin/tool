@@ -9,16 +9,16 @@ vm.runInNewContext(moduleSource, sandbox);
 const race = sandbox.module.exports;
 const html = await readFile(new URL("./highscore.html", import.meta.url), "utf8");
 
-test("la carrera incluye todos los agentes vivos, no sólo el top 3", () => {
+test("la carrera exige a la vez latido reciente y misión en curso", () => {
   const rows = Array.from({length:7}, (_, i) => ({agente:"Agente "+i, vivo:i !== 4}));
-  assert.deepEqual(race.liveRows(rows).map(x => x.agente), ["Agente 0","Agente 1","Agente 2","Agente 3","Agente 5","Agente 6"]);
-  assert.match(html, /YkHighscoreRace\.liveRows\(listaCache \|\| \[\]\)/);
+  assert.deepEqual(race.activeMissionRows(rows, ["agente0","agente4","agente6"]).map(x => x.agente), ["Agente 0","Agente 6"]);
+  assert.match(html, /YkHighscoreRace\.activeMissionRows\(lista \|\| \[\], claves\)/);
   assert.doesNotMatch(html, /listaCache \|\| \[\]\)\.slice\(0, 3\)/);
 });
 
-test("un vivo sin misión conserva calle y usa su foco sólo cuando existe", () => {
-  assert.match(html, /var asunto = mision[\s\S]*?: misionDesdePresencia\(fila\);/);
-  assert.doesNotMatch(html, /if \(!asunto\) return ""/);
+test("un latido sin misión no crea calle ni mensaje de inactividad", () => {
+  assert.match(html, /var asunto = normaliza\(mision && \(mision\.subject \|\| mision\.title \|\| mision\.name\)\)/);
+  assert.doesNotMatch(html, /misionDesdePresencia|presencia viva, sin foco declarado/);
   assert.match(html, /asunto \? estelaMision\(asunto\) : ""/);
 });
 

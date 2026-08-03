@@ -97,8 +97,8 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   animation:rank-heartbeat 1.6s ease-in-out infinite}
 @keyframes rank-heartbeat{0%,100%{transform:scale(1);opacity:1}45%{transform:scale(1.18);opacity:.48}60%{transform:scale(1.04);opacity:.9}}
 
-/* Carrera de refresco: una calle por CADA agente con presencia viva. La misión
-   o el foco enriquecen el rótulo, pero nunca deciden si alguien puede correr. */
+/* Carrera de refresco: una calle sólo para quien tiene latido reciente Y ejecuta
+   una misión en curso. Ninguna de las dos señales concede una calle por sí sola. */
 .refresh-race{position:relative;grid-column:2;grid-row:1 / span 2;min-height:44px;min-width:0;padding:0;display:flex;align-items:flex-start;overflow:hidden}
 .refresh-lanes{width:100%;display:grid;gap:2px}
 .runner-symbols{position:absolute;width:0;height:0;overflow:hidden}
@@ -323,7 +323,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
             </g>
         </symbol></defs>
       </svg>
-      <div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Agentes con presencia viva en carrera"></div>
+      <div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Agentes con misión en curso"></div>
       <span class="race-call" id="raceCall" aria-hidden="true"></span>
       <span class="sr-only" id="refreshCount">60 segundos</span>
     </div>
@@ -358,7 +358,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 </div>
 
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
-<script src="/highscore-race.js?v=v.2026.08.02.all-live-1"></script>
+<script src="/highscore-race.js?v=v.2026.08.03.active-mission-1"></script>
 <script>
 (function () {
   "use strict";
@@ -992,32 +992,25 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return normaliza(agente).toLowerCase().replace(/[^a-z0-9]/g, "");
   }
 
-  function agenteDePresencia(presencia) {
-    var agente = presencia && normaliza(presencia.persona || presencia.agent || presencia.name);
-    if (agente && window.ykAgentIdentity && window.ykAgentIdentity.missionPair) {
-      var par = window.ykAgentIdentity.missionPair(agente, presencia.machine || presencia.loc, [presencia.focus]);
-      agente = normaliza(par.agent || agente);
-    }
-    return agente;
+  function misionesEnCurso() {
+    var activas = (datos.misiones || []).filter(function (m) {
+      return normaliza(m.status).toLowerCase() === "in_progress";
+    });
+    activas.sort(function (a, b) {
+      function instante(m) {
+        var raw = m.updated_at || m.live_at || m.created_at || 0, numero = Number(raw);
+        return numero || Date.parse(raw) || 0;
+      }
+      return instante(b) - instante(a);
+    });
+    return activas;
   }
 
-  function limpiaFocoMision(foco) {
-    var texto = normaliza(foco).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-    var entreComillas = texto.match(/«([^»]+)»/);
-    if (entreComillas) return normaliza(entreComillas[1]);
-    return texto.replace(/^El Arquitecto me pide:\s*/i, "")
-      .replace(/^⚡\s*Nueva misión\s+\S+\s+para ti desde\s+\S+:\s*/i, "").trim();
-  }
-
-  /* Algunas altas llegan primero por presencia y unos segundos después a
-     fleet/missions. El foco vivo evita que desaparezca un corredor durante
-     esa ventana de sincronización, sin convertir un latido antiguo en trabajo. */
-  function misionDesdePresencia(fila) {
-    var clave = claveAgenteCarrera(fila && fila.agente);
-    var recientes = (datos.presencia || []).filter(function (p) {
-      return esReciente(p.updated, FRESCO_SEG * 1000) && claveAgenteCarrera(agenteDePresencia(p)) === clave;
-    }).sort(function (a, b) { return comoMs(b.updated) - comoMs(a.updated); });
-    return recientes.length ? limpiaFocoMision(recientes[0].focus || recientes[0].task) : "";
+  function filasConMisionEnCurso(lista, activas) {
+    var claves = (activas || []).map(function (m) { return claveAgenteCarrera(agenteDeMision(m)); }).filter(Boolean);
+    return typeof YkHighscoreRace !== "undefined"
+      ? YkHighscoreRace.activeMissionRows(lista || [], claves)
+      : (lista || []).filter(function (fila) { return fila && fila.vivo && claves.indexOf(claveAgenteCarrera(fila.agente)) >= 0; });
   }
 
   /* La primera palabra queda pegada a la espalda del corredor. Las siguientes
@@ -1030,31 +1023,18 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function actualizaCarreraPodio() {
     var contenedor = document.getElementById("refreshLanes");
-    // Fuente de calles = censo vivo completo. El fallback mantiene esta función
-    // comprobable de forma aislada y nunca vuelve a limitarla al podio.
-    var vivos = typeof YkHighscoreRace !== "undefined"
-      ? YkHighscoreRace.liveRows(listaCache || [])
-      : (listaCache || []).filter(function (fila) { return fila && fila.vivo; });
-    var activas = datos.misiones.filter(function (m) { return normaliza(m.status).toLowerCase() === "in_progress"; });
-    activas.sort(function (a, b) {
-      function instante(m) {
-        var raw = m.updated_at || m.live_at || m.created_at || 0, numero = Number(raw);
-        return numero || Date.parse(raw) || 0;
-      }
-      return instante(b) - instante(a);
-    });
-    var corredores = vivos.map(function (fila, indice) {
+    var activas = misionesEnCurso();
+    var corredores = filasConMisionEnCurso(listaCache || [], activas).map(function (fila, indice) {
       var clave = claveAgenteCarrera(fila.agente);
       var mision = activas.find(function (m) { return claveAgenteCarrera(agenteDeMision(m)) === clave; });
-      var asunto = mision ? normaliza(mision.subject || mision.title || mision.name) : misionDesdePresencia(fila);
+      var asunto = normaliza(mision && (mision.subject || mision.title || mision.name));
       var puesto = indice + 1, agente = normaliza(fila.agente);
       var variant = typeof YkHighscoreRace !== "undefined" ? YkHighscoreRace.runnerVariant(fila)
         : (clave.split("").reduce(function (n, c) { return n + c.charCodeAt(0); }, 0) % 2 ? "dark" : "light");
       var clasePuesto = puesto <= 3 ? "refresh-lane-p" + puesto : "refresh-lane-rank";
-      var focoAccesible = asunto || "presencia viva, sin foco declarado";
       return '<div class="refresh-lane ' + clasePuesto + ' ' + (puesto === 1 ? 'race-winner' : 'race-loser') +
         '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
-        'aria-label="Puesto ' + puesto + ', ' + esc(agente) + '. ' + esc(focoAccesible) + '">' +
+        'aria-label="Puesto ' + puesto + ', ' + esc(agente) + (asunto ? '. ' + esc(asunto) : '') + '">' +
         '<div class="refresh-track"><span class="refresh-place refresh-place-start" aria-hidden="true">' + puesto + '</span>' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
         '<span class="refresh-mission" data-race-role="mission" title="' + esc(asunto || '') + '">' +
@@ -1124,7 +1104,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     entradaTimer = setTimeout(entra, ENTRADA_AUTOMATICA_MS);
   }
   function agentesEnLiza(lista) {
-    return (lista || []).filter(function (fila) { return fila && fila.vivo; }).length;
+    return filasConMisionEnCurso(lista || [], misionesEnCurso()).length;
   }
   function listo() {
     listaCache = calcula();

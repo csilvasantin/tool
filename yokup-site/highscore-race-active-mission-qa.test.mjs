@@ -4,14 +4,14 @@ import fs from "node:fs";
 import vm from "node:vm";
 
 const html = fs.readFileSync(new URL("./highscore.html", import.meta.url), "utf8");
-const raceStart = html.indexOf("function actualizaCarreraPodio()");
+const raceStart = html.indexOf("function misionesEnCurso()");
 const raceEnd = html.indexOf("\n\n  function pintaFormula", raceStart);
 const raceSource = html.slice(raceStart, raceEnd);
 const cycleStart = html.indexOf("var REFRESCO_MS");
 const cycleEnd = html.indexOf("\n  document.getElementById(\"btnSonido\")", cycleStart);
 const cycleSource = html.slice(cycleStart, cycleEnd);
 
-function renderRace(rows) {
+function renderRace(rows, missions) {
   const nodes = {
     refreshLanes: { innerHTML: "" },
     refreshRace: {
@@ -22,14 +22,13 @@ function renderRace(rows) {
   };
   const context = vm.createContext({
     listaCache: rows,
-    datos: { misiones: [], presencia: [] },
+    datos: { misiones: missions || [], presencia: [] },
     document: { getElementById: (id) => nodes[id] },
     normaliza: (value) => String(value == null ? "" : value).trim(),
     esc: (value) => String(value == null ? "" : value)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"),
     claveAgenteCarrera: (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]/g, ""),
     agenteDeMision: (mission) => mission?.assignee || "",
-    misionDesdePresencia: () => "",
     estelaMision: (value) => String(value || ""),
     Number, String, Math, Date,
   });
@@ -37,21 +36,23 @@ function renderRace(rows) {
   return { html: nodes.refreshLanes.innerHTML, lanes: Number(nodes.refreshRace.attrs["data-lanes"] || 0) };
 }
 
-test("todos los agentes vivos corren aunque estén fuera del podio y sin misión", () => {
+test("sólo corren agentes con misión en curso y latido reciente", () => {
   const rows = Array.from({ length: 6 }, (_, i) => ({
     agente: `Agente-${i + 1}`, posicion: i + 1, total: 100 - i, vivo: i !== 4,
   }));
-  const race = renderRace(rows);
-  assert.equal(race.lanes, 5);
-  for (const index of [1, 2, 3, 4, 6]) assert.match(race.html, new RegExp(`Agente-${index}`));
-  assert.doesNotMatch(race.html, /Agente-5/);
+  const missions = [1, 3, 5].map((index) => ({assignee:`Agente-${index}`,status:"in_progress",subject:`Misión ${index}`}));
+  const race = renderRace(rows, missions);
+  assert.equal(race.lanes, 2);
+  for (const index of [1, 3]) assert.match(race.html, new RegExp(`Agente-${index}`));
+  for (const index of [2, 4, 5, 6]) assert.doesNotMatch(race.html, new RegExp(`Agente-${index}`));
   assert.doesNotMatch(raceSource, /slice\(0,\s*3\)/);
 });
 
 test("más de tres corredores conservan una clave y carril inequívocos", () => {
-  const race = renderRace(Array.from({ length: 5 }, (_, i) => ({
+  const rows = Array.from({ length: 5 }, (_, i) => ({
     agente: `Persona-${i + 1}`, posicion: i + 1, total: 20 - i, vivo: true,
-  })));
+  }));
+  const race = renderRace(rows, rows.map((row) => ({assignee:row.agente,status:"in_progress",subject:"Trabajo"})));
   const keys = [...race.html.matchAll(/data-agent-key="([^"]+)"/g)].map((m) => m[1]);
   const lanes = [...race.html.matchAll(/data-place="(\d+)"/g)].map((m) => Number(m[1]));
   assert.equal(keys.length, 5);
@@ -60,9 +61,10 @@ test("más de tres corredores conservan una clave y carril inequívocos", () => 
 });
 
 test("cada calle repite su dorsal en la salida y en la meta", () => {
-  const race = renderRace(Array.from({ length: 5 }, (_, i) => ({
+  const rows = Array.from({ length: 5 }, (_, i) => ({
     agente: `Dorsal-${i + 1}`, posicion: i + 1, total: 20 - i, vivo: true,
-  })));
+  }));
+  const race = renderRace(rows, rows.map((row) => ({assignee:row.agente,status:"in_progress",subject:"Trabajo"})));
   const starts = [...race.html.matchAll(/refresh-place-start" aria-hidden="true">(\d+)<\/span>/g)].map((match) => Number(match[1]));
   const finishes = [...race.html.matchAll(/refresh-place-finish" aria-hidden="true">(\d+)<\/span>/g)].map((match) => Number(match[1]));
   assert.deepEqual(starts, [1, 2, 3, 4, 5]);

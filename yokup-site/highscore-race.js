@@ -7,8 +7,10 @@
       .toLowerCase().replace(/[^a-z0-9]+/g, "");
   }
 
-  function liveRows(rows) {
-    return (rows || []).filter(function (row) { return !!(row && row.vivo); });
+  function activeMissionRows(rows, activeAgentKeys) {
+    var active = Object.create(null);
+    (activeAgentKeys || []).forEach(function (agentKey) { active[key(agentKey)] = true; });
+    return (rows || []).filter(function (row) { return !!(row && row.vivo && active[laneKey(row)]); });
   }
 
   function laneKey(row) {
@@ -32,7 +34,7 @@
     return Math.max(0, 3 - Math.max(1, Number(place) || 1)) * (Number(stepMs) || 0);
   }
 
-  var api = { key:key, liveRows:liveRows, laneKey:laneKey, runnerVariant:runnerVariant,
+  var api = { key:key, activeMissionRows:activeMissionRows, laneKey:laneKey, runnerVariant:runnerVariant,
     finishPose:finishPose, finishAdvanceMs:finishAdvanceMs };
   root.YkHighscoreRace = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

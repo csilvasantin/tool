@@ -30,9 +30,9 @@ test("el presite entra solo tras 15 segundos si nadie pulsa", () => {
   assert.match(html, /programaEntradaAutomatica\(\)/);
 });
 
-test("el presite cuenta sólo agentes con latido vivo, no todo el ranking histórico", () => {
+test("el presite cuenta sólo agentes con misión en curso y latido reciente", () => {
   assert.match(html, /function agentesEnLiza\(lista\)/);
-  assert.match(html, /\(lista \|\| \[\]\)\.filter\(function \(fila\) \{ return fila && fila\.vivo; \}\)\.length/);
+  assert.match(html, /filasConMisionEnCurso\(lista \|\| \[\], misionesEnCurso\(\)\)\.length/);
   assert.match(html, /var vivos = agentesEnLiza\(listaCache\)/);
   assert.match(html, /vivos === 1 \? " AGENTE EN LIZA" : " AGENTES EN LIZA"/);
   assert.doesNotMatch(html, /listaCache\.length \+ " AGENTES EN LIZA"/);
@@ -200,7 +200,7 @@ test("Ordenador agrupa equipos y mantiene dentro de cada grupo la posición real
 });
 
 test("la primera palabra de cada misión queda pegada detrás del corredor", () => {
-  assert.match(html, /<div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Agentes con presencia viva en carrera"><\/div>/);
+  assert.match(html, /<div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Agentes con misión en curso"><\/div>/);
   assert.match(html, /\.refresh-mission\{[^}]*top:4px[^}]*translateX\(calc\(-100% - 18px\)\)/);
   assert.match(html, /\.refresh-mission\{[^}]*font-size:14px[^}]*line-height:17px/);
   assert.match(html, /\.refresh-desc\{[^}]*flex-direction:row-reverse[^}]*justify-content:flex-start/);
@@ -220,15 +220,13 @@ test("la primera palabra de cada misión queda pegada detrás del corredor", () 
   assert.match(html, /carril\.querySelector\('\[data-race-role="mission"\]'\)/);
 });
 
-test("todos los agentes vivos tienen calles ordenadas, identidad visual y semántica accesible", () => {
-  assert.match(html, /YkHighscoreRace\.liveRows\(listaCache \|\| \[\]\)/);
-  assert.match(html, /\(listaCache \|\| \[\]\)\.filter\(function \(fila\) \{ return fila && fila\.vivo; \}\)/);
+test("todos los agentes con misión en curso tienen calles ordenadas, identidad visual y semántica accesible", () => {
+  assert.match(html, /YkHighscoreRace\.activeMissionRows\(lista \|\| \[\], claves\)/);
+  assert.match(html, /var corredores = filasConMisionEnCurso\(listaCache \|\| \[\], activas\)\.map/);
   assert.doesNotMatch(html, /top = \(listaCache \|\| \[\]\)\.slice\(0, 3\)/);
   assert.match(html, /activas\.find\(function \(m\) \{ return claveAgenteCarrera\(agenteDeMision\(m\)\) === clave; \}\)/);
-  assert.match(html, /var asunto = mision \? normaliza\(mision\.subject \|\| mision\.title \|\| mision\.name\) : misionDesdePresencia\(fila\)/);
-  assert.match(html, /function misionDesdePresencia\(fila\)/);
-  assert.match(html, /esReciente\(p\.updated, FRESCO_SEG \* 1000\)/);
-  assert.match(html, /limpiaFocoMision\(recientes\[0\]\.focus \|\| recientes\[0\]\.task\)/);
+  assert.match(html, /var asunto = normaliza\(mision && \(mision\.subject \|\| mision\.title \|\| mision\.name\)\)/);
+  assert.doesNotMatch(html, /misionDesdePresencia|presencia viva, sin foco declarado/);
   assert.match(html, /var clasePuesto = puesto <= 3 \? "refresh-lane-p" \+ puesto : "refresh-lane-rank"/);
   assert.match(html, /refresh-lane ' \+ clasePuesto/);
   assert.match(html, /data-place="' \+ puesto/);
