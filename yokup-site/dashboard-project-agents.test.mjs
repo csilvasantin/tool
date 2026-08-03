@@ -45,9 +45,9 @@ test("proyectos y equipos son compactables y enseñan sus tres recuentos",()=>{
   assert.match(source,/Proyectos <span class="pa-count" id="projectAgentProjectsN">/);
   assert.match(source,/Equipos físicos <span class="pa-count" id="projectAgentTeamsN">/);
   assert.match(source,/· Agentes <span class="pa-count" id="projectAgentAgentsN">/);
-  assert.match(source,/pa\("projectAgentProjectsN"\)\.textContent=HIDDEN_PROJECTS\.size\?visibleActive\+"\/"\+active:active/);
-  assert.match(source,/pa\("projectAgentTeamsN"\)\.textContent=HIDDEN_TEAMS\.size\?visibleTeams\.length\+"\/"\+teams\.length:teams\.length/);
-  assert.match(source,/pa\("projectAgentAgentsN"\)\.textContent=HIDDEN_TEAMS\.size\?visibleAgents\+"\/"\+PROJECT_ROSTER\.length:PROJECT_ROSTER\.length/);
+  assert.match(source,/pa\("projectAgentProjectsN"\)\.textContent=visibleActive\+"\/"\+active/);
+  assert.match(source,/pa\("projectAgentTeamsN"\)\.textContent=visibleTeams\.length\+"\/"\+teams\.length/);
+  assert.match(source,/pa\("projectAgentAgentsN"\)\.textContent=visibleAgents\+"\/"\+PROJECT_ROSTER\.length/);
 });
 
 test("el mapa coloca proyectos a la izquierda y equipos con agentes a la derecha",()=>{
@@ -116,8 +116,8 @@ test("los agentes nacen compactados dentro de cada equipo",()=>{
 });
 
 test("proyectos y equipos se pueden ocultar por ficha y restaurar con Todos",()=>{
-  assert.match(source,/id="projectAgentProjectsAll"[^>]*hidden>Todos<\/button>/);
-  assert.match(source,/id="projectAgentTeamsAll"[^>]*hidden>Todos<\/button>/);
+  assert.match(source,/id="projectAgentProjectsAll"[^>]*aria-pressed="true">Todos<\/button>/);
+  assert.match(source,/id="projectAgentTeamsAll"[^>]*aria-pressed="true">Todos<\/button>/);
   assert.match(source,/const HIDDEN_PROJECTS=new Set\(\)/);
   assert.match(source,/const HIDDEN_TEAMS=new Set\(\)/);
   assert.match(source,/data-pa-hide-project=/);
@@ -128,6 +128,20 @@ test("proyectos y equipos se pueden ocultar por ficha y restaurar con Todos",()=
   assert.match(source,/HIDDEN_TEAMS\.clear\(\);paRender\(\)/);
   assert.match(source,/Proyectos ocultos · pulsa Todos/);
   assert.match(source,/Equipos ocultos · pulsa Todos/);
+});
+
+test("Todos alterna con proyectos sin equipo y equipos sin proyecto",()=>{
+  assert.match(source,/id="projectAgentProjectsUnassigned"[^>]*>Sin equipo<\/button>/);
+  assert.match(source,/id="projectAgentTeamsUnassigned"[^>]*>Sin proyecto<\/button>/);
+  assert.match(source,/let PROJECT_FILTER="all"/);
+  assert.match(source,/let TEAM_FILTER="all"/);
+  assert.match(source,/PROJECT_FILTER!=="unassigned"\|\|!\(project\.machines\|\|\[\]\)\.length/);
+  assert.match(source,/TEAM_FILTER!=="unassigned"\|\|!paTeamHasProject\(team\)/);
+  assert.match(source,/function paTeamHasProject\(team\)/);
+  assert.match(source,/PROJECT_FILTER="unassigned";paRender\(\)/);
+  assert.match(source,/TEAM_FILTER="unassigned";paRender\(\)/);
+  assert.match(source,/PROJECT_FILTER="all";HIDDEN_PROJECTS\.clear\(\)/);
+  assert.match(source,/TEAM_FILTER="all";HIDDEN_TEAMS\.clear\(\)/);
 });
 
 test("arrastrar un agente asocia primero su máquina y después el propio agente",()=>{
@@ -173,7 +187,22 @@ test("las columnas se pueden mover horizontalmente y las flechas siguen su posic
   assert.match(source,/handle\.ondblclick=paResetColumn/);
   assert.match(source,/window\.addEventListener\("pointermove",paMoveColumn\)/);
   assert.match(source,/window\.addEventListener\("pointerup",paEndColumnMove\)/);
-  assert.match(source,/\.pa-col\{transform:none!important\}/);
+  assert.match(source,/\.pa-col,\.pa-project-node,\.pa-team-node\{transform:none!important\}/);
+});
+
+test("cada ficha se puede mover libremente y sus conectores la siguen",()=>{
+  assert.match(source,/data-pa-node-move=/);
+  assert.match(source,/data-pa-node-key=/);
+  assert.match(source,/const NODE_OFFSETS=new Map\(\)/);
+  assert.match(source,/function paStartNodeMove\(event\)/);
+  assert.match(source,/function paMoveNode\(event\)/);
+  assert.match(source,/paSetNodeOffset\(NODE_DRAG\.key,x,y,NODE_DRAG\.node\);paDrawLinks\(\)/);
+  assert.match(source,/handle\.onpointerdown=paStartNodeMove/);
+  assert.match(source,/handle\.ondblclick=paResetNode/);
+  assert.match(source,/window\.addEventListener\("pointermove",paMoveNode\)/);
+  assert.match(source,/window\.addEventListener\("pointerup",paEndNodeMove\)/);
+  assert.match(source,/\.pa-project-node,\.pa-team-node\{transform:translate\(var\(--pa-node-x,0px\),var\(--pa-node-y,0px\)\)/);
+  assert.doesNotMatch(source,/\.pa-agent-node,\.pa-team-node,\.pa-project-node\{[^}]*transition:[^}]*transform/);
 });
 
 test("el mapa conserva el scroll y se apila en pantallas estrechas",()=>{

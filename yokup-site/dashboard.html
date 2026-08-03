@@ -57,16 +57,16 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
 .pa-msg{min-height:18px;margin:0 0 10px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--dim)}.pa-msg.ok{color:var(--good)}.pa-msg.err{color:var(--warn)}
 .pa-scroll{overflow:visible;padding:2px 2px 8px}.pa-map{position:relative;display:grid;grid-template-columns:minmax(240px,340px) minmax(260px,360px);gap:88px;justify-content:center;min-width:0;align-items:start}
 .pa-links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:1}.pa-link{fill:none;stroke-width:1.5;opacity:.26;filter:drop-shadow(0 0 4px currentColor)}.pa-link-temp{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-dasharray:7 5;filter:drop-shadow(0 0 7px var(--accent))}
-.pa-col{position:relative;z-index:2;min-width:0;transform:translateX(var(--pa-x,0px));will-change:transform}.pa-col-title{display:flex;align-items:center;gap:5px;margin:0 0 7px;font-family:var(--mono);font-size:8.8px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);cursor:pointer;list-style:none;user-select:none}.pa-col-title::-webkit-details-marker{display:none}.pa-col-title::before{content:"›";color:var(--accent);font-size:14px;line-height:1;transition:transform .16s}.pa-col[open]>.pa-col-title::before{transform:rotate(90deg)}.pa-col-title::after{content:"";height:1px;background:var(--line);flex:1}.pa-count{border:1px solid var(--line);border-radius:999px;padding:2px 6px;color:var(--brand);font-size:8px;letter-spacing:.03em}.pa-show-all,.pa-move{border:0;background:transparent;font:800 7.8px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:4px 2px;cursor:pointer}.pa-show-all{color:var(--good)}.pa-move{color:var(--brand);font-size:11px;cursor:ew-resize;touch-action:none}.pa-move.dragging{color:var(--accent)}.pa-show-all:hover,.pa-show-all:focus-visible,.pa-move:hover,.pa-move:focus-visible{color:var(--ink);outline:none}.pa-show-all[hidden]{display:none}.pa-col:not([open])>.pa-col-title{margin-bottom:0}.pa-col-title:hover,.pa-col-title:focus-visible{color:var(--ink);outline:none}
-.pa-list{display:grid;gap:5px}.pa-agent-node,.pa-team-node,.pa-project-node{--pc:var(--brand);border:1px solid var(--line);border-radius:9px;background:rgba(2,8,13,.76);position:relative;transition:border-color .15s,box-shadow .15s,transform .15s}
-.pa-project-node{padding:0}.pa-project-node::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--pc);box-shadow:0 0 14px var(--pc)}.pa-project-node.archivado{opacity:.55}.pa-project-node.drop{border-color:var(--good);box-shadow:0 0 0 2px rgba(136,255,170,.18),0 0 30px rgba(136,255,170,.14);transform:translateX(3px)}
-.pa-project-summary,.pa-team-summary{list-style:none;display:flex;align-items:center;gap:6px;cursor:pointer;position:relative}.pa-project-summary::-webkit-details-marker,.pa-team-summary::-webkit-details-marker{display:none}.pa-project-summary{padding:6px 34px 6px 6px}.pa-team-summary{padding:4px 27px 4px 5px;min-height:34px}.pa-project-summary:focus-visible,.pa-team-summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.pa-project-main{min-width:0;flex:1}.pa-project-controls{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:3px}.pa-project-detail{padding:0 7px 7px;border-top:1px solid rgba(120,243,255,.08)}.pa-expand{font:800 7.5px/1 var(--mono);letter-spacing:.03em;text-transform:uppercase;color:var(--brand);white-space:nowrap}.pa-expand::after{content:" ›"}.pa-project-node[open] .pa-expand::after{content:" ×"}
+.pa-col{position:relative;z-index:2;min-width:0;transform:translateX(var(--pa-x,0px));will-change:transform}.pa-col-title{display:flex;align-items:center;gap:5px;margin:0 0 7px;font-family:var(--mono);font-size:8.8px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);cursor:pointer;list-style:none;user-select:none}.pa-col-title::-webkit-details-marker{display:none}.pa-col-title::before{content:"›";color:var(--accent);font-size:14px;line-height:1;transition:transform .16s}.pa-col[open]>.pa-col-title::before{transform:rotate(90deg)}.pa-col-title::after{content:"";height:1px;background:var(--line);flex:1}.pa-count{border:1px solid var(--line);border-radius:999px;padding:2px 6px;color:var(--brand);font-size:8px;letter-spacing:.03em}.pa-show-all,.pa-filter,.pa-move{border:0;background:transparent;font:800 7.8px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:4px 2px;cursor:pointer;white-space:nowrap}.pa-show-all{color:var(--good)}.pa-filter{color:var(--dim)}.pa-show-all.active,.pa-filter.active{color:var(--accent);text-shadow:0 0 10px currentColor}.pa-move{color:var(--brand);font-size:11px;cursor:ew-resize;touch-action:none}.pa-move.dragging{color:var(--accent)}.pa-show-all:hover,.pa-show-all:focus-visible,.pa-filter:hover,.pa-filter:focus-visible,.pa-move:hover,.pa-move:focus-visible{color:var(--ink);outline:none}.pa-col:not([open])>.pa-col-title{margin-bottom:0}.pa-col-title:hover,.pa-col-title:focus-visible{color:var(--ink);outline:none}
+.pa-list{display:grid;gap:5px}.pa-agent-node,.pa-team-node,.pa-project-node{--pc:var(--brand);border:1px solid var(--line);border-radius:9px;background:rgba(2,8,13,.76);position:relative;transition:border-color .15s,box-shadow .15s}
+.pa-project-node,.pa-team-node{transform:translate(var(--pa-node-x,0px),var(--pa-node-y,0px));will-change:transform}.pa-project-node{padding:0}.pa-project-node::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--pc);box-shadow:0 0 14px var(--pc)}.pa-project-node.archivado{opacity:.55}.pa-project-node.drop{border-color:var(--good);box-shadow:0 0 0 2px rgba(136,255,170,.18),0 0 30px rgba(136,255,170,.14)}
+.pa-project-summary,.pa-team-summary{list-style:none;display:flex;align-items:center;gap:6px;cursor:pointer;position:relative}.pa-project-summary::-webkit-details-marker,.pa-team-summary::-webkit-details-marker{display:none}.pa-project-summary{padding:6px 52px 6px 6px}.pa-team-summary{padding:4px 46px 4px 5px;min-height:34px}.pa-project-summary:focus-visible,.pa-team-summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.pa-project-main{min-width:0;flex:1}.pa-project-controls{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:3px}.pa-project-detail{padding:0 7px 7px;border-top:1px solid rgba(120,243,255,.08)}.pa-expand{font:800 7.5px/1 var(--mono);letter-spacing:.03em;text-transform:uppercase;color:var(--brand);white-space:nowrap}.pa-expand::after{content:" ›"}.pa-project-node[open] .pa-expand::after{content:" ×"}
 .pa-team-node{padding:0}.pa-team-node[open]>.pa-team-summary{border-bottom:1px solid rgba(120,243,255,.09)}
 .pa-node-top{display:flex;gap:6px;align-items:center}.pa-avatar,.pa-folder{width:25px;height:25px;border:1px solid var(--line2);border-radius:7px;display:grid;place-items:center;background:rgba(120,243,255,.07);font:700 8px/1 var(--mono);color:var(--brand);flex:none}.pa-folder{position:relative;width:46px;height:30px;overflow:hidden;font-size:13px;color:inherit;background:color-mix(in srgb,var(--pc) 9%,transparent);border-color:color-mix(in srgb,var(--pc) 45%,transparent)}.pa-folder span{grid-area:1/1}.pa-folder img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
 .pa-name{min-width:0;flex:1}.pa-name b{display:block;font-size:11.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pa-name span{display:block;font-family:var(--mono);font-size:7.7px;letter-spacing:.03em;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
 .pa-state{font-family:var(--mono);font-size:7.2px;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--line);border-radius:999px;padding:2px 5px;color:var(--mut)}.pa-state.activo{color:var(--good);border-color:rgba(136,255,170,.28)}.pa-state.pausado{color:var(--accent);border-color:rgba(255,216,102,.28)}
 .pa-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;font-family:var(--mono);font-size:8.8px;color:var(--dim)}.pa-meta a{color:var(--brand);text-decoration:none}.pa-meta a:hover{text-decoration:underline}.pa-live{color:var(--good)}
-.pa-port{position:absolute;top:50%;transform:translateY(-50%);width:24px;height:28px;border:1px solid var(--line2);border-radius:7px;background:#0b1a24;color:var(--brand);display:grid;place-items:center;font-size:14px;cursor:grab;touch-action:none}.pa-port:active{cursor:grabbing}.pa-port:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.pa-agent-node .pa-port{left:5px}.pa-project-node .pa-port{top:auto;right:4px;bottom:4px;transform:none;cursor:default;color:var(--good)}.pa-hide{position:absolute;z-index:3;top:3px;right:4px;width:18px;height:18px;border:0;border-radius:5px;background:transparent;color:var(--dim);font:800 12px/1 var(--mono);cursor:pointer}.pa-hide:hover,.pa-hide:focus-visible{background:rgba(255,136,102,.14);color:var(--warn);outline:none}
+.pa-port{position:absolute;top:50%;transform:translateY(-50%);width:24px;height:28px;border:1px solid var(--line2);border-radius:7px;background:#0b1a24;color:var(--brand);display:grid;place-items:center;font-size:14px;cursor:grab;touch-action:none}.pa-port:active{cursor:grabbing}.pa-port:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.pa-agent-node .pa-port{left:5px}.pa-project-node .pa-port{top:auto;right:4px;bottom:4px;transform:none;cursor:default;color:var(--good)}.pa-hide,.pa-card-move{position:absolute;z-index:3;top:3px;width:18px;height:18px;border:0;border-radius:5px;background:transparent;font:800 12px/1 var(--mono)}.pa-hide{right:4px;color:var(--dim);cursor:pointer}.pa-card-move{right:24px;color:var(--brand);cursor:move;touch-action:none}.pa-card-move.dragging{background:rgba(255,216,102,.13);color:var(--accent)}.pa-hide:hover,.pa-hide:focus-visible{background:rgba(255,136,102,.14);color:var(--warn);outline:none}.pa-card-move:hover,.pa-card-move:focus-visible{background:rgba(120,243,255,.1);color:var(--ink);outline:none}
 .pa-lane{position:relative;z-index:0;min-height:100%;display:grid;place-items:center;color:var(--dim);font:9px/1.55 var(--mono);letter-spacing:.08em;text-transform:uppercase;text-align:center;padding-top:32px}.pa-lane b{color:var(--accent);display:block;font-size:18px;margin-bottom:5px}.pa-lane span{max-width:130px}
 .pa-assigned{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px;min-height:22px}.pa-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:999px;padding:2px 3px 2px 7px;font:9px/1.2 var(--mono);color:var(--mut);background:rgba(120,243,255,.04)}.pa-chip.legacy{border-style:dashed;color:var(--accent)}.pa-chip button{width:17px;height:17px;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}.pa-chip button:hover{background:rgba(255,136,102,.16);color:var(--warn)}.pa-empty{font:10px/1.5 var(--mono);color:var(--warn)}
 .pa-decision{width:100%;border:1px solid rgba(255,216,102,.34);border-radius:7px;background:rgba(255,216,102,.06);color:var(--accent);font:800 8.8px/1.25 var(--mono);letter-spacing:.04em;text-align:left;padding:7px 8px;cursor:pointer}.pa-decision:hover,.pa-decision:focus-visible{border-color:var(--accent);background:rgba(255,216,102,.12);outline:none}.pa-decision:disabled{opacity:.5;cursor:wait}
@@ -74,7 +74,7 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
 .pa-team-node:not([open])>.pa-team-agents,.pa-project-node:not([open])>.pa-project-detail{display:none}
 .pa-target{border:1px dashed var(--good);border-radius:7px;background:rgba(136,255,170,.05);color:var(--good);font:800 8px/1.2 var(--mono);letter-spacing:.03em;padding:6px 7px;cursor:pointer;white-space:nowrap}.pa-target:hover,.pa-target:focus-visible{background:rgba(136,255,170,.12);outline:none}.pa-target:disabled{opacity:.45;cursor:wait}
 .pa-loading{grid-column:1/-1;border:1px dashed var(--line);border-radius:11px;padding:24px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:10.5px}
-@media(max-width:900px){.pa-map{grid-template-columns:minmax(0,1fr);gap:14px}.pa-links{display:none}.pa-col{transform:none!important}.pa-move{display:none}}
+@media(max-width:900px){.pa-map{grid-template-columns:minmax(0,1fr);gap:14px}.pa-links{display:none}.pa-col,.pa-project-node,.pa-team-node{transform:none!important}.pa-move,.pa-card-move{display:none}}
 @media(max-width:620px){.pa-head{display:block}.pa-refresh{margin-top:10px}.pa-shell{padding:12px}.pa-project-summary{padding-right:45px}.pa-state{display:none}}
 
 /* XPERIENCIAS EN VIVO — marcos cuadráticos con feed real (doctrina: nada de capturas) */
@@ -112,8 +112,8 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
     <div class="pa-scroll" id="projectAgentScroll">
       <div class="pa-map" id="projectAgentMap">
         <svg class="pa-links" id="projectAgentSvg" aria-hidden="true" preserveAspectRatio="none"><defs><marker id="paArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"></path></marker></defs><g id="projectAgentLinks"></g><path class="pa-link-temp" id="projectAgentTemp" marker-end="url(#paArrow)"></path></svg>
-        <details class="pa-col" id="projectAgentProjectsPane" open><summary class="pa-col-title">Proyectos <span class="pa-count" id="projectAgentProjectsN">—</span><button class="pa-show-all" id="projectAgentProjectsAll" type="button" hidden>Todos</button><button class="pa-move" type="button" data-pa-move="projects" aria-label="Mover columna Proyectos" title="Arrastra para mover · doble clic para centrar">↔</button></summary><div class="pa-list" id="projectAgentProjects"><div class="pa-loading">Cargando proyectos…</div></div></details>
-        <details class="pa-col" id="projectAgentTeamsPane" open><summary class="pa-col-title">Equipos físicos <span class="pa-count" id="projectAgentTeamsN">—</span> · Agentes <span class="pa-count" id="projectAgentAgentsN">—</span><button class="pa-show-all" id="projectAgentTeamsAll" type="button" hidden>Todos</button><button class="pa-move" type="button" data-pa-move="teams" aria-label="Mover columna Equipos y agentes" title="Arrastra para mover · doble clic para centrar">↔</button></summary><div class="pa-list" id="projectAgentTeams"><div class="pa-loading">Tomando el pulso…</div></div></details>
+        <details class="pa-col" id="projectAgentProjectsPane" open><summary class="pa-col-title">Proyectos <span class="pa-count" id="projectAgentProjectsN">—</span><button class="pa-show-all active" id="projectAgentProjectsAll" type="button" aria-pressed="true">Todos</button><button class="pa-filter" id="projectAgentProjectsUnassigned" type="button" aria-pressed="false">Sin equipo</button><button class="pa-move" type="button" data-pa-move="projects" aria-label="Mover columna Proyectos" title="Arrastra para mover · doble clic para centrar">↔</button></summary><div class="pa-list" id="projectAgentProjects"><div class="pa-loading">Cargando proyectos…</div></div></details>
+        <details class="pa-col" id="projectAgentTeamsPane" open><summary class="pa-col-title">Equipos físicos <span class="pa-count" id="projectAgentTeamsN">—</span> · Agentes <span class="pa-count" id="projectAgentAgentsN">—</span><button class="pa-show-all active" id="projectAgentTeamsAll" type="button" aria-pressed="true">Todos</button><button class="pa-filter" id="projectAgentTeamsUnassigned" type="button" aria-pressed="false">Sin proyecto</button><button class="pa-move" type="button" data-pa-move="teams" aria-label="Mover columna Equipos y agentes" title="Arrastra para mover · doble clic para centrar">↔</button></summary><div class="pa-list" id="projectAgentTeams"><div class="pa-loading">Tomando el pulso…</div></div></details>
       </div>
     </div>
     </section>
@@ -173,8 +173,12 @@ let LINK_DRAG=null;
 let LINK_CLICK_AGENT="";
 const HIDDEN_PROJECTS=new Set();
 const HIDDEN_TEAMS=new Set();
+let PROJECT_FILTER="all";
+let TEAM_FILTER="all";
 const COLUMN_OFFSETS={projects:0,teams:0};
 let COLUMN_DRAG=null;
+const NODE_OFFSETS=new Map();
+let NODE_DRAG=null;
 const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
 function agoS(s){ if(!s)return "—"; let d=Math.round(Date.now()/1000-s); if(d<60)return "hace "+d+"s"; if(d<3600)return "hace "+Math.round(d/60)+"m"; return "hace "+Math.round(d/3600)+"h"; }
 async function pulse(renderMap=true){
@@ -260,6 +264,10 @@ function paProjectHasTeam(project,team){
   const key=typeof team==="string"?team:team&&team.key;
   return !!key&&(project.machines||[]).some(machine=>paTeamKey(machine)===key);
 }
+function paTeamHasProject(team){return PROJECT_ROWS.some(project=>project.status!=="archivado"&&paProjectHasTeam(project,team.key));}
+function paNodeKey(kind,id){return kind+"|"+id;}
+function paNodeOffset(key){return NODE_OFFSETS.get(key)||{x:0,y:0};}
+function paNodeVars(key){const offset=paNodeOffset(key);return"--pa-node-x:"+offset.x+"px;--pa-node-y:"+offset.y+"px;";}
 async function paJson(path,options){
   const r=await fetch(PROJECTS_API+path,{...(options||{}),signal:AbortSignal.timeout(15000)});
   const d=await r.json().catch(()=>({}));
@@ -269,8 +277,10 @@ async function paJson(path,options){
 function paRender(){
   const teamsBox=pa("projectAgentTeams"),projectsBox=pa("projectAgentProjects"),teams=paTeams();
   pa("projectAgentLinks").innerHTML="";
-  const visibleTeams=teams.filter(team=>!HIDDEN_TEAMS.has(team.key));
-  const visibleProjects=PROJECT_ROWS.filter(project=>!HIDDEN_PROJECTS.has(project.id));
+  const filteredTeams=teams.filter(team=>TEAM_FILTER!=="unassigned"||!paTeamHasProject(team));
+  const filteredProjects=PROJECT_ROWS.filter(project=>PROJECT_FILTER!=="unassigned"||!(project.machines||[]).length);
+  const visibleTeams=filteredTeams.filter(team=>!HIDDEN_TEAMS.has(team.key));
+  const visibleProjects=filteredProjects.filter(project=>!HIDDEN_PROJECTS.has(project.id));
   const openProjects=new Set([...projectsBox.querySelectorAll("[data-project-node][open]")].map(node=>node.dataset.projectNode));
   const openTeams=new Set([...teamsBox.querySelectorAll("[data-team-key][open]")].map(node=>node.dataset.teamKey));
   const byId=new Map(PROJECT_ROSTER.map(a=>[a.id,a]));
@@ -278,22 +288,31 @@ function paRender(){
   const links=PROJECT_ROWS.reduce((n,p)=>n+(p.machines||[]).length+(p.agents||[]).length,0);
   pa("projectAgentN").textContent=active+" proyectos · "+teams.length+" equipos · "+PROJECT_ROSTER.length+" agentes · "+links+" uniones";
   const visibleActive=visibleProjects.filter(project=>project.status!=="archivado").length,visibleAgents=visibleTeams.reduce((total,team)=>total+team.agents.length,0);
-  pa("projectAgentProjectsN").textContent=HIDDEN_PROJECTS.size?visibleActive+"/"+active:active;
-  pa("projectAgentTeamsN").textContent=HIDDEN_TEAMS.size?visibleTeams.length+"/"+teams.length:teams.length;
-  pa("projectAgentAgentsN").textContent=HIDDEN_TEAMS.size?visibleAgents+"/"+PROJECT_ROSTER.length:PROJECT_ROSTER.length;
-  pa("projectAgentProjectsAll").hidden=!HIDDEN_PROJECTS.size;
-  pa("projectAgentTeamsAll").hidden=!HIDDEN_TEAMS.size;
+  pa("projectAgentProjectsN").textContent=visibleActive+"/"+active;
+  pa("projectAgentTeamsN").textContent=visibleTeams.length+"/"+teams.length;
+  pa("projectAgentAgentsN").textContent=visibleAgents+"/"+PROJECT_ROSTER.length;
+  pa("projectAgentProjectsAll").classList.toggle("active",PROJECT_FILTER==="all");
+  pa("projectAgentProjectsAll").setAttribute("aria-pressed",PROJECT_FILTER==="all");
+  pa("projectAgentProjectsUnassigned").classList.toggle("active",PROJECT_FILTER==="unassigned");
+  pa("projectAgentProjectsUnassigned").setAttribute("aria-pressed",PROJECT_FILTER==="unassigned");
+  pa("projectAgentTeamsAll").classList.toggle("active",TEAM_FILTER==="all");
+  pa("projectAgentTeamsAll").setAttribute("aria-pressed",TEAM_FILTER==="all");
+  pa("projectAgentTeamsUnassigned").classList.toggle("active",TEAM_FILTER==="unassigned");
+  pa("projectAgentTeamsUnassigned").setAttribute("aria-pressed",TEAM_FILTER==="unassigned");
+  const emptyTeams=TEAM_FILTER==="unassigned"?"No hay equipos sin proyecto asociado.":HIDDEN_TEAMS.size?"Equipos ocultos · pulsa Todos":"No hay equipos con agentes latiendo.";
   teamsBox.innerHTML=visibleTeams.length?visibleTeams.map(team=>{
-    const projectCount=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&team.agents.some(agent=>(project.agents||[]).includes(agent.id))).length;
+    const projectCount=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasTeam(project,team.key)).length;
     const agents=team.agents.map(agent=>{
       const assignedProjects=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&(project.agents||[]).includes(agent.id));
       const actions=assignedProjects.length?assignedProjects.map(project=>'<div class="pa-agent-project"><span>'+esc(project.name||project.id)+'</span><div class="pa-action-row"><button type="button" class="pa-decision" data-pa-decision="'+esc(project.id)+'" data-pa-decision-agent="'+esc(agent.id)+'"'+(PROJECT_DECISION_BUSY?' disabled':'')+'>⏳ Ventana de Decisión</button><button type="button" class="pa-mini" data-pa-agent-remove="'+esc(agent.id)+'" data-project="'+esc(project.id)+'" aria-label="Retirar '+esc(agent.id)+' de '+esc(project.name||project.id)+'">×</button></div></div>').join(""):'<div class="pa-agent-empty">Arrastra la flecha hacia un proyecto</div>';
       const selected=LINK_CLICK_AGENT===agent.id;
       return '<article class="pa-agent-node'+(selected?' selected':'')+'" data-agent-node="'+esc(agent.id)+'"><button type="button" class="pa-port" data-link-agent="'+esc(agent.id)+'" aria-label="Conectar '+esc(agent.id)+' con un proyecto" title="Arrastra '+esc(agent.id)+' hasta un proyecto">←</button><div class="pa-node-top"><div class="pa-avatar">'+esc(paInitials(agent))+'</div><div class="pa-name"><b>'+esc(agent.id)+'</b><span>'+esc(agent.runtime||"agente")+' · '+esc(agent.teamMachine||agent.machine)+'</span></div></div><div class="pa-meta"><span class="pa-live">● latiendo</span><span>'+agoS(agent.updated)+'</span><span>'+assignedProjects.length+' proyecto'+(assignedProjects.length===1?'':'s')+'</span></div><div class="pa-actions">'+actions+'</div></article>';
     }).join("");
-    return '<details class="pa-team-node" data-team-key="'+esc(team.key)+'"'+(openTeams.has(team.key)?' open':'')+'><summary class="pa-team-summary"><div class="pa-avatar">▣</div><div class="pa-name"><b title="'+esc(team.machine)+'">'+esc(team.machine)+'</b><span>'+team.agents.length+' agente'+(team.agents.length===1?'':'s')+' · '+projectCount+' proyecto'+(projectCount===1?'':'s')+'</span></div><span class="pa-expand">agentes</span><button class="pa-hide" type="button" data-pa-hide-team="'+esc(team.key)+'" aria-label="Ocultar '+esc(team.machine)+'" title="Ocultar equipo">×</button></summary><div class="pa-team-agents">'+agents+'</div></details>';
-  }).join(""):teams.length?'<div class="pa-loading">Equipos ocultos · pulsa Todos</div>':'<div class="pa-loading">No hay equipos con agentes latiendo.</div>';
+    const nodeKey=paNodeKey("team",team.key);
+    return '<details class="pa-team-node" data-team-key="'+esc(team.key)+'" data-pa-node-key="'+esc(nodeKey)+'" style="'+paNodeVars(nodeKey)+'"'+(openTeams.has(team.key)?' open':'')+'><summary class="pa-team-summary"><div class="pa-avatar">▣</div><div class="pa-name"><b title="'+esc(team.machine)+'">'+esc(team.machine)+'</b><span>'+team.agents.length+' agente'+(team.agents.length===1?'':'s')+' · '+projectCount+' proyecto'+(projectCount===1?'':'s')+'</span></div><span class="pa-expand">agentes</span><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(team.machine)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-team="'+esc(team.key)+'" aria-label="Ocultar '+esc(team.machine)+'" title="Ocultar equipo">×</button></summary><div class="pa-team-agents">'+agents+'</div></details>';
+  }).join(""):'<div class="pa-loading">'+emptyTeams+'</div>';
   if(!PROJECT_ROWS.length){projectsBox.innerHTML='<div class="pa-loading">No hay proyectos dados de alta todavía.</div>';paDrawLinks();return;}
+  const emptyProjects=PROJECT_FILTER==="unassigned"?"No hay proyectos sin equipo asociado.":HIDDEN_PROJECTS.size?"Proyectos ocultos · pulsa Todos":"No hay proyectos visibles.";
   projectsBox.innerHTML=visibleProjects.length?visibleProjects.map(project=>{
     const assigned=Array.isArray(project.agents)?project.agents:[],assignedTeams=Array.isArray(project.machines)?project.machines:[];
     const archived=project.status==="archivado";
@@ -301,8 +320,9 @@ function paRender(){
     const teamChips=assignedTeams.length?assignedTeams.map(ref=>'<span class="pa-chip">▣ '+esc(ref)+'<button type="button" data-pa-remove-team="'+esc(ref)+'" data-project="'+esc(project.id)+'" aria-label="Quitar '+esc(ref)+' de '+esc(project.name||project.id)+'"'+(busy?' disabled':'')+'>×</button></span>').join(""):'<span class="pa-empty">Sin equipos asociados</span>';
     const agentChips=assigned.length?assigned.map(ref=>{const row=byId.get(ref),visible=row&&paProjectHasTeam(project,row.team);return '<span class="pa-chip'+(visible?'':' legacy')+'" title="'+esc(visible?'Agente elegido dentro de su equipo':'Referencia sin equipo vivo asociado')+'">👤 '+esc(ref)+(row?'<button type="button" data-pa-agent-remove="'+esc(ref)+'" data-project="'+esc(project.id)+'" aria-label="Quitar '+esc(ref)+'"'+(busy?' disabled':'')+'>×</button>':'')+'</span>';}).join(""):'<span class="pa-empty">Sin agentes elegidos</span>';
     const target=LINK_CLICK_AGENT&&!archived?'<button class="pa-target" type="button" data-pa-target="'+esc(project.id)+'"'+(busy?' disabled':'')+'>Conectar aquí</button>':'';
-    return '<details class="pa-project-node '+esc(project.status||"activo")+'" data-project-node="'+esc(project.id)+'" style="--pc:'+paColor(project.color)+'"'+(openProjects.has(project.id)?' open':'')+'><summary class="pa-project-summary"><div class="pa-folder"><span>📁</span>'+(shot?'<img loading="lazy" alt="" src="'+esc(shot)+'" onerror="this.remove()">':'')+'</div><div class="pa-project-main"><div class="pa-name"><b title="'+esc(project.name||project.id)+'">'+esc(project.name||project.id)+'</b><span>'+(web?esc(new URL(web).hostname):esc(project.id))+'</span></div><div class="pa-project-controls">'+target+'<span class="pa-state '+esc(project.status||"activo")+'">'+esc(project.status||"activo")+'</span><span class="pa-expand">detalle</span></div></div><button class="pa-hide" type="button" data-pa-hide-project="'+esc(project.id)+'" aria-label="Ocultar '+esc(project.name||project.id)+'" title="Ocultar proyecto">×</button><span class="pa-port" data-project-port="'+esc(project.id)+'">◆</span></summary><div class="pa-project-detail"><div class="pa-meta"><span>'+assignedTeams.length+' equipos</span><span>'+assigned.length+' agentes</span><span>'+(project.missions||0)+' en curso</span>'+(web?'<a href="'+esc(web)+'" target="_blank" rel="noopener">abrir ↗</a>':'')+'</div><div class="pa-assigned">'+teamChips+'</div><div class="pa-assigned">'+agentChips+'</div></div></details>';
-  }).join(""):'<div class="pa-loading">Proyectos ocultos · pulsa Todos</div>';
+    const nodeKey=paNodeKey("project",project.id);
+    return '<details class="pa-project-node '+esc(project.status||"activo")+'" data-project-node="'+esc(project.id)+'" data-pa-node-key="'+esc(nodeKey)+'" style="--pc:'+paColor(project.color)+';'+paNodeVars(nodeKey)+'"'+(openProjects.has(project.id)?' open':'')+'><summary class="pa-project-summary"><div class="pa-folder"><span>📁</span>'+(shot?'<img loading="lazy" alt="" src="'+esc(shot)+'" onerror="this.remove()">':'')+'</div><div class="pa-project-main"><div class="pa-name"><b title="'+esc(project.name||project.id)+'">'+esc(project.name||project.id)+'</b><span>'+(web?esc(new URL(web).hostname):esc(project.id))+'</span></div><div class="pa-project-controls">'+target+'<span class="pa-state '+esc(project.status||"activo")+'">'+esc(project.status||"activo")+'</span><span class="pa-expand">detalle</span></div></div><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(project.name||project.id)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-project="'+esc(project.id)+'" aria-label="Ocultar '+esc(project.name||project.id)+'" title="Ocultar proyecto">×</button><span class="pa-port" data-project-port="'+esc(project.id)+'">◆</span></summary><div class="pa-project-detail"><div class="pa-meta"><span>'+assignedTeams.length+' equipos</span><span>'+assigned.length+' agentes</span><span>'+(project.missions||0)+' en curso</span>'+(web?'<a href="'+esc(web)+'" target="_blank" rel="noopener">abrir ↗</a>':'')+'</div><div class="pa-assigned">'+teamChips+'</div><div class="pa-assigned">'+agentChips+'</div></div></details>';
+  }).join(""):'<div class="pa-loading">'+emptyProjects+'</div>';
   teamsBox.querySelectorAll("[data-link-agent]").forEach(port=>{
     port.onpointerdown=paStartDrag;
     port.onclick=e=>{if(e.detail===0){LINK_CLICK_AGENT=port.dataset.linkAgent;paRender();paMessage("Selecciona el proyecto para "+LINK_CLICK_AGENT);}};
@@ -313,6 +333,7 @@ function paRender(){
   projectsBox.querySelectorAll("[data-pa-target]").forEach(button=>button.onclick=event=>{event.preventDefault();event.stopPropagation();if(LINK_CLICK_AGENT)paConnectAgent(button.dataset.paTarget,LINK_CLICK_AGENT);});
   projectsBox.querySelectorAll("[data-pa-hide-project]").forEach(button=>button.onclick=event=>{event.preventDefault();event.stopPropagation();HIDDEN_PROJECTS.add(button.dataset.paHideProject);paRender();paMessage("Proyecto oculto · pulsa Todos para restaurarlo");});
   projectsBox.querySelectorAll("[data-pa-remove-team]").forEach(button=>button.onclick=()=>paAssignTeam(button.dataset.project,button.dataset.paRemoveTeam,true));
+  document.querySelectorAll("[data-pa-node-move]").forEach(handle=>{handle.onpointerdown=paStartNodeMove;handle.onclick=event=>{event.preventDefault();event.stopPropagation();};handle.ondblclick=paResetNode;});
   document.querySelectorAll(".pa-project-node,.pa-team-node").forEach(node=>node.ontoggle=()=>requestAnimationFrame(paDrawLinks));
   requestAnimationFrame(paDrawLinks);
 }
@@ -337,6 +358,25 @@ function paEndColumnMove(){
   COLUMN_DRAG.handle.classList.remove("dragging");COLUMN_DRAG=null;requestAnimationFrame(paDrawLinks);
 }
 function paResetColumn(event){event.preventDefault();event.stopPropagation();paSetColumnOffset(event.currentTarget.dataset.paMove,0);paDrawLinks();requestAnimationFrame(paDrawLinks);}
+function paSetNodeOffset(key,x,y,node){
+  const value={x:Math.round(x),y:Math.round(y)};NODE_OFFSETS.set(key,value);
+  const target=node||pa("projectAgentMap").querySelector('[data-pa-node-key="'+CSS.escape(key)+'"]');if(!target)return;
+  target.style.setProperty("--pa-node-x",value.x+"px");target.style.setProperty("--pa-node-y",value.y+"px");
+}
+function paStartNodeMove(event){
+  if(matchMedia("(max-width:900px)").matches)return;
+  event.preventDefault();event.stopPropagation();
+  const handle=event.currentTarget,key=handle.dataset.paNodeMove,node=handle.closest("[data-pa-node-key]"),mapRect=pa("projectAgentMap").getBoundingClientRect(),nodeRect=node.getBoundingClientRect(),base=paNodeOffset(key);
+  NODE_DRAG={key,node,handle,pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,base,minX:base.x+mapRect.left-nodeRect.left,maxX:base.x+mapRect.right-nodeRect.right,minY:base.y+mapRect.top-nodeRect.top,maxY:base.y+mapRect.bottom-nodeRect.bottom};
+  handle.classList.add("dragging");handle.setPointerCapture(event.pointerId);
+}
+function paMoveNode(event){
+  if(!NODE_DRAG)return;
+  const x=Math.max(NODE_DRAG.minX,Math.min(NODE_DRAG.maxX,NODE_DRAG.base.x+event.clientX-NODE_DRAG.startX)),y=Math.max(NODE_DRAG.minY,Math.min(NODE_DRAG.maxY,NODE_DRAG.base.y+event.clientY-NODE_DRAG.startY));
+  paSetNodeOffset(NODE_DRAG.key,x,y,NODE_DRAG.node);paDrawLinks();
+}
+function paEndNodeMove(){if(!NODE_DRAG)return;NODE_DRAG.handle.classList.remove("dragging");NODE_DRAG=null;requestAnimationFrame(paDrawLinks);}
+function paResetNode(event){event.preventDefault();event.stopPropagation();paSetNodeOffset(event.currentTarget.dataset.paNodeMove,0,0);paDrawLinks();requestAnimationFrame(paDrawLinks);}
 function paDrawLinks(){
   const map=pa("projectAgentMap"),svg=pa("projectAgentSvg"),group=pa("projectAgentLinks"),temp=pa("projectAgentTemp"); if(!map||!svg||!group)return;
   const rect=map.getBoundingClientRect();svg.setAttribute("viewBox","0 0 "+Math.max(1,rect.width)+" "+Math.max(1,rect.height));
@@ -442,17 +482,22 @@ async function paLoad(){
   finally{refresh.disabled=false;}
 }
 pa("projectAgentRefresh").onclick=paLoad;
-pa("projectAgentProjectsAll").onclick=event=>{event.preventDefault();event.stopPropagation();HIDDEN_PROJECTS.clear();paRender();paMessage("✓ todos los proyectos visibles","ok");};
-pa("projectAgentTeamsAll").onclick=event=>{event.preventDefault();event.stopPropagation();HIDDEN_TEAMS.clear();paRender();paMessage("✓ todos los equipos visibles","ok");};
+pa("projectAgentProjectsAll").onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_FILTER="all";HIDDEN_PROJECTS.clear();paRender();paMessage("✓ todos los proyectos visibles","ok");};
+pa("projectAgentProjectsUnassigned").onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_FILTER="unassigned";paRender();paMessage("Proyectos sin equipo asociado");};
+pa("projectAgentTeamsAll").onclick=event=>{event.preventDefault();event.stopPropagation();TEAM_FILTER="all";HIDDEN_TEAMS.clear();paRender();paMessage("✓ todos los equipos visibles","ok");};
+pa("projectAgentTeamsUnassigned").onclick=event=>{event.preventDefault();event.stopPropagation();TEAM_FILTER="unassigned";paRender();paMessage("Equipos sin proyecto asociado");};
 document.querySelectorAll("[data-pa-move]").forEach(handle=>{handle.onpointerdown=paStartColumnMove;handle.onclick=event=>{event.preventDefault();event.stopPropagation();};handle.ondblclick=paResetColumn;});
 pa("projectAgentSection").addEventListener("toggle",event=>{if(event.currentTarget.open)requestAnimationFrame(paDrawLinks);});
 ["projectAgentProjectsPane","projectAgentTeamsPane"].forEach(id=>pa(id).addEventListener("toggle",()=>{paDrawLinks();requestAnimationFrame(paDrawLinks);}));
 window.addEventListener("pointermove",paMoveDrag);
 window.addEventListener("pointermove",paMoveColumn);
+window.addEventListener("pointermove",paMoveNode);
 window.addEventListener("pointerup",paEndDrag);
 window.addEventListener("pointerup",paEndColumnMove);
+window.addEventListener("pointerup",paEndNodeMove);
 window.addEventListener("pointercancel",paEndDrag);
 window.addEventListener("pointercancel",paEndColumnMove);
+window.addEventListener("pointercancel",paEndNodeMove);
 window.addEventListener("resize",()=>requestAnimationFrame(paDrawLinks));
 pa("projectAgentScroll").addEventListener("scroll",()=>requestAnimationFrame(paDrawLinks));
 if(window.ResizeObserver)new ResizeObserver(()=>requestAnimationFrame(paDrawLinks)).observe(pa("projectAgentMap"));
