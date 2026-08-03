@@ -94,9 +94,9 @@ test('informe: se PREFIERE el dominio de la casa aunque aparezca después de uno
 test('informe: se recorta la puntuación de prosa pegada al final de la URL', () => {
   const m = {
     id: 'FLT-V', project: null,
-    _tasks: [{code: 'a', status: 'done', report: 'Desplegado en https://www.yokup.com/agentica.'}]
+    _tasks: [{code: 'a', status: 'done', report: 'Desplegado en https://www.yokup.com/dashboard.'}]
   };
-  assert.equal(Yk.workUrlOf(m), 'https://www.yokup.com/agentica');
+  assert.equal(Yk.workUrlOf(m), 'https://www.yokup.com/dashboard');
 });
 
 test('el informe (tramo 2) manda sobre la web del proyecto (tramo 3) cuando hay URL específica', () => {

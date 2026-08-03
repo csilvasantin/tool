@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 const frame = await readFile(new URL("./yk-frame.js", import.meta.url), "utf8");
 const css = await readFile(new URL("./yk-frame.css", import.meta.url), "utf8");
 const sw = await readFile(new URL("./sw.js", import.meta.url), "utf8");
-const agentica = await readFile(new URL("./agentica.html", import.meta.url), "utf8");
+const dashboard = await readFile(new URL("./dashboard.html", import.meta.url), "utf8");
 const decisiones = await readFile(new URL("./decisiones.html", import.meta.url), "utf8");
 const admiraLive = await readFile(new URL("./admira-live.html", import.meta.url), "utf8");
 const misiones = await readFile(new URL("./misiones.html", import.meta.url), "utf8");
@@ -18,6 +18,14 @@ test("Avanzado ofrece Highscore en todas las vistas y no declara vacío falso", 
   assert.match(css, /\.yk-adv-nav/);
 });
 
+test("Opciones y Avanzado se repliegan al seleccionar un enlace", () => {
+  assert.match(frame, /closeRailOnNavigation\(railL, "left"\)/);
+  assert.match(frame, /closeRailOnNavigation\(railR, "right"\)/);
+  assert.match(frame, /function closeRailOnNavigation\(rail, panel\)/);
+  assert.match(frame, /event\.target\.closest\("a\[href\]"\)/);
+  assert.match(frame, /if \(link && rail\.contains\(link\)\) setOpen\(panel, false\)/);
+});
+
 test("el sello del marco procede del deploy y se confirma con version.json", () => {
   assert.doesNotMatch(frame, /var VERSION = "v\.23\.07\.2026\.r10"/);
   assert.match(frame, /document\.currentScript/);
@@ -28,11 +36,11 @@ test("el sello del marco procede del deploy y se confirma con version.json", () 
 });
 
 test("los pies que presentan versión actual derivan del sello del deploy", () => {
-  for (const html of [agentica, misiones, decisiones, admiraLive]) {
+  for (const html of [dashboard, misiones, decisiones, admiraLive]) {
     assert.match(html, /data-yk-deploy-version/);
     assert.doesNotMatch(html, /(?:versión|sello)[^<]*(?:<[^>]+>)*v\.\d{2}\.\d{2}\.\d{4}\.r\d+/i);
   }
-  assert.doesNotMatch(agentica, /v\.13\.07\.2026\.r1/);
+  assert.doesNotMatch(dashboard, /v\.13\.07\.2026\.r1/);
 });
 
 test("el service worker no cachea el shell ni explica el menú antiguo", () => {

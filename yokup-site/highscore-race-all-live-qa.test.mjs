@@ -59,6 +59,16 @@ test("más de tres corredores conservan una clave y carril inequívocos", () => 
   assert.deepEqual(lanes, [1, 2, 3, 4, 5]);
 });
 
+test("cada calle repite su dorsal en la salida y en la meta", () => {
+  const race = renderRace(Array.from({ length: 5 }, (_, i) => ({
+    agente: `Dorsal-${i + 1}`, posicion: i + 1, total: 20 - i, vivo: true,
+  })));
+  const starts = [...race.html.matchAll(/refresh-place-start" aria-hidden="true">(\d+)<\/span>/g)].map((match) => Number(match[1]));
+  const finishes = [...race.html.matchAll(/refresh-place-finish" aria-hidden="true">(\d+)<\/span>/g)].map((match) => Number(match[1]));
+  assert.deepEqual(starts, [1, 2, 3, 4, 5]);
+  assert.deepEqual(finishes, starts);
+});
+
 test("hay corredores negro y blanco, ambos con bigote pixelado", () => {
   assert.match(html, /runner-(?:skin|variant)-(?:black|dark)/i);
   assert.match(html, /runner-(?:skin|variant)-(?:white|light)/i);

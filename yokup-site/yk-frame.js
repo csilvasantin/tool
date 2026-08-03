@@ -63,7 +63,7 @@
   // navegación de gestión, no del flujo de trabajo → viven ahora en el raíl
   // OPCIONES (ver buildRailFoot), encima de «Panel de control».
   var APP_NAV = [
-    ["DASHBOARD",   "/agentica"],
+    ["DASHBOARD",   "/dashboard"],
     ["OBJETIVOS",   "/objetivos"],
     ["DECISIONES",  "/decisiones"],
     ["MISIONES",    "/misiones"],
@@ -226,7 +226,7 @@
       incidencias: "INCIDENCIAS", ticket: "TICKET", agentes: "AGENTES",
       "admira-live": "ADMIRA.LIVE", misiones: "MISIONES", tareas: "TAREAS",
       decisiones: "DECISIONES", objetivos: "OBJETIVOS", ideas: "OBJETIVOS",
-      agentica: "DASHBOARD", informes: "INFORMES", status: "STATUS", equipo: "EQUIPO",
+      dashboard: "DASHBOARD", informes: "INFORMES", status: "STATUS", equipo: "EQUIPO",
       asistencia: "ASISTENCIA", intervencion: "INTERVENCIÓN"
     };
     return map[seg] || "";
@@ -294,7 +294,7 @@
     for (var _i = 0; _i < navItems.length; _i++) { if (navItems[_i].active) { activeLbl = navItems[_i].label; break; } }
 
     // rótulo de la página — se OCULTA si coincide con el ítem ACTIVO del menú, para
-    // no duplicarlo (p.ej. «DASHBOARD DASHBOARD» en /agentica). En páginas fuera del
+    // no duplicarlo (p.ej. «DASHBOARD DASHBOARD» en /dashboard). En páginas fuera del
     // menú (p.ej. /ticket → «TICKET») el rótulo sigue mostrándose.
     var pt = pageTitle();
     var page = el("span", "yk-page", pt);
@@ -388,6 +388,8 @@
     wire(icoL, "left");
     wire(icoR, "right");
     wire(icoB, "bottom");
+    closeRailOnNavigation(railL, "left");
+    closeRailOnNavigation(railR, "right");
     refreshPublicVersion();
 
     // --- cerrar cualquier panel abierto con Escape ---
@@ -975,6 +977,13 @@
     setOpen(panel, isOpen(panel));
     ico.addEventListener("click", function () {
       setOpen(panel, !isOpen(panel));
+    });
+  }
+
+  function closeRailOnNavigation(rail, panel) {
+    rail.addEventListener("click", function (event) {
+      var link = event.target.closest("a[href]");
+      if (link && rail.contains(link)) setOpen(panel, false);
     });
   }
 

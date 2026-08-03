@@ -108,6 +108,10 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   background:rgba(120,243,255,.22);box-shadow:0 1px 0 rgba(255,216,102,.16)}
 .refresh-fill{position:absolute;left:36px;bottom:3px;width:0;height:2px;background:linear-gradient(90deg,var(--lane),var(--accent),var(--brand));
   box-shadow:0 0 7px color-mix(in srgb,var(--lane) 55%,transparent)}
+.refresh-place{position:absolute;z-index:2;top:7px;min-width:22px;padding:1px 3px;border:1px solid color-mix(in srgb,var(--lane) 62%,transparent);
+  border-radius:3px;background:rgba(2,8,13,.86);color:var(--lane);font-size:10px;font-weight:950;line-height:13px;text-align:center;
+  letter-spacing:.04em;text-shadow:0 0 5px color-mix(in srgb,var(--lane) 55%,transparent);pointer-events:none}
+.refresh-place-start{left:2px}.refresh-place-finish{right:2px}
 .refresh-lane-p1{--lane:var(--oro);--runner-shirt:#ef4f43;--runner-stripe:#dff8ff}
 .refresh-lane-p2{--lane:var(--plata);--runner-shirt:#3477c7;--runner-stripe:#dff8ff}
 .refresh-lane-p3{--lane:var(--bronce);--runner-shirt:#3477c7;--runner-stripe:#ef4f43}
@@ -179,6 +183,11 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .sort-head:hover,.sort-head:focus-visible{color:var(--brand);outline:none;text-shadow:0 0 7px rgba(120,243,255,.35)}
 .sort-arrow{display:inline-block;min-width:1em;color:var(--accent);font-size:9px;text-align:center}
 .tabla th[aria-sort="ascending"] .sort-head,.tabla th[aria-sort="descending"] .sort-head{color:var(--ink)}
+.rank-filter{appearance:none;display:grid;place-items:center;width:100%;padding:0;border:0;background:transparent;
+  color:var(--dim);font:900 12px/1 var(--mono);cursor:pointer}
+.rank-filter:hover,.rank-filter:focus-visible{color:var(--brand);outline:none;text-shadow:0 0 7px rgba(120,243,255,.35)}
+.rank-filter[aria-pressed="true"]{color:var(--good);text-shadow:0 0 6px rgba(136,255,170,.95),0 0 13px rgba(136,255,170,.5);
+  animation:rank-heartbeat 1.6s ease-in-out infinite}
 .tabla td{padding:8px 10px;border-bottom:1px solid var(--line);overflow:hidden;text-overflow:ellipsis}
 /* Zebra deliberadamente marcada: los puestos pares son más oscuros que los
    impares para poder seguir una fila completa sin perderla entre números. */
@@ -234,7 +243,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .nom{font-size:7px}.pts{font-size:10px}
   .wrap{padding-top:46px}header.cab{grid-template-columns:auto minmax(90px,1fr) auto;gap:10px}h1{font-size:17px}
   .refresh-race{padding:0 10px}.refresh-mission{width:38vw;font-size:10px;line-height:13px}.refresh-agent{max-width:105px;font-size:10px;line-height:13px}}
-@media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.activity-now,.activity-now::after,.plaza.podium-live::after,.podium-trend.up,.refresh-runner svg,.runner-frame-a,.runner-frame-b{animation:none}.runner-frame-b{display:none}}
+@media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.rank-filter[aria-pressed="true"],.activity-now,.activity-now::after,.plaza.podium-live::after,.podium-trend.up,.refresh-runner svg,.runner-frame-a,.runner-frame-b{animation:none}.runner-frame-b{display:none}}
 </style>
 </head>
 <body data-yk-title="HIGHSCORE" data-yk-zone="app">
@@ -332,7 +341,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         <col data-min="86"><col data-min="72"><col data-min="64"><col data-min="68">
       </colgroup>
       <thead><tr>
-        <th class="n" data-sort-col="posicion" aria-sort="none"><button class="sort-head" type="button" data-sort="posicion">#<span class="sort-arrow" aria-hidden="true"></span></button></th>
+        <th class="n"><button class="rank-filter" id="lifeFilter" type="button" aria-pressed="false" aria-label="Mostrar solo agentes con vida" title="Mostrar solo agentes con vida">#</button></th>
         <th data-sort-col="agente" aria-sort="none"><button class="sort-head" type="button" data-sort="agente">Agente<span class="sort-arrow" aria-hidden="true"></span></button></th>
         <th data-sort-col="ordenador" aria-sort="none"><button class="sort-head" type="button" data-sort="ordenador">Ordenador<span class="sort-arrow" aria-hidden="true"></span></button></th>
         <th data-sort-col="proyecto" aria-sort="none"><button class="sort-head" type="button" data-sort="proyecto">Proyecto<span class="sort-arrow" aria-hidden="true"></span></button></th>
@@ -800,10 +809,40 @@ body.resizing-columns{cursor:col-resize;user-select:none}
      doble clic calcula el ancho necesario para el contenido de esa columna. */
   var COLUMNAS_KEY = "yokup.highscore.columnas.v1";
   var ordenTabla = { campo:"", direccion:"" };
+  var filtroSoloVivos = false;
   var DIRECCION_INICIAL = {
-    posicion:"asc", agente:"asc", ordenador:"asc", proyecto:"asc",
+    agente:"asc", ordenador:"asc", proyecto:"asc",
     objetivos:"desc", ventanas:"desc", misiones:"desc", tareas:"desc", puntos:"desc"
   };
+
+  function filtraVida(lista, soloVivos) {
+    var filas = (lista || []).slice();
+    return soloVivos ? filas.filter(function (fila) { return !!(fila && fila.vivo); }) : filas;
+  }
+
+  function listaVisible(lista) {
+    return listaOrdenada(filtraVida(lista, filtroSoloVivos));
+  }
+
+  function actualizaFiltroVida() {
+    var boton = document.getElementById("lifeFilter");
+    if (!boton) return;
+    var accion = filtroSoloVivos ? "Mostrar todos los agentes" : "Mostrar solo agentes con vida";
+    boton.setAttribute("aria-pressed", filtroSoloVivos ? "true" : "false");
+    boton.setAttribute("aria-label", accion);
+    boton.title = accion;
+  }
+
+  function iniciaFiltroVida() {
+    var boton = document.getElementById("lifeFilter");
+    if (!boton) return;
+    boton.addEventListener("click", function () {
+      filtroSoloVivos = !filtroSoloVivos;
+      actualizaFiltroVida();
+      pintaTabla(listaVisible(listaCache || []));
+    });
+    actualizaFiltroVida();
+  }
 
   function ordenadorPrincipal(a) {
     var vivas = (a.maquinasVivas || []).slice().sort(), conocidas = (a.maquinas || []).slice().sort();
@@ -850,7 +889,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         if (ordenTabla.campo === campo) ordenTabla.direccion = ordenTabla.direccion === "asc" ? "desc" : "asc";
         else { ordenTabla.campo = campo; ordenTabla.direccion = DIRECCION_INICIAL[campo] || "asc"; }
         actualizaCabecerasOrden();
-        pintaTabla(listaOrdenada(listaCache || []));
+        pintaTabla(listaVisible(listaCache || []));
       });
     });
     actualizaCabecerasOrden();
@@ -938,6 +977,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
   iniciaColumnasReajustables();
   iniciaOrdenTabla();
+  iniciaFiltroVida();
 
   function agenteDeMision(mision) {
     var agente = mision && normaliza(mision.assignee || mision.persona || mision.agent);
@@ -1015,7 +1055,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       return '<div class="refresh-lane ' + clasePuesto + ' ' + (puesto === 1 ? 'race-winner' : 'race-loser') +
         '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
         'aria-label="Puesto ' + puesto + ', ' + esc(agente) + '. ' + esc(focoAccesible) + '">' +
-        '<div class="refresh-track"><i class="refresh-fill" data-race-role="fill"></i>' +
+        '<div class="refresh-track"><span class="refresh-place refresh-place-start" aria-hidden="true">' + puesto + '</span>' +
+        '<i class="refresh-fill" data-race-role="fill"></i>' +
         '<span class="refresh-mission" data-race-role="mission" title="' + esc(asunto || '') + '">' +
         '<span class="refresh-desc">' + (asunto ? estelaMision(asunto) : "") + '</span></span>' +
         '<span class="refresh-runner runner-' + variant + ' runner-skin-' + variant + '" data-race-role="runner" aria-hidden="true">' +
@@ -1024,7 +1065,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<svg class="runner-finish-win" viewBox="0 0 24 30"><use href="#runnerFinishWin"></use></svg>' +
         '<svg class="runner-finish-lose" viewBox="0 0 24 30"><use href="#runnerFinishLose"></use></svg></span>' +
         '<span class="refresh-agent" data-race-role="agent">' + esc(agente) + '</span>' +
-        '<span class="refresh-finish" aria-hidden="true"></span></div></div>';
+        '<span class="refresh-finish" aria-hidden="true"></span>' +
+        '<span class="refresh-place refresh-place-finish" aria-hidden="true">' + puesto + '</span></div></div>';
     }).filter(Boolean);
     contenedor.innerHTML = corredores.join("");
     var carrera = document.getElementById("refreshRace");
@@ -1086,7 +1128,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
   function listo() {
     listaCache = calcula();
-    pintaPodio(listaCache.slice(0, 3)); pintaTabla(listaOrdenada(listaCache)); pintaFormula(listaCache); actualizaCarreraPodio();
+    pintaPodio(listaCache.slice(0, 3)); pintaTabla(listaVisible(listaCache)); pintaFormula(listaCache); actualizaCarreraPodio();
     document.getElementById("pulsa").style.visibility = "visible";
     var vivos = agentesEnLiza(listaCache);
     document.getElementById("pieCarga").textContent = vivos + (vivos === 1 ? " AGENTE EN LIZA" : " AGENTES EN LIZA");
@@ -1142,7 +1184,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var l = calcula();
       var cambioLider = listaCache && l[0] && listaCache[0] && l[0].agente !== listaCache[0].agente;
       listaCache = l;
-      pintaPodio(l.slice(0, 3)); pintaTabla(listaOrdenada(l)); pintaFormula(l); actualizaCarreraPodio();
+      pintaPodio(l.slice(0, 3)); pintaTabla(listaVisible(l)); pintaFormula(l); actualizaCarreraPodio();
       if (cambioLider && sonando) fanfarriaPodio();   // récord batido
     }).finally(function () { refrescando = false; });
   }

@@ -92,10 +92,12 @@ test("la pista pasa por los pies del corredor y termina en una meta visible", ()
   assert.match(html, /\.refresh-fill\{[^}]*left:36px[^}]*bottom:3px[^}]*height:2px/);
   assert.match(html, /\.refresh-runner\{[^}]*bottom:3px[^}]*transform:translateX\(-50%\)/);
   assert.match(html, /\.refresh-finish\{[^}]*right:29px[^}]*bottom:1px/);
+  assert.match(html, /\.refresh-place\{[^}]*color:var\(--lane\)[^}]*text-align:center/);
+  assert.match(html, /\.refresh-place-start\{left:2px\}\.refresh-place-finish\{right:2px\}/);
   assert.match(html, /\.refresh-finish::before,\.refresh-finish::after\{[^}]*conic-gradient[^}]*transition:transform \.45s steps\(3,end\),opacity \.45s linear/);
   assert.match(html, /\.refresh-lane\.finished \.refresh-finish::before\{[^}]*translate\(-7px,-8px\)[^}]*opacity:0/);
   assert.match(html, /\.refresh-lane\.finished \.refresh-finish::after\{[^}]*translate\(7px,8px\)[^}]*opacity:0/);
-  assert.match(html, /class="refresh-runner runner-' \+ variant[\s\S]*class="refresh-finish" aria-hidden="true"/);
+  assert.match(html, /class="refresh-place refresh-place-start" aria-hidden="true">' \+ puesto[\s\S]*class="refresh-runner runner-' \+ variant[\s\S]*class="refresh-finish" aria-hidden="true"[\s\S]*class="refresh-place refresh-place-finish" aria-hidden="true">' \+ puesto/);
   assert.match(html, /var MARGEN_PISTA_PX = 36, CENTRO_CORREDOR_PX = 16/);
   assert.match(html, /ajusteCorredor = CENTRO_CORREDOR_PX \* \(1 - 2 \* progresoAtleta\)/);
   assert.match(html, /posicionCorredor = "calc\(" \+ pct \+ "% \+ " \+ ajusteCorredor \+ "px\)"/);
@@ -134,18 +136,37 @@ test("las nueve columnas se pueden reajustar y conservan su anchura", () => {
   assert.match(html, /role", "separator"/);
 });
 
-test("las nueve cabeceras ordenan, invierten el sentido y conservan el ranking", () => {
-  assert.equal((html.match(/class="sort-head"/g) || []).length, 9);
-  assert.equal((html.match(/aria-sort="none"/g) || []).length, 9);
+test("ocho cabeceras ordenan, invierten el sentido y conservan el ranking", () => {
+  assert.equal((html.match(/class="sort-head"/g) || []).length, 8);
+  assert.equal((html.match(/aria-sort="none"/g) || []).length, 8);
   assert.match(html, /\.sort-head\{[^}]*cursor:pointer/);
   assert.match(html, /var DIRECCION_INICIAL = \{[\s\S]*objetivos:"desc", ventanas:"desc", misiones:"desc", tareas:"desc", puntos:"desc"/);
   assert.match(html, /if \(ordenTabla\.campo === campo\) ordenTabla\.direccion = ordenTabla\.direccion === "asc" \? "desc" : "asc"/);
   assert.match(html, /th\.setAttribute\("aria-sort", activo \? \(ordenTabla\.direccion === "asc" \? "ascending" : "descending"\) : "none"\)/);
   assert.match(html, /flecha\.textContent = activo \? \(ordenTabla\.direccion === "asc" \? "▲" : "▼"\) : ""/);
   assert.match(html, /if \(campo === "puntos"\) return Number\(fila\.total\) \|\| 0/);
-  assert.match(html, /pintaTabla\(listaOrdenada\(listaCache \|\| \[\]\)\)/);
-  assert.match(html, /pintaTabla\(listaOrdenada\(l\)\)/,
+  assert.match(html, /pintaTabla\(listaVisible\(listaCache \|\| \[\]\)\)/);
+  assert.match(html, /pintaTabla\(listaVisible\(l\)\)/,
     "el orden elegido debe sobrevivir a la actualización de 60 segundos");
+});
+
+test("el hashtag alterna entre agentes con vida y ranking completo", () => {
+  assert.match(html, /id="lifeFilter"[^>]*aria-pressed="false"[^>]*>\#<\/button>/);
+  assert.match(html, /\.rank-filter\[aria-pressed="true"\]\{[^}]*color:var\(--good\)[^}]*animation:rank-heartbeat/);
+  assert.match(html, /filtroSoloVivos = !filtroSoloVivos/);
+  assert.match(html, /boton\.setAttribute\("aria-pressed", filtroSoloVivos \? "true" : "false"\)/);
+  assert.match(html, /var accion = filtroSoloVivos \? "Mostrar todos los agentes" : "Mostrar solo agentes con vida"/);
+  assert.match(html, /pintaTabla\(listaVisible\(listaCache \|\| \[\]\)\)/);
+
+  const start = html.indexOf("function filtraVida(lista, soloVivos) {");
+  const end = html.indexOf("\n\n  function listaVisible", start);
+  assert.ok(start >= 0 && end > start, "falta el filtro de vida");
+  const context = vm.createContext({});
+  vm.runInContext(`${html.slice(start, end)}\n` +
+    `globalThis.todos=filtraVida([{agente:"Neo",vivo:true},{agente:"Smith",vivo:false}],false);\n` +
+    `globalThis.vivos=filtraVida([{agente:"Neo",vivo:true},{agente:"Smith",vivo:false}],true);`, context);
+  assert.deepEqual(Array.from(context.todos, (fila) => fila.agente), ["Neo", "Smith"]);
+  assert.deepEqual(Array.from(context.vivos, (fila) => fila.agente), ["Neo"]);
 });
 
 test("Ordenador agrupa equipos y mantiene dentro de cada grupo la posición real", () => {
@@ -215,7 +236,8 @@ test("todos los agentes vivos tienen calles ordenadas, identidad visual y semán
   assert.match(html, /role="listitem"/);
   assert.match(html, /refresh-mission[^\n]*data-race-role="mission"[\s\S]*refresh-runner runner-' \+ variant[\s\S]*refresh-agent/);
   assert.match(html, /'<span class="refresh-agent" data-race-role="agent">' \+ esc\(agente\) \+ '<\/span>'/);
-  assert.doesNotMatch(html, /class="refresh-place"/);
+  assert.match(html, /class="refresh-place refresh-place-start" aria-hidden="true">' \+ puesto/);
+  assert.match(html, /class="refresh-place refresh-place-finish" aria-hidden="true">' \+ puesto/);
   assert.match(html, /\.refresh-agent\{[^}]*font-size:14px[^}]*line-height:17px/);
   assert.match(html, /\.refresh-lane-p1\{--lane:var\(--oro\);--runner-shirt:#ef4f43;--runner-stripe:#dff8ff\}/);
   assert.match(html, /\.refresh-lane-p2\{--lane:var\(--plata\);--runner-shirt:#3477c7;--runner-stripe:#dff8ff\}/);

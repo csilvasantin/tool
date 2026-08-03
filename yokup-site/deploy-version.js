@@ -1,12 +1,22 @@
-const FORMAT = /^v\.(\d{2})\.(\d{2})\.(\d{4})\.r(\d+)$/i;
-const LEGACY_DATE_FIRST_FORMAT = /^v\.(\d{4})\.(\d{2})\.(\d{2})\.r(\d+)$/i;
+const FORMAT = /^v\.(\d{2})\.(\d{2})\.(\d{4})\.r(\d+)(?:\.(\d{2}):(\d{2}))?$/i;
+const LEGACY_DATE_FIRST_FORMAT = /^v\.(\d{4})\.(\d{2})\.(\d{2})\.r(\d+)(?:\.(\d{2}):(\d{2}))?$/i;
+
+function madridParts(date) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone:"Europe/Madrid", year:"numeric", month:"2-digit", day:"2-digit",
+    hour:"2-digit", minute:"2-digit", hourCycle:"h23"
+  }).formatToParts(date);
+  return Object.fromEntries(parts.map((item) => [item.type, item.value]));
+}
 
 export function madridDay(date) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone:"Europe/Madrid", year:"numeric", month:"2-digit", day:"2-digit"
-  }).formatToParts(date);
-  const p = Object.fromEntries(parts.map((item) => [item.type, item.value]));
+  const p = madridParts(date);
   return `${p.day}.${p.month}.${p.year}`;
+}
+
+export function madridTime(date) {
+  const p = madridParts(date);
+  return `${p.hour}:${p.minute}`;
 }
 
 export function nextDeployVersion(date, candidates) {
@@ -24,7 +34,7 @@ export function nextDeployVersion(date, candidates) {
       revision = Math.max(revision, Number(legacy[4]) || 0);
     }
   }
-  return `v.${day}.r${revision + 1}`;
+  return `v.${day}.r${revision + 1}.${madridTime(date)}`;
 }
 
 export function versionFromPayload(value) {

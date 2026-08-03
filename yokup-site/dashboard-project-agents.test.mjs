@@ -1,8 +1,29 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {readFile} from "node:fs/promises";
+import {access,readFile} from "node:fs/promises";
 
-const source=await readFile(new URL("./agentica.html",import.meta.url),"utf8");
+const source=await readFile(new URL("./dashboard.html",import.meta.url),"utf8");
+const frame=await readFile(new URL("./yk-frame.js",import.meta.url),"utf8");
+const landing=await readFile(new URL("./index.html",import.meta.url),"utf8");
+const redirects=await readFile(new URL("./_redirects",import.meta.url),"utf8");
+
+test("el Dashboard vive en /dashboard y conserva /agentica sólo como retorno compatible",async()=>{
+  await assert.rejects(access(new URL("./agentica.html",import.meta.url)),error=>error&&error.code==="ENOENT");
+  assert.match(frame,/\["DASHBOARD",\s+"\/dashboard"\]/);
+  assert.match(landing,/href="\/dashboard" class="btn access"/);
+  assert.doesNotMatch(frame,/\/agentica/);
+  assert.doesNotMatch(landing,/\/agentica/);
+  assert.match(redirects,/^\/agentica\s+\/dashboard\s+301$/m);
+  assert.match(redirects,/^\/agentica\.html\s+\/dashboard\s+301$/m);
+});
+
+test("Pulso y Proyectos nacen compactados y se pueden desplegar",()=>{
+  assert.match(source,/<details class="dash-section" id="pulseSection">\s*<summary class="shd">Pulso de la flota/);
+  assert.match(source,/<details class="dash-section" id="projectAgentSection">\s*<summary class="shd">Proyectos y agentes/);
+  assert.doesNotMatch(source,/<details class="dash-section"[^>]*\sopen(?:\s|>)/);
+  assert.match(source,/\.dash-section\[open\]>\.shd::before/);
+  assert.match(source,/projectAgentSection"\)\.addEventListener\("toggle"/);
+});
 
 test("el Dashboard incluye la gestión de agentes por proyecto",()=>{
   assert.match(source,/Proyectos y agentes/);

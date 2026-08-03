@@ -33,8 +33,8 @@ test("Oraculo, Smith, Sub e Infra firman con equipo canónico",()=>{
 });
 
 test("Wrangler recibe hash y mensaje firmados sin shell",()=>{
-  const hash="a".repeat(40),args=wranglerCommitArgs({gitFull:hash,signature:"OraculoMacMini · MacMini",version:"v.03.08.2026.r1"});
-  assert.deepEqual(args,["--commit-hash",hash,"--commit-message","Yokup v.03.08.2026.r1 · OraculoMacMini · MacMini"]);
+  const hash="a".repeat(40),args=wranglerCommitArgs({gitFull:hash,signature:"OraculoMacMini · MacMini",version:"v.03.08.2026.r1.12:00"});
+  assert.deepEqual(args,["--commit-hash",hash,"--commit-message","Yokup v.03.08.2026.r1.12:00 · OraculoMacMini · MacMini"]);
   assert.match(deploy,/gitFull = execFileSync\("git", \["rev-parse", "HEAD"\]/);
   assert.match(deploy,/gitShort = execFileSync\("git", \["rev-parse", "--short", "HEAD"\]/);
   assert.match(deploy,/deployer,\s*machine,\s*signature,\s*git:gitShort,\s*gitShort,\s*gitFull,\s*dirty/s);
