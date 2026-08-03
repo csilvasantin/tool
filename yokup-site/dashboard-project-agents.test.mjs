@@ -94,6 +94,7 @@ test("los agentes nacen compactados dentro de cada equipo",()=>{
   assert.match(source,/const openTeams=new Set\(\[\.\.\.teamsBox\.querySelectorAll\("\[data-team-key\]\[open\]"\)\]/);
   assert.match(source,/openTeams\.has\(team\.key\)\?' open':''/);
   assert.doesNotMatch(source,/closedTeams\.has\(team\.key\)\?'':' open'/);
+  assert.match(source,/\.pa-team-node:not\(\[open\]\)>\.pa-team-agents/);
 });
 
 test("proyectos y equipos se pueden ocultar por ficha y restaurar con Todos",()=>{
@@ -130,18 +131,38 @@ test("las uniones agente-proyecto se dibujan con flechas",()=>{
   assert.match(source,/function paDrawLinks\(\)/);
   assert.match(source,/pa\("projectAgentProjectsPane"\)\.open&&pa\("projectAgentTeamsPane"\)\.open/);
   assert.match(source,/\["projectAgentProjectsPane","projectAgentTeamsPane"\]\.forEach\(id=>pa\(id\)\.addEventListener\("toggle",\(\)=>\{paDrawLinks\(\);requestAnimationFrame\(paDrawLinks\);\}\)\)/);
+  assert.match(source,/id="projectAgentSvg"[^>]*preserveAspectRatio="none"/);
+  assert.match(source,/svg\.setAttribute\("viewBox","0 0 "\+Math\.max\(1,rect\.width\)\+" "\+Math\.max\(1,rect\.height\)\)/);
+  assert.match(source,/pa\("projectAgentLinks"\)\.innerHTML=""/);
+  assert.match(source,/new ResizeObserver\(\(\)=>requestAnimationFrame\(paDrawLinks\)\)\.observe\(pa\("projectAgentMap"\)\)/);
   assert.match(source,/marker-end="url\(#paArrow\)"/);
   assert.match(source,/project\.agents\|\|\[\]/);
   assert.match(source,/data-agent-node=/);
   assert.match(source,/data-link-agent/);
-  assert.match(source,/!source\.getClientRects\(\)\.length\|\|!target\.getClientRects\(\)\.length/);
+  assert.match(source,/teamNode\.open&&agentNode\.getClientRects\(\)\.length/);
+  assert.match(source,/teamNode\.querySelector\(':scope>\.pa-team-summary'\)/);
+  assert.match(source,/!source\|\|!source\.getClientRects\(\)\.length/);
+});
+
+test("las columnas se pueden mover horizontalmente y las flechas siguen su posición",()=>{
+  assert.match(source,/data-pa-move="projects"/);
+  assert.match(source,/data-pa-move="teams"/);
+  assert.match(source,/const COLUMN_OFFSETS=\{projects:0,teams:0\}/);
+  assert.match(source,/function paStartColumnMove\(event\)/);
+  assert.match(source,/function paMoveColumn\(event\)/);
+  assert.match(source,/paSetColumnOffset\(COLUMN_DRAG\.key,next\);paDrawLinks\(\)/);
+  assert.match(source,/handle\.onpointerdown=paStartColumnMove/);
+  assert.match(source,/handle\.ondblclick=paResetColumn/);
+  assert.match(source,/window\.addEventListener\("pointermove",paMoveColumn\)/);
+  assert.match(source,/window\.addEventListener\("pointerup",paEndColumnMove\)/);
+  assert.match(source,/\.pa-col\{transform:none!important\}/);
 });
 
 test("el mapa conserva el scroll y se apila en pantallas estrechas",()=>{
   assert.match(source,/\.pa-scroll\{overflow:visible/);
   assert.doesNotMatch(source,/\.pa-scroll\{[^}]*overscroll-behavior:contain/);
   assert.match(source,/@media\(max-width:900px\)\{\.pa-map\{grid-template-columns:minmax\(0,1fr\)/);
-  assert.match(source,/\.pa-links\{display:none\}\}/);
+  assert.match(source,/\.pa-links\{display:none\}/);
 });
 
 test("cada agente conectado puede abrir mejoras del proyecto en una Ventana de Decisión",()=>{

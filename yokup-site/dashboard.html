@@ -57,7 +57,7 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
 .pa-msg{min-height:18px;margin:0 0 10px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--dim)}.pa-msg.ok{color:var(--good)}.pa-msg.err{color:var(--warn)}
 .pa-scroll{overflow:visible;padding:2px 2px 8px}.pa-map{position:relative;display:grid;grid-template-columns:minmax(240px,340px) minmax(260px,360px);gap:88px;justify-content:center;min-width:0;align-items:start}
 .pa-links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:1}.pa-link{fill:none;stroke-width:1.5;opacity:.26;filter:drop-shadow(0 0 4px currentColor)}.pa-link-temp{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-dasharray:7 5;filter:drop-shadow(0 0 7px var(--accent))}
-.pa-col{position:relative;z-index:2;min-width:0}.pa-col-title{display:flex;align-items:center;gap:5px;margin:0 0 7px;font-family:var(--mono);font-size:8.8px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);cursor:pointer;list-style:none;user-select:none}.pa-col-title::-webkit-details-marker{display:none}.pa-col-title::before{content:"›";color:var(--accent);font-size:14px;line-height:1;transition:transform .16s}.pa-col[open]>.pa-col-title::before{transform:rotate(90deg)}.pa-col-title::after{content:"";height:1px;background:var(--line);flex:1}.pa-count{border:1px solid var(--line);border-radius:999px;padding:2px 6px;color:var(--brand);font-size:8px;letter-spacing:.03em}.pa-show-all{border:0;background:transparent;color:var(--good);font:800 7.8px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:4px 2px;cursor:pointer}.pa-show-all:hover,.pa-show-all:focus-visible{color:var(--ink);outline:none}.pa-show-all[hidden]{display:none}.pa-col:not([open])>.pa-col-title{margin-bottom:0}.pa-col-title:hover,.pa-col-title:focus-visible{color:var(--ink);outline:none}
+.pa-col{position:relative;z-index:2;min-width:0;transform:translateX(var(--pa-x,0px));will-change:transform}.pa-col-title{display:flex;align-items:center;gap:5px;margin:0 0 7px;font-family:var(--mono);font-size:8.8px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);cursor:pointer;list-style:none;user-select:none}.pa-col-title::-webkit-details-marker{display:none}.pa-col-title::before{content:"›";color:var(--accent);font-size:14px;line-height:1;transition:transform .16s}.pa-col[open]>.pa-col-title::before{transform:rotate(90deg)}.pa-col-title::after{content:"";height:1px;background:var(--line);flex:1}.pa-count{border:1px solid var(--line);border-radius:999px;padding:2px 6px;color:var(--brand);font-size:8px;letter-spacing:.03em}.pa-show-all,.pa-move{border:0;background:transparent;font:800 7.8px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:4px 2px;cursor:pointer}.pa-show-all{color:var(--good)}.pa-move{color:var(--brand);font-size:11px;cursor:ew-resize;touch-action:none}.pa-move.dragging{color:var(--accent)}.pa-show-all:hover,.pa-show-all:focus-visible,.pa-move:hover,.pa-move:focus-visible{color:var(--ink);outline:none}.pa-show-all[hidden]{display:none}.pa-col:not([open])>.pa-col-title{margin-bottom:0}.pa-col-title:hover,.pa-col-title:focus-visible{color:var(--ink);outline:none}
 .pa-list{display:grid;gap:5px}.pa-agent-node,.pa-team-node,.pa-project-node{--pc:var(--brand);border:1px solid var(--line);border-radius:9px;background:rgba(2,8,13,.76);position:relative;transition:border-color .15s,box-shadow .15s,transform .15s}
 .pa-project-node{padding:0}.pa-project-node::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--pc);box-shadow:0 0 14px var(--pc)}.pa-project-node.archivado{opacity:.55}.pa-project-node.drop{border-color:var(--good);box-shadow:0 0 0 2px rgba(136,255,170,.18),0 0 30px rgba(136,255,170,.14);transform:translateX(3px)}
 .pa-project-summary,.pa-team-summary{list-style:none;display:flex;align-items:center;gap:6px;cursor:pointer;position:relative}.pa-project-summary::-webkit-details-marker,.pa-team-summary::-webkit-details-marker{display:none}.pa-project-summary{padding:6px 34px 6px 6px}.pa-team-summary{padding:4px 27px 4px 5px;min-height:34px}.pa-project-summary:focus-visible,.pa-team-summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.pa-project-main{min-width:0;flex:1}.pa-project-controls{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:3px}.pa-project-detail{padding:0 7px 7px;border-top:1px solid rgba(120,243,255,.08)}.pa-expand{font:800 7.5px/1 var(--mono);letter-spacing:.03em;text-transform:uppercase;color:var(--brand);white-space:nowrap}.pa-expand::after{content:" ›"}.pa-project-node[open] .pa-expand::after{content:" ×"}
@@ -71,9 +71,10 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
 .pa-assigned{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px;min-height:22px}.pa-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:999px;padding:2px 3px 2px 7px;font:9px/1.2 var(--mono);color:var(--mut);background:rgba(120,243,255,.04)}.pa-chip.legacy{border-style:dashed;color:var(--accent)}.pa-chip button{width:17px;height:17px;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}.pa-chip button:hover{background:rgba(255,136,102,.16);color:var(--warn)}.pa-empty{font:10px/1.5 var(--mono);color:var(--warn)}
 .pa-decision{width:100%;border:1px solid rgba(255,216,102,.34);border-radius:7px;background:rgba(255,216,102,.06);color:var(--accent);font:800 8.8px/1.25 var(--mono);letter-spacing:.04em;text-align:left;padding:7px 8px;cursor:pointer}.pa-decision:hover,.pa-decision:focus-visible{border-color:var(--accent);background:rgba(255,216,102,.12);outline:none}.pa-decision:disabled{opacity:.5;cursor:wait}
 .pa-team-agents{display:grid;gap:5px;padding:5px}.pa-agent-node{padding:6px 6px 6px 35px;background:rgba(7,20,29,.92)}.pa-agent-node.selected{border-color:var(--accent);box-shadow:0 0 0 1px rgba(255,216,102,.16),0 0 22px rgba(255,216,102,.1)}.pa-actions{display:grid;gap:5px;margin-top:5px}.pa-agent-project{border:1px solid var(--line);border-radius:7px;padding:5px;background:rgba(120,243,255,.035)}.pa-agent-project>span{display:block;font:800 8px/1.2 var(--mono);color:var(--mut);margin:0 2px 4px}.pa-action-row{display:flex;gap:5px}.pa-action-row .pa-decision{flex:1}.pa-mini{border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--mut);font:800 9px/1 var(--mono);padding:6px 8px;cursor:pointer}.pa-mini:hover,.pa-mini:focus-visible{color:var(--warn);border-color:var(--warn);outline:none}.pa-agent-empty{font:8.5px/1.3 var(--mono);color:var(--dim)}
+.pa-team-node:not([open])>.pa-team-agents,.pa-project-node:not([open])>.pa-project-detail{display:none}
 .pa-target{border:1px dashed var(--good);border-radius:7px;background:rgba(136,255,170,.05);color:var(--good);font:800 8px/1.2 var(--mono);letter-spacing:.03em;padding:6px 7px;cursor:pointer;white-space:nowrap}.pa-target:hover,.pa-target:focus-visible{background:rgba(136,255,170,.12);outline:none}.pa-target:disabled{opacity:.45;cursor:wait}
 .pa-loading{grid-column:1/-1;border:1px dashed var(--line);border-radius:11px;padding:24px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:10.5px}
-@media(max-width:900px){.pa-map{grid-template-columns:minmax(0,1fr);gap:14px}.pa-links{display:none}}
+@media(max-width:900px){.pa-map{grid-template-columns:minmax(0,1fr);gap:14px}.pa-links{display:none}.pa-col{transform:none!important}.pa-move{display:none}}
 @media(max-width:620px){.pa-head{display:block}.pa-refresh{margin-top:10px}.pa-shell{padding:12px}.pa-project-summary{padding-right:45px}.pa-state{display:none}}
 
 /* XPERIENCIAS EN VIVO — marcos cuadráticos con feed real (doctrina: nada de capturas) */
@@ -110,9 +111,9 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
     <div class="pa-msg" id="projectAgentMsg" role="status" aria-live="polite"></div>
     <div class="pa-scroll" id="projectAgentScroll">
       <div class="pa-map" id="projectAgentMap">
-        <svg class="pa-links" id="projectAgentSvg" aria-hidden="true"><defs><marker id="paArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"></path></marker></defs><g id="projectAgentLinks"></g><path class="pa-link-temp" id="projectAgentTemp" marker-end="url(#paArrow)"></path></svg>
-        <details class="pa-col" id="projectAgentProjectsPane" open><summary class="pa-col-title">Proyectos <span class="pa-count" id="projectAgentProjectsN">—</span><button class="pa-show-all" id="projectAgentProjectsAll" type="button" hidden>Todos</button></summary><div class="pa-list" id="projectAgentProjects"><div class="pa-loading">Cargando proyectos…</div></div></details>
-        <details class="pa-col" id="projectAgentTeamsPane" open><summary class="pa-col-title">Equipos físicos <span class="pa-count" id="projectAgentTeamsN">—</span> · Agentes <span class="pa-count" id="projectAgentAgentsN">—</span><button class="pa-show-all" id="projectAgentTeamsAll" type="button" hidden>Todos</button></summary><div class="pa-list" id="projectAgentTeams"><div class="pa-loading">Tomando el pulso…</div></div></details>
+        <svg class="pa-links" id="projectAgentSvg" aria-hidden="true" preserveAspectRatio="none"><defs><marker id="paArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"></path></marker></defs><g id="projectAgentLinks"></g><path class="pa-link-temp" id="projectAgentTemp" marker-end="url(#paArrow)"></path></svg>
+        <details class="pa-col" id="projectAgentProjectsPane" open><summary class="pa-col-title">Proyectos <span class="pa-count" id="projectAgentProjectsN">—</span><button class="pa-show-all" id="projectAgentProjectsAll" type="button" hidden>Todos</button><button class="pa-move" type="button" data-pa-move="projects" aria-label="Mover columna Proyectos" title="Arrastra para mover · doble clic para centrar">↔</button></summary><div class="pa-list" id="projectAgentProjects"><div class="pa-loading">Cargando proyectos…</div></div></details>
+        <details class="pa-col" id="projectAgentTeamsPane" open><summary class="pa-col-title">Equipos físicos <span class="pa-count" id="projectAgentTeamsN">—</span> · Agentes <span class="pa-count" id="projectAgentAgentsN">—</span><button class="pa-show-all" id="projectAgentTeamsAll" type="button" hidden>Todos</button><button class="pa-move" type="button" data-pa-move="teams" aria-label="Mover columna Equipos y agentes" title="Arrastra para mover · doble clic para centrar">↔</button></summary><div class="pa-list" id="projectAgentTeams"><div class="pa-loading">Tomando el pulso…</div></div></details>
       </div>
     </div>
     </section>
@@ -172,6 +173,8 @@ let LINK_DRAG=null;
 let LINK_CLICK_AGENT="";
 const HIDDEN_PROJECTS=new Set();
 const HIDDEN_TEAMS=new Set();
+const COLUMN_OFFSETS={projects:0,teams:0};
+let COLUMN_DRAG=null;
 const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
 function agoS(s){ if(!s)return "—"; let d=Math.round(Date.now()/1000-s); if(d<60)return "hace "+d+"s"; if(d<3600)return "hace "+Math.round(d/60)+"m"; return "hace "+Math.round(d/3600)+"h"; }
 async function pulse(renderMap=true){
@@ -242,6 +245,7 @@ async function paJson(path,options){
 }
 function paRender(){
   const teamsBox=pa("projectAgentTeams"),projectsBox=pa("projectAgentProjects"),teams=paTeams();
+  pa("projectAgentLinks").innerHTML="";
   const visibleTeams=teams.filter(team=>!HIDDEN_TEAMS.has(team.key));
   const visibleProjects=PROJECT_ROWS.filter(project=>!HIDDEN_PROJECTS.has(project.id));
   const openProjects=new Set([...projectsBox.querySelectorAll("[data-project-node][open]")].map(node=>node.dataset.projectNode));
@@ -291,14 +295,36 @@ function paRender(){
 }
 function paPoint(element,mapRect){const r=element.getBoundingClientRect();return{x:r.left+r.width/2-mapRect.left,y:r.top+r.height/2-mapRect.top};}
 function paCurve(a,b){const direction=b.x>=a.x?1:-1,bend=Math.max(45,Math.abs(b.x-a.x)*.48)*direction;return'M '+a.x+' '+a.y+' C '+(a.x+bend)+' '+a.y+', '+(b.x-bend)+' '+b.y+', '+b.x+' '+b.y;}
+function paColumnPane(key){return pa(key==="projects"?"projectAgentProjectsPane":"projectAgentTeamsPane");}
+function paSetColumnOffset(key,value){COLUMN_OFFSETS[key]=value;paColumnPane(key).style.setProperty("--pa-x",value+"px");}
+function paStartColumnMove(event){
+  if(matchMedia("(max-width:900px)").matches)return;
+  event.preventDefault();event.stopPropagation();
+  const key=event.currentTarget.dataset.paMove,pane=paColumnPane(key),mapRect=pa("projectAgentMap").getBoundingClientRect(),paneRect=pane.getBoundingClientRect(),base=COLUMN_OFFSETS[key];
+  COLUMN_DRAG={key,startX:event.clientX,base,min:base+mapRect.left-paneRect.left,max:base+mapRect.right-paneRect.right,handle:event.currentTarget,pointerId:event.pointerId};
+  event.currentTarget.classList.add("dragging");event.currentTarget.setPointerCapture(event.pointerId);
+}
+function paMoveColumn(event){
+  if(!COLUMN_DRAG)return;
+  const next=Math.max(COLUMN_DRAG.min,Math.min(COLUMN_DRAG.max,COLUMN_DRAG.base+event.clientX-COLUMN_DRAG.startX));
+  paSetColumnOffset(COLUMN_DRAG.key,next);paDrawLinks();
+}
+function paEndColumnMove(){
+  if(!COLUMN_DRAG)return;
+  COLUMN_DRAG.handle.classList.remove("dragging");COLUMN_DRAG=null;requestAnimationFrame(paDrawLinks);
+}
+function paResetColumn(event){event.preventDefault();event.stopPropagation();paSetColumnOffset(event.currentTarget.dataset.paMove,0);paDrawLinks();requestAnimationFrame(paDrawLinks);}
 function paDrawLinks(){
-  const map=pa("projectAgentMap"),group=pa("projectAgentLinks"),temp=pa("projectAgentTemp"); if(!map||!group)return;
+  const map=pa("projectAgentMap"),svg=pa("projectAgentSvg"),group=pa("projectAgentLinks"),temp=pa("projectAgentTemp"); if(!map||!svg||!group)return;
+  const rect=map.getBoundingClientRect();svg.setAttribute("viewBox","0 0 "+Math.max(1,rect.width)+" "+Math.max(1,rect.height));
   if(!(pa("projectAgentProjectsPane").open&&pa("projectAgentTeamsPane").open)){group.innerHTML="";temp.setAttribute('d','');return;}
-  const rect=map.getBoundingClientRect();
   group.innerHTML=PROJECT_ROWS.flatMap(project=>(project.agents||[]).map(agent=>{
-    const source=map.querySelector('[data-agent-node="'+CSS.escape(agent)+'"] [data-link-agent]'),target=map.querySelector('[data-project-port="'+CSS.escape(project.id)+'"]');
-    if(!source||!target||!source.getClientRects().length||!target.getClientRects().length)return'';
-    return '<path class="pa-link" d="'+paCurve(paPoint(source,rect),paPoint(target,rect))+'" stroke="'+paColor(project.color)+'" marker-end="url(#paArrow)"></path>';
+    const agentNode=map.querySelector('[data-agent-node="'+CSS.escape(agent)+'"]'),teamNode=agentNode&&agentNode.closest('[data-team-key]'),target=map.querySelector('[data-project-port="'+CSS.escape(project.id)+'"]');
+    if(!teamNode||!target||!teamNode.getClientRects().length||!target.getClientRects().length)return'';
+    const source=teamNode.open&&agentNode.getClientRects().length?agentNode.querySelector('[data-link-agent]'):teamNode.querySelector(':scope>.pa-team-summary');
+    if(!source||!source.getClientRects().length)return'';
+    const sourcePoint=paPoint(source,rect);if(!teamNode.open)sourcePoint.x=source.getBoundingClientRect().left-rect.left;
+    return '<path class="pa-link" d="'+paCurve(sourcePoint,paPoint(target,rect))+'" stroke="'+paColor(project.color)+'" marker-end="url(#paArrow)"></path>';
   })).join('');
   if(!LINK_DRAG)temp.setAttribute('d','');
 }
@@ -395,13 +421,18 @@ async function paLoad(){
 pa("projectAgentRefresh").onclick=paLoad;
 pa("projectAgentProjectsAll").onclick=event=>{event.preventDefault();event.stopPropagation();HIDDEN_PROJECTS.clear();paRender();paMessage("✓ todos los proyectos visibles","ok");};
 pa("projectAgentTeamsAll").onclick=event=>{event.preventDefault();event.stopPropagation();HIDDEN_TEAMS.clear();paRender();paMessage("✓ todos los equipos visibles","ok");};
+document.querySelectorAll("[data-pa-move]").forEach(handle=>{handle.onpointerdown=paStartColumnMove;handle.onclick=event=>{event.preventDefault();event.stopPropagation();};handle.ondblclick=paResetColumn;});
 pa("projectAgentSection").addEventListener("toggle",event=>{if(event.currentTarget.open)requestAnimationFrame(paDrawLinks);});
 ["projectAgentProjectsPane","projectAgentTeamsPane"].forEach(id=>pa(id).addEventListener("toggle",()=>{paDrawLinks();requestAnimationFrame(paDrawLinks);}));
 window.addEventListener("pointermove",paMoveDrag);
+window.addEventListener("pointermove",paMoveColumn);
 window.addEventListener("pointerup",paEndDrag);
+window.addEventListener("pointerup",paEndColumnMove);
 window.addEventListener("pointercancel",paEndDrag);
+window.addEventListener("pointercancel",paEndColumnMove);
 window.addEventListener("resize",()=>requestAnimationFrame(paDrawLinks));
 pa("projectAgentScroll").addEventListener("scroll",()=>requestAnimationFrame(paDrawLinks));
+if(window.ResizeObserver)new ResizeObserver(()=>requestAnimationFrame(paDrawLinks)).observe(pa("projectAgentMap"));
 paLoad();
 setInterval(pulse,60000);
 </script>
