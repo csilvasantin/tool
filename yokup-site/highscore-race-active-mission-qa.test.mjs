@@ -60,15 +60,16 @@ test("más de tres corredores conservan una clave y carril inequívocos", () => 
   assert.deepEqual(lanes, [1, 2, 3, 4, 5]);
 });
 
-test("cada calle repite su dorsal en la salida y en la meta", () => {
+test("el dorsal se ve UNA vez, en la meta: en la salida no significa nada", () => {
   const rows = Array.from({ length: 5 }, (_, i) => ({
     agente: `Dorsal-${i + 1}`, posicion: i + 1, total: 20 - i, vivo: true,
   }));
   const race = renderRace(rows, rows.map((row) => ({assignee:row.agente,status:"in_progress",subject:"Trabajo"})));
-  const starts = [...race.html.matchAll(/refresh-place-start" aria-hidden="true">(\d+)<\/span>/g)].map((match) => Number(match[1]));
   const finishes = [...race.html.matchAll(/refresh-place-finish" aria-hidden="true">(\d+)<\/span>/g)].map((match) => Number(match[1]));
-  assert.deepEqual(starts, [1, 2, 3, 4, 5]);
-  assert.deepEqual(finishes, starts);
+  assert.deepEqual(finishes, [1, 2, 3, 4, 5]);
+  // El número de salida se retiró (Carlos, 3-ago-2026): repetía en el arranque un
+  // puesto que aún no se ha corrido, y competía visualmente con la misión.
+  assert.doesNotMatch(race.html, /refresh-place-start/);
 });
 
 test("hay corredores negro y blanco, ambos con bigote pixelado", () => {

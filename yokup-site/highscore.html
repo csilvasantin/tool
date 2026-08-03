@@ -111,18 +111,19 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-place{position:absolute;z-index:4;top:0;min-width:22px;padding:1px 3px;border:1px solid color-mix(in srgb,var(--lane) 62%,transparent);
   border-radius:3px;background:rgba(2,8,13,.86);color:var(--lane);font-size:10px;font-weight:950;line-height:13px;text-align:center;
   letter-spacing:.04em;text-shadow:0 0 5px color-mix(in srgb,var(--lane) 55%,transparent);pointer-events:none}
-.refresh-place-start{left:2px}.refresh-place-finish{right:2px}
+.refresh-place-finish{right:2px}
 .refresh-lane-p1{--lane:var(--oro);--runner-shirt:#ffd866;--runner-stripe:#8a4a2a}
 .refresh-lane-p2{--lane:var(--plata);--runner-shirt:#e6ecf2;--runner-stripe:#3477c7}
 .refresh-lane-p3{--lane:var(--bronce);--runner-shirt:#c87f3a;--runner-stripe:#2b1b12}
 .refresh-lane-rank{--lane:#78f3ff;--runner-shirt:#8d5fd3;--runner-stripe:#ffd866}
 .refresh-mission{position:absolute;z-index:1;left:0;top:25px;width:min(520px,46vw);
   transform:translateX(calc(-100% - 18px));overflow:hidden;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 26px);mask-image:linear-gradient(90deg,transparent 0,#000 26px);
   color:var(--mut);font-size:14px;font-weight:750;line-height:17px;
   letter-spacing:.035em;text-shadow:0 1px 5px #000;
   pointer-events:none}
-.refresh-desc{display:flex;width:100%;min-width:0;flex-direction:row-reverse;justify-content:flex-start;
-  gap:.52em;overflow:hidden;color:var(--mut)}
+.refresh-desc{display:flex;width:100%;min-width:0;justify-content:flex-end;
+  gap:.52em;overflow:hidden;color:var(--mut);white-space:nowrap}
 .refresh-word{display:inline-block;flex:0 0 auto;direction:ltr;unicode-bidi:isolate;white-space:nowrap}
 .refresh-agent{position:absolute;z-index:2;right:43px;top:22px;max-width:190px;
   transform:translateX(0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
@@ -147,8 +148,8 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   box-shadow:0 0 7px rgba(120,243,255,.48);transition:transform .45s steps(3,end),opacity .45s linear}
 .refresh-finish::before{top:0;border-bottom:0;transform-origin:bottom right}
 .refresh-finish::after{bottom:0;border-top:0;transform-origin:top right}
-.refresh-lane.finished .refresh-finish::before{transform:translate(-7px,-8px) rotate(-20deg);opacity:0}
-.refresh-lane.finished .refresh-finish::after{transform:translate(7px,8px) rotate(20deg);opacity:0}
+.refresh-lane.cruzando .refresh-finish::before{transform:translate(-7px,-8px) rotate(-20deg);opacity:0}
+.refresh-lane.cruzando .refresh-finish::after{transform:translate(7px,8px) rotate(20deg);opacity:0}
 /* Cada fase muestra su sprite REAL (runnerReady/Set/Go) y la carrera es un ciclo
    de 3 zancadas (runnerRunA→B→C). Nada de rotate/scaleY fingiendo posturas:
    ese era el mecanismo que afeaba a los corredores. */
@@ -1000,7 +1001,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       return '<div class="refresh-lane ' + clasePuesto + ' ' + (puesto === 1 ? 'race-winner' : 'race-loser') +
         '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
         'aria-label="Puesto ' + puesto + ', ' + esc(agente) + (asunto ? '. ' + esc(asunto) : '') + '">' +
-        '<div class="refresh-track"><span class="refresh-place refresh-place-start" aria-hidden="true">' + puesto + '</span>' +
+        '<div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
         '<span class="refresh-mission" data-race-role="mission" title="' + esc(asunto || '') + '">' +
         '<span class="refresh-desc">' + (asunto ? estelaMision(asunto) : "") + '</span></span>' +
@@ -1107,6 +1108,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   var CICLO_MS = SALIDA_MS + REFRESCO_MS + CELEBRACION_MS, DIFERENCIA_META_MS = 2 * 1000;
   var MARGEN_PISTA_PX = 36, SALIDA_CORREDOR_PX = 17, META_CORREDOR_PX = 16;
   var RADIO_CORREDOR_PX = 13, MARGEN_NOMBRE_META_PX = 43;
+  // Borde de ataque de la cinta: .refresh-finish va en right:29px y mide 7px.
+  var META_CINTA_PX = 36;
   var MITAD_RAPIDA_MS = REFRESCO_MS / 3;
   var carreraInicio = 0, carreraFrame = null, refrescando = false, carreraPausada = false, carreraTiempoPausado = 0;
   var REDUCE_MOTION = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -1159,6 +1162,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var ajusteCorredor = SALIDA_CORREDOR_PX * (1 - progresoAtleta) - META_CORREDOR_PX * progresoAtleta;
       var posicionCorredor = "calc(" + pct + "% + " + ajusteCorredor + "px)";
       var recortePista = 2 * MARGEN_PISTA_PX * progresoAtleta;
+      // La cinta se rompe cuando el corredor la TOCA, no cuando acaba la
+      // cuenta: la cinta vive a META_CINTA_PX del borde derecho y el hombro
+      // del corredor va RADIO_CORREDOR_PX por delante de su centro.
+      var centroAtleta = progresoAtleta * carril.clientWidth + ajusteCorredor;
+      var cintaX = carril.clientWidth - META_CINTA_PX;
+      carril.classList.toggle("cruzando", centroAtleta + RADIO_CORREDOR_PX >= cintaX);
       carril.classList.toggle("finished", progresoAtleta >= 1);
       carril.classList.toggle("race-winner", puesto === 1);
       carril.classList.toggle("race-loser", puesto !== 1);
