@@ -1305,6 +1305,24 @@ Todo en espa\xF1ol.`;
   return null;
 }
 __name(generateDecideOptions, "generateDecideOptions");
+async function generateProjectImprovementOptions(env, project, identity) {
+  const prompt = `Eres el jefe de producto de AdmiraNeXT. Debes proponer trabajo autónomo para mejorar un proyecto real del ecosistema.
+
+PROYECTO: ${project.name || project.id}
+WEB: ${project.web || "(sin web)"}
+CONTEXTO: ${project.blurb || "(sin descripción)"}
+AGENTE EJECUTOR: ${identity.agent} · ${identity.machine}
+
+Propón las 5 MEJORES mejoras CONCRETAS, distintas y accionables que ese agente pueda ejecutar en este proyecto. Cada opción debe ser una misión clara de una frase, máximo 140 caracteres. Ordénalas de MÁS a MENOS adecuada; la primera es la recomendada. No inventes accesos, resultados ni problemas no observados.
+Responde SOLO con JSON válido, sin markdown: {"opciones":["<mejora 1>","<mejora 2>","<mejora 3>","<mejora 4>","<mejora 5>"]}`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const raw = await aiRunRaw(env, prompt, 700);
+    const options = parseDecideOptions(raw, 5);
+    if (options.length >= 5) return options.slice(0, 5);
+  }
+  return null;
+}
+__name(generateProjectImprovementOptions, "generateProjectImprovementOptions");
 // Abre un reloj de decisión INICIAL (5 misiones + «Volver atrás») reutilizando los
 // MISMOS guardas del handler POST /decisions: identidad canónica (agent+machine),
 // intersección de proyecto asignado en projects+project_members y el candado de UN
@@ -3236,6 +3254,39 @@ var index_default = {
         const b = await req.json().catch(() => ({}));
         const r = await upsertProject(env, b);
         return json(r, r.ok ? 200 : (r.status || 400));
+      } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
+    if (url.pathname === "/projects/decision" && req.method === "POST") {
+      try {
+        await ensureSchema(env);
+        const b = await req.json().catch(() => ({}));
+        const identity = resolveDecisionIdentity(b.agent, b.machine);
+        if (!identity.ok) return json({ ok: false, error: identity.error, code: "exact_identity_required" }, 400);
+        const idx = await projectIndex(env);
+        const project = idx.get((b && b.project) || "");
+        if (!project || project.status === "archivado") return json({ ok: false, error: "project activo requerido" }, 404);
+        const linkedAgent = await env.DB.prepare("SELECT 1 ok FROM project_members WHERE project_id=? AND kind='agent' AND lower(ref)=lower(?) LIMIT 1")
+          .bind(project.id, identity.agent).first();
+        if (!linkedAgent) return json({ ok: false, error: "el agente no está asociado al proyecto", code: "agent_not_assigned" }, 400);
+        await env.DB.prepare("INSERT OR IGNORE INTO project_members (project_id,kind,ref,added_at) VALUES (?,'machine',?,?)")
+          .bind(project.id, identity.machine, Date.now()).run();
+        const assignment = await exactDecisionProjectAssignment(env, identity.agent, identity.machine, project.id);
+        if (!assignment) return json({ ok: false, error: "la unión agente + máquina no identifica un proyecto exacto", code: "exact_project_required" }, 400);
+        const live = await env.DB.prepare("SELECT id,deadline FROM decisions WHERE lower(agent)=lower(?) AND status='pending' AND deadline>? ORDER BY created_at DESC LIMIT 1")
+          .bind(identity.agent, Date.now()).first();
+        if (live) return json({ ok: true, existing: true, decision_id: live.id, deadline: live.deadline, url: DECIDE_URL });
+        const options = await generateProjectImprovementOptions(env, project, identity);
+        if (!options) return json({ ok: false, error: "la IA no devolvió 5 mejoras usables; reintenta" }, 502);
+        const result = await openInitialMissionDecision(env, {
+          question: "¿Qué mejora ejecutará " + identity.agent + " para " + (project.name || project.id) + "?",
+          options: buildDecideDecisionOptions(options), recommended: 0, minutes: 3,
+          url: DECIDE_URL, surface: "dashboard", mission: "project-improvement:" + project.id,
+          agent: identity.agent, machine: identity.machine,
+          project: project.name, project_slug: decisionProjectSlug(project.name), project_id: project.id, project_web: project.web || ""
+        });
+        if (!result.ok) return json({ ok: false, error: result.error, code: result.code }, result.status || 400);
+        return json({ ok: true, decision_id: result.id, options, recommended: 0, deadline: result.deadline,
+                      secondsLeft: Math.max(0, Math.round((result.deadline - Date.now()) / 1000)), project: result.project, url: DECIDE_URL });
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
     if (url.pathname === "/projects/delete" && req.method === "POST") {

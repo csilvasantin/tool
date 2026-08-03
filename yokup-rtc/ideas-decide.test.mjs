@@ -118,3 +118,22 @@ test('GET /ideas expone decision_id y sincroniza lazy con la decisión resuelta'
 test('el camino viejo POST /ideas/promote sigue existiendo (enlazar a mano)', () => {
   assert.match(source, /url\.pathname === "\/ideas\/promote" && req\.method === "POST"/);
 });
+
+test('POST /projects/decision abre cinco mejoras para el agente físico conectado', () => {
+  assert.match(source, /url\.pathname === "\/projects\/decision" && req\.method === "POST"/);
+  assert.match(source, /generateProjectImprovementOptions\(env, project, identity\)/);
+  assert.match(source, /resolveDecisionIdentity\(b\.agent, b\.machine\)/);
+  assert.match(source, /kind='agent' AND lower\(ref\)=lower\(\?\)/);
+  assert.match(source, /INSERT OR IGNORE INTO project_members \(project_id,kind,ref,added_at\) VALUES \(\?,'machine',\?,\?\)/);
+  assert.match(source, /exactDecisionProjectAssignment\(env, identity\.agent, identity\.machine, project\.id\)/);
+  assert.match(source, /question: "\xBFQu\xE9 mejora ejecutar\xE1 " \+ identity\.agent/);
+  assert.match(source, /surface: "dashboard"/);
+  assert.match(source, /mission: "project-improvement:" \+ project\.id/);
+  assert.match(source, /options: buildDecideDecisionOptions\(options\), recommended: 0, minutes: 3/);
+});
+
+test('la decisión de proyecto respeta el reloj vivo e identifica su salida', () => {
+  assert.match(source, /if \(live\) return json\(\{ ok: true, existing: true, decision_id: live\.id/);
+  assert.match(source, /decision_id: result\.id/);
+  assert.match(source, /url: DECIDE_URL/);
+});
