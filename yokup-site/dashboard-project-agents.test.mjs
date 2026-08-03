@@ -52,11 +52,20 @@ test("proyectos y equipos son compactables y enseñan sus tres recuentos",()=>{
 
 test("el mapa coloca proyectos a la izquierda y equipos con agentes a la derecha",()=>{
   assert.match(source,/id="projectAgentProjects"[\s\S]*id="projectAgentTeams"/);
-  assert.match(source,/\.pa-map\{[^}]*grid-template-columns:minmax\(240px,340px\) minmax\(260px,360px\)/);
-  assert.match(source,/\.pa-map\{[^}]*gap:88px;justify-content:center/);
+  assert.match(source,/\.pa-map\{[^}]*grid-template-columns:minmax\(280px,520px\) minmax\(300px,560px\)/);
+  assert.match(source,/\.pa-map\{[^}]*gap:clamp\(88px,10vw,420px\);justify-content:space-between/);
   assert.match(source,/\.pa-agent-node \.pa-port\{left:5px\}/);
   assert.match(source,/\.pa-project-node \.pa-port\{top:auto;right:4px;bottom:4px/);
   assert.match(source,/const direction=b\.x>=a\.x\?1:-1/);
+});
+
+test("el Dashboard aprovecha el ancho completo y escala hasta pantallas 4K",()=>{
+  assert.match(source,/\.wrap\{width:100%;max-width:none/);
+  assert.match(source,/padding:clamp\(18px,1\.35vw,52px\) clamp\(14px,2\.1vw,84px\)/);
+  assert.match(source,/@media\(max-width:1200px\)\{\.wrap\{padding:22px 24px 48px\}/);
+  assert.match(source,/@media\(min-width:2200px\)\{/);
+  assert.match(source,/\.pa-map\{grid-template-columns:minmax\(440px,620px\) minmax\(460px,660px\)\}/);
+  assert.match(source,/\.frame iframe\{height:clamp\(420px,26vw,760px\)\}/);
 });
 
 test("el Dashboard carga proyectos y toma los agentes del mismo pulso físico",()=>{
