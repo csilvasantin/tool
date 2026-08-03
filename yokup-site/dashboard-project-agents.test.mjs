@@ -45,17 +45,17 @@ test("proyectos y equipos son compactables y enseñan sus tres recuentos",()=>{
   assert.match(source,/Proyectos <span class="pa-count" id="projectAgentProjectsN">/);
   assert.match(source,/Equipos físicos <span class="pa-count" id="projectAgentTeamsN">/);
   assert.match(source,/· Agentes <span class="pa-count" id="projectAgentAgentsN">/);
-  assert.match(source,/pa\("projectAgentProjectsN"\)\.textContent=active/);
-  assert.match(source,/pa\("projectAgentTeamsN"\)\.textContent=teams\.length/);
-  assert.match(source,/pa\("projectAgentAgentsN"\)\.textContent=PROJECT_ROSTER\.length/);
+  assert.match(source,/pa\("projectAgentProjectsN"\)\.textContent=HIDDEN_PROJECTS\.size\?visibleActive\+"\/"\+active:active/);
+  assert.match(source,/pa\("projectAgentTeamsN"\)\.textContent=HIDDEN_TEAMS\.size\?visibleTeams\.length\+"\/"\+teams\.length:teams\.length/);
+  assert.match(source,/pa\("projectAgentAgentsN"\)\.textContent=HIDDEN_TEAMS\.size\?visibleAgents\+"\/"\+PROJECT_ROSTER\.length:PROJECT_ROSTER\.length/);
 });
 
 test("el mapa coloca proyectos a la izquierda y equipos con agentes a la derecha",()=>{
   assert.match(source,/id="projectAgentProjects"[\s\S]*id="projectAgentTeams"/);
-  assert.match(source,/\.pa-map\{[^}]*grid-template-columns:minmax\(260px,420px\) minmax\(300px,500px\)/);
-  assert.match(source,/\.pa-map\{[^}]*gap:72px;justify-content:center/);
-  assert.match(source,/\.pa-agent-node \.pa-port\{left:7px\}/);
-  assert.match(source,/\.pa-project-node \.pa-port\{right:7px/);
+  assert.match(source,/\.pa-map\{[^}]*grid-template-columns:minmax\(240px,340px\) minmax\(260px,360px\)/);
+  assert.match(source,/\.pa-map\{[^}]*gap:88px;justify-content:center/);
+  assert.match(source,/\.pa-agent-node \.pa-port\{left:5px\}/);
+  assert.match(source,/\.pa-project-node \.pa-port\{top:auto;right:4px;bottom:4px/);
   assert.match(source,/const direction=b\.x>=a\.x\?1:-1/);
 });
 
@@ -94,6 +94,21 @@ test("los agentes nacen compactados dentro de cada equipo",()=>{
   assert.match(source,/const openTeams=new Set\(\[\.\.\.teamsBox\.querySelectorAll\("\[data-team-key\]\[open\]"\)\]/);
   assert.match(source,/openTeams\.has\(team\.key\)\?' open':''/);
   assert.doesNotMatch(source,/closedTeams\.has\(team\.key\)\?'':' open'/);
+});
+
+test("proyectos y equipos se pueden ocultar por ficha y restaurar con Todos",()=>{
+  assert.match(source,/id="projectAgentProjectsAll"[^>]*hidden>Todos<\/button>/);
+  assert.match(source,/id="projectAgentTeamsAll"[^>]*hidden>Todos<\/button>/);
+  assert.match(source,/const HIDDEN_PROJECTS=new Set\(\)/);
+  assert.match(source,/const HIDDEN_TEAMS=new Set\(\)/);
+  assert.match(source,/data-pa-hide-project=/);
+  assert.match(source,/data-pa-hide-team=/);
+  assert.match(source,/HIDDEN_PROJECTS\.add\(button\.dataset\.paHideProject\)/);
+  assert.match(source,/HIDDEN_TEAMS\.add\(button\.dataset\.paHideTeam\)/);
+  assert.match(source,/HIDDEN_PROJECTS\.clear\(\);paRender\(\)/);
+  assert.match(source,/HIDDEN_TEAMS\.clear\(\);paRender\(\)/);
+  assert.match(source,/Proyectos ocultos · pulsa Todos/);
+  assert.match(source,/Equipos ocultos · pulsa Todos/);
 });
 
 test("arrastrar un agente asocia primero su máquina y después el propio agente",()=>{
