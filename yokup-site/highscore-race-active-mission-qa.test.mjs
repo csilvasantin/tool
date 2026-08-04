@@ -4,7 +4,13 @@ import fs from "node:fs";
 import vm from "node:vm";
 
 const html = fs.readFileSync(new URL("./highscore.html", import.meta.url), "utf8");
-const raceStart = html.indexOf("function instanteMisionActiva(");
+const identitySource = fs.readFileSync(new URL("./yk-agent-identity.js", import.meta.url), "utf8");
+const identitySandbox = {};
+vm.runInNewContext(identitySource, identitySandbox);
+const raceHelperSource = fs.readFileSync(new URL("./highscore-race.js", import.meta.url), "utf8");
+const raceHelperSandbox = { module:{exports:{}}, exports:{} };
+vm.runInNewContext(raceHelperSource, raceHelperSandbox);
+const raceStart = html.indexOf("function agenteDeMision(");
 const raceEnd = html.indexOf("\n\n  function pintaFormula", raceStart);
 const raceSource = html.slice(raceStart, raceEnd);
 const cycleStart = html.indexOf("var REFRESCO_MS");
@@ -17,7 +23,7 @@ function renderRace(rows, missions) {
     refreshRace: {
       attrs: {}, classes: {},
       setAttribute(name, value) { this.attrs[name] = String(value); },
-      classList: { toggle() {} },
+      classList: { toggle(name, active) { nodes.refreshRace.classes[name] = !!active; } },
     },
   };
   const context = vm.createContext({
@@ -27,14 +33,84 @@ function renderRace(rows, missions) {
     normaliza: (value) => String(value == null ? "" : value).trim(),
     esc: (value) => String(value == null ? "" : value)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"),
-    claveAgenteCarrera: (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]/g, ""),
-    agenteDeMision: (mission) => mission?.assignee || "",
-    estelaMision: (value) => String(value || ""),
+    window: { ykAgentIdentity: identitySandbox.ykAgentIdentity },
+    YkHighscoreRace: raceHelperSandbox.module.exports,
     Number, String, Math, Date,
   });
   vm.runInContext(`${raceSource}\nactualizaCarreraPodio();`, context);
-  return { html: nodes.refreshLanes.innerHTML, lanes: Number(nodes.refreshRace.attrs["data-lanes"] || 0) };
+  return {
+    html: nodes.refreshLanes.innerHTML,
+    lanes: Number(nodes.refreshRace.attrs["data-lanes"] || 0),
+    empty: nodes.refreshRace.classes.empty === true,
+  };
 }
+
+test("un agente puntuado y vivo sin misión no crea calle, corredor ni puesto", () => {
+  const rows=[{agente:"OraculoMacMini",posicion:1,total:975,vivo:true}];
+  const race=renderRace(rows,[]);
+  assert.equal(race.lanes,0);
+  assert.equal(race.empty,true);
+  assert.doesNotMatch(race.html,/refresh-lane|data-race-role="runner"|refresh-place/);
+  assert.match(race.html,/class="refresh-empty">Sin misión activa<\/div>/);
+  assert.deepEqual(rows,[{agente:"OraculoMacMini",posicion:1,total:975,vivo:true}],
+    "la carrera no puede retirar ni mutar la fila del ranking");
+});
+
+test("el mismo agente crea una única calle cuando tiene misión activa propia", () => {
+  const race=renderRace([{agente:"OraculoMacMini",posicion:1,total:975,vivo:true}],[{
+    assignee:"OraculoMini",loc:"Mac Mini",status:"in_progress",subject:"Mejorar Highscore",
+  }]);
+  assert.equal(race.lanes,1);
+  assert.equal(race.empty,false);
+  assert.equal((race.html.match(/class="refresh-lane /g)||[]).length,1);
+  assert.equal((race.html.match(/data-race-role="runner"/g)||[]).length,1);
+  assert.match(race.html,/refresh-place-finish[^>]*>1<\/span>/);
+});
+
+test("una misión del mismo alias base pero de otro equipo no se cruza", () => {
+  const rows=[
+    {agente:"OraculoMacMini",posicion:1,total:975,vivo:true},
+    {agente:"NeoMacMini",posicion:2,total:800,vivo:true},
+  ];
+  const missions=[
+    {assignee:"OraculoMini",loc:"MacBook Pro 16",status:"in_progress",subject:"Misión ajena"},
+    {assignee:"Neo",loc:"Mac Mini",status:"in_progress",subject:"Misión propia"},
+  ];
+  const race=renderRace(rows,missions);
+  assert.equal(race.lanes,1);
+  assert.match(race.html,/NeoMacMini/);
+  assert.doesNotMatch(race.html,/OraculoMacMini|Misión ajena/);
+});
+
+test("un candidato del prefiltro sin resolución exacta no genera una calle huérfana", () => {
+  // El helper compartido elimina diacríticos y deja pasar esta fila; la resolución
+  // exacta posterior no encuentra su misión. Nunca debe pintarse el fallback como corredor.
+  const race=renderRace([{agente:"OráculoMacMini",posicion:1,total:975,vivo:true}],[{
+    assignee:"OraculoMini",loc:"Mac Mini",status:"in_progress",subject:"Misión activa",
+  }]);
+  assert.equal(race.lanes,0);
+  assert.equal(race.empty,true);
+  assert.doesNotMatch(race.html,/refresh-lane|data-race-role="runner"|refresh-place|Sin misión activa<\/span>/);
+  assert.match(race.html,/class="refresh-empty">Sin misión activa<\/div>/);
+});
+
+test("descartar una calle huérfana renumera desde uno a los corredores válidos", () => {
+  const race=renderRace([
+    {agente:"OráculoMacMini",posicion:1,total:975,vivo:true},
+    {agente:"NeoMacMini",posicion:2,total:800,vivo:true},
+  ],[
+    {assignee:"OraculoMini",loc:"Mac Mini",status:"in_progress",subject:"No enlaza exacto"},
+    {assignee:"Neo",loc:"Mac Mini",status:"in_progress",subject:"Sí enlaza"},
+  ]);
+  assert.equal(race.lanes,1);
+  assert.match(race.html,/data-place="1"[^>]*data-agent-key="neomacmini"/);
+  assert.doesNotMatch(race.html,/data-place="2"|OráculoMacMini|No enlaza exacto/);
+});
+
+test("la elegibilidad de carrera es aditiva y no filtra la tabla del ranking", () => {
+  assert.match(html,/listaCache = aplicaAgentScope\(listaCompletaCache \|\| \[\]\);\s*pintaPodio\(listaCache\.slice\(0, 3\)\); pintaTabla\(listaVisible\(listaCache\)\); actualizaCarreraPodio\(\)/);
+  assert.match(html,/var corredores = filasConMisionEnCurso\(listaCache \|\| \[\], activas\)\.map/);
+});
 
 test("sólo corren agentes con misión en curso y latido reciente", () => {
   const rows = Array.from({ length: 6 }, (_, i) => ({
