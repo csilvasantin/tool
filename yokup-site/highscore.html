@@ -284,6 +284,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .score-trend.up{color:var(--good);text-shadow:0 0 8px rgba(136,255,170,.72);animation:score-up .8s ease-out both}
 .score-trend.same{color:var(--dim)}
 .score-progress[hidden]{display:none}
+.hourly-points{display:flex;align-items:center;gap:8px;min-width:0;margin:7px 0 1px;padding:6px 8px;
+  border:1px solid rgba(120,243,255,.16);border-radius:5px;background:rgba(2,8,13,.5)}
+.hourly-points-label{color:var(--mut);font-size:8.5px;font-weight:900;letter-spacing:.11em;text-transform:uppercase}
+.hourly-points-value{color:var(--ink);font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.hourly-points-trend{display:inline-grid;place-items:center;min-width:1em;font-size:12px;font-weight:950}
+.hourly-points-trend.up{color:var(--good);text-shadow:0 0 8px rgba(136,255,170,.72)}
+.hourly-points-trend.same{color:var(--accent);text-shadow:0 0 7px rgba(255,216,102,.38)}
+.hourly-points-reference{min-width:0;margin-left:auto;overflow:hidden;color:var(--dim);font-size:8.5px;
+  text-overflow:ellipsis;white-space:nowrap}
+.hourly-points.unavailable .hourly-points-value{color:var(--dim)}
 .project-cell{max-width:150px}
 .project-chip{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   color:var(--brand);font-size:10px;letter-spacing:.025em;text-decoration:none;border-bottom:1px solid rgba(120,243,255,.25)}
@@ -630,11 +640,24 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       return normaliza(row.agent).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         .toLowerCase().replace(/[^a-z0-9]+/g, "") === key;
     });
+    var current = match && Number(match.current), reference = match && Number(match.reference);
+    var factual = !!match && match.current !== null && match.current !== "" && match.reference !== null && match.reference !== "" &&
+      Number.isFinite(current) && Number.isFinite(reference);
     return match ? {
-      state:match.trend === "up" ? "up" : "same", current:Number(match.current) || 0,
-      reference:Number(match.reference) || 0, referenceAt:Number(match.reference_at) || 0,
-      reliable:!!match.reliable
+      state:match.trend === "up" ? "up" : "same", current:factual ? current : 0,
+      reference:factual ? reference : 0, referenceAt:Number(match.reference_at) || 0,
+      reliable:!!match.reliable && factual
     } : { state:"same", current:Number(a && a.total) || 0, reference:Number(a && a.total) || 0, referenceAt:0, reliable:false };
+  }
+
+  function puntuacionHoraria(a) {
+    var hourly = datos.actividadMeta && datos.actividadMeta.hourly;
+    var trend = tendenciaHoraria(a), current = Number(trend.current), reference = Number(trend.reference);
+    var reliable = !!hourly && Number(hourly.window_ms) === 60 * 60 * 1000 && trend.reliable === true &&
+      Number.isFinite(current) && Number.isFinite(reference);
+    if (!reliable) return { available:false, points:null, state:"unavailable", current:null, reference:null };
+    var points = Math.max(0, current - reference);
+    return { available:true, points:points, state:points > 0 ? "up" : "same", current:current, reference:reference };
   }
 
   function claveTrazabilidad(s) {
@@ -1106,10 +1129,22 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function progresionHtml(a) {
     var progreso = normalizaProgresion(a), origen = progreso.origin === "objetivo" ? "Objetivo" :
       (progreso.origin === "ventana" ? "Ventana" : "No determinado");
+    var hora = typeof puntuacionHoraria === "function" ? puntuacionHoraria(a) :
+      { available:false, points:null, state:"unavailable", current:null, reference:null };
+    var puntosHora = hora.available ? hora.points + " punto" + (hora.points === 1 ? "" : "s") : "—";
+    var tendenciaHora = hora.available
+      ? '<span class="hourly-points-trend ' + hora.state + '" aria-hidden="true">' + (hora.state === "up" ? "↑" : "=") + '</span>'
+      : '';
+    var referenciaHora = hora.available ? hora.current + " ahora · " + hora.reference + " hace 60 min" :
+      "Sin referencia factual fiable de hace 60 minutos";
+    var resumenHora = '<div class="hourly-points ' + (hora.available ? hora.state : "unavailable") + '" role="group" aria-label="' +
+      esc("Puntuación por hora. Últimos 60 minutos: " + puntosHora + ". " + referenciaHora) + '">' +
+      '<span class="hourly-points-label">Puntuación por hora</span><strong class="hourly-points-value">' + esc(puntosHora) + '</strong>' +
+      tendenciaHora + '<span class="hourly-points-reference">' + esc(referenciaHora) + '</span></div>';
     var descripcion = progreso.label + ". Origen: " + origen + ". " + progreso.stages.map(function (s) {
       return s.label + ": " + s.state + ", " + s.value;
     }).join(". ");
-    return '<div class="progression" role="list" aria-label="' + esc(descripcion) + '">' +
+    return resumenHora + '<div class="progression" role="list" aria-label="' + esc(descripcion) + '">' +
       '<div class="progression-meta" data-linked="' + (progreso.linked ? "true" : "false") + '" title="' + esc(progreso.label) + '">' +
       '<strong>' + esc(progreso.linked ? progreso.label : "Resumen no enlazado") + '</strong>Origen · ' + esc(origen) + '</div>' +
       progreso.stages.map(function (s, indice) {
