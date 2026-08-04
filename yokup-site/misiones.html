@@ -147,7 +147,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 #ykToast.err{border-color:rgba(255,136,102,.55);color:var(--warn)}
 /* Selección múltiple de misiones → cambio de estado en bloque (Carlos, 2026-07-17) */
 .selall,.selrow{accent-color:var(--brand);cursor:pointer;width:15px;height:15px;flex:none;margin:0}
-.idh{display:flex;align-items:center;gap:7px}
+.idh{display:grid;grid-template-columns:20px 1fr 20px;align-items:center;gap:0}
+.idh .selall{grid-column:1}.idh .idlbl{grid-column:2;text-align:center}
 .tkid .selrow{margin-right:7px;vertical-align:middle}
 .bulkbar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:9997;display:flex;align-items:center;gap:12px;background:var(--card2);border:1px solid var(--line2);border-radius:12px;padding:11px 16px;box-shadow:0 14px 44px rgba(0,0,0,.6),0 0 0 1px rgba(120,243,255,.08);font-family:var(--mono);font-size:12px;max-width:calc(100vw - 24px);flex-wrap:wrap;justify-content:center}
 .bulkbar[hidden]{display:none}
@@ -173,7 +174,10 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
   grid-template-columns:72px minmax(0,1fr);
   align-items:center;gap:9px;
 }
-.project-id-main{display:block;min-width:0}
+.project-id-main{display:block;position:relative;min-width:0}
+.project-id-select-slot{position:absolute;top:4px;left:4px;z-index:3;display:flex;padding:3px;border-radius:5px;background:rgba(2,8,13,.86);box-shadow:0 0 0 1px rgba(120,243,255,.3)}
+.project-id-select-slot:empty{display:none}
+.project-id-select-slot .selrow{margin:0}
 .project-id-main>.cel.shot{align-self:stretch;padding:0;justify-content:flex-start}
 .project-id-main>.cel.shot :is(.shot-link,.shot-img){width:72px;max-width:72px}
 .project-id-main>.cel.shot .shot-img{height:100%;min-height:54px;max-height:72px;object-fit:cover}
@@ -387,13 +391,14 @@ function wireBulk(el, list){
   REP_IDS = {}; LAST_LIST.forEach(t=>{ REP_IDS[t.id] = (t._ids&&t._ids.length)?t._ids:[t.id]; });
   el.querySelectorAll(".tk").forEach(row=>{
     const id=row.dataset.id; if(!id) return;
-    const cell=row.querySelector(".tkid"); if(!cell || cell.querySelector(".selrow")) return;
+    const cell=row.querySelector(".tkid"), slot=row.querySelector(".project-id-select-slot");
+    if(!cell || row.querySelector(".selrow")) return;
     const cb=document.createElement("input");
     cb.type="checkbox"; cb.className="selrow"; cb.dataset.id=id; cb.title="Seleccionar esta misión";
     cb.checked=SEL.has(id);
     cb.addEventListener("click",e=>e.stopPropagation());   // no activa la misión ni ordena
     cb.addEventListener("change",e=>{ e.stopPropagation(); if(cb.checked)SEL.add(id); else SEL.delete(id); refreshBulk(el); });
-    cell.insertBefore(cb, cell.firstChild);
+    if(slot) slot.appendChild(cb); else cell.insertBefore(cb, cell.firstChild);
   });
   const sa=el.querySelector(".selall");
   if(sa) sa.onchange=()=>{

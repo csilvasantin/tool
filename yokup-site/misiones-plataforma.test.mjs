@@ -64,8 +64,8 @@ test('naming: NeoMini↔Neo y Morfeo16↔Morfeo colapsan por persona base', () =
     {persona: 'Morfeo16', runtime: 'Claude', host: 'app'}
   ]);
   assert.equal(YK.liveSurfaceOf(['Neo']), 'Claude · CLI');        // assignee pelado ↔ presencia NeoMini
-  assert.equal(YK.liveSurfaceOf(['Morfeo16']), 'Claude · Desktop');
-  assert.equal(YK.liveSurfaceOf(['Morfeo']), 'Claude · Desktop'); // pelado ↔ presencia Morfeo16
+  assert.equal(YK.liveSurfaceOf(['Morfeo16']), 'Claude · Desktop App');
+  assert.equal(YK.liveSurfaceOf(['Morfeo']), 'Claude · Desktop App'); // pelado ↔ presencia Morfeo16
 });
 
 // ── El nombre COMPLETO se resuelve primero; runtime no-Claude también. ──

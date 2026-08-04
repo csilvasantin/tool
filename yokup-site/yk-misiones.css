@@ -137,9 +137,9 @@
 /* Cabecera de COLUMNAS estilo hoja de cálculo: misma rejilla que las filas;
  * clic en un título = ordenar por esa columna (▲ asc / ▼ desc). */
 .lhead{padding:9px 16px;border-bottom:1px solid var(--line);background:rgba(120,243,255,.035)}
-.lhead .lh{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);cursor:pointer;white-space:nowrap;padding:0 12px;text-align:right;user-select:none}
-.lhead .lh[data-k="id"]{text-align:left;padding:0 10px 0 0}
-.lhead .lh[data-k="subject"]{text-align:left;padding:0 14px}
+.lhead .lh{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);cursor:pointer;white-space:nowrap;padding:0 12px;text-align:center;user-select:none}
+.lhead .lh[data-k="id"]{text-align:center;padding:0 10px 0 0}
+.lhead .lh[data-k="subject"]{text-align:center;padding:0 14px}
 .lhead .lh:hover,.lhead .lh.on{color:var(--brand)}
 .lhead .lh-static{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);white-space:nowrap;padding:0 8px;text-align:center;user-select:none}
 @media(max-width:720px){.lhead{display:none}}

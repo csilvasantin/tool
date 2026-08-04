@@ -20,6 +20,13 @@ test('paintCounters trata INFORMES aparte del resto', () => {
     'la rama de informes se resuelve ANTES de caer en curso/pend');
 });
 
+test('los contadores del menú forman una segunda línea centrada y el cero se oculta', () => {
+  assert.match(CSS, /\.yk-nav a\{[\s\S]*flex-direction:column;[\s\S]*align-items:center/);
+  assert.match(CSS, /\.yk-nav-c\{[\s\S]*text-align:center/);
+  assert.match(CSS, /\.yk-nav-c:empty\{ display:none \}/);
+  assert.match(FRAME, /if \(curso \+ pend === 0\) \{ s\.textContent = ""/);
+});
+
 test('sin misiones terminadas, INFORMES queda limpio (no «0/0»)', () => {
   const i = FRAME.indexOf('function paintCounters(');
   const b = FRAME.slice(i, FRAME.indexOf('function paintDecisiones(', i));

@@ -39,7 +39,7 @@ test('Misiones activa la columna fusionada PROJECT ID con el rotulo exacto', () 
   assert.match(css, /\.hd\.project-id-layout\{grid-template-columns:8px minmax\(/);
 });
 
-test('PROJECT ID elimina el selector y conserva miniatura, referencia y tiempos', () => {
+test('PROJECT ID pone el selector sobre la miniatura y conserva referencia y tiempos', () => {
   const Yk = loadModule();
   Yk.init({worker:'https://api.yokup.com', columnMode:'tasks', projectIdLayout:true});
   Yk.setProyectos([
@@ -57,7 +57,8 @@ test('PROJECT ID elimina el selector y conserva miniatura, referencia y tiempos'
   const shot = projectCell.indexOf('class="cel shot"');
   const id = projectCell.indexOf('class="tkid"');
   assert.ok(shot >= 0 && id > shot, 'la miniatura precede a la referencia y sus tiempos');
-  assert.doesNotMatch(projectCell, /project-id-select|project-select-wrap|<select/);
+  assert.match(projectCell, /project-id-select-slot[\s\S]*class="cel shot"/);
+  assert.doesNotMatch(projectCell, /project-select-wrap|<select/);
   assert.match(projectCell, /class="project-id-time"[\s\S]*📅[\s\S]*⏳[\s\S]*⏱/);
   assert.doesNotMatch(projectCell, /Unificar ID y proyecto/);
 });
@@ -74,11 +75,29 @@ test('creación, evolución y finalización viven en PROJECT ID, no en Misión n
   const missionCell = between(html, '<div class="mission-col">', '<div class="cel ord ');
   const agentCell = between(html, '<div class="cel agc">', '<div class="cel est">');
   const projectCell = between(html, '<div class="project-id-cell">', '<div class="mission-col">');
-  assert.match(missionCell, /Reordenar Project ID[\s\S]*Origen · 🎯 Misión/);
+  assert.match(missionCell, /Reordenar Project ID/);
+  assert.doesNotMatch(missionCell, /Origen ·|🎯 Misión/);
   assert.doesNotMatch(missionCell, /mission-time|title="creada:|📅|⏳|⏱/);
   assert.doesNotMatch(agentCell, /agent-created|title="creada:|📅|⏳|⏱/);
   assert.match(projectCell, /class="project-id-time"[\s\S]*title="creada:[\s\S]*📅[\s\S]*⏳[\s\S]*⏱/);
   assert.doesNotMatch(html, /class="cel rtiempo"/);
+});
+
+test('Misión no repite ni su rótulo ni el proyecto, que queda bajo Agente/Plataforma', () => {
+  const Yk = loadModule();
+  Yk.init({worker:'https://api.yokup.com', columnMode:'tasks', projectIdLayout:true});
+  Yk.setProyectos([{id:'yokup', name:'Yokup', web:'https://www.yokup.com'}]);
+  const html = Yk.rowHtml({
+    id:'FLT-1190', project:'yokup', project_name:'Yokup', source:'fleet',
+    subject:'MISIÓN Yokup · Reordenar la cuadrícula', assignee:'OraculoMacMini',
+    agent_runtime:'Codex', agent_host:'app', machine:'MacMini', status:'in_progress',
+    created_at:Date.now(), priority:'alta'
+  });
+  const missionCell = between(html, '<div class="mission-col">', '<div class="cel ord ');
+  const agentCell = between(html, '<div class="cel agc">', '<div class="cel est">');
+  assert.match(missionCell, />Reordenar la cuadrícula</);
+  assert.doesNotMatch(missionCell, /MISIÓN|Yokup|Origen/);
+  assert.match(agentCell, /Codex · Desktop App[\s\S]*mission-project-label[\s\S]*Yokup/);
 });
 
 test('el diseño compartido conserva el formato histórico si no se activa', () => {
@@ -102,6 +121,6 @@ test('PROJECT ID mantiene un apilado responsive sin anchos fijos de escritorio',
   assert.match(styles, /\.project-id-meta\{/);
   assert.match(styles, /\.project-id-time\{/);
   assert.doesNotMatch(board, /\.project-id-main>\.project-select-wrap|agent-created/);
-  assert.doesNotMatch(source, /project-id-select|project-select-wrap|project-save|projectOptionsHtml/);
+  assert.doesNotMatch(source, /project-select-wrap|project-save|projectOptionsHtml/);
   assert.doesNotMatch(css, /project-id-select|project-select-wrap|project-save/);
 });

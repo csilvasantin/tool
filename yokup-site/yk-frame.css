@@ -93,15 +93,19 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
 }
 .yk-nav::-webkit-scrollbar{ display: none }
 .yk-nav a{
+  display:inline-flex; flex-direction:column; align-items:center; justify-content:center;
+  min-height:32px;
   font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
   color: var(--yk-mut); text-decoration: none; white-space: nowrap; transition: .15s;
 }
 .yk-nav a:hover{ color: var(--yk-ink) }
 .yk-nav a.on{ color: var(--yk-brand); font-weight: 700 }
 .yk-nav a[data-yk-open]{ cursor: pointer }
-/* CONTADOR «curso/pend» (2026-07-23): discreto, pegado al rótulo. Vacío cuando
-   no hay dato (:empty) para no dejar un hueco muerto en el menú. */
-.yk-nav-c{ margin-left:6px; font-size:9.5px; font-weight:600; letter-spacing:.02em;
+/* CONTADOR «curso/pend» (2026-08-04): segunda línea centrada bajo el rótulo.
+   Vacío cuando no hay dato (:empty), para que una sección a cero conserve sólo
+   su nombre y no deje una cifra ni un hueco artificial. */
+.yk-nav-c{ display:block; margin:1px 0 0; min-height:10px; font-size:9.5px;
+  line-height:10px; text-align:center; font-weight:600; letter-spacing:.02em;
   color:var(--yk-dim); font-variant-numeric:tabular-nums }
 .yk-nav a.on .yk-nav-c{ color:var(--yk-brand) }
 .yk-nav-c:empty{ display:none }

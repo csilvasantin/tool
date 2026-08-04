@@ -101,7 +101,7 @@
       var n = names[i]; if (!n) continue;
       var sf = LIVE_SURFACES[agentKey(n)] || LIVE_SURFACES[baseAgentKey(n)];
       if (sf) {
-        var h = sf.host === "cli" ? "CLI" : sf.host === "app" ? "Desktop" : "";
+        var h = sf.host === "cli" ? "CLI" : sf.host === "app" ? "Desktop App" : "";
         return [sf.runtime, h].filter(Boolean).join(" · ");
       }
     }
@@ -340,8 +340,11 @@
     if (!CFG.projectIdLayout) return "";
     var projectId = String(t && t.project || "").trim();
     if (!projectId) return "";
-    var meta = PROY_META[projectId.toLowerCase()] || {};
-    var name = String(meta.name || (t && t.project_name) || projectId);
+    var meta = projectId ? (PROY_META[projectId.toLowerCase()] || {}) : {};
+    var name = String(meta.name || (t && t.project_name) || projectId).trim();
+    // Sin dato estructurado no se inventa el proyecto a partir del asunto: el
+    // hueco vacío es más honesto y evita atribuciones visuales incorrectas.
+    if (!name) return "";
     var primary = String(meta.primary_responsible || meta.owner || "").trim();
     var assignee = String(t && t.assignee || "").trim();
     var same = false, identity = window.ykAgentIdentity;
@@ -352,6 +355,20 @@
       ? "Proyecto " + name + " · " + assignee + " es responsable principal"
       : "Proyecto " + name + " · asignado a la misión" + (primary ? "; responsable principal: " + primary : "");
     return '<span class="mission-project-label ' + state + '" title="' + esc(detail) + '" aria-label="' + esc(detail) + '">' + esc(name) + "</span>";
+  }
+  // La columna ya se llama MISIÓN y el proyecto vive bajo Agente/Plataforma:
+  // retiramos ambos prefijos sólo cuando están delimitados, sin tocar palabras
+  // legítimas del título (p.ej. «Yokup Highscore» si el proyecto es «Yokup»).
+  function missionTitle(t, raw) {
+    var title = String(raw || "").replace(/^\s*misión\s+/i, "").trim();
+    var projectId = String(t && t.project || "").trim();
+    var meta = projectId ? (PROY_META[projectId.toLowerCase()] || {}) : {};
+    var projectName = String(meta.name || (t && t.project_name) || projectId).trim();
+    if (projectName) {
+      var escaped = projectName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      title = title.replace(new RegExp("^" + escaped + "\\s*(?:[·:—-]\\s*)", "i"), "").trim();
+    }
+    return title;
   }
   function missionSourceLabel(t) {
     return ({ "agent-iot": "🖥 Pantalla DOOH", monitor: "🌐 Servicio", service: "🌐 Servicio", agent: "🤖 Agente", agente: "🤖 Agente", presence: "🖥 Máquina", machine: "🖥 Máquina", fleet: "🎯 Misión" }[t && t.source] || "👤 Manual");
@@ -631,7 +648,7 @@
     var live = String(t.live_shot || "");
     var liveFresca = live && t.live_at && (Date.now() - (t.live_at > 4102444800000 ? t.live_at : t.live_at) < 180000);
     var rt = String(t.agent_runtime || "");
-    var host = t.agent_host === "cli" ? "CLI" : t.agent_host === "app" ? "Desktop" : "";
+    var host = t.agent_host === "cli" ? "CLI" : t.agent_host === "app" ? "Desktop App" : "";
     var surface = [rt, host].filter(Boolean).join(" · ");
     var sourceLabel = missionSourceLabel(t);
     var idHtml = '<div class="tkid" title="Referencia interna: ' + esc(t.id) + '">' + esc(visibleId(t)) +
@@ -639,12 +656,13 @@
       (pm.flag ? '<span class="prioflag' + (esPrio ? " abs" : "") + '">' + (esPrio ? "⚡ " : "") + esc(pm.flag) + "</span>" : "") + "</div>";
     var shotHtml = '<div class="cel shot">' + missionPreviewHtml(t, proof, live, liveFresca) + "</div>";
     var subjectMetaHtml = CFG.projectIdLayout
-      ? '<span class="mission-source" title="Origen de esta misión">Origen · ' + esc(sourceLabel) + "</span>"
+      ? ""
       : '<span class="scr">' + esc(String(t.screen || "").replace(/^(svc|maq|agt|service|machine|agent):/, "").replace(/^https?:\/\/(www\.)?/, "")) + "</span>" +
         (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span>";
-    var subjectHtml = '<div class="subj"><div class="t">' + esc(pm.limpio) + '</div><div class="m">' + subjectMetaHtml +
-      (+t.img_count > 0 ? '<span class="adjn" title="' + (+t.img_count) + ' imagen(es) adjunta(s) — ábrela para verlas">📎 ' + (+t.img_count) + "</span>" : "") +
-      "</div></div>";
+    var attachmentHtml = +t.img_count > 0 ? '<span class="adjn" title="' + (+t.img_count) + ' imagen(es) adjunta(s) — ábrela para verlas">📎 ' + (+t.img_count) + "</span>" : "";
+    var metaHtml = subjectMetaHtml + attachmentHtml;
+    var subjectHtml = '<div class="subj"><div class="t">' + esc(CFG.projectIdLayout ? missionTitle(t, pm.limpio) : pm.limpio) + '</div>' +
+      (metaHtml ? '<div class="m">' + metaHtml + "</div>" : "") + "</div>";
     var createdHtml =
       '<span class="fch2" title="creada: ' + esc(fechaCorta(t.created_at)) + '">📅 ' + fechaCorta(t.created_at) + "</span>";
     var progressTimingHtml =
@@ -653,7 +671,7 @@
       (dv && dv.txt ? '<span class="dur' + (dv.run ? " run yk-deadline" : "") + (stt === "No concluida" ? " overdue" : "") + '"' + (dv.run ? ' data-created="' + _ms(t.created_at) + '"' : '') + ' title="' + esc(dv.tip) + '">⏱ ' + (dv.run ? esc(deadlineText(_ms(t.created_at))) : esc(dv.txt)) + "</span>" : "");
     var timingHtml = createdHtml + progressTimingHtml;
     var projectIdHtml = CFG.projectIdLayout
-      ? '<div class="project-id-cell">' + rz("id", "r") + '<div class="project-id-top"><div class="project-id-main">' + shotHtml + '</div>' +
+      ? '<div class="project-id-cell">' + rz("id", "r") + '<div class="project-id-top"><div class="project-id-main"><span class="project-id-select-slot"></span>' + shotHtml + '</div>' +
           '<div class="project-id-meta">' + idHtml + '<div class="project-id-time">' + timingHtml + "</div></div></div></div>"
       : idHtml + shotHtml + subjectHtml.replace('<div class="subj">', '<div class="subj">' + rz("id", "r"));
     var missionHtml = CFG.projectIdLayout
