@@ -39,7 +39,7 @@ test('Misiones activa la columna fusionada PROJECT ID con el rotulo exacto', () 
   assert.match(css, /\.hd\.project-id-layout\{grid-template-columns:8px minmax\(/);
 });
 
-test('PROJECT ID pone miniatura antes del selector y deja id y datos debajo', () => {
+test('PROJECT ID elimina el selector y conserva miniatura, referencia y tiempos', () => {
   const Yk = loadModule();
   Yk.init({worker:'https://api.yokup.com', columnMode:'tasks', projectIdLayout:true});
   Yk.setProyectos([
@@ -52,18 +52,17 @@ test('PROJECT ID pone miniatura antes del selector y deja id y datos debajo', ()
     machine:'MacBookProNegro14', status:'in_progress', created_at:Date.now(), priority:'alta'
   });
   assert.match(html, /class="hd project-id-layout"/);
-  assert.match(html, /<option value="yokup" selected>Yokup · yokup<\/option>/);
   const projectCell = between(html, '<div class="project-id-cell">', '<div class="mission-col">');
   assert.match(projectCell, /class="project-id-main"[\s\S]*class="project-id-meta"/);
   const shot = projectCell.indexOf('class="cel shot"');
-  const selector = projectCell.indexOf('class="project-id-select"');
   const id = projectCell.indexOf('class="tkid"');
-  assert.ok(shot >= 0 && selector > shot, 'la miniatura precede al selector de proyecto');
-  assert.ok(id > selector, 'el id y sus datos se colocan debajo del bloque miniatura/selector');
+  assert.ok(shot >= 0 && id > shot, 'la miniatura precede a la referencia y sus tiempos');
+  assert.doesNotMatch(projectCell, /project-id-select|project-select-wrap|<select/);
+  assert.match(projectCell, /class="project-id-time"[\s\S]*📅[\s\S]*⏳[\s\S]*⏱/);
   assert.doesNotMatch(projectCell, /Unificar ID y proyecto/);
 });
 
-test('fecha y hora de creación viven bajo Agente/Plataforma, no en Misión', () => {
+test('creación, evolución y finalización viven en PROJECT ID, no en Misión ni Agente', () => {
   const Yk = loadModule();
   Yk.init({worker:'https://api.yokup.com', columnMode:'tasks', projectIdLayout:true});
   Yk.setProyectos([{id:'yokup', name:'Yokup', web:'https://www.yokup.com'}]);
@@ -74,9 +73,11 @@ test('fecha y hora de creación viven bajo Agente/Plataforma, no en Misión', ()
   });
   const missionCell = between(html, '<div class="mission-col">', '<div class="cel ord ');
   const agentCell = between(html, '<div class="cel agc">', '<div class="cel est">');
+  const projectCell = between(html, '<div class="project-id-cell">', '<div class="mission-col">');
   assert.match(missionCell, /Reordenar Project ID[\s\S]*Origen · 🎯 Misión/);
-  assert.doesNotMatch(missionCell, /title="creada:|📅/);
-  assert.match(agentCell, /OraculoMacMini[\s\S]*class="agent-created"[\s\S]*class="fch2"[\s\S]*📅/);
+  assert.doesNotMatch(missionCell, /mission-time|title="creada:|📅|⏳|⏱/);
+  assert.doesNotMatch(agentCell, /agent-created|title="creada:|📅|⏳|⏱/);
+  assert.match(projectCell, /class="project-id-time"[\s\S]*title="creada:[\s\S]*📅[\s\S]*⏳[\s\S]*⏱/);
   assert.doesNotMatch(html, /class="cel rtiempo"/);
 });
 
@@ -97,8 +98,10 @@ test('PROJECT ID mantiene un apilado responsive sin anchos fijos de escritorio',
   assert.match(mobile, /\.hd,.hd\.project-id-layout\{grid-template-columns:8px 1fr/);
   assert.match(mobile, /\.project-id-cell\{padding:0\}/);
   assert.match(mobile, /\.project-id-top\{grid-template-columns:/);
-  assert.match(mobile, /\.mission-time\{flex-wrap:wrap\}/);
   assert.match(styles, /\.project-id-main\{/);
   assert.match(styles, /\.project-id-meta\{/);
-  assert.match(styles, /\.project-id-layout \.cel\.agc \.agent-created\{/);
+  assert.match(styles, /\.project-id-time\{/);
+  assert.doesNotMatch(board, /\.project-id-main>\.project-select-wrap|agent-created/);
+  assert.doesNotMatch(source, /project-id-select|project-select-wrap|project-save|projectOptionsHtml/);
+  assert.doesNotMatch(css, /project-id-select|project-select-wrap|project-save/);
 });

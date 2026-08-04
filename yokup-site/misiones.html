@@ -7,6 +7,7 @@
 <link rel="icon" type="image/png" href="/favicon-32x32.png?v=v.2026.08.02.224605" sizes="32x32">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=v.2026.08.02.224605">
 <script src="/acceso.js"></script>
+<script src="/yk-display-ref.js?v=1"></script>
 <title>Misiones · Yokup</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#02080d">
@@ -164,41 +165,34 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .mdet-imglink{display:block;line-height:0;text-decoration:none}
 .mdet-imglink .mdet-img{cursor:pointer;transition:.15s}
 .mdet-imglink:hover .mdet-img{border-color:var(--brand,#78f3ff);box-shadow:0 0 10px rgba(120,243,255,.3)}
-/* FLT-1159 · PROJECT ID compacto. La miniatura pasa a ser la referencia visual
-   izquierda; proyecto e identificador se apilan a su derecha. El tope evita que
-   una preferencia antigua de ancho vuelva a robar espacio a MISIÓN. */
-.hd.project-id-layout{grid-template-columns:8px minmax(220px,clamp(220px,var(--c-id,248px),280px)) minmax(260px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,250px)) minmax(140px,var(--c-who,170px)) minmax(0,var(--c-est,124px))}
+/* FLT-1161 · PROJECT ID compacto. La asociación proyecto↔agente se gestiona en
+   Dashboard: aquí quedan sólo miniatura, referencia humana y ciclo temporal. */
+.hd.project-id-layout{grid-template-columns:8px minmax(260px,clamp(260px,var(--c-id,286px),310px)) minmax(230px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,250px)) minmax(140px,var(--c-who,170px)) minmax(0,var(--c-est,124px))}
 .project-id-cell{padding-right:10px}
 .project-id-top{
-  grid-template-columns:minmax(0,1fr);
-  row-gap:6px;
+  grid-template-columns:72px minmax(0,1fr);
+  align-items:center;gap:9px;
 }
-.project-id-main{display:grid;grid-template-columns:72px minmax(0,1fr);align-items:start;gap:9px;min-width:0}
+.project-id-main{display:block;min-width:0}
 .project-id-main>.cel.shot{align-self:stretch;padding:0;justify-content:flex-start}
 .project-id-main>.cel.shot :is(.shot-link,.shot-img){width:72px;max-width:72px}
 .project-id-main>.cel.shot .shot-img{height:100%;min-height:54px;max-height:72px;object-fit:cover}
-.project-id-main>.project-select-wrap{grid-template-columns:1fr;gap:3px}
-.project-id-main>.project-select-wrap>span{font-size:8px}
-.project-id-main>.project-select-wrap .project-save{grid-column:1}
-.project-id-meta{min-width:0;padding-left:81px}
+.project-id-meta{min-width:0;display:grid;gap:5px;align-content:center}
 .project-id-layout .project-id-meta>.tkid{min-width:0;overflow:hidden;font-size:11px}
 .project-id-layout .project-id-meta>.tkid .selrow{margin-right:2px}
-/* Fecha de creación debajo de AGENTE/PLATAFORMA, sin ensanchar las columnas. */
-.project-id-layout .cel.agc{flex-direction:column;justify-content:center;gap:6px}
-.project-id-layout .cel.agc .agent-created{width:100%;padding-top:5px;border-top:1px solid rgba(120,243,255,.1);font:9px var(--mono);color:var(--mut);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.project-id-layout .cel.agc .agent-created .fch2{font-size:9px}
+.project-id-time{display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-width:0;padding-top:4px;border-top:1px solid rgba(120,243,255,.1)}
+.project-id-time :is(.fch2,.dur){font-size:8.5px}
+.project-id-layout .mission-col{padding-block:3px}
+.project-id-layout .mission-col .subj .t{-webkit-line-clamp:2;line-clamp:2}
+.project-id-layout .mission-col .subj .m{margin-top:2px}
 @media(max-width:1100px){
-  .hd.project-id-layout{grid-template-columns:8px minmax(210px,clamp(210px,var(--c-id,232px),250px)) minmax(230px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,230px)) minmax(130px,var(--c-who,150px)) minmax(0,var(--c-est,112px))}
-  .project-id-main{grid-template-columns:64px minmax(0,1fr)}
+  .hd.project-id-layout{grid-template-columns:8px minmax(244px,clamp(244px,var(--c-id,266px),286px)) minmax(210px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,230px)) minmax(130px,var(--c-who,150px)) minmax(0,var(--c-est,112px))}
+  .project-id-top{grid-template-columns:64px minmax(0,1fr)}
   .project-id-main>.cel.shot :is(.shot-link,.shot-img){width:64px;max-width:64px}
-  .project-id-meta{padding-left:73px}
 }
 @media(max-width:720px){
   .hd.project-id-layout{grid-template-columns:8px 1fr}
-  .project-id-top{grid-template-columns:minmax(0,1fr)}
-  .project-id-main{grid-template-columns:64px minmax(0,1fr)}
-  .project-id-layout .cel.agc{align-items:flex-start}
-  .project-id-layout .cel.agc .agent-created{text-align:left}
+  .project-id-top{grid-template-columns:64px minmax(0,1fr)}
 }
 </style>
 </head>
@@ -698,6 +692,9 @@ const AGENTES=["Neo","Morfeo","Trinity","Oráculo","Smith","WhiteRabbit"];
 // asignan misiones desde aquí) y Cypher es el nombre legado de Smith.
 const esPrincipal=p=>!/^(sub|infra)/i.test(p)&&p!=="Cypher";
 const esc=s=>String(s).replace(/[<>&"]/g,"");
+const missionRef=m=>YkMisiones&&typeof YkMisiones.visibleId==="function"
+  ?YkMisiones.visibleId(m||{})
+  :(window.YkDisplayRef&&window.YkDisplayRef.of?window.YkDisplayRef.of(m||{}):"0000.--/--/----.--:--");
 const normM=s=>String(s||"").toLowerCase().replace(/[\s·._-]+/g,"");
 const NAV="https://admira-navegadores.csilvasantin.workers.dev";
 // MAQS: persona -> {canon:{online,norm,raw,runtime,host,inject,updated}} · el VALUE lleva el raw
@@ -851,7 +848,7 @@ async function renderFlota(){
     if(mis.length){
       misHtml='<div class="fl-mis">'+mis.slice(0,4).map(m=>{ const st=YkMisiones.estadoDe(m).l;
         const cl=st==="Sin asignar"?"sinasig":(m.status==="in_progress"?"in_progress":"pending");
-        return '<a class="fl-chip st-'+cl+'" href="https://www.yokup.com/ticket?id='+encodeURIComponent(m.id)+'" target="_blank" rel="noopener" title="'+esc(m.subject||"")+'">'+esc(m.id)+'</a>'; }).join('')
+        return '<a class="fl-chip st-'+cl+'" href="https://www.yokup.com/ticket?id='+encodeURIComponent(m.id)+'" target="_blank" rel="noopener" title="'+esc((m.subject||"")+" · ID técnico "+m.id)+'">'+esc(missionRef(m))+'</a>'; }).join('')
         +(mis.length>4?'<span class="fl-chip">+'+(mis.length-4)+'</span>':'')+'</div>';
     } else if(on && pr && pr.focus){
       // Trabaja (foco vivo) pero sin FLT: es una MISIÓN DE FACTO — se reconoce y se
@@ -880,7 +877,7 @@ $("flotaList").addEventListener("click", async e=>{
       body:JSON.stringify({target_persona:info.persona||"",target_machine:info.raw||"",text:texto,from:"yokup-flota"})});
     const d=await r.json(); if(!d.ok) throw new Error(d.error||"error "+r.status);
     await fetch(WORKER+"/fleet/sync",{method:"POST"}).catch(()=>{});
-    b.textContent="✓ FLT-"+d.id;
+    b.textContent="✓ misión creada";
     setTimeout(()=>{ load(); },900);   // load() recarga misiones y repinta la flota
   }catch(err){ b.disabled=false; b.textContent="✗ reintentar"; }
 });
@@ -1019,7 +1016,7 @@ async function reasignarMision(id,cambio){
           runtime:sf.runtime||RUNTIME[perDest]||"",host:sf.host||"",
           text:"⚡ Misión "+id+" reasignada a ti desde yokup.com/misiones: «"+(info.subject||"")+"». Es el encargo #"+num+" de tu bot-inbox: reclámalo con bash ~/Claude/admira-vault/bot-inbox-claim.sh "+num+" y ponte con ella."})}).catch(()=>{});
     }
-    toast("✓ FLT-"+num+" reasignada",true);
+    toast("✓ "+missionRef(info)+" reasignada",true);
     load();            // solo se recarga en éxito (nada de recargar en falso)
   }catch(err){
     toast("✗ no se pudo reasignar: "+esc((err&&err.message)||err),false,true);

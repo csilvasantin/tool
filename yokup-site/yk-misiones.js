@@ -313,7 +313,6 @@
   // asunto. La búsqueda por palabras se queda SOLO como respaldo para las
   // misiones viejas, que nadie ha asignado todavía.
   var PROY_WEB = {};   // id del censo → web, lo rellena YkMisiones.setProyectos
-  var PROY_LIST = [];  // censo completo para el selector de proyecto en /misiones
   function proyectoDe(t) {
     var pid = t && (t.project || "");
     if (pid && PROY_WEB[String(pid).toLowerCase()]) return PROY_WEB[String(pid).toLowerCase()];
@@ -324,9 +323,6 @@
   // Censo de proyectos (GET /projects) para resolver web y nombre sin adivinar.
   function setProyectos(list) {
     PROY_WEB = {};
-    PROY_LIST = (list || []).filter(function (p) { return p && p.id; }).map(function (p) {
-      return { id: String(p.id), name: String(p.name || p.id), web: String(p.web || "") };
-    });
     (list || []).forEach(function (p) {
       if (!p || !p.id || !p.web) return;
       var w = String(p.web).trim();
@@ -335,12 +331,6 @@
   }
   function missionSourceLabel(t) {
     return ({ "agent-iot": "🖥 Pantalla DOOH", monitor: "🌐 Servicio", service: "🌐 Servicio", agent: "🤖 Agente", agente: "🤖 Agente", presence: "🖥 Máquina", machine: "🖥 Máquina", fleet: "🎯 Misión" }[t && t.source] || "👤 Manual");
-  }
-  function projectOptionsHtml(t) {
-    var current = String((t && t.project) || "").toLowerCase();
-    return '<option value="">Sin proyecto</option>' + PROY_LIST.map(function (p) {
-      return '<option value="' + esc(p.id) + '"' + (current === p.id.toLowerCase() ? " selected" : "") + '>' + esc(p.name) + " · " + esc(p.id) + "</option>";
-    }).join("");
   }
   // ENLACE AL TRABAJO REALIZADO (Carlos, 2026-07-23): la miniatura de la misión no
   // es un adorno ni sólo un lightbox — es un ENLACE al trabajo ENTREGADO. Resuelve
@@ -490,11 +480,19 @@
     return true;
   }
   function visibleId(t) {
-    var raw = String((t && t.id) || ""), m = /^FLT-(\d+)$/.exec(raw);
-    if (!m) return raw;
-    var ms = +(t.created_at || 0); if (ms && ms < 4102444800) ms *= 1000;
-    var d = new Date(ms || Date.now()), p = function(n){ return (n<10?"0":"")+n; };
-    return "MIS-" + m[1] + "-" + p(d.getDate()) + "." + p(d.getMonth()+1);
+    if (window.YkDisplayRef && window.YkDisplayRef.of) return window.YkDisplayRef.of(t || {});
+    var supplied = String((t && t.display_ref) || "").trim();
+    if (supplied) return supplied;
+    var ms = +(t && t.created_at || 0); if (ms && ms < 4102444800) ms *= 1000;
+    if (!ms) return "0000.--/--/----.--:--";
+    try {
+      var parts={},fmt=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Madrid",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
+      fmt.formatToParts(new Date(ms)).forEach(function(x){if(x.type!=="literal")parts[x.type]=x.value;});
+      return "0000."+parts.day+"/"+parts.month+"/"+parts.year+"."+parts.hour+":"+parts.minute;
+    } catch(e) {
+      var d = new Date(ms), p = function(n){ return (n<10?"0":"")+n; };
+      return "0000." + p(d.getDate()) + "/" + p(d.getMonth()+1) + "/" + d.getFullYear() + "." + p(d.getHours()) + ":" + p(d.getMinutes());
+    }
   }
 
   // El marcador «[PRIORIDAD ABSOLUTA]» (o [PRIORIDAD …], [TEST …]) viajaba en el
@@ -616,10 +614,11 @@
       (CFG.projectIdLayout ? "" : '<span class="st">' + esc(sourceLabel) + "</span>") +
       (pm.flag ? '<span class="prioflag' + (esPrio ? " abs" : "") + '">' + (esPrio ? "⚡ " : "") + esc(pm.flag) + "</span>" : "") + "</div>";
     var shotHtml = '<div class="cel shot">' + missionPreviewHtml(t, proof, live, liveFresca) + "</div>";
-    var subjectHtml = '<div class="subj"><div class="t">' + esc(pm.limpio) + '</div><div class="m">' +
-      (CFG.projectIdLayout ? '<span class="mission-source" title="Origen de esta misión">Origen · ' + esc(sourceLabel) + "</span>" : "") +
-      '<span class="scr">' + esc(String(t.screen || "").replace(/^(svc|maq|agt|service|machine|agent):/, "").replace(/^https?:\/\/(www\.)?/, "")) + "</span>" +
-      (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span>" +
+    var subjectMetaHtml = CFG.projectIdLayout
+      ? '<span class="mission-source" title="Origen de esta misión">Origen · ' + esc(sourceLabel) + "</span>"
+      : '<span class="scr">' + esc(String(t.screen || "").replace(/^(svc|maq|agt|service|machine|agent):/, "").replace(/^https?:\/\/(www\.)?/, "")) + "</span>" +
+        (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span>";
+    var subjectHtml = '<div class="subj"><div class="t">' + esc(pm.limpio) + '</div><div class="m">' + subjectMetaHtml +
       (+t.img_count > 0 ? '<span class="adjn" title="' + (+t.img_count) + ' imagen(es) adjunta(s) — ábrela para verlas">📎 ' + (+t.img_count) + "</span>" : "") +
       "</div></div>";
     var createdHtml =
@@ -630,25 +629,25 @@
       (dv && dv.txt ? '<span class="dur' + (dv.run ? " run yk-deadline" : "") + (stt === "No concluida" ? " overdue" : "") + '"' + (dv.run ? ' data-created="' + _ms(t.created_at) + '"' : '') + ' title="' + esc(dv.tip) + '">⏱ ' + (dv.run ? esc(deadlineText(_ms(t.created_at))) : esc(dv.txt)) + "</span>" : "");
     var timingHtml = createdHtml + progressTimingHtml;
     var projectIdHtml = CFG.projectIdLayout
-      ? '<div class="project-id-cell">' + rz("id", "r") + '<div class="project-id-top"><div class="project-id-main">' + shotHtml +
-          '<label class="project-select-wrap"><span>Proyecto</span><select class="project-id-select" data-mission="' + esc(t.id) + '" aria-label="Proyecto de ' + esc(visibleId(t)) + '">' + projectOptionsHtml(t) + '</select><i class="project-save" aria-live="polite"></i></label></div>' +
-          '<div class="project-id-meta">' + idHtml + "</div></div></div>"
+      ? '<div class="project-id-cell">' + rz("id", "r") + '<div class="project-id-top"><div class="project-id-main">' + shotHtml + '</div>' +
+          '<div class="project-id-meta">' + idHtml + '<div class="project-id-time">' + timingHtml + "</div></div></div></div>"
       : idHtml + shotHtml + subjectHtml.replace('<div class="subj">', '<div class="subj">' + rz("id", "r"));
     var missionHtml = CFG.projectIdLayout
-      ? '<div class="mission-col">' + rz("mis") + subjectHtml + (progressTimingHtml ? '<div class="mission-time">' + progressTimingHtml + "</div>" : "") + "</div>"
+      ? '<div class="mission-col">' + rz("mis") + subjectHtml + "</div>"
       : '<div class="cel rtiempo">' + rz("fch") + timingHtml + "</div>";
     return '<div class="tk ' + (t.status === "open" ? "open" : "") + " " + (t.id === SELECTED ? "sel" : "") + '" data-id="' + esc(t.id) + '">' +
       '<div class="hd' + (CFG.projectIdLayout ? " project-id-layout" : "") + '">' +
         '<div class="pri ' + esc(t.priority) + '"></div>' +
         projectIdHtml +
-        // En /misiones el texto y los tiempos comparten la nueva columna Misión.
-        // Las vistas históricas conservan su columna Fecha independiente.
+        // En /misiones PROJECT ID reúne referencia visual y evolución temporal;
+        // Misión queda reservada al título y origen. Las vistas históricas
+        // conservan su columna Fecha independiente.
         missionHtml +
         // ORDENADOR (entre Fecha y Agente).
         '<div class="cel ord ' + (CFG.columnMode === "tasks" ? "tasks-col" : "machine-col") + '">' + rz("ord") + (CFG.columnMode === "tasks" ? tasksAbcHtml(t) : (maq ? '<span class="mach2">' + machVisual(maq) + " " + (window.ykMaquina ? ykMaquina.html(maq) : esc(maq)) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>')) + "</div>" +
         // Celda de AGENTE con clase `agc` (target del picker de reasignación en
         // /misiones; inocua en /incidencias, que no la cablea). Carlos, 2026-07-15.
-        '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, maq, surface, t._agents, machOffOf(t, surface)) + (CFG.projectIdLayout ? '<div class="agent-created">' + createdHtml + "</div>" : "") + "</div>" +
+        '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, maq, surface, t._agents, machOffOf(t, surface)) + "</div>" +
         // Estado + ABRIR apilado (abrir debajo de la insignia).
         '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"' + (t.status === "cancelled" && t.note ? ' title="' + esc(t.note) + '"' : "") + "><i></i>" + stt + "</span>" + (t.status === "cancelled" && t.note ? '<small class="cancel-note" title="' + esc(t.note) + '">' + esc(t.note) + "</small>" : "") +
           // PROGRESO en la fila, en TERCIOS: tareas n/3 y subtareas n/9 (979).
@@ -744,27 +743,8 @@
     if(!bindRows._clock) bindRows._clock=window.setInterval(function(){tickMissionClocks(document);},1000);
     (container || document).querySelectorAll(".tk").forEach(function (row) {
       row.addEventListener("click", function (e) {
-        if (e.target.closest(".tkopen") || e.target.closest(".abc-task") || e.target.closest(".rz") || e.target.closest(".shot-img") || e.target.closest(".project-id-select")) return;
+        if (e.target.closest(".tkopen") || e.target.closest(".abc-task") || e.target.closest(".rz") || e.target.closest(".shot-img")) return;
         selectMission(row.dataset.id);
-      });
-    });
-    (container || document).querySelectorAll(".project-id-select").forEach(function (select) {
-      select.addEventListener("click", function (e) { e.stopPropagation(); });
-      select.addEventListener("change", function (e) {
-        e.stopPropagation();
-        var old = String((MIS_CACHE[select.dataset.mission] && MIS_CACHE[select.dataset.mission].project) || "");
-        var slot = select.parentElement && select.parentElement.querySelector(".project-save");
-        select.disabled = true; if (slot) slot.textContent = "guardando…";
-        var opts = { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({mission:select.dataset.mission, project:select.value}) };
-        var req = window.ykFetch ? window.ykFetch("/projects/mission", opts) : window.fetch(CFG.worker + "/projects/mission", opts);
-        Promise.resolve(req).then(function (r) { return r.json().then(function (d) { if (!r.ok || !d.ok) throw new Error(d.error || ("HTTP " + r.status)); return d; }); })
-          .then(function (d) {
-            var cached = MIS_CACHE[select.dataset.mission]; if (cached) { cached.project = d.project || ""; cached.project_name = d.project_name || ""; }
-            if (slot) slot.textContent = "✓ guardado";
-            window.dispatchEvent(new CustomEvent("yk:mission-project", { detail:{ mission:select.dataset.mission, project:d.project || "" } }));
-          })
-          .catch(function (err) { select.value = old; if (slot) { slot.textContent = "✕ " + String((err && err.message) || err); slot.classList.add("err"); } })
-          .finally(function () { select.disabled = false; });
       });
     });
     if (SELECTED && document.querySelector('.tk[data-id="' + cssq(SELECTED) + '"]')) renderTaskTree(SELECTED);
@@ -815,7 +795,7 @@
       '<button class="chip ' + esc(t.status) + '" data-code="' + esc(t.code) + '" title="' + esc(t.status) + ' · clic para avanzar">' + (CHIP[t.status] || "○") + "</button>" +
       // El CÓDIGO del paso enlaza a su detalle en /tareas (foco + scroll al paso); el
       // chip de al lado sigue AVANZANDO el estado — no le robamos el clic. (964)
-      (t.mission_id ? '<a class="scode" href="/tareas?mission=' + encodeURIComponent(t.mission_id) + "#" + esc(t.code) + '" title="ver este paso en /tareas">' + esc(t.code) + "</a>" : '<span class="scode">' + esc(t.code) + "</span>") +
+      (t.mission_id ? '<a class="scode" href="/tareas?mission=' + encodeURIComponent(t.mission_id) + "#" + esc(t.code) + '" title="Ver tarea · ID técnico ' + esc(t.mission_id + ":" + t.code) + '">' + esc(visibleId(t)) + "</a>" : '<span class="scode" title="Código técnico: ' + esc(t.code) + '">' + esc(visibleId(t)) + "</span>") +
       '<span class="ttl" title="' + esc(full) + '">' + linkify(t.title) + "</span>" +
       shot +
       '<span class="own" title="' + esc(ownerName) + '">' + ownerVisual + "</span>" +
@@ -940,7 +920,7 @@
         by[t.mission_id] = { mission: {
           id: t.mission_id, subject: t.subject, screen: t.screen, loc: t.loc,
           source: t.source, assignee: t.assignee, status: t.mission_status,
-          created_at: t.mission_created
+          created_at: t.mission_created, display_ref: t.mission_display_ref || ""
         }, tasks: [] };
         order.push(t.mission_id);
       }

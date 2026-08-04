@@ -3,6 +3,7 @@ import { memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, sele
 import { baseAgentIdentity, machineSuffix, parseAgentIdentity, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
 import { AgentStopError, dispatchAgentStop, normalizeAgentStopTarget } from "./fleet-agent-stop.js";
+import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, sortDisplayRefCandidates } from "./display-ref.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -196,6 +197,8 @@ async function applySchema(env) {
   // image: URL pública de la captura de prueba del informe (R2 /media/…). La tabla
   // ya existe en prod, así que la columna se añade idempotente (ignora "duplicate").
   await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN image TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN created_at INTEGER").catch(() => {});
+  await env.DB.exec("UPDATE mission_tasks SET created_at=updated_at WHERE created_at IS NULL").catch(() => {});
   // Llave de lectura del service worker (ver /push/subscribe). Idempotente.
   await env.DB.exec("ALTER TABLE subs ADD COLUMN peek_key TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN proof_image TEXT").catch(() => {});
@@ -246,6 +249,12 @@ async function applySchema(env) {
   // qué sesión, sin mezclar estos mandos con los eventos de una misión concreta.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_agent_commands (id TEXT PRIMARY KEY, action TEXT, machine TEXT, persona TEXT, runtime TEXT, host TEXT, session_id TEXT, pid INTEGER, requested_by TEXT, status TEXT, upstream_command_id TEXT, detail TEXT, created_at INTEGER, updated_at INTEGER)").catch(() => {});
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_fleet_agent_commands_created ON fleet_agent_commands(created_at)").catch(() => {});
+  // Referencia humana común a objetivos, ventanas, misiones y tareas. Los ids
+  // técnicos continúan siendo las claves y enlaces; este registro sólo añade la
+  // etiqueta visible estable y un contador compartido por día de Madrid.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS display_ref_counters (day TEXT PRIMARY KEY, next_value INTEGER NOT NULL)");
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS display_refs (entity_type TEXT NOT NULL, entity_key TEXT NOT NULL, day TEXT NOT NULL, seq INTEGER NOT NULL, entity_created_at INTEGER NOT NULL, display_ref TEXT NOT NULL, assigned_at INTEGER NOT NULL, PRIMARY KEY(entity_type,entity_key), UNIQUE(day,seq))");
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_display_refs_day_seq ON display_refs(day,seq)");
 }
 __name(applySchema, "applySchema");
 // FLT-1015 · El esquema no cambia entre dos requests del mismo isolate. La
@@ -263,6 +272,151 @@ async function ensureSchema(env) {
   return schemaReady;
 }
 __name(ensureSchema, "ensureSchema");
+
+// ── REFERENCIAS HUMANAS COMUNES ─────────────────────────────────────────────
+// `display_ref` no sustituye ninguna PK. Se asigna una sola vez y se persiste;
+// ordenar, filtrar o paginar sólo cambia qué filas viajan, nunca su número.
+var displayRefSchemaReady = null;
+async function ensureDisplayRefSchema(env) {
+  if (!displayRefSchemaReady) displayRefSchemaReady = (async () => {
+    await env.DB.exec("CREATE TABLE IF NOT EXISTS display_ref_counters (day TEXT PRIMARY KEY, next_value INTEGER NOT NULL)");
+    await env.DB.exec("CREATE TABLE IF NOT EXISTS display_refs (entity_type TEXT NOT NULL, entity_key TEXT NOT NULL, day TEXT NOT NULL, seq INTEGER NOT NULL, entity_created_at INTEGER NOT NULL, display_ref TEXT NOT NULL, assigned_at INTEGER NOT NULL, PRIMARY KEY(entity_type,entity_key), UNIQUE(day,seq))");
+    await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_display_refs_day_seq ON display_refs(day,seq)");
+    await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN created_at INTEGER").catch(() => {});
+    await env.DB.exec("UPDATE mission_tasks SET created_at=updated_at WHERE created_at IS NULL").catch(() => {});
+  })().catch((error) => { displayRefSchemaReady = null; throw error; });
+  return displayRefSchemaReady;
+}
+__name(ensureDisplayRefSchema, "ensureDisplayRefSchema");
+
+function taskDisplayKey(row) {
+  return String(row && row.mission_id || "") + ":" + String(row && row.code || "");
+}
+__name(taskDisplayKey, "taskDisplayKey");
+
+async function ensureDisplayRefCounter(env, day) {
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO display_ref_counters(day,next_value) SELECT ?,COALESCE(MAX(seq)+1,0) FROM display_refs WHERE day=?"
+  ).bind(day, day).run();
+  await env.DB.prepare(
+    "UPDATE display_ref_counters SET next_value=MAX(next_value,(SELECT COALESCE(MAX(seq)+1,0) FROM display_refs WHERE day=?)) WHERE day=?"
+  ).bind(day, day).run();
+}
+__name(ensureDisplayRefCounter, "ensureDisplayRefCounter");
+
+function displayRefMapKey(entityType, entityKey) {
+  return entityType + "\u001f" + entityKey;
+}
+__name(displayRefMapKey, "displayRefMapKey");
+
+async function readEntityDisplayRefs(env, items) {
+  const found = new Map();
+  for (const entityType of DISPLAY_REF_ENTITY_TYPES) {
+    const keys = items.filter((item) => item.entity_type === entityType).map((item) => item.entity_key);
+    for (let i = 0; i < keys.length; i += 80) {
+      const chunk = keys.slice(i, i + 80), placeholders = chunk.map(() => "?").join(",");
+      const result = await env.DB.prepare(
+        `SELECT entity_type,entity_key,display_ref FROM display_refs WHERE entity_type=? AND entity_key IN (${placeholders})`
+      ).bind(entityType, ...chunk).all();
+      for (const row of result.results || []) found.set(displayRefMapKey(row.entity_type, row.entity_key), row.display_ref);
+    }
+  }
+  return found;
+}
+__name(readEntityDisplayRefs, "readEntityDisplayRefs");
+
+async function ensureManyEntityDisplayRefs(env, rawItems) {
+  await ensureDisplayRefSchema(env);
+  const unique = new Map();
+  for (const raw of rawItems || []) {
+    const entityType = String(raw && raw.entity_type || "");
+    const entityKey = String(raw && raw.entity_key || "").trim();
+    if (!DISPLAY_REF_ENTITY_TYPES.includes(entityType)) throw new Error("display_ref entity_type inválido");
+    if (!entityKey) throw new Error("display_ref entity_key requerido");
+    const stamp = epochMillis(raw.entity_created_at);
+    unique.set(displayRefMapKey(entityType, entityKey), { entity_type:entityType, entity_key:entityKey, entity_created_at:stamp, day:madridDayKey(stamp) });
+  }
+  const items = [...unique.values()];
+  if (!items.length) return new Map();
+  const refs = await readEntityDisplayRefs(env, items);
+  const missing = items.filter((item) => !refs.has(displayRefMapKey(item.entity_type, item.entity_key)));
+  const byDay = new Map();
+  for (const item of missing) {
+    if (!byDay.has(item.day)) byDay.set(item.day, []);
+    byDay.get(item.day).push(item);
+  }
+  for (const [day, dayItems] of byDay) {
+    await ensureDisplayRefCounter(env, day);
+    // Reserva el bloque entero en una sola operación atómica. Dentro del bloque
+    // se mantiene el orden determinista del backfill; las inserciones viajan en
+    // batch para no convertir una página de 300 filas en 600 round-trips D1.
+    const reserved = await env.DB.prepare(
+      "UPDATE display_ref_counters SET next_value=next_value+? WHERE day=? RETURNING next_value-? AS start_seq"
+    ).bind(dayItems.length, day, dayItems.length).first();
+    const start = Number(reserved && reserved.start_seq);
+    if (!Number.isInteger(start)) throw new Error("no se pudo reservar display_ref");
+    const statements = dayItems.map((item, index) => {
+      const sequence = start + index;
+      return env.DB.prepare(
+        "INSERT OR IGNORE INTO display_refs(entity_type,entity_key,day,seq,entity_created_at,display_ref,assigned_at) VALUES(?,?,?,?,?,?,?)"
+      ).bind(item.entity_type, item.entity_key, day, sequence, item.entity_created_at, formatDisplayRef(sequence, item.entity_created_at), Date.now());
+    });
+    for (let i = 0; i < statements.length; i += 80) {
+      const chunk = statements.slice(i, i + 80);
+      if (typeof env.DB.batch === "function") await env.DB.batch(chunk);
+      else for (const statement of chunk) await statement.run();
+    }
+  }
+  return readEntityDisplayRefs(env, items);
+}
+__name(ensureManyEntityDisplayRefs, "ensureManyEntityDisplayRefs");
+
+async function ensureEntityDisplayRef(env, entityType, entityKey, createdAt) {
+  const refs = await ensureManyEntityDisplayRefs(env, [{ entity_type:entityType, entity_key:entityKey, entity_created_at:createdAt }]);
+  const visible = refs.get(displayRefMapKey(entityType, String(entityKey || "").trim()));
+  if (!visible) throw new Error("no se pudo persistir display_ref");
+  return visible;
+}
+__name(ensureEntityDisplayRef, "ensureEntityDisplayRef");
+
+var displayRefBackfilledDays = new Set();
+async function backfillDisplayRefDays(env, requestedDays) {
+  const pendingDays = [...new Set(requestedDays || [])].filter((day) => day && !displayRefBackfilledDays.has(day));
+  if (!pendingDays.length) return;
+  await ensureSchema(env);
+  await ensureDisplayRefSchema(env);
+  await ensureIdeasSchema(env);
+  const union = await env.DB.prepare(
+    `SELECT 'objective' entity_type,id entity_key,created_at entity_created_at FROM ideas
+     UNION ALL SELECT 'window',id,created_at FROM decisions
+     UNION ALL SELECT 'mission',id,created_at FROM tickets
+     UNION ALL SELECT 'task',mission_id||':'||code,COALESCE(created_at,updated_at) FROM mission_tasks`
+  ).all();
+  const candidates = sortDisplayRefCandidates(union.results || [])
+    .filter((row) => pendingDays.includes(madridDayKey(row.entity_created_at)));
+  await ensureManyEntityDisplayRefs(env, candidates);
+  for (const day of pendingDays) displayRefBackfilledDays.add(day);
+}
+__name(backfillDisplayRefDays, "backfillDisplayRefDays");
+
+async function backfillTodayDisplayRefs(env, now = Date.now()) {
+  return backfillDisplayRefDays(env, [madridDayKey(now)]);
+}
+__name(backfillTodayDisplayRefs, "backfillTodayDisplayRefs");
+
+async function attachDisplayRefs(env, entityType, rows, keyOf, createdOf) {
+  const list = Array.isArray(rows) ? rows : rows ? [rows] : [];
+  if (!list.length) return rows;
+  const items = list.map((row) => ({ entity_type:entityType, entity_key:keyOf(row), entity_created_at:createdOf(row) }));
+  // Antes de asignar UNA fila histórica se rellenan conjuntamente todos los
+  // objetivos/ventanas/misiones/tareas de sus días. El orden de los endpoints o
+  // de una página nunca decide quién recibe el número menor.
+  await backfillDisplayRefDays(env, items.map((item) => madridDayKey(item.entity_created_at)));
+  const refs = await ensureManyEntityDisplayRefs(env, items);
+  for (let i = 0; i < list.length; i++) list[i].display_ref = refs.get(displayRefMapKey(entityType, String(items[i].entity_key || "").trim())) || "";
+  return rows;
+}
+__name(attachDisplayRefs, "attachDisplayRefs");
 
 // ── IDEAS / OBJETIVOS ─────────────────────────────────────────────────────────
 // Las 8 sillas del Consejo AdmiraNeXT (== array CONSEJO de yokup-site/objetivos.html):
@@ -1374,13 +1528,15 @@ async function openInitialMissionDecision(env, input) {
     return { ok: false, status: 409, error: "hourly_limit", existing: previous.id, hour };
   }
   const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
+  await backfillTodayDisplayRefs(env, now);
   await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?)")
     .bind(id, machine, agent, String(input.surface || "").slice(0, 20), q, JSON.stringify(opts),
           Math.max(0, Math.min(opts.length - 1, +input.recommended || 0)), now, now + mins * 60000,
           String(input.url || "").slice(0, 300), String(input.mission || "").slice(0, 120),
           projectContext.project_id, projectContext.project_slug, "", "").run();
+  const display_ref = await ensureEntityDisplayRef(env, "window", id, now);
   return { ok: true, id, deadline: now + mins * 60000, project: projectContext.project,
-           project_id: projectContext.project_id, project_slug: projectContext.project_slug };
+           project_id: projectContext.project_id, project_slug: projectContext.project_slug, display_ref };
 }
 __name(openInitialMissionDecision, "openInitialMissionDecision");
 // Sincroniza una idea con su reloj de decisión (si lo tiene). Cuando la decisión se
@@ -1449,9 +1605,11 @@ function scopedMissionOwner(raw, fallbackRole, assignee, machine) {
 __name(scopedMissionOwner, "scopedMissionOwner");
 async function listMissionTasks(env, mid) {
   const { results } = await env.DB.prepare(
-    "SELECT mission_id, code, title, status, owner, report, image, updated_at FROM mission_tasks WHERE mission_id=? ORDER BY code"
+    "SELECT mission_id, code, title, status, owner, report, image, created_at, updated_at FROM mission_tasks WHERE mission_id=? ORDER BY code"
   ).bind(mid).all();
-  return results || [];
+  const rows = results || [];
+  await attachDisplayRefs(env, "task", rows, taskDisplayKey, (row) => row.created_at || row.updated_at);
+  return rows;
 }
 __name(listMissionTasks, "listMissionTasks");
 // TODAS las tareas de TODAS las misiones en UNA query (JOIN con tickets), para
@@ -1469,7 +1627,7 @@ async function listAllMissionTasks(env, scope) {
     // mission_resolved) y la PRUEBA de cierre de la misión (t.proof_image →
     // mission_proof) para que la columna Captura tenga un fallback real cuando la
     // tarea no dejó imagen propia. No rompe a /tareas: sólo añade campos.
-    `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.report, m.image, m.updated_at,
+    `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.report, m.image, m.created_at, m.updated_at,
             t.subject, t.screen, t.loc, t.project, t.source, t.assignee, t.live_shot,
             t.status AS mission_status, t.created_at AS mission_created,
             t.resolved_at AS mission_resolved, t.proof_image AS mission_proof
@@ -1477,12 +1635,21 @@ async function listAllMissionTasks(env, scope) {
        ${where}
        ORDER BY m.mission_id, m.code`
   ).all();
-  return (results || []).map((task) => ({
+  const rows = (results || []).map((task) => ({
     ...task,
     // Campo aditivo para /informes: owner permanece disponible, pero la
     // identidad visible se recompone con la máquina real de tickets.loc.
     agent_identity: reportAgentIdentity(task.owner, task.loc)
   }));
+  await attachDisplayRefs(env, "task", rows, taskDisplayKey, (row) => row.created_at || row.updated_at);
+  const missions = [...new Map(rows.map((row) => [row.mission_id, {
+    id:row.mission_id,
+    created_at:row.mission_created,
+  }])).values()];
+  await attachDisplayRefs(env, "mission", missions, (row) => row.id, (row) => row.created_at);
+  const missionRefs = new Map(missions.map((mission) => [mission.id, mission.display_ref]));
+  for (const row of rows) row.mission_display_ref = missionRefs.get(row.mission_id) || "";
+  return rows;
 }
 __name(listAllMissionTasks, "listAllMissionTasks");
 // Guarda el plan completo (reemplaza el anterior). Valida codes y tope de 3
@@ -1510,13 +1677,13 @@ async function saveMissionPlan(env, mid, tasks) {
       ? scopedMissionOwner(suggested, /^infra/i.test(suggested) ? "infra" : "sub", mission.assignee, mission.loc)
       : suggested;
     const report = t && t.report != null ? String(t.report).slice(0, 2e3) : null;
-    clean.push({ mission_id: mid, code, title, status, owner, report, updated_at: now });
+    clean.push({ mission_id: mid, code, title, status, owner, report, created_at: now, updated_at: now });
   }
   await env.DB.prepare("DELETE FROM mission_tasks WHERE mission_id=?").bind(mid).run();
   for (const r of clean) {
     await env.DB.prepare(
-      "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,updated_at) VALUES(?,?,?,?,?,?,?)"
-    ).bind(r.mission_id, r.code, r.title, r.status, r.owner, r.report, r.updated_at).run();
+      "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)"
+    ).bind(r.mission_id, r.code, r.title, r.status, r.owner, r.report, r.created_at, r.updated_at).run();
   }
   return listMissionTasks(env, mid);
 }
@@ -1534,7 +1701,9 @@ async function setTaskStatus(env, mid, code, status, report, owner, image) {
   // Captura PROPIA del paso: cada paso deja constancia con su enlace/miniatura. (954)
   const im = image != null && normalizeProofImage(image).value ? normalizeProofImage(image).value : cur.image;
   await env.DB.prepare("UPDATE mission_tasks SET status=?, report=?, owner=?, image=?, updated_at=? WHERE mission_id=? AND code=?").bind(st, rp, ow, im, Date.now(), mid, code).run();
-  return env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
+  const row = await env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
+  if (row) await attachDisplayRefs(env, "task", row, taskDisplayKey, (item) => item.created_at || item.updated_at);
+  return row;
 }
 __name(setTaskStatus, "setTaskStatus");
 function parsePlanJson(raw) {
@@ -1729,7 +1898,9 @@ async function createTicket(env, s) {
 \u{1F50D} Causa probable: ...
 \u{1F6E0}\uFE0F Acci\xF3n inmediata: ...
 \u{1F477} T\xE9cnico: s\xED/no \u2014 motivo`, 170);
+  await backfillTodayDisplayRefs(env, now);
   await env.DB.prepare("INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, s.screen, "Pantalla sin se\xF1al de emisi\xF3n", loc, s.role || "", "open", "urgente", tech.name, s.source || "agent-iot", triage, now, now).run();
+  await ensureEntityDisplayRef(env, "mission", id, now);
   await addEvent(env, id, "log", "Agente IoT", "Incidencia detectada autom\xE1ticamente: pantalla sin se\xF1al de emisi\xF3n (proof-of-play ca\xEDdo).");
   await addEvent(env, id, "assign", "IA", `Auto-asignado a ${tech.name} (${tech.zone} \xB7 ${tech.skills}) por skills y zona.`);
   if (triage) await addEvent(env, id, "ai", "Copiloto IA", triage);
@@ -1756,8 +1927,10 @@ async function createIncident(env, inc) {
   const prio = ["urgente", "alta", "normal", "baja"].includes(inc && inc.severity) ? inc.severity : "alta";
   const source = String((inc && inc.source) || "external").slice(0, 24);
   const assignee = (String((inc && inc.assignee) || "").slice(0, 60)) || (ROSTER[hash(resource) % ROSTER.length].name);
+  await backfillTodayDisplayRefs(env, now);
   await env.DB.prepare("INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
     .bind(id, resource, subject, project, kind, "open", prio, assignee, source, "", now, now).run();
+  await ensureEntityDisplayRef(env, "mission", id, now);
   await addEvent(env, id, "log", (inc && inc.by) || "Monitor", (inc && inc.detail) || subject);
   await notifySubs(env);
   return id;
@@ -1905,6 +2078,7 @@ async function listTickets(env, scope, limit, offset) {
   // cruzar /projects sólo para pintar un rótulo.
   const pidx = await projectIndex(env);
   for (const r of rows) r.project_name = resolveProject(pidx, r.project || "").name;
+  await attachDisplayRefs(env, "mission", rows, (row) => row.id, (row) => row.created_at);
   return rows;
 }
 
@@ -2176,8 +2350,8 @@ async function ensureFleetMainTasks(env, missionId, subject, assignment, reassig
   const now = Date.now();
   for (const task of main) {
     if (!byCode.has(task.code)) {
-      await env.DB.prepare("INSERT OR IGNORE INTO mission_tasks(mission_id,code,title,status,owner,report,updated_at) VALUES(?,?,?,?,?,?,?)")
-        .bind(missionId, task.code, task.title, "pending", task.owner, null, now).run();
+      await env.DB.prepare("INSERT OR IGNORE INTO mission_tasks(mission_id,code,title,status,owner,report,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)")
+        .bind(missionId, task.code, task.title, "pending", task.owner, null, now, now).run();
     }
   }
   if (!reassignPending) return;
@@ -2606,15 +2780,17 @@ async function fleetMissions(env) {
   ).all();
   const rows = results || [];
   if (!rows.length) return [];
+  await attachDisplayRefs(env, "mission", rows, (row) => row.id, (row) => row.created_at);
   // Troceado obligatorio: con LIMIT 120 y el tope de 100 variables de D1, esta
   // consulta reventaba en cuanto había más de 100 misiones de flota.
   // `has_report` en vez del texto del parte: quien pinta necesita saber SI existe
   // informe (para señalar el que falta), no arrastrar 120 partes por la red.
   const tks = await selectIn(env, rows.map((r) => r.id), (ph) =>
-    `SELECT mission_id,code,title,status,owner,
+    `SELECT mission_id,code,title,status,owner,created_at,updated_at,
             CASE WHEN report IS NOT NULL AND TRIM(report)!='' THEN 1 ELSE 0 END has_report
      FROM mission_tasks WHERE mission_id IN (${ph}) ORDER BY code`
   );
+  await attachDisplayRefs(env, "task", tks, taskDisplayKey, (row) => row.created_at || row.updated_at);
   const byMission = {};
   for (const t of tks || []) (byMission[t.mission_id] = byMission[t.mission_id] || []).push(t);
   // `project` viaja como ID del censo; quien pinta (status, /misiones) quiere el
@@ -3074,9 +3250,9 @@ var index_default = {
       const crossSign = !!(assignee && owner && _pbase(owner) !== _pbase(assignee));
       const now = Date.now();
       await env.DB.prepare(
-        "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,image,updated_at) VALUES(?,?,?,?,?,?,?,?) " +
+        "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,image,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?) " +
         "ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report, status='done', owner=excluded.owner, image=COALESCE(excluded.image, mission_tasks.image), updated_at=excluded.updated_at"
-      ).bind(mid, "z1", "Informe del InfraAgente", "done", owner, report, image || null, now).run();
+      ).bind(mid, "z1", "Informe del InfraAgente", "done", owner, report, image || null, now, now).run();
       await env.DB.prepare(
         "UPDATE tickets SET proof_image=?,agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),updated_at=? WHERE id=?"
       ).bind(image, runtime, host, now, mid).run();
@@ -3562,6 +3738,7 @@ var index_default = {
         ).bind(id).first();
         if (!t) return json({ error: "not-found" }, 404);
         t.project_name = resolveProject(await projectIndex(env), t.project || "").name;
+        await attachDisplayRefs(env, "mission", t, (row) => row.id, (row) => row.created_at);
         const { results } = await env.DB.prepare("SELECT * FROM events WHERE ticket_id=? ORDER BY id ASC").bind(id).all();
         return json({ ticket: t, events: results || [] });
       } catch (e) {
@@ -3719,6 +3896,7 @@ var index_default = {
               try { const s = await syncIdeaFromDecision(env, it); it.status = s.status; it.mission_id = s.mission_id; } catch (e) {}
             }
           }
+          await attachDisplayRefs(env, "objective", rows, (row) => row.id, (row) => row.created_at);
           return json({ ideas: rows });
         }
         const b = await req.json();
@@ -3739,7 +3917,9 @@ var index_default = {
         const id = "IDEA-" + (crypto.randomUUID().replace(/-/g, "").slice(0, 8));
         await env.DB.prepare("INSERT INTO ideas (id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,project) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
           .bind(id, title, body, author, tag, "nueva", now, now, "", seat, project).run();
-        return json({ ok: true, idea: { id, title, body, author, tag, status: "nueva", created_at: now, updated_at: now, mission_id: "", seat, project } });
+        const idea = { id, title, body, author, tag, status: "nueva", created_at: now, updated_at: now, mission_id: "", seat, project };
+        await attachDisplayRefs(env, "objective", idea, (row) => row.id, (row) => row.created_at);
+        return json({ ok: true, idea });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     // (Re)asigna la silla del Consejo a una idea. seat "" (o inválido) la desasigna.
@@ -3960,7 +4140,7 @@ var index_default = {
           return json({ ok: false, error: res.error, code: res.code }, res.status || 400);
         }
         await env.DB.prepare("UPDATE ideas SET decision_id=?, updated_at=? WHERE id=?").bind(res.id, Date.now(), id).run();
-        return json({ ok: true, id, decision_id: res.id, options, recommended: 0,
+        return json({ ok: true, id, decision_id: res.id, display_ref: res.display_ref, options, recommended: 0,
                       deadline: res.deadline, secondsLeft: Math.max(0, Math.round((res.deadline - Date.now()) / 1000)),
                       project: res.project, url: DECIDE_URL });
       } catch (e) { return json({ error: String(e) }, 500); }
@@ -3986,6 +4166,7 @@ var index_default = {
         const preview = !!(b && (b.preview || b.dry_run));
         const idea = await generateCouncilIdea(env, seat, topic, projectHint, !preview);
         if (!idea) return json({ ok: false, error: "la IA no devolvió una idea usable; reintenta" }, 502);
+        if (!preview && idea.id) await attachDisplayRefs(env, "objective", idea, (row) => row.id, (row) => row.created_at);
         return json({ ok: true, idea });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
@@ -4080,6 +4261,7 @@ var index_default = {
           if (previous) return json({ ok: false, error: "hourly_limit", existing: previous.id, hour }, 409);
         }
         const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
+        await backfillTodayDisplayRefs(env, now);
         // mission/url son metadatos. El proyecto ya fue validado contra la
         // intersección canónica projects+project_members; jamás se hereda del
         // último ticket o trabajo.
@@ -4092,7 +4274,8 @@ var index_default = {
                 String(b.surface || "").slice(0, 20), q, JSON.stringify(opts),
                 Math.max(0, Math.min(opts.length - 1, +b.recommended || 0)), now, now + mins * 60000,
                 durl, dmission, dproject, dprojectSlug, dparent, dbatch).run();
-        return json({ ok: true, id, deadline: now + mins * 60000, project: projectContext.project, project_id: dproject, project_slug: dprojectSlug, parent_decision: dparent, batch_id: dbatch, continuation, user_override: userOverride });
+        const display_ref = await ensureEntityDisplayRef(env, "window", id, now);
+        return json({ ok: true, id, display_ref, deadline: now + mins * 60000, project: projectContext.project, project_id: dproject, project_slug: dprojectSlug, parent_decision: dparent, batch_id: dbatch, continuation, user_override: userOverride });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     if (url.pathname === "/decisions" && req.method === "GET") {
@@ -4176,6 +4359,7 @@ var index_default = {
                    created_at: d.created_at, deadline: d.deadline, decided_at: d.decided_at,
                    secondsLeft: Math.max(0, Math.round((d.deadline - now) / 1000)) };
         });
+        await attachDisplayRefs(env, "window", items, (row) => row.id, (row) => row.created_at);
         // `query` devuelve lo que REALMENTE se aplicó (un ?limit=9999 se recorta a
         // 500) y `next_until` da el cursor para pedir la página siguiente hacia
         // atrás: &until=<next_until-1>. null = no hay más.
@@ -4200,7 +4384,8 @@ var index_default = {
           .bind(back ? "cancelled" : "decided", idx, String(b.by || "Carlos").slice(0, 40), Date.now(), id).run();
         const chosen = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(id).first();
         const batch = back ? null : await ensureMissionBatchFromDecision(env, chosen);
-        return json({ ok: true, id, chosen: idx, option: o[idx], cancelled: back, batch });
+        await attachDisplayRefs(env, "window", chosen, (row) => row.id, (row) => row.created_at);
+        return json({ ok: true, id, display_ref: chosen.display_ref, chosen: idx, option: o[idx], cancelled: back, batch });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     if (/^\/decisions\/[^/]+$/.test(url.pathname) && req.method === "GET") {
@@ -4218,14 +4403,17 @@ var index_default = {
         const batch = await ensureMissionBatchFromDecision(env, d);
         const expired = d.status === "expired";
         const pOne = resolveProject(await projectIndex(env), d.project || "");
-        return json({ ok: true, id: d.id, status: d.status,
+        const item = { id: d.id, status: d.status,
                       chosen: d.chosen, recommended: d.recommended, options: o,
                       project: pOne.name, project_id: pOne.id, project_slug: d.project_slug || "", mission: d.mission || "", url: d.url || "",
                       parent_decision: d.parent_decision || "", batch_id: d.batch_id || "",
                       // si venció sin respuesta, el agente tira con la recomendada
                       effective: d.status === "decided" || d.status === "cancelled" ? d.chosen : (expired ? d.recommended : null),
                       batch,
-                      secondsLeft: Math.max(0, Math.round((d.deadline - now) / 1000)) });
+                      created_at: d.created_at, deadline: d.deadline, decided_at: d.decided_at,
+                      secondsLeft: Math.max(0, Math.round((d.deadline - now) / 1000)) };
+        await attachDisplayRefs(env, "window", item, (row) => row.id, (row) => row.created_at);
+        return json({ ok: true, ...item });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     if (url.pathname === "/prefs/customize" && req.method === "GET") {

@@ -105,16 +105,18 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     <div>
       <h2>Una referencia para todo el trabajo</h2>
       <p>Objetivos, ventanas, misiones y tareas usan el mismo contador del día. Las letras iniciales desaparecen del rótulo humano; el tipo ya lo explica la pantalla y no debe ocupar la referencia.</p>
-      <div class="formula">NNNN.DD/MM.HH:MM → 0026.02/08.13:00</div>
+      <div class="formula">NNNN.DD/MM/AAAA.HH:MM → 0026.02/08/2026.13:00</div>
       <table aria-label="Nomenclatura común del trabajo">
         <thead><tr><th>Parte</th><th>Significado</th><th>Norma</th></tr></thead>
         <tbody>
           <tr><td>NNNN</td><td>Turno común del día</td><td>0000…9999</td></tr>
           <tr><td>DD/MM</td><td>Día y mes en Madrid</td><td>02/08</td></tr>
+          <tr><td>AAAA</td><td>Año completo de alta</td><td>2026</td></tr>
           <tr><td>HH:MM</td><td>Hora de alta en Madrid</td><td>13:00</td></tr>
           <tr><td>Cambio de día</td><td>Reinicio de la secuencia</td><td>vuelve a 0000</td></tr>
         </tbody>
       </table>
+      <p>La API entrega esta referencia como <code>display_ref</code>. Mientras un registro antiguo aún no la tenga, la interfaz usa <code>0000.DD/MM/AAAA.HH:MM</code> desde <code>created_at</code>: el <code>0000</code> declara que no conoce el turno y evita inventar una secuencia.</p>
       <p>Los IDs técnicos como <code>FLT-…</code>, <code>DEC-…</code> o los códigos <code>a/b/c</code> se conservan por dentro para enlaces e integraciones, pero nunca sustituyen la referencia visible.</p>
     </div>
   </section>

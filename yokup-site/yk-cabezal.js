@@ -466,7 +466,7 @@
           const maquina = ALTA_SEL.machine, trio = trioDe(maquina);
           if (!trio.length) throw new Error("no hay CLIs operativos en " + YkMisiones.canonMachine(maquina));
           const ids = [];
-          for (const a of trio) { const d = await crearUnEncargo(a.persona, maquina, encargo, txt, pa, a.runtime, a.host); ids.push("FLT-" + d.id + " (" + a.runtime + ")"); }
+          for (const a of trio) { await crearUnEncargo(a.persona, maquina, encargo, txt, pa, a.runtime, a.host); ids.push(a.runtime); }
           msg.className = "alta-msg ok"; msg.textContent = "✓ " + trio.length + " misiones en " + YkMisiones.canonMachine(maquina) + ": " + ids.join(" · ") + (pa ? " ⚡" : "");
           $("altaTxt").value = ""; altaAdj.clear(); detectaAlta(); resetPa();
           radar(); if (opts.onCreated) opts.onCreated(); go.disabled = false; return;
@@ -481,7 +481,7 @@
         const d = await crearUnEncargo(persona, maquina, encargo, txt, pa, runtime, host);
         const destino = persona ? (persona + (maquina ? " en " + YkMisiones.canonMachine(maquina) : "")) : ("la máquina " + YkMisiones.canonMachine(maquina) + " (quien esté allí)");
         const nimg = altaAdj.urls().length;
-        msg.className = "alta-msg ok"; msg.textContent = "✓ FLT-" + d.id + (pa ? " ⚡ PRIORIDAD" : "") + (nimg ? " 🖼×" + nimg : "") + " dada de alta y asignada a " + destino;
+        msg.className = "alta-msg ok"; msg.textContent = "✓ misión" + (pa ? " ⚡ PRIORIDAD" : "") + (nimg ? " 🖼×" + nimg : "") + " dada de alta y asignada a " + destino;
         $("altaTxt").value = ""; altaAdj.clear(); detectaAlta(); resetPa();
         radar(); if (opts.onCreated) opts.onCreated();
       } catch (err) {

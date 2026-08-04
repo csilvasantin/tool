@@ -19,6 +19,7 @@
   "use strict";
   var CSS = ".decs{margin:0 0 18px;border:1px solid var(--warn,#ffb545);border-radius:12px;background:rgba(255,181,69,.05);padding:13px 15px}.decs-hd{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--warn,#ffb545);font-weight:700;display:flex;gap:9px;margin-bottom:11px}.decs-n{color:var(--mut)}.decs-list,.dec-opts{display:flex;flex-direction:column;gap:8px}.dec{border:1px solid var(--line2);border-radius:10px;background:var(--card);padding:12px 13px;min-width:0}.dec.urge{border-color:#ff6b6b}.dec-project{display:grid;gap:5px;margin:-1px 0 12px;padding:0 0 11px;border-bottom:1px solid var(--line2)}.dec-project-label{font-family:var(--mono);font-size:9px;line-height:1.3;font-weight:800;letter-spacing:.15em;text-transform:uppercase;color:var(--good,#3df08a)}.dec-project-name{margin:0;color:var(--ink);font-size:clamp(16px,2.1vw,20px);line-height:1.2;font-weight:800;overflow-wrap:anywhere}.dec-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}.dec-k,.dec-clock,.dec-done{font-family:var(--mono);font-size:10px}.dec-k{color:var(--mut);border:1px solid var(--line);border-radius:6px;padding:3px 7px}.dec-clock{margin-left:auto;color:var(--warn,#ffb545);font-size:15px;font-weight:700}.dec-q{font-size:13px;line-height:1.4;color:var(--ink);margin-bottom:10px}.dec-opt{display:flex;gap:8px;text-align:left;width:100%;font:inherit;font-size:12px;color:var(--ink);cursor:pointer;background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 10px}.dec-opt:focus-visible{outline:3px solid var(--ink);outline-offset:2px}.dec-opt.rec{border-color:var(--warn,#ffb545);position:relative;overflow:hidden;--fill:0%}.dec-opt.rec:before{content:'';position:absolute;inset:0 auto 0 0;width:var(--fill);background:rgba(255,181,69,.18);transition:width 1s linear}.dec-opt span{position:relative}.dec-opt .n{font-family:var(--mono);color:var(--mut)}.dec-opt:disabled{cursor:default;opacity:.72}.dec-opt.effective{opacity:1;border-color:var(--good,#3df08a);background:rgba(61,240,138,.09);box-shadow:inset 3px 0 0 var(--good,#3df08a)}.dec-opt.effective.expired{border-color:var(--warn,#ffb545);background:rgba(255,181,69,.08);box-shadow:inset 3px 0 0 var(--warn,#ffb545)}.dec-done{padding-top:8px}.dec-done.ok{color:var(--good,#3df08a)}.dec-done.exp{color:var(--mut)}.dec-batch{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:11px;color:var(--mut)}.dec-batch b{color:var(--ink)}.dec-batch.paused{color:var(--warn,#ffb545)}@media(max-width:520px){.decs{padding:11px}.dec{padding:11px}.dec-project-name{font-size:16px}.dec-clock{width:100%;margin-left:0}.dec-opt{font-size:13px;padding:10px}}";
   CSS += ".dec-project-rest{font-family:var(--mono);font-size:10px;color:var(--mut)}";
+  CSS += ".dec-ref{color:var(--accent,#ffd866);font-weight:700}";
   /* RETRATO del agente en la ficha (FLT-985 a). Fuera el 👷: cada persona de
      silicio tiene cara, y es la misma que enseña /misiones — sale de yk-avatar.js.
      Quien no tenga retrato cae en sus iniciales, no en otro emoji. */
@@ -103,6 +104,13 @@
   }
   function mmss(s) { s = Math.max(0, s | 0); return ((s / 60) | 0) + ":" + String(s % 60).padStart(2, "0"); }
   function pct(d) { var total = Math.max(1, Math.round(((d.deadline || 0) - (d.created_at || 0)) / 1000)); return Math.max(0, Math.min(100, Math.round((1 - d.secondsLeft / total) * 100))); }
+  function workRef(d) {
+    if (window.YkDisplayRef && window.YkDisplayRef.of) return window.YkDisplayRef.of(d || {});
+    var supplied=String(d&&d.display_ref||"").trim(); if(supplied)return supplied;
+    var n=+(d&&d.created_at||0);if(n&&n<4102444800)n*=1000;if(!n)return "0000.--/--/----.--:--";
+    try{var parts={},fmt=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Madrid",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hourCycle:"h23"});fmt.formatToParts(new Date(n)).forEach(function(x){if(x.type!=="literal")parts[x.type]=x.value;});return "0000."+parts.day+"/"+parts.month+"/"+parts.year+"."+parts.hour+":"+parts.minute;}
+    catch(e){var x=new Date(n),p=function(v){return String(v).padStart(2,"0");};return "0000."+p(x.getDate())+"/"+p(x.getMonth()+1)+"/"+x.getFullYear()+"."+p(x.getHours())+":"+p(x.getMinutes());}
+  }
   // Hora del sello, compacta y local (Carlos: menos es más). Si cayó hoy sólo
   // HH:MM; otro día, DD/MM · HH:MM — la hora importa siempre («a qué hora»).
   function when(ts) {
@@ -132,7 +140,7 @@
       var exec = esc(agenteVisible(d.agent || "—", d.machine)) + (d.machine ? " · " + esc(d.machine) : "");
       bits.push("<span>ejecuta <b>" + exec + "</b></span>");
     }
-    bits.push("<span>" + esc(d.display_ref || d.id) + "</span>");
+    bits.push('<span class="dec-ref" title="ID técnico: ' + esc(d.id) + '">' + esc(workRef(d)) + "</span>");
     return bits.length ? "<div class=\"dec-stamp\">" + bits.join("") + "</div>" : "";
   }
   function canRollbackClosedImprovement(d, i) {
@@ -156,7 +164,7 @@
     var batch = d.batch, batchHtml = "";
     if (batch) { var active = (batch.items || []).filter(function (x) { return x.status === "active"; })[0]; var queued = (batch.items || []).filter(function (x) { return x.status === "queued"; }); batchHtml = "<div class=\"dec-batch" + (batch.status === "paused" ? " paused" : "") + "\">" + (batch.status === "paused" ? "⏸ <b>cola pausada</b>: " + esc(batch.pause_reason || "requiere decisión") : batch.status === "completed" ? "✓ <b>tanda completada</b>" : "▶ <b>activa</b>: " + esc(active ? active.title : "preparando") + " · cola: " + queued.map(function (x) { return esc(x.title); }).join(" → ")) + "</div>"; }
     var projectTag = opts && opts.nested ? "h4" : "h3";
-    var topRow = "<div class=\"dec-top\"><span class=\"dec-k\">🖥 " + esc(d.machine || "—") + "</span>" + agentePinta(d.agent, d.machine) + "<span class=\"dec-k\">" + (String(d.surface || "").toUpperCase() === "CLI" ? "⌨ CLI" : "🖥 Desktop App") + "</span>" + (pending ? "<span class=\"dec-clock\" data-clock=\"" + esc(d.id) + "\" role=\"timer\" aria-label=\"Tiempo restante\">" + mmss(d.secondsLeft) + "</span>" : "") + "</div>";
+    var topRow = "<div class=\"dec-top\"><span class=\"dec-k dec-ref\" title=\"ID técnico: " + esc(d.id) + "\">" + esc(workRef(d)) + "</span><span class=\"dec-k\">🖥 " + esc(d.machine || "—") + "</span>" + agentePinta(d.agent, d.machine) + "<span class=\"dec-k\">" + (String(d.surface || "").toUpperCase() === "CLI" ? "⌨ CLI" : "🖥 Desktop App") + "</span>" + (pending ? "<span class=\"dec-clock\" data-clock=\"" + esc(d.id) + "\" role=\"timer\" aria-label=\"Tiempo restante\">" + mmss(d.secondsLeft) + "</span>" : "") + "</div>";
     var body = topRow + "<div class=\"dec-q\">" + esc(d.question) + "</div><div class=\"dec-opts\">" + optsHtml + "</div>" + result + batchHtml;
     var stampHtml = opts && opts.stamp ? stamp(d) : "";
     // VIVO: el reloj y las opciones pulsables NO se pliegan — manda la información viva.

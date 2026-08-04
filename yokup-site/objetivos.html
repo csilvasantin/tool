@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="/acceso.js"></script>
+<script src="/yk-display-ref.js?v=1"></script>
 <title>Objetivos · Yokup</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#02080d">
@@ -109,6 +110,8 @@
   .st.hecha{color:#04232a;background:var(--good)} .st.descartada{color:var(--mut);background:#132029;border:1px solid var(--line)}
   .st.mision{color:#04232a;background:var(--mis)}
   .idea .tag{font:600 10.5px var(--mono);color:var(--brand);opacity:.85}
+  .work-ref{font:700 10px var(--mono);color:var(--accent);white-space:nowrap;letter-spacing:.02em}
+  .list .work-ref{flex:none}
   /* chip del proyecto del censo (FLT-1009): enlaza a su web si la tiene */
   .idea .pchip,.list .lproj{font:700 9.5px var(--mono);letter-spacing:.03em;white-space:nowrap;
     color:var(--mis);border:1px solid var(--line);border-radius:999px;padding:3px 8px;text-decoration:none;background:#06121a}
@@ -457,6 +460,7 @@ document.getElementById("fSeat").innerHTML=seatOpts("");
 
 function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),2200); }
 function fecha(ms){ try{ return new Date(ms).toLocaleDateString("es-ES",{day:"2-digit",month:"short"}); }catch(e){ return ""; } }
+function workRef(row){ return window.YkDisplayRef.of(row||{}); }
 
 // ⏳ La idea abrió un reloj de decisión (POST /ideas/decide) y aún no es misión:
 // mientras corre la ventana (o hasta que su tanda materialice la misión) mostramos
@@ -473,11 +477,11 @@ function card(i){
   const kit=kitBlock(i); // Kit de venta (FLT-1007): '' si no hay adjuntos
   const delX='<button class="del" data-rm="'+esc(i.id)+'" title="Eliminar para siempre">✕</button>';
   return '<div class="idea'+(cons?' consejo '+side:'')+'"><label title="Seleccionar para cambio masivo"><input type="checkbox" data-bulk-id="'+esc(i.id)+'"'+(SEL.has(i.id)?' checked':'')+'> seleccionar</label><input type="date" data-date-for="'+esc(i.id)+'" value="'+esc(i.scheduled_for||ymd(new Date(i.created_at)))+'" title="Día planificado">'+
-    '<div class="top"><span class="st '+st+'">'+STLABEL[st]+'</span>'+
+    '<div class="top"><span class="st '+st+'">'+STLABEL[st]+'</span><span class="work-ref" title="ID técnico: '+esc(i.id)+'">'+esc(workRef(i))+'</span>'+
       (cons?'<span class="csign'+(side==="cre"?" cre":"")+'" title="Idea del Consejo">✦ '+esc(i.author||"Consejo")+'</span>'
            :(i.tag?'<span class="tag">#'+esc(i.tag)+'</span>':''))+
       projChip(i.project,"pchip")+
-      (i.mission_id?'<a class="flt" href="/tareas?mission='+encodeURIComponent(i.mission_id)+'" title="ver la misión">'+esc(i.mission_id)+' ↗</a>'
+      (i.mission_id?'<a class="flt" href="/tareas?mission='+encodeURIComponent(i.mission_id)+'" title="Ver misión · ID técnico '+esc(i.mission_id)+'">ver misión ↗</a>'
         :(pend?'<a class="flt pend" href="/decisiones" title="Ventana de decisión abierta (3 min)">⏳ decisión ↗</a>':''))+'</div>'+
     '<h3>'+esc(i.title)+'</h3>'+
     (i.body?'<div class="body">'+esc(i.body)+'</div>':'')+
@@ -510,7 +514,7 @@ function listRow(i){
   const cons=isConsejo(i), side=cons?seatSide(i.seat):"";
   const seatL=i.seat?(SEATLABEL[i.seat]||String(i.seat).toUpperCase()):"";
   return '<div class="lrow'+(cons?' consejo '+side:'')+'"><input type="checkbox" data-bulk-id="'+esc(i.id)+'"'+(SEL.has(i.id)?' checked':'')+' title="Seleccionar para cambio masivo"><input type="date" data-date-for="'+esc(i.id)+'" value="'+esc(i.scheduled_for||TODAY)+'" title="Día planificado">'+
-    '<span class="st '+st+'">'+STLABEL[st]+'</span>'+
+    '<span class="st '+st+'">'+STLABEL[st]+'</span><span class="work-ref" title="ID técnico: '+esc(i.id)+'">'+esc(workRef(i))+'</span>'+
     '<span class="ltitle" title="'+esc(i.title)+'">'+esc(i.title)+'</span>'+
     (hasMedia(i)?'<span class="lkit" title="Tiene Kit de venta (audio·vídeo·presentación·pdf)">🎬</span>':'')+
     (cons?'<span class="lsign">✦ '+esc(i.author||"Consejo")+'</span>'
@@ -520,7 +524,7 @@ function listRow(i){
     projChip(i.project,"lproj")+
     '<span class="ldate">'+fecha(i.created_at)+'</span>'+
     '<span class="lacts">'+
-      (i.mission_id?'<a class="flt" href="/tareas?mission='+encodeURIComponent(i.mission_id)+'" title="ver la misión">'+esc(i.mission_id)+' ↗</a>':
+      (i.mission_id?'<a class="flt" href="/tareas?mission='+encodeURIComponent(i.mission_id)+'" title="Ver misión · ID técnico '+esc(i.mission_id)+'">ver misión ↗</a>':
         (pend?'<a class="flt pend" href="/decisiones" title="Ventana de decisión abierta (3 min)">⏳ decisión ↗</a>':
         (!isMis?'<button class="mis" data-mis="'+esc(i.id)+'" title="Abrir ventana de decisión (3 min · 3 opciones)">→ misión</button>':'')))+
       (hasReview(i)?'<button class="delibtog" data-delib="'+esc(i.id)+'" title="El Consejo delibera">⚖️</button>':'')+
@@ -641,7 +645,7 @@ async function promote(id){
     await fetch(WORKER+"/fleet/sync",{method:"POST"}).catch(()=>{});
     await fetch(WORKER+"/ideas/promote",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,mission_id:flt})});
     it.status="mision"; it.mission_id=flt; render();
-    toast("✓ "+flt+" creada");
+    toast("✓ misión creada");
   }catch(e){ toast("No se pudo crear la misión"); }
 }
 // «→ misión»: NO crea ya un FLT a mano. Abre una VENTANA DE DECISIÓN de 3 minutos
