@@ -22,7 +22,7 @@ function functionSource(name){
 }
 
 const familyApi=new Function("window","ykAgentIdentity",[
-  "paAgentId","paFamilyId","paAgentRole","paTeamKey","paAgentFamilies"
+  "paStopKey","paAgentId","paFamilyId","paAgentRole","paTeamKey","paAgentFamilies"
 ].map(functionSource).join("\n")+"\nreturn {paAgentFamilies};")({ykAgentIdentity:identity},identity);
 
 test("el Dashboard vive en /dashboard y conserva /agentica sólo como retorno compatible",async()=>{

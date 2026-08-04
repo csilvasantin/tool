@@ -69,6 +69,7 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
 .pa-project-summary,.pa-team-summary{list-style:none;display:flex;align-items:center;gap:6px;cursor:pointer;position:relative}.pa-project-summary::-webkit-details-marker,.pa-team-summary::-webkit-details-marker{display:none}.pa-project-summary{padding:6px 52px 6px 6px}.pa-team-summary{padding:4px 46px 4px 5px;min-height:34px}.pa-project-summary:focus-visible,.pa-team-summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.pa-project-main{min-width:0;flex:1}.pa-project-controls{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:3px}.pa-project-detail{padding:0 7px 7px;border-top:1px solid rgba(120,243,255,.08)}.pa-expand{font:800 7.5px/1 var(--mono);letter-spacing:.03em;text-transform:uppercase;color:var(--brand);white-space:nowrap}.pa-expand::after{content:" ›"}.pa-project-node[open] .pa-expand::after{content:" ×"}
 .pa-team-node{padding:0}.pa-team-node[open]>.pa-team-summary{border-bottom:1px solid rgba(120,243,255,.09)}
 .pa-node-top{display:flex;gap:6px;align-items:center}.pa-avatar,.pa-folder{width:25px;height:25px;border:1px solid var(--line2);border-radius:7px;display:grid;place-items:center;background:rgba(120,243,255,.07);font:700 8px/1 var(--mono);color:var(--brand);flex:none}.pa-folder{position:relative;width:46px;height:30px;overflow:hidden;font-size:13px;color:inherit;background:color-mix(in srgb,var(--pc) 9%,transparent);border-color:color-mix(in srgb,var(--pc) 45%,transparent)}.pa-folder span{grid-area:1/1}.pa-folder img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
+.pa-stop-list{display:flex;align-items:center;justify-content:flex-end;gap:4px;flex-wrap:wrap;margin-left:auto}.pa-stop{min-height:24px;border:1px solid rgba(255,92,92,.58);border-radius:7px;background:rgba(255,72,72,.09);color:#ff7272;font:800 7.4px/1.15 var(--mono);padding:4px 6px;cursor:pointer;white-space:nowrap}.pa-stop::first-letter{font-size:12px}.pa-stop:hover,.pa-stop:focus-visible{border-color:#ff7272;background:rgba(255,72,72,.2);box-shadow:0 0 12px rgba(255,72,72,.2);outline:2px solid rgba(255,114,114,.45);outline-offset:1px}.pa-stop:disabled{cursor:not-allowed;opacity:.38;box-shadow:none}.pa-stop-status{flex-basis:100%;font:7px/1.2 var(--mono);text-align:right;color:var(--dim)}.pa-stop-status.sending,.pa-stop-status.queued,.pa-stop-status.accepted,.pa-stop-status.running{color:var(--accent)}.pa-stop-status.stopped{color:var(--good)}.pa-stop-status.failed{color:var(--warn)}
 .pa-name{min-width:0;flex:1}.pa-name b{display:block;font-size:11.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pa-name span{display:block;font-family:var(--mono);font-size:7.7px;letter-spacing:.03em;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
 .pa-state{font-family:var(--mono);font-size:7.2px;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--line);border-radius:999px;padding:2px 5px;color:var(--mut)}.pa-state.activo{color:var(--good);border-color:rgba(136,255,170,.28)}.pa-state.pausado{color:var(--accent);border-color:rgba(255,216,102,.28)}
 .pa-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;font-family:var(--mono);font-size:8.8px;color:var(--dim)}.pa-meta a{color:var(--brand);text-decoration:none}.pa-meta a:hover{text-decoration:underline}.pa-live{color:var(--good)}.pa-offline{color:var(--accent)}
@@ -208,6 +209,7 @@ const PRESENCE="https://admira-telegram.csilvasantin.workers.dev/api/presence";
 const BROWSERS="https://admira-navegadores.csilvasantin.workers.dev/api/browsers";
 const PROJECTS_API="https://api.yokup.com";
 const AGENT_FRESH_SECONDS=240;
+const AGENT_STOP_FRESH_SECONDS=30;
 const AGENT_REFRESH_MS=3000;
 const PROJECT_REFRESH_MS=60000;
 let PROJECT_ROWS=[];
@@ -215,6 +217,8 @@ let PROJECT_LIVE_ROSTER=[];
 let PROJECT_ROSTER=[];
 let PROJECT_BUSY="";
 let PROJECT_DECISION_BUSY="";
+let PROJECT_STOP_BUSY="";
+const PROJECT_STOP_STATES=new Map();
 let PROJECT_REFRESH_TIMER=0;
 let PROJECT_REFRESH_BUSY=false;
 let LINK_DRAG=null;
@@ -295,6 +299,22 @@ function paRuntimeSurface(row){
   const runtime=String(row&&row.runtime||"agente").trim()||"agente",host=paHost(row&&row.host);
   return runtime+(host?" "+host:"");
 }
+function paStopKey(row){
+  return [row&&row.machine,row&&row.persona,row&&row.runtime,row&&row.host,row&&row.session_id,row&&row.pid].map(value=>String(value||"").trim().toLowerCase()).join("|");
+}
+function paIsStoppableSurface(row,now=Date.now()/1000){
+  const host=String(row&&row.host||"").trim().toLowerCase(),updated=Number(row&&row.updated||0),pid=Number(row&&row.pid||0);
+  return !!(row&&row.online===true&&row.verified===true&&row.source==="process_snapshot"&&updated&&now-updated<=AGENT_STOP_FRESH_SECONDS&&now>=updated&&String(row.machine||"").trim()&&String(row.persona||"").trim()&&String(row.runtime||"").trim()&&(host==="app"||host==="cli")&&String(row.session_id||"").trim()&&Number.isInteger(pid)&&pid>0);
+}
+function paStoppableSurfaces(agent,now=Date.now()/1000){return (agent&&agent.surfaces||[]).filter(row=>paIsStoppableSurface(row,now));}
+function paStopControls(agent){
+  const exact=paStoppableSurfaces(agent);
+  if(!exact.length)return '<div class="pa-stop-list"><button type="button" class="pa-stop" disabled aria-label="No se puede detener '+esc(agent.id)+' sin una superficie viva, verificada y exacta" title="Parada no disponible: hace falta process_snapshot verificado de menos de 30 segundos con sesión y PID exactos">×</button></div>';
+  return '<div class="pa-stop-list" aria-label="Detener una superficie exacta de '+esc(agent.id)+'">'+exact.map(slot=>{
+    const key=paStopKey(slot),label=paRuntimeSurface(slot),status=PROJECT_STOP_STATES.get(key)||"",prompt="Detener "+agent.id+" · "+label+" en "+slot.machine,busy=!!PROJECT_STOP_BUSY;
+    return '<button type="button" class="pa-stop" data-pa-stop="'+esc(key)+'" aria-label="'+esc(prompt)+'" title="'+esc(prompt)+'"'+(busy?' disabled aria-busy="true"':'')+'>× '+esc(label)+'</button>'+(status?'<span class="pa-stop-status '+esc(status)+'" role="status" aria-live="polite">'+esc(status)+'</span>':'');
+  }).join("")+'</div>';
+}
 function paInitials(agent){
   const ready=String(agent&&agent.initials||"").trim(); if(ready)return ready.slice(0,3).toUpperCase();
   return String(agent&&agent.name||agent&&agent.id||"?").trim().split(/\s+/).map(x=>x[0]).join("").slice(0,2).toUpperCase();
@@ -360,7 +380,7 @@ function paPhysicalAgents(rows){
     if(!id||/SINMAQ$/.test(id))return;
     const team=paTeamKey(p.machine),teamMachine=window.ykAgentIdentity&&ykAgentIdentity.canonicalMachine?ykAgentIdentity.canonicalMachine(id):(p.machine||"");
     const host=String(p.host||"").toLowerCase(),runtime=p.runtime||"",instanceId=id+"|"+String(runtime).toLowerCase()+"|"+(host||"unknown");
-    const agent={id,instanceId,name:id,persona:p.persona||"",machine:p.machine||"",team,teamMachine:teamMachine||p.machine||"",runtime,host,model:p.model||"",focus:p.focus||"",updated:p.updated||0,verified:!!p.verified,verifiedAt:p.verifiedAt||0,online:true};
+    const agent={id,instanceId,name:id,persona:p.persona||"",machine:p.machine||"",team,teamMachine:teamMachine||p.machine||"",runtime,host,model:p.model||"",focus:p.focus||"",updated:p.updated||0,verified:!!p.verified,verifiedAt:p.verifiedAt||0,source:p.source||"",session_id:p.session_id||"",pid:Number(p.pid||0)||0,online:true};
     const previous=bySlot.get(instanceId); if(!previous||agent.updated>previous.updated)bySlot.set(instanceId,agent);
   });
   return [...bySlot.values()].sort((a,b)=>(b.updated||0)-(a.updated||0)||a.id.localeCompare(b.id,"es")||a.instanceId.localeCompare(b.instanceId,"es"));
@@ -427,7 +447,7 @@ function paAgentFamilies(rows){
   });
   return [...families.values()].map(family=>{
     const all=family.slots.concat(family.helpers),lead=(family.slots.slice().sort((a,b)=>Number(b.online)-Number(a.online)||(b.updated||0)-(a.updated||0))[0]||all[0]||{});
-    const uniqueSlots=list=>[...new Map(list.map(slot=>[String(slot.runtime||"").toLowerCase()+"|"+String(slot.host||"").toLowerCase(),slot])).values()];
+    const uniqueSlots=list=>[...new Map(list.map(slot=>[paStopKey(slot),slot])).values()];
     const helperGroups=new Map();
     // Sub/Infra se reescriben con el MISMO apellido que su familia: si la madre sale
     // NeoMacMini, sus capas no pueden seguir enseñando el NeoMini heredado (regla 03).
@@ -494,12 +514,12 @@ function paRender(){
     const projectCount=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasTeam(project,team.key)).length;
     const agents=team.agents.map(agent=>{
       const assignedProjects=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasFamily(project,agent));
-      const actions=assignedProjects.length?assignedProjects.map(project=>'<div class="pa-agent-project"><span>'+esc(project.name||project.id)+'</span><div class="pa-action-row"><button type="button" class="pa-decision" data-pa-decision="'+esc(project.id)+'" data-pa-decision-agent="'+esc(agent.id)+'"'+(PROJECT_DECISION_BUSY?' disabled':'')+'>⏳ Ventana de Decisión</button><button type="button" class="pa-mini" data-pa-family-remove="'+esc(agent.id)+'" data-project="'+esc(project.id)+'" aria-label="Retirar la familia '+esc(agent.id)+' de '+esc(project.name||project.id)+'">×</button></div></div>').join(""):'<div class="pa-agent-empty">Arrastra la flecha hacia un proyecto</div>';
+      const actions=assignedProjects.length?assignedProjects.map(project=>'<div class="pa-agent-project"><span>'+esc(project.name||project.id)+'</span><div class="pa-action-row"><button type="button" class="pa-decision" data-pa-decision="'+esc(project.id)+'" data-pa-decision-agent="'+esc(agent.id)+'" aria-label="Decidir mejoras · '+esc(project.name||project.id)+' con '+esc(agent.id)+'"'+(PROJECT_DECISION_BUSY?' disabled':'')+'>⏳ Decidir mejoras · '+esc(project.name||project.id)+'</button><button type="button" class="pa-mini" data-pa-family-remove="'+esc(agent.id)+'" data-project="'+esc(project.id)+'" aria-label="Retirar la familia '+esc(agent.id)+' de '+esc(project.name||project.id)+'">×</button></div></div>').join(""):'<div class="pa-agent-empty">Arrastra la flecha hacia un proyecto</div>';
       const selected=LINK_CLICK_AGENT===agent.id;
       const surfaces=agent.surfaces.map(paRuntimeSurface),surface=surfaces.join(" + ")||"sin superficie principal activa",surfaceTitle=agent.surfaces.map(slot=>{const model=String(slot.model||"").trim(),label=paRuntimeSurface(slot);return model?label+' · '+model:label;}).join(" · ");
       const surfaceChips=surfaces.length?'<div class="pa-surfaces">'+surfaces.map(label=>'<span class="pa-surface">'+esc(label)+'</span>').join("")+'</div>':'';
       const helpers=agent.helpers.length?'<div class="pa-family-helpers">'+agent.helpers.map(helper=>{const helperSurfaces=helper.slots.map(paRuntimeSurface).join(" + ")||(helper.assigned?"asignado · sin actividad":"sin superficie activa"),role=helper.role==="sub"?"ejecución":"infra · QA",projects=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasAgent(project,helper.id)).length;return '<div class="pa-helper"><b>'+esc(helper.id)+'</b><em>'+esc(role)+'</em><span>'+esc(helperSurfaces)+' · '+projects+' proyecto'+(projects===1?'':'s')+'</span></div>';}).join("")+'</div>':'';
-      return '<article class="pa-agent-node'+(agent.online?'':' offline')+(selected?' selected':'')+'" data-agent-node="'+esc(agent.instanceId)+'" data-agent-family="'+esc(agent.id)+'" data-agent-ref="'+esc(agent.id)+'" data-agent-online="'+(agent.online?'true':'false')+'"><button type="button" class="pa-port" data-link-agent="'+esc(agent.id)+'" aria-label="Conectar '+esc(agent.id)+' con un proyecto" title="Arrastra '+esc(agent.id)+' hasta un proyecto">←</button><div class="pa-node-top"><div class="pa-avatar">'+esc(paInitials(agent))+'</div><div class="pa-name"><b>'+esc(agent.id)+'</b><span title="'+esc(surfaceTitle)+'">'+esc(surface)+' · '+esc(agent.teamMachine||agent.machine)+'</span></div></div>'+surfaceChips+'<div class="pa-meta"><span class="'+(agent.online?'pa-live':'pa-offline')+'">'+(agent.online?'● '+(agent.verified?'familia verificada':'familia con latido'):'○ asignado · sin actividad')+'</span>'+(agent.updated?'<span>'+agoS(agent.updated)+'</span>':'')+'<span>'+assignedProjects.length+' proyecto'+(assignedProjects.length===1?'':'s')+'</span></div>'+helpers+'<div class="pa-actions">'+actions+'</div></article>';
+      return '<article class="pa-agent-node'+(agent.online?'':' offline')+(selected?' selected':'')+'" data-agent-node="'+esc(agent.instanceId)+'" data-agent-family="'+esc(agent.id)+'" data-agent-ref="'+esc(agent.id)+'" data-agent-online="'+(agent.online?'true':'false')+'"><button type="button" class="pa-port" data-link-agent="'+esc(agent.id)+'" aria-label="Conectar '+esc(agent.id)+' con un proyecto" title="Arrastra '+esc(agent.id)+' hasta un proyecto">←</button><div class="pa-node-top"><div class="pa-avatar">'+esc(paInitials(agent))+'</div><div class="pa-name"><b>'+esc(agent.id)+'</b><span title="'+esc(surfaceTitle)+'">'+esc(surface)+' · '+esc(agent.teamMachine||agent.machine)+'</span></div>'+paStopControls(agent)+'</div>'+surfaceChips+'<div class="pa-meta"><span class="'+(agent.online?'pa-live':'pa-offline')+'">'+(agent.online?'● '+(agent.verified?'familia verificada':'familia con latido'):'○ asignado · sin actividad')+'</span>'+(agent.updated?'<span>'+agoS(agent.updated)+'</span>':'')+'<span>'+assignedProjects.length+' proyecto'+(assignedProjects.length===1?'':'s')+'</span></div>'+helpers+'<div class="pa-actions">'+actions+'</div></article>';
     }).join("");
     const nodeKey=paNodeKey("team",team.key);
     return '<details class="pa-team-node" data-team-key="'+esc(team.key)+'" data-pa-node-key="'+esc(nodeKey)+'" style="'+paNodeVars(nodeKey)+'"'+(openTeams.has(team.key)?' open':'')+'><summary class="pa-team-summary"><div class="pa-avatar">▣</div><div class="pa-name"><b title="'+esc(team.machine)+'">'+esc(team.machine)+'</b><span>'+team.agents.length+' agente'+(team.agents.length===1?'':'s')+' principal'+(team.agents.length===1?'':'es')+' · '+projectCount+' proyecto'+(projectCount===1?'':'s')+'</span></div><span class="pa-expand">agentes</span><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(team.machine)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-team="'+esc(team.key)+'" aria-label="Ocultar '+esc(team.machine)+'" title="Ocultar equipo">×</button></summary><div class="pa-team-agents">'+agents+'</div></details>';
@@ -523,6 +543,7 @@ function paRender(){
     port.onclick=e=>{if(e.detail===0){LINK_CLICK_AGENT=port.dataset.linkAgent;paRender();paMessage("Selecciona el proyecto para "+LINK_CLICK_AGENT);}};
   });
   teamsBox.querySelectorAll("[data-pa-decision]").forEach(button=>button.onclick=()=>paOpenDecision(button.dataset.paDecision,button.dataset.paDecisionAgent));
+  teamsBox.querySelectorAll("[data-pa-stop]").forEach(button=>button.onclick=()=>paStopSurface(button.dataset.paStop));
   teamsBox.querySelectorAll("[data-pa-hide-team]").forEach(button=>button.onclick=event=>{event.preventDefault();event.stopPropagation();TEAM_SCOPE=paSetScopeItem(TEAM_SCOPE,button.dataset.paHideTeam,false,teams.map(team=>team.key));TEAM_FILTER="all";paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);paRender();paMessage("Equipo oculto · recupéralo desde Avanzado");});
   document.querySelectorAll("[data-pa-agent-remove]").forEach(button=>button.onclick=()=>paAssignAgent(button.dataset.project,button.dataset.paAgentRemove,true));
   document.querySelectorAll("[data-pa-family-remove]").forEach(button=>button.onclick=()=>paRemoveFamily(button.dataset.project,button.dataset.paFamilyRemove));
@@ -678,6 +699,24 @@ async function paRemoveFamily(project,familyId){
     paMessage("✓ "+familyId+" y sus auxiliares retirados","ok");
   }catch(e){paMessage("✗ "+(e&&e.message||e),"err");}
   finally{PROJECT_BUSY="";paRender();}
+}
+async function paStopSurface(surfaceKey){
+  if(PROJECT_STOP_BUSY)return;
+  const families=paAgentFamilies(PROJECT_ROSTER),family=families.find(item=>(item.surfaces||[]).some(slot=>paStopKey(slot)===surfaceKey)),slot=family&&(family.surfaces||[]).find(item=>paStopKey(item)===surfaceKey);
+  if(!family||!slot||!paIsStoppableSurface(slot)){paMessage("La superficie ya no está viva, verificada o es ambigua · actualiza el pulso","err");await paLoad("stop");return;}
+  const label=paRuntimeSurface(slot),prompt="Detener "+family.id+" · "+label+" en "+slot.machine;
+  if(!confirm(prompt))return;
+  PROJECT_STOP_BUSY=surfaceKey;PROJECT_STOP_STATES.set(surfaceKey,"sending");paRender();paMessage("Enviando parada protegida · "+label+" en "+slot.machine+"…");
+  try{
+    const body={machine:slot.machine,persona:slot.persona,runtime:slot.runtime,host:slot.host,session_id:slot.session_id,pid:slot.pid};
+    const result=await paJson("/fleet/agent/stop",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}),status=String(result.status||"queued").toLowerCase();
+    if(status==="failed")throw new Error("La orden de parada falló");
+    const accepted=/^(queued|accepted|running|stopped)$/.test(status)?status:"queued";
+    PROJECT_STOP_STATES.set(surfaceKey,accepted);paRender();paMessage((accepted==="stopped"?"✓ parada completada":"⏳ parada "+accepted)+" · "+family.id+" · "+label,accepted==="stopped"?"ok":"");
+    await paLoad("stop");
+    paMessage((accepted==="stopped"?"✓ parada completada":"⏳ parada "+accepted)+" · "+family.id+" · "+label+" · pulso actualizado",accepted==="stopped"?"ok":"");
+  }catch(e){PROJECT_STOP_STATES.set(surfaceKey,"failed");paMessage("✗ no se pudo detener "+family.id+" · "+label+" · "+(e&&e.message||e),"err");}
+  finally{PROJECT_STOP_BUSY="";paRender();}
 }
 async function paOpenDecision(projectId,agentId){
   if(PROJECT_DECISION_BUSY)return;
