@@ -239,7 +239,7 @@ test("proyectos y equipos se pueden ocultar por ficha y restaurar desde sus filt
   assert.match(source,/data-pa-hide-project=/);
   assert.match(source,/data-pa-hide-team=/);
   assert.match(source,/PROJECT_SCOPE=paSetScopeItem\(PROJECT_SCOPE,button\.dataset\.paHideProject,false/);
-  assert.match(source,/TEAM_SCOPE=paSetScopeItem\(TEAM_SCOPE,button\.dataset\.paHideTeam,false/);
+  assert.match(source,/TEAM_SCOPE=paSetExactScopeItem\(TEAM_SCOPE,button\.dataset\.paHideTeam,false/);
   assert.match(source,/recupéralo desde Opciones/);
   assert.match(source,/recupéralo desde Avanzado/);
 });
@@ -251,15 +251,18 @@ test("Opciones lista todos los proyectos y Avanzado todos los equipos con multis
   assert.match(source,/id="paTeamScopeList"/);
   assert.match(source,/const PROJECT_SCOPE_KEY="yokup\.dashboard\.projects\.v1"/);
   assert.match(source,/const TEAM_SCOPE_KEY="yokup\.dashboard\.teams\.v1"/);
+  assert.match(source,/function paReadProjectScope\(\)/);
+  assert.match(source,/function paWriteProjectScope\(scope\)/);
   assert.match(source,/function paReadScope\(key\)/);
   assert.match(source,/function paWriteScope\(key,scope\)/);
   assert.match(source,/function paSetScopeItem\(scope,key,checked,keys\)/);
+  assert.match(source,/function paSetExactScopeItem\(scope,key,checked,keys\)/);
   assert.match(source,/data-pa-scope-all/);
   assert.match(source,/data-pa-scope-item/);
   assert.match(source,/selected=scope===null\?items\.length/);
   assert.match(source,/paScopeAllows\(PROJECT_SCOPE,project\.id\)/);
   assert.match(source,/paScopeAllows\(TEAM_SCOPE,team\.key\)/);
-  assert.match(source,/paWriteScope\(PROJECT_SCOPE_KEY,PROJECT_SCOPE\)/);
+  assert.match(source,/paWriteProjectScope\(PROJECT_SCOPE\)/);
   assert.match(source,/paWriteScope\(TEAM_SCOPE_KEY,TEAM_SCOPE\)/);
 });
 

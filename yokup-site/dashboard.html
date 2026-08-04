@@ -233,12 +233,11 @@ const PROJECT_LAUNCH_HOSTS=Object.freeze(["pixeria.com","xpaceos.com","clearchan
 let SCOPE_DEFAULTS_PENDING=true;
 try{
   if(localStorage.getItem(SCOPE_DEFAULTS_KEY)!=="1"){
-    localStorage.removeItem(PROJECT_SCOPE_KEY);localStorage.removeItem(TEAM_SCOPE_KEY);
     localStorage.setItem(SCOPE_DEFAULTS_KEY,"1");
     SCOPE_DEFAULTS_PENDING=true;
   }else SCOPE_DEFAULTS_PENDING=false;
 }catch(e){}
-let PROJECT_SCOPE=paReadScope(PROJECT_SCOPE_KEY);
+let PROJECT_SCOPE=paReadProjectScope();
 let TEAM_SCOPE=paReadScope(TEAM_SCOPE_KEY);
 let PROJECT_FILTER="all";
 let TEAM_FILTER="all";
@@ -249,16 +248,35 @@ let NODE_DRAG=null;
 const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
 function paReadScope(key){try{const value=JSON.parse(localStorage.getItem(key));return Array.isArray(value)?new Set(value.map(String)):null;}catch(e){return null;}}
 function paWriteScope(key,scope){try{if(scope===null)localStorage.removeItem(key);else localStorage.setItem(key,JSON.stringify([...scope]));}catch(e){}}
+function paReadProjectScope(){
+  try{
+    const raw=localStorage.getItem(PROJECT_SCOPE_KEY);if(raw===null)return undefined;
+    const value=JSON.parse(raw);
+    if(Array.isArray(value))return new Set(value.map(String));
+    return value&&value.mode==="all"?null:undefined;
+  }catch(e){return undefined;}
+}
+function paWriteProjectScope(scope){try{localStorage.setItem(PROJECT_SCOPE_KEY,JSON.stringify(scope===null?{mode:"all"}:[...scope]));}catch(e){}}
 function paScopeAllows(scope,key){return scope===null||scope.has(String(key));}
 function paNormalizeScope(scope,keys){
   if(scope===null)return null;
   const valid=new Set(keys.map(String)),next=new Set([...scope].filter(key=>valid.has(String(key))).map(String));
   return valid.size&&next.size===valid.size?null:next;
 }
+function paNormalizeExactScope(scope,keys){
+  if(scope===null)return null;
+  const valid=new Set(keys.map(String));
+  return new Set([...scope].map(String).filter(key=>valid.has(key)));
+}
 function paSetScopeItem(scope,key,checked,keys){
   const all=keys.map(String),next=scope===null?new Set(all):new Set(scope),id=String(key);
   if(checked)next.add(id);else next.delete(id);
   return all.length&&next.size===all.length&&all.every(item=>next.has(item))?null:next;
+}
+function paSetExactScopeItem(scope,key,checked,keys){
+  const next=scope===null?new Set(keys.map(String)):new Set([...scope].map(String)),id=String(key);
+  if(checked)next.add(id);else next.delete(id);
+  return next;
 }
 function paRenderScopeFilter(kind,items){
   const projects=kind==="project",list=pa(projects?"paProjectScopeList":"paTeamScopeList"),count=pa(projects?"paProjectScopeCount":"paTeamScopeCount");
@@ -269,11 +287,11 @@ function paRenderScopeFilter(kind,items){
   list.innerHTML='<label class="pa-rail-row all"><input type="checkbox" data-pa-scope-all="'+kind+'"><span class="pa-rail-label">Todos ('+items.length+')</span></label>'+items.map(item=>'<label class="pa-rail-row"><input type="checkbox" data-pa-scope-item="'+kind+'" value="'+esc(item.key)+'"'+(paScopeAllows(scope,item.key)?' checked':'')+'><span class="pa-rail-label" title="'+esc(item.label)+'">'+esc(item.label)+'</span></label>').join("");
   const allInput=list.querySelector("[data-pa-scope-all]");allInput.checked=selected===items.length;allInput.indeterminate=selected>0&&selected<items.length;
   allInput.onchange=()=>{
-    if(projects){PROJECT_SCOPE=allInput.checked?null:new Set();PROJECT_FILTER="all";PROJECT_ROWS=paProjectsForScope();paWriteScope(PROJECT_SCOPE_KEY,PROJECT_SCOPE);}else{TEAM_SCOPE=allInput.checked?null:new Set();TEAM_FILTER="all";paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);}
+    if(projects){PROJECT_SCOPE=allInput.checked?null:new Set();PROJECT_FILTER="all";PROJECT_ROWS=paProjectsForScope();paWriteProjectScope(PROJECT_SCOPE);}else{TEAM_SCOPE=allInput.checked?null:new Set();TEAM_FILTER="all";paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);}
     paRender();paMessage(allInput.checked?"✓ todos visibles":"Selección vacía · marca los que quieras",allInput.checked?"ok":"");
   };
   list.querySelectorAll("[data-pa-scope-item]").forEach(input=>input.onchange=()=>{
-    if(projects){PROJECT_SCOPE=paSetScopeItem(PROJECT_SCOPE,input.value,input.checked,keys);PROJECT_FILTER="all";PROJECT_ROWS=paProjectsForScope();paWriteScope(PROJECT_SCOPE_KEY,PROJECT_SCOPE);}else{TEAM_SCOPE=paSetScopeItem(TEAM_SCOPE,input.value,input.checked,keys);TEAM_FILTER="all";paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);}
+    if(projects){PROJECT_SCOPE=paSetScopeItem(PROJECT_SCOPE,input.value,input.checked,keys);PROJECT_FILTER="all";PROJECT_ROWS=paProjectsForScope();paWriteProjectScope(PROJECT_SCOPE);}else{TEAM_SCOPE=paSetExactScopeItem(TEAM_SCOPE,input.value,input.checked,keys);TEAM_FILTER="all";paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);}
     paRender();paMessage("Filtros del Dashboard actualizados","ok");
   });
 }
@@ -543,8 +561,8 @@ function paRender(){
   const projectScopeItems=PROJECT_CATALOG.map(project=>({key:String(project.id),label:String(project.name||project.id)})).sort((a,b)=>a.label.localeCompare(b.label,"es"));
   const teamScopeItems=teams.map(team=>({key:String(team.key),label:String(team.machine||team.key)})).sort((a,b)=>a.label.localeCompare(b.label,"es"));
   PROJECT_SCOPE=paNormalizeScope(PROJECT_SCOPE,projectScopeItems.map(item=>item.key));
-  TEAM_SCOPE=paNormalizeScope(TEAM_SCOPE,teamScopeItems.map(item=>item.key));
-  paWriteScope(PROJECT_SCOPE_KEY,PROJECT_SCOPE);paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);
+  TEAM_SCOPE=paNormalizeExactScope(TEAM_SCOPE,teamScopeItems.map(item=>item.key));
+  paWriteProjectScope(PROJECT_SCOPE);paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);
   paRenderScopeFilter("project",projectScopeItems);paRenderScopeFilter("team",teamScopeItems);
   const visibleTeams=paVisibleTeams(teams,TEAM_SCOPE,TEAM_FILTER,PROJECT_ROWS);
   const visibleProjects=PROJECT_ROWS.filter(project=>(PROJECT_FILTER!=="unassigned"||!(project.machines||[]).length)&&paScopeAllows(PROJECT_SCOPE,project.id));
@@ -604,11 +622,11 @@ function paRender(){
   });
   teamsBox.querySelectorAll("[data-pa-decision]").forEach(button=>button.onclick=()=>paOpenDecision(button.dataset.paDecision,button.dataset.paDecisionAgent));
   teamsBox.querySelectorAll("[data-pa-stop]").forEach(button=>button.onclick=()=>paStopSurface(button.dataset.paStop));
-  teamsBox.querySelectorAll("[data-pa-hide-team]").forEach(button=>button.onclick=event=>{event.preventDefault();event.stopPropagation();TEAM_SCOPE=paSetScopeItem(TEAM_SCOPE,button.dataset.paHideTeam,false,teams.map(team=>team.key));TEAM_FILTER="all";paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);paRender();paMessage("Equipo oculto · recupéralo desde Avanzado");});
+  teamsBox.querySelectorAll("[data-pa-hide-team]").forEach(button=>button.onclick=event=>{event.preventDefault();event.stopPropagation();TEAM_SCOPE=paSetExactScopeItem(TEAM_SCOPE,button.dataset.paHideTeam,false,teams.map(team=>team.key));TEAM_FILTER="all";paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);paRender();paMessage("Equipo oculto · recupéralo desde Avanzado");});
   document.querySelectorAll("[data-pa-agent-remove]").forEach(button=>button.onclick=()=>paAssignAgent(button.dataset.project,button.dataset.paAgentRemove,true));
   document.querySelectorAll("[data-pa-family-remove]").forEach(button=>button.onclick=()=>paRemoveFamily(button.dataset.project,button.dataset.paFamilyRemove));
   projectsBox.querySelectorAll("[data-pa-target]").forEach(button=>button.onclick=event=>{event.preventDefault();event.stopPropagation();if(LINK_CLICK_AGENT)paConnectAgent(button.dataset.paTarget,LINK_CLICK_AGENT);});
-  projectsBox.querySelectorAll("[data-pa-hide-project]").forEach(button=>button.onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_SCOPE=paSetScopeItem(PROJECT_SCOPE,button.dataset.paHideProject,false,PROJECT_CATALOG.map(project=>project.id));PROJECT_FILTER="all";PROJECT_ROWS=paProjectsForScope();paWriteScope(PROJECT_SCOPE_KEY,PROJECT_SCOPE);paRender();paMessage("Proyecto oculto · recupéralo desde Opciones");});
+  projectsBox.querySelectorAll("[data-pa-hide-project]").forEach(button=>button.onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_SCOPE=paSetScopeItem(PROJECT_SCOPE,button.dataset.paHideProject,false,PROJECT_CATALOG.map(project=>project.id));PROJECT_FILTER="all";PROJECT_ROWS=paProjectsForScope();paWriteProjectScope(PROJECT_SCOPE);paRender();paMessage("Proyecto oculto · recupéralo desde Opciones");});
   projectsBox.querySelectorAll("[data-pa-remove-team]").forEach(button=>button.onclick=()=>paAssignTeam(button.dataset.project,button.dataset.paRemoveTeam,true));
   document.querySelectorAll("[data-pa-node-move]").forEach(handle=>{handle.onpointerdown=paStartNodeMove;handle.onclick=event=>{event.preventDefault();event.stopPropagation();};handle.ondblclick=paResetNode;});
   document.querySelectorAll(".pa-project-node,.pa-team-node").forEach(node=>node.ontoggle=()=>requestAnimationFrame(paDrawLinks));
@@ -843,7 +861,7 @@ async function paLoad(reason="manual"){
     const sourceProjects=Array.isArray(projects.projects)?projects.projects:[],launchProjects=paLaunchProjects(sourceProjects),launchIds=new Set(launchProjects.map(project=>String(project.id)));
     PROJECT_CATALOG=launchProjects.concat(sourceProjects.filter(project=>project&&project.id&&!launchIds.has(String(project.id))));
     PROJECT_ROWS=paLaunchProjects(Array.isArray(projects.projects)?projects.projects:[]);
-    if(SCOPE_DEFAULTS_PENDING&&PROJECT_SCOPE===null){PROJECT_SCOPE=new Set(PROJECT_ROWS.map(project=>String(project.id)));SCOPE_DEFAULTS_PENDING=false;}
+    if(PROJECT_SCOPE===undefined)PROJECT_SCOPE=new Set(PROJECT_ROWS.map(project=>String(project.id)));
     else PROJECT_ROWS=paProjectsForScope();
     if(census)PROJECT_TEAM_CENSUS=paPhysicalTeamCensus(census.machines,[]);
     PROJECT_ROSTER=paProjectRoster(PROJECT_LIVE_ROSTER,PROJECT_ROWS);
@@ -861,7 +879,7 @@ async function paLoad(reason="manual"){
   return false;
 }
 pa("projectAgentRefresh").onclick=()=>paLoad("manual");
-pa("projectAgentProjectsAll").onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_FILTER="all";PROJECT_SCOPE=null;PROJECT_ROWS=paProjectsForScope();paWriteScope(PROJECT_SCOPE_KEY,PROJECT_SCOPE);paRender();paMessage("✓ todos los proyectos visibles","ok");};
+pa("projectAgentProjectsAll").onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_FILTER="all";PROJECT_SCOPE=null;PROJECT_ROWS=paProjectsForScope();paWriteProjectScope(PROJECT_SCOPE);paRender();paMessage("✓ todos los proyectos visibles","ok");};
 pa("projectAgentProjectsUnassigned").onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_FILTER="unassigned";paRender();paMessage("Proyectos sin equipo asociado");};
 pa("projectAgentTeamsAll").onclick=event=>{event.preventDefault();event.stopPropagation();TEAM_FILTER="all";TEAM_SCOPE=null;paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);paRender();paMessage("✓ todos los equipos visibles","ok");};
 pa("projectAgentTeamsUnassigned").onclick=event=>{event.preventDefault();event.stopPropagation();TEAM_FILTER="unassigned";paRender();paMessage("Equipos sin proyecto asociado");};
