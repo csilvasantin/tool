@@ -82,8 +82,10 @@ test("la calle muestra solo misión y agente: nunca ticket, FLT, estado ni proye
   assert.doesNotMatch(race.html,/flecha|editorial|objetivo|ventana de decisión/i);
 
   const empty=renderRace([{agente:"OraculoMacMini",vivo:true}],[]);
-  assert.equal(empty.lanes,0);
-  assert.match(empty.html,/class="refresh-empty">Sin misión activa<\/div>/);
+  assert.equal(empty.lanes,1);
+  assert.match(empty.html,/class="refresh-lane refresh-lane-empty"/);
+  assert.match(empty.html,/SIN MISIONES ACTIVAS/);
+  assert.doesNotMatch(empty.html,/OraculoMacMini|refresh-fill|refresh-place|refresh-finish/);
 });
 
 test("texto y agente se adaptan sin clipping ni marquee ilegible",()=>{

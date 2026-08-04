@@ -46,13 +46,15 @@ function renderRace(rows, missions, extras = []) {
   };
 }
 
-test("un agente puntuado y vivo sin misión no crea calle, corredor ni puesto", () => {
+test("sin misión activa aparece un único corredor neutro, sin barra, dorsal ni agente", () => {
   const rows=[{agente:"OraculoMacMini",posicion:1,total:975,vivo:true}];
   const race=renderRace(rows,[]);
-  assert.equal(race.lanes,0);
+  assert.equal(race.lanes,1);
   assert.equal(race.empty,true);
-  assert.doesNotMatch(race.html,/refresh-lane|data-race-role="runner"|refresh-place/);
-  assert.match(race.html,/class="refresh-empty">Sin misión activa<\/div>/);
+  assert.equal((race.html.match(/data-race-role="runner"/g)||[]).length,1);
+  assert.match(race.html,/class="refresh-lane refresh-lane-empty"/);
+  assert.match(race.html,/SIN MISIONES ACTIVAS/);
+  assert.doesNotMatch(race.html,/OraculoMacMini|refresh-fill|refresh-place|refresh-finish/);
   assert.deepEqual(rows,[{agente:"OraculoMacMini",posicion:1,total:975,vivo:true}],
     "la carrera no puede retirar ni mutar la fila del ranking");
 });
@@ -83,16 +85,19 @@ test("una misión del mismo alias base pero de otro equipo no se cruza", () => {
   assert.doesNotMatch(race.html,/OraculoMacMini|Misión ajena/);
 });
 
-test("un candidato del prefiltro sin resolución exacta no genera una calle huérfana", () => {
+test("un candidato sin resolución exacta cae en el corredor neutro, no en una calle huérfana", () => {
   // El helper compartido elimina diacríticos y deja pasar esta fila; la resolución
-  // exacta posterior no encuentra su misión. Nunca debe pintarse el fallback como corredor.
+  // exacta posterior no encuentra su misión. El fallback debe seguir siendo neutro,
+  // sin apropiarse del nombre, puesto ni progreso de ese agente.
   const race=renderRace([{agente:"OráculoMacMini",posicion:1,total:975,vivo:true}],[{
     assignee:"OraculoMini",loc:"Mac Mini",status:"in_progress",subject:"Misión activa",
   }]);
-  assert.equal(race.lanes,0);
+  assert.equal(race.lanes,1);
   assert.equal(race.empty,true);
-  assert.doesNotMatch(race.html,/refresh-lane|data-race-role="runner"|refresh-place|Sin misión activa<\/span>/);
-  assert.match(race.html,/class="refresh-empty">Sin misión activa<\/div>/);
+  assert.equal((race.html.match(/data-race-role="runner"/g)||[]).length,1);
+  assert.match(race.html,/refresh-lane-empty/);
+  assert.match(race.html,/SIN MISIONES ACTIVAS/);
+  assert.doesNotMatch(race.html,/OráculoMacMini|refresh-fill|refresh-place|refresh-finish/);
 });
 
 test("descartar una calle huérfana renumera desde uno a los corredores válidos", () => {

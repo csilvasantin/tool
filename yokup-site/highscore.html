@@ -45,9 +45,9 @@ a{color:var(--brand)}
 
 /* ─────────── PÁGINA ─────────── */
 .wrap{max-width:1080px;margin:0 auto;padding:50px 18px 70px}
-header.cab{position:relative;display:grid;grid-template-columns:auto minmax(180px,1fr);grid-template-rows:20px auto;
-  align-items:center;column-gap:22px;row-gap:2px;min-height:44px;margin:0 0 8px}
-header.cab>h1{grid-column:1;grid-row:2}
+header.cab{position:relative;display:grid;grid-template-columns:auto minmax(180px,1fr);grid-template-rows:auto;
+  align-items:start;column-gap:22px;min-height:44px;margin:0 0 8px}
+header.cab>h1{grid-column:1;grid-row:1;display:flex;align-items:flex-start;gap:5px}
 h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:0;color:var(--brand);
   text-shadow:3px 3px 0 #0a4a58}
 .race-toggle{all:unset;display:inline-block;cursor:pointer;color:inherit;font:inherit;letter-spacing:inherit;
@@ -56,7 +56,6 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .race-toggle:focus-visible{outline:2px solid var(--brand);outline-offset:5px}
 .race-toggle[aria-pressed="true"]{color:var(--accent);transform:translateY(1px);
   text-shadow:3px 3px 0 #5a4310,0 0 12px rgba(255,216,102,.42)}
-.cab-tools{grid-column:1;grid-row:1;display:flex;align-items:center;justify-content:flex-start;gap:8px}
 
 /* podio: la ilustración conserva siempre su proporción 16:9 y ocupa el mismo
    bloque que antes ocupaban los tres cajones generados con CSS. Los datos vivos
@@ -100,7 +99,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 
 /* Carrera de refresco: una calle sólo para quien tiene latido reciente Y ejecuta
    una misión en curso. Ninguna de las dos señales concede una calle por sí sola. */
-.refresh-race{position:relative;grid-column:2;grid-row:1 / span 2;min-height:44px;min-width:0;padding:0;display:flex;align-items:flex-start;overflow:hidden}
+.refresh-race{position:relative;grid-column:2;grid-row:1;min-height:44px;min-width:0;padding:0;display:flex;align-items:flex-start;overflow:hidden}
 .refresh-lanes{width:100%;display:grid;gap:2px}
 .runner-symbols{position:absolute;width:0;height:0;overflow:hidden}
 .refresh-lane{position:relative;width:100%;min-width:0;min-height:84px}
@@ -122,8 +121,13 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   line-height:17px;letter-spacing:.02em;text-shadow:0 1px 5px #000;pointer-events:none;will-change:left,width}
 .refresh-mission-title{display:block;width:max-content;max-width:none;direction:ltr;unicode-bidi:plaintext;
   white-space:nowrap;transform:translateX(0);will-change:transform}
-.refresh-empty{width:100%;padding:12px 36px;color:var(--dim);font-size:10px;font-weight:800;letter-spacing:.1em;
-  text-align:right;text-transform:uppercase}
+.refresh-lane-empty{--lane:var(--dim);--runner-shirt:#78f3ff;--runner-stripe:#ffd866;min-height:44px}
+.refresh-lane-empty .refresh-track{min-height:44px;padding:0 18px}
+.refresh-lane-empty .refresh-track::before{display:none}
+.refresh-lane-empty .refresh-mission{left:auto;right:42px;top:4px;width:auto;max-width:calc(100% - 72px);transform:none;
+  color:var(--dim);font-size:10px;line-height:14px;letter-spacing:.1em;text-align:right;text-transform:uppercase}
+.refresh-lane-empty .refresh-mission-title{width:auto}
+.refresh-lane-empty .refresh-runner{bottom:3px}
 .refresh-agent{position:absolute;z-index:2;right:43px;bottom:9px;max-width:min(240px,45%);
   transform:translateX(0);overflow:visible;overflow-wrap:anywhere;white-space:normal;text-align:right;
   color:var(--lane);font-size:14px;font-weight:900;line-height:17px;letter-spacing:.035em;
@@ -307,10 +311,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .err{border-color:rgba(255,136,102,.4);background:rgba(255,136,102,.07)}
 .err h2{color:var(--warn)}
 /* En la cabecera, NO fijo abajo a la derecha: ahí tapaba las últimas filas de la tabla. */
-.sonido{position:relative;display:grid;place-items:center;width:22px;height:22px;padding:0;background:var(--card2);
-  border:1px solid var(--line2);border-radius:50%;color:var(--dim);font-family:var(--mono);font-size:11px;cursor:pointer}
+.sonido{position:relative;display:grid;place-items:center;width:13px;height:13px;margin-top:-3px;padding:0;background:var(--card2);
+  border:1px solid var(--line2);border-radius:50%;color:var(--dim);font-family:var(--mono);font-size:7px;line-height:1;cursor:pointer}
 .sonido:hover,.sonido[aria-pressed="true"]{color:var(--brand);border-color:var(--brand);box-shadow:0 0 12px rgba(120,243,255,.22)}
-.sonido[aria-pressed="false"]::after{content:"";position:absolute;width:14px;height:1px;background:currentColor;transform:rotate(-45deg)}
+.sonido[aria-pressed="false"]::after{content:"";position:absolute;width:9px;height:1px;background:currentColor;transform:rotate(-45deg)}
 .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;
   overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 .agent-scope{display:grid;gap:10px;padding:2px 0 12px;border-bottom:1px solid var(--line)}
@@ -358,7 +362,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 @media (max-width:620px){.podio{margin-top:20px}.plaza{width:27%;padding:4px 5px;gap:4px;background:rgba(2,8,13,.78)}
   .plaza.p2{left:7%;top:62%}.plaza.p1{left:36.5%;top:59%}.plaza.p3{right:6%;top:66%}
   .nom{font-size:7px}.pts{font-size:10px}
-  .wrap{padding-top:46px}header.cab{grid-template-columns:auto minmax(90px,1fr) auto;gap:10px}h1{font-size:17px}
+  .wrap{padding-top:46px}header.cab{grid-template-columns:auto minmax(90px,1fr);gap:10px}h1{font-size:17px}
   .refresh-race{padding:0 10px}.refresh-track{padding-left:10px;padding-right:10px}.refresh-mission{max-width:calc(100% - 20px);font-size:9px;line-height:13px}.refresh-mission-title{font-size:9px}
   .refresh-agent{max-width:105px;font-size:10px;line-height:13px}
   .score-progress td{padding-left:5px;padding-right:5px}.progression{grid-template-columns:88px repeat(5,76px);min-width:500px;gap:4px}
@@ -380,7 +384,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 <div class="wrap" id="pagina" style="visibility:hidden">
   <header class="cab">
     <h1><button class="race-toggle" id="raceToggle" type="button" aria-pressed="false"
-      title="Pausar carrera para leer las misiones">HIGHSCORE</button></h1>
+      title="Pausar carrera para leer las misiones">HIGHSCORE</button>
+      <button class="sonido" id="btnSonido" type="button" aria-pressed="false" title="Activar sonido">
+        <span aria-hidden="true">♪</span><span class="sr-only" id="estadoSonido">Sonido desactivado</span>
+      </button></h1>
     <div class="refresh-race" id="refreshRace" role="timer" aria-label="Próxima actualización de puntuación en 60 segundos">
       <svg class="runner-symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
         <defs><symbol id="runnerReady" viewBox="0 0 24 24"><g class="runner-skin" fill="var(--runner-skin,#a05a2c)"><rect x="10" y="3" width="4" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="11" y="4" width="2" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="10" y="6" width="4" height="1"/><rect x="5" y="8" width="2" height="1"/><rect x="17" y="8" width="2" height="1"/><rect x="5" y="9" width="2" height="1"/><rect x="17" y="9" width="2" height="1"/><rect x="5" y="10" width="2" height="1"/><rect x="17" y="10" width="2" height="1"/><rect x="5" y="11" width="2" height="1"/><rect x="17" y="11" width="2" height="1"/><rect x="5" y="12" width="2" height="1"/><rect x="17" y="12" width="2" height="1"/><rect x="9" y="16" width="2" height="1"/><rect x="13" y="16" width="2" height="1"/><rect x="9" y="17" width="2" height="1"/><rect x="13" y="17" width="2" height="1"/><rect x="9" y="18" width="2" height="1"/><rect x="13" y="18" width="2" height="1"/></g><g class="runner-hair" fill="var(--runner-hair,#14100b)"><rect x="10" y="1" width="4" height="1"/><rect x="9" y="2" width="6" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="14" y="3" width="1" height="1"/></g><g class="runner-mustache" fill="var(--runner-hair,#14100b)"><rect x="10" y="5" width="4" height="1"/></g><g class="runner-eye" fill="#0d0a06"><rect x="10" y="4" width="1" height="1"/><rect x="13" y="4" width="1" height="1"/></g><g class="runner-shirt" fill="var(--runner-shirt,#f8f8f8)"><rect x="7" y="7" width="10" height="1"/><rect x="7" y="8" width="10" height="1"/><rect x="7" y="9" width="2" height="1"/><rect x="15" y="9" width="2" height="1"/><rect x="7" y="10" width="10" height="1"/><rect x="7" y="11" width="10" height="1"/><rect x="8" y="12" width="8" height="1"/></g><g class="runner-accent" fill="var(--runner-stripe,#3466cc)"><rect x="9" y="9" width="6" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="15" y="14" width="1" height="1"/><rect x="9" y="20" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/></g><g class="runner-short" fill="var(--runner-short,#f8f8f8)"><rect x="8" y="13" width="8" height="1"/><rect x="9" y="14" width="6" height="1"/><rect x="8" y="15" width="3" height="1"/><rect x="13" y="15" width="3" height="1"/></g><g class="runner-shoe" fill="var(--runner-shoe,#f8f8f8)"><rect x="8" y="19" width="3" height="1"/><rect x="13" y="19" width="3" height="1"/><rect x="8" y="20" width="1" height="1"/><rect x="10" y="20" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="15" y="20" width="1" height="1"/></g></symbol>
@@ -392,14 +399,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         <symbol id="runnerWinner" viewBox="0 0 24 24"><g class="runner-skin" fill="var(--runner-skin,#a05a2c)"><rect x="5" y="1" width="2" height="1"/><rect x="17" y="1" width="2" height="1"/><rect x="5" y="2" width="2" height="1"/><rect x="17" y="2" width="2" height="1"/><rect x="5" y="3" width="2" height="1"/><rect x="17" y="3" width="2" height="1"/><rect x="6" y="4" width="2" height="1"/><rect x="10" y="4" width="4" height="1"/><rect x="16" y="4" width="2" height="1"/><rect x="6" y="5" width="2" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="11" y="5" width="2" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="16" y="5" width="2" height="1"/><rect x="6" y="6" width="2" height="1"/><rect x="9" y="6" width="1" height="1"/><rect x="14" y="6" width="1" height="1"/><rect x="16" y="6" width="2" height="1"/><rect x="7" y="7" width="2" height="1"/><rect x="10" y="7" width="4" height="1"/><rect x="15" y="7" width="2" height="1"/><rect x="9" y="16" width="2" height="1"/><rect x="13" y="16" width="2" height="1"/><rect x="9" y="17" width="2" height="1"/><rect x="13" y="17" width="2" height="1"/><rect x="9" y="18" width="2" height="1"/><rect x="13" y="18" width="2" height="1"/></g><g class="runner-hair" fill="var(--runner-hair,#14100b)"><rect x="10" y="2" width="4" height="1"/><rect x="9" y="3" width="6" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="14" y="4" width="1" height="1"/></g><g class="runner-mustache" fill="var(--runner-hair,#14100b)"><rect x="10" y="6" width="4" height="1"/></g><g class="runner-eye" fill="#0d0a06"><rect x="10" y="5" width="1" height="1"/><rect x="13" y="5" width="1" height="1"/></g><g class="runner-shirt" fill="var(--runner-shirt,#f8f8f8)"><rect x="7" y="8" width="10" height="1"/><rect x="7" y="9" width="10" height="1"/><rect x="7" y="10" width="2" height="1"/><rect x="15" y="10" width="2" height="1"/><rect x="7" y="11" width="10" height="1"/><rect x="8" y="12" width="8" height="1"/></g><g class="runner-accent" fill="var(--runner-stripe,#3466cc)"><rect x="9" y="10" width="6" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="15" y="14" width="1" height="1"/><rect x="9" y="20" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/></g><g class="runner-short" fill="var(--runner-short,#f8f8f8)"><rect x="8" y="13" width="8" height="1"/><rect x="9" y="14" width="6" height="1"/><rect x="8" y="15" width="3" height="1"/><rect x="13" y="15" width="3" height="1"/></g><g class="runner-shoe" fill="var(--runner-shoe,#f8f8f8)"><rect x="8" y="19" width="3" height="1"/><rect x="13" y="19" width="3" height="1"/><rect x="8" y="20" width="1" height="1"/><rect x="10" y="20" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="15" y="20" width="1" height="1"/></g></symbol><symbol id="runnerWinnerB" viewBox="0 0 24 24"><g class="runner-skin" fill="var(--runner-skin,#a05a2c)"><rect x="4" y="4" width="2" height="1"/><rect x="10" y="4" width="4" height="1"/><rect x="18" y="4" width="2" height="1"/><rect x="4" y="5" width="2" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="11" y="5" width="2" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="18" y="5" width="2" height="1"/><rect x="5" y="6" width="2" height="1"/><rect x="9" y="6" width="1" height="1"/><rect x="14" y="6" width="1" height="1"/><rect x="17" y="6" width="2" height="1"/><rect x="6" y="7" width="2" height="1"/><rect x="10" y="7" width="4" height="1"/><rect x="16" y="7" width="2" height="1"/><rect x="9" y="16" width="2" height="1"/><rect x="13" y="16" width="2" height="1"/><rect x="9" y="17" width="2" height="1"/><rect x="13" y="17" width="2" height="1"/><rect x="9" y="18" width="2" height="1"/><rect x="13" y="18" width="2" height="1"/></g><g class="runner-hair" fill="var(--runner-hair,#14100b)"><rect x="10" y="2" width="4" height="1"/><rect x="9" y="3" width="6" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="14" y="4" width="1" height="1"/></g><g class="runner-mustache" fill="var(--runner-hair,#14100b)"><rect x="10" y="6" width="4" height="1"/></g><g class="runner-eye" fill="#0d0a06"><rect x="10" y="5" width="1" height="1"/><rect x="13" y="5" width="1" height="1"/></g><g class="runner-shirt" fill="var(--runner-shirt,#f8f8f8)"><rect x="7" y="8" width="10" height="1"/><rect x="7" y="9" width="10" height="1"/><rect x="7" y="10" width="2" height="1"/><rect x="15" y="10" width="2" height="1"/><rect x="7" y="11" width="10" height="1"/><rect x="8" y="12" width="8" height="1"/></g><g class="runner-accent" fill="var(--runner-stripe,#3466cc)"><rect x="9" y="10" width="6" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="15" y="14" width="1" height="1"/><rect x="9" y="20" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/></g><g class="runner-short" fill="var(--runner-short,#f8f8f8)"><rect x="8" y="13" width="8" height="1"/><rect x="9" y="14" width="6" height="1"/><rect x="8" y="15" width="3" height="1"/><rect x="13" y="15" width="3" height="1"/></g><g class="runner-shoe" fill="var(--runner-shoe,#f8f8f8)"><rect x="8" y="19" width="3" height="1"/><rect x="13" y="19" width="3" height="1"/><rect x="8" y="20" width="1" height="1"/><rect x="10" y="20" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="15" y="20" width="1" height="1"/></g></symbol>
         <symbol id="runnerLoser" viewBox="0 0 24 24"><g class="runner-skin" fill="var(--runner-skin,#a05a2c)"><rect x="15" y="2" width="2" height="1"/><rect x="10" y="3" width="4" height="1"/><rect x="15" y="3" width="2" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="11" y="4" width="2" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="16" y="4" width="2" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="16" y="5" width="2" height="1"/><rect x="10" y="6" width="4" height="1"/><rect x="16" y="6" width="2" height="1"/><rect x="16" y="7" width="2" height="1"/><rect x="5" y="8" width="2" height="1"/><rect x="5" y="9" width="2" height="1"/><rect x="5" y="10" width="2" height="1"/><rect x="5" y="11" width="2" height="1"/><rect x="5" y="12" width="2" height="1"/><rect x="5" y="13" width="2" height="1"/><rect x="9" y="16" width="2" height="1"/><rect x="13" y="16" width="2" height="1"/><rect x="9" y="17" width="2" height="1"/><rect x="13" y="17" width="2" height="1"/><rect x="9" y="18" width="2" height="1"/><rect x="13" y="18" width="2" height="1"/></g><g class="runner-hair" fill="var(--runner-hair,#14100b)"><rect x="10" y="1" width="4" height="1"/><rect x="9" y="2" width="6" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="14" y="3" width="1" height="1"/></g><g class="runner-mustache" fill="var(--runner-hair,#14100b)"><rect x="10" y="5" width="4" height="1"/></g><g class="runner-eye" fill="#0d0a06"><rect x="10" y="4" width="1" height="1"/><rect x="13" y="4" width="1" height="1"/></g><g class="runner-shirt" fill="var(--runner-shirt,#f8f8f8)"><rect x="7" y="7" width="9" height="1"/><rect x="7" y="8" width="10" height="1"/><rect x="7" y="9" width="2" height="1"/><rect x="15" y="9" width="2" height="1"/><rect x="7" y="10" width="10" height="1"/><rect x="8" y="11" width="8" height="1"/><rect x="8" y="12" width="8" height="1"/></g><g class="runner-accent" fill="var(--runner-stripe,#3466cc)"><rect x="9" y="9" width="6" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="15" y="14" width="1" height="1"/><rect x="9" y="20" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/></g><g class="runner-short" fill="var(--runner-short,#f8f8f8)"><rect x="8" y="13" width="8" height="1"/><rect x="9" y="14" width="6" height="1"/><rect x="8" y="15" width="3" height="1"/><rect x="13" y="15" width="3" height="1"/></g><g class="runner-shoe" fill="var(--runner-shoe,#f8f8f8)"><rect x="8" y="19" width="3" height="1"/><rect x="13" y="19" width="3" height="1"/><rect x="8" y="20" width="1" height="1"/><rect x="10" y="20" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="15" y="20" width="1" height="1"/></g></symbol><symbol id="runnerLoserB" viewBox="0 0 24 24"><g class="runner-skin" fill="var(--runner-skin,#a05a2c)"><rect x="10" y="3" width="4" height="1"/><rect x="15" y="3" width="2" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="11" y="4" width="2" height="1"/><rect x="14" y="4" width="3" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="16" y="5" width="2" height="1"/><rect x="10" y="6" width="4" height="1"/><rect x="16" y="6" width="2" height="1"/><rect x="16" y="7" width="2" height="1"/><rect x="4" y="8" width="2" height="1"/><rect x="4" y="9" width="2" height="1"/><rect x="4" y="10" width="2" height="1"/><rect x="4" y="11" width="2" height="1"/><rect x="4" y="12" width="2" height="1"/><rect x="4" y="13" width="2" height="1"/><rect x="9" y="16" width="2" height="1"/><rect x="13" y="16" width="2" height="1"/><rect x="9" y="17" width="2" height="1"/><rect x="13" y="17" width="2" height="1"/><rect x="9" y="18" width="2" height="1"/><rect x="13" y="18" width="2" height="1"/></g><g class="runner-hair" fill="var(--runner-hair,#14100b)"><rect x="10" y="1" width="4" height="1"/><rect x="9" y="2" width="6" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="14" y="3" width="1" height="1"/></g><g class="runner-mustache" fill="var(--runner-hair,#14100b)"><rect x="10" y="5" width="4" height="1"/></g><g class="runner-eye" fill="#0d0a06"><rect x="10" y="4" width="1" height="1"/><rect x="13" y="4" width="1" height="1"/></g><g class="runner-shirt" fill="var(--runner-shirt,#f8f8f8)"><rect x="7" y="7" width="9" height="1"/><rect x="7" y="8" width="10" height="1"/><rect x="7" y="9" width="2" height="1"/><rect x="15" y="9" width="2" height="1"/><rect x="7" y="10" width="10" height="1"/><rect x="8" y="11" width="8" height="1"/><rect x="8" y="12" width="8" height="1"/></g><g class="runner-accent" fill="var(--runner-stripe,#3466cc)"><rect x="9" y="9" width="6" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="15" y="14" width="1" height="1"/><rect x="9" y="20" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/></g><g class="runner-short" fill="var(--runner-short,#f8f8f8)"><rect x="8" y="13" width="8" height="1"/><rect x="9" y="14" width="6" height="1"/><rect x="8" y="15" width="3" height="1"/><rect x="13" y="15" width="3" height="1"/></g><g class="runner-shoe" fill="var(--runner-shoe,#f8f8f8)"><rect x="8" y="19" width="3" height="1"/><rect x="13" y="19" width="3" height="1"/><rect x="8" y="20" width="1" height="1"/><rect x="10" y="20" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="15" y="20" width="1" height="1"/></g></symbol></defs>
       </svg>
-      <div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Agentes con misión en curso"></div>
+      <div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Estado de las misiones activas"></div>
       <span class="race-call" id="raceCall" aria-hidden="true"></span>
       <span class="sr-only" id="refreshCount">60 segundos</span>
-    </div>
-    <div class="cab-tools">
-      <button class="sonido" id="btnSonido" type="button" aria-pressed="false" title="Activar sonido">
-        <span aria-hidden="true">♪</span><span class="sr-only" id="estadoSonido">Sonido desactivado</span>
-      </button>
     </div>
   </header>
   <div class="podio" id="podio"></div>
@@ -1648,9 +1650,21 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<span class="refresh-finish" aria-hidden="true"></span>' +
         '<span class="refresh-place refresh-place-finish" aria-hidden="true">' + puesto + '</span></div></div>';
     }).filter(Boolean);
-    contenedor.innerHTML = corredores.length ? corredores.join("") : '<div class="refresh-empty">Sin misión activa</div>';
+    var corredorSinMision = '<div class="refresh-lane refresh-lane-empty" role="listitem" data-race-empty="true" ' +
+      'aria-label="Sin misiones activas"><div class="refresh-track">' +
+      '<span class="refresh-mission" data-race-role="mission"><span class="refresh-mission-title">SIN MISIONES ACTIVAS</span></span>' +
+      '<span class="refresh-runner runner-light runner-skin-light" data-race-role="runner" aria-hidden="true">' +
+      '<svg class="runner-pose-ready" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerReady"></use></svg>' +
+      '<svg class="runner-pose-set" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerSet"></use></svg>' +
+      '<svg class="runner-pose-go" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerGo"></use></svg>' +
+      '<svg class="runner-run-a" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerRunA"></use></svg>' +
+      '<svg class="runner-run-b" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerRunB"></use></svg>' +
+      '<svg class="runner-run-c" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerRunC"></use></svg>' +
+      '<svg class="runner-finish-win" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use class="gesto-a" href="#runnerWinner"></use><use class="gesto-b" href="#runnerWinnerB"></use></svg>' +
+      '<svg class="runner-finish-lose" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use class="gesto-a" href="#runnerLoser"></use><use class="gesto-b" href="#runnerLoserB"></use></svg></span></div></div>';
+    contenedor.innerHTML = corredores.length ? corredores.join("") : corredorSinMision;
     var carrera = document.getElementById("refreshRace");
-    carrera.setAttribute("data-lanes", String(corredores.length));
+    carrera.setAttribute("data-lanes", String(corredores.length || 1));
     carrera.classList.toggle("empty", corredores.length === 0);
   }
 
@@ -1798,6 +1812,14 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var ajusteCorredor = SALIDA_CORREDOR_PX * (1 - progresoAtleta) - META_CORREDOR_PX * progresoAtleta;
       var posicionCorredor = "calc(" + pct + "% + " + ajusteCorredor + "px)";
       var recortePista = 2 * MARGEN_PISTA_PX * progresoAtleta;
+      if (carril.getAttribute("data-race-empty") === "true") {
+        carril.classList.toggle("cruzando", false);
+        carril.classList.toggle("finished", false);
+        carril.classList.toggle("race-winner", false);
+        carril.classList.toggle("race-loser", false);
+        if (corredor) corredor.style.left = posicionCorredor;
+        return;
+      }
       // La cinta se rompe cuando el corredor la TOCA, no cuando acaba la
       // cuenta: la cinta vive a META_CINTA_PX del borde derecho y el hombro
       // del corredor va RADIO_CORREDOR_PX por delante de su centro.

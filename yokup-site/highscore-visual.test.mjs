@@ -60,7 +60,8 @@ test("la imagen conserva las proporciones 16:9 entregadas", () => {
 });
 
 test("la cabecera compacta conserva el sonido y elimina reloj y subtítulo", () => {
-  assert.match(html, /<div class="cab-tools">[\s\S]*<button class="sonido"/);
+  assert.match(html, />HIGHSCORE<\/button>\s*<button class="sonido"/);
+  assert.doesNotMatch(html, /class="cab-tools"/);
   assert.match(html, /class="sonido"[^>]*aria-pressed="false"/);
   assert.doesNotMatch(html, /<time class="reloj"/);
   assert.doesNotMatch(html, /QUIÉN TRABAJA MÁS EN LA FLOTA/i);
@@ -84,11 +85,11 @@ test("la vida hace latir el propio número de posición y no añade un punto", (
 });
 
 test("todos los atletas pixelados recorren la línea y actualizan el marcador cada 60 segundos", () => {
-  assert.match(html, /<header class="cab">[\s\S]*<h1><button class="race-toggle" id="raceToggle"[\s\S]*>HIGHSCORE<\/button><\/h1>[\s\S]*class="refresh-race"[\s\S]*class="cab-tools"[\s\S]*<\/header>/);
-  assert.match(html, /header\.cab\{[^}]*grid-template-columns:auto minmax\(180px,1fr\)[^}]*grid-template-rows:20px auto/);
-  assert.match(html, /\.cab-tools\{[^}]*grid-column:1[^}]*grid-row:1[^}]*justify-content:flex-start/);
-  assert.match(html, /\.sonido\{[^}]*width:22px[^}]*height:22px[^}]*font-size:11px/);
-  assert.match(html, /\.refresh-race\{[^}]*grid-column:2[^}]*grid-row:1 \/ span 2/);
+  assert.match(html, /<header class="cab">[\s\S]*<h1><button class="race-toggle" id="raceToggle"[\s\S]*>HIGHSCORE<\/button>\s*<button class="sonido"[\s\S]*<\/button><\/h1>[\s\S]*class="refresh-race"[\s\S]*<\/header>/);
+  assert.match(html, /header\.cab\{[^}]*grid-template-columns:auto minmax\(180px,1fr\)[^}]*grid-template-rows:auto/);
+  assert.match(html, /header\.cab>h1\{[^}]*display:flex[^}]*align-items:flex-start/);
+  assert.match(html, /\.sonido\{[^}]*width:13px[^}]*height:13px[^}]*margin-top:-3px[^}]*font-size:7px/);
+  assert.match(html, /\.refresh-race\{[^}]*grid-column:2[^}]*grid-row:1/);
   assert.match(html, /class="refresh-runner runner-' \+ variant \+ ' runner-skin-' \+ variant/);
   assert.match(html, /<svg class="runner-run-a" viewBox="0 0 24 24"[^>]*><use href="#runnerRunA"/);
   assert.match(html, /class="runner-run-b"/);
@@ -224,7 +225,7 @@ test("Ordenador agrupa equipos y mantiene dentro de cada grupo la posición real
 });
 
 test("la misión factual queda legible junto al corredor sin estela truncada", () => {
-  assert.match(html, /<div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Agentes con misión en curso"><\/div>/);
+  assert.match(html, /<div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Estado de las misiones activas"><\/div>/);
   assert.match(html, /\.refresh-mission\{[^}]*position:absolute[^}]*z-index:1[^}]*width:0[^}]*max-width:calc\(100% - 72px\)/);
   assert.match(html, /\.refresh-mission-title\{[^}]*width:max-content[^}]*direction:ltr[^}]*unicode-bidi:plaintext[^}]*white-space:nowrap/);
   assert.doesNotMatch(html, /\.refresh-mission-(?:ref|state|meta|project)\{/);
@@ -281,8 +282,10 @@ test("todos los agentes con misión en curso tienen calles ordenadas, identidad 
   assert.match(html, /class="runner-shirt" fill="var\(--runner-shirt,#f8f8f8\)"/);
   assert.match(html, /class="runner-accent" fill="var\(--runner-stripe,#3466cc\)"/);
   assert.match(html, /ykAgentIdentity\.missionPair\(agente, mision\.machine \|\| mision\.loc, \[mision\.screen\]\)/);
-  assert.match(html, /\}\)\.filter\(Boolean\);\s*contenedor\.innerHTML = corredores\.length \? corredores\.join\(""\) : '<div class="refresh-empty">Sin misión activa<\/div>'/);
-  assert.match(html, /carrera\.setAttribute\("data-lanes", String\(corredores\.length\)\)/);
+  assert.match(html, /class="refresh-lane refresh-lane-empty" role="listitem" data-race-empty="true"/);
+  assert.match(html, /SIN MISIONES ACTIVAS/);
+  assert.match(html, /contenedor\.innerHTML = corredores\.length \? corredores\.join\(""\) : corredorSinMision/);
+  assert.match(html, /carrera\.setAttribute\("data-lanes", String\(corredores\.length \|\| 1\)\)/);
   assert.match(html, /carrera\.classList\.toggle\("empty", corredores\.length === 0\)/);
 });
 
