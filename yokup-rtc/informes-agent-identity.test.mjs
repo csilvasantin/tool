@@ -9,13 +9,13 @@ const pdf = await readFile(new URL("../yokup-site/informe-pdf.js", import.meta.u
 
 test("informes recompone persona + máquina real y conserva Sub/Infra", () => {
   assert.equal(reportAgentIdentity("Morfeo", "admira-macbookpro16"), "MorfeoMBP16");
-  assert.equal(reportAgentIdentity("Oraculo", "Mac Mini"), "OraculoMini");
+  assert.equal(reportAgentIdentity("Oraculo", "Mac Mini"), "OraculoMacMini");
   assert.equal(reportAgentIdentity("SubMorfeo16", "MacBook Pro 16"), "SubMorfeoMBP16");
-  assert.equal(reportAgentIdentity("InfraOraculoMini", "admira-macmini"), "InfraOraculoMini");
+  assert.equal(reportAgentIdentity("InfraOraculoMini", "admira-macmini"), "InfraOraculoMacMini");
 });
 
 test("aliases históricos se normalizan sin inventar máquina", () => {
-  assert.equal(reportAgentIdentity("Oráculo", "Mac Mini"), "OraculoMini");
+  assert.equal(reportAgentIdentity("Oráculo", "Mac Mini"), "OraculoMacMini");
   assert.equal(reportAgentIdentity("Morfeo", ""), "Morfeo");
   assert.equal(reportAgentIdentity("persona-externa", "Mac Mini"), "persona-externa");
 });

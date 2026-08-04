@@ -2,8 +2,11 @@
 // modelo abreviado, igual en toda la flota: MacBookAirAzul → MBAAzul → NeoMBAAzul.
 // Los apellidos por color a secas ("Azul") y "Plata16"/"14" son de la generación
 // anterior: se siguen leyendo, no se vuelven a escribir (Carlos, 2026-08-03).
+// El apellido del Mac Mini es MacMini, sin abreviar: MorfeoMacMini, no MorfeoMini
+// (Carlos, 2026-08-04). El front ya lo hacía (yk-agent-identity.js); aquí seguía
+// al revés y el API reescribía el apellido completo al legado en cada censo.
 const MACHINES = [
-  ["Mini", ["macmini", "mac mini", "mac mini carlos", "admira-macmini", "macmini.local"]],
+  ["MacMini", ["macmini", "mac mini", "mac mini carlos", "admira-macmini", "macmini.local"]],
   ["MBP14", ["mbp14", "macbookpro14", "macbook pro 14", "macbookpronegro14", "macbook pro negro 14", "admira-macbookpronegro14"]],
   ["MBP16", ["mbp16", "macbookpro16", "macbook pro 16", "admira-macbookpro16", "macbook-pro-16"]],
   ["MBAAzul", ["mbaazul", "macbookairazul", "macbook air azul", "mba azul", "admira-macbookairazul"]],
@@ -26,7 +29,7 @@ const PERSONAS = [
 // Apellidos que se usaron antes y siguen vivos en datos ya guardados. Se leen,
 // pero al volver a escribir salen con el apellido actual.
 const LEGACY_SUFFIXES = new Map([
-  ["16", "MBP16"], ["14", "MBP14"], ["macmini", "Mini"],
+  ["16", "MBP16"], ["14", "MBP14"], ["mini", "MacMini"],
   ["azul", "MBAAzul"], ["rosa", "MBARosa"], ["crema", "MBACrema"], ["plata", "MBAPlata"],
   ["air16", "MBA16"], ["plata16", "MBA16"],
 ]);
