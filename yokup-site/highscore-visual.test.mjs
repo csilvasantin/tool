@@ -112,8 +112,9 @@ test("la pista pasa por los pies del corredor y termina en una meta visible", ()
   assert.match(html, /\.refresh-finish\{[^}]*right:29px[^}]*bottom:1px/);
   assert.match(html, /\.refresh-place\{[^}]*color:var\(--lane\)[^}]*text-align:center/);
   assert.match(html, /\.refresh-place\{[^}]*z-index:4[^}]*top:0/);
-  assert.match(html, /\.refresh-lane\{[^}]*min-height:84px/);
-  assert.match(html, /\.refresh-track\{[^}]*min-height:84px[^}]*padding:3px 36px 38px/);
+  assert.match(html, /\.refresh-lanes\{[^}]*gap:1px/);
+  assert.match(html, /\.refresh-lane\{[^}]*min-height:46px/);
+  assert.match(html, /\.refresh-track\{[^}]*min-height:46px[^}]*padding:1px 36px 14px/);
   assert.match(html, /\.refresh-place-finish\{right:2px\}/);
   assert.doesNotMatch(html, /refresh-place-start/);
   assert.match(html, /\.refresh-finish::before,\.refresh-finish::after\{[^}]*conic-gradient[^}]*transition:transform \.45s steps\(3,end\),opacity \.45s linear/);
@@ -226,7 +227,7 @@ test("Ordenador agrupa equipos y mantiene dentro de cada grupo la posición real
 
 test("la misión factual queda legible junto al corredor sin estela truncada", () => {
   assert.match(html, /<div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Estado de las misiones activas"><\/div>/);
-  assert.match(html, /\.refresh-mission\{[^}]*position:absolute[^}]*z-index:1[^}]*width:0[^}]*max-width:calc\(100% - 72px\)/);
+  assert.match(html, /\.refresh-mission\{[^}]*position:absolute[^}]*z-index:1[^}]*top:15px[^}]*width:0[^}]*max-width:calc\(100% - 42px\)[^}]*translateX\(calc\(-100% - 13px\)\)/);
   assert.match(html, /\.refresh-mission-title\{[^}]*width:max-content[^}]*direction:ltr[^}]*unicode-bidi:plaintext[^}]*white-space:nowrap/);
   assert.doesNotMatch(html, /\.refresh-mission-(?:ref|state|meta|project)\{/);
   assert.match(html, /@media \(max-width:620px\)[\s\S]*?\.refresh-mission\{max-width:calc\(100% - 20px\);font-size:9px;line-height:13px\}/);
@@ -245,6 +246,7 @@ test("la misión factual queda legible junto al corredor sin estela truncada", (
   assert.match(html, /title:tituloMisionActiva\(mision\), state:"EN CURSO"/);
   assert.doesNotMatch(html, /function estelaMision|class="refresh-word"/);
   assert.match(html, /mision\.style\.left = posicionCorredor/);
+  assert.match(html, /espacioMision = Math\.max\(0, centroAtleta - RADIO_CORREDOR_PX - 2\)/);
   assert.match(html, /mision\.style\.width = espacioMision \+ "px"/);
   assert.match(html, /tituloMision\.style\.transform = "translateX\(-" \+ \(desbordeMision \* avanceMision\) \+ "px\)"/);
   assert.match(html, /pintaFormula\(listaCache\); actualizaCarreraPodio\(\)/);
@@ -361,7 +363,9 @@ test("todos los corredores hacen la primera mitad al doble de velocidad y solo e
 });
 
 test("READY SET GO muestran su sprite real y la llegada muestra ganador y perdedores", () => {
-  assert.match(html, /class="race-call" id="raceCall"/);
+  assert.match(html, /class="race-call" data-race-role="call" aria-hidden="true"/);
+  assert.doesNotMatch(html, /class="race-call" id="raceCall"/);
+  assert.match(html, /querySelectorAll\("\.race-call"\)\.forEach/);
   assert.match(html, /<symbol id="runnerReady"/);
   assert.match(html, /<symbol id="runnerSet"/);
   assert.match(html, /<symbol id="runnerGo"/);

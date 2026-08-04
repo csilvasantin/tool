@@ -100,10 +100,10 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 /* Carrera de refresco: una calle sólo para quien tiene latido reciente Y ejecuta
    una misión en curso. Ninguna de las dos señales concede una calle por sí sola. */
 .refresh-race{position:relative;grid-column:2;grid-row:1;min-height:44px;min-width:0;padding:0;display:flex;align-items:flex-start;overflow:hidden}
-.refresh-lanes{width:100%;display:grid;gap:2px}
+.refresh-lanes{width:100%;display:grid;gap:1px}
 .runner-symbols{position:absolute;width:0;height:0;overflow:hidden}
-.refresh-lane{position:relative;width:100%;min-width:0;min-height:84px}
-.refresh-track{position:relative;width:100%;min-height:84px;padding:3px 36px 38px}
+.refresh-lane{position:relative;width:100%;min-width:0;min-height:46px}
+.refresh-track{position:relative;width:100%;min-height:46px;padding:1px 36px 14px}
 .refresh-track::before{content:"";position:absolute;left:36px;right:36px;bottom:3px;height:2px;
   background:rgba(120,243,255,.22);box-shadow:0 1px 0 rgba(255,216,102,.16)}
 .refresh-fill{position:absolute;left:36px;bottom:3px;width:0;height:2px;background:linear-gradient(90deg,var(--lane),var(--accent),var(--brand));
@@ -116,13 +116,13 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-lane-p2{--lane:var(--plata);--runner-shirt:#e6ecf2;--runner-stripe:#3477c7}
 .refresh-lane-p3{--lane:var(--bronce);--runner-shirt:#c87f3a;--runner-stripe:#2b1b12}
 .refresh-lane-rank{--lane:#78f3ff;--runner-shirt:#8d5fd3;--runner-stripe:#ffd866}
-.refresh-mission{position:absolute;z-index:1;left:0;top:25px;width:0;max-width:calc(100% - 72px);
-  transform:translateX(calc(-100% - 18px));overflow:hidden;color:var(--mut);font-size:11px;font-weight:800;
-  line-height:17px;letter-spacing:.02em;text-shadow:0 1px 5px #000;pointer-events:none;will-change:left,width}
+.refresh-mission{position:absolute;z-index:1;left:0;top:15px;width:0;max-width:calc(100% - 42px);
+  transform:translateX(calc(-100% - 13px));overflow:hidden;color:var(--mut);font-size:10px;font-weight:800;
+  line-height:13px;letter-spacing:.015em;text-shadow:0 1px 5px #000;pointer-events:none;will-change:left,width}
 .refresh-mission-title{display:block;width:max-content;max-width:none;direction:ltr;unicode-bidi:plaintext;
   white-space:nowrap;transform:translateX(0);will-change:transform}
-.refresh-lane-empty{--lane:var(--dim);--runner-shirt:#78f3ff;--runner-stripe:#ffd866;min-height:44px}
-.refresh-lane-empty .refresh-track{min-height:44px;padding:0 18px}
+.refresh-lane-empty{--lane:var(--dim);--runner-shirt:#78f3ff;--runner-stripe:#ffd866;min-height:46px}
+.refresh-lane-empty .refresh-track{min-height:46px;padding:0 18px}
 .refresh-lane-empty .refresh-track::before{display:none}
 .refresh-lane-empty .refresh-mission{left:auto;right:42px;top:4px;width:auto;max-width:calc(100% - 72px);transform:none;
   color:var(--dim);font-size:10px;line-height:14px;letter-spacing:.1em;text-align:right;text-transform:uppercase}
@@ -180,8 +180,8 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .runner-finish-win .gesto-b,.runner-finish-lose .gesto-b{animation:runner-gesto-b .64s steps(1,end) infinite}
 @keyframes runner-gesto-a{0%,49%{opacity:1}50%,100%{opacity:0}}
 @keyframes runner-gesto-b{0%,49%{opacity:0}50%,100%{opacity:1}}
-.race-call{position:absolute;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);
-  color:var(--accent);font-size:13px;font-weight:950;letter-spacing:.22em;text-shadow:0 0 9px #000,0 0 10px rgba(255,216,102,.45);
+.race-call{position:absolute;z-index:5;left:2px;top:1px;transform:none;
+  color:var(--accent);font-size:8px;font-weight:950;line-height:10px;letter-spacing:.16em;text-shadow:0 0 9px #000,0 0 10px rgba(255,216,102,.45);
   opacity:0;pointer-events:none}
 .refresh-race.phase-ready .race-call,.refresh-race.phase-set .race-call,.refresh-race.phase-go .race-call{opacity:1}
 .refresh-race.paused .refresh-runner svg{animation-play-state:paused}
@@ -400,7 +400,6 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         <symbol id="runnerLoser" viewBox="0 0 24 24"><g class="runner-skin" fill="var(--runner-skin,#a05a2c)"><rect x="15" y="2" width="2" height="1"/><rect x="10" y="3" width="4" height="1"/><rect x="15" y="3" width="2" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="11" y="4" width="2" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="16" y="4" width="2" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="16" y="5" width="2" height="1"/><rect x="10" y="6" width="4" height="1"/><rect x="16" y="6" width="2" height="1"/><rect x="16" y="7" width="2" height="1"/><rect x="5" y="8" width="2" height="1"/><rect x="5" y="9" width="2" height="1"/><rect x="5" y="10" width="2" height="1"/><rect x="5" y="11" width="2" height="1"/><rect x="5" y="12" width="2" height="1"/><rect x="5" y="13" width="2" height="1"/><rect x="9" y="16" width="2" height="1"/><rect x="13" y="16" width="2" height="1"/><rect x="9" y="17" width="2" height="1"/><rect x="13" y="17" width="2" height="1"/><rect x="9" y="18" width="2" height="1"/><rect x="13" y="18" width="2" height="1"/></g><g class="runner-hair" fill="var(--runner-hair,#14100b)"><rect x="10" y="1" width="4" height="1"/><rect x="9" y="2" width="6" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="14" y="3" width="1" height="1"/></g><g class="runner-mustache" fill="var(--runner-hair,#14100b)"><rect x="10" y="5" width="4" height="1"/></g><g class="runner-eye" fill="#0d0a06"><rect x="10" y="4" width="1" height="1"/><rect x="13" y="4" width="1" height="1"/></g><g class="runner-shirt" fill="var(--runner-shirt,#f8f8f8)"><rect x="7" y="7" width="9" height="1"/><rect x="7" y="8" width="10" height="1"/><rect x="7" y="9" width="2" height="1"/><rect x="15" y="9" width="2" height="1"/><rect x="7" y="10" width="10" height="1"/><rect x="8" y="11" width="8" height="1"/><rect x="8" y="12" width="8" height="1"/></g><g class="runner-accent" fill="var(--runner-stripe,#3466cc)"><rect x="9" y="9" width="6" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="15" y="14" width="1" height="1"/><rect x="9" y="20" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/></g><g class="runner-short" fill="var(--runner-short,#f8f8f8)"><rect x="8" y="13" width="8" height="1"/><rect x="9" y="14" width="6" height="1"/><rect x="8" y="15" width="3" height="1"/><rect x="13" y="15" width="3" height="1"/></g><g class="runner-shoe" fill="var(--runner-shoe,#f8f8f8)"><rect x="8" y="19" width="3" height="1"/><rect x="13" y="19" width="3" height="1"/><rect x="8" y="20" width="1" height="1"/><rect x="10" y="20" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="15" y="20" width="1" height="1"/></g></symbol><symbol id="runnerLoserB" viewBox="0 0 24 24"><g class="runner-skin" fill="var(--runner-skin,#a05a2c)"><rect x="10" y="3" width="4" height="1"/><rect x="15" y="3" width="2" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="11" y="4" width="2" height="1"/><rect x="14" y="4" width="3" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="16" y="5" width="2" height="1"/><rect x="10" y="6" width="4" height="1"/><rect x="16" y="6" width="2" height="1"/><rect x="16" y="7" width="2" height="1"/><rect x="4" y="8" width="2" height="1"/><rect x="4" y="9" width="2" height="1"/><rect x="4" y="10" width="2" height="1"/><rect x="4" y="11" width="2" height="1"/><rect x="4" y="12" width="2" height="1"/><rect x="4" y="13" width="2" height="1"/><rect x="9" y="16" width="2" height="1"/><rect x="13" y="16" width="2" height="1"/><rect x="9" y="17" width="2" height="1"/><rect x="13" y="17" width="2" height="1"/><rect x="9" y="18" width="2" height="1"/><rect x="13" y="18" width="2" height="1"/></g><g class="runner-hair" fill="var(--runner-hair,#14100b)"><rect x="10" y="1" width="4" height="1"/><rect x="9" y="2" width="6" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="14" y="3" width="1" height="1"/></g><g class="runner-mustache" fill="var(--runner-hair,#14100b)"><rect x="10" y="5" width="4" height="1"/></g><g class="runner-eye" fill="#0d0a06"><rect x="10" y="4" width="1" height="1"/><rect x="13" y="4" width="1" height="1"/></g><g class="runner-shirt" fill="var(--runner-shirt,#f8f8f8)"><rect x="7" y="7" width="9" height="1"/><rect x="7" y="8" width="10" height="1"/><rect x="7" y="9" width="2" height="1"/><rect x="15" y="9" width="2" height="1"/><rect x="7" y="10" width="10" height="1"/><rect x="8" y="11" width="8" height="1"/><rect x="8" y="12" width="8" height="1"/></g><g class="runner-accent" fill="var(--runner-stripe,#3466cc)"><rect x="9" y="9" width="6" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="15" y="14" width="1" height="1"/><rect x="9" y="20" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/></g><g class="runner-short" fill="var(--runner-short,#f8f8f8)"><rect x="8" y="13" width="8" height="1"/><rect x="9" y="14" width="6" height="1"/><rect x="8" y="15" width="3" height="1"/><rect x="13" y="15" width="3" height="1"/></g><g class="runner-shoe" fill="var(--runner-shoe,#f8f8f8)"><rect x="8" y="19" width="3" height="1"/><rect x="13" y="19" width="3" height="1"/><rect x="8" y="20" width="1" height="1"/><rect x="10" y="20" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="15" y="20" width="1" height="1"/></g></symbol></defs>
       </svg>
       <div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Estado de las misiones activas"></div>
-      <span class="race-call" id="raceCall" aria-hidden="true"></span>
       <span class="sr-only" id="refreshCount">60 segundos</span>
     </div>
   </header>
@@ -494,7 +493,19 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
   document.getElementById("btnSonido").addEventListener("click", function (e) { e.stopPropagation(); sonando ? para() : arranca(); });
   var cargaPresite = document.getElementById("carga");
-  function desbloqueaAudioPresite() { if (!entradaHecha && (!bgm || bgm.paused)) arranca(); }
+  var entradaArmadaPorAudio = false;
+  function desbloqueaAudioPresite() {
+    if (!entradaHecha && (!bgm || bgm.paused)) {
+      entradaArmadaPorAudio = true;
+      arranca();
+    }
+  }
+  function solicitaEntrada() {
+    // El gesto que levanta el bloqueo de autoplay debe dejar tiempo audible en
+    // la carátula. El siguiente click o tecla conserva la entrada habitual.
+    if (entradaArmadaPorAudio) { entradaArmadaPorAudio = false; return; }
+    entra();
+  }
   cargaPresite.addEventListener("pointerdown", desbloqueaAudioPresite, { once:true, capture:true });
   document.addEventListener("keydown", desbloqueaAudioPresite, { once:true, capture:true });
   arranca();
@@ -1635,6 +1646,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         'aria-label="Puesto ' + puesto + ', ' + esc(agente) + '. ' + esc(resumen.title) + '">' +
         '<div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
+        '<span class="race-call" data-race-role="call" aria-hidden="true"></span>' +
         '<span class="refresh-mission" data-race-role="mission" title="' + esc(resumen.title) + '">' +
         '<span class="refresh-mission-title">' + esc(resumen.title) + '</span></span>' +
         '<span class="refresh-runner runner-' + variant + ' runner-skin-' + variant + '" data-race-role="runner" aria-hidden="true">' +
@@ -1652,6 +1664,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     }).filter(Boolean);
     var corredorSinMision = '<div class="refresh-lane refresh-lane-empty" role="listitem" data-race-empty="true" ' +
       'aria-label="Sin misiones activas"><div class="refresh-track">' +
+      '<span class="race-call" data-race-role="call" aria-hidden="true"></span>' +
       '<span class="refresh-mission" data-race-role="mission"><span class="refresh-mission-title">SIN MISIONES ACTIVAS</span></span>' +
       '<span class="refresh-runner runner-light runner-skin-light" data-race-role="runner" aria-hidden="true">' +
       '<svg class="runner-pose-ready" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerReady"></use></svg>' +
@@ -1729,18 +1742,19 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     document.getElementById("pulsa").style.visibility = "visible";
     var vivos = agentesEnLiza(listaCache);
     document.getElementById("pieCarga").textContent = vivos + (vivos === 1 ? " AGENTE EN LIZA" : " AGENTES EN LIZA");
-    document.getElementById("carga").addEventListener("click", entra, { once: true });
-    document.addEventListener("keydown", entra, { once: true });
+    document.getElementById("carga").addEventListener("click", solicitaEntrada);
+    document.addEventListener("keydown", solicitaEntrada);
     programaEntradaAutomatica();
   }
   function entra() {
     if (entradaHecha) return;
     entradaHecha = true;
     clearTimeout(entradaTimer); clearInterval(cuentaEntradaTimer);
-    document.getElementById("carga").removeEventListener("click", entra);
-    document.removeEventListener("keydown", entra);
+    document.getElementById("carga").removeEventListener("click", solicitaEntrada);
+    document.removeEventListener("keydown", solicitaEntrada);
     cargaPresite.removeEventListener("pointerdown", desbloqueaAudioPresite, true);
     document.removeEventListener("keydown", desbloqueaAudioPresite, true);
+    entradaArmadaPorAudio = false;
     para(true); fanfarriaPodio();
     var c = document.getElementById("carga");
     c.classList.add("fuera");
@@ -1835,7 +1849,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         // La ventana termina justo detrás del corredor y crece con él. El título
         // conserva su orden natural: primero se revela el comienzo y, sólo cuando
         // ya hay pista, avanza por el resto sin duplicar ni invertir palabras.
-        var espacioMision = Math.max(0, centroAtleta - MARGEN_PISTA_PX - RADIO_CORREDOR_PX - 4);
+        var espacioMision = Math.max(0, centroAtleta - RADIO_CORREDOR_PX - 2);
         var tituloMision = mision.querySelector(".refresh-mission-title");
         mision.style.left = posicionCorredor;
         mision.style.width = espacioMision + "px";
@@ -1865,7 +1879,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     ["ready", "set", "go"].forEach(function (nombre) {
       carrera.classList.toggle("phase-" + nombre, nombre === fase);
     });
-    document.getElementById("raceCall").textContent = llamada || "";
+    document.querySelectorAll(".race-call").forEach(function (aviso) {
+      aviso.textContent = llamada || "";
+    });
   }
   function pintaMomentoCarrera(transcurrido) {
     transcurrido = Math.max(0, Math.min(CICLO_MS, transcurrido));
