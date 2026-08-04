@@ -1445,9 +1445,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function actualizaCarreraPodio() {
     var contenedor = document.getElementById("refreshLanes");
     var activas = misionesEnCurso();
-    var corredores = filasConMisionEnCurso(listaCache || [], activas).map(function (fila, indice) {
+    var corredores = filasConMisionEnCurso(listaCache || [], activas).map(function (fila) {
       var clave = claveAgenteCarrera(fila.agente);
       var mision = misionActivaDeAgente(activas, clave), resumen = resumenMisionActiva(mision);
+      return mision ? { fila:fila, clave:clave, resumen:resumen } : null;
+    }).filter(Boolean).map(function (enlace, indice) {
+      var fila = enlace.fila, clave = enlace.clave, resumen = enlace.resumen;
       var puesto = indice + 1, agente = normaliza(fila.agente);
       var variant = typeof YkHighscoreRace !== "undefined" ? YkHighscoreRace.runnerVariant(fila)
         : (clave.split("").reduce(function (n, c) { return n + c.charCodeAt(0); }, 0) % 2 ? "dark" : "light");
