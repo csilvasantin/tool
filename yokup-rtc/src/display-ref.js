@@ -36,6 +36,25 @@ export function madridDayKey(value) {
   return `${part.year}-${part.month}-${part.day}`;
 }
 
+/** Medianoche de Madrid del instante dado, en epoch ms — el corte con el que el
+ *  marcador diario vuelve a cero. Se calcula con el desfase REAL de ese día y se
+ *  recalcula una vez sobre el resultado, que es donde muerde el cambio de hora:
+ *  la madrugada del salto, el desfase de las 12:00 y el de las 00:00 no son el
+ *  mismo y el corte se iría una hora. */
+export function madridDayStart(value) {
+  const instante = epochMillis(value);
+  const desfase = (ms) => {
+    const p = madridParts(ms);
+    return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute))
+      - Math.floor(ms / 60000) * 60000;
+  };
+  const off = desfase(instante);
+  const inicioLocal = Math.floor((instante + off) / 86400000) * 86400000;
+  const candidato = inicioLocal - off;
+  const off2 = desfase(candidato);
+  return off2 === off ? candidato : inicioLocal - off2;
+}
+
 export function formatDisplayRef(sequence, value) {
   const part = madridParts(value);
   const number = String(Math.max(0, Math.floor(Number(sequence) || 0))).padStart(4, "0");

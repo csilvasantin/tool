@@ -3,7 +3,7 @@ import { memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, sele
 import { baseAgentIdentity, machineSuffix, parseAgentIdentity, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
 import { AgentStopError, dispatchAgentStop, normalizeAgentStopTarget } from "./fleet-agent-stop.js";
-import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, sortDisplayRefCandidates } from "./display-ref.js";
+import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, madridDayStart, sortDisplayRefCandidates } from "./display-ref.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -2811,6 +2811,81 @@ async function fleetMissions(env) {
   });
 }
 __name(fleetMissions, "fleetMissions");
+
+// ── HIGHSCORE DIARIO ────────────────────────────────────────────────────────
+// El marcador (/highscore) pedía esta ruta desde el 2 de agosto y NADIE la había
+// escrito: la petición caía en el catch-all, el worker devolvía su portada en
+// texto plano con 200, el r.json() del front reventaba y seguroYokup() se tragaba
+// el error en silencio. Como Objetivos, Ventanas y Misiones —recuentos Y puntos—
+// salen SOLO de aquí, las tres columnas valían 0 para TODOS los agentes, siempre;
+// lo único que puntuaba eran las Tareas, que vienen de /tasks/all. Lo cantó Carlos
+// al ver que ningún MacBookAir marcaba nada llevando horas trabajando, y de hecho
+// las 6 ventanas de decisión abiertas ese día eran justo de los Air. (FLT-1165,
+// NeoMBACrema, 2026-08-04.)
+//
+// Los pesos son los que la propia página ya explicaba en su leyenda; viajan en el
+// payload (`weights`) para que marcador y backend no puedan discrepar nunca.
+var HIGHSCORE_WEIGHTS = { objective: 20, window: 8, mission: 40 };
+var HIGHSCORE_PERSONAS = ["neo", "morfeo", "trinity", "oraculo", "smith", "whiterabbit", "cypher"];
+
+/** Quién firma un objetivo. Los autores llegan como los escribe cada sitio:
+ *  «Oráculo», «Neo16 (Claude)», «Carlos · Oraculo» o un asiento del Consejo
+ *  («CEO · Steve Jobs»). Solo puntúan agentes de la flota — si no, el marcador
+ *  se inventaría una fila por cada asiento y por Carlos. El apellido de equipo lo
+ *  normaliza el front (yk-agent-identity), aquí se respeta el nombre tal cual. */
+function highscoreAgent(author) {
+  const bruto = String(author || "").split("·").pop().replace(/\([^)]*\)/g, "").trim();
+  if (!bruto) return "";
+  const clave = bruto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z]/g, "");
+  return HIGHSCORE_PERSONAS.some((p) => clave.startsWith(p)) ? bruto : "";
+}
+__name(highscoreAgent, "highscoreAgent");
+
+async function highscoreDaily(env) {
+  const ahora = Date.now(), inicio = madridDayStart(ahora), fin = inicio + 864e5;
+  const acc = /* @__PURE__ */ new Map();
+  const fila = (agent, machine) => {
+    const a = String(agent || "").trim();
+    if (!a) return null;
+    const m = String(machine || "").trim(), k = a.toLowerCase() + "|" + m.toLowerCase();
+    if (!acc.has(k)) acc.set(k, {
+      agent: a, machine: m,
+      objectives: 0, objective_points: 0, windows: 0, window_points: 0, missions: 0, mission_points: 0
+    });
+    return acc.get(k);
+  };
+  const filas = async (sql) => ((await env.DB.prepare(sql).bind(inicio, fin).all()).results || []);
+
+  // OBJETIVOS: ideas creadas hoy. Sin máquina — el marcador funde la fila con la
+  // principal del agente, igual que hace con la presencia.
+  for (const r of await filas(
+    "SELECT author, COUNT(*) c FROM ideas WHERE created_at>=? AND created_at<? GROUP BY author"
+  )) {
+    const f = fila(highscoreAgent(r.author), "");
+    if (f) { f.objectives += Number(r.c) || 0; f.objective_points += (Number(r.c) || 0) * HIGHSCORE_WEIGHTS.objective; }
+  }
+  // VENTANAS: acumulado del día, no simultáneas. Una ventana cuenta cuando se ABRE.
+  for (const r of await filas(
+    "SELECT agent, machine, COUNT(*) c FROM decisions WHERE created_at>=? AND created_at<? GROUP BY agent, machine"
+  )) {
+    const f = fila(r.agent, r.machine);
+    if (f) { f.windows += Number(r.c) || 0; f.window_points += (Number(r.c) || 0) * HIGHSCORE_WEIGHTS.window; }
+  }
+  // MISIONES ejecutadas hoy. Una fila por misión, así que los reintentos no
+  // duplican: la misma misión no puede puntuar dos veces el mismo día. El sello
+  // es `updated_at` porque open→in_progress solo ocurre una vez (todas las
+  // transiciones llevan WHERE status='open') y no hay columna propia para ello.
+  for (const r of await filas(
+    "SELECT assignee, loc, COUNT(*) c FROM tickets WHERE source='fleet' " +
+    "AND status IN ('in_progress','resolved') AND updated_at>=? AND updated_at<? GROUP BY assignee, loc"
+  )) {
+    const f = fila(r.assignee, r.loc);
+    if (f) { f.missions += Number(r.c) || 0; f.mission_points += (Number(r.c) || 0) * HIGHSCORE_WEIGHTS.mission; }
+  }
+  return { ok: true, day: madridDayKey(ahora), weights: HIGHSCORE_WEIGHTS, scores: [...acc.values()] };
+}
+__name(highscoreDaily, "highscoreDaily");
+
 // Cuelga una misión HIJA de una MADRE (FLT-990 b2 → DOS niveles, FLT-990 c). El
 // modelo es madre → misión → submisión y NADA más: profundidad máxima 2. Se permite
 // colgar bajo una hija SOLO si esa hija no es a su vez nieta (su madre debe ser
@@ -3079,6 +3154,10 @@ var index_default = {
     if (url.pathname === "/fleet/missions") {
       await ensureSchema(env);
       return json({ missions: await fleetMissions(env) });
+    }
+    if (url.pathname === "/highscore/daily") {
+      await ensureSchema(env);
+      return json(await highscoreDaily(env));
     }
     // ── NOTIFICACIONES DEL SISTEMA DE LA FLOTA (FLT-1020) ────────────────────
     // Sin perímetro, como el resto de /fleet/*: quien publica es un vigilante que
