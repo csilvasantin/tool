@@ -116,16 +116,11 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-lane-p2{--lane:var(--plata);--runner-shirt:#e6ecf2;--runner-stripe:#3477c7}
 .refresh-lane-p3{--lane:var(--bronce);--runner-shirt:#c87f3a;--runner-stripe:#2b1b12}
 .refresh-lane-rank{--lane:#78f3ff;--runner-shirt:#8d5fd3;--runner-stripe:#ffd866}
-.refresh-mission{position:relative;z-index:1;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;
-  gap:2px 9px;min-width:0;padding:4px 7px;border:1px solid rgba(120,243,255,.18);border-radius:5px;
-  background:rgba(2,8,13,.72);text-shadow:0 1px 5px #000;pointer-events:none}
-.refresh-mission-ref{grid-row:1 / span 2;color:var(--brand);font-size:9px;font-weight:900;line-height:1.25;
-  letter-spacing:.045em;white-space:nowrap}
-.refresh-mission-title{min-width:0;color:var(--ink);font-size:11px;font-weight:800;line-height:1.25;
-  letter-spacing:.02em;white-space:normal;overflow-wrap:anywhere}
-.refresh-mission-meta{display:flex;align-items:center;gap:5px;min-width:0;font-size:8.5px;line-height:1.2;letter-spacing:.06em}
-.refresh-mission-state{flex:0 0 auto;color:var(--good);font-weight:950}
-.refresh-mission-project{min-width:0;color:var(--mut);white-space:normal;overflow-wrap:anywhere}
+.refresh-mission{position:absolute;z-index:1;left:0;top:25px;width:0;max-width:calc(100% - 72px);
+  transform:translateX(calc(-100% - 18px));overflow:hidden;color:var(--mut);font-size:11px;font-weight:800;
+  line-height:17px;letter-spacing:.02em;text-shadow:0 1px 5px #000;pointer-events:none;will-change:left,width}
+.refresh-mission-title{display:block;width:max-content;max-width:none;direction:ltr;unicode-bidi:plaintext;
+  white-space:nowrap;transform:translateX(0);will-change:transform}
 .refresh-empty{width:100%;padding:12px 36px;color:var(--dim);font-size:10px;font-weight:800;letter-spacing:.1em;
   text-align:right;text-transform:uppercase}
 .refresh-agent{position:absolute;z-index:2;right:43px;bottom:9px;max-width:min(240px,45%);
@@ -329,8 +324,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .plaza.p2{left:7%;top:62%}.plaza.p1{left:36.5%;top:59%}.plaza.p3{right:6%;top:66%}
   .nom{font-size:7px}.pts{font-size:10px}
   .wrap{padding-top:46px}header.cab{grid-template-columns:auto minmax(90px,1fr) auto;gap:10px}h1{font-size:17px}
-  .refresh-race{padding:0 10px}.refresh-track{padding-left:10px;padding-right:10px}.refresh-mission{grid-template-columns:1fr;gap:2px;padding:4px 5px}
-  .refresh-mission-ref{grid-row:auto;font-size:8px}.refresh-mission-title{font-size:9px}.refresh-mission-meta{font-size:7.5px}
+  .refresh-race{padding:0 10px}.refresh-track{padding-left:10px;padding-right:10px}.refresh-mission{max-width:calc(100% - 20px);font-size:9px;line-height:13px}.refresh-mission-title{font-size:9px}
   .refresh-agent{max-width:105px;font-size:10px;line-height:13px}
   .score-progress td{padding-left:5px;padding-right:5px}.progression{grid-template-columns:88px repeat(5,76px);min-width:500px;gap:4px}
   .progression-step{grid-template-columns:13px minmax(0,1fr);column-gap:3px}.progression-dot{width:13px;height:13px;border-width:1px}.progression-step::before{top:6px}}
@@ -1400,14 +1394,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var clasePuesto = puesto <= 3 ? "refresh-lane-p" + puesto : "refresh-lane-rank";
       return '<div class="refresh-lane ' + clasePuesto + ' ' + (puesto === 1 ? 'race-winner' : 'race-loser') +
         '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
-        'aria-label="Puesto ' + puesto + ', ' + esc(agente) + '. ' + esc(resumen.reference ? resumen.reference + '. ' : '') + esc(resumen.title) + '. ' + esc(resumen.state) + '">' +
+        'aria-label="Puesto ' + puesto + ', ' + esc(agente) + '. ' + esc(resumen.title) + '">' +
         '<div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
-        '<span class="refresh-mission" data-race-role="mission">' +
-        (resumen.reference ? '<span class="refresh-mission-ref">' + esc(resumen.reference) + '</span>' : '') +
-        '<span class="refresh-mission-title">' + esc(resumen.title) + '</span>' +
-        '<span class="refresh-mission-meta"><span class="refresh-mission-state">' + esc(resumen.state) + '</span>' +
-        (resumen.project ? '<span class="refresh-mission-project">· ' + esc(resumen.project) + '</span>' : '') + '</span></span>' +
+        '<span class="refresh-mission" data-race-role="mission" title="' + esc(resumen.title) + '">' +
+        '<span class="refresh-mission-title">' + esc(resumen.title) + '</span></span>' +
         '<span class="refresh-runner runner-' + variant + ' runner-skin-' + variant + '" data-race-role="runner" aria-hidden="true">' +
         '<svg class="runner-pose-ready" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerReady"></use></svg>' +
         '<svg class="runner-pose-set" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerSet"></use></svg>' +
@@ -1562,6 +1553,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var progresoAtleta = progresoCarril(progreso, puesto), pct = progresoAtleta * 100;
       var relleno = carril.querySelector('[data-race-role="fill"]');
       var corredor = carril.querySelector('[data-race-role="runner"]');
+      var mision = carril.querySelector('[data-race-role="mission"]');
       var agente = carril.querySelector('[data-race-role="agent"]');
       var ajusteCorredor = SALIDA_CORREDOR_PX * (1 - progresoAtleta) - META_CORREDOR_PX * progresoAtleta;
       var posicionCorredor = "calc(" + pct + "% + " + ajusteCorredor + "px)";
@@ -1577,6 +1569,20 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       carril.classList.toggle("race-loser", puesto !== 1);
       if (relleno) relleno.style.width = "calc(" + pct + "% - " + recortePista + "px)";
       if (corredor) corredor.style.left = posicionCorredor;
+      if (mision) {
+        // La ventana termina justo detrás del corredor y crece con él. El título
+        // conserva su orden natural: primero se revela el comienzo y, sólo cuando
+        // ya hay pista, avanza por el resto sin duplicar ni invertir palabras.
+        var espacioMision = Math.max(0, centroAtleta - MARGEN_PISTA_PX - RADIO_CORREDOR_PX - 4);
+        var tituloMision = mision.querySelector(".refresh-mission-title");
+        mision.style.left = posicionCorredor;
+        mision.style.width = espacioMision + "px";
+        if (tituloMision) {
+          var desbordeMision = Math.max(0, tituloMision.scrollWidth - espacioMision);
+          var avanceMision = Math.max(0, Math.min(1, (progresoAtleta - .35) / .65));
+          tituloMision.style.transform = "translateX(-" + (desbordeMision * avanceMision) + "px)";
+        }
+      }
       if (agente) {
         var anchoAgente = Math.max(1, agente.offsetWidth);
         var centroCorredor = progresoAtleta * carril.clientWidth + ajusteCorredor;
