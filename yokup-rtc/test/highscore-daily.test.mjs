@@ -22,7 +22,7 @@ function harness(){
   db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,subject TEXT,loc TEXT,source TEXT,status TEXT,assignee TEXT,created_at INTEGER,updated_at INTEGER)");
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{first:async()=>stmt.get(...args)||null,run:async()=>({meta:stmt.run(...args)}),all:async()=>({results:stmt.all(...args)})}},first:async()=>stmt.get()||null,all:async()=>({results:stmt.all()})}}};
   const context=vm.createContext({Map,String,Number,Date,RegExp,Math,Object,madridDayKey,madridDayStart,__name:(fn)=>fn});
-  vm.runInContext([grabVar("HIGHSCORE_WEIGHTS"),grabVar("HIGHSCORE_PERSONAS"),grab("highscoreAgent"),grab("highscoreDaily")].join("\n"),context);
+  vm.runInContext([grabVar("HIGHSCORE_WEIGHTS"),grabVar("HIGHSCORE_PERSONAS"),grabVar("AGENT_SOURCE_SQL"),grab("highscoreAgent"),grab("highscoreDaily")].join("\n"),context);
   return{db,env:{DB},F:context};
 }
 
@@ -57,6 +57,7 @@ test("el marcador diario suma objetivos, ventanas y misiones del día de Madrid"
     ('FLT-2','y','MacBookAirRosa','fleet','resolved','NeoMBARosa',${AYER},${HOY}),
     ('FLT-3','z','MacBookAirRosa','fleet','open','NeoMBARosa',${HOY},${HOY}),
     ('FLT-4','w','MacBookAirRosa','fleet','in_progress','NeoMBARosa',${AYER},${AYER}),
+    ('MIS-DEC-1-01','u','MacBookAirRosa','decision-batch','in_progress','NeoMBARosa',${HOY},${HOY}),
     ('INC-9','v','tienda','web','in_progress','tecnico',${HOY},${HOY})`);
 
   // El vm vive en otro realm: se cruza por JSON para comparar como lo verá el front.
@@ -70,8 +71,8 @@ test("el marcador diario suma objetivos, ventanas y misiones del día de Madrid"
   assert.equal(rosa.machine,"MacBookAirRosa");
   assert.equal(rosa.windows,2,"solo las ventanas abiertas HOY");
   assert.equal(rosa.window_points,16);
-  assert.equal(rosa.missions,2,"open no cuenta, y lo de ayer tampoco");
-  assert.equal(rosa.mission_points,80);
+  assert.equal(rosa.missions,3,"cuentan las dos puertas: bandeja de encargos Y ventana de decisión");
+  assert.equal(rosa.mission_points,120);
 
   const oraculo=d.scores.find(s=>s.agent==="Oráculo");
   assert.equal(oraculo.objectives,2,"solo los objetivos creados hoy");
@@ -105,4 +106,16 @@ test("la medianoche del marcador es la de Madrid, no la de UTC", () => {
   // Invierno (CET, UTC+1): el 15 de enero de 2026 empieza a las 23:00 UTC del 14.
   const invierno=Date.UTC(2026,0,15,10,0);
   assert.equal(madridDayStart(invierno),Date.UTC(2026,0,14,23,0));
+});
+
+test("el ámbito de flota incluye las misiones nacidas de una ventana de decisión", () => {
+  // El trabajo de agente entra por dos puertas; el ámbito «fleet» tiene que ver las dos.
+  assert.match(source, /var AGENT_SOURCE_SQL = "source IN \('fleet','decision-batch'\)"/);
+  assert.match(source, /scope === "fleet" \? `WHERE \$\{AGENT_SOURCE_SQL_T\}`/);
+  assert.match(source, /scope === "fleet" \? AGENT_SOURCE_SQL/);
+  assert.doesNotMatch(source, /scope === "fleet" \? "WHERE t\.source='fleet'"/);
+  assert.doesNotMatch(source, /scope === "fleet" \? "source='fleet'"/);
+  // Y la bandeja de CAMPO deja de tragarse las misiones de los agentes.
+  assert.match(source, /source NOT IN \('fleet','decision-batch'\)/);
+  assert.doesNotMatch(source, /source IS NULL OR t\.source!='fleet'/);
 });

@@ -1617,10 +1617,25 @@ __name(listMissionTasks, "listMissionTasks");
 // 15 s). Cada fila trae adjuntos los datos de su misión (subject/screen/loc/…)
 // para agrupar/filtrar en cliente sin más peticiones. `scope` filtra igual que
 // listTickets/stats. Sin LIMIT: recoge todas (evita el corte de 100 de /tickets).
+// ── QUÉ ES «TRABAJO DE AGENTE» ──────────────────────────────────────────────
+// Entra por DOS puertas, no por una: la bandeja de encargos (source='fleet') y
+// las ventanas de decisión, que materializan la opción elegida —o la recomendada,
+// si nadie contesta a tiempo— como misión con source='decision-batch'
+// (activateNextMissionBatchItem). Filtrar solo por 'fleet' dejaba fuera la mitad
+// del trabajo y tenía DOS caras feas: los MacBookAir de color, que tiran casi
+// siempre de ventana de decisión, salían con 0 misiones y 0 tareas en el
+// Highscore aunque llevaran horas trabajando; y sus misiones se colaban en la
+// bandeja de CAMPO, cuyo ámbito es «todo lo que no es fleet». Lo cazó Carlos
+// mirando el marcador: «todos los que corren en un MacBookAir tienen 0 en
+// misiones y 0 en tareas». (2026-08-04.)
+var AGENT_SOURCE_SQL = "source IN ('fleet','decision-batch')";
+var AGENT_SOURCE_SQL_T = "t.source IN ('fleet','decision-batch')";
+var FIELD_SOURCE_SQL_T = "(t.source IS NULL OR t.source NOT IN ('fleet','decision-batch'))";
+
 async function listAllMissionTasks(env, scope) {
-  const where = scope === "fleet" ? "WHERE t.source='fleet'"
+  const where = scope === "fleet" ? `WHERE ${AGENT_SOURCE_SQL_T}`
     : scope === "todas" ? ""
-    : "WHERE t.source IS NULL OR t.source!='fleet'";
+    : `WHERE ${FIELD_SOURCE_SQL_T}`;
   const { results } = await env.DB.prepare(
     // ADITIVO (Carlos, 2026-07-23 · /informes): además de la hora de inicio de la
     // misión (t.created_at → mission_created) traemos la de FIN (t.resolved_at →
@@ -2067,7 +2082,7 @@ __name(reconcile, "reconcile");
 function pageLimit(v) { const n = parseInt(v, 10); return n > 0 ? Math.min(1000, n) : 300; }
 function pageOffset(v) { const n = parseInt(v, 10); return n > 0 ? n : 0; }
 async function listTickets(env, scope, limit, offset) {
-  const where = scope === "fleet" ? "WHERE t.source='fleet'" : scope === "todas" ? "" : "WHERE t.source IS NULL OR t.source!='fleet'";
+  const where = scope === "fleet" ? `WHERE ${AGENT_SOURCE_SQL_T}` : scope === "todas" ? "" : `WHERE ${FIELD_SOURCE_SQL_T}`;
   const { results } = await env.DB.prepare(
     `SELECT t.*, f.inbox_id FROM tickets t LEFT JOIN fleet_ids f ON f.mission_id=t.id
      ${where} ORDER BY (t.status='open') DESC, (t.status='in_progress') DESC, t.created_at DESC LIMIT ? OFFSET ?`
@@ -2875,8 +2890,10 @@ async function highscoreDaily(env) {
   // duplican: la misma misión no puede puntuar dos veces el mismo día. El sello
   // es `updated_at` porque open→in_progress solo ocurre una vez (todas las
   // transiciones llevan WHERE status='open') y no hay columna propia para ello.
+  // Cuentan las DOS puertas (ver AGENT_SOURCE_SQL): filtrar solo por 'fleet'
+  // dejaba a cero a quien trabaja por ventana de decisión.
   for (const r of await filas(
-    "SELECT assignee, loc, COUNT(*) c FROM tickets WHERE source='fleet' " +
+    `SELECT assignee, loc, COUNT(*) c FROM tickets WHERE ${AGENT_SOURCE_SQL} ` +
     "AND status IN ('in_progress','resolved') AND updated_at>=? AND updated_at<? GROUP BY assignee, loc"
   )) {
     const f = fila(r.assignee, r.loc);
@@ -2925,7 +2942,7 @@ __name(fleetSetParent, "fleetSetParent");
 async function stats(env, scope) {
   // Mismos ámbitos que listTickets: los KPIs de la bandeja de campo no pueden
   // contar las misiones de flota (dispararían «abiertas» a decenas).
-  const sc = scope === "fleet" ? "source='fleet'" : scope === "todas" ? "1=1" : "(source IS NULL OR source!='fleet')";
+  const sc = scope === "fleet" ? AGENT_SOURCE_SQL : scope === "todas" ? "1=1" : "(source IS NULL OR source NOT IN ('fleet','decision-batch'))";
   const open = (await env.DB.prepare(`SELECT COUNT(*) c FROM tickets WHERE ${sc} AND status='open'`).first())?.c || 0;
   const prog = (await env.DB.prepare(`SELECT COUNT(*) c FROM tickets WHERE ${sc} AND status='in_progress'`).first())?.c || 0;
   const res = (await env.DB.prepare(`SELECT COUNT(*) c FROM tickets WHERE ${sc} AND status='resolved'`).first())?.c || 0;
