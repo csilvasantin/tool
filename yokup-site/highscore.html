@@ -325,18 +325,25 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .agent-scope-row:hover,.agent-scope-row:focus-within{border-color:var(--brand);color:var(--ink);background:rgba(120,243,255,.08)}
 .agent-scope-row.all{border-color:rgba(255,216,102,.25);color:var(--accent);font-weight:900}
 .agent-scope-group{display:grid;min-width:0;margin:0;padding:0;border:0;gap:4px}
-.agent-scope-row.team{grid-template-columns:16px minmax(0,1fr) auto;border-color:rgba(120,243,255,.24);color:var(--ink);
+.agent-scope-row.team{grid-template-columns:minmax(0,1fr) auto;padding:0;border-color:rgba(120,243,255,.24);color:var(--ink);
   background:rgba(120,243,255,.08);font-weight:900}
+.agent-scope-team-select{display:grid;grid-template-columns:16px minmax(0,1fr) auto;align-items:center;gap:7px;min-width:0;
+  min-height:28px;padding:5px 3px 5px 7px;cursor:pointer}
+.agent-scope-team-toggle{appearance:none;display:grid;place-items:center;width:27px;align-self:stretch;padding:0;border:0;
+  border-left:1px solid rgba(120,243,255,.14);background:transparent;color:var(--brand);font:900 12px/1 var(--mono);cursor:pointer}
+.agent-scope-team-toggle::before{content:"▸"}.agent-scope-team-toggle[aria-expanded="true"]::before{content:"▾"}
+.agent-scope-team-toggle:hover,.agent-scope-team-toggle:focus-visible{background:rgba(120,243,255,.12);outline:1px solid var(--brand);outline-offset:-1px}
 .agent-scope-team-count{min-width:20px;padding:1px 5px;border:1px solid var(--line);border-radius:999px;color:var(--dim);
   font-size:8px;text-align:center}
 .agent-scope-children{display:grid;gap:3px;padding-left:14px;border-left:1px solid rgba(120,243,255,.14)}
+.agent-scope-children[hidden]{display:none}
 .agent-scope-children .agent-scope-row{min-height:25px;background:rgba(120,243,255,.018)}
 .agent-scope-row.agent{grid-template-columns:minmax(0,1fr) auto;gap:6px;padding:4px 6px}
 .agent-scope-primary{display:grid;grid-template-columns:16px minmax(0,1fr);align-items:center;gap:7px;min-width:0;cursor:pointer}
-.agent-scope-running{display:inline-flex;align-items:center;gap:4px;padding:3px 5px;border:1px solid rgba(255,216,102,.22);
-  border-radius:5px;color:var(--dim);font-size:8px;font-weight:900;line-height:1;white-space:nowrap;cursor:pointer}
+.agent-scope-running{display:grid;place-items:center;width:24px;height:24px;border:1px solid rgba(255,216,102,.18);
+  border-radius:5px;color:var(--dim);font-size:13px;line-height:1;cursor:pointer;filter:grayscale(1);opacity:.52}
 .agent-scope-running:has(input:checked){border-color:rgba(255,216,102,.65);color:var(--accent);background:rgba(255,216,102,.08)}
-.agent-scope-running input{accent-color:var(--accent)}
+.agent-scope-running:has(input:checked){filter:none;opacity:1}.agent-scope-running:hover,.agent-scope-running:focus-within{border-color:var(--accent);filter:none;opacity:1}
 .agent-scope-row input{margin:0;accent-color:var(--brand)}
 .agent-scope-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .agent-scope-actions{display:grid;gap:6px}
@@ -1099,6 +1106,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   var DASHBOARD_TEAM_SCOPE_KEY = "yokup.dashboard.teams.v1";
   var AGENT_SCOPE = hsReadAgentScope();
   var RACE_EXTRAS = hsReadRaceExtras();
+  var AGENT_SCOPE_OPEN_TEAMS = new Set();
   var ordenTabla = { campo:"", direccion:"" };
   var filtroSoloVivos = false;
   var DIRECCION_INICIAL = {
@@ -1273,17 +1281,20 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     if (!items.length) { list.innerHTML = '<div class="agent-scope-empty">No hay agentes disponibles.</div>'; return; }
     list.innerHTML = '<label class="agent-scope-row all"><input type="checkbox" data-agent-scope-all><span class="agent-scope-label">Todos (' + items.length + ')</span></label>' +
       census.groups.map(function (group, index) {
-        var groupId = "agentScopeTeam" + index, groupSelected = AGENT_SCOPE === null ? group.items.length :
+        var groupId = "agentScopeTeam" + index, childrenId = groupId + "Agents", groupOpen = AGENT_SCOPE_OPEN_TEAMS.has(group.key),
+          groupSelected = AGENT_SCOPE === null ? group.items.length :
           group.items.filter(function (item) { return AGENT_SCOPE.has(item.key); }).length;
         return '<fieldset class="agent-scope-group" data-agent-scope-group="' + esc(group.key) + '"><legend class="sr-only">Equipo físico ' + esc(group.label) + '</legend>' +
-          '<label class="agent-scope-row team"><input type="checkbox" data-agent-scope-team value="' + esc(group.key) + '"' +
+          '<div class="agent-scope-row team"><label class="agent-scope-team-select"><input type="checkbox" data-agent-scope-team value="' + esc(group.key) + '"' +
           (groupSelected === group.items.length ? ' checked' : '') + ' aria-label="Seleccionar agentes de ' + esc(group.label) + '">' +
           '<span class="agent-scope-label" id="' + groupId + '">' + esc(group.label) + '</span><span class="agent-scope-team-count" aria-hidden="true">' + group.items.length + '</span></label>' +
-          '<div class="agent-scope-children">' + group.items.map(function (item) {
+          '<button class="agent-scope-team-toggle" type="button" data-agent-scope-toggle="' + esc(group.key) + '" aria-controls="' + childrenId + '" aria-expanded="' + groupOpen + '" aria-label="' +
+          (groupOpen ? 'Compactar agentes de ' : 'Mostrar agentes de ') + esc(group.label) + '"></button></div>' +
+          '<div class="agent-scope-children" id="' + childrenId + '"' + (groupOpen ? '' : ' hidden') + '>' + group.items.map(function (item) {
             return '<div class="agent-scope-row agent"><label class="agent-scope-primary"><input type="checkbox" data-agent-scope-item value="' + esc(item.key) + '"' +
               (AGENT_SCOPE === null || AGENT_SCOPE.has(item.key) ? ' checked' : '') + '><span class="agent-scope-label" title="' + esc(item.label) + '">' + esc(item.label) + '</span></label>' +
-              '<label class="agent-scope-running"><input type="checkbox" data-agent-running-plus value="' + esc(item.key) + '"' +
-              (RACE_EXTRAS.has(item.key) ? ' checked' : '') + ' aria-label="Añadir ' + esc(item.label) + ' a Running Man como corredor extra"><span aria-hidden="true">Running +</span></label></div>';
+              '<label class="agent-scope-running" title="Corredor extra: ' + esc(item.label) + '"><input class="sr-only" type="checkbox" data-agent-running-plus value="' + esc(item.key) + '"' +
+              (RACE_EXTRAS.has(item.key) ? ' checked' : '') + ' aria-label="Seleccionar ' + esc(item.label) + ' como corredor extra"><span aria-hidden="true">🏃</span></label></div>';
           }).join("") + '</div></fieldset>';
       }).join("");
     var allInput = list.querySelector("[data-agent-scope-all]");
@@ -1302,6 +1313,17 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         hsClearCloneStatus();
         AGENT_SCOPE = hsSetAgentScopeGroup(AGENT_SCOPE, childKeys, input.checked, keys);
         hsWriteAgentScope(AGENT_SCOPE); hsRenderAgentScope(listaCompletaCache || []); pintaVistaFiltrada();
+      });
+    });
+    list.querySelectorAll("[data-agent-scope-toggle]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var children = document.getElementById(button.getAttribute("aria-controls"));
+        var open = button.getAttribute("aria-expanded") !== "true", team = button.getAttribute("data-agent-scope-toggle");
+        var teamLabel = button.parentElement.querySelector(".agent-scope-label");
+        if (!children) return;
+        button.setAttribute("aria-expanded", String(open)); children.hidden = !open;
+        button.setAttribute("aria-label", (open ? "Compactar agentes de " : "Mostrar agentes de ") + (teamLabel ? teamLabel.textContent : team));
+        if (open) AGENT_SCOPE_OPEN_TEAMS.add(team); else AGENT_SCOPE_OPEN_TEAMS.delete(team);
       });
     });
     list.querySelectorAll("[data-agent-scope-item]").forEach(function (input) {

@@ -123,3 +123,16 @@ test("cada equipo es un grupo semántico, con padre parcial y layout móvil segu
   assert.match(source,/\.agent-scope-label\{[^}]*min-width:0[^}]*text-overflow:ellipsis/);
   assert.match(source,/@media \(max-width:620px\)/);
 });
+
+test("los equipos arrancan compactados y conservan su apertura solo durante la vista",()=>{
+  assert.match(source,/var AGENT_SCOPE_OPEN_TEAMS = new Set\(\)/,
+    "el estado de apertura no se persiste entre sesiones");
+  assert.match(source,/groupOpen = AGENT_SCOPE_OPEN_TEAMS\.has\(group\.key\)/);
+  assert.match(source,/data-agent-scope-toggle="' \+ esc\(group\.key\)/);
+  assert.match(source,/aria-expanded="' \+ groupOpen/);
+  assert.match(source,/\(groupOpen \? '' : ' hidden'\)/);
+  assert.match(source,/children\.hidden = !open/);
+  assert.match(source,/AGENT_SCOPE_OPEN_TEAMS\.add\(team\)/);
+  assert.match(source,/AGENT_SCOPE_OPEN_TEAMS\.delete\(team\)/);
+  assert.match(source,/\.agent-scope-children\[hidden\]\{display:none\}/);
+});

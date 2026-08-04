@@ -70,10 +70,13 @@ test("la preferencia de carrera usa almacenamiento propio y sobrevive al repinta
     "el repintado es lo que sincroniza todas las copias multi-equipo");
 });
 
-test("cada copia del agente ofrece un segundo checkbox accesible a la derecha", () => {
+test("cada agente ofrece a la derecha un corredor visual, accesible y sin texto auxiliar", () => {
   assert.match(html, /data-agent-running-plus value="' \+ esc\(item\.key\)/);
   assert.match(html, /querySelectorAll\("\[data-agent-running-plus\]"\)\.forEach/);
-  assert.match(html, /aria-label="[^"]*(?:Running Man|carrera|corredor)[^"]*"/i);
+  assert.match(html, /aria-label="Seleccionar [^"]+ como corredor extra"/i);
+  assert.match(html, /<span aria-hidden="true">🏃<\/span>/);
+  assert.doesNotMatch(html, />Running \+<\/span>/);
+  assert.match(html, /class="sr-only" type="checkbox" data-agent-running-plus/);
   assert.match(html, /\.agent-scope-row\.agent\{[^}]*grid-template-columns:minmax\(0,1fr\) auto/);
   assert.match(html, /\.agent-scope-primary\{[^}]*grid-template-columns:16px minmax\(0,1fr\)/);
   assert.match(html, /@media \(max-width:620px\)[\s\S]*?agent-scope/);
