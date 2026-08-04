@@ -292,6 +292,25 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .sonido[aria-pressed="false"]::after{content:"";position:absolute;width:14px;height:1px;background:currentColor;transform:rotate(-45deg)}
 .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;
   overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.agent-scope{display:grid;gap:10px;padding:2px 0 12px;border-bottom:1px solid var(--line)}
+.agent-scope-head{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--brand);
+  font-size:9px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}
+.agent-scope-count{flex:0 0 auto;border:1px solid var(--line2);border-radius:999px;padding:2px 7px;color:var(--accent);
+  font-size:8px;letter-spacing:.03em;text-transform:none}
+.agent-scope-help{margin:0;color:var(--dim);font-size:9px;line-height:1.5}
+.agent-scope-list{display:grid;gap:4px;max-height:min(52vh,430px);overflow:auto;padding-right:2px;scrollbar-width:thin}
+.agent-scope-row{display:grid;grid-template-columns:16px minmax(0,1fr);align-items:center;gap:7px;min-height:28px;
+  padding:5px 7px;border:1px solid var(--line);border-radius:7px;background:rgba(120,243,255,.025);color:var(--mut);
+  font-size:9.5px;line-height:1.2;cursor:pointer}
+.agent-scope-row:hover,.agent-scope-row:focus-within{border-color:var(--brand);color:var(--ink);background:rgba(120,243,255,.08)}
+.agent-scope-row.all{border-color:rgba(255,216,102,.25);color:var(--accent);font-weight:900}
+.agent-scope-row input{margin:0;accent-color:var(--brand)}
+.agent-scope-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agent-scope-reset{appearance:none;width:100%;padding:8px 10px;border:1px solid var(--line2);border-radius:7px;
+  background:rgba(120,243,255,.05);color:var(--brand);font:900 9px/1.2 var(--mono);letter-spacing:.09em;
+  text-transform:uppercase;cursor:pointer;text-align:center}
+.agent-scope-reset:hover,.agent-scope-reset:focus-visible{border-color:var(--brand);background:rgba(120,243,255,.12);outline:none}
+.agent-scope-empty{padding:8px;color:var(--dim);font-size:9px;line-height:1.45}
 @media (max-width:620px){.podio{margin-top:20px}.plaza{width:27%;padding:4px 5px;gap:4px;background:rgba(2,8,13,.78)}
   .plaza.p2{left:7%;top:62%}.plaza.p1{left:36.5%;top:59%}.plaza.p3{right:6%;top:66%}
   .nom{font-size:7px}.pts{font-size:10px}
@@ -360,6 +379,13 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   </div>
   <div class="nota" id="formula"></div>
 </div>
+
+<section class="agent-scope" data-yk-slot="right" id="advancedMenu" aria-labelledby="agentScopeTitle">
+  <div class="agent-scope-head"><span id="agentScopeTitle">Seguimiento de agentes</span><span class="agent-scope-count" id="agentScopeCount">Todos</span></div>
+  <p class="agent-scope-help">Elige uno, varios o todos. La selección permanece en este navegador hasta que la cambies.</p>
+  <div class="agent-scope-list" id="agentScopeList" aria-live="polite"><div class="agent-scope-empty">Cargando agentes…</div></div>
+  <button class="agent-scope-reset" id="agentScopeReset" type="button">Mostrar todos · restablecer</button>
+</section>
 
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script src="/highscore-race.js?v=v.2026.08.03.active-mission-1"></script>
@@ -1005,6 +1031,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
      después cada ancho se conserva en este navegador. Flechas ajustan 12 px y
      doble clic calcula el ancho necesario para el contenido de esa columna. */
   var COLUMNAS_KEY = "yokup.highscore.columnas.v1";
+  var AGENT_SCOPE_KEY = "yokup.highscore.agents.v1";
+  var AGENT_SCOPE = hsReadAgentScope();
   var ordenTabla = { campo:"", direccion:"" };
   var filtroSoloVivos = false;
   var DIRECCION_INICIAL = {
@@ -1015,6 +1043,78 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function filtraVida(lista, soloVivos) {
     var filas = (lista || []).slice();
     return soloVivos ? filas.filter(function (fila) { return !!(fila && fila.vivo); }) : filas;
+  }
+
+  function hsAgentKey(agente) {
+    return normaliza(agente).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  }
+
+  function hsReadAgentScope() {
+    try {
+      var value = JSON.parse(localStorage.getItem(AGENT_SCOPE_KEY));
+      return Array.isArray(value) ? new Set(value.map(String)) : null;
+    } catch (_) { return null; }
+  }
+
+  function hsWriteAgentScope(scope) {
+    try {
+      if (scope === null) localStorage.removeItem(AGENT_SCOPE_KEY);
+      else localStorage.setItem(AGENT_SCOPE_KEY, JSON.stringify(Array.from(scope).map(String)));
+    } catch (_) {}
+  }
+
+  function hsAgentScopeAllows(scope, agente) {
+    return scope === null || scope.has(hsAgentKey(agente));
+  }
+
+  function hsSetAgentScopeItem(scope, key, checked, keys) {
+    var next = scope === null ? new Set(keys) : new Set(Array.from(scope)), id = String(key);
+    if (checked) next.add(id); else next.delete(id);
+    return keys.length && next.size === keys.length && keys.every(function (item) { return next.has(item); }) ? null : next;
+  }
+
+  function aplicaAgentScope(lista) {
+    var filtrada = (lista || []).filter(function (fila) { return hsAgentScopeAllows(AGENT_SCOPE, fila && fila.agente); });
+    return filtrada.map(function (fila, indice) {
+      var copia = Object.assign({}, fila); copia.posicion = indice + 1; return copia;
+    });
+  }
+
+  function hsRenderAgentScope(lista) {
+    var list = document.getElementById("agentScopeList"), count = document.getElementById("agentScopeCount");
+    if (!list || !count) return;
+    var items = (lista || []).map(function (fila) { return { key:hsAgentKey(fila.agente), label:fila.agente }; });
+    var keys = items.map(function (item) { return item.key; });
+    var selected = AGENT_SCOPE === null ? items.length : items.filter(function (item) { return AGENT_SCOPE.has(item.key); }).length;
+    count.textContent = AGENT_SCOPE === null ? "Todos" : selected + "/" + items.length;
+    if (!items.length) { list.innerHTML = '<div class="agent-scope-empty">No hay agentes disponibles.</div>'; return; }
+    list.innerHTML = '<label class="agent-scope-row all"><input type="checkbox" data-agent-scope-all><span class="agent-scope-label">Todos (' + items.length + ')</span></label>' +
+      items.map(function (item) { return '<label class="agent-scope-row"><input type="checkbox" data-agent-scope-item value="' + esc(item.key) + '"' +
+        (AGENT_SCOPE === null || AGENT_SCOPE.has(item.key) ? ' checked' : '') + '><span class="agent-scope-label" title="' + esc(item.label) + '">' + esc(item.label) + '</span></label>'; }).join("");
+    var allInput = list.querySelector("[data-agent-scope-all]");
+    allInput.checked = selected === items.length; allInput.indeterminate = selected > 0 && selected < items.length;
+    allInput.addEventListener("change", function () {
+      AGENT_SCOPE = allInput.checked ? null : new Set(); hsWriteAgentScope(AGENT_SCOPE); hsRenderAgentScope(listaCompletaCache || []); pintaVistaFiltrada();
+    });
+    list.querySelectorAll("[data-agent-scope-item]").forEach(function (input) {
+      input.addEventListener("change", function () {
+        AGENT_SCOPE = hsSetAgentScopeItem(AGENT_SCOPE, input.value, input.checked, keys);
+        hsWriteAgentScope(AGENT_SCOPE); hsRenderAgentScope(listaCompletaCache || []); pintaVistaFiltrada();
+      });
+    });
+  }
+
+  function pintaVistaFiltrada() {
+    listaCache = aplicaAgentScope(listaCompletaCache || []);
+    pintaPodio(listaCache.slice(0, 3)); pintaTabla(listaVisible(listaCache)); actualizaCarreraPodio();
+  }
+
+  function iniciaAgentScope() {
+    var reset = document.getElementById("agentScopeReset");
+    if (!reset) return;
+    reset.addEventListener("click", function () {
+      AGENT_SCOPE = null; hsWriteAgentScope(AGENT_SCOPE); hsRenderAgentScope(listaCompletaCache || []); pintaVistaFiltrada();
+    });
   }
 
   function listaVisible(lista) {
@@ -1177,6 +1277,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   iniciaColumnasReajustables();
   iniciaOrdenTabla();
   iniciaFiltroVida();
+  iniciaAgentScope();
 
   function agenteDeMision(mision) {
     var agente = mision && normaliza(mision.assignee || mision.persona || mision.agent);
@@ -1295,7 +1396,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   var ENTRADA_AUTOMATICA_MS = 15 * 1000;
-  var listaCache = null, entradaTimer = null, cuentaEntradaTimer = null, entradaHecha = false;
+  var listaCompletaCache = null, listaCache = null, entradaTimer = null, cuentaEntradaTimer = null, entradaHecha = false;
   function programaEntradaAutomatica() {
     var quedan = ENTRADA_AUTOMATICA_MS / 1000, pulsa = document.getElementById("pulsa");
     function pintaCuenta() { pulsa.textContent = "PULSA PARA EMPEZAR · AUTO EN " + quedan + " S"; }
@@ -1310,7 +1411,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return filasConMisionEnCurso(lista || [], misionesEnCurso()).length;
   }
   function listo() {
-    listaCache = calcula();
+    listaCompletaCache = calcula();
+    hsRenderAgentScope(listaCompletaCache); listaCache = aplicaAgentScope(listaCompletaCache);
     pintaPodio(listaCache.slice(0, 3)); pintaTabla(listaVisible(listaCache)); pintaFormula(listaCache); actualizaCarreraPodio();
     document.getElementById("pulsa").style.visibility = "visible";
     var vivos = agentesEnLiza(listaCache);
@@ -1367,10 +1469,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (r[5]) datos.decisiones = r[5];
       if (r[6]) datos.proyectos = r[6];
       fallos = [];
-      var l = calcula();
+      var listaCompleta = calcula(), l = aplicaAgentScope(listaCompleta);
       var cambioLider = listaCache && l[0] && listaCache[0] && l[0].agente !== listaCache[0].agente;
+      listaCompletaCache = listaCompleta;
       listaCache = l;
-      pintaPodio(l.slice(0, 3)); pintaTabla(listaVisible(l)); pintaFormula(l); actualizaCarreraPodio();
+      hsRenderAgentScope(listaCompletaCache); pintaPodio(l.slice(0, 3)); pintaTabla(listaVisible(l)); pintaFormula(l); actualizaCarreraPodio();
       if (cambioLider && sonando) fanfarriaPodio();   // récord batido
     }).finally(function () { refrescando = false; });
   }
