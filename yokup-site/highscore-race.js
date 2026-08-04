@@ -13,6 +13,18 @@
     return (rows || []).filter(function (row) { return !!(row && row.vivo && active[laneKey(row)]); });
   }
 
+  function raceRows(rows, activeAgentKeys, extraAgentKeys) {
+    var extras = Object.create(null), seen = Object.create(null), automatic = 0;
+    (extraAgentKeys || []).forEach(function (agentKey) { extras[key(agentKey)] = true; });
+    return activeMissionRows(rows, activeAgentKeys).filter(function (row) {
+      var agentKey = laneKey(row);
+      if (!agentKey || seen[agentKey]) return false;
+      seen[agentKey] = true;
+      if (automatic < 3) { automatic += 1; return true; }
+      return !!extras[agentKey];
+    });
+  }
+
   function laneKey(row) {
     return key(row && (row.agente || row.persona || row.agent));
   }
@@ -34,7 +46,7 @@
     return Math.max(0, 3 - Math.max(1, Number(place) || 1)) * (Number(stepMs) || 0);
   }
 
-  var api = { key:key, activeMissionRows:activeMissionRows, laneKey:laneKey, runnerVariant:runnerVariant,
+  var api = { key:key, activeMissionRows:activeMissionRows, raceRows:raceRows, laneKey:laneKey, runnerVariant:runnerVariant,
     finishPose:finishPose, finishAdvanceMs:finishAdvanceMs };
   root.YkHighscoreRace = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

@@ -331,6 +331,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   font-size:8px;text-align:center}
 .agent-scope-children{display:grid;gap:3px;padding-left:14px;border-left:1px solid rgba(120,243,255,.14)}
 .agent-scope-children .agent-scope-row{min-height:25px;background:rgba(120,243,255,.018)}
+.agent-scope-row.agent{grid-template-columns:minmax(0,1fr) auto;gap:6px;padding:4px 6px}
+.agent-scope-primary{display:grid;grid-template-columns:16px minmax(0,1fr);align-items:center;gap:7px;min-width:0;cursor:pointer}
+.agent-scope-running{display:inline-flex;align-items:center;gap:4px;padding:3px 5px;border:1px solid rgba(255,216,102,.22);
+  border-radius:5px;color:var(--dim);font-size:8px;font-weight:900;line-height:1;white-space:nowrap;cursor:pointer}
+.agent-scope-running:has(input:checked){border-color:rgba(255,216,102,.65);color:var(--accent);background:rgba(255,216,102,.08)}
+.agent-scope-running input{accent-color:var(--accent)}
 .agent-scope-row input{margin:0;accent-color:var(--brand)}
 .agent-scope-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .agent-scope-actions{display:grid;gap:6px}
@@ -427,7 +433,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 </section>
 
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
-<script src="/highscore-race.js?v=v.2026.08.03.active-mission-1"></script>
+<script src="/highscore-race.js?v=v.2026.08.04.running-plus-1"></script>
 <script>
 (function () {
   "use strict";
@@ -1089,8 +1095,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
      doble clic calcula el ancho necesario para el contenido de esa columna. */
   var COLUMNAS_KEY = "yokup.highscore.columnas.v1";
   var AGENT_SCOPE_KEY = "yokup.highscore.agents.v1";
+  var RACE_EXTRA_SCOPE_KEY = "yokup.highscore.raceExtraAgents.v1";
   var DASHBOARD_TEAM_SCOPE_KEY = "yokup.dashboard.teams.v1";
   var AGENT_SCOPE = hsReadAgentScope();
+  var RACE_EXTRAS = hsReadRaceExtras();
   var ordenTabla = { campo:"", direccion:"" };
   var filtroSoloVivos = false;
   var DIRECCION_INICIAL = {
@@ -1119,6 +1127,23 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (scope === null) localStorage.removeItem(AGENT_SCOPE_KEY);
       else localStorage.setItem(AGENT_SCOPE_KEY, JSON.stringify(Array.from(scope).map(String)));
     } catch (_) {}
+  }
+
+  function hsReadRaceExtras() {
+    try {
+      var value = JSON.parse(localStorage.getItem(RACE_EXTRA_SCOPE_KEY));
+      return new Set(Array.isArray(value) ? value.map(String) : []);
+    } catch (_) { return new Set(); }
+  }
+
+  function hsWriteRaceExtras(scope) {
+    try { localStorage.setItem(RACE_EXTRA_SCOPE_KEY, JSON.stringify(Array.from(scope || []).map(String))); } catch (_) {}
+  }
+
+  function hsSetRaceExtra(scope, key, checked) {
+    var next = new Set(Array.from(scope || [])), id = String(key);
+    if (checked) next.add(id); else next.delete(id);
+    return next;
   }
 
   function hsAgentScopeAllows(scope, agente) {
@@ -1255,8 +1280,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
           (groupSelected === group.items.length ? ' checked' : '') + ' aria-label="Seleccionar agentes de ' + esc(group.label) + '">' +
           '<span class="agent-scope-label" id="' + groupId + '">' + esc(group.label) + '</span><span class="agent-scope-team-count" aria-hidden="true">' + group.items.length + '</span></label>' +
           '<div class="agent-scope-children">' + group.items.map(function (item) {
-            return '<label class="agent-scope-row"><input type="checkbox" data-agent-scope-item value="' + esc(item.key) + '"' +
-              (AGENT_SCOPE === null || AGENT_SCOPE.has(item.key) ? ' checked' : '') + '><span class="agent-scope-label" title="' + esc(item.label) + '">' + esc(item.label) + '</span></label>';
+            return '<div class="agent-scope-row agent"><label class="agent-scope-primary"><input type="checkbox" data-agent-scope-item value="' + esc(item.key) + '"' +
+              (AGENT_SCOPE === null || AGENT_SCOPE.has(item.key) ? ' checked' : '') + '><span class="agent-scope-label" title="' + esc(item.label) + '">' + esc(item.label) + '</span></label>' +
+              '<label class="agent-scope-running"><input type="checkbox" data-agent-running-plus value="' + esc(item.key) + '"' +
+              (RACE_EXTRAS.has(item.key) ? ' checked' : '') + ' aria-label="Añadir ' + esc(item.label) + ' a Running Man como corredor extra"><span aria-hidden="true">Running +</span></label></div>';
           }).join("") + '</div></fieldset>';
       }).join("");
     var allInput = list.querySelector("[data-agent-scope-all]");
@@ -1282,6 +1309,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         hsClearCloneStatus();
         AGENT_SCOPE = hsSetAgentScopeItem(AGENT_SCOPE, input.value, input.checked, keys);
         hsWriteAgentScope(AGENT_SCOPE); hsRenderAgentScope(listaCompletaCache || []); pintaVistaFiltrada();
+      });
+    });
+    list.querySelectorAll("[data-agent-running-plus]").forEach(function (input) {
+      input.addEventListener("change", function () {
+        RACE_EXTRAS = hsSetRaceExtra(RACE_EXTRAS, input.value, input.checked);
+        hsWriteRaceExtras(RACE_EXTRAS); hsRenderAgentScope(listaCompletaCache || []); actualizaCarreraPodio();
       });
     });
   }
@@ -1552,6 +1585,17 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var clave = claveAgenteCarrera(fila.agente);
       var mision = misionActivaDeAgente(activas, clave), resumen = resumenMisionActiva(mision);
       return mision ? { fila:fila, clave:clave, resumen:resumen } : null;
+    }).filter(Boolean);
+    var enlaces = corredores, filasElegibles = enlaces.map(function (enlace) { return enlace.fila; });
+    var clavesActivas = enlaces.map(function (enlace) { return enlace.clave; });
+    var extras = typeof RACE_EXTRAS !== "undefined" ? RACE_EXTRAS : [];
+    var filasCarrera = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.raceRows
+      ? YkHighscoreRace.raceRows(filasElegibles, clavesActivas, extras)
+      : filasElegibles.filter(function (fila, indice) {
+          return indice < 3 || extras.indexOf(claveAgenteCarrera(fila.agente)) >= 0;
+        });
+    corredores = filasCarrera.map(function (fila) {
+      return enlaces.find(function (enlace) { return enlace.fila === fila; }) || null;
     }).filter(Boolean).map(function (enlace, indice) {
       var fila = enlace.fila, clave = enlace.clave, resumen = enlace.resumen;
       var puesto = indice + 1, agente = normaliza(fila.agente);
