@@ -17,7 +17,7 @@ const cycleStart = html.indexOf("var REFRESCO_MS");
 const cycleEnd = html.indexOf("\n  document.getElementById(\"btnSonido\")", cycleStart);
 const cycleSource = html.slice(cycleStart, cycleEnd);
 
-function renderRace(rows, missions) {
+function renderRace(rows, missions, extras = []) {
   const nodes = {
     refreshLanes: { innerHTML: "" },
     refreshRace: {
@@ -28,6 +28,7 @@ function renderRace(rows, missions) {
   };
   const context = vm.createContext({
     listaCache: rows,
+    RACE_EXTRAS: new Set(extras),
     datos: { misiones: missions || [], presencia: [] },
     document: { getElementById: (id) => nodes[id] },
     normaliza: (value) => String(value == null ? "" : value).trim(),
@@ -124,11 +125,12 @@ test("sólo corren agentes con misión en curso y latido reciente", () => {
   assert.doesNotMatch(raceSource, /slice\(0,\s*3\)/);
 });
 
-test("más de tres corredores conservan una clave y carril inequívocos", () => {
+test("los corredores extra conservan una clave y carril inequívocos", () => {
   const rows = Array.from({ length: 5 }, (_, i) => ({
     agente: `Persona-${i + 1}`, posicion: i + 1, total: 20 - i, vivo: true,
   }));
-  const race = renderRace(rows, rows.map((row) => ({assignee:row.agente,status:"in_progress",subject:"Trabajo"})));
+  const race = renderRace(rows, rows.map((row) => ({assignee:row.agente,status:"in_progress",subject:"Trabajo"})),
+    ["persona4", "persona5"]);
   const keys = [...race.html.matchAll(/data-agent-key="([^"]+)"/g)].map((m) => m[1]);
   const lanes = [...race.html.matchAll(/data-place="(\d+)"/g)].map((m) => Number(m[1]));
   assert.equal(keys.length, 5);
@@ -140,7 +142,8 @@ test("el dorsal se ve UNA vez, en la meta: en la salida no significa nada", () =
   const rows = Array.from({ length: 5 }, (_, i) => ({
     agente: `Dorsal-${i + 1}`, posicion: i + 1, total: 20 - i, vivo: true,
   }));
-  const race = renderRace(rows, rows.map((row) => ({assignee:row.agente,status:"in_progress",subject:"Trabajo"})));
+  const race = renderRace(rows, rows.map((row) => ({assignee:row.agente,status:"in_progress",subject:"Trabajo"})),
+    ["dorsal4", "dorsal5"]);
   const finishes = [...race.html.matchAll(/refresh-place-finish" aria-hidden="true">(\d+)<\/span>/g)].map((match) => Number(match[1]));
   assert.deepEqual(finishes, [1, 2, 3, 4, 5]);
   // El número de salida se retiró (Carlos, 3-ago-2026): repetía en el arranque un
