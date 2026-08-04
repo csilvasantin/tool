@@ -168,35 +168,33 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .mdet-imglink:hover .mdet-img{border-color:var(--brand,#78f3ff);box-shadow:0 0 10px rgba(120,243,255,.3)}
 /* FLT-1161 · PROJECT ID compacto. La asociación proyecto↔agente se gestiona en
    Dashboard: aquí quedan sólo miniatura, referencia humana y ciclo temporal. */
-.hd.project-id-layout{grid-template-columns:8px minmax(260px,clamp(260px,var(--c-id,286px),310px)) minmax(230px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,250px)) minmax(140px,var(--c-who,170px)) minmax(0,var(--c-est,124px))}
+.hd.project-id-layout{grid-template-columns:8px minmax(150px,var(--c-id,170px)) minmax(230px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,250px)) minmax(140px,var(--c-who,170px)) minmax(0,var(--c-est,124px))}
 .project-id-cell{padding-right:10px}
 .project-id-top{
-  grid-template-columns:72px minmax(0,1fr);
-  align-items:center;gap:9px;
+  grid-template-columns:1fr;
+  justify-items:center;align-items:center;gap:5px;
 }
-.project-id-main{display:block;position:relative;min-width:0}
+.project-id-main{display:block;position:relative;width:112px;min-width:0}
 .project-id-select-slot{position:absolute;top:4px;left:4px;z-index:3;display:flex;padding:3px;border-radius:5px;background:rgba(2,8,13,.86);box-shadow:0 0 0 1px rgba(120,243,255,.3)}
 .project-id-select-slot:empty{display:none}
 .project-id-select-slot .selrow{margin:0}
-.project-id-main>.cel.shot{align-self:stretch;padding:0;justify-content:flex-start}
-.project-id-main>.cel.shot :is(.shot-link,.shot-img){width:72px;max-width:72px}
-.project-id-main>.cel.shot .shot-img{height:100%;min-height:54px;max-height:72px;object-fit:cover}
-.project-id-meta{min-width:0;display:grid;gap:5px;align-content:center}
+.project-id-main>.cel.shot{align-self:stretch;padding:0;justify-content:center}
+.project-id-main>.cel.shot :is(.shot-link,.shot-img){width:112px;max-width:112px}
+.project-id-main>.cel.shot .shot-img{height:63px;object-fit:cover}
+.project-id-meta{min-width:0;display:grid;gap:4px;align-content:center;justify-items:center;text-align:center}
 .project-id-layout .project-id-meta>.tkid{min-width:0;overflow:hidden;font-size:11px}
 .project-id-layout .project-id-meta>.tkid .selrow{margin-right:2px}
-.project-id-time{display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-width:0;padding-top:4px;border-top:1px solid rgba(120,243,255,.1)}
+.project-id-time{display:flex;align-items:center;justify-content:center;gap:5px;flex-wrap:wrap;min-width:0;padding-top:4px;border-top:1px solid rgba(120,243,255,.1)}
 .project-id-time :is(.fch2,.dur){font-size:8.5px}
 .project-id-layout .mission-col{padding-block:3px}
 .project-id-layout .mission-col .subj .t{-webkit-line-clamp:2;line-clamp:2}
 .project-id-layout .mission-col .subj .m{margin-top:2px}
 @media(max-width:1100px){
-  .hd.project-id-layout{grid-template-columns:8px minmax(244px,clamp(244px,var(--c-id,266px),286px)) minmax(210px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,230px)) minmax(130px,var(--c-who,150px)) minmax(0,var(--c-est,112px))}
-  .project-id-top{grid-template-columns:64px minmax(0,1fr)}
-  .project-id-main>.cel.shot :is(.shot-link,.shot-img){width:64px;max-width:64px}
+  .hd.project-id-layout{grid-template-columns:8px minmax(142px,var(--c-id,158px)) minmax(210px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,230px)) minmax(130px,var(--c-who,150px)) minmax(0,var(--c-est,112px))}
 }
 @media(max-width:720px){
   .hd.project-id-layout{grid-template-columns:8px 1fr}
-  .project-id-top{grid-template-columns:64px minmax(0,1fr)}
+  .project-id-top{grid-template-columns:1fr}
 }
 </style>
 </head>

@@ -120,6 +120,7 @@ test('PROJECT ID mantiene un apilado responsive sin anchos fijos de escritorio',
   assert.match(styles, /\.project-id-main\{/);
   assert.match(styles, /\.project-id-meta\{/);
   assert.match(styles, /\.project-id-time\{/);
+  assert.match(styles, /\.project-id-top\{[\s\S]*grid-template-columns:1fr/);
   assert.doesNotMatch(board, /\.project-id-main>\.project-select-wrap|agent-created/);
   assert.doesNotMatch(source, /project-select-wrap|project-save|projectOptionsHtml/);
   assert.doesNotMatch(css, /project-id-select|project-select-wrap|project-save/);
