@@ -95,7 +95,7 @@ test("la aparición se anuncia sin depender solo del cuadrado, del color o de la
   assert.match(html, /progression-step ' \+ s\.state[\s\S]*data-state="' \+ s\.state/);
   assert.match(html, /role="list" aria-label="' \+ esc\(descripcion\)/);
   assert.match(html, /role="listitem"[\s\S]*aria-label="' \+ esc\(title\)/);
-  assert.match(html, /prefers-reduced-motion:reduce[^}]*progression-step\.new \.progression-dot\{animation:none\}/);
+  assert.match(html, /prefers-reduced-motion:reduce[^}]*progression-step\.new \.progression-dot[^}]*\{animation:none!important/);
 });
 
 test("móvil conserva las cinco etapas mediante scroll horizontal y no altera las nueve columnas", () => {

@@ -30,7 +30,7 @@ test("nuevo, activo, completado y futuro se distinguen también sin animación",
   assert.match(html, /\.progression-step\.active\{color:var\(--good\)\}/);
   assert.match(html, /\.progression-step\.completed\{color:var\(--brand\)\}/);
   assert.match(html, /\.progression-step\.future\{opacity:\.55\}/);
-  assert.match(html, /prefers-reduced-motion:reduce[\s\S]*progression-step\.new \.progression-dot\{animation:none/);
+  assert.match(html, /prefers-reduced-motion:reduce[^}]*progression-step\.new \.progression-dot[^}]*\{animation:none!important/);
   assert.match(html, /@media \(max-width:620px\)[\s\S]*\.progression\{grid-template-columns:88px repeat\(5,76px\);min-width:500px/);
 });
 

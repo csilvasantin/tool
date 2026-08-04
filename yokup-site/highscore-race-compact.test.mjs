@@ -42,11 +42,11 @@ test("READY SET GO vive una sola vez en la pista central", () => {
     "tres pistas eligen la segunda; una pista elige la primera");
   assert.match(html, /document\.querySelector\("\.race-call"\)/,
     "el cambio de fase actualiza el único aviso");
-  assert.match(cssRule(".race-call"), /left:50%[^}]*top:50%[^}]*translate\(-50%,-50%\)/,
-    "el aviso queda centrado en la pista elegida");
-  assert.match(cssRule(".race-call"), /font-size:clamp\(15px,2vw,20px\)[^}]*text-shadow:[^}]*var\(--accent\)/,
+  assert.match(cssRule(".race-call"), /left:var\(--track-start\)[^}]*right:calc\(var\(--finish-gutter\) \+ var\(--finish-width\)\)[^}]*margin-inline:auto[^}]*translateY\(-50%\)/,
+    "el aviso queda centrado entre el inicio de pista y la cinta");
+  assert.match(cssRule(".race-call"), /font-size:clamp\(18px,2vw,24px\)[^}]*text-shadow:[^}]*var\(--call\)/,
     "la salida es grande y luminosa");
-  assert.match(html, /@keyframes race-call-(?:pulse|go)/,
+  assert.match(html, /@keyframes race-call-(?:ready|set|go)/,
     "READY/SET/GO conserva un gesto visual propio");
   assert.match(html, /READY[\s\S]*SET[\s\S]*GO/);
 });
@@ -57,7 +57,7 @@ test("HIGHSCORE y el mute se alinean con el carril central", () => {
 });
 
 test("el dorsal nace justo a la derecha del corredor", () => {
-  assert.match(cssRule(".refresh-place"), /z-index:0[^}]*left:52px[^}]*bottom:-1px/);
+  assert.match(cssRule(".refresh-place"), /z-index:2[^}]*left:calc\(var\(--track-start\) \+ 18px\)[^}]*bottom:7px[^}]*opacity:\.88/);
   assert.match(cssRule(".refresh-runner"), /z-index:3/,
     "el corredor pasa visualmente por encima del dorsal pintado");
 });

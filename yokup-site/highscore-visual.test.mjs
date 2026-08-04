@@ -106,15 +106,16 @@ test("todos los atletas pixelados recorren la línea y actualizan el marcador tr
 });
 
 test("la pista pasa por los pies del corredor y termina en una meta visible", () => {
-  assert.match(html, /\.refresh-track::before\{[^}]*left:36px[^}]*right:36px[^}]*bottom:3px[^}]*height:2px/);
-  assert.match(html, /\.refresh-fill\{[^}]*left:36px[^}]*bottom:3px[^}]*height:2px/);
+  assert.match(html, /\.refresh-race\{--track-start:36px;--finish-gutter:clamp\(132px,15vw,184px\);--finish-width:7px;--agent-gap:26px/);
+  assert.match(html, /\.refresh-track::before\{[^}]*left:var\(--track-start\)[^}]*right:calc\(var\(--finish-gutter\) \+ var\(--finish-width\)\)[^}]*bottom:3px[^}]*height:2px/);
+  assert.match(html, /\.refresh-fill\{[^}]*left:var\(--track-start\)[^}]*bottom:3px[^}]*height:2px/);
   assert.match(html, /\.refresh-runner\{[^}]*bottom:3px[^}]*transform:translateX\(-50%\)/);
-  assert.match(html, /\.refresh-finish\{[^}]*right:29px[^}]*bottom:1px/);
-  assert.match(html, /\.refresh-place\{[^}]*z-index:0[^}]*left:52px[^}]*bottom:-1px[^}]*text-align:center/);
+  assert.match(html, /\.refresh-finish\{[^}]*right:var\(--finish-gutter\)[^}]*bottom:1px[^}]*width:var\(--finish-width\)/);
+  assert.match(html, /\.refresh-place\{[^}]*z-index:2[^}]*left:calc\(var\(--track-start\) \+ 18px\)[^}]*bottom:7px[^}]*text-align:center[^}]*opacity:\.88/);
   assert.match(html, /\.refresh-lanes\{[^}]*gap:1px/);
   assert.match(html, /\.refresh-lane\{[^}]*min-height:38px/);
-  assert.match(html, /\.refresh-track\{[^}]*min-height:38px[^}]*padding:1px 36px 7px/);
-  assert.match(html, /\.refresh-place-track\{mix-blend-mode:screen\}/);
+  assert.match(html, /\.refresh-track\{[^}]*min-height:38px[^}]*padding:1px calc\(var\(--finish-gutter\) \+ var\(--finish-width\)\) 7px var\(--track-start\)/);
+  assert.match(html, /\.refresh-place-track\{mix-blend-mode:normal\}/);
   assert.doesNotMatch(html, /refresh-place-(?:start|finish)/);
   assert.match(html, /\.refresh-finish::before,\.refresh-finish::after\{[^}]*conic-gradient[^}]*transition:transform \.45s steps\(3,end\),opacity \.45s linear/);
   // La cinta la rompe `cruzando` (el fotograma del cruce), no `finished`
@@ -122,14 +123,17 @@ test("la pista pasa por los pies del corredor y termina en una meta visible", ()
   assert.match(html, /\.refresh-lane\.cruzando \.refresh-finish::before\{[^}]*translate\(-7px,-8px\)[^}]*opacity:0/);
   assert.match(html, /\.refresh-lane\.cruzando \.refresh-finish::after\{[^}]*translate\(7px,8px\)[^}]*opacity:0/);
   assert.match(html, /class="refresh-place refresh-place-track" aria-hidden="true">' \+ puesto[\s\S]*class="refresh-runner runner-' \+ variant[\s\S]*class="refresh-finish" aria-hidden="true"/);
-  assert.match(html, /var MARGEN_PISTA_PX = 36, SALIDA_CORREDOR_PX = 17, META_CORREDOR_PX = 16/);
-  assert.match(html, /ajusteCorredor = SALIDA_CORREDOR_PX \* \(1 - progresoAtleta\) - META_CORREDOR_PX \* progresoAtleta/);
-  assert.match(html, /posicionCorredor = "calc\(" \+ pct \+ "% \+ " \+ ajusteCorredor \+ "px\)"/);
-  assert.match(html, /relleno\.style\.width = "calc\(" \+ pct \+ "% - " \+ recortePista \+ "px\)"/);
+  assert.match(html, /var SALIDA_CORREDOR_PX = 17, META_CORREDOR_PX = 16, RADIO_CORREDOR_PX = 13/);
+  assert.match(html, /inicioPista = relleno \? relleno\.offsetLeft : 0/);
+  assert.match(html, /metaLinea = cinta \? cinta\.offsetLeft : Math\.max\(inicioPista, carril\.clientWidth - 36\)/);
+  assert.match(html, /centroAtleta = SALIDA_CORREDOR_PX \+ \(metaLinea \+ META_CORREDOR_PX - SALIDA_CORREDOR_PX\) \* progresoAtleta/);
+  assert.match(html, /posicionCorredor = centroAtleta \+ "px"/);
+  assert.match(html, /avancePista = Math\.max\(0, Math\.min\(metaLinea - inicioPista, centroAtleta - inicioPista\)\)/);
+  assert.match(html, /relleno\.style\.width = avancePista \+ "px"/);
   assert.match(html, /corredor\.style\.left = posicionCorredor/);
   assert.match(html, /mision\.style\.left = posicionCorredor/);
   assert.doesNotMatch(html, /agente\.style\.left = posicionCorredor/);
-  assert.match(html, /agente\.style\.transform = "translateX\(" \+ empujeAgente \+ "px\)"/);
+  assert.doesNotMatch(html, /agente\.style\.(?:transform|opacity|left)/);
 });
 
 test("el número de la categoría activa parpadea en verde sin confundirse con el latido", () => {
@@ -226,17 +230,17 @@ test("Ordenador agrupa equipos y mantiene dentro de cada grupo la posición real
 
 test("la misión factual queda legible junto al corredor sin estela truncada", () => {
   assert.match(html, /<div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Estado de las misiones activas"><\/div>/);
-  assert.match(html, /\.refresh-mission\{[^}]*position:absolute[^}]*z-index:1[^}]*top:10px[^}]*width:0[^}]*max-width:calc\(100% - 42px\)[^}]*translateX\(calc\(-100% - 13px\)\)/);
+  assert.match(html, /\.refresh-mission\{[^}]*position:absolute[^}]*z-index:1[^}]*top:10px[^}]*width:0[^}]*max-width:calc\(100% - var\(--finish-gutter\) - var\(--finish-width\) - 8px\)[^}]*translateX\(calc\(-100% - 13px\)\)/);
   assert.match(html, /\.refresh-mission-title\{[^}]*width:100%[^}]*direction:ltr[^}]*unicode-bidi:plaintext[^}]*white-space:nowrap[^}]*text-align:center/);
   assert.doesNotMatch(html, /\.refresh-mission-(?:ref|state|meta|project)\{/);
-  assert.match(html, /@media \(max-width:620px\)[\s\S]*?\.refresh-mission\{max-width:calc\(100% - 20px\);font-size:9px;line-height:13px\}/);
+  assert.match(html, /@media \(max-width:620px\)[\s\S]*?\.refresh-mission\{max-width:calc\(100% - var\(--finish-gutter\) - var\(--finish-width\) - 5px\);font-size:9px;line-height:13px\}/);
   // La cinta se rompe en el fotograma del CRUCE, no al acabar la cuenta: la
   // clase `cruzando` se calcula con la geometría real (hombro del corredor
   // contra el borde de ataque de la cinta), no con progreso >= 1.
   assert.match(html, /\.refresh-lane\.cruzando \.refresh-finish::before\{[^}]*opacity:0\}/);
   assert.match(html, /\.refresh-lane\.cruzando \.refresh-finish::after\{[^}]*opacity:0\}/);
   assert.doesNotMatch(html, /\.refresh-lane\.finished \.refresh-finish::before/);
-  assert.match(html, /carril\.classList\.toggle\("cruzando", centroAtleta \+ RADIO_CORREDOR_PX >= cintaX\)/);
+  assert.match(html, /carril\.classList\.toggle\("cruzando", centroAtleta \+ RADIO_CORREDOR_PX >= metaLinea\)/);
   assert.match(html, /function actualizaCarreraPodio\(\)/);
   assert.match(html, /function tituloMisionActiva\(mision\)/);
   assert.match(html, /function resumenMisionActiva\(mision\)/);
@@ -271,7 +275,7 @@ test("todos los agentes con misión en curso tienen calles ordenadas, identidad 
   assert.match(html, /'<span class="refresh-agent" data-race-role="agent">' \+ esc\(agente\) \+ '<\/span>'/);
   assert.doesNotMatch(html, /refresh-place-start/);
   assert.match(html, /class="refresh-place refresh-place-track" aria-hidden="true">' \+ puesto/);
-  assert.match(html, /\.refresh-agent\{[^}]*right:43px[^}]*bottom:9px[^}]*font-size:14px[^}]*line-height:17px/);
+  assert.match(html, /\.refresh-agent\{[^}]*left:calc\(100% - var\(--finish-gutter\) \+ var\(--agent-gap\)\)[^}]*right:4px[^}]*bottom:7px[^}]*font-size:12px[^}]*line-height:14px/);
   assert.match(html, /\.refresh-lane-p1\{--lane:var\(--oro\);--runner-shirt:#ffd866;--runner-stripe:#8a4a2a\}/);
   assert.match(html, /\.refresh-lane-p2\{--lane:var\(--plata\);--runner-shirt:#e6ecf2;--runner-stripe:#3477c7\}/);
   assert.match(html, /\.refresh-lane-p3\{--lane:var\(--bronce\);--runner-shirt:#c87f3a;--runner-stripe:#2b1b12\}/);
@@ -303,7 +307,7 @@ test("el podio conserva el latido vivo y usa la tendencia horaria compartida", (
   assert.match(html, /datos\.actividadMeta && datos\.actividadMeta\.hourly/);
 });
 
-test("HIGHSCORE pausa la lectura, continúa y desvanece el nombre mientras cruza la meta", () => {
+test("HIGHSCORE pausa la lectura y mantiene estático el nombre tras la meta", () => {
   assert.match(html, /class="race-toggle" id="raceToggle"[^>]*aria-pressed="false"/);
   assert.match(html, /document\.getElementById\("raceToggle"\)\.addEventListener\("click", pausaOReiniciaCarrera\)/);
   assert.match(html, /function pausaOReiniciaCarrera\(\)/);
@@ -314,13 +318,9 @@ test("HIGHSCORE pausa la lectura, continúa y desvanece el nombre mientras cruza
   assert.match(html, /Reanudar carrera desde el punto de pausa/);
   assert.doesNotMatch(html, /carreraPausada = false;\s*pintaControlCarrera\(\);\s*iniciaCarrera\(\)/);
   assert.match(html, /function avanzaCarrera\(ahora\) \{\s*if \(carreraPausada\) return;/);
-  assert.match(html, /var anchoAgente = Math\.max\(1, agente\.offsetWidth\)/);
-  assert.match(html, /inicioAgente = carril\.clientWidth - MARGEN_NOMBRE_META_PX - anchoAgente/);
-  assert.match(html, /empujeAgente = Math\.max\(0, centroCorredor \+ RADIO_CORREDOR_PX - inicioAgente\)/);
-  assert.match(html, /var meta = carril\.clientWidth - MARGEN_PISTA_PX/);
-  assert.match(html, /cruceAgente = Math\.max\(0, Math\.min\(1, \(inicioAgente \+ anchoAgente \+ empujeAgente - meta\) \/ anchoAgente\)\)/);
-  assert.match(html, /agente\.style\.transform = "translateX\(" \+ empujeAgente \+ "px\)"/);
-  assert.match(html, /agente\.style\.opacity = String\(1 - cruceAgente\)/);
+  assert.doesNotMatch(html, /MARGEN_NOMBRE_META_PX|anchoAgente|inicioAgente|empujeAgente|cruceAgente/);
+  assert.doesNotMatch(html, /agente\.style\.(?:transform|opacity|left)/);
+  assert.match(html, /\.refresh-agent\{[^}]*left:calc\(100% - var\(--finish-gutter\) \+ var\(--agent-gap\)\)[^}]*right:4px/);
   assert.match(html, /\.refresh-race\.paused \.refresh-runner svg[^}]*animation-play-state:paused/);
 });
 
