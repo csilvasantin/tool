@@ -292,6 +292,17 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .nota p,.nota li{font-size:11.5px;color:var(--mut);line-height:1.7;margin:0}
 .nota ul{margin:0;padding-left:18px}
 .nota b{color:var(--ink)}
+.score-formula{padding:0;overflow:hidden}
+.score-formula>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;
+  color:var(--brand);cursor:pointer;list-style:none;user-select:none}
+.score-formula>summary::-webkit-details-marker{display:none}
+.score-formula>summary:hover,.score-formula>summary:focus-visible{background:rgba(120,243,255,.07);outline:none}
+.score-formula-title{font-size:10px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}
+.score-formula-toggle{flex:0 0 auto;color:var(--dim);font-size:9px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
+.score-formula-toggle::before{content:"Mostrar  ▸"}
+.score-formula[open] .score-formula-toggle::before{content:"Ocultar  ▾"}
+.score-formula-body{padding:0 18px 16px;border-top:1px solid rgba(120,243,255,.08)}
+.score-formula-body>ul{margin-top:12px}
 .err{border-color:rgba(255,136,102,.4);background:rgba(255,136,102,.07)}
 .err h2{color:var(--warn)}
 /* En la cabecera, NO fijo abajo a la derecha: ahí tapaba las últimas filas de la tabla. */
@@ -390,7 +401,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       <tbody id="filas"></tbody>
     </table>
   </div>
-  <div class="nota" id="formula"></div>
+  <details class="nota score-formula" id="formula">
+    <summary><span class="score-formula-title">Cómo se puntúa hoy</span><span class="score-formula-toggle" aria-hidden="true"></span></summary>
+    <div class="score-formula-body" id="formulaBody"></div>
+  </details>
 </div>
 
 <section class="agent-scope" data-yk-slot="right" id="advancedMenu" aria-labelledby="agentScopeTitle">
@@ -1482,12 +1496,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   function pintaFormula(lista) {
-    var n = document.getElementById("formula");
+    var formula = document.getElementById("formula"), n = document.getElementById("formulaBody");
     var hoyTareas = tareasDeHoy();
     var actividad = datos.actividadMeta || {}, pesos = actividad.weights || { objective:20, window:8, mission:40 };
     var registrados = actividad.recorded || { objectives:0, windows:0, missions:0 };
     var sinAutor = actividad.unattributed || { objectives:0, windows:0, missions:0 };
-    var html = '<h2>Cómo se puntúa hoy</h2><ul>' +
+    var html = '<ul>' +
       '<li>Solo cuenta la actividad del <b>día actual en Madrid</b>; el marcador vuelve a cero cada medianoche.</li>' +
       '<li>Cada <b>objetivo creado hoy</b> por un agente identificado: <b>' + pesos.objective + '</b>.</li>' +
       '<li>Cada <b>ventana de decisión abierta hoy</b>: <b>' + pesos.window + '</b>. Es un <b>acumulado diario, no ventanas simultáneas</b>; ' +
@@ -1511,9 +1525,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       '<b>NeoMBP16</b>, <b>MorfeoMBA16</b>… Si una actividad antigua no trae equipo, hereda el último equipo ' +
       'observado de esa familia; sin ninguna evidencia se marca <b>SINMAQ</b>. <a href="/normativa">Ver normativa →</a></p>';
     if (fallos.length) {
-      n.className = "nota err";
+      formula.className = "nota score-formula err";
       html += '<h2 style="margin-top:14px">No pude leer todo</h2><p>' + esc(fallos.join(" · ")) +
               '. El marcador sale con lo que sí llegó, no con datos inventados.</p>';
+    } else {
+      formula.className = "nota score-formula";
     }
     n.innerHTML = html;
   }
