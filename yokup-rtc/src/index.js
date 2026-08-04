@@ -2,6 +2,7 @@ import puppeteer from "@cloudflare/puppeteer";
 import { memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
 import { baseAgentIdentity, machineSuffix, parseAgentIdentity, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
+import { AgentStopError, dispatchAgentStop, normalizeAgentStopTarget } from "./fleet-agent-stop.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -15,7 +16,7 @@ var json = /* @__PURE__ */ __name((o, s = 200) => new Response(JSON.stringify(o)
 var AUTH_CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
 var WL_API = "https://admira-whitelist.csilvasantin.workers.dev";
 var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@admira.com", "agonzalez@admira.com", "jsedano@admira.com"];
-var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/equipo/machine", "/equipo/silicon"]);
+var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/agent/stop", "/equipo/machine", "/equipo/silicon"]);
 var _wl = { at: 0, set: null };
 async function whitelist() {
   if (_wl.set && Date.now() - _wl.at < 3e5) return _wl.set;
@@ -240,6 +241,11 @@ async function applySchema(env) {
   // encargo del bot-inbox al mission_id que se le repartió, para que sea ESTABLE
   // entre syncs aunque el id natural FLT-<rowid> ya estuviera cogido por otra misión.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_ids (inbox_id INTEGER PRIMARY KEY, mission_id TEXT UNIQUE, created_at INTEGER)").catch(() => {});
+  // Mando humano sobre procesos vivos. Se conserva tanto el intento como el
+  // resultado del servicio interno para poder reconstruir quién pidió detener
+  // qué sesión, sin mezclar estos mandos con los eventos de una misión concreta.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_agent_commands (id TEXT PRIMARY KEY, action TEXT, machine TEXT, persona TEXT, runtime TEXT, host TEXT, session_id TEXT, pid INTEGER, requested_by TEXT, status TEXT, upstream_command_id TEXT, detail TEXT, created_at INTEGER, updated_at INTEGER)").catch(() => {});
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_fleet_agent_commands_created ON fleet_agent_commands(created_at)").catch(() => {});
 }
 __name(applySchema, "applySchema");
 // FLT-1015 · El esquema no cambia entre dos requests del mismo isolate. La
@@ -3415,6 +3421,46 @@ var index_default = {
     if (PROTECTED.has(url.pathname) || url.pathname.startsWith("/mission/")) {
       const sess = await requireAuth(env, req);
       if (!sess) return json({ error: "unauthorized" }, 401);
+    }
+
+    // PARADA DE UNA SESIÓN DE AGENTE (FLT-1160): mando destructivo, siempre tras
+    // el perímetro Google. Yokup no confía en la tarjeta que pintó el navegador:
+    // vuelve a consultar el snapshot vivo de TELEGRAM y sólo reenvía si los seis
+    // identificadores siguen describiendo UNA sesión de proceso exacta.
+    if (url.pathname === "/fleet/agent/stop") {
+      if (req.method !== "POST") return json({ ok:false, error:"method" }, 405);
+      const sess = await requireAuth(env, req);
+      if (!sess) return json({ error:"unauthorized" }, 401);
+      let body;
+      try { body = await req.json(); }
+      catch { return json({ ok:false, error:"bad-json" }, 400); }
+      let target;
+      try { target = normalizeAgentStopTarget(body); }
+      catch (error) {
+        const code = error instanceof AgentStopError ? error.code : "invalid-target";
+        return json({ ok:false, error:code }, error instanceof AgentStopError ? error.status : 400);
+      }
+      await ensureSchema(env);
+      const now = Date.now();
+      const auditId = "stop-" + now.toString(36) + "-" + crypto.randomUUID().slice(0, 8);
+      await env.DB.prepare(
+        "INSERT INTO fleet_agent_commands(id,action,machine,persona,runtime,host,session_id,pid,requested_by,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'requested',?,?)"
+      ).bind(auditId, "stop", target.machine, target.persona, target.runtime, target.host, target.session_id, target.pid, String(sess.email || "").slice(0, 120), now, now).run();
+      try {
+        const dispatched = await dispatchAgentStop(env, target);
+        await env.DB.prepare(
+          "UPDATE fleet_agent_commands SET status=?,upstream_command_id=?,detail='',updated_at=? WHERE id=?"
+        ).bind(dispatched.result.status, dispatched.result.command_id, Date.now(), auditId).run();
+        return json(dispatched.result, 202);
+      } catch (error) {
+        const known = error instanceof AgentStopError;
+        const code = known ? error.code : "stop-command-failed";
+        const status = known ? error.status : 500;
+        await env.DB.prepare(
+          "UPDATE fleet_agent_commands SET status='rejected',detail=?,updated_at=? WHERE id=?"
+        ).bind(code, Date.now(), auditId).run().catch(() => {});
+        return json({ ok:false, error:code }, status);
+      }
     }
 
     // ── EQUIPO: puente de ESCRITURA hacia admira-fleet ───────────────────────
