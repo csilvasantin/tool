@@ -102,8 +102,8 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-race{position:relative;grid-column:2;grid-row:1 / span 2;min-height:44px;min-width:0;padding:0;display:flex;align-items:flex-start;overflow:hidden}
 .refresh-lanes{width:100%;display:grid;gap:2px}
 .runner-symbols{position:absolute;width:0;height:0;overflow:hidden}
-.refresh-lane{position:relative;width:100%;height:50px;min-width:0}
-.refresh-track{position:relative;width:100%;height:50px}
+.refresh-lane{position:relative;width:100%;min-width:0;min-height:84px}
+.refresh-track{position:relative;width:100%;min-height:84px;padding:3px 36px 38px}
 .refresh-track::before{content:"";position:absolute;left:36px;right:36px;bottom:3px;height:2px;
   background:rgba(120,243,255,.22);box-shadow:0 1px 0 rgba(255,216,102,.16)}
 .refresh-fill{position:absolute;left:36px;bottom:3px;width:0;height:2px;background:linear-gradient(90deg,var(--lane),var(--accent),var(--brand));
@@ -116,17 +116,20 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-lane-p2{--lane:var(--plata);--runner-shirt:#e6ecf2;--runner-stripe:#3477c7}
 .refresh-lane-p3{--lane:var(--bronce);--runner-shirt:#c87f3a;--runner-stripe:#2b1b12}
 .refresh-lane-rank{--lane:#78f3ff;--runner-shirt:#8d5fd3;--runner-stripe:#ffd866}
-.refresh-mission{position:absolute;z-index:1;left:0;top:25px;width:min(520px,46vw);
-  transform:translateX(calc(-100% - 18px));overflow:hidden;
-  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 26px);mask-image:linear-gradient(90deg,transparent 0,#000 26px);
-  color:var(--mut);font-size:14px;font-weight:750;line-height:17px;
-  letter-spacing:.035em;text-shadow:0 1px 5px #000;
-  pointer-events:none}
-.refresh-desc{display:flex;width:100%;min-width:0;justify-content:flex-end;
-  gap:.52em;overflow:hidden;color:var(--mut);white-space:nowrap}
-.refresh-word{display:inline-block;flex:0 0 auto;direction:ltr;unicode-bidi:isolate;white-space:nowrap}
-.refresh-agent{position:absolute;z-index:2;right:43px;top:22px;max-width:190px;
-  transform:translateX(0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+.refresh-mission{position:relative;z-index:1;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;
+  gap:2px 9px;min-width:0;padding:4px 7px;border:1px solid rgba(120,243,255,.18);border-radius:5px;
+  background:rgba(2,8,13,.72);text-shadow:0 1px 5px #000;pointer-events:none}
+.refresh-mission-ref{grid-row:1 / span 2;color:var(--brand);font-size:9px;font-weight:900;line-height:1.25;
+  letter-spacing:.045em;white-space:nowrap}
+.refresh-mission-title{min-width:0;color:var(--ink);font-size:11px;font-weight:800;line-height:1.25;
+  letter-spacing:.02em;white-space:normal;overflow-wrap:anywhere}
+.refresh-mission-meta{display:flex;align-items:center;gap:5px;min-width:0;font-size:8.5px;line-height:1.2;letter-spacing:.06em}
+.refresh-mission-state{flex:0 0 auto;color:var(--good);font-weight:950}
+.refresh-mission-project{min-width:0;color:var(--mut);white-space:normal;overflow-wrap:anywhere}
+.refresh-empty{width:100%;padding:12px 36px;color:var(--dim);font-size:10px;font-weight:800;letter-spacing:.1em;
+  text-align:right;text-transform:uppercase}
+.refresh-agent{position:absolute;z-index:2;right:43px;bottom:9px;max-width:min(240px,45%);
+  transform:translateX(0);overflow:visible;overflow-wrap:anywhere;white-space:normal;text-align:right;
   color:var(--lane);font-size:14px;font-weight:900;line-height:17px;letter-spacing:.035em;
   text-shadow:0 1px 5px #000,0 0 7px color-mix(in srgb,var(--lane) 45%,transparent);pointer-events:none;
   will-change:transform,opacity}
@@ -326,7 +329,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .plaza.p2{left:7%;top:62%}.plaza.p1{left:36.5%;top:59%}.plaza.p3{right:6%;top:66%}
   .nom{font-size:7px}.pts{font-size:10px}
   .wrap{padding-top:46px}header.cab{grid-template-columns:auto minmax(90px,1fr) auto;gap:10px}h1{font-size:17px}
-  .refresh-race{padding:0 10px}.refresh-mission{width:38vw;font-size:10px;line-height:13px}.refresh-agent{max-width:105px;font-size:10px;line-height:13px}
+  .refresh-race{padding:0 10px}.refresh-track{padding-left:10px;padding-right:10px}.refresh-mission{grid-template-columns:1fr;gap:2px;padding:4px 5px}
+  .refresh-mission-ref{grid-row:auto;font-size:8px}.refresh-mission-title{font-size:9px}.refresh-mission-meta{font-size:7.5px}
+  .refresh-agent{max-width:105px;font-size:10px;line-height:13px}
   .score-progress td{padding-left:5px;padding-right:5px}.progression{grid-template-columns:88px repeat(5,76px);min-width:500px;gap:4px}
   .progression-step{grid-template-columns:13px minmax(0,1fr);column-gap:3px}.progression-dot{width:13px;height:13px;border-width:1px}.progression-step::before{top:6px}}
 @media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.rank-filter[aria-pressed="true"],.activity-now,.activity-now::after,.plaza.podium-live::after,.podium-trend.up,.score-trend.up,.refresh-runner svg,.runner-run-a,.runner-run-b,.runner-run-c,.progression-step.new .progression-dot{animation:none}.refresh-runner .runner-run-b,.refresh-runner .runner-run-c{display:none}.runner-finish-win .gesto-a,.runner-finish-lose .gesto-a{animation:none;opacity:1}.runner-finish-win .gesto-b,.runner-finish-lose .gesto-b{display:none}}
@@ -533,7 +538,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       datos.tareas = t || []; pon(42, "TABLERO DE TAREAS · " + tareasDeHoy().length + " HOY");
       return Promise.all([
         seguroYokup("/highscore/daily", function (d) { return d; }),
-        seguroYokup("/fleet/missions", function (d) { return d.missions || []; }),
+        seguroYokup("/tickets?scope=fleet", function (d) { return d.tickets || []; }),
         seguroYokup("/ideas", function (d) { return d.ideas || []; }),
         seguroYokup("/decisions", function (d) { return d.items || d.decisions || []; }),
         seguro("/api/presence", function (d) { return d.presence || []; }),
@@ -1337,18 +1342,43 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return normaliza(agente).toLowerCase().replace(/[^a-z0-9]/g, "");
   }
 
+  function instanteMisionActiva(m) {
+    return Math.max.apply(Math, [m && m.live_at, m && m.updated_at, m && m.created_at].map(function (raw) {
+      var numero = Number(raw); return numero || Date.parse(raw) || 0;
+    }));
+  }
+
   function misionesEnCurso() {
     var activas = (datos.misiones || []).filter(function (m) {
       return normaliza(m.status).toLowerCase() === "in_progress";
     });
     activas.sort(function (a, b) {
-      function instante(m) {
-        var raw = m.updated_at || m.live_at || m.created_at || 0, numero = Number(raw);
-        return numero || Date.parse(raw) || 0;
-      }
-      return instante(b) - instante(a);
+      return instanteMisionActiva(b) - instanteMisionActiva(a) || normaliza(a.id).localeCompare(normaliza(b.id));
     });
     return activas;
+  }
+
+  function misionActivaDeAgente(activas, clave) {
+    return (activas || []).find(function (m) { return claveAgenteCarrera(agenteDeMision(m)) === clave; }) || null;
+  }
+
+  function tituloMisionActiva(mision) {
+    var raw = normaliza(mision && (mision.title || mision.name || mision.subject));
+    if (!raw) return "Misión activa";
+    raw = raw.replace(/^\s*\[[^\]]+\]\s*/, "").replace(/^\s*[#>*-]+\s*/, "")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[`*_~]+/g, "");
+    var segmento = raw.split(/\r?\n|\s+(?:→|⇒|\|)\s+/).map(function (parte) { return normaliza(parte); }).filter(Boolean)[0] || raw;
+    var frase = segmento.match(/^.*?[.!?](?=\s+[A-ZÁÉÍÓÚÑ])/);
+    return normaliza(frase ? frase[0] : segmento) || "Misión activa";
+  }
+
+  function resumenMisionActiva(mision) {
+    if (!mision) return { reference:"", title:"Sin misión activa", state:"Sin misión activa", project:"" };
+    return {
+      reference:normaliza(mision.display_ref || mision.id),
+      title:tituloMisionActiva(mision), state:"EN CURSO",
+      project:normaliza(mision.project_name || mision.project)
+    };
   }
 
   function filasConMisionEnCurso(lista, activas) {
@@ -1358,32 +1388,26 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       : (lista || []).filter(function (fila) { return fila && fila.vivo && claves.indexOf(claveAgenteCarrera(fila.agente)) >= 0; });
   }
 
-  /* La primera palabra queda pegada a la espalda del corredor. Las siguientes
-     se colocan hacia la izquierda para formar una estela legible mientras avanza. */
-  function estelaMision(asunto) {
-    return normaliza(asunto).split(/\s+/).filter(Boolean).map(function (palabra) {
-      return '<span class="refresh-word">' + esc(palabra) + '</span>';
-    }).join("");
-  }
-
   function actualizaCarreraPodio() {
     var contenedor = document.getElementById("refreshLanes");
     var activas = misionesEnCurso();
     var corredores = filasConMisionEnCurso(listaCache || [], activas).map(function (fila, indice) {
       var clave = claveAgenteCarrera(fila.agente);
-      var mision = activas.find(function (m) { return claveAgenteCarrera(agenteDeMision(m)) === clave; });
-      var asunto = normaliza(mision && (mision.subject || mision.title || mision.name));
+      var mision = misionActivaDeAgente(activas, clave), resumen = resumenMisionActiva(mision);
       var puesto = indice + 1, agente = normaliza(fila.agente);
       var variant = typeof YkHighscoreRace !== "undefined" ? YkHighscoreRace.runnerVariant(fila)
         : (clave.split("").reduce(function (n, c) { return n + c.charCodeAt(0); }, 0) % 2 ? "dark" : "light");
       var clasePuesto = puesto <= 3 ? "refresh-lane-p" + puesto : "refresh-lane-rank";
       return '<div class="refresh-lane ' + clasePuesto + ' ' + (puesto === 1 ? 'race-winner' : 'race-loser') +
         '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
-        'aria-label="Puesto ' + puesto + ', ' + esc(agente) + (asunto ? '. ' + esc(asunto) : '') + '">' +
+        'aria-label="Puesto ' + puesto + ', ' + esc(agente) + '. ' + esc(resumen.reference ? resumen.reference + '. ' : '') + esc(resumen.title) + '. ' + esc(resumen.state) + '">' +
         '<div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
-        '<span class="refresh-mission" data-race-role="mission" title="' + esc(asunto || '') + '">' +
-        '<span class="refresh-desc">' + (asunto ? estelaMision(asunto) : "") + '</span></span>' +
+        '<span class="refresh-mission" data-race-role="mission">' +
+        (resumen.reference ? '<span class="refresh-mission-ref">' + esc(resumen.reference) + '</span>' : '') +
+        '<span class="refresh-mission-title">' + esc(resumen.title) + '</span>' +
+        '<span class="refresh-mission-meta"><span class="refresh-mission-state">' + esc(resumen.state) + '</span>' +
+        (resumen.project ? '<span class="refresh-mission-project">· ' + esc(resumen.project) + '</span>' : '') + '</span></span>' +
         '<span class="refresh-runner runner-' + variant + ' runner-skin-' + variant + '" data-race-role="runner" aria-hidden="true">' +
         '<svg class="runner-pose-ready" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerReady"></use></svg>' +
         '<svg class="runner-pose-set" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerSet"></use></svg>' +
@@ -1397,7 +1421,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<span class="refresh-finish" aria-hidden="true"></span>' +
         '<span class="refresh-place refresh-place-finish" aria-hidden="true">' + puesto + '</span></div></div>';
     }).filter(Boolean);
-    contenedor.innerHTML = corredores.join("");
+    contenedor.innerHTML = corredores.length ? corredores.join("") : '<div class="refresh-empty">Sin misión activa</div>';
     var carrera = document.getElementById("refreshRace");
     carrera.setAttribute("data-lanes", String(corredores.length));
     carrera.classList.toggle("empty", corredores.length === 0);
@@ -1501,7 +1525,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       seguroYokup("/tasks/all?scope=fleet", function (d) { return d.tasks || []; }),
       seguroYokup("/highscore/daily", function (d) { return d; }),
       seguro("/api/presence", function (d) { return d.presence || []; }),
-      seguroYokup("/fleet/missions", function (d) { return d.missions || []; }),
+      seguroYokup("/tickets?scope=fleet", function (d) { return d.tickets || []; }),
       seguroYokup("/ideas", function (d) { return d.ideas || []; }),
       seguroYokup("/decisions", function (d) { return d.items || d.decisions || []; }),
       seguroYokup("/projects", function (d) { return d.projects || []; })
@@ -1538,7 +1562,6 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var progresoAtleta = progresoCarril(progreso, puesto), pct = progresoAtleta * 100;
       var relleno = carril.querySelector('[data-race-role="fill"]');
       var corredor = carril.querySelector('[data-race-role="runner"]');
-      var mision = carril.querySelector('[data-race-role="mission"]');
       var agente = carril.querySelector('[data-race-role="agent"]');
       var ajusteCorredor = SALIDA_CORREDOR_PX * (1 - progresoAtleta) - META_CORREDOR_PX * progresoAtleta;
       var posicionCorredor = "calc(" + pct + "% + " + ajusteCorredor + "px)";
@@ -1554,7 +1577,6 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       carril.classList.toggle("race-loser", puesto !== 1);
       if (relleno) relleno.style.width = "calc(" + pct + "% - " + recortePista + "px)";
       if (corredor) corredor.style.left = posicionCorredor;
-      if (mision) mision.style.left = posicionCorredor;
       if (agente) {
         var anchoAgente = Math.max(1, agente.offsetWidth);
         var centroCorredor = progresoAtleta * carril.clientWidth + ajusteCorredor;
