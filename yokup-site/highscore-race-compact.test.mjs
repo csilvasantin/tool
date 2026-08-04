@@ -24,8 +24,8 @@ test("cada pista reduce drásticamente altura y separación", () => {
   const lanes = cssRule(".refresh-lanes");
   const lane = cssRule(".refresh-lane");
   const track = cssRule(".refresh-track");
-  assert.ok(pixels(lane, "min-height") <= 40, "el carril debe ocupar como máximo 40px");
-  assert.ok(pixels(track, "min-height") <= 40, "la pista debe ocupar como máximo 40px");
+  assert.ok(pixels(lane, "min-height") <= 42, "el carril debe ocupar como máximo 42px");
+  assert.ok(pixels(track, "min-height") <= 42, "la pista debe ocupar como máximo 42px");
   assert.ok(pixels(lanes, "gap") <= 1, "la separación vertical debe ser como máximo 1px");
   assert.match(track, /padding:[^;}]*px/, "la pista conserva márgenes internos explícitos");
 });
@@ -56,8 +56,9 @@ test("HIGHSCORE y el mute se alinean con el carril central", () => {
   assert.match(cssRule(".sonido"), /width:15px[^}]*height:15px[^}]*margin:0/);
 });
 
-test("el dorsal nace justo a la derecha del corredor", () => {
-  assert.match(cssRule(".refresh-place"), /z-index:2[^}]*left:calc\(var\(--track-start\) \+ 18px\)[^}]*bottom:7px[^}]*opacity:\.88/);
+test("el dorsal nace oculto bajo la línea y el corredor pasa por encima", () => {
+  assert.match(cssRule(".refresh-place"), /z-index:2[^}]*left:calc\(var\(--track-start\) \+ 8px\)[^}]*bottom:0[^}]*opacity:0[^}]*visibility:hidden/);
+  assert.match(html, /\.refresh-lane\.place-revealed \.refresh-place\{opacity:\.88;visibility:visible\}/);
   assert.match(cssRule(".refresh-runner"), /z-index:3/,
     "el corredor pasa visualmente por encima del dorsal pintado");
 });
@@ -74,7 +75,7 @@ test("la misión queda por detrás de la espalda del corredor", () => {
     "el texto termina justo antes de la espalda del corredor");
   assert.match(html, /mision\.style\.left = posicionCorredor/);
   assert.match(cssRule(".refresh-mission-title"), /width:100%[^}]*text-align:center/,
-    "el texto usa todo el tramo conquistado y permanece centrado");
+    "el texto usa todo el tramo conquistado desde el borde de MISIÓN");
 });
 
 test("el sprint termina pronto y deja una celebración larga", () => {

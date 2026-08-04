@@ -46,8 +46,38 @@
     return Math.max(0, 3 - Math.max(1, Number(place) || 1)) * (Number(stepMs) || 0);
   }
 
+  /* Fisher-Yates puro: devuelve una permutación 1..N y permite inyectar el RNG
+     para que pruebas y simulaciones reproduzcan exactamente el mismo sorteo. */
+  function randomFinishOrder(count, rng) {
+    var total = Math.max(0, Math.floor(Number(count) || 0));
+    var order = Array.from({ length:total }, function (_, index) { return index + 1; });
+    var random = typeof rng === "function" ? rng : Math.random;
+    for (var i = order.length - 1; i > 0; i--) {
+      var sample = Number(random());
+      if (!Number.isFinite(sample)) sample = 0;
+      sample = Math.max(0, Math.min(.9999999999999999, sample));
+      var j = Math.floor(sample * (i + 1)), swap = order[i];
+      order[i] = order[j]; order[j] = swap;
+    }
+    return order;
+  }
+
+  /* Un reinicio debe producir un ganador visible distinto cuando hay rival. La
+     permutación sigue siendo aleatoria: sólo intercambia el 1 si el sorteo acaba
+     de repetir al vencedor anterior. */
+  function avoidRepeatedWinner(order, keys, previousWinnerKey) {
+    var next = Array.from(order || []), lanes = Array.from(keys || []);
+    if (next.length < 2 || lanes.length !== next.length || !previousWinnerKey) return next;
+    var winnerIndex = next.indexOf(1), previousIndex = lanes.indexOf(previousWinnerKey);
+    if (winnerIndex < 0 || winnerIndex !== previousIndex) return next;
+    var challengerIndex = (winnerIndex + 1) % next.length;
+    var swap = next[winnerIndex]; next[winnerIndex] = next[challengerIndex]; next[challengerIndex] = swap;
+    return next;
+  }
+
   var api = { key:key, activeMissionRows:activeMissionRows, raceRows:raceRows, laneKey:laneKey, runnerVariant:runnerVariant,
-    finishPose:finishPose, finishAdvanceMs:finishAdvanceMs };
+    finishPose:finishPose, finishAdvanceMs:finishAdvanceMs, randomFinishOrder:randomFinishOrder,
+    avoidRepeatedWinner:avoidRepeatedWinner };
   root.YkHighscoreRace = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

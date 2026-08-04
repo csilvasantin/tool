@@ -101,29 +101,32 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 
 /* Carrera de refresco: una calle sólo para quien tiene latido reciente Y ejecuta
    una misión en curso. Ninguna de las dos señales concede una calle por sí sola. */
-.refresh-race{--track-start:36px;--finish-gutter:clamp(132px,15vw,184px);--finish-width:7px;--agent-gap:26px;
+.refresh-race{--track-start:2px;--finish-gutter:clamp(132px,15vw,184px);--finish-width:7px;--agent-gap:26px;
   position:relative;grid-column:2;grid-row:1;min-height:44px;min-width:0;padding:0;display:flex;align-items:flex-start;overflow:hidden}
 .refresh-lanes{width:100%;display:grid;gap:1px}
 .runner-symbols{position:absolute;width:0;height:0;overflow:hidden}
-.refresh-lane{position:relative;width:100%;min-width:0;min-height:38px}
-.refresh-track{position:relative;width:100%;min-height:38px;padding:1px calc(var(--finish-gutter) + var(--finish-width)) 7px var(--track-start)}
-.refresh-track::before{content:"";position:absolute;left:var(--track-start);right:calc(var(--finish-gutter) + var(--finish-width));bottom:3px;height:2px;
+.refresh-lane{position:relative;width:100%;min-width:0;min-height:42px}
+.refresh-track{position:relative;width:100%;min-height:42px;padding:1px calc(var(--finish-gutter) + var(--finish-width)) 16px var(--track-start)}
+/* La pista nace en x=2, el mismo borde estable donde la ventana móvil de misión
+   deja su M inicial. La diferencia vertical evita que la línea tape el rótulo. */
+.refresh-track::before{content:"";position:absolute;left:var(--track-start);right:calc(var(--finish-gutter) + var(--finish-width));bottom:11px;height:2px;
   background:rgba(120,243,255,.22);box-shadow:0 1px 0 rgba(255,216,102,.16)}
-.refresh-fill{position:absolute;left:var(--track-start);bottom:3px;width:0;height:2px;background:linear-gradient(90deg,var(--lane),var(--accent),var(--brand));
+.refresh-fill{position:absolute;left:var(--track-start);bottom:11px;width:0;height:2px;background:linear-gradient(90deg,var(--lane),var(--accent),var(--brand));
   box-shadow:0 0 7px color-mix(in srgb,var(--lane) 55%,transparent)}
-.refresh-place{position:absolute;z-index:2;left:calc(var(--track-start) + 18px);bottom:7px;min-width:22px;padding:0 2px;
+.refresh-place{position:absolute;z-index:2;left:calc(var(--track-start) + 8px);bottom:0px;min-width:16px;padding:0 1px;
   transform:translateX(-50%) skewX(-8deg);transform-origin:center bottom;
   border:0;background:transparent;color:color-mix(in srgb,var(--lane) 88%,#fff);
-  font-size:14px;font-weight:950;line-height:15px;text-align:center;letter-spacing:.03em;
-  opacity:.88;-webkit-text-stroke:.25px rgba(2,8,13,.9);
+  font-size:9px;font-weight:950;line-height:9px;text-align:center;letter-spacing:.03em;
+  opacity:0;visibility:hidden;-webkit-text-stroke:.25px rgba(2,8,13,.9);
   text-shadow:0 1px 0 #02080d,0 0 6px color-mix(in srgb,var(--lane) 58%,transparent);
-  pointer-events:none;user-select:none}
+  transition:opacity .12s linear;pointer-events:none;user-select:none}
+.refresh-lane.place-revealed .refresh-place{opacity:.88;visibility:visible}
 .refresh-place-track{mix-blend-mode:normal}
 .refresh-lane-p1{--lane:var(--oro);--runner-shirt:#ffd866;--runner-stripe:#8a4a2a}
 .refresh-lane-p2{--lane:var(--plata);--runner-shirt:#e6ecf2;--runner-stripe:#3477c7}
 .refresh-lane-p3{--lane:var(--bronce);--runner-shirt:#c87f3a;--runner-stripe:#2b1b12}
 .refresh-lane-rank{--lane:#78f3ff;--runner-shirt:#8d5fd3;--runner-stripe:#ffd866}
-.refresh-mission{position:absolute;z-index:1;left:0;top:10px;width:0;
+.refresh-mission{position:absolute;z-index:1;left:0;top:5px;width:0;
   max-width:calc(100% - var(--finish-gutter) - var(--finish-width) - 8px);
   transform:translateX(calc(-100% - 13px));overflow:hidden;color:var(--mut);font-size:10px;font-weight:800;
   line-height:13px;letter-spacing:.015em;text-shadow:0 1px 5px #000;pointer-events:none;
@@ -133,8 +136,8 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   opacity:0;visibility:hidden;transition:none}
 .refresh-mission-title{display:block;width:100%;max-width:none;direction:ltr;unicode-bidi:plaintext;
   white-space:nowrap;text-align:center;transform:translateX(0);will-change:transform}
-.refresh-lane-empty{--lane:var(--dim);--runner-shirt:#78f3ff;--runner-stripe:#ffd866;min-height:38px}
-.refresh-lane-empty .refresh-track{min-height:38px;padding:0 18px}
+.refresh-lane-empty{--lane:var(--dim);--runner-shirt:#78f3ff;--runner-stripe:#ffd866;min-height:42px}
+.refresh-lane-empty .refresh-track{min-height:42px;padding:0 18px}
 .refresh-lane-empty .refresh-track::before{display:none}
 .refresh-lane-empty .refresh-mission{left:auto;right:42px;top:4px;width:auto;max-width:calc(100% - 72px);transform:none;
   color:var(--dim);font-size:10px;line-height:14px;letter-spacing:.1em;text-align:right;text-transform:uppercase;
@@ -142,12 +145,12 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-race.phase-ready .refresh-lane-empty .refresh-mission,.refresh-race.phase-set .refresh-lane-empty .refresh-mission,
 .refresh-race.phase-go .refresh-lane-empty .refresh-mission{opacity:1;visibility:visible}
 .refresh-lane-empty .refresh-mission-title{width:auto}
-.refresh-lane-empty .refresh-runner{bottom:3px}
+.refresh-lane-empty .refresh-runner{bottom:11px}
 .refresh-agent{position:absolute;z-index:2;left:calc(100% - var(--finish-gutter) + var(--agent-gap));right:4px;bottom:7px;
   max-width:none;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
   white-space:normal;text-align:left;color:var(--lane);font-size:12px;font-weight:900;line-height:14px;letter-spacing:.025em;
   text-shadow:0 1px 5px #000,0 0 7px color-mix(in srgb,var(--lane) 45%,transparent);pointer-events:none}
-.refresh-runner{position:absolute;left:0;bottom:3px;width:25px;height:30px;transform:translateX(-50%);
+.refresh-runner{position:absolute;left:0;bottom:11px;width:25px;height:30px;transform:translateX(-50%);
   z-index:3;filter:drop-shadow(0 0 4px rgba(255,216,102,.45));will-change:left}
 .refresh-runner svg{display:block;position:absolute;inset:0;width:100%;height:100%;overflow:visible;shape-rendering:crispEdges;
   image-rendering:pixelated}
@@ -159,7 +162,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-runner.runner-dark,.refresh-runner.runner-skin-dark{--runner-skin:#9c5228;--runner-hair:#14100b}
 .refresh-runner.runner-light,.refresh-runner.runner-skin-light{--runner-skin:#f8b98c;--runner-hair:#b45a1e}
 .refresh-runner .runner-hair,.refresh-runner .runner-mustache{fill:var(--runner-hair)}
-.refresh-finish{position:absolute;z-index:2;right:var(--finish-gutter);bottom:1px;width:var(--finish-width);height:34px;pointer-events:none}
+.refresh-finish{position:absolute;z-index:2;right:var(--finish-gutter);bottom:9px;width:var(--finish-width);height:32px;pointer-events:none}
 .refresh-finish::before,.refresh-finish::after{content:"";position:absolute;left:0;width:100%;height:50%;
   border:1px solid rgba(223,248,255,.75);background:conic-gradient(#dff8ff 25%,#02080d 0 50%,#dff8ff 0 75%,#02080d 0) 0 0/6px 6px;
   box-shadow:0 0 7px rgba(120,243,255,.48);transition:transform .45s steps(3,end),opacity .45s linear}
@@ -414,17 +417,17 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .plaza.p2{left:7%;top:62%}.plaza.p1{left:36.5%;top:59%}.plaza.p3{right:6%;top:66%}
   .nom{font-size:7px}.pts{font-size:10px}
   .wrap{padding-top:46px}header.cab{grid-template-columns:auto minmax(90px,1fr);gap:10px}h1{font-size:17px}
-  .refresh-race{--track-start:10px;--finish-gutter:clamp(94px,28vw,112px);--agent-gap:26px;padding:0 10px}
+  .refresh-race{--track-start:2px;--finish-gutter:clamp(94px,28vw,112px);--agent-gap:26px;padding:0 10px}
   .refresh-track{padding-left:var(--track-start);padding-right:calc(var(--finish-gutter) + var(--finish-width))}
   .refresh-mission{max-width:calc(100% - var(--finish-gutter) - var(--finish-width) - 5px);font-size:9px;line-height:13px}.refresh-mission-title{font-size:9px}
-  .refresh-place{left:calc(var(--track-start) + 18px);bottom:7px;min-width:19px;font-size:11px;line-height:12px}
+  .refresh-place{left:calc(var(--track-start) + 8px);bottom:0px;min-width:16px;font-size:9px;line-height:9px}
   .refresh-agent{left:calc(100% - var(--finish-gutter) + var(--agent-gap));right:2px;bottom:6px;font-size:9px;line-height:11px}
   .race-call{min-width:min(96px,calc(100% - var(--track-start) - var(--finish-gutter) - var(--finish-width) - 8px));
     padding:2px clamp(5px,1.8vw,11px);font-size:clamp(13px,4.2vw,18px);line-height:20px;letter-spacing:.1em}
   .score-progress td{padding-left:5px;padding-right:5px}.progression{grid-template-columns:88px repeat(5,76px);min-width:500px;gap:4px}
   .progression-step{grid-template-columns:13px minmax(0,1fr);column-gap:3px}.progression-dot{width:13px;height:13px;border-width:1px}.progression-step::before{top:6px}
   .agent-scope-children{padding-left:8px}}
-@media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.rank-filter[aria-pressed="true"],.activity-now,.activity-now::after,.plaza.podium-live::after,.podium-trend.up,.score-trend.up,.refresh-runner svg,.runner-run-a,.runner-run-b,.runner-run-c,.progression-step.new .progression-dot,.race-call,.race-call::before,.race-call::after{animation:none!important;transition:none!important}.refresh-runner .runner-run-b,.refresh-runner .runner-run-c{display:none}.runner-finish-win .gesto-a,.runner-finish-lose .gesto-a{animation:none;opacity:1}.runner-finish-win .gesto-b,.runner-finish-lose .gesto-b{display:none}}
+@media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.rank-filter[aria-pressed="true"],.activity-now,.activity-now::after,.plaza.podium-live::after,.podium-trend.up,.score-trend.up,.refresh-runner svg,.runner-run-a,.runner-run-b,.runner-run-c,.progression-step.new .progression-dot,.race-call,.race-call::before,.race-call::after,.refresh-place{animation:none!important;transition:none!important}.refresh-runner .runner-run-b,.refresh-runner .runner-run-c{display:none}.runner-finish-win .gesto-a,.runner-finish-lose .gesto-a{animation:none;opacity:1}.runner-finish-win .gesto-b,.runner-finish-lose .gesto-b{display:none}}
 </style>
 </head>
 <body data-yk-title="HIGHSCORE" data-yk-zone="app">
@@ -1723,7 +1726,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var variant = typeof YkHighscoreRace !== "undefined" ? YkHighscoreRace.runnerVariant(fila)
         : (clave.split("").reduce(function (n, c) { return n + c.charCodeAt(0); }, 0) % 2 ? "dark" : "light");
       var clasePuesto = puesto <= 3 ? "refresh-lane-p" + puesto : "refresh-lane-rank";
-      return '<div class="refresh-lane ' + clasePuesto + ' ' + (puesto === 1 ? 'race-winner' : 'race-loser') +
+      return '<div class="refresh-lane ' + clasePuesto +
         '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
         'aria-label="Puesto ' + puesto + ', ' + esc(agente) + '. ' + esc(resumen.title) + '">' +
         '<div class="refresh-track">' +
@@ -1761,6 +1764,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var carrera = document.getElementById("refreshRace");
     carrera.setAttribute("data-lanes", String(corredores.length || 1));
     carrera.classList.toggle("empty", corredores.length === 0);
+    if (typeof sorteaOrdenLlegada === "function" && typeof ordenLlegadaFirma !== "undefined" && ordenLlegadaFirma)
+      sorteaOrdenLlegada(false);
   }
 
   function pintaFormula(lista) {
@@ -1850,10 +1855,37 @@ body.resizing-columns{cursor:col-resize;user-select:none}
      las misiones y ver la celebración antes de refrescar el marcador. */
   var REFRESCO_MS = 24 * 1000, SALIDA_MS = 3 * 1000, PASO_SALIDA_MS = 1000, CELEBRACION_MS = 15 * 1000;
   var CICLO_MS = SALIDA_MS + REFRESCO_MS + CELEBRACION_MS, DIFERENCIA_META_MS = 2 * 1000;
-  var SALIDA_CORREDOR_PX = 17, META_CORREDOR_PX = 16, RADIO_CORREDOR_PX = 13;
+  var SALIDA_CORREDOR_OFFSET_PX = 15, META_CORREDOR_PX = 16, RADIO_CORREDOR_PX = 13;
   var MITAD_RAPIDA_MS = REFRESCO_MS / 3;
   var carreraInicio = 0, carreraFrame = null, refrescando = false, carreraPausada = false, carreraTiempoPausado = 0;
+  var ordenLlegadaFirma = "", ordenLlegadaPorAgente = Object.create(null);
   var REDUCE_MOTION = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+  function sorteaOrdenLlegada(forzar) {
+    var carriles = Array.from(document.querySelectorAll('.refresh-lane[data-agent-key]'));
+    var claves = carriles.map(function (carril) { return carril.getAttribute("data-agent-key") || ""; });
+    var firma = claves.slice().sort().join("|");
+    if (!carriles.length) {
+      ordenLlegadaFirma = ""; ordenLlegadaPorAgente = Object.create(null); return;
+    }
+    if (forzar || firma !== ordenLlegadaFirma || !ordenLlegadaPorAgente) {
+      var ganadorAnterior = claves.find(function (clave) { return Number(ordenLlegadaPorAgente[clave]) === 1; }) || "";
+      var orden = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.randomFinishOrder
+        ? YkHighscoreRace.randomFinishOrder(carriles.length, Math.random)
+        : claves.map(function (_, indice) { return indice + 1; });
+      if (forzar && typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.avoidRepeatedWinner)
+        orden = YkHighscoreRace.avoidRepeatedWinner(orden, claves, ganadorAnterior);
+      ordenLlegadaPorAgente = Object.create(null);
+      claves.forEach(function (clave, indice) { ordenLlegadaPorAgente[clave] = orden[indice]; });
+      ordenLlegadaFirma = firma;
+    }
+    carriles.forEach(function (carril, indice) {
+      var clave = claves[indice], orden = Number(ordenLlegadaPorAgente[clave]) || indice + 1;
+      carril.setAttribute("data-race-order", String(orden));
+      carril.classList.toggle("race-winner", orden === 1);
+      carril.classList.toggle("race-loser", orden !== 1);
+    });
+  }
   function actualizaMarcador() {
     if (refrescando) return Promise.resolve();
     refrescando = true;
@@ -1883,11 +1915,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (cambioLider && sonando) fanfarriaPodio();   // récord batido
     }).finally(function () { refrescando = false; });
   }
-  function progresoCarril(progresoCiclo, puesto) {
+  function progresoCarril(progresoCiclo, ordenLlegada) {
     var transcurrido = Math.max(0, progresoCiclo * REFRESCO_MS);
     var adelanto = typeof YkHighscoreRace !== "undefined"
-      ? YkHighscoreRace.finishAdvanceMs(puesto, DIFERENCIA_META_MS)
-      : Math.max(0, 3 - Math.max(1, puesto)) * DIFERENCIA_META_MS;
+      ? YkHighscoreRace.finishAdvanceMs(ordenLlegada, DIFERENCIA_META_MS)
+      : Math.max(0, 3 - Math.max(1, ordenLlegada)) * DIFERENCIA_META_MS;
     var duracion = REFRESCO_MS - adelanto;
     if (transcurrido <= MITAD_RAPIDA_MS) return .5 * Math.min(1, transcurrido / MITAD_RAPIDA_MS);
     var segundaMitad = Math.max(1, duracion - MITAD_RAPIDA_MS);
@@ -1896,37 +1928,44 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function pintaCarrera(progreso) {
     document.querySelectorAll(".refresh-lane").forEach(function (carril) {
       var puesto = Number(carril.getAttribute("data-place")) || 3;
-      var progresoAtleta = progresoCarril(progreso, puesto);
+      var ordenLlegada = Number(carril.getAttribute("data-race-order")) || puesto;
+      var progresoAtleta = progresoCarril(progreso, ordenLlegada);
       var relleno = carril.querySelector('[data-race-role="fill"]');
       var corredor = carril.querySelector('[data-race-role="runner"]');
       var mision = carril.querySelector('[data-race-role="mission"]');
+      var dorsal = carril.querySelector(".refresh-place");
       var cinta = carril.querySelector(".refresh-finish");
       var inicioPista = relleno ? relleno.offsetLeft : 0;
       var metaLinea = cinta ? cinta.offsetLeft : Math.max(inicioPista, carril.clientWidth - 36);
-      var centroAtleta = SALIDA_CORREDOR_PX + (metaLinea + META_CORREDOR_PX - SALIDA_CORREDOR_PX) * progresoAtleta;
+      var salidaCorredor = inicioPista + SALIDA_CORREDOR_OFFSET_PX;
+      var centroAtleta = salidaCorredor + (metaLinea + META_CORREDOR_PX - salidaCorredor) * progresoAtleta;
       var posicionCorredor = centroAtleta + "px";
       carril.classList.toggle("race-started", progresoAtleta > 0);
+      if (corredor) corredor.style.left = posicionCorredor;
       if (carril.getAttribute("data-race-empty") === "true") {
         carril.classList.toggle("race-started", false);
+        carril.classList.toggle("place-revealed", false);
         carril.classList.toggle("cruzando", false);
         carril.classList.toggle("finished", false);
         carril.classList.toggle("race-winner", false);
         carril.classList.toggle("race-loser", false);
-        if (corredor) corredor.style.left = posicionCorredor;
         return;
       }
+      if (dorsal && corredor) {
+        var rectCorredor = corredor.getBoundingClientRect(), rectDorsal = dorsal.getBoundingClientRect();
+        carril.classList.toggle("place-revealed", rectCorredor.left >= rectDorsal.right);
+      } else carril.classList.toggle("place-revealed", false);
       // La cinta se rompe cuando el corredor la TOCA. Su posición se mide en
       // el DOM: pista, cinta y gutter del nombre comparten así la misma
       // geometría responsive sin constantes paralelas que puedan divergir.
       carril.classList.toggle("cruzando", centroAtleta + RADIO_CORREDOR_PX >= metaLinea);
       carril.classList.toggle("finished", progresoAtleta >= 1);
-      carril.classList.toggle("race-winner", puesto === 1);
-      carril.classList.toggle("race-loser", puesto !== 1);
+      carril.classList.toggle("race-winner", ordenLlegada === 1);
+      carril.classList.toggle("race-loser", ordenLlegada !== 1);
       if (relleno) {
         var avancePista = Math.max(0, Math.min(metaLinea - inicioPista, centroAtleta - inicioPista));
         relleno.style.width = avancePista + "px";
       }
-      if (corredor) corredor.style.left = posicionCorredor;
       if (mision) {
         // La ventana termina justo detrás del corredor y crece con él hasta la
         // meta. El título permanece centrado en todo el espacio ya conquistado.
@@ -2011,6 +2050,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     cancelAnimationFrame(carreraFrame);
     carreraPausada = false;
     carreraTiempoPausado = 0;
+    sorteaOrdenLlegada(true);
     pintaControlCarrera();
     carreraInicio = performance.now();
     // Estado final legible y sin bucle RAF para quien pidió reducir movimiento.
