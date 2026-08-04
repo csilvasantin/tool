@@ -324,6 +324,13 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   font-size:9.5px;line-height:1.2;cursor:pointer}
 .agent-scope-row:hover,.agent-scope-row:focus-within{border-color:var(--brand);color:var(--ink);background:rgba(120,243,255,.08)}
 .agent-scope-row.all{border-color:rgba(255,216,102,.25);color:var(--accent);font-weight:900}
+.agent-scope-group{display:grid;min-width:0;margin:0;padding:0;border:0;gap:4px}
+.agent-scope-row.team{grid-template-columns:16px minmax(0,1fr) auto;border-color:rgba(120,243,255,.24);color:var(--ink);
+  background:rgba(120,243,255,.08);font-weight:900}
+.agent-scope-team-count{min-width:20px;padding:1px 5px;border:1px solid var(--line);border-radius:999px;color:var(--dim);
+  font-size:8px;text-align:center}
+.agent-scope-children{display:grid;gap:3px;padding-left:14px;border-left:1px solid rgba(120,243,255,.14)}
+.agent-scope-children .agent-scope-row{min-height:25px;background:rgba(120,243,255,.018)}
 .agent-scope-row input{margin:0;accent-color:var(--brand)}
 .agent-scope-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .agent-scope-actions{display:grid;gap:6px}
@@ -341,7 +348,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .refresh-race{padding:0 10px}.refresh-track{padding-left:10px;padding-right:10px}.refresh-mission{max-width:calc(100% - 20px);font-size:9px;line-height:13px}.refresh-mission-title{font-size:9px}
   .refresh-agent{max-width:105px;font-size:10px;line-height:13px}
   .score-progress td{padding-left:5px;padding-right:5px}.progression{grid-template-columns:88px repeat(5,76px);min-width:500px;gap:4px}
-  .progression-step{grid-template-columns:13px minmax(0,1fr);column-gap:3px}.progression-dot{width:13px;height:13px;border-width:1px}.progression-step::before{top:6px}}
+  .progression-step{grid-template-columns:13px minmax(0,1fr);column-gap:3px}.progression-dot{width:13px;height:13px;border-width:1px}.progression-step::before{top:6px}
+  .agent-scope-children{padding-left:8px}}
 @media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.rank-filter[aria-pressed="true"],.activity-now,.activity-now::after,.plaza.podium-live::after,.podium-trend.up,.score-trend.up,.refresh-runner svg,.runner-run-a,.runner-run-b,.runner-run-c,.progression-step.new .progression-dot{animation:none}.refresh-runner .runner-run-b,.refresh-runner .runner-run-c{display:none}.runner-finish-win .gesto-a,.runner-finish-lose .gesto-a{animation:none;opacity:1}.runner-finish-win .gesto-b,.runner-finish-lose .gesto-b{display:none}}
 </style>
 </head>
@@ -1123,6 +1131,65 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return keys.length && next.size === keys.length && keys.every(function (item) { return next.has(item); }) ? null : next;
   }
 
+  function hsSetAgentScopeGroup(scope, childKeys, checked, allKeys) {
+    var next = scope === null ? new Set(allKeys) : new Set(Array.from(scope));
+    Array.from(new Set((childKeys || []).map(String))).forEach(function (key) {
+      if (checked) next.add(key); else next.delete(key);
+    });
+    return allKeys.length && next.size === allKeys.length && allKeys.every(function (key) { return next.has(key); }) ? null : next;
+  }
+
+  function hsAgentScopeGroups(filas, presencias, identity) {
+    var id = identity || window.ykAgentIdentity, items = [], byKey = Object.create(null);
+    function teamKey(machine) {
+      return (id && id.suffix && id.suffix(normaliza(machine))) || "SINMAQ";
+    }
+    function addTeam(item, machine) {
+      var key = teamKey(machine);
+      if (item.teams.indexOf(key) < 0) item.teams.push(key);
+    }
+    (filas || []).forEach(function (fila) {
+      var key = hsAgentKey(fila && fila.agente);
+      if (!key) return;
+      var item = byKey[key];
+      if (!item) {
+        item = byKey[key] = { key:key, label:normaliza(fila.agente), teams:[] };
+        items.push(item);
+      }
+      ([].concat((fila && fila.maquinas) || [], (fila && fila.maquinasVivas) || [])).forEach(function (machine) {
+        addTeam(item, machine);
+      });
+    });
+    (presencias || []).forEach(function (presence) {
+      var raw = normaliza(presence && (presence.persona || presence.agent || presence.assignee));
+      if (!raw) return;
+      var machine = normaliza(presence.machine || presence.loc), canonical = id && id.display ? id.display(raw, machine) : raw;
+      var item = byKey[hsAgentKey(canonical)] || byKey[hsAgentKey(raw)];
+      if (item) addTeam(item, machine);
+    });
+    items.forEach(function (item) {
+      if (!item.teams.length) item.teams.push("SINMAQ");
+      item.teams.sort(function (a, b) { return a.localeCompare(b, "es"); });
+    });
+    items.sort(function (a, b) { return a.label.localeCompare(b.label, "es"); });
+    var groupsByKey = Object.create(null);
+    items.forEach(function (item) {
+      item.teams.forEach(function (key) {
+        if (!groupsByKey[key]) groupsByKey[key] = {
+          key:key, label:key === "SINMAQ" ? "Sin equipo identificado" : key, items:[]
+        };
+        groupsByKey[key].items.push(item);
+      });
+    });
+    var groups = Object.keys(groupsByKey).map(function (key) { return groupsByKey[key]; });
+    groups.sort(function (a, b) {
+      if (a.key === "SINMAQ") return 1;
+      if (b.key === "SINMAQ") return -1;
+      return a.label.localeCompare(b.label, "es");
+    });
+    return { items:items, groups:groups };
+  }
+
   function hsDashboardTeamSuffix(fila, identity) {
     var id = identity || window.ykAgentIdentity, parsed = id && id.parse ? id.parse(fila && fila.agente) : null;
     var candidates = [fila && fila.suffix, parsed && parsed.suffix].concat(
@@ -1174,19 +1241,41 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function hsRenderAgentScope(lista) {
     var list = document.getElementById("agentScopeList"), count = document.getElementById("agentScopeCount");
     if (!list || !count) return;
-    var items = (lista || []).map(function (fila) { return { key:hsAgentKey(fila.agente), label:fila.agente }; });
+    var census = hsAgentScopeGroups(lista || [], datos.presencia || [], window.ykAgentIdentity), items = census.items;
     var keys = items.map(function (item) { return item.key; });
     var selected = AGENT_SCOPE === null ? items.length : items.filter(function (item) { return AGENT_SCOPE.has(item.key); }).length;
     count.textContent = AGENT_SCOPE === null ? "Todos" : selected + "/" + items.length;
     if (!items.length) { list.innerHTML = '<div class="agent-scope-empty">No hay agentes disponibles.</div>'; return; }
     list.innerHTML = '<label class="agent-scope-row all"><input type="checkbox" data-agent-scope-all><span class="agent-scope-label">Todos (' + items.length + ')</span></label>' +
-      items.map(function (item) { return '<label class="agent-scope-row"><input type="checkbox" data-agent-scope-item value="' + esc(item.key) + '"' +
-        (AGENT_SCOPE === null || AGENT_SCOPE.has(item.key) ? ' checked' : '') + '><span class="agent-scope-label" title="' + esc(item.label) + '">' + esc(item.label) + '</span></label>'; }).join("");
+      census.groups.map(function (group, index) {
+        var groupId = "agentScopeTeam" + index, groupSelected = AGENT_SCOPE === null ? group.items.length :
+          group.items.filter(function (item) { return AGENT_SCOPE.has(item.key); }).length;
+        return '<fieldset class="agent-scope-group" data-agent-scope-group="' + esc(group.key) + '"><legend class="sr-only">Equipo físico ' + esc(group.label) + '</legend>' +
+          '<label class="agent-scope-row team"><input type="checkbox" data-agent-scope-team value="' + esc(group.key) + '"' +
+          (groupSelected === group.items.length ? ' checked' : '') + ' aria-label="Seleccionar agentes de ' + esc(group.label) + '">' +
+          '<span class="agent-scope-label" id="' + groupId + '">' + esc(group.label) + '</span><span class="agent-scope-team-count" aria-hidden="true">' + group.items.length + '</span></label>' +
+          '<div class="agent-scope-children">' + group.items.map(function (item) {
+            return '<label class="agent-scope-row"><input type="checkbox" data-agent-scope-item value="' + esc(item.key) + '"' +
+              (AGENT_SCOPE === null || AGENT_SCOPE.has(item.key) ? ' checked' : '') + '><span class="agent-scope-label" title="' + esc(item.label) + '">' + esc(item.label) + '</span></label>';
+          }).join("") + '</div></fieldset>';
+      }).join("");
     var allInput = list.querySelector("[data-agent-scope-all]");
     allInput.checked = selected === items.length; allInput.indeterminate = selected > 0 && selected < items.length;
     allInput.addEventListener("change", function () {
       hsClearCloneStatus();
       AGENT_SCOPE = allInput.checked ? null : new Set(); hsWriteAgentScope(AGENT_SCOPE); hsRenderAgentScope(listaCompletaCache || []); pintaVistaFiltrada();
+    });
+    list.querySelectorAll("[data-agent-scope-team]").forEach(function (input) {
+      var group = census.groups.find(function (item) { return item.key === input.value; });
+      var childKeys = group ? group.items.map(function (item) { return item.key; }) : [];
+      var teamSelected = AGENT_SCOPE === null ? childKeys.length : childKeys.filter(function (key) { return AGENT_SCOPE.has(key); }).length;
+      input.checked = teamSelected === childKeys.length;
+      input.indeterminate = teamSelected > 0 && teamSelected < childKeys.length;
+      input.addEventListener("change", function () {
+        hsClearCloneStatus();
+        AGENT_SCOPE = hsSetAgentScopeGroup(AGENT_SCOPE, childKeys, input.checked, keys);
+        hsWriteAgentScope(AGENT_SCOPE); hsRenderAgentScope(listaCompletaCache || []); pintaVistaFiltrada();
+      });
     });
     list.querySelectorAll("[data-agent-scope-item]").forEach(function (input) {
       input.addEventListener("change", function () {
