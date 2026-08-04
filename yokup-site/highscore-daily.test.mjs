@@ -21,7 +21,7 @@ test("sin reloj superior, el sonido conserva un estado accesible", () => {
 });
 
 test("objetivos, ventanas, misiones y tareas respetan el orden del marcador", () => {
-  assert.match(html, /data-sort="ordenador">Ordenador[\s\S]*data-sort="proyecto">Proyecto[\s\S]*data-sort="objetivos">Objetivos[\s\S]*data-sort="ventanas">Ventanas hoy[\s\S]*data-sort="misiones">Misiones[\s\S]*data-sort="tareas">Tareas[\s\S]*data-sort="puntos">Puntos/);
+  assert.match(html, /data-sort="ordenador">Ordenador[\s\S]*data-sort="proyecto">Proyecto[\s\S]*data-sort="objetivos">Objetivos[\s\S]*data-sort="ventanas"[^>]*aria-label="Ordenar por ventanas de decisión">[\s\S]*data-sort="misiones">Misiones[\s\S]*data-sort="tareas">Tareas[\s\S]*data-sort="puntos">Puntos/);
   assert.doesNotMatch(html, /<th class="num">Vivo<\/th>/);
   assert.doesNotMatch(html, /<th class="num">Hoy<\/th>/);
   assert.match(html, /seguroYokup\("\/highscore\/daily"/);
@@ -55,8 +55,9 @@ test("sin actividad muestra 0 con latido histórico y guion sin ningún latido",
   assert.match(html, /El latido no da puntos/);
 });
 
-test("Ventanas aclara que es un acumulado diario y conserva la cadencia horaria", () => {
-  assert.match(html, /data-sort="ventanas">Ventanas hoy/);
+test("Ventana Decisión ocupa dos líneas y conserva la cadencia horaria", () => {
+  assert.match(html, /data-sort="ventanas"[^>]*aria-label="Ordenar por ventanas de decisión"><span class="sort-label-stack"><span>Ventana<\/span><span>Decisión<\/span><\/span>/);
+  assert.doesNotMatch(html, /Ventanas hoy/i);
   assert.match(html, /function numeroVentanas\(a\)/);
   assert.match(html, /ventanas acumuladas hoy; no son simultáneas/);
   assert.match(html, /automáticas abren una sola por hora natural/);

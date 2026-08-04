@@ -10,9 +10,10 @@ const decisiones = await readFile(new URL("./decisiones.html", import.meta.url),
 const admiraLive = await readFile(new URL("./admira-live.html", import.meta.url), "utf8");
 const misiones = await readFile(new URL("./misiones.html", import.meta.url), "utf8");
 
-test("Avanzado ofrece Highscore en todas las vistas y no declara vacío falso", () => {
+test("Avanzado ofrece Highscore fuera del propio Highscore y no declara vacío falso", () => {
   assert.match(frame, /railR\.appendChild\(buildAdvancedNav\(\)\)/);
   assert.match(frame, /highscore\.href = "\/highscore"/);
+  assert.match(frame, /if \(!active\) \{[\s\S]*nav\.appendChild\(highscore\)/);
   assert.match(frame, /aria-label", "Herramientas avanzadas de Yokup"/);
   assert.match(frame, /if \(name !== "right"\) slot\.appendChild/);
   assert.match(css, /\.yk-adv-nav/);
