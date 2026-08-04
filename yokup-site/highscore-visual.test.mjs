@@ -84,11 +84,11 @@ test("la vida hace latir el propio número de posición y no añade un punto", (
   assert.doesNotMatch(html, /class="nom">' \+ posicionHtml/);
 });
 
-test("todos los atletas pixelados recorren la línea y actualizan el marcador cada 60 segundos", () => {
+test("todos los atletas pixelados recorren la línea y actualizan el marcador tras sprint y celebración", () => {
   assert.match(html, /<header class="cab">[\s\S]*<h1><button class="race-toggle" id="raceToggle"[\s\S]*>HIGHSCORE<\/button>\s*<button class="sonido"[\s\S]*<\/button><\/h1>[\s\S]*class="refresh-race"[\s\S]*<\/header>/);
   assert.match(html, /header\.cab\{[^}]*grid-template-columns:auto minmax\(180px,1fr\)[^}]*grid-template-rows:auto/);
-  assert.match(html, /header\.cab>h1\{[^}]*display:flex[^}]*align-items:flex-start/);
-  assert.match(html, /\.sonido\{[^}]*width:13px[^}]*height:13px[^}]*margin-top:-3px[^}]*font-size:7px/);
+  assert.match(html, /header\.cab>h1\{[^}]*display:flex[^}]*align-items:center[^}]*align-self:center/);
+  assert.match(html, /\.sonido\{[^}]*width:15px[^}]*height:15px[^}]*margin:0[^}]*font-size:7px/);
   assert.match(html, /\.refresh-race\{[^}]*grid-column:2[^}]*grid-row:1/);
   assert.match(html, /class="refresh-runner runner-' \+ variant \+ ' runner-skin-' \+ variant/);
   assert.match(html, /<svg class="runner-run-a" viewBox="0 0 24 24"[^>]*><use href="#runnerRunA"/);
@@ -98,8 +98,8 @@ test("todos los atletas pixelados recorren la línea y actualizan el marcador ca
   assert.match(html, /@keyframes runner-run-b/);
   assert.match(html, /@keyframes runner-run-c/);
   assert.doesNotMatch(html, /class="refresh-count"/);
-  assert.match(html, /class="sr-only" id="refreshCount">60 segundos/);
-  assert.match(html, /var REFRESCO_MS = 60 \* 1000/);
+  assert.match(html, /class="sr-only" id="refreshCount">24 segundos/);
+  assert.match(html, /var REFRESCO_MS = 24 \* 1000/);
   assert.match(html, /function avanzaCarrera\(ahora\)/);
   assert.match(html, /actualizaMarcador\(\)\.then\(iniciaCarrera\)/);
   assert.doesNotMatch(html, /setInterval\(function \(\) \{[\s\S]*\}, 60000\)/);
@@ -110,7 +110,7 @@ test("la pista pasa por los pies del corredor y termina en una meta visible", ()
   assert.match(html, /\.refresh-fill\{[^}]*left:36px[^}]*bottom:3px[^}]*height:2px/);
   assert.match(html, /\.refresh-runner\{[^}]*bottom:3px[^}]*transform:translateX\(-50%\)/);
   assert.match(html, /\.refresh-finish\{[^}]*right:29px[^}]*bottom:1px/);
-  assert.match(html, /\.refresh-place\{[^}]*z-index:0[^}]*left:62%[^}]*bottom:-1px[^}]*text-align:center/);
+  assert.match(html, /\.refresh-place\{[^}]*z-index:0[^}]*left:52px[^}]*bottom:-1px[^}]*text-align:center/);
   assert.match(html, /\.refresh-lanes\{[^}]*gap:1px/);
   assert.match(html, /\.refresh-lane\{[^}]*min-height:38px/);
   assert.match(html, /\.refresh-track\{[^}]*min-height:38px[^}]*padding:1px 36px 7px/);
@@ -172,7 +172,7 @@ test("ocho cabeceras ordenan, invierten el sentido y conservan el ranking", () =
   assert.match(html, /if \(campo === "puntos"\) return Number\(fila\.total\) \|\| 0/);
   assert.match(html, /pintaTabla\(listaVisible\(listaCache \|\| \[\]\)\)/);
   assert.match(html, /pintaTabla\(listaVisible\(l\)\)/,
-    "el orden elegido debe sobrevivir a la actualización de 60 segundos");
+    "el orden elegido debe sobrevivir a cada actualización de la carrera");
 });
 
 test("el hashtag alterna entre agentes con vida y ranking completo", () => {
@@ -227,7 +227,7 @@ test("Ordenador agrupa equipos y mantiene dentro de cada grupo la posición real
 test("la misión factual queda legible junto al corredor sin estela truncada", () => {
   assert.match(html, /<div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Estado de las misiones activas"><\/div>/);
   assert.match(html, /\.refresh-mission\{[^}]*position:absolute[^}]*z-index:1[^}]*top:10px[^}]*width:0[^}]*max-width:calc\(100% - 42px\)[^}]*translateX\(calc\(-100% - 13px\)\)/);
-  assert.match(html, /\.refresh-mission-title\{[^}]*width:max-content[^}]*direction:ltr[^}]*unicode-bidi:plaintext[^}]*white-space:nowrap/);
+  assert.match(html, /\.refresh-mission-title\{[^}]*width:100%[^}]*direction:ltr[^}]*unicode-bidi:plaintext[^}]*white-space:nowrap[^}]*text-align:center/);
   assert.doesNotMatch(html, /\.refresh-mission-(?:ref|state|meta|project)\{/);
   assert.match(html, /@media \(max-width:620px\)[\s\S]*?\.refresh-mission\{max-width:calc\(100% - 20px\);font-size:9px;line-height:13px\}/);
   // La cinta se rompe en el fotograma del CRUCE, no al acabar la cuenta: la
@@ -247,7 +247,8 @@ test("la misión factual queda legible junto al corredor sin estela truncada", (
   assert.match(html, /mision\.style\.left = posicionCorredor/);
   assert.match(html, /espacioMision = Math\.max\(0, centroAtleta - RADIO_CORREDOR_PX - 2\)/);
   assert.match(html, /mision\.style\.width = espacioMision \+ "px"/);
-  assert.match(html, /tituloMision\.style\.transform = "translateX\(-" \+ \(desbordeMision \* avanceMision\) \+ "px\)"/);
+  assert.match(html, /tituloMision\.style\.transform = "translateX\(0\)"/);
+  assert.doesNotMatch(html, /desbordeMision|avanceMision/);
   assert.match(html, /pintaFormula\(listaCache\); actualizaCarreraPodio\(\)/);
   assert.match(html, /carril\.querySelector\('\[data-race-role="runner"\]'\)/);
   assert.match(html, /carril\.querySelector\('\[data-race-role="mission"\]'\)/);
@@ -324,7 +325,7 @@ test("HIGHSCORE pausa la lectura, continúa y desvanece el nombre mientras cruza
 });
 
 test("todos los corredores hacen la primera mitad al doble de velocidad y solo el podio se separa al final", () => {
-  assert.match(html, /var REFRESCO_MS = 60 \* 1000, SALIDA_MS = 3 \* 1000/);
+  assert.match(html, /var REFRESCO_MS = 24 \* 1000, SALIDA_MS = 3 \* 1000[^;]*CELEBRACION_MS = 15 \* 1000/);
   assert.match(html, /CICLO_MS = SALIDA_MS \+ REFRESCO_MS \+ CELEBRACION_MS, DIFERENCIA_META_MS = 2 \* 1000/);
   assert.match(html, /var MITAD_RAPIDA_MS = REFRESCO_MS \/ 3/);
   assert.match(html, /function progresoCarril\(progresoCiclo, puesto\)/);
@@ -336,29 +337,29 @@ test("todos los corredores hacen la primera mitad al doble de velocidad y solo e
   assert.match(html, /document\.querySelectorAll\("\.refresh-lane"\)\.forEach/);
 
   function progreso(transcurridoMs, puesto) {
-    const mitadRapida = 60000 / 3;
-    const duracion = 60000 - Math.max(0, 3 - Math.max(1, puesto)) * 2000;
+    const mitadRapida = 24000 / 3;
+    const duracion = 24000 - Math.max(0, 3 - Math.max(1, puesto)) * 2000;
     if (transcurridoMs <= mitadRapida) return .5 * Math.min(1, transcurridoMs / mitadRapida);
     return .5 + .5 * Math.max(0, Math.min(1, (transcurridoMs - mitadRapida) / (duracion - mitadRapida)));
   }
-  const corte = 60000 / 3;
+  const corte = 24000 / 3;
   assert.equal(progreso(corte, 1), .5);
   assert.equal(progreso(corte, 2), .5);
   assert.equal(progreso(corte, 3), .5);
   assert.equal(progreso(corte, 8), .5);
-  assert.equal(progreso(10000, 1), progreso(10000, 2));
-  assert.equal(progreso(10000, 2), progreso(10000, 3));
+  assert.equal(progreso(4000, 1), progreso(4000, 2));
+  assert.equal(progreso(4000, 2), progreso(4000, 3));
   const velocidadPrimera = .5 / corte;
-  const velocidadSegundaReferencia = .5 / (60000 - corte);
+  const velocidadSegundaReferencia = .5 / (24000 - corte);
   assert.equal(velocidadPrimera / velocidadSegundaReferencia, 2);
-  assert.ok(progreso(30000, 1) > progreso(30000, 2));
-  assert.ok(progreso(30000, 2) > progreso(30000, 3));
-  assert.equal(progreso(56000, 1), 1);
-  assert.ok(progreso(56000, 2) < 1);
-  assert.equal(progreso(58000, 2), 1);
-  assert.ok(progreso(58000, 3) < 1);
-  assert.equal(progreso(60000, 3), 1);
-  assert.equal(progreso(60000, 8), 1);
+  assert.ok(progreso(12000, 1) > progreso(12000, 2));
+  assert.ok(progreso(12000, 2) > progreso(12000, 3));
+  assert.equal(progreso(20000, 1), 1);
+  assert.ok(progreso(20000, 2) < 1);
+  assert.equal(progreso(22000, 2), 1);
+  assert.ok(progreso(22000, 3) < 1);
+  assert.equal(progreso(24000, 3), 1);
+  assert.equal(progreso(24000, 8), 1);
 });
 
 test("READY SET GO muestran su sprite real y la llegada muestra ganador y perdedores", () => {

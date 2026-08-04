@@ -44,7 +44,22 @@ test("READY SET GO vive una sola vez en la pista central", () => {
     "el cambio de fase actualiza el único aviso");
   assert.match(cssRule(".race-call"), /left:50%[^}]*top:50%[^}]*translate\(-50%,-50%\)/,
     "el aviso queda centrado en la pista elegida");
+  assert.match(cssRule(".race-call"), /font-size:clamp\(15px,2vw,20px\)[^}]*text-shadow:[^}]*var\(--accent\)/,
+    "la salida es grande y luminosa");
+  assert.match(html, /@keyframes race-call-(?:pulse|go)/,
+    "READY/SET/GO conserva un gesto visual propio");
   assert.match(html, /READY[\s\S]*SET[\s\S]*GO/);
+});
+
+test("HIGHSCORE y el mute se alinean con el carril central", () => {
+  assert.match(cssRule("header.cab>h1"), /align-items:center[^}]*align-self:center[^}]*gap:7px/);
+  assert.match(cssRule(".sonido"), /width:15px[^}]*height:15px[^}]*margin:0/);
+});
+
+test("el dorsal nace justo a la derecha del corredor", () => {
+  assert.match(cssRule(".refresh-place"), /z-index:0[^}]*left:52px[^}]*bottom:-1px/);
+  assert.match(cssRule(".refresh-runner"), /z-index:3/,
+    "el corredor pasa visualmente por encima del dorsal pintado");
 });
 
 test("la misión queda por detrás de la espalda del corredor", () => {
@@ -58,6 +73,12 @@ test("la misión queda por detrás de la espalda del corredor", () => {
   assert.match(cssRule(".refresh-mission"), /transform:translateX\(calc\(-100% - [^)]+\)\)/,
     "el texto termina justo antes de la espalda del corredor");
   assert.match(html, /mision\.style\.left = posicionCorredor/);
+  assert.match(cssRule(".refresh-mission-title"), /width:100%[^}]*text-align:center/,
+    "el texto usa todo el tramo conquistado y permanece centrado");
+});
+
+test("el sprint termina pronto y deja una celebración larga", () => {
+  assert.match(html, /REFRESCO_MS = 24 \* 1000[^;]*CELEBRACION_MS = 15 \* 1000/);
 });
 
 test("compactar conserva orden de lectura y semántica accesible", () => {
