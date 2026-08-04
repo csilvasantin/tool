@@ -313,6 +313,7 @@
   // asunto. La búsqueda por palabras se queda SOLO como respaldo para las
   // misiones viejas, que nadie ha asignado todavía.
   var PROY_WEB = {};   // id del censo → web, lo rellena YkMisiones.setProyectos
+  var PROY_META = {};  // id → nombre y responsabilidad; sólo lectura en /misiones
   function proyectoDe(t) {
     var pid = t && (t.project || "");
     if (pid && PROY_WEB[String(pid).toLowerCase()]) return PROY_WEB[String(pid).toLowerCase()];
@@ -323,11 +324,34 @@
   // Censo de proyectos (GET /projects) para resolver web y nombre sin adivinar.
   function setProyectos(list) {
     PROY_WEB = {};
+    PROY_META = {};
     (list || []).forEach(function (p) {
-      if (!p || !p.id || !p.web) return;
-      var w = String(p.web).trim();
-      PROY_WEB[String(p.id).toLowerCase()] = /^https?:\/\//i.test(w) ? w : "https://" + w;
+      if (!p || !p.id) return;
+      var key = String(p.id).toLowerCase(), w = String(p.web || "").trim();
+      if (w) PROY_WEB[key] = /^https?:\/\//i.test(w) ? w : "https://" + w;
+      PROY_META[key] = {
+        id:String(p.id), name:String(p.name || p.id), owner:String(p.owner || ""),
+        primary_responsible:String(p.primary_responsible || p.owner || ""),
+        agents:Array.isArray(p.agents) ? p.agents.slice() : []
+      };
     });
+  }
+  function projectAgentLabelHtml(t) {
+    if (!CFG.projectIdLayout) return "";
+    var projectId = String(t && t.project || "").trim();
+    if (!projectId) return "";
+    var meta = PROY_META[projectId.toLowerCase()] || {};
+    var name = String(meta.name || (t && t.project_name) || projectId);
+    var primary = String(meta.primary_responsible || meta.owner || "").trim();
+    var assignee = String(t && t.assignee || "").trim();
+    var same = false, identity = window.ykAgentIdentity;
+    if (primary && assignee && identity && typeof identity.same === "function")
+      same = identity.same(assignee, primary);
+    var state = same ? "project-responsible" : "project-collaborator";
+    var detail = same
+      ? "Proyecto " + name + " · " + assignee + " es responsable principal"
+      : "Proyecto " + name + " · asignado a la misión" + (primary ? "; responsable principal: " + primary : "");
+    return '<span class="mission-project-label ' + state + '" title="' + esc(detail) + '" aria-label="' + esc(detail) + '">' + esc(name) + "</span>";
   }
   function missionSourceLabel(t) {
     return ({ "agent-iot": "🖥 Pantalla DOOH", monitor: "🌐 Servicio", service: "🌐 Servicio", agent: "🤖 Agente", agente: "🤖 Agente", presence: "🖥 Máquina", machine: "🖥 Máquina", fleet: "🎯 Misión" }[t && t.source] || "👤 Manual");
@@ -647,7 +671,7 @@
         '<div class="cel ord ' + (CFG.columnMode === "tasks" ? "tasks-col" : "machine-col") + '">' + rz("ord") + (CFG.columnMode === "tasks" ? tasksAbcHtml(t) : (maq ? '<span class="mach2">' + machVisual(maq) + " " + (window.ykMaquina ? ykMaquina.html(maq) : esc(maq)) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>')) + "</div>" +
         // Celda de AGENTE con clase `agc` (target del picker de reasignación en
         // /misiones; inocua en /incidencias, que no la cablea). Carlos, 2026-07-15.
-        '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, maq, surface, t._agents, machOffOf(t, surface)) + "</div>" +
+        '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, maq, surface, t._agents, machOffOf(t, surface)) + projectAgentLabelHtml(t) + "</div>" +
         // Estado + ABRIR apilado (abrir debajo de la insignia).
         '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"' + (t.status === "cancelled" && t.note ? ' title="' + esc(t.note) + '"' : "") + "><i></i>" + stt + "</span>" + (t.status === "cancelled" && t.note ? '<small class="cancel-note" title="' + esc(t.note) + '">' + esc(t.note) + "</small>" : "") +
           // PROGRESO en la fila, en TERCIOS: tareas n/3 y subtareas n/9 (979).
@@ -1056,7 +1080,7 @@
     setLiveMachines: function (set) { LIVE_MACHINES = set || null; },
     setLiveSurfaces: function (m) { LIVE_SURFACES = m || null; },
     agentKey: agentKey, baseAgentKey: baseAgentKey, liveSurfaceOf: liveSurfaceOf,
-    setProyectos: setProyectos, proyectoDe: proyectoDe, workUrlOf: workUrlOf,
+    setProyectos: setProyectos, proyectoDe: proyectoDe, projectAgentLabelHtml: projectAgentLabelHtml, workUrlOf: workUrlOf,
     renderTaskTree: renderTaskTree, refreshTree: refreshTree, addChildBtn: addChildBtn,
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,
     tercios: tercios, progHtml: progHtml, tasksAbcHtml: tasksAbcHtml,

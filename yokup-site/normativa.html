@@ -124,6 +124,23 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
   <section class="rule">
     <div class="num">06</div>
     <div>
+      <h2>El proyecto acompaña al agente responsable</h2>
+      <p>En <code>/misiones</code>, toda misión con proyecto asignado muestra su nombre <b>debajo del agente</b>. Es un rótulo informativo, no un control: no se convierte en enlace, selector, campo ni botón.</p>
+      <p>La responsabilidad se obtiene del censo de proyectos: manda <code>primary_responsible</code> y, si falta, se usa <code>owner</code>. La comparación se hace exclusivamente con <code>ykAgentIdentity.same(assignee, responsable)</code>, por familia de persona y aceptando los alias históricos; por ejemplo, <b>Oraculo y OraculoMacMini son la misma familia</b>.</p>
+      <table aria-label="Color del proyecto bajo el agente">
+        <thead><tr><th>Situación</th><th>Rótulo</th><th>Color</th></tr></thead>
+        <tbody>
+          <tr><td>Agente y responsable pertenecen a la misma familia</td><td>Nombre del proyecto bajo el agente</td><td>Verde</td></tr>
+          <tr><td>La misión tiene proyecto, pero el agente no es su responsable</td><td>Nombre del proyecto bajo el agente</td><td>Amarillo</td></tr>
+          <tr><td>La misión no tiene proyecto asignado</td><td>No se muestra ningún rótulo</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="rule">
+    <div class="num">07</div>
+    <div>
       <h2>Siempre la última versión — y su autor</h2>
       <p>Antes de tocar, desplegar, informar o dar por bueno un sitio, el agente <b>comprueba qué versión está viva</b> y <b>quién la publicó</b>. No se improvisa el sello ni se asume que el checkout local es producción.</p>
       <div class="formula">Fuente canónica → <a href="https://www.admiranext.com/webmaster">admiranext.com/webmaster</a></div>
