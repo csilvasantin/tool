@@ -60,8 +60,7 @@ test("el Dashboard incluye proyectos y equipos con agentes anidados",()=>{
 
 test("proyectos y equipos son compactables y enseñan sus tres recuentos",()=>{
   assert.match(source,/<details class="pa-col" id="projectAgentProjectsPane" open>/);
-  assert.match(source,/<details class="pa-col" id="projectAgentTeamsPane">/);
-  assert.doesNotMatch(source,/<details class="pa-col" id="projectAgentTeamsPane" open>/);
+  assert.match(source,/<details class="pa-col" id="projectAgentTeamsPane" open>/);
   assert.doesNotMatch(source,/id="projectAgentAgentsPane"/);
   assert.match(source,/Proyectos <span class="pa-count" id="projectAgentProjectsN">/);
   assert.match(source,/Equipos físicos <span class="pa-count" id="projectAgentTeamsN">/);
@@ -365,8 +364,12 @@ test("cada ficha se puede mover libremente y sus conectores la siguen",()=>{
 test("el mapa conserva el scroll y se apila en pantallas estrechas",()=>{
   assert.match(source,/\.pa-scroll\{overflow:visible/);
   assert.doesNotMatch(source,/\.pa-scroll\{[^}]*overscroll-behavior:contain/);
-  assert.match(source,/@media\(max-width:900px\)\{\.pa-map\{grid-template-columns:minmax\(0,1fr\)/);
-  assert.match(source,/\.pa-links\{display:none\}/);
+  const mobileAt=source.indexOf("@media(max-width:900px){");
+  assert.ok(mobileAt>=0,"falta la media query principal de 900px");
+  const nextMedia=source.indexOf("@media",mobileAt+1);
+  const mobile=source.slice(mobileAt,nextMedia<0?source.length:nextMedia);
+  assert.match(mobile,/\.pa-map\{[^}]*grid-template-columns:minmax\(0,1fr\)/);
+  assert.match(mobile,/\.pa-links\{display:none\}/);
 });
 
 test("cada agente conectado puede abrir mejoras del proyecto en una Ventana de Decisión",()=>{
