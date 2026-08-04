@@ -164,6 +164,42 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .mdet-imglink{display:block;line-height:0;text-decoration:none}
 .mdet-imglink .mdet-img{cursor:pointer;transition:.15s}
 .mdet-imglink:hover .mdet-img{border-color:var(--brand,#78f3ff);box-shadow:0 0 10px rgba(120,243,255,.3)}
+/* FLT-1159 · PROJECT ID compacto. La miniatura pasa a ser la referencia visual
+   izquierda; proyecto e identificador se apilan a su derecha. El tope evita que
+   una preferencia antigua de ancho vuelva a robar espacio a MISIÓN. */
+.hd.project-id-layout{grid-template-columns:8px minmax(220px,clamp(220px,var(--c-id,248px),280px)) minmax(260px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,250px)) minmax(140px,var(--c-who,170px)) minmax(0,var(--c-est,124px))}
+.project-id-cell{padding-right:10px}
+.project-id-top{
+  grid-template-columns:minmax(0,1fr);
+  row-gap:6px;
+}
+.project-id-main{display:grid;grid-template-columns:72px minmax(0,1fr);align-items:start;gap:9px;min-width:0}
+.project-id-main>.cel.shot{align-self:stretch;padding:0;justify-content:flex-start}
+.project-id-main>.cel.shot :is(.shot-link,.shot-img){width:72px;max-width:72px}
+.project-id-main>.cel.shot .shot-img{height:100%;min-height:54px;max-height:72px;object-fit:cover}
+.project-id-main>.project-select-wrap{grid-template-columns:1fr;gap:3px}
+.project-id-main>.project-select-wrap>span{font-size:8px}
+.project-id-main>.project-select-wrap .project-save{grid-column:1}
+.project-id-meta{min-width:0;padding-left:81px}
+.project-id-layout .project-id-meta>.tkid{min-width:0;overflow:hidden;font-size:11px}
+.project-id-layout .project-id-meta>.tkid .selrow{margin-right:2px}
+/* Fecha de creación debajo de AGENTE/PLATAFORMA, sin ensanchar las columnas. */
+.project-id-layout .cel.agc{flex-direction:column;justify-content:center;gap:6px}
+.project-id-layout .cel.agc .agent-created{width:100%;padding-top:5px;border-top:1px solid rgba(120,243,255,.1);font:9px var(--mono);color:var(--mut);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.project-id-layout .cel.agc .agent-created .fch2{font-size:9px}
+@media(max-width:1100px){
+  .hd.project-id-layout{grid-template-columns:8px minmax(210px,clamp(210px,var(--c-id,232px),250px)) minmax(230px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,230px)) minmax(130px,var(--c-who,150px)) minmax(0,var(--c-est,112px))}
+  .project-id-main{grid-template-columns:64px minmax(0,1fr)}
+  .project-id-main>.cel.shot :is(.shot-link,.shot-img){width:64px;max-width:64px}
+  .project-id-meta{padding-left:73px}
+}
+@media(max-width:720px){
+  .hd.project-id-layout{grid-template-columns:8px 1fr}
+  .project-id-top{grid-template-columns:minmax(0,1fr)}
+  .project-id-main{grid-template-columns:64px minmax(0,1fr)}
+  .project-id-layout .cel.agc{align-items:flex-start}
+  .project-id-layout .cel.agc .agent-created{text-align:left}
+}
 </style>
 </head>
 <body data-yk-title="MISIONES" data-yk-rail-left="OPCIONES" data-yk-rail-right="AVANZADO" data-yk-zone="app">
@@ -347,7 +383,7 @@ function headHtml(){
   const col=(k,l)=>'<div class="lh'+(SORT.k===k?" on":"")+'" data-k="'+k+'" title="ordenar por '+l.toLowerCase()+'">'+l+(SORT.k===k?(SORT.dir==="asc"?" ▲":" ▼"):"")+"</div>";
   // Columna ID con «seleccionar todas» + etiqueta ordenable. El clic en el checkbox no ordena.
   const idArrow=SORT.k==="id"?(SORT.dir==="asc"?" ▲":" ▼"):"";
-  const idcol='<div class="lh idh'+(SORT.k==="id"?" on":"")+'" data-k="id" title="ordenar por Proyect ID"><input type="checkbox" class="selall" title="Seleccionar todas las visibles" onclick="event.stopPropagation()"><span class="idlbl">Proyect ID'+idArrow+'</span></div>';
+  const idcol='<div class="lh idh'+(SORT.k==="id"?" on":"")+'" data-k="id" title="Ordenar por PROJECT ID"><input type="checkbox" class="selall" title="Seleccionar todas las visibles" onclick="event.stopPropagation()"><span class="idlbl">PROJECT ID'+idArrow+'</span></div>';
   return '<div class="hd lhead project-id-layout"><div></div>'+idcol+col("subject","Misión")+col("ordenador","Tareas")+col("agente","Agente/Plataforma")+col("estado","Estado")+"</div>";
 }
 // Inyecta el checkbox de selección en la casilla del ID de cada fila + cablea «seleccionar todas»

@@ -622,18 +622,20 @@
       (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span>" +
       (+t.img_count > 0 ? '<span class="adjn" title="' + (+t.img_count) + ' imagen(es) adjunta(s) — ábrela para verlas">📎 ' + (+t.img_count) + "</span>" : "") +
       "</div></div>";
-    var timingHtml =
-      '<span class="fch2" title="creada: ' + esc(fechaCorta(t.created_at)) + '">📅 ' + fechaCorta(t.created_at) + "</span>" +
+    var createdHtml =
+      '<span class="fch2" title="creada: ' + esc(fechaCorta(t.created_at)) + '">📅 ' + fechaCorta(t.created_at) + "</span>";
+    var progressTimingHtml =
       (dv && dv.end ? '<span class="fch2 fin" title="finalizada: ' + esc(fechaCorta(dv.end)) + '">🏁 ' + fechaCorta(dv.end) + "</span>"
         : (dv && dv.run ? '<span class="fch2 run' + (stt === "No concluida" ? " overdue" : "") + '" title="' + esc(dv.tip) + '">⏳ ' + (stt === "No concluida" ? "no concluida" : "en curso") + "</span>" : "")) +
       (dv && dv.txt ? '<span class="dur' + (dv.run ? " run yk-deadline" : "") + (stt === "No concluida" ? " overdue" : "") + '"' + (dv.run ? ' data-created="' + _ms(t.created_at) + '"' : '') + ' title="' + esc(dv.tip) + '">⏱ ' + (dv.run ? esc(deadlineText(_ms(t.created_at))) : esc(dv.txt)) + "</span>" : "");
+    var timingHtml = createdHtml + progressTimingHtml;
     var projectIdHtml = CFG.projectIdLayout
-      ? '<div class="project-id-cell">' + rz("id", "r") + '<div class="project-id-top">' + idHtml +
-          '<label class="project-select-wrap"><span>Proyecto</span><select class="project-id-select" data-mission="' + esc(t.id) + '" aria-label="Proyecto de ' + esc(visibleId(t)) + '">' + projectOptionsHtml(t) + '</select><i class="project-save" aria-live="polite"></i></label>' +
-          shotHtml + "</div></div>"
+      ? '<div class="project-id-cell">' + rz("id", "r") + '<div class="project-id-top"><div class="project-id-main">' + shotHtml +
+          '<label class="project-select-wrap"><span>Proyecto</span><select class="project-id-select" data-mission="' + esc(t.id) + '" aria-label="Proyecto de ' + esc(visibleId(t)) + '">' + projectOptionsHtml(t) + '</select><i class="project-save" aria-live="polite"></i></label></div>' +
+          '<div class="project-id-meta">' + idHtml + "</div></div></div>"
       : idHtml + shotHtml + subjectHtml.replace('<div class="subj">', '<div class="subj">' + rz("id", "r"));
     var missionHtml = CFG.projectIdLayout
-      ? '<div class="mission-col">' + rz("mis") + subjectHtml + '<div class="mission-time">' + timingHtml + "</div></div>"
+      ? '<div class="mission-col">' + rz("mis") + subjectHtml + (progressTimingHtml ? '<div class="mission-time">' + progressTimingHtml + "</div>" : "") + "</div>"
       : '<div class="cel rtiempo">' + rz("fch") + timingHtml + "</div>";
     return '<div class="tk ' + (t.status === "open" ? "open" : "") + " " + (t.id === SELECTED ? "sel" : "") + '" data-id="' + esc(t.id) + '">' +
       '<div class="hd' + (CFG.projectIdLayout ? " project-id-layout" : "") + '">' +
@@ -646,7 +648,7 @@
         '<div class="cel ord ' + (CFG.columnMode === "tasks" ? "tasks-col" : "machine-col") + '">' + rz("ord") + (CFG.columnMode === "tasks" ? tasksAbcHtml(t) : (maq ? '<span class="mach2">' + machVisual(maq) + " " + (window.ykMaquina ? ykMaquina.html(maq) : esc(maq)) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>')) + "</div>" +
         // Celda de AGENTE con clase `agc` (target del picker de reasignación en
         // /misiones; inocua en /incidencias, que no la cablea). Carlos, 2026-07-15.
-        '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, maq, surface, t._agents, machOffOf(t, surface)) + "</div>" +
+        '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, maq, surface, t._agents, machOffOf(t, surface)) + (CFG.projectIdLayout ? '<div class="agent-created">' + createdHtml + "</div>" : "") + "</div>" +
         // Estado + ABRIR apilado (abrir debajo de la insignia).
         '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"' + (t.status === "cancelled" && t.note ? ' title="' + esc(t.note) + '"' : "") + "><i></i>" + stt + "</span>" + (t.status === "cancelled" && t.note ? '<small class="cancel-note" title="' + esc(t.note) + '">' + esc(t.note) + "</small>" : "") +
           // PROGRESO en la fila, en TERCIOS: tareas n/3 y subtareas n/9 (979).
