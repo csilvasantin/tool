@@ -22,7 +22,7 @@ function functionSource(name){
 }
 
 const familyApi=new Function("window","ykAgentIdentity",[
-  "paFamilyId","paAgentRole","paTeamKey","paAgentFamilies"
+  "paAgentId","paFamilyId","paAgentRole","paTeamKey","paAgentFamilies"
 ].map(functionSource).join("\n")+"\nreturn {paAgentFamilies};")({ykAgentIdentity:identity},identity);
 
 test("el Dashboard vive en /dashboard y conserva /agentica sólo como retorno compatible",async()=>{
@@ -163,10 +163,12 @@ test("dos superficies, Sub e Infra producen una sola familia contable",()=>{
     {id:"InfraNeoMini",machine:"Mac Mini",team:"Mini",teamMachine:"Mac Mini",runtime:"Codex",host:"app",online:false,assigned:true,updated:0},
     {id:"OraculoMini",machine:"Mac Mini",team:"Mini",teamMachine:"Mac Mini",runtime:"Codex",host:"app",online:true,updated:5}
   ];
-  const families=familyApi.paAgentFamilies(rows),neo=families.find(family=>family.id==="NeoMini");
+  // Las filas entran con el apellido legado («NeoMini») y salen ya reescritas con el
+  // del diccionario vigente («NeoMacMini»): regla 03, corrección de Carlos 04-08-2026.
+  const families=familyApi.paAgentFamilies(rows),neo=families.find(family=>family.id==="NeoMacMini");
   assert.equal(families.length,2);
   assert.equal(neo.surfaces.length,2);
-  assert.deepEqual(neo.helpers.map(helper=>helper.id).sort(),["InfraNeoMini","SubNeoMini"]);
+  assert.deepEqual(neo.helpers.map(helper=>helper.id).sort(),["InfraNeoMacMini","SubNeoMacMini"]);
   assert.equal(neo.memberIds.length,3);
 });
 

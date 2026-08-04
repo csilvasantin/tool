@@ -1,11 +1,12 @@
 const MAX_FIELD = 80;
 const PERSONAS = ["Oraculo", "Neo", "Morfeo", "Trinity", "Smith", "WhiteRabbit"];
 const INTERNAL = /^(?:ampere|erdos|noether|sol|terra|luna|claude|codex|grok|openai|anthropic)/i;
-// Apellido canónico = diccionario de la normativa (regla 02): el modelo abreviado,
-// igual para todos. Los apellidos de la generación anterior ("Mini", "Azul", "14",
-// "Plata16") se aceptan al firmar, pero la firma sale ya con el actual (regla 03).
+// Apellido canónico = diccionario de la normativa (regla 02): el modelo tal cual lo
+// fija el diccionario, igual para todos. Los apellidos de la generación anterior
+// ("Mini", "Azul", "14", "Plata16") se aceptan al firmar, pero la firma sale ya con
+// el actual (regla 03). El Mini pasó de "Mini" a "MacMini" el 04-08-2026 (Carlos).
 const MACHINES = [
-  { name:"MacMini", suffix:"Mini", legacySuffixes:["MacMini"], aliases:["macmini","mac mini","mac mini carlos","admira-macmini","macmini.local"] },
+  { name:"MacMini", suffix:"MacMini", legacySuffixes:["Mini"], aliases:["macmini","mac mini","mac mini carlos","admira-macmini","macmini.local"] },
   { name:"MacBookPro14", suffix:"MBP14", legacySuffixes:["14"], aliases:["macbookpro14","macbook pro 14","macbookpronegro14","macbook pro negro 14","admira-macbookpronegro14"] },
   { name:"MacBookPro16", suffix:"MBP16", legacySuffixes:["16"], aliases:["macbookpro16","macbook pro 16","admira-macbookpro16","macbook-pro-16"] },
   { name:"MacBookAirAzul", suffix:"MBAAzul", legacySuffixes:["Azul"], aliases:["macbookairazul","macbook air azul","mba azul","admira-macbookairazul"] },

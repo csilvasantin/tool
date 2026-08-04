@@ -81,12 +81,12 @@
   // Sin presencia viva del agente → «—» honesto, nunca «Pendiente». (Carlos, 2026-07-23)
   var LIVE_SURFACES = null;   // { claveAgente: {runtime, host} } · null = aún sin datos
   // Clave normalizada de un agente: usa la identidad canónica (yk-agent-identity) si
-  // está cargada; si no (tests/vm sin ella), degrada a avSlug. NEO/NeoMini colapsan.
+  // está cargada; si no (tests/vm sin ella), degrada a avSlug. NEO/NeoMacMini colapsan.
   function agentKey(n) {
     var id = (typeof window !== "undefined") && window.ykAgentIdentity;
     return id && id.key ? id.key(n) : avSlug(n);
   }
-  // Clave de la PERSONA BASE (NeoMini → neo): así la plataforma casa aunque el
+  // Clave de la PERSONA BASE (NeoMacMini → neo): así la plataforma casa aunque el
   // assignee lleve apellido de máquina y la presencia lata en pelado, o al revés.
   function baseAgentKey(n) {
     var id = (typeof window !== "undefined") && window.ykAgentIdentity;

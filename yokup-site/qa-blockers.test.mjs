@@ -10,9 +10,9 @@ test("Informes recompone identidad física y respeta identidad del worker",async
   const f=ctx.window.ykAgentIdentity.reportDisplay;
   assert.equal(f("Morfeo","MacBook Pro 16"),"MorfeoMBP16");
   // Informes escribe el MISMO nombre que el resto de pantallas: persona + apellido
-  // del diccionario, sin apodos ni apellidos largos (normativa reglas 02 y 03).
-  assert.equal(f("Oraculo","Mac Mini"),"OraculoMini");
-  assert.equal(f("SubOraculo","Mac Mini"),"SubOraculoMini");
+  // del diccionario, sin apodos ni abreviar (normativa reglas 02 y 03).
+  assert.equal(f("Oraculo","Mac Mini"),"OraculoMacMini");
+  assert.equal(f("SubOraculo","Mac Mini"),"SubOraculoMacMini");
   assert.equal(f("InfraMorfeo","MacBook Pro 16"),"InfraMorfeoMBP16");
   assert.equal(f("Neo","MacBook Pro 14"),"NeoMBP14");
   assert.equal(f("Neo","MacBookAirAzul"),"NeoMBAAzul");
@@ -23,7 +23,7 @@ test("Informes recompone identidad física y respeta identidad del worker",async
   assert.equal(f("Smith","MacBookAir16plata"),"SmithMBA16");
   // Registros antiguos ya guardados: se leen y salen normalizados.
   assert.equal(f("NeoAzul","MacBookAirAzul"),"NeoMBAAzul");
-  assert.equal(f("OraculoMacMini","Mac Mini"),"OraculoMini");
+  assert.equal(f("OraculoMini","Mac Mini"),"OraculoMacMini");
   assert.equal(ctx.window.ykAgentIdentity.display("Neo","MacBook Pro 14"),"NeoMBP14");
   assert.equal(ctx.window.ykAgentIdentity.display("Smith","MacBookAir16plata"),"SmithMBA16");
   assert.equal(f("Externo","Mac Mini"),"Externo");

@@ -2,19 +2,22 @@
  *
  * El apellido visible es EXACTAMENTE el del diccionario de la norma 02, sin acortar
  * ni traducir: MacBookAirAzul → MBAAzul, luego NeoMBAAzul (no NeoAzul), y Mac Mini →
- * Mini, luego NeoMini (no NeoMacMini). Carlos, 2026-08-03 · normativa regla 02.
+ * MacMini, luego NeoMacMini (no NeoMini). Carlos, 2026-08-04 · normativa regla 02.
+ * (El 03-08 el apellido del Mini era `Mini`; Carlos lo corrigió el 04-08 a `MacMini`
+ *  por la misma razón que `MBP16` no es `16`: el apellido no se abrevia. `NeoMini`
+ *  se sigue LEYENDO como legado y se reescribe siempre como NeoMacMini.)
  *
  * Los nombres planos históricos se aceptan al leer. Toda UI visible debe llamar:
  *   ykAgentIdentity.display("Neo", "MacBook Pro 16")        → NeoMBP16
  *   ykAgentIdentity.display("Neo", "MacBookAirAzul")        → NeoMBAAzul
- *   ykAgentIdentity.display("Oraculo", "Mac Mini", "sub")   → SubOraculoMini
+ *   ykAgentIdentity.display("Oraculo", "Mac Mini", "sub")   → SubOraculoMacMini
  *   ykAgentIdentity.display("Neo", "")                      → NeoSINMAQ
  * `scoped` conserva el nombre operativo sin SINMAQ para datos/rutas heredadas.
  */
 (function (root) {
   "use strict";
   var MACHINES = [
-    ["Mini",["macmini","mac mini","mac mini carlos","admira-macmini","macmini.local"]],
+    ["MacMini",["macmini","mac mini","mac mini carlos","admira-macmini","macmini.local"]],
     ["MBP14",["mbp14","macbookpro14","macbook pro 14","macbookpronegro14","macbook pro negro 14","admira-macbookpronegro14"]],
     ["MBP16",["mbp16","macbookpro16","macbook pro 16","admira-macbookpro16","macbook-pro-16"]],
     ["MBA16",["mba16","macbookair16plata","macbookair16","macbook air 16 dg","mba 16 plata","admira-macbookair16"]],
@@ -35,18 +38,19 @@
   var LEGACY_SUFFIXES = {
     "14":"MBP14", "16":"MBP16", "air16":"MBA16", "plata16":"MBA16",
     "azul":"MBAAzul", "rosa":"MBARosa", "crema":"MBACrema", "plata":"MBAPlata",
+    "mini":"MacMini",
     "sinmaq":"SINMAQ"
   };
   var CANONICAL_MACHINES = {
-    Mini:"Mac Mini", MBP14:"MacBookProNegro14", MBP16:"MacBook Pro 16",
+    MacMini:"Mac Mini", MBP14:"MacBookProNegro14", MBP16:"MacBook Pro 16",
     MBA16:"MacBookAir16plata", MBAAzul:"MacBook Air Azul", MBARosa:"MacBook Air Rosa",
     MBACrema:"MacBook Air Crema", MBAPlata:"MacBook Air Plata", Zenbook:"Asus Zenbook",
     DGX:"DGX Spark", PGX:"ThinkStation PGX"
   };
   /* Apellido visible = el sufijo del diccionario, TAL CUAL. No hay tabla de apodos:
-     NeoMBAAzul, NeoMini, SmithMBAAzul. Los apellidos cortos («Azul») y los largos
-     («MacMini»), y «Agente Smith Azul», se siguen LEYENDO en parse() como legado,
-     pero no se vuelven a escribir (normativa reglas 02 y 03). */
+     NeoMBAAzul, NeoMacMini, SmithMBAAzul. Los apellidos cortos («Azul», «Mini») y
+     «Agente Smith Azul» se siguen LEYENDO en parse() como legado, pero no se vuelven
+     a escribir (normativa reglas 02 y 03). */
   function key(v) {
     return String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
       .toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -55,7 +59,7 @@
     var k = key(machine);
     if(!k) return "";
     // macmini / MacMini explícito antes de coincidencias cortas
-    if(k==="macmini" || k==="mini" || k.indexOf("macmini")===0) return "Mini";
+    if(k==="macmini" || k==="mini" || k.indexOf("macmini")===0) return "MacMini";
     for (var i=0;i<MACHINES.length;i++) {
       for (var j=0;j<MACHINES[i][1].length;j++) {
         var a=key(MACHINES[i][1][j]);
@@ -75,7 +79,7 @@
       for(var pi=0;pi<PERSONAS.length;pi++){
         var pn=PERSONAS[pi][1].map(function(x){return key(x).replace(/^agente/,"");});
         if(pn.indexOf(baseMac)>=0 || key(PERSONAS[pi][0])===baseMac)
-          return {role:role,persona:PERSONAS[pi][0],suffix:"Mini",legacy:false};
+          return {role:role,persona:PERSONAS[pi][0],suffix:"MacMini",legacy:false};
       }
     }
     for(var i=0;i<PERSONAS.length;i++){
@@ -83,7 +87,7 @@
         .sort(function(a,b){return b.length-a.length;});
       for(var j=0;j<names.length;j++) if(k.indexOf(names[j])===0){
         var tail=k.slice(names[j].length), sf=LEGACY_SUFFIXES[tail]||"";
-        if(tail==="macmini"||tail==="mini") sf="Mini";
+        if(tail==="macmini"||tail==="mini") sf="MacMini";
         for(var m=0;m<MACHINES.length;m++) if(key(MACHINES[m][0])===tail){sf=MACHINES[m][0];break;}
         return {role:role,persona:PERSONAS[i][0],suffix:sf,legacy:!sf};
       }

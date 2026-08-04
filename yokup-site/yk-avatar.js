@@ -49,7 +49,7 @@
     var s = slug(name), cu = CUSTOM.agents[s] || {};
     if (cu.img) return cu.img;
     if (AVATARES[s]) return "/avatars/" + s + ".jpg";
-    // La identidad visible lleva apellido de equipo (OraculoMini, MorfeoMBP14,
+    // La identidad visible lleva apellido de equipo (OraculoMacMini, MorfeoMBP14,
     // NeoMBAAzul). El retrato pertenece a la persona base.
     try {
       if (window.ykAgentIdentity) {

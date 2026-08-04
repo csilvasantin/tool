@@ -429,7 +429,9 @@ function paAgentFamilies(rows){
     const all=family.slots.concat(family.helpers),lead=(family.slots.slice().sort((a,b)=>Number(b.online)-Number(a.online)||(b.updated||0)-(a.updated||0))[0]||all[0]||{});
     const uniqueSlots=list=>[...new Map(list.map(slot=>[String(slot.runtime||"").toLowerCase()+"|"+String(slot.host||"").toLowerCase(),slot])).values()];
     const helperGroups=new Map();
-    family.helpers.forEach(helper=>{if(!helperGroups.has(helper.id))helperGroups.set(helper.id,{id:helper.id,role:helper.role,slots:[]});helperGroups.get(helper.id).slots.push(helper);});
+    // Sub/Infra se reescriben con el MISMO apellido que su familia: si la madre sale
+    // NeoMacMini, sus capas no pueden seguir enseñando el NeoMini heredado (regla 03).
+    family.helpers.forEach(helper=>{const hid=paAgentId(helper.id,family.teamMachine||family.machine)||helper.id;if(!helperGroups.has(hid))helperGroups.set(hid,{id:hid,role:helper.role,slots:[]});helperGroups.get(hid).slots.push(helper);});
     return {...lead,...family,online:all.some(item=>item.online),assigned:all.some(item=>item.assigned),verified:all.some(item=>item.verified),updated:Math.max(0,...all.map(item=>item.updated||0)),surfaces:uniqueSlots(family.slots),helpers:[...helperGroups.values()].map(helper=>({...helper,slots:uniqueSlots(helper.slots),online:helper.slots.some(item=>item.online),assigned:helper.slots.some(item=>item.assigned)})),memberIds:[...new Set(family.memberIds)]};
   }).sort((a,b)=>Number(b.online)-Number(a.online)||(b.updated||0)-(a.updated||0)||a.id.localeCompare(b.id,"es"));
 }
