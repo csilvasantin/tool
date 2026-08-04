@@ -62,6 +62,32 @@ test("un clic en actualizar reinicia el ciclo automático completo",()=>{
   assert.match(functionSource("paLoad"),/paResetRefreshCycle\(\)/);
 });
 
+test("el refresco automático no vacía el mapa ni habla por la línea de estado",()=>{
+  const load=functionSource("paLoad");
+  assert.match(load,/const\s+firstPaint=!PROJECT_LOADED_ONCE/,"el ciclo debe distinguir la primera carga");
+  assert.match(load,/if\(firstPaint\)\{[\s\S]*?pa\(["']projectAgentTeams["']\)\.innerHTML=/,"solo la primera carga pinta «cargando»");
+  assert.match(load,/if\(reason!=="auto"\)paMessage\(/,"el ciclo automático no debe repetir mensajes de estado");
+  assert.match(source,/let\s+PROJECT_LOADED_ONCE=false/);
+});
+
+test("los cables se reutilizan entre refrescos y el flujo no reinicia",()=>{
+  const sync=functionSource("paSyncLink");
+  assert.match(sync,/data-link-key|node\.dataset\.linkKey=key/,"cada unión necesita clave estable agente|proyecto");
+  assert.match(sync,/node&&node\.dataset\.linkState!==state/,"solo se recrea el cable si cambia de estado");
+  assert.match(sync,/for\(const path of node\.children\)\{path\.setAttribute\("d",curve\);path\.setAttribute\("stroke",color\)/,"redibujar = actualizar atributos, no recrear nodos");
+  assert.match(source,/function paDrawLinks\(\)[\s\S]*?if\(!live\.has\(node\.dataset\.linkKey\)\)node\.remove\(\)/,"los cables que ya no existen se retiran uno a uno");
+  assert.match(source,/const FLOW_CYCLE_MS=\d+/);
+  assert.match(functionSource("paFlowDelay"),/animation-delay:.*FLOW_T0/s,"un cable nuevo entra en la fase del resto, no en el instante cero");
+});
+
+test("el pulso de 3 s no repinta fichas si nada ha cambiado",()=>{
+  assert.match(functionSource("paPaint"),/PA_PAINTED\[box\.id\]===html/,"mismo HTML = no se toca el DOM");
+  assert.match(source,/paPaint\(teamsBox,/);
+  assert.match(source,/paPaint\(projectsBox,/);
+  assert.match(source,/data-pa-ago="/,"el tiempo relativo se rellena aparte para no ensuciar la firma del HTML");
+  assert.match(functionSource("paTickAgo"),/data-pa-ago/);
+});
+
 test("reduced motion conserva el estado sin animar la barra",()=>{
   assert.match(source,/@media\s*\(prefers-reduced-motion\s*:\s*reduce\)[\s\S]{0,600}\.pa-refresh-progress[^}]*\{[^}]*(?:animation|transition)\s*:\s*none/i);
 });

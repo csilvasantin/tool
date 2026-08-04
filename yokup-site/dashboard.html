@@ -221,6 +221,7 @@ let PROJECT_STOP_BUSY="";
 const PROJECT_STOP_STATES=new Map();
 let PROJECT_REFRESH_TIMER=0;
 let PROJECT_REFRESH_BUSY=false;
+let PROJECT_LOADED_ONCE=false;
 let LINK_DRAG=null;
 let LINK_CLICK_AGENT="";
 const PROJECT_SCOPE_KEY="yokup.dashboard.projects.v1";
@@ -293,6 +294,14 @@ async function pulse(renderMap=true){
    tarjetas de arriba y se normalizan como persona+máquina. Trinity sobre el
    MacBook Pro Negro 14 es, por contrato, TrinityMBP14. */
 const pa=id=>document.getElementById(id);
+/* PINTADO IDEMPOTENTE — el pulso repinta cada 3 s, pero si el HTML sale igual
+   que el anterior no se toca el DOM: sin reconstruir fichas no hay parpadeo ni
+   se pierden hover, foco ni las animaciones de los cables que cuelgan de ellas. */
+const PA_PAINTED={};
+function paPaint(box,html){ if(!box)return false; if(PA_PAINTED[box.id]===html)return false; PA_PAINTED[box.id]=html; box.innerHTML=html; return true; }
+/* El «hace 12s» se pinta VACÍO y lo rellena este tic: así el HTML no cambia
+   cada 3 s solo porque avance el reloj, y paPaint puede quedarse quieto. */
+function paTickAgo(){ document.querySelectorAll("[data-pa-ago]").forEach(el=>{ const text=agoS(Number(el.dataset.paAgo)||0); if(el.textContent!==text)el.textContent=text; }); }
 function paColor(value){ return /^#[0-9a-f]{3,8}$/i.test(String(value||""))?value:"#78f3ff"; }
 function paHost(value){const host=String(value||"").trim().toLowerCase();return host==="app"?"APP":host==="cli"?"CLI":"";}
 function paRuntimeSurface(row){
@@ -488,7 +497,6 @@ function paRender(){
   TEAM_SCOPE=paNormalizeScope(TEAM_SCOPE,teamScopeItems.map(item=>item.key));
   paWriteScope(PROJECT_SCOPE_KEY,PROJECT_SCOPE);paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);
   paRenderScopeFilter("project",projectScopeItems);paRenderScopeFilter("team",teamScopeItems);
-  pa("projectAgentLinks").innerHTML="";
   const visibleTeams=teams.filter(team=>(TEAM_FILTER!=="unassigned"||!paTeamHasProject(team))&&paScopeAllows(TEAM_SCOPE,team.key));
   const visibleProjects=PROJECT_ROWS.filter(project=>(PROJECT_FILTER!=="unassigned"||!(project.machines||[]).length)&&paScopeAllows(PROJECT_SCOPE,project.id));
   const openProjects=new Set([...projectsBox.querySelectorAll("[data-project-node][open]")].map(node=>node.dataset.projectNode));
@@ -510,7 +518,7 @@ function paRender(){
   pa("projectAgentTeamsUnassigned").classList.toggle("active",TEAM_FILTER==="unassigned");
   pa("projectAgentTeamsUnassigned").setAttribute("aria-pressed",TEAM_FILTER==="unassigned");
   const emptyTeams=TEAM_FILTER==="unassigned"?"No hay equipos sin proyecto asociado.":TEAM_SCOPE!==null?"No hay equipos seleccionados en Avanzado.":"No hay equipos con agentes latiendo.";
-  teamsBox.innerHTML=visibleTeams.length?visibleTeams.map(team=>{
+  paPaint(teamsBox,visibleTeams.length?visibleTeams.map(team=>{
     const projectCount=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasTeam(project,team.key)).length;
     const agents=team.agents.map(agent=>{
       const assignedProjects=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasFamily(project,agent));
@@ -519,14 +527,14 @@ function paRender(){
       const surfaces=agent.surfaces.map(paRuntimeSurface),surface=surfaces.join(" + ")||"sin superficie principal activa",surfaceTitle=agent.surfaces.map(slot=>{const model=String(slot.model||"").trim(),label=paRuntimeSurface(slot);return model?label+' · '+model:label;}).join(" · ");
       const surfaceChips=surfaces.length?'<div class="pa-surfaces">'+surfaces.map(label=>'<span class="pa-surface">'+esc(label)+'</span>').join("")+'</div>':'';
       const helpers=agent.helpers.length?'<div class="pa-family-helpers">'+agent.helpers.map(helper=>{const helperSurfaces=helper.slots.map(paRuntimeSurface).join(" + ")||(helper.assigned?"asignado · sin actividad":"sin superficie activa"),role=helper.role==="sub"?"ejecución":"infra · QA",projects=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasAgent(project,helper.id)).length;return '<div class="pa-helper"><b>'+esc(helper.id)+'</b><em>'+esc(role)+'</em><span>'+esc(helperSurfaces)+' · '+projects+' proyecto'+(projects===1?'':'s')+'</span></div>';}).join("")+'</div>':'';
-      return '<article class="pa-agent-node'+(agent.online?'':' offline')+(selected?' selected':'')+'" data-agent-node="'+esc(agent.instanceId)+'" data-agent-family="'+esc(agent.id)+'" data-agent-ref="'+esc(agent.id)+'" data-agent-online="'+(agent.online?'true':'false')+'"><button type="button" class="pa-port" data-link-agent="'+esc(agent.id)+'" aria-label="Conectar '+esc(agent.id)+' con un proyecto" title="Arrastra '+esc(agent.id)+' hasta un proyecto">←</button><div class="pa-node-top"><div class="pa-avatar">'+esc(paInitials(agent))+'</div><div class="pa-name"><b>'+esc(agent.id)+'</b><span title="'+esc(surfaceTitle)+'">'+esc(surface)+' · '+esc(agent.teamMachine||agent.machine)+'</span></div>'+paStopControls(agent)+'</div>'+surfaceChips+'<div class="pa-meta"><span class="'+(agent.online?'pa-live':'pa-offline')+'">'+(agent.online?'● '+(agent.verified?'familia verificada':'familia con latido'):'○ asignado · sin actividad')+'</span>'+(agent.updated?'<span>'+agoS(agent.updated)+'</span>':'')+'<span>'+assignedProjects.length+' proyecto'+(assignedProjects.length===1?'':'s')+'</span></div>'+helpers+'<div class="pa-actions">'+actions+'</div></article>';
+      return '<article class="pa-agent-node'+(agent.online?'':' offline')+(selected?' selected':'')+'" data-agent-node="'+esc(agent.instanceId)+'" data-agent-family="'+esc(agent.id)+'" data-agent-ref="'+esc(agent.id)+'" data-agent-online="'+(agent.online?'true':'false')+'"><button type="button" class="pa-port" data-link-agent="'+esc(agent.id)+'" aria-label="Conectar '+esc(agent.id)+' con un proyecto" title="Arrastra '+esc(agent.id)+' hasta un proyecto">←</button><div class="pa-node-top"><div class="pa-avatar">'+esc(paInitials(agent))+'</div><div class="pa-name"><b>'+esc(agent.id)+'</b><span title="'+esc(surfaceTitle)+'">'+esc(surface)+' · '+esc(agent.teamMachine||agent.machine)+'</span></div>'+paStopControls(agent)+'</div>'+surfaceChips+'<div class="pa-meta"><span class="'+(agent.online?'pa-live':'pa-offline')+'">'+(agent.online?'● '+(agent.verified?'familia verificada':'familia con latido'):'○ asignado · sin actividad')+'</span>'+(agent.updated?'<span data-pa-ago="'+agent.updated+'"></span>':'')+'<span>'+assignedProjects.length+' proyecto'+(assignedProjects.length===1?'':'s')+'</span></div>'+helpers+'<div class="pa-actions">'+actions+'</div></article>';
     }).join("");
     const nodeKey=paNodeKey("team",team.key);
     return '<details class="pa-team-node" data-team-key="'+esc(team.key)+'" data-pa-node-key="'+esc(nodeKey)+'" style="'+paNodeVars(nodeKey)+'"'+(openTeams.has(team.key)?' open':'')+'><summary class="pa-team-summary"><div class="pa-avatar">▣</div><div class="pa-name"><b title="'+esc(team.machine)+'">'+esc(team.machine)+'</b><span>'+team.agents.length+' agente'+(team.agents.length===1?'':'s')+' principal'+(team.agents.length===1?'':'es')+' · '+projectCount+' proyecto'+(projectCount===1?'':'s')+'</span></div><span class="pa-expand">agentes</span><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(team.machine)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-team="'+esc(team.key)+'" aria-label="Ocultar '+esc(team.machine)+'" title="Ocultar equipo">×</button></summary><div class="pa-team-agents">'+agents+'</div></details>';
-  }).join(""):'<div class="pa-loading">'+emptyTeams+'</div>';
-  if(!PROJECT_ROWS.length){projectsBox.innerHTML='<div class="pa-loading">No hay proyectos dados de alta todavía.</div>';paDrawLinks();return;}
+  }).join(""):'<div class="pa-loading">'+emptyTeams+'</div>');
+  if(!PROJECT_ROWS.length){paPaint(projectsBox,'<div class="pa-loading">No hay proyectos dados de alta todavía.</div>');paTickAgo();paDrawLinks();return;}
   const emptyProjects=PROJECT_FILTER==="unassigned"?"No hay proyectos sin equipo asociado.":PROJECT_SCOPE!==null?"No hay proyectos seleccionados en Opciones.":"No hay proyectos visibles.";
-  projectsBox.innerHTML=visibleProjects.length?visibleProjects.map(project=>{
+  paPaint(projectsBox,visibleProjects.length?visibleProjects.map(project=>{
     const assignedGroups=paProjectAgentGroups(project),assignedTeams=Array.isArray(project.machines)?project.machines:[];
     const archived=project.status==="archivado";
     const web=paWeb(project.web),shot=paProjectShot(project),busy=PROJECT_BUSY.startsWith(project.id+"|");
@@ -537,7 +545,7 @@ function paRender(){
     const target=LINK_CLICK_AGENT&&!archived?'<button class="pa-target" type="button" data-pa-target="'+esc(project.id)+'"'+(busy?' disabled':'')+'>Conectar aquí</button>':'';
     const nodeKey=paNodeKey("project",project.id);
     return '<details class="pa-project-node '+esc(project.status||"activo")+'" data-project-node="'+esc(project.id)+'" data-pa-node-key="'+esc(nodeKey)+'" style="--pc:'+paColor(project.color)+';'+paNodeVars(nodeKey)+'"'+(openProjects.has(project.id)?' open':'')+'><summary class="pa-project-summary"><div class="pa-folder"><span>📁</span>'+(shot?'<img loading="lazy" alt="" src="'+esc(shot)+'" onerror="this.remove()">':'')+'</div><div class="pa-project-main"><div class="pa-name"><b title="'+esc(project.name||project.id)+'">'+esc(project.name||project.id)+'</b><span>'+(web?esc(new URL(web).hostname):esc(project.id))+'</span></div><div class="pa-project-controls">'+target+'<span class="pa-state '+esc(project.status||"activo")+'">'+esc(project.status||"activo")+'</span><span class="pa-expand">detalle</span></div></div><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(project.name||project.id)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-project="'+esc(project.id)+'" aria-label="Ocultar '+esc(project.name||project.id)+'" title="Ocultar proyecto">×</button><span class="pa-port" data-project-port="'+esc(project.id)+'">◆</span></summary><div class="pa-project-detail"><div class="pa-meta"><span>'+assignedTeams.length+' equipos</span><span>'+assignedGroups.length+' agentes principales</span><span>'+(project.missions||0)+' en curso</span>'+(web?'<a href="'+esc(web)+'" target="_blank" rel="noopener">abrir ↗</a>':'')+'</div><div class="pa-primary"><b>Responsable Principal</b><span>👤 '+esc(primaryId||primary)+'</span></div><div class="pa-assigned">'+teamChips+'</div><div class="pa-assigned">'+agentChips+'</div></div></details>';
-  }).join(""):'<div class="pa-loading">'+emptyProjects+'</div>';
+  }).join(""):'<div class="pa-loading">'+emptyProjects+'</div>');
   teamsBox.querySelectorAll("[data-link-agent]").forEach(port=>{
     port.onpointerdown=paStartDrag;
     port.onclick=e=>{if(e.detail===0){LINK_CLICK_AGENT=port.dataset.linkAgent;paRender();paMessage("Selecciona el proyecto para "+LINK_CLICK_AGENT);}};
@@ -552,6 +560,7 @@ function paRender(){
   projectsBox.querySelectorAll("[data-pa-remove-team]").forEach(button=>button.onclick=()=>paAssignTeam(button.dataset.project,button.dataset.paRemoveTeam,true));
   document.querySelectorAll("[data-pa-node-move]").forEach(handle=>{handle.onpointerdown=paStartNodeMove;handle.onclick=event=>{event.preventDefault();event.stopPropagation();};handle.ondblclick=paResetNode;});
   document.querySelectorAll(".pa-project-node,.pa-team-node").forEach(node=>node.ontoggle=()=>requestAnimationFrame(paDrawLinks));
+  paTickAgo();
   requestAnimationFrame(paDrawLinks);
 }
 function paPoint(element,mapRect){const r=element.getBoundingClientRect();return{x:r.left+r.width/2-mapRect.left,y:r.top+r.height/2-mapRect.top};}
@@ -599,12 +608,36 @@ function paMoveNode(event){
 }
 function paEndNodeMove(){if(!NODE_DRAG)return;NODE_DRAG.handle.classList.remove("dragging");NODE_DRAG=null;requestAnimationFrame(paDrawLinks);}
 function paResetNode(event){event.preventDefault();event.stopPropagation();paSetNodeOffset(event.currentTarget.dataset.paNodeMove,0,0);paDrawLinks();requestAnimationFrame(paDrawLinks);}
+/* CABLES PERSISTENTES — un refresco NO puede reiniciar el flujo de datos.
+   Cada unión vive en un <g data-link-key="agente|proyecto"> que se REUTILIZA:
+   al redibujar (scroll, resize, pulso de 3 s, refresco de 60 s) solo cambian
+   sus atributos d/stroke, así que las animaciones CSS siguen su curso y el
+   dashboard no pega el pantallazo. Un cable nuevo nace con delay negativo para
+   entrar en la MISMA fase que sus compañeros, no en el instante cero. */
+const FLOW_CYCLE_MS=2450;
+const FLOW_T0=Date.now();
+function paFlowDelay(offset){return "animation-delay:"+Math.round(-(((Date.now()-FLOW_T0)%FLOW_CYCLE_MS)+(offset||0)))+"ms";}
+function paSyncLink(group,key,state,curve,color){
+  if(!curve||!color)return "";
+  let node=group.querySelector('[data-link-key="'+CSS.escape(key)+'"]');
+  if(node&&node.dataset.linkState!==state){node.remove();node=null;}
+  if(!node){
+    node=document.createElementNS("http://www.w3.org/2000/svg","g");
+    node.dataset.linkKey=key;node.dataset.linkState=state;
+    node.innerHTML=state==="assigned"
+      ? '<path class="pa-link pa-link-assigned" marker-end="url(#paArrow)" data-link-state="assigned"></path>'
+      : '<path class="pa-link pa-link-active" marker-end="url(#paArrow)" data-link-state="active"></path><path class="pa-link-flow pa-link-flow-out" pathLength="100" style="'+paFlowDelay(0)+'"></path><path class="pa-link-flow pa-link-flow-back" pathLength="100" style="'+paFlowDelay(FLOW_CYCLE_MS/2)+'"></path>';
+    group.appendChild(node);
+  }
+  for(const path of node.children){path.setAttribute("d",curve);path.setAttribute("stroke",color);}
+  return key;
+}
 function paDrawLinks(){
   const map=pa("projectAgentMap"),svg=pa("projectAgentSvg"),group=pa("projectAgentLinks"),temp=pa("projectAgentTemp"); if(!map||!svg||!group)return;
   const rect=map.getBoundingClientRect();svg.setAttribute("viewBox","0 0 "+Math.max(1,rect.width)+" "+Math.max(1,rect.height));
   if(!(pa("projectAgentProjectsPane").open&&pa("projectAgentTeamsPane").open)){group.innerHTML="";temp.setAttribute('d','');return;}
   const colors=paConnectionColors();
-  group.innerHTML=PROJECT_ROWS.flatMap(project=>paProjectFamilyRefs(project).flatMap(agent=>{
+  const live=new Set(PROJECT_ROWS.flatMap(project=>paProjectFamilyRefs(project).flatMap(agent=>{
     const agentNodes=[...map.querySelectorAll('[data-agent-family="'+CSS.escape(agent)+'"]')],target=map.querySelector('[data-project-port="'+CSS.escape(project.id)+'"]');
     return agentNodes.filter((agentNode,index)=>{
       const teamNode=agentNode.closest('[data-team-key]');return teamNode&&target&&teamNode.getClientRects().length&&target.getClientRects().length&&(teamNode.open||index===0);
@@ -613,10 +646,10 @@ function paDrawLinks(){
       if(!source||!source.getClientRects().length)return'';
       const sourcePoint=paPoint(source,rect);if(!teamNode.open)sourcePoint.x=source.getBoundingClientRect().left-rect.left;
       const curve=paCurve(sourcePoint,paPoint(target,rect)),color=colors.get(agentNode.dataset.agentNode+'|'+project.id),online=agentNode.dataset.agentOnline==="true";
-      if(!online)return '<path class="pa-link pa-link-assigned" d="'+curve+'" stroke="'+color+'" marker-end="url(#paArrow)" data-link-state="assigned"></path>';
-      return '<path class="pa-link pa-link-active" d="'+curve+'" stroke="'+color+'" marker-end="url(#paArrow)" data-link-state="active"></path><path class="pa-link-flow pa-link-flow-out" d="'+curve+'" stroke="'+color+'" pathLength="100"></path><path class="pa-link-flow pa-link-flow-back" d="'+curve+'" stroke="'+color+'" pathLength="100"></path>';
-    });
-  })).join('');
+      return paSyncLink(group,agentNode.dataset.agentNode+'|'+project.id,online?"active":"assigned",curve,color);
+    }).filter(Boolean);
+  })));
+  [...group.children].forEach(node=>{if(!live.has(node.dataset.linkKey))node.remove();});
   if(!LINK_DRAG)temp.setAttribute('d','');
 }
 function paStartDrag(event){
@@ -743,17 +776,25 @@ async function paLoad(reason="manual"){
   PROJECT_REFRESH_BUSY=true;
   paResetRefreshCycle();
   const refresh=pa("projectAgentRefresh"); refresh.disabled=true;refresh.setAttribute("aria-busy","true");
-  pa("projectAgentTeams").innerHTML='<div class="pa-loading">Tomando el pulso…</div>';
-  pa("projectAgentProjects").innerHTML='<div class="pa-loading">Cargando proyectos…</div>';
-  paMessage(reason==="auto"?"Actualización automática: sincronizando proyectos y presencia física…":"Sincronizando proyectos y presencia física…");
+  /* El ciclo automático NO vacía el mapa: lo que ya está en pantalla se queda
+     hasta que llegan los datos nuevos. Solo la primera carga tiene derecho a
+     pintar el «cargando» — y solo ella habla por la línea de estado, para que
+     el minuto pase sin parpadeo (ni ruido en el lector de pantalla). */
+  const firstPaint=!PROJECT_LOADED_ONCE;
+  if(firstPaint){
+    pa("projectAgentTeams").innerHTML='<div class="pa-loading">Tomando el pulso…</div>';
+    pa("projectAgentProjects").innerHTML='<div class="pa-loading">Cargando proyectos…</div>';
+  }
+  if(reason!=="auto")paMessage("Sincronizando proyectos y presencia física…");
   try{
     const [projects]=await Promise.all([paJson("/projects"),pulse(false)]);
     PROJECT_ROWS=Array.isArray(projects.projects)?projects.projects:[];
     PROJECT_ROSTER=paProjectRoster(PROJECT_LIVE_ROSTER,PROJECT_ROWS);
+    PROJECT_LOADED_ONCE=true;
     paRender();
-    paMessage("✓ mapa de asignaciones sincronizado","ok");
+    if(reason!=="auto")paMessage("✓ mapa de asignaciones sincronizado","ok");
     return true;
-  }catch(e){pa("projectAgentProjects").innerHTML='<div class="pa-loading">No se pudieron cargar los proyectos.</div>';paMessage("✗ "+(e&&e.message||e),"err");}
+  }catch(e){if(firstPaint)pa("projectAgentProjects").innerHTML='<div class="pa-loading">No se pudieron cargar los proyectos.</div>';paMessage("✗ "+(e&&e.message||e),"err");}
   finally{
     PROJECT_REFRESH_BUSY=false;
     refresh.disabled=false;

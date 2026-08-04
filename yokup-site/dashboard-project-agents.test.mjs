@@ -294,7 +294,7 @@ test("las uniones agente-proyecto se dibujan con flechas",()=>{
   assert.match(source,/\["projectAgentProjectsPane","projectAgentTeamsPane"\]\.forEach\(id=>pa\(id\)\.addEventListener\("toggle",\(\)=>\{paDrawLinks\(\);requestAnimationFrame\(paDrawLinks\);\}\)\)/);
   assert.match(source,/id="projectAgentSvg"[^>]*preserveAspectRatio="none"/);
   assert.match(source,/svg\.setAttribute\("viewBox","0 0 "\+Math\.max\(1,rect\.width\)\+" "\+Math\.max\(1,rect\.height\)\)/);
-  assert.match(source,/pa\("projectAgentLinks"\)\.innerHTML=""/);
+  assert.doesNotMatch(source,/pa\("projectAgentLinks"\)\.innerHTML=""/,"paRender no puede vaciar los cables: los reconcilia paDrawLinks");
   assert.match(source,/new ResizeObserver\(\(\)=>requestAnimationFrame\(paDrawLinks\)\)\.observe\(pa\("projectAgentMap"\)\)/);
   assert.match(source,/marker-end="url\(#paArrow\)"/);
   assert.match(source,/paProjectAgentRefs\(project\)/);
