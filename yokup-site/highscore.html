@@ -259,6 +259,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .tabla .ag{font-weight:700}
 .tabla .num{text-align:right;font-variant-numeric:tabular-nums}
 .tabla .tot{text-align:right;font-weight:900;color:var(--accent);font-variant-numeric:tabular-nums}
+.score-toggle{appearance:none;display:inline-flex;align-items:center;justify-content:flex-end;gap:7px;max-width:100%;padding:2px 3px;
+  border:1px solid transparent;border-radius:5px;background:transparent;color:inherit;font:inherit;font-weight:inherit;
+  font-variant-numeric:inherit;cursor:pointer}
+.score-toggle:hover,.score-toggle:focus-visible{border-color:var(--brand);outline:none;background:rgba(120,243,255,.08);
+  box-shadow:0 0 8px rgba(120,243,255,.2)}
+.score-toggle[aria-expanded="true"]{color:var(--ink);border-color:rgba(120,243,255,.42)}
+.score-trend{display:inline-grid;place-items:center;min-width:1em;font-size:.88em;font-weight:950}
+.score-trend.up{color:var(--good);text-shadow:0 0 8px rgba(136,255,170,.72);animation:score-up .8s ease-out both}
+.score-trend.same{color:var(--dim)}
+.score-progress[hidden]{display:none}
 .project-cell{max-width:150px}
 .project-chip{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   color:var(--brand);font-size:10px;letter-spacing:.025em;text-decoration:none;border-bottom:1px solid rgba(120,243,255,.25)}
@@ -318,7 +328,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .refresh-race{padding:0 10px}.refresh-mission{width:38vw;font-size:10px;line-height:13px}.refresh-agent{max-width:105px;font-size:10px;line-height:13px}
   .score-progress td{padding-left:5px;padding-right:5px}.progression{grid-template-columns:88px repeat(5,76px);min-width:500px;gap:4px}
   .progression-step{grid-template-columns:13px minmax(0,1fr);column-gap:3px}.progression-dot{width:13px;height:13px;border-width:1px}.progression-step::before{top:6px}}
-@media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.rank-filter[aria-pressed="true"],.activity-now,.activity-now::after,.plaza.podium-live::after,.podium-trend.up,.refresh-runner svg,.runner-run-a,.runner-run-b,.runner-run-c,.progression-step.new .progression-dot{animation:none}.refresh-runner .runner-run-b,.refresh-runner .runner-run-c{display:none}.runner-finish-win .gesto-a,.runner-finish-lose .gesto-a{animation:none;opacity:1}.runner-finish-win .gesto-b,.runner-finish-lose .gesto-b{display:none}}
+@media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.rank-filter[aria-pressed="true"],.activity-now,.activity-now::after,.plaza.podium-live::after,.podium-trend.up,.score-trend.up,.refresh-runner svg,.runner-run-a,.runner-run-b,.runner-run-c,.progression-step.new .progression-dot{animation:none}.refresh-runner .runner-run-b,.refresh-runner .runner-run-c{display:none}.runner-finish-win .gesto-a,.runner-finish-lose .gesto-a{animation:none;opacity:1}.runner-finish-win .gesto-b,.runner-finish-lose .gesto-b{display:none}}
 </style>
 </head>
 <body data-yk-title="HIGHSCORE" data-yk-zone="app">
@@ -540,6 +550,22 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     });
 
   function normaliza(s) { return String(s == null ? "" : s).trim(); }
+
+  function tendenciaHoraria(a) {
+    var hourly = datos.actividadMeta && datos.actividadMeta.hourly;
+    var rows = hourly && Array.isArray(hourly.scores) ? hourly.scores : [];
+    var key = normaliza(a && a.agente || a).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/[^a-z0-9]+/g, "");
+    var match = rows.find(function (row) {
+      return normaliza(row.agent).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase().replace(/[^a-z0-9]+/g, "") === key;
+    });
+    return match ? {
+      state:match.trend === "up" ? "up" : "same", current:Number(match.current) || 0,
+      reference:Number(match.reference) || 0, referenceAt:Number(match.reference_at) || 0,
+      reliable:!!match.reliable
+    } : { state:"same", current:Number(a && a.total) || 0, reference:Number(a && a.total) || 0, referenceAt:0, reliable:false };
+  }
 
   function claveTrazabilidad(s) {
     return normaliza(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -789,7 +815,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var lista = Object.keys(por).map(function (k) {
       var f = por[k];
       f.agente = id ? id.display(f.base, f.suffix) : f.base;
-      f.total = f.ptsObjetivos + f.ptsVentanas + f.ptsMisiones + f.ptsTareas; return f;
+      f.total = f.ptsObjetivos + f.ptsVentanas + f.ptsMisiones + f.ptsTareas;
+      f.tendencia = tendenciaHoraria(f); return f;
     });
     lista.sort(function (a, b) { return b.total - a.total || a.agente.localeCompare(b.agente); });
     lista.forEach(function (fila, indice) { fila.posicion = indice + 1; });
@@ -797,7 +824,6 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   var brazosTimer = null, brazosBajos = false, imagenPodio = null;
-  var puntosPodioAnteriores = Object.create(null);
   var brazoIzq = [[497,48],[559,48],[559,112],[553,112],[553,170],[520,170],[509,145],[497,145]];
   var brazoDer = [[721,48],[783,48],[783,145],[771,145],[760,170],[727,170],[727,112],[721,112]];
   var borraIzq = [[495,46],[561,46],[561,114],[555,114],[555,172],[518,172],[507,147],[495,147]];
@@ -843,11 +869,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     document.getElementById("podio").innerHTML = escenaPodio() + orden.map(function (a, i) {
       if (!a) return '<div class="plaza"></div>';
       var clave = claveAgenteCarrera(a.agente), total = Number(a.total) || 0;
-      var anterior = Object.prototype.hasOwnProperty.call(puntosPodioAnteriores, clave) ? puntosPodioAnteriores[clave] : null;
-      var sube = anterior !== null && total > anterior;
+      var trend = a.tendencia || tendenciaHoraria(a), sube = trend.state === "up";
       var tendencia = sube
-        ? '<span class="podium-trend up" title="Ha ganado puntos desde el último refresco" aria-label="Sube">↑</span>'
-        : '<span class="podium-trend same" title="Mantiene la puntuación" aria-label="Sin cambio">=</span>';
+        ? '<span class="podium-trend up" title="Ha aumentado sus puntos en la última hora" aria-label="Tendencia última hora: sube">↑</span>'
+        : '<span class="podium-trend same" title="No ha aumentado sus puntos en la última hora" aria-label="Tendencia última hora: sin cambio">=</span>';
       var detalleUrl = "/highscoreDetail?agent=" + encodeURIComponent(a.agente);
       try { sessionStorage.setItem("yokup.highscore.detail." + clave, JSON.stringify(a)); } catch (_) {}
       return '<a class="plaza ' + clases[i] + (a.vivo ? ' podium-live' : '') + '" href="' + esc(detalleUrl) + '"' +
@@ -860,9 +885,6 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<div class="pts"><span class="podium-score">' + total + '</span>' + tendencia + '</div>' +
         '<div class="bloque">' + medallas[i] + '</div></a>';
     }).join("");
-    top.forEach(function (a) {
-      if (a) puntosPodioAnteriores[claveAgenteCarrera(a.agente)] = Number(a.total) || 0;
-    });
     programaBrazos();
   }
 
@@ -919,9 +941,15 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return '<span class="window-day-total" title="' + esc(ayuda) + '" aria-label="' + esc(ayuda) + '">' + contenido + '</span>';
   }
 
-  function puntosHtml(a) {
-    if (a.total > 0) return a.total;
-    return a.haLatido ? "0" : "—";
+  function puntosHtml(a, progressId) {
+    var value = a.total > 0 ? a.total : (a.haLatido ? "0" : "—");
+    var trend = a.tendencia || tendenciaHoraria(a), up = trend.state === "up";
+    var trendTitle = up ? "Ha aumentado sus puntos en la última hora" : "No ha aumentado sus puntos en la última hora";
+    if (!trend.reliable) trendTitle += " · esperando una referencia compartida de hace 60 minutos";
+    return '<button class="score-toggle" type="button" aria-expanded="false" aria-controls="' + esc(progressId) +
+      '" aria-label="' + esc(value + " puntos. " + trendTitle + ". Mostrar evolución") + '">' +
+      '<span class="score-value">' + esc(value) + '</span><span class="score-trend ' + (up ? "up" : "same") +
+      '" title="' + esc(trendTitle) + '" aria-hidden="true">' + (up ? "↑" : "=") + '</span></button>';
   }
 
   var ETAPAS_PROGRESO = [
@@ -1260,7 +1288,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function pintaTabla(lista) {
     document.getElementById("filas").innerHTML = lista.map(function (a, i) {
-      var alterna = i % 2 ? " alt" : "";
+      var alterna = i % 2 ? " alt" : "", progressId = "score-progress-" + hsAgentKey(a.agente);
       return '<tr class="score-main' + alterna + '"><td class="n">' + posicionHtml(a, a.posicion || i + 1) + '</td>' +
         '<td class="ag">' + agentNameHtml(a) +
         (a.runtime ? ' <span class="rt">· ' + esc(a.runtime) + '</span>' : '') + '</td>' +
@@ -1270,14 +1298,30 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<td class="num">' + numeroVentanas(a) + '</td>' +
         '<td class="num">' + numeroActividad(a, "misiones", a.misiones, "misión en curso") + '</td>' +
         '<td class="num">' + numeroActividad(a, "tareas", a.tareas, "tarea en curso") + '</td>' +
-        '<td class="tot">' + puntosHtml(a) + '</td></tr>' +
-        '<tr class="score-progress' + alterna + '"><td colspan="9">' + progresionHtml(a) + '</td></tr>';
+        '<td class="tot">' + puntosHtml(a, progressId) + '</td></tr>' +
+        '<tr class="score-progress' + alterna + '" id="' + esc(progressId) + '" hidden><td colspan="9">' + progresionHtml(a) + '</td></tr>';
     }).join("");
+  }
+  function iniciaProgresionToggle() {
+    var filas = document.getElementById("filas");
+    if (!filas || filas.dataset.progressToggle === "on") return;
+    filas.dataset.progressToggle = "on";
+    filas.addEventListener("click", function (evento) {
+      var boton = evento.target && evento.target.closest && evento.target.closest(".score-toggle");
+      if (!boton || !filas.contains(boton)) return;
+      var detalle = document.getElementById(boton.getAttribute("aria-controls"));
+      if (!detalle) return;
+      var abrir = boton.getAttribute("aria-expanded") !== "true";
+      boton.setAttribute("aria-expanded", abrir ? "true" : "false");
+      boton.setAttribute("aria-label", boton.getAttribute("aria-label").replace(/\. (Mostrar|Ocultar) evolución$/, ". " + (abrir ? "Ocultar" : "Mostrar") + " evolución"));
+      detalle.hidden = !abrir;
+    });
   }
   iniciaColumnasReajustables();
   iniciaOrdenTabla();
   iniciaFiltroVida();
   iniciaAgentScope();
+  iniciaProgresionToggle();
 
   function agenteDeMision(mision) {
     var agente = mision && normaliza(mision.assignee || mision.persona || mision.agent);

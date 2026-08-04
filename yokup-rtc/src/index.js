@@ -194,6 +194,10 @@ async function applySchema(env) {
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_batch_items_mission ON mission_batch_items(mission_id)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_tasks (mission_id TEXT, code TEXT, title TEXT, status TEXT DEFAULT 'pending', owner TEXT, report TEXT, updated_at INTEGER, PRIMARY KEY (mission_id, code))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_mtasks_mission ON mission_tasks(mission_id)");
+  // Histórico compartido del Highscore. Una muestra por agente y minuto basta
+  // para comparar la última hora sin depender del navegador que lo consulta.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS highscore_snapshots (agent_key TEXT NOT NULL, agent TEXT NOT NULL, machine TEXT, sampled_at INTEGER NOT NULL, points INTEGER NOT NULL, PRIMARY KEY(agent_key,sampled_at))");
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_highscore_snapshots_time ON highscore_snapshots(sampled_at)");
   // image: URL pública de la captura de prueba del informe (R2 /media/…). La tabla
   // ya existe en prod, así que la columna se añade idempotente (ignora "duplicate").
   await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN image TEXT").catch(() => {});
@@ -2843,6 +2847,8 @@ __name(fleetMissions, "fleetMissions");
 var HIGHSCORE_WEIGHTS = { objective: 20, window: 8, mission: 40 };
 var HIGHSCORE_TASK_WEIGHTS = { task: 15, active_bonus: 10 };
 var HIGHSCORE_RECENT_MS = 15 * 60 * 1e3;
+var HIGHSCORE_TREND_MS = 60 * 60 * 1e3;
+var HIGHSCORE_TREND_TOLERANCE_MS = 15 * 60 * 1e3;
 // Instante puntuable de una misión: creación ya EN CURSO para las tandas, o el
 // primer evento persistido que demuestra la transición para flota. Sin una de
 // esas dos pruebas no se adivina a partir de una edición/cierre posterior.
@@ -3010,6 +3016,77 @@ async function highscoreTraceability(env, inicio, fin, ahora) {
 }
 __name(highscoreTraceability, "highscoreTraceability");
 
+// Total factual que ve el marcador, incluidas las tres familias A/B/C de cada
+// misión. Se calcula en el servidor antes de tomar la muestra: ningún navegador
+// puede inventar puntos ni una tendencia para el resto de usuarios.
+async function highscoreCurrentTotals(env, scores, inicio, fin) {
+  const totals = new Map();
+  const keyOf = (agent) => String(agent || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const add = (agent, machine, points) => {
+    const visible = reportAgentIdentity(agent, machine) || String(agent || "").trim();
+    const key = keyOf(visible);
+    if (!key) return;
+    if (!totals.has(key)) totals.set(key, { agent_key: key, agent: visible, machine: String(machine || ""), points: 0 });
+    totals.get(key).points += Number(points) || 0;
+  };
+  for (const row of scores || []) add(row.agent, row.machine,
+    (Number(row.objective_points) || 0) + (Number(row.window_points) || 0) + (Number(row.mission_points) || 0));
+
+  const taskRows = ((await env.DB.prepare(
+    `SELECT m.mission_id,m.code,m.status,m.owner,m.updated_at,t.assignee,t.loc ` +
+    `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${AGENT_SOURCE_SQL_T} ` +
+    "AND m.updated_at>=? AND m.updated_at<? AND m.status IN ('in_progress','done')"
+  ).bind(inicio, fin).all()).results || []);
+  const representatives = new Map();
+  for (const task of taskRows) {
+    const match = String(task.code || "").toLowerCase().match(/^([a-c])(?:[1-3])?$/);
+    if (!match) continue;
+    const family = String(task.mission_id || "") + "|" + match[1], previous = representatives.get(family);
+    if (!previous || Number(task.updated_at) >= Number(previous.updated_at)) representatives.set(family, task);
+  }
+  for (const task of representatives.values()) {
+    const agent = scopedMissionOwner(task.owner, "sub", task.assignee, task.loc);
+    const points = HIGHSCORE_TASK_WEIGHTS.task +
+      (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0);
+    add(agent, task.loc, points);
+  }
+  return [...totals.values()].sort((a, b) => a.agent_key.localeCompare(b.agent_key));
+}
+__name(highscoreCurrentTotals, "highscoreCurrentTotals");
+
+async function highscoreHourlyTrend(env, current, ahora) {
+  const cutoff = ahora - HIGHSCORE_TREND_MS, oldest = cutoff - HIGHSCORE_TREND_TOLERANCE_MS;
+  const rows = ((await env.DB.prepare(
+    "SELECT h.agent_key,h.points,h.sampled_at FROM highscore_snapshots h JOIN (" +
+    "SELECT agent_key,MAX(sampled_at) sampled_at FROM highscore_snapshots WHERE sampled_at>=? AND sampled_at<=? GROUP BY agent_key" +
+    ") r ON r.agent_key=h.agent_key AND r.sampled_at=h.sampled_at"
+  ).bind(oldest, cutoff).all()).results || []);
+  const references = new Map(rows.map((row) => [String(row.agent_key), row]));
+  const sampledAt = Math.floor(ahora / 6e4) * 6e4;
+  for (const row of current) {
+    await env.DB.prepare(
+      "INSERT INTO highscore_snapshots(agent_key,agent,machine,sampled_at,points) VALUES(?,?,?,?,?) " +
+      "ON CONFLICT(agent_key,sampled_at) DO UPDATE SET agent=excluded.agent,machine=excluded.machine,points=excluded.points"
+    ).bind(row.agent_key, row.agent, row.machine || "", sampledAt, row.points).run();
+  }
+  // El marcador sólo necesita 48 horas; conservar más no mejora una ventana de
+  // 60 minutos y haría crecer D1 sin límite.
+  await env.DB.prepare("DELETE FROM highscore_snapshots WHERE sampled_at<?").bind(ahora - 48 * 60 * 60 * 1e3).run();
+  return {
+    window_ms: HIGHSCORE_TREND_MS,
+    sampled_at: sampledAt,
+    scores: current.map((row) => {
+      const reference = references.get(row.agent_key), reliable = !!reference;
+      const referencePoints = reliable ? Number(reference.points) || 0 : row.points;
+      return { agent: row.agent, machine: row.machine, current: row.points, reference: referencePoints,
+        reference_at: reliable ? Number(reference.sampled_at) : null,
+        trend: row.points > referencePoints ? "up" : "same", reliable };
+    })
+  };
+}
+__name(highscoreHourlyTrend, "highscoreHourlyTrend");
+
 async function highscoreDaily(env) {
   const ahora = Date.now(), inicio = madridDayStart(ahora), fin = inicio + 864e5;
   const acc = /* @__PURE__ */ new Map();
@@ -3054,7 +3131,10 @@ async function highscoreDaily(env) {
     if (f) { f.missions += Number(r.c) || 0; f.mission_points += (Number(r.c) || 0) * HIGHSCORE_WEIGHTS.mission; }
   }
   const traceability = await highscoreTraceability(env, inicio, fin, ahora);
-  return { ok: true, day: madridDayKey(ahora), weights: HIGHSCORE_WEIGHTS, scores: [...acc.values()], traceability };
+  const scores = [...acc.values()];
+  const current = await highscoreCurrentTotals(env, scores, inicio, fin);
+  const hourly = await highscoreHourlyTrend(env, current, ahora);
+  return { ok: true, day: madridDayKey(ahora), weights: HIGHSCORE_WEIGHTS, scores, traceability, hourly };
 }
 __name(highscoreDaily, "highscoreDaily");
 
