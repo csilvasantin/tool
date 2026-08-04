@@ -35,12 +35,13 @@ test("el Dashboard vive en /dashboard y conserva /agentica sólo como retorno co
   assert.match(redirects,/^\/agentica\.html\s+\/dashboard\s+301$/m);
 });
 
-test("Proyectos abre arriba del todo; Pulso y Xperiencias nacen compactados",()=>{
+test("Proyectos abre arriba del todo; toda la zona secundaria nace compactada",()=>{
   assert.match(source,/<div class="wrap">\s*<details class="dash-section" id="projectAgentSection" open>/);
   assert.match(source,/<details class="dash-section" id="pulseSection">\s*<summary class="shd">Pulso de la flota/);
   assert.match(source,/<details class="dash-section" id="projectAgentSection" open>\s*<summary class="shd">Proyectos y agentes/);
   assert.match(source,/<details class="dash-section" id="liveExperiencesSection">\s*<summary class="shd">Xperiencias en vivo/);
-  assert.doesNotMatch(source,/<details class="dash-section" id="(?:pulseSection|liveExperiencesSection)"[^>]*\sopen(?:\s|>)/);
+  assert.match(source,/<details class="dash-section" id="modulesSection">\s*<summary class="shd">Módulos<\/summary>\s*<div class="dash-section-body">[\s\S]*?<div class="foot">/);
+  assert.doesNotMatch(source,/<details class="dash-section" id="(?:pulseSection|liveExperiencesSection|modulesSection)"[^>]*\sopen(?:\s|>)/);
   assert.match(source,/\.dash-section\[open\]>\.shd::before/);
   assert.match(source,/projectAgentSection"\)\.addEventListener\("toggle"/);
 });

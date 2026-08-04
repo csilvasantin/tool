@@ -52,7 +52,9 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
 .pa-shell{border:1px solid var(--line2);border-radius:15px;background:linear-gradient(145deg,rgba(13,28,40,.94),rgba(6,17,25,.94));padding:16px;box-shadow:0 18px 60px rgba(0,0,0,.22);overflow:visible}
 .pa-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
 .pa-head p{color:var(--mut);font-size:12.5px;line-height:1.55;max-width:720px}.pa-head b{color:var(--ink)}
-.pa-refresh{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--brand);border:1px solid var(--line2);border-radius:8px;background:rgba(2,8,13,.5);padding:8px 10px;cursor:pointer;white-space:nowrap}
+.pa-refresh{--pa-refresh-cycle:60000ms;position:relative;isolation:isolate;overflow:hidden;font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--brand);border:1px solid var(--line2);border-radius:8px;background:rgba(2,8,13,.5);padding:8px 10px 10px;cursor:pointer;white-space:nowrap}
+.pa-refresh-label{position:relative;z-index:1}.pa-refresh-progress{position:absolute;z-index:0;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,var(--brand),var(--good));box-shadow:0 0 10px rgba(120,243,255,.55);transform:scaleX(0);transform-origin:left center;pointer-events:none}.pa-refresh.is-cycling .pa-refresh-progress{animation:pa-refresh-slide var(--pa-refresh-cycle) linear forwards}
+@keyframes pa-refresh-slide{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 .pa-refresh:hover,.pa-refresh:focus-visible{border-color:var(--brand);outline:none}.pa-refresh:disabled{opacity:.45;cursor:wait}
 .pa-msg{min-height:18px;margin:0 0 10px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--dim)}.pa-msg.ok{color:var(--good)}.pa-msg.err{color:var(--warn)}
 .pa-scroll{overflow:visible;padding:2px 2px 8px}.pa-map{position:relative;display:grid;grid-template-columns:minmax(280px,520px) minmax(300px,560px);gap:clamp(88px,10vw,420px);justify-content:space-between;min-width:0;align-items:start}
@@ -60,7 +62,7 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
 @keyframes pa-data-out{from{stroke-dashoffset:0}to{stroke-dashoffset:-100}}
 @keyframes pa-data-back{from{stroke-dashoffset:-100}to{stroke-dashoffset:0}}
 @keyframes pa-cable-breathe{0%,100%{opacity:.25;filter:drop-shadow(0 0 2px currentColor)}50%{opacity:.52;filter:drop-shadow(0 0 8px currentColor)}}
-@media(prefers-reduced-motion:reduce){.pa-link-flow{display:none}.pa-link-assigned{animation:none;opacity:.4}}
+@media(prefers-reduced-motion:reduce){.pa-link-flow{display:none}.pa-link-assigned{animation:none;opacity:.4}.pa-refresh-progress,.pa-refresh.is-cycling .pa-refresh-progress{animation:none;transition:none;transform:scaleX(1);opacity:.6}}
 .pa-col{position:relative;z-index:2;min-width:0;transform:translateX(var(--pa-x,0px));will-change:transform}.pa-col-title{display:flex;align-items:center;gap:5px;margin:0 0 7px;font-family:var(--mono);font-size:8.8px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);cursor:pointer;list-style:none;user-select:none}.pa-col-title::-webkit-details-marker{display:none}.pa-col-title::before{content:"›";color:var(--accent);font-size:14px;line-height:1;transition:transform .16s}.pa-col[open]>.pa-col-title::before{transform:rotate(90deg)}.pa-col-title::after{content:"";height:1px;background:var(--line);flex:1}.pa-count{border:1px solid var(--line);border-radius:999px;padding:2px 6px;color:var(--brand);font-size:8px;letter-spacing:.03em}.pa-show-all,.pa-filter,.pa-move{border:0;background:transparent;font:800 7.8px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:4px 2px;cursor:pointer;white-space:nowrap}.pa-show-all{color:var(--good)}.pa-filter{color:var(--dim)}.pa-show-all.active,.pa-filter.active{color:var(--accent);text-shadow:0 0 10px currentColor}.pa-move{color:var(--brand);font-size:11px;cursor:ew-resize;touch-action:none}.pa-move.dragging{color:var(--accent)}.pa-show-all:hover,.pa-show-all:focus-visible,.pa-filter:hover,.pa-filter:focus-visible,.pa-move:hover,.pa-move:focus-visible{color:var(--ink);outline:none}.pa-col:not([open])>.pa-col-title{margin-bottom:0}.pa-col-title:hover,.pa-col-title:focus-visible{color:var(--ink);outline:none}
 .pa-list{display:grid;gap:5px}.pa-agent-node,.pa-team-node,.pa-project-node{--pc:var(--brand);border:1px solid var(--line);border-radius:9px;background:rgba(2,8,13,.76);position:relative;transition:border-color .15s,box-shadow .15s}
 .pa-project-node,.pa-team-node{transform:translate(var(--pa-node-x,0px),var(--pa-node-y,0px));will-change:transform}.pa-project-node{padding:0}.pa-project-node::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--pc);box-shadow:0 0 14px var(--pc)}.pa-project-node.archivado{opacity:.55}.pa-project-node.drop{border-color:var(--good);box-shadow:0 0 0 2px rgba(136,255,170,.18),0 0 30px rgba(136,255,170,.14)}
@@ -131,7 +133,7 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
     <section class="dash-section-body pa-shell" aria-label="Asociación de proyectos, equipos físicos y agentes">
     <div class="pa-head">
       <p>Arrastra la <b>flecha de un agente</b> desde su ordenador hasta el proyecto. Los proyectos muestran sólo su cabecera; pulsa <b>detalle</b> para ver equipos, agentes y actividad.</p>
-      <button class="pa-refresh" id="projectAgentRefresh" type="button">↻ actualizar</button>
+      <button class="pa-refresh" id="projectAgentRefresh" type="button" aria-label="Actualizar ahora proyectos, equipos y agentes; actualización automática cada 60 segundos"><span class="pa-refresh-progress" aria-hidden="true"></span><span class="pa-refresh-label">↻ actualizar</span></button>
     </div>
     <div class="pa-msg" id="projectAgentMsg" role="status" aria-live="polite"></div>
     <div class="pa-scroll" id="projectAgentScroll">
@@ -167,16 +169,20 @@ h1{font-size:clamp(24px,3.2vw,34px);letter-spacing:-.02em;margin:6px 0 6px}
   </div>
   </details>
 
-  <div class="shd">Módulos</div>
-  <div class="mods">
-    <a class="mod" href="/incidencias"><div class="mi">🎯</div><b>Misiones</b><span>Incidencias de la flota descompuestas en tareas a/b/c — el helpdesk agéntico.</span><em>/incidencias →</em></a>
-    <a class="mod" href="/informes"><div class="mi">📝</div><b>Informes</b><span>Partes de los infraagentes: cada tarea reportada, por misión.</span><em>/informes →</em></a>
-    <a class="mod" href="/agentes"><div class="mi">👥</div><b>Agentes</b><span>La red de técnicos: carga, skills, zona y rendimiento.</span><em>/agentes →</em></a>
-    <a class="mod" href="/admira-live"><div class="mi">🌐</div><b>Encolados admira.live</b><span>La cola de encargos de los agentes de silicio, como tickets.</span><em>/admira-live →</em></a>
-    <a class="mod" href="/asistencia"><div class="mi">🎥</div><b>Asistencia</b><span>Vídeo en vivo técnico ↔ soporte sobre el Xpace (WebRTC).</span><em>/asistencia →</em></a>
-  </div>
+  <details class="dash-section" id="modulesSection">
+    <summary class="shd">Módulos</summary>
+    <div class="dash-section-body">
+      <div class="mods">
+        <a class="mod" href="/incidencias"><div class="mi">🎯</div><b>Misiones</b><span>Incidencias de la flota descompuestas en tareas a/b/c — el helpdesk agéntico.</span><em>/incidencias →</em></a>
+        <a class="mod" href="/informes"><div class="mi">📝</div><b>Informes</b><span>Partes de los infraagentes: cada tarea reportada, por misión.</span><em>/informes →</em></a>
+        <a class="mod" href="/agentes"><div class="mi">👥</div><b>Agentes</b><span>La red de técnicos: carga, skills, zona y rendimiento.</span><em>/agentes →</em></a>
+        <a class="mod" href="/admira-live"><div class="mi">🌐</div><b>Encolados admira.live</b><span>La cola de encargos de los agentes de silicio, como tickets.</span><em>/admira-live →</em></a>
+        <a class="mod" href="/asistencia"><div class="mi">🎥</div><b>Asistencia</b><span>Vídeo en vivo técnico ↔ soporte sobre el Xpace (WebRTC).</span><em>/asistencia →</em></a>
+      </div>
 
-  <div class="foot">yokup · plataforma agéntica de xperiencias · pulso <b>admira-telegram</b> · feeds <b>clearchannel.tv</b> · versión <b data-yk-deploy-version>versión pendiente</b></div>
+      <div class="foot">yokup · plataforma agéntica de xperiencias · pulso <b>admira-telegram</b> · feeds <b>clearchannel.tv</b> · versión <b data-yk-deploy-version>versión pendiente</b></div>
+    </div>
+  </details>
 
   <section class="pa-rail-filter" data-yk-slot="left" aria-label="Filtrar proyectos del Dashboard">
     <div class="pa-rail-head"><span>Proyectos</span><span class="pa-rail-count" id="paProjectScopeCount">Cargando…</span></div>
@@ -203,11 +209,14 @@ const BROWSERS="https://admira-navegadores.csilvasantin.workers.dev/api/browsers
 const PROJECTS_API="https://api.yokup.com";
 const AGENT_FRESH_SECONDS=240;
 const AGENT_REFRESH_MS=3000;
+const PROJECT_REFRESH_MS=60000;
 let PROJECT_ROWS=[];
 let PROJECT_LIVE_ROSTER=[];
 let PROJECT_ROSTER=[];
 let PROJECT_BUSY="";
 let PROJECT_DECISION_BUSY="";
+let PROJECT_REFRESH_TIMER=0;
+let PROJECT_REFRESH_BUSY=false;
 let LINK_DRAG=null;
 let LINK_CLICK_AGENT="";
 const PROJECT_SCOPE_KEY="yokup.dashboard.projects.v1";
@@ -679,21 +688,40 @@ async function paOpenDecision(projectId,agentId){
     const target=new URL(d.url||"/decisiones",location.origin); if(d.decision_id)target.searchParams.set("decision",d.decision_id); location.assign(target.href);
   }catch(e){paMessage("✗ "+(e&&e.message||e),"err");PROJECT_DECISION_BUSY="";paRender();}
 }
-async function paLoad(){
-  const refresh=pa("projectAgentRefresh"); refresh.disabled=true;
+function paResetRefreshCycle(){
+  const refresh=pa("projectAgentRefresh");
+  clearTimeout(PROJECT_REFRESH_TIMER);
+  refresh.classList.remove("is-cycling");
+  void refresh.offsetWidth;
+  refresh.classList.add("is-cycling");
+  PROJECT_REFRESH_TIMER=setTimeout(()=>paLoad("auto"),PROJECT_REFRESH_MS);
+}
+async function paLoad(reason="manual"){
+  if(reason==="auto")PROJECT_REFRESH_TIMER=0;
+  if(PROJECT_REFRESH_BUSY){paResetRefreshCycle();return false;}
+  PROJECT_REFRESH_BUSY=true;
+  paResetRefreshCycle();
+  const refresh=pa("projectAgentRefresh"); refresh.disabled=true;refresh.setAttribute("aria-busy","true");
   pa("projectAgentTeams").innerHTML='<div class="pa-loading">Tomando el pulso…</div>';
   pa("projectAgentProjects").innerHTML='<div class="pa-loading">Cargando proyectos…</div>';
-  paMessage("Sincronizando proyectos y presencia física…");
+  paMessage(reason==="auto"?"Actualización automática: sincronizando proyectos y presencia física…":"Sincronizando proyectos y presencia física…");
   try{
     const [projects]=await Promise.all([paJson("/projects"),pulse(false)]);
     PROJECT_ROWS=Array.isArray(projects.projects)?projects.projects:[];
     PROJECT_ROSTER=paProjectRoster(PROJECT_LIVE_ROSTER,PROJECT_ROWS);
     paRender();
     paMessage("✓ mapa de asignaciones sincronizado","ok");
+    return true;
   }catch(e){pa("projectAgentProjects").innerHTML='<div class="pa-loading">No se pudieron cargar los proyectos.</div>';paMessage("✗ "+(e&&e.message||e),"err");}
-  finally{refresh.disabled=false;}
+  finally{
+    PROJECT_REFRESH_BUSY=false;
+    refresh.disabled=false;
+    refresh.removeAttribute("aria-busy");
+    if(!PROJECT_REFRESH_TIMER)paResetRefreshCycle();
+  }
+  return false;
 }
-pa("projectAgentRefresh").onclick=paLoad;
+pa("projectAgentRefresh").onclick=()=>paLoad("manual");
 pa("projectAgentProjectsAll").onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_FILTER="all";PROJECT_SCOPE=null;paWriteScope(PROJECT_SCOPE_KEY,PROJECT_SCOPE);paRender();paMessage("✓ todos los proyectos visibles","ok");};
 pa("projectAgentProjectsUnassigned").onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_FILTER="unassigned";paRender();paMessage("Proyectos sin equipo asociado");};
 pa("projectAgentTeamsAll").onclick=event=>{event.preventDefault();event.stopPropagation();TEAM_FILTER="all";TEAM_SCOPE=null;paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);paRender();paMessage("✓ todos los equipos visibles","ok");};
