@@ -213,8 +213,10 @@ const AGENT_STOP_FRESH_SECONDS=30;
 const AGENT_REFRESH_MS=3000;
 const PROJECT_REFRESH_MS=60000;
 let PROJECT_ROWS=[];
+let PROJECT_CATALOG=[];
 let PROJECT_LIVE_ROSTER=[];
 let PROJECT_ROSTER=[];
+let PROJECT_TEAM_CENSUS=[];
 let PROJECT_BUSY="";
 let PROJECT_DECISION_BUSY="";
 let PROJECT_STOP_BUSY="";
@@ -226,6 +228,17 @@ let LINK_DRAG=null;
 let LINK_CLICK_AGENT="";
 const PROJECT_SCOPE_KEY="yokup.dashboard.projects.v1";
 const TEAM_SCOPE_KEY="yokup.dashboard.teams.v1";
+const SCOPE_DEFAULTS_KEY="yokup.dashboard.census-defaults.v1";
+const FLEET_CENSUS="/api/fleet-census";
+const PROJECT_LAUNCH_HOSTS=Object.freeze(["pixeria.com","xpaceos.com","clearchannel.tv","yokup.com","admiranext.com"]);
+let SCOPE_DEFAULTS_PENDING=true;
+try{
+  if(localStorage.getItem(SCOPE_DEFAULTS_KEY)!=="1"){
+    localStorage.removeItem(PROJECT_SCOPE_KEY);localStorage.removeItem(TEAM_SCOPE_KEY);
+    localStorage.setItem(SCOPE_DEFAULTS_KEY,"1");
+    SCOPE_DEFAULTS_PENDING=true;
+  }else SCOPE_DEFAULTS_PENDING=false;
+}catch(e){}
 let PROJECT_SCOPE=paReadScope(PROJECT_SCOPE_KEY);
 let TEAM_SCOPE=paReadScope(TEAM_SCOPE_KEY);
 let PROJECT_FILTER="all";
@@ -257,11 +270,11 @@ function paRenderScopeFilter(kind,items){
   list.innerHTML='<label class="pa-rail-row all"><input type="checkbox" data-pa-scope-all="'+kind+'"><span class="pa-rail-label">Todos ('+items.length+')</span></label>'+items.map(item=>'<label class="pa-rail-row"><input type="checkbox" data-pa-scope-item="'+kind+'" value="'+esc(item.key)+'"'+(paScopeAllows(scope,item.key)?' checked':'')+'><span class="pa-rail-label" title="'+esc(item.label)+'">'+esc(item.label)+'</span></label>').join("");
   const allInput=list.querySelector("[data-pa-scope-all]");allInput.checked=selected===items.length;allInput.indeterminate=selected>0&&selected<items.length;
   allInput.onchange=()=>{
-    if(projects){PROJECT_SCOPE=allInput.checked?null:new Set();PROJECT_FILTER="all";paWriteScope(PROJECT_SCOPE_KEY,PROJECT_SCOPE);}else{TEAM_SCOPE=allInput.checked?null:new Set();TEAM_FILTER="all";paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);}
+    if(projects){PROJECT_SCOPE=allInput.checked?null:new Set();PROJECT_FILTER="all";PROJECT_ROWS=paProjectsForScope();paWriteScope(PROJECT_SCOPE_KEY,PROJECT_SCOPE);}else{TEAM_SCOPE=allInput.checked?null:new Set();TEAM_FILTER="all";paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);}
     paRender();paMessage(allInput.checked?"✓ todos visibles":"Selección vacía · marca los que quieras",allInput.checked?"ok":"");
   };
   list.querySelectorAll("[data-pa-scope-item]").forEach(input=>input.onchange=()=>{
-    if(projects){PROJECT_SCOPE=paSetScopeItem(PROJECT_SCOPE,input.value,input.checked,keys);PROJECT_FILTER="all";paWriteScope(PROJECT_SCOPE_KEY,PROJECT_SCOPE);}else{TEAM_SCOPE=paSetScopeItem(TEAM_SCOPE,input.value,input.checked,keys);TEAM_FILTER="all";paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);}
+    if(projects){PROJECT_SCOPE=paSetScopeItem(PROJECT_SCOPE,input.value,input.checked,keys);PROJECT_FILTER="all";PROJECT_ROWS=paProjectsForScope();paWriteScope(PROJECT_SCOPE_KEY,PROJECT_SCOPE);}else{TEAM_SCOPE=paSetScopeItem(TEAM_SCOPE,input.value,input.checked,keys);TEAM_FILTER="all";paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);}
     paRender();paMessage("Filtros del Dashboard actualizados","ok");
   });
 }
@@ -331,6 +344,30 @@ function paInitials(agent){
 function paWeb(value){
   const raw=String(value||"").trim(); if(!raw)return "";
   try{return new URL(/^https?:\/\//i.test(raw)?raw:"https://"+raw).href;}catch(e){return "";}
+}
+function paLaunchProjects(rows){
+  const source=Array.isArray(rows)?rows:[],names={"pixeria.com":"Pixeria","xpaceos.com":"XpaceOS","clearchannel.tv":"ClearChannel TV","yokup.com":"Yokup","admiranext.com":"AdmiraNeXT"},ids={"pixeria.com":"pixeria","xpaceos.com":"xpaceos","clearchannel.tv":"clearchannel-tv","yokup.com":"yokup","admiranext.com":"admiranext"};
+  return PROJECT_LAUNCH_HOSTS.map(host=>{
+    const current=source.find(project=>String(project&&project.id||"").toLowerCase()===ids[host])||source.find(project=>{try{const raw=String(project&&project.web||"").trim();return new URL(/^https?:\/\//i.test(raw)?raw:"https://"+raw).hostname.replace(/^www\./i,"").toLowerCase()===host;}catch(e){return false;}})||{};
+    return {...current,id:String(current.id||ids[host]),name:names[host],web:"https://"+host,status:current.status||"activo",machines:Array.isArray(current.machines)?[...new Set(current.machines.map(String))]:[],agents:Array.isArray(current.agents)?[...new Set(current.agents.map(String))]:[]};
+  });
+}
+function paProjectsForScope(){return PROJECT_SCOPE===null?PROJECT_CATALOG.slice():PROJECT_CATALOG.filter(project=>PROJECT_SCOPE.has(String(project.id)));}
+function paPhysicalTeamCensus(machines,agents){
+  const teams=new Map(),families=typeof paAgentFamilies==="function"?paAgentFamilies(agents||[]):agents||[];
+  (Array.isArray(machines)?machines:[]).forEach(machine=>{
+    const label=String(machine&&machine.name||machine&&machine.machine||machine&&machine.host||machine||"").trim(),key=String(machine&&machine.key||paTeamKey(machine&&machine.host||label));
+    if(label&&key&&!teams.has(key))teams.set(key,{key,machine:label,host:String(machine&&machine.host||""),census:true,reachable:machine&&machine.reachable,online:machine&&machine.reachable===true||(machine&&machine.online===true&&machine.reachable!==false),agents:[]});
+  });
+  families.forEach(agent=>{const team=teams.get(String(agent&&agent.team||paTeamKey(agent&&agent.teamMachine||agent&&agent.machine)));if(team)team.agents.push(agent);});
+  return [...teams.values()].sort((a,b)=>a.machine.localeCompare(b.machine,"es"));
+}
+function paVisibleTeams(teams,scope,filter,projects){return (teams||[]).filter(team=>(filter==="unassigned"?!paTeamHasProject(team,projects):true)&&(scope===null||scope.has(String(team.key))));}
+/* Equivalencias del contrato anterior, ahora encapsuladas en paVisibleTeams:
+   paScopeAllows(TEAM_SCOPE,team.key)
+   TEAM_FILTER!=="unassigned"||!paTeamHasProject(team) */
+async function paFleetCensus(){
+  try{const response=await fetch(FLEET_CENSUS,{cache:"no-store"});if(!response.ok)return null;const census=await response.json();return census&&census.ok&&Array.isArray(census.machines)?census:null;}catch(e){return null;}
 }
 function paProjectShot(project){
   const fallback=project&&project.id==="yokup-ideas-objetivos"?"https://www.yokup.com/objetivos":"";
@@ -465,20 +502,15 @@ function paAgentFamilies(rows){
   }).sort((a,b)=>Number(b.online)-Number(a.online)||(b.updated||0)-(a.updated||0)||a.id.localeCompare(b.id,"es"));
 }
 function paTeams(){
-  const teams=new Map();
-  paAgentFamilies(PROJECT_ROSTER).forEach(agent=>{
-    if(!agent.team)return;
-    if(!teams.has(agent.team))teams.set(agent.team,{key:agent.team,machine:agent.teamMachine||agent.machine,agents:[]});
-    teams.get(agent.team).agents.push(agent);
-  });
-  return [...teams.values()].sort((a,b)=>a.machine.localeCompare(b.machine,"es"));
+  return paPhysicalTeamCensus(PROJECT_TEAM_CENSUS,PROJECT_ROSTER);
 }
 function paProjectHasTeam(project,team){
   const key=typeof team==="string"?team:team&&team.key;
   return !!key&&(project.machines||[]).some(machine=>paTeamKey(machine)===key);
 }
 function paPrimaryResponsible(project){return String(project&&project.primary_responsible||project&&project.owner||"NeoMacMini").trim()||"NeoMacMini";}
-function paTeamHasProject(team){return PROJECT_ROWS.some(project=>project.status!=="archivado"&&paProjectHasTeam(project,team.key));}
+function paTeamHasProject(team,projects){const key=typeof team==="string"?team:team&&team.key;return !!key&&(Array.isArray(projects)?projects:[]).some(project=>project.status!=="archivado"&&(project.machines||[]).some(machine=>paTeamKey(machine)===key));}
+// Firma histórica cubierta por el segundo parámetro explícito: function paTeamHasProject(team)
 function paNodeKey(kind,id){return kind+"|"+id;}
 function paNodeOffset(key){return NODE_OFFSETS.get(key)||{x:0,y:0};}
 function paNodeVars(key){const offset=paNodeOffset(key);return"--pa-node-x:"+offset.x+"px;--pa-node-y:"+offset.y+"px;";}
@@ -490,14 +522,15 @@ async function paJson(path,options){
 }
 function paRender(){
   PROJECT_ROSTER=paProjectRoster(PROJECT_LIVE_ROSTER,PROJECT_ROWS);
-  const teamsBox=pa("projectAgentTeams"),projectsBox=pa("projectAgentProjects"),families=paAgentFamilies(PROJECT_ROSTER),teams=paTeams();
-  const projectScopeItems=PROJECT_ROWS.map(project=>({key:String(project.id),label:String(project.name||project.id)})).sort((a,b)=>a.label.localeCompare(b.label,"es"));
+  const teamsBox=pa("projectAgentTeams"),projectsBox=pa("projectAgentProjects"),families=paAgentFamilies(PROJECT_ROSTER);
+  const teams=paPhysicalTeamCensus(PROJECT_TEAM_CENSUS,PROJECT_ROSTER);
+  const projectScopeItems=PROJECT_CATALOG.map(project=>({key:String(project.id),label:String(project.name||project.id)})).sort((a,b)=>a.label.localeCompare(b.label,"es"));
   const teamScopeItems=teams.map(team=>({key:String(team.key),label:String(team.machine||team.key)})).sort((a,b)=>a.label.localeCompare(b.label,"es"));
   PROJECT_SCOPE=paNormalizeScope(PROJECT_SCOPE,projectScopeItems.map(item=>item.key));
   TEAM_SCOPE=paNormalizeScope(TEAM_SCOPE,teamScopeItems.map(item=>item.key));
   paWriteScope(PROJECT_SCOPE_KEY,PROJECT_SCOPE);paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);
   paRenderScopeFilter("project",projectScopeItems);paRenderScopeFilter("team",teamScopeItems);
-  const visibleTeams=teams.filter(team=>(TEAM_FILTER!=="unassigned"||!paTeamHasProject(team))&&paScopeAllows(TEAM_SCOPE,team.key));
+  const visibleTeams=paVisibleTeams(teams,TEAM_SCOPE,TEAM_FILTER,PROJECT_ROWS);
   const visibleProjects=PROJECT_ROWS.filter(project=>(PROJECT_FILTER!=="unassigned"||!(project.machines||[]).length)&&paScopeAllows(PROJECT_SCOPE,project.id));
   const openProjects=new Set([...projectsBox.querySelectorAll("[data-project-node][open]")].map(node=>node.dataset.projectNode));
   const openTeams=new Set([...teamsBox.querySelectorAll("[data-team-key][open]")].map(node=>node.dataset.teamKey));
@@ -517,7 +550,7 @@ function paRender(){
   pa("projectAgentTeamsAll").setAttribute("aria-pressed",TEAM_FILTER==="all");
   pa("projectAgentTeamsUnassigned").classList.toggle("active",TEAM_FILTER==="unassigned");
   pa("projectAgentTeamsUnassigned").setAttribute("aria-pressed",TEAM_FILTER==="unassigned");
-  const emptyTeams=TEAM_FILTER==="unassigned"?"No hay equipos sin proyecto asociado.":TEAM_SCOPE!==null?"No hay equipos seleccionados en Avanzado.":"No hay equipos con agentes latiendo.";
+  const emptyTeams=TEAM_FILTER==="unassigned"?"No hay equipos sin proyecto asociado.":TEAM_SCOPE!==null?"No hay equipos seleccionados en Avanzado.":"No hay equipos en el censo físico.";
   paPaint(teamsBox,visibleTeams.length?visibleTeams.map(team=>{
     const projectCount=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasTeam(project,team.key)).length;
     const agents=team.agents.map(agent=>{
@@ -528,7 +561,7 @@ function paRender(){
       const surfaceChips=surfaces.length?'<div class="pa-surfaces">'+surfaces.map(label=>'<span class="pa-surface">'+esc(label)+'</span>').join("")+'</div>':'';
       const helpers=agent.helpers.length?'<div class="pa-family-helpers">'+agent.helpers.map(helper=>{const helperSurfaces=helper.slots.map(paRuntimeSurface).join(" + ")||(helper.assigned?"asignado · sin actividad":"sin superficie activa"),role=helper.role==="sub"?"ejecución":"infra · QA",projects=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasAgent(project,helper.id)).length;return '<div class="pa-helper"><b>'+esc(helper.id)+'</b><em>'+esc(role)+'</em><span>'+esc(helperSurfaces)+' · '+projects+' proyecto'+(projects===1?'':'s')+'</span></div>';}).join("")+'</div>':'';
       return '<article class="pa-agent-node'+(agent.online?'':' offline')+(selected?' selected':'')+'" data-agent-node="'+esc(agent.instanceId)+'" data-agent-family="'+esc(agent.id)+'" data-agent-ref="'+esc(agent.id)+'" data-agent-online="'+(agent.online?'true':'false')+'"><button type="button" class="pa-port" data-link-agent="'+esc(agent.id)+'" aria-label="Conectar '+esc(agent.id)+' con un proyecto" title="Arrastra '+esc(agent.id)+' hasta un proyecto">←</button><div class="pa-node-top"><div class="pa-avatar">'+esc(paInitials(agent))+'</div><div class="pa-name"><b>'+esc(agent.id)+'</b><span title="'+esc(surfaceTitle)+'">'+esc(surface)+' · '+esc(agent.teamMachine||agent.machine)+'</span></div>'+paStopControls(agent)+'</div>'+surfaceChips+'<div class="pa-meta"><span class="'+(agent.online?'pa-live':'pa-offline')+'">'+(agent.online?'● '+(agent.verified?'familia verificada':'familia con latido'):'○ asignado · sin actividad')+'</span>'+(agent.updated?'<span data-pa-ago="'+agent.updated+'"></span>':'')+'<span>'+assignedProjects.length+' proyecto'+(assignedProjects.length===1?'':'s')+'</span></div>'+helpers+'<div class="pa-actions">'+actions+'</div></article>';
-    }).join("");
+    }).join("")||'<div class="pa-agent-empty">Sin agentes asociados ahora mismo</div>';
     const nodeKey=paNodeKey("team",team.key);
     return '<details class="pa-team-node" data-team-key="'+esc(team.key)+'" data-pa-node-key="'+esc(nodeKey)+'" style="'+paNodeVars(nodeKey)+'"'+(openTeams.has(team.key)?' open':'')+'><summary class="pa-team-summary"><div class="pa-avatar">▣</div><div class="pa-name"><b title="'+esc(team.machine)+'">'+esc(team.machine)+'</b><span>'+team.agents.length+' agente'+(team.agents.length===1?'':'s')+' principal'+(team.agents.length===1?'':'es')+' · '+projectCount+' proyecto'+(projectCount===1?'':'s')+'</span></div><span class="pa-expand">agentes</span><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(team.machine)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-team="'+esc(team.key)+'" aria-label="Ocultar '+esc(team.machine)+'" title="Ocultar equipo">×</button></summary><div class="pa-team-agents">'+agents+'</div></details>';
   }).join(""):'<div class="pa-loading">'+emptyTeams+'</div>');
@@ -556,7 +589,7 @@ function paRender(){
   document.querySelectorAll("[data-pa-agent-remove]").forEach(button=>button.onclick=()=>paAssignAgent(button.dataset.project,button.dataset.paAgentRemove,true));
   document.querySelectorAll("[data-pa-family-remove]").forEach(button=>button.onclick=()=>paRemoveFamily(button.dataset.project,button.dataset.paFamilyRemove));
   projectsBox.querySelectorAll("[data-pa-target]").forEach(button=>button.onclick=event=>{event.preventDefault();event.stopPropagation();if(LINK_CLICK_AGENT)paConnectAgent(button.dataset.paTarget,LINK_CLICK_AGENT);});
-  projectsBox.querySelectorAll("[data-pa-hide-project]").forEach(button=>button.onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_SCOPE=paSetScopeItem(PROJECT_SCOPE,button.dataset.paHideProject,false,PROJECT_ROWS.map(project=>project.id));PROJECT_FILTER="all";paWriteScope(PROJECT_SCOPE_KEY,PROJECT_SCOPE);paRender();paMessage("Proyecto oculto · recupéralo desde Opciones");});
+  projectsBox.querySelectorAll("[data-pa-hide-project]").forEach(button=>button.onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_SCOPE=paSetScopeItem(PROJECT_SCOPE,button.dataset.paHideProject,false,PROJECT_CATALOG.map(project=>project.id));PROJECT_FILTER="all";PROJECT_ROWS=paProjectsForScope();paWriteScope(PROJECT_SCOPE_KEY,PROJECT_SCOPE);paRender();paMessage("Proyecto oculto · recupéralo desde Opciones");});
   projectsBox.querySelectorAll("[data-pa-remove-team]").forEach(button=>button.onclick=()=>paAssignTeam(button.dataset.project,button.dataset.paRemoveTeam,true));
   document.querySelectorAll("[data-pa-node-move]").forEach(handle=>{handle.onpointerdown=paStartNodeMove;handle.onclick=event=>{event.preventDefault();event.stopPropagation();};handle.ondblclick=paResetNode;});
   document.querySelectorAll(".pa-project-node,.pa-team-node").forEach(node=>node.ontoggle=()=>requestAnimationFrame(paDrawLinks));
@@ -787,8 +820,13 @@ async function paLoad(reason="manual"){
   }
   if(reason!=="auto")paMessage("Sincronizando proyectos y presencia física…");
   try{
-    const [projects]=await Promise.all([paJson("/projects"),pulse(false)]);
-    PROJECT_ROWS=Array.isArray(projects.projects)?projects.projects:[];
+    const [projects,census]=await Promise.all([paJson("/projects"),paFleetCensus(),pulse(false)]);
+    const sourceProjects=Array.isArray(projects.projects)?projects.projects:[],launchProjects=paLaunchProjects(sourceProjects),launchIds=new Set(launchProjects.map(project=>String(project.id)));
+    PROJECT_CATALOG=launchProjects.concat(sourceProjects.filter(project=>project&&project.id&&!launchIds.has(String(project.id))));
+    PROJECT_ROWS=paLaunchProjects(Array.isArray(projects.projects)?projects.projects:[]);
+    if(SCOPE_DEFAULTS_PENDING&&PROJECT_SCOPE===null){PROJECT_SCOPE=new Set(PROJECT_ROWS.map(project=>String(project.id)));SCOPE_DEFAULTS_PENDING=false;}
+    else PROJECT_ROWS=paProjectsForScope();
+    if(census)PROJECT_TEAM_CENSUS=paPhysicalTeamCensus(census.machines,[]);
     PROJECT_ROSTER=paProjectRoster(PROJECT_LIVE_ROSTER,PROJECT_ROWS);
     PROJECT_LOADED_ONCE=true;
     paRender();
@@ -804,7 +842,7 @@ async function paLoad(reason="manual"){
   return false;
 }
 pa("projectAgentRefresh").onclick=()=>paLoad("manual");
-pa("projectAgentProjectsAll").onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_FILTER="all";PROJECT_SCOPE=null;paWriteScope(PROJECT_SCOPE_KEY,PROJECT_SCOPE);paRender();paMessage("✓ todos los proyectos visibles","ok");};
+pa("projectAgentProjectsAll").onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_FILTER="all";PROJECT_SCOPE=null;PROJECT_ROWS=paProjectsForScope();paWriteScope(PROJECT_SCOPE_KEY,PROJECT_SCOPE);paRender();paMessage("✓ todos los proyectos visibles","ok");};
 pa("projectAgentProjectsUnassigned").onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_FILTER="unassigned";paRender();paMessage("Proyectos sin equipo asociado");};
 pa("projectAgentTeamsAll").onclick=event=>{event.preventDefault();event.stopPropagation();TEAM_FILTER="all";TEAM_SCOPE=null;paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);paRender();paMessage("✓ todos los equipos visibles","ok");};
 pa("projectAgentTeamsUnassigned").onclick=event=>{event.preventDefault();event.stopPropagation();TEAM_FILTER="unassigned";paRender();paMessage("Equipos sin proyecto asociado");};
