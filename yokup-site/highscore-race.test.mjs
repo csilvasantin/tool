@@ -46,15 +46,14 @@ test("meta: ganador levanta brazo y perdedores se rascan la cabeza", () => {
   assert.match(html, /role=\\?"listitem/);
 });
 
-test("las calles 4+ tienen temporización acotada y la música concurrente se conserva", () => {
+test("las calles 4+ tienen temporización acotada y la música queda limitada al presite", () => {
   assert.equal(race.finishAdvanceMs(1, 2000), 4000);
   assert.equal(race.finishAdvanceMs(2, 2000), 2000);
   assert.equal(race.finishAdvanceMs(3, 2000), 0);
   assert.equal(race.finishAdvanceMs(12, 2000), 0);
-  // El presite conserva música de fondo en bucle. El corte cambió el 3-ago-2026
-  // (90 s desde el 17:22 en vez de los 9,1 MB del anterior), pero el contrato
-  // es el mismo: hay banda sonora y se repite.
+  // El corte descargado el 3-ago-2026 suena en bucle mientras vive el presite.
   assert.match(html, /trackfield-1722\.mp3/);
   assert.match(html, /bgm\.loop = true/);
+  assert.match(html, /function entra\(\)[\s\S]*?para\(true\); fanfarriaPodio\(\)/);
   assert.match(html, /if \(REDUCE_MOTION\)[\s\S]*?pintaMomentoCarrera\(SALIDA_MS \+ REFRESCO_MS\);[\s\S]*?return;/);
 });

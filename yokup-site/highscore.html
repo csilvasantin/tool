@@ -25,10 +25,10 @@ a{color:var(--brand)}
 .wrap{position:relative;z-index:1}
 
 /* ─────────── PANTALLA DE CARGA ─────────── */
-/* PRESITE: la carátula 16:9 ocupa todo el fondo. La interfaz queda reducida a
-   una línea de carga y la entrada; no hay caja ni figuras 4-bit sobre el arte. */
+/* PRESITE: la carátula 16:9 se ve completa incluso en resoluciones o relaciones
+   de aspecto menores. La interfaz queda reducida a la carga y la entrada. */
 #carga{position:fixed;inset:0;z-index:9999;
-  background:#000 url("/img/highscore-presite-decathlon.png") center center/cover no-repeat;
+  background:#000 url("/img/highscore-presite-decathlon.png") center center/contain no-repeat;
   cursor:pointer;overflow:hidden;isolation:isolate}
 #carga::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
   background:linear-gradient(180deg,rgba(0,0,0,.04) 0 58%,rgba(0,0,0,.48) 100%)}
@@ -41,6 +41,7 @@ a{color:var(--brand)}
 .pulsa{margin-top:15px;font-size:12px;font-weight:800;letter-spacing:.2em;color:var(--good);
   text-shadow:0 2px 8px #000,0 0 14px rgba(136,255,170,.5);animation:parpa 1s ease-in-out infinite}
 @keyframes parpa{50%{opacity:.15}}
+@media (max-aspect-ratio:16/9){.presite-ui{bottom:calc((100vh - 56.25vw)/2 + clamp(18px,4vh,44px))}}
 
 /* ─────────── PÁGINA ─────────── */
 .wrap{max-width:1080px;margin:0 auto;padding:50px 18px 70px}
@@ -447,12 +448,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   var TG = "https://admira-telegram.csilvasantin.workers.dev";
   var YK = "https://api.yokup.com";
 
-  /* ── Banda sonora del presite: Track & Field (NES), 90 s tomados a partir del
-         17:22 del playthrough de NintendoComplete (Carlos, 3-ago-2026).
-         Sustituye al corte anterior de 9,1 MB: con 90 s en bucle bastan 1,4 MB,
-         y el presite deja de arrastrar nueve megas antes de la primera nota.
-         Normalizado a -16 LUFS y con fundido de entrada y salida para que el
-         bucle no dé el salto seco. La fanfarria del podio sigue en WebAudio. ── */
+  /* ── Banda sonora exclusiva del presite: corte descargado el 3-ago-2026,
+         normalizado a -16 LUFS y con fundidos. Se intenta reproducir mientras
+         está la carátula, se desbloquea en el primer gesto si el navegador lo
+         exige y se detiene antes de revelar Highscore. ── */
   var ac = null, sonando = false, bgm = null;
   var BGM_SRC = "/media/trackfield-1722.mp3?v=trackfield-1722";
   function nota(freq, t0, dur, vol, tipo) {
@@ -484,14 +483,19 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var audio = aseguraBgm();
     var play = audio.play();
     if (play && typeof play.catch === "function") {
-      play.catch(function () { /* autoplay bloqueado hasta otro gesto */ });
+      play.catch(function () { sonando = false; pintaSonido(false); });
     }
   }
-  function para() {
+  function para(rebobina) {
     sonando = false; pintaSonido(false);
-    if (bgm) { bgm.pause(); }
+    if (bgm) { bgm.pause(); if (rebobina) bgm.currentTime = 0; }
   }
   document.getElementById("btnSonido").addEventListener("click", function (e) { e.stopPropagation(); sonando ? para() : arranca(); });
+  var cargaPresite = document.getElementById("carga");
+  function desbloqueaAudioPresite() { if (!entradaHecha && (!bgm || bgm.paused)) arranca(); }
+  cargaPresite.addEventListener("pointerdown", desbloqueaAudioPresite, { once:true, capture:true });
+  document.addEventListener("keydown", desbloqueaAudioPresite, { once:true, capture:true });
+  arranca();
   function fanfarriaPodio() {   // remate corto al revelar el podio / cambio de líder
     if (!ac) { ac = new (window.AudioContext || window.webkitAudioContext)(); }
     if (ac.state === "suspended") { try { ac.resume(); } catch (_) {} }
@@ -1721,7 +1725,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     clearTimeout(entradaTimer); clearInterval(cuentaEntradaTimer);
     document.getElementById("carga").removeEventListener("click", entra);
     document.removeEventListener("keydown", entra);
-    arranca(); fanfarriaPodio();
+    cargaPresite.removeEventListener("pointerdown", desbloqueaAudioPresite, true);
+    document.removeEventListener("keydown", desbloqueaAudioPresite, true);
+    para(true); fanfarriaPodio();
     var c = document.getElementById("carga");
     c.classList.add("fuera");
     document.getElementById("pagina").style.visibility = "visible";

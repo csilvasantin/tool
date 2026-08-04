@@ -8,9 +8,14 @@ const image = fs.readFileSync(new URL("./img/highscore-presite-decathlon.png", i
 
 test("la carátula Decathlon vive solo en el presite del Highscore", () => {
   assert.match(html, /<link rel="preload" as="image" href="\/img\/highscore-presite-decathlon\.png">/);
-  assert.match(html, /#carga\{[^}]*highscore-presite-decathlon\.png[^}]*cover no-repeat/s);
+  assert.match(html, /#carga\{[^}]*highscore-presite-decathlon\.png[^}]*contain no-repeat/s);
   assert.match(html, /#carga::before/);
   assert.doesNotMatch(html, /\.podio\{[^}]*highscore-presite-decathlon/s);
+});
+
+test("la carátula completa reescala el CTA sobre su borde en pantallas estrechas", () => {
+  assert.match(html, /@media \(max-aspect-ratio:16\/9\)\{\.presite-ui\{bottom:calc\(\(100vh - 56\.25vw\)\/2/);
+  assert.doesNotMatch(html, /highscore-presite-decathlon\.png[^}]*cover/);
 });
 
 test("el presite deja respirar la carátula sin caja ni gráficos 4-bit", () => {
@@ -28,6 +33,16 @@ test("el presite entra solo tras 15 segundos si nadie pulsa", () => {
   assert.match(html, /if \(entradaHecha\) return/);
   assert.match(html, /clearTimeout\(entradaTimer\); clearInterval\(cuentaEntradaTimer\)/);
   assert.match(html, /programaEntradaAutomatica\(\)/);
+});
+
+test("el corte descargado suena sólo durante el presite y se rebobina antes del Highscore", () => {
+  assert.match(html, /BGM_SRC = "\/media\/trackfield-1722\.mp3/);
+  assert.match(html, /cargaPresite\.addEventListener\("pointerdown", desbloqueaAudioPresite, \{ once:true, capture:true \}\)/);
+  assert.match(html, /document\.addEventListener\("keydown", desbloqueaAudioPresite, \{ once:true, capture:true \}\)/);
+  assert.match(html, /desbloqueaAudioPresite[\s\S]*?arranca\(\);/);
+  assert.match(html, /function entra\(\)[\s\S]*?para\(true\); fanfarriaPodio\(\)/);
+  assert.match(html, /if \(rebobina\) bgm\.currentTime = 0/);
+  assert.doesNotMatch(html, /function entra\(\)[\s\S]*?arranca\(\); fanfarriaPodio\(\)/);
 });
 
 test("el presite cuenta sólo agentes con misión en curso y latido reciente", () => {
