@@ -315,10 +315,13 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .agent-scope-row.all{border-color:rgba(255,216,102,.25);color:var(--accent);font-weight:900}
 .agent-scope-row input{margin:0;accent-color:var(--brand)}
 .agent-scope-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.agent-scope-reset{appearance:none;width:100%;padding:8px 10px;border:1px solid var(--line2);border-radius:7px;
+.agent-scope-actions{display:grid;gap:6px}
+.agent-scope-reset,.agent-scope-clone{appearance:none;width:100%;padding:8px 10px;border:1px solid var(--line2);border-radius:7px;
   background:rgba(120,243,255,.05);color:var(--brand);font:900 9px/1.2 var(--mono);letter-spacing:.09em;
   text-transform:uppercase;cursor:pointer;text-align:center}
-.agent-scope-reset:hover,.agent-scope-reset:focus-visible{border-color:var(--brand);background:rgba(120,243,255,.12);outline:none}
+.agent-scope-clone{border-color:rgba(255,216,102,.35);color:var(--accent);background:rgba(255,216,102,.06)}
+.agent-scope-reset:hover,.agent-scope-reset:focus-visible,.agent-scope-clone:hover,.agent-scope-clone:focus-visible{border-color:var(--brand);background:rgba(120,243,255,.12);outline:none}
+.agent-scope-status{min-height:14px;margin:0;color:var(--good);font-size:9px;line-height:1.45}
 .agent-scope-empty{padding:8px;color:var(--dim);font-size:9px;line-height:1.45}
 @media (max-width:620px){.podio{margin-top:20px}.plaza{width:27%;padding:4px 5px;gap:4px;background:rgba(2,8,13,.78)}
   .plaza.p2{left:7%;top:62%}.plaza.p1{left:36.5%;top:59%}.plaza.p3{right:6%;top:66%}
@@ -394,7 +397,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   <div class="agent-scope-head"><span id="agentScopeTitle">Seguimiento de agentes</span><span class="agent-scope-count" id="agentScopeCount">Todos</span></div>
   <p class="agent-scope-help">Elige uno, varios o todos. La selección permanece en este navegador hasta que la cambies.</p>
   <div class="agent-scope-list" id="agentScopeList" aria-live="polite"><div class="agent-scope-empty">Cargando agentes…</div></div>
-  <button class="agent-scope-reset" id="agentScopeReset" type="button">Mostrar todos · restablecer</button>
+  <div class="agent-scope-actions">
+    <button class="agent-scope-clone" id="agentScopeClone" type="button" aria-describedby="agentScopeCloneStatus">Clonar agentes</button>
+    <button class="agent-scope-reset" id="agentScopeReset" type="button">Mostrar todos · restablecer</button>
+  </div>
+  <p class="agent-scope-status" id="agentScopeCloneStatus" role="status" aria-live="polite" aria-atomic="true"></p>
 </section>
 
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
@@ -1060,6 +1067,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
      doble clic calcula el ancho necesario para el contenido de esa columna. */
   var COLUMNAS_KEY = "yokup.highscore.columnas.v1";
   var AGENT_SCOPE_KEY = "yokup.highscore.agents.v1";
+  var DASHBOARD_TEAM_SCOPE_KEY = "yokup.dashboard.teams.v1";
   var AGENT_SCOPE = hsReadAgentScope();
   var ordenTabla = { campo:"", direccion:"" };
   var filtroSoloVivos = false;
@@ -1101,6 +1109,47 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return keys.length && next.size === keys.length && keys.every(function (item) { return next.has(item); }) ? null : next;
   }
 
+  function hsDashboardTeamSuffix(fila, identity) {
+    var id = identity || window.ykAgentIdentity, parsed = id && id.parse ? id.parse(fila && fila.agente) : null;
+    var candidates = [fila && fila.suffix, parsed && parsed.suffix].concat(
+      (fila && fila.maquinasVivas) || [], (fila && fila.maquinas) || []
+    );
+    for (var i = 0; i < candidates.length; i++) {
+      var candidate = normaliza(candidates[i]), canonical = id && id.suffix ? id.suffix(candidate) : "";
+      if (canonical) return canonical;
+      if (!id && candidate && candidate !== "SINMAQ") return candidate;
+    }
+    return "";
+  }
+
+  function hsCloneAgentScopeToDashboard(scope, filas, storage, identity) {
+    var target = storage || localStorage, rows = filas || [];
+    if (scope === null) {
+      target.removeItem(DASHBOARD_TEAM_SCOPE_KEY);
+      return { all:true, agents:rows.length, teams:[] };
+    }
+    var selectedRows = rows.filter(function (fila) { return scope.has(hsAgentKey(fila && fila.agente)); });
+    var teams = [];
+    selectedRows.forEach(function (fila) {
+      var team = hsDashboardTeamSuffix(fila, identity);
+      if (team && teams.indexOf(team) < 0) teams.push(team);
+    });
+    target.setItem(DASHBOARD_TEAM_SCOPE_KEY, JSON.stringify(teams));
+    return { all:false, agents:selectedRows.length, teams:teams };
+  }
+
+  function hsCloneAgentScopeMessage(result) {
+    if (result.all) return "✓ Dashboard actualizado · todos los equipos físicos";
+    if (!result.agents) return "✓ Dashboard actualizado · selección vacía";
+    return "✓ " + result.agents + (result.agents === 1 ? " agente clonado" : " agentes clonados") +
+      " · " + result.teams.length + (result.teams.length === 1 ? " equipo físico" : " equipos físicos");
+  }
+
+  function hsClearCloneStatus() {
+    var status = document.getElementById("agentScopeCloneStatus");
+    if (status) status.textContent = "";
+  }
+
   function aplicaAgentScope(lista) {
     var filtrada = (lista || []).filter(function (fila) { return hsAgentScopeAllows(AGENT_SCOPE, fila && fila.agente); });
     return filtrada.map(function (fila, indice) {
@@ -1122,10 +1171,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var allInput = list.querySelector("[data-agent-scope-all]");
     allInput.checked = selected === items.length; allInput.indeterminate = selected > 0 && selected < items.length;
     allInput.addEventListener("change", function () {
+      hsClearCloneStatus();
       AGENT_SCOPE = allInput.checked ? null : new Set(); hsWriteAgentScope(AGENT_SCOPE); hsRenderAgentScope(listaCompletaCache || []); pintaVistaFiltrada();
     });
     list.querySelectorAll("[data-agent-scope-item]").forEach(function (input) {
       input.addEventListener("change", function () {
+        hsClearCloneStatus();
         AGENT_SCOPE = hsSetAgentScopeItem(AGENT_SCOPE, input.value, input.checked, keys);
         hsWriteAgentScope(AGENT_SCOPE); hsRenderAgentScope(listaCompletaCache || []); pintaVistaFiltrada();
       });
@@ -1138,10 +1189,19 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   function iniciaAgentScope() {
-    var reset = document.getElementById("agentScopeReset");
-    if (!reset) return;
-    reset.addEventListener("click", function () {
+    var reset = document.getElementById("agentScopeReset"), clone = document.getElementById("agentScopeClone");
+    if (reset) reset.addEventListener("click", function () {
+      hsClearCloneStatus();
       AGENT_SCOPE = null; hsWriteAgentScope(AGENT_SCOPE); hsRenderAgentScope(listaCompletaCache || []); pintaVistaFiltrada();
+    });
+    if (clone) clone.addEventListener("click", function () {
+      var status = document.getElementById("agentScopeCloneStatus");
+      try {
+        var result = hsCloneAgentScopeToDashboard(AGENT_SCOPE, listaCompletaCache || [], localStorage, window.ykAgentIdentity);
+        if (status) status.textContent = hsCloneAgentScopeMessage(result);
+      } catch (_) {
+        if (status) status.textContent = "No se pudo guardar la selección del Dashboard";
+      }
     });
   }
 
