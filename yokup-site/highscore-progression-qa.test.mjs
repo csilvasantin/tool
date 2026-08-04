@@ -101,7 +101,7 @@ test("la aparición se anuncia sin depender solo del cuadrado, del color o de la
 test("móvil conserva las cinco etapas mediante scroll horizontal y no altera las nueve columnas", () => {
   assert.match(html, /\.table-scroll\{[^}]*overflow-x:auto[^}]*overflow-y:hidden/);
   assert.match(html, /@media \(max-width:620px\)[\s\S]*\.progression\{grid-template-columns:88px repeat\(5,76px\);min-width:500px/);
-  assert.match(html, /<tr class="score-progress' \+ alterna \+ '"><td colspan="9">' \+ progresionHtml\(a\)/);
+  assert.match(html, /<tr class="score-progress' \+ alterna \+ '" id="' \+ esc\(progressId\) \+ '" hidden><td colspan="9">' \+ progresionHtml\(a\)/);
   assert.match(html, /<tr class="score-main' \+ alterna \+ '"><td class="n">' \+ posicionHtml/);
   assert.equal((html.match(/class="sort-head"/g) || []).length, 8);
 });

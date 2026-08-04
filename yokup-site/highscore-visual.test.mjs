@@ -275,16 +275,16 @@ test("todos los agentes con misión en curso tienen calles ordenadas, identidad 
   assert.match(html, /carrera\.classList\.toggle\("empty", corredores\.length === 0\)/);
 });
 
-test("el podio conserva el latido vivo y separa la tendencia de puntos", () => {
-  assert.match(html, /var puntosPodioAnteriores = Object\.create\(null\)/);
+test("el podio conserva el latido vivo y usa la tendencia horaria compartida", () => {
+  assert.doesNotMatch(html, /puntosPodioAnteriores/);
   assert.match(html, /a\.vivo \? ' podium-live' : ''/);
   assert.match(html, /\.plaza\.podium-live::after\{[^}]*border:2px solid rgba\(136,255,170,\.8\)[^}]*animation:podium-heartbeat/);
   assert.match(html, /@keyframes podium-heartbeat/);
-  assert.match(html, /var sube = anterior !== null && total > anterior/);
+  assert.match(html, /var trend = a\.tendencia \|\| tendenciaHoraria\(a\), sube = trend\.state === "up"/);
   assert.match(html, /class="podium-trend up"[^>]*>↑<\/span>/);
   assert.match(html, /class="podium-trend same"[^>]*>=<\/span>/);
   assert.match(html, /<div class="pts"><span class="podium-score">' \+ total \+ '<\/span>' \+ tendencia/);
-  assert.match(html, /puntosPodioAnteriores\[claveAgenteCarrera\(a\.agente\)\] = Number\(a\.total\) \|\| 0/);
+  assert.match(html, /datos\.actividadMeta && datos\.actividadMeta\.hourly/);
 });
 
 test("HIGHSCORE pausa la lectura, continúa y desvanece el nombre mientras cruza la meta", () => {

@@ -24,9 +24,19 @@ function harness(){
   db.exec("CREATE TABLE mission_batch_items(batch_id TEXT,position INTEGER,mission_id TEXT)");
   db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,created_at INTEGER,updated_at INTEGER)");
   db.exec("CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT,ticket_id TEXT,ts INTEGER,kind TEXT,author TEXT,text TEXT)");
+  db.exec("CREATE TABLE highscore_snapshots(agent_key TEXT,agent TEXT,machine TEXT,sampled_at INTEGER,points INTEGER,PRIMARY KEY(agent_key,sampled_at))");
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{first:async()=>stmt.get(...args)||null,run:async()=>({meta:stmt.run(...args)}),all:async()=>({results:stmt.all(...args)})}},first:async()=>stmt.get()||null,all:async()=>({results:stmt.all()})}}};
-  const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,madridDayKey,madridDayStart,__name:(fn)=>fn});
-  vm.runInContext([grabVar("HIGHSCORE_WEIGHTS"),grabVar("HIGHSCORE_TASK_WEIGHTS"),grabVar("HIGHSCORE_RECENT_MS"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_PERSONAS"),grabVar("AGENT_SOURCE_SQL"),grabVar("AGENT_SOURCE_SQL_T"),grab("highscoreAgent"),grab("highscoreTraceability"),grab("highscoreDaily")].join("\n"),context);
+  const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,madridDayKey,madridDayStart,
+    reportAgentIdentity:(agent)=>String(agent||""),
+    scopedMissionOwner:(owner,_role,assignee)=>String(owner||assignee||""),
+    __name:(fn)=>fn});
+  vm.runInContext([
+    grabVar("HIGHSCORE_WEIGHTS"),grabVar("HIGHSCORE_TASK_WEIGHTS"),grabVar("HIGHSCORE_RECENT_MS"),
+    grabVar("HIGHSCORE_TREND_MS"),grabVar("HIGHSCORE_TREND_TOLERANCE_MS"),
+    grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_PERSONAS"),
+    grabVar("AGENT_SOURCE_SQL"),grabVar("AGENT_SOURCE_SQL_T"),grab("highscoreAgent"),
+    grab("highscoreTraceability"),grab("highscoreCurrentTotals"),grab("highscoreHourlyTrend"),grab("highscoreDaily")
+  ].join("\n"),context);
   return{db,env:{DB},F:context};
 }
 
@@ -160,6 +170,57 @@ test("actividad agregada sin relación explícita se declara unlinked y no fabri
     ["mission","FLT-10","no_explicit_objective_or_window_link"],
     ["task","FLT-X:a","mission_outside_daily_trace"]
   ]);
+});
+
+test("la tendencia de 60 minutos usa una referencia persistida y no memoria del navegador", async () => {
+  const {db,env,F}=harness(),ahora=Date.UTC(2026,7,4,16,30,25);
+  db.prepare("INSERT INTO highscore_snapshots VALUES(?,?,?,?,?)").run("oraculomacmini","OraculoMacMini","MacMini",ahora-65*60e3,40);
+  db.prepare("INSERT INTO highscore_snapshots VALUES(?,?,?,?,?)").run("neomacmini","NeoMacMini","MacMini",ahora-62*60e3,20);
+  db.prepare("INSERT INTO highscore_snapshots VALUES(?,?,?,?,?)").run("morfeomba14","MorfeoMBA14","MacBookAir14",ahora-30*60e3,5);
+
+  const first=JSON.parse(JSON.stringify(await F.highscoreHourlyTrend(env,[
+    {agent_key:"oraculomacmini",agent:"OraculoMacMini",machine:"MacMini",points:55},
+    {agent_key:"neomacmini",agent:"NeoMacMini",machine:"MacMini",points:20},
+    {agent_key:"morfeomba14",agent:"MorfeoMBA14",machine:"MacBookAir14",points:15},
+  ],ahora)));
+  assert.equal(first.window_ms,60*60e3);
+  assert.deepEqual(first.scores.map(row=>[row.agent,row.current,row.reference,row.trend,row.reliable]),[
+    ["OraculoMacMini",55,40,"up",true],
+    ["NeoMacMini",20,20,"same",true],
+    ["MorfeoMBA14",15,15,"same",false],
+  ]);
+
+  const sampledAt=Math.floor(ahora/6e4)*6e4;
+  assert.deepEqual(JSON.parse(JSON.stringify(db.prepare("SELECT agent_key,points FROM highscore_snapshots WHERE sampled_at=? ORDER BY agent_key").all(sampledAt))),[
+    {agent_key:"morfeomba14",points:15},{agent_key:"neomacmini",points:20},{agent_key:"oraculomacmini",points:55},
+  ]);
+
+  const later=JSON.parse(JSON.stringify(await F.highscoreHourlyTrend(env,[
+    {agent_key:"oraculomacmini",agent:"OraculoMacMini",machine:"MacMini",points:75},
+  ],ahora+65*60e3)));
+  assert.deepEqual(later.scores[0],{
+    agent:"OraculoMacMini",machine:"MacMini",current:75,reference:55,
+    reference_at:sampledAt,trend:"up",reliable:true,
+  },"una ejecución posterior recupera de D1 la muestra guardada por la anterior");
+});
+
+test("el payload horario nace de totales autoritativos e incluye las familias A/B/C", async () => {
+  const {db,env,F}=harness(),inicio=madridDayStart(HOY),fin=inicio+864e5;
+  db.exec(`INSERT INTO tickets(id,loc,source,status,assignee,created_at,updated_at) VALUES
+    ('FLT-20','MacMini','fleet','in_progress','OraculoMacMini',${HOY},${HOY})`);
+  db.exec(`INSERT INTO mission_tasks(mission_id,code,status,owner,created_at,updated_at) VALUES
+    ('FLT-20','a','done','SubOraculoMacMini',${HOY},${HOY}),
+    ('FLT-20','a1','in_progress','InfraOraculoMacMini',${HOY},${HOY+1}),
+    ('FLT-20','b','done','SubOraculoMacMini',${HOY},${HOY}),
+    ('FLT-20','c','pending','SubOraculoMacMini',${HOY},${HOY})`);
+  const totals=JSON.parse(JSON.stringify(await F.highscoreCurrentTotals(env,[{
+    agent:"OraculoMacMini",machine:"MacMini",objective_points:20,window_points:8,mission_points:40,
+  }],inicio,fin)));
+  assert.deepEqual(totals.map(row=>[row.agent,row.points]),[
+    ["InfraOraculoMacMini",25],["OraculoMacMini",68],["SubOraculoMacMini",15],
+  ]);
+  assert.match(source,/const hourly = await highscoreHourlyTrend\(env, current, ahora\)/);
+  assert.match(source,/return \{ ok: true,[^}]*scores, traceability, hourly \}/);
 });
 
 test("la ruta /highscore/daily existe y responde con el marcador", () => {

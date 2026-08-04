@@ -36,19 +36,22 @@ test("objetivos, ventanas, misiones y tareas respetan el orden del marcador", ()
 });
 
 test("sin actividad muestra 0 con latido histórico y guion sin ningún latido", () => {
-  const start = html.indexOf("function puntosHtml(a) {");
-  const end = html.indexOf("\n\n  /* Columnas reajustables", start);
+  const start = html.indexOf("function puntosHtml(a, progressId) {");
+  const end = html.indexOf("\n\n  var ETAPAS_PROGRESO", start);
   assert.ok(start >= 0 && end > start, "falta puntosHtml");
-  const context = vm.createContext({});
+  const context = vm.createContext({
+    tendenciaHoraria:()=>({state:"same",reliable:true}),
+    esc:value=>String(value),
+  });
   vm.runInContext(`${html.slice(start, end)}\n` +
-    `globalThis.conTrabajo = puntosHtml({total:40,haLatido:false});\n` +
-    `globalThis.conLatido = puntosHtml({total:0,haLatido:true});\n` +
-    `globalThis.sinLatido = puntosHtml({total:0,haLatido:false});`, context);
-  assert.equal(context.conTrabajo, 40);
-  assert.equal(context.conLatido, "0");
-  assert.equal(context.sinLatido, "—");
+    `globalThis.conTrabajo = puntosHtml({total:40,haLatido:false},"p1");\n` +
+    `globalThis.conLatido = puntosHtml({total:0,haLatido:true},"p2");\n` +
+    `globalThis.sinLatido = puntosHtml({total:0,haLatido:false},"p3");`, context);
+  assert.match(context.conTrabajo,/<span class="score-value">40<\/span>/);
+  assert.match(context.conLatido,/<span class="score-value">0<\/span>/);
+  assert.match(context.sinLatido,/<span class="score-value">—<\/span>/);
   assert.match(html, /f\.haLatido = true/);
-  assert.match(html, /<td class="tot">' \+ puntosHtml\(a\)/);
+  assert.match(html, /<td class="tot">' \+ puntosHtml\(a, progressId\)/);
   assert.match(html, /El latido no da puntos/);
 });
 
@@ -171,6 +174,7 @@ test("la decisión de estado ejecuta la precedencia tarea > ventana > misión > 
     PRIORIDAD_ACTIVIDAD: {objetivos:1, misiones:2, ventanas:3, tareas:4},
     ACTIVIDAD_FRESCA_MS: 1800000, OBJETIVO_FRESCO_MS: 900000,
     PUNTOS_TAREA:15, PUNTOS_TAREA_ACTIVA:10, FRESCO_SEG:900,
+    tendenciaHoraria:(row)=>({state:"same",current:Number(row.total)||0,reference:Number(row.total)||0,reliable:false}),
     NO_AGENTES:["", "-", "—"], Date, Number, Object
   });
   vm.runInContext(`${html.slice(start, end)}\nglobalThis.primero = calcula();`, context);

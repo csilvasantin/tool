@@ -18,7 +18,8 @@ function functionSource(name) {
 }
 
 test("cada agente tiene una línea inferior de progresión accesible", () => {
-  assert.match(html, /<tr class="score-progress' \+ alterna \+ '"><td colspan="9">' \+ progresionHtml\(a\)/);
+  assert.match(html, /<tr class="score-progress' \+ alterna \+ '" id="' \+ esc\(progressId\) \+ '" hidden><td colspan="9">' \+ progresionHtml\(a\)/);
+  assert.match(html, /<button class="score-toggle" type="button" aria-expanded="false" aria-controls="' \+ esc\(progressId\)/);
   assert.match(html, /class="progression" role="list" aria-label=/);
   assert.match(html, /class="progression-step ' \+ s\.state[\s\S]*role="listitem"[\s\S]*data-stage=/);
   for (const stage of ["Objetivo", "Ventana", "Misión", "Tareas", "Puntos"]) assert.match(html, new RegExp(`label:\"${stage}\"`));
