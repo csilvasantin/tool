@@ -363,9 +363,9 @@
 
     var railR = el("aside", "yk-rail yk-rail-right");
     railR.appendChild(el("div", "yk-hd", railRightLabel));
-    // Entrada permanente de producto. Avanzado no puede quedar vacío en las
+    // Navegación canónica de producto. Avanzado no puede quedar vacío en las
     // vistas sin herramientas propias: Highscore sigue siendo accesible desde
-    // cualquier página de la zona app, sin invadir la navegación operativa.
+    // cualquier otra página de la zona app, sin duplicarse en su propia vista.
     railR.appendChild(buildAdvancedNav());
     var slotR = el("div", "yk-slot"); railR.appendChild(slotR);
 
@@ -502,11 +502,15 @@
     nav.setAttribute("aria-label", "Herramientas avanzadas de Yokup");
     var path = (location.pathname.replace(/\/+$/, "") || "/").toLowerCase();
     var active = path === "/highscore" || path === "/highscore.html";
-    var highscore = el("a", "yk-set-btn yk-adv-link" + (active ? " on" : ""),
-      '<span aria-hidden="true">🏃</span> HIGHSCORE');
-    highscore.href = "/highscore";
-    if (active) highscore.setAttribute("aria-current", "page");
-    nav.appendChild(highscore);
+    // La página Highscore ya se identifica en el título del marco y en su H1:
+    // repetirla dentro de Avanzado no es navegación. En el resto de vistas la
+    // entrada conserva exactamente su posición canónica, antes de Normativa.
+    if (!active) {
+      var highscore = el("a", "yk-set-btn yk-adv-link",
+        '<span aria-hidden="true">🏃</span> HIGHSCORE');
+      highscore.href = "/highscore";
+      nav.appendChild(highscore);
+    }
     var normActive = path === "/normativa" || path === "/normativa.html";
     var normativa = el("a", "yk-set-btn yk-adv-link" + (normActive ? " on" : ""),
       '<span aria-hidden="true">§</span> NORMATIVA');
@@ -944,7 +948,7 @@
   function fillSlot(slot, name, expertHost) {
     var nodes = document.querySelectorAll('[data-yk-slot="' + name + '"]');
     if (!nodes.length) {
-      // Avanzado siempre tiene la entrada Highscore montada fuera del slot.
+      // Avanzado siempre tiene su navegación canónica montada fuera del slot.
       // El mensaje de vacío sería falso y fue exactamente lo que vio Carlos.
       if (name !== "right") slot.appendChild(el("div", "yk-empty", "— sin opciones en esta vista"));
     } else {

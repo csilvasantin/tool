@@ -198,6 +198,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   background:transparent;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;text-align:inherit;
   cursor:pointer;white-space:nowrap}
 .tabla th.num .sort-head{justify-content:flex-end}
+.sort-label-stack{display:inline-flex;flex-direction:column;align-items:flex-end;justify-content:center;line-height:1.05}
 .sort-head:hover,.sort-head:focus-visible{color:var(--brand);outline:none;text-shadow:0 0 7px rgba(120,243,255,.35)}
 .sort-arrow{display:inline-block;min-width:1em;color:var(--accent);font-size:9px;text-align:center}
 .tabla th[aria-sort="ascending"] .sort-head,.tabla th[aria-sort="descending"] .sort-head{color:var(--ink)}
@@ -379,7 +380,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         <th data-sort-col="ordenador" aria-sort="none"><button class="sort-head" type="button" data-sort="ordenador">Ordenador<span class="sort-arrow" aria-hidden="true"></span></button></th>
         <th data-sort-col="proyecto" aria-sort="none"><button class="sort-head" type="button" data-sort="proyecto">Proyecto<span class="sort-arrow" aria-hidden="true"></span></button></th>
         <th class="num" data-sort-col="objetivos" aria-sort="none"><button class="sort-head" type="button" data-sort="objetivos">Objetivos<span class="sort-arrow" aria-hidden="true"></span></button></th>
-        <th class="num" data-sort-col="ventanas" aria-sort="none" title="Acumulado del día; las ventanas automáticas respetan una única apertura por hora natural"><button class="sort-head" type="button" data-sort="ventanas">Ventanas hoy<span class="sort-arrow" aria-hidden="true"></span></button></th>
+        <th class="num" data-sort-col="ventanas" aria-sort="none" title="Acumulado del día; las ventanas automáticas respetan una única apertura por hora natural"><button class="sort-head" type="button" data-sort="ventanas" aria-label="Ordenar por ventanas de decisión"><span class="sort-label-stack"><span>Ventana</span><span>Decisión</span></span><span class="sort-arrow" aria-hidden="true"></span></button></th>
         <th class="num" data-sort-col="misiones" aria-sort="none"><button class="sort-head" type="button" data-sort="misiones">Misiones<span class="sort-arrow" aria-hidden="true"></span></button></th>
         <th class="num" data-sort-col="tareas" aria-sort="none"><button class="sort-head" type="button" data-sort="tareas">Tareas<span class="sort-arrow" aria-hidden="true"></span></button></th>
         <th class="num" data-sort-col="puntos" aria-sort="none"><button class="sort-head" type="button" data-sort="puntos">Puntos<span class="sort-arrow" aria-hidden="true"></span></button></th>
