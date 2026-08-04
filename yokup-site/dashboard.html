@@ -246,8 +246,10 @@ let COLUMN_DRAG=null;
 const NODE_OFFSETS=new Map();
 let NODE_DRAG=null;
 const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+function paScopeIsAll(scope){return scope===null||!!(scope&&typeof scope==="object"&&scope.mode==="all");}
+function paScopeValues(scope){return scope instanceof Set?[...scope]:Array.isArray(scope)?scope:[];}
 function paReadScope(key){try{const value=JSON.parse(localStorage.getItem(key));return Array.isArray(value)?new Set(value.map(String)):null;}catch(e){return null;}}
-function paWriteScope(key,scope){try{if(scope===null)localStorage.removeItem(key);else localStorage.setItem(key,JSON.stringify([...scope]));}catch(e){}}
+function paWriteScope(key,scope){try{if(paScopeIsAll(scope))localStorage.removeItem(key);else localStorage.setItem(key,JSON.stringify(paScopeValues(scope).map(String)));}catch(e){}}
 function paReadProjectScope(){
   try{
     const raw=localStorage.getItem(PROJECT_SCOPE_KEY);if(raw===null)return undefined;
@@ -256,33 +258,33 @@ function paReadProjectScope(){
     return value&&value.mode==="all"?null:undefined;
   }catch(e){return undefined;}
 }
-function paWriteProjectScope(scope){try{localStorage.setItem(PROJECT_SCOPE_KEY,JSON.stringify(scope===null?{mode:"all"}:[...scope]));}catch(e){}}
-function paScopeAllows(scope,key){return scope===null||scope.has(String(key));}
+function paWriteProjectScope(scope){try{localStorage.setItem(PROJECT_SCOPE_KEY,JSON.stringify(paScopeIsAll(scope)?{mode:"all"}:paScopeValues(scope).map(String)));}catch(e){}}
+function paScopeAllows(scope,key){return paScopeIsAll(scope)||paScopeValues(scope).map(String).includes(String(key));}
 function paNormalizeScope(scope,keys){
-  if(scope===null)return null;
-  const valid=new Set(keys.map(String)),next=new Set([...scope].filter(key=>valid.has(String(key))).map(String));
+  if(paScopeIsAll(scope))return null;
+  const valid=new Set(keys.map(String)),next=new Set(paScopeValues(scope).filter(key=>valid.has(String(key))).map(String));
   return valid.size&&next.size===valid.size?null:next;
 }
 function paNormalizeExactScope(scope,keys){
-  if(scope===null)return null;
+  if(paScopeIsAll(scope))return null;
   const valid=new Set(keys.map(String));
-  return new Set([...scope].map(String).filter(key=>valid.has(key)));
+  return new Set(paScopeValues(scope).map(String).filter(key=>valid.has(key)));
 }
 function paSetScopeItem(scope,key,checked,keys){
-  const all=keys.map(String),next=scope===null?new Set(all):new Set(scope),id=String(key);
+  const all=keys.map(String),next=paScopeIsAll(scope)?new Set(all):new Set(paScopeValues(scope).map(String)),id=String(key);
   if(checked)next.add(id);else next.delete(id);
   return all.length&&next.size===all.length&&all.every(item=>next.has(item))?null:next;
 }
 function paSetExactScopeItem(scope,key,checked,keys){
-  const next=scope===null?new Set(keys.map(String)):new Set([...scope].map(String)),id=String(key);
+  const next=paScopeIsAll(scope)?new Set(keys.map(String)):new Set(paScopeValues(scope).map(String)),id=String(key);
   if(checked)next.add(id);else next.delete(id);
   return next;
 }
 function paRenderScopeFilter(kind,items){
   const projects=kind==="project",list=pa(projects?"paProjectScopeList":"paTeamScopeList"),count=pa(projects?"paProjectScopeCount":"paTeamScopeCount");
   if(!list||!count)return;
-  const scope=projects?PROJECT_SCOPE:TEAM_SCOPE,keys=items.map(item=>String(item.key)),selected=scope===null?items.length:items.filter(item=>scope.has(String(item.key))).length;
-  count.textContent=(scope===null?"Todos":selected+"/"+items.length);
+  const scope=projects?PROJECT_SCOPE:TEAM_SCOPE,keys=items.map(item=>String(item.key)),selected=paScopeIsAll(scope)?items.length:items.filter(item=>paScopeAllows(scope,item.key)).length;
+  count.textContent=(paScopeIsAll(scope)?"Todos":selected+"/"+items.length);
   if(!items.length){list.innerHTML='<div class="pa-rail-empty">'+(projects?'No hay proyectos.':'No hay equipos físicos detectados.')+'</div>';return;}
   list.innerHTML='<label class="pa-rail-row all"><input type="checkbox" data-pa-scope-all="'+kind+'"><span class="pa-rail-label">Todos ('+items.length+')</span></label>'+items.map(item=>'<label class="pa-rail-row"><input type="checkbox" data-pa-scope-item="'+kind+'" value="'+esc(item.key)+'"'+(paScopeAllows(scope,item.key)?' checked':'')+'><span class="pa-rail-label" title="'+esc(item.label)+'">'+esc(item.label)+'</span></label>').join("");
   const allInput=list.querySelector("[data-pa-scope-all]");allInput.checked=selected===items.length;allInput.indeterminate=selected>0&&selected<items.length;
@@ -369,7 +371,7 @@ function paLaunchProjects(rows){
     return {...current,id:String(current.id||ids[host]),name:names[host],web:"https://"+host,status:current.status||"activo",machines:Array.isArray(current.machines)?[...new Set(current.machines.map(String))]:[],agents:Array.isArray(current.agents)?[...new Set(current.agents.map(String))]:[]};
   });
 }
-function paProjectsForScope(){return PROJECT_SCOPE===null?PROJECT_CATALOG.slice():PROJECT_CATALOG.filter(project=>PROJECT_SCOPE.has(String(project.id)));}
+function paProjectsForScope(){return paScopeIsAll(PROJECT_SCOPE)?PROJECT_CATALOG.slice():PROJECT_CATALOG.filter(project=>paScopeAllows(PROJECT_SCOPE,project.id));}
 function paPhysicalTeamCensus(machines,agents){
   const teams=new Map(),families=typeof paAgentFamilies==="function"?paAgentFamilies(agents||[]):agents||[];
   (Array.isArray(machines)?machines:[]).forEach(machine=>{

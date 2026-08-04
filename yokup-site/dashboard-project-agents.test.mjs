@@ -259,7 +259,7 @@ test("Opciones lista todos los proyectos y Avanzado todos los equipos con multis
   assert.match(source,/function paSetExactScopeItem\(scope,key,checked,keys\)/);
   assert.match(source,/data-pa-scope-all/);
   assert.match(source,/data-pa-scope-item/);
-  assert.match(source,/selected=scope===null\?items\.length/);
+  assert.match(source,/selected=paScopeIsAll\(scope\)\?items\.length/);
   assert.match(source,/paScopeAllows\(PROJECT_SCOPE,project\.id\)/);
   assert.match(source,/paScopeAllows\(TEAM_SCOPE,team\.key\)/);
   assert.match(source,/paWriteProjectScope\(PROJECT_SCOPE\)/);

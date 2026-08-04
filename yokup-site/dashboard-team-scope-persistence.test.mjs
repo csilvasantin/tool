@@ -36,7 +36,7 @@ function storage(initial={}){
 
 function scopeApi(localStorage){
   return new Function("localStorage",[
-    "paReadScope","paWriteScope","paNormalizeExactScope","paSetExactScopeItem",
+    "paScopeIsAll","paScopeValues","paReadScope","paWriteScope","paNormalizeExactScope","paSetExactScopeItem",
   ].map(functionSource).join("\n")+"\nreturn {paReadScope,paWriteScope,paNormalizeExactScope,paSetExactScopeItem};")(localStorage);
 }
 
