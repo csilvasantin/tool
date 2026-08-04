@@ -26,7 +26,10 @@ function functionSource(name){
 
 function trendApi(hourly){
   const datos={actividadMeta:{hourly}};
-  return new Function("datos",`${functionSource("normaliza")}\n${functionSource("tendenciaHoraria")}\nreturn tendenciaHoraria;`)(datos);
+  return new Function("datos",[
+    functionSource("normaliza"),functionSource("claveHoraria"),functionSource("identidadFamiliaHoraria"),
+    functionSource("filasFamiliaHoraria"),functionSource("tendenciaHoraria"),"return tendenciaHoraria;"
+  ].join("\n"))(datos);
 }
 
 test("↑ y = proceden del payload horario factual y el fallback es conservador",()=>{
@@ -35,13 +38,13 @@ test("↑ y = proceden del payload horario factual y el fallback es conservador"
     {agent:"NeoMacMini",current:20,reference:20,reference_at:1000,trend:"same",reliable:true},
   ]});
   assert.deepEqual(tendencia({agente:"OraculoMacMini",total:75}),{
-    state:"up",current:75,reference:55,referenceAt:1000,reliable:true,
+    state:"up",current:75,reference:55,points:20,referenceAt:1000,reliable:true,
   });
   assert.deepEqual(tendencia({agente:"NeoMacMini",total:20}),{
-    state:"same",current:20,reference:20,referenceAt:1000,reliable:true,
+    state:"same",current:20,reference:20,points:0,referenceAt:1000,reliable:true,
   });
   assert.deepEqual(tendencia({agente:"AgenteNuevoMacMini",total:12}),{
-    state:"same",current:12,reference:12,referenceAt:0,reliable:false,
+    state:"same",current:12,reference:12,points:0,referenceAt:0,reliable:false,
   });
   assert.match(source,/class="score-trend ' \+ \(up \? "up" : "same"\)/);
   assert.match(source,/\(up \? "↑" : "="\)/);

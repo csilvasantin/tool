@@ -1,8 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import vm from "node:vm";
 
 const source = await readFile(new URL("./highscore.html", import.meta.url), "utf8");
+const identitySource = await readFile(new URL("./yk-agent-identity.js", import.meta.url), "utf8");
+const identityContext = vm.createContext({});
+vm.runInContext(identitySource, identityContext);
+const identity = identityContext.ykAgentIdentity;
 
 function functionSource(name) {
   const start = source.indexOf(`function ${name}(`);
@@ -24,12 +29,13 @@ function functionSource(name) {
   throw new Error(`función ${name} incompleta`);
 }
 
-function hourlyApi(hourly) {
+function hourlyApi(hourly, identityApi = identity) {
   const datos = { actividadMeta:{ hourly } };
-  return new Function("datos", [
-    functionSource("normaliza"), functionSource("tendenciaHoraria"), functionSource("puntuacionHoraria"),
+  return new Function("datos", "window", [
+    functionSource("normaliza"), functionSource("claveHoraria"), functionSource("identidadFamiliaHoraria"),
+    functionSource("filasFamiliaHoraria"), functionSource("tendenciaHoraria"), functionSource("puntuacionHoraria"),
     "return { trend:tendenciaHoraria, score:puntuacionHoraria };"
-  ].join("\n"))(datos);
+  ].join("\n"))(datos, { ykAgentIdentity:identityApi });
 }
 
 function esc(value) {
@@ -39,10 +45,11 @@ function esc(value) {
 function renderHourly(hourly, row) {
   const datos = { actividadMeta:{ hourly } };
   const normalizaProgresion = () => ({ linked:false, origin:"", label:"Resumen", stages:[] });
-  return new Function("datos", "esc", "normalizaProgresion", [
-    functionSource("normaliza"), functionSource("tendenciaHoraria"), functionSource("puntuacionHoraria"),
+  return new Function("datos", "window", "esc", "normalizaProgresion", [
+    functionSource("normaliza"), functionSource("claveHoraria"), functionSource("identidadFamiliaHoraria"),
+    functionSource("filasFamiliaHoraria"), functionSource("tendenciaHoraria"), functionSource("puntuacionHoraria"),
     functionSource("progresionHtml"), "return progresionHtml;"
-  ].join("\n"))(datos, esc, normalizaProgresion)(row);
+  ].join("\n"))(datos, { ykAgentIdentity:identity }, esc, normalizaProgresion)(row);
 }
 
 test("calcula los puntos exactos de la ventana factual de 60 minutos", () => {
@@ -54,6 +61,49 @@ test("calcula los puntos exactos de la ventana factual de 60 minutos", () => {
     available:true, points:20, state:"up", current:75, reference:55,
   });
   assert.deepEqual(row, { agente:"OraculoMacMini", total:75 }, "el cálculo no muta el total diario");
+});
+
+test("la familia main sub infra suma deltas positivos sin cancelar avances", () => {
+  const hourly = { window_ms:3600000, scores:[
+    { agent:"Oraculo", machine:"Mac Mini", current:60, reference:60, reliable:true, reference_at:1000 },
+    { agent:"SubOraculoMacMini", machine:"MacMini", current:725, reference:710, reliable:true, reference_at:1100 },
+    { agent:"InfraOraculo", machine:"admira-macmini", current:370, reference:390, reliable:true, reference_at:1200 },
+    { agent:"OraculoMBP16", machine:"MacBook Pro 16", current:500, reference:100, reliable:true, reference_at:1300 },
+    { agent:"NeoMacMini", machine:"Mac Mini", current:900, reference:100, reliable:true, reference_at:1400 },
+  ] };
+  const row = { agente:"OraculoMacMini", base:"Oraculo", suffix:"MacMini", total:1155, maquinas:["Mac Mini"] };
+  assert.deepEqual({ ...hourlyApi(hourly).trend(row) }, {
+    state:"up", current:1155, reference:1160, points:15, referenceAt:1200, reliable:true,
+  });
+  assert.deepEqual({ ...hourlyApi(hourly).score(row) }, {
+    available:true, points:15, state:"up", current:1155, reference:1160,
+  });
+  assert.deepEqual({ ...hourlyApi(hourly, null).score(row) }, {
+    available:true, points:15, state:"up", current:1155, reference:1160,
+  }, "el fallback conserva la familia cuando yk-agent-identity no está disponible");
+});
+
+test("la familia horaria nunca mezcla la misma persona en otro equipo", () => {
+  const api = hourlyApi({ window_ms:3600000, scores:[
+    { agent:"OraculoMacMini", machine:"Mac Mini", current:10, reference:5, reliable:true },
+    { agent:"SubOraculoMBP16", machine:"MacBook Pro 16", current:400, reference:0, reliable:true },
+  ] });
+  assert.deepEqual({ ...api.score({ agente:"OraculoMacMini", base:"Oraculo", suffix:"MacMini", total:10 }) }, {
+    available:true, points:5, state:"up", current:10, reference:5,
+  });
+});
+
+test("si un miembro familiar carece de referencia fiable no se publica una cifra parcial", () => {
+  const api = hourlyApi({ window_ms:3600000, scores:[
+    { agent:"OraculoMacMini", machine:"Mac Mini", current:60, reference:60, reliable:true },
+    { agent:"SubOraculoMacMini", machine:"Mac Mini", current:725, reference:710, reliable:false },
+  ] });
+  const row = { agente:"OraculoMacMini", base:"Oraculo", suffix:"MacMini", total:785 };
+  assert.equal(api.trend(row).reliable, false);
+  assert.equal(api.trend(row).state, "same");
+  assert.deepEqual({ ...api.score(row) }, {
+    available:false, points:null, state:"unavailable", current:null, reference:null,
+  });
 });
 
 test("un dato fiable estacionario o decreciente muestra cero y estado igual", () => {
@@ -117,7 +167,8 @@ test("Puntuación por hora nace contraída y el total diario sigue siendo el mar
     { agent:"OraculoMacMini", current:75, reference:55, reliable:true, trend:"up" },
   ] } } };
   const daily = new Function("datos", "esc", [
-    functionSource("normaliza"), functionSource("tendenciaHoraria"), functionSource("puntosHtml"), "return puntosHtml;"
+    functionSource("normaliza"), functionSource("claveHoraria"), functionSource("identidadFamiliaHoraria"),
+    functionSource("filasFamiliaHoraria"), functionSource("tendenciaHoraria"), functionSource("puntosHtml"), "return puntosHtml;"
   ].join("\n"))(datos, esc)({ agente:"OraculoMacMini", total:75, haLatido:true }, "hourly-detail");
   assert.match(daily, /class="score-value">75<\/span>/);
   assert.doesNotMatch(daily, /class="score-value">20<\/span>/);

@@ -669,23 +669,70 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function normaliza(s) { return String(s == null ? "" : s).trim(); }
 
+  function claveHoraria(s) {
+    return normaliza(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/[^a-z0-9]+/g, "");
+  }
+
+  /* El marcador visible agrupa main/sub/infra por persona + equipo. El payload
+     horario, en cambio, conserva una fila por identidad operativa. Esta clave
+     recompone la misma familia sin mezclar máquinas; usa la identidad canónica
+     y mantiene un fallback pequeño para snapshots o pruebas sin el helper. */
+  function identidadFamiliaHoraria(agent, machine, identity) {
+    var id = identity || (typeof window !== "undefined" && window.ykAgentIdentity);
+    var raw = normaliza(agent), parsed = id && id.parse ? id.parse(raw) : null;
+    if (parsed && id.key) {
+      var suffix = id.suffix ? (id.suffix(machine) || parsed.suffix || "") : (parsed.suffix || "");
+      return id.key(parsed.persona || raw) + "|" + id.key(suffix);
+    }
+    var persona = claveHoraria(raw).replace(/^(?:infra|sub)/, ""), equipo = claveHoraria(machine);
+    var aliases = { mini:"macmini", "14":"mbp14", "16":"mbp16", azul:"mbaazul", rosa:"mbarosa",
+      crema:"mbacrema", plata:"mbaplata", macbookpronegro14:"mbp14", macbookpro14:"mbp14",
+      macbookpro16:"mbp16", macmini:"macmini", admiramacmini:"macmini" };
+    equipo = aliases[equipo] || equipo;
+    var suffixes = ["mbaazul","mbacrema","mbaplata","mbarosa","macmini","mbp14","mbp16","mba16","zenbook","dgx","pgx","sinmaq"];
+    suffixes.some(function (suffix) {
+      if (persona.length <= suffix.length || persona.slice(-suffix.length) !== suffix) return false;
+      if (equipo && equipo !== suffix) return false;
+      persona = persona.slice(0, -suffix.length); equipo = equipo || suffix; return true;
+    });
+    return persona + "|" + equipo;
+  }
+
+  function filasFamiliaHoraria(a, rows) {
+    var id = typeof window !== "undefined" && window.ykAgentIdentity;
+    var maquinas = [].concat(a && a.maquinas || [], a && a.maquinasVivas || []);
+    var agente = a && (a.base || a.agente || a.agent) || a;
+    var equipo = a && (a.suffix || a.machine || a.maquina || a.loc) || maquinas[0] || "";
+    var familyKey = identidadFamiliaHoraria(agente, equipo, id);
+    return (rows || []).filter(function (row) {
+      return identidadFamiliaHoraria(row && (row.agent || row.agente || row.persona),
+        row && (row.machine || row.maquina || row.loc), id) === familyKey;
+    });
+  }
+
   function tendenciaHoraria(a) {
     var hourly = datos.actividadMeta && datos.actividadMeta.hourly;
     var rows = hourly && Array.isArray(hourly.scores) ? hourly.scores : [];
-    var key = normaliza(a && a.agente || a).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase().replace(/[^a-z0-9]+/g, "");
-    var match = rows.find(function (row) {
-      return normaliza(row.agent).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase().replace(/[^a-z0-9]+/g, "") === key;
+    var matches = filasFamiliaHoraria(a, rows);
+    if (!matches.length) {
+      var total = Number(a && a.total) || 0;
+      return { state:"same", current:total, reference:total, points:0, referenceAt:0, reliable:false };
+    }
+    var current = 0, reference = 0, points = 0, referenceAt = 0, factual = true, reliable = true;
+    matches.forEach(function (match) {
+      var memberCurrent = Number(match.current), memberReference = Number(match.reference);
+      var memberFactual = match.current !== null && match.current !== "" && match.reference !== null && match.reference !== "" &&
+        Number.isFinite(memberCurrent) && Number.isFinite(memberReference);
+      factual = factual && memberFactual; reliable = reliable && match.reliable === true;
+      if (!memberFactual) return;
+      current += memberCurrent; reference += memberReference;
+      points += Math.max(0, memberCurrent - memberReference);
+      referenceAt = Math.max(referenceAt, Number(match.reference_at) || 0);
     });
-    var current = match && Number(match.current), reference = match && Number(match.reference);
-    var factual = !!match && match.current !== null && match.current !== "" && match.reference !== null && match.reference !== "" &&
-      Number.isFinite(current) && Number.isFinite(reference);
-    return match ? {
-      state:match.trend === "up" ? "up" : "same", current:factual ? current : 0,
-      reference:factual ? reference : 0, referenceAt:Number(match.reference_at) || 0,
-      reliable:!!match.reliable && factual
-    } : { state:"same", current:Number(a && a.total) || 0, reference:Number(a && a.total) || 0, referenceAt:0, reliable:false };
+    return { state:reliable && factual && points > 0 ? "up" : "same", current:factual ? current : 0,
+      reference:factual ? reference : 0, points:factual ? points : 0,
+      referenceAt:referenceAt, reliable:reliable && factual };
   }
 
   function puntuacionHoraria(a) {
@@ -694,7 +741,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var reliable = !!hourly && Number(hourly.window_ms) === 60 * 60 * 1000 && trend.reliable === true &&
       Number.isFinite(current) && Number.isFinite(reference);
     if (!reliable) return { available:false, points:null, state:"unavailable", current:null, reference:null };
-    var points = Math.max(0, current - reference);
+    var points = Math.max(0, Number(trend.points) || 0);
     return { available:true, points:points, state:points > 0 ? "up" : "same", current:current, reference:reference };
   }
 
