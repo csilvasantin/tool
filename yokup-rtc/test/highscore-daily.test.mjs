@@ -17,12 +17,16 @@ const grabVar=name=>{
 
 function harness(){
   const db=new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE ideas(id TEXT PRIMARY KEY,title TEXT,author TEXT,status TEXT,created_at INTEGER)");
-  db.exec("CREATE TABLE decisions(id TEXT PRIMARY KEY,machine TEXT,agent TEXT,question TEXT,status TEXT,created_at INTEGER)");
-  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,subject TEXT,loc TEXT,source TEXT,status TEXT,assignee TEXT,created_at INTEGER,updated_at INTEGER)");
+  db.exec("CREATE TABLE ideas(id TEXT PRIMARY KEY,title TEXT,author TEXT,status TEXT,project TEXT,decision_id TEXT,mission_id TEXT,created_at INTEGER,updated_at INTEGER)");
+  db.exec("CREATE TABLE decisions(id TEXT PRIMARY KEY,machine TEXT,agent TEXT,question TEXT,status TEXT,project TEXT,mission TEXT,parent_decision TEXT,batch_id TEXT,created_at INTEGER,decided_at INTEGER)");
+  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,subject TEXT,loc TEXT,source TEXT,status TEXT,assignee TEXT,project TEXT,created_at INTEGER,updated_at INTEGER)");
+  db.exec("CREATE TABLE mission_batches(id TEXT PRIMARY KEY,decision_id TEXT)");
+  db.exec("CREATE TABLE mission_batch_items(batch_id TEXT,position INTEGER,mission_id TEXT)");
+  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,created_at INTEGER,updated_at INTEGER)");
+  db.exec("CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT,ticket_id TEXT,ts INTEGER,kind TEXT,author TEXT,text TEXT)");
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{first:async()=>stmt.get(...args)||null,run:async()=>({meta:stmt.run(...args)}),all:async()=>({results:stmt.all(...args)})}},first:async()=>stmt.get()||null,all:async()=>({results:stmt.all()})}}};
-  const context=vm.createContext({Map,String,Number,Date,RegExp,Math,Object,madridDayKey,madridDayStart,__name:(fn)=>fn});
-  vm.runInContext([grabVar("HIGHSCORE_WEIGHTS"),grabVar("HIGHSCORE_PERSONAS"),grabVar("AGENT_SOURCE_SQL"),grab("highscoreAgent"),grab("highscoreDaily")].join("\n"),context);
+  const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,madridDayKey,madridDayStart,__name:(fn)=>fn});
+  vm.runInContext([grabVar("HIGHSCORE_WEIGHTS"),grabVar("HIGHSCORE_TASK_WEIGHTS"),grabVar("HIGHSCORE_RECENT_MS"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_PERSONAS"),grabVar("AGENT_SOURCE_SQL"),grabVar("AGENT_SOURCE_SQL_T"),grab("highscoreAgent"),grab("highscoreTraceability"),grab("highscoreDaily")].join("\n"),context);
   return{db,env:{DB},F:context};
 }
 
@@ -57,8 +61,14 @@ test("el marcador diario suma objetivos, ventanas y misiones del día de Madrid"
     ('FLT-2','y','MacBookAirRosa','fleet','resolved','NeoMBARosa',${AYER},${HOY}),
     ('FLT-3','z','MacBookAirRosa','fleet','open','NeoMBARosa',${HOY},${HOY}),
     ('FLT-4','w','MacBookAirRosa','fleet','in_progress','NeoMBARosa',${AYER},${AYER}),
+    ('FLT-5','cerrada hoy pero iniciada ayer','MacBookAirRosa','fleet','resolved','NeoMBARosa',${AYER},${HOY}),
     ('MIS-DEC-1-01','u','MacBookAirRosa','decision-batch','in_progress','NeoMBARosa',${HOY},${HOY}),
     ('INC-9','v','tienda','web','in_progress','tecnico',${HOY},${HOY})`);
+  db.exec(`INSERT INTO events(ticket_id,ts,kind,author,text) VALUES
+    ('FLT-1',${HOY},'status','yokup','Estado → in_progress'),
+    ('FLT-2',${HOY},'log','yokup','Misión entregada al CLI; pasa a EN CURSO'),
+    ('FLT-4',${AYER},'status','yokup','Estado → in_progress'),
+    ('FLT-5',${AYER},'status','yokup','Estado → in_progress')`);
 
   // El vm vive en otro realm: se cruza por JSON para comparar como lo verá el front.
   const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
@@ -73,6 +83,7 @@ test("el marcador diario suma objetivos, ventanas y misiones del día de Madrid"
   assert.equal(rosa.window_points,16);
   assert.equal(rosa.missions,3,"cuentan las dos puertas: bandeja de encargos Y ventana de decisión");
   assert.equal(rosa.mission_points,120);
+  assert.ok(!d.traceability.unlinked.some(x=>x.id==="FLT-5"),"cerrar hoy una misión iniciada ayer no vuelve a puntuar ni entra en la traza diaria");
 
   const oraculo=d.scores.find(s=>s.agent==="Oráculo");
   assert.equal(oraculo.objectives,2,"solo los objetivos creados hoy");
@@ -83,6 +94,14 @@ test("el marcador diario suma objetivos, ventanas y misiones del día de Madrid"
   const azul=d.scores.find(s=>s.agent==="TrinityMBAAzul");
   assert.equal(azul.windows,1);
   assert.equal(azul.missions,0);
+  assert.equal(d.traceability.version,1);
+  assert.equal(d.traceability.coverage.objectives,3,"la cobertura conserva también el objetivo no atribuible; scores decide quién puntúa");
+  assert.equal(d.traceability.coverage.windows,3);
+  assert.equal(d.traceability.coverage.missions,3);
+  const consejo=d.traceability.chains.find(c=>c.origin.id==="I3");
+  assert.equal(consejo.origin.agent,"");
+  assert.equal(consejo.points.objective,0,"un objetivo del Consejo se muestra como hecho real, pero no recibe puntos de agente");
+  assert.equal(d.traceability.chains.filter(c=>c.origin.agent==="Oráculo").reduce((n,c)=>n+c.points.objective,0),oraculo.objective_points);
 });
 
 test("un día sin actividad devuelve un marcador vacío, no un error", async () => {
@@ -90,11 +109,62 @@ test("un día sin actividad devuelve un marcador vacío, no un error", async () 
   const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
   assert.equal(d.ok,true);
   assert.deepEqual(d.scores,[]);
+  assert.deepEqual(d.traceability.chains,[]);
+  assert.deepEqual(d.traceability.unlinked,[]);
   assert.equal(d.day,madridDayKey(Date.now()));
+});
+
+test("la trazabilidad usa sólo llaves reales para objetivo → ventana → misión → tareas → puntos", async () => {
+  const {db,env,F}=harness();
+  db.exec(`INSERT INTO ideas(id,title,author,status,project,decision_id,mission_id,created_at,updated_at) VALUES
+    ('OBJ-1','Mejorar Highscore','OraculoMacMini','mision','yokup','DEC-1','FLT-9',${HOY},${HOY})`);
+  db.exec(`INSERT INTO decisions(id,machine,agent,question,status,project,mission,parent_decision,batch_id,created_at,decided_at) VALUES
+    ('DEC-1','MacMini','OraculoMacMini','¿Qué mejora?','decided','yokup','','','B-1',${HOY},${HOY})`);
+  db.exec(`INSERT INTO mission_batches(id,decision_id) VALUES ('B-1','DEC-1')`);
+  db.exec(`INSERT INTO mission_batch_items(batch_id,position,mission_id) VALUES ('B-1',0,'FLT-9')`);
+  db.exec(`INSERT INTO tickets(id,subject,loc,source,status,assignee,project,created_at,updated_at) VALUES
+    ('FLT-9','Trazar progreso','MacMini','fleet','in_progress','OraculoMacMini','yokup',${HOY},${HOY})`);
+  db.exec(`INSERT INTO events(ticket_id,ts,kind,author,text) VALUES
+    ('FLT-9',${HOY},'status','yokup','Estado → in_progress')`);
+  db.exec(`INSERT INTO mission_tasks(mission_id,code,title,status,owner,created_at,updated_at) VALUES
+    ('FLT-9','a','Contrato','done','SubOraculoMacMini',${HOY},${HOY}),
+    ('FLT-9','a1','Prueba','in_progress','InfraOraculoMacMini',${HOY},${HOY + 1}),
+    ('FLT-9','b','UI','pending','SubOraculoMacMini',${HOY},${HOY})`);
+
+  const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
+  assert.equal(d.traceability.chains.length,1);
+  const chain=d.traceability.chains[0];
+  assert.equal(chain.origin.type,"objective");
+  assert.equal(chain.origin.id,"OBJ-1");
+  assert.deepEqual(chain.windows.map(x=>x.id),["DEC-1"]);
+  assert.equal(chain.mission.id,"FLT-9");
+  assert.deepEqual(chain.tasks.map(x=>x.id),["FLT-9:a","FLT-9:a1","FLT-9:b"]);
+  assert.equal(chain.tasks.find(x=>x.id==="FLT-9:a1").scoring,true,"la microtarea más reciente representa a la familia A");
+  assert.equal(chain.points.total,20+8+40+25);
+  assert.equal(chain.agent,"OraculoMacMini");
+  assert.equal(chain.project,"yokup");
+  assert.deepEqual(d.traceability.unlinked,[]);
+});
+
+test("actividad agregada sin relación explícita se declara unlinked y no fabrica origen", async () => {
+  const {db,env,F}=harness();
+  db.exec(`INSERT INTO tickets(id,subject,loc,source,status,assignee,project,created_at,updated_at) VALUES
+    ('FLT-10','Misión directa','MacMini','fleet','resolved','NeoMacMini','pixeria',${HOY},${HOY})`);
+  db.exec(`INSERT INTO events(ticket_id,ts,kind,author,text) VALUES
+    ('FLT-10',${HOY},'status','yokup','Estado → in_progress')`);
+  db.exec(`INSERT INTO mission_tasks(mission_id,code,title,status,owner,created_at,updated_at) VALUES
+    ('FLT-X','a','Huérfana diaria','done','SubNeoMacMini',${HOY},${HOY})`);
+  const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
+  assert.deepEqual(d.traceability.chains,[]);
+  assert.deepEqual(d.traceability.unlinked.map(x=>[x.type,x.id,x.reason]),[
+    ["mission","FLT-10","no_explicit_objective_or_window_link"],
+    ["task","FLT-X:a","mission_outside_daily_trace"]
+  ]);
 });
 
 test("la ruta /highscore/daily existe y responde con el marcador", () => {
   assert.match(source,/url\.pathname === "\/highscore\/daily"/);
+  assert.match(source,/if \(url\.pathname === "\/highscore\/daily"\) \{\s*await ensureSchema\(env\);\s*await ensureIdeasSchema\(env\);/);
   assert.match(source,/return json\(await highscoreDaily\(env\)\)/);
 });
 

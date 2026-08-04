@@ -2841,6 +2841,12 @@ __name(fleetMissions, "fleetMissions");
 // Los pesos son los que la propia página ya explicaba en su leyenda; viajan en el
 // payload (`weights`) para que marcador y backend no puedan discrepar nunca.
 var HIGHSCORE_WEIGHTS = { objective: 20, window: 8, mission: 40 };
+var HIGHSCORE_TASK_WEIGHTS = { task: 15, active_bonus: 10 };
+var HIGHSCORE_RECENT_MS = 15 * 60 * 1e3;
+// Instante puntuable de una misión: creación ya EN CURSO para las tandas, o el
+// primer evento persistido que demuestra la transición para flota. Sin una de
+// esas dos pruebas no se adivina a partir de una edición/cierre posterior.
+var HIGHSCORE_MISSION_STARTED_SQL = "CASE WHEN t.source='decision-batch' THEN t.created_at ELSE (SELECT MIN(e.ts) FROM events e WHERE e.ticket_id=t.id AND ((e.kind='status' AND (lower(e.text) LIKE '%in_progress%' OR lower(e.text) LIKE '%en curso%')) OR (e.kind='log' AND (lower(e.text) LIKE '%pasa a en curso%' OR lower(e.text) LIKE '%activada desde la cola%')))) END";
 var HIGHSCORE_PERSONAS = ["neo", "morfeo", "trinity", "oraculo", "smith", "whiterabbit", "cypher"];
 
 /** Quién firma un objetivo. Los autores llegan como los escribe cada sitio:
@@ -2855,6 +2861,154 @@ function highscoreAgent(author) {
   return HIGHSCORE_PERSONAS.some((p) => clave.startsWith(p)) ? bruto : "";
 }
 __name(highscoreAgent, "highscoreAgent");
+
+// Traza factual del marcador. El agregado `scores` sigue siendo la fuente de
+// puntos; esta capa explica de dónde sale la progresión visual sin inferir
+// relaciones por títulos, fechas cercanas o nombres parecidos. Sólo enlaza por
+// ideas.decision_id / ideas.mission_id, decisions.mission y las FK reales de las
+// tandas y tareas. Lo que no tenga una de esas llaves sale en `unlinked`.
+async function highscoreTraceability(env, inicio, fin, ahora) {
+  const rows = async (sql) => ((await env.DB.prepare(sql).bind(inicio, fin).all()).results || []);
+  const isToday = (at) => Number(at) >= inicio && Number(at) < fin;
+  const isNew = (at) => Number(at) >= ahora - HIGHSCORE_RECENT_MS && Number(at) <= ahora + 6e4;
+  const ideas = await rows(
+    "SELECT id,title,author,project,decision_id,mission_id,created_at,updated_at FROM ideas WHERE created_at>=? AND created_at<?"
+  );
+  const decisions = await rows(
+    "SELECT id,agent,machine,question,project,mission,parent_decision,batch_id,created_at,decided_at FROM decisions WHERE created_at>=? AND created_at<?"
+  );
+  const missions = await rows(
+    `SELECT * FROM (SELECT t.id,t.subject,t.assignee,t.loc,t.project,t.created_at,t.updated_at,t.status,${HIGHSCORE_MISSION_STARTED_SQL} scored_at ` +
+    `FROM tickets t WHERE ${AGENT_SOURCE_SQL_T}) WHERE status IN ('in_progress','resolved') AND scored_at>=? AND scored_at<?`
+  );
+  const tasks = ((await env.DB.prepare(
+    "SELECT mission_id,code,title,status,owner,created_at,updated_at FROM mission_tasks " +
+    "WHERE (COALESCE(created_at,updated_at)>=? AND COALESCE(created_at,updated_at)<?) " +
+    "OR (updated_at>=? AND updated_at<?)"
+  ).bind(inicio, fin, inicio, fin).all()).results || []);
+  // Esta consulta no usa fechas: son exclusivamente llaves de unión. Las etapas
+  // que no pertenecen al día no se publican, pero la llave permite distinguir
+  // `sin relación` de `relación real fuera de la ventana diaria`.
+  const batchRows = ((await env.DB.prepare(
+    "SELECT b.id batch_id,b.decision_id,i.mission_id FROM mission_batches b " +
+    "JOIN mission_batch_items i ON i.batch_id=b.id WHERE i.mission_id IS NOT NULL AND i.mission_id!=''"
+  ).all()).results || []);
+
+  const decisionById = new Map(decisions.map((d) => [String(d.id), d]));
+  const missionById = new Map(missions.map((m) => [String(m.id), m]));
+  const batchByDecision = new Map(), missionBatch = new Map();
+  for (const b of batchRows) {
+    batchByDecision.set(String(b.decision_id), String(b.batch_id));
+    if (!missionBatch.has(String(b.mission_id))) missionBatch.set(String(b.mission_id), new Set());
+    missionBatch.get(String(b.mission_id)).add(String(b.batch_id));
+  }
+  const batchKey = (d) => String(d.batch_id || batchByDecision.get(String(d.id)) || "decision:" + d.id);
+  const windowsByBatch = new Map();
+  for (const d of decisions) {
+    const key = batchKey(d);
+    if (!windowsByBatch.has(key)) windowsByBatch.set(key, []);
+    windowsByBatch.get(key).push(d);
+  }
+  for (const list of windowsByBatch.values()) list.sort((a, b) => Number(a.created_at) - Number(b.created_at));
+
+  const taskRowsByMission = new Map();
+  for (const t of tasks) {
+    const mid = String(t.mission_id || "");
+    if (!taskRowsByMission.has(mid)) taskRowsByMission.set(mid, []);
+    taskRowsByMission.get(mid).push(t);
+  }
+  // La puntuación de tareas agrupa A/A1..A3 como una sola familia, exactamente
+  // igual que el consumidor actual. Conservamos todas las filas reales y
+  // marcamos cuál es la representante que suma (`scoring`).
+  const taskStages = (mid) => {
+    const source = taskRowsByMission.get(String(mid)) || [], representatives = new Map();
+    for (const t of source) {
+      const match = String(t.code || "").toLowerCase().match(/^([a-c])(?:[1-3])?$/);
+      if (!match || !isToday(t.updated_at) || !["doing", "in_progress", "done"].includes(String(t.status || ""))) continue;
+      const prev = representatives.get(match[1]);
+      if (!prev || Number(t.updated_at) >= Number(prev.updated_at)) representatives.set(match[1], t);
+    }
+    return source.map((t) => {
+      const match = String(t.code || "").toLowerCase().match(/^([a-c])(?:[1-3])?$/);
+      const scoring = !!(match && representatives.get(match[1]) === t);
+      const points = scoring ? HIGHSCORE_TASK_WEIGHTS.task + (["doing", "in_progress"].includes(String(t.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0) : 0;
+      const created = Number(t.created_at || t.updated_at) || 0;
+      return { id: String(t.mission_id) + ":" + String(t.code), mission_id: String(t.mission_id), code: String(t.code),
+        title: t.title || "", status: t.status || "", at: created, activity_at: Number(t.updated_at) || created,
+        is_new: isNew(created), agent: t.owner || "", points, scoring };
+    }).sort((a, b) => a.at - b.at || a.code.localeCompare(b.code));
+  };
+  const windowStage = (d) => ({ id: String(d.id), title: d.question || "", at: Number(d.created_at) || 0,
+    is_new: isNew(d.created_at), agent: d.agent || "", machine: d.machine || "", project: d.project || "",
+    points: isToday(d.created_at) ? HIGHSCORE_WEIGHTS.window : 0 });
+  const missionStage = (m) => ({ id: String(m.id), title: m.subject || "", at: Number(m.created_at) || 0,
+    activity_at: Number(m.scored_at) || 0, timestamp_basis: "first_in_progress_event",
+    is_new: isNew(m.created_at), agent: m.assignee || "", machine: m.loc || "", project: m.project || "",
+    points: isToday(m.scored_at) ? HIGHSCORE_WEIGHTS.mission : 0 });
+  const objectiveStage = (o) => ({ type: "objective", id: String(o.id), title: o.title || "", at: Number(o.created_at) || 0,
+    is_new: isNew(o.created_at), agent: highscoreAgent(o.author), machine: "", project: o.project || "",
+    points: highscoreAgent(o.author) && isToday(o.created_at) ? HIGHSCORE_WEIGHTS.objective : 0 });
+
+  const linksForMission = (mid) => {
+    const batches = missionBatch.get(String(mid)) || new Set(), windows = [];
+    for (const d of decisions) {
+      if (String(d.mission || "") === String(mid) || batches.has(batchKey(d))) windows.push(d);
+    }
+    return windows.sort((a, b) => Number(a.created_at) - Number(b.created_at));
+  };
+  const ideasFor = (mid, windows) => ideas.filter((o) => String(o.mission_id || "") === String(mid) ||
+    (o.decision_id && windows.some((d) => String(d.id) === String(o.decision_id) || batchKey(d) === batchByDecision.get(String(o.decision_id)))));
+  const chains = [], linkedObjectives = new Set(), linkedWindows = new Set(), linkedMissions = new Set();
+  const addChain = (origin, windows, mission) => {
+    // Si el origen ya es una ventana, `windows` contiene sólo continuaciones:
+    // no repetimos el mismo hito dos veces en la línea.
+    const visibleWindows = origin.type === "window" ? windows.filter((d) => String(d.id) !== String(origin.id)) : windows;
+    const w = visibleWindows.map(windowStage), ms = mission ? missionStage(mission) : null, ts = mission ? taskStages(mission.id) : [];
+    const points = { objective: origin.type === "objective" ? origin.points : 0,
+      windows: (origin.type === "window" ? origin.points : 0) + w.reduce((n, x) => n + x.points, 0), mission: ms ? ms.points : 0,
+      tasks: ts.reduce((n, x) => n + x.points, 0) };
+    points.total = points.objective + points.windows + points.mission + points.tasks;
+    const stamps = [origin.at, ...w.map((x) => x.at), ms && ms.activity_at, ...ts.map((x) => x.activity_at)].filter(Boolean);
+    const agent = ms && ms.agent || (w.length && w[w.length - 1].agent) || origin.agent || "";
+    const machine = ms && ms.machine || (w.length && w[w.length - 1].machine) || origin.machine || "";
+    const project = ms && ms.project || (w.length && w[w.length - 1].project) || origin.project || "";
+    chains.push({ id: origin.type + ":" + origin.id + (ms ? "→mission:" + ms.id : ""), agent, machine, project,
+      origin, windows: w, mission: ms, tasks: ts, points,
+      latest_at: stamps.length ? Math.max(...stamps) : 0,
+      is_new: origin.is_new || w.some((x) => x.is_new) || !!(ms && ms.is_new) || ts.some((x) => x.is_new) });
+  };
+
+  for (const m of missions) {
+    const windows = linksForMission(m.id), roots = ideasFor(m.id, windows);
+    if (roots.length) {
+      for (const o of roots) { linkedObjectives.add(String(o.id)); windows.forEach((d) => linkedWindows.add(String(d.id))); addChain(objectiveStage(o), windows, m); }
+      linkedMissions.add(String(m.id));
+    } else if (windows.length) {
+      const first = windows[0], origin = { ...windowStage(first), type: "window" };
+      windows.forEach((d) => linkedWindows.add(String(d.id))); linkedMissions.add(String(m.id)); addChain(origin, windows, m);
+    }
+  }
+  for (const o of ideas) if (!linkedObjectives.has(String(o.id))) {
+    const d = decisionById.get(String(o.decision_id || "")), windows = d ? (windowsByBatch.get(batchKey(d)) || [d]) : [];
+    windows.forEach((x) => linkedWindows.add(String(x.id))); addChain(objectiveStage(o), windows, null);
+  }
+  for (const d of decisions) if (!linkedWindows.has(String(d.id))) addChain({ ...windowStage(d), type: "window" }, [d], null);
+  chains.sort((a, b) => b.latest_at - a.latest_at || a.id.localeCompare(b.id));
+
+  const unlinked = [];
+  for (const m of missions) if (!linkedMissions.has(String(m.id))) unlinked.push({ type: "mission", id: String(m.id),
+    reason: "no_explicit_objective_or_window_link", agent: m.assignee || "", machine: m.loc || "", project: m.project || "",
+    at: Number(m.scored_at) || Number(m.created_at) || 0, is_new: isNew(m.created_at), points: HIGHSCORE_WEIGHTS.mission });
+  for (const t of tasks) if (!missionById.has(String(t.mission_id || ""))) unlinked.push({ type: "task",
+    id: String(t.mission_id) + ":" + String(t.code), mission_id: String(t.mission_id || ""),
+    reason: "mission_outside_daily_trace", agent: t.owner || "", at: Number(t.updated_at || t.created_at) || 0,
+    is_new: isNew(t.created_at || t.updated_at), points: 0 });
+  unlinked.sort((a, b) => b.at - a.at || a.id.localeCompare(b.id));
+  return { version: 1, recent_after: ahora - HIGHSCORE_RECENT_MS, chains, unlinked,
+    coverage: { objectives: ideas.length, windows: decisions.length, missions: missions.length, tasks: tasks.length,
+      linked_missions: linkedMissions.size, unlinked: unlinked.length } };
+}
+__name(highscoreTraceability, "highscoreTraceability");
 
 async function highscoreDaily(env) {
   const ahora = Date.now(), inicio = madridDayStart(ahora), fin = inicio + 864e5;
@@ -2887,19 +3041,20 @@ async function highscoreDaily(env) {
     if (f) { f.windows += Number(r.c) || 0; f.window_points += (Number(r.c) || 0) * HIGHSCORE_WEIGHTS.window; }
   }
   // MISIONES ejecutadas hoy. Una fila por misión, así que los reintentos no
-  // duplican: la misma misión no puede puntuar dos veces el mismo día. El sello
-  // es `updated_at` porque open→in_progress solo ocurre una vez (todas las
-  // transiciones llevan WHERE status='open') y no hay columna propia para ello.
+  // duplican. Puntúa el primer hecho persistido de entrada en curso, no
+  // `updated_at`: editar o cerrar mañana no vuelve a otorgar los 40 puntos.
   // Cuentan las DOS puertas (ver AGENT_SOURCE_SQL): filtrar solo por 'fleet'
   // dejaba a cero a quien trabaja por ventana de decisión.
   for (const r of await filas(
-    `SELECT assignee, loc, COUNT(*) c FROM tickets WHERE ${AGENT_SOURCE_SQL} ` +
-    "AND status IN ('in_progress','resolved') AND updated_at>=? AND updated_at<? GROUP BY assignee, loc"
+    `SELECT assignee,loc,COUNT(*) c FROM (SELECT t.assignee,t.loc,t.status,${HIGHSCORE_MISSION_STARTED_SQL} scored_at ` +
+    `FROM tickets t WHERE ${AGENT_SOURCE_SQL_T}) WHERE status IN ('in_progress','resolved') ` +
+    "AND scored_at>=? AND scored_at<? GROUP BY assignee,loc"
   )) {
     const f = fila(r.assignee, r.loc);
     if (f) { f.missions += Number(r.c) || 0; f.mission_points += (Number(r.c) || 0) * HIGHSCORE_WEIGHTS.mission; }
   }
-  return { ok: true, day: madridDayKey(ahora), weights: HIGHSCORE_WEIGHTS, scores: [...acc.values()] };
+  const traceability = await highscoreTraceability(env, inicio, fin, ahora);
+  return { ok: true, day: madridDayKey(ahora), weights: HIGHSCORE_WEIGHTS, scores: [...acc.values()], traceability };
 }
 __name(highscoreDaily, "highscoreDaily");
 
@@ -3174,6 +3329,7 @@ var index_default = {
     }
     if (url.pathname === "/highscore/daily") {
       await ensureSchema(env);
+      await ensureIdeasSchema(env);
       return json(await highscoreDaily(env));
     }
     // ── NOTIFICACIONES DEL SISTEMA DE LA FLOTA (FLT-1020) ────────────────────

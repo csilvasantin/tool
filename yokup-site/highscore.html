@@ -212,6 +212,42 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .tabla tbody tr:nth-child(odd){background:#0a1821}
 .tabla tbody tr:nth-child(even){background:#01060a}
 .tabla tbody tr:hover{background:#102b38}
+/* La segunda línea de cada agente cuenta el recorrido del trabajo. No presupone
+   enlaces: cuando la API sólo trae agregados lo declara como resumen del día. */
+.tabla tbody tr.score-main{background:#0a1821}
+.tabla tbody tr.score-main.alt{background:#01060a}
+.tabla tbody tr.score-main:hover,.tabla tbody tr.score-main:hover+.score-progress{background:#102b38}
+.tabla tbody tr.score-progress{background:#061018}
+.tabla tbody tr.score-progress.alt{background:#000509}
+.score-progress td{padding:0 10px 9px;border-bottom:1px solid rgba(120,243,255,.28);overflow:visible}
+.progression{position:relative;display:grid;grid-template-columns:minmax(104px,.8fr) repeat(5,minmax(82px,1fr));
+  align-items:start;gap:7px;min-width:790px;padding:7px 0 2px}
+.progression-meta{align-self:center;min-width:0;padding-right:7px;color:var(--dim);font-size:8.5px;line-height:1.35;
+  letter-spacing:.11em;text-transform:uppercase}
+.progression-meta strong{display:block;color:var(--mut);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.progression-meta[data-linked="true"] strong{color:var(--brand)}
+.progression-step{position:relative;display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:5px;align-items:center;
+  min-width:0;color:var(--dim)}
+.progression-step::before{content:"";position:absolute;z-index:0;left:-8px;right:calc(100% - 2px);top:8px;height:2px;
+  background:rgba(77,122,136,.26)}
+.progression-step:first-of-type::before{display:none}
+.progression-step.origin::before{display:none}
+.progression-step.pre-origin{opacity:.2}
+.progression-dot{position:relative;z-index:1;display:grid;place-items:center;width:16px;height:16px;border:2px solid currentColor;
+  border-radius:50%;background:#061018;font-size:8px;font-weight:950;line-height:1}
+.progression-copy{min-width:0}.progression-label{display:block;color:currentColor;font-size:8.5px;font-weight:900;letter-spacing:.08em;
+  text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.progression-value{display:block;margin-top:2px;color:var(--dim);font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.progression-step.completed{color:var(--brand)}
+.progression-step.completed::before,.progression-step.active::before,.progression-step.new::before{
+  background:linear-gradient(90deg,var(--brand),var(--good));box-shadow:0 0 6px rgba(120,243,255,.42)}
+.progression-step.active{color:var(--good)}
+.progression-step.active .progression-dot{background:rgba(136,255,170,.18);box-shadow:0 0 0 3px rgba(136,255,170,.11),0 0 10px rgba(136,255,170,.7)}
+.progression-step.new{color:var(--accent)}
+.progression-step.new .progression-dot{border-radius:4px;background:rgba(255,216,102,.2);
+  box-shadow:0 0 0 3px rgba(255,216,102,.12),0 0 12px rgba(255,216,102,.8);animation:new-arrival 1.25s ease-in-out infinite}
+.progression-step.future{opacity:.55}
+@keyframes new-arrival{50%{transform:scale(.8);box-shadow:0 0 0 7px rgba(255,216,102,.04),0 0 5px rgba(255,216,102,.35)}}
 .col-resizer{position:absolute;z-index:3;top:0;right:-2px;width:9px;height:100%;cursor:col-resize;
   touch-action:none;outline:0}
 .col-resizer::before{content:"";position:absolute;top:22%;bottom:22%;left:4px;width:1px;
@@ -260,8 +296,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .plaza.p2{left:7%;top:62%}.plaza.p1{left:36.5%;top:59%}.plaza.p3{right:6%;top:66%}
   .nom{font-size:7px}.pts{font-size:10px}
   .wrap{padding-top:46px}header.cab{grid-template-columns:auto minmax(90px,1fr) auto;gap:10px}h1{font-size:17px}
-  .refresh-race{padding:0 10px}.refresh-mission{width:38vw;font-size:10px;line-height:13px}.refresh-agent{max-width:105px;font-size:10px;line-height:13px}}
-@media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.rank-filter[aria-pressed="true"],.activity-now,.activity-now::after,.plaza.podium-live::after,.podium-trend.up,.refresh-runner svg,.runner-run-a,.runner-run-b,.runner-run-c{animation:none}.refresh-runner .runner-run-b,.refresh-runner .runner-run-c{display:none}.runner-finish-win .gesto-a,.runner-finish-lose .gesto-a{animation:none;opacity:1}.runner-finish-win .gesto-b,.runner-finish-lose .gesto-b{display:none}}
+  .refresh-race{padding:0 10px}.refresh-mission{width:38vw;font-size:10px;line-height:13px}.refresh-agent{max-width:105px;font-size:10px;line-height:13px}
+  .score-progress td{padding-left:5px;padding-right:5px}.progression{grid-template-columns:88px repeat(5,76px);min-width:500px;gap:4px}
+  .progression-step{grid-template-columns:13px minmax(0,1fr);column-gap:3px}.progression-dot{width:13px;height:13px;border-width:1px}.progression-step::before{top:6px}}
+@media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.rank-filter[aria-pressed="true"],.activity-now,.activity-now::after,.plaza.podium-live::after,.podium-trend.up,.refresh-runner svg,.runner-run-a,.runner-run-b,.runner-run-c,.progression-step.new .progression-dot{animation:none}.refresh-runner .runner-run-b,.refresh-runner .runner-run-c{display:none}.runner-finish-win .gesto-a,.runner-finish-lose .gesto-a{animation:none;opacity:1}.runner-finish-win .gesto-b,.runner-finish-lose .gesto-b{display:none}}
 </style>
 </head>
 <body data-yk-title="HIGHSCORE" data-yk-zone="app">
@@ -477,6 +515,89 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function normaliza(s) { return String(s == null ? "" : s).trim(); }
 
+  function claveTrazabilidad(s) {
+    return normaliza(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  }
+
+  function claveAgenteTrazabilidad(s) {
+    var id = window.ykAgentIdentity, parsed = id && id.parse ? id.parse(normaliza(s)) : null;
+    return id && id.key ? id.key(parsed && parsed.persona || s) : claveTrazabilidad(parsed && parsed.persona || s);
+  }
+
+  function instanteTrazabilidad(raw) {
+    var n = Number(raw); return n || Date.parse(raw) || 0;
+  }
+
+  function progresionTrazada(score) {
+    var traceability = datos.actividadMeta && datos.actividadMeta.traceability;
+    var chains = traceability && Array.isArray(traceability.chains) ? traceability.chains : [];
+    var agentKey = claveAgenteTrazabilidad(score.agent), machineKey = claveTrazabilidad(score.machine);
+    var projectKey = claveTrazabilidad(score.project || score.project_id || score.project_name);
+    var candidatas = chains.filter(function (chain) {
+      if (claveAgenteTrazabilidad(chain.agent) !== agentKey) return false;
+      var chainMachine = claveTrazabilidad(chain.machine);
+      return !machineKey || !chainMachine || chainMachine === machineKey;
+    });
+    if (projectKey) {
+      var mismoProyecto = candidatas.filter(function (chain) { return claveTrazabilidad(chain.project) === projectKey; });
+      if (mismoProyecto.length) candidatas = mismoProyecto;
+    }
+    candidatas.sort(function (a, b) { return instanteTrazabilidad(b.latest_at) - instanteTrazabilidad(a.latest_at); });
+    var chain = candidatas[0]; if (!chain) return null;
+    var origin = chain.origin || {}, originType = tipoEtapa(origin.type) || "";
+    var windows = Array.isArray(chain.windows) ? chain.windows : [];
+    var mission = chain.mission || null, tasks = Array.isArray(chain.tasks) ? chain.tasks : [];
+    var points = chain.points || {}, pointsTotal = Number(points.total != null ? points.total : points) || 0;
+    var lastWindow = windows.slice().sort(function (a, b) {
+      return instanteTrazabilidad(b.at || b.created_at) - instanteTrazabilidad(a.at || a.created_at);
+    })[0];
+    var tareasNuevas = tasks.some(function (task) { return !!task.is_new; });
+    var tareasActivas = tasks.some(function (task) { return ["doing", "in_progress", "active"].indexOf(normaliza(task.status).toLowerCase()) >= 0; });
+    var tareasCompletas = tasks.length > 0 && tasks.every(function (task) {
+      return ["done", "resolved", "completed"].indexOf(normaliza(task.status).toLowerCase()) >= 0;
+    });
+    function stage(key, state, value) { return { type:key, state:state, value:value }; }
+    var stages = [
+      stage("objetivo", originType === "objetivo" ? (origin.is_new ? "new" : "completed") : "future",
+        originType === "objetivo" ? (origin.title || origin.id || "Objetivo enlazado") : "No fue origen"),
+      stage("ventana", originType === "ventana" ? (origin.is_new ? "new" : "completed") :
+        (lastWindow ? (lastWindow.is_new ? "new" : "completed") : "future"),
+        originType === "ventana" ? (origin.title || origin.id || "Ventana enlazada") :
+          (windows.length ? windows.length + " ventana" + (windows.length === 1 ? "" : "s") : "Pendiente")),
+      stage("mision", mission ? (mission.is_new ? "new" : (tareasCompletas ? "completed" : "active")) : "future",
+        mission ? (mission.title || mission.id || "Misión enlazada") : "Pendiente"),
+      stage("tareas", tasks.length ? (tareasNuevas ? "new" : (tareasActivas ? "active" : (tareasCompletas ? "completed" : "active"))) : "future",
+        tasks.length ? tasks.length + " tarea" + (tasks.length === 1 ? "" : "s") : "Pendiente"),
+      stage("puntos", pointsTotal > 0 ? "completed" : "future", pointsTotal + " pt" + (pointsTotal === 1 ? "" : "s"))
+    ];
+    return { linked:true, origin:originType, label:"Cadena " + (chain.id || "enlazada") +
+      (candidatas.length > 1 ? " · última de " + candidatas.length : ""), stages:stages };
+  }
+
+  function progresionNoEnlazada(score) {
+    var traceability = datos.actividadMeta && datos.actividadMeta.traceability, raw = traceability && traceability.unlinked;
+    var items = Array.isArray(raw) ? raw : [];
+    if (raw && !Array.isArray(raw) && typeof raw === "object") Object.keys(raw).forEach(function (key) {
+      var value = raw[key];
+      if (Array.isArray(value)) items = items.concat(value);
+      else if (value && typeof value === "object") items.push(value);
+    });
+    var agentKey = claveAgenteTrazabilidad(score.agent), machineKey = claveTrazabilidad(score.machine);
+    var propios = items.filter(function (item) {
+      if (item.agent && claveAgenteTrazabilidad(item.agent) !== agentKey) return false;
+      return !item.machine || !machineKey || claveTrazabilidad(item.machine) === machineKey;
+    });
+    var resumen = progresionAgregada({ objetivos:score.objectives, ventanas:score.windows, misiones:score.missions,
+      tareas:0, total:(Number(score.objective_points) || 0) + (Number(score.window_points) || 0) + (Number(score.mission_points) || 0) });
+    if (propios.length) {
+      var razones = propios.map(function (item) { return normaliza(item.reason); }).filter(Boolean);
+      resumen.label = propios.length + " evento" + (propios.length === 1 ? "" : "s") + " sin enlazar" +
+        (razones[0] ? " · " + razones[0] : "");
+    }
+    resumen.aggregateFallback = true;
+    return resumen;
+  }
+
   function calcula() {
     var por = {}, principal = {}, id = window.ykAgentIdentity, misionesPorId = {};
     datos.misiones.forEach(function (m) { if (m && m.id) misionesPorId[normaliza(m.id)] = m; });
@@ -519,7 +640,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (!por[d.key]) por[d.key] = { agente:d.base, base:d.base, suffix:d.suffix,
         objetivos:0, ptsObjetivos:0, ventanas:0, ptsVentanas:0,
         misiones:0, ptsMisiones:0, tareas:0, ptsTareas:0, vivo:false, haLatido:false, runtime:"",
-        maquinas:[], maquinasVivas:[], actividad:"", actividadAt:0, actividadDetalle:"",
+        maquinas:[], maquinasVivas:[], actividad:"", actividadAt:0, actividadDetalle:"", progresion:null,
         proyecto:"", proyectoUrl:"", proyectoAt:0 };
       return por[d.key];
     }
@@ -553,6 +674,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       destino.vivo = destino.vivo || origen.vivo;
       destino.haLatido = destino.haLatido || origen.haLatido;
       adoptaActividad(destino, origen.actividad, origen.actividadAt, origen.actividadDetalle);
+      if (!destino.progresion && origen.progresion) destino.progresion = origen.progresion;
       marcaProyecto(destino, origen.proyecto, origen.proyectoAt, origen.proyecto);
       if (!destino.runtime) destino.runtime = origen.runtime;
       origen.maquinas.forEach(function (m) { if (destino.maquinas.indexOf(m) < 0) destino.maquinas.push(m); });
@@ -567,6 +689,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     });
     datos.actividad.forEach(function (a) {
       var f = fila(a.agent, a.machine); if (!f) return;
+      f.progresion = (typeof progresionTrazada === "function" && progresionTrazada(a)) ||
+        a.progression || a.journey || a.lifecycle ||
+        (typeof progresionNoEnlazada === "function" && progresionNoEnlazada(a)) || f.progresion;
       f.objetivos += Number(a.objectives) || 0;
       f.ptsObjetivos += Number(a.objective_points) || 0;
       f.ventanas += Number(a.windows) || 0;
@@ -632,7 +757,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (!por[targetKey]) por[targetKey] = { agente:f.base, base:f.base, suffix:pick.suffix,
         objetivos:0, ptsObjetivos:0, ventanas:0, ptsVentanas:0,
         misiones:0, ptsMisiones:0, tareas:0, ptsTareas:0, vivo:false, haLatido:false, runtime:"", maquinas:[], maquinasVivas:[],
-        actividad:"", actividadAt:0, actividadDetalle:"", proyecto:"", proyectoUrl:"", proyectoAt:0 };
+        actividad:"", actividadAt:0, actividadDetalle:"", progresion:null, proyecto:"", proyectoUrl:"", proyectoAt:0 };
       suma(por[targetKey], f); delete por[k];
     });
     var lista = Object.keys(por).map(function (k) {
@@ -771,6 +896,109 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function puntosHtml(a) {
     if (a.total > 0) return a.total;
     return a.haLatido ? "0" : "—";
+  }
+
+  var ETAPAS_PROGRESO = [
+    { key:"objetivo", label:"Objetivo", aliases:["objective", "objectives", "objetivo", "objetivos"] },
+    { key:"ventana", label:"Ventana", aliases:["window", "windows", "decision", "ventana", "ventanas"] },
+    { key:"mision", label:"Misión", aliases:["mission", "missions", "mision", "misiones"] },
+    { key:"tareas", label:"Tareas", aliases:["task", "tasks", "tarea", "tareas"] },
+    { key:"puntos", label:"Puntos", aliases:["score", "points", "point", "puntos"] }
+  ];
+
+  function tipoEtapa(raw) {
+    var clave = normaliza(raw).toLowerCase();
+    for (var i = 0; i < ETAPAS_PROGRESO.length; i++) {
+      if (ETAPAS_PROGRESO[i].aliases.indexOf(clave) >= 0 || ETAPAS_PROGRESO[i].key === clave) return ETAPAS_PROGRESO[i].key;
+    }
+    return "";
+  }
+
+  function estadoEtapa(raw) {
+    var estado = normaliza(raw).toLowerCase().replace(/\s+/g, "_");
+    if (["new", "nuevo", "nueva", "created", "appeared"].indexOf(estado) >= 0) return "new";
+    if (["active", "activo", "activa", "open", "live", "doing", "in_progress"].indexOf(estado) >= 0) return "active";
+    if (["complete", "completed", "completado", "completada", "done", "resolved", "scored"].indexOf(estado) >= 0) return "completed";
+    return "future";
+  }
+
+  function etapaEnriquecida(stages, etapa) {
+    var raw = null;
+    if (Array.isArray(stages)) raw = stages.find(function (item) {
+      return tipoEtapa(item && (item.type || item.stage || item.key || item.name)) === etapa.key;
+    });
+    else if (stages && typeof stages === "object") {
+      etapa.aliases.concat([etapa.key]).some(function (alias) {
+        if (!Object.prototype.hasOwnProperty.call(stages, alias)) return false;
+        raw = stages[alias]; return true;
+      });
+    }
+    if (raw == null) return { state:"future", value:"Pendiente" };
+    if (typeof raw === "string") return { state:estadoEtapa(raw), value:normaliza(raw) };
+    if (typeof raw === "number") return { state:raw > 0 ? "completed" : "future", value:String(raw) };
+    return {
+      state:estadoEtapa(raw.state || raw.status),
+      value:normaliza(raw.label || raw.detail || raw.value || raw.count || raw.status || raw.state || "Pendiente")
+    };
+  }
+
+  function progresionAgregada(a) {
+    var valores = { objetivo:Number(a.objetivos) || 0, ventana:Number(a.ventanas) || 0,
+      mision:Number(a.misiones) || 0, tareas:Number(a.tareas) || 0, puntos:Number(a.total) || 0 };
+    var activa = tipoEtapa(a.actividad), origen = valores.objetivo > 0 || activa === "objetivo" ? "objetivo" :
+      (valores.ventana > 0 || activa === "ventana" ? "ventana" : "");
+    var esNueva = Number(a.actividadAt) > 0 && Date.now() - Number(a.actividadAt) <= 3 * 60 * 1000;
+    return {
+      linked:false, origin:origen, label:"Resumen del día · cadena sin enlazar",
+      stages:ETAPAS_PROGRESO.map(function (etapa) {
+        var valor = valores[etapa.key], state = valor > 0 ? "completed" : "future";
+        if (activa === etapa.key) state = esNueva ? "new" : "active";
+        return { key:etapa.key, label:etapa.label, state:state,
+          value:etapa.key === "puntos" ? valor + " pt" + (valor === 1 ? "" : "s") : valor + " hoy" };
+      })
+    };
+  }
+
+  function normalizaProgresion(a) {
+    var raw = a && a.progresion;
+    if (!raw) return progresionAgregada(a || {});
+    if (raw.aggregateFallback) {
+      var resumen = progresionAgregada(a || {}); resumen.label = raw.label || resumen.label; return resumen;
+    }
+    var stages = Array.isArray(raw) ? raw : (raw.stages || raw.steps || raw.timeline || raw);
+    var first = Array.isArray(stages) && stages[0] ? tipoEtapa(stages[0].type || stages[0].stage || stages[0].key) : "";
+    var origin = tipoEtapa(raw.origin || raw.start || raw.from || first);
+    var linked = raw.linked !== false;
+    return {
+      linked:linked, origin:origin,
+      label:normaliza(raw.label || raw.title || raw.reference || (linked ? "Cadena enlazada" : "Resumen del día · cadena sin enlazar")),
+      stages:ETAPAS_PROGRESO.map(function (etapa) {
+        var item = etapaEnriquecida(stages, etapa);
+        return { key:etapa.key, label:etapa.label, state:item.state, value:item.value };
+      })
+    };
+  }
+
+  function progresionHtml(a) {
+    var progreso = normalizaProgresion(a), origen = progreso.origin === "objetivo" ? "Objetivo" :
+      (progreso.origin === "ventana" ? "Ventana" : "No determinado");
+    var descripcion = progreso.label + ". Origen: " + origen + ". " + progreso.stages.map(function (s) {
+      return s.label + ": " + s.state + ", " + s.value;
+    }).join(". ");
+    return '<div class="progression" role="list" aria-label="' + esc(descripcion) + '">' +
+      '<div class="progression-meta" data-linked="' + (progreso.linked ? "true" : "false") + '" title="' + esc(progreso.label) + '">' +
+      '<strong>' + esc(progreso.linked ? progreso.label : "Resumen no enlazado") + '</strong>Origen · ' + esc(origen) + '</div>' +
+      progreso.stages.map(function (s, indice) {
+        var origenClase = s.key === progreso.origin ? " origin" : "";
+        var indiceOrigen = progreso.stages.findIndex(function (item) { return item.key === progreso.origin; });
+        var preOrigen = indiceOrigen > 0 && indice < indiceOrigen ? " pre-origin" : "";
+        var simbolo = s.state === "completed" ? "✓" : (s.state === "new" ? "+" : (s.state === "active" ? "›" : "·"));
+        var title = s.label + " · " + s.state + " · " + s.value;
+        return '<div class="progression-step ' + s.state + origenClase + preOrigen + '" role="listitem" data-stage="' + s.key +
+          '" data-state="' + s.state + '" title="' + esc(title) + '" aria-label="' + esc(title) + '">' +
+          '<span class="progression-dot" aria-hidden="true">' + simbolo + '</span><span class="progression-copy">' +
+          '<span class="progression-label">' + s.label + '</span><span class="progression-value">' + esc(s.value) + '</span></span></div>';
+      }).join("") + '</div>';
   }
 
   /* Columnas reajustables. El primer gesto congela las medidas fluidas actuales,
@@ -932,7 +1160,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function pintaTabla(lista) {
     document.getElementById("filas").innerHTML = lista.map(function (a, i) {
-      return '<tr><td class="n">' + posicionHtml(a, a.posicion || i + 1) + '</td>' +
+      var alterna = i % 2 ? " alt" : "";
+      return '<tr class="score-main' + alterna + '"><td class="n">' + posicionHtml(a, a.posicion || i + 1) + '</td>' +
         '<td class="ag">' + agentNameHtml(a) +
         (a.runtime ? ' <span class="rt">· ' + esc(a.runtime) + '</span>' : '') + '</td>' +
         '<td>' + pintaMaquinas(a, 4) + '</td>' +
@@ -941,7 +1170,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<td class="num">' + numeroVentanas(a) + '</td>' +
         '<td class="num">' + numeroActividad(a, "misiones", a.misiones, "misión en curso") + '</td>' +
         '<td class="num">' + numeroActividad(a, "tareas", a.tareas, "tarea en curso") + '</td>' +
-        '<td class="tot">' + puntosHtml(a) + '</td></tr>';
+        '<td class="tot">' + puntosHtml(a) + '</td></tr>' +
+        '<tr class="score-progress' + alterna + '"><td colspan="9">' + progresionHtml(a) + '</td></tr>';
     }).join("");
   }
   iniciaColumnasReajustables();
