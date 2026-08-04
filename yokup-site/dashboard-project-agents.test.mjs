@@ -65,10 +65,14 @@ test("proyectos y equipos son compactables y enseñan sus tres recuentos",()=>{
   assert.doesNotMatch(source,/id="projectAgentAgentsPane"/);
   assert.match(source,/Proyectos <span class="pa-count" id="projectAgentProjectsN">/);
   assert.match(source,/Equipos físicos <span class="pa-count" id="projectAgentTeamsN">/);
-  assert.match(source,/· Agentes <span class="pa-count" id="projectAgentAgentsN">/);
+  assert.match(source,/· Agentes principales <span class="pa-count" id="projectAgentAgentsN">/);
+  assert.match(source,/· Subagentes <span class="pa-count" id="projectAgentSubsN">/);
+  assert.match(source,/· Infraagentes <span class="pa-count" id="projectAgentInfrasN">/);
   assert.match(source,/pa\("projectAgentProjectsN"\)\.textContent=visibleActive\+"\/"\+active/);
   assert.match(source,/pa\("projectAgentTeamsN"\)\.textContent=visibleTeams\.length\+"\/"\+teams\.length/);
-  assert.match(source,/pa\("projectAgentAgentsN"\)\.textContent=visibleAgents\+"\/"\+families\.length/);
+  assert.match(source,/pa\("projectAgentAgentsN"\)\.textContent=roleCounts\.main\.active\+"\/"\+roleCounts\.main\.total/);
+  assert.match(source,/pa\("projectAgentSubsN"\)\.textContent=roleCounts\.sub\.active\+"\/"\+roleCounts\.sub\.total/);
+  assert.match(source,/pa\("projectAgentInfrasN"\)\.textContent=roleCounts\.infra\.active\+"\/"\+roleCounts\.infra\.total/);
 });
 
 test("el mapa coloca proyectos a la izquierda y equipos con agentes a la derecha",()=>{
@@ -150,8 +154,8 @@ test("Sub e Infra se anidan en su agente principal y nunca cuentan como agentes"
   assert.match(source,/helper\.role==="sub"\?"ejecución":"infra · QA"/);
   assert.match(source,/families=paAgentFamilies\(PROJECT_ROSTER\)/);
   assert.match(source,/families\.length\+" agentes principales/);
-  assert.match(source,/visibleAgents\+"\/"\+families\.length/);
-  assert.match(source,/team\.agents\.length\+' agente'[\s\S]*' principal'/);
+  assert.match(source,/roleCounts\.main\.active\+"\/"\+roleCounts\.main\.total/);
+  assert.match(source,/teamRoleCounts\.main\.active\+'\/'\+teamRoleCounts\.main\.total\+' principales · '\+teamRoleCounts\.sub\.active\+'\/'\+teamRoleCounts\.sub\.total\+' Subagentes · '\+teamRoleCounts\.infra\.active\+'\/'\+teamRoleCounts\.infra\.total\+' Infraagentes'/);
   assert.doesNotMatch(source,/PROJECT_ROSTER\.length\+" agentes/);
 });
 
