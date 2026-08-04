@@ -16,10 +16,10 @@ test("la carrera exige a la vez latido reciente y misión en curso", () => {
   assert.doesNotMatch(html, /listaCache \|\| \[\]\)\.slice\(0, 3\)/);
 });
 
-test("un latido sin misión no crea calle ni mensaje de inactividad", () => {
-  assert.match(html, /var asunto = normaliza\(mision && \(mision\.subject \|\| mision\.title \|\| mision\.name\)\)/);
+test("un latido sin misión no crea calle y deja un fallback legible", () => {
+  assert.match(html, /var mision = misionActivaDeAgente\(activas, clave\), resumen = resumenMisionActiva\(mision\)/);
   assert.doesNotMatch(html, /misionDesdePresencia|presencia viva, sin foco declarado/);
-  assert.match(html, /asunto \? estelaMision\(asunto\) : ""/);
+  assert.match(html, /class="refresh-empty">Sin misión activa<\/div>/);
 });
 
 test("variante de piel estable y dos corredores visibles con bigote", () => {

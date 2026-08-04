@@ -4,7 +4,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 
 const html = fs.readFileSync(new URL("./highscore.html", import.meta.url), "utf8");
-const raceStart = html.indexOf("function misionesEnCurso()");
+const raceStart = html.indexOf("function instanteMisionActiva(");
 const raceEnd = html.indexOf("\n\n  function pintaFormula", raceStart);
 const raceSource = html.slice(raceStart, raceEnd);
 const cycleStart = html.indexOf("var REFRESCO_MS");

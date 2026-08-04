@@ -96,7 +96,8 @@ test("la pista pasa por los pies del corredor y termina en una meta visible", ()
   assert.match(html, /\.refresh-finish\{[^}]*right:29px[^}]*bottom:1px/);
   assert.match(html, /\.refresh-place\{[^}]*color:var\(--lane\)[^}]*text-align:center/);
   assert.match(html, /\.refresh-place\{[^}]*z-index:4[^}]*top:0/);
-  assert.match(html, /\.refresh-lane\{[^}]*height:50px/);
+  assert.match(html, /\.refresh-lane\{[^}]*min-height:84px/);
+  assert.match(html, /\.refresh-track\{[^}]*min-height:84px[^}]*padding:3px 36px 38px/);
   assert.match(html, /\.refresh-place-finish\{right:2px\}/);
   assert.doesNotMatch(html, /refresh-place-start/);
   assert.match(html, /\.refresh-finish::before,\.refresh-finish::after\{[^}]*conic-gradient[^}]*transition:transform \.45s steps\(3,end\),opacity \.45s linear/);
@@ -110,7 +111,7 @@ test("la pista pasa por los pies del corredor y termina en una meta visible", ()
   assert.match(html, /posicionCorredor = "calc\(" \+ pct \+ "% \+ " \+ ajusteCorredor \+ "px\)"/);
   assert.match(html, /relleno\.style\.width = "calc\(" \+ pct \+ "% - " \+ recortePista \+ "px\)"/);
   assert.match(html, /corredor\.style\.left = posicionCorredor/);
-  assert.match(html, /mision\.style\.left = posicionCorredor/);
+  assert.doesNotMatch(html, /mision\.style\.left = posicionCorredor/);
   assert.doesNotMatch(html, /agente\.style\.left = posicionCorredor/);
   assert.match(html, /agente\.style\.transform = "translateX\(" \+ empujeAgente \+ "px\)"/);
 });
@@ -207,18 +208,12 @@ test("Ordenador agrupa equipos y mantiene dentro de cada grupo la posición real
   assert.deepEqual(Array.from(context.equiposDesc), ["Uno", "Tres", "Dos", "Cuatro"]);
 });
 
-test("la primera palabra de cada misión queda pegada detrás del corredor", () => {
+test("la misión factual queda legible junto al corredor sin estela truncada", () => {
   assert.match(html, /<div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Agentes con misión en curso"><\/div>/);
-  assert.match(html, /\.refresh-mission\{[^}]*top:25px[^}]*translateX\(calc\(-100% - 18px\)\)/);
-  assert.match(html, /\.refresh-mission\{[^}]*font-size:14px[^}]*line-height:17px/);
-  // La misión se lee en ORDEN NATURAL. `row-reverse` invertía las palabras
-  // («Optimizar el dashboard» salía «dashboard el Optimizar»): se pensó como
-  // estela, pero volvía el texto ilegible. Va pegada al corredor (flex-end) y
-  // crece hacia atrás, con máscara en el borde en vez de corte a hachazo.
-  assert.match(html, /\.refresh-desc\{[^}]*justify-content:flex-end[^}]*white-space:nowrap/);
-  assert.doesNotMatch(html, /\.refresh-desc\{[^}]*row-reverse/);
-  assert.match(html, /\.refresh-mission\{[^}]*mask-image:linear-gradient\(90deg,transparent 0,#000 26px\)/);
-  assert.match(html, /\.refresh-word\{[^}]*direction:ltr[^}]*unicode-bidi:isolate[^}]*white-space:nowrap/);
+  assert.match(html, /\.refresh-mission\{[^}]*position:relative[^}]*display:grid/);
+  assert.match(html, /\.refresh-mission-title\{[^}]*white-space:normal[^}]*overflow-wrap:anywhere/);
+  assert.match(html, /\.refresh-mission-ref\{[^}]*color:var\(--brand\)/);
+  assert.match(html, /\.refresh-mission-state\{[^}]*color:var\(--good\)/);
   // La cinta se rompe en el fotograma del CRUCE, no al acabar la cuenta: la
   // clase `cruzando` se calcula con la geometría real (hombro del corredor
   // contra el borde de ataque de la cinta), no con progreso >= 1.
@@ -227,37 +222,34 @@ test("la primera palabra de cada misión queda pegada detrás del corredor", () 
   assert.doesNotMatch(html, /\.refresh-lane\.finished \.refresh-finish::before/);
   assert.match(html, /carril\.classList\.toggle\("cruzando", centroAtleta \+ RADIO_CORREDOR_PX >= cintaX\)/);
   assert.match(html, /function actualizaCarreraPodio\(\)/);
-  assert.match(html, /function estelaMision\(asunto\)/);
-  assert.match(html, /normaliza\(asunto\)\.split\(\/\\s\+\/\)\.filter\(Boolean\)\.map/);
-  assert.match(html, /'<span class="refresh-word">' \+ esc\(palabra\) \+ '<\/span>'/);
+  assert.match(html, /function tituloMisionActiva\(mision\)/);
+  assert.match(html, /function resumenMisionActiva\(mision\)/);
   assert.match(html, /normaliza\(m\.status\)\.toLowerCase\(\) === "in_progress"/);
-  assert.match(html, /mision\.subject \|\| mision\.title \|\| mision\.name/);
-  assert.doesNotMatch(html, /ultima\.display_ref \|\| ultima\.id \|\| ultima\.origin_ref/,
-    "la carrera no debe consumir espacio mostrando el ticket");
-  assert.match(html, /'<span class="refresh-desc">' \+ \(asunto \? estelaMision\(asunto\) : ""\)/,
-    "la estela debe conservar la primera palabra junto al corredor");
+  assert.match(html, /reference:normaliza\(mision\.display_ref \|\| mision\.id\)/);
+  assert.match(html, /title:tituloMisionActiva\(mision\), state:"EN CURSO"/);
+  assert.doesNotMatch(html, /function estelaMision|class="refresh-word"|mision\.style\.left/);
   assert.match(html, /pintaFormula\(listaCache\); actualizaCarreraPodio\(\)/);
   assert.match(html, /carril\.querySelector\('\[data-race-role="runner"\]'\)/);
-  assert.match(html, /carril\.querySelector\('\[data-race-role="mission"\]'\)/);
+  assert.doesNotMatch(html, /carril\.querySelector\('\[data-race-role="mission"\]'\)/);
 });
 
 test("todos los agentes con misión en curso tienen calles ordenadas, identidad visual y semántica accesible", () => {
   assert.match(html, /YkHighscoreRace\.activeMissionRows\(lista \|\| \[\], claves\)/);
   assert.match(html, /var corredores = filasConMisionEnCurso\(listaCache \|\| \[\], activas\)\.map/);
   assert.doesNotMatch(html, /top = \(listaCache \|\| \[\]\)\.slice\(0, 3\)/);
-  assert.match(html, /activas\.find\(function \(m\) \{ return claveAgenteCarrera\(agenteDeMision\(m\)\) === clave; \}\)/);
-  assert.match(html, /var asunto = normaliza\(mision && \(mision\.subject \|\| mision\.title \|\| mision\.name\)\)/);
+  assert.match(html, /misionActivaDeAgente\(activas, clave\)/);
+  assert.match(html, /resumenMisionActiva\(mision\)/);
   assert.doesNotMatch(html, /misionDesdePresencia|presencia viva, sin foco declarado/);
   assert.match(html, /var clasePuesto = puesto <= 3 \? "refresh-lane-p" \+ puesto : "refresh-lane-rank"/);
   assert.match(html, /refresh-lane ' \+ clasePuesto/);
   assert.match(html, /data-place="' \+ puesto/);
   assert.match(html, /data-agent-key="' \+ esc\(clave\)/);
   assert.match(html, /role="listitem"/);
-  assert.match(html, /refresh-mission[^\n]*data-race-role="mission"[\s\S]*refresh-runner runner-' \+ variant[\s\S]*refresh-agent/);
+  assert.match(html, /refresh-mission[^\n]*data-race-role="mission"[\s\S]*refresh-mission-title[\s\S]*refresh-mission-state[\s\S]*refresh-runner runner-' \+ variant[\s\S]*refresh-agent/);
   assert.match(html, /'<span class="refresh-agent" data-race-role="agent">' \+ esc\(agente\) \+ '<\/span>'/);
   assert.doesNotMatch(html, /refresh-place-start/);
   assert.match(html, /class="refresh-place refresh-place-finish" aria-hidden="true">' \+ puesto/);
-  assert.match(html, /\.refresh-agent\{[^}]*right:43px[^}]*top:22px[^}]*font-size:14px[^}]*line-height:17px/);
+  assert.match(html, /\.refresh-agent\{[^}]*right:43px[^}]*bottom:9px[^}]*font-size:14px[^}]*line-height:17px/);
   assert.match(html, /\.refresh-lane-p1\{--lane:var\(--oro\);--runner-shirt:#ffd866;--runner-stripe:#8a4a2a\}/);
   assert.match(html, /\.refresh-lane-p2\{--lane:var\(--plata\);--runner-shirt:#e6ecf2;--runner-stripe:#3477c7\}/);
   assert.match(html, /\.refresh-lane-p3\{--lane:var\(--bronce\);--runner-shirt:#c87f3a;--runner-stripe:#2b1b12\}/);
@@ -270,7 +262,7 @@ test("todos los agentes con misión en curso tienen calles ordenadas, identidad 
   assert.match(html, /class="runner-shirt" fill="var\(--runner-shirt,#f8f8f8\)"/);
   assert.match(html, /class="runner-accent" fill="var\(--runner-stripe,#3466cc\)"/);
   assert.match(html, /ykAgentIdentity\.missionPair\(agente, mision\.machine \|\| mision\.loc, \[mision\.screen\]\)/);
-  assert.match(html, /\}\)\.filter\(Boolean\);\s*contenedor\.innerHTML = corredores\.join\(""\)/);
+  assert.match(html, /\}\)\.filter\(Boolean\);\s*contenedor\.innerHTML = corredores\.length \? corredores\.join\(""\) : '<div class="refresh-empty">Sin misión activa<\/div>'/);
   assert.match(html, /carrera\.setAttribute\("data-lanes", String\(corredores\.length\)\)/);
   assert.match(html, /carrera\.classList\.toggle\("empty", corredores\.length === 0\)/);
 });

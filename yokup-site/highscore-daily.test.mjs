@@ -101,7 +101,7 @@ test("A y sus subtareas cuentan una vez; una misión nunca supera tres tareas", 
 
 test("el ranking distingue actividad actual de los totales históricos", () => {
   assert.match(html, /datos = \{ tareas: \[\], actividad: \[\],[^}]*misiones: \[\], ideas: \[\], decisiones: \[\], proyectos: \[\] \}/);
-  assert.match(html, /seguroYokup\("\/fleet\/missions"/);
+  assert.match(html, /seguroYokup\("\/tickets\?scope=fleet", function \(d\) \{ return d\.tickets \|\| \[\]; \}\)/);
   assert.match(html, /seguroYokup\("\/ideas"/);
   assert.match(html, /seguroYokup\("\/decisions"/);
   assert.match(html, /seguroYokup\("\/projects"/);
