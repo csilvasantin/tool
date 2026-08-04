@@ -24,22 +24,26 @@ test("cada pista reduce drásticamente altura y separación", () => {
   const lanes = cssRule(".refresh-lanes");
   const lane = cssRule(".refresh-lane");
   const track = cssRule(".refresh-track");
-  assert.ok(pixels(lane, "min-height") <= 48, "el carril debe ocupar como máximo 48px");
-  assert.ok(pixels(track, "min-height") <= 48, "la pista debe ocupar como máximo 48px");
+  assert.ok(pixels(lane, "min-height") <= 40, "el carril debe ocupar como máximo 40px");
+  assert.ok(pixels(track, "min-height") <= 40, "la pista debe ocupar como máximo 40px");
   assert.ok(pixels(lanes, "gap") <= 1, "la separación vertical debe ser como máximo 1px");
   assert.match(track, /padding:[^;}]*px/, "la pista conserva márgenes internos explícitos");
 });
 
-test("READY SET GO vive dentro de cada pista, no flotando sobre toda la carrera", () => {
+test("READY SET GO vive una sola vez en la pista central", () => {
   const trackOpen = raceSource.indexOf("'<div class=\"refresh-track\">'");
   const call = raceSource.indexOf('class="race-call"', trackOpen);
   const trackClose = raceSource.indexOf("</div></div>'", trackOpen);
   assert.ok(trackOpen >= 0 && call > trackOpen && call < trackClose,
-    "cada track debe contener su llamada READY/SET/GO");
+    "la pista elegida contiene la llamada READY/SET/GO");
   assert.doesNotMatch(html, /<span class="race-call" id="raceCall"/,
     "la llamada no puede seguir como overlay global");
-  assert.match(html, /querySelectorAll\([^)]*\.race-call[^)]*\)/,
-    "el cambio de fase actualiza las llamadas de todos los carriles");
+  assert.match(raceSource, /indiceLlamada = Math\.floor\(Math\.max\(0, filasCarrera\.length - 1\) \/ 2\)/,
+    "tres pistas eligen la segunda; una pista elige la primera");
+  assert.match(html, /document\.querySelector\("\.race-call"\)/,
+    "el cambio de fase actualiza el único aviso");
+  assert.match(cssRule(".race-call"), /left:50%[^}]*top:50%[^}]*translate\(-50%,-50%\)/,
+    "el aviso queda centrado en la pista elegida");
   assert.match(html, /READY[\s\S]*SET[\s\S]*GO/);
 });
 
