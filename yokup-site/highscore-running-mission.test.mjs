@@ -10,7 +10,7 @@ function missionApi(missions){
   const end=source.indexOf("\n\n  function filasConMisionEnCurso",start);
   assert.ok(start>=0&&end>start,"faltan los helpers de misión activa");
   const functions=source.slice(start,end);
-  return new Function("datos","normaliza","claveAgenteCarrera","agenteDeMision",`${functions}\nreturn {list:misionesEnCurso,pick:misionActivaDeAgente,title:tituloMisionActiva,summary:resumenMisionActiva};`)(
+  return new Function("datos","normaliza","claveAgenteCarrera","agenteDeMision",`${functions}\nreturn {list:misionesEnCurso,pick:misionActivaDeAgente,title:tituloMisionActiva};`)(
     {misiones:missions},value=>String(value==null?"":value).trim(),
     value=>String(value||"").toLowerCase().replace(/[^a-z0-9]/g,""),mission=>mission&&mission.assignee||"",
   );
@@ -53,30 +53,32 @@ test("elige de forma determinista la misión activa más reciente de cada agente
   assert.equal(api.pick(active,"oraculomacmini").id,"FLT-A");
 });
 
-test("display_ref, título, estado y proyecto salen de campos canónicos y legibles",()=>{
+test("el título conserva la primera palabra real y elimina prefijos editoriales",()=>{
   const mission={
     id:"FLT-1175",display_ref:"0231.04/08/2026.19:22",assignee:"OraculoMacMini",status:"in_progress",
     subject:"[ALTA] **Mejorar Running Man** → flecha editorial del objetivo | texto de ventana que no pertenece al título",
     project_name:"Yokup",updated_at:3000,
   };
   const api=missionApi([mission]);
-  assert.deepEqual(api.summary(mission),{
-    reference:"0231.04/08/2026.19:22",title:"Mejorar Running Man",state:"EN CURSO",project:"Yokup",
-  });
+  assert.equal(api.title(mission),"Mejorar Running Man");
+  assert.equal(api.title(mission).split(/\s+/)[0],"Mejorar");
   assert.equal(api.title({subject:"Título visible. Editorial posterior."}),"Título visible.");
   const longTitle="Título factual "+"muy largo ".repeat(35).trim();
   assert.equal(api.title({subject:longTitle}),longTitle,"el dato no se trunca en JavaScript");
-  assert.deepEqual(api.summary(null),{reference:"",title:"Sin misión activa",state:"Sin misión activa",project:""});
 });
 
-test("la calle muestra misión y agente completos, sin fragmentos editoriales",()=>{
+test("la calle muestra solo misión y agente: nunca ticket, FLT, estado ni proyecto",()=>{
   const race=renderRace([{agente:"OraculoMacMini",vivo:true,posicion:1,total:80}],[{
     id:"FLT-1175",display_ref:"0231.04/08/2026.19:22",assignee:"OraculoMacMini",status:"in_progress",
     subject:"Mejorar Running Man → flecha editorial del objetivo | ventana de decisión",project:"yokup",updated_at:3000,
   }]);
   assert.equal(race.lanes,1);
-  for(const expected of ["0231.04/08/2026.19:22","Mejorar Running Man","EN CURSO","yokup","OraculoMacMini"])
+  for(const expected of ["Mejorar Running Man","OraculoMacMini"])
     assert.match(race.html,new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")));
+  assert.doesNotMatch(race.html,/FLT-1175|0231\.04\/08\/2026\.19:22|EN CURSO|yokup/i);
+  assert.doesNotMatch(race.html,/refresh-mission-(?:ref|state|meta|project)/);
+  assert.ok(race.html.indexOf("Mejorar Running Man")<race.html.indexOf('data-race-role="runner"'),
+    "el texto debe formar una capa detrás del corredor");
   assert.doesNotMatch(race.html,/flecha|editorial|objetivo|ventana de decisión/i);
 
   const empty=renderRace([{agente:"OraculoMacMini",vivo:true}],[]);
@@ -85,13 +87,17 @@ test("la calle muestra misión y agente completos, sin fragmentos editoriales",(
 });
 
 test("texto y agente se adaptan sin clipping ni marquee ilegible",()=>{
-  assert.match(source,/\.refresh-mission-title\{[^}]*white-space:normal[^}]*overflow-wrap:anywhere/);
-  assert.match(source,/\.refresh-mission-project\{[^}]*white-space:normal[^}]*overflow-wrap:anywhere/);
   assert.match(source,/\.refresh-agent\{[^}]*overflow-wrap:anywhere/);
   assert.match(source,/\.refresh-agent\{[^}]*white-space:normal/);
   assert.match(source,/@media \(max-width:620px\)[\s\S]*?\.refresh-mission-title\{font-size:9px\}/);
-  assert.doesNotMatch(source,/<marquee|function estelaMision|class="refresh-word"|mision\.style\.left/);
-  assert.doesNotMatch(source,/\.refresh-mission-title\{[^}]*text-overflow:ellipsis|\.refresh-mission-title\{[^}]*white-space:nowrap/);
+  assert.doesNotMatch(source,/<marquee|function estelaMision|class="refresh-word"/);
+});
+
+test("la misión se mueve con el corredor en una capa posterior",()=>{
+  assert.match(source,/\.refresh-mission\{[^}]*position:absolute[^}]*z-index:1/);
+  assert.match(source,/\.refresh-runner\{[^}]*z-index:3/);
+  assert.match(source,/carril\.querySelector\('\[data-race-role="mission"\]'\)/);
+  assert.match(source,/mision\.style\.left = posicionCorredor/);
 });
 
 test("Running Man convive con filtros, tendencia y detalle plegable",()=>{
