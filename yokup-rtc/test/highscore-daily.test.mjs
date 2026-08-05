@@ -248,6 +248,11 @@ test("el auto-claim deja evidencia canónica y el marcador sólo acepta tareas a
   assert.match(source,/Estado → in_progress · primer avance de tarea/);
   assert.match(source,/HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL/);
   assert.match(source,/lower\(COALESCE\(e\.author,''\)\)='yokup'/);
+  const transitionSql=source.split("var HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL =")[1].split(";\n")[0];
+  assert.doesNotMatch(transitionSql,/\b(?:LIKE|GLOB)\b/,
+    "D1 limita la complejidad de patrones: las plantillas dinámicas usan prefijo y sufijo exactos");
+  assert.match(transitionSql,/instr\(lower\(e\.text\)/);
+  assert.match(transitionSql,/substr\(lower\(e\.text\),-length\(/);
   assert.match(source,/SELECT MIN\(mt\.updated_at\).*mt\.status IN \('in_progress','done'\)/);
   assert.match(source,/m\.status IN \('in_progress','done'\)/);
 });
