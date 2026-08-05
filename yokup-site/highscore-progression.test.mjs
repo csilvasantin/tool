@@ -69,6 +69,30 @@ test("traceability.chains enlaza por identidad y gana al fallback compatible", (
   assert.equal(context.resultado.stages[4].value, "40 pts");
 });
 
+test("una cadena FLT directa conserva Misión como origen visible", () => {
+  assert.match(html,/progreso\.origin === "mision" \? "Misión"/);
+  const context = vm.createContext({
+    datos:{actividadMeta:{traceability:{chains:[{
+      id:"mission:FLT-1204→mission:FLT-1204",agent:"TrinityMBP14",machine:"macbookpronegro14",latest_at:Date.now(),
+      origin:{type:"mission",id:"FLT-1204",title:"Comprobar tareas"},windows:[],
+      mission:{id:"FLT-1204",title:"Comprobar tareas"},
+      tasks:[{id:"FLT-1204:a1",status:"done",is_new:true}],points:{total:55}
+    }]}}},
+    window:{ykAgentIdentity:{parse(value){return{persona:String(value)};},key(value){return String(value).toLowerCase();}}},
+    ETAPAS_PROGRESO:[
+      {key:"objetivo",aliases:["objective","objetivo"]},{key:"ventana",aliases:["window","ventana"]},
+      {key:"mision",aliases:["mission","mision"]},{key:"tareas",aliases:["tasks","tareas"]},
+      {key:"puntos",aliases:["points","puntos"]}
+    ],Date,Number,String,Array,Object
+  });
+  for (const name of ["normaliza","claveTrazabilidad","claveAgenteTrazabilidad","instanteTrazabilidad","tipoEtapa","progresionTrazada"])
+    vm.runInContext(functionSource(name),context);
+  vm.runInContext('globalThis.resultado=progresionTrazada({agent:"TrinityMBP14",machine:"macbookpronegro14"});',context);
+  assert.equal(context.resultado.origin,"mision");
+  assert.equal(context.resultado.stages[2].state,"completed");
+  assert.equal(context.resultado.stages[4].value,"55 pts");
+});
+
 test("sin cadena enlazada el fallback se identifica como agregado y no inventa relación", () => {
   assert.match(html, /linked:false, origin:origen, label:"Resumen del día · cadena sin enlazar"/);
   assert.match(html, /progreso\.linked \? progreso\.label : "Resumen no enlazado"/);

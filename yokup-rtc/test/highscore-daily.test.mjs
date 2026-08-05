@@ -11,7 +11,7 @@ const grab=name=>{
   assert.ok(m,`no se pudo extraer ${name}`);return m[0];
 };
 const grabVar=name=>{
-  const re=new RegExp(`var ${name} = [^;]+;`),m=re.exec(source);
+  const re=new RegExp(`var ${name} = [^\\n]+;`),m=re.exec(source);
   assert.ok(m,`no se pudo extraer ${name}`);return m[0];
 };
 
@@ -33,7 +33,7 @@ function harness(){
   vm.runInContext([
     grabVar("HIGHSCORE_WEIGHTS"),grabVar("HIGHSCORE_TASK_WEIGHTS"),grabVar("HIGHSCORE_RECENT_MS"),
     grabVar("HIGHSCORE_TREND_MS"),grabVar("HIGHSCORE_TREND_TOLERANCE_MS"),
-    grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_PERSONAS"),
+    grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_PERSONAS"),
     grabVar("AGENT_SOURCE_SQL"),grabVar("AGENT_SOURCE_SQL_T"),grab("highscoreAgent"),
     grab("highscoreTraceability"),grab("highscoreCurrentTotals"),grab("highscoreHourlyTrend"),grab("highscoreDaily")
   ].join("\n"),context);
@@ -76,7 +76,7 @@ test("el marcador diario suma objetivos, ventanas y misiones del día de Madrid"
     ('INC-9','v','tienda','web','in_progress','tecnico',${HOY},${HOY})`);
   db.exec(`INSERT INTO events(ticket_id,ts,kind,author,text) VALUES
     ('FLT-1',${HOY},'status','yokup','Estado → in_progress'),
-    ('FLT-2',${HOY},'log','yokup','Misión entregada al CLI; pasa a EN CURSO'),
+    ('FLT-2',${HOY},'log','yokup','Misión entregada al CLI de Neo en MacBookAirRosa; pasa a EN CURSO.'),
     ('FLT-4',${AYER},'status','yokup','Estado → in_progress'),
     ('FLT-5',${AYER},'status','yokup','Estado → in_progress')`);
 
@@ -156,7 +156,7 @@ test("la trazabilidad usa sólo llaves reales para objetivo → ventana → misi
   assert.deepEqual(d.traceability.unlinked,[]);
 });
 
-test("actividad agregada sin relación explícita se declara unlinked y no fabrica origen", async () => {
+test("una FLT directa traza misión → tareas sin fabricar objetivo ni ventana", async () => {
   const {db,env,F}=harness();
   db.exec(`INSERT INTO tickets(id,subject,loc,source,status,assignee,project,created_at,updated_at) VALUES
     ('FLT-10','Misión directa','MacMini','fleet','resolved','NeoMacMini','pixeria',${HOY},${HOY})`);
@@ -165,11 +165,91 @@ test("actividad agregada sin relación explícita se declara unlinked y no fabri
   db.exec(`INSERT INTO mission_tasks(mission_id,code,title,status,owner,created_at,updated_at) VALUES
     ('FLT-X','a','Huérfana diaria','done','SubNeoMacMini',${HOY},${HOY})`);
   const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
-  assert.deepEqual(d.traceability.chains,[]);
+  assert.equal(d.traceability.chains.length,1);
+  assert.equal(d.traceability.chains[0].origin.type,"mission");
+  assert.equal(d.traceability.chains[0].origin.id,"FLT-10");
+  assert.equal(d.traceability.chains[0].mission.id,"FLT-10");
+  assert.deepEqual(d.traceability.chains[0].windows,[]);
+  assert.deepEqual(d.traceability.chains[0].tasks,[]);
+  assert.equal(d.traceability.chains[0].points.total,40);
   assert.deepEqual(d.traceability.unlinked.map(x=>[x.type,x.id,x.reason]),[
-    ["mission","FLT-10","no_explicit_objective_or_window_link"],
     ["task","FLT-X:a","mission_outside_daily_trace"]
   ]);
+});
+
+test("MBP14: FLT-1204 enlaza una tarea done como inicio factual y suma misión + tarea", async () => {
+  const {db,env,F}=harness();
+  db.exec(`INSERT INTO tickets(id,subject,loc,source,status,assignee,project,created_at,updated_at) VALUES
+    ('FLT-1204','Comprobar tareas','macbookpronegro14','fleet','in_progress','TrinityMBP14','yokup',${AYER},${HOY})`);
+  db.exec(`INSERT INTO mission_tasks(mission_id,code,title,status,owner,created_at,updated_at) VALUES
+    ('FLT-1204','a','Pendiente principal','pending','SubTrinityMBP14',${HOY},${HOY}),
+    ('FLT-1204','a1','Comprobación realizada','done','TrinityMBP14',${HOY},${HOY + 1}),
+    ('FLT-1204','b','Pendiente B','pending','SubTrinityMBP14',${HOY},${HOY}),
+    ('FLT-1204','c','Pendiente C','pending','InfraTrinityMBP14',${HOY},${HOY})`);
+
+  const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
+  const trinity=d.scores.find(row=>row.agent==="TrinityMBP14");
+  assert.ok(trinity,"la identidad operativa exacta de MBP14 debe aparecer");
+  assert.equal(trinity.machine,"macbookpronegro14");
+  assert.equal(trinity.missions,1);
+  assert.equal(trinity.mission_points,40);
+
+  const chain=d.traceability.chains.find(row=>row.mission && row.mission.id==="FLT-1204");
+  assert.ok(chain,"la misión directa debe conservar la cadena factual ticket → tareas");
+  assert.equal(chain.origin.type,"mission");
+  assert.equal(chain.tasks.find(row=>row.id==="FLT-1204:a1").scoring,true);
+  assert.equal(chain.points.mission,40);
+  assert.equal(chain.points.tasks,15);
+  assert.equal(chain.points.total,55);
+  assert.ok(!d.traceability.unlinked.some(row=>row.id==="FLT-1204:a1"));
+  assert.equal(d.hourly.scores.find(row=>row.agent==="TrinityMBP14").current,55,
+    "la clasificación horaria une misión y tarea cuando comparten identidad exacta");
+});
+
+test("MBP16: FLT-1203 abierta y pendiente no puntúa por presencia, mensajes ni updated_at", async () => {
+  const {db,env,F}=harness();
+  db.exec(`INSERT INTO tickets(id,subject,loc,source,status,assignee,project,created_at,updated_at) VALUES
+    ('FLT-1203','Trabajo anunciado fuera del cierre canónico','macbookpro16','fleet','open','NeoMBP16','yokup',${HOY},${HOY})`);
+  db.exec(`INSERT INTO mission_tasks(mission_id,code,title,status,owner,created_at,updated_at) VALUES
+    ('FLT-1203','a','Implementación','pending','SubNeoMBP16',${HOY},${HOY}),
+    ('FLT-1203','b','Despliegue','pending','SubNeoMBP16',${HOY},${HOY}),
+    ('FLT-1203','c','QA e informe','pending','InfraNeoMBP16',${HOY},${HOY})`);
+  db.exec(`INSERT INTO events(ticket_id,ts,kind,author,text) VALUES
+    ('FLT-1203',${HOY},'log','NeoMBP16','Trabajo anunciado y despliegue comunicado')`);
+
+  const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
+  assert.ok(!d.scores.some(row=>row.agent==="NeoMBP16"));
+  assert.ok(!d.traceability.chains.some(row=>row.mission && row.mission.id==="FLT-1203"));
+  assert.deepEqual(d.traceability.unlinked
+    .filter(row=>row.mission_id==="FLT-1203")
+    .map(row=>[row.id,row.reason,row.points]),[
+      ["FLT-1203:a","mission_not_started",0],
+      ["FLT-1203:b","mission_not_started",0],
+      ["FLT-1203:c","mission_not_started",0],
+    ]);
+  assert.ok(!d.hourly.scores.some(row=>row.agent==="NeoMBP16" || row.agent==="SubNeoMBP16" || row.agent==="InfraNeoMBP16"));
+});
+
+test("logs genéricos y mensajes externos no son transiciones puntuables", async () => {
+  const {db,env,F}=harness();
+  db.exec(`INSERT INTO tickets(id,subject,loc,source,status,assignee,created_at,updated_at) VALUES
+    ('FLT-G','Log libre','macbookpro16','fleet','in_progress','NeoMBP16',${HOY},${HOY}),
+    ('FLT-E','Mensaje externo','macbookpronegro14','fleet','in_progress','TrinityMBP14',${HOY},${HOY})`);
+  db.exec(`INSERT INTO events(ticket_id,ts,kind,author,text) VALUES
+    ('FLT-G',${HOY},'log','yokup','Trabajo anunciado y ya en curso según el chat'),
+    ('FLT-E',${HOY},'log','AgoraMatrix','Misión entregada al CLI de Trinity en macbookpronegro14; pasa a EN CURSO.')`);
+  const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
+  assert.ok(!d.scores.some(row=>row.agent==="NeoMBP16" || row.agent==="TrinityMBP14"));
+  assert.ok(!d.traceability.chains.some(row=>row.mission && ["FLT-G","FLT-E"].includes(row.mission.id)));
+});
+
+test("el auto-claim deja evidencia canónica y el marcador sólo acepta tareas activas o hechas", () => {
+  assert.match(source,/UPDATE tickets SET status='in_progress'.*WHERE id=\? AND status='open'/);
+  assert.match(source,/Estado → in_progress · primer avance de tarea/);
+  assert.match(source,/HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL/);
+  assert.match(source,/lower\(COALESCE\(e\.author,''\)\)='yokup'/);
+  assert.match(source,/SELECT MIN\(mt\.updated_at\).*mt\.status IN \('in_progress','done'\)/);
+  assert.match(source,/m\.status IN \('in_progress','done'\)/);
 });
 
 test("la tendencia de 60 minutos usa una referencia persistida y no memoria del navegador", async () => {

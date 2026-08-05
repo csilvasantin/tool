@@ -1589,7 +1589,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function progresionHtml(a) {
     var progreso = normalizaProgresion(a), origen = progreso.origin === "objetivo" ? "Objetivo" :
-      (progreso.origin === "ventana" ? "Ventana" : "No determinado");
+      (progreso.origin === "ventana" ? "Ventana" : (progreso.origin === "mision" ? "Misión" : "No determinado"));
     // La franja «PUNTUACIÓN POR HORA» se retiró (Carlos, 2026-08-05): ocupaba una
     // línea entera de la fila desplegada para decir una cifra y una excusa. Esa
     // cifra vive ahora bajo el total, en la columna PUNTOS — ver puntosHtml.

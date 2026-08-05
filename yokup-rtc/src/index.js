@@ -2967,14 +2967,19 @@ var HIGHSCORE_TASK_WEIGHTS = { task: 15, active_bonus: 10 };
 var HIGHSCORE_RECENT_MS = 15 * 60 * 1e3;
 var HIGHSCORE_TREND_MS = 60 * 60 * 1e3;
 var HIGHSCORE_TREND_TOLERANCE_MS = 15 * 60 * 1e3;
-// Instante puntuable de una misión: creación ya EN CURSO para las tandas, o el
-// primer evento persistido que demuestra la transición para flota. Sin una de
-// esas dos pruebas no se adivina a partir de una edición/cierre posterior.
+// Compatibilidad histórica estricta: sólo cuentan eventos INTERNOS de Yokup
+// (`author=yokup`) cuya frase coincide con una plantilla de transición emitida
+// por este worker. Mensajes de Agora/public inbox, presencia y logs libres no
+// son prueba de inicio aunque contengan palabras como «en curso».
+var HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL = "lower(COALESCE(e.author,''))='yokup' AND ((e.kind='status' AND (lower(trim(e.text)) IN ('estado → in_progress','estado → in_progress · primer avance de tarea') OR lower(e.text) GLOB 'la misión pasa a in_progress por su árbol de tareas (*/*). encargo #* → in_progress.' OR lower(e.text) GLOB 'la misión pasa a in_progress por su árbol de tareas (*/*). encargo #* → in_progress (no se pudo avisar al bot-inbox).')) OR (e.kind='log' AND (lower(e.text) GLOB 'misión entregada al cli de * en *; pasa a en curso.' OR lower(e.text) GLOB 'misión entregada al cli de * en *; pasa a en curso (sincronización del bot-inbox pendiente).' OR lower(e.text) GLOB 'la misión pasa a in_progress por su árbol de tareas. encargo #* → in_progress.' OR lower(e.text) GLOB 'la misión pasa a in_progress por su árbol de tareas. encargo #* → in_progress (no se pudo avisar al bot-inbox).')))";
+// Instante puntuable de una misión: creación ya EN CURSO para las tandas, una
+// transición interna histórica válida, o el primer estado canónico de una tarea.
+// Sin una de esas pruebas no se adivina a partir de una edición/cierre posterior.
 // Una misión DECLARADA nace ya en curso y con su evidencia, igual que una
 // materializada desde una ventana: su created_at ES el hecho puntuable. Sin
 // esto, scored_at salía NULL —no hay evento de «pasa a en curso» que buscar—
 // y las cinco misiones que declaré seguían contando como una (2026-08-05).
-var HIGHSCORE_MISSION_STARTED_SQL = "CASE WHEN t.source IN ('decision-batch','cli-declare') THEN t.created_at ELSE (SELECT MIN(e.ts) FROM events e WHERE e.ticket_id=t.id AND ((e.kind='status' AND (lower(e.text) LIKE '%in_progress%' OR lower(e.text) LIKE '%en curso%')) OR (e.kind='log' AND (lower(e.text) LIKE '%pasa a en curso%' OR lower(e.text) LIKE '%activada desde la cola%')))) END";
+var HIGHSCORE_MISSION_STARTED_SQL = "CASE WHEN t.source IN ('decision-batch','cli-declare') THEN t.created_at ELSE COALESCE((SELECT MIN(e.ts) FROM events e WHERE e.ticket_id=t.id AND " + HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL + "),(SELECT MIN(mt.updated_at) FROM mission_tasks mt WHERE mt.mission_id=t.id AND mt.status IN ('in_progress','done'))) END";
 var HIGHSCORE_PERSONAS = ["neo", "morfeo", "trinity", "oraculo", "smith", "whiterabbit", "cypher"];
 
 /** Quién firma un objetivo. Los autores llegan como los escribe cada sitio:
@@ -3010,9 +3015,10 @@ async function highscoreTraceability(env, inicio, fin, ahora) {
     `FROM tickets t WHERE ${AGENT_SOURCE_SQL_T}) WHERE status IN ('in_progress','resolved') AND scored_at>=? AND scored_at<?`
   );
   const tasks = ((await env.DB.prepare(
-    "SELECT mission_id,code,title,status,owner,created_at,updated_at FROM mission_tasks " +
-    "WHERE (COALESCE(created_at,updated_at)>=? AND COALESCE(created_at,updated_at)<?) " +
-    "OR (updated_at>=? AND updated_at<?)"
+    "SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.created_at,m.updated_at,t.status mission_status " +
+    "FROM mission_tasks m LEFT JOIN tickets t ON t.id=m.mission_id " +
+    "WHERE (COALESCE(m.created_at,m.updated_at)>=? AND COALESCE(m.created_at,m.updated_at)<?) " +
+    "OR (m.updated_at>=? AND m.updated_at<?)"
   ).bind(inicio, fin, inicio, fin).all()).results || []);
   // Esta consulta no usa fechas: son exclusivamente llaves de unión. Las etapas
   // que no pertenecen al día no se publican, pero la llave permite distinguir
@@ -3114,6 +3120,10 @@ async function highscoreTraceability(env, inicio, fin, ahora) {
     } else if (windows.length) {
       const first = windows[0], origin = { ...windowStage(first), type: "window" };
       windows.forEach((d) => linkedWindows.add(String(d.id))); linkedMissions.add(String(m.id)); addChain(origin, windows, m);
+    } else {
+      // Una FLT directa ya tiene una relación factual: ticket → mission_tasks.
+      // No inventa objetivo ni ventana, pero tampoco deja sus tareas huérfanas.
+      linkedMissions.add(String(m.id)); addChain({ ...missionStage(m), type: "mission" }, [], m);
     }
   }
   for (const o of ideas) if (!linkedObjectives.has(String(o.id))) {
@@ -3129,7 +3139,9 @@ async function highscoreTraceability(env, inicio, fin, ahora) {
     at: Number(m.scored_at) || Number(m.created_at) || 0, is_new: isNew(m.created_at), points: HIGHSCORE_WEIGHTS.mission });
   for (const t of tasks) if (!missionById.has(String(t.mission_id || ""))) unlinked.push({ type: "task",
     id: String(t.mission_id) + ":" + String(t.code), mission_id: String(t.mission_id || ""),
-    reason: "mission_outside_daily_trace", agent: t.owner || "", at: Number(t.updated_at || t.created_at) || 0,
+    reason: String(t.mission_status || "") === "open" && String(t.status || "") === "pending"
+      ? "mission_not_started" : "mission_outside_daily_trace",
+    agent: t.owner || "", at: Number(t.updated_at || t.created_at) || 0,
     is_new: isNew(t.created_at || t.updated_at), points: 0 });
   unlinked.sort((a, b) => b.at - a.at || a.id.localeCompare(b.id));
   return { version: 1, recent_after: ahora - HIGHSCORE_RECENT_MS, chains, unlinked,
@@ -3830,7 +3842,14 @@ var index_default = {
       // (Pendiente rezagado) pasa YA a in_progress al primer task-status, sin esperar a
       // que el reconciliador por árbol la promueva. Cura de raíz del dato. (FLT-990 b/c)
       if (tk.source === "fleet" && tk.status === "open") {
-        await env.DB.prepare("UPDATE tickets SET status='in_progress', updated_at=? WHERE id=? AND status='open'").bind(Date.now(), mid).run().catch(() => {});
+        const claimedAt = Date.now();
+        const claimed = await env.DB.prepare("UPDATE tickets SET status='in_progress', updated_at=? WHERE id=? AND status='open'").bind(claimedAt, mid).run();
+        // El Highscore necesita el primer hecho de inicio, no el updated_at mutable
+        // del ticket. El auto-claim anterior cambiaba estado sin dejar esa prueba.
+        if (!claimed || !claimed.meta || Number(claimed.meta.changes) > 0) {
+          await addEvent(env, mid, "status", "yokup",
+            "Estado → in_progress · primer avance de tarea");
+        }
         tk.status = "in_progress";
       }
       // La misión puede no tener árbol todavía (los planes se generan al abrirla en el

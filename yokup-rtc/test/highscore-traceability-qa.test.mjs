@@ -11,7 +11,7 @@ const grab = (name) => {
   return match[0];
 };
 const grabVar = (name) => {
-  const match = new RegExp(`var ${name} = [^;]+;`).exec(source);
+  const match = new RegExp(`var ${name} = [^\\n]+;`).exec(source);
   assert.ok(match, `no se pudo extraer ${name}`);
   return match[0];
 };
@@ -24,14 +24,14 @@ function harness() {
   db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,created_at INTEGER,updated_at INTEGER)");
   db.exec("CREATE TABLE mission_batches(id TEXT,decision_id TEXT)");
   db.exec("CREATE TABLE mission_batch_items(batch_id TEXT,mission_id TEXT)");
-  db.exec("CREATE TABLE events(ticket_id TEXT,kind TEXT,text TEXT,ts INTEGER)");
+  db.exec("CREATE TABLE events(ticket_id TEXT,kind TEXT,author TEXT,text TEXT,ts INTEGER)");
   const DB = { prepare(sql) {
     const statement = db.prepare(sql);
     const result = (...args) => ({ results:statement.all(...args) });
     return { bind(...args) { return { all:async () => result(...args) }; }, all:async () => result() };
   } };
   const context = vm.createContext({ Map, Set, Array, String, Number, Date, RegExp, Math, Object, __name:(fn) => fn });
-  vm.runInContext(["HIGHSCORE_WEIGHTS", "HIGHSCORE_TASK_WEIGHTS", "HIGHSCORE_RECENT_MS", "HIGHSCORE_MISSION_STARTED_SQL", "HIGHSCORE_PERSONAS", "AGENT_SOURCE_SQL_T"]
+  vm.runInContext(["HIGHSCORE_WEIGHTS", "HIGHSCORE_TASK_WEIGHTS", "HIGHSCORE_RECENT_MS", "HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL", "HIGHSCORE_MISSION_STARTED_SQL", "HIGHSCORE_PERSONAS", "AGENT_SOURCE_SQL_T"]
     .map(grabVar).concat(grab("highscoreAgent"), grab("highscoreTraceability")).join("\n"), context);
   return { db, env:{DB}, trace:context.highscoreTraceability };
 }
@@ -58,7 +58,7 @@ test("una cadena nacida en Ventana conserva origen único, orden cronológico y 
   db.prepare("INSERT INTO mission_batches VALUES(?,?)").run("B-W","DEC-W");
   db.prepare("INSERT INTO mission_batch_items VALUES(?,?)").run("B-W","FLT-W");
   db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?)").run("FLT-W","Entrega","NeoMini","macmini","pixeria","fleet","in_progress",NOW-7000,NOW-1000);
-  db.prepare("INSERT INTO events VALUES(?,?,?,?)").run("FLT-W","status","pasa a in_progress",NOW-6500);
+  db.prepare("INSERT INTO events VALUES(?,?,?,?,?)").run("FLT-W","status","yokup","Estado → in_progress",NOW-6500);
   db.prepare("INSERT INTO mission_tasks VALUES(?,?,?,?,?,?,?)").run("FLT-W","b","Segundo","done","SubNeoMini",NOW-3000,NOW-2000);
   db.prepare("INSERT INTO mission_tasks VALUES(?,?,?,?,?,?,?)").run("FLT-W","a","Primero","done","SubNeoMini",NOW-6000,NOW-5000);
   const result = structuredClone(await trace(env, START, END, NOW));
@@ -76,13 +76,15 @@ test("el corte diario y las relaciones ausentes son explícitos, no aproximados"
   const { db, env, trace } = harness();
   db.prepare("INSERT INTO ideas VALUES(?,?,?,?,?,?,?,?)").run("AYER","Viejo","OraculoMini","yokup","","",START-1,START-1);
   db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?)").run("FLT-U","Directa","OraculoMini","macmini","yokup","fleet","resolved",NOW-5000,NOW-1000);
-  db.prepare("INSERT INTO events VALUES(?,?,?,?)").run("FLT-U","status","pasa a in_progress",NOW-4500);
+  db.prepare("INSERT INTO events VALUES(?,?,?,?,?)").run("FLT-U","status","yokup","Estado → in_progress",NOW-4500);
   db.prepare("INSERT INTO mission_tasks VALUES(?,?,?,?,?,?,?)").run("FLT-X","a","Huérfana","done","SubOraculoMini",NOW-4000,NOW-2000);
   const result = structuredClone(await trace(env, START, END, NOW));
-  assert.deepEqual(result.chains, []);
+  assert.equal(result.chains.length, 1);
+  assert.equal(result.chains[0].origin.type, "mission");
+  assert.equal(result.chains[0].origin.id, "FLT-U");
+  assert.equal(result.chains[0].points.total, 40);
   assert.deepEqual(result.unlinked.map((item) => [item.type,item.id,item.reason]), [
-    ["task","FLT-X:a","mission_outside_daily_trace"],
-    ["mission","FLT-U","no_explicit_objective_or_window_link"]
+    ["task","FLT-X:a","mission_outside_daily_trace"]
   ]);
-  assert.deepEqual(result.coverage, { objectives:0, windows:0, missions:1, tasks:1, linked_missions:0, unlinked:2 });
+  assert.deepEqual(result.coverage, { objectives:0, windows:0, missions:1, tasks:1, linked_missions:1, unlinked:1 });
 });
