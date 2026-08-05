@@ -1581,6 +1581,30 @@ __name(syncIdeaFromDecision, "syncIdeaFromDecision");
 // ordenador da trabajo para todo el día al agente que la ejecuta. Los planes
 // antiguos de 3 pasos (a/b/c) siguen siendo válidos: a-h los incluye.
 var TASK_CODE = /^[a-h]([1-3])?$/;
+// EVIDENCIA DE TRABAJO DECLARADO (POST /declare). La ruta es pública para que
+// los agentes cierren tareas desde el CLI, así que lo que impide que sea un
+// grifo de marcador es esto: hay que enseñar algo comprobable. Vale un commit,
+// el sello de un despliegue o una URL viva; basta con uno, pero alguno tiene
+// que haber. Devuelve null si no hay nada que enseñar.
+function declaredEvidence(raw) {
+  const e = raw && typeof raw === "object" ? raw : {};
+  const commit = String(e.commit || "").trim().slice(0, 64);
+  const release = String(e.release || "").trim().slice(0, 64);
+  const url = String(e.url || "").trim().slice(0, 300);
+  const okCommit = /^[0-9a-f]{7,40}$/i.test(commit);
+  // mismo formato que exige la norma 07: v.DD.MM.AAAA.rN.HH:MM
+  const okRelease = /^v\.\d{2}\.\d{2}\.\d{4}\.r\d+\.\d{2}:\d{2}$/.test(release);
+  const okUrl = /^https:\/\/[a-z0-9.-]+\.[a-z]{2,}(?:[/?#]|$)/i.test(url);
+  if (!okCommit && !okRelease && !okUrl) return null;
+  return {
+    commit: okCommit ? commit : "",
+    release: okRelease ? release : "",
+    url: okUrl ? url : "",
+    text: [okCommit ? "commit " + commit : "", okRelease ? "sello " + release : "", okUrl ? url : ""]
+      .filter(Boolean).join(" · ")
+  };
+}
+
 var TASK_STATUS = ["pending", "in_progress", "done"];
 function validTaskCode(c) {
   return typeof c === "string" && TASK_CODE.test(c);
@@ -1632,9 +1656,16 @@ __name(listMissionTasks, "listMissionTasks");
 // bandeja de CAMPO, cuyo ámbito es «todo lo que no es fleet». Lo cazó Carlos
 // mirando el marcador: «todos los que corren en un MacBookAir tienen 0 en
 // misiones y 0 en tareas». (2026-08-04.)
-var AGENT_SOURCE_SQL = "source IN ('fleet','decision-batch')";
-var AGENT_SOURCE_SQL_T = "t.source IN ('fleet','decision-batch')";
-var FIELD_SOURCE_SQL_T = "(t.source IS NULL OR t.source NOT IN ('fleet','decision-batch'))";
+// TERCERA PUERTA (2026-08-05): source='cli-declare', el trabajo que un agente
+// declara desde el CLI con POST /declare. Mismo fallo de clase que el de arriba
+// —una puerta nueva que el marcador no mira deja el trabajo a cero— y esta vez
+// lo cacé al declarar mi propia jornada: cinco misiones registradas y el
+// agregado seguía diciendo una. Que puntúe es precisamente el motivo de la
+// ruta; lo que impide que sea un grifo es la evidencia obligatoria, no la
+// exclusión del marcador.
+var AGENT_SOURCE_SQL = "source IN ('fleet','decision-batch','cli-declare')";
+var AGENT_SOURCE_SQL_T = "t.source IN ('fleet','decision-batch','cli-declare')";
+var FIELD_SOURCE_SQL_T = "(t.source IS NULL OR t.source NOT IN ('fleet','decision-batch','cli-declare'))";
 
 async function listAllMissionTasks(env, scope) {
   const where = scope === "fleet" ? `WHERE ${AGENT_SOURCE_SQL_T}`
@@ -2852,7 +2883,11 @@ var HIGHSCORE_TREND_TOLERANCE_MS = 15 * 60 * 1e3;
 // Instante puntuable de una misión: creación ya EN CURSO para las tandas, o el
 // primer evento persistido que demuestra la transición para flota. Sin una de
 // esas dos pruebas no se adivina a partir de una edición/cierre posterior.
-var HIGHSCORE_MISSION_STARTED_SQL = "CASE WHEN t.source='decision-batch' THEN t.created_at ELSE (SELECT MIN(e.ts) FROM events e WHERE e.ticket_id=t.id AND ((e.kind='status' AND (lower(e.text) LIKE '%in_progress%' OR lower(e.text) LIKE '%en curso%')) OR (e.kind='log' AND (lower(e.text) LIKE '%pasa a en curso%' OR lower(e.text) LIKE '%activada desde la cola%')))) END";
+// Una misión DECLARADA nace ya en curso y con su evidencia, igual que una
+// materializada desde una ventana: su created_at ES el hecho puntuable. Sin
+// esto, scored_at salía NULL —no hay evento de «pasa a en curso» que buscar—
+// y las cinco misiones que declaré seguían contando como una (2026-08-05).
+var HIGHSCORE_MISSION_STARTED_SQL = "CASE WHEN t.source IN ('decision-batch','cli-declare') THEN t.created_at ELSE (SELECT MIN(e.ts) FROM events e WHERE e.ticket_id=t.id AND ((e.kind='status' AND (lower(e.text) LIKE '%in_progress%' OR lower(e.text) LIKE '%en curso%')) OR (e.kind='log' AND (lower(e.text) LIKE '%pasa a en curso%' OR lower(e.text) LIKE '%activada desde la cola%')))) END";
 var HIGHSCORE_PERSONAS = ["neo", "morfeo", "trinity", "oraculo", "smith", "whiterabbit", "cypher"];
 
 /** Quién firma un objetivo. Los autores llegan como los escribe cada sitio:
@@ -4509,6 +4544,142 @@ var index_default = {
     // GET  /decisions/<id>       (agente) consulta el desenlace
     // Lectura abierta (el panel la pinta); publicar y elegir NO piden sesión a
     // propósito: los agentes publican desde el CLI sin login de navegador.
+    // ── DECLARAR TRABAJO HECHO ────────────────────────────────────────────
+    // POST /declare (agente, sin login) registra una misión y sus tareas a/b/c.
+    //
+    // Un agente podía ABRIR una ventana de decisión desde el CLI sin sesión,
+    // pero no podía DECLARAR lo que había hecho: /tickets, /tasks/all y todo
+    // /mission/* viven tras el perímetro. El marcador medía exactamente lo que
+    // no dejaba registrar, así que una jornada entera de trabajo real salía a
+    // cero tareas (Carlos, 2026-08-05). Esto cierra el círculo por el mismo
+    // carril que /decisions, con UNA exigencia que las demás rutas no tienen:
+    //
+    //   NINGUNA TAREA SE DECLARA HECHA SIN EVIDENCIA.
+    //
+    // Un commit, un sello de despliegue o una URL viva. Es lo único que separa
+    // declarar trabajo de apuntarse puntos, y por eso la ruta puede ser pública
+    // sin convertirse en un grifo de marcador.
+    if (url.pathname === "/declare" && req.method === "POST") {
+      try {
+        await ensureSchema(env);
+        const b = await req.json();
+        const identity = resolveDecisionIdentity(b.agent, b.machine);
+        if (!identity.ok) return json({ ok: false, error: identity.error, code: "exact_identity_required" }, 400);
+        const assignment = await exactDecisionProjectAssignment(
+          env, identity.agent, identity.machine, String(b.project_id || "").trim().slice(0, 120)
+        );
+        const projectContext = resolveDecisionProject(
+          { ...b, agent: identity.agent, machine: identity.machine }, assignment, null
+        );
+        if (!projectContext.ok) return json({ ok: false, error: projectContext.error, code: "exact_project_required" }, 400);
+
+        const subject = String(b.subject || "").trim().slice(0, 160);
+        if (!subject) return json({ ok: false, error: "subject requerido" }, 400);
+
+        const rawTasks = Array.isArray(b.tasks) ? b.tasks : [];
+        if (!rawTasks.length || rawTasks.length > 3) {
+          return json({ ok: false, error: "una misión son entre 1 y 3 tareas (a, b, c)" }, 400);
+        }
+        const now = Date.now();
+        const codes = /* @__PURE__ */ new Set();
+        const tasks = [];
+        for (const t of rawTasks) {
+          const code = String((t && t.code) || "").trim().toLowerCase();
+          if (!/^[abc]$/.test(code) || codes.has(code)) {
+            return json({ ok: false, error: "cada tarea necesita un código único a, b o c" }, 400);
+          }
+          codes.add(code);
+          const title = String((t && t.title) || "").trim().slice(0, 120);
+          if (!title) return json({ ok: false, error: `la tarea ${code} necesita título` }, 400);
+          const status = TASK_STATUS.includes(t && t.status) ? t.status : "pending";
+          let evidence = null;
+          if (status === "done") {
+            evidence = declaredEvidence(t && t.evidence);
+            if (!evidence) {
+              return json({ ok: false, code: "evidence_required",
+                error: `la tarea ${code} se declara hecha sin evidencia: hace falta commit, sello de despliegue o URL` }, 400);
+            }
+          }
+          const report = String((t && t.report) || "").trim().slice(0, 1800);
+          tasks.push({ code, title, status, evidence,
+            report: [report, evidence ? "Evidencia · " + evidence.text : ""].filter(Boolean).join("\n") || null });
+        }
+
+        // TODO lo que puede fallar se comprueba ANTES de escribir. La primera
+        // versión validaba el cierre DESPUÉS del INSERT, así que un 400 por
+        // «tareas sin hacer» dejaba una misión huérfana viva en el tablero —
+        // justo el tipo de registro falso que esta ruta viene a evitar.
+        const todasHechas = tasks.every((t) => t.status === "done");
+        const evidenciaMision = b.resolve === true ? declaredEvidence(b.evidence) : null;
+        if (b.resolve === true) {
+          if (!todasHechas) return json({ ok: false, code: "tasks_pending",
+            error: "no se cierra una misión con tareas sin hacer" }, 400);
+          if (!evidenciaMision) return json({ ok: false, code: "evidence_required",
+            error: "cerrar la misión exige evidencia: commit, sello de despliegue o URL" }, 400);
+        }
+
+        // Una misión existente sólo la declara SU agente. Si no, cualquiera
+        // podría colgarse el trabajo de otro.
+        let missionId = String(b.mission_id || "").trim().slice(0, 80);
+        let creada = false;
+        if (missionId) {
+          const existing = await env.DB.prepare("SELECT id,assignee,loc FROM tickets WHERE id=?").bind(missionId).first();
+          if (!existing) return json({ ok: false, error: "mission_id no existe" }, 404);
+          const suya = sameAgentFamily(existing.assignee || "", identity.agent) &&
+            memberRefMatches("machine", existing.loc || identity.machine, identity.machine);
+          if (!suya) return json({ ok: false, code: "not_your_mission",
+            error: "esa misión está asignada a otro agente" }, 403);
+          await env.DB.prepare("UPDATE tickets SET subject=?, updated_at=? WHERE id=?")
+            .bind(subject, now, missionId).run();
+        } else {
+          missionId = "DCL-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
+          // `screen` lleva un índice UNIQUE entre tickets NO resueltos (una sola
+          // incidencia abierta por pantalla física). Sembrarlo con el proyecto
+          // dejaba una única misión declarable por proyecto y reventaba la
+          // segunda con un D1_ERROR. Va con el id de la misión, único por
+          // construcción, que además hace el origen legible en el tablero.
+          await env.DB.prepare(
+            "INSERT INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)"
+          ).bind(missionId, "declare:" + missionId, subject, identity.machine, "mission",
+            "in_progress", "normal", identity.agent, "cli-declare", "", now, now).run();
+          // Entrada en curso explícita, como cualquier otra misión: deja el
+          // mismo rastro que busca el marcador y que lee la ficha del ticket.
+          await addEvent(env, missionId, "status", identity.agent,
+            "Misión declarada desde el CLI: pasa a en curso (in_progress).");
+          creada = true;
+        }
+
+        await saveMissionPlan(env, missionId, tasks.map((t) => ({
+          code: t.code, title: t.title, status: t.status, report: t.report
+        })));
+
+        // Rastro auditable: quién declaró qué y con qué evidencia. Sin esto la
+        // ruta sería una caja negra que sube marcadores.
+        for (const t of tasks) {
+          if (!t.evidence) continue;
+          await addEvent(env, missionId, "log", identity.agent,
+            `Tarea ${t.code} declarada hecha desde el CLI · ${t.evidence.text}`);
+        }
+
+        // El cierre ya venía validado arriba, antes de tocar la base. El evento
+        // 'accept' es el mismo que exige la cola de tandas para avanzar, así que
+        // no se firma sin evidencia.
+        let cerrada = false;
+        if (b.resolve === true) {
+          await env.DB.prepare("UPDATE tickets SET status='resolved', resolved_at=?, updated_at=? WHERE id=?")
+            .bind(now, now, missionId).run();
+          await addEvent(env, missionId, "accept", identity.agent,
+            `Misión declarada resuelta desde el CLI · ${evidenciaMision.text}`);
+          cerrada = true;
+        }
+        const display_ref = await ensureEntityDisplayRef(env, "mission", missionId, now);
+        return json({ ok: true, mission_id: missionId, display_ref, creada, cerrada,
+          agent: identity.agent, machine: identity.machine, project: projectContext.project,
+          project_id: projectContext.project_id,
+          tasks: tasks.map((t) => ({ code: t.code, status: t.status, evidencia: !!t.evidence })) });
+      } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
+
     if (url.pathname === "/decisions" && req.method === "POST") {
       try {
         await ensureSchema(env);
