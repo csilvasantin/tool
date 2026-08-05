@@ -4,6 +4,7 @@ import vm from "node:vm";
 import {DatabaseSync} from "node:sqlite";
 import {readFile} from "node:fs/promises";
 import {madridDayKey,madridDayStart} from "../src/display-ref.js";
+import {machineSuffix} from "../src/agent-identity.js";
 
 const source=await readFile(new URL("../src/index.js",import.meta.url),"utf8");
 const grab=name=>{
@@ -26,7 +27,10 @@ function harness(){
   db.exec("CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT,ticket_id TEXT,ts INTEGER,kind TEXT,author TEXT,text TEXT)");
   db.exec("CREATE TABLE highscore_snapshots(agent_key TEXT,agent TEXT,machine TEXT,sampled_at INTEGER,points INTEGER,PRIMARY KEY(agent_key,sampled_at))");
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{first:async()=>stmt.get(...args)||null,run:async()=>({meta:stmt.run(...args)}),all:async()=>({results:stmt.all(...args)})}},first:async()=>stmt.get()||null,all:async()=>({results:stmt.all()})}}};
-  const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,madridDayKey,madridDayStart,
+  // machineSuffix entra en el sandbox como el resto: el marcador agrupa por el
+  // APELLIDO canonico de la maquina, porque el mismo equipo llega escrito como
+  // 'macmini', 'admira-macmini' o 'MacMini' segun quien escriba.
+  const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,madridDayKey,madridDayStart,machineSuffix,
     reportAgentIdentity:(agent)=>String(agent||""),
     scopedMissionOwner:(owner,_role,assignee)=>String(owner||assignee||""),
     __name:(fn)=>fn});

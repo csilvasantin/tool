@@ -3404,7 +3404,13 @@ async function highscoreDaily(env) {
   const fila = (agent, machine) => {
     const a = String(agent || "").trim();
     if (!a) return null;
-    const m = String(machine || "").trim(), k = a.toLowerCase() + "|" + m.toLowerCase();
+    const m = String(machine || "").trim();
+    // La MISMA maquina llega escrita de tres formas segun quien escriba: las
+    // misiones ponen loc='macmini', las ventanas machine='admira-macmini' y el
+    // censo 'MacMini'. Agrupar por el literal partia a un agente en dos filas
+    // —MorfeoMacMini salio duplicado, 9 misiones en una y 2 en otra— asi que se
+    // agrupa por el APELLIDO canonico, que es lo que ya sabe machineSuffix.
+    const k = a.toLowerCase() + "|" + (machineSuffix(m) || m).toLowerCase();
     if (!acc.has(k)) acc.set(k, {
       agent: a, machine: m,
       objectives: 0, objective_points: 0, windows: 0, window_points: 0, missions: 0, mission_points: 0
