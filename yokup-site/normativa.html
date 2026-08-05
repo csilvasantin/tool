@@ -287,9 +287,10 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     <div>
       <h2>OnIdle horario: tres acciones cuando el equipo está desatendido</h2>
       <p>Cuando el equipo esté desatendido, cada agente puede abrir una ventana de decisión
-        <b>una vez por hora como máximo</b>. La ventana presenta <b>exactamente tres misiones</b>
+        <b>una cada 60 minutos como máximo</b>. El reloj se pone a cero en cada ventana y corre
+        una hora entera: no se reinicia al dar las en punto. La ventana presenta <b>exactamente tres misiones</b>
         y la acción <b>«Volver atrás»</b>. La primera misión es la recomendada.</p>
-      <div class="formula">Equipo desatendido → 1 ventana/hora · 3 misiones + Volver atrás</div>
+      <div class="formula">Equipo desatendido → 1 ventana cada 60 min · 3 misiones + Volver atrás</div>
       <p>Si el reloj expira sin respuesta, se inicia la recomendada y las otras dos misiones
         continúan en la cola persistente. Toda acción automática debe ser reversible, conservar
         evidencia y no implicar borrado, gasto, permisos nuevos ni otra actuación irreversible.</p>
@@ -297,7 +298,7 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
           <thead><tr><th>Condición</th><th>Regla</th><th>Resultado</th></tr></thead>
           <tbody>
             <tr><td>Equipo atendido</td><td>No hace falta abrir OnIdle</td><td>Se sigue la conversación activa</td></tr>
-            <tr><td>Equipo desatendido</td><td>Máximo una ventana por hora</td><td>3 misiones + Volver atrás</td></tr>
+            <tr><td>Equipo desatendido</td><td>Máximo una ventana cada 60 min</td><td>3 misiones + Volver atrás</td></tr>
             <tr><td>Sin respuesta</td><td>Expira el reloj</td><td>Arranca la recomendada; las otras dos quedan en cola</td></tr>
           </tbody>
         </table>
@@ -380,7 +381,7 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     </div>
   </section>
 
-  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.05.08.2026.r2.09:56 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
+  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.05.08.2026.r4.12:45 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
 </main>
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script>
