@@ -17,7 +17,7 @@ var json = /* @__PURE__ */ __name((o, s = 200) => new Response(JSON.stringify(o)
 var AUTH_CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
 var WL_API = "https://admira-whitelist.csilvasantin.workers.dev";
 var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@admira.com", "agonzalez@admira.com", "jsedano@admira.com"];
-var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/agent/stop", "/equipo/machine", "/equipo/silicon"]);
+var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/agent/stop", "/equipo/machine", "/equipo/silicon", "/strategy"]);
 var _wl = { at: 0, set: null };
 async function whitelist() {
   if (_wl.set && Date.now() - _wl.at < 3e5) return _wl.set;
@@ -173,6 +173,11 @@ async function applySchema(env) {
   // RELOJES DE DECISIÓN (Carlos, 2026-07-21): un equipo de silicio publica aquí
   // lo que tiene pendiente de decidir, con sus 3 opciones y una cuenta atrás.
   // Si Carlos no elige antes del deadline, el agente tira con la recomendada.
+  // ESTRATEGIA (norte de cada equipo). Vivía SOLO en la rama feat-estrategia-fase2
+  // y se desplegó desde ahí el 2026-07-23; al redesplegar el worker desde main el
+  // 2026-08-05 se cayó de producción sin que nadie lo notara. Va a main para que
+  // no dependa de qué rama toque desplegar (lo tumbé yo; ver /fleet/strategy).
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS strategy (team TEXT PRIMARY KEY, text TEXT, updated_at INTEGER, updated_by TEXT)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS decisions (id TEXT PRIMARY KEY, machine TEXT, agent TEXT, surface TEXT, question TEXT, options TEXT, recommended INTEGER DEFAULT 0, status TEXT DEFAULT 'pending', chosen INTEGER, chosen_by TEXT, created_at INTEGER, deadline INTEGER, decided_at INTEGER)");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_dec_status ON decisions(status, deadline)");
   // Contexto que engloba la decisión. `project` es el nombre humano canónico;
@@ -3438,6 +3443,16 @@ var index_default = {
         return json({ ok: false, error: String(e) }, 500);
       }
     }
+    // ESTRATEGIA (norte) — LECTURA PÚBLICA: los agentes la leen desde el CLI,
+    // igual que publican decisiones, sin login de navegador.
+    if (url.pathname === "/fleet/strategy") {
+      await ensureSchema(env);
+      const rows = ((await env.DB.prepare("SELECT team, text, updated_at, updated_by FROM strategy").all()).results) || [];
+      const by = {};
+      for (const r of rows) by[r.team] = { text: r.text || "", updated_at: r.updated_at || 0, updated_by: r.updated_by || "" };
+      const blank = { text: "", updated_at: 0, updated_by: "" };
+      return json({ ok: true, strategy: { atomos: by.atomos || blank, bits: by.bits || blank } });
+    }
     if (url.pathname === "/fleet/missions") {
       await ensureSchema(env);
       return json({ missions: await fleetMissions(env) });
@@ -4559,6 +4574,21 @@ var index_default = {
     // Un commit, un sello de despliegue o una URL viva. Es lo único que separa
     // declarar trabajo de apuntarse puntos, y por eso la ruta puede ser pública
     // sin convertirse en un grifo de marcador.
+    // ESTRATEGIA (norte) — ESCRITURA protegida por el perímetro. team ∈ atomos|bits.
+    if (url.pathname === "/strategy" && req.method === "POST") {
+      await ensureSchema(env);
+      let b; try { b = await req.json(); } catch (e) { return json({ ok: false, error: "bad json" }, 400); }
+      const team = String(b.team || "").toLowerCase();
+      if (team !== "atomos" && team !== "bits") return json({ ok: false, error: "team debe ser atomos|bits" }, 400);
+      const text = String(b.text || "").slice(0, 4000);
+      const sess = await requireAuth(env, req);
+      const by = (sess && sess.email) || "web";
+      const now = Date.now();
+      await env.DB.prepare("INSERT INTO strategy (team, text, updated_at, updated_by) VALUES (?,?,?,?) ON CONFLICT(team) DO UPDATE SET text=excluded.text, updated_at=excluded.updated_at, updated_by=excluded.updated_by")
+        .bind(team, text, now, by).run();
+      return json({ ok: true, team, updated_at: now, updated_by: by });
+    }
+
     if (url.pathname === "/declare" && req.method === "POST") {
       try {
         await ensureSchema(env);
