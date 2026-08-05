@@ -144,7 +144,9 @@ try {
       "  este arbol tal cual, hazlo consciente: YOKUP_DEPLOY_FORCE=1."
     );
   }
-  const gitFull = headSha;
+  // Se recalcula igual que siempre: hay un test que fija esta linea literal
+  // como contrato del sello, y no la voy a cambiar por un atajo mio.
+  const gitFull = execFileSync("git", ["rev-parse", "HEAD"], { encoding:"utf8" }).trim();
   const gitShort = execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding:"utf8" }).trim();
   const dirty = !!execFileSync("git", ["status", "--porcelain"], { encoding:"utf8" }).trim();
   const payload = {
