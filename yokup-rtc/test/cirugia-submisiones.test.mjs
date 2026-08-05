@@ -131,10 +131,11 @@ test('pieza2: no degrada una ya resuelta ni pisa una en curso', () => {
   assert.equal(tk(env, 'FLT-1').status, 'resolved');
   assert.equal(tk(env, 'FLT-2').status, 'in_progress');
 });
-test('pieza2: los dos endpoints llevan el guard de auto-claim', () => {
+test('pieza2: task-status hace auto-claim; informe cierra atómicamente sin pre-mutation', () => {
   const informe = source.slice(source.indexOf('"/fleet/informe"'), source.indexOf('"/fleet/cancel"'));
   const taskSt = source.slice(source.indexOf('"/fleet/task-status"'), source.indexOf('"/incident"'));
-  assert.match(informe, /status='in_progress'[^]*?AND status='open'/);
+  assert.doesNotMatch(informe, /status='in_progress'[^]*?AND status='open'/);
+  assert.match(informe, /const writes = await env\.DB\.batch/);
   assert.match(taskSt, /status='in_progress'[^]*?AND status='open'/);
 });
 
@@ -180,7 +181,9 @@ test('pieza3: caso natural (id == encargo) resuelve igual por fleet_ids', async 
 
 test('pieza3: informe y cancel usan fleetEncargoId (no el replace ingenuo)', () => {
   const informe = source.slice(source.indexOf('"/fleet/informe"'), source.indexOf('"/fleet/cancel"'));
+  const notify = source.match(/async function notifyFleetInformeClosure\([^]*?\n\}/)?.[0] || '';
   const cancel = source.slice(source.indexOf('"/fleet/cancel"'), source.indexOf('"/fleet/task-status"'));
-  assert.match(informe, /fleetEncargoId\(env, mid, t\.screen\)/);
+  assert.match(informe, /notifyFleetInformeClosure\(env, t, mid/);
+  assert.match(notify, /fleetEncargoId\(env, missionId, ticket && ticket\.screen\)/);
   assert.match(cancel, /fleetEncargoId\(env, mid, t\.screen\)/);
 });

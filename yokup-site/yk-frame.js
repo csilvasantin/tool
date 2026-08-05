@@ -1173,9 +1173,14 @@
       PROJECT_SCOPE = requestedProjectId();
       // Canoniza también la URL/storage y limpia cualquier valor corrupto, stale o archivado.
       rememberProject(PROJECT_SCOPE);
-      if (PROJECT_SCOPE) window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:PROJECT_SCOPE,project:activeProject()}}));
+      // READY canónico también en «Todos»: las superficies que filtran datos no
+      // deben arrancar antes de que el catálogo haya validado query/storage.
+      window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:PROJECT_SCOPE,project:activeProject(),ready:true}}));
       paintProject();
-    }).catch(function () { PROJECT_CATALOG = []; PROJECT_SCOPE = null; paintProject(); });
+    }).catch(function () {
+      PROJECT_CATALOG = []; PROJECT_SCOPE = null; paintProject();
+      window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:null,project:null,ready:true,error:true}}));
+    });
     window.addEventListener("storage", function (event) {
       if (event.key !== PROJECT_SCOPE_KEY || !PROJECT_CATALOG.length) return;
       publishProject(validProjectId(event.newValue), true);

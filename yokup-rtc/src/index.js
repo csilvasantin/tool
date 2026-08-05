@@ -1154,8 +1154,9 @@ async function validateProofImage(env, raw, origin) {
   try {
     const response = await fetch(parsed.toString(), { method: "GET", redirect: "error", headers: { Range: "bytes=0-31" } });
     const type = response.headers.get("content-type") || "";
-    if (response.body && response.body.cancel) await response.body.cancel().catch(() => {});
     if (!response.ok || !/^image\//i.test(type)) return { value: null, error: "la URL no responde con content-type image/*" };
+    const bytes = await response.arrayBuffer();
+    if (!imageBytesMatchMime(type, bytes)) return { value: null, error: "los bytes de la URL no corresponden a su content-type de imagen" };
     return norm;
   } catch (e) {
     return { value: null, error: "no se pudo verificar el contenido de la URL de prueba" };
@@ -1525,6 +1526,26 @@ async function acceptBatchInformeClosure(env, ticket, missionId, owner, report) 
   return batchId ? completeBatchMissionAndAwaitContinuation(env, batchId, missionId) : null;
 }
 __name(acceptBatchInformeClosure, "acceptBatchInformeClosure");
+
+async function notifyFleetInformeClosure(env, ticket, missionId, owner, report, image, runtime, host) {
+  const numId = await fleetEncargoId(env, missionId, ticket && ticket.screen);
+  const required = !!(ticket && ticket.source === "fleet" && /^\d+$/.test(String(numId || "")));
+  if (!required) return { required: false, updated: true, inbox_id: numId || null };
+  if (!env.TELEGRAM) return { required: true, updated: false, inbox_id: numId };
+  try {
+    const persona = String(ticket.assignee || owner || "");
+    const resultResponse = await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-inbox/" + numId + "/result", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ persona, machine: ticket.loc || "", report, image, runtime, host, mission_id: missionId, mission_created_at: ticket.created_at })
+    }));
+    const statusResponse = await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids: [Number(numId)], status: "done", by: persona, note: "auto: informe con proof en yokup" })
+    }));
+    return { required: true, updated: resultResponse.ok && statusResponse.ok, inbox_id: numId };
+  } catch (e) { return { required: true, updated: false, inbox_id: numId }; }
+}
+__name(notifyFleetInformeClosure, "notifyFleetInformeClosure");
 async function activateNextMissionBatchItem(env, batchId) {
   const batch = await env.DB.prepare("SELECT * FROM mission_batches WHERE id=?").bind(batchId).first();
   if (!batch || batch.status !== "active") return missionBatchSnapshot(env, batchId);
@@ -3886,7 +3907,7 @@ var index_default = {
       if (!buf.byteLength) return json({ ok: false, error: "vacío" }, 400);
       if (buf.byteLength > FLEET_MEDIA_MAX) return json({ ok: false, error: "máx 80MB" }, 413);
       if (/^image\//i.test(kind.ct) && !imageBytesMatchMime(kind.ct, buf)) {
-        return json({ ok: false, code: "image_content_mismatch", error: "los bytes no corresponden al Content-Type " + kind.ct }, 415);
+        return json({ ok: false, code: "image_content_mismatch", error: "los bytes no corresponden al Content-Type " + kind.ct }, 400);
       }
       const rand = [...crypto.getRandomValues(new Uint8Array(8))].map((x) => x.toString(16).padStart(2, "0")).join("");
       const key = `fleet/${rand}.${kind.ext}`;
@@ -3946,13 +3967,27 @@ var index_default = {
       if (!owner) missing.push("owner");
       if (!rawImage) missing.push("final_image");
       if (missing.length) return json({ ok: false, code: "closure_evidence_missing", error: "no se puede cerrar: faltan " + missing.join(", "), missing, applied: false }, 400);
-      const t = await env.DB.prepare("SELECT id, assignee, loc, status, source, screen, created_at FROM tickets WHERE id=?").bind(mid).first();
+      const t = await env.DB.prepare("SELECT id,assignee,loc,status,source,screen,created_at,proof_image,proof_kind FROM tickets WHERE id=?").bind(mid).first();
       if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
       // La identidad se valida ANTES de auto-claim, informe, prueba o evento.
       // Una firma cruzada se rechaza completa: no deja ningún rastro falso.
       const actor = validateMissionActor(t, owner);
       if (!actor.ok) return json({ ok: false, code: "owner_mismatch", error: actor.error, expected_assignee: actor.expected, received_owner: actor.actor, applied: false }, 403);
-      if (t.status === "resolved" || t.status === "cancelled") return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada y su informe/prueba no se sobrescriben", status: t.status, applied: false }, 409);
+      if (t.status === "cancelled") return json({ ok: false, code: "mission_closed", error: "la misión está cancelada", status: t.status, applied: false }, 409);
+      // Reintento seguro: si D1 cerró pero falló el espejo/batch, sólo se permite
+      // completar el MISMO cierre, sin reescribir informe ni prueba.
+      if (t.status === "resolved") {
+        const previous = await env.DB.prepare("SELECT owner,report,image,image_kind FROM mission_tasks WHERE mission_id=? AND code='z1'").bind(mid).first();
+        const sameClosure = t.proof_kind === "final" && t.proof_image === rawImage && previous &&
+          previous.owner === owner && previous.report === report && previous.image === rawImage && previous.image_kind === "final";
+        if (!sameClosure) return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada y sólo admite reintentar exactamente el mismo cierre", status: t.status, applied: false }, 409);
+        const inbox = await notifyFleetInformeClosure(env, t, mid, owner, report, rawImage, runtime, host);
+        if (!inbox.updated) return json({ ok: false, code: "closure_partial", mission: mid, resolved: false, local_resolved: true, proof_saved: true, inbox_updated: false, sync_required: true, proof_image: rawImage }, 502);
+        let batch;
+        try { batch = await acceptBatchInformeClosure(env, t, mid, owner, report); }
+        catch (e) { return json({ ok: false, code: "closure_partial", mission: mid, resolved: false, local_resolved: true, proof_saved: true, inbox_updated: inbox.updated, batch_updated: false, sync_required: true, proof_image: rawImage }, 502); }
+        return json({ ok: true, mission: mid, resolved: true, resumed: true, inbox_updated: inbox.updated, proof_image: rawImage, batch });
+      }
       // Sólo después de autorizar al actor se toca una URL remota. Una cadena con
       // aspecto de imagen no vale: R2 se verifica por objeto y las externas por CT.
       const normImage = await validateProofImage(env, rawImage, url.origin);
@@ -3960,52 +3995,28 @@ var index_default = {
         return json({ ok: false, field: "image", code: "closure_evidence_invalid", error: "image no válida: " + normImage.error, missing: ["final_image"], applied: false }, 400);
       }
       const image = normImage.value;
-      // AUTO-CLAIM en el ORIGEN: que llegue un informe prueba que se está trabajando;
-      // una misión que seguía «open» (Pendiente rezagado) pasa YA a in_progress, aunque
-      // luego resuelva o quede en firma cruzada. Cura de raíz del dato, no del rastro.
-      if (t.source === "fleet" && t.status === "open") {
-        await env.DB.prepare("UPDATE tickets SET status='in_progress', updated_at=? WHERE id=? AND status='open'").bind(Date.now(), mid).run().catch(() => {});
-        t.status = "in_progress";
-      }
-      const assignee = String((t && t.assignee) || "").trim();
       const now = Date.now();
-      await env.DB.prepare(
-        "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,image,image_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) " +
-        "ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report, status='done', owner=excluded.owner, image=excluded.image, image_kind='final', updated_at=excluded.updated_at"
-      ).bind(mid, "z1", "Informe del InfraAgente", "done", owner, report, image, "final", now, now).run();
-      await env.DB.prepare(
-        "UPDATE tickets SET proof_image=?,proof_kind='final',agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),updated_at=? WHERE id=?"
-      ).bind(image, runtime, host, now, mid).run();
-      await addEvent(env, mid, "log", owner, "📝 Informe: " + report.slice(0, 240));
-      await addEvent(env, mid, "proof", owner, "📸 Pantallazo final: " + proofLabel(image));
-      const closeResult = await env.DB.prepare(
-        "UPDATE tickets SET status='resolved',resolved_at=COALESCE(resolved_at,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
-      ).bind(now, now, mid).run();
-      const localResolved = !!(closeResult && closeResult.meta && Number(closeResult.meta.changes) > 0);
-      const numId = await fleetEncargoId(env, mid, t.screen);
-      const inboxRequired = t.source === "fleet" && /^\d+$/.test(String(numId || ""));
-      let inboxUpdated = !inboxRequired;
-      if (inboxRequired && env.TELEGRAM) {
-        try {
-          const resultResponse = await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-inbox/"+numId+"/result", {
-              method: "POST", headers: { "content-type": "application/json" },
-              body: JSON.stringify({ persona: assignee || owner, machine: t.loc || "", report, image, runtime, host, mission_id: mid, mission_created_at: t.created_at })
-          }));
-          const statusResponse = await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
-              method: "POST", headers: { "content-type": "application/json" },
-              body: JSON.stringify({ ids: [Number(numId)], status: "done", by: assignee || owner, note: "auto: informe con proof en yokup" })
-          }));
-          inboxUpdated = resultResponse.ok && statusResponse.ok;
-        } catch (e) { inboxUpdated = false; }
-      }
-      if (!localResolved || !inboxUpdated) {
-        return json({ ok: false, code: "closure_partial", mission: mid, resolved: false,
-          local_resolved: localResolved, proof_saved: true, inbox_updated: inboxUpdated,
-          sync_required: true, proof_image: image,
-          error: !localResolved ? "se guardó informe/prueba pero falló el cierre local" : "cierre local guardado; falta confirmar bot-inbox" }, 502);
-      }
-      const batch = await acceptBatchInformeClosure(env, t, mid, owner, report);
-      return json({ ok: true, mission: mid, resolved: true, cross_signed: false, inbox_updated: inboxUpdated, proof_image: image, batch });
+      // El espejo se confirma ANTES de la transacción D1. Si falla, no existe
+      // auto-claim, informe, proof ni resolved parcial que bloquee el reintento.
+      const inbox = await notifyFleetInformeClosure(env, t, mid, owner, report, image, runtime, host);
+      if (!inbox.updated) return json({ ok: false, code: "closure_partial", mission: mid, resolved: false, local_resolved: false, proof_saved: false, inbox_updated: false, sync_required: true, proof_image: null }, 502);
+      const writes = await env.DB.batch([
+        env.DB.prepare(
+          "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,image,image_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) " +
+          "ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report,status='done',owner=excluded.owner,image=excluded.image,image_kind='final',updated_at=excluded.updated_at"
+        ).bind(mid, "z1", "Informe del InfraAgente", "done", owner, report, image, "final", now, now),
+        env.DB.prepare(
+          "UPDATE tickets SET status='resolved',resolved_at=COALESCE(resolved_at,?),proof_image=?,proof_kind='final',agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
+        ).bind(now, image, runtime, host, now, mid),
+        env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid, now, "log", owner, "📝 Informe: " + report.slice(0, 240)),
+        env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid, now, "proof", owner, "📸 Pantallazo final: " + proofLabel(image))
+      ]);
+      const localResolved = !!(writes && writes[1] && writes[1].meta && Number(writes[1].meta.changes) > 0);
+      if (!localResolved) return json({ ok: false, code: "closure_partial", mission: mid, resolved: false, local_resolved: false, proof_saved: false, inbox_updated: inbox.updated, sync_required: true, proof_image: null }, 502);
+      let batch;
+      try { batch = await acceptBatchInformeClosure(env, t, mid, owner, report); }
+      catch (e) { return json({ ok: false, code: "closure_partial", mission: mid, resolved: false, local_resolved: true, proof_saved: true, inbox_updated: inbox.updated, batch_updated: false, sync_required: true, proof_image: image }, 502); }
+      return json({ ok: true, mission: mid, resolved: true, cross_signed: false, inbox_updated: inbox.updated, proof_image: image, batch });
     }
     // CANCELAR una misión: reconocer que NO se hará. No exige pantallazo (no se finge
     // trabajo, se retira). Marca el ticket cancelled + nota, y cancela el encargo del

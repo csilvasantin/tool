@@ -653,8 +653,12 @@
       ? '<a class="shot-link" href="' + esc(work) + '" target="_blank" rel="noopener" title="Abrir el trabajo: ' + esc(work) + '">' + inner + "</a>"
       : inner;
   }
+  function cacheMission(t) {
+    if (t && t.id) MIS_CACHE[t.id] = t;
+    return t;
+  }
   function rowHtml(t) {
-    MIS_CACHE[t.id] = t;   // cajón de detalle: la ficha ya viene con la lista, sin fetch extra
+    cacheMission(t);   // cajón de detalle: la ficha ya viene con la lista, sin fetch extra
     var est = estadoDe(t);
     var sb = est.c, stt = est.l;
     var maq = machineOf(t);
@@ -1136,7 +1140,7 @@
 
   window.YkMisiones = {
     init: init, selected: selected, selectMission: selectMission,
-    rowHtml: rowHtml, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine, rcId: rcId, estadoDe: estadoDe, coincideEstado: coincideEstado, visibleId: visibleId,
+    rowHtml: rowHtml, cacheMission: cacheMission, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine, rcId: rcId, estadoDe: estadoDe, coincideEstado: coincideEstado, visibleId: visibleId,
     machOffOf: machOffOf, whoHtml: whoHtml,
     setLiveMachines: function (set) { LIVE_MACHINES = set || null; },
     setLiveSurfaces: function (m) { LIVE_SURFACES = m || null; },
