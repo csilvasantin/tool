@@ -76,6 +76,12 @@ async function stampFrameReferences(version, rootUrl) {
       // `[^"']*` podía atravesar un comentario CSS sin comillas hasta el siguiente
       // atributo HTML y tragarse la etiqueta <body> completa.
       .replace(/\/yk-frame\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-frame.js?v=" + stamp)
+      // El CSS del marco se quedó fuera de esta lista y arrastraba sellos
+      // congelados (?v=r17/r18/r19 según la página) mientras su .js se
+      // resellaba en cada deploy. Con `max-age=14400` en Pages, un cambio sólo
+      // de estilos podía tardar hasta 4 h en verse —o verse a medias, con el
+      // JS nuevo y la hoja vieja—. Se sella igual que el resto (2026-08-05).
+      .replace(/\/yk-frame\.css(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-frame.css?v=" + stamp)
       .replace(/\/yk-agent-identity\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-agent-identity.js?v=" + stamp)
       .replace(/\/yk-misiones\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-misiones.js?v=" + stamp)
       .replace(/\/yk-misiones\.css(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-misiones.css?v=" + stamp)

@@ -195,13 +195,190 @@
     _cdTimer = window.setInterval(tick, 1000);
   }
 
+  // ==================== REFERENCIA LUMÍNICA DE LA BARRA =====================
+  // Carlos, 2026-08-05: la barra es el nexo de todos los proyectos, así que
+  // tiene que decir DÓNDE está pasando algo sin pulsar nada. Dos señales:
+  //   1) el rótulo se ENCIENDE cuando hay novedad desde la última vez que
+  //      pasaste por esa sección (una ventana de decisión nueva, una misión
+  //      que se ha partido en tareas, un informe que ha cerrado el ciclo…);
+  //   2) al ponerte ENCIMA sale el detalle de esos números, sin navegar.
+  // Todo vive en el cliente sobre el MISMO /menu/contadores que ya se pedía: ni
+  // un fetch más, ni un endpoint nuevo que desplegar.
+  var SEEN_LS = "yk_nav_seen";
+
+  function seenRead() {
+    try { return JSON.parse(window.localStorage.getItem(SEEN_LS) || "{}") || {}; }
+    catch (e) { return {}; }
+  }
+  function seenWrite(m) {
+    try { window.localStorage.setItem(SEEN_LS, JSON.stringify(m)); } catch (e) {}
+  }
+
+  // Estado de una sección a partir del agregado: `n` es la magnitud que crece
+  // cuando llega trabajo nuevo (es lo que dispara la luz), `sig` distingue dos
+  // estados con la misma magnitud (p.ej. un reloj que cierra y otro que abre en
+  // el mismo sondeo), y `rows` es lo que se lee en la tarjeta del hover.
+  function sectionState(data, label) {
+    if (!data) return null;
+    if (label === "DECISIONES") {
+      var dd = data.decisiones || {}, vivas = dd.vivas | 0, dl = dd.deadline || 0;
+      return {
+        n: vivas, sig: vivas + ":" + dl,
+        rows: vivas
+          ? [["relojes vivos", vivas, ""], ["cierra", dl > Date.now() ? cdText(dl) : "—", ""]]
+          : [["relojes vivos", 0, ""]],
+        foot: vivas ? "Una ventana abierta espera tu elección." : "Ninguna decisión pendiente."
+      };
+    }
+    var key = COUNTER_KEY[label], d = key && data[key];
+    if (!d) return null;
+    if (key === "notificaciones") {
+      var ab = d.abiertas | 0;
+      return {
+        n: ab, sig: "n:" + ab,
+        rows: [["equipos parados", ab, ab ? "alarma" : ""]],
+        foot: ab ? "Un diálogo del sistema tiene el equipo detenido." : "Ningún equipo bloqueado."
+      };
+    }
+    if (key === "informes") {
+      var he = d.hechos | 0, to = d.total | 0, fa = to - he;
+      return {
+        n: he, sig: he + "/" + to,
+        rows: [["con informe", he, ""], ["misiones cerradas", to, ""],
+               ["faltan", fa, fa > 0 ? "debe" : ""]],
+        foot: fa > 0 ? "Hay misiones terminadas sin su parte." : "Todo el ciclo cerrado con informe."
+      };
+    }
+    var cu = d.curso | 0, pe = d.pend | 0;
+    return {
+      n: cu + pe, sig: cu + "/" + pe,
+      rows: [["en curso", cu, ""], ["pendientes", pe, ""]],
+      foot: ""
+    };
+  }
+
+  function cdText(dl) {
+    var s = Math.max(0, Math.ceil((dl - Date.now()) / 1000));
+    return Math.floor(s / 60) + ":" + (s % 60 < 10 ? "0" : "") + (s % 60);
+  }
+
+  // Enciende/apaga los rótulos comparando contra lo último visto. La sección en
+  // la que ESTÁS nunca se enciende: estás mirándola, ya no es novedad.
+  function markNovelties(data) {
+    var links = document.querySelectorAll(".yk-nav a[data-yk-sec]");
+    if (!links.length) return;
+    var seen = seenRead(), primeraVez = !Object.keys(seen).length, dirty = false;
+    Array.prototype.forEach.call(links, function (a) {
+      var label = a.getAttribute("data-yk-sec");
+      var st = sectionState(data, label);
+      if (!st) return;
+      var prev = seen[label];
+      // Primera carga del navegador: se toma nota en silencio. Si no, la barra
+      // entera se encendería de golpe y la señal no valdría nada.
+      var nuevo = !primeraVez && prev
+        ? (st.n > (prev.n | 0)) || (label === "DECISIONES" && st.n > 0 && st.sig !== prev.sig)
+        : false;
+      if (a.classList.contains("on")) nuevo = false;   // la sección abierta se lee como vista
+      if (nuevo) {
+        a.classList.add("yk-nuevo");
+        a.setAttribute("data-yk-delta", "+" + (st.n - (prev.n | 0)));
+        // Con el rótulo encendido NO se reanota: el punto de partida sigue
+        // siendo la última visita de verdad, así el delta de la tarjeta no se
+        // va a cero solo porque hayan entrado más cosas mientras no mirabas.
+      } else {
+        a.classList.remove("yk-nuevo");
+        a.removeAttribute("data-yk-delta");
+        if (!prev || prev.n !== st.n || prev.sig !== st.sig) {
+          seen[label] = { n: st.n, sig: st.sig }; dirty = true;
+        }
+      }
+      if (_popFor === label) paintPop(a, label, data);   // tarjeta abierta: refréscala
+    });
+    if (dirty || primeraVez) seenWrite(seen);
+  }
+
+  // Apaga una sección: se consume la novedad al entrar en ella.
+  function consumeSection(label) {
+    if (!label || !_lastCounters) return;
+    var st = sectionState(_lastCounters, label);
+    if (!st) return;
+    var seen = seenRead();
+    seen[label] = { n: st.n, sig: st.sig };
+    seenWrite(seen);
+    var a = document.querySelector('.yk-nav a[data-yk-sec="' + label + '"]');
+    if (a) { a.classList.remove("yk-nuevo"); a.removeAttribute("data-yk-delta"); }
+  }
+
+  // --------- tarjeta de detalle (hover/foco). Una sola, se reposiciona. -----
+  var _pop = null, _popFor = "", _lastCounters = null;
+
+  function popEl() {
+    if (_pop) return _pop;
+    _pop = el("div", "yk-navpop");
+    _pop.setAttribute("role", "tooltip");
+    _pop.id = "yk-navpop";
+    document.body.appendChild(_pop);
+    return _pop;
+  }
+
+  function paintPop(a, label, data) {
+    var st = sectionState(data, label);
+    var p = popEl();
+    if (!st) { hidePop(); return; }
+    var html = '<div class="yk-pop-h">' + label + "</div>";
+    st.rows.forEach(function (r) {
+      html += '<div class="yk-pop-r ' + (r[2] || "") + '"><span>' + r[0] +
+              "</span><b>" + r[1] + "</b></div>";
+    });
+    var delta = a.getAttribute("data-yk-delta");
+    if (delta) html += '<div class="yk-pop-n">▲ ' + delta + " desde tu última visita</div>";
+    if (st.foot) html += '<div class="yk-pop-f">' + st.foot + "</div>";
+    p.innerHTML = html;
+    // Anclada bajo el rótulo y recortada al viewport: la barra hace scroll
+    // horizontal, así que el último ítem se saldría por la derecha.
+    var r = a.getBoundingClientRect();
+    p.style.top = Math.round(r.bottom + 7) + "px";
+    p.style.left = "0px";
+    var w = p.offsetWidth;
+    var x = Math.round(r.left + r.width / 2 - w / 2);
+    p.style.left = Math.max(8, Math.min(x, window.innerWidth - w - 8)) + "px";
+    p.classList.add("on");
+    _popFor = label;
+  }
+
+  function hidePop() {
+    if (!_pop) return;
+    _pop.classList.remove("on");
+    _popFor = "";
+  }
+
+  // El hover NO consume la novedad ni navega: sólo enseña. Todo lo demás sigue
+  // exactamente igual, que es lo que pidió Carlos.
+  function wireNavPop(a, label) {
+    a.setAttribute("data-yk-sec", label);
+    a.setAttribute("aria-describedby", "yk-navpop");
+    function show() { if (_lastCounters) paintPop(a, label, _lastCounters); }
+    a.addEventListener("mouseenter", show);
+    a.addEventListener("focus", show);
+    a.addEventListener("mouseleave", hidePop);
+    a.addEventListener("blur", hidePop);
+    // Entrar en la sección la marca como vista antes de que el navegador salte.
+    a.addEventListener("click", function () { consumeSection(label); });
+  }
+  window.addEventListener("scroll", hidePop, true);
+  window.addEventListener("resize", hidePop);
+
   // UN fetch por página al agregado del worker. Si falla, el menú se queda sin
   // contadores (degradación silenciosa: nada de toasts ni reintentos).
   function fetchCounters() {
     if (!document.querySelector("[data-yk-count],[data-yk-countdown]")) return;
     ykFetch("/menu/contadores", { cache: "no-store" })
       .then(function (r) { return r.json(); })
-      .then(function (d) { if (d && d.ok) { paintCounters(d); paintDecisiones(d); } })
+      .then(function (d) {
+        if (!d || !d.ok) return;
+        _lastCounters = d;
+        paintCounters(d); paintDecisiones(d); markNovelties(d);
+      })
       .catch(function () {});
   }
 
@@ -314,6 +491,9 @@
       }
       var c = counterSpan(it.label, "yk-nav-c");
       if (c) a.appendChild(c);
+      // Sólo las secciones con cifras entran en la referencia lumínica;
+      // DASHBOARD no cuenta nada, así que ni se enciende ni saca tarjeta.
+      if (COUNTER_KEY[it.label] || it.label === "DECISIONES") wireNavPop(a, it.label);
       nav.appendChild(a);
     });
 
