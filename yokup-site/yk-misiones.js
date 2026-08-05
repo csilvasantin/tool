@@ -671,7 +671,10 @@
       (dv && dv.txt ? '<span class="dur' + (dv.run ? " run yk-deadline" : "") + (stt === "No concluida" ? " overdue" : "") + '"' + (dv.run ? ' data-created="' + _ms(t.created_at) + '"' : '') + ' title="' + esc(dv.tip) + '">⏱ ' + (dv.run ? esc(deadlineText(_ms(t.created_at))) : esc(dv.txt)) + "</span>" : "");
     var timingHtml = createdHtml + progressTimingHtml;
     var projectIdHtml = CFG.projectIdLayout
-      ? '<div class="project-id-cell">' + rz("id", "r") + '<div class="project-id-top"><div class="project-id-main"><span class="project-id-select-slot"></span>' + shotHtml + '</div>' +
+      // El tirador de la PRIMERA columna es el único con side "r" (crece al
+      // arrastrar a la derecha). Al pasar AGENTE delante, PROJECT ID vuelve a la
+      // convención normal: divisor a su izquierda, crece al arrastrar hacia allí.
+      ? '<div class="project-id-cell">' + rz("id") + '<div class="project-id-top"><div class="project-id-main"><span class="project-id-select-slot"></span>' + shotHtml + '</div>' +
           '<div class="project-id-meta">' + idHtml + '<div class="project-id-time">' + timingHtml + "</div></div></div></div>"
       : idHtml + shotHtml + subjectHtml.replace('<div class="subj">', '<div class="subj">' + rz("id", "r"));
     var missionHtml = CFG.projectIdLayout
@@ -680,6 +683,11 @@
     return '<div class="tk ' + (t.status === "open" ? "open" : "") + " " + (t.id === SELECTED ? "sel" : "") + '" data-id="' + esc(t.id) + '">' +
       '<div class="hd' + (CFG.projectIdLayout ? " project-id-layout" : "") + '">' +
         '<div class="pri ' + esc(t.priority) + '"></div>' +
+        // AGENTE/PLATAFORMA va PRIMERO (Carlos, 2026-08-05): lo que importa de un
+        // vistazo es QUIÉN lleva la misión, antes que su referencia. La celda
+        // conserva su clase `agc` —es el target del picker de reasignación— y su
+        // tirador `who`, que ahora cae en el borde derecho de la primera columna.
+        '<div class="cel agc">' + rz("who", "r") + whoHtml(t.assignee, maq, surface, t._agents, machOffOf(t, surface)) + projectAgentLabelHtml(t) + "</div>" +
         projectIdHtml +
         // En /misiones PROJECT ID reúne referencia visual y evolución temporal;
         // Misión queda reservada al título y origen. Las vistas históricas
@@ -687,9 +695,6 @@
         missionHtml +
         // ORDENADOR (entre Fecha y Agente).
         '<div class="cel ord ' + (CFG.columnMode === "tasks" ? "tasks-col" : "machine-col") + '">' + rz("ord") + (CFG.columnMode === "tasks" ? tasksAbcHtml(t) : (maq ? '<span class="mach2">' + machVisual(maq) + " " + (window.ykMaquina ? ykMaquina.html(maq) : esc(maq)) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>')) + "</div>" +
-        // Celda de AGENTE con clase `agc` (target del picker de reasignación en
-        // /misiones; inocua en /incidencias, que no la cablea). Carlos, 2026-07-15.
-        '<div class="cel agc">' + rz("who") + whoHtml(t.assignee, maq, surface, t._agents, machOffOf(t, surface)) + projectAgentLabelHtml(t) + "</div>" +
         // Estado + ABRIR apilado (abrir debajo de la insignia).
         '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"' + (t.status === "cancelled" && t.note ? ' title="' + esc(t.note) + '"' : "") + "><i></i>" + stt + "</span>" + (t.status === "cancelled" && t.note ? '<small class="cancel-note" title="' + esc(t.note) + '">' + esc(t.note) + "</small>" : "") +
           // PROGRESO en la fila, en TERCIOS: tareas n/3 y subtareas n/9 (979).

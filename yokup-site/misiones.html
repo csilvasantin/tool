@@ -168,7 +168,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .mdet-imglink:hover .mdet-img{border-color:var(--brand,#78f3ff);box-shadow:0 0 10px rgba(120,243,255,.3)}
 /* FLT-1161 · PROJECT ID compacto. La asociación proyecto↔agente se gestiona en
    Dashboard: aquí quedan sólo miniatura, referencia humana y ciclo temporal. */
-.hd.project-id-layout{grid-template-columns:8px minmax(150px,var(--c-id,170px)) minmax(230px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,250px)) minmax(140px,var(--c-who,170px)) minmax(0,var(--c-est,124px))}
+.hd.project-id-layout{grid-template-columns:8px minmax(140px,var(--c-who,170px)) minmax(150px,var(--c-id,170px)) minmax(230px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,250px)) minmax(0,var(--c-est,124px))}
 .project-id-cell{padding-right:10px}
 .project-id-top{
   grid-template-columns:1fr;
@@ -190,7 +190,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .project-id-layout .mission-col .subj .t{-webkit-line-clamp:2;line-clamp:2}
 .project-id-layout .mission-col .subj .m{margin-top:2px}
 @media(max-width:1100px){
-  .hd.project-id-layout{grid-template-columns:8px minmax(142px,var(--c-id,158px)) minmax(210px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,230px)) minmax(130px,var(--c-who,150px)) minmax(0,var(--c-est,112px))}
+  .hd.project-id-layout{grid-template-columns:8px minmax(130px,var(--c-who,150px)) minmax(142px,var(--c-id,158px)) minmax(210px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,230px)) minmax(0,var(--c-est,112px))}
 }
 @media(max-width:720px){
   .hd.project-id-layout{grid-template-columns:8px 1fr}
@@ -380,7 +380,10 @@ function headHtml(){
   // Columna ID con «seleccionar todas» + etiqueta ordenable. El clic en el checkbox no ordena.
   const idArrow=SORT.k==="id"?(SORT.dir==="asc"?" ▲":" ▼"):"";
   const idcol='<div class="lh idh'+(SORT.k==="id"?" on":"")+'" data-k="id" title="Ordenar por PROJECT ID"><input type="checkbox" class="selall" title="Seleccionar todas las visibles" onclick="event.stopPropagation()"><span class="idlbl">PROJECT ID'+idArrow+'</span></div>';
-  return '<div class="hd lhead project-id-layout"><div></div>'+idcol+col("subject","Misión")+col("ordenador","Tareas")+col("agente","Agente/Plataforma")+col("estado","Estado")+"</div>";
+  // AGENTE/PLATAFORMA primero (Carlos, 2026-08-05). «Seleccionar todas» se queda
+  // en PROJECT ID: las casillas de cada fila van superpuestas a su miniatura,
+  // dentro de esa misma columna, y separarlas dejaría el «todas» huérfano.
+  return '<div class="hd lhead project-id-layout"><div></div>'+col("agente","Agente/Plataforma")+idcol+col("subject","Misión")+col("ordenador","Tareas")+col("estado","Estado")+"</div>";
 }
 // Inyecta el checkbox de selección en la casilla del ID de cada fila + cablea «seleccionar todas»
 // y la barra de acciones en bloque. La selección (SEL) se conserva entre refrescos y filtros.

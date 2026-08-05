@@ -967,7 +967,20 @@ __name(exactDecisionProjectAssignment, "exactDecisionProjectAssignment");
 // agente y hora de Madrid. Las continuaciones del mismo lote no son OnIdle.
 // `user_override:true` sólo lo usa el coordinador cuando Carlos lo pide de forma
 // explícita (como en la ventana manual); queda visible en la respuesta del API.
-var HOURLY_WINDOW_MS = 60 * 60 * 1000;   // reloj de ventana de decisión
+// EL RELOJ DE UNA VENTANA ES CORTO A PROPÓSITO (Carlos, 2026-08-05): una vez
+// lanzada hay que decidir rápido, y el tope alto invitaba a estirarlo. Antes
+// el máximo era 60 minutos —tanto como la cadencia entre ventanas, que no
+// tiene nada que ver— y bastaba pasar minutes:20 para dejar la flota esperando.
+// Por defecto 5, techo 10. La espera entre ventanas la gobierna HOURLY_WINDOW_MS.
+var DECISION_MIN_DEFAULT = 5, DECISION_MIN_MAX = 10;
+// A MANO SE PUEDE MÁS QUE EN AUTOMÁTICO (Carlos, 2026-08-05): el agente solo
+// puede abrir 1 ventana por hora por su cuenta, pero cuando la lanza una
+// PERSONA desde la pantalla caben 6 —una cada 10 minutos—. La diferencia no es
+// de confianza en el agente sino de quién está mirando: si hay alguien delante,
+// la cadencia la marca esa persona. Por eso `manual` exige sesión del
+// perímetro: sin humano identificado no hay cupo ampliado.
+var MANUAL_PER_HOUR = 6;
+var HOURLY_WINDOW_MS = 60 * 60 * 1000;   // cadencia ENTRE ventanas, no duración de una
 function madridHourKey(ms) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit",
@@ -1528,7 +1541,7 @@ async function openInitialMissionDecision(env, input) {
   const assignment = await exactDecisionProjectAssignment(env, identity.agent, identity.machine, requestedProjectId);
   const projectContext = resolveDecisionProject({ ...input, agent: identity.agent, machine: identity.machine }, assignment, null);
   if (!projectContext.ok) return { ok: false, status: 400, code: "exact_project_required", error: projectContext.error };
-  const mins = Math.min(60, Math.max(1, +input.minutes || 3));
+  const mins = Math.min(DECISION_MIN_MAX, Math.max(1, +input.minutes || DECISION_MIN_DEFAULT));
   const now = Date.now();
   const agent = projectContext.agent, machine = projectContext.machine;
   const live = await env.DB.prepare(
@@ -1544,12 +1557,16 @@ async function openInitialMissionDecision(env, input) {
 // obligaba a esperar 55. Ahora el reloj se pone a CERO en cada ventana y corre
 // 60 minutos enteros, que es lo que la línea del Highscore pinta bajo cada
 // agente. madridHourKey se conserva: lo usa el resto del día natural.
-  const desde = now - HOURLY_WINDOW_MS;
-  const previous = await env.DB.prepare(
-    "SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) AND (parent_decision IS NULL OR parent_decision='') AND created_at > ? ORDER BY created_at DESC LIMIT 1"
-  ).bind(agent, desde).first();
-  if (previous && input.user_override !== true) {
-    return { ok: false, status: 409, error: "hourly_limit", existing: previous.id,
+  // `manual` = la lanza una persona desde la pantalla, no el ciclo autónomo:
+  // caben MANUAL_PER_HOUR en la misma hora en vez de una.
+  const previas = ((await env.DB.prepare(
+    "SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) AND (parent_decision IS NULL OR parent_decision='') AND created_at > ? ORDER BY created_at DESC"
+  ).bind(agent, now - HOURLY_WINDOW_MS).all()).results) || [];
+  const tope = input.manual === true ? MANUAL_PER_HOUR : 1;
+  if (previas.length >= tope && input.user_override !== true) {
+    const previous = previas[previas.length - 1];
+    return { ok: false, status: 409, error: "hourly_limit", manual: input.manual === true,
+             limite: tope, usadas: previas.length, existing: previas[0].id,
              nextAt: Number(previous.created_at) + HOURLY_WINDOW_MS };
   }
   const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
@@ -3879,8 +3896,10 @@ var index_default = {
         if (!options) return json({ ok: false, error: "la IA no devolvió 5 mejoras usables; reintenta" }, 502);
         const result = await openInitialMissionDecision(env, {
           question: "¿Qué mejora ejecutará " + identity.agent + " para " + (project.name || project.id) + "?",
-          options: buildDecideDecisionOptions(options), recommended: 0, minutes: 3,
+          options: buildDecideDecisionOptions(options), recommended: 0, minutes: DECISION_MIN_DEFAULT,
           url: DECIDE_URL, surface: "dashboard", mission: "project-improvement:" + project.id,
+          // La dispara una persona pulsando en el agente: cupo manual (6/hora).
+          manual: true,
           agent: identity.agent, machine: identity.machine,
           project: project.name, project_slug: decisionProjectSlug(project.name), project_id: project.id, project_web: project.web || ""
         });
@@ -4530,7 +4549,7 @@ var index_default = {
           question: idea.title,
           options: buildDecideDecisionOptions(options),   // 3 opciones + «Volver atrás»
           recommended: 0,                                 // la 1ª es la más adecuada
-          minutes: 3,
+          minutes: DECISION_MIN_DEFAULT,
           url: DECIDE_URL,
           surface: "web",
           mission: idea.id,                               // traza reversa decisión→idea
@@ -4810,7 +4829,7 @@ var index_default = {
         }
         const projectContext = resolveDecisionProject(decisionInput, assignment, inherited);
         if (!projectContext.ok) return json({ ok: false, error: projectContext.error, code: "exact_project_required" }, 400);
-        const mins = Math.min(60, Math.max(1, +b.minutes || 3));   // por defecto 3 min
+        const mins = Math.min(DECISION_MIN_MAX, Math.max(1, +b.minutes || DECISION_MIN_DEFAULT));
         const now = Date.now();
         const agent = projectContext.agent;
         const machine = projectContext.machine;
@@ -4829,13 +4848,25 @@ var index_default = {
           return json({ ok: false, error: "live_decision", existing: live.id, deadline: live.deadline,
                         secondsLeft: Math.max(0, Math.round((live.deadline - now) / 1000)) }, 409);
         }
+        const manual = b.manual === true;
+        if (manual && !(await requireAuth(env, req))) {
+          return json({ ok: false, code: "manual_needs_session",
+            error: "lanzar a mano exige sesión del perímetro: el cupo de 6/hora es de quien mira la pantalla" }, 401);
+        }
         if (!continuation && !userOverride) {
-          // Mismo reloj móvil de 60 min que openInitialMissionDecision.
-          const previous = await env.DB.prepare(
-            "SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) AND (parent_decision IS NULL OR parent_decision='') AND created_at > ? ORDER BY created_at DESC LIMIT 1"
-          ).bind(agent, now - HOURLY_WINDOW_MS).first();
-          if (previous) return json({ ok: false, error: "hourly_limit", existing: previous.id,
-            nextAt: Number(previous.created_at) + HOURLY_WINDOW_MS }, 409);
+          // Mismo reloj móvil de 60 min que openInitialMissionDecision, con dos
+          // cupos: 1 en automático, MANUAL_PER_HOUR cuando la lanza una persona.
+          const previas = ((await env.DB.prepare(
+            "SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) AND (parent_decision IS NULL OR parent_decision='') AND created_at > ? ORDER BY created_at DESC"
+          ).bind(agent, now - HOURLY_WINDOW_MS).all()).results) || [];
+          const tope = manual ? MANUAL_PER_HOUR : 1;
+          if (previas.length >= tope) {
+            // El hueco lo libera la MÁS VIEJA de las que siguen dentro de la hora.
+            const masVieja = previas[previas.length - 1];
+            return json({ ok: false, error: "hourly_limit", manual, limite: tope,
+              usadas: previas.length, existing: previas[0].id,
+              nextAt: Number(masVieja.created_at) + HOURLY_WINDOW_MS }, 409);
+          }
         }
         const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
         await backfillTodayDisplayRefs(env, now);

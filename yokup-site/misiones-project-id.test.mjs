@@ -73,7 +73,9 @@ test('creación, evolución y finalización viven en PROJECT ID, no en Misión n
     status:'in_progress', created_at:Date.now(), priority:'alta'
   });
   const missionCell = between(html, '<div class="mission-col">', '<div class="cel ord ');
-  const agentCell = between(html, '<div class="cel agc">', '<div class="cel est">');
+  // AGENTE va PRIMERO desde 2026-08-05: su celda acaba donde empieza PROJECT ID,
+  // no donde empieza Estado (eso se tragaba la fila entera).
+  const agentCell = between(html, '<div class="cel agc">', '<div class="project-id-cell">');
   const projectCell = between(html, '<div class="project-id-cell">', '<div class="mission-col">');
   assert.match(missionCell, /Reordenar Project ID/);
   assert.doesNotMatch(missionCell, /Origen ·|🎯 Misión/);

@@ -85,12 +85,17 @@ test('OnIdle limita las ventanas iniciales a una cada 60 min y exime continuacio
   assert.match(source, /error: "hourly_limit"/);
   assert.match(source, /if \(!continuation && !userOverride\)/);
   // la consulta mira los ultimos 60 min, no la clave de hora
-  assert.equal((source.match(/AND created_at > \? ORDER BY created_at DESC LIMIT 1/g) || []).length, 2,
-    'las DOS puertas (openInitial y POST \/decisions) comparten el mismo reloj movil');
+  // openInitial mira solo la ultima (LIMIT 1); POST /decisions cuenta cuantas
+  // caben en la hora, porque a mano el cupo es 6 y no 1.
+  assert.equal((source.match(/AND created_at > \? ORDER BY created_at DESC/g) || []).length, 2,
+    'las DOS puertas comparten el mismo reloj movil de 60 min');
   assert.doesNotMatch(source, /madridHourKey\(row\.created_at\) === hour/,
     'ya no se compara por clave de hora natural');
   // y el 409 dice CUANDO se podra
-  assert.equal((source.match(/nextAt: Number\(previous\.created_at\) \+ HOURLY_WINDOW_MS/g) || []).length, 2);
+  // openInitial libera con SU unica previa; POST /decisions con la mas vieja de
+  // las que siguen dentro de la hora, que es la que deja hueco primero.
+  assert.match(source, /nextAt: Number\(previous\.created_at\) \+ HOURLY_WINDOW_MS/);
+  assert.match(source, /nextAt: Number\(masVieja\.created_at\) \+ HOURLY_WINDOW_MS/);
 });
 
 test('una continuación reutiliza el batch, reordena queued y habilita una única activación', () => {

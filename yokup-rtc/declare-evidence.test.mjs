@@ -160,3 +160,34 @@ test("una mision declarada es puntuable por su created_at", () => {
   assert.match(ruta, /addEvent\(env, missionId, "status", identity\.agent/);
   assert.match(ruta, /pasa a en curso \(in_progress\)/);
 });
+
+// ── CUPOS DE VENTANA: 1/h en automatico, 6/h a mano ───────────────────────
+test("el reloj de una ventana es CORTO: 5 por defecto, techo 10", () => {
+  // Carlos, 2026-08-05: «una vez se ha lanzado hay que tomar decisiones mas
+  // rapidas». El techo era 60 min —tanto como la cadencia ENTRE ventanas, que
+  // no tiene nada que ver— y bastaba pasar minutes:20 para dejar a la flota
+  // esperando. Lo hice yo en tres ventanas de hoy.
+  assert.match(source, /var DECISION_MIN_DEFAULT = 5, DECISION_MIN_MAX = 10;/);
+  assert.equal((source.match(/Math\.min\(DECISION_MIN_MAX, Math\.max\(1, \+\w+\.minutes \|\| DECISION_MIN_DEFAULT\)\)/g) || []).length, 2,
+    'las DOS puertas comparten el mismo techo');
+  assert.doesNotMatch(source, /Math\.min\(60, Math\.max\(1, \+\w+\.minutes/);
+});
+
+test("a mano caben 6 por hora; en automatico sigue siendo 1", () => {
+  assert.match(source, /var MANUAL_PER_HOUR = 6;/);
+  assert.match(source, /const tope = manual \? MANUAL_PER_HOUR : 1;/);
+  assert.match(source, /if \(previas\.length >= tope\)/);
+});
+
+test("el cupo ampliado exige sesion: sin humano identificado no hay 6/hora", () => {
+  assert.match(source, /const manual = b\.manual === true;/);
+  assert.match(source, /if \(manual && !\(await requireAuth\(env, req\)\)\)/);
+  assert.match(source, /manual_needs_session/);
+  assert.match(source, /\}, 401\)/);
+});
+
+test("el 409 dice cuando se libera hueco, y lo libera la MAS VIEJA", () => {
+  assert.match(source, /const masVieja = previas\[previas\.length - 1\];/);
+  assert.match(source, /nextAt: Number\(masVieja\.created_at\) \+ HOURLY_WINDOW_MS/);
+  assert.match(source, /limite: tope,\n\s*usadas: previas\.length/);
+});

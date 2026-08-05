@@ -147,3 +147,32 @@ test("la línea vive bajo el agente y se refresca sola sin volver a pedir datos"
   assert.match(source, /\.hourbar\.libre>i\{width:100%!important/);
   assert.match(source, /@media \(prefers-reduced-motion:reduce\)\{\n\s*\.hourbar>i\{transition:none\}/);
 });
+
+// ── Clic en el agente → ventana sobre su proyecto (Carlos, 2026-08-05) ─────
+
+test("el nombre del agente es el gatillo, y sólo si hay proyecto de censo", () => {
+  const nombre = cuerpo("agentNameHtml");
+  const f = new Function("esc", `${nombre}\nreturn agentNameHtml;`)(
+    (v) => String(v == null ? "" : v).replaceAll("&", "&amp;").replaceAll('"', "&quot;"));
+  const conCenso = f({ agente:"NeoMBACrema", proyecto:"admiranext.com/webmaster",
+    proyectoOrigen:"principal", proyectoId:"webmaster-admiranext", maquinas:["MacBookAirCrema"] });
+  assert.match(conCenso, /data-yk-launch="1"/);
+  assert.match(conCenso, /data-proyecto="webmaster-admiranext"/);
+  assert.match(conCenso, /data-maquina="MacBookAirCrema"/);
+  // el comodín no es un proyecto: es deuda de configuración, no hay qué proponer
+  assert.doesNotMatch(f({ agente:"X", proyecto:"suscositas.com", proyectoOrigen:"defecto", proyectoId:"" }),
+    /data-yk-launch/);
+  // sin id canónico tampoco: la ruta lo rechazaría, mejor no pintar el botón
+  assert.doesNotMatch(f({ agente:"X", proyecto:"algo.com", proyectoOrigen:"trabajo", proyectoId:"" }),
+    /data-yk-launch/);
+});
+
+test("el clic va por la sesión del perímetro y dice el motivo del rechazo", () => {
+  const bloque = source.slice(source.indexOf('closest("[data-yk-launch]")'),
+    source.indexOf('closest("[data-yk-launch]")') + 1800);
+  assert.match(bloque, /ykFetch\("\/projects\/decision"/, "sin ykFetch no viaja la sesión");
+  assert.match(bloque, /hourly_limit/);
+  assert.match(bloque, /Cupo agotado/);
+  assert.match(bloque, /b\.disabled = true/, "no se puede disparar dos veces seguidas");
+  assert.match(bloque, /yk:decisions-changed/, "la barra y la línea se enteran");
+});

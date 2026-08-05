@@ -91,12 +91,12 @@ test('decide abre la ventana reutilizando los guardas del alta de decisiones', (
   assert.match(source, /code: "exact_project_required"/);
   assert.match(source, /isInitialMissionDecision\(opts\)/);
 });
-test('decide corre bajo NeoMini·Mac Mini, 3 min, recomendada 0, url /decisiones', () => {
+test('decide corre bajo NeoMini·Mac Mini, reloj canónico, recomendada 0, url /decisiones', () => {
   assert.match(source, /DECIDE_AGENT = "NeoMini"/);
   assert.match(source, /DECIDE_MACHINE = "admira-macmini"/);
   assert.match(source, /DECIDE_FALLBACK_PROJECT = "yokup-ideas-objetivos"/);
   assert.match(source, /DECIDE_URL = "https:\/\/www\.yokup\.com\/decisiones"/);
-  assert.match(source, /minutes: 3/);
+  assert.match(source, /minutes: DECISION_MIN_DEFAULT/);
   assert.match(source, /recommended: 0/);
   assert.match(source, /buildDecideDecisionOptions\(options\)/);
 });
@@ -129,7 +129,7 @@ test('POST /projects/decision abre tres mejoras para el agente físico conectado
   assert.match(source, /question: "\xBFQu\xE9 mejora ejecutar\xE1 " \+ identity\.agent/);
   assert.match(source, /surface: "dashboard"/);
   assert.match(source, /mission: "project-improvement:" \+ project\.id/);
-  assert.match(source, /options: buildDecideDecisionOptions\(options\), recommended: 0, minutes: 3/);
+  assert.match(source, /options: buildDecideDecisionOptions\(options\), recommended: 0, minutes: DECISION_MIN_DEFAULT/);
 });
 
 test('POST /projects/assign exige equipo antes de añadir un agente y limpia su capa al retirarlo', () => {

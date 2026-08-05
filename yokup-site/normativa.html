@@ -290,7 +290,14 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
         <b>una cada 60 minutos como máximo</b>. El reloj se pone a cero en cada ventana y corre
         una hora entera: no se reinicia al dar las en punto. La ventana presenta <b>exactamente tres misiones</b>
         y la acción <b>«Volver atrás»</b>. La primera misión es la recomendada.</p>
-      <div class="formula">Equipo desatendido → 1 ventana cada 60 min · 3 misiones + Volver atrás</div>
+      <div class="formula">Automático → 1 cada 60 min · A mano → 6 · 3 misiones + Volver atrás</div>
+      <p>El cupo se ensancha cuando la lanza una <b>persona</b> desde la pantalla: hasta
+        <b>6 por hora</b>, una cada diez minutos. No es más confianza en el agente, es que hay
+        alguien mirando, y entonces la cadencia la marca esa persona. Por eso lanzar a mano
+        <b>exige sesión</b>: sin humano identificado no hay cupo ampliado.</p>
+      <p>El reloj de <b>cada ventana</b> es cosa aparte y es <b>corto</b>: 5 minutos por defecto,
+        10 como techo. Una vez lanzada hay que decidir rápido — la espera larga es la de
+        <i>entre</i> ventanas, no la de dentro.</p>
       <p>Si el reloj expira sin respuesta, se inicia la recomendada y las otras dos misiones
         continúan en la cola persistente. Toda acción automática debe ser reversible, conservar
         evidencia y no implicar borrado, gasto, permisos nuevos ni otra actuación irreversible.</p>
@@ -299,6 +306,8 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
           <tbody>
             <tr><td>Equipo atendido</td><td>No hace falta abrir OnIdle</td><td>Se sigue la conversación activa</td></tr>
             <tr><td>Equipo desatendido</td><td>Máximo una ventana cada 60 min</td><td>3 misiones + Volver atrás</td></tr>
+            <tr><td>La lanza una persona</td><td>Hasta 6 por hora, con sesión</td><td>Una cada diez minutos</td></tr>
+            <tr><td>Ventana ya abierta</td><td>Reloj de 5 min (techo 10)</td><td>Se decide rápido o vence</td></tr>
             <tr><td>Sin respuesta</td><td>Expira el reloj</td><td>Arranca la recomendada; las otras dos quedan en cola</td></tr>
           </tbody>
         </table>
@@ -381,7 +390,7 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     </div>
   </section>
 
-  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.05.08.2026.r4.12:45 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
+  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.05.08.2026.r5.13:05 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
 </main>
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script>

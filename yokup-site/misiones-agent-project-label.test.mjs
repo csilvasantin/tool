@@ -23,11 +23,21 @@ function loadModule() {
   return {Yk:windowObj.YkMisiones, identity:windowObj.ykAgentIdentity};
 }
 
+// Recorta la celda AGENTE contando llaves de <div>, no asumiendo qué celda va
+// detrás: desde que AGENTE/PLATAFORMA pasó a primera columna (Carlos,
+// 2026-08-05) cortar «hasta .cel est» se tragaba la fila entera.
 function agentCell(html) {
   const start = html.indexOf('<div class="cel agc">');
-  const end = html.indexOf('<div class="cel est">', start);
-  assert.ok(start >= 0 && end > start, "la fila conserva una celda Agente separada");
-  return html.slice(start, end);
+  assert.ok(start >= 0, "la fila conserva una celda Agente separada");
+  let nivel = 0;
+  for (let i = start; i < html.length; i += 1) {
+    if (html.startsWith("<div", i)) nivel += 1;
+    else if (html.startsWith("</div>", i)) {
+      nivel -= 1;
+      if (nivel === 0) return html.slice(start, i + 6);
+    }
+  }
+  throw new Error("celda Agente sin cerrar");
 }
 
 test("la normativa fija posición, responsabilidad, colores y ausencia sin proyecto", () => {

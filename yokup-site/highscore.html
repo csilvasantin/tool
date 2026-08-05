@@ -307,6 +307,14 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .tabla .ag{font-weight:700}
 .tabla .num{text-align:right;font-variant-numeric:tabular-nums}
 .tabla .tot{text-align:right;font-weight:900;color:var(--accent);font-variant-numeric:tabular-nums}
+/* El nombre del agente es el gatillo de su ventana de decisión: parece texto y
+   se descubre al pasar por encima, para no convertir la tabla en un panel de
+   botones. Sin proyecto de censo no se pinta (ver agentNameHtml). */
+.agent-launch{appearance:none;padding:0;border:0;background:none;color:inherit;font:inherit;
+  cursor:pointer;border-bottom:1px dashed transparent;text-align:left}
+.agent-launch:hover,.agent-launch:focus-visible{color:var(--brand);border-bottom-color:var(--brand);outline:none}
+.agent-launch.lanzando{opacity:.6;cursor:progress}
+.agent-launch.rechazado{color:#ffb454;border-bottom-color:rgba(255,180,84,.5)}
 /* LÍNEA DE LA VENTANA AUTÓNOMA, bajo cada agente. El reloj se pone a cero en
    cada ventana y corre 60 minutos; al cumplirse, el agente puede volver a abrir. El relleno lleva su propio degradado en línea (JS) porque el tono
    evoluciona con el progreso: cian al empezar, ámbar al filo. */
@@ -1103,7 +1111,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var p = mejor;
       if (!p) return null;
       var web = normaliza(p.web);
-      return { label:claveProyecto(web) || normaliza(p.name || p.id),
+      // El id canónico viaja con la ficha: es lo que POST /projects/decision
+      // sabe resolver, y la etiqueta (dominio limpio) no siempre lo es.
+      return { id:normaliza(p.id), label:claveProyecto(web) || normaliza(p.name || p.id),
         url:web ? (/^https?:\/\//i.test(web) ? web : "https://" + web) : "" };
     }
     var lista = Object.keys(por).map(function (k) {
@@ -1113,10 +1123,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       f.tendencia = tendenciaHoraria(f);
       if (f.proyecto) {
         f.proyectoOrigen = "trabajo";
+        // Aunque el proyecto salga del trabajo, el gatillo necesita el id del
+        // censo: si no está, el botón no se pinta (mejor sin botón que con uno
+        // que la ruta va a rechazar).
+        var enCenso = proyectoDeCenso(f);
+        f.proyectoId = (enCenso && enCenso.id) || "";
       } else {
         var censo = proyectoDeCenso(f);
         if (censo && censo.label) {
           f.proyecto = censo.label; f.proyectoUrl = censo.url; f.proyectoOrigen = "principal";
+          f.proyectoId = censo.id;
         } else {
           // Último recurso, y debería verse casi nunca: si sale, es que a ese
           // agente no se le ha asignado proyecto en el censo.
@@ -1204,8 +1220,24 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
+  // Pulsar el nombre del agente le abre una ventana de decisión sobre SU proyecto
+  // (Carlos, 2026-08-05). El trabajo lo hace POST /projects/decision, que ya
+  // existía: valida que el agente y su equipo estén asociados al proyecto y pide
+  // a Workers AI las mejoras. Aquí sólo está el gatillo. El cupo a mano es de 6 a
+  // la hora frente a 1 en automático — lo marca quien mira la pantalla.
   function agentNameHtml(a) {
-    return '<span class="agent-name">' + esc(a && a.agente || "") + '</span>';
+    var nombre = esc(a && a.agente || "");
+    var proyecto = a && a.proyecto, origen = a && a.proyectoOrigen;
+    // Sin proyecto de censo no hay nada que proponer: el comodín no es un
+    // proyecto, es una deuda de configuración.
+    if (!proyecto || origen === "defecto" || !(a && a.proyectoId)) {
+      return '<span class="agent-name">' + nombre + '</span>';
+    }
+    return '<button type="button" class="agent-name agent-launch" data-yk-launch="1"' +
+      ' data-agente="' + esc(a.agente || "") + '" data-maquina="' + esc((a.maquinas && a.maquinas[0]) || "") + '"' +
+      ' data-proyecto="' + esc(a.proyectoId) + '"' +
+      ' title="' + esc("Abrir una ventana de decisión para " + (a.agente || "") + " sobre " + proyecto) + '">' +
+      nombre + '</button>';
   }
 
   function posicionHtml(a, posicion) {
@@ -1307,6 +1339,39 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     });
   }
   window.setInterval(ticVentanas, 15000);
+
+  // Clic en el agente → ventana de decisión sobre su proyecto. El trabajo lo
+  // hace POST /projects/decision (ya existía): comprueba que el agente y su
+  // equipo estén asociados al proyecto y pide las mejoras a Workers AI. Va por
+  // seguroYokup, que es quien lleva la sesión del perímetro — sin ella el worker
+  // no concede el cupo de 6/hora.
+  document.addEventListener("click", function (e) {
+    var b = e.target && e.target.closest && e.target.closest("[data-yk-launch]");
+    if (!b || b.disabled) return;
+    e.preventDefault(); e.stopPropagation();
+    var previo = b.textContent;
+    b.disabled = true; b.classList.add("lanzando"); b.textContent = "abriendo…";
+    function suelta(msg, ok) {
+      b.disabled = false; b.classList.remove("lanzando"); b.textContent = previo;
+      if (msg) { b.setAttribute("title", msg); if (!ok) b.classList.add("rechazado"); }
+    }
+    ykFetch("/projects/decision", {
+      method:"POST", headers:{ "content-type":"application/json" },
+      body:JSON.stringify({ agent:b.getAttribute("data-agente"),
+        machine:b.getAttribute("data-maquina"), project:b.getAttribute("data-proyecto") })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.ok) {
+        suelta(d.existing ? "Ya tenía una ventana viva" : "Ventana abierta", true);
+        window.dispatchEvent(new Event("yk:decisions-changed"));
+        if (!d.existing && d.url) window.open(d.url, "_blank", "noopener");
+        return;
+      }
+      // Los rechazos se dicen tal cual: el cupo, la falta de asociación o la IA.
+      var e409 = d && d.error === "hourly_limit";
+      suelta(e409 ? ("Cupo agotado: " + (d.usadas || 0) + "/" + (d.limite || 1) + " esta hora")
+                  : ((d && (d.error || d.code)) || "No se pudo abrir"), false);
+    }).catch(function () { suelta("Sin red", false); });
+  });
 
   // El título dice DE DÓNDE sale el proyecto, que no es lo mismo estar metido en
   // faena que tenerlo asignado en el censo (Carlos, 2026-08-05).
