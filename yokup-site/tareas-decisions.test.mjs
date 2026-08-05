@@ -172,7 +172,7 @@ test('/misiones ya no monta el bloque de decisiones (banner eliminado, Carlos 24
   assert.doesNotMatch(missionsHtml, /id="decsList"|id="decsHistList"|class="dec-opts"/);
 });
 
-test('/decisiones monta full y agrupa en orden determinista máquina → agente', () => {
+test('/decisiones monta full y prioriza máquina → agente por actividad reciente', () => {
   assert.match(decisionsHtml, /YkDecisions\.mount\(\{worker:"[^"]+", mode:"full"\}\)/);
   const items = [
     {...renderData('decided'), id:'d4', machine:'Beta', agent:'Zeta', created_at:4},
@@ -181,10 +181,10 @@ test('/decisiones monta full y agrupa en orden determinista máquina → agente'
     {...renderData('cancelled'), id:'d1', machine:'Alpha', agent:'Ana', created_at:1, decided_at:1},
   ];
   const groups = context.groupDecisions(items);
-  assert.deepEqual(Array.from(groups, g => g.name), ['Alpha','Beta']);
-  assert.deepEqual(Array.from(groups[0].agents, a => a.name), ['Ana','Zeta']);
-  assert.deepEqual(Array.from(groups[0].agents[0].items, d => d.id), ['d2','d1']);
-  assert.equal(context.decisionStateText(groups[0].items), '1 viva · 1 vencida · 1 cancelada');
+  assert.deepEqual(Array.from(groups, g => g.name), ['Beta','Alpha']);
+  assert.deepEqual(Array.from(groups[1].agents, a => a.name), ['Zeta','Ana']);
+  assert.deepEqual(Array.from(groups[1].agents[1].items, d => d.id), ['d2','d1']);
+  assert.equal(context.decisionStateText(groups[1].items), '1 viva · 1 vencida · 1 cancelada');
 });
 
 test('el renderer jerárquico usa headings, recuentos, aria y cards responsive', () => {

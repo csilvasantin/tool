@@ -126,16 +126,28 @@ test("sin referencia fiable la puntuación por hora no reutiliza el total diario
   }
 });
 
-test("un miembro de la familia sin dato fiable invalida la cifra horaria", () => {
+test("una capa nueva sin referencia no borra el delta factual de su familia", () => {
   const api = hourlyApi({ window_ms:3600000, scores:[
-    { agent:"OraculoMacMini", machine:"Mac Mini", current:60, reference:60, reliable:true },
-    { agent:"SubOraculoMacMini", machine:"Mac Mini", current:725, reference:710, reliable:false },
+    { agent:"TrinityMBP14", machine:"MacBookProNegro14", current:191, reference:15, reliable:true },
+    { agent:"SubTrinityMBP14", machine:"macbookpronegro14", current:30, reference:30, reliable:false },
+    { agent:"InfraTrinityMBP14", machine:"macbookpronegro14", current:15, reference:15, reliable:false },
   ] });
-  const row = { agente:"OraculoMacMini", base:"Oraculo", suffix:"MacMini", total:785 };
-  assert.equal(api.trend(row).reliable, false);
-  assert.deepEqual({ ...api.score(row) }, {
-    available:false, basis:"unavailable", points:null, state:"same", current:785, reference:null,
+  const row = { agente:"TrinityMBP14", base:"Trinity", suffix:"MBP14", total:236 };
+  assert.deepEqual({ ...api.trend(row) }, {
+    state:"up", current:191, reference:15, points:176, referenceAt:0,
+    reliable:true, partial:true, omitted:2,
   });
+  assert.deepEqual({ ...api.score(row) }, {
+    available:true, basis:"ventana", points:176, state:"up", current:191, reference:15,
+    partial:true, omitted:2,
+  });
+  const html = renderPuntos({ window_ms:3600000, scores:[
+    { agent:"TrinityMBP14", machine:"MacBookProNegro14", current:191, reference:15, reliable:true },
+    { agent:"SubTrinityMBP14", machine:"macbookpronegro14", current:30, reference:30, reliable:false },
+    { agent:"InfraTrinityMBP14", machine:"macbookpronegro14", current:15, reference:15, reliable:false },
+  ] }, {...row, haLatido:true});
+  assert.match(html, /score-number score-hour">176<\/span>/);
+  assert.match(html, /cifra parcial con 2 miembros sin referencia omitidos/);
 });
 
 test("un agente a cero sin referencia da hora desconocida", () => {

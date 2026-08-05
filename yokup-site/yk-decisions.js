@@ -207,9 +207,11 @@
       var machine = String(d.machine || "Sin máquina").trim() || "Sin máquina";
       var agent = String(d.agent || "Sin agente").trim() || "Sin agente";
       var mk = machine.toLocaleLowerCase("es"), ak = agent.toLocaleLowerCase("es");
-      var mg = machines[mk] || (machines[mk] = {name:machine,agents:{},items:[]});
-      var ag = mg.agents[ak] || (mg.agents[ak] = {name:agent,items:[]});
+      var at = d.status === "pending" ? (+d.created_at||0) : closedAt(d);
+      var mg = machines[mk] || (machines[mk] = {name:machine,agents:{},items:[],latest:0});
+      var ag = mg.agents[ak] || (mg.agents[ak] = {name:agent,items:[],latest:0});
       mg.items.push(d); ag.items.push(d);
+      mg.latest = Math.max(mg.latest, at); ag.latest = Math.max(ag.latest, at);
     });
     return Object.keys(machines).map(function (key) {
       var machine = machines[key];
@@ -221,9 +223,9 @@
           return bt-at || compareLabel(a.id,b.id);
         });
         return agent;
-      }).sort(function (a,b) { return compareLabel(a.name,b.name); });
+      }).sort(function (a,b) { return b.latest-a.latest || compareLabel(a.name,b.name); });
       return machine;
-    }).sort(function (a,b) { return compareLabel(a.name,b.name); });
+    }).sort(function (a,b) { return b.latest-a.latest || compareLabel(a.name,b.name); });
   }
   function agentHeading(agent, id) {
     var url = ""; try { url = window.ykAvatar ? window.ykAvatar.img(agent) : ""; } catch (e) {}

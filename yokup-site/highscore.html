@@ -779,20 +779,25 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var total = Number(a && a.total) || 0;
       return { state:"same", current:total, reference:total, points:0, referenceAt:0, reliable:false };
     }
-    var current = 0, reference = 0, points = 0, referenceAt = 0, factual = true, reliable = true;
+    var current = 0, reference = 0, points = 0, referenceAt = 0, measured = 0, omitted = 0;
     matches.forEach(function (match) {
       var memberCurrent = Number(match.current), memberReference = Number(match.reference);
       var memberFactual = match.current !== null && match.current !== "" && match.reference !== null && match.reference !== "" &&
         Number.isFinite(memberCurrent) && Number.isFinite(memberReference);
-      factual = factual && memberFactual; reliable = reliable && match.reliable === true;
-      if (!memberFactual) return;
+      if (!memberFactual || match.reliable !== true) { omitted++; return; }
+      measured++;
       current += memberCurrent; reference += memberReference;
       points += Math.max(0, memberCurrent - memberReference);
       referenceAt = Math.max(referenceAt, Number(match.reference_at) || 0);
     });
-    return { state:reliable && factual && points > 0 ? "up" : "same", current:factual ? current : 0,
-      reference:factual ? reference : 0, points:factual ? points : 0,
-      referenceAt:referenceAt, reliable:reliable && factual };
+    var result = { state:measured && points > 0 ? "up" : "same", current:measured ? current : 0,
+      reference:measured ? reference : 0, points:measured ? points : 0,
+      referenceAt:referenceAt, reliable:measured > 0 };
+    // Una capa Sub/Infra recién nacida aún no tiene muestra de hace 60 minutos.
+    // Eso no invalida el delta factual de los demás miembros de la misma familia:
+    // se muestra la parte medida y se declara como parcial, sin inventar baseline.
+    if (omitted) { result.partial = true; result.omitted = omitted; }
+    return result;
   }
 
   // La hora sólo tiene cifra con una referencia D1 factual y fiable de hace 60
@@ -805,8 +810,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       Number.isFinite(current) && Number.isFinite(reference);
     if (reliable) {
       var points = Math.max(0, Number(trend.points) || 0);
-      return { available:true, basis:"ventana", points:points, state:points > 0 ? "up" : "same",
+      var result = { available:true, basis:"ventana", points:points, state:points > 0 ? "up" : "same",
         current:current, reference:reference };
+      if (trend.partial) { result.partial = true; result.omitted = Number(trend.omitted) || 0; }
+      return result;
     }
     return { available:false, basis:"unavailable", points:null, state:"same",
       current:Number(a && a.total) || 0, reference:null };
@@ -864,7 +871,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var hasValue = dailyValue !== "—", hourValue = hasValue && hora.available ? hora.points : "—";
     var horaTitle = !hasValue ? "Sin datos de puntos para este agente y equipo" : (hora.available
       ? hora.points + " punto" + (hora.points === 1 ? "" : "s") + " en los últimos 60 minutos · " +
-        hora.current + " ahora, " + hora.reference + " hace 60 min"
+        hora.current + " ahora, " + hora.reference + " hace 60 min" +
+        (hora.partial ? " · cifra parcial: " + hora.omitted + " miembro" + (hora.omitted === 1 ? "" : "s") + " sin referencia omitido" + (hora.omitted === 1 ? "" : "s") : "")
       : "Sin referencia D1 fiable de hace 60 minutos; la puntuación horaria no está disponible");
     return '<span class="score-pair" title="' + esc(horaTitle + ". " + tituloPuntosDiarios(daily)) + '">' +
       '<span class="score-number score-hour">' + esc(hourValue) + '</span>' +
@@ -1498,7 +1506,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var value = a.total > 0 ? a.total : (a.haLatido ? "0" : "—");
     var hora = puntuacionHoraria(a);
     var resumen = value === "—" ? "Sin datos de puntos: — en la última hora y — hoy" :
-      ((hora.available ? hora.points + " puntos en los últimos 60 minutos" : "Sin referencia fiable para los últimos 60 minutos") +
+      ((hora.available ? hora.points + " puntos en los últimos 60 minutos" +
+        (hora.partial ? "; cifra parcial con " + hora.omitted + " miembro" + (hora.omitted === 1 ? "" : "s") + " sin referencia omitido" + (hora.omitted === 1 ? "" : "s") : "")
+        : "Sin referencia fiable para los últimos 60 minutos") +
         ", " + value + " puntos hoy");
     return '<button class="score-toggle" type="button" aria-expanded="false" aria-controls="' + esc(progressId) +
       '" aria-label="' + esc(resumen + ". " +
