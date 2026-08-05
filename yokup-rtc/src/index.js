@@ -3316,7 +3316,19 @@ async function menuCounters(env) {
   const dec = await env.DB.prepare(
     "SELECT COUNT(*) n, MIN(deadline) nearest FROM decisions WHERE status='pending' AND deadline > ?"
   ).bind(now).first();
-  out.decisiones = { vivas: (dec && dec.n) | 0, deadline: (dec && dec.n) ? dec.nearest : null };
+  // Ventanas del DÍA y de la ÚLTIMA HORA (Carlos, 2026-08-05): saber cuántas van
+  // hoy y cuántas en la hora dice si la flota está preguntando mucho o poco, que
+  // «relojes vivos: 0» por sí solo no cuenta. Sólo RAÍCES: las continuaciones
+  // enlazadas al mismo lote no son ventanas nuevas, igual que para el cupo.
+  const raiz = "(parent_decision IS NULL OR parent_decision='')";
+  const diaMs = madridDayStart(now);
+  const tot = await env.DB.prepare(
+    "SELECT SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) dia," +
+    "       SUM(CASE WHEN created_at >  ? THEN 1 ELSE 0 END) hora" +
+    " FROM decisions WHERE " + raiz + " AND created_at >= ?"
+  ).bind(diaMs, now - HOURLY_WINDOW_MS, Math.min(diaMs, now - HOURLY_WINDOW_MS)).first();
+  out.decisiones = { vivas: (dec && dec.n) | 0, deadline: (dec && dec.n) ? dec.nearest : null,
+    dia: (tot && tot.dia) | 0, hora: (tot && tot.hora) | 0 };
   return out;
 }
 __name(menuCounters, "menuCounters");

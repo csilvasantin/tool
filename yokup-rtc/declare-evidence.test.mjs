@@ -200,3 +200,17 @@ test("la mision declarada GUARDA su proyecto, no solo lo valida", () => {
   // y una mision existente sin proyecto lo recibe, sin pisar el que ya tuviera
   assert.match(ruta, /project=COALESCE\(NULLIF\(project,''\),\?\)/);
 });
+
+test("el menu cuenta ventanas del dia y de la ultima hora, solo raices", () => {
+  // Carlos, 2026-08-05: «relojes vivos: 0» por si solo no dice si la flota
+  // pregunta mucho o poco. Las continuaciones no son ventanas nuevas.
+  const i = source.indexOf("async function menuCounters(");
+  const b = source.slice(i, source.indexOf("\n}", i));
+  assert.match(b, /SUM\(CASE WHEN created_at >= \? THEN 1 ELSE 0 END\) dia/);
+  assert.match(b, /SUM\(CASE WHEN created_at >  \? THEN 1 ELSE 0 END\) hora/);
+  assert.match(b, /const raiz = "\(parent_decision IS NULL OR parent_decision=''\)"/);
+  assert.match(b, /madridDayStart\(now\)/, 'el dia es el de Madrid, no el del servidor');
+  assert.match(b, /dia: \(tot && tot\.dia\) \| 0, hora: \(tot && tot\.hora\) \| 0/);
+  // la ventana de la hora usa la MISMA constante que el cupo
+  assert.match(b, /now - HOURLY_WINDOW_MS/);
+});

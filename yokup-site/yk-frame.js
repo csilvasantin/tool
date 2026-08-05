@@ -229,12 +229,18 @@
     if (!data) return null;
     if (label === "DECISIONES") {
       var dd = data.decisiones || {}, vivas = dd.vivas | 0, dl = dd.deadline || 0;
+      var dia = dd.dia | 0, hora = dd.hora | 0;
+      // «total día» y «total hora» sin repetir «ventanas» (Carlos, 2026-08-05):
+      // en la tarjeta de DECISIONES se sobreentiende, y así cabe en una línea.
+      var filas = [["relojes vivos", vivas, vivas ? "" : ""]];
+      if (vivas) filas.push(["cierra", dl > Date.now() ? cdText(dl) : "—", ""]);
+      filas.push(["total hora", hora, ""], ["total día", dia, ""]);
       return {
-        n: vivas, sig: vivas + ":" + dl,
-        rows: vivas
-          ? [["relojes vivos", vivas, ""], ["cierra", dl > Date.now() ? cdText(dl) : "—", ""]]
-          : [["relojes vivos", 0, ""]],
-        foot: vivas ? "Una ventana abierta espera tu elección." : "Ninguna decisión pendiente."
+        n: vivas, sig: vivas + ":" + dl + ":" + dia,
+        rows: filas,
+        foot: vivas ? "Una ventana abierta espera tu elección."
+          : (hora ? "Ninguna pendiente ahora; la flota ya preguntó esta hora."
+                  : "Ninguna decisión pendiente.")
       };
     }
     var key = COUNTER_KEY[label], d = key && data[key];
