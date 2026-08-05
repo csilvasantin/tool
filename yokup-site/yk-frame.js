@@ -796,15 +796,57 @@
     });
   }
 
+  // ── PESTAÑA CADUCA ────────────────────────────────────────────────────────
+  // Una pestaña abierta desde antes de un deploy sigue REFRESCANDO SUS DATOS
+  // (los sondeos al worker no paran) pero ejecuta el JavaScript de su carga: la
+  // pantalla enseña cifras de hoy pintadas con código de ayer. Así reapareció el
+  // «0 que late» en /highscore ya corregido en el servidor (Carlos, 2026-08-05).
+  //
+  // Y era peor: paintPublicVersion PISABA `VERSION` con el sello publicado, de
+  // modo que la pestaña vieja presumía de estar al día mientras corría código
+  // antiguo — justo lo contrario de lo que un sello sirve. Ahora el sello de la
+  // COMPILACIÓN QUE CORRE (el ?v= con el que se cargó este fichero) es inmutable,
+  // y cuando producción publica otro se avisa. No se recarga solo: puede haber
+  // un filtro puesto o un formulario a medias; se ofrece y decide quien mira.
+  var BUILD_VERSION = VERSION;
+  var _stale = false;
+
+  function marcaPestanaCaduca(publicada) {
+    if (_stale) return;
+    _stale = true;
+    var bar = document.querySelector(".yk-bar");
+    if (!bar) return;
+    var b = el("button", "yk-stale",
+      '<span aria-hidden="true">⟳</span> VERSIÓN NUEVA · RECARGAR');
+    b.type = "button";
+    b.title = "Esta pestaña ejecuta la versión " + BUILD_VERSION + " y en producción ya está la " +
+              publicada + ". Los datos se refrescan, el código no: recarga para verlos bien.";
+    b.setAttribute("aria-live", "polite");
+    b.addEventListener("click", function () { location.reload(); });
+    bar.appendChild(b);
+  }
+
   function refreshPublicVersion() {
     // version.json se publica con max-age=0. El query evita intermediarios que
-    // ignoren cache:no-store y permite corregir el sello aunque yk-frame.js siga
-    // vivo unas horas en una caché anterior.
+    // ignoren cache:no-store.
     window.fetch("/version.json?frame=" + Date.now(), { cache:"no-store" })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) { if (d && d.version) paintPublicVersion(d.version); })
+      .then(function (d) {
+        if (!d || !d.version) return;
+        paintPublicVersion(d.version);
+        // «versión pendiente» = servido fuera del sellado (local, preview). Ahí
+        // no hay nada que comparar y avisar sería un falso positivo.
+        if (BUILD_VERSION && BUILD_VERSION !== "versión pendiente" &&
+            String(d.version).trim() !== BUILD_VERSION) marcaPestanaCaduca(String(d.version).trim());
+      })
       .catch(function () {});
   }
+  // Cada 2 min basta: es una cortesía, no un latido. Y al volver a la pestaña,
+  // que es justo cuando se mira una que llevaba horas abierta.
+  window.setInterval(refreshPublicVersion, 120000);
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) refreshPublicVersion();
+  });
 
   // ── PANEL DE CONTROL · personalización de ordenadores y agentes ────────────
   // Modal cuadrático: una fila por agente y por ordenador con su visual actual,

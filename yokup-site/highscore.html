@@ -307,30 +307,38 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .tabla .ag{font-weight:700}
 .tabla .num{text-align:right;font-variant-numeric:tabular-nums}
 .tabla .tot{text-align:right;font-weight:900;color:var(--accent);font-variant-numeric:tabular-nums}
-.score-toggle{appearance:none;display:inline-flex;align-items:center;justify-content:flex-end;gap:7px;max-width:100%;padding:2px 3px;
+/* PUNTOS: el total y, justo debajo, la puntuación por hora. Antes la horaria
+   ocupaba una franja entera en la fila desplegada; ahora es un número más, en
+   la misma columna, para leer las dos cifras de un golpe (Carlos, 2026-08-05). */
+.score-toggle{appearance:none;display:inline-flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:1px;
+  max-width:100%;padding:2px 3px;
   border:1px solid transparent;border-radius:5px;background:transparent;color:inherit;font:inherit;font-weight:inherit;
   font-variant-numeric:inherit;cursor:pointer}
+.score-line{display:inline-flex;align-items:center;justify-content:flex-end;gap:7px}
 .score-toggle:hover,.score-toggle:focus-visible{border-color:var(--brand);outline:none;background:rgba(120,243,255,.08);
   box-shadow:0 0 8px rgba(120,243,255,.2)}
 .score-toggle[aria-expanded="true"]{color:var(--ink);border-color:rgba(120,243,255,.42)}
 .score-trend{display:inline-grid;place-items:center;min-width:1em;font-size:.88em;font-weight:950}
 .score-trend.up{color:var(--good);text-shadow:0 0 8px rgba(136,255,170,.72);animation:score-up .8s ease-out both}
 .score-trend.same{color:var(--dim)}
+/* la horaria pesa menos que el total: es el ritmo, no el marcador */
+.score-hour{color:var(--mut);font-size:9.5px;font-weight:700;line-height:1;letter-spacing:.02em;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+/* calculada sobre el total por no haber referencia de hace 60 min: se atenúa
+   para que no se confunda con un delta medido de verdad */
+.score-hour.arranque{color:var(--dim)}
 .score-progress[hidden]{display:none}
-.hourly-points{display:flex;align-items:center;gap:8px;min-width:0;margin:7px 0 1px;padding:6px 8px;
-  border:1px solid rgba(120,243,255,.16);border-radius:5px;background:rgba(2,8,13,.5)}
-.hourly-points-label{color:var(--mut);font-size:8.5px;font-weight:900;letter-spacing:.11em;text-transform:uppercase}
-.hourly-points-value{color:var(--ink);font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}
-.hourly-points-trend{display:inline-grid;place-items:center;min-width:1em;font-size:12px;font-weight:950}
-.hourly-points-trend.up{color:var(--good);text-shadow:0 0 8px rgba(136,255,170,.72)}
-.hourly-points-trend.same{color:var(--accent);text-shadow:0 0 7px rgba(255,216,102,.38)}
-.hourly-points-reference{min-width:0;margin-left:auto;overflow:hidden;color:var(--dim);font-size:8.5px;
-  text-overflow:ellipsis;white-space:nowrap}
-.hourly-points.unavailable .hourly-points-value{color:var(--dim)}
 .project-cell{max-width:150px}
 .project-chip{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   color:var(--brand);font-size:10px;letter-spacing:.025em;text-decoration:none;border-bottom:1px solid rgba(120,243,255,.25)}
 .project-chip:hover{color:var(--ink);border-bottom-color:var(--brand)}
+/* proyecto PRINCIPAL (del censo, no de la faena de hoy): mismo dato, menos voz,
+   para distinguir de un vistazo quién está metido en su proyecto ahora mismo */
+.project-chip.principal{color:var(--mut);border-bottom-style:dotted;border-bottom-color:rgba(120,243,255,.18)}
+.project-chip.principal:hover{color:var(--ink);border-bottom-color:var(--brand)}
+/* sin proyecto en el censo: el comodín. Ámbar porque es deuda de configuración,
+   no un estado normal — debería verse casi nunca */
+.project-chip.defecto{color:#ffb454;border-bottom-color:rgba(255,180,84,.3)}
 .project-empty{color:var(--dim)}
 .activity-now{position:relative;display:inline-grid;place-items:center;min-width:2ch;color:var(--good);font-weight:900;
   text-shadow:0 0 5px rgba(136,255,170,.95),0 0 12px rgba(136,255,170,.5);animation:work-pulse 1.15s ease-in-out infinite}
@@ -735,14 +743,31 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       referenceAt:referenceAt, reliable:reliable && factual };
   }
 
+  // LA PUNTUACIÓN POR HORA SIEMPRE TIENE CIFRA (Carlos, 2026-08-05). Antes, sin
+  // una referencia fiable de hace 60 minutos, devolvía `available:false` y la
+  // fila pintaba «—»: un agente con 48 puntos aparecía sin puntuación por hora,
+  // que es información errónea. Y hoy ese es el caso NORMAL, no el raro — el
+  // feed horario no publica referencias fiables, así que la columna entera
+  // salía vacía.
+  //
+  // Dos bases, y la de cada fila se dice en su título para no fingir precisión:
+  //   · «ventana» → hay referencia completa y fiable: cifra exacta del delta.
+  //   · «total»   → no la hay (primera hora, o alguien de la familia sin dato
+  //                 fiable). Sin base que restar, lo único defendible es lo que
+  //                 lleva puntuado; en la primera hora ES exactamente su total.
   function puntuacionHoraria(a) {
     var hourly = datos.actividadMeta && datos.actividadMeta.hourly;
     var trend = tendenciaHoraria(a), current = Number(trend.current), reference = Number(trend.reference);
     var reliable = !!hourly && Number(hourly.window_ms) === 60 * 60 * 1000 && trend.reliable === true &&
       Number.isFinite(current) && Number.isFinite(reference);
-    if (!reliable) return { available:false, points:null, state:"unavailable", current:null, reference:null };
-    var points = Math.max(0, Number(trend.points) || 0);
-    return { available:true, points:points, state:points > 0 ? "up" : "same", current:current, reference:reference };
+    if (reliable) {
+      var points = Math.max(0, Number(trend.points) || 0);
+      return { available:true, basis:"ventana", points:points, state:points > 0 ? "up" : "same",
+        current:current, reference:reference };
+    }
+    var total = Math.max(0, Number(a && a.total) || 0);
+    return { available:true, basis:"total", points:total, state:total > 0 ? "up" : "same",
+      current:total, reference:null };
   }
 
   function claveTrazabilidad(s) {
@@ -990,11 +1015,71 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         actividad:"", actividadAt:0, actividadDetalle:"", progresion:null, proyecto:"", proyectoUrl:"", proyectoAt:0 };
       suma(por[targetKey], f); delete por[k];
     });
+    // PROYECTO PRINCIPAL DEL CENSO (Carlos, 2026-08-05). La columna se derivaba
+    // SÓLO del trabajo reciente: un agente sin misión/objetivo con proyecto en
+    // las últimas horas salía con «—» aunque el censo lo declare responsable de
+    // uno. Neo y Oraculo aparecían huérfanos teniéndolo asignado.
+    // El censo (projects + sus agents/primary_responsible) es ahora el respaldo:
+    // manda lo que está haciendo AHORA y, si no hay, su proyecto principal.
+    // El censo mezcla altas CON apellido («TrinityMBAAzul») y sin él («oraculo»,
+    // «Morfeo Negro»). Una entrada sin apellido casa con CUALQUIER equipo de esa
+    // persona, y así OraculoMBAPlata se llevaba el proyecto del Mini y
+    // MorfeoMBARosa el de Morfeo Negro. Un apellido explícito debe ser EL MISMO;
+    // uno implícito sólo vale si el proyecto lista además SU máquina — la misma
+    // intersección agente+máquina que exige el worker para las decisiones.
+    function maquinaDelProyecto(p, f) {
+      return (p && p.machines || []).some(function (m) { return id && id.suffix(m) === f.suffix; });
+    }
+    function encaje(refCenso, f, p) {
+      if (!refCenso) return 0;
+      if (!id) return normaliza(refCenso).toLowerCase() === normaliza(f.base).toLowerCase() ? 1 : 0;
+      var ref = id.parse(normaliza(refCenso));
+      if (id.key(ref.persona || refCenso) !== id.key(f.base)) return 0;
+      if (ref.suffix) return ref.suffix === f.suffix ? 2 : 0;
+      return maquinaDelProyecto(p, f) ? 1 : 0;
+    }
+    function proyectoDeCenso(f) {
+      var activos = (datos.proyectos || []).filter(function (p) {
+        return p && String(p.status || "activo").toLowerCase() === "activo";
+      });
+      // Se queda el mejor encaje, no el primero de la lista: ser el responsable
+      // con apellido exacto gana a constar suelto en la lista de otro proyecto.
+      var mejor = null, mejorPeso = 0;
+      activos.forEach(function (p) {
+        var comoResponsable = encaje(p.primary_responsible || p.owner, f, p);
+        var comoMiembro = 0;
+        (p.agents || p.members || []).forEach(function (r) {
+          comoMiembro = Math.max(comoMiembro, encaje(r, f, p));
+        });
+        // responsable pesa por encima de miembro con el mismo grado de certeza
+        var peso = Math.max(comoResponsable * 2, comoMiembro);
+        if (peso > mejorPeso) { mejorPeso = peso; mejor = p; }
+      });
+      var p = mejor;
+      if (!p) return null;
+      var web = normaliza(p.web);
+      return { label:claveProyecto(web) || normaliza(p.name || p.id),
+        url:web ? (/^https?:\/\//i.test(web) ? web : "https://" + web) : "" };
+    }
     var lista = Object.keys(por).map(function (k) {
       var f = por[k];
       f.agente = id ? id.display(f.base, f.suffix) : f.base;
       f.total = f.ptsObjetivos + f.ptsVentanas + f.ptsMisiones + f.ptsTareas;
-      f.tendencia = tendenciaHoraria(f); return f;
+      f.tendencia = tendenciaHoraria(f);
+      if (f.proyecto) {
+        f.proyectoOrigen = "trabajo";
+      } else {
+        var censo = proyectoDeCenso(f);
+        if (censo && censo.label) {
+          f.proyecto = censo.label; f.proyectoUrl = censo.url; f.proyectoOrigen = "principal";
+        } else {
+          // Último recurso, y debería verse casi nunca: si sale, es que a ese
+          // agente no se le ha asignado proyecto en el censo.
+          f.proyecto = "suscositas.com"; f.proyectoUrl = "https://www.suscositas.com";
+          f.proyectoOrigen = "defecto";
+        }
+      }
+      return f;
     });
     lista.sort(function (a, b) { return b.total - a.total || a.agente.localeCompare(b.agente); });
     lista.forEach(function (fila, indice) { fila.posicion = indice + 1; });
@@ -1084,12 +1169,22 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return '<span class="rank-number' + vivo + '"' + attrs + '>' + posicion + '</span>';
   }
 
+  // El título dice DE DÓNDE sale el proyecto, que no es lo mismo estar metido en
+  // faena que tenerlo asignado en el censo (Carlos, 2026-08-05).
+  var TITULO_PROYECTO = {
+    trabajo:"Proyecto en curso · sale de su trabajo de las últimas horas",
+    principal:"Proyecto principal · asignado en el censo; ahora mismo no está trabajando en él",
+    defecto:"Sin proyecto asignado en el censo — hay que darle uno"
+  };
   function proyectoHtml(a) {
     if (!a.proyecto) return '<span class="project-empty">—</span>';
-    var label = esc(a.proyecto), title = 'Proyecto activo · ' + label;
+    var origen = a.proyectoOrigen || "trabajo", label = esc(a.proyecto);
+    var title = (TITULO_PROYECTO[origen] || TITULO_PROYECTO.trabajo) + " · " + label;
+    var clase = "project-chip" + (origen === "principal" ? " principal" : "") +
+      (origen === "defecto" ? " defecto" : "");
     return a.proyectoUrl
-      ? '<a class="project-chip" href="' + esc(a.proyectoUrl) + '" target="_blank" rel="noopener" title="' + esc(title) + '">' + label + '</a>'
-      : '<span class="project-chip" title="' + esc(title) + '">' + label + '</span>';
+      ? '<a class="' + clase + '" href="' + esc(a.proyectoUrl) + '" target="_blank" rel="noopener" title="' + esc(title) + '">' + label + '</a>'
+      : '<span class="' + clase + '" title="' + esc(title) + '">' + label + '</span>';
   }
 
   /* Ordenadores del agente: primero los que laten AHORA (encendidos), luego los
@@ -1135,10 +1230,22 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var trend = a.tendencia || tendenciaHoraria(a), up = trend.state === "up";
     var trendTitle = up ? "Ha aumentado sus puntos en la última hora" : "No ha aumentado sus puntos en la última hora";
     if (!trend.reliable) trendTitle += " · esperando una referencia compartida de hace 60 minutos";
+    // Puntuación por hora: un número bajo el total, no una franja aparte
+    // (Carlos, 2026-08-05). Siempre lleva cifra; el título dice sobre qué base
+    // está calculada, que es lo que distingue un dato exacto de un arranque.
+    var hora = puntuacionHoraria(a);
+    var horaTitle = hora.basis === "ventana"
+      ? hora.points + " punto" + (hora.points === 1 ? "" : "s") + " en los últimos 60 minutos · " +
+        hora.current + " ahora, " + hora.reference + " hace 60 min"
+      : "Primera hora: sin referencia de hace 60 minutos no hay nada que restar, así que su " +
+        "puntuación por hora es todo lo que lleva puntuado (" + hora.points + ")";
     return '<button class="score-toggle" type="button" aria-expanded="false" aria-controls="' + esc(progressId) +
-      '" aria-label="' + esc(value + " puntos. " + trendTitle + ". Mostrar evolución") + '">' +
+      '" aria-label="' + esc(value + " puntos, " + hora.points + " por hora. " + trendTitle + ". Mostrar evolución") + '">' +
+      '<span class="score-line">' +
       '<span class="score-value">' + esc(value) + '</span><span class="score-trend ' + (up ? "up" : "same") +
-      '" title="' + esc(trendTitle) + '" aria-hidden="true">' + (up ? "↑" : "=") + '</span></button>';
+      '" title="' + esc(trendTitle) + '" aria-hidden="true">' + (up ? "↑" : "=") + '</span></span>' +
+      '<span class="score-hour' + (hora.basis === "total" ? " arranque" : "") + '" title="' + esc(horaTitle) +
+      '" aria-hidden="true">' + esc(hora.points) + '/h</span></button>';
   }
 
   var ETAPAS_PROGRESO = [
@@ -1225,22 +1332,13 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function progresionHtml(a) {
     var progreso = normalizaProgresion(a), origen = progreso.origin === "objetivo" ? "Objetivo" :
       (progreso.origin === "ventana" ? "Ventana" : "No determinado");
-    var hora = typeof puntuacionHoraria === "function" ? puntuacionHoraria(a) :
-      { available:false, points:null, state:"unavailable", current:null, reference:null };
-    var puntosHora = hora.available ? hora.points + " punto" + (hora.points === 1 ? "" : "s") : "—";
-    var tendenciaHora = hora.available
-      ? '<span class="hourly-points-trend ' + hora.state + '" aria-hidden="true">' + (hora.state === "up" ? "↑" : "=") + '</span>'
-      : '';
-    var referenciaHora = hora.available ? hora.current + " ahora · " + hora.reference + " hace 60 min" :
-      "Sin referencia factual fiable de hace 60 minutos";
-    var resumenHora = '<div class="hourly-points ' + (hora.available ? hora.state : "unavailable") + '" role="group" aria-label="' +
-      esc("Puntuación por hora. Últimos 60 minutos: " + puntosHora + ". " + referenciaHora) + '">' +
-      '<span class="hourly-points-label">Puntuación por hora</span><strong class="hourly-points-value">' + esc(puntosHora) + '</strong>' +
-      tendenciaHora + '<span class="hourly-points-reference">' + esc(referenciaHora) + '</span></div>';
+    // La franja «PUNTUACIÓN POR HORA» se retiró (Carlos, 2026-08-05): ocupaba una
+    // línea entera de la fila desplegada para decir una cifra y una excusa. Esa
+    // cifra vive ahora bajo el total, en la columna PUNTOS — ver puntosHtml.
     var descripcion = progreso.label + ". Origen: " + origen + ". " + progreso.stages.map(function (s) {
       return s.label + ": " + s.state + ", " + s.value;
     }).join(". ");
-    return resumenHora + '<div class="progression" role="list" aria-label="' + esc(descripcion) + '">' +
+    return '<div class="progression" role="list" aria-label="' + esc(descripcion) + '">' +
       '<div class="progression-meta" data-linked="' + (progreso.linked ? "true" : "false") + '" title="' + esc(progreso.label) + '">' +
       '<strong>' + esc(progreso.linked ? progreso.label : "Resumen no enlazado") + '</strong>Origen · ' + esc(origen) + '</div>' +
       progreso.stages.map(function (s, indice) {

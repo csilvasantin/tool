@@ -41,6 +41,9 @@ test("sin actividad muestra 0 con latido histórico y guion sin ningún latido",
   assert.ok(start >= 0 && end > start, "falta puntosHtml");
   const context = vm.createContext({
     tendenciaHoraria:()=>({state:"same",reliable:true}),
+    // puntosHtml pinta ahora la puntuación por hora bajo el total; aquí sólo se
+    // comprueba el marcador diario, así que la horaria va sustituida.
+    puntuacionHoraria:()=>({available:true,basis:"total",points:0,state:"same",current:0,reference:null}),
     esc:value=>String(value),
   });
   vm.runInContext(`${html.slice(start, end)}\n` +

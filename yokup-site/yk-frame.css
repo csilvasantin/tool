@@ -197,6 +197,23 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
 /* móvil: la barra ya esconde .yk-nav, así que la tarjeta tampoco pinta nada */
 @media (max-width:520px){ .yk-navpop{ display:none } }
 
+/* PESTAÑA CADUCA: producción ha publicado otra versión y esta pestaña sigue
+   ejecutando la suya. Los datos se refrescan solos, el código no — así que lo
+   que hay en pantalla puede estar pintado con lógica vieja. Ámbar, no rojo: no
+   es un equipo parado, es un aviso de que hay que recargar. Sale a la derecha,
+   junto a los iconos, y no desplaza el menú. */
+.yk-stale{
+  flex:0 0 auto; margin-left:8px; padding:5px 11px;
+  font-family:var(--yk-mono); font-size:10px; font-weight:800; letter-spacing:.08em;
+  color:#0b0f14; background:#ffb454; border:0; border-radius:999px; cursor:pointer;
+  white-space:nowrap; animation:yk-stale 2.2s ease-in-out infinite;
+}
+.yk-stale:hover{ background:#ffc978 }
+.yk-stale:focus-visible{ outline:2px solid var(--yk-hi); outline-offset:2px }
+@keyframes yk-stale{ 0%,100%{ opacity:1 } 50%{ opacity:.7 } }
+@media (prefers-reduced-motion:reduce){ .yk-stale{ animation:none } }
+@media (max-width:520px){ .yk-stale{ font-size:0; padding:9px } .yk-stale span{ font-size:12px } }
+
 /* ===================== SELECTOR DE PROYECTO (desplegable) ================= */
 /* Absorbe el antiguo rótulo «FLOTA admira.tv»: el botón lee el proyecto activo
  * y el menú (clic, no hover) permite saltar al otro proyecto. Estética terminal
