@@ -117,7 +117,34 @@ try {
   const publicVersion = await fetch("https://www.yokup.com/version.json?deploy=" + Date.now(), { cache:"no-store" })
     .then((r) => r.ok ? r.json() : null).then(versionFromPayload).catch(() => "");
   const version = nextDeployVersion(now, [versionFromPayload(previousVersion), publicVersion]);
-  const gitFull = execFileSync("git", ["rev-parse", "HEAD"], { encoding:"utf8" }).trim();
+  // ── PRODUCCION ES MAIN, SIEMPRE ─────────────────────────────────────────
+  // Este script publica a `--branch main`, que en Pages ES produccion, sea cual
+  // sea el arbol que tengas delante. El 5-ago-2026 eso llevo a que yokup.com
+  // sirviera durante horas la rama codex/yokup-standalone-tasks: los 11 commits
+  // de la mañana estaban en main y nadie los veia, y encima produccion enseñaba
+  // una funcion que main no tenia. Nada se perdio, pero nadie se entero.
+  //
+  // Asi que antes de publicar se comprueba que lo que hay delante es EXACTAMENTE
+  // origin/main. Si no lo es, se para y se dice en que se diferencia. Publicar
+  // una rama a produccion tiene que costar una decision explicita, no ser el
+  // camino por defecto.
+  execFileSync("git", ["fetch", "--quiet", "origin", "main"], { encoding:"utf8" });
+  const headSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding:"utf8" }).trim();
+  const mainSha = execFileSync("git", ["rev-parse", "origin/main"], { encoding:"utf8" }).trim();
+  if (headSha !== mainSha && process.env.YOKUP_DEPLOY_FORCE !== "1") {
+    const delante = execFileSync("git", ["rev-list", "--count", "origin/main..HEAD"], { encoding:"utf8" }).trim();
+    const detras = execFileSync("git", ["rev-list", "--count", "HEAD..origin/main"], { encoding:"utf8" }).trim();
+    const rama = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { encoding:"utf8" }).trim();
+    throw new Error(
+      "Deploy bloqueado: produccion es main y esto no es main.\n" +
+      `  estas en   : ${rama} (${headSha.slice(0, 7)})\n` +
+      `  origin/main: ${mainSha.slice(0, 7)}\n` +
+      `  tienes ${delante} commit(s) que main no tiene y te faltan ${detras} que main si tiene.\n` +
+      "  Funde tu rama en main y publica desde ahi. Si de verdad quieres publicar\n" +
+      "  este arbol tal cual, hazlo consciente: YOKUP_DEPLOY_FORCE=1."
+    );
+  }
+  const gitFull = headSha;
   const gitShort = execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding:"utf8" }).trim();
   const dirty = !!execFileSync("git", ["status", "--porcelain"], { encoding:"utf8" }).trim();
   const payload = {
