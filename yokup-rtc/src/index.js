@@ -1716,7 +1716,7 @@ async function listAllMissionTasks(env, scope) {
     // mission_proof) para que la columna Captura tenga un fallback real cuando la
     // tarea no dejó imagen propia. No rompe a /tareas: sólo añade campos.
     `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.report, m.image, m.created_at, m.updated_at,
-            t.subject, t.screen, t.loc, t.project, t.source, t.assignee, t.live_shot,
+            t.subject, t.screen, t.loc, t.project, t.source, t.role, t.assignee, t.live_shot,
             t.status AS mission_status, t.created_at AS mission_created,
             t.resolved_at AS mission_resolved, t.proof_image AS mission_proof
        FROM mission_tasks m JOIN tickets t ON t.id = m.mission_id
@@ -2236,11 +2236,15 @@ var FLEET_ST = { pending: "open", ack: "open", in_progress: "in_progress", done:
 var PROOF_REQUIRED_AFTER = 1784313450000; // 2026-07-17T18:37:30Z
 
 function fleetSubject(text) {
-  const line = String(text || "").split("\n")[0].trim();
+  const line = String(text || "").replace(/^\s*\[TAREA SUELTA\]\s*/i, "").split("\n")[0].trim();
   if (!line) return "Encargo de la flota";
   return line.length > 120 ? line.slice(0, 117) + "…" : line;
 }
 __name(fleetSubject, "fleetSubject");
+function fleetStandaloneTask(text) {
+  return /^\s*\[TAREA SUELTA\]\s*/i.test(String(text || ""));
+}
+__name(fleetStandaloneTask, "fleetStandaloneTask");
 // Prioridad derivada del marcador [PRIORIDAD X] del texto del encargo (el mismo
 // que la tarjeta saca del título y pinta como etiqueta). Sincroniza la etiqueta
 // con el campo real (el punto de color). Carlos, 2026-07-18.
@@ -2467,7 +2471,33 @@ async function ensureFleetMainTasks(env, missionId, subject, assignment, reassig
 }
 __name(ensureFleetMainTasks, "ensureFleetMainTasks");
 
-async function reconcileFleetTicket(env, id, prev, it, assignment, status, now) {
+// Una tarea suelta conserva el contrato relacional existente (toda tarea tiene
+// mission_id), pero no inventa un plan A/B/C. La misión-contenedor lleva una sola
+// fila `a`, visible y operable desde /tareas como el encargo que pidió Carlos.
+async function ensureFleetStandaloneTask(env, missionId, subject, assignment, reassignPending) {
+  const current = await listMissionTasks(env, missionId);
+  const base = baseAgentIdentity(assignment.assignee) || assignment.assignee || "Agente";
+  const owner = scopedAgentIdentity(base, assignment.loc, "sub");
+  const now = Date.now();
+  const task = current.find((row) => row.code === "a");
+  if (!task) {
+    await env.DB.prepare(
+      "INSERT OR IGNORE INTO mission_tasks(mission_id,code,title,status,owner,report,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)"
+    ).bind(missionId, "a", String(subject || "Tarea suelta").slice(0, 120), "pending", owner, null, now, now).run();
+  } else if (reassignPending && task.status === "pending" && owner && task.owner !== owner) {
+    await env.DB.prepare("UPDATE mission_tasks SET owner=?,updated_at=? WHERE mission_id=? AND code='a'")
+      .bind(owner, now, missionId).run();
+  }
+  // Repara únicamente el plan ceremonial que pudiera haber creado una versión
+  // anterior. Nunca borra trabajo iniciado, informes ni pruebas.
+  await env.DB.prepare(
+    "DELETE FROM mission_tasks WHERE mission_id=? AND code!='a' AND status='pending' " +
+    "AND COALESCE(TRIM(report),'')='' AND COALESCE(TRIM(image),'')=''"
+  ).bind(missionId).run();
+}
+__name(ensureFleetStandaloneTask, "ensureFleetStandaloneTask");
+
+async function reconcileFleetTicket(env, id, prev, it, assignment, status, now, standalone) {
   const asig = assignment.complete ? assignment.assignee : prev.assignee;
   const loc = assignment.complete ? assignment.loc : (prev.loc || "");
   const subject = fleetSubject(it.text);
@@ -2475,14 +2505,18 @@ async function reconcileFleetTicket(env, id, prev, it, assignment, status, now) 
   // Una señal explícita `Yokup:` corrige incluso un proyecto previo equivocado;
   // sin señal, el sync conserva el proyecto censado y no inventa uno.
   const project = assignment.complete ? (inferredProject || prev.project || "") : (prev.project || "");
-  const role = String(it.from_name || prev.role || "").slice(0, 80);
+  const role = standalone ? "standalone-task" : String(it.from_name || prev.role || "").slice(0, 80);
   const assignmentChanged = assignment.complete && (prev.assignee !== asig || (prev.loc || "") !== loc);
   const changed = prev.status !== status || prev.assignee !== asig || (prev.loc || "") !== loc ||
     prev.subject !== subject || prev.source !== "fleet" || (prev.project || "") !== project || (prev.role || "") !== role;
-  if (!changed) return { changed: false, assignmentChanged: false, assignee: asig, loc, project, role, subject };
+  if (!changed) {
+    if (standalone) await ensureFleetStandaloneTask(env, id, subject, assignment, false);
+    return { changed: false, assignmentChanged: false, assignee: asig, loc, project, role, subject };
+  }
   await env.DB.prepare("UPDATE tickets SET status=?,assignee=?,loc=?,screen=?,subject=?,source='fleet',project=?,role=?,updated_at=?,resolved_at=? WHERE id=?")
     .bind(status, asig, loc, fleetScreen(it, { assignee: asig, loc }), subject, project, role, now, status === "resolved" ? (prev.resolved_at || now) : null, id).run();
-  if (assignmentChanged) await ensureFleetMainTasks(env, id, subject, assignment, true);
+  if (standalone) await ensureFleetStandaloneTask(env, id, subject, assignment, assignmentChanged);
+  else if (assignmentChanged) await ensureFleetMainTasks(env, id, subject, assignment, true);
   return { changed: true, assignmentChanged, assignee: asig, loc, project, role, subject };
 }
 __name(reconcileFleetTicket, "reconcileFleetTicket");
@@ -2504,6 +2538,7 @@ async function fleetSync(env) {
     if (!it || !it.id) continue;
     if (!fleetEsMision(it)) continue;   // charla de Telegram: ni misión ni tarea
     const assignment = await resolveFleetAssignment(env, it);
+    const standalone = fleetStandaloneTask(it.text);
     const id = await fleetMissionId(env, it);   // id estable y a prueba de colisiones (FLT-990 a2)
     let st = FLEET_ST[it.status] || "open";
     const ts = epochMs(it.ts, now);
@@ -2536,7 +2571,11 @@ async function fleetSync(env) {
       ).run();
       // El texto íntegro del encargo queda como primer evento de la misión.
       await addEvent(env, id, "log", it.from_name || "Carlos", String(it.text || ""));
-      await ensureFleetMainTasks(env, id, fleetSubject(it.text), assignment, false);
+      if (standalone) await ensureFleetStandaloneTask(env, id, fleetSubject(it.text), assignment, false);
+      else await ensureFleetMainTasks(env, id, fleetSubject(it.text), assignment, false);
+      if (standalone) {
+        await env.DB.prepare("UPDATE tickets SET role='standalone-task' WHERE id=?").bind(id).run();
+      }
       created++;
     } else {
       // ANTI-RESURRECCIÓN de CANCELADAS: si la misión ya está cancelada en yokup, el
@@ -2553,7 +2592,7 @@ async function fleetSync(env) {
       if (prev.status === "in_progress" && st === "open") st = "in_progress";
       // Propaga identidad/proyecto sólo tras validar la procedencia en
       // fleetMissionId. El helper es el mismo que cubre la regresión #1112.
-      const reconciled = await reconcileFleetTicket(env, id, prev, it, assignment, st, now);
+      const reconciled = await reconcileFleetTicket(env, id, prev, it, assignment, st, now, standalone);
       if (reconciled.changed) {
         // Al FINALIZAR una misión, su árbol a/b/c no puede quedarse en «pending»
         // para siempre (pasó con FLT-804: misión resuelta con informe y proof, y
@@ -2835,8 +2874,9 @@ __name(fleetPlanPending, "fleetPlanPending");
 //   · pasos d..h y sus subtareas → aparte, en extra/extraDone
 // Denominadores fijos (Carlos, 22-jul-2026): un plan con 2 tareas no es un plan
 // de 2, es un plan de 3 INCOMPLETO — y eso se dice (incompleto/topN/subN), no se
-// disimula bajando el denominador. Nunca se inventan filas.
-function tercios(tasks) {
+// disimula bajando el denominador. Excepción explícita: role=standalone-task es
+// una tarea suelta real y se mide 0/1 o 1/1, sin fingir subtareas. Nunca se inventan filas.
+function tercios(tasks, standalone) {
   const top = [], sub = [];
   let extra = 0, extraDone = 0;
   for (const t of tasks || []) {
@@ -2849,6 +2889,15 @@ function tercios(tasks) {
   // devuelve null en vez de un «0/3» que aparentaría un plan que no existe.
   if (!top.length && !sub.length && !extra) return null;
   const hecho = (a) => a.filter((t) => t.status === "done").length;
+  if (standalone) {
+    return {
+      done: hecho(top), total: Math.max(1, top.length),
+      sdone: 0, stotal: 0,
+      topN: top.length, subN: 0,
+      incompleto: false, standalone: true,
+      extra, extraDone
+    };
+  }
   return {
     done: hecho(top), total: 3,
     sdone: hecho(sub), stotal: 9,
@@ -2894,7 +2943,7 @@ async function fleetMissions(env) {
       tasks,
       // Una misión terminada SIN parte es deuda visible (Carlos, 24-jul-2026).
       has_report: tasks.some((t) => t.has_report),
-      progress: tercios(tasks)
+      progress: tercios(tasks, r.role === "standalone-task")
     });
   });
 }

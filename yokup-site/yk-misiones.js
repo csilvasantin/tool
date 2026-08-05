@@ -560,7 +560,7 @@
   // 33/33: denominadores que no se pueden comparar de un vistazo.
   // Las misiones VIEJAS con pasos d…h (modelo de 8) no se tocan ni se borran: sus
   // filas fuera del tercio se cuentan aparte y se avisan en el title.
-  function tercios(rows) {
+  function tercios(rows, standalone) {
     var top = [], sub = [], extra = 0, extraDone = 0;
     (rows || []).forEach(function (r) {
       var c = String((r && r.code) || "").trim().toLowerCase();
@@ -572,7 +572,17 @@
     });
     if (!top.length && !sub.length && !extra) return null;
     var hecho = function (a) { return a.filter(function (r) { return r.status === "done"; }).length; };
+    if (standalone) {
+      return {
+        done: hecho(top), total: Math.max(1, top.length),
+        sdone: 0, stotal: 0,
+        topN: top.length, subN: 0,
+        incompleto: false, standalone: true,
+        extra: extra, extraDone: extraDone
+      };
+    }
     // DENOMINADORES FIJOS 3 y 9 (decisión de Carlos vía coordinación, 22-jul-2026).
+    // La tarea suelta declarada es la única excepción: 1 tarea, 0 subtareas.
     // Antes el denominador era el tamaño REAL del plan (Math.min(top,3)||3 y
     // Math.min(sub,9)), así que un plan a medio definir leía 0/2 · 0/6 y volvía a
     // no poderse comparar con uno de 0/3 · 0/9 — justo el problema que la regla
@@ -596,16 +606,16 @@
   //               cuántas filas hay definidas de las 3 y las 9 que tocan.
   function progHtml(p) {
     if (!p || !p.total) return "";
-    var pct = Math.round(100 * (p.done * 3 + p.sdone) / (p.total * 3 + p.stotal));
-    var pleno = p.done >= p.total && p.sdone >= p.stotal;
+    var pct = p.standalone ? Math.round(100 * p.done / p.total) : Math.round(100 * (p.done * 3 + p.sdone) / (p.total * 3 + p.stotal));
+    var pleno = p.done >= p.total && (p.standalone || p.sdone >= p.stotal);
     var hechoInc = !pleno && p.topN > 0 && p.done >= p.topN && p.sdone >= p.subN;
-    var tip = p.done + " de " + p.total + " tareas hechas · " + p.sdone + " de " + p.stotal + " subtareas"
+    var tip = p.done + " de " + p.total + (p.standalone ? " tarea suelta hecha" : " tareas hechas · " + p.sdone + " de " + p.stotal + " subtareas")
       + (p.incompleto ? " · PLAN INCOMPLETO: sólo hay " + p.topN + " de 3 tareas y " + p.subN + " de 9 subtareas definidas" : "")
       + (p.extra ? " · +" + p.extraDone + "/" + p.extra + " pasos de un plan antiguo (d…h), fuera de los tercios" : "");
     return '<span class="prog' + (pleno ? " full" : "") + (hechoInc ? " hechoinc" : "") + (p.incompleto ? " inc" : "") + '" title="' + esc(tip) + '">' +
       '<span class="prog-fill" style="width:' + pct + '%"></span>' +
       "<b>" + p.done + "/" + p.total + "</b>" +
-      '<i class="prog-sub">' + p.sdone + "/" + p.stotal + "</i>" +
+      (p.standalone ? "" : '<i class="prog-sub">' + p.sdone + "/" + p.stotal + "</i>") +
       (p.extra ? '<i class="prog-mas">+' + p.extra + "</i>" : "") +
       (p.incompleto ? '<i class="prog-inc" aria-hidden="true">◌</i>' : "") + "</span>";
   }
@@ -615,15 +625,16 @@
   }
   function tasksAbcHtml(t){
     var by={},active={};((t&&t._tasks)||[]).forEach(function(r){var c=String(r&&r.code||"").trim().toLowerCase();if(/^[a-c]$/.test(c)&&!by[c])by[c]=r;if(/^[a-c](?:[1-3])?$/.test(c)&&r&&r.status==="in_progress")active[c.charAt(0)]=true;});
+    var codes=t&&t.role==="standalone-task"?["a"]:["a","b","c"];
     var missionState=estadoDe(t).l,inferred={};
-    if(missionState==="En curso"&&!Object.keys(active).length){["a","b","c"].some(function(c){var r=by[c],s=r&&r.status;if(!r||s==="done"||s==="resolved")return false;active[c]=true;inferred[c]=true;return true;});}
+    if(missionState==="En curso"&&!Object.keys(active).length){codes.some(function(c){var r=by[c],s=r&&r.status;if(!r||s==="done"||s==="resolved")return false;active[c]=true;inferred[c]=true;return true;});}
     var labels={pending:"pendiente",in_progress:"en curso",done:"hecha"};
-    var chips=["a","b","c"].map(function(c){var r=by[c],upper=c.toUpperCase();if(!r)return{status:"pending",html:'<span class="abc-task pending missing" title="Tarea '+upper+' · sin definir" aria-label="Tarea '+upper+', sin definir"><i class="abc-dot"></i><b>'+upper+'</b><span class="abc-label">Sin definir</span></span>'};var raw=r.status==="resolved"?"done":r.status,status=active[c]?"in_progress":(/^(pending|in_progress|done)$/.test(raw)?raw:"pending");var title="Tarea "+upper+(r.title?" · "+r.title:"")+" · "+labels[status]+(inferred[c]?" por secuencia A-B-C":"");return{status:status,html:'<a class="abc-task '+status+'" href="/tareas?mission='+encodeURIComponent(t.id)+'#'+c+'" title="'+esc(title)+'" aria-label="'+esc(title)+'"><i class="abc-dot"></i><b>'+upper+'</b><span class="abc-label">'+esc(taskSummary(r))+"</span>"+(status==="in_progress"?'<span class="abc-state">EN CURSO</span>':"")+"</a>"};});
+    var chips=codes.map(function(c){var r=by[c],upper=c.toUpperCase();if(!r)return{status:"pending",html:'<span class="abc-task pending missing" title="Tarea '+upper+' · sin definir" aria-label="Tarea '+upper+', sin definir"><i class="abc-dot"></i><b>'+upper+'</b><span class="abc-label">Sin definir</span></span>'};var raw=r.status==="resolved"?"done":r.status,status=active[c]?"in_progress":(/^(pending|in_progress|done)$/.test(raw)?raw:"pending");var title="Tarea "+upper+(r.title?" · "+r.title:"")+" · "+labels[status]+(inferred[c]?" por secuencia A-B-C":"");return{status:status,html:'<a class="abc-task '+status+'" href="/tareas?mission='+encodeURIComponent(t.id)+'#'+c+'" title="'+esc(title)+'" aria-label="'+esc(title)+'"><i class="abc-dot"></i><b>'+upper+'</b><span class="abc-label">'+esc(taskSummary(r))+"</span>"+(status==="in_progress"?'<span class="abc-state">EN CURSO</span>':"")+"</a>"};});
     var doneCount=chips.filter(function(chip){return chip.status==="done";}).length;
-    var trafficClass=doneCount===3?"traffic-green":chips.some(function(chip){return chip.status==="in_progress";})?"traffic-yellow":"traffic-red";
+    var trafficClass=doneCount===codes.length?"traffic-green":chips.some(function(chip){return chip.status==="in_progress";})?"traffic-yellow":"traffic-red";
     var trafficLabel=chips.map(function(chip,index){return String.fromCharCode(65+index)+" "+labels[chip.status];}).join(", ");
-    var progress='<span class="abc-mission-progress '+trafficClass+'" role="progressbar" aria-valuemin="0" aria-valuemax="3" aria-valuenow="'+doneCount+'" aria-label="Estado de las tareas: '+esc(trafficLabel)+'">'+chips.map(function(chip,index){var code=String.fromCharCode(65+index);return '<i class="'+chip.status+'" title="'+code+' · '+labels[chip.status]+'"><b>'+code+'</b></i>';}).join("")+"</span>";
-    return '<span class="abc-tasks" aria-label="Tareas A, B y C"><span class="abc-list">'+chips.map(function(chip){return chip.html;}).join("")+"</span>"+progress+"</span>";
+    var progress='<span class="abc-mission-progress '+trafficClass+'" role="progressbar" aria-valuemin="0" aria-valuemax="'+codes.length+'" aria-valuenow="'+doneCount+'" aria-label="Estado de las tareas: '+esc(trafficLabel)+'">'+chips.map(function(chip,index){var code=String.fromCharCode(65+index);return '<i class="'+chip.status+'" title="'+code+' · '+labels[chip.status]+'"><b>'+code+'</b></i>';}).join("")+"</span>";
+    return '<span class="abc-tasks" aria-label="'+(codes.length===1?'Tarea suelta':'Tareas A, B y C')+'"><span class="abc-list">'+chips.map(function(chip){return chip.html;}).join("")+"</span>"+progress+"</span>";
   }
   function missionPreviewHtml(t, proof, live, liveFresca) {
     var p = proyectoDe(t);
@@ -727,7 +738,9 @@
       "</div></div>";
   }
   // Duración de la misión: de ASIGNADA (created_at, el encargo nace ya asignado) a
-  // FINALIZADA (resolved_at). Si sigue viva, el tiempo TRANSCURRIDO hasta ahora (run).
+  // FINALIZADA (resolved_at). El reloj vivo sólo aparece tras empezar de verdad:
+  // status in_progress o rastro real en el árbol. Una asignada aún PENDIENTE no
+  // puede decir simultáneamente «en curso» ni consumir su plazo de ejecución.
   // Epoch tolerante a s/ms (fleet guarda ms; el guardia normaliza por si acaso).
   function _ms(v) { v = +v || 0; return v > 4102444800 ? v : v * 1000; }
   function durFmt(ms) {
@@ -760,7 +773,8 @@
       if (!end || end < start) return null;
       return { txt: durFmt(end - start), run: false, end: end, tip: "de asignada a finalizada" };
     }
-    return { txt: durFmt(Date.now() - start), run: true, tip: "transcurrido desde que se asignó" };
+    if (t.status !== "in_progress" && !hayTrabajo(t)) return null;
+    return { txt: durFmt(Date.now() - start), run: true, tip: "transcurrido desde que empezó" };
   }
 
   // ---- Redimensionado de columnas de la lista -------------------------------
@@ -986,7 +1000,7 @@
       if (!by[t.mission_id]) {
         by[t.mission_id] = { mission: {
           id: t.mission_id, subject: t.subject, screen: t.screen, loc: t.loc,
-          source: t.source, assignee: t.assignee, status: t.mission_status,
+          source: t.source, role: t.role, assignee: t.assignee, status: t.mission_status,
           created_at: t.mission_created, display_ref: t.mission_display_ref || ""
         }, tasks: [] };
         order.push(t.mission_id);
@@ -1089,7 +1103,7 @@
       // de 8 pasos, justo lo que la misión venía a eliminar. Ahora lee en tercios
       // igual que el chip de la fila: tareas n/3 · subtareas n/9 (+n si el plan
       // es antiguo y arrastra pasos d…h).
-      var _tc = tercios(tasks);
+      var _tc = tercios(tasks, MIS_CACHE[id] && MIS_CACHE[id].role === "standalone-task");
       var header = '<div class="thd"><span class="tmid" title="Misión activa">🎯 ' + esc(id) + "</span>" +
         (_tc ? progHtml(_tc) : '<span class="tcount" title="esta misión aún no tiene plan de tareas">0/3</span>') + "</div>";
       if (!tasks.length) {

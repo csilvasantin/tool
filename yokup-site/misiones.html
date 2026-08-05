@@ -653,7 +653,7 @@ async function load(){
     // _prog = resumen en tercios (contador/barra). _tasks = array crudo del plan,
     // que estadoDe usa para leer «En curso» del RASTRO REAL (tareas in_progress/done
     // dejadas por un agente CLI que ejecuta sin reclamar), no sólo del claim. (23-jul)
-    list.forEach(t=>{ const g=_g[t.id]||null; t._prog=YkMisiones.tercios(g||[]); t._tasks=g; });
+    list.forEach(t=>{ const g=_g[t.id]||null; t._prog=YkMisiones.tercios(g||[],t.role==="standalone-task"); t._tasks=g; });
   }catch(e){}
   el.innerHTML=headHtml()+groupedHtml(list);
   bindHead(el);

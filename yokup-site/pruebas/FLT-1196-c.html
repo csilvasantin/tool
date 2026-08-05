@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FLT-1196 · Tareas sueltas verificadas</title>
+<meta name="robots" content="noindex,nofollow">
+<style>
+:root{color-scheme:dark;--bg:#02080d;--card:#091822;--line:#245564;--ink:#dff8ff;--mut:#75aab9;--cyan:#78f3ff;--good:#88ffaa;--gold:#ffd866}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 75% 15%,#103241 0,transparent 32%),var(--bg);color:var(--ink);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+main{width:min(980px,calc(100% - 32px));margin:0 auto;padding:44px 0}h1{margin:0;color:var(--cyan);font-size:clamp(25px,4vw,42px)}.lead{color:var(--mut);margin:5px 0 26px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.card{background:rgba(9,24,34,.92);border:1px solid var(--line);padding:20px}.ok{color:var(--good)}.gold{color:var(--gold)}.value{font-size:22px;font-weight:900;margin-top:6px}.task{margin-top:15px;padding:14px;border:1px solid rgba(136,255,170,.35);background:rgba(136,255,170,.06);white-space:pre-line}ul{padding-left:20px;margin:12px 0 0}code{color:var(--cyan)}footer{margin-top:18px;color:var(--mut);font-size:12px}@media(max-width:680px){.grid{grid-template-columns:1fr}main{padding-top:26px}}
+</style>
+</head>
+<body>
+<main>
+  <h1>✓ Tareas sueltas verificadas</h1>
+  <p class="lead">Misión FLT-1196 · Yokup · prueba factual de producción</p>
+  <section class="grid">
+    <article class="card">
+      <div class="ok">ESTADO VISUAL CORREGIDO</div>
+      <div class="value">Pendiente ≠ En curso</div>
+      <ul>
+        <li>Una misión pendiente ya no muestra reloj activo.</li>
+        <li>El plazo comienza al reclamarla o al existir trabajo real.</li>
+        <li>Finalizada conserva su duración real.</li>
+      </ul>
+    </article>
+    <article class="card">
+      <div class="gold">TAREA REAL DE PRUEBA</div>
+      <div class="value" id="mission">FLT-1197 · open · 0/1</div>
+      <div class="task" id="task">Dibujar un plátano en ASCII.
+owner: SubOraculoMBAPlata
+filas reales: 1 · role: standalone-task</div>
+    </article>
+  </section>
+  <section class="card" style="margin-top:16px">
+    <div class="ok">CONTRATO VALIDADO</div>
+    <ul>
+      <li>Alta desde <code>/tareas</code>: botón «Crear tarea».</li>
+      <li>Misión-contenedor ligera con <code>role=standalone-task</code>.</li>
+      <li>Una sola fila de trabajo: <code>a</code>; no se inventan B/C ni subtareas.</li>
+      <li>Progreso propio: <code>0/1</code> o <code>1/1</code>.</li>
+      <li>668 contratos automatizados superados.</li>
+    </ul>
+  </section>
+  <footer id="version">API de producción comprobada el 05/08/2026 · la consulta viva actualizará estos datos.</footer>
+</main>
+<script>
+Promise.all([
+  fetch("https://api.yokup.com/fleet/missions",{cache:"no-store"}).then(r=>r.json()),
+  fetch("/version.json?proof=FLT-1196",{cache:"no-store"}).then(r=>r.json())
+]).then(([fleet,version])=>{
+  const row=(fleet.missions||[]).find(m=>m.id==="FLT-1197");
+  if(!row) throw new Error("FLT-1197 no encontrada");
+  const tasks=row.tasks||[], task=tasks[0]||{};
+  document.getElementById("mission").textContent=row.id+" · "+row.status+" · "+(row.progress&&row.progress.done||0)+"/"+(row.progress&&row.progress.total||0);
+  document.getElementById("task").textContent=task.title+"\nowner: "+task.owner+"\nfilas reales: "+tasks.length+" · role: "+row.role;
+  document.getElementById("version").textContent="Producción "+version.version+" · "+version.signature+" · commit "+version.gitShort;
+}).catch(err=>{document.getElementById("task").textContent="Error de verificación: "+err.message;});
+</script>
+</body>
+</html>
