@@ -54,7 +54,7 @@ test('fleetSync conserva una resuelta con prueba y su resolved_at', () => {
   const start = source.indexOf('async function fleetSync(env)');
   const block = source.slice(start, source.indexOf('__name(fleetSync', start));
   assert.match(block, /prev\.status === "resolved"[\s\S]*hasMissionProof\(env, id\)[\s\S]*st = "resolved"/);
-  assert.match(block, /reconcileFleetTicket\(env, id, prev, it, assignment, st, now\)/);
+  assert.match(block, /reconcileFleetTicket\(env, id, prev, it, assignment, st, now, standalone\)/);
   const helperStart = source.indexOf('async function reconcileFleetTicket');
   const helper = source.slice(helperStart, source.indexOf('__name(reconcileFleetTicket', helperStart));
   assert.match(helper, /prev\.resolved_at \|\| now/);

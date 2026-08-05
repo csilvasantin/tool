@@ -191,13 +191,16 @@ let SEARCH=""; // texto del buscador del cabezal
 // ── CABEZAL COMPARTIDO (mismo que /misiones): KPIs + buscador + alta ──────────
 // Los KPIs cuentan las misiones (por estado) de la fecha elegida y filtran el
 // tablero de tareas; el buscador filtra por título/id/pantalla; el selector de
-// día del cabezal fija el «día concreto». El alta crea misiones de flota y, al
-// crear, recarga las tareas para ver enseguida su plan.
+// día del cabezal fija el «día concreto». Aquí el alta encarga UNA tarea suelta:
+// el backend crea una misión-contenedor ligera con una sola fila, sin plan A/B/C
+// artificial, y la vista se recarga para mostrarla de inmediato.
 const CAB=YkCabezal.mount($("cabezal"), {
   worker:WORKER,
   title:"Tareas",
+  createKind:"task",
+  altaPlaceholder:"Nueva tarea suelta… (Enter para encargarla)",
   searchPlaceholder:"🔎 Buscar tarea…",
-  intro:'Los pasos en que se descompone cada misión — <b>regla de los tercios</b>: <b>3 tareas</b> a·b·c con <b>3 subtareas</b> cada una (a1…c3, máx 9) — una misión = jornada completa de un agente. El denominador es SIEMPRE 3 y 9 para poder comparar dos misiones de un vistazo: un plan a medio definir se marca «◌ incompleto» (borde discontinuo), nunca se le baja el denominador. Los planes antiguos con pasos d…h se cuentan aparte como «+n». Chips clicables ○◐● para avanzar estado; ⚙️ ejecutan los subagentes, 📝 reportan los infraagentes. Agrupado por misión, lo más reciente primero.',
+  intro:'Los pasos en que se descompone cada misión — <b>regla de los tercios</b>: <b>3 tareas</b> a·b·c con <b>3 subtareas</b> cada una (a1…c3, máx 9) — una misión = jornada completa de un agente. Las <b>tareas sueltas</b> son la excepción explícita: nacen dentro de una misión-contenedor ligera con una sola tarea y no reciben pasos artificiales. Chips clicables ○◐● para avanzar estado; ⚙️ ejecutan los subagentes, 📝 reportan los infraagentes. Agrupado por misión, lo más reciente primero.',
   defaultView:"cards",   // /tareas nace en FICHAS; el conmutador la pasa a lista (962)
   onView:()=>render(),
   onState:f=>{ STATE=f; render(); },
@@ -302,7 +305,7 @@ function render(){
   const _focusMission=FOCUS&&GROUPS.map(g=>g.mission).find(m=>m.id===FOCUS);
   const _bc = FOCUS ? '<div class="focobar"><a href="/tareas">← ver todas las misiones</a><span class="focoid" title="ID técnico: '+esc(FOCUS)+'">🎯 '+esc(YkMisiones.visibleId(_focusMission||{id:FOCUS}))+'</span></div>' : "";
   box.innerHTML=_bc+gs.map(g=>{const _op=OPEN_CARDS.has(g.mission.id)||g.mission.id===FOCUS;return `<div class="mcard ${_op?'':'collapsed'}" data-id="${esc(g.mission.id)}">
-    <div class="mhd"><button class="mtog" title="plegar / desplegar" aria-expanded="${_op}">${_op?'▾':'▸'}</button><a class="mid" href="/ticket?id=${encodeURIComponent(g.mission.id)}" title="Abrir misión · ID técnico ${esc(g.mission.id)}">🎯 ${esc(YkMisiones.visibleId(g.mission))}</a>${(()=>{const p=YkMisiones.tercios(g.tasks);
+    <div class="mhd"><button class="mtog" title="plegar / desplegar" aria-expanded="${_op}">${_op?'▾':'▸'}</button><a class="mid" href="/ticket?id=${encodeURIComponent(g.mission.id)}" title="Abrir misión · ID técnico ${esc(g.mission.id)}">🎯 ${esc(YkMisiones.visibleId(g.mission))}</a>${(()=>{const p=YkMisiones.tercios(g.tasks,g.mission.role==="standalone-task");
       // REGLA DE LOS TERCIOS (FLT-979 c): esta cabecera decía «regla de los
       // tercios» en el tooltip pero pintaba subtareas_hechas/subCount(), o sea
       // denominadores libres (1/22, 1/13, 1/10, 1/7…) — justo lo que la misión

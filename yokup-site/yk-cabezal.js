@@ -33,6 +33,7 @@
   function mount(container, opts) {
     opts = opts || {};
     const WORKER = opts.worker;
+    const taskMode = opts.createKind === "task";
     const showSearch = opts.search !== false;
     const $ = id => document.getElementById(id);
 
@@ -69,7 +70,7 @@
       '<form class="alta" id="alta" autocomplete="off">' +
         '<div class="alta-field">' +
           '<input class="alta-txt" id="altaTxt" type="text" maxlength="4000" placeholder="' +
-            (opts.altaPlaceholder || "Nueva misión para la flota… (Enter para crearla)") + '">' +
+            (opts.altaPlaceholder || (taskMode ? "Nueva tarea suelta… (Enter para encargarla)" : "Nueva misión para la flota… (Enter para crearla)")) + '">' +
           '<button type="button" class="alta-adj" id="altaAdjBtn" title="Adjuntar imagen — o pega (⌘V, también desde Telegram)" aria-label="Adjuntar imagen">📎</button>' +
         '</div>' +
         '<button type="button" class="alta-agente" id="altaAgentBtn" aria-haspopup="menu" aria-expanded="false" title="Asignar a — pulsa para elegir agente y máquina">🎯 Auto · aleatorio <span class="cv">▾</span></button>' +
@@ -77,7 +78,7 @@
           '<input type="checkbox" id="altaPa"> ⚡ Prioridad' +
         '</label>' +
         '<input type="file" id="altaAdjFile" accept="image/*" multiple hidden>' +
-        '<button class="alta-go" type="submit">＋ Crear misión</button>' +
+        '<button class="alta-go" type="submit">＋ Crear ' + (taskMode ? "tarea" : "misión") + '</button>' +
         '<div class="alta-hint" id="altaPaHint" hidden>⚠️ Prioridad: la máquina destino se entrega a la IA <b>aunque haya humanos delante</b> (se fuerza a «desatendida» ~2 h). Úsalo solo cuando la misión no pueda esperar.</div>' +
         '<div class="alta-det" id="altaDetectHint" hidden></div>' +
         '<div class="yk-thumbs" id="altaThumbs" style="display:none"></div>' +
@@ -437,14 +438,15 @@
       return ["claude", "codex", "grok"].map(rt => porRt[rt]).filter(Boolean);
     }
     async function crearUnEncargo(persona, maquina, encargo, txtCorto, pa, runtime, host) {
+      const textoBot = taskMode ? "[TAREA SUELTA] " + encargo : encargo;
       const r = await fetch(TG + "/api/bot-inbox", { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ target_persona: persona, target_machine: maquina, text: encargo, from: "yokup-misiones" }) });
+        body: JSON.stringify({ target_persona: persona, target_machine: maquina, text: textoBot, from: taskMode ? "yokup-tareas" : "yokup-misiones" }) });
       const d = await r.json(); if (!d.ok) throw new Error(d.error || "error " + r.status);
       await fetch(WORKER + "/fleet/sync", { method: "POST" }).catch(() => {});
       if (maquina) { try {
         await fetch(WORKER + "/fleet/nudge", { method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ machine: maquina, persona: persona, missionId: "FLT-" + d.id, priority: pa, runtime: runtime, host: host,
-            text: "⚡ Nueva misión FLT-" + d.id + " para ti desde yokup.com/misiones: «" + txtCorto + "». Encargo #" + d.id + " de tu bot-inbox: reclámalo con bash ~/Claude/admira-vault/bot-inbox-claim.sh " + d.id + " y ponte con ella." }) });
+          body: JSON.stringify({ machine: maquina, persona: persona, missionId: "#" + d.id, priority: pa, runtime: runtime, host: host,
+            text: "⚡ Nueva " + (taskMode ? "tarea" : "misión") + " para ti desde yokup.com/" + (taskMode ? "tareas" : "misiones") + ": «" + txtCorto + "». Encargo #" + d.id + " de tu bot-inbox: reclámalo con bash ~/Claude/admira-vault/bot-inbox-claim.sh " + d.id + " y ponte con " + (taskMode ? "ella" : "la misión") + "." }) });
       } catch (e) {} }
       return d;
     }
@@ -467,7 +469,7 @@
           if (!trio.length) throw new Error("no hay CLIs operativos en " + YkMisiones.canonMachine(maquina));
           const ids = [];
           for (const a of trio) { await crearUnEncargo(a.persona, maquina, encargo, txt, pa, a.runtime, a.host); ids.push(a.runtime); }
-          msg.className = "alta-msg ok"; msg.textContent = "✓ " + trio.length + " misiones en " + YkMisiones.canonMachine(maquina) + ": " + ids.join(" · ") + (pa ? " ⚡" : "");
+          msg.className = "alta-msg ok"; msg.textContent = "✓ " + trio.length + " " + (taskMode ? "tareas" : "misiones") + " en " + YkMisiones.canonMachine(maquina) + ": " + ids.join(" · ") + (pa ? " ⚡" : "");
           $("altaTxt").value = ""; altaAdj.clear(); detectaAlta(); resetPa();
           radar(); if (opts.onCreated) opts.onCreated(); go.disabled = false; return;
         }
@@ -481,7 +483,7 @@
         const d = await crearUnEncargo(persona, maquina, encargo, txt, pa, runtime, host);
         const destino = persona ? (persona + (maquina ? " en " + YkMisiones.canonMachine(maquina) : "")) : ("la máquina " + YkMisiones.canonMachine(maquina) + " (quien esté allí)");
         const nimg = altaAdj.urls().length;
-        msg.className = "alta-msg ok"; msg.textContent = "✓ misión" + (pa ? " ⚡ PRIORIDAD" : "") + (nimg ? " 🖼×" + nimg : "") + " dada de alta y asignada a " + destino;
+        msg.className = "alta-msg ok"; msg.textContent = "✓ " + (taskMode ? "tarea" : "misión") + " #" + d.id + (pa ? " ⚡ PRIORIDAD" : "") + (nimg ? " 🖼×" + nimg : "") + " dada de alta y asignada a " + destino;
         $("altaTxt").value = ""; altaAdj.clear(); detectaAlta(); resetPa();
         radar(); if (opts.onCreated) opts.onCreated();
       } catch (err) {

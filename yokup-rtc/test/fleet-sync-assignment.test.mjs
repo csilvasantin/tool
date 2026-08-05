@@ -15,7 +15,7 @@ function harness(){
   const db=new DatabaseSync(":memory:");
   db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,screen TEXT,subject TEXT,loc TEXT,project TEXT,source TEXT,role TEXT,status TEXT,assignee TEXT,proof_image TEXT,resolved_at INTEGER,updated_at INTEGER)");
   db.exec("CREATE TABLE fleet_ids(inbox_id INTEGER PRIMARY KEY,mission_id TEXT UNIQUE,created_at INTEGER)");
-  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,report TEXT,image TEXT,updated_at INTEGER,PRIMARY KEY(mission_id,code))");
+  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,report TEXT,image TEXT,created_at INTEGER,updated_at INTEGER,PRIMARY KEY(mission_id,code))");
   db.exec("CREATE TABLE project_members(project_id TEXT,kind TEXT,ref TEXT)");
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{first:async()=>stmt.get(...args)||null,run:async()=>({meta:stmt.run(...args)}),all:async()=>({results:stmt.all(...args)})}},first:async()=>stmt.get()||null,all:async()=>({results:stmt.all()})}}};
   const listMissionTasks=async(_env,id)=>DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? ORDER BY code").bind(id).all().then(x=>x.results);
@@ -33,19 +33,19 @@ test("#1112 repara FLT-1140 por procedencia sin tocar FLT-1112 y queda idempoten
   db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1140","NeoMBP16·MacBook Pro 16 #1112",text,"MacBook Pro 16","trinity","fleet","otro-role","in_progress","NeoMBP16",null,null,10);
   db.prepare("INSERT INTO fleet_ids VALUES(?,?,?)").run(1112,"FLT-1140",1);
   for(const task of [["a","Revisar ids","done","SubOraculoMini","hecho"],["b","Asignar id","done","InfraOraculoMini","verificado"],["a1","Plan de Trinity","pending","InfraTrinityMBP16",null],["b1","Ejecutar Trinity","pending","SubTrinityMBP16",null]]){
-    db.prepare("INSERT INTO mission_tasks VALUES(?,?,?,?,?,?,?,?)").run("FLT-1140",...task,null,1);
+    db.prepare("INSERT INTO mission_tasks VALUES(?,?,?,?,?,?,?,?,?)").run("FLT-1140",...task,null,1,1);
   }
   db.prepare("INSERT INTO project_members VALUES('yokup','agent','OraculoMacMini'),('yokup','agent','NeoMini'),('yokup','machine','admira-macmini'),('yokup','machine','MacBookProNegro14')").run();
   const foreign=JSON.stringify(row(db,"FLT-1112")),it={id:1112,text,target_persona:"Oraculo",target_machine:null,from_name:"yokup-misiones"};
   assert.equal(await F.fleetMissionId(env,it),"FLT-1140");
-  const assignment=await F.resolveFleetAssignment(env,it);assert.equal(assignment.assignee,"OraculoMini");assert.equal(assignment.loc,"admira-macmini");
+  const assignment=await F.resolveFleetAssignment(env,it);assert.equal(assignment.assignee,"OraculoMacMini");assert.equal(assignment.loc,"admira-macmini");
   const first=await F.reconcileFleetTicket(env,"FLT-1140",row(db,"FLT-1140"),it,assignment,"in_progress",20);
   assert.equal(first.changed,true);assert.equal(first.project,"yokup");
   assert.equal(JSON.stringify(row(db,"FLT-1112")),foreign);
-  assert.equal(row(db,"FLT-1140").assignee,"OraculoMini");assert.equal(row(db,"FLT-1140").loc,"admira-macmini");
+  assert.equal(row(db,"FLT-1140").assignee,"OraculoMacMini");assert.equal(row(db,"FLT-1140").loc,"admira-macmini");
   assert.equal(row(db,"FLT-1140").project,"yokup");assert.equal(row(db,"FLT-1140").source,"fleet");assert.equal(row(db,"FLT-1140").role,"yokup-misiones");
   assert.deepEqual(rows(db,"FLT-1140").map(x=>x.code),["a","b","c"]);
-  assert.deepEqual(rows(db,"FLT-1140").map(x=>x.owner),["SubOraculoMini","SubOraculoMini","InfraOraculoMini"]);
+  assert.deepEqual(rows(db,"FLT-1140").map(x=>x.owner),["SubOraculoMacMini","SubOraculoMacMini","InfraOraculoMacMini"]);
   assert.deepEqual(rows(db,"FLT-1140").map(x=>x.report),["hecho","verificado",null]);
   const before=JSON.stringify({ticket:row(db,"FLT-1140"),tasks:rows(db,"FLT-1140")});
   assert.equal(await F.fleetMissionId(env,it),"FLT-1140");const second=await F.reconcileFleetTicket(env,"FLT-1140",row(db,"FLT-1140"),it,assignment,"in_progress",30);assert.equal(second.changed,false);
@@ -68,5 +68,5 @@ test("fleetSync usa feed público y fallback censado, nunca el privado 401",()=>
   assert.doesNotMatch(source,/FLEET_INBOX = [^\n]+\/api\/bot-inbox/);
   assert.match(block,/const assignment = await resolveFleetAssignment\(env, it\)/);
   const helper=source.slice(source.indexOf("async function reconcileFleetTicket"),source.indexOf("__name(reconcileFleetTicket"));assert.match(helper,/assignment\.complete/);
-  assert.match(block,/reconcileFleetTicket\(env, id, prev, it, assignment, st, now\)/);
+  assert.match(block,/reconcileFleetTicket\(env, id, prev, it, assignment, st, now, standalone\)/);
 });
