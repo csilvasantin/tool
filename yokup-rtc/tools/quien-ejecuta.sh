@@ -31,8 +31,8 @@ fi
 KEY="$(printf '%s' "$MACHINE" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]')"
 case "$KEY" in
   *macmini*) SUFFIX="MacMini" ;;
-  *macbookpro14*|*mbp14*) SUFFIX="MBP14" ;;
-  *macbookpro16*|*mbp16*) SUFFIX="MBP16" ;;
+  *macbookpro*14*|*mbp*14*) SUFFIX="MBP14" ;;
+  *macbookpro*16*|*mbp*16*) SUFFIX="MBP16" ;;
   *macbookairazul*|*mbaazul*) SUFFIX="MBAAzul" ;;
   *macbookairrosa*|*mbarosa*) SUFFIX="MBARosa" ;;
   *macbookaircrema*|*mbacrema*) SUFFIX="MBACrema" ;;
