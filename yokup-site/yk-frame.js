@@ -83,13 +83,33 @@
     INCIDENCIAS: "incidencias", INFORMES: "informes", NOTIFICACIONES: "notificaciones"
   };
 
-  // Proyectos del MISMO helpdesk. El activo se deduce de la ruta (ver
-  // activeProjectKey): /admira-live -> admira.live; el resto -> admira.tv.
-  var PROJECTS = {
-    "admira.tv":   { icon: "🖥", name: "www.admira.tv",   short: "admira.tv",   sub: "flota DOOH", href: "/incidencias" },
-    "admira.live": { icon: "🌐", name: "www.admira.live", short: "admira.live", sub: "encolados",  href: "/admira-live" }
+  // Scope global de proyecto (FLT-1218). Sin selección válida empieza en Todos.
+  // Una elección explícita viaja por query + storage versionado; ambos guardan sólo
+  // el `id` canónico del censo, nunca nombres, dominios o inferencias por pathname.
+  var PROJECT_SCOPE_KEY = "yokup.project.scope.v1";
+  var PROJECT_SCOPE = null, PROJECT_CATALOG = [];
+  function projectScopeMatch(row, projectId) {
+    return projectId == null || String(row && (row.project_id || row.project) || "") === String(projectId);
+  }
+  function resolveProjectScope(queryId, storedId, catalog) {
+    var ids = (catalog || []).filter(function (p) {
+      return p && p.id && String(p.status || "activo").toLowerCase() !== "archivado";
+    }).map(function (p) { return p.id; });
+    var query = String(queryId || "").trim(), stored = String(storedId || "").trim();
+    return ids.indexOf(query) >= 0 ? query : (ids.indexOf(stored) >= 0 ? stored : null);
+  }
+  window.YkProjectScope = {
+    get: function () { return PROJECT_SCOPE; },
+    matches: projectScopeMatch,
+    catalog: function () { return PROJECT_CATALOG.slice(); },
+    _test: {resolve:resolveProjectScope}
   };
-  var PROJECT_ORDER = ["admira.tv", "admira.live"];
+  function projectHost(project) {
+    var raw = String(project && project.web || "").trim();
+    if (!raw) return "";
+    try { return new URL(/^https?:\/\//i.test(raw) ? raw : "https://" + raw).hostname.replace(/^www\./i, ""); }
+    catch (e) { return ""; }
+  }
 
   // Referencias de la home (los 4 primeros son anclas de la landing)
   var NAV = [
@@ -108,6 +128,11 @@
     if (cls) n.className = cls;
     if (html != null) n.innerHTML = html;
     return n;
+  }
+  function esc(value) {
+    return String(value == null ? "" : value).replace(/[<>&"]/g, function (c) {
+      return {"<":"&lt;", ">":"&gt;", "&":"&amp;", '"':"&quot;"}[c];
+    });
   }
 
   // CONTADOR «curso/pend» de una sección: span vacío con data-yk-count=<clave>
@@ -449,13 +474,6 @@
       }
     }
     return NAV.map(function (r) { return { label: r[0], href: r[1] }; });
-  }
-
-  // proyecto activo según la ruta: cualquier variante con «admira-live» es
-  // admira.live; en el resto del perímetro, admira.tv.
-  function activeProjectKey() {
-    var p = location.pathname.replace(/\/+$/, "").toLowerCase();
-    return (p.indexOf("admira-live") >= 0) ? "admira.live" : "admira.tv";
   }
 
   function build() {
@@ -1069,43 +1087,18 @@
     });
   }
 
-  // desplegable de PROYECTO en la barra: el proyecto activo se lee en el botón,
-  // el menú (clic, no hover) ofrece cambiar al otro y navega. Cierre por clic
-  // fuera y Escape (Escape cierra ANTES el menú que los paneles: capture phase).
+  // Selector de proyecto de la barra: Todos sin preferencia; una selección válida
+  // explícita se restaura por query/storage. Ausente o archivada vuelve a Todos.
   function buildProjMenu() {
-    var active = activeProjectKey();
-    var ap = PROJECTS[active];
-
     var wrap = el("div", "yk-proj");
-
-    var btn = el("button", "yk-proj-btn",
-      '<span class="yk-proj-ic" aria-hidden="true">' + ap.icon + '</span>' +
-      '<span class="yk-proj-nm">' +
-        '<b class="yk-pj-full">' + ap.name + '</b>' +
-        '<b class="yk-pj-short">' + ap.short + '</b>' +
-      '</span>' +
-      '<span class="yk-proj-cx" aria-hidden="true">▾</span>');
+    var btn = el("button", "yk-proj-btn", "");
     btn.type = "button";
     btn.id = "yk-proj-btn";
     btn.setAttribute("aria-haspopup", "menu");
     btn.setAttribute("aria-expanded", "false");
-    btn.setAttribute("aria-label", "Proyecto activo: " + ap.name + ". Cambiar de proyecto");
-    btn.title = "Proyecto · " + ap.name;
-
     var menu = el("div", "yk-proj-menu");
     menu.setAttribute("role", "menu");
     menu.setAttribute("aria-labelledby", "yk-proj-btn");
-    PROJECT_ORDER.forEach(function (k) {
-      var p = PROJECTS[k];
-      var on = (k === active);
-      var a = el("a", "yk-proj-opt" + (on ? " on" : ""),
-        '<span class="yk-proj-ic" aria-hidden="true">' + p.icon + '</span>' +
-        '<span class="yk-proj-txt"><b>' + p.name + '</b><em>' + p.sub + '</em></span>');
-      a.href = p.href;
-      a.setAttribute("role", "menuitem");
-      if (on) a.setAttribute("aria-current", "true");
-      menu.appendChild(a);
-    });
 
     wrap.appendChild(btn);
     wrap.appendChild(menu);
@@ -1116,11 +1109,83 @@
       btn.setAttribute("aria-expanded", open ? "true" : "false");
     }
 
+    function activeProject() {
+      return PROJECT_CATALOG.filter(function (p) { return p.id === PROJECT_SCOPE; })[0] || null;
+    }
+    function validProjectId(value) {
+      return resolveProjectScope(value, "", PROJECT_CATALOG);
+    }
+    function requestedProjectId() {
+      var query = "", stored = "";
+      try { query = new URL(location.href).searchParams.get("project_id") || ""; } catch (e) {}
+      try { stored = localStorage.getItem(PROJECT_SCOPE_KEY) || ""; } catch (e) {}
+      return resolveProjectScope(query, stored, PROJECT_CATALOG);
+    }
+    function rememberProject(projectId) {
+      try {
+        if (projectId) localStorage.setItem(PROJECT_SCOPE_KEY, projectId);
+        else localStorage.removeItem(PROJECT_SCOPE_KEY);
+      } catch (e) {}
+      try {
+        var url = new URL(location.href);
+        if (projectId) url.searchParams.set("project_id", projectId);
+        else url.searchParams.delete("project_id");
+        history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+      } catch (e) {}
+    }
+    function publishProject(projectId, persist) {
+      PROJECT_SCOPE = validProjectId(projectId);
+      if (persist) rememberProject(PROJECT_SCOPE);
+      // CustomEvent se entrega síncronamente: los consumidores limpian o repintan
+      // su DOM viejo antes de que el botón pueda anunciar el nuevo proyecto.
+      window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:PROJECT_SCOPE,project:activeProject()}}));
+      paintProject();
+    }
+    function paintProject() {
+      var ap = activeProject(), host = projectHost(ap);
+      var name = ap ? (ap.name || ap.id) : "Todos", full = ap && host ? name + " · " + host : name;
+      btn.innerHTML = '<span class="yk-proj-ic" aria-hidden="true">' + (ap ? "📁" : "◉") + '</span>'
+        + '<span class="yk-proj-nm"><b class="yk-pj-full">' + esc(full) + '</b><b class="yk-pj-short">' + esc(name) + '</b></span>'
+        + '<span class="yk-proj-cx" aria-hidden="true">▾</span>';
+      btn.setAttribute("aria-label", "Proyecto: " + full + ". Cambiar filtro");
+      btn.title = "Proyecto · " + full;
+      menu.innerHTML = "";
+      [{id:null,name:"Todos",web:"Todos los proyectos"}].concat(PROJECT_CATALOG).forEach(function (p) {
+        var on = p.id === PROJECT_SCOPE;
+        var option = el("button", "yk-proj-opt" + (on ? " on" : ""),
+          '<span class="yk-proj-ic" aria-hidden="true">' + (p.id ? "📁" : "◉") + '</span>'
+          + '<span class="yk-proj-txt"><b>' + esc(p.name || p.id) + '</b><em>' + esc(p.id ? (projectHost(p) || p.id) : "Todos los proyectos") + '</em></span>');
+        option.type = "button";
+        option.setAttribute("role", "menuitemradio");
+        option.setAttribute("aria-checked", on ? "true" : "false");
+        option.addEventListener("click", function () {
+          publishProject(p.id || null, true);
+          setMenu(false); btn.focus();
+        });
+        menu.appendChild(option);
+      });
+    }
+    paintProject();
+    ykFetch("/projects", {cache:"no-store"}).then(function (r) { return r.json(); }).then(function (d) {
+      PROJECT_CATALOG = (d && d.projects || []).filter(function (p) {
+        return p && p.id && String(p.status || "activo").toLowerCase() !== "archivado";
+      });
+      PROJECT_SCOPE = requestedProjectId();
+      // Canoniza también la URL/storage y limpia cualquier valor corrupto, stale o archivado.
+      rememberProject(PROJECT_SCOPE);
+      if (PROJECT_SCOPE) window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:PROJECT_SCOPE,project:activeProject()}}));
+      paintProject();
+    }).catch(function () { PROJECT_CATALOG = []; PROJECT_SCOPE = null; paintProject(); });
+    window.addEventListener("storage", function (event) {
+      if (event.key !== PROJECT_SCOPE_KEY || !PROJECT_CATALOG.length) return;
+      publishProject(validProjectId(event.newValue), true);
+    });
+
     btn.addEventListener("click", function (e) {
       e.stopPropagation();
       var open = !isMenuOpen();
       setMenu(open);
-      if (open) { var f = menu.querySelector("a"); if (f) f.focus(); }
+      if (open) { var f = menu.querySelector("button"); if (f) f.focus(); }
     });
 
     // clic fuera cierra

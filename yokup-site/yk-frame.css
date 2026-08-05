@@ -268,6 +268,7 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
   display: flex; align-items: center; gap: 10px;
   padding: 9px 11px; border-radius: 8px; text-decoration: none;
   border: 1px solid transparent; transition: .15s;
+  width:100%; background:transparent; color:var(--yk-ink); font:inherit; text-align:left; cursor:pointer;
 }
 .yk-proj-opt:hover{ background: rgba(120,243,255,.10); border-color: var(--yk-line2) }
 .yk-proj-opt .yk-proj-txt{ display: flex; flex-direction: column; gap: 2px }

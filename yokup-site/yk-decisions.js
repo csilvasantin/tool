@@ -265,7 +265,7 @@
     var histList = full ? document.getElementById("decsHistList") : null;
     // sig/histSig arrancan en null (no ""): con cero elementos la firma también es
 // "" y el primer render se saltaba, dejando la sección vacía sin su mensaje.
-    var api = config.worker.replace(/\/$/, "") + "/decisions", decisions = [], sig = null, histSig = null, truncated = false;
+    var api = config.worker.replace(/\/$/, "") + "/decisions", decisions = [], sig = null, histSig = null, truncated = false, projectScope = null;
     // FILTRO de los chips (Carlos): null = todas; si no, un estado. Pulsar el chip
     // activo otra vez vuelve a todas. VIVAS actúa sobre la sección de relojes;
     // DECIDIDAS/VENCIDAS/CANCELADAS acotan el histórico a ese estado.
@@ -290,7 +290,8 @@
 
     // Vista COMPLETA: vivas arriba, cerradas abajo. Todo del worker.
     function renderFull() {
-      var dayItems = decisions.filter(function (d) { return ymd(d.created_at) === selectedDay; });
+      var dayItems = decisions.filter(function (d) { return !projectScope || String(d.project_id || "") === projectScope; })
+        .filter(function (d) { return ymd(d.created_at) === selectedDay; });
       var live = dayItems.filter(function (d) { return d.status === "pending"; });
       var closed = dayItems.filter(function (d) { return d.status !== "pending"; })
         .sort(function (a, b) { return closedAt(b) - closedAt(a); });
@@ -410,6 +411,10 @@
     setInterval(function () { var refresh = false; decisions.forEach(function (d) { if (d.status !== "pending") return; d.secondsLeft = Math.max(0, d.secondsLeft - 1); var clock = document.querySelector("[data-clock='" + d.id + "']"); if (clock) { clock.textContent = mmss(d.secondsLeft); var fill = document.querySelector("[data-fill='" + d.id + "']"); if (fill) fill.style.setProperty("--fill", pct(d) + "%"); } if (!d.secondsLeft) refresh = true; }); if (refresh) load(); }, 1000);
     if (!summary) document.addEventListener("click", async function (e) { var b = e.target.closest(".dec-opt[data-dec]"); if (!b) return; b.closest(".dec-opts").querySelectorAll("button").forEach(function (x) { x.disabled = true; }); try { await fetch(api + "/" + encodeURIComponent(b.dataset.dec) + "/choose", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({choice:+b.dataset.i,by:"Carlos"})}); } finally { load(); } });
     if (full) wireChips();
+    if (full && window.addEventListener) window.addEventListener("yk:project-change", function (event) {
+      projectScope = event.detail && event.detail.project_id || null;
+      sig = null; histSig = null; renderFull();
+    });
     load(); setInterval(load, 15000);
   }
   window.YkDecisions = {mount:mount,_test:{card:card,projectName:projectName,stamp:stamp,groupDecisions:groupDecisions,renderGroups:renderGroups,stateText:stateText}};

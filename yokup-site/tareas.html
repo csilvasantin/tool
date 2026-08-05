@@ -187,6 +187,7 @@ if(FOCUS) OPEN_CARDS.add(FOCUS);
 let GROUPS=[];  // [{mission:{...ticket}, tasks:[...]}]
 let STATE=null; // filtro por estado (KPI): sin | asignadas | in_progress | resolved | null
 let SEARCH=""; // texto del buscador del cabezal
+let PROJECT_SCOPE=null; // null=Todos; selección recibida por id canónico
 
 // ── CABEZAL COMPARTIDO (mismo que /misiones): KPIs + buscador + alta ──────────
 // Los KPIs cuentan las misiones (por estado) de la fecha elegida y filtran el
@@ -237,16 +238,21 @@ function filterLabel(){
     DFILTER.mode==="7d"?"de los últimos 7 días":DFILTER.mode==="dia"?("del "+DFILTER.day):null;
 }
 
+let TASK_LOAD_GENERATION=0;
 async function load(){
+  const generation=++TASK_LOAD_GENERATION, scopeAtStart=PROJECT_SCOPE;
   // scope=todas: el árbol de tareas es el mismo modelo para las misiones de la
   // flota (encargos a los agentes) y las de campo (incidencias de pantallas).
   // UNA sola petición al endpoint agregado /tasks/all (antes: /tickets + un
   // fetch por misión = N+1, cada 15 s; ahora una query D1 con JOIN).
   let rows; try{ rows=await YkMisiones.fetchAllTasks("todas"); }catch(e){ return; }
+  if(generation!==TASK_LOAD_GENERATION||scopeAtStart!==PROJECT_SCOPE)return;
   // Agrupa por misión y filtra por fecha de creación (sólo las del rango).
   // Con foco (?mission=), esa misión se muestra IGNORANDO el filtro de fecha (para
   // que el enlace abra aunque sea de otro día); sin foco, sólo las del rango. (964)
-  const groups=YkMisiones.groupByMission(rows).filter(g=>FOCUS?g.mission.id===FOCUS:inRange(g.mission.created_at));
+  const scopedRows=PROJECT_SCOPE?rows.filter(row=>String(row.project||"")===PROJECT_SCOPE):rows;
+  const groups=YkMisiones.groupByMission(scopedRows)
+    .filter(g=>FOCUS?g.mission.id===FOCUS:inRange(g.mission.created_at));
   groups.sort((a,b)=>Math.max(...b.tasks.map(x=>x.updated_at||0))-Math.max(...a.tasks.map(x=>x.updated_at||0)));
   GROUPS=groups;
   // KPIs del cabezal: aquí contamos TAREAS (los pasos a/b/c en que se desglosa
@@ -264,6 +270,13 @@ async function load(){
   });
   render();
 }
+if(window.addEventListener)window.addEventListener("yk:project-change",event=>{
+  TASK_LOAD_GENERATION++;
+  PROJECT_SCOPE=event.detail&&event.detail.project_id||null;
+  const board=$("grid");
+  if(board) board.innerHTML='<div class="bigempty"><b>Filtrando tareas…</b>Aplicando el proyecto seleccionado.</div>';
+  load();
+});
 // Estado canónico de UNA tarea (paso a/b/c), espejo de YkMisiones.estadoDe pero
 // sobre el estado propio de la tarea y su dueño (owner ↔ assignee de la misión).
 function taskEstado(t){

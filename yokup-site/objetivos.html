@@ -451,7 +451,7 @@ function projChip(slug,cls){ const p=PROJ_BY[slug]; if(!p) return "";
           :'<span class="'+cls+'" title="'+nm+'">'+nm+'</span>'; }
 function ymd(d){const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());}
 const TODAY=ymd(new Date());
-let IDEAS=[], FILTER="", PROG=null, SEL=new Set();
+let IDEAS=[], FILTER="", PROG=null, SEL=new Set(), PROJECT_SCOPE=null;
 document.getElementById("boardDay").value=TODAY;
 // Vista fichas|listado, persistida (la cambia el toggle ▦/☰ de la barra).
 let VIEW=(()=>{ try{ return localStorage.getItem("yk-ideas-view")==="list"?"list":"grid"; }catch(e){ return "grid"; } })();
@@ -535,11 +535,12 @@ function listRow(i){
 }
 function render(){
   const day=$("#boardDay").value||TODAY;
-  const list=IDEAS.filter(i=>(i.scheduled_for||ymd(new Date(i.created_at)))===day).filter(i=>!FILTER||i.status===FILTER);
-  $("#count").textContent=IDEAS.length+" idea"+(IDEAS.length===1?"":"s");
+  const scoped=IDEAS.filter(i=>!PROJECT_SCOPE||String(i.project||"")===PROJECT_SCOPE);
+  const list=scoped.filter(i=>(i.scheduled_for||ymd(new Date(i.created_at)))===day).filter(i=>!FILTER||i.status===FILTER);
+  $("#count").textContent=scoped.length+" idea"+(scoped.length===1?"":"s");
   // Pizca de vida en el resumen plegado del Consejo: 8 sillas fijas + total de ideas.
-  { const cs=$("#consejoSum"); if(cs) cs.textContent="8 sillas · "+IDEAS.length+" idea"+(IDEAS.length===1?"":"s"); }
-  $("#empty").style.display=(IDEAS.length&&!list.length)?"none":(IDEAS.length?"none":"block");
+  { const cs=$("#consejoSum"); if(cs) cs.textContent="8 sillas · "+scoped.length+" idea"+(scoped.length===1?"":"s"); }
+  $("#empty").style.display=(scoped.length&&!list.length)?"none":(scoped.length?"none":"block");
   const node=$("#grid");
   if(VIEW==="list"){ node.className="list"; node.innerHTML=list.map(listRow).join(""); refreshBulk(); return; }
   node.className="grid"; node.innerHTML=list.map(card).join("");
@@ -551,6 +552,10 @@ function render(){
     else b.style.cursor="default";
   });
 }
+if(window.addEventListener)window.addEventListener("yk:project-change",event=>{
+  PROJECT_SCOPE=event.detail&&event.detail.project_id||null;
+  render();
+});
 function refreshBulk(){const n=SEL.size,bar=$("#bulkbar");bar.hidden=!n;$("#bulkN").textContent=n+" objetivo"+(n===1?" seleccionado":"s seleccionados");}
 async function applyBulk(){const ids=[...SEL],status=$("#bulkEstado").value;if(!ids.length||!status){toast("Selecciona un estado");return;}if(!confirm("Cambiar "+ids.length+" objetivo(s) a «"+status+"»?"))return;const btn=$("#bulkApply");btn.disabled=true;try{const r=await fetch(WORKER+"/ideas/status",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids,status})});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||"error");IDEAS.forEach(i=>{if(SEL.has(i.id))i.status=status;});SEL.clear();$("#bulkEstado").value="";render();loadProg();window.dispatchEvent(new Event("yk:work-changed"));}catch(e){toast("No se pudo cambiar el estado");}finally{btn.disabled=false;}}
 async function setSchedule(id,scheduled_for){await fetch(WORKER+"/ideas/schedule",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,scheduled_for})});const it=IDEAS.find(x=>x.id===id);if(it)it.scheduled_for=scheduled_for;render();}

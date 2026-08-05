@@ -304,6 +304,7 @@ let FILTER="activas";
 // didCascade = la cascada ya corrió una vez (solo en la carga inicial). (Carlos, 21-jul-2026)
 let userPicked=false, didCascade=false;
 let SCOPE="fleet";     // ámbito por defecto: el trabajo de los agentes
+let PROJECT_SCOPE=null; // null=Todos; selección recibida por id canónico
 let SEL=new Set(), LAST_LIST=[], REP_IDS={};   // selección múltiple para cambio de estado en bloque
 const $=id=>document.getElementById(id);
 YkMisiones.init({worker:WORKER, treeId:"taskTree", columnMode:"tasks", projectIdLayout:true});
@@ -488,7 +489,7 @@ function agrupaFlota(tks){
 // cuando hay un agente TRABAJANDO la misión — su máquina o su agente está VIVO
 // en presencia (<15 min, mismo criterio que el radar). Fire-and-forget: no
 // retrasa el pintado; el halo aparece un instante después.
-async function marcarHalos(container, list){
+async function marcarHalos(container, list, generation, scopeAtStart){
   const live={machines:new Set(),personas:new Set()};
   const act={};   // "persona_lower|maquina_canon" -> {focus, proj, img, _u}
   try{
@@ -506,26 +507,31 @@ async function marcarHalos(container, list){
       }
     }
   }catch(e){ return; }
+  if(generation!==LOAD_GENERATION||scopeAtStart!==PROJECT_SCOPE)return;
   YkMisiones.markWorking(container, list, live);
   YkMisiones.fillActivity(container, list, act);   // previo = qué hace el agente ahora
   // (La 2ª línea de la celda AGENTE — RUNTIME · SUPERFICIE — la pinta ya whoHtml
   //  desde LIVE_SURFACES, que alimenta el radar cada 60 s: fuente única, sin parche.)
 }
 
+let LOAD_GENERATION=0;
 async function load(){
+  const generation=++LOAD_GENERATION, scopeAtStart=PROJECT_SCOPE;
+  const isCurrent=()=>generation===LOAD_GENERATION&&scopeAtStart===PROJECT_SCOPE;
   // FLT-1015 · CAMINO CRÍTICO EN PARALELO. Antes esperábamos personalización,
   // luego proyectos y sólo entonces arrancábamos /tickets: tres latencias de red
   // sumadas antes de pintar una sola misión. Las tres peticiones independientes
   // empiezan ahora en el mismo tick y el primer render espera sólo a la más lenta.
   const customizeP=Promise.resolve(YkMisiones.customizeReady||0).catch(()=>{});
   const projectsP=ykf("/projects",{cache:"no-store"}).then(r=>r.json()).then(po=>{
-    YkMisiones.setProyectos(po.projects||[]);
+    if(isCurrent())YkMisiones.setProyectos(po.projects||[]);
   }).catch(()=>{});
   const ticketsP=ykf("/tickets?scope="+SCOPE,{cache:"no-store"}).then(async r=>{
     if(!r.ok) throw new Error("tickets "+r.status);
     return r.json();
   });
   await Promise.all([customizeP,projectsP]);
+  if(!isCurrent())return;
   // El tablero SÍ es crítico: si /tickets no carga (red caída EN LOS DOS hosts),
   // NO se disfraza de «Sin misiones ✓» — se avisa honestamente y se ofrece reintento.
   // (El poll de 12 s se recupera solo cuando vuelva la red; el botón fuerza ya.)
@@ -533,6 +539,7 @@ async function load(){
   try{
     d=await ticketsP;
   }catch(e){
+    if(!isCurrent())return;
     const el=$("list");
     if(el){
       el.innerHTML='<div class="empty board-err" style="text-transform:none;letter-spacing:normal;font-size:13px;line-height:1.55;color:#ff9977">'
@@ -545,7 +552,10 @@ async function load(){
     ["kAsig","kProg","kNoCon","kRes","kDel"].forEach(id=>{ const c=$(id); if(c) c.textContent="—"; });
     return;
   }
-  let tks=(SCOPE==="fleet") ? agrupaFlota(d.tickets||[]) : (d.tickets||[]); const st=d.stats||{};
+  if(!isCurrent())return;
+  let rawTickets=d.tickets||[];
+  if(PROJECT_SCOPE) rawTickets=rawTickets.filter(t=>String(t.project||"")===PROJECT_SCOPE);
+  let tks=(SCOPE==="fleet") ? agrupaFlota(rawTickets) : rawTickets; const st=d.stats||{};
   // DÍA del tablero (selector junto a «finalizadas», def. HOY): filtra misiones
   // — y con ellas los contadores — por su fecha de creación en el día elegido.
   {
@@ -559,7 +569,7 @@ async function load(){
   // Índice de misiones para el picker de reasignación (equipo/agente actuales por id).
   ROWS_BY_ID={};
   tks.forEach(t=>{ ROWS_BY_ID[t.id]={maq:YkMisiones.machineOf(t)||"",rawmaq:(t.machine||t.loc||""),agente:t.assignee||"",subject:t.subject||"",loc:t.loc||"",screen:t.screen||"",inbox_id:t.inbox_id}; });
-  MIS_ALL=tks; try{ renderFlota(); }catch(e){}   // resumen de flota (modo avanzado)
+  MIS_ALL=tks; try{ renderFlota(generation,scopeAtStart); }catch(e){}   // resumen de flota (modo avanzado)
   // «No concluida» es una categoría derivada al cumplir 30 min sin cierre. Conserva
   // el estado operativo interno para que la misión pueda seguir avanzando.
   const _ms30=v=>{v=+v||0;return v>4102444800?v:v*1000;};
@@ -646,6 +656,7 @@ async function load(){
   // plan (no 24 fijo) para el contador y la barra de cada fila. (959)
   try{
     const _at=await YkMisiones.fetchAllTasks(SCOPE); const _g={};
+    if(!isCurrent())return;
     (_at||[]).forEach(x=>{(_g[x.mission_id]=_g[x.mission_id]||[]).push(x);});
     // Regla de los tercios (963 → 979): TAREAS a·b·c sobre 3 y SUBTAREAS a1…c3
     // sobre 9. Nunca el COUNT(*) crudo del árbol (daba 1/13, 0/12, 1/29), que no
@@ -654,13 +665,23 @@ async function load(){
     // que estadoDe usa para leer «En curso» del RASTRO REAL (tareas in_progress/done
     // dejadas por un agente CLI que ejecuta sin reclamar), no sólo del claim. (23-jul)
     list.forEach(t=>{ const g=_g[t.id]||null; t._prog=YkMisiones.tercios(g||[],t.role==="standalone-task"); t._tasks=g; });
-  }catch(e){}
+  }catch(e){if(!isCurrent())return;}
+  if(!isCurrent())return;
   el.innerHTML=headHtml()+groupedHtml(list);
   bindHead(el);
   YkMisiones.bindRows(el);   // click=misión activa + refresco del árbol de tareas
-  marcarHalos(el, list);     // FLT-761: halo en el previo si hay agente trabajando
+  marcarHalos(el, list, generation, scopeAtStart); // FLT-761: halo sólo para la generación vigente
   wireBulk(el, list);        // checkboxes de selección + barra de cambio de estado en bloque
 }
+
+if(window.addEventListener)window.addEventListener("yk:project-change",event=>{
+  LOAD_GENERATION++;
+  PROJECT_SCOPE=event.detail&&event.detail.project_id||null;
+  didCascade=true;
+  const board=$("list");
+  if(board) board.innerHTML='<div class="empty">Filtrando misiones por proyecto…</div>';
+  load();
+});
 // (día del tablero, buscador e intro los gestiona ya el cabezal compartido)
 // Botones de la barra de acción en bloque (una sola vez).
 $("bulkApply").onclick=aplicarBloque;
@@ -829,10 +850,11 @@ let MIS_ALL=[], FL_BY_MAQ={};
 const FLOTA_BASE=["MacBookAirRosa","MacBookAirAzul","MacBookAirCrema","MacBookAirPlata","MacBookAir16plata","MacBookProNegro14","MacBookPro16","MacMini","DGX Spark","ThinkStation PGX","ASUS Zenbook"];
 const FL_EM={MacBookAirRosa:"🩷",MacBookAirAzul:"🔵",MacBookAirCrema:"🟡",MacBookAirPlata:"⚪",MacBookAir16plata:"⚪",MacBookPro14:"⬛",MacBookPro16:"⬛",MacMini:"🖥","DGX Spark":"⚡","ThinkStation PGX":"🖥","ASUS Zenbook":"💻"};
 const _foco=s=>{ s=String(s||""); return s.length>150?s.slice(0,149)+"…":s; };
-async function renderFlota(){
+async function renderFlota(generation,scopeAtStart){
   const list=$("flotaList"); if(!list) return;
   let pres=[];
   try{ pres=((await (await fetch(TG+"/api/presence",{cache:"no-store"})).json()).presence)||[]; }catch(e){}
+  if(generation!==LOAD_GENERATION||scopeAtStart!==PROJECT_SCOPE)return;
   const now=Date.now()/1000, byMaq={};
   for(const p of pres){
     if(!p.machine||!esPrincipal(p.persona)) continue;

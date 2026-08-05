@@ -140,6 +140,7 @@ function makeEl(id) {
 
 function makeBoard() {
   const REG = {};
+  const listeners = {};
   const getById = id => REG[id] || (REG[id] = makeEl(id));
   const document = {
     getElementById: getById, querySelector: () => null, querySelectorAll: () => [],
@@ -156,7 +157,7 @@ function makeBoard() {
   const YkMisiones = {
     init() {}, customizeReady: 0, setProyectos() {}, setLiveMachines() {},
     machineOf: t => t.machine || t.loc || '', canonMachine: x => String(x || ''),
-    estadoDe, tercios: () => ({done: 0, total: 3, txt: '0/3'}),
+    estadoDe, coincideEstado: () => true, tercios: () => ({done: 0, total: 3, txt: '0/3'}),
     fetchAllTasks: async () => [], bindRows() {}, markWorking() {}, fillActivity() {},
     rowHtml: t => `<div class="tk" data-id="${t.id}"></div>`,
     boardPrefs: () => ({})
@@ -165,20 +166,23 @@ function makeBoard() {
   const YkCabezal = {mount: () => ({setDay(d) {getById('selDia').value = d;}})};
 
   // fetch escenificable: MODE decide qué host RECHAZA (fallo de red).
-  const state = {mode: 'ok', tickets: []};
+  const state = {mode: 'ok', tickets: [], ticketQueue: []};
   const fetchStub = async (url) => {
     url = String(url);
     const isApi = url.startsWith('https://api.yokup.com');
     const isFb  = url.startsWith('https://rtc.yokup.com');
     if (isApi && (state.mode === 'apiDown' || state.mode === 'bothDown')) throw new TypeError('net-api');
     if (isFb && state.mode === 'bothDown') throw new TypeError('net-fb');
+    if (url.includes('/tickets') && state.ticketQueue.length) return state.ticketQueue.shift();
     const body = url.includes('/projects') ? {projects: []}
       : url.includes('/tickets') ? {tickets: state.tickets, stats: {}}
       : url.includes('/tasks/all') ? {tasks: []}
       : {items: [], presence: [], browsers: []};
     return {ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body)};
   };
-  const windowObj = {fetch: fetchStub}; // window.ykFetch NO existe: se prueba el fallback local ykf
+  const windowObj = {fetch: fetchStub,
+    addEventListener(type, fn) {(listeners[type] = listeners[type] || []).push(fn);}
+  }; // window.ykFetch NO existe: se prueba el fallback local ykf
 
   const ctx = vm.createContext({
     document, window: windowObj, console,
@@ -190,7 +194,9 @@ function makeBoard() {
   });
   vm.runInContext(inline, ctx);
   vm.runInContext('globalThis.__load = load;', ctx);
-  return {ctx, getById, state};
+  return {ctx, getById, state,
+    changeProject(project_id) {(listeners['yk:project-change'] || []).forEach(fn => fn({detail:{project_id}}));}
+  };
 }
 
 function todayTicket(over) {
@@ -203,6 +209,7 @@ test('tablero · fetch OK: pinta las filas de la misión', async () => {
   state.mode = 'ok';
   state.tickets = [todayTicket()];
   await ctx.__load();
+  await new Promise(resolve => setImmediate(resolve));
   const html = getById('list').innerHTML;
   assert.match(html, /data-id="FLT-1001"/, 'la fila de la misión aparece pintada');
   assert.doesNotMatch(html, /No se pudo cargar/, 'no hay aviso de error en el camino feliz');
@@ -213,6 +220,7 @@ test('tablero · api.yokup.com RECHAZA pero el fallback rtc.yokup.com responde: 
   state.mode = 'apiDown';           // api.yokup.com cae; rtc.yokup.com sigue
   state.tickets = [todayTicket()];
   await ctx.__load();
+  await new Promise(resolve => setImmediate(resolve));
   const html = getById('list').innerHTML;
   assert.match(html, /data-id="FLT-1001"/, 'el fallback recupera las misiones y las pinta');
   assert.doesNotMatch(html, /No se pudo cargar/, 'con fallback OK no se muestra error');
@@ -240,4 +248,24 @@ test('tablero · fetch OK sin misiones: vacío legítimo «Sin misiones ✓» (n
   const html = getById('list').innerHTML;
   assert.match(html, /Sin misiones/, 'un vacío real sí puede decir Sin misiones');
   assert.doesNotMatch(html, /No se pudo cargar/, 'un vacío real no es un error de red');
+});
+
+test('tablero · una carga vieja suspendida no repinta después de cambiar project_id', async () => {
+  const {ctx, getById, state, changeProject} = makeBoard();
+  let releaseOld;
+  state.ticketQueue.push(new Promise(resolve => { releaseOld = resolve; }));
+  const oldLoad = ctx.__load();
+
+  state.tickets = [todayTicket({id:'FLT-NEW', project:'xpaceos'})];
+  changeProject('xpaceos');
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(getById('list').innerHTML, /data-id="FLT-NEW"/, 'la generación nueva pinta su scope');
+
+  releaseOld({ok:true,status:200,json:async()=>({tickets:[todayTicket({id:'FLT-OLD',project:'admira-tv'})],stats:{}})});
+  await oldLoad;
+  await new Promise(resolve => setImmediate(resolve));
+  const html=getById('list').innerHTML;
+  assert.match(html, /data-id="FLT-NEW"/);
+  assert.doesNotMatch(html, /FLT-OLD|No se pudo cargar/, 'la respuesta vieja no toca filas ni error');
 });
