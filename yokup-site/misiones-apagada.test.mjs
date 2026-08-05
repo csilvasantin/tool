@@ -106,5 +106,7 @@ test('la página cablea el alta de la hija (bot-inbox → fleet\\/sync → fleet
   assert.match(front, /TG\+"\/api\/bot-inbox"/);
   assert.match(front, /WORKER\+"\/fleet\/sync"/);
   assert.match(front, /WORKER\+"\/fleet\/parent"/);
+  assert.match(front, /project_id:projectId,parent_id:madre/);
+  assert.match(front, /sd\.rejected/);
   assert.match(front, /OPEN_GRP\.add\(madre\)/);   // la hija aparece replegada bajo su madre
 });

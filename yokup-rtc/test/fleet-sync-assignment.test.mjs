@@ -13,14 +13,14 @@ const grab=name=>{
 
 function harness(){
   const db=new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,screen TEXT,subject TEXT,loc TEXT,project TEXT,source TEXT,role TEXT,status TEXT,assignee TEXT,proof_image TEXT,resolved_at INTEGER,updated_at INTEGER)");
+  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,screen TEXT,subject TEXT,loc TEXT,project TEXT,source TEXT,role TEXT,status TEXT,assignee TEXT,proof_image TEXT,resolved_at INTEGER,updated_at INTEGER,project_id TEXT)");
   db.exec("CREATE TABLE fleet_ids(inbox_id INTEGER PRIMARY KEY,mission_id TEXT UNIQUE,created_at INTEGER)");
   db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,report TEXT,image TEXT,created_at INTEGER,updated_at INTEGER,PRIMARY KEY(mission_id,code))");
   db.exec("CREATE TABLE project_members(project_id TEXT,kind TEXT,ref TEXT)");
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{first:async()=>stmt.get(...args)||null,run:async()=>({meta:stmt.run(...args)}),all:async()=>({results:stmt.all(...args)})}},first:async()=>stmt.get()||null,all:async()=>({results:stmt.all()})}}};
   const listMissionTasks=async(_env,id)=>DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? ORDER BY code").bind(id).all().then(x=>x.results);
   const context=vm.createContext({Map,String,Number,Date,RegExp,Math,baseAgentIdentity,parseAgentIdentity,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,listMissionTasks,addEvent:async()=>{},__name:(fn)=>fn});
-  vm.runInContext(["fleetSubject","inboxIdFromScreen","nextFreeFleetId","fleetSameEncargo","fleetMissionId","fleetAssignment","fleetProjectHint","resolveFleetAssignment","fleetScreen","fleetMainTasks","ensureFleetMainTasks","reconcileFleetTicket"].map(grab).join("\n"),context);
+  vm.runInContext(["fleetSubject","inboxIdFromScreen","nextFreeFleetId","fleetSameEncargo","fleetMissionId","fleetAssignment","resolveFleetAssignment","fleetScreen","fleetMainTasks","ensureFleetMainTasks","reconcileFleetTicket"].map(grab).join("\n"),context);
   return{db,env:{DB},F:context};
 }
 
@@ -29,14 +29,14 @@ const rows=(db,id)=>db.prepare("SELECT code,title,status,owner,report FROM missi
 
 test("#1112 repara FLT-1140 por procedencia sin tocar FLT-1112 y queda idempotente",async()=>{
   const {db,env,F}=harness(),text="[PRIORIDAD ABSOLUTA] Yokup: corregir en /tareas la ausencia de retratos de agentes";
-  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1112","otra #999","Misión ajena","MacBook Pro 16","otro","fleet","otro-role","resolved","NeoMBP16","proof",7,9);
-  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1140","NeoMBP16·MacBook Pro 16 #1112",text,"MacBook Pro 16","trinity","fleet","otro-role","in_progress","NeoMBP16",null,null,10);
+  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1112","otra #999","Misión ajena","MacBook Pro 16","otro","fleet","otro-role","resolved","NeoMBP16","proof",7,9,"otro");
+  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1140","NeoMBP16·MacBook Pro 16 #1112",text,"MacBook Pro 16","yokup","fleet","otro-role","in_progress","NeoMBP16",null,null,10,"yokup");
   db.prepare("INSERT INTO fleet_ids VALUES(?,?,?)").run(1112,"FLT-1140",1);
   for(const task of [["a","Revisar ids","done","SubOraculoMini","hecho"],["b","Asignar id","done","InfraOraculoMini","verificado"],["a1","Plan de Trinity","pending","InfraTrinityMBP16",null],["b1","Ejecutar Trinity","pending","SubTrinityMBP16",null]]){
     db.prepare("INSERT INTO mission_tasks VALUES(?,?,?,?,?,?,?,?,?)").run("FLT-1140",...task,null,1,1);
   }
   db.prepare("INSERT INTO project_members VALUES('yokup','agent','OraculoMacMini'),('yokup','agent','NeoMini'),('yokup','machine','admira-macmini'),('yokup','machine','MacBookProNegro14')").run();
-  const foreign=JSON.stringify(row(db,"FLT-1112")),it={id:1112,text,target_persona:"Oraculo",target_machine:null,from_name:"yokup-misiones"};
+  const foreign=JSON.stringify(row(db,"FLT-1112")),it={id:1112,text,target_persona:"Oraculo",target_machine:null,project_id:"yokup",from_name:"yokup-misiones"};
   assert.equal(await F.fleetMissionId(env,it),"FLT-1140");
   const assignment=await F.resolveFleetAssignment(env,it);assert.equal(assignment.assignee,"OraculoMacMini");assert.equal(assignment.loc,"admira-macmini");
   const first=await F.reconcileFleetTicket(env,"FLT-1140",row(db,"FLT-1140"),it,assignment,"in_progress",20);
@@ -54,8 +54,8 @@ test("#1112 repara FLT-1140 por procedencia sin tocar FLT-1112 y queda idempoten
 
 test("mapping sin procedencia se reasigna y deja ambos tickets ajenos intactos",async()=>{
   const {db,env,F}=harness(),it={id:1112,text:"Yokup: encargo nuevo",target_persona:"Oraculo",target_machine:"admira-macmini"};
-  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1112","x #9",it.text,"x","otro","incident","r","resolved","Neo",null,1,1);
-  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1140","x #8",it.text,"x","otro","incident","r","open","Trinity",null,null,1);
+  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1112","x #9",it.text,"x","otro","incident","r","resolved","Neo",null,1,1,"otro");
+  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1140","x #8",it.text,"x","otro","incident","r","open","Trinity",null,null,1,"otro");
   db.prepare("INSERT INTO fleet_ids VALUES(?,?,?)").run(1112,"FLT-1140",1);
   const before=JSON.stringify(db.prepare("SELECT * FROM tickets ORDER BY id").all()),id=await F.fleetMissionId(env,it);
   assert.equal(id,"FLT-1141");assert.equal(JSON.stringify(db.prepare("SELECT * FROM tickets ORDER BY id").all()),before);

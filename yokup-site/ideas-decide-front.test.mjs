@@ -32,9 +32,10 @@ for (const [name, src] of [['objetivos.html', () => objetivos], ['ideas.html', (
     assert.match(s, /!isMis&&!pend\?'<button class="mis"/);
     assert.match(s, /\.flt\.pend\{color:#e0a63a/);
   });
-  test(name + ': promote() y /ideas/promote siguen existiendo (enlace a mano)', () => {
+  test(name + ': promote() legado se enruta por la decisión canónica', () => {
     const s = src();
     assert.match(s, /async function promote\(id\)\{/);
-    assert.match(s, /fetch\(WORKER\+"\/ideas\/promote"/);
+    assert.match(s, /return decide\(id\)/);
+    assert.doesNotMatch(s, /\/api\/bot-inbox/);
   });
 }

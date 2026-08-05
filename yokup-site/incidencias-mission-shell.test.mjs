@@ -44,7 +44,8 @@ test("alta, búsqueda, clasificación, severidad, estados y deep-links sobrevive
   assert.match(html, /fetch\(WORKER\+"\/ticket\/status"/);
   assert.match(html, /el\.querySelectorAll\("\[data-status-id\]"\)/);
   assert.match(html, /list\.map\(incidenceRowHtml\)/);
-  assert.match(html, /fetch\(WORKER\+"\/projects\/mission"/);
+  assert.match(html, /project_id:PROJECT_SCOPE/);
+  assert.doesNotMatch(html, /fetch\(WORKER\+"\/projects\/mission"/);
   assert.match(html, /PARAMS\.get\("incident"\)\|\|PARAMS\.get\("id"\)\|\|HASH_FOCUS/);
   assert.match(html, /<details class="inc-detail"/);
 });
@@ -100,13 +101,14 @@ test("asuntos y tokens largos no pueden forzar scroll horizontal a 390", () => {
   assert.match(html, /\.inc-machine\{max-width:100%;[^}]*overflow-wrap:anywhere/);
 });
 
-test("el alta reintenta con recurso estable y nunca duplica tras crear", () => {
+test("el alta nace con proyecto atómico y reintenta con recurso estable", () => {
   assert.match(html, /CREATE_PENDING_KEY="yk_incident_create_pending_v1"/);
   assert.match(html, /sessionStorage\.setItem\(CREATE_PENDING_KEY,JSON\.stringify\(value\)\)/);
   assert.match(html, /if\(!pending\|\|pending\.signature!==signature\)\{pending=\{signature,resource:newManualResource\(kind\),createdId:""\}/);
   assert.match(html, /if\(!pending\.createdId\)\{[\s\S]*fetch\(WORKER\+"\/incident"/);
   assert.match(html, /pending\.createdId=out\.id;writePendingCreate\(pending\)/);
-  assert.match(html, /pendiente de vincular al proyecto[\s\S]*reintentar el enlace sin duplicarla/);
+  assert.match(html, /if\(!PROJECT_SCOPE\)throw new Error\("Selecciona un proyecto/);
+  assert.match(html, /project_id:PROJECT_SCOPE/);
   assert.match(html, /writePendingCreate\(null\);\$\("newSubject"\)\.value=""/);
   assert.doesNotMatch(html, /resource="manual:"\+kind\+":"\+Date\.now\(\)/);
 });

@@ -440,10 +440,15 @@
     }
     async function crearUnEncargo(persona, maquina, encargo, txtCorto, pa, runtime, host) {
       const textoBot = taskMode ? "[TAREA SUELTA] " + encargo : encargo;
+      const projectId = String(typeof opts.getProjectId === "function" ? opts.getProjectId() || "" : "").trim();
+      if (!projectId) throw new Error("Selecciona un proyecto antes de crear la misión");
       const r = await fetch(TG + "/api/bot-inbox", { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ target_persona: persona, target_machine: maquina, text: textoBot, from: taskMode ? "yokup-tareas" : "yokup-misiones" }) });
+        body: JSON.stringify({ target_persona: persona, target_machine: maquina, project_id: projectId, text: textoBot, from: taskMode ? "yokup-tareas" : "yokup-misiones" }) });
       const d = await r.json(); if (!d.ok) throw new Error(d.error || "error " + r.status);
-      await fetch(WORKER + "/fleet/sync", { method: "POST" }).catch(() => {});
+      const syncResponse = await fetch(WORKER + "/fleet/sync", { method: "POST" });
+      const sync = await syncResponse.json().catch(() => ({}));
+      const rejected = (sync.rejected || []).find(item => String(item.inbox_id) === String(d.id));
+      if (!syncResponse.ok || !sync.ok || rejected) throw new Error(rejected && rejected.error || sync.error || "fleet sync rechazó el encargo");
       if (maquina) { try {
         await fetch(WORKER + "/fleet/nudge", { method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ machine: maquina, persona: persona, missionId: "#" + d.id, priority: pa, runtime: runtime, host: host,

@@ -72,11 +72,15 @@ test("basta con una de las tres, y el texto las junta todas", () => {
 const ruta = source.slice(source.indexOf('url.pathname === "/declare"'),
   source.indexOf('if (url.pathname === "/decisions" && req.method === "POST")'));
 
-test("la ruta exige identidad y proyecto canónicos, como /decisions", () => {
+test("la ruta exige identidad y resuelve proyecto sin texto libre", () => {
   assert.match(ruta, /resolveDecisionIdentity\(b\.agent, b\.machine\)/);
   assert.match(ruta, /exact_identity_required/);
-  assert.match(ruta, /exactDecisionProjectAssignment\(/);
+  assert.match(ruta, /resolveCreationProject\(env/);
+  assert.match(ruta, /validateDeclareCreationContext\(env, b, identity\)/);
+  assert.match(ruta, /exactDecisionProjectAssignment\(env, identity\.agent, identity\.machine, projectContext\.project_id\)/);
   assert.match(ruta, /exact_project_required/);
+  assert.match(ruta, /project_id:b\.project_id/);
+  assert.match(ruta, /parent_id:b\.parent_id \|\| missionId/);
 });
 
 test("una tarea hecha SIN evidencia se rechaza con 400", () => {
@@ -157,7 +161,7 @@ test("una mision declarada es puntuable por su created_at", () => {
   // tenian scored_at NULL y no contaban.
   assert.match(source, /CASE WHEN t\.source IN \('decision-batch','cli-declare'\) THEN t\.created_at/);
   // y ademas deja el evento de estado, como cualquier otra mision
-  assert.match(ruta, /addEvent\(env, missionId, "status", identity\.agent/);
+  assert.match(ruta, /\.bind\(missionId, now, "status", identity\.agent/);
   assert.match(ruta, /pasa a en curso \(in_progress\)/);
 });
 
@@ -192,13 +196,14 @@ test("el 409 dice cuando se libera hueco, y lo libera la MAS VIEJA", () => {
   assert.match(source, /limite: tope,\n\s*usadas: previas\.length/);
 });
 
-test("la mision declarada GUARDA su proyecto, no solo lo valida", () => {
+test("la mision declarada NACE con project_id en un batch atómico", () => {
   // Sin esto salia en /misiones sin proyecto: icono por defecto y sin rotulo,
   // aunque la ruta lo hubiera comprobado contra el censo dos lineas antes.
-  assert.match(ruta, /INSERT INTO tickets\([^)]*,project,created_at,updated_at\)/);
-  assert.match(ruta, /projectContext\.project_id, now, now\)/);
-  // y una mision existente sin proyecto lo recibe, sin pisar el que ya tuviera
-  assert.match(ruta, /project=COALESCE\(NULLIF\(project,''\),\?\)/);
+  assert.match(ruta, /INSERT INTO tickets\([^)]*,project,project_id,parent_id,created_at,updated_at\)/);
+  assert.match(ruta, /projectContext\.project_id, projectContext\.project_id, inheritedContext\.parent_id, now, now/);
+  assert.match(ruta, /await env\.DB\.batch\(statements\)/);
+  // Un project_id explícito válido manda sobre un dato legado potencialmente erróneo.
+  assert.match(ruta, /UPDATE tickets SET subject=\?,project=\?,project_id=\?/);
 });
 
 test("el menu cuenta ventanas del dia y de la ultima hora, solo raices", () => {

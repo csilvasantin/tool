@@ -201,6 +201,7 @@ async function applySchema(env) {
   // `awaiting_continuation`: la siguiente misión sólo puede salir de una nueva
   // ventana enlazada de cinco minutos.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_batches (id TEXT PRIMARY KEY, decision_id TEXT UNIQUE, agent TEXT, machine TEXT, status TEXT DEFAULT 'active', pause_reason TEXT, active_mission_id TEXT, created_at INTEGER, updated_at INTEGER)");
+  await env.DB.exec("ALTER TABLE mission_batches ADD COLUMN project_id TEXT").catch(() => {});
   await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_batch_items (batch_id TEXT, position INTEGER, option_index INTEGER, title TEXT, mission_id TEXT, status TEXT DEFAULT 'queued', created_at INTEGER, updated_at INTEGER, PRIMARY KEY (batch_id, position))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_batch_items_active ON mission_batch_items(batch_id, status, position)");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_batch_items_mission ON mission_batch_items(mission_id)");
@@ -265,6 +266,10 @@ async function applySchema(env) {
   // El proyecto de una MISIÓN. No se reutiliza `loc`: en las misiones de flota
   // `loc` es la MÁQUINA destino (fleetSync la escribe ahí), no el proyecto.
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN project TEXT").catch(() => {});
+  // Identificador estructurado y canónico. `project` se mantiene como espejo
+  // temporal para clientes antiguos; toda misión nueva escribe ambos en su INSERT.
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN project_id TEXT").catch(() => {});
+  await env.DB.exec("UPDATE tickets SET project_id=project WHERE COALESCE(project_id,'')='' AND project IN (SELECT id FROM projects)").catch(() => {});
   // MISIÓN MADRE → HIJAS (FLT-990 b1). Aditivo y NULLABLE: las misiones planas de
   // hoy quedan con parent_id NULL y se ven EXACTELY igual que antes. Solo cuelga
   // quien se enganche a una madre por /fleet/parent.
@@ -836,7 +841,14 @@ async function runScheduledRoutine(env, event) {
   // Monitor de webs y máquinas 24/7: caro (fetch externos) → ~cada 10 min por su
   // propia edad de latido, con independencia del ritmo del tráfico HTTP.
   if (await beatAge(env, "checkWebs") >= 9.5 * 60000) {
-    await step("checkWebs", async () => { await checkWebs(env); await checkMachines(env); });
+    await step("checkWebs", async () => {
+      const webReport = await checkWebs(env);
+      await checkMachines(env); // siempre: los fallos web ya están aislados
+      if (!webReport.ok) {
+        const failed = webReport.checks.filter((item) => !item.ok);
+        throw new Error("monitor web parcial: " + failed.map((item) => item.url + " · " + item.error).join(" | "));
+      }
+    });
   }
   // Buzón de la flota → misiones/tareas (INSERT OR IGNORE: converge, no duplica).
   await step("fleetSync", () => fleetSync(env));
@@ -890,6 +902,64 @@ function principalAgentIdentity(agent, machine = "") {
   return { agent: visible, agent_key: identityKey(visible) };
 }
 __name(principalAgentIdentity, "principalAgentIdentity");
+
+async function exactActiveProject(env, projectId) {
+  const id = String(projectId || "").trim().slice(0, 120);
+  if (!id) return null;
+  const row = await env.DB.prepare("SELECT id,name,status FROM projects WHERE id=?").bind(id).first();
+  return row && String(row.status || "activo").toLowerCase() !== "archivado" ? row : null;
+}
+__name(exactActiveProject, "exactActiveProject");
+
+// Resolución única para el nacimiento de misiones. Sólo admite relaciones
+// estructuradas: id explícito, decisión/tanda/misión madre o declaración diaria.
+// Un id explícito inválido falla cerrado; nunca se sustituye silenciosamente.
+async function resolveCreationProject(env, context = {}) {
+  const explicit = String(context.project_id || "").trim().slice(0, 120);
+  if (explicit) {
+    const project = await exactActiveProject(env, explicit);
+    return project ? { ok:true, project_id:project.id, project:project.name || project.id } :
+      { ok:false, status:400, code:"invalid_project_id", error:"project_id activo y exacto requerido" };
+  }
+  const candidates = [];
+  const batchId = String(context.batch_id || "").trim().slice(0, 120);
+  if (batchId) {
+    const row = await env.DB.prepare("SELECT project_id,decision_id FROM mission_batches WHERE id=?").bind(batchId).first();
+    if (row && row.project_id) candidates.push(row.project_id);
+    if (row && row.decision_id) context = { ...context, decision_id:context.decision_id || row.decision_id };
+  }
+  const decisionId = String(context.decision_id || "").trim().slice(0, 120);
+  if (decisionId) {
+    const row = await env.DB.prepare("SELECT project,parent_decision FROM decisions WHERE id=?").bind(decisionId).first();
+    if (row && row.project) candidates.push(row.project);
+    if (row && row.parent_decision) {
+      const parent = await env.DB.prepare("SELECT project FROM decisions WHERE id=?").bind(row.parent_decision).first();
+      if (parent && parent.project) candidates.push(parent.project);
+    }
+  }
+  const parentId = String(context.parent_id || "").trim().slice(0, 120);
+  if (parentId) {
+    const row = await env.DB.prepare("SELECT project_id,project FROM tickets WHERE id=?").bind(parentId).first();
+    if (row) candidates.push(row.project_id || row.project);
+  }
+  for (const candidate of candidates) {
+    const project = await exactActiveProject(env, candidate);
+    if (project) return { ok:true, project_id:project.id, project:project.name || project.id };
+  }
+  const identity = principalAgentIdentity(context.agent, context.machine);
+  if (identity) {
+    const declaration = await env.DB.prepare(
+      "SELECT d.project_id FROM agent_project_declarations d JOIN projects p ON p.id=d.project_id WHERE d.day=? AND d.agent_key=? AND COALESCE(p.status,'activo')!='archivado'"
+    ).bind(madridDayKey(Date.now()), identity.agent_key).first();
+    if (declaration) {
+      const project = await exactActiveProject(env, declaration.project_id);
+      if (project) return { ok:true, project_id:project.id, project:project.name || project.id };
+    }
+  }
+  return { ok:false, status:400, code:"project_required",
+    error:"No se puede crear una misión sin project_id explícito, heredado o declarado para el agente y la máquina" };
+}
+__name(resolveCreationProject, "resolveCreationProject");
 
 async function listPrincipalProjectDeclarations(env, day = madridDayKey(Date.now())) {
   await ensureSchema(env);
@@ -1039,6 +1109,51 @@ async function exactDecisionProjectAssignment(env, agent, machine, requestedProj
   return selectDecisionProjectAssignment(idx.rows, members, agent, machine, requestedProjectId);
 }
 __name(exactDecisionProjectAssignment, "exactDecisionProjectAssignment");
+
+// /declare es público y por eso una referencia estructurada no puede actuar como
+// una credencial prestada. Antes de heredar proyecto de una misión/decisión,
+// prueba que esa raíz pertenece a la misma familia de agente EN la misma máquina.
+// Un id inexistente también falla cerrado: jamás cae silenciosamente a la
+// declaración diaria cuando el cliente afirmó traer un contexto concreto.
+async function validateDeclareCreationContext(env, body, identity) {
+  const owns = (agent, machine) => sameAgentFamily(agent || "", identity.agent) &&
+    memberRefMatches("machine", machine || "", identity.machine);
+  const parentId = String(body && body.parent_id || "").trim().slice(0, 120);
+  const missionId = String(body && body.mission_id || "").trim().slice(0, 120);
+  const projectIds = [];
+  if (parentId) {
+    if (missionId && parentId === missionId) return { ok:false, status:400, code:"invalid_parent_context", error:"una misión no puede ser su propio parent_id" };
+    const parent = await env.DB.prepare("SELECT id,assignee,loc,project_id,project FROM tickets WHERE id=?").bind(parentId).first();
+    if (!parent) return { ok:false, status:400, code:"invalid_parent_context", error:"parent_id no existe" };
+    if (!owns(parent.assignee, parent.loc)) return { ok:false, status:403, code:"foreign_parent_context", error:"parent_id pertenece a otro agente o máquina" };
+    if (parent.project_id || parent.project) projectIds.push(String(parent.project_id || parent.project));
+  }
+  const batchId = String(body && body.batch_id || "").trim().slice(0, 120);
+  let decisionId = String(body && body.decision_id || "").trim().slice(0, 120);
+  if (batchId) {
+    const batch = await env.DB.prepare("SELECT id,decision_id,agent,machine,project_id FROM mission_batches WHERE id=?").bind(batchId).first();
+    if (!batch) return { ok:false, status:400, code:"invalid_decision_context", error:"batch_id no existe" };
+    if (!owns(batch.agent, batch.machine)) return { ok:false, status:403, code:"foreign_decision_context", error:"batch_id pertenece a otro agente o máquina" };
+    if (decisionId && batch.decision_id && decisionId !== String(batch.decision_id)) {
+      return { ok:false, status:400, code:"invalid_decision_context", error:"decision_id no corresponde al batch_id" };
+    }
+    if (batch.project_id) projectIds.push(String(batch.project_id));
+    decisionId = decisionId || String(batch.decision_id || "").trim().slice(0, 120);
+  }
+  if (decisionId) {
+    const decision = await env.DB.prepare("SELECT id,agent,machine,project,parent_decision FROM decisions WHERE id=?").bind(decisionId).first();
+    if (!decision) return { ok:false, status:400, code:"invalid_decision_context", error:"decision_id no existe" };
+    if (!owns(decision.agent, decision.machine)) return { ok:false, status:403, code:"foreign_decision_context", error:"decision_id pertenece a otro agente o máquina" };
+    if (decision.project) projectIds.push(String(decision.project));
+    if (decision.parent_decision) {
+      const root = await env.DB.prepare("SELECT id,agent,machine,project FROM decisions WHERE id=?").bind(decision.parent_decision).first();
+      if (!root || !owns(root.agent, root.machine)) return { ok:false, status:403, code:"foreign_decision_context", error:"la decisión raíz pertenece a otro agente o máquina" };
+      if (root.project) projectIds.push(String(root.project));
+    }
+  }
+  return { ok:true, parent_id:parentId || null, project_ids:[...new Set(projectIds.filter(Boolean))] };
+}
+__name(validateDeclareCreationContext, "validateDeclareCreationContext");
 
 // Cuando el equipo está desatendido, OnIdle permite una primera ventana por
 // agente y hora de Madrid. Las continuaciones del mismo lote no son OnIdle.
@@ -1573,9 +1688,14 @@ async function activateNextMissionBatchItem(env, batchId) {
   }
   const missionId = next.mission_id || missionIdForBatchItem(batchId, next.position);
   const now = Date.now();
+  const projectContext = await resolveCreationProject(env, {
+    project_id:batch.project_id, decision_id:batch.decision_id,
+    agent:batch.agent, machine:batch.machine
+  });
+  if (!projectContext.ok) return projectContext;
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)"
-  ).bind(missionId, "decision-batch:" + batch.decision_id, next.title, batch.machine || "", "mission", "in_progress", "normal", batch.agent || "", "decision-batch", "", now, now).run();
+    "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+  ).bind(missionId, "decision-batch:" + batch.decision_id, next.title, batch.machine || "", "mission", "in_progress", "normal", batch.agent || "", "decision-batch", "", projectContext.project_id, projectContext.project_id, now, now).run();
   const existingTasks = await listMissionTasks(env, missionId);
   if (!existingTasks.length) await saveMissionPlan(env, missionId, batchMissionPlan(next.title, batch.agent, batch.machine));
   await env.DB.prepare("UPDATE mission_batch_items SET mission_id=?, status='active', updated_at=? WHERE batch_id=? AND position=?")
@@ -1597,6 +1717,11 @@ async function ensureMissionBatchFromDecision(env, decision) {
   const continuation = isContinuationMissionDecision(options, decision);
   const batchId = continuation ? String(decision.batch_id || "") : batchIdForDecision(decision.id);
   const now = Date.now();
+  const projectContext = await resolveCreationProject(env, {
+    project_id:decision.project, decision_id:decision.id, batch_id:batchId,
+    agent:decision.agent, machine:decision.machine
+  });
+  if (!projectContext.ok) return projectContext;
   if (continuation) {
     const batch = batchId && await env.DB.prepare("SELECT id,status FROM mission_batches WHERE id=?").bind(batchId).first();
     if (!batch || batch.status !== "awaiting_continuation") return missionBatchSnapshot(env, batchId);
@@ -1620,8 +1745,8 @@ async function ensureMissionBatchFromDecision(env, decision) {
     return activateNextMissionBatchItem(env, batchId);
   }
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO mission_batches(id,decision_id,agent,machine,status,created_at,updated_at) VALUES(?,?,?,?, 'active',?,?)"
-  ).bind(batchId, decision.id, decision.agent || "", decision.machine || "", now, now).run();
+    "INSERT OR IGNORE INTO mission_batches(id,decision_id,agent,machine,project_id,status,created_at,updated_at) VALUES(?,?,?,?,?,'active',?,?)"
+  ).bind(batchId, decision.id, decision.agent || "", decision.machine || "", projectContext.project_id, now, now).run();
   await env.DB.prepare("UPDATE decisions SET batch_id=? WHERE id=? AND (batch_id IS NULL OR batch_id='')").bind(batchId, decision.id).run();
   const existing = await env.DB.prepare("SELECT 1 AS x FROM mission_batch_items WHERE batch_id=? LIMIT 1").bind(batchId).first();
   if (!existing) {
@@ -2204,18 +2329,28 @@ async function createIncident(env, inc) {
   if (!resource) return null;
   const existing = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status!='resolved'").bind(resource).first();
   if (existing) return existing.id;   // ya hay una abierta para este recurso
+  const projectContext = await resolveCreationProject(env, {
+    project_id:inc && inc.project_id, decision_id:inc && inc.decision_id,
+    batch_id:inc && inc.batch_id, parent_id:inc && inc.parent_id,
+    agent:inc && (inc.agent || inc.assignee), machine:inc && inc.machine
+  });
+  if (!projectContext.ok) {
+    const error = new Error(projectContext.error);
+    error.status = projectContext.status; error.code = projectContext.code;
+    throw error;
+  }
   const now = Date.now();
   const kind = String((inc && inc.kind) || "external").toLowerCase();
   const pref = { service: "SVC", svc: "SVC", machine: "MAQ", maquina: "MAQ", agent: "AGT", agente: "AGT" }[kind] || "INC";
   const id = (pref + "-" + now.toString(36).slice(-5) + Math.floor(Math.random() * 36).toString(36)).toUpperCase();
   const subject = String((inc && inc.subject) || "Incidencia").slice(0, 200);
-  const project = String((inc && (inc.project || inc.loc)) || "").slice(0, 80);
+  const loc = String((inc && inc.loc) || "").slice(0, 80);
   const prio = ["urgente", "alta", "normal", "baja"].includes(inc && inc.severity) ? inc.severity : "alta";
   const source = String((inc && inc.source) || "external").slice(0, 24);
   const assignee = (String((inc && inc.assignee) || "").slice(0, 60)) || (ROSTER[hash(resource) % ROSTER.length].name);
   await backfillTodayDisplayRefs(env, now);
-  await env.DB.prepare("INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
-    .bind(id, resource, subject, project, kind, "open", prio, assignee, source, "", now, now).run();
+  await env.DB.prepare("INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(id, resource, subject, loc, kind, "open", prio, assignee, source, "", projectContext.project_id, projectContext.project_id, now, now).run();
   await ensureEntityDisplayRef(env, "mission", id, now);
   await addEvent(env, id, "log", (inc && inc.by) || "Monitor", (inc && inc.detail) || subject);
   await notifySubs(env);
@@ -2238,12 +2373,19 @@ __name(resolveIncident, "resolveIncident");
 // Monitor de SERVICIOS/webs de la flota (Carlos, 2026-07-17): el cron comprueba
 // cada web; 5xx o sin respuesta = incidencia; al recuperar, la cierra.
 var FLEET_WEBS = [
-  "https://www.pixeria.com", "https://www.xpaceos.com", "https://www.clearchannel.tv",
-  "https://www.admira.live", "https://www.admira.tv", "https://admiranext.com",
-  "https://www.yokup.com", "https://ainimation.studio", "https://api.admira.store/signage/screens"
+  { url:"https://www.pixeria.com", project_id:"pixeria" },
+  { url:"https://www.xpaceos.com", project_id:"xpaceos" },
+  { url:"https://www.clearchannel.tv", project_id:"clearchannel-tv" },
+  { url:"https://www.admira.live", project_id:"admira-live" },
+  { url:"https://www.admira.tv", project_id:"admira-tv" },
+  { url:"https://admiranext.com", project_id:"admiranext" },
+  { url:"https://www.yokup.com", project_id:"yokup" },
+  { url:"https://ainimation.studio", project_id:"ainimation-studio" }
 ];
 async function checkWebs(env) {
-  for (const web of FLEET_WEBS) {
+  const checks = [];
+  for (const monitored of FLEET_WEBS) {
+    const web = monitored.url;
     let down = false, code = 0;
     try {
       const r = await fetch(web, { method: "GET", redirect: "manual", cf: { cacheTtl: 0 }, signal: AbortSignal.timeout(12e3) });
@@ -2253,16 +2395,31 @@ async function checkWebs(env) {
     const resource = "svc:" + web;
     const dom = web.replace(/^https?:\/\/(www\.)?/, "").replace(/\/.*$/, "");
     if (down) {
-      await createIncident(env, {
-        resource, kind: "service", source: "monitor", severity: "urgente", project: dom,
-        subject: "Servicio caído: " + dom + (code ? " (HTTP " + code + ")" : " (sin respuesta)"),
-        detail: "El monitor detectó que " + web + " no responde" + (code ? " (HTTP " + code + ")" : "") + ".",
-        by: "Monitor de servicios"
-      });
+      try {
+        const incident = await createIncident(env, {
+          resource, kind: "service", source: "monitor", severity: "urgente", project_id:monitored.project_id,
+          subject: "Servicio caído: " + dom + (code ? " (HTTP " + code + ")" : " (sin respuesta)"),
+          detail: "El monitor detectó que " + web + " no responde" + (code ? " (HTTP " + code + ")" : "") + ".",
+          by: "Monitor de servicios"
+        });
+        checks.push({ url:web, project_id:monitored.project_id, ok:true, down:true, incident });
+      } catch (error) {
+        // Un id retirado del censo o un fallo de UNA incidencia se informa, pero
+        // nunca impide comprobar el resto de servicios ni después las máquinas.
+        checks.push({ url:web, project_id:monitored.project_id, ok:false, down:true,
+          error:String(error && error.message || error).slice(0,300) });
+      }
     } else {
-      await resolveIncident(env, resource, "Monitor de servicios", dom + " responde de nuevo (HTTP " + code + ").");
+      try {
+        const resolved = await resolveIncident(env, resource, "Monitor de servicios", dom + " responde de nuevo (HTTP " + code + ").");
+        checks.push({ url:web, project_id:monitored.project_id, ok:true, down:false, resolved });
+      } catch (error) {
+        checks.push({ url:web, project_id:monitored.project_id, ok:false, down:false,
+          error:String(error && error.message || error).slice(0,300) });
+      }
     }
   }
+  return { ok:checks.every((item) => item.ok), checks };
 }
 __name(checkWebs, "checkWebs");
 
@@ -2273,7 +2430,7 @@ __name(checkWebs, "checkWebs");
 // falsos positivos permanentes; se añadirán cuando tengan heartbeat propio.
 // Ampliar la lista es la única palanca para vigilar más equipos. Carlos 2026-07-17.
 var CRITICAL_MACHINES = [
-  { canon: "macmini", name: "Mac Mini" }
+  { canon: "macmini", name: "Mac Mini", project_id:"admiranext" }
 ];
 // Umbral de caída: si el latido más fresco de la máquina supera estos minutos, se
 // considera offline. La presencia late ~cada 3 min; 20 min = varios latidos perdidos.
@@ -2308,7 +2465,7 @@ async function checkMachines(env) {
     if (ageMin > MACHINE_OFFLINE_MIN) {
       const hace = last ? "hace " + Math.round(ageMin) + " min" : "sin latido registrado";
       await createIncident(env, {
-        resource, kind: "machine", source: "monitor", severity: "urgente", project: m.name,
+        resource, kind: "machine", source: "monitor", severity: "urgente", project_id:m.project_id,
         subject: "Máquina offline: " + m.name + " (" + hace + ")",
         detail: m.name + " es un equipo 24/7 y ha dejado de latir presencia (" + hace + "). Revisa que esté encendido, con red y con sus agentes arrancados.",
         by: "Monitor de flota"
@@ -2463,14 +2620,10 @@ function fleetAssignment(it) {
   return { assignee: raw ? scopedAgentIdentity(raw, machine) : "", loc: machine, complete: !!(raw && machine) };
 }
 __name(fleetAssignment, "fleetAssignment");
-function fleetProjectHint(text) {
-  return /^\s*(?:\[[^\]]+\]\s*)?yokup(?:\.com)?\s*:/i.test(String(text || "")) ? "yokup" : "";
-}
-__name(fleetProjectHint, "fleetProjectHint");
 async function resolveFleetAssignment(env, it) {
   const direct = fleetAssignment(it);
   if (direct.complete) return direct;
-  const project = fleetProjectHint(it && it.text), raw = String(it && it.target_persona || "").trim();
+  const project = String(it && it.project_id || "").trim(), raw = String(it && it.target_persona || "").trim();
   if (!project || !raw) return direct;
   const { results } = await env.DB.prepare("SELECT kind,ref FROM project_members WHERE project_id=? AND kind IN ('agent','machine')")
     .bind(project).all();
@@ -2497,6 +2650,9 @@ __name(fleetScreen, "fleetScreen");
 // anunciados por bot-say («DEPLOY …»). Pedido por Carlos (2026-07-15): los
 // mensajes de Telegram que no son misiones NO se elevan a misión ni a tarea.
 function fleetEsMision(it) {
+  // Los compositores de conversación pueden usar el mismo buzón sin convertir
+  // cada prompt en misión. Esta marca estructurada manda sobre texto/destino.
+  if (it && it.materialize_mission === false) return false;
   // Destinatario = persona O máquina («solo máquina: quien esté allí» del alta
   // de yokup.com/misiones). Sin ninguno de los dos, es charla.
   if (!it.target_persona && !it.target_machine) return false;
@@ -2624,6 +2780,24 @@ async function fleetMissionId(env, it) {
 }
 __name(fleetMissionId, "fleetMissionId");
 
+// Contexto de compatibilidad sólo-lectura: un encargo antiguo puede no llevar
+// project_id, pero su ticket ya censado sí. Se hereda únicamente si la
+// procedencia prueba que es EL MISMO encargo; una colisión FLT nunca presta su
+// proyecto a un alta nueva.
+async function existingFleetMissionContext(env, it) {
+  const rowid = Number(it && it.id);
+  if (!Number.isFinite(rowid)) return "";
+  const mapped = await env.DB.prepare("SELECT mission_id FROM fleet_ids WHERE inbox_id=?").bind(rowid).first();
+  const ids = [...new Set([mapped && mapped.mission_id, "FLT-" + rowid].filter(Boolean))];
+  for (const id of ids) {
+    const ticket = await env.DB.prepare("SELECT id,subject,screen,source FROM tickets WHERE id=?").bind(id).first();
+    if (ticket && ticket.source === "fleet" &&
+        (fleetSameEncargo(ticket.subject, it.text) || inboxIdFromScreen(ticket.screen) === String(rowid))) return id;
+  }
+  return "";
+}
+__name(existingFleetMissionContext, "existingFleetMissionContext");
+
 function fleetMainTasks(subject, assignment) {
   const short = String(subject || "Encargo de la flota").slice(0, 70);
   const base = baseAgentIdentity(assignment.assignee) || assignment.assignee || "Agente";
@@ -2699,10 +2873,7 @@ async function reconcileFleetTicket(env, id, prev, it, assignment, status, now, 
   const asig = assignment.complete ? assignment.assignee : prev.assignee;
   const loc = assignment.complete ? assignment.loc : (prev.loc || "");
   const subject = fleetSubject(it.text);
-  const inferredProject = fleetProjectHint(it.text);
-  // Una señal explícita `Yokup:` corrige incluso un proyecto previo equivocado;
-  // sin señal, el sync conserva el proyecto censado y no inventa uno.
-  const project = assignment.complete ? (inferredProject || prev.project || "") : (prev.project || "");
+  const project = prev.project_id || prev.project || "";
   const role = standalone ? "standalone-task" : String(it.from_name || prev.role || "").slice(0, 80);
   const assignmentChanged = assignment.complete && (prev.assignee !== asig || (prev.loc || "") !== loc);
   const changed = prev.status !== status || prev.assignee !== asig || (prev.loc || "") !== loc ||
@@ -2711,8 +2882,8 @@ async function reconcileFleetTicket(env, id, prev, it, assignment, status, now, 
     if (standalone) await ensureFleetStandaloneTask(env, id, subject, assignment, false);
     return { changed: false, assignmentChanged: false, assignee: asig, loc, project, role, subject };
   }
-  await env.DB.prepare("UPDATE tickets SET status=?,assignee=?,loc=?,screen=?,subject=?,source='fleet',project=?,role=?,updated_at=?,resolved_at=? WHERE id=?")
-    .bind(status, asig, loc, fleetScreen(it, { assignee: asig, loc }), subject, project, role, now, status === "resolved" ? (prev.resolved_at || now) : null, id).run();
+  await env.DB.prepare("UPDATE tickets SET status=?,assignee=?,loc=?,screen=?,subject=?,source='fleet',project=?,project_id=?,role=?,updated_at=?,resolved_at=? WHERE id=?")
+    .bind(status, asig, loc, fleetScreen(it, { assignee: asig, loc }), subject, project, project, role, now, status === "resolved" ? (prev.resolved_at || now) : null, id).run();
   if (standalone) await ensureFleetStandaloneTask(env, id, subject, assignment, assignmentChanged);
   else if (assignmentChanged) await ensureFleetMainTasks(env, id, subject, assignment, true);
   return { changed: true, assignmentChanged, assignee: asig, loc, project, role, subject };
@@ -2732,15 +2903,26 @@ async function fleetSync(env) {
   }
   const now = Date.now();
   let created = 0, updated = 0;
+  const rejected = [];
   for (const it of items) {
     if (!it || !it.id) continue;
     if (!fleetEsMision(it)) continue;   // charla de Telegram: ni misión ni tarea
     const assignment = await resolveFleetAssignment(env, it);
     const standalone = fleetStandaloneTask(it.text);
-    const id = await fleetMissionId(env, it);   // id estable y a prueba de colisiones (FLT-990 a2)
+    const existingContext = await existingFleetMissionContext(env, it);
+    const projectContext = await resolveCreationProject(env, {
+      project_id:it.project_id, decision_id:it.decision_id, batch_id:it.batch_id,
+      parent_id:it.parent_id || it.parent_mission_id || existingContext,
+      agent:assignment.assignee, machine:assignment.loc
+    });
+    if (!projectContext.ok) {
+      rejected.push({ inbox_id:it.id, code:projectContext.code, error:projectContext.error });
+      continue;
+    }
+    const id = await fleetMissionId(env, it);   // sólo reserva id tras validar proyecto
     let st = FLEET_ST[it.status] || "open";
     const ts = epochMs(it.ts, now);
-    const prev = await env.DB.prepare("SELECT id,subject,project,source,role,status,assignee,loc,proof_image,resolved_at FROM tickets WHERE id=?").bind(id).first();
+    const prev = await env.DB.prepare("SELECT id,subject,project,project_id,source,role,status,assignee,loc,proof_image,resolved_at FROM tickets WHERE id=?").bind(id).first();
     // Un DONE del agente no basta: Yokup sólo finaliza cuando el cierre incluye
     // un pantallazo real del trabajo. El bot puede haber terminado, pero la misión
     // permanece EN CURSO hasta que /fleet/informe registre proof_image.
@@ -2761,9 +2943,9 @@ async function fleetSync(env) {
       // Umbral: solo saltamos las cerradas hace más de 6 h.
       if (st === "resolved" && (now - epochMs(it.done_at, ts)) > 6 * 3600 * 1e3) continue;
       await env.DB.prepare(
-        "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,project,role,status,priority,assignee,source,ai_triage,created_at,updated_at,resolved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,project,project_id,role,status,priority,assignee,source,ai_triage,created_at,updated_at,resolved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(
-        id, fleetScreen(it, assignment), fleetSubject(it.text), assignment.loc, fleetProjectHint(it.text), it.from_name || "",
+        id, fleetScreen(it, assignment), fleetSubject(it.text), assignment.loc, projectContext.project_id, projectContext.project_id, it.from_name || "",
         st, fleetPriority(it.text), assignment.assignee, "fleet", "", ts, now,
         st === "resolved" ? epochMs(it.done_at, now) : null
       ).run();
@@ -2809,7 +2991,7 @@ async function fleetSync(env) {
       }
     }
   }
-  return { ok: true, seen: items.length, created, updated };
+  return { ok:true, partial:rejected.length > 0, seen:items.length, created, updated, rejected };
 }
 __name(fleetSync, "fleetSync");
 
@@ -3111,7 +3293,7 @@ __name(tercios, "tercios");
 // expone nada que el bot-inbox público no publique ya.
 async function fleetMissions(env) {
   const { results } = await env.DB.prepare(
-    "SELECT id,screen,subject,loc,project,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,live_kind,created_at,updated_at,note,parent_id FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
+    "SELECT id,screen,subject,loc,project,project_id,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,live_kind,created_at,updated_at,note,parent_id FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
   ).all();
   const rows = results || [];
   if (!rows.length) return [];
@@ -4139,7 +4321,7 @@ var index_default = {
         const id = await createIncident(env, b);
         return json({ ok: !!id, id });
       } catch (e) {
-        return json({ ok: false, error: String(e) }, 500);
+        return json({ ok: false, error: String(e && e.message || e), code:e && e.code || "incident_error" }, Number(e && e.status) || 500);
       }
     }
     if (url.pathname === "/fleet/plan" && req.method === "POST") {
@@ -4245,7 +4427,7 @@ var index_default = {
         await env.DB.prepare("DELETE FROM project_members WHERE project_id=?").bind(id).run();
         await env.DB.prepare("DELETE FROM projects WHERE id=?").bind(id).run();
         // Las misiones NO se quedan apuntando a un proyecto que ya no existe.
-        await env.DB.prepare("UPDATE tickets SET project='' WHERE project=?").bind(id).run();
+        await env.DB.prepare("UPDATE tickets SET project='',project_id=NULL WHERE project=? OR project_id=?").bind(id,id).run();
         return json({ ok: true, deleted: id });
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
@@ -4323,13 +4505,13 @@ var index_default = {
         if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
         const raw = String((b && b.project) || "").trim();
         if (!raw) {   // quitar el proyecto es legítimo: mejor vacío que inventado
-          await env.DB.prepare("UPDATE tickets SET project='' , updated_at=? WHERE id=?").bind(Date.now(), mid).run();
+          await env.DB.prepare("UPDATE tickets SET project='',project_id=NULL,updated_at=? WHERE id=?").bind(Date.now(), mid).run();
           return json({ ok: true, mission: mid, project: "", project_name: "" });
         }
         const idx = await projectIndex(env);
         const p = idx.get(raw);
         if (!p) return json({ ok: false, error: "el proyecto «" + raw + "» no está dado de alta; créalo en /equipo" }, 404);
-        await env.DB.prepare("UPDATE tickets SET project=?, updated_at=? WHERE id=?").bind(p.id, Date.now(), mid).run();
+        await env.DB.prepare("UPDATE tickets SET project=?,project_id=?,updated_at=? WHERE id=?").bind(p.id,p.id,Date.now(),mid).run();
         return json({ ok: true, mission: mid, project: p.id, project_name: p.name || p.id });
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
@@ -4982,14 +5164,6 @@ var index_default = {
         const b = await req.json();
         const identity = resolveDecisionIdentity(b.agent, b.machine);
         if (!identity.ok) return json({ ok: false, error: identity.error, code: "exact_identity_required" }, 400);
-        const assignment = await exactDecisionProjectAssignment(
-          env, identity.agent, identity.machine, String(b.project_id || "").trim().slice(0, 120)
-        );
-        const projectContext = resolveDecisionProject(
-          { ...b, agent: identity.agent, machine: identity.machine }, assignment, null
-        );
-        if (!projectContext.ok) return json({ ok: false, error: projectContext.error, code: "exact_project_required" }, 400);
-
         const subject = String(b.subject || "").trim().slice(0, 160);
         if (!subject) return json({ ok: false, error: "subject requerido" }, 400);
 
@@ -5039,15 +5213,34 @@ var index_default = {
         // podría colgarse el trabajo de otro.
         let missionId = String(b.mission_id || "").trim().slice(0, 80);
         let creada = false;
+        let persistedAtomically = false;
+        const inheritedContext = await validateDeclareCreationContext(env, b, identity);
+        if (!inheritedContext.ok) return json({ ok:false, error:inheritedContext.error, code:inheritedContext.code }, inheritedContext.status);
+        const projectContext = await resolveCreationProject(env, {
+          project_id:b.project_id, decision_id:b.decision_id, batch_id:b.batch_id,
+          parent_id:b.parent_id || missionId, agent:identity.agent, machine:identity.machine
+        });
+        if (!projectContext.ok) return json({ ok:false, error:projectContext.error, code:projectContext.code }, projectContext.status);
+        if (inheritedContext.project_ids.some((id) => id !== projectContext.project_id)) {
+          return json({ ok:false, error:"los contextos heredados no pertenecen al mismo proyecto", code:"context_project_mismatch" }, 400);
+        }
+        // La resolución dice QUÉ proyecto aporta el contexto; esta segunda
+        // comprobación demuestra que el agente+máquina puede trabajar en él.
+        // Aplica igual a project_id explícito, padre, decisión/batch y principal
+        // diario: ninguna vía heredada evita projects + project_members.
+        const authorized = await exactDecisionProjectAssignment(env, identity.agent, identity.machine, projectContext.project_id);
+        if (!authorized || authorized.id !== projectContext.project_id) {
+          return json({ ok:false, error:"proyecto no autorizado para agente+máquina", code:"exact_project_required" }, 400);
+        }
         if (missionId) {
-          const existing = await env.DB.prepare("SELECT id,assignee,loc FROM tickets WHERE id=?").bind(missionId).first();
+          const existing = await env.DB.prepare("SELECT id,assignee,loc,project,project_id FROM tickets WHERE id=?").bind(missionId).first();
           if (!existing) return json({ ok: false, error: "mission_id no existe" }, 404);
           const suya = sameAgentFamily(existing.assignee || "", identity.agent) &&
             memberRefMatches("machine", existing.loc || identity.machine, identity.machine);
           if (!suya) return json({ ok: false, code: "not_your_mission",
             error: "esa misión está asignada a otro agente" }, 403);
-          await env.DB.prepare("UPDATE tickets SET subject=?, project=COALESCE(NULLIF(project,''),?), updated_at=? WHERE id=?")
-            .bind(subject, projectContext.project_id, now, missionId).run();
+          await env.DB.prepare("UPDATE tickets SET subject=?,project=?,project_id=?,parent_id=COALESCE(?,parent_id),updated_at=? WHERE id=?")
+            .bind(subject, projectContext.project_id, projectContext.project_id, inheritedContext.parent_id, now, missionId).run();
         } else {
           missionId = "DCL-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
           // `screen` lleva un índice UNIQUE entre tickets NO resueltos (una sola
@@ -5059,24 +5252,40 @@ var index_default = {
           // misión declarada salía en /misiones sin proyecto: icono por defecto
           // de AdmiraNeXT y sin rótulo, aunque la ruta lo hubiera comprobado
           // contra el censo dos líneas antes (Carlos lo vio en la tabla).
-          await env.DB.prepare(
-            "INSERT INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"
+          const statements = [env.DB.prepare(
+            "INSERT INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,parent_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
           ).bind(missionId, "declare:" + missionId, subject, identity.machine, "mission",
-            "in_progress", "normal", identity.agent, "cli-declare", "", projectContext.project_id, now, now).run();
-          // Entrada en curso explícita, como cualquier otra misión: deja el
-          // mismo rastro que busca el marcador y que lee la ficha del ticket.
-          await addEvent(env, missionId, "status", identity.agent,
-            "Misión declarada desde el CLI: pasa a en curso (in_progress).");
+            "in_progress", "normal", identity.agent, "cli-declare", "", projectContext.project_id, projectContext.project_id, inheritedContext.parent_id, now, now),
+            env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)")
+              .bind(missionId, now, "status", identity.agent, "Misión declarada desde el CLI: pasa a en curso (in_progress).")];
+          for (const t of tasks) {
+            const suggested = ownerFor(t.code, t.title);
+            const owner = scopedMissionOwner(suggested, /^infra/i.test(suggested) ? "infra" : "sub", identity.agent, identity.machine);
+            statements.push(env.DB.prepare(
+              "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)"
+            ).bind(missionId, t.code, t.title, t.status, owner, t.report, now, now));
+            if (t.evidence) statements.push(env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)")
+              .bind(missionId, now, "log", identity.agent, `Tarea ${t.code} declarada hecha desde el CLI · ${t.evidence.text}`));
+          }
+          if (b.resolve === true) {
+            statements.push(env.DB.prepare("UPDATE tickets SET status='resolved',resolved_at=?,updated_at=? WHERE id=?").bind(now, now, missionId));
+            statements.push(env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)")
+              .bind(missionId, now, "accept", identity.agent, `Misión declarada resuelta desde el CLI · ${evidenciaMision.text}`));
+          }
+          // D1 batch es atómico: ticket, proyecto, plan y eventos nacen juntos.
+          // Si falla cualquier sentencia no queda una misión parcial u huérfana.
+          await env.DB.batch(statements);
+          persistedAtomically = true;
           creada = true;
         }
 
-        await saveMissionPlan(env, missionId, tasks.map((t) => ({
+        if (!persistedAtomically) await saveMissionPlan(env, missionId, tasks.map((t) => ({
           code: t.code, title: t.title, status: t.status, report: t.report
         })));
 
         // Rastro auditable: quién declaró qué y con qué evidencia. Sin esto la
         // ruta sería una caja negra que sube marcadores.
-        for (const t of tasks) {
+        for (const t of persistedAtomically ? [] : tasks) {
           if (!t.evidence) continue;
           await addEvent(env, missionId, "log", identity.agent,
             `Tarea ${t.code} declarada hecha desde el CLI · ${t.evidence.text}`);
@@ -5086,13 +5295,14 @@ var index_default = {
         // 'accept' es el mismo que exige la cola de tandas para avanzar, así que
         // no se firma sin evidencia.
         let cerrada = false;
-        if (b.resolve === true) {
+        if (b.resolve === true && !persistedAtomically) {
           await env.DB.prepare("UPDATE tickets SET status='resolved', resolved_at=?, updated_at=? WHERE id=?")
             .bind(now, now, missionId).run();
           await addEvent(env, missionId, "accept", identity.agent,
             `Misión declarada resuelta desde el CLI · ${evidenciaMision.text}`);
           cerrada = true;
         }
+        if (b.resolve === true && persistedAtomically) cerrada = true;
         const display_ref = await ensureEntityDisplayRef(env, "mission", missionId, now);
         return json({ ok: true, mission_id: missionId, display_ref, creada, cerrada,
           agent: identity.agent, machine: identity.machine, project: projectContext.project,
@@ -5322,6 +5532,7 @@ var index_default = {
           .bind(back ? "cancelled" : "decided", idx, String(b.by || "Carlos").slice(0, 40), Date.now(), id).run();
         const chosen = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(id).first();
         const batch = back ? null : await ensureMissionBatchFromDecision(env, chosen);
+        if (batch && batch.ok === false) return json(batch, batch.status || 400);
         await attachDisplayRefs(env, "window", chosen, (row) => row.id, (row) => row.created_at);
         return json({ ok: true, id, display_ref: chosen.display_ref, chosen: idx, option: o[idx], cancelled: back, batch });
       } catch (e) { return json({ error: String(e) }, 500); }
@@ -5339,6 +5550,7 @@ var index_default = {
         let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
         const now = Date.now();
         const batch = await ensureMissionBatchFromDecision(env, d);
+        if (batch && batch.ok === false) return json(batch, batch.status || 400);
         const expired = d.status === "expired";
         const pOne = resolveProject(await projectIndex(env), d.project || "");
         const item = { id: d.id, status: d.status,

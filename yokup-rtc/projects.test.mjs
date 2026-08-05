@@ -35,7 +35,7 @@ test('/projects va por el carril ABIERTO: los agentes no cruzan la verja', () =>
 });
 
 test('la baja no deja misiones apuntando a un proyecto que ya no existe', () => {
-  assert.match(source, /UPDATE tickets SET project='' WHERE project=\?/);
+  assert.match(source, /UPDATE tickets SET project='',project_id=NULL WHERE project=\? OR project_id=\?/);
 });
 
 test('asignar una misión a un proyecto exige que el proyecto esté dado de alta', () => {
@@ -54,8 +54,8 @@ test('/projects/mission conserva ids opacos y sólo canoniza referencias FLT num
   assert.doesNotMatch(endpoint, /toUpperCase\(\)/);
 });
 
-test('las listas de misiones llevan el proyecto y su nombre humano', () => {
-  assert.match(source, /SELECT id,screen,subject,loc,project,role,status/);
+test('las listas de misiones llevan project_id, alias legado y nombre humano', () => {
+  assert.match(source, /SELECT id,screen,subject,loc,project,project_id,role,status/);
   assert.match(source, /project_name: resolveProject\(pidx, r\.project \|\| ""\)\.name/);
 });
 

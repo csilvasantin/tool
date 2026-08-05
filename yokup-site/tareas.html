@@ -123,6 +123,7 @@ let PROJECT_SCOPE=null; // null=Todos; selección recibida por id canónico
 // artificial, y la vista se recarga para mostrarla de inmediato.
 const CAB=YkCabezal.mount($("cabezal"), {
   worker:WORKER,
+  getProjectId:()=>PROJECT_SCOPE,
   title:"Tareas",
   createKind:"task",
   altaPlaceholder:"Nueva tarea suelta… (Enter para encargarla)",

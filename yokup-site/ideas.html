@@ -415,19 +415,7 @@ async function regenReview(id){
 }
 async function promote(id){
   const it=IDEAS.find(x=>x.id===id); if(!it) return;
-  if(!confirm('¿Convertir en misión?\n\n"'+it.title+'"\n\nSe crea un encargo en el bot-inbox (se publica en el grupo) y aparecerá como misión FLT.')) return;
-  toast("Creando misión…");
-  try{
-    const text="[idea] "+it.title+(it.body?" — "+it.body:"")+(it.author?" ("+it.author+")":"");
-    const r=await fetch(TG+"/api/bot-inbox",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({text,from:"yokup-ideas"})});
-    const d=await r.json(); if(!d.ok) throw new Error(d.error||"error "+r.status);
-    const flt="FLT-"+d.id;
-    await fetch(WORKER+"/fleet/sync",{method:"POST"}).catch(()=>{});
-    await fetch(WORKER+"/ideas/promote",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,mission_id:flt})});
-    it.status="mision"; it.mission_id=flt; render();
-    toast("✓ "+flt+" creada");
-  }catch(e){ toast("No se pudo crear la misión"); }
+  return decide(id); // la vía canónica hereda el proyecto de la idea por decisión
 }
 // «→ misión»: NO crea ya un FLT a mano. Abre una VENTANA DE DECISIÓN de 3 minutos
 // (POST /ideas/decide) con las 5 mejores opciones para ejecutar la idea. Si nadie

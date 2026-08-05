@@ -2618,7 +2618,7 @@
     const headers={'Content-Type':'application/json'};
     try{ const b=(typeof mandoBearer==='function')?mandoBearer():''; if(b) headers['Authorization']='Bearer '+b; }catch(e){}
     try{
-      const r=await fetch(TG_INBOX_POST,{method:'POST',headers,body:JSON.stringify({target_persona:persona,target_machine:machine,text,from:'status-web'})});
+      const r=await fetch(TG_INBOX_POST,{method:'POST',headers,body:JSON.stringify({target_persona:persona,target_machine:machine,text,from:'status-web',materialize_mission:false})});
       const d=await r.json().catch(()=>({}));
       if(r.ok && d.ok) return {ok:true, id:String(d.task_id||d.id||''), taskId:String(d.task_id||''), numId:(d.id!=null?+d.id:null), verified:!!d.owner_verified};
       if(r.status===429) return {ok:false, error:'demasiados envíos seguidos — espera un minuto'};

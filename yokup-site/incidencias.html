@@ -316,21 +316,10 @@ $("incidentCreate").onsubmit=async event=>{
     if(!pending||pending.signature!==signature){pending={signature,resource:newManualResource(kind),createdId:""};writePendingCreate(pending);}
     let out={ok:true,id:pending.createdId};
     if(!pending.createdId){
-      const r=await fetch(WORKER+"/incident",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({subject,resource:pending.resource,kind,project:PROJECT_SCOPE||"",severity,source:"yokup-web",detail:subject,by:"Yokup · Incidencias"})});
+      if(!PROJECT_SCOPE)throw new Error("Selecciona un proyecto antes de crear la incidencia");
+      const r=await fetch(WORKER+"/incident",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({subject,resource:pending.resource,kind,project_id:PROJECT_SCOPE,severity,source:"yokup-web",detail:subject,by:"Yokup · Incidencias"})});
       out=await r.json().catch(()=>({})); if(!r.ok||!out.ok||!out.id)throw new Error(out.error||"alta");
       pending.createdId=out.id;writePendingCreate(pending);
-    }
-    // /incident conserva compatibilidad histórica usando project como ubicación;
-    // el endpoint canónico fija después el project_id exacto del selector global.
-    if(PROJECT_SCOPE&&out.id){
-      try{
-        const pr=await fetch(WORKER+"/projects/mission",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({mission:out.id,project:PROJECT_SCOPE})});
-        const po=await pr.json().catch(()=>({})); if(!pr.ok||po.ok===false)throw new Error(po.error||"project");
-      }catch(linkError){
-        msg.className="incident-create-msg err";
-        msg.innerHTML='Incidencia <a class="inc-ref" href="/ticket?id='+encodeURIComponent(out.id)+'">'+esc(out.id)+'</a> creada; pendiente de vincular al proyecto. Pulsa «Crear incidencia» para reintentar el enlace sin duplicarla.';
-        return;
-      }
     }
     writePendingCreate(null);$("newSubject").value=""; msg.className="incident-create-msg ok"; msg.textContent="Incidencia "+out.id+" creada."; await load();
   }catch(e){const pending=readPendingCreate();msg.className="incident-create-msg err";msg.textContent=pending&&pending.createdId?("Incidencia "+pending.createdId+" creada; falta completar su vínculo. Reintenta sin duplicarla."):"No se pudo crear la incidencia. Reintentar conservará el mismo recurso y no la duplicará.";} finally{button.disabled=false;}
