@@ -40,19 +40,19 @@ test("sin actividad muestra 0 con latido histórico y guion sin ningún latido",
   const end = html.indexOf("\n\n  var ETAPAS_PROGRESO", start);
   assert.ok(start >= 0 && end > start, "falta puntosHtml");
   const context = vm.createContext({
-    tendenciaHoraria:()=>({state:"same",reliable:true}),
-    // puntosHtml pinta ahora la puntuación por hora bajo el total; aquí sólo se
-    // comprueba el marcador diario, así que la horaria va sustituida.
     puntuacionHoraria:()=>({available:true,basis:"total",points:0,state:"same",current:0,reference:null}),
+    estadoPuntosDiarios:(a)=>a.tendenciaDiaria||({state:"initial",current:Number(a.total)||0,previous:null}),
+    tituloPuntosDiarios:()=>"primera observación",
+    parejaPuntosHtml:(_a,value)=>`<span class="score-pair"><span class="score-number score-hour">${value === "—" ? "—" : 0}</span>/<span class="score-number score-day">${value}</span></span>`,
     esc:value=>String(value),
   });
   vm.runInContext(`${html.slice(start, end)}\n` +
     `globalThis.conTrabajo = puntosHtml({total:40,haLatido:false},"p1");\n` +
     `globalThis.conLatido = puntosHtml({total:0,haLatido:true},"p2");\n` +
     `globalThis.sinLatido = puntosHtml({total:0,haLatido:false},"p3");`, context);
-  assert.match(context.conTrabajo,/<span class="score-value">40<\/span>/);
-  assert.match(context.conLatido,/<span class="score-value">0<\/span>/);
-  assert.match(context.sinLatido,/<span class="score-value">—<\/span>/);
+  assert.match(context.conTrabajo,/score-number score-day">40<\/span>/);
+  assert.match(context.conLatido,/score-number score-hour">0<[\s\S]*score-number score-day">0<\/span>/);
+  assert.match(context.sinLatido,/score-number score-hour">—<[\s\S]*score-number score-day">—<\/span>/);
   assert.match(html, /f\.haLatido = true/);
   assert.match(html, /<td class="tot">' \+ puntosHtml\(a, progressId\)/);
   assert.match(html, /El latido no da puntos/);
@@ -103,7 +103,7 @@ test("A y sus subtareas cuentan una vez; una misión nunca supera tres tareas", 
 });
 
 test("el ranking distingue actividad actual de los totales históricos", () => {
-  assert.match(html, /datos = \{ tareas: \[\], actividad: \[\],[^}]*misiones: \[\], ideas: \[\], decisiones: \[\], proyectos: \[\] \}/);
+  assert.match(html, /datos = \{ tareas: \[\], tareasFresh: false, actividad: \[\],[^}]*misiones: \[\], ideas: \[\], decisiones: \[\], proyectos: \[\] \}/);
   assert.match(html, /seguroYokup\("\/tickets\?scope=fleet", function \(d\) \{ return d\.tickets \|\| \[\]; \}\)/);
   assert.match(html, /seguroYokup\("\/ideas"/);
   assert.match(html, /seguroYokup\("\/decisions"/);
@@ -119,9 +119,13 @@ test("un fallo transitorio de la API no reinicia el acumulado diario", () => {
   assert.match(html, /function guardaActividadDiaria\(payload\)/);
   assert.match(html, /payload\.day !== claveDia\(Date\.now\(\)\)/);
   assert.match(html, /function actividadDiariaGuardada\(\)/);
-  assert.match(html, /var a = r\[0\] \|\| actividadDiariaGuardada\(\)/);
-  assert.match(html, /if \(r\[0\]\) guardaActividadDiaria\(r\[0\]\)/);
-  assert.match(html, /if \(r\[1\]\) \{ guardaActividadDiaria\(r\[1\]\); datos\.actividadMeta = r\[1\]/);
+  assert.match(html, /var fresh = !!\(r\[0\] && r\[0\]\.day === claveDia\(Date\.now\(\)\)/);
+  assert.match(html, /var a = fresh \? r\[0\] : actividadDiariaGuardada\(\)/);
+  assert.match(html, /datos\.actividadFresh = fresh/);
+  assert.match(html, /var dailyFresh = !!\(r\[1\] && r\[1\]\.day === claveDia\(Date\.now\(\)\)/);
+  assert.match(html, /datos\.actividadFresh = dailyFresh/);
+  assert.match(html, /datos\.actividadFresh = fresh && datos\.tareasFresh/);
+  assert.match(html, /datos\.actividadFresh = dailyFresh && datos\.tareasFresh/);
 });
 
 test("solo parpadea una categoría y la tarea activa tiene la máxima prioridad", () => {
@@ -165,6 +169,7 @@ test("la decisión de estado ejecuta la precedencia tarea > ventana > misión > 
     decisiones: [{status:"live", agent:"Neo", machine:"", created_at:now, deadline:now + 60000, question:"Elegir", project_id:"xpaceos"}],
     proyectos: [{id:"xpaceos", name:"XpaceOS", web:"www.xpaceos.com"}]
   };
+  let observations = 0;
   const context = vm.createContext({
     datos: fixture,
     window: { ykAgentIdentity: {
@@ -179,6 +184,8 @@ test("la decisión de estado ejecuta la precedencia tarea > ventana > misión > 
     ACTIVIDAD_FRESCA_MS: 1800000, OBJETIVO_FRESCO_MS: 900000,
     PUNTOS_TAREA:15, PUNTOS_TAREA_ACTIVA:10, FRESCO_SEG:900,
     tendenciaHoraria:(row)=>({state:"same",current:Number(row.total)||0,reference:Number(row.total)||0,reliable:false}),
+    observaPuntosDiarios:(row)=>{ observations += 1; return {state:"initial",current:Number(row.total)||0,previous:null}; },
+    claveDia:()=>"2026-08-05", claveObservacionDiaria:()=>"neo|macmini",
     NO_AGENTES:["", "-", "—"], Date, Number, Object
   });
   vm.runInContext(`${html.slice(start, end)}\nglobalThis.primero = calcula();`, context);
@@ -193,6 +200,15 @@ test("la decisión de estado ejecuta la precedencia tarea > ventana > misión > 
   context.datos.misiones = [];
   vm.runInContext("globalThis.cuarto = calcula();", context);
   assert.equal(context.cuarto[0].actividad, "objetivos");
+  const validObservations = observations;
+  // Respuestas 200 pero arrays de scoring temporalmente incompletos: presencia
+  // viva mantiene la fila, sin escribir un cero sobre el baseline válido.
+  context.datos.actividad = [];
+  context.datos.ideas = [];
+  vm.runInContext("globalThis.soloPresencia = calcula();", context);
+  assert.equal(observations, validObservations);
+  assert.equal(context.soloPresencia[0].tendenciaDiaria.missingScore, true);
+  assert.equal(context.soloPresencia[0].tendenciaDiaria.stale, true);
 });
 
 test("la columna Proyecto usa el dominio real del censo y queda entre Ordenador y Objetivos", () => {

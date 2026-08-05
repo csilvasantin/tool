@@ -32,7 +32,7 @@ function trendApi(hourly){
   ].join("\n"))(datos);
 }
 
-test("↑ y = proceden del payload horario factual y el fallback es conservador",()=>{
+test("la cifra horaria procede del payload factual y el fallback es conservador",()=>{
   const tendencia=trendApi({window_ms:3600000,scores:[
     {agent:"OraculoMacMini",current:75,reference:55,reference_at:1000,trend:"up",reliable:true},
     {agent:"NeoMacMini",current:20,reference:20,reference_at:1000,trend:"same",reliable:true},
@@ -46,8 +46,9 @@ test("↑ y = proceden del payload horario factual y el fallback es conservador"
   assert.deepEqual(tendencia({agente:"AgenteNuevoMacMini",total:12}),{
     state:"same",current:12,reference:12,points:0,referenceAt:0,reliable:false,
   });
-  assert.match(source,/class="score-trend ' \+ \(up \? "up" : "same"\)/);
-  assert.match(source,/\(up \? "↑" : "="\)/);
+  assert.match(source,/class="score-number score-hour">' \+ esc\(hourValue\)/);
+  assert.match(source,/class="score-number score-day daily-' \+ esc\(state\)/);
+  assert.doesNotMatch(source,/\(up \? "↑" : "="\)/);
 });
 
 test("todas las evoluciones nacen contraidas y Puntos es el unico control",()=>{

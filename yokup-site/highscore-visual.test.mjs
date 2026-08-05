@@ -297,15 +297,13 @@ test("todos los agentes con misión en curso tienen calles ordenadas, identidad 
   assert.match(html, /carrera\.classList\.toggle\("empty", corredores\.length === 0\)/);
 });
 
-test("el podio conserva el latido vivo y usa la tendencia horaria compartida", () => {
+test("el podio conserva el latido vivo y usa la misma pareja hora/día", () => {
   assert.doesNotMatch(html, /puntosPodioAnteriores/);
   assert.match(html, /a\.vivo \? ' podium-live' : ''/);
   assert.match(html, /\.plaza\.podium-live::after\{[^}]*border:2px solid rgba\(136,255,170,\.8\)[^}]*animation:podium-heartbeat/);
   assert.match(html, /@keyframes podium-heartbeat/);
-  assert.match(html, /var trend = a\.tendencia \|\| tendenciaHoraria\(a\), sube = trend\.state === "up"/);
-  assert.match(html, /class="podium-trend up"[^>]*>↑<\/span>/);
-  assert.match(html, /class="podium-trend same"[^>]*>=<\/span>/);
-  assert.match(html, /<div class="pts"><span class="podium-score">' \+ total \+ '<\/span>' \+ tendencia/);
+  assert.match(html, /<div class="pts">' \+ parejaPuntosHtml\(a, dailyValue\) \+ '<\/div>/);
+  assert.match(html, /hora\.available \? hora\.points \+ " puntos en la última hora" : "sin referencia fiable para la última hora"/);
   assert.match(html, /datos\.actividadMeta && datos\.actividadMeta\.hourly/);
 });
 

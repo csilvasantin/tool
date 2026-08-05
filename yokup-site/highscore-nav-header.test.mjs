@@ -78,7 +78,7 @@ test("el rótulo apilado es responsive y no rompe controles existentes",()=>{
   assert.doesNotMatch(highscore,/\.sort-label-stack\{[^}]*display:none/);
 
   assert.match(highscore,/data-yk-slot="right"[^>]*id="advancedMenu"/);
-  assert.match(highscore,/class="score-trend ' \+ \(up \? "up" : "same"\)/);
+  assert.match(highscore,/class="score-number score-day daily-' \+ esc\(state\)/);
   assert.match(highscore,/<button class="score-toggle" type="button" aria-expanded="false"/);
   assert.match(highscore,/\.score-progress\[hidden\]\{display:none\}/);
 });
