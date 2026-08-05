@@ -63,9 +63,9 @@ test("Ventana Decisión ocupa dos líneas y conserva la cadencia horaria", () =>
   assert.doesNotMatch(html, /Ventanas hoy/i);
   assert.match(html, /function numeroVentanas\(a\)/);
   assert.match(html, /ventanas acumuladas hoy; no son simultáneas/);
-  assert.match(html, /automáticas abren una sola por hora natural/);
+  assert.match(html, /automáticas abren una sola cada 60 minutos/);
   assert.match(html, /acumulado diario, no ventanas simultáneas/);
-  assert.match(html, /apertura automática admite una sola ventana por cada hora natural/);
+  assert.match(html, /apertura automática admite una sola ventana cada 60 minutos/);
 });
 
 test("las tareas salen del plan A·B·C real y no del tablero público antiguo", () => {

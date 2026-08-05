@@ -42,3 +42,36 @@ test("main es autosuficiente: no quedan rutas vivas solo en una rama", () => {
     /url\.pathname === "\/strategy" && req\.method === "POST"/,
   ]) assert.match(source, pieza);
 });
+
+// ── CONFIG DE FLOTA (Carlos, 2026-08-05) ──────────────────────────────────
+// MODO_RAPIDO no es un secreto: esta publicado en la normativa. Guardarlo en la
+// Cupula obligaba a mover VAULT_ADMIN —la clave que protege secretos de verdad—
+// para escribir una bandera publica. Vive aqui: lectura abierta para que los
+// agentes la lean al arrancar sin credencial, escritura tras el perimetro.
+
+test("GET /fleet/config es publico: se lee desde el CLI sin secreto", () => {
+  assert.match(source, /url\.pathname === "\/fleet\/config"/);
+  const protegidas = source.slice(source.indexOf("var PROTECTED"), source.indexOf("\n", source.indexOf("var PROTECTED")));
+  assert.doesNotMatch(protegidas, /"\/fleet\/config"/);
+  assert.match(source, /CREATE TABLE IF NOT EXISTS fleet_config \(name TEXT PRIMARY KEY, value TEXT, updated_at INTEGER, updated_by TEXT\)/);
+});
+
+test("POST /config esta protegido y acota el nombre de la bandera", () => {
+  assert.match(source, /url\.pathname === "\/config" && req\.method === "POST"/);
+  const protegidas = source.slice(source.indexOf("var PROTECTED"), source.indexOf("\n", source.indexOf("var PROTECTED")));
+  assert.match(protegidas, /"\/config"/);
+  // nombre acotado: que no acabe siendo un cajon donde se cuele un secreto
+  assert.match(source, /\/\^\[A-Z\]\[A-Z0-9_\]\{2,39\}\$\//);
+  assert.match(source, /ON CONFLICT\(name\) DO UPDATE SET value=excluded\.value/);
+});
+
+test("la config NO vive en la Cupula: ahi solo van secretos", () => {
+  // Se comprueba el USO, no la mencion: el comentario que explica por que no
+  // esta en la boveda nombra la clave a proposito.
+  assert.doesNotMatch(source, /env\.VAULT_ADMIN/,
+    "el worker de Yokup no debe leer la clave de administracion de la boveda");
+  assert.doesNotMatch(source, /admin=\$\{|[?&]admin=/,
+    "ni firmarla en una URL hacia admira-vault");
+  assert.doesNotMatch(source, /admira-vault[^"']*\/secret/,
+    "ni escribir secretos en la Cupula desde aqui");
+});

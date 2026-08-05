@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 
-// Bajo cada agente hay una línea que avanza con la hora natural de Madrid: al
-// entrar la hora en punto vuelve a poder abrir su ventana de decisión autónoma
-// si Carlos no le ha dicho nada (Carlos, 2026-08-05).
+// Bajo cada agente hay una línea que representa el tiempo hasta su próxima
+// ventana de decisión autónoma, si Carlos no le dice nada.
 //
-// La trampa que hay que evitar: NO son «60 minutos desde la última ventana». La
-// norma 10 y el worker limitan a UNA POR HORA NATURAL (madridHourKey), así que
-// quien abre a las 11:05 vuelve a poder a las 12:00, no a las 12:05. Pintar una
-// cuenta atrás de 60 min sería mentir con una barra bonita.
+// El reloj se pone a CERO en cada ventana y corre 60 MINUTOS ENTEROS (Carlos,
+// 2026-08-05). Antes era «una por hora natural de Madrid», que tenía un filo
+// feo: abrir a las 11:55 dejaba abrir otra a las 12:00, cinco minutos después.
+// Lo que NO puede pasar es que la línea y la guarda del worker cuenten cosas
+// distintas: si discrepan, la barra miente con buena letra.
 const source = await readFile(new URL("./highscore.html", import.meta.url), "utf8");
 const identitySource = await readFile(new URL("./yk-agent-identity.js", import.meta.url), "utf8");
 const identityContext = vm.createContext({});
@@ -38,7 +38,10 @@ function cuerpo(nombre) {
 
 function api(decisiones) {
   const cabecera = source.slice(source.indexOf("var TIME_ZONE"), source.indexOf("function claveDia"));
-  const codigo = cabecera + ["comoMs", "mismoAgenteVentana", "ventanaHoraria", "tonoVentana",
+  // VENTANA_MS se declara justo antes de ventanaHoraria, fuera del corte de
+  // cabecera: hay que traerlo o las funciones se evalúan sin él.
+  const ventanaMs = source.match(/var VENTANA_MS = [^;]+;/)[0];
+  const codigo = cabecera + ventanaMs + ["comoMs", "mismoAgenteVentana", "ventanaHoraria", "tonoVentana",
     "faltaTexto", "horaCorta", "tituloVentana"].map(cuerpo).join("\n");
   return new Function("datos", "window", "normaliza", "esc",
     `${codigo}\n${cuerpo("relojVentanaHtml")}\nreturn { ventana:ventanaHoraria, tono:tonoVentana, titulo:tituloVentana, clave:claveHora, dentro:dentroDeLaHora, html:relojVentanaHtml };`
@@ -50,31 +53,42 @@ function api(decisiones) {
 const NEO = { agente:"NeoMBACrema", base:"Neo", suffix:"MBACrema" };
 const TRINITY = { agente:"TrinityMBAAzul", base:"Trinity", suffix:"MBAAzul" };
 
-test("la clave es la HORA NATURAL de Madrid, no una ventana móvil de 60 min", () => {
-  const a = api([]);
-  // 2026-08-05 11:05 y 11:59 UTC+2 caen en la MISMA hora; 12:00 ya no
-  const once05 = Date.UTC(2026, 7, 5, 9, 5), once59 = Date.UTC(2026, 7, 5, 9, 59);
-  const doce00 = Date.UTC(2026, 7, 5, 10, 0);
-  assert.equal(a.clave(once05), a.clave(once59), "11:05 y 11:59 son la misma hora natural");
-  assert.notEqual(a.clave(once59), a.clave(doce00), "a las 12:00 empieza otra hora");
-  assert.equal(a.clave(once05), "2026-08-05T11");
+test("el reloj arranca en la ventana y dura 60 minutos exactos", () => {
+  const ahora = Date.now();
+  const a = api([{ agent:"NeoMBACrema", machine:"MacBookAirCrema", created_at:ahora - 15 * 60000, parent_decision:"" }]);
+  const v = a.ventana(NEO);
+  assert.equal(v.abierta, true);
+  assert.ok(Math.abs(v.progreso - 0.25) < 0.01, "15 de 60 min = 25%");
+  assert.ok(Math.abs(v.restante - 45 * 60000) < 2000, "quedan 45 min");
 });
 
-test("los minutos se leen en Madrid, no en el reloj local", () => {
-  const a = api([]);
-  assert.equal(a.dentro(Date.UTC(2026, 7, 5, 9, 0, 0)), 0, "las 11:00 en punto: hora recién empezada");
-  assert.equal(a.dentro(Date.UTC(2026, 7, 5, 9, 30, 0)), 30 * 60000);
-  assert.equal(a.dentro(Date.UTC(2026, 7, 5, 9, 59, 30)), 59 * 60000 + 30000);
+test("al cumplirse los 60 minutos la puerta vuelve a estar abierta", () => {
+  const ahora = Date.now();
+  const justo = api([{ agent:"NeoMBACrema", machine:"MacBookAirCrema", created_at:ahora - 59 * 60000, parent_decision:"" }]);
+  assert.equal(justo.ventana(NEO).abierta, true, "a los 59 min todavía espera");
+  const cumplida = api([{ agent:"NeoMBACrema", machine:"MacBookAirCrema", created_at:ahora - 61 * 60000, parent_decision:"" }]);
+  assert.equal(cumplida.ventana(NEO).abierta, false, "a los 61 min ya puede abrir");
 });
 
-test("una ventana abierta esta hora marca al agente; la de otra hora no", () => {
+test("abrir otra ventana pone el reloj a CERO", () => {
+  const ahora = Date.now();
+  const a = api([
+    { agent:"NeoMBACrema", machine:"MacBookAirCrema", created_at:ahora - 50 * 60000, parent_decision:"" },
+    { agent:"NeoMBACrema", machine:"MacBookAirCrema", created_at:ahora - 30000, parent_decision:"" },
+  ]);
+  const v = a.ventana(NEO);
+  assert.ok(v.progreso < 0.02, "manda la MÁS RECIENTE: el reloj vuelve a empezar");
+  assert.ok(v.restante > 59 * 60000, "y quedan casi 60 min otra vez");
+});
+
+test("una ventana reciente marca al agente; la de hace dos horas no", () => {
   const ahora = Date.now();
   const a = api([
     { agent:"NeoMBACrema", machine:"MacBookAirCrema", created_at:ahora, parent_decision:"" },
     { agent:"TrinityMBAAzul", machine:"MacBookAirAzul", created_at:ahora - 7200000, parent_decision:"" },
   ]);
   assert.equal(a.ventana(NEO).abierta, true);
-  assert.equal(a.ventana(TRINITY).abierta, false, "la de hace dos horas no consume la hora actual");
+  assert.equal(a.ventana(TRINITY).abierta, false, "pasados los 60 min ya no cuenta");
 });
 
 test("una CONTINUACIÓN no consume la hora — sólo las raíces", () => {
@@ -105,7 +119,7 @@ test("el título dice la verdad en cada estado", () => {
   assert.match(a.titulo({ abierta:false, at:0, restante:0 }),
     /Puede abrir su ventana autónoma AHORA/);
   assert.match(a.titulo({ abierta:true, at:Date.UTC(2026, 7, 5, 9, 5), restante:55 * 60000 }),
-    /Abrió su ventana a las 11:05 · la siguiente al entrar la hora en punto, dentro de 55:00/);
+    /Abrió su ventana a las 11:05 · la siguiente dentro de 55:00/);
 });
 
 test("el marcado lleva estado accesible y el degradado en el relleno", () => {
@@ -126,6 +140,7 @@ test("el marcado lleva estado accesible y el degradado en el relleno", () => {
 test("la línea vive bajo el agente y se refresca sola sin volver a pedir datos", () => {
   assert.match(source, /relojVentanaHtml\(a\) \+ '<\/td>'/, "va dentro de la celda del agente");
   assert.match(source, /window\.setInterval\(ticVentanas, 15000\)/);
+  assert.match(source, /var VENTANA_MS = 60 \* 60 \* 1000;/);
   const tic = cuerpo("ticVentanas");
   assert.doesNotMatch(tic, /seguroYokup|fetch\(/, "el tic no puede pedir datos");
   assert.match(tic, /i\.style\.width/);

@@ -77,10 +77,20 @@ test('el POST no trunca contratos largos ni admite dos continuaciones pendientes
   assert.match(source, /batch\.status !== "awaiting_continuation"/);
 });
 
-test('OnIdle limita las ventanas iniciales por hora de Madrid y exime continuaciones', () => {
-  assert.match(source, /function madridHourKey/);
+test('OnIdle limita las ventanas iniciales a una cada 60 min y exime continuaciones', () => {
+  // Carlos, 2026-08-05: el reloj se pone a CERO en cada ventana y corre 60 min
+  // enteros. Antes era «una por hora natural», que dejaba abrir a las 11:55 y
+  // otra vez a las 12:00. La linea del Highscore pinta exactamente esto.
+  assert.match(source, /var HOURLY_WINDOW_MS = 60 \* 60 \* 1000;/);
   assert.match(source, /error: "hourly_limit"/);
   assert.match(source, /if \(!continuation && !userOverride\)/);
+  // la consulta mira los ultimos 60 min, no la clave de hora
+  assert.equal((source.match(/AND created_at > \? ORDER BY created_at DESC LIMIT 1/g) || []).length, 2,
+    'las DOS puertas (openInitial y POST \/decisions) comparten el mismo reloj movil');
+  assert.doesNotMatch(source, /madridHourKey\(row\.created_at\) === hour/,
+    'ya no se compara por clave de hora natural');
+  // y el 409 dice CUANDO se podra
+  assert.equal((source.match(/nextAt: Number\(previous\.created_at\) \+ HOURLY_WINDOW_MS/g) || []).length, 2);
 });
 
 test('una continuación reutiliza el batch, reordena queued y habilita una única activación', () => {

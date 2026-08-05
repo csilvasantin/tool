@@ -307,9 +307,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .tabla .ag{font-weight:700}
 .tabla .num{text-align:right;font-variant-numeric:tabular-nums}
 .tabla .tot{text-align:right;font-weight:900;color:var(--accent);font-variant-numeric:tabular-nums}
-/* LÍNEA DE LA VENTANA AUTÓNOMA, bajo cada agente. Avanza con la hora natural de
-   Madrid; al llegar a las en punto el agente puede volver a abrir su ventana de
-   decisión. El relleno lleva su propio degradado en línea (JS) porque el tono
+/* LÍNEA DE LA VENTANA AUTÓNOMA, bajo cada agente. El reloj se pone a cero en
+   cada ventana y corre 60 minutos; al cumplirse, el agente puede volver a abrir. El relleno lleva su propio degradado en línea (JS) porque el tono
    evoluciona con el progreso: cian al empezar, ámbar al filo. */
 .hourbar{display:block;position:relative;height:3px;margin:5px 0 1px;border-radius:2px;
   background:rgba(120,243,255,.10);overflow:hidden}
@@ -502,7 +501,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         <th data-sort-col="ordenador" aria-sort="none"><button class="sort-head" type="button" data-sort="ordenador">Ordenador<span class="sort-arrow" aria-hidden="true"></span></button></th>
         <th data-sort-col="proyecto" aria-sort="none"><button class="sort-head" type="button" data-sort="proyecto">Proyecto<span class="sort-arrow" aria-hidden="true"></span></button></th>
         <th class="num" data-sort-col="objetivos" aria-sort="none"><button class="sort-head" type="button" data-sort="objetivos">Objetivos<span class="sort-arrow" aria-hidden="true"></span></button></th>
-        <th class="num" data-sort-col="ventanas" aria-sort="none" title="Acumulado del día; las ventanas automáticas respetan una única apertura por hora natural"><button class="sort-head" type="button" data-sort="ventanas" aria-label="Ordenar por ventanas de decisión"><span class="sort-label-stack"><span>Ventana</span><span>Decisión</span></span><span class="sort-arrow" aria-hidden="true"></span></button></th>
+        <th class="num" data-sort-col="ventanas" aria-sort="none" title="Acumulado del día; las ventanas automáticas respetan una única apertura cada 60 minutos"><button class="sort-head" type="button" data-sort="ventanas" aria-label="Ordenar por ventanas de decisión"><span class="sort-label-stack"><span>Ventana</span><span>Decisión</span></span><span class="sort-arrow" aria-hidden="true"></span></button></th>
         <th class="num" data-sort-col="misiones" aria-sort="none"><button class="sort-head" type="button" data-sort="misiones">Misiones<span class="sort-arrow" aria-hidden="true"></span></button></th>
         <th class="num" data-sort-col="tareas" aria-sort="none"><button class="sort-head" type="button" data-sort="tareas">Tareas<span class="sort-arrow" aria-hidden="true"></span></button></th>
         <th class="num" data-sort-col="puntos" aria-sort="none"><button class="sort-head" type="button" data-sort="puntos">Puntos<span class="sort-arrow" aria-hidden="true"></span></button></th>
@@ -613,11 +612,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     timeZone:TIME_ZONE, year:"numeric", month:"2-digit", day:"2-digit"
   });
 
-  // RELOJ DE LA VENTANA AUTÓNOMA (Carlos, 2026-08-05). La norma 10 y el worker
-  // NO cuentan 60 minutos desde la última ventana: el límite es UNA por HORA
-  // NATURAL de Madrid (`madridHourKey` → 2026-08-05T11). Es decir, quien abrió
-  // a las 11:05 no espera hasta las 12:05, sino hasta las 12:00. La línea pinta
-  // eso y no una cuenta atrás inventada, que sería mentir con una barra bonita.
+  // RELOJ DE LA VENTANA AUTÓNOMA (Carlos, 2026-08-05). El reloj se pone a CERO
+  // en cada ventana y corre 60 MINUTOS ENTEROS. Antes el worker limitaba por
+  // hora natural de Madrid y tenía un filo feo —abrir a las 11:55 dejaba abrir
+  // otra a las 12:00, cinco minutos después—; ahora la guarda del worker
+  // (HOURLY_WINDOW_MS) y esta línea cuentan lo MISMO. Si no coincidieran, la
+  // barra estaría mintiendo con buena letra.
   var HORA_FMT = new Intl.DateTimeFormat("en-CA", {
     timeZone:TIME_ZONE, year:"numeric", month:"2-digit", day:"2-digit",
     hour:"2-digit", hourCycle:"h23"
@@ -1215,16 +1215,15 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   // ── LÍNEA DE LA VENTANA AUTÓNOMA ──────────────────────────────────────────
-  // Bajo cada agente, una línea que avanza con la hora natural de Madrid: al
-  // llegar a las en punto vuelve a poder abrir su ventana de decisión si Carlos
-  // no le ha dicho nada. El color evoluciona con ella —cian al empezar, ámbar
-  // según se acerca— para que el estado de la flota se lea de un vistazo, sin
-  // números (Carlos, 2026-08-05).
+  // Bajo cada agente, una línea que avanza durante los 60 minutos que van desde
+  // su última ventana hasta la siguiente que podrá abrir, si Carlos no le dice
+  // nada. El color evoluciona con ella —cian al empezar, ámbar según se acerca—
+  // para que el estado de la flota se lea de un vistazo, sin números.
   //
-  // OJO con la semántica: NO son «60 minutos desde la última ventana». La norma
-  // 10 y el worker limitan a UNA por HORA NATURAL, así que quien abrió a las
-  // 11:05 vuelve a poder a las 12:00, no a las 12:05. Pintar una cuenta atrás
-  // de 60 minutos sería mentir con una barra bonita.
+  // El reloj se pone a CERO en cada ventana (Carlos, 2026-08-05). Antes el
+  // worker limitaba por hora natural de Madrid y tenía un filo feo: abrir a las
+  // 11:55 dejaba abrir otra a las 12:00. Lo que no puede pasar es que esta línea
+  // y la guarda del worker cuenten cosas distintas.
   function mismoAgenteVentana(refAgente, refMaquina, a) {
     var id = window.ykAgentIdentity;
     if (!id) return normaliza(refAgente).toLowerCase() === normaliza(a.agente || "").toLowerCase();
@@ -1234,20 +1233,23 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return !a.suffix || !sufijo || sufijo === a.suffix;
   }
 
+  var VENTANA_MS = 60 * 60 * 1000;
   function ventanaHoraria(a) {
-    var ahora = Date.now(), clave = claveHora(ahora), ultima = 0;
+    var ahora = Date.now(), ultima = 0;
     (datos.decisiones || []).forEach(function (d) {
-      // Sólo las RAÍCES consumen la hora: una continuación enlazada al mismo
-      // lote no gasta ventana (es la misma regla del worker).
+      // Sólo las RAÍCES gastan ventana: una continuación enlazada al mismo lote
+      // no la consume (es la misma regla del worker).
       if (!d || normaliza(d.parent_decision)) return;
       var at = comoMs(d.created_at);
-      if (!at || claveHora(at) !== clave) return;
+      if (!at || ahora - at >= VENTANA_MS) return;
       if (!mismoAgenteVentana(d.agent, d.machine, a)) return;
       if (at > ultima) ultima = at;
     });
-    var dentro = dentroDeLaHora(ahora);
-    return { abierta:!!ultima, at:ultima, progreso:Math.max(0, Math.min(1, dentro / 3600000)),
-      restante:Math.max(0, 3600000 - dentro) };
+    if (!ultima) return { abierta:false, at:0, progreso:0, restante:0 };
+    var transcurrido = Math.max(0, ahora - ultima);
+    return { abierta:true, at:ultima,
+      progreso:Math.max(0, Math.min(1, transcurrido / VENTANA_MS)),
+      restante:Math.max(0, VENTANA_MS - transcurrido) };
   }
 
   function faltaTexto(ms) {
@@ -1266,7 +1268,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
   function tituloVentana(v) {
     return v.abierta
-      ? "Abrió su ventana a las " + horaCorta(v.at) + " · la siguiente al entrar la hora en punto, dentro de " + faltaTexto(v.restante)
+      ? "Abrió su ventana a las " + horaCorta(v.at) + " · la siguiente dentro de " + faltaTexto(v.restante)
       : "Puede abrir su ventana autónoma AHORA · esta hora todavía no la ha usado";
   }
   function relojVentanaHtml(a) {
@@ -1282,16 +1284,23 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function ticVentanas() {
     var barras = document.querySelectorAll("[data-yk-hourbar]");
     if (!barras.length) return;
-    var ahora = Date.now(), dentro = dentroDeLaHora(ahora);
-    var progreso = Math.max(0, Math.min(1, dentro / 3600000)), restante = Math.max(0, 3600000 - dentro);
-    var pct = Math.round(progreso * 1000) / 10, tono = tonoVentana(progreso);
+    var ahora = Date.now();
+    // Con reloj móvil cada agente va por su cuenta: el progreso se calcula por
+    // barra desde SU última ventana, no de un reloj común.
     Array.prototype.forEach.call(barras, function (b) {
-      var v = { abierta:b.getAttribute("data-abierta") === "1",
-        at:Number(b.getAttribute("data-at")) || 0, progreso:progreso, restante:restante };
+      var at = Number(b.getAttribute("data-at")) || 0;
+      var abierta = b.getAttribute("data-abierta") === "1" && at > 0 && ahora - at < VENTANA_MS;
+      if (!abierta && b.getAttribute("data-abierta") === "1") {
+        // Se le cumplió la hora mientras mirabas: la puerta queda abierta.
+        b.setAttribute("data-abierta", "0"); b.classList.add("libre");
+      }
+      var transcurrido = abierta ? Math.max(0, ahora - at) : 0;
+      var v = { abierta:abierta, at:at, progreso:Math.min(1, transcurrido / VENTANA_MS),
+        restante:Math.max(0, VENTANA_MS - transcurrido) };
       var i = b.querySelector("i");
-      if (i) {
-        i.style.width = pct + "%";
-        i.style.background = "linear-gradient(90deg,hsl(186 92% 64%),hsl(" + tono + " 92% 64%))";
+      if (i && abierta) {
+        i.style.width = (Math.round(v.progreso * 1000) / 10) + "%";
+        i.style.background = "linear-gradient(90deg,hsl(186 92% 64%),hsl(" + tonoVentana(v.progreso) + " 92% 64%))";
       }
       var t = tituloVentana(v);
       b.setAttribute("title", t); b.setAttribute("aria-label", t);
@@ -1351,7 +1360,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function numeroVentanas(a) {
     var contenido = numeroActividad(a, "ventanas", a.ventanas, "ventana de decisión viva");
-    var ayuda = a.ventanas + " ventanas acumuladas hoy; no son simultáneas. Las automáticas abren una sola por hora natural.";
+    var ayuda = a.ventanas + " ventanas acumuladas hoy; no son simultáneas. Las automáticas abren una sola cada 60 minutos.";
     return '<span class="window-day-total" title="' + esc(ayuda) + '" aria-label="' + esc(ayuda) + '">' + contenido + '</span>';
   }
 
@@ -2065,7 +2074,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       '<li>Solo cuenta la actividad del <b>día actual en Madrid</b>; el marcador vuelve a cero cada medianoche.</li>' +
       '<li>Cada <b>objetivo creado hoy</b> por un agente identificado: <b>' + pesos.objective + '</b>.</li>' +
       '<li>Cada <b>ventana de decisión abierta hoy</b>: <b>' + pesos.window + '</b>. Es un <b>acumulado diario, no ventanas simultáneas</b>; ' +
-      'la apertura automática admite una sola ventana por cada hora natural. Cerrarla o generar misiones no vuelve a sumarla.</li>' +
+      'la apertura automática admite una sola ventana cada 60 minutos. Cerrarla o generar misiones no vuelve a sumarla.</li>' +
       '<li>Cada <b>misión ejecutada hoy</b> —su primera entrada real en curso—: <b>' + pesos.mission + '</b>. Los reintentos no duplican puntos.</li>' +
       '<li>Cada <b>tarea A·B·C trabajada hoy</b>: <b>15</b>, y <b>+10</b> si está en curso. ' +
       'La actividad del agente, subagente e infraagente se reúne en su familia sin duplicar A1…C3.</li>' +

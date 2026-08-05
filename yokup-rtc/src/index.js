@@ -17,7 +17,7 @@ var json = /* @__PURE__ */ __name((o, s = 200) => new Response(JSON.stringify(o)
 var AUTH_CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
 var WL_API = "https://admira-whitelist.csilvasantin.workers.dev";
 var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@admira.com", "agonzalez@admira.com", "jsedano@admira.com"];
-var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/agent/stop", "/equipo/machine", "/equipo/silicon", "/strategy"]);
+var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/agent/stop", "/equipo/machine", "/equipo/silicon", "/strategy", "/config"]);
 var _wl = { at: 0, set: null };
 async function whitelist() {
   if (_wl.set && Date.now() - _wl.at < 3e5) return _wl.set;
@@ -177,6 +177,13 @@ async function applySchema(env) {
   // y se desplegó desde ahí el 2026-07-23; al redesplegar el worker desde main el
   // 2026-08-05 se cayó de producción sin que nadie lo notara. Va a main para que
   // no dependa de qué rama toque desplegar (lo tumbé yo; ver /fleet/strategy).
+  // CONFIG DE FLOTA: banderas operativas que TODOS los agentes leen al arrancar
+  // (MODO_RAPIDO, etc.). No son secretos —MODO_RAPIDO está publicado en la
+  // normativa— así que no pintan nada en la Cúpula: meterlos allí obligaba a
+  // mover VAULT_ADMIN, una clave que protege secretos de verdad, para escribir
+  // una bandera pública (Carlos, 2026-08-05). Lectura abierta, escritura tras
+  // el perímetro: nadie tiene que manejar una credencial para cambiarlas.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_config (name TEXT PRIMARY KEY, value TEXT, updated_at INTEGER, updated_by TEXT)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS strategy (team TEXT PRIMARY KEY, text TEXT, updated_at INTEGER, updated_by TEXT)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS decisions (id TEXT PRIMARY KEY, machine TEXT, agent TEXT, surface TEXT, question TEXT, options TEXT, recommended INTEGER DEFAULT 0, status TEXT DEFAULT 'pending', chosen INTEGER, chosen_by TEXT, created_at INTEGER, deadline INTEGER, decided_at INTEGER)");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_dec_status ON decisions(status, deadline)");
@@ -960,6 +967,7 @@ __name(exactDecisionProjectAssignment, "exactDecisionProjectAssignment");
 // agente y hora de Madrid. Las continuaciones del mismo lote no son OnIdle.
 // `user_override:true` sólo lo usa el coordinador cuando Carlos lo pide de forma
 // explícita (como en la ventana manual); queda visible en la respuesta del API.
+var HOURLY_WINDOW_MS = 60 * 60 * 1000;   // reloj de ventana de decisión
 function madridHourKey(ms) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit",
@@ -1530,11 +1538,19 @@ async function openInitialMissionDecision(env, input) {
     return { ok: false, status: 409, error: "live_decision", existing: live.id, deadline: live.deadline,
              secondsLeft: Math.max(0, Math.round((live.deadline - now) / 1000)) };
   }
-  const hour = madridHourKey(now);
-  const recent = await env.DB.prepare("SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) AND (parent_decision IS NULL OR parent_decision='') ORDER BY created_at DESC LIMIT 200").bind(agent).all();
-  const previous = (recent.results || []).find((row) => madridHourKey(row.created_at) === hour);
+// VENTANA MÓVIL DE 60 MINUTOS (Carlos, 2026-08-05). Antes el límite era «una
+// por HORA NATURAL de Madrid», y tenía un filo feo: abrir a las 11:55 dejaba
+// abrir otra a las 12:00, cinco minutos después, mientras que abrir a las 11:05
+// obligaba a esperar 55. Ahora el reloj se pone a CERO en cada ventana y corre
+// 60 minutos enteros, que es lo que la línea del Highscore pinta bajo cada
+// agente. madridHourKey se conserva: lo usa el resto del día natural.
+  const desde = now - HOURLY_WINDOW_MS;
+  const previous = await env.DB.prepare(
+    "SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) AND (parent_decision IS NULL OR parent_decision='') AND created_at > ? ORDER BY created_at DESC LIMIT 1"
+  ).bind(agent, desde).first();
   if (previous && input.user_override !== true) {
-    return { ok: false, status: 409, error: "hourly_limit", existing: previous.id, hour };
+    return { ok: false, status: 409, error: "hourly_limit", existing: previous.id,
+             nextAt: Number(previous.created_at) + HOURLY_WINDOW_MS };
   }
   const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
   await backfillTodayDisplayRefs(env, now);
@@ -3445,6 +3461,15 @@ var index_default = {
     }
     // ESTRATEGIA (norte) — LECTURA PÚBLICA: los agentes la leen desde el CLI,
     // igual que publican decisiones, sin login de navegador.
+    // CONFIG DE FLOTA — LECTURA PÚBLICA. Un agente la consulta al arrancar
+    // desde el CLI, sin sesión y sin secreto: `curl .../fleet/config`.
+    if (url.pathname === "/fleet/config") {
+      await ensureSchema(env);
+      const rows = ((await env.DB.prepare("SELECT name, value, updated_at, updated_by FROM fleet_config").all()).results) || [];
+      const config = {};
+      for (const r of rows) config[r.name] = { value: r.value || "", updated_at: r.updated_at || 0, updated_by: r.updated_by || "" };
+      return json({ ok: true, config });
+    }
     if (url.pathname === "/fleet/strategy") {
       await ensureSchema(env);
       const rows = ((await env.DB.prepare("SELECT team, text, updated_at, updated_by FROM strategy").all()).results) || [];
@@ -4574,6 +4599,23 @@ var index_default = {
     // Un commit, un sello de despliegue o una URL viva. Es lo único que separa
     // declarar trabajo de apuntarse puntos, y por eso la ruta puede ser pública
     // sin convertirse en un grifo de marcador.
+    // CONFIG DE FLOTA — ESCRITURA protegida por el perímetro (sesión de Google).
+    if (url.pathname === "/config" && req.method === "POST") {
+      await ensureSchema(env);
+      let b; try { b = await req.json(); } catch (e) { return json({ ok: false, error: "bad json" }, 400); }
+      // Nombre acotado: es una bandera, no un cajón de sastre donde acabe
+      // colándose un secreto por la puerta de atrás.
+      const name = String(b.name || "").trim().toUpperCase().slice(0, 40);
+      if (!/^[A-Z][A-Z0-9_]{2,39}$/.test(name)) return json({ ok: false, error: "name debe ser A-Z0-9_ (3..40)" }, 400);
+      const value = String(b.value == null ? "" : b.value).slice(0, 500);
+      const sess = await requireAuth(env, req);
+      const by = (sess && sess.email) || "web";
+      const now = Date.now();
+      await env.DB.prepare("INSERT INTO fleet_config (name, value, updated_at, updated_by) VALUES (?,?,?,?) ON CONFLICT(name) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at, updated_by=excluded.updated_by")
+        .bind(name, value, now, by).run();
+      return json({ ok: true, name, value, updated_at: now, updated_by: by });
+    }
+
     // ESTRATEGIA (norte) — ESCRITURA protegida por el perímetro. team ∈ atomos|bits.
     if (url.pathname === "/strategy" && req.method === "POST") {
       await ensureSchema(env);
@@ -4788,10 +4830,12 @@ var index_default = {
                         secondsLeft: Math.max(0, Math.round((live.deadline - now) / 1000)) }, 409);
         }
         if (!continuation && !userOverride) {
-          const hour = madridHourKey(now);
-          const recent = await env.DB.prepare("SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) AND (parent_decision IS NULL OR parent_decision='') ORDER BY created_at DESC LIMIT 200").bind(agent).all();
-          const previous = (recent.results || []).find((row) => madridHourKey(row.created_at) === hour);
-          if (previous) return json({ ok: false, error: "hourly_limit", existing: previous.id, hour }, 409);
+          // Mismo reloj móvil de 60 min que openInitialMissionDecision.
+          const previous = await env.DB.prepare(
+            "SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) AND (parent_decision IS NULL OR parent_decision='') AND created_at > ? ORDER BY created_at DESC LIMIT 1"
+          ).bind(agent, now - HOURLY_WINDOW_MS).first();
+          if (previous) return json({ ok: false, error: "hourly_limit", existing: previous.id,
+            nextAt: Number(previous.created_at) + HOURLY_WINDOW_MS }, 409);
         }
         const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
         await backfillTodayDisplayRefs(env, now);
