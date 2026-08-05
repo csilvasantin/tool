@@ -1001,7 +1001,11 @@
         by[t.mission_id] = { mission: {
           id: t.mission_id, subject: t.subject, screen: t.screen, loc: t.loc,
           source: t.source, role: t.role, assignee: t.assignee, status: t.mission_status,
-          created_at: t.mission_created, display_ref: t.mission_display_ref || ""
+          project: t.project || "", project_name: t.project_name || t.project || "",
+          live_shot: t.live_shot || "", live_at: t.live_at || 0,
+          resolved_at: t.mission_resolved || 0,
+          proof_image: t.mission_proof || "", created_at: t.mission_created,
+          display_ref: t.mission_display_ref || ""
         }, tasks: [] };
         order.push(t.mission_id);
       }

@@ -20,7 +20,7 @@ test('fallback común usa 0000, fecha completa con año y hora de Madrid',()=>{
 test('las cuatro vistas cargan la fuente común y conservan ids técnicos en acciones',()=>{
   for(const name of ['objetivos.html','decisiones.html','misiones.html','tareas.html']) assert.match(files[name],/\/yk-display-ref\.js/);
   assert.match(files['objetivos.html'],/href="\/tareas\?mission='\+encodeURIComponent\(i\.mission_id\)/);
-  assert.match(files['tareas.html'],/href="\/ticket\?id=\$\{encodeURIComponent\(g\.mission\.id\)\}/);
+  assert.match(files['tareas.html'],/YkMisiones\.rowHtml\(mission\)/);
   assert.match(files['misiones.html'],/projectIdLayout:true/);
 });
 
@@ -28,7 +28,7 @@ test('Objetivos, Decisiones, Misiones y Tareas pintan la referencia humana',()=>
   assert.match(files['objetivos.html'],/function workRef\(row\)/);
   assert.match(files['yk-decisions.js'],/function workRef\(d\)/);
   assert.match(files['yk-misiones.js'],/function visibleId\(t\)[\s\S]*display_ref/);
-  assert.match(files['tareas.html'],/YkMisiones\.visibleId\(g\.mission\)/);
+  assert.match(files['tareas.html'],/YkMisiones\.visibleId\(_focusMission/);
   assert.match(files['yk-misiones.js'],/class="scode"[\s\S]*visibleId\(t\)/);
 });
 

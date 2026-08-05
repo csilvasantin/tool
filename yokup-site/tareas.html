@@ -23,116 +23,40 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .sub{color:var(--mut);font-size:14.5px;margin-bottom:14px}.sub b{color:var(--brand)}
 /* Filtro por FECHA de creación de la misión (por defecto: hoy). */
 .tfilter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
-.tf{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;border-radius:9px;border:1px solid var(--line);color:var(--mut);background:var(--card);cursor:pointer;transition:.2s}
-.tf:hover{color:var(--brand);border-color:var(--line2)}
-.tf.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:14px;align-items:start}
-.mcard{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:16px 17px}
-.mcard .mhd{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-family:var(--mono);margin-bottom:6px}
-.mcard .mid{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--brand);text-decoration:none}.mcard .mid:hover{text-decoration:underline}
-.mcard .tcount{font-size:10px;color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:3px 8px;margin-left:auto;white-space:nowrap}
-.mcard .msub{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:2px}
-.mcard .mmeta{font-family:var(--mono);font-size:10.5px;color:var(--mut);margin-bottom:10px}.mcard .mmeta .scr{color:var(--brand)}
-.mcard .tree{border-top:1px solid var(--line);padding-top:10px}
-.mcard .mhd{cursor:pointer}
-.mcard .mtog{flex:none;border:none;background:transparent;color:var(--mut);font-size:12px;cursor:pointer;padding:0 2px;line-height:1}
-.mcard.collapsed .tree,.mcard.collapsed .mmeta{display:none}
-.mcard.collapsed{padding-bottom:13px;opacity:.92}
-.mcard.collapsed .msub{margin-bottom:0}
-/* VISTA LISTA (conmutador del cabezal, 962): las fichas altas pasan a filas
-   compactas de una columna (cabecera + título, sin el árbol). Cero scroll horizontal:
-   sigue siendo una columna fluida, no una tabla desbordada. */
-html[data-yk-view="list"] .grid{grid-template-columns:1fr}
-html[data-yk-view="list"] .mcard .tree,html[data-yk-view="list"] .mcard .mmeta{display:none}
-html[data-yk-view="list"] .mcard{padding:11px 15px}
-html[data-yk-view="list"] .mcard .mtog{display:none}
+.tfilter label{font:10px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--dim)}
+.tf{min-height:40px;font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:8px 34px 8px 11px;border-radius:9px;border:1px solid var(--line);color:var(--ink);background:var(--card);cursor:pointer;color-scheme:dark}
+.tf:hover,.tf:focus-visible{color:var(--brand);border-color:var(--line2);outline:none}
+.tfday[hidden]{display:none}
+/* Una misión = una fila completa, igual que en /misiones. El árbol accionable
+   queda debajo y no altera la identidad mission_id + code de cada chip. */
+.taskboard{overflow:visible}
+.taskmission{border-bottom:1px solid var(--line);background:var(--card)}
+.taskmission:last-child{border-bottom:0}
+.taskmission>.tk{border-bottom:0}
+.taskdetail{padding:10px 16px 14px 32px;border-top:1px dashed var(--line);background:rgba(120,243,255,.018)}
+.taskdetail[hidden]{display:none}
+.taskfold{display:flex;align-items:center;gap:7px;margin:0 16px 9px 32px;border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--mut);font:10px var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:5px 9px;cursor:pointer}
+.taskfold:hover,.taskfold:focus-visible{color:var(--brand);border-color:var(--line2);outline:none}
+.taskfold .caret{transition:transform .15s}.taskmission.open .taskfold .caret{transform:rotate(90deg)}
+/* AGENTE/PLATAFORMA primero; los mismos seis carriles legibles de /misiones. */
+.hd.project-id-layout{grid-template-columns:8px minmax(140px,var(--c-who,170px)) minmax(150px,var(--c-id,170px)) minmax(230px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,250px)) minmax(0,var(--c-est,124px))}
+.project-id-cell{padding-right:10px}.project-id-main{position:relative}
+.project-id-layout .mission-col{padding-block:3px}
+.project-id-layout .mission-col .subj .t{-webkit-line-clamp:2;line-clamp:2}
+/* El conmutador histórico sigue siendo útil: Fichas conserva el detalle plegable;
+   Lista deja sólo las filas completas, sin recuperar la antigua parrilla. */
+html[data-yk-view="list"] .taskfold,html[data-yk-view="list"] .taskdetail{display:none}
+@media(max-width:1100px){.hd.project-id-layout{grid-template-columns:8px minmax(130px,var(--c-who,150px)) minmax(142px,var(--c-id,158px)) minmax(210px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,230px)) minmax(0,var(--c-est,112px))}}
+@media(max-width:720px){.hd.project-id-layout{grid-template-columns:8px 1fr}.taskdetail{padding:9px 12px 13px 20px}.taskfold{margin-left:20px}.taskfold,.abc-task,.focobar a{min-height:44px}.tf{min-height:44px}:is(.chip,.tkopen,.substog){display:inline-flex;min-width:44px;min-height:44px;align-items:center;justify-content:center}}
 /* Foco de una misión (964): breadcrumb de vuelta a la lista completa. */
-.focobar{grid-column:1/-1;display:flex;align-items:center;gap:12px;margin-bottom:4px;font-family:var(--mono);font-size:11px}
+.focobar{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11px}
 .focobar a{color:var(--brand);text-decoration:none;border:1px solid var(--line2);border-radius:8px;padding:6px 11px}.focobar a:hover{background:rgba(120,243,255,.08)}
 .focobar .focoid{color:var(--mut);letter-spacing:.05em}
-.bigempty{border:1px dashed var(--line2);border-radius:14px;padding:44px 24px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12.5px;letter-spacing:.04em;line-height:1.7;grid-column:1/-1}
+.bigempty{border:1px dashed var(--line2);border-radius:14px;padding:44px 24px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12.5px;letter-spacing:.04em;line-height:1.7}
 .bigempty b{color:var(--mut);display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .bigempty a{color:var(--brand)}
 .foot{margin-top:24px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
-
-  /* Estilos históricos del componente de Misiones; Tareas no lo monta. */
-  .decs{margin:0 0 18px;border:1px solid var(--warn,#ffb545);border-radius:12px;
-    background:rgba(255,181,69,.05);padding:13px 15px}
-  .decs-hd{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
-    color:var(--warn,#ffb545);font-weight:700;display:flex;align-items:center;gap:9px;margin-bottom:11px}
-  .decs-n{color:var(--mut);letter-spacing:.05em}
-  .decs-list{display:flex;flex-direction:column;gap:11px}
-  .dec{border:1px solid var(--line2);border-radius:10px;background:var(--card);padding:12px 13px}
-  .dec.urge{border-color:#ff6b6b;box-shadow:0 0 18px -6px #ff6b6b}
-  .dec-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}
-  .dec-k{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
-    color:var(--mut);border:1px solid var(--line);border-radius:6px;padding:3px 7px;white-space:nowrap}
-  .dec-k.ag{color:var(--brand,#78f3ff);border-color:rgba(120,243,255,.35)}
-  .dec-k.sur{color:#9effb0;border-color:rgba(61,240,138,.35)}
-  .dec-clock{margin-left:auto;font-family:var(--mono);font-size:15px;font-weight:700;
-    color:var(--warn,#ffb545);letter-spacing:.06em;font-variant-numeric:tabular-nums}
-  .dec.urge .dec-clock{color:#ff6b6b;animation:decblink 1s infinite}
-  @keyframes decblink{0%,100%{opacity:1}50%{opacity:.45}}
-  .dec-q{font-size:13px;line-height:1.4;color:var(--ink);margin-bottom:10px}
-  .dec-opts{display:flex;flex-direction:column;gap:6px}
-  .dec-opt{display:flex;align-items:flex-start;gap:8px;text-align:left;width:100%;
-    font-family:inherit;font-size:12px;line-height:1.35;color:var(--ink);cursor:pointer;
-    background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 10px;transition:.15s}
-  .dec-opt:hover{border-color:var(--brand,#78f3ff);background:rgba(120,243,255,.06)}
-  .dec-opt:disabled{cursor:default;opacity:.72}
-  .dec-opt:disabled:hover{border-color:var(--line);background:transparent}
-  .dec-opt .n{font-family:var(--mono);font-size:10px;color:var(--mut);flex:none;padding-top:2px}
-  .dec-opt.rec{border-color:var(--warn,#ffb545)}
-  .dec-opt.rec .n{color:var(--warn,#ffb545)}
-  .dec-opt.effective{opacity:1;border-color:var(--good,#3df08a);background:rgba(61,240,138,.09);
-    box-shadow:inset 3px 0 0 var(--good,#3df08a)}
-  .dec-opt.effective .n{color:var(--good,#3df08a);font-weight:800}
-  .dec-opt.effective.expired{border-color:var(--warn,#ffb545);background:rgba(255,181,69,.08);
-    box-shadow:inset 3px 0 0 var(--warn,#ffb545)}
-  .dec-opt.effective.expired .n{color:var(--warn,#ffb545)}
-  .dec-done{font-family:var(--mono);font-size:11px;padding:7px 0 0}
-  .dec-done.ok{color:var(--good,#3df08a)}
-  .dec-done.exp{color:var(--mut)}
-  /* Retrato REAL del agente y foto/icono del equipo en la cabecera */
-  .dec-k{display:inline-flex;align-items:center;gap:5px}
-  .dec-av{width:18px;height:18px;border-radius:4px;object-fit:cover;object-position:center top;
-    border:1px solid rgba(120,243,255,.35);display:block}
-  .dec-k.maq img.machava{width:16px;height:16px;border-radius:3px;object-fit:cover;vertical-align:middle}
-  /* BARRA DE PROGRESO de la opción que se ejecutará: el relleno avanza con el
-     reloj — cuando llega al 100% es el momento en que el agente tira con ella. */
-  .dec-opt.rec{position:relative;overflow:hidden;--fill:0%}
-  .dec-opt.rec::before{content:"";position:absolute;inset:0 auto 0 0;width:var(--fill);
-    background:linear-gradient(90deg,rgba(255,181,69,.05),rgba(255,181,69,.22));
-    border-right:2px solid var(--warn,#ffb545);transition:width 1s linear;pointer-events:none;z-index:0}
-  .dec-opt.rec > *{position:relative;z-index:1}
-  .dec.urge .dec-opt.rec::before{background:linear-gradient(90deg,rgba(255,107,107,.08),rgba(255,107,107,.3));
-    border-right-color:#ff6b6b}
-  /* triangulito del titular: la explicación va plegada (más sitio para tareas) */
-  .tgl{font-family:var(--mono);font-size:13px;line-height:1;color:var(--mut);background:transparent;
-    border:1px solid var(--line);border-radius:6px;padding:3px 7px;cursor:pointer;vertical-align:middle;margin-left:6px}
-  .tgl:hover{color:var(--brand);border-color:var(--brand)}
-
-  /* ═══ MISIÓN que engloba los relojes (Carlos, 2026-07-21) ══════════════════
-     Cada grupo de decisiones se encabeza con SU site: URL + captura viva
-     (iframe escalado) para reconocer de un vistazo a qué misión pertenecen;
-     las decisiones cuelgan DENTRO de la misión. Site deducido del texto. */
-  .dec-mission{border:1px solid var(--line2);border-radius:12px;overflow:hidden;
-    background:rgba(120,243,255,.03)}
-  .dm-head{display:flex;align-items:center;gap:10px;padding:11px 13px;border-bottom:1px solid var(--line)}
-  .dm-fav{width:22px;height:22px;border-radius:5px;flex:none;background:var(--card);object-fit:cover;font-size:14px}
-  .dm-url{font-family:var(--mono);font-size:13.5px;font-weight:700;color:var(--brand);text-decoration:none;
-    letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .dm-url:hover{text-decoration:underline}
-  .dm-count{margin-left:auto;flex:none;font-family:var(--mono);font-size:10px;letter-spacing:.05em;
-    text-transform:uppercase;color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:3px 9px;white-space:nowrap}
-  .dm-shot{position:relative;width:100%;height:190px;overflow:hidden;background:var(--bg);border-bottom:1px solid var(--line)}
-  .dm-shot .dm-ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim);
-    background:radial-gradient(120% 90% at 50% 0,rgba(120,243,255,.06),transparent)}
-  .dm-shot iframe{position:absolute;top:0;left:0;width:1400px;height:1000px;border:0;
-    transform-origin:top left;pointer-events:none;background:transparent}
-  .dec-mission-body{display:flex;flex-direction:column;gap:11px;padding:12px 13px}
-  .dec-mission.nosite .dm-head{border-bottom:0}
+.tgl{font-family:var(--mono);font-size:13px;line-height:1;color:var(--mut);background:transparent;border:1px solid var(--line);border-radius:6px;padding:3px 7px;cursor:pointer;vertical-align:middle;margin-left:6px}.tgl:hover{color:var(--brand);border-color:var(--brand)}
 </style>
 </head>
 <body data-yk-title="TAREAS" data-yk-zone="app">
@@ -146,16 +70,18 @@ html[data-yk-view="list"] .mcard .mtog{display:none}
        (modelo de 8) no se tocan: sus filas se cuentan aparte como «+n». -->
   <div id="cabezal"></div>
 
-  <!-- Presets de FECHA de creación (el día concreto se elige en el selector del
-       cabezal). Por defecto sólo las de HOY. -->
+  <!-- Un único control temporal: presets y día concreto integrados. -->
   <div class="tfilter" id="tfilter">
-    <button class="tf on" data-r="hoy">Hoy</button>
-    <button class="tf" data-r="ayer">Ayer</button>
-    <button class="tf" data-r="7d">Últimos 7 días</button>
-    <button class="tf" data-r="todas">Todas</button>
+    <label for="rangePreset">Fecha de creación</label>
+    <select class="tf" id="rangePreset" aria-label="Rango de fecha">
+      <option value="hoy">Hoy</option><option value="ayer">Ayer</option>
+      <option value="7d">Últimos 7 días</option><option value="todas">Todas</option>
+      <option value="dia">Día concreto…</option>
+    </select>
+    <input class="tf tfday" id="rangeDay" type="date" aria-label="Día concreto" hidden>
   </div>
 
-  <div class="grid" id="grid"><div class="bigempty"><b>Cargando tareas…</b>Reuniendo los planes de todas las misiones.</div></div>
+  <div class="list taskboard" id="grid"><div class="bigempty"><b>Cargando tareas…</b>Reuniendo los planes de todas las misiones.</div></div>
   <div class="foot">Yokup · tareas de todas las misiones · plan <b>a·b·c × 1·2·3</b> · persistencia <b>D1</b></div>
 
   <!-- EXPERTO (raíl inferior) -->
@@ -167,9 +93,9 @@ html[data-yk-view="list"] .mcard .mtog{display:none}
 
 <script src="/yk-agent-identity.js?v=v.2026.08.02.224605"></script>
 <script src="/yk-avatar.js?v=r3"></script>
-<script src="/yk-misiones.js?v=r48"></script>
+<script src="/yk-misiones.js?v=r49"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
-<script src="/yk-cabezal.js?v=r2"></script>
+<script src="/yk-cabezal.js?v=r3"></script>
 <script>
 const WORKER="https://api.yokup.com";
 const $=id=>document.getElementById(id);
@@ -178,7 +104,7 @@ const esc=YkMisiones.esc;
 // Carlos para no re-plegárselas. «Sino decido yo lo contrario» = por defecto plegadas. (954)
 const OPEN_CARDS=new Set((()=>{try{return JSON.parse(localStorage.getItem("yk_tareas_open")||"[]")}catch(e){return[]}})());
 function saveOpenCards(){try{localStorage.setItem("yk_tareas_open",JSON.stringify([...OPEN_CARDS]))}catch(e){}}
-YkMisiones.init({worker:WORKER});
+YkMisiones.init({worker:WORKER, columnMode:"tasks", projectIdLayout:true});
 // FOCO desde la URL (964): /tareas?mission=FLT-XXX muestra SOLO esa misión (con su
 // ficha ABIERTA aunque el resto vaya plegado), y #a / #b2 hace scroll y la RESALTA.
 // Enlace compartible que abre justo donde toca, en las dos vistas.
@@ -203,16 +129,12 @@ const CAB=YkCabezal.mount($("cabezal"), {
   searchPlaceholder:"🔎 Buscar tarea…",
   intro:'Los pasos en que se descompone cada misión — <b>regla de los tercios</b>: <b>3 tareas</b> a·b·c con <b>3 subtareas</b> cada una (a1…c3, máx 9) — una misión = jornada completa de un agente. Las <b>tareas sueltas</b> son la excepción explícita: nacen dentro de una misión-contenedor ligera con una sola tarea y no reciben pasos artificiales. Chips clicables ○◐● para avanzar estado; ⚙️ ejecutan los subagentes, 📝 reportan los infraagentes. Agrupado por misión, lo más reciente primero.',
   defaultView:"cards",   // /tareas nace en FICHAS; el conmutador la pasa a lista (962)
+  showDay:false,          // los presets y el día viven en el único control inferior
   onView:()=>render(),
   onState:f=>{ STATE=f; render(); },
   onSearch:q=>{ SEARCH=q; render(); },
-  onDay:ymd=>{ if(!ymd) return; DFILTER={mode:"dia", day:ymd};
-    $("tfilter").querySelectorAll(".tf").forEach(x=>x.classList.remove("on"));
-    $("grid").innerHTML='<div class="bigempty"><b>Cargando…</b>Filtrando por fecha.</div>'; load(); },
   onCreated:()=>load()
 });
-// El día concreto por defecto = HOY (coincide con el preset «Hoy» activo).
-(function(){ const d=new Date(),p=n=>(n<10?"0":"")+n; CAB.setDay(d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())); })();
 
 // ── FILTRO POR FECHA (de creación de la misión) ──────────────────────────────
 // Por defecto sólo salen las creadas HOY (Carlos, 2026-07-15). Los presets y el
@@ -317,31 +239,31 @@ function render(){
   // Breadcrumb de vuelta cuando hay foco (964): que no se quede uno atrapado.
   const _focusMission=FOCUS&&GROUPS.map(g=>g.mission).find(m=>m.id===FOCUS);
   const _bc = FOCUS ? '<div class="focobar"><a href="/tareas">← ver todas las misiones</a><span class="focoid" title="ID técnico: '+esc(FOCUS)+'">🎯 '+esc(YkMisiones.visibleId(_focusMission||{id:FOCUS}))+'</span></div>' : "";
-  box.innerHTML=_bc+gs.map(g=>{const _op=OPEN_CARDS.has(g.mission.id)||g.mission.id===FOCUS;return `<div class="mcard ${_op?'':'collapsed'}" data-id="${esc(g.mission.id)}">
-    <div class="mhd"><button class="mtog" title="plegar / desplegar" aria-expanded="${_op}">${_op?'▾':'▸'}</button><a class="mid" href="/ticket?id=${encodeURIComponent(g.mission.id)}" title="Abrir misión · ID técnico ${esc(g.mission.id)}">🎯 ${esc(YkMisiones.visibleId(g.mission))}</a>${(()=>{const p=YkMisiones.tercios(g.tasks,g.mission.role==="standalone-task");
-      // REGLA DE LOS TERCIOS (FLT-979 c): esta cabecera decía «regla de los
-      // tercios» en el tooltip pero pintaba subtareas_hechas/subCount(), o sea
-      // denominadores libres (1/22, 1/13, 1/10, 1/7…) — justo lo que la misión
-      // venía a matar. Ahora usa el MISMO chip que /misiones: n/3 · n/9 (+n).
-      return p?YkMisiones.progHtml(p):'<span class="tcount" title="esta misión aún no tiene plan">0/3</span>';})()}</div>
-    <div class="msub">${esc(g.mission.subject)}</div>
-    <div class="mmeta"><span class="scr">${esc(g.mission.screen||"")}</span>${g.mission.loc?" · "+esc(g.mission.loc):""}</div>
-    <div class="tree">${YkMisiones.stepsHtml(g.tasks)}</div>
-  </div>`;}).join("");
+  const _head='<div class="hd lhead project-id-layout"><div></div><div class="lh-static">Agente/Plataforma</div><div class="lh-static">Proyecto</div><div class="lh-static">Misión</div><div class="lh-static">Tareas A·B·C</div><div class="lh-static">Estado / acciones</div></div>';
+  box.innerHTML=_bc+_head+gs.map(g=>{
+    const _op=OPEN_CARDS.has(g.mission.id)||g.mission.id===FOCUS;
+    const mission={...g.mission,_tasks:g.tasks,_prog:YkMisiones.tercios(g.tasks,g.mission.role==="standalone-task")};
+    return `<section class="taskmission ${_op?'open':''}" data-id="${esc(g.mission.id)}">
+      ${YkMisiones.rowHtml(mission)}
+      <button type="button" class="taskfold" aria-expanded="${_op}" aria-controls="tasks-${esc(g.mission.id)}"><span class="caret">▸</span> ${_op?'Ocultar':'Mostrar'} árbol accionable</button>
+      <div class="taskdetail" id="tasks-${esc(g.mission.id)}"${_op?'':' hidden'}><div class="tree">${YkMisiones.stepsHtml(g.tasks)}</div></div>
+    </section>`;
+  }).join("");
+  YkMisiones.bindRows(box);
   // chips clicables: avanzan estado contra el worker y repintan
-  box.querySelectorAll(".mcard").forEach(card=>{
+  box.querySelectorAll(".taskmission").forEach(card=>{
     const mid=card.dataset.id;
-    // Plegar/desplegar: clic en la cabecera (menos el enlace al ticket) alterna, y
-    // recuerda la elección. La cabecera (id + progreso + estado) siempre visible.
-    const hd=card.querySelector(".mhd");
-    if(hd) hd.addEventListener("click",e=>{
-      if(e.target.closest("a")) return;
-      card.classList.toggle("collapsed");
-      const open=!card.classList.contains("collapsed");
+    // El botón es el ÚNICO control que pliega/despliega. El clic libre en la
+    // fila queda reservado al selector compartido de misión (bindRows).
+    const toggle=()=>{
+      const open=!card.classList.contains("open");
+      card.classList.toggle("open",open);
       if(open) OPEN_CARDS.add(mid); else OPEN_CARDS.delete(mid);
       saveOpenCards();
-      const b=card.querySelector(".mtog"); if(b){b.textContent=open?"▾":"▸";b.setAttribute("aria-expanded",String(open));}
-    });
+      const detail=card.querySelector(".taskdetail");if(detail)detail.hidden=!open;
+      const b=card.querySelector(".taskfold");if(b){b.setAttribute("aria-expanded",String(open));b.lastChild.textContent=open?" Ocultar árbol accionable":" Mostrar árbol accionable";}
+    };
+    const fold=card.querySelector(".taskfold");if(fold)fold.onclick=toggle;
     card.querySelectorAll(".chip").forEach(ch=>{
       ch.onclick=()=>{
         const cur=["pending","in_progress","done"].find(s=>ch.classList.contains(s))||"pending";
@@ -360,20 +282,21 @@ function render(){
     }
   }
 }
-// Cableado de los presets de fecha. Cambiar recarga y refleja el día concreto
-// en el selector del cabezal (para que ambos digan lo mismo).
+// Presets + día concreto comparten un único selector; el calendario sólo aparece
+// cuando se elige «Día concreto…», por lo que no compiten dos filtros visibles.
 const _pd=n=>(n<10?"0":"")+n, _dstr=d=>d.getFullYear()+"-"+_pd(d.getMonth()+1)+"-"+_pd(d.getDate());
-$("tfilter").querySelectorAll(".tf").forEach(b=>b.onclick=()=>{
-  DFILTER={mode:b.dataset.r, day:""};
-  $("tfilter").querySelectorAll(".tf").forEach(x=>x.classList.toggle("on",x===b));
-  // El selector de día del cabezal acompaña al preset: hoy/ayer muestran su
-  // fecha; 7d/todas lo dejan en blanco (no expresan un día concreto).
-  if(b.dataset.r==="hoy") CAB.setDay(_dstr(new Date()));
-  else if(b.dataset.r==="ayer"){ const d=new Date(); d.setDate(d.getDate()-1); CAB.setDay(_dstr(d)); }
-  else CAB.setDay("");
+const rangePreset=$("rangePreset"),rangeDay=$("rangeDay");
+rangeDay.value=_dstr(new Date());
+function applyDateFilter(){
+  const mode=rangePreset.value;
+  rangeDay.hidden=mode!=="dia";
+  if(mode==="dia"&&!rangeDay.value)return;
+  DFILTER={mode,day:mode==="dia"?rangeDay.value:""};
   $("grid").innerHTML='<div class="bigempty"><b>Cargando…</b>Filtrando por fecha.</div>';
   load();
-});
+}
+rangePreset.onchange=applyDateFilter;
+rangeDay.onchange=applyDateFilter;
 
 load(); setInterval(load,15000);
 </script>

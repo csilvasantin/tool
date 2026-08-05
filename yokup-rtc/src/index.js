@@ -1716,7 +1716,7 @@ async function listAllMissionTasks(env, scope) {
     // mission_proof) para que la columna Captura tenga un fallback real cuando la
     // tarea no dejó imagen propia. No rompe a /tareas: sólo añade campos.
     `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.report, m.image, m.created_at, m.updated_at,
-            t.subject, t.screen, t.loc, t.project, t.source, t.role, t.assignee, t.live_shot,
+            t.subject, t.screen, t.loc, t.project, t.source, t.role, t.assignee, t.live_shot, t.live_at,
             t.status AS mission_status, t.created_at AS mission_created,
             t.resolved_at AS mission_resolved, t.proof_image AS mission_proof
        FROM mission_tasks m JOIN tickets t ON t.id = m.mission_id

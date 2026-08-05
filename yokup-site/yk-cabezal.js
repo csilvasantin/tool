@@ -35,6 +35,7 @@
     const WORKER = opts.worker;
     const taskMode = opts.createKind === "task";
     const showSearch = opts.search !== false;
+    const showDay = opts.showDay !== false;
     const $ = id => document.getElementById(id);
 
     // ── MARCADO DEL CABEZAL ────────────────────────────────────────────────
@@ -54,7 +55,7 @@
         '<button data-f="unconcluded" class="kpi a"><b id="kNoCon">—</b> no concluidas</button>' +
         '<button data-f="resolved" class="kpi c"><b id="kRes">—</b> finalizadas</button>' +
         '<button data-f="cancelled" class="kpi d"><b id="kDel">—</b> eliminadas</button>' +
-        '<input type="date" id="selDia" class="kpi kdate" title="Día del tablero — por defecto hoy">' +
+        (showDay ? '<input type="date" id="selDia" class="kpi kdate" title="Día del tablero — por defecto hoy">' : '') +
         // Conmutador de VISTA (fichas / lista), recuerda la elección por página. (962)
         '<button id="viewTgl" class="kpi kview" title="Cambiar vista: fichas o lista">🗂</button>' +
       '</div>' +
