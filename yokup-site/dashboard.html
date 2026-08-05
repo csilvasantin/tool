@@ -230,16 +230,16 @@ const PROJECT_SCOPE_KEY="yokup.dashboard.projects.v1";
 const TEAM_SCOPE_KEY="yokup.dashboard.teams.v1";
 const SCOPE_DEFAULTS_KEY="yokup.dashboard.census-defaults.v1";
 const FLEET_CENSUS="/api/fleet-census";
-const PROJECT_LAUNCH_HOSTS=Object.freeze(["pixeria.com","xpaceos.com","clearchannel.tv","yokup.com","admiranext.com"]);
-let SCOPE_DEFAULTS_PENDING=true;
-try{
-  if(localStorage.getItem(SCOPE_DEFAULTS_KEY)!=="1"){
-    localStorage.setItem(SCOPE_DEFAULTS_KEY,"1");
-    SCOPE_DEFAULTS_PENDING=true;
-  }else SCOPE_DEFAULTS_PENDING=false;
-}catch(e){}
-let PROJECT_SCOPE=paReadProjectScope();
-let TEAM_SCOPE=paReadScope(TEAM_SCOPE_KEY);
+// Cada documento nace en TODOS. Los filtros son estado efímero de esta pestaña:
+// no se heredan de otra carga, de otra pestaña ni de enlaces compartidos.
+function paClearLegacyScopes(){
+  [typeof localStorage!=="undefined"?localStorage:null,typeof sessionStorage!=="undefined"?sessionStorage:null].forEach(store=>{
+    if(!store)return;[PROJECT_SCOPE_KEY,TEAM_SCOPE_KEY,SCOPE_DEFAULTS_KEY].forEach(key=>{try{store.removeItem(key);}catch(e){}});
+  });
+}
+paClearLegacyScopes();
+let PROJECT_SCOPE=null;
+let TEAM_SCOPE=null;
 let PROJECT_FILTER="all";
 let TEAM_FILTER="all";
 const COLUMN_OFFSETS={projects:0,teams:0};
@@ -249,17 +249,10 @@ let NODE_DRAG=null;
 const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
 function paScopeIsAll(scope){return scope===null||!!(scope&&typeof scope==="object"&&scope.mode==="all");}
 function paScopeValues(scope){return scope instanceof Set?[...scope]:Array.isArray(scope)?scope:[];}
-function paReadScope(key){try{const value=JSON.parse(localStorage.getItem(key));return Array.isArray(value)?new Set(value.map(String)):null;}catch(e){return null;}}
-function paWriteScope(key,scope){try{if(paScopeIsAll(scope))localStorage.removeItem(key);else localStorage.setItem(key,JSON.stringify(paScopeValues(scope).map(String)));}catch(e){}}
-function paReadProjectScope(){
-  try{
-    const raw=localStorage.getItem(PROJECT_SCOPE_KEY);if(raw===null)return undefined;
-    const value=JSON.parse(raw);
-    if(Array.isArray(value))return new Set(value.map(String));
-    return value&&value.mode==="all"?null:undefined;
-  }catch(e){return undefined;}
-}
-function paWriteProjectScope(scope){try{localStorage.setItem(PROJECT_SCOPE_KEY,JSON.stringify(paScopeIsAll(scope)?{mode:"all"}:paScopeValues(scope).map(String)));}catch(e){}}
+function paReadScope(){return null;}
+function paWriteScope(){}
+function paReadProjectScope(){return null;}
+function paWriteProjectScope(){}
 function paScopeAllows(scope,key){return paScopeIsAll(scope)||paScopeValues(scope).map(String).includes(String(key));}
 function paNormalizeScope(scope,keys){
   if(paScopeIsAll(scope))return null;
@@ -364,13 +357,6 @@ function paInitials(agent){
 function paWeb(value){
   const raw=String(value||"").trim(); if(!raw)return "";
   try{return new URL(/^https?:\/\//i.test(raw)?raw:"https://"+raw).href;}catch(e){return "";}
-}
-function paLaunchProjects(rows){
-  const source=Array.isArray(rows)?rows:[],names={"pixeria.com":"Pixeria","xpaceos.com":"XpaceOS","clearchannel.tv":"ClearChannel TV","yokup.com":"Yokup","admiranext.com":"AdmiraNeXT"},ids={"pixeria.com":"pixeria","xpaceos.com":"xpaceos","clearchannel.tv":"clearchannel-tv","yokup.com":"yokup","admiranext.com":"admiranext"};
-  return PROJECT_LAUNCH_HOSTS.map(host=>{
-    const current=source.find(project=>String(project&&project.id||"").toLowerCase()===ids[host])||source.find(project=>{try{const raw=String(project&&project.web||"").trim();return new URL(/^https?:\/\//i.test(raw)?raw:"https://"+raw).hostname.replace(/^www\./i,"").toLowerCase()===host;}catch(e){return false;}})||{};
-    return {...current,id:String(current.id||ids[host]),name:names[host],web:"https://"+host,status:current.status||"activo",machines:Array.isArray(current.machines)?[...new Set(current.machines.map(String))]:[],agents:Array.isArray(current.agents)?[...new Set(current.agents.map(String))]:[]};
-  });
 }
 function paProjectsForScope(){return paScopeIsAll(PROJECT_SCOPE)?PROJECT_CATALOG.slice():PROJECT_CATALOG.filter(project=>paScopeAllows(PROJECT_SCOPE,project.id));}
 function paPhysicalTeamCensus(machines,agents){
@@ -572,7 +558,7 @@ function paRender(){
   const openProjects=new Set([...projectsBox.querySelectorAll("[data-project-node][open]")].map(node=>node.dataset.projectNode));
   const openTeams=new Set([...teamsBox.querySelectorAll("[data-team-key][open]")].map(node=>node.dataset.teamKey));
   const byId=new Map(PROJECT_ROSTER.map(a=>[a.id,a])),byFamily=new Map(families.map(a=>[a.id,a]));
-  const active=PROJECT_ROWS.filter(p=>p.status!=="archivado").length;
+  const active=PROJECT_CATALOG.filter(p=>p.status!=="archivado").length;
   const links=PROJECT_ROWS.reduce((n,p)=>n+(p.machines||[]).length+paProjectFamilyRefs(p).length,0);
   pa("projectAgentN").textContent=active+" proyectos · "+teams.length+" equipos · "+families.length+" agentes principales · "+links+" uniones";
   const visibleActive=visibleProjects.filter(project=>project.status!=="archivado").length,roleCounts=paRoleCounts(families,visibleTeams);
@@ -861,11 +847,9 @@ async function paLoad(reason="manual"){
   if(reason!=="auto")paMessage("Sincronizando proyectos y presencia física…");
   try{
     const [projects,census]=await Promise.all([paJson("/projects"),paFleetCensus(),pulse(false)]);
-    const sourceProjects=Array.isArray(projects.projects)?projects.projects:[],launchProjects=paLaunchProjects(sourceProjects),launchIds=new Set(launchProjects.map(project=>String(project.id)));
-    PROJECT_CATALOG=launchProjects.concat(sourceProjects.filter(project=>project&&project.id&&!launchIds.has(String(project.id))));
-    PROJECT_ROWS=paLaunchProjects(Array.isArray(projects.projects)?projects.projects:[]);
-    if(PROJECT_SCOPE===undefined)PROJECT_SCOPE=new Set(PROJECT_ROWS.map(project=>String(project.id)));
-    else PROJECT_ROWS=paProjectsForScope();
+    const sourceProjects=Array.isArray(projects.projects)?projects.projects:[];
+    PROJECT_CATALOG=sourceProjects.filter(project=>project&&project.id&&String(project.status||"activo").toLowerCase()!=="archivado");
+    PROJECT_ROWS=paProjectsForScope();
     if(census)PROJECT_TEAM_CENSUS=paPhysicalTeamCensus(census.machines,[]);
     PROJECT_ROSTER=paProjectRoster(PROJECT_LIVE_ROSTER,PROJECT_ROWS);
     PROJECT_LOADED_ONCE=true;

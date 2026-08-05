@@ -243,17 +243,19 @@ test("proyectos y equipos se pueden ocultar por ficha y restaurar desde sus filt
   assert.match(source,/recupéralo desde Avanzado/);
 });
 
-test("Opciones lista todos los proyectos y Avanzado todos los equipos con multiselección persistente",()=>{
+test("Opciones y Avanzado conservan multiselección sólo durante el documento",()=>{
   assert.match(source,/data-yk-slot="left" aria-label="Filtrar proyectos del Dashboard"/);
   assert.match(source,/id="paProjectScopeList"/);
   assert.match(source,/data-yk-slot="right" aria-label="Filtrar equipos físicos del Dashboard"/);
   assert.match(source,/id="paTeamScopeList"/);
   assert.match(source,/const PROJECT_SCOPE_KEY="yokup\.dashboard\.projects\.v1"/);
   assert.match(source,/const TEAM_SCOPE_KEY="yokup\.dashboard\.teams\.v1"/);
+  assert.match(source,/function paClearLegacyScopes\(\)/);
+  assert.match(source,/paClearLegacyScopes\(\);\s*let PROJECT_SCOPE=null;\s*let TEAM_SCOPE=null/);
   assert.match(source,/function paReadProjectScope\(\)/);
-  assert.match(source,/function paWriteProjectScope\(scope\)/);
-  assert.match(source,/function paReadScope\(key\)/);
-  assert.match(source,/function paWriteScope\(key,scope\)/);
+  assert.match(source,/function paWriteProjectScope\(\)\{\}/);
+  assert.match(source,/function paReadScope\(\)\{return null;\}/);
+  assert.match(source,/function paWriteScope\(\)\{\}/);
   assert.match(source,/function paSetScopeItem\(scope,key,checked,keys\)/);
   assert.match(source,/function paSetExactScopeItem\(scope,key,checked,keys\)/);
   assert.match(source,/data-pa-scope-all/);

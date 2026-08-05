@@ -26,10 +26,9 @@ function functionSource(name) {
 
 function contractApi() {
   const paTeamKey = (machine) => String(machine || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
-  const launchHosts = ["pixeria.com", "xpaceos.com", "clearchannel.tv", "yokup.com", "admiranext.com"];
-  return new Function("paTeamKey", "PROJECT_LAUNCH_HOSTS", [
-    "paTeamHasProject", "paPhysicalTeamCensus", "paVisibleTeams", "paLaunchProjects",
-  ].map(functionSource).join("\n") + "\nreturn {paPhysicalTeamCensus,paVisibleTeams,paLaunchProjects};")(paTeamKey, launchHosts);
+  return new Function("paTeamKey", [
+    "paTeamHasProject", "paPhysicalTeamCensus", "paVisibleTeams",
+  ].map(functionSource).join("\n") + "\nreturn {paPhysicalTeamCensus,paVisibleTeams};")(paTeamKey);
 }
 
 test("el Dashboard carga el censo físico canónico, no sólo presencia y asignaciones", () => {
@@ -101,23 +100,9 @@ test("la existencia del equipo no depende de que esté asignado a un proyecto", 
   assert.match(functionSource("paVisibleTeams"), /paTeamHasProject/);
 });
 
-test("la salida inicial fija exactamente los cinco proyectos acordados", () => {
-  assert.match(
-    source,
-    /const PROJECT_LAUNCH_HOSTS=Object\.freeze\(\["pixeria\.com","xpaceos\.com","clearchannel\.tv","yokup\.com","admiranext\.com"\]\)/,
-  );
-  const {paLaunchProjects} = contractApi();
-  const projects = [
-    {id:"other", name:"Otro", web:"https://example.com"},
-    {id:"next", name:"AdmiraNeXT", web:"https://www.admiranext.com"},
-    {id:"clear", name:"Clear Channel", web:"https://clearchannel.tv"},
-    {id:"pix", name:"Pixeria", web:"https://www.pixeria.com"},
-    {id:"yokup", name:"Yokup", web:"https://yokup.com"},
-    {id:"xpace", name:"XpaceOS", web:"https://www.xpaceos.com"},
-  ];
-  assert.deepEqual(
-    paLaunchProjects(projects).map((project) => new URL(project.web).hostname.replace(/^www\./, "")),
-    ["pixeria.com", "xpaceos.com", "clearchannel.tv", "yokup.com", "admiranext.com"],
-  );
-  assert.match(source, /PROJECT_ROWS=paLaunchProjects\(Array\.isArray\(projects\.projects\)\?projects\.projects:\[\]\)/);
+test("la salida inicial usa el catálogo activo completo de /projects", () => {
+  assert.doesNotMatch(source,/PROJECT_LAUNCH_HOSTS|paLaunchProjects/);
+  assert.match(source,/const sourceProjects=Array\.isArray\(projects\.projects\)\?projects\.projects:\[\]/);
+  assert.match(source,/PROJECT_CATALOG=sourceProjects\.filter\(project=>project&&project\.id&&String\(project\.status\|\|"activo"\)\.toLowerCase\(\)!=="archivado"\)/);
+  assert.match(source,/PROJECT_ROWS=paProjectsForScope\(\)/);
 });
