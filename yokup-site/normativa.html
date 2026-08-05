@@ -128,20 +128,25 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     <div>
       <h2>Una referencia para todo el trabajo</h2>
       <p>Objetivos, ventanas, misiones y tareas usan el mismo contador del día. Las letras iniciales
-        desaparecen del rótulo humano: el tipo ya lo explica la pantalla y no debe ocupar la referencia.</p>
-      <div class="formula">NNNN.DD/MM.HH:MM → 0026.02/08.13:00</div>
+      desaparecen del rótulo humano: el tipo ya lo explica la pantalla y no debe ocupar la referencia.</p>
+      <div class="formula">NNNN.DD/MM/AAAA.HH:MM → 0026.02/08/2026.13:00</div>
       <table aria-label="Nomenclatura común del trabajo">
-          <thead><tr><th>Parte</th><th>Significado</th><th>Norma</th></tr></thead>
-          <tbody>
-            <tr><td>NNNN</td><td>Turno común del día</td><td>0000…9999</td></tr>
-            <tr><td>DD/MM</td><td>Día y mes en Madrid</td><td>02/08</td></tr>
-            <tr><td>HH:MM</td><td>Hora de alta en Madrid</td><td>13:00</td></tr>
-            <tr><td>Cambio de día</td><td>Reinicio de la secuencia</td><td>vuelve a 0000</td></tr>
-          </tbody>
-        </table>
-      <p style="margin-top:14px">Los IDs técnicos como <code>FLT-…</code>, <code>DEC-…</code> o los
-        códigos <code>a/b/c</code> se conservan por dentro para enlaces e integraciones, pero nunca
-        sustituyen la referencia visible.</p>
+        <thead><tr><th>Parte</th><th>Significado</th><th>Norma</th></tr></thead>
+        <tbody>
+          <tr><td>NNNN</td><td>Turno común del día</td><td>0000…9999</td></tr>
+          <tr><td>DD/MM</td><td>Día y mes en Madrid</td><td>02/08</td></tr>
+          <tr><td>AAAA</td><td>Año completo de alta</td><td>2026</td></tr>
+          <tr><td>HH:MM</td><td>Hora de alta en Madrid</td><td>13:00</td></tr>
+          <tr><td>Cambio de día</td><td>Reinicio de la secuencia</td><td>vuelve a 0000</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:14px">La API entrega esta referencia como <code>display_ref</code>.
+      Mientras un registro antiguo aún no la tenga, la interfaz usa
+      <code>0000.DD/MM/AAAA.HH:MM</code> desde <code>created_at</code>: el <code>0000</code>
+      declara que no conoce el turno y evita inventar una secuencia.</p>
+      <p>Los IDs técnicos como <code>FLT-…</code>, <code>DEC-…</code> o los
+      códigos <code>a/b/c</code> se conservan por dentro para enlaces e integraciones, pero nunca
+      sustituyen la referencia visible.</p>
     </div>
   </section>
 
@@ -282,20 +287,30 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     <div>
       <h2>OnIdle horario: tres acciones cuando el equipo está desatendido</h2>
       <p>Cuando el equipo esté desatendido, cada agente puede abrir una ventana de decisión
-        <b>una vez por hora como máximo</b>. La ventana presenta <b>exactamente tres misiones</b>
-        y la acción <b>«Volver atrás»</b>. La primera misión es la recomendada.</p>
-      <div class="formula">Equipo desatendido → 1 ventana/hora · 3 misiones + Volver atrás</div>
+      <b>una cada 60 minutos como máximo</b>. El reloj se pone a cero en cada ventana y corre
+      una hora entera: no se reinicia al dar las en punto. La ventana presenta <b>exactamente tres misiones</b>
+      y la acción <b>«Volver atrás»</b>. La primera misión es la recomendada.</p>
+      <div class="formula">Automático → 1 cada 60 min · A mano → 6 · 3 misiones + Volver atrás</div>
+      <p>El cupo se ensancha cuando la lanza una <b>persona</b> desde la pantalla: hasta
+      <b>6 por hora</b>, una cada diez minutos. No es más confianza en el agente, es que hay
+      alguien mirando, y entonces la cadencia la marca esa persona. Por eso lanzar a mano
+      <b>exige sesión</b>: sin humano identificado no hay cupo ampliado.</p>
+      <p>El reloj de <b>cada ventana</b> es cosa aparte y es <b>corto</b>: 5 minutos por defecto,
+      10 como techo. Una vez lanzada hay que decidir rápido — la espera larga es la de
+      <i>entre</i> ventanas, no la de dentro.</p>
       <p>Si el reloj expira sin respuesta, se inicia la recomendada y las otras dos misiones
-        continúan en la cola persistente. Toda acción automática debe ser reversible, conservar
-        evidencia y no implicar borrado, gasto, permisos nuevos ni otra actuación irreversible.</p>
+      continúan en la cola persistente. Toda acción automática debe ser reversible, conservar
+      evidencia y no implicar borrado, gasto, permisos nuevos ni otra actuación irreversible.</p>
       <table aria-label="Regla operativa de OnIdle">
-          <thead><tr><th>Condición</th><th>Regla</th><th>Resultado</th></tr></thead>
-          <tbody>
-            <tr><td>Equipo atendido</td><td>No hace falta abrir OnIdle</td><td>Se sigue la conversación activa</td></tr>
-            <tr><td>Equipo desatendido</td><td>Máximo una ventana por hora</td><td>3 misiones + Volver atrás</td></tr>
-            <tr><td>Sin respuesta</td><td>Expira el reloj</td><td>Arranca la recomendada; las otras dos quedan en cola</td></tr>
-          </tbody>
-        </table>
+        <thead><tr><th>Condición</th><th>Regla</th><th>Resultado</th></tr></thead>
+        <tbody>
+          <tr><td>Equipo atendido</td><td>No hace falta abrir OnIdle</td><td>Se sigue la conversación activa</td></tr>
+          <tr><td>Equipo desatendido</td><td>Máximo una ventana cada 60 min</td><td>3 misiones + Volver atrás</td></tr>
+          <tr><td>La lanza una persona</td><td>Hasta 6 por hora, con sesión</td><td>Una cada diez minutos</td></tr>
+          <tr><td>Ventana ya abierta</td><td>Reloj de 5 min (techo 10)</td><td>Se decide rápido o vence</td></tr>
+          <tr><td>Sin respuesta</td><td>Expira el reloj</td><td>Arranca la recomendada; las otras dos quedan en cola</td></tr>
+        </tbody>
+      </table>
     </div>
   </section>
 
@@ -380,17 +395,18 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     <div>
       <h2>Lo que se decide y lo que se hace se da de alta, siempre</h2>
       <p><b>Ningún objetivo, ventana de decisión, misión o tarea vive solo en una conversación.</b>
-        Se da de alta en <a href="https://yokup.com">yokup.com</a> en el momento en que existe, sin
-        esperar a que nadie lo pida y sin esperar a terminarlo.</p>
-      <div class="formula">Objetivo · Ventana de decisión · Misión · Tarea → yokup.com, al nacer</div>
+      Se da de alta en <a href="https://yokup.com">yokup.com</a> en el momento en que existe, sin
+      esperar a que nadie lo pida y sin esperar a terminarlo.</p>
+      <p><b>Objetivo · Ventana de decisión · Misión · Tarea → yokup.com, al nacer.</b></p>
       <p>Por qué: un chat se pasa. Lo que solo está escrito ahí no lo ve el resto del equipo, no
-        cuenta para nadie y desaparece al cerrar la sesión. Un equipo en el que <b>lo que hacen unos
-        no lo ven los otros</b> no es un equipo: son varios agentes trabajando cerca.</p>
+      cuenta para nadie y desaparece al cerrar la sesión. Un equipo en el que <b>lo que hacen unos
+      no lo ven los otros</b> no es un equipo: son varios agentes trabajando cerca.</p>
       <p>Darlo de alta no es papeleo, es lo que hace que exista: el proyecto aparece junto a su
-        agente, el trabajo suma en el Highscore, y cualquiera puede ver en qué anda cada uno sin
-        preguntar. Lo que no está dado de alta, a efectos de la flota, no ha pasado.</p>
+      agente, el trabajo suma en el Highscore y cualquiera puede ver en qué anda cada uno sin
+      preguntar. Lo que no está dado de alta, a efectos de la flota, no ha pasado.</p>
       <p><b>Es responsabilidad del agente, no del humano.</b> Se da de alta automáticamente, sin que
-        Carlos tenga que acordarse. Y se cierra igual: con su informe y su prueba.</p>
+      Carlos tenga que acordarse. Y se cierra igual: con su informe y su prueba.
+      Decisión de Carlos, 05-08-2026.</p>
     </div>
   </section>
 
