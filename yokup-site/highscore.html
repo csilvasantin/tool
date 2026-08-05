@@ -307,6 +307,25 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .tabla .ag{font-weight:700}
 .tabla .num{text-align:right;font-variant-numeric:tabular-nums}
 .tabla .tot{text-align:right;font-weight:900;color:var(--accent);font-variant-numeric:tabular-nums}
+/* LÍNEA DE LA VENTANA AUTÓNOMA, bajo cada agente. Avanza con la hora natural de
+   Madrid; al llegar a las en punto el agente puede volver a abrir su ventana de
+   decisión. El relleno lleva su propio degradado en línea (JS) porque el tono
+   evoluciona con el progreso: cian al empezar, ámbar al filo. */
+.hourbar{display:block;position:relative;height:3px;margin:5px 0 1px;border-radius:2px;
+  background:rgba(120,243,255,.10);overflow:hidden}
+.hourbar>i{display:block;height:100%;border-radius:2px;transition:width .6s linear}
+/* LIBRE: esta hora no la ha usado, puede abrir ya. Verde y con latido: no es un
+   progreso, es una puerta abierta — por eso el relleno se ignora y va entero. */
+.hourbar.libre{background:rgba(136,255,170,.16)}
+.hourbar.libre>i{width:100%!important;
+  background:linear-gradient(90deg,rgba(136,255,170,.35),var(--good,#88ffaa))!important;
+  animation:hourbar-libre 2.4s ease-in-out infinite}
+@keyframes hourbar-libre{0%,100%{opacity:1}50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){
+  .hourbar>i{transition:none}
+  .hourbar.libre>i{animation:none}
+}
+
 /* PUNTOS: el total y, justo debajo, la puntuación por hora. Antes la horaria
    ocupaba una franja entera en la fila desplegada; ahora es un número más, en
    la misma columna, para leer las dos cifras de un golpe (Carlos, 2026-08-05). */
@@ -593,6 +612,32 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   var DIA_FMT = new Intl.DateTimeFormat("en-CA", {
     timeZone:TIME_ZONE, year:"numeric", month:"2-digit", day:"2-digit"
   });
+
+  // RELOJ DE LA VENTANA AUTÓNOMA (Carlos, 2026-08-05). La norma 10 y el worker
+  // NO cuentan 60 minutos desde la última ventana: el límite es UNA por HORA
+  // NATURAL de Madrid (`madridHourKey` → 2026-08-05T11). Es decir, quien abrió
+  // a las 11:05 no espera hasta las 12:05, sino hasta las 12:00. La línea pinta
+  // eso y no una cuenta atrás inventada, que sería mentir con una barra bonita.
+  var HORA_FMT = new Intl.DateTimeFormat("en-CA", {
+    timeZone:TIME_ZONE, year:"numeric", month:"2-digit", day:"2-digit",
+    hour:"2-digit", hourCycle:"h23"
+  });
+  var RELOJ_FMT = new Intl.DateTimeFormat("es-ES", {
+    timeZone:TIME_ZONE, hour:"2-digit", minute:"2-digit", second:"2-digit", hourCycle:"h23"
+  });
+  function claveHora(epoch) {
+    var n = comoMs(epoch); if (!n) return "";
+    var p = {};
+    HORA_FMT.formatToParts(new Date(n)).forEach(function (x) { p[x.type] = x.value; });
+    return p.year + "-" + p.month + "-" + p.day + "T" + p.hour;
+  }
+  // Minutos y segundos transcurridos de la hora de Madrid. Se leen con Intl y no
+  // del reloj local: un navegador en una zona de media hora daría otro minuto.
+  function dentroDeLaHora(ms) {
+    var p = {};
+    RELOJ_FMT.formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; });
+    return ((+p.minute || 0) * 60 + (+p.second || 0)) * 1000;
+  }
 
   function claveDia(epoch) {
     var n = Number(epoch) || 0; if (n > 0 && n < 1e11) n *= 1000;
@@ -1168,6 +1213,91 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var attrs = a.vivo ? ' title="Vivo · latido recibido hace menos de 15 minutos" aria-label="Posición ' + posicion + ' · vivo"' : '';
     return '<span class="rank-number' + vivo + '"' + attrs + '>' + posicion + '</span>';
   }
+
+  // ── LÍNEA DE LA VENTANA AUTÓNOMA ──────────────────────────────────────────
+  // Bajo cada agente, una línea que avanza con la hora natural de Madrid: al
+  // llegar a las en punto vuelve a poder abrir su ventana de decisión si Carlos
+  // no le ha dicho nada. El color evoluciona con ella —cian al empezar, ámbar
+  // según se acerca— para que el estado de la flota se lea de un vistazo, sin
+  // números (Carlos, 2026-08-05).
+  //
+  // OJO con la semántica: NO son «60 minutos desde la última ventana». La norma
+  // 10 y el worker limitan a UNA por HORA NATURAL, así que quien abrió a las
+  // 11:05 vuelve a poder a las 12:00, no a las 12:05. Pintar una cuenta atrás
+  // de 60 minutos sería mentir con una barra bonita.
+  function mismoAgenteVentana(refAgente, refMaquina, a) {
+    var id = window.ykAgentIdentity;
+    if (!id) return normaliza(refAgente).toLowerCase() === normaliza(a.agente || "").toLowerCase();
+    var p = id.parse(normaliza(refAgente));
+    var sufijo = id.suffix(refMaquina) || p.suffix || "";
+    if (id.key(p.persona || refAgente) !== id.key(a.base || a.agente || "")) return false;
+    return !a.suffix || !sufijo || sufijo === a.suffix;
+  }
+
+  function ventanaHoraria(a) {
+    var ahora = Date.now(), clave = claveHora(ahora), ultima = 0;
+    (datos.decisiones || []).forEach(function (d) {
+      // Sólo las RAÍCES consumen la hora: una continuación enlazada al mismo
+      // lote no gasta ventana (es la misma regla del worker).
+      if (!d || normaliza(d.parent_decision)) return;
+      var at = comoMs(d.created_at);
+      if (!at || claveHora(at) !== clave) return;
+      if (!mismoAgenteVentana(d.agent, d.machine, a)) return;
+      if (at > ultima) ultima = at;
+    });
+    var dentro = dentroDeLaHora(ahora);
+    return { abierta:!!ultima, at:ultima, progreso:Math.max(0, Math.min(1, dentro / 3600000)),
+      restante:Math.max(0, 3600000 - dentro) };
+  }
+
+  function faltaTexto(ms) {
+    var s = Math.max(0, Math.round(ms / 1000)), m = Math.floor(s / 60);
+    return m + ":" + (s % 60 < 10 ? "0" : "") + (s % 60);
+  }
+  function horaCorta(ms) {
+    var p = {};
+    RELOJ_FMT.formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; });
+    return p.hour + ":" + p.minute;
+  }
+  // La evolución del color va en el tono: cian (186) al empezar la hora, ámbar
+  // (38) al filo de las en punto. Es un degradado real, no tres estados.
+  function tonoVentana(progreso) {
+    return Math.round(186 - Math.max(0, Math.min(1, progreso)) * 148);
+  }
+  function tituloVentana(v) {
+    return v.abierta
+      ? "Abrió su ventana a las " + horaCorta(v.at) + " · la siguiente al entrar la hora en punto, dentro de " + faltaTexto(v.restante)
+      : "Puede abrir su ventana autónoma AHORA · esta hora todavía no la ha usado";
+  }
+  function relojVentanaHtml(a) {
+    var v = ventanaHoraria(a), pct = Math.round(v.progreso * 1000) / 10, t = tituloVentana(v);
+    var tono = tonoVentana(v.progreso);
+    return '<span class="hourbar' + (v.abierta ? "" : " libre") + '" data-yk-hourbar="1"' +
+      ' data-abierta="' + (v.abierta ? "1" : "0") + '" data-at="' + (v.at || 0) + '"' +
+      ' role="img" title="' + esc(t) + '" aria-label="' + esc(t) + '">' +
+      '<i style="width:' + pct + '%;background:linear-gradient(90deg,hsl(186 92% 64%),hsl(' + tono + ' 92% 64%))"></i></span>';
+  }
+  // La línea avanza sola: un tic ligero que sólo toca ancho, color y título de
+  // las barras ya pintadas. No re-renderiza la tabla ni pide datos.
+  function ticVentanas() {
+    var barras = document.querySelectorAll("[data-yk-hourbar]");
+    if (!barras.length) return;
+    var ahora = Date.now(), dentro = dentroDeLaHora(ahora);
+    var progreso = Math.max(0, Math.min(1, dentro / 3600000)), restante = Math.max(0, 3600000 - dentro);
+    var pct = Math.round(progreso * 1000) / 10, tono = tonoVentana(progreso);
+    Array.prototype.forEach.call(barras, function (b) {
+      var v = { abierta:b.getAttribute("data-abierta") === "1",
+        at:Number(b.getAttribute("data-at")) || 0, progreso:progreso, restante:restante };
+      var i = b.querySelector("i");
+      if (i) {
+        i.style.width = pct + "%";
+        i.style.background = "linear-gradient(90deg,hsl(186 92% 64%),hsl(" + tono + " 92% 64%))";
+      }
+      var t = tituloVentana(v);
+      b.setAttribute("title", t); b.setAttribute("aria-label", t);
+    });
+  }
+  window.setInterval(ticVentanas, 15000);
 
   // El título dice DE DÓNDE sale el proyecto, que no es lo mismo estar metido en
   // faena que tenerlo asignado en el censo (Carlos, 2026-08-05).
@@ -1766,7 +1896,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var alterna = i % 2 ? " alt" : "", progressId = "score-progress-" + hsAgentKey(a.agente);
       return '<tr class="score-main' + alterna + '"><td class="n">' + posicionHtml(a, a.posicion || i + 1) + '</td>' +
         '<td class="ag">' + agentNameHtml(a) +
-        (a.runtime ? ' <span class="rt">· ' + esc(a.runtime) + '</span>' : '') + '</td>' +
+        (a.runtime ? ' <span class="rt">· ' + esc(a.runtime) + '</span>' : '') +
+        relojVentanaHtml(a) + '</td>' +
         '<td>' + pintaMaquinas(a, 4) + '</td>' +
         '<td class="project-cell">' + proyectoHtml(a) + '</td>' +
         '<td class="num">' + numeroActividad(a, "objetivos", a.objetivos, "objetivo activo") + '</td>' +
