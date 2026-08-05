@@ -130,8 +130,12 @@
     return s;
   }
 
-  // Vuelca los agregados en todos los data-yk-count del marco. Formato compacto
-  // «curso/pend» (p.ej. «2/50»); sin datos, el span queda vacío (menú limpio).
+  // LOS NÚMEROS SALEN DEL MENÚ (Carlos, 2026-08-05). Desde que el hover enseña el
+  // detalle, la cifra permanente bajo cada rótulo era ruido: siete pares de
+  // números compitiendo por la atención para decir lo que ya se lee al pasar por
+  // encima. Queda la LUZ —que es lo que se busca de un vistazo— y la tarjeta.
+  // paintCounters sigue existiendo porque el título accesible y la alarma de
+  // NOTIFICACIONES sí dependen del dato; lo que ya no escribe es el texto.
   function paintCounters(data) {
     var spans = document.querySelectorAll("[data-yk-count]");
     Array.prototype.forEach.call(spans, function (s) {
@@ -145,16 +149,19 @@
       // es un equipo PARADO esperando a que alguien pulse un botón (FLT-1020).
       if (k === "notificaciones") {
         var ab = d.abiertas | 0;
-        if (!ab) { s.textContent = ""; s.removeAttribute("title"); s.classList.remove("yk-count-alarma"); return; }
-        s.textContent = String(ab);
+        // La alarma no lleva número pero SÍ conserva su rojo: un equipo parado
+        // no es una novedad más, y perder esa distinción sería perder la única
+        // señal de la barra que pide ir AHORA.
+        s.textContent = "";
+        if (!ab) { s.removeAttribute("title"); s.classList.remove("yk-count-alarma"); return; }
         s.setAttribute("title", ab === 1 ? "1 equipo parado por un diálogo del sistema" : ab + " equipos parados por un diálogo del sistema");
         s.classList.add("yk-count-alarma");
         return;
       }
       if (k === "informes") {
         var hechos = d.hechos | 0, total = d.total | 0, faltan = total - hechos;
-        if (!total) { s.textContent = ""; s.removeAttribute("title"); s.classList.remove("yk-count-debe"); return; }
-        s.textContent = hechos + "/" + total;
+        s.textContent = "";
+        if (!total) { s.removeAttribute("title"); s.classList.remove("yk-count-debe"); return; }
         s.setAttribute("title", faltan
           ? hechos + " de " + total + " misiones terminadas tienen su informe · faltan " + faltan
           : "las " + total + " misiones terminadas tienen su informe");
@@ -163,8 +170,8 @@
       }
       var curso = d.curso | 0, pend = d.pend | 0;
       // 0/0 → nada (Carlos, 2026-07-23): sección vacía enseña sólo su rótulo limpio.
-      if (curso + pend === 0) { s.textContent = ""; s.removeAttribute("title"); return; }
-      s.textContent = curso + "/" + pend;
+      s.textContent = "";
+      if (curso + pend === 0) { s.removeAttribute("title"); return; }
       s.setAttribute("title", curso + " en curso · " + pend + " pendientes");
     });
   }
@@ -188,7 +195,7 @@
       }
       var s = Math.ceil(ms / 1000), m = Math.floor(s / 60), ss = s % 60;
       var t = m + ":" + (ss < 10 ? "0" + ss : ss);
-      span.textContent = "⏳ " + t;
+      span.textContent = "";   // sin número: la novedad se ve por la luz
       span.setAttribute("title", "Decisi\xF3n pendiente \xB7 cierra en " + t);
     }
     tick();

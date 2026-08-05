@@ -20,17 +20,24 @@ test('paintCounters trata INFORMES aparte del resto', () => {
     'la rama de informes se resuelve ANTES de caer en curso/pend');
 });
 
-test('los contadores del menú forman una segunda línea centrada y el cero se oculta', () => {
+test('el menú ya no escribe cifras: queda la luz y el detalle al pasar por encima', () => {
+  // Carlos, 2026-08-05: siete pares de números compitiendo por la atención para
+  // decir lo que ya se lee en la tarjeta del hover. La novedad se ve por la luz.
   assert.match(CSS, /\.yk-nav a\{[\s\S]*flex-direction:column;[\s\S]*align-items:center/);
-  assert.match(CSS, /\.yk-nav-c\{[\s\S]*text-align:center/);
   assert.match(CSS, /\.yk-nav-c:empty\{ display:none \}/);
-  assert.match(FRAME, /if \(curso \+ pend === 0\) \{ s\.textContent = ""/);
-});
-
-test('sin misiones terminadas, INFORMES queda limpio (no «0/0»)', () => {
   const i = FRAME.indexOf('function paintCounters(');
   const b = FRAME.slice(i, FRAME.indexOf('function paintDecisiones(', i));
-  assert.match(b, /if \(!total\) \{ s\.textContent = ""/, 'total 0 → rótulo limpio');
+  assert.doesNotMatch(b, /s\.textContent = curso \+ "\/" \+ pend/, 'no se escribe curso/pend');
+  assert.doesNotMatch(b, /s\.textContent = hechos \+ "\/" \+ total/, 'ni la cobertura de informes');
+  assert.doesNotMatch(b, /s\.textContent = String\(ab\)/, 'ni el número de la alarma');
+  // el title SÍ se conserva: es lo que sostiene la tarjeta y la accesibilidad
+  assert.match(b, /s\.setAttribute\("title", curso \+ " en curso · " \+ pend \+ " pendientes"\)/);
+});
+
+test('sin misiones terminadas, INFORMES no arrastra título ni marca de deuda', () => {
+  const i = FRAME.indexOf('function paintCounters(');
+  const b = FRAME.slice(i, FRAME.indexOf('function paintDecisiones(', i));
+  assert.match(b, /if \(!total\) \{ s\.removeAttribute\("title"\); s\.classList\.remove\("yk-count-debe"\); return; \}/);
 });
 
 test('la deuda se marca visualmente y se explica en el title', () => {

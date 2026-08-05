@@ -440,6 +440,15 @@
   // (captura cacheada en R2, servida desde el propio dominio; antes se pegaba a
   // image.thum.io directo desde cada navegador). w se ignora: /shot da 480×300.
   function shotUrl(web, w) { return CFG.worker + "/shot?url=" + encodeURIComponent(web); }
+  function dominioDe(web) {
+    return String(web || "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+  }
+  // El favicon del propio sitio: sin servicios de terceros y sin filtrar a nadie
+  // qué proyectos mira la flota.
+  function faviconUrl(web) {
+    var d = dominioDe(web);
+    return d ? "https://" + d + "/favicon.ico" : "";
+  }
   // LIGHTBOX: clic en la miniatura → captura EN GRANDE (no navega a la web).
   function openLightbox(web, direct) {
     var ov = document.getElementById("yk-lightbox");
@@ -623,7 +632,12 @@
       ? '<img class="shot-img proof" loading="lazy" src="' + esc(proof) + '" data-proof="' + esc(proof) + '" alt="Pantallazo final" title="' + (work ? "pantallazo del trabajo realizado · clic para abrir el trabajo" : "pantallazo del trabajo realizado") + '">'
       : liveFresca
         ? '<img class="shot-img working" loading="lazy" src="' + esc(live) + '" data-proof="' + esc(live) + '" alt="En curso" title="🔴 en vivo · el CLI está trabajando ahora">'
-        : (p ? '<img class="shot-img" loading="lazy" src="' + esc(shotUrl(p, 240)) + '" data-shot="' + esc(p) + '" alt="Previo del proyecto" title="ampliar · ' + esc(p) + '">' : '<img class="shot-img shot-logo" loading="lazy" src="/img/admiranext-logo.svg" alt="AdmiraNeXT" title="AdmiraNeXT · sin proyecto asignado">');
+        // ICONO DEL PROYECTO, no captura (Carlos, 2026-08-05): en PROJECT ID lo
+        // que importa es reconocer de un golpe en qué proyecto estamos
+        // —pixeria.com, clearchannel.tv, xpaceos.com…—. Se pide el favicon del
+        // propio dominio; si no responde, cae al logo de AdmiraNeXT, que es
+        // también el que sale cuando la misión no tiene proyecto.
+        : (p ? '<img class="shot-img shot-icon" loading="lazy" src="' + esc(faviconUrl(p)) + '" data-shot="' + esc(p) + '" alt="' + esc(dominioDe(p)) + '" title="Proyecto · ' + esc(dominioDe(p)) + '" onerror="this.onerror=null;this.src=\'/img/admiranext-logo.svg\';this.classList.add(\'shot-logo\')">' : '<img class="shot-img shot-logo" loading="lazy" src="/img/admiranext-logo.svg" alt="AdmiraNeXT" title="AdmiraNeXT · sin proyecto asignado">');
     return work
       ? '<a class="shot-link" href="' + esc(work) + '" target="_blank" rel="noopener" title="Abrir el trabajo: ' + esc(work) + '">' + inner + "</a>"
       : inner;
@@ -661,7 +675,13 @@
         (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span>";
     var attachmentHtml = +t.img_count > 0 ? '<span class="adjn" title="' + (+t.img_count) + ' imagen(es) adjunta(s) — ábrela para verlas">📎 ' + (+t.img_count) + "</span>" : "";
     var metaHtml = subjectMetaHtml + attachmentHtml;
-    var subjectHtml = '<div class="subj"><div class="t">' + esc(CFG.projectIdLayout ? missionTitle(t, pm.limpio) : pm.limpio) + '</div>' +
+    // La misión empieza diciendo DE QUÉ PROYECTO es y debajo qué hay que hacer
+    // (Carlos, 2026-08-05). Sin proyecto no se inventa un rótulo: se omite.
+    var proyectoNombre = (t && (t.project_name || "")) || dominioDe(proyectoDe(t));
+    var proyectoLinea = proyectoNombre
+      ? '<div class="subj-project" title="' + esc("Proyecto · " + proyectoNombre) + '">Proyecto ' + esc(proyectoNombre) + "</div>"
+      : "";
+    var subjectHtml = '<div class="subj">' + proyectoLinea + '<div class="t">' + esc(CFG.projectIdLayout ? missionTitle(t, pm.limpio) : pm.limpio) + '</div>' +
       (metaHtml ? '<div class="m">' + metaHtml + "</div>" : "") + "</div>";
     var createdHtml =
       '<span class="fch2" title="creada: ' + esc(fechaCorta(t.created_at)) + '">📅 ' + fechaCorta(t.created_at) + "</span>";

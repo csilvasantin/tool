@@ -191,3 +191,12 @@ test("el 409 dice cuando se libera hueco, y lo libera la MAS VIEJA", () => {
   assert.match(source, /nextAt: Number\(masVieja\.created_at\) \+ HOURLY_WINDOW_MS/);
   assert.match(source, /limite: tope,\n\s*usadas: previas\.length/);
 });
+
+test("la mision declarada GUARDA su proyecto, no solo lo valida", () => {
+  // Sin esto salia en /misiones sin proyecto: icono por defecto y sin rotulo,
+  // aunque la ruta lo hubiera comprobado contra el censo dos lineas antes.
+  assert.match(ruta, /INSERT INTO tickets\([^)]*,project,created_at,updated_at\)/);
+  assert.match(ruta, /projectContext\.project_id, now, now\)/);
+  // y una mision existente sin proyecto lo recibe, sin pisar el que ya tuviera
+  assert.match(ruta, /project=COALESCE\(NULLIF\(project,''\),\?\)/);
+});

@@ -108,8 +108,12 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
 /* CONTADOR «curso/pend» (2026-08-04): segunda línea centrada bajo el rótulo.
    Vacío cuando no hay dato (:empty), para que una sección a cero conserve sólo
    su nombre y no deje una cifra ni un hueco artificial. */
-.yk-nav-c{ display:block; margin:1px 0 0; min-height:10px; font-size:9.5px;
-  line-height:10px; text-align:center; font-weight:600; letter-spacing:.02em;
+/* El contador ya NO escribe cifras (Carlos, 2026-08-05): el hover da el detalle
+   y la luz del rótulo da la novedad. El span sigue existiendo porque sostiene la
+   alarma de NOTIFICACIONES, que conserva su rojo — sin número, pero visible: un
+   equipo parado no es una novedad más. Sin alarma no ocupa ni un píxel. */
+.yk-nav-c{ display:block; margin:0; min-height:0; font-size:9.5px;
+  line-height:0; text-align:center; font-weight:600; letter-spacing:.02em;
   color:var(--yk-dim); font-variant-numeric:tabular-nums }
 .yk-nav a.on .yk-nav-c{ color:var(--yk-brand) }
 .yk-nav-c:empty{ display:none }
@@ -119,9 +123,12 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
 .yk-nav a.on .yk-nav-c.yk-count-debe{ color:#ffb454 }
 /* NOTIFICACIONES: equipo parado esperando a un humano. Rojo y con latido — es lo
    único de la barra que pide ir AHORA, así que se distingue de un contador. */
+/* Alarma sin cifra: un punto rojo con latido bajo el rótulo. */
 .yk-nav-c.yk-count-alarma, .yk-nav a.on .yk-nav-c.yk-count-alarma{
-  color:#0b0f14; background:#ff5f56; border-radius:999px; padding:2px 7px;
-  font-weight:800; animation:yk-alarma 1.6s ease-in-out infinite }
+  width:6px; height:6px; margin:3px auto 0; padding:0; line-height:0;
+  background:#ff5f56; border-radius:50%; box-shadow:0 0 7px #ff5f56;
+  animation:yk-alarma 1.6s ease-in-out infinite }
+.yk-nav a.yk-nuevo .yk-nav-c.yk-count-alarma{ background:#ff5f56 }
 @keyframes yk-alarma{ 0%,100%{ opacity:1 } 50%{ opacity:.55 } }
 @media (prefers-reduced-motion: reduce){ .yk-nav-c.yk-count-alarma{ animation:none } }
 

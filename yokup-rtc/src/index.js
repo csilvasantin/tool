@@ -4720,8 +4720,8 @@ var index_default = {
             memberRefMatches("machine", existing.loc || identity.machine, identity.machine);
           if (!suya) return json({ ok: false, code: "not_your_mission",
             error: "esa misión está asignada a otro agente" }, 403);
-          await env.DB.prepare("UPDATE tickets SET subject=?, updated_at=? WHERE id=?")
-            .bind(subject, now, missionId).run();
+          await env.DB.prepare("UPDATE tickets SET subject=?, project=COALESCE(NULLIF(project,''),?), updated_at=? WHERE id=?")
+            .bind(subject, projectContext.project_id, now, missionId).run();
         } else {
           missionId = "DCL-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
           // `screen` lleva un índice UNIQUE entre tickets NO resueltos (una sola
@@ -4729,10 +4729,14 @@ var index_default = {
           // dejaba una única misión declarable por proyecto y reventaba la
           // segunda con un D1_ERROR. Va con el id de la misión, único por
           // construcción, que además hace el origen legible en el tablero.
+          // El PROYECTO se persiste en el ticket, no sólo se valida. Sin esto la
+          // misión declarada salía en /misiones sin proyecto: icono por defecto
+          // de AdmiraNeXT y sin rótulo, aunque la ruta lo hubiera comprobado
+          // contra el censo dos líneas antes (Carlos lo vio en la tabla).
           await env.DB.prepare(
-            "INSERT INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)"
+            "INSERT INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"
           ).bind(missionId, "declare:" + missionId, subject, identity.machine, "mission",
-            "in_progress", "normal", identity.agent, "cli-declare", "", now, now).run();
+            "in_progress", "normal", identity.agent, "cli-declare", "", projectContext.project_id, now, now).run();
           // Entrada en curso explícita, como cualquier otra misión: deja el
           // mismo rastro que busca el marcador y que lee la ficha del ticket.
           await addEvent(env, missionId, "status", identity.agent,

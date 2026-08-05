@@ -85,7 +85,7 @@ test('creación, evolución y finalización viven en PROJECT ID, no en Misión n
   assert.doesNotMatch(html, /class="cel rtiempo"/);
 });
 
-test('Misión no repite ni su rótulo ni el proyecto, que queda bajo Agente/Plataforma', () => {
+test('Misión encabeza con su proyecto y debajo la descripción, sin repetir el rótulo', () => {
   const Yk = loadModule();
   Yk.init({worker:'https://api.yokup.com', columnMode:'tasks', projectIdLayout:true});
   Yk.setProyectos([{id:'yokup', name:'Yokup', web:'https://www.yokup.com'}]);
@@ -96,9 +96,15 @@ test('Misión no repite ni su rótulo ni el proyecto, que queda bajo Agente/Plat
     created_at:Date.now(), priority:'alta'
   });
   const missionCell = between(html, '<div class="mission-col">', '<div class="cel ord ');
-  const agentCell = between(html, '<div class="cel agc">', '<div class="cel est">');
+  const agentCell = between(html, '<div class="cel agc">', '<div class="project-id-cell">');
+  // Carlos, 2026-08-05: «en la misión empezamos por Proyecto xxx y debajo la
+  // descripción». El rótulo redundante «MISIÓN …» del asunto se sigue podando.
+  assert.match(missionCell, /class="subj-project"[\s\S]*Proyecto Yokup/);
   assert.match(missionCell, />Reordenar la cuadrícula</);
-  assert.doesNotMatch(missionCell, /MISIÓN|Yokup|Origen/);
+  assert.doesNotMatch(missionCell, /MISIÓN|Origen/);
+  // el proyecto sale ANTES que la descripción, no debajo
+  assert.ok(missionCell.indexOf('subj-project') < missionCell.indexOf('Reordenar la cuadrícula'));
+  // y la norma 12 sigue viva: bajo el agente, con su color de responsabilidad
   assert.match(agentCell, /Codex · Desktop App[\s\S]*mission-project-label[\s\S]*Yokup/);
 });
 
