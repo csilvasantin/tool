@@ -4,8 +4,22 @@ AdmiraNeXT. Manda la canónica (la que más reglas tiene); el espejo conserva su
 propio envoltorio (hero, pie, yk-frame) y sólo se le reescriben las reglas."""
 import re, sys, pathlib
 
-CANON = pathlib.Path("/Users/csilvasantin/Documents/Codex/admira-next-web/normativa.html")
-MIRROR = pathlib.Path("/Users/csilvasantin/Documents/Codex/tool/yokup-site/normativa.html")
+# Las rutas se RESUELVEN, no se escriben a fuego. Estaban fijadas al layout de
+# una maquina concreta (Documents/Codex/...) y en las demas el script no podia
+# ni arrancar: por eso el espejo y la canonica se separaron sin que nadie lo
+# viera. El espejo se resuelve desde este mismo repo; la canonica se busca en
+# los sitios donde suele estar clonada, y si no aparece se dice cual falta.
+AQUI = pathlib.Path(__file__).resolve().parent.parent          # …/tool
+MIRROR = AQUI / "yokup-site" / "normativa.html"
+CANDIDATAS = [
+    AQUI.parent / "admira-next-web" / "normativa.html",        # junto a tool
+    pathlib.Path.home() / "Documents/Admirito/admira-next-web/normativa.html",
+    pathlib.Path.home() / "Documents/Codex/admira-next-web/normativa.html",
+]
+CANON = next((c for c in CANDIDATAS if c.is_file()), None)
+if CANON is None:
+    sys.exit("no encuentro normativa.html de admira-next-web. Buscado en:\n  " +
+             "\n  ".join(str(c) for c in CANDIDATAS))
 
 canon = CANON.read_text(encoding="utf-8")
 mirror = MIRROR.read_text(encoding="utf-8")

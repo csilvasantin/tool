@@ -129,22 +129,17 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
       <h2>Una referencia para todo el trabajo</h2>
       <p>Objetivos, ventanas, misiones y tareas usan el mismo contador del día. Las letras iniciales
         desaparecen del rótulo humano: el tipo ya lo explica la pantalla y no debe ocupar la referencia.</p>
-      <div class="formula">NNNN.DD/MM/AAAA.HH:MM → 0026.02/08/2026.13:00</div>
+      <div class="formula">NNNN.DD/MM.HH:MM → 0026.02/08.13:00</div>
       <table aria-label="Nomenclatura común del trabajo">
           <thead><tr><th>Parte</th><th>Significado</th><th>Norma</th></tr></thead>
           <tbody>
             <tr><td>NNNN</td><td>Turno común del día</td><td>0000…9999</td></tr>
             <tr><td>DD/MM</td><td>Día y mes en Madrid</td><td>02/08</td></tr>
-            <tr><td>AAAA</td><td>Año completo de alta</td><td>2026</td></tr>
             <tr><td>HH:MM</td><td>Hora de alta en Madrid</td><td>13:00</td></tr>
             <tr><td>Cambio de día</td><td>Reinicio de la secuencia</td><td>vuelve a 0000</td></tr>
           </tbody>
         </table>
-      <p style="margin-top:14px">La API entrega esta referencia como <code>display_ref</code>.
-        Mientras un registro antiguo aún no la tenga, la interfaz usa
-        <code>0000.DD/MM/AAAA.HH:MM</code> desde <code>created_at</code>: el <code>0000</code>
-        declara que no conoce el turno y evita inventar una secuencia.</p>
-      <p>Los IDs técnicos como <code>FLT-…</code>, <code>DEC-…</code> o los
+      <p style="margin-top:14px">Los IDs técnicos como <code>FLT-…</code>, <code>DEC-…</code> o los
         códigos <code>a/b/c</code> se conservan por dentro para enlaces e integraciones, pero nunca
         sustituyen la referencia visible.</p>
     </div>
@@ -287,17 +282,9 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     <div>
       <h2>OnIdle horario: tres acciones cuando el equipo está desatendido</h2>
       <p>Cuando el equipo esté desatendido, cada agente puede abrir una ventana de decisión
-        <b>una cada 60 minutos como máximo</b>. El reloj se pone a cero en cada ventana y corre
-        una hora entera: no se reinicia al dar las en punto. La ventana presenta <b>exactamente tres misiones</b>
+        <b>una vez por hora como máximo</b>. La ventana presenta <b>exactamente tres misiones</b>
         y la acción <b>«Volver atrás»</b>. La primera misión es la recomendada.</p>
-      <div class="formula">Automático → 1 cada 60 min · A mano → 6 · 3 misiones + Volver atrás</div>
-      <p>El cupo se ensancha cuando la lanza una <b>persona</b> desde la pantalla: hasta
-        <b>6 por hora</b>, una cada diez minutos. No es más confianza en el agente, es que hay
-        alguien mirando, y entonces la cadencia la marca esa persona. Por eso lanzar a mano
-        <b>exige sesión</b>: sin humano identificado no hay cupo ampliado.</p>
-      <p>El reloj de <b>cada ventana</b> es cosa aparte y es <b>corto</b>: 5 minutos por defecto,
-        10 como techo. Una vez lanzada hay que decidir rápido — la espera larga es la de
-        <i>entre</i> ventanas, no la de dentro.</p>
+      <div class="formula">Equipo desatendido → 1 ventana/hora · 3 misiones + Volver atrás</div>
       <p>Si el reloj expira sin respuesta, se inicia la recomendada y las otras dos misiones
         continúan en la cola persistente. Toda acción automática debe ser reversible, conservar
         evidencia y no implicar borrado, gasto, permisos nuevos ni otra actuación irreversible.</p>
@@ -305,9 +292,7 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
           <thead><tr><th>Condición</th><th>Regla</th><th>Resultado</th></tr></thead>
           <tbody>
             <tr><td>Equipo atendido</td><td>No hace falta abrir OnIdle</td><td>Se sigue la conversación activa</td></tr>
-            <tr><td>Equipo desatendido</td><td>Máximo una ventana cada 60 min</td><td>3 misiones + Volver atrás</td></tr>
-            <tr><td>La lanza una persona</td><td>Hasta 6 por hora, con sesión</td><td>Una cada diez minutos</td></tr>
-            <tr><td>Ventana ya abierta</td><td>Reloj de 5 min (techo 10)</td><td>Se decide rápido o vence</td></tr>
+            <tr><td>Equipo desatendido</td><td>Máximo una ventana por hora</td><td>3 misiones + Volver atrás</td></tr>
             <tr><td>Sin respuesta</td><td>Expira el reloj</td><td>Arranca la recomendada; las otras dos quedan en cola</td></tr>
           </tbody>
         </table>
@@ -319,29 +304,29 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     <div>
       <h2>Modo rápido siempre puesto</h2>
       <p>Todo agente de la flota trabaja con el <b>modo rápido activado por defecto</b>. No es un
-        atajo ni una rebaja: el modo rápido de Claude Code sigue ejecutando <b>Claude Opus</b> y
-        sólo acelera la salida — <b>no baja a un modelo menor</b>. Dejarlo apagado hace esperar a
-        todo el mundo sin ganar nada a cambio.</p>
+      atajo ni una rebaja: el modo rápido de Claude Code sigue ejecutando <b>Claude Opus</b> y
+      sólo acelera la salida — <b>no baja a un modelo menor</b>. Dejarlo apagado hace esperar a
+      todo el mundo sin ganar nada a cambio.</p>
       <div class="formula">Sesión nueva → modo rápido ON · el mismo Opus, la salida antes</div>
       <p>Es un <b>interruptor de sesión</b>, no una clave de configuración: se pone con
-        <code>/fast</code> dentro de Claude Code y no queda guardado en
-        <code>settings.json</code> ni existe bandera de línea de comandos que lo fije. Por eso
-        vive aquí: es una norma que cada agente comprueba <b>al arrancar</b>, no algo que se
-        herede solo. Disponible en Opus 5 y Opus 4.8.</p>
+      <code>/fast</code> dentro de Claude Code y no queda guardado en
+      <code>settings.json</code> ni existe bandera de línea de comandos que lo fije. Por eso
+      vive aquí: es una norma que cada agente comprueba <b>al arrancar</b>, no algo que se
+      herede solo. Disponible en Opus 5 y Opus 4.8.</p>
       <table aria-label="Regla operativa del modo rápido">
-          <thead><tr><th>Situación</th><th>Regla</th><th>Resultado</th></tr></thead>
-          <tbody>
-            <tr><td>Sesión nueva</td><td>Modo rápido activado</td><td>El mismo Opus, respuesta antes</td></tr>
-            <tr><td>Lo encuentras apagado</td><td>Se pone con <code>/fast</code></td><td>Sin cambio de modelo ni de calidad</td></tr>
-            <tr><td>El equipo no lo admite</td><td>Se dice, no se simula</td><td>Queda constancia en el Diario de Silicio</td></tr>
-          </tbody>
-        </table>
+        <thead><tr><th>Situación</th><th>Regla</th><th>Resultado</th></tr></thead>
+        <tbody>
+          <tr><td>Sesión nueva</td><td>Modo rápido activado</td><td>El mismo Opus, respuesta antes</td></tr>
+          <tr><td>Lo encuentras apagado</td><td>Se pone con <code>/fast</code></td><td>Sin cambio de modelo ni de calidad</td></tr>
+          <tr><td>El equipo no lo admite</td><td>Se dice, no se simula</td><td>Queda constancia en el Diario de Silicio</td></tr>
+        </tbody>
+      </table>
       <p>Mientras tanto la fuente es <b>esta norma</b>. El destino es la Cúpula, como
-        <code>MODO_RAPIDO</code>, para que cualquier agente lo lea al arrancar sin abrir esta
-        página; grabarlo exige la clave de administración de la bóveda, que <b>por diseño no es
-        legible desde la propia bóveda</b>, así que lo pone Carlos o un agente que la tenga. Hasta
-        entonces, leer <code>MODO_RAPIDO</code> devuelve vacío y no significa que la norma no
-        aplique. Decisión de Carlos, 05-08-2026.</p>
+      <code>MODO_RAPIDO</code>, para que cualquier agente lo lea al arrancar sin abrir esta
+      página; grabarlo exige la clave de administración de la bóveda, que <b>por diseño no es
+      legible desde la propia bóveda</b>, así que lo pone Carlos o un agente que la tenga. Hasta
+      entonces, leer <code>MODO_RAPIDO</code> devuelve vacío y no significa que la norma no
+      aplique. Decisión de Carlos, 05-08-2026.</p>
     </div>
   </section>
 
@@ -350,19 +335,19 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     <div>
       <h2>El proyecto acompaña al agente responsable</h2>
       <p>En <code>/misiones</code>, toda misión con proyecto asignado muestra su nombre <b>debajo del agente</b>.
-        Es un rótulo informativo, no un control: no se convierte en enlace, selector, campo ni botón.</p>
+      Es un rótulo informativo, no un control: no se convierte en enlace, selector, campo ni botón.</p>
       <p>La responsabilidad sale del censo de proyectos: manda <code>primary_responsible</code> y,
-        si falta, se usa <code>owner</code>. La comparación se hace exclusivamente con
-        <code>ykAgentIdentity.same(assignee, responsable)</code>, por familia de persona y
-        aceptando los alias históricos; por ejemplo, <b>Oraculo y OraculoMacMini son la misma familia</b>.</p>
+      si falta, se usa <code>owner</code>. La comparación se hace exclusivamente con
+      <code>ykAgentIdentity.same(assignee, responsable)</code>, por familia de persona y
+      aceptando los alias históricos; por ejemplo, <b>Oraculo y OraculoMacMini son la misma familia</b>.</p>
       <table aria-label="Color del proyecto bajo el agente">
-          <thead><tr><th>Situación</th><th>Rótulo</th><th>Color</th></tr></thead>
-          <tbody>
-            <tr><td>Agente y responsable son de la misma familia</td><td>Nombre del proyecto bajo el agente</td><td>Verde</td></tr>
-            <tr><td>La misión tiene proyecto, pero el agente no es su responsable</td><td>Nombre del proyecto bajo el agente</td><td>Amarillo</td></tr>
-            <tr><td>La misión no tiene proyecto asignado</td><td>No se muestra ningún rótulo</td><td>—</td></tr>
-          </tbody>
-        </table>
+        <thead><tr><th>Situación</th><th>Rótulo</th><th>Color</th></tr></thead>
+        <tbody>
+          <tr><td>Agente y responsable son de la misma familia</td><td>Nombre del proyecto bajo el agente</td><td>Verde</td></tr>
+          <tr><td>La misión tiene proyecto, pero el agente no es su responsable</td><td>Nombre del proyecto bajo el agente</td><td>Amarillo</td></tr>
+          <tr><td>La misión no tiene proyecto asignado</td><td>No se muestra ningún rótulo</td><td>—</td></tr>
+        </tbody>
+      </table>
     </div>
   </section>
 
@@ -371,22 +356,22 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     <div>
       <h2>Siempre la última versión — y su autor</h2>
       <p>Antes de tocar, desplegar, informar o dar por bueno un sitio, el agente <b>comprueba qué
-        versión está viva</b> y <b>quién la publicó</b>. No se improvisa el sello ni se asume que
-        el checkout local es producción.</p>
+      versión está viva</b> y <b>quién la publicó</b>. No se improvisa el sello ni se asume que
+      el checkout local es producción.</p>
       <div class="formula">Fuente canónica → <a href="https://www.admiranext.com/webmaster">admiranext.com/webmaster</a></div>
       <p>En el Webmaster hay siempre: la versión en producción de cada solución, el listado de
-        versiones anteriores, los puntos de retorno y cómo se publica o se vuelve atrás.</p>
+      versiones anteriores, los puntos de retorno y cómo se publica o se vuelve atrás.</p>
       <table aria-label="Qué hay que asegurar sobre la versión">
-          <thead><tr><th>Qué</th><th>Dónde</th><th>Para qué</th></tr></thead>
-          <tbody>
-            <tr><td>Última versión viva</td><td>webmaster · sello en pie/meta</td><td>No trabajar sobre un fantasma</td></tr>
-            <tr><td>Historial / retornos</td><td>Tags en webmaster</td><td>Poder deshacer</td></tr>
-            <tr><td>Autor del cambio</td><td>Tag/commit · agente en anuncio · pie del release</td><td>Saber a quién preguntar y auditar</td></tr>
-          </tbody>
-        </table>
+        <thead><tr><th>Qué</th><th>Dónde</th><th>Para qué</th></tr></thead>
+        <tbody>
+          <tr><td>Última versión viva</td><td>webmaster · sello en pie/meta</td><td>No trabajar sobre un fantasma</td></tr>
+          <tr><td>Historial / retornos</td><td>Tags en webmaster</td><td>Poder deshacer</td></tr>
+          <tr><td>Autor del cambio</td><td>Tag/commit · agente en anuncio · pie del release</td><td>Saber a quién preguntar y auditar</td></tr>
+        </tbody>
+      </table>
       <p>Al publicar, el autor se deja visible: mensaje de deploy, anuncio en el canal común
-        (quién · qué sello · URL) y, si hay tag, mensaje del tag. Un release sin autor es un
-        release incompleto — igual que uno sin punto de retorno.</p>
+      (quién · qué sello · URL) y, si hay tag, mensaje del tag. Un release sin autor es un
+      release incompleto — igual que uno sin punto de retorno.</p>
     </div>
   </section>
 
@@ -397,20 +382,19 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
       <p><b>Ningún objetivo, ventana de decisión, misión o tarea vive solo en una conversación.</b>
         Se da de alta en <a href="https://yokup.com">yokup.com</a> en el momento en que existe, sin
         esperar a que nadie lo pida y sin esperar a terminarlo.</p>
-      <p><b>Objetivo · Ventana de decisión · Misión · Tarea → yokup.com, al nacer.</b></p>
+      <div class="formula">Objetivo · Ventana de decisión · Misión · Tarea → yokup.com, al nacer</div>
       <p>Por qué: un chat se pasa. Lo que solo está escrito ahí no lo ve el resto del equipo, no
         cuenta para nadie y desaparece al cerrar la sesión. Un equipo en el que <b>lo que hacen unos
         no lo ven los otros</b> no es un equipo: son varios agentes trabajando cerca.</p>
       <p>Darlo de alta no es papeleo, es lo que hace que exista: el proyecto aparece junto a su
-        agente, el trabajo suma en el Highscore y cualquiera puede ver en qué anda cada uno sin
+        agente, el trabajo suma en el Highscore, y cualquiera puede ver en qué anda cada uno sin
         preguntar. Lo que no está dado de alta, a efectos de la flota, no ha pasado.</p>
       <p><b>Es responsabilidad del agente, no del humano.</b> Se da de alta automáticamente, sin que
-        Carlos tenga que acordarse. Y se cierra igual: con su informe y su prueba.
-        Decisión de Carlos, 05-08-2026.</p>
+        Carlos tenga que acordarse. Y se cierra igual: con su informe y su prueba.</p>
     </div>
   </section>
 
-  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.05.08.2026.r5.13:05 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
+  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.05.08.2026.r3.10:05 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
 </main>
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script>
