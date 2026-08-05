@@ -29,6 +29,7 @@ const REGLAS = [
   "Modo rápido siempre puesto",
   "El proyecto acompaña al agente responsable",
   "Siempre la última versión — y su autor",
+  "Lo que se decide y lo que se hace se da de alta, siempre",
 ];
 
 const bloque = source.slice(
