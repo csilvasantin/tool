@@ -1,6 +1,6 @@
 import puppeteer from "@cloudflare/puppeteer";
 import { memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
-import { baseAgentIdentity, machineSuffix, parseAgentIdentity, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
+import { baseAgentIdentity, identityKey, machineSuffix, parseAgentIdentity, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
 import { AgentStopError, dispatchAgentStop, normalizeAgentStopTarget } from "./fleet-agent-stop.js";
 import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, madridDayStart, sortDisplayRefCandidates } from "./display-ref.js";
@@ -213,11 +213,16 @@ async function applySchema(env) {
   // image: URL pública de la captura de prueba del informe (R2 /media/…). La tabla
   // ya existe en prod, así que la columna se añade idempotente (ignora "duplicate").
   await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN image TEXT").catch(() => {});
+  // La imagen de una tarea puede ser un avance o la evidencia del cierre. Sin
+  // este discriminante, una captura intermedia podía cerrar toda la misión.
+  await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN image_kind TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN created_at INTEGER").catch(() => {});
   await env.DB.exec("UPDATE mission_tasks SET created_at=updated_at WHERE created_at IS NULL").catch(() => {});
   // Llave de lectura del service worker (ver /push/subscribe). Idempotente.
   await env.DB.exec("ALTER TABLE subs ADD COLUMN peek_key TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN proof_image TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN proof_kind TEXT").catch(() => {});
+  await env.DB.exec("UPDATE tickets SET proof_kind='legacy-unverified' WHERE proof_image IS NOT NULL AND proof_image<>'' AND proof_kind IS NULL").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN note TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN agent_runtime TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN agent_host TEXT").catch(() => {});
@@ -227,6 +232,9 @@ async function applySchema(env) {
   // el agente NO está parado, con halo si la captura es fresca.
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN live_shot TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN live_at INTEGER").catch(() => {});
+  // `process` es una captura fresca tomada durante la ejecución.
+  // `final-fallback` sólo existe como degradación explícita y visible.
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN live_kind TEXT").catch(() => {});
   // PROYECTOS (Carlos, 2026-07-22: «en equipo tenemos que poder dar de alta
   // proyectos y asignárselos a ordenadores o agentes»). Antes el proyecto era
   // texto libre repetido en tres sitios —la lista fija de equipo.html, el
@@ -239,6 +247,12 @@ async function applySchema(env) {
   // usa admira-fleet (machines[].id / silicon[].id): NO se inventa censo nuevo.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS project_members (project_id TEXT, kind TEXT, ref TEXT, added_at INTEGER, PRIMARY KEY (project_id, kind, ref))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_pmembers_ref ON project_members(kind, ref)");
+  // PROYECTO PRINCIPAL DIARIO por identidad operativa exacta. Es una declaración
+  // temporal y auditable: NO convierte al agente en miembro, NO cambia owner y
+  // NO reescribe ids del censo. La clave día+agente hace idempotente repetir
+  // «hoy el proyecto principal de X es Y» y conserva los días anteriores.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS agent_project_declarations (day TEXT NOT NULL, agent_key TEXT NOT NULL, agent TEXT NOT NULL, project_id TEXT NOT NULL, declared_by TEXT, statement TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(day,agent_key))");
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_apd_project_day ON agent_project_declarations(project_id,day)");
   // RESPONSABLE PRINCIPAL del proyecto. Se conserva la columna `owner` para no
   // romper a los clientes históricos, pero el contrato público también lo expone
   // como `primary_responsible`. Si aún no se ha guardado uno, el responsable por
@@ -863,6 +877,64 @@ async function projectIndex(env) {
   return { rows, get: (v) => byKey.get(key(v)) || byKey.get(projectSlug(v)) || null };
 }
 __name(projectIndex, "projectIndex");
+
+// La declaración diaria exige apellido de equipo. «Neo» a secas sería ambiguo:
+// cada máquina tiene su identidad y puede llevar un proyecto principal distinto.
+function principalAgentIdentity(agent, machine = "") {
+  const parsed = parseAgentIdentity(agent);
+  const suffix = machineSuffix(machine) || parsed.suffix;
+  const known = ["Neo", "Morfeo", "Trinity", "Oraculo", "Smith", "WhiteRabbit"].includes(parsed.persona);
+  if (!known || !suffix) return null;
+  const visible = reportAgentIdentity(agent, machine || suffix);
+  if (!visible || !parseAgentIdentity(visible).suffix) return null;
+  return { agent: visible, agent_key: identityKey(visible) };
+}
+__name(principalAgentIdentity, "principalAgentIdentity");
+
+async function listPrincipalProjectDeclarations(env, day = madridDayKey(Date.now())) {
+  await ensureSchema(env);
+  const rows = (await env.DB.prepare(
+    "SELECT d.day,d.agent_key,d.agent,d.project_id,d.declared_by,d.statement,d.created_at,d.updated_at," +
+    "p.name project_name,p.web project_web,p.status project_status " +
+    "FROM agent_project_declarations d LEFT JOIN projects p ON p.id=d.project_id " +
+    "WHERE d.day=? ORDER BY d.agent COLLATE NOCASE"
+  ).bind(day).all()).results || [];
+  return rows.map((r) => ({
+    day: r.day, agent_key: r.agent_key, agent: r.agent, project_id: r.project_id,
+    project_name: r.project_name || r.project_id, project_web: r.project_web || "",
+    project_status: r.project_status || "", declared_by: r.declared_by || "",
+    statement: r.statement || "", created_at: Number(r.created_at) || 0,
+    updated_at: Number(r.updated_at) || 0
+  }));
+}
+__name(listPrincipalProjectDeclarations, "listPrincipalProjectDeclarations");
+
+async function declarePrincipalProject(env, body) {
+  await ensureSchema(env);
+  const identity = principalAgentIdentity(body && body.agent, body && body.machine);
+  if (!identity) return { ok: false, error: "identidad operativa exacta requerida", code: "exact_agent_required", status: 400 };
+  const idx = await projectIndex(env), project = idx.get(body && body.project);
+  if (!project || String(project.status || "activo").toLowerCase() === "archivado") {
+    return { ok: false, error: "project activo requerido", code: "exact_project_required", status: 404 };
+  }
+  const day = madridDayKey(Date.now()), now = Date.now();
+  const previous = await env.DB.prepare("SELECT * FROM agent_project_declarations WHERE day=? AND agent_key=?")
+    .bind(day, identity.agent_key).first();
+  if (previous && previous.project_id === project.id) {
+    return { ok: true, unchanged: true, declaration: (await listPrincipalProjectDeclarations(env, day))
+      .find((row) => row.agent_key === identity.agent_key) };
+  }
+  const declaredBy = String(body && (body.declared_by || body.by) || "Carlos").trim().slice(0, 80) || "Carlos";
+  const statement = String(body && body.statement || "").trim().slice(0, 280);
+  await env.DB.prepare(
+    "INSERT INTO agent_project_declarations(day,agent_key,agent,project_id,declared_by,statement,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?) " +
+    "ON CONFLICT(day,agent_key) DO UPDATE SET agent=excluded.agent,project_id=excluded.project_id,declared_by=excluded.declared_by,statement=excluded.statement,updated_at=excluded.updated_at"
+  ).bind(day, identity.agent_key, identity.agent, project.id, declaredBy, statement,
+    previous ? previous.created_at : now, now).run();
+  return { ok: true, created: !previous, changed: !!previous,
+    declaration: (await listPrincipalProjectDeclarations(env, day)).find((row) => row.agent_key === identity.agent_key) };
+}
+__name(declarePrincipalProject, "declarePrincipalProject");
 // Lista completa con sus asignaciones (2 consultas, sin N+1) y cuántas misiones
 // vivas cuelgan de cada uno.
 async function listProjects(env) {
@@ -875,6 +947,7 @@ async function listProjects(env) {
   const rows = results || [];
   if (!rows.length) return [];
   const mem = (await env.DB.prepare("SELECT project_id, kind, ref FROM project_members").all()).results || [];
+  const declarations = await listPrincipalProjectDeclarations(env);
   // VIVA = EN CURSO (Carlos, FLT-985 c1). Hasta aquí `missions` sumaba también las
   // `open` —encargadas y sin empezar— y una ficha con varias misiones en la cola
   // decía que todas estaban vivas sin que nadie trabajara en ninguna. Se separan: lo
@@ -894,6 +967,10 @@ async function listProjects(env) {
     sort_order: p.sort_order == null ? null : Number(p.sort_order),
     machines: mem.filter((m) => m.project_id === p.id && m.kind === "machine").map((m) => m.ref),
     agents: mem.filter((m) => m.project_id === p.id && m.kind === "agent").map((m) => m.ref),
+    daily_primary_agents: declarations.filter((d) => d.project_id === p.id).map((d) => ({
+      day: d.day, agent: d.agent, agent_key: d.agent_key, declared_by: d.declared_by,
+      statement: d.statement, updated_at: d.updated_at
+    })),
     missions: misBy[String(p.id).toLowerCase()] || 0,               // vivas = en curso
     missions_pending: pendBy[String(p.id).toLowerCase()] || 0,      // encargadas y sin empezar
     created_at: p.created_at, updated_at: p.updated_at, updated_by: p.updated_by || ""
@@ -1017,6 +1094,75 @@ function normalizeProofImage(raw) {
 }
 __name(normalizeProofImage, "normalizeProofImage");
 
+function embeddedImageMatchesMime(value) {
+  const match = /^data:image\/(png|jpe?g|gif|webp|avif);base64,([a-z0-9+/=\s]+)$/i.exec(value);
+  if (!match) return false;
+  let bytes;
+  try {
+    const binary = atob(match[2].replace(/\s/g, ""));
+    bytes = Uint8Array.from(binary.slice(0, 32), (char) => char.charCodeAt(0));
+  } catch (e) { return false; }
+  const mime = match[1].toLowerCase();
+  if (mime === "png") return bytes.length >= 8 && [137,80,78,71,13,10,26,10].every((v, i) => bytes[i] === v);
+  if (mime === "jpg" || mime === "jpeg") return bytes.length >= 3 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
+  if (mime === "gif") return bytes.length >= 6 && String.fromCharCode(...bytes.slice(0, 6)).startsWith("GIF8");
+  if (mime === "webp") return bytes.length >= 12 && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP";
+  if (mime === "avif") return bytes.length >= 12 && String.fromCharCode(...bytes.slice(4, 8)) === "ftyp" && /^(avif|avis)$/.test(String.fromCharCode(...bytes.slice(8, 12)));
+  return false;
+}
+__name(embeddedImageMatchesMime, "embeddedImageMatchesMime");
+
+function imageBytesMatchMime(contentType, buffer) {
+  const mime = String(contentType || "").split(";")[0].trim().toLowerCase().replace(/^image\//, "");
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer || 0);
+  if (mime === "png") return bytes.length >= 8 && [137,80,78,71,13,10,26,10].every((v, i) => bytes[i] === v);
+  if (mime === "jpg" || mime === "jpeg") return bytes.length >= 3 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
+  if (mime === "gif") return bytes.length >= 6 && String.fromCharCode(...bytes.slice(0, 6)).startsWith("GIF8");
+  if (mime === "webp") return bytes.length >= 12 && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP";
+  if (mime === "avif") return bytes.length >= 12 && String.fromCharCode(...bytes.slice(4, 8)) === "ftyp" && /^(avif|avis)$/.test(String.fromCharCode(...bytes.slice(8, 12)));
+  return false;
+}
+__name(imageBytesMatchMime, "imageBytesMatchMime");
+
+function unsafeEvidenceHost(hostname) {
+  const h = String(hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
+  if (!h || h === "localhost" || h.endsWith(".local")) return true;
+  if (/^(127\.|0\.|10\.|169\.254\.|192\.168\.|::1$|fc|fd|fe80)/.test(h)) return true;
+  const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(h);
+  return !!(m && Number(m[1]) === 172 && Number(m[2]) >= 16 && Number(m[2]) <= 31);
+}
+__name(unsafeEvidenceHost, "unsafeEvidenceHost");
+
+async function validateProofImage(env, raw, origin) {
+  const norm = normalizeProofImage(raw);
+  if (!norm.value) return norm;
+  if (norm.value.startsWith("data:")) {
+    return embeddedImageMatchesMime(norm.value) ? norm : { value: null, error: "el data:image no contiene la firma binaria declarada" };
+  }
+  let parsed;
+  try { parsed = new URL(norm.value); } catch (e) { return { value: null, error: "URL de imagen inválida" }; }
+  let own = false;
+  try { own = parsed.origin === new URL(origin).origin; } catch (e) {}
+  if (own && /^\/media\/fleet\//.test(parsed.pathname)) {
+    if (!env.MEDIA) return { value: null, error: "no se puede comprobar el objeto: bucket MEDIA no disponible" };
+    const key = decodeURIComponent(parsed.pathname.replace(/^\/media\//, ""));
+    const object = await env.MEDIA.head(key);
+    const type = object && object.httpMetadata && object.httpMetadata.contentType || object && object.customMetadata && object.customMetadata.ct || "";
+    return object && /^image\//i.test(type) ? norm : { value: null, error: "la URL de media propia no existe o no es una imagen" };
+  }
+  if (unsafeEvidenceHost(parsed.hostname)) return { value: null, error: "host local o privado no permitido como prueba" };
+  try {
+    const response = await fetch(parsed.toString(), { method: "GET", redirect: "error", headers: { Range: "bytes=0-31" } });
+    const type = response.headers.get("content-type") || "";
+    if (response.body && response.body.cancel) await response.body.cancel().catch(() => {});
+    if (!response.ok || !/^image\//i.test(type)) return { value: null, error: "la URL no responde con content-type image/*" };
+    return norm;
+  } catch (e) {
+    return { value: null, error: "no se pudo verificar el contenido de la URL de prueba" };
+  }
+}
+__name(validateProofImage, "validateProofImage");
+
 // FLT-1007 c — La tubería de /fleet/media solo tragaba image/* («solo imágenes»), así
 // que el Kit de venta del Consejo (audio de la charla, vídeo y briefing en PDF) se
 // quedaba fuera. Aquí, en UN único sitio testeable, se decide qué content-type entra y
@@ -1049,6 +1195,34 @@ function normalizeMissionReference(raw) {
 }
 __name(normalizeMissionReference, "normalizeMissionReference");
 
+function validateMissionActor(ticket, rawActor) {
+  const actor = String(rawActor || "").trim().slice(0, 80);
+  const expected = String(ticket && ticket.assignee || "").trim();
+  if (!actor) return { ok: false, actor, expected, error: "owner requerido para atribuir la evidencia" };
+  if (!expected) return { ok: false, actor, expected, error: "la misión no tiene assignee validable" };
+  if (expected && !sameAgentFamily(actor, expected)) {
+    return { ok: false, actor, expected, error: "owner no pertenece a la persona asignada a la misión" };
+  }
+  const actorId = parseAgentIdentity(actor), expectedId = parseAgentIdentity(expected);
+  const expectedSuffix = expectedId.suffix || machineSuffix(ticket && ticket.loc);
+  if (expectedSuffix && actorId.suffix !== expectedSuffix) {
+    return { ok: false, actor, expected, error: "owner no pertenece al equipo físico asignado a la misión" };
+  }
+  return { ok: true, actor, expected };
+}
+__name(validateMissionActor, "validateMissionActor");
+
+// La hora procede del capturador, no de la recepción HTTP. Sólo una captura
+// reciente puede presentarse como proceso vivo; se toleran 30 s de desfase futuro.
+function normalizeLiveCaptureTime(raw, now = Date.now()) {
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) return { value: null, error: "captured_at requerido (epoch ms)" };
+  if (value > now + 3e4) return { value: null, error: "captured_at está en el futuro" };
+  if (value < now - 2 * 60 * 1e3) return { value: null, error: "captured_at tiene más de 2 minutos" };
+  return { value: Math.trunc(value), error: null };
+}
+__name(normalizeLiveCaptureTime, "normalizeLiveCaptureTime");
+
 // Los agentes conocen el número del encargo del bot-inbox (#1036), no siempre el
 // id interno de Yokup. Si FLT-1036 ya estaba ocupado, fleetMissionId conserva el
 // reparto real en fleet_ids (p. ej. #1036 → FLT-1045). Toda entrada pública de la
@@ -1067,11 +1241,13 @@ __name(resolveFleetMissionReference, "resolveFleetMissionReference");
 
 async function hasMissionProof(env, mid) {
   const row = await env.DB.prepare(
-    "SELECT proof_image FROM tickets WHERE id=?"
+    "SELECT proof_image,proof_kind FROM tickets WHERE id=?"
   ).bind(mid).first();
-  if (row && row.proof_image) return true;
+  if (row && row.proof_image && row.proof_kind === "final") {
+    return !!(await validateProofImage(env, row.proof_image, "https://yokup-rtc.csilvasantin.workers.dev")).value;
+  }
   const task = await env.DB.prepare(
-    "SELECT image FROM mission_tasks WHERE mission_id=? AND image IS NOT NULL AND image<>'' ORDER BY updated_at DESC LIMIT 1"
+    "SELECT image FROM mission_tasks WHERE mission_id=? AND image_kind='final' AND image IS NOT NULL AND image<>'' ORDER BY updated_at DESC LIMIT 1"
   ).bind(mid).first();
   return !!(task && task.image);
 }
@@ -1089,11 +1265,11 @@ async function ascendMissionProof(env, mid) {
   const t = await env.DB.prepare("SELECT proof_image FROM tickets WHERE id=?").bind(mid).first();
   if (t && t.proof_image) return t.proof_image;   // ya tiene prueba propia → no se toca
   const task = await env.DB.prepare(
-    "SELECT image FROM mission_tasks WHERE mission_id=? AND image IS NOT NULL AND image<>'' ORDER BY updated_at DESC LIMIT 1"
+    "SELECT image FROM mission_tasks WHERE mission_id=? AND image_kind='final' AND image IS NOT NULL AND image<>'' ORDER BY updated_at DESC LIMIT 1"
   ).bind(mid).first();
   if (!(task && task.image)) return null;         // no hay respaldo que subir
   await env.DB.prepare(
-    "UPDATE tickets SET proof_image=?, updated_at=? WHERE id=? AND (proof_image IS NULL OR proof_image='')"
+    "UPDATE tickets SET proof_image=?,proof_kind='final',updated_at=? WHERE id=? AND (proof_image IS NULL OR proof_image='' OR proof_kind!='final')"
   ).bind(task.image, Date.now(), mid).run();
   return task.image;
 }
@@ -1671,7 +1847,7 @@ function scopedMissionOwner(raw, fallbackRole, assignee, machine) {
 __name(scopedMissionOwner, "scopedMissionOwner");
 async function listMissionTasks(env, mid) {
   const { results } = await env.DB.prepare(
-    "SELECT mission_id, code, title, status, owner, report, image, created_at, updated_at FROM mission_tasks WHERE mission_id=? ORDER BY code"
+    "SELECT mission_id, code, title, status, owner, report, image, image_kind, created_at, updated_at FROM mission_tasks WHERE mission_id=? ORDER BY code"
   ).bind(mid).all();
   const rows = results || [];
   await attachDisplayRefs(env, "task", rows, taskDisplayKey, (row) => row.created_at || row.updated_at);
@@ -1715,8 +1891,8 @@ async function listAllMissionTasks(env, scope) {
     // mission_resolved) y la PRUEBA de cierre de la misión (t.proof_image →
     // mission_proof) para que la columna Captura tenga un fallback real cuando la
     // tarea no dejó imagen propia. No rompe a /tareas: sólo añade campos.
-    `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.report, m.image, m.created_at, m.updated_at,
-            t.subject, t.screen, t.loc, t.project, t.source, t.role, t.assignee, t.live_shot, t.live_at,
+    `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.report, m.image, m.image_kind, m.created_at, m.updated_at,
+            t.subject, t.screen, t.loc, t.project, t.source, t.role, t.assignee, t.live_shot, t.live_at, t.live_kind,
             t.status AS mission_status, t.created_at AS mission_created,
             t.resolved_at AS mission_resolved, t.proof_image AS mission_proof
        FROM mission_tasks m JOIN tickets t ON t.id = m.mission_id
@@ -1776,7 +1952,7 @@ async function saveMissionPlan(env, mid, tasks) {
   return listMissionTasks(env, mid);
 }
 __name(saveMissionPlan, "saveMissionPlan");
-async function setTaskStatus(env, mid, code, status, report, owner, image) {
+async function setTaskStatus(env, mid, code, status, report, owner, image, imageKind) {
   const cur = await env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
   if (!cur) return null;
   const st = TASK_STATUS.includes(status) ? status : cur.status;
@@ -1788,7 +1964,8 @@ async function setTaskStatus(env, mid, code, status, report, owner, image) {
   }
   // Captura PROPIA del paso: cada paso deja constancia con su enlace/miniatura. (954)
   const im = image != null && normalizeProofImage(image).value ? normalizeProofImage(image).value : cur.image;
-  await env.DB.prepare("UPDATE mission_tasks SET status=?, report=?, owner=?, image=?, updated_at=? WHERE mission_id=? AND code=?").bind(st, rp, ow, im, Date.now(), mid, code).run();
+  const ik = image != null ? (imageKind === "final" ? "final" : "task") : cur.image_kind;
+  await env.DB.prepare("UPDATE mission_tasks SET status=?, report=?, owner=?, image=?, image_kind=?, updated_at=? WHERE mission_id=? AND code=?").bind(st, rp, ow, im, ik, Date.now(), mid, code).run();
   const row = await env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
   if (row) await attachDisplayRefs(env, "task", row, taskDisplayKey, (item) => item.created_at || item.updated_at);
   return row;
@@ -2547,7 +2724,7 @@ async function fleetSync(env) {
     // un pantallazo real del trabajo. El bot puede haber terminado, pero la misión
     // permanece EN CURSO hasta que /fleet/informe registre proof_image.
     const proofRequired = st === "resolved" && epochMs(it.done_at, now) >= PROOF_REQUIRED_AFTER;
-    if (proofRequired && !(prev && (prev.proof_image || await hasMissionProof(env, id)))) {
+    if (proofRequired && !(prev && await hasMissionProof(env, id))) {
       st = "in_progress";
     }
     if (!prev) {
@@ -2586,7 +2763,7 @@ async function fleetSync(env) {
       // misión que Yokup ya cerró con prueba. El siguiente cierre sincronizará el
       // bot-inbox, pero mientras tanto la verdad terminal y su fecha se conservan.
       if (prev.status === "resolved" && st !== "cancelled" &&
-          (prev.proof_image || await hasMissionProof(env, id))) st = "resolved";
+          await hasMissionProof(env, id)) st = "resolved";
       // Telegram puede conservar unos segundos el PENDING anterior a una captura.
       // Ese eco retrasado no invalida progreso ya confirmado por YOKUP.
       if (prev.status === "in_progress" && st === "open") st = "in_progress";
@@ -2913,7 +3090,7 @@ __name(tercios, "tercios");
 // expone nada que el bot-inbox público no publique ya.
 async function fleetMissions(env) {
   const { results } = await env.DB.prepare(
-    "SELECT id,screen,subject,loc,project,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,created_at,updated_at,note,parent_id FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
+    "SELECT id,screen,subject,loc,project,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,live_kind,created_at,updated_at,note,parent_id FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
   ).all();
   const rows = results || [];
   if (!rows.length) return [];
@@ -2979,7 +3156,7 @@ var HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL = "lower(COALESCE(e.author,''))='yok
 // materializada desde una ventana: su created_at ES el hecho puntuable. Sin
 // esto, scored_at salía NULL —no hay evento de «pasa a en curso» que buscar—
 // y las cinco misiones que declaré seguían contando como una (2026-08-05).
-var HIGHSCORE_MISSION_STARTED_SQL = "CASE WHEN t.source IN ('decision-batch','cli-declare') THEN t.created_at ELSE COALESCE((SELECT MIN(e.ts) FROM events e WHERE e.ticket_id=t.id AND " + HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL + "),(SELECT MIN(mt.updated_at) FROM mission_tasks mt WHERE mt.mission_id=t.id AND mt.status IN ('in_progress','done'))) END";
+var HIGHSCORE_MISSION_STARTED_SQL = "CASE WHEN t.source IN ('decision-batch','cli-declare') THEN t.created_at ELSE COALESCE((SELECT MIN(e.ts) FROM events e WHERE e.ticket_id=t.id AND " + HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL + "),(SELECT MIN(mt.updated_at) FROM mission_tasks mt WHERE mt.mission_id=t.id AND mt.status IN ('in_progress','done')),CASE WHEN EXISTS(SELECT 1 FROM mission_tasks mt2 WHERE mt2.mission_id=t.id) THEN t.created_at END) END";
 var HIGHSCORE_PERSONAS = ["neo", "morfeo", "trinity", "oraculo", "smith", "whiterabbit", "cypher"];
 
 /** Quién firma un objetivo. Los autores llegan como los escribe cada sitio:
@@ -3257,8 +3434,13 @@ async function highscoreDaily(env) {
   // Cuentan las DOS puertas (ver AGENT_SOURCE_SQL): filtrar solo por 'fleet'
   // dejaba a cero a quien trabaja por ventana de decisión.
   for (const r of await filas(
-    `SELECT assignee,loc,COUNT(*) c FROM (SELECT t.assignee,t.loc,t.status,${HIGHSCORE_MISSION_STARTED_SQL} scored_at ` +
-    `FROM tickets t WHERE ${AGENT_SOURCE_SQL_T}) WHERE status IN ('in_progress','resolved') ` +
+    `SELECT assignee,loc,COUNT(*) c FROM (SELECT t.assignee,t.loc,t.status,${HIGHSCORE_MISSION_STARTED_SQL} scored_at, ` +
+    `EXISTS(SELECT 1 FROM mission_tasks mt3 WHERE mt3.mission_id=t.id) con_plan ` +
+    `FROM tickets t WHERE ${AGENT_SOURCE_SQL_T}) ` +
+    // 'open' CON PLAN tambien cuenta: NeoMBP16 hizo 11 misiones en un dia,
+    // todas con su plan a-b-c, y no aparecia en el marcador porque nadie
+    // habia cambiado un estado. El marcador media el tramite, no el trabajo.
+    `WHERE (status IN ('in_progress','resolved') OR (status='open' AND con_plan=1)) ` +
     "AND scored_at>=? AND scored_at<? GROUP BY assignee,loc"
   )) {
     const f = fila(r.assignee, r.loc);
@@ -3519,32 +3701,62 @@ var index_default = {
     // Misiones de FLOTA: lectura pública (la consume admira.live/status, que no
     // pasa el gate Google) y sync idempotente. Van ANTES del perímetro.
     // Latido de PROGRESO del CLI: marca la misión en curso y guarda la última
-    // captura del terminal. Público como /fleet/informe (lo llama progreso-cli.sh
-    // desde la máquina del agente). Body: {mission, image} — image = URL /media.
+    // captura del terminal. Público como /fleet/informe (lo llama el capturador
+    // común). Body: {mission,owner,image,captured_at,evidence_kind}. Un heartbeat
+    // sin imagen puede activar la misión, pero NO refresca la antigüedad de una
+    // captura anterior.
     if (url.pathname === "/fleet/progress" && req.method === "POST") {
       try {
         await ensureSchema(env);
         const b = await req.json();
         const mid = await resolveFleetMissionReference(env, b.mission || b.id);
-        const img = String(b.image || "").trim().slice(0, 500);
         if (!mid) return json({ ok: false, error: "mission requerida" }, 400);
-        // No pisa una misión ya resuelta; solo abre→en curso y refresca la captura.
-        await env.DB.prepare(
-          "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END, live_shot=COALESCE(NULLIF(?,''),live_shot), live_at=?, updated_at=? WHERE id=? AND status!='resolved'"
-        ).bind(img, Date.now(), Date.now(), mid).run();
+        const t = await env.DB.prepare("SELECT id,assignee,loc,screen,created_at,status FROM tickets WHERE id=?").bind(mid).first();
+        if (!t) return json({ ok: false, error: "la misión " + mid + " no existe", applied: false }, 404);
+        const actor = validateMissionActor(t, b.owner || b.by || b.agent);
+        if (!actor.ok) return json({ ok: false, code: "owner_mismatch", error: actor.error, expected_assignee: actor.expected, received_owner: actor.actor, applied: false }, 403);
+        if (t.status === "resolved" || t.status === "cancelled") {
+          return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada", applied: false }, 409);
+        }
+        const rawImage = String(b.image || "").trim();
+        let img = null, capturedAt = null, liveKind = null;
+        if (rawImage) {
+          const norm = await validateProofImage(env, rawImage, url.origin);
+          if (!norm.value) return json({ ok: false, field: "image", error: "image no válida: " + norm.error, applied: false }, 400);
+          img = norm.value;
+          liveKind = String(b.evidence_kind || "").trim();
+          if (liveKind !== "process" && liveKind !== "final-fallback") {
+            return json({ ok: false, field: "evidence_kind", error: "evidence_kind debe ser process o final-fallback", applied: false }, 400);
+          }
+          if (liveKind === "final-fallback" && b.degraded !== true) {
+            return json({ ok: false, field: "degraded", error: "una captura final sólo puede reutilizarse como proceso con degraded:true", applied: false }, 400);
+          }
+          const capture = normalizeLiveCaptureTime(b.captured_at);
+          if (!capture.value) return json({ ok: false, field: "captured_at", error: capture.error, applied: false }, 400);
+          capturedAt = capture.value;
+        }
+        const now = Date.now();
+        if (img) {
+          await env.DB.prepare(
+            "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,live_shot=?,live_at=?,live_kind=?,updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
+          ).bind(img, capturedAt, liveKind, now, mid).run();
+        } else {
+          await env.DB.prepare(
+            "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
+          ).bind(now, mid).run();
+        }
         // Telegram es un espejo completo de la misión: el usuario ve el avance y
         // la captura sin tener que abrir YOKUP.
         if (env.TELEGRAM) {
-          const t = await env.DB.prepare("SELECT assignee,loc,screen,created_at FROM tickets WHERE id=?").bind(mid).first();
           const iid = t && await fleetEncargoId(env, mid, t.screen);
           if (/^\d+$/.test(String(iid || ""))) {
             try { await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-inbox/"+iid+"/progress", {
               method:"POST", headers:{"content-type":"application/json"},
-              body:JSON.stringify({mission_id:mid,mission_created_at:t.created_at,persona:t.assignee,machine:t.loc,detail:b.detail||"Captura de progreso recibida en YOKUP",image:img,percent:b.percent})
+              body:JSON.stringify({mission_id:mid,mission_created_at:t.created_at,persona:t.assignee,machine:t.loc,detail:b.detail||(img ? (liveKind === "final-fallback" ? "Captura final reutilizada como progreso (DEGRADADO)" : "Captura de proceso recibida en YOKUP") : "Latido de ejecución recibido; sin nueva captura"),image:img,percent:b.percent,evidence_kind:liveKind,captured_at:capturedAt,degraded:liveKind === "final-fallback"})
             })); } catch(e) {}
           }
         }
-        return json({ ok: true, mission: mid });
+        return json({ ok: true, mission: mid, evidence_updated: !!img, evidence_kind: liveKind, captured_at: capturedAt, degraded: liveKind === "final-fallback" });
       } catch (e) {
         return json({ ok: false, error: String(e) }, 500);
       }
@@ -3667,6 +3879,9 @@ var index_default = {
       const buf = await req.arrayBuffer();
       if (!buf.byteLength) return json({ ok: false, error: "vacío" }, 400);
       if (buf.byteLength > FLEET_MEDIA_MAX) return json({ ok: false, error: "máx 80MB" }, 413);
+      if (/^image\//i.test(kind.ct) && !imageBytesMatchMime(kind.ct, buf)) {
+        return json({ ok: false, code: "image_content_mismatch", error: "los bytes no corresponden al Content-Type " + kind.ct }, 415);
+      }
       const rand = [...crypto.getRandomValues(new Uint8Array(8))].map((x) => x.toString(16).padStart(2, "0")).join("");
       const key = `fleet/${rand}.${kind.ext}`;
       // Se guarda el content-type REAL como metadata del objeto: GET /media/<key> lo
@@ -3713,24 +3928,32 @@ var index_default = {
       let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
       const mid = await resolveFleetMissionReference(env, b.mission || b.id);
       const report = String(b.report || "").slice(0, 2000).trim();
-      const owner = String(b.owner || "infraagente").slice(0, 24);
+      const owner = String(b.owner || b.by || "").trim().slice(0, 80);
       const runtime = String(b.runtime || "").trim().slice(0, 20);
       const host = /^(app|cli)$/.test(String(b.host || "").trim()) ? String(b.host).trim() : "";
       // Captura de prueba OBLIGATORIA: una misión de flota no puede finalizar
       // sin el pantallazo real del trabajo realizado.
       const rawImage = String(b.image || "").trim();
-      const normImage = normalizeProofImage(rawImage);
-      if (!mid || !report) return json({ ok: false, error: "mission y report requeridos" }, 400);
-      // Mismo criterio de prueba que /fleet/task-status, y con el motivo concreto:
-      // «image requerido» no decía si faltaba o si el formato no valía (FLT-988 b2).
-      if (!normImage.value) {
-        return json({ ok: false, field: "image", error: rawImage
-          ? "image no válida: " + normImage.error
-          : "pantallazo image requerido para cerrar: manda la URL http(s) de la captura o un data:image/…;base64" }, 400);
-      }
-      const image = normImage.value;
+      const missing = [];
+      if (!mid) missing.push("mission");
+      if (!report) missing.push("report");
+      if (!owner) missing.push("owner");
+      if (!rawImage) missing.push("final_image");
+      if (missing.length) return json({ ok: false, code: "closure_evidence_missing", error: "no se puede cerrar: faltan " + missing.join(", "), missing, applied: false }, 400);
       const t = await env.DB.prepare("SELECT id, assignee, loc, status, source, screen, created_at FROM tickets WHERE id=?").bind(mid).first();
       if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
+      // La identidad se valida ANTES de auto-claim, informe, prueba o evento.
+      // Una firma cruzada se rechaza completa: no deja ningún rastro falso.
+      const actor = validateMissionActor(t, owner);
+      if (!actor.ok) return json({ ok: false, code: "owner_mismatch", error: actor.error, expected_assignee: actor.expected, received_owner: actor.actor, applied: false }, 403);
+      if (t.status === "resolved" || t.status === "cancelled") return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada y su informe/prueba no se sobrescriben", status: t.status, applied: false }, 409);
+      // Sólo después de autorizar al actor se toca una URL remota. Una cadena con
+      // aspecto de imagen no vale: R2 se verifica por objeto y las externas por CT.
+      const normImage = await validateProofImage(env, rawImage, url.origin);
+      if (!normImage.value) {
+        return json({ ok: false, field: "image", code: "closure_evidence_invalid", error: "image no válida: " + normImage.error, missing: ["final_image"], applied: false }, 400);
+      }
+      const image = normImage.value;
       // AUTO-CLAIM en el ORIGEN: que llegue un informe prueba que se está trabajando;
       // una misión que seguía «open» (Pendiente rezagado) pasa YA a in_progress, aunque
       // luego resuelva o quede en firma cruzada. Cura de raíz del dato, no del rastro.
@@ -3738,53 +3961,45 @@ var index_default = {
         await env.DB.prepare("UPDATE tickets SET status='in_progress', updated_at=? WHERE id=? AND status='open'").bind(Date.now(), mid).run().catch(() => {});
         t.status = "in_progress";
       }
-      // GUARDIA anti-firma-cruzada (Carlos, 2026-07-21): el informe lo firma quien
-      // EJECUTA (owner: subX/infraX) y debe ser la MISMA persona que el assignee de
-      // la misión. Se compara la persona BASE, quitando el prefijo sub/infra. Si no
-      // coincide, se MARCA como firma cruzada y NO se auto-cierra la misión.
-      const _pbase = s => canonMachine(String(s || "").replace(/^(sub|infra)/i, ""));
       const assignee = String((t && t.assignee) || "").trim();
-      const crossSign = !!(assignee && owner && _pbase(owner) !== _pbase(assignee));
       const now = Date.now();
       await env.DB.prepare(
-        "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,image,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?) " +
-        "ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report, status='done', owner=excluded.owner, image=COALESCE(excluded.image, mission_tasks.image), updated_at=excluded.updated_at"
-      ).bind(mid, "z1", "Informe del InfraAgente", "done", owner, report, image || null, now, now).run();
+        "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,image,image_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) " +
+        "ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report, status='done', owner=excluded.owner, image=excluded.image, image_kind='final', updated_at=excluded.updated_at"
+      ).bind(mid, "z1", "Informe del InfraAgente", "done", owner, report, image, "final", now, now).run();
       await env.DB.prepare(
-        "UPDATE tickets SET proof_image=?,agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),updated_at=? WHERE id=?"
+        "UPDATE tickets SET proof_image=?,proof_kind='final',agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),updated_at=? WHERE id=?"
       ).bind(image, runtime, host, now, mid).run();
       await addEvent(env, mid, "log", owner, "📝 Informe: " + report.slice(0, 240));
       await addEvent(env, mid, "proof", owner, "📸 Pantallazo final: " + proofLabel(image));
-      let batch = null;
-      if (crossSign) {
-        // Firma cruzada: se conserva el informe pero se avisa y NO se cierra sola.
-        await addEvent(env, mid, "log", owner, "⚠️ FIRMA CRUZADA: informe firmado por «" + owner + "» pero la misión es de «" + assignee + "». No se cierra automáticamente; requiere revisión.");
-      } else {
-        // El estado de la misión debe REFLEJAR su informe: al informar (con proof
-        // obligatorio) la misión pasa a RESUELTA, y se avanza también el encargo del
-        // bot-inbox (fuente del estado vía fleetSync) para que no reabra en el
-        // siguiente sync. Antes quedaban descuadrados: informe hecho pero misión en
-        // curso porque el ack era un segundo paso aparte. (Carlos, 2026-07-21)
-        await env.DB.prepare("UPDATE tickets SET status='resolved', resolved_at=COALESCE(resolved_at,?), updated_at=? WHERE id=? AND status!='resolved'").bind(now, now, mid).run().catch(() => {});
-        batch = await acceptBatchInformeClosure(env, t, mid, owner, report);
-        // Nº de encargo REAL (fleet_ids → screen → FLT), no el pelado ingenuo: tras el
-        // reparto anticolisión FLT-1005 podía cerrar el encargo #1005 inexistente en vez
-        // del #991 del que nació, y el push «done» se perdía en silencio. (FLT-990 c)
-        const numId = await fleetEncargoId(env, mid, t.screen);
-        if (/^\d+$/.test(numId) && env.TELEGRAM) {
-          try {
-            await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-inbox/"+numId+"/result", {
+      const closeResult = await env.DB.prepare(
+        "UPDATE tickets SET status='resolved',resolved_at=COALESCE(resolved_at,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
+      ).bind(now, now, mid).run();
+      const localResolved = !!(closeResult && closeResult.meta && Number(closeResult.meta.changes) > 0);
+      const numId = await fleetEncargoId(env, mid, t.screen);
+      const inboxRequired = t.source === "fleet" && /^\d+$/.test(String(numId || ""));
+      let inboxUpdated = !inboxRequired;
+      if (inboxRequired && env.TELEGRAM) {
+        try {
+          const resultResponse = await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-inbox/"+numId+"/result", {
               method: "POST", headers: { "content-type": "application/json" },
               body: JSON.stringify({ persona: assignee || owner, machine: t.loc || "", report, image, runtime, host, mission_id: mid, mission_created_at: t.created_at })
-            }));
-            await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
+          }));
+          const statusResponse = await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
               method: "POST", headers: { "content-type": "application/json" },
               body: JSON.stringify({ ids: [Number(numId)], status: "done", by: assignee || owner, note: "auto: informe con proof en yokup" })
-            }));
-          } catch (e) {}
-        }
+          }));
+          inboxUpdated = resultResponse.ok && statusResponse.ok;
+        } catch (e) { inboxUpdated = false; }
       }
-      return json({ ok: true, mission: mid, resolved: !crossSign, cross_signed: crossSign, batch });
+      if (!localResolved || !inboxUpdated) {
+        return json({ ok: false, code: "closure_partial", mission: mid, resolved: false,
+          local_resolved: localResolved, proof_saved: true, inbox_updated: inboxUpdated,
+          sync_required: true, proof_image: image,
+          error: !localResolved ? "se guardó informe/prueba pero falló el cierre local" : "cierre local guardado; falta confirmar bot-inbox" }, 502);
+      }
+      const batch = await acceptBatchInformeClosure(env, t, mid, owner, report);
+      return json({ ok: true, mission: mid, resolved: true, cross_signed: false, inbox_updated: inboxUpdated, proof_image: image, batch });
     }
     // CANCELAR una misión: reconocer que NO se hará. No exige pantallazo (no se finge
     // trabajo, se retira). Marca el ticket cancelled + nota, y cancela el encargo del
@@ -3824,20 +4039,19 @@ var index_default = {
       const mid = await resolveFleetMissionReference(env, b.mission || b.id);
       const code = String(b.code || "").toLowerCase().trim();
       if (!mid || !validTaskCode(code)) return json({ ok: false, error: "mission y code válidos requeridos" }, 400);
-      // 1) LA PRUEBA SE ACEPTA EN EL MISMO MOVIMIENTO DEL CIERRE (FLT-988 b2). Si el
-      // formato no vale se dice, con 400 y motivo; nunca se descarta en silencio.
+      const tk = await env.DB.prepare("SELECT id,source,proof_image,status,assignee,loc FROM tickets WHERE id=?").bind(mid).first();
+      if (!tk) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
+      // Igual que informe y progreso: primero identidad, después cualquier write.
+      const actor = validateMissionActor(tk, b.owner || b.by);
+      if (!actor.ok) return json({ ok: false, code: "owner_mismatch", error: actor.error, expected_assignee: actor.expected, received_owner: actor.actor, mission: mid, code, applied: false }, 403);
+      if (tk.status === "resolved" || tk.status === "cancelled") return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada y sus tareas/pruebas no se sobrescriben", status: tk.status, mission: mid, task_code: code, applied: false }, 409);
+      // 1) La prueba se comprueba después de autorizar al actor y antes de writes.
       let img = null;
       if (b.image != null && String(b.image).trim() !== "") {
-        const norm = normalizeProofImage(b.image);
-        if (!norm.value) {
-          // applied:false como el otro 400 de este endpoint (FLT-988): un formato
-          // inválido NO cambia nada, y quien llama debe saber que su marca no cuajó.
-          return json({ ok: false, error: "image no válida: " + norm.error, field: "image", mission: mid, code, applied: false }, 400);
-        }
+        const norm = await validateProofImage(env, b.image, url.origin);
+        if (!norm.value) return json({ ok: false, error: "image no válida: " + norm.error, field: "image", mission: mid, code, applied: false }, 400);
         img = norm.value;
       }
-      const tk = await env.DB.prepare("SELECT id,source,proof_image,status FROM tickets WHERE id=?").bind(mid).first();
-      if (!tk) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
       // AUTO-CLAIM en el ORIGEN: marcar un paso ES trabajar. Una misión que seguía «open»
       // (Pendiente rezagado) pasa YA a in_progress al primer task-status, sin esperar a
       // que el reconciliador por árbol la promueva. Cura de raíz del dato. (FLT-990 b/c)
@@ -3868,27 +4082,23 @@ var index_default = {
       // dejaba el tablero mintiendo (FLT-982/983/984, rematadas a mano en D1).
       const nextSt = TASK_STATUS.includes(b.status) ? b.status : cur.status;
       const cierraArbol = nextSt === "done" && tasks.every((t) => t.code === code || t.status === "done");
-      if (cierraArbol && !img && !(tk.proof_image || await hasMissionProof(env, mid))) {
+      if (cierraArbol && !img && !(await hasMissionProof(env, mid))) {
         return json({
           ok: false,
           error: "falta la prueba: con esta tarea el árbol de " + mid + " queda al 100%, y una misión de flota no finaliza sin pantallazo del trabajo.",
           hint: "repite esta misma llamada añadiendo «image» (URL http(s) de la captura o data:image/…;base64), o cierra con POST /fleet/informe.",
-          field: "image", mission: mid, code, applied: false
+          field: "image", code: "closure_evidence_missing", missing: ["final_image"], mission: mid, task_code: code, applied: false
         }, 400);
       }
-      const row = await setTaskStatus(env, mid, code, b.status, b.report, b.owner || b.by, img);
+      const row = await setTaskStatus(env, mid, code, b.status, b.report, actor.actor, img, cierraArbol ? "final" : "task");
       if (!row) return json({ ok: false, error: "no se pudo actualizar la tarea «" + code + "» de " + mid }, 500);
-      // 3) LA PRUEBA DEL PASO ES LA PRUEBA DE LA MISIÓN. Sin este ascenso la captura se
-      // quedaba en mission_tasks.image y la ficha salía sin prueba, así que había que
-      // escribir tickets.proof_image aparte. Al cerrar manda la captura del cierre; en
-      // un paso intermedio solo rellena el hueco si aún no había ninguna.
+      // 3) Una prueba de PASO no se presenta como prueba FINAL de misión. Sólo la
+      // captura adjunta al movimiento que completa el árbol asciende al ticket.
       if (img) {
         if (cierraArbol) {
-          await env.DB.prepare("UPDATE tickets SET proof_image=?, updated_at=? WHERE id=?").bind(img, Date.now(), mid).run();
-        } else {
-          await env.DB.prepare("UPDATE tickets SET proof_image=COALESCE(NULLIF(proof_image,''),?), updated_at=? WHERE id=?").bind(img, Date.now(), mid).run();
+          await env.DB.prepare("UPDATE tickets SET proof_image=?,proof_kind='final',updated_at=? WHERE id=?").bind(img, Date.now(), mid).run();
         }
-        await addEvent(env, mid, "proof", String(b.owner || b.by || "agente").slice(0, 40), "📸 Prueba de «" + code + "»: " + proofLabel(img));
+        await addEvent(env, mid, "proof", actor.actor, (cierraArbol ? "📸 Pantallazo final de «" : "📷 Evidencia de tarea «") + code + "»: " + proofLabel(img));
       }
       const fleet = await fleetReconcileMission(env, mid);
       // CIERRE POR RESPALDO (FLT-989 b1): si el árbol cerró SIN «image» en esta
@@ -3944,8 +4154,14 @@ var index_default = {
     //   POST /projects/assign           asignar/quitar uno {project,kind,ref,remove?}
     //   POST /projects/order            orden de las fichas {ids:[...]} (arrastrar)
     //   POST /projects/mission          proyecto de una misión {mission,project}
+    //   GET  /projects/principal        declaraciones vigentes del día de Madrid
+    //   POST /projects/principal        declara {agent,machine?,project,declared_by?,statement?}
     if (url.pathname === "/projects" && req.method === "GET") {
-      try { return json({ ok: true, projects: await listProjects(env) }); }
+      try {
+        const projects = await listProjects(env);
+        return json({ ok: true, day: madridDayKey(Date.now()), projects,
+          principal_declarations: await listPrincipalProjectDeclarations(env) });
+      }
       catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
     if (url.pathname === "/projects" && req.method === "POST") {
@@ -3953,6 +4169,19 @@ var index_default = {
         const b = await req.json().catch(() => ({}));
         const r = await upsertProject(env, b);
         return json(r, r.ok ? 200 : (r.status || 400));
+      } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
+    if (url.pathname === "/projects/principal" && req.method === "GET") {
+      try {
+        const day = String(url.searchParams.get("day") || madridDayKey(Date.now())).trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return json({ ok: false, error: "day debe ser YYYY-MM-DD" }, 400);
+        return json({ ok: true, day, declarations: await listPrincipalProjectDeclarations(env, day) });
+      } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
+    if (url.pathname === "/projects/principal" && req.method === "POST") {
+      try {
+        const result = await declarePrincipalProject(env, await req.json().catch(() => ({})));
+        return json(result, result.ok ? 200 : (result.status || 400));
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
     if (url.pathname === "/projects/decision" && req.method === "POST") {

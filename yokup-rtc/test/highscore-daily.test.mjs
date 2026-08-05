@@ -206,7 +206,7 @@ test("MBP14: FLT-1204 enlaza una tarea done como inicio factual y suma misión +
     "la clasificación horaria une misión y tarea cuando comparten identidad exacta");
 });
 
-test("MBP16: FLT-1203 abierta y pendiente no puntúa por presencia, mensajes ni updated_at", async () => {
+test("MBP16: FLT-1203 abierta CON PLAN sí puntúa — el marcador mide trabajo, no trámite", async () => {
   const {db,env,F}=harness();
   db.exec(`INSERT INTO tickets(id,subject,loc,source,status,assignee,project,created_at,updated_at) VALUES
     ('FLT-1203','Trabajo anunciado fuera del cierre canónico','macbookpro16','fleet','open','NeoMBP16','yokup',${HOY},${HOY})`);
@@ -217,17 +217,29 @@ test("MBP16: FLT-1203 abierta y pendiente no puntúa por presencia, mensajes ni 
   db.exec(`INSERT INTO events(ticket_id,ts,kind,author,text) VALUES
     ('FLT-1203',${HOY},'log','NeoMBP16','Trabajo anunciado y despliegue comunicado')`);
 
+  // Carlos, 5-ago-2026. Antes esta prueba exigia lo contrario: que una mision
+  // ABIERTA no puntuara. El dia que se cambio, NeoMBP16 llevaba 11 misiones —mas
+  // que nadie— todas con su plan a-b-c hecho, y no salia en el marcador porque
+  // nadie habia movido un estado. El marcador media el tramite, no el trabajo.
+  // Ahora una mision con PLAN GENERADO cuenta, este reclamada o no.
   const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
-  assert.ok(!d.scores.some(row=>row.agent==="NeoMBP16"));
-  assert.ok(!d.traceability.chains.some(row=>row.mission && row.mission.id==="FLT-1203"));
-  assert.deepEqual(d.traceability.unlinked
-    .filter(row=>row.mission_id==="FLT-1203")
-    .map(row=>[row.id,row.reason,row.points]),[
-      ["FLT-1203:a","mission_not_started",0],
-      ["FLT-1203:b","mission_not_started",0],
-      ["FLT-1203:c","mission_not_started",0],
-    ]);
-  assert.ok(!d.hourly.scores.some(row=>row.agent==="NeoMBP16" || row.agent==="SubNeoMBP16" || row.agent==="InfraNeoMBP16"));
+  const neo=d.scores.find(row=>row.agent==="NeoMBP16");
+  assert.ok(neo, "una mision abierta CON plan tiene que puntuar");
+  assert.equal(neo.missions,1);
+  // Lo que NO cambia: las tareas pendientes siguen sin sumar. Puntua la mision
+  // por tener plan, no el anuncio ni el updated_at.
+  assert.equal(neo.objective_points,0);
+});
+
+test("MBP16: una mision abierta SIN plan NO puntúa — sin plan no hay trabajo que medir", async () => {
+  const {db,env,F}=harness();
+  db.exec(`INSERT INTO tickets(id,subject,loc,source,status,assignee,project,created_at,updated_at) VALUES
+    ('FLT-1299','Anunciada y sin plan','macbookpro16','fleet','open','NeoMBP16','yokup',${HOY},${HOY})`);
+  db.exec(`INSERT INTO events(ticket_id,ts,kind,author,text) VALUES
+    ('FLT-1299',${HOY},'log','NeoMBP16','Trabajo anunciado en Agora')`);
+  const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
+  assert.ok(!d.scores.some(row=>row.agent==="NeoMBP16"),
+    "anunciar trabajo sin plan no puede puntuar: seria inflar el marcador con mensajes");
 });
 
 test("logs genéricos y mensajes externos no son transiciones puntuables", async () => {
@@ -325,13 +337,14 @@ test("la medianoche del marcador es la de Madrid, no la de UTC", () => {
 });
 
 test("el ámbito de flota incluye las misiones nacidas de una ventana de decisión", () => {
-  // El trabajo de agente entra por dos puertas; el ámbito «fleet» tiene que ver las dos.
-  assert.match(source, /var AGENT_SOURCE_SQL = "source IN \('fleet','decision-batch'\)"/);
+  // El trabajo de agente entra por tres puertas; el ámbito «fleet» tiene que verlas:
+  // bandeja, ventana de decisión y declaración CLI con evidencia.
+  assert.match(source, /var AGENT_SOURCE_SQL = "source IN \('fleet','decision-batch','cli-declare'\)"/);
   assert.match(source, /scope === "fleet" \? `WHERE \$\{AGENT_SOURCE_SQL_T\}`/);
   assert.match(source, /scope === "fleet" \? AGENT_SOURCE_SQL/);
   assert.doesNotMatch(source, /scope === "fleet" \? "WHERE t\.source='fleet'"/);
   assert.doesNotMatch(source, /scope === "fleet" \? "source='fleet'"/);
   // Y la bandeja de CAMPO deja de tragarse las misiones de los agentes.
-  assert.match(source, /source NOT IN \('fleet','decision-batch'\)/);
+  assert.match(source, /source NOT IN \('fleet','decision-batch','cli-declare'\)/);
   assert.doesNotMatch(source, /source IS NULL OR t\.source!='fleet'/);
 });
