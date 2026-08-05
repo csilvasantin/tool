@@ -1107,8 +1107,19 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       (resto > 0 ? '<span class="maq-mas">+' + resto + '</span>' : '') + '</div>';
   }
 
+  // El realce late sobre una CIFRA, no sobre el hueco donde no hay ninguna.
+  // Las dos señales de la fila salen de fuentes distintas: la columna cuenta lo
+  // que ha PUNTUADO HOY (datos.actividad) y el realce marca lo que está EN CURSO
+  // AHORA (datos.misiones/ideas/decisiones/tareas). Una misión in_progress que
+  // aún no ha puntuado hoy dejaba la celda a 0 y latiendo —OraculoMBAPlata,
+  // cazado por Carlos el 2026-08-05—: el agente parecía trabajando y marcando
+  // cero a la vez. Con valor 0 no hay nada que realzar y la celda va limpia; la
+  // actividad viva sigue contándose en las calles de misiones activas y en la
+  // carrera, que es donde un cero no se contradice. Afecta por igual a las
+  // cuatro columnas (objetivos, ventanas, misiones, tareas).
   function numeroActividad(a, tipo, valor, singular) {
     if (a.actividad !== tipo) return valor;
+    if (!(Number(valor) > 0)) return valor;
     var detalle = normaliza(a.actividadDetalle), texto = detalle || singular;
     return '<span class="activity-now" title="' + esc(texto) + '" aria-label="' + esc(valor + " " + tipo + ". " + texto) + '">' + valor + '</span>';
   }
