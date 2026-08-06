@@ -4,6 +4,7 @@ import vm from "node:vm";
 import {readFile} from "node:fs/promises";
 
 const html=await readFile(new URL("./informes.html",import.meta.url),"utf8");
+const deploy=await readFile(new URL("./deploy.mjs",import.meta.url),"utf8");
 const start=html.indexOf("function compactMissionRef");
 const end=html.indexOf("function render(list)",start);
 assert.ok(start>0&&end>start,"no se encontró el presentador de misión");
@@ -42,4 +43,9 @@ test("la tarea se rotula explícitamente y móvil no usa elipsis para la referen
   assert.match(html,/\.mref\{[^}]*overflow-wrap:anywhere/);
   assert.doesNotMatch(html,/\.mid\{[^}]*text-overflow:ellipsis/);
   assert.doesNotMatch(html,/\.mref\{[^}]*text-overflow:ellipsis/);
+});
+
+test("el deploy sella el sorter para que producción no conserve el orden antiguo",()=>{
+  assert.match(deploy,/\\\/yk-informes-sort\\\.js/);
+  assert.match(deploy,/"\/yk-informes-sort\.js\?v=" \+ stamp/);
 });
