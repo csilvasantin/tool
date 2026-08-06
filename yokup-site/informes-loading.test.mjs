@@ -26,7 +26,7 @@ function element(innerHTML = "") {
 
 test("proyecto temprano conserva loading; datos, deuda y avatar no se serializan", async () => {
   const tasks = deferred(), avatar = deferred(), listeners = {}, intervals = [], calls = [];
-  const elements = { reps:element('<div class="empty loading">Cargando informes…</div>'), tfilter:element(), tfDate:element(), debe:element(), lb:element() };
+  const elements = { reps:element('<div class="empty loading">Cargando informes…</div>'), tfilter:element(), tfDate:element(), debe:element(), lb:element(), pageStatus:element(), loadMore:element() };
   elements.lb.querySelector = () => element();
   const fetch = (url) => {
     calls.push(url);
@@ -46,6 +46,8 @@ test("proyecto temprano conserva loading; datos, deuda y avatar no se serializan
     window, document, fetch, console, Date, Promise, encodeURIComponent, ykAvatar:window.ykAvatar,
     YkInformesSort:{sort:(rows)=>rows},
     YkInformesColumns:{mount:()=>({apply(){}})},
+    YkInformesGroups:{group:(rows)=>[{key:"test",name:"Test",rows}]},
+    AbortController,
     setInterval(fn){ intervals.push(fn); return intervals.length; }, setTimeout(){},
   });
   vm.runInContext(main, context);
@@ -84,8 +86,8 @@ test("el contrato de carga impide empty prematuro y mantiene refresco", () => {
   assert.match(html, /if\(LOAD_STATE==="error"\)\{ renderLoadError\(\); return; \}/);
   assert.match(html, /if\(LOAD_STATE!=="ready"\|\|!PROJECT_READY\)\{ renderLoading\(\); return; \}/);
   assert.match(html, /if\(!d\|\|!Array\.isArray\(d\.tasks\)\)throw/);
-  assert.match(html, /ALL=all; LOAD_STATE="ready"; applyFilter\(\)/);
-  assert.match(html, /if\(LOAD_INFLIGHT\)return LOAD_INFLIGHT/);
-  assert.match(html, /load\(\);[\s\S]*ykAvatar\.ready[\s\S]*setInterval\(load,15000\)/);
+  assert.match(html, /LOAD_STATE="ready";applyFilter\(\)/);
+  assert.match(html, /if\(LOAD_INFLIGHT&&!reset\)return LOAD_INFLIGHT/);
+  assert.match(html, /load\(\);[\s\S]*ykAvatar\.ready[\s\S]*setInterval\(refresh,15000\)/);
   assert.doesNotMatch(html, /ykAvatar\.ready\s*:\s*Promise\.resolve\(\)\)\.then\(load\)/);
 });

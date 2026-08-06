@@ -18,6 +18,7 @@
 <script src="/yk-agent-identity.js?v=1"></script>
 <script src="/yk-informes-sort.js?v=r1"></script>
 <script src="/yk-informes-columns.js?v=r1"></script>
+<script src="/yk-informes-groups.js?v=r1"></script>
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -58,6 +59,15 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .grow.item{border-bottom:1px solid var(--line);transition:.12s}
 .grow.item:last-child{border-bottom:0}
 .grow.item:hover{background:var(--card2)}
+.family-group{border-bottom:1px solid var(--line2)}
+.family-group:last-child{border-bottom:0}
+.family-summary{background:rgba(120,243,255,.045);border-bottom:1px solid var(--line)}
+.family-toggle{width:100%;min-height:42px;padding:8px 13px;display:flex;align-items:center;gap:9px;border:0;background:transparent;color:var(--ink);font:600 11px/1.3 var(--mono);text-align:left;cursor:pointer}
+.family-toggle:hover{background:rgba(120,243,255,.06)}
+.family-toggle:focus-visible{outline:2px solid var(--brand);outline-offset:-3px}
+.family-chevron{color:var(--brand);transition:transform .15s}.family-toggle[aria-expanded="false"] .family-chevron{transform:rotate(-90deg)}
+.family-name{color:var(--brand);letter-spacing:.035em}.family-count{color:var(--dim);font-weight:400}
+.family-rows[hidden]{display:none}
 .gc{padding:12px 13px;border-left:1px solid var(--line);min-width:0;display:flex;flex-direction:column;justify-content:center;gap:5px}
 .gc:first-child{border-left:0}
 /* Misión */
@@ -100,6 +110,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   border:1px solid rgba(120,243,255,.28);filter:saturate(.92)}
 .grow.item:hover .agava{border-color:rgba(120,243,255,.6)}
 .who-av>span{font-size:11px;color:var(--ink)}
+.role-badge{align-self:center;font:700 8.5px/1 var(--mono);letter-spacing:.055em;text-transform:uppercase;padding:3px 6px;border:1px solid var(--line2);border-radius:999px;color:var(--mut)}
+.role-main{color:var(--brand)}.role-sub{color:var(--accent)}.role-infra{color:var(--violet)}
 .badge{align-self:flex-start;font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
 .badge i{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
 .b-pending{color:var(--accent);border:1px solid rgba(255,216,102,.4);background:rgba(255,216,102,.06)}
@@ -136,6 +148,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .debe-row b{flex:none;font-family:var(--mono);font-size:11.5px;color:#ffb454;letter-spacing:.04em}
 .debe-tx{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .debe-ag{flex:none;font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.04em}
+.page-state{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:14px 8px 2px;font:10.5px/1.4 var(--mono);color:var(--dim)}
+.load-more{min-height:40px;padding:8px 15px;border:1px solid var(--line2);border-radius:8px;background:var(--card2);color:var(--brand);font:700 10px/1 var(--mono);letter-spacing:.055em;text-transform:uppercase;cursor:pointer}
+.load-more:hover,.load-more:focus-visible{border-color:var(--brand);outline:none}.load-more[disabled]{opacity:.55;cursor:progress}
 @media(max-width:560px){.debe-ag{display:none}}
 @media(max-width:640px){.wrap{padding:16px 12px 40px}.col-resize{width:16px;right:-8px}.col-resize:before{left:7px}}
 /* intro plegable REUTILIZABLE — patrón .page-intro de /objetivos. */
@@ -181,6 +196,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <div class="sheet-wrap">
     <div class="sheet" id="reps" role="table" aria-label="Informes de misiones" aria-busy="true"><div class="empty loading" role="status"><b>Cargando informes…</b>Reuniendo los partes de todas las misiones.</div></div>
   </div>
+  <div class="page-state" aria-live="polite"><span id="pageStatus" role="status">0 cargados</span><button class="load-more" id="loadMore" type="button" hidden>Cargar más</button></div>
   <div class="foot">Yokup · informes · tareas con <b>report</b> · fuente <b>D1</b> (mission_tasks)</div>
 
   <!-- EXPERTO: JSON crudo de tickets del worker yokup-rtc -->
@@ -203,16 +219,19 @@ function durTxt(a,b){ let m=Math.round((b-a)/60000); if(m<1)return "<1m"; if(m<6
 const OWN_ICON={principal:"🧠",subagente:"⚙️",infraagente:"📝"};
 function reportAgent(t){
   const person=t.agent_identity||t.owner||"";
+  const executor=t.executor||person;
   const machine=t.machine||t.target_machine||t.loc||t.mission_machine||(t.mission&&t.mission.machine)||"";
-  return window.ykAgentIdentity?ykAgentIdentity.reportDisplay(person,machine):person;
+  return window.ykAgentIdentity?ykAgentIdentity.reportDisplay(executor,machine):executor;
 }
 const ST_LABEL={pending:"pendiente",in_progress:"en curso",done:"hecha"};
 
 // ── FILTRO POR FECHA del informe (updated_at = cuándo lo reportó el infraagente).
 // Por defecto sólo los de HOY (Carlos, 2026-07-15). Filtra sobre lo ya cargado.
+const PAGE_LIMIT=30;
 let ALL=[], MLAST={}, DFILTER={mode:"hoy", day:""}, PROJECT_SCOPE=null, PROJECT_READY=false;
 let SORT={key:"tiempo",dir:"desc"};
-let LOAD_STATE="loading", LOAD_INFLIGHT=null;
+let LOAD_STATE="loading", LOAD_INFLIGHT=null, LOAD_ABORT=null, LOAD_SEQ=0;
+let PAGE={cursor:null,hasMore:false,total:null,legacy:false,legacyRest:[]};
 const _ms=v=>{v=+v||0;return v>4102444800?v:v*1000;};
 const _pad=n=>(n<10?"0":"")+n;
 const _ymd=d=>d.getFullYear()+"-"+_pad(d.getMonth()+1)+"-"+_pad(d.getDate());
@@ -229,6 +248,14 @@ function inRange(when){
   const [s,e]=dayBounds(ymd); return c>=s && c<e;
 }
 function filterLabel(){ return DFILTER.mode==="hoy"?"de hoy":DFILTER.mode==="ayer"?"de ayer":DFILTER.mode==="7d"?"de los últimos 7 días":DFILTER.mode==="dia"?("del "+DFILTER.day):null; }
+function filterBounds(){
+  if(DFILTER.mode==="todas")return [0,Date.now()+86400000];
+  if(DFILTER.mode==="7d")return [Date.now()-7*86400000,Date.now()+60000];
+  let ymd=DFILTER.day;
+  if(DFILTER.mode==="ayer"){const d=new Date();d.setDate(d.getDate()-1);ymd=_ymd(d);}
+  if(!ymd)ymd=_ymd(new Date());
+  return dayBounds(ymd);
+}
 function applyFilter(){
   if(LOAD_STATE==="error"){ renderLoadError(); return; }
   if(LOAD_STATE!=="ready"||!PROJECT_READY){ renderLoading(); return; }
@@ -241,34 +268,78 @@ if(window.addEventListener)window.addEventListener("yk:project-change",event=>{
   applyFilter();
 });
 
-function load(){
-  // Un refresco lento no abre otro /tasks/all encima: conserva el resultado actual
-  // y comparte la misma promesa con cualquier tick de los 15 s.
-  if(LOAD_INFLIGHT)return LOAD_INFLIGHT;
-  if(LOAD_STATE!=="ready"){LOAD_STATE="loading";renderLoading();}
+function taskKey(t){return String(t.mission_id||"")+"\u0000"+String(t.code||"");}
+function mergeTasks(current,incoming){
+  const map=new Map(current.map(t=>[taskKey(t),t]));
+  incoming.forEach(t=>{const key=taskKey(t),before=map.get(key);if(!before||_ms(t.updated_at)>=_ms(before.updated_at))map.set(key,t);});
+  return Array.from(map.values());
+}
+function updateMissionLast(rows){
+  rows.forEach(x=>{const u=_ms(x.updated_at);if(u&&x.mission_id!=null){const k=String(x.mission_id);if(!MLAST[k]||u>MLAST[k])MLAST[k]=u;}});
+}
+function updatePageState(){
+  const status=$("pageStatus"),button=$("loadMore");if(!status||!button)return;
+  const total=Number.isFinite(Number(PAGE.total))?Number(PAGE.total):null;
+  status.textContent=ALL.length+" cargados"+(total==null?"":" de "+total);
+  button.hidden=!PAGE.hasMore;button.disabled=!!LOAD_INFLIGHT;
+  button.textContent=LOAD_INFLIGHT?"Cargando…":"Cargar más";
+}
+function pageUrl(cursor,includeTotal){
+  const bounds=filterBounds();
+  let url=WORKER+"/tasks/all?scope=fleet&paginated=1&limit="+PAGE_LIMIT+
+    "&updated_from="+Math.floor(bounds[0])+"&updated_to="+Math.floor(bounds[1]);
+  if(cursor)url+="&cursor="+encodeURIComponent(cursor);
+  if(includeTotal)url+="&include_total=1";
+  return url;
+}
+function loadPage(options={}){
+  const reset=!!options.reset,refresh=!!options.refresh;
+  if(LOAD_INFLIGHT&&!reset)return LOAD_INFLIGHT;
+  if(reset&&LOAD_ABORT)LOAD_ABORT.abort();
+  const seq=++LOAD_SEQ,controller=typeof AbortController!=="undefined"?new AbortController():null;
+  LOAD_ABORT=controller;
+  if(reset){LOAD_STATE="loading";PAGE={cursor:null,hasMore:false,total:null,legacy:false,legacyRest:[]};renderLoading();}
+  updatePageState();
   LOAD_INFLIGHT=(async()=>{
-  // UNA sola petición al endpoint agregado /tasks/all?scope=fleet: los informes viven
-  // en el árbol de tareas de las misiones de FLOTA (source='fleet'). Cada fila ya trae
-  // subject/screen/image de su misión. (Carlos, 2026-07-16.)
-  let d; try{
-    const r=await fetch(WORKER+"/tasks/all?scope=fleet",{cache:"no-store"});
-    if(!r.ok)throw new Error("tasks HTTP "+r.status);
-    d=await r.json();
-    if(!d||!Array.isArray(d.tasks))throw new Error("respuesta de informes inválida");
-  }catch(e){
-    if(LOAD_STATE!=="ready"){LOAD_STATE="error";renderLoadError();}
-    return false;
-  }
-  // HORA DE FIN de una misión EN CURSO: el updated_at más reciente de CUALQUIERA de
-  // sus tareas (no sólo las que ya tienen parte). Se mapea mission_id → último toque.
-  const raw=d.tasks||[]; MLAST={};
-  raw.forEach(x=>{ const u=_ms(x.updated_at); if(u && x.mission_id!=null){ const k=String(x.mission_id); if(!MLAST[k]||u>MLAST[k]) MLAST[k]=u; } });
-  const all=(d.tasks||[]).filter(t=>t.report && String(t.report).trim());
-  all.sort((a,b)=>(b.updated_at||0)-(a.updated_at||0));
-  ALL=all; LOAD_STATE="ready"; applyFilter(); return true;
-  })().finally(()=>{LOAD_INFLIGHT=null;});
+    let d;try{
+      const r=await fetch(pageUrl(options.cursor||"",!!options.includeTotal),{cache:"no-store",signal:controller&&controller.signal});
+      if(!r.ok)throw new Error("tasks HTTP "+r.status);
+      d=await r.json();
+      if(seq!==LOAD_SEQ)return false;
+      if(!d||!Array.isArray(d.tasks))throw new Error("respuesta de informes inválida");
+    }catch(e){
+      if(seq!==LOAD_SEQ||(e&&e.name==="AbortError"))return false;
+      if(LOAD_STATE!=="ready"){LOAD_STATE="error";renderLoadError();}
+      return false;
+    }
+    const reports=d.tasks.filter(t=>t.report&&String(t.report).trim());
+    updateMissionLast(reports);
+    const paginated=Object.prototype.hasOwnProperty.call(d,"has_more")||Object.prototype.hasOwnProperty.call(d,"next_cursor");
+    if(!paginated){
+      const sorted=reports.sort((a,b)=>_ms(b.updated_at)-_ms(a.updated_at));
+      PAGE.legacy=true;PAGE.legacyRest=sorted.slice(PAGE_LIMIT);PAGE.hasMore=PAGE.legacyRest.length>0;PAGE.total=sorted.length;
+      ALL=sorted.slice(0,PAGE_LIMIT);
+    }else if(refresh){
+      ALL=mergeTasks(ALL,reports);
+      if(d.total!=null)PAGE.total=Number(d.total);
+    }else{
+      ALL=reset?mergeTasks([],reports):mergeTasks(ALL,reports);
+      PAGE.cursor=d.next_cursor||null;PAGE.hasMore=!!d.has_more;PAGE.total=d.total==null?PAGE.total:Number(d.total);
+    }
+    if(PAGE.total!=null)PAGE.total=Math.max(Number(PAGE.total)||0,ALL.length);
+    LOAD_STATE="ready";applyFilter();return true;
+  })().finally(()=>{
+    if(seq===LOAD_SEQ){LOAD_INFLIGHT=null;LOAD_ABORT=null;updatePageState();}
+  });
   return LOAD_INFLIGHT;
 }
+function load(){return loadPage({reset:true,includeTotal:true});}
+function loadMore(){
+  if(LOAD_INFLIGHT||!PAGE.hasMore)return Promise.resolve(false);
+  if(PAGE.legacy){const next=PAGE.legacyRest.splice(0,PAGE_LIMIT);ALL=mergeTasks(ALL,next);PAGE.hasMore=PAGE.legacyRest.length>0;applyFilter();updatePageState();return Promise.resolve(true);}
+  return loadPage({cursor:PAGE.cursor});
+}
+function refresh(){if(LOAD_INFLIGHT||PAGE.legacy||LOAD_STATE!=="ready")return Promise.resolve(false);return loadPage({refresh:true});}
 
 // ── DEUDA DE INFORMES ───────────────────────────────────────────────────────
 // «Todas las misiones finalizadas tienen que tener su informe» (Carlos, 24-jul-2026).
@@ -325,7 +396,7 @@ function renderLoadError(){
 }
 // Miniatura clicable (lightbox) o «—» honesto. `mission`=tiñe de ámbar (proof de cierre).
 function shotHTML(src,title,alt,mission){ return src
-  ? `<a class="shot-a" href="${esc(src)}" data-full="${esc(src)}" title="${esc(title)}"><img class="shot-img${mission?' shot-mission':''}" loading="lazy" src="${esc(src)}" alt="${esc(alt)}"></a>`
+  ? `<a class="shot-a" href="${esc(src)}" data-full="${esc(src)}" title="${esc(title)}"><img class="shot-img${mission?' shot-mission':''}" loading="lazy" decoding="async" src="${esc(src)}" alt="${esc(alt)}"></a>`
   : `<span class="shot-none" title="${esc(title)}">—</span>`; }
 // Celda TIEMPO: hora INICIO (created_at de la misión) → hora FIN (resolved_at si está
 // resuelta; si no, el último updated_at de sus tareas · «en curso»). Fecha corta delante
@@ -363,6 +434,11 @@ function missionPresentation(t){
   const readable=/^FLT-\d+$/i.test(id);
   return {id,primary:readable?id:(ref||id),secondary:readable?ref:"",copy:!readable&&!!id};
 }
+const FAMILY_COLLAPSE_KEY="yokup.informes.collapsedFamilies.v1";
+let COLLAPSED_FAMILIES=(()=>{try{return JSON.parse(localStorage.getItem(FAMILY_COLLAPSE_KEY)||"{}")||{};}catch(_){return {};}})();
+const ROLE_LABEL={main:"principal",sub:"subagente",infra:"infraagente"};
+function familyDomId(key){let h=2166136261;for(const c of String(key)){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return "family-"+(h>>>0).toString(36);}
+function saveCollapsed(){try{localStorage.setItem(FAMILY_COLLAPSE_KEY,JSON.stringify(COLLAPSED_FAMILIES));}catch(_){}}
 function render(list){
   const box=$("reps");
   box.setAttribute("aria-busy","false");
@@ -374,11 +450,14 @@ function render(list){
     COLUMN_RESIZE.apply();
     return;
   }
-  box.innerHTML=headHTML()+list.map(t=>{
-    const own=OWN_ICON[t.owner]||"⚙️";
+  const groups=YkInformesGroups.group(list,window.ykAgentIdentity);
+  box.innerHTML=headHTML()+groups.map(group=>{
+    const familyId=familyDomId(group.key),collapsed=COLLAPSED_FAMILIES[group.key]===true;
+    const rows=group.rows.map(t=>{
     // El feed recompone esta identidad con tickets.loc, la máquina real de la
     // misión. owner queda como fallback durante el rollout del worker.
-    const agent=reportAgent(t);
+    const agent=t._executor||reportAgent(t),role=t._agent_role||"main";
+    const own=role==="main"?"🧠":role==="infra"?"📝":"⚙️";
     const st=t.status||"pending";
     const mission=missionPresentation(t);
     const taskCode=String(t.code||"—").toUpperCase();
@@ -398,7 +477,7 @@ function render(list){
       ? shotHTML(t.image,"Ampliar la captura de prueba","Captura de prueba",false)
       : shotHTML(capMission, capMission?"proof de la misión — captura de cierre":"sin captura de prueba","Proof de la misión",true);
     return `<div class="grow item" role="row">
-      <div class="gc" role="cell">${window.ykAvatar ? ykAvatar.html(agent) : `<span class="who" title="${esc(agent)}">${own} ${esc(agent)}</span>`}</div>
+      <div class="gc" role="cell">${window.ykAvatar ? ykAvatar.html(agent) : `<span class="who" title="${esc(agent)}">${own} ${esc(agent)}</span>`}<span class="role-badge role-${esc(role)}">${esc(ROLE_LABEL[role]||role)}</span></div>
       <div class="gc mis" role="cell">
         <a class="mid" href="/ticket?id=${encodeURIComponent(mission.id)}" title="Abrir misión · ID técnico ${esc(mission.id)}">🎯 ${esc(mission.primary)}</a>
         <div class="mmeta"><span class="mcode">Tarea ${esc(taskCode)}</span>${mission.secondary?`<span class="mref">${esc(mission.secondary)}</span>`:""}${mission.copy?`<button class="mcopy" type="button" data-copy-mission="${esc(mission.id)}" title="Copiar ID técnico ${esc(mission.id)}" aria-label="Copiar ID técnico ${esc(mission.id)}">copiar ID</button>`:""}</div>
@@ -411,9 +490,20 @@ function render(list){
       <div class="gc" role="cell"><span class="badge b-${esc(st)}"><i></i>${esc(ST_LABEL[st]||st)}</span></div>
       <div class="gc" role="cell">${tiempoHTML(t)}</div>
     </div>`;
+    }).join("");
+    return `<section class="family-group" role="rowgroup" data-family="${esc(group.key)}" aria-labelledby="${familyId}-label">
+      <div class="family-summary" role="row"><div role="cell" aria-colspan="7"><button class="family-toggle" type="button" aria-expanded="${collapsed?"false":"true"}" aria-controls="${familyId}" data-family-toggle="${esc(group.key)}"><span class="family-chevron" aria-hidden="true">▾</span><span class="family-name" id="${familyId}-label">${esc(group.name)}</span><span class="family-count">${group.rows.length} informe${group.rows.length===1?"":"s"}</span></button></div></div>
+      <div class="family-rows" id="${familyId}"${collapsed?" hidden":""}>${rows}</div></section>`;
   }).join("");
   COLUMN_RESIZE.apply();
 }
+$('reps').addEventListener("click",e=>{
+  const button=e.target.closest&&e.target.closest("[data-family-toggle]");if(!button)return;
+  const key=button.dataset.familyToggle,rows=$(button.getAttribute("aria-controls"));
+  const expanded=button.getAttribute("aria-expanded")!=="false";
+  button.setAttribute("aria-expanded",expanded?"false":"true");if(rows)rows.hidden=expanded;
+  if(expanded)COLLAPSED_FAMILIES[key]=true;else delete COLLAPSED_FAMILIES[key];saveCollapsed();
+});
 // Los ids opacos siguen disponibles sin ocupar el título principal ni truncarse.
 $("reps").addEventListener("click",async e=>{
   const b=e.target.closest&&e.target.closest(".mcopy"); if(!b)return;
@@ -453,26 +543,27 @@ $("reps").addEventListener("click",e=>{
 });
 $("lb").addEventListener("click",()=>$("lb").classList.remove("on"));
 document.addEventListener("keydown",e=>{ if(e.key==="Escape") $("lb").classList.remove("on"); });
-// Filtro de fecha: presets + día concreto. Instantáneo (filtra lo ya cargado).
+$("loadMore").addEventListener("click",loadMore);
+// Un cambio de fecha inicia un snapshot paginado nuevo y aborta el anterior.
 $("tfilter").querySelectorAll(".tf").forEach(b=>b.onclick=()=>{
   DFILTER={mode:b.dataset.r, day:""};
   $("tfilter").querySelectorAll(".tf").forEach(x=>x.classList.toggle("on",x===b));
   $("tfDate").classList.remove("on"); $("tfDate").value="";
-  applyFilter();
+  load();
 });
 $("tfDate").onchange=()=>{
   if(!$("tfDate").value) return;
   DFILTER={mode:"dia", day:$("tfDate").value};
   $("tfilter").querySelectorAll(".tf").forEach(x=>x.classList.remove("on"));
   $("tfDate").classList.add("on");
-  applyFilter();
+  load();
 };
 
 // Datos, deuda, catálogo de proyectos (yk-frame) y personalización arrancan en
 // paralelo. La foto no bloquea /tasks/all: al llegar repinta sólo si ya hay datos.
 load();
 (window.ykAvatar ? ykAvatar.ready : Promise.resolve()).then(()=>{if(LOAD_STATE==="ready")applyFilter();});
-setInterval(load,15000);
+setInterval(refresh,15000);
 // La deuda va por su cuenta: ni depende de los avatares ni del filtro de fecha.
 loadDebe(); setInterval(loadDebe,60000);
 </script>
