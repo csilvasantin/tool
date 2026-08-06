@@ -8,6 +8,7 @@ import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, 
 import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_NOVELTY_INSERT_SQL, MISSION_NOVELTY_RECENT_SQL, MISSION_NOVELTY_TABLE_SQL, missionNoveltyContract, missionNoveltyEventKey } from "./mission-novelty.js";
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
 import { resolveIdeaAuthor } from "./idea-author.js";
+import { missionDayRange, missionVisibleCounts, missionVisibleState } from "./mission-visible.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -2157,6 +2158,12 @@ __name(listMissionTasks, "listMissionTasks");
 var AGENT_SOURCE_SQL = "source IN ('fleet','decision-batch','cli-declare')";
 var AGENT_SOURCE_SQL_T = "t.source IN ('fleet','decision-batch','cli-declare')";
 var FIELD_SOURCE_SQL_T = "(t.source IS NULL OR t.source NOT IN ('fleet','decision-batch','cli-declare'))";
+// La bandeja operativa acepta también las misiones antiguas/importadas cuya
+// fuente no es una de las tres puertas del marcador pero que sí declaran el rol.
+// No ampliamos AGENT_SOURCE_SQL: ese contrato pertenece al highscore histórico.
+var MISSION_SCOPE_SQL = "(role='mission' OR source IN ('fleet','decision-batch','cli-declare'))";
+var MISSION_SCOPE_SQL_T = "(t.role='mission' OR t.source IN ('fleet','decision-batch','cli-declare'))";
+var FIELD_MISSION_SCOPE_SQL_T = "(COALESCE(t.role,'')!='mission' AND (t.source IS NULL OR t.source NOT IN ('fleet','decision-batch','cli-declare')))";
 
 async function listAllMissionTasks(env, scope) {
   const where = scope === "fleet" ? `WHERE ${AGENT_SOURCE_SQL_T}`
@@ -2701,20 +2708,52 @@ __name(reconcile, "reconcile");
 // caben, van ordenadas primero) y se acepta ?limit (cap 1000) y ?offset para paginar.
 function pageLimit(v) { const n = parseInt(v, 10); return n > 0 ? Math.min(1000, n) : 300; }
 function pageOffset(v) { const n = parseInt(v, 10); return n > 0 ? n : 0; }
-async function listTickets(env, scope, limit, offset) {
-  const where = scope === "fleet" ? `WHERE ${AGENT_SOURCE_SQL_T}` : scope === "todas" ? "" : `WHERE ${FIELD_SOURCE_SQL_T}`;
+function ticketUniverseWhere(scope, filters = {}) {
+  const clauses = [], binds = [];
+  if (scope === "fleet") clauses.push(MISSION_SCOPE_SQL_T);
+  else if (scope !== "todas") clauses.push(FIELD_MISSION_SCOPE_SQL_T);
+  if (filters.day) {
+    const range = missionDayRange(filters.day);
+    if (!range) return { ok:false, error:"day debe ser YYYY-MM-DD válido" };
+    clauses.push("(CASE WHEN t.created_at<4102444800 THEN t.created_at*1000 ELSE t.created_at END)>=? AND (CASE WHEN t.created_at<4102444800 THEN t.created_at*1000 ELSE t.created_at END)<?");
+    binds.push(range.start, range.end);
+  }
+  const projectId = String(filters.project_id || "").trim().slice(0, 120);
+  if (projectId) { clauses.push("COALESCE(NULLIF(t.project_id,''),t.project,'')=?"); binds.push(projectId); }
+  return { ok:true, sql:clauses.length ? "WHERE " + clauses.join(" AND ") : "", binds,
+    day:filters.day || null, project_id:projectId || null };
+}
+async function listTickets(env, scope, limit, offset, filters = {}) {
+  const universe = ticketUniverseWhere(scope, filters);
+  if (!universe.ok) return universe;
+  const take = pageLimit(limit), skip = pageOffset(offset);
   const { results } = await env.DB.prepare(
     `SELECT t.*, f.inbox_id FROM tickets t LEFT JOIN fleet_ids f ON f.mission_id=t.id
-     ${where} ORDER BY (t.status='open') DESC, (t.status='in_progress') DESC, t.created_at DESC LIMIT ? OFFSET ?`
-  ).bind(pageLimit(limit), pageOffset(offset)).all();
+     ${universe.sql} ORDER BY (t.status='open') DESC, (t.status='in_progress') DESC, t.created_at DESC LIMIT ? OFFSET ?`
+  ).bind(...universe.binds, take, skip).all();
   const rows = results || [];
+  const counted = await env.DB.prepare(`SELECT COUNT(*) total FROM tickets t ${universe.sql}`).bind(...universe.binds).first();
+  const total = Number(counted && counted.total) || 0;
+  const touched = new Set();
+  if (rows.length) {
+    const active = await selectIn(env, rows.map((row) => row.id), (ph) =>
+      `SELECT DISTINCT mission_id FROM mission_tasks WHERE mission_id IN (${ph}) AND status IN ('in_progress','done','resolved')`
+    );
+    for (const row of active) touched.add(row.mission_id);
+  }
+  const now = Date.now();
+  for (const row of rows) row.visible_state = missionVisibleState(row, now, touched.has(row.id));
   await attachImgCount(env, rows);
   // Nombre humano del proyecto junto al id, para que la lista no tenga que
   // cruzar /projects sólo para pintar un rótulo.
   const pidx = await projectIndex(env);
   for (const r of rows) r.project_name = resolveProject(pidx, r.project || "").name;
   await attachDisplayRefs(env, "mission", rows, (row) => row.id, (row) => row.created_at);
-  return rows;
+  return { ok:true, rows, visible_counts:missionVisibleCounts(rows), universe:{
+    scope, day:universe.day, project_id:universe.project_id, limit:take, offset:skip,
+    returned:rows.length, total, has_more:skip + rows.length < total,
+    state_semantics:"visible-v1", source_semantics:"mission-role-or-agent-source-v1"
+  }};
 }
 
 // Nº de IMÁGENES adjuntas de cada misión, para que la tarjeta de la bandeja
@@ -4043,15 +4082,16 @@ async function fleetSetParent(env, b) {
   return { ok: true, child, parent };
 }
 __name(fleetSetParent, "fleetSetParent");
-async function stats(env, scope) {
-  // Mismos ámbitos que listTickets: los KPIs de la bandeja de campo no pueden
-  // contar las misiones de flota (dispararían «abiertas» a decenas).
-  const sc = scope === "fleet" ? AGENT_SOURCE_SQL : scope === "todas" ? "1=1" : "(source IS NULL OR source NOT IN ('fleet','decision-batch'))";
-  const open = (await env.DB.prepare(`SELECT COUNT(*) c FROM tickets WHERE ${sc} AND status='open'`).first())?.c || 0;
-  const prog = (await env.DB.prepare(`SELECT COUNT(*) c FROM tickets WHERE ${sc} AND status='in_progress'`).first())?.c || 0;
-  const res = (await env.DB.prepare(`SELECT COUNT(*) c FROM tickets WHERE ${sc} AND status='resolved'`).first())?.c || 0;
+async function stats(env, scope, filters = {}) {
+  // Exactamente el mismo universo (fuente/día/proyecto) que listTickets.
+  const universe = ticketUniverseWhere(scope, filters);
+  if (!universe.ok) return universe;
+  const withStatus = (condition) => universe.sql ? universe.sql + " AND " + condition : "WHERE " + condition;
+  const open = (await env.DB.prepare(`SELECT COUNT(*) c FROM tickets t ${withStatus("t.status='open'")}`).bind(...universe.binds).first())?.c || 0;
+  const prog = (await env.DB.prepare(`SELECT COUNT(*) c FROM tickets t ${withStatus("t.status='in_progress'")}`).bind(...universe.binds).first())?.c || 0;
+  const res = (await env.DB.prepare(`SELECT COUNT(*) c FROM tickets t ${withStatus("t.status='resolved'")}`).bind(...universe.binds).first())?.c || 0;
   // Solo deltas cuerdos: ni negativos ni >1 año (un timestamp corrupto no debe reventar el KPI).
-  const mttrRow = await env.DB.prepare(`SELECT AVG(resolved_at-created_at) m FROM tickets WHERE ${sc} AND status='resolved' AND resolved_at IS NOT NULL AND resolved_at >= created_at AND resolved_at - created_at < 31536000000`).first();
+  const mttrRow = await env.DB.prepare(`SELECT AVG(t.resolved_at-t.created_at) m FROM tickets t ${withStatus("t.status='resolved' AND t.resolved_at IS NOT NULL AND t.resolved_at >= t.created_at AND t.resolved_at - t.created_at < 31536000000")}`).bind(...universe.binds).first();
   const mttr = mttrRow && mttrRow.m ? Math.round(mttrRow.m / 6e4) : null;
   return { open, in_progress: prog, resolved: res, mttr };
 }
@@ -4071,13 +4111,23 @@ async function menuCounters(env) {
   const zero = () => ({ curso: 0, pend: 0 });
   const out = { objetivos: zero(), misiones: zero(), tareas: zero(), incidencias: zero(), informes: zero() };
   // Tickets: misiones (fleet) e incidencias (campo) de una sola pasada.
+  const cutoff = Date.now() - 30 * 60 * 1000;
   const tk = (await env.DB.prepare(
-    "SELECT CASE WHEN role='mission' OR source IN ('fleet','decision-batch','cli-declare') THEN 'f' ELSE 'c' END sc, status, COUNT(*) n " +
-    "FROM tickets WHERE status IN ('open','in_progress') GROUP BY sc, status"
-  ).all()).results || [];
+    "SELECT CASE WHEN role='mission' OR source IN ('fleet','decision-batch','cli-declare') THEN 'f' ELSE 'c' END sc, t.status, " +
+    "CASE WHEN (CASE WHEN t.created_at<4102444800 THEN t.created_at*1000 ELSE t.created_at END)<=? THEN 'unconcluded' " +
+    "WHEN t.status='in_progress' OR EXISTS (SELECT 1 FROM mission_tasks m WHERE m.mission_id=t.id AND m.status IN ('in_progress','done','resolved')) THEN 'in_progress' " +
+    "WHEN COALESCE(t.assignee,t.loc,'')<>'' THEN 'pending' ELSE 'unassigned' END visible_state, COUNT(*) n " +
+    "FROM tickets t WHERE t.status IN ('open','in_progress') GROUP BY sc,t.status,visible_state"
+  ).bind(cutoff).all()).results || [];
+  out.misiones = { curso:0, pend:0, no_concluidas:0, sin_asignar:0,
+    universe:"all_backlog", state_semantics:"visible-v1" };
   for (const r of tk) {
     const dst = r.sc === "f" ? out.misiones : out.incidencias;
-    if (r.status === "in_progress") dst.curso = r.n; else if (r.status === "open") dst.pend = r.n;
+    if (r.sc === "c") { if (r.status === "in_progress") dst.curso += r.n; else if (r.status === "open") dst.pend += r.n; }
+    else if (r.visible_state === "in_progress") dst.curso += r.n;
+    else if (r.visible_state === "pending") dst.pend += r.n;
+    else if (r.sc === "f" && r.visible_state === "unconcluded") dst.no_concluidas += r.n;
+    else if (r.sc === "f" && r.visible_state === "unassigned") dst.sin_asignar += r.n;
   }
   // Cursor de creación independiente del estado actual. Una misión puede nacer,
   // reclamarse y hasta cerrarse entre dos GET: el total vuelve a ser idéntico,
@@ -5027,7 +5077,13 @@ var index_default = {
         // del bot-inbox (cron cada 2 min), no de las pantallas DOOH.
         if (scope !== "fleet") await reconcile(env);
         const limit = url.searchParams.get("limit"), offset = url.searchParams.get("offset");
-        return json({ tickets: await listTickets(env, scope, limit, offset), stats: await stats(env, scope), roster: ROSTER });
+        const filters = { day:url.searchParams.get("day") || "", project_id:url.searchParams.get("project_id") || "" };
+        const page = await listTickets(env, scope, limit, offset, filters);
+        if (!page.ok) return json({ error:page.error }, 400);
+        const legacyStats = await stats(env, scope, filters);
+        if (!legacyStats.ok && legacyStats.error) return json({ error:legacyStats.error }, 400);
+        return json({ tickets:page.rows, stats:legacyStats, roster:ROSTER,
+          visible_counts:page.visible_counts, universe:page.universe });
       } catch (e) {
         return json({ error: String(e) }, 500);
       }
