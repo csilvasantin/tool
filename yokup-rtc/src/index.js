@@ -6,6 +6,7 @@ import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } 
 import { AgentStopError, dispatchAgentStop, normalizeAgentStopTarget } from "./fleet-agent-stop.js";
 import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, madridDayStart, sortDisplayRefCandidates } from "./display-ref.js";
 import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_NOVELTY_INSERT_SQL, MISSION_NOVELTY_RECENT_SQL, MISSION_NOVELTY_TABLE_SQL, missionNoveltyContract, missionNoveltyEventKey } from "./mission-novelty.js";
+import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -256,6 +257,10 @@ async function applySchema(env) {
   // decisions—, así que /decisiones acababa enseñando «Proyecto sin identificar».
   // Aquí vive el censo REAL, con su alta, su baja y sus asignaciones.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT, blurb TEXT, web TEXT, status TEXT DEFAULT 'activo', color TEXT, created_at INTEGER, updated_at INTEGER, updated_by TEXT)");
+  // Sólo las altas posteriores a este esquema escriben aquí. No se hace backfill:
+  // el despliegue establece baseline y no anuncia como nuevos proyectos históricos.
+  await env.DB.exec(PROJECT_NOVELTY_TABLE_SQL);
+  await env.DB.exec(PROJECT_NOVELTY_INDEX_SQL);
   // Un proyecto toca VARIAS máquinas y VARIOS agentes. `kind` distingue los dos
   // planos que la sección Equipo ya separa (átomos/bits) y `ref` es el id que
   // usa admira-fleet (machines[].id / silicon[].id): NO se inventa censo nuevo.
@@ -1113,10 +1118,21 @@ async function upsertProject(env, b) {
     created_at: prev ? prev.created_at : now, updated_at: now,
     updated_by: String((b && b.by) || "").slice(0, 60)
   };
-  await env.DB.prepare(
+  const saveProject = env.DB.prepare(
     "INSERT INTO projects (id,name,blurb,web,status,color,owner,created_at,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?)" +
     " ON CONFLICT(id) DO UPDATE SET name=excluded.name, blurb=excluded.blurb, web=excluded.web, status=excluded.status, color=excluded.color, owner=excluded.owner, updated_at=excluded.updated_at, updated_by=excluded.updated_by"
-  ).bind(row.id, row.name, row.blurb, row.web, row.status, row.color, row.owner, row.created_at, row.updated_at, row.updated_by).run();
+  ).bind(row.id, row.name, row.blurb, row.web, row.status, row.color, row.owner, row.created_at, row.updated_at, row.updated_by);
+  if (!prev) {
+    // D1 ejecuta el batch como transacción: el proyecto y su cursor aparecen
+    // juntos. event_key UNIQUE hace inocuo repetir la misma alta tras un timeout.
+    await env.DB.batch([
+      saveProject,
+      env.DB.prepare(PROJECT_NOVELTY_INSERT_SQL).bind(projectNoveltyEventKey(row.id), row.id)
+    ]);
+  } else {
+    // Editar metadatos, responsable o estado no es una nueva alta.
+    await saveProject.run();
+  }
   for (const kind of ["machine", "agent"]) {
     const campo = kind === "machine" ? "machines" : "agents";
     if (!b || !Array.isArray(b[campo])) continue;
@@ -4706,8 +4722,11 @@ var index_default = {
     if (url.pathname === "/projects" && req.method === "GET") {
       try {
         const projects = await listProjects(env);
+        const selectableTotal = projects.filter((project) => String(project.status || "activo").toLowerCase() !== "archivado").length;
+        const noveltyRows = (await env.DB.prepare(PROJECT_NOVELTY_RECENT_SQL).all()).results || [];
         return json({ ok: true, day: madridDayKey(Date.now()), projects,
-          principal_declarations: await listPrincipalProjectDeclarations(env) });
+          principal_declarations: await listPrincipalProjectDeclarations(env),
+          ...projectNoveltyContract(noveltyRows, selectableTotal) });
       }
       catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
