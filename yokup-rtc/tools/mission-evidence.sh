@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Cliente común de evidencia para Desktop, CLI y subagentes.
 #   heartbeat <misión>
-#   progress  <misión> [--image <png|jpg>] [--captured-at <epoch-ms>] [--final-fallback]
+#   progress  <misión> [--image <png|jpg> --final-fallback]
 #   final     <misión> --report <texto> [--image <png|jpg>]
-#             [--process-image <png|jpg>] [--process-captured-at <epoch-ms>]
-# Sin --image captura el pane tmux (CLI/subagente) o usa AgoraCapture (Desktop).
+# heartbeat/progress capturan siempre la superficie real: pane tmux para CLI o
+# AgoraCapture con la petición visible para Desktop. Una imagen manual nunca se
+# acepta como process; --image sigue disponible para la prueba final.
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,15 +32,57 @@ case "$MODE" in
 esac
 read -r PERSONA HOST OWNER RUNTIME <<<"$(bash "$HERE/quien-ejecuta.sh")"
 
+case "$HOST" in
+  cli) CAPTURE_SURFACE="cli"; CAPTURE_CONTEXT="command_output" ;;
+  app) CAPTURE_SURFACE="desktop"; CAPTURE_CONTEXT="request" ;;
+  *) echo "superficie de ejecución no válida para evidencia: $HOST" >&2; exit 2 ;;
+esac
+
+# La procedencia de process no puede confiarse a una declaración del llamador.
+# Se obtiene aquí de la superficie capturada. Sólo final-fallback (degradado y no
+# presentado como Proceso) conserva una imagen manual por compatibilidad.
+if [ -n "$PROCESS_IMAGE" ] || [ -n "$PROCESS_CAPTURED_AT" ]; then
+  echo "--process-image/--process-captured-at no se aceptan: process se captura automáticamente desde su superficie" >&2
+  exit 2
+fi
+if [ "$MODE" = "heartbeat" ] && { [ -n "$IMAGE" ] || [ -n "$CAPTURED_AT" ] || [ "$FALLBACK" = true ]; }; then
+  echo "heartbeat no acepta evidencia manual" >&2; exit 2
+fi
+if [ "$MODE" = "progress" ] && [ -n "$IMAGE" ] && [ "$FALLBACK" = false ]; then
+  echo "--image manual no puede declararse como process; usa captura automática o --final-fallback" >&2; exit 2
+fi
+if [ "$MODE" = "progress" ] && [ "$FALLBACK" = false ] && [ -n "$CAPTURED_AT" ]; then
+  echo "--captured-at no se acepta para process automático; se usa la hora real del capturador" >&2; exit 2
+fi
+if [ "$MODE" = "progress" ] && [ "$FALLBACK" = true ] && [ -z "$IMAGE" ]; then
+  echo "--final-fallback exige --image" >&2; exit 2
+fi
+
 TMP_WORK="$(mktemp -d "${TMPDIR:-/tmp}/yokup-evidence.XXXXXX")"
 trap 'rm -rf "$TMP_WORK"' EXIT
 
-capture_image() {
-  local out="$TMP_WORK/capture.png" nonce current payload fleet_dir
-  if { [ -n "${TMUX:-}" ] || [ -n "${TMUX_CAPTURE_TARGET:-}" ]; } && command -v tmux >/dev/null 2>&1; then
-    local target_args=()
-    [ -z "${TMUX_CAPTURE_TARGET:-}" ] || target_args=(-t "$TMUX_CAPTURE_TARGET")
-    tmux capture-pane -p "${target_args[@]}" > "$TMP_WORK/pane.txt"
+validate_image_file() {
+  local file="$1" bytes mime
+  [ -f "$file" ] && [ -s "$file" ] || return 1
+  bytes="$(wc -c < "$file" | tr -d ' ')"
+  [ "$bytes" -gt 1000 ] || { echo "captura demasiado pequeña para acreditar la superficie" >&2; return 1; }
+  mime="$(file -b --mime-type "$file" 2>/dev/null || true)"
+  case "$mime" in image/png|image/jpeg|image/webp) return 0;; esac
+  echo "el capturador no devolvió una imagen válida ($mime)" >&2; return 1
+}
+
+capture_cli_image() {
+  local out="$TMP_WORK/process-cli.png" target="${TMUX_CAPTURE_TARGET:-}" nonempty
+  command -v tmux >/dev/null 2>&1 || { echo "CLI exige tmux para capturar comando y salida" >&2; return 1; }
+  if [ -z "$target" ] && [ -n "${TMUX:-}" ]; then
+    target="$(tmux display-message -p '#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null || true)"
+  fi
+  [ -n "$target" ] || { echo "CLI exige TMUX_CAPTURE_TARGET o un pane tmux actual" >&2; return 1; }
+  tmux capture-pane -p -S -80 -t "$target" > "$TMP_WORK/pane.txt" || {
+    echo "no se pudo leer el pane tmux $target" >&2; return 1;
+  }
+  nonempty="$(awk 'NF{n++} END{print n+0}' "$TMP_WORK/pane.txt")"
+  [ "$nonempty" -ge 2 ] || { echo "el pane no muestra comando y salida suficientes" >&2; return 1; }
     python3 - "$TMP_WORK/pane.txt" "$out" <<'PY'
 import os,sys
 from PIL import Image,ImageDraw,ImageFont
@@ -50,8 +93,26 @@ font=ImageFont.truetype(font_path,14) if font_path else ImageFont.load_default()
 for index,line in enumerate(lines): draw.text((12,12+20*index),line[:150],fill=(200,240,255),font=font)
 img.save(sys.argv[2],"PNG")
 PY
-    [ -s "$out" ] && { printf '%s\n' "$out"; return 0; }
-  fi
+  validate_image_file "$out" && printf '%s\n' "$out"
+}
+
+capture_desktop_image() {
+  local out="$TMP_WORK/process-desktop.png" nonce current="" payload fleet_dir front expected
+  [ "$(uname -s)" = "Darwin" ] || { echo "Desktop requiere AgoraCapture en macOS" >&2; return 1; }
+  command -v osascript >/dev/null 2>&1 || { echo "no se puede verificar la app Desktop visible" >&2; return 1; }
+  front="$(osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true' 2>/dev/null || true)"
+  case "$RUNTIME" in
+    Codex) expected="Codex" ;;
+    Claude) expected="Claude" ;;
+    Grok) expected="Grok" ;;
+    *) echo "runtime Desktop sin aplicación verificable: $RUNTIME" >&2; return 1 ;;
+  esac
+  printf '%s' "$front" | grep -Fqi "$expected" || {
+    echo "la petición no está visible en $expected Desktop (app frontal: ${front:-desconocida})" >&2; return 1;
+  }
+  [ -d "${AGORA_CAPTURE_APP:-${HOME}/Applications/AgoraCapture.app}" ] || {
+    echo "AgoraCapture no está instalado; no se puede acreditar Desktop/request" >&2; return 1;
+  }
   fleet_dir="${FLEET_CAPTURE_DIR:-${HOME}/.fleet}"
   [ -d "$fleet_dir" ] || return 1
   nonce="yokup-${MISSION}-$(date +%s)-$$"
@@ -65,7 +126,15 @@ PY
   payload="$(sed -n '2p' "$fleet_dir/capture.out" 2>/dev/null || true)"
   [ -n "$payload" ] && [ "$payload" != "ERR_NO_CAPTURE" ] || return 1
   printf '%s' "$payload" | python3 -c 'import base64,sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.buffer.read()))' > "$out"
-  [ -s "$out" ] && printf '%s\n' "$out"
+  validate_image_file "$out" && printf '%s\n' "$out"
+}
+
+capture_process_image() {
+  case "$CAPTURE_SURFACE/$CAPTURE_CONTEXT" in
+    cli/command_output) capture_cli_image ;;
+    desktop/request) capture_desktop_image ;;
+    *) echo "pareja de procedencia inválida: $CAPTURE_SURFACE/$CAPTURE_CONTEXT" >&2; return 1 ;;
+  esac
 }
 
 upload_image() {
@@ -77,8 +146,8 @@ upload_image() {
 }
 
 # La hora pertenece a la captura, no a su subida. Para un fichero aportado se usa
-# su mtime (o el epoch-ms explícito del capturador); para capture_image, el mtime
-# acaba de nacer. Así un pantallazo histórico nunca rejuvenece al adjuntarlo.
+# su mtime (o el epoch-ms del fallback degradado); para la captura automática, el
+# mtime acaba de nacer. Así un pantallazo histórico nunca rejuvenece al adjuntarlo.
 capture_time() {
   local file="$1" explicit="${2:-}" seconds
   if [ -n "$explicit" ]; then
@@ -102,40 +171,34 @@ validate_process_time() {
   fi
 }
 
-if [ "$MODE" = "heartbeat" ]; then
-  PAYLOAD="$(MISSION="$MISSION" OWNER="$OWNER" python3 -c 'import json,os; print(json.dumps({"mission":os.environ["MISSION"],"owner":os.environ["OWNER"]}))')"
-  ENDPOINT="progress"
-elif [ "$MODE" = "progress" ]; then
-  [ -n "$IMAGE" ] || IMAGE="$(capture_image)" || { echo "no se pudo capturar evidencia de proceso" >&2; exit 1; }
+if [ "$MODE" = "heartbeat" ] || { [ "$MODE" = "progress" ] && [ "$FALLBACK" = false ]; }; then
+  IMAGE="$(capture_process_image)" || { echo "no se pudo capturar evidencia de proceso $CAPTURE_SURFACE/$CAPTURE_CONTEXT" >&2; exit 1; }
   CAPTURED_AT="$(capture_time "$IMAGE" "$CAPTURED_AT")"
   validate_process_time "$CAPTURED_AT"
   IMAGE_URL="$(upload_image "$IMAGE")"
-  [ -n "$IMAGE_URL" ] || { echo "progress exige --image" >&2; exit 2; }
-  KIND="process"; [ "$FALLBACK" = false ] || KIND="final-fallback"
-  PAYLOAD="$(MISSION="$MISSION" OWNER="$OWNER" IMAGE_URL="$IMAGE_URL" CAPTURED_AT="$CAPTURED_AT" KIND="$KIND" FALLBACK="$FALLBACK" python3 -c 'import json,os; print(json.dumps({"mission":os.environ["MISSION"],"owner":os.environ["OWNER"],"image":os.environ["IMAGE_URL"],"captured_at":int(os.environ["CAPTURED_AT"]),"evidence_kind":os.environ["KIND"],"degraded":os.environ["FALLBACK"]=="true"}))')"
+  [ -n "$IMAGE_URL" ] || { echo "no se pudo subir evidencia de proceso" >&2; exit 1; }
+  PAYLOAD="$(MISSION="$MISSION" OWNER="$OWNER" IMAGE_URL="$IMAGE_URL" CAPTURED_AT="$CAPTURED_AT" CAPTURE_SURFACE="$CAPTURE_SURFACE" CAPTURE_CONTEXT="$CAPTURE_CONTEXT" python3 -c 'import json,os; print(json.dumps({"mission":os.environ["MISSION"],"owner":os.environ["OWNER"],"image":os.environ["IMAGE_URL"],"captured_at":int(os.environ["CAPTURED_AT"]),"evidence_kind":"process","degraded":False,"capture_surface":os.environ["CAPTURE_SURFACE"],"capture_context":os.environ["CAPTURE_CONTEXT"]}))')"
+  ENDPOINT="progress"
+elif [ "$MODE" = "progress" ]; then
+  CAPTURED_AT="$(capture_time "$IMAGE" "$CAPTURED_AT")"
+  IMAGE_URL="$(upload_image "$IMAGE")"
+  [ -n "$IMAGE_URL" ] || { echo "no se pudo subir final-fallback" >&2; exit 1; }
+  PAYLOAD="$(MISSION="$MISSION" OWNER="$OWNER" IMAGE_URL="$IMAGE_URL" CAPTURED_AT="$CAPTURED_AT" python3 -c 'import json,os; print(json.dumps({"mission":os.environ["MISSION"],"owner":os.environ["OWNER"],"image":os.environ["IMAGE_URL"],"captured_at":int(os.environ["CAPTURED_AT"]),"evidence_kind":"final-fallback","degraded":True}))')"
   ENDPOINT="progress"
 else
   [ -n "$REPORT" ] || { echo "final exige --report" >&2; exit 2; }
   # El cierre común toma DOS evidencias distintas. Primero captura y publica el
   # CLI mientras todavía está ejecutando el flujo; sólo después obtiene/usa la
-  # prueba final. Nunca recicla IMAGE_URL como proceso. Si la superficie no puede
-  # capturarse pero el llamador aportó una prueba final, el cierre conserva la
-  # compatibilidad y /informes mostrará «—» honestamente.
-  PROCESS_EXPLICIT=false
-  [ -z "$PROCESS_IMAGE" ] || PROCESS_EXPLICIT=true
-  if [ -z "$PROCESS_IMAGE" ]; then PROCESS_IMAGE="$(capture_image)" || true; fi
-  if [ -n "$PROCESS_IMAGE" ]; then
-    PROCESS_CAPTURED_AT="$(capture_time "$PROCESS_IMAGE" "$PROCESS_CAPTURED_AT")"
-    validate_process_time "$PROCESS_CAPTURED_AT"
-    PROCESS_URL="$(upload_image "$PROCESS_IMAGE")"
-    [ -n "$PROCESS_URL" ] || { echo "no se pudo subir la captura de proceso" >&2; exit 1; }
-    PROCESS_AT="$PROCESS_CAPTURED_AT"
-    PROCESS_PAYLOAD="$(MISSION="$MISSION" OWNER="$OWNER" PROCESS_URL="$PROCESS_URL" PROCESS_AT="$PROCESS_AT" python3 -c 'import json,os; print(json.dumps({"mission":os.environ["MISSION"],"owner":os.environ["OWNER"],"image":os.environ["PROCESS_URL"],"captured_at":int(os.environ["PROCESS_AT"]),"evidence_kind":"process","degraded":False}))')"
-    printf '%s' "$PROCESS_PAYLOAD" | curl -fsS -m 30 -X POST "$API/fleet/progress" -H 'Content-Type: application/json' --data @- >/dev/null
-  elif [ "$PROCESS_EXPLICIT" = true ]; then
-    echo "captura de proceso inexistente o vacía: $PROCESS_IMAGE" >&2; exit 1
-  fi
-  [ -n "$IMAGE" ] || IMAGE="$(capture_image)" || { echo "no se pudo capturar evidencia final" >&2; exit 1; }
+  # prueba final. Nunca recicla IMAGE_URL como proceso y el cierre falla si no
+  # puede acreditar la superficie/contexto real de ejecución.
+  PROCESS_IMAGE="$(capture_process_image)" || { echo "no se pudo capturar evidencia de proceso $CAPTURE_SURFACE/$CAPTURE_CONTEXT" >&2; exit 1; }
+  PROCESS_CAPTURED_AT="$(capture_time "$PROCESS_IMAGE")"
+  validate_process_time "$PROCESS_CAPTURED_AT"
+  PROCESS_URL="$(upload_image "$PROCESS_IMAGE")"
+  [ -n "$PROCESS_URL" ] || { echo "no se pudo subir la captura de proceso" >&2; exit 1; }
+  PROCESS_PAYLOAD="$(MISSION="$MISSION" OWNER="$OWNER" PROCESS_URL="$PROCESS_URL" PROCESS_AT="$PROCESS_CAPTURED_AT" CAPTURE_SURFACE="$CAPTURE_SURFACE" CAPTURE_CONTEXT="$CAPTURE_CONTEXT" python3 -c 'import json,os; print(json.dumps({"mission":os.environ["MISSION"],"owner":os.environ["OWNER"],"image":os.environ["PROCESS_URL"],"captured_at":int(os.environ["PROCESS_AT"]),"evidence_kind":"process","degraded":False,"capture_surface":os.environ["CAPTURE_SURFACE"],"capture_context":os.environ["CAPTURE_CONTEXT"]}))')"
+  printf '%s' "$PROCESS_PAYLOAD" | curl -fsS -m 30 -X POST "$API/fleet/progress" -H 'Content-Type: application/json' --data @- >/dev/null
+  [ -n "$IMAGE" ] || IMAGE="$(capture_process_image)" || { echo "no se pudo capturar evidencia final" >&2; exit 1; }
   IMAGE_URL="$(upload_image "$IMAGE")"
   [ -n "$IMAGE_URL" ] || { echo "final exige --image" >&2; exit 2; }
   PAYLOAD="$(MISSION="$MISSION" OWNER="$OWNER" IMAGE_URL="$IMAGE_URL" REPORT="$REPORT" HOST="$HOST" RUNTIME="$RUNTIME" python3 -c 'import json,os; print(json.dumps({"mission":os.environ["MISSION"],"owner":os.environ["OWNER"],"image":os.environ["IMAGE_URL"],"report":os.environ["REPORT"],"host":os.environ["HOST"],"runtime":os.environ["RUNTIME"]}))')"

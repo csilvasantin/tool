@@ -26,11 +26,11 @@ test("/informes consume el campo tipado y conserva el guion para el histórico",
 
 test("el cierre común captura proceso y final por separado y publica proceso primero", () => {
   const finalBranch = client.slice(client.indexOf('else\n  [ -n "$REPORT" ]'));
-  assert.match(client, /--process-image/);
-  assert.match(finalBranch, /PROCESS_IMAGE="\$\(capture_image\)"/);
+  assert.match(client, /--process-image\/--process-captured-at no se aceptan/);
+  assert.match(finalBranch, /PROCESS_IMAGE="\$\(capture_process_image\)"/);
   assert.match(finalBranch, /PROCESS_URL="\$\(upload_image "\$PROCESS_IMAGE"\)"/);
   assert.match(finalBranch, /"evidence_kind":"process"/);
-  assert.match(finalBranch, /IMAGE="\$\(capture_image\)"/);
+  assert.match(finalBranch, /IMAGE="\$\(capture_process_image\)"/);
   assert.match(finalBranch, /IMAGE_URL="\$\(upload_image "\$IMAGE"\)"/);
   assert.ok(finalBranch.indexOf('$API/fleet/progress') < finalBranch.indexOf('ENDPOINT="informe"'));
   assert.doesNotMatch(finalBranch, /PROCESS_URL="\$IMAGE_URL"|PROCESS_IMAGE="\$IMAGE"/);
@@ -47,4 +47,12 @@ test("el cliente conserva captured_at real y rechaza proceso caducado antes de s
   const finalBranch = client.slice(client.indexOf('else\n  [ -n "$REPORT" ]'));
   assert.ok(finalBranch.indexOf('capture_time "$PROCESS_IMAGE"') < finalBranch.indexOf('upload_image "$PROCESS_IMAGE"'));
   assert.ok(finalBranch.indexOf('validate_process_time "$PROCESS_CAPTURED_AT"') < finalBranch.indexOf('upload_image "$PROCESS_IMAGE"'));
+});
+
+test("Proceso sólo admite las dos procedencias visibles del contrato", () => {
+  assert.match(client, /cli\) CAPTURE_SURFACE="cli"; CAPTURE_CONTEXT="command_output"/);
+  assert.match(client, /app\) CAPTURE_SURFACE="desktop"; CAPTURE_CONTEXT="request"/);
+  assert.match(client, /"capture_surface":os\.environ\["CAPTURE_SURFACE"\]/);
+  assert.match(client, /"capture_context":os\.environ\["CAPTURE_CONTEXT"\]/);
+  assert.match(client, /--image manual no puede declararse como process/);
 });

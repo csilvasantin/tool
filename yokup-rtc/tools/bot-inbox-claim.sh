@@ -8,6 +8,8 @@ read -r PERSONA _HOST OWNER _RUNTIME <<<"$(YOKUP_ROLE=sub bash "$HERE/quien-ejec
 CLAIM="$(PERSONA="$PERSONA" MACHINE="$MACHINE" python3 -c 'import json,os; print(json.dumps({"persona":os.environ["PERSONA"],"machine":os.environ["MACHINE"]}))')"
 RESPONSE="$(printf '%s' "$CLAIM" | curl -fsS -m 15 -X POST "$TG_API/api/bot-inbox/$ID/claim" -H 'Content-Type: application/json' --data @-)"
 printf '%s' "$RESPONSE" | python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("claimed") else 1)'
+# Claim no se considera iniciado hasta que la petición (Desktop) o el
+# comando+salida (CLI) quedan capturados y aceptados por /fleet/progress.
 "$HERE/mission-evidence.sh" heartbeat "FLT-$ID" >/dev/null
 "$HERE/bot-inbox-paso.sh" "FLT-$ID" a in_progress >/dev/null
 printf '✓ claim #%s — %s\n' "$ID" "$OWNER"
