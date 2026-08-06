@@ -35,3 +35,16 @@ test("el cierre común captura proceso y final por separado y publica proceso pr
   assert.ok(finalBranch.indexOf('$API/fleet/progress') < finalBranch.indexOf('ENDPOINT="informe"'));
   assert.doesNotMatch(finalBranch, /PROCESS_URL="\$IMAGE_URL"|PROCESS_IMAGE="\$IMAGE"/);
 });
+
+test("el cliente conserva captured_at real y rechaza proceso caducado antes de subir", () => {
+  assert.match(client, /--captured-at/);
+  assert.match(client, /--process-captured-at/);
+  assert.match(client, /stat -f '%m'/);
+  assert.match(client, /captured_at tiene más de 2 minutos; no se falsea como proceso vivo/);
+  const progress = client.slice(client.indexOf('elif [ "$MODE" = "progress" ]'), client.indexOf('else\n  [ -n "$REPORT" ]'));
+  assert.ok(progress.indexOf('capture_time "$IMAGE"') < progress.indexOf('upload_image "$IMAGE"'));
+  assert.ok(progress.indexOf('validate_process_time "$CAPTURED_AT"') < progress.indexOf('upload_image "$IMAGE"'));
+  const finalBranch = client.slice(client.indexOf('else\n  [ -n "$REPORT" ]'));
+  assert.ok(finalBranch.indexOf('capture_time "$PROCESS_IMAGE"') < finalBranch.indexOf('upload_image "$PROCESS_IMAGE"'));
+  assert.ok(finalBranch.indexOf('validate_process_time "$PROCESS_CAPTURED_AT"') < finalBranch.indexOf('upload_image "$PROCESS_IMAGE"'));
+});

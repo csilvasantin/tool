@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Cliente común de evidencia para Desktop, CLI y subagentes.
 #   heartbeat <misión>
-#   progress  <misión> [--image <png|jpg>] [--final-fallback]
-#   final     <misión> --report <texto> [--image <png|jpg>] [--process-image <png|jpg>]
+#   progress  <misión> [--image <png|jpg>] [--captured-at <epoch-ms>] [--final-fallback]
+#   final     <misión> --report <texto> [--image <png|jpg>]
+#             [--process-image <png|jpg>] [--process-captured-at <epoch-ms>]
 # Sin --image captura el pane tmux (CLI/subagente) o usa AgoraCapture (Desktop).
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -10,11 +11,13 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 API="${YOKUP_API:-https://yokup-rtc.csilvasantin.workers.dev}"
 MODE="${1:?uso: mission-evidence.sh heartbeat|progress|final <misión> ...}"
 MISSION="${2:?falta misión}"; shift 2
-IMAGE=""; PROCESS_IMAGE=""; REPORT=""; FALLBACK=false
+IMAGE=""; PROCESS_IMAGE=""; CAPTURED_AT=""; PROCESS_CAPTURED_AT=""; REPORT=""; FALLBACK=false
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --image) IMAGE="${2:-}"; shift 2 ;;
     --process-image) PROCESS_IMAGE="${2:-}"; shift 2 ;;
+    --captured-at) CAPTURED_AT="${2:-}"; shift 2 ;;
+    --process-captured-at) PROCESS_CAPTURED_AT="${2:-}"; shift 2 ;;
     --report) REPORT="${2:-}"; shift 2 ;;
     --final-fallback) FALLBACK=true; shift ;;
     *) echo "opción desconocida: $1" >&2; exit 2 ;;
@@ -73,14 +76,41 @@ upload_image() {
   printf '%s' "$response" | python3 -c 'import json,sys; print((json.load(sys.stdin).get("url") or "").strip())'
 }
 
+# La hora pertenece a la captura, no a su subida. Para un fichero aportado se usa
+# su mtime (o el epoch-ms explícito del capturador); para capture_image, el mtime
+# acaba de nacer. Así un pantallazo histórico nunca rejuvenece al adjuntarlo.
+capture_time() {
+  local file="$1" explicit="${2:-}" seconds
+  if [ -n "$explicit" ]; then
+    case "$explicit" in *[!0-9]*|'') echo "captured_at debe ser epoch ms" >&2; return 1;; esac
+    printf '%s\n' "$explicit"
+    return 0
+  fi
+  seconds="$(stat -f '%m' "$file" 2>/dev/null || stat -c '%Y' "$file" 2>/dev/null || true)"
+  case "$seconds" in *[!0-9]*|'') echo "no se pudo leer la hora de captura: $file" >&2; return 1;; esac
+  printf '%s000\n' "$seconds"
+}
+
+validate_process_time() {
+  local captured="$1" now
+  now="$(( $(date +%s) * 1000 ))"
+  if [ "$captured" -gt "$((now + 30000))" ]; then
+    echo "captured_at está en el futuro" >&2; return 1
+  fi
+  if [ "$captured" -lt "$((now - 120000))" ]; then
+    echo "captured_at tiene más de 2 minutos; no se falsea como proceso vivo" >&2; return 1
+  fi
+}
+
 if [ "$MODE" = "heartbeat" ]; then
   PAYLOAD="$(MISSION="$MISSION" OWNER="$OWNER" python3 -c 'import json,os; print(json.dumps({"mission":os.environ["MISSION"],"owner":os.environ["OWNER"]}))')"
   ENDPOINT="progress"
 elif [ "$MODE" = "progress" ]; then
   [ -n "$IMAGE" ] || IMAGE="$(capture_image)" || { echo "no se pudo capturar evidencia de proceso" >&2; exit 1; }
+  CAPTURED_AT="$(capture_time "$IMAGE" "$CAPTURED_AT")"
+  validate_process_time "$CAPTURED_AT"
   IMAGE_URL="$(upload_image "$IMAGE")"
   [ -n "$IMAGE_URL" ] || { echo "progress exige --image" >&2; exit 2; }
-  CAPTURED_AT="$(( $(date +%s) * 1000 ))"
   KIND="process"; [ "$FALLBACK" = false ] || KIND="final-fallback"
   PAYLOAD="$(MISSION="$MISSION" OWNER="$OWNER" IMAGE_URL="$IMAGE_URL" CAPTURED_AT="$CAPTURED_AT" KIND="$KIND" FALLBACK="$FALLBACK" python3 -c 'import json,os; print(json.dumps({"mission":os.environ["MISSION"],"owner":os.environ["OWNER"],"image":os.environ["IMAGE_URL"],"captured_at":int(os.environ["CAPTURED_AT"]),"evidence_kind":os.environ["KIND"],"degraded":os.environ["FALLBACK"]=="true"}))')"
   ENDPOINT="progress"
@@ -95,9 +125,11 @@ else
   [ -z "$PROCESS_IMAGE" ] || PROCESS_EXPLICIT=true
   if [ -z "$PROCESS_IMAGE" ]; then PROCESS_IMAGE="$(capture_image)" || true; fi
   if [ -n "$PROCESS_IMAGE" ]; then
+    PROCESS_CAPTURED_AT="$(capture_time "$PROCESS_IMAGE" "$PROCESS_CAPTURED_AT")"
+    validate_process_time "$PROCESS_CAPTURED_AT"
     PROCESS_URL="$(upload_image "$PROCESS_IMAGE")"
     [ -n "$PROCESS_URL" ] || { echo "no se pudo subir la captura de proceso" >&2; exit 1; }
-    PROCESS_AT="$(( $(date +%s) * 1000 ))"
+    PROCESS_AT="$PROCESS_CAPTURED_AT"
     PROCESS_PAYLOAD="$(MISSION="$MISSION" OWNER="$OWNER" PROCESS_URL="$PROCESS_URL" PROCESS_AT="$PROCESS_AT" python3 -c 'import json,os; print(json.dumps({"mission":os.environ["MISSION"],"owner":os.environ["OWNER"],"image":os.environ["PROCESS_URL"],"captured_at":int(os.environ["PROCESS_AT"]),"evidence_kind":"process","degraded":False}))')"
     printf '%s' "$PROCESS_PAYLOAD" | curl -fsS -m 30 -X POST "$API/fleet/progress" -H 'Content-Type: application/json' --data @- >/dev/null
   elif [ "$PROCESS_EXPLICIT" = true ]; then

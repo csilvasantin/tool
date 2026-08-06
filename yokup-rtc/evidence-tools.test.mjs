@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,12 +21,37 @@ test("Desktop, CLI y subagentes atraviesan el mismo cliente", async () => {
 
 test("el cliente distingue proceso y fallback final degradado", async () => {
   const client = await tool("mission-evidence.sh");
-  assert.match(client, /CAPTURED_AT=.*date \+%s/);
+  assert.match(client, /CAPTURED_AT="\$\(capture_time "\$IMAGE" "\$CAPTURED_AT"\)"/);
   assert.match(client, /KIND="process"/);
   assert.match(client, /KIND="final-fallback"/);
   assert.match(client, /"degraded"/);
   assert.doesNotMatch(client, /PREVIO=.*IMAGE_URL/,
     "la captura final no puede convertirse silenciosamente en proceso");
+});
+
+test("el cliente no rejuvenece un fichero histórico como proceso vivo", async () => {
+  const client = await tool("mission-evidence.sh");
+  assert.match(client, /capture_time\(\)/);
+  assert.match(client, /validate_process_time\(\)/);
+  assert.match(client, /stat -f '%m'.*stat -c '%Y'/s);
+  assert.match(client, /now - 120000/);
+});
+
+test("progress rechaza una captura vieja antes de intentar subirla", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "yokup-old-process-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const image = join(dir, "old.png");
+  await writeFile(image, Buffer.from("captura histórica"));
+  const old = new Date(Date.now() - 5 * 60_000);
+  await utimes(image, old, old);
+  const script = new URL("./tools/mission-evidence.sh", import.meta.url);
+  const result = spawnSync("bash", [script.pathname, "progress", "DCL-test", "--image", image], {
+    encoding: "utf8",
+    env: { ...process.env, YOKUP_RUNTIME: "Codex", YOKUP_PERSONA: "Oraculo", YOKUP_ROLE: "sub", YOKUP_HOST: "app", YOKUP_API: "http://127.0.0.1:1" }
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /captured_at tiene más de 2 minutos/);
+  assert.doesNotMatch(result.stderr, /curl:/, "debe fallar antes de tocar la red");
 });
 
 test("el cierre canónico intenta capturar proceso sin reciclar la prueba final", async () => {
