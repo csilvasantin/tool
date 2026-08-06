@@ -45,6 +45,7 @@ test("proyecto temprano conserva loading; datos, deuda y avatar no se serializan
   const context = vm.createContext({
     window, document, fetch, console, Date, Promise, encodeURIComponent, ykAvatar:window.ykAvatar,
     YkInformesSort:{sort:(rows)=>rows},
+    YkInformesColumns:{mount:()=>({apply(){}})},
     setInterval(fn){ intervals.push(fn); return intervals.length; }, setTimeout(){},
   });
   vm.runInContext(main, context);

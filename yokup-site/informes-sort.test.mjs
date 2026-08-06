@@ -19,7 +19,7 @@ const rows=[
 test('las siete cabeceras son ordenables, accesibles y muestran dirección',()=>{
   assert.match(html,/script src="\/yk-informes-sort\.js\?v=r1"/);
   assert.deepEqual(Array.from(html.matchAll(/\["(mision|proceso|captura|informe|agente|estado|tiempo)",/g),m=>m[1]),
-    ['mision','proceso','captura','informe','agente','estado','tiempo']);
+    ['agente','mision','proceso','captura','informe','estado','tiempo']);
   assert.match(html,/role="columnheader" aria-sort=/);
   assert.match(html,/class="sort-head" type="button"/);
   assert.match(html,/id="reps" role="table" aria-label="Informes de misiones"/);
