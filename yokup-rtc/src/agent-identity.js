@@ -97,6 +97,33 @@ export function reportAgentIdentity(owner, machine) {
   return `${prefix}${parsed.persona}${suffix}`;
 }
 
+// Una familia es persona + máquina física. La capa de ejecución (main/sub/infra)
+// cambia executor y role, pero nunca la clave familiar. Para identidades ajenas
+// al censo se conserva owner+máquina en la clave para no mezclar homónimos ni
+// equipos distintos.
+export function reportAgentFamily(owner, machine) {
+  const executor = reportAgentIdentity(owner, machine);
+  const parsed = parseAgentIdentity(executor || owner);
+  const suffix = machineSuffix(machine) || parsed.suffix;
+  const knownPersona = PERSONAS.some(([name]) => name === parsed.persona);
+  const role = ["main", "sub", "infra"].includes(parsed.role) ? parsed.role : "main";
+  if (knownPersona && suffix) {
+    return {
+      executor,
+      role,
+      family_key:`${identityKey(parsed.persona)}@${identityKey(suffix)}`,
+      family_name:`${parsed.persona}${suffix}`
+    };
+  }
+  const raw = String(executor || owner || "desconocido").trim() || "desconocido";
+  return {
+    executor:raw,
+    role,
+    family_key:`external:${identityKey(raw) || "desconocido"}@${identityKey(machine) || "equipo-desconocido"}`,
+    family_name:raw
+  };
+}
+
 export function sameAgentFamily(a, b) {
   return identityKey(baseAgentIdentity(a)) === identityKey(baseAgentIdentity(b));
 }

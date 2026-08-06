@@ -1,6 +1,7 @@
 import puppeteer from "@cloudflare/puppeteer";
 import { memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
-import { baseAgentIdentity, identityKey, machineSuffix, parseAgentIdentity, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
+import { baseAgentIdentity, identityKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
+import { buildReportsPageFilter, encodeReportsCursor, parseReportsPageOptions } from "./reports-pagination.js";
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
 import { AgentStopError, dispatchAgentStop, normalizeAgentStopTarget } from "./fleet-agent-stop.js";
 import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, madridDayStart, sortDisplayRefCandidates } from "./display-ref.js";
@@ -207,6 +208,7 @@ async function applySchema(env) {
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_batch_items_mission ON mission_batch_items(mission_id)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_tasks (mission_id TEXT, code TEXT, title TEXT, status TEXT DEFAULT 'pending', owner TEXT, report TEXT, updated_at INTEGER, PRIMARY KEY (mission_id, code))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_mtasks_mission ON mission_tasks(mission_id)");
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_mtasks_reports_page ON mission_tasks(updated_at DESC,mission_id DESC,code DESC) WHERE report IS NOT NULL AND TRIM(report)<>''");
   // Histórico compartido del Highscore. Una muestra por agente y minuto basta
   // para comparar la última hora sin depender del navegador que lo consulta.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS highscore_snapshots (agent_key TEXT NOT NULL, agent TEXT NOT NULL, machine TEXT, sampled_at INTEGER NOT NULL, points INTEGER NOT NULL, PRIMARY KEY(agent_key,sampled_at))");
@@ -2121,9 +2123,8 @@ async function listAllMissionTasks(env, scope) {
   ).all();
   const rows = (results || []).map((task) => ({
     ...task,
-    // Campo aditivo para /informes: owner permanece disponible, pero la
-    // identidad visible se recompone con la máquina real de tickets.loc.
-    agent_identity: reportAgentIdentity(task.owner, task.loc)
+    agent_identity: reportAgentIdentity(task.owner, task.loc),
+    ...legacyReportIdentityFields(task)
   }));
   await attachDisplayRefs(env, "task", rows, taskDisplayKey, (row) => row.created_at || row.updated_at);
   const missions = [...new Map(rows.map((row) => [row.mission_id, {
@@ -2136,6 +2137,65 @@ async function listAllMissionTasks(env, scope) {
   return rows;
 }
 __name(listAllMissionTasks, "listAllMissionTasks");
+
+function legacyReportIdentityFields(task) {
+  const identity = reportAgentFamily(task.owner, task.loc);
+  return { executor:identity.executor, executor_role:identity.role,
+    family_key:identity.family_key, family_name:identity.family_name };
+}
+__name(legacyReportIdentityFields, "legacyReportIdentityFields");
+
+function enrichReportTaskIdentity(task) {
+  const identity = reportAgentFamily(task.owner, task.loc);
+  return { ...task, agent_identity: reportAgentIdentity(task.owner, task.loc), ...identity };
+}
+__name(enrichReportTaskIdentity, "enrichReportTaskIdentity");
+
+function reportScopeClause(scope) {
+  return scope === "fleet" ? AGENT_SOURCE_SQL_T
+    : scope === "todas" ? "1=1" : FIELD_SOURCE_SQL_T;
+}
+__name(reportScopeClause, "reportScopeClause");
+
+async function attachReportDisplayRefs(env, rows) {
+  await attachDisplayRefs(env, "task", rows, taskDisplayKey, (row) => row.created_at || row.updated_at);
+  const missions = [...new Map(rows.map((row) => [row.mission_id, { id:row.mission_id, created_at:row.mission_created }])).values()];
+  await attachDisplayRefs(env, "mission", missions, (row) => row.id, (row) => row.created_at);
+  const missionRefs = new Map(missions.map((mission) => [mission.id, mission.display_ref]));
+  for (const row of rows) row.mission_display_ref = missionRefs.get(row.mission_id) || "";
+}
+__name(attachReportDisplayRefs, "attachReportDisplayRefs");
+
+async function listMissionReportsPage(env, scope, options) {
+  const filter = buildReportsPageFilter(options, reportScopeClause(scope));
+  const sql = `SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.report,m.image,m.image_kind,m.created_at,m.updated_at,
+      t.subject,t.screen,t.loc,t.project,t.source,t.role AS mission_role,t.assignee,
+      t.live_surface AS process_surface,t.live_context AS process_context,
+      CASE WHEN t.live_kind='process' THEN t.live_shot ELSE NULL END AS process_image,
+      CASE WHEN t.live_kind='process' THEN t.live_at ELSE NULL END AS process_captured_at,
+      t.status AS mission_status,t.created_at AS mission_created,t.resolved_at AS mission_resolved,t.proof_image AS mission_proof
+    FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id
+    WHERE ${filter.page_sql}
+    ORDER BY COALESCE(m.updated_at,0) DESC,m.mission_id DESC,m.code DESC LIMIT ?`;
+  const result = await env.DB.prepare(sql).bind(...filter.page_binds, options.limit + 1).all();
+  const fetched = result.results || [], hasMore = fetched.length > options.limit;
+  const rows = fetched.slice(0, options.limit).map(enrichReportTaskIdentity);
+  await attachReportDisplayRefs(env, rows);
+  let total = null;
+  if (options.include_total) {
+    const counted = await env.DB.prepare(
+      `SELECT COUNT(*) AS total FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${filter.count_sql}`
+    ).bind(...filter.count_binds).first();
+    total = Number(counted && counted.total) || 0;
+  }
+  return {
+    tasks:rows,
+    next_cursor:hasMore && rows.length ? encodeReportsCursor(rows[rows.length - 1]) : null,
+    has_more:hasMore,
+    total
+  };
+}
+__name(listMissionReportsPage, "listMissionReportsPage");
 // Guarda el plan completo (reemplaza el anterior). Valida codes y tope de 3
 // subtareas por paso sobre 8 pasos (a..h) → máx 24 subtareas: la jornada
 // completa de un agente (Carlos, 2026-07-21). Devuelve el plan resultante.
@@ -4910,6 +4970,11 @@ var index_default = {
       try {
         await ensureSchema(env);
         const scope = url.searchParams.get("scope") || "todas";
+        if (url.searchParams.get("paginated") === "1") {
+          const options = parseReportsPageOptions(url.searchParams);
+          if (!options.ok) return json({ error:options.error, applied:false }, 400);
+          return json(await listMissionReportsPage(env, scope, options));
+        }
         return json({ tasks: await listAllMissionTasks(env, scope) });
       } catch (e) {
         return json({ error: String(e) }, 500);
