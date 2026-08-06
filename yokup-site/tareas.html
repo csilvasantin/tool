@@ -43,6 +43,11 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .project-id-cell{padding-right:10px}.project-id-main{position:relative}
 .project-id-layout .mission-col{padding-block:3px}
 .project-id-layout .mission-col .subj .t{-webkit-line-clamp:2;line-clamp:2}
+.task-sort-cell{display:flex;align-items:center;min-width:0;height:100%;font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+.task-sort-head{display:flex;align-items:center;justify-content:space-between;gap:7px;width:100%;min-height:38px;padding:5px 8px;border:0;background:transparent;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;text-align:left;cursor:pointer;border-radius:7px}
+.task-sort-head:hover{color:var(--brand);background:rgba(120,243,255,.05)}
+.task-sort-head:focus-visible{outline:2px solid var(--brand);outline-offset:-2px;background:rgba(120,243,255,.07)}
+.task-sort-arrow{color:var(--dim);font-size:11px;flex:none}.task-sort-cell[aria-sort]:not([aria-sort="none"]) .task-sort-arrow{color:var(--brand)}
 /* El conmutador histórico sigue siendo útil: Fichas conserva el detalle plegable;
    Lista deja sólo las filas completas, sin recuperar la antigua parrilla. */
 html[data-yk-view="list"] .taskfold,html[data-yk-view="list"] .taskdetail{display:none}
@@ -94,6 +99,7 @@ html[data-yk-view="list"] .taskfold,html[data-yk-view="list"] .taskdetail{displa
 <script src="/yk-agent-identity.js?v=v.2026.08.02.224605"></script>
 <script src="/yk-avatar.js?v=r3"></script>
 <script src="/yk-misiones.js?v=r49"></script>
+<script src="/yk-tareas-sort.js?v=1"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r3"></script>
 <script>
@@ -114,6 +120,9 @@ let GROUPS=[];  // [{mission:{...ticket}, tasks:[...]}]
 let STATE=null; // filtro por estado (KPI): sin | asignadas | in_progress | resolved | null
 let SEARCH=""; // texto del buscador del cabezal
 let PROJECT_SCOPE=null; // null=Todos; selección recibida por id canónico
+const TASK_SORT_KEY="yk_tareas_sort_v1";
+let TASK_SORT=(()=>{try{return YkTareasSort.normalize(JSON.parse(localStorage.getItem(TASK_SORT_KEY)||"null"))}catch(e){return YkTareasSort.normalize(null)}})();
+function saveTaskSort(){try{localStorage.setItem(TASK_SORT_KEY,JSON.stringify(TASK_SORT))}catch(e){}}
 
 // ── CABEZAL COMPARTIDO (mismo que /misiones): KPIs + buscador + alta ──────────
 // Los KPIs cuentan las misiones (por estado) de la fecha elegida y filtran el
@@ -176,7 +185,6 @@ async function load(){
   const scopedRows=PROJECT_SCOPE?rows.filter(row=>String(row.project||"")===PROJECT_SCOPE):rows;
   const groups=YkMisiones.groupByMission(scopedRows)
     .filter(g=>FOCUS?g.mission.id===FOCUS:inRange(g.mission.created_at));
-  groups.sort((a,b)=>Math.max(...b.tasks.map(x=>x.updated_at||0))-Math.max(...a.tasks.map(x=>x.updated_at||0)));
   GROUPS=groups;
   // KPIs del cabezal: aquí contamos TAREAS (los pasos a/b/c en que se desglosa
   // cada misión), NO misiones — si contáramos misiones saldría el mismo número
@@ -221,6 +229,17 @@ function visibles(){
   }
   return gs;
 }
+const TASK_SORT_COLUMNS=[
+  ["agent","Agente/Plataforma"],["project","Proyecto"],["mission","Misión"],
+  ["tasks","Tareas A·B·C"],["state","Estado / acciones"]
+];
+function taskSortHead(key,label){
+  const active=TASK_SORT.key===key,aria=active?(TASK_SORT.dir==="asc"?"ascending":"descending"):"none";
+  const arrow=active?(TASK_SORT.dir==="asc"?"▲":"▼"):"↕";
+  const next=active&&TASK_SORT.dir==="asc"?"descendente":"ascendente";
+  return '<div class="task-sort-cell" role="columnheader" aria-sort="'+aria+'"><button type="button" class="task-sort-head" data-task-sort="'+key+'" aria-label="Ordenar por '+esc(label)+' en orden '+next+'"><span>'+esc(label)+'</span><span class="task-sort-arrow" aria-hidden="true">'+arrow+'</span></button></div>';
+}
+function sortedVisibleGroups(){return YkTareasSort.sort(visibles(),TASK_SORT.key,TASK_SORT.dir);}
 function render(){
   const box=$("grid");
   if(!GROUPS.length){
@@ -230,7 +249,7 @@ function render(){
       : '<div class="bigempty"><b>Ninguna misión tiene plan todavía</b>Entra en <a href="/misiones">Misiones</a>, selecciona una y pulsa «🧠 Proponer plan (IA)» — su árbol a/b/c aparecerá aquí.</div>';
     return;
   }
-  const gs=visibles();
+  const gs=sortedVisibleGroups();
   if(!gs.length){
     box.innerHTML='<div class="bigempty"><b>Sin resultados en este filtro</b>'+
       (SEARCH?'No hay misiones que casen con «'+esc(SEARCH)+'».':'No hay misiones en ese estado para la fecha elegida.')+
@@ -240,7 +259,7 @@ function render(){
   // Breadcrumb de vuelta cuando hay foco (964): que no se quede uno atrapado.
   const _focusMission=FOCUS&&GROUPS.map(g=>g.mission).find(m=>m.id===FOCUS);
   const _bc = FOCUS ? '<div class="focobar"><a href="/tareas">← ver todas las misiones</a><span class="focoid" title="ID técnico: '+esc(FOCUS)+'">🎯 '+esc(YkMisiones.visibleId(_focusMission||{id:FOCUS}))+'</span></div>' : "";
-  const _head='<div class="hd lhead project-id-layout"><div></div><div class="lh-static">Agente/Plataforma</div><div class="lh-static">Proyecto</div><div class="lh-static">Misión</div><div class="lh-static">Tareas A·B·C</div><div class="lh-static">Estado / acciones</div></div>';
+  const _head='<div class="hd lhead project-id-layout" role="row"><div aria-hidden="true"></div>'+TASK_SORT_COLUMNS.map(([key,label])=>taskSortHead(key,label)).join("")+'</div>';
   box.innerHTML=_bc+_head+gs.map(g=>{
     const _op=OPEN_CARDS.has(g.mission.id)||g.mission.id===FOCUS;
     const mission={...g.mission,_tasks:g.tasks,_prog:YkMisiones.tercios(g.tasks,g.mission.role==="standalone-task")};
@@ -250,6 +269,10 @@ function render(){
       <div class="taskdetail" id="tasks-${esc(g.mission.id)}"${_op?'':' hidden'}><div class="tree">${YkMisiones.stepsHtml(g.tasks)}</div></div>
     </section>`;
   }).join("");
+  box.querySelectorAll(".task-sort-head").forEach(button=>{button.onclick=()=>{
+    TASK_SORT=YkTareasSort.next(TASK_SORT,button.dataset.taskSort);saveTaskSort();render();
+    const active=box.querySelector('.task-sort-head[data-task-sort="'+button.dataset.taskSort+'"]');if(active)active.focus();
+  }});
   YkMisiones.bindRows(box);
   // chips clicables: avanzan estado contra el worker y repintan
   box.querySelectorAll(".taskmission").forEach(card=>{
