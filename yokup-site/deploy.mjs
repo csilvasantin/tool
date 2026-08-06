@@ -85,6 +85,7 @@ async function stampFrameReferences(version, rootUrl) {
       .replace(/\/yk-agent-identity\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-agent-identity.js?v=" + stamp)
       .replace(/\/yk-decisions\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-decisions.js?v=" + stamp)
       .replace(/\/yk-decisiones-grid\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-decisiones-grid.js?v=" + stamp)
+      .replace(/\/yk-objetivos-grid\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-objetivos-grid.js?v=" + stamp)
       .replace(/\/yk-informes-sort\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-informes-sort.js?v=" + stamp)
       .replace(/\/yk-informes-columns\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-informes-columns.js?v=" + stamp)
       .replace(/\/yk-informes-groups\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-informes-groups.js?v=" + stamp)

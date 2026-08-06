@@ -501,6 +501,7 @@ document.getElementById("fSeat").innerHTML=seatOpts("");
 
 function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),2200); }
 function fecha(ms){ try{ return new Date(ms).toLocaleDateString("es-ES",{day:"2-digit",month:"short"}); }catch(e){ return ""; } }
+function fechaHora(ms){ try{ return new Date(ms).toLocaleString("es-ES",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}); }catch(e){ return ""; } }
 function workRef(row){ return window.YkDisplayRef.of(row||{}); }
 
 // ⏳ La idea abrió un reloj de decisión (POST /ideas/decide) y aún no es misión:
@@ -525,11 +526,12 @@ function voteSummary(i){
 function objectiveDetail(i,st){
   const review=hasReview(i), media=hasMedia(i), votes=voteSummary(i);
   const summary=[i.body?"Descripción":"",review?"Consejo":"",media?"Kit de venta":"",i.tag?"#"+i.tag:""].filter(Boolean).join(" · ")||"Metadatos";
-  return '<details class="objective-grid-detail" role="cell" aria-colspan="6"><summary>Detalle · '+esc(summary)+'</summary><div class="objective-detail-body">'+
+  return '<details class="objective-grid-detail" aria-label="Detalle de '+esc(i.title||"objetivo")+'"><summary>Detalle · '+esc(summary)+'</summary><div class="objective-detail-body">'+
     (i.body?'<div class="objective-description">'+esc(i.body)+'</div>':'<div class="objective-description">Sin descripción.</div>')+
     '<div class="objective-detail-meta"><span>autor <b>'+esc(i.author||"anónimo")+'</b></span><span>consejo <b>'+esc(votes)+'</b></span>'+
       (i.tag?'<span>etiqueta <b>#'+esc(i.tag)+'</b></span>':'')+(i.origin_type?'<span>origen <b>'+esc(i.origin_type)+'</b></span>':'')+
       (i.mission_id?'<span>misión <b>'+esc(i.mission_id)+'</b></span>':'')+(i.decision_id?'<span>decisión <b>'+esc(i.decision_id)+'</b></span>':'')+
+      '<span>creado <b>'+esc(fechaHora(i.created_at)||"—")+'</b></span>'+(i.updated_at?'<span>actualizado <b>'+esc(fechaHora(i.updated_at))+'</b></span>':'')+
       '<span>ID técnico <b>'+esc(i.id)+'</b></span></div>'+
     (review?reviewBlock(i):(st==="estudio"?'<div class="delib pend"><button class="regen" data-regen="'+esc(i.id)+'" title="Pedir la deliberación del Consejo">⚖️ Pedir deliberación</button></div>':''))+
     kitBlock(i)+'</div></details>';

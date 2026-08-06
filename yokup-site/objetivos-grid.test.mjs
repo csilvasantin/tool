@@ -23,16 +23,20 @@ test('el renderer emite una fila estable con seis claves de orden', () => {
   assert.doesNotMatch(source, /node\.innerHTML=list\.map\(card\)/);
 });
 
-test('la fila conserva los quince campos API sin esconder datos operativos', () => {
+test('la fila conserva los quince campos reales del API sin esconder datos operativos', () => {
   for (const field of [
     'i.id', 'workRef(i)', 'i.title', 'i.body', 'i.author', 'i.tag', 'i.seat',
-    'i.project', 'i.status', 'i.created_at', 'i.scheduled_for', 'i.mission_id',
+    'i.project', 'i.status', 'i.created_at', 'i.updated_at', 'i.mission_id',
     'i.decision_id', 'i.review', 'i.media'
   ]) assert.ok(source.includes(field), `falta ${field}`);
-  assert.match(source, /class="objective-grid-detail"[^>]*aria-colspan="6"/);
+  assert.match(source, /class="objective-grid-detail"[^>]*aria-label="Detalle de/);
+  assert.doesNotMatch(source, /objective-grid-detail"[^>]*role="cell"|aria-colspan/);
+  const rowSource=source.slice(source.indexOf('function objectiveRow(i){'),source.indexOf('function render(){'));
+  assert.equal((rowSource.match(/role="cell"/g)||[]).length,6,'la fila conserva exactamente seis celdas semánticas');
   assert.match(source, /Descripción["):]|objective-description/);
   assert.match(source, /a favor · ["+]|en contra/);
   assert.match(source, /Kit de venta/);
+  assert.match(source, /actualizado <b>'\+esc\(fechaHora\(i\.updated_at\)\)/);
 });
 
 test('selección, edición de silla/fecha y acciones siguen cableadas', () => {
@@ -45,6 +49,21 @@ test('selección, edición de silla/fecha y acciones siguen cableadas', () => {
   assert.match(source, /setSeat\(s\.dataset\.seatFor,s\.value\)/);
   assert.match(source, /setSchedule\(d\.dataset\.dateFor,d\.value\)/);
   assert.match(source, /applyBulk/);
+});
+
+test('creación, edición, selección, votos, misión y descarte conservan sus endpoints', () => {
+  assert.match(source, /const body=\{title,body:\$\("#fBody"\)\.value\.trim\(\),author:/);
+  assert.match(source, /wfetch\("\/ideas",\{cache:"no-store"\}\)/);
+  assert.match(source, /fetch\(WORKER\+"\/ideas",\{method:"POST"/);
+  assert.match(source, /fetch\(WORKER\+"\/ideas\/seat"[\s\S]*body:JSON\.stringify\(\{id,seat\}\)/);
+  assert.match(source, /fetch\(WORKER\+"\/ideas\/schedule"[\s\S]*body:JSON\.stringify\(\{id,scheduled_for\}\)/);
+  assert.match(source, /fetch\(WORKER\+"\/ideas\/status"[\s\S]*body:JSON\.stringify\(\{id,status\}\)/);
+  assert.match(source, /fetch\(WORKER\+"\/ideas\/review"[\s\S]*body:JSON\.stringify\(\{id\}\)/);
+  assert.match(source, /fetch\(WORKER\+"\/ideas\/decide"[\s\S]*body:JSON\.stringify\(\{id\}\)/);
+  assert.match(source, /setStatus\(d\.dataset\.del,"descartada"\)/);
+  assert.match(source, /reviewInner\(i\)/);
+  assert.match(source, /data-bulk-id=/);
+  assert.match(source, /body:JSON\.stringify\(\{ids,status\}\)/);
 });
 
 test('los filtros de fecha y estado conservan eliminada sin falsear Nueva', () => {
@@ -64,4 +83,3 @@ test('ambas densidades son spreadsheet y el móvil apila celdas legibles', () =>
   assert.match(source, /@media\(max-width:560px\)[\s\S]*\.objective-grid-head\{display:none\}/);
   assert.match(source, /\.objective-grid-cell:before\{content:attr\(data-label\)/);
 });
-

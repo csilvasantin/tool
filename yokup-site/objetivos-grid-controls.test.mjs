@@ -5,6 +5,7 @@ import {readFile} from "node:fs/promises";
 
 const source=await readFile(new URL("./yk-objetivos-grid.js",import.meta.url),"utf8");
 const page=await readFile(new URL("./objetivos.html",import.meta.url),"utf8");
+const deploy=await readFile(new URL("./deploy.mjs",import.meta.url),"utf8");
 const keys=["advisor","project","objective","state","date","actions"];
 
 function control(kind,key){
@@ -69,4 +70,9 @@ test("MutationObserver reaplica tras filtros/rerender, conserva foco y respeta r
   assert.match(source,/var restore=!!lastFocus&&\(!active\|\|active===doc\.body\);apply\(restore\)/);assert.match(source,/restoreFocus\(\)/);
   assert.match(source,/@media\(max-width:720px\)\{\.objective-col-resize/);assert.doesNotMatch(source,/\.objective-grid-row\{[^}]*min-width/);
   assert.match(source,/button\.dataset\.objectiveSort=key[\s\S]*cell\.appendChild\(button\)[\s\S]*cell\.appendChild\(handle\)/,"botón y tirador permanecen hermanos");
+});
+
+test("deploy cache-bustea los controles de la cuadrícula de Objetivos",()=>{
+  assert.match(deploy,/\/yk-objetivos-grid\\\.js/);
+  assert.match(deploy,/"\/yk-objetivos-grid\.js\?v=" \+ stamp/);
 });
