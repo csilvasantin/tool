@@ -76,6 +76,68 @@
 })(typeof window!=="undefined"?window:globalThis);
 /* YK_MISSION_NOVELTY_CORE_END */
 
+/* YK_PROJECT_NOVELTY_CORE_START
+ * Altas del censo: el cursor ordena, pero sólo events[].project_id cuenta.
+ * Así huecos AUTOINCREMENT, ediciones, reordenados y bajas no crean novedad. */
+(function(root){
+  "use strict";
+  var KEY="yk_project_novelty_v1";
+  function number(value){if(value==null||value==="")return null;var n=Number(value);return Number.isFinite(n)&&n>=0?Math.floor(n):null;}
+  function clean(value){return String(value==null?"":value).trim();}
+  function uniq(values){var seen={},out=[];(values||[]).forEach(function(value){value=clean(value);if(value&&!seen[value]){seen[value]=true;out.push(value);}});return out;}
+  function union(a,b){return uniq((a||[]).concat(b||[]));}
+  function meta(payload){
+    var p=payload||{},projects=Array.isArray(p.projects)?p.projects:[],selectable=projects.filter(function(project){return project&&project.id&&String(project.status||"activo").toLowerCase()!=="archivado";});
+    var events=(Array.isArray(p.events)?p.events:[]).map(function(event){return {cursor:number(event&&event.cursor),project_id:clean(event&&(event.project_id||event.id)),created_at:number(event&&event.created_at)};}).filter(function(event){return event.cursor!=null&&event.project_id;});
+    events.sort(function(a,b){return b.cursor-a.cursor;});
+    var total=number(p.total);return {cursor:number(p.created_cursor),newest_id:clean(p.newest_id||(events[0]&&events[0].project_id)),latest_created_at:number(p.latest_created_at),events:events.slice(0,20),all_ids:uniq(projects.map(function(project){return project&&project.id;})),selectable_ids:uniq(selectable.map(function(project){return project.id;})),total:total==null?selectable.length:total};
+  }
+  function initial(){return {version:1,initialized:false,seen_cursor:null,observed_cursor:null,known_ids:[],acked_keys:[],unread:[],newest_id:"",latest_created_at:null};}
+  function record(value){var cursor=number(value&&value.cursor),id=clean(value&&value.project_id),key=clean(value&&value.key);if(!id)return null;return {key:key||(cursor==null?"i:"+id:"c:"+cursor),project_id:id,cursor:cursor};}
+  function records(values){var seen={},out=[];(values||[]).forEach(function(value){var row=record(value);if(row&&!seen[row.key]){seen[row.key]=true;out.push(row);}});return out;}
+  function normalize(value){var out=initial(),v=value&&typeof value==="object"?value:{};out.initialized=!!v.initialized;out.seen_cursor=number(v.seen_cursor);out.observed_cursor=number(v.observed_cursor);out.known_ids=uniq(v.known_ids);out.acked_keys=uniq(v.acked_keys);out.unread=records(v.unread);out.newest_id=clean(v.newest_id);out.latest_created_at=number(v.latest_created_at);return out;}
+  function create(options){
+    options=options||{};var storage=options.storage||null,publish=typeof options.publish==="function"?options.publish:function(){};
+    function read(){try{return normalize(JSON.parse(storage&&storage.getItem(KEY)||"null"));}catch(_){return initial();}}
+    var state=read();
+    function snapshot(){return JSON.parse(JSON.stringify(state));}
+    function write(broadcast){try{if(storage)storage.setItem(KEY,JSON.stringify(state));}catch(_){}if(broadcast!==false)publish(snapshot());}
+    function unreadIds(){return uniq(state.unread.map(function(row){return row.project_id;}));}
+    function add(row){row=record(row);if(!row||state.acked_keys.indexOf(row.key)>=0||state.unread.some(function(old){return old.key===row.key;}))return false;state.unread.push(row);return true;}
+    function observe(payload){
+      var m=meta(payload),before=unreadIds().length,was=JSON.stringify(state),first=!state.initialized,selectable={},stale=m.cursor!=null&&state.observed_cursor!=null&&m.cursor<state.observed_cursor;m.selectable_ids.forEach(function(id){selectable[id]=true;});
+      if(first){state.initialized=true;state.observed_cursor=m.cursor;state.seen_cursor=m.cursor;}
+      else if(m.cursor!=null&&state.observed_cursor==null){state.observed_cursor=m.cursor;state.seen_cursor=m.cursor;}
+      else if(m.cursor!=null&&m.cursor>state.observed_cursor){
+        m.events.forEach(function(event){if((state.seen_cursor==null||event.cursor>state.seen_cursor)&&selectable[event.project_id])add({key:"c:"+event.cursor,project_id:event.project_id,cursor:event.cursor});});
+        // Si el salto supera la ventana de 20 eventos, los ids realmente nuevos
+        // del catálogo completan la señal sin convertir el total en heurística.
+        m.selectable_ids.forEach(function(id){if(state.known_ids.indexOf(id)<0&&!state.unread.some(function(row){return row.project_id===id;}))add({key:"i:"+id,project_id:id,cursor:null});});
+        state.observed_cursor=m.cursor;
+      }else if(m.cursor==null&&!first){
+        // Rollout sin metadatos: sólo un id jamás visto es alta probable. Cambiar
+        // nombre/orden/estado o reducir el total no produce ninguna señal.
+        m.selectable_ids.forEach(function(id){if(state.known_ids.indexOf(id)<0)add({key:"i:"+id,project_id:id,cursor:null});});
+      }
+      state.known_ids=union(state.known_ids,m.all_ids);if(!stale)state.unread=state.unread.filter(function(row){return selectable[row.project_id]&&state.acked_keys.indexOf(row.key)<0;});
+      if(m.newest_id)state.newest_id=m.newest_id;if(m.latest_created_at!=null&&(!state.latest_created_at||m.latest_created_at>state.latest_created_at))state.latest_created_at=m.latest_created_at;
+      if(JSON.stringify(state)!==was)write(true);
+      return {first:first,added:Math.max(0,unreadIds().length-before),unread_ids:unreadIds(),state:snapshot(),meta:m};
+    }
+    function ack(ids){var wanted={};uniq(ids).forEach(function(id){wanted[id]=true;});var was=JSON.stringify(state),kept=[];state.unread.forEach(function(row){if(wanted[row.project_id])state.acked_keys=union(state.acked_keys,[row.key]);else kept.push(row);});state.unread=kept;if(!state.unread.length&&state.observed_cursor!=null)state.seen_cursor=Math.max(state.seen_cursor==null?0:state.seen_cursor,state.observed_cursor);if(JSON.stringify(state)!==was)write(true);return snapshot();}
+    function sync(value){
+      var incoming;try{incoming=normalize(typeof value==="string"?JSON.parse(value||"null"):value);}catch(_){return snapshot();}
+      var was=JSON.stringify(state),seen=Math.max(state.seen_cursor==null?-1:state.seen_cursor,incoming.seen_cursor==null?-1:incoming.seen_cursor),observed=Math.max(state.observed_cursor==null?-1:state.observed_cursor,incoming.observed_cursor==null?-1:incoming.observed_cursor);
+      state.initialized=state.initialized||incoming.initialized;state.known_ids=union(state.known_ids,incoming.known_ids);state.acked_keys=union(state.acked_keys,incoming.acked_keys);state.unread=records(state.unread.concat(incoming.unread)).filter(function(row){return state.acked_keys.indexOf(row.key)<0&&(row.cursor==null||seen<0||row.cursor>seen);});state.seen_cursor=seen<0?null:seen;state.observed_cursor=observed<0?null:observed;
+      if(incoming.latest_created_at!=null&&(!state.latest_created_at||incoming.latest_created_at>state.latest_created_at)){state.latest_created_at=incoming.latest_created_at;state.newest_id=incoming.newest_id||state.newest_id;}
+      if(JSON.stringify(state)!==was)write(false);return snapshot();
+    }
+    return {observe:observe,ack:ack,sync:sync,snapshot:snapshot,unreadIds:unreadIds,key:KEY,meta:meta};
+  }
+  root.YkProjectNovelty={create:create,meta:meta,key:KEY,_test:{normalize:normalize}};
+})(typeof window!=="undefined"?window:globalThis);
+/* YK_PROJECT_NOVELTY_CORE_END */
+
 /* ============================================================================
  * yk-frame.js — Marco CUADRÁTICO de AdmiraNeXT para el perímetro de Yokup.
  * Script CLÁSICO (sin módulos). Se inicializa tras DOMContentLoaded.
@@ -1244,6 +1306,12 @@
     menu.setAttribute("role", "menu");
     menu.setAttribute("aria-labelledby", "yk-proj-btn");
 
+    var projectTotal=0,projectLoadSeq=0,projectChannel=null;
+    var PROJECT_ANNOUNCED_SS="yk_project_novelty_announced_v1";
+    try{if(typeof window.BroadcastChannel==="function")projectChannel=new window.BroadcastChannel("yokup-project-novelty-v1");}catch(e){}
+    var projectNovelty=window.YkProjectNovelty.create({storage:window.localStorage,publish:function(state){try{if(projectChannel)projectChannel.postMessage({type:"project-novelty",state:state});}catch(e){}}});
+    var live=el("div","yk-nav-live");live.id="yk-project-live";live.setAttribute("role","status");live.setAttribute("aria-live","polite");live.setAttribute("aria-atomic","true");document.body.appendChild(live);
+
     wrap.appendChild(btn);
     wrap.appendChild(menu);
 
@@ -1251,6 +1319,22 @@
     function setMenu(open) {
       wrap.classList.toggle("open", open);
       btn.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+
+    function unreadProjectIds(){var active={};PROJECT_CATALOG.forEach(function(project){active[String(project.id)]=true;});return projectNovelty.unreadIds().filter(function(id){return active[id];});}
+    function paintProjectSignal(){
+      var unread=unreadProjectIds(),base=btn.getAttribute("data-yk-base-label")||"Cambiar filtro de proyecto";
+      wrap.classList.toggle("has-new",unread.length>0);
+      btn.setAttribute("aria-label",base+(unread.length?". "+unread.length+" proyecto"+(unread.length===1?" nuevo":"s nuevos"):""));
+    }
+    function announceProjects(result){
+      if(!result||!result.added)return;var state=result.state,token=String(state.observed_cursor==null?state.latest_created_at:state.observed_cursor),last="";
+      try{last=sessionStorage.getItem(PROJECT_ANNOUNCED_SS)||"";}catch(e){}if(token&&token===last)return;
+      var n=result.unread_ids.length;live.textContent=n+" proyecto"+(n===1?" nuevo":"s nuevos");try{sessionStorage.setItem(PROJECT_ANNOUNCED_SS,token);}catch(e){}
+    }
+    function ackRenderedProjects(){
+      var ids=PROJECT_CATALOG.map(function(project){return String(project.id);});if(!ids.length)return;
+      projectNovelty.ack(ids);paintProjectSignal();
     }
 
     function activeProject() {
@@ -1287,18 +1371,19 @@
     }
     function paintProject() {
       var ap = activeProject(), host = projectHost(ap);
-      var name = ap ? (ap.name || ap.id) : "Todos", full = ap && host ? name + " · " + host : name;
-      btn.innerHTML = '<span class="yk-proj-ic" aria-hidden="true">' + (ap ? "📁" : "◉") + '</span>'
+      var name = ap ? (ap.name || ap.id) : "TODOS · "+projectTotal, full = ap && host ? name + " · " + host : name,unread=unreadProjectIds(),unreadMap={};unread.forEach(function(id){unreadMap[id]=true;});
+      btn.innerHTML = '<span class="yk-proj-dot" aria-hidden="true"></span>'
         + '<span class="yk-proj-nm"><b class="yk-pj-full">' + esc(full) + '</b><b class="yk-pj-short">' + esc(name) + '</b></span>'
         + '<span class="yk-proj-cx" aria-hidden="true">▾</span>';
-      btn.setAttribute("aria-label", "Proyecto: " + full + ". Cambiar filtro");
+      btn.setAttribute("data-yk-base-label", "Proyecto: " + full + ". Cambiar filtro");
       btn.title = "Proyecto · " + full;
       menu.innerHTML = "";
       [{id:null,name:"Todos",web:"Todos los proyectos"}].concat(PROJECT_CATALOG).forEach(function (p) {
         var on = p.id === PROJECT_SCOPE;
         var option = el("button", "yk-proj-opt" + (on ? " on" : ""),
           '<span class="yk-proj-ic" aria-hidden="true">' + (p.id ? "📁" : "◉") + '</span>'
-          + '<span class="yk-proj-txt"><b>' + esc(p.name || p.id) + '</b><em>' + esc(p.id ? (projectHost(p) || p.id) : "Todos los proyectos") + '</em></span>');
+          + '<span class="yk-proj-txt"><b>' + esc(p.id ? (p.name || p.id) : "TODOS · "+projectTotal) + '</b><em>' + esc(p.id ? (projectHost(p) || p.id) : "Todos los proyectos") + '</em></span>'
+          + (p.id&&unreadMap[String(p.id)]?'<span class="yk-proj-new-badge">NUEVO</span>':""));
         option.type = "button";
         option.setAttribute("role", "menuitemradio");
         option.setAttribute("aria-checked", on ? "true" : "false");
@@ -1308,33 +1393,37 @@
         });
         menu.appendChild(option);
       });
+      paintProjectSignal();
     }
     paintProject();
-    ykFetch("/projects", {cache:"no-store"}).then(function (r) { return r.json(); }).then(function (d) {
-      PROJECT_CATALOG = (d && d.projects || []).filter(function (p) {
-        return p && p.id && String(p.status || "activo").toLowerCase() !== "archivado";
+    function loadProjects(){
+      var seq=++projectLoadSeq;
+      return ykFetch("/projects", {cache:"no-store"}).then(function (r) { return r.json(); }).then(function (d) {
+        if(seq!==projectLoadSeq)return false;var result=projectNovelty.observe(d||{}),metadata=projectNovelty.meta(d||{});
+        PROJECT_CATALOG = (d && d.projects || []).filter(function (p) {return p && p.id && String(p.status || "activo").toLowerCase() !== "archivado";});
+        projectTotal=metadata.total;
+        PROJECT_SCOPE = requestedProjectId();
+        rememberProject(PROJECT_SCOPE);
+        window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:PROJECT_SCOPE,project:activeProject(),ready:true}}));
+        paintProject();announceProjects(result);if(isMenuOpen())ackRenderedProjects();return true;
+      }).catch(function () {
+        if(seq!==projectLoadSeq)return false;if(!PROJECT_CATALOG.length){projectTotal=0;PROJECT_SCOPE=null;paintProject();window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:null,project:null,ready:true,error:true}}));}return false;
       });
-      PROJECT_SCOPE = requestedProjectId();
-      // Canoniza también la URL/storage y limpia cualquier valor corrupto, stale o archivado.
-      rememberProject(PROJECT_SCOPE);
-      // READY canónico también en «Todos»: las superficies que filtran datos no
-      // deben arrancar antes de que el catálogo haya validado query/storage.
-      window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:PROJECT_SCOPE,project:activeProject(),ready:true}}));
-      paintProject();
-    }).catch(function () {
-      PROJECT_CATALOG = []; PROJECT_SCOPE = null; paintProject();
-      window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:null,project:null,ready:true,error:true}}));
-    });
+    }
+    loadProjects();
+    window.addEventListener("yk:projects-changed",function(){loadProjects();});
     window.addEventListener("storage", function (event) {
+      if(event.key===projectNovelty.key&&event.newValue){projectNovelty.sync(event.newValue);paintProject();return;}
       if (event.key !== PROJECT_SCOPE_KEY || !PROJECT_CATALOG.length) return;
       publishProject(validProjectId(event.newValue), true);
     });
+    if(projectChannel)projectChannel.onmessage=function(event){var data=event&&event.data;if(data&&data.type==="project-novelty"){projectNovelty.sync(data.state);paintProject();}};
 
     btn.addEventListener("click", function (e) {
       e.stopPropagation();
       var open = !isMenuOpen();
       setMenu(open);
-      if (open) { var f = menu.querySelector("button"); if (f) f.focus(); }
+      if (open) { var f = menu.querySelector("button"); if (f) f.focus(); ackRenderedProjects(); }
     });
 
     // clic fuera cierra
