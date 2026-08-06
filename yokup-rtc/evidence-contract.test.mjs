@@ -43,6 +43,20 @@ test("todo cierre nuevo exige proceso canónico dentro de la vida de la misión"
   assert.match(task, /if \(cierraArbol\) \{\s*const processEvidence = validateMissionProcessEvidence\(tk\)/);
 });
 
+test("task-status rechaza un cierre sin proceso antes de cualquier mutación de negocio", () => {
+  const task = route("/fleet/task-status", "// Ingesta UNIVERSAL");
+  const preflight = task.indexOf("const processEvidence = validateMissionProcessEvidence(tk)");
+  const rejection = task.indexOf("applied:false", preflight);
+  const autoClaim = task.indexOf("UPDATE tickets SET status='in_progress'", rejection);
+  const event = task.indexOf("Estado → in_progress · primer avance de tarea", rejection);
+  const seed = task.indexOf("saveMissionPlan(env, mid", rejection);
+  const taskWrite = task.indexOf("setTaskStatus(env, mid", rejection);
+  assert.ok(preflight > 0 && rejection > preflight, "falta el rechazo preflight sin proceso");
+  for (const [name, index] of [["auto-claim", autoClaim], ["evento", event], ["plan", seed], ["tarea", taskWrite]]) {
+    assert.ok(index > rejection, `${name} muta antes del rechazo applied:false`);
+  }
+});
+
 test("informe y tarea también verifican contenido, no sólo forma de URL", () => {
   const informe = route("/fleet/informe", "// CANCELAR una misión");
   const task = route("/fleet/task-status", "// Ingesta UNIVERSAL");

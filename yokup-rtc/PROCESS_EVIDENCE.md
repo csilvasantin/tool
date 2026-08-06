@@ -26,3 +26,19 @@ manual se conserva para `final --image`; también puede almacenarse como
 `--final-fallback`, marcado expresamente como degradado y nunca presentado como
 Proceso. Si no se puede validar la aplicación Desktop, AgoraCapture o el pane
 CLI, el comando termina con error antes de publicar evidencia.
+
+## Política de aceptación y cierre
+
+`POST /fleet/progress` acepta `evidence_kind=process` únicamente con una de
+estas parejas: `desktop/request` o `cli/command_output`. `web`, `browser` y
+`result_page` se rechazan; una captura de la solución publicada sólo puede ser
+la prueba final, nunca el Proceso. La respuesta confirma `evidence_updated`,
+`capture_surface` y `capture_context`, y `/fleet/missions` conserva esos campos
+para auditoría.
+
+Todo cierre nuevo, tanto por `/fleet/informe` como por la última llamada a
+`/fleet/task-status`, exige una captura `process` canónica tomada después del
+inicio de la misión. `final-fallback` no la sustituye. Si falta o su procedencia
+es inválida, el servidor devuelve `applied:false` antes de auto-reclamar la
+misión, crear eventos o planes, actualizar tareas, avisar a Telegram o guardar
+la prueba final.

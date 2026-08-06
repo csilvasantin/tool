@@ -4456,6 +4456,27 @@ var index_default = {
         if (!norm.value) return json({ ok: false, error: "image no válida: " + norm.error, field: "image", mission: mid, code, applied: false }, 400);
         img = norm.value;
       }
+      // PREFLIGHT DE CIERRE sin efectos: una petición que completaría un árbol
+      // existente debe demostrar proceso y prueba final ANTES del auto-claim,
+      // del evento de inicio o de sembrar un plan. `applied:false` significa así
+      // cero mutaciones de negocio, también cuando el ticket seguía `open`.
+      let tasks = await listMissionTasks(env, mid);
+      let cur = tasks.find((t) => t.code === code);
+      let nextSt = cur && TASK_STATUS.includes(b.status) ? b.status : cur && cur.status;
+      let cierraArbol = !!cur && nextSt === "done" && tasks.every((t) => t.code === code || t.status === "done");
+      if (cierraArbol) {
+        const processEvidence = validateMissionProcessEvidence(tk);
+        if (!processEvidence.ok) return json({ ok:false, code:processEvidence.code, field:processEvidence.field,
+          error:processEvidence.error, mission:mid, task_code:code, applied:false }, 400);
+        if (!img && !(await hasMissionProof(env, mid))) {
+          return json({
+            ok: false,
+            error: "falta la prueba: con esta tarea el árbol de " + mid + " queda al 100%, y una misión de flota no finaliza sin pantallazo del trabajo.",
+            hint: "repite esta misma llamada añadiendo «image» (URL http(s) de la captura o data:image/…;base64), o cierra con POST /fleet/informe.",
+            field: "image", code: "closure_evidence_missing", missing: ["final_image"], mission: mid, task_code: code, applied: false
+          }, 400);
+        }
+      }
       // AUTO-CLAIM en el ORIGEN: marcar un paso ES trabajar. Una misión que seguía «open»
       // (Pendiente rezagado) pasa YA a in_progress al primer task-status, sin esperar a
       // que el reconciliador por árbol la promueva. Cura de raíz del dato. (FLT-990 b/c)
@@ -4473,32 +4494,18 @@ var index_default = {
       // La misión puede no tener árbol todavía (los planes se generan al abrirla en el
       // navegador). Para que la evolución se vea DESDE EL PRIMER paso, se siembra aquí
       // el plan por defecto (sin IA, instantáneo). (951)
-      let tasks = await listMissionTasks(env, mid);
       if (!tasks.length && tk.source === "fleet") {
         await saveMissionPlan(env, mid, flattenSteps(defaultFleetPlan()));
         tasks = await listMissionTasks(env, mid);
       }
-      const cur = tasks.find((t) => t.code === code);
+      cur = tasks.find((t) => t.code === code);
       if (!cur) return json({ ok: false, error: "la misión " + mid + " no tiene la tarea «" + code + "» en su plan" }, 404);
       // 2) EL RECHAZO SE EXPLICA (FLT-988 b3). Si este marcado deja el árbol al 100%
       // y no hay prueba por ningún lado, se responde 400 con el motivo y NO se aplica.
       // Degradar la misión a «en curso» sin decir nada era la respuesta por defecto y
       // dejaba el tablero mintiendo (FLT-982/983/984, rematadas a mano en D1).
-      const nextSt = TASK_STATUS.includes(b.status) ? b.status : cur.status;
-      const cierraArbol = nextSt === "done" && tasks.every((t) => t.code === code || t.status === "done");
-      if (cierraArbol) {
-        const processEvidence = validateMissionProcessEvidence(tk);
-        if (!processEvidence.ok) return json({ ok:false, code:processEvidence.code, field:processEvidence.field,
-          error:processEvidence.error, mission:mid, task_code:code, applied:false }, 400);
-      }
-      if (cierraArbol && !img && !(await hasMissionProof(env, mid))) {
-        return json({
-          ok: false,
-          error: "falta la prueba: con esta tarea el árbol de " + mid + " queda al 100%, y una misión de flota no finaliza sin pantallazo del trabajo.",
-          hint: "repite esta misma llamada añadiendo «image» (URL http(s) de la captura o data:image/…;base64), o cierra con POST /fleet/informe.",
-          field: "image", code: "closure_evidence_missing", missing: ["final_image"], mission: mid, task_code: code, applied: false
-        }, 400);
-      }
+      nextSt = TASK_STATUS.includes(b.status) ? b.status : cur.status;
+      cierraArbol = nextSt === "done" && tasks.every((t) => t.code === code || t.status === "done");
       const row = await setTaskStatus(env, mid, code, b.status, b.report, actor.actor, img, cierraArbol ? "final" : "task");
       if (!row) return json({ ok: false, error: "no se pudo actualizar la tarea «" + code + "» de " + mid }, 500);
       // 3) Una prueba de PASO no se presenta como prueba FINAL de misión. Sólo la
