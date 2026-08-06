@@ -105,7 +105,7 @@ test('una continuación reutiliza el batch, reordena queued y habilita una únic
   assert.match(body, /reconcileQueuedBatchItems\(env, batchId\)/);
   assert.match(body, /await env\.DB\.batch\(statements\)/, 'el reordenado se aplica atómicamente');
   assert.match(body, /SET status='active',pause_reason=NULL[\s\S]*status='awaiting_continuation'/);
-  assert.match(body, /return activateNextMissionBatchItem\(env, batchId\)/);
+  assert.match(body, /return activateNextMissionBatchItem\(env, batchId, decision\.id\)/);
   assert.equal((body.match(/INSERT OR IGNORE INTO mission_batches/g) || []).length, 1, 'el único INSERT pertenece a la rama inicial');
 });
 

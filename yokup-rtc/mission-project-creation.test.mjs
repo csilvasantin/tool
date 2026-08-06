@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import worker from "./src/index.js";
 
 function harness() {
-  const state = { tickets:[], refs:new Map(), fleetIds:new Map(), decisions:new Map(), batches:new Map(), items:[], allowDeclaration:false, allowInherited:false, batchCalls:0, ticketBatches:0 };
+  const state = { tickets:[], refs:new Map(), fleetIds:new Map(), decisions:new Map(), batches:new Map(), items:[], novelties:[], nextNoveltyCursor:1, atomicBatches:[], allowDeclaration:false, allowInherited:false, batchCalls:0, ticketBatches:0 };
   const statement = (sql, args=[]) => ({
     sql, args, bind(...next) { return statement(sql, next); },
     async first() {
@@ -21,6 +21,8 @@ function harness() {
       if (sql === "SELECT id,agent,machine,project,parent_decision FROM decisions WHERE id=?") {const d=state.decisions.get(args[0]);return d&&{id:d.id,agent:d.agent,machine:d.machine,project:d.project,parent_decision:d.parent_decision};}
       if (sql === "SELECT id,agent,machine,project FROM decisions WHERE id=?") {const d=state.decisions.get(args[0]);return d&&{id:d.id,agent:d.agent,machine:d.machine,project:d.project};}
       if (sql === "SELECT * FROM mission_batches WHERE id=?") return state.batches.get(args[0])||null;
+      if (sql === "SELECT id,status,active_mission_id FROM mission_batches WHERE id=?") {const b=state.batches.get(args[0]);return b&&{id:b.id,status:b.status,active_mission_id:b.active_mission_id};}
+      if (sql === "SELECT mission_id FROM mission_novelty_events WHERE decision_id=? LIMIT 1") {const n=state.novelties.find(row=>row.decision_id===args[0]);return n&&{mission_id:n.mission_id};}
       if (sql === "SELECT id,decision_id,agent,machine,project_id FROM mission_batches WHERE id=?") {const b=state.batches.get(args[0]);return b&&{id:b.id,decision_id:b.decision_id,agent:b.agent,machine:b.machine,project_id:b.project_id};}
       if (sql.includes("SELECT 1 AS x FROM mission_batch_items")) return state.items.some(row=>row.batch_id===args[0])?{x:1}:null;
       if (sql.includes("FROM mission_batch_items WHERE batch_id=? AND status='active'")) return state.items.find(row=>row.batch_id===args[0]&&row.status==="active")||null;
@@ -42,7 +44,7 @@ function harness() {
       if (sql.includes("SELECT entity_type,entity_key,display_ref FROM display_refs")) {
         const type=args[0]; return {results:args.slice(1).flatMap(key=>state.refs.has(type+":"+key)?[{entity_type:type,entity_key:key,display_ref:state.refs.get(type+":"+key)}]:[])};
       }
-      if (sql.includes("FROM mission_batch_items i LEFT JOIN tickets")) return {results:state.items.filter(row=>row.batch_id===args[0]&&row.status==="queued").map(row=>({...row,ticket_status:null}))};
+      if (sql.includes("FROM mission_batch_items i LEFT JOIN tickets")) return {results:state.items.filter(row=>row.batch_id===args[0]&&row.status==="queued").sort((a,b)=>a.position-b.position).map(row=>({...row,ticket_status:null}))};
       if (sql.includes("FROM mission_batch_items WHERE batch_id=? ORDER BY position")) return {results:state.items.filter(row=>row.batch_id===args[0]).sort((a,b)=>a.position-b.position)};
       return { results:[] };
     },
@@ -51,20 +53,28 @@ function harness() {
   function apply(sql,args) {
     if (sql.startsWith("INSERT OR IGNORE INTO tickets") || sql.startsWith("INSERT INTO tickets")) {
       const cols=sql.slice(sql.indexOf("(")+1,sql.indexOf(")")).split(",");
-      state.tickets.push(Object.fromEntries(cols.map((col,i)=>[col,args[i]])));
+      const row=Object.fromEntries(cols.map((col,i)=>[col,args[i]]));
+      if(!sql.startsWith("INSERT OR IGNORE")||!state.tickets.some(x=>x.id===row.id))state.tickets.push(row);
+    }
+    if (sql.startsWith("INSERT OR IGNORE INTO mission_novelty_events")) {
+      const [event_key,decision_id,batch_id,mission_id]=args, ticket=state.tickets.find(x=>x.id===mission_id);
+      if(ticket&&!state.novelties.some(x=>x.event_key===event_key))state.novelties.push({cursor:state.nextNoveltyCursor++,event_key,mission_id,created_at:ticket.created_at,source:ticket.source,decision_id,batch_id});
     }
     if (sql.startsWith("INSERT OR IGNORE INTO display_refs")) state.refs.set(args[0]+":"+args[1],args[5]);
     if (sql.startsWith("INSERT OR IGNORE INTO fleet_ids")) state.fleetIds.set(args[0],args[1]);
-    if (sql.startsWith("UPDATE decisions SET status=")) {const d=state.decisions.get(args[4]);Object.assign(d,{status:args[0],chosen:args[1],chosen_by:args[2],decided_at:args[3]});}
+    if (sql.startsWith("UPDATE decisions SET status=?,")) {const d=state.decisions.get(args[4]);Object.assign(d,{status:args[0],chosen:args[1],chosen_by:args[2],decided_at:args[3]});}
+    if (sql.startsWith("UPDATE decisions SET status='expired'")) {const d=state.decisions.get(args[0]);if(d&&d.status==="pending")d.status="expired";}
     if (sql.startsWith("UPDATE decisions SET batch_id=")) state.decisions.get(args[1]).batch_id=args[0];
     if (sql.startsWith("INSERT OR IGNORE INTO mission_batches")) state.batches.set(args[0],{id:args[0],decision_id:args[1],agent:args[2],machine:args[3],project_id:args[4],status:"active",active_mission_id:null});
     if (sql.startsWith("INSERT INTO mission_batch_items")) state.items.push({batch_id:args[0],position:args[1],option_index:args[2],title:args[3],status:"queued",mission_id:null});
+    if (sql.startsWith("UPDATE mission_batch_items SET position=?")) {const row=state.items.find(x=>x.batch_id===args.at(-2)&&x.position===args.at(-1));if(row)row.position=args[0];}
     if (sql.startsWith("UPDATE mission_batch_items SET mission_id=")) {const row=state.items.find(x=>x.batch_id===args[2]&&x.position===args[3]);Object.assign(row,{mission_id:args[0],status:"active"});}
     if (sql.startsWith("UPDATE mission_batches SET active_mission_id=")) state.batches.get(args[2]).active_mission_id=args[0];
+    if (sql.startsWith("UPDATE mission_batches SET status='active'")) {const row=state.batches.get(args[1]);if(row&&row.status==="awaiting_continuation")row.status="active";}
   }
   const DB={
     async exec(){}, prepare(sql){return statement(sql);},
-    async batch(items){state.batchCalls++; if(items.some(item=>item.sql.startsWith("INSERT INTO tickets")))state.ticketBatches++; for(const item of items) apply(item.sql,item.args); return items.map(()=>({meta:{changes:1}}));}
+    async batch(items){state.batchCalls++; state.atomicBatches.push(items.map(item=>item.sql)); if(items.some(item=>item.sql.startsWith("INSERT INTO tickets")))state.ticketBatches++; for(const item of items) apply(item.sql,item.args); return items.map(()=>({meta:{changes:1}}));}
   };
   return {env:{DB},state};
 }
@@ -251,6 +261,46 @@ test("POST /decisions/:id/choose hereda el proyecto exacto al batch y al ticket"
   assert.equal(batch.project_id,"xpaceos");
   const ticket=state.tickets.find(row=>row.source==="decision-batch");
   assert.equal(ticket.project_id,"xpaceos"); assert.equal(ticket.project,"xpaceos");
+  const novelty=state.novelties.find(row=>row.mission_id===ticket.id);
+  assert.ok(novelty,"la misión nace con novedad durable");
+  assert.equal(novelty.decision_id,id);
+  const atomic=state.atomicBatches.find(batch=>batch.some(sql=>sql.startsWith("INSERT OR IGNORE INTO mission_novelty_events")));
+  assert.ok(atomic.some(sql=>sql.startsWith("INSERT OR IGNORE INTO tickets")),"ticket y cursor comparten DB.batch");
+  assert.ok(atomic.some(sql=>sql.startsWith("UPDATE mission_batch_items")),"el estado activo comparte la transacción");
+  const retry=await worker.fetch(new Request("https://api.yokup.test/decisions/"+id),env,{});
+  assert.equal(retry.status,200,await retry.text());
+  assert.equal(state.novelties.filter(row=>row.mission_id===ticket.id).length,1,"releer/reintentar no duplica cursor");
+});
+
+test("timeout recomendado materializa misión y cursor por la misma ruta",async()=>{
+  const id="DEC-TIMEOUT";
+  state.decisions.set(id,{id,agent:"OraculoMacMini",machine:"admira-macmini",project:"xpaceos",status:"pending",recommended:1,chosen:null,options:JSON.stringify(["Primera","Recomendada timeout","Tercera","↩ Volver atrás"]),created_at:Date.now()-400000,deadline:Date.now()-1000});
+  const response=await worker.fetch(new Request("https://api.yokup.test/decisions/"+id),env,{});
+  assert.equal(response.status,200,await response.text());
+  const novelty=state.novelties.find(row=>row.decision_id===id);
+  assert.ok(novelty); assert.equal(state.decisions.get(id).status,"expired");
+});
+
+test("continuación elegida adopta la siguiente misión sin duplicar novedades",async()=>{
+  const root="DEC-ROOT-CONT", batchId="BATCH-DEC-ROOT-CONT", id="DEC-CONT";
+  state.batches.set(batchId,{id:batchId,decision_id:root,agent:"OraculoMacMini",machine:"admira-macmini",project_id:"xpaceos",status:"awaiting_continuation",active_mission_id:null});
+  state.items.push({batch_id:batchId,position:1,option_index:1,title:"Segunda",status:"queued",mission_id:"MIS-CONT-02"},{batch_id:batchId,position:2,option_index:2,title:"Tercera",status:"queued",mission_id:"MIS-CONT-03"});
+  state.decisions.set(id,{id,agent:"OraculoMacMini",machine:"admira-macmini",project:"xpaceos",status:"pending",recommended:0,chosen:null,parent_decision:root,batch_id:batchId,options:JSON.stringify(["Tercera","Segunda","↩ Volver atrás"]),created_at:Date.now(),deadline:Date.now()+300000});
+  const response=await post("/decisions/"+id+"/choose",{choice:0,by:"Carlos"});
+  assert.equal(response.status,200,await response.text());
+  const novelty=state.novelties.find(row=>row.decision_id===id&&row.batch_id===batchId&&row.mission_id==="MIS-CONT-03");
+  assert.ok(novelty,"la continuación atribuye el evento a la decisión que reordenó la cola");
+});
+
+test("retry recupera una continuación ya activa que falló antes de emitir ticket/cursor",async()=>{
+  const root="DEC-ROOT-RETRY", batchId="BATCH-DEC-ROOT-RETRY", id="DEC-CONT-RETRY";
+  state.batches.set(batchId,{id:batchId,decision_id:root,agent:"OraculoMacMini",machine:"admira-macmini",project_id:"xpaceos",status:"active",active_mission_id:null});
+  state.items.push({batch_id:batchId,position:1,option_index:0,title:"Misión recuperada",status:"queued",mission_id:"MIS-CONT-RETRY"});
+  state.decisions.set(id,{id,agent:"OraculoMacMini",machine:"admira-macmini",project:"xpaceos",status:"decided",recommended:0,chosen:0,parent_decision:root,batch_id:batchId,options:JSON.stringify(["Misión recuperada","↩ Volver atrás"]),created_at:Date.now()-1000,deadline:Date.now()-500,decided_at:Date.now()-700});
+  const response=await worker.fetch(new Request("https://api.yokup.test/decisions/"+id),env,{});
+  assert.equal(response.status,200,await response.text());
+  assert.ok(state.tickets.some(row=>row.id==="MIS-CONT-RETRY"));
+  assert.equal(state.novelties.filter(row=>row.decision_id===id).length,1);
 });
 
 test("contrato cruzado: fleet, batch, declare e incident no adivinan texto", async()=>{

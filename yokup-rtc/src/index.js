@@ -5,6 +5,7 @@ import { buildReportsPageFilter, encodeReportsCursor, parseReportsPageOptions } 
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
 import { AgentStopError, dispatchAgentStop, normalizeAgentStopTarget } from "./fleet-agent-stop.js";
 import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, madridDayStart, sortDisplayRefCandidates } from "./display-ref.js";
+import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_NOVELTY_INSERT_SQL, MISSION_NOVELTY_RECENT_SQL, MISSION_NOVELTY_TABLE_SQL, missionNoveltyContract, missionNoveltyEventKey } from "./mission-novelty.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -209,6 +210,12 @@ async function applySchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_tasks (mission_id TEXT, code TEXT, title TEXT, status TEXT DEFAULT 'pending', owner TEXT, report TEXT, updated_at INTEGER, PRIMARY KEY (mission_id, code))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_mtasks_mission ON mission_tasks(mission_id)");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_mtasks_reports_page ON mission_tasks(updated_at DESC,mission_id DESC,code DESC) WHERE report IS NOT NULL AND TRIM(report)<>''");
+  // NOVEDADES DE MISIÓN: el contador open/in_progress es estado mutable y puede
+  // volver al mismo total entre dos sondeos. Este log append-only da al navegador
+  // un cursor monotónico que no desaparece cuando la misión avanza o se cierra.
+  await env.DB.exec(MISSION_NOVELTY_TABLE_SQL);
+  await env.DB.exec(MISSION_NOVELTY_INDEX_SQL);
+  await env.DB.exec(MISSION_NOVELTY_DECISION_INDEX_SQL);
   // Histórico compartido del Highscore. Una muestra por agente y minuto basta
   // para comparar la última hora sin depender del navegador que lo consulta.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS highscore_snapshots (agent_key TEXT NOT NULL, agent TEXT NOT NULL, machine TEXT, sampled_at INTEGER NOT NULL, points INTEGER NOT NULL, PRIMARY KEY(agent_key,sampled_at))");
@@ -1734,7 +1741,7 @@ async function notifyFleetInformeClosure(env, ticket, missionId, owner, report, 
   } catch (e) { return { required: true, updated: false, inbox_id: numId }; }
 }
 __name(notifyFleetInformeClosure, "notifyFleetInformeClosure");
-async function activateNextMissionBatchItem(env, batchId) {
+async function activateNextMissionBatchItem(env, batchId, triggerDecisionId) {
   const batch = await env.DB.prepare("SELECT * FROM mission_batches WHERE id=?").bind(batchId).first();
   if (!batch || batch.status !== "active") return missionBatchSnapshot(env, batchId);
   const active = await env.DB.prepare(
@@ -1761,21 +1768,40 @@ async function activateNextMissionBatchItem(env, batchId) {
   }
   const missionId = next.mission_id || missionIdForBatchItem(batchId, next.position);
   const now = Date.now();
+  const noveltyDecisionId = String(triggerDecisionId || batch.decision_id || "");
   const projectContext = await resolveCreationProject(env, {
     project_id:batch.project_id, decision_id:batch.decision_id,
     agent:batch.agent, machine:batch.machine
   });
   if (!projectContext.ok) return projectContext;
-  await env.DB.prepare(
-    "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,project_inherited,project_inherited_from,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-  ).bind(missionId, "decision-batch:" + batch.decision_id, next.title, batch.machine || "", "mission", "in_progress", "normal", batch.agent || "", "decision-batch", "", projectContext.project_id, projectContext.project_id, projectContext.inherited ? 1 : 0, projectContext.inherited_from || null, now, now).run();
-  const existingTasks = await listMissionTasks(env, missionId);
-  if (!existingTasks.length) await saveMissionPlan(env, missionId, batchMissionPlan(next.title, batch.agent, batch.machine));
-  await env.DB.prepare("UPDATE mission_batch_items SET mission_id=?, status='active', updated_at=? WHERE batch_id=? AND position=?")
-    .bind(missionId, now, batchId, next.position).run();
-  await env.DB.prepare("UPDATE mission_batches SET active_mission_id=?, updated_at=? WHERE id=?")
-    .bind(missionId, now, batchId).run();
-  await addEvent(env, missionId, "log", "Agente", "Misión activada desde la cola " + batch.decision_id + ". Requiere evidencia y aceptación del Agente antes de avanzar.");
+  const logText = "Misión activada desde la cola " + batch.decision_id + ". Requiere evidencia y aceptación del Agente antes de avanzar.";
+  const atomic = [
+    env.DB.prepare(
+      "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,project_inherited,project_inherited_from,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    ).bind(missionId, "decision-batch:" + batch.decision_id, next.title, batch.machine || "", "mission", "in_progress", "normal", batch.agent || "", "decision-batch", "", projectContext.project_id, projectContext.project_id, projectContext.inherited ? 1 : 0, projectContext.inherited_from || null, now, now)
+  ];
+  for (const task of batchMissionPlan(next.title, batch.agent, batch.machine)) {
+    atomic.push(env.DB.prepare(
+      "INSERT OR IGNORE INTO mission_tasks(mission_id,code,title,status,owner,report,created_at,updated_at) VALUES(?,?,?,'pending',?,NULL,?,?)"
+    ).bind(missionId, task.code, task.title, task.owner, now, now));
+  }
+  atomic.push(
+    env.DB.prepare("UPDATE mission_batch_items SET mission_id=?, status='active', updated_at=? WHERE batch_id=? AND position=? AND status='queued'")
+      .bind(missionId, now, batchId, next.position),
+    env.DB.prepare("UPDATE mission_batches SET active_mission_id=?, updated_at=? WHERE id=? AND status='active'")
+      .bind(missionId, now, batchId),
+    // En un reintento el ticket puede existir ya; el SELECT toma su created_at
+    // original y UNIQUE(event_key) impide fabricar una segunda novedad/cursor.
+    env.DB.prepare(MISSION_NOVELTY_INSERT_SQL)
+      .bind(missionNoveltyEventKey(missionId), noveltyDecisionId, batchId, missionId),
+    env.DB.prepare(
+      "INSERT INTO events(ticket_id,ts,kind,author,text) SELECT ?,?,'log','Agente',? " +
+      "WHERE NOT EXISTS (SELECT 1 FROM events WHERE ticket_id=? AND kind='log' AND text=?)"
+    ).bind(missionId, now, logText, missionId, logText)
+  );
+  // D1 batch es transaccional: ticket, plan, estado de tanda y cursor de novedad
+  // aparecen juntos o no aparece ninguno. Así cubre manual, timeout y continuación.
+  await env.DB.batch(atomic);
   return missionBatchSnapshot(env, batchId);
 }
 __name(activateNextMissionBatchItem, "activateNextMissionBatchItem");
@@ -1796,8 +1822,13 @@ async function ensureMissionBatchFromDecision(env, decision) {
   });
   if (!projectContext.ok) return projectContext;
   if (continuation) {
-    const batch = batchId && await env.DB.prepare("SELECT id,status FROM mission_batches WHERE id=?").bind(batchId).first();
-    if (!batch || batch.status !== "awaiting_continuation") return missionBatchSnapshot(env, batchId);
+    const batch = batchId && await env.DB.prepare("SELECT id,status,active_mission_id FROM mission_batches WHERE id=?").bind(batchId).first();
+    if (!batch) return missionBatchSnapshot(env, batchId);
+    if (batch.status === "active" && !batch.active_mission_id) {
+      const emitted = await env.DB.prepare("SELECT mission_id FROM mission_novelty_events WHERE decision_id=? LIMIT 1").bind(decision.id).first();
+      if (!emitted) return activateNextMissionBatchItem(env, batchId, decision.id);
+    }
+    if (batch.status !== "awaiting_continuation") return missionBatchSnapshot(env, batchId);
     const queued = await reconcileQueuedBatchItems(env, batchId);
     const ordered = continuationMissionOrder(options, effective, queued);
     if (!ordered.length) return missionBatchSnapshot(env, batchId);
@@ -1815,7 +1846,7 @@ async function ensureMissionBatchFromDecision(env, decision) {
       "UPDATE mission_batches SET status='active',pause_reason=NULL,updated_at=? WHERE id=? AND status='awaiting_continuation'"
     ).bind(now, batchId));
     await env.DB.batch(statements);
-    return activateNextMissionBatchItem(env, batchId);
+    return activateNextMissionBatchItem(env, batchId, decision.id);
   }
   await env.DB.prepare(
     "INSERT OR IGNORE INTO mission_batches(id,decision_id,agent,machine,project_id,status,created_at,updated_at) VALUES(?,?,?,?,?,'active',?,?)"
@@ -1829,7 +1860,7 @@ async function ensureMissionBatchFromDecision(env, decision) {
       ).bind(batchId, item.position, item.option_index, item.title, now, now).run();
     }
   }
-  return activateNextMissionBatchItem(env, batchId);
+  return activateNextMissionBatchItem(env, batchId, decision.id);
 }
 __name(ensureMissionBatchFromDecision, "ensureMissionBatchFromDecision");
 async function expireDecisionsAndStartBatches(env) {
@@ -1851,11 +1882,14 @@ async function startDecisionBatches(env) {
     `SELECT d.* FROM decisions d
      LEFT JOIN mission_batches own ON own.decision_id=d.id
      LEFT JOIN mission_batches shared ON shared.id=d.batch_id
+     LEFT JOIN mission_novelty_events novelty ON novelty.decision_id=d.id
      WHERE d.status IN ('decided','expired') AND (
-       ((d.parent_decision IS NULL OR d.parent_decision='') AND own.id IS NULL)
+       ((d.parent_decision IS NULL OR d.parent_decision='') AND
+        (own.id IS NULL OR (own.status='active' AND own.active_mission_id IS NULL AND novelty.cursor IS NULL)))
        OR
        (d.parent_decision IS NOT NULL AND d.parent_decision<>'' AND
-        (shared.id IS NULL OR COALESCE(shared.updated_at,0) < COALESCE(d.decided_at,d.deadline,0)))
+        (shared.id IS NULL OR COALESCE(shared.updated_at,0) < COALESCE(d.decided_at,d.deadline,0)
+         OR (shared.status='active' AND shared.active_mission_id IS NULL AND novelty.cursor IS NULL)))
      )
      ORDER BY d.created_at DESC LIMIT 100`
   ).all();
@@ -4014,13 +4048,18 @@ async function menuCounters(env) {
   const out = { objetivos: zero(), misiones: zero(), tareas: zero(), incidencias: zero(), informes: zero() };
   // Tickets: misiones (fleet) e incidencias (campo) de una sola pasada.
   const tk = (await env.DB.prepare(
-    "SELECT CASE WHEN source='fleet' THEN 'f' ELSE 'c' END sc, status, COUNT(*) n " +
+    "SELECT CASE WHEN role='mission' OR source IN ('fleet','decision-batch','cli-declare') THEN 'f' ELSE 'c' END sc, status, COUNT(*) n " +
     "FROM tickets WHERE status IN ('open','in_progress') GROUP BY sc, status"
   ).all()).results || [];
   for (const r of tk) {
     const dst = r.sc === "f" ? out.misiones : out.incidencias;
     if (r.status === "in_progress") dst.curso = r.n; else if (r.status === "open") dst.pend = r.n;
   }
+  // Cursor de creación independiente del estado actual. Una misión puede nacer,
+  // reclamarse y hasta cerrarse entre dos GET: el total vuelve a ser idéntico,
+  // pero este evento append-only sigue avanzando y conserva el delta factual.
+  const novelty = (await env.DB.prepare(MISSION_NOVELTY_RECENT_SQL).all()).results || [];
+  Object.assign(out.misiones, missionNoveltyContract(novelty));
   // Objetivos = ideas.
   const id = (await env.DB.prepare(
     "SELECT status, COUNT(*) n FROM ideas WHERE status IN ('nueva','estudio') GROUP BY status"
