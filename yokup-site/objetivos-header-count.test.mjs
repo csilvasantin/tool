@@ -15,10 +15,10 @@ function countLabelApi() {
 }
 
 test('la cabecera principal contiene el único contador accesible', () => {
-  assert.match(source, /<h1>🎯 Objetivos <span class="objective-count" id="objectiveCount" aria-live="polite" aria-atomic="true">0 objetivos<\/span><\/h1>/);
+  assert.match(source, /<h1>🎯 Objetivos<\/h1>\s*<span class="objective-count" id="objectiveCount" role="status" aria-label="Número total de objetivos" aria-live="polite" aria-atomic="true">0 objetivos<\/span>/);
   assert.equal((source.match(/id="objectiveCount"/g) || []).length, 1);
   assert.doesNotMatch(source, /id="count"/);
-  assert.doesNotMatch(source, /Ideas a desarrollar<\/h2><span/);
+  assert.doesNotMatch(source, /Ideas a desarrollar/i);
 });
 
 test('pluraliza cero, uno y cualquier total como objetivos, nunca ideas', () => {
