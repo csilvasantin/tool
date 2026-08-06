@@ -1405,7 +1405,7 @@
         PROJECT_SCOPE = requestedProjectId();
         rememberProject(PROJECT_SCOPE);
         window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:PROJECT_SCOPE,project:activeProject(),ready:true}}));
-        paintProject();announceProjects(result);if(isMenuOpen())ackRenderedProjects();return true;
+        paintProject();announceProjects(result);if(isMenuOpen()){ackRenderedProjects();var firstOpen=menu.querySelector("button");if(firstOpen)firstOpen.focus();}return true;
       }).catch(function () {
         if(seq!==projectLoadSeq)return false;if(!PROJECT_CATALOG.length){projectTotal=0;PROJECT_SCOPE=null;paintProject();window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:null,project:null,ready:true,error:true}}));}return false;
       });
@@ -1423,7 +1423,7 @@
       e.stopPropagation();
       var open = !isMenuOpen();
       setMenu(open);
-      if (open) { var f = menu.querySelector("button"); if (f) f.focus(); ackRenderedProjects(); }
+      if (open) { ackRenderedProjects(); var f = menu.querySelector("button"); if (f) f.focus(); }
     });
 
     // clic fuera cierra

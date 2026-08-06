@@ -65,6 +65,12 @@ test("edición, reorder, delete y oscilación del total no crean novedades",()=>
   assert.deepEqual(Array.from(api.unreadIds()),[]);
 });
 
+test("archivar y reactivar un id conocido tampoco lo presenta como alta",()=>{
+  const api=tracker();api.observe(payload(8,[project("a"),project("old","archivado")]));
+  assert.equal(api.observe(payload(8,[project("a"),project("old","activo","Old reactivado")])).added,0);
+  assert.deepEqual(Array.from(api.unreadIds()),[]);
+});
+
 test("fallback sin cursor detecta ids nuevos, no cambios de total",()=>{
   const api=tracker();api.observe(payload(null,[project("a"),project("old","archivado")]));
   assert.equal(api.observe(payload(null,[project("a","activo","A editado")])).added,0);
@@ -78,6 +84,8 @@ test("selector expone blink, ARIA, badges y ACK sólo al abrir/renderizar",()=>{
   assert.match(frame,/unread\.length\+" proyecto"\+\(unread\.length===1\?" nuevo":"s nuevos"\)/);
   assert.match(frame,/yk-proj-new-badge">NUEVO/);
   assert.match(frame,/if \(open\) \{[^}]*ackRenderedProjects\(\)/);
+  assert.match(frame,/if \(open\) \{ ackRenderedProjects\(\); var f = menu\.querySelector\("button"\); if \(f\) f\.focus\(\); \}/,
+    "el ACK repinta antes de enfocar una opción que siga conectada al DOM");
   assert.doesNotMatch(frame,/btn\.addEventListener\("(?:mouseenter|mouseover|focus)"[\s\S]*ack/);
   assert.match(frame,/window\.addEventListener\("yk:projects-changed",function\(\)\{loadProjects\(\);\}\)/);
   assert.match(css,/\.yk-proj\.has-new \.yk-proj-dot\{ animation:yk-project-new/);

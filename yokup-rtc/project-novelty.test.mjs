@@ -53,6 +53,19 @@ test('alta y retry generan un solo evento, conservan created_at y avanzan cursor
   db.close();
 });
 
+test('fixture local: editar, reordenar y borrar no alteran el log append-only', () => {
+  const db = databaseWithHistoricalProject();
+  createProject(db, 'sonda-recuperable', 1000);
+  const before = db.prepare('SELECT cursor,event_key,project_id,created_at FROM project_novelty_events ORDER BY cursor').all();
+  db.prepare('UPDATE projects SET updated_at=? WHERE id=?').run(2000, 'sonda-recuperable');
+  db.prepare('UPDATE projects SET sort_order=? WHERE id=?').run(7, 'sonda-recuperable');
+  db.prepare('DELETE FROM projects WHERE id=?').run('sonda-recuperable');
+  const after = db.prepare('SELECT cursor,event_key,project_id,created_at FROM project_novelty_events ORDER BY cursor').all();
+  assert.deepEqual(after, before, 'sólo el alta escribió el evento y la sonda quedó limpiada');
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM projects WHERE id='sonda-recuperable'").get().n, 0);
+  db.close();
+});
+
 test('el contrato mantiene total seleccionable y la forma exacta de eventos', () => {
   const contract = projectNoveltyContract([
     {cursor:7, project_id:'nuevo-b', created_at:2000},
