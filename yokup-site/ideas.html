@@ -32,7 +32,7 @@
   .add textarea::-webkit-scrollbar-track{background:transparent}
   .add textarea::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
   .add textarea::-webkit-scrollbar-thumb:hover{background:var(--mut)}
-  .add input.a{flex:1 1 160px} .add select{flex:0 0 150px}
+  .add select{flex:1 1 150px}
   .add button{margin-left:auto;background:var(--brand);color:#04232a;border:0;border-radius:10px;padding:11px 20px;
     font:800 14px/1 -apple-system,system-ui,sans-serif;cursor:pointer;transition:filter .15s}
   .add button:hover{filter:brightness(1.08)} .add button:disabled{opacity:.5;cursor:default}
@@ -114,6 +114,9 @@
     font:700 11px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase}
   .add .gen:hover{background:rgba(197,140,255,.14);filter:none}
   .add .gen:disabled{opacity:.5;cursor:default}
+  @media(max-width:520px){
+    .add .row>select,.add .row>button{flex:1 1 100%;width:100%;margin-left:0}
+  }
   .idea.consejo{border-left:3px solid var(--rac)}
   .idea.consejo.cre{border-left-color:var(--cre)}
   .idea .csign{display:inline-flex;align-items:center;gap:4px;font:700 10px/1 var(--mono);letter-spacing:.03em;
@@ -194,7 +197,6 @@
     <input class="t" id="fTitle" maxlength="200" placeholder="La idea, en una frase…" required>
     <textarea id="fBody" maxlength="4000" placeholder="Detalle (opcional): el porqué, cómo, para quién…"></textarea>
     <div class="row">
-      <input class="a" id="fAuthor" maxlength="80" placeholder="Tu nombre">
       <select id="fTag">
         <option value="">— idea —</option>
         <option>producto</option><option>flota</option><option>ia</option>
@@ -473,7 +475,7 @@ $("#addForm").addEventListener("submit",async e=>{
   const title=$("#fTitle").value.trim(); if(!title)return;
   const btn=$("#fBtn"); btn.disabled=true;
   try{
-    const body={title,body:$("#fBody").value.trim(),author:$("#fAuthor").value.trim(),tag:$("#fTag").value,project:$("#fProject").value};
+    const body={title,body:$("#fBody").value.trim(),tag:$("#fTag").value,project:$("#fProject").value};
     const r=await fetch(WORKER+"/ideas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const d=await r.json();
     if(d.ok){ $("#fTitle").value="";$("#fBody").value="";$("#fTag").value="";$("#fProject").value=""; toast("Idea guardada 💡"); load(); }
