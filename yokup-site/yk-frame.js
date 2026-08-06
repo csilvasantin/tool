@@ -1071,8 +1071,10 @@
         refresh(r, kind, nm);
       });
     }
-    window.fetch(WORKER + "/prefs/customize", { cache: "no-store" })
-      .then(function (r) { return r.json(); })
+    // /informes ya pide esta personalización para sus avatares. Compartir la
+    // promesa evita duplicar el mismo GET al construir el panel lateral.
+    (window.__ykCustomizeRequest || window.fetch(WORKER + "/prefs/customize", { cache: "no-store" }))
+      .then(function (r) { return r && typeof r.json === "function" ? r.json() : r; })
       .then(function (d) { DATA = (d && d.customize) || {}; DATA.agents = DATA.agents || {}; DATA.machines = DATA.machines || {}; pintar(); })
       .catch(function () { pintar(); });
     save.addEventListener("click", function () {

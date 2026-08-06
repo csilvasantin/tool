@@ -33,17 +33,19 @@
   function on() { try { return localStorage.getItem("yk_pref_avatars") !== "0"; } catch (e) { return true; } }
 
   // Personalización compartida: la FOTO del Panel de control pisa al retrato de serie.
-  var ready = (function () {
+  var customizeRequest = window.__ykCustomizeRequest || (function () {
     try {
       return window.fetch(WORKER + "/prefs/customize", { cache: "no-store" })
-        .then(function (r) { return r.json(); })
+        .then(function (r) { return r.json(); });
+    } catch (e) { return Promise.reject(e); }
+  })();
+  window.__ykCustomizeRequest = customizeRequest;
+  var ready = customizeRequest
         .then(function (d) {
           var c = (d && d.customize) || {};
           CUSTOM.agents = c.agents || {};
           CUSTOM.machines = c.machines || {};
         }).catch(function () {});
-    } catch (e) { return Promise.resolve(); }
-  })();
 
   function img(name) {
     var s = slug(name), cu = CUSTOM.agents[s] || {};
