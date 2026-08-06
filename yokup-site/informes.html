@@ -40,10 +40,11 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
    Cada informe es una FILA con columnas: Agente · Misión · Proceso · Captura ·
    Informe · Estado · Tiempo. La columna Captura lleva la miniatura SIEMPRE
    visible en línea (Carlos, 2026-07-17 — antes iba lazy al fondo del parte y no
-   cargaba). Scroll horizontal en pantallas estrechas, como una hoja real. */
-.sheet-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:13px;background:var(--card)}
-.sheet{width:max-content;min-width:100%}
-.grow{display:grid;grid-template-columns:var(--col-agente,138px) var(--col-mision,170px) var(--col-proceso,132px) var(--col-captura,132px) var(--col-informe,280px) var(--col-estado,116px) var(--col-tiempo,150px);align-items:stretch}
+   cargaba). En escritorio las siete columnas se redistribuyen dentro del 100%;
+   en pantallas estrechas la misma fila pasa a tarjeta, sin scrollbar permanente. */
+.sheet-wrap{width:100%;min-width:0;overflow-x:hidden;border:1px solid var(--line);border-radius:13px;background:var(--card)}
+.sheet{width:100%;min-width:0}
+.grow{width:100%;min-width:0;display:grid;grid-template-columns:minmax(0,var(--col-agente,138px)) minmax(0,var(--col-mision,170px)) minmax(0,var(--col-proceso,132px)) minmax(0,var(--col-captura,132px)) minmax(0,var(--col-informe,280px)) minmax(0,var(--col-estado,116px)) minmax(0,var(--col-tiempo,150px));align-items:stretch}
 .ghead{position:sticky;top:0;z-index:2;background:var(--card2);border-bottom:1px solid var(--line2)}
 .ghead>div{position:relative;font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--brand);border-left:1px solid var(--line)}
 .ghead>div:first-child{border-left:0}
@@ -155,6 +156,19 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .load-more:hover,.load-more:focus-visible{border-color:var(--brand);outline:none}.load-more[disabled]{opacity:.55;cursor:progress}
 @media(max-width:560px){.debe-ag{display:none}}
 @media(max-width:640px){.wrap{padding:16px 12px 40px}.col-resize{width:16px;right:-8px}.col-resize:before{left:7px}}
+@media(max-width:900px){
+  .sheet-wrap{overflow-x:hidden}
+  .ghead{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .grow.item{grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:4px 10px 10px}
+  .gc{border-left:0;border-top:1px solid var(--line);padding:10px;align-items:flex-start;min-width:0}
+  .gc:before{content:attr(data-label);display:block;margin-bottom:6px;color:var(--dim);font:700 8.5px/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase}
+  .gc.rep{grid-column:1/-1}.shot-img{max-width:100%}
+  .family-toggle{min-height:44px}.col-resize{display:none}
+}
+@media(max-width:520px){
+  .grow.item{grid-template-columns:minmax(0,1fr);padding-inline:8px}
+  .gc,.gc.rep{grid-column:1}.rep-tx{-webkit-line-clamp:6}.shot-img{max-width:min(100%,280px)}
+}
 /* intro plegable REUTILIZABLE — patrón .page-intro de /objetivos. */
 .page-intro{margin:0}
 .page-intro>summary{list-style:none;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;cursor:pointer}
@@ -487,18 +501,18 @@ function render(list){
       ? shotHTML(t.image,"Ampliar la captura de prueba","Captura de prueba",false)
       : shotHTML(capMission, capMission?"proof de la misión — captura de cierre":"sin captura de prueba","Proof de la misión",true);
     return `<div class="grow item" role="row">
-      <div class="gc" role="cell">${window.ykAvatar ? ykAvatar.html(agent) : `<span class="who" title="${esc(agent)}">${own} ${esc(agent)}</span>`}<span class="role-badge role-${esc(role)}">${esc(ROLE_LABEL[role]||role)}</span></div>
-      <div class="gc mis" role="cell">
+      <div class="gc" role="cell" data-label="Agente">${window.ykAvatar ? ykAvatar.html(agent) : `<span class="who" title="${esc(agent)}">${own} ${esc(agent)}</span>`}<span class="role-badge role-${esc(role)}">${esc(ROLE_LABEL[role]||role)}</span></div>
+      <div class="gc mis" role="cell" data-label="Misión">
         <a class="mid" href="/ticket?id=${encodeURIComponent(mission.id)}" title="Abrir misión · ID técnico ${esc(mission.id)}">🎯 ${esc(mission.primary)}</a>
         <div class="mmeta"><span class="mcode">Tarea ${esc(taskCode)}</span>${mission.secondary?`<span class="mref">${esc(mission.secondary)}</span>`:""}${mission.copy?`<button class="mcopy" type="button" data-copy-mission="${esc(mission.id)}" title="Copiar ID técnico ${esc(mission.id)}" aria-label="Copiar ID técnico ${esc(mission.id)}">copiar ID</button>`:""}</div>
         <div class="msubj" title="${esc(t.subject||'')}">${esc(t.subject||t.title||'')}</div>
       </div>
-      <div class="gc shot" role="cell">${proc}</div>
-      <div class="gc shot" role="cell">${shot}</div>
-      <div class="gc rep" role="cell"><div class="rep-tx" title="${esc(t.report)}">${esc(t.report)}</div>
+      <div class="gc shot" role="cell" data-label="Proceso">${proc}</div>
+      <div class="gc shot" role="cell" data-label="Captura">${shot}</div>
+      <div class="gc rep" role="cell" data-label="Informe"><div class="rep-tx" title="${esc(t.report)}">${esc(t.report)}</div>
         <button class="rep-pdf" data-pdf="${esc(t.mission_id)}|${esc(t.code||'')}" title="Descargar el parte completo en PDF — con el informe entero y las dos capturas dentro del fichero">📄 PDF</button></div>
-      <div class="gc" role="cell"><span class="badge b-${esc(st)}"><i></i>${esc(ST_LABEL[st]||st)}</span></div>
-      <div class="gc" role="cell">${tiempoHTML(t)}</div>
+      <div class="gc" role="cell" data-label="Estado"><span class="badge b-${esc(st)}"><i></i>${esc(ST_LABEL[st]||st)}</span></div>
+      <div class="gc" role="cell" data-label="Tiempo">${tiempoHTML(t)}</div>
     </div>`;
     }).join("");
     return `<section class="family-group" role="rowgroup" data-family="${esc(group.key)}" aria-labelledby="${familyId}-label">
