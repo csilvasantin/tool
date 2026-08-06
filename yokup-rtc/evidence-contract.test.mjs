@@ -21,6 +21,26 @@ test("la captura de proceso lleva identidad, tipo y hora de captura frescos", ()
   assert.match(progress, /final-fallback[\s\S]*?b\.degraded !== true/);
   assert.match(progress, /live_shot=\?,live_at=\?,live_kind=\?/);
   assert.match(progress, /await validateProofImage\(env, rawImage, url\.origin\)/);
+  assert.match(progress, /validateProcessCaptureProvenance\(liveKind, b\.capture_surface, b\.capture_context\)/);
+  assert.match(progress, /live_surface=\?,live_context=\?/);
+});
+
+test("process exige procedencia visible y final-fallback conserva compatibilidad", () => {
+  assert.match(source, /process_provenance_missing/);
+  assert.match(source, /\['desktop','cli'\]/);
+  assert.match(source, /surface === "desktop" \? "request" : "command_output"/);
+  assert.match(source, /web\/result_page no son proceso/);
+  assert.match(source, /if \(kind !== "process"\) return \{ ok:true, surface:null, context:null \}/);
+});
+
+test("todo cierre nuevo exige proceso canónico dentro de la vida de la misión", () => {
+  const informe = route("/fleet/informe", "// CANCELAR una misión");
+  const task = route("/fleet/task-status", "// Ingesta UNIVERSAL");
+  assert.match(source, /function validateMissionProcessEvidence/);
+  assert.match(source, /ticket\.live_kind !== "process"/);
+  assert.match(source, /capturedAt < createdAt \|\| capturedAt > now \+ 3e4/);
+  assert.match(informe, /t\.status !== "resolved"[\s\S]*validateMissionProcessEvidence\(t\)/);
+  assert.match(task, /if \(cierraArbol\) \{\s*const processEvidence = validateMissionProcessEvidence\(tk\)/);
 });
 
 test("informe y tarea también verifican contenido, no sólo forma de URL", () => {

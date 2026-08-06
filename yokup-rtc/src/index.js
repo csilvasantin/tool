@@ -236,6 +236,10 @@ async function applySchema(env) {
   // `process` es una captura fresca tomada durante la ejecución.
   // `final-fallback` sólo existe como degradación explícita y visible.
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN live_kind TEXT").catch(() => {});
+  // Procedencia auditable de la captura de proceso. Sólo hay dos contratos:
+  // Desktop enseña la petición visible; CLI enseña comando y salida visibles.
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN live_surface TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN live_context TEXT").catch(() => {});
   // PROYECTOS (Carlos, 2026-07-22: «en equipo tenemos que poder dar de alta
   // proyectos y asignárselos a ordenadores o agentes»). Antes el proyecto era
   // texto libre repetido en tres sitios —la lista fija de equipo.html, el
@@ -1367,6 +1371,45 @@ function normalizeLiveCaptureTime(raw, now = Date.now()) {
 }
 __name(normalizeLiveCaptureTime, "normalizeLiveCaptureTime");
 
+function validateProcessCaptureProvenance(kind, rawSurface, rawContext) {
+  if (kind !== "process") return { ok:true, surface:null, context:null };
+  const surface = String(rawSurface || "").trim().toLowerCase();
+  const context = String(rawContext || "").trim().toLowerCase();
+  const missing = [];
+  if (!surface) missing.push("capture_surface");
+  if (!context) missing.push("capture_context");
+  if (missing.length) return { ok:false, code:"process_provenance_missing", field:missing[0], missing,
+    error:"evidence_kind=process exige capture_surface y capture_context" };
+  if (!['desktop','cli'].includes(surface)) return { ok:false, code:"process_surface_invalid", field:"capture_surface",
+    error:"capture_surface debe ser desktop o cli; web/result_page no son proceso" };
+  const expected = surface === "desktop" ? "request" : "command_output";
+  if (context !== expected) return { ok:false, code:"process_context_invalid", field:"capture_context",
+    error:surface === "desktop"
+      ? "Desktop exige capture_context=request: la petición debe ser visible"
+      : "CLI exige capture_context=command_output: comando y salida deben ser visibles" };
+  return { ok:true, surface, context };
+}
+__name(validateProcessCaptureProvenance, "validateProcessCaptureProvenance");
+
+function validateMissionProcessEvidence(ticket, now = Date.now()) {
+  if (!ticket || ticket.live_kind !== "process" || !String(ticket.live_shot || "").trim()) {
+    return { ok:false, code:"process_evidence_missing", field:"process_evidence",
+      error:"no se puede cerrar: falta una captura de proceso real; final-fallback no sustituye el proceso" };
+  }
+  const provenance = validateProcessCaptureProvenance("process", ticket.live_surface, ticket.live_context);
+  if (!provenance.ok) return { ...provenance, code:"process_evidence_invalid", field:"process_evidence",
+    error:"no se puede cerrar: la captura de proceso guardada no tiene procedencia canónica (desktop/request o cli/command_output)" };
+  const capturedAt = Number(ticket.live_at), rawCreated = Number(ticket.created_at);
+  const createdAt = rawCreated > 0 && rawCreated < 4102444800 ? rawCreated * 1000 : rawCreated;
+  if (!Number.isFinite(capturedAt) || capturedAt <= 0 || !Number.isFinite(createdAt) || createdAt <= 0 ||
+      capturedAt < createdAt || capturedAt > now + 3e4) {
+    return { ok:false, code:"process_evidence_outside_mission", field:"process_evidence",
+      error:"no se puede cerrar: la captura de proceso debe pertenecer al intervalo real de la misión" };
+  }
+  return { ok:true, captured_at:capturedAt, surface:provenance.surface, context:provenance.context };
+}
+__name(validateMissionProcessEvidence, "validateMissionProcessEvidence");
+
 // Los agentes conocen el número del encargo del bot-inbox (#1036), no siempre el
 // id interno de Yokup. Si FLT-1036 ya estaba ocupado, fleetMissionId conserva el
 // reparto real en fleet_ids (p. ej. #1036 → FLT-1045). Toda entrada pública de la
@@ -2067,6 +2110,7 @@ async function listAllMissionTasks(env, scope) {
     // tarea no dejó imagen propia. No rompe a /tareas: sólo añade campos.
     `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.report, m.image, m.image_kind, m.created_at, m.updated_at,
             t.subject, t.screen, t.loc, t.project, t.source, t.role, t.assignee, t.live_shot, t.live_at, t.live_kind,
+            t.live_surface AS process_surface, t.live_context AS process_context,
             CASE WHEN t.live_kind='process' THEN t.live_shot ELSE NULL END AS process_image,
             CASE WHEN t.live_kind='process' THEN t.live_at ELSE NULL END AS process_captured_at,
             t.status AS mission_status, t.created_at AS mission_created,
@@ -3330,7 +3374,7 @@ async function fleetMissions(env) {
   const { results } = await env.DB.prepare(
     // project_inherited va al final por el mismo motivo que en los INSERT: hay un
     // contrato de forma en projects.test.mjs sobre el prefijo de este SELECT.
-    "SELECT id,screen,subject,loc,project,project_id,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,live_kind,created_at,updated_at,note,parent_id,project_inherited,project_inherited_from FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
+    "SELECT id,screen,subject,loc,project,project_id,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,live_kind,live_surface,live_context,created_at,updated_at,note,parent_id,project_inherited,project_inherited_from FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
   ).all();
   const rows = results || [];
   if (!rows.length) return [];
@@ -4061,7 +4105,8 @@ var index_default = {
     // pasa el gate Google) y sync idempotente. Van ANTES del perímetro.
     // Latido de PROGRESO del CLI: marca la misión en curso y guarda la última
     // captura del terminal. Público como /fleet/informe (lo llama el capturador
-    // común). Body: {mission,owner,image,captured_at,evidence_kind}. Un heartbeat
+    // común). Body: {mission,owner,image,captured_at,evidence_kind,
+    // capture_surface,capture_context}. Un heartbeat
     // sin imagen puede activar la misión, pero NO refresca la antigüedad de una
     // captura anterior.
     if (url.pathname === "/fleet/progress" && req.method === "POST") {
@@ -4078,18 +4123,22 @@ var index_default = {
           return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada", applied: false }, 409);
         }
         const rawImage = String(b.image || "").trim();
-        let img = null, capturedAt = null, liveKind = null;
+        let img = null, capturedAt = null, liveKind = null, captureSurface = null, captureContext = null;
         if (rawImage) {
-          const norm = await validateProofImage(env, rawImage, url.origin);
-          if (!norm.value) return json({ ok: false, field: "image", error: "image no válida: " + norm.error, applied: false }, 400);
-          img = norm.value;
           liveKind = String(b.evidence_kind || "").trim();
           if (liveKind !== "process" && liveKind !== "final-fallback") {
             return json({ ok: false, field: "evidence_kind", error: "evidence_kind debe ser process o final-fallback", applied: false }, 400);
           }
+          const provenance = validateProcessCaptureProvenance(liveKind, b.capture_surface, b.capture_context);
+          if (!provenance.ok) return json({ ok:false, code:provenance.code, field:provenance.field,
+            missing:provenance.missing || [], error:provenance.error, applied:false }, 400);
+          captureSurface = provenance.surface; captureContext = provenance.context;
           if (liveKind === "final-fallback" && b.degraded !== true) {
             return json({ ok: false, field: "degraded", error: "una captura final sólo puede reutilizarse como proceso con degraded:true", applied: false }, 400);
           }
+          const norm = await validateProofImage(env, rawImage, url.origin);
+          if (!norm.value) return json({ ok: false, field: "image", error: "image no válida: " + norm.error, applied: false }, 400);
+          img = norm.value;
           const capture = normalizeLiveCaptureTime(b.captured_at);
           if (!capture.value) return json({ ok: false, field: "captured_at", error: capture.error, applied: false }, 400);
           capturedAt = capture.value;
@@ -4097,8 +4146,8 @@ var index_default = {
         const now = Date.now();
         if (img) {
           await env.DB.prepare(
-            "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,live_shot=?,live_at=?,live_kind=?,updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
-          ).bind(img, capturedAt, liveKind, now, mid).run();
+            "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,live_shot=?,live_at=?,live_kind=?,live_surface=?,live_context=?,updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
+          ).bind(img, capturedAt, liveKind, captureSurface, captureContext, now, mid).run();
         } else {
           await env.DB.prepare(
             "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
@@ -4111,11 +4160,12 @@ var index_default = {
           if (/^\d+$/.test(String(iid || ""))) {
             try { await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-inbox/"+iid+"/progress", {
               method:"POST", headers:{"content-type":"application/json"},
-              body:JSON.stringify({mission_id:mid,mission_created_at:t.created_at,persona:t.assignee,machine:t.loc,detail:b.detail||(img ? (liveKind === "final-fallback" ? "Captura final reutilizada como progreso (DEGRADADO)" : "Captura de proceso recibida en YOKUP") : "Latido de ejecución recibido; sin nueva captura"),image:img,percent:b.percent,evidence_kind:liveKind,captured_at:capturedAt,degraded:liveKind === "final-fallback"})
+              body:JSON.stringify({mission_id:mid,mission_created_at:t.created_at,persona:t.assignee,machine:t.loc,detail:b.detail||(img ? (liveKind === "final-fallback" ? "Captura final reutilizada como progreso (DEGRADADO)" : "Captura de proceso recibida en YOKUP") : "Latido de ejecución recibido; sin nueva captura"),image:img,percent:b.percent,evidence_kind:liveKind,captured_at:capturedAt,capture_surface:captureSurface,capture_context:captureContext,degraded:liveKind === "final-fallback"})
             })); } catch(e) {}
           }
         }
-        return json({ ok: true, mission: mid, evidence_updated: !!img, evidence_kind: liveKind, captured_at: capturedAt, degraded: liveKind === "final-fallback" });
+        return json({ ok: true, mission: mid, evidence_updated: !!img, evidence_kind: liveKind, captured_at: capturedAt,
+          capture_surface:captureSurface, capture_context:captureContext, degraded: liveKind === "final-fallback" });
       } catch (e) {
         return json({ ok: false, error: String(e) }, 500);
       }
@@ -4299,13 +4349,18 @@ var index_default = {
       if (!owner) missing.push("owner");
       if (!rawImage) missing.push("final_image");
       if (missing.length) return json({ ok: false, code: "closure_evidence_missing", error: "no se puede cerrar: faltan " + missing.join(", "), missing, applied: false }, 400);
-      const t = await env.DB.prepare("SELECT id,assignee,loc,status,source,screen,created_at,proof_image,proof_kind FROM tickets WHERE id=?").bind(mid).first();
+      const t = await env.DB.prepare("SELECT id,assignee,loc,status,source,screen,created_at,proof_image,proof_kind,live_shot,live_at,live_kind,live_surface,live_context FROM tickets WHERE id=?").bind(mid).first();
       if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
       // La identidad se valida ANTES de auto-claim, informe, prueba o evento.
       // Una firma cruzada se rechaza completa: no deja ningún rastro falso.
       const actor = validateMissionActor(t, owner);
       if (!actor.ok) return json({ ok: false, code: "owner_mismatch", error: actor.error, expected_assignee: actor.expected, received_owner: actor.actor, applied: false }, 403);
       if (t.status === "cancelled") return json({ ok: false, code: "mission_closed", error: "la misión está cancelada", status: t.status, applied: false }, 409);
+      if (t.status !== "resolved") {
+        const processEvidence = validateMissionProcessEvidence(t);
+        if (!processEvidence.ok) return json({ ok:false, code:processEvidence.code, field:processEvidence.field,
+          error:processEvidence.error, applied:false }, 400);
+      }
       // Reintento seguro: si D1 cerró pero falló el espejo/batch, sólo se permite
       // completar el MISMO cierre, sin reescribir informe ni prueba.
       if (t.status === "resolved") {
@@ -4388,7 +4443,7 @@ var index_default = {
       const mid = await resolveFleetMissionReference(env, b.mission || b.id);
       const code = String(b.code || "").toLowerCase().trim();
       if (!mid || !validTaskCode(code)) return json({ ok: false, error: "mission y code válidos requeridos" }, 400);
-      const tk = await env.DB.prepare("SELECT id,source,proof_image,status,assignee,loc FROM tickets WHERE id=?").bind(mid).first();
+      const tk = await env.DB.prepare("SELECT id,source,proof_image,status,assignee,loc,created_at,live_shot,live_at,live_kind,live_surface,live_context FROM tickets WHERE id=?").bind(mid).first();
       if (!tk) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
       // Igual que informe y progreso: primero identidad, después cualquier write.
       const actor = validateMissionActor(tk, b.owner || b.by);
@@ -4431,6 +4486,11 @@ var index_default = {
       // dejaba el tablero mintiendo (FLT-982/983/984, rematadas a mano en D1).
       const nextSt = TASK_STATUS.includes(b.status) ? b.status : cur.status;
       const cierraArbol = nextSt === "done" && tasks.every((t) => t.code === code || t.status === "done");
+      if (cierraArbol) {
+        const processEvidence = validateMissionProcessEvidence(tk);
+        if (!processEvidence.ok) return json({ ok:false, code:processEvidence.code, field:processEvidence.field,
+          error:processEvidence.error, mission:mid, task_code:code, applied:false }, 400);
+      }
       if (cierraArbol && !img && !(await hasMissionProof(env, mid))) {
         return json({
           ok: false,

@@ -4,7 +4,8 @@ import worker from "./src/index.js";
 
 function fleetClosureEnv(source = "fleet") {
   const state = {
-    ticket: { id: "FLT-77", assignee: "OraculoMacMini", loc: "Mac Mini", status: "open", source, screen: source === "fleet" ? "Encargo #77" : "decision:B1", created_at: 1, proof_image: null, proof_kind: null },
+    ticket: { id: "FLT-77", assignee: "OraculoMacMini", loc: "Mac Mini", status: "open", source, screen: source === "fleet" ? "Encargo #77" : "decision:B1", created_at: Date.now()-60_000, proof_image: null, proof_kind: null,
+      live_shot:"https://yokup-rtc.test/media/fleet/process.png",live_at:Date.now()-30_000,live_kind:"process",live_surface:"cli",live_context:"command_output" },
     task: null, batches: 0, directRuns: 0, telegramFail: true, telegramCalls: 0,
     accepted: false, failBatchCoord: false, batch: { id: "B1", status: "active", active_mission_id: "FLT-77" }, item: { batch_id: "B1", mission_id: "FLT-77", status: "active", position: 0 }
   };
@@ -12,7 +13,7 @@ function fleetClosureEnv(source = "fleet") {
     sql, args,
     bind(...next) { return statement(sql, next); },
     async first() {
-      if (sql.includes("SELECT id,assignee,loc,status,source,screen,created_at,proof_image,proof_kind FROM tickets")) return { ...state.ticket };
+      if (sql.includes("SELECT id,assignee,loc,status,source,screen,created_at,proof_image,proof_kind,live_shot")) return { ...state.ticket };
       if (sql.includes("SELECT inbox_id FROM fleet_ids")) return { inbox_id: 77 };
       if (sql.includes("SELECT owner,report,image,image_kind FROM mission_tasks")) return state.task && { ...state.task };
       if (sql.includes("SELECT 1 AS accepted FROM events")) return state.accepted ? { accepted: 1 } : null;
@@ -95,6 +96,30 @@ test("informe open: fallo inbox no lanza ReferenceError ni muta; retry cierra", 
   assert.equal(state.task.image_kind, "final");
   assert.equal(state.batches, 1);
   assert.equal(state.telegramCalls, 4);
+});
+
+test("informe rechaza atómicamente un cierre sin proceso canónico", async () => {
+  const { env, state } = fleetClosureEnv();
+  state.ticket.live_shot=null; state.ticket.live_at=null; state.ticket.live_kind=null;
+  const response=await worker.fetch(informeRequest(),env,{}),body=await response.json();
+  assert.equal(response.status,400);
+  assert.equal(body.code,"process_evidence_missing");
+  assert.match(body.error,/final-fallback no sustituye el proceso/);
+  assert.equal(body.applied,false);
+  assert.equal(state.ticket.status,"open");
+  assert.equal(state.task,null);
+  assert.equal(state.batches,0);
+  assert.equal(state.directRuns,0);
+  assert.equal(state.telegramCalls,0,"el rechazo ocurre antes del espejo externo");
+});
+
+test("informe no acepta final-fallback como proceso previo", async () => {
+  const {env,state}=fleetClosureEnv();
+  state.ticket.live_kind="final-fallback"; state.ticket.live_surface=null; state.ticket.live_context=null;
+  const response=await worker.fetch(informeRequest(),env,{}),body=await response.json();
+  assert.equal(response.status,400);
+  assert.equal(body.code,"process_evidence_missing");
+  assert.equal(state.batches,0);
 });
 
 test("repetir exactamente el mismo cierre resuelto sólo completa coordinación", async () => {
