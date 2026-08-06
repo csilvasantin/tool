@@ -25,7 +25,7 @@ function setup(taskResponses){
     setInterval:fn=>{intervals.push(fn);},setTimeout(){},localStorage:{getItem(){return null;},setItem(){}}});
   vm.runInContext(main,context);
   listeners["yk:project-change"]({detail:{project_id:null,ready:true}});
-  return {context,elements,calls,intervals};
+  return {context,elements,calls,intervals,listeners};
 }
 
 test("primera tanda pide 30, fechas, total y expone cursor para Cargar más",async()=>{
@@ -38,6 +38,19 @@ test("primera tanda pide 30, fechas, total y expone cursor para Cargar más",asy
   assert.equal(h.elements.pageStatus.textContent,"30 cargados de 61");
   assert.equal(h.elements.loadMore.hidden,false);
   assert.equal(h.elements.loadMore.textContent,"Cargar más");
+});
+
+test("un proyecto seleccionado reinicia el snapshot y viaja al servidor",async()=>{
+  const first=Promise.resolve({ok:true,json:async()=>({tasks:[row(1)],next_cursor:null,has_more:false,total:1})});
+  const scoped=Promise.resolve({ok:true,json:async()=>({tasks:[row(2,{project:"yokup"})],next_cursor:null,has_more:false,total:1})});
+  const h=setup([first,scoped]);await tick();await tick();
+  h.listeners["yk:project-change"]({detail:{project_id:"yokup",ready:true}});
+  await tick();await tick();
+  const taskCalls=h.calls.filter(url=>url.includes("/tasks/all"));
+  assert.equal(taskCalls.length,2);
+  assert.match(taskCalls[1],/&project=yokup/);
+  assert.match(taskCalls[1],/&include_total=1/);
+  assert.equal(vm.runInContext("ALL.length",h.context),1);
 });
 
 test("Cargar más añade 30, usa cursor y deduplica misión+tarea",async()=>{

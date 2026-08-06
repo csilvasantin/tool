@@ -48,4 +48,6 @@ test("la tarea se rotula explícitamente y móvil no usa elipsis para la referen
 test("el deploy sella el sorter para que producción no conserve el orden antiguo",()=>{
   assert.match(deploy,/\\\/yk-informes-sort\\\.js/);
   assert.match(deploy,/"\/yk-informes-sort\.js\?v=" \+ stamp/);
+  assert.match(deploy,/"\/yk-informes-columns\.js\?v=" \+ stamp/);
+  assert.match(deploy,/"\/yk-informes-groups\.js\?v=" \+ stamp/);
 });

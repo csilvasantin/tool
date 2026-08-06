@@ -263,8 +263,10 @@ function applyFilter(){
   render(YkInformesSort.sort(filtered,SORT.key,SORT.dir,{agentName:reportAgent,missionLast:MLAST}));
 }
 if(window.addEventListener)window.addEventListener("yk:project-change",event=>{
-  PROJECT_SCOPE=event.detail&&event.detail.project_id||null;
+  const next=event.detail&&event.detail.project_id||null,wasReady=PROJECT_READY,changed=next!==PROJECT_SCOPE;
+  PROJECT_SCOPE=next;
   if(event.detail&&event.detail.ready)PROJECT_READY=true;
+  if(PROJECT_READY&&changed&&(wasReady||!!next)){load();return;}
   applyFilter();
 });
 
@@ -289,6 +291,7 @@ function pageUrl(cursor,includeTotal){
   let url=WORKER+"/tasks/all?scope=fleet&paginated=1&limit="+PAGE_LIMIT+
     "&updated_from="+Math.floor(bounds[0])+"&updated_to="+Math.floor(bounds[1]);
   if(cursor)url+="&cursor="+encodeURIComponent(cursor);
+  if(PROJECT_SCOPE)url+="&project="+encodeURIComponent(PROJECT_SCOPE);
   if(includeTotal)url+="&include_total=1";
   return url;
 }

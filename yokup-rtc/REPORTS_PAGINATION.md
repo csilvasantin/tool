@@ -27,6 +27,7 @@ reducción es del 96,9 %. El ahorro real depende de cuántas tareas tengan infor
 - `cursor`: valor opaco recibido como `next_cursor`.
 - `updated_from`: epoch-ms inclusivo aplicado en SQL a `mission_tasks.updated_at`.
 - `updated_to`: epoch-ms exclusivo aplicado en SQL.
+- `project`: identificador exacto aplicado en SQL antes del límite, el total y el cursor.
 - `include_total=1`: calcula el total después de scope y fecha, antes del cursor.
 
 La respuesta es:

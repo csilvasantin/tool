@@ -15,11 +15,11 @@ function options(query = "") {
 
 function fixture() {
   const db = new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,source TEXT)");
+  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,source TEXT,project TEXT)");
   db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,report TEXT,updated_at INTEGER,PRIMARY KEY(mission_id,code))");
   db.exec("CREATE INDEX idx_mtasks_reports_page ON mission_tasks(updated_at DESC,mission_id DESC,code DESC) WHERE report IS NOT NULL AND TRIM(report)<>''");
-  const ticket = db.prepare("INSERT INTO tickets VALUES(?,?)");
-  for (const row of [["M1","fleet"],["M2","decision-batch"],["M3","cli-declare"],["WEB","field"]]) ticket.run(...row);
+  const ticket = db.prepare("INSERT INTO tickets VALUES(?,?,?)");
+  for (const row of [["M1","fleet","yokup"],["M2","decision-batch","admira"],["M3","cli-declare","yokup"],["WEB","field","yokup"]]) ticket.run(...row);
   const task = db.prepare("INSERT INTO mission_tasks VALUES(?,?,?,?)");
   for (const row of [
     ["M3","c","tres-c",300],["M3","b","tres-b",300],["M2","a","dos-a",300],
@@ -66,6 +66,18 @@ test("fecha, scope y report no vacío se filtran en SQL antes del límite", () =
   assert.match(filter.page_sql, /COALESCE\(m\.updated_at,0\)<\?/);
 });
 
+test("proyecto se filtra en SQL antes del límite, total y cursor", () => {
+  const db = fixture();
+  const first = page(db, options("limit=1&project=yokup"));
+  assert.deepEqual(first.tasks.map((row) => row.mission_id), ["M3"]);
+  assert.equal(first.hasMore, true);
+  const parsed = options(`limit=1&project=yokup&cursor=${encodeURIComponent(first.cursor)}`);
+  assert.deepEqual(page(db, parsed).tasks.map((row) => row.mission_id), ["M3"]);
+  const filter = buildReportsPageFilter(parsed, "t.source IN ('fleet','decision-batch','cli-declare')");
+  assert.match(filter.count_sql, /t\.project=\?/);
+  assert.deepEqual(filter.count_binds, ["yokup"]);
+});
+
 test("total cuenta el filtro completo pero nunca queda recortado por el cursor", () => {
   const db = fixture();
   const first = page(db, options("limit=2&updated_from=100&updated_to=301"));
@@ -81,7 +93,7 @@ test("total cuenta el filtro completo pero nunca queda recortado por el cursor",
 test("límite inicial 30, máximo 100, cursor y rango inválidos fallan cerrado", () => {
   assert.equal(options().limit, 30);
   assert.equal(options("limit=100").limit, 100);
-  for (const query of ["limit=0", "limit=101", "limit=x", "cursor=basura", "updated_from=20&updated_to=10", "updated_from=hoy"]) {
+  for (const query of ["limit=0", "limit=101", "limit=x", "cursor=basura", "updated_from=20&updated_to=10", "updated_from=hoy", `project=${"x".repeat(161)}`]) {
     assert.equal(parseReportsPageOptions(new URLSearchParams(query)).ok, false, query);
   }
 });

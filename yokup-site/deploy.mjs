@@ -84,6 +84,8 @@ async function stampFrameReferences(version, rootUrl) {
       .replace(/\/yk-frame\.css(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-frame.css?v=" + stamp)
       .replace(/\/yk-agent-identity\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-agent-identity.js?v=" + stamp)
       .replace(/\/yk-informes-sort\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-informes-sort.js?v=" + stamp)
+      .replace(/\/yk-informes-columns\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-informes-columns.js?v=" + stamp)
+      .replace(/\/yk-informes-groups\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-informes-groups.js?v=" + stamp)
       .replace(/\/yk-misiones\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-misiones.js?v=" + stamp)
       .replace(/\/yk-misiones\.css(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-misiones.css?v=" + stamp)
       .replace(/\s*<link\b[^>]*\brel=["'][^"']*(?:icon|apple-touch-icon)[^"']*["'][^>]*>/gi, "");

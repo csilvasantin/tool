@@ -52,11 +52,14 @@ export function parseReportsPageOptions(params) {
   const rawCursor = params.get("cursor") || "";
   const cursor = decodeReportsCursor(rawCursor);
   if (rawCursor && !cursor) return { ok:false, error:"cursor de informes no válido" };
+  const project = String(params.get("project") || "").trim();
+  if (project.length > 160) return { ok:false, error:"project supera 160 caracteres" };
   return {
     ok:true,
     limit,
     updated_from:from.value,
     updated_to:to.value,
+    project:project || null,
     cursor,
     include_total:["1", "true"].includes(String(params.get("include_total") || "").toLowerCase())
   };
@@ -67,6 +70,7 @@ export function buildReportsPageFilter(options, scopeClause = "1=1") {
   const binds = [];
   if (options.updated_from != null) { clauses.push("COALESCE(m.updated_at,0)>=?"); binds.push(options.updated_from); }
   if (options.updated_to != null) { clauses.push("COALESCE(m.updated_at,0)<?"); binds.push(options.updated_to); }
+  if (options.project) { clauses.push("t.project=?"); binds.push(options.project); }
   const count_sql = clauses.join(" AND "), count_binds = binds.slice();
   if (options.cursor) {
     const cursor = options.cursor;
