@@ -194,6 +194,7 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
   color:var(--yk-mut);
 }
 .yk-navpop .yk-pop-r b{ color:var(--yk-ink); font-weight:700; font-variant-numeric:tabular-nums }
+.yk-navpop .yk-pop-r.nuevo b{ color:var(--yk-brand) }
 .yk-navpop .yk-pop-r.debe b{ color:#ffb454 }
 .yk-navpop .yk-pop-r.alarma b{ color:#ff5f56 }
 .yk-navpop .yk-pop-n{
@@ -203,6 +204,7 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
 .yk-navpop .yk-pop-f{ margin-top:6px; color:var(--yk-dim); font-size:9.5px; line-height:1.35 }
 /* móvil: la barra ya esconde .yk-nav, así que la tarjeta tampoco pinta nada */
 @media (max-width:520px){ .yk-navpop{ display:none } }
+.yk-nav-live{position:fixed!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 
 /* PESTAÑA CADUCA: producción ha publicado otra versión y esta pestaña sigue
    ejecutando la suya. Los datos se refrescan solos, el código no — así que lo

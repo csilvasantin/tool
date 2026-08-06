@@ -1,3 +1,58 @@
+/* YK_MISSION_NOVELTY_CORE_START
+ * Estado puro y versionado de nuevas misiones. Vive antes del marco para poder
+ * probarse sin DOM; la UI de la barra lo consume más abajo. */
+(function (root) {
+  "use strict";
+  var KEY = "yk_nav_missions_v2";
+  function number(value) { var n = Number(value); return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null; }
+  function clean(value) { return String(value == null ? "" : value).trim(); }
+  function meta(payload) {
+    var p = payload || {}, cursor = number(p.created_cursor);
+    if (cursor == null) cursor = number(p.latest_cursor);
+    if (cursor == null) cursor = number(p.event_cursor);
+    if (cursor == null) cursor = number(p.cursor);
+    var events = Array.isArray(p.events) ? p.events.map(function (event) {
+      return { cursor:number(event && event.cursor), mission_id:clean(event && (event.mission_id || event.id)), created_at:number(event && event.created_at), source:clean(event && event.source), decision_id:clean(event && event.decision_id), batch_id:clean(event && event.batch_id) };
+    }).filter(function (event) { return event.cursor != null || event.mission_id; }) : [];
+    return { cursor:cursor, newest_id:clean(p.newest_id || (events[0] && events[0].mission_id)), latest_created_at:number(p.latest_created_at), events:events, fallback_count:Math.max(0,(number(p.curso)||0)+(number(p.pend)||0)) };
+  }
+  function initial() { return { version:2, seen_cursor:null, observed_cursor:null, unread:0, fallback_count:null, fallback_sig:"", newest_id:"", latest_created_at:null, events:[] }; }
+  function normalize(value) {
+    var out=initial(),v=value&&typeof value==="object"?value:{};
+    out.seen_cursor=number(v.seen_cursor);out.observed_cursor=number(v.observed_cursor);out.unread=Math.max(0,number(v.unread)||0);
+    out.fallback_count=number(v.fallback_count);out.fallback_sig=clean(v.fallback_sig);out.newest_id=clean(v.newest_id);out.latest_created_at=number(v.latest_created_at);
+    out.events=Array.isArray(v.events)?v.events.slice(0,20):[];return out;
+  }
+  function create(options) {
+    options=options||{};var storage=options.storage||null,publish=typeof options.publish==="function"?options.publish:function(){};
+    function read(){try{return normalize(JSON.parse(storage&&storage.getItem(KEY)||"null"));}catch(_){return initial();}}
+    var state=read();
+    function write(broadcast){try{if(storage)storage.setItem(KEY,JSON.stringify(state));}catch(_){}if(broadcast!==false)publish(JSON.parse(JSON.stringify(state)));}
+    function snapshot(){return JSON.parse(JSON.stringify(state));}
+    function observe(payload) {
+      var m=meta(payload),before=state.unread,first=state.observed_cursor==null&&state.fallback_count==null;
+      if(m.cursor!=null){
+        if(state.observed_cursor==null){state.observed_cursor=m.cursor;state.seen_cursor=Math.max(0,m.cursor-state.unread);}
+        else if(m.cursor>state.observed_cursor){state.observed_cursor=m.cursor;state.unread=Math.max(state.unread,m.cursor-(state.seen_cursor==null?m.cursor:state.seen_cursor));}
+        else if(m.cursor<state.observed_cursor){state.observed_cursor=m.cursor;state.seen_cursor=Math.max(0,m.cursor-state.unread);}
+        state.events=m.events.filter(function(event){return event.cursor==null||state.seen_cursor==null||event.cursor>state.seen_cursor;}).slice(0,20);
+      }else{
+        var sig=[m.newest_id,m.latest_created_at||"",m.fallback_count].join(":");
+        if(state.fallback_count!=null&&!first){var increase=Math.max(0,m.fallback_count-state.fallback_count),changed=state.fallback_sig&&sig!==state.fallback_sig&&(m.newest_id||m.latest_created_at);if(increase||changed)state.unread+=Math.max(1,increase);}
+        state.fallback_count=m.fallback_count;state.fallback_sig=sig;state.events=m.events.slice(0,20);
+      }
+      state.fallback_count=m.fallback_count;if(m.newest_id)state.newest_id=m.newest_id;if(m.latest_created_at!=null)state.latest_created_at=m.latest_created_at;
+      var changed=JSON.stringify(state)!==JSON.stringify(read());if(changed)write(true);
+      return {first:first,added:Math.max(0,state.unread-before),state:snapshot(),meta:m};
+    }
+    function ack(payload){var before=JSON.stringify(state),m=meta(payload);if(m.cursor!=null){state.observed_cursor=m.cursor;state.seen_cursor=m.cursor;}else state.fallback_count=m.fallback_count;state.unread=0;state.events=[];if(m.newest_id)state.newest_id=m.newest_id;if(m.latest_created_at!=null)state.latest_created_at=m.latest_created_at;if(JSON.stringify(state)!==before)write(true);return snapshot();}
+    function sync(value){try{state=normalize(typeof value==="string"?JSON.parse(value||"null"):value);}catch(_){return snapshot();}return snapshot();}
+    return {observe:observe,ack:ack,sync:sync,snapshot:snapshot,key:KEY,meta:meta};
+  }
+  root.YkMissionNovelty={create:create,meta:meta,key:KEY,_test:{normalize:normalize}};
+})(typeof window!=="undefined"?window:globalThis);
+/* YK_MISSION_NOVELTY_CORE_END */
+
 /* ============================================================================
  * yk-frame.js — Marco CUADRÁTICO de AdmiraNeXT para el perímetro de Yokup.
  * Script CLÁSICO (sin módulos). Se inicializa tras DOMContentLoaded.
@@ -237,6 +292,50 @@
   // Todo vive en el cliente sobre el MISMO /menu/contadores que ya se pedía: ni
   // un fetch más, ni un endpoint nuevo que desplegar.
   var SEEN_LS = "yk_nav_seen";
+  var MISSION_ANNOUNCED_SS = "yk_nav_missions_announced_v2";
+  var _missionChannel = null, _pendingMissionRender = null;
+  try { if (typeof window.BroadcastChannel === "function") _missionChannel = new window.BroadcastChannel("yokup-nav-missions-v2"); } catch (e) {}
+  var _missionNovelty = window.YkMissionNovelty.create({
+    storage:window.localStorage,
+    publish:function (state) { try { if (_missionChannel) _missionChannel.postMessage({ type:"mission-novelty", state:state }); } catch (e) {} }
+  });
+
+  function paintMissionNoveltyLink() {
+    var a=document.querySelector('.yk-nav a[data-yk-sec="MISIONES"]');if(!a)return;
+    var state=_missionNovelty.snapshot(),unread=state.unread|0;
+    a.classList.toggle("yk-nuevo",unread>0);
+    if(unread){a.setAttribute("data-yk-delta","+"+unread);if(state.newest_id)a.setAttribute("data-yk-newest",state.newest_id);a.setAttribute("aria-label","MISIONES, "+unread+(unread===1?" nueva":" nuevas"));}
+    else{a.removeAttribute("data-yk-delta");a.removeAttribute("data-yk-newest");a.setAttribute("aria-label","MISIONES");}
+    if(_popFor==="MISIONES"&&_lastCounters)paintPop(a,"MISIONES",_lastCounters);
+  }
+  function announceMissionNovelty(result) {
+    if(!result||!result.added)return;
+    var state=result.state,token=String(state.observed_cursor==null?(state.newest_id+":"+state.latest_created_at):state.observed_cursor),last="";
+    try{last=window.sessionStorage.getItem(MISSION_ANNOUNCED_SS)||"";}catch(e){}
+    if(token&&token===last)return;
+    var live=document.getElementById("yk-nav-mission-live");
+    if(!live){live=el("div","yk-nav-live");live.id="yk-nav-mission-live";live.setAttribute("role","status");live.setAttribute("aria-live","polite");live.setAttribute("aria-atomic","true");document.body.appendChild(live);}
+    live.textContent=state.unread===1?("Nueva misión"+(state.newest_id?" "+state.newest_id:"")):state.unread+" misiones nuevas";
+    try{window.sessionStorage.setItem(MISSION_ANNOUNCED_SS,token);}catch(e){}
+  }
+  function canAckMissionRender(state,ids){
+    if(!state.unread)return true;
+    ids=Array.isArray(ids)?ids.map(String):[];
+    if(state.newest_id)return ids.indexOf(String(state.newest_id))>=0;
+    var eventIds=(state.events||[]).map(function(event){return String(event.mission_id||"");}).filter(Boolean);
+    return eventIds.length?eventIds.every(function(id){return ids.indexOf(id)>=0;}):ids.length>0;
+  }
+  function consumeRenderedMissions(data){
+    if(_pendingMissionRender==null)return false;
+    var state=_missionNovelty.snapshot(),ids=_pendingMissionRender;_pendingMissionRender=null;
+    if(!canAckMissionRender(state,ids))return false;
+    _missionNovelty.ack(data&&data.misiones||{});paintMissionNoveltyLink();return true;
+  }
+  function receiveMissionState(value){try{_missionNovelty.sync(value);paintMissionNoveltyLink();}catch(e){}}
+  window.addEventListener("storage",function(event){if(event&&event.key===_missionNovelty.key&&event.newValue)receiveMissionState(event.newValue);});
+  if(_missionChannel)_missionChannel.onmessage=function(event){var data=event&&event.data;if(data&&data.type==="mission-novelty")receiveMissionState(data.state);};
+  window.addEventListener("yk:missions-rendered",function(event){_pendingMissionRender=event&&event.detail&&Array.isArray(event.detail.ids)?event.detail.ids:[];fetchCounters();});
+  if(Array.isArray(window.__ykMissionsRenderedIds))_pendingMissionRender=window.__ykMissionsRenderedIds.slice();
 
   function seenRead() {
     try { return JSON.parse(window.localStorage.getItem(SEEN_LS) || "{}") || {}; }
@@ -267,6 +366,13 @@
           : (hora ? "Ninguna pendiente ahora; la flota ya preguntó esta hora."
                   : "Ninguna decisión pendiente.")
       };
+    }
+    if(label==="MISIONES"){
+      var md=data.misiones||{},mc=md.curso|0,mp=md.pend|0,ms=_missionNovelty.snapshot(),mr=[];
+      if(ms.unread)mr.push(["nuevas",ms.unread,"nuevo"]);
+      mr.push(["en curso",mc,""],["pendientes",mp,""]);
+      return {n:mc+mp,sig:String(md.created_cursor==null?(mc+"/"+mp):md.created_cursor),rows:mr,
+        foot:ms.unread?(ms.newest_id?("La misión "+ms.newest_id+" es nueva."):"Hay misiones nuevas desde tu última visita."):""};
     }
     var key = COUNTER_KEY[label], d = key && data[key];
     if (!d) return null;
@@ -305,11 +411,19 @@
   function markNovelties(data) {
     var links = document.querySelectorAll(".yk-nav a[data-yk-sec]");
     if (!links.length) return;
+    var missionResult=_missionNovelty.observe(data&&data.misiones||{});
+    var missionConsumed=consumeRenderedMissions(data);
+    if(!missionConsumed)announceMissionNovelty(missionResult);
     var seen = seenRead(), primeraVez = !Object.keys(seen).length, dirty = false;
     Array.prototype.forEach.call(links, function (a) {
       var label = a.getAttribute("data-yk-sec");
       var st = sectionState(data, label);
       if (!st) return;
+      if(label==="MISIONES"){
+        paintMissionNoveltyLink();
+        if(_popFor===label)paintPop(a,label,data);
+        return;
+      }
       var prev = seen[label];
       // Primera carga del navegador: se toma nota en silencio. Si no, la barra
       // entera se encendería de golpe y la señal no valdría nada.
@@ -369,8 +483,11 @@
               "</span><b>" + r[1] + "</b></div>";
     });
     var delta = a.getAttribute("data-yk-delta");
-    if (delta) html += '<div class="yk-pop-n">▲ ' + delta + " desde tu última visita</div>";
-    if (st.foot) html += '<div class="yk-pop-f">' + st.foot + "</div>";
+    if(delta&&label==="MISIONES"){
+      var dn=Math.max(0,parseInt(delta,10)||0),newest=a.getAttribute("data-yk-newest")||"";
+      html+='<div class="yk-pop-n">▲ '+dn+(dn===1?" misión nueva":" misiones nuevas")+' desde tu última visita'+(newest?" · "+esc(newest):"")+"</div>";
+    }else if(delta)html += '<div class="yk-pop-n">▲ ' + delta + " desde tu última visita</div>";
+    if (st.foot) html += '<div class="yk-pop-f">' + esc(st.foot) + "</div>";
     p.innerHTML = html;
     // Anclada bajo el rótulo y recortada al viewport: la barra hace scroll
     // horizontal, así que el último ítem se saldría por la derecha.
@@ -400,8 +517,9 @@
     a.addEventListener("focus", show);
     a.addEventListener("mouseleave", hidePop);
     a.addEventListener("blur", hidePop);
-    // Entrar en la sección la marca como vista antes de que el navegador salte.
-    a.addEventListener("click", function () { consumeSection(label); });
+    // MISIONES sólo se consume DESPUÉS de que su tablero confirme el render.
+    // Las demás secciones conservan el comportamiento histórico al navegar.
+    a.addEventListener("click", function () { if(label!=="MISIONES")consumeSection(label); });
   }
   window.addEventListener("scroll", hidePop, true);
   window.addEventListener("resize", hidePop);
@@ -409,15 +527,16 @@
   // UN fetch por página al agregado del worker. Si falla, el menú se queda sin
   // contadores (degradación silenciosa: nada de toasts ni reintentos).
   function fetchCounters() {
-    if (!document.querySelector("[data-yk-count],[data-yk-countdown]")) return;
-    ykFetch("/menu/contadores", { cache: "no-store" })
+    if (!document.querySelector("[data-yk-count],[data-yk-countdown]")) return Promise.resolve(false);
+    return ykFetch("/menu/contadores", { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (!d || !d.ok) return;
+        if (!d || !d.ok) return false;
         _lastCounters = d;
         paintCounters(d); paintDecisiones(d); markNovelties(d);
+        return true;
       })
-      .catch(function () {});
+      .catch(function () { return false; });
   }
 
   // Los contadores reflejan cambios locales sin esperar una recarga y también
