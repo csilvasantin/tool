@@ -245,6 +245,34 @@
   .idea .acts button.guion{color:var(--mut);font:600 11px/1 var(--mono);letter-spacing:.02em}
   .idea .acts button.guion:hover{color:var(--brand);border-color:var(--brand)}
   .list .lkit{flex:none;font-size:12px;line-height:1;opacity:.9}
+  /* ── HOJA DE OBJETIVOS: misma gramática visual que Misiones/Tareas/Decisiones.
+        Una fila por objetivo; los datos secundarios permanecen en su detalle. ── */
+  .objectives-grid-scroll{width:100%;overflow-x:auto;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  .objectives-grid{min-width:1060px;--objective-row-pad:12px}
+  .objectives-grid.density-compact{--objective-row-pad:8px}
+  .objective-grid-head,.objective-grid-row{display:grid;grid-template-columns:var(--objective-col-advisor,minmax(190px,1.05fr)) var(--objective-col-project,minmax(145px,.8fr)) var(--objective-col-objective,minmax(290px,1.65fr)) var(--objective-col-state,minmax(115px,.65fr)) var(--objective-col-date,minmax(165px,.9fr)) var(--objective-col-actions,minmax(235px,1.25fr));align-items:stretch}
+  .objective-grid-head{position:sticky;top:0;z-index:3;background:var(--panel2);font:700 10px/1.3 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--brand)}
+  .objective-grid-head>[data-objective-col],.objective-grid-cell{min-width:0;padding:10px 12px;border-left:1px solid var(--line)}
+  .objective-grid-head>[data-objective-col]:first-child,.objective-grid-cell:first-child{border-left:0}
+  .objective-grid-row{border-top:1px solid var(--line);background:var(--panel);color:var(--ink)}
+  .objective-grid-row:first-child{border-top:0}.objective-grid-row:hover{background:rgba(63,208,201,.025)}
+  .objective-grid-cell{padding-top:var(--objective-row-pad);padding-bottom:var(--objective-row-pad);font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+  .objective-primary{display:block;color:var(--ink);font-weight:700}.objective-secondary{display:block;margin-top:4px;color:var(--dim);font-size:10.5px;line-height:1.45}
+  .objective-mono{font-family:var(--mono)}.objective-ref{display:inline-block;margin-bottom:5px;color:var(--accent);font:700 10px/1.3 var(--mono)}
+  .objective-advisor{display:flex;align-items:flex-start;gap:8px}.objective-advisor>input{flex:none;margin-top:4px;accent-color:var(--brand)}
+  .objective-grid-cell .seatsel{width:100%;margin-top:7px;background:#06121a;color:var(--mut);border:1px solid var(--line);border-radius:7px;padding:5px 6px;font:600 10px var(--mono)}.objective-grid-cell .seatsel.set{color:var(--cre);border-color:rgba(197,140,255,.4)}
+  .objective-badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.objective-badge{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:2px 6px;color:var(--mut);font:700 9px/1.3 var(--mono)}
+  .objective-badge.consejo{color:var(--cre);border-color:rgba(197,140,255,.4)}
+  .objective-project-link{color:var(--mis);text-decoration:none}.objective-project-link:hover{text-decoration:underline}
+  .objective-state{display:inline-flex;align-items:center;gap:5px;border:1px solid currentColor;border-radius:999px;padding:4px 7px;font:700 9px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase}.objective-state:before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}.objective-state.nueva{color:var(--brand)}.objective-state.estudio{color:var(--warn)}.objective-state.hecha{color:var(--good)}.objective-state.mision{color:var(--mis)}.objective-state.descartada,.objective-state.eliminada{color:var(--mut)}
+  .objective-date{width:100%;max-width:145px;margin-top:7px;background:#06121a;color:var(--ink);color-scheme:dark;border:1px solid var(--line);border-radius:7px;padding:5px 6px;font:600 10px var(--mono)}
+  .objective-actions{display:flex;align-items:flex-start;flex-wrap:wrap;gap:5px}.objective-actions button,.objective-actions a{display:inline-flex;align-items:center;min-height:30px;background:transparent;border:1px solid var(--line);border-radius:7px;padding:5px 7px;color:var(--dim);font:700 10px/1 var(--mono);text-decoration:none;cursor:pointer;white-space:nowrap}.objective-actions button:hover,.objective-actions a:hover{color:var(--ink);border-color:var(--mut)}.objective-actions .mis,.objective-actions .flt{color:var(--mis);border-color:rgba(124,156,255,.5)}.objective-actions .flt.pend{color:#e0a63a;border-color:#e0a63a}.objective-actions .del:hover{color:#04232a;background:var(--bad);border-color:var(--bad)}
+  .objective-grid-detail{grid-column:1/-1;border-top:1px dashed var(--line);padding:0 12px;background:rgba(6,18,26,.45)}
+  .objective-grid-detail>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:38px;color:var(--mut);font:700 10px/1.35 var(--mono)}.objective-grid-detail>summary::-webkit-details-marker{display:none}.objective-grid-detail>summary:before{content:'›';font-size:15px;transition:transform .15s}.objective-grid-detail[open]>summary:before{transform:rotate(90deg)}
+  .objective-detail-body{padding:0 0 13px 20px}.objective-description{max-width:82ch;color:var(--dim);white-space:pre-wrap;font-size:12.5px;line-height:1.55}.objective-detail-meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:9px;color:var(--mut);font:600 10px/1.45 var(--mono)}.objective-detail-meta b{color:var(--ink)}
+  .objective-grid-detail .delib{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}.objective-grid-detail .delib>summary{list-style:none;display:flex;flex-wrap:wrap;gap:8px;cursor:pointer}.objective-grid-detail .delib>summary::-webkit-details-marker{display:none}.objective-grid-detail .delib .dh{font-weight:800}.objective-grid-detail .delib .dsum{color:var(--mut);font:600 10px var(--mono)}.objective-grid-detail .kit{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}.objective-grid-detail .kit .kh{margin-bottom:7px;font-weight:800}.objective-grid-detail .kit audio{width:100%;max-width:620px;height:34px}.objective-grid-detail .kit .klinks{display:flex;flex-wrap:wrap;gap:7px;margin-top:7px}.objective-grid-detail .kit .klink{color:var(--brand);text-decoration:none;border:1px solid var(--line);border-radius:7px;padding:6px 9px;font:700 10px/1 var(--mono)}
+  .viewsel button{font-size:10px;letter-spacing:.03em}.viewsel button[data-v="grid"]:after{content:' Cómoda'}.viewsel button[data-v="list"]:after{content:' Compacta'}
+  @media(max-width:560px){.objectives-grid-scroll{overflow:visible;border-radius:10px}.objectives-grid{min-width:0}.objective-grid-head{display:none}.objective-grid-row{display:block}.objective-grid-cell{display:grid;grid-template-columns:106px minmax(0,1fr);gap:9px;padding:10px 11px;border-left:0;border-top:1px solid var(--line)}.objective-grid-cell:first-child{border-top:0}.objective-grid-cell:before{content:attr(data-label);color:var(--brand);font:700 9px/1.35 var(--mono);letter-spacing:.07em;text-transform:uppercase}.objective-grid-detail{padding-inline:11px}.objective-detail-body{padding-left:0}.objective-actions{margin-top:-2px}.viewsel button[data-v="grid"]:after,.viewsel button[data-v="list"]:after{content:''}}
 </style>
 </head>
 <body data-yk-title="OBJETIVOS" data-yk-zone="app">
@@ -295,13 +323,26 @@
     <button class="f" data-f="hecha">Hechas</button>
     <button class="f" data-f="mision">Misión</button>
     <button class="f" data-f="descartada">Descartadas</button>
+    <button class="f" data-f="eliminada">Eliminadas</button>
     <span class="viewsel" id="viewsel" style="margin-left:8px">
-      <button type="button" data-v="grid" title="Vista fichas">▦</button><button type="button" data-v="list" title="Vista listado">☰</button>
+      <button type="button" data-v="grid" title="Densidad cómoda" aria-label="Densidad cómoda">▦</button><button type="button" data-v="list" title="Densidad compacta" aria-label="Densidad compacta">☰</button>
     </span>
     <input type="date" class="day" id="boardDay" title="Día de los objetivos — por defecto hoy">
   </div>
 
-  <div class="grid" id="grid"></div>
+  <div class="objectives-grid-scroll" tabindex="0" aria-label="Objetivos, desplazamiento horizontal">
+    <div class="objectives-grid density-comfortable" id="objectivesGrid" role="table" aria-label="Objetivos">
+      <div class="objective-grid-head" role="row">
+        <div role="columnheader" data-objective-col="advisor">Consejero / autor</div>
+        <div role="columnheader" data-objective-col="project">Proyecto</div>
+        <div role="columnheader" data-objective-col="objective">Objetivo</div>
+        <div role="columnheader" data-objective-col="state">Estado</div>
+        <div role="columnheader" data-objective-col="date">Fecha</div>
+        <div role="columnheader" data-objective-col="actions">Acciones</div>
+      </div>
+      <div class="objective-grid-body" id="grid" role="rowgroup"></div>
+    </div>
+  </div>
   <div class="empty" id="empty" style="display:none">Aún no hay ideas. Apunta la primera arriba. ✍️</div>
   <div class="bulkbar" id="bulkbar" hidden><span id="bulkN">0 objetivos seleccionados</span><select id="bulkEstado"><option value="">— estado —</option><option value="nueva">Nueva</option><option value="estudio">En estudio</option><option value="hecha">Hecha</option><option value="descartada">Descartada</option></select><button id="bulkApply" type="button">Aplicar</button><button id="bulkClear" type="button">Quitar selección</button></div>
 
@@ -373,7 +414,7 @@ const wfetch=(p,o)=>fetch(WORKER+p,o).catch(()=>fetch(WORKER_FB+p,o));
 const TG="https://admira-telegram.csilvasantin.workers.dev";
 const $=s=>document.querySelector(s);
 const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
-const STLABEL={nueva:"Nueva",estudio:"En estudio",hecha:"Hecha",mision:"Misión",descartada:"Descartada"};
+const STLABEL={nueva:"Nueva",estudio:"En estudio",hecha:"Hecha",mision:"Misión",descartada:"Descartada",eliminada:"Eliminada"};
 const NEXT={nueva:"estudio",estudio:"hecha",hecha:"nueva"};
 // Las 8 sillas del Consejo (== IDEA_SEATS del worker). value=seat, label=rol.
 const SEATS=[["ceo","CEO"],["cto","CTO"],["coo","COO"],["cfo","CFO"],["cco","CCO"],["cdo","CDO"],["cxo","CXO"],["cso","CSO"]];
@@ -466,72 +507,60 @@ function workRef(row){ return window.YkDisplayRef.of(row||{}); }
 // mientras corre la ventana (o hasta que su tanda materialice la misión) mostramos
 // el enlace a /decisiones en vez del botón «→ misión».
 function hasDecision(i){ return !!(i&&i.decision_id)&&i.status!=="mision"&&!i.mission_id; }
-// Ficha (vista fichas). La cruz ✕ ELIMINA de verdad (data-rm); ⊘ descarta (data-del).
-function card(i){
-  const st=STLABEL[i.status]?i.status:"nueva";
-  const isMis=st==="mision"||i.mission_id;
-  const pend=hasDecision(i);
-  const cons=isConsejo(i), side=cons?seatSide(i.seat):"";
-  const rv=hasReview(i);
-  const showDelib=rv||st==="estudio"; // en estudio siempre hay hueco de deliberación
-  const kit=kitBlock(i); // Kit de venta (FLT-1007): '' si no hay adjuntos
-  const delX='<button class="del" data-rm="'+esc(i.id)+'" title="Eliminar para siempre">✕</button>';
-  return '<div class="idea'+(cons?' consejo '+side:'')+'"><label title="Seleccionar para cambio masivo"><input type="checkbox" data-bulk-id="'+esc(i.id)+'"'+(SEL.has(i.id)?' checked':'')+'> seleccionar</label><input type="date" data-date-for="'+esc(i.id)+'" value="'+esc(i.scheduled_for||ymd(new Date(i.created_at)))+'" title="Día planificado">'+
-    '<div class="top"><span class="st '+st+'">'+STLABEL[st]+'</span><span class="work-ref" title="ID técnico: '+esc(i.id)+'">'+esc(workRef(i))+'</span>'+
-      (cons?'<span class="csign'+(side==="cre"?" cre":"")+'" title="Idea del Consejo">✦ '+esc(i.author||"Consejo")+'</span>'
-           :(i.tag?'<span class="tag">#'+esc(i.tag)+'</span>':''))+
-      projChip(i.project,"pchip")+
-      (i.mission_id?'<a class="flt" href="/tareas?mission='+encodeURIComponent(i.mission_id)+'" title="Ver misión · ID técnico '+esc(i.mission_id)+'">ver misión ↗</a>'
-        :(pend?'<a class="flt pend" href="/decisiones" title="Ventana de decisión abierta (3 min)">⏳ decisión ↗</a>':''))+'</div>'+
-    '<h3>'+esc(i.title)+'</h3>'+
-    (i.body?'<div class="body">'+esc(i.body)+'</div>':'')+
-    '<div class="meta">'+(cons?'':esc(i.author||"anónimo")+' · ')+fecha(i.created_at)+
-      '<span class="acts">'+
-        '<select class="seatsel'+(i.seat?' set':'')+'" data-seat-for="'+esc(i.id)+'" title="silla del Consejo">'+seatOpts(i.seat||"")+'</select>'+
-        (!isMis&&NEXT[st]?'<button data-adv="'+esc(i.id)+'" title="pasar a '+STLABEL[NEXT[st]]+'">→ '+STLABEL[NEXT[st]]+'</button>':'')+
-        (!isMis&&!pend?'<button class="mis" data-mis="'+esc(i.id)+'" title="Abrir ventana de decisión (3 min · 3 opciones)">→ misión</button>':'')+
-        (!isMis&&st!=="descartada"?'<button data-del="'+esc(i.id)+'" title="descartar">⊘</button>':'')+
-        // «⧉ guion» solo cuando hay deliberación (o está en estudio): es la fuente
-        // que se pega en NotebookLM para fabricar el Kit de venta.
-        (showDelib?'<button class="guion" data-guion="'+esc(i.id)+'" title="Copiar guion (idea + deliberación) para NotebookLM">⧉ guion</button>':'')+
-        // Con deliberación (o en estudio), la ✕ baja DEBAJO del review (entre la
-        // silla y la ✕); sin ella, se queda donde estaba, sin tocar la ficha normal.
-        (showDelib?'':delX)+
-      '</span>'+
-    '</div>'+
-    // Deliberación → Kit de venta → ✕ final. Sin deliberación, el kit va suelto
-    // (la ✕ ya está en la fila de acciones).
-    (showDelib?(rv?reviewBlock(i)
-                 :'<div class="delib pend"><button class="regen" data-regen="'+esc(i.id)+'" title="Pedir la deliberación del Consejo">⚖️ Pedir deliberación</button></div>')+
-               kit+'<div class="rmrow">'+delX+'</div>':kit)+
-  '</div>';
+function objectiveProject(i){
+  const slug=String(i&&i.project||"").trim(), p=PROJ_BY[slug]||null;
+  const name=p&&p.name||slug||"Sin proyecto", url=p?projUrl(p.web):"";
+  return {slug,name,url};
 }
-// Fila compacta (vista listado): estado · título · etiqueta · silla · autor · fecha · acciones (→ misión y la cruz ✕).
-function listRow(i){
-  const st=STLABEL[i.status]?i.status:"nueva";
-  const isMis=st==="mision"||i.mission_id;
+function voteSummary(i){
+  if(hasReview(i)) return (i.review.pros||[]).length+" a favor · "+(i.review.cons||[]).length+" en contra";
+  if(Array.isArray(i&&i.votes)) return i.votes.length+" voto"+(i.votes.length===1?"":"s");
+  if(Number.isFinite(+(i&&i.votes))) return (+i.votes)+" voto"+(+i.votes===1?"":"s");
+  if(i&&i.votes&&typeof i.votes==="object"){
+    const total=Object.values(i.votes).reduce((n,v)=>n+(Number.isFinite(+v)?+v:0),0);
+    if(total) return total+" voto"+(total===1?"":"s");
+  }
+  return "Sin deliberación";
+}
+function objectiveDetail(i,st){
+  const review=hasReview(i), media=hasMedia(i), votes=voteSummary(i);
+  const summary=[i.body?"Descripción":"",review?"Consejo":"",media?"Kit de venta":"",i.tag?"#"+i.tag:""].filter(Boolean).join(" · ")||"Metadatos";
+  return '<details class="objective-grid-detail" role="cell" aria-colspan="6"><summary>Detalle · '+esc(summary)+'</summary><div class="objective-detail-body">'+
+    (i.body?'<div class="objective-description">'+esc(i.body)+'</div>':'<div class="objective-description">Sin descripción.</div>')+
+    '<div class="objective-detail-meta"><span>autor <b>'+esc(i.author||"anónimo")+'</b></span><span>consejo <b>'+esc(votes)+'</b></span>'+
+      (i.tag?'<span>etiqueta <b>#'+esc(i.tag)+'</b></span>':'')+(i.origin_type?'<span>origen <b>'+esc(i.origin_type)+'</b></span>':'')+
+      (i.mission_id?'<span>misión <b>'+esc(i.mission_id)+'</b></span>':'')+(i.decision_id?'<span>decisión <b>'+esc(i.decision_id)+'</b></span>':'')+
+      '<span>ID técnico <b>'+esc(i.id)+'</b></span></div>'+
+    (review?reviewBlock(i):(st==="estudio"?'<div class="delib pend"><button class="regen" data-regen="'+esc(i.id)+'" title="Pedir la deliberación del Consejo">⚖️ Pedir deliberación</button></div>':''))+
+    kitBlock(i)+'</div></details>';
+}
+// Hoja única: una fila por objetivo. Cómoda/compacta cambia densidad, no estructura.
+function objectiveRow(i){
+  const st=STLABEL[i.status]?i.status:(String(i.status||"").trim()||"nueva");
+  const stateLabel=STLABEL[st]||String(st).toUpperCase();
+  const isMis=st==="mision"||i.mission_id||st==="eliminada";
   const pend=hasDecision(i);
-  const cons=isConsejo(i), side=cons?seatSide(i.seat):"";
-  const seatL=i.seat?(SEATLABEL[i.seat]||String(i.seat).toUpperCase()):"";
-  return '<div class="lrow'+(cons?' consejo '+side:'')+'"><input type="checkbox" data-bulk-id="'+esc(i.id)+'"'+(SEL.has(i.id)?' checked':'')+' title="Seleccionar para cambio masivo"><input type="date" data-date-for="'+esc(i.id)+'" value="'+esc(i.scheduled_for||TODAY)+'" title="Día planificado">'+
-    '<span class="st '+st+'">'+STLABEL[st]+'</span><span class="work-ref" title="ID técnico: '+esc(i.id)+'">'+esc(workRef(i))+'</span>'+
-    '<span class="ltitle" title="'+esc(i.title)+'">'+esc(i.title)+'</span>'+
-    (hasMedia(i)?'<span class="lkit" title="Tiene Kit de venta (audio·vídeo·presentación·pdf)">🎬</span>':'')+
-    (cons?'<span class="lsign">✦ '+esc(i.author||"Consejo")+'</span>'
-         :((i.tag?'<span class="ltag">#'+esc(i.tag)+'</span>':'')+
-           (seatL?'<span class="lseat">'+esc(seatL)+'</span>':'')+
-           '<span class="lauthor">'+esc(i.author||"anónimo")+'</span>'))+
-    projChip(i.project,"lproj")+
-    '<span class="ldate">'+fecha(i.created_at)+'</span>'+
-    '<span class="lacts">'+
+  const cons=isConsejo(i), seatL=i.seat?(SEATLABEL[i.seat]||String(i.seat).toUpperCase()):"Sin consejero";
+  const project=objectiveProject(i), planned=i.scheduled_for||ymd(new Date(i.created_at));
+  const showDelib=hasReview(i)||st==="estudio";
+  const actionSort=i.mission_id?"misión vinculada":pend?"decisión abierta":st==="eliminada"?"eliminada":isMis?"misión":"convertir en misión";
+  const sort=x=>esc(String(x==null?"":x).toLocaleLowerCase("es"));
+  const projectHtml=project.url?'<a class="objective-primary objective-project-link" href="'+esc(project.url)+'" target="_blank" rel="noopener">'+esc(project.name)+'</a>':'<span class="objective-primary">'+esc(project.name)+'</span>';
+  return '<div class="objective-grid-row" role="row" data-row-key="'+esc(i.id||workRef(i))+'" data-sort-advisor="'+sort(seatL+" "+(i.author||"anónimo"))+'" data-sort-project="'+sort(project.name+" "+project.slug)+'" data-sort-objective="'+sort(workRef(i)+" "+(i.title||"")+" "+(i.body||""))+'" data-sort-state="'+sort(stateLabel)+'" data-sort-date="'+esc(String(planned||"").replace(/\D/g,""))+'" data-sort-actions="'+sort(actionSort)+'">'+
+    '<div class="objective-grid-cell" role="cell" data-label="Consejero / autor"><span class="objective-advisor"><input type="checkbox" data-bulk-id="'+esc(i.id)+'"'+(SEL.has(i.id)?' checked':'')+' title="Seleccionar para cambio masivo" aria-label="Seleccionar '+esc(i.title||"objetivo")+'"><span><span class="objective-primary">'+esc(seatL)+'</span><span class="objective-secondary">'+esc(i.author||"anónimo")+'</span></span></span><select class="seatsel'+(i.seat?' set':'')+'" data-seat-for="'+esc(i.id)+'" title="silla del Consejo">'+seatOpts(i.seat||"")+'</select><span class="objective-badges">'+(cons?'<span class="objective-badge consejo">✦ Consejo</span>':'')+(i.tag?'<span class="objective-badge">#'+esc(i.tag)+'</span>':'')+'</span></div>'+
+    '<div class="objective-grid-cell" role="cell" data-label="Proyecto">'+projectHtml+(project.slug?'<span class="objective-secondary objective-mono">'+esc(project.slug)+'</span>':'')+'</div>'+
+    '<div class="objective-grid-cell" role="cell" data-label="Objetivo"><span class="objective-ref" title="ID técnico: '+esc(i.id)+'">'+esc(workRef(i))+'</span><span class="objective-primary">'+esc(i.title||"Sin título")+'</span><span class="objective-secondary">'+esc(voteSummary(i))+(hasMedia(i)?' · 🎬 Kit':'')+'</span></div>'+
+    '<div class="objective-grid-cell" role="cell" data-label="Estado"><span class="objective-state '+esc(st)+'">'+esc(stateLabel)+'</span></div>'+
+    '<div class="objective-grid-cell objective-mono" role="cell" data-label="Fecha"><span class="objective-primary">'+esc(fecha(i.created_at)||"—")+'</span><span class="objective-secondary">Creado</span><input class="objective-date" type="date" data-date-for="'+esc(i.id)+'" value="'+esc(planned)+'" title="Día planificado" aria-label="Día planificado de '+esc(i.title||"objetivo")+'"></div>'+
+    '<div class="objective-grid-cell" role="cell" data-label="Acciones"><span class="objective-actions">'+
       (i.mission_id?'<a class="flt" href="/tareas?mission='+encodeURIComponent(i.mission_id)+'" title="Ver misión · ID técnico '+esc(i.mission_id)+'">ver misión ↗</a>':
-        (pend?'<a class="flt pend" href="/decisiones" title="Ventana de decisión abierta (3 min)">⏳ decisión ↗</a>':
-        (!isMis?'<button class="mis" data-mis="'+esc(i.id)+'" title="Abrir ventana de decisión (3 min · 3 opciones)">→ misión</button>':'')))+
-      (hasReview(i)?'<button class="delibtog" data-delib="'+esc(i.id)+'" title="El Consejo delibera">⚖️</button>':'')+
-      '<button class="del" data-rm="'+esc(i.id)+'" title="Eliminar para siempre">✕</button>'+
-    '</span>'+
-  '</div>'+
-  (hasReview(i)?'<div class="ldelib" data-delib-for="'+esc(i.id)+'">'+reviewInner(i)+'</div>':'');
+        (pend?'<a class="flt pend" href="/decisiones" title="Ventana de decisión abierta (3 min)">⏳ decisión ↗</a>':''))+
+      (!isMis&&NEXT[st]?'<button data-adv="'+esc(i.id)+'" title="pasar a '+STLABEL[NEXT[st]]+'">→ '+STLABEL[NEXT[st]]+'</button>':'')+
+      (!isMis&&!pend?'<button class="mis" data-mis="'+esc(i.id)+'" title="Abrir ventana de decisión (3 min · 3 opciones)">→ misión</button>':'')+
+      (!isMis&&st!=="descartada"&&st!=="eliminada"?'<button data-del="'+esc(i.id)+'" title="descartar">⊘ descartar</button>':'')+
+      (showDelib?'<button class="guion" data-guion="'+esc(i.id)+'" title="Copiar guion (idea + deliberación) para NotebookLM">⧉ guion</button>':'')+
+      '<button class="del" data-rm="'+esc(i.id)+'" title="Eliminar para siempre">✕</button></span></div>'+
+    objectiveDetail(i,st)+'</div>';
 }
 function render(){
   const day=$("#boardDay").value||TODAY;
@@ -542,15 +571,10 @@ function render(){
   { const cs=$("#consejoSum"); if(cs) cs.textContent="8 sillas · "+scoped.length+" idea"+(scoped.length===1?"":"s"); }
   $("#empty").style.display=(scoped.length&&!list.length)?"none":(scoped.length?"none":"block");
   const node=$("#grid");
-  if(VIEW==="list"){ node.className="list"; node.innerHTML=list.map(listRow).join(""); refreshBulk(); return; }
-  node.className="grid"; node.innerHTML=list.map(card).join("");
+  const sheet=$("#objectivesGrid");
+  if(sheet){ sheet.classList.toggle("density-compact",VIEW==="list"); sheet.classList.toggle("density-comfortable",VIEW!=="list"); }
+  node.className="objective-grid-body"; node.innerHTML=list.map(objectiveRow).join("");
   refreshBulk();
-  // Marca los bodies que realmente desbordan las 3 líneas → muestran el cue "⌄ más".
-  // Los cortos se quedan sin cue ni cursor confuso.
-  node.querySelectorAll(".idea .body").forEach(b=>{
-    if(b.scrollHeight>b.clientHeight+2) b.classList.add("clampable");
-    else b.style.cursor="default";
-  });
 }
 if(window.addEventListener)window.addEventListener("yk:project-change",event=>{
   PROJECT_SCOPE=event.detail&&event.detail.project_id||null;

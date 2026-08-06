@@ -27,9 +27,14 @@ for (const [name, SRC] of [['objetivos.html', OBJ], ['ideas.html', IDE]]) {
     assert.ok(SRC.includes('function projChip(slug,cls){'), 'define projChip');
     assert.ok(SRC.includes('target="_blank" rel="noopener"'), 'la web abre en pestaña nueva');
     assert.ok(SRC.includes('function projUrl(web){'), 'normaliza la web a URL absoluta');
-    // chip en ficha (card) y en fila (listRow)
-    assert.ok(SRC.includes('projChip(i.project,"pchip")'), 'chip en la ficha');
-    assert.ok(SRC.includes('projChip(i.project,"lproj")'), 'chip en el listado');
+    if (name === 'objetivos.html') {
+      assert.ok(SRC.includes('function objectiveProject(i){'), 'la cuadrícula resuelve el proyecto de cada objetivo');
+      assert.ok(SRC.includes('objective-project-link'), 'la celda Proyecto conserva el enlace del censo');
+    } else {
+      // /ideas conserva sus dos vistas históricas.
+      assert.ok(SRC.includes('projChip(i.project,"pchip")'), 'chip en la ficha');
+      assert.ok(SRC.includes('projChip(i.project,"lproj")'), 'chip en el listado');
+    }
   });
 
   test(`${name}: el POST /ideas envía project y limpia el select tras guardar`, () => {
