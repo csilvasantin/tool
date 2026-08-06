@@ -5,6 +5,7 @@ import {readFile} from "node:fs/promises";
 
 const source=await readFile(new URL("./yk-decisiones-grid.js",import.meta.url),"utf8");
 const page=await readFile(new URL("./decisiones.html",import.meta.url),"utf8");
+const deploy=await readFile(new URL("./deploy.mjs",import.meta.url),"utf8");
 const keys=["agent","project","decision","result","state","time"];
 
 function control(kind,key){
@@ -76,9 +77,17 @@ test("teclado, Shift y doble clic ajustan o restauran sin perder accesibilidad",
 
 test("el módulo observa rerender, conserva foco y no altera el responsive de A",()=>{
   assert.match(source,/new root\.MutationObserver\(scheduleRefresh\)/);
+  assert.match(source,/if\(arrow&&arrow\.textContent!==mark\)arrow\.textContent=mark/,"el observer no se realimenta al reescribir la misma flecha");
   assert.match(source,/var restore=!!lastFocus&&\(!active\|\|active===doc\.body\);apply\(restore\)/);
   assert.match(source,/restoreFocus\(\)/);
   assert.match(source,/@media\(max-width:720px\)\{\.decision-col-resize/);
   assert.doesNotMatch(source,/\.decision-grid-row\{[^}]*min-width/);
   assert.match(source,/button\.dataset\.decisionSort=key[\s\S]*cell\.appendChild\(button\)[\s\S]*cell\.appendChild\(handle\)/,"botón y handle son hermanos");
+});
+
+test("el deploy cache-bustea renderer y controles de decisiones",()=>{
+  assert.match(deploy,/\/yk-decisions\\\.js/);
+  assert.match(deploy,/\/yk-decisiones-grid\\\.js/);
+  assert.match(deploy,/"\/yk-decisions\.js\?v=" \+ stamp/);
+  assert.match(deploy,/"\/yk-decisiones-grid\.js\?v=" \+ stamp/);
 });

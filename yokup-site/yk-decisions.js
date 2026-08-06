@@ -297,6 +297,7 @@
       return '<li class="' + classes + '"><span aria-hidden="true">' + esc(mark) + '</span><span>' + esc(option) + '</span></li>';
     }).join("");
     var meta = [];
+    meta.push('<span><b>ID técnico:</b> ' + esc(d.id || "—") + '</span>');
     if (d.mission) meta.push('<span><b>Misión:</b> ' + esc(d.mission) + '</span>');
     if (d.url) {
       var rawUrl = String(d.url).trim(), safeUrl = /^https?:\/\//i.test(rawUrl);
@@ -304,6 +305,12 @@
     }
     if (d.batch_id) meta.push('<span><b>Tanda:</b> ' + esc(d.batch_id) + '</span>');
     if (d.parent_decision) meta.push('<span><b>Decisión anterior:</b> ' + esc(d.parent_decision) + '</span>');
+    if (d.project_id) meta.push('<span><b>Proyecto ID:</b> ' + esc(d.project_id) + '</span>');
+    if (d.project_slug) meta.push('<span><b>Proyecto slug:</b> ' + esc(d.project_slug) + '</span>');
+    if (d.created_at) meta.push('<span><b>Creada:</b> <time datetime="' + esc(new Date(gridEpoch(d.created_at)).toISOString()) + '">' + esc(when(gridEpoch(d.created_at))) + '</time></span>');
+    if (d.deadline) meta.push('<span><b>Límite:</b> <time datetime="' + esc(new Date(gridEpoch(d.deadline)).toISOString()) + '">' + esc(when(gridEpoch(d.deadline))) + '</time></span>');
+    if (d.decided_at) meta.push('<span><b>Cerrada:</b> <time datetime="' + esc(new Date(gridEpoch(d.decided_at)).toISOString()) + '">' + esc(when(gridEpoch(d.decided_at))) + '</time></span>');
+    if (d.secondsLeft != null) meta.push('<span><b>Saldo registrado:</b> ' + esc(d.secondsLeft) + ' s</span>');
     if (d.batch) {
       var active = (d.batch.items || []).filter(function (item) { return item.status === "active"; })[0];
       var queued = (d.batch.items || []).filter(function (item) { return item.status === "queued"; });

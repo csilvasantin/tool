@@ -5,6 +5,7 @@ import {readFile} from 'node:fs/promises';
 
 const source = await readFile(new URL('./yk-decisions.js', import.meta.url), 'utf8');
 const page = await readFile(new URL('./decisiones.html', import.meta.url), 'utf8');
+const equipo = await readFile(new URL('./equipo.html', import.meta.url), 'utf8');
 const context = vm.createContext({window: {}});
 vm.runInContext(
   `${source}\nglobalThis.renderDecisionGridRows = window.YkDecisions._test.renderDecisionGridRows; globalThis.decisionGridDuration = window.YkDecisions._test.durationText;`,
@@ -80,6 +81,29 @@ test('el detalle de cada fila conserva todas las opciones y metadatos operativos
   assert.match(html, /espera criterio/);
 });
 
+test('la fila conserva los 23 campos del contrato API sin perder datos al compactar', () => {
+  const record = decision('decided', {
+    id:'DEC-23-campos', display_ref:'REF-23', agent:'Agente23', machine:'Maquina23',
+    surface:'cli', project:'Proyecto23', project_id:'pid-23', project_slug:'slug-23',
+    mission:'Mision23', url:'https://yokup.com/decisiones/23', question:'Pregunta23',
+    options:['Opcion23-A','Opcion23-B'], recommended:1, chosen:0, chosen_by:'Carlos23',
+    parent_decision:'parent-23', batch_id:'batch-23', secondsLeft:23,
+    created_at:1_700_000_000_000, deadline:1_700_000_300_000, decided_at:1_700_000_180_000,
+    batch:{status:'paused', pause_reason:'Motivo23', items:[{status:'active',title:'Activa23'},{status:'queued',title:'Cola23'}]}
+  });
+  const html = context.renderDecisionGridRows([record]);
+  for (const visible of [
+    'DEC-23-campos','REF-23','Agente23','Maquina23','CLI','Proyecto23','pid-23','slug-23',
+    'Mision23','https://yokup.com/decisiones/23','Pregunta23','Opcion23-A','Opcion23-B','Carlos23',
+    'parent-23','batch-23','23 s','Motivo23','Activa23','Cola23','Hecha'
+  ]) assert.match(html, new RegExp(visible.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(html, /is-effective/); // chosen
+  assert.match(html, /is-recommended/); // recommended
+  assert.match(html, /Creada:[\s\S]*datetime="2023-11-14T22:13:20\.000Z"/);
+  assert.match(html, /Límite:[\s\S]*datetime="2023-11-14T22:18:20\.000Z"/);
+  assert.match(html, /Cerrada:[\s\S]*datetime="2023-11-14T22:16:20\.000Z"/);
+});
+
 test('decidida, vencida y cancelada se leen con resultados y badges inequívocos', () => {
   const html = context.renderDecisionGridRows([
     decision('decided'),
@@ -104,4 +128,21 @@ test('la hoja permite scroll horizontal y pasa a rótulos por celda en móvil', 
   assert.match(source, /\.decision-grid-cell:before\{content:attr\(data-label\)/);
   assert.match(source, /closedShown\.length \? renderDecisionGridRows\(closedShown\)/);
   assert.match(source, /list\.innerHTML = live\.length \? renderGroups\(live, null\)/);
+});
+
+test('/equipo y los relojes vivos conservan su renderer y actualización en tiempo real', () => {
+  assert.match(equipo, /YkDecisions\.mount\(\{worker:WORKER, onData:/);
+  assert.doesNotMatch(equipo, /yk-decisiones-grid|YkDecisionesGrid/);
+  assert.match(source, /function renderLive\(\) \{[\s\S]*decisions\.map\(function \(d\) \{ return card\(d\); \}\)/);
+  assert.match(source, /data-clock=\\"/);
+  assert.match(source, /setInterval\(function \(\) \{ var refresh = false;[\s\S]*\}, 1000\)/);
+  assert.match(source, /querySelector\("\[data-clock='" \+ d\.id/);
+  assert.match(source, /querySelector\("\[data-fill='" \+ d\.id/);
+});
+
+test('filtros y rerender históricos siguen alimentando filas ordenables', () => {
+  assert.match(source, /var histStatus = \(filter && filter !== "pending"\) \? filter : null/);
+  assert.match(source, /closed\.filter\(function \(d\) \{ return d\.status === histStatus; \}\)/);
+  assert.match(source, /histList\.innerHTML = closedShown\.length \? renderDecisionGridRows\(closedShown\)/);
+  assert.match(source, /histSig = null; paintChips\(\); renderFull\(\)/);
 });

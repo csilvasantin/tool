@@ -83,6 +83,8 @@ async function stampFrameReferences(version, rootUrl) {
       // JS nuevo y la hoja vieja—. Se sella igual que el resto (2026-08-05).
       .replace(/\/yk-frame\.css(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-frame.css?v=" + stamp)
       .replace(/\/yk-agent-identity\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-agent-identity.js?v=" + stamp)
+      .replace(/\/yk-decisions\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-decisions.js?v=" + stamp)
+      .replace(/\/yk-decisiones-grid\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-decisiones-grid.js?v=" + stamp)
       .replace(/\/yk-informes-sort\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-informes-sort.js?v=" + stamp)
       .replace(/\/yk-informes-columns\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-informes-columns.js?v=" + stamp)
       .replace(/\/yk-informes-groups\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-informes-groups.js?v=" + stamp)
