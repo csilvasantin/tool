@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="/yk-frame.css?v=r17">
 <link rel="stylesheet" href="/yk-misiones.css?v=r34">
 <link rel="stylesheet" href="/yk-cabezal.css?v=r2">
+<script src="/yk-tareas-columns.js?v=r1"></script>
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -29,8 +30,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .tfday[hidden]{display:none}
 /* Una misión = una fila completa, igual que en /misiones. El árbol accionable
    queda debajo y no altera la identidad mission_id + code de cada chip. */
-.taskboard{overflow:visible}
-.taskmission{border-bottom:1px solid var(--line);background:var(--card)}
+.taskboard{overflow:auto}
+.taskmission{width:max-content;min-width:100%;border-bottom:1px solid var(--line);background:var(--card)}
 .taskmission:last-child{border-bottom:0}
 .taskmission>.tk{border-bottom:0}
 .taskdetail{padding:10px 16px 14px 32px;border-top:1px dashed var(--line);background:rgba(120,243,255,.018)}
@@ -39,7 +40,13 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .taskfold:hover,.taskfold:focus-visible{color:var(--brand);border-color:var(--line2);outline:none}
 .taskfold .caret{transition:transform .15s}.taskmission.open .taskfold .caret{transform:rotate(90deg)}
 /* AGENTE/PLATAFORMA primero; los mismos seis carriles legibles de /misiones. */
-.hd.project-id-layout{grid-template-columns:8px minmax(140px,var(--c-who,170px)) minmax(150px,var(--c-id,170px)) minmax(230px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,250px)) minmax(0,var(--c-est,124px))}
+.hd.project-id-layout{width:max-content;min-width:100%;grid-template-columns:8px var(--c-who,170px) var(--c-id,170px) var(--c-mis,296px) var(--c-ord,250px) var(--c-est,124px)}
+.taskboard .tk .rz{display:none}
+.task-col-head{position:relative;min-width:0;display:flex;align-items:center;justify-content:center;padding:0 15px 0 8px}
+.task-col-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-col-resize{position:absolute;z-index:4;top:-5px;right:-8px;width:16px;height:29px;cursor:col-resize;touch-action:none;outline:none}
+.task-col-resize::before{content:"";position:absolute;top:4px;bottom:4px;left:7px;width:1px;background:var(--line2);transition:background .12s,box-shadow .12s}
+.task-col-resize:hover::before,.task-col-resize:focus-visible::before,.task-col-resize.dragging::before{background:var(--brand);box-shadow:0 0 6px rgba(120,243,255,.7)}
 .project-id-cell{padding-right:10px}.project-id-main{position:relative}
 .project-id-layout .mission-col{padding-block:3px}
 .project-id-layout .mission-col .subj .t{-webkit-line-clamp:2;line-clamp:2}
@@ -51,8 +58,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 /* El conmutador histórico sigue siendo útil: Fichas conserva el detalle plegable;
    Lista deja sólo las filas completas, sin recuperar la antigua parrilla. */
 html[data-yk-view="list"] .taskfold,html[data-yk-view="list"] .taskdetail{display:none}
-@media(max-width:1100px){.hd.project-id-layout{grid-template-columns:8px minmax(130px,var(--c-who,150px)) minmax(142px,var(--c-id,158px)) minmax(210px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,230px)) minmax(0,var(--c-est,112px))}}
-@media(max-width:720px){.hd.project-id-layout{grid-template-columns:8px 1fr}.taskdetail{padding:9px 12px 13px 20px}.taskfold{margin-left:20px}.taskfold,.abc-task,.focobar a{min-height:44px}.tf{min-height:44px}:is(.chip,.tkopen,.substog){display:inline-flex;min-width:44px;min-height:44px;align-items:center;justify-content:center}}
+@media(max-width:1100px){.task-col-resize{width:18px;right:-9px}.task-col-resize::before{left:8px}}
+@media(max-width:720px){.hd.project-id-layout{grid-template-columns:8px 1fr}.hd.project-id-layout,.taskmission{width:auto;min-width:0}.taskboard{overflow-x:hidden}.taskdetail{padding:9px 12px 13px 20px}.taskfold{margin-left:20px}.taskfold,.abc-task,.focobar a{min-height:44px}.tf{min-height:44px}:is(.chip,.tkopen,.substog){display:inline-flex;min-width:44px;min-height:44px;align-items:center;justify-content:center}}
 /* Foco de una misión (964): breadcrumb de vuelta a la lista completa. */
 .focobar{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11px}
 .focobar a{color:var(--brand);text-decoration:none;border:1px solid var(--line2);border-radius:8px;padding:6px 11px}.focobar a:hover{background:rgba(120,243,255,.08)}
@@ -111,6 +118,13 @@ const esc=YkMisiones.esc;
 const OPEN_CARDS=new Set((()=>{try{return JSON.parse(localStorage.getItem("yk_tareas_open")||"[]")}catch(e){return[]}})());
 function saveOpenCards(){try{localStorage.setItem("yk_tareas_open",JSON.stringify([...OPEN_CARDS]))}catch(e){}}
 YkMisiones.init({worker:WORKER, columnMode:"tasks", projectIdLayout:true});
+const TASK_COLUMNS=YkTareasColumns.mount($("grid"),{
+  who:{label:"Agente/Plataforma",default:170,min:120,max:340},
+  id:{label:"Proyecto",default:170,min:130,max:340},
+  mis:{label:"Misión",default:296,min:220,max:640},
+  ord:{label:"Tareas A·B·C",default:250,min:210,max:520},
+  est:{label:"Estado / acciones",default:124,min:104,max:300}
+});
 // FOCO desde la URL (964): /tareas?mission=FLT-XXX muestra SOLO esa misión (con su
 // ficha ABIERTA aunque el resto vaya plegado), y #a / #b2 hace scroll y la RESALTA.
 // Enlace compartible que abre justo donde toca, en las dos vistas.
@@ -233,11 +247,13 @@ const TASK_SORT_COLUMNS=[
   ["agent","Agente/Plataforma"],["project","Proyecto"],["mission","Misión"],
   ["tasks","Tareas A·B·C"],["state","Estado / acciones"]
 ];
+const TASK_RESIZE_KEY={agent:"who",project:"id",mission:"mis",tasks:"ord",state:"est"};
 function taskSortHead(key,label){
   const active=TASK_SORT.key===key,aria=active?(TASK_SORT.dir==="asc"?"ascending":"descending"):"none";
   const arrow=active?(TASK_SORT.dir==="asc"?"▲":"▼"):"↕";
   const next=active&&TASK_SORT.dir==="asc"?"descendente":"ascendente";
-  return '<div class="task-sort-cell" role="columnheader" aria-sort="'+aria+'"><button type="button" class="task-sort-head" data-task-sort="'+key+'" aria-label="Ordenar por '+esc(label)+' en orden '+next+'"><span>'+esc(label)+'</span><span class="task-sort-arrow" aria-hidden="true">'+arrow+'</span></button></div>';
+  const resize=TASK_RESIZE_KEY[key];
+  return '<div class="task-sort-cell task-col-head" role="columnheader" aria-sort="'+aria+'"><button type="button" class="task-sort-head" data-task-sort="'+key+'" aria-label="Ordenar por '+esc(label)+' en orden '+next+'"><span class="task-col-label">'+esc(label)+'</span><span class="task-sort-arrow" aria-hidden="true">'+arrow+'</span></button><span class="task-col-resize" data-task-resize="'+resize+'" role="separator" aria-orientation="vertical" tabindex="0"></span></div>';
 }
 function sortedVisibleGroups(){return YkTareasSort.sort(visibles(),TASK_SORT.key,TASK_SORT.dir);}
 function render(){
@@ -269,6 +285,7 @@ function render(){
       <div class="taskdetail" id="tasks-${esc(g.mission.id)}"${_op?'':' hidden'}><div class="tree">${YkMisiones.stepsHtml(g.tasks)}</div></div>
     </section>`;
   }).join("");
+  TASK_COLUMNS.apply();
   box.querySelectorAll(".task-sort-head").forEach(button=>{button.onclick=()=>{
     TASK_SORT=YkTareasSort.next(TASK_SORT,button.dataset.taskSort);saveTaskSort();render();
     const active=box.querySelector('.task-sort-head[data-task-sort="'+button.dataset.taskSort+'"]');if(active)active.focus();
