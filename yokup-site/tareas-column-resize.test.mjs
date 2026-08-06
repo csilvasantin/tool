@@ -32,12 +32,10 @@ function harness(saved={}){
 }
 
 test("los cinco cabezales tienen un separador propio y separado del futuro sort",()=>{
-  assert.match(html,/const _columnHead=/);
-  for(const key of ["who","id","mis","ord","est"]){
-    assert.match(html,new RegExp('_columnHead\\("'+key+'","'));
-  }
-  assert.match(html,/class="task-col-label">'\+label\+'<\/span><span class="task-col-resize"/);
-  assert.match(html,/data-task-resize="'\+key\+'" role="separator" aria-orientation="vertical" tabindex="0"/);
+  assert.match(html,/const TASK_RESIZE_KEY=\{agent:"who",project:"id",mission:"mis",tasks:"ord",state:"est"\}/);
+  assert.match(html,/class="task-sort-cell task-col-head" role="columnheader" aria-sort=/);
+  assert.match(html,/class="task-sort-head" data-task-sort="'\+key\+'"/);
+  assert.match(html,/class="task-col-resize" data-task-resize="'\+resize\+'" role="separator" aria-orientation="vertical" tabindex="0"/);
   assert.doesNotMatch(html,/data-task-resize[^>]*data-sort/);
 });
 
@@ -75,6 +73,7 @@ test("doble clic restaura y el tablero mantiene scroll y colapso responsive",()=
   assert.match(html,/\.taskboard\{overflow:auto\}/);
   assert.match(html,/\.hd\.project-id-layout\{width:max-content;min-width:100%;grid-template-columns:8px var\(--c-who/);
   assert.match(html,/\.task-col-resize\{[^}]*touch-action:none/);
-  assert.match(html,/@media\(max-width:720px\)\{\.hd\.project-id-layout\{grid-template-columns:8px 1fr\}\.hd\.project-id-layout\{width:auto;min-width:0\}\.taskboard\{overflow-x:hidden\}/);
+  assert.match(html,/@media\(max-width:720px\)\{\.hd\.project-id-layout\{grid-template-columns:8px 1fr\}\.hd\.project-id-layout,\.taskmission\{width:auto;min-width:0\}\.taskboard\{overflow-x:hidden\}/);
   assert.match(html,/\.taskboard \.tk \.rz\{display:none\}/);
+  assert.match(html,/\.taskmission\{width:max-content;min-width:100%/);
 });
