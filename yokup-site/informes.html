@@ -18,7 +18,7 @@
 <script src="/yk-agent-identity.js?v=1"></script>
 <script src="/yk-informes-sort.js?v=r1"></script>
 <script src="/yk-informes-columns.js?v=r1"></script>
-<script src="/yk-informes-groups.js?v=r1"></script>
+<script src="/yk-informes-groups.js?v=r2"></script>
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -67,6 +67,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .family-toggle:focus-visible{outline:2px solid var(--brand);outline-offset:-3px}
 .family-chevron{color:var(--brand);transition:transform .15s}.family-toggle[aria-expanded="false"] .family-chevron{transform:rotate(-90deg)}
 .family-name{color:var(--brand);letter-spacing:.035em}.family-count{color:var(--dim);font-weight:400}
+.family-action{margin-left:auto;color:var(--mut);font-weight:400;font-size:9.5px;letter-spacing:.045em;text-transform:uppercase}
+.family-toggle:hover .family-action,.family-toggle:focus-visible .family-action{color:var(--brand)}
 .family-rows[hidden]{display:none}
 .gc{padding:12px 13px;border-left:1px solid var(--line);min-width:0;display:flex;flex-direction:column;justify-content:center;gap:5px}
 .gc:first-child{border-left:0}
@@ -232,6 +234,7 @@ let ALL=[], MLAST={}, DFILTER={mode:"hoy", day:""}, PROJECT_SCOPE=null, PROJECT_
 let SORT={key:"tiempo",dir:"desc"};
 let LOAD_STATE="loading", LOAD_INFLIGHT=null, LOAD_ABORT=null, LOAD_SEQ=0;
 let PAGE={cursor:null,hasMore:false,total:null,legacy:false,legacyRest:[]};
+let RENDERED_GROUPS=[];
 const _ms=v=>{v=+v||0;return v>4102444800?v:v*1000;};
 const _pad=n=>(n<10?"0":"")+n;
 const _ymd=d=>d.getFullYear()+"-"+_pad(d.getMonth()+1)+"-"+_pad(d.getDate());
@@ -282,7 +285,8 @@ function updateMissionLast(rows){
 function updatePageState(){
   const status=$("pageStatus"),button=$("loadMore");if(!status||!button)return;
   const total=Number.isFinite(Number(PAGE.total))?Number(PAGE.total):null;
-  status.textContent=ALL.length+" cargados"+(total==null?"":" de "+total);
+  const visible=YkInformesGroups.visibleCount(RENDERED_GROUPS,COLLAPSED_FAMILIES),loaded=ALL.length;
+  status.textContent=visible+" visibles · "+loaded+" cargados"+(total==null||total===loaded?"":" de "+total);
   button.hidden=!PAGE.hasMore;button.disabled=!!LOAD_INFLIGHT;
   button.textContent=LOAD_INFLIGHT?"Cargando…":"Cargar más";
 }
@@ -437,23 +441,26 @@ function missionPresentation(t){
   const readable=/^FLT-\d+$/i.test(id);
   return {id,primary:readable?id:(ref||id),secondary:readable?ref:"",copy:!readable&&!!id};
 }
-const FAMILY_COLLAPSE_KEY="yokup.informes.collapsedFamilies.v1";
-let COLLAPSED_FAMILIES=(()=>{try{return JSON.parse(localStorage.getItem(FAMILY_COLLAPSE_KEY)||"{}")||{};}catch(_){return {};}})();
+// Plegado efímero: cada entrada a /informes empieza abierta. Persistirlo en
+// localStorage dejó a usuarios con «7 cargados» y cero filas durante días.
+let COLLAPSED_FAMILIES={};
 const ROLE_LABEL={main:"principal",sub:"subagente",infra:"infraagente"};
 function familyDomId(key){let h=2166136261;for(const c of String(key)){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return "family-"+(h>>>0).toString(36);}
-function saveCollapsed(){try{localStorage.setItem(FAMILY_COLLAPSE_KEY,JSON.stringify(COLLAPSED_FAMILIES));}catch(_){}}
+function familyToggleLabel(name,count,expanded){return (expanded?"Ocultar ":"Mostrar ")+count+" informe"+(count===1?"":"s")+" de "+name;}
 function render(list){
   const box=$("reps");
   box.setAttribute("aria-busy","false");
   if(!list.length){
+    RENDERED_GROUPS=[];
     const lbl=filterLabel();
     box.innerHTML=headHTML()+(lbl
       ? '<div class="empty"><b>Sin informes '+esc(lbl)+'</b>No hay partes con esa fecha. Prueba otro día o pulsa <b style="display:inline">Todas</b>.</div>'
       : '<div class="empty"><b>Sin informes todavía</b>Los infraagentes reportan aquí — en cuanto una tarea tenga parte redactado, aparecerá en esta lista.</div>');
     COLUMN_RESIZE.apply();
-    return;
+    updatePageState();return;
   }
-  const groups=YkInformesGroups.group(list,window.ykAgentIdentity);
+  const groups=YkInformesGroups.ensureVisible(YkInformesGroups.group(list,window.ykAgentIdentity),COLLAPSED_FAMILIES);
+  RENDERED_GROUPS=groups;
   box.innerHTML=headHTML()+groups.map(group=>{
     const familyId=familyDomId(group.key),collapsed=COLLAPSED_FAMILIES[group.key]===true;
     const rows=group.rows.map(t=>{
@@ -495,17 +502,21 @@ function render(list){
     </div>`;
     }).join("");
     return `<section class="family-group" role="rowgroup" data-family="${esc(group.key)}" aria-labelledby="${familyId}-label">
-      <div class="family-summary" role="row"><div role="cell" aria-colspan="7"><button class="family-toggle" type="button" aria-expanded="${collapsed?"false":"true"}" aria-controls="${familyId}" data-family-toggle="${esc(group.key)}"><span class="family-chevron" aria-hidden="true">▾</span><span class="family-name" id="${familyId}-label">${esc(group.name)}</span><span class="family-count">${group.rows.length} informe${group.rows.length===1?"":"s"}</span></button></div></div>
+      <div class="family-summary" role="row"><div role="cell" aria-colspan="7"><button class="family-toggle" type="button" aria-expanded="${collapsed?"false":"true"}" aria-controls="${familyId}" aria-label="${esc(familyToggleLabel(group.name,group.rows.length,!collapsed))}" data-family-toggle="${esc(group.key)}" data-family-name="${esc(group.name)}" data-family-count="${group.rows.length}"><span class="family-chevron" aria-hidden="true">▾</span><span class="family-name" id="${familyId}-label">${esc(group.name)}</span><span class="family-count">${group.rows.length} informe${group.rows.length===1?"":"s"}</span><span class="family-action">${collapsed?"Mostrar informes":"Ocultar informes"}</span></button></div></div>
       <div class="family-rows" id="${familyId}"${collapsed?" hidden":""}>${rows}</div></section>`;
   }).join("");
-  COLUMN_RESIZE.apply();
+  COLUMN_RESIZE.apply();updatePageState();
 }
 $('reps').addEventListener("click",e=>{
   const button=e.target.closest&&e.target.closest("[data-family-toggle]");if(!button)return;
   const key=button.dataset.familyToggle,rows=$(button.getAttribute("aria-controls"));
   const expanded=button.getAttribute("aria-expanded")!=="false";
   button.setAttribute("aria-expanded",expanded?"false":"true");if(rows)rows.hidden=expanded;
-  if(expanded)COLLAPSED_FAMILIES[key]=true;else delete COLLAPSED_FAMILIES[key];saveCollapsed();
+  if(expanded)COLLAPSED_FAMILIES[key]=true;else delete COLLAPSED_FAMILIES[key];
+  const nextExpanded=!expanded,count=Number(button.dataset.familyCount)||0,name=button.dataset.familyName||"familia";
+  button.setAttribute("aria-label",familyToggleLabel(name,count,nextExpanded));
+  const action=button.querySelector(".family-action");if(action)action.textContent=nextExpanded?"Ocultar informes":"Mostrar informes";
+  updatePageState();
 });
 // Los ids opacos siguen disponibles sin ocupar el título principal ni truncarse.
 $("reps").addEventListener("click",async e=>{

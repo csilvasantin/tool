@@ -50,14 +50,31 @@ test("agrupar conserva orden de familias y filas producido por el sorter",()=>{
   assert.deepEqual(Array.from(groups[0].rows,r=>r.id),["b2","b1"]);
 });
 
-test("grupos nacen abiertos, se colapsan con botón accesible y persisten",()=>{
+test("grupos nacen abiertos y el plegado es accesible pero no queda stale al volver",()=>{
   assert.match(html,/class="family-toggle"[^>]*aria-expanded="\$\{collapsed\?"false":"true"\}"[^>]*aria-controls=/);
   assert.match(html,/class="family-rows"[^>]*\$\{collapsed\?" hidden":""\}/);
-  assert.match(html,/FAMILY_COLLAPSE_KEY="yokup\.informes\.collapsedFamilies\.v1"/);
-  assert.match(html,/localStorage\.setItem\(FAMILY_COLLAPSE_KEY,JSON\.stringify\(COLLAPSED_FAMILIES\)\)/);
+  assert.match(html,/let COLLAPSED_FAMILIES=\{\}/);
+  assert.doesNotMatch(html,/collapsedFamilies|localStorage\.setItem/);
+  assert.match(html,/aria-label="\$\{esc\(familyToggleLabel/);
+  assert.match(html,/class="family-action"/);
   assert.match(html,/button\.setAttribute\("aria-expanded",expanded\?"false":"true"\)/);
   assert.match(html,/if\(expanded\)COLLAPSED_FAMILIES\[key\]=true;else delete COLLAPSED_FAMILIES\[key\]/);
+  assert.match(html,/button\.setAttribute\("aria-label",familyToggleLabel/);
   assert.match(html,/class="role-badge role-\$\{esc\(role\)\}"/);
+});
+
+test("si todos los grupos con resultados llegan plegados, abre el primero",()=>{
+  const groups=[{key:"oraculo",rows:Array(7).fill({})},{key:"neo",rows:[{}]}],collapsed={oraculo:true,neo:true};
+  api.ensureVisible(groups,collapsed);
+  assert.equal(collapsed.oraculo,undefined);
+  assert.equal(collapsed.neo,true);
+  assert.equal(api.visibleCount(groups,collapsed),7);
+});
+
+test("contador visible distingue filas mostradas de informes cargados",()=>{
+  assert.match(html,/visible\+" visibles · "\+loaded\+" cargados"/);
+  assert.match(html,/YkInformesGroups\.visibleCount\(RENDERED_GROUPS,COLLAPSED_FAMILIES\)/);
+  assert.match(html,/RENDERED_GROUPS=groups/);
 });
 
 test("todas las miniaturas difieren carga y decodificación",()=>{

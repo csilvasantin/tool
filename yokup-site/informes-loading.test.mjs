@@ -46,7 +46,7 @@ test("proyecto temprano conserva loading; datos, deuda y avatar no se serializan
     window, document, fetch, console, Date, Promise, encodeURIComponent, ykAvatar:window.ykAvatar,
     YkInformesSort:{sort:(rows)=>rows},
     YkInformesColumns:{mount:()=>({apply(){}})},
-    YkInformesGroups:{group:(rows)=>[{key:"test",name:"Test",rows}]},
+    YkInformesGroups:{group:(rows)=>[{key:"test",name:"Test",rows}],ensureVisible:(groups)=>groups,visibleCount:(groups)=>groups.reduce((n,g)=>n+g.rows.length,0)},
     AbortController,
     setInterval(fn){ intervals.push(fn); return intervals.length; }, setTimeout(){},
   });

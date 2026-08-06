@@ -28,5 +28,18 @@
     });
     return groups;
   }
-  root.YkInformesGroups={group:group,identityFor:identityFor};
+  // Un filtro/sort puede dejar únicamente familias que el usuario plegó antes.
+  // Al repintar garantizamos una familia abierta: nunca se confunde "7 cargados"
+  // con una tabla vacía. Sólo modifica el estado efímero de esta visita.
+  function ensureVisible(groups,collapsed){
+    var populated=(groups||[]).filter(function(item){return item&&item.rows&&item.rows.length;});
+    if(populated.length&&populated.every(function(item){return collapsed[item.key]===true;}))delete collapsed[populated[0].key];
+    return groups;
+  }
+  function visibleCount(groups,collapsed){
+    return (groups||[]).reduce(function(total,item){
+      return total+(collapsed[item.key]===true?0:(item.rows||[]).length);
+    },0);
+  }
+  root.YkInformesGroups={group:group,identityFor:identityFor,ensureVisible:ensureVisible,visibleCount:visibleCount};
 })(typeof window!=="undefined"?window:globalThis);

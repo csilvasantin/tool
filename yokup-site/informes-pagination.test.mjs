@@ -21,7 +21,7 @@ function setup(taskResponses){
   const document={getElementById:id=>elements[id],addEventListener(){},querySelector(){return null;}};
   const context=vm.createContext({window,document,fetch,Date,Promise,AbortController,encodeURIComponent,console,ykAvatar:window.ykAvatar,
     YkInformesSort:{sort:rows=>rows},YkInformesColumns:{mount:()=>({apply(){}})},
-    YkInformesGroups:{group:rows=>[{key:"family",name:"Familia",rows:rows.map(r=>({...r,_executor:r.executor,_agent_role:r.role}))}]},
+    YkInformesGroups:{group:rows=>[{key:"family",name:"Familia",rows:rows.map(r=>({...r,_executor:r.executor,_agent_role:r.role}))}],ensureVisible:groups=>groups,visibleCount:groups=>groups.reduce((n,g)=>n+g.rows.length,0)},
     setInterval:fn=>{intervals.push(fn);},setTimeout(){},localStorage:{getItem(){return null;},setItem(){}}});
   vm.runInContext(main,context);
   listeners["yk:project-change"]({detail:{project_id:null,ready:true}});
@@ -35,7 +35,7 @@ test("primera tanda pide 30, fechas, total y expone cursor para Cargar más",asy
   assert.match(h.calls[0],/&updated_from=\d+&updated_to=\d+/);
   assert.match(h.calls[0],/&include_total=1/);
   assert.equal(vm.runInContext("ALL.length",h.context),30);
-  assert.equal(h.elements.pageStatus.textContent,"30 cargados de 61");
+  assert.equal(h.elements.pageStatus.textContent,"30 visibles · 30 cargados de 61");
   assert.equal(h.elements.loadMore.hidden,false);
   assert.equal(h.elements.loadMore.textContent,"Cargar más");
 });
@@ -63,7 +63,7 @@ test("Cargar más añade 30, usa cursor y deduplica misión+tarea",async()=>{
   assert.doesNotMatch(taskCalls[1],/include_total/);
   assert.equal(vm.runInContext("ALL.length",h.context),59);
   assert.equal(vm.runInContext('ALL.find(x=>x.mission_id==="M0").report',h.context),"actualizado");
-  assert.equal(h.elements.pageStatus.textContent,"59 cargados de 59");
+  assert.equal(h.elements.pageStatus.textContent,"59 visibles · 59 cargados");
   assert.equal(h.elements.loadMore.hidden,true);
 });
 
