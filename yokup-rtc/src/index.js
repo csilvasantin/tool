@@ -7,6 +7,7 @@ import { AgentStopError, dispatchAgentStop, normalizeAgentStopTarget } from "./f
 import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, madridDayStart, sortDisplayRefCandidates } from "./display-ref.js";
 import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_NOVELTY_INSERT_SQL, MISSION_NOVELTY_RECENT_SQL, MISSION_NOVELTY_TABLE_SQL, missionNoveltyContract, missionNoveltyEventKey } from "./mission-novelty.js";
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
+import { resolveIdeaAuthor } from "./idea-author.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -49,8 +50,10 @@ async function hmac(env, data) {
   return crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));
 }
 __name(hmac, "hmac");
-async function makeSession(env, email) {
-  const p = b64uJson({ email, exp: Date.now() + 12 * 3600 * 1e3 });
+async function makeSession(env, email, name = "") {
+  // `name` procede del token Google ya verificado. Las sesiones antiguas sólo
+  // traen email y siguen siendo compatibles mediante un alias local sin dominio.
+  const p = b64uJson({ email, name:String(name || "").replace(/\s+/g, " ").trim().slice(0, 80), exp: Date.now() + 12 * 3600 * 1e3 });
   return p + "." + b64u(await hmac(env, p));
 }
 __name(makeSession, "makeSession");
@@ -484,7 +487,8 @@ __name(attachDisplayRefs, "attachDisplayRefs");
 const IDEA_SEATS = /* @__PURE__ */ new Set(["ceo", "cto", "coo", "cfo", "cco", "cdo", "cxo", "cso"]);
 // Asegura la tabla `ideas` y su columna `seat` (migración ADITIVA e idempotente:
 // las ideas viejas quedan con seat NULL y no se rompe nada). Se llama en cada ruta
-// /ideas* porque estas rutas NO pasan por ensureSchema (escritura sin login).
+// /ideas* porque estas rutas NO pasan por ensureSchema: el feed GET sigue siendo
+// público y el POST aplica aquí su autenticación específica de persona/agente.
 async function ensureIdeasSchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS ideas (id TEXT PRIMARY KEY, title TEXT, body TEXT, author TEXT, tag TEXT, status TEXT, created_at INTEGER, updated_at INTEGER, mission_id TEXT)");
   await env.DB.exec("ALTER TABLE ideas ADD COLUMN seat TEXT").catch(() => {});
@@ -502,6 +506,10 @@ async function ensureIdeasSchema(env) {
   // que se abrió al convertir la idea en misión. Traza el ciclo Idea→Decisión→Misión
   // sin abrir dos ventanas para la misma idea. Migración ADITIVA e idempotente.
   await env.DB.exec("ALTER TABLE ideas ADD COLUMN decision_id TEXT").catch(() => {});
+  // Procedencia interna de la firma. `author_identity` conserva el sujeto firmado
+  // para auditoría, pero nunca se incluye en el feed público de ideas.
+  await env.DB.exec("ALTER TABLE ideas ADD COLUMN author_source TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE ideas ADD COLUMN author_identity TEXT").catch(() => {});
 }
 __name(ensureIdeasSchema, "ensureIdeasSchema");
 
@@ -4246,7 +4254,7 @@ var index_default = {
       const email = String(g.email).toLowerCase();
       const wl = await whitelist();
       if (!wl.has(email)) return json({ ok: false, error: "no autorizado" }, 403);
-      return json({ ok: true, token: await makeSession(env, email), email });
+      return json({ ok: true, token: await makeSession(env, email, g.name || ""), email, name:String(g.name || "").trim() });
     }
     // Misiones de FLOTA: lectura pública (la consume admira.live/status, que no
     // pasa el gate Google) y sync idempotente. Van ANTES del perímetro.
@@ -5212,11 +5220,24 @@ var index_default = {
         const title = String(b.title || "").trim().slice(0, 200);
         if (!title) return json({ ok: false, error: "title requerido" }, 400);
         const body = String(b.body || "").trim().slice(0, 4000);
-        const author = String(b.author || "").trim().slice(0, 60);
         const tag = String(b.tag || "").trim().slice(0, 40);
         // Silla del Consejo (opcional). Un valor fuera de las 8 se ignora → seat "".
         const seatIn = String(b.seat || "").trim().toLowerCase();
         const seat = IDEA_SEATS.has(seatIn) ? seatIn : "";
+        // El navegador no es fuente de identidad: acceso.js ya firma esta petición
+        // con la sesión. Sólo un cliente agente con secreto dedicado (o FLEET_TOKEN
+        // legado) conserva `author` explícito. Un borrador del Consejo se verifica
+        // por su seat y se reconstruye desde COUNCIL, nunca desde texto del cliente.
+        const authHeader = req.headers.get("authorization") || "";
+        const bearer = authHeader.replace(/^Bearer\s+/i, "");
+        const session = await requireAuth(env, req);
+        const trustedAgent = !!bearer && [env.IDEAS_AGENT_TOKEN, env.FLEET_TOKEN].filter(Boolean).some((token) => bearer === token);
+        const council = session && tag.toLowerCase() === "consejo" && seat && COUNCIL[seat]
+          ? COUNCIL[seat].role + " · " + COUNCIL[seat].alias : "";
+        const actor = resolveIdeaAuthor({ session, explicitAuthor:b.author, trustedAgent,
+          councilAuthor:council, councilSeat:seat });
+        if (!actor.ok) return json({ ok:false, error:actor.error, code:actor.code }, actor.status || 400);
+        const author = actor.author;
         // Proyecto del censo (opcional, FLT-1009). Se VALIDA contra el censo: un valor
         // suelto (id, nombre o dominio) se resuelve a su slug canónico; inválido → "".
         const projIn = String(b.project || b.projectSlug || "").trim();
@@ -5224,9 +5245,13 @@ var index_default = {
         if (projIn) { try { const p = (await projectIndex(env)).get(projIn); if (p) project = p.id; } catch (e) { project = ""; } }
         const now = Date.now();
         const id = "IDEA-" + (crypto.randomUUID().replace(/-/g, "").slice(0, 8));
-        await env.DB.prepare("INSERT INTO ideas (id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,project) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
-          .bind(id, title, body, author, tag, "nueva", now, now, "", seat, project).run();
-        const idea = { id, title, body, author, tag, status: "nueva", created_at: now, updated_at: now, mission_id: "", seat, project };
+        await env.DB.batch([
+          env.DB.prepare("INSERT INTO ideas (id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,project) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+            .bind(id, title, body, author, tag, "nueva", now, now, "", seat, project),
+          env.DB.prepare("UPDATE ideas SET author_source=?,author_identity=? WHERE id=?")
+            .bind(actor.source, actor.identity, id)
+        ]);
+        const idea = { id, title, body, author, author_source:actor.source, tag, status: "nueva", created_at: now, updated_at: now, mission_id: "", seat, project };
         await attachDisplayRefs(env, "objective", idea, (row) => row.id, (row) => row.created_at);
         return json({ ok: true, idea });
       } catch (e) { return json({ error: String(e) }, 500); }
