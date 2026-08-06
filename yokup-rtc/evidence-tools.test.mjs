@@ -7,6 +7,22 @@ import { join } from "node:path";
 
 const tool = async (name) => readFile(new URL(`./tools/${name}`, import.meta.url), "utf8");
 
+async function validateDesktopApp(runtime, name, bundle) {
+  const client = await tool("mission-evidence.sh");
+  const start = client.indexOf("normalize_desktop_runtime()");
+  const end = client.indexOf("frontmost_desktop_app()");
+  assert.ok(start >= 0 && end > start, "no se encontraron los validadores Desktop");
+  return spawnSync("bash", ["-c", `${client.slice(start, end)}\nvalidate_desktop_app "$1" "$2" "$3"`, "_", runtime, name, bundle], { encoding:"utf8" });
+}
+
+async function validateDesktopWindow(name, bundle, title, width = "1200", height = "800") {
+  const client = await tool("mission-evidence.sh");
+  const start = client.indexOf("validate_desktop_window()");
+  const end = client.indexOf("frontmost_desktop_app()");
+  assert.ok(start >= 0 && end > start, "no se encontró el validador de ventana Desktop");
+  return spawnSync("bash", ["-c", `${client.slice(start, end)}\nvalidate_desktop_window "$1" "$2" "$3" 0 0 "$4" "$5"`, "_", name, bundle, title, width, height], { encoding:"utf8" });
+}
+
 test("Desktop, CLI y subagentes atraviesan el mismo cliente", async () => {
   const client = await tool("mission-evidence.sh");
   const progress = await tool("progreso-cli.sh");
@@ -77,10 +93,57 @@ test("cada superficie usa sólo su capturador y falla si no puede validarlo", as
   assert.match(cli, /tmux capture-pane -p -S -80 -t/);
   assert.match(cli, /el pane no muestra comando y salida suficientes/);
   assert.doesNotMatch(cli, /AgoraCapture|capture\.req/);
-  assert.match(desktop, /app frontal/);
+  assert.match(desktop, /validate_desktop_app/);
+  assert.match(desktop, /validate_desktop_window/);
+  assert.match(client, /app frontal/);
   assert.match(desktop, /AgoraCapture\.app/);
   assert.match(desktop, /capture\.req/);
   assert.doesNotMatch(desktop, /tmux capture-pane/);
+});
+
+test("Desktop acepta únicamente Codex y Claude con nombre, bundle y runtime coherentes", async () => {
+  for (const accepted of [
+    ["Codex", "Codex", "com.openai.codex"],
+    ["Codex Desktop", "Codex Desktop", "com.openai.codex.desktop"],
+    ["Claude", "Claude", "com.anthropic.claudefordesktop"],
+    ["Claude Desktop", "Claude Desktop", "com.anthropic.claudefordesktop"]
+  ]) {
+    const result = await validateDesktopApp(...accepted);
+    assert.equal(result.status, 0, `${accepted.join(" / ")}: ${result.stderr}`);
+  }
+});
+
+test("Desktop rechaza navegadores, web y apps parecidas indicando la app frontal", async () => {
+  for (const rejected of [
+    ["Claude", "Firefox", "org.mozilla.firefox"],
+    ["Claude", "Google Chrome", "com.google.Chrome"],
+    ["Codex", "Codex Web", "com.google.Chrome"],
+    ["Claude", "Claude Notes", "com.example.claude-notes"],
+    ["Claude", "Codex", "com.openai.codex"]
+  ]) {
+    const result = await validateDesktopApp(...rejected);
+    assert.notEqual(result.status, 0, rejected.join(" / "));
+    assert.ok(result.stderr.includes(`app frontal=${rejected[1]}`), result.stderr);
+    assert.ok(result.stderr.includes(`bundle=${rejected[2]}`), result.stderr);
+    assert.match(result.stderr, /petición visible/);
+  }
+});
+
+test("Desktop exige una ventana completa identificable antes de pedir la captura", async () => {
+  const visible = await validateDesktopWindow("Claude", "com.anthropic.claudefordesktop", "Claude — DCL-mshtsh3q");
+  assert.equal(visible.status, 0, visible.stderr);
+  for (const [title, width, height] of [["", "1200", "800"], ["Claude", "0", "800"], ["Codex", "1200", "0"]]) {
+    const result = await validateDesktopWindow("Claude", "com.anthropic.claudefordesktop", title, width, height);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /app frontal=Claude/);
+    assert.match(result.stderr, /ventana completa con la petición legible/);
+  }
+  const client = await tool("mission-evidence.sh");
+  assert.match(client, /AgoraCapture entrega la pantalla completa, no un recorte elegido por el/);
+  assert.match(client, /No se afirma OCR del contenido/);
+  const desktop = client.slice(client.indexOf("capture_desktop_image()"), client.indexOf("capture_process_image()"));
+  assert.equal([...desktop.matchAll(/validate_desktop_app/g)].length, 2, "valida la app antes y después de AgoraCapture");
+  assert.equal([...desktop.matchAll(/validate_desktop_window/g)].length, 2, "valida la ventana antes y después de AgoraCapture");
 });
 
 test("el cierre canónico intenta capturar proceso sin reciclar la prueba final", async () => {

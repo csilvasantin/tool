@@ -96,20 +96,72 @@ PY
   validate_image_file "$out" && printf '%s\n' "$out"
 }
 
+normalize_desktop_runtime() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]'
+}
+
+validate_desktop_app() {
+  local runtime="$1" front_name="$2" front_bundle="$3" runtime_key expected
+  runtime_key="$(normalize_desktop_runtime "$runtime")"
+  case "$runtime_key" in
+    codex|codexdesktop)
+      expected="Codex Desktop"
+      case "$front_name|$front_bundle" in
+        "Codex|com.openai.codex"|"Codex Desktop|com.openai.codex"|"Codex|com.openai.codex.desktop"|"Codex Desktop|com.openai.codex.desktop") return 0 ;;
+      esac
+      ;;
+    claude|claudedesktop)
+      expected="Claude Desktop"
+      case "$front_name|$front_bundle" in
+        "Claude|com.anthropic.claudefordesktop"|"Claude Desktop|com.anthropic.claudefordesktop") return 0 ;;
+      esac
+      ;;
+    *) expected="Codex Desktop o Claude Desktop" ;;
+  esac
+  echo "app Desktop frontal no válida para runtime ${runtime:-desconocido}: app frontal=${front_name:-desconocida}, bundle=${front_bundle:-desconocido}; se requiere $expected con la petición visible" >&2
+  return 1
+}
+
+validate_desktop_window() {
+  local front_name="$1" front_bundle="$2" title="$3" x="$4" y="$5" width="$6" height="$7"
+  case "$width:$height" in
+    *[!0-9:]*|:|0:*|*:0)
+      echo "ventana Desktop no verificable: app frontal=${front_name:-desconocida}, bundle=${front_bundle:-desconocido}, título=${title:-sin título}, bounds=${x:-?},${y:-?},${width:-?}x${height:-?}; la ventana completa con la petición legible debe estar visible" >&2
+      return 1 ;;
+  esac
+  [ -n "$title" ] || {
+    echo "ventana Desktop no verificable: app frontal=${front_name:-desconocida}, bundle=${front_bundle:-desconocido}, título=sin título, bounds=${x:-?},${y:-?},${width}x${height}; la ventana completa con la petición legible debe estar visible" >&2
+    return 1
+  }
+}
+
+frontmost_desktop_app() {
+  osascript \
+    -e 'tell application "System Events"' \
+    -e 'set frontProcess to first application process whose frontmost is true' \
+    -e 'set frontName to name of frontProcess' \
+    -e 'try' \
+    -e 'set frontBundle to bundle identifier of frontProcess' \
+    -e 'on error' \
+    -e 'set frontBundle to ""' \
+    -e 'end try' \
+    -e 'if (count of windows of frontProcess) is 0 then return frontName & (ASCII character 30) & frontBundle' \
+    -e 'set frontWindow to window 1 of frontProcess' \
+    -e 'set windowTitle to name of frontWindow' \
+    -e 'set windowPosition to position of frontWindow' \
+    -e 'set windowSize to size of frontWindow' \
+    -e 'return frontName & (ASCII character 30) & frontBundle & (ASCII character 30) & windowTitle & (ASCII character 30) & (item 1 of windowPosition) & (ASCII character 30) & (item 2 of windowPosition) & (ASCII character 30) & (item 1 of windowSize) & (ASCII character 30) & (item 2 of windowSize)' \
+    -e 'end tell' 2>/dev/null
+}
+
 capture_desktop_image() {
-  local out="$TMP_WORK/process-desktop.png" nonce current="" payload fleet_dir front expected
+  local out="$TMP_WORK/process-desktop.png" nonce current="" payload fleet_dir front front_name front_bundle front_title front_x front_y front_width front_height
   [ "$(uname -s)" = "Darwin" ] || { echo "Desktop requiere AgoraCapture en macOS" >&2; return 1; }
   command -v osascript >/dev/null 2>&1 || { echo "no se puede verificar la app Desktop visible" >&2; return 1; }
-  front="$(osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true' 2>/dev/null || true)"
-  case "$RUNTIME" in
-    Codex) expected="Codex" ;;
-    Claude) expected="Claude" ;;
-    Grok) expected="Grok" ;;
-    *) echo "runtime Desktop sin aplicación verificable: $RUNTIME" >&2; return 1 ;;
-  esac
-  printf '%s' "$front" | grep -Fqi "$expected" || {
-    echo "la petición no está visible en $expected Desktop (app frontal: ${front:-desconocida})" >&2; return 1;
-  }
+  front="$(frontmost_desktop_app || true)"
+  IFS=$'\036' read -r front_name front_bundle front_title front_x front_y front_width front_height <<< "$front"
+  validate_desktop_app "$RUNTIME" "$front_name" "$front_bundle" || return 1
+  validate_desktop_window "$front_name" "$front_bundle" "$front_title" "$front_x" "$front_y" "$front_width" "$front_height" || return 1
   [ -d "${AGORA_CAPTURE_APP:-${HOME}/Applications/AgoraCapture.app}" ] || {
     echo "AgoraCapture no está instalado; no se puede acreditar Desktop/request" >&2; return 1;
   }
@@ -125,7 +177,16 @@ capture_desktop_image() {
   [ "${current:-}" = "$nonce" ] || return 1
   payload="$(sed -n '2p' "$fleet_dir/capture.out" 2>/dev/null || true)"
   [ -n "$payload" ] && [ "$payload" != "ERR_NO_CAPTURE" ] || return 1
+  # Evita que un cambio de foco entre la validación y el disparo convierta la
+  # captura en evidencia de otra app.
+  front="$(frontmost_desktop_app || true)"
+  IFS=$'\036' read -r front_name front_bundle front_title front_x front_y front_width front_height <<< "$front"
+  validate_desktop_app "$RUNTIME" "$front_name" "$front_bundle" || return 1
+  validate_desktop_window "$front_name" "$front_bundle" "$front_title" "$front_x" "$front_y" "$front_width" "$front_height" || return 1
   printf '%s' "$payload" | python3 -c 'import base64,sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.buffer.read()))' > "$out"
+  # AgoraCapture entrega la pantalla completa, no un recorte elegido por el
+  # llamador. Como la app y su ventana 1 se validaron justo antes, la evidencia
+  # conserva la ventana completa frontal. No se afirma OCR del contenido.
   validate_image_file "$out" && printf '%s\n' "$out"
 }
 

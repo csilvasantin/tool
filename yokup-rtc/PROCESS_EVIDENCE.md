@@ -5,8 +5,14 @@ antes de esperar al primer refresco periódico. La procedencia se determina por
 la superficie real; no se acepta como una declaración libre del llamador:
 
 - Desktop: `capture_surface=desktop`, `capture_context=request`. AgoraCapture
-  sólo actúa si la aplicación correspondiente a la ejecución está al frente, de
-  modo que la petición sea visible.
+  sólo actúa si **Codex Desktop** o **Claude Desktop**, según el runtime de la
+  ejecución, está realmente al frente y la petición es visible. El cliente
+  contrasta una lista cerrada de nombres y bundle IDs admitidos; no basta con
+  que otra aplicación contenga «Codex» o «Claude» en el nombre. También exige
+  una ventana frontal identificable (título y dimensiones válidas) y conserva
+  la captura de pantalla completa producida por AgoraCapture, por lo que no se
+  admite un recorte genérico aportado por el llamador. La petición debe quedar
+  visualmente legible dentro de esa ventana completa.
 - CLI: `capture_surface=cli`, `capture_context=command_output`. Se captura el
   pane tmux indicado y se exige contenido suficiente para mostrar comando y
   salida.
@@ -24,8 +30,13 @@ progreso-cli.sh DCL-ejemplo nombre-sesion
 `progress --image` no puede crear evidencia canónica de proceso. La opción
 manual se conserva para `final --image`; también puede almacenarse como
 `--final-fallback`, marcado expresamente como degradado y nunca presentado como
-Proceso. Si no se puede validar la aplicación Desktop, AgoraCapture o el pane
-CLI, el comando termina con error antes de publicar evidencia.
+Proceso. Chrome, Firefox, páginas web y cualquier aplicación no reconocida se
+rechazan como superficie Desktop aunque muestren el resultado. El error indica
+el nombre y bundle ID de la aplicación frontal. Si no se puede validar la
+aplicación Desktop, AgoraCapture o el pane CLI, el comando termina con error
+antes de publicar evidencia. Esta comprobación acredita app, bundle, ventana y
+captura completa; no ejecuta OCR ni afirma haber leído automáticamente el texto
+de la petición.
 
 ## Política de aceptación y cierre
 
