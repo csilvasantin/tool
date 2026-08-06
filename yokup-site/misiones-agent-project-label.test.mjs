@@ -83,6 +83,30 @@ test("agente no responsable pinta amarillo; sin proyecto no pinta nada", () => {
   assert.match(missionsSource, /identity\.same\(/, "la decisión de color usa el comparador canónico");
 });
 
+test("un proyecto heredado se pinta con asterisco y color de aviso", () => {
+  // Carlos, 6-ago-2026: heredar la última declaración del agente evita perder
+  // encargos, pero «podría darnos información falsa». Así que el rótulo heredado
+  // NO puede parecerse al confirmado: color propio, asterisco y un título que
+  // diga de qué día viene y que hay que fijarlo.
+  const {Yk} = loadModule();
+  Yk.init({worker:"https://api.yokup.com", columnMode:"tasks", projectIdLayout:true});
+  Yk.setProyectos([{id:"yokup", name:"Yokup", primary_responsible:"OraculoMacMini"}]);
+  const heredado = Yk.projectAgentLabelHtml({
+    project:"yokup", project_name:"Yokup", assignee:"OraculoMacMini",
+    project_inherited:1, project_inherited_from:"2026-08-05",
+  });
+  assert.match(heredado, /class="mission-project-label project-inherited"/);
+  assert.match(heredado, /<span class="project-inherited-mark" aria-hidden="true">\*<\/span>/);
+  assert.match(heredado, /HEREDADO de la declaración del 2026-08-05/);
+  assert.match(heredado, /podría no ser el correcto/);
+  // Ni verde ni amarillo: un dato sin confirmar no puede leerse como comprobado.
+  assert.doesNotMatch(heredado, /project-responsible|project-collaborator/);
+  // Confirmado explícitamente => vuelve al rótulo normal, sin asterisco.
+  const confirmado = Yk.projectAgentLabelHtml({project:"yokup", project_name:"Yokup", assignee:"OraculoMacMini"});
+  assert.doesNotMatch(confirmado, /project-inherited/);
+  assert.match(css, /\.mission-project-label\.project-inherited\{[^}]*border-style:dashed/);
+});
+
 test("el rótulo y la columna apilada quedan limitados al layout de /misiones", () => {
   const {Yk} = loadModule();
   Yk.init({worker:"https://api.yokup.com", projectIdLayout:false});

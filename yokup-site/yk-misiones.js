@@ -354,6 +354,19 @@
     var detail = same
       ? "Proyecto " + name + " · " + assignee + " es responsable principal"
       : "Proyecto " + name + " · asignado a la misión" + (primary ? "; responsable principal: " + primary : "");
+    // PROYECTO HEREDADO (Carlos, 6-ago-2026: «podría darnos información falsa»).
+    // La misión nació con el último proyecto que declaró ese agente, otro día, y
+    // nadie lo ha confirmado desde entonces: puede no ser el suyo. Se marca con
+    // asterisco y color propio para que no se lea como un dato comprobado, y el
+    // título dice de qué día viene y cómo arreglarlo.
+    if (t && t.project_inherited) {
+      var from = String(t.project_inherited_from || "").trim();
+      state = "project-inherited";
+      detail = "Proyecto " + name + " HEREDADO" + (from ? " de la declaración del " + from : "") +
+        " · nadie lo ha confirmado hoy y podría no ser el correcto. Reasigna la misión para fijarlo.";
+      return '<span class="mission-project-label ' + state + '" title="' + esc(detail) + '" aria-label="' + esc(detail) + '">' +
+        esc(name) + '<span class="project-inherited-mark" aria-hidden="true">*</span></span>';
+    }
     return '<span class="mission-project-label ' + state + '" title="' + esc(detail) + '" aria-label="' + esc(detail) + '">' + esc(name) + "</span>";
   }
   // La columna ya se llama MISIÓN y el proyecto vive bajo Agente/Plataforma:

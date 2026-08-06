@@ -270,6 +270,12 @@ async function applySchema(env) {
   // temporal para clientes antiguos; toda misión nueva escribe ambos en su INSERT.
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN project_id TEXT").catch(() => {});
   await env.DB.exec("UPDATE tickets SET project_id=project WHERE COALESCE(project_id,'')='' AND project IN (SELECT id FROM projects)").catch(() => {});
+  // Proyecto HEREDADO de una declaración de otro día: la misión nace con proyecto,
+  // pero nadie lo confirmó hoy y puede no ser el suyo. Aditivo y NULLABLE: todo lo
+  // ya existente queda en NULL y se sigue viendo igual. La interfaz lo pinta con
+  // asterisco y color de aviso (Carlos, 6-ago-2026: «podría darnos información falsa»).
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN project_inherited INTEGER").catch(() => {});
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN project_inherited_from TEXT").catch(() => {});
   // MISIÓN MADRE → HIJAS (FLT-990 b1). Aditivo y NULLABLE: las misiones planas de
   // hoy quedan con parent_id NULL y se ven EXACTELY igual que antes. Solo cuelga
   // quien se enganche a una madre por /fleet/parent.
@@ -948,12 +954,33 @@ async function resolveCreationProject(env, context = {}) {
   }
   const identity = principalAgentIdentity(context.agent, context.machine);
   if (identity) {
+    const today = madridDayKey(Date.now());
     const declaration = await env.DB.prepare(
       "SELECT d.project_id FROM agent_project_declarations d JOIN projects p ON p.id=d.project_id WHERE d.day=? AND d.agent_key=? AND COALESCE(p.status,'activo')!='archivado'"
-    ).bind(madridDayKey(Date.now()), identity.agent_key).first();
+    ).bind(today, identity.agent_key).first();
     if (declaration) {
       const project = await exactActiveProject(env, declaration.project_id);
       if (project) return { ok:true, project_id:project.id, project:project.name || project.id };
+    }
+    // HERENCIA DE LA ÚLTIMA DECLARACIÓN (Carlos, 6-ago-2026). La declaración
+    // caducaba a medianoche y no la renovaba nadie: en toda la flota existía UNA
+    // sola, así que /fleet/sync rechazaba en silencio todo encargo que entrara
+    // por Telegram — 41 acumulados (ids 1123-1197) que nadie echó de menos.
+    // Se hereda la última declaración EXPLÍCITA del propio agente, no se adivina
+    // por pertenencia a proyectos ni leyendo el texto: sigue siendo algo que él
+    // declaró, sólo que otro día. Es lo que el mensaje de error ya prometía al
+    // decir «heredado».
+    // Va MARCADA (inherited) porque puede mentir: el agente pudo cambiar de
+    // proyecto desde entonces. La interfaz la pinta con asterisco y en color de
+    // aviso para que se vea que ese proyecto no lo confirmó nadie hoy.
+    const inherited = await env.DB.prepare(
+      "SELECT d.project_id,d.day FROM agent_project_declarations d JOIN projects p ON p.id=d.project_id " +
+      "WHERE d.agent_key=? AND d.day<? AND COALESCE(p.status,'activo')!='archivado' ORDER BY d.day DESC LIMIT 1"
+    ).bind(identity.agent_key, today).first();
+    if (inherited) {
+      const project = await exactActiveProject(env, inherited.project_id);
+      if (project) return { ok:true, project_id:project.id, project:project.name || project.id,
+        inherited:true, inherited_from:String(inherited.day || "") };
     }
   }
   return { ok:false, status:400, code:"project_required",
@@ -1695,8 +1722,8 @@ async function activateNextMissionBatchItem(env, batchId) {
   });
   if (!projectContext.ok) return projectContext;
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-  ).bind(missionId, "decision-batch:" + batch.decision_id, next.title, batch.machine || "", "mission", "in_progress", "normal", batch.agent || "", "decision-batch", "", projectContext.project_id, projectContext.project_id, now, now).run();
+    "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,project_inherited,project_inherited_from,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+  ).bind(missionId, "decision-batch:" + batch.decision_id, next.title, batch.machine || "", "mission", "in_progress", "normal", batch.agent || "", "decision-batch", "", projectContext.project_id, projectContext.project_id, projectContext.inherited ? 1 : 0, projectContext.inherited_from || null, now, now).run();
   const existingTasks = await listMissionTasks(env, missionId);
   if (!existingTasks.length) await saveMissionPlan(env, missionId, batchMissionPlan(next.title, batch.agent, batch.machine));
   await env.DB.prepare("UPDATE mission_batch_items SET mission_id=?, status='active', updated_at=? WHERE batch_id=? AND position=?")
@@ -2352,8 +2379,8 @@ async function createIncident(env, inc) {
   const source = String((inc && inc.source) || "external").slice(0, 24);
   const assignee = (String((inc && inc.assignee) || "").slice(0, 60)) || (ROSTER[hash(resource) % ROSTER.length].name);
   await backfillTodayDisplayRefs(env, now);
-  await env.DB.prepare("INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-    .bind(id, resource, subject, loc, kind, "open", prio, assignee, source, "", projectContext.project_id, projectContext.project_id, now, now).run();
+  await env.DB.prepare("INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,project_inherited,project_inherited_from,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(id, resource, subject, loc, kind, "open", prio, assignee, source, "", projectContext.project_id, projectContext.project_id, projectContext.inherited ? 1 : 0, projectContext.inherited_from || null, now, now).run();
   await ensureEntityDisplayRef(env, "mission", id, now);
   await addEvent(env, id, "log", (inc && inc.by) || "Monitor", (inc && inc.detail) || subject);
   await notifySubs(env);
@@ -2946,11 +2973,16 @@ async function fleetSync(env) {
       // Umbral: solo saltamos las cerradas hace más de 6 h.
       if (st === "resolved" && (now - epochMs(it.done_at, ts)) > 6 * 3600 * 1e3) continue;
       await env.DB.prepare(
-        "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,project,project_id,role,status,priority,assignee,source,ai_triage,created_at,updated_at,resolved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        // Las dos columnas de herencia van AL FINAL a propósito: el test de contrato
+        // cruzado fija el prefijo (…,project,project_id,role,…) como prueba de que el
+        // proyecto se escribe explícito y no se adivina del texto. Ese contrato sigue
+        // valiendo, así que se respeta su orden en vez de relajar el test.
+        "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,project,project_id,role,status,priority,assignee,source,ai_triage,created_at,updated_at,resolved_at,project_inherited,project_inherited_from) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(
         id, fleetScreen(it, assignment), fleetSubject(it.text), assignment.loc, projectContext.project_id, projectContext.project_id, it.from_name || "",
         st, fleetPriority(it.text), assignment.assignee, "fleet", "", ts, now,
-        st === "resolved" ? epochMs(it.done_at, now) : null
+        st === "resolved" ? epochMs(it.done_at, now) : null,
+        projectContext.inherited ? 1 : 0, projectContext.inherited_from || null
       ).run();
       // El texto íntegro del encargo queda como primer evento de la misión.
       await addEvent(env, id, "log", it.from_name || "Carlos", String(it.text || ""));
@@ -3296,7 +3328,9 @@ __name(tercios, "tercios");
 // expone nada que el bot-inbox público no publique ya.
 async function fleetMissions(env) {
   const { results } = await env.DB.prepare(
-    "SELECT id,screen,subject,loc,project,project_id,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,live_kind,created_at,updated_at,note,parent_id FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
+    // project_inherited va al final por el mismo motivo que en los INSERT: hay un
+    // contrato de forma en projects.test.mjs sobre el prefijo de este SELECT.
+    "SELECT id,screen,subject,loc,project,project_id,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,live_kind,created_at,updated_at,note,parent_id,project_inherited,project_inherited_from FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
   ).all();
   const rows = results || [];
   if (!rows.length) return [];
@@ -3321,6 +3355,11 @@ async function fleetMissions(env) {
     return Object.assign({}, r, {
       machine: r.loc,
       project_name: resolveProject(pidx, r.project || "").name,
+      // Proyecto heredado de otro día: nadie lo ha confirmado hoy y puede no ser
+      // el suyo, así que viaja marcado para que la interfaz lo pinte con
+      // asterisco y en color de aviso en vez de darlo por bueno.
+      project_inherited: r.project_inherited ? 1 : 0,
+      project_inherited_from: r.project_inherited_from || "",
       persona: r.assignee,
       source: "fleet",
       tasks,
@@ -4615,14 +4654,17 @@ var index_default = {
         const t = await env.DB.prepare("SELECT id FROM tickets WHERE id=?").bind(mid).first();
         if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
         const raw = String((b && b.project) || "").trim();
+        // Al fijar (o quitar) el proyecto a mano se BORRA la marca de heredado: si
+        // alguien ha entrado a decir cuál es, ya no es una suposición de otro día y
+        // el asterisco de aviso dejaría de decir la verdad.
         if (!raw) {   // quitar el proyecto es legítimo: mejor vacío que inventado
-          await env.DB.prepare("UPDATE tickets SET project='',project_id=NULL,updated_at=? WHERE id=?").bind(Date.now(), mid).run();
+          await env.DB.prepare("UPDATE tickets SET project='',project_id=NULL,project_inherited=0,project_inherited_from=NULL,updated_at=? WHERE id=?").bind(Date.now(), mid).run();
           return json({ ok: true, mission: mid, project: "", project_name: "" });
         }
         const idx = await projectIndex(env);
         const p = idx.get(raw);
         if (!p) return json({ ok: false, error: "el proyecto «" + raw + "» no está dado de alta; créalo en /equipo" }, 404);
-        await env.DB.prepare("UPDATE tickets SET project=?,project_id=?,updated_at=? WHERE id=?").bind(p.id,p.id,Date.now(),mid).run();
+        await env.DB.prepare("UPDATE tickets SET project=?,project_id=?,project_inherited=0,project_inherited_from=NULL,updated_at=? WHERE id=?").bind(p.id,p.id,Date.now(),mid).run();
         return json({ ok: true, mission: mid, project: p.id, project_name: p.name || p.id });
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
@@ -5364,9 +5406,14 @@ var index_default = {
           // de AdmiraNeXT y sin rótulo, aunque la ruta lo hubiera comprobado
           // contra el censo dos líneas antes (Carlos lo vio en la tabla).
           const statements = [env.DB.prepare(
-            "INSERT INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,parent_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            // Aquí las dos columnas de herencia van ANTES de `project`: declare-evidence
+            // exige que este INSERT TERMINE en «…,project,project_id,parent_id,created_at,
+            // updated_at)» — es el contrato de que la misión declarada nace con proyecto.
+            "INSERT INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project_inherited,project_inherited_from,project,project_id,parent_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
           ).bind(missionId, "declare:" + missionId, subject, identity.machine, "mission",
-            "in_progress", "normal", identity.agent, "cli-declare", "", projectContext.project_id, projectContext.project_id, inheritedContext.parent_id, now, now),
+            "in_progress", "normal", identity.agent, "cli-declare", "",
+            projectContext.inherited ? 1 : 0, projectContext.inherited_from || null,
+            projectContext.project_id, projectContext.project_id, inheritedContext.parent_id, now, now),
             env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)")
               .bind(missionId, now, "status", identity.agent, "Misión declarada desde el CLI: pasa a en curso (in_progress).")];
           for (const t of tasks) {

@@ -355,11 +355,19 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
       si falta, se usa <code>owner</code>. La comparación se hace exclusivamente con
       <code>ykAgentIdentity.same(assignee, responsable)</code>, por familia de persona y
       aceptando los alias históricos; por ejemplo, <b>Oraculo y OraculoMacMini son la misma familia</b>.</p>
+      <p><b>Proyecto heredado.</b> La declaración de proyecto principal vale para un día. Cuando un
+      encargo llega sin proyecto y el agente no ha declarado hoy, la misión nace con la
+      <b>última declaración explícita de ese mismo agente</b> —no se adivina por sus proyectos ni
+      leyendo el texto del encargo— y queda <b>marcada como heredada</b>. Antes de esto, la misión
+      sencillamente no nacía: 41 encargos de la flota se quedaron atascados sin que nadie se
+      enterara. Un proyecto heredado <b>puede no ser el correcto</b>, así que se pinta distinto del
+      confirmado y el aviso desaparece en cuanto alguien reasigna la misión a un proyecto.</p>
       <table aria-label="Color del proyecto bajo el agente">
         <thead><tr><th>Situación</th><th>Rótulo</th><th>Color</th></tr></thead>
         <tbody>
           <tr><td>Agente y responsable son de la misma familia</td><td>Nombre del proyecto bajo el agente</td><td>Verde</td></tr>
           <tr><td>La misión tiene proyecto, pero el agente no es su responsable</td><td>Nombre del proyecto bajo el agente</td><td>Amarillo</td></tr>
+          <tr><td>El proyecto se heredó de una declaración de otro día</td><td>Nombre del proyecto con <b>asterisco</b> y borde discontinuo</td><td>Naranja de aviso</td></tr>
           <tr><td>La misión no tiene proyecto asignado</td><td>No se muestra ningún rótulo</td><td>—</td></tr>
         </tbody>
       </table>

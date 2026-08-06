@@ -3,13 +3,18 @@ import assert from "node:assert/strict";
 import worker from "./src/index.js";
 
 function harness() {
-  const state = { tickets:[], refs:new Map(), fleetIds:new Map(), decisions:new Map(), batches:new Map(), items:[], allowDeclaration:false, batchCalls:0, ticketBatches:0 };
+  const state = { tickets:[], refs:new Map(), fleetIds:new Map(), decisions:new Map(), batches:new Map(), items:[], allowDeclaration:false, allowInherited:false, batchCalls:0, ticketBatches:0 };
   const statement = (sql, args=[]) => ({
     sql, args, bind(...next) { return statement(sql, next); },
     async first() {
       if (sql === "SELECT id FROM tickets WHERE screen=? AND status!='resolved'") return null;
       if (sql === "SELECT id,name,status FROM projects WHERE id=?")
         return args[0] === "xpaceos" ? { id:"xpaceos", name:"XpaceOS", status:"activo" } : null;
+      // La declaración de OTRO día (ORDER BY d.day DESC) es la herencia; la de hoy
+      // se distingue por no llevarlo. Dos interruptores separados para poder probar
+      // el caso real: sin declaración de hoy, pero con una anterior.
+      if (sql.includes("FROM agent_project_declarations d JOIN projects") && sql.includes("ORDER BY d.day DESC"))
+        return state.allowInherited?{project_id:"xpaceos",day:"2026-08-05"}:null;
       if (sql.includes("FROM agent_project_declarations d JOIN projects")) return state.allowDeclaration?{project_id:"xpaceos"}:null;
       if (sql === "SELECT * FROM decisions WHERE id=?") return state.decisions.get(args[0])||null;
       if (sql === "SELECT project,parent_decision FROM decisions WHERE id=?") {const d=state.decisions.get(args[0]);return d&&{project:d.project,parent_decision:d.parent_decision};}
@@ -150,6 +155,45 @@ test("POST /fleet/sync materializa project_id estructurado y rechaza el huérfan
   const ticket=state.tickets.find(row=>row.source==="fleet");
   assert.equal(ticket.project_id,"xpaceos"); assert.equal(ticket.project,"xpaceos");
   assert.equal(state.fleetIds.has(702),false,"el rechazado ni siquiera reserva mission_id");
+});
+
+test("POST /fleet/sync hereda la última declaración del agente y la MARCA", async()=>{
+  // Carlos, 6-ago-2026. La declaración caducaba a medianoche y no la renovaba
+  // nadie: 41 encargos de la flota se quedaron sin nacer, en silencio. Ahora se
+  // hereda la última declaración explícita del agente — pero marcada, porque el
+  // agente pudo cambiar de proyecto y el dato «podría darnos información falsa».
+  state.allowDeclaration=false; state.allowInherited=true;
+  env.TELEGRAM={async fetch(){return Response.json({items:[
+    {id:801,text:"Encargo sin proyecto explícito",target_persona:"Oraculo",target_machine:"admira-macmini",from_name:"Carlos",status:"pending",ts:Date.now()}
+  ]})}};
+  const response=await post("/fleet/sync",{}), result=await response.json();
+  assert.equal(response.status,200); assert.equal(result.created,1);
+  assert.equal(result.rejected.length,0,"con declaración anterior ya no se pierde el encargo");
+  const ticket=state.tickets.filter(row=>row.source==="fleet").at(-1);
+  assert.equal(ticket.project_id,"xpaceos");
+  assert.equal(ticket.project_inherited,1,"la herencia se guarda marcada");
+  assert.equal(ticket.project_inherited_from,"2026-08-05","y se guarda de qué día viene");
+  state.allowInherited=false;
+});
+
+test("sin declaración de hoy NI anterior se sigue rechazando", async()=>{
+  // La herencia no relaja el guard: si el agente no declaró nunca, no hay de dónde
+  // heredar y la misión no nace. Se hereda lo declarado, no se adivina.
+  state.allowDeclaration=false; state.allowInherited=false;
+  env.TELEGRAM={async fetch(){return Response.json({items:[
+    {id:802,text:"Encargo de agente que nunca declaró",target_persona:"Oraculo",target_machine:"admira-macmini",from_name:"Carlos",status:"pending",ts:Date.now()}
+  ]})}};
+  const result=await (await post("/fleet/sync",{})).json();
+  assert.equal(result.created,0);
+  assert.equal(result.rejected[0].code,"project_required");
+});
+
+test("la marca de heredado desaparece al fijar el proyecto a mano", async()=>{
+  // Si alguien entra a decir cuál es el proyecto, ya no es una suposición: el
+  // asterisco de aviso dejaría de decir la verdad y hay que quitarlo.
+  const source=await import("node:fs/promises").then(fs=>fs.readFile(new URL("./src/index.js",import.meta.url),"utf8"));
+  assert.match(source,/UPDATE tickets SET project=\?,project_id=\?,project_inherited=0,project_inherited_from=NULL/);
+  assert.match(source,/UPDATE tickets SET project='',project_id=NULL,project_inherited=0,project_inherited_from=NULL/);
 });
 
 test("POST /decisions/:id/choose hereda el proyecto exacto al batch y al ticket", async()=>{
