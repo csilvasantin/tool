@@ -19,6 +19,8 @@
   *{box-sizing:border-box}
   .wrap{max-width:1080px;margin:0 auto;padding:20px 18px 80px}
   .head h1{font-size:clamp(24px,4vw,34px);font-weight:800;letter-spacing:-.01em;margin:0 0 6px}
+  .head h1 .objective-count{display:inline-block;margin-left:8px;vertical-align:middle;
+    font:600 11px/1 var(--mono);letter-spacing:.02em;color:var(--mut);white-space:nowrap}
   .head p{color:var(--dim);margin:0 0 8px;max-width:66ch;font-size:14.5px;line-height:1.55}
   .head .note{font:600 11px/1.5 var(--mono);color:var(--mut);letter-spacing:.02em}
   .head .note b{color:var(--brand)}
@@ -280,7 +282,7 @@
   <div class="head">
     <details class="page-intro">
       <summary>
-        <h1>🎯 Objetivos</h1>
+        <h1>🎯 Objetivos <span class="objective-count" id="objectiveCount" aria-live="polite" aria-atomic="true">0 objetivos</span></h1>
         <span class="pi-toggle">Qué es esto <span class="pi-chevron">›</span></span>
       </summary>
       <div class="pi-body">
@@ -292,7 +294,7 @@
 
   <!-- ── IDEAS A DESARROLLAR: captura + lista (worker yokup-rtc /ideas) ──── -->
   <!--    Sube al primer plano: es lo que se usa a diario. El Consejo va debajo. -->
-  <div class="block-hd" style="margin-top:8px;padding-top:0;border-top:0"><h2>💡 Ideas a desarrollar</h2><span class="k" id="count"></span></div>
+  <div class="block-hd" style="margin-top:8px;padding-top:0;border-top:0"><h2>💡 Ideas a desarrollar</h2></div>
 
   <form class="add" id="addForm" autocomplete="off">
     <!-- FLT-1017: «✨ Idea nueva» sube ARRIBA A LA DERECHA, en la línea del titular:
@@ -503,6 +505,10 @@ function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("on"); 
 function fecha(ms){ try{ return new Date(ms).toLocaleDateString("es-ES",{day:"2-digit",month:"short"}); }catch(e){ return ""; } }
 function fechaHora(ms){ try{ return new Date(ms).toLocaleString("es-ES",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}); }catch(e){ return ""; } }
 function workRef(row){ return window.YkDisplayRef.of(row||{}); }
+function objectiveCountLabel(total){
+  const n=Math.max(0,Number(total)||0);
+  return n+" objetivo"+(n===1?"":"s");
+}
 
 // ⏳ La idea abrió un reloj de decisión (POST /ideas/decide) y aún no es misión:
 // mientras corre la ventana (o hasta que su tanda materialice la misión) mostramos
@@ -568,7 +574,7 @@ function render(){
   const day=$("#boardDay").value||TODAY;
   const scoped=IDEAS.filter(i=>!PROJECT_SCOPE||String(i.project||"")===PROJECT_SCOPE);
   const list=scoped.filter(i=>(i.scheduled_for||ymd(new Date(i.created_at)))===day).filter(i=>!FILTER||i.status===FILTER);
-  $("#count").textContent=scoped.length+" idea"+(scoped.length===1?"":"s");
+  $("#objectiveCount").textContent=objectiveCountLabel(scoped.length);
   // Pizca de vida en el resumen plegado del Consejo: 8 sillas fijas + total de ideas.
   { const cs=$("#consejoSum"); if(cs) cs.textContent="8 sillas · "+scoped.length+" idea"+(scoped.length===1?"":"s"); }
   $("#empty").style.display=(scoped.length&&!list.length)?"none":(scoped.length?"none":"block");
