@@ -1336,6 +1336,7 @@
       var ids=PROJECT_CATALOG.map(function(project){return String(project.id);});if(!ids.length)return;
       projectNovelty.ack(ids);paintProjectSignal();
     }
+    function projectTotalLabel(prefix){return prefix+" · "+projectTotal;}
 
     function activeProject() {
       return PROJECT_CATALOG.filter(function (p) { return p.id === PROJECT_SCOPE; })[0] || null;
@@ -1371,22 +1372,25 @@
     }
     function paintProject() {
       var ap = activeProject(), host = projectHost(ap);
-      var name = ap ? (ap.name || ap.id) : "TODOS · "+projectTotal, full = ap && host ? name + " · " + host : name,unread=unreadProjectIds(),unreadMap={};unread.forEach(function(id){unreadMap[id]=true;});
+      var allButtonLabel=projectTotalLabel("TODOS"),allOptionLabel=projectTotalLabel("Todos");
+      var name = ap ? (ap.name || ap.id) : allButtonLabel, full = ap && host ? name + " · " + host : name,unread=unreadProjectIds(),unreadMap={};unread.forEach(function(id){unreadMap[id]=true;});
       btn.innerHTML = '<span class="yk-proj-dot" aria-hidden="true"></span>'
         + '<span class="yk-proj-nm"><b class="yk-pj-full">' + esc(full) + '</b><b class="yk-pj-short">' + esc(name) + '</b></span>'
         + '<span class="yk-proj-cx" aria-hidden="true">▾</span>';
       btn.setAttribute("data-yk-base-label", "Proyecto: " + full + ". Cambiar filtro");
+      btn.setAttribute("data-yk-project-total",String(projectTotal));
       btn.title = "Proyecto · " + full;
       menu.innerHTML = "";
       [{id:null,name:"Todos",web:"Todos los proyectos"}].concat(PROJECT_CATALOG).forEach(function (p) {
         var on = p.id === PROJECT_SCOPE;
         var option = el("button", "yk-proj-opt" + (on ? " on" : ""),
           '<span class="yk-proj-ic" aria-hidden="true">' + (p.id ? "📁" : "◉") + '</span>'
-          + '<span class="yk-proj-txt"><b>' + esc(p.id ? (p.name || p.id) : "TODOS · "+projectTotal) + '</b><em>' + esc(p.id ? (projectHost(p) || p.id) : "Todos los proyectos") + '</em></span>'
+          + '<span class="yk-proj-txt"><b>' + esc(p.id ? (p.name || p.id) : allOptionLabel) + '</b><em>' + esc(p.id ? (projectHost(p) || p.id) : "Todos los proyectos") + '</em></span>'
           + (p.id&&unreadMap[String(p.id)]?'<span class="yk-proj-new-badge">NUEVO</span>':""));
         option.type = "button";
         option.setAttribute("role", "menuitemradio");
         option.setAttribute("aria-checked", on ? "true" : "false");
+        if(!p.id){option.setAttribute("aria-label",allOptionLabel);option.setAttribute("data-yk-project-total",String(projectTotal));}
         option.addEventListener("click", function () {
           publishProject(p.id || null, true);
           setMenu(false); btn.focus();

@@ -52,7 +52,8 @@ test('selección, edición de silla/fecha y acciones siguen cableadas', () => {
 });
 
 test('creación, edición, selección, votos, misión y descarte conservan sus endpoints', () => {
-  assert.match(source, /const body=\{title,body:\$\("#fBody"\)\.value\.trim\(\),author:/);
+  assert.match(source, /const body=\{title,body:\$\("#fBody"\)\.value\.trim\(\),tag,seat:/);
+  assert.doesNotMatch(source, /const body=\{[^\n}]*author:/);
   assert.match(source, /wfetch\("\/ideas",\{cache:"no-store"\}\)/);
   assert.match(source, /fetch\(WORKER\+"\/ideas",\{method:"POST"/);
   assert.match(source, /fetch\(WORKER\+"\/ideas\/seat"[\s\S]*body:JSON\.stringify\(\{id,seat\}\)/);

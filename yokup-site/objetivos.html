@@ -97,7 +97,7 @@
   .add textarea::-webkit-scrollbar-track{background:transparent}
   .add textarea::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
   .add textarea::-webkit-scrollbar-thumb:hover{background:var(--mut)}
-  .add input.a{flex:1 1 160px} .add select{flex:0 0 150px}
+  .add select{flex:1 1 150px}
   .add button{margin-left:auto;background:var(--brand);color:#04232a;border:0;border-radius:10px;padding:11px 20px;
     font:800 14px/1 -apple-system,system-ui,sans-serif;cursor:pointer;transition:filter .15s}
   .add button:hover{filter:brightness(1.08)} .add button:disabled{opacity:.5;cursor:default}
@@ -197,7 +197,10 @@
   /* Minuto de cortesía en marcha: el propio botón es la cuenta atrás Y el freno. */
   .add .gen.wait{color:var(--brand);border-color:rgba(42,224,199,.5);background:rgba(42,224,199,.10)}
   .add .gen.wait:hover{background:rgba(42,224,199,.18)}
-  @media(max-width:520px){ .add .gen{margin-left:0;flex:1 1 100%} }
+  @media(max-width:520px){
+    .add .gen{margin-left:0;flex:1 1 100%}
+    .add .row>select,.add .row>#fBtn{flex:1 1 100%;width:100%;margin-left:0}
+  }
   .idea.consejo{border-left:3px solid var(--rac)}
   .idea.consejo.cre{border-left-color:var(--cre)}
   .idea .csign{display:inline-flex;align-items:center;gap:4px;font:700 10px/1 var(--mono);letter-spacing:.03em;
@@ -306,7 +309,6 @@
     </div>
     <textarea id="fBody" maxlength="4000" placeholder="Detalle (opcional): el porqué, cómo, para quién…"></textarea>
     <div class="row">
-      <input class="a" id="fAuthor" maxlength="80" placeholder="Tu nombre">
       <select id="fTag">
         <option value="">— idea —</option>
         <option>producto</option><option>flota</option><option>ia</option>
@@ -753,7 +755,6 @@ async function generate(){
         }
         ps.value=it.project;
       }
-      if(it.author&&$("#fAuthor")&&!$("#fAuthor").value.trim()) $("#fAuthor").value=it.author;
       DRAFT=true;                                   // firma del Consejo al darla de alta
       toast("✨ "+(it.author||"El Consejo")+" — lo añado en 60 s si no lo tocas");
       autoStart();
@@ -769,7 +770,7 @@ $("#addForm").addEventListener("submit",async e=>{
     // Si el texto viene de un borrador del Consejo y nadie le puso etiqueta, entra
     // firmado «consejo»: mantiene el color del lado y la firma en la ficha (FLT-1017).
     const tag=$("#fTag").value||(DRAFT?"consejo":"");
-    const body={title,body:$("#fBody").value.trim(),author:$("#fAuthor").value.trim(),tag,seat:$("#fSeat").value,project:$("#fProject").value,scheduled_for:$("#boardDay").value||TODAY,origin_type:"objetivo"};
+    const body={title,body:$("#fBody").value.trim(),tag,seat:$("#fSeat").value,project:$("#fProject").value,scheduled_for:$("#boardDay").value||TODAY,origin_type:"objetivo"};
     const r=await fetch(WORKER+"/ideas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const d=await r.json();
     if(d.ok){ autoStop(""); DRAFT=false;

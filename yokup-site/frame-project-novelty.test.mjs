@@ -19,7 +19,7 @@ test("TODOS usa el total seleccionable 0, 1 y n del contrato",()=>{
   assert.equal(api.meta(payload(0,[])).total,0);
   assert.equal(api.meta(payload(1,[project("a")])).total,1);
   assert.equal(api.meta(payload(3,[project("a"),project("old","archivado"),project("b")])).total,2);
-  assert.match(frame,/"TODOS · "\+projectTotal/);
+  assert.match(frame,/projectTotalLabel\("TODOS"\)/);
   assert.match(frame,/projectTotal=metadata\.total/);
 });
 
