@@ -196,6 +196,36 @@ test("la marca de heredado desaparece al fijar el proyecto a mano", async()=>{
   assert.match(source,/UPDATE tickets SET project='',project_id=NULL,project_inherited=0,project_inherited_from=NULL/);
 });
 
+test("un encargo cerrado hace dias no se rechaza en bucle: se ignora", async()=>{
+  // Carlos, 6-ago-2026, «borra los que no podamos arreglar». No hubo que borrar
+  // nada: el descarte anti-resurrección ya existía, pero se comprobaba DESPUÉS del
+  // guard de proyecto, así que trabajo YA TERMINADO hacía días volvía a apuntarse
+  // como rechazado en cada sync. Eran 20 de los 39 atascados de la flota.
+  state.allowDeclaration=false; state.allowInherited=false;
+  const hace48h=Date.now()-48*3600*1000;
+  env.TELEGRAM={async fetch(){return Response.json({items:[
+    {id:901,text:"Trabajo terminado hace dos dias",target_persona:"Oraculo",target_machine:"admira-macmini",
+     from_name:"Carlos",status:"done",ts:hace48h,done_at:hace48h}
+  ]})}};
+  const result=await (await post("/fleet/sync",{})).json();
+  assert.equal(result.created,0,"no nace: sigue siendo una lápida");
+  assert.equal(result.rejected.length,0,"y tampoco ensucia la lista de rechazados");
+  assert.equal(state.fleetIds.has(901),false,"no reserva mission_id para ignorarlo");
+});
+
+test("un encargo VIVO sin proyecto se sigue rechazando, no se ignora", async()=>{
+  // El descarte anticipado no puede tragarse trabajo pendiente: solo alcanza a lo
+  // cerrado hace mucho. Lo vivo debe seguir reclamando proyecto.
+  state.allowDeclaration=false; state.allowInherited=false;
+  env.TELEGRAM={async fetch(){return Response.json({items:[
+    {id:902,text:"Trabajo pendiente de verdad",target_persona:"Oraculo",target_machine:"admira-macmini",
+     from_name:"Carlos",status:"pending",ts:Date.now()}
+  ]})}};
+  const result=await (await post("/fleet/sync",{})).json();
+  assert.equal(result.created,0);
+  assert.equal(result.rejected[0].code,"project_required");
+});
+
 test("POST /decisions/:id/choose hereda el proyecto exacto al batch y al ticket", async()=>{
   const id="DEC-PROJECT";
   state.decisions.set(id,{id,agent:"OraculoMacMini",machine:"admira-macmini",project:"xpaceos",status:"pending",recommended:0,chosen:null,options:JSON.stringify(["Publicar XpaceOS","Verificar XpaceOS","Documentar XpaceOS","↩ Volver atrás"]),created_at:Date.now(),deadline:Date.now()+300000});

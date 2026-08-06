@@ -2984,6 +2984,20 @@ async function fleetSync(env) {
     const assignment = await resolveFleetAssignment(env, it);
     const standalone = fleetStandaloneTask(it.text);
     const existingContext = await existingFleetMissionContext(env, it);
+    // LÁPIDAS ANTES DEL GUARD (6-ago-2026). Más abajo ya se descarta el encargo
+    // cerrado hace más de 6 h que nunca llegó a ser misión —la anti-resurrección—,
+    // pero se comprobaba DESPUÉS de resolver el proyecto: un encargo que el propio
+    // código había decidido ignorar entraba igualmente en el guard, se apuntaba como
+    // rechazado y volvía a hacerlo en cada sync, para siempre. De los 39 rechazados
+    // que arrastraba la flota, 20 eran esto: trabajo YA TERMINADO hace días pidiendo
+    // un proyecto para nacer como misión nueva. Se comprueba aquí, y sin reservar
+    // mission_id: se mira si YA se repartió uno, en vez de pedir otro (reservar id
+    // antes de validar el proyecto es justo lo que prohíbe el contrato).
+    const earlyStatus = FLEET_ST[it.status] || "open";
+    if (earlyStatus === "resolved" && (now - epochMs(it.done_at, epochMs(it.ts, now))) > 6 * 3600 * 1e3) {
+      const reservado = await env.DB.prepare("SELECT mission_id FROM fleet_ids WHERE inbox_id=?").bind(it.id).first();
+      if (!reservado) continue;
+    }
     const projectContext = await resolveCreationProject(env, {
       project_id:it.project_id, decision_id:it.decision_id, batch_id:it.batch_id,
       parent_id:it.parent_id || it.parent_mission_id || existingContext,
