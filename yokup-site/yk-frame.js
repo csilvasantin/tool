@@ -23,6 +23,14 @@
     out.fallback_count=number(v.fallback_count);out.fallback_sig=clean(v.fallback_sig);out.newest_id=clean(v.newest_id);out.latest_created_at=number(v.latest_created_at);
     out.events=Array.isArray(v.events)?v.events.slice(0,20):[];return out;
   }
+  function eventKey(event){return event&&event.cursor!=null?"c:"+event.cursor:"m:"+clean(event&&event.mission_id);}
+  function mergeEvents(a,b,seen){
+    var found={},rows=[];(a||[]).concat(b||[]).forEach(function(event){var key=eventKey(event);if(!key||found[key])return;found[key]=true;if(event.cursor==null||seen==null||event.cursor>seen)rows.push(event);});
+    rows.sort(function(x,y){return (number(y.cursor)||0)-(number(x.cursor)||0);});return rows.slice(0,20);
+  }
+  function countNew(events,after){
+    var found={},n=0;(events||[]).forEach(function(event){var cursor=number(event&&event.cursor),key=eventKey(event);if(!key||found[key]||cursor==null||after!=null&&cursor<=after)return;found[key]=true;n++;});return n;
+  }
   function create(options) {
     options=options||{};var storage=options.storage||null,publish=typeof options.publish==="function"?options.publish:function(){};
     function read(){try{return normalize(JSON.parse(storage&&storage.getItem(KEY)||"null"));}catch(_){return initial();}}
@@ -33,9 +41,10 @@
       var m=meta(payload),before=state.unread,first=state.observed_cursor==null&&state.fallback_count==null;
       if(m.cursor!=null){
         if(state.observed_cursor==null){state.observed_cursor=m.cursor;state.seen_cursor=Math.max(0,m.cursor-state.unread);}
-        else if(m.cursor>state.observed_cursor){state.observed_cursor=m.cursor;state.unread=Math.max(state.unread,m.cursor-(state.seen_cursor==null?m.cursor:state.seen_cursor));}
-        else if(m.cursor<state.observed_cursor){state.observed_cursor=m.cursor;state.seen_cursor=Math.max(0,m.cursor-state.unread);}
-        state.events=m.events.filter(function(event){return event.cursor==null||state.seen_cursor==null||event.cursor>state.seen_cursor;}).slice(0,20);
+        else if(m.cursor>state.observed_cursor){var previous=state.observed_cursor,added=countNew(m.events,previous);state.observed_cursor=m.cursor;state.unread+=added||1;}
+        // Una respuesta de polling antigua nunca puede hacer retroceder ni el
+        // cursor observado ni el ACK. Sólo aporta detalle que aún no tuviéramos.
+        state.events=mergeEvents(state.events,m.events,state.seen_cursor);
       }else{
         var sig=[m.newest_id,m.latest_created_at||"",m.fallback_count].join(":");
         if(state.fallback_count!=null&&!first){var increase=Math.max(0,m.fallback_count-state.fallback_count),changed=state.fallback_sig&&sig!==state.fallback_sig&&(m.newest_id||m.latest_created_at);if(increase||changed)state.unread+=Math.max(1,increase);}
@@ -46,7 +55,21 @@
       return {first:first,added:Math.max(0,state.unread-before),state:snapshot(),meta:m};
     }
     function ack(payload){var before=JSON.stringify(state),m=meta(payload);if(m.cursor!=null){state.observed_cursor=m.cursor;state.seen_cursor=m.cursor;}else state.fallback_count=m.fallback_count;state.unread=0;state.events=[];if(m.newest_id)state.newest_id=m.newest_id;if(m.latest_created_at!=null)state.latest_created_at=m.latest_created_at;if(JSON.stringify(state)!==before)write(true);return snapshot();}
-    function sync(value){try{state=normalize(typeof value==="string"?JSON.parse(value||"null"):value);}catch(_){return snapshot();}return snapshot();}
+    function sync(value){
+      var incoming;try{incoming=normalize(typeof value==="string"?JSON.parse(value||"null"):value);}catch(_){return snapshot();}
+      var currentObserved=state.observed_cursor==null?-1:state.observed_cursor,nextObserved=incoming.observed_cursor==null?-1:incoming.observed_cursor;
+      if(nextObserved<currentObserved)return snapshot();
+      var seen=Math.max(state.seen_cursor==null?-1:state.seen_cursor,incoming.seen_cursor==null?-1:incoming.seen_cursor);
+      if(nextObserved===currentObserved&&seen===(state.seen_cursor==null?-1:state.seen_cursor)&&incoming.unread<=state.unread)return snapshot();
+      var combined=mergeEvents(state.events,incoming.events,seen<0?null:seen);
+      state=incoming;state.observed_cursor=Math.max(currentObserved,nextObserved);state.seen_cursor=seen<0?null:Math.min(seen,state.observed_cursor);
+      state.events=combined;
+      // Un ACK remoto gana a mensajes viejos; si además llegó un cursor posterior,
+      // sólo permanecen sin leer sus eventos realmente posteriores al ACK.
+      state.unread=countNew(combined,state.seen_cursor);
+      if(state.observed_cursor>state.seen_cursor&&!state.unread)state.unread=Math.max(1,incoming.unread||0);
+      write(false);return snapshot();
+    }
     return {observe:observe,ack:ack,sync:sync,snapshot:snapshot,key:KEY,meta:meta};
   }
   root.YkMissionNovelty={create:create,meta:meta,key:KEY,_test:{normalize:normalize}};
