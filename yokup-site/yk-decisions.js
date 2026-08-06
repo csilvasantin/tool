@@ -36,6 +36,7 @@
        + ".decision-grid-mono{font-family:var(--mono)}.decision-grid-ref{display:inline-block;margin-bottom:5px;color:var(--accent,#ffd866);font:700 10px/1.25 var(--mono)}"
        + ".decision-grid-agent{display:flex;align-items:center;gap:7px}.decision-grid-agent img,.decision-grid-agent .decini{width:25px;height:25px;border-radius:5px;flex:0 0 auto}.decision-grid-agent img{object-fit:cover;object-position:center top}.decision-grid-agent .decini{display:grid;place-items:center;border:1px solid var(--line);font:700 9px/1 var(--mono)}"
        + ".decision-grid-badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.decision-grid-badge{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:2px 6px;color:var(--mut);font:700 9px/1.35 var(--mono)}"
+       + ".decision-grid-detail{margin-top:8px;border-top:1px dashed var(--line);padding-top:7px}.decision-grid-detail>summary{cursor:pointer;color:var(--brand);font:700 9px/1.4 var(--mono);letter-spacing:.04em}.decision-grid-detail>summary:focus-visible{outline:2px solid var(--brand);outline-offset:2px}.decision-grid-options{display:grid;gap:4px;margin:7px 0 0;padding:0;list-style:none}.decision-grid-option{display:grid;grid-template-columns:18px minmax(0,1fr);gap:5px;color:var(--mut)}.decision-grid-option.is-effective{color:var(--ink);font-weight:700}.decision-grid-option.is-recommended{color:var(--warn,#ffb545)}.decision-grid-meta{display:grid;gap:4px;margin-top:7px;color:var(--mut);font-size:10px}.decision-grid-meta a{color:var(--brand);overflow-wrap:anywhere}"
        + ".decision-grid-state{display:inline-flex;align-items:center;gap:5px;border:1px solid currentColor;border-radius:999px;padding:4px 7px;font:700 9px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase}.decision-grid-state:before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}.decision-grid-state.decided{color:var(--good,#3df08a)}.decision-grid-state.expired{color:var(--warn,#ffb545)}.decision-grid-state.cancelled{color:var(--violet,#aa88ff)}"
        + ".decs.hist>.decs-note{margin:0;padding:11px 15px 13px;border-top:0}"
        + "@media(max-width:560px){.decs.hist>.decs-hd{padding-inline:11px}.decision-grid-scroll{overflow:visible}.decision-grid{min-width:0}.decision-grid-head{display:none}.decision-grid-row{display:block}.decision-grid-cell{display:grid;grid-template-columns:104px minmax(0,1fr);gap:10px;padding:10px 11px;border-left:0;border-top:1px solid var(--line)}.decision-grid-cell:first-child{border-top:0}.decision-grid-cell:before{content:attr(data-label);color:var(--brand);font:700 9px/1.35 var(--mono);letter-spacing:.08em;text-transform:uppercase}.decs.hist>.decs-note{padding-inline:11px}}";
@@ -287,6 +288,34 @@
       actor: d.status === "expired" ? "Automática · sin respuesta" : String(d.chosen_by || d.by || "Autor no registrado")
     };
   }
+  function decisionGridDetail(d) {
+    var options = d && d.options || [], rec = +d.recommended || 0;
+    var effective = d.status === "expired" ? rec : +d.chosen;
+    var optionsHtml = options.map(function (option, index) {
+      var classes = "decision-grid-option" + (index === effective ? " is-effective" : "") + (index === rec ? " is-recommended" : "");
+      var mark = index === effective ? (d.status === "expired" ? "⏱" : "✓") : index === rec ? "★" : String(index + 1);
+      return '<li class="' + classes + '"><span aria-hidden="true">' + esc(mark) + '</span><span>' + esc(option) + '</span></li>';
+    }).join("");
+    var meta = [];
+    if (d.mission) meta.push('<span><b>Misión:</b> ' + esc(d.mission) + '</span>');
+    if (d.url) {
+      var rawUrl = String(d.url).trim(), safeUrl = /^https?:\/\//i.test(rawUrl);
+      meta.push('<span><b>URL:</b> ' + (safeUrl ? '<a href="' + esc(rawUrl) + '" target="_blank" rel="noopener">' + esc(rawUrl) + '</a>' : esc(rawUrl)) + '</span>');
+    }
+    if (d.batch_id) meta.push('<span><b>Tanda:</b> ' + esc(d.batch_id) + '</span>');
+    if (d.parent_decision) meta.push('<span><b>Decisión anterior:</b> ' + esc(d.parent_decision) + '</span>');
+    if (d.batch) {
+      var active = (d.batch.items || []).filter(function (item) { return item.status === "active"; })[0];
+      var queued = (d.batch.items || []).filter(function (item) { return item.status === "queued"; });
+      meta.push('<span><b>Cola:</b> ' + esc(d.batch.status || "sin estado")
+        + (active ? " · activa: " + esc(active.title) : "")
+        + (queued.length ? " · pendientes: " + queued.map(function (item) { return esc(item.title); }).join(" → ") : "")
+        + (d.batch.pause_reason ? " · motivo: " + esc(d.batch.pause_reason) : "") + '</span>');
+    }
+    return '<details class="decision-grid-detail"><summary>Ver detalle y todas las opciones</summary>'
+      + (optionsHtml ? '<ol class="decision-grid-options" aria-label="Opciones de la decisión">' + optionsHtml + '</ol>' : '<span class="decision-grid-secondary">Sin opciones registradas</span>')
+      + (meta.length ? '<div class="decision-grid-meta">' + meta.join("") + '</div>' : "") + '</details>';
+  }
   function decisionGridRow(d) {
     var machine = String(d.machine || "Sin máquina").trim() || "Sin máquina";
     var agent = agenteVisible(d.agent || "Sin agente", d.machine) || "Sin agente";
@@ -307,7 +336,7 @@
       + ' data-sort-state="' + sort(stateLabel) + '" data-sort-time="' + esc(ended || opened || 0) + '">'
       + '<div class="decision-grid-cell" role="cell" data-label="Agente / plataforma"><span class="decision-grid-agent">' + face + '<span><span class="decision-grid-primary">' + esc(agent) + '</span><span class="decision-grid-secondary">' + esc(machine) + '</span></span></span><span class="decision-grid-badges"><span class="decision-grid-badge">' + esc(platform) + '</span></span></div>'
       + '<div class="decision-grid-cell" role="cell" data-label="Proyecto"><span class="decision-grid-primary">' + esc(project) + '</span>' + (projectRef ? '<span class="decision-grid-secondary decision-grid-mono">' + esc(projectRef) + '</span>' : '') + '</div>'
-      + '<div class="decision-grid-cell" role="cell" data-label="Decisión"><span class="decision-grid-ref" title="ID técnico: ' + esc(d.id) + '">' + esc(workRef(d)) + '</span><span class="decision-grid-primary">' + esc(d.question || "Sin pregunta registrada") + '</span></div>'
+      + '<div class="decision-grid-cell" role="cell" data-label="Decisión"><span class="decision-grid-ref" title="ID técnico: ' + esc(d.id) + '">' + esc(workRef(d)) + '</span><span class="decision-grid-primary">' + esc(d.question || "Sin pregunta registrada") + '</span>' + decisionGridDetail(d) + '</div>'
       + '<div class="decision-grid-cell" role="cell" data-label="Resultado"><span class="decision-grid-primary">' + esc(outcome.choice) + '</span><span class="decision-grid-secondary">' + esc(recommendation) + '</span><span class="decision-grid-secondary">Eligió: ' + esc(outcome.actor) + '</span>' + (state !== "cancelled" ? '<span class="decision-grid-secondary">Ejecuta: ' + esc(agent) + ' · ' + esc(machine) + '</span>' : '') + '</div>'
       + '<div class="decision-grid-cell" role="cell" data-label="Estado"><span class="decision-grid-state ' + esc(state) + '">' + esc(stateLabel) + '</span></div>'
       + '<div class="decision-grid-cell decision-grid-mono" role="cell" data-label="Tiempo"><span class="decision-grid-primary">' + esc(when(opened) || "—") + ' → ' + esc(when(ended) || "—") + '</span><span class="decision-grid-secondary">' + esc(durationText(d)) + '</span></div>'
@@ -490,5 +519,5 @@
     });
     load(); setInterval(load, 15000);
   }
-  window.YkDecisions = {mount:mount,_test:{card:card,projectName:projectName,stamp:stamp,groupDecisions:groupDecisions,renderGroups:renderGroups,stateText:stateText,decisionGridRow:decisionGridRow,renderDecisionGridRows:renderDecisionGridRows,durationText:durationText}};
+  window.YkDecisions = {mount:mount,_test:{card:card,projectName:projectName,stamp:stamp,groupDecisions:groupDecisions,renderGroups:renderGroups,stateText:stateText,decisionGridRow:decisionGridRow,renderDecisionGridRows:renderDecisionGridRows,durationText:durationText,decisionGridDetail:decisionGridDetail}};
 })();

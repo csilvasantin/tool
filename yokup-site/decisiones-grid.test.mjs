@@ -59,6 +59,27 @@ test('las celdas conservan decisión, recomendación, desenlace, ejecutor y plat
   assert.match(html, /3 min/);
 });
 
+test('el detalle de cada fila conserva todas las opciones y metadatos operativos', () => {
+  const html = context.renderDecisionGridRows([decision('decided', {
+    mission: 'Misión de prueba', url: 'https://yokup.com/misiones',
+    batch_id: 'batch-7', parent_decision: 'DEC-parent',
+    batch: {status:'paused', pause_reason:'espera criterio', items:[
+      {status:'active', title:'Implementar'}, {status:'queued', title:'Verificar'}
+    ]}
+  })]);
+  assert.match(html, /<details class="decision-grid-detail">/);
+  for (const option of ['Capturar proceso', 'Ordenar cabezales', 'Revisar contraste', 'Volver atrás']) {
+    assert.match(html, new RegExp(option));
+  }
+  assert.match(html, /Misión de prueba/);
+  assert.match(html, /https:\/\/yokup\.com\/misiones/);
+  assert.match(html, /batch-7/);
+  assert.match(html, /DEC-parent/);
+  assert.match(html, /Implementar/);
+  assert.match(html, /Verificar/);
+  assert.match(html, /espera criterio/);
+});
+
 test('decidida, vencida y cancelada se leen con resultados y badges inequívocos', () => {
   const html = context.renderDecisionGridRows([
     decision('decided'),
