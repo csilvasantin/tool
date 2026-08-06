@@ -20,6 +20,25 @@
   var CSS = ".decs{margin:0 0 18px;border:1px solid var(--warn,#ffb545);border-radius:12px;background:rgba(255,181,69,.05);padding:13px 15px}.decs-hd{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--warn,#ffb545);font-weight:700;display:flex;gap:9px;margin-bottom:11px}.decs-n{color:var(--mut)}.decs-list,.dec-opts{display:flex;flex-direction:column;gap:8px}.dec{border:1px solid var(--line2);border-radius:10px;background:var(--card);padding:12px 13px;min-width:0}.dec.urge{border-color:#ff6b6b}.dec-project{display:grid;gap:5px;margin:-1px 0 12px;padding:0 0 11px;border-bottom:1px solid var(--line2)}.dec-project-label{font-family:var(--mono);font-size:9px;line-height:1.3;font-weight:800;letter-spacing:.15em;text-transform:uppercase;color:var(--good,#3df08a)}.dec-project-name{margin:0;color:var(--ink);font-size:clamp(16px,2.1vw,20px);line-height:1.2;font-weight:800;overflow-wrap:anywhere}.dec-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}.dec-k,.dec-clock,.dec-done{font-family:var(--mono);font-size:10px}.dec-k{color:var(--mut);border:1px solid var(--line);border-radius:6px;padding:3px 7px}.dec-clock{margin-left:auto;color:var(--warn,#ffb545);font-size:15px;font-weight:700}.dec-q{font-size:13px;line-height:1.4;color:var(--ink);margin-bottom:10px}.dec-opt{display:flex;gap:8px;text-align:left;width:100%;font:inherit;font-size:12px;color:var(--ink);cursor:pointer;background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 10px}.dec-opt:focus-visible{outline:3px solid var(--ink);outline-offset:2px}.dec-opt.rec{border-color:var(--warn,#ffb545);position:relative;overflow:hidden;--fill:0%}.dec-opt.rec:before{content:'';position:absolute;inset:0 auto 0 0;width:var(--fill);background:rgba(255,181,69,.18);transition:width 1s linear}.dec-opt span{position:relative}.dec-opt .n{font-family:var(--mono);color:var(--mut)}.dec-opt:disabled{cursor:default;opacity:.72}.dec-opt.effective{opacity:1;border-color:var(--good,#3df08a);background:rgba(61,240,138,.09);box-shadow:inset 3px 0 0 var(--good,#3df08a)}.dec-opt.effective.expired{border-color:var(--warn,#ffb545);background:rgba(255,181,69,.08);box-shadow:inset 3px 0 0 var(--warn,#ffb545)}.dec-done{padding-top:8px}.dec-done.ok{color:var(--good,#3df08a)}.dec-done.exp{color:var(--mut)}.dec-batch{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:11px;color:var(--mut)}.dec-batch b{color:var(--ink)}.dec-batch.paused{color:var(--warn,#ffb545)}@media(max-width:520px){.decs{padding:11px}.dec{padding:11px}.dec-project-name{font-size:16px}.dec-clock{width:100%;margin-left:0}.dec-opt{font-size:13px;padding:10px}}";
   CSS += ".dec-project-rest{font-family:var(--mono);font-size:10px;color:var(--mut)}";
   CSS += ".dec-ref{color:var(--accent,#ffd866);font-weight:700}";
+  /* Histórico tabular: una sola hoja con filas alineadas. El overflow horizontal
+     conserva columnas legibles y, en móvil estrecho, cada celda muestra su rótulo. */
+  CSS += ".decs.hist{padding:0;overflow:hidden}.decs.hist>.decs-hd{padding:13px 15px 0}"
+       + ".decision-grid-scroll{width:100%;overflow-x:auto;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}"
+       + ".decision-grid{min-width:1040px;border-top:1px solid var(--line2);border-bottom:1px solid var(--line2);background:var(--card)}"
+       + ".decision-grid-head,.decision-grid-row{display:grid;grid-template-columns:var(--decision-col-agent,minmax(180px,1.05fr)) var(--decision-col-project,minmax(150px,.9fr)) var(--decision-col-decision,minmax(245px,1.5fr)) var(--decision-col-result,minmax(220px,1.35fr)) var(--decision-col-state,minmax(105px,.62fr)) var(--decision-col-time,minmax(170px,1fr));align-items:stretch}"
+       + ".decision-grid-head{position:sticky;top:0;z-index:2;background:var(--card2);font:700 10px/1.25 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--brand)}"
+       + ".decision-grid-head>[data-decision-col],.decision-grid-cell{min-width:0;padding:11px 13px;border-left:1px solid var(--line)}"
+       + ".decision-grid-head>[data-decision-col]:first-child,.decision-grid-cell:first-child{border-left:0}"
+       + ".decision-grid-row{border-top:1px solid var(--line);background:var(--card);color:var(--ink)}"
+       + ".decision-grid-row:hover{background:rgba(120,243,255,.025)}"
+       + ".decision-grid-cell{font-size:12px;line-height:1.45;overflow-wrap:anywhere}"
+       + ".decision-grid-primary{display:block;color:var(--ink);font-weight:700}.decision-grid-secondary{display:block;margin-top:4px;color:var(--mut);font-size:10.5px;line-height:1.45}"
+       + ".decision-grid-mono{font-family:var(--mono)}.decision-grid-ref{display:inline-block;margin-bottom:5px;color:var(--accent,#ffd866);font:700 10px/1.25 var(--mono)}"
+       + ".decision-grid-agent{display:flex;align-items:center;gap:7px}.decision-grid-agent img,.decision-grid-agent .decini{width:25px;height:25px;border-radius:5px;flex:0 0 auto}.decision-grid-agent img{object-fit:cover;object-position:center top}.decision-grid-agent .decini{display:grid;place-items:center;border:1px solid var(--line);font:700 9px/1 var(--mono)}"
+       + ".decision-grid-badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.decision-grid-badge{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:2px 6px;color:var(--mut);font:700 9px/1.35 var(--mono)}"
+       + ".decision-grid-state{display:inline-flex;align-items:center;gap:5px;border:1px solid currentColor;border-radius:999px;padding:4px 7px;font:700 9px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase}.decision-grid-state:before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}.decision-grid-state.decided{color:var(--good,#3df08a)}.decision-grid-state.expired{color:var(--warn,#ffb545)}.decision-grid-state.cancelled{color:var(--violet,#aa88ff)}"
+       + ".decs.hist>.decs-note{margin:0;padding:11px 15px 13px;border-top:0}"
+       + "@media(max-width:560px){.decs.hist>.decs-hd{padding-inline:11px}.decision-grid-scroll{overflow:visible}.decision-grid{min-width:0}.decision-grid-head{display:none}.decision-grid-row{display:block}.decision-grid-cell{display:grid;grid-template-columns:104px minmax(0,1fr);gap:10px;padding:10px 11px;border-left:0;border-top:1px solid var(--line)}.decision-grid-cell:first-child{border-top:0}.decision-grid-cell:before{content:attr(data-label);color:var(--brand);font:700 9px/1.35 var(--mono);letter-spacing:.08em;text-transform:uppercase}.decs.hist>.decs-note{padding-inline:11px}}";
   /* RETRATO del agente en la ficha (FLT-985 a). Fuera el 👷: cada persona de
      silicio tiene cara, y es la misma que enseña /misiones — sale de yk-avatar.js.
      Quien no tenga retrato cae en sus iniciales, no en otro emoji. */
@@ -243,6 +262,58 @@
       return '<section class="dec-machine" aria-labelledby="' + mid + '"><header class="dec-machine-h"><h2 id="' + mid + '">🖥 ' + esc(machine.name) + '</h2><span class="dec-group-count">' + machine.items.length + ' · ' + esc(stateText(machine.items)) + '</span></header>' + agents + '</section>';
     }).join("");
   }
+  function gridEpoch(value) {
+    var n = +value || 0;
+    return n && n < 4102444800 ? n * 1000 : n;
+  }
+  function durationText(d) {
+    var start = gridEpoch(d && d.created_at), end = gridEpoch(closedAt(d || {}));
+    if (!start || !end || end < start) return "—";
+    var seconds = Math.round((end - start) / 1000);
+    if (seconds < 60) return "<1 min";
+    var minutes = Math.round(seconds / 60);
+    if (minutes < 60) return minutes + " min";
+    var hours = Math.floor(minutes / 60), rest = minutes % 60;
+    return hours + " h" + (rest ? " " + rest + " min" : "");
+  }
+  function decisionGridOutcome(d) {
+    var options = d && d.options || [], rec = +d.recommended || 0;
+    var effective = d.status === "expired" ? rec : +d.chosen;
+    var choice = String(options[effective] || "").trim();
+    if (d.status === "cancelled" && !choice) choice = "Sin misión iniciada";
+    return {
+      choice: choice || "Sin resultado registrado",
+      recommended: String(options[rec] || "").trim(),
+      actor: d.status === "expired" ? "Automática · sin respuesta" : String(d.chosen_by || d.by || "Autor no registrado")
+    };
+  }
+  function decisionGridRow(d) {
+    var machine = String(d.machine || "Sin máquina").trim() || "Sin máquina";
+    var agent = agenteVisible(d.agent || "Sin agente", d.machine) || "Sin agente";
+    var platform = String(d.surface || "").toUpperCase() === "CLI" ? "CLI" : "Desktop App";
+    var project = projectName(d), projectRef = String(d.project_slug || d.project_id || "").trim();
+    var outcome = decisionGridOutcome(d), state = String(d.status || "").toLowerCase();
+    var stateLabel = state === "decided" ? "Hecha" : state === "expired" ? "Vencida" : state === "cancelled" ? "Cancelada" : state || "Sin estado";
+    var opened = gridEpoch(d.created_at), ended = gridEpoch(closedAt(d));
+    var recommendation = outcome.recommended && outcome.recommended !== outcome.choice ? "Recomendada: " + outcome.recommended : "Recomendada aplicada";
+    var avatar = ""; try { avatar = window.ykAvatar ? window.ykAvatar.img(d.agent || "") : ""; } catch (e) {}
+    var face = avatar ? '<img alt="" loading="lazy" src="' + esc(avatar) + '">' : '<span class="decini">' + esc(String(d.agent || "—").replace(/^(sub|infra)/i, "").slice(0,2).toUpperCase()) + '</span>';
+    function sort(value) { return esc(String(value || "").toLocaleLowerCase("es")); }
+    return '<div class="decision-grid-row" role="row" data-row-key="' + esc(d.id || workRef(d)) + '"'
+      + ' data-sort-agent="' + sort(agent + " " + machine + " " + platform) + '"'
+      + ' data-sort-project="' + sort(project + " " + projectRef) + '"'
+      + ' data-sort-decision="' + sort(workRef(d) + " " + (d.question || "")) + '"'
+      + ' data-sort-result="' + sort(outcome.choice + " " + outcome.actor) + '"'
+      + ' data-sort-state="' + sort(stateLabel) + '" data-sort-time="' + esc(ended || opened || 0) + '">'
+      + '<div class="decision-grid-cell" role="cell" data-label="Agente / plataforma"><span class="decision-grid-agent">' + face + '<span><span class="decision-grid-primary">' + esc(agent) + '</span><span class="decision-grid-secondary">' + esc(machine) + '</span></span></span><span class="decision-grid-badges"><span class="decision-grid-badge">' + esc(platform) + '</span></span></div>'
+      + '<div class="decision-grid-cell" role="cell" data-label="Proyecto"><span class="decision-grid-primary">' + esc(project) + '</span>' + (projectRef ? '<span class="decision-grid-secondary decision-grid-mono">' + esc(projectRef) + '</span>' : '') + '</div>'
+      + '<div class="decision-grid-cell" role="cell" data-label="Decisión"><span class="decision-grid-ref" title="ID técnico: ' + esc(d.id) + '">' + esc(workRef(d)) + '</span><span class="decision-grid-primary">' + esc(d.question || "Sin pregunta registrada") + '</span></div>'
+      + '<div class="decision-grid-cell" role="cell" data-label="Resultado"><span class="decision-grid-primary">' + esc(outcome.choice) + '</span><span class="decision-grid-secondary">' + esc(recommendation) + '</span><span class="decision-grid-secondary">Eligió: ' + esc(outcome.actor) + '</span>' + (state !== "cancelled" ? '<span class="decision-grid-secondary">Ejecuta: ' + esc(agent) + ' · ' + esc(machine) + '</span>' : '') + '</div>'
+      + '<div class="decision-grid-cell" role="cell" data-label="Estado"><span class="decision-grid-state ' + esc(state) + '">' + esc(stateLabel) + '</span></div>'
+      + '<div class="decision-grid-cell decision-grid-mono" role="cell" data-label="Tiempo"><span class="decision-grid-primary">' + esc(when(opened) || "—") + ' → ' + esc(when(ended) || "—") + '</span><span class="decision-grid-secondary">' + esc(durationText(d)) + '</span></div>'
+      + '</div>';
+  }
+  function renderDecisionGridRows(items) { return (items || []).map(decisionGridRow).join(""); }
   // ── HISTÓRICO ───────────────────────────────────────────────────────────────
   // Sale entero del worker. Se pide de la más reciente hacia atrás con el cursor
   // `next_until`; PAGE_MAX páginas de 500 acotan la petición para no traerse la
@@ -323,11 +394,11 @@
       document.getElementById("decsHistN").textContent = histStatus
         ? "· " + closedShown.length + " " + STATUS_LABEL[histStatus] + " (filtrado)"
         : "· " + closedShown.length + (closedShown.length === 1 ? " decisión cerrada" : " decisiones cerradas");
-      histList.innerHTML = (closedShown.length ? renderGroups(closedShown, {stamp: true})
-        : "<p class=\"decs-empty\">" + (histStatus ? EMPTY_HIST[histStatus] : "Todavía no hay decisiones cerradas.") + "</p>")
-        + "<p class=\"decs-note\">Histórico completo del worker: <code>GET /decisions?all=1&amp;since=0</code> devuelve todas las decisiones de la flota, no solo las de la última hora, y con ellas quién eligió. Se ve lo mismo desde cualquier equipo."
-        + (truncated ? " Ahora mismo hay más de " + (PAGE * PAGE_MAX) + " y esta lista llega solo hasta ahí: las más antiguas quedan fuera." : "")
-        + "</p>";
+      histList.innerHTML = closedShown.length ? renderDecisionGridRows(closedShown)
+        : "<p class=\"decs-empty\">" + (histStatus ? EMPTY_HIST[histStatus] : "Todavía no hay decisiones cerradas.") + "</p>";
+      var histNote = document.getElementById("decsHistNote");
+      if (histNote) histNote.innerHTML = "Histórico completo del worker: <code>GET /decisions?all=1&amp;since=0</code> devuelve todas las decisiones de la flota, no solo las de la última hora, y con ellas quién eligió. Se ve lo mismo desde cualquier equipo."
+        + (truncated ? " Ahora mismo hay más de " + (PAGE * PAGE_MAX) + " y esta lista llega solo hasta ahí: las más antiguas quedan fuera." : "");
     }
 
     // Los 4 chips de estadística son también FILTROS (sólo en /decisiones).
@@ -419,5 +490,5 @@
     });
     load(); setInterval(load, 15000);
   }
-  window.YkDecisions = {mount:mount,_test:{card:card,projectName:projectName,stamp:stamp,groupDecisions:groupDecisions,renderGroups:renderGroups,stateText:stateText}};
+  window.YkDecisions = {mount:mount,_test:{card:card,projectName:projectName,stamp:stamp,groupDecisions:groupDecisions,renderGroups:renderGroups,stateText:stateText,decisionGridRow:decisionGridRow,renderDecisionGridRows:renderDecisionGridRows,durationText:durationText}};
 })();
