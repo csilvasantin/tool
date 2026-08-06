@@ -39,6 +39,16 @@ test('estado visible tiene una única precedencia y cuenta exactamente las filas
   });
 });
 
+test('actividad real reciente protege una misión antigua del estado no concluido', () => {
+  const now=Date.UTC(2026,7,7,10), old=now-24*3600000, recent=now-5000;
+  assert.equal(missionVisibleState({status:'in_progress',created_at:old,updated_at:recent},now),'in_progress');
+  assert.equal(missionVisibleState({status:'in_progress',created_at:old,live_at:recent},now),'in_progress');
+  assert.equal(missionVisibleState({status:'open',created_at:old},now,recent),'in_progress');
+  assert.equal(missionVisibleState({status:'unconcluded',created_at:old},now),'unconcluded');
+  assert.match(source,/SELECT mission_id,MAX\(updated_at\) activity_at FROM mission_tasks/);
+  assert.match(source,/SELECT ticket_id mission_id,MAX\(ts\) activity_at FROM events/);
+});
+
 test('day usa medianoche real de Madrid y es opcional', () => {
   const summer = missionDayRange('2026-08-07');
   assert.equal(new Date(summer.start).toISOString(), '2026-08-06T22:00:00.000Z');
@@ -71,6 +81,7 @@ test('menú declara explícitamente alcance global y la misma semántica visible
   const menu = source.slice(source.indexOf('async function menuCounters'), source.indexOf('__name(menuCounters'));
   assert.match(menu, /universe:"all_backlog", state_semantics:"visible-v1"/);
   assert.match(menu, /no_concluidas:0, sin_asignar:0/);
+  assert.match(menu, /t\.status NOT IN \('resolved','cancelled'\)/);
   assert.match(menu, /mission_tasks m WHERE m\.mission_id=t\.id AND m\.status IN \('in_progress','done','resolved'\)/);
   assert.match(menu, /created_at<4102444800/);
 });

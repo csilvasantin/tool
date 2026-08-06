@@ -9,6 +9,7 @@ import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
 import { resolveIdeaAuthor } from "./idea-author.js";
 import { missionDayRange, missionVisibleCounts, missionVisibleState } from "./mission-visible.js";
+import { DAILY_MISSION_CLOSE_AUTHOR, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_LEASE_MS, DAILY_MISSION_CLOSE_REASON, MISSION_UNCONCLUDED_AFTER_MS, dailyMissionCloseEventText, dailyMissionClosePlan } from "./daily-mission-close.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -298,6 +299,14 @@ async function applySchema(env) {
   // asterisco y color de aviso (Carlos, 6-ago-2026: «podría darnos información falsa»).
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN project_inherited INTEGER").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN project_inherited_from TEXT").catch(() => {});
+  // CIERRE DIARIO de no concluidas. Son campos estructurados para que la UI no
+  // tenga que inferir la causa desde una nota o desde el texto de un evento.
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN closure_reason TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN closed_at INTEGER").catch(() => {});
+  // Una fila por día terminado en Europe/Madrid. Además de bitácora actúa como
+  // lease recuperable: `done` no vuelve a ejecutarse; `running` caducado/error
+  // puede ser retomado por otro isolate sin duplicar cambios ni eventos.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_daily_closures (day TEXT PRIMARY KEY, closed_at INTEGER NOT NULL, active_after INTEGER NOT NULL, status TEXT NOT NULL, lease_token TEXT, started_at INTEGER, finished_at INTEGER, cancelled_count INTEGER DEFAULT 0, error TEXT)");
   // MISIÓN MADRE → HIJAS (FLT-990 b1). Aditivo y NULLABLE: las misiones planas de
   // hoy quedan con parent_id NULL y se ven EXACTELY igual que antes. Solo cuelga
   // quien se enganche a una madre por /fleet/parent.
@@ -889,6 +898,10 @@ async function runScheduledRoutine(env, event) {
   await step("fleetPlan", () => fleetPlanPending(env, 3));
   // Avance del árbol → estado de la misión y del encargo del bot-inbox.
   await step("fleetReconcile", () => fleetReconcileAll(env));
+  // Primer tick tras la medianoche de Madrid: no concluidas del día terminado
+  // pasan a Eliminadas. Va después del sync/reconcile para observar cualquier
+  // cierre o actividad externa recién llegada antes de decidir; el lease vive en D1.
+  await step("dailyMissionClose", () => runDailyMissionClose(env));
   // Consejo generador (idempotente por hueco de 3h; su propia bitácora council_ticks).
   await step("council", () => runCouncilTick(env));
   return out;
@@ -2165,6 +2178,76 @@ var MISSION_SCOPE_SQL = "(role='mission' OR source IN ('fleet','decision-batch',
 var MISSION_SCOPE_SQL_T = "(t.role='mission' OR t.source IN ('fleet','decision-batch','cli-declare'))";
 var FIELD_MISSION_SCOPE_SQL_T = "(COALESCE(t.role,'')!='mission' AND (t.source IS NULL OR t.source NOT IN ('fleet','decision-batch','cli-declare')))";
 
+async function acquireDailyMissionClose(env, plan, now) {
+  const token = typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID() : "daily-" + now + "-" + Math.random().toString(36).slice(2);
+  const result = await env.DB.prepare(
+    "INSERT INTO mission_daily_closures(day,closed_at,active_after,status,lease_token,started_at,finished_at,cancelled_count,error) " +
+    "VALUES(?,?,?,'running',?,?,NULL,0,'') " +
+    "ON CONFLICT(day) DO UPDATE SET closed_at=excluded.closed_at,active_after=excluded.active_after,status='running'," +
+    "lease_token=excluded.lease_token,started_at=excluded.started_at,finished_at=NULL,error='' " +
+    "WHERE mission_daily_closures.status!='done' AND (mission_daily_closures.status!='running' OR mission_daily_closures.started_at<=?)"
+  ).bind(plan.day, plan.closedAt, plan.activeAfter, token, now, now - DAILY_MISSION_CLOSE_LEASE_MS).run();
+  return { acquired:Number(result && result.meta && result.meta.changes || 0) > 0, token };
+}
+__name(acquireDailyMissionClose, "acquireDailyMissionClose");
+
+// Cierra el último día COMPLETO de Madrid. El INSERT de eventos, el UPDATE de
+// tickets y el sello `done` viajan en un único DB.batch transaccional. Si el
+// isolate muere antes, el lease caduca y otro reintenta; si muere durante, D1
+// revierte el lote. La condición y el NOT EXISTS hacen inocua cualquier repetición.
+async function runDailyMissionClose(env, now = Date.now()) {
+  const plan = { ...dailyMissionClosePlan(now), activeAfter:now - MISSION_UNCONCLUDED_AFTER_MS };
+  const lease = await acquireDailyMissionClose(env, plan, now);
+  if (!lease.acquired) {
+    const current = await env.DB.prepare(
+      "SELECT day,closed_at,active_after,status,started_at,finished_at,cancelled_count,error FROM mission_daily_closures WHERE day=?"
+    ).bind(plan.day).first();
+    return { ok:current && current.status === "done", skipped:true, ...(current || { day:plan.day, status:"running" }) };
+  }
+  const text = dailyMissionCloseEventText(plan.day);
+  // Misma definición factual en INSERT y UPDATE: nació antes del cierre de día
+  // y no registra actividad en los últimos 30 min. `updated_at`/`live_at`, tareas
+  // y eventos protegen una misión antigua que de verdad siga trabajando hoy.
+  const eligible = `${MISSION_SCOPE_SQL_T} AND t.status NOT IN ('resolved','cancelled') AND t.created_at IS NOT NULL AND t.created_at>0 ` +
+    "AND (CASE WHEN t.created_at<4102444800 THEN t.created_at*1000 ELSE t.created_at END)<? " +
+    "AND (CASE WHEN t.created_at<4102444800 THEN t.created_at*1000 ELSE t.created_at END)<? " +
+    "AND (t.updated_at IS NULL OR (CASE WHEN t.updated_at<4102444800 THEN t.updated_at*1000 ELSE t.updated_at END)<?) " +
+    "AND (t.live_at IS NULL OR (CASE WHEN t.live_at<4102444800 THEN t.live_at*1000 ELSE t.live_at END)<?) " +
+    "AND NOT EXISTS(SELECT 1 FROM mission_tasks mt WHERE mt.mission_id=t.id AND (CASE WHEN mt.updated_at<4102444800 THEN mt.updated_at*1000 ELSE mt.updated_at END)>=?) " +
+    "AND NOT EXISTS(SELECT 1 FROM events ae WHERE ae.ticket_id=t.id AND (CASE WHEN ae.ts<4102444800 THEN ae.ts*1000 ELSE ae.ts END)>=? " +
+    "AND NOT (ae.kind=? AND ae.author=? AND ae.text=?))";
+  const eligibilityBinds = [plan.closedAt, plan.activeAfter, plan.activeAfter, plan.activeAfter,
+    plan.activeAfter, plan.activeAfter, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_AUTHOR, text];
+  try {
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO events(ticket_id,ts,kind,author,text) " +
+        `SELECT t.id,?,?,?,? FROM tickets t WHERE ${eligible} ` +
+        "AND NOT EXISTS(SELECT 1 FROM events e WHERE e.ticket_id=t.id AND e.kind=? AND e.author=? AND e.text=?)"
+      ).bind(now, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_AUTHOR, text, ...eligibilityBinds,
+        DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_AUTHOR, text),
+      env.DB.prepare(
+        `UPDATE tickets AS t SET status='cancelled',closure_reason=?,closed_at=?,updated_at=?,resolved_at=NULL WHERE ${eligible}`
+      ).bind(DAILY_MISSION_CLOSE_REASON, plan.closedAt, now, ...eligibilityBinds),
+      env.DB.prepare(
+        "UPDATE mission_daily_closures SET status='done',finished_at=?,cancelled_count=(" +
+        "SELECT COUNT(*) FROM tickets WHERE closure_reason=? AND closed_at=?),error='' WHERE day=? AND lease_token=?"
+      ).bind(now, DAILY_MISSION_CLOSE_REASON, plan.closedAt, plan.day, lease.token)
+    ]);
+    const result = await env.DB.prepare(
+      "SELECT day,closed_at,active_after,status,started_at,finished_at,cancelled_count,error FROM mission_daily_closures WHERE day=?"
+    ).bind(plan.day).first();
+    return { ok:true, skipped:false, ...result };
+  } catch (error) {
+    await env.DB.prepare(
+      "UPDATE mission_daily_closures SET status='error',finished_at=?,error=? WHERE day=? AND lease_token=?"
+    ).bind(Date.now(), String(error && error.message || error).slice(0, 300), plan.day, lease.token).run().catch(() => {});
+    throw error;
+  }
+}
+__name(runDailyMissionClose, "runDailyMissionClose");
+
 async function listAllMissionTasks(env, scope) {
   const where = scope === "fleet" ? `WHERE ${AGENT_SOURCE_SQL_T}`
     : scope === "todas" ? ""
@@ -2734,15 +2817,20 @@ async function listTickets(env, scope, limit, offset, filters = {}) {
   const rows = results || [];
   const counted = await env.DB.prepare(`SELECT COUNT(*) total FROM tickets t ${universe.sql}`).bind(...universe.binds).first();
   const total = Number(counted && counted.total) || 0;
-  const touched = new Set();
+  const activity = new Map();
   if (rows.length) {
-    const active = await selectIn(env, rows.map((row) => row.id), (ph) =>
-      `SELECT DISTINCT mission_id FROM mission_tasks WHERE mission_id IN (${ph}) AND status IN ('in_progress','done','resolved')`
+    const taskActivity = await selectIn(env, rows.map((row) => row.id), (ph) =>
+      `SELECT mission_id,MAX(updated_at) activity_at FROM mission_tasks WHERE mission_id IN (${ph}) GROUP BY mission_id`
     );
-    for (const row of active) touched.add(row.mission_id);
+    const eventActivity = await selectIn(env, rows.map((row) => row.id), (ph) =>
+      `SELECT ticket_id mission_id,MAX(ts) activity_at FROM events WHERE ticket_id IN (${ph}) GROUP BY ticket_id`
+    );
+    for (const item of [...taskActivity, ...eventActivity]) {
+      activity.set(item.mission_id, Math.max(Number(activity.get(item.mission_id)) || 0, Number(item.activity_at) || 0));
+    }
   }
   const now = Date.now();
-  for (const row of rows) row.visible_state = missionVisibleState(row, now, touched.has(row.id));
+  for (const row of rows) row.visible_state = missionVisibleState(row, now, activity.get(row.id) || 0);
   await attachImgCount(env, rows);
   // Nombre humano del proyecto junto al id, para que la lista no tenga que
   // cruzar /projects sólo para pintar un rótulo.
@@ -4114,11 +4202,15 @@ async function menuCounters(env) {
   const cutoff = Date.now() - 30 * 60 * 1000;
   const tk = (await env.DB.prepare(
     "SELECT CASE WHEN role='mission' OR source IN ('fleet','decision-batch','cli-declare') THEN 'f' ELSE 'c' END sc, t.status, " +
-    "CASE WHEN (CASE WHEN t.created_at<4102444800 THEN t.created_at*1000 ELSE t.created_at END)<=? THEN 'unconcluded' " +
+    "CASE WHEN (CASE WHEN t.created_at<4102444800 THEN t.created_at*1000 ELSE t.created_at END)<? " +
+    "AND (t.updated_at IS NULL OR (CASE WHEN t.updated_at<4102444800 THEN t.updated_at*1000 ELSE t.updated_at END)<?) " +
+    "AND (t.live_at IS NULL OR (CASE WHEN t.live_at<4102444800 THEN t.live_at*1000 ELSE t.live_at END)<?) " +
+    "AND NOT EXISTS(SELECT 1 FROM mission_tasks ma WHERE ma.mission_id=t.id AND (CASE WHEN ma.updated_at<4102444800 THEN ma.updated_at*1000 ELSE ma.updated_at END)>=?) " +
+    "AND NOT EXISTS(SELECT 1 FROM events ea WHERE ea.ticket_id=t.id AND (CASE WHEN ea.ts<4102444800 THEN ea.ts*1000 ELSE ea.ts END)>=?) THEN 'unconcluded' " +
     "WHEN t.status='in_progress' OR EXISTS (SELECT 1 FROM mission_tasks m WHERE m.mission_id=t.id AND m.status IN ('in_progress','done','resolved')) THEN 'in_progress' " +
     "WHEN COALESCE(t.assignee,t.loc,'')<>'' THEN 'pending' ELSE 'unassigned' END visible_state, COUNT(*) n " +
-    "FROM tickets t WHERE t.status IN ('open','in_progress') GROUP BY sc,t.status,visible_state"
-  ).bind(cutoff).all()).results || [];
+    "FROM tickets t WHERE t.status NOT IN ('resolved','cancelled') GROUP BY sc,t.status,visible_state"
+  ).bind(cutoff,cutoff,cutoff,cutoff,cutoff).all()).results || [];
   out.misiones = { curso:0, pend:0, no_concluidas:0, sin_asignar:0,
     universe:"all_backlog", state_semantics:"visible-v1" };
   for (const r of tk) {
@@ -5248,6 +5340,20 @@ var index_default = {
         }));
         return json({ beats });
       } catch (e) { return json({ error: String(e) }, 500); }
+    }
+    // Auditoría pública, de solo lectura, del cierre diario. El renderer obtiene
+    // causa/fecha de cada ticket; esta ruta permite verificar ejecución, reintentos
+    // y cantidad sin disparar mutaciones desde el navegador.
+    if (url.pathname === "/fleet/daily-close" && req.method === "GET") {
+      try {
+        await ensureSchema(env);
+        const day = String(url.searchParams.get("day") || "").trim();
+        if (day && !/^\d{4}-\d{2}-\d{2}$/.test(day)) return json({ error:"day debe ser YYYY-MM-DD" }, 400);
+        const r = day
+          ? await env.DB.prepare("SELECT day,closed_at,active_after,status,started_at,finished_at,cancelled_count,error FROM mission_daily_closures WHERE day=?").bind(day).all()
+          : await env.DB.prepare("SELECT day,closed_at,active_after,status,started_at,finished_at,cancelled_count,error FROM mission_daily_closures ORDER BY day DESC LIMIT 31").all();
+        return json({ closures:r.results || [], next:dailyMissionClosePlan(Date.now()) });
+      } catch (e) { return json({ error:String(e) }, 500); }
     }
     if (url.pathname === "/ideas" && (req.method === "GET" || req.method === "POST")) {
       const IDEA_STATUS = /* @__PURE__ */ new Set(["nueva", "estudio", "hecha", "mision", "descartada"]);

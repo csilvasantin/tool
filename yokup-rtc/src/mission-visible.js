@@ -1,4 +1,5 @@
 import { madridDayStart } from './display-ref.js';
+import { MISSION_UNCONCLUDED_AFTER_MS } from './daily-mission-close.js';
 
 export const MISSION_VISIBLE_STATES = Object.freeze([
   'unassigned', 'pending', 'in_progress', 'unconcluded', 'resolved', 'cancelled'
@@ -14,13 +15,25 @@ export function missionDayRange(day) {
   return { day:value, start, end:madridDayStart(start + 36 * 3600000) };
 }
 
-export function missionVisibleState(ticket, now = Date.now(), touched = false) {
+function activityMillis(value) {
+  let at = Number(value) || 0;
+  if (at && at < 4_102_444_800) at *= 1000;
+  return at;
+}
+
+export function missionVisibleState(ticket, now = Date.now(), activity = false) {
   const status = String(ticket && ticket.status || '').toLowerCase();
   if (status === 'cancelled') return 'cancelled';
   if (status === 'resolved') return 'resolved';
-  let created = Number(ticket && ticket.created_at) || 0;
-  if (created && created < 4_102_444_800) created *= 1000;
-  if (created && now - created >= 30 * 60 * 1000) return 'unconcluded';
+  const touched = activity === true || Number(activity) > 0;
+  const activityAt = activity === true ? now : activityMillis(activity);
+  const lastActivity = Math.max(
+    activityMillis(ticket && ticket.created_at),
+    activityMillis(ticket && ticket.updated_at),
+    activityMillis(ticket && ticket.live_at),
+    activityAt
+  );
+  if (lastActivity && now - lastActivity > MISSION_UNCONCLUDED_AFTER_MS) return 'unconcluded';
   if (status === 'in_progress' || touched) return 'in_progress';
   if (ticket && (ticket.assignee || ticket.loc)) return 'pending';
   return 'unassigned';
