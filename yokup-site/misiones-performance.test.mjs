@@ -9,7 +9,7 @@ test("Misiones arranca personalización, proyectos y tickets en paralelo", () =>
   assert.ok(load, "no se encontró load()");
   assert.match(load[1], /const customizeP=/);
   assert.match(load[1], /const projectsP=ykf\("\/projects"/);
-  assert.match(load[1], /const ticketsP=ykf\("\/tickets\?scope="\+SCOPE/);
+  assert.match(load[1], /const ticketsP=fetchMissionUniverse\(SCOPE,requestedDay,scopeAtStart\)/);
   assert.match(load[1], /await Promise\.all\(\[customizeP,projectsP\]\)/);
   assert.doesNotMatch(load[1], /await \(YkMisiones\.customizeReady/);
 });

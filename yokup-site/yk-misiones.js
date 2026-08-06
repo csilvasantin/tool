@@ -522,6 +522,17 @@
     return false;
   }
   function estadoDe(t) {
+    // Contrato /tickets visible-v1: el backend ya aplicó la misma precedencia
+    // cerrada → no concluida → en curso real → pendiente → sin asignar sobre el
+    // universo solicitado. Usarlo evita convertir 201 tickets técnicos
+    // in_progress pero stale en un chip «En curso» que la cuadrícula no comparte.
+    var visible = t && t.visible_state;
+    if (visible === "cancelled") return { c: "b-cancel", l: "Eliminada" };
+    if (visible === "resolved") return { c: "b-res", l: "Finalizada" };
+    if (visible === "unconcluded") return { c: "b-cancel", l: "No concluida" };
+    if (visible === "in_progress") return { c: "b-prog", l: "En curso" };
+    if (visible === "pending") return { c: "b-pend", l: "Pendiente" };
+    if (visible === "unassigned") return { c: "b-sina", l: "Sin asignar" };
     if (t.status === "cancelled") return { c: "b-cancel", l: "Eliminada" };
     if (t.status === "resolved") return { c: "b-res", l: "Finalizada" };
     if (t._unconcluded) return { c: "b-cancel", l: "No concluida" };

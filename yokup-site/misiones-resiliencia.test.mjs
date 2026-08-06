@@ -246,7 +246,7 @@ test('tablero · fetch OK sin misiones: vacío legítimo «Sin misiones ✓» (n
   state.tickets = [];               // de verdad no hay misiones
   await ctx.__load();
   const html = getById('list').innerHTML;
-  assert.match(html, /Sin misiones/, 'un vacío real sí puede decir Sin misiones');
+  assert.match(getById('missionEmpty').textContent, /Sin misiones/, 'un vacío real sí puede decir Sin misiones');
   assert.doesNotMatch(html, /No se pudo cargar/, 'un vacío real no es un error de red');
 });
 

@@ -58,9 +58,11 @@ test("selección válida persiste por query/storage y stale o archivada vuelve a
 });
 
 test("misiones y tareas filtran por id exacto antes de agrupar y contar",()=>{
-  const missionFilter=missions.indexOf('rawTickets=rawTickets.filter(t=>String(t.project||"")===PROJECT_SCOPE)');
+  const missionFilter=missions.indexOf('rawTickets=rawTickets.filter(t=>String(t.project_id||t.project||"")===PROJECT_SCOPE)');
   const missionGroup=missions.indexOf('agrupaFlota(rawTickets)');
   assert.ok(missionFilter>0&&missionFilter<missionGroup);
+  assert.match(missions,/if\(projectId\)path\+="&project_id="\+encodeURIComponent\(projectId\)/,
+    "el scope exacto viaja al servidor; el filtro cliente queda como fallback legacy");
   const taskFilter=tasks.indexOf('rows.filter(row=>String(row.project||"")===PROJECT_SCOPE)');
   const taskGroup=tasks.indexOf('YkMisiones.groupByMission(scopedRows)');
   assert.ok(taskFilter>0&&taskFilter<taskGroup);

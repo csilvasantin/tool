@@ -40,6 +40,13 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .kpi b{font-size:16px;color:var(--ink)}.kpi.a b{color:var(--mut)}.kpi.b b{color:var(--accent)}.kpi.c b{color:var(--good)}.kpi.v b{color:var(--violet)}.kpi.d b{color:#ff8866}
 .kpi.kdate{color:var(--ink);color-scheme:dark;font-family:var(--mono)}
 .kpi.kdate::-webkit-calendar-picker-indicator{cursor:pointer;filter:invert(.75) sepia(1) saturate(3) hue-rotate(150deg)}
+.mission-scope-summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-3px 0 12px;
+  color:var(--mut);font:600 10.5px/1.5 var(--mono);letter-spacing:.025em}
+.mission-scope-summary b{color:var(--ink)}
+.mission-scope-summary .scope-global{color:var(--dim)}
+.mission-scope-summary .scope-clear{border:1px solid var(--line2);border-radius:999px;padding:5px 9px;
+  background:transparent;color:var(--brand);font:700 9.5px/1 var(--mono);cursor:pointer}
+@media(max-width:560px){.mission-scope-summary{align-items:flex-start;flex-direction:column;gap:5px}.mission-scope-summary .scope-clear{min-height:32px}}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .tab{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;border-radius:9px;border:1px solid var(--line);color:var(--mut);background:var(--card);cursor:pointer;transition:.2s}
 .tab.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
@@ -255,6 +262,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
     <div class="flota-list" id="flotaList"><div class="empty2">Cargando flota…</div></div>
   </div>
 
+  <p class="mission-scope-summary" id="missionScopeSummary" role="status" aria-live="polite" aria-atomic="true">Tablero · todas las fechas · cargando universo…</p>
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
 
   <!-- Barra de acción en bloque: aparece al seleccionar ≥1 misión (checkbox de la columna ID). -->
@@ -322,8 +330,13 @@ const CAB=YkCabezal.mount($("cabezal"), {
   onView:()=>load(),
   onState:f=>{userPicked=true;aplicaFiltro(f);}, onSearch:()=>load(), onDay:()=>load(), onCreated:()=>load()
 });
-// Día del tablero: HOY por defecto (load() lo lee de $("selDia").value).
-(function(){ const d=new Date(),p=n=>(n<10?"0":"")+n; CAB.setDay(d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())); })();
+// El backlog completo manda por defecto. La fecha sólo acota cuando el usuario
+// elige una de forma explícita; el menú superior resume también todas las fechas.
+CAB.setDay("");
+if($("selDia")){
+  $("selDia").title="Filtrar por fecha de creación · vacío = todas las fechas";
+  $("selDia").setAttribute("aria-label","Filtrar misiones por fecha; sin fecha se muestran todas");
+}
 
 // Rellena un selector con opciones únicas conservando la elección actual.
 // Acepta strings ("Neo") o {v,label} ({v:"Neo",label:"🟢 Neo"}): el VALUE es el
@@ -475,7 +488,8 @@ function bindHead(el){
 }
 
 // Una orden puede repetirse, pero cada agente conserva su propia misión comparable.
-// Solo se colapsan duplicados del MISMO asunto, equipo Y agente; dos ejecuciones
+// Solo se colapsan duplicados del MISMO asunto, equipo, agente Y estado visible;
+// así un contador positivo siempre conserva al menos una fila en su filtro. Dos ejecuciones
 // independientes (p. ej. Codex y Claude) nunca deben desaparecer bajo una sola fila.
 // Solo en la bandeja de FLOTA (en campo, dos incidencias con el mismo texto son
 // distintas y no deben fundirse). Representante = la de id más bajo (la que abre «abrir →»).
@@ -483,7 +497,7 @@ function agrupaFlota(tks){
   const norm=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/\s+/g," ").trim();
   const num=x=>parseInt(String(x).replace(/\D/g,""),10)||0;
   const by=new Map();
-  tks.forEach(t=>{ const k=norm(t.subject)+"||"+YkMisiones.machineOf(t)+"||"+norm(t.assignee);
+  tks.forEach(t=>{ const k=norm(t.subject)+"||"+YkMisiones.machineOf(t)+"||"+norm(t.assignee)+"||"+String(t.visible_state||"");
     (by.get(k)||by.set(k,[]).get(k)).push(t); });
   const out=[];
   by.forEach(ms=>{
@@ -493,8 +507,10 @@ function agrupaFlota(tks){
     const agents=[...new Set(s.map(m=>m.assignee).filter(Boolean))];
     const n=s.length, done=s.filter(m=>m.status==="resolved").length, prog=s.filter(m=>m.status==="in_progress").length,
       cancelled=s.filter(m=>m.status==="cancelled").length;
+    const visible={};s.forEach(m=>{const key=m.visible_state||"";if(key)visible[key]=(visible[key]||0)+1;});
     rep._agents=agents; rep._ids=s.map(m=>m.id); rep._n=n; rep._done=done;
     rep.status = done===n ? "resolved" : cancelled===n ? "cancelled" : prog>0 ? "in_progress" : "open";
+    if(Object.keys(visible).length)rep.visible_state=visible.resolved===n?"resolved":visible.cancelled===n?"cancelled":visible.in_progress?"in_progress":visible.unconcluded?"unconcluded":visible.pending?"pending":"unassigned";
     rep.assignee = agents.length<=1 ? (agents[0]||rep.assignee||"") : (agents.length+" agentes ("+done+"/"+n+")");
     out.push(rep);
   });
@@ -531,8 +547,44 @@ async function marcarHalos(container, list, generation, scopeAtStart){
 }
 
 let LOAD_GENERATION=0;
+const VISIBLE_KEYS=["unassigned","pending","in_progress","unconcluded","resolved","cancelled"];
+function addVisibleCounts(total,page){
+  if(!page)return total;
+  total=total||{unassigned:0,pending:0,in_progress:0,unconcluded:0,resolved:0,cancelled:0,total:0};
+  VISIBLE_KEYS.forEach(k=>{total[k]+=Number(page[k])||0;});total.total+=Number(page.total)||0;return total;
+}
+async function fetchMissionUniverse(scope,day,projectId){
+  const limit=1000,rows=[],seen=new Set();let offset=0,first=null,counts=null,universe=null;
+  for(let page=0;page<100;page++){
+    let path="/tickets?scope="+encodeURIComponent(scope)+"&limit="+limit+"&offset="+offset;
+    if(day)path+="&day="+encodeURIComponent(day);
+    if(projectId)path+="&project_id="+encodeURIComponent(projectId);
+    const response=await ykf(path,{cache:"no-store"});if(!response.ok)throw new Error("tickets "+response.status);
+    const data=await response.json();if(!first)first=data||{};
+    const pageRows=(data&&((Array.isArray(data.rows)&&data.rows)||data.tickets))||[];
+    pageRows.forEach(row=>{const key=String(row&&row.id||"");if(key&&!seen.has(key)){seen.add(key);rows.push(row);}});
+    counts=addVisibleCounts(counts,data&&data.visible_counts);universe=data&&data.universe||universe;
+    const hasMore=universe&&typeof universe.has_more==="boolean"?universe.has_more:pageRows.length===limit;
+    if(!hasMore||!pageRows.length)break;offset+=pageRows.length;
+  }
+  first=first||{};first.tickets=rows;first.rows=rows;first.visible_counts=counts;first.universe=Object.assign({},universe||{scope,day:day||null,project_id:projectId||null},{returned:rows.length,has_more:false});return first;
+}
+function visibleCountsFallback(rows){
+  const out={unassigned:0,pending:0,in_progress:0,unconcluded:0,resolved:0,cancelled:0,total:0};
+  const byLabel={"Sin asignar":"unassigned","Pendiente":"pending","En curso":"in_progress","No concluida":"unconcluded","Finalizada":"resolved","Eliminada":"cancelled"};
+  (rows||[]).forEach(t=>{const key=t.visible_state||byLabel[YkMisiones.estadoDe(t).l];if(Object.prototype.hasOwnProperty.call(out,key))out[key]++;out.total++;});return out;
+}
+function formatScopeDay(day){if(!day)return "todas las fechas";const p=day.split("-");return p.length===3?(p[2]+"/"+p[1]+"/"+p[0]):day;}
+function paintMissionScope(day,universe,groupedCount){
+  const host=$("missionScopeSummary");if(!host)return;
+  const total=Number(universe&&universe.total);host.textContent="";
+  const main=document.createElement("span");main.textContent="Tablero · "+formatScopeDay(day)+" · "+(PROJECT_SCOPE?("proyecto "+PROJECT_SCOPE):"todos los proyectos")+" · "+(Number.isFinite(total)?total:groupedCount)+" misiones"+(Number.isFinite(total)&&total!==groupedCount?" · "+groupedCount+" filas agrupadas":"");host.appendChild(main);
+  const global=document.createElement("span");global.className="scope-global";global.textContent="Tooltip MISIONES: todo el backlog, sin filtros.";host.appendChild(global);
+  if(day){const clear=document.createElement("button");clear.type="button";clear.className="scope-clear";clear.textContent="Ver todas las fechas";clear.onclick=()=>{CAB.setDay("");load();};host.appendChild(clear);}
+}
 async function load(){
   const generation=++LOAD_GENERATION, scopeAtStart=PROJECT_SCOPE;
+  const requestedDay=$("selDia")&&$("selDia").value||"";
   const isCurrent=()=>generation===LOAD_GENERATION&&scopeAtStart===PROJECT_SCOPE;
   // FLT-1015 · CAMINO CRÍTICO EN PARALELO. Antes esperábamos personalización,
   // luego proyectos y sólo entonces arrancábamos /tickets: tres latencias de red
@@ -542,10 +594,7 @@ async function load(){
   const projectsP=ykf("/projects",{cache:"no-store"}).then(r=>r.json()).then(po=>{
     if(isCurrent())YkMisiones.setProyectos(po.projects||[]);
   }).catch(()=>{});
-  const ticketsP=ykf("/tickets?scope="+SCOPE,{cache:"no-store"}).then(async r=>{
-    if(!r.ok) throw new Error("tickets "+r.status);
-    return r.json();
-  });
+  const ticketsP=fetchMissionUniverse(SCOPE,requestedDay,scopeAtStart);
   await Promise.all([customizeP,projectsP]);
   if(!isCurrent())return;
   // El tablero SÍ es crítico: si /tickets no carga (red caída EN LOS DOS hosts),
@@ -569,14 +618,16 @@ async function load(){
     return;
   }
   if(!isCurrent())return;
-  let rawTickets=d.tickets||[];
-  if(PROJECT_SCOPE) rawTickets=rawTickets.filter(t=>String(t.project||"")===PROJECT_SCOPE);
+  let rawTickets=d.rows||d.tickets||[];
+  // Rollout defensivo: si aún responde un worker legacy sin universo, se
+  // conservan los filtros cliente. visible-v1 ya los aplicó en servidor.
+  if(PROJECT_SCOPE&&(!d.universe||String(d.universe.project_id||"")!==String(PROJECT_SCOPE)))rawTickets=rawTickets.filter(t=>String(t.project_id||t.project||"")===PROJECT_SCOPE);
   let tks=(SCOPE==="fleet") ? agrupaFlota(rawTickets) : rawTickets; const st=d.stats||{};
-  // DÍA del tablero (selector junto a «finalizadas», def. HOY): filtra misiones
-  // — y con ellas los contadores — por su fecha de creación en el día elegido.
+  // DÍA del tablero (selector junto a «finalizadas»): vacío = backlog completo;
+  // al elegirlo, filtra misiones y contadores por la misma fecha de creación.
   {
-    const dia=$("selDia")&&$("selDia").value;
-    if(dia){
+    const dia=requestedDay;
+    if(dia&&(!d.universe||String(d.universe.day||"")!==dia)){
       const _ms=v=>{v=+v||0;return v>4102444800?v:v*1000;};
       const d0=new Date(dia+"T00:00:00").getTime(), d1=d0+86400000;
       tks=tks.filter(t=>{const c=_ms(t.created_at); return c>=d0&&c<d1;});
@@ -593,11 +644,14 @@ async function load(){
     !!_ms30(t.created_at)&&(Date.now()-_ms30(t.created_at)>=30*60*1000); });
   // KPIs por ESTADO visible, calculados de las misiones vivas (no del stats crudo)
   const estL=t=>YkMisiones.estadoDe(t).l;
-  $("kAsig").textContent=tks.filter(t=>estL(t)==="Pendiente").length;
-  $("kProg").textContent=tks.filter(t=>estL(t)==="En curso").length;
-  $("kNoCon").textContent=tks.filter(t=>estL(t)==="No concluida").length;
-  $("kRes").textContent=tks.filter(t=>estL(t)==="Finalizada").length;
-  $("kDel").textContent=tks.filter(t=>estL(t)==="Eliminada").length;
+  const vc=d.visible_counts||visibleCountsFallback(rawTickets);
+  const nAsig=Number(vc.pending)||0,nProg=Number(vc.in_progress)||0,nNoCon=Number(vc.unconcluded)||0,nRes=Number(vc.resolved)||0,nDel=Number(vc.cancelled)||0;
+  $("kAsig").textContent=nAsig;
+  $("kProg").textContent=nProg;
+  $("kNoCon").textContent=nNoCon;
+  $("kRes").textContent=nRes;
+  $("kDel").textContent=nDel;
+  paintMissionScope(requestedDay,d.universe||{total:rawTickets.length},tks.length);
   // CASCADA de preselección (Carlos, 21-jul-2026): en la PRIMERA carga, si el usuario
   // no ha elegido filtro, abrir en el primero con misiones en este orden EXACTO:
   // Pendientes → En curso → No concluidas → Finalizadas → Eliminadas
@@ -606,11 +660,6 @@ async function load(){
   // refrescos (cada 12 s) y la vuelta atrás del usuario no le resetean su elección.
   if(!userPicked && !didCascade){
     didCascade=true;
-    const nAsig=tks.filter(t=>estL(t)==="Pendiente").length;
-    const nProg=tks.filter(t=>estL(t)==="En curso").length;
-    const nNoCon=tks.filter(t=>estL(t)==="No concluida").length;
-    const nRes=tks.filter(t=>estL(t)==="Finalizada").length;
-    const nDel=tks.filter(t=>estL(t)==="Eliminada").length;
     const pick = nAsig>0?"asignadas" : nProg>0?"in_progress" : nNoCon>0?"unconcluded" : nRes>0?"resolved" : nDel>0?"cancelled" : null;
     if(pick && pick!==FILTER){ aplicaFiltro(pick); return; }
   }
@@ -667,7 +716,12 @@ async function load(){
       +["proyecto","ordenador","agente","estado"].filter(c=>cols[c]===0).map(c=>" hide-"+c).join("")
       +(bp.density==="compacta"?" dens-c":"");
   }
-  if(!list.length){ el.innerHTML=headHtml()+'<div class="empty">Sin misiones en este filtro ✓</div>'; bindHead(el); wireBulk(el,[]); notifyMissionsRendered([]); return; }
+  if(!list.length){
+    el.innerHTML=headHtml()+'<div class="empty" id="missionEmpty"></div>';bindHead(el);wireBulk(el,[]);
+    const empty=$("missionEmpty"),stateName={activas:"activas",asignadas:"pendientes",in_progress:"en curso",unconcluded:"no concluidas",resolved:"finalizadas",cancelled:"eliminadas",todas:""}[FILTER]||"";
+    if(empty)empty.textContent="Sin misiones"+(stateName?(" "+stateName):"")+" en "+formatScopeDay(requestedDay)+(PROJECT_SCOPE?(" para "+PROJECT_SCOPE):"")+". "+(requestedDay?"El tooltip MISIONES resume todo el backlog; pulsa «Ver todas las fechas» para quitar este filtro.":"✓");
+    notifyMissionsRendered([]);return;
+  }
   // Progreso por misión: UNA sola petición /tasks/all (no N+1); done/total REALES del
   // plan (no 24 fijo) para el contador y la barra de cada fila. (959)
   try{

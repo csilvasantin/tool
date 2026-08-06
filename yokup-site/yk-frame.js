@@ -453,11 +453,12 @@
       };
     }
     if(label==="MISIONES"){
-      var md=data.misiones||{},mc=md.curso|0,mp=md.pend|0,ms=_missionNovelty.snapshot(),mr=[];
+      var md=data.misiones||{},mc=md.curso|0,mp=md.pend|0,mn=md.no_concluidas|0,
+          mu=md.sin_asignar|0,ms=_missionNovelty.snapshot(),mr=[];
       if(ms.unread)mr.push(["nuevas",ms.unread,"nuevo"]);
-      mr.push(["en curso",mc,""],["pendientes",mp,""]);
-      return {n:mc+mp,sig:String(md.created_cursor==null?(mc+"/"+mp):md.created_cursor),rows:mr,
-        foot:ms.unread?(ms.newest_id?("La misión "+ms.newest_id+" es nueva."):"Hay misiones nuevas desde tu última visita."):""};
+      mr.push(["en curso",mc,""],["pendientes",mp,""],["no concluidas",mn,""],["sin asignar",mu,""]);
+      return {n:mc+mp+mn+mu,sig:String(md.created_cursor==null?(mc+"/"+mp+"/"+mn+"/"+mu):md.created_cursor),rows:mr,
+        foot:(ms.unread?(ms.newest_id?("La misión "+ms.newest_id+" es nueva. "):"Hay misiones nuevas desde tu última visita. "):"")+"Resumen global · todo el backlog · todas las fechas y proyectos."};
     }
     var key = COUNTER_KEY[label], d = key && data[key];
     if (!d) return null;
@@ -562,7 +563,7 @@
     var st = sectionState(data, label);
     var p = popEl();
     if (!st) { hidePop(); return; }
-    var html = '<div class="yk-pop-h">' + label + "</div>";
+    var html = '<div class="yk-pop-h">' + label + (label==="MISIONES"?" · TODO EL BACKLOG":"") + "</div>";
     st.rows.forEach(function (r) {
       html += '<div class="yk-pop-r ' + (r[2] || "") + '"><span>' + r[0] +
               "</span><b>" + r[1] + "</b></div>";

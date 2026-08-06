@@ -26,7 +26,8 @@ test('la acción manual elimina de forma recuperable, sin borrado definitivo', (
 });
 
 test('contador, filtro y agrupación conservan el estado Eliminada', () => {
-  assert.match(board, /\$\("kDel"\)\.textContent=tks\.filter\(t=>estL\(t\)==="Eliminada"\)\.length/);
+  assert.match(board, /nDel=Number\(vc\.cancelled\)\|\|0/);
+  assert.match(board, /\$\("kDel"\)\.textContent=nDel/);
   assert.match(board, /cancelled===n \? "cancelled"/);
   assert.match(board, /nDel>0\?"cancelled"/);
 });
