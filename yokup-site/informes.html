@@ -292,14 +292,15 @@ function render(list){
     const agent=reportAgent(t);
     const st=t.status||"pending";
     // Dos capturas, sin «—» gratuito y sin inventar (Carlos, 2026-07-23):
-    //  · PROCESO (el «durante»): la captura del CLI trabajando (live_shot de la misión);
+    //  · PROCESO (el «durante»): sólo evidencia tipada como `process` por el
+    //    backend. Un `final-fallback` nunca se presenta como trabajo en curso;
     //    si no la hay, «—» honesto.
     //  · CAPTURA (el «después»): la prueba PROPIA del paso (mission_tasks.image); si la
     //    tarea no dejó imagen, CAE al proof de CIERRE de la misión (mission_proof, teñido
     //    de ámbar y titulado «proof de la misión»); si tampoco hay, «—» honesto.
     // Cada miniatura sale en UNA sola columna: nunca se repite la misma imagen.
-    const proc = shotHTML(t.live_shot,
-      t.live_shot ? "Ampliar el proceso — el CLI trabajando" : "sin captura de proceso",
+    const proc = shotHTML(t.process_image,
+      t.process_image ? "Ampliar el proceso — el CLI trabajando" : "sin captura de proceso",
       "Proceso del CLI", false);
     const capMission = !t.image ? (t.mission_proof||"") : "";
     const shot = t.image

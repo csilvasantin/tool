@@ -29,6 +29,16 @@ test("el cliente distingue proceso y fallback final degradado", async () => {
     "la captura final no puede convertirse silenciosamente en proceso");
 });
 
+test("el cierre canónico intenta capturar proceso sin reciclar la prueba final", async () => {
+  const client = await tool("mission-evidence.sh");
+  const finalBranch = client.slice(client.indexOf('else\n  [ -n "$REPORT" ]'));
+  assert.match(finalBranch, /PROCESS_IMAGE="\$\(capture_image\)"/);
+  assert.match(finalBranch, /PROCESS_URL="\$\(upload_image "\$PROCESS_IMAGE"\)"/);
+  assert.match(finalBranch, /\$API\/fleet\/progress/);
+  assert.match(finalBranch, /IMAGE_URL="\$\(upload_image "\$IMAGE"\)"/);
+  assert.doesNotMatch(finalBranch, /PROCESS_URL="\$IMAGE_URL"|PROCESS_IMAGE="\$IMAGE"/);
+});
+
 test("la identidad nunca cae a un owner genérico", async () => {
   const identity = await tool("quien-ejecuta.sh");
   assert.match(identity, /identidad indeterminada/);
