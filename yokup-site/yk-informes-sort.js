@@ -16,7 +16,7 @@
       case "mision":
         return [text(row.mission_id),text(row.code),text(row.subject||row.title)];
       case "proceso":
-        return [row.live_shot?1:0,ms(row.mission_created)||ms(row.updated_at)];
+        return [row.process_image?1:0,ms(row.process_captured_at)||ms(row.updated_at)];
       case "captura":
         return [row.image?2:row.mission_proof?1:0,ms(row.updated_at)];
       case "informe":

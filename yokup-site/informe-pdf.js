@@ -284,7 +284,10 @@
     var titulo = t.subject || t.title || "Informe de misión";
 
     // Las capturas primero: si tardan, que tarde ANTES de montar nada.
-    var proc = await loadJPEG(t.live_shot);
+    // El worker sólo publica `process_image` cuando live_kind='process'. Usar
+    // live_shot directamente convertiría un final-fallback degradado en una
+    // captura de proceso dentro del PDF, aunque la tabla lo oculte correctamente.
+    var proc = await loadJPEG(t.process_image);
     var shot = await loadJPEG(t.image);
 
     var doc = new Doc();
@@ -349,7 +352,7 @@
       if (proc) { doc.evidencia("Proceso · el CLI trabajando la misión", proc, "Captura del proceso durante la ejecución."); doc.gap(12); }
       if (shot) { doc.evidencia("Captura de prueba · el resultado", shot, "Captura del resultado final."); doc.gap(12); }
     }
-    if ((t.live_shot && !proc) || (t.image && !shot)) {
+    if ((t.process_image && !proc) || (t.image && !shot)) {
       doc.text("Nota: alguna captura no pudo incrustarse (no fue accesible al generar el PDF).", { size: 8.5, color: "#8a6a2a" });
       doc.gap(6);
     }

@@ -4,6 +4,8 @@ import { readFile } from "node:fs/promises";
 
 const worker = await readFile(new URL("./src/index.js", import.meta.url), "utf8");
 const page = await readFile(new URL("../yokup-site/informes.html", import.meta.url), "utf8");
+const pdf = await readFile(new URL("../yokup-site/informe-pdf.js", import.meta.url), "utf8");
+const sorter = await readFile(new URL("../yokup-site/yk-informes-sort.js", import.meta.url), "utf8");
 const client = await readFile(new URL("./tools/mission-evidence.sh", import.meta.url), "utf8");
 
 test("/tasks/all sirve Proceso sólo cuando la evidencia está tipada como process", () => {
@@ -16,6 +18,10 @@ test("/informes consume el campo tipado y conserva el guion para el histórico",
   assert.match(render, /shotHTML\(t\.process_image/);
   assert.doesNotMatch(render, /shotHTML\(t\.live_shot/);
   assert.match(page, /: `<span class="shot-none"[^>]*>—<\/span>`/);
+  assert.match(pdf, /loadJPEG\(t\.process_image\)/);
+  assert.doesNotMatch(pdf, /loadJPEG\(t\.live_shot\)/);
+  assert.match(sorter, /row\.process_image\?1:0/);
+  assert.doesNotMatch(sorter, /row\.live_shot\?1:0/);
 });
 
 test("el cierre común captura proceso y final por separado y publica proceso primero", () => {

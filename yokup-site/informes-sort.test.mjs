@@ -11,7 +11,7 @@ const api=context.YkInformesSort;
 const options={agentName:row=>row.agent_identity||row.owner||'',missionLast:{M1:4_000_000,M2:5_000_000}};
 
 const rows=[
-  {id:'a',mission_id:'FLT-10',code:'b',subject:'Zeta',report:'Beta',agent_identity:'Neo',status:'done',live_shot:'proc',image:'proof',mission_created:2000,updated_at:2300},
+  {id:'a',mission_id:'FLT-10',code:'b',subject:'Zeta',report:'Beta',agent_identity:'Neo',status:'done',process_image:'proc',process_captured_at:2200,image:'proof',mission_created:2000,updated_at:2300},
   {id:'b',mission_id:'FLT-2',code:'a',subject:'Alfa',report:'Alfa',agent_identity:'Morfeo',status:'pending',mission_proof:'mission-proof',mission_created:1000,updated_at:1300},
   {id:'c',mission_id:'FLT-2',code:'c',subject:'Alfa',report:'Alfa',agent_identity:'Morfeo',status:'in_progress',mission_created:1500,updated_at:1600}
 ];
@@ -37,6 +37,14 @@ test('Misión usa texto natural y el orden descendente se invierte',()=>{
 test('Proceso y Captura ordenan por presencia/tipo y fecha real',()=>{
   assert.deepEqual(Array.from(api.sort(rows,'proceso','asc',options),r=>r.id),['b','c','a']);
   assert.deepEqual(Array.from(api.sort(rows,'captura','asc',options),r=>r.id),['c','b','a']);
+});
+
+test('Proceso ignora live_shot no tipado y sólo usa process_image',()=>{
+  const legacy=[
+    {id:'fallback',live_shot:'final-reutilizada',live_kind:'final-fallback',updated_at:2},
+    {id:'real',process_image:'proceso-real',process_captured_at:3,updated_at:3}
+  ];
+  assert.deepEqual(Array.from(api.sort(legacy,'proceso','asc',options),r=>r.id),['fallback','real']);
 });
 
 test('Informe, Agente, Estado y Tiempo usan comparadores propios',()=>{
