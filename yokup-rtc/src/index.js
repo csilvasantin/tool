@@ -1181,6 +1181,7 @@ function madridHourKey(ms) {
   const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return `${value.year}-${value.month}-${value.day}T${value.hour}`;
 }
+__name(madridHourKey, "madridHourKey");
 __name(ensureSchema, "ensureSchema");
 
 // La PRUEBA en un solo formato, decidida en un solo sitio (FLT-988 b2). Antes cada
@@ -3532,6 +3533,113 @@ async function highscoreTraceability(env, inicio, fin, ahora) {
 }
 __name(highscoreTraceability, "highscoreTraceability");
 
+// Recuento factual para UN intervalo. Es la misma fuente canónica del diario,
+// pero conserva juntas las cinco magnitudes que el Highscore pinta hora/día.
+// Las tareas se reducen a una representante por familia A/B/C y misión: una
+// subtarea más reciente sustituye a su principal, nunca suma dos veces.
+async function highscorePeriodMetrics(env, inicio, fin) {
+  const totals = new Map();
+  const keyOf = (agent) => String(agent || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const rowFor = (agent, machine) => {
+    const visible = reportAgentIdentity(agent, machine) || String(agent || "").trim();
+    const key = keyOf(visible);
+    if (!key) return null;
+    if (!totals.has(key)) totals.set(key, { agent_key:key, agent:visible, machine:String(machine || ""),
+      objectives:0, windows:0, missions:0, tasks:0, points:0 });
+    return totals.get(key);
+  };
+  const rows = async (sql) => ((await env.DB.prepare(sql).bind(inicio, fin).all()).results || []);
+
+  for (const item of await rows(
+    "SELECT author,COUNT(*) c FROM ideas WHERE created_at>=? AND created_at<? GROUP BY author"
+  )) {
+    const row = rowFor(highscoreAgent(item.author), ""), count = Number(item.c) || 0;
+    if (row) { row.objectives += count; row.points += count * HIGHSCORE_WEIGHTS.objective; }
+  }
+  for (const item of await rows(
+    "SELECT agent,machine,COUNT(*) c FROM decisions WHERE created_at>=? AND created_at<? GROUP BY agent,machine"
+  )) {
+    const row = rowFor(item.agent, item.machine), count = Number(item.c) || 0;
+    if (row) { row.windows += count; row.points += count * HIGHSCORE_WEIGHTS.window; }
+  }
+  for (const item of await rows(
+    `SELECT assignee,loc,COUNT(*) c FROM (SELECT t.assignee,t.loc,t.status,${HIGHSCORE_MISSION_STARTED_SQL} scored_at, ` +
+    `EXISTS(SELECT 1 FROM mission_tasks mt3 WHERE mt3.mission_id=t.id) con_plan FROM tickets t WHERE ${AGENT_SOURCE_SQL_T}) ` +
+    `WHERE (status IN ('in_progress','resolved') OR (status='open' AND con_plan=1)) ` +
+    "AND scored_at>=? AND scored_at<? GROUP BY assignee,loc"
+  )) {
+    const row = rowFor(item.assignee, item.loc), count = Number(item.c) || 0;
+    if (row) { row.missions += count; row.points += count * HIGHSCORE_WEIGHTS.mission; }
+  }
+
+  const taskRows = ((await env.DB.prepare(
+    `SELECT m.mission_id,m.code,m.status,m.owner,m.updated_at,t.assignee,t.loc ` +
+    `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${AGENT_SOURCE_SQL_T} ` +
+    "AND m.updated_at>=? AND m.updated_at<? AND m.status IN ('in_progress','done')"
+  ).bind(inicio, fin).all()).results || []);
+  const representatives = new Map();
+  for (const task of taskRows) {
+    const match = String(task.code || "").toLowerCase().match(/^([a-c])(?:[1-3])?$/);
+    if (!match) continue;
+    const family = String(task.mission_id || "") + "|" + match[1], previous = representatives.get(family);
+    if (!previous || Number(task.updated_at) >= Number(previous.updated_at)) representatives.set(family, task);
+  }
+  for (const task of representatives.values()) {
+    const agent = scopedMissionOwner(task.owner, "sub", task.assignee, task.loc), row = rowFor(agent, task.loc);
+    if (!row) continue;
+    row.tasks += 1;
+    row.points += HIGHSCORE_TASK_WEIGHTS.task +
+      (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0);
+  }
+  return totals;
+}
+__name(highscorePeriodMetrics, "highscorePeriodMetrics");
+
+function highscoreMetricPair(hour, day, field) {
+  return { hour:Number(hour && hour[field]) || 0, day:Number(day && day[field]) || 0 };
+}
+__name(highscoreMetricPair, "highscoreMetricPair");
+
+async function highscoreHourlyContract(env, legacy, ahora, dayStart, dayEnd) {
+  // Los offsets de Europe/Madrid son horas enteras: el inicio UTC de la hora
+  // absoluta coincide con el :00 local, también en el salto de verano/invierno.
+  const hourStart = Math.floor(ahora / HIGHSCORE_TREND_MS) * HIGHSCORE_TREND_MS;
+  const hourEnd = hourStart + HIGHSCORE_TREND_MS;
+  const [hourTotals, dayTotals] = await Promise.all([
+    highscorePeriodMetrics(env, hourStart, hourEnd),
+    highscorePeriodMetrics(env, dayStart, dayEnd)
+  ]);
+  const old = new Map((legacy && legacy.scores || []).map((row) => [String(row.agent_key || "") ||
+    String(row.agent || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, ""), row]));
+  const keys = new Set([...old.keys(), ...hourTotals.keys(), ...dayTotals.keys()]);
+  const scores = [...keys].filter(Boolean).sort().map((key) => {
+    const hour = hourTotals.get(key), day = dayTotals.get(key), previous = old.get(key) || {};
+    const agent = previous.agent || day && day.agent || hour && hour.agent || "";
+    const machine = previous.machine || day && day.machine || hour && hour.machine || "";
+    const dayPoints = Number(day && day.points) || 0;
+    return { ...previous, agent_key:key, agent, machine,
+      current:previous.current == null ? dayPoints : previous.current,
+      reference:previous.reference == null ? dayPoints : previous.reference,
+      reference_at:previous.reference_at == null ? null : previous.reference_at,
+      trend:previous.trend || "same", reliable:previous.reliable === true,
+      metrics:{
+        objectives:highscoreMetricPair(hour, day, "objectives"),
+        windows:highscoreMetricPair(hour, day, "windows"),
+        missions:highscoreMetricPair(hour, day, "missions"),
+        tasks:highscoreMetricPair(hour, day, "tasks"),
+        points:highscoreMetricPair(hour, day, "points")
+      }
+    };
+  });
+  return { ...legacy,
+    period:{ timezone:"Europe/Madrid", hour_key:madridHourKey(ahora), hour_start:hourStart, hour_end:hourEnd,
+      day_key:madridDayKey(ahora), day_start:dayStart, day_end:dayEnd },
+    scores
+  };
+}
+__name(highscoreHourlyContract, "highscoreHourlyContract");
+
 // Total factual que ve el marcador, incluidas las tres familias A/B/C de cada
 // misión. Se calcula en el servidor antes de tomar la muestra: ningún navegador
 // puede inventar puntos ni una tendencia para el resto de usuarios.
@@ -3604,7 +3712,7 @@ async function highscoreHourlyTrend(env, current, ahora) {
 __name(highscoreHourlyTrend, "highscoreHourlyTrend");
 
 async function highscoreDaily(env) {
-  const ahora = Date.now(), inicio = madridDayStart(ahora), fin = inicio + 864e5;
+  const ahora = Date.now(), inicio = madridDayStart(ahora), fin = madridDayStart(inicio + 36 * 60 * 60 * 1e3);
   const acc = /* @__PURE__ */ new Map();
   const fila = (agent, machine) => {
     const a = String(agent || "").trim();
@@ -3660,7 +3768,8 @@ async function highscoreDaily(env) {
   const traceability = await highscoreTraceability(env, inicio, fin, ahora);
   const scores = [...acc.values()];
   const current = await highscoreCurrentTotals(env, scores, inicio, fin);
-  const hourly = await highscoreHourlyTrend(env, current, ahora);
+  const legacyHourly = await highscoreHourlyTrend(env, current, ahora);
+  const hourly = await highscoreHourlyContract(env, legacyHourly, ahora, inicio, fin);
   return { ok: true, day: madridDayKey(ahora), weights: HIGHSCORE_WEIGHTS, scores, traceability, hourly };
 }
 __name(highscoreDaily, "highscoreDaily");
