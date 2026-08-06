@@ -14,7 +14,7 @@
   function valueFor(row,key,agentName,missionLast){
     switch(key){
       case "mision":
-        return [text(row.mission_id),text(row.code),text(row.subject||row.title)];
+        return [text(row.mission_display_ref||row.mission_id),text(row.code),text(row.subject||row.title)];
       case "proceso":
         return [row.process_image?1:0,ms(row.process_captured_at)||ms(row.updated_at)];
       case "captura":

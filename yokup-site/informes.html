@@ -57,9 +57,14 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .gc{padding:12px 13px;border-left:1px solid var(--line);min-width:0;display:flex;flex-direction:column;justify-content:center;gap:5px}
 .gc:first-child{border-left:0}
 /* Misión */
-.mid{font-family:var(--mono);font-size:11.5px;letter-spacing:.03em;color:var(--brand);text-decoration:none;font-weight:600}.mid:hover{text-decoration:underline}
+.mid{font-family:var(--mono);font-size:11.5px;line-height:1.35;letter-spacing:.03em;color:var(--brand);text-decoration:none;font-weight:600;overflow-wrap:anywhere}.mid:hover{text-decoration:underline}
 .msubj{font-size:11.5px;line-height:1.35;color:var(--mut);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.mcode{align-self:flex-start;font-family:var(--mono);font-size:9px;color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:1px 6px;letter-spacing:.04em}
+.mmeta{display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-width:0}
+.mcode{align-self:flex-start;font-family:var(--mono);font-size:9px;color:var(--ink);border:1px solid var(--line2);border-radius:6px;padding:2px 6px;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+.mref{font-family:var(--mono);font-size:9.5px;line-height:1.35;color:var(--dim);overflow-wrap:anywhere}
+.mcopy{appearance:none;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--dim);font:9px/1.35 var(--mono);letter-spacing:.03em;padding:2px 6px;cursor:pointer;white-space:nowrap}
+.mcopy:hover,.mcopy:focus-visible{color:var(--brand);border-color:var(--brand);outline:none}
+.mcopy.copied{color:var(--good);border-color:rgba(136,255,170,.45)}
 /* Captura */
 .shot-a{display:block;line-height:0}
 .shot-img{width:100%;max-width:104px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:6px;border:1px solid var(--line2);background:var(--card2);display:block;cursor:zoom-in;transition:.15s}
@@ -299,6 +304,21 @@ function tiempoHTML(t){
   }
   return '<span class="tcell">'+pref+'⏱ '+body+'</span>';
 }
+// Referencia humana canónica de la API: 0047.06/08/2026.19:09 →
+// 0047 · 06/08 · 19:09. Los FLT-<n> ya son comprensibles y conservan ese
+// rótulo principal; los ids opacos DCL/MIS ceden el título a display_ref y quedan
+// disponibles mediante «copiar ID», sin elipsis ambiguas en móvil.
+function compactMissionRef(raw){
+  const value=String(raw||"").trim();
+  const match=/^(\d{4})\.(\d{2})\/(\d{2})\/\d{4}\.(\d{2}:\d{2})$/.exec(value);
+  return match?match[1]+" · "+match[2]+"/"+match[3]+" · "+match[4]:value;
+}
+function missionPresentation(t){
+  const id=String(t.mission_id||"").trim();
+  const ref=compactMissionRef(t.mission_display_ref);
+  const readable=/^FLT-\d+$/i.test(id);
+  return {id,primary:readable?id:(ref||id),secondary:readable?ref:"",copy:!readable&&!!id};
+}
 function render(list){
   const box=$("reps");
   if(!list.length){
@@ -314,6 +334,8 @@ function render(list){
     // misión. owner queda como fallback durante el rollout del worker.
     const agent=reportAgent(t);
     const st=t.status||"pending";
+    const mission=missionPresentation(t);
+    const taskCode=String(t.code||"—").toUpperCase();
     // Dos capturas, sin «—» gratuito y sin inventar (Carlos, 2026-07-23):
     //  · PROCESO (el «durante»): sólo evidencia tipada como `process` por el
     //    backend. Un `final-fallback` nunca se presenta como trabajo en curso;
@@ -331,8 +353,8 @@ function render(list){
       : shotHTML(capMission, capMission?"proof de la misión — captura de cierre":"sin captura de prueba","Proof de la misión",true);
     return `<div class="grow item" role="row">
       <div class="gc mis" role="cell">
-        <a class="mid" href="/ticket?id=${encodeURIComponent(t.mission_id)}" title="Abrir la misión">🎯 ${esc(t.mission_id)}</a>
-        <span class="mcode">${esc(t.code)}</span>
+        <a class="mid" href="/ticket?id=${encodeURIComponent(mission.id)}" title="Abrir misión · ID técnico ${esc(mission.id)}">🎯 ${esc(mission.primary)}</a>
+        <div class="mmeta"><span class="mcode">Tarea ${esc(taskCode)}</span>${mission.secondary?`<span class="mref">${esc(mission.secondary)}</span>`:""}${mission.copy?`<button class="mcopy" type="button" data-copy-mission="${esc(mission.id)}" title="Copiar ID técnico ${esc(mission.id)}" aria-label="Copiar ID técnico ${esc(mission.id)}">copiar ID</button>`:""}</div>
         <div class="msubj" title="${esc(t.subject||'')}">${esc(t.subject||t.title||'')}</div>
       </div>
       <div class="gc shot" role="cell">${proc}</div>
@@ -345,6 +367,14 @@ function render(list){
     </div>`;
   }).join("");
 }
+// Los ids opacos siguen disponibles sin ocupar el título principal ni truncarse.
+$("reps").addEventListener("click",async e=>{
+  const b=e.target.closest&&e.target.closest(".mcopy"); if(!b)return;
+  e.preventDefault();
+  const id=b.dataset.copyMission||"";
+  try{ await navigator.clipboard.writeText(id); b.textContent="ID copiado"; b.classList.add("copied"); }
+  catch(err){ b.textContent=id; }
+});
 // Las siete cabeceras son botones nativos: clic, Intro o Espacio alternan asc/desc.
 // Al repintar se devuelve el foco a la misma cabecera para no romper la navegación.
 $("reps").addEventListener("click",e=>{

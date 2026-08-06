@@ -34,6 +34,14 @@ test('Misión usa texto natural y el orden descendente se invierte',()=>{
   assert.deepEqual(Array.from(api.sort(rows,'mision','desc',options),r=>r.id),['a','c','b']);
 });
 
+test('Misión prioriza la referencia humana publicada para ids DCL opacos',()=>{
+  const declared=[
+    {id:'segundo',mission_id:'DCL-aaa',mission_display_ref:'0048.06/08/2026.19:10',code:'a'},
+    {id:'primero',mission_id:'DCL-zzz',mission_display_ref:'0047.06/08/2026.19:09',code:'a'}
+  ];
+  assert.deepEqual(Array.from(api.sort(declared,'mision','asc',options),r=>r.id),['primero','segundo']);
+});
+
 test('Proceso y Captura ordenan por presencia/tipo y fecha real',()=>{
   assert.deepEqual(Array.from(api.sort(rows,'proceso','asc',options),r=>r.id),['b','c','a']);
   assert.deepEqual(Array.from(api.sort(rows,'captura','asc',options),r=>r.id),['c','b','a']);
