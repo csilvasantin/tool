@@ -329,9 +329,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .hourbar.libre>i{animation:none}
 }
 
-/* PUNTOS: hora/día en una sola base tipográfica. Los dos números comparten
-   exactamente tamaño, peso y línea base; el color del diario expresa el cambio
-   contra la observación anterior de este agente+máquina en el mismo día. */
+/* INDICADORES: hora/día en una sola base tipográfica para Objetivos, Ventana,
+   Misiones, Tareas y Puntos. Verde = hubo actividad en la hora; ámbar = cero. */
 .score-toggle{appearance:none;display:inline-flex;align-items:center;justify-content:flex-end;
   max-width:100%;padding:2px 3px;
   border:1px solid transparent;border-radius:5px;background:transparent;color:inherit;font:inherit;font-weight:inherit;
@@ -343,7 +342,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   font:inherit;font-size:inherit;font-weight:inherit;line-height:inherit;letter-spacing:inherit;
   font-variant-numeric:tabular-nums;white-space:nowrap}
 .score-number,.score-separator{font:inherit;font-size:inherit;font-weight:inherit;line-height:inherit;vertical-align:baseline}
-.score-hour{color:inherit}
+.score-hour.hour-positive{color:var(--good);text-shadow:0 0 8px rgba(136,255,170,.72)}
+.score-hour.hour-zero{color:var(--accent)}
 .score-separator{color:var(--dim)}
 .score-day.daily-up{color:var(--good);text-shadow:0 0 8px rgba(136,255,170,.72)}
 .score-day.daily-down{color:var(--warn)}
@@ -800,9 +800,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return result;
   }
 
-  // La hora sólo tiene cifra con una referencia D1 factual y fiable de hace 60
-  // minutos. El total diario nunca se reutiliza como si fuera una hora: sin esa
-  // referencia se muestra —/TOTAL y se explica la ausencia en aria/tooltip.
+  // Compatibilidad legacy para puntos mientras termina el despliegue del contrato
+  // metrics. La presentación visible nunca deja un guion como primera cifra.
   function puntuacionHoraria(a) {
     var hourly = datos.actividadMeta && datos.actividadMeta.hourly;
     var trend = tendenciaHoraria(a), current = Number(trend.current), reference = Number(trend.reference);
@@ -817,6 +816,36 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     }
     return { available:false, basis:"unavailable", points:null, state:"same",
       current:Number(a && a.total) || 0, reference:null };
+  }
+
+  var METRIC_LABELS={objectives:"objetivos",windows:"ventanas de decisión",missions:"misiones",tasks:"tareas",points:"puntos"};
+  function totalDiarioMetrica(a, key) {
+    var fields={objectives:"objetivos",windows:"ventanas",missions:"misiones",tasks:"tareas",points:"total"};
+    return Math.max(0, Number(a && a[fields[key]]) || 0);
+  }
+
+  // Contrato aditivo de /highscore/daily: cada identidad operativa trae las cinco
+  // métricas como {hour,day}. La fila visible suma main/sub/infra de la MISMA
+  // familia+equipo. Durante el rollout se conserva el legacy factual de puntos;
+  // para las otras columnas, el fallback seguro es 0 / acumulado diario: nunca
+  // se atribuye el total del día a la hora ni se reconstruyen cifras desde el DOM.
+  function metricaHoraDia(a, key) {
+    var hourly=datos.actividadMeta&&datos.actividadMeta.hourly;
+    var rows=hourly&&Array.isArray(hourly.scores)?hourly.scores:[];
+    var matches=filasFamiliaHoraria(a,rows),hour=0,day=0,explicit=0;
+    matches.forEach(function(row){
+      var metric=row&&row.metrics&&row.metrics[key];
+      if(!metric||!Number.isFinite(Number(metric.hour))||!Number.isFinite(Number(metric.day)))return;
+      explicit++; hour+=Math.max(0,Number(metric.hour)||0); day+=Math.max(0,Number(metric.day)||0);
+    });
+    if(explicit)return {hour:hour,day:day,source:"hourly-metrics",available:true};
+    var daily=totalDiarioMetrica(a,key);
+    if(key==="points"){
+      var legacy=puntuacionHoraria(a);
+      if(legacy.available)return {hour:Math.max(0,Number(legacy.points)||0),day:daily,source:"legacy-points",available:true,
+        partial:legacy.partial,omitted:legacy.omitted};
+    }
+    return {hour:0,day:daily,source:"daily-compat",available:false};
   }
 
   /* La comparación del TOTAL DIARIO sigue la fila que realmente ve Carlos:
@@ -866,18 +895,22 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return "Primera observación del total diario; aún no existe un valor anterior comparable";
   }
 
-  function parejaPuntosHtml(a, dailyValue) {
-    var hora = puntuacionHoraria(a), daily = estadoPuntosDiarios(a), state = daily.state;
-    var hasValue = dailyValue !== "—", hourValue = hasValue && hora.available ? hora.points : "—";
-    var horaTitle = !hasValue ? "Sin datos de puntos para este agente y equipo" : (hora.available
-      ? hora.points + " punto" + (hora.points === 1 ? "" : "s") + " en los últimos 60 minutos · " +
-        hora.current + " ahora, " + hora.reference + " hace 60 min" +
-        (hora.partial ? " · cifra parcial: " + hora.omitted + " miembro" + (hora.omitted === 1 ? "" : "s") + " sin referencia omitido" + (hora.omitted === 1 ? "" : "s") : "")
-      : "Sin referencia D1 fiable de hace 60 minutos; la puntuación horaria no está disponible");
-    return '<span class="score-pair" title="' + esc(horaTitle + ". " + tituloPuntosDiarios(daily)) + '">' +
-      '<span class="score-number score-hour">' + esc(hourValue) + '</span>' +
+  function parejaMetricaHtml(a,key) {
+    var metric=metricaHoraDia(a,key),label=METRIC_LABELS[key]||key;
+    var state=key==="points"?estadoPuntosDiarios(a).state:"initial";
+    var source=metric.source==="daily-compat"?"Compatibilidad: aún sin desglose horario del API. ":"";
+    var partial=metric.partial?"; cifra parcial con "+metric.omitted+" miembros sin referencia omitidos":"";
+    var title=source+metric.hour+" "+label+" en esta hora / "+metric.day+" en total hoy"+partial;
+    var hourClass=metric.hour>0?"hour-positive":"hour-zero";
+    var hourValue=key==="points"?metric.hour:numeroActividad(a,key==="objectives"?"objetivos":key==="windows"?"ventanas":key==="missions"?"misiones":"tareas",metric.hour,label+" en curso");
+    return '<span class="score-pair" role="text" aria-label="'+esc(title)+'" title="'+esc(title)+'" data-hour-source="'+esc(metric.source)+'">'+
+      '<span class="score-number score-hour '+hourClass+'">'+hourValue+'</span>'+
       '<span class="score-separator" aria-hidden="true">/</span>' +
-      '<span class="score-number score-day daily-' + esc(state) + '">' + esc(dailyValue) + '</span></span>';
+      '<span class="score-number score-day daily-'+esc(state)+'">'+esc(metric.day)+'</span></span>';
+  }
+
+  function parejaPuntosHtml(a) {
+    return parejaMetricaHtml(a,"points");
   }
 
   function claveTrazabilidad(s) {
@@ -1264,11 +1297,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     document.getElementById("podio").innerHTML = escenaPodio() + orden.map(function (a, i) {
       if (!a) return '<div class="plaza"></div>';
       var clave = claveAgenteCarrera(a.agente), total = Number(a.total) || 0;
-      var hora = puntuacionHoraria(a), dailyValue = a.total > 0 ? a.total : (a.haLatido ? "0" : "—");
+      var metric = metricaHoraDia(a,"points");
       var dailyTitle = tituloPuntosDiarios(estadoPuntosDiarios(a));
-      var scoreLabel = dailyValue === "—" ? "sin datos de puntos" :
-        ((hora.available ? hora.points + " puntos en la última hora" : "sin referencia fiable para la última hora") +
-          " y " + dailyValue + " hoy");
+      var scoreLabel = metric.hour + " puntos en esta hora y " + metric.day + " hoy";
       var detalleUrl = "/highscoreDetail?agent=" + encodeURIComponent(a.agente);
       try { sessionStorage.setItem("yokup.highscore.detail." + clave, JSON.stringify(a)); } catch (_) {}
       return '<a class="plaza ' + clases[i] + (a.vivo ? ' podium-live' : '') + '" href="' + esc(detalleUrl) + '"' +
@@ -1279,7 +1310,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<div class="nom">' + agentNameHtml(a) + '</div>' +
         '<div class="maq">' + esc(a.runtime || "—") + '</div>' +
         pintaMaquinas(a, 3) +
-        '<div class="pts">' + parejaPuntosHtml(a, dailyValue) + '</div>' +
+        '<div class="pts">' + parejaPuntosHtml(a) + '</div>' +
         '<div class="bloque">' + medallas[i] + '</div></a>';
     }).join("");
     programaBrazos();
@@ -1497,23 +1528,20 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   function numeroVentanas(a) {
-    var contenido = numeroActividad(a, "ventanas", a.ventanas, "ventana de decisión viva");
-    var ayuda = a.ventanas + " ventanas acumuladas hoy; no son simultáneas. Las automáticas abren una sola cada 60 minutos.";
+    var contenido = parejaMetricaHtml(a,"windows");
+    var ayuda = "Ventanas de esta hora / acumuladas hoy. No son simultáneas; las automáticas abren una sola cada 60 minutos.";
     return '<span class="window-day-total" title="' + esc(ayuda) + '" aria-label="' + esc(ayuda) + '">' + contenido + '</span>';
   }
 
+  function indicadorMetricaHtml(a,key) { return parejaMetricaHtml(a,key); }
+
   function puntosHtml(a, progressId) {
-    var value = a.total > 0 ? a.total : (a.haLatido ? "0" : "—");
-    var hora = puntuacionHoraria(a);
-    var resumen = value === "—" ? "Sin datos de puntos: — en la última hora y — hoy" :
-      ((hora.available ? hora.points + " puntos en los últimos 60 minutos" +
-        (hora.partial ? "; cifra parcial con " + hora.omitted + " miembro" + (hora.omitted === 1 ? "" : "s") + " sin referencia omitido" + (hora.omitted === 1 ? "" : "s") : "")
-        : "Sin referencia fiable para los últimos 60 minutos") +
-        ", " + value + " puntos hoy");
+    var metric=metricaHoraDia(a,"points");
+    var resumen=metric.hour+" puntos en esta hora, "+metric.day+" puntos hoy";
     return '<button class="score-toggle" type="button" aria-expanded="false" aria-controls="' + esc(progressId) +
       '" aria-label="' + esc(resumen + ". " +
         tituloPuntosDiarios(estadoPuntosDiarios(a)) + ". Mostrar evolución") + '">' +
-      parejaPuntosHtml(a, value) + '</button>';
+      parejaPuntosHtml(a) + '</button>';
   }
 
   var ETAPAS_PROGRESO = [
@@ -2038,10 +2066,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         relojVentanaHtml(a) + '</td>' +
         '<td>' + pintaMaquinas(a, 4) + '</td>' +
         '<td class="project-cell">' + proyectoHtml(a) + '</td>' +
-        '<td class="num">' + numeroActividad(a, "objetivos", a.objetivos, "objetivo activo") + '</td>' +
+        '<td class="num">' + indicadorMetricaHtml(a,"objectives") + '</td>' +
         '<td class="num">' + numeroVentanas(a) + '</td>' +
-        '<td class="num">' + numeroActividad(a, "misiones", a.misiones, "misión en curso") + '</td>' +
-        '<td class="num">' + numeroActividad(a, "tareas", a.tareas, "tarea en curso") + '</td>' +
+        '<td class="num">' + indicadorMetricaHtml(a,"missions") + '</td>' +
+        '<td class="num">' + indicadorMetricaHtml(a,"tasks") + '</td>' +
         '<td class="tot">' + puntosHtml(a, progressId) + '</td></tr>' +
         '<tr class="score-progress' + alterna + '" id="' + esc(progressId) + '" hidden><td colspan="9">' + progresionHtml(a) + '</td></tr>';
     }).join("");
@@ -2208,7 +2236,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       '<li>Cada <b>tarea A·B·C trabajada hoy</b>: <b>15</b>, y <b>+10</b> si está en curso. ' +
       'La actividad del agente, subagente e infraagente se reúne en su familia sin duplicar A1…C3.</li>' +
       '<li><b>El latido no da puntos.</b> El propio <b>número de posición parpadea en verde</b> cuando recibió uno hace menos de 15 minutos. ' +
-      'Sin trabajo puntuable se muestra <b>0</b> si el agente ha latido alguna vez y <b>—</b> si nunca hay constancia de latido.</li>' +
+      'Los cinco indicadores muestran siempre una pareja numérica <b>hora / total del día</b>; una hora sin actividad se representa con <b>0</b>.</li>' +
       '<li><b>Ordenador:</b> en verde el que late ahora, apagado el conocido sin latido reciente. ' +
       'Un mismo agente corre en varios a la vez.</li>' +
       '<li><b>Proyecto:</b> muestra el dominio del proyecto declarado por el latido o por el objetivo, ventana, misión o tarea activa. Sin evidencia aparece <b>—</b>.</li>' +

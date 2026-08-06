@@ -46,8 +46,8 @@ test("la cifra horaria procede del payload factual y el fallback es conservador"
   assert.deepEqual(tendencia({agente:"AgenteNuevoMacMini",total:12}),{
     state:"same",current:12,reference:12,points:0,referenceAt:0,reliable:false,
   });
-  assert.match(source,/class="score-number score-hour">' \+ esc\(hourValue\)/);
-  assert.match(source,/class="score-number score-day daily-' \+ esc\(state\)/);
+  assert.match(source,/class="score-number score-hour '\+hourClass/);
+  assert.match(source,/class="score-number score-day daily-'\+esc\(state\)/);
   assert.doesNotMatch(source,/\(up \? "↑" : "="\)/);
 });
 

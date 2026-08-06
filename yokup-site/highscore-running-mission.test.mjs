@@ -105,7 +105,7 @@ test("la misión se mueve con el corredor en una capa posterior",()=>{
 test("Running Man convive con filtros, puntos hora/día y detalle plegable",()=>{
   assert.match(source,/data-yk-slot="right"[^>]*id="advancedMenu"/);
   assert.match(source,/function aplicaAgentScope\(/);
-  assert.match(source,/class="score-number score-day daily-' \+ esc\(state\)/);
+  assert.match(source,/class="score-number score-day daily-'\+esc\(state\)/);
   assert.match(source,/<button class="score-toggle" type="button" aria-expanded="false"/);
   assert.match(source,/\.score-progress\[hidden\]\{display:none\}/);
 });

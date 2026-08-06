@@ -108,7 +108,7 @@ test("un payload cacheado o fallido no mueve el baseline ni afirma transición",
 });
 
 test("la presentación usa hora/día también en podio y el ranking conserva total diario", () => {
-  assert.match(source, /<div class="pts">' \+ parejaPuntosHtml\(a, dailyValue\) \+ '<\/div>/);
+  assert.match(source, /<div class="pts">' \+ parejaPuntosHtml\(a\) \+ '<\/div>/);
   assert.match(source, /if \(campo === "puntos"\) return Number\(fila\.total\) \|\| 0/);
   assert.match(source, /f\.total = f\.ptsObjetivos \+ f\.ptsVentanas \+ f\.ptsMisiones \+ f\.ptsTareas/);
   assert.match(source, /var scoringObserved = f\.seenDailyScore \|\| f\.seenTask[\s\S]*observaPuntosDiarios\(f, Date\.now\(\), null, datos\.actividadFresh === true\)[\s\S]*missingScore:true/);

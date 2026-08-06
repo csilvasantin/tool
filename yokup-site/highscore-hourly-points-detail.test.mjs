@@ -3,9 +3,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 
-// La hora sólo es factual cuando D1 aporta una referencia fiable de hace 60
-// minutos. Sin ella la pareja es —/TOTAL: no se disfraza el acumulado diario de
-// ritmo horario.
+// El contrato nuevo aporta metrics.{points:{hour,day}}. El delta D1 permanece
+// como compatibilidad durante el rollout y la interfaz siempre pinta números.
 const source = await readFile(new URL("./highscore.html", import.meta.url), "utf8");
 const identitySource = await readFile(new URL("./yk-agent-identity.js", import.meta.url), "utf8");
 const identityContext = vm.createContext({});
@@ -48,9 +47,12 @@ function esc(value) {
 function renderPuntos(hourly, row) {
   const datos = { actividadMeta:{ hourly } };
   return new Function("datos", "window", "esc", [
+    'var METRIC_LABELS={objectives:"objetivos",windows:"ventanas de decisión",missions:"misiones",tasks:"tareas",points:"puntos"};',
     functionSource("normaliza"), functionSource("claveHoraria"), functionSource("identidadFamiliaHoraria"),
     functionSource("filasFamiliaHoraria"), functionSource("tendenciaHoraria"), functionSource("puntuacionHoraria"),
-    functionSource("estadoPuntosDiarios"), functionSource("tituloPuntosDiarios"), functionSource("parejaPuntosHtml"),
+    functionSource("totalDiarioMetrica"), functionSource("metricaHoraDia"), functionSource("estadoPuntosDiarios"),
+    functionSource("tituloPuntosDiarios"),
+    functionSource("numeroActividad"), functionSource("parejaMetricaHtml"), functionSource("parejaPuntosHtml"),
     functionSource("puntosHtml"), "return puntosHtml;"
   ].join("\n"))(datos, { ykAgentIdentity:identity }, esc)(row, "hourly-detail");
 }
@@ -146,7 +148,7 @@ test("una capa nueva sin referencia no borra el delta factual de su familia", ()
     { agent:"SubTrinityMBP14", machine:"macbookpronegro14", current:30, reference:30, reliable:false },
     { agent:"InfraTrinityMBP14", machine:"macbookpronegro14", current:15, reference:15, reliable:false },
   ] }, {...row, haLatido:true});
-  assert.match(html, /score-number score-hour">176<\/span>/);
+  assert.match(html, /score-number score-hour hour-positive">176<\/span>/);
   assert.match(html, /cifra parcial con 2 miembros sin referencia omitidos/);
 });
 
@@ -170,26 +172,26 @@ test("la columna PUNTOS pinta hora/día en una línea y con una sola base visual
     { agent:"OraculoMacMini", current:75, reference:55, reliable:true, trend:"up" },
   ] }, { agente:"OraculoMacMini", total:75, haLatido:true,
     tendenciaDiaria:{state:"up",current:75,previous:55} });
-  assert.match(up, /score-number score-hour">20<\/span>[\s\S]*score-separator[^>]*>\/<[\s\S]*score-number score-day daily-up">75<\/span>/);
-  assert.match(up, /aria-label="20 puntos en los últimos 60 minutos, 75 puntos hoy\./);
+  assert.match(up, /score-number score-hour hour-positive">20<\/span>[\s\S]*score-separator[^>]*>\/<[\s\S]*score-number score-day daily-up">75<\/span>/);
+  assert.match(up, /aria-label="20 puntos en esta hora \/ 75 en total hoy/);
 
   const arranque = renderPuntos({ window_ms:3600000, scores:[] },
     { agente:"SinDato", total:48, haLatido:true });
-  assert.match(arranque, /score-number score-hour">—<\/span>[\s\S]*score-number score-day daily-initial">48<\/span>/,
-    "sin referencia el formato es —/48 y el diario nace neutro");
-  assert.match(arranque, /Sin referencia D1 fiable/);
-  assert.match(arranque, /aria-label="Sin referencia fiable para los últimos 60 minutos, 48 puntos hoy/);
+  assert.match(arranque, /score-number score-hour hour-zero">0<\/span>[\s\S]*score-number score-day daily-initial">48<\/span>/,
+    "durante el rollout el fallback sigue siendo numérico");
+  assert.match(arranque, /data-hour-source="daily-compat"/);
+  assert.match(arranque, /aria-label="Compatibilidad: aún sin desglose horario del API\. 0 puntos en esta hora \/ 48 en total hoy/);
 
   const ausente = renderPuntos({ window_ms:3600000, scores:[] },
     { agente:"SinDato", total:0, haLatido:false });
-  assert.match(ausente, /score-number score-hour">—<\/span>[\s\S]*score-number score-day daily-initial">—<\/span>/,
-    "ausencia y cero real no son equivalentes");
+  assert.match(ausente, /score-number score-hour hour-zero">0<\/span>[\s\S]*score-number score-day daily-initial">0<\/span>/,
+    "la ausencia se representa con cero, nunca con guion");
 });
 
 test("el desplegable sigue contraído y el podio comparte hora/día", () => {
   assert.match(source, /<button class="score-toggle" type="button" aria-expanded="false" aria-controls="' \+ esc\(progressId\)/);
   assert.match(source, /<tr class="score-progress' \+ alterna \+ '" id="' \+ esc\(progressId\) \+ '" hidden><td colspan="9">' \+ progresionHtml\(a\)/);
-  assert.match(source, /<div class="pts">' \+ parejaPuntosHtml\(a, dailyValue\) \+ '<\/div>/);
+  assert.match(source, /<div class="pts">' \+ parejaPuntosHtml\(a\) \+ '<\/div>/);
 });
 
 test("hora y día comparten tamaño, peso y línea base; el diario tiene tres estados sin animación", () => {

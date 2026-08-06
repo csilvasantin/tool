@@ -35,24 +35,11 @@ test("objetivos, ventanas, misiones y tareas respetan el orden del marcador", ()
   assert.match(html, /Cada <b>misión ejecutada hoy<\/b>/);
 });
 
-test("sin actividad muestra 0 con latido histórico y guion sin ningún latido", () => {
-  const start = html.indexOf("function puntosHtml(a, progressId) {");
-  const end = html.indexOf("\n\n  var ETAPAS_PROGRESO", start);
-  assert.ok(start >= 0 && end > start, "falta puntosHtml");
-  const context = vm.createContext({
-    puntuacionHoraria:()=>({available:true,basis:"total",points:0,state:"same",current:0,reference:null}),
-    estadoPuntosDiarios:(a)=>a.tendenciaDiaria||({state:"initial",current:Number(a.total)||0,previous:null}),
-    tituloPuntosDiarios:()=>"primera observación",
-    parejaPuntosHtml:(_a,value)=>`<span class="score-pair"><span class="score-number score-hour">${value === "—" ? "—" : 0}</span>/<span class="score-number score-day">${value}</span></span>`,
-    esc:value=>String(value),
-  });
-  vm.runInContext(`${html.slice(start, end)}\n` +
-    `globalThis.conTrabajo = puntosHtml({total:40,haLatido:false},"p1");\n` +
-    `globalThis.conLatido = puntosHtml({total:0,haLatido:true},"p2");\n` +
-    `globalThis.sinLatido = puntosHtml({total:0,haLatido:false},"p3");`, context);
-  assert.match(context.conTrabajo,/score-number score-day">40<\/span>/);
-  assert.match(context.conLatido,/score-number score-hour">0<[\s\S]*score-number score-day">0<\/span>/);
-  assert.match(context.sinLatido,/score-number score-hour">—<[\s\S]*score-number score-day">—<\/span>/);
+test("sin actividad mantiene una pareja numérica hora/día sin guion inicial", () => {
+  assert.match(html,/return \{hour:0,day:daily,source:"daily-compat",available:false\}/);
+  assert.match(html,/var hourClass=metric\.hour>0\?"hour-positive":"hour-zero"/);
+  assert.match(html,/parejaPuntosHtml\(a\)/);
+  assert.doesNotMatch(html,/score-number score-hour[^\n]*—/);
   assert.match(html, /f\.haLatido = true/);
   assert.match(html, /<td class="tot">' \+ puntosHtml\(a, progressId\)/);
   assert.match(html, /El latido no da puntos/);
@@ -62,7 +49,7 @@ test("Ventana Decisión ocupa dos líneas y conserva la cadencia horaria", () =>
   assert.match(html, /data-sort="ventanas"[^>]*aria-label="Ordenar por ventanas de decisión"><span class="sort-label-stack"><span>Ventana<\/span><span>Decisión<\/span><\/span>/);
   assert.doesNotMatch(html, /Ventanas hoy/i);
   assert.match(html, /function numeroVentanas\(a\)/);
-  assert.match(html, /ventanas acumuladas hoy; no son simultáneas/);
+  assert.match(html, /Ventanas de esta hora \/ acumuladas hoy\. No son simultáneas/);
   assert.match(html, /automáticas abren una sola cada 60 minutos/);
   assert.match(html, /acumulado diario, no ventanas simultáneas/);
   assert.match(html, /apertura automática admite una sola ventana cada 60 minutos/);

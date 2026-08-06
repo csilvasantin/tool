@@ -142,10 +142,9 @@ test("el número de la categoría activa parpadea en verde sin confundirse con e
   assert.match(html, /\.activity-now\{[^}]*color:var\(--good\)[^}]*animation:work-pulse/);
   assert.match(html, /@keyframes work-pulse/);
   assert.match(html, /@keyframes work-ring/);
-  assert.match(html, /numeroActividad\(a, "objetivos", a\.objetivos/);
+  assert.match(html, /key==="objectives"\?"objetivos"/);
   assert.match(html, /numeroVentanas\(a\)/);
-  assert.match(html, /numeroActividad\(a, "misiones", a\.misiones/);
-  assert.match(html, /numeroActividad\(a, "tareas", a\.tareas/);
+  assert.match(html, /key==="missions"\?"misiones":"tareas"/);
   assert.match(html, /prefers-reduced-motion:reduce[^}]*rank-number\.live[^}]*activity-now/);
 });
 
@@ -302,8 +301,8 @@ test("el podio conserva el latido vivo y usa la misma pareja hora/día", () => {
   assert.match(html, /a\.vivo \? ' podium-live' : ''/);
   assert.match(html, /\.plaza\.podium-live::after\{[^}]*border:2px solid rgba\(136,255,170,\.8\)[^}]*animation:podium-heartbeat/);
   assert.match(html, /@keyframes podium-heartbeat/);
-  assert.match(html, /<div class="pts">' \+ parejaPuntosHtml\(a, dailyValue\) \+ '<\/div>/);
-  assert.match(html, /hora\.available \? hora\.points \+ " puntos en la última hora" : "sin referencia fiable para la última hora"/);
+  assert.match(html, /<div class="pts">' \+ parejaPuntosHtml\(a\) \+ '<\/div>/);
+  assert.match(html, /var metric=metricaHoraDia\(a,"points"\)/);
   assert.match(html, /datos\.actividadMeta && datos\.actividadMeta\.hourly/);
 });
 
