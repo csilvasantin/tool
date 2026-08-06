@@ -273,6 +273,10 @@
 .mdet-m{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .mdet-k{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--mut);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.mdet-policy{display:flex;flex-direction:column;gap:3px;padding:7px 9px;border:1px solid rgba(120,160,180,.28);
+  border-left:3px solid var(--dim,#4d7a88);border-radius:7px;background:rgba(120,160,180,.06);
+  color:var(--mut,#75aab9);font-size:10.5px;line-height:1.45;overflow-wrap:anywhere}
+.mdet-policy b{color:var(--ink,#dff8ff);font:700 9.5px/1.4 var(--mono);letter-spacing:.04em;text-transform:uppercase}
 .mdet-img{width:100%;border-radius:6px;border:1px solid var(--line2);display:block}
 .mdet-inf{font-size:10.5px;line-height:1.45;color:var(--ink,#dff8ff);
   background:rgba(120,243,255,.05);border-left:2px solid var(--brand,#78f3ff);
@@ -288,3 +292,4 @@
   border-radius:7px;padding:4px 9px;cursor:pointer;transition:.15s}
 .mdet-addchild:hover{color:var(--brand,#78f3ff);border-color:var(--brand,#78f3ff)}
 .mdet-addchild:disabled{opacity:.6;cursor:default}
+@media(max-width:520px){.mdet-policy{padding:8px;font-size:11px}.mdet-policy b{font-size:10px}}

@@ -541,6 +541,26 @@
     if (hayTrabajo(t)) return { c: "b-prog", l: "En curso" };
     return (t.assignee || t.loc || t.machine) ? { c: "b-pend", l: "Pendiente" } : { c: "b-sina", l: "Sin asignar" };
   }
+  // Contrato canónico de cierre diario. No se infiere desde `note` ni desde el
+  // texto de eventos: una cancelación manual o un payload legacy sigue siendo
+  // simplemente «Eliminada», sin atribuirle una causa que no consta.
+  function dailyClosureMeta(t) {
+    if (!t || t.closure_reason !== "daily_cleanup" || t.status !== "cancelled" || t.visible_state !== "cancelled") return null;
+    var at = +t.closed_at || 0;
+    var date = "fecha no disponible";
+    if (at) {
+      try {
+        var parts = {}, fmt = new Intl.DateTimeFormat("es-ES", {timeZone:"Europe/Madrid", day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit", hourCycle:"h23"});
+        fmt.formatToParts(new Date(at)).forEach(function (p) { if (p.type !== "literal") parts[p.type] = p.value; });
+        date = parts.day + "/" + parts.month + "/" + parts.year + " " + parts.hour + ":" + parts.minute + " (Madrid)";
+      } catch (e) { date = fechaCorta(at); }
+    }
+    return {
+      at: at,
+      date: date,
+      text: "Eliminada automáticamente al cierre del día · " + date + ". Cierre recuperable; no es un borrado físico."
+    };
+  }
   // Un único criterio para contador, insignia y filtro. El estado técnico puede
   // seguir siendo in_progress mientras la categoría visible ya es «No concluida».
   function coincideEstado(t, filtro) {
@@ -692,7 +712,7 @@
     // cada .rz es la línea divisoria — se arrastra y ajusta la variable CSS de SU
     // columna (--c-*) para TODAS las tarjetas a la vez; se persiste en localStorage.
     var rz = function (col, side) { return '<span class="rz" data-col="' + col + '"' + (side ? ' data-side="' + side + '"' : "") + ' title="⇔ arrastra para redimensionar"></span>'; };
-    var dv = durVal(t);
+    var dv = durVal(t), dailyClose = dailyClosureMeta(t);
     var proof = String(t.proof_image || "");
     // CAPTURA EN VIVO del CLI: si la misión está EN CURSO y hay una captura
     // reciente del terminal (<3 min), se enseña ESA con halo pulsante — el
@@ -755,7 +775,7 @@
         // ORDENADOR (entre Fecha y Agente).
         '<div class="cel ord ' + (CFG.columnMode === "tasks" ? "tasks-col" : "machine-col") + '">' + rz("ord") + (CFG.columnMode === "tasks" ? tasksAbcHtml(t) : (maq ? '<span class="mach2">' + machVisual(maq) + " " + (window.ykMaquina ? ykMaquina.html(maq) : esc(maq)) + "</span>" : '<span class="mach2 dim">🖥 sin máquina</span>')) + "</div>" +
         // Estado + ABRIR apilado (abrir debajo de la insignia).
-        '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"' + (t.status === "cancelled" && t.note ? ' title="' + esc(t.note) + '"' : "") + "><i></i>" + stt + "</span>" + (t.status === "cancelled" && t.note ? '<small class="cancel-note" title="' + esc(t.note) + '">' + esc(t.note) + "</small>" : "") +
+        '<div class="cel est">' + rz("est") + '<span class="badge ' + sb + '"' + (dailyClose ? ' title="' + esc(dailyClose.text) + '" aria-label="' + esc(dailyClose.text) + '"' : (t.status === "cancelled" && t.note ? ' title="' + esc(t.note) + '"' : "")) + "><i></i>" + stt + "</span>" + (!dailyClose && t.status === "cancelled" && t.note ? '<small class="cancel-note" title="' + esc(t.note) + '">' + esc(t.note) + "</small>" : "") +
           // PROGRESO en la fila, en TERCIOS: tareas n/3 y subtareas n/9 (979).
           // Solo si la misión tiene plan. (959, 963)
           progHtml(t._prog) +
@@ -1071,7 +1091,7 @@
   function detalleHtml(id) {
     var t = MIS_CACHE[id];
     if (!t) return "";
-    var est = estadoDe(t), maq = machineOf(t);
+    var est = estadoDe(t), maq = machineOf(t), dailyClose = dailyClosureMeta(t);
     var img = t.proof_image || t.live_shot || "";
     var agentes = (t._agents && t._agents.length) ? t._agents.join(" · ") : (t.assignee || "sin agente");
     // La captura de la ficha también ENLAZA al trabajo realizado cuando hay destino.
@@ -1083,6 +1103,7 @@
       '<div class="mdet-m"><span class="badge ' + est.c + '"><i></i>' + est.l + "</span>" +
         (maq ? '<span class="mdet-k">🖥 ' + esc(maq) + "</span>" : "") +
         '<span class="mdet-k">👷 ' + esc(agentes) + "</span></div>" +
+      (dailyClose ? '<div class="mdet-policy" role="note" aria-label="' + esc(dailyClose.text) + '"><b>Cierre diario · ' + esc(dailyClose.date) + '</b><span>Pasó automáticamente de No concluida a Eliminada. Se puede reabrir; la misión, sus tareas, pruebas e historial siguen conservados.</span></div>' : "") +
       imgHtml +
       '<div class="mdet-inf" data-inf>· cargando informe…</div>' +
       '<div class="mdet-actions">' +
@@ -1164,7 +1185,7 @@
 
   window.YkMisiones = {
     init: init, selected: selected, selectMission: selectMission,
-    rowHtml: rowHtml, cacheMission: cacheMission, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine, rcId: rcId, estadoDe: estadoDe, coincideEstado: coincideEstado, visibleId: visibleId,
+    rowHtml: rowHtml, cacheMission: cacheMission, bindRows: bindRows, machineOf: machineOf, canonMachine: canonMachine, rcId: rcId, estadoDe: estadoDe, coincideEstado: coincideEstado, visibleId: visibleId, dailyClosureMeta: dailyClosureMeta,
     machOffOf: machOffOf, whoHtml: whoHtml,
     setLiveMachines: function (set) { LIVE_MACHINES = set || null; },
     setLiveSurfaces: function (m) { LIVE_SURFACES = m || null; },

@@ -46,7 +46,12 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .mission-scope-summary .scope-global{color:var(--dim)}
 .mission-scope-summary .scope-clear{border:1px solid var(--line2);border-radius:999px;padding:5px 9px;
   background:transparent;color:var(--brand);font:700 9.5px/1 var(--mono);cursor:pointer}
+.mission-policy{flex:1 0 100%;border-top:1px solid var(--line);padding-top:7px;color:var(--dim);
+  font:500 10px/1.5 var(--sans)}
+.mission-policy summary{color:var(--mut);font:700 9.5px/1.4 var(--mono);cursor:pointer;list-style-position:inside}
+.mission-policy p{margin:6px 0 0;overflow-wrap:anywhere}
 @media(max-width:560px){.mission-scope-summary{align-items:flex-start;flex-direction:column;gap:5px}.mission-scope-summary .scope-clear{min-height:32px}}
+@media(max-width:560px){.mission-policy summary{min-height:44px;display:flex;align-items:center}.mission-policy p{font-size:11px}}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .tab{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;border-radius:9px;border:1px solid var(--line);color:var(--mut);background:var(--card);cursor:pointer;transition:.2s}
 .tab.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
@@ -248,6 +253,10 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
     <button class="tab" data-f="resolved" aria-pressed="false">Finalizadas</button>
     <button class="tab" data-f="cancelled" aria-pressed="false">Eliminadas</button>
     <button class="tab" data-f="todas" aria-pressed="false">Todas</button>
+    <details class="mission-policy">
+      <summary>¿Qué ocurre al cerrar el día?</summary>
+      <p>Las misiones <b>No concluidas</b> pasan automáticamente a <b>Eliminadas</b>. Es un cierre recuperable: no borra la misión, sus tareas, pruebas ni historial.</p>
+    </details>
   </div>
   <!-- CAJÓN de la misión seleccionada: ficha + informe + árbol abc. Va ARRIBA
        del resumen de flota (Carlos, 2026-07-21): al pinchar una misión su
