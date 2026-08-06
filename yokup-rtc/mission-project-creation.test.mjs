@@ -196,6 +196,22 @@ test("la marca de heredado desaparece al fijar el proyecto a mano", async()=>{
   assert.match(source,/UPDATE tickets SET project='',project_id=NULL,project_inherited=0,project_inherited_from=NULL/);
 });
 
+test("un encargo que YA tiene mision se actualiza sin exigirle proyecto", async()=>{
+  // Carlos, 6-ago-2026, «borra los que no podamos arreglar». Al mirarlos resultó que
+  // no había nada que borrar: sus misiones EXISTÍAN (FLT-1166, FLT-1171…) pero
+  // llevaban días congeladas en in_progress con el encargo ya cerrado, porque el
+  // guard de proyecto se aplicaba también a las ACTUALIZACIONES y las mataba antes.
+  state.allowDeclaration=false; state.allowInherited=false;
+  state.tickets.push({id:"FLT-701", source:"fleet", status:"in_progress", project_id:"xpaceos", subject:"Ya existe"});
+  state.fleetIds.set(701,"FLT-701");
+  env.TELEGRAM={async fetch(){return Response.json({items:[
+    {id:701,text:"Encargo que ya tiene mision",target_persona:"Oraculo",target_machine:"admira-macmini",
+     from_name:"Carlos",status:"in_progress",ts:Date.now()}
+  ]})}};
+  const result=await (await post("/fleet/sync",{})).json();
+  assert.equal(result.rejected.length,0,"una actualizacion no puede quedarse en rejected");
+});
+
 test("un encargo cerrado hace dias no se rechaza en bucle: se ignora", async()=>{
   // Carlos, 6-ago-2026, «borra los que no podamos arreglar». No hubo que borrar
   // nada: el descarte anti-resurrección ya existía, pero se comprobaba DESPUÉS del

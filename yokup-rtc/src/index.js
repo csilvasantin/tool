@@ -2984,26 +2984,36 @@ async function fleetSync(env) {
     const assignment = await resolveFleetAssignment(env, it);
     const standalone = fleetStandaloneTask(it.text);
     const existingContext = await existingFleetMissionContext(env, it);
-    // LÁPIDAS ANTES DEL GUARD (6-ago-2026). Más abajo ya se descarta el encargo
-    // cerrado hace más de 6 h que nunca llegó a ser misión —la anti-resurrección—,
-    // pero se comprobaba DESPUÉS de resolver el proyecto: un encargo que el propio
-    // código había decidido ignorar entraba igualmente en el guard, se apuntaba como
-    // rechazado y volvía a hacerlo en cada sync, para siempre. De los 39 rechazados
-    // que arrastraba la flota, 20 eran esto: trabajo YA TERMINADO hace días pidiendo
-    // un proyecto para nacer como misión nueva. Se comprueba aquí, y sin reservar
-    // mission_id: se mira si YA se repartió uno, en vez de pedir otro (reservar id
-    // antes de validar el proyecto es justo lo que prohíbe el contrato).
-    const earlyStatus = FLEET_ST[it.status] || "open";
-    if (earlyStatus === "resolved" && (now - epochMs(it.done_at, epochMs(it.ts, now))) > 6 * 3600 * 1e3) {
-      const reservado = await env.DB.prepare("SELECT mission_id FROM fleet_ids WHERE inbox_id=?").bind(it.id).first();
-      if (!reservado) continue;
-    }
-    const projectContext = await resolveCreationProject(env, {
-      project_id:it.project_id, decision_id:it.decision_id, batch_id:it.batch_id,
-      parent_id:it.parent_id || it.parent_mission_id || existingContext,
-      agent:assignment.assignee, machine:assignment.loc
-    });
-    if (!projectContext.ok) {
+    // EL GUARD ES DE NACIMIENTO, NO DE ACTUALIZACIÓN (6-ago-2026).
+    // resolveCreationProject se aplicaba a TODOS los encargos, también a los que ya
+    // tenían su misión creada. Efecto medido en producción: 39 encargos de la flota
+    // se apuntaban como rechazados en cada sync y sus misiones —FLT-1166, FLT-1171,
+    // FLT-1178…— llevaban días CONGELADAS en «in_progress» aunque el encargo estaba
+    // cerrado, porque la actualización de estado moría en el guard. No era trabajo
+    // perdido: era el tablero mintiendo sobre lo que seguía en curso.
+    // Se mira si ya existe misión SIN reservar mission_id nuevo (reservarlo antes de
+    // validar el proyecto es justo lo que prohíbe el contrato): se consulta el id ya
+    // repartido y, con él, si el ticket existe de verdad.
+    const repartido = await env.DB.prepare("SELECT mission_id FROM fleet_ids WHERE inbox_id=?").bind(it.id).first();
+    const yaEsMision = repartido && repartido.mission_id
+      ? await env.DB.prepare("SELECT id FROM tickets WHERE id=?").bind(repartido.mission_id).first()
+      : null;
+    // Lápida: cerrado hace más de 6 h y nunca llegó a ser misión. Más abajo ya se
+    // descarta (anti-resurrección), pero allí es TARDE: pasaba antes por el guard y
+    // se apuntaba como rechazado en cada sync, eternamente. Aquí no cuesta nada, que
+    // la consulta de arriba ya dice si existe.
+    if (!yaEsMision && (FLEET_ST[it.status] || "open") === "resolved" &&
+        (now - epochMs(it.done_at, epochMs(it.ts, now))) > 6 * 3600 * 1e3) continue;
+    // Sólo se resuelve proyecto para lo que va a NACER. Lo que ya existe se
+    // actualiza con el proyecto que ya tenga: exigírselo lo dejaba inmóvil.
+    const projectContext = yaEsMision
+      ? { ok:false, existing:true }
+      : await resolveCreationProject(env, {
+          project_id:it.project_id, decision_id:it.decision_id, batch_id:it.batch_id,
+          parent_id:it.parent_id || it.parent_mission_id || existingContext,
+          agent:assignment.assignee, machine:assignment.loc
+        });
+    if (!projectContext.ok && !projectContext.existing) {
       rejected.push({ inbox_id:it.id, code:projectContext.code, error:projectContext.error });
       continue;
     }
@@ -3019,6 +3029,14 @@ async function fleetSync(env) {
       st = "in_progress";
     }
     if (!prev) {
+      // Red de seguridad del salto anterior: si el encargo parecía tener misión pero
+      // el ticket no aparece, esto vuelve a ser un NACIMIENTO y sigue exigiendo
+      // proyecto. Ninguna misión nace sin él por haber esquivado el guard.
+      if (!projectContext.ok) {
+        rejected.push({ inbox_id:it.id, code:"project_required",
+          error:"No se puede crear una misión sin project_id explícito, heredado o declarado para el agente y la máquina" });
+        continue;
+      }
       // Una CANCELADA sin ticket no genera lápida: cancelar es reconocer que algo no
       // se hará, no crear una misión nueva para enterrarla. (Carlos, 2026-07-21)
       if (st === "cancelled") continue;
