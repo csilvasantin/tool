@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {mkdtemp,readFile,writeFile} from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {resolveDecisionProject} from './src/decision-project.js';
 
 const source=await readFile(new URL('./src/index.js',import.meta.url),'utf8');
 const script=await readFile(new URL('./tools/onidle-hora.sh',import.meta.url),'utf8');
@@ -22,6 +26,50 @@ test('script versionado consulta el guard y publica exactamente 3 + atrás + cus
   assert.match(script,/"onidle":True/);
   assert.match(script,/\$\(\(used\+1\)\)\/8/);
   assert.doesNotMatch(script,/head -5/);
+});
+
+test('el fallo anterior se reproduce como contexto granular ausente',()=>{
+  const assignment={id:'yokup',name:'Yokup',web:'www.yokup.com'};
+  const oldPayload={agent:'OraculoMacMini',machine:'admira-macmini',project_id:'yokup'};
+  assert.deepEqual(resolveDecisionProject(oldPayload,assignment),{
+    ok:false,error:'project y project_slug granulares requeridos'
+  });
+  assert.match(source,/code: "exact_project_required"/);
+});
+
+async function dryRun(extra={}) {
+  const dir=await mkdtemp(join(tmpdir(),'onidle-project-'));
+  const curl=join(dir,'curl'), options=join(dir,'options.txt');
+  await writeFile(curl,`#!/bin/sh
+case "$*" in
+  *fleet/onidle-state*) echo '{"ok":true,"can_open":true,"quota":{"used":2},"reason":"ready"}' ;;
+  */projects*) echo '{"projects":[{"id":"yokup","name":"Yokup","status":"activo","agents":["OraculoMacMini"],"machines":["admira-macmini"]}]}' ;;
+  *) exit 91 ;;
+esac
+`,{mode:0o755});
+  await writeFile(options,'Mejora uno\nMejora dos\nMejora tres\n');
+  return spawnSync('bash',[new URL('./tools/onidle-hora.sh',import.meta.url).pathname],{
+    encoding:'utf8',env:{...process.env,PATH:`${dir}:${process.env.PATH}`,
+      ONIDLE_OPTIONS_FILE:options,ONIDLE_DRY_RUN:'1',...extra}
+  });
+}
+
+test('dry-run deriva Yokup/YOKUP y conserva 3 + back + custom sin POST real',async()=>{
+  const result=await dryRun();
+  assert.equal(result.status,0,result.stderr);
+  const payload=JSON.parse(result.stdout.trim().split('\n').at(-1));
+  assert.deepEqual([payload.project_id,payload.project,payload.project_slug],['yokup','Yokup','YOKUP']);
+  assert.deepEqual(payload.options,['Mejora uno','Mejora dos','Mejora tres','↩ Volver atrás','✍️ Custom · Escribe la mejora que quieras a mano']);
+  assert.equal(payload.onidle,true);
+});
+
+test('override de nombre o slug inconsistente falla cerrado antes del POST',async()=>{
+  for (const env of [{ONIDLE_PROJECT:'Otro'},{ONIDLE_PROJECT_SLUG:'OTRO'},{ONIDLE_PROJECT_ID:'no-asignado'}]) {
+    const result=await dryRun(env);
+    assert.equal(result.status,0);
+    assert.match(result.stdout,/contexto granular inválido/);
+    assert.doesNotMatch(result.stdout,/"options"/);
+  }
 });
 
 test('started_at se fija una vez y los reportes no reinician el reloj',()=>{

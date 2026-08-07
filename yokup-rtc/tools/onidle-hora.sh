@@ -7,6 +7,8 @@ API="${YOKUP_API:-https://api.yokup.com}"
 AGENT="${ONIDLE_AGENT:-OraculoMacMini}"
 MACHINE="${ONIDLE_MACHINE:-admira-macmini}"
 PROJECT_ID="${ONIDLE_PROJECT_ID:-yokup}"
+PROJECT_OVERRIDE="${ONIDLE_PROJECT:-}"
+PROJECT_SLUG_OVERRIDE="${ONIDLE_PROJECT_SLUG:-}"
 OPTIONS_FILE="${ONIDLE_OPTIONS_FILE:-${AGENTS_COMMS_DIR:-$HOME/.agents-comms}/onidle-opciones-$AGENT.txt}"
 
 log() { printf '%s · %s\n' "$(date '+%Y-%m-%d %H:%M')" "$*"; }
@@ -27,20 +29,45 @@ used="$(printf '%s\n' "$decision" | sed -n '2p')"
 reason="$(printf '%s\n' "$decision" | sed -n '3p')"
 [ "$can" = "OPEN" ] || { log "OnIdle bloqueado: $reason · cupo ${used}/8"; exit 0; }
 
+# El API exige el contexto granular completo. El id es configurable, pero el
+# nombre y slug se derivan del censo canónico; un override sólo vale si coincide.
+projects="$(curl -fsS -m 20 "$API/projects" 2>/dev/null)" || {
+  log "sin censo canónico de proyectos; no abro ventana"; exit 0;
+}
+project_context="$(printf '%s' "$projects" | PI="$PROJECT_ID" PO="$PROJECT_OVERRIDE" PSO="$PROJECT_SLUG_OVERRIDE" AG="$AGENT" MQ="$MACHINE" python3 -c '
+import json,os,sys,unicodedata,re
+d=json.load(sys.stdin); pid=os.environ["PI"]
+p=next((x for x in d.get("projects",[]) if str(x.get("id"))==pid and str(x.get("status","activo")).lower()=="activo"),None)
+if not p or not str(p.get("name","")).strip(): raise SystemExit(2)
+if os.environ["AG"].lower() not in [str(x).lower() for x in p.get("agents",[])]: raise SystemExit(5)
+if os.environ["MQ"].lower() not in [str(x).lower() for x in p.get("machines",[])]: raise SystemExit(6)
+name=" ".join(str(p["name"]).split())
+slug=re.sub(r"^-+|-+$","",re.sub(r"[^A-Z0-9]+","-",unicodedata.normalize("NFD",name).encode("ascii","ignore").decode().upper()))
+if os.environ.get("PO") and " ".join(os.environ["PO"].split())!=name: raise SystemExit(3)
+if os.environ.get("PSO") and os.environ["PSO"].strip().upper()!=slug: raise SystemExit(4)
+print(pid); print(name); print(slug)
+' 2>/dev/null)" || { log "contexto granular inválido para project_id=$PROJECT_ID; no abro ventana"; exit 0; }
+PROJECT="$(printf '%s\n' "$project_context" | sed -n '2p')"
+PROJECT_SLUG="$(printf '%s\n' "$project_context" | sed -n '3p')"
+[ -n "$PROJECT" ] && [ -n "$PROJECT_SLUG" ] || { log "proyecto sin nombre/slug; no abro ventana"; exit 0; }
+
 [ -s "$OPTIONS_FILE" ] || { log "faltan tres mejoras en $OPTIONS_FILE"; exit 0; }
 options="$(grep -v '^[[:space:]]*$' "$OPTIONS_FILE" | head -3)"
 count="$(printf '%s\n' "$options" | awk 'NF{n++} END{print n+0}')"
 [ "$count" -eq 3 ] || { log "hay $count mejoras; hacen falta exactamente 3"; exit 0; }
 
-body="$(printf '%s' "$options" | AG="$AGENT" MQ="$MACHINE" PI="$PROJECT_ID" python3 -c '
+body="$(printf '%s' "$options" | AG="$AGENT" MQ="$MACHINE" PI="$PROJECT_ID" PJ="$PROJECT" PS="$PROJECT_SLUG" python3 -c '
 import json,os,sys
 ops=[line.strip() for line in sys.stdin.read().splitlines() if line.strip()]
 ops += ["↩ Volver atrás", "✍️ Custom · Escribe la mejora que quieras a mano"]
 print(json.dumps({"agent":os.environ["AG"],"machine":os.environ["MQ"],
-  "project_id":os.environ["PI"],"surface":"admiranext","minutes":5,
+  "project_id":os.environ["PI"],"project":os.environ["PJ"],"project_slug":os.environ["PS"],
+  "surface":"admiranext","minutes":5,
   "mission":"OnIdle horario","onidle":True,"recommended":0,
   "question":"Ventana OnIDLE: elige una mejora.","options":ops},ensure_ascii=False))
 ')"
+
+if [ "${ONIDLE_DRY_RUN:-0}" = "1" ]; then printf '%s\n' "$body"; exit 0; fi
 
 response="$(curl -sS -m 25 -X POST "$API/decisions" -H 'Content-Type: application/json' -d "$body" 2>&1)"
 case "$response" in
