@@ -86,6 +86,7 @@
   .add{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 16px 14px;margin-bottom:22px;
     display:flex;flex-wrap:wrap;gap:10px}
   .add .row{flex:1 1 100%;display:flex;gap:10px;flex-wrap:wrap}
+  .objective-actions{flex:1 1 100%;display:flex;justify-content:flex-end}
   .add input,.add textarea,.add select{background:#06121a;color:var(--ink);border:1px solid var(--line);border-radius:10px;
     padding:11px 12px;font:14px/1.4 -apple-system,system-ui,sans-serif;outline:none;transition:border-color .15s}
   .add input:focus,.add textarea:focus{border-color:var(--brand)}
@@ -199,7 +200,7 @@
   .add .gen.wait:hover{background:rgba(42,224,199,.18)}
   @media(max-width:520px){
     .add .gen{margin-left:0;flex:1 1 100%}
-    .add .row>select,.add .row>#fBtn{flex:1 1 100%;width:100%;margin-left:0}
+    .add .objective-selectors>select,.add .objective-actions>#fBtn{flex:1 1 100%;width:100%;margin-left:0}
   }
   .idea.consejo{border-left:3px solid var(--rac)}
   .idea.consejo.cre{border-left-color:var(--cre)}
@@ -300,15 +301,10 @@
   </div>
 
   <form class="add" id="addForm" autocomplete="off">
-    <!-- FLT-1017: «✨ Idea nueva» sube ARRIBA A LA DERECHA, en la línea del titular:
-         es lo primero que se ve y lo que arranca el borrador que rellena los dos
-         campos de abajo. «Añadir idea» sigue abajo, donde se cierra el alta. -->
-    <div class="hd">
-      <input class="t" id="fTitle" maxlength="200" placeholder="La idea, en una frase…" required>
-      <button class="gen" id="genBtn" type="button" title="El Consejo redacta un borrador desde el Consejero elegido y sobre un proyecto al azar; rellena los dos campos y, si no los tocas en un minuto, lo damos de alta">✨ Idea nueva</button>
-    </div>
-    <textarea id="fBody" maxlength="4000" placeholder="Detalle (opcional): el porqué, cómo, para quién…"></textarea>
-    <div class="row">
+    <!-- La clasificación guía la captura: tipo, Consejero y proyecto se eligen
+         antes de redactar el título y el detalle. Se conservan los mismos ids y
+         el mismo submit; sólo cambia la jerarquía visual y semántica. -->
+    <div class="row objective-selectors">
       <select id="fTag">
         <option value="">— idea —</option>
         <option>producto</option><option>flota</option><option>ia</option>
@@ -316,6 +312,13 @@
       </select>
       <select id="fSeat" title="Consejero del Consejo (opcional)"><option value="">— Consejero —</option></select>
       <select id="fProject" title="proyecto del censo (opcional)"><option value="">— proyecto —</option></select>
+    </div>
+    <div class="hd">
+      <input class="t" id="fTitle" maxlength="200" placeholder="La idea, en una frase…" required>
+      <button class="gen" id="genBtn" type="button" title="El Consejo redacta un borrador desde el Consejero elegido y sobre un proyecto al azar; rellena los dos campos y, si no los tocas en un minuto, lo damos de alta">✨ Idea nueva</button>
+    </div>
+    <textarea id="fBody" maxlength="4000" placeholder="Detalle (opcional): el porqué, cómo, para quién…"></textarea>
+    <div class="objective-actions">
       <button type="submit" id="fBtn">Añadir idea</button>
     </div>
   </form>
