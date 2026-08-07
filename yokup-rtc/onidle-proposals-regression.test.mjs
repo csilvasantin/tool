@@ -87,15 +87,17 @@ test("si los filtros dejan menos de tres falla sin publicar una lista parcial", 
   });
 });
 
-test("el endpoint acota proyecto, agente y máquina antes de seleccionar", () => {
+test("el endpoint usa backlog, historial y actividad globales del proyecto exacto", () => {
   const body = source.slice(
     source.indexOf("async function canonicalOnIdleProposals"),
     source.indexOf("__name(canonicalOnIdleProposals"),
   );
   assert.match(body, /exactDecisionProjectAssignment\(env, identity\.agent, identity\.machine, requestedProjectId\)/);
-  assert.match(body, /sameAgentFamily\(row\.assignee \|\| row\.agent \|\| "", identity\.agent\)/);
-  assert.match(body, /memberRefMatches\("machine", row\.loc \|\| row\.machine \|\| "", identity\.machine\)/);
-  assert.match(body, /\.filter\(owns\)\.map/);
+  assert.match(body, /WHERE \(project_id=\? OR \(COALESCE\(project_id,''\)='' AND lower\(project\)=lower\(\?\)\)\)/);
+  assert.match(body, /SELECT agent,machine,project,options,option_targets FROM decisions WHERE mission=\?/);
+  assert.match(body, /\.filter\(\(row\) => String\(row\.project_id \|\| ""\) === projectId\)/);
+  assert.match(body, /const candidates = \(backlogResult\.results \|\| \[\]\)\.map/);
+  assert.doesNotMatch(body, /const owns|sameAgentFamily\(row|memberRefMatches\("machine", row|\.filter\(owns\)/);
   assert.match(body, /used_target_ids:usedTargetIds, used_titles:usedTitles, active_mission_ids:activeMissionIds/);
   assert.doesNotMatch(body, /Math\.random|ORDER BY RANDOM|infer|guess/i);
 });
