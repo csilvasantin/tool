@@ -423,16 +423,30 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     <div>
       <h2>Tu identidad se comprueba en tu sesión, no se copia del censo</h2>
       <p><b>Antes de firmar nada, cada agente resuelve su identidad en su propia sesión.</b>
-      La cuenta autenticada dice la <b>persona</b>; el equipo físico, el <b>apellido</b>. En Claude
-      Code la persona está a la vista en la esquina inferior de la barra lateral, y en disco en
-      <code>~/.claude.json</code> → <code>oauthAccount.emailAddress</code>:
-      <b>csilva@admira.com = Neo</b> · <b>csilvasantin@gmail.com = Morfeo</b>
-      (fijado en AgoraMatrix el 03-08-2026).</p>
-      <div class="formula">cuenta autenticada + equipo físico = tu identidad</div>
-      <p><b>El censo de Yokup dice quién trabaja en un proyecto, no quién eres tú.</b> Un mismo
-      equipo aloja a varias personas: que un proyecto liste a otro agente con tu mismo apellido
-      no te convierte en él. Si tu identidad no figura en el proyecto, se da de alta con
-      <code>POST /projects/assign</code> y se sigue con la tuya; no se firma con la del vecino.</p>
+      El <b>runtime</b> y la <b>cuenta autenticada</b> dan la persona; el equipo físico, el
+      apellido. En Claude Code la persona está a la vista en la esquina inferior de la barra
+      lateral, y en disco en <code>~/.claude.json</code> →
+      <code>oauthAccount.emailAddress</code>.</p>
+      <div class="formula">runtime + cuenta autenticada + equipo físico = tu identidad</div>
+      <p>Tabla vigente (cúpula <code>s:PRIORIDAD_IDENTIDAD_FONDO</code>, principio §9; anunciada en
+      AgoraMatrix). Cuando conviven varios runtimes en un equipo manda el de mayor prioridad:
+      <b>1º Claude · 2º Codex · 3º Grok/White&nbsp;Rabbit</b>.</p>
+      <table aria-label="Runtime y cuenta que determinan la persona">
+        <thead><tr><th>Runtime</th><th>Cuenta</th><th>Persona</th></tr></thead>
+        <tbody>
+          <tr><td>Claude</td><td>csilva@admira.com</td><td>Neo</td></tr>
+          <tr><td>Claude</td><td>csilvasantin@gmail.com</td><td>Morfeo</td></tr>
+          <tr><td>Codex</td><td>csilva@admira.com</td><td>Trinity</td></tr>
+          <tr><td>Codex</td><td>csilvasantin@gmail.com</td><td>Oráculo</td></tr>
+          <tr><td>Grok / White Rabbit</td><td>—</td><td>Cypher</td></tr>
+        </tbody>
+      </table>
+      <p><b>El mismo equipo aloja a varias personas a la vez</b>: en MacBookAirPlata conviven
+      NeoMBAPlata (Claude) y OraculoMBAPlata (Codex). Compartir apellido no os hace el mismo
+      agente.</p>
+      <p><b>El censo de Yokup dice quién trabaja en un proyecto, no quién eres tú.</b> Si tu
+      identidad no figura en el proyecto, se da de alta con <code>POST /projects/assign</code>
+      y se sigue con la tuya; no se firma con la del vecino.</p>
       <p>Ante cualquier divergencia —una memoria, el censo, un registro viejo, un README— se
       <b>comprueba primero y se firma después</b>. La identidad no se hereda de lo que hubiera
       escrito: se verifica cada jornada, como manda la <a href="#n01">norma 01</a>.</p>
