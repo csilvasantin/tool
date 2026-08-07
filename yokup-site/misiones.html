@@ -605,7 +605,6 @@ function paintMissionScope(day,universe,groupedCount){
   const host=$("missionScopeSummary");if(!host)return;
   const total=Number(universe&&universe.total);host.textContent="";
   const main=document.createElement("span");main.textContent="Tablero · "+formatScopeDay(day)+" · "+(PROJECT_SCOPE?("proyecto "+PROJECT_SCOPE):"todos los proyectos")+" · "+(Number.isFinite(total)?total:groupedCount)+" misiones"+(Number.isFinite(total)&&total!==groupedCount?" · "+groupedCount+" filas agrupadas":"");host.appendChild(main);
-  const global=document.createElement("span");global.className="scope-global";global.textContent="Tooltip MISIONES: todo el backlog, sin filtros.";host.appendChild(global);
   if(day){const clear=document.createElement("button");clear.type="button";clear.className="scope-clear";clear.textContent="Ver todas las fechas";clear.onclick=()=>{CAB.setDay("");load();};host.appendChild(clear);}
 }
 async function load(){

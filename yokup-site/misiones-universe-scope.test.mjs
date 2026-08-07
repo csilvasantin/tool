@@ -28,6 +28,19 @@ test("el alcance visible es accesible y conserva acción táctil en móvil", () 
     "el histórico completo sigue siendo una elección explícita");
 });
 
+test("el resumen superior elimina la frase técnica y conserva todo su alcance factual", () => {
+  const renderer = html.match(/function paintMissionScope\(day,universe,groupedCount\)\{([\s\S]*?)\n\}/);
+  assert.ok(renderer, "se encontró el renderer del resumen superior");
+  const source = renderer[1];
+  assert.doesNotMatch(source, /Tooltip MISIONES: todo el backlog, sin filtros\./);
+  assert.doesNotMatch(source, /scope-global/, "no queda un contenedor vacío para la frase retirada");
+  assert.match(source, /formatScopeDay\(day\)/, "conserva la fecha visible");
+  assert.match(source, /PROJECT_SCOPE\?\("proyecto "\+PROJECT_SCOPE\):"todos los proyectos"/, "conserva el proyecto visible");
+  assert.match(source, /Number\.isFinite\(total\)\?total:groupedCount/, "conserva el número de misiones");
+  assert.match(source, /groupedCount\+" filas agrupadas"/, "conserva las filas agrupadas cuando difieren");
+  assert.match(source, /clear\.textContent="Ver todas las fechas"/, "conserva la acción de histórico");
+});
+
 test("tooltip MISIONES declara y desglosa todo el backlog", () => {
   assert.match(frame, /MISIONES"\?" · TODO EL BACKLOG"/);
   assert.match(frame, /\["no concluidas",mn,""\]/);
