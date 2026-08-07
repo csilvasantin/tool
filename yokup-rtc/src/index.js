@@ -1725,6 +1725,27 @@ function normalizeLiveCaptureTime(raw, now = Date.now()) {
 }
 __name(normalizeLiveCaptureTime, "normalizeLiveCaptureTime");
 
+// Las procedencias canónicas de una captura de PROCESO. Cada superficie admite un
+// único contexto: la pareja es el contrato, no dos campos sueltos.
+//
+// `agent/session_transcript` (Carlos, 2026-08-07) existe porque exigir Desktop al
+// frente era una carrera contra las manos del dueño de la máquina: entre dos
+// intentos seguidos el frente fue Telegram y luego Chrome, y el cierre se cayó dos
+// veces sin que nadie hiciera nada mal. Y dejaba fuera a todo agente que trabaja
+// sin GUI —cron, remoto, subagente— o simplemente mientras el ordenador se usa,
+// que en una flota es el caso normal, no la excepción.
+//
+// El pane de tmux nunca fue la prueba: es el papel donde se imprime. Lo que
+// acredita es el TEXTO —petición, comando y salida— y la identidad del runtime que
+// lo firma. Exigir además foco de ventana no compra nada contra un agente
+// deshonesto (quien puede falsear el transcript puede falsear igual el contenido
+// del pane que él mismo controla) y lo cuesta todo a los honestos.
+var PROCESS_CAPTURE_PAIRS = { desktop: "request", cli: "command_output", agent: "session_transcript" };
+var PROCESS_CONTEXT_ERRORS = {
+  desktop: "Desktop exige capture_context=request: la petición debe ser visible",
+  cli: "CLI exige capture_context=command_output: comando y salida deben ser visibles",
+  agent: "Agent exige capture_context=session_transcript: la petición, el comando y su salida deben leerse en la captura"
+};
 function validateProcessCaptureProvenance(kind, rawSurface, rawContext) {
   if (kind !== "process") return { ok:true, surface:null, context:null };
   const surface = String(rawSurface || "").trim().toLowerCase();
@@ -1734,13 +1755,11 @@ function validateProcessCaptureProvenance(kind, rawSurface, rawContext) {
   if (!context) missing.push("capture_context");
   if (missing.length) return { ok:false, code:"process_provenance_missing", field:missing[0], missing,
     error:"evidence_kind=process exige capture_surface y capture_context" };
-  if (!['desktop','cli'].includes(surface)) return { ok:false, code:"process_surface_invalid", field:"capture_surface",
-    error:"capture_surface debe ser desktop o cli; web/result_page no son proceso" };
-  const expected = surface === "desktop" ? "request" : "command_output";
+  const expected = PROCESS_CAPTURE_PAIRS[surface];
+  if (!expected) return { ok:false, code:"process_surface_invalid", field:"capture_surface",
+    error:"capture_surface debe ser desktop, cli o agent; web/result_page no son proceso" };
   if (context !== expected) return { ok:false, code:"process_context_invalid", field:"capture_context",
-    error:surface === "desktop"
-      ? "Desktop exige capture_context=request: la petición debe ser visible"
-      : "CLI exige capture_context=command_output: comando y salida deben ser visibles" };
+    error:PROCESS_CONTEXT_ERRORS[surface] };
   return { ok:true, surface, context };
 }
 __name(validateProcessCaptureProvenance, "validateProcessCaptureProvenance");
@@ -1752,7 +1771,7 @@ function validateMissionProcessEvidence(ticket, now = Date.now()) {
   }
   const provenance = validateProcessCaptureProvenance("process", ticket.live_surface, ticket.live_context);
   if (!provenance.ok) return { ...provenance, code:"process_evidence_invalid", field:"process_evidence",
-    error:"no se puede cerrar: la captura de proceso guardada no tiene procedencia canónica (desktop/request o cli/command_output)" };
+    error:"no se puede cerrar: la captura de proceso guardada no tiene procedencia canónica (desktop/request, cli/command_output o agent/session_transcript)" };
   const capturedAt = Number(ticket.live_at), rawCreated = Number(ticket.created_at);
   const createdAt = rawCreated > 0 && rawCreated < 4102444800 ? rawCreated * 1000 : rawCreated;
   if (!Number.isFinite(capturedAt) || capturedAt <= 0 || !Number.isFinite(createdAt) || createdAt <= 0 ||

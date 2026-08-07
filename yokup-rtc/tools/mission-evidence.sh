@@ -3,16 +3,18 @@
 #   heartbeat <misión>
 #   progress  <misión> [--image <png|jpg> --final-fallback]
 #   final     <misión> --report <texto> [--image <png|jpg>]
-# heartbeat/progress capturan siempre la superficie real: pane tmux para CLI o
-# AgoraCapture con la petición visible para Desktop. Una imagen manual nunca se
-# acepta como process; --image sigue disponible para la prueba final.
+# heartbeat/progress capturan siempre la superficie real: pane tmux para CLI,
+# AgoraCapture con la petición visible para Desktop, o —con --transcript— el
+# transcript de la propia sesión del agente, para quien trabaja sin GUI y no puede
+# poner ninguna ventana al frente. Una imagen manual nunca se acepta como process;
+# --image sigue disponible para la prueba final.
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 API="${YOKUP_API:-https://yokup-rtc.csilvasantin.workers.dev}"
 MODE="${1:?uso: mission-evidence.sh heartbeat|progress|final <misión> ...}"
 MISSION="${2:?falta misión}"; shift 2
-IMAGE=""; PROCESS_IMAGE=""; CAPTURED_AT=""; PROCESS_CAPTURED_AT=""; REPORT=""; FALLBACK=false
+IMAGE=""; PROCESS_IMAGE=""; CAPTURED_AT=""; PROCESS_CAPTURED_AT=""; REPORT=""; FALLBACK=false; TRANSCRIPT=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --image) IMAGE="${2:-}"; shift 2 ;;
@@ -20,6 +22,7 @@ while [ "$#" -gt 0 ]; do
     --captured-at) CAPTURED_AT="${2:-}"; shift 2 ;;
     --process-captured-at) PROCESS_CAPTURED_AT="${2:-}"; shift 2 ;;
     --report) REPORT="${2:-}"; shift 2 ;;
+    --transcript) TRANSCRIPT="${2:-}"; shift 2 ;;
     --final-fallback) FALLBACK=true; shift ;;
     *) echo "opción desconocida: $1" >&2; exit 2 ;;
   esac
@@ -37,6 +40,13 @@ case "$HOST" in
   app) CAPTURE_SURFACE="desktop"; CAPTURE_CONTEXT="request" ;;
   *) echo "superficie de ejecución no válida para evidencia: $HOST" >&2; exit 2 ;;
 esac
+# Un agente sin GUI —cron, remoto, subagente, o el que trabaja mientras su dueño usa
+# el ordenador— no puede poner una ventana al frente ni tiene un pane que capturar, y
+# hasta hoy eso le impedía cerrar. Aporta el transcript de su propia sesión y ESA es
+# su superficie. Se elige EXPLÍCITAMENTE con --transcript: nunca por degradación
+# silenciosa desde desktop, porque entonces cualquiera esquivaría la comprobación
+# más estricta sin querer. Ver PROCESS_CAPTURE_PAIRS en el worker.
+if [ -n "$TRANSCRIPT" ]; then CAPTURE_SURFACE="agent"; CAPTURE_CONTEXT="session_transcript"; fi
 
 # La procedencia de process no puede confiarse a una declaración del llamador.
 # Se obtiene aquí de la superficie capturada. Sólo final-fallback (degradado y no
@@ -84,6 +94,49 @@ capture_cli_image() {
   nonempty="$(awk 'NF{n++} END{print n+0}' "$TMP_WORK/pane.txt")"
   [ "$nonempty" -ge 2 ] || { echo "el pane no muestra comando y salida suficientes" >&2; return 1; }
     python3 - "$TMP_WORK/pane.txt" "$out" <<'PY'
+import os,sys
+from PIL import Image,ImageDraw,ImageFont
+lines=open(sys.argv[1],encoding="utf-8",errors="replace").read().replace("\t","    ").splitlines()[-34:]
+img=Image.new("RGB",(900,20*max(1,len(lines))+24),(2,8,13)); draw=ImageDraw.Draw(img)
+font_path=next((p for p in ("/System/Library/Fonts/Menlo.ttc","/System/Library/Fonts/Monaco.ttf") if os.path.exists(p)),None)
+font=ImageFont.truetype(font_path,14) if font_path else ImageFont.load_default()
+for index,line in enumerate(lines): draw.text((12,12+20*index),line[:150],fill=(200,240,255),font=font)
+img.save(sys.argv[2],"PNG")
+PY
+  validate_image_file "$out" && printf '%s\n' "$out"
+}
+
+capture_agent_image() {
+  local out="$TMP_WORK/process-agent.png" edad ahora escrito
+  [ -f "$TRANSCRIPT" ] && [ -s "$TRANSCRIPT" ] || {
+    echo "el transcript de sesión no existe o está vacío: $TRANSCRIPT" >&2; return 1; }
+  # Un transcript guardado ayer no acredita el proceso de hoy. Misma ventana que
+  # captured_at: si el fichero no acaba de escribirse, no es proceso vivo.
+  escrito="$(stat -f '%m' "$TRANSCRIPT" 2>/dev/null || stat -c '%Y' "$TRANSCRIPT" 2>/dev/null || true)"
+  case "$escrito" in *[!0-9]*|'') echo "no se pudo leer la hora del transcript" >&2; return 1;; esac
+  ahora="$(date +%s)"; edad=$(( ahora - escrito ))
+  [ "$edad" -le 120 ] || { echo "el transcript tiene ${edad}s: no acredita proceso vivo" >&2; return 1; }
+  # El contenido es el contrato, no el fichero. Tienen que leerse las tres cosas que
+  # el pane de tmux enseña por construcción —qué se pidió, qué se ejecutó y qué
+  # contestó— y además la misión, que el pane NO ata: aquí la evidencia dice a qué
+  # misión pertenece en vez de dejarlo al que la sube.
+  MISSION="$MISSION" python3 - "$TRANSCRIPT" <<'PY' || return 1
+import os, re, sys
+texto = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+lineas = [l.rstrip() for l in texto.splitlines()]
+falta = []
+peticion = next((i for i, l in enumerate(lineas) if re.match(r"^\s*PETICI[OÓ]N\s*:\s*\S", l, re.I)), None)
+if peticion is None: falta.append("una línea «PETICIÓN: …» con lo que se pidió")
+comando = next((i for i, l in enumerate(lineas) if l.lstrip().startswith("$ ") and l.strip() != "$"), None)
+if comando is None: falta.append("al menos un comando en una línea «$ …»")
+elif not any(l.strip() for l in lineas[comando + 1:]): falta.append("la salida del comando debajo de él")
+if os.environ["MISSION"] not in texto: falta.append("la misión %s citada en el texto" % os.environ["MISSION"])
+if falta:
+    sys.stderr.write("el transcript no acredita la sesión; falta " + "; falta ".join(falta) + "\n")
+    raise SystemExit(1)
+PY
+  # Se pinta igual que el pane: la superficie cambia, el papel es el mismo.
+  python3 - "$TRANSCRIPT" "$out" <<'PY'
 import os,sys
 from PIL import Image,ImageDraw,ImageFont
 lines=open(sys.argv[1],encoding="utf-8",errors="replace").read().replace("\t","    ").splitlines()[-34:]
@@ -197,6 +250,7 @@ capture_process_image() {
   case "$CAPTURE_SURFACE/$CAPTURE_CONTEXT" in
     cli/command_output) capture_cli_image ;;
     desktop/request) capture_desktop_image ;;
+    agent/session_transcript) capture_agent_image ;;
     *) echo "pareja de procedencia inválida: $CAPTURE_SURFACE/$CAPTURE_CONTEXT" >&2; return 1 ;;
   esac
 }

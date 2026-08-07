@@ -11,6 +11,27 @@ function route(path, nextComment) {
   return source.slice(start, end);
 }
 
+// La validación de procedencia se ejecuta de verdad, no se comprueba por regex:
+// las parejas admitidas son el contrato y hay que poder cruzarlas todas.
+function provenance() {
+  const trozo = (nombre) => {
+    const decl = source.indexOf(`var ${nombre} = `);
+    if (decl >= 0) return source.slice(decl, source.indexOf("\n};", decl) + 3);
+    const start = source.indexOf(`function ${nombre}(`);
+    assert.ok(start >= 0, `falta ${nombre}`);
+    const open = source.indexOf("{", start);
+    let depth = 0;
+    for (let i = open; i < source.length; i += 1) {
+      if (source[i] === "{") depth += 1;
+      else if (source[i] === "}" && --depth === 0) return source.slice(start, i + 1);
+    }
+    assert.fail(`${nombre} sin cierre`);
+  };
+  return new Function("__name",
+    `${trozo("PROCESS_CAPTURE_PAIRS")}\n${trozo("PROCESS_CONTEXT_ERRORS")}\n` +
+    `${trozo("validateProcessCaptureProvenance")}\nreturn validateProcessCaptureProvenance;`)(() => {});
+}
+
 test("la captura de proceso lleva identidad, tipo y hora de captura frescos", () => {
   const progress = route("/fleet/progress", "// ESTRATEGIA");
   assert.match(progress, /validateMissionActor\(t, b\.owner \|\| b\.by \|\| b\.agent\)/);
@@ -27,10 +48,45 @@ test("la captura de proceso lleva identidad, tipo y hora de captura frescos", ()
 
 test("process exige procedencia visible y final-fallback conserva compatibilidad", () => {
   assert.match(source, /process_provenance_missing/);
-  assert.match(source, /\['desktop','cli'\]/);
-  assert.match(source, /surface === "desktop" \? "request" : "command_output"/);
+  assert.match(source, /var PROCESS_CAPTURE_PAIRS = \{ desktop: "request", cli: "command_output", agent: "session_transcript" \}/);
+  assert.match(source, /const expected = PROCESS_CAPTURE_PAIRS\[surface\];/);
   assert.match(source, /web\/result_page no son proceso/);
   assert.match(source, /if \(kind !== "process"\) return \{ ok:true, surface:null, context:null \}/);
+});
+
+// La superficie es una PAREJA cerrada, no dos campos sueltos: desktop con
+// command_output, o cli con request, describirían una captura que nadie tomó.
+test("cada superficie admite un único contexto y ninguno se cruza", () => {
+  const validar = provenance();
+  for (const [surface, context] of Object.entries({ desktop:"request", cli:"command_output", agent:"session_transcript" })) {
+    assert.equal(validar("process", surface, context).ok, true, `${surface}/${context} es canónica`);
+    for (const otro of ["request", "command_output", "session_transcript"].filter((c) => c !== context)) {
+      const r = validar("process", surface, otro);
+      assert.equal(r.ok, false, `${surface}/${otro} no puede pasar`);
+      assert.equal(r.code, "process_context_invalid");
+    }
+  }
+  assert.equal(validar("process", "web", "request").code, "process_surface_invalid");
+  assert.equal(validar("process", "browser", "session_transcript").code, "process_surface_invalid");
+});
+
+// El motivo del tercer par: exigir una ventana al frente era una carrera contra
+// las manos del dueño de la máquina, y dejaba fuera a todo agente sin GUI.
+test("un agente sin GUI puede acreditar proceso con su transcript", () => {
+  const validar = provenance();
+  const r = validar("process", "agent", "session_transcript");
+  assert.equal(r.ok, true);
+  assert.equal(r.surface, "agent");
+  assert.equal(r.context, "session_transcript");
+  assert.match(source, /agent\/session_transcript/, "el error de cierre nombra las TRES parejas");
+  assert.match(source, /Agent exige capture_context=session_transcript/);
+});
+
+test("la mayúscula y el espacio del capturador no deciden si una prueba vale", () => {
+  const validar = provenance();
+  assert.equal(validar("process", "  AGENT ", "Session_Transcript").ok, true);
+  assert.equal(validar("process", "", "session_transcript").code, "process_provenance_missing");
+  assert.equal(validar("final-fallback", "", "").ok, true, "el degradado no declara procedencia");
 });
 
 test("todo cierre nuevo exige proceso canónico dentro de la vida de la misión", () => {

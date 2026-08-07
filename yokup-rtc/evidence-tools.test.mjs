@@ -23,6 +23,82 @@ async function validateDesktopWindow(name, bundle, title, width = "1200", height
   return spawnSync("bash", ["-c", `${client.slice(start, end)}\nvalidate_desktop_window "$1" "$2" "$3" 0 0 "$4" "$5"`, "_", name, bundle, title, width, height], { encoding:"utf8" });
 }
 
+// La superficie `agent` corre de verdad: se le da un transcript en disco y se
+// comprueba qué acepta y qué rechaza. Necesita validate_image_file y TMP_WORK,
+// que es lo que el script real le da.
+async function captureAgent(transcriptPath, mission = "FLT-1", { work } = {}) {
+  const client = await tool("mission-evidence.sh");
+  const vif = client.indexOf("validate_image_file()");
+  const start = client.indexOf("capture_agent_image()");
+  const end = client.indexOf("normalize_desktop_runtime()");
+  assert.ok(vif >= 0 && start >= 0 && end > start, "no se encontró el capturador agent");
+  const cuerpo = client.slice(vif, client.indexOf("capture_cli_image()")) + client.slice(start, end);
+  return spawnSync("bash", ["-c", `set -uo pipefail\nTMP_WORK="$1"\nTRANSCRIPT="$2"\nMISSION="$3"\n${cuerpo}\ncapture_agent_image`,
+    "_", work, transcriptPath, mission], { encoding: "utf8" });
+}
+
+async function conTranscript(t, contenido) {
+  const dir = await mkdtemp(join(tmpdir(), "yokup-transcript-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, "sesion.txt");
+  await writeFile(file, contenido);
+  return { file, work: dir };
+}
+
+const TRANSCRIPT_BUENO = [
+  "PETICIÓN: Carlos pide cerrar la misión FLT-1 con el nivel del Consejo desplegado.",
+  "$ node --test council-knowledge.test.mjs",
+  "ℹ pass 29",
+  "ℹ fail 0"
+].join("\n");
+
+test("un agente sin ventana ni tmux acredita su proceso con el transcript", async (t) => {
+  const { file, work } = await conTranscript(t, TRANSCRIPT_BUENO);
+  const r = await captureAgent(file, "FLT-1", { work });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout.trim(), /process-agent\.png$/, "deja una imagen, igual que el pane");
+});
+
+test("el transcript tiene que enseñar lo mismo que un pane: petición, comando y salida", async (t) => {
+  const sinPeticion = await conTranscript(t, "$ node --test x.mjs\nℹ pass 29\nFLT-1");
+  assert.match((await captureAgent(sinPeticion.file, "FLT-1", sinPeticion)).stderr, /PETICIÓN/);
+
+  const sinComando = await conTranscript(t, "PETICIÓN: cierra FLT-1\nlo hice, palabra");
+  assert.match((await captureAgent(sinComando.file, "FLT-1", sinComando)).stderr, /comando/);
+
+  const sinSalida = await conTranscript(t, "PETICIÓN: cierra FLT-1\n$ node --test x.mjs\n   \n");
+  assert.match((await captureAgent(sinSalida.file, "FLT-1", sinSalida)).stderr, /salida del comando/);
+});
+
+// El pane de tmux NO ata la evidencia a una misión: cualquier pane vale para
+// cualquiera. Aquí sí, y es lo único en lo que esta superficie es más estricta.
+test("el transcript nombra su misión, cosa que el pane nunca hizo", async (t) => {
+  const { file, work } = await conTranscript(t, TRANSCRIPT_BUENO);
+  const otra = await captureAgent(file, "FLT-999", { work });
+  assert.notEqual(otra.status, 0, "un transcript de otra misión no cierra esta");
+  assert.match(otra.stderr, /FLT-999/);
+});
+
+test("un transcript guardado ayer no acredita el proceso de hoy", async (t) => {
+  const { file, work } = await conTranscript(t, TRANSCRIPT_BUENO);
+  spawnSync("touch", ["-t", "202601010000", file]);
+  const r = await captureAgent(file, "FLT-1", { work });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /no acredita proceso vivo/);
+});
+
+test("la superficie agent se elige a mano, nunca por degradación silenciosa", async () => {
+  const client = await tool("mission-evidence.sh");
+  assert.match(client, /if \[ -n "\$TRANSCRIPT" \]; then CAPTURE_SURFACE="agent"; CAPTURE_CONTEXT="session_transcript"; fi/);
+  // Si `desktop` cayera solo en `agent` al fallar AgoraCapture, cualquiera
+  // esquivaría la comprobación más estricta sin enterarse.
+  const desktop = client.slice(client.indexOf("capture_desktop_image()"), client.indexOf("capture_process_image()"));
+  assert.doesNotMatch(desktop, /capture_agent_image|CAPTURE_SURFACE="agent"/);
+  assert.match(client, /agent\/session_transcript\) capture_agent_image ;;/);
+  const informe = await tool("bot-inbox-informe.sh");
+  assert.match(informe, /--transcript\) ARGS\+=\(--transcript "\$\{2:-\}"\)/, "el cierre lo deja pasar");
+});
+
 test("Desktop, CLI y subagentes atraviesan el mismo cliente", async () => {
   const client = await tool("mission-evidence.sh");
   const progress = await tool("progreso-cli.sh");
