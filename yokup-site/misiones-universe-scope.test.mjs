@@ -7,13 +7,16 @@ const html = await readFile(new URL("./misiones.html", import.meta.url), "utf8")
 const missions = await readFile(new URL("./yk-misiones.js", import.meta.url), "utf8");
 const frame = await readFile(new URL("./yk-frame.js", import.meta.url), "utf8");
 
-test("/misiones abre el mismo universo global que el tooltip", () => {
-  assert.match(html, /CAB\.setDay\(""\)/, "sin fecha explícita se consulta todo el backlog");
-  assert.doesNotMatch(html, /CAB\.setDay\(d\.getFullYear/, "no fuerza hoy al montar");
-  assert.match(html, /if\(day\)path\+="&day="/, "la fecha sólo viaja cuando el usuario la elige");
+test("/misiones abre por defecto el día actual de Madrid", () => {
+  assert.match(html, /function madridDayKey\(value\)/);
+  assert.match(html, /timeZone:"Europe\/Madrid"/);
+  assert.match(html, /function madridToday\(\)\{return madridDayKey\(Date\.now\(\)\);\}/);
+  assert.match(html, /CAB\.setDay\(madridToday\(\)\)/, "hoy Madrid es el alcance inicial");
+  assert.match(html, /if\(day\)path\+="&day="/, "la fecha inicial viaja al servidor");
   assert.match(html, /if\(projectId\)path\+="&project_id="/, "el proyecto comparte el mismo contrato servidor");
   assert.match(html, /d\.rows\|\|d\.tickets/, "consume rows y conserva compatibilidad legacy");
-  assert.match(html, /d\.visible_counts\|\|visibleCountsFallback/, "los chips usan el universo visible del servidor");
+  assert.match(html, /dayFilteredByServer&&d\.visible_counts\?d\.visible_counts:visibleCountsFallback\(rawTickets\)/,
+    "los chips usan exactamente el mismo día incluso durante rollout legacy");
 });
 
 test("el alcance visible es accesible y conserva acción táctil en móvil", () => {
@@ -21,6 +24,8 @@ test("el alcance visible es accesible y conserva acción táctil en móvil", () 
   assert.match(html, /aria-label","Filtrar misiones por fecha; sin fecha se muestran todas"/);
   assert.match(html, /@media\(max-width:560px\)[^{]*\{[^}]*mission-scope-summary/s);
   assert.match(html, /scope-clear\{min-height:32px\}/);
+  assert.match(html, /clear\.textContent="Ver todas las fechas";clear\.onclick=\(\)=>\{CAB\.setDay\(""\);load\(\);\}/,
+    "el histórico completo sigue siendo una elección explícita");
 });
 
 test("tooltip MISIONES declara y desglosa todo el backlog", () => {
@@ -55,12 +60,22 @@ test("fetchMissionUniverse pagina hasta agotar el universo sin truncar a 300", a
   const ctx = vm.createContext({encodeURIComponent, Set, Object, Array, String, Number,
     ykf: async path => {calls.push(path); const data=pages.shift(); return {ok:true,status:200,json:async()=>data};}});
   vm.runInContext(`const VISIBLE_KEYS=${helpers[1]}\nglobalThis.fetchMissionUniverse=fetchMissionUniverse`, ctx);
-  const result = await ctx.fetchMissionUniverse("fleet", "", "");
+  const result = await ctx.fetchMissionUniverse("fleet", "2026-08-07", "");
   assert.deepEqual(Array.from(result.rows, row => row.id), ["FLT-1","FLT-2"]);
   assert.equal(result.visible_counts.in_progress, 1);
   assert.equal(result.visible_counts.pending, 1);
   assert.equal(result.visible_counts.total, 2);
-  assert.match(calls[0], /limit=1000&offset=0$/);
-  assert.match(calls[1], /limit=1000&offset=1$/);
-  assert.ok(calls.every(url => !url.includes("&day=") && !url.includes("&project_id=")));
+  assert.match(calls[0], /limit=1000&offset=0&day=2026-08-07$/);
+  assert.match(calls[1], /limit=1000&offset=1&day=2026-08-07$/);
+  assert.ok(calls.every(url => !url.includes("&project_id=")));
+});
+
+test("la clave diaria es Europe/Madrid en ambos cambios de horario", () => {
+  const helper = html.match(/function madridDayKey\(value\)\{([\s\S]*?)\n\}/);
+  assert.ok(helper, "se encontró madridDayKey");
+  const ctx = vm.createContext({Intl, Date, Number, String, Object});
+  vm.runInContext(`function madridDayKey(value){${helper[1]}\n};globalThis.madridDayKey=madridDayKey`, ctx);
+
+  assert.equal(ctx.madridDayKey(Date.UTC(2026, 2, 28, 23, 30)), "2026-03-29", "CET antes del salto");
+  assert.equal(ctx.madridDayKey(Date.UTC(2026, 6, 31, 22, 30)), "2026-08-01", "CEST en verano");
 });

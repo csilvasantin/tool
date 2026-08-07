@@ -326,6 +326,19 @@ let SEL=new Set(), LAST_LIST=[], REP_IDS={};   // selección múltiple para camb
 const $=id=>document.getElementById(id);
 YkMisiones.init({worker:WORKER, treeId:"taskTree", columnMode:"tasks", projectIdLayout:true});
 
+// La jornada del tablero es siempre la de Madrid, independientemente de la zona
+// horaria del navegador. Esta misma clave se reutiliza en el fallback legacy
+// para que filas y contadores compartan exactamente el mismo alcance diario.
+function madridDayKey(value){
+  const raw=Number(value),ms=raw>4102444800?raw:raw*1000;
+  if(!Number.isFinite(ms)||ms<=0)return "";
+  const parts={};
+  new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Madrid",day:"2-digit",month:"2-digit",year:"numeric"})
+    .formatToParts(new Date(ms)).forEach(part=>{if(part.type!=="literal")parts[part.type]=part.value;});
+  return parts.year+"-"+parts.month+"-"+parts.day;
+}
+function madridToday(){return madridDayKey(Date.now());}
+
 // ── CABEZAL COMPARTIDO (mismo módulo que /tareas: yk-cabezal.js) ─────────────
 // Inyecta y cablea KPIs + día del tablero + buscador + alta de misión de flota.
 // manageState:false → /misiones gobierna el .on de los KPIs vía aplicaFiltro (que
@@ -339,11 +352,11 @@ const CAB=YkCabezal.mount($("cabezal"), {
   onView:()=>load(),
   onState:f=>{userPicked=true;aplicaFiltro(f);}, onSearch:()=>load(), onDay:()=>load(), onCreated:()=>load()
 });
-// El backlog completo manda por defecto. La fecha sólo acota cuando el usuario
-// elige una de forma explícita; el menú superior resume también todas las fechas.
-CAB.setDay("");
+// La vista operativa nace en la jornada actual. El histórico completo sigue
+// disponible mediante la acción explícita «Ver todas las fechas» del resumen.
+CAB.setDay(madridToday());
 if($("selDia")){
-  $("selDia").title="Filtrar por fecha de creación · vacío = todas las fechas";
+  $("selDia").title="Filtrar por fecha de creación · por defecto hoy en Madrid · vacío = todas las fechas";
   $("selDia").setAttribute("aria-label","Filtrar misiones por fecha; sin fecha se muestran todas");
 }
 
@@ -631,17 +644,9 @@ async function load(){
   // Rollout defensivo: si aún responde un worker legacy sin universo, se
   // conservan los filtros cliente. visible-v1 ya los aplicó en servidor.
   if(PROJECT_SCOPE&&(!d.universe||String(d.universe.project_id||"")!==String(PROJECT_SCOPE)))rawTickets=rawTickets.filter(t=>String(t.project_id||t.project||"")===PROJECT_SCOPE);
+  const dayFilteredByServer=!requestedDay||!!(d.universe&&String(d.universe.day||"")===requestedDay);
+  if(requestedDay&&!dayFilteredByServer)rawTickets=rawTickets.filter(t=>madridDayKey(t.created_at)===requestedDay);
   let tks=(SCOPE==="fleet") ? agrupaFlota(rawTickets) : rawTickets; const st=d.stats||{};
-  // DÍA del tablero (selector junto a «finalizadas»): vacío = backlog completo;
-  // al elegirlo, filtra misiones y contadores por la misma fecha de creación.
-  {
-    const dia=requestedDay;
-    if(dia&&(!d.universe||String(d.universe.day||"")!==dia)){
-      const _ms=v=>{v=+v||0;return v>4102444800?v:v*1000;};
-      const d0=new Date(dia+"T00:00:00").getTime(), d1=d0+86400000;
-      tks=tks.filter(t=>{const c=_ms(t.created_at); return c>=d0&&c<d1;});
-    }
-  }
   // Índice de misiones para el picker de reasignación (equipo/agente actuales por id).
   ROWS_BY_ID={};
   tks.forEach(t=>{ ROWS_BY_ID[t.id]={maq:YkMisiones.machineOf(t)||"",rawmaq:(t.machine||t.loc||""),agente:t.assignee||"",project_id:t.project_id||t.project||"",subject:t.subject||"",loc:t.loc||"",screen:t.screen||"",inbox_id:t.inbox_id}; });
@@ -653,7 +658,7 @@ async function load(){
     !!_ms30(t.created_at)&&(Date.now()-_ms30(t.created_at)>=30*60*1000); });
   // KPIs por ESTADO visible, calculados de las misiones vivas (no del stats crudo)
   const estL=t=>YkMisiones.estadoDe(t).l;
-  const vc=d.visible_counts||visibleCountsFallback(rawTickets);
+  const vc=dayFilteredByServer&&d.visible_counts?d.visible_counts:visibleCountsFallback(rawTickets);
   const nAsig=Number(vc.pending)||0,nProg=Number(vc.in_progress)||0,nNoCon=Number(vc.unconcluded)||0,nRes=Number(vc.resolved)||0,nDel=Number(vc.cancelled)||0;
   $("kAsig").textContent=nAsig;
   $("kProg").textContent=nProg;
