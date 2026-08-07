@@ -81,10 +81,15 @@ test("la ficha del consejero enseña de cuántas piezas sabe, y cuáles", () => 
   assert.match(source, /const r=await wfetch\("\/council\/knowledge",\{cache:"no-store"\}\)/);
   assert.match(source, /class="objective-badges">'\+saberBadge\(i\.seat\)/, "va la primera, antes de las que solo clasifican");
   assert.match(source, /if\(!s\|\|!s\.count\) return "";/, "sin material no se pinta una chapa vacía");
-  assert.match(source, /\.slice\(0,6\)\.map\(p=>"· "\+\(p\.title\|\|p\.note\|\|p\.type\|\|"pieza"\)\+/,
+  assert.match(source, /\(p\.title\|\|p\.note\|\|p\.type\|\|"pieza"\)/,
     "un número suelto no se puede comprobar: el título dice cuáles son");
-  assert.match(source, /catch\(e\)\{ \/\* silencioso \*\/ \}[\s\S]{0,900}function saberBadge/,
-    "si el recuento no llega, la página queda como estaba");
+  assert.match(source, /\(s\.pieces\|\|\[\]\)\.slice\(0,6\)/);
+  // Medir la DISTANCIA entre el catch y saberBadge sólo probaba que nadie había
+  // escrito nada en medio: se rompía al añadir un comentario. Lo que importa es que
+  // sin recuento la página quede como estaba.
+  assert.match(source, /const r=await wfetch\("\/council\/knowledge"[\s\S]{0,600}?catch\(e\)\{ \/\* silencioso \*\/ \}/,
+    "el recuento que no llega se traga, no rompe la página");
+  assert.match(source, /if\(!d\|\|!d\.ok\|\|!Array\.isArray\(d\.seats\)\) return;/);
   assert.match(source, /\.objective-badge\.saber\{color:var\(--brand\)/);
 });
 
@@ -93,19 +98,41 @@ test("la ficha del consejero enseña de cuántas piezas sabe, y cuáles", () => 
 // tiene que decir el nivel —lo que lee de lo que tiene— y no el montón.
 test("la chapa dice lo que el consejero LEE, no solo lo que le han echado", () => {
   assert.match(source, /const lee=s\.enCabeza\|\|Math\.min\(s\.count,8\), hayTope=s\.count>lee;/);
-  assert.match(source, /\(hayTope\?lee\+'\/'\+s\.count:String\(s\.count\)\)/,
+  assert.match(source, /hayTope\?lee\+"\/"\+s\.count:String\(s\.count\)/,
     "60 piezas y 8 en la cabeza no pueden pintarse igual que 8 y 8");
-  assert.match(source, /el tope son 8: 5 dadas \+ 3 de formación/,
+  assert.match(source, /tope 8 piezas y 3\.600 caracteres: 5 dadas \+ 3 de formación/,
     "el tooltip explica por qué la cuenta no es el número grande");
 });
 
 test("lo que trajo la formación se ve aparte de lo que eligió Carlos", () => {
   assert.match(source, /s\.dado\+" se las dio Carlos"/);
   assert.match(source, /s\.formado\+" las trajo la formación de admira\.live"/);
-  assert.match(source, /s\.formado\?'<span class="objective-badge formado"[\s\S]{0,120}🎓 '\+s\.formado/,
+  assert.match(source, /s\.formado\?chapa\("formado","🎓 "\+s\.formado\):""/,
     "la chapa 🎓 sólo aparece si ha habido formación: es la señal de que ahí pasó algo");
   assert.match(source, /p\.origin==="formado"\?" \(formación\)":""/, "y en el detalle, pieza a pieza");
   assert.match(source, /\.objective-badge\.formado\{color:var\(--good\)/);
+});
+
+// De un vídeo el consejero sólo lee el TÍTULO. El apunte es lo único que enseña,
+// así que la ficha tiene que enseñar cuántos hay — y qué dicen.
+test("la chapa 📝 cuenta apuntes, que es lo único que mide conocimiento", () => {
+  assert.match(source, /s\.apuntes\?chapa\("apunte","📝 "\+s\.apuntes\):""/);
+  assert.match(source, /Ninguna tiene apunte todavía: de un vídeo sólo lee el título/,
+    "60 vídeos y 0 apuntes no pueden leerse como una silla sabia");
+  assert.match(source, /sinDestilar=Math\.max\(0,s\.formado-s\.apuntes\)/);
+  assert.match(source, /\.objective-badge\.apunte\{color:var\(--warn\)/);
+});
+
+test("el tooltip enseña el CUERPO del apunte, no su título", () => {
+  assert.match(source, /p\.apunte\?\(\(p\.note\|\|p\.title\|\|"apunte"\)\.slice\(0,220\)/,
+    "lo que se quiere ver es qué ha aprendido, no que exista un fichero");
+  assert.match(source, /const marca=p\.apunte\?"📝 "/);
+});
+
+test("«ningún vídeo largo» no se confunde con «no se puede comprobar»", () => {
+  assert.match(source, /s\.largos\?"\\n⚠ "\+s\.largos\+" vídeo\(s\) de más de 5 min\."/);
+  assert.match(source, /El índice no trae duración: no se puede comprobar el límite de 5 min/);
+  assert.match(source, /duracionConocida:!!s\.duracion_conocida/);
 });
 
 test("la última formación se lee en tiempo humano, no en ISO", () => {

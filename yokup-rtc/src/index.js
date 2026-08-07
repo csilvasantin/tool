@@ -600,6 +600,28 @@ var COUNCIL_FORMACION_TAG = "formacion";
 // formación: si Carlos solo dio 2 piezas, la formación ocupa los 6 restantes. Reservar
 // un hueco que nadie llena sería tirar conocimiento a la basura.
 var COUNCIL_KNOWLEDGE_DADO_SHARE = 5 / 8;
+// ── APUNTES: LO QUE EL CONSEJERO APRENDE, NO EL TÍTULO DEL VÍDEO ────────────
+// Hasta aquí, al prompt de una silla le entraba el TÍTULO de la pieza. Un vídeo de
+// cinco minutos de Dieter Rams aportaba la cadena «Dieter Rams: Less but Better» y
+// nada más: eso es una bibliografía, no conocimiento. Se le podían subir sesenta
+// vídeos y seguía sabiendo exactamente lo mismo.
+//
+// Un apunte es una pieza de texto —un tipo nuevo del Stock— con lo que ese vídeo le
+// enseña a ESA silla, etiquetada igual que el vídeo (alias + formación) y apuntando
+// a él en `externalRef`. Dos consecuencias que no son obvias:
+//  · el apunte SUSTITUYE a su vídeo en la cabeza del consejero. Si entraran los dos,
+//    leería el título y el apunte, y el título ya no aporta nada. El vídeo se queda
+//    como fuente y evidencia, no como conocimiento.
+//  · contar PIEZAS deja de valer. Ocho títulos son ~400 caracteres; ocho apuntes,
+//    ~5.000. La ventana pasa a tener también presupuesto de texto.
+var COUNCIL_APUNTE_TYPE = "apunte";
+var COUNCIL_APUNTE_MAX = 900;              // caracteres de UN apunte en el prompt
+var COUNCIL_KNOWLEDGE_PROMPT_CHARS = 3600; // presupuesto de la ventana entera
+// Criterio de Carlos para la formación: vídeos de los más vistos y de 5 minutos como
+// máximo. Hoy el índice del Stock NO trae ni duración ni vistas, así que yokup no
+// puede comprobarlo. Se lee si aparece y se ENSEÑA lo que se pasa; no se excluye en
+// silencio: descartar por un campo que casi siempre falta borraría material bueno.
+var COUNCIL_VIDEO_MAX_SECS = 300;
 async function stockIndex() {
   try {
     const r = await fetch(STOCK_INDEX_URL, { cf: { cacheTtl: 600, cacheEverything: true } });
@@ -636,19 +658,66 @@ __name(dedupePorTitulo, "dedupePorTitulo");
 // dio Carlos, la formación ocupa el resto, y si un lado no llena su cuota el otro la
 // completa. Sin esto la ventana es una lotería por fecha y la primera tanda de
 // admira.live borra de la cabeza del consejero todo lo que Carlos eligió a mano.
-function ventanaReservada(pieces, limit) {
+// Lo que pesa una pieza en el prompt. Un título son 40 caracteres; un apunte, 900.
+// La ventana tiene que contar esto y no «piezas», o el presupuesto lo fija el azar
+// de cuántos apuntes hayan caído en los ocho huecos.
+function pesoEnPrompt(p) {
+  return (String(p && p.title || "").length + String(p && p.note || "").length + 4);
+}
+__name(pesoEnPrompt, "pesoEnPrompt");
+// Toma de una lista ya ordenada (más nueva primero) mientras quepa en SUS huecos y
+// en SU presupuesto. La primera pieza entra siempre aunque se pase: media idea es
+// peor que una idea larga, y un apunte cortado a la mitad no enseña nada.
+function tomaHasta(lista, huecos, presupuesto) {
+  const out = [];
+  let gasto = 0;
+  for (const p of lista) {
+    if (out.length >= huecos) break;
+    const peso = pesoEnPrompt(p);
+    if (out.length && gasto + peso > presupuesto) break;
+    out.push(p); gasto += peso;
+  }
+  return out;
+}
+__name(tomaHasta, "tomaHasta");
+function ventanaReservada(pieces, limit, chars = COUNCIL_KNOWLEDGE_PROMPT_CHARS) {
   const todas = pieces || [];
   if (!(limit > 0)) return todas;
   const dadas = todas.filter((p) => p && p.origin !== "formado");
   const formadas = todas.filter((p) => p && p.origin === "formado");
   const suelo = Math.max(1, Math.ceil(limit * COUNCIL_KNOWLEDGE_DADO_SHARE));
-  let mias = dadas.slice(0, suelo);
-  const suyas = formadas.slice(0, Math.max(0, limit - mias.length));
-  if (mias.length + suyas.length < limit) mias = dadas.slice(0, limit - suyas.length);
+  const presupuestoDado = Math.max(1, Math.ceil(chars * COUNCIL_KNOWLEDGE_DADO_SHARE));
+  let mias = tomaHasta(dadas, suelo, presupuestoDado);
+  let gastado = mias.reduce((n, p) => n + pesoEnPrompt(p), 0);
+  const suyas = tomaHasta(formadas, Math.max(0, limit - mias.length), Math.max(0, chars - gastado));
+  // Si un lado no llena su cuota —ni de huecos ni de texto— el otro la completa:
+  // reservar un hueco que nadie ocupa sería tirar conocimiento a la basura.
+  if (mias.length + suyas.length < limit) {
+    gastado = suyas.reduce((n, p) => n + pesoEnPrompt(p), 0);
+    mias = tomaHasta(dadas, limit - suyas.length, Math.max(0, chars - gastado));
+  }
   return mias.concat(suyas)
     .sort((a, b) => String(b && b.at || "").localeCompare(String(a && a.at || "")));
 }
 __name(ventanaReservada, "ventanaReservada");
+// Un vídeo con apunte ya no entra en la cabeza del consejero: entraría su título al
+// lado del apunte que lo explica, y el título no añade nada. El vídeo sigue en el
+// Stock y en el recuento —es la fuente y la evidencia—, pero deja de ser lo que se
+// lee. El enlace lo declara el apunte en `externalRef`; si no lo trae, vale que se
+// llamen igual, que es como los sube quien transcribe.
+function sustituyePorApuntes(piezas) {
+  const cubiertas = /* @__PURE__ */ new Set();
+  for (const p of piezas) {
+    if (!p.apunte) continue;
+    if (p.fuente) cubiertas.add(p.fuente);
+    const porTitulo = normalizaEtiqueta(p.title);
+    if (porTitulo) cubiertas.add(porTitulo);
+  }
+  if (!cubiertas.size) return piezas;
+  return piezas.filter((p) => p.apunte ||
+    !(cubiertas.has(normalizaEtiqueta(p.id)) || cubiertas.has(normalizaEtiqueta(p.title))));
+}
+__name(sustituyePorApuntes, "sustituyePorApuntes");
 // Reparto del índice YA descargado. Existe aparte de seatKnowledge porque el snapshot
 // del tick recorre las ocho sillas: con una llamada por silla eran ocho subpeticiones
 // para leer el MISMO fichero.
@@ -662,20 +731,28 @@ function seatKnowledgeFrom(items, seat, limit = COUNCIL_KNOWLEDGE_PROMPT_MAX) {
   mias.sort((a, b) => String(b && b.createdAt || "").localeCompare(String(a && a.createdAt || "")));
   const piezas = dedupePorTitulo(mias.map((it) => {
     // El comentario suele ser solo la propia etiqueta («#stevejobs»): eso no es
-    // conocimiento, es el mecanismo. Se descarta para no ensuciar el prompt.
+    // conocimiento, es el mecanismo. Se descarta para no ensuciar el prompt. En un
+    // APUNTE, en cambio, el comentario ES el conocimiento y se conserva entero.
     const nota = String(it.comment || "").trim();
     const soloEtiqueta = normalizaEtiqueta(nota) === tag;
+    const esApunte = String(it.type || "").toLowerCase() === COUNCIL_APUNTE_TYPE;
     // El origen sale de la ETIQUETA, no de quién llamó: una pieza que subió Carlos y
     // otra que trajo admira.live se distinguen en el índice o no se distinguen en
     // ninguna parte. Sin `#formacion` una pieza es «dada», que es como estaba.
     const formado = it.tags.some((t) => normalizaEtiqueta(t) === formacion);
+    const dur = Number(it.duration || it.duracion || 0) || 0;
     return { id: it.id || "", type: it.type || "", at: it.createdAt || "",
       title: String(it.title || "").trim().slice(0, 200),
-      note: soloEtiqueta ? "" : nota.slice(0, 300),
+      note: soloEtiqueta ? "" : nota.slice(0, esApunte ? COUNCIL_APUNTE_MAX : 300),
       origin: formado ? "formado" : "dado",
+      apunte: esApunte,
+      // De qué pieza son estos apuntes. Sin esto no se puede sustituir al vídeo.
+      fuente: normalizaEtiqueta(it.externalRef || ""),
+      duracion: dur, vistas: Number(it.views || it.vistas || 0) || 0,
+      largo: dur > COUNCIL_VIDEO_MAX_SECS,
       url: it.url || "" };
   }).filter((p) => p.title || p.note));
-  return ventanaReservada(piezas, limit);
+  return ventanaReservada(sustituyePorApuntes(piezas), limit);
 }
 __name(seatKnowledgeFrom, "seatKnowledgeFrom");
 // Piezas del Stock etiquetadas con el alias de la silla, de la más nueva a la más
@@ -6615,13 +6692,22 @@ var index_default = {
         const formado = pieces.filter((p) => p.origin === "formado").length;
         return { seat: s, role: c.role, alias: c.alias, tag: c.tag,
           count: pieces.length, dado: pieces.length - formado, formado,
+          // Lo único que de verdad ENSEÑA algo: sin apuntes, una silla con sesenta
+          // vídeos sabe lo que sabía, porque de un vídeo sólo lee el título.
+          apuntes: pieces.filter((p) => p.apunte).length,
+          // Vídeos que se pasan de los 5 minutos. 0 puede significar «ninguno» o
+          // «el índice no trae duración»: `duracion_conocida` lo distingue, que si
+          // no el criterio parecería cumplirse solo.
+          largos: pieces.filter((p) => p.largo).length,
+          duracion_conocida: pieces.some((p) => p.duracion > 0),
           // Lo que DE VERDAD lee la silla al opinar, ya con la cuota aplicada.
           enCabeza: ventanaReservada(pieces, COUNCIL_KNOWLEDGE_PROMPT_MAX).length,
           ultima: pieces.length ? pieces[0].at || "" : "",
           pieces: pieces.slice(0, 20) };
       });
       return json({ ok: true, source: "pixeria/stock", tope: COUNCIL_KNOWLEDGE_PROMPT_MAX,
-        formacion_tag: COUNCIL_FORMACION_TAG, seats });
+        presupuesto: COUNCIL_KNOWLEDGE_PROMPT_CHARS, apunte_tipo: COUNCIL_APUNTE_TYPE,
+        video_max_secs: COUNCIL_VIDEO_MAX_SECS, formacion_tag: COUNCIL_FORMACION_TAG, seats });
     }
     if (url.pathname === "/ideas/generate" && req.method === "POST") {
       try {

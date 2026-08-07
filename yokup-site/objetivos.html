@@ -281,6 +281,9 @@
      pesa lo mismo lo que eligió Carlos que lo que encontró un buscador. */
   .objective-badge.saber{color:var(--brand);border-color:rgba(120,243,255,.42);cursor:help;font-variant-numeric:tabular-nums}
   .objective-badge.formado{color:var(--good);border-color:rgba(70,211,138,.42);cursor:help;font-variant-numeric:tabular-nums}
+  /* 📝 N — apuntes: lo que la silla ha APRENDIDO, no lo que le han echado encima.
+     Destaca como la que más porque es la única de las tres que mide conocimiento. */
+  .objective-badge.apunte{color:var(--warn);border-color:rgba(245,178,58,.5);cursor:help;font-variant-numeric:tabular-nums}
   .objective-project-link{color:var(--mis);text-decoration:none}.objective-project-link:hover{text-decoration:underline}
   .objective-state{display:inline-flex;align-items:center;gap:5px;border:1px solid currentColor;border-radius:999px;padding:4px 7px;font:700 9px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase}.objective-state:before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}.objective-state.nueva{color:var(--brand)}.objective-state.estudio{color:var(--warn)}.objective-state.hecha{color:var(--good)}.objective-state.mision{color:var(--mis)}.objective-state.descartada,.objective-state.eliminada{color:var(--mut)}
   .objective-date{width:100%;max-width:145px;margin-top:7px;background:#06121a;color:var(--ink);color-scheme:dark;border:1px solid var(--line);border-radius:7px;padding:5px 6px;font:600 10px var(--mono)}
@@ -652,7 +655,8 @@ async function loadSaber(){
     const r=await wfetch("/council/knowledge",{cache:"no-store"}); const d=await r.json();
     if(!d||!d.ok||!Array.isArray(d.seats)) return;
     SABER={}; d.seats.forEach(s=>{ if(s&&s.seat) SABER[s.seat]={count:s.count|0,dado:s.dado|0,
-      formado:s.formado|0,enCabeza:s.enCabeza|0,ultima:s.ultima||"",tag:s.tag||"",pieces:s.pieces||[]}; });
+      formado:s.formado|0,enCabeza:s.enCabeza|0,apuntes:s.apuntes|0,largos:s.largos|0,
+      duracionConocida:!!s.duracion_conocida,ultima:s.ultima||"",tag:s.tag||"",pieces:s.pieces||[]}; });
     render();
   }catch(e){ /* silencioso */ }
 }
@@ -670,19 +674,33 @@ function haceCuanto(iso){
 // vídeos de YouTube parecía saber ocho veces más que otra con 8, y lee lo mismo.
 // La segunda chapa 🎓 aparece sólo si admira.live le ha traído algo: es la señal de
 // que ahí ha pasado una formación y no una elección de Carlos.
+// Y 📝 N son los APUNTES, que es lo único que de verdad enseña algo: de un vídeo el
+// consejero sólo lee el título, así que 60 vídeos y 0 apuntes son 0 conocimiento.
+// Por eso el resumen del apunte va DENTRO del tooltip y no sólo su título: lo que
+// Carlos quiere ver no es que exista material, es qué ha aprendido la silla.
 function saberBadge(seat){
   const s=seat&&SABER[seat]; if(!s||!s.count) return "";
   const lee=s.enCabeza||Math.min(s.count,8), hayTope=s.count>lee;
-  const lista=(s.pieces||[]).slice(0,6).map(p=>"· "+(p.title||p.note||p.type||"pieza")+
-    (p.origin==="formado"?" (formación)":"")).join("\n");
+  const lista=(s.pieces||[]).slice(0,6).map(p=>{
+    const marca=p.apunte?"📝 ":(p.origin==="formado"?"· ":"· ");
+    // De un apunte manda el cuerpo; de un vídeo, el título, que es todo lo que hay.
+    const texto=p.apunte?((p.note||p.title||"apunte").slice(0,220)+((p.note||"").length>220?"…":""))
+      :((p.title||p.note||p.type||"pieza")+(p.origin==="formado"?" (formación)":""));
+    return marca+texto;
+  }).join("\n");
   const cuando=haceCuanto(s.ultima);
+  const sinDestilar=Math.max(0,s.formado-s.apuntes);
   const t=s.count+" pieza"+(s.count===1?"":"s")+" con #"+s.tag+" en pixeria — "+
     s.dado+" se las dio Carlos"+(s.formado?" y "+s.formado+" las trajo la formación de admira.live":"")+".\n"+
-    "Al opinar lee "+lee+(hayTope?" (el tope son 8: 5 dadas + 3 de formación, para que lo automático no entierre lo curado)":"")+"."+
+    (s.apuntes?s.apuntes+" con apunte (lo que ha aprendido)"+(sinDestilar?" y "+sinDestilar+" sin destilar: de esas sólo lee el título":"")+".\n"
+      :"Ninguna tiene apunte todavía: de un vídeo sólo lee el título, así que aún no ha aprendido nada de ellos.\n")+
+    "Al opinar lee "+lee+(hayTope?" (tope 8 piezas y 3.600 caracteres: 5 dadas + 3 de formación, para que lo automático no entierre lo curado)":"")+"."+
+    (s.largos?"\n⚠ "+s.largos+" vídeo(s) de más de 5 min.":(s.duracionConocida?"":"\nEl índice no trae duración: no se puede comprobar el límite de 5 min."))+
     (cuando?"\nÚltima pieza: "+cuando+".":"")+(lista?"\n"+lista:"")+(s.count>6?"\n…":"");
-  return '<span class="objective-badge saber" title="'+esc(t)+'" aria-label="'+esc(t)+'">📎 '+
-    (hayTope?lee+'/'+s.count:String(s.count))+'</span>'+
-    (s.formado?'<span class="objective-badge formado" title="'+esc(t)+'" aria-label="'+esc(t)+'">🎓 '+s.formado+'</span>':'');
+  const chapa=(clase,txt)=>'<span class="objective-badge '+clase+'" title="'+esc(t)+'" aria-label="'+esc(t)+'">'+txt+'</span>';
+  return chapa("saber","📎 "+(hayTope?lee+"/"+s.count:String(s.count)))+
+    (s.formado?chapa("formado","🎓 "+s.formado):"")+
+    (s.apuntes?chapa("apunte","📝 "+s.apuntes):"");
 }
 
 async function load(){
