@@ -9,7 +9,6 @@ MACHINE="${ONIDLE_MACHINE:-admira-macmini}"
 PROJECT_ID="${ONIDLE_PROJECT_ID:-yokup}"
 PROJECT_OVERRIDE="${ONIDLE_PROJECT:-}"
 PROJECT_SLUG_OVERRIDE="${ONIDLE_PROJECT_SLUG:-}"
-OPTIONS_FILE="${ONIDLE_OPTIONS_FILE:-${AGENTS_COMMS_DIR:-$HOME/.agents-comms}/onidle-opciones-$AGENT.txt}"
 
 log() { printf '%s · %s\n' "$(date '+%Y-%m-%d %H:%M')" "$*"; }
 
@@ -51,23 +50,32 @@ PROJECT="$(printf '%s\n' "$project_context" | sed -n '2p')"
 PROJECT_SLUG="$(printf '%s\n' "$project_context" | sed -n '3p')"
 [ -n "$PROJECT" ] && [ -n "$PROJECT_SLUG" ] || { log "proyecto sin nombre/slug; no abro ventana"; exit 0; }
 
-[ -s "$OPTIONS_FILE" ] || { log "faltan tres mejoras en $OPTIONS_FILE"; exit 0; }
-options="$(grep -v '^[[:space:]]*$' "$OPTIONS_FILE" | head -3)"
-count="$(printf '%s\n' "$options" | awk 'NF{n++} END{print n+0}')"
-[ "$count" -eq 3 ] || { log "hay $count mejoras; hacen falta exactamente 3"; exit 0; }
+options="$(curl -fsS -m 20 -G "$API/fleet/onidle-proposals" \
+  --data-urlencode "agent=$AGENT" --data-urlencode "machine=$MACHINE" \
+  --data-urlencode "project_id=$PROJECT_ID" 2>/dev/null)" || {
+  log "sin tres propuestas canónicas vigentes; no abro ventana"; exit 0;
+}
 
 body="$(printf '%s' "$options" | AG="$AGENT" MQ="$MACHINE" PI="$PROJECT_ID" PJ="$PROJECT" PS="$PROJECT_SLUG" python3 -c '
-import json,os,re,sys
-ops=[]; targets=[]
-for line in [x.strip() for x in sys.stdin.read().splitlines() if x.strip()]:
-  if line.startswith("{"):
-    item=json.loads(line)
-    if set(item)-{"title","target_mission_id"} or not str(item.get("title","")).strip(): raise SystemExit(7)
-    target=str(item.get("target_mission_id","")).strip()
-    if target and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,119}",target): raise SystemExit(8)
-    ops.append(str(item["title"]).strip()); targets.append({"target_mission_id":target} if target else None)
+import json,os,re,sys,unicodedata
+rows=[x.strip() for x in sys.stdin.read().splitlines() if x.strip()]
+if len(rows)!=3: raise SystemExit(6)
+ops=[]; targets=[]; seen_titles=set(); seen_targets=set()
+for line in rows:
+  item=json.loads(line)
+  if not isinstance(item,dict) or set(item)-{"title","target_mission_id","explicit_new"} or "target_mission_id" not in item: raise SystemExit(7)
+  title=" ".join(str(item.get("title","")).split())
+  target="" if item.get("target_mission_id") is None else str(item["target_mission_id"]).strip()
+  explicit=item.get("explicit_new") is True
+  key=re.sub(r"[^a-z0-9]+"," ",unicodedata.normalize("NFD",title).encode("ascii","ignore").decode().lower()).strip()
+  if not title or not key or key in seen_titles: raise SystemExit(8)
+  if target:
+    if explicit or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,119}",target) or target in seen_targets: raise SystemExit(9)
+    seen_targets.add(target); targets.append({"target_mission_id":target})
   else:
-    ops.append(line); targets.append(None)
+    if not explicit: raise SystemExit(10)
+    targets.append(None)
+  seen_titles.add(key); ops.append(title)
 ops += ["↩ Volver atrás", "✍️ Custom · Escribe la mejora que quieras a mano"]
 targets += [None,None]
 print(json.dumps({"agent":os.environ["AG"],"machine":os.environ["MQ"],
@@ -75,7 +83,7 @@ print(json.dumps({"agent":os.environ["AG"],"machine":os.environ["MQ"],
   "surface":"admiranext","minutes":5,
   "mission":"OnIdle horario","onidle":True,"recommended":0,
   "question":"Ventana OnIDLE: elige una mejora.","options":ops,"option_targets":targets},ensure_ascii=False))
-')" || { log "opciones estructuradas inválidas; no abro ventana"; exit 0; }
+')" || { log "propuestas canónicas inválidas o incompletas; no abro ventana"; exit 0; }
 
 if [ "${ONIDLE_DRY_RUN:-0}" = "1" ]; then printf '%s\n' "$body"; exit 0; fi
 

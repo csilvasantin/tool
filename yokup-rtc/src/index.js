@@ -12,6 +12,7 @@ import { missionProofOrigin } from "./proof-origin.js";
 import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
   onIdleEligibility, taskVisibleDetails } from "./mission-visible.js";
 import { DAILY_MISSION_CLOSE_AUTHOR, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_LEASE_MS, DAILY_MISSION_CLOSE_REASON, MISSION_UNCONCLUDED_AFTER_MS, dailyMissionCloseEventText, dailyMissionClosePlan } from "./daily-mission-close.js";
+import { selectOnIdleProposals } from "./onidle-proposals.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -2454,6 +2455,60 @@ async function operationalOnIdleState(env, identity, now = Date.now()) {
     state_semantics:"operational-hour-v1" };
 }
 __name(operationalOnIdleState, "operationalOnIdleState");
+
+async function canonicalOnIdleProposals(env, identity, requestedProjectId) {
+  if (!requestedProjectId) return { ok:false, status:400, code:"exact_project_required",
+    error:"project_id exacto requerido para obtener propuestas" };
+  const assignment = await exactDecisionProjectAssignment(env, identity.agent, identity.machine, requestedProjectId);
+  if (!assignment) return { ok:false, status:400, code:"exact_project_required",
+    error:"project_id no pertenece a la asignación canónica de agent+machine" };
+  const projectId = String(assignment.id);
+  const projectName = String(assignment.name);
+  const owns = (row) => sameAgentFamily(row.assignee || row.agent || "", identity.agent) &&
+    memberRefMatches("machine", row.loc || row.machine || "", identity.machine);
+  const [backlogResult, decisionResult, activeBatchResult] = await Promise.all([
+    env.DB.prepare(
+      "SELECT id,subject,status,priority,assignee,loc,project,project_id,created_at,updated_at FROM tickets " +
+      "WHERE (project_id=? OR (COALESCE(project_id,'')='' AND lower(project)=lower(?))) " +
+      "AND lower(COALESCE(status,'')) NOT IN ('resolved','cancelled','closed') " +
+      "ORDER BY CASE lower(COALESCE(priority,'')) WHEN 'critical' THEN 0 WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 WHEN 'low' THEN 3 ELSE 4 END," +
+      "COALESCE(created_at,updated_at) ASC,id ASC LIMIT 300"
+    ).bind(projectId, projectName).all(),
+    env.DB.prepare(
+      "SELECT agent,machine,project,options,option_targets FROM decisions WHERE mission=? " +
+      "AND (parent_decision IS NULL OR parent_decision='') AND (project=? OR lower(project)=lower(?)) ORDER BY created_at DESC"
+    ).bind(ONIDLE_MISSION_MARKER, projectId, projectName).all(),
+    env.DB.prepare(
+      "SELECT active_mission_id,agent,machine,project_id FROM mission_batches " +
+      "WHERE status='active' AND active_mission_id IS NOT NULL AND active_mission_id!=''"
+    ).all()
+  ]);
+  const usedTargetIds = [], usedTitles = [];
+  for (const row of decisionResult.results || []) {
+    if (!sameAgentFamily(row.agent || "", identity.agent) ||
+        !memberRefMatches("machine", row.machine || "", identity.machine)) continue;
+    let options = [], targets = [];
+    try { options = JSON.parse(row.options || "[]"); } catch (e) {}
+    try { targets = JSON.parse(row.option_targets || "[]"); } catch (e) {}
+    for (const title of options.slice(0, 3)) usedTitles.push(title);
+    for (const target of targets.slice(0, 3)) {
+      if (target && target.target_mission_id) usedTargetIds.push(target.target_mission_id);
+    }
+  }
+  const activeMissionIds = (activeBatchResult.results || [])
+    .filter((row) => String(row.project_id || "") === projectId &&
+      sameAgentFamily(row.agent || "", identity.agent) &&
+      memberRefMatches("machine", row.machine || "", identity.machine))
+    .map((row) => row.active_mission_id);
+  const candidates = (backlogResult.results || []).filter(owns).map((row) => ({
+    title:row.subject, target_mission_id:row.id, status:row.status,
+    priority:row.priority, created_at:row.created_at || row.updated_at
+  }));
+  return { ...selectOnIdleProposals(candidates, {
+    used_target_ids:usedTargetIds, used_titles:usedTitles, active_mission_ids:activeMissionIds
+  }), project_id:projectId, agent:identity.agent, machine:identity.machine };
+}
+__name(canonicalOnIdleProposals, "canonicalOnIdleProposals");
 
 async function pauseTimedOutOnIdleBatches(env, identity, now = Date.now()) {
   const cutoff = now - MISSION_UNCONCLUDED_AFTER_MS;
@@ -5946,6 +6001,21 @@ var index_default = {
         const identity = resolveDecisionIdentity(url.searchParams.get("agent"), url.searchParams.get("machine"));
         if (!identity.ok) return json({ ok:false, code:"exact_identity_required", error:identity.error }, 400);
         return json({ ok:true, ...(await operationalOnIdleState(env, identity)) });
+      } catch (e) { return json({ ok:false, error:String(e) }, 500); }
+    }
+    // Fuente única de las tres alternativas OnIdle. El cuerpo es JSONL para que
+    // el launchd pueda consumirlo sin fichero intermedio; nunca devuelve 1/2
+    // candidatas ni rellena huecos con texto libre.
+    if (url.pathname === "/fleet/onidle-proposals" && req.method === "GET") {
+      try {
+        await ensureSchema(env);
+        const identity = resolveDecisionIdentity(url.searchParams.get("agent"), url.searchParams.get("machine"));
+        if (!identity.ok) return json({ ok:false, code:"exact_identity_required", error:identity.error }, 400);
+        const result = await canonicalOnIdleProposals(env, identity, String(url.searchParams.get("project_id") || "").trim());
+        if (!result.ok) return json(result, result.status || 409);
+        return new Response(result.proposals.map((row) => JSON.stringify(row)).join("\n") + "\n", {
+          status:200, headers:{ ...CORS, "content-type":"application/x-ndjson; charset=utf-8", "cache-control":"no-store" }
+        });
       } catch (e) { return json({ ok:false, error:String(e) }, 500); }
     }
     if (url.pathname === "/ideas" && (req.method === "GET" || req.method === "POST")) {

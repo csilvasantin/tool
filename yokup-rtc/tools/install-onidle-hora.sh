@@ -24,8 +24,8 @@ fi
 
 [ -f "$SOURCE" ] || { echo "falta la fuente versionada: $SOURCE" >&2; exit 2; }
 
-# Falla cerrado si alguien intenta reinstalar el heredado de cuatro opciones o
-# un cliente que no manda el contexto granular completo de Yokup.
+# Falla cerrado si alguien intenta reinstalar el lector de fichero stale, el
+# heredado de cuatro opciones o un cliente sin contexto granular de Yokup.
 SOURCE="$SOURCE" python3 - <<'PY'
 from pathlib import Path
 import os
@@ -36,17 +36,20 @@ required = (
     'PROJECT_ID="${ONIDLE_PROJECT_ID:-yokup}"',
     'PROJECT_OVERRIDE="${ONIDLE_PROJECT:-}"',
     'PROJECT_SLUG_OVERRIDE="${ONIDLE_PROJECT_SLUG:-}"',
-    "head -3",
-    'count" -eq 3',
+    'fleet/onidle-proposals',
+    'if len(rows)!=3',
+    '"target_mission_id" not in item',
     '"↩ Volver atrás", "✍️ Custom · Escribe la mejora que quieras a mano"',
+    '"option_targets":targets',
     '"project":os.environ["PJ"]',
     '"project_slug":os.environ["PS"]',
 )
 missing = [token for token in required if token not in source]
 if missing:
     raise SystemExit("fuente OnIdle no canónica; faltan: " + ", ".join(missing))
-if "head -5" in source:
-    raise SystemExit("fuente OnIdle heredada: todavía acepta cinco líneas")
+for stale in ("ONIDLE_OPTIONS_FILE", "onidle-opciones", "head -3", "head -5"):
+    if stale in source:
+        raise SystemExit("fuente OnIdle heredada: todavía contiene " + stale)
 PY
 
 mkdir -p "$VAULT" "$LAUNCH_AGENTS"

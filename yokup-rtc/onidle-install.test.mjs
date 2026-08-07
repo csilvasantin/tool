@@ -56,8 +56,9 @@ test('es idempotente y no toca la instalación de Morfeo',async()=>{
 
 test('la fuente A conserva exactamente tres mejoras, back y custom una vez',async()=>{
   const text=await readFile(source,'utf8');
-  assert.match(text,/head -3/);
-  assert.doesNotMatch(text,/head -5/);
+  assert.match(text,/fleet\/onidle-proposals/);
+  assert.match(text,/if len\(rows\)!=3/);
+  assert.doesNotMatch(text,/ONIDLE_OPTIONS_FILE|onidle-opciones|head -3|head -5/);
   assert.equal(text.match(/ops \+= \["↩ Volver atrás", "✍️ Custom · Escribe la mejora que quieras a mano"\]/g)?.length,1);
-  assert.match(text,/\[ "\$count" -eq 3 \]/);
+  assert.match(text,/"option_targets":targets/);
 });
