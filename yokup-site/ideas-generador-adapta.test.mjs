@@ -18,8 +18,9 @@ for (const [name, SRC] of [['objetivos.html', OBJ], ['ideas.html', IDE]]) {
     assert.ok(!SRC.includes('— etiqueta —'), 'ya no queda «— etiqueta —»');
   });
 
-  test(`${name}: «✨ Idea nueva» vive DENTRO del formulario, no en la barra de filtros`, () => {
-    assert.match(form(SRC), /id="genBtn"[^>]*>✨ Idea nueva</, 'el ✨ está en el <form>');
+  test(`${name}: la acción generadora vive DENTRO del formulario, no en la barra de filtros`, () => {
+    const copy = name === 'objetivos.html' ? '✨ Objetivo nuevo' : '✨ Idea nueva';
+    assert.ok(form(SRC).includes(`>${copy}</button>`), 'el ✨ está en el <form> con su copy');
     assert.ok(!bar(SRC).includes('genBtn'), 'el ✨ ya no está en la barra de filtros');
   });
 
@@ -58,7 +59,7 @@ test('objetivos.html: el select de silla se renombra a «— Consejero —» (fo
 //    un BORRADOR que rellena «La idea» y «Detalle», y si nadie los toca en un minuto
 //    lo damos de alta nosotros. Punto de vista del Consejero elegido; proyecto AL AZAR
 //    (no se manda ninguno: lo sortea el worker). Editar cualquiera de los dos = freno.
-test('objetivos.html: el ✨ va ARRIBA A LA DERECHA, antes que «Añadir idea»', () => {
+test('objetivos.html: el ✨ va ARRIBA A LA DERECHA, antes que «Añadir objetivo»', () => {
   const f = form(OBJ);
   assert.ok(f.indexOf('id="genBtn"') < f.indexOf('id="fBtn"'), '✨ va antes que Añadir');
   assert.ok(/<div class="hd">[\s\S]*id="fTitle"[\s\S]*id="genBtn"[\s\S]*<\/div>/.test(f),

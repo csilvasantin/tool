@@ -185,7 +185,7 @@
     border:1px solid rgba(197,140,255,.45);background:transparent;border-radius:999px;padding:7px 12px;cursor:pointer;transition:.15s;margin-left:auto}
   .bar .gen:hover{background:rgba(197,140,255,.14);border-color:var(--cre)}
   .bar .gen:disabled{opacity:.5;cursor:default}
-  /* «✨ Idea nueva» vive ARRIBA A LA DERECHA del formulario (FLT-1017), en la misma
+  /* «✨ Objetivo nuevo» vive ARRIBA A LA DERECHA del formulario (FLT-1017), en la misma
      línea que «La idea»: tono violeta del Consejo, sin relleno. Es el que arranca el
      borrador, así que manda en la lectura antes que los campos vacíos. */
   .add .hd{flex:1 1 100%;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -302,8 +302,8 @@
 
   <form class="add" id="addForm" autocomplete="off">
     <!-- La clasificación guía la captura: tipo, Consejero y proyecto se eligen
-         antes de redactar el título y el detalle. Se conservan los mismos ids y
-         el mismo submit; sólo cambia la jerarquía visual y semántica. -->
+         antes de redactar el título y el detalle. Se conservan los mismos ids,
+         endpoints y submit; sólo cambia la jerarquía visual y semántica. -->
     <div class="row objective-selectors">
       <select id="fTag">
         <option value="">— idea —</option>
@@ -315,11 +315,11 @@
     </div>
     <div class="hd">
       <input class="t" id="fTitle" maxlength="200" placeholder="La idea, en una frase…" required>
-      <button class="gen" id="genBtn" type="button" title="El Consejo redacta un borrador desde el Consejero elegido y sobre un proyecto al azar; rellena los dos campos y, si no los tocas en un minuto, lo damos de alta">✨ Idea nueva</button>
+      <button class="gen" id="genBtn" type="button" title="El Consejo redacta un borrador desde el Consejero elegido y sobre un proyecto al azar; rellena los dos campos y, si no los tocas en un minuto, lo damos de alta">✨ Objetivo nuevo</button>
     </div>
     <textarea id="fBody" maxlength="4000" placeholder="Detalle (opcional): el porqué, cómo, para quién…"></textarea>
     <div class="objective-actions">
-      <button type="submit" id="fBtn">Añadir idea</button>
+      <button type="submit" id="fBtn">Añadir objetivo</button>
     </div>
   </form>
 
@@ -696,11 +696,11 @@ async function decide(id){
   }catch(e){ toast("Error de red"); }
 }
 
-// «✨ Idea nueva» (FLT-1017): el Consejo redacta un BORRADOR y RELLENA el formulario.
+// «✨ Objetivo nuevo» (FLT-1017): el Consejo redacta un BORRADOR y RELLENA el formulario.
 // Nada se guarda al generar — la idea nace por el camino normal (POST /ideas), y la
 // damos de alta NOSOTROS pasado un minuto si nadie ha tocado «La idea» ni «Detalle».
 // En cuanto alguien edita cualquiera de los dos, el reloj se para y el borrador se
-// queda prefijado: es tuyo, lo añades con «Añadir idea» cuando quieras.
+// queda prefijado: es tuyo, lo añades con «Añadir objetivo» cuando quieras.
 // Punto de vista: el Consejero de #fSeat (por defecto el CEO, que es lo que el worker
 // escoge cuando no le llega silla). Proyecto: NO mandamos ninguno a propósito, para
 // que el worker lo sortee del censo — «el proyecto aleatorio». Ambos se dejan escritos
@@ -713,7 +713,7 @@ function autoStop(msg){
   if(AUTO_T){ clearTimeout(AUTO_T); AUTO_T=null; }
   if(AUTO_TICK){ clearInterval(AUTO_TICK); AUTO_TICK=null; }
   const b=$("#genBtn"); if(b){ b.classList.remove("wait"); b.disabled=false; }
-  genLabel("✨ Idea nueva");
+  genLabel("✨ Objetivo nuevo");
   if(msg) toast(msg);
 }
 // El propio botón es la cuenta atrás y el freno: pulsarlo cancela el alta automática.
@@ -730,7 +730,7 @@ function autoStart(){
 // Editar cualquiera de los dos campos = «me lo quedo». Rellenarlos por código NO
 // dispara `input`, así que el propio borrador nunca se cancela a sí mismo.
 ["#fTitle","#fBody"].forEach(sel=>{ const el=$(sel); if(el) el.addEventListener("input",()=>{
-  if(AUTO_T) autoStop("✍️ El borrador es tuyo — dale a «Añadir idea» cuando lo tengas");
+  if(AUTO_T) autoStop("✍️ El borrador es tuyo — dale a «Añadir objetivo» cuando lo tengas");
 }); });
 async function generate(){
   if(AUTO_T){ autoStop("Reloj parado — el borrador se queda como está"); return; }
