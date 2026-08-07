@@ -204,7 +204,11 @@ capture_process_image() {
 upload_image() {
   local file="$1" type response
   [ -f "$file" ] && [ -s "$file" ] || { echo "imagen inexistente o vacía: $file" >&2; return 1; }
-  case "$file" in *.jpg|*.jpeg) type="image/jpeg";; *.webp) type="image/webp";; *) type="image/png";; esac
+  # AgoraCapture puede devolver JPEG aunque el fichero temporal conserve el
+  # sufijo .png. La cabecera debe describir los bytes reales o el worker —con
+  # razón— rechaza la evidencia por image_content_mismatch.
+  type="$(file -b --mime-type "$file" 2>/dev/null || true)"
+  case "$type" in image/png|image/jpeg|image/webp) ;; *) echo "imagen con MIME no admitido: ${type:-desconocido}" >&2; return 1;; esac
   response="$(curl -fsS -m 60 -X POST "$API/fleet/media" -H "Content-Type: $type" --data-binary "@$file")"
   printf '%s' "$response" | python3 -c 'import json,sys; print((json.load(sys.stdin).get("url") or "").strip())'
 }

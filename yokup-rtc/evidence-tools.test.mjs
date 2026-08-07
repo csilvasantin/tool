@@ -101,6 +101,15 @@ test("cada superficie usa sólo su capturador y falla si no puede validarlo", as
   assert.doesNotMatch(desktop, /tmux capture-pane/);
 });
 
+test("la subida declara el MIME real aunque AgoraCapture use sufijo .png", async () => {
+  const client = await tool("mission-evidence.sh");
+  const upload = client.slice(client.indexOf("upload_image()"), client.indexOf("capture_time()"));
+  assert.match(upload, /file -b --mime-type/);
+  assert.match(upload, /image\/png\|image\/jpeg\|image\/webp/);
+  assert.match(upload, /Content-Type: \$type/);
+  assert.doesNotMatch(upload, /case "\$file" in/);
+});
+
 test("Desktop acepta únicamente Codex y Claude con nombre, bundle y runtime coherentes", async () => {
   for (const accepted of [
     ["Codex", "Codex", "com.openai.codex"],
