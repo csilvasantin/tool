@@ -108,7 +108,7 @@ test("/fleet/turnos es publico y dice cuanto falta a cada uno", () => {
   assert.doesNotMatch(protegidas, /"\/fleet\/turnos"/);
   assert.match(source, /faltanMs: Math\.max\(0, proxima - now\)/);
   // manda la MAS TARDIA de las dos condiciones: su hora y su turno
-  assert.match(source, /const proxima = Math\.max\(t\.proximo, desdeUltima\)/);
+  assert.match(source, /const proxima = Math\.max\(proximoTurno, desdeUltima\)/);
   assert.match(source, /salida\.sort\(\(x, y\) => x\.proxima - y\.proxima\)/);
 });
 
@@ -126,4 +126,27 @@ test("el detalle del Highscore dice cuanto falta para su proxima ventana", async
   assert.match(pagina, /No se pudo consultar el reparto de turnos/);
   // y dice de cuantos es el reparto, que es lo que explica la espera
   assert.match(pagina, /"Turno "\+mio\.turno\+" de "\+d\.agentes\+" · una cada "\+d\.pasoMin\+" min/);
+});
+
+test("un comodin NO entra en el censo ni descuadra el reparto", async () => {
+  // Consultar /fleet/turnos sin ?agent metia un «—» en el censo: el reparto
+  // pasaba de 8 a 9 agentes y la cabecera decia un paso distinto al de las
+  // filas. Visto en produccion nada mas desplegar (2026-08-07).
+  const t = turnoCon(["A", "B", "C", "D"]);
+  for (const falso of ["—", "", "  ", "-", "?"]) {
+    const r = await t(falso, 0);
+    assert.equal(r.n, 4, `«${falso}» no puede sumar al censo`);
+    assert.ok(!r.censo.includes(falso));
+  }
+  // y una identidad real si entra
+  assert.equal((await t("NeoMBACrema", 0)).n, 5);
+});
+
+test("la cabecera y las filas salen del MISMO censo", () => {
+  const i = source.indexOf('url.pathname === "/fleet/turnos"');
+  const bloque = source.slice(i, i + 2200);
+  // un solo ventanaTurno: pedirlo por agente daba N+1 consultas y repartos distintos
+  assert.equal((bloque.match(/await ventanaTurno\(/g) || []).length, 1);
+  assert.match(bloque, /const offset = i \* base\.paso;/);
+  assert.match(bloque, /agentes: base\.n, pasoMin: Math\.round\(base\.paso \/ 60000\)/);
 });

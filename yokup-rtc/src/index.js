@@ -1314,7 +1314,14 @@ async function ventanaTurno(env, agent, now) {
   const filas = ((await env.DB.prepare(
     "SELECT DISTINCT agent FROM decisions WHERE (parent_decision IS NULL OR parent_decision='') AND created_at > ?"
   ).bind(now - 24 * 3600000).all()).results) || [];
-  const censo = [...new Set(filas.map((r) => String(r.agent || "").trim()).filter(Boolean).concat([agent]))]
+  // Sólo identidades reales: un marcador de posición («—», vacío) inflaba el
+  // censo y descuadraba el reparto de todos.
+  // Un nombre de agente EMPIEZA POR LETRA. Con eso caen los comodines («—»,
+  // «-», «?», vacío) sin inventar un mínimo de longitud que dejaría fuera a una
+  // identidad corta legítima.
+  const real = (v) => /^[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(String(v || "").trim());
+  const censo = [...new Set(filas.map((r) => String(r.agent || "").trim()).filter(real)
+    .concat(real(agent) ? [String(agent).trim()] : []))]
     .sort((a, b) => a.localeCompare(b, "es"));
   const n = Math.max(1, censo.length);
   const paso = Math.max(60000, Math.floor(HOURLY_WINDOW_MS / n));
@@ -4672,18 +4679,27 @@ var index_default = {
       await ensureSchema(env);
       const now = Date.now();
       const quien = String(url.searchParams.get("agent") || "").trim();
-      const base = await ventanaTurno(env, quien || "—", now);
+      // Un solo censo para todos: pedirlo por agente daba N+1 consultas y, si el
+      // que preguntaba no era real, un reparto distinto en la cabecera que en
+      // las filas.
+      const base = await ventanaTurno(env, quien, now);
       const salida = [];
-      for (const a of base.censo) {
-        const t = await ventanaTurno(env, a, now);
+      for (let i = 0; i < base.censo.length; i += 1) {
+        const a = base.censo[i];
+        const offset = i * base.paso;
+        const dentro = now % HOURLY_WINDOW_MS;
+        const inicioCiclo = now - dentro;
+        const enFranja = dentro >= offset && dentro < offset + base.paso;
+        const proximoTurno = dentro < offset ? inicioCiclo + offset
+          : (enFranja ? now : inicioCiclo + HOURLY_WINDOW_MS + offset);
         const ultima = await env.DB.prepare(
           "SELECT created_at FROM decisions WHERE lower(agent)=lower(?) AND (parent_decision IS NULL OR parent_decision='') ORDER BY created_at DESC LIMIT 1"
         ).bind(a).first();
         const desdeUltima = ultima ? Number(ultima.created_at) + HOURLY_WINDOW_MS : 0;
         // Manda la más tardía de las dos condiciones: cumplir su hora Y su turno.
-        const proxima = Math.max(t.proximo, desdeUltima);
-        salida.push({ agent: a, turno: t.idx + 1, offsetMin: Math.round(t.offset / 60000),
-          enTurno: t.enTurno && now >= desdeUltima, ultima: ultima ? Number(ultima.created_at) : 0,
+        const proxima = Math.max(proximoTurno, desdeUltima);
+        salida.push({ agent: a, turno: i + 1, offsetMin: Math.round(offset / 60000),
+          enTurno: enFranja && now >= desdeUltima, ultima: ultima ? Number(ultima.created_at) : 0,
           proxima, faltanMs: Math.max(0, proxima - now) });
       }
       salida.sort((x, y) => x.proxima - y.proxima);
