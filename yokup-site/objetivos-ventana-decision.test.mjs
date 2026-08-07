@@ -52,3 +52,39 @@ test("el worker convoca al Consejo antes de generar las opciones", () => {
   // y la deliberación sigue alimentando el prompt de las opciones
   assert.match(worker, /const delib = ideaDeliberationText\(idea\.review\);/);
 });
+
+// El alias delante (Carlos, 2026-08-07): en el Consejo nadie piensa «el CDO»,
+// piensa «Dieter Rams». Y los alias tienen que ser LOS MISMOS que usa el worker
+// para firmar y para escribir el prompt de la silla — si divergen, eliges a un
+// consejero en pantalla y opina otro.
+test("las ocho sillas se eligen por alias, no por siglas", () => {
+  assert.match(source, /const SEATS=\[\["ceo","Steve Jobs","CEO"\]/);
+  assert.match(source, /SEATS\.map\(\(\[v,a,r\]\)=>'<option value="'\+v\+'"'\+\(v===sel\?' selected':''\)\+'>'\+a\+' · '\+r\+'<\/option>'\)/,
+    "el desplegable abre con el alias");
+  assert.match(source, /objective-primary">'\+esc\(seatAlias\)/, "y la ficha también");
+  assert.match(source, /const seatSub=\[seatRole,i\.author\|\|"anónimo"\]/, "el puesto baja con el autor");
+});
+
+test("los alias de la página son exactamente los del Consejo del worker", () => {
+  const enWorker = [...worker.matchAll(/^\s{2}(ceo|cto|coo|cfo|cco|cdo|cxo|cso): \{ role: "([A-Z]+)", alias: "([^"]+)"/gm)]
+    .map((m) => [m[1], m[3], m[2]]);
+  assert.equal(enWorker.length, 8, "se leyeron las ocho sillas de COUNCIL");
+  const enPagina = [...source.matchAll(/\["(ceo|cto|coo|cfo|cco|cdo|cxo|cso)","([^"]+)","([A-Z]+)"\]/g)]
+    .map((m) => [m[1], m[2], m[3]]);
+  assert.deepEqual(enPagina, enWorker,
+    "silla, alias y puesto tienen que coincidir con COUNCIL de yokup-rtc");
+});
+
+// La constancia del conocimiento extra: sin el contador, un consejero con
+// material de pixeria y otro sin él se ven exactamente igual en la ficha.
+test("la ficha del consejero enseña de cuántas piezas sabe, y cuáles", () => {
+  assert.match(source, /const r=await wfetch\("\/council\/knowledge",\{cache:"no-store"\}\)/);
+  assert.match(source, /class="objective-badges">'\+saberBadge\(i\.seat\)/, "va la primera, antes de las que solo clasifican");
+  assert.match(source, /if\(!s\|\|!s\.count\) return "";/, "sin material no se pinta una chapa vacía");
+  assert.match(source, /pieza"\+\(s\.count===1\?"":"s"\)\+" que le dio Carlos en pixeria \(#"\+s\.tag\+"\)"/);
+  assert.match(source, /\.slice\(0,6\)\.map\(p=>"· "\+\(p\.title\|\|p\.note\|\|p\.type\|\|"pieza"\)\)/,
+    "un número suelto no se puede comprobar: el título dice cuáles son");
+  assert.match(source, /catch\(e\)\{ \/\* silencioso \*\/ \}[\s\S]{0,400}function saberBadge/,
+    "si el recuento no llega, la página queda como estaba");
+  assert.match(source, /\.objective-badge\.saber\{color:var\(--brand\)/);
+});

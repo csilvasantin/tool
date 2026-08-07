@@ -274,6 +274,10 @@
   .objective-grid-cell .seatsel{width:100%;margin-top:7px;background:#06121a;color:var(--mut);border:1px solid var(--line);border-radius:7px;padding:5px 6px;font:600 10px var(--mono)}.objective-grid-cell .seatsel.set{color:var(--cre);border-color:rgba(197,140,255,.4)}
   .objective-badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.objective-badge{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:2px 6px;color:var(--mut);font:700 9px/1.3 var(--mono)}
   .objective-badge.consejo{color:var(--cre);border-color:rgba(197,140,255,.4)}
+  /* 📎 N — piezas de pixeria etiquetadas con el nombre del consejero. Es la
+     constancia de que esa silla sabe algo que las demás no; por eso destaca
+     sobre el resto de chapas, que solo clasifican. */
+  .objective-badge.saber{color:var(--brand);border-color:rgba(120,243,255,.42);cursor:help;font-variant-numeric:tabular-nums}
   .objective-project-link{color:var(--mis);text-decoration:none}.objective-project-link:hover{text-decoration:underline}
   .objective-state{display:inline-flex;align-items:center;gap:5px;border:1px solid currentColor;border-radius:999px;padding:4px 7px;font:700 9px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase}.objective-state:before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}.objective-state.nueva{color:var(--brand)}.objective-state.estudio{color:var(--warn)}.objective-state.hecha{color:var(--good)}.objective-state.mision{color:var(--mis)}.objective-state.descartada,.objective-state.eliminada{color:var(--mut)}
   .objective-date{width:100%;max-width:145px;margin-top:7px;background:#06121a;color:var(--ink);color-scheme:dark;border:1px solid var(--line);border-radius:7px;padding:5px 6px;font:600 10px var(--mono)}
@@ -425,9 +429,17 @@ const $=s=>document.querySelector(s);
 const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
 const STLABEL={nueva:"Nueva",estudio:"En estudio",hecha:"Hecha",mision:"Misión",descartada:"Descartada",eliminada:"Eliminada"};
 const NEXT={nueva:"estudio",estudio:"hecha",hecha:"nueva"};
-// Las 8 sillas del Consejo (== IDEA_SEATS del worker). value=seat, label=rol.
-const SEATS=[["ceo","CEO"],["cto","CTO"],["coo","COO"],["cfo","CFO"],["cco","CCO"],["cdo","CDO"],["cxo","CXO"],["cso","CSO"]];
-const SEATLABEL=Object.fromEntries(SEATS);
+// Las 8 sillas del Consejo (== IDEA_SEATS del worker). value=seat, alias, rol.
+// EL ALIAS VA DELANTE (Carlos, 2026-08-07): en el Consejo nadie piensa «el CDO»,
+// piensa «Dieter Rams». Las siglas dicen el puesto pero no la cabeza que opina, y
+// la cabeza es justo lo que eliges cuando eliges silla. Los alias son los mismos
+// que usa COUNCIL en el worker para firmar y para escribir el prompt de la silla.
+const SEATS=[["ceo","Steve Jobs","CEO"],["cto","Steve Wozniak","CTO"],["coo","Tim Cook","COO"],
+  ["cfo","Warren Buffett","CFO"],["cco","Walt Disney","CCO"],["cdo","Dieter Rams","CDO"],
+  ["cxo","Howard Schultz","CXO"],["cso","George Lucas","CSO"]];
+const SEATALIAS=Object.fromEntries(SEATS.map(([v,a])=>[v,a]));
+const SEATROLE=Object.fromEntries(SEATS.map(([v,,r])=>[v,r]));
+const SEATLABEL=Object.fromEntries(SEATS.map(([v,a,r])=>[v,a+" · "+r]));
 // Lado de cada silla: racional (teal) las 4 primeras, creativo (violeta) las 4
 // últimas. Sirve para colorear la firma de las ideas del Consejo (tag=consejo).
 const RAC_SEATS=new Set(["ceo","cto","coo","cfo"]);
@@ -487,7 +499,7 @@ async function copyGuion(id){
   }
 }
 function seatOpts(sel){ return '<option value="">— Consejero —</option>'+
-  SEATS.map(([v,l])=>'<option value="'+v+'"'+(v===sel?' selected':'')+'>'+l+'</option>').join(''); }
+  SEATS.map(([v,a,r])=>'<option value="'+v+'"'+(v===sel?' selected':'')+'>'+a+' · '+r+'</option>').join(''); }
 // ── PROYECTOS DEL CENSO (FLT-1009) — GET /projects, cacheado en el load. El
 //    selector «— proyecto —» del formulario y el chip de cada idea salen de aquí.
 //    PROJ_BY resuelve slug→{name,web} para pintar el chip corto enlazado.
@@ -556,13 +568,18 @@ function objectiveRow(i){
   const isMis=st==="mision"||i.mission_id||st==="eliminada";
   const pend=hasDecision(i);
   const cons=isConsejo(i), seatL=i.seat?(SEATLABEL[i.seat]||String(i.seat).toUpperCase()):"Sin consejero";
+  // En la ficha manda el alias y el puesto baja a la segunda línea, junto al autor:
+  // la columna es estrecha y «Dieter Rams · CDO · Carlos Silva» no cabe en una.
+  const seatAlias=i.seat?(SEATALIAS[i.seat]||String(i.seat).toUpperCase()):"Sin consejero";
+  const seatRole=i.seat?(SEATROLE[i.seat]||""):"";
+  const seatSub=[seatRole,i.author||"anónimo"].filter(Boolean).join(" · ");
   const project=objectiveProject(i), planned=i.scheduled_for||ymd(new Date(i.created_at));
   const showDelib=hasReview(i)||st==="estudio";
   const actionSort=i.mission_id?"misión vinculada":pend?"decisión abierta":st==="eliminada"?"eliminada":isMis?"misión":"abrir ventana de decisión";
   const sort=x=>esc(String(x==null?"":x).toLocaleLowerCase("es"));
   const projectHtml=project.url?'<a class="objective-primary objective-project-link" href="'+esc(project.url)+'" target="_blank" rel="noopener">'+esc(project.name)+'</a>':'<span class="objective-primary">'+esc(project.name)+'</span>';
   return '<div class="objective-grid-row" role="row" data-row-key="'+esc(i.id||workRef(i))+'" data-sort-advisor="'+sort(seatL+" "+(i.author||"anónimo"))+'" data-sort-project="'+sort(project.name+" "+project.slug)+'" data-sort-objective="'+sort(workRef(i)+" "+(i.title||"")+" "+(i.body||""))+'" data-sort-state="'+sort(stateLabel)+'" data-sort-date="'+esc(String(planned||"").replace(/\D/g,""))+'" data-sort-actions="'+sort(actionSort)+'">'+
-    '<div class="objective-grid-cell" role="cell" data-label="Consejero / autor"><span class="objective-advisor"><input type="checkbox" data-bulk-id="'+esc(i.id)+'"'+(SEL.has(i.id)?' checked':'')+' title="Seleccionar para cambio masivo" aria-label="Seleccionar '+esc(i.title||"objetivo")+'"><span><span class="objective-primary">'+esc(seatL)+'</span><span class="objective-secondary">'+esc(i.author||"anónimo")+'</span></span></span><select class="seatsel'+(i.seat?' set':'')+'" data-seat-for="'+esc(i.id)+'" title="silla del Consejo">'+seatOpts(i.seat||"")+'</select><span class="objective-badges">'+(cons?'<span class="objective-badge consejo">✦ Consejo</span>':'')+(i.tag?'<span class="objective-badge">#'+esc(i.tag)+'</span>':'')+'</span></div>'+
+    '<div class="objective-grid-cell" role="cell" data-label="Consejero / autor"><span class="objective-advisor"><input type="checkbox" data-bulk-id="'+esc(i.id)+'"'+(SEL.has(i.id)?' checked':'')+' title="Seleccionar para cambio masivo" aria-label="Seleccionar '+esc(i.title||"objetivo")+'"><span><span class="objective-primary">'+esc(seatAlias)+'</span><span class="objective-secondary">'+esc(seatSub)+'</span></span></span><select class="seatsel'+(i.seat?' set':'')+'" data-seat-for="'+esc(i.id)+'" title="silla del Consejo">'+seatOpts(i.seat||"")+'</select><span class="objective-badges">'+saberBadge(i.seat)+(cons?'<span class="objective-badge consejo">✦ Consejo</span>':'')+(i.tag?'<span class="objective-badge">#'+esc(i.tag)+'</span>':'')+'</span></div>'+
     '<div class="objective-grid-cell" role="cell" data-label="Proyecto">'+projectHtml+(project.slug?'<span class="objective-secondary objective-mono">'+esc(project.slug)+'</span>':'')+'</div>'+
     '<div class="objective-grid-cell" role="cell" data-label="Objetivo"><span class="objective-ref" title="ID técnico: '+esc(i.id)+'">'+esc(workRef(i))+'</span><span class="objective-primary">'+esc(i.title||"Sin título")+'</span><span class="objective-secondary">'+esc(voteSummary(i))+(hasMedia(i)?' · 🎬 Kit':'')+'</span></div>'+
     '<div class="objective-grid-cell" role="cell" data-label="Estado"><span class="objective-state '+esc(st)+'">'+esc(stateLabel)+'</span></div>'+
@@ -617,6 +634,32 @@ function paintSeats(){
 async function loadProg(){
   try{ const r=await wfetch("/objetivos/progreso",{cache:"no-store"}); PROG=await r.json(); paintSeats(); }
   catch(e){ /* silencioso: las sillas se quedan sin marcador */ }
+}
+
+// CONOCIMIENTO EXTRA DE CADA SILLA (Carlos, 2026-08-07). El «skill» de un
+// consejero era una frase escrita a mano en el worker, igual para siempre. Ahora
+// Carlos sube algo al Stock de pixeria, lo etiqueta con el nombre del consejero
+// —#stevejobs— y esa pieza entra en su cabeza cuando propone, cuando delibera y
+// cuando salen las 3 opciones de la ventana. Aquí sólo se pinta la CONSTANCIA de
+// que eso existe: sin el contador, un consejero con material y otro sin él se ven
+// exactamente igual. Silencioso: sin recuento, la página queda como estaba.
+let SABER={};
+async function loadSaber(){
+  try{
+    const r=await wfetch("/council/knowledge",{cache:"no-store"}); const d=await r.json();
+    if(!d||!d.ok||!Array.isArray(d.seats)) return;
+    SABER={}; d.seats.forEach(s=>{ if(s&&s.seat) SABER[s.seat]={count:s.count|0,tag:s.tag||"",pieces:s.pieces||[]}; });
+    render();
+  }catch(e){ /* silencioso */ }
+}
+// La chapa dice CUÁNTAS piezas y, al pasar por encima, cuáles: un número suelto
+// no se puede comprobar, y lo que no se puede comprobar no es constancia.
+function saberBadge(seat){
+  const s=seat&&SABER[seat]; if(!s||!s.count) return "";
+  const lista=(s.pieces||[]).slice(0,6).map(p=>"· "+(p.title||p.note||p.type||"pieza")).join("\n");
+  const t=s.count+" pieza"+(s.count===1?"":"s")+" que le dio Carlos en pixeria (#"+s.tag+")"+
+    ", y que usa al opinar"+(lista?":\n"+lista:"")+(s.count>6?"\n…":"");
+  return '<span class="objective-badge saber" title="'+esc(t)+'" aria-label="'+esc(t)+'">📎 '+s.count+'</span>';
 }
 
 async function load(){
@@ -838,6 +881,7 @@ $("#bulkApply").addEventListener("click",applyBulk);
 $("#bulkClear").addEventListener("click",()=>{SEL.clear();render();});
 load();
 loadProjects();
+loadSaber();
 })();
 </script>
 

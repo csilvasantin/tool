@@ -54,9 +54,13 @@ const aiRunRaw=async(_env,prompt)=>{prompts.push(prompt);return {titulo:`Objetiv
 const ensureIdeasSchema=async()=>{};
 const parseIdeaJSON=raw=>({title:raw.titulo,body:raw.cuerpo});
 const ideaTypeCriteria=tag=>criteria[tag]||"criterio genérico";
-const generate=new Function("IDEA_SEATS","IDEA_TYPES","COUNCIL","ensureIdeasSchema","projectIndex","ideaTypeCriteria","aiRunRaw","parseIdeaJSON","crypto","generateCouncilReview",
+// El conocimiento extra de la silla (pixeria) entra en el prompt; aquí se inyecta
+// vacío para que este test siga midiendo SOLO rol, tipo y proyecto.
+const seatKnowledge=async()=>[];
+const seatKnowledgeText=()=>"";
+const generate=new Function("IDEA_SEATS","IDEA_TYPES","COUNCIL","ensureIdeasSchema","projectIndex","ideaTypeCriteria","aiRunRaw","parseIdeaJSON","crypto","generateCouncilReview","seatKnowledge","seatKnowledgeText",
   `${functionSource("generateCouncilIdea")}; return generateCouncilIdea;`)(
-    seats,types,council,ensureIdeasSchema,projectIndex,ideaTypeCriteria,aiRunRaw,parseIdeaJSON,globalThis.crypto,async()=>null);
+    seats,types,council,ensureIdeasSchema,projectIndex,ideaTypeCriteria,aiRunRaw,parseIdeaJSON,globalThis.crypto,async()=>null,seatKnowledge,seatKnowledgeText);
 const env={DB:{prepare:()=>({all:async()=>({results:[]})})}};
 
 test("mismo proyecto produce perspectivas y criterios distintos por rol y tipo",async()=>{

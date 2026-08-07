@@ -558,16 +558,82 @@ __name(ensureIdeasSchema, "ensureIdeasSchema");
 // de turno desde su punto fuerte. Y a demanda («✨ Idea nueva»), silla aleatoria.
 // El orden y los alias son los del array CONSEJO de objetivos.html.
 const COUNCIL_ORDER = ["ceo", "cto", "coo", "cfo", "cco", "cdo", "cxo", "cso"];
+// `tag` es la etiqueta de pixeria con la que Carlos le da material a esa silla:
+// un vídeo subido al Stock con #stevejobs pasa a ser conocimiento del CEO. Es
+// EXPLÍCITO a propósito —solo el alias, no las etiquetas de su terreno—: quien
+// decide qué lee cada consejero es quien etiqueta, no una heurística.
 const COUNCIL = {
-  ceo: { role: "CEO", alias: "Steve Jobs", side: "rac", fuerte: "la visi\xF3n de producto: no sumar funciones, sino decidir qu\xE9 se queda fuera para que lo que salga lleve nuestro nombre con orgullo" },
-  cto: { role: "CTO", alias: "Steve Wozniak", side: "rac", fuerte: "la tecnolog\xEDa como cimiento: que lo que se construya sea s\xF3lido, real y sostenible en el tiempo" },
-  coo: { role: "COO", alias: "Tim Cook", side: "rac", fuerte: "la operaci\xF3n: que la m\xE1quina gire —cadena, flota de agentes, entregas y SLA—, que lo prometido se cumpla" },
-  cfo: { role: "CFO", alias: "Warren Buffett", side: "rac", fuerte: "el negocio y el coste a largo plazo: qu\xE9 renta, qu\xE9 cuesta y qu\xE9 aguanta" },
-  cco: { role: "CCO", alias: "Walt Disney", side: "cre", fuerte: "la creatividad y la marca: magia y experiencias que se recuerdan toda la vida" },
-  cdo: { role: "CDO", alias: "Dieter Rams", side: "cre", fuerte: "el dise\xF1o: menos, pero mejor; quitar hasta que solo quede lo esencial, y hacerlo bello" },
-  cxo: { role: "CXO", alias: "Howard Schultz", side: "cre", fuerte: "la experiencia y el espacio vivido: c\xF3mo se siente estar dentro del producto" },
-  cso: { role: "CSO", alias: "George Lucas", side: "cre", fuerte: "el relato: la historia que explica la idea y la hace contagiosa dentro y fuera de la casa" }
+  ceo: { role: "CEO", alias: "Steve Jobs", tag: "stevejobs", side: "rac", fuerte: "la visi\xF3n de producto: no sumar funciones, sino decidir qu\xE9 se queda fuera para que lo que salga lleve nuestro nombre con orgullo" },
+  cto: { role: "CTO", alias: "Steve Wozniak", tag: "stevewozniak", side: "rac", fuerte: "la tecnolog\xEDa como cimiento: que lo que se construya sea s\xF3lido, real y sostenible en el tiempo" },
+  coo: { role: "COO", alias: "Tim Cook", tag: "timcook", side: "rac", fuerte: "la operaci\xF3n: que la m\xE1quina gire —cadena, flota de agentes, entregas y SLA—, que lo prometido se cumpla" },
+  cfo: { role: "CFO", alias: "Warren Buffett", tag: "warrenbuffett", side: "rac", fuerte: "el negocio y el coste a largo plazo: qu\xE9 renta, qu\xE9 cuesta y qu\xE9 aguanta" },
+  cco: { role: "CCO", alias: "Walt Disney", tag: "waltdisney", side: "cre", fuerte: "la creatividad y la marca: magia y experiencias que se recuerdan toda la vida" },
+  cdo: { role: "CDO", alias: "Dieter Rams", tag: "dieterrams", side: "cre", fuerte: "el dise\xF1o: menos, pero mejor; quitar hasta que solo quede lo esencial, y hacerlo bello" },
+  cxo: { role: "CXO", alias: "Howard Schultz", tag: "howardschultz", side: "cre", fuerte: "la experiencia y el espacio vivido: c\xF3mo se siente estar dentro del producto" },
+  cso: { role: "CSO", alias: "George Lucas", tag: "georgelucas", side: "cre", fuerte: "el relato: la historia que explica la idea y la hace contagiosa dentro y fuera de la casa" }
 };
+
+// ── CONOCIMIENTO EXTRA DE CADA SILLA (pixeria) ──────────────────────────────
+// Hasta ahora el «skill» de un consejero era UNA frase codificada aquí (`fuerte`)
+// e igual para siempre: mejorarlo exigía un deploy. Esto lo abre — Carlos sube al
+// Stock de pixeria un vídeo, un artículo o una imagen, lo etiqueta con el nombre
+// del consejero, y esa pieza pasa a estar en su cabeza la próxima vez que opine.
+//
+// El índice del Stock es JSON público (no hay auth ni worker de por medio) y se
+// cachea en el edge: un ciclo del Consejo son varias llamadas seguidas y no tiene
+// sentido bajar 340 KB en cada una.
+//
+// DEGRADA EN SILENCIO. Si pixeria no responde, el consejero opina como siempre
+// —con su punto fuerte— en vez de no opinar. El material suma; su ausencia no resta.
+var STOCK_INDEX_URL = "https://pub-bf043a4daa3b43b7a0b769617729d074.r2.dev/stock/index.json";
+var COUNCIL_KNOWLEDGE_PROMPT_MAX = 8;   // piezas que entran en el prompt, las más nuevas
+async function stockIndex() {
+  try {
+    const r = await fetch(STOCK_INDEX_URL, { cf: { cacheTtl: 600, cacheEverything: true } });
+    if (!r.ok) return [];
+    const d = await r.json();
+    return Array.isArray(d) ? d : (d && Array.isArray(d.items) ? d.items : []);
+  } catch (e) { return []; }
+}
+__name(stockIndex, "stockIndex");
+function normalizaEtiqueta(t) {
+  // \p{M} = marcas combinantes. Se usa la propiedad Unicode en vez del rango
+  // U+0300–U+036F escrito a mano: el fuente queda en ASCII puro y no hay forma
+  // de romperlo al copiar o al reescribir el fichero.
+  return String(t || "").normalize("NFD").replace(/\p{M}/gu, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+__name(normalizaEtiqueta, "normalizaEtiqueta");
+// Piezas del Stock etiquetadas con el alias de la silla, de la más nueva a la más
+// vieja. `limit` 0 = todas (lo usa el endpoint; el prompt se queda con 8).
+async function seatKnowledge(seat, limit = COUNCIL_KNOWLEDGE_PROMPT_MAX) {
+  const c = COUNCIL[String(seat || "").toLowerCase()];
+  const tag = c && c.tag ? normalizaEtiqueta(c.tag) : "";
+  if (!tag) return [];
+  const items = await stockIndex();
+  const mias = items.filter((it) => Array.isArray(it && it.tags)
+    && it.tags.some((t) => normalizaEtiqueta(t) === tag));
+  mias.sort((a, b) => String(b && b.createdAt || "").localeCompare(String(a && a.createdAt || "")));
+  const recortadas = limit > 0 ? mias.slice(0, limit) : mias;
+  return recortadas.map((it) => {
+    // El comentario suele ser solo la propia etiqueta («#stevejobs»): eso no es
+    // conocimiento, es el mecanismo. Se descarta para no ensuciar el prompt.
+    const nota = String(it.comment || "").trim();
+    const soloEtiqueta = normalizaEtiqueta(nota) === tag;
+    return { id: it.id || "", type: it.type || "", at: it.createdAt || "",
+      title: String(it.title || "").trim().slice(0, 200),
+      note: soloEtiqueta ? "" : nota.slice(0, 300),
+      url: it.url || "" };
+  }).filter((p) => p.title || p.note);
+}
+__name(seatKnowledge, "seatKnowledge");
+// El bloque que se cuela en el prompt de la silla. Vacío si no hay material.
+function seatKnowledgeText(pieces) {
+  const lista = (pieces || []).map((p) => "- " + [p.title, p.note].filter(Boolean).join(" \xB7 ")).join("\n");
+  if (!lista) return "";
+  return "\n\nMATERIAL QUE CARLOS TE HA DADO (lo etiquet\xF3 con tu nombre en pixeria). Es tu conocimiento extra: apr\xE9ndetelo y \xFAsalo cuando venga a cuento; no lo cites por citar ni lo menciones si no aporta:\n" + lista;
+}
+__name(seatKnowledgeText, "seatKnowledgeText");
 // Rotación SIN estado: silla de turno = Math.floor(horaUTC/3) sobre COUNCIL_ORDER.
 // Determinista, sin persistencia. Hora 0-2→ceo, 3-5→cto … 21-23→cso.
 function councilSeatForHour(h) {
@@ -658,7 +724,9 @@ async function generateCouncilIdea(env, seat, topic, projectHint, persist = true
   }
   const previos = recent.map((r) => "- " + r.title).join("\n") || "(ninguna todav\xEDa)";
   const focoTema = topicClean ? "\n\nCENTRA tu idea EXCLUSIVAMENTE en este tema: " + topicClean + "\nHabla de ese tema de verdad, en concreto; no lo cambies por otro. Manten tu voz de " + c.role + " (" + c.fuerte + "), pero la idea DEBE ser sobre ese tema." : "";
-  const prompt = `Eres ${c.role} del Consejo de AdmiraNeXT, con el esp\xEDritu de ${c.alias}. Tu punto fuerte es ${c.fuerte}.
+  // Su conocimiento extra: lo que Carlos le ha etiquetado en pixeria con su nombre.
+  const saber = seatKnowledgeText(await seatKnowledge(seat));
+  const prompt = `Eres ${c.role} del Consejo de AdmiraNeXT, con el esp\xEDritu de ${c.alias}. Tu punto fuerte es ${c.fuerte}.${saber}
 
 AdmiraNeXT es un ecosistema de se\xF1alizaci\xF3n digital (DOOH) construido por agentes de IA: yokup.com (FSM de misiones y tareas del equipo), admira.live (cockpit de la flota de agentes de IA), pixeria (creatividad con IA), xpaceos (gemelo digital de la red de pantallas) y admira.tv (emisi\xF3n del canal).
 
@@ -755,7 +823,18 @@ async function generateCouncilReview(env, idea) {
   const authorSeat = IDEA_SEATS.has(String(idea.seat || "").toLowerCase()) ? String(idea.seat).toLowerCase() : "";
   const seats = pickCouncilSeats(authorSeat);          // 6 sillas distintas
   const proSeats = seats.slice(0, 3), conSeats = seats.slice(3, 6);
-  const line = (s) => { const c = COUNCIL[s]; return `${c.role} (${c.alias}) — su punto fuerte: ${c.fuerte}`; };
+  // Cada uno de los seis debate con SU conocimiento extra, no con uno común: si
+  // Carlos le ha dado material a Steve Jobs, es Steve Jobs quien lo esgrime. Se
+  // piden las seis a la vez (el índice del Stock está cacheado, así que es UNA
+  // descarga) y se recorta a 4 piezas por silla: son seis prompts en uno.
+  const saberes = new Map(await Promise.all(seats.map(async (s) => [s, await seatKnowledge(s, 4)])));
+  const line = (s) => {
+    const c = COUNCIL[s], piezas = saberes.get(s) || [];
+    const extra = piezas.length
+      ? ` — material que le dio Carlos: ${piezas.map((p) => p.title || p.note).filter(Boolean).join("; ")}`
+      : "";
+    return `${c.role} (${c.alias}) — su punto fuerte: ${c.fuerte}${extra}`;
+  };
   const prompt = `Eres la secretaría del Consejo de AdmiraNeXT (ecosistema de señalización digital DOOH hecho por agentes de IA: yokup.com, admira.live, pixeria, xpaceos, admira.tv). El Consejo debate esta idea que acaba de pasar a ESTUDIO:
 
 TÍTULO: ${idea.title}
@@ -2359,10 +2438,13 @@ var DECIDE_URL = "https://www.yokup.com/decisiones";
 // inventa relleno: sin 3 opciones reales, el handler responde 502 y se reintenta.
 async function generateDecideOptions(env, idea, projName) {
   const delib = ideaDeliberationText(idea.review);
+  // El material de la silla que PROPUSO el objetivo: es su idea, y las 3 formas
+  // de ejecutarla deberían oler a ella. Sin silla, no hay material que traer.
+  const saber = seatKnowledgeText(await seatKnowledge(idea.seat, 4));
   const prompt = `Eres el jefe de operaciones de AdmiraNeXT (ecosistema de se\xF1alizaci\xF3n digital DOOH hecho por agentes de IA: yokup.com, admira.live, pixeria, xpaceos, admira.tv). Hay que EJECUTAR esta idea/objetivo:
 
 T\xCDTULO: ${idea.title}
-DETALLE: ${idea.body || "(sin detalle)"}${projName ? "\nPROYECTO: " + projName : ""}${delib ? "\nDELIBERACI\xD3N DEL CONSEJO:\n" + delib : ""}
+DETALLE: ${idea.body || "(sin detalle)"}${projName ? "\nPROYECTO: " + projName : ""}${delib ? "\nDELIBERACI\xD3N DEL CONSEJO:\n" + delib : ""}${saber}
 
 Propon las 3 MEJORES maneras CONCRETAS y accionables de EJECUTAR esta idea, ordenadas de M\xC1S a MENOS adecuada (la 1\xAA es la recomendada). Cada opci\xF3n: una acci\xF3n clara en 1 frase (m\xE1x 140 caracteres), distinta de las otras, sin numerar ni repetir el t\xEDtulo.
 Responde SOLO con un objeto JSON v\xE1lido, sin texto alrededor ni markdown, con esta forma EXACTA:
@@ -6353,6 +6435,18 @@ var index_default = {
     // del censo con web (FLT-1009). El cron NO pasa nada (libre → proyecto al azar).
     // Misma generación, firma «ROL · alias», tag=consejo y guardado que el cron.
     // Devuelve la idea creada. Mismo estilo json()/CORS.
+    // CONOCIMIENTO DE CADA SILLA — LECTURA PÚBLICA. Qué material le ha dado
+    // Carlos a cada consejero en pixeria (etiquetas #stevejobs, #waltdisney…).
+    // La usa /objetivos para poner al lado del consejero de cuántas piezas sabe,
+    // que es la constancia de que ahí hay conocimiento extra y no solo su frase.
+    if (url.pathname === "/council/knowledge") {
+      const seats = await Promise.all(COUNCIL_ORDER.map(async (s) => {
+        const c = COUNCIL[s], pieces = await seatKnowledge(s, 0);   // 0 = todas
+        return { seat: s, role: c.role, alias: c.alias, tag: c.tag,
+          count: pieces.length, pieces: pieces.slice(0, 20) };
+      }));
+      return json({ ok: true, source: "pixeria/stock", seats });
+    }
     if (url.pathname === "/ideas/generate" && req.method === "POST") {
       try {
         await ensureIdeasSchema(env);
