@@ -78,9 +78,9 @@ test("se elimina el contrato muerto del chip sin alterar el layout responsive de
   assert.match(css, /@media\(max-width:720px\)[\s\S]*\.hd\.project-id-layout/);
 });
 
-test("la normativa vigente coloca el proyecto bajo el agente como rótulo informativo", () => {
-  assert.match(normativa, /proyecto asignado muestra su nombre <b>debajo del agente<\/b>/);
-  assert.match(normativa, /rótulo informativo[\s\S]*no se convierte en enlace, selector, campo ni botón/);
-  assert.match(normativa, /Agente y responsable son de la misma familia[\s\S]*Verde/);
-  assert.match(normativa, /agente no es su responsable[\s\S]*Amarillo/);
+test("la normativa asigna el proyecto a Misión y reserva Agente/Plataforma a su identidad", () => {
+  assert.match(normativa, /columna <b>Misión<\/b>[\s\S]*Proyecto/);
+  assert.match(normativa, /Agente\/Plataforma[\s\S]*identidad, avatar y runtime\/plataforma/);
+  assert.match(normativa, /no se repite[\s\S]*proyecto/);
+  assert.doesNotMatch(normativa, /proyecto asignado muestra su nombre <b>debajo del agente<\/b>/);
 });

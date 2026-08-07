@@ -357,18 +357,26 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     <div class="num">12</div>
     <div>
       <h2>El proyecto acompaña al agente responsable</h2>
-      <p>En <code>/misiones</code>, toda misión con proyecto asignado muestra su nombre <b>debajo del agente</b>.
-      Es un rótulo informativo, no un control: no se convierte en enlace, selector, campo ni botón.</p>
+      <p>En <code>/misiones</code>, toda misión con proyecto asignado muestra <b>Proyecto + nombre</b>
+      al comienzo de la columna <b>Misión</b>, encima del asunto. La celda <b>Agente/Plataforma</b>
+      queda reservada a la identidad, avatar y runtime/plataforma del agente: no se repite allí el proyecto.</p>
       <p>La responsabilidad sale del censo de proyectos: manda <code>primary_responsible</code> y,
       si falta, se usa <code>owner</code>. La comparación se hace exclusivamente con
       <code>ykAgentIdentity.same(assignee, responsable)</code>, por familia de persona y
-      aceptando los alias históricos; por ejemplo, <b>Oraculo y OraculoMacMini son la misma familia</b>.</p>
-      <table aria-label="Color del proyecto bajo el agente">
-        <thead><tr><th>Situación</th><th>Rótulo</th><th>Color</th></tr></thead>
+      aceptando los alias históricos; por ejemplo, <b>Oraculo y OraculoMacMini son la misma familia</b>.
+      Estos datos gobiernan la asignación, no añaden un segundo rótulo visual.</p>
+      <p><b>Proyecto heredado.</b> La declaración de proyecto principal vale para un día. Cuando un
+      encargo llega sin proyecto y el agente no ha declarado hoy, la misión nace con la
+      <b>última declaración explícita de ese mismo agente</b> —no se adivina por sus proyectos ni
+      leyendo el texto del encargo— y queda <b>marcada como heredada</b>. Antes de esto, la misión
+      sencillamente no nacía: 41 encargos de la flota se quedaron atascados sin que nadie se
+      enterara. Un proyecto heredado <b>puede no ser el correcto</b>, así que conserva esa marca en
+      los datos operativos hasta que alguien reasigna la misión a un proyecto confirmado.</p>
+      <table aria-label="Ubicación visible del proyecto en la misión">
+        <thead><tr><th>Situación</th><th>Columna Misión</th><th>Agente/Plataforma</th></tr></thead>
         <tbody>
-          <tr><td>Agente y responsable son de la misma familia</td><td>Nombre del proyecto bajo el agente</td><td>Verde</td></tr>
-          <tr><td>La misión tiene proyecto, pero el agente no es su responsable</td><td>Nombre del proyecto bajo el agente</td><td>Amarillo</td></tr>
-          <tr><td>La misión no tiene proyecto asignado</td><td>No se muestra ningún rótulo</td><td>—</td></tr>
+          <tr><td>La misión tiene proyecto</td><td>Muestra <b>Proyecto + nombre</b></td><td>Identidad, avatar y plataforma; sin proyecto</td></tr>
+          <tr><td>La misión no tiene proyecto asignado</td><td>No inventa ningún nombre</td><td>Identidad, avatar y plataforma</td></tr>
         </tbody>
       </table>
     </div>
