@@ -6709,6 +6709,66 @@ var index_default = {
         presupuesto: COUNCIL_KNOWLEDGE_PROMPT_CHARS, guion_tipo: COUNCIL_GUION_TYPE,
         video_max_secs: COUNCIL_VIDEO_MAX_SECS, formacion_tag: COUNCIL_FORMACION_TAG, seats });
     }
+    // ── UNA IDEA DEL STOCK, GUIONIZADA ──────────────────────────────────────
+    // Carlos graba ideas en vídeo y las etiqueta #idea en el Stock de Pixeria. Ahí
+    // se quedaban: para convertir una en objetivo había que verla, entenderla y
+    // reescribirla a mano, así que casi nunca se hacía. Esto coge la MÁS RECIENTE y
+    // la deja redactada en los dos campos del formulario —la frase y su desarrollo—
+    // para que el Consejo pueda deliberarla.
+    //
+    // NO se guarda nada: igual que «✨ Objetivo nuevo», devuelve un borrador y el
+    // alta la hace el humano con «Añadir objetivo». Lo que se genera no es una idea
+    // inventada: es LA SUYA, dicha con sus palabras y ordenada.
+    if (url.pathname === "/ideas/desde-stock" && req.method === "POST") {
+      let peticion = {}; try { peticion = await req.json(); } catch (e) { peticion = {}; }
+      // La etiqueta la dice quien llama; «idea» es sólo el valor por defecto. Fijarla
+      // aquí obligaría a desplegar el worker para buscar otra cosa.
+      const items = await stockIndex();
+      const marca = normalizaEtiqueta(peticion && peticion.etiqueta ? peticion.etiqueta : "idea");
+      // La etiqueta puede venir en `tags` o como #idea en el comentario, que es como
+      // la deja el importador de Telegram. Se miran las dos: exigir sólo una dejaría
+      // fuera la mitad de lo que Carlos graba.
+      const ideas = (items || []).filter((it) => {
+        const porTag = Array.isArray(it && it.tags) && it.tags.some((t) => normalizaEtiqueta(t) === marca);
+        const porComentario = String((it && it.comment) || "").split(/\s+/)
+          .some((w) => w.startsWith("#") && normalizaEtiqueta(w) === marca);
+        return porTag || porComentario;
+      }).sort((a, b) => String(b && b.createdAt || "").localeCompare(String(a && a.createdAt || "")));
+      if (!ideas.length) {
+        return json({ ok: false, error: "sin-ideas",
+          detail: "No hay nada etiquetado #" + marca + " en el Stock de Pixeria. Sube un vídeo con esa etiqueta y vuelve a pulsar." }, 404);
+      }
+      const fuente = ideas[0];
+      // Lo que sabemos de la pieza. El comentario suele ser lo que Carlos dijo al
+      // subirla, así que pesa más que el título del vídeo.
+      const nota = String(fuente.comment || "").replace(/#\w+/g, " ").trim();
+      const titulo = String(fuente.title || "").trim();
+      if (!nota && !titulo) {
+        return json({ ok: false, error: "idea-muda",
+          detail: "La última pieza #idea no trae ni título ni comentario: no hay nada que guionizar." }, 422);
+      }
+      const prompt = `Carlos graba sus ideas en vídeo y las etiqueta #idea. Esta es la última.
+
+TÍTULO DE LA PIEZA: ${titulo || "(sin título)"}
+LO QUE ÉL ANOTÓ: ${nota || "(sin nota)"}
+
+Conviértelo en un objetivo accionable para AdmiraNeXT —ecosistema de señalización digital hecho por agentes de IA: yokup.com gestiona misiones, pixeria.com produce contenido, admira.tv emite y admira.live es el Consejo—, para que el Consejo pueda deliberarlo y ayudarle a hacerlo realidad.
+
+NO inventes una idea distinta: es la SUYA. Ordénala y hazla accionable, sin adornarla ni prometer lo que no dice.
+Si la pieza es demasiado vaga para saber qué quiere, dilo en el cuerpo en vez de rellenar con humo.
+
+Responde SOLO con un objeto JSON válido, sin texto alrededor ni markdown:
+{"titulo":"<la idea en una frase, máx 90 caracteres>","cuerpo":"<2 o 3 frases: el porqué, el cómo y para quién>"}
+Todo en español.`;
+      const raw = await aiRunRaw(env, prompt, 400);
+      const { title, body } = parseIdeaJSON(raw);
+      if (!title) return json({ ok: false, error: "sin-redaccion", detail: "El motor no devolvió un borrador legible." }, 502);
+      return json({ ok: true,
+        idea: { title, body },
+        fuente: { id: fuente.id || "", title: titulo, url: fuente.url || "", thumbnail: fuente.thumbnail || "",
+                  createdAt: fuente.createdAt || "", nota },
+        total: ideas.length });
+    }
     if (url.pathname === "/ideas/generate" && req.method === "POST") {
       try {
         await ensureIdeasSchema(env);

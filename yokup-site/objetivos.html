@@ -332,6 +332,7 @@
     <textarea id="fBody" maxlength="4000" placeholder="Detalle (opcional): el porqué, cómo, para quién…" aria-label="Detalle del objetivo (opcional)"></textarea>
     <div class="objective-form-actions">
       <button type="submit" id="fBtn">Añadir objetivo</button>
+      <button type="button" id="ideaBtn" class="gen" title="Coge el último vídeo etiquetado #idea en el Stock de Pixeria, lo guioniza y lo deja escrito aquí para que el Consejo pueda ayudarte">💡 Ideas</button>
     </div>
   </form>
 
@@ -878,6 +879,55 @@ async function generate(){
   }catch(e){ autoStop(""); toast("Error de red"); }
 }
 if($("#genBtn")){ $("#genBtn").addEventListener("click",generate); pintaGenBtn(); }
+
+// ── 💡 IDEAS: la última que Carlos grabó, guionizada ────────────────────────
+// Él graba ideas en vídeo y las etiqueta #idea en el Stock. Ahí se quedaban, porque
+// convertir una en objetivo exigía verla y reescribirla a mano. Esto trae la MÁS
+// RECIENTE ya redactada en los dos campos.
+//
+// EL BOTÓN CUENTA LO QUE HACE (Carlos, 7-ago-2026: «es importante que el botón nos
+// dé feedback de progreso porque no es inmediato»). Son varios segundos —bajar el
+// índice del Stock y redactar— y un botón mudo durante ese rato parece colgado, así
+// que va diciendo por dónde va en su propia etiqueta.
+async function ideaDesdeStock(){
+  const b=$("#ideaBtn"); if(!b || b.disabled) return;
+  const reposo=b.textContent;
+  const paso=t=>{ b.textContent=t; };
+  b.disabled=true; b.classList.add("wait");
+  let vivo=true;
+  // Los pasos se anuncian por tiempo, no por progreso real: el worker hace una sola
+  // llamada y no informa por dentro. Prometer un porcentaje falso sería peor que
+  // decir honestamente en qué fase suele estar.
+  paso("🔎 Buscando en el Stock…");
+  const t1=setTimeout(()=>{ if(vivo) paso("✍️ Guionizando la idea…"); },1800);
+  const t2=setTimeout(()=>{ if(vivo) paso("✍️ Guionizando… (tarda un poco)"); },9000);
+  try{
+    const r=await fetch(WORKER+"/ideas/desde-stock",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({etiqueta:"idea"})});
+    const d=await r.json();
+    vivo=false; clearTimeout(t1); clearTimeout(t2);
+    if(d&&d.ok&&d.idea){
+      $("#fTitle").value=d.idea.title||"";
+      $("#fBody").value=d.idea.body||"";
+      DRAFT=true;
+      const f=(d.fuente&&d.fuente.title)?(" · "+String(d.fuente.title).slice(0,44)):"";
+      paso("✅ Listo"+(d.total?(" · "+d.total+" ideas en el Stock"):""));
+      toast("💡 De tu última idea en Pixeria"+f+" — repásala y dale a «Añadir objetivo»");
+      setTimeout(()=>{ b.textContent=reposo; },4000);
+    } else {
+      // Se dice QUÉ falta y dónde arreglarlo, no un «no se pudo» a secas.
+      paso("⚠️ Sin ideas");
+      toast((d&&d.detail)||(d&&d.error)||"No se pudo traer la idea");
+      setTimeout(()=>{ b.textContent=reposo; },5000);
+    }
+  }catch(e){
+    vivo=false; clearTimeout(t1); clearTimeout(t2);
+    paso("⚠️ Error de red"); toast("No se pudo hablar con el worker");
+    setTimeout(()=>{ b.textContent=reposo; },4000);
+  }finally{
+    b.disabled=false; b.classList.remove("wait");
+  }
+}
+if($("#ideaBtn")) $("#ideaBtn").addEventListener("click",ideaDesdeStock);
 $("#addForm").addEventListener("submit",async e=>{
   e.preventDefault();
   const title=$("#fTitle").value.trim(); if(!title)return;
