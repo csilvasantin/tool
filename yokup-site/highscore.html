@@ -1295,7 +1295,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function pintaPodio(top) {
     var orden = [top[1], top[0], top[2]], clases = ["p2", "p1", "p3"], medallas = ["2", "1", "3"];
     document.getElementById("podio").innerHTML = escenaPodio() + orden.map(function (a, i) {
-      if (!a) return '<div class="plaza"></div>';
+      // Una plaza sin agente no representa nada y, sin la clase p1/p2/p3,
+      // conservaba ancho, padding y borde en la posición estática: era la barra
+      // redondeada vacía que aparecía encima del arte del podio.
+      if (!a) return "";
       var clave = claveAgenteCarrera(a.agente), total = Number(a.total) || 0;
       var metric = metricaHoraDia(a,"points");
       var dailyTitle = tituloPuntosDiarios(estadoPuntosDiarios(a));
