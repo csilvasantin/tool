@@ -32,6 +32,11 @@ h1{margin:6px 0 4px;color:var(--brand);font-size:clamp(23px,5vw,42px);word-break
 .hour-detail[hidden]{display:none}.state{padding:28px;border:1px solid var(--line);border-radius:14px;background:var(--card)}.state h1{font-size:22px}.state p{color:var(--mut);line-height:1.6}
 @media(max-width:760px){.stats{grid-template-columns:repeat(3,1fr)}.grid{grid-template-columns:1fr}.timeline{grid-column:auto}}
 @media(max-width:470px){.wrap{padding:42px 14px 56px}.hero{grid-template-columns:1fr;text-align:center}.avatar{margin:auto}.stats{grid-template-columns:repeat(2,1fr)}.hour{grid-template-columns:50px 1fr auto}}
+.turno{margin:14px 0;padding:12px 14px;border:1px solid rgba(120,243,255,.22);border-radius:10px;background:rgba(2,8,13,.5)}
+.turno-t{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut,#75aab9);font-weight:800}
+.turno-v{font-size:26px;font-weight:800;line-height:1.15;margin:4px 0 2px;color:var(--brand,#78f3ff);font-variant-numeric:tabular-nums}
+.turno.ya .turno-v{color:var(--good,#88ffaa)}
+.turno-m{font-size:11px;color:var(--dim,#4d7a88)}
 </style>
 </head>
 <body data-yk-title="DETALLE HIGHSCORE" data-yk-zone="app">
@@ -54,6 +59,31 @@ h1{margin:6px 0 4px;color:var(--brand);font-size:clamp(23px,5vw,42px);word-break
   }).then(function(payload){ return { ok:true, value:pick(payload) }; })
     .catch(function () { return { ok:false, value:fallback }; }); }
   function stat(value, label) { var box=el("div","stat"), strong=el("b","",value), caption=el("span","",label); box.append(strong,caption); return box; }
+  // Franja «próxima ventana de decisión» del agente del detalle.
+  function turnoPanel(agent){
+    var caja=el("section","turno"), t=el("div","turno-t","Próxima ventana de decisión"),
+        v=el("div","turno-v","comprobando…"), m=el("div","turno-m","");
+    caja.append(t,v,m);
+    function pinta(d){
+      if(!d||!d.ok){ v.textContent="—"; m.textContent="No se pudo consultar el reparto de turnos."; return; }
+      var mio=null,i;
+      for(i=0;i<d.turnos.length;i++){ if(String(d.turnos[i].agent).toLowerCase()===String(agent).toLowerCase()){ mio=d.turnos[i]; break; } }
+      if(!mio){ v.textContent="—"; m.textContent="Este agente aún no entra en el reparto: no ha abierto ninguna ventana en 24 h."; return; }
+      m.textContent="Turno "+mio.turno+" de "+d.agentes+" · una cada "+d.pasoMin+" min · su franja empieza en el minuto "+mio.offsetMin;
+      function tic(){
+        var falta=mio.proxima-Date.now();
+        if(falta<=0){ v.textContent="puede abrir YA"; caja.classList.add("ya"); return; }
+        var s=Math.round(falta/1000), h=Math.floor(s/3600), mm=Math.floor((s%3600)/60), ss=s%60;
+        v.textContent=(h?h+"h ":"")+mm+"m "+(ss<10?"0":"")+ss+"s";
+        caja.classList.remove("ya");
+      }
+      tic(); window.setInterval(tic,1000);
+    }
+    fetch("https://api.yokup.com/fleet/turnos?agent="+encodeURIComponent(agent),{cache:"no-store"})
+      .then(function(r){return r.json();}).then(pinta).catch(function(){ pinta(null); });
+    return caja;
+  }
+
   function factsPanel(title, rows, emptyText, complete) {
     var panel=el("section","panel"), heading=el("h2","",title); panel.appendChild(heading);
     if (!rows.length) { panel.appendChild(el("p","empty",complete?emptyText:"Datos no disponibles para completar esta sección.")); return panel; }
@@ -93,6 +123,11 @@ h1{margin:6px 0 4px;color:var(--brand);font-size:clamp(23px,5vw,42px);word-break
     stats.append(stat(place,"Puesto"),stat(total,"Puntos"),stat(snap?snap.objetivos:(scoreAvailable?calculated.objectives:"—"),
       "Objetivos"),stat(snap?snap.ventanas:(scoreAvailable?calculated.windows:"—"),"Ventanas"),
       stat(snap?snap.misiones:(scoreAvailable?calculated.missions:"—"),"Misiones"),stat(snap?snap.tareas:taskCount,"Tareas hoy")); target.appendChild(stats);
+    // CUÁNTO FALTA HASTA SU PRÓXIMA VENTANA (Carlos, 2026-08-07). El dato lo da
+    // /fleet/turnos, que cruza las dos condiciones —su hora cumplida Y su turno
+    // dentro del reparto— y devuelve la más tardía. Se pide aparte y en
+    // silencio: si no responde, el detalle se pinta igual sin esta franja.
+    target.appendChild(turnoPanel(agent));
     var operationalComplete=data.available.tasks&&data.available.missions&&data.available.incidents;
     var grid=el("div","grid"); grid.append(factsPanel("Lo que hizo bien",fact.good,"No hay hechos positivos verificables en los datos disponibles.",operationalComplete),
       factsPanel("A mejorar",fact.improve,"No hay pendientes o incidencias atribuibles en los datos disponibles.",operationalComplete),

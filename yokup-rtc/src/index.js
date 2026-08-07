@@ -1293,6 +1293,43 @@ var DECISION_MIN_DEFAULT = 5, DECISION_MIN_MAX = 10;
 // la cadencia la marca esa persona. Por eso `manual` exige sesión del
 // perímetro: sin humano identificado no hay cupo ampliado.
 var MANUAL_PER_HOUR = 6;
+
+// ── TURNOS: LAS VENTANAS SE REPARTEN LA HORA ────────────────────────────────
+// Carlos, 2026-08-07: «si hay 4 agentes que se dispare uno cada 15 minutos, si
+// hay 6 uno cada 10». Con el reloj móvil a secas cada agente abría cuando le
+// tocaba a él, y la flota se apelotonaba: el 07-08 seis ventanas cayeron entre
+// las 10:45 y las 10:59 y luego cincuenta minutos de silencio.
+//
+// Cada agente recibe una FRANJA de HOURLY_WINDOW_MS/N dentro del ciclo, por
+// orden canónico de su nombre. Con 4 agentes son 15 min; con 6, 10. La franja
+// NO sustituye al cupo: hay que cumplir las dos cosas, seguir con su hora
+// pasada Y estar en su turno.
+//
+// El reparto SÓLO gobierna las ventanas AUTOMÁTICAS. Cuando la lanza una
+// persona, manda la persona: bloquear a quien está delante de la pantalla
+// porque «no es su turno» sería convertir una ayuda en un estorbo.
+async function ventanaTurno(env, agent, now) {
+  // El censo de turnos son los agentes que han abierto ventana en las últimas
+  // 24 h, más el que pregunta —que si no, uno nuevo no tendría franja nunca.
+  const filas = ((await env.DB.prepare(
+    "SELECT DISTINCT agent FROM decisions WHERE (parent_decision IS NULL OR parent_decision='') AND created_at > ?"
+  ).bind(now - 24 * 3600000).all()).results) || [];
+  const censo = [...new Set(filas.map((r) => String(r.agent || "").trim()).filter(Boolean).concat([agent]))]
+    .sort((a, b) => a.localeCompare(b, "es"));
+  const n = Math.max(1, censo.length);
+  const paso = Math.max(60000, Math.floor(HOURLY_WINDOW_MS / n));
+  const idx = Math.max(0, censo.indexOf(agent));
+  const offset = idx * paso;
+  const dentro = now % HOURLY_WINDOW_MS;
+  const enTurno = dentro >= offset && dentro < offset + paso;
+  // Próximo instante en que le toca: si su franja de este ciclo ya pasó, la del
+  // siguiente.
+  const inicioCiclo = now - dentro;
+  const proximo = dentro < offset ? inicioCiclo + offset
+    : (enTurno ? now : inicioCiclo + HOURLY_WINDOW_MS + offset);
+  return { censo, n, paso, idx, offset, enTurno, proximo };
+}
+__name(ventanaTurno, "ventanaTurno");
 var HOURLY_WINDOW_MS = 60 * 60 * 1000;   // cadencia ENTRE ventanas, no duración de una
 function madridHourKey(ms) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -4629,6 +4666,29 @@ var index_default = {
     // igual que publican decisiones, sin login de navegador.
     // CONFIG DE FLOTA — LECTURA PÚBLICA. Un agente la consulta al arrancar
     // desde el CLI, sin sesión y sin secreto: `curl .../fleet/config`.
+    // TURNOS DE VENTANA — LECTURA PÚBLICA. La usa el detalle del Highscore para
+    // decir cuánto falta hasta la próxima ventana del agente seleccionado.
+    if (url.pathname === "/fleet/turnos") {
+      await ensureSchema(env);
+      const now = Date.now();
+      const quien = String(url.searchParams.get("agent") || "").trim();
+      const base = await ventanaTurno(env, quien || "—", now);
+      const salida = [];
+      for (const a of base.censo) {
+        const t = await ventanaTurno(env, a, now);
+        const ultima = await env.DB.prepare(
+          "SELECT created_at FROM decisions WHERE lower(agent)=lower(?) AND (parent_decision IS NULL OR parent_decision='') ORDER BY created_at DESC LIMIT 1"
+        ).bind(a).first();
+        const desdeUltima = ultima ? Number(ultima.created_at) + HOURLY_WINDOW_MS : 0;
+        // Manda la más tardía de las dos condiciones: cumplir su hora Y su turno.
+        const proxima = Math.max(t.proximo, desdeUltima);
+        salida.push({ agent: a, turno: t.idx + 1, offsetMin: Math.round(t.offset / 60000),
+          enTurno: t.enTurno && now >= desdeUltima, ultima: ultima ? Number(ultima.created_at) : 0,
+          proxima, faltanMs: Math.max(0, proxima - now) });
+      }
+      salida.sort((x, y) => x.proxima - y.proxima);
+      return json({ ok: true, now, agentes: base.n, pasoMin: Math.round(base.paso / 60000), turnos: salida });
+    }
     if (url.pathname === "/fleet/config") {
       await ensureSchema(env);
       const rows = ((await env.DB.prepare("SELECT name, value, updated_at, updated_by FROM fleet_config").all()).results) || [];
@@ -6202,6 +6262,18 @@ var index_default = {
             return json({ ok: false, error: "hourly_limit", manual, limite: tope,
               usadas: previas.length, existing: previas[0].id,
               nextAt: Number(masVieja.created_at) + HOURLY_WINDOW_MS }, 409);
+          }
+          // TURNO — sólo para las automáticas. Cuando la lanza una persona manda
+          // la persona: bloquearla porque «no es su turno» convertiría una ayuda
+          // en un estorbo.
+          if (!manual) {
+            const turno = await ventanaTurno(env, agent, now);
+            if (!turno.enTurno) {
+              return json({ ok: false, error: "fuera_de_turno",
+                mensaje: `Su franja es cada ${Math.round(turno.paso / 60000)} min con ${turno.n} agentes en el reparto.`,
+                turno: turno.idx + 1, agentes: turno.n, pasoMin: Math.round(turno.paso / 60000),
+                nextAt: turno.proximo }, 409);
+            }
           }
         }
         const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
