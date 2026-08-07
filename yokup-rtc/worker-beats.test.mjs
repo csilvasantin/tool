@@ -59,6 +59,7 @@ vm.runInContext(`
   globalThis.fleetSync = async () => bump('fleetSync');
   globalThis.fleetPlanPending = async () => bump('fleetPlan');
   globalThis.fleetReconcileAll = async () => bump('fleetReconcile');
+  globalThis.reconcileBatchTargetMissions = async () => bump('reconcileBatchTargets');
   globalThis.runCouncilTick = async () => bump('council');
   globalThis.api = { ensureWorkerBeatsSchema, recordBeat, tryAcquireBeatLease, beatAge, runScheduledRoutine };
   globalThis.resetStub = (o) => { __stub.calls = {}; __stub.throwOn = (o && o.throwOn) || null; __stub.scheduleThrows = !!(o && o.scheduleThrows); };
@@ -126,6 +127,7 @@ test('rutina: corre todas las sub-rutinas y deja latido ok en cada una', async (
     assert.equal(calls[n], 1, n + ' debe correr una vez');
     assert.equal(out[n].ok, true, n + ' latido ok');
   }
+  assert.equal(calls.reconcileBatchTargets, 1, 'los targets OnIdle convergen en el mismo latido de fleetReconcile');
   // checkWebs es caro: corre la 1ª vez (beat inexistente → Infinity ≥ umbral).
   assert.equal(calls.checkWebs, 1, 'checkWebs corre la 1ª vez');
   assert.equal(calls.checkMachines, 1);

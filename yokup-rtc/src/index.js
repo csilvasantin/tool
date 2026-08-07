@@ -206,6 +206,10 @@ async function applySchema(env) {
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN project_slug TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN parent_decision TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN batch_id TEXT").catch(() => {});
+  // Referencias estructuradas opcionales, alineadas con `options`. Una opción
+  // OnIdle puede apuntar a una misión canónica sin convertir su título en una
+  // pseudo-clave frágil. Las filas históricas conservan NULL.
+  await env.DB.exec("ALTER TABLE decisions ADD COLUMN option_targets TEXT").catch(() => {});
   // Una decisión de misiones es una tanda, no cinco trabajos independientes.
   // Se persiste la cola, pero cada cierre deja la tanda en
   // `awaiting_continuation`: la siguiente misión sólo puede salir de una nueva
@@ -213,8 +217,10 @@ async function applySchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_batches (id TEXT PRIMARY KEY, decision_id TEXT UNIQUE, agent TEXT, machine TEXT, status TEXT DEFAULT 'active', pause_reason TEXT, active_mission_id TEXT, created_at INTEGER, updated_at INTEGER)");
   await env.DB.exec("ALTER TABLE mission_batches ADD COLUMN project_id TEXT").catch(() => {});
   await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_batch_items (batch_id TEXT, position INTEGER, option_index INTEGER, title TEXT, mission_id TEXT, status TEXT DEFAULT 'queued', created_at INTEGER, updated_at INTEGER, PRIMARY KEY (batch_id, position))");
+  await env.DB.exec("ALTER TABLE mission_batch_items ADD COLUMN target_mission_id TEXT").catch(() => {});
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_batch_items_active ON mission_batch_items(batch_id, status, position)");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_batch_items_mission ON mission_batch_items(mission_id)");
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_batch_items_target ON mission_batch_items(target_mission_id)").catch(() => {});
   await env.DB.exec("CREATE TABLE IF NOT EXISTS mission_tasks (mission_id TEXT, code TEXT, title TEXT, status TEXT DEFAULT 'pending', owner TEXT, report TEXT, updated_at INTEGER, PRIMARY KEY (mission_id, code))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_mtasks_mission ON mission_tasks(mission_id)");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_mtasks_reports_page ON mission_tasks(updated_at DESC,mission_id DESC,code DESC) WHERE report IS NOT NULL AND TRIM(report)<>''");
@@ -938,7 +944,13 @@ async function runScheduledRoutine(env, event) {
   // Árbol de tareas de las misiones nuevas, en tandas cortas (coste IA).
   await step("fleetPlan", () => fleetPlanPending(env, 3));
   // Avance del árbol → estado de la misión y del encargo del bot-inbox.
-  await step("fleetReconcile", () => fleetReconcileAll(env));
+  await step("fleetReconcile", async () => {
+    await fleetReconcileAll(env);
+    // Los targets adoptados pueden cerrarse por cualquier carril canónico
+    // (fleet, declare, incidencia o web). El mismo latido converge su tanda sin
+    // exigir que cada ruta de cierre conozca el origen OnIdle.
+    await reconcileBatchTargetMissions(env);
+  });
   // Primer tick tras la medianoche de Madrid: no concluidas del día terminado
   // pasan a Eliminadas. Va después del sync/reconcile para observar cualquier
   // cierre o actividad externa recién llegada antes de decidir; el lease vive en D1.
@@ -1650,6 +1662,59 @@ function orderedMissionOptions(options, chosen) {
   return out;
 }
 __name(orderedMissionOptions, "orderedMissionOptions");
+function normalizeDecisionOptionTargets(raw, options, continuation = false) {
+  if (raw == null || raw === "") return { ok:true, targets:Array((options || []).length).fill(null) };
+  let source = raw;
+  if (typeof source === "string") {
+    try { source = JSON.parse(source); } catch (e) {
+      return { ok:false, code:"invalid_option_targets", error:"option_targets debe ser JSON estructurado" };
+    }
+  }
+  if (!Array.isArray(source) || source.length !== (options || []).length) {
+    return { ok:false, code:"invalid_option_targets", error:"option_targets debe alinearse exactamente con options" };
+  }
+  const targets = [], seen = new Set();
+  for (let index = 0; index < source.length; index++) {
+    const entry = source[index];
+    if (entry == null || entry === "") { targets.push(null); continue; }
+    if (continuation || typeof entry !== "object" || Array.isArray(entry)) {
+      return { ok:false, code:"invalid_option_targets", error:"cada referencia inicial debe ser null o {target_mission_id}" };
+    }
+    const keys = Object.keys(entry);
+    const id = String(entry.target_mission_id || "").trim();
+    if (keys.length !== 1 || keys[0] !== "target_mission_id" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(id)) {
+      return { ok:false, code:"invalid_option_target", error:"target_mission_id exacto requerido" };
+    }
+    // Las opciones 4/5 son controles, nunca trabajo enlazable.
+    if (index > 2 || seen.has(id)) {
+      return { ok:false, code:"ambiguous_option_target", error:"cada mejora debe referenciar como máximo una misión canónica distinta" };
+    }
+    seen.add(id); targets.push({ target_mission_id:id });
+  }
+  return { ok:true, targets };
+}
+__name(normalizeDecisionOptionTargets, "normalizeDecisionOptionTargets");
+async function validateDecisionOptionTargets(env, targets, projectId, batchId = "") {
+  for (const targetRef of (targets || []).filter(Boolean)) {
+    const targetId = targetRef.target_mission_id;
+    const target = await env.DB.prepare(
+      "SELECT id,status,project,project_id,assignee,loc,source FROM tickets WHERE id=?"
+    ).bind(targetId).first();
+    if (!target) return { ok:false, status:400, code:"invalid_option_target", error:"target_mission_id no existe: " + targetId };
+    if (target.status === "cancelled" || target.status === "resolved") {
+      return { ok:false, status:409, code:"option_target_closed", error:"la misión referenciada ya está cerrada: " + targetId };
+    }
+    if (String(target.project_id || target.project || "") !== String(projectId || "")) {
+      return { ok:false, status:400, code:"option_target_project_mismatch", error:"la misión referenciada pertenece a otro proyecto" };
+    }
+    const linked = await env.DB.prepare(
+      "SELECT batch_id FROM mission_batch_items WHERE (target_mission_id=? OR mission_id=?) AND status='active' AND batch_id!=? LIMIT 1"
+    ).bind(targetId, targetId, batchId || "").first();
+    if (linked) return { ok:false, status:409, code:"option_target_already_active", error:"la misión referenciada ya está activa en otra tanda" };
+  }
+  return { ok:true };
+}
+__name(validateDecisionOptionTargets, "validateDecisionOptionTargets");
 function continuationMissionOrder(options, chosen, queuedItems) {
   if (!Array.isArray(queuedItems) || !isContinuationMissionDecision(options, { parent_decision: "linked" })) return [];
   const byTitle = new Map();
@@ -1700,7 +1765,7 @@ async function missionBatchSnapshot(env, batchId) {
   const batch = await env.DB.prepare("SELECT * FROM mission_batches WHERE id=?").bind(batchId).first();
   if (!batch) return null;
   const { results } = await env.DB.prepare(
-    "SELECT batch_id,position,option_index,title,mission_id,status,created_at,updated_at FROM mission_batch_items WHERE batch_id=? ORDER BY position"
+    "SELECT batch_id,position,option_index,title,mission_id,target_mission_id,status,created_at,updated_at FROM mission_batch_items WHERE batch_id=? ORDER BY position"
   ).bind(batchId).all();
   return { ...batch, items: results || [] };
 }
@@ -1731,7 +1796,7 @@ async function missionBatchSnapshots(env, batchIds) {
     `SELECT * FROM mission_batches WHERE id IN (${ph})`
   );
   const items = await selectIn(env, ids, (ph) =>
-    `SELECT batch_id,position,option_index,title,mission_id,status,created_at,updated_at
+    `SELECT batch_id,position,option_index,title,mission_id,target_mission_id,status,created_at,updated_at
      FROM mission_batch_items WHERE batch_id IN (${ph}) ORDER BY batch_id,position`
   );
   const byBatch = new Map();
@@ -1794,6 +1859,158 @@ async function completeBatchMissionAndAwaitContinuation(env, batchId, missionId)
   return missionBatchSnapshot(env, batchId);
 }
 __name(completeBatchMissionAndAwaitContinuation, "completeBatchMissionAndAwaitContinuation");
+async function reconcileBatchTargetMission(env, targetMissionId) {
+  const targetId = String(targetMissionId || "").trim().slice(0, 120);
+  if (!targetId) return { ok:false, code:"target_mission_required", applied:false };
+  const links = (await env.DB.prepare(
+    "SELECT i.*,b.decision_id,b.project_id,b.status AS batch_status,b.active_mission_id " +
+    "FROM mission_batch_items i JOIN mission_batches b ON b.id=i.batch_id " +
+    "WHERE i.target_mission_id=? AND i.status='active'"
+  ).bind(targetId).all()).results || [];
+  if (!links.length) return { ok:true, target_mission_id:targetId, applied:false, linked:false };
+  if (links.length !== 1) {
+    for (const link of links) await pauseMissionBatch(env, link.batch_id, "Referencia canónica ambigua: enlazada a más de una tanda activa.");
+    return { ok:false, code:"target_mission_ambiguous", target_mission_id:targetId, applied:false };
+  }
+  const link = links[0];
+  if (link.active_mission_id !== targetId || link.mission_id !== targetId) {
+    await pauseMissionBatch(env, link.batch_id, "Referencia canónica incoherente con active_mission_id.");
+    return { ok:false, code:"target_mission_inconsistent", target_mission_id:targetId, applied:false };
+  }
+  const target = await env.DB.prepare("SELECT id,status,project,project_id FROM tickets WHERE id=?").bind(targetId).first();
+  if (!target || String(target.project_id || target.project || "") !== String(link.project_id || "")) {
+    await pauseMissionBatch(env, link.batch_id, "La misión canónica falta o cambió de proyecto.");
+    return { ok:false, code:"invalid_target_mission", target_mission_id:targetId, applied:false };
+  }
+  if (target.status === "cancelled") {
+    await pauseMissionBatch(env, link.batch_id, "La misión canónica adoptada fue cancelada.");
+    return { ok:false, code:"target_mission_cancelled", target_mission_id:targetId, applied:false };
+  }
+  if (target.status !== "resolved") {
+    return { ok:true, target_mission_id:targetId, batch_id:link.batch_id, applied:false, linked:true, status:target.status };
+  }
+  const now = Date.now();
+  await env.DB.batch([
+    env.DB.prepare(
+      "UPDATE mission_batch_items SET status='completed',updated_at=? WHERE batch_id=? AND target_mission_id=? AND mission_id=? AND status='active'"
+    ).bind(now, link.batch_id, targetId, targetId),
+    env.DB.prepare(
+      "UPDATE mission_batches SET active_mission_id=NULL,updated_at=? WHERE id=? AND active_mission_id=?"
+    ).bind(now, link.batch_id, targetId)
+  ]);
+  const remaining = await reconcileQueuedBatchItems(env, link.batch_id);
+  if (!remaining.length) {
+    await env.DB.prepare(
+      "UPDATE mission_batches SET status='completed',pause_reason=NULL,active_mission_id=NULL,updated_at=? WHERE id=?"
+    ).bind(Date.now(), link.batch_id).run();
+  } else {
+    await env.DB.prepare(
+      "UPDATE mission_batches SET status='awaiting_continuation',pause_reason=?,active_mission_id=NULL,updated_at=? WHERE id=?"
+    ).bind("La misión canónica terminó; esperando una nueva decisión con el trabajo restante.", Date.now(), link.batch_id).run();
+  }
+  return { ok:true, target_mission_id:targetId, batch_id:link.batch_id, applied:true, linked:true,
+    batch:await missionBatchSnapshot(env, link.batch_id) };
+}
+__name(reconcileBatchTargetMission, "reconcileBatchTargetMission");
+async function reconcileBatchTargetMissions(env) {
+  const rows = (await env.DB.prepare(
+    "SELECT DISTINCT target_mission_id FROM mission_batch_items WHERE status='active' AND target_mission_id IS NOT NULL AND target_mission_id!=''"
+  ).all()).results || [];
+  const results = [];
+  for (const row of rows) results.push(await reconcileBatchTargetMission(env, row.target_mission_id));
+  return { ok:results.every((row) => row.ok), checked:results.length, results };
+}
+__name(reconcileBatchTargetMissions, "reconcileBatchTargetMissions");
+async function adoptBatchTargetMission(env, body) {
+  const batchId = String(body && body.batch_id || "").trim().slice(0, 120);
+  const decisionId = String(body && body.decision_id || "").trim().slice(0, 120);
+  const containerId = String(body && body.container_mission_id || "").trim().slice(0, 120);
+  const targetId = String(body && body.target_mission_id || "").trim().slice(0, 120);
+  const owner = String(body && (body.owner || body.by) || "").trim().slice(0, 80);
+  if (!batchId || !decisionId || !containerId || !targetId || !owner || containerId === targetId) {
+    return { ok:false, status:400, code:"exact_reconciliation_context_required",
+      error:"decision_id, batch_id, container_mission_id, target_mission_id y owner exactos requeridos" };
+  }
+  const batch = await env.DB.prepare("SELECT * FROM mission_batches WHERE id=?").bind(batchId).first();
+  if (!batch || batch.decision_id !== decisionId) {
+    return { ok:false, status:400, code:"invalid_decision_context", error:"decision_id no corresponde al batch_id" };
+  }
+  const target = await env.DB.prepare(
+    "SELECT id,status,project,project_id FROM tickets WHERE id=?"
+  ).bind(targetId).first();
+  if (!target || target.status === "cancelled") {
+    return { ok:false, status:409, code:"invalid_target_mission", error:"target_mission_id no es adoptable" };
+  }
+  if (String(target.project_id || target.project || "") !== String(batch.project_id || "")) {
+    return { ok:false, status:400, code:"option_target_project_mismatch", error:"target_mission_id pertenece a otro proyecto" };
+  }
+  const container = await env.DB.prepare(
+    "SELECT id,status,source,screen,assignee,loc,project,project_id,closure_reason FROM tickets WHERE id=?"
+  ).bind(containerId).first();
+  if (!container) return { ok:false, status:404, code:"invalid_container_mission", error:"container_mission_id no existe" };
+  const actor = validateMissionActor(container, owner);
+  if (!actor.ok) return { ok:false, status:403, code:"owner_mismatch", error:actor.error || "owner no autorizado" };
+  if (container.source !== "decision-batch" || container.screen !== "decision-batch:" + decisionId ||
+      String(container.project_id || container.project || "") !== String(batch.project_id || "")) {
+    return { ok:false, status:409, code:"invalid_container_mission", error:"el contenedor no pertenece canónicamente a esa decisión" };
+  }
+  let item = await env.DB.prepare(
+    "SELECT * FROM mission_batch_items WHERE batch_id=? AND (mission_id=? OR target_mission_id=?) LIMIT 1"
+  ).bind(batchId, containerId, targetId).first();
+  if (item && item.target_mission_id === targetId && item.mission_id === targetId) {
+    if (container.status !== "cancelled" || container.closure_reason !== "equivalent_mission") {
+      return { ok:false, status:409, code:"invalid_reconciliation_history",
+        error:"el contenedor no conserva la sustitución canónica exacta" };
+    }
+    const reconciled = await reconcileBatchTargetMission(env, targetId);
+    return { ok:reconciled.ok, adopted:false, idempotent:true, container_mission_id:containerId,
+      target_mission_id:targetId, batch_id:batchId, reconciliation:reconciled };
+  }
+  if (!item || item.status !== "active" || item.mission_id !== containerId || batch.status !== "active" || batch.active_mission_id !== containerId) {
+    return { ok:false, status:409, code:"container_not_active", error:"el contenedor no es la misión activa exacta de la tanda" };
+  }
+  if (container.status === "resolved" || container.status === "cancelled") {
+    return { ok:false, status:409, code:"container_closed", error:"el contenedor ya está cerrado y no puede sustituirse" };
+  }
+  const linked = await env.DB.prepare(
+    "SELECT batch_id FROM mission_batch_items WHERE (target_mission_id=? OR mission_id=?) AND status='active' AND batch_id!=? LIMIT 1"
+  ).bind(targetId, targetId, batchId).first();
+  if (linked) return { ok:false, status:409, code:"target_mission_ambiguous", error:"target_mission_id ya está activa en otra tanda" };
+  const now = Date.now();
+  const audit = "Sustituida por misión canónica " + targetId + " mediante referencia estructurada; sin crédito duplicado.";
+  const targetLog = "Adoptada por tanda " + decisionId + " como trabajo canónico equivalente a " + containerId + ".";
+  const writes = await env.DB.batch([
+    env.DB.prepare(
+      "UPDATE tickets SET status='cancelled',closure_reason='equivalent_mission',closed_at=?,resolved_at=NULL,note=?,updated_at=? " +
+      "WHERE id=? AND source='decision-batch' AND status NOT IN ('resolved','cancelled')"
+    ).bind(now, audit, now, containerId),
+    env.DB.prepare(
+      "UPDATE mission_batch_items SET mission_id=?,target_mission_id=?,status='active',updated_at=? " +
+      "WHERE batch_id=? AND mission_id=? AND status='active' AND EXISTS " +
+      "(SELECT 1 FROM tickets WHERE id=? AND status='cancelled' AND closure_reason='equivalent_mission')"
+    ).bind(targetId, targetId, now, batchId, containerId, containerId),
+    env.DB.prepare(
+      "UPDATE mission_batches SET active_mission_id=?,updated_at=? WHERE id=? AND status='active' AND active_mission_id=? " +
+      "AND EXISTS (SELECT 1 FROM mission_batch_items WHERE batch_id=? AND mission_id=? AND target_mission_id=? AND status='active')"
+    ).bind(targetId, now, batchId, containerId, batchId, targetId, targetId)
+  ]);
+  const applied = writes && writes.slice(0,3).every((row) => Number(row && row.meta && row.meta.changes || 0) === 1);
+  if (!applied) return { ok:false, status:409, code:"reconciliation_race", error:"el contexto cambió durante la adopción; no se enlazó" };
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)")
+      .bind(containerId, now, "status", actor.actor, audit),
+    env.DB.prepare(
+      "INSERT INTO events(ticket_id,ts,kind,author,text) SELECT ?,?,'log',?,? WHERE NOT EXISTS " +
+      "(SELECT 1 FROM events WHERE ticket_id=? AND kind='log' AND text=?)"
+    ).bind(targetId, now, actor.actor, targetLog, targetId, targetLog),
+    env.DB.prepare(MISSION_NOVELTY_INSERT_SQL)
+      .bind(missionNoveltyEventKey(targetId), decisionId, batchId, targetId)
+  ]);
+  const reconciled = await reconcileBatchTargetMission(env, targetId);
+  return { ok:reconciled.ok, adopted:true, idempotent:false, container_mission_id:containerId,
+    target_mission_id:targetId, batch_id:batchId, reconciliation:reconciled };
+}
+__name(adoptBatchTargetMission, "adoptBatchTargetMission");
 async function requeuePristineBatchMission(env, missionId) {
   const row = await env.DB.prepare(
     "SELECT i.batch_id,i.position,i.status AS item_status,b.status AS batch_status,b.active_mission_id," +
@@ -1913,6 +2130,51 @@ async function activateNextMissionBatchItem(env, batchId, triggerDecisionId) {
   });
   if (!projectContext.ok) return projectContext;
   const logText = "Misión activada desde la cola " + batch.decision_id + ". Requiere evidencia y aceptación del Agente antes de avanzar.";
+  if (next.target_mission_id) {
+    const targetId = String(next.target_mission_id);
+    const target = await env.DB.prepare(
+      "SELECT id,status,project,project_id FROM tickets WHERE id=?"
+    ).bind(targetId).first();
+    const invalid = !target || target.status === "cancelled" ||
+      String(target.project_id || target.project || "") !== String(projectContext.project_id || "");
+    if (invalid) {
+      const paused = await pauseMissionBatch(env, batchId, "Referencia canónica inválida o ambigua; requiere revisión explícita.");
+      return { ok:false, status:409, code:"invalid_target_mission", error:"target_mission_id ya no es adoptable", batch:paused };
+    }
+    const linked = await env.DB.prepare(
+      "SELECT batch_id FROM mission_batch_items WHERE (target_mission_id=? OR mission_id=?) AND status='active' AND batch_id!=? LIMIT 1"
+    ).bind(targetId, targetId, batchId).first();
+    if (linked) {
+      const paused = await pauseMissionBatch(env, batchId, "La misión canónica ya está activa en otra tanda.");
+      return { ok:false, status:409, code:"target_mission_ambiguous", error:"target_mission_id ya está enlazada", batch:paused };
+    }
+    const resolved = target.status === "resolved";
+    const targetLog = "Tanda " + batch.decision_id + " enlazada por target_mission_id; no se crea contenedor duplicado.";
+    const adopted = await env.DB.batch([
+      env.DB.prepare(
+        "UPDATE mission_batch_items SET mission_id=?,target_mission_id=?,status=?,updated_at=? WHERE batch_id=? AND position=? AND status='queued' " +
+        "AND EXISTS (SELECT 1 FROM tickets WHERE id=? AND status!='cancelled' AND COALESCE(project_id,project,'')=?)"
+      ).bind(targetId, targetId, resolved ? "completed" : "active", now, batchId, next.position, targetId, projectContext.project_id),
+      env.DB.prepare(
+        "UPDATE mission_batches SET status=?,pause_reason=NULL,active_mission_id=?,updated_at=? WHERE id=? AND status='active' " +
+        "AND EXISTS (SELECT 1 FROM mission_batch_items WHERE batch_id=? AND mission_id=? AND target_mission_id=?)"
+      ).bind(resolved ? "completed" : "active", resolved ? null : targetId, now, batchId, batchId, targetId, targetId)
+    ]);
+    const linkedNow = adopted && adopted.slice(0,2).every((row) => Number(row && row.meta && row.meta.changes || 0) === 1);
+    if (!linkedNow) {
+      const paused = await pauseMissionBatch(env, batchId, "La misión canónica cambió durante la adopción; requiere revisión.");
+      return { ok:false, status:409, code:"target_mission_race", error:"target_mission_id cambió durante la adopción", batch:paused };
+    }
+    await env.DB.batch([
+      env.DB.prepare(MISSION_NOVELTY_INSERT_SQL)
+        .bind(missionNoveltyEventKey(targetId), noveltyDecisionId, batchId, targetId),
+      env.DB.prepare(
+        "INSERT INTO events(ticket_id,ts,kind,author,text) SELECT ?,?,'log','Agente',? " +
+        "WHERE NOT EXISTS (SELECT 1 FROM events WHERE ticket_id=? AND kind='log' AND text=?)"
+      ).bind(targetId, now, targetLog, targetId, targetLog)
+    ]);
+    return missionBatchSnapshot(env, batchId);
+  }
   const atomic = [
     env.DB.prepare(
       "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,project_inherited,project_inherited_from,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
@@ -1953,6 +2215,8 @@ async function ensureMissionBatchFromDecision(env, decision) {
   if ((isInitialMissionDecision(options) && effective === 3) ||
       (isContinuationMissionDecision(options, decision) && effective === options.length - 1)) return null;
   const continuation = isContinuationMissionDecision(options, decision);
+  const targetContract = normalizeDecisionOptionTargets(decision.option_targets, options, continuation);
+  if (!targetContract.ok) return { ...targetContract, status:400 };
   const batchId = continuation ? String(decision.batch_id || "") : batchIdForDecision(decision.id);
   const now = Date.now();
   const projectContext = await resolveCreationProject(env, {
@@ -1960,6 +2224,11 @@ async function ensureMissionBatchFromDecision(env, decision) {
     agent:decision.agent, machine:decision.machine
   });
   if (!projectContext.ok) return projectContext;
+  const validTargets = await validateDecisionOptionTargets(env, targetContract.targets, projectContext.project_id, batchId);
+  // Una referencia pudo cerrarse entre publicar y elegir; esa carrera es válida
+  // y la resuelve activateNextMissionBatchItem. Sólo fallan aquí referencias
+  // inexistentes, cruzadas o enlazadas a otra tanda.
+  if (!validTargets.ok && validTargets.code !== "option_target_closed") return validTargets;
   if (continuation) {
     const batch = batchId && await env.DB.prepare("SELECT id,status,active_mission_id FROM mission_batches WHERE id=?").bind(batchId).first();
     if (!batch) return missionBatchSnapshot(env, batchId);
@@ -1994,9 +2263,11 @@ async function ensureMissionBatchFromDecision(env, decision) {
   const existing = await env.DB.prepare("SELECT 1 AS x FROM mission_batch_items WHERE batch_id=? LIMIT 1").bind(batchId).first();
   if (!existing) {
     for (const item of orderedMissionOptions(options, effective)) {
+      const targetMissionId = targetContract.targets[item.option_index] &&
+        targetContract.targets[item.option_index].target_mission_id || null;
       await env.DB.prepare(
-        "INSERT INTO mission_batch_items(batch_id,position,option_index,title,status,created_at,updated_at) VALUES(?,?,?,?, 'queued',?,?)"
-      ).bind(batchId, item.position, item.option_index, item.title, now, now).run();
+        "INSERT INTO mission_batch_items(batch_id,position,option_index,title,target_mission_id,status,created_at,updated_at) VALUES(?,?,?,?,?, 'queued',?,?)"
+      ).bind(batchId, item.position, item.option_index, item.title, targetMissionId, now, now).run();
     }
   }
   return activateNextMissionBatchItem(env, batchId, decision.id);
@@ -2109,6 +2380,10 @@ async function openInitialMissionDecision(env, input) {
   const assignment = await exactDecisionProjectAssignment(env, identity.agent, identity.machine, requestedProjectId);
   const projectContext = resolveDecisionProject({ ...input, agent: identity.agent, machine: identity.machine }, assignment, null);
   if (!projectContext.ok) return { ok: false, status: 400, code: "exact_project_required", error: projectContext.error };
+  const targetContract = normalizeDecisionOptionTargets(input.option_targets, opts, false);
+  if (!targetContract.ok) return { ...targetContract, status:400 };
+  const validTargets = await validateDecisionOptionTargets(env, targetContract.targets, projectContext.project_id);
+  if (!validTargets.ok) return validTargets;
   const mins = Math.min(DECISION_MIN_MAX, Math.max(1, +input.minutes || DECISION_MIN_DEFAULT));
   const now = Date.now();
   const agent = projectContext.agent, machine = projectContext.machine;
@@ -2139,11 +2414,11 @@ async function openInitialMissionDecision(env, input) {
   }
   const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
   await backfillTodayDisplayRefs(env, now);
-  await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?)")
+  await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id,option_targets) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?,?)")
     .bind(id, machine, agent, String(input.surface || "").slice(0, 20), q, JSON.stringify(opts),
           Math.max(0, Math.min(2, +input.recommended || 0)), now, now + mins * 60000,
           String(input.url || "").slice(0, 300), String(input.mission || "").slice(0, 120),
-          projectContext.project_id, projectContext.project_slug, "", "").run();
+          projectContext.project_id, projectContext.project_slug, "", "", JSON.stringify(targetContract.targets)).run();
   const display_ref = await ensureEntityDisplayRef(env, "window", id, now);
   return { ok: true, id, deadline: now + mins * 60000, project: projectContext.project,
            project_id: projectContext.project_id, project_slug: projectContext.project_slug, display_ref };
@@ -4859,6 +5134,15 @@ var index_default = {
       if (!result.ok) return json(result, result.status || 409);
       return json(result);
     }
+    // Enlace tardío y explícito cuando el trabajo real nació después del
+    // contenedor sintético. No compara títulos: exige las cuatro llaves de la
+    // cadena DEC→BATCH→contenedor→misión canónica y la firma del dueño.
+    if (url.pathname === "/fleet/batch/adopt" && req.method === "POST") {
+      await ensureSchema(env);
+      let b; try { b = await req.json(); } catch { return json({ ok:false, error:"bad json" }, 400); }
+      const result = await adoptBatchTargetMission(env, b);
+      return json(result, result.ok ? 200 : (result.status || 409));
+    }
     // VÍA PARA AGENTES (sin gate Google): deja el INFORME del InfraAgente en yokup, para
     // que aparezca en /informes. Cierra la doctrina «toda tarea acaba en un informe».
     // Se guarda como una mission_task 'done' (code z1) con el report. Acepta FLT-<id> o el
@@ -4909,20 +5193,28 @@ var index_default = {
             env.DB.prepare("UPDATE mission_tasks SET status='done',updated_at=? WHERE mission_id=? AND code!='z1'").bind(now,mid),
             env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid,now,"log",owner,"📝 Informe standalone recuperado: "+report.slice(0,240))
           ]);
-          let batch;
-          try { batch = await acceptBatchInformeClosure(env,t,mid,owner,report); }
+          let batch, targetBatch;
+          try {
+            batch = await acceptBatchInformeClosure(env,t,mid,owner,report);
+            targetBatch = await reconcileBatchTargetMission(env,mid);
+            if (!targetBatch.ok) throw new Error(targetBatch.code || "target_batch_reconcile_failed");
+          }
           catch (e) { return json({ok:false,code:"closure_partial",mission:mid,resolved:false,local_resolved:true,proof_saved:true,inbox_updated:true,batch_updated:false,sync_required:true,proof_image:rawImage},502); }
-          return json({ok:true,mission:mid,resolved:true,resumed:true,repaired_standalone:true,inbox_updated:true,proof_image:rawImage,batch});
+          return json({ok:true,mission:mid,resolved:true,resumed:true,repaired_standalone:true,inbox_updated:true,proof_image:rawImage,batch,target_batch:targetBatch});
         }
         const sameClosure = t.proof_kind === "final" && t.proof_image === rawImage && previous &&
           previous.owner === owner && previous.report === report && previous.image === rawImage && previous.image_kind === "final";
         if (!sameClosure) return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada y sólo admite reintentar exactamente el mismo cierre", status: t.status, applied: false }, 409);
         const inbox = await notifyFleetInformeClosure(env, t, mid, owner, report, rawImage, runtime, host);
         if (!inbox.updated) return json({ ok: false, code: "closure_partial", mission: mid, resolved: false, local_resolved: true, proof_saved: true, inbox_updated: false, sync_required: true, proof_image: rawImage }, 502);
-        let batch;
-        try { batch = await acceptBatchInformeClosure(env, t, mid, owner, report); }
+        let batch, targetBatch;
+        try {
+          batch = await acceptBatchInformeClosure(env, t, mid, owner, report);
+          targetBatch = await reconcileBatchTargetMission(env, mid);
+          if (!targetBatch.ok) throw new Error(targetBatch.code || "target_batch_reconcile_failed");
+        }
         catch (e) { return json({ ok: false, code: "closure_partial", mission: mid, resolved: false, local_resolved: true, proof_saved: true, inbox_updated: inbox.updated, batch_updated: false, sync_required: true, proof_image: rawImage }, 502); }
-        return json({ ok: true, mission: mid, resolved: true, resumed: true, inbox_updated: inbox.updated, proof_image: rawImage, batch });
+        return json({ ok: true, mission: mid, resolved: true, resumed: true, inbox_updated: inbox.updated, proof_image: rawImage, batch, target_batch:targetBatch });
       }
       // Sólo después de autorizar al actor se toca una URL remota. Una cadena con
       // aspecto de imagen no vale: R2 se verifica por objeto y las externas por CT.
@@ -4950,10 +5242,14 @@ var index_default = {
       ]);
       const localResolved = !!(writes && writes[1] && writes[1].meta && Number(writes[1].meta.changes) > 0);
       if (!localResolved) return json({ ok: false, code: "closure_partial", mission: mid, resolved: false, local_resolved: false, proof_saved: false, inbox_updated: inbox.updated, sync_required: true, proof_image: null }, 502);
-      let batch;
-      try { batch = await acceptBatchInformeClosure(env, t, mid, owner, report); }
+      let batch, targetBatch;
+      try {
+        batch = await acceptBatchInformeClosure(env, t, mid, owner, report);
+        targetBatch = await reconcileBatchTargetMission(env, mid);
+        if (!targetBatch.ok) throw new Error(targetBatch.code || "target_batch_reconcile_failed");
+      }
       catch (e) { return json({ ok: false, code: "closure_partial", mission: mid, resolved: false, local_resolved: true, proof_saved: true, inbox_updated: inbox.updated, batch_updated: false, sync_required: true, proof_image: image }, 502); }
-      return json({ ok: true, mission: mid, resolved: true, cross_signed: false, inbox_updated: inbox.updated, proof_image: image, batch });
+      return json({ ok: true, mission: mid, resolved: true, cross_signed: false, inbox_updated: inbox.updated, proof_image: image, batch, target_batch:targetBatch });
     }
     // CANCELAR una misión: reconocer que NO se hará. No exige pantallazo (no se finge
     // trabajo, se retira). Marca el ticket cancelled + nota, y cancela el encargo del
@@ -5535,6 +5831,7 @@ var index_default = {
         const resolvedAt = status === "resolved" ? now : null;
         const author = String(b.author || "Misiones (bloque)").slice(0, 40);
         const fleetInboxIds = [];
+        const targetBatches = [];
         let updated = 0;
         for (const id of ids) {
           await env.DB.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=? WHERE id=?").bind(status, now, resolvedAt, id).run();
@@ -5542,7 +5839,11 @@ var index_default = {
           // La vía WEB sigue el MISMO criterio que la de agente (FLT-989 b2): al finalizar,
           // la prueba de respaldo asciende por el punto único (arriba ya se exigió, con
           // hasMissionProof, que la haya). Si no, la ficha saldría con el logotipo.
-          if (status === "resolved") await ascendMissionProof(env, id);
+          if (status === "resolved") {
+            await ascendMissionProof(env, id);
+            const targetBatch = await reconcileBatchTargetMission(env, id);
+            targetBatches.push(targetBatch);
+          }
           // Nº de encargo REAL (fleet_ids → screen → FLT): el cambio en bloque tocaba
           // el encargo equivocado tras el reparto anticolisión. (FLT-990 c)
           const iid = await fleetEncargoId(env, id);
@@ -5559,7 +5860,7 @@ var index_default = {
             }));
           } catch (e) {}
         }
-        return json({ ok: true, updated });
+        return json({ ok: true, updated, reconciliation_partial:targetBatches.some((row) => !row.ok), target_batches:targetBatches });
       } catch (e) {
         return json({ error: String(e) }, 500);
       }
@@ -6238,6 +6539,10 @@ var index_default = {
         }
         const projectContext = resolveDecisionProject(decisionInput, assignment, inherited);
         if (!projectContext.ok) return json({ ok: false, error: projectContext.error, code: "exact_project_required" }, 400);
+        const targetContract = normalizeDecisionOptionTargets(b.option_targets, opts, continuation);
+        if (!targetContract.ok) return json(targetContract, 400);
+        const validTargets = await validateDecisionOptionTargets(env, targetContract.targets, projectContext.project_id, dbatch);
+        if (!validTargets.ok) return json(validTargets, validTargets.status || 400);
         const mins = Math.min(DECISION_MIN_MAX, Math.max(1, +b.minutes || DECISION_MIN_DEFAULT));
         const now = Date.now();
         const agent = projectContext.agent;
@@ -6301,11 +6606,11 @@ var index_default = {
         const dmission = String(onIdle ? ONIDLE_MISSION_MARKER : (b.mission || "")).slice(0, 120);
         const dproject = projectContext.project_id;
         const dprojectSlug = projectContext.project_slug;
-        await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?)")
+        await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id,option_targets) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?,?)")
           .bind(id, machine, agent,
                 String(b.surface || "").slice(0, 20), q, JSON.stringify(opts),
                 Math.max(0, Math.min(continuation ? opts.length - 2 : 2, +b.recommended || 0)), now, now + mins * 60000,
-                durl, dmission, dproject, dprojectSlug, dparent, dbatch).run();
+                durl, dmission, dproject, dprojectSlug, dparent, dbatch, JSON.stringify(targetContract.targets)).run();
         const display_ref = await ensureEntityDisplayRef(env, "window", id, now);
         return json({ ok: true, id, display_ref, deadline: now + mins * 60000, project: projectContext.project, project_id: dproject, project_slug: dprojectSlug, parent_decision: dparent, batch_id: dbatch, continuation, user_override: userOverride });
       } catch (e) { return json({ error: String(e) }, 500); }
@@ -6363,13 +6668,14 @@ var index_default = {
         }
         const parsed = (r.results || []).map((d) => {
           let options = []; try { options = JSON.parse(d.options || "[]"); } catch (e) {}
-          return { d, options };
+          const targetContract = normalizeDecisionOptionTargets(d.option_targets, options, !!d.parent_decision);
+          return { d, options, option_targets:targetContract.ok ? targetContract.targets : [] };
         });
         const batchIds = parsed.slice(0, 40)
           .filter(({ d, options }) => isMissionDecision(options, d))
           .map(({ d }) => d.batch_id || batchIdForDecision(d.id));
         const batchMap = await missionBatchSnapshots(env, batchIds);
-        const items = parsed.map(({ d, options: o }, i) => {
+        const items = parsed.map(({ d, options: o, option_targets }, i) => {
           const legacyProject = d.status === "pending" ? (d.project || "")
             : (d.project || misProj[String(d.mission || "").toUpperCase()] || "");
           const resolvedProject = resolveProject(pidxG, legacyProject);
@@ -6378,7 +6684,7 @@ var index_default = {
           const batch = (i < 40 && isMissionDecision(o, d))
             ? (batchMap.get(d.batch_id || batchIdForDecision(d.id)) || null) : null;
           return { id: d.id, machine: d.machine, agent: d.agent, surface: d.surface, question: d.question,
-                   options: o, recommended: d.recommended, status: d.status, chosen: d.chosen,
+                   options: o, option_targets, recommended: d.recommended, status: d.status, chosen: d.chosen,
                    // QUIÉN decidió: lo escribe /decisions/<id>/choose desde siempre,
                    // pero nunca salía por aquí, así que el histórico no podía
                    // distinguir «lo eligió Carlos» de «venció y tiró la recomendada».
@@ -6440,6 +6746,7 @@ var index_default = {
           d = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(id).first();
         }
         let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
+        const targetContract = normalizeDecisionOptionTargets(d.option_targets, o, !!d.parent_decision);
         const now = Date.now();
         const batch = await ensureMissionBatchFromDecision(env, d);
         if (batch && batch.ok === false) return json(batch, batch.status || 400);
@@ -6447,6 +6754,7 @@ var index_default = {
         const pOne = resolveProject(await projectIndex(env), d.project || "");
         const item = { id: d.id, status: d.status,
                       chosen: d.chosen, recommended: d.recommended, options: o,
+                      option_targets:targetContract.ok ? targetContract.targets : [],
                       project: pOne.name, project_id: pOne.id, project_slug: d.project_slug || "", mission: d.mission || "", url: d.url || "",
                       parent_decision: d.parent_decision || "", batch_id: d.batch_id || "",
                       // si venció sin respuesta, el agente tira con la recomendada
@@ -6568,6 +6876,10 @@ var index_default = {
               : await missionBatchSnapshot(env, batchId);
           }
         }
+        let targetBatch = null;
+        if (b.status === "resolved") {
+          targetBatch = await reconcileBatchTargetMission(env, b.id);
+        }
         // Cerrar (o reabrir) a mano una misi\u00f3n de FLOTA baja tambi\u00e9n al encargo.
         {
           const t = current;
@@ -6590,7 +6902,8 @@ var index_default = {
             }
           }
         }
-        return json({ ok: true, batch });
+        return json({ ok: true, batch, target_batch:targetBatch,
+          reconciliation_partial:!!(targetBatch && !targetBatch.ok) });
       } catch (e) {
         return json({ error: String(e) }, 500);
       }

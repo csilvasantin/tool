@@ -11,14 +11,16 @@ const baseBody={
   recommended:0,minutes:5,onidle:true,mission:'OnIdle horario'
 };
 
-function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[]}={}) {
-  const state={missions,tasks,decisions:decisions.map(x=>({...x})),displayRefs:new Map(),nextRef:0};
+function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMissions=[]}={}) {
+  const state={missions,tasks,decisions:decisions.map(x=>({...x})),targetMissions,displayRefs:new Map(),nextRef:0};
   const projects=[{id:'yokup',name:'Yokup',web:'www.yokup.com',status:'activo'}];
   const members=[{project_id:'yokup',kind:'agent',ref:'OraculoMacMini'},{project_id:'yokup',kind:'machine',ref:'admira-macmini'}];
   const stmt=(sql,args=[])=>({
     sql,args,bind(...next){return stmt(sql,next);},
     async first(){
       if (sql.includes("status='pending' AND deadline > ?")) return state.decisions.filter(d=>d.status==='pending'&&d.deadline>args[1]).sort((a,b)=>b.created_at-a.created_at)[0]||null;
+      if (sql==='SELECT id,status,project,project_id,assignee,loc,source FROM tickets WHERE id=?') return state.targetMissions.find(row=>row.id===args[0])||null;
+      if (sql.includes('FROM mission_batch_items WHERE (target_mission_id=? OR mission_id=?)')) return null;
       if (sql.includes('RETURNING next_value-? AS start_seq')) {const start=state.nextRef;state.nextRef+=Number(args[0]);return {start_seq:start};}
       return null;
     },
@@ -36,7 +38,7 @@ function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[]}={}) {
       return {results:[]};
     },
     async run(){
-      if (sql.startsWith('INSERT INTO decisions')) state.decisions.push({id:args[0],machine:args[1],agent:args[2],status:'pending',created_at:args[7],deadline:args[8],mission:args[10],parent_decision:args[13]});
+      if (sql.startsWith('INSERT INTO decisions')) state.decisions.push({id:args[0],machine:args[1],agent:args[2],status:'pending',created_at:args[7],deadline:args[8],mission:args[10],parent_decision:args[13],option_targets:args[15]});
       if (sql.startsWith('INSERT OR IGNORE INTO display_refs')) state.displayRefs.set(args[1],args[5]);
       return {meta:{changes:1}};
     }
@@ -57,6 +59,21 @@ test('OnIdle 1→2 abre inmediatamente tras cerrar la anterior',async()=>{
   const original=Date.now;Date.now=()=>now;
   try {const result=await response(env);assert.equal(result.status,200,JSON.stringify(result.json));assert.equal(result.json.ok,true);}
   finally {Date.now=original;}
+});
+
+test('POST persiste option_targets estructurado y rechaza ids inexistentes antes del INSERT',async()=>{
+  const now=Date.UTC(2026,7,7,10),target={id:'INC-OMPEIL',status:'open',project:'yokup',project_id:'yokup',source:'onidle'};
+  const original=Date.now;Date.now=()=>now;
+  try {
+    let box=decisionEnv({now,targetMissions:[target]});
+    let result=await response(box.env,{...baseBody,option_targets:[{target_mission_id:target.id},null,null,null,null]});
+    assert.equal(result.status,200,JSON.stringify(result.json));
+    assert.deepEqual(JSON.parse(box.state.decisions.at(-1).option_targets),[{target_mission_id:target.id},null,null,null,null]);
+    box=decisionEnv({now});
+    result=await response(box.env,{...baseBody,option_targets:[{target_mission_id:'INC-NO-EXISTE'},null,null,null,null]});
+    assert.equal(result.status,400); assert.equal(result.json.code,'invalid_option_target');
+    assert.equal(box.state.decisions.length,0);
+  } finally {Date.now=original;}
 });
 
 test('OnIdle mantiene bloqueos por decisión viva, misión fresca y tarea fresca',async()=>{

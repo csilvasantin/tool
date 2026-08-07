@@ -36,7 +36,7 @@ test('POST resuelve la intersección canónica agent+machine y falla cerrado', (
 });
 
 test('POST guarda id+slug; GET lista y detalle devuelven nombre, id y slug', () => {
-  assert.match(source, /project,project_slug,parent_decision,batch_id\) VALUES/);
+  assert.match(source, /project,project_slug,parent_decision,batch_id,option_targets\) VALUES/);
   assert.match(source, /project: projectContext\.project, project_id: dproject, project_slug: dprojectSlug/);
   assert.match(source, /project: resolvedProject\.name, project_id: resolvedProject\.id/);
   assert.match(source, /project_slug: d\.project_slug \|\| ""/);

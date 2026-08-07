@@ -83,7 +83,8 @@ test('chosen, back y expiry conservan el desenlace contractual', () => {
 test('parent_decision y batch_id migran, persisten y viajan en GET/POST', () => {
   assert.match(source, /ALTER TABLE decisions ADD COLUMN parent_decision TEXT/);
   assert.match(source, /ALTER TABLE decisions ADD COLUMN batch_id TEXT/);
-  assert.match(source, /project,project_slug,parent_decision,batch_id\) VALUES/);
+  assert.match(source, /ALTER TABLE decisions ADD COLUMN option_targets TEXT/);
+  assert.match(source, /project,project_slug,parent_decision,batch_id,option_targets\) VALUES/);
   assert.match(source, /parent_decision: d\.parent_decision \|\| "", batch_id: d\.batch_id \|\| ""/);
 });
 

@@ -57,15 +57,25 @@ count="$(printf '%s\n' "$options" | awk 'NF{n++} END{print n+0}')"
 [ "$count" -eq 3 ] || { log "hay $count mejoras; hacen falta exactamente 3"; exit 0; }
 
 body="$(printf '%s' "$options" | AG="$AGENT" MQ="$MACHINE" PI="$PROJECT_ID" PJ="$PROJECT" PS="$PROJECT_SLUG" python3 -c '
-import json,os,sys
-ops=[line.strip() for line in sys.stdin.read().splitlines() if line.strip()]
+import json,os,re,sys
+ops=[]; targets=[]
+for line in [x.strip() for x in sys.stdin.read().splitlines() if x.strip()]:
+  if line.startswith("{"):
+    item=json.loads(line)
+    if set(item)-{"title","target_mission_id"} or not str(item.get("title","")).strip(): raise SystemExit(7)
+    target=str(item.get("target_mission_id","")).strip()
+    if target and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,119}",target): raise SystemExit(8)
+    ops.append(str(item["title"]).strip()); targets.append({"target_mission_id":target} if target else None)
+  else:
+    ops.append(line); targets.append(None)
 ops += ["↩ Volver atrás", "✍️ Custom · Escribe la mejora que quieras a mano"]
+targets += [None,None]
 print(json.dumps({"agent":os.environ["AG"],"machine":os.environ["MQ"],
   "project_id":os.environ["PI"],"project":os.environ["PJ"],"project_slug":os.environ["PS"],
   "surface":"admiranext","minutes":5,
   "mission":"OnIdle horario","onidle":True,"recommended":0,
-  "question":"Ventana OnIDLE: elige una mejora.","options":ops},ensure_ascii=False))
-')"
+  "question":"Ventana OnIDLE: elige una mejora.","options":ops,"option_targets":targets},ensure_ascii=False))
+')" || { log "opciones estructuradas inválidas; no abro ventana"; exit 0; }
 
 if [ "${ONIDLE_DRY_RUN:-0}" = "1" ]; then printf '%s\n' "$body"; exit 0; fi
 

@@ -28,6 +28,10 @@ function harness() {
       if (sql === "SELECT id,decision_id,agent,machine,project_id FROM mission_batches WHERE id=?") {const b=state.batches.get(args[0]);return b&&{id:b.id,decision_id:b.decision_id,agent:b.agent,machine:b.machine,project_id:b.project_id};}
       if (sql.includes("SELECT 1 AS x FROM mission_batch_items")) return state.items.some(row=>row.batch_id===args[0])?{x:1}:null;
       if (sql.includes("FROM mission_batch_items WHERE batch_id=? AND status='active'")) return state.items.find(row=>row.batch_id===args[0]&&row.status==="active")||null;
+      if (sql.includes("FROM mission_batch_items WHERE batch_id=? AND (mission_id=? OR target_mission_id=?)"))
+        return state.items.find(row=>row.batch_id===args[0]&&(row.mission_id===args[1]||row.target_mission_id===args[2]))||null;
+      if (sql.includes("FROM mission_batch_items WHERE (target_mission_id=? OR mission_id=?)") && sql.includes("batch_id!=?"))
+        return state.items.find(row=>row.status==="active"&&row.batch_id!==args[2]&&(row.target_mission_id===args[0]||row.mission_id===args[1]))||null;
       if (sql === "SELECT mission_id FROM fleet_ids WHERE inbox_id=?") return state.fleetIds.has(args[0])?{mission_id:state.fleetIds.get(args[0])}:null;
       if (sql.includes("FROM tickets WHERE id=?")) return state.tickets.find(row=>row.id===args.at(-1))||null;
       if (sql.includes("SELECT MAX(")) return {mx:0};
@@ -43,7 +47,9 @@ function harness() {
       if (sql.includes("SELECT entity_type,entity_key,display_ref FROM display_refs")) {
         const type=args[0]; return {results:args.slice(1).flatMap(key=>state.refs.has(type+":"+key)?[{entity_type:type,entity_key:key,display_ref:state.refs.get(type+":"+key)}]:[])};
       }
-      if (sql.includes("FROM mission_batch_items i LEFT JOIN tickets")) return {results:state.items.filter(row=>row.batch_id===args[0]&&row.status==="queued").sort((a,b)=>a.position-b.position).map(row=>({...row,ticket_status:null}))};
+      if (sql.includes("FROM mission_batch_items i JOIN mission_batches") && sql.includes("i.target_mission_id=?")) return {results:state.items.filter(row=>row.target_mission_id===args[0]&&row.status==="active").map(row=>({...row,decision_id:state.batches.get(row.batch_id)?.decision_id,project_id:state.batches.get(row.batch_id)?.project_id,batch_status:state.batches.get(row.batch_id)?.status,active_mission_id:state.batches.get(row.batch_id)?.active_mission_id}))};
+      if (sql.includes("SELECT DISTINCT target_mission_id FROM mission_batch_items")) return {results:[...new Set(state.items.filter(row=>row.status==="active"&&row.target_mission_id).map(row=>row.target_mission_id))].map(target_mission_id=>({target_mission_id}))};
+      if (sql.includes("FROM mission_batch_items i LEFT JOIN tickets")) return {results:state.items.filter(row=>row.batch_id===args[0]&&row.status==="queued").sort((a,b)=>a.position-b.position).map(row=>({...row,ticket_status:state.tickets.find(ticket=>ticket.id===row.mission_id)?.status||null}))};
       if (sql.includes("FROM mission_batch_items WHERE batch_id=? ORDER BY position")) return {results:state.items.filter(row=>row.batch_id===args[0]).sort((a,b)=>a.position-b.position)};
       return { results:[] };
     },
@@ -65,10 +71,22 @@ function harness() {
     if (sql.startsWith("UPDATE decisions SET status='expired'")) {const d=state.decisions.get(args[0]);if(d&&d.status==="pending")d.status="expired";}
     if (sql.startsWith("UPDATE decisions SET batch_id=")) state.decisions.get(args[1]).batch_id=args[0];
     if (sql.startsWith("INSERT OR IGNORE INTO mission_batches")) state.batches.set(args[0],{id:args[0],decision_id:args[1],agent:args[2],machine:args[3],project_id:args[4],status:"active",active_mission_id:null});
-    if (sql.startsWith("INSERT INTO mission_batch_items")) state.items.push({batch_id:args[0],position:args[1],option_index:args[2],title:args[3],status:"queued",mission_id:null});
+    if (sql.startsWith("INSERT INTO mission_batch_items")) {
+      const cols=sql.slice(sql.indexOf("(")+1,sql.indexOf(")")).split(",");
+      const row=Object.fromEntries(cols.map((col,i)=>[col,args[i]]));
+      state.items.push({...row,status:"queued",mission_id:null});
+    }
     if (sql.startsWith("UPDATE mission_batch_items SET position=?")) {const row=state.items.find(x=>x.batch_id===args.at(-2)&&x.position===args.at(-1));if(row)row.position=args[0];}
-    if (sql.startsWith("UPDATE mission_batch_items SET mission_id=")) {const row=state.items.find(x=>x.batch_id===args[2]&&x.position===args[3]);Object.assign(row,{mission_id:args[0],status:"active"});}
-    if (sql.startsWith("UPDATE mission_batches SET active_mission_id=")) state.batches.get(args[2]).active_mission_id=args[0];
+    if (sql.startsWith("UPDATE mission_batch_items SET mission_id=?,target_mission_id=?,status=?")) {const row=state.items.find(x=>x.batch_id===args[4]&&x.position===args[5]);if(row)Object.assign(row,{mission_id:args[0],target_mission_id:args[1],status:args[2]});}
+    else if (sql.startsWith("UPDATE mission_batch_items SET mission_id=?,target_mission_id=?,status='active'")) {const row=state.items.find(x=>x.batch_id===args[3]&&x.mission_id===args[4]);if(row)Object.assign(row,{mission_id:args[0],target_mission_id:args[1],status:"active"});}
+    else if (sql.startsWith("UPDATE mission_batch_items SET mission_id=")) {const row=state.items.find(x=>x.batch_id===args[2]&&x.position===args[3]);if(row)Object.assign(row,{mission_id:args[0],status:"active"});}
+    if (sql.startsWith("UPDATE mission_batch_items SET status='completed'")) {const row=state.items.find(x=>x.batch_id===args[1]&&x.target_mission_id===args[2]&&x.mission_id===args[3]&&x.status==="active");if(row)row.status="completed";}
+    if (sql.startsWith("UPDATE mission_batches SET status=?,pause_reason=NULL,active_mission_id=")) {const row=state.batches.get(args[3]);if(row)Object.assign(row,{status:args[0],active_mission_id:args[1]});}
+    else if (sql.startsWith("UPDATE mission_batches SET active_mission_id=NULL")) {const row=state.batches.get(args[1]);if(row&&row.active_mission_id===args[2])row.active_mission_id=null;}
+    else if (sql.startsWith("UPDATE mission_batches SET active_mission_id=")) state.batches.get(args[2]).active_mission_id=args[0];
+    if (sql.startsWith("UPDATE mission_batches SET status='completed'")) {const row=state.batches.get(args.at(-1));if(row)Object.assign(row,{status:"completed",active_mission_id:null});}
+    if (sql.startsWith("UPDATE mission_batches SET status='awaiting_continuation'")) {const row=state.batches.get(args.at(-1));if(row)Object.assign(row,{status:"awaiting_continuation",active_mission_id:null});}
+    if (sql.startsWith("UPDATE tickets SET status='cancelled',closure_reason='equivalent_mission'")) {const row=state.tickets.find(x=>x.id===args[3]);if(row)Object.assign(row,{status:"cancelled",closure_reason:"equivalent_mission",note:args[1]});}
     if (sql.startsWith("UPDATE mission_batches SET status='active'")) {const row=state.batches.get(args[1]);if(row&&row.status==="awaiting_continuation")row.status="active";}
   }
   const DB={
@@ -307,6 +325,76 @@ test("POST /decisions/:id/choose hereda el proyecto exacto al batch y al ticket"
   const retry=await worker.fetch(new Request("https://api.yokup.test/decisions/"+id),env,{});
   assert.equal(retry.status,200,await retry.text());
   assert.equal(state.novelties.filter(row=>row.mission_id===ticket.id).length,1,"releer/reintentar no duplica cursor");
+});
+
+test("OnIdle adopta target_mission_id canónico sin crear contenedor MIS duplicado", async()=>{
+  const id="DEC-TARGET-DIRECT", targetId="DCL-CANONICAL";
+  state.tickets.push({id:targetId,status:"in_progress",project:"xpaceos",project_id:"xpaceos",source:"cli-declare",assignee:"OraculoMacMini",loc:"admira-macmini",created_at:Date.now()-1000});
+  state.decisions.set(id,{id,agent:"OraculoMacMini",machine:"admira-macmini",project:"xpaceos",status:"pending",recommended:0,chosen:null,
+    options:JSON.stringify(["Ejecutar misión existente","Alternativa 2","Alternativa 3","↩ Volver atrás","✍️ Custom · Escribe la mejora que quieras a mano"]),
+    option_targets:JSON.stringify([{target_mission_id:targetId},null,null,null,null]),created_at:Date.now(),deadline:Date.now()+300000});
+  const before=state.tickets.filter(row=>row.source==="decision-batch").length;
+  const response=await post("/decisions/"+id+"/choose",{choice:0,by:"Carlos"});
+  assert.equal(response.status,200,await response.text());
+  const batch=[...state.batches.values()].find(row=>row.decision_id===id);
+  const item=state.items.find(row=>row.batch_id===batch.id);
+  assert.equal(item.mission_id,targetId); assert.equal(item.target_mission_id,targetId); assert.equal(item.status,"active");
+  assert.equal(batch.active_mission_id,targetId);
+  assert.equal(state.tickets.filter(row=>row.source==="decision-batch").length,before,"no nace MIS sintética");
+});
+
+test("OnIdle falla cerrado si target_mission_id cruza de proyecto", async()=>{
+  const id="DEC-TARGET-CROSS", targetId="DCL-FOREIGN-PROJECT";
+  state.tickets.push({id:targetId,status:"in_progress",project:"otro",project_id:"otro",source:"cli-declare",assignee:"OraculoMacMini",loc:"admira-macmini"});
+  state.decisions.set(id,{id,agent:"OraculoMacMini",machine:"admira-macmini",project:"xpaceos",status:"pending",recommended:0,chosen:null,
+    options:JSON.stringify(["No adoptar","Alternativa 2","Alternativa 3","↩ Volver atrás","✍️ Custom · Escribe la mejora que quieras a mano"]),
+    option_targets:JSON.stringify([{target_mission_id:targetId},null,null,null,null]),created_at:Date.now(),deadline:Date.now()+300000});
+  const before=state.tickets.length;
+  const response=await post("/decisions/"+id+"/choose",{choice:0,by:"Carlos"}), result=await response.json();
+  assert.equal(response.status,400); assert.equal(result.code,"option_target_project_mismatch");
+  assert.equal(state.tickets.length,before); assert.equal([...state.batches.values()].some(row=>row.decision_id===id),false);
+});
+
+test("OnIdle rechaza referencias duplicadas o colocadas en controles", async()=>{
+  const targetId="DCL-UNIQUE-TARGET";
+  state.tickets.push({id:targetId,status:"in_progress",project:"xpaceos",project_id:"xpaceos",source:"cli-declare",assignee:"OraculoMacMini",loc:"admira-macmini"});
+  for (const [id,targets,code] of [
+    ["DEC-TARGET-DUP",[{target_mission_id:targetId},{target_mission_id:targetId},null,null,null],"ambiguous_option_target"],
+    ["DEC-TARGET-CONTROL",[null,null,null,{target_mission_id:targetId},null],"ambiguous_option_target"]
+  ]) {
+    state.decisions.set(id,{id,agent:"OraculoMacMini",machine:"admira-macmini",project:"xpaceos",status:"pending",recommended:0,chosen:null,
+      options:JSON.stringify(["Uno","Dos","Tres","↩ Volver atrás","✍️ Custom · Escribe la mejora que quieras a mano"]),option_targets:JSON.stringify(targets),created_at:Date.now(),deadline:Date.now()+300000});
+    const response=await post("/decisions/"+id+"/choose",{choice:0,by:"Carlos"}), result=await response.json();
+    assert.equal(response.status,400); assert.equal(result.code,code);
+  }
+});
+
+test("enlace tardío cancela el contenedor, adopta target y converge idempotente al cierre", async()=>{
+  const decisionId="DEC-LATE",batchId="BATCH-DEC-LATE",containerId="MIS-DEC-LATE-01",targetId="DCL-REAL";
+  state.batches.set(batchId,{id:batchId,decision_id:decisionId,agent:"OraculoMacMini",machine:"admira-macmini",project_id:"xpaceos",status:"active",active_mission_id:containerId});
+  state.items.push({batch_id:batchId,position:0,option_index:0,title:"Trabajo real",mission_id:containerId,target_mission_id:null,status:"active"});
+  state.tickets.push(
+    {id:containerId,status:"in_progress",project:"xpaceos",project_id:"xpaceos",source:"decision-batch",screen:"decision-batch:"+decisionId,assignee:"OraculoMacMini",loc:"admira-macmini"},
+    {id:targetId,status:"in_progress",project:"xpaceos",project_id:"xpaceos",source:"cli-declare",screen:"declare:"+targetId,assignee:"OraculoMacMini",loc:"admira-macmini",created_at:Date.now()-1000}
+  );
+  const body={decision_id:decisionId,batch_id:batchId,container_mission_id:containerId,target_mission_id:targetId,owner:"OraculoMacMini"};
+  let response=await post("/fleet/batch/adopt",body), result=await response.json();
+  assert.equal(response.status,200,JSON.stringify(result)); assert.equal(result.adopted,true);
+  assert.equal(state.tickets.find(row=>row.id===containerId).status,"cancelled");
+  assert.equal(state.tickets.find(row=>row.id===containerId).closure_reason,"equivalent_mission");
+  assert.equal(state.items.find(row=>row.batch_id===batchId).mission_id,targetId);
+  assert.equal(state.batches.get(batchId).active_mission_id,targetId);
+  response=await post("/fleet/batch/adopt",body); result=await response.json();
+  assert.equal(response.status,200); assert.equal(result.idempotent,true); assert.equal(result.reconciliation.applied,false);
+  response=await post("/fleet/batch/adopt",{...body,owner:"Intruso"}); result=await response.json();
+  assert.equal(response.status,403); assert.equal(result.code,"owner_mismatch","el retry no omite la firma exacta");
+  response=await post("/fleet/batch/adopt",{...body,container_mission_id:"MIS-WRONG"}); result=await response.json();
+  assert.equal(response.status,404); assert.equal(result.code,"invalid_container_mission","el retry no acepta otro contenedor");
+  state.tickets.find(row=>row.id===targetId).status="resolved";
+  response=await post("/fleet/batch/adopt",body); result=await response.json();
+  assert.equal(response.status,200); assert.equal(result.reconciliation.applied,true);
+  assert.equal(state.items.find(row=>row.batch_id===batchId).status,"completed");
+  assert.equal(state.batches.get(batchId).status,"completed"); assert.equal(state.batches.get(batchId).active_mission_id,null);
 });
 
 test("timeout recomendado materializa misión y cursor por la misma ruta",async()=>{

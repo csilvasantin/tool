@@ -29,6 +29,7 @@ test('script versionado consulta el guard y publica exactamente 3 + atrás + cus
   assert.match(script,/head -3/);
   assert.match(script,/\["↩ Volver atrás", "✍️ Custom · Escribe la mejora que quieras a mano"\]/);
   assert.match(script,/"onidle":True/);
+  assert.match(script,/"option_targets":targets/);
   assert.match(script,/\$\(\(used\+1\)\)\/8/);
   assert.doesNotMatch(script,/head -5/);
 });
@@ -42,7 +43,7 @@ test('el fallo anterior se reproduce como contexto granular ausente',()=>{
   assert.match(source,/code: "exact_project_required"/);
 });
 
-async function dryRun(extra={}) {
+async function dryRun(extra={},optionsText='Mejora uno\nMejora dos\nMejora tres\n') {
   const dir=await mkdtemp(join(tmpdir(),'onidle-project-'));
   const curl=join(dir,'curl'), options=join(dir,'options.txt');
   await writeFile(curl,`#!/bin/sh
@@ -52,7 +53,7 @@ case "$*" in
   *) exit 91 ;;
 esac
 `,{mode:0o755});
-  await writeFile(options,'Mejora uno\nMejora dos\nMejora tres\n');
+  await writeFile(options,optionsText);
   return spawnSync('bash',[new URL('./tools/onidle-hora.sh',import.meta.url).pathname],{
     encoding:'utf8',env:{...process.env,PATH:`${dir}:${process.env.PATH}`,
       ONIDLE_OPTIONS_FILE:options,ONIDLE_DRY_RUN:'1',...extra}
@@ -65,7 +66,20 @@ test('dry-run deriva Yokup/YOKUP y conserva 3 + back + custom sin POST real',asy
   const payload=JSON.parse(result.stdout.trim().split('\n').at(-1));
   assert.deepEqual([payload.project_id,payload.project,payload.project_slug],['yokup','Yokup','YOKUP']);
   assert.deepEqual(payload.options,['Mejora uno','Mejora dos','Mejora tres','↩ Volver atrás','✍️ Custom · Escribe la mejora que quieras a mano']);
+  assert.deepEqual(payload.option_targets,[null,null,null,null,null]);
   assert.equal(payload.onidle,true);
+});
+
+test('dry-run conserva target_mission_id como metadato, separado del título',async()=>{
+  const lines=[
+    JSON.stringify({title:'Resolver la misión real',target_mission_id:'INC-OMPEIL'}),
+    'Mejora libre dos','Mejora libre tres'
+  ].join('\n')+'\n';
+  const result=await dryRun({},lines);
+  assert.equal(result.status,0,result.stderr);
+  const payload=JSON.parse(result.stdout.trim().split('\n').at(-1));
+  assert.equal(payload.options[0],'Resolver la misión real');
+  assert.deepEqual(payload.option_targets,[{target_mission_id:'INC-OMPEIL'},null,null,null,null]);
 });
 
 test('override de nombre o slug inconsistente falla cerrado antes del POST',async()=>{
