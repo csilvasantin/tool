@@ -75,8 +75,8 @@ function standaloneEnv() {
   return {env,state};
 }
 
-function taskRequest(){
-  return new Request('https://api.yokup.com/fleet/task-status',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mission:'FLT-1243',code:'a',status:'done',owner:'SubOraculoMacMini',report:'Tarea verificada',image:FINAL_IMAGE})});
+function taskRequest(overrides={}){
+  return new Request('https://api.yokup.com/fleet/task-status',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mission:'FLT-1243',code:'a',status:'done',owner:'SubOraculoMacMini',report:'Tarea verificada',image:FINAL_IMAGE,...overrides})});
 }
 function informeRequest(){
   return new Request('https://api.yokup.com/fleet/informe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mission:'FLT-1243',owner:'InfraOraculoMacMini',report:'Informe final standalone',image:FINAL_IMAGE,runtime:'Codex',host:'app'})});
@@ -104,7 +104,8 @@ test('standalone converge si task-status A done precede al informe',async()=>{
   await ok(await worker.fetch(taskRequest(),env,{}),'task-status inicial');
   await ok(await worker.fetch(informeRequest(),env,{}),'informe posterior');
   assertCanonical(state);
-  await ok(await worker.fetch(taskRequest(),env,{}),'retry task-status');
+  const retry=await ok(await worker.fetch(taskRequest(),env,{}),'retry task-status');
+  assert.equal(retry.applied,false,'el retry exacto no vuelve a escribir A');
   await ok(await worker.fetch(informeRequest(),env,{}),'retry informe');
   assertCanonical(state);
 });
@@ -115,6 +116,30 @@ test('standalone converge si informe precede a task-status A done',async()=>{
   await ok(await worker.fetch(taskRequest(),env,{}),'task-status posterior');
   assertCanonical(state);
   await ok(await worker.fetch(informeRequest(),env,{}),'retry informe');
-  await ok(await worker.fetch(taskRequest(),env,{}),'retry task-status');
+  const retry=await ok(await worker.fetch(taskRequest(),env,{}),'retry task-status');
+  assert.equal(retry.applied,false,'el retry exacto no vuelve a escribir A');
+  assertCanonical(state);
+});
+
+test('standalone resuelto rechaza cualquier cambio y conserva el cierre',async()=>{
+  const {env,state}=standaloneEnv();
+  await ok(await worker.fetch(taskRequest(),env,{}),'task-status inicial');
+  await ok(await worker.fetch(informeRequest(),env,{}),'informe posterior');
+  assertCanonical(state);
+  const before=structuredClone({ticket:state.ticket,tasks:[...state.tasks.entries()]});
+  for (const [label,overrides] of [
+    ['informe distinto',{report:'Informe de tarea alterado'}],
+    ['prueba distinta',{image:'https://api.yokup.com/media/fleet/otra.png'}],
+    ['estado distinto',{status:'in_progress'}],
+    ['tarea distinta',{code:'b'}],
+    ['responsable distinto',{owner:'InfraOraculoMacMini'}]
+  ]) {
+    const response=await worker.fetch(taskRequest(overrides),env,{});
+    const body=await response.json();
+    assert.equal(response.status,409,label);
+    assert.equal(body.code,'mission_closed',label);
+    assert.equal(body.applied,false,label);
+  }
+  assert.deepEqual({ticket:state.ticket,tasks:[...state.tasks.entries()]},before);
   assertCanonical(state);
 });

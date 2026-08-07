@@ -4915,12 +4915,38 @@ var index_default = {
       const mid = await resolveFleetMissionReference(env, b.mission || b.id);
       const code = String(b.code || "").toLowerCase().trim();
       if (!mid || !validTaskCode(code)) return json({ ok: false, error: "mission y code válidos requeridos" }, 400);
-      const tk = await env.DB.prepare("SELECT id,source,proof_image,status,assignee,loc,created_at,live_shot,live_at,live_kind,live_surface,live_context FROM tickets WHERE id=?").bind(mid).first();
+      const tk = await env.DB.prepare("SELECT id,source,proof_image,status,assignee,loc,created_at,live_shot,live_at,live_kind,live_surface,live_context,role,proof_kind FROM tickets WHERE id=?").bind(mid).first();
       if (!tk) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
       // Igual que informe y progreso: primero identidad, después cualquier write.
       const actor = validateMissionActor(tk, b.owner || b.by);
       if (!actor.ok) return json({ ok: false, code: "owner_mismatch", error: actor.error, expected_assignee: actor.expected, received_owner: actor.actor, mission: mid, code, applied: false }, 403);
-      if (tk.status === "resolved" || tk.status === "cancelled") return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada y sus tareas/pruebas no se sobrescriben", status: tk.status, mission: mid, task_code: code, applied: false }, 409);
+      if (tk.status === "resolved") {
+        // Un standalone puede cerrar canónicamente en cualquiera de los dos órdenes:
+        // informe→A o A→informe. El informe resuelve el ticket y deja A en done,
+        // pero el cliente todavía debe poder converger su reporte/prueba sin reabrir
+        // ni sobrescribir una misión terminal. La excepción es deliberadamente
+        // estrecha: sólo A, done y la MISMA prueba final ya sellada en el ticket.
+        const requestedReport = b.report == null ? "" : String(b.report);
+        const requestedImage = normalizeProofImage(b.image).value;
+        const cur = code === "a"
+          ? await env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first()
+          : null;
+        const compatible = tk.role === "standalone-task" && code === "a" && b.status === "done" &&
+          requestedReport.length > 0 && requestedReport.length <= 2e3 && requestedReport.trim().length > 0 &&
+          tk.proof_kind === "final" && !!tk.proof_image && requestedImage === tk.proof_image && !!cur &&
+          (cur.status === "in_progress" || cur.status === "done") &&
+          (!cur.owner || cur.owner === actor.actor) &&
+          (!cur.report || cur.report === requestedReport) &&
+          (!cur.image || cur.image === requestedImage) &&
+          (!cur.image_kind || cur.image_kind === "final");
+        if (!compatible) return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada y sólo admite la convergencia exacta de A con su prueba final", status: tk.status, mission: mid, task_code: code, applied: false }, 409);
+        const exact = cur.status === "done" && cur.owner === actor.actor &&
+          cur.report === requestedReport && cur.image === requestedImage && cur.image_kind === "final";
+        const row = exact ? cur : await setTaskStatus(env, mid, code, "done", requestedReport, actor.actor, requestedImage, "final");
+        if (!row) return json({ ok: false, error: "no se pudo converger la tarea «a» de " + mid }, 500);
+        return json({ ok: true, task: row, proof: requestedImage, fleet: null, converged: true, resolved: true, applied: !exact });
+      }
+      if (tk.status === "cancelled") return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada y sus tareas/pruebas no se sobrescriben", status: tk.status, mission: mid, task_code: code, applied: false }, 409);
       // 1) La prueba se comprueba después de autorizar al actor y antes de writes.
       let img = null;
       if (b.image != null && String(b.image).trim() !== "") {
