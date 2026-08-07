@@ -48,6 +48,21 @@ test("suma el contrato horario de main/sub/infra por familia y equipo",()=>{
   assert.deepEqual(A.metric(row,"points"),{hour:210,day:480,source:"hourly-metrics",available:true});
 });
 
+test("MorfeoMacMini incorpora las tareas Sub sin duplicar sus métricas base",()=>{
+  const H={period:{timezone:"Europe/Madrid",hour_key:"2026-08-07T07"},scores:[
+    {agent:"MorfeoMacMini",machine:"admira-macmini",metrics:metrics([0,0],[0,5],[3,8],[0,0],[120,360])},
+    {agent:"SubMorfeoMacMini",machine:"MacMini",metrics:metrics([0,0],[0,0],[0,0],[2,2],[30,30])},
+    {agent:"InfraMorfeoMacMini",machine:"Mac Mini",metrics:metrics([0,0],[0,0],[0,0],[0,0],[0,0])}
+  ]};
+  const row={agente:"MorfeoMacMini",base:"Morfeo",suffix:"MacMini",maquinas:["admira-macmini"],
+    objetivos:0,ventanas:5,misiones:8,tareas:2,total:390};
+  const A=api(H);
+  assert.deepEqual(A.metric(row,"windows"),{hour:0,day:5,source:"hourly-metrics",available:true});
+  assert.deepEqual(A.metric(row,"missions"),{hour:3,day:8,source:"hourly-metrics",available:true});
+  assert.deepEqual(A.metric(row,"tasks"),{hour:2,day:2,source:"hourly-metrics",available:true});
+  assert.deepEqual(A.metric(row,"points"),{hour:150,day:390,source:"hourly-metrics",available:true});
+});
+
 test("primera hora activa muestra 210/210 y nunca un guion",()=>{
   const row={agente:"NeoMacMini",total:210,tendenciaDiaria:{state:"initial"}};
   const A=api({scores:[{agent:"NeoMacMini",metrics:metrics([1,1],[1,1],[1,1],[1,1],[210,210])}]});
@@ -86,4 +101,8 @@ test("las cinco columnas usan el mismo renderer hora/día",()=>{
   assert.match(table,/indicadorMetricaHtml\(a,"tasks"\)/);
   assert.match(table,/puntosHtml\(a, progressId\)/);
   assert.match(source,/role="text" aria-label=/);
+  const html=api({scores:[]}).html({agente:"A",total:320},"points");
+  assert.match(html,/>hora<\/span>[\s\S]*>\/<[\s\S]*>320<\/span>[\s\S]*>hoy<\/span>/,
+    "la pareja 0/320 identifica visiblemente qué cifra es hora y cuál es hoy");
+  assert.match(source,/\.score-period\{[^}]*text-transform:uppercase/s);
 });

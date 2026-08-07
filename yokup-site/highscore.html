@@ -342,6 +342,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   font:inherit;font-size:inherit;font-weight:inherit;line-height:inherit;letter-spacing:inherit;
   font-variant-numeric:tabular-nums;white-space:nowrap}
 .score-number,.score-separator{font:inherit;font-size:inherit;font-weight:inherit;line-height:inherit;vertical-align:baseline}
+.score-period{color:var(--mut);font-size:.47em;font-weight:850;line-height:1;letter-spacing:.08em;text-transform:uppercase}
 .score-hour.hour-positive{color:var(--good);text-shadow:0 0 8px rgba(136,255,170,.72)}
 .score-hour.hour-zero{color:var(--accent)}
 .score-separator{color:var(--dim)}
@@ -905,8 +906,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var hourValue=key==="points"?metric.hour:numeroActividad(a,key==="objectives"?"objetivos":key==="windows"?"ventanas":key==="missions"?"misiones":"tareas",metric.hour,label+" en curso");
     return '<span class="score-pair" role="text" aria-label="'+esc(title)+'" title="'+esc(title)+'" data-hour-source="'+esc(metric.source)+'">'+
       '<span class="score-number score-hour '+hourClass+'">'+hourValue+'</span>'+
+      '<span class="score-period" aria-hidden="true">hora</span>'+
       '<span class="score-separator" aria-hidden="true">/</span>' +
-      '<span class="score-number score-day daily-'+esc(state)+'">'+esc(metric.day)+'</span></span>';
+      '<span class="score-number score-day daily-'+esc(state)+'">'+esc(metric.day)+'</span>'+
+      '<span class="score-period" aria-hidden="true">hoy</span></span>';
   }
 
   function parejaPuntosHtml(a) {
