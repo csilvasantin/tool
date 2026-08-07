@@ -107,7 +107,10 @@ validate_desktop_app() {
     codex|codexdesktop)
       expected="Codex Desktop"
       case "$front_name|$front_bundle" in
-        "Codex|com.openai.codex"|"Codex Desktop|com.openai.codex"|"Codex|com.openai.codex.desktop"|"Codex Desktop|com.openai.codex.desktop") return 0 ;;
+        # Algunas versiones de Codex Desktop conservan el nombre de proceso
+        # macOS «ChatGPT». Sólo es Codex si el bundle firmado sigue siendo el
+        # canónico; ChatGPT con cualquier otro bundle permanece rechazado.
+        "ChatGPT|com.openai.codex"|"Codex|com.openai.codex"|"Codex Desktop|com.openai.codex"|"Codex|com.openai.codex.desktop"|"Codex Desktop|com.openai.codex.desktop") return 0 ;;
       esac
       ;;
     claude|claudedesktop)

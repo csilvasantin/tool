@@ -104,6 +104,7 @@ test("cada superficie usa sólo su capturador y falla si no puede validarlo", as
 test("Desktop acepta únicamente Codex y Claude con nombre, bundle y runtime coherentes", async () => {
   for (const accepted of [
     ["Codex", "Codex", "com.openai.codex"],
+    ["Codex", "ChatGPT", "com.openai.codex"],
     ["Codex Desktop", "Codex Desktop", "com.openai.codex.desktop"],
     ["Claude", "Claude", "com.anthropic.claudefordesktop"],
     ["Claude Desktop", "Claude Desktop", "com.anthropic.claudefordesktop"]
@@ -118,6 +119,11 @@ test("Desktop rechaza navegadores, web y apps parecidas indicando la app frontal
     ["Claude", "Firefox", "org.mozilla.firefox"],
     ["Claude", "Google Chrome", "com.google.Chrome"],
     ["Codex", "Codex Web", "com.google.Chrome"],
+    ["Codex", "ChatGPT", "com.openai.chat"],
+    ["Codex", "ChatGPT", "com.openai.chatgpt"],
+    ["Codex", "ChatGPT", "com.example.codex"],
+    ["Claude", "ChatGPT", "com.openai.codex"],
+    ["Codex", "ChatGPT Desktop", "com.openai.codex"],
     ["Claude", "Claude Notes", "com.example.claude-notes"],
     ["Claude", "Codex", "com.openai.codex"]
   ]) {
