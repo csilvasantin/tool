@@ -1,0 +1,120 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import worker from './src/index.js';
+
+const FINAL_IMAGE='https://api.yokup.com/media/fleet/standalone.png';
+
+function standaloneEnv() {
+  const now=Date.now();
+  const state={
+    ticket:{id:'FLT-1243',source:'fleet',role:'standalone-task',status:'in_progress',assignee:'OraculoMacMini',loc:'Mac Mini',screen:'OraculoMacMini·Mac Mini #1243',created_at:now-60_000,
+      proof_image:null,proof_kind:null,live_shot:'https://api.yokup.com/media/fleet/process.png',live_at:now-30_000,live_kind:'process',live_surface:'desktop',live_context:'request'},
+    tasks:new Map([['a',{mission_id:'FLT-1243',code:'a',title:'Tarea standalone',status:'in_progress',owner:'SubOraculoMacMini',report:null,image:null,image_kind:null,created_at:now-60_000,updated_at:now-30_000}]]),
+    events:[],inboxStatus:'in_progress',displayRefs:new Map(),nextRef:0
+  };
+  const stmt=(sql,args=[])=>({
+    sql,args,bind(...next){return stmt(sql,next);},
+    async first(){
+      if (sql.includes('SELECT id,source,proof_image,status,assignee,loc,created_at,live_shot')) return {...state.ticket};
+      if (sql.includes('SELECT id,assignee,loc,status,source,screen,created_at,proof_image,proof_kind')) return {...state.ticket};
+      if (sql.includes('SELECT id,source,status,assignee,loc,screen FROM tickets')) return {...state.ticket};
+      if (sql.includes('SELECT assignee,loc FROM tickets')) return {assignee:state.ticket.assignee,loc:state.ticket.loc};
+      if (sql.includes('SELECT proof_image,proof_kind FROM tickets')) return {proof_image:state.ticket.proof_image,proof_kind:state.ticket.proof_kind};
+      if (sql.includes('SELECT proof_image FROM tickets')) return {proof_image:state.ticket.proof_image};
+      if (sql.includes('SELECT * FROM mission_tasks WHERE mission_id=? AND code=?')) return state.tasks.get(args[1])||null;
+      if (sql.includes("SELECT owner,report,image,image_kind FROM mission_tasks WHERE mission_id=? AND code='z1'")) return state.tasks.get('z1')||null;
+      if (sql.includes("SELECT image FROM mission_tasks WHERE mission_id=? AND image_kind='final'")) return [...state.tasks.values()].reverse().find(x=>x.image_kind==='final'&&x.image)||null;
+      if (sql.includes('SELECT inbox_id FROM fleet_ids')) return {inbox_id:1243};
+      if (sql.includes('SELECT text FROM events')) return state.events.at(-1)||null;
+      if (sql.includes('RETURNING next_value-? AS start_seq')) { const start=state.nextRef; state.nextRef+=Number(args[0]); return {start_seq:start}; }
+      return null;
+    },
+    async all(){
+      if (sql.includes('FROM mission_tasks WHERE mission_id=? ORDER BY code')) return {results:[...state.tasks.values()].map(x=>({...x})).sort((a,b)=>a.code.localeCompare(b.code))};
+      if (sql.includes('SELECT entity_type,entity_key,display_ref FROM display_refs')) {
+        return {results:args.slice(1).flatMap(key=>state.displayRefs.has(key)?[{entity_type:args[0],entity_key:key,display_ref:state.displayRefs.get(key)}]:[])};
+      }
+      if (sql.includes("SELECT 'objective' entity_type")) return {results:[]};
+      return {results:[]};
+    },
+    async run(){
+      if (sql.startsWith('UPDATE mission_tasks SET status=')) {
+        const task=state.tasks.get(args.at(-1));
+        Object.assign(task,{status:args[0],report:args[1],owner:args[2],image:args[3],image_kind:args[4],updated_at:args[9]});
+      } else if (sql.startsWith("UPDATE tickets SET proof_image=?,proof_kind='final'")) {
+        state.ticket.proof_image=args[0]; state.ticket.proof_kind='final';
+      } else if (sql.startsWith('UPDATE tickets SET status=?, updated_at=')) {
+        state.ticket.status=args[0];
+      } else if (sql.startsWith("UPDATE tickets SET proof_image=?")) {
+        state.ticket.proof_image=args[0]; state.ticket.proof_kind='final';
+      } else if (sql.startsWith('INSERT INTO events')) {
+        state.events.push({text:args[4],kind:args[2]});
+      }
+      return {meta:{changes:1}};
+    }
+  });
+  const DB={
+    async exec(){},prepare(sql){return stmt(sql);},
+    async batch(statements){
+      for (const item of statements) {
+        const {sql,args}=item;
+        if (sql.startsWith('INSERT OR IGNORE INTO display_refs')) state.displayRefs.set(args[1],args[5]);
+        else if (sql.startsWith('INSERT INTO mission_tasks')) {
+          state.tasks.set(args[1],{mission_id:args[0],code:args[1],title:args[2],status:'done',owner:args[4],report:args[5],image:args[6],image_kind:args[7],created_at:args[8],updated_at:args[9]});
+        } else if (sql.startsWith("UPDATE tickets SET status='resolved'")) {
+          state.ticket.status='resolved'; state.ticket.proof_image=args[1]; state.ticket.proof_kind='final';
+        } else if (sql.startsWith('INSERT INTO events')) state.events.push({text:args[4],kind:args[2]});
+      }
+      return statements.map(()=>({meta:{changes:1}}));
+    }
+  };
+  const env={DB,MEDIA:{async head(){return {httpMetadata:{contentType:'image/png'}};}},TELEGRAM:{async fetch(request){
+    if (request.url.includes('bulk-status')) state.inboxStatus=(await request.json()).status;
+    return new Response('{}',{status:200});
+  }}};
+  return {env,state};
+}
+
+function taskRequest(){
+  return new Request('https://api.yokup.com/fleet/task-status',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mission:'FLT-1243',code:'a',status:'done',owner:'SubOraculoMacMini',report:'Tarea verificada',image:FINAL_IMAGE})});
+}
+function informeRequest(){
+  return new Request('https://api.yokup.com/fleet/informe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mission:'FLT-1243',owner:'InfraOraculoMacMini',report:'Informe final standalone',image:FINAL_IMAGE,runtime:'Codex',host:'app'})});
+}
+
+function assertCanonical(state){
+  assert.equal(state.tasks.get('a')?.status,'done','A debe quedar done');
+  assert.equal(state.tasks.get('z1')?.status,'done','debe existir z1/informe');
+  assert.equal(state.tasks.get('z1')?.report,'Informe final standalone');
+  assert.equal(state.ticket.status,'resolved');
+  assert.equal(state.ticket.proof_image,FINAL_IMAGE);
+  assert.equal(state.ticket.proof_kind,'final');
+  assert.equal(state.inboxStatus,'done');
+}
+
+async function ok(response,label){
+  const body=await response.json();
+  assert.equal(response.status,200,`${label}: ${JSON.stringify(body)}`);
+  assert.equal(body.ok,true,label);
+  return body;
+}
+
+test('standalone converge si task-status A done precede al informe',async()=>{
+  const {env,state}=standaloneEnv();
+  await ok(await worker.fetch(taskRequest(),env,{}),'task-status inicial');
+  await ok(await worker.fetch(informeRequest(),env,{}),'informe posterior');
+  assertCanonical(state);
+  await ok(await worker.fetch(taskRequest(),env,{}),'retry task-status');
+  await ok(await worker.fetch(informeRequest(),env,{}),'retry informe');
+  assertCanonical(state);
+});
+
+test('standalone converge si informe precede a task-status A done',async()=>{
+  const {env,state}=standaloneEnv();
+  await ok(await worker.fetch(informeRequest(),env,{}),'informe inicial');
+  await ok(await worker.fetch(taskRequest(),env,{}),'task-status posterior');
+  assertCanonical(state);
+  await ok(await worker.fetch(informeRequest(),env,{}),'retry informe');
+  await ok(await worker.fetch(taskRequest(),env,{}),'retry task-status');
+  assertCanonical(state);
+});
