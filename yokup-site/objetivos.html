@@ -519,7 +519,7 @@ function objectiveCountLabel(total){
 
 // ⏳ La idea abrió un reloj de decisión (POST /ideas/decide) y aún no es misión:
 // mientras corre la ventana (o hasta que su tanda materialice la misión) mostramos
-// el enlace a /decisiones en vez del botón «→ misión».
+// el enlace a /decisiones en vez del botón «→ ventana».
 function hasDecision(i){ return !!(i&&i.decision_id)&&i.status!=="mision"&&!i.mission_id; }
 function objectiveProject(i){
   const slug=String(i&&i.project||"").trim(), p=PROJ_BY[slug]||null;
@@ -558,7 +558,7 @@ function objectiveRow(i){
   const cons=isConsejo(i), seatL=i.seat?(SEATLABEL[i.seat]||String(i.seat).toUpperCase()):"Sin consejero";
   const project=objectiveProject(i), planned=i.scheduled_for||ymd(new Date(i.created_at));
   const showDelib=hasReview(i)||st==="estudio";
-  const actionSort=i.mission_id?"misión vinculada":pend?"decisión abierta":st==="eliminada"?"eliminada":isMis?"misión":"convertir en misión";
+  const actionSort=i.mission_id?"misión vinculada":pend?"decisión abierta":st==="eliminada"?"eliminada":isMis?"misión":"abrir ventana de decisión";
   const sort=x=>esc(String(x==null?"":x).toLocaleLowerCase("es"));
   const projectHtml=project.url?'<a class="objective-primary objective-project-link" href="'+esc(project.url)+'" target="_blank" rel="noopener">'+esc(project.name)+'</a>':'<span class="objective-primary">'+esc(project.name)+'</span>';
   return '<div class="objective-grid-row" role="row" data-row-key="'+esc(i.id||workRef(i))+'" data-sort-advisor="'+sort(seatL+" "+(i.author||"anónimo"))+'" data-sort-project="'+sort(project.name+" "+project.slug)+'" data-sort-objective="'+sort(workRef(i)+" "+(i.title||"")+" "+(i.body||""))+'" data-sort-state="'+sort(stateLabel)+'" data-sort-date="'+esc(String(planned||"").replace(/\D/g,""))+'" data-sort-actions="'+sort(actionSort)+'">'+
@@ -571,7 +571,7 @@ function objectiveRow(i){
       (i.mission_id?'<a class="flt" href="/tareas?mission='+encodeURIComponent(i.mission_id)+'" title="Ver misión · ID técnico '+esc(i.mission_id)+'">ver misión ↗</a>':
         (pend?'<a class="flt pend" href="/decisiones" title="Ventana de decisión abierta (3 min)">⏳ decisión ↗</a>':''))+
       (!isMis&&NEXT[st]?'<button data-adv="'+esc(i.id)+'" title="pasar a '+STLABEL[NEXT[st]]+'">→ '+STLABEL[NEXT[st]]+'</button>':'')+
-      (!isMis&&!pend?'<button class="mis" data-mis="'+esc(i.id)+'" title="Abrir ventana de decisión (3 min · 3 opciones)">→ misión</button>':'')+
+      (!isMis&&!pend?'<button class="mis" data-mis="'+esc(i.id)+'" title="Abrir ventana de decisión · 3 consejeros lo miran y salen 3 opciones (3 min). No pasa directo a misión">→ ventana</button>':'')+
       (!isMis&&st!=="descartada"&&st!=="eliminada"?'<button data-del="'+esc(i.id)+'" title="descartar">⊘ descartar</button>':'')+
       (showDelib?'<button class="guion" data-guion="'+esc(i.id)+'" title="Copiar guion (idea + deliberación) para NotebookLM">⧉ guion</button>':'')+
       '<button class="del" data-rm="'+esc(i.id)+'" title="Eliminar para siempre">✕</button></span></div>'+
@@ -680,14 +680,17 @@ async function promote(id){
   const it=IDEAS.find(x=>x.id===id); if(!it) return;
   return decide(id); // la vía canónica hereda el proyecto de la idea por decisión
 }
-// «→ misión»: NO crea ya un FLT a mano. Abre una VENTANA DE DECISIÓN de 3 minutos
-// (POST /ideas/decide) con las 5 mejores opciones para ejecutar la idea. Si nadie
-// elige, el ciclo tira con la más adecuada y materializa la misión. Feedback
-// inmediato + enlace a /decisiones; si ya hay una decisión viva, lo refleja (⏳).
+// «→ ventana»: NO crea un FLT, y tampoco «convierte en misión» — eso era lo que
+// decía el botón y NO es lo que pasa (Carlos, 2026-08-07). Abre una VENTANA DE
+// DECISIÓN (POST /ideas/decide): tres consejeros miran el objetivo, y de esa
+// deliberación salen 3 opciones concretas para ejecutarlo. La misión llega DESPUÉS,
+// con la opción elegida — o con la recomendada si nadie elige antes del plazo.
+// El paso de más es el punto: se trabaja el objetivo en vez de despacharlo.
+// Feedback inmediato + enlace a /decisiones; si ya hay una ventana viva, lo refleja (⏳).
 async function decide(id){
   const it=IDEAS.find(x=>x.id===id); if(!it) return;
   if(it.mission_id||hasDecision(it)) return;   // ya en marcha o ya con ventana viva
-  if(!confirm('¿Convertir en misión?\n\n"'+it.title+'"\n\nSe abre una ventana de decisión de 3 minutos con las 5 mejores opciones para ejecutarla. Si no eliges, se toma la más adecuada.')) return;
+  if(!confirm('¿Abrir ventana de decisión?\n\n"'+it.title+'"\n\nTres consejeros miran el objetivo y proponen 3 opciones para ejecutarlo. Tienes 3 minutos para elegir; si no eliges, se toma la recomendada. La misión sale de esa opción, no de aquí.')) return;
   toast("Abriendo ventana de decisión…");
   try{
     const r=await fetch(WORKER+"/ideas/decide",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
@@ -715,7 +718,7 @@ function autoStop(msg){
   if(AUTO_T){ clearTimeout(AUTO_T); AUTO_T=null; }
   if(AUTO_TICK){ clearInterval(AUTO_TICK); AUTO_TICK=null; }
   const b=$("#genBtn"); if(b){ b.classList.remove("wait"); b.disabled=false; }
-  genLabel("✨ Objetivo nuevo");
+  pintaGenBtn();   // en reposo el botón vuelve a decir cuál de los dos modos hará
   if(msg) toast(msg);
 }
 // El propio botón es la cuenta atrás y el freno: pulsarlo cancela el alta automática.
@@ -733,7 +736,30 @@ function autoStart(){
 // dispara `input`, así que el propio borrador nunca se cancela a sí mismo.
 ["#fTitle","#fBody"].forEach(sel=>{ const el=$(sel); if(el) el.addEventListener("input",()=>{
   if(AUTO_T) autoStop("✍️ El borrador es tuyo — dale a «Añadir objetivo» cuando lo tengas");
+  else pintaGenBtn();   // escribir un titular cambia lo que hará el botón
 }); });
+// LO QUE HAYA ESCRITO MANDA (Carlos, 2026-08-07). Los tres selectores dicen QUÉ
+// pedimos (tipo), A QUIÉN (Consejero) y EN QUÉ PROYECTO, y con eso solo el Consejo
+// inventaba de cero. Pero si ya has escrito un titular —y su detalle— eso es una
+// PETICIÓN, no un hueco que rellenar: va como `topic`, que el worker trata como
+// tema obligatorio («CENTRA tu idea EXCLUSIVAMENTE en este tema»). Sin titular,
+// se sigue creando todo de cero como hasta ahora.
+function peticionEscrita(){
+  const t=($("#fTitle")&&$("#fTitle").value||"").trim();
+  const b=($("#fBody")&&$("#fBody").value||"").trim();
+  if(!t) return "";                       // sin titular no hay petición que respetar
+  return (b?t+" — "+b:t).replace(/\s+/g," ").slice(0,240);   // el worker recorta a 240
+}
+// El botón dice lo que va a hacer: no es lo mismo redactar de cero que desarrollar
+// lo que ya has escrito, y el texto que hay en pantalla se va a sustituir.
+function pintaGenBtn(){
+  const b=$("#genBtn"); if(!b||AUTO_T) return;
+  const hay=!!peticionEscrita();
+  b.textContent=hay?"✨ Desarrollar lo escrito":"✨ Objetivo nuevo";
+  b.title=hay
+    ?"El Consejo desarrolla TU petición como objetivo, dentro del tipo, Consejero y proyecto elegidos; sustituye el texto por el borrador"
+    :"El Consejo redacta un borrador para el proyecto, Consejero y tipo elegidos; sólo los selectores vacíos usan un valor de respaldo";
+}
 async function generate(){
   if(AUTO_T){ autoStop("Reloj parado — el borrador se queda como está"); return; }
   const btn=$("#genBtn"); if(btn){ btn.disabled=true; } genLabel("✨ Generando…");
@@ -741,7 +767,8 @@ async function generate(){
     const seat=($("#fSeat")&&$("#fSeat").value)||"";
     const project_id=($("#fProject")&&$("#fProject").value)||"";
     const tag=($("#fTag")&&$("#fTag").value)||"";
-    const r=await fetch(WORKER+"/ideas/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({project_id,seat,tag,preview:true})});
+    const topic=peticionEscrita();
+    const r=await fetch(WORKER+"/ideas/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({project_id,seat,tag,topic,preview:true})});
     const d=await r.json();
     if(d&&d.ok&&d.idea){
       const it=d.idea;
@@ -766,7 +793,7 @@ async function generate(){
     } else { autoStop(""); toast(d&&d.error?("No salió: "+d.error):"No se pudo generar"); }
   }catch(e){ autoStop(""); toast("Error de red"); }
 }
-if($("#genBtn")) $("#genBtn").addEventListener("click",generate);
+if($("#genBtn")){ $("#genBtn").addEventListener("click",generate); pintaGenBtn(); }
 $("#addForm").addEventListener("submit",async e=>{
   e.preventDefault();
   const title=$("#fTitle").value.trim(); if(!title)return;

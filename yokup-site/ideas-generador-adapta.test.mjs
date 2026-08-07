@@ -71,7 +71,11 @@ test('objetivos.html: generate() pide BORRADOR con project_id, Consejero y tipo 
   assert.ok(OBJ.includes('$("#fSeat")'), 'lee el Consejero');
   assert.ok(OBJ.includes('const project_id=($("#fProject")&&$("#fProject").value)||""'), 'lee project_id exacto');
   assert.ok(OBJ.includes('const tag=($("#fTag")&&$("#fTag").value)||""'), 'lee el tipo exacto');
-  assert.ok(OBJ.includes('body:JSON.stringify({project_id,seat,tag,preview:true})'), 'envía las tres selecciones y preview');
+  // Las tres selecciones siguen viajando exactas; `topic` se les suma cuando hay
+  // un titular escrito, para que el Consejo desarrolle ESA petición en vez de
+  // inventar de cero (Carlos, 2026-08-07).
+  assert.ok(OBJ.includes('body:JSON.stringify({project_id,seat,tag,topic,preview:true})'), 'envía las tres selecciones, la petición y preview');
+  assert.ok(OBJ.includes('const topic=peticionEscrita()'), 'la petición sale de lo que hay escrito');
   assert.ok(OBJ.includes('$("#fSeat").value)||""'), 'un Consejero vacío se declara vacío para el fallback');
 });
 

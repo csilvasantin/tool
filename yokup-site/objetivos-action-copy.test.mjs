@@ -13,9 +13,23 @@ test('objetivos presenta las dos acciones con lenguaje de objetivo', () => {
 });
 
 test('el copy dinámico y el mensaje accesible conservan el lenguaje de objetivo', () => {
-  assert.match(actions, /genLabel\("✨ Objetivo nuevo"\)/);
+  assert.match(actions, /"✨ Objetivo nuevo"/);
   assert.match(actions, /dale a «Añadir objetivo» cuando lo tengas/);
   assert.doesNotMatch(actions, /✨ Idea nueva|Añadir idea/);
+});
+
+// Los tres selectores dicen QUÉ pedimos, A QUIÉN y EN QUÉ PROYECTO. Pero si ya
+// hay un titular escrito, eso es una PETICIÓN: el Consejo se adapta a ella en vez
+// de inventar de cero (Carlos, 2026-08-07).
+test('un titular escrito viaja como tema y el botón anuncia que lo desarrollará', () => {
+  assert.match(source, /function peticionEscrita\(\)/);
+  assert.match(source, /if\(!t\) return "";/, 'sin titular no hay petición que respetar');
+  assert.match(source, /\.slice\(0,240\)/, 'el worker recorta el tema a 240');
+  assert.match(source, /JSON\.stringify\(\{project_id,seat,tag,topic,preview:true\}\)/,
+    'los tres selectores siguen viajando, y ahora también la petición');
+  assert.match(source, /b\.textContent=hay\?"✨ Desarrollar lo escrito":"✨ Objetivo nuevo"/);
+  assert.match(source, /else pintaGenBtn\(\);/, 'escribir cambia lo que el botón promete');
+  assert.match(source, /pintaGenBtn\(\);\s*\/\/ en reposo/, 'y al soltar el reloj vuelve al modo que toque');
 });
 
 test('el cambio de copy no altera orden ni contrato interno del alta', () => {

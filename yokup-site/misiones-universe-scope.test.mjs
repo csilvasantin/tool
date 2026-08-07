@@ -19,26 +19,25 @@ test("/misiones abre por defecto el día actual de Madrid", () => {
     "los chips usan exactamente el mismo día incluso durante rollout legacy");
 });
 
-test("el alcance visible es accesible y conserva acción táctil en móvil", () => {
-  assert.match(html, /id="missionScopeSummary" role="status" aria-live="polite" aria-atomic="true"/);
-  assert.match(html, /aria-label","Filtrar misiones por fecha; sin fecha se muestran todas"/);
-  assert.match(html, /@media\(max-width:560px\)[^{]*\{[^}]*mission-scope-summary/s);
-  assert.match(html, /scope-clear\{min-height:32px\}/);
-  assert.match(html, /clear\.textContent="Ver todas las fechas";clear\.onclick=\(\)=>\{CAB\.setDay\(""\);load\(\);\}/,
-    "el histórico completo sigue siendo una elección explícita");
+// La franja «Tablero · fecha · todos los proyectos · N misiones · M filas
+// agrupadas» se RETIRÓ (Carlos, 2026-08-07: «no pinta nada»). Decía lo que ya
+// dicen el selector de fecha del cabezal, los chips de estado y el propio
+// tablero, y gastaba una línea entera en repetirlo. Lo que NO puede perderse con
+// ella es la salida del filtro de día: sin ninguna forma de volver al histórico,
+// el tablero se quedaría clavado en hoy.
+test("la franja de alcance ya no existe, ni su marcado ni su renderer ni sus estilos", () => {
+  assert.doesNotMatch(html, /missionScopeSummary/, "el elemento se fue");
+  assert.doesNotMatch(html, /paintMissionScope/, "y su renderer, incluida la llamada en load()");
+  assert.doesNotMatch(html, /mission-scope-summary|scope-clear|scope-global/, "y sus estilos, sin reglas huérfanas");
 });
 
-test("el resumen superior elimina la frase técnica y conserva todo su alcance factual", () => {
-  const renderer = html.match(/function paintMissionScope\(day,universe,groupedCount\)\{([\s\S]*?)\n\}/);
-  assert.ok(renderer, "se encontró el renderer del resumen superior");
-  const source = renderer[1];
-  assert.doesNotMatch(source, /Tooltip MISIONES: todo el backlog, sin filtros\./);
-  assert.doesNotMatch(source, /scope-global/, "no queda un contenedor vacío para la frase retirada");
-  assert.match(source, /formatScopeDay\(day\)/, "conserva la fecha visible");
-  assert.match(source, /PROJECT_SCOPE\?\("proyecto "\+PROJECT_SCOPE\):"todos los proyectos"/, "conserva el proyecto visible");
-  assert.match(source, /Number\.isFinite\(total\)\?total:groupedCount/, "conserva el número de misiones");
-  assert.match(source, /groupedCount\+" filas agrupadas"/, "conserva las filas agrupadas cuando difieren");
-  assert.match(source, /clear\.textContent="Ver todas las fechas"/, "conserva la acción de histórico");
+test("quitar la franja no encierra el tablero en el día de hoy", () => {
+  // el filtro sigue siendo el date del cabezal, que ya anuncia que vaciarlo lo quita
+  assert.match(html, /aria-label","Filtrar misiones por fecha; sin fecha se muestran todas"/);
+  assert.match(html, /vac[ií]o = todas las fechas/, "el tooltip del selector explica la salida");
+  // y el vacío no puede seguir mandando a un botón que ya no está
+  assert.doesNotMatch(html, /pulsa «Ver todas las fechas»/, "no se manda a un control retirado");
+  assert.match(html, /vac[ií]a la fecha de arriba para ver todas/, "el vacío dice dónde se quita el filtro");
 });
 
 test("tooltip MISIONES declara y desglosa todo el backlog", () => {

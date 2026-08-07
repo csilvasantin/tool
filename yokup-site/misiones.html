@@ -40,17 +40,10 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 .kpi b{font-size:16px;color:var(--ink)}.kpi.a b{color:var(--mut)}.kpi.b b{color:var(--accent)}.kpi.c b{color:var(--good)}.kpi.v b{color:var(--violet)}.kpi.d b{color:#ff8866}
 .kpi.kdate{color:var(--ink);color-scheme:dark;font-family:var(--mono)}
 .kpi.kdate::-webkit-calendar-picker-indicator{cursor:pointer;filter:invert(.75) sepia(1) saturate(3) hue-rotate(150deg)}
-.mission-scope-summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-3px 0 12px;
-  color:var(--mut);font:600 10.5px/1.5 var(--mono);letter-spacing:.025em}
-.mission-scope-summary b{color:var(--ink)}
-.mission-scope-summary .scope-global{color:var(--dim)}
-.mission-scope-summary .scope-clear{border:1px solid var(--line2);border-radius:999px;padding:5px 9px;
-  background:transparent;color:var(--brand);font:700 9.5px/1 var(--mono);cursor:pointer}
 .mission-policy{flex:1 0 100%;border-top:1px solid var(--line);padding-top:7px;color:var(--dim);
   font:500 10px/1.5 var(--sans)}
 .mission-policy summary{color:var(--mut);font:700 9.5px/1.4 var(--mono);cursor:pointer;list-style-position:inside}
 .mission-policy p{margin:6px 0 0;overflow-wrap:anywhere}
-@media(max-width:560px){.mission-scope-summary{align-items:flex-start;flex-direction:column;gap:5px}.mission-scope-summary .scope-clear{min-height:32px}}
 @media(max-width:560px){.mission-policy summary{min-height:44px;display:flex;align-items:center}.mission-policy p{font-size:11px}}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .tab{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;border-radius:9px;border:1px solid var(--line);color:var(--mut);background:var(--card);cursor:pointer;transition:.2s}
@@ -274,7 +267,12 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
     <div class="flota-list" id="flotaList"><div class="empty2">Cargando flota…</div></div>
   </div>
 
-  <p class="mission-scope-summary" id="missionScopeSummary" role="status" aria-live="polite" aria-atomic="true">Tablero · todas las fechas · cargando universo…</p>
+  <!-- La franja «Tablero · fecha · todos los proyectos · N misiones · M filas
+       agrupadas» se retiró (Carlos, 2026-08-07: «no pinta nada»). Repetía lo que
+       ya dicen el selector de fecha del cabezal, los chips de estado y el propio
+       tablero, y se llevaba una línea entera para hacerlo. El histórico completo
+       se sigue pidiendo vaciando la fecha del cabezal, que ya lo anuncia en su
+       tooltip: «vacío = todas las fechas». -->
   <div class="list" id="list"><div class="empty">Cargando misiones…</div></div>
 
   <!-- Barra de acción en bloque: aparece al seleccionar ≥1 misión (checkbox de la columna ID). -->
@@ -601,12 +599,6 @@ function visibleCountsFallback(rows){
   (rows||[]).forEach(t=>{const key=t.visible_state||byLabel[YkMisiones.estadoDe(t).l];if(Object.prototype.hasOwnProperty.call(out,key))out[key]++;out.total++;});return out;
 }
 function formatScopeDay(day){if(!day)return "todas las fechas";const p=day.split("-");return p.length===3?(p[2]+"/"+p[1]+"/"+p[0]):day;}
-function paintMissionScope(day,universe,groupedCount){
-  const host=$("missionScopeSummary");if(!host)return;
-  const total=Number(universe&&universe.total);host.textContent="";
-  const main=document.createElement("span");main.textContent="Tablero · "+formatScopeDay(day)+" · "+(PROJECT_SCOPE?("proyecto "+PROJECT_SCOPE):"todos los proyectos")+" · "+(Number.isFinite(total)?total:groupedCount)+" misiones"+(Number.isFinite(total)&&total!==groupedCount?" · "+groupedCount+" filas agrupadas":"");host.appendChild(main);
-  if(day){const clear=document.createElement("button");clear.type="button";clear.className="scope-clear";clear.textContent="Ver todas las fechas";clear.onclick=()=>{CAB.setDay("");load();};host.appendChild(clear);}
-}
 async function load(){
   const generation=++LOAD_GENERATION, scopeAtStart=PROJECT_SCOPE;
   const requestedDay=$("selDia")&&$("selDia").value||"";
@@ -668,7 +660,6 @@ async function load(){
   $("kNoCon").textContent=nNoCon;
   $("kRes").textContent=nRes;
   $("kDel").textContent=nDel;
-  paintMissionScope(requestedDay,d.universe||{total:rawTickets.length},tks.length);
   // CASCADA de preselección (Carlos, 21-jul-2026): en la PRIMERA carga, si el usuario
   // no ha elegido filtro, abrir en el primero con misiones en este orden EXACTO:
   // Pendientes → En curso → No concluidas → Finalizadas → Eliminadas
@@ -736,7 +727,7 @@ async function load(){
   if(!list.length){
     el.innerHTML=headHtml()+'<div class="empty" id="missionEmpty"></div>';bindHead(el);wireBulk(el,[]);
     const empty=$("missionEmpty"),stateName={activas:"activas",asignadas:"pendientes",in_progress:"en curso",unconcluded:"no concluidas",resolved:"finalizadas",cancelled:"eliminadas",todas:""}[FILTER]||"";
-    if(empty)empty.textContent="Sin misiones"+(stateName?(" "+stateName):"")+" en "+formatScopeDay(requestedDay)+(PROJECT_SCOPE?(" para "+PROJECT_SCOPE):"")+". "+(requestedDay?"El tooltip MISIONES resume todo el backlog; pulsa «Ver todas las fechas» para quitar este filtro.":"✓");
+    if(empty)empty.textContent="Sin misiones"+(stateName?(" "+stateName):"")+" en "+formatScopeDay(requestedDay)+(PROJECT_SCOPE?(" para "+PROJECT_SCOPE):"")+". "+(requestedDay?"El tooltip MISIONES resume todo el backlog; vacía la fecha de arriba para ver todas.":"✓");
     notifyMissionsRendered([]);return;
   }
   // Progreso por misión: UNA sola petición /tasks/all (no N+1); done/total REALES del

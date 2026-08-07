@@ -6303,7 +6303,19 @@ var index_default = {
         }
         if (!proj) proj = idx.get(DECIDE_FALLBACK_PROJECT);
         if (!proj) return json({ ok: false, error: "falta el proyecto de respaldo censado (yokup-ideas-objetivos)" }, 500);
-        // 3 mejores opciones para EJECUTAR la idea (IA), ordenadas de más a menos adecuada.
+        // PRIMERO MIRAN LOS CONSEJEROS (Carlos, 2026-08-07). generateDecideOptions
+        // alimenta su prompt con la deliberación del Consejo, pero sólo si existe:
+        // un objetivo que nunca pasó por «estudio» llegaba aquí con review a null y
+        // las 3 opciones salían a ciegas, que es justo lo contrario de la idea —
+        // trabajar el objetivo antes de convertirlo en misión. Se genera si falta.
+        // Best-effort: si la IA no da deliberación usable, la ventana se abre igual
+        // (sin ella se decide peor, pero no decidir es peor todavía).
+        if (!idea.review) {
+          try { const r = await generateCouncilReview(env, idea); if (r) idea.review = JSON.stringify(r); }
+          catch (e) { /* la ventana no se cae por una deliberación */ }
+        }
+        // 3 mejores opciones para EJECUTAR la idea (IA), ordenadas de más a menos
+        // adecuada, nacidas de lo que dijeron los consejeros.
         const options = await generateDecideOptions(env, idea, proj.name);
         if (!options) return json({ ok: false, error: "la IA no devolvió 3 opciones usables; reintenta" }, 502);
         const res = await openInitialMissionDecision(env, {
