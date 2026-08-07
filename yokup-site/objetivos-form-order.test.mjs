@@ -12,7 +12,14 @@ test("tipo, consejero y proyecto preceden al título y al detalle", () => {
   assert.ok(positions.every(position => position >= 0), "se conservan todos los controles e ids");
   assert.deepEqual(positions, positions.slice().sort((a, b) => a - b), "el orden semántico coincide con el visual");
   assert.match(form, /<div class="row objective-selectors">[\s\S]*?<select id="fTag"[\s\S]*?<select id="fSeat"[\s\S]*?<select id="fProject"[\s\S]*?<\/div>\s*<div class="hd">/);
-  assert.match(form, /<textarea id="fBody"[\s\S]*?<div class="objective-form-actions">\s*<button type="submit" id="fBtn">Añadir objetivo<\/button>/);
+  // Carlos, 7-ago-2026 (FLT-1266): «el icono de Ideas vaya a la izquierda de
+  // Añadir Objetivo». Lo que este test protege es el ORDEN SEMÁNTICO —primero se
+  // escribe, al final se envía—, no que el submit sea el primer hijo del bloque
+  // de acciones. Se comprueba lo primero, que es lo que de verdad importa.
+  assert.match(form, /<textarea id="fBody"[\s\S]*?<div class="objective-form-actions">[\s\S]*?<button type="submit" id="fBtn">Añadir objetivo<\/button>/);
+  assert.ok(form.indexOf('id="ideaBtn"') < form.indexOf('id="fBtn"'), "Ideas va a la izquierda de Añadir objetivo");
+  assert.ok(form.indexOf('id="ideaUrl"') < form.indexOf('id="fBtn"'), "el campo de URL va antes que Añadir objetivo");
+  assert.ok(form.indexOf('id="ideaBtn"') < form.indexOf('id="ideaUrl"'), "la URL va a la derecha del botón de Ideas");
 });
 
 test("la reorganización conserva botones, flujo y un responsive explícito", () => {
@@ -20,7 +27,7 @@ test("la reorganización conserva botones, flujo y un responsive explícito", ()
   assert.equal((form.match(/id="fBtn"/g) || []).length, 1);
   assert.match(form, /id="genBtn"[^>]*>✨ Objetivo nuevo<\/button>/);
   assert.match(form, /id="fBtn">Añadir objetivo<\/button>/);
-  assert.match(page, /\.objective-form-actions\{flex:1 1 100%;display:flex;justify-content:flex-end\}/);
+  assert.match(page, /\.objective-form-actions\{flex:1 1 100%;display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap\}/);
   assert.match(page, /@media\(max-width:520px\)\{[\s\S]*?\.add \.objective-selectors>select,\.add \.objective-form-actions>#fBtn\{flex:1 1 100%;width:100%;margin-left:0\}/);
 });
 

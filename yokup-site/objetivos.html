@@ -86,7 +86,11 @@
   .add{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 16px 14px;margin-bottom:22px;
     display:flex;flex-wrap:wrap;gap:10px}
   .add .row{flex:1 1 100%;display:flex;gap:10px;flex-wrap:wrap}
-  .objective-form-actions{flex:1 1 100%;display:flex;justify-content:flex-end}
+  .objective-form-actions{flex:1 1 100%;display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap}
+  /* El campo de URL se come el hueco libre para que quepa un enlace largo, pero
+     cede antes que los botones: lo que no puede pasar es que «Añadir objetivo»
+     salte de línea por un enlace de YouTube con parámetros. */
+  .objective-form-actions>#ideaUrl{flex:1 1 220px;min-width:0}
   .add input,.add textarea,.add select{background:#06121a;color:var(--ink);border:1px solid var(--line);border-radius:10px;
     padding:11px 12px;font:14px/1.4 -apple-system,system-ui,sans-serif;outline:none;transition:border-color .15s}
   .add input:focus,.add textarea:focus,.add select:focus{border-color:var(--brand)}
@@ -331,8 +335,10 @@
     </div>
     <textarea id="fBody" maxlength="4000" placeholder="Detalle (opcional): el porqué, cómo, para quién…" aria-label="Detalle del objetivo (opcional)"></textarea>
     <div class="objective-form-actions">
-      <button type="submit" id="fBtn">Añadir objetivo</button>
       <button type="button" id="ideaBtn" class="gen" title="Coge el último vídeo etiquetado #idea en el Stock de Pixeria, lo guioniza y lo deja escrito aquí para que el Consejo pueda ayudarte">💡 Ideas</button>
+      <input id="ideaUrl" type="url" inputmode="url" autocomplete="off" placeholder="…o pega una URL que aún no esté en Pixeria" aria-label="URL de un vídeo para importar a Pixeria y guionizar">
+      <button type="button" id="ideaUrlBtn" class="gen" title="Importa ese vídeo a pixeria.com, lo analiza y lo convierte en guion para rellenar el objetivo">⤵ Importar</button>
+      <button type="submit" id="fBtn">Añadir objetivo</button>
     </div>
   </form>
 
@@ -928,6 +934,63 @@ async function ideaDesdeStock(){
   }
 }
 if($("#ideaBtn")) $("#ideaBtn").addEventListener("click",ideaDesdeStock);
+
+// Idea a partir de una URL que todavía NO está en Pixeria (Carlos, 7-ago-2026 ·
+// FLT-1266). Aquí el progreso SÍ es real: el vídeo se descarga y se sube, y el
+// worker devuelve en qué fase va. Se cuenta lo que de verdad está pasando —y los
+// megas que llevamos— porque una importación puede tardar minutos y un botón mudo
+// durante ese rato parece colgado.
+async function ideaDesdeUrl(){
+  const b=$("#ideaUrlBtn"), campo=$("#ideaUrl");
+  if(!b || b.disabled || !campo) return;
+  const enlace=campo.value.trim();
+  if(!enlace){ toast("Pega primero el enlace de un vídeo"); campo.focus(); return; }
+  const reposo=b.textContent;
+  const paso=t=>{ b.textContent=t; };
+  const fin=(txt,ms)=>{ paso(txt); setTimeout(()=>{ b.textContent=reposo; },ms||4000); };
+  b.disabled=true; b.classList.add("wait");
+  try{
+    paso("🔎 Mirando el enlace…");
+    const r=await fetch(WORKER+"/ideas/desde-url",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:enlace})});
+    const d=await r.json();
+    if(!d||!d.ok){ fin("⚠️ No se pudo",5000); toast((d&&d.detail)||(d&&d.error)||"No se pudo importar ese enlace"); return; }
+    if(d.fuente&&d.fuente.title) toast("⤵ Importando a Pixeria: "+String(d.fuente.title).slice(0,60));
+
+    // Sondeo hasta que Pixeria lo dé por publicado. El tope son 8 minutos, que es
+    // lo que el propio importador se concede antes de rendirse: pasado eso, seguir
+    // preguntando sólo serviría para mentir sobre algo que ya se dio por perdido.
+    const LIMITE=Date.now()+8*60*1000;
+    while(Date.now()<LIMITE){
+      await new Promise(res=>setTimeout(res,3000));
+      const re=await fetch(WORKER+"/ideas/desde-url/estado",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({job:d.job,fuente:d.fuente})});
+      const e=await re.json();
+      if(!e||!e.ok){ fin("⚠️ Falló",6000); toast((e&&e.detail)||"La importación no salió bien"); return; }
+      if(e.listo&&e.idea){
+        $("#fTitle").value=e.idea.title||"";
+        $("#fBody").value=e.idea.body||"";
+        DRAFT=true; campo.value="";
+        fin("✅ Listo");
+        toast("💡 Guionizado desde el vídeo que acabas de importar a Pixeria — repásalo y dale a «Añadir objetivo»");
+        return;
+      }
+      const mb=e.size?(" · "+(e.size/1048576).toFixed(1)+" MB"):"";
+      paso(e.fase==="subiendo"?("⤴ Subiendo a Pixeria…"+mb):("⤵ Descargando…"+mb));
+    }
+    fin("⏱ Tardó demasiado",6000);
+    toast("La importación pasó de 8 minutos. Mira el Stock de Pixeria: puede haber entrado igual.");
+  }catch(e){
+    fin("⚠️ Error de red");
+    toast("No se pudo hablar con el worker");
+  }finally{
+    b.disabled=false; b.classList.remove("wait");
+  }
+}
+if($("#ideaUrlBtn")) $("#ideaUrlBtn").addEventListener("click",ideaDesdeUrl);
+// Enter en el campo importa, y NO envía el formulario: pegar un enlace y darle a
+// Enter es el gesto natural, y sin esto creaba un objetivo vacío.
+if($("#ideaUrl")) $("#ideaUrl").addEventListener("keydown",ev=>{
+  if(ev.key==="Enter"){ ev.preventDefault(); ideaDesdeUrl(); }
+});
 $("#addForm").addEventListener("submit",async e=>{
   e.preventDefault();
   const title=$("#fTitle").value.trim(); if(!title)return;

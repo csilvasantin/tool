@@ -20,14 +20,27 @@ test("el sello de la compilación que corre se captura ANTES de que lo pisen", (
   assert.match(frame, /VERSION = clean;/);
 });
 
-test("se compara lo publicado contra lo que corre, no contra sí mismo", () => {
-  assert.match(frame, /String\(d\.version\)\.trim\(\) !== BUILD_VERSION/);
+// CORREGIDO el 7-ago-2026 (Carlos: «cuando pulso versión nueva · recargar vuelve
+// a salir» · incidencia SVC-5FSKZH). Este test fijaba `d.version !== BUILD_VERSION`,
+// que era precisamente el fallo: enfrentaba el ?v= escrito a mano en cada HTML
+// contra el sello de version.json. Dos fuentes distintas que sólo casan si todos
+// los caminos de publicación las escriben a la vez, y yokup.com se publica por dos
+// que no sellan — así que la condición era cierta SIEMPRE y recargar no la limpiaba.
+// Un test puede fijar un error: lo que se protege ahora es la regla buena.
+test("cada fuente se compara consigo misma a lo largo de la pestaña", () => {
+  assert.match(frame, /if \(SELLO_AL_CARGAR === null\) \{ SELLO_AL_CARGAR = sello; return; \}/);
+  assert.match(frame, /if \(sello !== SELLO_AL_CARGAR\) marcaPestanaCaduca\(sello\)/);
+  assert.doesNotMatch(frame, /!==\s*BUILD_VERSION/, "el ?v= no se enfrenta nunca al sello publicado");
   assert.match(frame, /marcaPestanaCaduca/);
 });
 
-test("no avisa cuando no hay sello que comparar (local, preview)", () => {
-  assert.match(frame, /BUILD_VERSION !== "versión pendiente"/,
-    "sin sellado, avisar sería un falso positivo — justo lo que se quiere evitar");
+test("no avisa cuando no hay nada con que comparar (local, preview)", () => {
+  // La referencia se toma en el primer sondeo y hasta entonces no se dice nada;
+  // si no hay version.json ni ETag, no hay aviso. Sin sellado, cero falsos positivos.
+  assert.match(frame, /var SELLO_AL_CARGAR = null;/);
+  assert.match(frame, /var HUELLA_AL_CARGAR = null;/);
+  assert.match(frame, /if \(HUELLA_AL_CARGAR === null\) \{ HUELLA_AL_CARGAR = h; return; \}/);
+  assert.match(frame, /if \(!h\) return;/, "sin ETag ni Last-Modified no se compara nada");
 });
 
 test("avisa una sola vez y nunca recarga por su cuenta", () => {

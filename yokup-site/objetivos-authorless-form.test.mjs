@@ -10,7 +10,7 @@ const submit=page.slice(page.indexOf('$("#addForm").addEventListener("submit"'),
 test("Objetivos elimina por completo el autor manual",()=>{
   assert.doesNotMatch(form,/fAuthor|Tu nombre|name=["']author/i);
   assert.doesNotMatch(page,/\$\("#fAuthor"\)/);
-  assert.match(form,/<div class="row objective-selectors">\s*<select id="fTag"[\s\S]*<select id="fSeat"[\s\S]*<select id="fProject"[\s\S]*<\/div>[\s\S]*<div class="objective-form-actions">\s*<button type="submit" id="fBtn">/);
+  assert.match(form,/<div class="row objective-selectors">\s*<select id="fTag"[\s\S]*<select id="fSeat"[\s\S]*<select id="fProject"[\s\S]*<\/div>[\s\S]*<div class="objective-form-actions">[\s\S]*<button type="submit" id="fBtn">/);
 });
 
 test("la vista legacy Ideas tampoco permite ni envía un autor manual",()=>{

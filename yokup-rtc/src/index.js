@@ -631,6 +631,13 @@ async function stockIndex() {
   } catch (e) { return []; }
 }
 __name(stockIndex, "stockIndex");
+// El importador de Pixeria vive en el Mac Mini y sale al mundo por el Funnel de
+// Tailscale. Es la MISMA base que usa pixer-eleven; se deja configurable por si
+// el túnel cambia de nombre, para no tener que desplegar el worker por eso.
+function tubeBase(env) {
+  return String((env && env.ADMIRA_TUBE_BASE) || "https://macmini.tail48b61c.ts.net/admira").replace(/\/+$/, "");
+}
+__name(tubeBase, "tubeBase");
 function normalizaEtiqueta(t) {
   // \p{M} = marcas combinantes. Se usa la propiedad Unicode en vez del rango
   // U+0300–U+036F escrito a mano: el fuente queda en ASCII puro y no hay forma
@@ -6768,6 +6775,126 @@ Todo en español.`;
         fuente: { id: fuente.id || "", title: titulo, url: fuente.url || "", thumbnail: fuente.thumbnail || "",
                   createdAt: fuente.createdAt || "", nota },
         total: ideas.length });
+    }
+    // ── IDEA DESDE UNA URL QUE AÚN NO ESTÁ EN PIXERIA ────────────────────────
+    // Carlos, 7-ago-2026 (FLT-1266): «a la derecha del botón de ideas tenemos que
+    // poder pegar una url y que importe el contenido en pixeria.com si es un vídeo
+    // y haga el análisis y la conversión a guion». Es el hermano de /ideas/desde-stock:
+    // mismo destino —titular + desarrollo escritos en el formulario— pero partiendo
+    // de algo que todavía no existe en el Stock.
+    //
+    // Va en DOS PASOS a propósito. Importar un vídeo lleva de treinta segundos a
+    // varios minutos, y un worker no puede sostener una petición así: se cortaría
+    // sola y el usuario no sabría si el vídeo entró o no. Este paso arranca la
+    // importación y devuelve el job; /ideas/desde-url/estado la sigue. De paso, es
+    // lo que permite contar por dónde va, que es lo que Carlos pidió para el botón.
+    if (url.pathname === "/ideas/desde-url" && req.method === "POST") {
+      let p = {}; try { p = await req.json(); } catch (e) { p = {}; }
+      const enlace = String((p && p.url) || "").trim();
+      if (!enlace) return json({ ok: false, error: "sin-url", detail: "Pega un enlace." }, 400);
+      let host = "";
+      try { host = new URL(enlace).hostname.toLowerCase(); }
+      catch (e) { return json({ ok: false, error: "url-invalida", detail: "Eso no es un enlace válido." }, 400); }
+
+      const base = tubeBase(env);
+      // Primero se pregunta QUÉ es. Si el proxy no lo reconoce como vídeo
+      // importable, se dice ya —antes de arrancar una descarga que va a fallar—.
+      let meta = null;
+      try {
+        const rm = await fetch(base + "/tube/meta", { method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: enlace }) });
+        meta = rm.ok ? await rm.json() : null;
+        if (!rm.ok) {
+          const t = await rm.text().catch(() => "");
+          return json({ ok: false, error: "no-es-video",
+            detail: "Ese enlace no es un vídeo que Pixeria sepa importar (" + (t.slice(0, 120) || rm.status) + ")." }, 422);
+        }
+      } catch (e) {
+        return json({ ok: false, error: "proxy-caido",
+          detail: "No contesta el importador de Pixeria. Mira que el proxy del Mac Mini esté vivo." }, 502);
+      }
+      // La duración manda igual que en la formación de consejeros: piezas cortas.
+      // No se rechaza, se avisa — la idea puede estar en el primer minuto.
+      const largo = meta && Number.isFinite(meta.duration) ? meta.duration : null;
+
+      let jobId = "";
+      try {
+        const ri = await fetch(base + "/tube/import-to-stock", { method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: enlace, format: "video",
+            // La etiqueta deja el vídeo localizable después en el Stock: entró por
+            // aquí, y quien lo mire mañana sabrá por qué está.
+            comment: "#idea importado desde yokup.com/objetivos" }) });
+        if (!ri.ok) {
+          const t = await ri.text().catch(() => "");
+          return json({ ok: false, error: "importacion-rechazada",
+            detail: "Pixeria rechazó la importación: " + (t.slice(0, 160) || ri.status) }, 502);
+        }
+        const pl = await ri.json().catch(() => null);
+        jobId = pl && pl.jobId ? String(pl.jobId) : "";
+      } catch (e) {
+        return json({ ok: false, error: "proxy-caido", detail: "Se cayó el importador al arrancar la descarga." }, 502);
+      }
+      if (!jobId) return json({ ok: false, error: "sin-job", detail: "El importador no devolvió trabajo que seguir." }, 502);
+
+      return json({ ok: true, job: jobId, fase: "importando",
+        fuente: { url: enlace, host, title: (meta && meta.title) || "", duration: largo,
+                  description: (meta && meta.description) || "" } });
+    }
+    // Segundo paso: se pregunta por el job hasta que Pixeria lo dé por publicado y
+    // sólo entonces se guioniza. El guion se escribe con lo que el vídeo dice de sí
+    // mismo (título y descripción, que vienen del primer paso), no con la URL pelada.
+    if (url.pathname === "/ideas/desde-url/estado" && req.method === "POST") {
+      let p = {}; try { p = await req.json(); } catch (e) { p = {}; }
+      const job = String((p && p.job) || "").trim();
+      if (!job) return json({ ok: false, error: "sin-job" }, 400);
+      const fuente = (p && p.fuente) || {};
+
+      let st = null;
+      try {
+        const rs = await fetch(tubeBase(env) + "/tube/status?id=" + encodeURIComponent(job));
+        // Un 404 aquí es ambiguo: o el job nunca existió, o ya se limpió tras
+        // publicar. El proxy lo conserva 90 s justo para no confundir las dos cosas,
+        // así que si no está, se dice que se perdió y no se inventa un final feliz.
+        if (rs.status === 404) return json({ ok: false, error: "job-perdido",
+          detail: "El importador ya no sabe de esa descarga. Vuelve a pegar el enlace." }, 404);
+        st = await rs.json().catch(() => null);
+      } catch (e) {
+        return json({ ok: false, error: "proxy-caido", detail: "Se perdió el contacto con el importador." }, 502);
+      }
+      const estado = String((st && st.state) || "").toLowerCase();
+      if (estado === "error") return json({ ok: false, error: "importacion-fallida",
+        detail: String((st && st.error) || "La descarga falló.").slice(0, 300) }, 502);
+      if (estado !== "published") {
+        return json({ ok: true, listo: false, fase: estado === "done" ? "subiendo" : "descargando",
+          size: (st && st.size) || 0, title: (st && st.title) || "" });
+      }
+
+      const titulo = String((st && st.title) || fuente.title || "").trim();
+      const desc = String(fuente.description || "").trim();
+      if (!titulo && !desc) return json({ ok: false, error: "video-mudo",
+        detail: "El vídeo entró en Pixeria pero no trae ni título ni descripción: no hay nada que guionizar." }, 422);
+
+      const prompt = `Carlos ha pegado el enlace de un vídeo para convertirlo en un objetivo. Ya está importado en el Stock de Pixeria.
+
+TÍTULO DEL VÍDEO: ${titulo || "(sin título)"}
+LO QUE EL VÍDEO CUENTA DE SÍ MISMO: ${desc ? desc.slice(0, 2000) : "(sin descripción)"}
+ENLACE: ${String(fuente.url || "")}
+
+Conviértelo en un objetivo accionable para AdmiraNeXT —ecosistema de señalización digital hecho por agentes de IA: yokup.com gestiona misiones, pixeria.com produce contenido, admira.tv emite y admira.live es el Consejo—, para que el Consejo pueda deliberarlo y ayudarle a hacerlo realidad.
+
+Esto es material AJENO: la idea es qué hacer NOSOTROS con lo que ahí se cuenta, no un resumen del vídeo. No inventes datos que el vídeo no dé.
+Si con el título y la descripción no hay suficiente para saber qué hacer, dilo en el cuerpo en vez de rellenar con humo.
+
+Responde SOLO con un objeto JSON válido, sin texto alrededor ni markdown:
+{"titulo":"<la idea en una frase, máx 90 caracteres>","cuerpo":"<2 o 3 frases: el porqué, el cómo y para quién>"}
+Todo en español.`;
+      const raw = await aiRunRaw(env, prompt, 400);
+      const { title, body } = parseIdeaJSON(raw);
+      if (!title) return json({ ok: false, error: "sin-redaccion", detail: "El motor no devolvió un borrador legible." }, 502);
+      return json({ ok: true, listo: true, idea: { title, body },
+        fuente: { url: String(fuente.url || ""), title: titulo,
+                  assetId: (st && st.assetId) || "", assetUrl: (st && st.assetUrl) || "" } });
     }
     if (url.pathname === "/ideas/generate" && req.method === "POST") {
       try {

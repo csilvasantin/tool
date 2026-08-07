@@ -1055,11 +1055,51 @@
     var b = el("button", "yk-stale",
       '<span aria-hidden="true">⟳</span> VERSIÓN NUEVA · RECARGAR');
     b.type = "button";
-    b.title = "Esta pestaña ejecuta la versión " + BUILD_VERSION + " y en producción ya está la " +
-              publicada + ". Los datos se refrescan, el código no: recarga para verlos bien.";
+    b.title = "Se ha publicado algo desde que abriste esta pestaña (ahora en producción: " +
+              publicada + "). Los datos se refrescan, el código no: recarga para verlos bien.";
     b.setAttribute("aria-live", "polite");
     b.addEventListener("click", function () { location.reload(); });
     bar.appendChild(b);
+  }
+
+  // NUNCA se comparan dos fuentes distintas (Carlos, 7-ago-2026: «cuando pulso
+  // versión nueva · recargar vuelve a salir» · incidencia SVC-5FSKZH).
+  //
+  // Antes esto contrastaba BUILD_VERSION —el ?v= con el que se cargó este
+  // fichero— contra el sello de /version.json. Son dos cosas que sólo casan si
+  // TODOS los caminos de publicación las escriben a la vez, y no es el caso:
+  // yokup.com se publica por dos vías (build automático de git y wrangler
+  // directo) y ninguna pasa por el sellador, así que en producción el ?v= valía
+  // r31 en /objetivos, v.2026.08.02.224605 en /misiones y v.2026.08.02.202305
+  // en /highscore, mientras version.json seguía en su baseline del 3-ago. La
+  // condición era verdadera SIEMPRE: el aviso salía en cada carga y recargar no
+  // lo quitaba, porque el ?v= del HTML no cambia al recargar.
+  //
+  // Y un aviso que salta siempre es peor que no tenerlo: el día que de verdad
+  // haya versión nueva, nadie le hará caso.
+  //
+  // Ahora cada fuente se compara CONSIGO MISMA a lo largo del tiempo:
+  //   · el sello publicado, contra el que se leyó al cargar esta pestaña;
+  //   · la huella (ETag) del propio yk-frame.js, contra la de su carga.
+  // Así recargar siempre limpia el aviso —la referencia se toma de nuevo—, y
+  // basta con que UNA de las dos se mueva para avisar: el ETag detecta un
+  // despliegue aunque el sello esté congelado, y el sello lo detecta aunque un
+  // intermediario sirva el mismo ETag. Sin sellado no hay falso positivo: si no
+  // hay nada con que comparar, no se dice nada.
+  var SELLO_AL_CARGAR = null;   // se fija en el primer sondeo
+  var HUELLA_AL_CARGAR = null;
+
+  function vigilaHuellaDelFrame() {
+    if (!FRAME_SRC) return;
+    window.fetch(FRAME_SRC, { method:"HEAD", cache:"no-store" })
+      .then(function (r) {
+        if (!r.ok) return;
+        var h = r.headers.get("etag") || r.headers.get("last-modified");
+        if (!h) return;
+        if (HUELLA_AL_CARGAR === null) { HUELLA_AL_CARGAR = h; return; }
+        if (h !== HUELLA_AL_CARGAR) marcaPestanaCaduca(VERSION);
+      })
+      .catch(function () {});
   }
 
   function refreshPublicVersion() {
@@ -1069,14 +1109,18 @@
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         if (!d || !d.version) return;
-        paintPublicVersion(d.version);
-        // «versión pendiente» = servido fuera del sellado (local, preview). Ahí
-        // no hay nada que comparar y avisar sería un falso positivo.
-        if (BUILD_VERSION && BUILD_VERSION !== "versión pendiente" &&
-            String(d.version).trim() !== BUILD_VERSION) marcaPestanaCaduca(String(d.version).trim());
+        var sello = String(d.version).trim();
+        paintPublicVersion(sello);
+        if (SELLO_AL_CARGAR === null) { SELLO_AL_CARGAR = sello; return; }
+        if (sello !== SELLO_AL_CARGAR) marcaPestanaCaduca(sello);
       })
       .catch(function () {});
+    vigilaHuellaDelFrame();
   }
+  // El primer sondeo va nada más cargar y sólo TOMA LA REFERENCIA: es lo que
+  // hace que recargar limpie el aviso. Si se dejara para el sondeo de los 2 min,
+  // la pestaña pasaría ese rato sin nada con que comparar.
+  refreshPublicVersion();
   // Cada 2 min basta: es una cortesía, no un latido. Y al volver a la pestaña,
   // que es justo cuando se mira una que llevaba horas abierta.
   window.setInterval(refreshPublicVersion, 120000);
