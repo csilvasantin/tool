@@ -3,13 +3,15 @@ import assert from "node:assert/strict";
 import worker from "./src/index.js";
 
 function harness() {
-  const state = { tickets:[], refs:new Map(), fleetIds:new Map(), decisions:new Map(), batches:new Map(), items:[], novelties:[], nextNoveltyCursor:1, atomicBatches:[], allowDeclaration:false, allowInherited:false, batchCalls:0, ticketBatches:0 };
+  const state = { tickets:[], refs:new Map(), fleetIds:new Map(), decisions:new Map(), batches:new Map(), items:[], novelties:[], nextNoveltyCursor:1, atomicBatches:[], allowDeclaration:false, allowInherited:false, batchCalls:0, ticketBatches:0,
+    projects:[{id:"xpaceos",name:"XpaceOS",status:"activo"}],
+    members:[{project_id:"xpaceos",kind:"agent",ref:"OraculoMacMini"},{project_id:"xpaceos",kind:"machine",ref:"admira-macmini"}] };
   const statement = (sql, args=[]) => ({
     sql, args, bind(...next) { return statement(sql, next); },
     async first() {
       if (sql === "SELECT id FROM tickets WHERE screen=? AND status!='resolved'") return null;
       if (sql === "SELECT id,name,status FROM projects WHERE id=?")
-        return args[0] === "xpaceos" ? { id:"xpaceos", name:"XpaceOS", status:"activo" } : null;
+        return state.projects.find(project=>project.id===args[0])||null;
       // La declaración de OTRO día (ORDER BY d.day DESC) es la herencia; la de hoy
       // se distingue por no llevarlo. Dos interruptores separados para poder probar
       // el caso real: sin declaración de hoy, pero con una anterior.
@@ -36,11 +38,8 @@ function harness() {
       return null;
     },
     async all() {
-      if (sql === "SELECT * FROM projects") return {results:[{id:"xpaceos",name:"XpaceOS",status:"activo"}]};
-      if (sql === "SELECT project_id,kind,ref FROM project_members") return {results:[
-        {project_id:"xpaceos",kind:"agent",ref:"OraculoMacMini"},
-        {project_id:"xpaceos",kind:"machine",ref:"admira-macmini"}
-      ]};
+      if (sql === "SELECT * FROM projects") return {results:state.projects};
+      if (sql === "SELECT project_id,kind,ref FROM project_members") return {results:state.members};
       if (sql.includes("SELECT entity_type,entity_key,display_ref FROM display_refs")) {
         const type=args[0]; return {results:args.slice(1).flatMap(key=>state.refs.has(type+":"+key)?[{entity_type:type,entity_key:key,display_ref:state.refs.get(type+":"+key)}]:[])};
       }
@@ -165,6 +164,44 @@ test("POST /fleet/sync materializa project_id estructurado y rechaza el huérfan
   const ticket=state.tickets.find(row=>row.source==="fleet");
   assert.equal(ticket.project_id,"xpaceos"); assert.equal(ticket.project,"xpaceos");
   assert.equal(state.fleetIds.has(702),false,"el rechazado ni siquiera reserva mission_id");
+});
+
+const historicalProjects=[{id:"xpaceos",name:"XpaceOS",status:"activo"},{id:"admira-store",name:"Admira Store",status:"activo"}];
+const historicalMembers=[
+  {project_id:"xpaceos",kind:"agent",ref:"OraculoMacMini"},{project_id:"xpaceos",kind:"machine",ref:"admira-macmini"},
+  {project_id:"xpaceos",kind:"agent",ref:"TrinityAzul"},{project_id:"xpaceos",kind:"machine",ref:"macbookairazul"},
+  {project_id:"admira-store",kind:"agent",ref:"TrinityAzul"},{project_id:"admira-store",kind:"machine",ref:"macbookairazul"}
+];
+async function syncHistorical(items){
+  const box=harness(); box.state.projects=historicalProjects; box.state.members=historicalMembers;
+  box.env.TELEGRAM={async fetch(){return Response.json({items});}};
+  const response=await worker.fetch(new Request("https://api.yokup.test/fleet/sync",{method:"POST",headers:{"content-type":"application/json"},body:"{}"}),box.env,{});
+  return {response,result:await response.json(),...box};
+}
+
+test("fleet/sync backfill: histórico inequívoco adopta el project_id explícitamente reparado",async()=>{
+  const item={id:1196,text:"Histórico con backfill inequívoco",target_persona:"OraculoMacMini",target_machine:"admira-macmini",project_id:"xpaceos",from_name:"Carlos",status:"pending",ts:Date.now()};
+  const {response,result,state}=await syncHistorical([item]);
+  assert.equal(response.status,200); assert.equal(result.partial,false); assert.equal(result.rejected.length,0);
+  const ticket=state.tickets.find(row=>row.source==="fleet");
+  assert.equal(ticket?.project_id,"xpaceos"); assert.equal(ticket?.project,"xpaceos");
+});
+
+test("fleet/sync backfill: #1197 ambiguo no inventa proyecto ni deja partial",async()=>{
+  const item={id:1197,text:"Primera misión: sincronizar admira.store y XpaceOS",target_persona:"Trinity",target_machine:"macbookairazul",project_id:null,materialize_mission:false,materialize_reason:"ambiguous_project",from_name:"status-web",status:"pending",ts:Date.now()};
+  const {response,result,state}=await syncHistorical([item]);
+  assert.equal(response.status,200); assert.equal(result.partial,false); assert.equal(result.rejected.length,0);
+  assert.equal(state.tickets.length,0); assert.equal(state.fleetIds.has(1197),false);
+});
+
+test("fleet/sync backfill no altera otros inbox con proyecto explícito",async()=>{
+  const inbox=[
+    {id:1197,text:"Primera misión: sincronizar admira.store y XpaceOS",target_persona:"Trinity",target_machine:"macbookairazul",project_id:null,materialize_mission:false,materialize_reason:"ambiguous_project",from_name:"status-web",status:"pending",ts:Date.now()},
+    {id:1198,text:"Encargo explícito independiente",target_persona:"Trinity",target_machine:"macbookairazul",project_id:"admira-store",from_name:"Carlos",status:"pending",ts:Date.now()}
+  ], before=structuredClone(inbox);
+  const {state}=await syncHistorical(inbox);
+  const explicit=state.tickets.find(row=>row.source==="fleet");
+  assert.equal(explicit?.project_id,"admira-store"); assert.deepEqual(inbox,before);
 });
 
 test("POST /fleet/sync hereda la última declaración del agente y la MARCA", async()=>{
