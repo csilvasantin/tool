@@ -202,9 +202,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
     2026-08-05). Pesa menos que el título: sitúa, no compite. */
 .subj-project{font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
   color:var(--brand);opacity:.85;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* En PROJECT ID va el ICONO del proyecto, no una captura: se reconoce de un
-   golpe y pesa mil veces menos. `contain` para que un favicon cuadrado no se
-   deforme, y el logo de AdmiraNeXT es el fallback de toda la cadena. */
+/* Sin evidencia real, PROJECT ID cae al ICONO del proyecto: `contain` evita
+   deformar el favicon cuadrado y el logo de AdmiraNeXT queda como último
+   recurso. Una captura final o de proceso siempre precede a ambos. */
 .shot-icon{object-fit:contain;padding:12%;image-rendering:auto}
 .project-id-layout .mission-col{padding-block:3px}
 .project-id-layout .mission-col .subj .t{-webkit-line-clamp:2;line-clamp:2}

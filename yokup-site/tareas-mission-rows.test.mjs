@@ -69,17 +69,18 @@ test("el agrupador no pierde los datos necesarios para la fila de misión",()=>{
   assert.match(html,/href="\/tareas\?mission=FLT-1225#a"/);
 });
 
-test("live_at fresco pinta EN VIVO y un latido caduco vuelve al icono estático",()=>{
+test("live_at fresco pinta EN VIVO y un proceso caduco conserva su captura sin halo",()=>{
   const Yk=loadMissions();
   Yk.init({worker:"https://api.yokup.com",columnMode:"tasks",projectIdLayout:true});
   const base={id:"FLT-LIVE",subject:"xpaceos · Revisión",screen:"svc:xpaceos.com",loc:"MacMini",
     project:"xpaceos",source:"fleet",assignee:"OraculoMacMini",status:"in_progress",
-    priority:"normal",created_at:Date.now()-60_000,live_shot:"https://img.test/live.png",_tasks:[]};
+    priority:"normal",created_at:Date.now()-60_000,live_shot:"https://img.test/live.png",live_kind:"process",_tasks:[]};
   const fresh=Yk.rowHtml({...base,live_at:Date.now()});
   const stale=Yk.rowHtml({...base,id:"FLT-STALE",live_at:Date.now()-181_000});
-  assert.match(fresh,/class="shot-img working"[^>]*src="https:\/\/img\.test\/live\.png"/);
-  assert.doesNotMatch(stale,/shot-img working|https:\/\/img\.test\/live\.png/);
-  assert.match(stale,/class="shot-img shot-icon"/);
+  assert.match(fresh,/class="shot-img working process"[^>]*src="https:\/\/img\.test\/live\.png"/);
+  assert.doesNotMatch(stale,/shot-img working/);
+  assert.match(stale,/class="shot-img process"[^>]*src="https:\/\/img\.test\/live\.png"/);
+  assert.doesNotMatch(stale,/class="shot-img shot-icon"/);
 });
 
 test("720/520/390 colapsan sin scroll y conservan blancos táctiles 44x44",()=>{

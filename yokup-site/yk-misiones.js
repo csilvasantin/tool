@@ -462,6 +462,26 @@
     var d = dominioDe(web);
     return d ? "https://" + d + "/favicon.ico" : "";
   }
+  // Evidencia representativa de una misión, separada de su estado «en vivo».
+  // La frescura sólo decide si pulsa el halo; nunca autoriza a reemplazar una
+  // captura real ya disponible por el favicon del proyecto. `process_image` es
+  // el campo derivado por el worker cuando live_kind='process'; se acepta como
+  // señal explícita incluso en payloads que ya no repiten live_kind.
+  function missionEvidenceOf(t) {
+    t = t || {};
+    var proof = String(t.proof_image || "").trim();
+    var proofKind = String(t.proof_kind || "").trim();
+    if (proof && (!proofKind || proofKind === "final")) {
+      return { src: proof, kind: "final", fresh: false };
+    }
+    var process = String(t.process_image || (t.live_kind === "process" ? t.live_shot : "") || "").trim();
+    if (process) {
+      var capturedAt = +(t.process_captured_at || t.live_at || 0);
+      if (capturedAt && capturedAt < 4102444800) capturedAt *= 1000;
+      return { src: process, kind: "process", fresh: !!capturedAt && Date.now() - capturedAt < 180000 };
+    }
+    return { src: "", kind: "fallback", fresh: false };
+  }
   // LIGHTBOX: clic en la miniatura → captura EN GRANDE (no navega a la web).
   function openLightbox(web, direct) {
     var ov = document.getElementById("yk-lightbox");
@@ -680,13 +700,14 @@
     var progress='<span class="abc-mission-progress '+trafficClass+'" role="progressbar" aria-valuemin="0" aria-valuemax="'+codes.length+'" aria-valuenow="'+doneCount+'" aria-label="Estado de las tareas: '+esc(trafficLabel)+'">'+chips.map(function(chip,index){var code=String.fromCharCode(65+index);return '<i class="'+chip.status+'" title="'+code+' · '+labels[chip.status]+'"><b>'+code+'</b></i>';}).join("")+"</span>";
     return '<span class="abc-tasks" aria-label="'+(codes.length===1?'Tarea suelta':'Tareas A, B y C')+'"><span class="abc-list">'+chips.map(function(chip){return chip.html;}).join("")+"</span>"+progress+"</span>";
   }
-  function missionPreviewHtml(t, proof, live, liveFresca) {
+  function missionPreviewHtml(t) {
     var p = proyectoDe(t);
     var work = workUrlOf(t);
-    var inner = proof
-      ? '<img class="shot-img proof" loading="lazy" src="' + esc(proof) + '" data-proof="' + esc(proof) + '" alt="Pantallazo final" title="' + (work ? "pantallazo del trabajo realizado · clic para abrir el trabajo" : "pantallazo del trabajo realizado") + '">'
-      : liveFresca
-        ? '<img class="shot-img working" loading="lazy" src="' + esc(live) + '" data-proof="' + esc(live) + '" alt="En curso" title="🔴 en vivo · el CLI está trabajando ahora">'
+    var evidence = missionEvidenceOf(t);
+    var inner = evidence.kind === "final"
+      ? '<img class="shot-img proof" loading="lazy" src="' + esc(evidence.src) + '" data-proof="' + esc(evidence.src) + '" alt="Pantallazo final" title="' + (work ? "pantallazo del trabajo realizado · clic para abrir el trabajo" : "pantallazo del trabajo realizado") + '">'
+      : evidence.kind === "process"
+        ? '<img class="shot-img' + (evidence.fresh ? ' working' : '') + ' process" loading="lazy" src="' + esc(evidence.src) + '" data-proof="' + esc(evidence.src) + '" alt="Captura del proceso" title="' + (evidence.fresh ? '🔴 en vivo · el agente está trabajando ahora' : 'captura real del proceso de trabajo') + '">'
         // ICONO DEL PROYECTO, no captura (Carlos, 2026-08-05): en PROJECT ID lo
         // que importa es reconocer de un golpe en qué proyecto estamos
         // —pixeria.com, clearchannel.tv, xpaceos.com…—. Se pide el favicon del
@@ -713,13 +734,6 @@
     // columna (--c-*) para TODAS las tarjetas a la vez; se persiste en localStorage.
     var rz = function (col, side) { return '<span class="rz" data-col="' + col + '"' + (side ? ' data-side="' + side + '"' : "") + ' title="⇔ arrastra para redimensionar"></span>'; };
     var dv = durVal(t), dailyClose = dailyClosureMeta(t);
-    var proof = String(t.proof_image || "");
-    // CAPTURA EN VIVO del CLI: si la misión está EN CURSO y hay una captura
-    // reciente del terminal (<3 min), se enseña ESA con halo pulsante — el
-    // feedback de «está trabajando, no parado» (Carlos, 2026-07-18). Manda sobre
-    // el previo de la web, pero no sobre el proof final de una misión cerrada.
-    var live = String(t.live_shot || "");
-    var liveFresca = live && t.live_at && (Date.now() - (t.live_at > 4102444800000 ? t.live_at : t.live_at) < 180000);
     var rt = String(t.agent_runtime || "");
     var host = t.agent_host === "cli" ? "CLI" : t.agent_host === "app" ? "Desktop App" : "";
     var surface = [rt, host].filter(Boolean).join(" · ");
@@ -727,7 +741,7 @@
     var idHtml = '<div class="tkid" title="Referencia interna: ' + esc(t.id) + '">' + esc(visibleId(t)) +
       (CFG.projectIdLayout ? "" : '<span class="st">' + esc(sourceLabel) + "</span>") +
       (pm.flag ? '<span class="prioflag' + (esPrio ? " abs" : "") + '">' + (esPrio ? "⚡ " : "") + esc(pm.flag) + "</span>" : "") + "</div>";
-    var shotHtml = '<div class="cel shot">' + missionPreviewHtml(t, proof, live, liveFresca) + "</div>";
+    var shotHtml = '<div class="cel shot">' + missionPreviewHtml(t) + "</div>";
     var subjectMetaHtml = CFG.projectIdLayout
       ? ""
       : '<span class="scr">' + esc(String(t.screen || "").replace(/^(svc|maq|agt|service|machine|agent):/, "").replace(/^https?:\/\/(www\.)?/, "")) + "</span>" +
@@ -1092,7 +1106,8 @@
     var t = MIS_CACHE[id];
     if (!t) return "";
     var est = estadoDe(t), maq = machineOf(t), dailyClose = dailyClosureMeta(t);
-    var img = t.proof_image || t.live_shot || "";
+    var evidence = missionEvidenceOf(t);
+    var img = evidence.src;
     var agentes = (t._agents && t._agents.length) ? t._agents.join(" · ") : (t.assignee || "sin agente");
     // La captura de la ficha también ENLAZA al trabajo realizado cuando hay destino.
     var work = workUrlOf(t);
@@ -1190,7 +1205,7 @@
     setLiveMachines: function (set) { LIVE_MACHINES = set || null; },
     setLiveSurfaces: function (m) { LIVE_SURFACES = m || null; },
     agentKey: agentKey, baseAgentKey: baseAgentKey, liveSurfaceOf: liveSurfaceOf,
-    setProyectos: setProyectos, proyectoDe: proyectoDe, projectAgentLabelHtml: projectAgentLabelHtml, workUrlOf: workUrlOf,
+    setProyectos: setProyectos, proyectoDe: proyectoDe, projectAgentLabelHtml: projectAgentLabelHtml, workUrlOf: workUrlOf, missionEvidenceOf: missionEvidenceOf,
     renderTaskTree: renderTaskTree, refreshTree: refreshTree, addChildBtn: addChildBtn,
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,
     tercios: tercios, progHtml: progHtml, tasksAbcHtml: tasksAbcHtml,
