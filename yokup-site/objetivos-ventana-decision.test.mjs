@@ -113,20 +113,20 @@ test("lo que trajo la formación se ve aparte de lo que eligió Carlos", () => {
   assert.match(source, /\.objective-badge\.formado\{color:var\(--good\)/);
 });
 
-// De un vídeo el consejero sólo lee el TÍTULO. El apunte es lo único que enseña,
+// De un vídeo el consejero sólo lee el TÍTULO. El guión es lo único que enseña,
 // así que la ficha tiene que enseñar cuántos hay — y qué dicen.
-test("la chapa 📝 cuenta apuntes, que es lo único que mide conocimiento", () => {
-  assert.match(source, /s\.apuntes\?chapa\("apunte","📝 "\+s\.apuntes\):""/);
-  assert.match(source, /Ninguna tiene apunte todavía: de un vídeo sólo lee el título/,
-    "60 vídeos y 0 apuntes no pueden leerse como una silla sabia");
-  assert.match(source, /sinDestilar=Math\.max\(0,s\.formado-s\.apuntes\)/);
-  assert.match(source, /\.objective-badge\.apunte\{color:var\(--warn\)/);
+test("la chapa 📝 cuenta guiones, que es lo único que mide conocimiento", () => {
+  assert.match(source, /s\.guiones\?chapa\("guion","📝 "\+s\.guiones\):""/);
+  assert.match(source, /Ninguna tiene guión todavía: de un vídeo sólo lee el título/,
+    "60 vídeos y 0 guiones no pueden leerse como una silla sabia");
+  assert.match(source, /sinDestilar=Math\.max\(0,s\.formado-s\.guiones\)/);
+  assert.match(source, /\.objective-badge\.guion\{color:var\(--warn\)/);
 });
 
-test("el tooltip enseña el CUERPO del apunte, no su título", () => {
-  assert.match(source, /p\.apunte\?\(\(p\.note\|\|p\.title\|\|"apunte"\)\.slice\(0,220\)/,
+test("el tooltip enseña el CUERPO del guión, no su título", () => {
+  assert.match(source, /p\.guion\?\(\(p\.note\|\|p\.title\|\|"guión"\)\.slice\(0,220\)/,
     "lo que se quiere ver es qué ha aprendido, no que exista un fichero");
-  assert.match(source, /const marca=p\.apunte\?"📝 "/);
+  assert.match(source, /const marca=p\.guion\?"📝 "/);
 });
 
 test("«ningún vídeo largo» no se confunde con «no se puede comprobar»", () => {

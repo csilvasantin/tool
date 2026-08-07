@@ -54,21 +54,21 @@ function api(items, { falla = false, council = COUNCIL_FIXTURE } = {}) {
   };
   const code = [functionSource("stockIndex"), functionSource("normalizaEtiqueta"),
     functionSource("dedupePorTitulo"), functionSource("pesoEnPrompt"), functionSource("tomaHasta"),
-    functionSource("ventanaReservada"), functionSource("sustituyePorApuntes"),
+    functionSource("ventanaReservada"), functionSource("sustituyePorGuiones"),
     functionSource("seatKnowledgeFrom"), functionSource("seatKnowledge"),
     functionSource("seatKnowledgeText"), functionSource("ensureCouncilKnowledgeSchema"),
     functionSource("recordCouncilKnowledge")].join("\n");
   return new Function("fetch", "COUNCIL", "COUNCIL_ORDER", "STOCK_INDEX_URL",
     "COUNCIL_KNOWLEDGE_PROMPT_MAX", "COUNCIL_FORMACION_TAG", "COUNCIL_KNOWLEDGE_DADO_SHARE",
-    "COUNCIL_APUNTE_TYPE", "COUNCIL_APUNTE_MAX", "COUNCIL_KNOWLEDGE_PROMPT_CHARS",
+    "COUNCIL_GUION_TYPE", "COUNCIL_GUION_MAX", "COUNCIL_KNOWLEDGE_PROMPT_CHARS",
     "COUNCIL_VIDEO_MAX_SECS", "__name",
     `${code}
      return { piezas:seatKnowledge, ventana:ventanaReservada, texto:seatKnowledgeText,
               indice:stockIndex, reparto:seatKnowledgeFrom, snapshot:recordCouncilKnowledge };`
   )(fetchFake, council, Object.keys(council), eval(constante("STOCK_INDEX_URL")),
     Number(constante("COUNCIL_KNOWLEDGE_PROMPT_MAX")), eval(constante("COUNCIL_FORMACION_TAG")),
-    eval(constante("COUNCIL_KNOWLEDGE_DADO_SHARE")), eval(constante("COUNCIL_APUNTE_TYPE")),
-    Number(constante("COUNCIL_APUNTE_MAX")), Number(constante("COUNCIL_KNOWLEDGE_PROMPT_CHARS")),
+    eval(constante("COUNCIL_KNOWLEDGE_DADO_SHARE")), eval(constante("COUNCIL_GUION_TYPE")),
+    Number(constante("COUNCIL_GUION_MAX")), Number(constante("COUNCIL_KNOWLEDGE_PROMPT_CHARS")),
     Number(constante("COUNCIL_VIDEO_MAX_SECS")), () => {});
 }
 
@@ -207,56 +207,56 @@ test("el prompt distingue lo traído de lo dado y ya no atribuye todo a Carlos",
     "con vídeos que Carlos no ha visto, esa frase era mentira");
 });
 
-// ── APUNTES: LO QUE APRENDE, NO EL TÍTULO ──────────────────────────────────
+// ── GUIONES: LO QUE APRENDE, NO EL TÍTULO ──────────────────────────────────
 
-function apunte(dia, title, cuerpo, { fuente = "", tag = "stevejobs" } = {}) {
-  return { id: "ap" + dia, type: "apunte", createdAt: `2026-08-${String(dia).padStart(2, "0")}T12:00:00.000Z`,
+function guion(dia, title, cuerpo, { fuente = "", tag = "stevejobs" } = {}) {
+  return { id: "ap" + dia, type: "guion", createdAt: `2026-08-${String(dia).padStart(2, "0")}T12:00:00.000Z`,
     title, comment: cuerpo, externalRef: fuente, tags: [tag, "formacion"] };
 }
 
-test("de un apunte el consejero lee el CUERPO, no el título", async () => {
+test("de un guión el consejero lee el CUERPO, no el título", async () => {
   const cuerpo = "Rams no dice «menos»: dice menos PERO MEJOR. Quitar es la mitad del trabajo; "
     + "la otra mitad es que lo que queda sea bello. Aplicado a un panel: cada control que "
     + "sobrevive tiene que justificar su sitio y estar bien hecho.";
-  const a = api([apunte(6, "Dieter Rams: Less but Better", cuerpo, { tag: "dieterrams" })]);
+  const a = api([guion(6, "Dieter Rams: Less but Better", cuerpo, { tag: "dieterrams" })]);
   const [p] = await a.piezas("cdo");
-  assert.equal(p.apunte, true);
-  assert.equal(p.note, cuerpo, "el comentario de un apunte ES el conocimiento, no el mecanismo");
+  assert.equal(p.guion, true);
+  assert.equal(p.note, cuerpo, "el comentario de un guión ES el conocimiento, no el mecanismo");
   assert.match(a.texto([p]), /menos PERO MEJOR/, "y llega al prompt entero");
 });
 
-test("un vídeo con apunte deja de entrar: su título ya no añade nada", async () => {
+test("un vídeo con guión deja de entrar: su título ya no añade nada", async () => {
   const video = pieza(5, "Dieter Rams: Less but Better", { formacion: true, tag: "dieterrams" });
-  const nota = apunte(6, "Apunte de Less but Better", "Quitar hasta que solo quede lo esencial.",
+  const nota = guion(6, "Guión de Less but Better", "Quitar hasta que solo quede lo esencial.",
     { fuente: video.id, tag: "dieterrams" });
   const todas = await api([video, nota]).piezas("cdo", 0);
   assert.equal(todas.length, 1, "el vídeo sale de la cabeza…");
-  assert.equal(todas[0].apunte, true);
-  // …pero el apunte conserva a QUÉ pieza apunta: el vídeo sigue siendo su fuente y
+  assert.equal(todas[0].guion, true);
+  // …pero el guión conserva a QUÉ pieza apunta: el vídeo sigue siendo su fuente y
   // su evidencia en el Stock, aunque haya dejado de ser lo que el consejero lee.
   assert.equal(todas[0].fuente, "dieterramslessbutbetter5");
 });
 
-test("si el apunte no declara fuente, basta con que se llamen igual", async () => {
+test("si el guión no declara fuente, basta con que se llamen igual", async () => {
   // Es como los sube quien transcribe: mismo título, tipo distinto.
   const video = pieza(5, "Jobs en Stanford", { formacion: true });
-  const nota = apunte(6, "Jobs en Stanford", "Los puntos solo se unen mirando atrás.");
+  const nota = guion(6, "Jobs en Stanford", "Los puntos solo se unen mirando atrás.");
   const todas = await api([video, nota]).piezas("ceo", 0);
   assert.equal(todas.length, 1);
-  assert.equal(todas[0].apunte, true, "gana el apunte, no el vídeo");
+  assert.equal(todas[0].guion, true, "gana el guión, no el vídeo");
 });
 
-test("un apunte no se lleva por delante los vídeos de los que NO habla", async () => {
-  const nota = apunte(6, "Jobs en Stanford", "Los puntos solo se unen mirando atrás.");
+test("un guión no se lleva por delante los vídeos de los que NO habla", async () => {
+  const nota = guion(6, "Jobs en Stanford", "Los puntos solo se unen mirando atrás.");
   const otro = pieza(5, "Jobs en la NeXT", { formacion: true });
   const todas = await api([nota, otro]).piezas("ceo", 0);
   assert.equal(todas.length, 2);
 });
 
-test("la ventana cuenta caracteres, no piezas: ocho apuntes no son ocho títulos", async () => {
-  // Ocho títulos son ~400 caracteres y caben; ocho apuntes son ~5.000 y no.
+test("la ventana cuenta caracteres, no piezas: ocho guiones no son ocho títulos", async () => {
+  // Ocho títulos son ~400 caracteres y caben; ocho guiones son ~5.000 y no.
   const largos = Array.from({ length: 8 }, (_, i) =>
-    apunte(i + 1, "Apunte " + i, "x".repeat(880)));
+    guion(i + 1, "Guion " + i, "x".repeat(880)));
   const top = await api(largos).piezas("ceo");
   assert.ok(top.length < 8, "el tope de 8 piezas ya no manda solo");
   const gasto = top.reduce((n, p) => n + p.title.length + p.note.length + 4, 0);
@@ -264,9 +264,9 @@ test("la ventana cuenta caracteres, no piezas: ocho apuntes no son ocho títulos
   assert.ok(top.length >= 1, "y nunca deja al consejero sin nada");
 });
 
-test("un apunte enorme entra igual antes que dejar la ventana vacía", async () => {
-  // Media idea es peor que una idea larga: un apunte cortado no enseña nada.
-  const top = await api([apunte(1, "Único", "y".repeat(5000))]).piezas("ceo");
+test("un guión enorme entra igual antes que dejar la ventana vacía", async () => {
+  // Media idea es peor que una idea larga: un guión cortado no enseña nada.
+  const top = await api([guion(1, "Único", "y".repeat(5000))]).piezas("ceo");
   assert.equal(top.length, 1);
 });
 
@@ -293,10 +293,10 @@ test("sin duración en el índice no se descarta nada en silencio", async () => 
   assert.equal(p.largo, false, "desconocido no es «se pasa»");
 });
 
-test("el endpoint publica los apuntes y distingue «ninguno largo» de «no se sabe»", () => {
+test("el endpoint publica los guiones y distingue «ninguno largo» de «no se sabe»", () => {
   const ruta = source.slice(source.indexOf('url.pathname === "/council/knowledge"'),
     source.indexOf('url.pathname === "/ideas/generate"'));
-  assert.match(ruta, /apuntes: pieces\.filter\(\(p\) => p\.apunte\)\.length/);
+  assert.match(ruta, /guiones: pieces\.filter\(\(p\) => p\.guion\)\.length/);
   assert.match(ruta, /largos: pieces\.filter\(\(p\) => p\.largo\)\.length/);
   assert.match(ruta, /duracion_conocida: pieces\.some\(\(p\) => p\.duracion > 0\)/,
     "largos:0 sin este campo haría creer que el criterio se cumple");

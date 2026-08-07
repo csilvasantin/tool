@@ -600,22 +600,22 @@ var COUNCIL_FORMACION_TAG = "formacion";
 // formación: si Carlos solo dio 2 piezas, la formación ocupa los 6 restantes. Reservar
 // un hueco que nadie llena sería tirar conocimiento a la basura.
 var COUNCIL_KNOWLEDGE_DADO_SHARE = 5 / 8;
-// ── APUNTES: LO QUE EL CONSEJERO APRENDE, NO EL TÍTULO DEL VÍDEO ────────────
+// ── GUIONES: LO QUE EL CONSEJERO APRENDE, NO EL TÍTULO DEL VÍDEO ────────────
 // Hasta aquí, al prompt de una silla le entraba el TÍTULO de la pieza. Un vídeo de
 // cinco minutos de Dieter Rams aportaba la cadena «Dieter Rams: Less but Better» y
 // nada más: eso es una bibliografía, no conocimiento. Se le podían subir sesenta
 // vídeos y seguía sabiendo exactamente lo mismo.
 //
-// Un apunte es una pieza de texto —un tipo nuevo del Stock— con lo que ese vídeo le
+// Un guión es una pieza de texto —un tipo nuevo del Stock— con lo que ese vídeo le
 // enseña a ESA silla, etiquetada igual que el vídeo (alias + formación) y apuntando
 // a él en `externalRef`. Dos consecuencias que no son obvias:
-//  · el apunte SUSTITUYE a su vídeo en la cabeza del consejero. Si entraran los dos,
-//    leería el título y el apunte, y el título ya no aporta nada. El vídeo se queda
+//  · el guión SUSTITUYE a su vídeo en la cabeza del consejero. Si entraran los dos,
+//    leería el título y el guión, y el título ya no aporta nada. El vídeo se queda
 //    como fuente y evidencia, no como conocimiento.
-//  · contar PIEZAS deja de valer. Ocho títulos son ~400 caracteres; ocho apuntes,
+//  · contar PIEZAS deja de valer. Ocho títulos son ~400 caracteres; ocho guiones,
 //    ~5.000. La ventana pasa a tener también presupuesto de texto.
-var COUNCIL_APUNTE_TYPE = "apunte";
-var COUNCIL_APUNTE_MAX = 900;              // caracteres de UN apunte en el prompt
+var COUNCIL_GUION_TYPE = "guion";
+var COUNCIL_GUION_MAX = 900;              // caracteres de UN guión en el prompt
 var COUNCIL_KNOWLEDGE_PROMPT_CHARS = 3600; // presupuesto de la ventana entera
 // Criterio de Carlos para la formación: vídeos de los más vistos y de 5 minutos como
 // máximo. Hoy el índice del Stock NO trae ni duración ni vistas, así que yokup no
@@ -658,16 +658,16 @@ __name(dedupePorTitulo, "dedupePorTitulo");
 // dio Carlos, la formación ocupa el resto, y si un lado no llena su cuota el otro la
 // completa. Sin esto la ventana es una lotería por fecha y la primera tanda de
 // admira.live borra de la cabeza del consejero todo lo que Carlos eligió a mano.
-// Lo que pesa una pieza en el prompt. Un título son 40 caracteres; un apunte, 900.
+// Lo que pesa una pieza en el prompt. un título son 40 caracteres; un guión, 900.
 // La ventana tiene que contar esto y no «piezas», o el presupuesto lo fija el azar
-// de cuántos apuntes hayan caído en los ocho huecos.
+// de cuántos guiones hayan caído en los ocho huecos.
 function pesoEnPrompt(p) {
   return (String(p && p.title || "").length + String(p && p.note || "").length + 4);
 }
 __name(pesoEnPrompt, "pesoEnPrompt");
 // Toma de una lista ya ordenada (más nueva primero) mientras quepa en SUS huecos y
 // en SU presupuesto. La primera pieza entra siempre aunque se pase: media idea es
-// peor que una idea larga, y un apunte cortado a la mitad no enseña nada.
+// peor que una idea larga, y un guión cortado a la mitad no enseña nada.
 function tomaHasta(lista, huecos, presupuesto) {
   const out = [];
   let gasto = 0;
@@ -700,24 +700,24 @@ function ventanaReservada(pieces, limit, chars = COUNCIL_KNOWLEDGE_PROMPT_CHARS)
     .sort((a, b) => String(b && b.at || "").localeCompare(String(a && a.at || "")));
 }
 __name(ventanaReservada, "ventanaReservada");
-// Un vídeo con apunte ya no entra en la cabeza del consejero: entraría su título al
-// lado del apunte que lo explica, y el título no añade nada. El vídeo sigue en el
+// Un vídeo con guión ya no entra en la cabeza del consejero: entraría su título al
+// lado del guión que lo explica, y el título no añade nada. El vídeo sigue en el
 // Stock y en el recuento —es la fuente y la evidencia—, pero deja de ser lo que se
-// lee. El enlace lo declara el apunte en `externalRef`; si no lo trae, vale que se
+// lee. El enlace lo declara el guión en `externalRef`; si no lo trae, vale que se
 // llamen igual, que es como los sube quien transcribe.
-function sustituyePorApuntes(piezas) {
+function sustituyePorGuiones(piezas) {
   const cubiertas = /* @__PURE__ */ new Set();
   for (const p of piezas) {
-    if (!p.apunte) continue;
+    if (!p.guion) continue;
     if (p.fuente) cubiertas.add(p.fuente);
     const porTitulo = normalizaEtiqueta(p.title);
     if (porTitulo) cubiertas.add(porTitulo);
   }
   if (!cubiertas.size) return piezas;
-  return piezas.filter((p) => p.apunte ||
+  return piezas.filter((p) => p.guion ||
     !(cubiertas.has(normalizaEtiqueta(p.id)) || cubiertas.has(normalizaEtiqueta(p.title))));
 }
-__name(sustituyePorApuntes, "sustituyePorApuntes");
+__name(sustituyePorGuiones, "sustituyePorGuiones");
 // Reparto del índice YA descargado. Existe aparte de seatKnowledge porque el snapshot
 // del tick recorre las ocho sillas: con una llamada por silla eran ocho subpeticiones
 // para leer el MISMO fichero.
@@ -732,10 +732,10 @@ function seatKnowledgeFrom(items, seat, limit = COUNCIL_KNOWLEDGE_PROMPT_MAX) {
   const piezas = dedupePorTitulo(mias.map((it) => {
     // El comentario suele ser solo la propia etiqueta («#stevejobs»): eso no es
     // conocimiento, es el mecanismo. Se descarta para no ensuciar el prompt. En un
-    // APUNTE, en cambio, el comentario ES el conocimiento y se conserva entero.
+    // GUIÓN, en cambio, el comentario ES el conocimiento y se conserva entero.
     const nota = String(it.comment || "").trim();
     const soloEtiqueta = normalizaEtiqueta(nota) === tag;
-    const esApunte = String(it.type || "").toLowerCase() === COUNCIL_APUNTE_TYPE;
+    const esGuion = String(it.type || "").toLowerCase() === COUNCIL_GUION_TYPE;
     // El origen sale de la ETIQUETA, no de quién llamó: una pieza que subió Carlos y
     // otra que trajo admira.live se distinguen en el índice o no se distinguen en
     // ninguna parte. Sin `#formacion` una pieza es «dada», que es como estaba.
@@ -743,16 +743,16 @@ function seatKnowledgeFrom(items, seat, limit = COUNCIL_KNOWLEDGE_PROMPT_MAX) {
     const dur = Number(it.duration || it.duracion || 0) || 0;
     return { id: it.id || "", type: it.type || "", at: it.createdAt || "",
       title: String(it.title || "").trim().slice(0, 200),
-      note: soloEtiqueta ? "" : nota.slice(0, esApunte ? COUNCIL_APUNTE_MAX : 300),
+      note: soloEtiqueta ? "" : nota.slice(0, esGuion ? COUNCIL_GUION_MAX : 300),
       origin: formado ? "formado" : "dado",
-      apunte: esApunte,
-      // De qué pieza son estos apuntes. Sin esto no se puede sustituir al vídeo.
+      guion: esGuion,
+      // De qué pieza es este guión. Sin esto no se puede sustituir al vídeo.
       fuente: normalizaEtiqueta(it.externalRef || ""),
       duracion: dur, vistas: Number(it.views || it.vistas || 0) || 0,
       largo: dur > COUNCIL_VIDEO_MAX_SECS,
       url: it.url || "" };
   }).filter((p) => p.title || p.note));
-  return ventanaReservada(sustituyePorApuntes(piezas), limit);
+  return ventanaReservada(sustituyePorGuiones(piezas), limit);
 }
 __name(seatKnowledgeFrom, "seatKnowledgeFrom");
 // Piezas del Stock etiquetadas con el alias de la silla, de la más nueva a la más
@@ -6692,9 +6692,9 @@ var index_default = {
         const formado = pieces.filter((p) => p.origin === "formado").length;
         return { seat: s, role: c.role, alias: c.alias, tag: c.tag,
           count: pieces.length, dado: pieces.length - formado, formado,
-          // Lo único que de verdad ENSEÑA algo: sin apuntes, una silla con sesenta
+          // Lo único que de verdad ENSEÑA algo: sin guiones, una silla con sesenta
           // vídeos sabe lo que sabía, porque de un vídeo sólo lee el título.
-          apuntes: pieces.filter((p) => p.apunte).length,
+          guiones: pieces.filter((p) => p.guion).length,
           // Vídeos que se pasan de los 5 minutos. 0 puede significar «ninguno» o
           // «el índice no trae duración»: `duracion_conocida` lo distingue, que si
           // no el criterio parecería cumplirse solo.
@@ -6706,7 +6706,7 @@ var index_default = {
           pieces: pieces.slice(0, 20) };
       });
       return json({ ok: true, source: "pixeria/stock", tope: COUNCIL_KNOWLEDGE_PROMPT_MAX,
-        presupuesto: COUNCIL_KNOWLEDGE_PROMPT_CHARS, apunte_tipo: COUNCIL_APUNTE_TYPE,
+        presupuesto: COUNCIL_KNOWLEDGE_PROMPT_CHARS, guion_tipo: COUNCIL_GUION_TYPE,
         video_max_secs: COUNCIL_VIDEO_MAX_SECS, formacion_tag: COUNCIL_FORMACION_TAG, seats });
     }
     if (url.pathname === "/ideas/generate" && req.method === "POST") {
