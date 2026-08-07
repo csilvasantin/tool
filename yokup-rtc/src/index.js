@@ -587,6 +587,19 @@ const COUNCIL = {
 // —con su punto fuerte— en vez de no opinar. El material suma; su ausencia no resta.
 var STOCK_INDEX_URL = "https://pub-bf043a4daa3b43b7a0b769617729d074.r2.dev/stock/index.json";
 var COUNCIL_KNOWLEDGE_PROMPT_MAX = 8;   // piezas que entran en el prompt, las más nuevas
+// ── LO QUE DIO CARLOS vs LO QUE TRAJO LA FORMACIÓN ─────────────────────────
+// admira.live manda al consejero a formarse: busca vídeos suyos en YouTube, los sube
+// al Stock y los etiqueta con su alias Y con ESTA etiqueta. Es lo único que separa el
+// material curado del que trajo un scraper, y separarlo no es cosmética:
+//  · el prompt decía «MATERIAL QUE CARLOS TE HA DADO». Con sesenta vídeos que Carlos
+//    no ha visto, esa frase es falsa y el consejero cita al scraper como si fuera él;
+//  · la ventana son 8 piezas por fecha, así que UNA tanda automática vaciaba de su
+//    cabeza todo lo curado. De ahí la cuota reservada de abajo.
+var COUNCIL_FORMACION_TAG = "formacion";
+// De cada 8 huecos, 5 son para lo que dio Carlos. Es un SUELO, no un techo para la
+// formación: si Carlos solo dio 2 piezas, la formación ocupa los 6 restantes. Reservar
+// un hueco que nadie llena sería tirar conocimiento a la basura.
+var COUNCIL_KNOWLEDGE_DADO_SHARE = 5 / 8;
 async function stockIndex() {
   try {
     const r = await fetch(STOCK_INDEX_URL, { cf: { cacheTtl: 600, cacheEverything: true } });
@@ -604,34 +617,81 @@ function normalizaEtiqueta(t) {
     .toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 __name(normalizaEtiqueta, "normalizaEtiqueta");
-// Piezas del Stock etiquetadas con el alias de la silla, de la más nueva a la más
-// vieja. `limit` 0 = todas (lo usa el endpoint; el prompt se queda con 8).
-async function seatKnowledge(seat, limit = COUNCIL_KNOWLEDGE_PROMPT_MAX) {
+// Dos piezas con el MISMO título son la misma pieza. YouTube devuelve la misma charla
+// subida cinco veces, y sin esto una silla «sabía» ocho veces lo mismo: el prompt se
+// llenaba de repeticiones y el recuento premiaba el volumen, que es justo lo que un
+// alimentador automático produce a espuertas. Gana la más nueva.
+function dedupePorTitulo(pieces) {
+  const vistos = /* @__PURE__ */ new Set(), unicas = [];
+  for (const p of pieces || []) {           // ya vienen de la más nueva a la más vieja
+    const k = normalizaEtiqueta(p && p.title);
+    if (k && vistos.has(k)) continue;
+    if (k) vistos.add(k);
+    unicas.push(p);
+  }
+  return unicas;
+}
+__name(dedupePorTitulo, "dedupePorTitulo");
+// La ventana del prompt CON CUOTA. Primero se sirven los huecos reservados a lo que
+// dio Carlos, la formación ocupa el resto, y si un lado no llena su cuota el otro la
+// completa. Sin esto la ventana es una lotería por fecha y la primera tanda de
+// admira.live borra de la cabeza del consejero todo lo que Carlos eligió a mano.
+function ventanaReservada(pieces, limit) {
+  const todas = pieces || [];
+  if (!(limit > 0)) return todas;
+  const dadas = todas.filter((p) => p && p.origin !== "formado");
+  const formadas = todas.filter((p) => p && p.origin === "formado");
+  const suelo = Math.max(1, Math.ceil(limit * COUNCIL_KNOWLEDGE_DADO_SHARE));
+  let mias = dadas.slice(0, suelo);
+  const suyas = formadas.slice(0, Math.max(0, limit - mias.length));
+  if (mias.length + suyas.length < limit) mias = dadas.slice(0, limit - suyas.length);
+  return mias.concat(suyas)
+    .sort((a, b) => String(b && b.at || "").localeCompare(String(a && a.at || "")));
+}
+__name(ventanaReservada, "ventanaReservada");
+// Reparto del índice YA descargado. Existe aparte de seatKnowledge porque el snapshot
+// del tick recorre las ocho sillas: con una llamada por silla eran ocho subpeticiones
+// para leer el MISMO fichero.
+function seatKnowledgeFrom(items, seat, limit = COUNCIL_KNOWLEDGE_PROMPT_MAX) {
   const c = COUNCIL[String(seat || "").toLowerCase()];
   const tag = c && c.tag ? normalizaEtiqueta(c.tag) : "";
   if (!tag) return [];
-  const items = await stockIndex();
-  const mias = items.filter((it) => Array.isArray(it && it.tags)
+  const formacion = normalizaEtiqueta(COUNCIL_FORMACION_TAG);
+  const mias = (items || []).filter((it) => Array.isArray(it && it.tags)
     && it.tags.some((t) => normalizaEtiqueta(t) === tag));
   mias.sort((a, b) => String(b && b.createdAt || "").localeCompare(String(a && a.createdAt || "")));
-  const recortadas = limit > 0 ? mias.slice(0, limit) : mias;
-  return recortadas.map((it) => {
+  const piezas = dedupePorTitulo(mias.map((it) => {
     // El comentario suele ser solo la propia etiqueta («#stevejobs»): eso no es
     // conocimiento, es el mecanismo. Se descarta para no ensuciar el prompt.
     const nota = String(it.comment || "").trim();
     const soloEtiqueta = normalizaEtiqueta(nota) === tag;
+    // El origen sale de la ETIQUETA, no de quién llamó: una pieza que subió Carlos y
+    // otra que trajo admira.live se distinguen en el índice o no se distinguen en
+    // ninguna parte. Sin `#formacion` una pieza es «dada», que es como estaba.
+    const formado = it.tags.some((t) => normalizaEtiqueta(t) === formacion);
     return { id: it.id || "", type: it.type || "", at: it.createdAt || "",
       title: String(it.title || "").trim().slice(0, 200),
       note: soloEtiqueta ? "" : nota.slice(0, 300),
+      origin: formado ? "formado" : "dado",
       url: it.url || "" };
-  }).filter((p) => p.title || p.note);
+  }).filter((p) => p.title || p.note));
+  return ventanaReservada(piezas, limit);
+}
+__name(seatKnowledgeFrom, "seatKnowledgeFrom");
+// Piezas del Stock etiquetadas con el alias de la silla, de la más nueva a la más
+// vieja. `limit` 0 = todas (lo usa el endpoint; el prompt se queda con 8).
+async function seatKnowledge(seat, limit = COUNCIL_KNOWLEDGE_PROMPT_MAX) {
+  return seatKnowledgeFrom(await stockIndex(), seat, limit);
 }
 __name(seatKnowledge, "seatKnowledge");
-// El bloque que se cuela en el prompt de la silla. Vacío si no hay material.
+// El bloque que se cuela en el prompt de la silla. Vacío si no hay material. Marca
+// cuáles trajo la formación: el consejero tiene que saber qué eligió Carlos para él
+// y qué le llegó de un buscador, porque no pesan lo mismo.
 function seatKnowledgeText(pieces) {
-  const lista = (pieces || []).map((p) => "- " + [p.title, p.note].filter(Boolean).join(" \xB7 ")).join("\n");
+  const lista = (pieces || []).map((p) => "- " + [p.title, p.note].filter(Boolean).join(" \xB7 ")
+    + (p.origin === "formado" ? " (formaci\xF3n)" : "")).join("\n");
   if (!lista) return "";
-  return "\n\nMATERIAL QUE CARLOS TE HA DADO (lo etiquet\xF3 con tu nombre en pixeria). Es tu conocimiento extra: apr\xE9ndetelo y \xFAsalo cuando venga a cuento; no lo cites por citar ni lo menciones si no aporta:\n" + lista;
+  return "\n\nTU MATERIAL, etiquetado con tu nombre en pixeria. Lo que lleva \xAB(formaci\xF3n)\xBB te lo trajo admira.live busc\xE1ndote; el resto te lo dio Carlos a mano, y ese pesa m\xE1s. Es tu conocimiento extra: apr\xE9ndetelo y \xFAsalo cuando venga a cuento; no lo cites por citar ni lo menciones si no aporta:\n" + lista;
 }
 __name(seatKnowledgeText, "seatKnowledgeText");
 // Rotación SIN estado: silla de turno = Math.floor(horaUTC/3) sobre COUNCIL_ORDER.
@@ -831,7 +891,10 @@ async function generateCouncilReview(env, idea) {
   const line = (s) => {
     const c = COUNCIL[s], piezas = saberes.get(s) || [];
     const extra = piezas.length
-      ? ` — material que le dio Carlos: ${piezas.map((p) => p.title || p.note).filter(Boolean).join("; ")}`
+      // «que le dio Carlos» a secas dejó de ser cierto en cuanto admira.live empezó a
+      // formar consejeros: aquí van mezcladas las suyas y las traídas, y cada una se
+      // marca. Un consejero que no sabe de dónde viene una pieza no puede pesarla.
+      ? ` — su material (lo marcado «formación» se lo trajo admira.live, el resto se lo dio Carlos): ${piezas.map((p) => (p.title || p.note) + (p.origin === "formado" ? " [formaci\xF3n]" : "")).filter(Boolean).join("; ")}`
       : "";
     return `${c.role} (${c.alias}) — su punto fuerte: ${c.fuerte}${extra}`;
   };
@@ -869,6 +932,65 @@ Cada frase concreta y en español, sin nombrar al consejero ni su rol dentro del
   return review;
 }
 __name(generateCouncilReview, "generateCouncilReview");
+// ── LA FORMACIÓN COMO EVENTO, NO SOLO COMO ESTADO ──────────────────────────
+// Un contador dice cuánto sabe una silla HOY; no dice que ayer supiera menos. Y con
+// admira.live formando consejeros en bucle, lo que hay que poder ver es justo lo
+// segundo: CUÁNDO se ha formado uno y cuánto creció. Así que el tick guarda el
+// recuento por silla y, cuando sube, deja el delta.
+//
+// Por SNAPSHOT, no por push: admira.live no tiene que llamar a yokup ni saber que
+// existe, y el evento sale igual si la pieza la sube Carlos a mano desde pixeria.
+// Dos tablas porque son dos preguntas distintas: `council_knowledge` es el estado
+// (una fila por silla, se pisa) y `council_knowledge_log` es la historia (una fila
+// por crecimiento, se conserva). Best-effort ABSOLUTO, como la bitácora: esto no
+// puede tumbar el tick del Consejo.
+async function ensureCouncilKnowledgeSchema(env) {
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS council_knowledge (seat TEXT PRIMARY KEY, total INTEGER, dado INTEGER, formado INTEGER, at INTEGER)");
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS council_knowledge_log (id INTEGER PRIMARY KEY AUTOINCREMENT, seat TEXT, delta INTEGER, total INTEGER, dado INTEGER, formado INTEGER, at INTEGER)");
+}
+__name(ensureCouncilKnowledgeSchema, "ensureCouncilKnowledgeSchema");
+// Compara el Stock con el último snapshot y devuelve las sillas que han crecido.
+// UNA sola lectura del índice para las ocho: el reparto por silla es local.
+async function recordCouncilKnowledge(env) {
+  const nuevos = [];
+  try {
+    await ensureCouncilKnowledgeSchema(env);
+    const items = await stockIndex();
+    // Pixeria caída devuelve [] y TODAS las sillas caerían a cero: al volver, el
+    // siguiente tick cantaría ocho «formaciones» que nunca ocurrieron. Un índice
+    // vacío no es una noticia, es una ausencia — y la ausencia no resta ni suma.
+    if (!items.length) return nuevos;
+    const previo = /* @__PURE__ */ new Map();
+    for (const r of ((await env.DB.prepare("SELECT seat,total FROM council_knowledge").all()).results || []))
+      previo.set(String(r.seat), Number(r.total) || 0);
+    const at = Date.now();
+    for (const seat of COUNCIL_ORDER) {
+      const piezas = seatKnowledgeFrom(items, seat, 0);          // 0 = todas
+      const total = piezas.length;
+      const formado = piezas.filter((p) => p.origin === "formado").length;
+      const dado = total - formado;
+      const antes = previo.has(seat) ? previo.get(seat) : null;
+      await env.DB.prepare(
+        "INSERT INTO council_knowledge (seat,total,dado,formado,at) VALUES (?,?,?,?,?)" +
+        " ON CONFLICT(seat) DO UPDATE SET total=excluded.total, dado=excluded.dado, formado=excluded.formado, at=excluded.at"
+      ).bind(seat, total, dado, formado, at).run();
+      // La PRIMERA vez que se ve una silla no es formación, es el censo inicial. Sin
+      // esta guarda, el día del despliegue saldrían ocho avisos de piezas nuevas que
+      // llevaban semanas ahí. Y bajar tampoco es noticia: borrar no es aprender.
+      if (antes === null || total <= antes) continue;
+      const delta = total - antes;
+      await env.DB.prepare("INSERT INTO council_knowledge_log (seat,delta,total,dado,formado,at) VALUES (?,?,?,?,?,?)")
+        .bind(seat, delta, total, dado, formado, at).run();
+      const c = COUNCIL[seat];
+      nuevos.push({ seat, role: c.role, alias: c.alias, delta, total, dado, formado, at });
+    }
+    await env.DB.prepare(
+      "DELETE FROM council_knowledge_log WHERE id NOT IN (SELECT id FROM council_knowledge_log ORDER BY id DESC LIMIT 100)"
+    ).run();
+  } catch (e) { /* la formación nunca tumba el tick */ }
+  return nuevos;
+}
+__name(recordCouncilKnowledge, "recordCouncilKnowledge");
 // Bitácora del cron del Consejo (auto-curación + observabilidad, FLT-1016): UNA fila
 // por hueco de 3h (slot_start PRIMARY KEY, upsert por intento) con el resultado del
 // último intento — para auditar franjas perdidas. Aditiva e idempotente; GET
@@ -905,6 +1027,12 @@ async function runCouncilTick(env) {
   const now = Date.now();
   const slotStart = Math.floor(now / slotMs) * slotMs;
   const seat = councilSeatForHour(new Date(now).getUTCHours());
+  // El snapshot va ANTES y FUERA del try de la idea: la formación de una silla no
+  // depende de que a esta hora toque generar objetivo, y el hueco de 3h ya tiene idea
+  // el 99% de los ticks. Aquí es donde se entera yokup de que un consejero ha estudiado.
+  for (const f of await recordCouncilKnowledge(env))
+    console.log("[consejo] formaci\xF3n: " + f.role + " \xB7 " + f.alias + " +" + f.delta +
+      " (total " + f.total + ", dado " + f.dado + ", formado " + f.formado + ")");
   try {
     await ensureIdeasSchema(env);
     const existing = await env.DB.prepare(
@@ -6051,6 +6179,24 @@ var index_default = {
     // últimos 20 huecos. Para auditar franjas perdidas: cada fila dice si el hueco de
     // 3h parió idea (ok) o falló (con su error recortado). Lectura abierta, igual que
     // /ideas. `ok` viaja como booleano y `slot` como ISO para leerlo de un vistazo.
+    // HISTORIA DE FORMACIÓN — LECTURA PÚBLICA, igual que /council/ticks. El estado
+    // («sabe 12») lo da /council/knowledge; esto da el ACONTECIMIENTO: qué silla
+    // creció, cuánto y cuándo. Es lo que convierte «se le ha formado» en algo que se
+    // puede mirar en yokup en vez de deducirlo comparando dos capturas del contador.
+    if (url.pathname === "/council/formacion" && req.method === "GET") {
+      try {
+        await ensureCouncilKnowledgeSchema(env);
+        const log = ((await env.DB.prepare(
+          "SELECT seat,delta,total,dado,formado,at FROM council_knowledge_log ORDER BY id DESC LIMIT 40"
+        ).all()).results || []).map((r) => {
+          const c = COUNCIL[String(r.seat)] || {};
+          return { seat: r.seat, role: c.role || "", alias: c.alias || "",
+            delta: Number(r.delta) || 0, total: Number(r.total) || 0,
+            dado: Number(r.dado) || 0, formado: Number(r.formado) || 0, at: Number(r.at) || 0 };
+        });
+        return json({ ok: true, source: "pixeria/stock", eventos: log });
+      } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
     if (url.pathname === "/council/ticks" && req.method === "GET") {
       try {
         await ensureCouncilTicksSchema(env);
@@ -6435,17 +6581,28 @@ var index_default = {
     // del censo con web (FLT-1009). El cron NO pasa nada (libre → proyecto al azar).
     // Misma generación, firma «ROL · alias», tag=consejo y guardado que el cron.
     // Devuelve la idea creada. Mismo estilo json()/CORS.
-    // CONOCIMIENTO DE CADA SILLA — LECTURA PÚBLICA. Qué material le ha dado
-    // Carlos a cada consejero en pixeria (etiquetas #stevejobs, #waltdisney…).
-    // La usa /objetivos para poner al lado del consejero de cuántas piezas sabe,
-    // que es la constancia de que ahí hay conocimiento extra y no solo su frase.
+    // CONOCIMIENTO DE CADA SILLA — LECTURA PÚBLICA. Qué material tiene cada
+    // consejero en pixeria (etiquetas #stevejobs, #waltdisney…), separando lo que
+    // le dio Carlos de lo que le trajo la formación de admira.live.
+    //
+    // `count` a secas era un contador que subía sin que subiera el conocimiento: el
+    // techo del prompt son 8 piezas, así que una silla con 60 y otra con 8 leen lo
+    // mismo. Por eso el nivel son TRES números y no uno — recibido, lo que le cabe
+    // en la cabeza, y de dónde vino— y el `ultima` dice cuándo estudió por última vez.
     if (url.pathname === "/council/knowledge") {
-      const seats = await Promise.all(COUNCIL_ORDER.map(async (s) => {
-        const c = COUNCIL[s], pieces = await seatKnowledge(s, 0);   // 0 = todas
+      const items = await stockIndex();
+      const seats = COUNCIL_ORDER.map((s) => {
+        const c = COUNCIL[s], pieces = seatKnowledgeFrom(items, s, 0);   // 0 = todas
+        const formado = pieces.filter((p) => p.origin === "formado").length;
         return { seat: s, role: c.role, alias: c.alias, tag: c.tag,
-          count: pieces.length, pieces: pieces.slice(0, 20) };
-      }));
-      return json({ ok: true, source: "pixeria/stock", seats });
+          count: pieces.length, dado: pieces.length - formado, formado,
+          // Lo que DE VERDAD lee la silla al opinar, ya con la cuota aplicada.
+          enCabeza: ventanaReservada(pieces, COUNCIL_KNOWLEDGE_PROMPT_MAX).length,
+          ultima: pieces.length ? pieces[0].at || "" : "",
+          pieces: pieces.slice(0, 20) };
+      });
+      return json({ ok: true, source: "pixeria/stock", tope: COUNCIL_KNOWLEDGE_PROMPT_MAX,
+        formacion_tag: COUNCIL_FORMACION_TAG, seats });
     }
     if (url.pathname === "/ideas/generate" && req.method === "POST") {
       try {

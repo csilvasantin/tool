@@ -81,10 +81,36 @@ test("la ficha del consejero enseña de cuántas piezas sabe, y cuáles", () => 
   assert.match(source, /const r=await wfetch\("\/council\/knowledge",\{cache:"no-store"\}\)/);
   assert.match(source, /class="objective-badges">'\+saberBadge\(i\.seat\)/, "va la primera, antes de las que solo clasifican");
   assert.match(source, /if\(!s\|\|!s\.count\) return "";/, "sin material no se pinta una chapa vacía");
-  assert.match(source, /pieza"\+\(s\.count===1\?"":"s"\)\+" que le dio Carlos en pixeria \(#"\+s\.tag\+"\)"/);
-  assert.match(source, /\.slice\(0,6\)\.map\(p=>"· "\+\(p\.title\|\|p\.note\|\|p\.type\|\|"pieza"\)\)/,
+  assert.match(source, /\.slice\(0,6\)\.map\(p=>"· "\+\(p\.title\|\|p\.note\|\|p\.type\|\|"pieza"\)\+/,
     "un número suelto no se puede comprobar: el título dice cuáles son");
-  assert.match(source, /catch\(e\)\{ \/\* silencioso \*\/ \}[\s\S]{0,400}function saberBadge/,
+  assert.match(source, /catch\(e\)\{ \/\* silencioso \*\/ \}[\s\S]{0,900}function saberBadge/,
     "si el recuento no llega, la página queda como estaba");
   assert.match(source, /\.objective-badge\.saber\{color:var\(--brand\)/);
+});
+
+// Desde que admira.live forma consejeros sola, el contador a secas MIENTE: sube
+// con cada tanda de YouTube mientras el consejero sigue leyendo 8 piezas. La chapa
+// tiene que decir el nivel —lo que lee de lo que tiene— y no el montón.
+test("la chapa dice lo que el consejero LEE, no solo lo que le han echado", () => {
+  assert.match(source, /const lee=s\.enCabeza\|\|Math\.min\(s\.count,8\), hayTope=s\.count>lee;/);
+  assert.match(source, /\(hayTope\?lee\+'\/'\+s\.count:String\(s\.count\)\)/,
+    "60 piezas y 8 en la cabeza no pueden pintarse igual que 8 y 8");
+  assert.match(source, /el tope son 8: 5 dadas \+ 3 de formación/,
+    "el tooltip explica por qué la cuenta no es el número grande");
+});
+
+test("lo que trajo la formación se ve aparte de lo que eligió Carlos", () => {
+  assert.match(source, /s\.dado\+" se las dio Carlos"/);
+  assert.match(source, /s\.formado\+" las trajo la formación de admira\.live"/);
+  assert.match(source, /s\.formado\?'<span class="objective-badge formado"[\s\S]{0,120}🎓 '\+s\.formado/,
+    "la chapa 🎓 sólo aparece si ha habido formación: es la señal de que ahí pasó algo");
+  assert.match(source, /p\.origin==="formado"\?" \(formación\)":""/, "y en el detalle, pieza a pieza");
+  assert.match(source, /\.objective-badge\.formado\{color:var\(--good\)/);
+});
+
+test("la última formación se lee en tiempo humano, no en ISO", () => {
+  assert.match(source, /function haceCuanto\(iso\)/);
+  assert.match(source, /if\(m<60\) return "hace "\+m\+" min"/);
+  assert.match(source, /if\(m<1440\) return "hace "\+Math\.round\(m\/60\)\+" h"/);
+  assert.match(source, /Última pieza: "\+cuando/);
 });

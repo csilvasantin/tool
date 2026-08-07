@@ -274,10 +274,13 @@
   .objective-grid-cell .seatsel{width:100%;margin-top:7px;background:#06121a;color:var(--mut);border:1px solid var(--line);border-radius:7px;padding:5px 6px;font:600 10px var(--mono)}.objective-grid-cell .seatsel.set{color:var(--cre);border-color:rgba(197,140,255,.4)}
   .objective-badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.objective-badge{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:2px 6px;color:var(--mut);font:700 9px/1.3 var(--mono)}
   .objective-badge.consejo{color:var(--cre);border-color:rgba(197,140,255,.4)}
-  /* 📎 N — piezas de pixeria etiquetadas con el nombre del consejero. Es la
+  /* 📎 lee/tiene — piezas de pixeria etiquetadas con el nombre del consejero. Es la
      constancia de que esa silla sabe algo que las demás no; por eso destaca
-     sobre el resto de chapas, que solo clasifican. */
+     sobre el resto de chapas, que solo clasifican. Y 🎓 N — las que trajo la
+     formación de admira.live: verde porque es crecimiento, y separada porque no
+     pesa lo mismo lo que eligió Carlos que lo que encontró un buscador. */
   .objective-badge.saber{color:var(--brand);border-color:rgba(120,243,255,.42);cursor:help;font-variant-numeric:tabular-nums}
+  .objective-badge.formado{color:var(--good);border-color:rgba(70,211,138,.42);cursor:help;font-variant-numeric:tabular-nums}
   .objective-project-link{color:var(--mis);text-decoration:none}.objective-project-link:hover{text-decoration:underline}
   .objective-state{display:inline-flex;align-items:center;gap:5px;border:1px solid currentColor;border-radius:999px;padding:4px 7px;font:700 9px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase}.objective-state:before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}.objective-state.nueva{color:var(--brand)}.objective-state.estudio{color:var(--warn)}.objective-state.hecha{color:var(--good)}.objective-state.mision{color:var(--mis)}.objective-state.descartada,.objective-state.eliminada{color:var(--mut)}
   .objective-date{width:100%;max-width:145px;margin-top:7px;background:#06121a;color:var(--ink);color-scheme:dark;border:1px solid var(--line);border-radius:7px;padding:5px 6px;font:600 10px var(--mono)}
@@ -648,18 +651,38 @@ async function loadSaber(){
   try{
     const r=await wfetch("/council/knowledge",{cache:"no-store"}); const d=await r.json();
     if(!d||!d.ok||!Array.isArray(d.seats)) return;
-    SABER={}; d.seats.forEach(s=>{ if(s&&s.seat) SABER[s.seat]={count:s.count|0,tag:s.tag||"",pieces:s.pieces||[]}; });
+    SABER={}; d.seats.forEach(s=>{ if(s&&s.seat) SABER[s.seat]={count:s.count|0,dado:s.dado|0,
+      formado:s.formado|0,enCabeza:s.enCabeza|0,ultima:s.ultima||"",tag:s.tag||"",pieces:s.pieces||[]}; });
     render();
   }catch(e){ /* silencioso */ }
 }
-// La chapa dice CUÁNTAS piezas y, al pasar por encima, cuáles: un número suelto
-// no se puede comprobar, y lo que no se puede comprobar no es constancia.
+// «Hace 3 h», que es como se lee una formación. Un ISO crudo en una chapa no lo
+// mira nadie, y lo que se quiere saber es si estudió hoy o en junio.
+function haceCuanto(iso){
+  const t=Date.parse(iso||""); if(!t) return "";
+  const m=Math.max(0,Math.round((Date.now()-t)/60000));
+  if(m<60) return "hace "+m+" min";
+  if(m<1440) return "hace "+Math.round(m/60)+" h";
+  return "hace "+Math.round(m/1440)+" d";
+}
+// El NIVEL de la silla, no el montón. Se pintan dos números —lo que lee y lo que
+// tiene— porque el techo del prompt son 8 piezas: sin el primero, una silla con 60
+// vídeos de YouTube parecía saber ocho veces más que otra con 8, y lee lo mismo.
+// La segunda chapa 🎓 aparece sólo si admira.live le ha traído algo: es la señal de
+// que ahí ha pasado una formación y no una elección de Carlos.
 function saberBadge(seat){
   const s=seat&&SABER[seat]; if(!s||!s.count) return "";
-  const lista=(s.pieces||[]).slice(0,6).map(p=>"· "+(p.title||p.note||p.type||"pieza")).join("\n");
-  const t=s.count+" pieza"+(s.count===1?"":"s")+" que le dio Carlos en pixeria (#"+s.tag+")"+
-    ", y que usa al opinar"+(lista?":\n"+lista:"")+(s.count>6?"\n…":"");
-  return '<span class="objective-badge saber" title="'+esc(t)+'" aria-label="'+esc(t)+'">📎 '+s.count+'</span>';
+  const lee=s.enCabeza||Math.min(s.count,8), hayTope=s.count>lee;
+  const lista=(s.pieces||[]).slice(0,6).map(p=>"· "+(p.title||p.note||p.type||"pieza")+
+    (p.origin==="formado"?" (formación)":"")).join("\n");
+  const cuando=haceCuanto(s.ultima);
+  const t=s.count+" pieza"+(s.count===1?"":"s")+" con #"+s.tag+" en pixeria — "+
+    s.dado+" se las dio Carlos"+(s.formado?" y "+s.formado+" las trajo la formación de admira.live":"")+".\n"+
+    "Al opinar lee "+lee+(hayTope?" (el tope son 8: 5 dadas + 3 de formación, para que lo automático no entierre lo curado)":"")+"."+
+    (cuando?"\nÚltima pieza: "+cuando+".":"")+(lista?"\n"+lista:"")+(s.count>6?"\n…":"");
+  return '<span class="objective-badge saber" title="'+esc(t)+'" aria-label="'+esc(t)+'">📎 '+
+    (hayTope?lee+'/'+s.count:String(s.count))+'</span>'+
+    (s.formado?'<span class="objective-badge formado" title="'+esc(t)+'" aria-label="'+esc(t)+'">🎓 '+s.formado+'</span>':'');
 }
 
 async function load(){

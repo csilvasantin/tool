@@ -31,6 +31,10 @@ vm.runInContext(`
   // Estado mutable que las pruebas manejan para dirigir el stub de la IA.
   globalThis.__mock = { mode: 'fail', calls: 0, longMsg: 'x'.repeat(1000) };
   globalThis.ensureIdeasSchema = async () => {};
+  // El snapshot de formación (pixeria → council_knowledge) corre en cada tick pero es
+  // otro contrato: lo cubre council-knowledge.test.mjs, incluido que el tick lo llame.
+  // Aquí se stubea para que estas pruebas sigan hablando SOLO de la idea y su bitácora.
+  globalThis.recordCouncilKnowledge = async () => [];
   // Stub del generador: 'fail' → null (IA no usable), 'ok' → inserta idea del hueco,
   // 'throw' → excepción con mensaje largo (para probar el recorte del error).
   globalThis.generateCouncilIdea = async (env, seat) => {
