@@ -14,7 +14,12 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 API="${YOKUP_API:-https://yokup-rtc.csilvasantin.workers.dev}"
 MODE="${1:?uso: mission-evidence.sh heartbeat|progress|final <misión> ...}"
 MISSION="${2:?falta misión}"; shift 2
-IMAGE=""; PROCESS_IMAGE=""; CAPTURED_AT=""; PROCESS_CAPTURED_AT=""; REPORT=""; FALLBACK=false; TRANSCRIPT=""
+# El transcript se puede fijar para TODA la sesión del agente: el claim y los
+# latidos también capturan evidencia y ahí no hay línea de comandos donde meter un
+# flag. Un agente sin GUI exporta YOKUP_TRANSCRIPT una vez y las tres fases
+# —heartbeat, progress y final— pasan por su superficie. --transcript manda sobre él.
+IMAGE=""; PROCESS_IMAGE=""; CAPTURED_AT=""; PROCESS_CAPTURED_AT=""; REPORT=""; FALLBACK=false
+TRANSCRIPT="${YOKUP_TRANSCRIPT:-}"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --image) IMAGE="${2:-}"; shift 2 ;;

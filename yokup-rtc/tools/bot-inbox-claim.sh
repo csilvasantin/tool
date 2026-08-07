@@ -8,8 +8,14 @@ read -r PERSONA _HOST OWNER _RUNTIME <<<"$(YOKUP_ROLE=sub bash "$HERE/quien-ejec
 CLAIM="$(PERSONA="$PERSONA" MACHINE="$MACHINE" python3 -c 'import json,os; print(json.dumps({"persona":os.environ["PERSONA"],"machine":os.environ["MACHINE"]}))')"
 RESPONSE="$(printf '%s' "$CLAIM" | curl -fsS -m 15 -X POST "$TG_API/api/bot-inbox/$ID/claim" -H 'Content-Type: application/json' --data @-)"
 printf '%s' "$RESPONSE" | python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("claimed") else 1)'
-# Claim no se considera iniciado hasta que la petición (Desktop) o el
-# comando+salida (CLI) quedan capturados y aceptados por /fleet/progress.
+# Refleja el claim en Yokup al instante. Sin esto, un encargo recién creado puede
+# no tener misión todavía y el heartbeat de la línea siguiente falla contra una
+# FLT-<id> que aún no existe. Best-effort: si la red falla, el cron de /fleet/sync
+# lo recupera sin impedir que el agente trabaje. (Venía del vault de la flota.)
+curl -s -m 12 -X POST "${YOKUP_API:-https://yokup-rtc.csilvasantin.workers.dev}/fleet/sync" >/dev/null 2>&1 || true
+# Claim no se considera iniciado hasta que la petición (Desktop), el comando+salida
+# (CLI) o el transcript de sesión (agente sin GUI) quedan capturados y aceptados
+# por /fleet/progress.
 "$HERE/mission-evidence.sh" heartbeat "FLT-$ID" >/dev/null
 "$HERE/bot-inbox-paso.sh" "FLT-$ID" a in_progress >/dev/null
 printf '✓ claim #%s — %s\n' "$ID" "$OWNER"

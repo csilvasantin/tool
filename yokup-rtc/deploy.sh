@@ -38,5 +38,9 @@ done
 [ "$fallos" -eq 0 ] || echo "  ⚠ $fallos fichero(s) de prueba en rojo — revisa antes de fiarte del despliegue"
 
 echo "→ Cloudflare Workers…"
-npx wrangler deploy
+# `npx wrangler` a secas resuelve la ÚLTIMA versión publicada, así que el
+# despliegue de producción depende de lo que npm publique esa mañana: el 07-08-2026
+# la 4.120.0 devolvía 404 en el registro y no se podía desplegar nada. Se fija una
+# versión probada; subirla es un cambio consciente (WRANGLER_VERSION=x.y.z ./deploy.sh).
+npx "wrangler@${WRANGLER_VERSION:-4.119.0}" deploy
 echo "✓ yokup-rtc publicado · api.yokup.com"

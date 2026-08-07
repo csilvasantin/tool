@@ -87,6 +87,16 @@ test("un transcript guardado ayer no acredita el proceso de hoy", async (t) => {
   assert.match(r.stderr, /no acredita proceso vivo/);
 });
 
+test("el transcript vale para toda la sesión, no solo para el cierre", async () => {
+  const client = await tool("mission-evidence.sh");
+  // El claim y los latidos también capturan evidencia y no tienen dónde meter un
+  // flag: sin esto, un agente sin GUI no podría ni empezar la misión.
+  assert.match(client, /TRANSCRIPT="\$\{YOKUP_TRANSCRIPT:-\}"/);
+  const claim = await tool("bot-inbox-claim.sh");
+  assert.match(claim, /mission-evidence\.sh" heartbeat "FLT-\$ID"/);
+  assert.match(claim, /fleet\/sync/, "sin sync, el heartbeat golpea una FLT-<id> que aún no existe");
+});
+
 test("la superficie agent se elige a mano, nunca por degradación silenciosa", async () => {
   const client = await tool("mission-evidence.sh");
   assert.match(client, /if \[ -n "\$TRANSCRIPT" \]; then CAPTURE_SURFACE="agent"; CAPTURE_CONTEXT="session_transcript"; fi/);

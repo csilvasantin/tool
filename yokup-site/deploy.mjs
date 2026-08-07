@@ -179,7 +179,11 @@ try {
   await writeFile(join(stagingPath, "version.json"), JSON.stringify(payload, null, 2) + "\n");
   await stampFrameReferences(payload.version, pathToFileURL(stagingPath + sep));
   const commitArgs = wranglerCommitArgs({ gitFull, signature, version:payload.version });
-  await run("npx", ["wrangler", "pages", "deploy", stagingPath, "--project-name", "yokup", "--branch", "main", "--commit-dirty=" + dirty, ...commitArgs]);
+  // `npx wrangler` a secas resuelve la ÚLTIMA versión publicada: el 07-08-2026 la
+  // 4.120.0 devolvía 404 en el registro de npm y no se podía desplegar nada. Se fija
+  // una versión probada; subirla es consciente (WRANGLER_VERSION=x.y.z node deploy.mjs).
+  const wrangler = `wrangler@${process.env.WRANGLER_VERSION || "4.119.0"}`;
+  await run("npx", [wrangler, "pages", "deploy", stagingPath, "--project-name", "yokup", "--branch", "main", "--commit-dirty=" + dirty, ...commitArgs]);
   console.log(`Yokup publicado: ${payload.version}`);
 } catch (error) {
   console.error(error && error.message || error);
