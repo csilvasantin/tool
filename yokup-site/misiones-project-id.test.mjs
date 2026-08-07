@@ -6,6 +6,7 @@ import {readFile} from 'node:fs/promises';
 const source = await readFile(new URL('./yk-misiones.js', import.meta.url), 'utf8');
 const board = await readFile(new URL('./misiones.html', import.meta.url), 'utf8');
 const css = await readFile(new URL('./yk-misiones.css', import.meta.url), 'utf8');
+const header = await readFile(new URL('./yk-cabezal.js', import.meta.url), 'utf8');
 
 function loadModule() {
   const windowObj = {};
@@ -108,6 +109,30 @@ test('Misión encabeza con su proyecto y debajo la descripción, sin repetir el 
   // encabeza la columna Misión.
   assert.match(agentCell, /Codex · Desktop App/);
   assert.doesNotMatch(agentCell, /mission-project-label|Yokup/);
+});
+
+test('Misión muestra hasta cuatro líneas y conserva accesible el asunto completo', () => {
+  const Yk = loadModule();
+  Yk.init({worker:'https://api.yokup.com', columnMode:'tasks', projectIdLayout:true});
+  Yk.setProyectos([{id:'yokup', name:'Yokup', web:'https://www.yokup.com'}]);
+  const subject = 'Yokup · Corregir el capturador de evidencia para mostrar el trabajo real antes de recurrir al favicon';
+  const html = Yk.rowHtml({
+    id:'FLT-1242', project:'yokup', project_name:'Yokup', source:'fleet', subject,
+    assignee:'OraculoMacMini', machine:'MacMini', status:'in_progress',
+    created_at:Date.now(), priority:'alta'
+  });
+  const missionCell = between(html, '<div class="mission-col">', '<div class="cel ord ');
+  const fullTitle = 'Corregir el capturador de evidencia para mostrar el trabajo real antes de recurrir al favicon';
+  assert.match(board, /\.project-id-layout \.mission-col \.subj \.t\{-webkit-line-clamp:4;line-clamp:4\}/);
+  assert.doesNotMatch(board, /\.project-id-layout \.mission-col \.subj \.t\{-webkit-line-clamp:2;line-clamp:2\}/);
+  assert.match(missionCell, new RegExp('class="t" title="' + fullTitle + '" aria-label="Misión: ' + fullTitle + '"'));
+  assert.match(missionCell, new RegExp('>' + fullTitle + '<\\/div>'));
+});
+
+test('el alta recomienda títulos breves sin alterar el contrato de creación', () => {
+  assert.match(board, /altaPlaceholder:"Título breve de la misión… \(Enter para crearla\)"/);
+  assert.match(board, /getProjectId:\(\)=>PROJECT_SCOPE/);
+  assert.match(header, /project_id: projectId, text: textoBot, from: taskMode \? "yokup-tareas" : "yokup-misiones"/);
 });
 
 test('el diseño compartido conserva el formato histórico si no se activa', () => {

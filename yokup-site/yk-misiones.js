@@ -721,7 +721,11 @@
     var proyectoLinea = proyectoNombre
       ? '<div class="subj-project" title="' + esc("Proyecto · " + proyectoNombre) + '">Proyecto ' + esc(proyectoNombre) + "</div>"
       : "";
-    var subjectHtml = '<div class="subj">' + proyectoLinea + '<div class="t">' + esc(CFG.projectIdLayout ? missionTitle(t, pm.limpio) : pm.limpio) + '</div>' +
+    var displayTitle = CFG.projectIdLayout ? missionTitle(t, pm.limpio) : pm.limpio;
+    var titleAttrs = CFG.projectIdLayout
+      ? ' title="' + esc(displayTitle) + '" aria-label="Misión: ' + esc(displayTitle) + '"'
+      : "";
+    var subjectHtml = '<div class="subj">' + proyectoLinea + '<div class="t"' + titleAttrs + '>' + esc(displayTitle) + '</div>' +
       (metaHtml ? '<div class="m">' + metaHtml + "</div>" : "") + "</div>";
     var createdHtml =
       '<span class="fch2" title="creada: ' + esc(fechaCorta(t.created_at)) + '">📅 ' + fechaCorta(t.created_at) + "</span>";

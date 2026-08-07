@@ -207,7 +207,10 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
    recurso. Una captura final o de proceso siempre precede a ambos. */
 .shot-icon{object-fit:contain;padding:12%;image-rendering:auto}
 .project-id-layout .mission-col{padding-block:3px}
-.project-id-layout .mission-col .subj .t{-webkit-line-clamp:2;line-clamp:2}
+/* La fila ya reserva altura para proyecto + tareas: el asunto aprovecha ese
+   espacio antes de truncarse. Cuatro líneas conservan la densidad del tablero
+   y el texto íntegro sigue disponible mediante title/aria-label. */
+.project-id-layout .mission-col .subj .t{-webkit-line-clamp:4;line-clamp:4}
 .project-id-layout .mission-col .subj .m{margin-top:2px}
 @media(max-width:1100px){
   .hd.project-id-layout{grid-template-columns:8px minmax(130px,var(--c-who,150px)) minmax(142px,var(--c-id,158px)) minmax(210px,var(--c-mis,1fr)) minmax(210px,var(--c-ord,230px)) minmax(0,var(--c-est,112px))}
@@ -346,6 +349,7 @@ function madridToday(){return madridDayKey(Date.now());}
 // enganchan con el flujo existente (load() lee $("busca")/$("selDia")).
 const CAB=YkCabezal.mount($("cabezal"), {
   worker:WORKER, title:"Misiones", searchPlaceholder:"🔎 Buscar misión…", manageState:false,
+  altaPlaceholder:"Título breve de la misión… (Enter para crearla)",
   getProjectId:()=>PROJECT_SCOPE,
   intro:'Lo que hay que hacer. <b>Regla de los tercios</b>: cada misión se descompone en <b>3 tareas</b> a·b·c × <b>3 subtareas</b> cada una (a1…c3, máx 9 — la jornada completa de un agente; el denominador es SIEMPRE 3 y 9 para poder comparar dos misiones de un vistazo — un plan a medio definir se marca «◌ incompleto», no se le baja el denominador; los planes antiguos con pasos d…h se cuentan aparte como «+n»): el arquitecto y el agente principal definen el plan, los <b>subagentes</b> ⚙️ lo ejecutan y los <b>infraagentes</b> 📝 reportan. Las misiones de la <b>flota</b> son los encargos a los agentes (se ven vivos en <a href="https://www.admira.live/status/" target="_blank" rel="noopener" style="color:var(--brand)">admira.live/status</a>); las de <b>campo</b>, las incidencias de pantallas.',
   defaultView:"list",   // /misiones nace en LISTA; el conmutador la pasa a fichas (962)
