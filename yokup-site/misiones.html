@@ -1151,7 +1151,6 @@ async function reasignarMision(id,cambio){
 // Capture en #list: se dispara ANTES del listener de fila (bindRows), así el
 // clic en estas celdas NO selecciona la misión — abre el picker.
 $("list").addEventListener("click",ev=>{
-  if(ev.target.closest(".mission-project-label")) return; // rótulo informativo, nunca abre el reasignador
   const ordCell=ev.target.closest(".cel.ord");
   const agcCell=ev.target.closest(".cel.agc");
   if(!ordCell&&!agcCell) return;                 // resto de la fila = seleccionar

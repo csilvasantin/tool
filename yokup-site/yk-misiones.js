@@ -336,40 +336,7 @@
       };
     });
   }
-  function projectAgentLabelHtml(t) {
-    if (!CFG.projectIdLayout) return "";
-    var projectId = String(t && t.project || "").trim();
-    if (!projectId) return "";
-    var meta = projectId ? (PROY_META[projectId.toLowerCase()] || {}) : {};
-    var name = String(meta.name || (t && t.project_name) || projectId).trim();
-    // Sin dato estructurado no se inventa el proyecto a partir del asunto: el
-    // hueco vacío es más honesto y evita atribuciones visuales incorrectas.
-    if (!name) return "";
-    var primary = String(meta.primary_responsible || meta.owner || "").trim();
-    var assignee = String(t && t.assignee || "").trim();
-    var same = false, identity = window.ykAgentIdentity;
-    if (primary && assignee && identity && typeof identity.same === "function")
-      same = identity.same(assignee, primary);
-    var state = same ? "project-responsible" : "project-collaborator";
-    var detail = same
-      ? "Proyecto " + name + " · " + assignee + " es responsable principal"
-      : "Proyecto " + name + " · asignado a la misión" + (primary ? "; responsable principal: " + primary : "");
-    // PROYECTO HEREDADO (Carlos, 6-ago-2026: «podría darnos información falsa»).
-    // La misión nació con el último proyecto que declaró ese agente, otro día, y
-    // nadie lo ha confirmado desde entonces: puede no ser el suyo. Se marca con
-    // asterisco y color propio para que no se lea como un dato comprobado, y el
-    // título dice de qué día viene y cómo arreglarlo.
-    if (t && t.project_inherited) {
-      var from = String(t.project_inherited_from || "").trim();
-      state = "project-inherited";
-      detail = "Proyecto " + name + " HEREDADO" + (from ? " de la declaración del " + from : "") +
-        " · nadie lo ha confirmado hoy y podría no ser el correcto. Reasigna la misión para fijarlo.";
-      return '<span class="mission-project-label ' + state + '" title="' + esc(detail) + '" aria-label="' + esc(detail) + '">' +
-        esc(name) + '<span class="project-inherited-mark" aria-hidden="true">*</span></span>';
-    }
-    return '<span class="mission-project-label ' + state + '" title="' + esc(detail) + '" aria-label="' + esc(detail) + '">' + esc(name) + "</span>";
-  }
-  // La columna ya se llama MISIÓN y el proyecto vive bajo Agente/Plataforma:
+  // La columna ya se llama MISIÓN y muestra el proyecto encima del asunto:
   // retiramos ambos prefijos sólo cuando están delimitados, sin tocar palabras
   // legítimas del título (p.ej. «Yokup Highscore» si el proyecto es «Yokup»).
   function missionTitle(t, raw) {
@@ -780,7 +747,7 @@
         // vistazo es QUIÉN lleva la misión, antes que su referencia. La celda
         // conserva su clase `agc` —es el target del picker de reasignación— y su
         // tirador `who`, que ahora cae en el borde derecho de la primera columna.
-        '<div class="cel agc">' + rz("who", "r") + whoHtml(t.assignee, maq, surface, t._agents, machOffOf(t, surface)) + projectAgentLabelHtml(t) + "</div>" +
+        '<div class="cel agc">' + rz("who", "r") + whoHtml(t.assignee, maq, surface, t._agents, machOffOf(t, surface)) + "</div>" +
         projectIdHtml +
         // En /misiones PROJECT ID reúne referencia visual y evolución temporal;
         // Misión queda reservada al título y origen. Las vistas históricas
@@ -1205,7 +1172,7 @@
     setLiveMachines: function (set) { LIVE_MACHINES = set || null; },
     setLiveSurfaces: function (m) { LIVE_SURFACES = m || null; },
     agentKey: agentKey, baseAgentKey: baseAgentKey, liveSurfaceOf: liveSurfaceOf,
-    setProyectos: setProyectos, proyectoDe: proyectoDe, projectAgentLabelHtml: projectAgentLabelHtml, workUrlOf: workUrlOf, missionEvidenceOf: missionEvidenceOf,
+    setProyectos: setProyectos, proyectoDe: proyectoDe, workUrlOf: workUrlOf, missionEvidenceOf: missionEvidenceOf,
     renderTaskTree: renderTaskTree, refreshTree: refreshTree, addChildBtn: addChildBtn,
     stepsHtml: stepsHtml, subCount: subCount, taskNode: taskNode,
     tercios: tercios, progHtml: progHtml, tasksAbcHtml: tasksAbcHtml,

@@ -231,15 +231,6 @@
 
 /* --- columna AGENTE centrada + pila de retratos multi-agente (2026-07-19) --- */
 .hd.project-id-layout .cel.agc{justify-content:center;flex-direction:column;gap:5px;text-align:center}
-.hd.project-id-layout .mission-project-label{display:inline-block;max-width:100%;padding:3px 7px;border:1px solid;border-radius:999px;font:700 8px/1.15 var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
-.mission-project-label.project-responsible{color:var(--good);border-color:rgba(136,255,170,.45);background:rgba(136,255,170,.08)}
-.mission-project-label.project-collaborator{color:var(--accent);border-color:rgba(255,216,102,.42);background:rgba(255,216,102,.07)}
-/* PROYECTO HEREDADO (Carlos, 6-ago-2026): la misión nació con el último proyecto
-   que declaró ese agente OTRO día. Nadie lo ha confirmado, así que «podría darnos
-   información falsa» y no puede parecerse a un dato comprobado: color de aviso,
-   borde discontinuo —lo sin confirmar no se dibuja con línea maciza— y asterisco. */
-.mission-project-label.project-inherited{color:var(--warn,#ff8866);border-color:rgba(255,136,102,.5);border-style:dashed;background:rgba(255,136,102,.08)}
-.mission-project-label.project-inherited .project-inherited-mark{margin-left:3px;font-weight:800}
 .agstack{ display:flex; flex-direction:column; align-items:center }
 .agstack .agava{ margin-top:-30px; box-shadow:0 -2px 6px rgba(0,0,0,.55) }
 .agstack .agava:first-child{ margin-top:0 }

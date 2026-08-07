@@ -104,8 +104,10 @@ test('Misión encabeza con su proyecto y debajo la descripción, sin repetir el 
   assert.doesNotMatch(missionCell, /MISIÓN|Origen/);
   // el proyecto sale ANTES que la descripción, no debajo
   assert.ok(missionCell.indexOf('subj-project') < missionCell.indexOf('Reordenar la cuadrícula'));
-  // y la norma 12 sigue viva: bajo el agente, con su color de responsabilidad
-  assert.match(agentCell, /Codex · Desktop App[\s\S]*mission-project-label[\s\S]*Yokup/);
+  // Agente/Plataforma conserva el runtime, pero no duplica el proyecto que ya
+  // encabeza la columna Misión.
+  assert.match(agentCell, /Codex · Desktop App/);
+  assert.doesNotMatch(agentCell, /mission-project-label|Yokup/);
 });
 
 test('el diseño compartido conserva el formato histórico si no se activa', () => {
