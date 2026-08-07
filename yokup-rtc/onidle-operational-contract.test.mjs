@@ -16,6 +16,11 @@ test('API publica elegibilidad y aplica el mismo guard al alta OnIdle',()=>{
   assert.match(source,/pauseTimedOutOnIdleBatches/);
   assert.match(source,/WHERE id=\? AND status='active'/);
   assert.match(source,/operational_limit_ms:MISSION_UNCONCLUDED_AFTER_MS/);
+  const post=source.slice(source.indexOf('if (url.pathname === "/decisions" && req.method === "POST")'));
+  assert.match(post,/if \(!continuation && !userOverride && !onIdle\)/,
+    'el cupo horario residual sólo se aplica a decisiones no-OnIdle');
+  assert.ok(post.indexOf('operationalOnIdleState(env, decisionIdentity)') < post.indexOf('!continuation && !userOverride && !onIdle'),
+    'OnIdle debe pasar primero por su guard canónico');
 });
 
 test('script versionado consulta el guard y publica exactamente 3 + atrás + custom',()=>{

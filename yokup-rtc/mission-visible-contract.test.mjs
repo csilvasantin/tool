@@ -71,6 +71,8 @@ test('OnIdle bloquea sólo trabajo visible fresco, decisión viva o cupo 8/día'
     tasks:[{status:'in_progress',started_at:expired}],windows_today:7,now});
   assert.equal(ready.can_open,true);
   assert.deepEqual(ready.unconcluded,{missions:1,tasks:1});
+  assert.equal(onIdleEligibility({windows_today:1,now}).can_open,true,
+    'una ventana anterior del mismo día no impone espera horaria tras el cierre');
   assert.equal(onIdleEligibility({live_decisions:1,now}).reason,'live_decision');
   assert.equal(onIdleEligibility({windows_today:8,now}).reason,'daily_limit');
 });

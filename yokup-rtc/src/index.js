@@ -1274,15 +1274,17 @@ async function validateDeclareCreationContext(env, body, identity) {
 }
 __name(validateDeclareCreationContext, "validateDeclareCreationContext");
 
-// Cuando el equipo está desatendido, OnIdle permite una primera ventana por
-// agente y hora de Madrid. Las continuaciones del mismo lote no son OnIdle.
+// Cuando el equipo está desatendido, OnIdle usa su guard operativo propio:
+// trabajo fresco/decisión viva y un máximo de 8 ventanas por día de Madrid.
+// El reloj móvil horario se conserva sólo para decisiones ordinarias.
 // `user_override:true` sólo lo usa el coordinador cuando Carlos lo pide de forma
 // explícita (como en la ventana manual); queda visible en la respuesta del API.
 // EL RELOJ DE UNA VENTANA ES CORTO A PROPÓSITO (Carlos, 2026-08-05): una vez
 // lanzada hay que decidir rápido, y el tope alto invitaba a estirarlo. Antes
 // el máximo era 60 minutos —tanto como la cadencia entre ventanas, que no
 // tiene nada que ver— y bastaba pasar minutes:20 para dejar la flota esperando.
-// Por defecto 5, techo 10. La espera entre ventanas la gobierna HOURLY_WINDOW_MS.
+// Por defecto 5, techo 10. El alta OnIdle siguiente puede ser inmediata tras
+// cerrar el trabajo; HOURLY_WINDOW_MS no interviene en ese ciclo.
 var DECISION_MIN_DEFAULT = 5, DECISION_MIN_MAX = 10;
 // A MANO SE PUEDE MÁS QUE EN AUTOMÁTICO (Carlos, 2026-08-05): el agente solo
 // puede abrir 1 ventana por hora por su cuenta, pero cuando la lanza una
@@ -6184,9 +6186,12 @@ var index_default = {
           return json({ ok: false, code: "manual_needs_session",
             error: "lanzar a mano exige sesión del perímetro: el cupo de 6/hora es de quien mira la pantalla" }, 401);
         }
-        if (!continuation && !userOverride) {
-          // Mismo reloj móvil de 60 min que openInitialMissionDecision, con dos
-          // cupos: 1 en automático, MANUAL_PER_HOUR cuando la lanza una persona.
+        if (!continuation && !userOverride && !onIdle) {
+          // Las decisiones ordinarias conservan el reloj móvil de 60 min de
+          // openInitialMissionDecision: 1 automática o MANUAL_PER_HOUR manuales.
+          // OnIdle ya pasó su guard canónico justo arriba (viva, trabajo fresco,
+          // 8/día Madrid), por lo que repetir aquí 1/h impediría el siguiente
+          // ciclo inmediatamente después del cierre.
           const previas = ((await env.DB.prepare(
             "SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) AND (parent_decision IS NULL OR parent_decision='') AND created_at > ? ORDER BY created_at DESC"
           ).bind(agent, now - HOURLY_WINDOW_MS).all()).results) || [];
