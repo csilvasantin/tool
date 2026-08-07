@@ -57,8 +57,8 @@ test('objetivos.html: el select de silla se renombra a «— Consejero —» (fo
 
 // ── FLT-1017 (Carlos, 24-jul-2026) — el ✨ manda: sube ARRIBA A LA DERECHA, redacta
 //    un BORRADOR que rellena «La idea» y «Detalle», y si nadie los toca en un minuto
-//    lo damos de alta nosotros. Punto de vista del Consejero elegido; proyecto AL AZAR
-//    (no se manda ninguno: lo sortea el worker). Editar cualquiera de los dos = freno.
+//    lo damos de alta nosotros. Proyecto, Consejero y tipo elegidos condicionan el
+//    borrador; sólo un selector vacío activa el fallback del worker.
 test('objetivos.html: el ✨ va ARRIBA A LA DERECHA, antes que «Añadir objetivo»', () => {
   const f = form(OBJ);
   assert.ok(f.indexOf('id="genBtn"') < f.indexOf('id="fBtn"'), '✨ va antes que Añadir');
@@ -67,11 +67,12 @@ test('objetivos.html: el ✨ va ARRIBA A LA DERECHA, antes que «Añadir objetiv
   assert.ok(OBJ.includes('.add .hd{'), 'hay CSS de la línea del titular');
 });
 
-test('objetivos.html: generate() pide BORRADOR (preview) con el Consejero elegido y sin proyecto', () => {
+test('objetivos.html: generate() pide BORRADOR con project_id, Consejero y tipo exactos', () => {
   assert.ok(OBJ.includes('$("#fSeat")'), 'lee el Consejero');
-  assert.ok(OBJ.includes('body:JSON.stringify({seat,preview:true})'), 'envía {seat, preview}');
-  assert.ok(OBJ.includes('$("#fSeat").value)||"ceo"'), 'sin elección, el Consejero por defecto es el CEO (lo aleatorio es el proyecto)');
-  assert.ok(!/JSON\.stringify\(\{seat,project\}\)/.test(OBJ), 'ya NO manda proyecto: lo sortea el worker');
+  assert.ok(OBJ.includes('const project_id=($("#fProject")&&$("#fProject").value)||""'), 'lee project_id exacto');
+  assert.ok(OBJ.includes('const tag=($("#fTag")&&$("#fTag").value)||""'), 'lee el tipo exacto');
+  assert.ok(OBJ.includes('body:JSON.stringify({project_id,seat,tag,preview:true})'), 'envía las tres selecciones y preview');
+  assert.ok(OBJ.includes('$("#fSeat").value)||""'), 'un Consejero vacío se declara vacío para el fallback');
 });
 
 test('objetivos.html: el borrador rellena los dos campos y NO se guarda al generar', () => {
@@ -90,6 +91,9 @@ test('objetivos.html: minuto de cortesía — alta automática y freno al editar
 
 test('objetivos.html: el borrador aceptado conserva la firma del Consejo', () => {
   assert.ok(OBJ.includes('DRAFT?"consejo":""'), 'el alta hereda tag=consejo si vino del ✨');
+  assert.ok(OBJ.includes('project:$("#fProject").value'), 'el alta persiste el proyecto visible');
+  assert.ok(OBJ.includes('seat:$("#fSeat").value'), 'el alta persiste el Consejero visible');
+  assert.ok(OBJ.includes('const tag=$("#fTag").value'), 'el alta persiste el tipo visible cuando está elegido');
 });
 
 test('ideas.html: generate() adapta project (no tiene selector de Consejero)', () => {

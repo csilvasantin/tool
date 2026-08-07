@@ -15,7 +15,7 @@ test('el esquema de ideas añade la columna project (migración aditiva e idempo
 });
 
 test('generateCouncilIdea acepta projectHint y guarda el slug en la fila', () => {
-  assert.ok(SRC.includes("async function generateCouncilIdea(env, seat, topic, projectHint, persist = true)"), "firma con projectHint");
+  assert.ok(SRC.includes('async function generateCouncilIdea(env, seat, topic, projectHint, persist = true, tagHint = "")'), "firma con projectHint");
   // La inserción del Consejo incluye la columna project y liga projSlug.
   assert.match(SRC, /INSERT INTO ideas \(id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,project\)/);
   assert.ok(SRC.includes(', seat, projSlug).run();'), "liga projSlug en el INSERT del Consejo");
@@ -28,17 +28,17 @@ test('sin tema y sin hint se sortea un proyecto del censo CON web', () => {
   assert.ok(SRC.includes("withWeb[Math.floor(Math.random() * withWeb.length)]"), "elige al azar entre los que tienen web");
 });
 
-test('un projectHint válido manda; el tema explícito no mete el foco de proyecto', () => {
+test('un projectHint válido manda y siempre entra en el prompt', () => {
   assert.ok(SRC.includes('const hint = String(projectHint || "").trim();'), "lee el hint");
   assert.ok(SRC.includes("if (hint) { const p = idx.get(hint); if (p) proj = p; }"), "resuelve el hint contra el censo");
-  // focoProyecto solo entra en el prompt cuando NO hay tema (el tema manda).
-  assert.ok(SRC.includes("const focoProyecto = (!topicClean && proj)"), "el tema manda sobre el proyecto");
-  assert.ok(SRC.includes("${focoTema}${focoProyecto}"), "el prompt inserta ambos focos en orden");
+  assert.ok(SRC.includes("const focoProyecto = proj ?"), "el proyecto elegido siempre condiciona el objetivo");
+  assert.ok(SRC.includes("${focoTema}${focoProyecto}${focoTipo}"), "el prompt inserta tema, proyecto y tipo en orden");
 });
 
-test('POST /ideas/generate lee {project} y lo pasa como hint', () => {
-  assert.ok(SRC.includes('const projectHint = String(b && b.project || "").trim();'), "extrae project del body");
-  assert.ok(SRC.includes("await generateCouncilIdea(env, seat, topic, projectHint, !preview)"), "lo pasa al generador");
+test('POST /ideas/generate valida {project_id} y lo pasa como hint canónico', () => {
+  assert.ok(SRC.includes('const rawProject = String(b.project_id || b.project || "").trim();'), "project_id manda y project sigue como compatibilidad");
+  assert.ok(SRC.includes('code:"invalid_project_id"'), "un proyecto explícito inválido no activa el sorteo");
+  assert.ok(SRC.includes("await generateCouncilIdea(env, seat, topic, projectHint, !preview, tagHint)"), "lo pasa al generador");
 });
 
 test('POST /ideas (humano) valida project contra el censo (inválido → "")', () => {

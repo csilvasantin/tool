@@ -495,6 +495,21 @@ __name(attachDisplayRefs, "attachDisplayRefs");
 // CEO·CTO·COO·CFO (racional) / CCO·CDO·CXO·CSO (creativo). Una idea puede colgar de
 // una silla (`seat`, opcional) para que su progreso se pinte en /objetivos.
 const IDEA_SEATS = /* @__PURE__ */ new Set(["ceo", "cto", "coo", "cfo", "cco", "cdo", "cxo", "cso"]);
+const IDEA_TYPES = /* @__PURE__ */ new Set(["producto", "flota", "ia", "diseño", "negocio", "proceso", "meta"]);
+const IDEA_TYPE_CRITERIA = {
+  producto: "define el problema de usuario, el cambio de producto y una señal medible de adopción",
+  flota: "mejora coordinación, autonomía, trazabilidad o rendimiento de la flota de agentes",
+  ia: "aplica IA con datos, evaluación y límites verificables; evita capacidades vagas",
+  "diseño": "prioriza jerarquía visual, usabilidad, accesibilidad y coherencia estética",
+  negocio: "explica valor, coste, retorno y una métrica económica comprobable",
+  proceso: "reduce pasos, esperas o errores con un flujo operativo verificable",
+  meta: "mejora cómo se eligen, miden o aprenden los propios objetivos"
+};
+function ideaTypeCriteria(tag) {
+  const clean = String(tag || "").trim().toLowerCase();
+  return IDEA_TYPE_CRITERIA[clean] || "formula un resultado concreto, medible y accionable";
+}
+__name(ideaTypeCriteria, "ideaTypeCriteria");
 // Asegura la tabla `ideas` y su columna `seat` (migración ADITIVA e idempotente:
 // las ideas viejas quedan con seat NULL y no se rompe nada). Se llama en cada ruta
 // /ideas* porque estas rutas NO pasan por ensureSchema: el feed GET sigue siendo
@@ -598,10 +613,12 @@ __name(parseIdeaJSON, "parseIdeaJSON");
 // borrador para que /objetivos rellene el formulario. Quien la da de alta es el
 // formulario (POST /ideas), tras el minuto de cortesía o a mano. Así una idea que
 // nadie quiso no deja rastro en la base.
-async function generateCouncilIdea(env, seat, topic, projectHint, persist = true) {
+async function generateCouncilIdea(env, seat, topic, projectHint, persist = true, tagHint = "") {
   await ensureIdeasSchema(env);
   if (!IDEA_SEATS.has(seat)) seat = "ceo";
   const c = COUNCIL[seat];
+  const tagClean = IDEA_TYPES.has(String(tagHint || "").trim().toLowerCase()) ? String(tagHint).trim().toLowerCase() : "";
+  const outputTag = tagClean || "consejo";
   // FLT-1009: tema opcional (bajo demanda; el cron nunca lo pasa). Un string corto
   // que CENTRA la idea sin cambiar la voz del punto fuerte de la silla ni nada mas.
   const topicClean = String(topic || "").replace(/\s+/g, " ").trim().slice(0, 240);
@@ -618,9 +635,8 @@ async function generateCouncilIdea(env, seat, topic, projectHint, persist = true
     if (withWeb.length) proj = withWeb[Math.floor(Math.random() * withWeb.length)];
   }
   const projSlug = proj ? proj.id : "";
-  // El tema manda sobre el proyecto: si hay tema, no metemos el foco del proyecto en
-  // el prompt (aunque el slug se guarde). Sin tema, centramos la idea en el proyecto.
-  const focoProyecto = (!topicClean && proj) ? "\n\nCENTRA tu idea en un proyecto CONCRETO nuestro: \xAB" + proj.name + "\xBB (" + proj.web + "). Piensa una mejora REAL y accionable para ESE proyecto, mir\xE1ndola desde tu punto fuerte." : "";
+  const focoProyecto = proj ? "\n\nPROYECTO OBLIGATORIO: \xAB" + proj.name + "\xBB (" + proj.web + "). El objetivo DEBE pertenecer a ESE proyecto; no lo sustituyas ni propongas otro." : "";
+  const focoTipo = tagClean ? "\n\nTIPO OBLIGATORIO: \xAB" + tagClean + "\xBB. Para este tipo, " + ideaTypeCriteria(tagClean) + ". No lo reclasifiques como otro tipo." : "";
   let recent = [];
   try {
     recent = (await env.DB.prepare("SELECT title FROM ideas ORDER BY created_at DESC LIMIT 15").all()).results || [];
@@ -632,7 +648,7 @@ async function generateCouncilIdea(env, seat, topic, projectHint, persist = true
 
 AdmiraNeXT es un ecosistema de se\xF1alizaci\xF3n digital (DOOH) construido por agentes de IA: yokup.com (FSM de misiones y tareas del equipo), admira.live (cockpit de la flota de agentes de IA), pixeria (creatividad con IA), xpaceos (gemelo digital de la red de pantallas) y admira.tv (emisi\xF3n del canal).
 
-Propón UNA idea u objetivo CONCRETO y accionable para MEJORAR AdmiraNeXT, mir\xE1ndolo desde tu punto fuerte (${c.role}).${focoTema}${focoProyecto} Que sea DISTINTA de estas ideas ya propuestas:
+Propón UNA idea u objetivo CONCRETO y accionable para MEJORAR AdmiraNeXT, mir\xE1ndolo desde tu punto fuerte (${c.role}).${focoTema}${focoProyecto}${focoTipo} Que sea DISTINTA de estas ideas ya propuestas:
 ${previos}
 
 Responde SOLO con un objeto JSON v\xE1lido, sin texto alrededor ni markdown, con esta forma exacta:
@@ -647,20 +663,38 @@ Todo en espa\xF1ol.`;
   // Borrador (FLT-1017): ni INSERT ni deliberación. Sin `id`, para que nadie lo
   // confunda con una fila viva; el alta real la hará POST /ideas con estos textos.
   if (!persist) {
-    return { id: "", title, body, author, tag: "consejo", status: "", created_at: now, updated_at: now, mission_id: "", seat, project: projSlug, review: null, preview: true };
+    return { id: "", title, body, author, tag: outputTag, status: "", created_at: now, updated_at: now, mission_id: "", seat, project: projSlug, project_id: projSlug, review: null, preview: true };
   }
   // FLT-1007: las ideas del Consejo NACEN «estudio» (a debatir de inmediato). Las
   // humanas (POST /ideas) siguen naciendo «nueva» — este automatismo es solo del Consejo.
   await env.DB.prepare("INSERT INTO ideas (id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,project) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
-    .bind(id, title, body, author, "consejo", "estudio", now, now, "", seat, projSlug).run();
+    .bind(id, title, body, author, outputTag, "estudio", now, now, "", seat, projSlug).run();
   // Deliberación INLINE al nacer (mismo best-effort que /ideas/status → estudio):
   // el estado ya quedó guardado arriba; si la IA falla, la idea queda en estudio sin
   // review y POST /ideas/review la regenera bajo demanda. Nunca tumba la creación.
   let review = null;
   try { review = await generateCouncilReview(env, { id, title, body, author, seat }); } catch (e) { review = null; }
-  return { id, title, body, author, tag: "consejo", status: "estudio", created_at: now, updated_at: now, mission_id: "", seat, project: projSlug, review };
+  return { id, title, body, author, tag: outputTag, status: "estudio", created_at: now, updated_at: now, mission_id: "", seat, project: projSlug, project_id: projSlug, review };
 }
 __name(generateCouncilIdea, "generateCouncilIdea");
+
+async function resolveGenerateSelections(env, body, random = Math.random) {
+  const b = body && typeof body === "object" ? body : {};
+  const rawSeat = String(b.seat || "").trim().toLowerCase();
+  if (rawSeat && !IDEA_SEATS.has(rawSeat)) return { ok:false, status:400, code:"invalid_seat", error:"seat no pertenece al Consejo" };
+  const seat = rawSeat || COUNCIL_ORDER[Math.floor(random() * COUNCIL_ORDER.length)];
+  const rawTag = String(b.tag || "").trim().toLowerCase();
+  if (rawTag && !IDEA_TYPES.has(rawTag)) return { ok:false, status:400, code:"invalid_tag", error:"tag no pertenece a los tipos de objetivo" };
+  const rawProject = String(b.project_id || b.project || "").trim();
+  let project = "";
+  if (rawProject) {
+    const selected = (await projectIndex(env)).get(rawProject);
+    if (!selected) return { ok:false, status:400, code:"invalid_project_id", error:"project_id no pertenece al censo" };
+    project = selected.id;
+  }
+  return { ok:true, seat, tag:rawTag, project };
+}
+__name(resolveGenerateSelections, "resolveGenerateSelections");
 
 // ── DELIBERACIÓN DEL CONSEJO (FLT-1005) ──────────────────────────────────────
 // Al pasar una idea a «estudio», el resto del Consejo la debate: 3 puntos A FAVOR
@@ -5655,8 +5689,9 @@ var index_default = {
                       project: res.project, url: DECIDE_URL });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
-    // POST /ideas/generate {seat?,topic?,project?} — genera una idea del Consejo BAJO
-    // DEMANDA (el botón «✨ Idea nueva»). Sin seat → silla ALEATORIA; con seat válido → esa.
+    // POST /ideas/generate {seat?,tag?,project_id?,topic?} — genera una idea del Consejo BAJO
+    // DEMANDA. Las selecciones explícitas se validan y nunca se sustituyen: sólo un
+    // selector vacío activa los fallbacks históricos de silla/proyecto/tipo.
     // `topic` opcional (string corto): si viene, la idea nace CENTRADA en ese tema,
     // manteniendo la voz del punto fuerte de la silla. `project` opcional (slug del
     // censo): fuerza el proyecto de la idea. Sin tema NI project, se sortea un proyecto
@@ -5667,14 +5702,16 @@ var index_default = {
       try {
         await ensureIdeasSchema(env);
         let b = {}; try { b = await req.json(); } catch (e) {}
-        let seat = String(b && b.seat || "").trim().toLowerCase();
-        if (!IDEA_SEATS.has(seat)) seat = COUNCIL_ORDER[Math.floor(Math.random() * COUNCIL_ORDER.length)];
+        const selected = await resolveGenerateSelections(env, b);
+        if (!selected.ok) return json({ ok:false, error:selected.error, code:selected.code }, selected.status);
+        const seat = selected.seat;
         const topic = String(b && b.topic || "").trim();
-        const projectHint = String(b && b.project || "").trim();
+        const projectHint = selected.project;
+        const tagHint = selected.tag;
         // FLT-1017: `preview` devuelve el borrador sin guardarlo (lo pide /objetivos
         // para rellenar el formulario). Sin la bandera, todo sigue igual que antes.
         const preview = !!(b && (b.preview || b.dry_run));
-        const idea = await generateCouncilIdea(env, seat, topic, projectHint, !preview);
+        const idea = await generateCouncilIdea(env, seat, topic, projectHint, !preview, tagHint);
         if (!idea) return json({ ok: false, error: "la IA no devolvió una idea usable; reintenta" }, 502);
         if (!preview && idea.id) await attachDisplayRefs(env, "objective", idea, (row) => row.id, (row) => row.created_at);
         return json({ ok: true, idea });

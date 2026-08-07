@@ -18,7 +18,7 @@ function genBody() {
 }
 
 test('la firma acepta persist y por defecto sigue guardando', () => {
-  assert.ok(SRC.includes('async function generateCouncilIdea(env, seat, topic, projectHint, persist = true)'),
+  assert.ok(SRC.includes('async function generateCouncilIdea(env, seat, topic, projectHint, persist = true, tagHint = "")'),
     'persist = true por defecto: el cron y todo lo demás no cambian');
 });
 
@@ -44,7 +44,7 @@ test('la ruta lee {preview} (y admite dry_run) y lo traduce a persist', () => {
   const i = SRC.indexOf('url.pathname === "/ideas/generate"');
   const trozo = SRC.slice(i, i + 900);
   assert.match(trozo, /b\.preview \|\| b\.dry_run/, 'acepta preview o dry_run');
-  assert.ok(trozo.includes('generateCouncilIdea(env, seat, topic, projectHint, !preview)'),
+  assert.ok(trozo.includes('generateCouncilIdea(env, seat, topic, projectHint, !preview, tagHint)'),
     'preview:true → persist:false');
 });
 
