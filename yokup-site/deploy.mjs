@@ -72,27 +72,23 @@ async function stampFrameReferences(version, rootUrl) {
       `<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=${stamp}">`
     ].join("\n");
     let after = before
-      // El valor de ?v termina en el primer carácter ajeno a una versión. Antes
+      // TODO el marco se sella con UNA regla, no con una lista a mano.
+      //
+      // La lista se quedaba corta cada vez que nacía un fichero: el 5-ago fue
+      // yk-frame.css, que arrastraba sellos congelados mientras su .js sí se
+      // resellaba, y el 7-ago eran SEIS —yk-cabezal.js y .css, yk-adjuntos,
+      // yk-avatar, yk-display-ref, yk-maquina—. Con `max-age=14400` en Pages, un
+      // fichero sin resellar puede tardar hasta 4 h en verse, o verse a medias:
+      // el JS nuevo con la hoja vieja. Se publicó el cambio del cabezal y en
+      // producción seguía sirviéndose el anterior, pidiendo ?v=r4.
+      //
+      // Añadir el que falta arregla el caso y deja la trampa puesta para el
+      // siguiente. Esto sella cualquier /yk-*.js|css, exista hoy o se cree mañana.
+      //
+      // El valor de ?v termina en el primer carácter ajeno a una versión: antes
       // `[^"']*` podía atravesar un comentario CSS sin comillas hasta el siguiente
       // atributo HTML y tragarse la etiqueta <body> completa.
-      .replace(/\/yk-frame\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-frame.js?v=" + stamp)
-      // El CSS del marco se quedó fuera de esta lista y arrastraba sellos
-      // congelados (?v=r17/r18/r19 según la página) mientras su .js se
-      // resellaba en cada deploy. Con `max-age=14400` en Pages, un cambio sólo
-      // de estilos podía tardar hasta 4 h en verse —o verse a medias, con el
-      // JS nuevo y la hoja vieja—. Se sella igual que el resto (2026-08-05).
-      .replace(/\/yk-frame\.css(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-frame.css?v=" + stamp)
-      .replace(/\/yk-agent-identity\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-agent-identity.js?v=" + stamp)
-      .replace(/\/yk-decisions\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-decisions.js?v=" + stamp)
-      .replace(/\/yk-decisiones-grid\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-decisiones-grid.js?v=" + stamp)
-      .replace(/\/yk-objetivos-grid\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-objetivos-grid.js?v=" + stamp)
-      .replace(/\/yk-informes-sort\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-informes-sort.js?v=" + stamp)
-      .replace(/\/yk-informes-columns\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-informes-columns.js?v=" + stamp)
-      .replace(/\/yk-informes-groups\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-informes-groups.js?v=" + stamp)
-      .replace(/\/yk-tareas-sort\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-tareas-sort.js?v=" + stamp)
-      .replace(/\/yk-tareas-columns\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-tareas-columns.js?v=" + stamp)
-      .replace(/\/yk-misiones\.js(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-misiones.js?v=" + stamp)
-      .replace(/\/yk-misiones\.css(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/yk-misiones.css?v=" + stamp)
+      .replace(/\/(yk-[a-z0-9-]+\.(?:js|css))(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/$1?v=" + stamp)
       .replace(/\s*<link\b[^>]*\brel=["'][^"']*(?:icon|apple-touch-icon)[^"']*["'][^>]*>/gi, "");
     const anchor = /<meta\b[^>]*\bname=["']viewport["'][^>]*>/i.test(after)
       ? /(<meta\b[^>]*\bname=["']viewport["'][^>]*>)/i
