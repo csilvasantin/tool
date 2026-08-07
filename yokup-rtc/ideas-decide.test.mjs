@@ -8,10 +8,9 @@ import {
 } from './src/ideas-decide.js';
 
 const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
-// Espejo del invariante isInitialMissionDecision de index.js (4 opciones con la
-// salida terminal): exactamente lo que la maquinaria de relojes exige a una tanda.
+// Espejo del invariante isInitialMissionDecision de index.js.
 const isInitialMissionDecision = (opts) =>
-  Array.isArray(opts) && opts.length === 4 && /volver\s+atr[aá]s|no\s+iniciar/i.test(String(opts[3] || ''));
+  Array.isArray(opts) && opts.length === 5 && /volver\s+atr[aá]s/i.test(String(opts[3] || '')) && /custom/i.test(String(opts[4] || ''));
 
 // ── parseDecideOptions: robusto a lo que devuelva Workers AI ──────────────────
 test('parseDecideOptions lee el objeto {opciones:[…]}', () => {
@@ -60,17 +59,18 @@ test('ideaDeliberationText devuelve "" sin review o con basura', () => {
   assert.equal(ideaDeliberationText({}), '');
 });
 
-// ── buildDecideDecisionOptions: 3 opciones + «Volver atrás» = decisión inicial ─
-test('buildDecideDecisionOptions arma exactamente 4 con la salida al final', () => {
+// ── 3 propuestas + back + custom = decisión inicial ─────────────────────────
+test('buildDecideDecisionOptions arma 5 con back cuarta y custom quinta', () => {
   const opts = buildDecideDecisionOptions(['1','2','3','4','5']);
-  assert.equal(opts.length, 4);
-  assert.equal(opts[3], 'Volver atrás');
+  assert.equal(opts.length, 5);
+  assert.match(opts[3], /Volver atrás/);
+  assert.match(opts[4], /Custom/);
   // Y es una decisión INICIAL válida para la maquinaria de relojes.
   assert.equal(isInitialMissionDecision(opts), true);
 });
 test('buildDecideDecisionOptions descarta vacías y recorta a 3', () => {
   const opts = buildDecideDecisionOptions(['a','','b','c','d','e','f']);
-  assert.deepEqual(opts, ['a','b','c','Volver atrás']);
+  assert.deepEqual(opts, ['a','b','c','↩ Volver atrás','✍️ Custom · Escribe la mejora que quieras a mano']);
 });
 
 // ── Wiring en index.js (mismo estilo source-string del resto del harness) ─────

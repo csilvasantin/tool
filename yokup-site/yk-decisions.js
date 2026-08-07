@@ -165,12 +165,13 @@
   }
   function canRollbackClosedImprovement(d, i) {
     var options=d&&d.options||[], surface=String(d&&d.surface||"").toLowerCase();
-    return (d.status==="expired"||d.status==="decided")&&(surface==="automatic"||surface==="telegram-forced")&&options.length===4&&i===options.length-1&&/volver\s+atr[aá]s|no\s+iniciar/i.test(String(options[i]||""));
+    return (d.status==="expired"||d.status==="decided")&&(surface==="automatic"||surface==="telegram-forced")&&i===3&&/volver\s+atr[aá]s|no\s+iniciar/i.test(String(options[i]||""));
   }
   function card(d, opts) {
     var pending = d.status === "pending", rec = +d.recommended || 0, closed = !pending;
     var project = projectName(d), projectId = domId(d.id);
-    var remaining = Math.max(0, (d.options || []).length - 1), remainingText = remaining + " " + (remaining === 1 ? "misión restante" : "misiones restantes");
+    var initialFive = (d.options || []).length === 5 && /volver\s+atr[aá]s/i.test(String(d.options[3] || ""));
+    var remaining = initialFive ? 3 : Math.max(0, (d.options || []).length - 1), remainingText = remaining + " " + (remaining === 1 ? "misión restante" : "misiones restantes");
     var effective = d.status === "decided" || d.status === "cancelled" ? +d.chosen : (d.status === "expired" ? rec : -1);
     var optsHtml = (d.options || []).map(function (o, i) {
       var current = closed && i === effective;
@@ -518,7 +519,20 @@
       } catch (e) {}
     }
     setInterval(function () { var refresh = false; decisions.forEach(function (d) { if (d.status !== "pending") return; d.secondsLeft = Math.max(0, d.secondsLeft - 1); var clock = document.querySelector("[data-clock='" + d.id + "']"); if (clock) { clock.textContent = mmss(d.secondsLeft); var fill = document.querySelector("[data-fill='" + d.id + "']"); if (fill) fill.style.setProperty("--fill", pct(d) + "%"); } if (!d.secondsLeft) refresh = true; }); if (refresh) load(); }, 1000);
-    if (!summary) document.addEventListener("click", async function (e) { var b = e.target.closest(".dec-opt[data-dec]"); if (!b) return; b.closest(".dec-opts").querySelectorAll("button").forEach(function (x) { x.disabled = true; }); try { await fetch(api + "/" + encodeURIComponent(b.dataset.dec) + "/choose", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({choice:+b.dataset.i,by:"Carlos"})}); } finally { load(); } });
+    if (!summary) document.addEventListener("click", async function (e) {
+      var b = e.target.closest(".dec-opt[data-dec]"); if (!b) return;
+      var choice = +b.dataset.i, options = b.closest(".dec-opts").querySelectorAll("button");
+      var isCustom = choice === 4 && /custom|escribe\s+la\s+mejora/i.test(String(b.textContent || ""));
+      var customText = "";
+      if (isCustom) {
+        customText = String(window.prompt("Escribe la mejora que quieres ejecutar:", "") || "").trim();
+        if (!customText) return;
+      }
+      options.forEach(function (x) { x.disabled = true; });
+      try {
+        await fetch(api + "/" + encodeURIComponent(b.dataset.dec) + "/choose", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({choice:choice,by:"Carlos",custom_text:customText})});
+      } finally { load(); }
+    });
     if (full) wireChips();
     if (full && window.addEventListener) window.addEventListener("yk:project-change", function (event) {
       projectScope = event.detail && event.detail.project_id || null;

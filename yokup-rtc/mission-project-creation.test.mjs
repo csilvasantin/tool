@@ -254,7 +254,7 @@ test("un encargo VIVO sin proyecto se sigue rechazando, no se ignora", async()=>
 
 test("POST /decisions/:id/choose hereda el proyecto exacto al batch y al ticket", async()=>{
   const id="DEC-PROJECT";
-  state.decisions.set(id,{id,agent:"OraculoMacMini",machine:"admira-macmini",project:"xpaceos",status:"pending",recommended:0,chosen:null,options:JSON.stringify(["Publicar XpaceOS","Verificar XpaceOS","Documentar XpaceOS","↩ Volver atrás"]),created_at:Date.now(),deadline:Date.now()+300000});
+  state.decisions.set(id,{id,agent:"OraculoMacMini",machine:"admira-macmini",project:"xpaceos",status:"pending",recommended:0,chosen:null,options:JSON.stringify(["Publicar XpaceOS","Verificar XpaceOS","Documentar XpaceOS","↩ Volver atrás","✍️ Custom · Escribe la mejora que quieras a mano"]),created_at:Date.now(),deadline:Date.now()+300000});
   const response=await post("/decisions/"+id+"/choose",{choice:0,by:"Carlos"});
   assert.equal(response.status,200,await response.text());
   const batch=[...state.batches.values()].find(row=>row.decision_id===id);
@@ -274,7 +274,7 @@ test("POST /decisions/:id/choose hereda el proyecto exacto al batch y al ticket"
 
 test("timeout recomendado materializa misión y cursor por la misma ruta",async()=>{
   const id="DEC-TIMEOUT";
-  state.decisions.set(id,{id,agent:"OraculoMacMini",machine:"admira-macmini",project:"xpaceos",status:"pending",recommended:1,chosen:null,options:JSON.stringify(["Primera","Recomendada timeout","Tercera","↩ Volver atrás"]),created_at:Date.now()-400000,deadline:Date.now()-1000});
+  state.decisions.set(id,{id,agent:"OraculoMacMini",machine:"admira-macmini",project:"xpaceos",status:"pending",recommended:1,chosen:null,options:JSON.stringify(["Primera","Recomendada timeout","Tercera","↩ Volver atrás","✍️ Custom · Escribe la mejora que quieras a mano"]),created_at:Date.now()-400000,deadline:Date.now()-1000});
   const response=await worker.fetch(new Request("https://api.yokup.test/decisions/"+id),env,{});
   assert.equal(response.status,200,await response.text());
   const novelty=state.novelties.find(row=>row.decision_id===id);

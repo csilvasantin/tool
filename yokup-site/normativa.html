@@ -288,9 +288,10 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
       <h2>OnIdle horario: tres acciones cuando el equipo está desatendido</h2>
       <p>Cuando el equipo esté desatendido, cada agente puede abrir una ventana de decisión
       <b>una cada 60 minutos como máximo</b>. El reloj se pone a cero en cada ventana y corre
-      una hora entera: no se reinicia al dar las en punto. La ventana presenta <b>exactamente tres misiones</b>
-      y la acción <b>«Volver atrás»</b>. La primera misión es la recomendada.</p>
-      <div class="formula">Automático → 1 cada 60 min · A mano → 6 · 3 misiones + Volver atrás</div>
+      una hora entera: no se reinicia al dar las en punto. Toda ventana presenta <b>exactamente cinco opciones</b>:
+      tres mejoras, <b>«↩ Volver atrás»</b> como cuarta y <b>«✍️ Custom»</b> como quinta para
+      escribir una mejora a mano. La primera mejora es la recomendada.</p>
+      <div class="formula">3 mejoras · 4ª Volver atrás · 5ª Custom</div>
       <p>El cupo se ensancha cuando la lanza una <b>persona</b> desde la pantalla: hasta
       <b>6 por hora</b>, una cada diez minutos. No es más confianza en el agente, es que hay
       alguien mirando, y entonces la cadencia la marca esa persona. Por eso lanzar a mano
@@ -298,17 +299,18 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
       <p>El reloj de <b>cada ventana</b> es cosa aparte y es <b>corto</b>: 5 minutos por defecto,
       10 como techo. Una vez lanzada hay que decidir rápido — la espera larga es la de
       <i>entre</i> ventanas, no la de dentro.</p>
-      <p>Si el reloj expira sin respuesta, se inicia la recomendada y las otras dos misiones
-      continúan en la cola persistente. Toda acción automática debe ser reversible, conservar
+      <p>Si el reloj expira sin respuesta, se inicia únicamente la recomendada; las otras dos
+      son alternativas y no se activan. Toda acción automática debe ser reversible, conservar
       evidencia y no implicar borrado, gasto, permisos nuevos ni otra actuación irreversible.</p>
       <table aria-label="Regla operativa de OnIdle">
         <thead><tr><th>Condición</th><th>Regla</th><th>Resultado</th></tr></thead>
         <tbody>
           <tr><td>Equipo atendido</td><td>No hace falta abrir OnIdle</td><td>Se sigue la conversación activa</td></tr>
-          <tr><td>Equipo desatendido</td><td>Máximo una ventana cada 60 min</td><td>3 misiones + Volver atrás</td></tr>
+          <tr><td>Equipo desatendido</td><td>Máximo una ventana cada 60 min</td><td>3 mejoras + Volver atrás + Custom</td></tr>
           <tr><td>La lanza una persona</td><td>Hasta 6 por hora, con sesión</td><td>Una cada diez minutos</td></tr>
           <tr><td>Ventana ya abierta</td><td>Reloj de 5 min (techo 10)</td><td>Se decide rápido o vence</td></tr>
-          <tr><td>Sin respuesta</td><td>Expira el reloj</td><td>Arranca la recomendada; las otras dos quedan en cola</td></tr>
+          <tr><td>Sin respuesta</td><td>Expira el reloj</td><td>Arranca únicamente la recomendada</td></tr>
+          <tr><td>Custom</td><td>Carlos escribe una mejora</td><td>Se ejecuta únicamente el texto indicado</td></tr>
         </tbody>
       </table>
     </div>

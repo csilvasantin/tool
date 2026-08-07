@@ -1,9 +1,9 @@
 // ── IDEAS → DECISIÓN (piezas puras, testeables sin worker) ───────────────────
 // Cuando en /objetivos·/ideas se pulsa «→ misión», el worker abre un reloj de
-// decisión de 3 minutos con las 3 MEJORES opciones para EJECUTAR la idea (más
-// «Volver atrás» de cuarta). Estas funciones son el troceo puro de ese flujo: el
+// decisión de 3 minutos con las 3 MEJORES opciones para EJECUTAR la idea, más
+// «Volver atrás» de cuarta y «Custom» de quinta. Estas funciones son el troceo puro de ese flujo: el
 // parseo de lo que devuelva Workers AI, el resumen de la deliberación del Consejo
-// que alimenta el prompt, y el armado de las 4 opciones de la ventana. Sin efectos
+// que alimenta el prompt, y el armado de las 5 opciones de la ventana. Sin efectos
 // secundarios: se prueban directas en ideas-decide.test.mjs.
 
 // Normaliza lo que devuelva el modelo (objeto {opciones|options|...}, array, JSON
@@ -54,12 +54,11 @@ export function ideaDeliberationText(review) {
   return parts.join("\n").slice(0, 1200);
 }
 
-// Arma las opciones de la ventana de decisión: las 3 opciones de la idea (recortadas
-// a 3, sin vacías) + «Volver atrás» de cuarta terminal. Es lo que consume la
-// maquinaria de relojes (isInitialMissionDecision exige EXACTAMENTE 4 con la salida
-// al final). Devuelve el array; el llamador valida que haya 3 reales antes de abrir.
+// Arma las opciones de la ventana de decisión: 3 propuestas, «Volver atrás» de
+// cuarta terminal y «Custom» de quinta para que Carlos escriba una mejora propia.
+// Devuelve el array; el llamador valida que haya 3 propuestas reales antes de abrir.
 export function buildDecideDecisionOptions(options) {
   const three = (Array.isArray(options) ? options : [])
     .map((o) => String(o || "").trim()).filter(Boolean).slice(0, 3);
-  return [...three, "Volver atrás"];
+  return [...three, "↩ Volver atrás", "✍️ Custom · Escribe la mejora que quieras a mano"];
 }

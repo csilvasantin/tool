@@ -4,17 +4,19 @@ import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 
 const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
-const names = ['isBackOption','isInitialMissionDecision','isContinuationMissionDecision','isMissionDecision','orderedMissionOptions','continuationMissionOrder','remainingBatchItems'];
+const names = ['isBackOption','isCustomOption','isInitialMissionDecision','isContinuationMissionDecision','isMissionDecision','orderedMissionOptions','continuationMissionOrder','remainingBatchItems'];
 const functions = names.map((name) => source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))?.[0] || '').join('\n');
 const context = vm.createContext({});
-vm.runInContext(`${functions}\nglobalThis.contract={isInitialMissionDecision,isContinuationMissionDecision,isMissionDecision,continuationMissionOrder,remainingBatchItems};`, context);
+vm.runInContext(`${functions}\nglobalThis.contract={isInitialMissionDecision,isContinuationMissionDecision,isMissionDecision,orderedMissionOptions,continuationMissionOrder,remainingBatchItems};`, context);
 const contract = context.contract;
 const back = 'Volver atrás';
+const custom = '✍️ Custom · Escribe la mejora que quieras a mano';
 
-test('la decisión inicial conserva exactamente tres misiones más back', () => {
-  assert.equal(contract.isInitialMissionDecision(['1','2','3',back]), true);
+test('la decisión inicial conserva exactamente tres misiones, back y custom', () => {
+  assert.equal(contract.isInitialMissionDecision(['1','2','3',back,custom]), true);
+  assert.equal(contract.isInitialMissionDecision(['1','2','3',back]), false);
   assert.equal(contract.isInitialMissionDecision(['1','2',back]), false);
-  assert.equal(contract.isInitialMissionDecision(['1','2','3','4',back]), false);
+  assert.equal(contract.isInitialMissionDecision(['1','2','3',custom,back]), false);
 });
 
 test('las continuaciones aceptan la secuencia 2→1 más back sólo si están enlazadas', () => {
@@ -26,9 +28,23 @@ test('las continuaciones aceptan la secuencia 2→1 más back sólo si están en
 });
 
 test('batch_id añadido a una decisión inicial no la reclasifica como continuación', () => {
-  const initial = ['1','2','3',back];
+  const initial = ['1','2','3',back,custom];
   assert.equal(contract.isContinuationMissionDecision(initial, {batch_id:'BATCH-initial'}), false);
   assert.equal(contract.isMissionDecision(initial, {batch_id:'BATCH-initial'}), true);
+});
+
+test('Custom materializa únicamente el texto escrito y no las tres propuestas', () => {
+  const ordered = contract.orderedMissionOptions(['A','B','C',back,'✍️ Custom: Mi mejora propia'], 4);
+  assert.deepEqual(Array.from(ordered, item => ({option_index:item.option_index,title:item.title})), [
+    {option_index:4,title:'Mi mejora propia'}
+  ]);
+});
+
+test('una propuesta normal materializa sólo la elegida; las otras son alternativas', () => {
+  const ordered = contract.orderedMissionOptions(['A','B','C',back,custom], 1);
+  assert.deepEqual(Array.from(ordered, item => ({option_index:item.option_index,title:item.title})), [
+    {option_index:1,title:'B'}
+  ]);
 });
 
 test('la continuación rota desde chosen sin crear ni duplicar elementos', () => {
@@ -59,7 +75,8 @@ test('reconcilia queued obsoletos contra ticket resolved/cancelled y deja sólo 
 
 test('chosen, back y expiry conservan el desenlace contractual', () => {
   assert.match(source, /const effective = decision\.status === "decided" \? Number\(decision\.chosen\) : decision\.status === "expired" \? Number\(decision\.recommended\) : null/);
-  assert.match(source, /const back = idx === o\.length - 1 && isMissionDecision\(o, d\)/);
+  assert.match(source, /const back = initial \? idx === 3 : idx === o\.length - 1 && isMissionDecision\(o, d\)/);
+  assert.match(source, /custom_text requerido/);
   assert.match(source, /\.bind\(back \? "cancelled" : "decided", idx/);
 });
 

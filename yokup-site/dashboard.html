@@ -814,7 +814,7 @@ async function paOpenDecision(projectId,agentId){
   if(PROJECT_DECISION_BUSY)return;
   const agent=paAgentFamilies(PROJECT_ROSTER).find(row=>row.id===agentId),project=PROJECT_ROWS.find(row=>row.id===projectId);
   if(!agent||!project){paMessage("No se encontró la unión proyecto · agente","err");return;}
-  PROJECT_DECISION_BUSY=projectId+"|"+agentId;paRender();paMessage("Generando cinco mejoras para "+(project.name||project.id)+"…");
+  PROJECT_DECISION_BUSY=projectId+"|"+agentId;paRender();paMessage("Generando tres mejoras para "+(project.name||project.id)+"…");
   try{
     const d=await paJson("/projects/decision",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({project:project.id,agent:agent.id,machine:agent.machine})});
     paMessage(d.existing?"Ese agente ya tenía una ventana viva":"✓ ventana de decisión abierta","ok");

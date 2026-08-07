@@ -1510,15 +1510,19 @@ async function ascendMissionProof(env, mid) {
 __name(ascendMissionProof, "ascendMissionProof");
 
 // ---- TANDAS DE MISIONES DESDE RELOJES DE DECISIÓN -------------------------
-// La decisión inicial (tres misiones + «Volver atrás») crea una única tanda.
+// La decisión inicial ofrece tres misiones + «Volver atrás» + «Custom».
 // Las continuaciones sólo reordenan sus 1..2 elementos aún queued. Nunca se
 // materializan pendientes como tickets ni se recuperan elementos completados.
 function isBackOption(option) {
   return /volver\s+atr[aá]s|no\s+iniciar/i.test(String(option || ""));
 }
 __name(isBackOption, "isBackOption");
+function isCustomOption(option) {
+  return /custom|personalizad|escribe\s+la\s+mejora/i.test(String(option || ""));
+}
+__name(isCustomOption, "isCustomOption");
 function isInitialMissionDecision(options) {
-  return Array.isArray(options) && options.length === 4 && isBackOption(options[3]);
+  return Array.isArray(options) && options.length === 5 && isBackOption(options[3]) && isCustomOption(options[4]);
 }
 __name(isInitialMissionDecision, "isInitialMissionDecision");
 function isContinuationMissionDecision(options, decision) {
@@ -1541,7 +1545,16 @@ function missionIdForBatchItem(batchId, position) {
 }
 __name(missionIdForBatchItem, "missionIdForBatchItem");
 function orderedMissionOptions(options, chosen) {
-  const count = options.length - 1; // la última es siempre «Volver atrás»
+  const initial = isInitialMissionDecision(options);
+  if (initial) {
+    if (chosen === 4) {
+      return [{ position: 0, option_index: 4, title: String(options[4] || "").replace(/^\s*✍️\s*custom\s*[:·-]?\s*/i, "").slice(0, 200) }];
+    }
+    if (!(chosen >= 0 && chosen <= 2)) return [];
+    return [{ position: 0, option_index: chosen, title: String(options[chosen] || "").slice(0, 200) }];
+  }
+  const count = options.length - 1;
+  if (!(chosen >= 0 && chosen < count)) return [];
   const out = [];
   for (let position = 0; position < count; position++) {
     const optionIndex = (chosen + position) % count;
@@ -1849,8 +1862,9 @@ async function ensureMissionBatchFromDecision(env, decision) {
   if (!decision || !isMissionDecision(options, decision)) return null;
   const effective = decision.status === "decided" ? Number(decision.chosen) : decision.status === "expired" ? Number(decision.recommended) : null;
   if (!Number.isInteger(effective)) return null;
-  // «Volver atrás» no es una misión: descarta el lote de forma terminal.
-  if (effective === options.length - 1) return null;
+  // «Volver atrás» es siempre la cuarta opción de la ventana inicial.
+  if ((isInitialMissionDecision(options) && effective === 3) ||
+      (isContinuationMissionDecision(options, decision) && effective === options.length - 1)) return null;
   const continuation = isContinuationMissionDecision(options, decision);
   const batchId = continuation ? String(decision.batch_id || "") : batchIdForDecision(decision.id);
   const now = Date.now();
@@ -1987,7 +2001,7 @@ Responde SOLO con JSON válido, sin markdown: {"opciones":["<mejora 1>","<mejora
   return null;
 }
 __name(generateProjectImprovementOptions, "generateProjectImprovementOptions");
-// Abre un reloj de decisión INICIAL (3 misiones + «Volver atrás») reutilizando los
+// Abre un reloj INICIAL: 3 misiones + «Volver atrás» + «Custom».
 // MISMOS guardas del handler POST /decisions: identidad canónica (agent+machine),
 // intersección de proyecto asignado en projects+project_members y el candado de UN
 // reloj vivo por agente. No cubre continuaciones (eso vive en POST /decisions): sólo
@@ -1997,10 +2011,10 @@ __name(generateProjectImprovementOptions, "generateProjectImprovementOptions");
 async function openInitialMissionDecision(env, input) {
   await ensureSchema(env);
   const rawOpts = Array.isArray(input.options) ? input.options : [];
-  const opts = rawOpts.slice(0, 4).map((o) => String(o).slice(0, 160));
+  const opts = rawOpts.slice(0, 5).map((o) => String(o).slice(0, 200));
   const q = String(input.question || "").trim().slice(0, 400);
   if (!q || rawOpts.length !== opts.length || !isInitialMissionDecision(opts)) {
-    return { ok: false, status: 400, error: "Se requieren exactamente 3 misiones y \xABVolver atr\xE1s\xBB como cuarta opci\xF3n" };
+    return { ok: false, status: 400, error: "Se requieren 3 mejoras, «Volver atrás» como cuarta opción y «Custom» como quinta" };
   }
   const identity = resolveDecisionIdentity(input.agent, input.machine);
   if (!identity.ok) return { ok: false, status: 400, code: "exact_identity_required", error: identity.error };
@@ -2040,7 +2054,7 @@ async function openInitialMissionDecision(env, input) {
   await backfillTodayDisplayRefs(env, now);
   await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?)")
     .bind(id, machine, agent, String(input.surface || "").slice(0, 20), q, JSON.stringify(opts),
-          Math.max(0, Math.min(opts.length - 1, +input.recommended || 0)), now, now + mins * 60000,
+          Math.max(0, Math.min(2, +input.recommended || 0)), now, now + mins * 60000,
           String(input.url || "").slice(0, 300), String(input.mission || "").slice(0, 120),
           projectContext.project_id, projectContext.project_slug, "", "").run();
   const display_ref = await ensureEntityDisplayRef(env, "window", id, now);
@@ -4918,7 +4932,7 @@ var index_default = {
           .bind(identity.agent, Date.now()).first();
         if (live) return json({ ok: true, existing: true, decision_id: live.id, deadline: live.deadline, url: DECIDE_URL });
         const options = await generateProjectImprovementOptions(env, project, identity);
-        if (!options) return json({ ok: false, error: "la IA no devolvió 5 mejoras usables; reintenta" }, 502);
+        if (!options) return json({ ok: false, error: "la IA no devolvió 3 mejoras usables; reintenta" }, 502);
         const result = await openInitialMissionDecision(env, {
           question: "¿Qué mejora ejecutará " + identity.agent + " para " + (project.name || project.id) + "?",
           options: buildDecideDecisionOptions(options), recommended: 0, minutes: DECISION_MIN_DEFAULT,
@@ -5617,7 +5631,7 @@ var index_default = {
         if (!options) return json({ ok: false, error: "la IA no devolvió 3 opciones usables; reintenta" }, 502);
         const res = await openInitialMissionDecision(env, {
           question: idea.title,
-          options: buildDecideDecisionOptions(options),   // 3 opciones + «Volver atrás»
+          options: buildDecideDecisionOptions(options),   // 3 mejoras + back + Custom
           recommended: 0,                                 // la 1ª es la más adecuada
           minutes: DECISION_MIN_DEFAULT,
           url: DECIDE_URL,
@@ -5667,7 +5681,7 @@ var index_default = {
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     // ── RELOJES DE DECISIÓN ────────────────────────────────────────────────
-    // POST /decisions            (agente) publica una tanda horaria: 3 misiones + volver atrás
+    // POST /decisions            (agente) publica 3 mejoras + back + Custom
     // GET  /decisions            (panel /misiones) lista las vivas + recién cerradas
     // POST /decisions/<id>/choose (Carlos) elige una opción
     // GET  /decisions/<id>       (agente) consulta el desenlace
@@ -5886,14 +5900,14 @@ var index_default = {
         // enlazada al mismo batch acepta únicamente las 1..2 misiones que aún
         // quedan en cola + la salida terminal.
         const rawOpts = Array.isArray(b.options) ? b.options : [];
-        const opts = rawOpts.slice(0, 4).map((o) => String(o).slice(0, 160));
-        const q = String(b.question || "").trim().slice(0, 400);
         let dparent = String(b.parent_decision || "").trim().slice(0, 80);
         let dbatch = String(b.batch_id || "").trim().slice(0, 80);
-        let parent = null;
         const continuation = !!(dparent || dbatch);
+        const opts = rawOpts.slice(0, continuation ? 3 : 5).map((o) => String(o).slice(0, 200));
+        const q = String(b.question || "").trim().slice(0, 400);
+        let parent = null;
         if (!q || rawOpts.length !== opts.length || (continuation ? !isContinuationMissionDecision(opts, { parent_decision: dparent || "linked" }) : !isInitialMissionDecision(opts))) {
-          return json({ ok: false, error: continuation ? "La continuación requiere entre 1 y 2 misiones restantes y «Volver atrás» al final" : "La decisión inicial requiere exactamente 3 misiones y «Volver atrás» como cuarta opción" }, 400);
+          return json({ ok: false, error: continuation ? "La continuación requiere entre 1 y 2 misiones restantes y «Volver atrás» al final" : "La decisión inicial requiere 3 mejoras, «Volver atrás» como cuarta opción y «Custom» como quinta" }, 400);
         }
         if (continuation) {
           parent = dparent ? await env.DB.prepare("SELECT id,batch_id,options,agent,machine,project,project_slug FROM decisions WHERE id=?").bind(dparent).first() : null;
@@ -5987,7 +6001,7 @@ var index_default = {
         await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?)")
           .bind(id, machine, agent,
                 String(b.surface || "").slice(0, 20), q, JSON.stringify(opts),
-                Math.max(0, Math.min(opts.length - 1, +b.recommended || 0)), now, now + mins * 60000,
+                Math.max(0, Math.min(continuation ? opts.length - 2 : 2, +b.recommended || 0)), now, now + mins * 60000,
                 durl, dmission, dproject, dprojectSlug, dparent, dbatch).run();
         const display_ref = await ensureEntityDisplayRef(env, "window", id, now);
         return json({ ok: true, id, display_ref, deadline: now + mins * 60000, project: projectContext.project, project_id: dproject, project_slug: dprojectSlug, parent_decision: dparent, batch_id: dbatch, continuation, user_override: userOverride });
@@ -6094,7 +6108,15 @@ var index_default = {
         if (d.status !== "pending") return json({ ok: false, error: "decision_closed", status: d.status, chosen: d.chosen }, 409);
         let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
         if (!(idx >= 0 && idx < o.length)) return json({ ok: false, error: "choice fuera de rango" }, 400);
-        const back = idx === o.length - 1 && isMissionDecision(o, d);
+        const initial = isInitialMissionDecision(o);
+        const custom = initial && idx === 4;
+        const customText = String(b.custom_text || "").trim().replace(/\s+/g, " ").slice(0, 180);
+        if (custom && !customText) return json({ ok: false, error: "custom_text requerido" }, 400);
+        if (custom) {
+          o[4] = "✍️ Custom: " + customText;
+          await env.DB.prepare("UPDATE decisions SET options=? WHERE id=?").bind(JSON.stringify(o), id).run();
+        }
+        const back = initial ? idx === 3 : idx === o.length - 1 && isMissionDecision(o, d);
         await env.DB.prepare("UPDATE decisions SET status=?, chosen=?, chosen_by=?, decided_at=? WHERE id=?")
           .bind(back ? "cancelled" : "decided", idx, String(b.by || "Carlos").slice(0, 40), Date.now(), id).run();
         const chosen = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(id).first();

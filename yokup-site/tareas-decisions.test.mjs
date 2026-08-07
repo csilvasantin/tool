@@ -17,7 +17,8 @@ const options = [
   'Aplicar ahora',
   'Preparar borrador',
   'Pedir revisión',
-  'Volver atrás'
+  '↩ Volver atrás',
+  '✍️ Custom · Escribe la mejora que quieras a mano'
 ];
 
 function render(status, extra = {}) {
@@ -45,7 +46,7 @@ function buttons(card) {
 
 function assertAllOptionsRemainVisible(card) {
   const renderedButtons = buttons(card);
-  assert.equal(renderedButtons.length, 4, 'deben conservarse 3 opciones y Volver atrás');
+  assert.equal(renderedButtons.length, 5, 'deben conservarse 3 opciones, Volver atrás y Custom');
   options.forEach((option, index) => assert.match(renderedButtons[index], new RegExp(option)));
   return renderedButtons;
 }
@@ -67,7 +68,7 @@ function assertProjectHeaderPrecedesDecision(card, name) {
   assert.ok(card.indexOf('dec-project') < card.indexOf('dec-q'), 'la cabecera del proyecto precede a la pregunta');
 }
 
-test('una decisión pendiente mantiene las tres opciones y Volver atrás accionables', () => {
+test('una decisión pendiente mantiene tres mejoras, Volver atrás y Custom accionables', () => {
   const card = render('pending');
   assertProjectHeaderPrecedesDecision(card, 'Generador de Presentaciones');
   const renderedButtons = assertAllOptionsRemainVisible(card);
@@ -124,6 +125,11 @@ test('una decisión cerrada enseña la misión activa y la cola persistente', ()
 test('Volver atrás deja constancia de que el lote fue descartado', () => {
   const card = render('cancelled', {chosen: 3});
   assert.match(card, /lote descartado/);
+});
+
+test('Custom solicita texto y lo envía como custom_text', () => {
+  assert.match(source, /window\.prompt\("Escribe la mejora que quieres ejecutar:/);
+  assert.match(source, /custom_text:customText/);
 });
 
 test('Volver atrás en una continuación conserva el batch actual', () => {
