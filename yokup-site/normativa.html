@@ -288,29 +288,35 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
       <h2>OnIdle horario: tres acciones cuando el equipo está desatendido</h2>
       <p>Cuando el equipo esté desatendido, cada agente puede abrir una ventana de decisión
       <b>una cada 60 minutos como máximo</b>. El reloj se pone a cero en cada ventana y corre
-      una hora entera: no se reinicia al dar las en punto. Toda ventana presenta <b>exactamente cinco opciones</b>:
-      tres mejoras, <b>«↩ Volver atrás»</b> como cuarta y <b>«✍️ Custom»</b> como quinta para
-      escribir una mejora a mano. La primera mejora es la recomendada.</p>
-      <div class="formula">3 mejoras · 4ª Volver atrás · 5ª Custom</div>
+      una hora entera: no se reinicia al dar las en punto. La ventana presenta <b>exactamente tres misiones</b>,
+      la acción <b>«Volver atrás»</b> y la opción <b>«Custom»</b>, en ese orden. La primera misión
+      es la recomendada. El API las exige las cinco: con cuatro responde
+      <code>La decisión inicial requiere 3 mejoras, «Volver atrás» como cuarta opción y «Custom» como quinta</code>.</p>
+      <div class="formula">Automático → 1 cada 60 min · A mano → 6 · 3 misiones + Volver atrás + Custom · reloj 5 min</div>
       <p>El cupo se ensancha cuando la lanza una <b>persona</b> desde la pantalla: hasta
       <b>6 por hora</b>, una cada diez minutos. No es más confianza en el agente, es que hay
       alguien mirando, y entonces la cadencia la marca esa persona. Por eso lanzar a mano
       <b>exige sesión</b>: sin humano identificado no hay cupo ampliado.</p>
-      <p>El reloj de <b>cada ventana</b> es cosa aparte y es <b>corto</b>: 5 minutos por defecto,
-      10 como techo. Una vez lanzada hay que decidir rápido — la espera larga es la de
+      <p>El reloj de <b>cada ventana</b> es cosa aparte y es <b>corto</b>: <b>5 minutos, siempre</b>.
+      No 3, no 10, no 20. Una vez lanzada hay que decidir rápido — la espera larga es la de
       <i>entre</i> ventanas, no la de dentro.</p>
-      <p>Si el reloj expira sin respuesta, se inicia únicamente la recomendada; las otras dos
-      son alternativas y no se activan. Toda acción automática debe ser reversible, conservar
+      <p>Cinco es el número porque los otros ya fallaron, y de las dos maneras. Con
+      <b class="bad">3 minutos</b> la ventana vence mientras el agente termina de escribir el
+      mensaje que la anuncia: Carlos abría el panel y ya no había reloj que mirar. Con
+      <b class="bad">10 o 20</b> el agente se queda esperando y la jornada se para, que es
+      justo lo contrario de para lo que existe la ventana. Cinco da tiempo a leer tres
+      misiones y elegir, y no más. <i>(Carlos, 7 de agosto de 2026.)</i></p>
+      <p>Si el reloj expira sin respuesta, se inicia la recomendada y las otras dos misiones
+      continúan en la cola persistente. Toda acción automática debe ser reversible, conservar
       evidencia y no implicar borrado, gasto, permisos nuevos ni otra actuación irreversible.</p>
       <table aria-label="Regla operativa de OnIdle">
         <thead><tr><th>Condición</th><th>Regla</th><th>Resultado</th></tr></thead>
         <tbody>
           <tr><td>Equipo atendido</td><td>No hace falta abrir OnIdle</td><td>Se sigue la conversación activa</td></tr>
-          <tr><td>Equipo desatendido</td><td>Máximo una ventana cada 60 min</td><td>3 mejoras + Volver atrás + Custom</td></tr>
+          <tr><td>Equipo desatendido</td><td>Máximo una ventana cada 60 min</td><td>3 misiones + Volver atrás</td></tr>
           <tr><td>La lanza una persona</td><td>Hasta 6 por hora, con sesión</td><td>Una cada diez minutos</td></tr>
           <tr><td>Ventana ya abierta</td><td>Reloj de 5 min (techo 10)</td><td>Se decide rápido o vence</td></tr>
-          <tr><td>Sin respuesta</td><td>Expira el reloj</td><td>Arranca únicamente la recomendada</td></tr>
-          <tr><td>Custom</td><td>Carlos escribe una mejora</td><td>Se ejecuta únicamente el texto indicado</td></tr>
+          <tr><td>Sin respuesta</td><td>Expira el reloj</td><td>Arranca la recomendada; las otras dos quedan en cola</td></tr>
         </tbody>
       </table>
     </div>
@@ -351,26 +357,18 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     <div class="num">12</div>
     <div>
       <h2>El proyecto acompaña al agente responsable</h2>
-      <p>En <code>/misiones</code>, toda misión con proyecto asignado muestra <b>Proyecto + nombre</b>
-      al comienzo de la columna <b>Misión</b>, encima del asunto. La celda <b>Agente/Plataforma</b>
-      queda reservada a la identidad, avatar y runtime/plataforma del agente: no se repite allí el proyecto.</p>
+      <p>En <code>/misiones</code>, toda misión con proyecto asignado muestra su nombre <b>debajo del agente</b>.
+      Es un rótulo informativo, no un control: no se convierte en enlace, selector, campo ni botón.</p>
       <p>La responsabilidad sale del censo de proyectos: manda <code>primary_responsible</code> y,
       si falta, se usa <code>owner</code>. La comparación se hace exclusivamente con
       <code>ykAgentIdentity.same(assignee, responsable)</code>, por familia de persona y
-      aceptando los alias históricos; por ejemplo, <b>Oraculo y OraculoMacMini son la misma familia</b>.
-      Estos datos gobiernan la asignación, no añaden un segundo rótulo visual.</p>
-      <p><b>Proyecto heredado.</b> La declaración de proyecto principal vale para un día. Cuando un
-      encargo llega sin proyecto y el agente no ha declarado hoy, la misión nace con la
-      <b>última declaración explícita de ese mismo agente</b> —no se adivina por sus proyectos ni
-      leyendo el texto del encargo— y queda <b>marcada como heredada</b>. Antes de esto, la misión
-      sencillamente no nacía: 41 encargos de la flota se quedaron atascados sin que nadie se
-      enterara. Un proyecto heredado <b>puede no ser el correcto</b>, así que conserva esa marca en
-      los datos operativos hasta que alguien reasigna la misión a un proyecto confirmado.</p>
-      <table aria-label="Ubicación visible del proyecto en la misión">
-        <thead><tr><th>Situación</th><th>Columna Misión</th><th>Agente/Plataforma</th></tr></thead>
+      aceptando los alias históricos; por ejemplo, <b>Oraculo y OraculoMacMini son la misma familia</b>.</p>
+      <table aria-label="Color del proyecto bajo el agente">
+        <thead><tr><th>Situación</th><th>Rótulo</th><th>Color</th></tr></thead>
         <tbody>
-          <tr><td>La misión tiene proyecto</td><td>Muestra <b>Proyecto + nombre</b></td><td>Identidad, avatar y plataforma; sin proyecto</td></tr>
-          <tr><td>La misión no tiene proyecto asignado</td><td>No inventa ningún nombre</td><td>Identidad, avatar y plataforma</td></tr>
+          <tr><td>Agente y responsable son de la misma familia</td><td>Nombre del proyecto bajo el agente</td><td>Verde</td></tr>
+          <tr><td>La misión tiene proyecto, pero el agente no es su responsable</td><td>Nombre del proyecto bajo el agente</td><td>Amarillo</td></tr>
+          <tr><td>La misión no tiene proyecto asignado</td><td>No se muestra ningún rótulo</td><td>—</td></tr>
         </tbody>
       </table>
     </div>
@@ -420,7 +418,33 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     </div>
   </section>
 
-  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.05.08.2026.r3.10:05 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
+  <section class="rule">
+    <div class="num">15</div>
+    <div>
+      <h2>Tu identidad se comprueba en tu sesión, no se copia del censo</h2>
+      <p><b>Antes de firmar nada, cada agente resuelve su identidad en su propia sesión.</b>
+      La cuenta autenticada dice la <b>persona</b>; el equipo físico, el <b>apellido</b>. En Claude
+      Code la persona está a la vista en la esquina inferior de la barra lateral, y en disco en
+      <code>~/.claude.json</code> → <code>oauthAccount.emailAddress</code>:
+      <b>csilva@admira.com = Neo</b> · <b>csilvasantin@gmail.com = Morfeo</b>
+      (fijado en AgoraMatrix el 03-08-2026).</p>
+      <div class="formula">cuenta autenticada + equipo físico = tu identidad</div>
+      <p><b>El censo de Yokup dice quién trabaja en un proyecto, no quién eres tú.</b> Un mismo
+      equipo aloja a varias personas: que un proyecto liste a otro agente con tu mismo apellido
+      no te convierte en él. Si tu identidad no figura en el proyecto, se da de alta con
+      <code>POST /projects/assign</code> y se sigue con la tuya; no se firma con la del vecino.</p>
+      <p>Ante cualquier divergencia —una memoria, el censo, un registro viejo, un README— se
+      <b>comprueba primero y se firma después</b>. La identidad no se hereda de lo que hubiera
+      escrito: se verifica cada jornada, como manda la <a href="#n01">norma 01</a>.</p>
+      <p>Por qué: el 07-08-2026 <b>NeoMBAPlata</b> abrió una ventana de decisión de clearchannel.tv
+      firmada como <b class="bad">OraculoMBAPlata</b>, por leer la identidad del censo del proyecto
+      en lugar de la de su sesión. El Highscore cuenta la ventana <b>al abrirse</b> y no existe
+      endpoint para borrarla: sus 8 puntos se quedaron para siempre en el agente equivocado.
+      <b>Un trabajo mal firmado no se puede devolver</b>: por eso se comprueba antes, no después.</p>
+    </div>
+  </section>
+
+  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.07.08.2026.r4.10:53 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
 </main>
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script>

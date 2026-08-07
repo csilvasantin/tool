@@ -30,6 +30,7 @@ const REGLAS = [
   "El proyecto acompaña al agente responsable",
   "Siempre la última versión — y su autor",
   "Lo que se decide y lo que se hace se da de alta, siempre",
+  "Tu identidad se comprueba en tu sesión, no se copia del censo",
 ];
 
 const bloque = source.slice(
