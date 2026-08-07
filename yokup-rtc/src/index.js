@@ -8,6 +8,7 @@ import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, 
 import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_NOVELTY_INSERT_SQL, MISSION_NOVELTY_RECENT_SQL, MISSION_NOVELTY_TABLE_SQL, missionNoveltyContract, missionNoveltyEventKey } from "./mission-novelty.js";
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
 import { resolveIdeaAuthor } from "./idea-author.js";
+import { missionProofOrigin } from "./proof-origin.js";
 import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
   onIdleEligibility, taskVisibleDetails } from "./mission-visible.js";
 import { DAILY_MISSION_CLOSE_AUTHOR, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_LEASE_MS, DAILY_MISSION_CLOSE_REASON, MISSION_UNCONCLUDED_AFTER_MS, dailyMissionCloseEventText, dailyMissionClosePlan } from "./daily-mission-close.js";
@@ -1518,7 +1519,7 @@ async function hasMissionProof(env, mid) {
     "SELECT proof_image,proof_kind FROM tickets WHERE id=?"
   ).bind(mid).first();
   if (row && row.proof_image && row.proof_kind === "final") {
-    return !!(await validateProofImage(env, row.proof_image, "https://yokup-rtc.csilvasantin.workers.dev")).value;
+    return !!(await validateProofImage(env, row.proof_image, missionProofOrigin(row.proof_image))).value;
   }
   const task = await env.DB.prepare(
     "SELECT image FROM mission_tasks WHERE mission_id=? AND image_kind='final' AND image IS NOT NULL AND image<>'' ORDER BY updated_at DESC LIMIT 1"
