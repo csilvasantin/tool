@@ -40,7 +40,9 @@ test("fleetSubject retira atribuciones editoriales sin perder el contenido poste
   const {F} = harness();
   assert.equal(
     F.fleetSubject("Recuperar usuarios. Encargo de Carlos el 7-ago-2026: es importantísima y tiene que quedar visible."),
-    "Recuperar usuarios. es importantísima y tiene que quedar visible."
+    // Desde el 7-ago la frase que queda detrás recupera su mayúscula (FLT-1268):
+    // se borra un metadato, no se estropea la redacción.
+    "Recuperar usuarios. Es importantísima y tiene que quedar visible."
   );
   assert.equal(
     F.fleetSubject("Mejoras de AdmiraNeXT. Responsable MorfeoMacMini. Estado medido hoy en producción."),

@@ -3788,9 +3788,24 @@ function cleanMissionAttributions(value) {
   const boundary = "(^|[.!?]\\s+)";
   const date = "(?:\\d{1,2}[-/](?:\\d{1,2}|ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[-/]\\d{2,4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+de\\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\\s+de\\s+\\d{4})";
   const agent = "(?:(?:Sub|Infra)?(?:Oraculo|Oráculo|Morfeo|Neo|Trinity|Cypher|Smith|Agente\\s+Smith)[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*(?:\\s+en\\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 -]+)?)";
-  subject = subject.replace(new RegExp(boundary + "Encargo\\s+de\\s+Carlos\\s+el\\s+" + date + "\\s*(?::|\\.)\\s*", "gi"), "$1");
-  subject = subject.replace(new RegExp(boundary + "Responsable\\s*:?[ \\t]+" + agent + "\\s*\\.\\s*", "gi"), "$1");
-  return subject.replace(/[ \t]{2,}/g, " ").trim();
+  const sube = (_m, sep, ch) => sep + (ch ? ch.toUpperCase() : "");
+  subject = subject.replace(new RegExp(boundary + "Encargo\\s+de\\s+Carlos\\s+el\\s+" + date + "\\s*(?::|\\.)\\s*(.?)", "gi"), sube);
+  subject = subject.replace(new RegExp(boundary + "Responsable\\s*:?[ \\t]+" + agent + "\\s*\\.\\s*(.?)", "gi"), sube);
+  // «Carlos, 7-ago-2026: …» y sus variantes (Carlos: 7-ago-2026 ·  |  (Carlos, 7-ago-2026)).
+  // El título de una misión no tiene que decir quién la pidió ni cuándo: eso ya lo
+  // dicen el autor y el sello de la ficha, y en 120 caracteres esa coletilla se come
+  // el sitio de lo único que importa —qué hay que hacer—. Al quitarla, además, entra
+  // más texto útil antes del corte.
+  // Al quitar la coletilla, la frase que venía detrás se queda empezando en
+  // minúscula («…de la idea. asi queda mejor»). Se sube su inicial: se borra un
+  // metadato, no se estropea la redacción. Sólo aquí, donde sabemos que hemos
+  // cortado; recapitalizar todo el texto convertiría «yokup.com» en «Yokup.com».
+  subject = subject.replace(new RegExp(boundary + "\\(?\\s*Carlos\\s*[,:]?\\s*" + date + "\\s*\\)?\\s*[:·.\\-–—]?\\s*(.?)", "gi"), sube);
+  subject = subject.replace(new RegExp(boundary + "Carlos\\s*[,:]\\s*(.?)", "gi"), sube);
+  // Un paréntesis que sólo lleva una fecha —«(medido 7-ago)», «(2026-08-07)»— es
+  // metadato, no enunciado. Con texto dentro se respeta: puede estar diciendo algo.
+  subject = subject.replace(new RegExp("\\s*\\((?:[^()]{0,12}\\s)?" + date + "\\)", "gi"), "");
+  return subject.replace(/\s+([.,;:])/g, "$1").replace(/[ \t]{2,}/g, " ").trim();
 }
 __name(cleanMissionAttributions, "cleanMissionAttributions");
 function fleetSubject(text) {

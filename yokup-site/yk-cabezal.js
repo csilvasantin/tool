@@ -74,7 +74,7 @@
             (opts.altaPlaceholder || (taskMode ? "Nueva tarea suelta… (Enter para encargarla)" : "Nueva misión para la flota… (Enter para crearla)")) + '">' +
           '<button type="button" class="alta-adj" id="altaAdjBtn" title="Adjuntar imagen — o pega (⌘V, también desde Telegram)" aria-label="Adjuntar imagen">📎</button>' +
         '</div>' +
-        '<button type="button" class="alta-agente" id="altaAgentBtn" aria-haspopup="menu" aria-expanded="false" title="Asignar a — pulsa para elegir agente y máquina">🎯 Auto · aleatorio <span class="cv">▾</span></button>' +
+        '<button type="button" class="alta-agente" id="altaAgentBtn" aria-haspopup="menu" aria-expanded="false" title="Asignar a — pulsa para elegir agente y máquina; en automático va al equipo con menos misiones abiertas">🎯 Auto · el más libre <span class="cv">▾</span></button>' +
         '<label class="alta-pa" id="altaPaWrap" title="Prioridad: entrega la máquina destino a la IA aunque haya un humano delante — la fuerza a «desatendida» durante 2 h para que el agente trabaje sin interrupción.">' +
           '<input type="checkbox" id="altaPa"> ⚡ Prioridad' +
         '</label>' +
@@ -209,16 +209,31 @@
 
     function renderAltaBtn() {
       const b = $("altaAgentBtn"); if (!b) return;
-      const lbl = ALTA_SEL.auto ? "🎯 Auto · aleatorio" : (ALTA_SEL.label || ALTA_SEL.persona || "—");
+      const lbl = ALTA_SEL.auto ? "🎯 Auto · el más libre" : (ALTA_SEL.label || ALTA_SEL.persona || "—");
       b.innerHTML = esc(lbl) + ' <span class="cv">▾</span>';
     }
     function esAsignable(p) { return esPrincipal(p) && (AGENTES.includes(p) || /claude|codex|grok/i.test(RUNTIME[p] || "")); }
-    function autoRandom() {
-      const pares = [];
-      for (const p of UNIV.filter(esAsignable)) for (const [, i] of Object.entries(MAQS[p] || {})) if (i.online) pares.push({ persona: p, machine: i.raw });
-      if (pares.length) return pares[Math.floor(Math.random() * pares.length)];
-      const prin = UNIV.filter(esAsignable); const p = prin.length ? prin[Math.floor(Math.random() * prin.length)] : "Neo";
-      return { persona: p, machine: "" };
+    // AUTO = el equipo MÁS LIBRE, no una lotería (Carlos: «hay que eliminar el auto
+    // aleatorio»). Antes esto sorteaba persona y máquina entre las que estuvieran
+    // online: con la flota desigual, el azar mandaba trabajo a quien ya tenía cinco
+    // misiones abiertas y dejaba parado al que no tenía ninguna, y dos altas
+    // seguidas del mismo encargo podían acabar en máquinas distintas sin motivo.
+    // El criterio bueno ya se calculaba al lado para otra cosa: menos misiones en
+    // esa máquina, luego menos en total, y el orden del censo para desempatar. Es
+    // determinista, así que el mismo estado da siempre la misma respuesta.
+    function autoLibre() {
+      let best = null;
+      const menor = (a, b) => a[0] !== b[0] ? a[0] < b[0] : (a[1] !== b[1] ? a[1] < b[1] : a[2] < b[2]);
+      for (const p of UNIV.filter(esAsignable)) for (const [, i] of Object.entries(MAQS[p] || {})) {
+        if (!i.online) continue;
+        const key = [CARGA_PM[p + "|" + i.norm] || 0, CARGA_P[p] || 0, UNIV.indexOf(p)];
+        if (!best || menor(key, best.key)) best = { persona: p, machine: i.raw, key };
+      }
+      if (best) return { persona: best.persona, machine: best.machine };
+      // Nadie online: el primero asignable del censo. Sin máquina, como antes, pero
+      // sin sortear —el orden del censo es una respuesta, el azar no.
+      const prin = UNIV.filter(esAsignable);
+      return { persona: prin.length ? prin[0] : "Neo", machine: "" };
     }
 
     // ── PARSEO DEL TEXTO DEL ALTA: a qué MÁQUINA y AGENTE va según lo escrito ──
@@ -342,7 +357,7 @@
       const el = document.createElement("div");
       el.className = "yk-picker"; el.setAttribute("role", "menu"); el.setAttribute("aria-label", "Asignar la nueva misión");
       let html = '<div class="yk-picker-hd">Asignar a</div>';
-      html += itHtml("__auto", "🎯 Auto · aleatorio", "al azar", ALTA_SEL.auto);
+      html += itHtml("__auto", "🎯 Auto · el más libre", "menos carga", ALTA_SEL.auto);
       const personas = UNIV.filter(esAsignable).sort((a, b) => a.localeCompare(b));
       const equipos = new Map();
       for (const p of personas) for (const [canon, i] of Object.entries(MAQS[p] || {})) {
@@ -479,7 +494,7 @@
           $("altaTxt").value = ""; altaAdj.clear(); detectaAlta(); resetPa();
           radar(); if (opts.onCreated) opts.onCreated(); go.disabled = false; return;
         }
-        const pick = ALTA_SEL.auto ? autoRandom() : { persona: ALTA_SEL.persona || "", machine: ALTA_SEL.machine || "" };
+        const pick = ALTA_SEL.auto ? autoLibre() : { persona: ALTA_SEL.persona || "", machine: ALTA_SEL.machine || "" };
         let persona = pick.persona; const maquina = pick.machine;
         if (!persona && maquina) { const v = agenteVivoEnMaquina(maquina); if (v) persona = v; }
         const maqCanon = YkMisiones.canonMachine(maquina);
