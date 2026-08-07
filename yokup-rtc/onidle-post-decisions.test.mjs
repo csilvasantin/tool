@@ -58,21 +58,21 @@ function post(env,body=baseBody){
 
 async function response(env,body){const r=await post(env,body),json=await r.json();return {status:r.status,json};}
 
-test('GET proposals devuelve sólo tres candidatas canónicas JSONL y excluye usadas/activas',async()=>{
-  const decisions=[{id:'DEC-used',agent:'OraculoMacMini',machine:'admira-macmini',project:'yokup',mission:'OnIdle horario',status:'decided',
+test('GET proposals usa el backlog global del proyecto y excluye usadas/activas globales',async()=>{
+  const decisions=[{id:'DEC-used',agent:'NeoMini',machine:'otro-equipo',project:'yokup',mission:'OnIdle horario',status:'decided',
     options:JSON.stringify(['Título usado','Otra histórica','Tercera histórica','↩ Volver atrás','✍️ Custom · Escribe la mejora que quieras a mano']),
     option_targets:JSON.stringify([{target_mission_id:'MIS-USED'},null,null,null,null]),created_at:1}];
-  const common={status:'open',priority:'normal',assignee:'OraculoMacMini',loc:'admira-macmini',project:'yokup',project_id:'yokup'};
+  const common={status:'open',priority:'normal',assignee:'',loc:'',project:'yokup',project_id:'yokup'};
   const backlog=[
     {...common,id:'MIS-USED',subject:'Aunque cambió título',created_at:1},
     {...common,id:'MIS-TITLE',subject:'Título usado',created_at:2},
     {...common,id:'MIS-ACTIVE',subject:'Activa por batch',created_at:3},
-    {...common,id:'MIS-1',subject:'Primera válida',priority:'high',created_at:4},
-    {...common,id:'MIS-2',subject:'Segunda válida',created_at:5},
+    {...common,id:'MIS-1',subject:'Primera válida sin asignar',priority:'high',created_at:4},
+    {...common,id:'MIS-2',subject:'Segunda válida ya asignada',assignee:'NeoMini',loc:'otro-equipo',created_at:5},
     {...common,id:'MIS-FOREIGN',subject:'No pertenece al proyecto',project_id:'otro',project:'Otro',priority:'high',created_at:1},
     {...common,id:'MIS-3',subject:'Tercera válida legacy',project_id:'',project:'Yokup',created_at:6}
   ];
-  const {env}=decisionEnv({decisions,backlog,activeBatches:[{active_mission_id:'MIS-ACTIVE',agent:'OraculoMacMini',machine:'admira-macmini',project_id:'yokup'}]});
+  const {env}=decisionEnv({decisions,backlog,activeBatches:[{active_mission_id:'MIS-ACTIVE',agent:'NeoMini',machine:'otro-equipo',project_id:'yokup'}]});
   const response=await worker.fetch(new Request('https://api.yokup.com/fleet/onidle-proposals?agent=OraculoMacMini&machine=admira-macmini&project_id=yokup'),env,{});
   const text=await response.text();
   assert.equal(response.status,200,text);

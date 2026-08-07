@@ -1937,13 +1937,25 @@ async function adoptBatchTargetMission(env, body) {
     return { ok:false, status:400, code:"invalid_decision_context", error:"decision_id no corresponde al batch_id" };
   }
   const target = await env.DB.prepare(
-    "SELECT id,status,project,project_id FROM tickets WHERE id=?"
+    "SELECT id,status,project,project_id,assignee,loc FROM tickets WHERE id=?"
   ).bind(targetId).first();
   if (!target || target.status === "cancelled") {
     return { ok:false, status:409, code:"invalid_target_mission", error:"target_mission_id no es adoptable" };
   }
   if (String(target.project_id || target.project || "") !== String(batch.project_id || "")) {
     return { ok:false, status:400, code:"option_target_project_mismatch", error:"target_mission_id pertenece a otro proyecto" };
+  }
+  const targetAssignee = String(target.assignee || "").trim();
+  const targetMachine = String(target.loc || "").trim();
+  // El owner humano de carbono puede existir sin constituir una asignación
+  // operativa. La máquina es el dato que materializa el claim agent+machine.
+  const targetUnassigned = !targetMachine;
+  const targetOwnedByBatch = !!targetAssignee && !!targetMachine &&
+    sameAgentFamily(targetAssignee, batch.agent || "") &&
+    memberRefMatches("machine", targetMachine, batch.machine || "");
+  if (!targetUnassigned && !targetOwnedByBatch) {
+    return { ok:false, status:409, code:"target_mission_owner_mismatch",
+      error:"target_mission_id ya pertenece a otro agente o máquina" };
   }
   const container = await env.DB.prepare(
     "SELECT id,status,source,screen,assignee,loc,project,project_id,closure_reason FROM tickets WHERE id=?"
@@ -1982,20 +1994,25 @@ async function adoptBatchTargetMission(env, body) {
   const targetLog = "Adoptada por tanda " + decisionId + " como trabajo canónico equivalente a " + containerId + ".";
   const writes = await env.DB.batch([
     env.DB.prepare(
+      "UPDATE tickets SET assignee=?,loc=?,updated_at=? WHERE id=? " +
+      "AND COALESCE(assignee,'')=? AND COALESCE(loc,'')=?"
+    ).bind(batch.agent || "", batch.machine || "", now, targetId, targetAssignee, targetMachine),
+    env.DB.prepare(
       "UPDATE tickets SET status='cancelled',closure_reason='equivalent_mission',closed_at=?,resolved_at=NULL,note=?,updated_at=? " +
       "WHERE id=? AND source='decision-batch' AND status NOT IN ('resolved','cancelled')"
     ).bind(now, audit, now, containerId),
     env.DB.prepare(
       "UPDATE mission_batch_items SET mission_id=?,target_mission_id=?,status='active',updated_at=? " +
       "WHERE batch_id=? AND mission_id=? AND status='active' AND EXISTS " +
-      "(SELECT 1 FROM tickets WHERE id=? AND status='cancelled' AND closure_reason='equivalent_mission')"
-    ).bind(targetId, targetId, now, batchId, containerId, containerId),
+      "(SELECT 1 FROM tickets WHERE id=? AND status='cancelled' AND closure_reason='equivalent_mission') " +
+      "AND EXISTS (SELECT 1 FROM tickets WHERE id=? AND assignee=? AND loc=?)"
+    ).bind(targetId, targetId, now, batchId, containerId, containerId, targetId, batch.agent || "", batch.machine || ""),
     env.DB.prepare(
       "UPDATE mission_batches SET active_mission_id=?,updated_at=? WHERE id=? AND status='active' AND active_mission_id=? " +
       "AND EXISTS (SELECT 1 FROM mission_batch_items WHERE batch_id=? AND mission_id=? AND target_mission_id=? AND status='active')"
     ).bind(targetId, now, batchId, containerId, batchId, targetId, targetId)
   ]);
-  const applied = writes && writes.slice(0,3).every((row) => Number(row && row.meta && row.meta.changes || 0) === 1);
+  const applied = writes && writes.slice(0,4).every((row) => Number(row && row.meta && row.meta.changes || 0) === 1);
   if (!applied) return { ok:false, status:409, code:"reconciliation_race", error:"el contexto cambió durante la adopción; no se enlazó" };
   await env.DB.batch([
     env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)")
@@ -2134,13 +2151,26 @@ async function activateNextMissionBatchItem(env, batchId, triggerDecisionId) {
   if (next.target_mission_id) {
     const targetId = String(next.target_mission_id);
     const target = await env.DB.prepare(
-      "SELECT id,status,project,project_id FROM tickets WHERE id=?"
+      "SELECT id,status,project,project_id,assignee,loc FROM tickets WHERE id=?"
     ).bind(targetId).first();
     const invalid = !target || target.status === "cancelled" ||
       String(target.project_id || target.project || "") !== String(projectContext.project_id || "");
     if (invalid) {
       const paused = await pauseMissionBatch(env, batchId, "Referencia canónica inválida o ambigua; requiere revisión explícita.");
       return { ok:false, status:409, code:"invalid_target_mission", error:"target_mission_id ya no es adoptable", batch:paused };
+    }
+    const targetAssignee = String(target.assignee || "").trim();
+    const targetMachine = String(target.loc || "").trim();
+    // Un assignee de negocio sin máquina sigue siendo backlog sin claim
+    // operativo; la adopción lo convierte de forma atómica en agent+machine.
+    const targetUnassigned = !targetMachine;
+    const targetOwnedByBatch = !!targetAssignee && !!targetMachine &&
+      sameAgentFamily(targetAssignee, batch.agent || "") &&
+      memberRefMatches("machine", targetMachine, batch.machine || "");
+    if (!targetUnassigned && !targetOwnedByBatch) {
+      const paused = await pauseMissionBatch(env, batchId, "La misión canónica ya pertenece a otro agente o máquina.");
+      return { ok:false, status:409, code:"target_mission_owner_mismatch",
+        error:"target_mission_id no puede adoptarse con este ownership", batch:paused };
     }
     const linked = await env.DB.prepare(
       "SELECT batch_id FROM mission_batch_items WHERE (target_mission_id=? OR mission_id=?) AND status='active' AND batch_id!=? LIMIT 1"
@@ -2153,15 +2183,19 @@ async function activateNextMissionBatchItem(env, batchId, triggerDecisionId) {
     const targetLog = "Tanda " + batch.decision_id + " enlazada por target_mission_id; no se crea contenedor duplicado.";
     const adopted = await env.DB.batch([
       env.DB.prepare(
+        "UPDATE tickets SET assignee=?,loc=?,updated_at=? WHERE id=? " +
+        "AND COALESCE(assignee,'')=? AND COALESCE(loc,'')=?"
+      ).bind(batch.agent || "", batch.machine || "", now, targetId, targetAssignee, targetMachine),
+      env.DB.prepare(
         "UPDATE mission_batch_items SET mission_id=?,target_mission_id=?,status=?,updated_at=? WHERE batch_id=? AND position=? AND status='queued' " +
-        "AND EXISTS (SELECT 1 FROM tickets WHERE id=? AND status!='cancelled' AND COALESCE(project_id,project,'')=?)"
-      ).bind(targetId, targetId, resolved ? "completed" : "active", now, batchId, next.position, targetId, projectContext.project_id),
+        "AND EXISTS (SELECT 1 FROM tickets WHERE id=? AND status!='cancelled' AND COALESCE(project_id,project,'')=? AND assignee=? AND loc=?)"
+      ).bind(targetId, targetId, resolved ? "completed" : "active", now, batchId, next.position, targetId, projectContext.project_id, batch.agent || "", batch.machine || ""),
       env.DB.prepare(
         "UPDATE mission_batches SET status=?,pause_reason=NULL,active_mission_id=?,updated_at=? WHERE id=? AND status='active' " +
         "AND EXISTS (SELECT 1 FROM mission_batch_items WHERE batch_id=? AND mission_id=? AND target_mission_id=?)"
       ).bind(resolved ? "completed" : "active", resolved ? null : targetId, now, batchId, batchId, targetId, targetId)
     ]);
-    const linkedNow = adopted && adopted.slice(0,2).every((row) => Number(row && row.meta && row.meta.changes || 0) === 1);
+    const linkedNow = adopted && adopted.slice(0,3).every((row) => Number(row && row.meta && row.meta.changes || 0) === 1);
     if (!linkedNow) {
       const paused = await pauseMissionBatch(env, batchId, "La misión canónica cambió durante la adopción; requiere revisión.");
       return { ok:false, status:409, code:"target_mission_race", error:"target_mission_id cambió durante la adopción", batch:paused };
@@ -2464,8 +2498,6 @@ async function canonicalOnIdleProposals(env, identity, requestedProjectId) {
     error:"project_id no pertenece a la asignación canónica de agent+machine" };
   const projectId = String(assignment.id);
   const projectName = String(assignment.name);
-  const owns = (row) => sameAgentFamily(row.assignee || row.agent || "", identity.agent) &&
-    memberRefMatches("machine", row.loc || row.machine || "", identity.machine);
   const [backlogResult, decisionResult, activeBatchResult] = await Promise.all([
     env.DB.prepare(
       "SELECT id,subject,status,priority,assignee,loc,project,project_id,created_at,updated_at FROM tickets " +
@@ -2485,8 +2517,6 @@ async function canonicalOnIdleProposals(env, identity, requestedProjectId) {
   ]);
   const usedTargetIds = [], usedTitles = [];
   for (const row of decisionResult.results || []) {
-    if (!sameAgentFamily(row.agent || "", identity.agent) ||
-        !memberRefMatches("machine", row.machine || "", identity.machine)) continue;
     let options = [], targets = [];
     try { options = JSON.parse(row.options || "[]"); } catch (e) {}
     try { targets = JSON.parse(row.option_targets || "[]"); } catch (e) {}
@@ -2496,11 +2526,9 @@ async function canonicalOnIdleProposals(env, identity, requestedProjectId) {
     }
   }
   const activeMissionIds = (activeBatchResult.results || [])
-    .filter((row) => String(row.project_id || "") === projectId &&
-      sameAgentFamily(row.agent || "", identity.agent) &&
-      memberRefMatches("machine", row.machine || "", identity.machine))
+    .filter((row) => String(row.project_id || "") === projectId)
     .map((row) => row.active_mission_id);
-  const candidates = (backlogResult.results || []).filter(owns).map((row) => ({
+  const candidates = (backlogResult.results || []).map((row) => ({
     title:row.subject, target_mission_id:row.id, status:row.status,
     priority:row.priority, created_at:row.created_at || row.updated_at
   }));

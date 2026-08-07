@@ -86,6 +86,10 @@ function harness() {
     else if (sql.startsWith("UPDATE mission_batches SET active_mission_id=")) state.batches.get(args[2]).active_mission_id=args[0];
     if (sql.startsWith("UPDATE mission_batches SET status='completed'")) {const row=state.batches.get(args.at(-1));if(row)Object.assign(row,{status:"completed",active_mission_id:null});}
     if (sql.startsWith("UPDATE mission_batches SET status='awaiting_continuation'")) {const row=state.batches.get(args.at(-1));if(row)Object.assign(row,{status:"awaiting_continuation",active_mission_id:null});}
+    if (sql.startsWith("UPDATE tickets SET assignee=?,loc=?,updated_at=?")) {
+      const row=state.tickets.find(x=>x.id===args[3]&&String(x.assignee||"")===args[4]&&String(x.loc||"")===args[5]);
+      if(row)Object.assign(row,{assignee:args[0],loc:args[1],updated_at:args[2]});
+    }
     if (sql.startsWith("UPDATE tickets SET status='cancelled',closure_reason='equivalent_mission'")) {const row=state.tickets.find(x=>x.id===args[3]);if(row)Object.assign(row,{status:"cancelled",closure_reason:"equivalent_mission",note:args[1]});}
     if (sql.startsWith("UPDATE mission_batches SET status='active'")) {const row=state.batches.get(args[1]);if(row&&row.status==="awaiting_continuation")row.status="active";}
   }
@@ -329,7 +333,7 @@ test("POST /decisions/:id/choose hereda el proyecto exacto al batch y al ticket"
 
 test("OnIdle adopta target_mission_id canónico sin crear contenedor MIS duplicado", async()=>{
   const id="DEC-TARGET-DIRECT", targetId="DCL-CANONICAL";
-  state.tickets.push({id:targetId,status:"in_progress",project:"xpaceos",project_id:"xpaceos",source:"cli-declare",assignee:"OraculoMacMini",loc:"admira-macmini",created_at:Date.now()-1000});
+  state.tickets.push({id:targetId,status:"in_progress",project:"xpaceos",project_id:"xpaceos",source:"cli-declare",assignee:"Dani K.",loc:"",created_at:Date.now()-1000});
   state.decisions.set(id,{id,agent:"OraculoMacMini",machine:"admira-macmini",project:"xpaceos",status:"pending",recommended:0,chosen:null,
     options:JSON.stringify(["Ejecutar misión existente","Alternativa 2","Alternativa 3","↩ Volver atrás","✍️ Custom · Escribe la mejora que quieras a mano"]),
     option_targets:JSON.stringify([{target_mission_id:targetId},null,null,null,null]),created_at:Date.now(),deadline:Date.now()+300000});
@@ -340,7 +344,20 @@ test("OnIdle adopta target_mission_id canónico sin crear contenedor MIS duplica
   const item=state.items.find(row=>row.batch_id===batch.id);
   assert.equal(item.mission_id,targetId); assert.equal(item.target_mission_id,targetId); assert.equal(item.status,"active");
   assert.equal(batch.active_mission_id,targetId);
+  assert.equal(state.tickets.find(row=>row.id===targetId).assignee,"OraculoMacMini");
+  assert.equal(state.tickets.find(row=>row.id===targetId).loc,"admira-macmini");
   assert.equal(state.tickets.filter(row=>row.source==="decision-batch").length,before,"no nace MIS sintética");
+});
+
+test("OnIdle no adopta una misión que ya pertenece a otro agente", async()=>{
+  const id="DEC-TARGET-OWNER", targetId="DCL-OTHER-OWNER";
+  state.tickets.push({id:targetId,status:"in_progress",project:"xpaceos",project_id:"xpaceos",source:"cli-declare",assignee:"NeoMini",loc:"otro-equipo"});
+  state.decisions.set(id,{id,agent:"OraculoMacMini",machine:"admira-macmini",project:"xpaceos",status:"pending",recommended:0,chosen:null,
+    options:JSON.stringify(["No secuestrar","Alternativa 2","Alternativa 3","↩ Volver atrás","✍️ Custom · Escribe la mejora que quieras a mano"]),
+    option_targets:JSON.stringify([{target_mission_id:targetId},null,null,null,null]),created_at:Date.now(),deadline:Date.now()+300000});
+  const response=await post("/decisions/"+id+"/choose",{choice:0,by:"Carlos"}), result=await response.json();
+  assert.equal(response.status,409,JSON.stringify(result)); assert.equal(result.code,"target_mission_owner_mismatch");
+  assert.equal(state.tickets.find(row=>row.id===targetId).assignee,"NeoMini");
 });
 
 test("OnIdle falla cerrado si target_mission_id cruza de proyecto", async()=>{
@@ -375,7 +392,7 @@ test("enlace tardío cancela el contenedor, adopta target y converge idempotente
   state.items.push({batch_id:batchId,position:0,option_index:0,title:"Trabajo real",mission_id:containerId,target_mission_id:null,status:"active"});
   state.tickets.push(
     {id:containerId,status:"in_progress",project:"xpaceos",project_id:"xpaceos",source:"decision-batch",screen:"decision-batch:"+decisionId,assignee:"OraculoMacMini",loc:"admira-macmini",proof_image:null},
-    {id:targetId,status:"in_progress",project:"xpaceos",project_id:"xpaceos",source:"cli-declare",screen:"declare:"+targetId,assignee:"OraculoMacMini",loc:"admira-macmini",created_at:Date.now()-1000,proof_image:"https://api.yokup.test/media/fleet/target-final.png"}
+    {id:targetId,status:"in_progress",project:"xpaceos",project_id:"xpaceos",source:"cli-declare",screen:"declare:"+targetId,assignee:"Sofía P.",loc:"",created_at:Date.now()-1000,proof_image:"https://api.yokup.test/media/fleet/target-final.png"}
   );
   const body={decision_id:decisionId,batch_id:batchId,container_mission_id:containerId,target_mission_id:targetId,owner:"OraculoMacMini"};
   let response=await post("/fleet/batch/adopt",body), result=await response.json();
@@ -384,6 +401,8 @@ test("enlace tardío cancela el contenedor, adopta target y converge idempotente
   assert.equal(state.tickets.find(row=>row.id===containerId).closure_reason,"equivalent_mission");
   assert.equal(state.items.find(row=>row.batch_id===batchId).mission_id,targetId);
   assert.equal(state.batches.get(batchId).active_mission_id,targetId);
+  assert.equal(state.tickets.find(row=>row.id===targetId).assignee,"OraculoMacMini");
+  assert.equal(state.tickets.find(row=>row.id===targetId).loc,"admira-macmini");
   response=await post("/fleet/batch/adopt",body); result=await response.json();
   assert.equal(response.status,200); assert.equal(result.idempotent,true); assert.equal(result.reconciliation.applied,false);
   assert.equal(state.tickets.find(row=>row.id===containerId).proof_image,null,"la adopción no copia evidencia al contenedor");
