@@ -2957,8 +2957,22 @@ var FLEET_ST = { pending: "open", ack: "open", in_progress: "in_progress", done:
 // hoy un pantallazo retroactivo de aquel trabajo.
 var PROOF_REQUIRED_AFTER = 1784313450000; // 2026-07-17T18:37:30Z
 
+// El inbox conserva íntegro el encargo y sus eventos; el asunto visible sólo
+// necesita describir el trabajo. Se retiran exclusivamente cláusulas editoriales
+// bien delimitadas: una fecha canónica para «Encargo de Carlos» o una identidad
+// operativa reconocible para «Responsable». El texto posterior se conserva.
+function cleanMissionAttributions(value) {
+  let subject = String(value || "");
+  const boundary = "(^|[.!?]\\s+)";
+  const date = "(?:\\d{1,2}[-/](?:\\d{1,2}|ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[-/]\\d{2,4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+de\\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\\s+de\\s+\\d{4})";
+  const agent = "(?:(?:Sub|Infra)?(?:Oraculo|Oráculo|Morfeo|Neo|Trinity|Cypher|Smith|Agente\\s+Smith)[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*(?:\\s+en\\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 -]+)?)";
+  subject = subject.replace(new RegExp(boundary + "Encargo\\s+de\\s+Carlos\\s+el\\s+" + date + "\\s*(?::|\\.)\\s*", "gi"), "$1");
+  subject = subject.replace(new RegExp(boundary + "Responsable\\s*:?[ \\t]+" + agent + "\\s*\\.\\s*", "gi"), "$1");
+  return subject.replace(/[ \t]{2,}/g, " ").trim();
+}
+__name(cleanMissionAttributions, "cleanMissionAttributions");
 function fleetSubject(text) {
-  const line = String(text || "").replace(/^\s*\[TAREA SUELTA\]\s*/i, "").split("\n")[0].trim();
+  const line = cleanMissionAttributions(String(text || "").replace(/^\s*\[TAREA SUELTA\]\s*/i, "").split("\n")[0]);
   if (!line) return "Encargo de la flota";
   return line.length > 120 ? line.slice(0, 117) + "…" : line;
 }

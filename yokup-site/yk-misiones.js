@@ -336,11 +336,23 @@
       };
     });
   }
+  // Compatibilidad con registros anteriores: el backend conserva inbox, eventos,
+  // responsable y demás trazabilidad, pero el título visible describe sólo el
+  // trabajo. La sintaxis estricta evita borrar frases sustantivas parecidas.
+  function cleanMissionAttributions(value) {
+    var subject = String(value || "");
+    var boundary = "(^|[.!?]\\s+)";
+    var date = "(?:\\d{1,2}[-/](?:\\d{1,2}|ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[-/]\\d{2,4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+de\\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\\s+de\\s+\\d{4})";
+    var agent = "(?:(?:Sub|Infra)?(?:Oraculo|Oráculo|Morfeo|Neo|Trinity|Cypher|Smith|Agente\\s+Smith)[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*(?:\\s+en\\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 -]+)?)";
+    subject = subject.replace(new RegExp(boundary + "Encargo\\s+de\\s+Carlos\\s+el\\s+" + date + "\\s*(?::|\\.)\\s*", "gi"), "$1");
+    subject = subject.replace(new RegExp(boundary + "Responsable\\s*:?[ \\t]+" + agent + "\\s*\\.\\s*", "gi"), "$1");
+    return subject.replace(/[ \t]{2,}/g, " ").trim();
+  }
   // La columna ya se llama MISIÓN y muestra el proyecto encima del asunto:
   // retiramos ambos prefijos sólo cuando están delimitados, sin tocar palabras
   // legítimas del título (p.ej. «Yokup Highscore» si el proyecto es «Yokup»).
   function missionTitle(t, raw) {
-    var title = String(raw || "").replace(/^\s*misión\s+/i, "").trim();
+    var title = cleanMissionAttributions(raw).replace(/^\s*misión\s+/i, "").trim();
     var projectId = String(t && t.project || "").trim();
     var meta = projectId ? (PROY_META[projectId.toLowerCase()] || {}) : {};
     var projectName = String(meta.name || (t && t.project_name) || projectId).trim();
@@ -1085,7 +1097,7 @@
     var imgHtml = img ? '<img class="mdet-img" loading="lazy" onerror="this.remove()" src="' + esc(img) + '" alt="prueba del trabajo">' : "";
     if (imgHtml && work) imgHtml = '<a class="shot-link mdet-imglink" href="' + esc(work) + '" target="_blank" rel="noopener" title="Abrir el trabajo: ' + esc(work) + '">' + imgHtml + "</a>";
     return '<div class="mdet">' +
-      '<div class="mdet-t">' + esc(prioMarca(t.subject).limpio) + "</div>" +
+      '<div class="mdet-t">' + esc(missionTitle(t, prioMarca(t.subject).limpio)) + "</div>" +
       '<div class="mdet-m"><span class="badge ' + est.c + '"><i></i>' + est.l + "</span>" +
         (maq ? '<span class="mdet-k">🖥 ' + esc(maq) + "</span>" : "") +
         '<span class="mdet-k">👷 ' + esc(agentes) + "</span></div>" +

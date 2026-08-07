@@ -25,7 +25,7 @@ function harness() {
   }; }};
   const listMissionTasks = async (_env, id) => DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? ORDER BY code").bind(id).all().then((r) => r.results);
   const context = vm.createContext({String, Date, baseAgentIdentity, scopedAgentIdentity, listMissionTasks, __name: (fn) => fn});
-  vm.runInContext(["fleetSubject", "fleetStandaloneTask", "ensureFleetStandaloneTask"].map(grab).join("\n"), context);
+  vm.runInContext(["cleanMissionAttributions", "fleetSubject", "fleetStandaloneTask", "ensureFleetStandaloneTask"].map(grab).join("\n"), context);
   return {db, env: {DB}, F: context};
 }
 
@@ -34,6 +34,32 @@ test("el marcador de tarea suelta no contamina el título visible", () => {
   assert.equal(F.fleetStandaloneTask("[TAREA SUELTA] Dibujar un plátano en ASCII."), true);
   assert.equal(F.fleetStandaloneTask("Dibujar un plátano en ASCII."), false);
   assert.equal(F.fleetSubject("[TAREA SUELTA] Dibujar un plátano en ASCII."), "Dibujar un plátano en ASCII.");
+});
+
+test("fleetSubject retira atribuciones editoriales sin perder el contenido posterior", () => {
+  const {F} = harness();
+  assert.equal(
+    F.fleetSubject("Recuperar usuarios. Encargo de Carlos el 7-ago-2026: es importantísima y tiene que quedar visible."),
+    "Recuperar usuarios. es importantísima y tiene que quedar visible."
+  );
+  assert.equal(
+    F.fleetSubject("Mejoras de AdmiraNeXT. Responsable MorfeoMacMini. Estado medido hoy en producción."),
+    "Mejoras de AdmiraNeXT. Estado medido hoy en producción."
+  );
+  assert.equal(
+    F.fleetSubject("Corregir presencia. Responsable: Morfeo en MacMini. Proyecto: AdmiraNeXT."),
+    "Corregir presencia. Proyecto: AdmiraNeXT."
+  );
+});
+
+test("fleetSubject no recorta menciones sustantivas parecidas a una atribución", () => {
+  const {F} = harness();
+  for (const title of [
+    "Mejorar el campo Responsable de carbono",
+    "Responsable de revisar los permisos antes de publicar",
+    "Documentar «Encargo de Carlos el 7-ago-2026» como ejemplo",
+    "Encargo de Carlos el Grande para la exposición",
+  ]) assert.equal(F.fleetSubject(title), title);
 });
 
 test("una tarea suelta crea una sola fila y conserva misión-contenedor", async () => {

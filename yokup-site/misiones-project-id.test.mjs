@@ -111,6 +111,37 @@ test('Misión encabeza con su proyecto y debajo la descripción, sin repetir el 
   assert.doesNotMatch(agentCell, /mission-project-label|Yokup/);
 });
 
+test('Misión oculta atribuciones históricas pero conserva el texto sustantivo posterior', () => {
+  const Yk = loadModule();
+  Yk.init({worker:'https://api.yokup.com', columnMode:'tasks', projectIdLayout:true});
+  Yk.setProyectos([{id:'yokup', name:'Yokup', web:'https://www.yokup.com'}]);
+  const html = Yk.rowHtml({
+    id:'FLT-HIST', project:'yokup', project_name:'Yokup', source:'fleet',
+    subject:'Recuperar usuarios. Encargo de Carlos el 7-ago-2026: es importantísima. Responsable: Morfeo en MacMini. Validar permisos.',
+    assignee:'MorfeoMacMini', agent_runtime:'Claude', agent_host:'app', machine:'MacMini',
+    status:'in_progress', created_at:Date.now(), priority:'alta'
+  });
+  const missionCell = between(html, '<div class="mission-col">', '<div class="cel ord ');
+  assert.match(missionCell, /Recuperar usuarios\. es importantísima\. Validar permisos\./);
+  assert.doesNotMatch(missionCell, /Encargo de Carlos|Responsable:|Morfeo en MacMini/);
+  assert.match(source, /missionTitle\(t, prioMarca\(t\.subject\)\.limpio\)/,
+    'el cajón aplica la misma compatibilidad visual a registros existentes');
+});
+
+test('la limpieza visual no confunde frases sustantivas con metadatos', () => {
+  const Yk = loadModule();
+  Yk.init({worker:'https://api.yokup.com', columnMode:'tasks', projectIdLayout:true});
+  for (const subject of [
+    'Mejorar el campo Responsable de carbono',
+    'Responsable de revisar los permisos antes de publicar',
+    'Documentar «Encargo de Carlos el 7-ago-2026» como ejemplo',
+    'Encargo de Carlos el Grande para la exposición'
+  ]) {
+    const html = Yk.rowHtml({id:'FLT-NEG', source:'fleet', subject, status:'open', created_at:Date.now()});
+    assert.match(html, new RegExp(Yk.esc(subject).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+});
+
 test('Misión muestra hasta cuatro líneas y conserva accesible el asunto completo', () => {
   const Yk = loadModule();
   Yk.init({worker:'https://api.yokup.com', columnMode:'tasks', projectIdLayout:true});
