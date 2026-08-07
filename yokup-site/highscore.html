@@ -264,8 +264,8 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .tabla tbody tr.score-progress{background:#061018}
 .tabla tbody tr.score-progress.alt{background:#000509}
 .score-progress td{padding:0 10px 9px;border-bottom:1px solid rgba(120,243,255,.28);overflow:visible}
-.progression{position:relative;display:grid;grid-template-columns:minmax(104px,.8fr) repeat(5,minmax(82px,1fr));
-  align-items:start;gap:7px;min-width:790px;padding:7px 0 2px}
+.progression{position:relative;display:grid;grid-template-columns:minmax(104px,.8fr) repeat(6,minmax(82px,1fr));
+  align-items:start;gap:7px;min-width:879px;padding:7px 0 2px}
 .progression-meta{align-self:center;min-width:0;padding-right:7px;color:var(--dim);font-size:8.5px;line-height:1.35;
   letter-spacing:.11em;text-transform:uppercase}
 .progression-meta strong{display:block;color:var(--mut);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -291,6 +291,19 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .progression-step.new .progression-dot{border-radius:4px;background:rgba(255,216,102,.2);
   box-shadow:0 0 0 3px rgba(255,216,102,.12),0 0 12px rgba(255,216,102,.8);animation:new-arrival 1.25s ease-in-out infinite}
 .progression-step.future{opacity:.55}
+/* SIGUIENTE VENTANA: a la derecha de PUNTOS, cuánto le queda al agente para
+   poder abrir por su cuenta la próxima ventana de decisión. No es una etapa de
+   la cadena —mira hacia adelante, no hacia atrás—, así que no lleva el hilo que
+   une las cinco anteriores y su aro va punteado mientras espera. Cuando la
+   puerta está abierta se pone verde, como la línea bajo el nombre. */
+.progression-step.next-window{color:var(--brand)}
+.progression-step.next-window::before{display:none}
+.progression-step.next-window .progression-dot{border-style:dashed}
+.progression-step.next-window .progression-value{color:var(--mut);font-variant-numeric:tabular-nums}
+.progression-step.next-window.libre{color:var(--good)}
+.progression-step.next-window.libre .progression-dot{border-style:solid;background:rgba(136,255,170,.18);
+  box-shadow:0 0 0 3px rgba(136,255,170,.11),0 0 10px rgba(136,255,170,.7)}
+.progression-step.next-window.libre .progression-value{color:var(--good)}
 @keyframes new-arrival{50%{transform:scale(.8);box-shadow:0 0 0 7px rgba(255,216,102,.04),0 0 5px rgba(255,216,102,.35)}}
 .col-resizer{position:absolute;z-index:3;top:0;right:-2px;width:9px;height:100%;cursor:col-resize;
   touch-action:none;outline:0}
@@ -454,7 +467,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .refresh-agent{left:calc(100% - var(--finish-gutter) + var(--agent-gap));right:2px;bottom:6px;font-size:9px;line-height:11px}
   .race-call{min-width:min(96px,calc(100% - var(--track-start) - var(--finish-gutter) - var(--finish-width) - 8px));
     padding:2px clamp(5px,1.8vw,11px);font-size:clamp(13px,4.2vw,18px);line-height:20px;letter-spacing:.1em}
-  .score-progress td{padding-left:5px;padding-right:5px}.progression{grid-template-columns:88px repeat(5,76px);min-width:500px;gap:4px}
+  .score-progress td{padding-left:5px;padding-right:5px}.progression{grid-template-columns:88px repeat(6,76px);min-width:580px;gap:4px}
   .progression-step{grid-template-columns:13px minmax(0,1fr);column-gap:3px}.progression-dot{width:13px;height:13px;border-width:1px}.progression-step::before{top:6px}
   .agent-scope-children{padding-left:8px}}
 @media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.rank-filter[aria-pressed="true"],.activity-now,.activity-now::after,.plaza.podium-live::after,.refresh-runner svg,.runner-run-a,.runner-run-b,.runner-run-c,.progression-step.new .progression-dot,.race-call,.race-call::before,.race-call::after,.refresh-place{animation:none!important;transition:none!important}.refresh-runner .runner-run-b,.refresh-runner .runner-run-c{display:none}.runner-finish-win .gesto-a,.runner-finish-lose .gesto-a{animation:none;opacity:1}.runner-finish-win .gesto-b,.runner-finish-lose .gesto-b{display:none}}
@@ -691,7 +704,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   var datos = { tareas: [], tareasFresh: false, actividad: [], actividadMeta: null, actividadFresh: false,
-    presencia: [], misiones: [], ideas: [], decisiones: [], proyectos: [] };
+    presencia: [], misiones: [], ideas: [], decisiones: [], proyectos: [], turnos: null };
   var DAILY_CACHE_KEY = "yokup.highscore.daily.v1";
   function guardaActividadDiaria(payload) {
     if (!payload || !Array.isArray(payload.scores) || payload.day !== claveDia(Date.now())) return;
@@ -715,7 +728,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         seguroYokup("/ideas", function (d) { return d.ideas || []; }),
         seguroYokup("/decisions", function (d) { return d.items || d.decisions || []; }),
         seguro("/api/presence", function (d) { return d.presence || []; }),
-        seguroYokup("/projects", function (d) { return d.projects || []; })
+        seguroYokup("/projects", function (d) { return d.projects || []; }),
+        // Reparto de turnos: quién abre cuándo. Es lo que hace honesta la cuenta
+        // atrás de la fila desplegada; si no responde, esa cifra cae al cupo.
+        seguroYokup("/fleet/turnos", function (d) { return d && d.ok ? d : null; })
       ]);
     })
     .then(function (r) {
@@ -725,6 +741,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       datos.actividadFresh = fresh && datos.tareasFresh;
       datos.actividadMeta = a || null; datos.actividad = a && a.scores || [];
       datos.misiones = r[1] || []; datos.ideas = r[2] || []; datos.decisiones = r[3] || []; datos.presencia = r[4] || []; datos.proyectos = r[5] || [];
+      datos.turnos = r[6] || null;
       pon(76, "OBJETIVOS · VENTANAS · MISIONES · " + ((a && a.recorded && a.recorded.objectives) || 0) + " / " + ((a && a.recorded && a.recorded.windows) || 0) + " / " + ((a && a.recorded && a.recorded.missions) || 0));
       pon(94, "PRESENCIA · " + datos.presencia.length + " AGENTES");
       setTimeout(function () { pon(100, "LISTO"); listo(); }, 350);
@@ -1452,6 +1469,93 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
   window.setInterval(ticVentanas, 15000);
 
+  // ── SIGUIENTE VENTANA, EN CIFRA ───────────────────────────────────────────
+  // En la fila desplegada, a la derecha de PUNTOS, cuánto le falta al agente
+  // para poder abrir su próxima ventana autónoma.
+  //
+  // El dato bueno lo da /fleet/turnos, que cruza LAS DOS condiciones que aplica
+  // el worker —su hora cumplida Y su turno dentro del reparto (07-08-2026)— y
+  // devuelve la más tardía. Contar aquí sólo el cupo diría «AHORA» a un agente
+  // que todavía tiene que esperar su franja: una cifra amable y falsa.
+  //
+  // Si el endpoint no responde se cae en silencio al reloj local, el mismo de
+  // la línea bajo el nombre, y se dice en el título sobre qué se está contando.
+  // Vale más una espera corta de menos que una promesa que el worker no cumple.
+  function turnoDeAgente(a) {
+    var lista = datos.turnos && datos.turnos.turnos;
+    if (!Array.isArray(lista)) return null;
+    for (var i = 0; i < lista.length; i++) {
+      if (mismoAgenteVentana(lista[i].agent, "", a)) return lista[i];
+    }
+    return null;
+  }
+  // Un solo número para las dos fuentes: el instante en que podrá abrir.
+  function proximaVentana(a) {
+    var t = turnoDeAgente(a), ahora = Date.now();
+    if (t) {
+      return { proxima:Number(t.proxima) || ahora, fuente:"turnos",
+        turno:Number(t.turno) || 0, agentes:Number(datos.turnos.agentes) || 0,
+        pasoMin:Number(datos.turnos.pasoMin) || 0 };
+    }
+    // Sin nada que esperar, el instante es CERO, no «ahora»: un ahora capturado
+    // aquí queda unos milisegundos en el futuro cuando lo mira quien pinta, y el
+    // bloque parpadearía «en 0:00» en vez de decir AHORA.
+    var v = ventanaHoraria(a);
+    return { proxima:v.abierta ? v.at + VENTANA_MS : 0, fuente:"cupo", turno:0, agentes:0, pasoMin:0 };
+  }
+  function textoProximaVentana(p, ahora) {
+    return p.proxima > ahora ? "en " + faltaTexto(p.proxima - ahora) : "AHORA";
+  }
+  function tituloProximaVentana(p, ahora) {
+    if (p.fuente !== "turnos") {
+      return p.proxima > ahora
+        ? "Le queda " + faltaTexto(p.proxima - ahora) + " de su hora · reparto por turnos no disponible, "
+          + "así que esto sólo cuenta su cupo"
+        : "Cumplió su hora · sin el reparto por turnos no se puede confirmar que sea su franja";
+    }
+    var reparto = "Turno " + p.turno + " de " + p.agentes + " · una ventana cada " + p.pasoMin + " min";
+    return p.proxima > ahora
+      ? reparto + " · abre dentro de " + faltaTexto(p.proxima - ahora)
+      : reparto + " · puede abrir AHORA: tiene la hora cumplida y le toca";
+  }
+  function etiquetaProximaVentana(p, ahora) {
+    return "Siguiente ventana de decisión · " + textoProximaVentana(p, ahora) + ". " + tituloProximaVentana(p, ahora);
+  }
+  function proximaVentanaHtml(p) {
+    var ahora = Date.now(), libre = p.proxima <= ahora;
+    return '<div class="progression-step next-window' + (libre ? " libre" : "") + '" role="listitem"' +
+      ' data-stage="proxima" data-yk-nextwindow="1" data-proxima="' + (p.proxima || 0) + '"' +
+      ' data-fuente="' + esc(p.fuente) + '" data-turno="' + p.turno + '" data-agentes="' + p.agentes +
+      '" data-paso="' + p.pasoMin + '"' +
+      ' title="' + esc(tituloProximaVentana(p, ahora)) + '" aria-label="' + esc(etiquetaProximaVentana(p, ahora)) + '">' +
+      '<span class="progression-dot" aria-hidden="true">»</span><span class="progression-copy">' +
+      '<span class="progression-label">Siguiente</span>' +
+      '<span class="progression-value">' + esc(textoProximaVentana(p, ahora)) + '</span></span></div>';
+  }
+  // La cifra corre segundo a segundo: una cuenta atrás que salta de quince en
+  // quince se lee como una pantalla colgada. Sólo toca texto y clase, y sólo la
+  // de las filas desplegadas — las demás están ocultas y no hay qué refrescar.
+  function ticProximaVentana() {
+    var chips = document.querySelectorAll("[data-yk-nextwindow]");
+    if (!chips.length) return;
+    var ahora = Date.now();
+    Array.prototype.forEach.call(chips, function (c) {
+      var fila = c.closest && c.closest("tr");
+      if (fila && fila.hidden) return;
+      var p = { proxima:Number(c.getAttribute("data-proxima")) || 0,
+        fuente:c.getAttribute("data-fuente") || "cupo",
+        turno:Number(c.getAttribute("data-turno")) || 0,
+        agentes:Number(c.getAttribute("data-agentes")) || 0,
+        pasoMin:Number(c.getAttribute("data-paso")) || 0 };
+      c.classList.toggle("libre", p.proxima <= ahora);
+      var valor = c.querySelector(".progression-value"), texto = textoProximaVentana(p, ahora);
+      if (valor && valor.textContent !== texto) valor.textContent = texto;
+      c.setAttribute("title", tituloProximaVentana(p, ahora));
+      c.setAttribute("aria-label", etiquetaProximaVentana(p, ahora));
+    });
+  }
+  window.setInterval(ticProximaVentana, 1000);
+
   // Clic en el agente → ventana de decisión sobre su proyecto. El trabajo lo
   // hace POST /projects/decision (ya existía): comprueba que el agente y su
   // equipo estén asociados al proyecto y pide las mejoras a Workers AI. Va por
@@ -1639,9 +1743,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     // La franja «PUNTUACIÓN POR HORA» se retiró (Carlos, 2026-08-05): ocupaba una
     // línea entera de la fila desplegada para decir una cifra y una excusa. Esa
     // cifra vive ahora bajo el total, en la columna PUNTOS — ver puntosHtml.
+    // Tras PUNTOS, la siguiente ventana autónoma de ESE agente: la cadena cuenta
+    // lo que ya hizo, y esto cuánto falta para que pueda volver a decidir solo.
+    var proxima = proximaVentana(a);
     var descripcion = progreso.label + ". Origen: " + origen + ". " + progreso.stages.map(function (s) {
       return s.label + ": " + s.state + ", " + s.value;
-    }).join(". ");
+    }).join(". ") + ". " + etiquetaProximaVentana(proxima, Date.now());
     return '<div class="progression" role="list" aria-label="' + esc(descripcion) + '">' +
       '<div class="progression-meta" data-linked="' + (progreso.linked ? "true" : "false") + '" title="' + esc(progreso.label) + '">' +
       '<strong>' + esc(progreso.linked ? progreso.label : "Resumen no enlazado") + '</strong>Origen · ' + esc(origen) + '</div>' +
@@ -1655,7 +1762,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
           '" data-state="' + s.state + '" title="' + esc(title) + '" aria-label="' + esc(title) + '">' +
           '<span class="progression-dot" aria-hidden="true">' + simbolo + '</span><span class="progression-copy">' +
           '<span class="progression-label">' + s.label + '</span><span class="progression-value">' + esc(s.value) + '</span></span></div>';
-      }).join("") + '</div>';
+      }).join("") + proximaVentanaHtml(proxima) + '</div>';
   }
 
   /* Columnas reajustables. El primer gesto congela las medidas fluidas actuales,
@@ -2358,7 +2465,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       seguroYokup("/tickets?scope=fleet", function (d) { return d.tickets || []; }),
       seguroYokup("/ideas", function (d) { return d.ideas || []; }),
       seguroYokup("/decisions", function (d) { return d.items || d.decisions || []; }),
-      seguroYokup("/projects", function (d) { return d.projects || []; })
+      seguroYokup("/projects", function (d) { return d.projects || []; }),
+      seguroYokup("/fleet/turnos", function (d) { return d && d.ok ? d : null; })
     ]).then(function (r) {
       datos.tareasFresh = Array.isArray(r[0]);
       if (datos.tareasFresh) datos.tareas = r[0];
@@ -2370,6 +2478,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (r[4]) datos.ideas = r[4];
       if (r[5]) datos.decisiones = r[5];
       if (r[6]) datos.proyectos = r[6];
+      // El reparto cambia con el censo: un agente nuevo estrecha la franja de
+      // todos. Si esta vuelta no contesta se conserva el anterior, que envejece
+      // mejor que caer al cupo y prometer una ventana que no toca.
+      if (r[7]) datos.turnos = r[7];
       fallos = [];
       var listaCompleta = calcula(), l = aplicaAgentScope(listaCompleta);
       var cambioLider = listaCache && l[0] && listaCache[0] && l[0].agente !== listaCache[0].agente;

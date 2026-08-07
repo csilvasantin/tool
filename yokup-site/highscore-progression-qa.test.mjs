@@ -29,10 +29,21 @@ function progressionApi(meta, now = Date.UTC(2026, 7, 4, 16, 30)) {
       .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;")
   });
   const names = ["normaliza", "claveTrazabilidad", "claveAgenteTrazabilidad", "instanteTrazabilidad", "progresionTrazada",
-    "tipoEtapa", "estadoEtapa", "etapaEnriquecida", "progresionAgregada", "normalizaProgresion", "progresionHtml"];
+    "tipoEtapa", "estadoEtapa", "etapaEnriquecida", "progresionAgregada", "normalizaProgresion",
+    // el bloque de la SIGUIENTE VENTANA vive dentro de progresionHtml: sin su
+    // reloj la fila desplegada no se puede pintar
+    "comoMs", "mismoAgenteVentana", "ventanaHoraria", "faltaTexto", "horaCorta", "tituloVentana",
+    "turnoDeAgente", "proximaVentana", "textoProximaVentana", "tituloProximaVentana",
+    "etiquetaProximaVentana", "proximaVentanaHtml", "progresionHtml"];
+  const constantes = ["var TIME_ZONE = ", "var RELOJ_FMT = ", "var VENTANA_MS = "].map((declaracion) => {
+    const inicio = html.indexOf(declaracion);
+    assert.ok(inicio >= 0, `falta ${declaracion}`);
+    return html.slice(inicio, html.indexOf(";", inicio) + 1);
+  });
   vm.runInContext([
     ...names.slice(0, 5).map(grabFunction),
     html.slice(stagesStart, stagesEnd),
+    ...constantes,
     ...names.slice(5).map(grabFunction)
   ].join("\n"), context);
   return context;
@@ -98,9 +109,9 @@ test("la aparición se anuncia sin depender solo del cuadrado, del color o de la
   assert.match(html, /prefers-reduced-motion:reduce[^}]*progression-step\.new \.progression-dot[^}]*\{animation:none!important/);
 });
 
-test("móvil conserva las cinco etapas mediante scroll horizontal y no altera las nueve columnas", () => {
+test("móvil conserva las cinco etapas y la siguiente ventana con scroll horizontal, sin alterar las nueve columnas", () => {
   assert.match(html, /\.table-scroll\{[^}]*overflow-x:auto[^}]*overflow-y:hidden/);
-  assert.match(html, /@media \(max-width:620px\)[\s\S]*\.progression\{grid-template-columns:88px repeat\(5,76px\);min-width:500px/);
+  assert.match(html, /@media \(max-width:620px\)[\s\S]*\.progression\{grid-template-columns:88px repeat\(6,76px\);min-width:580px/);
   assert.match(html, /<tr class="score-progress' \+ alterna \+ '" id="' \+ esc\(progressId\) \+ '" hidden><td colspan="9">' \+ progresionHtml\(a\)/);
   assert.match(html, /<tr class="score-main' \+ alterna \+ '"><td class="n">' \+ posicionHtml/);
   assert.equal((html.match(/class="sort-head"/g) || []).length, 8);

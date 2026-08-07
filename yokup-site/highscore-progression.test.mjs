@@ -31,7 +31,7 @@ test("nuevo, activo, completado y futuro se distinguen también sin animación",
   assert.match(html, /\.progression-step\.completed\{color:var\(--brand\)\}/);
   assert.match(html, /\.progression-step\.future\{opacity:\.55\}/);
   assert.match(html, /prefers-reduced-motion:reduce[^}]*progression-step\.new \.progression-dot[^}]*\{animation:none!important/);
-  assert.match(html, /@media \(max-width:620px\)[\s\S]*\.progression\{grid-template-columns:88px repeat\(5,76px\);min-width:500px/);
+  assert.match(html, /@media \(max-width:620px\)[\s\S]*\.progression\{grid-template-columns:88px repeat\(6,76px\);min-width:580px/);
 });
 
 test("traceability.chains enlaza por identidad y gana al fallback compatible", () => {
