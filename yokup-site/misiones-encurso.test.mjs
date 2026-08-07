@@ -99,7 +99,7 @@ test('status explícito manda: resolved/in_progress/cancelled no los pisa el ras
   assert.equal(Yk.coincideEstado({status: 'cancelled', assignee: 'Neo'}, 'cancelled'), true);
 });
 
-test('filtros y etiquetas comparten el mismo estado visible a los 30 minutos', () => {
+test('filtros y etiquetas comparten el mismo estado visible a los 60 minutos', () => {
   const tarde = {status: 'in_progress', assignee: 'Neo', _unconcluded: true};
   const curso = {status: 'in_progress', assignee: 'Neo', _unconcluded: false};
 
@@ -117,7 +117,7 @@ test('la carga inicial prioriza No concluidas antes que Finalizadas', () => {
 test('una fila No concluida no conserva el texto contradictorio en curso', () => {
   const html = Yk.rowHtml({
     id: 'FLT-TARDE', status: 'in_progress', assignee: 'Neo', machine: 'MacMini',
-    _unconcluded: true, created_at: Date.now() - 31 * 60 * 1000, priority: 'normal'
+    _unconcluded: true, created_at: Date.now() - 61 * 60 * 1000, priority: 'normal'
   });
 
   assert.match(html, /⏳ no concluida/);

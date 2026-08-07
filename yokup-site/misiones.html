@@ -654,11 +654,11 @@ async function load(){
   ROWS_BY_ID={};
   tks.forEach(t=>{ ROWS_BY_ID[t.id]={maq:YkMisiones.machineOf(t)||"",rawmaq:(t.machine||t.loc||""),agente:t.assignee||"",project_id:t.project_id||t.project||"",subject:t.subject||"",loc:t.loc||"",screen:t.screen||"",inbox_id:t.inbox_id}; });
   MIS_ALL=tks; try{ renderFlota(generation,scopeAtStart); }catch(e){}   // resumen de flota (modo avanzado)
-  // «No concluida» es una categoría derivada al cumplir 30 min sin cierre. Conserva
+  // «No concluida» es una categoría derivada al cumplir 60 min sin cierre. Conserva
   // el estado operativo interno para que la misión pueda seguir avanzando.
-  const _ms30=v=>{v=+v||0;return v>4102444800?v:v*1000;};
-  tks.forEach(t=>{ t._unconcluded=t.status!=="resolved"&&t.status!=="cancelled"&&
-    !!_ms30(t.created_at)&&(Date.now()-_ms30(t.created_at)>=30*60*1000); });
+  const _ms60=v=>{v=+v||0;return v>4102444800?v:v*1000;};
+  tks.forEach(t=>{ t._unconcluded=t.visible_state==="unconcluded"||
+    (!t.visible_state&&t.status==="in_progress"&&!!_ms60(t.created_at)&&(Date.now()-_ms60(t.created_at)>=60*60*1000)); });
   // KPIs por ESTADO visible, calculados de las misiones vivas (no del stats crudo)
   const estL=t=>YkMisiones.estadoDe(t).l;
   const vc=dayFilteredByServer&&d.visible_counts?d.visible_counts:visibleCountsFallback(rawTickets);

@@ -89,15 +89,27 @@ test("A y sus subtareas cuentan una vez; una misión nunca supera tres tareas", 
   assert.deepEqual(Array.from(context.resultado, (t) => t.code), ["a2", "b", "c3"]);
 });
 
+test("No concluida conserva tarea y puntos base; sólo pierde actividad y bonus", () => {
+  const start = html.indexOf("function tareasDeHoy() {");
+  const end = html.indexOf("\n  function pon", start);
+  const context = vm.createContext({datos:{tareas:[{
+    mission_id:"M60",code:"a",status:"in_progress",visible_state:"unconcluded",updated_at:1
+  }]},normaliza:(value)=>String(value||"").trim(),esHoy:()=>true,Object,Number});
+  vm.runInContext(`${html.slice(start,end)}\nglobalThis.resultado=tareasDeHoy();`,context);
+  assert.equal(context.resultado.length,1);
+  assert.match(html,/visible_state \|\| t\.status/);
+  assert.match(html,/=== "in_progress" \? PUNTOS_TAREA_ACTIVA : 0/);
+});
+
 test("el ranking distingue actividad actual de los totales históricos", () => {
   assert.match(html, /datos = \{ tareas: \[\], tareasFresh: false, actividad: \[\],[^}]*misiones: \[\], ideas: \[\], decisiones: \[\], proyectos: \[\] \}/);
   assert.match(html, /seguroYokup\("\/tickets\?scope=fleet", function \(d\) \{ return d\.tickets \|\| \[\]; \}\)/);
   assert.match(html, /seguroYokup\("\/ideas"/);
   assert.match(html, /seguroYokup\("\/decisions"/);
   assert.match(html, /seguroYokup\("\/projects"/);
-  assert.match(html, /normaliza\(m\.status\)\.toLowerCase\(\) === "in_progress"/);
+  assert.match(html, /normaliza\(m\.visible_state \|\| m\.status\)\.toLowerCase\(\) === "in_progress"/);
   assert.match(html, /\["live", "open"\]\.indexOf\(estado\) >= 0 && vigente/);
-  assert.match(html, /\["doing", "in_progress"\]\.indexOf\(normaliza\(t\.status\)\.toLowerCase\(\)/);
+  assert.match(html, /normaliza\(t\.visible_state \|\| t\.status\)\.toLowerCase\(\) !== "in_progress"/);
   assert.match(html, /esReciente\(at, OBJETIVO_FRESCO_MS\)/);
 });
 

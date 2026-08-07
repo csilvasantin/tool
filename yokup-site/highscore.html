@@ -662,6 +662,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var familias = {};
     datos.tareas.forEach(function (t) {
       var m = normaliza(t.code).toLowerCase().match(/^([a-c])(?:[1-3])?$/);
+      // `visible_state=unconcluded` quita el bonus y la actividad AHORA, pero no
+      // borra la tarea ya trabajada ni sus puntos base del acumulado diario.
       if (!m || !esHoy(t.updated_at) || ["in_progress", "done"].indexOf(t.status) < 0) return;
       var key = normaliza(t.mission_id) + "|" + m[1], anterior = familias[key];
       if (!anterior || Number(t.updated_at) >= Number(anterior.updated_at)) familias[key] = t;
@@ -1090,7 +1092,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var f = fila(taskAgent, t.loc); if (!f) return;
       f.seenTask = true;
       f.tareas++;
-      f.ptsTareas += PUNTOS_TAREA + (["doing", "in_progress"].indexOf(t.status) >= 0 ? PUNTOS_TAREA_ACTIVA : 0);
+      f.ptsTareas += PUNTOS_TAREA + (normaliza(t.visible_state || t.status).toLowerCase() === "in_progress" ? PUNTOS_TAREA_ACTIVA : 0);
     });
     datos.actividad.forEach(function (a) {
       var f = fila(a.agent, a.machine); if (!f) return;
@@ -1134,7 +1136,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     });
     datos.misiones.forEach(function (m) {
       var at = m.updated_at || m.live_at || m.created_at;
-      if (normaliza(m.status).toLowerCase() === "in_progress" && esReciente(at, ACTIVIDAD_FRESCA_MS))
+      if (normaliza(m.visible_state || m.status).toLowerCase() === "in_progress" && esReciente(at, ACTIVIDAD_FRESCA_MS))
         marcaActividad(m.assignee || m.persona, m.machine || m.loc, "misiones", at, m.subject,
           m.project_name || m.project, [m.subject, m.screen].filter(Boolean).join(" "));
     });
@@ -1145,7 +1147,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
           d.project_id || d.project, [d.project, d.url, d.question].filter(Boolean).join(" "));
     });
     datos.tareas.forEach(function (t) {
-      if (["doing", "in_progress"].indexOf(normaliza(t.status).toLowerCase()) < 0 || !esReciente(t.updated_at, ACTIVIDAD_FRESCA_MS)) return;
+      if (normaliza(t.visible_state || t.status).toLowerCase() !== "in_progress" || !esReciente(t.updated_at, ACTIVIDAD_FRESCA_MS)) return;
       var owner = normaliza(t.owner), role = /^infra(?:agente)?$/i.test(owner) ? "infra" : (/^sub(?:agente)?$/i.test(owner) ? "sub" : "");
       var taskAgent = role && id ? id.scoped(t.assignee, t.loc, role) : (owner || t.assignee);
       var mision = misionesPorId[normaliza(t.mission_id)] || {};
@@ -2122,7 +2124,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function misionesEnCurso() {
     var activas = (datos.misiones || []).filter(function (m) {
-      return normaliza(m.status).toLowerCase() === "in_progress";
+      return normaliza(m.visible_state || m.status).toLowerCase() === "in_progress";
     });
     activas.sort(function (a, b) {
       return instanteMisionActiva(b) - instanteMisionActiva(a) || normaliza(a.id).localeCompare(normaliza(b.id));

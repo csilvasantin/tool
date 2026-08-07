@@ -245,7 +245,7 @@ test("la misión factual queda legible junto al corredor sin estela truncada", (
   assert.match(html, /function actualizaCarreraPodio\(\)/);
   assert.match(html, /function tituloMisionActiva\(mision\)/);
   assert.match(html, /function resumenMisionActiva\(mision\)/);
-  assert.match(html, /normaliza\(m\.status\)\.toLowerCase\(\) === "in_progress"/);
+  assert.match(html, /normaliza\(m\.visible_state \|\| m\.status\)\.toLowerCase\(\) === "in_progress"/);
   assert.match(html, /reference:normaliza\(mision\.display_ref \|\| mision\.id\)/);
   assert.match(html, /title:tituloMisionActiva\(mision\), state:"EN CURSO"/);
   assert.doesNotMatch(html, /function estelaMision|class="refresh-word"/);

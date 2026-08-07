@@ -744,7 +744,7 @@
     var progressTimingHtml =
       (dv && dv.end ? '<span class="fch2 fin" title="finalizada: ' + esc(fechaCorta(dv.end)) + '">🏁 ' + fechaCorta(dv.end) + "</span>"
         : (dv && dv.run ? '<span class="fch2 run' + (stt === "No concluida" ? " overdue" : "") + '" title="' + esc(dv.tip) + '">⏳ ' + (stt === "No concluida" ? "no concluida" : "en curso") + "</span>" : "")) +
-      (dv && dv.txt ? '<span class="dur' + (dv.run ? " run yk-deadline" : "") + (stt === "No concluida" ? " overdue" : "") + '"' + (dv.run ? ' data-created="' + _ms(t.created_at) + '"' : '') + ' title="' + esc(dv.tip) + '">⏱ ' + (dv.run ? esc(deadlineText(_ms(t.created_at))) : esc(dv.txt)) + "</span>" : "");
+      (dv && dv.txt ? '<span class="dur' + (dv.run ? " run yk-deadline" : "") + (stt === "No concluida" ? " overdue" : "") + '"' + (dv.run ? ' data-created="' + _ms(t.active_since||t.started_at||t.created_at) + '"' : '') + ' title="' + esc(dv.tip) + '">⏱ ' + (dv.run ? esc(deadlineText(_ms(t.active_since||t.started_at||t.created_at))) : esc(dv.txt)) + "</span>" : "");
     var timingHtml = createdHtml + progressTimingHtml;
     var projectIdHtml = CFG.projectIdLayout
       // El tirador de la PRIMERA columna es el único con side "r" (crece al
@@ -797,14 +797,14 @@
     return s + "s";
   }
   function deadlineText(start, now) {
-    var left=1800000-((now||Date.now())-start), late=left<0, sec=Math.max(0,Math.ceil(Math.abs(left)/1000));
+    var left=3600000-((now||Date.now())-start), late=left<=0, sec=Math.max(0,Math.ceil(Math.abs(left)/1000));
     var mm=Math.floor(sec/60), ss=sec%60;
     return (late?"+":"")+String(mm).padStart(2,"0")+":"+String(ss).padStart(2,"0")+(late?" fuera de plazo":" restantes");
   }
   function tickMissionClocks(root) {
     var now=Date.now(),expired=false;
     (root||document).querySelectorAll(".yk-deadline[data-created]").forEach(function(el){
-      var start=+el.dataset.created||0,late=start&&now-start>=1800000,wasLate=el.classList.contains("overdue");
+      var start=+el.dataset.created||0,late=start&&now-start>=3600000,wasLate=el.classList.contains("overdue");
       el.textContent="⏱ "+deadlineText(start,now); el.classList.toggle("overdue",!!late);
       if(late&&!wasLate){var row=el.closest(".tk");if(row&&!row.dataset.deadlineExpired){row.dataset.deadlineExpired="1";expired=true;}}
     });

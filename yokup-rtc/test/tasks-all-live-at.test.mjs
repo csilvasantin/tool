@@ -10,6 +10,7 @@ test("/tasks/all selecciona live_shot y su timestamp como una pareja",()=>{
   assert.ok(start>=0&&end>start,"falta listAllMissionTasks");
   const fn=source.slice(start,end);
   assert.match(fn,/t\.live_shot, t\.live_at/);
-  assert.match(fn,/const rows = \(results \|\| \[\]\)\.map\(\(task\) => \(\{\s*\.\.\.task,/);
+  assert.match(fn,/const rows = \(results \|\| \[\]\)\.map\(\(task\) => \{/);
+  assert.match(fn,/return \{ \.\.\.task, visible_state:visible\.state/);
   assert.doesNotMatch(fn,/delete\s+task\.live_at|live_at:\s*0/);
 });

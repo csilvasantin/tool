@@ -8,7 +8,8 @@ import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, 
 import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_NOVELTY_INSERT_SQL, MISSION_NOVELTY_RECENT_SQL, MISSION_NOVELTY_TABLE_SQL, missionNoveltyContract, missionNoveltyEventKey } from "./mission-novelty.js";
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
 import { resolveIdeaAuthor } from "./idea-author.js";
-import { missionDayRange, missionVisibleCounts, missionVisibleState } from "./mission-visible.js";
+import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
+  onIdleEligibility, taskVisibleDetails } from "./mission-visible.js";
 import { DAILY_MISSION_CLOSE_AUTHOR, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_LEASE_MS, DAILY_MISSION_CLOSE_REASON, MISSION_UNCONCLUDED_AFTER_MS, dailyMissionCloseEventText, dailyMissionClosePlan } from "./daily-mission-close.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -233,6 +234,8 @@ async function applySchema(env) {
   // este discriminante, una captura intermedia podía cerrar toda la misión.
   await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN image_kind TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN created_at INTEGER").catch(() => {});
+  // Inicio operativo estable: repetir reportes/heartbeats no reinicia el reloj.
+  await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN started_at INTEGER").catch(() => {});
   await env.DB.exec("UPDATE mission_tasks SET created_at=updated_at WHERE created_at IS NULL").catch(() => {});
   // Llave de lectura del service worker (ver /push/subscribe). Idempotente.
   await env.DB.exec("ALTER TABLE subs ADD COLUMN peek_key TEXT").catch(() => {});
@@ -255,6 +258,9 @@ async function applySchema(env) {
   // Desktop enseña la petición visible; CLI enseña comando y salida visibles.
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN live_surface TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN live_context TEXT").catch(() => {});
+  // Inicio de ejecución, distinto de created_at (una misión puede esperar horas
+  // antes de ser reclamada) y de updated_at/live_at (heartbeats renovables).
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN started_at INTEGER").catch(() => {});
   // PROYECTOS (Carlos, 2026-07-22: «en equipo tenemos que poder dar de alta
   // proyectos y asignárselos a ordenadores o agentes»). Antes el proyecto era
   // texto libre repetido en tres sitios —la lista fija de equipo.html, el
@@ -2096,6 +2102,59 @@ async function openInitialMissionDecision(env, input) {
            project_id: projectContext.project_id, project_slug: projectContext.project_slug, display_ref };
 }
 __name(openInitialMissionDecision, "openInitialMissionDecision");
+
+const ONIDLE_DAILY_LIMIT = 8;
+const ONIDLE_MISSION_MARKER = "OnIdle horario";
+
+async function operationalOnIdleState(env, identity, now = Date.now()) {
+  const [missionResult, taskResult, decisionResult] = await Promise.all([
+    env.DB.prepare("SELECT id,status,assignee,loc,created_at,started_at,updated_at,live_at,source FROM tickets WHERE status IN ('in_progress','unconcluded')").all(),
+    env.DB.prepare("SELECT m.mission_id,m.code,m.status,m.started_at,m.created_at,m.updated_at,t.assignee,t.loc " +
+      "FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE m.status IN ('in_progress','doing','active','unconcluded') " +
+      "AND t.status NOT IN ('resolved','cancelled')").all(),
+    env.DB.prepare("SELECT id,agent,machine,deadline FROM decisions WHERE status='pending' AND deadline>?").bind(now).all()
+  ]);
+  const owns = (row) => sameAgentFamily(row.assignee || row.agent || "", identity.agent) &&
+    memberRefMatches("machine", row.loc || row.machine || identity.machine, identity.machine);
+  const missions = (missionResult.results || []).filter(owns);
+  const tasks = (taskResult.results || []).filter(owns);
+  const live = (decisionResult.results || []).filter(owns).length;
+  const range = missionDayRange(madridDayKey(now));
+  const usedRows = range ? (await env.DB.prepare(
+    "SELECT agent,machine FROM decisions WHERE (parent_decision IS NULL OR parent_decision='') " +
+    "AND mission=? AND created_at>=? AND created_at<?"
+  ).bind(ONIDLE_MISSION_MARKER, range.start, range.end).all()).results || [] : [];
+  const windowsToday = usedRows.filter(owns).length;
+  const eligibility = onIdleEligibility({ missions, tasks, live_decisions:live,
+    windows_today:windowsToday, now, daily_limit:ONIDLE_DAILY_LIMIT });
+  return { ...eligibility, agent:identity.agent, machine:identity.machine,
+    evaluated_at:now, operational_limit_ms:MISSION_UNCONCLUDED_AFTER_MS,
+    state_semantics:"operational-hour-v1" };
+}
+__name(operationalOnIdleState, "operationalOnIdleState");
+
+async function pauseTimedOutOnIdleBatches(env, identity, now = Date.now()) {
+  const cutoff = now - MISSION_UNCONCLUDED_AFTER_MS;
+  // El UPDATE condicional hace el guard idempotente: una repetición no cambia
+  // updated_at ni duplica candidatos. Ticket, tareas y pruebas permanecen intactos.
+  const rows = (await env.DB.prepare(
+    "SELECT DISTINCT b.id,b.agent,b.machine FROM mission_batches b " +
+    "JOIN mission_batch_items i ON i.batch_id=b.id JOIN tickets t ON t.id=i.mission_id " +
+    "WHERE b.status='active' AND i.status='active' AND t.status='in_progress' " +
+    "AND (CASE WHEN COALESCE(t.started_at,t.created_at)<4102444800 THEN COALESCE(t.started_at,t.created_at)*1000 ELSE COALESCE(t.started_at,t.created_at) END)<=?"
+  ).bind(cutoff).all()).results || [];
+  let paused = 0;
+  for (const row of rows) {
+    if (!sameAgentFamily(row.agent, identity.agent) ||
+        !memberRefMatches("machine", row.machine || identity.machine, identity.machine)) continue;
+    const result = await env.DB.prepare(
+      "UPDATE mission_batches SET status='paused',pause_reason=?,updated_at=? WHERE id=? AND status='active'"
+    ).bind("Límite operativo de 60 minutos: deja paso a OnIdle sin alterar trabajo ni evidencia.", now, row.id).run();
+    paused += Number(result && result.meta && result.meta.changes || 0);
+  }
+  return paused;
+}
+__name(pauseTimedOutOnIdleBatches, "pauseTimedOutOnIdleBatches");
 // Sincroniza una idea con su reloj de decisión (si lo tiene). Cuando la decisión se
 // resolvió (elegida o vencida→recomendada) y su tanda materializó la misión, la idea
 // pasa a «mision» con el mission_id de la misión activa del batch. READ-MOSTLY: sólo
@@ -2255,7 +2314,7 @@ async function runDailyMissionClose(env, now = Date.now()) {
   }
   const text = dailyMissionCloseEventText(plan.day);
   // Misma definición factual en INSERT y UPDATE: nació antes del cierre de día
-  // y no registra actividad en los últimos 30 min. `updated_at`/`live_at`, tareas
+  // y no registra actividad en los últimos 60 min. `updated_at`/`live_at`, tareas
   // y eventos protegen una misión antigua que de verdad siga trabajando hoy.
   const eligible = `${MISSION_SCOPE_SQL_T} AND t.status NOT IN ('resolved','cancelled') AND t.created_at IS NOT NULL AND t.created_at>0 ` +
     "AND (CASE WHEN t.created_at<4102444800 THEN t.created_at*1000 ELSE t.created_at END)<? " +
@@ -2306,7 +2365,7 @@ async function listAllMissionTasks(env, scope) {
     // mission_resolved) y la PRUEBA de cierre de la misión (t.proof_image →
     // mission_proof) para que la columna Captura tenga un fallback real cuando la
     // tarea no dejó imagen propia. No rompe a /tareas: sólo añade campos.
-    `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.report, m.image, m.image_kind, m.created_at, m.updated_at,
+    `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.report, m.image, m.image_kind, m.created_at, m.started_at, m.updated_at,
             t.subject, t.screen, t.loc, t.project, t.source, t.role, t.assignee, t.live_shot, t.live_at, t.live_kind,
             t.live_surface AS process_surface, t.live_context AS process_context,
             CASE WHEN t.live_kind='process' THEN t.live_shot ELSE NULL END AS process_image,
@@ -2317,11 +2376,14 @@ async function listAllMissionTasks(env, scope) {
        ${where}
        ORDER BY m.mission_id, m.code`
   ).all();
-  const rows = (results || []).map((task) => ({
-    ...task,
-    agent_identity: reportAgentIdentity(task.owner, task.loc),
-    ...legacyReportIdentityFields(task)
-  }));
+  const now = Date.now();
+  const rows = (results || []).map((task) => {
+    const visible = taskVisibleDetails(task, now);
+    return { ...task, visible_state:visible.state, active_since:visible.active_since,
+      visible_state_at:visible.transition_at, visible_state_reason:visible.reason,
+      agent_identity: reportAgentIdentity(task.owner, task.loc),
+      ...legacyReportIdentityFields(task) };
+  });
   await attachDisplayRefs(env, "task", rows, taskDisplayKey, (row) => row.created_at || row.updated_at);
   const missions = [...new Map(rows.map((row) => [row.mission_id, {
     id:row.mission_id,
@@ -2441,7 +2503,14 @@ async function setTaskStatus(env, mid, code, status, report, owner, image, image
   // Captura PROPIA del paso: cada paso deja constancia con su enlace/miniatura. (954)
   const im = image != null && normalizeProofImage(image).value ? normalizeProofImage(image).value : cur.image;
   const ik = image != null ? (imageKind === "final" ? "final" : "task") : cur.image_kind;
-  await env.DB.prepare("UPDATE mission_tasks SET status=?, report=?, owner=?, image=?, image_kind=?, updated_at=? WHERE mission_id=? AND code=?").bind(st, rp, ow, im, ik, Date.now(), mid, code).run();
+  const now = Date.now();
+  // `started_at` sólo nace en la primera transición a in_progress. Un reporte o
+  // heartbeat repetido actualiza updated_at, pero no compra otros 60 minutos.
+  // Volver explícitamente a pending inicia un ciclo nuevo y limpia el sello.
+  await env.DB.prepare("UPDATE mission_tasks SET status=?, report=?, owner=?, image=?, image_kind=?, " +
+    "started_at=CASE WHEN ?='in_progress' THEN COALESCE(started_at,?) WHEN ?='pending' AND status!='pending' THEN NULL ELSE started_at END, " +
+    "updated_at=? WHERE mission_id=? AND code=?")
+    .bind(st, rp, ow, im, ik, st, now, st, now, mid, code).run();
   const row = await env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
   if (row) await attachDisplayRefs(env, "task", row, taskDisplayKey, (item) => item.created_at || item.updated_at);
   return row;
@@ -2868,17 +2937,29 @@ async function listTickets(env, scope, limit, offset, filters = {}) {
   const activity = new Map();
   if (rows.length) {
     const taskActivity = await selectIn(env, rows.map((row) => row.id), (ph) =>
-      `SELECT mission_id,MAX(updated_at) activity_at FROM mission_tasks WHERE mission_id IN (${ph}) GROUP BY mission_id`
+      `SELECT mission_id,MAX(updated_at) activity_at,
+       MIN(CASE WHEN status IN ('in_progress','done','resolved') THEN COALESCE(started_at,updated_at,created_at) END) active_since
+       FROM mission_tasks WHERE mission_id IN (${ph}) GROUP BY mission_id`
     );
     const eventActivity = await selectIn(env, rows.map((row) => row.id), (ph) =>
       `SELECT ticket_id mission_id,MAX(ts) activity_at FROM events WHERE ticket_id IN (${ph}) GROUP BY ticket_id`
     );
     for (const item of [...taskActivity, ...eventActivity]) {
-      activity.set(item.mission_id, Math.max(Number(activity.get(item.mission_id)) || 0, Number(item.activity_at) || 0));
+      const current = activity.get(item.mission_id) || { activity_at:0, active_since:0 };
+      current.activity_at = Math.max(Number(current.activity_at) || 0, Number(item.activity_at) || 0);
+      const candidate = Number(item.active_since) || 0;
+      if (candidate && (!current.active_since || candidate < current.active_since)) current.active_since = candidate;
+      activity.set(item.mission_id, current);
     }
   }
   const now = Date.now();
-  for (const row of rows) row.visible_state = missionVisibleState(row, now, activity.get(row.id) || 0);
+  for (const row of rows) {
+    const visible = missionVisibleDetails(row, now, activity.get(row.id) || false);
+    row.visible_state = visible.state;
+    row.active_since = visible.active_since;
+    row.visible_state_at = visible.transition_at;
+    row.visible_state_reason = visible.reason;
+  }
   await attachImgCount(env, rows);
   // Nombre humano del proyecto junto al id, para que la lista no tenga que
   // cruzar /projects sólo para pintar un rótulo.
@@ -3471,8 +3552,8 @@ async function fleetNudge(env, b) {
     ).bind(missionId).first();
     if (ticket && ticket.source === "fleet" && ticket.status === "open") {
       const updated = await env.DB.prepare(
-        "UPDATE tickets SET status='in_progress',updated_at=? WHERE id=? AND status='open'"
-      ).bind(Date.now(), missionId).run();
+        "UPDATE tickets SET status='in_progress',started_at=COALESCE(started_at,?),updated_at=? WHERE id=? AND status='open'"
+      ).bind(Date.now(), Date.now(), missionId).run();
       started = Number(updated.meta?.changes || 0) > 0;
       if (started) {
         statusPushed = await fleetPushStatus(env, ticket, "in_progress");
@@ -4261,18 +4342,16 @@ async function menuCounters(env) {
   const zero = () => ({ curso: 0, pend: 0 });
   const out = { objetivos: zero(), misiones: zero(), tareas: zero(), incidencias: zero(), informes: zero() };
   // Tickets: misiones (fleet) e incidencias (campo) de una sola pasada.
-  const cutoff = Date.now() - 30 * 60 * 1000;
+  const cutoff = Date.now() - MISSION_UNCONCLUDED_AFTER_MS;
   const tk = (await env.DB.prepare(
     "SELECT CASE WHEN role='mission' OR source IN ('fleet','decision-batch','cli-declare') THEN 'f' ELSE 'c' END sc, t.status, " +
-    "CASE WHEN (CASE WHEN t.created_at<4102444800 THEN t.created_at*1000 ELSE t.created_at END)<? " +
-    "AND (t.updated_at IS NULL OR (CASE WHEN t.updated_at<4102444800 THEN t.updated_at*1000 ELSE t.updated_at END)<?) " +
-    "AND (t.live_at IS NULL OR (CASE WHEN t.live_at<4102444800 THEN t.live_at*1000 ELSE t.live_at END)<?) " +
-    "AND NOT EXISTS(SELECT 1 FROM mission_tasks ma WHERE ma.mission_id=t.id AND (CASE WHEN ma.updated_at<4102444800 THEN ma.updated_at*1000 ELSE ma.updated_at END)>=?) " +
-    "AND NOT EXISTS(SELECT 1 FROM events ea WHERE ea.ticket_id=t.id AND (CASE WHEN ea.ts<4102444800 THEN ea.ts*1000 ELSE ea.ts END)>=?) THEN 'unconcluded' " +
+    "CASE WHEN (t.status='in_progress' AND (CASE WHEN COALESCE(t.started_at,t.created_at)<4102444800 THEN COALESCE(t.started_at,t.created_at)*1000 ELSE COALESCE(t.started_at,t.created_at) END)<=?) " +
+    "OR EXISTS(SELECT 1 FROM mission_tasks ma WHERE ma.mission_id=t.id AND ma.status IN ('in_progress','done','resolved') " +
+    "AND (CASE WHEN COALESCE(ma.started_at,ma.updated_at,ma.created_at)<4102444800 THEN COALESCE(ma.started_at,ma.updated_at,ma.created_at)*1000 ELSE COALESCE(ma.started_at,ma.updated_at,ma.created_at) END)<=?) THEN 'unconcluded' " +
     "WHEN t.status='in_progress' OR EXISTS (SELECT 1 FROM mission_tasks m WHERE m.mission_id=t.id AND m.status IN ('in_progress','done','resolved')) THEN 'in_progress' " +
     "WHEN COALESCE(t.assignee,t.loc,'')<>'' THEN 'pending' ELSE 'unassigned' END visible_state, COUNT(*) n " +
     "FROM tickets t WHERE t.status NOT IN ('resolved','cancelled') GROUP BY sc,t.status,visible_state"
-  ).bind(cutoff,cutoff,cutoff,cutoff,cutoff).all()).results || [];
+  ).bind(cutoff,cutoff).all()).results || [];
   out.misiones = { curso:0, pend:0, no_concluidas:0, sin_asignar:0,
     universe:"all_backlog", state_semantics:"visible-v1" };
   for (const r of tk) {
@@ -4295,9 +4374,15 @@ async function menuCounters(env) {
   for (const r of id) { if (r.status === "estudio") out.objetivos.curso = r.n; else if (r.status === "nueva") out.objetivos.pend = r.n; }
   // Tareas = mission_tasks (todas).
   const ta = (await env.DB.prepare(
-    "SELECT status, COUNT(*) n FROM mission_tasks WHERE status IN ('pending','in_progress') GROUP BY status"
-  ).all()).results || [];
-  for (const r of ta) { if (r.status === "in_progress") out.tareas.curso = r.n; else if (r.status === "pending") out.tareas.pend = r.n; }
+    "SELECT CASE WHEN status='in_progress' AND " +
+    "(CASE WHEN COALESCE(started_at,updated_at,created_at)<4102444800 THEN COALESCE(started_at,updated_at,created_at)*1000 ELSE COALESCE(started_at,updated_at,created_at) END)<=? " +
+    "THEN 'unconcluded' ELSE status END visible_state, COUNT(*) n FROM mission_tasks " +
+    "WHERE status IN ('pending','in_progress') GROUP BY visible_state"
+  ).bind(cutoff).all()).results || [];
+  out.tareas.no_concluidas = 0;
+  for (const r of ta) { if (r.visible_state === "in_progress") out.tareas.curso = r.n;
+    else if (r.visible_state === "pending") out.tareas.pend = r.n;
+    else if (r.visible_state === "unconcluded") out.tareas.no_concluidas = r.n; }
   // INFORMES no tienen estado: o están escritos o no están (Carlos, 24-jul-2026).
   // Antes se contaban «en curso/pendientes» las tareas CON parte que seguían abiertas
   // — doblemente falso: le inventaba un ciclo de vida al informe e ignoraba justo los
@@ -4841,7 +4926,7 @@ var index_default = {
       // que el reconciliador por árbol la promueva. Cura de raíz del dato. (FLT-990 b/c)
       if (tk.source === "fleet" && tk.status === "open") {
         const claimedAt = Date.now();
-        const claimed = await env.DB.prepare("UPDATE tickets SET status='in_progress', updated_at=? WHERE id=? AND status='open'").bind(claimedAt, mid).run();
+        const claimed = await env.DB.prepare("UPDATE tickets SET status='in_progress', started_at=COALESCE(started_at,?), updated_at=? WHERE id=? AND status='open'").bind(claimedAt, claimedAt, mid).run();
         // El Highscore necesita el primer hecho de inicio, no el updated_at mutable
         // del ticket. El auto-claim anterior cambiaba estado sin dejar esa prueba.
         if (!claimed || !claimed.meta || Number(claimed.meta.changes) > 0) {
@@ -5417,6 +5502,16 @@ var index_default = {
         return json({ closures:r.results || [], next:dailyMissionClosePlan(Date.now()) });
       } catch (e) { return json({ error:String(e) }, 500); }
     }
+    // Comprobador canónico para automatizaciones OnIdle. Sólo el estado visible
+    // dentro de la hora bloquea; lo no concluido conserva su status técnico.
+    if (url.pathname === "/fleet/onidle-state" && req.method === "GET") {
+      try {
+        await ensureSchema(env);
+        const identity = resolveDecisionIdentity(url.searchParams.get("agent"), url.searchParams.get("machine"));
+        if (!identity.ok) return json({ ok:false, code:"exact_identity_required", error:identity.error }, 400);
+        return json({ ok:true, ...(await operationalOnIdleState(env, identity)) });
+      } catch (e) { return json({ ok:false, error:String(e) }, 500); }
+    }
     if (url.pathname === "/ideas" && (req.method === "GET" || req.method === "POST")) {
       const IDEA_STATUS = /* @__PURE__ */ new Set(["nueva", "estudio", "hecha", "mision", "descartada"]);
       try {
@@ -5985,6 +6080,16 @@ var index_default = {
         if (!decisionIdentity.ok) {
           return json({ ok: false, error: decisionIdentity.error, code: "exact_identity_required" }, 400);
         }
+        const onIdle = !continuation && (b.onidle === true || String(b.mission || "") === ONIDLE_MISSION_MARKER);
+        if (onIdle && b.user_override !== true) {
+          const operational = await operationalOnIdleState(env, decisionIdentity);
+          if (!operational.can_open) {
+            return json({ ok:false, error:"onidle_blocked", code:operational.reason,
+              blockers:operational.blockers, quota:operational.quota,
+              operational_limit_ms:operational.operational_limit_ms }, 409);
+          }
+          await pauseTimedOutOnIdleBatches(env, decisionIdentity, operational.evaluated_at);
+        }
         const decisionInput = { ...b, agent: decisionIdentity.agent, machine: decisionIdentity.machine };
         // Cuando agent+machine participa en varios proyectos, la raíz debe
         // seleccionar uno por id. Las continuaciones heredan el id ya
@@ -6046,7 +6151,7 @@ var index_default = {
         // intersección canónica projects+project_members; jamás se hereda del
         // último ticket o trabajo.
         const durl = String(b.url || "").slice(0, 300);
-        const dmission = String(b.mission || "").slice(0, 120);
+        const dmission = String(onIdle ? ONIDLE_MISSION_MARKER : (b.mission || "")).slice(0, 120);
         const dproject = projectContext.project_id;
         const dprojectSlug = projectContext.project_slug;
         await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?)")
