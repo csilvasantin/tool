@@ -493,9 +493,19 @@ function render(list){
     //    tarea no dejó imagen, CAE al proof de CIERRE de la misión (mission_proof, teñido
     //    de ámbar y titulado «proof de la misión»); si tampoco hay, «—» honesto.
     // Cada miniatura sale en UNA sola columna: nunca se repite la misma imagen.
-    const proc = shotHTML(t.process_image,
-      t.process_image ? "Ampliar el proceso — el CLI trabajando" : "sin captura de proceso",
-      "Proceso del CLI", false);
+    // Si la misión NACIÓ DE UNA IDEA, el proceso que interesa ver es el vídeo que
+    // la originó (Carlos, 7-ago-2026: «los informes que vengan de ideas, el proceso
+    // tiene que ser la captura del vídeo de la idea, así queda mucho mejor
+    // documentado y podemos comparar con lo que hemos hecho»). Puestas una al lado
+    // de la otra, Proceso y Captura cuentan la historia entera: de dónde salió y en
+    // qué quedó. Se etiqueta como lo que es —la idea, no el CLI trabajando— para no
+    // hacer pasar una cosa por otra; la captura técnica sigue guardada en la misión.
+    const proc = t.idea_image
+      ? shotHTML(t.idea_image, "Ampliar la idea que originó la misión" + (t.idea_url ? " — " + t.idea_url : ""),
+          "La idea que lo originó", false)
+      : shotHTML(t.process_image,
+          t.process_image ? "Ampliar el proceso — el CLI trabajando" : "sin captura de proceso",
+          "Proceso del CLI", false);
     const capMission = !t.image ? (t.mission_proof||"") : "";
     const shot = t.image
       ? shotHTML(t.image,"Ampliar la captura de prueba","Captura de prueba",false)

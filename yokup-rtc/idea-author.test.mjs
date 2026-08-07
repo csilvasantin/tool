@@ -65,7 +65,10 @@ test('POST /ideas valida sesión/token y persiste trazabilidad atómica', () => 
   assert.match(endpoint, /if \(!actor\.ok\) return json/);
   assert.match(endpoint, /await env\.DB\.batch\(\[/);
   assert.match(endpoint, /INSERT INTO ideas \(id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,project\)/);
-  assert.match(endpoint, /UPDATE ideas SET author_source=\?,author_identity=\? WHERE id=\?/);
+  // Lo que se protege es que la autoría se escriba en el MISMO batch que el alta
+  // —atómico—, no la lista exacta de columnas: desde el 7-ago ese UPDATE lleva
+  // también de qué vídeo salió la idea (FLT-1267).
+  assert.match(endpoint, /UPDATE ideas SET author_source=\?,author_identity=\?[^"]*WHERE id=\?/);
   assert.match(endpoint, /author_source:actor\.source/);
 });
 

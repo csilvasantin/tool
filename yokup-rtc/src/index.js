@@ -531,6 +531,14 @@ __name(ideaTypeCriteria, "ideaTypeCriteria");
 async function ensureIdeasSchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS ideas (id TEXT PRIMARY KEY, title TEXT, body TEXT, author TEXT, tag TEXT, status TEXT, created_at INTEGER, updated_at INTEGER, mission_id TEXT)");
   await env.DB.exec("ALTER TABLE ideas ADD COLUMN seat TEXT").catch(() => {});
+  // De qué vídeo nació la idea (Carlos, 7-ago-2026): «los informes que vengan de
+  // ideas, el proceso tiene que ser la captura del vídeo de la idea, así queda
+  // mucho mejor documentado y podemos comparar con lo que hemos hecho». Sin esto
+  // el vínculo se perdía en cuanto el borrador se guardaba: la idea conservaba el
+  // texto guionizado pero no de dónde salía, y el informe no tenía qué enseñar.
+  // Migración ADITIVA e idempotente, como las de arriba.
+  await env.DB.exec("ALTER TABLE ideas ADD COLUMN source_image TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE ideas ADD COLUMN source_url TEXT").catch(() => {});
   // Deliberación del Consejo (FLT-1005 «En estudio»): JSON {pros:[{seat,by,text}×3],
   // cons:[{seat,by,text}×3], at}. Migración ADITIVA e idempotente igual que `seat`.
   await env.DB.exec("ALTER TABLE ideas ADD COLUMN review TEXT").catch(() => {});
@@ -638,6 +646,14 @@ function tubeBase(env) {
   return String((env && env.ADMIRA_TUBE_BASE) || "https://macmini.tail48b61c.ts.net/admira").replace(/\/+$/, "");
 }
 __name(tubeBase, "tubeBase");
+// La miniatura del vídeo, para que el informe pueda enseñar de dónde salió la idea.
+// YouTube la sirve por id sin pedir nada; en el resto de hosts no hay una portada
+// pública que se pueda derivar de la URL, y se devuelve vacío antes que inventarla.
+function miniaturaDeVideo(u) {
+  const m = String(u || "").match(/(?:youtube\.com\/.*[?&]v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([A-Za-z0-9_-]{11})/);
+  return m ? "https://img.youtube.com/vi/" + m[1] + "/hqdefault.jpg" : "";
+}
+__name(miniaturaDeVideo, "miniaturaDeVideo");
 function normalizaEtiqueta(t) {
   // \p{M} = marcas combinantes. Se usa la propiedad Unicode en vez del rango
   // U+0300–U+036F escrito a mano: el fuente queda en ASCII puro y no hay forma
@@ -3088,9 +3104,14 @@ async function listAllMissionTasks(env, scope) {
             t.live_surface AS process_surface, t.live_context AS process_context,
             CASE WHEN t.live_kind='process' THEN t.live_shot ELSE NULL END AS process_image,
             CASE WHEN t.live_kind='process' THEN t.live_at ELSE NULL END AS process_captured_at,
+            -- De qué vídeo nació la idea (Carlos, 7-ago-2026). LEFT JOIN a propósito:
+            -- una misión que no viene de una idea sigue exactamente igual, con NULL,
+            -- y la columna Proceso conserva su comportamiento de siempre.
+            i.source_image AS idea_image, i.source_url AS idea_url, i.id AS idea_id,
             t.status AS mission_status, t.created_at AS mission_created,
             t.resolved_at AS mission_resolved, t.proof_image AS mission_proof
        FROM mission_tasks m JOIN tickets t ON t.id = m.mission_id
+       LEFT JOIN ideas i ON i.mission_id = t.id AND COALESCE(i.source_image,'') <> ''
        ${where}
        ORDER BY m.mission_id, m.code`
   ).all();
@@ -3149,8 +3170,10 @@ async function listMissionReportsPage(env, scope, options) {
       t.live_surface AS process_surface,t.live_context AS process_context,
       CASE WHEN t.live_kind='process' THEN t.live_shot ELSE NULL END AS process_image,
       CASE WHEN t.live_kind='process' THEN t.live_at ELSE NULL END AS process_captured_at,
+      i.source_image AS idea_image, i.source_url AS idea_url, i.id AS idea_id,
       t.status AS mission_status,t.created_at AS mission_created,t.resolved_at AS mission_resolved,t.proof_image AS mission_proof
     FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id
+    LEFT JOIN ideas i ON i.mission_id = t.id AND COALESCE(i.source_image,'') <> ''
     WHERE ${filter.page_sql}
     ORDER BY COALESCE(m.updated_at,0) DESC,m.mission_id DESC,m.code DESC LIMIT ?`;
   const result = await env.DB.prepare(sql).bind(...filter.page_binds, options.limit + 1).all();
@@ -6429,13 +6452,22 @@ var index_default = {
         if (projIn) { try { const p = (await projectIndex(env)).get(projIn); if (p) project = p.id; } catch (e) { project = ""; } }
         const now = Date.now();
         const id = "IDEA-" + (crypto.randomUUID().replace(/-/g, "").slice(0, 8));
+        // El vídeo del que salió la idea, si vino de uno. Se guarda al nacer porque
+        // después no hay forma de reconstruirlo: el texto ya está guionizado y no
+        // dice de dónde viene. Se acepta sólo http(s) y se recorta; es una imagen
+        // para enseñar, no una entrada de confianza.
+        const imgIn = String(b.source_image || "").trim();
+        const urlIn = String(b.source_url || "").trim();
+        const sourceImage = /^https?:\/\//i.test(imgIn) ? imgIn.slice(0, 500) : "";
+        const sourceUrl = /^https?:\/\//i.test(urlIn) ? urlIn.slice(0, 500) : "";
         await env.DB.batch([
           env.DB.prepare("INSERT INTO ideas (id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,project) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
             .bind(id, title, body, author, tag, "nueva", now, now, "", seat, project),
-          env.DB.prepare("UPDATE ideas SET author_source=?,author_identity=? WHERE id=?")
-            .bind(actor.source, actor.identity, id)
+          env.DB.prepare("UPDATE ideas SET author_source=?,author_identity=?,source_image=?,source_url=? WHERE id=?")
+            .bind(actor.source, actor.identity, sourceImage, sourceUrl, id)
         ]);
-        const idea = { id, title, body, author, author_source:actor.source, tag, status: "nueva", created_at: now, updated_at: now, mission_id: "", seat, project };
+        const idea = { id, title, body, author, author_source:actor.source, tag, status: "nueva", created_at: now, updated_at: now, mission_id: "", seat, project,
+          source_image: sourceImage, source_url: sourceUrl };
         await attachDisplayRefs(env, "objective", idea, (row) => row.id, (row) => row.created_at);
         return json({ ok: true, idea });
       } catch (e) { return json({ error: String(e) }, 500); }
@@ -6894,6 +6926,7 @@ Todo en español.`;
       if (!title) return json({ ok: false, error: "sin-redaccion", detail: "El motor no devolvió un borrador legible." }, 502);
       return json({ ok: true, listo: true, idea: { title, body },
         fuente: { url: String(fuente.url || ""), title: titulo,
+                  thumbnail: miniaturaDeVideo(String(fuente.url || "")),
                   assetId: (st && st.assetId) || "", assetUrl: (st && st.assetUrl) || "" } });
     }
     if (url.pathname === "/ideas/generate" && req.method === "POST") {

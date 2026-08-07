@@ -803,6 +803,12 @@ async function decide(id){
 // en sus selectores para que se vea de quién y de qué proyecto habla el borrador.
 const AUTO_MS=60000;
 let AUTO_T=null, AUTO_TICK=null, AUTO_END=0, DRAFT=false;
+// De qué vídeo salió el borrador que hay ahora en el formulario. Viaja con el alta
+// para que el informe de la misión pueda enseñar la idea que la originó (Carlos,
+// 7-ago-2026: «así queda mucho mejor documentado y podemos comparar con lo que
+// hemos hecho»). Se limpia en cuanto el objetivo se guarda o el texto se descarta:
+// una idea escrita a mano no puede heredar el vídeo de la anterior.
+let FUENTE={img:"",url:""};
 function genLabel(t){ const b=$("#genBtn"); if(b) b.textContent=t; }
 // Para el reloj y devuelve el botón a su estado de reposo. El borrador NO se borra.
 function autoStop(msg){
@@ -915,6 +921,7 @@ async function ideaDesdeStock(){
       $("#fTitle").value=d.idea.title||"";
       $("#fBody").value=d.idea.body||"";
       DRAFT=true;
+      FUENTE={img:(d.fuente&&d.fuente.thumbnail)||"",url:(d.fuente&&d.fuente.url)||""};
       const f=(d.fuente&&d.fuente.title)?(" · "+String(d.fuente.title).slice(0,44)):"";
       paso("✅ Listo"+(d.total?(" · "+d.total+" ideas en el Stock"):""));
       toast("💡 De tu última idea en Pixeria"+f+" — repásala y dale a «Añadir objetivo»");
@@ -969,6 +976,7 @@ async function ideaDesdeUrl(){
         $("#fTitle").value=e.idea.title||"";
         $("#fBody").value=e.idea.body||"";
         DRAFT=true; campo.value="";
+        FUENTE={img:(e.fuente&&e.fuente.thumbnail)||"",url:(e.fuente&&e.fuente.url)||""};
         fin("✅ Listo");
         toast("💡 Guionizado desde el vídeo que acabas de importar a Pixeria — repásalo y dale a «Añadir objetivo»");
         return;
@@ -999,10 +1007,11 @@ $("#addForm").addEventListener("submit",async e=>{
     // Si el texto viene de un borrador del Consejo y nadie le puso etiqueta, entra
     // firmado «consejo»: mantiene el color del lado y la firma en la ficha (FLT-1017).
     const tag=$("#fTag").value||(DRAFT?"consejo":"");
-    const body={title,body:$("#fBody").value.trim(),tag,seat:$("#fSeat").value,project:$("#fProject").value,scheduled_for:$("#boardDay").value||TODAY,origin_type:"objetivo"};
+    const body={title,body:$("#fBody").value.trim(),tag,seat:$("#fSeat").value,project:$("#fProject").value,scheduled_for:$("#boardDay").value||TODAY,origin_type:"objetivo",
+      source_image:FUENTE.img,source_url:FUENTE.url};
     const r=await fetch(WORKER+"/ideas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const d=await r.json();
-    if(d.ok){ autoStop(""); DRAFT=false;
+    if(d.ok){ autoStop(""); DRAFT=false; FUENTE={img:"",url:""};
       $("#fTitle").value="";$("#fBody").value="";$("#fTag").value="";$("#fSeat").value="";$("#fProject").value=""; toast("Idea guardada 💡"); load(); }
     else toast(d.error==="falta_titulo"?"Falta el título":"No se pudo guardar");
   }catch(e){ toast("Error de red"); } finally{ btn.disabled=false; }
