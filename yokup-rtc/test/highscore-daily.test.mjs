@@ -20,7 +20,7 @@ function harness(){
   const db=new DatabaseSync(":memory:");
   db.exec("CREATE TABLE ideas(id TEXT PRIMARY KEY,title TEXT,author TEXT,status TEXT,project TEXT,decision_id TEXT,mission_id TEXT,created_at INTEGER,updated_at INTEGER)");
   db.exec("CREATE TABLE decisions(id TEXT PRIMARY KEY,machine TEXT,agent TEXT,question TEXT,status TEXT,project TEXT,mission TEXT,parent_decision TEXT,batch_id TEXT,created_at INTEGER,decided_at INTEGER)");
-  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,subject TEXT,loc TEXT,source TEXT,status TEXT,assignee TEXT,project TEXT,created_at INTEGER,updated_at INTEGER)");
+  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,subject TEXT,loc TEXT,source TEXT,status TEXT,assignee TEXT,project TEXT,closure_reason TEXT,created_at INTEGER,updated_at INTEGER)");
   db.exec("CREATE TABLE mission_batches(id TEXT PRIMARY KEY,decision_id TEXT)");
   db.exec("CREATE TABLE mission_batch_items(batch_id TEXT,position INTEGER,mission_id TEXT)");
   db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,created_at INTEGER,updated_at INTEGER)");
@@ -180,6 +180,33 @@ test("una FLT directa traza misión → tareas sin fabricar objetivo ni ventana"
   assert.deepEqual(d.traceability.unlinked.map(x=>[x.type,x.id,x.reason]),[
     ["task","FLT-X:a","mission_outside_daily_trace"]
   ]);
+});
+
+test("la adopción OnIdle puntúa sólo la misión canónica y excluye el contenedor equivalente", async () => {
+  const {db,env,F}=harness();
+  db.exec(`INSERT INTO decisions(id,machine,agent,question,status,project,batch_id,created_at,decided_at) VALUES
+    ('DEC-ADOPT','MacMini','OraculoMacMini','Elegir mejora','decided','yokup','B-ADOPT',${HOY},${HOY})`);
+  db.exec(`INSERT INTO mission_batches(id,decision_id) VALUES ('B-ADOPT','DEC-ADOPT')`);
+  db.exec(`INSERT INTO mission_batch_items(batch_id,position,mission_id) VALUES ('B-ADOPT',0,'DCL-REAL')`);
+  db.exec(`INSERT INTO tickets(id,subject,loc,source,status,assignee,project,closure_reason,created_at,updated_at) VALUES
+    ('MIS-CONT','Contenedor sustituido','MacMini','decision-batch','cancelled','OraculoMacMini','yokup','equivalent_mission',${HOY},${HOY}),
+    ('DCL-REAL','Misión canónica','MacMini','cli-declare','in_progress','OraculoMacMini','yokup',NULL,${HOY},${HOY})`);
+  db.exec(`INSERT INTO mission_tasks(mission_id,code,title,status,owner,created_at,updated_at) VALUES
+    ('MIS-CONT','a','Tarea residual del contenedor','done','SubOraculoMacMini',${HOY},${HOY}),
+    ('DCL-REAL','a','Tarea canónica','done','SubOraculoMacMini',${HOY},${HOY})`);
+
+  const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
+  const row=d.scores.find(item=>item.agent==="OraculoMacMini");
+  assert.ok(row);
+  assert.equal(row.missions,1,"el contenedor cancelado no vuelve a contar como misión");
+  assert.deepEqual(d.hourly.scores.find(item=>item.agent==="OraculoMacMini").metrics.points,{hour:48,day:48},
+    "la identidad principal recibe una ventana y una misión, no el contenedor cancelado");
+  const taskOwner=d.hourly.scores.find(item=>item.agent==="SubOraculoMacMini");
+  assert.deepEqual(taskOwner.metrics.tasks,{hour:1,day:1},"la tarea residual del contenedor no da puntos");
+  assert.deepEqual(taskOwner.metrics.points,{hour:15,day:15},"la tarea canónica puntúa una sola vez");
+  assert.ok(!d.traceability.unlinked.some(item=>item.mission_id==="MIS-CONT"),
+    "la tarea residual tampoco debe aparecer como evidencia puntuable o huérfana");
+  assert.equal(d.traceability.chains.filter(chain=>chain.mission?.id==="DCL-REAL").length,1);
 });
 
 test("MBP14: FLT-1204 enlaza una tarea done como inicio factual y suma misión + tarea", async () => {

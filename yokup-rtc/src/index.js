@@ -4233,8 +4233,9 @@ async function highscoreTraceability(env, inicio, fin, ahora) {
   const tasks = ((await env.DB.prepare(
     "SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.created_at,m.updated_at,t.status mission_status " +
     "FROM mission_tasks m LEFT JOIN tickets t ON t.id=m.mission_id " +
-    "WHERE (COALESCE(m.created_at,m.updated_at)>=? AND COALESCE(m.created_at,m.updated_at)<?) " +
-    "OR (m.updated_at>=? AND m.updated_at<?)"
+    "WHERE ((COALESCE(m.created_at,m.updated_at)>=? AND COALESCE(m.created_at,m.updated_at)<?) " +
+    "OR (m.updated_at>=? AND m.updated_at<?)) " +
+    "AND NOT (t.status='cancelled' AND COALESCE(t.closure_reason,'')='equivalent_mission')"
   ).bind(inicio, fin, inicio, fin).all()).results || []);
   // Esta consulta no usa fechas: son exclusivamente llaves de unión. Las etapas
   // que no pertenecen al día no se publican, pero la llave permite distinguir
@@ -4409,6 +4410,7 @@ async function highscorePeriodMetrics(env, inicio, fin) {
   const taskRows = ((await env.DB.prepare(
     `SELECT m.mission_id,m.code,m.status,m.owner,m.updated_at,t.assignee,t.loc ` +
     `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${AGENT_SOURCE_SQL_T} ` +
+    "AND NOT (t.status='cancelled' AND COALESCE(t.closure_reason,'')='equivalent_mission') " +
     "AND m.updated_at>=? AND m.updated_at<? AND m.status IN ('in_progress','done')"
   ).bind(inicio, fin).all()).results || []);
   const representatives = new Map();
@@ -4493,6 +4495,7 @@ async function highscoreCurrentTotals(env, scores, inicio, fin) {
   const taskRows = ((await env.DB.prepare(
     `SELECT m.mission_id,m.code,m.status,m.owner,m.updated_at,t.assignee,t.loc ` +
     `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${AGENT_SOURCE_SQL_T} ` +
+    "AND NOT (t.status='cancelled' AND COALESCE(t.closure_reason,'')='equivalent_mission') " +
     "AND m.updated_at>=? AND m.updated_at<? AND m.status IN ('in_progress','done')"
   ).bind(inicio, fin).all()).results || []);
   const representatives = new Map();

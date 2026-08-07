@@ -374,8 +374,8 @@ test("enlace tardío cancela el contenedor, adopta target y converge idempotente
   state.batches.set(batchId,{id:batchId,decision_id:decisionId,agent:"OraculoMacMini",machine:"admira-macmini",project_id:"xpaceos",status:"active",active_mission_id:containerId});
   state.items.push({batch_id:batchId,position:0,option_index:0,title:"Trabajo real",mission_id:containerId,target_mission_id:null,status:"active"});
   state.tickets.push(
-    {id:containerId,status:"in_progress",project:"xpaceos",project_id:"xpaceos",source:"decision-batch",screen:"decision-batch:"+decisionId,assignee:"OraculoMacMini",loc:"admira-macmini"},
-    {id:targetId,status:"in_progress",project:"xpaceos",project_id:"xpaceos",source:"cli-declare",screen:"declare:"+targetId,assignee:"OraculoMacMini",loc:"admira-macmini",created_at:Date.now()-1000}
+    {id:containerId,status:"in_progress",project:"xpaceos",project_id:"xpaceos",source:"decision-batch",screen:"decision-batch:"+decisionId,assignee:"OraculoMacMini",loc:"admira-macmini",proof_image:null},
+    {id:targetId,status:"in_progress",project:"xpaceos",project_id:"xpaceos",source:"cli-declare",screen:"declare:"+targetId,assignee:"OraculoMacMini",loc:"admira-macmini",created_at:Date.now()-1000,proof_image:"https://api.yokup.test/media/fleet/target-final.png"}
   );
   const body={decision_id:decisionId,batch_id:batchId,container_mission_id:containerId,target_mission_id:targetId,owner:"OraculoMacMini"};
   let response=await post("/fleet/batch/adopt",body), result=await response.json();
@@ -386,6 +386,9 @@ test("enlace tardío cancela el contenedor, adopta target y converge idempotente
   assert.equal(state.batches.get(batchId).active_mission_id,targetId);
   response=await post("/fleet/batch/adopt",body); result=await response.json();
   assert.equal(response.status,200); assert.equal(result.idempotent,true); assert.equal(result.reconciliation.applied,false);
+  assert.equal(state.tickets.find(row=>row.id===containerId).proof_image,null,"la adopción no copia evidencia al contenedor");
+  assert.equal(state.tickets.find(row=>row.id===targetId).proof_image,"https://api.yokup.test/media/fleet/target-final.png",
+    "la prueba canónica permanece en una sola misión tras el retry");
   response=await post("/fleet/batch/adopt",{...body,owner:"Intruso"}); result=await response.json();
   assert.equal(response.status,403); assert.equal(result.code,"owner_mismatch","el retry no omite la firma exacta");
   response=await post("/fleet/batch/adopt",{...body,container_mission_id:"MIS-WRONG"}); result=await response.json();

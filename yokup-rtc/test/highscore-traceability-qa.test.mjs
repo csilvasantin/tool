@@ -20,7 +20,7 @@ function harness() {
   const db = new DatabaseSync(":memory:");
   db.exec("CREATE TABLE ideas(id TEXT,title TEXT,author TEXT,project TEXT,decision_id TEXT,mission_id TEXT,created_at INTEGER,updated_at INTEGER)");
   db.exec("CREATE TABLE decisions(id TEXT,agent TEXT,machine TEXT,question TEXT,project TEXT,mission TEXT,parent_decision TEXT,batch_id TEXT,created_at INTEGER,decided_at INTEGER)");
-  db.exec("CREATE TABLE tickets(id TEXT,subject TEXT,assignee TEXT,loc TEXT,project TEXT,source TEXT,status TEXT,created_at INTEGER,updated_at INTEGER)");
+  db.exec("CREATE TABLE tickets(id TEXT,subject TEXT,assignee TEXT,loc TEXT,project TEXT,source TEXT,status TEXT,closure_reason TEXT,created_at INTEGER,updated_at INTEGER)");
   db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,created_at INTEGER,updated_at INTEGER)");
   db.exec("CREATE TABLE mission_batches(id TEXT,decision_id TEXT)");
   db.exec("CREATE TABLE mission_batch_items(batch_id TEXT,mission_id TEXT)");
@@ -57,7 +57,7 @@ test("una cadena nacida en Ventana conserva origen único, orden cronológico y 
   db.prepare("INSERT INTO decisions VALUES(?,?,?,?,?,?,?,?,?,?)").run("DEC-W","NeoMini","macmini","Elegir","pixeria","","","B-W",NOW-9000,NOW-8000);
   db.prepare("INSERT INTO mission_batches VALUES(?,?)").run("B-W","DEC-W");
   db.prepare("INSERT INTO mission_batch_items VALUES(?,?)").run("B-W","FLT-W");
-  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?)").run("FLT-W","Entrega","NeoMini","macmini","pixeria","fleet","in_progress",NOW-7000,NOW-1000);
+  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?)").run("FLT-W","Entrega","NeoMini","macmini","pixeria","fleet","in_progress",null,NOW-7000,NOW-1000);
   db.prepare("INSERT INTO events VALUES(?,?,?,?,?)").run("FLT-W","status","yokup","Estado → in_progress",NOW-6500);
   db.prepare("INSERT INTO mission_tasks VALUES(?,?,?,?,?,?,?)").run("FLT-W","b","Segundo","done","SubNeoMini",NOW-3000,NOW-2000);
   db.prepare("INSERT INTO mission_tasks VALUES(?,?,?,?,?,?,?)").run("FLT-W","a","Primero","done","SubNeoMini",NOW-6000,NOW-5000);
@@ -75,7 +75,7 @@ test("una cadena nacida en Ventana conserva origen único, orden cronológico y 
 test("el corte diario y las relaciones ausentes son explícitos, no aproximados", async () => {
   const { db, env, trace } = harness();
   db.prepare("INSERT INTO ideas VALUES(?,?,?,?,?,?,?,?)").run("AYER","Viejo","OraculoMini","yokup","","",START-1,START-1);
-  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?)").run("FLT-U","Directa","OraculoMini","macmini","yokup","fleet","resolved",NOW-5000,NOW-1000);
+  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?)").run("FLT-U","Directa","OraculoMini","macmini","yokup","fleet","resolved",null,NOW-5000,NOW-1000);
   db.prepare("INSERT INTO events VALUES(?,?,?,?,?)").run("FLT-U","status","yokup","Estado → in_progress",NOW-4500);
   db.prepare("INSERT INTO mission_tasks VALUES(?,?,?,?,?,?,?)").run("FLT-X","a","Huérfana","done","SubOraculoMini",NOW-4000,NOW-2000);
   const result = structuredClone(await trace(env, START, END, NOW));
