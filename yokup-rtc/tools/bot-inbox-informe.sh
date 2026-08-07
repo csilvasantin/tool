@@ -14,4 +14,8 @@ while [ "$#" -gt 0 ]; do
     *) echo "opción desconocida: $1" >&2; exit 2 ;;
   esac
 done
-YOKUP_ROLE=infra "$HERE/mission-evidence.sh" final "$MISSION" --report "$REPORT" "${ARGS[@]}"
+# `"${ARGS[@]}"` sobre un array VACÍO revienta con set -u en el bash 3.2 que trae
+# macOS («ARGS[@]: unbound variable»), así que un cierre sin --img ni --transcript
+# —el caso más normal— no llegaba a ejecutarse. La expansión de abajo deja el array
+# fuera cuando no hay nada que pasar.
+YOKUP_ROLE=infra "$HERE/mission-evidence.sh" final "$MISSION" --report "$REPORT" ${ARGS[@]+"${ARGS[@]}"}

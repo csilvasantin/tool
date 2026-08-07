@@ -87,6 +87,20 @@ test("un transcript guardado ayer no acredita el proceso de hoy", async (t) => {
   assert.match(r.stderr, /no acredita proceso vivo/);
 });
 
+// El bash 3.2 de macOS revienta con set -u al expandir un array vacío, así que un
+// cierre sin flags —el caso más normal— ni siquiera llegaba a ejecutarse.
+test("cerrar sin --img ni --transcript no revienta en el bash de macOS", async () => {
+  const informe = await tool("bot-inbox-informe.sh");
+  assert.match(informe, /\$\{ARGS\[@\]\+"\$\{ARGS\[@\]\}"\}/,
+    "«ARGS[@]: unbound variable» con set -u y array vacío");
+  assert.doesNotMatch(informe, /--report "\$REPORT" "\$\{ARGS\[@\]\}"/);
+  // Y se comprueba de verdad, que es como se encontró.
+  const r = spawnSync("bash", ["-c",
+    `set -euo pipefail\nARGS=()\nprintf 'ok %s\\n' "$#" ; set -- --report x \${ARGS[@]+"\${ARGS[@]}"} ; echo "args=$#"`],
+    { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+});
+
 test("el transcript vale para toda la sesión, no solo para el cierre", async () => {
   const client = await tool("mission-evidence.sh");
   // El claim y los latidos también capturan evidencia y no tienen dónde meter un
