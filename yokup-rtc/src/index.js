@@ -3625,7 +3625,7 @@ __name(fleetPushStatus, "fleetPushStatus");
 // Deriva el estado de la MISIÓN a partir de su árbol y, si ha cambiado de verdad,
 // lo baja al encargo del bot-inbox. Idempotente.
 async function fleetReconcileMission(env, mid) {
-  const t = await env.DB.prepare("SELECT id,source,status,assignee,loc,screen FROM tickets WHERE id=?").bind(mid).first();
+  const t = await env.DB.prepare("SELECT id,source,status,assignee,loc,screen,role FROM tickets WHERE id=?").bind(mid).first();
   if (!t || t.source !== "fleet") return null;
   // Una CANCELADA no la revive el reconciliador por árbol (sus subtareas quedan
   // 'pending' y recalcularían 'open'). Cancelar es definitivo salvo reabrir manual.
@@ -3633,9 +3633,11 @@ async function fleetReconcileMission(env, mid) {
   const tasks = await listMissionTasks(env, mid);
   if (!tasks.length) return null;
   const allDone = tasks.every((x) => x.status === "done");
+  const standalone = t.role === "standalone-task";
+  const hasInforme = tasks.some((x) => x.code === "z1" && x.status === "done" && String(x.report || "").trim());
   const started = tasks.some((x) => x.status !== "pending");
   const proof = allDone ? await hasMissionProof(env, mid) : false;
-  const derived = allDone && proof ? "resolved" : started || allDone ? "in_progress" : "open";
+  const derived = allDone && proof && (!standalone || hasInforme) ? "resolved" : started || allDone ? "in_progress" : "open";
   // El árbol se crea con todas las subtareas pendientes. Una captura de progreso
   // pone la misión en curso antes de que alguien toque ese árbol; por tanto, el
   // reconciliador solo puede PROMOVER el estado, nunca borrar ese progreso real.
@@ -3649,6 +3651,12 @@ async function fleetReconcileMission(env, mid) {
     if (!last || last.text !== txt) await addEvent(env, mid, "log", "yokup", txt);
     // Si además no había cambio de estado que escribir, se responde aquí con el motivo.
     if (next === t.status) return { mission: mid, status: t.status, blocked: "sin-prueba", reason: txt };
+  }
+  if (standalone && allDone && proof && !hasInforme && t.status !== "resolved") {
+    const txt = "⏸ La tarea standalone está hecha y tiene prueba, pero espera el informe canónico de /fleet/informe.";
+    const last = await env.DB.prepare("SELECT text FROM events WHERE ticket_id=? ORDER BY id DESC LIMIT 1").bind(mid).first();
+    if (!last || last.text !== txt) await addEvent(env, mid, "log", "yokup", txt);
+    if (next === t.status) return { mission:mid, status:t.status, blocked:"sin-informe", reason:txt };
   }
   // No DEGRADAR una misión FINALIZADA a mano: el reconciliador por árbol solo PROMUEVE
   // (open→in_progress→resolved). El árbol se auto-genera y nadie marca sus subtareas
@@ -4794,7 +4802,7 @@ var index_default = {
       if (!owner) missing.push("owner");
       if (!rawImage) missing.push("final_image");
       if (missing.length) return json({ ok: false, code: "closure_evidence_missing", error: "no se puede cerrar: faltan " + missing.join(", "), missing, applied: false }, 400);
-      const t = await env.DB.prepare("SELECT id,assignee,loc,status,source,screen,created_at,proof_image,proof_kind,live_shot,live_at,live_kind,live_surface,live_context FROM tickets WHERE id=?").bind(mid).first();
+      const t = await env.DB.prepare("SELECT id,assignee,loc,status,source,screen,created_at,proof_image,proof_kind,live_shot,live_at,live_kind,live_surface,live_context,role FROM tickets WHERE id=?").bind(mid).first();
       if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
       // La identidad se valida ANTES de auto-claim, informe, prueba o evento.
       // Una firma cruzada se rechaza completa: no deja ningún rastro falso.
@@ -4810,6 +4818,24 @@ var index_default = {
       // completar el MISMO cierre, sin reescribir informe ni prueba.
       if (t.status === "resolved") {
         const previous = await env.DB.prepare("SELECT owner,report,image,image_kind FROM mission_tasks WHERE mission_id=? AND code='z1'").bind(mid).first();
+        const repairStandalone = t.role === "standalone-task" && !previous &&
+          t.proof_kind === "final" && t.proof_image === rawImage;
+        if (repairStandalone) {
+          const inbox = await notifyFleetInformeClosure(env, t, mid, owner, report, rawImage, runtime, host);
+          if (!inbox.updated) return json({ ok:false, code:"closure_partial", mission:mid, resolved:false,
+            local_resolved:true, proof_saved:true, inbox_updated:false, sync_required:true, proof_image:rawImage }, 502);
+          const now = Date.now();
+          await env.DB.batch([
+            env.DB.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,image,image_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report,status='done',owner=excluded.owner,image=excluded.image,image_kind='final',updated_at=excluded.updated_at")
+              .bind(mid,"z1","Informe del InfraAgente","done",owner,report,rawImage,"final",now,now),
+            env.DB.prepare("UPDATE mission_tasks SET status='done',updated_at=? WHERE mission_id=? AND code!='z1'").bind(now,mid),
+            env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid,now,"log",owner,"📝 Informe standalone recuperado: "+report.slice(0,240))
+          ]);
+          let batch;
+          try { batch = await acceptBatchInformeClosure(env,t,mid,owner,report); }
+          catch (e) { return json({ok:false,code:"closure_partial",mission:mid,resolved:false,local_resolved:true,proof_saved:true,inbox_updated:true,batch_updated:false,sync_required:true,proof_image:rawImage},502); }
+          return json({ok:true,mission:mid,resolved:true,resumed:true,repaired_standalone:true,inbox_updated:true,proof_image:rawImage,batch});
+        }
         const sameClosure = t.proof_kind === "final" && t.proof_image === rawImage && previous &&
           previous.owner === owner && previous.report === report && previous.image === rawImage && previous.image_kind === "final";
         if (!sameClosure) return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada y sólo admite reintentar exactamente el mismo cierre", status: t.status, applied: false }, 409);
@@ -4840,6 +4866,7 @@ var index_default = {
         env.DB.prepare(
           "UPDATE tickets SET status='resolved',resolved_at=COALESCE(resolved_at,?),proof_image=?,proof_kind='final',agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
         ).bind(now, image, runtime, host, now, mid),
+        env.DB.prepare("UPDATE mission_tasks SET status='done',updated_at=? WHERE mission_id=? AND code!='z1' AND EXISTS(SELECT 1 FROM tickets WHERE id=? AND role='standalone-task')").bind(now,mid,mid),
         env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid, now, "log", owner, "📝 Informe: " + report.slice(0, 240)),
         env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid, now, "proof", owner, "📸 Pantallazo final: " + proofLabel(image))
       ]);

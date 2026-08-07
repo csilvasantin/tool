@@ -135,6 +135,21 @@ test("repetir exactamente el mismo cierre resuelto sólo completa coordinación"
   assert.equal(state.task.report, "Trabajo verificado");
 });
 
+test("standalone resuelta prematuramente repara informe canónico sin reabrir", async () => {
+  const {env,state}=fleetClosureEnv();
+  state.telegramFail=false;
+  state.ticket.role="standalone-task";
+  state.ticket.status="resolved";
+  state.ticket.proof_kind="final";
+  state.ticket.proof_image="https://yokup-rtc.test/media/fleet/0123456789abcdef.png";
+  const response=await worker.fetch(informeRequest(),env,{}),body=await response.json();
+  assert.equal(response.status,200);
+  assert.equal(body.repaired_standalone,true);
+  assert.equal(state.ticket.status,"resolved");
+  assert.equal(state.task.report,"Trabajo verificado");
+  assert.equal(state.task.image_kind,"final");
+});
+
 test("fallo de coordinación batch tras D1 se recupera con retry exacto", async () => {
   const { env, state } = fleetClosureEnv("decision-batch");
   state.failBatchCoord = true;
