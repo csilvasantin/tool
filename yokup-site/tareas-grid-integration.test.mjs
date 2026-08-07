@@ -37,8 +37,16 @@ test("ordenar mueve siempre section con ficha, plegado y árbol juntos",()=>{
 });
 
 test("deploy sella los dos módulos nuevos",()=>{
-  assert.match(deploy,/\/yk-tareas-sort\\\.js/);
-  assert.match(deploy,/\/yk-tareas-columns\\\.js/);
-  assert.match(deploy,/"\/yk-tareas-sort\.js\?v=" \+ stamp/);
-  assert.match(deploy,/"\/yk-tareas-columns\.js\?v=" \+ stamp/);
+  // Desde el 7-ago el deploy sella por PATRÓN y no por lista: la lista se quedaba
+  // corta cada vez que nacía un fichero (yk-cabezal y otros cinco pasaron meses sin
+  // sellar, sirviéndose de caché hasta 4 h). Lo que este test debe garantizar es que
+  // estos dos módulos SE SELLAN, no la línea concreta que lo hace; así que se
+  // comprueba el efecto: aplicar la regla del deploy a su ruta le pone el sello.
+  const SELLA = `.replace(/\\/(yk-[a-z0-9-]+\\.(?:js|css))(?:\\?v=[A-Za-z0-9._%+-]+)?/g, "/$1?v=" + stamp)`;
+  const sella = (r) => r.replace(/\/(yk-[a-z0-9-]+\.(?:js|css))(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/$1?v=SELLO");
+  assert.ok(deploy.includes(SELLA), "el deploy sella el marco por patrón");
+  for (const f of ["yk-tareas-sort.js","yk-tareas-columns.js"]) {
+    assert.equal(sella("/"+f), "/"+f+"?v=SELLO", `${f} recibe el sello`);
+    assert.equal(sella("/"+f+"?v=r9"), "/"+f+"?v=SELLO", `${f} se RE-sella`);
+  }
 });

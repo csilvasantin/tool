@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import vm from "node:vm";
 import {readFile} from "node:fs/promises";
 
+const SELLA_MARCO = `.replace(/\\/(yk-[a-z0-9-]+\\.(?:js|css))(?:\\?v=[A-Za-z0-9._%+-]+)?/g, "/$1?v=" + stamp)`;
+const sellado = (ruta) => ruta.replace(/\/(yk-[a-z0-9-]+\.(?:js|css))(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/$1?v=SELLO");
+
 const html=await readFile(new URL("./informes.html",import.meta.url),"utf8");
 const deploy=await readFile(new URL("./deploy.mjs",import.meta.url),"utf8");
 const start=html.indexOf("function compactMissionRef");
@@ -46,8 +49,14 @@ test("la tarea se rotula explícitamente y móvil no usa elipsis para la referen
 });
 
 test("el deploy sella el sorter para que producción no conserve el orden antiguo",()=>{
-  assert.match(deploy,/\\\/yk-informes-sort\\\.js/);
-  assert.match(deploy,/"\/yk-informes-sort\.js\?v=" \+ stamp/);
-  assert.match(deploy,/"\/yk-informes-columns\.js\?v=" \+ stamp/);
-  assert.match(deploy,/"\/yk-informes-groups\.js\?v=" \+ stamp/);
-});
+  // El deploy sella por PATRÓN desde el 7-ago (la lista a mano dejaba fuera
+  // ficheros enteros). Se comprueba el EFECTO: la regla del deploy pone y
+  // repone el sello en estas rutas.
+  assert.ok(deploy.includes(SELLA_MARCO), "el deploy sella el marco por patrón");
+  assert.equal(sellado("/yk-informes-sort.js"), "/yk-informes-sort.js?v=SELLO", "yk-informes-sort.js recibe el sello");
+  assert.equal(sellado("/yk-informes-sort.js?v=r9"), "/yk-informes-sort.js?v=SELLO", "yk-informes-sort.js se RE-sella");
+  assert.equal(sellado("/yk-informes-columns.js"), "/yk-informes-columns.js?v=SELLO", "yk-informes-columns.js recibe el sello");
+  assert.equal(sellado("/yk-informes-columns.js?v=r9"), "/yk-informes-columns.js?v=SELLO", "yk-informes-columns.js se RE-sella");
+  assert.equal(sellado("/yk-informes-groups.js"), "/yk-informes-groups.js?v=SELLO", "yk-informes-groups.js recibe el sello");
+  assert.equal(sellado("/yk-informes-groups.js?v=r9"), "/yk-informes-groups.js?v=SELLO", "yk-informes-groups.js se RE-sella");
+      });

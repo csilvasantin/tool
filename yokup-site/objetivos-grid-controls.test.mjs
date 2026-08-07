@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import vm from "node:vm";
 import {readFile} from "node:fs/promises";
 
+const SELLA_MARCO = `.replace(/\\/(yk-[a-z0-9-]+\\.(?:js|css))(?:\\?v=[A-Za-z0-9._%+-]+)?/g, "/$1?v=" + stamp)`;
+const sellado = (ruta) => ruta.replace(/\/(yk-[a-z0-9-]+\.(?:js|css))(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/$1?v=SELLO");
+
 const source=await readFile(new URL("./yk-objetivos-grid.js",import.meta.url),"utf8");
 const page=await readFile(new URL("./objetivos.html",import.meta.url),"utf8");
 const deploy=await readFile(new URL("./deploy.mjs",import.meta.url),"utf8");
@@ -73,6 +76,10 @@ test("MutationObserver reaplica tras filtros/rerender, conserva foco y respeta r
 });
 
 test("deploy cache-bustea los controles de la cuadrícula de Objetivos",()=>{
-  assert.match(deploy,/\/yk-objetivos-grid\\\.js/);
-  assert.match(deploy,/"\/yk-objetivos-grid\.js\?v=" \+ stamp/);
-});
+  // El deploy sella por PATRÓN desde el 7-ago (la lista a mano dejaba fuera
+  // ficheros enteros). Se comprueba el EFECTO: la regla del deploy pone y
+  // repone el sello en estas rutas.
+  assert.ok(deploy.includes(SELLA_MARCO), "el deploy sella el marco por patrón");
+  assert.equal(sellado("/yk-objetivos-grid.js"), "/yk-objetivos-grid.js?v=SELLO", "yk-objetivos-grid.js recibe el sello");
+  assert.equal(sellado("/yk-objetivos-grid.js?v=r9"), "/yk-objetivos-grid.js?v=SELLO", "yk-objetivos-grid.js se RE-sella");
+    });

@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import vm from "node:vm";
 import {readFile} from "node:fs/promises";
 
+const SELLA_MARCO = `.replace(/\\/(yk-[a-z0-9-]+\\.(?:js|css))(?:\\?v=[A-Za-z0-9._%+-]+)?/g, "/$1?v=" + stamp)`;
+const sellado = (ruta) => ruta.replace(/\/(yk-[a-z0-9-]+\.(?:js|css))(?:\?v=[A-Za-z0-9._%+-]+)?/g, "/$1?v=SELLO");
+
 const source=await readFile(new URL("./yk-decisiones-grid.js",import.meta.url),"utf8");
 const page=await readFile(new URL("./decisiones.html",import.meta.url),"utf8");
 const deploy=await readFile(new URL("./deploy.mjs",import.meta.url),"utf8");
@@ -86,8 +89,12 @@ test("el módulo observa rerender, conserva foco y no altera el responsive de A"
 });
 
 test("el deploy cache-bustea renderer y controles de decisiones",()=>{
-  assert.match(deploy,/\/yk-decisions\\\.js/);
-  assert.match(deploy,/\/yk-decisiones-grid\\\.js/);
-  assert.match(deploy,/"\/yk-decisions\.js\?v=" \+ stamp/);
-  assert.match(deploy,/"\/yk-decisiones-grid\.js\?v=" \+ stamp/);
-});
+  // El deploy sella por PATRÓN desde el 7-ago (la lista a mano dejaba fuera
+  // ficheros enteros). Se comprueba el EFECTO: la regla del deploy pone y
+  // repone el sello en estas rutas.
+  assert.ok(deploy.includes(SELLA_MARCO), "el deploy sella el marco por patrón");
+  assert.equal(sellado("/yk-decisions.js"), "/yk-decisions.js?v=SELLO", "yk-decisions.js recibe el sello");
+  assert.equal(sellado("/yk-decisions.js?v=r9"), "/yk-decisions.js?v=SELLO", "yk-decisions.js se RE-sella");
+  assert.equal(sellado("/yk-decisiones-grid.js"), "/yk-decisiones-grid.js?v=SELLO", "yk-decisiones-grid.js recibe el sello");
+  assert.equal(sellado("/yk-decisiones-grid.js?v=r9"), "/yk-decisiones-grid.js?v=SELLO", "yk-decisiones-grid.js se RE-sella");
+        });
