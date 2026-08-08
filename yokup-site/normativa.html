@@ -739,15 +739,46 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
             <tr><td>Verificaciones repetitivas</td><td>Revisar la entrega antes de darla por buena</td></tr>
           </tbody>
         </table>
-      <p><b>3. El cierre declara también el CONTEXTO consumido</b>, junto al tiempo y a los puntos
-        de las reglas <a href="#n21">21</a> y <a href="#n22">22</a>: cuánto ha consumido el
-        <b>agente principal</b> y cuánto han consumido <b>sus subagentes</b>.</p>
-      <div class="formula">Contexto consumido: principal 38% &middot; subagentes 3 (112k tokens).</div>
+      <p><b>3. El cierre lleva una CUARTA línea: miembros y contexto.</b> Después de las tres
+        líneas que fija la <a href="#n22">regla 22</a> &mdash;tiempo dedicado, puntos de la misión
+        y total verificado&mdash; se añade una cuarta que dice <b>quiénes han participado</b> y
+        <b>cuánto contexto ha gastado cada uno</b>. Los miembros se nombran por su
+        <b>identidad canónica</b> de la <a href="#n01">regla 01</a> &mdash;MorfeoMBA16, subMorfeo,
+        infraMorfeo&mdash;, nunca por un apodo ni por un genérico como
+        &laquo;un subagente&raquo;.</p>
+      <div class="formula">Miembros y contexto: MorfeoMBA16 (principal) &middot; subMorfeo/Opus 52.864 tokens en 16 herramientas.</div>
+      <p><b>El contexto se declara en TOKENS, nunca en porcentaje.</b> El porcentaje sólo dice
+        cuánto queda de una ventana que cambia de un modelo a otro y de una máquina a otra: un
+        38&nbsp;% no significa lo mismo en dos agentes distintos, así que no se puede comparar.
+        El token sí: es <b>la unidad comparable entre agentes y entre jornadas</b>. Junto a los
+        tokens va el <b>número de herramientas</b> usadas, que es lo que distingue a un subagente
+        que leyó mucho de uno que trabajó mucho.</p>
+      <p><b>Y aquí va la parte honesta, porque hoy no todo se puede medir igual.</b> El contexto
+        de un <b>subagente</b> se sabe <b>exacto</b>: al terminar, el sistema devuelve sus tokens
+        y sus llamadas a herramientas, y ese número se copia tal cual, sin redondear. El del
+        <b>agente principal</b>, hoy, <b>no se puede leer con precisión desde dentro de su propia
+        sesión</b>. Así que se aplica lo que ya manda la <a href="#n17">regla 17</a>:
+        <b>donde hay dato exacto se declara el dato, y donde no lo hay se escribe
+        &laquo;no medido&raquo;</b>. Jamás una estimación a ojo, porque una cifra inventada
+        contamina la línea entera y se carga justo la comparación que la justifica.</p>
+      <table aria-label="Qué contexto se puede medir hoy y qué no">
+          <thead><tr><th>Miembro</th><th>Qué se escribe en la cuarta línea</th></tr></thead>
+          <tbody>
+            <tr><td>Subagente (subMorfeo, infraMorfeo…)</td><td>Tokens exactos y nº de herramientas, tal como los devuelve el sistema</td></tr>
+            <tr><td>Agente principal (MorfeoMBA16…)</td><td><b>no medido</b>, hasta que la sesión sepa leer su propio consumo</td></tr>
+            <tr><td>Cualquiera, sin dato fiable</td><td><b>no medido</b> &mdash; nunca un número aproximado ni un porcentaje</td></tr>
+          </tbody>
+        </table>
+      <p>Es una <b>limitación conocida y escrita</b>, no un hueco que cada agente rellene a su
+        manera. El día que la sesión exponga su propio consumo, esa casilla pasará a llevar
+        tokens como las demás; mientras tanto, &laquo;no medido&raquo; es la respuesta correcta
+        y la única honesta.</p>
       <p>Importa por dos razones. La primera: <b>es lo que hace verificable la delegación</b>. Sin
-        la cifra, &laquo;delego&raquo; es una intención; con la cifra se ve <b>quién delega y
-        quién no</b>, porque un principal que se lo come todo lo lleva escrito en su propio
-        número. La segunda: <b>un principal con el contexto lleno empieza a releer lo que ya
-        sabía</b>, y ahí es exactamente donde se cometen los errores tontos.</p>
+        la línea, &laquo;delego&raquo; es una intención; con la línea se ve <b>quién delega y
+        quién no</b>, porque un cierre cuya cuarta línea no lleva ni un subagente está declarando
+        que el principal se lo comió todo él solo. La segunda: <b>un principal con el contexto
+        lleno empieza a releer lo que ya sabía</b>, y ahí es exactamente donde se cometen los
+        errores tontos.</p>
       <p>Delegar no es descargar trabajo en otro: es <b>proteger la cabeza del que decide</b>.
         <i>(Carlos, 8 de agosto de 2026.)</i></p>
     </div>
