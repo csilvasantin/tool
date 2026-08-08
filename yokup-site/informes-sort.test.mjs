@@ -16,10 +16,13 @@ const rows=[
   {id:'c',mission_id:'FLT-2',code:'c',subject:'Alfa',report:'Alfa',agent_identity:'Morfeo',status:'in_progress',mission_created:1500,updated_at:1600}
 ];
 
+// Siete columnas: se fue ESTADO (decía «hecha» en todas las filas) y entró
+// PUNTOS al final, con columna propia y ordenable (Carlos, 2026-08-08).
 test('las siete cabeceras son ordenables, accesibles y muestran dirección',()=>{
   assert.match(html,/script src="\/yk-informes-sort\.js\?v=r1"/);
-  assert.deepEqual(Array.from(html.matchAll(/\["(mision|proceso|captura|informe|agente|estado|tiempo)",/g),m=>m[1]),
-    ['agente','mision','proceso','captura','informe','estado','tiempo']);
+  assert.deepEqual(Array.from(html.matchAll(/\["(mision|proceso|captura|informe|agente|estado|tiempo|puntos)",/g),m=>m[1]),
+    ['agente','mision','proceso','captura','informe','tiempo','puntos']);
+  assert.doesNotMatch(html,/data-label="Estado"/);
   assert.match(html,/role="columnheader" aria-sort=/);
   assert.match(html,/class="sort-head" type="button"/);
   assert.match(html,/id="reps" role="table" aria-label="Informes de misiones"/);

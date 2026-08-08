@@ -2,7 +2,6 @@
   "use strict";
 
   const collator=new Intl.Collator("es",{numeric:true,sensitivity:"base"});
-  const STATUS_ORDER={pending:0,in_progress:1,done:2};
   const ms=value=>{
     const n=Number(value)||0;
     return n>4102444800?n:n*1000;
@@ -23,8 +22,15 @@
         return [text(row.report)];
       case "agente":
         return [text(agentName(row))];
-      case "estado":
-        return [STATUS_ORDER[row.status]??-1,text(row.status)];
+      // Ordenar por PUNTOS = por lo que PRODUJO el encargo (la diferencia), no por
+      // el total del agente, que sólo dice cuánto llevaba acumulado ese día. Un
+      // informe sin sellar no vale 0: se va abajo (Number.NEGATIVE_INFINITY) para
+      // no fingir que produjo nada (regla 17).
+      case "puntos": {
+        const a=Number(row.points_start), b=Number(row.points_end);
+        if(!Number.isFinite(b)) return [Number.NEGATIVE_INFINITY,Number.NEGATIVE_INFINITY];
+        return [Number.isFinite(a)?b-a:Number.NEGATIVE_INFINITY,b];
+      }
       case "tiempo": {
         const start=ms(row.mission_created);
         const end=ms(row.mission_resolved)||(missionLast[String(row.mission_id)]||0);
@@ -55,5 +61,5 @@
       .map(item=>item.row);
   }
 
-  root.YkInformesSort={sort,valueFor,_test:{compareValues,ms,STATUS_ORDER}};
+  root.YkInformesSort={sort,valueFor,_test:{compareValues,ms}};
 })(typeof window!=="undefined"?window:globalThis);

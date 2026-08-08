@@ -5001,17 +5001,36 @@ __name(highscoreHourlyTrend, "highscoreHourlyTrend");
 // Se lee de la fuente viva y no se cachea: un total de hace una hora convertiria la
 // diferencia en ruido. Si el Highscore no responde se devuelve null y quien llame
 // declara "no confirmado" — nunca un 0, que se leeria como "no produjo nada".
+// El sello de puntos de una mision (points_start / points_end). Dos fallos vividos
+// aqui, los dos silenciosos, que dejaron 120 de 120 misiones con NULL y la sabana
+// de /informes diciendo "0 pts · 0 total" en todas las filas (Carlos, 2026-08-08):
+//
+//  1. Se llamaba a `agentIdentityKey`, que NO existe en este fichero: el import
+//     trae `identityKey`. Cada llamada lanzaba ReferenceError, el catch lo tragaba
+//     y devolvia null. Un catch que devuelve null convierte un fallo de programa
+//     en un dato ausente, que es como estuvo meses sin que nadie lo viera.
+//  2. Sumaba `task_points` y `points` de las filas de `scores`, campos que esas
+//     filas NO tienen: aunque la clave hubiera casado, se perdian los puntos de
+//     tarea (15 + 10 del bonus). El total bueno es el mismo que publica el
+//     Highscore como `hourly.scores[].current` — de ahi sale, y no de una suma
+//     paralela que puede divergir.
 async function puntosDeAgenteAhora(env, agente) {
   const nombre = String(agente || "").trim();
   if (!nombre) return null;
   try {
     const daily = await highscoreDaily(env);
-    const filas = (daily && daily.scores) || [];
-    const fila = filas.find((f) => agentIdentityKey(String(f.agent || "")) === agentIdentityKey(nombre));
-    if (!fila) return 0;
-    return ["objective_points", "window_points", "mission_points", "task_points", "points"]
-      .reduce((suma, k) => suma + (Number(fila[k]) || 0), 0);
-  } catch (e) { return null; }
+    const totales = ((daily && daily.hourly && daily.hourly.scores) || []);
+    const buscado = identityKey(nombre);
+    const fila = totales.find((f) => identityKey(String(f.agent || "")) === buscado);
+    // Un agente que aun no ha puntuado hoy tiene 0 de verdad: es un dato. El null
+    // se reserva para "no se pudo saber", y la interfaz ya NO lo pinta como 0.
+    return fila ? (Number(fila.current) || 0) : 0;
+  } catch (e) {
+    // El cierre de una mision no puede caerse porque el Highscore tosa, pero
+    // tampoco puede volver a fallar en silencio: queda en el log del worker.
+    console.error("puntosDeAgenteAhora(" + nombre + "):", e && e.message ? e.message : e);
+    return null;
+  }
 }
 __name(puntosDeAgenteAhora, "puntosDeAgenteAhora");
 

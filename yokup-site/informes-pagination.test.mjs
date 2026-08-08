@@ -16,7 +16,12 @@ function setup(taskResponses){
   const elements={reps:element(),tfilter:element(),tfDate:element(),debe:element(),lb:element(),pageStatus:element(),loadMore:element()};
   elements.lb.querySelector=()=>element();
   let taskIndex=0;
-  const fetch=url=>{calls.push(url);if(url.includes("/fleet/informes-deuda"))return Promise.resolve({ok:true,json:async()=>({missions:[]})});return taskResponses[taskIndex++];};
+  const fetch=url=>{calls.push(url);
+    if(url.includes("/fleet/informes-deuda"))return Promise.resolve({ok:true,json:async()=>({missions:[]})});
+    // El recorte del Highscore es otra llamada suelta de la página: si no se
+    // atiende aquí, se come la respuesta paginada que toca a /tasks/all.
+    if(url.includes("/highscore/daily"))return Promise.resolve({ok:true,json:async()=>({day:"2026-08-08",traceability:{chains:[]}})});
+    return taskResponses[taskIndex++];};
   const window={ykAvatar:{ready:Promise.resolve(),html:()=>"avatar"},ykAgentIdentity:null,addEventListener:(type,fn)=>{listeners[type]=fn;}};
   const document={getElementById:id=>elements[id],addEventListener(){},querySelector(){return null;}};
   const context=vm.createContext({window,document,fetch,Date,Promise,AbortController,encodeURIComponent,console,ykAvatar:window.ykAvatar,
