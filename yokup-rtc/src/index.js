@@ -5439,9 +5439,15 @@ var index_default = {
             "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,live_shot=?,live_at=?,live_kind=?,live_surface=?,live_context=?,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
           ).bind(img, capturedAt, liveKind, captureSurface, captureContext, await puntosDeAgenteAhora(env, actor.actor || t.assignee), now, mid).run();
         } else {
+          // El sello de SALIDA se pone en el PRIMER latido de la mision, lleve
+          // captura o no. Antes solo se ponia en la rama con imagen, y el orden
+          // real de los hechos es: se declara la mision (ya suma sus 40 puntos)
+          // → se manda la prueba de proceso → se cierra. Sellar en la prueba
+          // recogia un total que YA incluia esos 40, la resta daba 0 y la sabana
+          // de /informes decia que el encargo no habia producido nada.
           await env.DB.prepare(
-            "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
-          ).bind(now, mid).run();
+            "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
+          ).bind(await puntosDeAgenteAhora(env, actor.actor || t.assignee), now, mid).run();
         }
         // Telegram es un espejo completo de la misión: el usuario ve el avance y
         // la captura sin tener que abrir YOKUP.
