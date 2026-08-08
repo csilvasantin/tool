@@ -37,8 +37,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .tf-date:focus,.tf-date.on{border-color:var(--brand)}
 
 /* ── HOJA DE CÁLCULO (columnas, estilo /misiones) ─────────────────────────────
-   Cada informe es una FILA con columnas: Agente · Misión · Proceso · Captura ·
-   Informe · Estado · Tiempo. La columna Captura lleva la miniatura SIEMPRE
+   Cada informe es una FILA con columnas: Agente · Misión · Proceso · Resultado ·
+   Informe · Estado · Tiempo. La columna Resultado lleva la miniatura SIEMPRE
+   y, debajo, los puntos que produjo el encargo (points_start → points_end)
    visible en línea (Carlos, 2026-07-17 — antes iba lazy al fondo del parte y no
    cargaba). En escritorio las siete columnas se redistribuyen dentro del 100%;
    en pantallas estrechas la misma fila pasa a tarjeta, sin scrollbar permanente. */
@@ -415,7 +416,7 @@ const SORT_COLUMNS=[
 ];
 const COLUMN_SPECS={
   agente:{label:"Agente",default:138,min:100,max:260},mision:{label:"Misión",default:170,min:130,max:360},
-  proceso:{label:"Proceso",default:132,min:96,max:260},captura:{label:"Captura",default:132,min:96,max:260},
+  proceso:{label:"Proceso",default:132,min:96,max:260},captura:{label:"Resultado",default:132,min:96,max:260},
   informe:{label:"Informe",default:280,min:180,max:520},estado:{label:"Estado",default:116,min:96,max:220},
   tiempo:{label:"Tiempo",default:150,min:120,max:280}
 };

@@ -7,7 +7,7 @@ const html=await readFile(new URL("./informes.html",import.meta.url),"utf8");
 const source=await readFile(new URL("./yk-informes-columns.js",import.meta.url),"utf8");
 const FULL_SPECS={
   agente:{label:"Agente",default:138,min:100,max:260},mision:{label:"Misión",default:170,min:130,max:360},
-  proceso:{label:"Proceso",default:132,min:96,max:260},captura:{label:"Captura",default:132,min:96,max:260},
+  proceso:{label:"Proceso",default:132,min:96,max:260},captura:{label:"Resultado",default:132,min:96,max:260},
   informe:{label:"Informe",default:280,min:180,max:520},estado:{label:"Estado",default:116,min:96,max:220},
   tiempo:{label:"Tiempo",default:150,min:120,max:280}
 };
@@ -86,7 +86,7 @@ test("la hoja elimina overflow desktop y cambia a tarjetas sin barra móvil",()=
   assert.match(html,/@media\(max-width:520px\)[\s\S]*?\.grow\.item\{grid-template-columns:minmax\(0,1fr\)/);
   assert.doesNotMatch(html,/width:max-content|overflow-x:auto/);
   assert.deepEqual(Array.from(html.matchAll(/role="cell" data-label="([^"]+)"/g),m=>m[1]),
-    ["Agente","Misión","Proceso","Captura","Informe","Estado","Tiempo"]);
+    ["Agente","Misión","Proceso","Resultado","Informe","Estado","Tiempo"]);
   assert.match(html,/\.col-resize\{[^}]*touch-action:none/);
   assert.match(html,/@media\(max-width:900px\)[\s\S]*?\.col-resize\{display:none/);
   assert.match(html,/role="separator" aria-orientation="vertical" tabindex="0"/);
