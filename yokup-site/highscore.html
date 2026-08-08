@@ -468,21 +468,37 @@ body.resizing-columns{cursor:col-resize;user-select:none}
    ESTADO: «parado» y «sin noticias» NO se pintan igual, porque uno es un hecho
    (la máquina late y dice que no corre) y el otro es ignorancia (nadie late
    allí). Confundirlos haría arrancar a ciegas algo que ya está en marcha. */
-.cli-ctl{display:grid;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
-.cli-ctl-head{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--brand);
-  font-size:9px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}
+.cli-ctl{display:grid;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+/* La cabecera ES el interruptor de la sección: botón a todo lo ancho, con el
+   recuento pegado a la derecha para que se lea con la sección cerrada. */
+.cli-ctl-head{appearance:none;display:flex;align-items:center;gap:7px;width:100%;padding:0;border:0;
+  background:transparent;color:var(--brand);font-family:inherit;font-size:9px;font-weight:900;
+  letter-spacing:.13em;text-transform:uppercase;text-align:left;cursor:pointer}
+.cli-ctl-head:hover,.cli-ctl-head:focus-visible{color:var(--ink);outline:none}
+.cli-ctl-head .cli-ctl-count{margin-left:auto}
+.cli-ctl-chevron{flex:0 0 auto;width:9px;color:var(--brand);font:900 10px/1 var(--mono)}
+.cli-ctl-chevron::before{content:"\25B8"}
+[aria-expanded="true"]>.cli-ctl-chevron::before{content:"\25BE"}
+.cli-ctl-body{display:grid;gap:8px}
+.cli-ctl-body[hidden]{display:none}
+.cli-ctl-clis{display:grid;gap:3px}
+.cli-ctl-clis[hidden]{display:none}
 .cli-ctl-count{flex:0 0 auto;border:1px solid var(--line2);border-radius:999px;padding:2px 7px;color:var(--accent);
   font-size:8px;letter-spacing:.03em;text-transform:none}
-.cli-ctl-help{margin:0;color:var(--dim);font-size:9px;line-height:1.5}
-.cli-ctl-list{display:grid;gap:6px;max-height:min(42vh,360px);overflow:auto;padding-right:2px;scrollbar-width:thin}
+.cli-ctl-help{margin:0;color:var(--dim);font-size:8.5px;line-height:1.4}
+.cli-ctl-list{display:grid;gap:5px;max-height:min(46vh,400px);overflow:auto;padding-right:2px;scrollbar-width:thin}
 .cli-ctl-group{display:grid;min-width:0;margin:0;padding:0;border:0;gap:3px}
-.cli-ctl-machine{display:flex;align-items:center;justify-content:space-between;gap:7px;min-height:26px;padding:5px 7px;
+/* La barra del ordenador ES su interruptor: toda ella, no un triangulito. Mismo
+   criterio que el seguimiento de agentes (FLT-1320). */
+.cli-ctl-machine{appearance:none;display:flex;align-items:center;gap:7px;width:100%;min-height:24px;padding:4px 7px;
   border:1px solid rgba(120,243,255,.24);border-radius:7px;background:rgba(120,243,255,.08);color:var(--ink);
-  font-size:9px;font-weight:900;letter-spacing:.05em}
-.cli-ctl-tally{min-width:20px;padding:1px 5px;border:1px solid var(--line);border-radius:999px;color:var(--dim);
-  font-size:8px;font-weight:400;text-align:center}
-.cli-ctl-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:7px;
-  padding:5px 7px;border:1px solid var(--line);border-radius:7px;background:rgba(120,243,255,.025);
+  font-family:inherit;font-size:9px;font-weight:900;letter-spacing:.05em;text-align:left;cursor:pointer}
+.cli-ctl-machine:hover,.cli-ctl-machine:focus-visible{border-color:var(--brand);background:rgba(120,243,255,.14);outline:none}
+.cli-ctl-tally{margin-left:auto;min-width:26px;padding:1px 5px;border:1px solid var(--line);border-radius:999px;
+  color:var(--dim);font-size:8px;font-weight:400;text-align:center}
+.cli-ctl-tally.viva{color:var(--good);border-color:rgba(136,255,170,.35)}
+.cli-ctl-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px;
+  padding:4px 7px;border:1px solid var(--line);border-radius:7px;background:rgba(120,243,255,.025);
   color:var(--mut);font-size:9.5px;line-height:1.25}
 .cli-ctl-row:hover,.cli-ctl-row:focus-within{border-color:var(--brand);color:var(--ink);background:rgba(120,243,255,.06)}
 .cli-ctl-name{display:grid;gap:3px;min-width:0}
@@ -594,11 +610,22 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   <p class="agent-scope-status" id="agentScopeCloneStatus" role="status" aria-live="polite" aria-atomic="true"></p>
 </section>
 
+<!-- Plegado en DOS niveles (Carlos, 2026-08-08): la sección entra cerrada y se abre
+     al pulsar su título; dentro, cada ordenador es otra barra cerrada que se abre
+     para enseñar sus CLIs. Nueve filas abiertas de golpe empujaban todo lo demás
+     del raíl fuera de la pantalla. El recuento «2/9 vivos» se queda SIEMPRE a la
+     vista, cerrado o abierto: es el dato que se mira de un vistazo. -->
 <section class="cli-ctl" data-yk-slot="right" id="cliControl" aria-labelledby="cliCtlTitle">
-  <div class="cli-ctl-head"><span id="cliCtlTitle">Control de CLIs</span><span class="cli-ctl-count" id="cliCtlCount">…</span></div>
-  <p class="cli-ctl-help">Por cada ordenador del grupo: la <strong>sesión de terminal</strong> (activar o desactivar) y los <strong>CLIs</strong> que viven dentro (arrancar o matar). La orden se encola y la máquina la recoge en su siguiente ciclo, cada 20 segundos.</p>
-  <div class="cli-ctl-list" id="cliCtlList" aria-live="polite"><div class="cli-ctl-empty">Cargando CLIs…</div></div>
-  <p class="cli-ctl-status" id="cliCtlStatus" role="status" aria-live="polite" aria-atomic="true"></p>
+  <button class="cli-ctl-head" type="button" id="cliCtlToggle" aria-expanded="false" aria-controls="cliCtlBody">
+    <span class="cli-ctl-chevron" aria-hidden="true"></span>
+    <span id="cliCtlTitle">Control de CLIs</span>
+    <span class="cli-ctl-count" id="cliCtlCount">…</span>
+  </button>
+  <div class="cli-ctl-body" id="cliCtlBody" hidden>
+    <p class="cli-ctl-help">Por ordenador: la <strong>sesión</strong> (activar o desactivar) y sus <strong>CLIs</strong> (arrancar o matar). La orden se encola; la máquina la recoge cada 20 s.</p>
+    <div class="cli-ctl-list" id="cliCtlList" aria-live="polite"><div class="cli-ctl-empty">Cargando…</div></div>
+    <p class="cli-ctl-status" id="cliCtlStatus" role="status" aria-live="polite" aria-atomic="true"></p>
+  </div>
 </section>
 
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
@@ -2284,6 +2311,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   var CLI_VIGILA_MS = 8000;        // sondeo tras mandar una orden
   var CLI_VIGILA_MAX_MS = 60000;   // hasta cuándo se vigila antes de rendirse
   var CLI_ITEMS = [], CLI_PENDIENTES = {}, cliRefresco = null;
+  // Qué ordenadores están desplegados. No se persiste: cada visita al Highscore
+  // empieza compacta, igual que los equipos del seguimiento de agentes.
+  var CLI_ABIERTOS = new Set();
 
   function hsCliKey(item) {
     return normaliza(item && item.machine) + "|" + normaliza(item && item.cli);
@@ -2296,12 +2326,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
      que era todo antes de FLT-1322. */
   function hsCliVerbos(item) {
     if (normaliza(item && item.kind).toLowerCase() === "session") return {
-      cosa:"la sesión", arranca:"▶ Activar", mata:"■ Desactivar", ciega:"▶ Activar a ciegas",
+      cosa:"la sesión", arranca:"▶ Activar", mata:"■ Desactivar", ciega:"▶ A ciegas",
       vivo:"Activa", parado:"Inactiva", corre:"está abierta", noCorre:"NO está abierta",
       ariaMata:"Desactivar ", ariaArranca:"Activar "
     };
     return {
-      cosa:"el CLI", arranca:"▶ Arrancar", mata:"■ Matar", ciega:"▶ Arrancar a ciegas",
+      cosa:"el CLI", arranca:"▶ Arrancar", mata:"■ Matar", ciega:"▶ A ciegas",
       vivo:"Vivo", parado:"Parado", corre:"está corriendo", noCorre:"NO está corriendo",
       ariaMata:"Matar ", ariaArranca:"Arrancar "
     };
@@ -2360,7 +2390,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var enviada = espera && espera.accion === "stop"
       ? (sesion ? "Orden de desactivar enviada" : "Orden de matar enviada")
       : (sesion ? "Orden de activar enviada" : "Orden de arranque enviada");
-    return enviada + ", esperando a la máquina… " + segundos + " s (su ciclo pasa cada " + CLI_CICLO_SEG + " s)";
+    return enviada + " · esperando a la máquina " + segundos + " s (ciclo de " + CLI_CICLO_SEG + " s)";
   }
 
   function hsCliFila(item) {
@@ -2387,12 +2417,30 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var vivos = (CLI_ITEMS || []).filter(function (item) { return hsCliEstado(item).clave === "vivo"; }).length;
     count.textContent = CLI_ITEMS.length ? vivos + "/" + CLI_ITEMS.length + " vivos" : "—";
     if (!grupos.length) { list.innerHTML = '<div class="cli-ctl-empty">No hay CLIs declarados.</div>'; return; }
-    list.innerHTML = grupos.map(function (grupo) {
+    list.innerHTML = grupos.map(function (grupo, indice) {
+      var idHijos = "cliCtlMaquina" + indice, abierto = CLI_ABIERTOS.has(grupo.machine);
+      // La barra cerrada ya dice lo esencial: cuántos de los suyos están en marcha.
+      // Si hubiera que abrirla para saberlo, plegar habría escondido justo el dato.
+      var vivosGrupo = grupo.items.filter(function (item) { return hsCliEstado(item).clave === "vivo"; }).length;
       return '<fieldset class="cli-ctl-group"><legend class="sr-only">CLIs de ' + esc(grupo.machine) + '</legend>' +
-        '<div class="cli-ctl-machine"><span class="cli-ctl-label">' + esc(grupo.machine) + '</span>' +
-        '<span class="cli-ctl-tally" aria-hidden="true">' + grupo.items.length + '</span></div>' +
-        grupo.items.map(hsCliFila).join("") + '</fieldset>';
+        '<button class="cli-ctl-machine" type="button" data-cli-maquina="' + esc(grupo.machine) + '"' +
+        ' aria-controls="' + idHijos + '" aria-expanded="' + abierto + '" aria-label="' +
+        (abierto ? 'Compactar los ' : 'Ver los ') + grupo.items.length + ' CLIs de ' + esc(grupo.machine) +
+        ', ' + vivosGrupo + ' en marcha">' +
+        '<span class="cli-ctl-chevron" aria-hidden="true"></span>' +
+        '<span class="cli-ctl-label">' + esc(grupo.machine) + '</span>' +
+        '<span class="cli-ctl-tally' + (vivosGrupo ? ' viva' : '') + '" aria-hidden="true">' +
+        vivosGrupo + '/' + grupo.items.length + '</span></button>' +
+        '<div class="cli-ctl-clis" id="' + idHijos + '"' + (abierto ? '' : ' hidden') + '>' +
+        grupo.items.map(hsCliFila).join("") + '</div></fieldset>';
     }).join("");
+    list.querySelectorAll("[data-cli-maquina]").forEach(function (boton) {
+      boton.addEventListener("click", function () {
+        var maquina = boton.getAttribute("data-cli-maquina");
+        if (CLI_ABIERTOS.has(maquina)) CLI_ABIERTOS.delete(maquina); else CLI_ABIERTOS.add(maquina);
+        hsRenderCliControl();
+      });
+    });
     list.querySelectorAll("[data-cli-accion]").forEach(function (boton) {
       boton.addEventListener("click", function () {
         hsCliOrdena(boton.getAttribute("data-cli-machine"), boton.getAttribute("data-cli-nombre"),
@@ -2479,6 +2527,14 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function iniciaCliControl() {
     if (!document.getElementById("cliCtlList")) return;
+    var cabecera = document.getElementById("cliCtlToggle"), cuerpo = document.getElementById("cliCtlBody");
+    if (cabecera && cuerpo) {
+      cabecera.addEventListener("click", function () {
+        var abrir = cabecera.getAttribute("aria-expanded") !== "true";
+        cabecera.setAttribute("aria-expanded", String(abrir));
+        cuerpo.hidden = !abrir;
+      });
+    }
     hsCargaCliControl();
     if (cliRefresco) clearInterval(cliRefresco);
     cliRefresco = setInterval(function () { hsCargaCliControl(); }, CLI_REFRESCO_MS);

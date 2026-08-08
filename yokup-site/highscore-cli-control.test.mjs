@@ -123,8 +123,9 @@ test("cada fila ofrece matar lo vivo y arrancar lo que no lo está, con aria-lab
 test("la orden se declara encolada y se vigila el censo, sin fingir el cambio",()=>{
   const api=cliApi();
   const espera=api.espera({accion:"start",desde:Date.now()-4000});
-  assert.match(espera,/Orden de arranque enviada, esperando a la máquina…/);
-  assert.match(espera,/su ciclo pasa cada 20 s/);
+  // Compactado (Carlos, 2026-08-08): el raíl es estrecho y este aviso es transitorio.
+  assert.match(espera,/Orden de arranque enviada · esperando a la máquina/);
+  assert.match(espera,/ciclo de 20 s/);
   assert.match(api.espera({accion:"stop",desde:Date.now()}),/Orden de matar enviada/);
 
   // Mientras se espera, el botón queda deshabilitado y el aviso visible.
@@ -194,7 +195,33 @@ test("la espera también habla el idioma de cada familia",()=>{
 
 test("la ayuda del panel nombra la sesión de terminal y los CLIs, no un producto concreto",()=>{
   const ayuda=source.slice(source.indexOf('<p class="cli-ctl-help">'),source.indexOf("</p>",source.indexOf('<p class="cli-ctl-help">')));
-  assert.match(ayuda,/sesión de terminal/i);
+  assert.match(ayuda,/sesión/i);
   assert.match(ayuda,/CLIs/);
+  assert.ok(ayuda.length<230,"la ayuda va compacta: el raíl no es una columna de texto");
   assert.doesNotMatch(ayuda,/OpenCode/i);
+});
+
+// FLT-1330 (Carlos, 2026-08-08): nueve filas abiertas de golpe empujaban el resto
+// del raíl fuera de la pantalla. Dos niveles de plegado — la sección y cada
+// ordenador — y el recuento visible en los dos, cerrados o abiertos.
+test("el panel se pliega en dos niveles y ninguno esconde el recuento",()=>{
+  // Nivel 1: la cabecera ES el interruptor y arranca cerrada.
+  assert.match(source,/<button class="cli-ctl-head" type="button" id="cliCtlToggle" aria-expanded="false" aria-controls="cliCtlBody">/);
+  assert.match(source,/<div class="cli-ctl-body" id="cliCtlBody" hidden>/);
+  assert.match(source,/cabecera\.setAttribute\("aria-expanded", String\(abrir\)\)/);
+  assert.match(source,/cuerpo\.hidden = !abrir/);
+  // El recuento «2/9 vivos» vive DENTRO del botón: se lee con la sección cerrada.
+  const cabecera=source.slice(source.indexOf('<button class="cli-ctl-head"'),source.indexOf("</button>",source.indexOf('<button class="cli-ctl-head"')));
+  assert.match(cabecera,/id="cliCtlCount"/);
+
+  // Nivel 2: cada ordenador es otro botón, cerrado, con su marcador vivos/total.
+  assert.match(source,/<button class="cli-ctl-machine" type="button" data-cli-maquina=/);
+  assert.match(source,/aria-expanded="' \+ abierto \+ '"/);
+  assert.match(source,/vivosGrupo \+ '\/' \+ grupo\.items\.length/,
+    "la barra cerrada ya dice cuántos de los suyos están en marcha");
+  assert.match(source,/<div class="cli-ctl-clis" id="' \+ idHijos \+ '"' \+ \(abierto \? '' : ' hidden'\)/);
+  assert.match(source,/var CLI_ABIERTOS = new Set\(\)/,"el estado de apertura no se persiste");
+  assert.match(source,/CLI_ABIERTOS\.has\(maquina\)\) CLI_ABIERTOS\.delete\(maquina\); else CLI_ABIERTOS\.add\(maquina\)/);
+  assert.match(source,/\.cli-ctl-clis\[hidden\]\{display:none\}/);
+  assert.match(source,/\.cli-ctl-body\[hidden\]\{display:none\}/);
 });
