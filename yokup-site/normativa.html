@@ -678,7 +678,82 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     </div>
   </section>
 
-  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.08.08.2026.r15.14:31 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
+  <section class="rule">
+    <div class="num">22</div>
+    <div>
+      <h2>El cierre son tres líneas, y son las mismas corras donde corras</h2>
+      <p>Las reglas 17 y 21 dicen <b>qué</b> hay que declarar al cerrar. Esta dice <b>con qué
+        forma</b>, porque una norma que cada agente escribe a su manera no se puede leer de un
+        vistazo ni comparar entre equipos. Toda <b>tarea, misión u objetivo</b> termina con estas
+        tres líneas, en este orden y al final del informe:</p>
+      <div class="formula">Tiempo dedicado: 2 min 38 s (14:34:25 &rarr; 14:37:03).<br>
+        Puntos de la misión: +40.<br>
+        Total verificado de NeoMBP14 hoy: 248 puntos en 6 misiones y 1 ventana de decisión.</div>
+      <p>El <b>tiempo se mide</b>, no se estima: de la hora en que se declaró el trabajo a la hora
+        en que se cerró. Los <b>puntos se leen</b> de yokup.com/highscore o de su API después del
+        cierre, como manda la regla 17 — nunca de memoria. Y el <b>total va con su unidad</b>:
+        cuántos puntos y de cuántas misiones, objetivos o ventanas salen, que es lo que permite
+        comparar dos jornadas sin abrir el tablero.</p>
+      <p><b>Y da exactamente igual dónde corra el agente.</b> Esto no es una costumbre de una app:
+        es el contrato de cierre de AdmiraNeXT. La superficie cambia el cómo se trabaja, nunca el
+        cómo se entrega.</p>
+      <table aria-label="El cierre no depende de la superficie">
+          <thead><tr><th>Dónde corre el agente</th><th>Qué cambia en el cierre</th></tr></thead>
+          <tbody>
+            <tr><td>Codex (app de escritorio)</td><td>Nada: las mismas tres líneas</td></tr>
+            <tr><td>Claude Code (app de escritorio)</td><td>Nada: las mismas tres líneas</td></tr>
+            <tr><td>OpenCode</td><td>Nada: las mismas tres líneas</td></tr>
+            <tr><td>Cualquiera de ellos en CLI</td><td>Nada: las mismas tres líneas</td></tr>
+          </tbody>
+        </table>
+      <p>Un cierre sin las tres líneas está <b>incompleto</b> aunque el trabajo esté hecho: falta
+        decir qué costó y qué produjo. <i>(Carlos, 8 de agosto de 2026.)</i></p>
+    </div>
+  </section>
+
+  <section class="rule">
+    <div class="num">23</div>
+    <div>
+      <h2>Cositas: delegar es obligatorio y el cierre declara el contexto gastado</h2>
+      <p>Tres cosas que van juntas porque hablan de lo mismo: cómo se reparte el trabajo dentro
+        de un agente y cómo se demuestra que se ha repartido.</p>
+      <p><b>1. «Cositas» es el nombre de casa.</b> Cuando hablamos de las tres formas de trabajo
+        a la vez &mdash;tarea, misión y objetivo&mdash; las llamamos <b>cositas</b>. No cambia
+        nada de la <a href="#n21">regla 21</a>: la taxonomía por tamaño sigue igual y cada cosita
+        sigue siendo una tarea, una misión o un objetivo. Es sólo el término coloquial
+        compartido, para no repetir los tres nombres cada vez.</p>
+      <div class="formula">tarea &middot; misión &middot; objetivo &rarr; <b>cositas</b></div>
+      <p><b>2. La delegación es OBLIGATORIA, no recomendable.</b> Carlos, hoy:
+        <i>«la delegación es obligatoria y como veo no siempre se hace»</i>. La Cúpula ya manda
+        <b>tres capas</b> &mdash;el agente principal decide la estrategia, el hijo ejecuta el
+        trabajo pesado, la infra reporta&mdash; y aun así se incumple. Ejemplo real de hoy, sin
+        adornos: <b>Morfeo leyó un worker de más de 7.000 líneas dentro de su propio contexto</b>
+        en vez de mandar a un subagente a localizar lo que necesitaba. El agente principal
+        <b>no gasta su contexto en lo que puede delegar</b>.</p>
+      <table aria-label="Qué se delega y qué se queda el principal">
+          <thead><tr><th>Se delega SIEMPRE a un subagente</th><th>Se queda SIEMPRE el principal</th></tr></thead>
+          <tbody>
+            <tr><td>Leer ficheros grandes</td><td>La estrategia: qué se hace y en qué orden</td></tr>
+            <tr><td>Barridos por el repo o por la flota</td><td>Las decisiones y sus consecuencias</td></tr>
+            <tr><td>Búsquedas (dónde está esto, quién lo usa)</td><td>Hablar con Carlos</td></tr>
+            <tr><td>Verificaciones repetitivas</td><td>Revisar la entrega antes de darla por buena</td></tr>
+          </tbody>
+        </table>
+      <p><b>3. El cierre declara también el CONTEXTO consumido</b>, junto al tiempo y a los puntos
+        de las reglas <a href="#n21">21</a> y <a href="#n22">22</a>: cuánto ha consumido el
+        <b>agente principal</b> y cuánto han consumido <b>sus subagentes</b>.</p>
+      <div class="formula">Contexto consumido: principal 38% &middot; subagentes 3 (112k tokens).</div>
+      <p>Importa por dos razones. La primera: <b>es lo que hace verificable la delegación</b>. Sin
+        la cifra, &laquo;delego&raquo; es una intención; con la cifra se ve <b>quién delega y
+        quién no</b>, porque un principal que se lo come todo lo lleva escrito en su propio
+        número. La segunda: <b>un principal con el contexto lleno empieza a releer lo que ya
+        sabía</b>, y ahí es exactamente donde se cometen los errores tontos.</p>
+      <p>Delegar no es descargar trabajo en otro: es <b>proteger la cabeza del que decide</b>.
+        <i>(Carlos, 8 de agosto de 2026.)</i></p>
+    </div>
+  </section>
+
+  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.08.08.2026.r17.15:17 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
 </main>
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script>

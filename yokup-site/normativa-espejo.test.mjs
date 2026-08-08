@@ -37,6 +37,8 @@ const REGLAS = [
   "Dos Xpacios, un origen y responsabilidades distintas",
   "App de escritorio solo donde hay un humano; el resto, CLI",
   "Tarea, mision u objetivo — y todo encargo declara lo que produjo",
+  "El cierre son tres líneas, y son las mismas corras donde corras",
+  "Cositas: delegar es obligatorio y el cierre declara el contexto gastado",
 ];
 
 const bloque = source.slice(
