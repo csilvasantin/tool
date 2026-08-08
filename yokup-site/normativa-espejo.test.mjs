@@ -34,6 +34,7 @@ const REGLAS = [
   "A un consejero se le enseña con guiones, no con vídeos",
   "Cada cierre declara sus puntos y el total verificado",
   "Introducirse: el día empieza dándose de alta",
+  "Dos Xpacios, un origen y responsabilidades distintas",
 ];
 
 const bloque = source.slice(
@@ -66,6 +67,17 @@ test("las dos reglas absorbidas del espejo siguen vivas, no se perdieron al unif
   assert.match(bloque, /primary_responsible/);
   assert.match(bloque, /ykAgentIdentity\.same/);
   assert.match(bloque, /puntos de retorno/);
+});
+
+test("el espejo publica la gobernanza común sin inventar responsables", () => {
+  const gobierno = source.match(/<section class="rule">\s*<div class="num">19<\/div>[\s\S]*?<\/section>/)?.[0] ?? "";
+  assert.match(gobierno, /Xpacio de AdmiraNeXT/);
+  assert.match(gobierno, /Xpacio de\s+Yokup\.com/);
+  assert.match(gobierno, /Arquitecto\s+Carlos/);
+  assert.match(gobierno, /importancia de ambos Xpacios\s+      y de sus proyectos es equivalente/);
+  assert.match(gobierno, /Neo(?:\s|<[^>]+>)*es el máximo responsable de AdmiraNeXT/);
+  assert.match(gobierno, /Morfeo(?:\s|<[^>]+>)*es el máximo\s+responsable de Yokup\.com/);
+  assert.match(gobierno, /ambos están dirigidos por Carlos/);
 });
 
 test("el pie se declara espejo y cita el sello de la canónica", () => {
