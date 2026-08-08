@@ -456,6 +456,52 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .agent-scope-reset:hover,.agent-scope-reset:focus-visible,.agent-scope-clone:hover,.agent-scope-clone:focus-visible{border-color:var(--brand);background:rgba(120,243,255,.12);outline:none}
 .agent-scope-status{min-height:14px;margin:0;color:var(--good);font-size:9px;line-height:1.45}
 .agent-scope-empty{padding:8px;color:var(--dim);font-size:9px;line-height:1.45}
+
+/* ─────────── CONTROL DE CLIs (misión #1278) ───────────
+   Mismos tokens que «Seguimiento de agentes»: es otro panel del riel Avanzado,
+   no una isla con estética propia. Lo único que se separa a conciencia es el
+   ESTADO: «parado» y «sin noticias» NO se pintan igual, porque uno es un hecho
+   (la máquina late y dice que no corre) y el otro es ignorancia (nadie late
+   allí). Confundirlos haría arrancar a ciegas algo que ya está en marcha. */
+.cli-ctl{display:grid;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
+.cli-ctl-head{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--brand);
+  font-size:9px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}
+.cli-ctl-count{flex:0 0 auto;border:1px solid var(--line2);border-radius:999px;padding:2px 7px;color:var(--accent);
+  font-size:8px;letter-spacing:.03em;text-transform:none}
+.cli-ctl-help{margin:0;color:var(--dim);font-size:9px;line-height:1.5}
+.cli-ctl-list{display:grid;gap:6px;max-height:min(42vh,360px);overflow:auto;padding-right:2px;scrollbar-width:thin}
+.cli-ctl-group{display:grid;min-width:0;margin:0;padding:0;border:0;gap:3px}
+.cli-ctl-machine{display:flex;align-items:center;justify-content:space-between;gap:7px;min-height:26px;padding:5px 7px;
+  border:1px solid rgba(120,243,255,.24);border-radius:7px;background:rgba(120,243,255,.08);color:var(--ink);
+  font-size:9px;font-weight:900;letter-spacing:.05em}
+.cli-ctl-tally{min-width:20px;padding:1px 5px;border:1px solid var(--line);border-radius:999px;color:var(--dim);
+  font-size:8px;font-weight:400;text-align:center}
+.cli-ctl-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:7px;
+  padding:5px 7px;border:1px solid var(--line);border-radius:7px;background:rgba(120,243,255,.025);
+  color:var(--mut);font-size:9.5px;line-height:1.25}
+.cli-ctl-row:hover,.cli-ctl-row:focus-within{border-color:var(--brand);color:var(--ink);background:rgba(120,243,255,.06)}
+.cli-ctl-name{display:grid;gap:3px;min-width:0}
+.cli-ctl-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cli-ctl-state{display:inline-flex;align-items:center;gap:5px;font-size:8px;font-weight:900;
+  letter-spacing:.09em;text-transform:uppercase;cursor:help}
+.cli-ctl-state.viva{color:var(--good)}
+.cli-ctl-state.parada{color:var(--dim)}
+.cli-ctl-state.muda{color:var(--violet)}
+.cli-ctl-dot{display:grid;place-items:center;width:11px;height:11px;border-radius:999px;font-size:8px;line-height:1}
+.cli-ctl-state.viva .cli-ctl-dot{background:rgba(136,255,170,.16);box-shadow:0 0 6px rgba(136,255,170,.5)}
+.cli-ctl-state.parada .cli-ctl-dot{border:1px solid currentColor}
+.cli-ctl-state.muda .cli-ctl-dot{border:1px dashed currentColor}
+.cli-ctl-act{appearance:none;padding:6px 8px;border:1px solid var(--line2);border-radius:7px;
+  background:rgba(120,243,255,.05);color:var(--brand);font:900 8.5px/1.2 var(--mono);letter-spacing:.08em;
+  text-transform:uppercase;white-space:nowrap;cursor:pointer}
+.cli-ctl-act.stop{border-color:rgba(255,136,102,.42);color:var(--warn);background:rgba(255,136,102,.07)}
+.cli-ctl-act.ciega{border-style:dashed;border-color:rgba(170,136,255,.5);color:var(--violet);background:rgba(170,136,255,.07)}
+.cli-ctl-act:hover,.cli-ctl-act:focus-visible{border-color:var(--brand);background:rgba(120,243,255,.12);outline:none}
+.cli-ctl-act[disabled]{opacity:.55;cursor:progress}
+.cli-ctl-wait{grid-column:1/-1;margin:2px 0 0;color:var(--accent);font-size:8.5px;line-height:1.45}
+.cli-ctl-status{min-height:14px;margin:0;color:var(--good);font-size:9px;line-height:1.45}
+.cli-ctl-status.error{color:var(--warn)}
+.cli-ctl-empty{padding:8px;color:var(--dim);font-size:9px;line-height:1.45}
 @media (max-width:620px){.podio{margin-top:20px}.plaza{width:27%;padding:4px 5px;gap:4px;background:rgba(2,8,13,.78)}
   .plaza.p2{left:7%;top:62%}.plaza.p1{left:36.5%;top:59%}.plaza.p3{right:6%;top:66%}
   .nom{font-size:7px}.pts{font-size:10px}
@@ -541,6 +587,13 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     <button class="agent-scope-reset" id="agentScopeReset" type="button">Mostrar todos · restablecer</button>
   </div>
   <p class="agent-scope-status" id="agentScopeCloneStatus" role="status" aria-live="polite" aria-atomic="true"></p>
+</section>
+
+<section class="cli-ctl" data-yk-slot="right" id="cliControl" aria-labelledby="cliCtlTitle">
+  <div class="cli-ctl-head"><span id="cliCtlTitle">Control de CLIs</span><span class="cli-ctl-count" id="cliCtlCount">…</span></div>
+  <p class="cli-ctl-help">Cada CLI, con su ordenador y su estado. Arráncalo o mátalo desde aquí: la orden se encola y la máquina la recoge en su siguiente ciclo, cada 20 segundos.</p>
+  <div class="cli-ctl-list" id="cliCtlList" aria-live="polite"><div class="cli-ctl-empty">Cargando CLIs…</div></div>
+  <p class="cli-ctl-status" id="cliCtlStatus" role="status" aria-live="polite" aria-atomic="true"></p>
 </section>
 
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
@@ -2204,11 +2257,209 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       detalle.hidden = !abrir;
     });
   }
+  /* ── CONTROL DE CLIs · misión #1278 ──────────────────────────────────────
+     El worker yokup-rtc publica el censo en GET /fleet/cli (abierto) con TRES
+     estados que no se pueden mezclar:
+       · «vivo»         → su ordenador late y confirma que el proceso corre.
+       · «parado»       → su ordenador late y confirma que NO corre. Es un HECHO.
+       · «sin noticias» → nadie late en ese ordenador. Es IGNORANCIA: el CLI
+                          podría estar corriendo sin que nos enteremos (hoy le
+                          pasa al MacBookPro14, que aún no tiene ejecutor).
+     Pintar los dos últimos igual llevaría a «arrancar» algo que ya está en
+     marcha, así que cada uno lleva color, icono, rótulo y title distintos, y el
+     arranque a ciegas pide confirmación explícita.
+     Las órdenes van a POST /fleet/cli, que exige sesión del perímetro (acceso.js
+     firma el fetch con el Bearer). El worker responde 202 «queued»: NO ejecuta
+     al momento, sólo apunta la orden para que el ejecutor de la máquina destino
+     la recoja en su próximo ciclo. Por eso el estado no cambia al pulsar y la
+     interfaz lo dice y vigila el censo hasta que cambie de verdad. ── */
+  var CLI_CICLO_SEG = 20;          // cada cuánto pasa el ejecutor de la máquina
+  var CLI_REFRESCO_MS = 20000;     // refresco de fondo del censo
+  var CLI_VIGILA_MS = 8000;        // sondeo tras mandar una orden
+  var CLI_VIGILA_MAX_MS = 60000;   // hasta cuándo se vigila antes de rendirse
+  var CLI_ITEMS = [], CLI_PENDIENTES = {}, cliRefresco = null;
+
+  function hsCliKey(item) {
+    return normaliza(item && item.machine) + "|" + normaliza(item && item.cli);
+  }
+
+  function hsCliEstado(item) {
+    var estado = normaliza(item && item.state).toLowerCase(), maquina = normaliza(item && item.machine) || "ese ordenador";
+    if (estado === "vivo") return {
+      clave:"vivo", tono:"viva", punto:"●", etiqueta:"Vivo",
+      titulo:"Vivo: " + maquina + " late y confirma que el CLI está corriendo" +
+        (item && item.pid ? " (PID " + normaliza(item.pid) + ")" : "") + ".",
+      accion:"stop", accionEtiqueta:"■ Matar", ciego:false
+    };
+    if (estado === "parado") return {
+      clave:"parado", tono:"parada", punto:"○", etiqueta:"Parado",
+      titulo:"Parado: " + maquina + " late y confirma que el CLI NO está corriendo. Es un hecho comprobado, no una suposición.",
+      accion:"start", accionEtiqueta:"▶ Arrancar", ciego:false
+    };
+    return {
+      clave:"sin noticias", tono:"muda", punto:"?", etiqueta:"Sin noticias",
+      titulo:"Sin noticias: nadie late en " + maquina + ", así que NO sabemos si el CLI corre. " +
+        "No es lo mismo que estar parado: podría estar en marcha y no enterarnos.",
+      accion:"start", accionEtiqueta:"▶ Arrancar a ciegas", ciego:true
+    };
+  }
+
+  function hsCliGrupos(items) {
+    var orden = [], mapa = {};
+    (items || []).forEach(function (item) {
+      var maquina = normaliza(item && item.machine) || "Sin ordenador";
+      if (!mapa[maquina]) { mapa[maquina] = { machine:maquina, items:[] }; orden.push(mapa[maquina]); }
+      mapa[maquina].items.push(item);
+    });
+    orden.sort(function (a, b) { return a.machine.localeCompare(b.machine, "es"); });
+    return orden;
+  }
+
+  function hsCliEstadoActual(clave) {
+    var fila = (CLI_ITEMS || []).filter(function (item) { return hsCliKey(item) === clave; })[0];
+    return fila ? hsCliEstado(fila).clave : "";
+  }
+
+  function hsCliAccionAria(item, estado) {
+    var etiqueta = normaliza(item && item.label) || normaliza(item && item.cli), maquina = normaliza(item && item.machine);
+    if (estado.accion === "stop") return "Matar " + etiqueta + " en " + maquina + ", que ahora está vivo";
+    if (estado.ciego) return "Arrancar " + etiqueta + " en " + maquina + ", del que no hay noticias: nadie late allí y no se sabe si ya está corriendo";
+    return "Arrancar " + etiqueta + " en " + maquina + ", que ahora está parado";
+  }
+
+  function hsCliEsperaTexto(espera) {
+    var segundos = Math.max(0, Math.round((Date.now() - (espera && espera.desde || 0)) / 1000));
+    return (espera && espera.accion === "stop" ? "Orden de matar enviada" : "Orden de arranque enviada") +
+      ", esperando a la máquina… " + segundos + " s (su ciclo pasa cada " + CLI_CICLO_SEG + " s)";
+  }
+
+  function hsCliFila(item) {
+    var estado = hsCliEstado(item), espera = CLI_PENDIENTES[hsCliKey(item)];
+    var etiqueta = normaliza(item && item.label) || normaliza(item && item.cli) || "CLI sin nombre";
+    return '<div class="cli-ctl-row">' +
+      '<span class="cli-ctl-name"><span class="cli-ctl-label" title="' + esc(etiqueta) + '">' + esc(etiqueta) + '</span>' +
+      '<span class="cli-ctl-state ' + estado.tono + '" title="' + esc(estado.titulo) + '">' +
+      '<span class="cli-ctl-dot" aria-hidden="true">' + estado.punto + '</span>' + esc(estado.etiqueta) + '</span></span>' +
+      '<button class="cli-ctl-act ' + estado.accion + (estado.ciego ? " ciega" : "") + '" type="button"' +
+      (espera ? " disabled" : "") +
+      ' data-cli-accion="' + estado.accion + '" data-cli-machine="' + esc(normaliza(item && item.machine)) + '"' +
+      ' data-cli-nombre="' + esc(normaliza(item && item.cli)) + '" data-cli-ciego="' + (estado.ciego ? "1" : "0") + '"' +
+      ' title="' + esc(estado.titulo) + '" aria-label="' + esc(hsCliAccionAria(item, estado)) + '">' +
+      esc(estado.accionEtiqueta) + '</button>' +
+      (espera ? '<p class="cli-ctl-wait">' + esc(hsCliEsperaTexto(espera)) + '</p>' : "") +
+      '</div>';
+  }
+
+  function hsRenderCliControl() {
+    var list = document.getElementById("cliCtlList"), count = document.getElementById("cliCtlCount");
+    if (!list || !count) return;
+    var grupos = hsCliGrupos(CLI_ITEMS);
+    var vivos = (CLI_ITEMS || []).filter(function (item) { return hsCliEstado(item).clave === "vivo"; }).length;
+    count.textContent = CLI_ITEMS.length ? vivos + "/" + CLI_ITEMS.length + " vivos" : "—";
+    if (!grupos.length) { list.innerHTML = '<div class="cli-ctl-empty">No hay CLIs declarados.</div>'; return; }
+    list.innerHTML = grupos.map(function (grupo) {
+      return '<fieldset class="cli-ctl-group"><legend class="sr-only">CLIs de ' + esc(grupo.machine) + '</legend>' +
+        '<div class="cli-ctl-machine"><span class="cli-ctl-label">' + esc(grupo.machine) + '</span>' +
+        '<span class="cli-ctl-tally" aria-hidden="true">' + grupo.items.length + '</span></div>' +
+        grupo.items.map(hsCliFila).join("") + '</fieldset>';
+    }).join("");
+    list.querySelectorAll("[data-cli-accion]").forEach(function (boton) {
+      boton.addEventListener("click", function () {
+        hsCliOrdena(boton.getAttribute("data-cli-machine"), boton.getAttribute("data-cli-nombre"),
+          boton.getAttribute("data-cli-accion"), boton.getAttribute("data-cli-ciego") === "1");
+      });
+    });
+  }
+
+  function hsCliMensaje(texto, error) {
+    var status = document.getElementById("cliCtlStatus");
+    if (!status) return;
+    status.textContent = normaliza(texto);
+    status.classList.toggle("error", !!error);
+  }
+
+  function hsCargaCliControl() {
+    return fetch(YK + "/fleet/cli", { cache:"no-store" }).then(function (r) {
+      if (!r.ok) throw new Error("/fleet/cli → " + r.status);
+      return r.json();
+    }).then(function (d) {
+      CLI_ITEMS = (d && d.items) || [];
+      hsRenderCliControl();
+    }).catch(function (e) {
+      var list = document.getElementById("cliCtlList");
+      if (list && !CLI_ITEMS.length) {
+        list.innerHTML = '<div class="cli-ctl-empty">No se pudo leer el censo de CLIs (' + esc(normaliza(e && e.message)) + ').</div>';
+      }
+    });
+  }
+
+  // Tras encolar una orden el estado tarda: se sondea el censo cada 8 s durante
+  // un minuto y se cuenta lo que pasa de verdad, sin fingir que ya cambió.
+  function hsCliVigila(clave) {
+    var limite = Date.now() + CLI_VIGILA_MAX_MS;
+    function tic() {
+      hsCargaCliControl().then(function () {
+        var espera = CLI_PENDIENTES[clave];
+        if (!espera) return;
+        var ahora = hsCliEstadoActual(clave);
+        if (ahora && ahora !== espera.previo) {
+          delete CLI_PENDIENTES[clave]; hsRenderCliControl();
+          hsCliMensaje("Hecho: " + clave.split("|")[1] + " figura ya como «" + ahora + "» en " + clave.split("|")[0] + ".", false);
+          return;
+        }
+        if (Date.now() >= limite) {
+          delete CLI_PENDIENTES[clave]; hsRenderCliControl();
+          hsCliMensaje("La orden sigue encolada tras " + Math.round(CLI_VIGILA_MAX_MS / 1000) +
+            " s: la máquina aún no la ha recogido. No se ha perdido, y el estado se sigue refrescando solo.", true);
+          return;
+        }
+        setTimeout(tic, CLI_VIGILA_MS);
+      });
+    }
+    setTimeout(tic, CLI_VIGILA_MS);
+  }
+
+  function hsCliOrdena(machine, cli, accion, ciego) {
+    var clave = normaliza(machine) + "|" + normaliza(cli);
+    if (CLI_PENDIENTES[clave]) return;
+    if (ciego && !confirm("Nadie late en " + machine + ", así que no sabemos si " + cli + " ya está corriendo.\n\n" +
+      "La orden se encolará igualmente y sólo se cumplirá cuando esa máquina tenga ejecutor. ¿Seguir?")) return;
+    CLI_PENDIENTES[clave] = { accion:accion, desde:Date.now(), previo:hsCliEstadoActual(clave) };
+    hsRenderCliControl();
+    hsCliMensaje("Orden enviada, esperando a " + machine + "…", false);
+    fetch(YK + "/fleet/cli", {
+      method:"POST", cache:"no-store",
+      headers:{ "content-type":"application/json" },
+      body:JSON.stringify({ machine:machine, cli:cli, action:accion })
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) { return { status:r.status, ok:r.ok, body:d || {} }; });
+    }).then(function (res) {
+      if (res.status === 401) throw new Error("Necesitas iniciar sesión: tu sesión ha caducado. Vuelve a entrar y repite la orden.");
+      if (res.status === 403) throw new Error("Ese CLI no está en la lista blanca del worker: la orden no se ha encolado.");
+      if (!res.ok || res.body.ok === false) throw new Error(normaliza(res.body.error) || ("El worker respondió " + res.status));
+      hsCliMensaje("Orden encolada (" + (normaliza(res.body.status) || "queued") + "). " + machine +
+        " la recoge en su próximo ciclo, cada " + CLI_CICLO_SEG + " s; el estado se refresca solo hasta que cambie.", false);
+      hsCliVigila(clave);
+    }).catch(function (e) {
+      delete CLI_PENDIENTES[clave];
+      hsRenderCliControl();
+      hsCliMensaje(normaliza(e && e.message) || "No se pudo enviar la orden", true);
+    });
+  }
+
+  function iniciaCliControl() {
+    if (!document.getElementById("cliCtlList")) return;
+    hsCargaCliControl();
+    if (cliRefresco) clearInterval(cliRefresco);
+    cliRefresco = setInterval(function () { hsCargaCliControl(); }, CLI_REFRESCO_MS);
+  }
+
   iniciaColumnasReajustables();
   iniciaOrdenTabla();
   iniciaFiltroVida();
   iniciaAgentScope();
   iniciaProgresionToggle();
+  iniciaCliControl();
 
   function agenteDeMision(mision) {
     var agente = mision && normaliza(mision.assignee || mision.persona || mision.agent);
