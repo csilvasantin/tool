@@ -5067,6 +5067,39 @@ function cliPermitido(machine, cli) {
   return CLI_CATALOGO.some((e) => e.machine.toLowerCase() === m && e.cli === c);
 }
 __name(cliPermitido, "cliPermitido");
+function cliTipo(cli) {
+  const c = String(cli || "").trim();
+  const tipo = CLI_TIPOS.find((t) => t.cli === c);
+  return tipo ? tipo.kind : "";
+}
+__name(cliTipo, "cliTipo");
+
+// ENVIAR MISION a un CLI (Carlos, 2026-08-08): escribir en su sesion de terminal
+// como si estuvieramos delante, para que se ponga a trabajar sin ir a la maquina.
+//
+// Esto NO afloja la regla de "ningun comando libre": lo que viaja es el ENCARGO
+// para un agente que interpreta lenguaje natural, no una linea para una shell. Por
+// eso hay tres cercos, y los tres importan:
+//   · Solo a `kind` cli/app. A la SESION de terminal (kind session) NO se le manda
+//     texto NUNCA: al otro lado hay una shell y cualquier frase seria un comando.
+//     Ese era el agujero, y esta cerrado aqui, no en el ejecutor.
+//   · El texto se limpia de caracteres de control y se aplana a UNA linea. Un \n
+//     dentro del texto es un Intro extra en la terminal: dos ordenes en vez de una.
+//   · El ejecutor comprueba ADEMAS, ya en la maquina, que el CLI este vivo y que su
+//     panel no sea una shell pelada. Cinturon y tirantes, en las dos puntas.
+var CLI_MISION_MAX = 600;
+function cliMisionTexto(raw) {
+  // \p{C} = todos los caracteres de control y formato, tambien los invisibles que
+  // no son ASCII (bidi, zero-width): un texto que se lee de una forma y se ejecuta
+  // de otra no entra en una terminal.
+  const limpio = String(raw == null ? "" : raw).replace(/[\p{C}]+/gu, " ").replace(/\s+/g, " ").trim();
+  if (!limpio) return { ok:false, error:"la misión no puede ir vacía" };
+  if (limpio.length > CLI_MISION_MAX) {
+    return { ok:false, error:"la misión no puede pasar de " + CLI_MISION_MAX + " caracteres (llegaron " + limpio.length + ")" };
+  }
+  return { ok:true, value:limpio };
+}
+__name(cliMisionTexto, "cliMisionTexto");
 
 async function highscoreDaily(env) {
   const ahora = Date.now(), inicio = madridDayStart(ahora), fin = madridDayStart(inicio + 36 * 60 * 60 * 1e3);
@@ -6198,21 +6231,46 @@ var index_default = {
       let b; try { b = await req.json(); } catch { return json({ ok:false, error:"bad-json" }, 400); }
       const machine = String(b.machine || "").trim(), cli = String(b.cli || "").trim();
       const action = String(b.action || "").trim().toLowerCase();
-      if (action !== "start" && action !== "stop") return json({ ok:false, error:"action debe ser start o stop" }, 400);
+      if (action !== "start" && action !== "stop" && action !== "mission") {
+        return json({ ok:false, error:"action debe ser start, stop o mission" }, 400);
+      }
       if (!cliPermitido(machine, cli)) return json({ ok:false, error:"cli no esta en la lista blanca" }, 403);
+      let detalle = null;
+      if (action === "mission") {
+        // A una SESION de terminal no se le manda texto: al otro lado hay una shell.
+        if (cliTipo(cli) === "session") {
+          return json({ ok:false, code:"mission_not_supported",
+            error:"a una sesión de terminal no se le manda una misión: al otro lado hay una shell, no un agente" }, 400);
+        }
+        const texto = cliMisionTexto(b.text || b.mission || b.detail);
+        if (!texto.ok) return json({ ok:false, field:"text", error:texto.error }, 400);
+        detalle = texto.value;
+      }
       const id = "CLI-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       const quien = String((sess && (sess.email || sess.user)) || "perimetro");
-      await env.DB.prepare("INSERT INTO cli_commands(id,machine,cli,action,status,requested_by,created_at,updated_at) VALUES(?,?,?,?,'queued',?,?,?)")
-        .bind(id, machine, cli, action, quien, Date.now(), Date.now()).run();
-      return json({ ok:true, id, machine, cli, action, status:"queued" }, 202);
+      await env.DB.prepare("INSERT INTO cli_commands(id,machine,cli,action,status,requested_by,detail,created_at,updated_at) VALUES(?,?,?,?,'queued',?,?,?,?)")
+        .bind(id, machine, cli, action, quien, detalle, Date.now(), Date.now()).run();
+      return json({ ok:true, id, machine, cli, action, status:"queued", text:detalle }, 202);
     }
     // El ejecutor de cada maquina recoge SOLO ordenes ya autorizadas y reporta.
     if (url.pathname === "/fleet/cli/pending" && req.method === "GET") {
       await ensureSchema(env);
       const machine = String(url.searchParams.get("machine") || "").trim();
       if (!machine) return json({ ok:false, error:"machine requerida" }, 400);
+      // Una MISION caduca a los 10 minutos. Dos razones, las dos serias: una orden
+      // de trabajo escrita a las 19:00 no puede aparecer tecleada en la sesion de
+      // Grok a las 23:00, cuando el contexto ya no existe; y el texto deja de estar
+      // dando vueltas por la cola. `start`/`stop` no caducan: encender algo sigue
+      // queriendo decir lo mismo dentro de una hora.
+      const CADUCA_MISION = 10 * 60 * 1000, ahora = Date.now();
+      await env.DB.prepare(
+        "UPDATE cli_commands SET status='expired',detail='caducada: nadie la recogió en 10 min',updated_at=? " +
+        "WHERE lower(machine)=lower(?) AND status='queued' AND action='mission' AND created_at < ?"
+      ).bind(ahora, machine, ahora - CADUCA_MISION).run();
       const { results } = await env.DB.prepare(
-        "SELECT id,cli,action,created_at FROM cli_commands WHERE lower(machine)=lower(?) AND status='queued' ORDER BY created_at LIMIT 5"
+        // `detail` viaja porque una orden `mission` ES su texto: sin el, el ejecutor
+        // recogeria una orden vacia y no sabria que escribir.
+        "SELECT id,cli,action,detail,created_at FROM cli_commands WHERE lower(machine)=lower(?) AND status='queued' ORDER BY created_at LIMIT 5"
       ).bind(machine).all();
       return json({ ok:true, items: results || [] });
     }

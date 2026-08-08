@@ -503,6 +503,20 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .cli-ctl-row:hover,.cli-ctl-row:focus-within{border-color:var(--brand);color:var(--ink);background:rgba(120,243,255,.06)}
 .cli-ctl-name{display:grid;gap:3px;min-width:0}
 .cli-ctl-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* El nombre de un CLI despierto es un botón: abre el cuadro para escribirle una
+   misión. La pluma avisa de que ahí se puede pulsar; sin ella parecería texto. */
+.cli-ctl-label.enviable{appearance:none;display:flex;align-items:center;gap:5px;padding:0;border:0;background:transparent;
+  color:var(--ink);font:inherit;text-align:left;cursor:text}
+.cli-ctl-label.enviable:hover,.cli-ctl-label.enviable:focus-visible{color:var(--brand);outline:none}
+.cli-ctl-pluma{flex:0 0 auto;color:var(--dim);font-size:9px}
+.cli-ctl-label.enviable:hover .cli-ctl-pluma,.cli-ctl-label.enviable:focus-visible .cli-ctl-pluma{color:var(--brand)}
+.cli-ctl-row.componiendo{grid-template-columns:minmax(0,1fr) auto;border-color:var(--brand);background:rgba(120,243,255,.07)}
+.cli-ctl-mision{grid-column:1/-1;display:grid;gap:5px;margin-top:2px}
+.cli-ctl-mision-tx{width:100%;min-height:52px;padding:6px 7px;border:1px solid var(--line2);border-radius:7px;
+  background:rgba(2,8,13,.6);color:var(--ink);font:400 9.5px/1.4 var(--mono);resize:vertical}
+.cli-ctl-mision-tx:focus{border-color:var(--brand);outline:none}
+.cli-ctl-mision-pie{display:flex;gap:5px;justify-content:flex-end}
+.cli-ctl-act.cancelar{color:var(--dim);border-color:var(--line)}
 .cli-ctl-state{display:inline-flex;align-items:center;gap:5px;font-size:8px;font-weight:900;
   letter-spacing:.09em;text-transform:uppercase;cursor:help}
 .cli-ctl-state.viva{color:var(--good)}
@@ -2314,6 +2328,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // Qué ordenadores están desplegados. No se persiste: cada visita al Highscore
   // empieza compacta, igual que los equipos del seguimiento de agentes.
   var CLI_ABIERTOS = new Set();
+  // Qué CLI tiene el cuadro de misión abierto (uno cada vez: es una acción, no un
+  // formulario que se deje puesto). Guarda `machine|cli`.
+  var CLI_COMPONIENDO = null;
 
   function hsCliKey(item) {
     return normaliza(item && item.machine) + "|" + normaliza(item && item.cli);
@@ -2393,11 +2410,45 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return enviada + " · esperando a la máquina " + segundos + " s (ciclo de " + CLI_CICLO_SEG + " s)";
   }
 
+  /* ENVIAR MISIÓN (Carlos, 2026-08-08): «al pulsar encima del Grok · CLI es como si
+     escribiéramos en la sesión del terminal y se lo enviamos a Grok para que ejecute
+     una misión si está despierto». El nombre del CLI se vuelve pulsable y abre un
+     cuadro para escribir; lo que se escribe se teclea en su sesión.
+     DOS condiciones, y las dos se explican en el sitio en vez de esconder el botón:
+       · Sólo a un CLI, nunca a la SESIÓN de terminal: al otro lado de una sesión
+         pelada hay una shell, y una frase escrita en una shell es un comando.
+       · Sólo si está VIVO. Si no hay nadie leyendo, el texto se queda en el aire. */
+  function hsCliEnviable(item) {
+    return normaliza(item && item.kind).toLowerCase() !== "session";
+  }
+  function hsCliMotivoNoEnviable(item, estado) {
+    if (!hsCliEnviable(item)) return "A una sesión de terminal no se le manda una misión: al otro lado hay una shell, no un agente.";
+    if (estado.clave !== "vivo") return "Para mandarle una misión tiene que estar despierto. Arráncalo primero.";
+    return "";
+  }
+  function hsCliComponerHTML(item) {
+    var etiqueta = normaliza(item && item.label) || normaliza(item && item.cli);
+    return '<form class="cli-ctl-mision" data-cli-mision-form="' + esc(hsCliKey(item)) + '">' +
+      '<label class="sr-only" for="cliMisionTexto">Misión para ' + esc(etiqueta) + '</label>' +
+      '<textarea id="cliMisionTexto" class="cli-ctl-mision-tx" rows="3" maxlength="600" required ' +
+      'placeholder="Qué quieres que haga ' + esc(etiqueta) + '…"></textarea>' +
+      '<div class="cli-ctl-mision-pie">' +
+      '<button class="cli-ctl-act" type="submit">✉ Enviar</button>' +
+      '<button class="cli-ctl-act cancelar" type="button" data-cli-mision-cancel="1">Cancelar</button>' +
+      '</div></form>';
+  }
+
   function hsCliFila(item) {
     var estado = hsCliEstado(item), espera = CLI_PENDIENTES[hsCliKey(item)];
     var etiqueta = normaliza(item && item.label) || normaliza(item && item.cli) || "CLI sin nombre";
-    return '<div class="cli-ctl-row">' +
-      '<span class="cli-ctl-name"><span class="cli-ctl-label" title="' + esc(etiqueta) + '">' + esc(etiqueta) + '</span>' +
+    var motivo = hsCliMotivoNoEnviable(item, estado), componiendo = CLI_COMPONIENDO === hsCliKey(item);
+    var nombre = motivo
+      ? '<span class="cli-ctl-label" title="' + esc(etiqueta + " — " + motivo) + '">' + esc(etiqueta) + '</span>'
+      : '<button class="cli-ctl-label enviable" type="button" data-cli-mision="' + esc(hsCliKey(item)) + '"' +
+        ' title="' + esc("Escribirle una misión a " + etiqueta + ": se teclea en su sesión, como si estuvieras delante.") + '"' +
+        ' aria-expanded="' + componiendo + '">' + esc(etiqueta) + '<span class="cli-ctl-pluma" aria-hidden="true">✎</span></button>';
+    return '<div class="cli-ctl-row' + (componiendo ? " componiendo" : "") + '">' +
+      '<span class="cli-ctl-name">' + nombre +
       '<span class="cli-ctl-state ' + estado.tono + '" title="' + esc(estado.titulo) + '">' +
       '<span class="cli-ctl-dot" aria-hidden="true">' + estado.punto + '</span>' + esc(estado.etiqueta) + '</span></span>' +
       '<button class="cli-ctl-act ' + estado.accion + (estado.ciego ? " ciega" : "") + '" type="button"' +
@@ -2407,6 +2458,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       ' title="' + esc(estado.titulo) + '" aria-label="' + esc(hsCliAccionAria(item, estado)) + '">' +
       esc(estado.accionEtiqueta) + '</button>' +
       (espera ? '<p class="cli-ctl-wait">' + esc(hsCliEsperaTexto(espera, item)) + '</p>' : "") +
+      (componiendo ? hsCliComponerHTML(item) : "") +
       '</div>';
   }
 
@@ -2445,6 +2497,27 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       boton.addEventListener("click", function () {
         hsCliOrdena(boton.getAttribute("data-cli-machine"), boton.getAttribute("data-cli-nombre"),
           boton.getAttribute("data-cli-accion"), boton.getAttribute("data-cli-ciego") === "1");
+      });
+    });
+    list.querySelectorAll("[data-cli-mision]").forEach(function (boton) {
+      boton.addEventListener("click", function () {
+        var clave = boton.getAttribute("data-cli-mision");
+        CLI_COMPONIENDO = CLI_COMPONIENDO === clave ? null : clave;
+        hsCliMensaje("", false);
+        hsRenderCliControl();
+        var caja = document.querySelector(".cli-ctl-mision-tx");
+        if (caja) caja.focus();
+      });
+    });
+    list.querySelectorAll("[data-cli-mision-cancel]").forEach(function (boton) {
+      boton.addEventListener("click", function () { CLI_COMPONIENDO = null; hsRenderCliControl(); });
+    });
+    list.querySelectorAll("[data-cli-mision-form]").forEach(function (form) {
+      form.addEventListener("submit", function (evento) {
+        evento.preventDefault();
+        var caja = form.querySelector(".cli-ctl-mision-tx"), clave = form.getAttribute("data-cli-mision-form");
+        var partes = String(clave).split("|");
+        hsCliEnviaMision(partes[0], partes[1], caja ? caja.value : "");
       });
     });
   }
@@ -2522,6 +2595,33 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       delete CLI_PENDIENTES[clave];
       hsRenderCliControl();
       hsCliMensaje(normaliza(e && e.message) || "No se pudo enviar la orden", true);
+    });
+  }
+
+  // Mandar la misión. No se vigila el censo después: una misión no cambia el
+  // estado del CLI —sigue vivo, ahora con trabajo—, así que fingir una espera de
+  // "a ver si cambia algo" seria mentir sobre lo que se puede comprobar.
+  function hsCliEnviaMision(machine, cli, texto) {
+    var limpio = normaliza(texto).replace(/\s+/g, " ").trim();
+    if (!limpio) { hsCliMensaje("Escribe la misión antes de enviarla.", true); return; }
+    if (limpio.length > 600) { hsCliMensaje("La misión no puede pasar de 600 caracteres (llevas " + limpio.length + ").", true); return; }
+    hsCliMensaje("Enviando la misión a " + machine + "…", false);
+    fetch(YK + "/fleet/cli", {
+      method:"POST", cache:"no-store",
+      headers:{ "content-type":"application/json" },
+      body:JSON.stringify({ machine:machine, cli:cli, action:"mission", text:limpio })
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) { return { status:r.status, ok:r.ok, body:d || {} }; });
+    }).then(function (res) {
+      if (res.status === 401) throw new Error("Necesitas iniciar sesión: tu sesión ha caducado. Vuelve a entrar y repite la misión.");
+      if (res.status === 403) throw new Error("Ese CLI no está en la lista blanca del worker: la misión no se ha encolado.");
+      if (!res.ok || res.body.ok === false) throw new Error(normaliza(res.body.error) || ("El worker respondió " + res.status));
+      CLI_COMPONIENDO = null;
+      hsRenderCliControl();
+      hsCliMensaje("Misión encolada para " + cli + " en " + machine + ". Se le escribirá en su sesión en el próximo ciclo, cada " +
+        CLI_CICLO_SEG + " s. Si se ha dormido entre medias, la orden se rechaza y se dice.", false);
+    }).catch(function (e) {
+      hsCliMensaje(normaliza(e && e.message) || "No se pudo enviar la misión", true);
     });
   }
 

@@ -29,15 +29,16 @@ function functionSource(name){
 function cliApi(){
   // `esc` no se extrae: su regex lleva comillas y despista al lector de llaves.
   // Se replica su escape exacto, que es lo único que necesita el render.
-  const funciones=["normaliza","hsCliKey","hsCliVerbos","hsCliEstado","hsCliGrupos","hsCliAccionAria","hsCliEsperaTexto","hsCliFila"]
+  const funciones=["normaliza","hsCliKey","hsCliVerbos","hsCliEstado","hsCliGrupos","hsCliAccionAria","hsCliEsperaTexto","hsCliEnviable","hsCliMotivoNoEnviable","hsCliComponerHTML","hsCliFila"]
     .map(functionSource).join("\n");
   return new Function(`
-    var CLI_CICLO_SEG=20,CLI_PENDIENTES={};
+    var CLI_CICLO_SEG=20,CLI_PENDIENTES={},CLI_COMPONIENDO=null;
     function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
     ${funciones}
     return {
       key:hsCliKey,estado:hsCliEstado,grupos:hsCliGrupos,aria:hsCliAccionAria,espera:hsCliEsperaTexto,
-      fila:function(item,pendientes){CLI_PENDIENTES=pendientes||{};return hsCliFila(item);}
+      fila:function(item,pendientes,componiendo){CLI_PENDIENTES=pendientes||{};CLI_COMPONIENDO=componiendo||null;return hsCliFila(item);},
+      motivo:hsCliMotivoNoEnviable,key:hsCliKey
     };
   `)();
 }
@@ -224,4 +225,52 @@ test("el panel se pliega en dos niveles y ninguno esconde el recuento",()=>{
   assert.match(source,/CLI_ABIERTOS\.has\(maquina\)\) CLI_ABIERTOS\.delete\(maquina\); else CLI_ABIERTOS\.add\(maquina\)/);
   assert.match(source,/\.cli-ctl-clis\[hidden\]\{display:none\}/);
   assert.match(source,/\.cli-ctl-body\[hidden\]\{display:none\}/);
+});
+
+// FLT-1332 (Carlos, 2026-08-08): «al pulsar encima del Grok · CLI es como si
+// escribiéramos en la sesión del terminal y se lo enviamos a Grok para que ejecute
+// una misión si está despierto».
+const SESION_VIVA={cli:"terminal",kind:"session",label:"Sesión de terminal",machine:"MacBookAir16plata",
+  alive:true,pid:4242,seen_at:1786198000000,state:"vivo"};
+const GROK_VIVO={cli:"grok",kind:"cli",label:"Grok · CLI",machine:"MacBookAir16plata",
+  alive:true,pid:71181,seen_at:1786198000000,state:"vivo"};
+
+test("al nombre de un CLI despierto se le puede escribir una misión",()=>{
+  const api=cliApi();
+  const fila=api.fila(GROK_VIVO);
+  assert.match(fila,/<button class="cli-ctl-label enviable" type="button" data-cli-mision="MacBookAir16plata\|grok"/);
+  assert.match(fila,/se teclea en su sesión/,"el title dice qué va a pasar de verdad");
+  assert.match(fila,/cli-ctl-pluma/,"la pluma avisa de que ahí se pulsa");
+});
+
+test("a una sesión de terminal NUNCA, y a un CLI dormido tampoco",()=>{
+  const api=cliApi();
+  // La sesión pelada es una shell: una frase escrita ahí es un comando ejecutado.
+  const sesion=api.fila(SESION_VIVA);
+  assert.doesNotMatch(sesion,/data-cli-mision=/);
+  assert.match(api.motivo(SESION_VIVA,{clave:"vivo"}),/al otro lado hay una shell/);
+  // Dormido: no hay nadie leyendo, y se dice en vez de esconder el botón.
+  const dormido=api.fila({...GROK_VIVO,alive:false,pid:null,state:"parado"});
+  assert.doesNotMatch(dormido,/data-cli-mision=/);
+  assert.match(api.motivo(GROK_VIVO,{clave:"parado"}),/tiene que estar despierto/);
+  // Y el que no se sabe si corre tampoco: «sin noticias» no es «despierto».
+  assert.doesNotMatch(api.fila({...GROK_VIVO,alive:null,pid:null,state:"sin noticias"}),/data-cli-mision=/);
+});
+
+test("el cuadro de misión se abre en la fila y manda action mission con el texto",()=>{
+  const api=cliApi();
+  const abierta=api.fila(GROK_VIVO,{},api.key(GROK_VIVO));
+  assert.match(abierta,/<form class="cli-ctl-mision" data-cli-mision-form="MacBookAir16plata\|grok">/);
+  assert.match(abierta,/maxlength="600"/,"el tope es el mismo que valida el worker");
+  assert.match(abierta,/data-cli-mision-cancel="1"/);
+  assert.match(abierta,/cli-ctl-row componiendo/);
+
+  const envia=functionSource("hsCliEnviaMision");
+  assert.match(envia,/action:"mission", text:limpio/);
+  assert.match(envia,/replace\(\/\\s\+\/g, " "\)/,"el texto viaja en una sola línea: un salto es un Intro de más");
+  assert.match(envia,/limpio\.length > 600/);
+  assert.match(envia,/Necesitas iniciar sesión/,"401 se explica igual que en las demás órdenes");
+  // Una misión no cambia el estado del CLI, así que NO se finge una espera.
+  assert.doesNotMatch(envia,/hsCliVigila/);
+  assert.match(envia,/Misión encolada para/);
 });
