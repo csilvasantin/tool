@@ -357,26 +357,18 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     <div class="num">12</div>
     <div>
       <h2>El proyecto acompaña al agente responsable</h2>
-      <p>En <code>/misiones</code>, toda misión con proyecto asignado muestra <b>Proyecto + nombre</b>
-      al comienzo de la columna <b>Misión</b>, encima del asunto. La celda <b>Agente/Plataforma</b>
-      queda reservada a la identidad, avatar y runtime/plataforma del agente: no se repite allí el proyecto.</p>
+      <p>En <code>/misiones</code>, toda misión con proyecto asignado muestra su nombre <b>debajo del agente</b>.
+      Es un rótulo informativo, no un control: no se convierte en enlace, selector, campo ni botón.</p>
       <p>La responsabilidad sale del censo de proyectos: manda <code>primary_responsible</code> y,
       si falta, se usa <code>owner</code>. La comparación se hace exclusivamente con
       <code>ykAgentIdentity.same(assignee, responsable)</code>, por familia de persona y
-      aceptando los alias históricos; por ejemplo, <b>Oraculo y OraculoMacMini son la misma familia</b>.
-      Estos datos gobiernan la asignación, no añaden un segundo rótulo visual.</p>
-      <p><b>Proyecto heredado.</b> La declaración de proyecto principal vale para un día. Cuando un
-      encargo llega sin proyecto y el agente no ha declarado hoy, la misión nace con la
-      <b>última declaración explícita de ese mismo agente</b> —no se adivina por sus proyectos ni
-      leyendo el texto del encargo— y queda <b>marcada como heredada</b>. Antes de esto, la misión
-      sencillamente no nacía: 41 encargos de la flota se quedaron atascados sin que nadie se
-      enterara. Un proyecto heredado <b>puede no ser el correcto</b>, así que conserva esa marca en
-      los datos operativos hasta que alguien reasigna la misión a un proyecto confirmado.</p>
-      <table aria-label="Ubicación visible del proyecto en la misión">
-        <thead><tr><th>Situación</th><th>Columna Misión</th><th>Agente/Plataforma</th></tr></thead>
+      aceptando los alias históricos; por ejemplo, <b>Oraculo y OraculoMacMini son la misma familia</b>.</p>
+      <table aria-label="Color del proyecto bajo el agente">
+        <thead><tr><th>Situación</th><th>Rótulo</th><th>Color</th></tr></thead>
         <tbody>
-          <tr><td>La misión tiene proyecto</td><td>Muestra <b>Proyecto + nombre</b></td><td>Identidad, avatar y plataforma; sin proyecto</td></tr>
-          <tr><td>La misión no tiene proyecto asignado</td><td>No inventa ningún nombre</td><td>Identidad, avatar y plataforma</td></tr>
+          <tr><td>Agente y responsable son de la misma familia</td><td>Nombre del proyecto bajo el agente</td><td>Verde</td></tr>
+          <tr><td>La misión tiene proyecto, pero el agente no es su responsable</td><td>Nombre del proyecto bajo el agente</td><td>Amarillo</td></tr>
+          <tr><td>La misión no tiene proyecto asignado</td><td>No se muestra ningún rótulo</td><td>—</td></tr>
         </tbody>
       </table>
     </div>
@@ -466,7 +458,81 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     </div>
   </section>
 
-  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.07.08.2026.r4.10:53 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
+  <section class="rule">
+    <div class="num">16</div>
+    <div>
+      <h2>A un consejero se le enseña con guiones, no con vídeos</h2>
+      <p>El Consejo de <b>admira.live</b> se forma con material del <b>Stock de Pixeria</b>, y el
+      agente que responde en <b>yokup.com</b> lo lee de ahí. Subir material bien etiquetado
+      basta: <b>no se toca código para enseñar a un consejero</b>.</p>
+      <div class="formula">vídeo al Stock + guion de ≤900 caracteres = el consejero aprende</div>
+      <p><b>Un vídeo no enseña nada.</b> Al consejero solo le llega su TÍTULO, así que sesenta
+      vídeos lo dejan sabiendo exactamente lo mismo: eso es una bibliografía, no conocimiento.
+      Lo que aprende es el <b>guion</b>: una pieza de texto con lo que ese vídeo le enseña a
+      <b>esa silla</b>. El guion <b>sustituye</b> al vídeo en su cabeza; el vídeo se queda como
+      fuente y evidencia.</p>
+      <table aria-label="Cómo se publica cada pieza de formación">
+        <thead><tr><th>Campo</th><th>Vídeo</th><th>Guion</th></tr></thead>
+        <tbody>
+          <tr><td><code>type</code></td><td>video</td><td><b>guion</b></td></tr>
+          <tr><td><code>tags</code></td><td colspan="2">alias del consejero + <code>formacion</code> — <b>en el array, no solo en el comentario</b></td></tr>
+          <tr><td><code>comment</code></td><td>el hashtag</td><td><b>el conocimiento</b> (≤900 car.)</td></tr>
+          <tr><td><code>externalRef</code></td><td>—</td><td>id del vídeo que explica</td></tr>
+        </tbody>
+      </table>
+      <p>El <b>alias</b> es el slug sin guiones: <code>steve-jobs</code> → <code>stevejobs</code>.
+      Los vigentes: <code>stevejobs</code> (CEO), <code>stevewozniak</code> (CTO),
+      <code>timcook</code> (COO), <code>warrenbuffett</code> (CFO), <code>waltdisney</code> (CCO).
+      <b>El hashtag manda en <code>tags</code></b>: si solo va en el comentario, admira.live lo
+      enseña pero yokup <b>no</b> lo lee.</p>
+      <p>La etiqueta <code>formacion</code> separa lo que trajo un buscador de lo que eligió
+      Carlos. No es cosmética: el prompt dice «material que Carlos te ha dado», y sin esa
+      etiqueta el consejero <b>cita a un scraper como si fuera él</b>. De ocho huecos, cinco
+      quedan reservados a lo curado.</p>
+      <p><b>Antes de subir se mira el índice.</b> Criterio de Carlos: preferiblemente shorts y
+      <b>cinco minutos como máximo</b>. Y si el vídeo es un relato <i>sobre</i> la persona y no
+      la persona hablando, <b>el guion lo dice</b>: un consejero que atribuye a Walt Disney la
+      frase de un narrador miente con su propia voz.</p>
+      <p>Por qué: el 07-08-2026 el Stock tenía <b>478 piezas y CERO guiones</b> —yokup los esperaba
+      y el Stock no admitía ese tipo, así que nadie podía crearlos— y en la misma jornada se
+      <b class="bad">duplicó un vídeo</b> de Steve Jobs por no mirar el índice antes de subirlo.
+      Añadido el tipo, la primera formación completa fue la de Wozniak (CTO) y Walt Disney (CCO).</p>
+    </div>
+  </section>
+
+  <section class="rule">
+    <div class="num">17</div>
+    <div>
+      <h2>Cada cierre declara sus puntos y el total verificado</h2>
+      <p>Al cerrar una <b>misión, un objetivo o una tarea</b>, el informe de cierre dice siempre
+      <b>cuántos puntos ha ganado ese cierre</b> y el <b>total relevante de cada agente</b> que
+      los recibe. No basta con «terminado»: el resultado y su efecto en el Highscore quedan
+      juntos, visibles y comprobables.</p>
+      <div class="formula">cierre + puntos ganados + total del agente + fuente y hora = informe completo</div>
+      <p>Los números se leen <b>después del cierre</b> en el Highscore o en su API vigente. El
+      informe conserva la fuente y la hora de la comprobación; no calcula a memoria, no
+      reutiliza el total de otra jornada y no suma dos veces un reintento o una transición
+      que no puntúa.</p>
+      <table aria-label="Contenido obligatorio del informe de cierre">
+        <thead><tr><th>Situación</th><th>Qué se informa</th><th>Qué queda prohibido</th></tr></thead>
+        <tbody>
+          <tr><td>Identidad verificada</td><td><b>+N puntos</b> por el cierre · <b>AgenteEquipo: total T</b> · fuente y hora</td><td>Omitir el total o atribuirlo a otro perfil</td></tr>
+          <tr><td>Varios agentes verificados</td><td>Ganancia y total de cada agente afectado</td><td>Fundirlos en un total anónimo</td></tr>
+          <tr><td>Identidad discrepante</td><td><b>0 puntos atribuidos · pendiente de verificación</b></td><td>Usar el censo para renombrar o puntuar</td></tr>
+          <tr><td>Highscore no disponible</td><td>Ganancia no confirmada · total pendiente · evidencia del fallo</td><td>Inventar, estimar o copiar un total antiguo</td></tr>
+        </tbody>
+      </table>
+      <p>La identidad sigue la <a href="#n15">norma 15</a>: manda la declaración explícita del
+      usuario que inicia la conversación. Si discrepa de presencia o de un registro canónico,
+      <b>no se atribuyen puntos ni se sobrescribe esa declaración</b>; primero se confirma con
+      una captura actual y se lee la identidad visible en la esquina inferior izquierda.
+      Hasta entonces el cierre puede quedar ejecutado, pero la puntuación queda pendiente.</p>
+      <p>Formato mínimo: <code>Cierre: +N puntos · AgenteEquipo: T puntos hoy · Highscore/API HH:MM</code>.
+      Decisión de Carlos, 08-08-2026.</p>
+    </div>
+  </section>
+
+  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.08.08.2026.r1.12:26 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
 </main>
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script>

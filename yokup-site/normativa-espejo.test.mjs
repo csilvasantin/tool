@@ -31,6 +31,8 @@ const REGLAS = [
   "Siempre la última versión — y su autor",
   "Lo que se decide y lo que se hace se da de alta, siempre",
   "Tu identidad se comprueba en tu sesión, no se copia del censo",
+  "A un consejero se le enseña con guiones, no con vídeos",
+  "Cada cierre declara sus puntos y el total verificado",
 ];
 
 const bloque = source.slice(
