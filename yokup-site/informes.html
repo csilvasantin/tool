@@ -408,7 +408,19 @@ function puntosHTML(t){
   const tit=delta===null
     ? `Total del agente al cerrar: ${b} puntos · sin punto de partida registrado`
     : `Antes ${a} · después ${b} · aportación de este encargo: ${signo}${delta}`;
-  return `<div class="pts ${cls}" title="${esc(tit)}"><b>${esc(txt)}</b><span>${esc(String(b))} total</span></div>`;
+  return `<div class="pts ${cls}" title="${esc(tit)}"><b>${esc(txt)}</b><span>${esc(String(b))} total${dedicadoTxt(t)}</span></div>`;
+}
+
+// El tiempo dedicado ya se pintaba en su columna, pero no formaba parte del
+// RESULTADO: un informe leido fuera de la tabla —el PDF, un resumen en
+// Telegram— decia cuanto valio y no cuanto costo. Puntos y tiempo juntos son
+// lo que de verdad mide la productividad (Carlos, 8-ago-2026).
+// Solo cuenta el trabajo TERMINADO: mientras esta en curso el reloj sigue
+// corriendo y un "llevo 3m" no es tiempo dedicado, es una foto a medias.
+function dedicadoTxt(t){
+  const ini=_ms(t.mission_created), fin=_ms(t.mission_resolved);
+  if(!ini||!fin||fin<ini) return "";
+  return " · " + durTxt(ini,fin);
 }
 const SORT_COLUMNS=[
   ["agente","Agente"],["mision","Misión"],["proceso","Proceso"],["captura","Resultado"],

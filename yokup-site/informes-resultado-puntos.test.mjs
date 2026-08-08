@@ -27,3 +27,13 @@ test("sin datos no se inventa un cero", () => {
   assert.match(html, /if\(!Number\.isFinite\(b\)\) return "";/);
   assert.match(html, /sin punto de partida registrado/);
 });
+
+test("el resultado dice también cuánto costó, no sólo cuánto valió", () => {
+  // Carlos, 8-ago-2026: «hay que poner además de los puntos de la misión y el
+  // total verificado, el tiempo dedicado». Puntos y tiempo juntos son lo que
+  // mide la productividad; por separado, cada uno cuenta media historia.
+  assert.match(html, /function dedicadoTxt\(t\)/);
+  assert.match(html, /\$\{dedicadoTxt\(t\)\}/, "el tiempo va dentro del bloque de resultado");
+  assert.match(html, /if\(!ini\|\|!fin\|\|fin<ini\) return "";/,
+    "en curso no se declara tiempo dedicado: el reloj aún corre");
+});
