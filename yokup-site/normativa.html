@@ -82,6 +82,16 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
         Neo en el Mac Mini es <b>NeoMacMini</b>, no NeoMini. Misma razón por la que el Pro 16 es
         MBP16 y no 16: un apellido a medias deja de nombrar la máquina.
         <i>(Carlos, 4 de agosto de 2026; hasta el día 3 el diccionario decía «Mini».)</i></p>
+      <p>El nombre del <b>equipo</b> obedece a la misma lógica que el apellido: distingue el modelo y
+        el tamaño, no el color. El canónico es <b>MacBookPro14</b>, sin «Negro», porque en la flota
+        conviven MacBookPro14, MacBookPro16 y MacBookAir16 y ahí el color no desempata nada.
+        <code>MBP14</code>, <code>macbookpro14</code>, <code>macbookpro14negro</code> y
+        <code>MacBookProNegro14</code> son <b>la misma máquina</b>: se normalizan antes de compararlas
+        y jamás se cotejan como literales — el día que se comparan en crudo, un equipo se parte en dos
+        filas. Donde el espacio manda —el ranking del Highscore, los chips, las tablas estrechas— se
+        pinta el <b>alias corto del diccionario</b> y nunca la forma larga cortada a mitad:
+        «MacBookProNegro…» no nombra ninguna máquina.
+        <i>(Carlos, 8 de agosto de 2026.)</i></p>
       <table aria-label="Cómo se escribe el apellido">
           <thead><tr><th>Así no</th><th>Por qué no</th><th>Así sí</th></tr></thead>
           <tbody>
@@ -91,6 +101,8 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
             <tr><td>NeoMini</td><td>El apellido no se abrevia</td><td>NeoMacMini</td></tr>
             <tr><td>Morfeo14</td><td>Un número no dice Pro ni Air</td><td>MorfeoMBP14</td></tr>
             <tr><td>Agente Smith Azul</td><td>Apodo, no apellido</td><td>SmithMBAAzul</td></tr>
+            <tr><td>MacBookProNegro14</td><td>El color no distingue equipos</td><td>MacBookPro14</td></tr>
+            <tr><td>MacBookProNegro… (cortado)</td><td>Un nombre a medias no nombra</td><td>MBP14</td></tr>
           </tbody>
         </table>
       <p>Lo mismo vale para el bot que lo transporta: <code>@ClaudeAdmiraNextBot</code> es el canal,
@@ -600,7 +612,36 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     </div>
   </section>
 
-  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.08.08.2026.r7.13:22 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
+  <section class="rule">
+    <div class="num">20</div>
+    <div>
+      <h2>App de escritorio solo donde hay un humano; el resto, CLI</h2>
+      <p>Una app de escritorio se reserva para lo que <b>une carbono y silicio</b>: ahi donde una
+      persona se sienta a trabajar <b>con</b> el agente &mdash; hoy <b>Claude Code</b> y <b>Codex</b>.
+      <b>Todo lo demas va en CLI</b>, y <b>Grok va siempre en CLI</b>, en todos los equipos.</p>
+      <div class="formula">humano delante &rarr; app de escritorio &middot; agente solo &rarr; CLI que se lanza y se mata</div>
+      <p>No es una preferencia estetica: es <b>la mejor forma de trabajar en multiagente</b>. Un CLI se
+      lanza cuando hay trabajo, hace lo suyo y se cierra. No se queda residente comiendo memoria, no
+      se cuelga esperando, no hay que vigilarlo y no ocupa la pantalla de nadie. Una app de escritorio
+      pide sitio y atencion aunque no este haciendo nada, y eso solo compensa cuando hay una persona
+      mirando.</p>
+      <table aria-label="Que runtime corresponde a cada agente">
+        <thead><tr><th>Caso</th><th>Runtime</th><th>Por que</th></tr></thead>
+        <tbody>
+          <tr><td>Carlos trabaja CON el agente</td><td>App de escritorio (Claude Code, Codex)</td><td>Es una conversacion, no una ejecucion</td></tr>
+          <tr><td>Agente ejecutando por su cuenta</td><td>CLI</td><td>Se invoca, entrega y se cierra</td></tr>
+          <tr><td>Grok &middot; Smith</td><td><b>Siempre CLI</b></td><td>En todos los equipos, sin excepcion</td></tr>
+          <tr><td>Trabajo programado o remoto</td><td>CLI</td><td>No hay nadie delante a quien enseñar una ventana</td></tr>
+        </tbody>
+      </table>
+      <p><b>Corolario:</b> un agente CLI <b>no necesita un buzon escuchando siempre</b>: lo invoca su
+      supervisor cuando hay trabajo para el. Buscar a un agente CLI en la lista de procesos y concluir
+      que &laquo;no esta corriendo&raquo; es leerlo al reves &mdash; <b>no tiene por que estarlo</b>.
+      Decision de Carlos, 08-08-2026.</p>
+    </div>
+  </section>
+
+  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.08.08.2026.r11.14:04 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
 </main>
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script>

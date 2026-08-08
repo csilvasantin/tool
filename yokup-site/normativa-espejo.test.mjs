@@ -35,6 +35,7 @@ const REGLAS = [
   "Cada cierre declara sus puntos y el total verificado",
   "Introducirse: el día empieza dándose de alta",
   "Dos Xpacios, un origen y responsabilidades distintas",
+  "App de escritorio solo donde hay un humano; el resto, CLI",
 ];
 
 const bloque = source.slice(
