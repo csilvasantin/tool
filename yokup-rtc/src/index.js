@@ -4566,7 +4566,7 @@ async function fleetMissions(env) {
   const { results } = await env.DB.prepare(
     // project_inherited va al final por el mismo motivo que en los INSERT: hay un
     // contrato de forma en projects.test.mjs sobre el prefijo de este SELECT.
-    "SELECT id,screen,subject,loc,project,project_id,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,live_kind,live_surface,live_context,created_at,updated_at,note,parent_id,project_inherited,project_inherited_from FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
+    "SELECT id,screen,subject,loc,project,project_id,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,live_kind,live_surface,live_context,created_at,updated_at,note,parent_id,project_inherited,project_inherited_from,points_start,points_end FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
   ).all();
   const rows = results || [];
   if (!rows.length) return [];
