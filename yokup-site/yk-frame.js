@@ -212,7 +212,11 @@
     ["INFORMES",    "/informes"],
     // FLT-1020: un diálogo del sistema en cualquier equipo lo deja PARADO. Va en la
     // barra para que se vea desde cualquier página, no sólo si entras a buscarlo.
-    ["NOTIFICACIONES", "/notificaciones"]
+    ["NOTIFICACIONES", "/notificaciones"],
+    // FLT-1321 (Carlos, 2026-08-08): el Highscore es la foto de cómo va la flota y
+    // sólo se alcanzaba desde el raíl AVANZADO, que hay que abrir para verlo. A la
+    // derecha de NOTIFICACIONES y en todas las páginas de la plataforma.
+    ["HIGHSCORE",   "/highscore"]
   ];
 
   // Secciones con CONTADOR real «curso/pend» en la barra (Carlos, 2026-07-23):

@@ -427,13 +427,18 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .agent-scope-row:hover,.agent-scope-row:focus-within{border-color:var(--brand);color:var(--ink);background:rgba(120,243,255,.08)}
 .agent-scope-row.all{border-color:rgba(255,216,102,.25);color:var(--accent);font-weight:900}
 .agent-scope-group{display:grid;min-width:0;margin:0;padding:0;border:0;gap:4px}
-.agent-scope-row.team{grid-template-columns:minmax(0,1fr) auto;padding:0;border-color:rgba(120,243,255,.24);color:var(--ink);
+.agent-scope-row.team{grid-template-columns:auto minmax(0,1fr);padding:0;border-color:rgba(120,243,255,.24);color:var(--ink);
   background:rgba(120,243,255,.08);font-weight:900}
-.agent-scope-team-select{display:grid;grid-template-columns:16px minmax(0,1fr) auto;align-items:center;gap:7px;min-width:0;
-  min-height:28px;padding:5px 3px 5px 7px;cursor:pointer}
-.agent-scope-team-toggle{appearance:none;display:grid;place-items:center;width:27px;align-self:stretch;padding:0;border:0;
-  border-left:1px solid rgba(120,243,255,.14);background:transparent;color:var(--brand);font:900 12px/1 var(--mono);cursor:pointer}
-.agent-scope-team-toggle::before{content:"▸"}.agent-scope-team-toggle[aria-expanded="true"]::before{content:"▾"}
+/* La casilla SELECCIONA; el resto de la fila ABRE. Antes el desplegable vivía
+   solo en el triangulito de 27px de la esquina: había que apuntar a un blanco
+   diminuto para ver los agentes de una máquina (Carlos, 2026-08-08). */
+.agent-scope-team-select{display:grid;place-items:center;align-self:stretch;width:23px;min-height:28px;
+  padding:5px 0 5px 7px;cursor:pointer}
+.agent-scope-team-toggle{appearance:none;display:grid;grid-template-columns:minmax(0,1fr) auto 12px;align-items:center;gap:7px;
+  min-width:0;align-self:stretch;min-height:28px;padding:5px 8px 5px 7px;border:0;border-left:1px solid rgba(120,243,255,.14);
+  background:transparent;color:inherit;font:900 9.5px/1.2 var(--mono);letter-spacing:inherit;text-align:left;cursor:pointer}
+.agent-scope-team-toggle::after{content:"▸";color:var(--brand);font-size:12px;text-align:center}
+.agent-scope-team-toggle[aria-expanded="true"]::after{content:"▾"}
 .agent-scope-team-toggle:hover,.agent-scope-team-toggle:focus-visible{background:rgba(120,243,255,.12);outline:1px solid var(--brand);outline-offset:-1px}
 .agent-scope-team-count{min-width:20px;padding:1px 5px;border:1px solid var(--line);border-radius:999px;color:var(--dim);
   font-size:8px;text-align:center}
@@ -591,7 +596,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
 <section class="cli-ctl" data-yk-slot="right" id="cliControl" aria-labelledby="cliCtlTitle">
   <div class="cli-ctl-head"><span id="cliCtlTitle">Control de CLIs</span><span class="cli-ctl-count" id="cliCtlCount">…</span></div>
-  <p class="cli-ctl-help">Cada CLI, con su ordenador y su estado. Arráncalo o mátalo desde aquí: la orden se encola y la máquina la recoge en su siguiente ciclo, cada 20 segundos.</p>
+  <p class="cli-ctl-help">Por cada ordenador del grupo: la <strong>sesión de terminal</strong> (activar o desactivar) y los <strong>CLIs</strong> que viven dentro (arrancar o matar). La orden se encola y la máquina la recoge en su siguiente ciclo, cada 20 segundos.</p>
   <div class="cli-ctl-list" id="cliCtlList" aria-live="polite"><div class="cli-ctl-empty">Cargando CLIs…</div></div>
   <p class="cli-ctl-status" id="cliCtlStatus" role="status" aria-live="polite" aria-atomic="true"></p>
 </section>
@@ -2007,10 +2012,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
           group.items.filter(function (item) { return AGENT_SCOPE.has(item.key); }).length;
         return '<fieldset class="agent-scope-group" data-agent-scope-group="' + esc(group.key) + '"><legend class="sr-only">Equipo físico ' + esc(group.label) + '</legend>' +
           '<div class="agent-scope-row team"><label class="agent-scope-team-select"><input type="checkbox" data-agent-scope-team value="' + esc(group.key) + '"' +
-          (groupSelected === group.items.length ? ' checked' : '') + ' aria-label="Seleccionar agentes de ' + esc(group.label) + '">' +
-          '<span class="agent-scope-label" id="' + groupId + '">' + esc(group.label) + '</span><span class="agent-scope-team-count" aria-hidden="true">' + group.items.length + '</span></label>' +
+          (groupSelected === group.items.length ? ' checked' : '') + ' aria-label="Seleccionar agentes de ' + esc(group.label) + '"></label>' +
           '<button class="agent-scope-team-toggle" type="button" data-agent-scope-toggle="' + esc(group.key) + '" aria-controls="' + childrenId + '" aria-expanded="' + groupOpen + '" aria-label="' +
-          (groupOpen ? 'Compactar agentes de ' : 'Mostrar agentes de ') + esc(group.label) + '"></button></div>' +
+          (groupOpen ? 'Compactar agentes de ' : 'Mostrar agentes de ') + esc(group.label) + '">' +
+          '<span class="agent-scope-label" id="' + groupId + '">' + esc(group.label) + '</span>' +
+          '<span class="agent-scope-team-count" aria-hidden="true">' + group.items.length + '</span></button></div>' +
           '<div class="agent-scope-children" id="' + childrenId + '"' + (groupOpen ? '' : ' hidden') + '>' + group.items.map(function (item) {
             return '<div class="agent-scope-row agent"><label class="agent-scope-primary"><input type="checkbox" data-agent-scope-item value="' + esc(item.key) + '"' +
               (AGENT_SCOPE === null || AGENT_SCOPE.has(item.key) ? ' checked' : '') + '><span class="agent-scope-label" title="' + esc(item.label) + '">' + esc(item.label) + '</span></label>' +
@@ -2263,8 +2269,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
        · «vivo»         → su ordenador late y confirma que el proceso corre.
        · «parado»       → su ordenador late y confirma que NO corre. Es un HECHO.
        · «sin noticias» → nadie late en ese ordenador. Es IGNORANCIA: el CLI
-                          podría estar corriendo sin que nos enteremos (hoy le
-                          pasa al MacBookPro14, que aún no tiene ejecutor).
+                          podría estar corriendo sin que nos enteremos (le pasa a
+                          toda máquina del grupo sin ejecutor instalado).
      Pintar los dos últimos igual llevaría a «arrancar» algo que ya está en
      marcha, así que cada uno lleva color, icono, rótulo y title distintos, y el
      arranque a ciegas pide confirmación explícita.
@@ -2283,24 +2289,44 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return normaliza(item && item.machine) + "|" + normaliza(item && item.cli);
   }
 
+  /* Una SESIÓN de terminal se activa y se desactiva; un CLI se arranca y se mata.
+     Usar los mismos verbos para las dos cosas era lo que hacía ilegible el panel
+     (Carlos, 2026-08-08): «matar» una sesión vacía no significa nada. El worker
+     manda el `kind` en cada item del censo; si falta, se lee como CLI, que es lo
+     que era todo antes de FLT-1322. */
+  function hsCliVerbos(item) {
+    if (normaliza(item && item.kind).toLowerCase() === "session") return {
+      cosa:"la sesión", arranca:"▶ Activar", mata:"■ Desactivar", ciega:"▶ Activar a ciegas",
+      vivo:"Activa", parado:"Inactiva", corre:"está abierta", noCorre:"NO está abierta",
+      ariaMata:"Desactivar ", ariaArranca:"Activar "
+    };
+    return {
+      cosa:"el CLI", arranca:"▶ Arrancar", mata:"■ Matar", ciega:"▶ Arrancar a ciegas",
+      vivo:"Vivo", parado:"Parado", corre:"está corriendo", noCorre:"NO está corriendo",
+      ariaMata:"Matar ", ariaArranca:"Arrancar "
+    };
+  }
+
   function hsCliEstado(item) {
     var estado = normaliza(item && item.state).toLowerCase(), maquina = normaliza(item && item.machine) || "ese ordenador";
+    var v = hsCliVerbos(item), Cosa = v.cosa.charAt(0).toUpperCase() + v.cosa.slice(1);
     if (estado === "vivo") return {
-      clave:"vivo", tono:"viva", punto:"●", etiqueta:"Vivo",
-      titulo:"Vivo: " + maquina + " late y confirma que el CLI está corriendo" +
+      clave:"vivo", tono:"viva", punto:"●", etiqueta:v.vivo,
+      titulo:v.vivo + ": " + maquina + " late y confirma que " + v.cosa + " " + v.corre +
         (item && item.pid ? " (PID " + normaliza(item.pid) + ")" : "") + ".",
-      accion:"stop", accionEtiqueta:"■ Matar", ciego:false
+      accion:"stop", accionEtiqueta:v.mata, ciego:false
     };
     if (estado === "parado") return {
-      clave:"parado", tono:"parada", punto:"○", etiqueta:"Parado",
-      titulo:"Parado: " + maquina + " late y confirma que el CLI NO está corriendo. Es un hecho comprobado, no una suposición.",
-      accion:"start", accionEtiqueta:"▶ Arrancar", ciego:false
+      clave:"parado", tono:"parada", punto:"○", etiqueta:v.parado,
+      titulo:v.parado + ": " + maquina + " late y confirma que " + v.cosa + " " + v.noCorre + ". Es un hecho comprobado, no una suposición.",
+      accion:"start", accionEtiqueta:v.arranca, ciego:false
     };
     return {
       clave:"sin noticias", tono:"muda", punto:"?", etiqueta:"Sin noticias",
-      titulo:"Sin noticias: nadie late en " + maquina + ", así que NO sabemos si el CLI corre. " +
-        "No es lo mismo que estar parado: podría estar en marcha y no enterarnos.",
-      accion:"start", accionEtiqueta:"▶ Arrancar a ciegas", ciego:true
+      titulo:"Sin noticias: nadie late en " + maquina + ", así que NO sabemos si " + v.cosa + " corre. " +
+        "No es lo mismo que estar parado: podría estar en marcha y no enterarnos." +
+        " (" + Cosa + " sigue ahí; lo que falta es el ejecutor que lo cuente.)",
+      accion:"start", accionEtiqueta:v.ciega, ciego:true
     };
   }
 
@@ -2322,15 +2348,19 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function hsCliAccionAria(item, estado) {
     var etiqueta = normaliza(item && item.label) || normaliza(item && item.cli), maquina = normaliza(item && item.machine);
-    if (estado.accion === "stop") return "Matar " + etiqueta + " en " + maquina + ", que ahora está vivo";
-    if (estado.ciego) return "Arrancar " + etiqueta + " en " + maquina + ", del que no hay noticias: nadie late allí y no se sabe si ya está corriendo";
-    return "Arrancar " + etiqueta + " en " + maquina + ", que ahora está parado";
+    var v = hsCliVerbos(item);
+    if (estado.accion === "stop") return v.ariaMata + etiqueta + " en " + maquina + ", que ahora está " + v.vivo.toLowerCase();
+    if (estado.ciego) return v.ariaArranca + etiqueta + " en " + maquina + ", del que no hay noticias: nadie late allí y no se sabe si ya está corriendo";
+    return v.ariaArranca + etiqueta + " en " + maquina + ", que ahora está " + v.parado.toLowerCase();
   }
 
-  function hsCliEsperaTexto(espera) {
+  function hsCliEsperaTexto(espera, item) {
     var segundos = Math.max(0, Math.round((Date.now() - (espera && espera.desde || 0)) / 1000));
-    return (espera && espera.accion === "stop" ? "Orden de matar enviada" : "Orden de arranque enviada") +
-      ", esperando a la máquina… " + segundos + " s (su ciclo pasa cada " + CLI_CICLO_SEG + " s)";
+    var sesion = normaliza(item && item.kind).toLowerCase() === "session";
+    var enviada = espera && espera.accion === "stop"
+      ? (sesion ? "Orden de desactivar enviada" : "Orden de matar enviada")
+      : (sesion ? "Orden de activar enviada" : "Orden de arranque enviada");
+    return enviada + ", esperando a la máquina… " + segundos + " s (su ciclo pasa cada " + CLI_CICLO_SEG + " s)";
   }
 
   function hsCliFila(item) {
@@ -2346,7 +2376,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       ' data-cli-nombre="' + esc(normaliza(item && item.cli)) + '" data-cli-ciego="' + (estado.ciego ? "1" : "0") + '"' +
       ' title="' + esc(estado.titulo) + '" aria-label="' + esc(hsCliAccionAria(item, estado)) + '">' +
       esc(estado.accionEtiqueta) + '</button>' +
-      (espera ? '<p class="cli-ctl-wait">' + esc(hsCliEsperaTexto(espera)) + '</p>' : "") +
+      (espera ? '<p class="cli-ctl-wait">' + esc(hsCliEsperaTexto(espera, item)) + '</p>' : "") +
       '</div>';
   }
 

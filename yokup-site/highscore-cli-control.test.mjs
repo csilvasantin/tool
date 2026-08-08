@@ -29,7 +29,7 @@ function functionSource(name){
 function cliApi(){
   // `esc` no se extrae: su regex lleva comillas y despista al lector de llaves.
   // Se replica su escape exacto, que es lo único que necesita el render.
-  const funciones=["normaliza","hsCliKey","hsCliEstado","hsCliGrupos","hsCliAccionAria","hsCliEsperaTexto","hsCliFila"]
+  const funciones=["normaliza","hsCliKey","hsCliVerbos","hsCliEstado","hsCliGrupos","hsCliAccionAria","hsCliEsperaTexto","hsCliFila"]
     .map(functionSource).join("\n");
   return new Function(`
     var CLI_CICLO_SEG=20,CLI_PENDIENTES={};
@@ -150,4 +150,51 @@ test("un 401 dice que hace falta iniciar sesión, y un 403 que el CLI no está e
   assert.match(orden,/hsCliMensaje\(normaliza\(e && e\.message\) \|\| "No se pudo enviar la orden", true\)/);
   assert.match(source,/id="cliCtlStatus" role="status" aria-live="polite"/);
   assert.match(source,/\.cli-ctl-status\.error\{color:var\(--warn\)\}/);
+});
+
+// FLT-1322 (Carlos, 2026-08-08): el panel se había centrado en OpenCode. Ahora cada
+// ordenador ofrece su SESIÓN de terminal y los CLIs que viven dentro, y cada familia
+// habla con sus verbos: una sesión se activa y se desactiva, un CLI se arranca y se mata.
+const SESION={cli:"terminal",kind:"session",label:"Sesión de terminal",machine:"MacBookAir16plata",
+  alive:true,pid:4242,seen_at:1786198000000,state:"vivo"};
+const GROK={cli:"grok",kind:"cli",label:"Grok · CLI",machine:"MacBookPro14",
+  alive:false,pid:null,seen_at:1786198000000,state:"parado"};
+
+test("una sesión de terminal se activa y se desactiva; un CLI se arranca y se mata",()=>{
+  const api=cliApi();
+  const viva=api.estado(SESION),inactiva=api.estado({...SESION,alive:false,pid:null,state:"parado"});
+  assert.equal(viva.accionEtiqueta,"■ Desactivar");
+  assert.equal(viva.etiqueta,"Activa");
+  assert.match(viva.titulo,/late y confirma que la sesión está abierta/);
+  assert.equal(inactiva.accionEtiqueta,"▶ Activar");
+  assert.equal(inactiva.etiqueta,"Inactiva");
+  assert.match(inactiva.titulo,/la sesión NO está abierta/);
+  assert.equal(api.aria(SESION,viva),"Desactivar Sesión de terminal en MacBookAir16plata, que ahora está activa");
+
+  // La familia CLI conserva los verbos de siempre: cambiarlos rompería el hábito.
+  const grok=api.estado(GROK);
+  assert.equal(grok.accionEtiqueta,"▶ Arrancar");
+  assert.equal(api.aria(GROK,grok),"Arrancar Grok · CLI en MacBookPro14, que ahora está parado");
+
+  // Un item sin `kind` (censo viejo) se lee como CLI, no como sesión.
+  assert.equal(api.estado(VIVO).accionEtiqueta,"■ Matar");
+
+  // La acción que viaja al worker es la misma para las dos familias: start/stop.
+  assert.equal(viva.accion,"stop");
+  assert.equal(inactiva.accion,"start");
+});
+
+test("la espera también habla el idioma de cada familia",()=>{
+  const api=cliApi(),desde=Date.now();
+  assert.match(api.espera({accion:"stop",desde},SESION),/^Orden de desactivar enviada/);
+  assert.match(api.espera({accion:"start",desde},SESION),/^Orden de activar enviada/);
+  assert.match(api.espera({accion:"stop",desde},GROK),/^Orden de matar enviada/);
+  assert.match(api.espera({accion:"start",desde},GROK),/^Orden de arranque enviada/);
+});
+
+test("la ayuda del panel nombra la sesión de terminal y los CLIs, no un producto concreto",()=>{
+  const ayuda=source.slice(source.indexOf('<p class="cli-ctl-help">'),source.indexOf("</p>",source.indexOf('<p class="cli-ctl-help">')));
+  assert.match(ayuda,/sesión de terminal/i);
+  assert.match(ayuda,/CLIs/);
+  assert.doesNotMatch(ayuda,/OpenCode/i);
 });

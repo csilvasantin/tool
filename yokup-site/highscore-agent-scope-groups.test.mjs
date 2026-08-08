@@ -136,3 +136,19 @@ test("los equipos arrancan compactados y conservan su apertura solo durante la v
   assert.match(source,/AGENT_SCOPE_OPEN_TEAMS\.delete\(team\)/);
   assert.match(source,/\.agent-scope-children\[hidden\]\{display:none\}/);
 });
+
+// FLT-1320 (Carlos, 2026-08-08): el desplegable vivía sólo en el triangulito de la
+// esquina. Ahora abre TODA la fila del ordenador; la casilla se queda con lo suyo,
+// que es seleccionar, y por eso deja de envolver al nombre.
+test("toda la fila del ordenador abre el desplegable, y la casilla sólo selecciona",()=>{
+  assert.match(source,/<label class="agent-scope-team-select"><input type="checkbox" data-agent-scope-team[^>]*><\/label>/,
+    "la casilla ya no envuelve el nombre: al pulsar el nombre se abriría la selección, no el desplegable");
+  const boton=source.slice(source.indexOf('<button class="agent-scope-team-toggle"'),
+    source.indexOf("</button>",source.indexOf('<button class="agent-scope-team-toggle"')));
+  assert.match(boton,/agent-scope-label/,"el nombre del ordenador va DENTRO del botón que despliega");
+  assert.match(boton,/agent-scope-team-count/,"y el recuento también, para que toda la fila sea diana");
+  assert.match(source,/\.agent-scope-row\.team\{grid-template-columns:auto minmax\(0,1fr\)/);
+  assert.match(source,/\.agent-scope-team-toggle\{[^}]*text-align:left/);
+  assert.match(source,/\.agent-scope-team-toggle::after\{content:"▸"/);
+  assert.match(source,/\.agent-scope-team-toggle\[aria-expanded="true"\]::after\{content:"▾"\}/);
+});

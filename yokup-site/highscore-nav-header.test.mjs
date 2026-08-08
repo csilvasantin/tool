@@ -51,7 +51,8 @@ test("las demás rutas conservan HIGHSCORE antes de NORMATIVA y sus opciones sup
   assert.match(nav.children[0].innerHTML,/HIGHSCORE/);
   assert.match(nav.children[1].innerHTML,/NORMATIVA/);
 
-  const expected=["DASHBOARD","OBJETIVOS","DECISIONES","MISIONES","TAREAS","INCIDENCIAS","INFORMES","NOTIFICACIONES"];
+  // HIGHSCORE cierra la barra, justo a la derecha de NOTIFICACIONES (Carlos, 2026-08-08).
+  const expected=["DASHBOARD","OBJETIVOS","DECISIONES","MISIONES","TAREAS","INCIDENCIAS","INFORMES","NOTIFICACIONES","HIGHSCORE"];
   const block=frame.slice(frame.indexOf("var APP_NAV = ["),frame.indexOf("var COUNTER_KEY"));
   const actual=[...block.matchAll(/\["([A-ZÁÉÍÓÚ]+)",\s+"\/[^"]+"\]/g)].map(match=>match[1]);
   assert.deepEqual(actual,expected);

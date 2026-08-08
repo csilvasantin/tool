@@ -5016,12 +5016,25 @@ async function puntosDeAgenteAhora(env, agente) {
 __name(puntosDeAgenteAhora, "puntosDeAgenteAhora");
 
 // Lista BLANCA de CLIs controlables. Arrancar procesos desde una web solo puede
-// hacerse sobre lo que esta escrito aqui: nunca un comando libre. Empezamos por
-// Grok/Smith en los dos equipos que pidio Carlos (8-ago-2026).
-var CLI_CATALOGO = [
-  { cli:"smith-grok", label:"Smith · Grok (OpenCode)", machine:"MacBookAir16plata" },
-  { cli:"smith-grok", label:"Smith · Grok (OpenCode)", machine:"MacBookPro14" }
+// hacerse sobre lo que esta escrito aqui: nunca un comando libre.
+//
+// El catalogo nacio (8-ago-2026) con una sola entrada, "Smith · Grok (OpenCode)",
+// y Carlos lo corrigio ese mismo dia: el panel se habia centrado en OpenCode, que
+// no es la sesion de terminal que el queria manejar. Lo que se enciende y se apaga
+// desde aqui son DOS cosas por ordenador — la SESION de terminal y el CLI de Grok
+// que vive dentro de ella — y en cualquier equipo del grupo, no solo en dos.
+//
+// `kind` no es decorativo: manda los verbos de la interfaz. Una sesion se ACTIVA y
+// se DESACTIVA; un CLI se ARRANCA y se MATA. Decir "matar" de una sesion vacia, o
+// "activar" de un proceso, es lo que hacia que el panel se leyera mal.
+var CLI_MAQUINAS = ["MacBookAir16plata", "MacBookPro14", "MacMini"];
+var CLI_TIPOS = [
+  { cli:"terminal",   kind:"session", label:"Sesión de terminal" },
+  { cli:"grok",       kind:"cli",     label:"Grok · CLI" },
+  { cli:"smith-grok", kind:"app",     label:"Smith · OpenCode" }
 ];
+var CLI_CATALOGO = CLI_MAQUINAS.flatMap((machine) =>
+  CLI_TIPOS.map((tipo) => ({ cli:tipo.cli, kind:tipo.kind, label:tipo.label, machine })));
 function cliPermitido(machine, cli) {
   const m = String(machine || "").trim().toLowerCase(), c = String(cli || "").trim();
   return CLI_CATALOGO.some((e) => e.machine.toLowerCase() === m && e.cli === c);
@@ -6135,7 +6148,7 @@ var index_default = {
         // Un latido viejo no dice que este apagado: dice que no se sabe. Son
         // cosas distintas y confundirlas haria "arrancar" algo que ya corre.
         const fresco = st && (ahora - Number(st.seen_at || 0)) < 90 * 1000;
-        return { cli:e.cli, label:e.label, machine:e.machine,
+        return { cli:e.cli, label:e.label, machine:e.machine, kind:e.kind || "cli",
                  alive: fresco ? !!st.alive : null,
                  pid: fresco ? (st.pid || null) : null,
                  seen_at: st ? Number(st.seen_at) : null,
