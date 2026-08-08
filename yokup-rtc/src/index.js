@@ -5445,7 +5445,7 @@ var index_default = {
         if (img) {
           await env.DB.prepare(
             "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,live_shot=?,live_at=?,live_kind=?,live_surface=?,live_context=?,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
-          ).bind(img, capturedAt, liveKind, captureSurface, captureContext, await puntosDeAgenteAhora(env, actor.actor || t.assignee), now, mid).run();
+          ).bind(img, capturedAt, liveKind, captureSurface, captureContext, await puntosDeAgenteAhora(env, t.assignee || actor.actor), now, mid).run();
         // Red de seguridad del sello de SALIDA: las misiones nacen ya con
         // points_start (fleetSync), pero las creadas por otras vias o antes de ese
         // cambio llegan aqui sin el. Va con COALESCE en las DOS ramas, con captura
@@ -5456,7 +5456,7 @@ var index_default = {
         } else {
           await env.DB.prepare(
             "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
-          ).bind(await puntosDeAgenteAhora(env, actor.actor || t.assignee), now, mid).run();
+          ).bind(await puntosDeAgenteAhora(env, t.assignee || actor.actor), now, mid).run();
         }
         // Telegram es un espejo completo de la misión: el usuario ve el avance y
         // la captura sin tener que abrir YOKUP.
@@ -5714,7 +5714,7 @@ var index_default = {
       // el mismo cierre. points_start se rellena aqui tambien por si la mision se cerro
       // sin haber pasado por /fleet/progress: mejor un "antes" igual al "despues"
       // -diferencia 0, honesta- que un hueco que el informe no sabria explicar.
-      const puntosCierre = await puntosDeAgenteAhora(env, actor.actor || t.assignee);
+      const puntosCierre = await puntosDeAgenteAhora(env, t.assignee || actor.actor);
       if (t.status === "resolved") {
         const previous = await env.DB.prepare("SELECT owner,report,image,image_kind FROM mission_tasks WHERE mission_id=? AND code='z1'").bind(mid).first();
         const repairStandalone = t.role === "standalone-task" && !previous &&
