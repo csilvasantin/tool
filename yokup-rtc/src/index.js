@@ -325,6 +325,12 @@ async function applySchema(env) {
   // hoy quedan con parent_id NULL y se ven EXACTELY igual que antes. Solo cuelga
   // quien se enganche a una madre por /fleet/parent.
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN parent_id TEXT").catch(() => {});
+  // Puntos del agente ANTES y DESPUES del encargo (Carlos, 8-ago-2026). El informe
+  // decia QUE se hizo; con estos dos numeros dice CUANTO produjo. La regla 17 ya
+  // pedia declarar puntos al cerrar, pero sin punto de partida no se sabe cuanto
+  // aporto ESE trabajo: 680 puntos no dicen nada si no sabes que empezaste en 640.
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN points_start INTEGER").catch(() => {});
+  await env.DB.exec("ALTER TABLE tickets ADD COLUMN points_end INTEGER").catch(() => {});
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_tickets_parent ON tickets(parent_id)").catch(() => {});
   // REPARTO DE IDS DE FLOTA A PRUEBA DE COLISIONES (FLT-990 a2). Mapea el rowid del
   // encargo del bot-inbox al mission_id que se le repartió, para que sea ESTABLE
@@ -3109,7 +3115,8 @@ async function listAllMissionTasks(env, scope) {
             -- y la columna Proceso conserva su comportamiento de siempre.
             i.source_image AS idea_image, i.source_url AS idea_url, i.id AS idea_id,
             t.status AS mission_status, t.created_at AS mission_created,
-            t.resolved_at AS mission_resolved, t.proof_image AS mission_proof
+            t.resolved_at AS mission_resolved, t.proof_image AS mission_proof,
+            t.points_start AS points_start, t.points_end AS points_end
        FROM mission_tasks m JOIN tickets t ON t.id = m.mission_id
        LEFT JOIN ideas i ON i.mission_id = t.id AND COALESCE(i.source_image,'') <> ''
        ${where}
@@ -3171,7 +3178,8 @@ async function listMissionReportsPage(env, scope, options) {
       CASE WHEN t.live_kind='process' THEN t.live_shot ELSE NULL END AS process_image,
       CASE WHEN t.live_kind='process' THEN t.live_at ELSE NULL END AS process_captured_at,
       i.source_image AS idea_image, i.source_url AS idea_url, i.id AS idea_id,
-      t.status AS mission_status,t.created_at AS mission_created,t.resolved_at AS mission_resolved,t.proof_image AS mission_proof
+      t.status AS mission_status,t.created_at AS mission_created,t.resolved_at AS mission_resolved,t.proof_image AS mission_proof,
+      t.points_start AS points_start,t.points_end AS points_end
     FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id
     LEFT JOIN ideas i ON i.mission_id = t.id AND COALESCE(i.source_image,'') <> ''
     WHERE ${filter.page_sql}
@@ -4981,6 +4989,24 @@ async function highscoreHourlyTrend(env, current, ahora) {
 }
 __name(highscoreHourlyTrend, "highscoreHourlyTrend");
 
+// Puntos que lleva HOY un agente, del mismo calculo que pinta yokup.com/highscore.
+// Se lee de la fuente viva y no se cachea: un total de hace una hora convertiria la
+// diferencia en ruido. Si el Highscore no responde se devuelve null y quien llame
+// declara "no confirmado" — nunca un 0, que se leeria como "no produjo nada".
+async function puntosDeAgenteAhora(env, agente) {
+  const nombre = String(agente || "").trim();
+  if (!nombre) return null;
+  try {
+    const daily = await highscoreDaily(env);
+    const filas = (daily && daily.scores) || [];
+    const fila = filas.find((f) => agentIdentityKey(String(f.agent || "")) === agentIdentityKey(nombre));
+    if (!fila) return 0;
+    return ["objective_points", "window_points", "mission_points", "task_points", "points"]
+      .reduce((suma, k) => suma + (Number(fila[k]) || 0), 0);
+  } catch (e) { return null; }
+}
+__name(puntosDeAgenteAhora, "puntosDeAgenteAhora");
+
 async function highscoreDaily(env) {
   const ahora = Date.now(), inicio = madridDayStart(ahora), fin = madridDayStart(inicio + 36 * 60 * 60 * 1e3);
   const acc = /* @__PURE__ */ new Map();
@@ -5357,8 +5383,8 @@ var index_default = {
         const now = Date.now();
         if (img) {
           await env.DB.prepare(
-            "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,live_shot=?,live_at=?,live_kind=?,live_surface=?,live_context=?,updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
-          ).bind(img, capturedAt, liveKind, captureSurface, captureContext, now, mid).run();
+            "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,live_shot=?,live_at=?,live_kind=?,live_surface=?,live_context=?,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
+          ).bind(img, capturedAt, liveKind, captureSurface, captureContext, await puntosDeAgenteAhora(env, actor.actor || t.assignee), now, mid).run();
         } else {
           await env.DB.prepare(
             "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
@@ -5615,6 +5641,12 @@ var index_default = {
       }
       // Reintento seguro: si D1 cerró pero falló el espejo/batch, sólo se permite
       // completar el MISMO cierre, sin reescribir informe ni prueba.
+      // El total del cierre se lee UNA sola vez y ANTES de la transaccion: dentro del
+      // batch no se puede consultar, y leerlo dos veces daria dos cifras distintas para
+      // el mismo cierre. points_start se rellena aqui tambien por si la mision se cerro
+      // sin haber pasado por /fleet/progress: mejor un "antes" igual al "despues"
+      // -diferencia 0, honesta- que un hueco que el informe no sabria explicar.
+      const puntosCierre = await puntosDeAgenteAhora(env, actor.actor || t.assignee);
       if (t.status === "resolved") {
         const previous = await env.DB.prepare("SELECT owner,report,image,image_kind FROM mission_tasks WHERE mission_id=? AND code='z1'").bind(mid).first();
         const repairStandalone = t.role === "standalone-task" && !previous &&
@@ -5671,8 +5703,8 @@ var index_default = {
           "ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report,status='done',owner=excluded.owner,image=excluded.image,image_kind='final',updated_at=excluded.updated_at"
         ).bind(mid, "z1", "Informe del InfraAgente", "done", owner, report, image, "final", now, now),
         env.DB.prepare(
-          "UPDATE tickets SET status='resolved',resolved_at=COALESCE(resolved_at,?),proof_image=?,proof_kind='final',agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
-        ).bind(now, image, runtime, host, now, mid),
+          "UPDATE tickets SET status='resolved',resolved_at=COALESCE(resolved_at,?),proof_image=?,proof_kind='final',agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),points_end=?,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
+        ).bind(now, image, runtime, host, puntosCierre, puntosCierre, now, mid),
         env.DB.prepare("UPDATE mission_tasks SET status='done',updated_at=? WHERE mission_id=? AND code!='z1' AND EXISTS(SELECT 1 FROM tickets WHERE id=? AND role='standalone-task')").bind(now,mid,mid),
         env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid, now, "log", owner, "📝 Informe: " + report.slice(0, 240)),
         env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid, now, "proof", owner, "📸 Pantallazo final: " + proofLabel(image))

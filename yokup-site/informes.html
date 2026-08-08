@@ -82,6 +82,13 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .mcopy{appearance:none;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--dim);font:9px/1.35 var(--mono);letter-spacing:.03em;padding:2px 6px;cursor:pointer;white-space:nowrap}
 .mcopy:hover,.mcopy:focus-visible{color:var(--brand);border-color:var(--brand);outline:none}
 .mcopy.copied{color:var(--good);border-color:rgba(136,255,170,.45)}
+/* Resultado: puntos bajo la miniatura */
+.pts{margin-top:6px;font:700 10px/1.25 var(--mono);text-align:center}
+.pts b{display:block;font-size:12px}
+.pts span{display:block;opacity:.6;font-weight:500;font-size:9px}
+.pt-up b{color:var(--good,#88ffaa)}
+.pt-flat b{color:var(--mut,#75aab9)}
+.pt-nd b{color:var(--dim,#4d7a88)}
 /* Captura */
 .shot-a{display:block;line-height:0}
 .shot-img{width:100%;max-width:104px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:6px;border:1px solid var(--line2);background:var(--card2);display:block;cursor:zoom-in;transition:.15s}
@@ -384,8 +391,26 @@ async function loadDebe(){
         '<span class="debe-ag">'+esc(m.assignee||m.persona||"—")+'</span>'+
       '</a>').join("")+'</div>';
 }
+// RESULTADO = lo que se ve + lo que produjo (Carlos, 8-ago-2026). La columna se
+// llamaba «Captura» y sólo enseñaba una miniatura: decía QUE se hizo, no CUANTO
+// valio. El worker sella los puntos del agente al empezar y al cerrar, y aqui se
+// muestra la diferencia, que es la aportacion real de ESE encargo.
+// Sin datos NO se pinta un 0: un cero se lee como «no produjo nada», y no saberlo
+// no es lo mismo que saber que fue cero (regla 17).
+function puntosHTML(t){
+  const a=Number(t.points_start), b=Number(t.points_end);
+  if(!Number.isFinite(b)) return "";
+  const delta=Number.isFinite(a)?b-a:null;
+  const signo=delta===null?"":(delta>0?"+":"");
+  const cls=delta===null?"pt-nd":(delta>0?"pt-up":"pt-flat");
+  const txt=delta===null?`${b} pts`:`${signo}${delta} pts`;
+  const tit=delta===null
+    ? `Total del agente al cerrar: ${b} puntos · sin punto de partida registrado`
+    : `Antes ${a} · después ${b} · aportación de este encargo: ${signo}${delta}`;
+  return `<div class="pts ${cls}" title="${esc(tit)}"><b>${esc(txt)}</b><span>${esc(String(b))} total</span></div>`;
+}
 const SORT_COLUMNS=[
-  ["agente","Agente"],["mision","Misión"],["proceso","Proceso"],["captura","Captura"],
+  ["agente","Agente"],["mision","Misión"],["proceso","Proceso"],["captura","Resultado"],
   ["informe","Informe"],["estado","Estado"],["tiempo","Tiempo"]
 ];
 const COLUMN_SPECS={
@@ -518,7 +543,7 @@ function render(list){
         <div class="msubj" title="${esc(t.subject||'')}">${esc(t.subject||t.title||'')}</div>
       </div>
       <div class="gc shot" role="cell" data-label="Proceso">${proc}</div>
-      <div class="gc shot" role="cell" data-label="Captura">${shot}</div>
+      <div class="gc shot" role="cell" data-label="Resultado">${shot}${puntosHTML(t)}</div>
       <div class="gc rep" role="cell" data-label="Informe"><div class="rep-tx" title="${esc(t.report)}">${esc(t.report)}</div>
         <button class="rep-pdf" data-pdf="${esc(t.mission_id)}|${esc(t.code||'')}" title="Descargar el parte completo en PDF — con el informe entero y las dos capturas dentro del fichero">📄 PDF</button></div>
       <div class="gc" role="cell" data-label="Estado"><span class="badge b-${esc(st)}"><i></i>${esc(ST_LABEL[st]||st)}</span></div>
