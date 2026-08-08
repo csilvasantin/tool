@@ -36,6 +36,7 @@ const REGLAS = [
   "Introducirse: el día empieza dándose de alta",
   "Dos Xpacios, un origen y responsabilidades distintas",
   "App de escritorio solo donde hay un humano; el resto, CLI",
+  "Tarea, mision u objetivo — y todo encargo declara lo que produjo",
 ];
 
 const bloque = source.slice(
