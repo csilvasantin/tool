@@ -2,7 +2,7 @@
 """Regenera el espejo yokup-site/normativa.html desde la normativa CANÓNICA de
 AdmiraNeXT. Manda la canónica (la que más reglas tiene); el espejo conserva su
 propio envoltorio (hero, pie, yk-frame) y sólo se le reescriben las reglas."""
-import re, sys, pathlib
+import re, sys, os, pathlib
 
 # Las rutas se RESUELVEN, no se escriben a fuego. Estaban fijadas al layout de
 # una maquina concreta (Documents/Codex/...) y en las demas el script no podia
@@ -15,7 +15,14 @@ CANDIDATAS = [
     AQUI.parent / "admira-next-web" / "normativa.html",        # junto a tool
     pathlib.Path.home() / "Documents/Admirito/admira-next-web/normativa.html",
     pathlib.Path.home() / "Documents/Codex/admira-next-web/normativa.html",
+    # En el MacBookAir16plata el clon cuelga de Codex/Graficos, y el script no
+    # arrancaba: justo el fallo que este bloque decia haber arreglado, con una
+    # ruta menos. Mientras la lista se escriba a mano seguira pasando; la cura
+    # de verdad es que cada maquina declare su clon, no que la lista crezca.
+    pathlib.Path.home() / "Documents/Codex/Graficos/admira-next-web/normativa.html",
 ]
+if os.environ.get("ADMIRA_NEXT_WEB"):                          # escape por entorno
+    CANDIDATAS.insert(0, pathlib.Path(os.environ["ADMIRA_NEXT_WEB"]) / "normativa.html")
 CANON = next((c for c in CANDIDATAS if c.is_file()), None)
 if CANON is None:
     sys.exit("no encuentro normativa.html de admira-next-web. Buscado en:\n  " +

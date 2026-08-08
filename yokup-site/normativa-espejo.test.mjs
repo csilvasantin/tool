@@ -33,6 +33,7 @@ const REGLAS = [
   "Tu identidad se comprueba en tu sesión, no se copia del censo",
   "A un consejero se le enseña con guiones, no con vídeos",
   "Cada cierre declara sus puntos y el total verificado",
+  "Introducirse: el día empieza dándose de alta",
 ];
 
 const bloque = source.slice(
