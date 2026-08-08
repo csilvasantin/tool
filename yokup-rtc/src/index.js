@@ -4213,12 +4213,20 @@ async function fleetSync(env) {
         // cruzado fija el prefijo (…,project,project_id,role,…) como prueba de que el
         // proyecto se escribe explícito y no se adivina del texto. Ese contrato sigue
         // valiendo, así que se respeta su orden en vez de relajar el test.
-        "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,project,project_id,role,status,priority,assignee,source,ai_triage,created_at,updated_at,resolved_at,project_inherited,project_inherited_from) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        // `points_start` va AL FINAL, detrás de la herencia, para no tocar el prefijo
+        // que fija el test de contrato. Se sella AQUI, al nacer la misión, y no en el
+        // primer latido: cuando una misión pasa a «en curso» ya suma sus 40 puntos, así
+        // que sellar después recogía un total que YA los incluía y la resta con
+        // points_end daba 0 — /informes decía «0 pts» de encargos que habían producido
+        // 40 (Carlos lo vio en la sábana, 2026-08-08). El await se resuelve antes de
+        // que exista la fila, así que el número es el de ANTES de este encargo.
+        "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,project,project_id,role,status,priority,assignee,source,ai_triage,created_at,updated_at,resolved_at,project_inherited,project_inherited_from,points_start) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(
         id, fleetScreen(it, assignment), fleetSubject(it.text), assignment.loc, projectContext.project_id, projectContext.project_id, it.from_name || "",
         st, fleetPriority(it.text), assignment.assignee, "fleet", "", ts, now,
         st === "resolved" ? epochMs(it.done_at, now) : null,
-        projectContext.inherited ? 1 : 0, projectContext.inherited_from || null
+        projectContext.inherited ? 1 : 0, projectContext.inherited_from || null,
+        await puntosDeAgenteAhora(env, assignment.assignee)
       ).run();
       // El texto íntegro del encargo queda como primer evento de la misión.
       await addEvent(env, id, "log", it.from_name || "Carlos", String(it.text || ""));
@@ -5438,13 +5446,14 @@ var index_default = {
           await env.DB.prepare(
             "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,live_shot=?,live_at=?,live_kind=?,live_surface=?,live_context=?,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
           ).bind(img, capturedAt, liveKind, captureSurface, captureContext, await puntosDeAgenteAhora(env, actor.actor || t.assignee), now, mid).run();
+        // Red de seguridad del sello de SALIDA: las misiones nacen ya con
+        // points_start (fleetSync), pero las creadas por otras vias o antes de ese
+        // cambio llegan aqui sin el. Va con COALESCE en las DOS ramas, con captura
+        // y sin ella: cuando solo estaba en la rama con imagen, el sello se ponia
+        // en la prueba de proceso — cuando la mision YA habia sumado sus 40 puntos,
+        // asi que la resta con points_end daba 0 y /informes decia que el encargo
+        // no habia producido nada.
         } else {
-          // El sello de SALIDA se pone en el PRIMER latido de la mision, lleve
-          // captura o no. Antes solo se ponia en la rama con imagen, y el orden
-          // real de los hechos es: se declara la mision (ya suma sus 40 puntos)
-          // → se manda la prueba de proceso → se cierra. Sellar en la prueba
-          // recogia un total que YA incluia esos 40, la resta daba 0 y la sabana
-          // de /informes decia que el encargo no habia producido nada.
           await env.DB.prepare(
             "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
           ).bind(await puntosDeAgenteAhora(env, actor.actor || t.assignee), now, mid).run();
