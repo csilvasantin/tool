@@ -11,6 +11,9 @@ PROJECT_OVERRIDE="${ONIDLE_PROJECT:-}"
 PROJECT_SLUG_OVERRIDE="${ONIDLE_PROJECT_SLUG:-}"
 AFPLAY="${ONIDLE_AFPLAY:-/usr/bin/afplay}"
 WATCH_INTERVAL="${ONIDLE_WATCH_INTERVAL:-5}"
+LAUNCHCTL="${ONIDLE_LAUNCHCTL:-/bin/launchctl}"
+NOHUP="${ONIDLE_NOHUP:-nohup}"
+PLATFORM="${ONIDLE_PLATFORM:-$(uname -s 2>/dev/null || printf unknown)}"
 
 # Contrato para cualquier orquestador (launchd, heartbeat o ejecución manual):
 #   0  = published: Yokup confirmó ok:true + id y sólo entonces sonó Glass.
@@ -46,8 +49,29 @@ sound() {
   "$AFPLAY" "/System/Library/Sounds/$1.aiff" >/dev/null 2>&1 || true
 }
 
+watch_label() {
+  local slug
+  slug="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g;s/--*/-/g;s/^-//;s/-$//')"
+  [ -n "$slug" ] || return 1
+  printf 'com.admira.onidle.watch.%s\n' "$slug"
+}
+
+cleanup_watch_job() {
+  local label="${1:-}" lock="${ONIDLE_WATCH_LOCK:-}"
+  if [ -n "$label" ] && [ "$PLATFORM" = "Darwin" ] && [ -x "$LAUNCHCTL" ]; then
+    # bootout elimina el job enviado con submit, no sólo su proceso. Se ejecuta
+    # DESPUÉS de Ping para que un estado terminal no quede en "spawn scheduled"
+    # ni vuelva a relanzar el watcher y repetir el aviso.
+    "$LAUNCHCTL" bootout "gui/$(id -u)/$label" >/dev/null 2>&1 || \
+      "$LAUNCHCTL" remove "$label" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$lock" ] && [ -f "$lock" ]; then
+    unlink "$lock" >/dev/null 2>&1 || true
+  fi
+}
+
 watch_decision() {
-  local id="$1" response status
+  local id="$1" label="${2:-}" response status
   while :; do
     response="$(curl -fsS -m 20 "$API/decisions/$id" 2>/dev/null || true)"
     status="$(printf '%s' "$response" | python3 -c '
@@ -63,6 +87,7 @@ except Exception: print("")
         # vencimiento. No hay ningún otro camino que reproduzca Ping.
         sound Ping
         result resolved "$status" "$id"
+        cleanup_watch_job "$label"
         exit 0
         ;;
       *) sleep "$WATCH_INTERVAL" ;;
@@ -70,10 +95,63 @@ except Exception: print("")
   done
 }
 
+launch_watcher() {
+  local id="$1" label domain log_file lock pid old_pid
+  label="$(watch_label "$id")" || return 1
+  if [ "${ONIDLE_NO_WATCH:-0}" = "1" ]; then
+    log "watcher omitido por ONIDLE_NO_WATCH · $label"
+    return 0
+  fi
+
+  if [ "$PLATFORM" = "Darwin" ] && [ -x "$LAUNCHCTL" ]; then
+    domain="gui/$(id -u)"
+    log_file="${TMPDIR:-/tmp}/onidle-${label}.log"
+    if "$LAUNCHCTL" print "$domain/$label" >/dev/null 2>&1; then
+      log "watcher ya persistente · $label"
+      return 0
+    fi
+    if "$LAUNCHCTL" submit -l "$label" -o "$log_file" -e "$log_file" -- \
+      /bin/bash "$0" --watch "$id" "$label" >/dev/null 2>&1; then
+      log "watcher persistente lanzado · $label"
+      return 0
+    fi
+    # Dos publicadores pueden competir entre print y submit. Si el otro ganó,
+    # el job existente es éxito de deduplicación, no un segundo watcher.
+    if "$LAUNCHCTL" print "$domain/$label" >/dev/null 2>&1; then
+      log "watcher persistente adoptado tras carrera · $label"
+      return 0
+    fi
+    log "no se pudo lanzar watcher persistente · $label"
+    return 1
+  fi
+
+  # Fallback fuera de macOS: nohup queda separado del proceso invocador y un
+  # lock por DEC evita duplicados. Un PID muerto se considera lock stale.
+  lock="${TMPDIR:-/tmp}/${label}.lock"
+  if [ -f "$lock" ]; then
+    old_pid="$(sed -n '1p' "$lock" 2>/dev/null || true)"
+    if [ -z "$old_pid" ] || kill -0 "$old_pid" >/dev/null 2>&1; then
+      log "watcher fallback ya activo · $label"
+      return 0
+    fi
+    unlink "$lock" >/dev/null 2>&1 || return 1
+  fi
+  ( set -C; : > "$lock" ) 2>/dev/null || {
+    log "watcher fallback ya reservado · $label"
+    return 0
+  }
+  ONIDLE_WATCH_LOCK="$lock" "$NOHUP" /bin/bash "$0" --watch "$id" "" \
+    >/dev/null 2>&1 &
+  pid=$!
+  printf '%s\n' "$pid" > "$lock"
+  log "watcher fallback lanzado · $label · pid=$pid"
+  return 0
+}
+
 case "${1:-}" in
   --watch)
     [ -n "${2:-}" ] || failed "watch sin decision_id" "watch_id_required"
-    watch_decision "$2"
+    watch_decision "$2" "${3:-}"
     ;;
   "") ;;
   *) failed "argumento no reconocido: $1" "bad_argument" ;;
@@ -203,9 +281,7 @@ decision_id="$value"
 window="$((used+1))/8"
 # Glass ocurre dentro del contrato y DESPUÉS de confirmar ok:true + DEC-id.
 sound Glass
-if [ "${ONIDLE_NO_WATCH:-0}" != "1" ]; then
-  nohup "$0" --watch "$decision_id" >/dev/null 2>&1 &
-fi
+launch_watcher "$decision_id" || log "ATENCIÓN: ventana publicada sin watcher persistente · $decision_id"
 log "Ventana OnIDLE $window publicada · $decision_id"
 result published "" "$decision_id" "$window"
 exit "$EXIT_PUBLISHED"

@@ -49,6 +49,10 @@ required = (
     'sound Glass',
     'decided|expired|cancelled',
     'sound Ping',
+    'ONIDLE_LAUNCHCTL',
+    'com.admira.onidle.watch.',
+    'launch_watcher "$decision_id"',
+    'bootout "gui/$(id -u)/$label"',
 )
 missing = [token for token in required if token not in source]
 if missing:
