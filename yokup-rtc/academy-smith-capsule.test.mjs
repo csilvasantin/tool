@@ -31,6 +31,8 @@ test("el progreso de Smith usa etapas cerradas y nunca puede acreditar la cápsu
   assert.match(source, /smith_status='error'/);
   assert.match(source, /if \(row\.smith_status === "verified"\) return \{ok:true,reused:true,row\}/);
   assert.doesNotMatch(source.slice(source.indexOf("async function updateSmithCapsuleProgress"),source.indexOf("__name(updateSmithCapsuleProgress")),/smith_status='verified'/);
+  assert.match(source, /WHERE smith_status='verified' ORDER BY COALESCE\(smith_updated_at,at\) DESC LIMIT 1/);
+  assert.match(source, /latest:academyCapsuleRow\(latest\)/);
 });
 
 test("Yokup no acepta una cápsula hasta verificar vídeo, etiquetas y enlace", () => {

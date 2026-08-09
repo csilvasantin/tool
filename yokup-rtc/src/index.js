@@ -6977,7 +6977,8 @@ var index_default = {
         const hourStart = raw === null ? Math.floor(Date.now() / ACADEMY_HORA_MS) * ACADEMY_HORA_MS : Number(raw);
         if (!Number.isInteger(hourStart) || hourStart % ACADEMY_HORA_MS !== 0) return json({ok:false,error:"Franja no válida"},400);
         const row = await env.DB.prepare("SELECT * FROM academy_capsulas WHERE hour_start=?").bind(hourStart).first();
-        return json({ok:true,capsula:academyCapsuleRow(row)});
+        const latest = await env.DB.prepare("SELECT * FROM academy_capsulas WHERE smith_status='verified' ORDER BY COALESCE(smith_updated_at,at) DESC LIMIT 1").first();
+        return json({ok:true,capsula:academyCapsuleRow(row),latest:academyCapsuleRow(latest)});
       } catch (e) { return json({ok:false,error:String(e)},500); }
     }
     if (url.pathname === "/academy/capsula/smith/progress" && req.method === "POST") {
