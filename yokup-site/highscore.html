@@ -2370,12 +2370,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
      que era todo antes de FLT-1322. */
   function hsCliVerbos(item) {
     if (normaliza(item && item.kind).toLowerCase() === "session") return {
-      cosa:"la sesión", arranca:"▶ Activar", mata:"■ Desactivar", ciega:"▶ A ciegas",
+      cosa:"la sesión", arranca:"▶ Activar", mata:"■ Desactivar", ciega:"▶ Activar a ciegas",
       vivo:"Activa", parado:"Inactiva", corre:"está abierta", noCorre:"NO está abierta",
       ariaMata:"Desactivar ", ariaArranca:"Activar "
     };
     return {
-      cosa:"el CLI", arranca:"▶ Arrancar", mata:"■ Matar", ciega:"▶ A ciegas",
+      cosa:"el CLI", arranca:"▶ Arrancar", mata:"■ Matar", ciega:"▶ Arrancar a ciegas",
       vivo:"Vivo", parado:"Parado", corre:"está corriendo", noCorre:"NO está corriendo",
       ariaMata:"Matar ", ariaArranca:"Arrancar "
     };

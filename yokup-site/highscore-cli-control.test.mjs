@@ -186,6 +186,27 @@ test("una sesión de terminal se activa y se desactiva; un CLI se arranca y se m
   assert.equal(inactiva.accion,"start");
 });
 
+test("sin noticias muestra la acción primaria completa sin alterar start ni el guard ciego",()=>{
+  const api=cliApi();
+  const sesionMuda={...SESION,alive:null,pid:null,seen_at:null,state:"sin noticias"};
+  const cliMudo={...GROK,alive:null,pid:null,seen_at:null,state:"sin noticias"};
+  const estadoSesion=api.estado(sesionMuda),estadoCli=api.estado(cliMudo);
+
+  assert.equal(estadoSesion.accionEtiqueta,"▶ Activar a ciegas");
+  assert.equal(estadoCli.accionEtiqueta,"▶ Arrancar a ciegas");
+  assert.equal(estadoSesion.accion,"start");
+  assert.equal(estadoCli.accion,"start");
+
+  const filaSesion=api.fila(sesionMuda),filaCli=api.fila(cliMudo);
+  assert.match(filaSesion,/>▶ Activar a ciegas<\/button>/);
+  assert.match(filaCli,/>▶ Arrancar a ciegas<\/button>/);
+  for(const fila of [filaSesion,filaCli]){
+    assert.match(fila,/data-cli-accion="start"/);
+    assert.match(fila,/data-cli-ciego="1"/);
+  }
+  assert.doesNotMatch(functionSource("hsCliVerbos"),/ciega:"▶ A ciegas"/);
+});
+
 test("la espera también habla el idioma de cada familia",()=>{
   const api=cliApi(),desde=Date.now();
   assert.match(api.espera({accion:"stop",desde},SESION),/^Orden de desactivar enviada/);
