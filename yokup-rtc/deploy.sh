@@ -37,6 +37,32 @@ for t in *.test.mjs test/*.test.mjs; do
 done
 [ "$fallos" -eq 0 ] || echo "  ⚠ $fallos fichero(s) de prueba en rojo — revisa antes de fiarte del despliegue"
 
+# EL SELLO, ANTES DE PUBLICAR (Morfeo, 2026-08-09). Un worker no tiene portada donde
+# poner el <meta>, y por eso salía como «sin portada» en el Webmaster. Sí puede
+# servirlo: se escribe aquí, se empaqueta con el código y se sirve en /version.json.
+# Se genera, no se teclea, y se firma con quien publica — norma 08: no se firma por
+# otro ni se hereda la firma anterior.
+echo "→ Sello y firma…"
+: "${ADMIRA_RELEASE_AGENT:?Define ADMIRA_RELEASE_AGENT (ej. MorfeoMBA16)}"
+: "${ADMIRA_RELEASE_MACHINE:?Define ADMIRA_RELEASE_MACHINE (ej. MacBookAir16plata)}"
+HOY="$(date +%d.%m.%Y)"; AHORA="$(date +%H:%M)"
+PREVIA="$(curl -fsS --max-time 10 https://api.yokup.com/version.json 2>/dev/null | jq -r '.version // empty' || true)"
+case "$PREVIA" in
+  v.$HOY.r*) R=$(( $(printf '%s' "${PREVIA#v.$HOY.r}" | cut -d. -f1) + 1 ));;
+  *) R=1;;
+esac
+SELLO="v.${HOY}.r${R}.${AHORA}"
+GIT="$(git rev-parse HEAD)"
+SUCIO=true; [ -z "$(git status --porcelain)" ] && SUCIO=false
+{
+  echo "// Generado por deploy.sh en cada publicación. No editar a mano."
+  echo "export const SELLO_WORKER = $(jq -n --arg v "$SELLO" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      --arg a "$ADMIRA_RELEASE_AGENT" --arg m "$ADMIRA_RELEASE_MACHINE" \
+      --arg g "$GIT" --arg gs "${GIT:0:7}" --argjson d "$SUCIO" \
+      '{version:$v,deployedAt:$t,deployer:$a,machine:$m,signature:($a+" · "+$m),git:$g,gitShort:$gs,gitFull:$g,dirty:$d}');"
+} > src/version-stamp.js
+echo "  ✓ $SELLO · $ADMIRA_RELEASE_AGENT · $ADMIRA_RELEASE_MACHINE"
+
 echo "→ Cloudflare Workers…"
 # `npx wrangler` a secas resuelve la ÚLTIMA versión publicada, así que el
 # despliegue de producción depende de lo que npm publique esa mañana: el 07-08-2026

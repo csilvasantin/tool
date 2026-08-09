@@ -9,6 +9,7 @@ import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
 import { resolveIdeaAuthor } from "./idea-author.js";
 import { missionProofOrigin } from "./proof-origin.js";
+import { SELLO_WORKER } from "./version-stamp.js";
 import { validateCoachCompletion, validateCoachLaunch, coachLessonForSlot, COACH_AUDIENCES, COACH_HOUR } from "./academy-coach.js";
 import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
   onIdleEligibility, taskVisibleDetails } from "./mission-visible.js";
@@ -6941,6 +6942,16 @@ var index_default = {
     // tiene perímetro ni sesión. No expone nada que no esté ya publicado en el Stock.
     // Se dispara aquí además de en la rutina: si el sitio pregunta a las HH:00:03 y
     // todavía no hubo tráfico, la hora se abre con esa misma visita.
+    // EL SELLO DEL WORKER (Morfeo, 2026-08-09). El Webmaster daba «sin portada» a
+    // yokup-rtc porque un worker no tiene index.html donde poner el <meta>. Pero sí
+    // puede DECIRLO: esta ruta es su portada a efectos de la norma 07 y 08, con el
+    // mismo contrato que un version.json de Pages. Lo escribe el deploy, no se
+    // teclea: si no hay sello, se dice, en vez de inventarse uno.
+    if (url.pathname === "/version.json" && req.method === "GET") {
+      return json(SELLO_WORKER && SELLO_WORKER.version
+        ? SELLO_WORKER
+        : { version:null, error:"este worker se publicó sin sellar: deploy.sh escribe src/version-stamp.json" });
+    }
     if (url.pathname === "/academy/capsula" && req.method === "GET") {
       try {
         const r = await runAcademyCapsuleTick(env);
