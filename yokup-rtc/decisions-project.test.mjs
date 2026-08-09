@@ -79,9 +79,9 @@ test('GET OnIdle acepta la identidad canónica OraculoMini en el Mac Mini', () =
   });
 });
 
-test('GET OnIdle conserva lectura del alias histórico OraculoMacMini', () => {
+test('GET OnIdle lee el alias histórico y lo emite como OraculoMini', () => {
   assert.deepEqual(resolveDecisionIdentity('OraculoMacMini', 'admira-macmini'), {
-    ok:true, agent:'OraculoMacMini', machine:'admira-macmini'
+    ok:true, agent:'OraculoMini', machine:'admira-macmini'
   });
 });
 
