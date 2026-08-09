@@ -20,6 +20,17 @@ test("Smith recoge una sola franja actual o adelantada y el reintento es idempot
   assert.match(source, /La franja ya tiene una entrega verificada/);
 });
 
+test("el progreso de Smith usa etapas cerradas y nunca puede acreditar la cápsula", () => {
+  assert.match(source, /var SMITH_PROGRESS_STAGES = Object\.freeze/);
+  for (const stage of ["opening_terminal","asking_grok","searching_youtube","selecting_source","transcribing","synthesizing","importing_pixeria","publishing_capsule","verifying_yokup"]) assert.match(source,new RegExp(stage));
+  assert.match(source, /url\.pathname === "\/academy\/capsula\/smith\/progress" && req\.method === "GET"/);
+  assert.match(source, /url\.pathname === "\/academy\/capsula\/smith\/progress" && req\.method === "POST"/);
+  assert.match(source, /smith_status='running'/);
+  assert.match(source, /smith_status='error'/);
+  assert.match(source, /if \(row\.smith_status === "verified"\) return \{ok:true,reused:true,row\}/);
+  assert.doesNotMatch(source.slice(source.indexOf("async function updateSmithCapsuleProgress"),source.indexOf("__name(updateSmithCapsuleProgress")),/smith_status='verified'/);
+});
+
 test("Yokup no acepta una cápsula hasta verificar vídeo, etiquetas y enlace", () => {
   assert.match(source, /url\.pathname === "\/academy\/capsula\/smith\/result"/);
   assert.match(source, /String\(video\.type \|\| ""\)\.toLowerCase\(\) !== "video"/);

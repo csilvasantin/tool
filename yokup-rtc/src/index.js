@@ -883,6 +883,13 @@ async function ensureAcademyCapsuleSchema(env) {
   await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN smith_video_id TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN smith_capsule_id TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN smith_updated_at INTEGER").catch(() => {});
+  // Telemetría operativa de Smith. No acredita la cápsula: únicamente explica
+  // qué está haciendo el CLI mientras la verificación final sigue dependiendo
+  // de los dos activos públicos de Pixeria.
+  await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN smith_stage TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN smith_detail TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN smith_progress INTEGER").catch(() => {});
+  await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN smith_started_at INTEGER").catch(() => {});
 }
 __name(ensureAcademyCapsuleSchema, "ensureAcademyCapsuleSchema");
 
@@ -926,10 +933,52 @@ function academyCapsuleRow(row) {
     source:row.source || "", id:row.capsule_id || "", title:row.title || "", note:row.note || "",
     url:row.url || "", agent:row.agent || "", decision_id:row.decision_id || "", at:Number(row.at) || 0,
     smith:{ status:row.smith_status || "pending", agent:row.smith_agent || "Smith",
+      stage:row.smith_stage || "queued", detail:row.smith_detail || "Esperando a que Smith recoja la ventana.",
+      progress:Number(row.smith_progress) || 0, started_at:Number(row.smith_started_at) || 0,
       source_url:row.smith_source_url || "", video_id:row.smith_video_id || "",
       capsule_id:row.smith_capsule_id || "", updated_at:Number(row.smith_updated_at) || 0 } };
 }
 __name(academyCapsuleRow, "academyCapsuleRow");
+
+var SMITH_PROGRESS_STAGES = Object.freeze({
+  opening_terminal:5,
+  asking_grok:15,
+  searching_youtube:30,
+  selecting_source:42,
+  transcribing:55,
+  synthesizing:68,
+  importing_pixeria:82,
+  publishing_capsule:92,
+  verifying_yokup:97
+});
+
+async function updateSmithCapsuleProgress(env, body) {
+  await ensureAcademyCapsuleSchema(env);
+  const hourStart = Number(body && body.hourStart);
+  const stage = String(body && body.stage || "").trim();
+  const detail = String(body && body.detail || "").replace(/\s+/g, " ").trim().slice(0,240);
+  if (!Number.isInteger(hourStart) || hourStart % ACADEMY_HORA_MS !== 0) return {ok:false,status:400,error:"Franja no válida"};
+  if (stage !== "error" && !Object.prototype.hasOwnProperty.call(SMITH_PROGRESS_STAGES,stage)) return {ok:false,status:400,error:"Etapa de Smith no válida"};
+  if (detail.length < 3) return {ok:false,status:400,error:"Detalle de progreso requerido"};
+  const currentHour = Math.floor(Date.now() / ACADEMY_HORA_MS) * ACADEMY_HORA_MS;
+  if (hourStart < currentHour - ACADEMY_HORA_MS || hourStart > currentHour + ACADEMY_HORA_MS) return {ok:false,status:409,error:"La franja no admite telemetría"};
+  const row = await env.DB.prepare("SELECT * FROM academy_capsulas WHERE hour_start=?").bind(hourStart).first();
+  if (!row) return {ok:false,status:404,error:"La cápsula no existe en Yokup"};
+  if (row.smith_status === "verified") return {ok:true,reused:true,row};
+  const now = Date.now();
+  if (stage === "error") {
+    await env.DB.prepare("UPDATE academy_capsulas SET smith_status='error',smith_stage='error',smith_detail=?,smith_updated_at=? WHERE hour_start=?")
+      .bind(detail,now,hourStart).run();
+  } else {
+    const progress = SMITH_PROGRESS_STAGES[stage];
+    const restarting = stage === "opening_terminal" && (row.smith_status !== "running" || now - Number(row.smith_updated_at || 0) > 15 * 60 * 1000);
+    if (!restarting && Number(row.smith_progress || 0) > progress) return {ok:true,reused:true,row};
+    await env.DB.prepare("UPDATE academy_capsulas SET smith_status='running',smith_agent='Smith · Grok',smith_stage=?,smith_detail=?,smith_progress=?,smith_started_at=CASE WHEN ? THEN ? ELSE COALESCE(smith_started_at,?) END,smith_updated_at=? WHERE hour_start=?")
+      .bind(stage,detail,progress,restarting ? 1 : 0,now,now,now,hourStart).run();
+  }
+  return {ok:true,reused:false,row:await env.DB.prepare("SELECT * FROM academy_capsulas WHERE hour_start=?").bind(hourStart).first()};
+}
+__name(updateSmithCapsuleProgress, "updateSmithCapsuleProgress");
 
 function youtubeVideoId(value) {
   const match = String(value || "").match(/(?:youtube\.com\/(?:watch\?.*?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/i);
@@ -1056,7 +1105,7 @@ async function verifySmithCapsuleResult(env, body) {
   const knowledge = String(capsule.comment || "").replace(/\s+/g, " ").trim();
   if (knowledge.length < 40) return {ok:false,status:422,error:"La cápsula no contiene conocimiento suficiente"};
   await env.DB.prepare(
-    "UPDATE academy_capsulas SET source='pixeria/capsula',capsule_id=?,title=?,note=?,url=?,smith_status='verified',smith_agent='Smith',smith_source_url=?,smith_video_id=?,smith_capsule_id=?,smith_updated_at=? WHERE hour_start=?"
+    "UPDATE academy_capsulas SET source='pixeria/capsula',capsule_id=?,title=?,note=?,url=?,smith_status='verified',smith_agent='Smith',smith_stage='verified',smith_detail='Cápsula verificada por Yokup y publicada en Pixeria.',smith_progress=100,smith_source_url=?,smith_video_id=?,smith_capsule_id=?,smith_updated_at=? WHERE hour_start=?"
   ).bind(capsuleId,String(capsule.title || video.title || "Cápsula de conocimiento").slice(0,200),knowledge.slice(0,900),String(video.url || "").slice(0,300),sourceUrl.slice(0,300),videoId,capsuleId,Date.now(),hourStart).run();
   const verified = await env.DB.prepare("SELECT * FROM academy_capsulas WHERE hour_start=?").bind(hourStart).first();
   return {ok:true,reused:false,row:verified};
@@ -1133,7 +1182,7 @@ async function runAcademyCapsuleTick(env, ahora = Date.now()) {
     note:(l && l.summary) || ("Smith está preparando la cápsula de " + tema.nombre + "."),
     url:"https://admira.academy/#formacion" };
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO academy_capsulas (hour_start,seat,tema,source,capsule_id,title,note,url,at,smith_status,smith_agent) VALUES (?,?,?,?,?,?,?,?,?,'pending','Smith')"
+    "INSERT OR IGNORE INTO academy_capsulas (hour_start,seat,tema,source,capsule_id,title,note,url,at,smith_status,smith_agent,smith_stage,smith_detail,smith_progress) VALUES (?,?,?,?,?,?,?,?,?,'pending','Smith','queued','Esperando a que Smith recoja la ventana.',0)"
   ).bind(hourStart, seat, tema.id, elegida.source, String(elegida.id).slice(0, 80),
     String(elegida.title).slice(0, 200), String(elegida.note).slice(0, 400),
     String(elegida.url).slice(0, 300), Date.now()).run();
@@ -6913,6 +6962,29 @@ var index_default = {
           "SELECT * FROM academy_capsulas WHERE hour_start>=? AND hour_start<=? AND COALESCE(smith_status,'pending')!='verified' ORDER BY hour_start ASC LIMIT 1"
         ).bind(currentHour - ACADEMY_HORA_MS,currentHour + ACADEMY_HORA_MS).first();
         return json({ok:true,job:academyCapsuleRow(row)});
+      } catch (e) { return json({ok:false,error:String(e)},500); }
+    }
+    // Feedback operativo para el Coach. La lectura es pública y la escritura sólo
+    // puede mover una franja viva por el vocabulario cerrado de etapas. No concede
+    // puntos ni puede marcarla verificada: esa transición sigue ocurriendo
+    // exclusivamente en /result después de releer el índice público de Pixeria.
+    if (url.pathname === "/academy/capsula/smith/progress" && req.method === "GET") {
+      try {
+        await runAcademyCapsuleTick(env);
+        await ensureAcademyCapsuleSchema(env);
+        const raw = url.searchParams.get("hourStart");
+        const hourStart = raw === null ? Math.floor(Date.now() / ACADEMY_HORA_MS) * ACADEMY_HORA_MS : Number(raw);
+        if (!Number.isInteger(hourStart) || hourStart % ACADEMY_HORA_MS !== 0) return json({ok:false,error:"Franja no válida"},400);
+        const row = await env.DB.prepare("SELECT * FROM academy_capsulas WHERE hour_start=?").bind(hourStart).first();
+        return json({ok:true,capsula:academyCapsuleRow(row)});
+      } catch (e) { return json({ok:false,error:String(e)},500); }
+    }
+    if (url.pathname === "/academy/capsula/smith/progress" && req.method === "POST") {
+      try {
+        if (Number(req.headers.get("content-length") || 0) > 1200) return json({ok:false,error:"Solicitud demasiado grande"},413);
+        const result = await updateSmithCapsuleProgress(env,await req.json().catch(() => null));
+        if (!result.ok) return json({ok:false,error:result.error},result.status || 400);
+        return json({ok:true,reused:Boolean(result.reused),capsula:academyCapsuleRow(result.row)});
       } catch (e) { return json({ok:false,error:String(e)},500); }
     }
     // La entrega no se cree al cliente: Yokup vuelve al índice público de Pixeria y
