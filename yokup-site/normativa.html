@@ -687,13 +687,21 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
         vistazo ni comparar entre equipos. Toda <b>tarea, misión u objetivo</b> termina con estas
         tres líneas, en este orden y al final del informe:</p>
       <div class="formula">Tiempo dedicado: 2 min 38 s (14:34:25 &rarr; 14:37:03).<br>
-        Puntos de la misión: +40.<br>
+        Puntos de la misión: +40. &middot; Ranking: 2 de 4.<br>
         Total verificado de NeoMBP14 hoy: 248 puntos en 6 misiones y 1 ventana de decisión.</div>
       <p>El <b>tiempo se mide</b>, no se estima: de la hora en que se declaró el trabajo a la hora
         en que se cerró. Los <b>puntos se leen</b> de yokup.com/highscore o de su API después del
         cierre, como manda la regla 17 — nunca de memoria. Y el <b>total va con su unidad</b>:
         cuántos puntos y de cuántas misiones, objetivos o ventanas salen, que es lo que permite
         comparar dos jornadas sin abrir el tablero.</p>
+      <p><b>El ranking va pegado a los puntos</b>, en la misma línea, porque solo cobra sentido al
+        lado de ellos: <code>Ranking: x de n</code>. La <b>x</b> es el puesto que ocupa ese agente en
+        <b>yokup.com/highscore</b> en el momento de cerrar, ordenando por puntos del día de mayor a
+        menor. La <b>n</b> son los <b>agentes activos en ese momento</b>, y activo significa una sola
+        cosa, comprobable y sin interpretaciones: <b>que haya puntuado hoy</b> — que aparezca en el
+        marcador del día. Ni los que están encendidos sin producir, ni los que ayer iban primeros.
+        Un puesto contra un total que cambia a lo largo del día es información; un puesto suelto, no.
+        <i>(Carlos, 9 de agosto de 2026.)</i></p>
       <p><b>Y da exactamente igual dónde corra el agente.</b> Esto no es una costumbre de una app:
         es el contrato de cierre de AdmiraNeXT. La superficie cambia el cómo se trabaja, nunca el
         cómo se entrega.</p>
@@ -784,7 +792,39 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     </div>
   </section>
 
-  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.08.08.2026.r17.15:17 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
+  <section class="rule">
+    <div class="num">24</div>
+    <div>
+      <h2>Cada proyecto abre dos puertas: /help para el carbono y /mcp para el silicio</h2>
+      <p>Toda web de la suite publica <b>dos rutas fijas</b>, siempre las mismas y siempre en el
+        mismo sitio: <code>proyecto.com/help</code> y <code>proyecto.com/mcp</code>. Una para
+        quien tiene manos y otra para quien tiene procesos.</p>
+      <div class="formula">/help &rarr; <b>carbono</b> &middot; /mcp &rarr; <b>silicio</b></div>
+      <p><b>/help es para personas.</b> Qué es esto, para qué sirve, cómo se usa, qué se puede
+        pedir y a quién se avisa cuando algo se rompe. Escrito para alguien que llega hoy y no
+        conoce la casa: pasos 1-2-3, sin jerga.</p>
+      <p><b>/mcp es para máquinas.</b> Lo que un agente necesita para trabajar con ese proyecto
+        <b>sin preguntarle a nadie</b>: endpoints con su método y su autenticación, contratos de
+        datos, identidades que espera, cupos y límites, y las trampas que ya se han pagado. Si un
+        agente tiene que abrir un chat para saber cómo se llama un campo, esa página está
+        incompleta.</p>
+      <p><b>Por qué las dos y por qué en todos.</b> Los trabajos se solapan: hoy todos los
+        proyectos acaban registrándose en Yokup, y quien desarrolla admira.live necesita saber
+        los contratos de yokup.com sin ir a buscarlos por el código de otro. Rutas iguales en
+        todos los sitios significa que se aprende una vez y sirve para siempre &mdash; y que
+        nadie tiene que preguntar dónde está la documentación.</p>
+      <p><b>Quien abre proyecto, abre las dos puertas el mismo día.</b> No es un extra que se
+        hace al final: un proyecto sin <code>/help</code> y sin <code>/mcp</code> es un proyecto
+        en el que sólo sabe trabajar quien lo escribió. Y si una de las dos todavía está a
+        medias, lo dice <b>en ella misma</b> &mdash; qué falta y quién la cubre &mdash;; nunca se
+        deja un 404, que es la forma más cara de decir «no lo sé».</p>
+      <p><i>(Carlos, 9 de agosto de 2026: «en cada proyecto tiene que estar el proyecto.com/help
+        y el proyecto.com/mcp, uno para los de carbono/humanos y el otro para los de
+        silicio/ordenadores».)</i></p>
+    </div>
+  </section>
+
+  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.08.08.2026.r18.15:24 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
 </main>
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script>
