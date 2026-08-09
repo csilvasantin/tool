@@ -87,5 +87,5 @@ test("el cuadrante lista los 20 proyectos del censo y dice quién hereda", () =>
     assert.ok(tabla.includes("<code>" + p + "</code>"), "falta " + p);
   }
   assert.match(tabla, /hereda/, "las secciones heredan la puerta de su dominio");
-  assert.match(mcp, /Auditado el 9 de agosto de 2026/, "un cuadrante sin fecha envejece mintiendo");
+  assert.match(mcp, /Auditado[^<]*9 de agosto de 2026/, "un cuadrante sin fecha envejece mintiendo");
 });
