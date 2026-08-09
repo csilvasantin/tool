@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Instala el OnIdle horario de OraculoMacMini sin compartir unidad ni script con
+# Instala el OnIdle horario de OraculoMini sin compartir unidad ni script con
 # otras identidades. No ejecuta la ventana al cargar: RunAtLoad queda desactivado.
 set -euo pipefail
 
@@ -7,7 +7,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE="$HERE/onidle-hora.sh"
 VAULT="${ADMIRA_VAULT_DIR:-$HOME/Claude/admira-vault}"
 LAUNCH_AGENTS="${ONIDLE_LAUNCH_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
-AGENT="OraculoMacMini"
+AGENT="OraculoMini"
 LABEL="com.admira.onidle.$AGENT"
 DEST="$VAULT/onidle-hora-$AGENT.sh"
 PLIST="$LAUNCH_AGENTS/$LABEL.plist"
@@ -32,7 +32,7 @@ import os
 
 source = Path(os.environ["SOURCE"]).read_text()
 required = (
-    'AGENT="${ONIDLE_AGENT:-OraculoMacMini}"',
+    'AGENT="${ONIDLE_AGENT:-OraculoMini}"',
     'PROJECT_ID="${ONIDLE_PROJECT_ID:-yokup}"',
     'PROJECT_OVERRIDE="${ONIDLE_PROJECT:-}"',
     'PROJECT_SLUG_OVERRIDE="${ONIDLE_PROJECT_SLUG:-}"',

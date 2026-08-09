@@ -28,6 +28,7 @@ import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
   onIdleEligibility, taskVisibleDetails } from "./mission-visible.js";
 import { DAILY_MISSION_CLOSE_AUTHOR, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_LEASE_MS, DAILY_MISSION_CLOSE_REASON, MISSION_UNCONCLUDED_AFTER_MS, dailyMissionCloseEventText, dailyMissionClosePlan } from "./daily-mission-close.js";
 import { buildOnIdleExplicitNewCandidates, selectOnIdleProposals } from "./onidle-proposals.js";
+import { canonicalProjectAgentRef, canonicalProjectAgentRefs, YOKUP_MINI_MEMBER_BACKFILL_SQL } from "./project-member-identity.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -324,6 +325,7 @@ async function applySchema(env) {
   // como `primary_responsible`. Si aún no se ha guardado uno, el responsable por
   // defecto compartido con AdmiraNeXT Webmaster es NeoMacMini.
   await env.DB.exec("ALTER TABLE projects ADD COLUMN owner TEXT").catch(() => {});
+  await env.DB.exec(YOKUP_MINI_MEMBER_BACKFILL_SQL);
   // ORDEN de las fichas, el que Carlos deja al arrastrarlas. Va en la tabla y no
   // en el navegador a propósito: el orden es del proyecto, no del portátil desde
   // el que se miró. NULL = nunca se ha tocado → cae al orden de siempre.
@@ -1869,7 +1871,7 @@ function principalAgentIdentity(agent, machine = "") {
   const suffix = machineSuffix(machine) || parsed.suffix;
   const known = ["Neo", "Morfeo", "Trinity", "Oraculo", "Smith", "WhiteRabbit"].includes(parsed.persona);
   if (!known || !suffix) return null;
-  const visible = reportAgentIdentity(agent, machine || suffix);
+  const visible = canonicalProjectAgentRef(reportAgentIdentity(agent, machine || suffix));
   if (!visible || !parseAgentIdentity(visible).suffix) return null;
   return { agent: visible, agent_key: identityKey(visible) };
 }
@@ -1963,7 +1965,7 @@ async function listPrincipalProjectDeclarations(env, day = madridDayKey(Date.now
     "WHERE d.day=? ORDER BY d.agent COLLATE NOCASE"
   ).bind(day).all()).results || [];
   return rows.map((r) => ({
-    day: r.day, agent_key: r.agent_key, agent: r.agent, project_id: r.project_id,
+    day: r.day, agent_key: r.agent_key, agent: canonicalProjectAgentRef(r.agent), project_id: r.project_id,
     project_name: r.project_name || r.project_id, project_web: r.project_web || "",
     project_status: r.project_status || "", declared_by: r.declared_by || "",
     statement: r.statement || "", created_at: Number(r.created_at) || 0,
@@ -2022,22 +2024,26 @@ async function listProjects(env) {
     const k = String(m.project).toLowerCase();
     if (m.status === "in_progress") misBy[k] = m.c; else pendBy[k] = m.c;
   }
-  return rows.map((p) => ({
-    id: p.id, name: p.name || p.id, blurb: p.blurb || "", web: p.web || "",
-    status: p.status || "activo", color: p.color || "",
-    owner: p.owner || "",
-    primary_responsible: p.owner || "NeoMacMini",
-    sort_order: p.sort_order == null ? null : Number(p.sort_order),
-    machines: mem.filter((m) => m.project_id === p.id && m.kind === "machine").map((m) => m.ref),
-    agents: mem.filter((m) => m.project_id === p.id && m.kind === "agent").map((m) => m.ref),
-    daily_primary_agents: declarations.filter((d) => d.project_id === p.id).map((d) => ({
-      day: d.day, agent: d.agent, agent_key: d.agent_key, declared_by: d.declared_by,
-      statement: d.statement, updated_at: d.updated_at
-    })),
-    missions: misBy[String(p.id).toLowerCase()] || 0,               // vivas = en curso
-    missions_pending: pendBy[String(p.id).toLowerCase()] || 0,      // encargadas y sin empezar
-    created_at: p.created_at, updated_at: p.updated_at, updated_by: p.updated_by || ""
-  }));
+  return rows.map((p) => {
+    const canonicalOwner = canonicalProjectAgentRef(p.owner || "");
+    return {
+      id: p.id, name: p.name || p.id, blurb: p.blurb || "", web: p.web || "",
+      status: p.status || "activo", color: p.color || "",
+      owner: canonicalOwner,
+      primary_responsible: canonicalOwner || "NeoMacMini",
+      sort_order: p.sort_order == null ? null : Number(p.sort_order),
+      machines: mem.filter((m) => m.project_id === p.id && m.kind === "machine").map((m) => m.ref),
+      agents: canonicalProjectAgentRefs(mem.filter((m) => m.project_id === p.id && m.kind === "agent")
+        .map((m) => m.ref)),
+      daily_primary_agents: declarations.filter((d) => d.project_id === p.id).map((d) => ({
+        day: d.day, agent: d.agent, agent_key: d.agent_key, declared_by: d.declared_by,
+        statement: d.statement, updated_at: d.updated_at
+      })),
+      missions: misBy[String(p.id).toLowerCase()] || 0,               // vivas = en curso
+      missions_pending: pendBy[String(p.id).toLowerCase()] || 0,      // encargadas y sin empezar
+      created_at: p.created_at, updated_at: p.updated_at, updated_by: p.updated_by || ""
+    };
+  });
 }
 __name(listProjects, "listProjects");
 // Alta o edición. Devuelve la fila guardada. `machines`/`agents`, si vienen,
@@ -2056,9 +2062,9 @@ async function upsertProject(env, b) {
   };
   const status = ["activo", "pausado", "archivado"].includes(String((b && b.status) || "").toLowerCase())
     ? String(b.status).toLowerCase() : (prev ? (prev.status || "activo") : "activo");
-  const primaryResponsible = b && b.primary_responsible !== undefined
+  const primaryResponsible = canonicalProjectAgentRef(b && b.primary_responsible !== undefined
     ? String(b.primary_responsible).trim().slice(0, 80)
-    : val("owner", 80);
+    : val("owner", 80));
   const row = {
     id, name: name || (prev && prev.name) || id,
     blurb: val("blurb", 240), web: val("web", 160).replace(/\/+$/, ""),
@@ -2084,7 +2090,10 @@ async function upsertProject(env, b) {
   for (const kind of ["machine", "agent"]) {
     const campo = kind === "machine" ? "machines" : "agents";
     if (!b || !Array.isArray(b[campo])) continue;
-    const refs = [...new Set(b[campo].map((r) => String(r || "").trim().slice(0, 80)).filter(Boolean))].slice(0, 60);
+    const refs = [...new Set(b[campo].map((r) => {
+      const ref = String(r || "").trim().slice(0, 80);
+      return kind === "agent" ? canonicalProjectAgentRef(ref) : ref;
+    }).filter(Boolean))].slice(0, 60);
     await env.DB.prepare("DELETE FROM project_members WHERE project_id=? AND kind=?").bind(id, kind).run();
     for (const ref of refs) {
       await env.DB.prepare("INSERT OR IGNORE INTO project_members (project_id,kind,ref,added_at) VALUES (?,?,?,?)")
@@ -6848,13 +6857,18 @@ var index_default = {
           return json({ ok: false, error: "machine requerida para asociar un agente", code: "exact_identity_required" }, 400);
         }
         if (b && b.remove) {
-          await env.DB.prepare("DELETE FROM project_members WHERE project_id=? AND kind=? AND ref=?").bind(p.id, kind, ref).run();
+          if (kind === "agent" && canonicalProjectAgentRef(ref) === "OraculoMini") {
+            await env.DB.prepare("DELETE FROM project_members WHERE project_id=? AND kind='agent' AND lower(ref) IN ('oraculomini','oraculomacmini')")
+              .bind(p.id).run();
+          } else {
+            await env.DB.prepare("DELETE FROM project_members WHERE project_id=? AND kind=? AND ref=?").bind(p.id, kind, ref).run();
+          }
           if (kind === "machine") {
             const removedSuffix = machineSuffix(ref);
             if (removedSuffix) {
               const agents = (await env.DB.prepare("SELECT ref FROM project_members WHERE project_id=? AND kind='agent'").bind(p.id).all()).results || [];
               for (const row of agents) {
-                if (parseAgentIdentity(row.ref).suffix === removedSuffix) {
+                if (resolveDecisionIdentity(row.ref, ref).ok) {
                   await env.DB.prepare("DELETE FROM project_members WHERE project_id=? AND kind='agent' AND ref=?").bind(p.id, row.ref).run();
                 }
               }

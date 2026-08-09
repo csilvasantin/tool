@@ -29,7 +29,8 @@ test('API publica elegibilidad y aplica el mismo guard al alta OnIdle',()=>{
 });
 
 test('script versionado consulta el guard y publica exactamente 3 + atrás + custom',()=>{
-  assert.match(script,/ONIDLE_AGENT:-OraculoMacMini/);
+  assert.match(script,/ONIDLE_AGENT:-OraculoMini/);
+  assert.match(script,/OraculoMacMini\) AGENT="OraculoMini"/);
   assert.match(script,/fleet\/onidle-state/);
   assert.match(script,/fleet\/onidle-proposals/);
   assert.match(script,/\["↩ Volver atrás", "✍️ Custom · Escribe la mejora que quieras a mano"\]/);
@@ -60,13 +61,13 @@ const canonicalLines=[
   JSON.stringify({title:'Mejora tres',target_mission_id:'FLT-THREE'})
 ].join('\n')+'\n';
 
-async function dryRun(extra={},proposalLines=canonicalLines) {
+async function dryRun(extra={},proposalLines=canonicalLines,censusAgent='OraculoMini') {
   const dir=await mkdtemp(join(tmpdir(),'onidle-project-'));
   const curl=join(dir,'curl');
   await writeFile(curl,`#!/bin/sh
 case "$*" in
   *fleet/onidle-state*) echo '{"ok":true,"can_open":true,"quota":{"used":2},"reason":"ready"}' ;;
-  */projects*) echo '{"projects":[{"id":"yokup","name":"Yokup","status":"activo","agents":["OraculoMacMini"],"machines":["admira-macmini"]}]}' ;;
+  */projects*) echo '{"projects":[{"id":"yokup","name":"Yokup","status":"activo","agents":["${censusAgent}"],"machines":["admira-macmini"]}]}' ;;
   *fleet/onidle-proposals*) cat <<'JSONL'
 ${proposalLines.trimEnd()}
 JSONL
@@ -89,9 +90,26 @@ test('dry-run deriva Yokup/YOKUP y conserva 3 + back + custom sin POST real',asy
   assert.equal(contract.published,false);
   const payload=contract.payload;
   assert.deepEqual([payload.project_id,payload.project,payload.project_slug],['yokup','Yokup','YOKUP']);
+  assert.equal(payload.agent,'OraculoMini');
   assert.deepEqual(payload.options,['Mejora uno','Mejora dos','Mejora tres','↩ Volver atrás','✍️ Custom · Escribe la mejora que quieras a mano']);
   assert.deepEqual(payload.option_targets,[{target_mission_id:'INC-ONE'},{target_mission_id:'DCL-TWO'},{target_mission_id:'FLT-THREE'},null,null]);
   assert.equal(payload.onidle,true);
+});
+
+test('dry-run acepta OraculoMini contra un censo histórico stale',async()=>{
+  const result=await dryRun({ONIDLE_AGENT:'OraculoMini'},canonicalLines,'OraculoMacMini');
+  assert.equal(result.status,10,result.stderr);
+  const contract=JSON.parse(result.stdout.trim());
+  assert.equal(contract.reason,'dry_run');
+  assert.equal(contract.payload.agent,'OraculoMini');
+});
+
+test('dry-run convierte ONIDLE_AGENT histórico antes de emitir',async()=>{
+  const result=await dryRun({ONIDLE_AGENT:'OraculoMacMini'});
+  assert.equal(result.status,10,result.stderr);
+  const contract=JSON.parse(result.stdout.trim());
+  assert.equal(contract.reason,'dry_run');
+  assert.equal(contract.payload.agent,'OraculoMini');
 });
 
 test('dry-run admite null sólo para una mejora nueva explícita',async()=>{

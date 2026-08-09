@@ -4,7 +4,10 @@
 set -uo pipefail
 
 API="${YOKUP_API:-https://api.yokup.com}"
-AGENT="${ONIDLE_AGENT:-OraculoMacMini}"
+AGENT="${ONIDLE_AGENT:-OraculoMini}"
+case "$AGENT" in
+  OraculoMacMini) AGENT="OraculoMini" ;;
+esac
 MACHINE="${ONIDLE_MACHINE:-admira-macmini}"
 PROJECT_ID="${ONIDLE_PROJECT_ID:-yokup}"
 PROJECT_OVERRIDE="${ONIDLE_PROJECT:-}"
@@ -183,7 +186,10 @@ import json,os,sys,unicodedata,re
 d=json.load(sys.stdin); pid=os.environ["PI"]
 p=next((x for x in d.get("projects",[]) if str(x.get("id"))==pid and str(x.get("status","activo")).lower()=="activo"),None)
 if not p or not str(p.get("name","")).strip(): raise SystemExit(2)
-if os.environ["AG"].lower() not in [str(x).lower() for x in p.get("agents",[])]: raise SystemExit(5)
+def agent_key(value):
+  value=str(value).lower()
+  return value[:-7]+"mini" if value.endswith("macmini") else value
+if agent_key(os.environ["AG"]) not in [agent_key(x) for x in p.get("agents",[])]: raise SystemExit(5)
 if os.environ["MQ"].lower() not in [str(x).lower() for x in p.get("machines",[])]: raise SystemExit(6)
 name=" ".join(str(p["name"]).split())
 slug=re.sub(r"^-+|-+$","",re.sub(r"[^A-Z0-9]+","-",unicodedata.normalize("NFD",name).encode("ascii","ignore").decode().upper()))

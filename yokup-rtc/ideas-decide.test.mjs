@@ -137,7 +137,7 @@ test('POST /projects/assign exige equipo antes de añadir un agente y limpia su 
   assert.match(source, /kind='machine' AND project_id=\?/);
   assert.match(source, /memberRefMatches\("machine", row\.ref, identity\.machine\)/);
   assert.match(source, /code: "team_not_assigned"/);
-  assert.match(source, /parseAgentIdentity\(row\.ref\)\.suffix === removedSuffix/);
+  assert.match(source, /resolveDecisionIdentity\(row\.ref, ref\)\.ok/);
 });
 
 test('la decisión de proyecto respeta el reloj vivo e identifica su salida', () => {

@@ -29,7 +29,7 @@ basename "$1" .aiff >> "$ONIDLE_SOUND_LOG"
 args="$*"
 case "$args" in
   *fleet/onidle-state*) printf '%s\\n' '${JSON.stringify(state)}' ;;
-  */projects*) printf '%s\\n' '{"projects":[{"id":"yokup","name":"Yokup","status":"activo","agents":["OraculoMacMini"],"machines":["admira-macmini"]}]}' ;;
+  */projects*) printf '%s\\n' '{"projects":[{"id":"yokup","name":"Yokup","status":"activo","agents":["OraculoMini"],"machines":["admira-macmini"]}]}' ;;
   *fleet/onidle-proposals*) cat <<'JSONL'
 ${proposals}
 JSONL

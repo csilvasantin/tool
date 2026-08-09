@@ -28,13 +28,13 @@ test('instala unidad propia con identidad y proyecto granular completos',async()
   const box=await installInSandbox();
   const first=box.run();
   assert.equal(first.status,0,first.stderr);
-  const script=join(box.vault,'onidle-hora-OraculoMacMini.sh');
-  const plist=join(box.agents,'com.admira.onidle.OraculoMacMini.plist');
+  const script=join(box.vault,'onidle-hora-OraculoMini.sh');
+  const plist=join(box.agents,'com.admira.onidle.OraculoMini.plist');
   assert.equal(await readFile(script,'utf8'),await readFile(source,'utf8'));
   assert.equal((await stat(script)).mode&0o777,0o755);
   assert.equal((await stat(plist)).mode&0o777,0o644);
   const xml=await readFile(plist,'utf8');
-  for (const value of ['com.admira.onidle.OraculoMacMini','OraculoMacMini','yokup','Yokup','YOKUP']) {
+  for (const value of ['com.admira.onidle.OraculoMini','OraculoMini','yokup','Yokup','YOKUP']) {
     assert.match(xml,new RegExp(value));
   }
   assert.match(xml,/<key>RunAtLoad<\/key><false\/>/);
@@ -45,8 +45,8 @@ test('es idempotente y no toca la instalación de Morfeo',async()=>{
   const beforeScript=await readFile(box.morfeoScript,'utf8');
   const beforePlist=await readFile(box.morfeoPlist,'utf8');
   assert.equal(box.run().status,0);
-  const target=join(box.vault,'onidle-hora-OraculoMacMini.sh');
-  const plist=join(box.agents,'com.admira.onidle.OraculoMacMini.plist');
+  const target=join(box.vault,'onidle-hora-OraculoMini.sh');
+  const plist=join(box.agents,'com.admira.onidle.OraculoMini.plist');
   const hashes1=[await readFile(target,'utf8'),await readFile(plist,'utf8')];
   assert.equal(box.run().status,0);
   assert.deepEqual([await readFile(target,'utf8'),await readFile(plist,'utf8')],hashes1);

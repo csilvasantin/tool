@@ -27,7 +27,7 @@ async function sandbox({launchMode='submit',watchStatus='decided',platform='Darw
   await writeFile(curl,`#!/bin/sh
 case "$*" in
   *fleet/onidle-state*) printf '%s\\n' '{"ok":true,"can_open":true,"quota":{"used":1},"reason":"ready"}' ;;
-  */projects*) printf '%s\\n' '{"projects":[{"id":"yokup","name":"Yokup","status":"activo","agents":["OraculoMacMini"],"machines":["admira-macmini"]}]}' ;;
+  */projects*) printf '%s\\n' '{"projects":[{"id":"yokup","name":"Yokup","status":"activo","agents":["OraculoMini"],"machines":["admira-macmini"]}]}' ;;
   *fleet/onidle-proposals*) cat <<'JSONL'
 ${proposals}
 JSONL
