@@ -26,13 +26,13 @@ test("el apellido viejo del Pro 16 se sigue leyendo, pero se reescribe a MBP16",
   assert.equal(scopedAgentIdentity("SubMorfeo16", ""), "SubMorfeoMBP16");
 });
 
-test("el apellido del Mac Mini es MacMini sin abreviar; Mini se lee y se reescribe", () => {
-  // Carlos, 2026-08-04: "apellido completo". MorfeoMini es el legado (regla 03).
+test("una identidad Mini explícita prevalece y MacMini histórico se sigue leyendo", () => {
   assert.equal(baseAgentIdentity("MorfeoMini"), "Morfeo");
   assert.equal(sameAgentFamily("MorfeoMini", "MorfeoMacMini"), true);
-  assert.equal(scopedAgentIdentity("MorfeoMini", ""), "MorfeoMacMini");
+  assert.equal(scopedAgentIdentity("MorfeoMini", ""), "MorfeoMini");
   assert.equal(scopedAgentIdentity("MorfeoMacMini", ""), "MorfeoMacMini");
-  assert.equal(scopedAgentIdentity("SubNeoMini", ""), "SubNeoMacMini");
+  assert.equal(scopedAgentIdentity("SubNeoMini", ""), "SubNeoMini");
+  assert.equal(scopedAgentIdentity("OraculoMini", "macmini", "infra"), "InfraOraculoMini");
 });
 
 test("el apellido es el del diccionario, sin acortar ni apodos (regla 02)", () => {

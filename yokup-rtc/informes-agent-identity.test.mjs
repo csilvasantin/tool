@@ -11,7 +11,7 @@ test("informes recompone persona + máquina real y conserva Sub/Infra", () => {
   assert.equal(reportAgentIdentity("Morfeo", "admira-macbookpro16"), "MorfeoMBP16");
   assert.equal(reportAgentIdentity("Oraculo", "Mac Mini"), "OraculoMacMini");
   assert.equal(reportAgentIdentity("SubMorfeo16", "MacBook Pro 16"), "SubMorfeoMBP16");
-  assert.equal(reportAgentIdentity("InfraOraculoMini", "admira-macmini"), "InfraOraculoMacMini");
+  assert.equal(reportAgentIdentity("InfraOraculoMini", "admira-macmini"), "InfraOraculoMini");
 });
 
 test("aliases históricos se normalizan sin inventar máquina", () => {

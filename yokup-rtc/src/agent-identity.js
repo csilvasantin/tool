@@ -2,9 +2,10 @@
 // modelo abreviado, igual en toda la flota: MacBookAirAzul → MBAAzul → NeoMBAAzul.
 // Los apellidos por color a secas ("Azul") y "Plata16"/"14" son de la generación
 // anterior: se siguen leyendo, no se vuelven a escribir (Carlos, 2026-08-03).
-// El apellido del Mac Mini es MacMini, sin abreviar: MorfeoMacMini, no MorfeoMini
-// (Carlos, 2026-08-04). El front ya lo hacía (yk-agent-identity.js); aquí seguía
-// al revés y el API reescribía el apellido completo al legado en cada censo.
+// MacMini sigue siendo el apellido derivado de una máquina sin identidad explícita
+// y se conserva para leer el histórico. Cuando la fuente ya declara el apellido
+// operativo Mini (OraculoMini/SubOraculoMini/InfraOraculoMini), ese dato explícito
+// prevalece sobre la máquina para que /fleet/sync no lo reescriba al alias anterior.
 const MACHINES = [
   ["MacMini", ["macmini", "mac mini", "mac mini carlos", "admira-macmini", "macmini.local"]],
   ["MBP14", ["mbp14", "macbookpro14", "macbook pro 14", "macbookpronegro14", "macbook pro negro 14", "admira-macbookpronegro14"]],
@@ -29,7 +30,7 @@ const PERSONAS = [
 // Apellidos que se usaron antes y siguen vivos en datos ya guardados. Se leen,
 // pero al volver a escribir salen con el apellido actual.
 const LEGACY_SUFFIXES = new Map([
-  ["16", "MBP16"], ["14", "MBP14"], ["mini", "MacMini"],
+  ["16", "MBP16"], ["14", "MBP14"], ["mini", "Mini"],
   ["azul", "MBAAzul"], ["rosa", "MBARosa"], ["crema", "MBACrema"], ["plata", "MBAPlata"],
   ["air16", "MBA16"], ["plata16", "MBA16"],
 ]);
@@ -77,7 +78,7 @@ export function baseAgentIdentity(value) {
 export function scopedAgentIdentity(persona, machine, role) {
   const parsed = parseAgentIdentity(persona);
   const effectiveRole = role || parsed.role || "main";
-  const suffix = machineSuffix(machine) || parsed.suffix;
+  const suffix = parsed.suffix || machineSuffix(machine);
   return `${effectiveRole === "sub" ? "Sub" : effectiveRole === "infra" ? "Infra" : ""}${parsed.persona}${suffix}`;
 }
 
@@ -88,7 +89,7 @@ export function scopedAgentIdentity(persona, machine, role) {
 // se devuelve tal cual antes que inventar un apellido (normativa regla 04).
 export function reportAgentIdentity(owner, machine) {
   const parsed = parseAgentIdentity(owner);
-  const suffix = machineSuffix(machine) || parsed.suffix;
+  const suffix = parsed.suffix || machineSuffix(machine);
   const knownPersona = PERSONAS.some(([name]) => name === parsed.persona);
   if (!suffix || !parsed.persona || !knownPersona) {
     return String(owner || "");
@@ -104,7 +105,7 @@ export function reportAgentIdentity(owner, machine) {
 export function reportAgentFamily(owner, machine) {
   const executor = reportAgentIdentity(owner, machine);
   const parsed = parseAgentIdentity(executor || owner);
-  const suffix = machineSuffix(machine) || parsed.suffix;
+  const suffix = parsed.suffix || machineSuffix(machine);
   const knownPersona = PERSONAS.some(([name]) => name === parsed.persona);
   const role = ["main", "sub", "infra"].includes(parsed.role) ? parsed.role : "main";
   if (knownPersona && suffix) {

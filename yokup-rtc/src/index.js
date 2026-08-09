@@ -3555,7 +3555,7 @@ function scopedMissionOwner(raw, fallbackRole, assignee, machine) {
   if (!missionBase) return value;
   const parsed = parseAgentIdentity(value);
   if (generic || !value || sameAgentFamily(value, assignee)) {
-    return scopedAgentIdentity(missionBase, machine, generic || parsed.role || fallbackRole || "sub");
+    return scopedAgentIdentity(assignee, machine, generic || parsed.role || fallbackRole || "sub");
   }
   return value;
 }
@@ -4700,7 +4700,7 @@ __name(existingFleetMissionContext, "existingFleetMissionContext");
 
 function fleetMainTasks(subject, assignment) {
   const short = String(subject || "Encargo de la flota").slice(0, 70);
-  const base = baseAgentIdentity(assignment.assignee) || assignment.assignee || "Agente";
+  const base = assignment.assignee || "Agente";
   return [
     { code: "a", title: "Implementar: " + short, owner: scopedAgentIdentity(base, assignment.loc, "sub") },
     { code: "b", title: "Probar y aportar evidencia: " + short, owner: scopedAgentIdentity(base, assignment.loc, "sub") },
@@ -4735,7 +4735,7 @@ async function ensureFleetMainTasks(env, missionId, subject, assignment, reassig
     // Las tres principales tienen reparto canónico fijo; al reparar se conserva
     // status/report/image y se corrige únicamente la identidad visible.
     if (/^[abc]$/.test(task.code)) {
-      const owner = scopedAgentIdentity(baseAgentIdentity(assignment.assignee), assignment.loc, task.code === "c" ? "infra" : "sub");
+      const owner = scopedAgentIdentity(assignment.assignee, assignment.loc, task.code === "c" ? "infra" : "sub");
       if (owner && owner !== raw) await env.DB.prepare("UPDATE mission_tasks SET owner=?,updated_at=? WHERE mission_id=? AND code=?")
         .bind(owner, now, missionId, task.code).run();
     }
@@ -4748,7 +4748,7 @@ __name(ensureFleetMainTasks, "ensureFleetMainTasks");
 // fila `a`, visible y operable desde /tareas como el encargo que pidió Carlos.
 async function ensureFleetStandaloneTask(env, missionId, subject, assignment, reassignPending) {
   const current = await listMissionTasks(env, missionId);
-  const base = baseAgentIdentity(assignment.assignee) || assignment.assignee || "Agente";
+  const base = assignment.assignee || "Agente";
   const owner = scopedAgentIdentity(base, assignment.loc, "sub");
   const now = Date.now();
   const task = current.find((row) => row.code === "a");

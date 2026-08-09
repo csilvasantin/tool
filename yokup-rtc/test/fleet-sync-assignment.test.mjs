@@ -70,3 +70,21 @@ test("fleetSync usa feed público y fallback censado, nunca el privado 401",()=>
   const helper=source.slice(source.indexOf("async function reconcileFleetTicket"),source.indexOf("__name(reconcileFleetTicket"));assert.match(helper,/assignment\.complete/);
   assert.match(block,/reconcileFleetTicket\(env, id, prev, it, assignment, st, now, standalone\)/);
 });
+
+test("una identidad Mini canónica del inbox sobrevive sync y alcanza A/B/C", async()=>{
+  const {db,env,F}=harness();
+  const text="Controlar Grok por CLI sin aplicaciones desktop";
+  const it={id:1333,text,target_persona:"OraculoMini",target_machine:"macmini",project_id:"yokup",from_name:"status-web"};
+  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").run(
+    "FLT-1365","OraculoMacMini·macmini #1333",text,"macmini","yokup","fleet","status-web","in_progress","OraculoMacMini",null,null,10,"yokup"
+  );
+  for (const task of [["a","Implementar","done","SubOraculoMacMini","hecho"],["b","Probar","done","SubOraculoMacMini","verificado"],["c","Reportar","in_progress","InfraOraculoMacMini","en QA"]]) {
+    db.prepare("INSERT INTO mission_tasks VALUES(?,?,?,?,?,?,?,?,?)").run("FLT-1365",...task,null,1,1);
+  }
+  const assignment=F.fleetAssignment(it);
+  assert.equal(assignment.assignee,"OraculoMini");
+  await F.reconcileFleetTicket(env,"FLT-1365",row(db,"FLT-1365"),it,assignment,"in_progress",20);
+  assert.equal(row(db,"FLT-1365").assignee,"OraculoMini");
+  assert.deepEqual(rows(db,"FLT-1365").map(x=>x.owner),["SubOraculoMini","SubOraculoMini","InfraOraculoMini"]);
+  assert.deepEqual(rows(db,"FLT-1365").map(x=>x.report),["hecho","verificado","en QA"]);
+});

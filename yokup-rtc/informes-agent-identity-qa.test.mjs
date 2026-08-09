@@ -16,7 +16,7 @@ test("matriz histórica y nueva de identidades visibles en informes", () => {
     ["OraculoMacMini", "Mac Mini", "OraculoMacMini"],
     ["SubTrinity16", "MacBookPro16", "SubTrinityMBP16"],
     ["InfraMorfeo", "MacBook Pro 16", "InfraMorfeoMBP16"],
-    ["InfraOraculoMini", "MacMini", "InfraOraculoMacMini"],
+    ["InfraOraculoMini", "MacMini", "InfraOraculoMini"],
     ["Neo", "MacBookAirAzul", "NeoMBAAzul"],
     ["NeoAzul", "MacBookAirAzul", "NeoMBAAzul"],
     ["Agente Smith Azul", "MacBook Air Azul", "SmithMBAAzul"],
