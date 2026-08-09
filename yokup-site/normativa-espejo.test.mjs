@@ -40,6 +40,7 @@ const REGLAS = [
   "El cierre son tres líneas, y son las mismas corras donde corras",
   "Cositas: delegar es obligatorio y el cierre declara el contexto gastado",
   "Cada proyecto abre dos puertas: /help para el carbono y /mcp para el silicio",
+  "El aviso de recarga dice la versión, no que hay una versión",
 ];
 
 const bloque = source.slice(

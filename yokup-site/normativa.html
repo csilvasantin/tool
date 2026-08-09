@@ -824,7 +824,33 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     </div>
   </section>
 
-  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.08.08.2026.r18.15:24 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
+  <section class="rule">
+    <div class="num">25</div>
+    <div>
+      <h2>El aviso de recarga dice la versión, no que hay una versión</h2>
+      <p>Cuando se publica algo, las pestañas abiertas siguen ejecutando lo viejo. Por eso todo
+        sitio de la suite avisa: compara lo que ejecuta esta pestaña con lo que declara
+        <code>/version.json</code> en producción y, si no coinciden, saca el aviso con su botón
+        de recargar.</p>
+      <p><b>El titular es el sello, no la palabra.</b> Decir «versión nueva» gasta el sitio más
+        visible del aviso en lo único que ya se deduce del icono y del botón, y deja fuera el
+        dato que de verdad se mira: <b>cuál</b>. El aviso empieza por la versión disponible.</p>
+      <div class="formula"><span class="bad">⟳ Versión nueva · recargar</span> &rarr;
+        <span class="ok">⟳ v.09.08.2026.r2.14:20 · recargar</span></div>
+      <p><b>Y debajo, con qué se decide recargar ahora o luego</b>: quién la publicó
+        &mdash;agente y equipo&mdash;, hace cuánto en palabras (no una fecha que haya que restar
+        mentalmente) y qué versión está ejecutando esta pestaña. Sin eso, el aviso sólo repite
+        lo que ya se ve.</p>
+      <p><b>No se reescribe en cada sitio.</b> La implementación de referencia es
+        <code>admiranext.com/assets/admira-version-watch.js</code>: se comparte, y quien la
+        mejore la mejora para todos. Un aviso distinto por sitio es la forma más cara de tener
+        cuatro comportamientos donde debería haber uno.</p>
+      <p><i>(Carlos, 9 de agosto de 2026: «en lugar de versión nueva pon la versión &mdash;se
+        sobreentiende que es nueva&mdash; y da más información».)</i></p>
+    </div>
+  </section>
+
+  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.09.08.2026.r2.14:24 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
 </main>
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script>
