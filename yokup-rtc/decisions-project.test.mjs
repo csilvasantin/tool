@@ -72,6 +72,19 @@ test('canoniza aliases planos y rechaza identidad scoped contradictoria', () => 
   assert.equal(resolveDecisionIdentity('Oraculo', 'equipo-desconocido').ok, false);
 });
 
+test('GET OnIdle acepta la identidad canónica OraculoMini en el Mac Mini', () => {
+  assert.match(source, /\/fleet\/onidle-state[\s\S]{0,500}resolveDecisionIdentity/);
+  assert.deepEqual(resolveDecisionIdentity('OraculoMini', 'admira-macmini'), {
+    ok:true, agent:'OraculoMini', machine:'admira-macmini'
+  });
+});
+
+test('GET OnIdle conserva lectura del alias histórico OraculoMacMini', () => {
+  assert.deepEqual(resolveDecisionIdentity('OraculoMacMini', 'admira-macmini'), {
+    ok:true, agent:'OraculoMacMini', machine:'admira-macmini'
+  });
+});
+
 test('project_id selecciona de forma explícita sólo una asignación autorizada', () => {
   const projects = [
     canonical,
