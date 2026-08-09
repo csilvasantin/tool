@@ -928,13 +928,14 @@ function academyCapsuleRow(row) {
   if (!row) return null;
   const c = COUNCIL[String(row.seat)] || {};
   const tema = ACADEMY_TEMAS.find((t) => t.id === String(row.tema || "")) || null;
+  const smithVerified = row.smith_status === "verified";
   return { hour_start:Number(row.hour_start) || 0, seat:row.seat, role:c.role || "", alias:c.alias || "", training_tag:c.tag || "",
     tema:row.tema || "", tema_nombre:tema ? tema.nombre : "",
     source:row.source || "", id:row.capsule_id || "", title:row.title || "", note:row.note || "",
     url:row.url || "", agent:row.agent || "", decision_id:row.decision_id || "", at:Number(row.at) || 0,
     smith:{ status:row.smith_status || "pending", agent:row.smith_agent || "Smith",
-      stage:row.smith_stage || "queued", detail:row.smith_detail || "Esperando a que Smith recoja la ventana.",
-      progress:Number(row.smith_progress) || 0, started_at:Number(row.smith_started_at) || 0,
+      stage:row.smith_stage || (smithVerified ? "verified" : "queued"), detail:row.smith_detail || (smithVerified ? "Cápsula verificada por Yokup y publicada en Pixeria." : "Esperando a que Smith recoja la ventana."),
+      progress:row.smith_progress == null && smithVerified ? 100 : Number(row.smith_progress) || 0, started_at:Number(row.smith_started_at) || 0,
       source_url:row.smith_source_url || "", video_id:row.smith_video_id || "",
       capsule_id:row.smith_capsule_id || "", updated_at:Number(row.smith_updated_at) || 0 } };
 }

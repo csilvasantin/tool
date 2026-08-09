@@ -10,6 +10,8 @@ test("cada cápsula nace encargada a Smith y conserva un respaldo honesto", () =
   assert.match(source, /'pending','Smith'/);
   assert.match(source, /Toda franja se encarga a Smith/);
   assert.match(source, /source:"academia\/leccion"/);
+  assert.match(source, /smithVerified \? "verified" : "queued"/);
+  assert.match(source, /smithVerified \? 100/);
 });
 
 test("Smith recoge una sola franja actual o adelantada y el reintento es idempotente", () => {
