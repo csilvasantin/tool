@@ -8,6 +8,19 @@ import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, 
 import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_NOVELTY_INSERT_SQL, MISSION_NOVELTY_RECENT_SQL, MISSION_NOVELTY_TABLE_SQL, missionNoveltyContract, missionNoveltyEventKey } from "./mission-novelty.js";
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
 import { resolveIdeaAuthor } from "./idea-author.js";
+import {
+  CLI_CATALOGO,
+  ackMatchesCommand,
+  authorizeCliExecutor,
+  canonicalCliAction,
+  canonicalCliMachine,
+  canonicalCliTarget,
+  cliAckTransition,
+  cliPermitido,
+  cliTipo,
+  desiredStateForAction,
+  validateCliAckBody
+} from "./cli-executor-contract.js";
 import { missionProofOrigin } from "./proof-origin.js";
 import { SELLO_WORKER } from "./version-stamp.js";
 import { validateCoachCompletion, validateCoachLaunch, coachLessonForSlot, coachLessonForDimension, COACH_AUDIENCES, COACH_HOUR } from "./academy-coach.js";
@@ -236,13 +249,18 @@ async function applySchema(env) {
   // Histórico compartido del Highscore. Una muestra por agente y minuto basta
   // para comparar la última hora sin depender del navegador que lo consulta.
   // Ordenes de encendido/apagado de los CLI de la flota. La orden la crea alguien
-  // AUTENTICADO en el Highscore (perimetro Google); el ejecutor de cada maquina solo
-  // recoge ordenes YA autorizadas. El punto de control es la creacion, no la recogida.
+  // AUTENTICADO en el Highscore (perimetro Google) y el ejecutor se autentica con
+  // YOKUP_CLI_EXECUTOR_TOKEN antes de recogerla o reportar estado.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS cli_commands (id TEXT PRIMARY KEY, machine TEXT NOT NULL, cli TEXT NOT NULL, action TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', requested_by TEXT, detail TEXT, created_at INTEGER NOT NULL, updated_at INTEGER)");
+  await env.DB.exec("ALTER TABLE cli_commands ADD COLUMN result_detail TEXT").catch(() => {});
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_cli_commands_pend ON cli_commands(machine,status,created_at)");
   // Latido: cada ejecutor dice si SU cli esta vivo. Sin latido reciente no se afirma
   // que este apagado, se dice que no se sabe: son cosas distintas.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS cli_state (machine TEXT NOT NULL, cli TEXT NOT NULL, alive INTEGER, pid INTEGER, seen_at INTEGER NOT NULL, PRIMARY KEY(machine,cli))");
+  await env.DB.exec("ALTER TABLE cli_state ADD COLUMN desired TEXT NOT NULL DEFAULT 'unknown'").catch(() => {});
+  await env.DB.exec("ALTER TABLE cli_state ADD COLUMN desired_command_id TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE cli_state ADD COLUMN desired_at INTEGER").catch(() => {});
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_cli_commands_target_status ON cli_commands(machine,cli,status,created_at)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS highscore_snapshots (agent_key TEXT NOT NULL, agent TEXT NOT NULL, machine TEXT, sampled_at INTEGER NOT NULL, points INTEGER NOT NULL, PRIMARY KEY(agent_key,sampled_at))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_highscore_snapshots_time ON highscore_snapshots(sampled_at)");
   // image: URL pública de la captura de prueba del informe (R2 /media/…). La tabla
@@ -5737,41 +5755,8 @@ async function puntosDeAgenteAhora(env, agente) {
 }
 __name(puntosDeAgenteAhora, "puntosDeAgenteAhora");
 
-// Lista BLANCA de CLIs controlables. Arrancar procesos desde una web solo puede
-// hacerse sobre lo que esta escrito aqui: nunca un comando libre.
-//
-// El catalogo nacio (8-ago-2026) con una sola entrada, "Smith · Grok (OpenCode)",
-// y Carlos lo corrigio ese mismo dia: el panel se habia centrado en OpenCode, que
-// no es la sesion de terminal que el queria manejar. Lo que se enciende y se apaga
-// desde aqui son DOS cosas por ordenador — la SESION de terminal y el CLI de Grok
-// que vive dentro de ella — y en cualquier equipo del grupo, no solo en dos.
-//
-// `kind` no es decorativo: manda los verbos de la interfaz. Una sesion se ACTIVA y
-// se DESACTIVA; un CLI se ARRANCA y se MATA. Decir "matar" de una sesion vacia, o
-// "activar" de un proceso, es lo que hacia que el panel se leyera mal.
-var CLI_MAQUINAS = ["MacBookAir16plata", "MacBookPro14", "MacMini"];
-var CLI_TIPOS = [
-  { cli:"terminal",   kind:"session", label:"Sesión de terminal" },
-  { cli:"grok",       kind:"cli",     label:"Grok · CLI" },
-  { cli:"smith-grok",  kind:"app", label:"Smith · OpenCode (Grok)" },
-  // WhiteRabbit, el miembro de formación (Carlos, 2026-08-09). kind:"app" y no
-  // "session": así se le pueden mandar misiones —a una sesión pelada nunca— y se
-  // arranca y se mata como cualquier CLI.
-  { cli:"whiterabbit", kind:"app", label:"WhiteRabbit · OpenCode (Nemotron)" }
-];
-var CLI_CATALOGO = CLI_MAQUINAS.flatMap((machine) =>
-  CLI_TIPOS.map((tipo) => ({ cli:tipo.cli, kind:tipo.kind, label:tipo.label, machine })));
-function cliPermitido(machine, cli) {
-  const m = String(machine || "").trim().toLowerCase(), c = String(cli || "").trim();
-  return CLI_CATALOGO.some((e) => e.machine.toLowerCase() === m && e.cli === c);
-}
-__name(cliPermitido, "cliPermitido");
-function cliTipo(cli) {
-  const c = String(cli || "").trim();
-  const tipo = CLI_TIPOS.find((t) => t.cli === c);
-  return tipo ? tipo.kind : "";
-}
-__name(cliTipo, "cliTipo");
+// El catálogo cerrado y la autenticación del ejecutor viven en
+// cli-executor-contract.js para que worker, cliente y pruebas compartan contrato.
 
 // ENVIAR MISION a un CLI (Carlos, 2026-08-08): escribir en su sesion de terminal
 // como si estuvieramos delante, para que se ponga a trabajar sin ir a la maquina.
@@ -6954,7 +6939,7 @@ var index_default = {
     // hasta ahora solo se encendian entrando a la maquina.
     if (url.pathname === "/fleet/cli" && req.method === "GET") {
       await ensureSchema(env);
-      const vivos = (await env.DB.prepare("SELECT machine,cli,alive,pid,seen_at FROM cli_state").all()).results || [];
+      const vivos = (await env.DB.prepare("SELECT machine,cli,alive,pid,seen_at,desired,desired_command_id,desired_at FROM cli_state").all()).results || [];
       const ahora = Date.now();
       const items = CLI_CATALOGO.map((e) => {
         const st = vivos.find((v) => String(v.machine).toLowerCase() === e.machine.toLowerCase() && v.cli === e.cli);
@@ -6965,6 +6950,11 @@ var index_default = {
                  alive: fresco ? !!st.alive : null,
                  pid: fresco ? (st.pid || null) : null,
                  seen_at: st ? Number(st.seen_at) : null,
+                 desired: st && st.desired || "unknown",
+                 desired_command_id: st && st.desired_command_id || null,
+                 desired_at: st && st.desired_at ? Number(st.desired_at) : null,
+                 converged: !!(fresco && (st.desired === "running" || st.desired === "stopped") &&
+                   ((st.desired === "running") === !!st.alive)),
                  state: fresco ? (st.alive ? "vivo" : "parado") : "sin noticias" };
       });
       return json({ ok:true, items });
@@ -6975,12 +6965,13 @@ var index_default = {
       const sess = await requireAuth(env, req);
       if (!sess) return json({ error:"unauthorized" }, 401);
       let b; try { b = await req.json(); } catch { return json({ ok:false, error:"bad-json" }, 400); }
-      const machine = String(b.machine || "").trim(), cli = String(b.cli || "").trim();
-      const action = String(b.action || "").trim().toLowerCase();
-      if (action !== "start" && action !== "stop" && action !== "mission") {
+      const target = canonicalCliTarget(b.machine, b.cli);
+      const action = canonicalCliAction(b.action);
+      if (!action) {
         return json({ ok:false, error:"action debe ser start, stop o mission" }, 400);
       }
-      if (!cliPermitido(machine, cli)) return json({ ok:false, error:"cli no esta en la lista blanca" }, 403);
+      if (!target) return json({ ok:false, error:"cli no esta en la lista blanca" }, 403);
+      const { machine, cli } = target;
       let detalle = null;
       if (action === "mission") {
         // A una SESION de terminal no se le manda texto: al otro lado hay una shell.
@@ -6994,15 +6985,51 @@ var index_default = {
       }
       const id = "CLI-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       const quien = String((sess && (sess.email || sess.user)) || "perimetro");
-      await env.DB.prepare("INSERT INTO cli_commands(id,machine,cli,action,status,requested_by,detail,created_at,updated_at) VALUES(?,?,?,?,'queued',?,?,?,?)")
-        .bind(id, machine, cli, action, quien, detalle, Date.now(), Date.now()).run();
-      return json({ ok:true, id, machine, cli, action, status:"queued", text:detalle }, 202);
+      const ahora = Date.now(), desired = desiredStateForAction(action);
+      if (desired) {
+        // Un doble clic no crea dos arranques. Si cambia la intención, sólo queda
+        // viva la orden más reciente y el ejecutor recibe su desired state.
+        const latest = await env.DB.prepare(
+          "SELECT id,action,created_at FROM cli_commands WHERE lower(machine)=lower(?) AND cli=? AND action IN ('start','stop') AND status='queued' ORDER BY created_at DESC,id DESC LIMIT 1"
+        ).bind(machine, cli).first();
+        if (latest && latest.action === action) {
+          await env.DB.prepare(
+            "INSERT INTO cli_state(machine,cli,alive,pid,seen_at,desired,desired_command_id,desired_at) VALUES(?,?,NULL,NULL,0,?,?,?) " +
+            "ON CONFLICT(machine,cli) DO UPDATE SET desired=excluded.desired,desired_command_id=excluded.desired_command_id,desired_at=excluded.desired_at"
+          ).bind(machine, cli, desired, latest.id, ahora).run();
+          return json({ ok:true, id:latest.id, machine, cli, action, status:"queued", text:detalle,
+            desired, deduplicated:true }, 202);
+        }
+        const statements = [
+          env.DB.prepare(
+            "UPDATE cli_commands SET status='superseded',updated_at=? WHERE lower(machine)=lower(?) AND cli=? AND status='queued' AND action IN ('start','stop')"
+          ).bind(ahora, machine, cli),
+          env.DB.prepare(
+            "INSERT INTO cli_commands(id,machine,cli,action,status,requested_by,detail,created_at,updated_at) VALUES(?,?,?,?,'queued',?,?,?,?)"
+          ).bind(id, machine, cli, action, quien, detalle, ahora, ahora),
+          env.DB.prepare(
+            "INSERT INTO cli_state(machine,cli,alive,pid,seen_at,desired,desired_command_id,desired_at) VALUES(?,?,NULL,NULL,0,?,?,?) " +
+            "ON CONFLICT(machine,cli) DO UPDATE SET desired=excluded.desired,desired_command_id=excluded.desired_command_id,desired_at=excluded.desired_at"
+          ).bind(machine, cli, desired, id, ahora)
+        ];
+        if (typeof env.DB.batch === "function") await env.DB.batch(statements);
+        else for (const statement of statements) await statement.run();
+      } else {
+        await env.DB.prepare("INSERT INTO cli_commands(id,machine,cli,action,status,requested_by,detail,created_at,updated_at) VALUES(?,?,?,?,'queued',?,?,?,?)")
+          .bind(id, machine, cli, action, quien, detalle, ahora, ahora).run();
+      }
+      return json({ ok:true, id, machine, cli, action, status:"queued", text:detalle,
+        desired:desired || undefined }, 202);
     }
     // El ejecutor de cada maquina recoge SOLO ordenes ya autorizadas y reporta.
+    // Tanto la recogida como el ACK exigen el Bearer compartido con el servicio
+    // local; una web anónima ya no puede leer órdenes ni falsificar latidos.
     if (url.pathname === "/fleet/cli/pending" && req.method === "GET") {
+      const auth = await authorizeCliExecutor(env, req);
+      if (!auth.ok) return json({ ok:false, code:auth.code, error:auth.error }, auth.status);
+      const machine = canonicalCliMachine(url.searchParams.get("machine"));
+      if (!machine) return json({ ok:false, code:"invalid_machine", error:"machine fuera de la lista blanca" }, 400);
       await ensureSchema(env);
-      const machine = String(url.searchParams.get("machine") || "").trim();
-      if (!machine) return json({ ok:false, error:"machine requerida" }, 400);
       // Una MISION caduca a los 10 minutos. Dos razones, las dos serias: una orden
       // de trabajo escrita a las 19:00 no puede aparecer tecleada en la sesion de
       // Grok a las 23:00, cuando el contexto ya no existe; y el texto deja de estar
@@ -7010,31 +7037,107 @@ var index_default = {
       // queriendo decir lo mismo dentro de una hora.
       const CADUCA_MISION = 10 * 60 * 1000, ahora = Date.now();
       await env.DB.prepare(
-        "UPDATE cli_commands SET status='expired',detail='caducada: nadie la recogió en 10 min',updated_at=? " +
+        "UPDATE cli_commands SET status='expired',result_detail='caducada: nadie la recogió en 10 min',updated_at=? " +
         "WHERE lower(machine)=lower(?) AND status='queued' AND action='mission' AND created_at < ?"
       ).bind(ahora, machine, ahora - CADUCA_MISION).run();
-      const { results } = await env.DB.prepare(
-        // `detail` viaja porque una orden `mission` ES su texto: sin el, el ejecutor
-        // recogeria una orden vacia y no sabria que escribir.
-        "SELECT id,cli,action,detail,created_at FROM cli_commands WHERE lower(machine)=lower(?) AND status='queued' ORDER BY created_at LIMIT 5"
-      ).bind(machine).all();
-      return json({ ok:true, items: results || [] });
+      const raw = (await env.DB.prepare(
+        // Start/stop en running vuelve a ofrecerse tras 60 s: ambas operaciones
+        // son idempotentes. Una misión nunca se reinyecta automáticamente.
+        "SELECT id,machine,cli,action,status,detail,created_at,updated_at FROM cli_commands " +
+        "WHERE lower(machine)=lower(?) AND (status='queued' OR (status='running' AND action IN ('start','stop') AND updated_at<?)) " +
+        "ORDER BY created_at,id LIMIT 50"
+      ).bind(machine, ahora - 60 * 1000).all()).results || [];
+
+      // Filtra cualquier fila histórica fuera del catálogo y conserva sólo la
+      // intención de control más reciente por CLI. Las misiones mantienen orden.
+      const valid = [], rejected = [], latestControl = new Map();
+      for (const row of raw) {
+        const target = canonicalCliTarget(row.machine || machine, row.cli);
+        const action = canonicalCliAction(row.action);
+        if (!target || target.machine !== machine || !action) {
+          if (row.status === "queued") rejected.push(row.id);
+          continue;
+        }
+        const item = { id:String(row.id), cli:target.cli, action, detail:row.detail || null,
+          created_at:Number(row.created_at), status:String(row.status || "queued") };
+        if (action === "start" || action === "stop") latestControl.set(target.cli, item);
+        else valid.push(item);
+      }
+      const selectedIds = new Set([...latestControl.values()].map((item) => item.id));
+      const superseded = raw.filter((row) => row.status === "queued" &&
+        (row.action === "start" || row.action === "stop") && !selectedIds.has(String(row.id))).map((row) => String(row.id));
+      const housekeeping = [];
+      for (const id of rejected) housekeeping.push(env.DB.prepare(
+        "UPDATE cli_commands SET status='rejected',result_detail='machine/cli/action fuera de catálogo',updated_at=? WHERE id=? AND status='queued'"
+      ).bind(ahora, id));
+      for (const id of superseded) housekeeping.push(env.DB.prepare(
+        "UPDATE cli_commands SET status='superseded',result_detail='sustituida por la intención más reciente',updated_at=? WHERE id=? AND status='queued'"
+      ).bind(ahora, id));
+      for (const item of latestControl.values()) {
+        const desired = desiredStateForAction(item.action);
+        housekeeping.push(env.DB.prepare(
+          "INSERT INTO cli_state(machine,cli,alive,pid,seen_at,desired,desired_command_id,desired_at) VALUES(?,?,NULL,NULL,0,?,?,?) " +
+          "ON CONFLICT(machine,cli) DO UPDATE SET desired=excluded.desired,desired_command_id=excluded.desired_command_id,desired_at=excluded.desired_at"
+        ).bind(machine, item.cli, desired, item.id, ahora));
+        valid.push({ ...item, desired, redelivered:item.status === "running" });
+      }
+      if (housekeeping.length) {
+        if (typeof env.DB.batch === "function") await env.DB.batch(housekeeping);
+        else for (const statement of housekeeping) await statement.run();
+      }
+      valid.sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
+      const states = (await env.DB.prepare(
+        "SELECT cli,desired,desired_command_id,desired_at FROM cli_state WHERE lower(machine)=lower(?)"
+      ).bind(machine).all()).results || [];
+      return json({ ok:true, machine, items:valid.slice(0, 5), desired:states });
     }
     if (url.pathname === "/fleet/cli/ack" && req.method === "POST") {
+      const auth = await authorizeCliExecutor(env, req);
+      if (!auth.ok) return json({ ok:false, code:auth.code, error:auth.error }, auth.status);
+      let body; try { body = await req.json(); } catch { return json({ ok:false, error:"bad-json" }, 400); }
+      const ack = validateCliAckBody(body);
+      if (!ack.ok) return json({ ok:false, code:ack.code, error:ack.error }, ack.status);
       await ensureSchema(env);
-      let b; try { b = await req.json(); } catch { return json({ ok:false, error:"bad-json" }, 400); }
       const ahora = Date.now();
-      if (b.id) {
-        const st = ["running", "done", "failed"].includes(String(b.status)) ? String(b.status) : "done";
-        await env.DB.prepare("UPDATE cli_commands SET status=?,detail=?,updated_at=? WHERE id=?")
-          .bind(st, String(b.detail || "").slice(0, 300), ahora, String(b.id)).run();
+      let transition = null;
+      if (ack.id) {
+        const command = await env.DB.prepare(
+          "SELECT id,machine,cli,action,status FROM cli_commands WHERE id=?"
+        ).bind(ack.id).first();
+        // 404 también para un id de otra máquina: el token no permite usar ACK
+        // como oráculo para enumerar órdenes de compañeros.
+        if (!command) return json({ ok:false, code:"command_not_found", error:"orden no encontrada" }, 404);
+        const match = ackMatchesCommand(command, ack);
+        if (!match.ok) {
+          const status = match.code === "command_target_mismatch" ? 404 : 409;
+          return json({ ok:false, code:match.code, error:match.error || "ACK incompatible con la orden" }, status);
+        }
+        transition = cliAckTransition(command.status, ack.status);
+        if (!transition.ok) {
+          return json({ ok:false, code:transition.code, status:transition.status,
+            error:"la orden no admite esa transición" }, 409);
+        }
       }
-      if (b.machine && b.cli) {
-        await env.DB.prepare("INSERT INTO cli_state(machine,cli,alive,pid,seen_at) VALUES(?,?,?,?,?) " +
-          "ON CONFLICT(machine,cli) DO UPDATE SET alive=excluded.alive,pid=excluded.pid,seen_at=excluded.seen_at")
-          .bind(String(b.machine), String(b.cli), b.alive ? 1 : 0, Number(b.pid) || null, ahora).run();
+      const writes = [env.DB.prepare(
+        "INSERT INTO cli_state(machine,cli,alive,pid,seen_at) VALUES(?,?,?,?,?) " +
+        "ON CONFLICT(machine,cli) DO UPDATE SET alive=excluded.alive,pid=excluded.pid,seen_at=excluded.seen_at"
+      ).bind(ack.machine, ack.cli, ack.alive ? 1 : 0, ack.pid, ahora)];
+      // Repetir running renueva el lease de 60 s; repetir un terminal sólo late
+      // cli_state y no reescribe el resultado ya sellado.
+      if (ack.id && (!transition.duplicate || transition.status === "running")) {
+        writes.push(env.DB.prepare(
+          "UPDATE cli_commands SET status=?,result_detail=?,updated_at=? WHERE id=? AND status IN ('queued','running')"
+        ).bind(transition.status, ack.detail, ahora, ack.id));
       }
-      return json({ ok:true });
+      if (typeof env.DB.batch === "function") await env.DB.batch(writes);
+      else for (const statement of writes) await statement.run();
+      const state = await env.DB.prepare(
+        "SELECT machine,cli,alive,pid,seen_at,desired,desired_command_id,desired_at FROM cli_state WHERE lower(machine)=lower(?) AND cli=?"
+      ).bind(ack.machine, ack.cli).first();
+      return json({ ok:true, command:ack.id ? { id:ack.id, status:transition.status,
+        duplicate:!!transition.duplicate } : null, state:state || {
+        machine:ack.machine, cli:ack.cli, alive:ack.alive, pid:ack.pid, seen_at:ahora
+      } });
     }
     if (url.pathname === "/fleet/agent/stop") {
       if (req.method !== "POST") return json({ ok:false, error:"method" }, 405);

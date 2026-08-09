@@ -3,7 +3,8 @@
 # modelo MISIONES·TAREAS (mission_tasks + endpoints /mission/*). Espejo del prod,
 # igual que se hizo con yokup-site. Deploy: `cd yokup-rtc && npx wrangler deploy`.
 #
-# Los secretos (TURN_TOKEN, VAPID_PRIVATE, YK_SESSION_SECRET) NO viven aquí: ya
+# Los secretos (TURN_TOKEN, VAPID_PRIVATE, YK_SESSION_SECRET,
+# YOKUP_CLI_EXECUTOR_TOKEN) NO viven aquí: ya
 # están puestos en el Worker (wrangler secret) y wrangler los preserva al desplegar.
 #
 # ── DESPLEGAR DESDE EL REPO ES SEGURO (FLT-982 a, 22-jul-2026) ───────────────
