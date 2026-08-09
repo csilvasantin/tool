@@ -35,6 +35,7 @@ test("Yokup rechaza identidades, franjas futuras y evidencia insuficiente", () =
 
 test("la escritura Coach exige secreto y la lectura pública omite la aplicación", () => {
   assert.match(source, /url\.pathname === "\/academy\/coach\/completion" && req\.method === "POST"/);
+  assert.match(source, /url\.pathname === "\/academy\/coach\/health" && req\.method === "GET"/);
   assert.match(source, /env\.ACADEMY_COACH_TOKEN/);
   assert.match(source, /INSERT OR IGNORE INTO academy_coach_completions/);
   assert.match(source, /UNIQUE\(audience,counselor,slot_id\)/);
@@ -42,4 +43,3 @@ test("la escritura Coach exige secreto y la lectura pública omite la aplicació
   const read = source.slice(source.indexOf('url.pathname === "/academy/coach/completions"'), source.indexOf('url.pathname === "/academy/coach/completions"') + 900);
   assert.doesNotMatch(read, /application/);
 });
-

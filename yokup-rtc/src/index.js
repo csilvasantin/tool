@@ -6672,6 +6672,16 @@ var index_default = {
         return json({ ok:true, reused:false, registry:"academy-coach", ...academyCoachPublicRow(row) });
       } catch (e) { return json({ ok:false, error:String(e) }, 500); }
     }
+    if (url.pathname === "/academy/coach/health" && req.method === "GET") {
+      try {
+        const token = String(env.ACADEMY_COACH_TOKEN || "");
+        const supplied = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+        if (!token) return json({ ok:false, error:"Coach no configurado" }, 503);
+        if (supplied !== token) return json({ ok:false, error:"unauthorized" }, 401);
+        await ensureAcademyCoachSchema(env);
+        return json({ ok:true, registry:"academy-coach", checkedAt:new Date().toISOString() });
+      } catch (e) { return json({ ok:false, error:String(e) }, 500); }
+    }
     if (url.pathname === "/academy/coach/completions" && req.method === "GET") {
       try {
         await ensureAcademyCoachSchema(env);
