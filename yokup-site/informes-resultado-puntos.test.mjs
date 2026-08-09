@@ -18,9 +18,9 @@ test("la columna se llama Resultado, no Captura", () => {
 // se van AL FINAL de la fila, en columna propia. Dentro de RESULTADO competían con
 // la miniatura y, sobre todo, no se podía ordenar por ellos.
 test("los puntos cierran la fila, en su propia columna y ordenables", () => {
-  assert.match(html, /<div class="gc pts-cell" role="cell" data-label="Puntos">\$\{puntosHTML\(t\)\}<\/div>/);
-  assert.match(html, /data-label="Resultado">\$\{highscoreHTML\(t\)\}\$\{shot\}<\/div>/,
-    "RESULTADO se queda con la evidencia; los puntos ya no viven ahí");
+  assert.match(html, /<div class="gc pts-cell" role="cell" data-label="Puntos">\$\{highscoreHTML\(t\)\}\$\{puntosHTML\(t\)\}<\/div>/);
+  assert.match(html, /data-label="Resultado">\$\{shot\}<\/div>/,
+    "RESULTADO se queda SOLO con su pantallazo");
   assert.match(html, /\["puntos","Puntos"\]\s*\n?\s*\]/, "PUNTOS es la última columna");
   assert.match(html, /t\.points_start/);
   assert.match(html, /t\.points_end/);
@@ -51,6 +51,11 @@ test("el resultado enseña cómo puntuó esa misión en el Highscore", () => {
   assert.match(html, /if\(!chain\)return"";/,
     "una misión fuera de la traza del día no inventa recorte");
   assert.match(html, /class="hs-ev" href="\/highscore"/, "el recorte lleva al Highscore");
+  // Carlos, 2026-08-09: el recorte se va a PUNTOS. Es un dato de puntuación, no una
+  // captura, y en RESULTADO competía con la foto — dos columnas de pantallazos
+  // seguidas se leen de un vistazo; una foto y un recuadro de números, no.
+  const celdaResultado = html.slice(html.indexOf('data-label="Resultado"'), html.indexOf("</div>", html.indexOf('data-label="Resultado"')));
+  assert.doesNotMatch(celdaResultado, /highscoreHTML/, "el recorte ya no vive en RESULTADO");
   assert.match(html, /\.hs-ev\{/, "y tiene estilo propio");
 });
 
