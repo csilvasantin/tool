@@ -9,7 +9,7 @@ import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
 import { resolveIdeaAuthor } from "./idea-author.js";
 import { missionProofOrigin } from "./proof-origin.js";
-import { validateCoachCompletion } from "./academy-coach.js";
+import { validateCoachCompletion, coachLessonForSlot, COACH_HOUR } from "./academy-coach.js";
 import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
   onIdleEligibility, taskVisibleDetails } from "./mission-visible.js";
 import { DAILY_MISSION_CLOSE_AUTHOR, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_LEASE_MS, DAILY_MISSION_CLOSE_REASON, MISSION_UNCONCLUDED_AFTER_MS, dailyMissionCloseEventText, dailyMissionClosePlan } from "./daily-mission-close.js";
@@ -839,8 +839,40 @@ var ACADEMY_LECCIONES = [
   { id:"mission",   title:"Misión con evidencia",  summary:"Convertir criterio en una entrega comprobable." },
   { id:"closure",   title:"Cierre y puntuación",   summary:"Cerrar sin atribuciones no verificadas." }
 ];
+// LAS TRES TEMÁTICAS DEL COACH (Carlos, 2026-08-09): «una cada hora y vuelta a
+// empezar, con lo que saldrán 24 ventanas de formación al día, 8 de cada tipología».
+//
+// La temática y la lección NO se deciden aquí: las da `coachLessonForSlot` de
+// academy-coach.js, que es el Coach de la Academia y ya rota tecnología →
+// creatividad → negocio por franja horaria, con su catálogo de cuatro lecciones por
+// temática. Duplicar esa rueda habría sido garantizar que un día dejaran de decir lo
+// mismo: la cápsula de la hora y la lección del Coach TIENEN que ser la misma cosa.
+//
+// Lo único que se añade aquí es a QUÉ SILLA le toca, que el Coach no reparte. Sale
+// del ÁREA declarada de cada consejero en la Academia (academy-training-core.js), no
+// de una opinión: CTO «Tecnología y arquitectura» y COO «Operaciones y entrega» son
+// tecnología —cómo está hecho y cómo gira—; CEO «Visión, producto y dirección» y CFO
+// «Finanzas y sostenibilidad» son negocio; y las cuatro creativas (marca, diseño,
+// experiencia, relato) son creatividad. Si el reparto no convence, se cambia aquí.
+var ACADEMY_TEMAS = [
+  { id:"tecnologia",  nombre:"Tecnología",  seats:["cto", "coo"] },
+  { id:"creatividad", nombre:"Creatividad", seats:["cco", "cdo", "cxo", "cso"] },
+  { id:"negocio",     nombre:"Negocio",     seats:["ceo", "cfo"] }
+];
+// La franja del Coach es la MISMA hora que la de la cápsula (COACH_HOUR = 1 h), así
+// que las dos hablan de la misma casilla del reloj sin conversiones por medio.
+function academyTemaDeFranja(slotId) {
+  const { dimension, lessonId } = coachLessonForSlot(slotId);
+  const tema = ACADEMY_TEMAS.find((t) => t.id === dimension) || ACADEMY_TEMAS[0];
+  return { tema, lessonId };
+}
+__name(academyTemaDeFranja, "academyTemaDeFranja");
 async function ensureAcademyCapsuleSchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS academy_capsulas (hour_start INTEGER PRIMARY KEY, seat TEXT, source TEXT, capsule_id TEXT, title TEXT, note TEXT, url TEXT, at INTEGER)");
+  // Aditivas: las capsulas de ayer no tenian tematica ni agente de turno.
+  await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN tema TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN agent TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN decision_id TEXT").catch(() => {});
 }
 __name(ensureAcademyCapsuleSchema, "ensureAcademyCapsuleSchema");
 
@@ -859,9 +891,11 @@ __name(academyCoachPublicRow, "academyCoachPublicRow");
 function academyCapsuleRow(row) {
   if (!row) return null;
   const c = COUNCIL[String(row.seat)] || {};
+  const tema = ACADEMY_TEMAS.find((t) => t.id === String(row.tema || "")) || null;
   return { hour_start:Number(row.hour_start) || 0, seat:row.seat, role:c.role || "", alias:c.alias || "",
+    tema:row.tema || "", tema_nombre:tema ? tema.nombre : "",
     source:row.source || "", id:row.capsule_id || "", title:row.title || "", note:row.note || "",
-    url:row.url || "", at:Number(row.at) || 0 };
+    url:row.url || "", agent:row.agent || "", decision_id:row.decision_id || "", at:Number(row.at) || 0 };
 }
 __name(academyCapsuleRow, "academyCapsuleRow");
 
@@ -870,8 +904,12 @@ async function runAcademyCapsuleTick(env, ahora = Date.now()) {
   const hourStart = Math.floor(ahora / ACADEMY_HORA_MS) * ACADEMY_HORA_MS;
   const ya = await env.DB.prepare("SELECT * FROM academy_capsulas WHERE hour_start=?").bind(hourStart).first();
   if (ya) return { ok:true, nueva:false, capsula:academyCapsuleRow(ya) };
-  // Silla de la hora: rotación de las ocho, una por hora. Determinista y sin estado.
-  const seat = COUNCIL_ORDER[Math.floor(hourStart / ACADEMY_HORA_MS) % COUNCIL_ORDER.length];
+  // La HORA manda la temática y la temática manda la silla. 24 h / 3 temáticas = 8
+  // ventanas de cada una al día, exactas, sin llevar cuentas. Dentro de la temática la
+  // silla también rota, para que no le toque siempre al mismo de los suyos.
+  const horas = Math.floor(hourStart / COACH_HOUR);
+  const { tema, lessonId } = academyTemaDeFranja(horas);
+  const seat = tema.seats[Math.floor(horas / ACADEMY_TEMAS.length) % tema.seats.length];
   let elegida = null;
   try {
     const piezas = seatKnowledgeFrom(await stockIndex(), seat, 0);
@@ -885,12 +923,18 @@ async function runAcademyCapsuleTick(env, ahora = Date.now()) {
     }
   } catch (e) { /* pixeria caida no deja la hora sin capsula: se cae a la leccion */ }
   if (!elegida) {
-    const l = ACADEMY_LECCIONES[Math.floor(hourStart / ACADEMY_HORA_MS) % ACADEMY_LECCIONES.length];
-    elegida = { source:"academia/leccion", id:l.id, title:l.title, note:l.summary, url:"https://admira.academy/#programa" };
+    // Sin material propio, la cápsula ES la lección que el Coach da esta hora: misma
+    // temática, mismo reloj. Antes caía a una de las cuatro lecciones viejas de la
+    // portada y podía contradecir al Coach en la misma franja.
+    const l = ACADEMY_LECCIONES.find((x) => x.id === lessonId);
+    elegida = { source:"academia/leccion", id:lessonId,
+      title:(l && l.title) || ("Lección de " + tema.nombre + ": " + lessonId.replace(/-/g, " ")),
+      note:(l && l.summary) || ("Lección del Coach de esta hora en " + tema.nombre + "."),
+      url:"https://admira.academy/#formacion" };
   }
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO academy_capsulas (hour_start,seat,source,capsule_id,title,note,url,at) VALUES (?,?,?,?,?,?,?,?)"
-  ).bind(hourStart, seat, elegida.source, String(elegida.id).slice(0, 80),
+    "INSERT OR IGNORE INTO academy_capsulas (hour_start,seat,tema,source,capsule_id,title,note,url,at) VALUES (?,?,?,?,?,?,?,?,?)"
+  ).bind(hourStart, seat, tema.id, elegida.source, String(elegida.id).slice(0, 80),
     String(elegida.title).slice(0, 200), String(elegida.note).slice(0, 400),
     String(elegida.url).slice(0, 300), Date.now()).run();
   await env.DB.prepare(

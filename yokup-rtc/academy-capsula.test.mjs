@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { coachLessonForSlot } from "./src/academy-coach.js";
 
 // FLT-1333 (Carlos, 2026-08-08): «lanzar cada hora en punto una ventana de formación
 // para que se active una cápsula de conocimiento en admira.academy».
@@ -24,9 +25,10 @@ test("una hora, una cápsula: la clave primaria es la garantía, no un candado",
   assert.match(source, /var ACADEMY_HORA_MS = 60 \* 60 \* 1000/);
 });
 
-test("la silla sale de la hora: rotación de las ocho, sin estado que llevar", () => {
+test("la silla sale de la hora, sin estado que llevar", () => {
+  // Nació rotando las ocho seguidas; desde FLT-1338 rota por temática (ver abajo).
   const tick = fuente("runAcademyCapsuleTick");
-  assert.match(tick, /COUNCIL_ORDER\[Math\.floor\(hourStart \/ ACADEMY_HORA_MS\) % COUNCIL_ORDER\.length\]/);
+  assert.match(tick, /const horas = Math\.floor\(hourStart \/ COACH_HOUR\)/);
   assert.match(source, /const COUNCIL_ORDER = \["ceo", "cto", "coo", "cfo", "cco", "cdo", "cxo", "cso"\]/);
 });
 
@@ -61,4 +63,62 @@ test("la Academia puede leerla sin sesión, y preguntar abre la hora", () => {
 
 test("la rutina del reloj la incluye, con su propio latido", () => {
   assert.match(source, /await step\("academyCapsule", \(\) => runAcademyCapsuleTick\(env\)\)/);
+});
+
+// FLT-1338 (Carlos, 2026-08-09): «las ventanas de formación tienen que ser de las 3
+// temáticas del coach de admira.academy —tecnología, creatividad y negocio— una cada
+// hora y vuelta a empezar, con lo que saldrán 24 ventanas de formación al día, 8 de
+// cada tipología».
+function temasApi(){
+  const i = source.indexOf("var ACADEMY_TEMAS");
+  const j = source.indexOf("__name(academyTemaDeFranja");
+  assert.ok(i >= 0 && j > i, "falta el bloque de temáticas");
+  return new Function("coachLessonForSlot", source.slice(i, j) + "\nreturn { ACADEMY_TEMAS, academyTemaDeFranja };")(coachLessonForSlot);
+}
+
+test("tres temáticas, una por hora: 24 al día y 8 de cada, sin llevar cuentas", () => {
+  const { ACADEMY_TEMAS, academyTemaDeFranja } = temasApi();
+  assert.deepEqual(ACADEMY_TEMAS.map(t => t.id), ["tecnologia", "creatividad", "negocio"]);
+  const base = Math.floor(Date.UTC(2026, 7, 9, 0, 0, 0) / 3600000);
+  const cuenta = {};
+  for (let h = 0; h < 24; h++) { const { tema } = academyTemaDeFranja(base + h); cuenta[tema.id] = (cuenta[tema.id] || 0) + 1; }
+  assert.deepEqual(cuenta, { tecnologia:8, creatividad:8, negocio:8 });
+  // El día siguiente arranca donde toca, no se reinicia a mano.
+  assert.equal(academyTemaDeFranja(base + 24).tema.id, academyTemaDeFranja(base).tema.id);
+});
+
+// Reutilizar, no duplicar: la rueda de temáticas ya la tenía el Coach de la Academia
+// (src/academy-coach.js, del equipo de Admira). Si la cápsula llevara la suya, un día
+// dejarían de decir lo mismo en la misma franja.
+test("la temática y la lección salen del Coach, no de una copia", () => {
+  assert.match(source, /import \{ validateCoachCompletion, coachLessonForSlot, COACH_HOUR \} from "\.\/academy-coach\.js"/);
+  const { academyTemaDeFranja } = temasApi();
+  for (const slot of [0, 1, 2, 3, 100, 1234567]) {
+    const esperado = coachLessonForSlot(slot);
+    const salida = academyTemaDeFranja(slot);
+    assert.equal(salida.tema.id, esperado.dimension, "la temática es la del Coach en la franja " + slot);
+    assert.equal(salida.lessonId, esperado.lessonId, "y la lección también");
+  }
+  const tick = fuente("runAcademyCapsuleTick");
+  assert.match(tick, /Math\.floor\(hourStart \/ COACH_HOUR\)/, "misma franja horaria que el Coach, sin conversiones");
+});
+
+test("las ocho sillas se reparten entre las tres temáticas, sin repetirse ni faltar", () => {
+  const { ACADEMY_TEMAS } = temasApi();
+  const todas = ACADEMY_TEMAS.flatMap(t => t.seats);
+  assert.equal(todas.length, 8, "las ocho sillas del Consejo, ni una más ni una menos");
+  assert.equal(new Set(todas).size, 8, "ninguna silla en dos temáticas");
+  for (const seat of ["ceo","cto","coo","cfo","cco","cdo","cxo","cso"]) assert.ok(todas.includes(seat), "falta " + seat);
+  // El reparto sale del ÁREA declarada de cada silla, no de una opinión.
+  assert.deepEqual(ACADEMY_TEMAS.find(t => t.id === "tecnologia").seats, ["cto","coo"]);
+  assert.deepEqual(ACADEMY_TEMAS.find(t => t.id === "negocio").seats, ["ceo","cfo"]);
+});
+
+test("la hora manda la temática y la temática manda la silla", () => {
+  const tick = fuente("runAcademyCapsuleTick");
+  assert.match(tick, /const \{ tema, lessonId \} = academyTemaDeFranja\(horas\)/);
+  assert.match(tick, /tema\.seats\[Math\.floor\(horas \/ ACADEMY_TEMAS\.length\) % tema\.seats\.length\]/,
+    "dentro de la temática la silla también rota: no le toca siempre al mismo");
+  assert.match(tick, /INSERT OR IGNORE INTO academy_capsulas \(hour_start,seat,tema,/);
+  assert.match(source, /ALTER TABLE academy_capsulas ADD COLUMN tema TEXT/, "aditiva: las cápsulas de ayer no tenían temática");
 });
