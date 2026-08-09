@@ -11,8 +11,8 @@ const baseBody={
   recommended:0,minutes:5,onidle:true,mission:'OnIdle horario'
 };
 
-function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMissions=[],backlog=[],activeBatches=[]}={}) {
-  const state={missions,tasks,decisions:decisions.map(x=>({...x})),targetMissions,backlog,activeBatches,displayRefs:new Map(),nextRef:0};
+function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMissions=[],backlog=[],activeBatches=[],activeMissionTasks=[]}={}) {
+  const state={missions,tasks,decisions:decisions.map(x=>({...x})),targetMissions,backlog,activeBatches,activeMissionTasks,displayRefs:new Map(),nextRef:0};
   const projects=[{id:'yokup',name:'Yokup',web:'www.yokup.com',status:'activo'}];
   const members=[{project_id:'yokup',kind:'agent',ref:'OraculoMacMini'},{project_id:'yokup',kind:'machine',ref:'admira-macmini'}];
   const stmt=(sql,args=[])=>({
@@ -35,6 +35,7 @@ function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMis
         (row.project_id===args[0]||(!row.project_id&&String(row.project).toLowerCase()===String(args[1]).toLowerCase())))};
       if (sql.startsWith('SELECT agent,machine,project,options,option_targets FROM decisions WHERE mission=')) return {results:state.decisions.filter(row=>row.mission===args[0]&&(row.project===args[1]||String(row.project).toLowerCase()===String(args[2]).toLowerCase())&&!row.parent_decision)};
       if (sql.startsWith('SELECT active_mission_id,agent,machine,project_id FROM mission_batches')) return {results:state.activeBatches};
+      if (sql.startsWith('SELECT DISTINCT m.mission_id FROM mission_tasks m JOIN tickets t')) return {results:state.activeMissionTasks.map(mission_id=>({mission_id}))};
       if (sql==='SELECT * FROM projects') return {results:projects};
       if (sql==='SELECT project_id,kind,ref FROM project_members') return {results:members};
       if (sql.includes('SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?)')) return {results:state.decisions.filter(d=>d.agent.toLowerCase()===String(args[0]).toLowerCase()&&!d.parent_decision&&d.created_at>args[1]).sort((a,b)=>b.created_at-a.created_at)};
@@ -82,13 +83,42 @@ test('GET proposals usa el backlog global del proyecto y excluye usadas/activas 
   assert.equal(rows.length,3);
 });
 
-test('GET proposals falla cerrado si el backlog canónico no completa tres',async()=>{
+test('GET proposals completa con explicit_new si el backlog canónico no alcanza tres',async()=>{
   const common={status:'open',priority:'normal',assignee:'OraculoMacMini',loc:'admira-macmini',project:'yokup',project_id:'yokup'};
   const {env}=decisionEnv({backlog:[{...common,id:'MIS-1',subject:'Una'},{...common,id:'MIS-2',subject:'Dos'}]});
   const response=await worker.fetch(new Request('https://api.yokup.com/fleet/onidle-proposals?agent=OraculoMacMini&machine=admira-macmini&project_id=yokup'),env,{});
-  const body=await response.json();
-  assert.equal(response.status,409); assert.equal(body.code,'onidle_proposals_insufficient');
-  assert.deepEqual(body.proposals,[]); assert.equal(body.available,2);
+  const text=await response.text();
+  assert.equal(response.status,200,text);
+  const rows=text.trim().split('\n').map(JSON.parse);
+  assert.deepEqual(rows.slice(0,2).map(row=>row.target_mission_id),['MIS-1','MIS-2']);
+  assert.equal(rows[2].target_mission_id,null);
+  assert.equal(rows[2].explicit_new,true);
+});
+
+test('GET proposals devuelve tres explicit_new distintos con backlog vacío',async()=>{
+  const {env}=decisionEnv();
+  const response=await worker.fetch(new Request('https://api.yokup.com/fleet/onidle-proposals?agent=OraculoMacMini&machine=admira-macmini&project_id=yokup'),env,{});
+  const text=await response.text();
+  assert.equal(response.status,200,text);
+  const rows=text.trim().split('\n').map(JSON.parse);
+  assert.equal(rows.length,3);
+  assert.equal(new Set(rows.map(row=>row.title)).size,3);
+  assert.ok(rows.every(row=>row.target_mission_id===null&&row.explicit_new===true));
+});
+
+test('GET proposals excluye tareas activas aunque el ticket siga open y rellena con explicit_new',async()=>{
+  const common={status:'open',priority:'high',assignee:'',loc:'',project:'yokup',project_id:'yokup'};
+  const {env}=decisionEnv({backlog:[
+    {...common,id:'MIS-ACT',subject:'No debe salir',created_at:1},
+    {...common,id:'INC-OK',subject:'Incidencia vigente',created_at:2}
+  ],activeMissionTasks:['MIS-ACT']});
+  const response=await worker.fetch(new Request('https://api.yokup.com/fleet/onidle-proposals?agent=OraculoMacMini&machine=admira-macmini&project_id=yokup'),env,{});
+  const text=await response.text();
+  assert.equal(response.status,200,text);
+  const rows=text.trim().split('\n').map(JSON.parse);
+  assert.equal(rows.length,3);
+  assert.equal(rows[0].target_mission_id,'INC-OK');
+  assert.ok(rows.every(row=>row.target_mission_id!=='MIS-ACT'));
 });
 
 test('GET proposals exige project_id exacto aunque agent+machine tengan una sola asignación',async()=>{

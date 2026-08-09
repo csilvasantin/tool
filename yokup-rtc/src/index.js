@@ -14,7 +14,7 @@ import { validateCoachCompletion, validateCoachLaunch, coachLessonForSlot, coach
 import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
   onIdleEligibility, taskVisibleDetails } from "./mission-visible.js";
 import { DAILY_MISSION_CLOSE_AUTHOR, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_LEASE_MS, DAILY_MISSION_CLOSE_REASON, MISSION_UNCONCLUDED_AFTER_MS, dailyMissionCloseEventText, dailyMissionClosePlan } from "./daily-mission-close.js";
-import { selectOnIdleProposals } from "./onidle-proposals.js";
+import { buildOnIdleExplicitNewCandidates, selectOnIdleProposals } from "./onidle-proposals.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -3384,7 +3384,7 @@ async function canonicalOnIdleProposals(env, identity, requestedProjectId) {
     error:"project_id no pertenece a la asignación canónica de agent+machine" };
   const projectId = String(assignment.id);
   const projectName = String(assignment.name);
-  const [backlogResult, decisionResult, activeBatchResult] = await Promise.all([
+  const [backlogResult, decisionResult, activeBatchResult, activeTaskResult] = await Promise.all([
     env.DB.prepare(
       "SELECT id,subject,status,priority,assignee,loc,project,project_id,created_at,updated_at FROM tickets " +
       "WHERE (project_id=? OR (COALESCE(project_id,'')='' AND lower(project)=lower(?))) " +
@@ -3399,7 +3399,13 @@ async function canonicalOnIdleProposals(env, identity, requestedProjectId) {
     env.DB.prepare(
       "SELECT active_mission_id,agent,machine,project_id FROM mission_batches " +
       "WHERE status='active' AND active_mission_id IS NOT NULL AND active_mission_id!=''"
-    ).all()
+    ).all(),
+    env.DB.prepare(
+      "SELECT DISTINCT m.mission_id FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id " +
+      "WHERE lower(COALESCE(m.status,'')) IN ('in_progress','doing','active','unconcluded') " +
+      "AND lower(COALESCE(t.status,'')) NOT IN ('resolved','cancelled','closed') " +
+      "AND (t.project_id=? OR (COALESCE(t.project_id,'')='' AND lower(t.project)=lower(?)))"
+    ).bind(projectId, projectName).all()
   ]);
   const usedTargetIds = [], usedTitles = [];
   for (const row of decisionResult.results || []) {
@@ -3413,12 +3419,14 @@ async function canonicalOnIdleProposals(env, identity, requestedProjectId) {
   }
   const activeMissionIds = (activeBatchResult.results || [])
     .filter((row) => String(row.project_id || "") === projectId)
-    .map((row) => row.active_mission_id);
-  const candidates = (backlogResult.results || []).map((row) => ({
+    .map((row) => row.active_mission_id)
+    .concat((activeTaskResult.results || []).map((row) => row.mission_id));
+  const backlogCandidates = (backlogResult.results || []).map((row) => ({
     title:row.subject, target_mission_id:row.id, status:row.status,
     priority:row.priority, created_at:row.created_at || row.updated_at
   }));
-  return { ...selectOnIdleProposals(candidates, {
+  const explicitNewCandidates = buildOnIdleExplicitNewCandidates(assignment, madridDayKey(Date.now()));
+  return { ...selectOnIdleProposals(backlogCandidates.concat(explicitNewCandidates), {
     used_target_ids:usedTargetIds, used_titles:usedTitles, active_mission_ids:activeMissionIds
   }), project_id:projectId, agent:identity.agent, machine:identity.machine };
 }

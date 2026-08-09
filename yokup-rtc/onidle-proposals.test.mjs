@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {onIdleProposalTitleKey,selectOnIdleProposals} from './src/onidle-proposals.js';
+import {buildOnIdleExplicitNewCandidates,onIdleProposalTitleKey,selectOnIdleProposals} from './src/onidle-proposals.js';
 
 test('normaliza títulos para excluir duplicados cosméticos',()=>{
   assert.equal(onIdleProposalTitleKey('  Corregir  misión… '),'corregir mision');
@@ -57,4 +57,37 @@ test('falla cerrado y no devuelve lista parcial si quedan menos de tres',()=>{
     {title:'Dos',target_mission_id:'MIS-2',status:'open'}
   ]);
   assert.deepEqual(result,{ok:false,code:'onidle_proposals_insufficient',required:3,available:2,proposals:[]});
+});
+
+test('el fallback del proyecto ofrece las 24 alternativas diarias como explicit_new seguro',()=>{
+  const rows=buildOnIdleExplicitNewCandidates({id:'yokup',name:'Yokup'},'2026-08-09');
+  assert.equal(rows.length,24);
+  assert.equal(new Set(rows.map(row=>onIdleProposalTitleKey(row.title))).size,24);
+  assert.ok(rows.every(row=>row.target_mission_id===null&&row.explicit_new===true&&row.status==='new'));
+  assert.ok(rows.every(row=>row.title.includes('Yokup')&&row.title.includes('2026-08-09')));
+});
+
+test('el catálogo completa exactamente tres después de backlog, activas y usadas',()=>{
+  const fallback=buildOnIdleExplicitNewCandidates({id:'yokup',name:'Yokup'},'2026-08-09');
+  const result=selectOnIdleProposals([
+    {title:'Incidencia cerrada',target_mission_id:'INC-C',status:'resolved',priority:'urgent',created_at:1},
+    {title:'Misión activa',target_mission_id:'MIS-A',status:'open',priority:'urgent',created_at:2},
+    {title:'Incidencia vigente',target_mission_id:'INC-1',status:'open',priority:'high',created_at:3},
+    ...fallback
+  ],{active_mission_ids:['MIS-A'],used_titles:[fallback[0].title]});
+  assert.equal(result.ok,true);
+  assert.equal(result.proposals.length,3);
+  assert.equal(result.proposals[0].target_mission_id,'INC-1');
+  assert.ok(result.proposals.slice(1).every(row=>row.target_mission_id===null&&row.explicit_new===true));
+  assert.ok(result.proposals.every(row=>row.title!==fallback[0].title));
+});
+
+test('24 alternativas cubren ocho ventanas sin repetir títulos usados',()=>{
+  const fallback=buildOnIdleExplicitNewCandidates({id:'yokup',name:'Yokup'},'2026-08-09');
+  for(let window=0;window<8;window++){
+    const used=fallback.slice(0,window*3).map(row=>row.title);
+    const result=selectOnIdleProposals(fallback,{used_titles:used});
+    assert.equal(result.ok,true,`ventana ${window+1}`);
+    assert.deepEqual(result.proposals.map(row=>row.title),fallback.slice(window*3,window*3+3).map(row=>row.title));
+  }
 });

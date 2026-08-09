@@ -2,8 +2,57 @@ const TARGET_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/;
 const TERMINAL = new Set(["resolved", "cancelled", "closed"]);
 const ACTIVE = new Set(["in_progress", "unconcluded", "active", "doing"]);
 
+// Último recurso canónico cuando incidencias y backlog abierto no alcanzan tres
+// filas adoptables. No inventa un target: cada fila declara explícitamente que
+// debe crear una misión nueva si Carlos la elige. El catálogo contiene las 24
+// propuestas máximas que pueden consumir ocho ventanas diarias; la fecha de
+// Madrid hace que al día siguiente vuelvan a ser vigentes sin reciclar un título
+// ya usado durante el mismo día.
+const EXPLICIT_NEW_SCOPES = Object.freeze([
+  "Auditar el flujo principal y corregir el primer fallo reproducible",
+  "Reducir una fricción visible en la navegación",
+  "Mejorar la claridad de una acción primaria",
+  "Corregir una inconsistencia visual reproducible",
+  "Optimizar el primer cuello de rendimiento medible",
+  "Mejorar el estado de carga más confuso",
+  "Revisar la navegación por teclado y corregir el primer bloqueo",
+  "Mejorar el contraste del elemento menos legible",
+  "Corregir etiquetas ambiguas para lectores de pantalla",
+  "Clarificar el mensaje de error menos accionable",
+  "Añadir recuperación segura al primer flujo que hoy se interrumpe",
+  "Evitar un doble envío o una acción repetida",
+  "Detectar y corregir el primer dato incoherente visible",
+  "Reforzar una validación de entrada débil",
+  "Eliminar el primer duplicado verificable en una vista",
+  "Añadir telemetría útil a un flujo sin diagnóstico",
+  "Mejorar el informe de contexto de un error recurrente",
+  "Registrar evidencia real en un proceso que hoy usa relleno",
+  "Añadir una prueba de regresión a un comportamiento crítico",
+  "Convertir el primer bug recurrente en una comprobación automática",
+  "Cubrir un caso límite sin prueba automatizada",
+  "Reducir pasos innecesarios en una tarea frecuente",
+  "Mejorar la adaptación móvil de la vista más frágil",
+  "Automatizar una verificación manual repetitiva"
+]);
+
 function cleanTitle(value) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, 200);
+}
+
+export function buildOnIdleExplicitNewCandidates(project, dayKey) {
+  const name = cleanTitle(project && (project.name || project.id) || "Proyecto").slice(0, 60) || "Proyecto";
+  const day = String(dayKey || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return [];
+  return EXPLICIT_NEW_SCOPES.map((scope, index) => ({
+    title:`${scope} en ${name} · ${day}`,
+    target_mission_id:null,
+    explicit_new:true,
+    status:"new",
+    // Cualquier incidencia/backlog real queda antes que este fallback, incluso
+    // si su prioridad no está normalizada.
+    priority:"fallback",
+    created_at:Number.MAX_SAFE_INTEGER - EXPLICIT_NEW_SCOPES.length + index
+  }));
 }
 
 export function onIdleProposalTitleKey(value) {

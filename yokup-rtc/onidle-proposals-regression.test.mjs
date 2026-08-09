@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { selectOnIdleProposals } from "./src/onidle-proposals.js";
+import { buildOnIdleExplicitNewCandidates, selectOnIdleProposals } from "./src/onidle-proposals.js";
 
 const source = await readFile(new URL("./src/index.js", import.meta.url), "utf8");
 const script = await readFile(new URL("./tools/onidle-hora.sh", import.meta.url), "utf8");
@@ -87,6 +87,15 @@ test("si los filtros dejan menos de tres falla sin publicar una lista parcial", 
   });
 });
 
+test("el fallback sólo completa huecos y rota sin repetir durante ocho ventanas", () => {
+  const fallback=buildOnIdleExplicitNewCandidates({id:"yokup",name:"Yokup"},"2026-08-09");
+  const real=candidate("INC-REAL","Incidencia real",{priority:"urgent",created_at:1});
+  const result=selectOnIdleProposals([real,...fallback],{used_titles:fallback.slice(0,21).map(row=>row.title)});
+  assert.equal(result.ok,true);
+  assert.equal(result.proposals[0].target_mission_id,"INC-REAL");
+  assert.deepEqual(result.proposals.slice(1).map(row=>row.title),fallback.slice(21,23).map(row=>row.title));
+});
+
 test("el endpoint usa backlog, historial y actividad globales del proyecto exacto", () => {
   const body = source.slice(
     source.indexOf("async function canonicalOnIdleProposals"),
@@ -96,7 +105,10 @@ test("el endpoint usa backlog, historial y actividad globales del proyecto exact
   assert.match(body, /WHERE \(project_id=\? OR \(COALESCE\(project_id,''\)='' AND lower\(project\)=lower\(\?\)\)\)/);
   assert.match(body, /SELECT agent,machine,project,options,option_targets FROM decisions WHERE mission=\?/);
   assert.match(body, /\.filter\(\(row\) => String\(row\.project_id \|\| ""\) === projectId\)/);
-  assert.match(body, /const candidates = \(backlogResult\.results \|\| \[\]\)\.map/);
+  assert.match(body, /SELECT DISTINCT m\.mission_id FROM mission_tasks m JOIN tickets t/);
+  assert.match(body, /const backlogCandidates = \(backlogResult\.results \|\| \[\]\)\.map/);
+  assert.match(body, /buildOnIdleExplicitNewCandidates\(assignment, madridDayKey\(Date\.now\(\)\)\)/);
+  assert.match(body, /backlogCandidates\.concat\(explicitNewCandidates\)/);
   assert.doesNotMatch(body, /const owns|sameAgentFamily\(row|memberRefMatches\("machine", row|\.filter\(owns\)/);
   assert.match(body, /used_target_ids:usedTargetIds, used_titles:usedTitles, active_mission_ids:activeMissionIds/);
   assert.doesNotMatch(body, /Math\.random|ORDER BY RANDOM|infer|guess/i);
