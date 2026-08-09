@@ -250,3 +250,22 @@ function renderData(status) {
     project:'Generador de Presentaciones', project_slug:'GENERADOR-DE-PRESENTACIONES'
   };
 }
+
+// Carlos, 2026-08-09: la ventana de formación pasa de una opción a TRES (las tres
+// temáticas del Coach) con la que toca de ★. La ficha viva es genérica y ya las
+// pinta; lo único que mentía era el contador de la cabecera.
+test('la ventana de formación ofrece las tres temáticas y no promete misiones', () => {
+  const html = context.renderDecisionCard({
+    id:'DCL-form-abc', status:'pending', surface:'academy', machine:'MacBookAir16plata',
+    agent:'MorfeoMBA16', project:'Admira Academy', recommended:0, secondsLeft:1800,
+    question:'Formación de la hora — toca Tecnología (CTO · Ada). Puedes cambiar la temática de esta hora.',
+    options:['Atender la cápsula de Tecnología en admira.academy',
+             'Atender la cápsula de Creatividad en admira.academy',
+             'Atender la cápsula de Negocio en admira.academy']
+  }, {});
+  assert.match(html, /cápsula de esta hora/, 'no cuenta misiones restantes: no va a nacer ninguna');
+  assert.doesNotMatch(html, /misiones restantes/);
+  assert.equal((html.match(/class="dec-opt[ "]/g) || []).length, 3, 'las tres temáticas son pulsables');
+  assert.match(html, /class="dec-opt rec"[^>]*data-i="0"/, 'la que toca lleva la ★ y es la que se aplica sola');
+  assert.match(html, /★/);
+});

@@ -10,7 +10,7 @@ import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_
 import { resolveIdeaAuthor } from "./idea-author.js";
 import { missionProofOrigin } from "./proof-origin.js";
 import { SELLO_WORKER } from "./version-stamp.js";
-import { validateCoachCompletion, validateCoachLaunch, coachLessonForSlot, COACH_AUDIENCES, COACH_HOUR } from "./academy-coach.js";
+import { validateCoachCompletion, validateCoachLaunch, coachLessonForSlot, coachLessonForDimension, COACH_AUDIENCES, COACH_HOUR } from "./academy-coach.js";
 import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
   onIdleEligibility, taskVisibleDetails } from "./mission-visible.js";
 import { DAILY_MISSION_CLOSE_AUTHOR, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_LEASE_MS, DAILY_MISSION_CLOSE_REASON, MISSION_UNCONCLUDED_AFTER_MS, dailyMissionCloseEventText, dailyMissionClosePlan } from "./daily-mission-close.js";
@@ -1167,11 +1167,21 @@ var ACADEMY_TURNOS = [
 var ACADEMY_DECISION_PARENT = "FORMACION";
 var ACADEMY_DECISION_MIN = 2;
 
-// Abre la ventana de la hora. NUNCA materializa misiones, y no por una bandera que
-// alguien pueda quitar sin darse cuenta, sino por la FORMA: `ensureMissionBatchFromDecision`
-// sale a la primera si las opciones no tienen forma de misión, y una sola opción no la
-// tiene ni como ventana inicial (exige 5) ni como continuación (exige 2 o 3 y salida).
-// Con 24 al día, una ventana que materializara sola serían 24 misiones fantasma diarias.
+// Abre la ventana de la hora con LAS TRES TEMÁTICAS (Carlos, 2026-08-09): «lanzar
+// como predefinida la que toca y dejarme escoger las otras dos». La rueda del Coach
+// sigue mandando —es la ★ y es lo que se aplica si nadie contesta—, pero deja de ser
+// un destino: si toca tecnología y Carlos quiere negocio, la cápsula de esa hora pasa
+// a ser de negocio (lo aplica `aplicaEleccionFormacion`).
+//
+// El ORDEN de las opciones es SIEMPRE el mismo (tecnología · creatividad · negocio)
+// aunque rote la recomendada. Si bailaran con la hora, el índice guardado en `chosen`
+// no significaría nada al releer el histórico y la posición del botón tampoco.
+//
+// NUNCA materializa misiones. Antes lo garantizaba su FORMA (una sola opción no la
+// tiene ni como ventana inicial ni como continuación); con tres opciones y
+// `parent_decision` puesto la forma ya no basta, así que ahora lo garantiza el NOMBRE
+// en `isMissionDecision`. Con 24 ventanas al día, materializar serían 24 misiones
+// fantasma diarias.
 async function abreVentanaFormacion(env, { hourStart, tema, seat, capsula }) {
   const turno = ACADEMY_TURNOS[Math.floor(hourStart / COACH_HOUR) % ACADEMY_TURNOS.length];
   const identidad = resolveDecisionIdentity(turno.agent, turno.machine);
@@ -1181,19 +1191,109 @@ async function abreVentanaFormacion(env, { hourStart, tema, seat, capsula }) {
   const c = COUNCIL[seat] || {};
   const ahora = Date.now();
   const id = "DCL-form-" + hourStart.toString(36);
-  const pregunta = "Formación de " + tema.nombre + ": " + (c.role || seat) + " · " + (c.alias || "") +
-    " tiene cápsula esta hora — " + String((capsula && capsula.title) || "").slice(0, 180);
+  const recomendada = Math.max(0, ACADEMY_TEMAS.findIndex((t) => t.id === tema.id));
+  const pregunta = "Formación de la hora — toca " + tema.nombre + " (" + (c.role || seat) +
+    " · " + (c.alias || "") + "): " + String((capsula && capsula.title) || "").slice(0, 140) +
+    ". Puedes cambiar la temática de esta hora.";
   // Se lee bien en la frase que pinta la web al vencer: «se aplicó la recomendada: …».
-  const opciones = ["Atender la cápsula de " + tema.nombre + " en admira.academy"];
+  const opciones = ACADEMY_TEMAS.map((t) => "Atender la cápsula de " + t.nombre + " en admira.academy");
+  // La ventana vive lo que vive su hora: pasada la hora, su cápsula ya no es «la de
+  // ahora» y cambiarla no significa nada. Con los 2 minutos de antes, elegir era
+  // teórico —24 ventanas al día y 2 minutos cada una para verlas—, así que dejar
+  // escoger obligaba a darle a la elección un plazo que se pueda atender.
+  const finDeHora = hourStart + ACADEMY_HORA_MS;
+  const deadline = Math.max(finDeHora, ahora + ACADEMY_DECISION_MIN * 60 * 1000);
   await env.DB.prepare(
     "INSERT OR IGNORE INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision)" +
-    " VALUES (?,?,?,?,?,?,0,'pending',?,?,?,?,?,?,?)"
+    " VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?)"
   ).bind(id, identidad.machine, identidad.agent, "academy", pregunta.slice(0, 400), JSON.stringify(opciones),
-    ahora, ahora + ACADEMY_DECISION_MIN * 60 * 1000, "https://admira.academy/#capsula",
+    recomendada, ahora, deadline, "https://admira.academy/#capsula",
     "formacion:" + tema.id, "admira-academy", "ADMIRA-ACADEMY", ACADEMY_DECISION_PARENT).run();
-  return { ok:true, id, agent:identidad.agent, machine:identidad.machine };
+  return { ok:true, id, agent:identidad.agent, machine:identidad.machine, recomendada, opciones };
 }
 __name(abreVentanaFormacion, "abreVentanaFormacion");
+
+// La hora que codifica el id de la ventana. El id ES el dato (`DCL-form-<hora en
+// base 36>`), así que no hace falta una columna nueva ni fiarse de `created_at`:
+// una ventana abierta con retraso sigue siendo la de SU hora.
+function academyHourFromDecisionId(id) {
+  const m = /^DCL-form-([0-9a-z]+)$/.exec(String(id || ""));
+  if (!m) return null;
+  const hora = parseInt(m[1], 36);
+  return Number.isFinite(hora) && hora > 0 && hora % ACADEMY_HORA_MS === 0 ? hora : null;
+}
+__name(academyHourFromDecisionId, "academyHourFromDecisionId");
+
+// ELEGIR TIENE QUE CAMBIAR ALGO. Sin esto la ventana preguntaría por cortesía: la
+// Academia seguiría enseñando la temática de la rueda dijera Carlos lo que dijera.
+// Al aplicar cambian las tres cosas que dependen de la temática —silla, lección y
+// texto de la cápsula— y Smith vuelve a la cola para rehacerla.
+//
+// Idempotente: si la cápsula ya es de esa temática no toca nada, así que el barrido
+// puede repasar la misma ventana en cada tick sin escribir de más.
+//
+// NO se toca una cápsula ya VERIFICADA: cuando Smith ha publicado vídeo y texto en
+// Pixeria, cambiarle la temática debajo dejaría a la Academia enseñando una cosa y
+// diciendo que es otra. En ese caso se devuelve el motivo, no un ok falso.
+async function aplicaEleccionFormacion(env, decision) {
+  if (!decision || decision.parent_decision !== ACADEMY_DECISION_PARENT) return null;
+  const efectivo = decision.status === "decided" ? Number(decision.chosen)
+    : decision.status === "expired" ? Number(decision.recommended) : null;
+  if (!Number.isInteger(efectivo) || !ACADEMY_TEMAS[efectivo]) return null;
+  const hourStart = academyHourFromDecisionId(decision.id);
+  if (!hourStart) return { ok:false, code:"id_no_interpretable", id:decision.id };
+  const tema = ACADEMY_TEMAS[efectivo];
+  await ensureAcademyCapsuleSchema(env);
+  const fila = await env.DB.prepare("SELECT * FROM academy_capsulas WHERE hour_start=?").bind(hourStart).first();
+  if (!fila) return { ok:false, code:"sin_capsula", hour_start:hourStart };
+  if (String(fila.tema || "") === tema.id) return { ok:true, cambiada:false, tema:tema.id };
+  if (String(fila.smith_status || "") === "verified") {
+    return { ok:false, cambiada:false, code:"capsula_verificada", tema:String(fila.tema || ""), pedida:tema.id };
+  }
+  const horas = Math.floor(hourStart / COACH_HOUR);
+  const { lessonId } = coachLessonForDimension(horas, tema.id);
+  const seat = tema.seats[Math.floor(horas / ACADEMY_TEMAS.length) % tema.seats.length];
+  const title = "Lección de " + tema.nombre + ": " + String(lessonId).replace(/-/g, " ");
+  const nota = "Temática elegida en la ventana de formación de esta hora: " + tema.nombre + ".";
+  await env.DB.prepare(
+    "UPDATE academy_capsulas SET tema=?,seat=?,source='academia/leccion',capsule_id=?,title=?,note=?,url=?," +
+    "smith_status='pending',smith_stage='queued',smith_detail=?,smith_progress=0," +
+    "smith_source_url=NULL,smith_video_id=NULL,smith_capsule_id=NULL,smith_updated_at=? WHERE hour_start=?"
+  ).bind(tema.id, seat, String(lessonId).slice(0, 80), title.slice(0, 200), nota.slice(0, 400),
+    "https://admira.academy/#formacion",
+    ("Temática cambiada a " + tema.nombre + " en la ventana; Smith rehace la cápsula.").slice(0, 400),
+    Date.now(), hourStart).run();
+  // `mission` de la ventana era la temática que TOCABA; si se deja, el histórico de
+  // decisiones dice una temática y la Academia enseña otra.
+  await env.DB.prepare("UPDATE decisions SET mission=? WHERE id=?").bind("formacion:" + tema.id, decision.id).run();
+  return { ok:true, cambiada:true, tema:tema.id, seat, lessonId };
+}
+__name(aplicaEleccionFormacion, "aplicaEleccionFormacion");
+
+// Barrido propio, separado del de tandas de misiones: una ventana de formación no
+// tiene tanda que arrancar, y colarla en aquella consulta la dejaba para siempre en
+// su cupo de 100 candidatas (nunca crea `mission_batches`, así que nunca deja de
+// cumplir la condición). Con 24 al día, en cuatro días habrían desplazado a las
+// decisiones de verdad. Aquí se miran sólo las de las últimas horas: la cápsula de
+// una hora pasada ya es historia y cambiarla no enseñaría nada a nadie.
+var ACADEMY_ELECCION_VENTANA_MS = 6 * 60 * 60 * 1000;
+async function aplicaEleccionesFormacion(env, ahora = Date.now()) {
+  const { results } = await env.DB.prepare(
+    "SELECT * FROM decisions WHERE parent_decision=? AND status IN ('decided','expired') AND created_at >= ? ORDER BY created_at DESC LIMIT 12"
+  ).bind(ACADEMY_DECISION_PARENT, ahora - ACADEMY_ELECCION_VENTANA_MS).all();
+  const fallos = [];
+  for (const d of results || []) {
+    try {
+      const r = await aplicaEleccionFormacion(env, d);
+      if (r && r.ok === false && r.code !== "capsula_verificada") fallos.push({ id:d.id, code:r.code });
+    } catch (e) { fallos.push({ id:d.id, error:String((e && e.message) || e) }); }
+  }
+  // El latido de la rutina tiene que poder decir que esto falló: tragarse el error
+  // dejaría la Academia enseñando una temática que Carlos no eligió, en silencio.
+  if (fallos.length) throw new Error("ventanas de formación sin aplicar: " + JSON.stringify(fallos).slice(0, 300));
+  return { revisadas:(results || []).length };
+}
+__name(aplicaEleccionesFormacion, "aplicaEleccionesFormacion");
 
 async function runAcademyCapsuleTick(env, ahora = Date.now()) {
   await ensureAcademyCapsuleSchema(env);
@@ -2397,6 +2497,13 @@ function isContinuationMissionDecision(options, decision) {
 }
 __name(isContinuationMissionDecision, "isContinuationMissionDecision");
 function isMissionDecision(options, decision) {
+  // Una ventana de formación NUNCA materializa misiones, y desde el 9-ago-2026 no
+  // basta con que su forma no encaje: al pasar de una opción a tres —las tres
+  // temáticas—, `isContinuationMissionDecision` sólo la descarta porque ninguna
+  // temática se llama «volver atrás». Eso es un accidente del texto, no una
+  // garantía: bastaría una opción redactada distinto para convertir 24 ventanas
+  // diarias en 24 misiones fantasma. Se garantiza por NOMBRE.
+  if (decision && decision.parent_decision === ACADEMY_DECISION_PARENT) return false;
   return isInitialMissionDecision(options) || isContinuationMissionDecision(options, decision);
 }
 __name(isMissionDecision, "isMissionDecision");
@@ -3074,6 +3181,9 @@ async function ensureMissionBatchFromDecision(env, decision) {
 __name(ensureMissionBatchFromDecision, "ensureMissionBatchFromDecision");
 async function expireDecisionsAndStartBatches(env) {
   await expireDecisions(env);
+  // Antes de las tandas: una ventana de formación que acaba de vencer tiene que
+  // aplicar su recomendada a la cápsula de su hora, igual que si la hubieran elegido.
+  await aplicaEleccionesFormacion(env);
   return startDecisionBatches(env);
 }
 __name(expireDecisionsAndStartBatches, "expireDecisionsAndStartBatches");
@@ -3092,7 +3202,7 @@ async function startDecisionBatches(env) {
      LEFT JOIN mission_batches own ON own.decision_id=d.id
      LEFT JOIN mission_batches shared ON shared.id=d.batch_id
      LEFT JOIN mission_novelty_events novelty ON novelty.decision_id=d.id
-     WHERE d.status IN ('decided','expired') AND (
+     WHERE d.status IN ('decided','expired') AND COALESCE(d.parent_decision,'') <> 'FORMACION' AND (
        ((d.parent_decision IS NULL OR d.parent_decision='') AND
         (own.id IS NULL OR (own.status='active' AND own.active_mission_id IS NULL AND novelty.cursor IS NULL)))
        OR
@@ -8279,8 +8389,12 @@ Todo en español.`;
         const chosen = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(id).first();
         const batch = back ? null : await ensureMissionBatchFromDecision(env, chosen);
         if (batch && batch.ok === false) return json(batch, batch.status || 400);
+        // Elegir temática en una ventana de formación cambia la cápsula de esa hora
+        // AQUÍ MISMO, no en el siguiente barrido: quien pulsa espera ver la Academia
+        // cambiada al recargar, no dentro de un minuto.
+        const formacion = await aplicaEleccionFormacion(env, chosen);
         await attachDisplayRefs(env, "window", chosen, (row) => row.id, (row) => row.created_at);
-        return json({ ok: true, id, display_ref: chosen.display_ref, chosen: idx, option: o[idx], cancelled: back, batch });
+        return json({ ok: true, id, display_ref: chosen.display_ref, chosen: idx, option: o[idx], cancelled: back, batch, formacion });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     if (/^\/decisions\/[^/]+$/.test(url.pathname) && req.method === "GET") {

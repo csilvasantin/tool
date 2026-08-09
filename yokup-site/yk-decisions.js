@@ -171,7 +171,12 @@
     var pending = d.status === "pending", rec = +d.recommended || 0, closed = !pending;
     var project = projectName(d), projectId = domId(d.id);
     var initialFive = (d.options || []).length === 5 && /volver\s+atr[aá]s/i.test(String(d.options[3] || ""));
-    var remaining = initialFive ? 3 : Math.max(0, (d.options || []).length - 1), remainingText = remaining + " " + (remaining === 1 ? "misión restante" : "misiones restantes");
+    // Una ventana de formación no propone misiones: propone la TEMÁTICA de la cápsula
+    // de esta hora. Contar sus tres opciones como «2 misiones restantes» era decir que
+    // van a nacer misiones que no van a nacer (Carlos, 2026-08-09).
+    var formacion = String(d && d.surface || "").toLowerCase() === "academy";
+    var remaining = initialFive ? 3 : Math.max(0, (d.options || []).length - 1);
+    var remainingText = formacion ? "cápsula de esta hora" : remaining + " " + (remaining === 1 ? "misión restante" : "misiones restantes");
     var effective = d.status === "decided" || d.status === "cancelled" ? +d.chosen : (d.status === "expired" ? rec : -1);
     var optsHtml = (d.options || []).map(function (o, i) {
       var current = closed && i === effective;

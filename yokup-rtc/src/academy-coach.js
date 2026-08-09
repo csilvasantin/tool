@@ -13,11 +13,21 @@ const DIMENSIONS = Object.keys(LESSONS);
 export function coachLessonForSlot(slotId) {
   const offset = Math.floor((slotId * COACH_HOUR - COACH_ANCHOR) / COACH_HOUR);
   const dimensionIndex = ((offset % DIMENSIONS.length) + DIMENSIONS.length) % DIMENSIONS.length;
-  const dimension = DIMENSIONS[dimensionIndex];
+  return coachLessonForDimension(slotId, DIMENSIONS[dimensionIndex]);
+}
+
+// La lección que le tocaría a OTRA temática en esta misma franja (Carlos,
+// 9-ago-2026: la ventana de formación deja escoger las dos temáticas que no
+// tocaban). La franja deja de imponer la dimensión, pero sigue imponiendo el
+// CICLO: escoger «creatividad» a las 10:00 y otra vez a las 13:00 no repite
+// lección, porque el ciclo ha avanzado. Devolver siempre la primera del
+// catálogo habría convertido la elección manual en un bucle de una lección.
+export function coachLessonForDimension(slotId, dimension) {
+  const dim = DIMENSIONS.includes(dimension) ? dimension : DIMENSIONS[0];
+  const offset = Math.floor((slotId * COACH_HOUR - COACH_ANCHOR) / COACH_HOUR);
   const cycle = Math.floor(offset / DIMENSIONS.length);
-  const catalog = LESSONS[dimension];
-  const lessonId = catalog[((cycle % catalog.length) + catalog.length) % catalog.length];
-  return { dimension, lessonId };
+  const catalog = LESSONS[dim];
+  return { dimension: dim, lessonId: catalog[((cycle % catalog.length) + catalog.length) % catalog.length] };
 }
 
 export function validateCoachLaunch(body, now = Date.now()) {
