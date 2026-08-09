@@ -55,16 +55,16 @@ test('acepta sólo el contexto granular Generador de Presentaciones', () => {
   assert.deepEqual(resolveDecisionProject(exact, canonical), {
     ok:true, project:'Generador de Presentaciones', project_id:'generador-de-presentaciones',
     project_slug:'GENERADOR-DE-PRESENTACIONES', project_web:'www.admiranext.com',
-    agent:'OraculoMacMini', machine:'Mac Mini'
+    agent:'OraculoMini', machine:'Mac Mini'
   });
 });
 
 test('canoniza aliases planos y rechaza identidad scoped contradictoria', () => {
   assert.deepEqual(resolveDecisionIdentity('Oráculo', 'Mac Mini'), {
-    ok:true, agent:'OraculoMacMini', machine:'Mac Mini'
+    ok:true, agent:'OraculoMini', machine:'Mac Mini'
   });
   assert.deepEqual(resolveDecisionIdentity('SubOraculo', 'Mac Mini'), {
-    ok:true, agent:'SubOraculoMacMini', machine:'Mac Mini'
+    ok:true, agent:'SubOraculoMini', machine:'Mac Mini'
   });
   assert.equal(resolveDecisionIdentity('Oraculo16', 'Mac Mini').ok, false);
   assert.equal(resolveDecisionIdentity('InfraOraculoMini', 'MacBook Pro 16').ok, false);

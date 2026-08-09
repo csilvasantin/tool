@@ -35,9 +35,17 @@ export function memberRefMatches(kind, ref, requested) {
   if (kind === "agent") {
     const refId = parseAgentIdentity(ref);
     const wantId = parseAgentIdentity(requested);
-    if (refId.suffix && wantId.suffix && refId.suffix !== wantId.suffix) return false;
+    if (refId.suffix && wantId.suffix &&
+      canonicalDecisionSuffix(refId.suffix) !== canonicalDecisionSuffix(wantId.suffix)) return false;
   }
   return identityKey(ref, kind) === identityKey(requested, kind);
+}
+
+// `MacMini` fue la forma física/histórica; la identidad operativa vigente se
+// escribe como `Mini`. Sólo son equivalentes para esa máquina: MBP/MBA conservan
+// sus sufijos exactos y siguen fallando cerrado ante cualquier contradicción.
+function canonicalDecisionSuffix(suffix) {
+  return suffix === "MacMini" ? "Mini" : suffix;
 }
 
 // Toda decisión nueva se persiste con la identidad derivada de su equipo. Los
@@ -47,15 +55,21 @@ export function resolveDecisionIdentity(agentValue, machineValue) {
   const rawAgent = text(agentValue, 40);
   const machine = text(machineValue, 60);
   if (!rawAgent || !machine) return invalid("agent y machine exactos requeridos");
-  const expectedSuffix = machineSuffix(machine);
-  if (!expectedSuffix) return invalid("machine desconocida: no se puede derivar la identidad");
+  const physicalSuffix = machineSuffix(machine);
+  if (!physicalSuffix) return invalid("machine desconocida: no se puede derivar la identidad");
+  const expectedSuffix = canonicalDecisionSuffix(physicalSuffix);
   const parsed = parseAgentIdentity(rawAgent);
-  if (parsed.suffix && parsed.suffix !== expectedSuffix) {
+  if (parsed.suffix && canonicalDecisionSuffix(parsed.suffix) !== expectedSuffix) {
     return invalid(`agent ${rawAgent} contradice machine ${machine}`);
   }
+  // scopedAgentIdentity deriva MacMini de la máquina cuando recibe la persona
+  // plana. Para nuevas escrituras del Mini se le pasa el sufijo canónico de
+  // forma explícita; así también un alias histórico OraculoMacMini se lee pero
+  // converge a OraculoMini y nunca vuelve a persistirse.
+  const canonicalPersona = physicalSuffix === "MacMini" ? parsed.persona + "Mini" : parsed.persona;
   return {
     ok: true,
-    agent: scopedAgentIdentity(parsed.persona, machine, parsed.role),
+    agent: scopedAgentIdentity(canonicalPersona, machine, parsed.role),
     machine,
   };
 }

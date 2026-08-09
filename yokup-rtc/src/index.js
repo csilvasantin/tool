@@ -3327,7 +3327,7 @@ async function openInitialMissionDecision(env, input) {
   const now = Date.now();
   const agent = projectContext.agent, machine = projectContext.machine;
   const live = await env.DB.prepare(
-    "SELECT id,deadline FROM decisions WHERE lower(agent)=lower(?) AND status='pending' AND deadline > ? ORDER BY created_at DESC LIMIT 1"
+    "SELECT id,deadline FROM decisions WHERE replace(lower(agent),'macmini','mini')=replace(lower(?),'macmini','mini') AND status='pending' AND deadline > ? ORDER BY created_at DESC LIMIT 1"
   ).bind(agent, now).first();
   if (live && input.user_override !== true) {
     return { ok: false, status: 409, error: "live_decision", existing: live.id, deadline: live.deadline,
@@ -3342,7 +3342,7 @@ async function openInitialMissionDecision(env, input) {
   // `manual` = la lanza una persona desde la pantalla, no el ciclo autónomo:
   // caben MANUAL_PER_HOUR en la misma hora en vez de una.
   const previas = ((await env.DB.prepare(
-    "SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) AND (parent_decision IS NULL OR parent_decision='') AND created_at > ? ORDER BY created_at DESC"
+    "SELECT id,created_at FROM decisions WHERE replace(lower(agent),'macmini','mini')=replace(lower(?),'macmini','mini') AND (parent_decision IS NULL OR parent_decision='') AND created_at > ? ORDER BY created_at DESC"
   ).bind(agent, now - HOURLY_WINDOW_MS).all()).results) || [];
   const tope = input.manual === true ? MANUAL_PER_HOUR : 1;
   if (previas.length >= tope && input.user_override !== true) {
@@ -6216,7 +6216,7 @@ var index_default = {
         const proximoTurno = dentro < offset ? inicioCiclo + offset
           : (enFranja ? now : inicioCiclo + HOURLY_WINDOW_MS + offset);
         const ultima = await env.DB.prepare(
-          "SELECT created_at FROM decisions WHERE lower(agent)=lower(?) AND (parent_decision IS NULL OR parent_decision='') ORDER BY created_at DESC LIMIT 1"
+          "SELECT created_at FROM decisions WHERE replace(lower(agent),'macmini','mini')=replace(lower(?),'macmini','mini') AND (parent_decision IS NULL OR parent_decision='') ORDER BY created_at DESC LIMIT 1"
         ).bind(a).first();
         const desdeUltima = ultima ? Number(ultima.created_at) + HOURLY_WINDOW_MS : 0;
         // Manda la más tardía de las dos condiciones: cumplir su hora Y su turno.
@@ -6785,12 +6785,12 @@ var index_default = {
         const idx = await projectIndex(env);
         const project = idx.get((b && b.project) || "");
         if (!project || project.status === "archivado") return json({ ok: false, error: "project activo requerido" }, 404);
-        const linkedAgent = await env.DB.prepare("SELECT 1 ok FROM project_members WHERE project_id=? AND kind='agent' AND lower(ref)=lower(?) LIMIT 1")
+        const linkedAgent = await env.DB.prepare("SELECT 1 ok FROM project_members WHERE project_id=? AND kind='agent' AND replace(lower(ref),'macmini','mini')=replace(lower(?),'macmini','mini') LIMIT 1")
           .bind(project.id, identity.agent).first();
         if (!linkedAgent) return json({ ok: false, error: "el agente no está asociado al proyecto", code: "agent_not_assigned" }, 400);
         const assignment = await exactDecisionProjectAssignment(env, identity.agent, identity.machine, project.id);
         if (!assignment) return json({ ok: false, error: "el equipo físico del agente no está asociado al proyecto", code: "team_not_assigned" }, 400);
-        const live = await env.DB.prepare("SELECT id,deadline FROM decisions WHERE lower(agent)=lower(?) AND status='pending' AND deadline>? ORDER BY created_at DESC LIMIT 1")
+        const live = await env.DB.prepare("SELECT id,deadline FROM decisions WHERE replace(lower(agent),'macmini','mini')=replace(lower(?),'macmini','mini') AND status='pending' AND deadline>? ORDER BY created_at DESC LIMIT 1")
           .bind(identity.agent, Date.now()).first();
         if (live) return json({ ok: true, existing: true, decision_id: live.id, deadline: live.deadline, url: DECIDE_URL });
         const options = await generateProjectImprovementOptions(env, project, identity);
@@ -8524,7 +8524,7 @@ Todo en español.`;
         // Ahora sólo estorba un reloj que siga VIVO: pending y sin vencer. Vencido
         // (deadline pasado, lo marque o no el cron), decidido o cancelado → vía libre.
         const live = await env.DB.prepare(
-          "SELECT id,deadline FROM decisions WHERE lower(agent)=lower(?) AND status='pending' AND deadline > ? ORDER BY created_at DESC LIMIT 1"
+          "SELECT id,deadline FROM decisions WHERE replace(lower(agent),'macmini','mini')=replace(lower(?),'macmini','mini') AND status='pending' AND deadline > ? ORDER BY created_at DESC LIMIT 1"
         ).bind(agent, now).first();
         const userOverride = b.user_override === true;
         if (live && !userOverride && !continuation) {
@@ -8543,7 +8543,7 @@ Todo en español.`;
           // 8/día Madrid), por lo que repetir aquí 1/h impediría el siguiente
           // ciclo inmediatamente después del cierre.
           const previas = ((await env.DB.prepare(
-            "SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?) AND (parent_decision IS NULL OR parent_decision='') AND created_at > ? ORDER BY created_at DESC"
+            "SELECT id,created_at FROM decisions WHERE replace(lower(agent),'macmini','mini')=replace(lower(?),'macmini','mini') AND (parent_decision IS NULL OR parent_decision='') AND created_at > ? ORDER BY created_at DESC"
           ).bind(agent, now - HOURLY_WINDOW_MS).all()).results) || [];
           const tope = manual ? MANUAL_PER_HOUR : 1;
           if (previas.length >= tope) {
@@ -8619,7 +8619,7 @@ Todo en español.`;
         if (!all) { where.push("(status='pending' OR decided_at > ? OR deadline > ?)"); binds.push(now - 3600000, now - 3600000); }
         if (since !== null) { where.push("created_at >= ?"); binds.push(since); }
         if (until !== null) { where.push("created_at <= ?"); binds.push(until); }
-        if (agentQ) { where.push("lower(agent)=lower(?)"); binds.push(agentQ); }
+        if (agentQ) { where.push("replace(lower(agent),'macmini','mini')=replace(lower(?),'macmini','mini')"); binds.push(agentQ); }
         if (statusQ.length) { where.push(`status IN (${statusQ.map(() => "?").join(",")})`); binds.push(...statusQ); }
         const sql = "SELECT * FROM decisions" + (where.length ? " WHERE " + where.join(" AND ") : "")
           + " ORDER BY created_at DESC LIMIT ?";

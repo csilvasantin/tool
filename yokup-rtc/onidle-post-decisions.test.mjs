@@ -4,6 +4,7 @@ import worker from './src/index.js';
 import {missionDayRange} from './src/mission-visible.js';
 
 const HOUR=3_600_000;
+const agentKey=value=>String(value||'').toLowerCase().replace(/macmini$/,'mini');
 const baseBody={
   agent:'OraculoMacMini',machine:'admira-macmini',project_id:'yokup',project:'Yokup',project_slug:'YOKUP',
   question:'Ventana OnIDLE: elige una mejora.',
@@ -18,7 +19,7 @@ function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMis
   const stmt=(sql,args=[])=>({
     sql,args,bind(...next){return stmt(sql,next);},
     async first(){
-      if (sql.includes("status='pending' AND deadline > ?")) return state.decisions.filter(d=>d.status==='pending'&&d.deadline>args[1]).sort((a,b)=>b.created_at-a.created_at)[0]||null;
+      if (sql.includes("status='pending' AND deadline > ?")) return state.decisions.filter(d=>d.status==='pending'&&agentKey(d.agent)===agentKey(args[0])&&d.deadline>args[1]).sort((a,b)=>b.created_at-a.created_at)[0]||null;
       if (sql==='SELECT id,status,project,project_id,assignee,loc,source FROM tickets WHERE id=?') return state.targetMissions.find(row=>row.id===args[0])||null;
       if (sql.includes('FROM mission_batch_items WHERE (target_mission_id=? OR mission_id=?)')) return null;
       if (sql.includes('RETURNING next_value-? AS start_seq')) {const start=state.nextRef;state.nextRef+=Number(args[0]);return {start_seq:start};}
@@ -38,7 +39,7 @@ function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMis
       if (sql.startsWith('SELECT DISTINCT m.mission_id FROM mission_tasks m JOIN tickets t')) return {results:state.activeMissionTasks.map(mission_id=>({mission_id}))};
       if (sql==='SELECT * FROM projects') return {results:projects};
       if (sql==='SELECT project_id,kind,ref FROM project_members') return {results:members};
-      if (sql.includes('SELECT id,created_at FROM decisions WHERE lower(agent)=lower(?)')) return {results:state.decisions.filter(d=>d.agent.toLowerCase()===String(args[0]).toLowerCase()&&!d.parent_decision&&d.created_at>args[1]).sort((a,b)=>b.created_at-a.created_at)};
+      if (sql.includes('SELECT id,created_at FROM decisions WHERE replace(lower(agent)')) return {results:state.decisions.filter(d=>agentKey(d.agent)===agentKey(args[0])&&!d.parent_decision&&d.created_at>args[1]).sort((a,b)=>b.created_at-a.created_at)};
       if (sql.includes('SELECT entity_type,entity_key,display_ref FROM display_refs')) return {results:args.slice(1).flatMap(key=>state.displayRefs.has(key)?[{entity_type:args[0],entity_key:key,display_ref:state.displayRefs.get(key)}]:[])};
       if (sql.includes("SELECT 'objective' entity_type")) return {results:[]};
       return {results:[]};
@@ -130,9 +131,14 @@ test('GET proposals exige project_id exacto aunque agent+machine tengan una sola
 
 test('OnIdle 1→2 abre inmediatamente tras cerrar la anterior',async()=>{
   const now=Date.UTC(2026,7,7,10);
-  const {env}=decisionEnv({now,decisions:[{id:'DEC-1',agent:'OraculoMacMini',machine:'admira-macmini',mission:'OnIdle horario',status:'decided',created_at:now-5*60_000,deadline:now-1}]});
+  const {env,state}=decisionEnv({now,decisions:[{id:'DEC-1',agent:'OraculoMacMini',machine:'admira-macmini',mission:'OnIdle horario',status:'decided',created_at:now-5*60_000,deadline:now-1}]});
   const original=Date.now;Date.now=()=>now;
-  try {const result=await response(env);assert.equal(result.status,200,JSON.stringify(result.json));assert.equal(result.json.ok,true);}
+  try {
+    const result=await response(env);
+    assert.equal(result.status,200,JSON.stringify(result.json));
+    assert.equal(result.json.ok,true);
+    assert.equal(state.decisions.at(-1).agent,'OraculoMini');
+  }
   finally {Date.now=original;}
 });
 

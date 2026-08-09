@@ -123,7 +123,7 @@ test('POST /projects/decision abre tres mejoras para el agente físico conectado
   assert.match(source, /url\.pathname === "\/projects\/decision" && req\.method === "POST"/);
   assert.match(source, /generateProjectImprovementOptions\(env, project, identity\)/);
   assert.match(source, /resolveDecisionIdentity\(b\.agent, b\.machine\)/);
-  assert.match(source, /kind='agent' AND lower\(ref\)=lower\(\?\)/);
+  assert.match(source, /kind='agent' AND replace\(lower\(ref\),'macmini','mini'\)=replace\(lower\(\?\),'macmini','mini'\)/);
   assert.doesNotMatch(source, /INSERT OR IGNORE INTO project_members \(project_id,kind,ref,added_at\) VALUES \(\?,'machine',\?,\?\)/);
   assert.match(source, /exactDecisionProjectAssignment\(env, identity\.agent, identity\.machine, project\.id\)/);
   assert.match(source, /question: "\xBFQu\xE9 mejora ejecutar\xE1 " \+ identity\.agent/);
