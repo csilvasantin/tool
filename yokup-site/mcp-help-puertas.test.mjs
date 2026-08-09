@@ -56,3 +56,18 @@ test("el /help habla en persona, no en endpoints", () => {
   assert.match(help, /Highscore/);
   assert.match(help, /regla 24/i);
 });
+
+// El catch-all `/* -> /index.html 200` servía la home a quien pedía /mcp/ o /help.
+// Un 200 con la página equivocada es peor que un 404: ni siquiera parece un error.
+test("el catch-all no se come las dos puertas", async () => {
+  const redirects = await readFile(new URL("./_redirects", import.meta.url), "utf8");
+  const lineas = redirects.split("\n").filter((l) => l.trim() && !l.trim().startsWith("#"));
+  const iCatch = lineas.findIndex((l) => l.trim().startsWith("/*"));
+  assert.ok(iCatch >= 0, "sigue habiendo catch-all");
+  for (const ruta of ["/mcp", "/mcp/", "/help", "/help/"]) {
+    const i = lineas.findIndex((l) => l.trim().split(/\s+/)[0] === ruta);
+    assert.ok(i >= 0, "falta la regla de " + ruta);
+    assert.ok(i < iCatch, ruta + " tiene que ir ANTES del catch-all o no sirve de nada");
+    assert.match(lineas[i], /200\s*$/, ruta + " se sirve, no se redirige");
+  }
+});

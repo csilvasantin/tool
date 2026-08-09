@@ -1,3 +1,10 @@
 /agentica         /dashboard    301
 /agentica.html    /dashboard    301
+# Las dos puertas de la regla 24, ANTES del catch-all. Sin estas cuatro líneas el
+# `/*` de abajo servía la home con un 200 a quien pedía /mcp/ o /help: la forma más
+# cara de decir «no existe», porque ni siquiera parece un error.
+/mcp              /mcp/index.html    200
+/mcp/             /mcp/index.html    200
+/help             /help/index.html   200
+/help/            /help/index.html   200
 /*                /index.html   200
