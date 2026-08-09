@@ -51,3 +51,13 @@ test("la cápsula es el tipo canónico y guion queda sólo como legado", () => {
   assert.match(source, /capsulas: pieces\.filter\(\(p\) => p\.capsula\)\.length/);
   assert.match(source, /capsula_tipo: COUNCIL_CAPSULA_TYPE/);
 });
+
+test("el Highscore recibe sólo cápsulas verificadas y conserva la audiencia", () => {
+  assert.match(source, /async function academyCapsuleHighscore/);
+  assert.match(source, /c\.smith_status='verified'/);
+  assert.match(source, /COALESCE\(c\.smith_updated_at,0\)>0/);
+  assert.match(source, /GROUP_CONCAT\(DISTINCT l\.audience\)/);
+  assert.match(source, /launched\.length \? \[\.\.\.new Set\(launched\)\] : \["silicio", "carbono"\]/);
+  assert.match(source, /url\.pathname === "\/academy\/highscore\/capsulas"/);
+  assert.match(source, /source:"yokup",items,total:items\.length/);
+});

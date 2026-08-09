@@ -942,6 +942,37 @@ function academyCapsuleRow(row) {
 }
 __name(academyCapsuleRow, "academyCapsuleRow");
 
+async function academyCapsuleHighscore(env) {
+  await ensureAcademyCapsuleSchema(env);
+  await ensureAcademyCoachSchema(env);
+  const { results } = await env.DB.prepare(
+    "SELECT c.hour_start,c.seat,c.tema,c.title,c.smith_capsule_id,c.smith_updated_at," +
+    "(SELECT GROUP_CONCAT(DISTINCT l.audience) FROM academy_coach_launches l WHERE l.target_slot_id=c.hour_start/3600000) AS launch_audiences " +
+    "FROM academy_capsulas c WHERE c.smith_status='verified' AND COALESCE(c.smith_capsule_id,'')!='' " +
+    "AND COALESCE(c.smith_updated_at,0)>0 " +
+    "ORDER BY c.smith_updated_at DESC LIMIT 500"
+  ).all();
+  const items = [];
+  for (const row of results || []) {
+    const launched = String(row.launch_audiences || "").split(",").filter((value) => COACH_AUDIENCES.has(value));
+    // Las franjas creadas por el cron son formación canónica compartida: si no
+    // hubo un lanzamiento manual con audiencia, cuentan para carbono y silicio.
+    const audiences = launched.length ? [...new Set(launched)] : ["silicio", "carbono"];
+    for (const audience of audiences) items.push({
+      id:`capsula-${audience}-${row.smith_capsule_id}`,
+      audience,
+      counselor:String(row.seat || ""),
+      dimension:String(row.tema || ""),
+      title:String(row.title || "Cápsula de conocimiento"),
+      completedAt:new Date(Number(row.smith_updated_at)).toISOString(),
+      capsuleId:String(row.smith_capsule_id),
+      url:"https://www.pixeria.com/stock.html?highlight=" + encodeURIComponent(row.smith_capsule_id)
+    });
+  }
+  return items;
+}
+__name(academyCapsuleHighscore, "academyCapsuleHighscore");
+
 var SMITH_PROGRESS_STAGES = Object.freeze({
   opening_terminal:5,
   asking_grok:15,
@@ -6994,6 +7025,15 @@ var index_default = {
         const row = await env.DB.prepare("SELECT * FROM academy_capsulas WHERE hour_start=?").bind(hourStart).first();
         const latest = await env.DB.prepare("SELECT * FROM academy_capsulas WHERE smith_status='verified' ORDER BY COALESCE(smith_updated_at,at) DESC LIMIT 1").first();
         return json({ok:true,capsula:academyCapsuleRow(row),latest:academyCapsuleRow(latest)});
+      } catch (e) { return json({ok:false,error:String(e)},500); }
+    }
+    // HIGHSCORE DE ACADEMY — feed público mínimo y autoritativo. Sólo expone
+    // cápsulas que Yokup ya verificó contra Pixeria; nunca estados pendientes,
+    // aplicaciones privadas ni identificadores de navegador.
+    if (url.pathname === "/academy/highscore/capsulas" && req.method === "GET") {
+      try {
+        const items = await academyCapsuleHighscore(env);
+        return json({ok:true,source:"yokup",items,total:items.length,builtAt:new Date().toISOString()});
       } catch (e) { return json({ok:false,error:String(e)},500); }
     }
     if (url.pathname === "/academy/capsula/smith/progress" && req.method === "POST") {
