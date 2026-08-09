@@ -59,6 +59,8 @@ test("la escritura Coach exige secreto y la lectura pública omite la aplicació
   assert.match(source, /env\.ACADEMY_COACH_TOKEN/);
   assert.match(source, /INSERT OR IGNORE INTO academy_coach_completions/);
   assert.match(source, /INSERT OR IGNORE INTO academy_coach_launches/);
+  assert.match(source, /runAcademyCapsuleTick\(env, targetAt\)/);
+  assert.match(source, /validateCoachLaunch\(\{audience,counselor:capsule\.seat\}, coachNow\)/);
   assert.match(source, /allowNextSlot:Boolean\(manualLaunch\)/);
   assert.match(source, /UNIQUE\(audience,counselor,slot_id\)/);
   assert.match(source, /url\.pathname === "\/academy\/coach\/completions" && req\.method === "GET"/);

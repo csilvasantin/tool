@@ -91,7 +91,7 @@ test("tres temáticas, una por hora: 24 al día y 8 de cada, sin llevar cuentas"
 // (src/academy-coach.js, del equipo de Admira). Si la cápsula llevara la suya, un día
 // dejarían de decir lo mismo en la misma franja.
 test("la temática y la lección salen del Coach, no de una copia", () => {
-  assert.match(source, /import \{ validateCoachCompletion, coachLessonForSlot, COACH_HOUR \} from "\.\/academy-coach\.js"/);
+  assert.match(source, /import \{[^}]*coachLessonForSlot[^}]*COACH_HOUR[^}]*\} from "\.\/academy-coach\.js"/);
   const { academyTemaDeFranja } = temasApi();
   for (const slot of [0, 1, 2, 3, 100, 1234567]) {
     const esperado = coachLessonForSlot(slot);

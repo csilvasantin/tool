@@ -9,7 +9,7 @@ import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
 import { resolveIdeaAuthor } from "./idea-author.js";
 import { missionProofOrigin } from "./proof-origin.js";
-import { validateCoachCompletion, validateCoachLaunch, coachLessonForSlot, COACH_HOUR } from "./academy-coach.js";
+import { validateCoachCompletion, validateCoachLaunch, coachLessonForSlot, COACH_AUDIENCES, COACH_HOUR } from "./academy-coach.js";
 import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
   onIdleEligibility, taskVisibleDetails } from "./mission-visible.js";
 import { DAILY_MISSION_CLOSE_AUTHOR, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_LEASE_MS, DAILY_MISSION_CLOSE_REASON, MISSION_UNCONCLUDED_AFTER_MS, dailyMissionCloseEventText, dailyMissionClosePlan } from "./daily-mission-close.js";
@@ -6772,17 +6772,26 @@ var index_default = {
         if (!token) return json({ok:false,error:"Coach no configurado"}, 503);
         if (supplied !== token) return json({ok:false,error:"unauthorized"}, 401);
         const body = await req.json().catch(() => null);
-        const valid = validateCoachLaunch(body, Date.now());
+        const audience = String(body && body.audience || "").toLowerCase();
+        if (!COACH_AUDIENCES.has(audience)) return json({ok:false,error:"Audiencia no válida"}, 400);
+        const coachNow = Date.now();
+        const targetAt = (Math.floor(coachNow / COACH_HOUR) + 1) * COACH_HOUR;
+        // El botón manual no inventa otra rueda: adelanta exactamente la cápsula
+        // canónica de la próxima hora, incluida su silla y ventana puntuable.
+        const capsuleResult = await runAcademyCapsuleTick(env, targetAt);
+        const capsule = capsuleResult && capsuleResult.capsula;
+        if (!capsule || !capsule.seat) return json({ok:false,error:"Yokup no pudo resolver la próxima cápsula"}, 502);
+        const valid = validateCoachLaunch({audience,counselor:capsule.seat}, coachNow);
         if (!valid.ok) return json({ok:false,error:valid.error}, valid.status);
         await ensureAcademyCoachSchema(env);
         let row = await env.DB.prepare("SELECT * FROM academy_coach_launches WHERE launch_id=?").bind(valid.launchId).first();
-        if (row) return json({ok:true,reused:true,registry:"academy-coach",...academyCoachLaunchPublicRow(row)});
+        if (row) return json({ok:true,reused:true,registry:"academy-coach",capsula:capsule,ventana:capsuleResult.ventana || null,...academyCoachLaunchPublicRow(row)});
         const launchedAt = Date.now();
         await env.DB.prepare("INSERT OR IGNORE INTO academy_coach_launches (launch_id,audience,counselor,target_slot_id,dimension,lesson_id,launched_at) VALUES (?,?,?,?,?,?,?)")
           .bind(valid.launchId,valid.audience,valid.counselor,valid.targetSlotId,valid.dimension,valid.lessonId,launchedAt).run();
         row = await env.DB.prepare("SELECT * FROM academy_coach_launches WHERE audience=? AND counselor=? AND target_slot_id=?")
           .bind(valid.audience,valid.counselor,valid.targetSlotId).first();
-        return json({ok:true,reused:false,registry:"academy-coach",...academyCoachLaunchPublicRow(row)});
+        return json({ok:true,reused:false,registry:"academy-coach",capsula:capsule,ventana:capsuleResult.ventana || null,...academyCoachLaunchPublicRow(row)});
       } catch (e) { return json({ok:false,error:String(e)}, 500); }
     }
     if (url.pathname === "/academy/coach/completion" && req.method === "POST") {
