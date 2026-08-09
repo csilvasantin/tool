@@ -814,6 +814,79 @@ function councilSeatForHour(h) {
   return COUNCIL_ORDER[Math.floor((((h % 24) + 24) % 24) / 3)] || "ceo";
 }
 __name(councilSeatForHour, "councilSeatForHour");
+
+// ── CÁPSULA DE CONOCIMIENTO DE LA HORA (admira.academy) ─────────────────────
+// Carlos (2026-08-08): «lanzar cada hora en punto una ventana de formación para que
+// se active una cápsula de conocimiento en admira.academy».
+//
+// Una CÁPSULA es lo que una silla del Consejo puede aprender en esta hora: una pieza
+// suya del Stock de pixeria —mejor si viene etiquetada #formacion— o, si esa silla
+// aún no tiene material, la lección de la Academia que le toque. No se inventa
+// contenido: se ELIGE de lo que ya existe y se pone delante.
+//
+// La hora manda y no hay estado que llevar: la silla sale de la propia hora, como en
+// el tick del Consejo. Una hora = una cápsula, garantizado por la clave primaria; el
+// reintento es gratis y no duplica. Si la Academia se consulta dos veces en la misma
+// hora ve exactamente lo mismo, que es lo que hace que se pueda hablar de ella.
+var ACADEMY_HORA_MS = 60 * 60 * 1000;
+// Las cuatro lecciones son las de admira.academy, palabra por palabra. Son el
+// respaldo cuando una silla no tiene material propio: preferimos enseñar algo
+// verdadero de la casa antes que dejar la hora en blanco.
+var ACADEMY_LECCIONES = [
+  { id:"identity",  title:"Identidad y normativa", summary:"Saber quién actúa, con qué fuente y bajo qué reglas." },
+  { id:"ecosystem", title:"Mapa del ecosistema",   summary:"Entender cómo encaja la silla en la suite AdmiraNeXT." },
+  { id:"mission",   title:"Misión con evidencia",  summary:"Convertir criterio en una entrega comprobable." },
+  { id:"closure",   title:"Cierre y puntuación",   summary:"Cerrar sin atribuciones no verificadas." }
+];
+async function ensureAcademyCapsuleSchema(env) {
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS academy_capsulas (hour_start INTEGER PRIMARY KEY, seat TEXT, source TEXT, capsule_id TEXT, title TEXT, note TEXT, url TEXT, at INTEGER)");
+}
+__name(ensureAcademyCapsuleSchema, "ensureAcademyCapsuleSchema");
+
+function academyCapsuleRow(row) {
+  if (!row) return null;
+  const c = COUNCIL[String(row.seat)] || {};
+  return { hour_start:Number(row.hour_start) || 0, seat:row.seat, role:c.role || "", alias:c.alias || "",
+    source:row.source || "", id:row.capsule_id || "", title:row.title || "", note:row.note || "",
+    url:row.url || "", at:Number(row.at) || 0 };
+}
+__name(academyCapsuleRow, "academyCapsuleRow");
+
+async function runAcademyCapsuleTick(env, ahora = Date.now()) {
+  await ensureAcademyCapsuleSchema(env);
+  const hourStart = Math.floor(ahora / ACADEMY_HORA_MS) * ACADEMY_HORA_MS;
+  const ya = await env.DB.prepare("SELECT * FROM academy_capsulas WHERE hour_start=?").bind(hourStart).first();
+  if (ya) return { ok:true, nueva:false, capsula:academyCapsuleRow(ya) };
+  // Silla de la hora: rotación de las ocho, una por hora. Determinista y sin estado.
+  const seat = COUNCIL_ORDER[Math.floor(hourStart / ACADEMY_HORA_MS) % COUNCIL_ORDER.length];
+  let elegida = null;
+  try {
+    const piezas = seatKnowledgeFrom(await stockIndex(), seat, 0);
+    // Primero lo que le trajeron PARA formarse (#formacion); si no, lo que tenga.
+    const formacion = piezas.filter((p) => p.origin === "formado");
+    const pool = formacion.length ? formacion : piezas;
+    if (pool.length) {
+      const pieza = pool[Math.floor(hourStart / ACADEMY_HORA_MS) % pool.length];
+      elegida = { source:"pixeria/stock", id:pieza.id || "", title:pieza.title || "",
+                  note:pieza.note || "", url:pieza.url || "" };
+    }
+  } catch (e) { /* pixeria caida no deja la hora sin capsula: se cae a la leccion */ }
+  if (!elegida) {
+    const l = ACADEMY_LECCIONES[Math.floor(hourStart / ACADEMY_HORA_MS) % ACADEMY_LECCIONES.length];
+    elegida = { source:"academia/leccion", id:l.id, title:l.title, note:l.summary, url:"https://admira.academy/#programa" };
+  }
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO academy_capsulas (hour_start,seat,source,capsule_id,title,note,url,at) VALUES (?,?,?,?,?,?,?,?)"
+  ).bind(hourStart, seat, elegida.source, String(elegida.id).slice(0, 80),
+    String(elegida.title).slice(0, 200), String(elegida.note).slice(0, 400),
+    String(elegida.url).slice(0, 300), Date.now()).run();
+  await env.DB.prepare(
+    "DELETE FROM academy_capsulas WHERE hour_start NOT IN (SELECT hour_start FROM academy_capsulas ORDER BY hour_start DESC LIMIT 200)"
+  ).run();
+  const fila = await env.DB.prepare("SELECT * FROM academy_capsulas WHERE hour_start=?").bind(hourStart).first();
+  return { ok:true, nueva:true, capsula:academyCapsuleRow(fila) };
+}
+__name(runAcademyCapsuleTick, "runAcademyCapsuleTick");
 // Runner de IA para el Consejo. OJO: Workers AI ya NO siempre devuelve `response`
 // como string — cuando el modelo emite JSON, la plataforma lo entrega YA PARSEADO
 // como objeto. El aiRun genérico hace text.trim() y peta con esos objetos (los
@@ -1279,6 +1352,8 @@ async function runScheduledRoutine(env, event) {
   await step("dailyMissionClose", () => runDailyMissionClose(env));
   // Consejo generador (idempotente por hueco de 3h; su propia bitácora council_ticks).
   await step("council", () => runCouncilTick(env));
+  // Cápsula de la hora para admira.academy (idempotente por hora; clave primaria).
+  await step("academyCapsule", () => runAcademyCapsuleTick(env));
   return out;
 }
 __name(runScheduledRoutine, "runScheduledRoutine");
@@ -6545,6 +6620,19 @@ var index_default = {
     // («sabe 12») lo da /council/knowledge; esto da el ACONTECIMIENTO: qué silla
     // creció, cuánto y cuándo. Es lo que convierte «se le ha formado» en algo que se
     // puede mirar en yokup en vez de deducirlo comparando dos capturas del contador.
+    // La cápsula de la hora. PÚBLICA a propósito: la consume admira.academy, que no
+    // tiene perímetro ni sesión. No expone nada que no esté ya publicado en el Stock.
+    // Se dispara aquí además de en la rutina: si el sitio pregunta a las HH:00:03 y
+    // todavía no hubo tráfico, la hora se abre con esa misma visita.
+    if (url.pathname === "/academy/capsula" && req.method === "GET") {
+      try {
+        const r = await runAcademyCapsuleTick(env);
+        const historia = ((await env.DB.prepare(
+          "SELECT * FROM academy_capsulas ORDER BY hour_start DESC LIMIT 12"
+        ).all()).results || []).map(academyCapsuleRow);
+        return json({ ok:true, capsula:r.capsula, nueva:r.nueva, historia });
+      } catch (e) { return json({ ok:false, error:String(e) }, 500); }
+    }
     if (url.pathname === "/council/formacion" && req.method === "GET") {
       try {
         await ensureCouncilKnowledgeSchema(env);
