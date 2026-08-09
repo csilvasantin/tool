@@ -3798,6 +3798,91 @@ async function saveMissionPlan(env, mid, tasks) {
   return listMissionTasks(env, mid);
 }
 __name(saveMissionPlan, "saveMissionPlan");
+
+// ── EL AGENTE PONE SUS PROPIAS SUBTAREAS (Carlos, 2026-08-09) ────────────────
+// Un agente podía MARCAR una subtarea (/fleet/task-status) pero no CREARLA:
+// /mission/<id>/tasks vive tras la verja Google y /declare admite como mucho las
+// tres tareas a·b·c. Así que el árbol que venía de fábrica era el único que
+// había, y repartir el trabajo entre subagentes —el motivo de que existan los
+// tercios— quedaba fuera del alcance de quien trabaja: un solo agente tenía que
+// hacerlo todo dentro de su propia ventana de contexto y se la comía entera.
+//
+// La escritura es ADITIVA a propósito. saveMissionPlan borra el plan entero
+// antes de reescribirlo, y eso en manos de quien sólo quiere añadir «a1» es
+// perder el trabajo ya informado de sus compañeros. Aquí no se borra nunca: se
+// insertan los códigos que faltan y se retitula ÚNICAMENTE lo que sigue virgen
+// (pendiente, sin informe y sin captura).
+var SKELETON_TITLE_RE = /^(?:implementar|probar y aportar evidencia)\s*:|^documentar y reportar el resultado$/i;
+
+// Un plan es ESQUELETO cuando es exactamente el que siembra ensureFleetMainTasks
+// y nadie lo ha tocado: las tres tareas de fábrica, sin subtareas, sin avance,
+// sin informe y sin prueba. Sólo eso puede sustituirse sin preguntarle a nadie.
+function isVirginSkeleton(tasks) {
+  const rows = tasks || [];
+  if (rows.length !== 3) return false;
+  return rows.every((t) => /^[abc]$/.test(String(t.code || "")) && t.status === "pending" &&
+    !String(t.report || "").trim() && !String(t.image || "").trim() &&
+    SKELETON_TITLE_RE.test(String(t.title || "").trim()));
+}
+__name(isVirginSkeleton, "isVirginSkeleton");
+
+// Funde tasks en el plan vigente sin destruir nada. Devuelve qué entró, qué se
+// retituló y qué se ignoró CON EL MOTIVO: un merge que calla lo que descartó es
+// indistinguible de uno que no hizo nada.
+async function mergeMissionPlan(env, mid, tasks, ticket) {
+  const now = Date.now();
+  const byCode = new Map((await listMissionTasks(env, mid)).map((t) => [t.code, t]));
+  const subCount = { a: 0, b: 0, c: 0 };
+  for (const code of byCode.keys()) if (code.length === 2 && subCount[code[0]] != null) subCount[code[0]]++;
+  const added = [], retitled = [], ignored = [];
+  const seen = /* @__PURE__ */ new Set();
+  // Por código: así una tarea madre que venga en la misma tanda ya existe
+  // cuando le toca el turno a su subtarea ("a" ordena antes que "a1").
+  const entrada = (tasks || []).slice().sort((x, y) =>
+    String((x && x.code) || "").localeCompare(String((y && y.code) || "")));
+  for (const t of entrada) {
+    const code = String((t && t.code) || "").trim().toLowerCase();
+    // SOLO TERCIOS: a·b·c y sus tres subtareas. Los pasos d..h siguen en el
+    // esquema por historia, pero ensanchar el plan es justo lo que la regla
+    // prohíbe, y este carril es nuevo: no nace ya con la puerta de atrás.
+    if (!/^[abc][1-3]?$/.test(code) || seen.has(code)) {
+      ignored.push({ code, why: "código no válido (a·b·c o a1..c3) o repetido" });
+      continue;
+    }
+    seen.add(code);
+    const title = String((t && t.title) || "").trim().slice(0, 120);
+    if (!title) { ignored.push({ code, why: "sin título" }); continue; }
+    const cur = byCode.get(code);
+    if (cur) {
+      const virgen = cur.status === "pending" && !String(cur.report || "").trim() && !String(cur.image || "").trim();
+      if (!virgen) { ignored.push({ code, why: "tiene avance, informe o prueba: no se pisa" }); continue; }
+      if (String(cur.title || "") === title) { ignored.push({ code, why: "ya decía eso" }); continue; }
+      await env.DB.prepare("UPDATE mission_tasks SET title=?, updated_at=? WHERE mission_id=? AND code=?")
+        .bind(title, now, mid, code).run();
+      byCode.set(code, { ...cur, title });
+      retitled.push(code);
+      continue;
+    }
+    if (code.length === 2) {
+      const step = code[0];
+      if (!byCode.has(step)) { ignored.push({ code, why: "su tarea madre «" + step + "» no existe" }); continue; }
+      if (subCount[step] >= 3) { ignored.push({ code, why: "«" + step + "» ya tiene sus 3 subtareas" }); continue; }
+      subCount[step]++;
+    }
+    const suggested = t && t.owner ? String(t.owner).slice(0, 40) : ownerFor(code, title);
+    const owner = ticket
+      ? scopedMissionOwner(suggested, /^infra/i.test(suggested) ? "infra" : "sub", ticket.assignee, ticket.loc)
+      : suggested;
+    await env.DB.prepare(
+      "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)"
+    ).bind(mid, code, title, "pending", owner, null, now, now).run();
+    byCode.set(code, { code, title, status: "pending", owner });
+    added.push(code);
+  }
+  return { tasks: await listMissionTasks(env, mid), added, retitled, ignored };
+}
+__name(mergeMissionPlan, "mergeMissionPlan");
+
 async function setTaskStatus(env, mid, code, status, report, owner, image, imageKind) {
   const cur = await env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
   if (!cur) return null;
@@ -5055,14 +5140,52 @@ __name(fleetReconcileAll, "fleetReconcileAll");
 // tareas. Idempotente: solo toca las que están sin plan, así que repetir la
 // llamada no regenera nada ni duplica coste de IA. Se limita por tanda porque
 // cada plan es una llamada a Workers AI.
-async function fleetPlanPending(env, limit) {
+//
+// PERO NINGUNA MISIÓN DE FLOTA LLEGA AQUÍ SIN PLAN (Carlos, 2026-08-09):
+// /fleet/sync le clava a toda misión recién nacida el esqueleto de fábrica
+// («Implementar…/Probar…/Documentar…»), así que el `NOT EXISTS` de abajo nunca
+// se cumple y esta planificación llevaba tiempo siendo un no-op silencioso —
+// 106 de las 120 misiones vivas seguían con el plan genérico. Por eso hay dos
+// entradas nuevas, ambas explícitas para no regenerar nada a espaldas de nadie:
+//   · opts.mission  → planifica ESA misión (la que se acaba de dar de alta)
+//   · opts.skeleton → incluye en la tanda las que sólo tienen el esqueleto INTACTO
+// Un esqueleto tocado (avance, informe o prueba) jamás entra: eso ya es trabajo.
+async function fleetPlanPending(env, limit, opts = {}) {
   const n = Math.max(1, Math.min(+limit || 5, 20));
-  const { results } = await env.DB.prepare(
-    `SELECT t.id FROM tickets t
-      WHERE t.source='fleet' AND t.status!='resolved'
-        AND NOT EXISTS (SELECT 1 FROM mission_tasks m WHERE m.mission_id = t.id)
-      ORDER BY t.created_at DESC LIMIT ?`
-  ).bind(n).all();
+  let results;
+  const one = String((opts && opts.mission) || "").trim();
+  if (one) {
+    const mid = await resolveFleetMissionReference(env, one);
+    const row = mid ? await env.DB.prepare(
+      "SELECT id FROM tickets t WHERE t.id=? AND t.source='fleet' AND t.status!='resolved'"
+    ).bind(mid).first() : null;
+    // Sin plan, o con el esqueleto virgen. Con trabajo dentro, no se toca.
+    const cur = row ? await listMissionTasks(env, mid) : [];
+    results = row && (!cur.length || isVirginSkeleton(cur)) ? [{ id: mid }] : [];
+  } else {
+    ({ results } = await env.DB.prepare(
+      `SELECT t.id FROM tickets t
+        WHERE t.source='fleet' AND t.status!='resolved'
+          AND NOT EXISTS (SELECT 1 FROM mission_tasks m WHERE m.mission_id = t.id)
+        ORDER BY t.created_at DESC LIMIT ?`
+    ).bind(n).all());
+    if (opts && opts.skeleton) {
+      // Candidatas por SQL (3 filas, todas intactas) y criba fina en JS con el
+      // mismo isVirginSkeleton que usa el carril de una sola misión.
+      const { results: cand } = await env.DB.prepare(
+        `SELECT t.id FROM tickets t
+          WHERE t.source='fleet' AND t.status!='resolved'
+            AND (SELECT COUNT(*) FROM mission_tasks m WHERE m.mission_id=t.id) = 3
+            AND NOT EXISTS (SELECT 1 FROM mission_tasks m WHERE m.mission_id=t.id
+              AND (m.status<>'pending' OR COALESCE(TRIM(m.report),'')<>'' OR COALESCE(TRIM(m.image),'')<>''))
+          ORDER BY t.created_at DESC LIMIT ?`
+      ).bind(n).all();
+      for (const row of cand || []) {
+        if ((results || []).length >= n) break;
+        if (isVirginSkeleton(await listMissionTasks(env, row.id))) results.push(row);
+      }
+    }
+  }
   const ids = (results || []).map((r) => r.id);
   const planned = [];
   for (const id of ids) {
@@ -5072,12 +5195,21 @@ async function fleetPlanPending(env, limit) {
     } catch (e) {
     }
   }
-  // pendientes que quedan tras esta tanda
+  // Pendientes que quedan tras esta tanda. `pending` son las que no tienen plan
+  // ninguno; `skeleton` las que sólo tienen el esqueleto de fábrica intacto —
+  // el número que hacía falta ver y que antes no salía por ningún lado, porque
+  // esas misiones no contaban como pendientes aunque no tuvieran plan real.
   const left = (await env.DB.prepare(
     `SELECT COUNT(*) c FROM tickets t WHERE t.source='fleet' AND t.status!='resolved'
        AND NOT EXISTS (SELECT 1 FROM mission_tasks m WHERE m.mission_id = t.id)`
   ).first())?.c || 0;
-  return { ok: true, planned, count: planned.length, pending: left };
+  const esqueleto = (await env.DB.prepare(
+    `SELECT COUNT(*) c FROM tickets t WHERE t.source='fleet' AND t.status!='resolved'
+       AND (SELECT COUNT(*) FROM mission_tasks m WHERE m.mission_id=t.id) = 3
+       AND NOT EXISTS (SELECT 1 FROM mission_tasks m WHERE m.mission_id=t.id
+         AND (m.status<>'pending' OR COALESCE(TRIM(m.report),'')<>'' OR COALESCE(TRIM(m.image),'')<>''))`
+  ).first())?.c || 0;
+  return { ok: true, planned, count: planned.length, pending: left, skeleton: esqueleto };
 }
 __name(fleetPlanPending, "fleetPlanPending");
 
@@ -6540,7 +6672,54 @@ var index_default = {
     }
     if (url.pathname === "/fleet/plan" && req.method === "POST") {
       await ensureSchema(env);
-      return json(await fleetPlanPending(env, url.searchParams.get("limit")));
+      return json(await fleetPlanPending(env, url.searchParams.get("limit"), {
+        mission: url.searchParams.get("mission") || "",
+        skeleton: url.searchParams.get("skeleton") === "1"
+      }));
+    }
+    // EL AGENTE ESCRIBE SU PROPIO ÁRBOL (Carlos, 2026-08-09). Carril público
+    // /fleet/*, igual que task-status y por el mismo motivo: los agentes no
+    // cruzan la verja Google. Añade las subtareas a1..c3 que hagan falta para
+    // repartir el trabajo entre subagentes, y corrige los títulos que todavía
+    // son el esqueleto de fábrica. Nunca borra: lo que ya tiene avance, informe
+    // o prueba se respeta y se devuelve en `ignored` con su motivo.
+    // Body { mission:"FLT-x", by:"SubMorfeoMacMini", tasks:[{code,title,owner}] }
+    if (url.pathname === "/fleet/plan-tasks" && req.method === "POST") {
+      await ensureSchema(env);
+      let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
+      const mid = await resolveFleetMissionReference(env, b.mission || b.id);
+      if (!mid) return json({ ok: false, error: "mission requerida" }, 400);
+      const tk = await env.DB.prepare("SELECT id,assignee,loc,status,role FROM tickets WHERE id=?").bind(mid).first();
+      if (!tk) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
+      // Identidad ANTES de cualquier escritura, como en task-status e informe.
+      const actor = validateMissionActor(tk, b.by || b.owner);
+      if (!actor.ok) return json({ ok: false, code: "owner_mismatch", error: actor.error,
+        expected_assignee: actor.expected, received_owner: actor.actor, mission: mid, applied: false }, 403);
+      if (tk.status === "resolved" || tk.status === "cancelled") {
+        return json({ ok: false, code: "mission_closed", mission: mid, status: tk.status, applied: false,
+          error: "la misión ya está cerrada: su árbol no se reescribe" }, 409);
+      }
+      // Una tarea suelta no tiene árbol por definición (ensureFleetStandaloneTask
+      // borra todo lo que no sea «a»): dárselo aquí sería sembrar filas que el
+      // siguiente reconciliador barre, y el agente no entendería por qué.
+      if (tk.role === "standalone-task") {
+        return json({ ok: false, code: "standalone_task", mission: mid, applied: false,
+          error: "una tarea suelta no lleva árbol a·b·c; si necesita pasos, dala de alta como misión" }, 409);
+      }
+      const arr = Array.isArray(b.tasks) ? b.tasks : [];
+      if (!arr.length || arr.length > 12) {
+        return json({ ok: false, error: "tasks: entre 1 y 12 (3 tareas a·b·c + 9 subtareas)", applied: false }, 400);
+      }
+      const r = await mergeMissionPlan(env, mid, arr, tk);
+      if (r.added.length || r.retitled.length) {
+        await addEvent(env, mid, "log", actor.actor, "Árbol ampliado por el agente" +
+          (r.added.length ? " · añade " + r.added.join(", ") : "") +
+          (r.retitled.length ? " · retitula " + r.retitled.join(", ") : ""));
+      }
+      return json({ ok: true, mission: mid, by: actor.actor,
+        applied: r.added.length + r.retitled.length > 0,
+        added: r.added, retitled: r.retitled, ignored: r.ignored,
+        progress: tercios(r.tasks, tk.role === "standalone-task"), tasks: r.tasks });
     }
     // CARRIL DE AGENTE (abierto, como el resto de /fleet/*) para colgar una misión
     // HIJA de una misión MADRE existente — lo que por la web exige la verja Google
