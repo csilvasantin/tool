@@ -18,7 +18,13 @@ test("la columna se llama Resultado, no Captura", () => {
 // se van AL FINAL de la fila, en columna propia. Dentro de RESULTADO competían con
 // la miniatura y, sobre todo, no se podía ordenar por ellos.
 test("los puntos cierran la fila, en su propia columna y ordenables", () => {
-  assert.match(html, /<div class="gc pts-cell" role="cell" data-label="Puntos">\$\{highscoreHTML\(t\)\}\$\{puntosHTML\(t\)\}<\/div>/);
+  assert.match(html, /<div class="gc pts-cell" role="cell" data-label="Puntos">\$\{puntosHTML\(t\)\}<\/div>/);
+  // Carlos, 2026-08-09: "estan duplicados los puntos". El recorte del Highscore y
+  // el sello cantaban la misma cifra uno encima del otro. UNA pastilla: total y
+  // tiempo dentro, y nada debajo.
+  assert.doesNotMatch(html, /function highscoreHTML/, "ya no hay dos constructores de puntos");
+  assert.match(html, /<span class="hs-ev-ft">\$\{esc\(pie\)\}<\/span>/, "el total y el tiempo van DENTRO de la pastilla");
+  assert.match(html, /const pie=`\$\{b\} total\$\{dedicadoTxt\(t\)\}`/, "el pie es total + tiempo dedicado");
   assert.match(html, /data-label="Resultado">\$\{shot\}<\/div>/,
     "RESULTADO se queda SOLO con su pantallazo");
   assert.match(html, /\["puntos","Puntos"\]\s*\n?\s*\]/, "PUNTOS es la última columna");
@@ -48,9 +54,11 @@ test("el resultado enseña cómo puntuó esa misión en el Highscore", () => {
   assert.match(html, /d&&d\.traceability&&d\.traceability\.chains/);
   assert.match(html, /HS_CHAINS\[String\(t\.mission_id\|\|""\)\.trim\(\)\]/,
     "el recorte se busca por el id de ESTA misión, no por el agente");
-  assert.match(html, /if\(!chain\)return"";/,
-    "una misión fuera de la traza del día no inventa recorte");
-  assert.match(html, /class="hs-ev" href="\/highscore"/, "el recorte lleva al Highscore");
+  assert.match(html, /const conHs=!!chain&&\(!!etapas\|\|hsTotal>0\);/,
+    "una misión fuera de la traza del día no inventa recorte: la pastilla se queda con el sello");
+  assert.match(html, /if\(!conHs\) return `<div class="hs-ev \$\{cls\}"/,
+    "sin cadena sigue habiendo pastilla, pero sin cabecera ni etapas");
+  assert.match(html, /class="hs-ev \$\{cls\}" href="\/highscore"/, "el recorte lleva al Highscore");
   // Carlos, 2026-08-09: el recorte se va a PUNTOS. Es un dato de puntuación, no una
   // captura, y en RESULTADO competía con la foto — dos columnas de pantallazos
   // seguidas se leen de un vistazo; una foto y un recuadro de números, no.

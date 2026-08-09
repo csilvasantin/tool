@@ -38,15 +38,16 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 
 /* ── HOJA DE CÁLCULO (columnas, estilo /misiones) ─────────────────────────────
    Cada informe es una FILA con columnas: Agente · Misión · Petición · Resultado ·
-   Informe · Tiempo · Puntos. RESULTADO enseña cómo puntuó ese encargo en el
-   Highscore; PUNTOS cierra la fila con lo que produjo (points_start → points_end),
-   en columna propia y ordenable. Ya no hay columna ESTADO: en esta tabla sólo hay
+   Informe · Tiempo · Puntos. PETICIÓN y RESULTADO llevan una miniatura cada una
+   —así se comparan de un vistazo— y PUNTOS cierra la fila con UNA sola pastilla
+   que reúne el Highscore, lo producido (points_start → points_end), el total del
+   agente y el tiempo dedicado. Ya no hay columna ESTADO: en esta tabla sólo hay
    informes entregados, así que decía «hecha» en todas las filas y sólo gastaba
    ancho (Carlos, 2026-08-08). En escritorio las columnas se redistribuyen dentro del 100%;
    en pantallas estrechas la misma fila pasa a tarjeta, sin scrollbar permanente. */
 .sheet-wrap{width:100%;min-width:0;overflow-x:hidden;border:1px solid var(--line);border-radius:13px;background:var(--card)}
 .sheet{width:100%;min-width:0}
-.grow{width:100%;min-width:0;display:grid;grid-template-columns:minmax(0,var(--col-agente,138px)) minmax(0,var(--col-mision,170px)) minmax(0,var(--col-proceso,132px)) minmax(0,var(--col-captura,150px)) minmax(0,var(--col-informe,280px)) minmax(0,var(--col-tiempo,150px)) minmax(0,var(--col-puntos,150px));align-items:stretch}
+.grow{width:100%;min-width:0;display:grid;grid-template-columns:minmax(0,var(--col-agente,138px)) minmax(0,var(--col-mision,170px)) minmax(0,var(--col-proceso,132px)) minmax(0,var(--col-captura,150px)) minmax(0,var(--col-informe,258px)) minmax(0,var(--col-tiempo,150px)) minmax(0,var(--col-puntos,172px));align-items:stretch}
 .ghead{position:sticky;top:0;z-index:2;background:var(--card2);border-bottom:1px solid var(--line2)}
 .ghead>div{position:relative;font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--brand);border-left:1px solid var(--line)}
 .ghead>div:first-child{border-left:0}
@@ -87,23 +88,21 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 /* Recorte del Highscore dentro de RESULTADO: los mismos números y rótulos que la
    página, traídos de su traza pública. Compacto, porque comparte celda con la
    miniatura de la prueba. */
-.hs-ev{display:flex;flex-direction:column;align-items:center;gap:1px;margin-bottom:6px;padding:5px 6px;width:100%;border:1px solid rgba(136,255,170,.28);border-radius:8px;background:rgba(136,255,170,.05);text-decoration:none;color:var(--mut)}
+.hs-ev{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 7px;width:100%;max-width:210px;border:1px solid rgba(136,255,170,.28);border-radius:8px;background:rgba(136,255,170,.05);text-decoration:none;color:var(--mut)}
 .hs-ev:hover{border-color:var(--good);background:rgba(136,255,170,.1)}
-.hs-ev-hd{font:700 8px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
-.hs-ev-st{display:flex;flex-wrap:wrap;justify-content:center;gap:5px}
+.hs-ev-hd{font:700 8px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+.hs-ev-st{align-self:stretch;display:flex;flex-wrap:wrap;justify-content:center;gap:5px}
 .hs-st{font:600 9px/1.3 var(--mono);color:var(--mut);white-space:nowrap}
 .hs-st i{font-style:normal;margin-right:2px}
-.hs-ev-total{font:800 12px/1.2 var(--mono);color:var(--good)}
+.hs-ev-total{font:800 13px/1.2 var(--mono);color:var(--good)}
+.hs-ev-ft{font:600 9px/1.2 var(--mono);color:var(--dim);text-align:center;white-space:nowrap}
 /* Puntos: columna propia al final de la fila (Carlos, 2026-08-08). Dentro de
    RESULTADO competían con la miniatura y no se podían ordenar. */
-.pts{font:700 10px/1.25 var(--mono);text-align:center}
 .pts-cell{align-items:center}
 .pts-none{color:var(--dim);font:700 11px/1 var(--mono)}
-.pts b{display:block;font-size:12px}
-.pts span{display:block;opacity:.6;font-weight:500;font-size:9px}
-.pt-up b{color:var(--good,#88ffaa)}
-.pt-flat b{color:var(--mut,#75aab9)}
-.pt-nd b{color:var(--dim,#4d7a88)}
+.pt-up .hs-ev-total{color:var(--good,#88ffaa)}
+.pt-flat .hs-ev-total{color:var(--mut,#75aab9)}
+.pt-nd .hs-ev-total{color:var(--dim,#4d7a88)}
 /* Captura */
 .shot-a{display:block;line-height:0}
 .shot-img{width:100%;max-width:104px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:6px;border:1px solid var(--line2);background:var(--card2);display:block;cursor:zoom-in;transition:.15s}
@@ -435,22 +434,10 @@ async function cargaHighscore(){
   }catch(e){return false;}
 }
 const HS_ETAPAS=[["objective","🎯","Objetivo"],["windows","🗳","Ventanas"],["mission","🚀","Misión"],["tasks","✅","Tareas"]];
-function highscoreHTML(t){
-  const chain=HS_CHAINS[String(t.mission_id||"").trim()];
-  if(!chain)return"";
-  const p=chain.points||{},total=Number(p.total)||0;
-  const etapas=HS_ETAPAS.filter(([k])=>Number(p[k])>0)
-    .map(([k,ico,label])=>`<span class="hs-st" title="${esc(label)}: +${Number(p[k])} puntos"><i aria-hidden="true">${ico}</i>+${Number(p[k])}</span>`).join("");
-  if(!etapas&&!total)return"";
-  const quien=esc(String(chain.agent||t.executor||"")),hora=chain.latest_at?hhmm(_ms(chain.latest_at)):"";
-  const tit=`Cómo puntuó ${quien} esta misión en el Highscore de ${esc(HS_DAY||"hoy")}`+
-    HS_ETAPAS.filter(([k])=>Number(p[k])>0).map(([k,,label])=>` · ${label} +${Number(p[k])}`).join("")+
-    ` · total +${total}. Pulsa para abrir el Highscore.`;
-  return `<a class="hs-ev" href="/highscore" title="${esc(tit)}">`+
-    `<span class="hs-ev-hd">Highscore${hora?" · "+esc(hora):""}</span>`+
-    `<span class="hs-ev-st">${etapas}</span>`+
-    `<b class="hs-ev-total">+${total} pts</b></a>`;
-}
+// UNA SOLA PASTILLA (Carlos, 9-ago-2026). El recorte del Highscore y el sello de
+// la misión decían la misma cifra dos veces, una encima de otra: «+40 pts» y
+// debajo otra vez «+40 pts». Ahora el total del agente y el tiempo dedicado
+// viven DENTRO del recuadro y no hay zona inferior que repita nada.
 function puntosHTML(t){
   // `null` de la base NO es un cero: Number(null) vale 0 y durante meses la tabla
   // dijo «0 pts» de misiones que habían puntuado 40 (el sello venía roto del
@@ -461,11 +448,31 @@ function puntosHTML(t){
   const delta=a===null?null:b-a;
   const signo=delta===null?"":(delta>0?"+":"");
   const cls=delta===null?"pt-nd":(delta>0?"pt-up":"pt-flat");
-  const txt=delta===null?`${b} pts`:`${signo}${delta} pts`;
-  const tit=delta===null
+  const pie=`${b} total${dedicadoTxt(t)}`;
+
+  // Cabecera y etapas sólo si el Highscore tiene cadena de ESTA misión (sólo
+  // guarda el día en curso); si no la hay, la pastilla se queda con el sello.
+  const chain=HS_CHAINS[String(t.mission_id||"").trim()];
+  const p=(chain&&chain.points)||{},hsTotal=Number(p.total)||0;
+  const vivas=HS_ETAPAS.filter(([k])=>Number(p[k])>0);
+  const etapas=vivas.map(([k,ico,label])=>`<span class="hs-st" title="${esc(label)}: +${Number(p[k])} puntos"><i aria-hidden="true">${ico}</i>+${Number(p[k])}</span>`).join("");
+  const conHs=!!chain&&(!!etapas||hsTotal>0);
+
+  const grande=conHs?`+${hsTotal} pts`:(delta===null?`${b} pts`:`${signo}${delta} pts`);
+  const sello=delta===null
     ? `Total del agente al cerrar: ${b} puntos · sin punto de partida registrado`
     : `Antes ${a} · después ${b} · aportación de este encargo: ${signo}${delta}`;
-  return `<div class="pts ${cls}" title="${esc(tit)}"><b>${esc(txt)}</b><span>${esc(String(b))} total${dedicadoTxt(t)}</span></div>`;
+  if(!conHs) return `<div class="hs-ev ${cls}" title="${esc(sello)}"><b class="hs-ev-total">${esc(grande)}</b><span class="hs-ev-ft">${esc(pie)}</span></div>`;
+
+  const quien=esc(String(chain.agent||t.executor||"")),hora=chain.latest_at?hhmm(_ms(chain.latest_at)):"";
+  const tit=`Cómo puntuó ${quien} esta misión en el Highscore de ${esc(HS_DAY||"hoy")}`+
+    vivas.map(([k,,label])=>` · ${label} +${Number(p[k])}`).join("")+
+    ` · total +${hsTotal}. ${sello}. Pulsa para abrir el Highscore.`;
+  return `<a class="hs-ev ${cls}" href="/highscore" title="${esc(tit)}">`+
+    `<span class="hs-ev-hd">Highscore${hora?" · "+esc(hora):""}</span>`+
+    (etapas?`<span class="hs-ev-st">${etapas}</span>`:"")+
+    `<b class="hs-ev-total">${esc(grande)}</b>`+
+    `<span class="hs-ev-ft">${esc(pie)}</span></a>`;
 }
 
 // El tiempo dedicado ya se pintaba en su columna, pero no formaba parte del
@@ -496,8 +503,8 @@ const SORT_COLUMNS=[
 const COLUMN_SPECS={
   agente:{label:"Agente",default:138,min:100,max:260},mision:{label:"Misión",default:170,min:130,max:360},
   proceso:{label:"Petición",default:132,min:96,max:260},captura:{label:"Resultado",default:150,min:96,max:300},
-  informe:{label:"Informe",default:280,min:180,max:520},
-  tiempo:{label:"Tiempo",default:150,min:120,max:280},puntos:{label:"Puntos",default:150,min:110,max:260}
+  informe:{label:"Informe",default:258,min:180,max:520},
+  tiempo:{label:"Tiempo",default:150,min:120,max:280},puntos:{label:"Puntos",default:172,min:140,max:280}
 };
 // v2: la v1 guardaba un ancho para `estado`, que ya no existe, y ninguno para
 // `puntos`. Con la clave vieja el reparto salía torcido hasta el primer arrastre.
@@ -628,7 +635,7 @@ function render(list){
       <div class="gc rep" role="cell" data-label="Informe"><div class="rep-tx" title="${esc(t.report)}">${esc(t.report)}</div>
         <button class="rep-pdf" data-pdf="${esc(t.mission_id)}|${esc(t.code||'')}" title="Descargar el parte completo en PDF — con el informe entero y las dos capturas dentro del fichero">📄 PDF</button></div>
       <div class="gc" role="cell" data-label="Tiempo">${tiempoHTML(t)}</div>
-      <div class="gc pts-cell" role="cell" data-label="Puntos">${highscoreHTML(t)}${puntosHTML(t)}</div>
+      <div class="gc pts-cell" role="cell" data-label="Puntos">${puntosHTML(t)}</div>
     </div>`;
     }).join("");
     return `<section class="family-group" role="rowgroup" data-family="${esc(group.key)}" aria-labelledby="${familyId}-label">
