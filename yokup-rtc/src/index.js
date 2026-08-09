@@ -3815,12 +3815,18 @@ __name(saveMissionPlan, "saveMissionPlan");
 var SKELETON_TITLE_RE = /^(?:implementar|probar y aportar evidencia)\s*:|^documentar y reportar el resultado$/i;
 
 // Un plan es ESQUELETO cuando es exactamente el que siembra ensureFleetMainTasks
-// y nadie lo ha tocado: las tres tareas de fábrica, sin subtareas, sin avance,
+// y nadie ha dejado trabajo dentro: las tres tareas de fábrica, sin subtareas,
 // sin informe y sin prueba. Sólo eso puede sustituirse sin preguntarle a nadie.
+//
+// `in_progress` NO descalifica (Morfeo, 2026-08-09): el auto-pickup marca «a» en
+// curso a los pocos segundos del alta, así que exigir `pending` dejaba la ventana
+// en nada y ninguna misión llegaba a planificarse — el mismo no-op de antes, sólo
+// que más difícil de ver. Reclamar una tarea no es haberla trabajado; lo que sí
+// es trabajo —informe, captura o un `done`— se respeta y bloquea la sustitución.
 function isVirginSkeleton(tasks) {
   const rows = tasks || [];
   if (rows.length !== 3) return false;
-  return rows.every((t) => /^[abc]$/.test(String(t.code || "")) && t.status === "pending" &&
+  return rows.every((t) => /^[abc]$/.test(String(t.code || "")) && t.status !== "done" &&
     !String(t.report || "").trim() && !String(t.image || "").trim() &&
     SKELETON_TITLE_RE.test(String(t.title || "").trim()));
 }
@@ -3854,7 +3860,13 @@ async function mergeMissionPlan(env, mid, tasks, ticket) {
     if (!title) { ignored.push({ code, why: "sin título" }); continue; }
     const cur = byCode.get(code);
     if (cur) {
-      const virgen = cur.status === "pending" && !String(cur.report || "").trim() && !String(cur.image || "").trim();
+      // Se retitula lo que está pendiente, y también lo que sólo está reclamado
+      // (in_progress) si su título SIGUE siendo el de fábrica: eso es el
+      // auto-pickup, no trabajo de nadie. Un informe, una captura o un `done`
+      // cierran la puerta en los dos casos.
+      const limpio = !String(cur.report || "").trim() && !String(cur.image || "").trim();
+      const deFabrica = SKELETON_TITLE_RE.test(String(cur.title || "").trim());
+      const virgen = limpio && (cur.status === "pending" || (cur.status === "in_progress" && deFabrica));
       if (!virgen) { ignored.push({ code, why: "tiene avance, informe o prueba: no se pisa" }); continue; }
       if (String(cur.title || "") === title) { ignored.push({ code, why: "ya decía eso" }); continue; }
       await env.DB.prepare("UPDATE mission_tasks SET title=?, updated_at=? WHERE mission_id=? AND code=?")
@@ -5177,7 +5189,7 @@ async function fleetPlanPending(env, limit, opts = {}) {
           WHERE t.source='fleet' AND t.status!='resolved'
             AND (SELECT COUNT(*) FROM mission_tasks m WHERE m.mission_id=t.id) = 3
             AND NOT EXISTS (SELECT 1 FROM mission_tasks m WHERE m.mission_id=t.id
-              AND (m.status<>'pending' OR COALESCE(TRIM(m.report),'')<>'' OR COALESCE(TRIM(m.image),'')<>''))
+              AND (m.status='done' OR COALESCE(TRIM(m.report),'')<>'' OR COALESCE(TRIM(m.image),'')<>''))
           ORDER BY t.created_at DESC LIMIT ?`
       ).bind(n).all();
       for (const row of cand || []) {
@@ -5207,7 +5219,7 @@ async function fleetPlanPending(env, limit, opts = {}) {
     `SELECT COUNT(*) c FROM tickets t WHERE t.source='fleet' AND t.status!='resolved'
        AND (SELECT COUNT(*) FROM mission_tasks m WHERE m.mission_id=t.id) = 3
        AND NOT EXISTS (SELECT 1 FROM mission_tasks m WHERE m.mission_id=t.id
-         AND (m.status<>'pending' OR COALESCE(TRIM(m.report),'')<>'' OR COALESCE(TRIM(m.image),'')<>''))`
+         AND (m.status='done' OR COALESCE(TRIM(m.report),'')<>'' OR COALESCE(TRIM(m.image),'')<>''))`
   ).first())?.c || 0;
   return { ok: true, planned, count: planned.length, pending: left, skeleton: esqueleto };
 }

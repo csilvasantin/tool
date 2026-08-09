@@ -65,7 +65,10 @@ const esqueleto = [
 test("el esqueleto de fábrica intacto se reconoce; tocado, ya no", () => {
   const { F } = harness();
   assert.equal(F.isVirginSkeleton(esqueleto.map((t) => ({ ...t, status: "pending" }))), true);
-  // Un solo hecho dentro —avance, informe o prueba— y deja de ser sustituible.
+  // El auto-pickup marca «a» en curso a los segundos del alta. Reclamar no es
+  // trabajar: si no hay informe ni captura, sigue siendo sustituible.
+  assert.equal(F.isVirginSkeleton(esqueleto.map((t, i) => ({ ...t, status: i ? "pending" : "in_progress" }))), true);
+  // Un solo hecho dentro —un done, un informe o una prueba— y deja de serlo.
   assert.equal(F.isVirginSkeleton(esqueleto.map((t, i) => ({ ...t, status: i ? "pending" : "done" }))), false);
   assert.equal(F.isVirginSkeleton(esqueleto.map((t, i) => ({ ...t, status: "pending", report: i ? "" : "hecho" }))), false);
   assert.equal(F.isVirginSkeleton(esqueleto.map((t, i) => ({ ...t, status: "pending", image: i ? "" : "https://x/y.png" }))), false);
@@ -125,6 +128,22 @@ test("un título de fábrica sí se corrige, porque nadie lo ha tocado", async (
   ], TICKET);
   assert.deepEqual(Array.from(r.retitled), ["a"]);
   assert.equal(r.tasks.find((t) => t.code === "a").title, "Recolectar commits, tags y Ágora del fin de semana");
+});
+
+test("una tarea reclamada por el auto-pickup se retitula si aún es la de fábrica, y no si ya es real", async () => {
+  const { db, env, F } = harness();
+  seed(db, [
+    { code: "a", title: "Implementar: lo que sea", status: "in_progress" },
+    { code: "b", title: "Sondear los dominios cabecera", status: "in_progress" },
+    { code: "c", title: "Documentar y reportar el resultado" }
+  ]);
+  const r = await F.mergeMissionPlan(env, "FLT-T", [
+    { code: "a", title: "Abrir el carril público /fleet/plan-tasks" },
+    { code: "b", title: "Otro título para b" }
+  ], TICKET);
+  assert.deepEqual(Array.from(r.retitled), ["a"]);
+  assert.equal(r.tasks.find((t) => t.code === "b").title, "Sondear los dominios cabecera");
+  assert.match(r.ignored.find((i) => i.code === "b").why, /avance, informe o prueba/);
 });
 
 test("la regla de los tercios se aplica en la puerta: ni cuartas subtareas ni pasos d..h", async () => {
