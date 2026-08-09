@@ -832,15 +832,6 @@ __name(councilSeatForHour, "councilSeatForHour");
 // reintento es gratis y no duplica. Si la Academia se consulta dos veces en la misma
 // hora ve exactamente lo mismo, que es lo que hace que se pueda hablar de ella.
 var ACADEMY_HORA_MS = 60 * 60 * 1000;
-// Las cuatro lecciones son las de admira.academy, palabra por palabra. Son el
-// respaldo cuando una silla no tiene material propio: preferimos enseñar algo
-// verdadero de la casa antes que dejar la hora en blanco.
-var ACADEMY_LECCIONES = [
-  { id:"identity",  title:"Identidad y normativa", summary:"Saber quién actúa, con qué fuente y bajo qué reglas." },
-  { id:"ecosystem", title:"Mapa del ecosistema",   summary:"Entender cómo encaja la silla en la suite AdmiraNeXT." },
-  { id:"mission",   title:"Misión con evidencia",  summary:"Convertir criterio en una entrega comprobable." },
-  { id:"closure",   title:"Cierre y puntuación",   summary:"Cerrar sin atribuciones no verificadas." }
-];
 // LAS TRES TEMÁTICAS DEL COACH (Carlos, 2026-08-09): «una cada hora y vuelta a
 // empezar, con lo que saldrán 24 ventanas de formación al día, 8 de cada tipología».
 //
@@ -869,6 +860,26 @@ function academyTemaDeFranja(slotId) {
   return { tema, lessonId };
 }
 __name(academyTemaDeFranja, "academyTemaDeFranja");
+// Cápsula de respaldo mientras Smith prepara la de verdad. El título sale del
+// identificador de la lección del Coach, que es la ÚNICA lista de lecciones que
+// existe en la casa.
+//
+// Aquí vivía un catálogo propio de cuatro lecciones (identity · ecosystem · mission ·
+// closure) que NUNCA se aplicó: sus claves no eran las del Coach (contratos-claros,
+// restriccion, valor-captura…), así que el `find` fallaba siempre y lo que se
+// publicaba era el respaldo del `||`. Encima había un test que lo daba por vivo, que
+// es lo peor de un catálogo muerto: parece cubierto. Fuera (Carlos, 9-ago-2026).
+//
+// Lo usan las dos puertas por las que nace una cápsula —el tick de la hora y el
+// cambio de temática de la ventana—, para que cambiar de temática no cambie también
+// el formato del título.
+function academyCapsulaDeLeccion(tema, lessonId) {
+  return { source:"academia/leccion", id:String(lessonId),
+    title:"Lección de " + tema.nombre + ": " + String(lessonId).replace(/-/g, " "),
+    note:"Smith está preparando la cápsula de " + tema.nombre + ".",
+    url:"https://admira.academy/#formacion" };
+}
+__name(academyCapsulaDeLeccion, "academyCapsulaDeLeccion");
 async function ensureAcademyCapsuleSchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS academy_capsulas (hour_start INTEGER PRIMARY KEY, seat TEXT, source TEXT, capsule_id TEXT, title TEXT, note TEXT, url TEXT, at INTEGER)");
   // Aditivas: las capsulas de ayer no tenian tematica ni agente de turno.
@@ -1253,14 +1264,16 @@ async function aplicaEleccionFormacion(env, decision) {
   const horas = Math.floor(hourStart / COACH_HOUR);
   const { lessonId } = coachLessonForDimension(horas, tema.id);
   const seat = tema.seats[Math.floor(horas / ACADEMY_TEMAS.length) % tema.seats.length];
-  const title = "Lección de " + tema.nombre + ": " + String(lessonId).replace(/-/g, " ");
+  const nueva = academyCapsulaDeLeccion(tema, lessonId);
+  // La nota sí es distinta de la del tick: aquí la temática NO es la que tocaba, y
+  // quien lea la cápsula tiene que poder saber que se eligió a mano.
   const nota = "Temática elegida en la ventana de formación de esta hora: " + tema.nombre + ".";
   await env.DB.prepare(
-    "UPDATE academy_capsulas SET tema=?,seat=?,source='academia/leccion',capsule_id=?,title=?,note=?,url=?," +
+    "UPDATE academy_capsulas SET tema=?,seat=?,source=?,capsule_id=?,title=?,note=?,url=?," +
     "smith_status='pending',smith_stage='queued',smith_detail=?,smith_progress=0," +
     "smith_source_url=NULL,smith_video_id=NULL,smith_capsule_id=NULL,smith_updated_at=? WHERE hour_start=?"
-  ).bind(tema.id, seat, String(lessonId).slice(0, 80), title.slice(0, 200), nota.slice(0, 400),
-    "https://admira.academy/#formacion",
+  ).bind(tema.id, seat, nueva.source, String(nueva.id).slice(0, 80), nueva.title.slice(0, 200), nota.slice(0, 400),
+    nueva.url,
     ("Temática cambiada a " + tema.nombre + " en la ventana; Smith rehace la cápsula.").slice(0, 400),
     Date.now(), hourStart).run();
   // `mission` de la ventana era la temática que TOCABA; si se deja, el histórico de
@@ -1309,11 +1322,7 @@ async function runAcademyCapsuleTick(env, ahora = Date.now()) {
   // Toda franja se encarga a Smith. Yokup no finge que el vídeo ya existe: abre
   // con la lección canónica como respaldo y la sustituye únicamente después de
   // verificar en el índice público el vídeo y su cápsula textual enlazada.
-  const l = ACADEMY_LECCIONES.find((x) => x.id === lessonId);
-  const elegida = { source:"academia/leccion", id:lessonId,
-    title:(l && l.title) || ("Lección de " + tema.nombre + ": " + lessonId.replace(/-/g, " ")),
-    note:(l && l.summary) || ("Smith está preparando la cápsula de " + tema.nombre + "."),
-    url:"https://admira.academy/#formacion" };
+  const elegida = academyCapsulaDeLeccion(tema, lessonId);
   await env.DB.prepare(
     "INSERT OR IGNORE INTO academy_capsulas (hour_start,seat,tema,source,capsule_id,title,note,url,at,smith_status,smith_agent,smith_stage,smith_detail,smith_progress) VALUES (?,?,?,?,?,?,?,?,?,'pending','Smith','queued','Esperando a que Smith recoja la ventana.',0)"
   ).bind(hourStart, seat, tema.id, elegida.source, String(elegida.id).slice(0, 80),

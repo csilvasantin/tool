@@ -8,7 +8,10 @@ import { coachLessonForSlot } from "./src/academy-coach.js";
 const source = await readFile(new URL("./src/index.js", import.meta.url), "utf8");
 
 function fuente(nombre){
-  const i = source.indexOf("async function " + nombre + "(");
+  // Vale para `async function` y para las síncronas: academyCapsulaDeLeccion no
+  // toca la base, así que no tiene por qué ser async para dejarse leer aquí.
+  const asinc = source.indexOf("async function " + nombre + "(");
+  const i = asinc >= 0 ? asinc : source.indexOf("function " + nombre + "(");
   assert.notEqual(i, -1, "falta " + nombre);
   const j = source.indexOf("\n}\n", i);
   return source.slice(i, j);
@@ -40,11 +43,23 @@ test("la cápsula se encarga siempre a Smith y sólo se sustituye tras verificar
     "Yokup no elige una pieza vieja para fingir que Smith ya entregó");
 });
 
-test("mientras Smith trabaja, la hora no queda en blanco: conserva la lección de la Academia", () => {
+test("mientras Smith trabaja, la hora no queda en blanco: conserva la lección del Coach", () => {
+  // Este test decía otra cosa hasta el 9-ago-2026: exigía un catálogo propio de
+  // cuatro lecciones (identity · ecosystem · mission · closure) que NUNCA se
+  // aplicaba, porque sus claves no son las que emite el Coach (contratos-claros,
+  // restriccion, valor-captura…). El `find` fallaba siempre y se publicaba el
+  // respaldo del `||`. Un test verde sobre código muerto es peor que no tenerlo:
+  // daba por cubierto justo lo que no se ejecutaba nunca.
   const tick = fuente("runAcademyCapsuleTick");
-  assert.match(tick, /source:"academia\/leccion"/);
-  assert.match(source, /var ACADEMY_LECCIONES = \[/);
-  for (const id of ["identity","ecosystem","mission","closure"]) assert.match(source, new RegExp('id:"' + id + '"'));
+  assert.match(tick, /const elegida = academyCapsulaDeLeccion\(tema, lessonId\)/);
+  assert.doesNotMatch(source, /ACADEMY_LECCIONES/, "el catálogo muerto no vuelve");
+  const leccion = fuente("academyCapsulaDeLeccion");
+  assert.match(leccion, /source:"academia\/leccion"/);
+  assert.match(leccion, /title:"Lección de " \+ tema\.nombre \+ ": " \+ String\(lessonId\)\.replace/,
+    "el título sale del id del Coach, la única lista de lecciones que existe");
+  // Las dos puertas por las que nace una cápsula usan el MISMO constructor: si cada
+  // una se lo inventara, cambiar de temática cambiaría el formato del título.
+  assert.match(fuente("aplicaEleccionFormacion"), /const nueva = academyCapsulaDeLeccion\(tema, lessonId\)/);
 });
 
 test("la Academia puede leerla sin sesión, y preguntar abre la hora", () => {
@@ -138,13 +153,17 @@ test("la ventana rota entre los agentes declarados de la Academia, uno cada 4 ho
   assert.match(abre, /if \(!identidad\.ok\) return \{ ok:false/, "sin identidad canónica no se abre: puntuaría a nadie");
 });
 
-test("una sola opción: la ventana no puede materializar misiones fantasma", () => {
+test("tres opciones y aun así ni una misión fantasma", () => {
   const abre = fuente("abreVentanaFormacion");
-  assert.match(abre, /const opciones = \["Atender la cápsula de "/);
-  // La garantía es la FORMA, no una bandera: ensureMissionBatchFromDecision corta si
-  // las opciones no son de misión (inicial exige 5; continuación, 2 o 3 con salida).
+  assert.match(abre, /const opciones = ACADEMY_TEMAS\.map/, "las tres temáticas, no sólo la que toca");
   assert.match(abre, /JSON\.stringify\(opciones\)/);
   assert.doesNotMatch(abre, /volver atr/i, "ni de lejos la forma de una ventana de misión");
+  // Hasta el 9-ago-2026 la garantía era la FORMA: una opción suelta no encaja ni como
+  // ventana inicial (exige 5) ni como continuación (2 o 3 con salida). Con TRES
+  // opciones y parent_decision puesto, la forma de continuación sí encajaría y sólo
+  // salva el asunto que ninguna temática se llame «volver atrás» — un accidente del
+  // texto. Ahora se descarta por NOMBRE, que no depende de cómo se redacte una opción.
+  assert.match(source, /if \(decision && decision\.parent_decision === ACADEMY_DECISION_PARENT\) return false;/);
   assert.match(source, /function isInitialMissionDecision[\s\S]{0,200}options\.length === 5/);
 });
 

@@ -6,8 +6,12 @@ import {readFile} from 'node:fs/promises';
 const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
 const names = ['isBackOption','isCustomOption','isInitialMissionDecision','isContinuationMissionDecision','isMissionDecision','orderedMissionOptions','continuationMissionOrder','remainingBatchItems'];
 const functions = names.map((name) => source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))?.[0] || '').join('\n');
+// isMissionDecision descarta por NOMBRE las ventanas de formación (9-ago-2026), así
+// que el trozo de fuente que se evalúa aquí necesita también su marcador. Un sandbox
+// hecho a mano tiene que crecer con las dependencias de lo que mete dentro.
+const marcador = source.match(/var ACADEMY_DECISION_PARENT = [^\n]+;/)?.[0] || '';
 const context = vm.createContext({});
-vm.runInContext(`${functions}\nglobalThis.contract={isInitialMissionDecision,isContinuationMissionDecision,isMissionDecision,orderedMissionOptions,continuationMissionOrder,remainingBatchItems};`, context);
+vm.runInContext(`${marcador}\n${functions}\nglobalThis.contract={isInitialMissionDecision,isContinuationMissionDecision,isMissionDecision,orderedMissionOptions,continuationMissionOrder,remainingBatchItems};`, context);
 const contract = context.contract;
 const back = 'Volver atrás';
 const custom = '✍️ Custom · Escribe la mejora que quieras a mano';

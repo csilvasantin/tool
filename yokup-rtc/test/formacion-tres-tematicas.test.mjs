@@ -48,7 +48,8 @@ function harness(){
   vm.runInContext([
     grabVar("ACADEMY_HORA_MS"),grabVarMulti("ACADEMY_TEMAS"),grabVarMulti("ACADEMY_TURNOS"),
     grabVar("ACADEMY_DECISION_PARENT"),grabVar("ACADEMY_DECISION_MIN"),grabVar("ACADEMY_ELECCION_VENTANA_MS"),
-    grab("academyTemaDeFranja"),grab("abreVentanaFormacion"),grab("academyHourFromDecisionId"),
+    grab("academyTemaDeFranja"),grab("academyCapsulaDeLeccion"),
+    grab("abreVentanaFormacion"),grab("academyHourFromDecisionId"),
     grab("aplicaEleccionFormacion"),grab("aplicaEleccionesFormacion"),grab("isMissionDecision")
   ].join("\n"),context);
   return{db,env:{DB},F:context};
