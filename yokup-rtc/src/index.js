@@ -889,6 +889,7 @@ __name(ensureAcademyCapsuleSchema, "ensureAcademyCapsuleSchema");
 async function ensureAcademyCoachSchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS academy_coach_completions (event_id TEXT PRIMARY KEY, audience TEXT NOT NULL, counselor TEXT NOT NULL, slot_id INTEGER NOT NULL, dimension TEXT NOT NULL, lesson_id TEXT NOT NULL, application TEXT NOT NULL, completed_at INTEGER NOT NULL, UNIQUE(audience,counselor,slot_id))");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS academy_coach_launches (launch_id TEXT PRIMARY KEY, audience TEXT NOT NULL, counselor TEXT NOT NULL, target_slot_id INTEGER NOT NULL, dimension TEXT NOT NULL, lesson_id TEXT NOT NULL, launched_at INTEGER NOT NULL, UNIQUE(audience,counselor,target_slot_id))");
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS academy_coach_sources (source_id TEXT PRIMARY KEY, audience TEXT NOT NULL, counselor TEXT NOT NULL, source_url TEXT NOT NULL, capsule_id TEXT NOT NULL, preview_id TEXT NOT NULL, title TEXT NOT NULL, summary TEXT NOT NULL, image_url TEXT NOT NULL, imported_at INTEGER NOT NULL, UNIQUE(audience,counselor,source_url))");
 }
 __name(ensureAcademyCoachSchema, "ensureAcademyCoachSchema");
 
@@ -906,6 +907,15 @@ function academyCoachLaunchPublicRow(row) {
     launchedAt:new Date(Number(row.launched_at)).toISOString() };
 }
 __name(academyCoachLaunchPublicRow, "academyCoachLaunchPublicRow");
+
+function academyCoachSourcePublicRow(row) {
+  return { sourceId:row.source_id, audience:row.audience, counselor:row.counselor,
+    sourceUrl:row.source_url, capsuleAssetId:row.capsule_id, previewAssetId:row.preview_id,
+    title:row.title, summary:row.summary, imageUrl:row.image_url,
+    pixeriaUrl:"https://www.pixeria.com/stock.html?highlight=" + encodeURIComponent(row.capsule_id),
+    importedAt:new Date(Number(row.imported_at)).toISOString() };
+}
+__name(academyCoachSourcePublicRow, "academyCoachSourcePublicRow");
 
 function academyCapsuleRow(row) {
   if (!row) return null;
@@ -942,6 +952,66 @@ async function stockIndexFresh() {
   } catch (e) { return []; }
 }
 __name(stockIndexFresh, "stockIndexFresh");
+
+function academyCoachSourceUrl(value) {
+  let url;
+  try { url = new URL(String(value || "").trim()); } catch (e) { return ""; }
+  if (url.protocol !== "https:" || url.username || url.password) return "";
+  const host = url.hostname.toLowerCase().replace(/\.$/, "");
+  if (!host.includes(".") || host === "localhost" || host.endsWith(".local") || host.endsWith(".internal") || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host) || host.includes(":")) return "";
+  url.hash = "";
+  const tracking = new Set(["ncid","mkt_tok","fbclid","gclid","dclid","msclkid","mc_cid","mc_eid"]);
+  for (const key of [...url.searchParams.keys()]) if (key.toLowerCase().startsWith("utm_") || tracking.has(key.toLowerCase())) url.searchParams.delete(key);
+  url.searchParams.sort();
+  return url.href;
+}
+__name(academyCoachSourceUrl, "academyCoachSourceUrl");
+
+async function academyCoachSourceId(audience, counselor, sourceUrl) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${audience}:${counselor}:${sourceUrl}`));
+  return "coach-source-" + Array.from(new Uint8Array(digest)).slice(0, 12).map((n) => n.toString(16).padStart(2,"0")).join("");
+}
+__name(academyCoachSourceId, "academyCoachSourceId");
+
+async function verifyAcademyCoachSource(env, body) {
+  const audience = String(body && body.audience || "").toLowerCase();
+  const counselor = String(body && body.counselor || "").toLowerCase();
+  const sourceUrl = academyCoachSourceUrl(body && body.sourceUrl);
+  const capsuleId = String(body && body.capsuleAssetId || "").trim();
+  const previewId = String(body && body.previewAssetId || "").trim();
+  if (!COACH_AUDIENCES.has(audience)) return {ok:false,status:400,error:"Audiencia no válida"};
+  if (!COUNCIL[counselor]) return {ok:false,status:400,error:"Consejero no válido"};
+  if (!sourceUrl) return {ok:false,status:400,error:"Fuente no válida"};
+  if (!/^[A-Za-z0-9-]{4,120}$/.test(capsuleId) || !/^[A-Za-z0-9-]{4,120}$/.test(previewId)) return {ok:false,status:400,error:"Activos de Pixeria no válidos"};
+  await ensureAcademyCoachSchema(env);
+  const existing = await env.DB.prepare("SELECT * FROM academy_coach_sources WHERE audience=? AND counselor=? AND source_url=?")
+    .bind(audience,counselor,sourceUrl).first();
+  if (existing) {
+    const same = existing.capsule_id === capsuleId && existing.preview_id === previewId;
+    return same ? {ok:true,reused:true,row:existing} : {ok:false,status:409,error:"La fuente ya tiene otra cápsula verificada"};
+  }
+  const items = await stockIndexFresh();
+  const capsule = items.find((item) => String(item && item.id || "") === capsuleId);
+  const preview = items.find((item) => String(item && item.id || "") === previewId);
+  const required = [COUNCIL_FORMACION_TAG, COUNCIL[counselor].tag, "site"];
+  const capsuleType = String(capsule && capsule.type || "").toLowerCase();
+  if (!capsule || !["capsula","guion"].includes(capsuleType) || !stockHasTags(capsule, required)) return {ok:false,status:422,error:"La cápsula no está publicada con las etiquetas canónicas"};
+  if (!preview || String(preview.type || "").toLowerCase() !== "image" || !stockHasTags(preview, required)) return {ok:false,status:422,error:"El previo no está publicado con las etiquetas canónicas"};
+  if (academyCoachSourceUrl(capsule.prompt) !== sourceUrl || academyCoachSourceUrl(preview.prompt) !== sourceUrl) return {ok:false,status:422,error:"Los activos no corresponden a la fuente declarada"};
+  if (String(capsule.externalRef || "") !== previewId) return {ok:false,status:422,error:"La cápsula no apunta a su previo"};
+  const thumbnail = String(capsule.thumbnail || "");
+  if (!thumbnail.startsWith("https://") || (!thumbnail.includes(previewId) && thumbnail !== String(preview.url || ""))) return {ok:false,status:422,error:"La cápsula no conserva su imagen de previo"};
+  const summary = String(capsule.comment || "").replace(/\r/g, "").trim();
+  if (summary.length < 700 || !summary.includes("PARA CARBONO") || !summary.includes("PARA SILICIO") || !summary.includes("APLICACIÓN")) return {ok:false,status:422,error:"La cápsula no contiene las dos interpretaciones requeridas"};
+  const sourceId = await academyCoachSourceId(audience,counselor,sourceUrl);
+  const importedAt = Date.now();
+  await env.DB.prepare("INSERT OR IGNORE INTO academy_coach_sources (source_id,audience,counselor,source_url,capsule_id,preview_id,title,summary,image_url,imported_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .bind(sourceId,audience,counselor,sourceUrl,capsuleId,previewId,String(capsule.title || "Cápsula de conocimiento").slice(0,300),summary.slice(0,2000),String(preview.url || thumbnail).slice(0,600),importedAt).run();
+  const row = await env.DB.prepare("SELECT * FROM academy_coach_sources WHERE audience=? AND counselor=? AND source_url=?")
+    .bind(audience,counselor,sourceUrl).first();
+  return {ok:true,reused:false,row};
+}
+__name(verifyAcademyCoachSource, "verifyAcademyCoachSource");
 
 async function verifySmithCapsuleResult(env, body) {
   await ensureAcademyCapsuleSchema(env);
@@ -6934,6 +7004,34 @@ var index_default = {
         const result = await env.DB.prepare(query).bind(...binds).all();
         return json({ ok:true, completions:(result.results || []).map(academyCoachPublicRow) });
       } catch (e) { return json({ ok:false, error:String(e) }, 500); }
+    }
+    if (url.pathname === "/academy/coach/source" && req.method === "POST") {
+      try {
+        const token = String(env.ACADEMY_COACH_TOKEN || "");
+        const supplied = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+        if (!token) return json({ok:false,error:"Coach no configurado"},503);
+        if (supplied !== token) return json({ok:false,error:"unauthorized"},401);
+        if (Number(req.headers.get("content-length") || 0) > 2200) return json({ok:false,error:"Solicitud demasiado grande"},413);
+        const body = await req.json().catch(() => null);
+        const result = await verifyAcademyCoachSource(env, body);
+        if (!result.ok) return json({ok:false,error:result.error},result.status || 400);
+        return json({ok:true,reused:Boolean(result.reused),registry:"academy-coach-source",source:academyCoachSourcePublicRow(result.row)});
+      } catch (e) { return json({ok:false,error:String(e)},500); }
+    }
+    if (url.pathname === "/academy/coach/sources" && req.method === "GET") {
+      try {
+        await ensureAcademyCoachSchema(env);
+        const audience = String(url.searchParams.get("audience") || "").toLowerCase();
+        const counselor = String(url.searchParams.get("counselor") || "").toLowerCase();
+        if (audience && !COACH_AUDIENCES.has(audience)) return json({ok:false,error:"Audiencia no válida"},400);
+        if (counselor && !COUNCIL[counselor]) return json({ok:false,error:"Consejero no válido"},400);
+        const clauses = [], binds = [];
+        if (audience) { clauses.push("audience=?"); binds.push(audience); }
+        if (counselor) { clauses.push("counselor=?"); binds.push(counselor); }
+        const query = "SELECT * FROM academy_coach_sources" + (clauses.length ? " WHERE " + clauses.join(" AND ") : "") + " ORDER BY imported_at DESC LIMIT 100";
+        const result = await env.DB.prepare(query).bind(...binds).all();
+        return json({ok:true,sources:(result.results || []).map(academyCoachSourcePublicRow)});
+      } catch (e) { return json({ok:false,error:String(e)},500); }
     }
     if (url.pathname === "/council/formacion" && req.method === "GET") {
       try {
