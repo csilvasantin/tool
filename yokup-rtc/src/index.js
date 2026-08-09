@@ -5451,7 +5451,11 @@ var CLI_MAQUINAS = ["MacBookAir16plata", "MacBookPro14", "MacMini"];
 var CLI_TIPOS = [
   { cli:"terminal",   kind:"session", label:"Sesión de terminal" },
   { cli:"grok",       kind:"cli",     label:"Grok · CLI" },
-  { cli:"smith-grok", kind:"app",     label:"Smith · OpenCode" }
+  { cli:"smith-grok",  kind:"app", label:"Smith · OpenCode (Grok)" },
+  // WhiteRabbit, el miembro de formación (Carlos, 2026-08-09). kind:"app" y no
+  // "session": así se le pueden mandar misiones —a una sesión pelada nunca— y se
+  // arranca y se mata como cualquier CLI.
+  { cli:"whiterabbit", kind:"app", label:"WhiteRabbit · OpenCode (Nemotron)" }
 ];
 var CLI_CATALOGO = CLI_MAQUINAS.flatMap((machine) =>
   CLI_TIPOS.map((tipo) => ({ cli:tipo.cli, kind:tipo.kind, label:tipo.label, machine })));
