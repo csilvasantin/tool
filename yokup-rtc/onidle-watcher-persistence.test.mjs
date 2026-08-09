@@ -24,7 +24,7 @@ test("en Darwin la publicación entrega el seguimiento a launchd, no al nohup ef
     "nohup sólo puede quedar como fallback explícito fuera de Darwin");
   assert.match(source + installer, /Darwin[\s\S]{0,2000}launchctl|launchctl[\s\S]{0,2000}Darwin/i,
     "el seguimiento en macOS debe sobrevivir al publicador mediante launchd");
-  assert.match(source, /launchctl[^\n]*(?:submit|bootstrap)|(?:submit|bootstrap)[^\n]*launchctl/);
+  assert.match(source, /launchctl[^\n]*(?:submit|bootstrap)|(?:submit|bootstrap)[^\n]*launchctl|["']?\$LAUNCHCTL["']?\s+(?:submit|bootstrap)/i);
   assert.match(source, /--watch/, "el proceso persistente debe ejecutar el modo watcher canónico");
 });
 
@@ -33,7 +33,7 @@ test("el supervisor usa una identidad estable por decision_id y evita dos watche
     "cada watcher necesita un label launchd propio y auditable");
   assert.match(source, /decision_id|watch_label|watcher_label/,
     "el label estable debe derivarse del DEC-id, no de un pid ni de Math.random");
-  assert.match(source, /launchctl[^\n]*(?:print|list)|(?:print|list)[^\n]*launchctl/,
+  assert.match(source, /launchctl[^\n]*(?:print|list)|(?:print|list)[^\n]*launchctl|["']?\$LAUNCHCTL["']?\s+(?:print|list)/i,
     "antes de arrancar hay que comprobar la instancia única");
   assert.match(source, /submit[\s\S]{0,1000}(?:print|watcher[^\n]*(?:already|exist|dedup))/i,
     "si dos submit compiten, el segundo debe converger con la unidad ya existente");
