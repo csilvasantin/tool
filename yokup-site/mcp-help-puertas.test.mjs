@@ -71,3 +71,21 @@ test("el catch-all no se come las dos puertas", async () => {
     assert.match(lineas[i], /200\s*$/, ruta + " se sirve, no se redirige");
   }
 });
+
+// Carlos pidió el listado de TODOS los proyectos, no solo de los sitios: los que son
+// una sección de otro dominio heredan sus puertas, y eso hay que decirlo o parece que
+// faltan diez. El cuadrante vive en /mcp porque es donde lo va a buscar un agente.
+test("el cuadrante lista los 20 proyectos del censo y dice quién hereda", () => {
+  const i = mcp.indexOf("El cuadrante de la suite");
+  assert.ok(i > 0, "falta la sección del cuadrante");
+  const tabla = mcp.slice(i, mcp.indexOf("</table>", i));
+  const filas = tabla.match(/<tr><td><code>/g) || [];
+  assert.equal(filas.length, 20, "los 20 del censo, ni uno menos");
+  for (const p of ["yokup","admiranext","admira-live","admira-academy","ainimation-studio",
+                   "pixeria","digitalavatar","admira-tv","xpaceos","clearchannel-tv",
+                   "smith-ascii","fleetcontrol","yokup-ideas-objetivos"]) {
+    assert.ok(tabla.includes("<code>" + p + "</code>"), "falta " + p);
+  }
+  assert.match(tabla, /hereda/, "las secciones heredan la puerta de su dominio");
+  assert.match(mcp, /Auditado el 9 de agosto de 2026/, "un cuadrante sin fecha envejece mintiendo");
+});

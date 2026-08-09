@@ -159,7 +159,41 @@ curl -s -X POST https://api.yokup.com/fleet/informe -H 'content-type: applicatio
       (<code>yokup</code>, <code>admira-academy</code>), no la web.</li>
   </ul>
 
-  <h2><span class="n">07</span>Convenciones que se comprueban solas</h2>
+  <h2><span class="n">08</span>El cuadrante de la suite</h2>
+  <p>Los 20 proyectos del censo y el estado de sus dos puertas. Los que son una sección de otro
+  sitio <b>heredan</b> las puertas de su dominio: no hace falta una por carpeta, hace falta una por
+  sitio. <b>Auditado el 9 de agosto de 2026</b> comprobando cada ruta contra una inexistente, para
+  no tragarse los 200 falsos de los <i>catch-all</i>.</p>
+  <table>
+    <tr><th>Proyecto</th><th>Web</th><th>/help</th><th>/mcp</th><th>Notas</th></tr>
+    <tr><td><code>admiranext</code></td><td class="d">www.admiranext.com</td><td><span class="tag">sí</span></td><td><span class="tag">sí</span></td><td class="d">con manifest.json y llms.txt</td></tr>
+    <tr><td><code>xpaceos</code></td><td class="d">www.xpaceos.com</td><td><span class="tag">sí</span></td><td><span class="tag">sí</span></td><td class="d">con manifest.json</td></tr>
+    <tr><td><code>clearchannel-tv</code></td><td class="d">www.clearchannel.tv</td><td><span class="tag">sí</span></td><td><span class="tag">sí</span></td><td class="d">con manifest.json</td></tr>
+    <tr><td><code>yokup</code></td><td class="d">www.yokup.com</td><td><span class="tag">sí</span></td><td><span class="tag">sí</span></td><td class="d">esta página; con manifest.json y llms.txt</td></tr>
+    <tr><td><code>admira-tv</code></td><td class="d">admira.tv</td><td><span class="tag">sí</span></td><td><span class="tag cerrada">a medias</span></td><td class="d">la página está; falta manifest.json (404)</td></tr>
+    <tr><td><code>admira-live</code></td><td class="d">www.admira.live</td><td><span class="tag">sí</span></td><td><span class="tag cerrada">a medias</span></td><td class="d">/mcp/ funciona, pero /mcp sin barra devuelve la home</td></tr>
+    <tr><td><code>admira-academy</code></td><td class="d">admira.academy</td><td><span class="tag">sí</span></td><td><span class="tag cerrada" style="color:var(--warn);border-color:rgba(255,136,102,.4)">no</span></td><td class="d">su /mcp es un 200 falso del catch-all</td></tr>
+    <tr><td><code>pixeria</code></td><td class="d">www.pixeria.com</td><td><span class="tag cerrada" style="color:var(--warn);border-color:rgba(255,136,102,.4)">no</span></td><td><span class="tag">sí</span></td><td class="d">el /mcp vive tras la verja de acceso</td></tr>
+    <tr><td><code>digitalavatar</code></td><td class="d">digitalavatar.ai</td><td><span class="tag cerrada" style="color:var(--warn);border-color:rgba(255,136,102,.4)">no</span></td><td><span class="tag">sí</span></td><td class="d">con manifest.json</td></tr>
+    <tr><td><code>ainimation-studio</code></td><td class="d">www.ainimation.studio</td><td><span class="tag cerrada" style="color:var(--warn);border-color:rgba(255,136,102,.4)">no</span></td><td><span class="tag cerrada" style="color:var(--warn);border-color:rgba(255,136,102,.4)">no</span></td><td class="d">404 honesto en las dos</td></tr>
+    <tr><td><code>generador-de-presentaciones</code></td><td class="d">www.admiranext.com</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de admiranext.com</td></tr>
+    <tr><td><code>generador-de-presites</code></td><td class="d">www.admiranext.com/presites</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de admiranext.com</td></tr>
+    <tr><td><code>generador-presupuestos</code></td><td class="d">www.admiranext.com/presupuestos</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de admiranext.com</td></tr>
+    <tr><td><code>webmaster-admiranext</code></td><td class="d">www.admiranext.com/webmaster</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de admiranext.com</td></tr>
+    <tr><td><code>fleetcontrol</code></td><td class="d">www.admira.live/control</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de admira.live</td></tr>
+    <tr><td><code>generador-de-informes</code></td><td class="d">admira.live/informes</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de admira.live</td></tr>
+    <tr><td><code>director-interactivo</code></td><td class="d">www.ainimation.studio/studio.html</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de ainimation.studio — que no tiene ninguna</td></tr>
+    <tr><td><code>neo-metahuman</code></td><td class="d">digitalavatar.ai/metahuman.html</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de digitalavatar.ai</td></tr>
+    <tr><td><code>smith-ascii</code></td><td class="d">www.yokup.com/misiones</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de yokup.com</td></tr>
+    <tr><td><code>yokup-ideas-objetivos</code></td><td class="d">—</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">n/a</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">n/a</span></td><td class="d">no tiene web propia</td></tr>
+  </table>
+  <p>Lo que falta ya está declarado como misión en Yokup, una por puerta, con el responsable del
+  proyecto escrito en el encargo: nada de esto se queda en terreno de nadie. Si te toca una,
+  <a href="/mcp/manifest.json">este manifiesto</a> y <a href="/mcp/llms.txt">este llms.txt</a>
+  sirven de plantilla — y el <a href="/help">/help</a> de al lado, de ejemplo de cómo se le habla
+  a una persona.</p>
+
+  <h2><span class="n">09</span>Convenciones que se comprueban solas</h2>
   <ul>
     <li><b>Versiones</b>: <code>v.DD.MM.AAAA.rN.HH:MM</code>. En etiquetas de git la hora va sin
       los dos puntos, que git rechaza en una referencia.</li>
