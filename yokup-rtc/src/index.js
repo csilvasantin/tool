@@ -9,6 +9,7 @@ import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
 import { resolveIdeaAuthor } from "./idea-author.js";
 import { missionProofOrigin } from "./proof-origin.js";
+import { validateCoachCompletion } from "./academy-coach.js";
 import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
   onIdleEligibility, taskVisibleDetails } from "./mission-visible.js";
 import { DAILY_MISSION_CLOSE_AUTHOR, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_LEASE_MS, DAILY_MISSION_CLOSE_REASON, MISSION_UNCONCLUDED_AFTER_MS, dailyMissionCloseEventText, dailyMissionClosePlan } from "./daily-mission-close.js";
@@ -842,6 +843,18 @@ async function ensureAcademyCapsuleSchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS academy_capsulas (hour_start INTEGER PRIMARY KEY, seat TEXT, source TEXT, capsule_id TEXT, title TEXT, note TEXT, url TEXT, at INTEGER)");
 }
 __name(ensureAcademyCapsuleSchema, "ensureAcademyCapsuleSchema");
+
+async function ensureAcademyCoachSchema(env) {
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS academy_coach_completions (event_id TEXT PRIMARY KEY, audience TEXT NOT NULL, counselor TEXT NOT NULL, slot_id INTEGER NOT NULL, dimension TEXT NOT NULL, lesson_id TEXT NOT NULL, application TEXT NOT NULL, completed_at INTEGER NOT NULL, UNIQUE(audience,counselor,slot_id))");
+}
+__name(ensureAcademyCoachSchema, "ensureAcademyCoachSchema");
+
+function academyCoachPublicRow(row) {
+  return { eventId:row.event_id, audience:row.audience, counselor:row.counselor,
+    slotId:Number(row.slot_id), dimension:row.dimension, lessonId:row.lesson_id,
+    completedAt:new Date(Number(row.completed_at)).toISOString() };
+}
+__name(academyCoachPublicRow, "academyCoachPublicRow");
 
 function academyCapsuleRow(row) {
   if (!row) return null;
@@ -6631,6 +6644,45 @@ var index_default = {
           "SELECT * FROM academy_capsulas ORDER BY hour_start DESC LIMIT 12"
         ).all()).results || []).map(academyCapsuleRow);
         return json({ ok:true, capsula:r.capsula, nueva:r.nueva, historia });
+      } catch (e) { return json({ ok:false, error:String(e) }, 500); }
+    }
+    // COACH DE LA ACADEMIA — la escritura llega servidor-a-servidor desde Pages y
+    // usa un secreto que nunca se entrega al navegador. Yokup vuelve a derivar la
+    // franja, dimensión y lección: el cliente sólo aporta identidad y aplicación.
+    // La clave primaria hace que un reintento sea idempotente. La lectura pública
+    // omite deliberadamente el texto de aplicación, que puede contener contexto de
+    // una persona de carbono.
+    if (url.pathname === "/academy/coach/completion" && req.method === "POST") {
+      try {
+        const token = String(env.ACADEMY_COACH_TOKEN || "");
+        const supplied = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+        if (!token) return json({ ok:false, error:"Coach no configurado" }, 503);
+        if (supplied !== token) return json({ ok:false, error:"unauthorized" }, 401);
+        const body = await req.json().catch(() => null);
+        const valid = validateCoachCompletion(body, Date.now());
+        if (!valid.ok) return json({ ok:false, error:valid.error }, valid.status);
+        await ensureAcademyCoachSchema(env);
+        let row = await env.DB.prepare("SELECT * FROM academy_coach_completions WHERE event_id=?").bind(valid.eventId).first();
+        if (row) return json({ ok:true, reused:true, registry:"academy-coach", ...academyCoachPublicRow(row) });
+        const completedAt = Date.now();
+        await env.DB.prepare("INSERT OR IGNORE INTO academy_coach_completions (event_id,audience,counselor,slot_id,dimension,lesson_id,application,completed_at) VALUES (?,?,?,?,?,?,?,?)")
+          .bind(valid.eventId,valid.audience,valid.counselor,valid.slotId,valid.dimension,valid.lessonId,valid.application,completedAt).run();
+        row = await env.DB.prepare("SELECT * FROM academy_coach_completions WHERE audience=? AND counselor=? AND slot_id=?")
+          .bind(valid.audience,valid.counselor,valid.slotId).first();
+        return json({ ok:true, reused:false, registry:"academy-coach", ...academyCoachPublicRow(row) });
+      } catch (e) { return json({ ok:false, error:String(e) }, 500); }
+    }
+    if (url.pathname === "/academy/coach/completions" && req.method === "GET") {
+      try {
+        await ensureAcademyCoachSchema(env);
+        const audience = String(url.searchParams.get("audience") || "").toLowerCase();
+        const counselor = String(url.searchParams.get("counselor") || "").toLowerCase();
+        const clauses = [], binds = [];
+        if (audience) { clauses.push("audience=?"); binds.push(audience); }
+        if (counselor) { clauses.push("counselor=?"); binds.push(counselor); }
+        const query = "SELECT event_id,audience,counselor,slot_id,dimension,lesson_id,completed_at FROM academy_coach_completions" + (clauses.length ? " WHERE " + clauses.join(" AND ") : "") + " ORDER BY completed_at DESC LIMIT 200";
+        const result = await env.DB.prepare(query).bind(...binds).all();
+        return json({ ok:true, completions:(result.results || []).map(academyCoachPublicRow) });
       } catch (e) { return json({ ok:false, error:String(e) }, 500); }
     }
     if (url.pathname === "/council/formacion" && req.method === "GET") {

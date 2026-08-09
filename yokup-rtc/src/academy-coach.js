@@ -1,0 +1,45 @@
+export const COACH_HOUR = 60 * 60 * 1000;
+export const COACH_ANCHOR = Date.UTC(2026, 7, 8, 23, 0, 0, 0);
+export const COACH_COUNSELORS = new Set(["ceo", "cto", "coo", "cfo", "cco", "cdo", "cxo", "cso"]);
+export const COACH_AUDIENCES = new Set(["silicio", "carbono"]);
+
+const LESSONS = {
+  tecnologia: ["contratos-claros", "observabilidad", "automatizacion", "simplicidad"],
+  creatividad: ["restriccion", "divergir-converger", "narrativa", "prototipo"],
+  negocio: ["problema-real", "valor-captura", "prioridad", "validacion"]
+};
+const DIMENSIONS = Object.keys(LESSONS);
+
+export function coachLessonForSlot(slotId) {
+  const offset = Math.floor((slotId * COACH_HOUR - COACH_ANCHOR) / COACH_HOUR);
+  const dimensionIndex = ((offset % DIMENSIONS.length) + DIMENSIONS.length) % DIMENSIONS.length;
+  const dimension = DIMENSIONS[dimensionIndex];
+  const cycle = Math.floor(offset / DIMENSIONS.length);
+  const catalog = LESSONS[dimension];
+  const lessonId = catalog[((cycle % catalog.length) + catalog.length) % catalog.length];
+  return { dimension, lessonId };
+}
+
+export function validateCoachCompletion(body, now = Date.now()) {
+  const audience = String(body && body.audience || "").toLowerCase();
+  const counselor = String(body && body.counselor || "").toLowerCase();
+  const slotId = Number(body && body.slotId);
+  const application = String(body && body.application || "").replace(/\s+/g, " ").trim();
+  if (!COACH_AUDIENCES.has(audience) || !COACH_COUNSELORS.has(counselor)) {
+    return { ok:false, status:400, error:"Agente o audiencia no válidos" };
+  }
+  if (!Number.isInteger(slotId)) return { ok:false, status:400, error:"Franja no válida" };
+  const currentSlot = Math.floor(now / COACH_HOUR);
+  if (slotId > currentSlot || slotId < currentSlot - 24) {
+    return { ok:false, status:409, error:"La franja está fuera de la ventana de registro de 24 horas" };
+  }
+  if (application.length < 20 || application.length > 900) {
+    return { ok:false, status:400, error:"La aplicación debe tener entre 20 y 900 caracteres" };
+  }
+  const { dimension, lessonId } = coachLessonForSlot(slotId);
+  return {
+    ok:true, audience, counselor, slotId, application, dimension, lessonId,
+    eventId:`coach-${audience}-${counselor}-${slotId}-${lessonId}`
+  };
+}
+
