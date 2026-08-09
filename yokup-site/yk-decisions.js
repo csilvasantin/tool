@@ -174,7 +174,11 @@
     // Una ventana de formación no propone misiones: propone la TEMÁTICA de la cápsula
     // de esta hora. Contar sus tres opciones como «2 misiones restantes» era decir que
     // van a nacer misiones que no van a nacer (Carlos, 2026-08-09).
-    var formacion = String(d && d.surface || "").toLowerCase() === "academy";
+    // Dos señales porque las dos fuentes no traen lo mismo: la lista /decisions da
+    // `surface`, y el GET de una sola decisión da `parent_decision` pero NO surface.
+    // Con una sola, la misma ventana se pintaba bien en la lista y mal en su ficha.
+    var formacion = String(d && d.surface || "").toLowerCase() === "academy" ||
+                    String(d && d.parent_decision || "") === "FORMACION";
     var remaining = initialFive ? 3 : Math.max(0, (d.options || []).length - 1);
     var remainingText = formacion ? "cápsula de esta hora" : remaining + " " + (remaining === 1 ? "misión restante" : "misiones restantes");
     var effective = d.status === "decided" || d.status === "cancelled" ? +d.chosen : (d.status === "expired" ? rec : -1);

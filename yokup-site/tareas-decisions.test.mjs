@@ -268,4 +268,13 @@ test('la ventana de formación ofrece las tres temáticas y no promete misiones'
   assert.equal((html.match(/class="dec-opt[ "]/g) || []).length, 3, 'las tres temáticas son pulsables');
   assert.match(html, /class="dec-opt rec"[^>]*data-i="0"/, 'la que toca lleva la ★ y es la que se aplica sola');
   assert.match(html, /★/);
+  // La ficha de UNA decisión no trae `surface` (sí `parent_decision`); la lista trae
+  // `surface`. Con una sola señal, la misma ventana salía bien en la lista y mal en
+  // su ficha.
+  const soloParent = context.renderDecisionCard({
+    id:'DCL-form-abc', status:'pending', parent_decision:'FORMACION', recommended:0, secondsLeft:1800,
+    question:'Formación de la hora', project:'Admira Academy',
+    options:['Tecnología','Creatividad','Negocio']
+  }, {});
+  assert.match(soloParent, /cápsula de esta hora/, 'sin surface, manda parent_decision');
 });
