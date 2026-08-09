@@ -3,8 +3,9 @@ const PERSONAS = ["Oraculo", "Neo", "Morfeo", "Trinity", "Smith", "WhiteRabbit"]
 const INTERNAL = /^(?:ampere|erdos|noether|sol|terra|luna|claude|codex|grok|openai|anthropic)/i;
 // Apellido canónico = diccionario de la normativa (regla 02): el modelo tal cual lo
 // fija el diccionario, igual para todos. Los apellidos de la generación anterior
-// ("Mini", "Azul", "14", "Plata16") se aceptan al firmar, pero la firma sale ya con
-// el actual (regla 03). El Mini pasó de "Mini" a "MacMini" el 04-08-2026 (Carlos).
+// ("Mini", "Azul", "14", "Plata16") se aceptan al firmar, pero la firma sale ya
+// con el actual (regla 03). La familia Oraculo del Mac Mini usa `Mini`; el alias
+// histórico `MacMini` sigue siendo entrada válida sin volver a publicarse.
 const MACHINES = [
   { name:"MacMini", suffix:"MacMini", legacySuffixes:["Mini"], aliases:["macmini","mac mini","mac mini carlos","admira-macmini","macmini.local"] },
   { name:"MacBookPro14", suffix:"MBP14", legacySuffixes:["14"], aliases:["macbookpro14","macbook pro 14","macbookpronegro14","macbook pro negro 14","admira-macbookpronegro14"] },
@@ -48,7 +49,8 @@ export function validateDeployIdentity(agentValue, machineValue) {
   if (suffix !== machine.suffix && !(machine.legacySuffixes || []).includes(suffix)) throw new Error("El apellido de YOKUP_DEPLOY_AGENT no coincide con YOKUP_DEPLOY_MACHINE");
   // "Agente Smith Azul" sigue siendo una firma VÁLIDA de entrada, pero la firma que
   // se publica ya no lo propaga: sale SmithMBAAzul (normativa regla 03).
-  const deployer = role + persona + machine.suffix;
+  const visibleSuffix = persona === "Oraculo" && machine.name === "MacMini" ? "Mini" : machine.suffix;
+  const deployer = role + persona + visibleSuffix;
   const inputStyled = role + (smithAir ? "Agente Smith " + suffix : persona + suffix);
   const compact = role + persona + suffix;
   if (agent !== inputStyled && agent !== compact) throw new Error("YOKUP_DEPLOY_AGENT debe usar la forma canónica completa");

@@ -15,12 +15,12 @@ test("firma exige agente completo y máquina explícita",()=>{
 });
 
 test("Oraculo, Smith, Sub e Infra firman con equipo canónico",()=>{
-  assert.deepEqual(validateDeployIdentity("OraculoMacMini","MacMini"),{deployer:"OraculoMacMini",machine:"MacMini",signature:"OraculoMacMini · MacMini"});
+  assert.deepEqual(validateDeployIdentity("OraculoMacMini","MacMini"),{deployer:"OraculoMini",machine:"MacMini",signature:"OraculoMini · MacMini"});
   assert.deepEqual(validateDeployIdentity("SmithMacMini","Mac Mini"),{deployer:"SmithMacMini",machine:"MacMini",signature:"SmithMacMini · MacMini"});
-  assert.equal(validateDeployIdentity("SubOraculoMacMini","admira-macmini").signature,"SubOraculoMacMini · MacMini");
-  assert.equal(validateDeployIdentity("InfraOraculoMacMini","MacMini").deployer,"InfraOraculoMacMini");
+  assert.equal(validateDeployIdentity("SubOraculoMacMini","admira-macmini").signature,"SubOraculoMini · MacMini");
+  assert.equal(validateDeployIdentity("InfraOraculoMacMini","MacMini").deployer,"InfraOraculoMini");
   // Los apellidos viejos se aceptan al firmar y salen ya normalizados (regla 03).
-  assert.equal(validateDeployIdentity("OraculoMini","MacMini").deployer,"OraculoMacMini");
+  assert.equal(validateDeployIdentity("OraculoMini","MacMini").deployer,"OraculoMini");
   assert.equal(validateDeployIdentity("Neo14","MacBook Pro 14").deployer,"NeoMBP14");
   assert.equal(validateDeployIdentity("NeoMBP14","MacBook Pro 14").deployer,"NeoMBP14");
   assert.equal(validateDeployIdentity("InfraMorfeoMBP16","MacBook Pro 16").signature,"InfraMorfeoMBP16 · MacBookPro16");
@@ -37,8 +37,8 @@ test("Oraculo, Smith, Sub e Infra firman con equipo canónico",()=>{
 });
 
 test("Wrangler recibe hash y mensaje firmados sin shell",()=>{
-  const hash="a".repeat(40),args=wranglerCommitArgs({gitFull:hash,signature:"OraculoMacMini · MacMini",version:"v.03.08.2026.r1.12:00"});
-  assert.deepEqual(args,["--commit-hash",hash,"--commit-message","Yokup v.03.08.2026.r1.12:00 · OraculoMacMini · MacMini"]);
+  const hash="a".repeat(40),args=wranglerCommitArgs({gitFull:hash,signature:"OraculoMini · MacMini",version:"v.03.08.2026.r1.12:00"});
+  assert.deepEqual(args,["--commit-hash",hash,"--commit-message","Yokup v.03.08.2026.r1.12:00 · OraculoMini · MacMini"]);
   assert.match(deploy,/gitFull = execFileSync\("git", \["rev-parse", "HEAD"\]/);
   assert.match(deploy,/gitShort = execFileSync\("git", \["rev-parse", "--short", "HEAD"\]/);
   assert.match(deploy,/deployer,\s*machine,\s*signature,\s*git:gitShort,\s*gitShort,\s*gitFull,\s*dirty/s);
