@@ -36,6 +36,12 @@ test('script versionado consulta el guard y publica exactamente 3 + atrás + cus
   assert.match(script,/"onidle":True/);
   assert.match(script,/"option_targets":targets/);
   assert.match(script,/\$\(\(used\+1\)\)\/8/);
+  assert.match(script,/EXIT_PUBLISHED=0/);
+  assert.match(script,/EXIT_BLOCKED=10/);
+  assert.match(script,/EXIT_ERROR=20/);
+  assert.match(script,/sound Glass/);
+  assert.match(script,/decided\|expired\|cancelled/);
+  assert.match(script,/sound Ping/);
   assert.doesNotMatch(script,/ONIDLE_OPTIONS_FILE|onidle-opciones|head -3|head -5/);
 });
 
@@ -64,6 +70,7 @@ case "$*" in
   *fleet/onidle-proposals*) cat <<'JSONL'
 ${proposalLines.trimEnd()}
 JSONL
+    printf '200'
   ;;
   *) exit 91 ;;
 esac
@@ -75,8 +82,12 @@ esac
 
 test('dry-run deriva Yokup/YOKUP y conserva 3 + back + custom sin POST real',async()=>{
   const result=await dryRun();
-  assert.equal(result.status,0,result.stderr);
-  const payload=JSON.parse(result.stdout.trim().split('\n').at(-1));
+  assert.equal(result.status,10,result.stderr);
+  const contract=JSON.parse(result.stdout.trim());
+  assert.equal(contract.result,'blocked');
+  assert.equal(contract.reason,'dry_run');
+  assert.equal(contract.published,false);
+  const payload=contract.payload;
   assert.deepEqual([payload.project_id,payload.project,payload.project_slug],['yokup','Yokup','YOKUP']);
   assert.deepEqual(payload.options,['Mejora uno','Mejora dos','Mejora tres','↩ Volver atrás','✍️ Custom · Escribe la mejora que quieras a mano']);
   assert.deepEqual(payload.option_targets,[{target_mission_id:'INC-ONE'},{target_mission_id:'DCL-TWO'},{target_mission_id:'FLT-THREE'},null,null]);
@@ -90,16 +101,16 @@ test('dry-run admite null sólo para una mejora nueva explícita',async()=>{
     JSON.stringify({title:'Resolver otra misión',target_mission_id:'DCL-REAL'})
   ].join('\n')+'\n';
   const result=await dryRun({},lines);
-  assert.equal(result.status,0,result.stderr);
-  const payload=JSON.parse(result.stdout.trim().split('\n').at(-1));
+  assert.equal(result.status,10,result.stderr);
+  const payload=JSON.parse(result.stdout.trim()).payload;
   assert.equal(payload.options[0],'Mejora nueva explícita');
   assert.deepEqual(payload.option_targets,[null,{target_mission_id:'INC-OMPEIL'},{target_mission_id:'DCL-REAL'},null,null]);
 });
 
 test('script ignora cualquier fichero manual stale y usa sólo la respuesta canónica',async()=>{
   const result=await dryRun({ONIDLE_OPTIONS_FILE:'/tmp/no-debe-leerse'});
-  assert.equal(result.status,0,result.stderr);
-  const payload=JSON.parse(result.stdout.trim().split('\n').at(-1));
+  assert.equal(result.status,10,result.stderr);
+  const payload=JSON.parse(result.stdout.trim()).payload;
   assert.equal(payload.options[0],'Mejora uno');
   assert.doesNotMatch(script,/ONIDLE_OPTIONS_FILE/);
 });
@@ -112,18 +123,22 @@ test('menos de tres, duplicadas o null ambiguo fallan cerrado antes del POST',as
   ];
   for (const lines of invalid) {
     const result=await dryRun({},lines);
-    assert.equal(result.status,0);
-    assert.match(result.stdout,/propuestas canónicas inválidas o incompletas/);
-    assert.doesNotMatch(result.stdout,/"options"/);
+    assert.equal(result.status,20);
+    assert.match(result.stderr,/propuestas canónicas inválidas o incompletas/);
+    assert.deepEqual(JSON.parse(result.stdout),{
+      result:'error',published:false,reason:'proposals_invalid'
+    });
   }
 });
 
 test('override de nombre o slug inconsistente falla cerrado antes del POST',async()=>{
   for (const env of [{ONIDLE_PROJECT:'Otro'},{ONIDLE_PROJECT_SLUG:'OTRO'},{ONIDLE_PROJECT_ID:'no-asignado'}]) {
     const result=await dryRun(env);
-    assert.equal(result.status,0);
-    assert.match(result.stdout,/contexto granular inválido/);
-    assert.doesNotMatch(result.stdout,/"options"/);
+    assert.equal(result.status,20);
+    assert.match(result.stderr,/contexto granular inválido/);
+    assert.deepEqual(JSON.parse(result.stdout),{
+      result:'error',published:false,reason:'project_context_invalid'
+    });
   }
 });
 

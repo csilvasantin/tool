@@ -43,6 +43,12 @@ required = (
     '"option_targets":targets',
     '"project":os.environ["PJ"]',
     '"project_slug":os.environ["PS"]',
+    'EXIT_PUBLISHED=0',
+    'EXIT_BLOCKED=10',
+    'EXIT_ERROR=20',
+    'sound Glass',
+    'decided|expired|cancelled',
+    'sound Ping',
 )
 missing = [token for token in required if token not in source]
 if missing:
