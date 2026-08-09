@@ -8,6 +8,7 @@ test("Yokup mantiene un registro dedicado e idempotente para fuentes del Coach",
   assert.match(source,/CREATE TABLE IF NOT EXISTS academy_coach_sources/);
   assert.match(source,/UNIQUE\(audience,counselor,source_url\)/);
   assert.match(source,/academyCoachSourceId/);
+  assert.match(source,/UPDATE academy_coach_sources SET capsule_id=/);
 });
 
 test("la escritura de fuentes está autenticada y la lectura omite secretos", () => {

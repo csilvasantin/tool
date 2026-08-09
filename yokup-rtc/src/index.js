@@ -988,7 +988,7 @@ async function verifyAcademyCoachSource(env, body) {
     .bind(audience,counselor,sourceUrl).first();
   if (existing) {
     const same = existing.capsule_id === capsuleId && existing.preview_id === previewId;
-    return same ? {ok:true,reused:true,row:existing} : {ok:false,status:409,error:"La fuente ya tiene otra cápsula verificada"};
+    if (same) return {ok:true,reused:true,row:existing};
   }
   const items = await stockIndexFresh();
   const capsule = items.find((item) => String(item && item.id || "") === capsuleId);
@@ -1005,8 +1005,14 @@ async function verifyAcademyCoachSource(env, body) {
   if (summary.length < 700 || !summary.includes("PARA CARBONO") || !summary.includes("PARA SILICIO") || !summary.includes("APLICACIÓN")) return {ok:false,status:422,error:"La cápsula no contiene las dos interpretaciones requeridas"};
   const sourceId = await academyCoachSourceId(audience,counselor,sourceUrl);
   const importedAt = Date.now();
-  await env.DB.prepare("INSERT OR IGNORE INTO academy_coach_sources (source_id,audience,counselor,source_url,capsule_id,preview_id,title,summary,image_url,imported_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-    .bind(sourceId,audience,counselor,sourceUrl,capsuleId,previewId,String(capsule.title || "Cápsula de conocimiento").slice(0,300),summary.slice(0,2000),String(preview.url || thumbnail).slice(0,600),importedAt).run();
+  const values=[capsuleId,previewId,String(capsule.title || "Cápsula de conocimiento").slice(0,300),summary.slice(0,2000),String(preview.url || thumbnail).slice(0,600),importedAt];
+  if (existing) {
+    await env.DB.prepare("UPDATE academy_coach_sources SET capsule_id=?,preview_id=?,title=?,summary=?,image_url=?,imported_at=? WHERE source_id=?")
+      .bind(...values,existing.source_id).run();
+  } else {
+    await env.DB.prepare("INSERT INTO academy_coach_sources (source_id,audience,counselor,source_url,capsule_id,preview_id,title,summary,image_url,imported_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+      .bind(sourceId,audience,counselor,sourceUrl,...values).run();
+  }
   const row = await env.DB.prepare("SELECT * FROM academy_coach_sources WHERE audience=? AND counselor=? AND source_url=?")
     .bind(audience,counselor,sourceUrl).first();
   return {ok:true,reused:false,row};
