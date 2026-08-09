@@ -623,22 +623,23 @@ var COUNCIL_FORMACION_TAG = "formacion";
 // formación: si Carlos solo dio 2 piezas, la formación ocupa los 6 restantes. Reservar
 // un hueco que nadie llena sería tirar conocimiento a la basura.
 var COUNCIL_KNOWLEDGE_DADO_SHARE = 5 / 8;
-// ── GUIONES: LO QUE EL CONSEJERO APRENDE, NO EL TÍTULO DEL VÍDEO ────────────
+// ── CÁPSULAS: LO QUE EL CONSEJERO APRENDE, NO EL TÍTULO DEL VÍDEO ───────────
 // Hasta aquí, al prompt de una silla le entraba el TÍTULO de la pieza. Un vídeo de
 // cinco minutos de Dieter Rams aportaba la cadena «Dieter Rams: Less but Better» y
 // nada más: eso es una bibliografía, no conocimiento. Se le podían subir sesenta
 // vídeos y seguía sabiendo exactamente lo mismo.
 //
-// Un guión es una pieza de texto —un tipo nuevo del Stock— con lo que ese vídeo le
+// Una cápsula es una pieza de texto con lo que ese vídeo le
 // enseña a ESA silla, etiquetada igual que el vídeo (alias + formación) y apuntando
 // a él en `externalRef`. Dos consecuencias que no son obvias:
-//  · el guión SUSTITUYE a su vídeo en la cabeza del consejero. Si entraran los dos,
-//    leería el título y el guión, y el título ya no aporta nada. El vídeo se queda
+//  · la cápsula SUSTITUYE a su vídeo en la cabeza del consejero. Si entraran los dos,
+//    leería el título y la cápsula, y el título ya no aporta nada. El vídeo se queda
 //    como fuente y evidencia, no como conocimiento.
-//  · contar PIEZAS deja de valer. Ocho títulos son ~400 caracteres; ocho guiones,
+//  · contar PIEZAS deja de valer. Ocho títulos son ~400 caracteres; ocho cápsulas,
 //    ~5.000. La ventana pasa a tener también presupuesto de texto.
-var COUNCIL_GUION_TYPE = "guion";
-var COUNCIL_GUION_MAX = 900;              // caracteres de UN guión en el prompt
+var COUNCIL_CAPSULA_TYPE = "capsula";
+var COUNCIL_CAPSULA_TYPES = new Set([COUNCIL_CAPSULA_TYPE, "guion"]); // compatibilidad histórica
+var COUNCIL_CAPSULA_MAX = 900;             // caracteres de UNA cápsula en el prompt
 var COUNCIL_KNOWLEDGE_PROMPT_CHARS = 3600; // presupuesto de la ventana entera
 // Criterio de Carlos para la formación: vídeos de los más vistos y de 5 minutos como
 // máximo. Hoy el índice del Stock NO trae ni duración ni vistas, así que yokup no
@@ -696,16 +697,16 @@ __name(dedupePorTitulo, "dedupePorTitulo");
 // dio Carlos, la formación ocupa el resto, y si un lado no llena su cuota el otro la
 // completa. Sin esto la ventana es una lotería por fecha y la primera tanda de
 // admira.live borra de la cabeza del consejero todo lo que Carlos eligió a mano.
-// Lo que pesa una pieza en el prompt. un título son 40 caracteres; un guión, 900.
+// Lo que pesa una pieza en el prompt. un título son 40 caracteres; una cápsula, 900.
 // La ventana tiene que contar esto y no «piezas», o el presupuesto lo fija el azar
-// de cuántos guiones hayan caído en los ocho huecos.
+// de cuántas cápsulas hayan caído en los ocho huecos.
 function pesoEnPrompt(p) {
   return (String(p && p.title || "").length + String(p && p.note || "").length + 4);
 }
 __name(pesoEnPrompt, "pesoEnPrompt");
 // Toma de una lista ya ordenada (más nueva primero) mientras quepa en SUS huecos y
 // en SU presupuesto. La primera pieza entra siempre aunque se pase: media idea es
-// peor que una idea larga, y un guión cortado a la mitad no enseña nada.
+// peor que una idea larga, y una cápsula cortada a la mitad no enseña nada.
 function tomaHasta(lista, huecos, presupuesto) {
   const out = [];
   let gasto = 0;
@@ -738,24 +739,24 @@ function ventanaReservada(pieces, limit, chars = COUNCIL_KNOWLEDGE_PROMPT_CHARS)
     .sort((a, b) => String(b && b.at || "").localeCompare(String(a && a.at || "")));
 }
 __name(ventanaReservada, "ventanaReservada");
-// Un vídeo con guión ya no entra en la cabeza del consejero: entraría su título al
-// lado del guión que lo explica, y el título no añade nada. El vídeo sigue en el
+// Un vídeo con cápsula ya no entra en la cabeza del consejero: entraría su título al
+// lado de la cápsula que lo explica, y el título no añade nada. El vídeo sigue en el
 // Stock y en el recuento —es la fuente y la evidencia—, pero deja de ser lo que se
-// lee. El enlace lo declara el guión en `externalRef`; si no lo trae, vale que se
+// lee. El enlace lo declara la cápsula en `externalRef`; si no lo trae, vale que se
 // llamen igual, que es como los sube quien transcribe.
-function sustituyePorGuiones(piezas) {
+function sustituyePorCapsulas(piezas) {
   const cubiertas = /* @__PURE__ */ new Set();
   for (const p of piezas) {
-    if (!p.guion) continue;
+    if (!p.capsula) continue;
     if (p.fuente) cubiertas.add(p.fuente);
     const porTitulo = normalizaEtiqueta(p.title);
     if (porTitulo) cubiertas.add(porTitulo);
   }
   if (!cubiertas.size) return piezas;
-  return piezas.filter((p) => p.guion ||
+  return piezas.filter((p) => p.capsula ||
     !(cubiertas.has(normalizaEtiqueta(p.id)) || cubiertas.has(normalizaEtiqueta(p.title))));
 }
-__name(sustituyePorGuiones, "sustituyePorGuiones");
+__name(sustituyePorCapsulas, "sustituyePorCapsulas");
 // Reparto del índice YA descargado. Existe aparte de seatKnowledge porque el snapshot
 // del tick recorre las ocho sillas: con una llamada por silla eran ocho subpeticiones
 // para leer el MISMO fichero.
@@ -770,10 +771,10 @@ function seatKnowledgeFrom(items, seat, limit = COUNCIL_KNOWLEDGE_PROMPT_MAX) {
   const piezas = dedupePorTitulo(mias.map((it) => {
     // El comentario suele ser solo la propia etiqueta («#stevejobs»): eso no es
     // conocimiento, es el mecanismo. Se descarta para no ensuciar el prompt. En un
-    // GUIÓN, en cambio, el comentario ES el conocimiento y se conserva entero.
+    // CÁPSULA, en cambio, el comentario ES el conocimiento y se conserva entero.
     const nota = String(it.comment || "").trim();
     const soloEtiqueta = normalizaEtiqueta(nota) === tag;
-    const esGuion = String(it.type || "").toLowerCase() === COUNCIL_GUION_TYPE;
+    const esCapsula = COUNCIL_CAPSULA_TYPES.has(String(it.type || "").toLowerCase());
     // El origen sale de la ETIQUETA, no de quién llamó: una pieza que subió Carlos y
     // otra que trajo admira.live se distinguen en el índice o no se distinguen en
     // ninguna parte. Sin `#formacion` una pieza es «dada», que es como estaba.
@@ -781,16 +782,16 @@ function seatKnowledgeFrom(items, seat, limit = COUNCIL_KNOWLEDGE_PROMPT_MAX) {
     const dur = Number(it.duration || it.duracion || 0) || 0;
     return { id: it.id || "", type: it.type || "", at: it.createdAt || "",
       title: String(it.title || "").trim().slice(0, 200),
-      note: soloEtiqueta ? "" : nota.slice(0, esGuion ? COUNCIL_GUION_MAX : 300),
+      note: soloEtiqueta ? "" : nota.slice(0, esCapsula ? COUNCIL_CAPSULA_MAX : 300),
       origin: formado ? "formado" : "dado",
-      guion: esGuion,
-      // De qué pieza es este guión. Sin esto no se puede sustituir al vídeo.
+      capsula: esCapsula,
+      // De qué pieza es esta cápsula. Sin esto no se puede sustituir al vídeo.
       fuente: normalizaEtiqueta(it.externalRef || ""),
       duracion: dur, vistas: Number(it.views || it.vistas || 0) || 0,
       largo: dur > COUNCIL_VIDEO_MAX_SECS,
       url: it.url || "" };
   }).filter((p) => p.title || p.note));
-  return ventanaReservada(sustituyePorGuiones(piezas), limit);
+  return ventanaReservada(sustituyePorCapsulas(piezas), limit);
 }
 __name(seatKnowledgeFrom, "seatKnowledgeFrom");
 // Piezas del Stock etiquetadas con el alias de la silla, de la más nueva a la más
@@ -873,6 +874,15 @@ async function ensureAcademyCapsuleSchema(env) {
   await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN tema TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN agent TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN decision_id TEXT").catch(() => {});
+  // Smith trabaja de forma asíncrona: Yokup abre la franja a su hora y la cápsula
+  // queda pendiente hasta que el CLI entregue dos activos públicos verificables,
+  // el vídeo fuente y la cápsula textual que extrae su aprendizaje.
+  await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN smith_status TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN smith_agent TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN smith_source_url TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN smith_video_id TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN smith_capsule_id TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE academy_capsulas ADD COLUMN smith_updated_at INTEGER").catch(() => {});
 }
 __name(ensureAcademyCapsuleSchema, "ensureAcademyCapsuleSchema");
 
@@ -901,12 +911,81 @@ function academyCapsuleRow(row) {
   if (!row) return null;
   const c = COUNCIL[String(row.seat)] || {};
   const tema = ACADEMY_TEMAS.find((t) => t.id === String(row.tema || "")) || null;
-  return { hour_start:Number(row.hour_start) || 0, seat:row.seat, role:c.role || "", alias:c.alias || "",
+  return { hour_start:Number(row.hour_start) || 0, seat:row.seat, role:c.role || "", alias:c.alias || "", training_tag:c.tag || "",
     tema:row.tema || "", tema_nombre:tema ? tema.nombre : "",
     source:row.source || "", id:row.capsule_id || "", title:row.title || "", note:row.note || "",
-    url:row.url || "", agent:row.agent || "", decision_id:row.decision_id || "", at:Number(row.at) || 0 };
+    url:row.url || "", agent:row.agent || "", decision_id:row.decision_id || "", at:Number(row.at) || 0,
+    smith:{ status:row.smith_status || "pending", agent:row.smith_agent || "Smith",
+      source_url:row.smith_source_url || "", video_id:row.smith_video_id || "",
+      capsule_id:row.smith_capsule_id || "", updated_at:Number(row.smith_updated_at) || 0 } };
 }
 __name(academyCapsuleRow, "academyCapsuleRow");
+
+function youtubeVideoId(value) {
+  const match = String(value || "").match(/(?:youtube\.com\/(?:watch\?.*?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/i);
+  return match ? match[1] : "";
+}
+__name(youtubeVideoId, "youtubeVideoId");
+
+function stockHasTags(item, required) {
+  const tags = new Set((Array.isArray(item && item.tags) ? item.tags : []).map(normalizaEtiqueta));
+  return required.every((tag) => tags.has(normalizaEtiqueta(tag)));
+}
+__name(stockHasTags, "stockHasTags");
+
+async function stockIndexFresh() {
+  try {
+    const r = await fetch(STOCK_INDEX_URL + "?smith=" + Date.now(), { cf:{ cacheTtl:0, cacheEverything:false } });
+    if (!r.ok) return [];
+    const body = await r.json();
+    return Array.isArray(body) ? body : (body && Array.isArray(body.items) ? body.items : []);
+  } catch (e) { return []; }
+}
+__name(stockIndexFresh, "stockIndexFresh");
+
+async function verifySmithCapsuleResult(env, body) {
+  await ensureAcademyCapsuleSchema(env);
+  const hourStart = Number(body && body.hourStart);
+  const videoId = String(body && body.videoAssetId || "").trim();
+  const capsuleId = String(body && body.capsuleAssetId || "").trim();
+  const sourceUrl = String(body && body.sourceUrl || "").trim();
+  if (!Number.isInteger(hourStart) || hourStart % ACADEMY_HORA_MS !== 0) return {ok:false,status:400,error:"Franja no válida"};
+  if (!/^[A-Za-z0-9-]{4,120}$/.test(videoId) || !/^[A-Za-z0-9-]{4,120}$/.test(capsuleId)) return {ok:false,status:400,error:"Activos de Pixeria no válidos"};
+  const sourceVideoId = youtubeVideoId(sourceUrl);
+  if (!sourceVideoId) return {ok:false,status:400,error:"La fuente debe ser un vídeo de YouTube"};
+  const row = await env.DB.prepare("SELECT * FROM academy_capsulas WHERE hour_start=?").bind(hourStart).first();
+  if (!row) return {ok:false,status:404,error:"La cápsula no existe en Yokup"};
+  const nowHour = Math.floor(Date.now() / ACADEMY_HORA_MS) * ACADEMY_HORA_MS;
+  if (hourStart < nowHour - ACADEMY_HORA_MS || hourStart > nowHour + ACADEMY_HORA_MS) return {ok:false,status:409,error:"La franja ya no admite entregas de Smith"};
+  if (row.smith_status === "verified") {
+    const same = row.smith_video_id === videoId && row.smith_capsule_id === capsuleId;
+    return same ? {ok:true,reused:true,row} : {ok:false,status:409,error:"La franja ya tiene una entrega verificada"};
+  }
+  const council = COUNCIL[String(row.seat || "").toLowerCase()] || {};
+  if (!council.tag) return {ok:false,status:400,error:"La silla no tiene identidad formativa"};
+  const items = await stockIndexFresh();
+  const video = items.find((item) => String(item && item.id || "") === videoId);
+  const capsule = items.find((item) => String(item && item.id || "") === capsuleId);
+  const required = [COUNCIL_FORMACION_TAG, council.tag];
+  if (!video || String(video.type || "").toLowerCase() !== "video" || !stockHasTags(video, required)) {
+    return {ok:false,status:422,error:"El vídeo no está publicado en Pixeria con las etiquetas canónicas"};
+  }
+  const videoSourceId = youtubeVideoId(video.prompt || video.sourceUrl || "");
+  if (!videoSourceId || videoSourceId !== sourceVideoId) return {ok:false,status:422,error:"El vídeo de Pixeria no corresponde a la fuente declarada"};
+  const capsuleType = String(capsule && capsule.type || "").toLowerCase();
+  if (!capsule || !["capsula","guion"].includes(capsuleType) || !stockHasTags(capsule, required)) {
+    return {ok:false,status:422,error:"La cápsula textual no está publicada en Pixeria con las etiquetas canónicas"};
+  }
+  if (String(capsule.externalRef || "") !== videoId) return {ok:false,status:422,error:"La cápsula no apunta a su vídeo fuente"};
+  const knowledge = String(capsule.comment || "").replace(/\s+/g, " ").trim();
+  if (knowledge.length < 40) return {ok:false,status:422,error:"La cápsula no contiene conocimiento suficiente"};
+  await env.DB.prepare(
+    "UPDATE academy_capsulas SET source='pixeria/capsula',capsule_id=?,title=?,note=?,url=?,smith_status='verified',smith_agent='Smith',smith_source_url=?,smith_video_id=?,smith_capsule_id=?,smith_updated_at=? WHERE hour_start=?"
+  ).bind(capsuleId,String(capsule.title || video.title || "Cápsula de conocimiento").slice(0,200),knowledge.slice(0,900),String(video.url || "").slice(0,300),sourceUrl.slice(0,300),videoId,capsuleId,Date.now(),hourStart).run();
+  const verified = await env.DB.prepare("SELECT * FROM academy_capsulas WHERE hour_start=?").bind(hourStart).first();
+  return {ok:true,reused:false,row:verified};
+}
+__name(verifySmithCapsuleResult, "verifySmithCapsuleResult");
 
 
 // ── LA VENTANA DE FORMACIÓN (Carlos, 2026-08-09) ────────────────────────────
@@ -969,30 +1048,16 @@ async function runAcademyCapsuleTick(env, ahora = Date.now()) {
   const horas = Math.floor(hourStart / COACH_HOUR);
   const { tema, lessonId } = academyTemaDeFranja(horas);
   const seat = tema.seats[Math.floor(horas / ACADEMY_TEMAS.length) % tema.seats.length];
-  let elegida = null;
-  try {
-    const piezas = seatKnowledgeFrom(await stockIndex(), seat, 0);
-    // Primero lo que le trajeron PARA formarse (#formacion); si no, lo que tenga.
-    const formacion = piezas.filter((p) => p.origin === "formado");
-    const pool = formacion.length ? formacion : piezas;
-    if (pool.length) {
-      const pieza = pool[Math.floor(hourStart / ACADEMY_HORA_MS) % pool.length];
-      elegida = { source:"pixeria/stock", id:pieza.id || "", title:pieza.title || "",
-                  note:pieza.note || "", url:pieza.url || "" };
-    }
-  } catch (e) { /* pixeria caida no deja la hora sin capsula: se cae a la leccion */ }
-  if (!elegida) {
-    // Sin material propio, la cápsula ES la lección que el Coach da esta hora: misma
-    // temática, mismo reloj. Antes caía a una de las cuatro lecciones viejas de la
-    // portada y podía contradecir al Coach en la misma franja.
-    const l = ACADEMY_LECCIONES.find((x) => x.id === lessonId);
-    elegida = { source:"academia/leccion", id:lessonId,
-      title:(l && l.title) || ("Lección de " + tema.nombre + ": " + lessonId.replace(/-/g, " ")),
-      note:(l && l.summary) || ("Lección del Coach de esta hora en " + tema.nombre + "."),
-      url:"https://admira.academy/#formacion" };
-  }
+  // Toda franja se encarga a Smith. Yokup no finge que el vídeo ya existe: abre
+  // con la lección canónica como respaldo y la sustituye únicamente después de
+  // verificar en el índice público el vídeo y su cápsula textual enlazada.
+  const l = ACADEMY_LECCIONES.find((x) => x.id === lessonId);
+  const elegida = { source:"academia/leccion", id:lessonId,
+    title:(l && l.title) || ("Lección de " + tema.nombre + ": " + lessonId.replace(/-/g, " ")),
+    note:(l && l.summary) || ("Smith está preparando la cápsula de " + tema.nombre + "."),
+    url:"https://admira.academy/#formacion" };
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO academy_capsulas (hour_start,seat,tema,source,capsule_id,title,note,url,at) VALUES (?,?,?,?,?,?,?,?,?)"
+    "INSERT OR IGNORE INTO academy_capsulas (hour_start,seat,tema,source,capsule_id,title,note,url,at,smith_status,smith_agent) VALUES (?,?,?,?,?,?,?,?,?,'pending','Smith')"
   ).bind(hourStart, seat, tema.id, elegida.source, String(elegida.id).slice(0, 80),
     String(elegida.title).slice(0, 200), String(elegida.note).slice(0, 400),
     String(elegida.url).slice(0, 300), Date.now()).run();
@@ -6759,6 +6824,33 @@ var index_default = {
         return json({ ok:true, capsula:r.capsula, nueva:r.nueva, historia });
       } catch (e) { return json({ ok:false, error:String(e) }, 500); }
     }
+    // BUZÓN DE SMITH — lectura pública de trabajo no sensible. El CLI se lanza,
+    // recoge como máximo una franja actual o adelantada y se apaga al entregar.
+    // No hay claim mutable: el lock local impide dos ejecuciones en este equipo y
+    // el cierre verificado/idempotente hace inocuo cualquier reintento.
+    if (url.pathname === "/academy/capsula/smith/pending" && req.method === "GET") {
+      try {
+        await runAcademyCapsuleTick(env);
+        await ensureAcademyCapsuleSchema(env);
+        const currentHour = Math.floor(Date.now() / ACADEMY_HORA_MS) * ACADEMY_HORA_MS;
+        const row = await env.DB.prepare(
+          "SELECT * FROM academy_capsulas WHERE hour_start>=? AND hour_start<=? AND COALESCE(smith_status,'pending')!='verified' ORDER BY hour_start ASC LIMIT 1"
+        ).bind(currentHour - ACADEMY_HORA_MS,currentHour + ACADEMY_HORA_MS).first();
+        return json({ok:true,job:academyCapsuleRow(row)});
+      } catch (e) { return json({ok:false,error:String(e)},500); }
+    }
+    // La entrega no se cree al cliente: Yokup vuelve al índice público de Pixeria y
+    // exige vídeo YouTube + #formacion + etiqueta de la silla + cápsula enlazada.
+    // Por eso esta escritura puede ser pública sin permitir inventar conocimiento.
+    if (url.pathname === "/academy/capsula/smith/result" && req.method === "POST") {
+      try {
+        if (Number(req.headers.get("content-length") || 0) > 2000) return json({ok:false,error:"Solicitud demasiado grande"},413);
+        const body = await req.json().catch(() => null);
+        const result = await verifySmithCapsuleResult(env, body);
+        if (!result.ok) return json({ok:false,error:result.error},result.status || 400);
+        return json({ok:true,reused:Boolean(result.reused),capsula:academyCapsuleRow(result.row)});
+      } catch (e) { return json({ok:false,error:String(e)},500); }
+    }
     // COACH DE LA ACADEMIA — la escritura llega servidor-a-servidor desde Pages y
     // usa un secreto que nunca se entrega al navegador. Yokup vuelve a derivar la
     // franja, dimensión y lección: el cliente sólo aporta identidad y aplicación.
@@ -7265,9 +7357,9 @@ var index_default = {
         const formado = pieces.filter((p) => p.origin === "formado").length;
         return { seat: s, role: c.role, alias: c.alias, tag: c.tag,
           count: pieces.length, dado: pieces.length - formado, formado,
-          // Lo único que de verdad ENSEÑA algo: sin guiones, una silla con sesenta
+          // Lo único que de verdad ENSEÑA algo: sin cápsulas, una silla con sesenta
           // vídeos sabe lo que sabía, porque de un vídeo sólo lee el título.
-          guiones: pieces.filter((p) => p.guion).length,
+          capsulas: pieces.filter((p) => p.capsula).length,
           // Vídeos que se pasan de los 5 minutos. 0 puede significar «ninguno» o
           // «el índice no trae duración»: `duracion_conocida` lo distingue, que si
           // no el criterio parecería cumplirse solo.
@@ -7279,7 +7371,7 @@ var index_default = {
           pieces: pieces.slice(0, 20) };
       });
       return json({ ok: true, source: "pixeria/stock", tope: COUNCIL_KNOWLEDGE_PROMPT_MAX,
-        presupuesto: COUNCIL_KNOWLEDGE_PROMPT_CHARS, guion_tipo: COUNCIL_GUION_TYPE,
+        presupuesto: COUNCIL_KNOWLEDGE_PROMPT_CHARS, capsula_tipo: COUNCIL_CAPSULA_TYPE,
         video_max_secs: COUNCIL_VIDEO_MAX_SECS, formacion_tag: COUNCIL_FORMACION_TAG, seats });
     }
     // ── UNA IDEA DEL STOCK, GUIONIZADA ──────────────────────────────────────

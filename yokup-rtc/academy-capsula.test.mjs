@@ -32,18 +32,16 @@ test("la silla sale de la hora, sin estado que llevar", () => {
   assert.match(source, /const COUNCIL_ORDER = \["ceo", "cto", "coo", "cfo", "cco", "cdo", "cxo", "cso"\]/);
 });
 
-test("la cápsula se ELIGE de lo que existe, y #formacion manda", () => {
+test("la cápsula se encarga siempre a Smith y sólo se sustituye tras verificar Pixeria", () => {
   const tick = fuente("runAcademyCapsuleTick");
-  assert.match(tick, /seatKnowledgeFrom\(await stockIndex\(\), seat, 0\)/, "reutiliza el conocimiento del Consejo");
-  assert.match(tick, /piezas\.filter\(\(p\) => p\.origin === "formado"\)/);
-  assert.match(tick, /const pool = formacion\.length \? formacion : piezas/,
-    "lo que le trajeron para formarse va primero; si no hay, lo que tenga");
+  assert.match(tick, /Toda franja se encarga a Smith/);
+  assert.match(tick, /'pending','Smith'/);
+  assert.doesNotMatch(tick, /seatKnowledgeFrom\(await stockIndex/,
+    "Yokup no elige una pieza vieja para fingir que Smith ya entregó");
 });
 
-test("pixeria caída no deja la hora en blanco: cae a una lección de la Academia", () => {
+test("mientras Smith trabaja, la hora no queda en blanco: conserva la lección de la Academia", () => {
   const tick = fuente("runAcademyCapsuleTick");
-  assert.match(tick, /catch \(e\) \{ \/\* pixeria caida no deja la hora sin capsula/);
-  assert.match(tick, /if \(!elegida\)/);
   assert.match(tick, /source:"academia\/leccion"/);
   assert.match(source, /var ACADEMY_LECCIONES = \[/);
   for (const id of ["identity","ecosystem","mission","closure"]) assert.match(source, new RegExp('id:"' + id + '"'));
