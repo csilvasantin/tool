@@ -9,7 +9,7 @@ import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
 import { resolveIdeaAuthor } from "./idea-author.js";
 import { missionProofOrigin } from "./proof-origin.js";
-import { validateCoachCompletion, coachLessonForSlot, COACH_HOUR } from "./academy-coach.js";
+import { validateCoachCompletion, validateCoachLaunch, coachLessonForSlot, COACH_HOUR } from "./academy-coach.js";
 import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
   onIdleEligibility, taskVisibleDetails } from "./mission-visible.js";
 import { DAILY_MISSION_CLOSE_AUTHOR, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_LEASE_MS, DAILY_MISSION_CLOSE_REASON, MISSION_UNCONCLUDED_AFTER_MS, dailyMissionCloseEventText, dailyMissionClosePlan } from "./daily-mission-close.js";
@@ -878,6 +878,7 @@ __name(ensureAcademyCapsuleSchema, "ensureAcademyCapsuleSchema");
 
 async function ensureAcademyCoachSchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS academy_coach_completions (event_id TEXT PRIMARY KEY, audience TEXT NOT NULL, counselor TEXT NOT NULL, slot_id INTEGER NOT NULL, dimension TEXT NOT NULL, lesson_id TEXT NOT NULL, application TEXT NOT NULL, completed_at INTEGER NOT NULL, UNIQUE(audience,counselor,slot_id))");
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS academy_coach_launches (launch_id TEXT PRIMARY KEY, audience TEXT NOT NULL, counselor TEXT NOT NULL, target_slot_id INTEGER NOT NULL, dimension TEXT NOT NULL, lesson_id TEXT NOT NULL, launched_at INTEGER NOT NULL, UNIQUE(audience,counselor,target_slot_id))");
 }
 __name(ensureAcademyCoachSchema, "ensureAcademyCoachSchema");
 
@@ -887,6 +888,14 @@ function academyCoachPublicRow(row) {
     completedAt:new Date(Number(row.completed_at)).toISOString() };
 }
 __name(academyCoachPublicRow, "academyCoachPublicRow");
+
+function academyCoachLaunchPublicRow(row) {
+  return { launchId:row.launch_id, audience:row.audience, counselor:row.counselor,
+    targetSlotId:Number(row.target_slot_id), dimension:row.dimension, lessonId:row.lesson_id,
+    scheduledAt:new Date(Number(row.target_slot_id) * 60 * 60 * 1000).toISOString(),
+    launchedAt:new Date(Number(row.launched_at)).toISOString() };
+}
+__name(academyCoachLaunchPublicRow, "academyCoachLaunchPublicRow");
 
 function academyCapsuleRow(row) {
   if (!row) return null;
@@ -6756,6 +6765,26 @@ var index_default = {
     // La clave primaria hace que un reintento sea idempotente. La lectura pública
     // omite deliberadamente el texto de aplicación, que puede contener contexto de
     // una persona de carbono.
+    if (url.pathname === "/academy/coach/launch" && req.method === "POST") {
+      try {
+        const token = String(env.ACADEMY_COACH_TOKEN || "");
+        const supplied = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+        if (!token) return json({ok:false,error:"Coach no configurado"}, 503);
+        if (supplied !== token) return json({ok:false,error:"unauthorized"}, 401);
+        const body = await req.json().catch(() => null);
+        const valid = validateCoachLaunch(body, Date.now());
+        if (!valid.ok) return json({ok:false,error:valid.error}, valid.status);
+        await ensureAcademyCoachSchema(env);
+        let row = await env.DB.prepare("SELECT * FROM academy_coach_launches WHERE launch_id=?").bind(valid.launchId).first();
+        if (row) return json({ok:true,reused:true,registry:"academy-coach",...academyCoachLaunchPublicRow(row)});
+        const launchedAt = Date.now();
+        await env.DB.prepare("INSERT OR IGNORE INTO academy_coach_launches (launch_id,audience,counselor,target_slot_id,dimension,lesson_id,launched_at) VALUES (?,?,?,?,?,?,?)")
+          .bind(valid.launchId,valid.audience,valid.counselor,valid.targetSlotId,valid.dimension,valid.lessonId,launchedAt).run();
+        row = await env.DB.prepare("SELECT * FROM academy_coach_launches WHERE audience=? AND counselor=? AND target_slot_id=?")
+          .bind(valid.audience,valid.counselor,valid.targetSlotId).first();
+        return json({ok:true,reused:false,registry:"academy-coach",...academyCoachLaunchPublicRow(row)});
+      } catch (e) { return json({ok:false,error:String(e)}, 500); }
+    }
     if (url.pathname === "/academy/coach/completion" && req.method === "POST") {
       try {
         const token = String(env.ACADEMY_COACH_TOKEN || "");
@@ -6763,9 +6792,15 @@ var index_default = {
         if (!token) return json({ ok:false, error:"Coach no configurado" }, 503);
         if (supplied !== token) return json({ ok:false, error:"unauthorized" }, 401);
         const body = await req.json().catch(() => null);
-        const valid = validateCoachCompletion(body, Date.now());
-        if (!valid.ok) return json({ ok:false, error:valid.error }, valid.status);
         await ensureAcademyCoachSchema(env);
+        const coachNow = Date.now();
+        const currentSlot = Math.floor(coachNow / (60 * 60 * 1000));
+        const requestedSlot = Number(body && body.slotId);
+        const manualLaunch = requestedSlot === currentSlot + 1 && await env.DB.prepare(
+          "SELECT launch_id FROM academy_coach_launches WHERE audience=? AND counselor=? AND target_slot_id=?"
+        ).bind(String(body && body.audience || "").toLowerCase(),String(body && body.counselor || "").toLowerCase(),requestedSlot).first();
+        const valid = validateCoachCompletion(body, coachNow, {allowNextSlot:Boolean(manualLaunch)});
+        if (!valid.ok) return json({ ok:false, error:valid.error }, valid.status);
         let row = await env.DB.prepare("SELECT * FROM academy_coach_completions WHERE event_id=?").bind(valid.eventId).first();
         if (row) return json({ ok:true, reused:true, registry:"academy-coach", ...academyCoachPublicRow(row) });
         const completedAt = Date.now();

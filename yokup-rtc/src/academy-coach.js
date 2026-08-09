@@ -20,7 +20,21 @@ export function coachLessonForSlot(slotId) {
   return { dimension, lessonId };
 }
 
-export function validateCoachCompletion(body, now = Date.now()) {
+export function validateCoachLaunch(body, now = Date.now()) {
+  const audience = String(body && body.audience || "").toLowerCase();
+  const counselor = String(body && body.counselor || "").toLowerCase();
+  if (!COACH_AUDIENCES.has(audience) || !COACH_COUNSELORS.has(counselor)) {
+    return { ok:false, status:400, error:"Agente o audiencia no válidos" };
+  }
+  const targetSlotId = Math.floor(now / COACH_HOUR) + 1;
+  const { dimension, lessonId } = coachLessonForSlot(targetSlotId);
+  return {
+    ok:true, audience, counselor, targetSlotId, dimension, lessonId,
+    launchId:`coach-launch-${audience}-${counselor}-${targetSlotId}-${lessonId}`
+  };
+}
+
+export function validateCoachCompletion(body, now = Date.now(), options = {}) {
   const audience = String(body && body.audience || "").toLowerCase();
   const counselor = String(body && body.counselor || "").toLowerCase();
   const slotId = Number(body && body.slotId);
@@ -30,7 +44,8 @@ export function validateCoachCompletion(body, now = Date.now()) {
   }
   if (!Number.isInteger(slotId)) return { ok:false, status:400, error:"Franja no válida" };
   const currentSlot = Math.floor(now / COACH_HOUR);
-  if (slotId > currentSlot || slotId < currentSlot - 24) {
+  const manuallyLaunchedNext = options.allowNextSlot === true && slotId === currentSlot + 1;
+  if ((slotId > currentSlot && !manuallyLaunchedNext) || slotId < currentSlot - 24) {
     return { ok:false, status:409, error:"La franja está fuera de la ventana de registro de 24 horas" };
   }
   if (application.length < 20 || application.length > 900) {
@@ -42,4 +57,3 @@ export function validateCoachCompletion(body, now = Date.now()) {
     eventId:`coach-${audience}-${counselor}-${slotId}-${lessonId}`
   };
 }
-
