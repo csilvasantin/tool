@@ -899,6 +899,56 @@ function academyCapsuleRow(row) {
 }
 __name(academyCapsuleRow, "academyCapsuleRow");
 
+
+// ── LA VENTANA DE FORMACIÓN (Carlos, 2026-08-09) ────────────────────────────
+// «las ventanas de formación ocurren y PUNTÚAN en yokup.com». Una ventana puntúa por
+// existir en `decisions` con agente válido y fecha de hoy: 8 puntos, sin mirar estado.
+//
+// El turno rota entre los agentes DECLARADOS de la Academia en el censo del proyecto,
+// uno cada cuatro horas. Es la respuesta de Carlos a «¿a quién se le apuntan?»: no al
+// responsable, que cobraría 192 puntos al día por un proceso automático, sino a quien
+// le toca atender esa cápsula. Los puntos van con el trabajo, no con el cargo.
+var ACADEMY_TURNOS = [
+  { agent:"MorfeoMBA16",  machine:"MacBookAir16plata" },
+  { agent:"TrinityMBA16", machine:"MacBookAir16plata" },
+  { agent:"NeoMBP14",     machine:"MacBookProNegro14" },
+  { agent:"TrinityMBP14", machine:"MacBookProNegro14" }
+];
+// Marcador de rama. Con `parent_decision` NO vacío la ventana queda fuera del cupo
+// horario y fuera del censo de turnos, así que no le roba a nadie su hueco automático
+// ni encoge la franja de los demás. Es la diferencia entre añadir formación y quitar
+// trabajo a la flota.
+var ACADEMY_DECISION_PARENT = "FORMACION";
+var ACADEMY_DECISION_MIN = 2;
+
+// Abre la ventana de la hora. NUNCA materializa misiones, y no por una bandera que
+// alguien pueda quitar sin darse cuenta, sino por la FORMA: `ensureMissionBatchFromDecision`
+// sale a la primera si las opciones no tienen forma de misión, y una sola opción no la
+// tiene ni como ventana inicial (exige 5) ni como continuación (exige 2 o 3 y salida).
+// Con 24 al día, una ventana que materializara sola serían 24 misiones fantasma diarias.
+async function abreVentanaFormacion(env, { hourStart, tema, seat, capsula }) {
+  const turno = ACADEMY_TURNOS[Math.floor(hourStart / COACH_HOUR) % ACADEMY_TURNOS.length];
+  const identidad = resolveDecisionIdentity(turno.agent, turno.machine);
+  // Sin identidad canónica el Highscore descarta la fila en silencio y la ventana no
+  // puntuaría a nadie: mejor no abrirla y que se vea el hueco.
+  if (!identidad.ok) return { ok:false, error:identidad.error };
+  const c = COUNCIL[seat] || {};
+  const ahora = Date.now();
+  const id = "DCL-form-" + hourStart.toString(36);
+  const pregunta = "Formación de " + tema.nombre + ": " + (c.role || seat) + " · " + (c.alias || "") +
+    " tiene cápsula esta hora — " + String((capsula && capsula.title) || "").slice(0, 180);
+  // Se lee bien en la frase que pinta la web al vencer: «se aplicó la recomendada: …».
+  const opciones = ["Atender la cápsula de " + tema.nombre + " en admira.academy"];
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision)" +
+    " VALUES (?,?,?,?,?,?,0,'pending',?,?,?,?,?,?,?)"
+  ).bind(id, identidad.machine, identidad.agent, "academy", pregunta.slice(0, 400), JSON.stringify(opciones),
+    ahora, ahora + ACADEMY_DECISION_MIN * 60 * 1000, "https://admira.academy/#capsula",
+    "formacion:" + tema.id, "admira-academy", "ADMIRA-ACADEMY", ACADEMY_DECISION_PARENT).run();
+  return { ok:true, id, agent:identidad.agent, machine:identidad.machine };
+}
+__name(abreVentanaFormacion, "abreVentanaFormacion");
+
 async function runAcademyCapsuleTick(env, ahora = Date.now()) {
   await ensureAcademyCapsuleSchema(env);
   const hourStart = Math.floor(ahora / ACADEMY_HORA_MS) * ACADEMY_HORA_MS;
@@ -940,8 +990,18 @@ async function runAcademyCapsuleTick(env, ahora = Date.now()) {
   await env.DB.prepare(
     "DELETE FROM academy_capsulas WHERE hour_start NOT IN (SELECT hour_start FROM academy_capsulas ORDER BY hour_start DESC LIMIT 200)"
   ).run();
+  // La ventana se abre SOLO cuando la cápsula es nueva: una por hora, como la cápsula.
+  // Si falla, la cápsula sigue en pie — la formación no se cae porque el marcador de
+  // puntos tosa, y el fallo queda a la vista en el propio latido de la rutina.
+  let ventana = null;
+  try { ventana = await abreVentanaFormacion(env, { hourStart, tema, seat, capsula:elegida }); }
+  catch (e) { ventana = { ok:false, error:String((e && e.message) || e) }; }
+  if (ventana && ventana.ok) {
+    await env.DB.prepare("UPDATE academy_capsulas SET agent=?, decision_id=? WHERE hour_start=?")
+      .bind(ventana.agent, ventana.id, hourStart).run();
+  }
   const fila = await env.DB.prepare("SELECT * FROM academy_capsulas WHERE hour_start=?").bind(hourStart).first();
-  return { ok:true, nueva:true, capsula:academyCapsuleRow(fila) };
+  return { ok:true, nueva:true, ventana, capsula:academyCapsuleRow(fila) };
 }
 __name(runAcademyCapsuleTick, "runAcademyCapsuleTick");
 // Runner de IA para el Consejo. OJO: Workers AI ya NO siempre devuelve `response`

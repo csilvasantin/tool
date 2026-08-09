@@ -122,3 +122,46 @@ test("la hora manda la temática y la temática manda la silla", () => {
   assert.match(tick, /INSERT OR IGNORE INTO academy_capsulas \(hour_start,seat,tema,/);
   assert.match(source, /ALTER TABLE academy_capsulas ADD COLUMN tema TEXT/, "aditiva: las cápsulas de ayer no tenían temática");
 });
+
+// La ventana de formación: puntúa, rota entre los agentes de la Academia y NUNCA
+// materializa misiones. Carlos eligió el reparto por turnos y no al responsable:
+// 24 ventanas al día a una sola cuenta serían 192 puntos que no ha trabajado nadie.
+test("la ventana rota entre los agentes declarados de la Academia, uno cada 4 horas", () => {
+  const i = source.indexOf("var ACADEMY_TURNOS");
+  const j = source.indexOf("var ACADEMY_DECISION_PARENT");
+  const { ACADEMY_TURNOS } = new Function(source.slice(i, j) + "\nreturn { ACADEMY_TURNOS };")();
+  assert.equal(ACADEMY_TURNOS.length, 4);
+  assert.deepEqual(ACADEMY_TURNOS.map(t => t.agent), ["MorfeoMBA16","TrinityMBA16","NeoMBP14","TrinityMBP14"]);
+  // Cada agente con SU máquina: sin identidad canónica el Highscore descarta la fila.
+  for (const t of ACADEMY_TURNOS) assert.ok(t.machine, t.agent + " sin máquina");
+  const abre = fuente("abreVentanaFormacion");
+  assert.match(abre, /ACADEMY_TURNOS\[Math\.floor\(hourStart \/ COACH_HOUR\) % ACADEMY_TURNOS\.length\]/);
+  assert.match(abre, /resolveDecisionIdentity\(turno\.agent, turno\.machine\)/);
+  assert.match(abre, /if \(!identidad\.ok\) return \{ ok:false/, "sin identidad canónica no se abre: puntuaría a nadie");
+});
+
+test("una sola opción: la ventana no puede materializar misiones fantasma", () => {
+  const abre = fuente("abreVentanaFormacion");
+  assert.match(abre, /const opciones = \["Atender la cápsula de "/);
+  // La garantía es la FORMA, no una bandera: ensureMissionBatchFromDecision corta si
+  // las opciones no son de misión (inicial exige 5; continuación, 2 o 3 con salida).
+  assert.match(abre, /JSON\.stringify\(opciones\)/);
+  assert.doesNotMatch(abre, /volver atr/i, "ni de lejos la forma de una ventana de misión");
+  assert.match(source, /function isInitialMissionDecision[\s\S]{0,200}options\.length === 5/);
+});
+
+test("no le quita a nadie su hueco: fuera del cupo horario y del censo de turnos", () => {
+  const abre = fuente("abreVentanaFormacion");
+  assert.match(source, /var ACADEMY_DECISION_PARENT = "FORMACION"/);
+  assert.match(abre, /ACADEMY_DECISION_PARENT\)\.run\(\)/);
+  // El cupo y el censo filtran (parent_decision IS NULL OR parent_decision=''), así
+  // que con el marcador puesto esta ventana no entra en esas cuentas.
+  assert.match(source, /parent_decision IS NULL OR parent_decision=''/);
+});
+
+test("si la ventana falla, la cápsula sigue en pie", () => {
+  const tick = fuente("runAcademyCapsuleTick");
+  assert.match(tick, /try \{ ventana = await abreVentanaFormacion\(env, \{ hourStart, tema, seat, capsula:elegida \}\); \}/);
+  assert.match(tick, /catch \(e\) \{ ventana = \{ ok:false/);
+  assert.match(tick, /UPDATE academy_capsulas SET agent=\?, decision_id=\? WHERE hour_start=\?/);
+});
