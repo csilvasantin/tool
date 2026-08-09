@@ -18,7 +18,7 @@
   "use strict";
   var MACHINES = [
     ["MacMini",["macmini","mac mini","mac mini carlos","admira-macmini","macmini.local"]],
-    ["MBP14",["mbp14","macbookpro14","macbook pro 14","macbookpronegro14","macbook pro negro 14","admira-macbookpronegro14"]],
+    ["MBP14",["mbp14","macbookpro14","macbook pro 14","macbookpronegro14","macbookpro14negro","macbook pro negro 14","admira-macbookpro14","admira-macbookpronegro14"]],
     ["MBP16",["mbp16","macbookpro16","macbook pro 16","admira-macbookpro16","macbook-pro-16"]],
     ["MBA16",["mba16","macbookair16plata","macbookair16","macbook air 16 dg","mba 16 plata","admira-macbookair16"]],
     ["MBAAzul",["mbaazul","macbookairazul","macbook air azul","mba azul","admira-macbookairazul"]],
@@ -41,8 +41,15 @@
     "mini":"MacMini",
     "sinmaq":"SINMAQ"
   };
+  /* Nombre canónico del EQUIPO. Distingue modelo y tamaño, no color: conviven
+     MacBookPro14, MacBookPro16 y MacBookAir16, y ahí el «Negro» no desempata nada.
+     Por eso el canónico del 14 es MacBookPro14 y no MacBookProNegro14 (Carlos,
+     2026-08-08 · normativa regla 02). Las grafías viejas se siguen LEYENDO por el
+     diccionario de arriba: MBP14 = MacBookPro14 = macbookpro14 = macbookpro14negro =
+     MacBookProNegro14 es una sola máquina, y se normaliza antes de comparar — nunca
+     se cotejan literales, o el equipo se parte en dos filas. */
   var CANONICAL_MACHINES = {
-    MacMini:"Mac Mini", MBP14:"MacBookProNegro14", MBP16:"MacBook Pro 16",
+    MacMini:"Mac Mini", MBP14:"MacBookPro14", MBP16:"MacBook Pro 16",
     MBA16:"MacBookAir16plata", MBAAzul:"MacBook Air Azul", MBARosa:"MacBook Air Rosa",
     MBACrema:"MacBook Air Crema", MBAPlata:"MacBook Air Plata", Zenbook:"Asus Zenbook",
     DGX:"DGX Spark", PGX:"ThinkStation PGX"
@@ -130,7 +137,10 @@
     return (p.role==="sub"?"Sub":p.role==="infra"?"Infra":"")+nameWithSuffix(p.persona,sf);
   }
   function base(value){return parse(value).persona;}
-  function canonicalMachine(value){return CANONICAL_MACHINES[parse(value).suffix]||"";}
+  /* Se pregunta primero al diccionario de EQUIPOS y solo después al de identidades:
+     «macbookpro14negro» es un nombre de máquina, no lleva apellido al final, y por
+     parse() salía vacío — una de las cinco grafías de la norma 02 sin normalizar. */
+  function canonicalMachine(value){return CANONICAL_MACHINES[suffix(value)||parse(value).suffix]||"";}
   function missionPair(agent,machine,hints){
     var rawAgent=String(agent||"").trim(), rawMachine=String(machine||"").trim();
     if(!rawAgent)return {agent:"",machine:rawMachine};

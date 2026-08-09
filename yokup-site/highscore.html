@@ -1708,16 +1708,43 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   /* Ordenadores del agente: primero los que laten AHORA (encendidos), luego los
      conocidos sin latido reciente. `tope` recorta y añade «+N» para que el podio
-     no se desmadre — Smith corre en 8 máquinas. */
+     no se desmadre — Smith corre en 8 máquinas.
+     La pastilla pinta el ALIAS CORTO del diccionario (MBP14, MBA16, MacMini…), no el
+     nombre largo con el que late cada equipo. En una columna estrecha «MacBookProNegro14»
+     se leía cortado como «MacBookProNegro», y un nombre a medias no nombra ninguna
+     máquina (Carlos, 8-ago-2026 · normativa regla 02). Los nombres largos siguen
+     enteros en el title, que es donde sí caben.
+     Y como MBP14 = MacBookPro14 = macbookpro14negro = MacBookProNegro14 son LA MISMA
+     máquina, dos grafías del mismo equipo se funden en UNA pastilla en vez de partir
+     el equipo en dos: se normaliza, nunca se comparan literales. */
   function pintaMaquinas(a, tope) {
+    var id = typeof window !== "undefined" && window.ykAgentIdentity;
     var vivas = a.maquinasVivas.slice().sort();
     var frias = a.maquinas.filter(function (m) { return vivas.indexOf(m) < 0; }).sort();
-    var todas = vivas.map(function (m) { return { m: m, on: true }; })
-                     .concat(frias.map(function (m) { return { m: m, on: false }; }));
+    var todas = [], porAlias = {};
+    vivas.map(function (m) { return { m: m, on: true }; })
+      .concat(frias.map(function (m) { return { m: m, on: false }; }))
+      .forEach(function (t) {
+        // Sin diccionario cargado, o equipo fuera de él, se pinta el nombre tal cual:
+        // más vale largo que inventado.
+        var alias = (id && id.suffix && id.suffix(t.m)) || t.m;
+        var ya = porAlias[alias];
+        if (ya) {
+          ya.on = ya.on || t.on;
+          if (ya.largos.indexOf(t.m) < 0) ya.largos.push(t.m);
+          return;
+        }
+        porAlias[alias] = { alias: alias, on: t.on, largos: [t.m] };
+        todas.push(porAlias[alias]);
+      });
     if (!todas.length) return '<div class="maqs"><span class="maq-b">sin registro</span></div>';
+    var largo = function (t) { return t.largos.join(" = "); };
     var muestra = tope ? todas.slice(0, tope) : todas, resto = todas.length - muestra.length;
-    return '<div class="maqs" title="' + esc(todas.map(function (t) { return t.m; }).join(" · ")) + '">' +
-      muestra.map(function (t) { return '<span class="maq-b' + (t.on ? ' on' : '') + '">' + esc(t.m) + '</span>'; }).join("") +
+    return '<div class="maqs" title="' + esc(todas.map(largo).join(" · ")) + '">' +
+      muestra.map(function (t) {
+        return '<span class="maq-b' + (t.on ? ' on' : '') + '" title="' + esc(largo(t)) + '">' +
+          esc(t.alias) + '</span>';
+      }).join("") +
       (resto > 0 ? '<span class="maq-mas">+' + resto + '</span>' : '') + '</div>';
   }
 
