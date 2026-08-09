@@ -45,6 +45,12 @@ test("el backfill relacional de yokup converge sin duplicar y es idempotente", (
   db.close();
 });
 
+test("cada línea del backfill es una sentencia completa para D1.exec", () => {
+  const statements = YOKUP_MINI_MEMBER_BACKFILL_SQL.trim().split(/\n+/);
+  assert.equal(statements.length, 3);
+  for (const statement of statements) assert.match(statement, /;$/);
+});
+
 test("/projects canoniza salida, owner, reemplazo y remove histórico", () => {
   assert.match(source, /owner: canonicalOwner/);
   assert.match(source, /primary_responsible: canonicalOwner \|\| "NeoMacMini"/);

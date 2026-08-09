@@ -19,13 +19,7 @@ export function canonicalProjectAgentRefs(values) {
 // backfill recuperable: si ya existe la fila canónica no duplica; si el segundo
 // statement falla, el siguiente arranque termina la limpieza sin perder miembro.
 export const YOKUP_MINI_MEMBER_BACKFILL_SQL = `
-INSERT OR IGNORE INTO project_members(project_id,kind,ref,added_at)
-SELECT project_id,kind,'OraculoMini',MIN(added_at)
-FROM project_members
-WHERE project_id='yokup' AND kind='agent' AND lower(ref)='oraculomacmini'
-GROUP BY project_id,kind;
-DELETE FROM project_members
-WHERE project_id='yokup' AND kind='agent' AND lower(ref)='oraculomacmini';
-UPDATE projects SET owner='OraculoMini'
-WHERE id='yokup' AND lower(owner)='oraculomacmini';
+INSERT OR IGNORE INTO project_members(project_id,kind,ref,added_at) SELECT project_id,kind,'OraculoMini',MIN(added_at) FROM project_members WHERE project_id='yokup' AND kind='agent' AND lower(ref)='oraculomacmini' GROUP BY project_id,kind;
+DELETE FROM project_members WHERE project_id='yokup' AND kind='agent' AND lower(ref)='oraculomacmini';
+UPDATE projects SET owner='OraculoMini' WHERE id='yokup' AND lower(owner)='oraculomacmini';
 `;
