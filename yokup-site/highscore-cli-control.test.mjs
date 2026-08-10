@@ -70,6 +70,20 @@ test("Experto agrupa los agentes por equipo físico igual que Avanzado",()=>{
   assert.match(css,/\.yk-cli-machine-rows\[hidden\]\{display:none\}/);
 });
 
+test("debajo de los equipos hay control global para Claude, Codex y Grok",()=>{
+  assert.match(frame,/FLEET\.cliList=el\("div","yk-cli-list"\);side\.appendChild\(FLEET\.cliList\);[\s\S]*FLEET\.cliBulk=el\("section","yk-cli-bulk"\);/);
+  assert.match(frame,/\["Claude","Codex","Grok"\]\.forEach/);
+  assert.match(frame,/function bulkCliTargets\(runtime, action\)/);
+  assert.match(frame,/item\.host === "cli" && !item\.placeholder && item\.watcher && item\.runtime === runtime/);
+  assert.match(frame,/bulkFleetControl\(runtime,"start"\)/);
+  assert.match(frame,/bulkFleetControl\(runtime,"stop"\)/);
+  assert.match(frame,/Detener los "\+targets\.length\+" agentes "\+runtime\+" activos en la flota/);
+  assert.match(frame,/Promise\.allSettled\(targets\.map/);
+  assert.match(frame,/órdenes aceptadas/);
+  assert.match(frame,/activos tras la verificación/);
+  assert.match(css,/\.yk-cli-bulk\{display:grid/);
+});
+
 test("las tres acciones viven compactas en la pestaña y la escritura queda separada bajo el visor",()=>{
   assert.match(frame,/cliExpanded:""/);
   assert.match(frame,/button\.setAttribute\("aria-expanded",String\(expanded\)\)/);

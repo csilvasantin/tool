@@ -690,9 +690,9 @@
 
   var FLEET = { items:[], selected:"", busy:false, focusQueued:"", appList:null, appCount:null, appBody:null,
     appStatus:null, appsExpanded:false, appOpen:new Set(), cliOpen:new Set(), cliList:null, cliCount:null, cliTitle:null,
-    cliMeta:null, cliMount:null, cliPtyStatus:null, cliStatus:null, cliPower:null, cliRead:null, cliFocus:null,
+    cliMeta:null, cliMount:null, cliPtyStatus:null, cliStatus:null, cliBulk:null, cliPower:null, cliRead:null, cliFocus:null,
     cliInput:null, cliSend:null,
-    cliExpanded:"", structureKey:"", pty:{term:null,fit:null,socket:null,key:"",loaded:null,resize:null,retry:null,manual:false} };
+    cliExpanded:"", structureKey:"", bulk:{runtime:"",action:"",token:0}, pty:{term:null,fit:null,socket:null,key:"",loaded:null,resize:null,retry:null,manual:false} };
 
   function fleetText(tag, cls, value) { var node=el(tag,cls); node.textContent=String(value == null ? "" : value); return node; }
 
@@ -783,14 +783,52 @@
     return String(runtime||"DesktopAPP");
   }
 
+  function fleetControlRequest(item, action) {
+    return ykFetch("/fleet/agent/control",{method:"POST",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify(fleetTarget(item,action))})
+      .then(function(response){return response.json().catch(function(){return {};}).then(function(body){if(!response.ok)throw new Error(body.error||("control "+response.status));return body;});})
+  }
+
   function fleetControl(item, action) {
     if(FLEET.busy)return;
     if(action === "stop" && !window.confirm("Detener " + item.persona + " · " + item.runtime + " en " + item.machine + " (PID " + item.pid + ")?"))return;
     FLEET.busy=true; fleetMessage((action === "start" ? "Arrancando " : "Deteniendo ") + item.persona + " en " + item.machine + "…",false);
-    ykFetch("/fleet/agent/control",{method:"POST",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify(fleetTarget(item,action))})
-      .then(function(response){return response.json().catch(function(){return {};}).then(function(body){if(!response.ok)throw new Error(body.error||("control "+response.status));return body;});})
+    fleetControlRequest(item,action)
       .then(function(){setTimeout(loadFleet,2200);}).catch(function(error){fleetMessage(error.message||"No se pudo enviar la orden",true);})
       .finally(function(){FLEET.busy=false;refreshFleetControls();});
+  }
+
+  function bulkCliTargets(runtime, action) {
+    return FLEET.items.filter(function(item){
+      return item.host === "cli" && !item.placeholder && item.watcher && item.runtime === runtime && (action === "start" ? !item.active : item.active);
+    });
+  }
+
+  function bulkFleetControl(runtime, action) {
+    if(FLEET.busy || FLEET.bulk.runtime)return;
+    var targets=bulkCliTargets(runtime,action);
+    if(!targets.length){fleetMessage("No hay "+runtime+" que "+(action === "start"?"arrancar":"detener")+".",false);return;}
+    if(action === "stop" && !window.confirm("Detener los "+targets.length+" agentes "+runtime+" activos en la flota?"))return;
+    var token=Date.now();FLEET.bulk={runtime:runtime,action:action,token:token};FLEET.busy=true;renderBulkControls();refreshFleetControls();
+    fleetMessage((action === "start"?"Arrancando":"Deteniendo")+" "+targets.length+" agentes "+runtime+"…",false);
+    Promise.allSettled(targets.map(function(item){return fleetControlRequest(item,action);})).then(function(results){
+      var accepted=results.filter(function(result){return result.status === "fulfilled";}).length;
+      var failures=results.length-accepted;
+      fleetMessage(runtime+": "+accepted+" órdenes aceptadas"+(failures?" · "+failures+" rechazadas":"")+" · verificando presencia real…",failures>0);
+    }).catch(function(error){fleetMessage(error.message||"Falló el control global de "+runtime,true);})
+      .finally(function(){
+        FLEET.busy=false;refreshFleetControls();renderBulkControls();
+        setTimeout(loadFleet,3000);
+        setTimeout(function(){
+          if(FLEET.bulk.token!==token)return;
+          loadFleet().then(function(){
+            var all=FLEET.items.filter(function(item){return item.host === "cli"&&!item.placeholder&&item.watcher&&item.runtime===runtime;});
+            var active=all.filter(function(item){return item.active;}).length;
+            var ok=action === "start" ? active===all.length : active===0;
+            fleetMessage(runtime+": "+active+"/"+all.length+" activos tras la verificación"+(ok?".":" · revisión necesaria."),!ok);
+            FLEET.bulk={runtime:"",action:"",token:token};renderBulkControls();
+          });
+        },16000);
+      });
   }
 
   function fleetMessage(message,error) {
@@ -815,6 +853,20 @@
     if(FLEET.cliFocus)FLEET.cliFocus.disabled=!active||FLEET.busy;
     if(FLEET.cliInput)FLEET.cliInput.disabled=!active;
     if(FLEET.cliSend)FLEET.cliSend.disabled=!active||FLEET.busy;
+    renderBulkControls();
+  }
+
+  function renderBulkControls() {
+    if(!FLEET.cliBulk)return;FLEET.cliBulk.textContent="";
+    FLEET.cliBulk.appendChild(fleetText("b","yk-cli-bulk-title","Control global por agente"));
+    ["Claude","Codex","Grok"].forEach(function(runtime){
+      var all=FLEET.items.filter(function(item){return item.host === "cli"&&!item.placeholder&&item.watcher&&item.runtime===runtime;});
+      var active=all.filter(function(item){return item.active;}).length,pending=FLEET.bulk.runtime===runtime,row=el("div","yk-cli-bulk-row");
+      var copy=el("span","yk-cli-bulk-copy");copy.appendChild(fleetText("b",null,runtime));copy.appendChild(fleetText("small",active?"live":"",active+"/"+all.length+" activos"));row.appendChild(copy);
+      var start=fleetButton("","yk-cli-bulk-action",function(){bulkFleetControl(runtime,"start");});setFleetIcon(start,"play");start.title="Arrancar todos los "+runtime;start.setAttribute("aria-label",start.title);start.disabled=FLEET.busy||pending||!all.some(function(item){return !item.active;});row.appendChild(start);
+      var stop=fleetButton("","yk-cli-bulk-action danger",function(){bulkFleetControl(runtime,"stop");});setFleetIcon(stop,"power");stop.title="Detener todos los "+runtime;stop.setAttribute("aria-label",stop.title);stop.disabled=FLEET.busy||pending||active===0;row.appendChild(stop);
+      FLEET.cliBulk.appendChild(row);
+    });
   }
 
   function paintSelectedCli() {
@@ -1028,7 +1080,7 @@
     paintSelectedCli();
   }
 
-  function renderFleet(){renderApps();renderCli();}
+  function renderFleet(){renderApps();renderCli();renderBulkControls();}
   function loadFleet() {
     return fetch(TELEGRAM+"/api/presence",{cache:"no-store"}).then(function(response){if(!response.ok)throw new Error("presence "+response.status);return response.json();})
       .then(function(payload){
@@ -1037,7 +1089,7 @@
         else{
           if(FLEET.appCount){var apps=items.filter(function(item){return item.host==="app";});FLEET.appCount.textContent=apps.filter(function(item){return item.active;}).length+"/"+apps.length+" vivas";}
           if(FLEET.cliCount){var clis=items.filter(function(item){return item.host==="cli";});FLEET.cliCount.textContent=cliCountLabel(clis);}
-          paintSelectedCli();
+          paintSelectedCli();renderBulkControls();
         }
         return payload;
       })
@@ -1060,6 +1112,7 @@
     var section=el("section","yk-cli-console");var side=el("div","yk-cli-side");var head=el("div","yk-fleet-head");
     head.appendChild(fleetText("b",null,"Control de CLIs"));FLEET.cliCount=fleetText("span",null,"…");head.appendChild(FLEET.cliCount);side.appendChild(head);
     FLEET.cliList=el("div","yk-cli-list");side.appendChild(FLEET.cliList);
+    FLEET.cliBulk=el("section","yk-cli-bulk");FLEET.cliBulk.setAttribute("aria-label","Control global por agente");side.appendChild(FLEET.cliBulk);
     FLEET.cliStatus=el("p","yk-cli-status");FLEET.cliStatus.setAttribute("role","status");side.appendChild(FLEET.cliStatus);section.appendChild(side);
     var terminal=el("div","yk-cli-terminal");var terminalHead=el("div","yk-cli-terminal-head");
     var identity=el("span");FLEET.cliTitle=fleetText("b",null,"Selecciona un CLI");FLEET.cliMeta=fleetText("small",null,"Sesión remota segura");identity.appendChild(FLEET.cliTitle);identity.appendChild(FLEET.cliMeta);terminalHead.appendChild(identity);
