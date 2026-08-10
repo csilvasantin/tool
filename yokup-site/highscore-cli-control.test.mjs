@@ -42,12 +42,15 @@ test("las acciones del CLI se despliegan bajo el agente y la derecha queda para 
   assert.match(frame,/cliExpanded:""/);
   assert.match(frame,/button\.setAttribute\("aria-expanded",String\(expanded\)\)/);
   assert.match(frame,/actions=el\("div","yk-cli-agent-actions"\);actions\.hidden=!expanded/);
+  assert.match(frame,/isOpen=FLEET\.cliExpanded===key;[\s\S]*FLEET\.cliExpanded=isOpen\?"":key/);
+  assert.match(frame,/Pulsa Leer para sincronizar esta sesión/);
   assert.match(frame,/controls\.appendChild\(FLEET\.cliPower\)/);
   assert.match(frame,/form=el\("form","yk-cli-agent-form"\)/);
   assert.match(frame,/terminal\.appendChild\(terminalHead\);[\s\S]*terminal\.appendChild\(FLEET\.cliOutput\);[\s\S]*section\.appendChild\(terminal\)/);
   assert.match(frame,/FLEET\.selected===targetKey/);
   assert.doesNotMatch(frame,/terminalHead\.appendChild\(FLEET\.cliPower\)/);
   assert.doesNotMatch(frame,/terminal\.appendChild\(form\)/);
+  assert.doesNotMatch(frame,/renderCli\(\);if\(item\.active/);
   assert.match(css,/\.yk-cli-console\{display:grid;grid-template-columns:minmax\(250px,28%\) minmax\(0,1fr\)/);
   assert.match(css,/\.yk-cli-agent-actions\[hidden\]\{display:none\}/);
 });

@@ -825,9 +825,10 @@
       button.appendChild(fleetText("small",item.active?"live":"",item.machine+" · "+(item.active?"vivo":"parado")));
       var actions=el("div","yk-cli-agent-actions");actions.hidden=!expanded;
       button.addEventListener("click",function(){
-        var changed=FLEET.selected!==key;FLEET.selected=key;FLEET.cliExpanded=expanded?"":key;
-        if(changed&&FLEET.cliOutput)FLEET.cliOutput.textContent=item.active?"Leyendo la sesión seleccionada…":"La sesión seleccionada está parada.";
-        renderCli();if(item.active&&!expanded)terminalAction("read");
+        var changed=FLEET.selected!==key,isOpen=FLEET.cliExpanded===key;
+        FLEET.selected=key;FLEET.cliExpanded=isOpen?"":key;
+        if(changed&&FLEET.cliOutput)FLEET.cliOutput.textContent=item.active?"Pulsa Leer para sincronizar esta sesión.":"La sesión seleccionada está parada.";
+        renderCli();
       });
       group.appendChild(button);
       if(expanded){
