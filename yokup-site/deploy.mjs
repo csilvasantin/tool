@@ -1,4 +1,4 @@
-import { open, readFile, writeFile, unlink, readdir, cp, mkdtemp, rm } from "node:fs/promises";
+import { open, readFile, writeFile, unlink, readdir, cp, copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -218,6 +218,15 @@ try {
   // inmutables) antes de crear cambios efímeros destinados exclusivamente al deploy.
   stagingPath = await mkdtemp(join(tmpdir(), "yokup-pages-artifact-"));
   await cp(sourceRoot, stagingPath, { recursive:true, filter:publicArtifactFilter });
+  // xterm queda fijado en package-lock, pero node_modules nunca se publica.
+  // Sólo copiamos los tres runtime assets exactos al artefacto efímero: Pages no
+  // recibe dependencias, mapas de fuentes ni herramientas de desarrollo.
+  await mkdir(join(stagingPath, "vendor"), { recursive:true });
+  await Promise.all([
+    copyFile(join(sourceRoot, "node_modules/@xterm/xterm/lib/xterm.js"), join(stagingPath, "vendor/xterm-6.0.0.js")),
+    copyFile(join(sourceRoot, "node_modules/@xterm/xterm/css/xterm.css"), join(stagingPath, "vendor/xterm-6.0.0.css")),
+    copyFile(join(sourceRoot, "node_modules/@xterm/addon-fit/lib/addon-fit.js"), join(stagingPath, "vendor/xterm-addon-fit-0.11.0.js"))
+  ]);
   await writeFile(join(stagingPath, "version.json"), JSON.stringify(payload, null, 2) + "\n");
   await stampFrameReferences(payload.version, pathToFileURL(stagingPath + sep));
   const commitArgs = wranglerCommitArgs({ gitFull, signature, version:payload.version });

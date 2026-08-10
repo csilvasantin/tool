@@ -4,7 +4,8 @@ import { baseAgentIdentity, identityKey, machineSuffix, parseAgentIdentity, repo
 import { buildReportsPageFilter, encodeReportsCursor, parseReportsPageOptions } from "./reports-pagination.js";
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
 import { AgentStopError, dispatchAgentStart, dispatchAgentStop, normalizeAgentStartTarget, normalizeAgentStopTarget } from "./fleet-agent-stop.js";
-import { dispatchCliTerminal, normalizeCliTerminalRequest, readCliTerminalResult } from "./fleet-cli-terminal.js";
+import { dispatchCliTerminal, normalizeCliTerminalRequest, readCliTerminalResult, verifyCliTerminalTarget } from "./fleet-cli-terminal.js";
+import { PtyRoom } from "./pty-room.js";
 import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, madridDayStart, sortDisplayRefCandidates } from "./display-ref.js";
 import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_NOVELTY_INSERT_SQL, MISSION_NOVELTY_RECENT_SQL, MISSION_NOVELTY_TABLE_SQL, missionNoveltyContract, missionNoveltyEventKey } from "./mission-novelty.js";
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
@@ -43,7 +44,7 @@ var json = /* @__PURE__ */ __name((o, s = 200) => new Response(JSON.stringify(o)
 var AUTH_CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
 var WL_API = "https://admira-whitelist.csilvasantin.workers.dev";
 var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@admira.com", "agonzalez@admira.com", "jsedano@admira.com"];
-var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/agent/stop", "/fleet/agent/control", "/fleet/cli/terminal", "/equipo/machine", "/equipo/silicon", "/strategy", "/config"]);
+var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/agent/stop", "/fleet/agent/control", "/fleet/cli/terminal", "/fleet/pty/ticket", "/equipo/machine", "/equipo/silicon", "/strategy", "/config"]);
 var _wl = { at: 0, set: null };
 async function whitelist() {
   if (_wl.set && Date.now() - _wl.at < 3e5) return _wl.set;
@@ -92,6 +93,33 @@ async function readSession(env, token) {
   }
 }
 __name(readSession, "readSession");
+async function makePtyTicket(env, email, target) {
+  const payload = b64uJson({
+    scope:"pty-view", email:String(email || "").toLowerCase().slice(0, 120),
+    target, nonce:crypto.randomUUID(), exp:Date.now() + 60 * 1000
+  });
+  return payload + "." + b64u(await hmac(env, payload));
+}
+__name(makePtyTicket, "makePtyTicket");
+function ptyRoomKey(target) {
+  return [target.machine, target.persona, target.runtime, target.host, target.session_id, target.pid]
+    .map((value) => String(value == null ? "" : value).trim().toLowerCase()).join("\u001f");
+}
+__name(ptyRoomKey, "ptyRoomKey");
+function yokupViewerOrigin(request) {
+  const origin = String(request.headers.get("origin") || "").toLowerCase();
+  return origin === "https://yokup.com" || origin === "https://www.yokup.com";
+}
+__name(yokupViewerOrigin, "yokupViewerOrigin");
+async function openPtyRoom(env, request, target, role) {
+  if (!env.PTY || typeof env.PTY.get !== "function") return json({ ok:false, error:"pty-binding-unavailable" }, 503);
+  const headers = new Headers();
+  headers.set("Upgrade", "websocket");
+  headers.set("x-pty-role", role);
+  const stub = env.PTY.get(env.PTY.idFromName(ptyRoomKey(target)));
+  return stub.fetch(new Request("https://pty-room.internal/connect", { headers }));
+}
+__name(openPtyRoom, "openPtyRoom");
 async function requireAuth(env, req) {
   const h = req.headers.get("authorization") || "";
   return readSession(env, h.replace(/^Bearer\s+/i, ""));
@@ -6953,9 +6981,59 @@ var index_default = {
         return json({ ok: false, error: String(e) }, 500);
       }
     }
+    // El puente del equipo se autentica con el secreto del ejecutor y sale SIEMPRE
+    // desde el Mac: no exponemos puertos PTY/tmux entrantes en la flota. Antes de
+    // unirlo a una sala se vuelve a contrastar la identidad exacta con Presence.
+    if (url.pathname === "/fleet/pty/bridge" && req.method === "GET") {
+      const auth = await authorizeCliExecutor(env, req);
+      if (!auth.ok) return json({ ok:false, code:auth.code, error:auth.error }, auth.status);
+      let target;
+      try {
+        target = await verifyCliTerminalTarget(env, {
+          machine:url.searchParams.get("machine"), persona:url.searchParams.get("persona"),
+          runtime:url.searchParams.get("runtime"), host:url.searchParams.get("host"),
+          session_id:url.searchParams.get("session_id"), pid:url.searchParams.get("pid"), action:"read"
+        });
+      } catch (error) {
+        const known = error instanceof AgentStopError;
+        return json({ ok:false, error:known ? error.code : "pty-target-invalid" }, known ? error.status : 500);
+      }
+      target = normalizeAgentStopTarget(target);
+      return openPtyRoom(env, req, target, "bridge");
+    }
+    // El navegador no conoce el secreto de la flota: usa un ticket HMAC de 60 s,
+    // ligado a UNA sesión viva y emitido desde una sesión Google del perímetro.
+    if (url.pathname === "/fleet/pty/ws" && req.method === "GET") {
+      if (!yokupViewerOrigin(req)) return json({ ok:false, error:"invalid-origin" }, 403);
+      const ticket = await readSession(env, url.searchParams.get("ticket"));
+      if (!ticket || ticket.scope !== "pty-view" || !ticket.target) return json({ ok:false, error:"invalid-pty-ticket" }, 401);
+      let target;
+      try { target = normalizeAgentStopTarget(ticket.target); }
+      catch { return json({ ok:false, error:"invalid-pty-target" }, 401); }
+      return openPtyRoom(env, req, target, "viewer");
+    }
     if (PROTECTED.has(url.pathname) || url.pathname.startsWith("/mission/")) {
       const sess = await requireAuth(env, req);
       if (!sess) return json({ error: "unauthorized" }, 401);
+    }
+
+    if (url.pathname === "/fleet/pty/ticket" && req.method === "POST") {
+      const sess = await requireAuth(env, req);
+      if (!sess) return json({ error:"unauthorized" }, 401);
+      let body;
+      try { body = await req.json(); }
+      catch { return json({ ok:false, error:"bad-json" }, 400); }
+      let target;
+      try { target = await verifyCliTerminalTarget(env, { ...body, action:"read" }); }
+      catch (error) {
+        const known = error instanceof AgentStopError;
+        return json({ ok:false, error:known ? error.code : "pty-target-invalid" }, known ? error.status : 500);
+      }
+      target = normalizeAgentStopTarget(target);
+      const ticket = await makePtyTicket(env, sess.email, target);
+      const wsProtocol = url.protocol === "http:" ? "ws:" : "wss:";
+      return json({ ok:true, expires_in:60, target,
+        url:`${wsProtocol}//${url.host}/fleet/pty/ws?ticket=${encodeURIComponent(ticket)}` });
     }
 
     // PARADA DE UNA SESIÓN DE AGENTE (FLT-1160): mando destructivo, siempre tras
@@ -9267,6 +9345,7 @@ var Room = class {
   }
 };
 export {
+  PtyRoom,
   Room,
   index_default as default
 };

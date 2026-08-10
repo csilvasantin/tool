@@ -28,6 +28,8 @@ test("pending/ack fallan cerrado sin binding ni Bearer válido", async () => {
 
 test("machine/cli/action usan el catálogo cerrado y nombres canónicos", () => {
   assert.equal(canonicalCliMachine("macmini"), "MacMini");
+  assert.equal(canonicalCliMachine("macbookairrosa"), "MacBookAirRosa");
+  assert.equal(canonicalCliMachine("MACBOOKAIRCREMA"), "MacBookAirCrema");
   assert.deepEqual(canonicalCliTarget("MACMINI", "GROK"), {
     machine:"MacMini", cli:"grok", kind:"cli", label:"Grok · CLI"
   });

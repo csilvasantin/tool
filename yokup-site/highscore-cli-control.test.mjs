@@ -37,8 +37,13 @@ test("Experto contiene CLIs y la sesión remota real",()=>{
   assert.match(frame,/buildCliConsole\(\)/);
   assert.match(frame,/item\.host === "cli"/);
   assert.match(frame,/"\/fleet\/cli\/terminal"/);
-  assert.match(frame,/action === "write"/);
-  assert.match(frame,/FLEET\.cliOutput\.textContent=result\.output/);
+  assert.match(frame,/"\/fleet\/pty\/ticket"/);
+  assert.match(frame,/new WebSocket\(body\.url\)/);
+  assert.match(frame,/window\.Terminal/);
+  assert.match(frame,/window\.FitAddon\.FitAddon/);
+  assert.match(frame,/term\.onData/);
+  assert.match(frame,/term\.onResize/);
+  assert.match(frame,/ResizeObserver/);
   assert.match(frame,/machine:item\.machine,persona:item\.persona,runtime:item\.runtime,host:item\.host,session_id:item\.session_id/);
   assert.match(frame,/action === "stop" \|\| action === "read" \|\| action === "write" \|\| action === "focus"\)body\.pid=item\.pid/);
   assert.match(frame,/terminalAction\("focus"\)/);
@@ -46,49 +51,53 @@ test("Experto contiene CLIs y la sesión remota real",()=>{
   assert.match(frame,/if\(FLEET\.busy\)\{[\s\S]*action === "focus"[\s\S]*FLEET\.focusQueued=true/);
   assert.match(frame,/FLEET\.cliFocus\.disabled=!item\.active/);
   assert.match(frame,/tmux:"\+selected\.session_id/);
-  assert.match(frame,/selected\.attached\?"Terminal conectada":"sin Terminal conectada"/);
-  assert.match(frame,/cliTerminalInput:null/);
-  assert.match(frame,/"yk-cli-terminal-form"/);
-  assert.match(frame,/"Terminal remota de "\+selected\.persona/);
-  assert.match(frame,/event\.key==="Enter"&&!event\.shiftKey&&!event\.isComposing/);
-  assert.match(frame,/terminalForm\.requestSubmit\(\)/);
-  assert.match(frame,/syncCliDraft\(fleetKey\(item\),FLEET\.cliTerminalInput\.value,FLEET\.cliTerminalInput\)/);
+  assert.match(frame,/PTY en vivo con xterm\.js/);
+  assert.match(frame,/"yk-cli-xterm"/);
+  assert.doesNotMatch(frame,/cliTerminalInput/);
+  assert.doesNotMatch(frame,/"yk-cli-terminal-form"/);
 });
 
-test("las acciones del CLI se despliegan bajo el agente y la derecha queda para su terminal",()=>{
+test("las tres acciones viven compactas en la pestaña y la derecha queda sólo para xterm",()=>{
   assert.match(frame,/cliExpanded:""/);
   assert.match(frame,/button\.setAttribute\("aria-expanded",String\(expanded\)\)/);
-  assert.match(frame,/actions=el\("div","yk-cli-agent-actions"\);actions\.hidden=!expanded/);
+  assert.match(frame,/tab=el\("div","yk-cli-agent-tab"/);
   assert.match(frame,/isOpen=FLEET\.cliExpanded===key;[\s\S]*FLEET\.cliExpanded=isOpen\?"":key/);
-  assert.match(frame,/Pulsa Leer para sincronizar esta sesión/);
   assert.match(frame,/controls\.appendChild\(FLEET\.cliPower\)/);
-  assert.match(frame,/form=el\("form","yk-cli-agent-form"\)/);
-  assert.match(frame,/terminal\.appendChild\(terminalHead\);[\s\S]*terminal\.appendChild\(FLEET\.cliOutput\);[\s\S]*terminal\.appendChild\(terminalForm\);[\s\S]*section\.appendChild\(terminal\)/);
+  assert.match(frame,/controls\.appendChild\(FLEET\.cliRead\)/);
+  assert.match(frame,/controls\.appendChild\(FLEET\.cliFocus\)/);
+  assert.match(frame,/terminal\.appendChild\(terminalHead\);[\s\S]*terminal\.appendChild\(FLEET\.cliMount\);[\s\S]*section\.appendChild\(terminal\)/);
   assert.match(frame,/FLEET\.selected===targetKey/);
-  assert.doesNotMatch(frame,/terminalHead\.appendChild\(FLEET\.cliPower\)/);
-  assert.doesNotMatch(frame,/terminal\.appendChild\(form\)/);
-  assert.doesNotMatch(frame,/renderCli\(\);if\(item\.active/);
+  assert.doesNotMatch(frame,/yk-cli-agent-form/);
+  assert.doesNotMatch(frame,/Mensaje para /);
   assert.match(css,/\.yk-cli-console\{display:grid;grid-template-columns:minmax\(250px,28%\) minmax\(0,1fr\);gap:12px;height:100%;min-height:140px;flex:0 0 100%/);
-  assert.match(css,/\.yk-cli-agent-actions\[hidden\]\{display:none\}/);
+  assert.match(css,/\.yk-cli-agent-tab\{display:flex/);
 });
 
-test("los refrescos conservan el foco y el mismo borrador en ambos editores",()=>{
+test("los equipos censados sin ranura CLI siguen visibles sin habilitar mandos falsos",()=>{
+  assert.match(frame,/persona:"Equipo",runtime:"sin CLI"/);
+  assert.match(frame,/placeholder:true/);
+  assert.match(frame,/item\.placeholder\?"sin CLI anunciado"/);
+  assert.match(frame,/if\(expanded&&!item\.placeholder\)/);
+  assert.match(frame,/function cliCountLabel\(items\)/);
+  assert.match(frame,/equipos sin CLI/);
+});
+
+test("los refrescos conservan el mismo xterm y nunca roban el foco",()=>{
   assert.match(frame,/function fleetStructureKey\(items\)/);
   assert.match(frame,/structure!==FLEET\.structureKey/);
-  assert.match(frame,/function activeCliEditor\(\)/);
-  assert.match(frame,/input\.focus\(\{preventScroll:true\}\)/);
-  assert.match(frame,/input\.setSelectionRange\(state\.start,state\.end\)/);
-  assert.match(frame,/function syncCliDraft\(key,value,source\)/);
-  assert.match(frame,/String\(FLEET\.cliDrafts\[targetKey\] \|\| ""\)/);
+  assert.match(frame,/if\(FLEET\.pty\.term\|\|!FLEET\.cliMount\)return/);
+  assert.match(frame,/El PTY\/xterm no se reconstruye/);
   assert.match(frame,/FLEET\.busy=false;refreshFleetControls\(\)/);
   assert.doesNotMatch(frame,/FLEET\.busy=false;renderFleet\(\)/);
-  assert.match(frame,/!FLEET\.busy && !activeCliEditor\(\)/);
+  assert.doesNotMatch(frame,/setInterval\(function\(\)\{if\(isOpen\("bottom"\)/);
 });
 
-test("la vista textual conserva la cuadrícula de tmux sin reenvolverla",()=>{
-  assert.match(frame,/vista textual/);
-  assert.match(css,/\.yk-cli-output\{[^}]*white-space:pre;word-break:normal;overflow-wrap:normal;tab-size:8/);
-  assert.doesNotMatch(css,/\.yk-cli-output\{[^}]*white-space:pre-wrap/);
+test("el espejo usa assets xterm fijados y un canvas terminal enfocado",()=>{
+  assert.match(frame,/\/vendor\/xterm-6\.0\.0\.js/);
+  assert.match(frame,/\/vendor\/xterm-addon-fit-0\.11\.0\.js/);
+  assert.match(frame,/\/vendor\/xterm-6\.0\.0\.css/);
+  assert.match(css,/\.yk-cli-xterm\{flex:1/);
+  assert.match(css,/\.yk-cli-xterm:focus-within/);
 });
 
 test("el panel Experto usa todo el viewport sin reservar una franja lateral",()=>{

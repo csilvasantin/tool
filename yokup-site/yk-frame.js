@@ -690,8 +690,8 @@
 
   var FLEET = { items:[], selected:"", busy:false, focusQueued:false, appList:null, appCount:null, appBody:null,
     appStatus:null, appsExpanded:false, appOpen:new Set(), cliList:null, cliCount:null, cliTitle:null,
-    cliMeta:null, cliOutput:null, cliInput:null, cliTerminalInput:null, cliTerminalSend:null,
-    cliStatus:null, cliPower:null, cliRead:null, cliFocus:null, cliSend:null, cliExpanded:"", cliDrafts:{}, structureKey:"" };
+    cliMeta:null, cliMount:null, cliPtyStatus:null, cliStatus:null, cliPower:null, cliRead:null, cliFocus:null,
+    cliExpanded:"", structureKey:"", pty:{term:null,fit:null,socket:null,key:"",loaded:null,resize:null,retry:null,manual:false} };
 
   function fleetText(tag, cls, value) { var node=el(tag,cls); node.textContent=String(value == null ? "" : value); return node; }
 
@@ -723,6 +723,15 @@
           session_id:String(slot.session_id||""),pid:0,active:false,attached:false,model:"",project:"",task:"",updated:group.updated,watcher:true};
         var key=fleetKey(item); if(!group.items[key])group.items[key]=item; else group.items[key].watcher=true;
       });
+      // Un equipo físico censado sigue visible aunque todavía no anuncie una
+      // ranura CLI. Así Rosa/Crema no desaparecen ni se finge que pueden arrancar:
+      // se muestran explícitamente "sin CLI anunciado" y todos los mandos quedan
+      // bloqueados hasta que su watcher publique una identidad canónica.
+      if(!Object.keys(group.items).some(function(key){return group.items[key].host==="cli";})){
+        var placeholder={machine:name,persona:"Equipo",runtime:"sin CLI",host:"cli",session_id:"unconfigured",pid:0,
+          active:false,attached:false,model:"",project:"",task:"",updated:group.updated,watcher:false,placeholder:true};
+        group.items[fleetKey(placeholder)]=placeholder;
+      }
     });
     var rows=[]; Object.keys(groups).forEach(function(name){Object.keys(groups[name].items).forEach(function(key){rows.push(groups[name].items[key]);});});
     return rows.sort(function(a,b){return a.machine.localeCompare(b.machine,"es")||a.persona.localeCompare(b.persona,"es")||a.runtime.localeCompare(b.runtime,"es");});
@@ -736,27 +745,6 @@
     return items.map(function(item){
       return [fleetKey(item),item.pid,Number(!!item.active),Number(!!item.attached),Number(!!item.watcher)].join(":");
     }).join(";");
-  }
-
-  function activeCliEditor() {
-    var active=document.activeElement;
-    if(active!==FLEET.cliInput && active!==FLEET.cliTerminalInput)return null;
-    return {side:active===FLEET.cliTerminalInput?"terminal":"list",key:active.getAttribute("data-cli-key")||"",
-      start:active.selectionStart,end:active.selectionEnd,scrollTop:active.scrollTop};
-  }
-
-  function restoreCliEditor(state) {
-    if(!state || state.key!==FLEET.selected)return;
-    var input=state.side==="terminal"?FLEET.cliTerminalInput:FLEET.cliInput;
-    if(!input || input.disabled)return;
-    try{input.focus({preventScroll:true});input.setSelectionRange(state.start,state.end);input.scrollTop=state.scrollTop||0;}catch(e){}
-  }
-
-  function syncCliDraft(key,value,source) {
-    FLEET.cliDrafts[key]=value;
-    [FLEET.cliInput,FLEET.cliTerminalInput].forEach(function(input){
-      if(input && input!==source && input.getAttribute("data-cli-key")===key && input.value!==value)input.value=value;
-    });
   }
 
   function fleetTarget(item, action) {
@@ -797,29 +785,99 @@
     return FLEET.items.find(function(item){return item.host === "cli" && fleetKey(item) === FLEET.selected;}) || null;
   }
 
+  function cliCountLabel(items) {
+    var real=items.filter(function(item){return !item.placeholder;}),pending=items.length-real.length;
+    return real.filter(function(item){return item.active;}).length+"/"+real.length+" vivos"+(pending?(" · "+pending+" equipos sin CLI"):"");
+  }
+
   function refreshFleetControls() {
     var item=selectedCli(),active=!!(item&&item.active);
     if(FLEET.cliPower)FLEET.cliPower.disabled=FLEET.busy||(!active&&!(item&&item.watcher));
     if(FLEET.cliRead)FLEET.cliRead.disabled=!active||FLEET.busy;
     if(FLEET.cliFocus)FLEET.cliFocus.disabled=!active||FLEET.busy;
-    if(FLEET.cliSend)FLEET.cliSend.disabled=!active||FLEET.busy;
-    if(FLEET.cliTerminalSend)FLEET.cliTerminalSend.disabled=!active||FLEET.busy;
-    if(FLEET.cliInput)FLEET.cliInput.disabled=!active;
-    if(FLEET.cliTerminalInput)FLEET.cliTerminalInput.disabled=!active;
   }
 
   function paintSelectedCli() {
     var selected=selectedCli(); if(!selected)return;
-    FLEET.cliTitle.textContent=selected.persona+" · "+selected.runtime;
-    FLEET.cliMeta.textContent=selected.machine+" · "+(selected.active?("PID "+selected.pid+" · tmux:"+selected.session_id+" · "+(selected.attached?"Terminal conectada":"sin Terminal conectada")):"sesión parada")+" · vista textual";
-    if(FLEET.cliTerminalInput){
-      FLEET.cliTerminalInput.setAttribute("data-cli-key",FLEET.selected);
-      FLEET.cliTerminalInput.placeholder="Escribe directamente en tmux:"+selected.session_id;
-      FLEET.cliTerminalInput.setAttribute("aria-label","Terminal remota de "+selected.persona);
-      var draft=FLEET.cliDrafts[FLEET.selected]||"";
-      if(FLEET.cliTerminalInput.value!==draft)FLEET.cliTerminalInput.value=draft;
+    if(selected.placeholder){
+      FLEET.cliTitle.textContent=selected.machine;
+      FLEET.cliMeta.textContent="Equipo censado · sin identidad CLI anunciada por su watcher";
+      if(FLEET.pty.key)disconnectSelectedPty(false);
+      ptyState("Sin PTY: enciende o registra primero un CLI canónico en este equipo.",false);
+      refreshFleetControls();return;
     }
+    FLEET.cliTitle.textContent=selected.persona+" · "+selected.runtime;
+    FLEET.cliMeta.textContent=selected.machine+" · "+(selected.active?("PID "+selected.pid+" · tmux:"+selected.session_id):"sesión parada")+" · PTY en vivo con xterm.js";
     refreshFleetControls();
+    if(isOpen("bottom")&&selected.active)connectSelectedPty(false);
+    else if(!selected.active&&FLEET.pty.key){disconnectSelectedPty(false);ptyState("Sesión parada; el PTY no acepta entrada.",false);}
+  }
+
+  function loadPtyAssets() {
+    if(FLEET.pty.loaded)return FLEET.pty.loaded;
+    FLEET.pty.loaded=new Promise(function(resolve,reject){
+      if(!document.querySelector('link[data-yk-xterm]')){
+        var css=document.createElement("link");css.rel="stylesheet";css.href="/vendor/xterm-6.0.0.css";css.setAttribute("data-yk-xterm","1");document.head.appendChild(css);
+      }
+      function script(src,done){var old=document.querySelector('script[src="'+src+'"]');if(old){if(old.getAttribute("data-loaded")==="1")return done();old.addEventListener("load",done,{once:true});old.addEventListener("error",reject,{once:true});return;}var node=document.createElement("script");node.src=src;node.addEventListener("load",function(){node.setAttribute("data-loaded","1");done();},{once:true});node.addEventListener("error",reject,{once:true});document.head.appendChild(node);}
+      script("/vendor/xterm-6.0.0.js",function(){script("/vendor/xterm-addon-fit-0.11.0.js",function(){if(window.Terminal&&window.FitAddon&&window.FitAddon.FitAddon)resolve();else reject(new Error("xterm no disponible"));});});
+    });
+    return FLEET.pty.loaded;
+  }
+
+  function bytesToBase64(bytes){var binary="",chunk=8192;for(var i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode.apply(null,bytes.subarray(i,Math.min(i+chunk,bytes.length)));return btoa(binary);}
+  function base64ToBytes(value){var binary=atob(String(value||"")),bytes=new Uint8Array(binary.length);for(var i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);return bytes;}
+  function ptySend(message){var socket=FLEET.pty.socket;if(socket&&socket.readyState===1)try{socket.send(JSON.stringify(message));}catch(e){}}
+  function ptyState(text,error){if(FLEET.cliPtyStatus){FLEET.cliPtyStatus.textContent=text;FLEET.cliPtyStatus.classList.toggle("error",!!error);}}
+
+  function ensurePtyTerminal() {
+    if(FLEET.pty.term||!FLEET.cliMount)return;
+    var term=new window.Terminal({cursorBlink:true,convertEol:false,scrollback:5000,allowProposedApi:false,
+      fontFamily:'"SFMono-Regular",Consolas,"Liberation Mono",monospace',fontSize:12,lineHeight:1.12,
+      theme:{background:"#02080d",foreground:"#bfe6df",cursor:"#78f3ff",selectionBackground:"#245064"}});
+    var fit=new window.FitAddon.FitAddon();term.loadAddon(fit);term.open(FLEET.cliMount);FLEET.pty.term=term;FLEET.pty.fit=fit;
+    term.onData(function(data){ptySend({type:"input",data:bytesToBase64(new TextEncoder().encode(data))});});
+    term.onResize(function(size){ptySend({type:"resize",cols:size.cols,rows:size.rows});});
+    term.textarea&&term.textarea.addEventListener("focus",function(){ptySend({type:"focus"});});
+    if(window.ResizeObserver){FLEET.pty.resize=new ResizeObserver(function(){try{fit.fit();}catch(e){}});FLEET.pty.resize.observe(FLEET.cliMount);}
+    setTimeout(function(){try{fit.fit();}catch(e){}},0);
+  }
+
+  function disconnectSelectedPty(manual) {
+    FLEET.pty.manual=manual!==false;if(FLEET.pty.retry){clearTimeout(FLEET.pty.retry);FLEET.pty.retry=null;}
+    var socket=FLEET.pty.socket;FLEET.pty.socket=null;FLEET.pty.key="";
+    if(socket)try{socket.close(1000,"panel closed");}catch(e){}
+    if(manual!==false)ptyState("PTY desconectado",false);
+  }
+
+  function connectSelectedPty(force) {
+    var item=selectedCli();if(!item||!item.active||!isOpen("bottom")||!FLEET.cliMount)return Promise.resolve();
+    var key=fleetKey(item)+"|"+item.pid;
+    if(!force&&FLEET.pty.key===key&&FLEET.pty.socket&&(FLEET.pty.socket.readyState===0||FLEET.pty.socket.readyState===1))return Promise.resolve();
+    disconnectSelectedPty(false);FLEET.pty.key=key;FLEET.pty.manual=false;ptyState("Abriendo el PTY verificado de "+item.machine+"…",false);
+    return loadPtyAssets().then(function(){
+      ensurePtyTerminal();if(FLEET.pty.term){FLEET.pty.term.reset();FLEET.pty.term.write("\u001b[36mConectando a tmux:"+item.session_id+"…\u001b[0m\r\n");}
+      return ykFetch("/fleet/pty/ticket",{method:"POST",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify(fleetTarget(item,"read"))});
+    }).then(function(response){return response.json().catch(function(){return {};}).then(function(body){if(!response.ok)throw new Error(body.error||("ticket "+response.status));return body;});})
+      .then(function(body){
+        if(FLEET.pty.key!==key)return;var socket=new WebSocket(body.url);FLEET.pty.socket=socket;
+        socket.addEventListener("open",function(){ptyState("Canal seguro abierto; esperando el puente del equipo…",false);try{FLEET.pty.fit.fit();}catch(e){}});
+        socket.addEventListener("message",function(event){
+          var message;try{message=JSON.parse(event.data);}catch(e){return;}
+          if(message.type==="output"&&FLEET.pty.term)FLEET.pty.term.write(base64ToBytes(message.data));
+          else if(message.type==="status")ptyState(message.text||message.state,message.state==="error");
+          else if(message.type==="title"&&message.text)FLEET.pty.term&&FLEET.pty.term.setOption&&FLEET.pty.term.setOption("title",message.text);
+          else if(message.type==="bell")try{FLEET.pty.term&&FLEET.pty.term.bell();}catch(e){}
+        });
+        socket.addEventListener("close",function(){
+          if(FLEET.pty.socket===socket)FLEET.pty.socket=null;
+          if(FLEET.pty.manual||FLEET.pty.key!==key||!isOpen("bottom"))return;
+          ptyState("PTY interrumpido; reconectando…",true);FLEET.pty.retry=setTimeout(function(){connectSelectedPty(true);},1800);
+        });
+        socket.addEventListener("error",function(){ptyState("No se pudo abrir el espejo PTY",true);});
+      }).catch(function(error){
+        if(FLEET.pty.key===key){ptyState("PTY no disponible: "+(error.message||error),true);FLEET.pty.retry=setTimeout(function(){connectSelectedPty(true);},3000);}
+      });
   }
 
   function pollTerminal(id, deadline) {
@@ -842,23 +900,19 @@
       return Promise.resolve();
     }
     var targetKey=fleetKey(item);
-    var text=action === "write" ? String(FLEET.cliDrafts[targetKey] || "") : "";
-    if(action === "write" && !text.trim()){fleetMessage("Escribe el mensaje que recibirá la sesión CLI.",true);return Promise.resolve();}
-    FLEET.busy=true; fleetMessage(action === "write" ? "Enviando a la misma sesión…" : action === "focus" ? "Conectando la Terminal del equipo a esta sesión…" : "Leyendo la misma sesión…",false);
-    var body=fleetTarget(item,action); if(action === "write")body.text=text;
+    FLEET.busy=true; fleetMessage(action === "focus" ? "Conectando la Terminal del equipo a esta sesión…" : "Leyendo la misma sesión…",false);
+    var body=fleetTarget(item,action);
     return ykFetch("/fleet/cli/terminal",{method:"POST",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify(body)})
       .then(function(response){return response.json().catch(function(){return {};}).then(function(data){if(!response.ok)throw new Error(data.error||("terminal "+response.status));return data;});})
       .then(function(data){return pollTerminal(data.command_id,Date.now()+30000);})
       .then(function(result){
         if(result.status === "failed")throw new Error(result.error||"La sesión rechazó la orden");
-        if(result.output && FLEET.cliOutput && FLEET.selected===targetKey)FLEET.cliOutput.textContent=result.output;
-        if(action === "write"){syncCliDraft(targetKey,"",null);fleetMessage("Mensaje entregado a la sesión real. Actualizando respuesta…",false);setTimeout(function(){if(FLEET.selected===targetKey)terminalAction("read");},1200);}
-        else if(action === "focus"){fleetMessage("Terminal del equipo conectada a tmux:"+item.session_id+".",false);setTimeout(loadFleet,1200);}
+        if(result.output&&FLEET.pty.term&&FLEET.selected===targetKey&&(!FLEET.pty.socket||FLEET.pty.socket.readyState!==1)){FLEET.pty.term.reset();FLEET.pty.term.write(new TextEncoder().encode(result.output.replace(/\n/g,"\r\n")));}
+        if(action === "focus"){fleetMessage("Terminal del equipo conectada a tmux:"+item.session_id+".",false);setTimeout(loadFleet,1200);}
         else fleetMessage("Sesión sincronizada · "+new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"}),false);
       }).catch(function(error){fleetMessage(error.message||"No se pudo comunicar con la sesión",true);})
       .finally(function(){
-        // Una lectura periódica no debe sustituir los textareas: conservar el
-        // mismo nodo conserva foco, selección, composición IME y borrador.
+        // El PTY/xterm no se reconstruye: conserva foco, composición y cursor.
         FLEET.busy=false;refreshFleetControls();
         if(FLEET.focusQueued){FLEET.focusQueued=false;setTimeout(function(){terminalAction("focus");},0);}
       });
@@ -898,51 +952,47 @@
   }
 
   function renderCli() {
-    if(!FLEET.cliList)return; var editor=activeCliEditor();FLEET.cliList.textContent="";FLEET.cliInput=null;FLEET.cliPower=null;FLEET.cliRead=null;FLEET.cliFocus=null;FLEET.cliSend=null;
+    if(!FLEET.cliList)return;FLEET.cliList.textContent="";FLEET.cliPower=null;FLEET.cliRead=null;FLEET.cliFocus=null;
     var clis=FLEET.items.filter(function(item){return item.host === "cli";});
-    FLEET.cliCount.textContent=clis.filter(function(item){return item.active;}).length+"/"+clis.length+" vivos";
+    FLEET.cliCount.textContent=cliCountLabel(clis);
     if(!clis.length){FLEET.cliList.appendChild(el("p","yk-fleet-empty","Sin CLIs observados."));return;}
     if(!clis.some(function(item){return fleetKey(item)===FLEET.selected;}))FLEET.selected=fleetKey(clis.find(function(item){return item.active;})||clis[0]);
     clis.forEach(function(item){
       var key=fleetKey(item),expanded=key===FLEET.cliExpanded,group=el("div","yk-cli-agent-group");
+      var tab=el("div","yk-cli-agent-tab"+(key===FLEET.selected?" selected":""));
       var button=el("button","yk-cli-agent"+(key===FLEET.selected?" selected":""));button.type="button";
       button.setAttribute("aria-expanded",String(expanded));button.appendChild(el("span","yk-cli-chevron"));
-      button.appendChild(fleetText("b",null,item.persona+" · "+item.runtime));
-      button.appendChild(fleetText("small",item.active?"live":"",item.machine+" · "+(item.active?(item.attached?"Terminal conectada":"tmux autónomo"):"parado")));
-      var actions=el("div","yk-cli-agent-actions");actions.hidden=!expanded;
+      button.appendChild(fleetText("b",null,item.placeholder?item.machine:(item.persona+" · "+item.runtime)));
+      button.appendChild(fleetText("small",item.active?"live":"",item.placeholder?"sin CLI anunciado":(item.machine+" · "+(item.active?(item.attached?"Terminal conectada":"tmux autónomo"):"parado"))));
       button.addEventListener("click",function(){
         var changed=FLEET.selected!==key,isOpen=FLEET.cliExpanded===key;
         FLEET.selected=key;FLEET.cliExpanded=isOpen?"":key;
-        if(changed&&FLEET.cliOutput)FLEET.cliOutput.textContent=item.active?"Pulsa Leer para sincronizar esta sesión.":"La sesión seleccionada está parada.";
+        if(changed)disconnectSelectedPty(false);
         renderCli();
       });
-      group.appendChild(button);
-      if(expanded){
+      tab.appendChild(button);
+      if(expanded&&!item.placeholder){
         var controls=el("div","yk-cli-agent-buttons");
-        FLEET.cliPower=fleetButton(item.active?"■ Detener":"▶ Arrancar","yk-cli-power",function(){fleetControl(item,item.active?"stop":"start");});
+        FLEET.cliPower=fleetButton(item.active?"■":"▶","yk-cli-power",function(){fleetControl(item,item.active?"stop":"start");});
+        FLEET.cliPower.title=item.active?"Detener agente":"Arrancar agente";FLEET.cliPower.setAttribute("aria-label",FLEET.cliPower.title);
         FLEET.cliPower.disabled=FLEET.busy||(!item.active&&!item.watcher);controls.appendChild(FLEET.cliPower);
-        FLEET.cliRead=fleetButton("↻ Leer","yk-cli-read",function(){terminalAction("read");});FLEET.cliRead.disabled=!item.active||FLEET.busy;controls.appendChild(FLEET.cliRead);
-        FLEET.cliFocus=fleetButton("◎ Mostrar en equipo","yk-cli-focus",function(){terminalAction("focus");});FLEET.cliFocus.disabled=!item.active;controls.appendChild(FLEET.cliFocus);actions.appendChild(controls);
-        var form=el("form","yk-cli-agent-form");FLEET.cliInput=el("textarea","yk-cli-input");FLEET.cliInput.maxLength=4000;FLEET.cliInput.rows=2;
-        FLEET.cliInput.placeholder="Mensaje para "+item.persona;FLEET.cliInput.value=FLEET.cliDrafts[key]||"";FLEET.cliInput.disabled=!item.active;FLEET.cliInput.setAttribute("data-cli-key",key);
-        var listInput=FLEET.cliInput;listInput.addEventListener("input",function(){syncCliDraft(key,listInput.value,listInput);});form.appendChild(listInput);
-        FLEET.cliSend=el("button","yk-cli-send","Enviar ↵");FLEET.cliSend.type="submit";FLEET.cliSend.disabled=!item.active||FLEET.busy;form.appendChild(FLEET.cliSend);
-        form.addEventListener("submit",function(event){event.preventDefault();terminalAction("write");});actions.appendChild(form);
+        FLEET.cliRead=fleetButton("↻","yk-cli-read",function(){connectSelectedPty(true);terminalAction("read");});FLEET.cliRead.title="Leer y reconectar PTY";FLEET.cliRead.setAttribute("aria-label",FLEET.cliRead.title);FLEET.cliRead.disabled=!item.active||FLEET.busy;controls.appendChild(FLEET.cliRead);
+        FLEET.cliFocus=fleetButton("◎","yk-cli-focus",function(){terminalAction("focus");});FLEET.cliFocus.title="Mostrar esta sesión en el equipo";FLEET.cliFocus.setAttribute("aria-label",FLEET.cliFocus.title);FLEET.cliFocus.disabled=!item.active;controls.appendChild(FLEET.cliFocus);tab.appendChild(controls);
       }
-      group.appendChild(actions);FLEET.cliList.appendChild(group);
+      group.appendChild(tab);FLEET.cliList.appendChild(group);
     });
-    paintSelectedCli();restoreCliEditor(editor);
+    paintSelectedCli();
   }
 
   function renderFleet(){renderApps();renderCli();}
   function loadFleet() {
     return fetch(TELEGRAM+"/api/presence",{cache:"no-store"}).then(function(response){if(!response.ok)throw new Error("presence "+response.status);return response.json();})
       .then(function(payload){
-        var items=fleetItems(payload),structure=fleetStructureKey(items),editor=activeCliEditor();FLEET.items=items;
-        if(structure!==FLEET.structureKey){FLEET.structureKey=structure;renderFleet();restoreCliEditor(editor);}
+        var items=fleetItems(payload),structure=fleetStructureKey(items);FLEET.items=items;
+        if(structure!==FLEET.structureKey){FLEET.structureKey=structure;renderFleet();}
         else{
           if(FLEET.appCount){var apps=items.filter(function(item){return item.host==="app";});FLEET.appCount.textContent=apps.filter(function(item){return item.active;}).length+"/"+apps.length+" vivas";}
-          if(FLEET.cliCount){var clis=items.filter(function(item){return item.host==="cli";});FLEET.cliCount.textContent=clis.filter(function(item){return item.active;}).length+"/"+clis.length+" vivos";}
+          if(FLEET.cliCount){var clis=items.filter(function(item){return item.host==="cli";});FLEET.cliCount.textContent=cliCountLabel(clis);}
           paintSelectedCli();
         }
         return payload;
@@ -970,15 +1020,9 @@
     var terminal=el("div","yk-cli-terminal");var terminalHead=el("div","yk-cli-terminal-head");
     var identity=el("span");FLEET.cliTitle=fleetText("b",null,"Selecciona un CLI");FLEET.cliMeta=fleetText("small",null,"Sesión remota segura");identity.appendChild(FLEET.cliTitle);identity.appendChild(FLEET.cliMeta);terminalHead.appendChild(identity);
     terminal.appendChild(terminalHead);
-    FLEET.cliOutput=el("pre","yk-cli-output");FLEET.cliOutput.textContent="La salida de la sesión real aparecerá aquí.";terminal.appendChild(FLEET.cliOutput);
-    var terminalForm=el("form","yk-cli-terminal-form");terminalForm.appendChild(fleetText("span","yk-cli-prompt","›"));
-    FLEET.cliTerminalInput=el("textarea","yk-cli-terminal-input");FLEET.cliTerminalInput.rows=1;FLEET.cliTerminalInput.maxLength=4000;FLEET.cliTerminalInput.disabled=true;
-    FLEET.cliTerminalInput.setAttribute("aria-label","Terminal remota");terminalForm.appendChild(FLEET.cliTerminalInput);
-    FLEET.cliTerminalSend=el("button","yk-cli-terminal-send","Enviar ↵");FLEET.cliTerminalSend.type="submit";FLEET.cliTerminalSend.disabled=true;terminalForm.appendChild(FLEET.cliTerminalSend);
-    FLEET.cliTerminalInput.addEventListener("input",function(){var item=selectedCli();if(item)syncCliDraft(fleetKey(item),FLEET.cliTerminalInput.value,FLEET.cliTerminalInput);});
-    FLEET.cliTerminalInput.addEventListener("keydown",function(event){if(event.key==="Enter"&&!event.shiftKey&&!event.isComposing){event.preventDefault();terminalForm.requestSubmit();}});
-    terminalForm.addEventListener("submit",function(event){event.preventDefault();terminalAction("write");});terminal.appendChild(terminalForm);
-    terminal.appendChild(fleetText("small","yk-cli-terminal-help","Misma sesión tmux · Enter envía · Shift+Enter añade una línea"));
+    FLEET.cliMount=el("div","yk-cli-xterm");FLEET.cliMount.setAttribute("aria-label","Terminal PTY remota interactiva");terminal.appendChild(FLEET.cliMount);
+    FLEET.cliPtyStatus=fleetText("small","yk-cli-pty-status","Abre Experto y selecciona una sesión viva.");FLEET.cliPtyStatus.setAttribute("role","status");terminal.appendChild(FLEET.cliPtyStatus);
+    terminal.appendChild(fleetText("small","yk-cli-terminal-help","PTY real · escribe directamente · ANSI, cursor y tamaño sincronizados por xterm.js"));
     section.appendChild(terminal);return section;
   }
 
@@ -1138,7 +1182,8 @@
     fetchCounters();
     loadFleet();
     setInterval(loadFleet, 10000);
-    setInterval(function(){if(isOpen("bottom") && selectedCli() && selectedCli().active && !FLEET.busy && !activeCliEditor())terminalAction("read");},5000);
+    // El WebSocket PTY entrega cambios al instante. No se repinta ni se roba el
+    // foco con lecturas temporizadas mientras alguien escribe en xterm.
   }
 
   // Pie fijo del raíl OPCIONES: AJUSTES (plegado por defecto, contenido REAL de
@@ -1875,6 +1920,10 @@
     // reflejar el estado en el icono (encendido/apagado)
     var ico = document.querySelector('.yk-ico[data-yk-panel="' + panel + '"]');
     if (ico) ico.setAttribute("aria-pressed", v ? "true" : "false");
+    if(panel==="bottom"){
+      if(v)setTimeout(function(){connectSelectedPty(false);if(FLEET.pty.term)try{FLEET.pty.fit.fit();}catch(e){}},0);
+      else disconnectSelectedPty(true);
+    }
   }
 
   function wire(ico, panel) {

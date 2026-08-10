@@ -1,5 +1,7 @@
 export const CLI_MACHINES = Object.freeze([
   "MacBookAir16plata",
+  "MacBookAirRosa",
+  "MacBookAirCrema",
   "MacBookPro14",
   "MacMini"
 ]);

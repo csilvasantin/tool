@@ -128,9 +128,17 @@ bucket_name = "yokup-media"
 name = "ROOM"
 class_name = "Room"
 
+[[durable_objects.bindings]]
+name = "PTY"
+class_name = "PtyRoom"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Room"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["PtyRoom"]
 
 # Variables en claro (los secretos van aparte, vía `wrangler secret put`).
 [vars]

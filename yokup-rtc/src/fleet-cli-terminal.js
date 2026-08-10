@@ -43,7 +43,7 @@ export function normalizeCliTerminalRequest(input) {
   return { ...target, action, text:action === "write" ? terminalText(input && input.text) : "" };
 }
 
-export async function dispatchCliTerminal(env, input) {
+export async function verifyCliTerminalTarget(env, input) {
   requireBinding(env);
   const request = normalizeCliTerminalRequest(input);
   let presenceResponse;
@@ -66,6 +66,12 @@ export async function dispatchCliTerminal(env, input) {
     session_id:String(session.session_id || "").trim(), pid:Number(session.pid),
     action:request.action, text:request.text
   };
+  return confirmed;
+}
+
+export async function dispatchCliTerminal(env, input) {
+  requireBinding(env);
+  const confirmed = await verifyCliTerminalTarget(env, input);
   let response;
   try {
     response = await env.TELEGRAM.fetch(new Request("https://telegram/api/fleet/cli/terminal", {
