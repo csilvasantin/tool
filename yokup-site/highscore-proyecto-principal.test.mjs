@@ -8,8 +8,9 @@ import vm from "node:vm";
 // aunque el censo lo declare responsable de uno (Carlos, 2026-08-05: «¿por qué
 // se ha perdido el proyecto principal?»). Ahora la cascada es:
 //   1. lo que está haciendo AHORA (derivado del trabajo),
-//   2. su proyecto principal del censo (projects + agents/primary_responsible),
-//   3. suscositas.com — comodín que debería verse casi nunca; si sale, es que a
+//   2. su proyecto principal declarado para hoy,
+//   3. su proyecto estructural del censo (projects + agents/primary_responsible),
+//   4. suscositas.com — comodín que debería verse casi nunca; si sale, es que a
 //      ese agente no se le ha asignado proyecto.
 const source = await readFile(new URL("./highscore.html", import.meta.url), "utf8");
 const identitySource = await readFile(new URL("./yk-agent-identity.js", import.meta.url), "utf8");
@@ -28,6 +29,14 @@ function censo(proyectos, id = identity) {
     corte("function maquinaDelProyecto(", "var lista = Object.keys(por)");
   return new Function("datos", "id", "normaliza",
     `${helpers}\nreturn proyectoDeCenso;`)({ proyectos }, id, (v) => String(v == null ? "" : v).trim());
+}
+
+function diario(proyectos, declaraciones, id = identity) {
+  const helpers = corte("function claveProyecto(", "function fichaProyecto(") +
+    corte("function proyectoDeclaradoHoy(", "var lista = Object.keys(por)");
+  return new Function("datos", "id", "normaliza",
+    `${helpers}\nreturn proyectoDeclaradoHoy;`)({ proyectos, declaracionesPrincipales:declaraciones }, id,
+      (v) => String(v == null ? "" : v).trim());
 }
 
 // Censo recortado del real (GET /projects) con los casos que importan.
@@ -80,11 +89,30 @@ test("los proyectos archivados no cuentan", () => {
   assert.equal(resolver({ base:"Neo", suffix:"MBACrema" }), null);
 });
 
-test("la cascada trabajo → principal → suscositas está en el código", () => {
+test("la declaración diaria exacta gana al proyecto estructural del censo", () => {
+  const resolver = diario(PROYECTOS, [{
+    day:"2026-08-10", agent_key:"trinitymbp14", agent:"TrinityMBP14",
+    project_id:"admira-academy", project_name:"Admira Academy",
+    project_web:"https://admira.academy", project_status:"activo"
+  }]);
+  assert.equal(resolver({ base:"Trinity", suffix:"MBP14" }).label, "admira.academy");
+  assert.equal(resolver({ base:"Trinity", suffix:"MBP16" }), null,
+    "la declaración de TrinityMBP14 no se hereda en otra máquina");
+});
+
+test("la cascada trabajo → principal diario → censo → suscositas está en el código", () => {
   assert.match(source, /if \(f\.proyecto\) \{\s*f\.proyectoOrigen = "trabajo";/);
+  assert.match(source, /f\.proyectoOrigen = "declarado"/);
   assert.match(source, /f\.proyectoOrigen = "principal"/);
   assert.match(source, /f\.proyecto = "suscositas\.com"; f\.proyectoUrl = "https:\/\/www\.suscositas\.com"/);
   assert.match(source, /f\.proyectoOrigen = "defecto"/);
+  assert.match(source, /principal_declarations \|\| \[\]/);
+});
+
+test("una tarea activa gana a un heartbeat posterior con otro proyecto", () => {
+  assert.match(source, /prioridad < anterior/);
+  assert.match(source, /marcaProyecto\(f, proyecto, comoMs\(at\), contextoProyecto \|\| detalle, PRIORIDAD_ACTIVIDAD\[tipo\]\)/);
+  assert.match(source, /marcaProyecto\(f, p\.project, t \* 1000, p\.focus, 0\)/);
 });
 
 test("el chip dice de dónde sale el proyecto y marca en ámbar el que falta", () => {
@@ -94,6 +122,8 @@ test("el chip dice de dónde sale el proyecto y marca en ámbar el que falta", (
     /class="project-chip"[\s\S]*Proyecto en curso/);
   assert.match(html({ proyecto:"clearchannel.tv", proyectoUrl:"https://www.clearchannel.tv", proyectoOrigen:"principal" }),
     /class="project-chip principal"[\s\S]*Proyecto principal/);
+  assert.match(html({ proyecto:"admira.academy", proyectoUrl:"https://admira.academy", proyectoOrigen:"declarado" }),
+    /class="project-chip principal"[\s\S]*Proyecto principal de hoy/);
   const falta = html({ proyecto:"suscositas.com", proyectoUrl:"https://www.suscositas.com", proyectoOrigen:"defecto" });
   assert.match(falta, /class="project-chip defecto"/);
   assert.match(falta, /Sin proyecto asignado en el censo/);

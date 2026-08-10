@@ -803,7 +803,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   var datos = { tareas: [], tareasFresh: false, actividad: [], actividadMeta: null, actividadFresh: false,
-    presencia: [], misiones: [], ideas: [], decisiones: [], proyectos: [], turnos: null };
+    presencia: [], misiones: [], ideas: [], decisiones: [], proyectos: [],
+    declaracionesPrincipales: [], turnos: null };
   var DAILY_CACHE_KEY = "yokup.highscore.daily.v1";
   function guardaActividadDiaria(payload) {
     if (!payload || !Array.isArray(payload.scores) || payload.day !== claveDia(Date.now())) return;
@@ -827,7 +828,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         seguroYokup("/ideas", function (d) { return d.ideas || []; }),
         seguroYokup("/decisions", function (d) { return d.items || d.decisions || []; }),
         seguro("/api/presence", function (d) { return d.presence || []; }),
-        seguroYokup("/projects", function (d) { return d.projects || []; }),
+        seguroYokup("/projects", function (d) { return {
+          projects:d.projects || [], declarations:d.principal_declarations || []
+        }; }),
         // Reparto de turnos: quién abre cuándo. Es lo que hace honesta la cuenta
         // atrás de la fila desplegada; si no responde, esa cifra cae al cupo.
         seguroYokup("/fleet/turnos", function (d) { return d && d.ok ? d : null; })
@@ -839,7 +842,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (fresh) guardaActividadDiaria(r[0]);
       datos.actividadFresh = fresh && datos.tareasFresh;
       datos.actividadMeta = a || null; datos.actividad = a && a.scores || [];
-      datos.misiones = r[1] || []; datos.ideas = r[2] || []; datos.decisiones = r[3] || []; datos.presencia = r[4] || []; datos.proyectos = r[5] || [];
+      datos.misiones = r[1] || []; datos.ideas = r[2] || []; datos.decisiones = r[3] || []; datos.presencia = r[4] || [];
+      datos.proyectos = r[5] && r[5].projects || [];
+      datos.declaracionesPrincipales = r[5] && r[5].declarations || [];
       datos.turnos = r[6] || null;
       pon(76, "OBJETIVOS · VENTANAS · MISIONES · " + ((a && a.recorded && a.recorded.objectives) || 0) + " / " + ((a && a.recorded && a.recorded.windows) || 0) + " / " + ((a && a.recorded && a.recorded.missions) || 0));
       pon(94, "PRESENCIA · " + datos.presencia.length + " AGENTES");
@@ -1161,13 +1166,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         misiones:0, ptsMisiones:0, tareas:0, ptsTareas:0, seenDailyScore:false, seenTask:false,
         vivo:false, haLatido:false, runtime:"",
         maquinas:[], maquinasVivas:[], actividad:"", actividadAt:0, actividadDetalle:"", progresion:null,
-        proyecto:"", proyectoUrl:"", proyectoAt:0 };
+        proyecto:"", proyectoUrl:"", proyectoAt:0, proyectoPeso:0 };
       return por[d.key];
     }
-    function marcaProyecto(destino, raw, at, contexto) {
+    function marcaProyecto(destino, raw, at, contexto, peso) {
       var ficha = fichaProyecto(raw, contexto), instante = Number(at) || 0;
-      if (!ficha || !ficha.label || instante < Number(destino.proyectoAt || 0)) return;
+      var prioridad = Number(peso) || 0, anterior = Number(destino.proyectoPeso) || 0;
+      if (!ficha || !ficha.label || prioridad < anterior ||
+          (prioridad === anterior && instante < Number(destino.proyectoAt || 0))) return;
       destino.proyecto = ficha.label; destino.proyectoUrl = ficha.url; destino.proyectoAt = instante;
+      destino.proyectoPeso = prioridad;
     }
     function adoptaActividad(destino, tipo, at, detalle) {
       if (!tipo) return;
@@ -1177,13 +1185,13 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     }
     function marcaActividad(n, machine, tipo, at, detalle, proyecto, contextoProyecto) {
       var d = datosId(n, machine), f = por[d.key];
-      if (f) { adoptaActividad(f, tipo, comoMs(at), detalle); marcaProyecto(f, proyecto, comoMs(at), contextoProyecto || detalle); }
+      if (f) { adoptaActividad(f, tipo, comoMs(at), detalle); marcaProyecto(f, proyecto, comoMs(at), contextoProyecto || detalle, PRIORIDAD_ACTIVIDAD[tipo]); }
     }
     function marcaAutor(author, tipo, at, detalle, proyecto) {
       var partes = normaliza(author).split("·").map(function (p) { return p.trim(); }).filter(Boolean);
       for (var i = partes.length - 1; i >= 0; i--) {
         var d = datosId(partes[i], "");
-        if (por[d.key]) { adoptaActividad(por[d.key], tipo, comoMs(at), detalle); marcaProyecto(por[d.key], proyecto, comoMs(at), detalle); return; }
+        if (por[d.key]) { adoptaActividad(por[d.key], tipo, comoMs(at), detalle); marcaProyecto(por[d.key], proyecto, comoMs(at), detalle, PRIORIDAD_ACTIVIDAD[tipo]); return; }
       }
     }
     function suma(destino, origen) {
@@ -1197,7 +1205,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       destino.haLatido = destino.haLatido || origen.haLatido;
       adoptaActividad(destino, origen.actividad, origen.actividadAt, origen.actividadDetalle);
       if (!destino.progresion && origen.progresion) destino.progresion = origen.progresion;
-      marcaProyecto(destino, origen.proyecto, origen.proyectoAt, origen.proyecto);
+      marcaProyecto(destino, origen.proyecto, origen.proyectoAt, origen.proyecto, origen.proyectoPeso);
       if (!destino.runtime) destino.runtime = origen.runtime;
       origen.maquinas.forEach(function (m) { if (destino.maquinas.indexOf(m) < 0) destino.maquinas.push(m); });
       origen.maquinasVivas.forEach(function (m) { if (destino.maquinasVivas.indexOf(m) < 0) destino.maquinasVivas.push(m); });
@@ -1240,7 +1248,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       }
       if (fresco) {
         f.vivo = true; if (p.runtime && !f.runtime) f.runtime = p.runtime;
-        marcaProyecto(f, p.project, t * 1000, p.focus);
+        // El latido sólo es una pista de respaldo. Una tarea, ventana, misión u
+        // objetivo activo manda aunque su timestamp sea anterior al heartbeat.
+        marcaProyecto(f, p.project, t * 1000, p.focus, 0);
       }
     });
     // Actividad AHORA, no totales históricos. Una sola señal por agente:
@@ -1282,7 +1292,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         objetivos:0, ptsObjetivos:0, ventanas:0, ptsVentanas:0,
         misiones:0, ptsMisiones:0, tareas:0, ptsTareas:0, seenDailyScore:false, seenTask:false,
         vivo:false, haLatido:false, runtime:"", maquinas:[], maquinasVivas:[],
-        actividad:"", actividadAt:0, actividadDetalle:"", progresion:null, proyecto:"", proyectoUrl:"", proyectoAt:0 };
+        actividad:"", actividadAt:0, actividadDetalle:"", progresion:null,
+        proyecto:"", proyectoUrl:"", proyectoAt:0, proyectoPeso:0 };
       suma(por[targetKey], f); delete por[k];
     });
     // PROYECTO PRINCIPAL DEL CENSO (Carlos, 2026-08-05). La columna se derivaba
@@ -1333,6 +1344,24 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       return { id:normaliza(p.id), label:claveProyecto(web) || normaliza(p.name || p.id),
         url:web ? (/^https?:\/\//i.test(web) ? web : "https://" + web) : "" };
     }
+    // La declaración diaria es la respuesta exacta a «¿a qué nos dedicamos hoy?».
+    // No se deriva del censo ni del último latido y vence con el día de Madrid.
+    // Si no hay trabajo activo, gana siempre al proyecto estructural del censo.
+    function proyectoDeclaradoHoy(f) {
+      if (!f || !f.suffix) return null;
+      var agente = id ? id.display(f.base, f.suffix) : (f.base + f.suffix);
+      var clave = id ? id.key(agente) : normaliza(agente).toLowerCase();
+      var fila = (datos.declaracionesPrincipales || []).find(function (d) {
+        var declarada = normaliza(d.agent_key || (id ? id.key(d.agent) : d.agent)).toLowerCase();
+        return declarada === clave;
+      });
+      if (!fila || normaliza(fila.project_status || "activo").toLowerCase() === "archivado") return null;
+      var proyecto = (datos.proyectos || []).find(function (p) { return normaliza(p.id) === normaliza(fila.project_id); });
+      var web = normaliza(fila.project_web || (proyecto && proyecto.web));
+      return { id:normaliza(fila.project_id),
+        label:claveProyecto(web) || normaliza(fila.project_name || (proyecto && proyecto.name) || fila.project_id),
+        url:web ? (/^https?:\/\//i.test(web) ? web : "https://" + web) : "" };
+    }
     var lista = Object.keys(por).map(function (k) {
       var f = por[k];
       f.agente = id ? id.display(f.base, f.suffix) : f.base;
@@ -1354,8 +1383,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         var enCenso = proyectoDeCenso(f);
         f.proyectoId = (enCenso && enCenso.id) || "";
       } else {
-        var censo = proyectoDeCenso(f);
-        if (censo && censo.label) {
+        var declarado = proyectoDeclaradoHoy(f), censo = proyectoDeCenso(f);
+        if (declarado && declarado.label) {
+          f.proyecto = declarado.label; f.proyectoUrl = declarado.url; f.proyectoOrigen = "declarado";
+          f.proyectoId = declarado.id;
+        } else if (censo && censo.label) {
           f.proyecto = censo.label; f.proyectoUrl = censo.url; f.proyectoOrigen = "principal";
           f.proyectoId = censo.id;
         } else {
@@ -1692,14 +1724,15 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // faena que tenerlo asignado en el censo (Carlos, 2026-08-05).
   var TITULO_PROYECTO = {
     trabajo:"Proyecto en curso · sale de su trabajo de las últimas horas",
-    principal:"Proyecto principal · asignado en el censo; ahora mismo no está trabajando en él",
+    declarado:"Proyecto principal de hoy · declarado expresamente; no hay una tarea activa que lo sustituya",
+    principal:"Proyecto principal estructural · asignado en el censo; hoy no se declaró otro",
     defecto:"Sin proyecto asignado en el censo — hay que darle uno"
   };
   function proyectoHtml(a) {
     if (!a.proyecto) return '<span class="project-empty">—</span>';
     var origen = a.proyectoOrigen || "trabajo", label = esc(a.proyecto);
     var title = (TITULO_PROYECTO[origen] || TITULO_PROYECTO.trabajo) + " · " + label;
-    var clase = "project-chip" + (origen === "principal" ? " principal" : "") +
+    var clase = "project-chip" + (["declarado","principal"].indexOf(origen) >= 0 ? " principal" : "") +
       (origen === "defecto" ? " defecto" : "");
     return a.proyectoUrl
       ? '<a class="' + clase + '" href="' + esc(a.proyectoUrl) + '" target="_blank" rel="noopener" title="' + esc(title) + '">' + label + '</a>'
@@ -2856,7 +2889,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       'Los cinco indicadores muestran siempre una pareja numérica <b>hora / total del día</b>; una hora sin actividad se representa con <b>0</b>.</li>' +
       '<li><b>Ordenador:</b> en verde el que late ahora, apagado el conocido sin latido reciente. ' +
       'Un mismo agente corre en varios a la vez.</li>' +
-      '<li><b>Proyecto:</b> muestra el dominio del proyecto declarado por el latido o por el objetivo, ventana, misión o tarea activa. Sin evidencia aparece <b>—</b>.</li>' +
+      '<li><b>Proyecto:</b> manda la tarea activa; después ventana, misión u objetivo. Si no hay trabajo activo, muestra el <b>proyecto principal declarado para hoy</b> y sólo después el proyecto estructural del censo.</li>' +
       '<li>El <b>número verde que parpadea</b> señala qué hace el agente ahora: objetivo, ventana, misión o tarea. ' +
       'Si ninguno parpadea, está <b>idle</b>. Solo se muestra una señal, priorizando la tarea activa.</li></ul>' +
       '<p style="margin-top:10px">Hoy puntúan <b>' + hoyTareas.length + '</b> tareas. La bitácora ha anotado <b>' +
@@ -2967,7 +3000,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       seguroYokup("/tickets?scope=fleet", function (d) { return d.tickets || []; }),
       seguroYokup("/ideas", function (d) { return d.ideas || []; }),
       seguroYokup("/decisions", function (d) { return d.items || d.decisions || []; }),
-      seguroYokup("/projects", function (d) { return d.projects || []; }),
+      seguroYokup("/projects", function (d) { return {
+        projects:d.projects || [], declarations:d.principal_declarations || []
+      }; }),
       seguroYokup("/fleet/turnos", function (d) { return d && d.ok ? d : null; })
     ]).then(function (r) {
       datos.tareasFresh = Array.isArray(r[0]);
@@ -2979,7 +3014,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (r[3]) datos.misiones = r[3];
       if (r[4]) datos.ideas = r[4];
       if (r[5]) datos.decisiones = r[5];
-      if (r[6]) datos.proyectos = r[6];
+      if (r[6]) {
+        datos.proyectos = r[6].projects || [];
+        datos.declaracionesPrincipales = r[6].declarations || [];
+      }
       // El reparto cambia con el censo: un agente nuevo estrecha la franja de
       // todos. Si esta vuelta no contesta se conserva el anterior, que envejece
       // mejor que caer al cupo y prometer una ventana que no toca.

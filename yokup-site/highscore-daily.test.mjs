@@ -102,7 +102,7 @@ test("No concluida conserva tarea y puntos base; sólo pierde actividad y bonus"
 });
 
 test("el ranking distingue actividad actual de los totales históricos", () => {
-  assert.match(html, /datos = \{ tareas: \[\], tareasFresh: false, actividad: \[\],[^}]*misiones: \[\], ideas: \[\], decisiones: \[\], proyectos: \[\], turnos: null \}/);
+  assert.match(html, /datos = \{ tareas: \[\], tareasFresh: false, actividad: \[\],[^}]*misiones: \[\], ideas: \[\], decisiones: \[\], proyectos: \[\],[^}]*declaracionesPrincipales: \[\], turnos: null \}/);
   assert.match(html, /seguroYokup\("\/tickets\?scope=fleet", function \(d\) \{ return d\.tickets \|\| \[\]; \}\)/);
   assert.match(html, /seguroYokup\("\/ideas"/);
   assert.match(html, /seguroYokup\("\/decisions"/);
@@ -213,9 +213,9 @@ test("la decisión de estado ejecuta la precedencia tarea > ventana > misión > 
 test("la columna Proyecto usa el dominio real del censo y queda entre Ordenador y Objetivos", () => {
   assert.match(html, /data-sort="ordenador">Ordenador[\s\S]*data-sort="proyecto">Proyecto[\s\S]*data-sort="objetivos">Objetivos/);
   assert.match(html, /function fichaProyecto\(raw, contexto\)/);
-  assert.match(html, /marcaProyecto\(f, p\.project, t \* 1000, p\.focus\)/);
+  assert.match(html, /marcaProyecto\(f, p\.project, t \* 1000, p\.focus, 0\)/);
   assert.match(html, /m\.project_name \|\| m\.project/);
   assert.match(html, /d\.project_id \|\| d\.project/);
   assert.match(html, /<td class="project-cell">' \+ proyectoHtml\(a\) \+ '<\/td>/);
-  assert.match(html, /Sin evidencia aparece <b>—<\/b>/);
+  assert.match(html, /proyecto principal declarado para hoy/);
 });
