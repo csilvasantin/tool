@@ -47,6 +47,29 @@ print(json.dumps(out,ensure_ascii=False,separators=(",",":")))
 blocked() { log "$1"; result blocked "${2:-blocked}"; exit "$EXIT_BLOCKED"; }
 failed() { log "$1"; result error "${2:-error}"; exit "$EXIT_ERROR"; }
 
+# DE NOCHE NO SE PROPONEN MEJORAS (Carlos, 2026-08-10).
+# El launchd que dispara esto lleva `Minute 13` y ningún `Hour`: se ejecuta cada
+# hora, las veinticuatro. La noche del 9 al 10 de agosto eso significó ventanas
+# de mejora a las 00:37, 00:55, 01:23, 02:08, 02:31, 02:51, 03:20 y 03:43; los
+# agentes las fueron implementando y publicando, y Carlos se levantó con Yokup
+# cambiado, cinco releases nuevas y cosas movidas de sitio que no había pedido.
+# El cupo de 8/día no lo impedía: cabían de sobra antes del desayuno.
+# Una propuesta de mejora es una petición de atención humana. A las tres de la
+# mañana no hay nadie a quien pedírsela, así que se calla y espera.
+# Franja configurable; ONIDLE_IGNORA_HORARIO=1 para una noche concreta a mano.
+ONIDLE_NOCHE_DESDE="${ONIDLE_NOCHE_DESDE:-23}"
+ONIDLE_NOCHE_HASTA="${ONIDLE_NOCHE_HASTA:-8}"
+
+es_de_noche() {
+  local h="${1:-$(date +%-H)}" desde="$ONIDLE_NOCHE_DESDE" hasta="$ONIDLE_NOCHE_HASTA"
+  # La franja cruza la medianoche: 23→8 es «h >= 23 o h < 8».
+  if [ "$desde" -gt "$hasta" ]; then
+    [ "$h" -ge "$desde" ] || [ "$h" -lt "$hasta" ]
+  else
+    [ "$h" -ge "$desde" ] && [ "$h" -lt "$hasta" ]
+  fi
+}
+
 sound() {
   [ -x "$AFPLAY" ] || return 0
   "$AFPLAY" "/System/Library/Sounds/$1.aiff" >/dev/null 2>&1 || true
@@ -159,6 +182,12 @@ case "${1:-}" in
   "") ;;
   *) failed "argumento no reconocido: $1" "bad_argument" ;;
 esac
+
+# Se comprueba ANTES de llamar al worker: de noche no se consulta, no se propone
+# y no se gasta cupo. Que la franja nocturna no dependa de que el API conteste.
+if [ "${ONIDLE_IGNORA_HORARIO:-0}" != "1" ] && es_de_noche; then
+  blocked "de noche no se abren ventanas de mejora (${ONIDLE_NOCHE_DESDE}:00–${ONIDLE_NOCHE_HASTA}:00): no hay nadie a quien pedirle atención" "franja_nocturna"
+fi
 
 state="$(curl -fsS -m 20 -G "$API/fleet/onidle-state" \
   --data-urlencode "agent=$AGENT" --data-urlencode "machine=$MACHINE" 2>/dev/null)" || {
