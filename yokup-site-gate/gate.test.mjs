@@ -28,7 +28,7 @@ test("conserva alias, puertas MCP/Help y fallback SPA sin _redirects", async () 
   const seen = [];
   const assetEnv = env(async (request) => {
     seen.push(new URL(request.url).pathname);
-    return new URL(request.url).pathname === "/desconocida" ? new Response("no", {status:404}) : new Response("sí");
+    return new URL(request.url).pathname.startsWith("/desconocida") ? new Response("no", {status:404}) : new Response("sí");
   });
   const alias = await handleRequest(new Request("https://www.yokup.com/agentica"), assetEnv, {});
   assert.equal(alias.status, 301);
@@ -36,7 +36,17 @@ test("conserva alias, puertas MCP/Help y fallback SPA sin _redirects", async () 
   assert.equal(await (await handleRequest(new Request("https://www.yokup.com/help"), assetEnv, {})).text(), "sí");
   assert.equal(await (await handleRequest(new Request("https://www.yokup.com/mcp/"), assetEnv, {})).text(), "sí");
   assert.equal(await (await handleRequest(new Request("https://www.yokup.com/desconocida"), assetEnv, {})).text(), "sí");
-  assert.deepEqual(seen, ["/help/index.html", "/mcp/index.html", "/desconocida", "/index.html"]);
+  assert.deepEqual(seen, ["/help/index.html", "/mcp/index.html", "/desconocida.html", "/desconocida", "/index.html"]);
+});
+
+test("resuelve páginas HTML limpias sin delegar redirecciones al motor de assets", async () => {
+  const seen = [];
+  const response = await handleRequest(new Request("https://www.yokup.com/dashboard"), env(async (request) => {
+    seen.push(new URL(request.url).pathname);
+    return new URL(request.url).pathname === "/dashboard.html" ? new Response("dashboard") : new Response("no", {status:404});
+  }), {});
+  assert.equal(await response.text(), "dashboard");
+  assert.deepEqual(seen, ["/dashboard.html"]);
 });
 
 test("version.json procede del sello inyectado, no del baseline de assets", async () => {

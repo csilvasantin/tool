@@ -41,7 +41,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 let config = await readFile("wrangler.toml", "utf8");
 config = config.replace(/^main\s*=.*$/m, `main = ${JSON.stringify(resolve("src/index.js"))}`);
-config += `\n[assets]\ndirectory = ${JSON.stringify(process.env.STAGING)}\nbinding = "ASSETS"\nrun_worker_first = true\nhtml_handling = "auto-trailing-slash"\nnot_found_handling = "none"\n`;
+config += `\n[assets]\ndirectory = ${JSON.stringify(process.env.STAGING)}\nbinding = "ASSETS"\nrun_worker_first = true\nhtml_handling = "none"\nnot_found_handling = "none"\n`;
 await writeFile(resolve(process.env.CONFIG_DIR, "wrangler.toml"), config);
 NODE
 CONFIG_FILE="$CONFIG_DIR/wrangler.toml"

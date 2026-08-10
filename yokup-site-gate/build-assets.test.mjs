@@ -34,6 +34,7 @@ test("deploy genera config efímera con ASSETS y nunca publica el árbol fuente"
   assert.match(deploy, /directory = \$\{JSON\.stringify\(process\.env\.STAGING\)\}/);
   assert.match(deploy, /binding = "ASSETS"/);
   assert.match(deploy, /run_worker_first = true/);
+  assert.match(deploy, /html_handling = "none"/);
   assert.match(deploy, /deploy --config "\$CONFIG_FILE"/);
   assert.doesNotMatch(deploy, /deploy --assets "\.\.\/yokup-site"/);
 });

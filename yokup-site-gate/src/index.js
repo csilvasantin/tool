@@ -44,12 +44,20 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
   if ((incoming.pathname === "/agentica" || incoming.pathname === "/agentica.html") && (request.method === "GET" || request.method === "HEAD")) {
     return Response.redirect(new URL("/dashboard", incoming), 301);
   }
-  let assetPath = incoming.pathname;
-  if (assetPath === "/mcp" || assetPath === "/mcp/") assetPath = "/mcp/index.html";
-  if (assetPath === "/help" || assetPath === "/help/") assetPath = "/help/index.html";
-  const assetUrl = new URL(incoming);
-  assetUrl.pathname = assetPath;
-  let response = await env.ASSETS.fetch(new Request(assetUrl, request));
+  let candidates;
+  if (incoming.pathname === "/") candidates = ["/index.html"];
+  else if (incoming.pathname === "/mcp" || incoming.pathname === "/mcp/") candidates = ["/mcp/index.html"];
+  else if (incoming.pathname === "/help" || incoming.pathname === "/help/") candidates = ["/help/index.html"];
+  else if (incoming.pathname.endsWith("/")) candidates = [incoming.pathname + "index.html"];
+  else if (!/\.[a-z0-9]+$/i.test(incoming.pathname)) candidates = [incoming.pathname + ".html", incoming.pathname];
+  else candidates = [incoming.pathname];
+  let response = new Response("Not Found", {status:404});
+  for (const assetPath of candidates) {
+    const assetUrl = new URL(incoming);
+    assetUrl.pathname = assetPath;
+    response = await env.ASSETS.fetch(new Request(assetUrl, request));
+    if (response.status !== 404) break;
+  }
   // Equivale al catch-all histórico de Pages, implementado aquí porque Workers
   // Assets rechaza esa regla de _redirects por posible bucle con clean URLs.
   if (response.status === 404 && (request.method === "GET" || request.method === "HEAD")) {
