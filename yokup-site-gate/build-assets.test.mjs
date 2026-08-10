@@ -23,6 +23,7 @@ test("el artefacto Worker contiene sólo runtime público y el sello exacto", as
     await assert.rejects(access(join(target, "deploy.mjs")));
     await assert.rejects(access(join(target, "functions", "api", "fleet-census.js")));
     await assert.rejects(access(join(target, "deploy-version.test.mjs")));
+    await assert.rejects(access(join(target, "_redirects")));
     assert.match(await readFile(join(target, "dashboard.html"), "utf8"), /yk-frame\.js\?v=v\.10\.08\.2026\.r8\.10%3A01/);
   } finally {
     await rm(target, {recursive:true, force:true});

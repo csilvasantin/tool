@@ -21,7 +21,22 @@ test("la navegación sale de assets propios y nunca de Pages", async () => {
     return new Response("correcto");
   }), {});
   assert.equal(await response.text(), "correcto");
-  assert.deepEqual(seen, ["https://www.yokup.com/help/?q=1"]);
+  assert.deepEqual(seen, ["https://www.yokup.com/help/index.html?q=1"]);
+});
+
+test("conserva alias, puertas MCP/Help y fallback SPA sin _redirects", async () => {
+  const seen = [];
+  const assetEnv = env(async (request) => {
+    seen.push(new URL(request.url).pathname);
+    return new URL(request.url).pathname === "/desconocida" ? new Response("no", {status:404}) : new Response("sí");
+  });
+  const alias = await handleRequest(new Request("https://www.yokup.com/agentica"), assetEnv, {});
+  assert.equal(alias.status, 301);
+  assert.equal(alias.headers.get("location"), "https://www.yokup.com/dashboard");
+  assert.equal(await (await handleRequest(new Request("https://www.yokup.com/help"), assetEnv, {})).text(), "sí");
+  assert.equal(await (await handleRequest(new Request("https://www.yokup.com/mcp/"), assetEnv, {})).text(), "sí");
+  assert.equal(await (await handleRequest(new Request("https://www.yokup.com/desconocida"), assetEnv, {})).text(), "sí");
+  assert.deepEqual(seen, ["/help/index.html", "/mcp/index.html", "/desconocida", "/index.html"]);
 });
 
 test("version.json procede del sello inyectado, no del baseline de assets", async () => {

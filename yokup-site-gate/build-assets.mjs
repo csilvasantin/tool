@@ -13,7 +13,7 @@ function publicFilter(source) {
   const parts = rel.split(sep);
   if (parts.some((part) => part.startsWith(".") || part === "node_modules" || part === "__pycache__" || part === "functions")) return false;
   const name = basename(rel);
-  if (name === "_routes.json" || /\.test\.mjs$/i.test(name) || /\.(?:py|md)$/i.test(name) || /\.bak(?:-|$)/i.test(name)) return false;
+  if (name === "_routes.json" || name === "_redirects" || /\.test\.mjs$/i.test(name) || /\.(?:py|md)$/i.test(name) || /\.bak(?:-|$)/i.test(name)) return false;
   if (/^deploy(?:-[a-z-]+)?\.(?:m?js)$/i.test(name) || name === "pages-snapshots.mjs" || /^(?:package(?:-lock)?\.json|wrangler\.toml)$/i.test(name)) return false;
   return true;
 }

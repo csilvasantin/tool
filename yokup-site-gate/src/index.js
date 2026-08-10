@@ -41,7 +41,22 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
     return Response.json(release, {headers:{"Cache-Control":"no-store", "Access-Control-Allow-Origin":"*", "X-Yokup-Gate":"worker-assets"}});
   }
   if (incoming.pathname === "/api/fleet-census") return fleetCensus(request, ctx, fetchImpl);
-  return env.ASSETS.fetch(request);
+  if ((incoming.pathname === "/agentica" || incoming.pathname === "/agentica.html") && (request.method === "GET" || request.method === "HEAD")) {
+    return Response.redirect(new URL("/dashboard", incoming), 301);
+  }
+  let assetPath = incoming.pathname;
+  if (assetPath === "/mcp" || assetPath === "/mcp/") assetPath = "/mcp/index.html";
+  if (assetPath === "/help" || assetPath === "/help/") assetPath = "/help/index.html";
+  const assetUrl = new URL(incoming);
+  assetUrl.pathname = assetPath;
+  let response = await env.ASSETS.fetch(new Request(assetUrl, request));
+  // Equivale al catch-all histórico de Pages, implementado aquí porque Workers
+  // Assets rechaza esa regla de _redirects por posible bucle con clean URLs.
+  if (response.status === 404 && (request.method === "GET" || request.method === "HEAD")) {
+    const home = new URL("/index.html", incoming);
+    response = await env.ASSETS.fetch(new Request(home, request));
+  }
+  return response;
 }
 
 // Cloudflare invoca fetch(request, env, ctx). No se puede exportar handleRequest
