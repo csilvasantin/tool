@@ -7253,7 +7253,7 @@ var index_default = {
       if (req.method === "GET") {
         const commandId = String(url.searchParams.get("id") || "").trim();
         const audit = await env.DB.prepare(
-          "SELECT id,requested_by FROM fleet_agent_commands WHERE upstream_command_id=? AND action IN ('terminal_read','terminal_write') ORDER BY created_at DESC LIMIT 1"
+          "SELECT id,requested_by FROM fleet_agent_commands WHERE upstream_command_id=? AND action IN ('terminal_read','terminal_write','terminal_focus','terminal_unfocus') ORDER BY created_at DESC LIMIT 1"
         ).bind(commandId).first();
         if (!audit || String(audit.requested_by || "").toLowerCase() !== String(sess.email || "").toLowerCase()) {
           return json({ ok:false, error:"terminal-command-not-found" }, 404);

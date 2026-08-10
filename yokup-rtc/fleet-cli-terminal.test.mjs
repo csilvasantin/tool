@@ -50,3 +50,7 @@ test("la ruta está autenticada, auditada y jamás persiste el mensaje",()=>{
   const insert=worker.match(/INSERT INTO fleet_agent_commands\(id,action,machine,persona,runtime,host,session_id,pid,requested_by,status,created_at,updated_at\)/);
   assert.ok(insert,"la auditoría conserva metadatos, no contenido");
 });
+
+test("el polling reconoce las cuatro acciones auditadas de terminal",()=>{
+  assert.match(worker,/action IN \('terminal_read','terminal_write','terminal_focus','terminal_unfocus'\)/);
+});
