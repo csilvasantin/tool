@@ -55,9 +55,10 @@ try {
   throw error;
 }
 
-function run(command, args) {
+function run(command, args, extraEnv = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd:new URL(".", import.meta.url), stdio:"inherit", shell:false });
+    const child = spawn(command, args, { cwd:new URL(".", import.meta.url), stdio:"inherit", shell:false,
+      env:{...process.env, ...extraEnv} });
     child.on("error", reject);
     child.on("exit", (code) => code === 0 ? resolve() : reject(new Error(`${command} terminó con ${code}`)));
   });
@@ -228,7 +229,10 @@ try {
   // antigua a Pages no pueda sustituir la web visible. Ambos destinos forman una
   // sola release: si el segundo falla, la versión anterior continúa operativa y
   // el comando termina en rojo en vez de dejar producción a medias.
-  await run("bash", ["../yokup-site-gate/deploy.sh"]);
+  await run("bash", ["../yokup-site-gate/deploy.sh"], {
+    YOKUP_RELEASE_JSON:JSON.stringify(payload),
+    YOKUP_ASSET_SOURCE:stagingPath
+  });
   await verifyPublicVersion(payload);
   console.log(`Yokup publicado y verificado: ${payload.version}`);
 } catch (error) {

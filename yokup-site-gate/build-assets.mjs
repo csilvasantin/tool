@@ -2,7 +2,7 @@ import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const sourceRoot = resolve(new URL("../yokup-site/", import.meta.url).pathname);
+const sourceRoot = resolve(process.env.YOKUP_ASSET_SOURCE || new URL("../yokup-site/", import.meta.url).pathname);
 const targetRoot = resolve(process.argv[2] || "");
 const release = JSON.parse(process.env.RELEASE_JSON || "null");
 if (!targetRoot || !release || !release.version) throw new Error("Uso: RELEASE_JSON='{...}' node build-assets.mjs <staging>");

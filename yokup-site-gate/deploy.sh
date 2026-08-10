@@ -20,7 +20,18 @@ echo "→ Pruebas del guardián…"
 node --test ./*.test.mjs
 
 echo "→ Sello y assets canónicos…"
-RELEASE_JSON="$(curl -fsS --max-time 15 https://yokup.pages.dev/version.json)"
+if [ -n "${YOKUP_RELEASE_JSON:-}" ] && [ -n "${YOKUP_ASSET_SOURCE:-}" ]; then
+  RELEASE_JSON="$YOKUP_RELEASE_JSON"
+  ASSET_SOURCE="$YOKUP_ASSET_SOURCE"
+  [ -d "$ASSET_SOURCE" ] || { echo "Artefacto Pages ausente: $ASSET_SOURCE"; exit 1; }
+  [ -f "$ASSET_SOURCE/version.json" ] || { echo "El artefacto Pages no contiene version.json"; exit 1; }
+  printf '%s' "$RELEASE_JSON" | jq -e --slurpfile artifact "$ASSET_SOURCE/version.json" '. == $artifact[0]' >/dev/null || {
+    echo "El sello entregado no coincide con el artefacto Pages"; exit 1;
+  }
+else
+  RELEASE_JSON="$(curl -fsS --max-time 15 https://yokup.pages.dev/version.json)"
+  ASSET_SOURCE="$(cd ../yokup-site && pwd)"
+fi
 export RELEASE_JSON
 node --input-type=module - <<'NODE'
 import { signedVersionFromPayload } from "../yokup-site/deploy-history.js";
@@ -33,7 +44,7 @@ NODE
 STAGING="$(mktemp -d "${TMPDIR:-/tmp}/yokup-site-assets.XXXXXX")"
 CONFIG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/yokup-site-config.XXXXXX")"
 trap 'rm -rf -- "$STAGING" "$CONFIG_DIR"' EXIT
-node build-assets.mjs "$STAGING"
+YOKUP_ASSET_SOURCE="$ASSET_SOURCE" node build-assets.mjs "$STAGING"
 RELEASE_COMPACT="$(printf '%s' "$RELEASE_JSON" | jq -c .)"
 export STAGING CONFIG_DIR
 node --input-type=module - <<'NODE'
