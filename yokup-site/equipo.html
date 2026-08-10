@@ -265,6 +265,15 @@ const TG="https://admira-telegram.csilvasantin.workers.dev";
 // Registro de flota: se LEE directo (abierto) y se ESCRIBE por yokup-rtc, que
 // guarda el FLEET_TOKEN — nunca viaja al navegador.
 const FLEET="https://admira-fleet.csilvasantin.workers.dev";
+// EL CENSO QUE COMPRUEBA, NO EL QUE SE DECLARA (2026-08-10). El `lastSeen` de
+// admira-fleet NO es un latido: es la hora en que se escribió la ficha. Por eso
+// diez equipos comparten el mismo sello al minuto —una escritura del censo— y
+// cinco llevan 43 días con el mismo. La tarjeta lo esquivaba diciendo «vivo ·
+// por agente», que es honesto pero deja sin respuesta la pregunta de si la
+// máquina está encendida cuando nadie corre encima. /api/fleet-census sí lo
+// comprueba: nace de `tailscale status --json` y confirma con SSH. Es el mismo
+// veredicto que ya usan /status y el dashboard; Equipo era el que faltaba.
+const CENSO="/api/fleet-census";
 const $=x=>document.getElementById(x);
 function esc(x){ return String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c])); }
 
@@ -346,21 +355,36 @@ function retratoMini(nombre){
 
 const canon=s=>YkMisiones.canonMachine(String(s||""));
 const norm=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-let PRES=[], MIS=[], MAQ=[], SIL=[], PRO=[], VISTA="agentes";
+let PRES=[], MIS=[], MAQ=[], SIL=[], PRO=[], CEN=[], VISTA="agentes";
 
 async function cargar(){
-  const [pr,tk,mq,si,po]=await Promise.all([
+  const [pr,tk,mq,si,po,ce]=await Promise.all([
     fetch(TG+"/api/presence",{cache:"no-store"}).then(r=>r.json()).catch(()=>({presence:[]})),
     fetch(WORKER+"/tickets?scope=fleet&limit=300",{cache:"no-store"}).then(r=>r.json()).catch(()=>({tickets:[]})),
     fetch(FLEET+"/machines",{cache:"no-store"}).then(r=>r.json()).catch(()=>({machines:[]})),
     fetch(FLEET+"/silicon",{cache:"no-store"}).then(r=>r.json()).catch(()=>({silicon:[]})),
-    fetch(WORKER+"/projects",{cache:"no-store"}).then(r=>r.json()).catch(()=>({projects:[]}))
+    fetch(WORKER+"/projects",{cache:"no-store"}).then(r=>r.json()).catch(()=>({projects:[]})),
+    // Si el Mini que sondea la flota está caído, el censo no llega y la tarjeta
+    // vuelve sola a lo de siempre. Nunca se inventa un veredicto que no hay.
+    fetch(CENSO,{cache:"no-store"}).then(r=>r.ok?r.json():null).catch(()=>null)
   ]);
   // Cancelada NO es misión: se caía en el mismo saco que las vivas y engordaba
   // el contador con trabajo que nadie va a hacer.
   PRES=pr.presence||[]; MIS=(tk.tickets||[]).filter(t=>t.status!=="resolved"&&t.status!=="cancelled");
   MAQ=mq.machines||[];  SIL=si.silicon||[];  PRO=po.projects||[];
+  CEN=(ce&&ce.ok&&Array.isArray(ce.machines))?ce.machines:[];
   pinta();
+}
+// El veredicto se busca por el id del registro y, si no, por el nombre del nodo.
+// Devuelve null cuando el censo no conoce la máquina: no saber es un resultado
+// legítimo y se dice, no se rellena con el latido de otro.
+function veredictoCenso(m){
+  if(!CEN.length||!m) return null;
+  const id=norm(m.id), nom=norm(canon(m.name||m.id));
+  const c=CEN.find(x=>x.id&&norm(x.id)===id)
+        ||CEN.find(x=>norm(canon(x.host||""))===nom||norm(canon(x.name||""))===nom);
+  if(!c) return null;
+  return {online:!!c.online, lastSeen:c.lastSeen||0, ssh:!!c.ssh, host:c.host||c.name||""};
 }
 const proPorId=id=>PRO.find(p=>p.id===id)||null;
 // Un valor suelto (id, nombre o dominio) → proyecto del censo. Nada de adivinar
@@ -551,15 +575,26 @@ function tarjetaEq(m){
   // Una máquina con el registro rancio pero un agente vivo SÍ está encendida: se
   // dice «vivo · por agente» en vez de cantar un «vivo» que choca con un
   // «último latido hace 11 d».
-  const onMaq=(Date.now()/1000-(m.lastSeen||0))<900, onAg=vivo(p), on=onMaq||onAg;
-  const pulso=onMaq?"vivo":onAg?"vivo · por agente":"reposo";
+  // EL VEREDICTO MANDA SOBRE EL REGISTRO Y SOBRE EL AGENTE. Si el censo ha
+  // sondeado la máquina, su sí/no decide: un agente vivo no puede resucitar un
+  // equipo que no responde, y un registro rancio no puede matar uno que sí.
+  // Sin veredicto se conserva la regla anterior, que sigue siendo lo mejor que
+  // hay: registro fresco, o un agente latiendo encima.
+  const cen=veredictoCenso(m);
+  const onMaq=(Date.now()/1000-(m.lastSeen||0))<900, onAg=vivo(p);
+  const on=cen?cen.online:(onMaq||onAg);
+  const pulso=cen?(cen.online?"vivo · comprobado":"apagado · comprobado")
+                 :onMaq?"vivo":onAg?"vivo · por agente":"reposo";
   const sinFicha=!m.member&&!m.role&&!m.machineRole;
   const nom=canon(m.name||m.id);
   return '<div class="ag'+(on?"":" off")+'" style="--c:'+(sinFicha?"#ff8866":"#78f3ff")+'">'+
     '<div class="top"><div class="av">🖥</div>'+
       '<div class="who"><b>'+esc(nom)+'</b><span class="rt"><span class="sub2">'+esc(m.platform||"—")+' · '+esc(m.id)+'</span>'+
         (m.member?'<span class="carb" title="responsable de carbono">'+esc(m.member)+'</span>':"")+'</span></div>'+
-      '<span class="pulse'+(on?" on":"")+'" title="latido propio del equipo: '+esc(hace(m.lastSeen))+'"><i></i>'+pulso+'</span></div>'+
+      '<span class="pulse'+(on?" on":"")+'" title="'+esc(cen
+          ?"censo comprobado: Tailscale + SSH sobre "+(cen.host||m.id)+" · "+hace(cen.lastSeen)
+          :"sin censo que lo compruebe; se deduce de la ficha ("+hace(m.lastSeen)+") y de los agentes encima")+
+        '"><i></i>'+pulso+'</span></div>'+
     misionDelDia(m)+
     '<div class="rows">'+
       fila("Responsable", m.member?esc(m.member):"sin asignar", m.member?"":"falta")+
@@ -568,7 +603,13 @@ function tarjetaEq(m){
       fila("Ubicación", m.location?esc(m.location):"—","mono")+
       (m.project?fila("Proyecto",esc(m.project),"mono"):"")+
       (m.currentFocus?fila("Foco",esc(foco(m.currentFocus))):"")+
-      fila("Latido propio", esc(hace(m.lastSeen))+(!onMaq&&onAg?" · pero hay un agente vivo encima":""),"mono")+
+      // «Latido propio» era el rótulo que engañaba: admira-fleet no guarda ningún
+      // latido de la máquina, guarda cuándo se escribió su ficha. Cada dato dice
+      // ahora de dónde sale, y el que comprueba va primero.
+      (cen?fila("Comprobado", (cen.online
+            ? "responde"+(cen.ssh?" · canal SSH abierto":"")
+            : "no responde")+" · Tailscale"+(cen.lastSeen?" · "+esc(hace(cen.lastSeen)):""),"mono"):"")+
+      fila("Ficha escrita", esc(hace(m.lastSeen))+(!cen&&!onMaq&&onAg?" · pero hay un agente vivo encima":""),"mono")+
       (function(){ const ag=agentesEn(m.id,m.name);
         return fila("Agentes encima", ag.length
           ? ag.map(a=>'<span class="agchip'+(a.alta?"":" ext")+'" title="'+(a.alta?"agente del equipo":"late aquí pero NO está dado de alta como agente")+'">'+retratoMini(a.n)+esc(a.n)+(a.alta?"":" ·?")+"</span>").join(" ")
