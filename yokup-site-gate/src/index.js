@@ -59,4 +59,11 @@ export async function handleRequest(request, fetchImpl = fetch) {
   return new Response(upstream.body, { status:upstream.status, statusText:upstream.statusText, headers });
 }
 
-export default { fetch:handleRequest };
+// Cloudflare invoca fetch(request, env, ctx). No se puede exportar handleRequest
+// directamente porque `env` ocuparía el parámetro inyectable fetchImpl y el proxy
+// intentaría ejecutar un objeto como función.
+export default {
+  fetch(request) {
+    return handleRequest(request, fetch);
+  }
+};

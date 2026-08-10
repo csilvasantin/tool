@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handleRequest } from "./src/index.js";
+import worker, { handleRequest } from "./src/index.js";
 import { TRUSTED_AFTER } from "./src/provenance.js";
 
 const signed = {
@@ -8,6 +8,11 @@ const signed = {
   deployer:"TrinityMBP14", machine:"MacBookPro14", signature:"TrinityMBP14 · MacBookPro14",
   git:"815c841", gitShort:"815c841", gitFull:"815c841012345678901234567890123456789012", dirty:false
 };
+
+test("el adaptador Cloudflare no confunde env con la función fetch", () => {
+  assert.notEqual(worker.fetch, handleRequest);
+  assert.equal(worker.fetch.length, 1);
+});
 
 test("un Pages antiguo queda aislado y la navegación sale por el fallback inmutable", async () => {
   const seen = [];
