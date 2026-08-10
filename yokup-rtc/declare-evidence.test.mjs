@@ -141,7 +141,7 @@ test("screen es unico por mision, no por proyecto", () => {
   // segunda con D1_ERROR.
   assert.match(ruta, /"declare:" \+ missionId/);
   assert.doesNotMatch(ruta, /"declare:" \+ projectContext\.project_id/);
-  assert.match(source, /CREATE UNIQUE INDEX IF NOT EXISTS idx_open_screen ON tickets\(screen\)/);
+  assert.match(source, /CREATE UNIQUE INDEX IF NOT EXISTS idx_active_screen ON tickets\(screen\) WHERE status NOT IN \('resolved','cancelled'\)/);
 });
 
 test("el trabajo declarado ENTRA en el marcador: tercera puerta", () => {

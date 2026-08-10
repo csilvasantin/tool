@@ -185,7 +185,8 @@ __name(hash, "hash");
 async function applySchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY, screen TEXT, subject TEXT, loc TEXT, role TEXT, status TEXT, priority TEXT, assignee TEXT, source TEXT, ai_triage TEXT, created_at INTEGER, updated_at INTEGER, resolved_at INTEGER)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id TEXT, ts INTEGER, kind TEXT, author TEXT, text TEXT)");
-  await env.DB.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_open_screen ON tickets(screen) WHERE status != 'resolved'");
+  await env.DB.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_active_screen ON tickets(screen) WHERE status NOT IN ('resolved','cancelled')");
+  await env.DB.exec("DROP INDEX IF EXISTS idx_open_screen");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_ev_tkt ON events(ticket_id)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS subs (endpoint TEXT PRIMARY KEY, created_at INTEGER)");
   // NOTIFICACIONES DEL SISTEMA (FLT-1020, Carlos 24-jul-2026): «si algún equipo de
@@ -4131,7 +4132,7 @@ async function lastEventKind(env, ticketId) {
 }
 __name(lastEventKind, "lastEventKind");
 async function createTicket(env, s) {
-  const existing = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status!='resolved'").bind(s.screen).first();
+  const existing = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status NOT IN ('resolved','cancelled')").bind(s.screen).first();
   if (existing) return existing.id;
   const now = Date.now();
   const id = ("INC-" + now.toString(36).slice(-5) + Math.floor(Math.random() * 36).toString(36)).toUpperCase();
@@ -4155,13 +4156,13 @@ async function createTicket(env, s) {
 __name(createTicket, "createTicket");
 // Incidencia GENÉRICA (Carlos, 2026-07-17: «todas las incidencias pasan por yokup»).
 // Reutiliza la tabla tickets; source distingue el origen (monitor/presence/agent/
-// external) y kind el tipo. 1 incidencia ABIERTA por recurso (índice idx_open_screen);
+// external) y kind el tipo. 1 incidencia ACTIVA por recurso (índice idx_active_screen);
 // el `resource` va prefijado por tipo (svc:/maq:/agt:) para no chocar con pantallas DOOH.
 async function createIncident(env, inc) {
   await ensureSchema(env);
   const resource = String((inc && (inc.resource || inc.screen)) || "").slice(0, 160);
   if (!resource) return null;
-  const existing = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status!='resolved'").bind(resource).first();
+  const existing = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status NOT IN ('resolved','cancelled')").bind(resource).first();
   if (existing) return existing.id;   // ya hay una abierta para este recurso
   const projectContext = await resolveCreationProject(env, {
     project_id:inc && inc.project_id, decision_id:inc && inc.decision_id,
@@ -4195,7 +4196,7 @@ __name(createIncident, "createIncident");
 // reconcile DOOH: evento 'recover', pendiente de verificación y cierre).
 async function resolveIncident(env, resource, by, note) {
   await ensureSchema(env);
-  const open = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status!='resolved'").bind(String(resource || "")).first();
+  const open = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status NOT IN ('resolved','cancelled')").bind(String(resource || "")).first();
   if (!open) return null;
   if (await lastEventKind(env, open.id) !== "recover") {
     await env.DB.prepare("UPDATE tickets SET updated_at=? WHERE id=?").bind(Date.now(), open.id).run();
@@ -4321,7 +4322,7 @@ async function reconcile(env) {
   }
   const now = Date.now();
   for (const s of screens) {
-    const open = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status!='resolved'").bind(s.screen).first();
+    const open = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status NOT IN ('resolved','cancelled')").bind(s.screen).first();
     if (!s.online) {
       if (!open) await createTicket(env, { screen: s.screen, loc: s.locName || s.loc || "", role: s.role, age: s.age_seconds });
     } else if (open) {
@@ -4522,7 +4523,7 @@ function fleetPriority(text) {
   return p === "absoluta" ? "urgente" : p === "media" ? "normal" : p;
 }
 __name(fleetPriority, "fleetPriority");
-// OJO: `screen` tiene un índice ÚNICO entre las no resueltas (idx_open_screen),
+// OJO: `screen` tiene un índice ÚNICO entre las activas (idx_active_screen),
 // así que NO puede ser la máquina a secas — dos encargos abiertos del mismo
 // ordenador chocarían al insertar. Se firma con el id del encargo: único y
 // legible en la bandeja. La máquina va en `loc` y la persona en `assignee`.
