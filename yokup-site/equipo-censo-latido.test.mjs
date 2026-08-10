@@ -73,3 +73,10 @@ test('el rótulo deja de llamar latido a lo que es la hora de escribir la ficha'
   assert.match(equipo, /"vivo · comprobado"/);
   assert.match(equipo, /"apagado · comprobado"/);
 });
+
+test('la página deja de prometer que las máquinas se auto-registran y laten solas', () => {
+  assert.ok(!/auto-registra y late/.test(equipo),
+    'ninguna máquina late sola: el estado se comprueba desde fuera');
+  assert.match(equipo, /un estado que se COMPRUEBA — Tailscale más un SSH real/);
+  assert.match(equipo, /el estado de encendido no se edita, se comprueba/);
+});

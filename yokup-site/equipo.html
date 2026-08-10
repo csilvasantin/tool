@@ -196,7 +196,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 5px}
       <span class="pi-toggle">Qué es esto <span class="pi-chevron">›</span></span>
     </summary>
     <div class="pi-body">
-      <p class="sub">Quién forma AdmiraNeXT, en dos planos que no se mezclan: los <b>agentes</b> — software, <i>bits</i>: una persona es un LLM más una cuenta, y puede levantarse en cualquier sitio — y las <b>máquinas</b> — hardware, <i>átomos</i>: cajas físicas con ubicación, dueño y latido. Un agente CORRE EN una máquina; ni es ella, ni depende de ella. Todo se edita aquí y vive en <b>admira-fleet</b>, la misma fuente que lee admira.live/control.</p>
+      <p class="sub">Quién forma AdmiraNeXT, en dos planos que no se mezclan: los <b>agentes</b> — software, <i>bits</i>: una persona es un LLM más una cuenta, y puede levantarse en cualquier sitio — y las <b>máquinas</b> — hardware, <i>átomos</i>: cajas físicas con ubicación, dueño y un estado comprobado. Un agente CORRE EN una máquina; ni es ella, ni depende de ella. Todo se edita aquí y vive en <b>admira-fleet</b>, la misma fuente que lee admira.live/control.</p>
     </div>
   </details>
 
@@ -673,7 +673,7 @@ function pinta(){
     }).join("");
     const b=$("addSil"); if(b) b.onclick=()=>abrir("sil",null);
   }else{
-    $("root").innerHTML='<div class="capa"><h2>Máquinas · átomos</h2><p>El hardware: cajas físicas con ubicación, responsable humano y latido propio. Cada una se auto-registra y late sola; la parte humana de la ficha se edita aquí. Los agentes que corren encima son otra cosa — están en la pestaña de al lado.</p></div>'+
+    $("root").innerHTML='<div class="capa"><h2>Máquinas · átomos</h2><p>El hardware: cajas físicas con ubicación, responsable humano y un estado que se COMPRUEBA — Tailscale más un SSH real, no la máquina declarándose viva. La ficha vive en admira-fleet y su parte humana se edita aquí. Los agentes que corren encima son otra cosa — están en la pestaña de al lado.</p></div>'+
       '<div class="grid">'+MAQ.map(tarjetaEq).join("")+'</div>';
   }
   document.querySelectorAll("[data-ed]").forEach(b=>{ b.onclick=()=>abrir(b.dataset.ed,b.dataset.id); });
@@ -862,7 +862,7 @@ function abrir(tipo,id){
     ? "La persona la define el runtime (LLM) + la cuenta, no la máquina. Se guarda en admira-fleet."
     : tipo==="pro"
     ? "El proyecto vive en yokup y se asigna a las máquinas y agentes del censo de admira-fleet. Su nombre es el que sale en la ficha de cada decisión y de cada misión."
-    : "El equipo se auto-registra y late solo; aquí se edita la parte humana de su ficha. La comparte admira.live/control.";
+    : "Aquí se edita la parte humana de la ficha; el estado de encendido no se edita, se comprueba. La ficha la comparte admira.live/control.";
   $("mForm").innerHTML=campos.map(f=>{
     let v=f.k==="responsibles_text"?responsablesTexto(dato):dato[f.k]; if(Array.isArray(v)) v=v.join(", ");
     v=v==null?"":String(v);
