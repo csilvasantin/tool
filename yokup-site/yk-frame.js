@@ -949,7 +949,13 @@
 
     var railB = el("aside", "yk-rail yk-rail-bottom");
     var expert = el("div", "yk-expert");
-    expert.appendChild(el("div", "yk-hd", "EXPERTO"));
+    var expertHead = el("div", "yk-hd yk-expert-hd");
+    expertHead.appendChild(el("span", "yk-expert-title", "EXPERTO"));
+    var expertVer = el("span", "yk-ver yk-expert-ver",
+      'yokup · perímetro de seguridad · <b>' + VERSION + '</b>');
+    expertVer.setAttribute("data-yk-version", "1");
+    expertHead.appendChild(expertVer);
+    expert.appendChild(expertHead);
     var slotB = el("div", "yk-slot"); expert.appendChild(slotB);
     slotB.appendChild(buildCliConsole());
     railB.appendChild(expert);
@@ -961,7 +967,7 @@
     // --- MOVER los nodos marcados a su slot ---
     fillSlot(slotL, "left");
     fillSlot(slotR, "right");
-    fillSlot(slotB, "bottom", expert);
+    fillSlot(slotB, "bottom");
 
     // --- estado abierto/plegado por panel ---
     wire(icoL, "left");
@@ -1698,7 +1704,7 @@
     return b;
   }
 
-  function fillSlot(slot, name, expertHost) {
+  function fillSlot(slot, name) {
     var nodes = document.querySelectorAll('[data-yk-slot="' + name + '"]');
     if (!nodes.length) {
       // Avanzado siempre tiene su navegación canónica montada fuera del slot.
@@ -1711,13 +1717,8 @@
         slot.appendChild(n);
       });
     }
-    // el panel inferior SIEMPRE lleva pie de versión
-    if (name === "bottom" && expertHost) {
-      var ver = el("div", "yk-ver",
-        'yokup · perímetro de seguridad · <b>' + VERSION + '</b>');
-      ver.setAttribute("data-yk-version", "1");
-      expertHost.appendChild(ver);
-    }
+    // El sello del panel inferior vive en su cabecera: nunca ocupa una fila
+    // operativa bajo la consola ni se solapa con el formulario de mensajes.
   }
 
   function isOpen(panel) { return localStorage.getItem(LS + panel) === "1"; }

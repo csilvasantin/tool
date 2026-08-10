@@ -28,11 +28,26 @@ test("Experto contiene CLIs y la sesión remota real",()=>{
   assert.match(frame,/body\.pid=item\.pid/);
 });
 
-test("el panel Experto ocupa el viewport completo sin tapar el avatar",()=>{
+test("el panel Experto usa todo el viewport sin reservar una franja lateral",()=>{
   assert.match(css,/\.yk-rail-bottom\{[\s\S]*?left:0; right:0; bottom:0/);
-  assert.match(css,/padding:14px calc\(var\(--yk-avatar-safe\) \+ 16px\) 16px 16px/);
+  assert.match(css,/\.yk-rail-bottom\{[\s\S]*?padding:14px 16px 16px/);
+  assert.doesNotMatch(css,/\.yk-rail-bottom\{[\s\S]*?padding:[^;}]*--yk-avatar-safe/);
   assert.match(css,/\.yk-cli-console\{display:grid/);
 });
+
+test("el sello del perímetro está arriba a la derecha de Experto",()=>{
+  assert.match(frame,/expertHead = el\("div", "yk-hd yk-expert-hd"\)/);
+  assert.match(frame,/expertHead\.appendChild\(expertVer\)/);
+  assert.match(expertHeader(frame),/EXPERTO[\s\S]*yokup · perímetro de seguridad/);
+  assert.match(css,/\.yk-expert-ver\{margin-left:auto;text-align:right;white-space:nowrap/);
+  assert.doesNotMatch(frame,/expertHost\.appendChild\(ver\)/);
+});
+
+function expertHeader(source){
+  const start=source.indexOf('var expertHead =');
+  const end=source.indexOf('expert.appendChild(expertHead)',start);
+  return source.slice(start,end);
+}
 
 test("sin una sección local no reaparece el falso mensaje vacío",()=>{
   assert.match(frame,/name !== "right" && !slot\.children\.length/);

@@ -380,14 +380,14 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
 .yk-project-actions{display:flex;align-items:center;gap:9px;border-top:1px solid var(--yk-line);padding-top:12px;flex-wrap:wrap}.yk-project-msg{flex:1;min-width:150px;color:var(--yk-dim);font-size:9.5px;letter-spacing:.05em}
 .yk-project-actions button{font:700 9.5px/1 var(--yk-mono);letter-spacing:.1em;padding:8px 11px;cursor:pointer;border:1px solid var(--yk-line2)}.yk-project-cancel{color:var(--yk-dim);background:transparent}.yk-project-save{color:#02080d;background:var(--yk-brand);border-color:var(--yk-brand)!important}.yk-project-save:disabled{opacity:.55;cursor:wait}
 
-/* --- panel INFERIOR (EXPERTO) — fondo de borde a borde; el contenido deja
-       libre la esquina operativa del avatar sin recortar el propio panel --- */
+/* --- panel INFERIOR (EXPERTO) — fondo y contenido de borde a borde. El avatar
+       no puede restar ancho al espacio operativo de la consola. --- */
 .yk-rail-bottom{
   left:0; right:0; bottom:0;
   height: var(--yk-rail-h);
   border-left: 0; border-right: 0; border-bottom: 0;
   transform: translateY(103%);
-  padding:14px calc(var(--yk-avatar-safe) + 16px) 16px 16px;
+  padding:14px 16px 16px;
 }
 .yk-open-bottom .yk-rail-bottom{ transform: translateY(0) }
 
@@ -401,6 +401,9 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
 }
 .yk-hd::before{ content:""; width:7px; height:7px; border-radius:50%;
   background: var(--yk-brand); box-shadow:0 0 10px var(--yk-brand) }
+.yk-expert-hd{min-width:0}
+.yk-expert-title{white-space:nowrap}
+.yk-expert-ver{margin-left:auto;text-align:right;white-space:nowrap;font-size:9px}
 
 /* Contenedores donde caen los nodos movidos: verticalizar y ocupar el ancho */
 .yk-slot{ display:flex; flex-direction:column; align-items:stretch; gap:8px }
@@ -499,6 +502,8 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
 @media (max-width: 520px){
   :root{ --yk-rail-w: 92vw; --yk-rail-h: 78vh; --yk-avatar-safe: 0px; }
   .yk-rail-bottom{ right:0;padding-right:16px }
+  .yk-expert-hd{align-items:flex-start;flex-wrap:wrap}
+  .yk-expert-ver{width:100%;margin-left:15px;text-align:left;white-space:normal;line-height:1.35}
   .yk-cli-console{grid-template-columns:1fr;grid-template-rows:minmax(120px,35%) minmax(0,1fr)}
   .yk-cli-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
   .yk-cli-agent{flex-direction:column;align-items:flex-start!important}
