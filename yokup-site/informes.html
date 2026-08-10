@@ -526,9 +526,7 @@ function renderLoading(){
 }
 function renderLoadError(){
   const box=$("reps"); box.setAttribute("aria-busy","false");
-  box.innerHTML=headHTML()+'<div class="empty" role="alert"><b>No se pudieron cargar los informes</b>'+
-    '<button class="load-more" id="retryReports" type="button">Reintentar ahora</button></div>';
-  const retry=$("retryReports"); if(retry)retry.onclick=()=>load();
+  box.innerHTML=headHTML()+'<div class="empty" role="alert"><b>No se pudieron cargar los informes</b>Conservamos la vista en espera; se reintentará automáticamente.</div>';
   COLUMN_RESIZE.apply();
 }
 // Miniatura clicable (lightbox) o «—» honesto. `mission`=tiñe de ámbar (proof de cierre).

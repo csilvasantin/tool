@@ -70,7 +70,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
    su semántica: una incidencia no es una misión ni tiene columnas abc. */
 .inc-head,.inc-main{display:grid;grid-template-columns:minmax(170px,.9fr) minmax(260px,1.65fr) minmax(190px,1fr) minmax(160px,.85fr);gap:0;align-items:stretch}
 .inc-head{padding:9px 16px;border-bottom:1px solid var(--line);background:rgba(120,243,255,.035);color:var(--dim);font:9.5px var(--mono);letter-spacing:.09em;text-transform:uppercase}
-.inc-head span{padding:0 12px;text-align:center}.incident-row{cursor:default;overflow:hidden}.incident-row:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}.inc-main{padding:12px 16px;min-width:0;width:100%}.inc-cell{min-width:0;padding:3px 12px;border-left:1px solid rgba(120,243,255,.09);display:flex;flex-direction:column;justify-content:center;gap:5px}.inc-cell:first-child{border-left:0;padding-left:0}.inc-project{color:var(--brand);font:700 11px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inc-origin,.inc-meta{color:var(--mut);font:9.5px var(--mono);letter-spacing:.035em;overflow-wrap:anywhere}.inc-simulation{display:inline-block;border:1px solid rgba(255,216,102,.55);border-radius:999px;padding:2px 6px;color:var(--accent);font-weight:800;letter-spacing:.08em}.inc-ref{color:var(--brand);font:10px var(--mono);text-decoration:none}.inc-ref:hover{text-decoration:underline}.inc-subject{min-width:0;color:var(--ink);font-size:14px;font-weight:650;line-height:1.3;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.inc-resource{color:var(--mut);font:10px var(--mono);overflow-wrap:anywhere}.inc-owner{overflow:hidden}.inc-owner .who{align-items:flex-start;text-align:left;max-width:100%;min-width:0}.inc-machine{max-width:100%;color:var(--mut);font:10px var(--mono);overflow-wrap:anywhere}
+.inc-head span{padding:0 12px;text-align:center}.incident-row{cursor:default;overflow:hidden}.incident-row:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}.inc-main{padding:12px 16px;min-width:0;width:100%}.inc-cell{min-width:0;padding:3px 12px;border-left:1px solid rgba(120,243,255,.09);display:flex;flex-direction:column;justify-content:center;gap:5px}.inc-cell:first-child{border-left:0;padding-left:0}.inc-project{color:var(--brand);font:700 11px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inc-origin,.inc-meta{color:var(--mut);font:9.5px var(--mono);letter-spacing:.035em;overflow-wrap:anywhere}.inc-ref{color:var(--brand);font:10px var(--mono);text-decoration:none}.inc-ref:hover{text-decoration:underline}.inc-subject{min-width:0;color:var(--ink);font-size:14px;font-weight:650;line-height:1.3;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.inc-resource{color:var(--mut);font:10px var(--mono);overflow-wrap:anywhere}.inc-owner{overflow:hidden}.inc-owner .who{align-items:flex-start;text-align:left;max-width:100%;min-width:0}.inc-machine{max-width:100%;color:var(--mut);font:10px var(--mono);overflow-wrap:anywhere}
 .inc-state{align-items:flex-start}.inc-actions{display:flex;gap:6px;flex-wrap:wrap}.inc-action{min-height:44px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line2);border-radius:8px;background:transparent;color:var(--brand);font:9.5px var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:7px 9px;text-decoration:none;cursor:pointer}.inc-action:hover,.inc-action:focus-visible{background:rgba(120,243,255,.1);outline:2px solid transparent}.inc-action.advance{color:var(--accent);border-color:rgba(255,216,102,.38)}
 .inc-detail{border-top:1px dashed var(--line);margin:0 16px;padding:0 0 10px}.inc-detail summary{min-height:44px;display:flex;align-items:center;gap:7px;color:var(--mut);font:10px var(--mono);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;list-style:none}.inc-detail summary::-webkit-details-marker{display:none}.inc-detail summary::before{content:"▸";color:var(--brand)}.inc-detail[open] summary::before{content:"▾"}.inc-detail-body{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 16px;padding:2px 0 4px}.inc-detail-body p{color:var(--mut);font-size:11.5px;line-height:1.45;overflow-wrap:anywhere}.inc-detail-body .inc-triage{grid-column:1/-1;color:var(--ink);padding:9px 11px;border-left:2px solid var(--violet);background:rgba(170,136,255,.055)}
 .inc-focus{box-shadow:inset 0 0 0 1px rgba(255,216,102,.65),0 0 18px rgba(255,216,102,.2)}
@@ -126,6 +126,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
     <div class="inc-filters" data-yk-slot="left" aria-label="Filtros de incidencias">
       <div class="tabs">
         <button class="tab on" type="button" data-f="activas">Activas</button>
+        <button class="tab" type="button" data-f="open">Abiertas</button>
+        <button class="tab" type="button" data-f="in_progress">En curso</button>
+        <button class="tab" type="button" data-f="resolved">Resueltas</button>
         <button class="tab" type="button" data-f="todas">Todas</button>
       </div>
       <div class="inc-filter-selects">
@@ -190,24 +193,20 @@ function incidentState(t){
   if(t.status==="cancelled")return{label:"Eliminada",cls:"b-cancel",next:"open",action:"Recuperar"};
   return{label:"Abierta",cls:"b-open",next:"in_progress",action:"Empezar"};
 }
-function incidentSourceHtml(source){
-  return source==="simulation"?'<span class="inc-simulation">SIMULACIÓN</span>':esc(source);
-}
 function incidenceRowHtml(t){
   YkMisiones.cacheMission(t);
   const state=incidentState(t), kind=classificationOf(t), machine=YkMisiones.machineOf(t)||t.loc||"";
-  const project=t.project_name||t.project||"Sin proyecto", source=t.source||"origen no indicado", simulation=source==="simulation";
-  const sourceHtml=incidentSourceHtml(source);
+  const project=t.project_name||t.project||"Sin proyecto", source=t.source||"origen no indicado";
   const detail=[t.loc&&("Ubicación: "+t.loc),t.role&&("Tipo declarado: "+t.role),t.priority&&("Severidad: "+t.priority)].filter(Boolean);
   return '<article class="tk incident-row '+(t.status==="open"?'open ':'')+(t.id===FOCUS?'inc-focus ':'')+'" data-id="'+esc(t.id)+'" data-kind="'+esc(kind)+'" tabindex="0" role="group" aria-label="Incidencia '+esc(t.id)+' · '+esc(t.subject||'sin título')+'">'+
     '<div class="inc-main">'+
-      '<div class="inc-cell inc-origin-cell"><span class="inc-project">'+esc(project)+'</span><span class="inc-origin">'+esc(KIND_LABEL[kind]||KIND_LABEL.external)+' · '+sourceHtml+'</span></div>'+
+      '<div class="inc-cell inc-origin-cell"><span class="inc-project">'+esc(project)+'</span><span class="inc-origin">'+esc(KIND_LABEL[kind]||KIND_LABEL.external)+' · '+esc(source)+'</span></div>'+
       '<div class="inc-cell inc-copy"><a class="inc-ref tkopen" href="/ticket?id='+encodeURIComponent(t.id)+'" title="Abrir ficha '+esc(t.id)+'">'+esc(YkMisiones.visibleId(t))+'</a><span class="inc-subject">'+esc(t.subject||"Incidencia sin título")+'</span><span class="inc-resource">'+esc(t.screen||"recurso no indicado")+'</span></div>'+
       '<div class="inc-cell inc-owner">'+YkMisiones.whoHtml(t.assignee||"",machine,"",t._agents,null)+'<span class="inc-machine">'+(machine?'🖥 '+esc(machine):'sin equipo indicado')+'</span></div>'+
       '<div class="inc-cell inc-state"><span class="badge '+state.cls+'"><i></i>'+state.label+'</span><div class="inc-actions"><button class="inc-action advance" type="button" data-status-id="'+esc(t.id)+'" data-next="'+state.next+'" aria-label="'+state.action+' incidencia '+esc(t.id)+'">'+state.action+'</button><a class="inc-action tkopen" href="/ticket?id='+encodeURIComponent(t.id)+'">Abrir →</a></div></div>'+
     '</div>'+
     '<details class="inc-detail"'+(t.id===FOCUS?' open':'')+'><summary>Detalle de la incidencia</summary><div class="inc-detail-body">'+
-      '<p><b>Proyecto/origen</b><br>'+esc(project)+' · '+esc(simulation?'SIMULACIÓN':source)+'</p><p><b>Clasificación</b><br>'+esc(KIND_LABEL[kind]||KIND_LABEL.external)+'</p><p><b>Creada</b><br>'+esc(YkMisiones.ago(t.created_at))+'</p>'+
+      '<p><b>Proyecto/origen</b><br>'+esc(project)+' · '+esc(source)+'</p><p><b>Clasificación</b><br>'+esc(KIND_LABEL[kind]||KIND_LABEL.external)+'</p><p><b>Creada</b><br>'+esc(YkMisiones.ago(t.created_at))+'</p>'+
       (detail.length?'<p class="inc-triage">'+esc(detail.join(' · '))+'</p>':'')+(t.ai_triage?'<p class="inc-triage"><b>Triaje IA</b><br>'+esc(t.ai_triage)+'</p>':'')+
     '</div></details></article>';
 }
@@ -337,9 +336,9 @@ window.addEventListener("yk:project-change",event=>{
   $("list").innerHTML='<div class="inc-empty">Filtrando incidencias…</div>';
   load();
 });
-// Filtro ÚNICO: Activas/Todas viven en las pestañas y cada estado exacto en su
-// KPI de arriba (son botones, no adornos). Se sincronizan ambos tipos de control
-// para que siempre haya una sola selección visible.
+// Filtro ÚNICO: lo fijan tanto las pestañas como los KPIs de arriba (que son
+// botones, no adornos). Se sincronizan los dos grupos para que no puedan
+// contradecirse: pulsar «18 abiertas» deja marcada también la pestaña Abiertas.
 function aplicaFiltro(f){
   FILTER=f;
   document.querySelectorAll(".tab").forEach(x=>{const on=x.dataset.f===f;x.classList.toggle("on",on);x.setAttribute("aria-pressed",String(on));});

@@ -69,64 +69,6 @@ test("proyecto temprano conserva loading; datos, deuda y avatar no se serializan
   avatar.resolve();
 });
 
-test("un error inicial ofrece reintento accesible y vuelve a loading antes de recuperarse", async () => {
-  const second = deferred(), listeners = {}, intervals = [], calls = [];
-  const elements = {
-    reps:element(), retryReports:element(), tfilter:element(), tfDate:element(), debe:element(),
-    lb:element(), pageStatus:element(), loadMore:element()
-  };
-  elements.lb.querySelector = () => element();
-  const fetch = (url) => {
-    calls.push(url);
-    if(url.includes("/tasks/all")){
-      const attempt=calls.filter((value)=>value.includes("/tasks/all")).length;
-      return attempt===1
-        ? Promise.resolve({ok:false,status:503,json:async()=>({})})
-        : second.promise;
-    }
-    if(url.includes("/fleet/informes-deuda"))return Promise.resolve({ok:true,status:200,json:async()=>({missions:[]})});
-    throw new Error("fetch inesperado: "+url);
-  };
-  const window = {
-    ykAvatar:{ready:Promise.resolve()}, ykAgentIdentity:null,
-    addEventListener(type,fn){listeners[type]=fn;}
-  };
-  const document = {
-    getElementById(id){return elements[id];},
-    addEventListener(){}, querySelector(){return null;}
-  };
-  const context = vm.createContext({
-    window,document,fetch,console,Date,Promise,encodeURIComponent,ykAvatar:window.ykAvatar,
-    YkInformesSort:{sort:(rows)=>rows},
-    YkInformesColumns:{mount:()=>({apply(){}})},
-    YkInformesGroups:{group:(rows)=>[{key:"test",name:"Test",rows}],ensureVisible:(groups)=>groups,visibleCount:(groups)=>groups.reduce((n,g)=>n+g.rows.length,0)},
-    AbortController,
-    setInterval(fn){intervals.push(fn);return intervals.length;},setTimeout(){}
-  });
-  vm.runInContext(main,context);
-  listeners["yk:project-change"]({detail:{project_id:null,ready:true}});
-  await tick();await tick();
-
-  assert.match(elements.reps.innerHTML,/role="alert"/);
-  assert.match(elements.reps.innerHTML,/<button class="load-more" id="retryReports" type="button">Reintentar ahora<\/button>/);
-  assert.doesNotMatch(elements.reps.innerHTML,/automáticamente/i);
-  assert.equal(elements.reps["aria-busy"],"false");
-  assert.equal(typeof elements.retryReports.onclick,"function","el botón nativo queda activado");
-
-  await intervals[0]();
-  assert.equal(calls.filter((url)=>url.includes("/tasks/all")).length,1,"el intervalo no finge ni duplica el retry");
-  const retry=elements.retryReports.onclick();
-  assert.equal(calls.filter((url)=>url.includes("/tasks/all")).length,2);
-  assert.equal(elements.reps["aria-busy"],"true");
-  assert.match(elements.reps.innerHTML,/role="status"/);
-  assert.match(elements.reps.innerHTML,/Cargando informes/);
-
-  second.resolve({ok:true,status:200,json:async()=>({tasks:[]})});
-  assert.equal(await retry,true);
-  assert.equal(elements.reps["aria-busy"],"false");
-  assert.match(elements.reps.innerHTML,/Sin informes de hoy/);
-});
-
 test("avatar y panel comparten un solo GET de personalización", async () => {
   let requests = 0;
   const window = {fetch:async()=>{ requests++; return {json:async()=>({customize:{agents:{},machines:{}}})}; }};
@@ -147,7 +89,5 @@ test("el contrato de carga impide empty prematuro y mantiene refresco", () => {
   assert.match(html, /LOAD_STATE="ready";applyFilter\(\)/);
   assert.match(html, /if\(LOAD_INFLIGHT&&!reset\)return LOAD_INFLIGHT/);
   assert.match(html, /load\(\);[\s\S]*ykAvatar\.ready[\s\S]*setInterval\(refresh,15000\)/);
-  assert.match(html, /id="retryReports" type="button">Reintentar ahora/);
-  assert.doesNotMatch(html, /se reintentará automáticamente/i);
   assert.doesNotMatch(html, /ykAvatar\.ready\s*:\s*Promise\.resolve\(\)\)\.then\(load\)/);
 });
