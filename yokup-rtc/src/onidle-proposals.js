@@ -2,57 +2,38 @@ const TARGET_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/;
 const TERMINAL = new Set(["resolved", "cancelled", "closed"]);
 const ACTIVE = new Set(["in_progress", "unconcluded", "active", "doing"]);
 
-// Último recurso canónico cuando incidencias y backlog abierto no alcanzan tres
-// filas adoptables. No inventa un target: cada fila declara explícitamente que
-// debe crear una misión nueva si Carlos la elige. El catálogo contiene las 24
-// propuestas máximas que pueden consumir ocho ventanas diarias; la fecha de
-// Madrid hace que al día siguiente vuelvan a ser vigentes sin reciclar un título
-// ya usado durante el mismo día.
-const EXPLICIT_NEW_SCOPES = Object.freeze([
-  "Auditar el flujo principal y corregir el primer fallo reproducible",
-  "Reducir una fricción visible en la navegación",
-  "Mejorar la claridad de una acción primaria",
-  "Corregir una inconsistencia visual reproducible",
-  "Optimizar el primer cuello de rendimiento medible",
-  "Mejorar el estado de carga más confuso",
-  "Revisar la navegación por teclado y corregir el primer bloqueo",
-  "Mejorar el contraste del elemento menos legible",
-  "Corregir etiquetas ambiguas para lectores de pantalla",
-  "Clarificar el mensaje de error menos accionable",
-  "Añadir recuperación segura al primer flujo que hoy se interrumpe",
-  "Evitar un doble envío o una acción repetida",
-  "Detectar y corregir el primer dato incoherente visible",
-  "Reforzar una validación de entrada débil",
-  "Eliminar el primer duplicado verificable en una vista",
-  "Añadir telemetría útil a un flujo sin diagnóstico",
-  "Mejorar el informe de contexto de un error recurrente",
-  "Registrar evidencia real en un proceso que hoy usa relleno",
-  "Añadir una prueba de regresión a un comportamiento crítico",
-  "Convertir el primer bug recurrente en una comprobación automática",
-  "Cubrir un caso límite sin prueba automatizada",
-  "Reducir pasos innecesarios en una tarea frecuente",
-  "Mejorar la adaptación móvil de la vista más frágil",
-  "Automatizar una verificación manual repetitiva"
-]);
+export const ONIDLE_EVIDENCE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const ACTION = /^(?:anadir|añadir|automatizar|completar|corregir|crear|detectar|eliminar|evitar|mejorar|migrar|optimizar|reducir|reforzar|rehacer|revisar|simplificar|sustituir)\b/i;
+const CONCRETE_SCOPE = /(?:https?:\/\/|\/[a-z0-9][a-z0-9._~!$&'()*+,;=:@%\/-]*|\b(?:api|endpoint|flujo|formulario|highscore|navegaci[oó]n|pantalla|ruta|sitemap|status|worker)\b)/i;
+const MEASURABLE = /(?:\b\d+(?:[.,]\d+)?\s*(?:%|ms|s|min|h|bytes?|kb|mb|gb|rutas?|pasos?|errores?|veces?)?\b|\b(?:http\s*)?[45]\d\d\b|\b(?:medir|medido|verificar|verificado|de\s+\d+\s+a\s+\d+|hasta\s+\d+)\b)/i;
+const OUTCOME = /\b(?:para|hasta|de\s+\d+\s+a|reducir|aumentar|eliminar|evitar|corregir|completar|verificar)\b/i;
 
 function cleanTitle(value) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, 200);
 }
 
 export function buildOnIdleExplicitNewCandidates(project, dayKey) {
-  const name = cleanTitle(project && (project.name || project.id) || "Proyecto").slice(0, 60) || "Proyecto";
   const day = String(dayKey || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return [];
-  return EXPLICIT_NEW_SCOPES.map((scope, index) => ({
-    title:`${scope} en ${name} · ${day}`,
-    target_mission_id:null,
-    explicit_new:true,
-    status:"new",
-    // Cualquier incidencia/backlog real queda antes que este fallback, incluso
-    // si su prioridad no está normalizada.
-    priority:"fallback",
-    created_at:Number.MAX_SAFE_INTEGER - EXPLICIT_NEW_SCOPES.length + index
-  }));
+  // Academy deja de premiar hablar por hablar. Si el backlog no contiene tres
+  // mejoras fundadas, OnIdle debe encargar investigación y NO fabricar títulos.
+  return [];
+}
+
+export function assessOnIdleProposal(raw, now = Date.now()) {
+  const title = cleanTitle(raw && raw.title);
+  const evidenceAt = Number(raw && (raw.evidence_at || raw.updated_at || raw.created_at)) || 0;
+  const fresh = evidenceAt > 0 && evidenceAt <= now + 5 * 60 * 1000 && now - evidenceAt <= ONIDLE_EVIDENCE_MAX_AGE_MS;
+  const criteria = {
+    evidence:fresh,
+    problem:title.length >= 24 && CONCRETE_SCOPE.test(title),
+    impact:MEASURABLE.test(title),
+    action:ACTION.test(title),
+    verification:OUTCOME.test(title) && MEASURABLE.test(title)
+  };
+  const score = Object.values(criteria).filter(Boolean).length;
+  return { ok:fresh && criteria.action && criteria.impact && score >= 4,
+    score, criteria, evidence_at:evidenceAt || null, max_age_ms:ONIDLE_EVIDENCE_MAX_AGE_MS };
 }
 
 export function onIdleProposalTitleKey(value) {
@@ -76,15 +57,15 @@ function compareCandidates(left, right) {
     onIdleProposalTitleKey(left.title).localeCompare(onIdleProposalTitleKey(right.title), "es");
 }
 
-// La selección no inventa propuestas. Recibe backlog canónico ya acotado por
-// proyecto/agente y devuelve exactamente tres filas estructuradas o falla.
-// `target_mission_id:null` sólo existe para una mejora marcada explícitamente
-// como nueva; una fila ambigua jamás se convierte silenciosamente en texto libre.
+// La selección no inventa propuestas. Recibe el backlog canónico del proyecto
+// y devuelve exactamente tres filas fundadas o falla para encargar investigación.
+// Una fila sin `target_mission_id` jamás se convierte silenciosamente en texto libre.
 export function selectOnIdleProposals(candidates, context = {}) {
   const usedTargets = new Set((context.used_target_ids || []).map((value) => String(value || "").trim()).filter(Boolean));
   const activeTargets = new Set((context.active_mission_ids || []).map((value) => String(value || "").trim()).filter(Boolean));
   const usedTitles = new Set((context.used_titles || []).map(onIdleProposalTitleKey).filter(Boolean));
-  const eligible = [];
+  const eligible = [], rejected = { stale:0, generic:0 };
+  const now = Number(context.now) || Date.now();
   for (const raw of Array.isArray(candidates) ? candidates : []) {
     const title = cleanTitle(raw && raw.title);
     const titleKey = onIdleProposalTitleKey(title);
@@ -94,10 +75,19 @@ export function selectOnIdleProposals(candidates, context = {}) {
     if (!title || !titleKey || TERMINAL.has(status) || ACTIVE.has(status) || usedTitles.has(titleKey)) continue;
     if (target) {
       if (!TARGET_ID.test(target) || explicitNew || usedTargets.has(target) || activeTargets.has(target)) continue;
-    } else if (!explicitNew) {
+    } else {
+      // Ya no existe «mejora nueva» de catálogo: primero se investiga y se crea
+      // una evidencia real; después esa evidencia puede entrar como candidatura.
+      rejected.generic++;
       continue;
     }
-    eligible.push({ ...raw, title, target_mission_id:target || null, explicit_new:!target && explicitNew });
+    const quality = assessOnIdleProposal({ ...raw, title }, now);
+    if (!quality.ok) {
+      if (!quality.criteria.evidence) rejected.stale++;
+      else rejected.generic++;
+      continue;
+    }
+    eligible.push({ ...raw, title, target_mission_id:target, quality });
   }
   eligible.sort(compareCandidates);
   const selected = [], seenTargets = new Set(), seenTitles = new Set();
@@ -106,13 +96,12 @@ export function selectOnIdleProposals(candidates, context = {}) {
     if (seenTitles.has(titleKey) || (row.target_mission_id && seenTargets.has(row.target_mission_id))) continue;
     seenTitles.add(titleKey);
     if (row.target_mission_id) seenTargets.add(row.target_mission_id);
-    selected.push(row.target_mission_id
-      ? { title:row.title, target_mission_id:row.target_mission_id }
-      : { title:row.title, target_mission_id:null, explicit_new:true });
+    selected.push({ title:row.title, target_mission_id:row.target_mission_id });
     if (selected.length === 3) break;
   }
   if (selected.length !== 3) {
-    return { ok:false, code:"onidle_proposals_insufficient", required:3, available:selected.length, proposals:[] };
+    return { ok:false, code:"onidle_proposals_insufficient", required:3,
+      available:selected.length, rejected, action:"investigate", proposals:[] };
   }
-  return { ok:true, proposals:selected };
+  return { ok:true, quality_contract:"academy-improvement-v1", rejected, proposals:selected };
 }

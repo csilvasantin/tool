@@ -227,18 +227,13 @@ if len(rows)!=3: raise SystemExit(6)
 ops=[]; targets=[]; seen_titles=set(); seen_targets=set()
 for line in rows:
   item=json.loads(line)
-  if not isinstance(item,dict) or set(item)-{"title","target_mission_id","explicit_new"} or "target_mission_id" not in item: raise SystemExit(7)
+  if not isinstance(item,dict) or set(item)!={"title","target_mission_id"}: raise SystemExit(7)
   title=" ".join(str(item.get("title","")).split())
   target="" if item.get("target_mission_id") is None else str(item["target_mission_id"]).strip()
-  explicit=item.get("explicit_new") is True
   key=re.sub(r"[^a-z0-9]+"," ",unicodedata.normalize("NFD",title).encode("ascii","ignore").decode().lower()).strip()
   if not title or not key or key in seen_titles: raise SystemExit(8)
-  if target:
-    if explicit or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,119}",target) or target in seen_targets: raise SystemExit(9)
-    seen_targets.add(target); targets.append({"target_mission_id":target})
-  else:
-    if not explicit: raise SystemExit(10)
-    targets.append(None)
+  if not target or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,119}",target) or target in seen_targets: raise SystemExit(9)
+  seen_targets.add(target); targets.append({"target_mission_id":target})
   seen_titles.add(key); ops.append(title)
 ops += ["↩ Volver atrás", "✍️ Custom · Escribe la mejora que quieras a mano"]
 targets += [None,None]

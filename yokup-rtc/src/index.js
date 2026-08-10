@@ -28,7 +28,7 @@ import { validateCoachCompletion, validateCoachLaunch, coachLessonForSlot, coach
 import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
   onIdleEligibility, taskVisibleDetails } from "./mission-visible.js";
 import { DAILY_MISSION_CLOSE_AUTHOR, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_LEASE_MS, DAILY_MISSION_CLOSE_REASON, MISSION_UNCONCLUDED_AFTER_MS, dailyMissionCloseEventText, dailyMissionClosePlan } from "./daily-mission-close.js";
-import { buildOnIdleExplicitNewCandidates, selectOnIdleProposals } from "./onidle-proposals.js";
+import { selectOnIdleProposals } from "./onidle-proposals.js";
 import { canonicalProjectAgentRef, canonicalProjectAgentRefs, YOKUP_MINI_MEMBER_BACKFILL_SQL } from "./project-member-identity.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -3450,13 +3450,15 @@ async function canonicalOnIdleProposals(env, identity, requestedProjectId) {
     .filter((row) => String(row.project_id || "") === projectId)
     .map((row) => row.active_mission_id)
     .concat((activeTaskResult.results || []).map((row) => row.mission_id));
+  const now = Date.now();
   const backlogCandidates = (backlogResult.results || []).map((row) => ({
     title:row.subject, target_mission_id:row.id, status:row.status,
-    priority:row.priority, created_at:row.created_at || row.updated_at
+    priority:row.priority, created_at:row.created_at,
+    updated_at:row.updated_at, evidence_at:row.updated_at || row.created_at
   }));
-  const explicitNewCandidates = buildOnIdleExplicitNewCandidates(assignment, madridDayKey(Date.now()));
-  return { ...selectOnIdleProposals(backlogCandidates.concat(explicitNewCandidates), {
-    used_target_ids:usedTargetIds, used_titles:usedTitles, active_mission_ids:activeMissionIds
+  return { ...selectOnIdleProposals(backlogCandidates, {
+    used_target_ids:usedTargetIds, used_titles:usedTitles,
+    active_mission_ids:activeMissionIds, now
   }), project_id:projectId, agent:identity.agent, machine:identity.machine };
 }
 __name(canonicalOnIdleProposals, "canonicalOnIdleProposals");

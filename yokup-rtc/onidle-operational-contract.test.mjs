@@ -112,17 +112,15 @@ test('dry-run convierte ONIDLE_AGENT histórico antes de emitir',async()=>{
   assert.equal(contract.payload.agent,'OraculoMini');
 });
 
-test('dry-run admite null sólo para una mejora nueva explícita',async()=>{
+test('dry-run rechaza cualquier mejora sin misión y evidencia canónica',async()=>{
   const lines=[
     JSON.stringify({title:'Mejora nueva explícita',target_mission_id:null,explicit_new:true}),
     JSON.stringify({title:'Resolver misión real',target_mission_id:'INC-OMPEIL'}),
     JSON.stringify({title:'Resolver otra misión',target_mission_id:'DCL-REAL'})
   ].join('\n')+'\n';
   const result=await dryRun({},lines);
-  assert.equal(result.status,10,result.stderr);
-  const payload=JSON.parse(result.stdout.trim()).payload;
-  assert.equal(payload.options[0],'Mejora nueva explícita');
-  assert.deepEqual(payload.option_targets,[null,{target_mission_id:'INC-OMPEIL'},{target_mission_id:'DCL-REAL'},null,null]);
+  assert.equal(result.status,20,result.stderr);
+  assert.equal(JSON.parse(result.stdout.trim()).reason,'proposals_invalid');
 });
 
 test('script ignora cualquier fichero manual stale y usa sólo la respuesta canónica',async()=>{

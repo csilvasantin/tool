@@ -61,6 +61,7 @@ function post(env,body=baseBody){
 async function response(env,body){const r=await post(env,body),json=await r.json();return {status:r.status,json};}
 
 test('GET proposals usa el backlog global del proyecto y excluye usadas/activas globales',async()=>{
+  const fresh=Date.now()-60_000;
   const decisions=[{id:'DEC-used',agent:'NeoMini',machine:'otro-equipo',project:'yokup',mission:'OnIdle horario',status:'decided',
     options:JSON.stringify(['Título usado','Otra histórica','Tercera histórica','↩ Volver atrás','✍️ Custom · Escribe la mejora que quieras a mano']),
     option_targets:JSON.stringify([{target_mission_id:'MIS-USED'},null,null,null,null]),created_at:1}];
@@ -69,10 +70,10 @@ test('GET proposals usa el backlog global del proyecto y excluye usadas/activas 
     {...common,id:'MIS-USED',subject:'Aunque cambió título',created_at:1},
     {...common,id:'MIS-TITLE',subject:'Título usado',created_at:2},
     {...common,id:'MIS-ACTIVE',subject:'Activa por batch',created_at:3},
-    {...common,id:'MIS-1',subject:'Primera válida sin asignar',priority:'high',created_at:4},
-    {...common,id:'MIS-2',subject:'Segunda válida ya asignada',assignee:'NeoMini',loc:'otro-equipo',created_at:5},
+    {...common,id:'MIS-1',subject:'Reducir /uno de 10 pasos a 5 y verificar 5',priority:'high',created_at:4,updated_at:fresh},
+    {...common,id:'MIS-2',subject:'Corregir API /dos: 2 errores y verificar 0',assignee:'NeoMini',loc:'otro-equipo',created_at:5,updated_at:fresh},
     {...common,id:'MIS-FOREIGN',subject:'No pertenece al proyecto',project_id:'otro',project:'Otro',priority:'high',created_at:1},
-    {...common,id:'MIS-3',subject:'Tercera válida legacy',project_id:'',project:'Yokup',created_at:6}
+    {...common,id:'MIS-3',subject:'Completar sitemap: 7 rutas de 9 y verificar 9',project_id:'',project:'Yokup',created_at:6,updated_at:fresh}
   ];
   const {env}=decisionEnv({decisions,backlog,activeBatches:[{active_mission_id:'MIS-ACTIVE',agent:'NeoMini',machine:'otro-equipo',project_id:'yokup'}]});
   const response=await worker.fetch(new Request('https://api.yokup.com/fleet/onidle-proposals?agent=OraculoMacMini&machine=admira-macmini&project_id=yokup'),env,{});
@@ -84,42 +85,52 @@ test('GET proposals usa el backlog global del proyecto y excluye usadas/activas 
   assert.equal(rows.length,3);
 });
 
-test('GET proposals completa con explicit_new si el backlog canónico no alcanza tres',async()=>{
+test('GET proposals falla cerrado si el backlog fundado no alcanza tres',async()=>{
+  const fresh=Date.now()-60_000;
   const common={status:'open',priority:'normal',assignee:'OraculoMacMini',loc:'admira-macmini',project:'yokup',project_id:'yokup'};
-  const {env}=decisionEnv({backlog:[{...common,id:'MIS-1',subject:'Una'},{...common,id:'MIS-2',subject:'Dos'}]});
+  const {env}=decisionEnv({backlog:[
+    {...common,id:'MIS-1',subject:'Reducir /uno de 10 pasos a 5 y verificar 5',updated_at:fresh},
+    {...common,id:'MIS-2',subject:'Corregir API /dos: 2 errores y verificar 0',updated_at:fresh}
+  ]});
   const response=await worker.fetch(new Request('https://api.yokup.com/fleet/onidle-proposals?agent=OraculoMacMini&machine=admira-macmini&project_id=yokup'),env,{});
-  const text=await response.text();
-  assert.equal(response.status,200,text);
-  const rows=text.trim().split('\n').map(JSON.parse);
-  assert.deepEqual(rows.slice(0,2).map(row=>row.target_mission_id),['MIS-1','MIS-2']);
-  assert.equal(rows[2].target_mission_id,null);
-  assert.equal(rows[2].explicit_new,true);
+  const body=await response.json();
+  assert.equal(response.status,409,JSON.stringify(body));
+  assert.equal(body.code,'onidle_proposals_insufficient');
+  assert.equal(body.available,2); assert.equal(body.action,'investigate');
 });
 
-test('GET proposals devuelve tres explicit_new distintos con backlog vacío',async()=>{
+test('GET proposals no fabrica opciones con backlog vacío',async()=>{
   const {env}=decisionEnv();
   const response=await worker.fetch(new Request('https://api.yokup.com/fleet/onidle-proposals?agent=OraculoMacMini&machine=admira-macmini&project_id=yokup'),env,{});
-  const text=await response.text();
-  assert.equal(response.status,200,text);
-  const rows=text.trim().split('\n').map(JSON.parse);
-  assert.equal(rows.length,3);
-  assert.equal(new Set(rows.map(row=>row.title)).size,3);
-  assert.ok(rows.every(row=>row.target_mission_id===null&&row.explicit_new===true));
+  const body=await response.json();
+  assert.equal(response.status,409); assert.equal(body.available,0);
+  assert.equal(body.action,'investigate');
 });
 
-test('GET proposals excluye tareas activas aunque el ticket siga open y rellena con explicit_new',async()=>{
+test('GET proposals excluye tareas activas y no rellena el hueco',async()=>{
+  const fresh=Date.now()-60_000;
   const common={status:'open',priority:'high',assignee:'',loc:'',project:'yokup',project_id:'yokup'};
   const {env}=decisionEnv({backlog:[
     {...common,id:'MIS-ACT',subject:'No debe salir',created_at:1},
-    {...common,id:'INC-OK',subject:'Incidencia vigente',created_at:2}
+    {...common,id:'INC-OK',subject:'Reducir /status de 216 KB a 80 KB y verificar peso',created_at:2,updated_at:fresh}
   ],activeMissionTasks:['MIS-ACT']});
   const response=await worker.fetch(new Request('https://api.yokup.com/fleet/onidle-proposals?agent=OraculoMacMini&machine=admira-macmini&project_id=yokup'),env,{});
-  const text=await response.text();
-  assert.equal(response.status,200,text);
-  const rows=text.trim().split('\n').map(JSON.parse);
-  assert.equal(rows.length,3);
-  assert.equal(rows[0].target_mission_id,'INC-OK');
-  assert.ok(rows.every(row=>row.target_mission_id!=='MIS-ACT'));
+  const body=await response.json();
+  assert.equal(response.status,409); assert.equal(body.available,1);
+  assert.equal(body.action,'investigate');
+});
+
+test('GET proposals rechaza evidencia de hace 65 horas aunque el título sea medible',async()=>{
+  const old=Date.now()-65*HOUR,common={status:'open',priority:'high',project:'yokup',project_id:'yokup'};
+  const {env}=decisionEnv({backlog:[
+    {...common,id:'MIS-1',subject:'Rehacer /404: 1140 bytes y verificar salida',updated_at:old},
+    {...common,id:'MIS-2',subject:'Completar sitemap: 7 rutas de 9 y verificar 9',updated_at:old},
+    {...common,id:'MIS-3',subject:'Reducir /status de 216 KB a 80 KB y verificar peso',updated_at:old}
+  ]});
+  const response=await worker.fetch(new Request('https://api.yokup.com/fleet/onidle-proposals?agent=OraculoMacMini&machine=admira-macmini&project_id=yokup'),env,{});
+  const body=await response.json();
+  assert.equal(response.status,409); assert.equal(body.available,0);
+  assert.equal(body.rejected.stale,3);
 });
 
 test('GET proposals exige project_id exacto aunque agent+machine tengan una sola asignación',async()=>{

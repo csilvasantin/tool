@@ -38,7 +38,7 @@ required = (
     'PROJECT_SLUG_OVERRIDE="${ONIDLE_PROJECT_SLUG:-}"',
     'fleet/onidle-proposals',
     'if len(rows)!=3',
-    '"target_mission_id" not in item',
+    'set(item)!={"title","target_mission_id"}',
     '"↩ Volver atrás", "✍️ Custom · Escribe la mejora que quieras a mano"',
     '"option_targets":targets',
     '"project":os.environ["PJ"]',
