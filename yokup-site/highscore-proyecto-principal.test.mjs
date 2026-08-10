@@ -7,8 +7,8 @@ import vm from "node:vm";
 // agente sin misión ni objetivo con proyecto en las últimas horas salía con «—»
 // aunque el censo lo declare responsable de uno (Carlos, 2026-08-05: «¿por qué
 // se ha perdido el proyecto principal?»). Ahora la cascada es:
-//   1. lo que está haciendo AHORA (derivado del trabajo),
-//   2. su proyecto principal declarado para hoy,
+//   1. el proyecto principal DECLARADO para hoy — la asignación de Carlos,
+//   2. lo que está haciendo ahora (derivado del trabajo), si no hay declaración,
 //   3. su proyecto estructural del censo (projects + agents/primary_responsible),
 //   4. suscositas.com — comodín que debería verse casi nunca; si sale, es que a
 //      ese agente no se le ha asignado proyecto.
@@ -100,7 +100,7 @@ test("la declaración diaria exacta gana al proyecto estructural del censo", () 
     "la declaración de TrinityMBP14 no se hereda en otra máquina");
 });
 
-test("la cascada trabajo → principal diario → censo → suscositas está en el código", () => {
+test("la cascada declarado → trabajo → censo → suscositas está en el código", () => {
   assert.match(source, /if \(f\.proyecto\) \{\s*f\.proyectoOrigen = "trabajo";/);
   assert.match(source, /f\.proyectoOrigen = "declarado"/);
   assert.match(source, /f\.proyectoOrigen = "principal"/);
@@ -128,4 +128,40 @@ test("el chip dice de dónde sale el proyecto y marca en ámbar el que falta", (
   assert.match(falta, /class="project-chip defecto"/);
   assert.match(falta, /Sin proyecto asignado en el censo/);
   assert.match(source, /\.project-chip\.defecto\{color:#ffb454/);
+});
+
+// ── la asignación manda sobre la faena ──────────────────────────────────────
+// El 10 de agosto de 2026 Carlos tuvo que decirlo DOS VECES el mismo día: «no
+// identificas bien el proyecto que te he dicho al que nos vamos a dedicar hoy,
+// que es admira.live, aparece admiranext.com». No era un dato perdido: la
+// columna daba prioridad al trabajo reciente, y ese día el agente asignado a
+// admira.live tocó de paso admiranext.com. El panel contaba en qué tecleaba en
+// vez de a qué se le había mandado.
+test("lo que Carlos declara para hoy gana al trabajo de hoy", () => {
+  const fuente = source;
+  const i = fuente.indexOf("LA ASIGNACIÓN DE CARLOS MANDA SOBRE LA FAENA");
+  assert.ok(i > 0, "debe quedar escrito por qué la declaración manda");
+  const bloque = fuente.slice(i, i + 2000);
+  // La declaración se consulta ANTES de aceptar el proyecto derivado del trabajo.
+  const posDeclarado = bloque.indexOf("proyectoDeclaradoHoy(f)");
+  const posTrabajo = bloque.indexOf('f.proyectoOrigen = "trabajo"');
+  assert.ok(posDeclarado >= 0 && posTrabajo > posDeclarado,
+    "la declaración diaria debe evaluarse antes que el proyecto del trabajo");
+});
+
+test("la faena distinta no se borra: viaja como detalle", () => {
+  const i = source.indexOf("LA ASIGNACIÓN DE CARLOS MANDA SOBRE LA FAENA");
+  const bloque = source.slice(i, i + 2000);
+  assert.match(bloque, /proyectoFaena = f\.proyecto/,
+    "si el trabajo apunta a otro proyecto debe conservarse, no perderse");
+  assert.match(source, /hoy además ha tocado/,
+    "la pastilla debe poder decir qué más se ha tocado hoy");
+});
+
+test("sin declaración diaria sigue mandando el trabajo, y luego el censo", () => {
+  const i = source.indexOf("LA ASIGNACIÓN DE CARLOS MANDA SOBRE LA FAENA");
+  const bloque = source.slice(i, i + 2200);
+  assert.match(bloque, /\} else if \(f\.proyecto\) \{/, "el trabajo sigue siendo el segundo criterio");
+  assert.match(bloque, /proyectoDeCenso\(f\)/, "el censo sigue siendo el respaldo");
+  assert.match(bloque, /suscositas\.com/, "y el comodín sigue al final");
 });

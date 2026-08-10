@@ -1375,7 +1375,23 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         : { state:"initial", current:null, previous:null, day:claveDia(Date.now()), key:claveObservacionDiaria(f),
           stale:true, missingScore:true };
       f.tendencia = tendenciaHoraria(f);
-      if (f.proyecto) {
+      // LA ASIGNACIÓN DE CARLOS MANDA SOBRE LA FAENA (Carlos, 2026-08-10).
+      // Antes ganaba el trabajo reciente y la declaración diaria sólo se usaba
+      // como respaldo cuando no había nada que hacer. El resultado es que un
+      // agente al que Carlos manda a admira.live, y que esa mañana toca de paso
+      // admiranext.com, aparecía anunciando admiranext.com: el panel contaba en
+      // qué estaba tecleando en vez de a qué se le había mandado. Carlos, dos
+      // veces el mismo día: «no identificas bien el proyecto que te he dicho al
+      // que nos vamos a dedicar hoy». Cuando él dice «hoy nos dedicamos a X»,
+      // eso ES la respuesta a «¿en qué anda este equipo?», y no la deshace un
+      // commit suelto en otro repositorio.
+      // La faena no se pierde: si difiere, viaja como detalle de la pastilla.
+      var declarado = proyectoDeclaradoHoy(f);
+      if (declarado && declarado.label) {
+        if (f.proyecto && f.proyecto !== declarado.label) f.proyectoFaena = f.proyecto;
+        f.proyecto = declarado.label; f.proyectoUrl = declarado.url;
+        f.proyectoOrigen = "declarado"; f.proyectoId = declarado.id;
+      } else if (f.proyecto) {
         f.proyectoOrigen = "trabajo";
         // Aunque el proyecto salga del trabajo, el gatillo necesita el id del
         // censo: si no está, el botón no se pinta (mejor sin botón que con uno
@@ -1383,11 +1399,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         var enCenso = proyectoDeCenso(f);
         f.proyectoId = (enCenso && enCenso.id) || "";
       } else {
-        var declarado = proyectoDeclaradoHoy(f), censo = proyectoDeCenso(f);
-        if (declarado && declarado.label) {
-          f.proyecto = declarado.label; f.proyectoUrl = declarado.url; f.proyectoOrigen = "declarado";
-          f.proyectoId = declarado.id;
-        } else if (censo && censo.label) {
+        var censo = proyectoDeCenso(f);
+        if (censo && censo.label) {
           f.proyecto = censo.label; f.proyectoUrl = censo.url; f.proyectoOrigen = "principal";
           f.proyectoId = censo.id;
         } else {
@@ -1732,6 +1745,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     if (!a.proyecto) return '<span class="project-empty">—</span>';
     var origen = a.proyectoOrigen || "trabajo", label = esc(a.proyecto);
     var title = (TITULO_PROYECTO[origen] || TITULO_PROYECTO.trabajo) + " · " + label;
+    // Si hoy ha tocado además otra cosa, se dice aquí: la columna anuncia la
+    // asignación, pero el trabajo real no se esconde.
+    if (a.proyectoFaena) title += " · hoy además ha tocado " + a.proyectoFaena;
     var clase = "project-chip" + (["declarado","principal"].indexOf(origen) >= 0 ? " principal" : "") +
       (origen === "defecto" ? " defecto" : "");
     return a.proyectoUrl
@@ -2851,7 +2867,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       'Los cinco indicadores muestran siempre una pareja numérica <b>hora / total del día</b>; una hora sin actividad se representa con <b>0</b>.</li>' +
       '<li><b>Ordenador:</b> en verde el que late ahora, apagado el conocido sin latido reciente. ' +
       'Un mismo agente corre en varios a la vez.</li>' +
-      '<li><b>Proyecto:</b> manda la tarea activa; después ventana, misión u objetivo. Si no hay trabajo activo, muestra el <b>proyecto principal declarado para hoy</b> y sólo después el proyecto estructural del censo.</li>' +
+      '<li><b>Proyecto:</b> manda el <b>proyecto principal declarado para hoy</b> — la asignación de Carlos. Si ese día se ha tocado además otra cosa, se dice en el detalle de la pastilla. Sin declaración, manda la tarea activa (ventana, misión u objetivo) y sólo después el proyecto estructural del censo.</li>' +
       '<li>El <b>número verde que parpadea</b> señala qué hace el agente ahora: objetivo, ventana, misión o tarea. ' +
       'Si ninguno parpadea, está <b>idle</b>. Solo se muestra una señal, priorizando la tarea activa.</li></ul>' +
       '<p style="margin-top:10px">Hoy puntúan <b>' + hoyTareas.length + '</b> tareas. La bitácora ha anotado <b>' +
