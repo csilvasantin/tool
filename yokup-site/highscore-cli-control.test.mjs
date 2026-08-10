@@ -16,6 +16,16 @@ test("Avanzado contiene sólo el control global de DesktopAPP",()=>{
   assert.match(frame,/"DesktopAPP"/);
   assert.match(frame,/Codex\/OpenAI · Claude Code · OpenCode/);
   assert.match(frame,/item\.host === "app"/);
+  assert.match(frame,/FLEET\.appsExpanded/);
+  assert.match(frame,/FLEET\.appOpen\.has\(machine\)/);
+  assert.match(frame,/groups\[item\.machine\]/);
+  assert.match(css,/\.yk-app-body\[hidden\],\.yk-app-rows\[hidden\]\{display:none\}/);
+});
+
+test("todo el JavaScript inline de Highscore compila antes de publicar",()=>{
+  const scripts=[...highscore.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map(match=>match[1]);
+  assert.ok(scripts.length>0,"Highscore debe conservar al menos un script inline");
+  scripts.forEach((script,index)=>assert.doesNotThrow(()=>new Function(script),`script inline ${index+1}`));
 });
 
 test("Experto contiene CLIs y la sesión remota real",()=>{

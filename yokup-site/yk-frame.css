@@ -426,6 +426,20 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
 .yk-fleet-row{display:flex;align-items:center;gap:8px;border-top:1px solid var(--yk-line);padding-top:7px}.yk-fleet-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
 .yk-fleet-copy b{color:var(--yk-ink);font:700 10px/1.2 var(--yk-mono);overflow:hidden;text-overflow:ellipsis}.yk-fleet-copy small{color:var(--yk-dim);font:8.5px/1.2 var(--yk-mono)}
 .yk-slot .yk-fleet-action{width:auto;padding:6px 7px;border:1px solid var(--yk-line2);border-radius:6px;background:transparent;color:var(--yk-brand);font:700 8px/1 var(--yk-mono);cursor:pointer;text-align:center}
+.yk-slot .yk-fleet-action:disabled{opacity:.45;cursor:not-allowed}
+/* AVANZADO conserva el control DesktopAPP compacto que precedía al traslado de
+ * los CLIs: una cabecera plegable y, dentro, una barra plegable por máquina. */
+.yk-app-control{display:grid;gap:8px;padding:10px 0;border-bottom:1px solid var(--yk-line);min-width:0}
+.yk-slot .yk-app-head,.yk-slot .yk-app-machine{appearance:none;display:flex;align-items:center;gap:7px;width:100%;text-align:left;cursor:pointer;font-family:var(--yk-mono)}
+.yk-slot .yk-app-head{padding:0;border:0;background:transparent;color:var(--yk-brand);font-size:9px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}
+.yk-app-head:hover,.yk-app-head:focus-visible{color:var(--yk-ink);outline:none}.yk-app-count{margin-left:auto;border:1px solid var(--yk-line2);border-radius:999px;padding:2px 7px;color:var(--yk-warn,#ffd45e);font-size:8px;letter-spacing:.03em;text-transform:none;white-space:nowrap}
+.yk-app-chevron{flex:0 0 auto;width:9px;color:var(--yk-brand);font:900 10px/1 var(--yk-mono)}.yk-app-chevron::before{content:"\25B8"}[aria-expanded="true"]>.yk-app-chevron::before{content:"\25BE"}
+.yk-app-body{display:grid;gap:8px}.yk-app-body[hidden],.yk-app-rows[hidden]{display:none}.yk-app-list{display:grid;gap:5px;max-height:min(58vh,520px);overflow:auto;padding-right:2px;scrollbar-width:thin}
+.yk-app-group{display:grid;min-width:0;margin:0;padding:0;border:0;gap:3px}.yk-slot .yk-app-machine{min-height:24px;padding:4px 7px;border:1px solid rgba(120,243,255,.24);border-radius:7px;background:rgba(120,243,255,.08);color:var(--yk-ink);font-size:9px;font-weight:900;letter-spacing:.05em}
+.yk-app-machine:hover,.yk-app-machine:focus-visible{border-color:var(--yk-brand);background:rgba(120,243,255,.14);outline:none}.yk-app-machine-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.yk-app-tally{margin-left:auto;min-width:26px;padding:1px 5px;border:1px solid var(--yk-line);border-radius:999px;color:var(--yk-dim);font-size:8px;font-weight:400;text-align:center}.yk-app-tally.live{color:#88ffaa;border-color:rgba(136,255,170,.35)}
+.yk-app-rows{display:grid;gap:3px}.yk-app-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px;padding:5px 7px;border:1px solid var(--yk-line);border-radius:7px;background:rgba(120,243,255,.025)}.yk-app-row:hover,.yk-app-row:focus-within{border-color:var(--yk-brand);background:rgba(120,243,255,.06)}
+.yk-app-copy{display:grid;gap:3px;min-width:0}.yk-app-copy b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--yk-ink);font:700 9.5px/1.2 var(--yk-mono)}.yk-app-copy small{color:var(--yk-dim);font:8px/1.2 var(--yk-mono)}.yk-app-copy small.live{color:#88ffaa}.yk-app-status{min-height:12px;margin:0;color:#88ffaa;font:8.5px/1.3 var(--yk-mono)}.yk-app-status.error{color:#ff7f87}
+.yk-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 .yk-cli-console{display:grid;grid-template-columns:minmax(210px,25%) minmax(0,1fr);gap:12px;min-height:0;flex:1}
 .yk-cli-side,.yk-cli-terminal{min-width:0;min-height:0;border:1px solid var(--yk-line);border-radius:9px;background:rgba(2,8,13,.42);padding:10px}
 .yk-cli-side{display:flex;flex-direction:column}.yk-cli-list{margin-top:8px;max-height:none;min-height:0;flex:1}

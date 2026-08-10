@@ -686,8 +686,9 @@
     return NAV.map(function (r) { return { label: r[0], href: r[1] }; });
   }
 
-  var FLEET = { items:[], selected:"", busy:false, appList:null, appCount:null, cliList:null,
-    cliCount:null, cliTitle:null, cliMeta:null, cliOutput:null, cliInput:null, cliStatus:null, cliPower:null };
+  var FLEET = { items:[], selected:"", busy:false, appList:null, appCount:null, appBody:null,
+    appStatus:null, appsExpanded:false, appOpen:new Set(), cliList:null, cliCount:null, cliTitle:null,
+    cliMeta:null, cliOutput:null, cliInput:null, cliStatus:null, cliPower:null };
 
   function fleetText(tag, cls, value) { var node=el(tag,cls); node.textContent=String(value == null ? "" : value); return node; }
 
@@ -745,7 +746,9 @@
   }
 
   function fleetMessage(message,error) {
-    if(!FLEET.cliStatus)return; FLEET.cliStatus.textContent=String(message||""); FLEET.cliStatus.classList.toggle("error",!!error);
+    [FLEET.appStatus,FLEET.cliStatus].forEach(function(status){
+      if(!status)return;status.textContent=String(message||"");status.classList.toggle("error",!!error);
+    });
   }
 
   function selectedCli() {
@@ -785,12 +788,25 @@
     var apps=FLEET.items.filter(function(item){return item.host === "app";});
     FLEET.appCount.textContent=apps.filter(function(item){return item.active;}).length+"/"+apps.length+" vivas";
     if(!apps.length){FLEET.appList.appendChild(el("p","yk-fleet-empty","Sin DesktopAPP observadas."));return;}
-    apps.forEach(function(item){
-      var row=el("div","yk-fleet-row"); var copy=el("span","yk-fleet-copy");
-      var name=fleetText("b",null,item.persona+" · "+item.runtime); var meta=fleetText("small",null,item.machine+" · "+(item.active?("PID "+item.pid):"parada"));
-      copy.appendChild(name);copy.appendChild(meta);row.appendChild(copy);
-      row.appendChild(fleetButton(item.active?"■ Detener":"▶ Abrir","yk-fleet-action",function(){fleetControl(item,item.active?"stop":"start");}));
-      FLEET.appList.appendChild(row);
+    var groups={};apps.forEach(function(item){(groups[item.machine]||(groups[item.machine]=[])).push(item);});
+    Object.keys(groups).sort(function(a,b){return a.localeCompare(b,"es");}).forEach(function(machine,index){
+      var items=groups[machine].sort(function(a,b){return Number(b.active)-Number(a.active)||a.persona.localeCompare(b.persona,"es")||a.runtime.localeCompare(b.runtime,"es");});
+      var active=items.filter(function(item){return item.active;}).length,open=FLEET.appOpen.has(machine),rowsId="ykAppMachine"+index;
+      var group=el("fieldset","yk-app-group");group.appendChild(fleetText("legend","yk-sr-only","DesktopAPP de "+machine));
+      var toggle=el("button","yk-app-machine");toggle.type="button";toggle.setAttribute("aria-expanded",String(open));toggle.setAttribute("aria-controls",rowsId);
+      toggle.appendChild(el("span","yk-app-chevron"));toggle.appendChild(fleetText("span","yk-app-machine-name",machine));
+      toggle.appendChild(fleetText("span","yk-app-tally"+(active?" live":""),active+"/"+items.length));
+      var rows=el("div","yk-app-rows");rows.id=rowsId;rows.hidden=!open;
+      toggle.addEventListener("click",function(){if(FLEET.appOpen.has(machine))FLEET.appOpen.delete(machine);else FLEET.appOpen.add(machine);renderApps();});
+      group.appendChild(toggle);
+      items.forEach(function(item){
+        var row=el("div","yk-app-row");var copy=el("span","yk-app-copy");
+        copy.appendChild(fleetText("b",null,item.persona+" · "+item.runtime));
+        copy.appendChild(fleetText("small",item.active?"live":"",item.active?("● activa · PID "+item.pid):"○ parada · ranura disponible"));row.appendChild(copy);
+        var action=fleetButton(item.active?"■ Detener":"▶ Abrir","yk-fleet-action",function(){fleetControl(item,item.active?"stop":"start");});
+        action.disabled=FLEET.busy||(!item.active&&!item.watcher);row.appendChild(action);rows.appendChild(row);
+      });
+      group.appendChild(rows);FLEET.appList.appendChild(group);
     });
   }
 
@@ -821,10 +837,15 @@
   }
 
   function buildDesktopControl() {
-    var section=el("section","yk-fleet yk-fleet-apps");var head=el("div","yk-fleet-head");
-    head.appendChild(fleetText("b",null,"DesktopAPP"));FLEET.appCount=fleetText("span",null,"…");head.appendChild(FLEET.appCount);section.appendChild(head);
-    section.appendChild(el("p","yk-fleet-help","Codex/OpenAI · Claude Code · OpenCode. Sólo aplicaciones de escritorio verificadas."));
-    FLEET.appList=el("div","yk-fleet-list");section.appendChild(FLEET.appList);return section;
+    var section=el("section","yk-app-control");var head=el("button","yk-app-head");head.type="button";head.setAttribute("aria-expanded","false");
+    head.appendChild(el("span","yk-app-chevron"));head.appendChild(fleetText("b",null,"DesktopAPP"));
+    FLEET.appCount=fleetText("span","yk-app-count","…");head.appendChild(FLEET.appCount);section.appendChild(head);
+    FLEET.appBody=el("div","yk-app-body");FLEET.appBody.hidden=true;
+    FLEET.appBody.appendChild(el("p","yk-fleet-help","Codex/OpenAI · Claude Code · OpenCode. Aplicaciones verificadas, agrupadas por equipo."));
+    FLEET.appList=el("div","yk-app-list");FLEET.appBody.appendChild(FLEET.appList);
+    FLEET.appStatus=el("p","yk-app-status");FLEET.appStatus.setAttribute("role","status");FLEET.appBody.appendChild(FLEET.appStatus);section.appendChild(FLEET.appBody);
+    head.addEventListener("click",function(){FLEET.appsExpanded=!FLEET.appsExpanded;head.setAttribute("aria-expanded",String(FLEET.appsExpanded));FLEET.appBody.hidden=!FLEET.appsExpanded;});
+    return section;
   }
 
   function buildCliConsole() {

@@ -2743,7 +2743,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       '<span class="cli-ctl-state '+tone+'"><span class="cli-ctl-dot" aria-hidden="true">'+(item.active?'●':'○')+'</span>'+state+'</span></span>'+
       '<button class="cli-ctl-act '+action+'" type="button" data-op-key="'+esc(key)+'" data-op-action="'+action+'"'+
       (disabled?' disabled':'')+' aria-label="'+esc(label+' '+item.persona+' '+surface+' en '+item.machine)+'">'+esc(label)+'</button>'+
-      '<p class="cli-ctl-meta"><b>'+esc(project)+'</b> · '+esc(doing)+esc(declarationAge)+'<br>'+esc(item.active?('PID '+item.pid+' · '+(item.model||'modelo no declarado')+' · '+(item.host==='cli'?(item.attached?'terminal atendido':'autónomo / detached'):'aplicación de escritorio')):'ranura lista para arrancar')+' · censo '+hsOpsAge(item.updated))+'</p>'+
+      '<p class="cli-ctl-meta"><b>'+esc(project)+'</b> · '+esc(doing)+esc(declarationAge)+'<br>'+esc(item.active?('PID '+item.pid+' · '+(item.model||'modelo no declarado')+' · '+(item.host==='cli'?(item.attached?'terminal atendido':'autónomo / detached'):'aplicación de escritorio')):'ranura lista para arrancar')+' · censo '+hsOpsAge(item.updated)+'</p>'+
       (pending?'<p class="cli-ctl-wait">Orden '+esc(pending.action==='start'?'de arranque':'de parada')+' enviada · esperando confirmación del proceso…</p>':'')+'</div>';
   }
   function hsRenderCliControl() {
