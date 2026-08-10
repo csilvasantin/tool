@@ -46,6 +46,15 @@ node scripts/assert-canonical-routes.mjs src/index.js
 # El detector anterior buscaba «failing tests:» en la salida, que sólo imprime
 # `node --test`; corriendo `node "$t"` a pelo, un fichero en rojo pasaba por verde.
 # El código de salida sí lo dice siempre.
+# TOPE DE CUATRO PUBLICACIONES POR HORA (Carlos, 2026-08-10).
+# La noche del 9 al 10 se sellaron cinco releases de madrugada que nadie pidió:
+# el bucle OnIdle proponía mejoras, los agentes las publicaban, y por la mañana
+# el sitio había cambiado solo y el aviso de «versión nueva» repicaba sin parar.
+# Se cuenta contra el historial de git —publican varias máquinas— y se puede
+# saltar declarando el motivo, nunca en silencio. Ver scripts/ritmo-publicacion.mjs.
+echo "→ Ritmo de publicación…"
+node ../scripts/ritmo-publicacion.mjs --proyecto yokup-rtc || exit 1
+
 echo "→ Pruebas…"
 fallos=0
 for t in *.test.mjs test/*.test.mjs; do

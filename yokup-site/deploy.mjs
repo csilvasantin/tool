@@ -21,6 +21,25 @@ try {
 }
 const { deployer, machine, signature } = deployIdentity;
 
+// TOPE DE CUATRO PUBLICACIONES POR HORA (Carlos, 2026-08-10).
+// El lock de más abajo impide que dos agentes publiquen A LA VEZ, que es otra
+// cosa: la noche del 9 al 10 nadie publicó a la vez, publicaron por turnos toda
+// la madrugada —cinco releases— y el resultado fue un sitio cambiado sin que
+// nadie lo pidiera. Esto limita el RITMO, no la concurrencia.
+{
+  const { evaluar, informe } = await import("../scripts/ritmo-publicacion.mjs");
+  const ahora = Date.now();
+  const ritmo = evaluar({ ahora });
+  const urgente = (process.env.PUBLICACION_URGENTE ?? "").trim();
+  if (!ritmo.puede) {
+    console.error(informe(ritmo, { proyecto: "yokup-site", ahora }));
+    if (!urgente) process.exit(4);
+    console.error(`\n  ⚠ SE PUBLICA POR URGENCIA declarada: «${urgente}»`);
+  } else {
+    console.log(informe(ritmo, { proyecto: "yokup-site", ahora }));
+  }
+}
+
 let lock;
 let stagingPath = "";
 try {
