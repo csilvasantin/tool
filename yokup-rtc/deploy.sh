@@ -10,21 +10,38 @@ cd "$(dirname "$0")"
 # máquinas de la flota: `source` de un fichero ausente tumbaba el script entero con
 # set -e, así que este deploy llevaba tiempo sin poder ejecutarse. Ahora la guarda
 # vive AQUÍ: el despliegue de un repo no puede depender de un fichero suelto fuera
-# del repo. Mismo criterio y misma vía de escape que yokup-site/deploy.mjs.
+# del repo. En producción no hay escape: main remoto exacto, limpio y verificable.
 echo "→ Rama…"
 rama="$(git rev-parse --abbrev-ref HEAD)"
-git fetch -q origin main 2>/dev/null || true
-if [ "$rama" != "main" ] && [ "${YOKUP_DEPLOY_FORCE:-}" != "1" ]; then
+git fetch -q origin main
+if [ "$rama" != "main" ]; then
   adelante="$(git rev-list --count origin/main..HEAD 2>/dev/null || echo '?')"
   detras="$(git rev-list --count HEAD..origin/main 2>/dev/null || echo '?')"
   echo "Deploy bloqueado: produccion es main y esto no es main."
   echo "  estas en   : $rama ($(git rev-parse --short HEAD))"
   echo "  origin/main: $(git rev-parse --short origin/main 2>/dev/null || echo '?')"
   echo "  tienes $adelante commit(s) que main no tiene y te faltan $detras que main si tiene."
-  echo "  Funde tu rama en main y publica desde ahi. Si de verdad quieres publicar"
-  echo "  este arbol tal cual, hazlo consciente: YOKUP_DEPLOY_FORCE=1."
+  echo "  Funde tu rama en main y publica desde ahi."
   exit 1
 fi
+HEAD_COMMIT="$(git rev-parse HEAD)"
+MAIN_COMMIT="$(git rev-parse origin/main)"
+if [ "$HEAD_COMMIT" != "$MAIN_COMMIT" ]; then
+  echo "Deploy bloqueado: main local no coincide con origin/main."
+  echo "  HEAD       : ${HEAD_COMMIT:0:12}"
+  echo "  origin/main: ${MAIN_COMMIT:0:12}"
+  echo "  Actualiza el checkout canónico antes de publicar."
+  exit 1
+fi
+if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+  echo "Deploy bloqueado: el worktree tiene cambios sin commit."
+  git status --short
+  exit 1
+fi
+echo "  ✓ $(git rev-parse --show-toplevel) · main exacto y limpio"
+
+echo "→ Rutas canónicas…"
+node scripts/assert-canonical-routes.mjs src/index.js
 
 # El detector anterior buscaba «failing tests:» en la salida, que sólo imprime
 # `node --test`; corriendo `node "$t"` a pelo, un fichero en rojo pasaba por verde.
@@ -68,5 +85,10 @@ echo "→ Cloudflare Workers…"
 # despliegue de producción depende de lo que npm publique esa mañana: el 07-08-2026
 # la 4.120.0 devolvía 404 en el registro y no se podía desplegar nada. Se fija una
 # versión probada; subirla es un cambio consciente (WRANGLER_VERSION=x.y.z ./deploy.sh).
-npx "wrangler@${WRANGLER_VERSION:-4.119.0}" deploy
+WRANGLER="wrangler@${WRANGLER_VERSION:-4.119.0}"
+DRYRUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/yokup-rtc-dryrun.XXXXXX")"
+trap 'rm -rf -- "$DRYRUN_DIR"' EXIT
+npx "$WRANGLER" deploy --dry-run --outdir "$DRYRUN_DIR"
+node scripts/assert-canonical-routes.mjs "$DRYRUN_DIR/index.js"
+npx "$WRANGLER" deploy
 echo "✓ yokup-rtc publicado · api.yokup.com"
