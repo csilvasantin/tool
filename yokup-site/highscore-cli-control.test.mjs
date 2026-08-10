@@ -42,6 +42,9 @@ test("Experto contiene CLIs y la sesión remota real",()=>{
   assert.match(frame,/machine:item\.machine,persona:item\.persona,runtime:item\.runtime,host:item\.host,session_id:item\.session_id/);
   assert.match(frame,/body\.pid=item\.pid/);
   assert.match(frame,/terminalAction\("focus"\)/);
+  assert.match(frame,/focusQueued:false/);
+  assert.match(frame,/if\(FLEET\.busy\)\{[\s\S]*action === "focus"[\s\S]*FLEET\.focusQueued=true/);
+  assert.match(frame,/FLEET\.cliFocus\.disabled=!item\.active/);
   assert.match(frame,/tmux:"\+selected\.session_id/);
   assert.match(frame,/selected\.attached\?"Terminal conectada":"sin Terminal conectada"/);
 });
