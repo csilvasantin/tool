@@ -38,6 +38,16 @@ function standaloneEnv() {
       return {results:[]};
     },
     async run(){
+      // Convergencia de padres (FLT-1373): actualiza POR CONDICIÓN, no por clave, así
+      // que el doble de D1 tiene que reconocerla antes que el update por código.
+      if (sql.includes('length(code)=1') && sql.includes('h.code LIKE mission_tasks.code||')) {
+        for (const t of state.tasks.values()) {
+          if (String(t.code).length!==1 || t.status==='done') continue;
+          const hijas=[...state.tasks.values()].filter(h=>String(h.code).length===2&&String(h.code)[0]===t.code);
+          if (hijas.length && hijas.every(h=>h.status==='done')) { t.status='done'; t.updated_at=args[0]; }
+        }
+        return {meta:{changes:1}};
+      }
       if (sql.startsWith('UPDATE mission_tasks SET status=')) {
         const task=state.tasks.get(args.at(-1));
         Object.assign(task,{status:args[0],report:args[1],owner:args[2],image:args[3],image_kind:args[4],updated_at:args[9]});

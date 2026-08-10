@@ -4179,6 +4179,21 @@ function proofLabel(img) {
   return s;
 }
 __name(proofLabel, "proofLabel");
+// UN PADRE NO PUEDE CONTRADECIR A SUS HIJAS (FLT-1373, 10-08-2026). Al cerrar una
+// misión sólo se marcaban en bloque las tareas de un standalone, así que una misión
+// normal podía quedar «resolved» con su tarea «a» en pending aunque a1, a2 y a3
+// estuvieran hechas — y ahí se quedaba para siempre: /fleet/task-status rechaza
+// tocar una misión cerrada y la convergencia exacta sólo existe para standalone.
+// Esto NO da por hecho ningún trabajo: un padre converge sólo si TIENE subtareas y
+// TODAS están done. Una hoja sin terminar se queda como está y se sigue viendo.
+function convergeParentTasksStmt(env, mid, now) {
+  return env.DB.prepare(
+    "UPDATE mission_tasks SET status='done',updated_at=? WHERE mission_id=? AND length(code)=1 AND status!='done'" +
+    " AND EXISTS(SELECT 1 FROM mission_tasks h WHERE h.mission_id=mission_tasks.mission_id AND h.code LIKE mission_tasks.code||'_')" +
+    " AND NOT EXISTS(SELECT 1 FROM mission_tasks h WHERE h.mission_id=mission_tasks.mission_id AND h.code LIKE mission_tasks.code||'_' AND h.status!='done')"
+  ).bind(now, mid);
+}
+__name(convergeParentTasksStmt, "convergeParentTasksStmt");
 async function lastEventKind(env, ticketId) {
   const r = await env.DB.prepare("SELECT kind FROM events WHERE ticket_id=? ORDER BY id DESC LIMIT 1").bind(ticketId).first();
   return r ? r.kind : null;
@@ -6533,6 +6548,9 @@ var index_default = {
         const sameClosure = t.proof_kind === "final" && t.proof_image === rawImage && previous &&
           previous.owner === owner && previous.report === report && previous.image === rawImage && previous.image_kind === "final";
         if (!sameClosure) return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada y sólo admite reintentar exactamente el mismo cierre", status: t.status, applied: false }, 409);
+        // El reintento existe justo para completar un cierre a medias: si quedó un
+        // padre contradiciendo a sus hijas, aquí es donde se repara.
+        await convergeParentTasksStmt(env, mid, Date.now()).run();
         const inbox = await notifyFleetInformeClosure(env, t, mid, owner, report, rawImage, runtime, host);
         if (!inbox.updated) return json({ ok: false, code: "closure_partial", mission: mid, resolved: false, local_resolved: true, proof_saved: true, inbox_updated: false, sync_required: true, proof_image: rawImage }, 502);
         let batch, targetBatch;
@@ -6566,6 +6584,7 @@ var index_default = {
           "UPDATE tickets SET status='resolved',resolved_at=COALESCE(resolved_at,?),proof_image=?,proof_kind='final',agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),points_end=?,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
         ).bind(now, image, runtime, host, puntosCierre, puntosCierre, now, mid),
         env.DB.prepare("UPDATE mission_tasks SET status='done',updated_at=? WHERE mission_id=? AND code!='z1' AND EXISTS(SELECT 1 FROM tickets WHERE id=? AND role='standalone-task')").bind(now,mid,mid),
+        convergeParentTasksStmt(env, mid, now),
         env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid, now, "log", owner, "📝 Informe: " + report.slice(0, 240)),
         env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid, now, "proof", owner, "📸 Pantallazo final: " + proofLabel(image))
       ]);
