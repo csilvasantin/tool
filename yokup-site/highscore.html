@@ -628,21 +628,6 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   <p class="agent-scope-status" id="agentScopeCloneStatus" role="status" aria-live="polite" aria-atomic="true"></p>
 </section>
 
-<!-- Centro operativo: el proceso observado manda. APP y CLI son superficies
-     distintas; «sin watcher» es desconocido y nunca se pinta como apagado. -->
-<section class="cli-ctl" data-yk-slot="right" id="cliControl" aria-labelledby="cliCtlTitle">
-  <button class="cli-ctl-head" type="button" id="cliCtlToggle" aria-expanded="false" aria-controls="cliCtlBody">
-    <span class="cli-ctl-chevron" aria-hidden="true"></span>
-    <span id="cliCtlTitle">Centro operativo</span>
-    <span class="cli-ctl-count" id="cliCtlCount">…</span>
-  </button>
-  <div class="cli-ctl-body" id="cliCtlBody" hidden>
-    <p class="cli-ctl-help">Informe exacto por equipo: <strong>DesktopAPP</strong> y <strong>CLI</strong>, proceso verificado, trabajo declarado y mando seguro. La máquina confirma cada cambio antes de mostrarlo.</p>
-    <div class="cli-ctl-list" id="cliCtlList" aria-live="polite"><div class="cli-ctl-empty">Cargando…</div></div>
-    <p class="cli-ctl-status" id="cliCtlStatus" role="status" aria-live="polite" aria-atomic="true"></p>
-  </div>
-</section>
-
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script src="/highscore-race.js?v=v.2026.08.04.running-plus-1"></script>
 <script>

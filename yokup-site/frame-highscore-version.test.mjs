@@ -15,7 +15,7 @@ test("Avanzado ofrece Highscore fuera del propio Highscore y no declara vacío f
   assert.match(frame, /highscore\.href = "\/highscore"/);
   assert.match(frame, /if \(!active\) \{[\s\S]*nav\.appendChild\(highscore\)/);
   assert.match(frame, /aria-label", "Herramientas avanzadas de Yokup"/);
-  assert.match(frame, /if \(name !== "right"\) slot\.appendChild/);
+  assert.match(frame, /if \(name !== "right" && !slot\.children\.length\) slot\.appendChild/);
   assert.match(css, /\.yk-adv-nav/);
 });
 

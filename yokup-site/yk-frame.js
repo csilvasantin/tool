@@ -173,6 +173,7 @@
   // el rango bloqueado: el respaldo no respaldaba nada.
   var WORKER = "https://api.yokup.com";
   var WORKER_FALLBACK = "https://rtc.yokup.com";
+  var TELEGRAM = "https://admira-telegram.csilvasantin.workers.dev";
   // Sello del deploy, capturado mientras este script sigue siendo currentScript.
   // deploy.mjs versiona cada referencia /yk-frame.js?v=<sello>; version.json es
   // la confirmación pública. Nunca debe volver a vivir aquí una fecha manual.
@@ -685,6 +686,162 @@
     return NAV.map(function (r) { return { label: r[0], href: r[1] }; });
   }
 
+  var FLEET = { items:[], selected:"", busy:false, appList:null, appCount:null, cliList:null,
+    cliCount:null, cliTitle:null, cliMeta:null, cliOutput:null, cliInput:null, cliStatus:null, cliPower:null };
+
+  function fleetText(tag, cls, value) { var node=el(tag,cls); node.textContent=String(value == null ? "" : value); return node; }
+
+  function fleetKey(item) {
+    return [item.machine,item.persona,item.runtime,item.host,item.session_id].map(function (value) {
+      return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    }).join("|");
+  }
+
+  function fleetItems(payload) {
+    var groups={}, now=Date.now()/1000;
+    (payload.control_machines || []).forEach(function (machine) {
+      var name=String(machine.machine || "").trim(); if(!name)return;
+      groups[name]={ machine:name, watcher:true, updated:Number(machine.updated || 0), slots:machine.slots || [], items:{} };
+    });
+    (payload.presence || []).forEach(function (row) {
+      if (!(row && row.verified && row.source === "process_snapshot" && Number(row.updated || 0) >= now-35)) return;
+      var name=String(row.machine || "").trim(); if(!name)return;
+      var group=groups[name] || (groups[name]={machine:name,watcher:false,updated:Number(row.updated||0),slots:[],items:{}});
+      var item={machine:name,persona:String(row.persona||""),runtime:String(row.runtime||""),host:String(row.host||"").toLowerCase(),
+        session_id:String(row.session_id||""),pid:Number(row.pid||0),active:true,attached:row.attached===true,model:String(row.model||""),
+        project:String(row.project||""),task:String(row.task||row.focus||""),updated:Number(row.updated||0),watcher:group.watcher};
+      group.items[fleetKey(item)]=item;
+    });
+    Object.keys(groups).forEach(function (name) {
+      var group=groups[name];
+      group.slots.forEach(function (slot) {
+        var item={machine:name,persona:String(slot.persona||""),runtime:String(slot.runtime||""),host:String(slot.host||"").toLowerCase(),
+          session_id:String(slot.session_id||""),pid:0,active:false,attached:false,model:"",project:"",task:"",updated:group.updated,watcher:true};
+        var key=fleetKey(item); if(!group.items[key])group.items[key]=item; else group.items[key].watcher=true;
+      });
+    });
+    var rows=[]; Object.keys(groups).forEach(function(name){Object.keys(groups[name].items).forEach(function(key){rows.push(groups[name].items[key]);});});
+    return rows.sort(function(a,b){return a.machine.localeCompare(b.machine,"es")||a.persona.localeCompare(b.persona,"es")||a.runtime.localeCompare(b.runtime,"es");});
+  }
+
+  function fleetTarget(item, action) {
+    var body={action:action,machine:item.machine,persona:item.persona,runtime:item.runtime,host:item.host,session_id:item.session_id};
+    if(action === "stop" || action === "read" || action === "write")body.pid=item.pid;
+    return body;
+  }
+
+  function fleetButton(label, cls, handler) {
+    var button=el("button",cls,label); button.type="button"; button.addEventListener("click",handler); return button;
+  }
+
+  function fleetControl(item, action) {
+    if(FLEET.busy)return;
+    if(action === "stop" && !window.confirm("Detener " + item.persona + " · " + item.runtime + " en " + item.machine + " (PID " + item.pid + ")?"))return;
+    FLEET.busy=true; fleetMessage((action === "start" ? "Arrancando " : "Deteniendo ") + item.persona + " en " + item.machine + "…",false);
+    ykFetch("/fleet/agent/control",{method:"POST",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify(fleetTarget(item,action))})
+      .then(function(response){return response.json().catch(function(){return {};}).then(function(body){if(!response.ok)throw new Error(body.error||("control "+response.status));return body;});})
+      .then(function(){setTimeout(loadFleet,2200);}).catch(function(error){fleetMessage(error.message||"No se pudo enviar la orden",true);})
+      .finally(function(){FLEET.busy=false;renderFleet();});
+  }
+
+  function fleetMessage(message,error) {
+    if(!FLEET.cliStatus)return; FLEET.cliStatus.textContent=String(message||""); FLEET.cliStatus.classList.toggle("error",!!error);
+  }
+
+  function selectedCli() {
+    return FLEET.items.find(function(item){return item.host === "cli" && fleetKey(item) === FLEET.selected;}) || null;
+  }
+
+  function pollTerminal(id, deadline) {
+    return ykFetch("/fleet/cli/terminal?id="+encodeURIComponent(id),{cache:"no-store"}).then(function(response){
+      return response.json().catch(function(){return {};}).then(function(body){if(!response.ok)throw new Error(body.error||("estado "+response.status));return body;});
+    }).then(function(body){
+      if(body.status === "done" || body.status === "failed")return body;
+      if(Date.now() >= deadline)throw new Error("La orden sigue en proceso; vuelve a comprobar en unos segundos.");
+      return new Promise(function(resolve){setTimeout(resolve,800);}).then(function(){return pollTerminal(id,deadline);});
+    });
+  }
+
+  function terminalAction(action) {
+    var item=selectedCli(); if(!item || !item.active || FLEET.busy)return Promise.resolve();
+    var text=action === "write" ? String(FLEET.cliInput && FLEET.cliInput.value || "") : "";
+    if(action === "write" && !text.trim()){fleetMessage("Escribe el mensaje que recibirá la sesión CLI.",true);return Promise.resolve();}
+    FLEET.busy=true; fleetMessage(action === "write" ? "Enviando a la misma sesión…" : "Leyendo la misma sesión…",false);
+    var body=fleetTarget(item,action); if(action === "write")body.text=text;
+    return ykFetch("/fleet/cli/terminal",{method:"POST",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify(body)})
+      .then(function(response){return response.json().catch(function(){return {};}).then(function(data){if(!response.ok)throw new Error(data.error||("terminal "+response.status));return data;});})
+      .then(function(data){return pollTerminal(data.command_id,Date.now()+30000);})
+      .then(function(result){
+        if(result.status === "failed")throw new Error(result.error||"La sesión rechazó la orden");
+        if(result.output && FLEET.cliOutput)FLEET.cliOutput.textContent=result.output;
+        if(action === "write" && FLEET.cliInput){FLEET.cliInput.value="";fleetMessage("Mensaje entregado a la sesión real. Actualizando respuesta…",false);setTimeout(function(){terminalAction("read");},1200);}
+        else fleetMessage("Sesión sincronizada · "+new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"}),false);
+      }).catch(function(error){fleetMessage(error.message||"No se pudo comunicar con la sesión",true);})
+      .finally(function(){FLEET.busy=false;renderFleet();});
+  }
+
+  function renderApps() {
+    if(!FLEET.appList)return; FLEET.appList.textContent="";
+    var apps=FLEET.items.filter(function(item){return item.host === "app";});
+    FLEET.appCount.textContent=apps.filter(function(item){return item.active;}).length+"/"+apps.length+" vivas";
+    if(!apps.length){FLEET.appList.appendChild(el("p","yk-fleet-empty","Sin DesktopAPP observadas."));return;}
+    apps.forEach(function(item){
+      var row=el("div","yk-fleet-row"); var copy=el("span","yk-fleet-copy");
+      var name=fleetText("b",null,item.persona+" · "+item.runtime); var meta=fleetText("small",null,item.machine+" · "+(item.active?("PID "+item.pid):"parada"));
+      copy.appendChild(name);copy.appendChild(meta);row.appendChild(copy);
+      row.appendChild(fleetButton(item.active?"■ Detener":"▶ Abrir","yk-fleet-action",function(){fleetControl(item,item.active?"stop":"start");}));
+      FLEET.appList.appendChild(row);
+    });
+  }
+
+  function renderCli() {
+    if(!FLEET.cliList)return; FLEET.cliList.textContent="";
+    var clis=FLEET.items.filter(function(item){return item.host === "cli";});
+    FLEET.cliCount.textContent=clis.filter(function(item){return item.active;}).length+"/"+clis.length+" vivos";
+    if(!clis.length){FLEET.cliList.appendChild(el("p","yk-fleet-empty","Sin CLIs observados."));return;}
+    if(!clis.some(function(item){return fleetKey(item)===FLEET.selected;}))FLEET.selected=fleetKey(clis.find(function(item){return item.active;})||clis[0]);
+    clis.forEach(function(item){
+      var button=el("button","yk-cli-agent"+(fleetKey(item)===FLEET.selected?" selected":""));button.type="button";
+      var title=fleetText("b",null,item.persona+" · "+item.runtime);var meta=fleetText("small",null,item.machine+" · "+(item.active?"vivo":"parado"));
+      button.appendChild(title);button.appendChild(meta);button.addEventListener("click",function(){FLEET.selected=fleetKey(item);renderCli();if(item.active)terminalAction("read");});FLEET.cliList.appendChild(button);
+    });
+    var selected=selectedCli(); if(!selected)return;
+    FLEET.cliTitle.textContent=selected.persona+" · "+selected.runtime;
+    FLEET.cliMeta.textContent=selected.machine+" · "+(selected.active?("PID "+selected.pid+" · sesión "+selected.session_id):"sesión parada");
+    if(FLEET.cliPower){FLEET.cliPower.textContent=selected.active?"■ Detener":"▶ Arrancar";FLEET.cliPower.disabled=FLEET.busy||(!selected.active&&!selected.watcher);}
+    var write=FLEET.cliInput && FLEET.cliInput.form && FLEET.cliInput.form.querySelector('[data-cli-write]');
+    if(FLEET.cliInput)FLEET.cliInput.disabled=!selected.active;if(write)write.disabled=!selected.active||FLEET.busy;
+  }
+
+  function renderFleet(){renderApps();renderCli();}
+  function loadFleet() {
+    return fetch(TELEGRAM+"/api/presence",{cache:"no-store"}).then(function(response){if(!response.ok)throw new Error("presence "+response.status);return response.json();})
+      .then(function(payload){FLEET.items=fleetItems(payload);renderFleet();return payload;})
+      .catch(function(error){fleetMessage("No se pudo verificar la flota: "+(error.message||error),true);});
+  }
+
+  function buildDesktopControl() {
+    var section=el("section","yk-fleet yk-fleet-apps");var head=el("div","yk-fleet-head");
+    head.appendChild(fleetText("b",null,"DesktopAPP"));FLEET.appCount=fleetText("span",null,"…");head.appendChild(FLEET.appCount);section.appendChild(head);
+    section.appendChild(el("p","yk-fleet-help","Codex/OpenAI · Claude Code · OpenCode. Sólo aplicaciones de escritorio verificadas."));
+    FLEET.appList=el("div","yk-fleet-list");section.appendChild(FLEET.appList);return section;
+  }
+
+  function buildCliConsole() {
+    var section=el("section","yk-cli-console");var side=el("div","yk-cli-side");var head=el("div","yk-fleet-head");
+    head.appendChild(fleetText("b",null,"Control de CLIs"));FLEET.cliCount=fleetText("span",null,"…");head.appendChild(FLEET.cliCount);side.appendChild(head);
+    FLEET.cliList=el("div","yk-cli-list");side.appendChild(FLEET.cliList);section.appendChild(side);
+    var terminal=el("div","yk-cli-terminal");var terminalHead=el("div","yk-cli-terminal-head");
+    var identity=el("span");FLEET.cliTitle=fleetText("b",null,"Selecciona un CLI");FLEET.cliMeta=fleetText("small",null,"Sesión remota segura");identity.appendChild(FLEET.cliTitle);identity.appendChild(FLEET.cliMeta);terminalHead.appendChild(identity);
+    FLEET.cliPower=fleetButton("▶ Arrancar","yk-cli-power",function(){var item=selectedCli();if(item)fleetControl(item,item.active?"stop":"start");});terminalHead.appendChild(FLEET.cliPower);
+    terminalHead.appendChild(fleetButton("↻ Leer","yk-cli-read",function(){terminalAction("read");}));terminal.appendChild(terminalHead);
+    FLEET.cliOutput=el("pre","yk-cli-output");FLEET.cliOutput.textContent="La salida de la sesión real aparecerá aquí.";terminal.appendChild(FLEET.cliOutput);
+    var form=el("form","yk-cli-form");FLEET.cliInput=el("textarea","yk-cli-input");FLEET.cliInput.maxLength=4000;FLEET.cliInput.rows=2;FLEET.cliInput.placeholder="Mensaje para la sesión CLI seleccionada";form.appendChild(FLEET.cliInput);
+    var send=fleetButton("Enviar ↵","yk-cli-send",function(){terminalAction("write");});send.setAttribute("data-cli-write","1");form.appendChild(send);
+    form.addEventListener("submit",function(event){event.preventDefault();terminalAction("write");});terminal.appendChild(form);
+    FLEET.cliStatus=el("p","yk-cli-status");FLEET.cliStatus.setAttribute("role","status");terminal.appendChild(FLEET.cliStatus);section.appendChild(terminal);return section;
+  }
+
   function build() {
     if (document.getElementById("yk-frame")) return;
     document.documentElement.classList.add("yk-framed"); // aplica padding-top al body
@@ -788,11 +945,13 @@
     // cualquier otra página de la zona app, sin duplicarse en su propia vista.
     railR.appendChild(buildAdvancedNav());
     var slotR = el("div", "yk-slot"); railR.appendChild(slotR);
+    slotR.appendChild(buildDesktopControl());
 
     var railB = el("aside", "yk-rail yk-rail-bottom");
     var expert = el("div", "yk-expert");
     expert.appendChild(el("div", "yk-hd", "EXPERTO"));
     var slotB = el("div", "yk-slot"); expert.appendChild(slotB);
+    slotB.appendChild(buildCliConsole());
     railB.appendChild(expert);
 
     root.appendChild(bar);
@@ -824,6 +983,9 @@
 
     // --- contadores reales «curso/pend» del menú (un fetch, degradación silenciosa) ---
     fetchCounters();
+    loadFleet();
+    setInterval(loadFleet, 10000);
+    setInterval(function(){if(isOpen("bottom") && selectedCli() && selectedCli().active && !FLEET.busy)terminalAction("read");},5000);
   }
 
   // Pie fijo del raíl OPCIONES: AJUSTES (plegado por defecto, contenido REAL de
@@ -1541,7 +1703,7 @@
     if (!nodes.length) {
       // Avanzado siempre tiene su navegación canónica montada fuera del slot.
       // El mensaje de vacío sería falso y fue exactamente lo que vio Carlos.
-      if (name !== "right") slot.appendChild(el("div", "yk-empty", "— sin opciones en esta vista"));
+      if (name !== "right" && !slot.children.length) slot.appendChild(el("div", "yk-empty", "— sin opciones en esta vista"));
     } else {
       // mover (no clonar): preserva los event listeners ya enlazados
       Array.prototype.forEach.call(nodes, function (n) {
