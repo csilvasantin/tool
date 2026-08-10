@@ -40,7 +40,7 @@ test("Experto contiene CLIs y la sesión remota real",()=>{
   assert.match(frame,/action === "write"/);
   assert.match(frame,/FLEET\.cliOutput\.textContent=result\.output/);
   assert.match(frame,/machine:item\.machine,persona:item\.persona,runtime:item\.runtime,host:item\.host,session_id:item\.session_id/);
-  assert.match(frame,/body\.pid=item\.pid/);
+  assert.match(frame,/action === "stop" \|\| action === "read" \|\| action === "write" \|\| action === "focus"\)body\.pid=item\.pid/);
   assert.match(frame,/terminalAction\("focus"\)/);
   assert.match(frame,/focusQueued:false/);
   assert.match(frame,/if\(FLEET\.busy\)\{[\s\S]*action === "focus"[\s\S]*FLEET\.focusQueued=true/);

@@ -729,7 +729,7 @@
 
   function fleetTarget(item, action) {
     var body={action:action,machine:item.machine,persona:item.persona,runtime:item.runtime,host:item.host,session_id:item.session_id};
-    if(action === "stop" || action === "read" || action === "write")body.pid=item.pid;
+    if(action === "stop" || action === "read" || action === "write" || action === "focus")body.pid=item.pid;
     return body;
   }
 
