@@ -4,6 +4,58 @@ import {readFile} from 'node:fs/promises';
 
 const source = await readFile(new URL('./objetivos.html', import.meta.url), 'utf8');
 
+function functionSource(name) {
+  const start=source.indexOf(`function ${name}(`),brace=source.indexOf('{',start);
+  assert.notEqual(start,-1,`falta ${name}`);
+  let depth=0,quote='',escaped=false;
+  for(let index=brace;index<source.length;index++){
+    const char=source[index];
+    if(quote){
+      if(escaped)escaped=false;
+      else if(char==='\\')escaped=true;
+      else if(char===quote)quote='';
+      continue;
+    }
+    if(char==='"'||char==="'"||char==='`'){quote=char;continue;}
+    if(char==='{')depth++;
+    else if(char==='}'&&--depth===0)return source.slice(start,index+1);
+  }
+  throw new Error(`${name} incompleta`);
+}
+
+function renderedObjectiveRow(item) {
+  const objectiveRowSource=functionSource('objectiveRow');
+  return new Function('i',`
+    const STLABEL={nueva:'Nueva'},NEXT={},SEL=new Set(),SEATLABEL={},SEATALIAS={},SEATROLE={};
+    const hasDecision=()=>false,isConsejo=()=>false,hasReview=()=>false,hasMedia=()=>false;
+    const objectiveProject=()=>({name:'Yokup',slug:'yokup',url:''}),ymd=()=> '2026-08-10';
+    const workRef=value=>value.id,voteSummary=()=> 'Sin deliberación',saberBadge=()=>'',seatOpts=()=>'';
+    const objectiveDetail=()=>'',fecha=()=> '10/08/2026';
+    const esc=value=>String(value==null?'':value).replace(/[<>&"]/g,char=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[char]));
+    ${objectiveRowSource}
+    return objectiveRow(i);
+  `)(item);
+}
+
+const decodeHtml=value=>String(value).replace(/&(lt|gt|amp|quot);/g,(_,entity)=>({lt:'<',gt:'>',amp:'&',quot:'"'}[entity]));
+function buttonsByRole(html) {
+  return [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].map(match=>{
+    const attrs=match[1],attribute=name=>new RegExp(`${name}="([^"]*)"`).exec(attrs)?.[1]||'';
+    return {
+      name:decodeHtml(attribute('aria-label')||match[2].replace(/<[^>]+>/g,'')),
+      textContent:decodeHtml(match[2].replace(/<[^>]+>/g,'')),
+      dataset:{rm:decodeHtml(attribute('data-rm'))},
+      tabIndex:/\bdisabled\b/.test(attrs)||attribute('tabindex')==='-1'?-1:0
+    };
+  });
+}
+function getByRole(html,role,{name}) {
+  assert.equal(role,'button');
+  const matches=buttonsByRole(html).filter(button=>button.name===name);
+  assert.equal(matches.length,1,`se esperaba un único botón llamado ${name}`);
+  return matches[0];
+}
+
 test('Objetivos declara una hoja con seis columnas y rowgroup estable', () => {
   assert.match(source, /id="objectivesGrid"[^>]*role="table"/);
   assert.match(source, /class="objective-grid-head"[^>]*role="row"/);
@@ -49,6 +101,22 @@ test('selección, edición de silla/fecha y acciones siguen cableadas', () => {
   assert.match(source, /setSeat\(s\.dataset\.seatFor,s\.value\)/);
   assert.match(source, /setSchedule\(d\.dataset\.dateFor,d\.value\)/);
   assert.match(source, /applyBulk/);
+});
+
+test('el borrado irreversible nombra el objetivo sin alterar su botón nativo', () => {
+  const title='Cerrar <script> & "final"',html=renderedObjectiveRow({
+    id:'OBJ-<&"-7',title,status:'nueva',created_at:Date.now()
+  });
+  const escaped='Eliminar para siempre «Cerrar &lt;script&gt; &amp; &quot;final&quot;»';
+  assert.equal((html.match(new RegExp(`aria-label="${escaped}"`,'g'))||[]).length,1);
+  const button=getByRole(html,'button',{name:`Eliminar para siempre «${title}»`});
+  assert.equal(button.textContent,'✕');
+  assert.equal(button.tabIndex,0,'el botón nativo sigue en el orden de Tab');
+  assert.equal(button.dataset.rm,'OBJ-<&"-7');
+  assert.match(html,/<button class="del" data-rm=/);
+  assert.match(source,/e\.target\.closest\("\[data-rm\]"\)/);
+  assert.match(source,/if\(!confirm\('¿Eliminar esta idea\?/);
+  assert.match(source,/fetch\(WORKER\+"\/ideas\/delete"/);
 });
 
 test('creación, edición, selección, votos, misión y descarte conservan sus endpoints', () => {

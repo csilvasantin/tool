@@ -604,7 +604,7 @@ function objectiveRow(i){
       (!isMis&&!pend?'<button class="mis" data-mis="'+esc(i.id)+'" title="Abrir ventana de decisión · 3 consejeros lo miran y salen 3 opciones (3 min). No pasa directo a misión">→ ventana</button>':'')+
       (!isMis&&st!=="descartada"&&st!=="eliminada"?'<button data-del="'+esc(i.id)+'" title="descartar">⊘ descartar</button>':'')+
       (showDelib?'<button class="guion" data-guion="'+esc(i.id)+'" title="Copiar guion (idea + deliberación) para NotebookLM">⧉ guion</button>':'')+
-      '<button class="del" data-rm="'+esc(i.id)+'" title="Eliminar para siempre">✕</button></span></div>'+
+      '<button class="del" data-rm="'+esc(i.id)+'" title="Eliminar para siempre" aria-label="Eliminar para siempre «'+esc(i.title||"objetivo")+'»">✕</button></span></div>'+
     objectiveDetail(i,st)+'</div>';
 }
 function render(){
