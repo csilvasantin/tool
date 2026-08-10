@@ -119,8 +119,12 @@ test('fuera de Darwin usa nohup separado y el lock impide duplicar el DEC vivo',
   const second=box.run();
   assert.equal(first.status,0,first.stderr);
   assert.equal(second.status,0,second.stderr);
-  await new Promise((resolve)=>setTimeout(resolve,100));
-  const calls=(await box.nohups()).trim().split('\n').filter(Boolean);
+  let recorded="";
+  for(let attempt=0;attempt<30&&!recorded.trim();attempt++){
+    await new Promise((resolve)=>setTimeout(resolve,50));
+    recorded=await box.nohups();
+  }
+  const calls=recorded.trim().split('\n').filter(Boolean);
   assert.equal(calls.length,1);
   assert.match(calls[0],/\/bin\/bash .*onidle-hora\.sh --watch DEC-PERSIST/);
   assert.equal(await box.launch(),'');
