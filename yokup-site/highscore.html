@@ -537,6 +537,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .cli-ctl-status{min-height:14px;margin:0;color:var(--good);font-size:9px;line-height:1.45}
 .cli-ctl-status.error{color:var(--warn)}
 .cli-ctl-empty{padding:8px;color:var(--dim);font-size:9px;line-height:1.45}
+.cli-ctl-meta{grid-column:1/-1;margin:0;color:var(--dim);font-size:8.5px;line-height:1.45;overflow-wrap:anywhere}
+.cli-ctl-meta b{color:var(--mut);font-weight:800}.cli-ctl-surface{display:inline-flex;align-items:center;width:max-content;
+  padding:1px 5px;border:1px solid var(--line);border-radius:999px;color:var(--brand);font-size:7.5px;font-weight:900;letter-spacing:.08em}
+.cli-ctl-surface.app{color:var(--accent);border-color:rgba(255,216,102,.35)}
 @media (max-width:620px){.podio{margin-top:20px}.plaza{width:27%;padding:4px 5px;gap:4px;background:rgba(2,8,13,.78)}
   .plaza.p2{left:7%;top:62%}.plaza.p1{left:36.5%;top:59%}.plaza.p3{right:6%;top:66%}
   .nom{font-size:7px}.pts{font-size:10px}
@@ -624,19 +628,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   <p class="agent-scope-status" id="agentScopeCloneStatus" role="status" aria-live="polite" aria-atomic="true"></p>
 </section>
 
-<!-- Plegado en DOS niveles (Carlos, 2026-08-08): la sección entra cerrada y se abre
-     al pulsar su título; dentro, cada ordenador es otra barra cerrada que se abre
-     para enseñar sus CLIs. Nueve filas abiertas de golpe empujaban todo lo demás
-     del raíl fuera de la pantalla. El recuento «2/9 vivos» se queda SIEMPRE a la
-     vista, cerrado o abierto: es el dato que se mira de un vistazo. -->
+<!-- Centro operativo: el proceso observado manda. APP y CLI son superficies
+     distintas; «sin watcher» es desconocido y nunca se pinta como apagado. -->
 <section class="cli-ctl" data-yk-slot="right" id="cliControl" aria-labelledby="cliCtlTitle">
   <button class="cli-ctl-head" type="button" id="cliCtlToggle" aria-expanded="false" aria-controls="cliCtlBody">
     <span class="cli-ctl-chevron" aria-hidden="true"></span>
-    <span id="cliCtlTitle">Control de CLIs</span>
+    <span id="cliCtlTitle">Centro operativo</span>
     <span class="cli-ctl-count" id="cliCtlCount">…</span>
   </button>
   <div class="cli-ctl-body" id="cliCtlBody" hidden>
-    <p class="cli-ctl-help">Por ordenador: la <strong>sesión</strong> (activar o desactivar) y sus <strong>CLIs</strong> (arrancar o matar). La orden se encola; la máquina la recoge cada 20 s.</p>
+    <p class="cli-ctl-help">Informe exacto por equipo: <strong>DesktopAPP</strong> y <strong>CLI</strong>, proceso verificado, trabajo declarado y mando seguro. La máquina confirma cada cambio antes de mostrarlo.</p>
     <div class="cli-ctl-list" id="cliCtlList" aria-live="polite"><div class="cli-ctl-empty">Cargando…</div></div>
     <p class="cli-ctl-status" id="cliCtlStatus" role="status" aria-live="polite" aria-atomic="true"></p>
   </div>
@@ -804,7 +805,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   var datos = { tareas: [], tareasFresh: false, actividad: [], actividadMeta: null, actividadFresh: false,
     presencia: [], misiones: [], ideas: [], decisiones: [], proyectos: [],
-    declaracionesPrincipales: [], turnos: null };
+    declaracionesPrincipales: [], controlMachines: [], turnos: null };
   var DAILY_CACHE_KEY = "yokup.highscore.daily.v1";
   function guardaActividadDiaria(payload) {
     if (!payload || !Array.isArray(payload.scores) || payload.day !== claveDia(Date.now())) return;
@@ -827,7 +828,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         seguroYokup("/tickets?scope=fleet", function (d) { return d.tickets || []; }),
         seguroYokup("/ideas", function (d) { return d.ideas || []; }),
         seguroYokup("/decisions", function (d) { return d.items || d.decisions || []; }),
-        seguro("/api/presence", function (d) { return d.presence || []; }),
+        seguro("/api/presence", function (d) { return { presence:d.presence || [], controlMachines:d.control_machines || [] }; }),
         seguroYokup("/projects", function (d) { return {
           projects:d.projects || [], declarations:d.principal_declarations || []
         }; }),
@@ -842,7 +843,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (fresh) guardaActividadDiaria(r[0]);
       datos.actividadFresh = fresh && datos.tareasFresh;
       datos.actividadMeta = a || null; datos.actividad = a && a.scores || [];
-      datos.misiones = r[1] || []; datos.ideas = r[2] || []; datos.decisiones = r[3] || []; datos.presencia = r[4] || [];
+      datos.misiones = r[1] || []; datos.ideas = r[2] || []; datos.decisiones = r[3] || [];
+      datos.presencia = r[4] && r[4].presence || []; datos.controlMachines = r[4] && r[4].controlMachines || [];
       datos.proyectos = r[5] && r[5].projects || [];
       datos.declaracionesPrincipales = r[5] && r[5].declarations || [];
       datos.turnos = r[6] || null;
@@ -2701,6 +2703,102 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     });
   }
 
+  /* CENTRO OPERATIVO v2. La fuente es el snapshot de procesos de cada Mac, no
+     el catálogo histórico de CLIs. Una ranura anunciada y sin proceso está
+     PARADA; una máquina sin watcher queda DESCONOCIDA y no recibe botones. */
+  function hsOpsKey(item) {
+    return [item.machine,item.persona,item.runtime,item.host,item.session_id].map(claveHoraria).join("|");
+  }
+  function hsOpsAge(epoch) {
+    var seconds = Math.max(0, Math.round(Date.now()/1000-Number(epoch||0)));
+    return seconds < 60 ? "hace "+seconds+" s" : "hace "+Math.floor(seconds/60)+" min";
+  }
+  function hsOpsItems() {
+    var machines = {}, now = Date.now()/1000;
+    (datos.controlMachines||[]).forEach(function (machine) {
+      var key=claveHoraria(machine.machine); if(!key)return;
+      machines[key]={machine:machine.machine,watcher:true,updated:Number(machine.updated||0),slots:machine.slots||[],items:{}};
+    });
+    (datos.presencia||[]).forEach(function (row) {
+      if (!(row&&row.verified&&row.source==="process_snapshot"&&Number(row.updated||0)>=now-35)) return;
+      var machineKey=claveHoraria(row.machine); if(!machineKey)return;
+      var group=machines[machineKey]||(machines[machineKey]={machine:row.machine,watcher:false,updated:Number(row.updated||0),slots:[],items:{}});
+      var item={machine:row.machine,persona:row.persona,runtime:row.runtime,host:row.host,session_id:row.session_id,
+        pid:Number(row.pid||0),active:true,attached:row.attached===true,model:row.model||"",project:row.project||"",
+        task:row.task||"",focus:row.focus||"",updated:Number(row.updated||0),declared_updated:Number(row.declared_updated||0),verified:true,watcher:group.watcher};
+      group.items[hsOpsKey(item)]=item;
+    });
+    Object.keys(machines).forEach(function (key) {
+      var group=machines[key];
+      (group.slots||[]).forEach(function (slot) {
+        var item={machine:group.machine,persona:slot.persona,runtime:slot.runtime,host:slot.host,session_id:slot.session_id,
+          pid:0,active:false,attached:false,model:"",project:"",task:"",focus:"",updated:group.updated,declared_updated:0,verified:true,watcher:true};
+        var itemKey=hsOpsKey(item); if(!group.items[itemKey])group.items[itemKey]=item;
+        else group.items[itemKey].watcher=true;
+      });
+    });
+    return Object.keys(machines).map(function(key){var group=machines[key];return {machine:group.machine,watcher:group.watcher,
+      updated:group.updated,items:Object.keys(group.items).map(function(itemKey){return group.items[itemKey];})};})
+      .sort(function(a,b){return a.machine.localeCompare(b.machine,"es");});
+  }
+  function hsOpsFind(key) {
+    var found=null; hsOpsItems().some(function(group){return group.items.some(function(item){if(hsOpsKey(item)===key){found=item;return true;}return false;});});
+    return found;
+  }
+  function hsOpsRow(item) {
+    var key=hsOpsKey(item),pending=CLI_PENDIENTES[key],surface=item.host==="app"?"DesktopAPP":"CLI";
+    var doing=item.task||item.focus||"Sin actividad declarada", project=item.project||"Sin proyecto declarado";
+    var declarationAge=item.declared_updated?" · actividad declarada "+hsOpsAge(item.declared_updated):"";
+    var state=item.active?"Activo":"Parado", tone=item.active?"viva":"parada";
+    var action=item.active?"stop":"start", label=item.active?"■ Detener":"▶ Arrancar";
+    var disabled=pending||(!item.active&&!item.watcher)||(!item.active?false:!(item.verified&&item.pid>1));
+    return '<div class="cli-ctl-row">'+
+      '<span class="cli-ctl-name"><b class="cli-ctl-label">'+esc(item.persona+' · '+item.runtime)+'</b>'+
+      '<span class="cli-ctl-surface '+(item.host==="app"?'app':'cli')+'">'+surface+'</span>'+
+      '<span class="cli-ctl-state '+tone+'"><span class="cli-ctl-dot" aria-hidden="true">'+(item.active?'●':'○')+'</span>'+state+'</span></span>'+
+      '<button class="cli-ctl-act '+action+'" type="button" data-op-key="'+esc(key)+'" data-op-action="'+action+'"'+
+      (disabled?' disabled':'')+' aria-label="'+esc(label+' '+item.persona+' '+surface+' en '+item.machine)+'">'+esc(label)+'</button>'+
+      '<p class="cli-ctl-meta"><b>'+esc(project)+'</b> · '+esc(doing)+esc(declarationAge)+'<br>'+esc(item.active?('PID '+item.pid+' · '+(item.model||'modelo no declarado')+' · '+(item.host==='cli'?(item.attached?'terminal atendido':'autónomo / detached'):'aplicación de escritorio')):'ranura lista para arrancar')+' · censo '+hsOpsAge(item.updated))+'</p>'+
+      (pending?'<p class="cli-ctl-wait">Orden '+esc(pending.action==='start'?'de arranque':'de parada')+' enviada · esperando confirmación del proceso…</p>':'')+'</div>';
+  }
+  function hsRenderCliControl() {
+    var list=document.getElementById("cliCtlList"),count=document.getElementById("cliCtlCount"); if(!list||!count)return;
+    var groups=hsOpsItems(),items=[].concat.apply([],groups.map(function(group){return group.items;}));
+    var active=items.filter(function(item){return item.active;}).length;
+    count.textContent=active+' activos · '+groups.length+' eq';
+    if(!groups.length){list.innerHTML='<div class="cli-ctl-empty">No hay ningún watcher de procesos reciente. El estado es desconocido; no se inventa.</div>';return;}
+    list.innerHTML=groups.map(function(group,index){
+      var open=CLI_ABIERTOS.has(group.machine),activeGroup=group.items.filter(function(item){return item.active;}).length,id='cliCtlMaquina'+index;
+      return '<fieldset class="cli-ctl-group"><legend class="sr-only">Superficies de '+esc(group.machine)+'</legend><button class="cli-ctl-machine" type="button" data-cli-maquina="'+esc(group.machine)+'" aria-controls="'+id+'" aria-expanded="'+open+'"><span class="cli-ctl-chevron" aria-hidden="true"></span><span class="cli-ctl-label">'+esc(group.machine)+'</span><span class="cli-ctl-tally'+(activeGroup?' viva':'')+'">'+activeGroup+'/'+group.items.length+'</span></button><div class="cli-ctl-clis" id="'+id+'"'+(open?'':' hidden')+'>'+group.items.sort(function(a,b){return Number(b.active)-Number(a.active)||a.persona.localeCompare(b.persona,"es");}).map(hsOpsRow).join('')+'</div></fieldset>';
+    }).join('');
+    list.querySelectorAll('[data-cli-maquina]').forEach(function(button){button.addEventListener('click',function(){var machine=button.getAttribute('data-cli-maquina');if(CLI_ABIERTOS.has(machine))CLI_ABIERTOS.delete(machine);else CLI_ABIERTOS.add(machine);hsRenderCliControl();});});
+    list.querySelectorAll('[data-op-action]').forEach(function(button){button.addEventListener('click',function(){hsOpsOrder(button.getAttribute('data-op-key'),button.getAttribute('data-op-action'));});});
+  }
+  function hsCargaCliControl() {
+    return fetch(TG+'/api/presence',{cache:'no-store'}).then(function(response){if(!response.ok)throw new Error('/api/presence → '+response.status);return response.json();}).then(function(payload){
+      datos.presencia=payload.presence||[];datos.controlMachines=payload.control_machines||[];CLI_ITEMS=hsOpsItems();hsRenderCliControl();return payload;
+    }).catch(function(error){hsCliMensaje('No se pudo verificar la flota: '+normaliza(error&&error.message),true);throw error;});
+  }
+  function hsOpsWatch(key,wanted,deadline) {
+    setTimeout(function(){hsCargaCliControl().then(function(){var item=hsOpsFind(key),done=item&&item.active===wanted;
+      if(done){delete CLI_PENDIENTES[key];hsRenderCliControl();hsCliMensaje('✓ Confirmado por el proceso: '+item.persona+' · '+(item.host==='app'?'DesktopAPP':'CLI')+' está '+(wanted?'activo':'parado')+' en '+item.machine+'.',false);return;}
+      if(Date.now()>=deadline){delete CLI_PENDIENTES[key];hsRenderCliControl();hsCliMensaje('La orden fue aceptada, pero el proceso no confirmó el estado antes de 45 s. Se conserva como pendiente, no como hecha.',true);return;}
+      hsOpsWatch(key,wanted,deadline);
+    }).catch(function(){if(Date.now()<deadline)hsOpsWatch(key,wanted,deadline);});},2000);
+  }
+  function hsOpsOrder(key,action) {
+    if(CLI_PENDIENTES[key])return;var item=hsOpsFind(key);if(!item){hsCliMensaje('La ranura ya no existe en el último censo.',true);return;}
+    var surface=item.host==='app'?'DesktopAPP':'CLI';
+    if(action==='stop'&&!confirm('Detener '+item.persona+' · '+surface+' en '+item.machine+' (PID '+item.pid+')?'))return;
+    CLI_PENDIENTES[key]={action:action,desde:Date.now()};hsRenderCliControl();hsCliMensaje((action==='start'?'Arrancando ':'Deteniendo ')+item.persona+' · '+surface+' en '+item.machine+'…',false);
+    var body={action:action,machine:item.machine,persona:item.persona,runtime:item.runtime,host:item.host,session_id:item.session_id};if(action==='stop')body.pid=item.pid;
+    fetch(YK+'/fleet/agent/control',{method:'POST',cache:'no-store',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(function(response){return response.json().catch(function(){return {};}).then(function(payload){return {ok:response.ok,status:response.status,payload:payload};});}).then(function(result){
+      if(result.status===401)throw new Error('Necesitas iniciar sesión de nuevo.');if(!result.ok)throw new Error(normaliza(result.payload.error)||('Control → '+result.status));
+      if(result.payload.status==='already_running'){delete CLI_PENDIENTES[key];hsCargaCliControl();hsCliMensaje('Ya estaba activo; no se duplicó el proceso.',false);return;}
+      hsCliMensaje('Orden '+normaliza(result.payload.status||'queued')+' · esperando la confirmación del watcher de '+item.machine+'.',false);hsOpsWatch(key,action==='start',Date.now()+45000);
+    }).catch(function(error){delete CLI_PENDIENTES[key];hsRenderCliControl();hsCliMensaje(normaliza(error&&error.message)||'No se pudo gobernar la superficie',true);});
+  }
+
   function iniciaCliControl() {
     if (!document.getElementById("cliCtlList")) return;
     var cabecera = document.getElementById("cliCtlToggle"), cuerpo = document.getElementById("cliCtlBody");
@@ -2974,7 +3072,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return Promise.all([
       seguroYokup("/tasks/all?scope=fleet", function (d) { return d.tasks || []; }),
       seguroYokup("/highscore/daily", function (d) { return d; }),
-      seguro("/api/presence", function (d) { return d.presence || []; }),
+      seguro("/api/presence", function (d) { return { presence:d.presence || [], controlMachines:d.control_machines || [] }; }),
       seguroYokup("/tickets?scope=fleet", function (d) { return d.tickets || []; }),
       seguroYokup("/ideas", function (d) { return d.ideas || []; }),
       seguroYokup("/decisions", function (d) { return d.items || d.decisions || []; }),
@@ -2988,7 +3086,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var dailyFresh = !!(r[1] && r[1].day === claveDia(Date.now()) && Array.isArray(r[1].scores));
       datos.actividadFresh = dailyFresh && datos.tareasFresh;
       if (dailyFresh) { guardaActividadDiaria(r[1]); datos.actividadMeta = r[1]; datos.actividad = r[1].scores || []; }
-      if (r[2]) datos.presencia = r[2];
+      if (r[2]) { datos.presencia = r[2].presence || []; datos.controlMachines = r[2].controlMachines || []; }
       if (r[3]) datos.misiones = r[3];
       if (r[4]) datos.ideas = r[4];
       if (r[5]) datos.decisiones = r[5];

@@ -1,5 +1,5 @@
 const LIVE_MAX_AGE_SECONDS = 30;
-const STATUS_VALUES = new Set(["queued", "accepted", "running", "stopping", "stopped", "failed", "rejected"]);
+const STATUS_VALUES = new Set(["queued", "accepted", "running", "stopping", "stopped", "done", "failed", "rejected", "already_running", "already_stopped"]);
 
 export class AgentStopError extends Error {
   constructor(code, status) {
@@ -28,6 +28,24 @@ export function normalizeAgentStopTarget(input) {
     host,
     session_id: requiredText(input && input.session_id, "session_id", 80),
     pid,
+  };
+}
+
+export function normalizeAgentStartTarget(input) {
+  const host = requiredText(input && input.host, "host", 8).toLowerCase();
+  if (host !== "app" && host !== "cli") throw new AgentStopError("invalid-host", 400);
+  const runtime = requiredText(input && input.runtime, "runtime", 30);
+  const session_id = requiredText(input && input.session_id, "session_id", 80);
+  if (host === "app" && session_id !== "desktop:" + runtime.toLowerCase()) {
+    throw new AgentStopError("desktop-session-runtime-mismatch", 400);
+  }
+  if (host === "cli" && !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(session_id)) {
+    throw new AgentStopError("unsafe-cli-session", 400);
+  }
+  return {
+    machine:requiredText(input && input.machine, "machine", 60),
+    persona:requiredText(input && input.persona, "persona", 60),
+    runtime, host, session_id, pid:0
   };
 }
 
@@ -121,4 +139,30 @@ export async function dispatchAgentStop(env, input) {
     throw new AgentStopError(status === 409 ? "agent-changed-before-stop" : "stop-command-rejected", status);
   }
   return { target:confirmedTarget, result:sanitizeAgentStopResult(result) };
+}
+
+export async function dispatchAgentStart(env, input) {
+  if (!env || !env.TELEGRAM || typeof env.TELEGRAM.fetch !== "function") {
+    throw new AgentStopError("telegram-binding-unavailable", 503);
+  }
+  const target = normalizeAgentStartTarget(input);
+  let response;
+  try {
+    response = await env.TELEGRAM.fetch(new Request("https://telegram/api/fleet/agent/control", {
+      method:"POST", headers:{ "content-type":"application/json", accept:"application/json" },
+      body:JSON.stringify({ ...target, action:"start" })
+    }));
+  } catch {
+    throw new AgentStopError("start-service-unavailable", 502);
+  }
+  let result = {};
+  try { result = await response.json(); } catch {}
+  if (!response.ok) {
+    const status = response.status === 400 || response.status === 403 ? response.status : response.status === 409 ? 409 : 502;
+    throw new AgentStopError(String(result && result.error || "start-command-rejected"), status);
+  }
+  if (String(result.status || "") === "already_running") {
+    return { target, result:{ ok:true, command_id:"already-running", status:"already_running" } };
+  }
+  return { target, result:sanitizeAgentStopResult(result) };
 }

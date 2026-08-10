@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
-  AgentStopError, dispatchAgentStop, normalizeAgentStopTarget,
+  AgentStopError, dispatchAgentStart, dispatchAgentStop, normalizeAgentStartTarget, normalizeAgentStopTarget,
   sanitizeAgentStopResult, selectLiveAgentSession
 } from "./src/fleet-agent-stop.js";
 
@@ -13,12 +13,19 @@ const target = {
 const now = 1_785_800_000;
 const live = { ...target, verified:1, source:"process_snapshot", online:1, updated:now - 2 };
 const workerSource = await readFile(new URL("./src/index.js", import.meta.url), "utf8");
+const deploySource = await readFile(new URL("./deploy.sh", import.meta.url), "utf8");
 
 test("el target exige los seis identificadores y un PID de proceso", () => {
   assert.deepEqual(normalizeAgentStopTarget(target), target);
   assert.throws(() => normalizeAgentStopTarget({ ...target, session_id:"" }), /invalid-session_id/);
   assert.throws(() => normalizeAgentStopTarget({ ...target, pid:1 }), /invalid-pid/);
   assert.throws(() => normalizeAgentStopTarget({ ...target, host:"web" }), /invalid-host/);
+});
+
+test("el arranque exige una ranura segura pero jamás acepta un PID del navegador", () => {
+  assert.deepEqual(normalizeAgentStartTarget({ ...target, pid:999 }), { ...target, pid:0 });
+  assert.throws(() => normalizeAgentStartTarget({ ...target, host:"app", session_id:"desktop:claude" }), /desktop-session-runtime-mismatch/);
+  assert.throws(() => normalizeAgentStartTarget({ ...target, host:"cli", session_id:"..\/shell" }), /unsafe-cli-session/);
 });
 
 test("sólo selecciona una sesión de snapshot verificada y fresca", () => {
@@ -49,6 +56,16 @@ test("el puente usa exclusivamente hostname telegram y reenvía la identidad con
   assert.deepEqual(out.result, { ok:true, command_id:"stop_abc-123", status:"queued" });
 });
 
+test("el arranque usa el control interno y devuelve sólo el acuse saneado", async () => {
+  const calls=[];
+  const env={TELEGRAM:{async fetch(request){calls.push(request);return Response.json({ok:true,command_id:"start-7",status:"queued",secret:"x"},{status:202});}}};
+  const out=await dispatchAgentStart(env,{machine:"MacBookAirAzul",persona:"Smith",runtime:"Grok",host:"cli",session_id:"smith"});
+  assert.equal(new URL(calls[0].url).hostname,"telegram");
+  assert.equal(new URL(calls[0].url).pathname,"/api/fleet/agent/control");
+  assert.deepEqual(JSON.parse(await calls[0].clone().text()),{machine:"MacBookAirAzul",persona:"Smith",runtime:"Grok",host:"cli",session_id:"smith",pid:0,action:"start"});
+  assert.deepEqual(out.result,{ok:true,command_id:"start-7",status:"queued"});
+});
+
 test("respuesta pública sanea estado y rechaza ids no trazables", () => {
   assert.deepEqual(sanitizeAgentStopResult({ command_id:42, status:"queued" }), {
     ok:true, command_id:42, status:"queued"
@@ -61,10 +78,17 @@ test("respuesta pública sanea estado y rechaza ids no trazables", () => {
 
 test("la ruta pública queda tras el perímetro Google y audita cada intento válido", () => {
   assert.match(workerSource, /PROTECTED[^\n]+"\/fleet\/agent\/stop"/);
+  assert.match(workerSource, /PROTECTED[^\n]+"\/fleet\/agent\/control"/);
   const gate = workerSource.indexOf("if (PROTECTED.has(url.pathname)");
   const route = workerSource.indexOf('if (url.pathname === "/fleet/agent/stop")');
   assert.ok(gate >= 0 && route > gate, "la ruta debe ejecutarse después del gate");
   assert.match(workerSource, /CREATE TABLE IF NOT EXISTS fleet_agent_commands/);
   assert.match(workerSource, /INSERT INTO fleet_agent_commands/);
   assert.match(workerSource, /requested_by/);
+});
+
+test("una prueba roja bloquea el deploy en vez de quedar como aviso", () => {
+  assert.match(deploySource, /if \[ "\$fallos" -ne 0 \]; then/);
+  assert.match(deploySource, /Deploy bloqueado: \$fallos fichero\(s\) de prueba en rojo/);
+  assert.match(deploySource, /exit 1/);
 });

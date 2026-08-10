@@ -61,7 +61,10 @@ for t in *.test.mjs test/*.test.mjs; do
   [ -f "$t" ] || continue
   if ! node "$t" >/tmp/yrtc-test.txt 2>&1; then echo "  ✖ $t"; fallos=$((fallos+1)); fi
 done
-[ "$fallos" -eq 0 ] || echo "  ⚠ $fallos fichero(s) de prueba en rojo — revisa antes de fiarte del despliegue"
+if [ "$fallos" -ne 0 ]; then
+  echo "  ✖ Deploy bloqueado: $fallos fichero(s) de prueba en rojo."
+  exit 1
+fi
 
 # EL SELLO, ANTES DE PUBLICAR (Morfeo, 2026-08-09). Un worker no tiene portada donde
 # poner el <meta>, y por eso salía como «sin portada» en el Webmaster. Sí puede

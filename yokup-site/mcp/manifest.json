@@ -136,6 +136,12 @@
         "path": "/fleet/cli",
         "auth": "sesión Google",
         "desc": "Arranca/mata un CLI o abre/cierra una sesión de terminal, y manda misiones a un CLI despierto (action mission). Lista blanca en las dos puntas."
+      },
+      {
+        "method": "POST",
+        "path": "/fleet/agent/control",
+        "auth": "sesión Google",
+        "desc": "Arranca o detiene una APP/CLI exacta anunciada por el watcher del equipo. Nunca infiere estado ni duplica procesos."
       }
     ],
     "auth": {
@@ -160,6 +166,7 @@
         "/push/subscribe",
         "/fleet/nudge",
         "/fleet/agent/stop",
+        "/fleet/agent/control",
         "/equipo/machine",
         "/equipo/silicon",
         "/strategy",

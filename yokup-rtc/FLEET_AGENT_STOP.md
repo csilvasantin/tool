@@ -1,7 +1,12 @@
-# Parada protegida de agentes
+# Control protegido de agentes
+
+`POST /fleet/agent/control` es el contrato canónico de Highscore para gobernar una
+superficie exacta. Acepta `action:"start"|"stop"`; ambos caminos exigen sesión
+Google y dejan auditoría en `fleet_agent_commands`.
 
 `POST /fleet/agent/stop` permite a una sesión Google autorizada solicitar la
-parada de **un proceso concreto** visto en la presencia viva de la flota.
+parada de **un proceso concreto** visto en la presencia viva de la flota. Se
+conserva como alias compatible para clientes anteriores.
 
 ```json
 {
@@ -32,3 +37,9 @@ devuelve HTTP `202` y exclusivamente:
 Los intentos quedan en `fleet_agent_commands`, con solicitante Google, target,
 estado y el identificador saneado del comando. El navegador nunca recibe datos
 internos del ejecutor ni credenciales del servicio.
+
+Para `start`, el navegador envía la misma identidad sin PID. Admira Telegram sólo
+acepta el arranque si el watcher de esa máquina está fresco y ha anunciado la
+ranura exacta `{persona,runtime,host,session_id}`. El watcher local limita APP y
+CLI a runtimes instalados, comprueba que no exista ya el proceso y vuelve a censarlo
+antes de confirmar. Un reintento devuelve `already_running` en vez de duplicarlo.

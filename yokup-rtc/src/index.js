@@ -3,7 +3,7 @@ import { memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, sele
 import { baseAgentIdentity, identityKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 import { buildReportsPageFilter, encodeReportsCursor, parseReportsPageOptions } from "./reports-pagination.js";
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
-import { AgentStopError, dispatchAgentStop, normalizeAgentStopTarget } from "./fleet-agent-stop.js";
+import { AgentStopError, dispatchAgentStart, dispatchAgentStop, normalizeAgentStartTarget, normalizeAgentStopTarget } from "./fleet-agent-stop.js";
 import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, madridDayStart, sortDisplayRefCandidates } from "./display-ref.js";
 import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_NOVELTY_INSERT_SQL, MISSION_NOVELTY_RECENT_SQL, MISSION_NOVELTY_TABLE_SQL, missionNoveltyContract, missionNoveltyEventKey } from "./mission-novelty.js";
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
@@ -42,7 +42,7 @@ var json = /* @__PURE__ */ __name((o, s = 200) => new Response(JSON.stringify(o)
 var AUTH_CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
 var WL_API = "https://admira-whitelist.csilvasantin.workers.dev";
 var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@admira.com", "agonzalez@admira.com", "jsedano@admira.com"];
-var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/agent/stop", "/equipo/machine", "/equipo/silicon", "/strategy", "/config"]);
+var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/agent/stop", "/fleet/agent/control", "/equipo/machine", "/equipo/silicon", "/strategy", "/config"]);
 var _wl = { at: 0, set: null };
 async function whitelist() {
   if (_wl.set && Date.now() - _wl.at < 3e5) return _wl.set;
@@ -6454,7 +6454,6 @@ var index_default = {
       // el mismo cierre. points_start se rellena aqui tambien por si la mision se cerro
       // sin haber pasado por /fleet/progress: mejor un "antes" igual al "despues"
       // -diferencia 0, honesta- que un hueco que el informe no sabria explicar.
-      const puntosCierre = await puntosDeAgenteAhora(env, t.assignee || actor.actor);
       if (t.status === "resolved") {
         const previous = await env.DB.prepare("SELECT owner,report,image,image_kind FROM mission_tasks WHERE mission_id=? AND code='z1'").bind(mid).first();
         const repairStandalone = t.role === "standalone-task" && !previous &&
@@ -6505,6 +6504,7 @@ var index_default = {
       // auto-claim, informe, proof ni resolved parcial que bloquee el reintento.
       const inbox = await notifyFleetInformeClosure(env, t, mid, owner, report, image, runtime, host);
       if (!inbox.updated) return json({ ok: false, code: "closure_partial", mission: mid, resolved: false, local_resolved: false, proof_saved: false, inbox_updated: false, sync_required: true, proof_image: null }, 502);
+      const puntosCierre = await puntosDeAgenteAhora(env, t.assignee || actor.actor);
       const writes = await env.DB.batch([
         env.DB.prepare(
           "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,image,image_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) " +
@@ -7166,6 +7166,43 @@ var index_default = {
         duplicate:!!transition.duplicate } : null, state:state || {
         machine:ack.machine, cli:ack.cli, alive:ack.alive, pid:ack.pid, seen_at:ahora
       } });
+    }
+    if (url.pathname === "/fleet/agent/control") {
+      if (req.method !== "POST") return json({ ok:false, error:"method" }, 405);
+      const sess = await requireAuth(env, req);
+      if (!sess) return json({ error:"unauthorized" }, 401);
+      let body;
+      try { body = await req.json(); }
+      catch { return json({ ok:false, error:"bad-json" }, 400); }
+      const action = String(body && body.action || "").trim().toLowerCase();
+      if (action !== "start" && action !== "stop") return json({ ok:false, error:"invalid-action" }, 400);
+      let target;
+      try { target = action === "start" ? normalizeAgentStartTarget(body) : normalizeAgentStopTarget(body); }
+      catch (error) {
+        const code = error instanceof AgentStopError ? error.code : "invalid-target";
+        return json({ ok:false, error:code }, error instanceof AgentStopError ? error.status : 400);
+      }
+      await ensureSchema(env);
+      const now = Date.now();
+      const auditId = "control-" + now.toString(36) + "-" + crypto.randomUUID().slice(0, 8);
+      await env.DB.prepare(
+        "INSERT INTO fleet_agent_commands(id,action,machine,persona,runtime,host,session_id,pid,requested_by,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'requested',?,?)"
+      ).bind(auditId, action, target.machine, target.persona, target.runtime, target.host, target.session_id, target.pid, String(sess.email || "").slice(0, 120), now, now).run();
+      try {
+        const dispatched = action === "start" ? await dispatchAgentStart(env, target) : await dispatchAgentStop(env, target);
+        await env.DB.prepare(
+          "UPDATE fleet_agent_commands SET status=?,upstream_command_id=?,detail='',updated_at=? WHERE id=?"
+        ).bind(dispatched.result.status, dispatched.result.command_id, Date.now(), auditId).run();
+        return json({ ...dispatched.result, action }, dispatched.result.status === "already_running" ? 200 : 202);
+      } catch (error) {
+        const known = error instanceof AgentStopError;
+        const code = known ? error.code : "agent-control-failed";
+        const status = known ? error.status : 500;
+        await env.DB.prepare(
+          "UPDATE fleet_agent_commands SET status='rejected',detail=?,updated_at=? WHERE id=?"
+        ).bind(code, Date.now(), auditId).run();
+        return json({ ok:false, error:code, action }, status);
+      }
     }
     if (url.pathname === "/fleet/agent/stop") {
       if (req.method !== "POST") return json({ ok:false, error:"method" }, 405);
