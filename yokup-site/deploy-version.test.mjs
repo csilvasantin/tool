@@ -34,6 +34,7 @@ test("lee payload local/público y deploy consulta producción bajo no-store", (
   assert.match(deploy, /pagesHistory = await signedVersionsFromDeployments\(rawHistory\)/);
   assert.match(deploy, /publicSignedVersion, \.\.\.pagesHistory/);
   assert.match(deploy, /Deploy bloqueado: producción no tiene sello válido/);
+  assert.match(deploy, /await run\("bash", \["\.\.\/yokup-site-gate\/deploy\.sh"\]\)/);
   assert.match(deploy, /await verifyPublicVersion\(payload\)/);
   assert.doesNotMatch(deploy, /v\.\$\{p\.year\}/);
 });
