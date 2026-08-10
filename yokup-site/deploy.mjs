@@ -6,6 +6,7 @@ import { basename, join, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { nextDeployVersion, versionFromPayload } from "./deploy-version.js";
 import { validateDeployIdentity, wranglerCommitArgs } from "./deploy-signature.mjs";
+import { signedVersionFromPayload, signedVersionsFromDeployments } from "./deploy-history.js";
 
 // Lock estable por proyecto, fuera del directorio publicado. Un lock dentro de
 // yokup-site entra en el manifest de Pages y expone metadatos de coordinación.
@@ -20,6 +21,7 @@ try {
   process.exit(2);
 }
 const { deployer, machine, signature } = deployIdentity;
+const wrangler = `wrangler@${process.env.WRANGLER_VERSION || "4.119.0"}`;
 
 // TOPE DE CUATRO PUBLICACIONES POR HORA (Carlos, 2026-08-10).
 // El lock de más abajo impide que dos agentes publiquen A LA VEZ, que es otra
@@ -59,6 +61,17 @@ function run(command, args) {
     child.on("error", reject);
     child.on("exit", (code) => code === 0 ? resolve() : reject(new Error(`${command} terminó con ${code}`)));
   });
+}
+
+async function verifyPublicVersion(expected) {
+  for (let attempt = 0; attempt < 24; attempt += 1) {
+    const current = await fetch("https://www.yokup.com/version.json?verify=" + Date.now(), { cache:"no-store" })
+      .then((response) => response.ok ? response.json() : null).catch(() => null);
+    if (current && current.version === expected.version && current.gitFull === expected.gitFull &&
+        current.signature === expected.signature && current.dirty === false) return;
+    if (attempt < 23) await new Promise((resolve) => setTimeout(resolve, 2500));
+  }
+  throw new Error(`Deploy no confirmado: www.yokup.com no sirve ${expected.version} con su firma y commit exactos`);
 }
 
 async function htmlFiles(dirUrl) {
@@ -137,9 +150,22 @@ try {
   // La revisión diaria se coordina contra producción además del fichero local.
   // El lock evita dos deploys simultáneos en este checkout; consultar el sello
   // público evita reutilizar rN tras clonar/actualizar desde otra máquina.
-  const publicVersion = await fetch("https://www.yokup.com/version.json?deploy=" + Date.now(), { cache:"no-store" })
-    .then((r) => r.ok ? r.json() : null).then(versionFromPayload).catch(() => "");
-  const version = nextDeployVersion(now, [versionFromPayload(previousVersion), publicVersion]);
+  const publicPayload = await fetch("https://www.yokup.com/version.json?deploy=" + Date.now(), { cache:"no-store" })
+    .then((r) => r.ok ? r.json() : null).catch(() => null);
+  let pagesHistory = [];
+  try {
+    const rawHistory = execFileSync("npx", [wrangler, "pages", "deployment", "list", "--project-name", "yokup", "--environment", "production", "--json"], {
+      encoding:"utf8", maxBuffer:4 * 1024 * 1024
+    });
+    pagesHistory = await signedVersionsFromDeployments(rawHistory);
+  } catch (error) {
+    console.warn("No se pudo leer el historial firmado de Pages:", error && error.message || error);
+  }
+  const publicSignedVersion = signedVersionFromPayload(publicPayload);
+  if (!publicSignedVersion && !pagesHistory.length) {
+    throw new Error("Deploy bloqueado: producción no tiene sello válido y no se pudo recuperar ninguna revisión firmada del historial de Pages");
+  }
+  const version = nextDeployVersion(now, [versionFromPayload(previousVersion), versionFromPayload(publicPayload), publicSignedVersion, ...pagesHistory]);
   // ── PRODUCCION ES MAIN, SIEMPRE ─────────────────────────────────────────
   // Este script publica a `--branch main`, que en Pages ES produccion, sea cual
   // sea el arbol que tengas delante. El 5-ago-2026 eso llevo a que yokup.com
@@ -197,9 +223,9 @@ try {
   // `npx wrangler` a secas resuelve la ÚLTIMA versión publicada: el 07-08-2026 la
   // 4.120.0 devolvía 404 en el registro de npm y no se podía desplegar nada. Se fija
   // una versión probada; subirla es consciente (WRANGLER_VERSION=x.y.z node deploy.mjs).
-  const wrangler = `wrangler@${process.env.WRANGLER_VERSION || "4.119.0"}`;
   await run("npx", [wrangler, "pages", "deploy", stagingPath, "--project-name", "yokup", "--branch", "main", "--commit-dirty=" + dirty, ...commitArgs]);
-  console.log(`Yokup publicado: ${payload.version}`);
+  await verifyPublicVersion(payload);
+  console.log(`Yokup publicado y verificado: ${payload.version}`);
 } catch (error) {
   console.error(error && error.message || error);
   process.exitCode = 1;

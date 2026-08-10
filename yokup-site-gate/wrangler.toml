@@ -1,0 +1,16 @@
+name = "yokup-site-gate"
+main = "src/index.js"
+compatibility_date = "2026-08-10"
+workers_dev = true
+preview_urls = false
+
+[[routes]]
+pattern = "www.yokup.com/*"
+zone_name = "yokup.com"
+
+[[routes]]
+pattern = "yokup.com/*"
+zone_name = "yokup.com"
+
+[observability]
+enabled = true

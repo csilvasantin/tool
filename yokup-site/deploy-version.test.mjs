@@ -31,7 +31,10 @@ test("lee payload local/público y deploy consulta producción bajo no-store", (
   assert.equal(versionFromPayload('{"version":"v.02.08.2026.r4.10:05"}'), "v.02.08.2026.r4.10:05");
   assert.equal(versionFromPayload({version:"v.02.08.2026.r5.10:42"}), "v.02.08.2026.r5.10:42");
   assert.match(deploy, /www\.yokup\.com\/version\.json\?deploy=/);
-  assert.match(deploy, /nextDeployVersion\(now, \[versionFromPayload\(previousVersion\), publicVersion\]\)/);
+  assert.match(deploy, /pagesHistory = await signedVersionsFromDeployments\(rawHistory\)/);
+  assert.match(deploy, /publicSignedVersion, \.\.\.pagesHistory/);
+  assert.match(deploy, /Deploy bloqueado: producción no tiene sello válido/);
+  assert.match(deploy, /await verifyPublicVersion\(payload\)/);
   assert.doesNotMatch(deploy, /v\.\$\{p\.year\}/);
 });
 
