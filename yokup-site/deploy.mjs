@@ -66,7 +66,7 @@ function run(command, args, extraEnv = {}) {
 
 async function verifyPublicVersion(expected) {
   for (let attempt = 0; attempt < 24; attempt += 1) {
-    const current = await fetch("https://www.yokup.com/version.json?verify=" + Date.now(), { cache:"no-store" })
+    const current = await fetch("https://www.yokup.com/__yokup-gate?verify=" + Date.now(), { cache:"no-store" })
       .then((response) => response.ok ? response.json() : null).catch(() => null);
     if (current && current.version === expected.version && current.gitFull === expected.gitFull &&
         current.signature === expected.signature && current.dirty === false) return;
@@ -151,7 +151,7 @@ try {
   // La revisión diaria se coordina contra producción además del fichero local.
   // El lock evita dos deploys simultáneos en este checkout; consultar el sello
   // público evita reutilizar rN tras clonar/actualizar desde otra máquina.
-  const publicPayload = await fetch("https://www.yokup.com/version.json?deploy=" + Date.now(), { cache:"no-store" })
+  const publicPayload = await fetch("https://www.yokup.com/__yokup-gate?deploy=" + Date.now(), { cache:"no-store" })
     .then((r) => r.ok ? r.json() : null).catch(() => null);
   let pagesHistory = [];
   try {

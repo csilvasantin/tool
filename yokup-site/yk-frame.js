@@ -1232,7 +1232,7 @@
   // versión nueva · recargar vuelve a salir» · incidencia SVC-5FSKZH).
   //
   // Antes esto contrastaba BUILD_VERSION —el ?v= con el que se cargó este
-  // fichero— contra el sello de /version.json. Son dos cosas que sólo casan si
+  // fichero— contra el sello vivo. Son dos cosas que sólo casan si
   // TODOS los caminos de publicación las escriben a la vez, y no es el caso:
   // yokup.com se publica por dos vías (build automático de git y wrangler
   // directo) y ninguna pasa por el sellador, así que en producción el ?v= valía
@@ -1269,9 +1269,9 @@
   }
 
   function refreshPublicVersion() {
-    // version.json se publica con max-age=0. El query evita intermediarios que
-    // ignoren cache:no-store.
-    window.fetch("/version.json?frame=" + Date.now(), { cache:"no-store" })
+    // El endpoint del guardián ejecuta el Worker antes de assets/cache. Así una
+    // versión antigua de Pages no puede congelar el aviso ni el pie del marco.
+    window.fetch("/__yokup-gate?frame=" + Date.now(), { cache:"no-store" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         if (!d || !d.version) return;

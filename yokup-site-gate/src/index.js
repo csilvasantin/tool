@@ -33,7 +33,7 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
   const release = releaseFromEnv(env);
   if (!release) return Response.json({ok:false, error:"missing-release"}, {status:503, headers:{"Cache-Control":"no-store"}});
   if (request.method === "GET" && incoming.pathname === "/__yokup-gate") {
-    return Response.json({ok:true, mode:"worker-assets", version:release.version, gitFull:release.gitFull}, {
+    return Response.json({...release, ok:true, mode:"worker-assets"}, {
       headers:{"Cache-Control":"no-store", "X-Yokup-Gate":"worker-assets", "X-Yokup-Gate-Version":release.version}
     });
   }

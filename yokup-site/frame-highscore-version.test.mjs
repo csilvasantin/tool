@@ -27,11 +27,11 @@ test("Opciones y Avanzado se repliegan al seleccionar un enlace", () => {
   assert.match(frame, /if \(link && rail\.contains\(link\)\) setOpen\(panel, false\)/);
 });
 
-test("el sello del marco procede del deploy y se confirma con version.json", () => {
+test("el sello del marco procede del deploy y se confirma con el guardián no cacheado", () => {
   assert.doesNotMatch(frame, /var VERSION = "v\.23\.07\.2026\.r10"/);
   assert.match(frame, /document\.currentScript/);
   assert.match(frame, /searchParams\.get\("v"\)/);
-  assert.match(frame, /fetch\("\/version\.json\?frame=" \+ Date\.now\(\), \{ cache:"no-store" \}\)/);
+  assert.match(frame, /fetch\("\/__yokup-gate\?frame=" \+ Date\.now\(\), \{ cache:"no-store" \}\)/);
   assert.match(frame, /data-yk-version/);
   assert.match(frame, /querySelectorAll\("\[data-yk-deploy-version\]"\)/);
 });

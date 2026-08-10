@@ -60,6 +60,8 @@ test("el endpoint de control explica la decisión sin caché", async () => {
   const body = await response.json();
   assert.equal(body.mode, "worker-assets");
   assert.equal(body.version, signed.version);
+  assert.equal(body.signature, signed.signature);
+  assert.equal(body.dirty, false);
   assert.equal(response.headers.get("Cache-Control"), "no-store");
 });
 
