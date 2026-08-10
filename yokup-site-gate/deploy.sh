@@ -19,12 +19,39 @@ fi
 echo "→ Pruebas del guardián…"
 node --test ./*.test.mjs
 
-echo "→ Publicación independiente…"
-npx "wrangler@${WRANGLER_VERSION:-4.119.0}" deploy
+echo "→ Sello y assets canónicos…"
+RELEASE_JSON="$(curl -fsS --max-time 15 https://yokup.pages.dev/version.json)"
+export RELEASE_JSON
+node --input-type=module - <<'NODE'
+import { signedVersionFromPayload } from "../yokup-site/deploy-history.js";
+import { execFileSync } from "node:child_process";
+const release = JSON.parse(process.env.RELEASE_JSON);
+if (!signedVersionFromPayload(release)) throw new Error("Pages no expone un sello firmado y limpio");
+execFileSync("git", ["merge-base", "--is-ancestor", release.gitFull, "HEAD"]);
+execFileSync("git", ["diff", "--quiet", release.gitFull, "HEAD", "--", "yokup-site"]);
+NODE
+STAGING="$(mktemp -d "${TMPDIR:-/tmp}/yokup-site-assets.XXXXXX")"
+CONFIG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/yokup-site-config.XXXXXX")"
+trap 'rm -rf -- "$STAGING" "$CONFIG_DIR"' EXIT
+node build-assets.mjs "$STAGING"
+RELEASE_COMPACT="$(printf '%s' "$RELEASE_JSON" | jq -c .)"
+export STAGING CONFIG_DIR
+node --input-type=module - <<'NODE'
+import { readFile, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
+let config = await readFile("wrangler.toml", "utf8");
+config = config.replace(/^main\s*=.*$/m, `main = ${JSON.stringify(resolve("src/index.js"))}`);
+config += `\n[assets]\ndirectory = ${JSON.stringify(process.env.STAGING)}\nbinding = "ASSETS"\nrun_worker_first = true\nhtml_handling = "auto-trailing-slash"\nnot_found_handling = "none"\n`;
+await writeFile(resolve(process.env.CONFIG_DIR, "wrangler.toml"), config);
+NODE
+CONFIG_FILE="$CONFIG_DIR/wrangler.toml"
+
+echo "→ Publicación independiente con assets propios…"
+npx "wrangler@${WRANGLER_VERSION:-4.119.0}" deploy --config "$CONFIG_FILE" --var "RELEASE_JSON:$RELEASE_COMPACT"
 
 echo "→ Verificación pública…"
 for intento in $(seq 1 20); do
-  if curl -fsS --max-time 10 https://www.yokup.com/__yokup-gate | jq -e '.ok == true and (.mode == "primary" or .mode == "fallback")' >/dev/null; then
+  if curl -fsS --max-time 10 https://www.yokup.com/__yokup-gate | jq -e '.ok == true and .mode == "worker-assets"' >/dev/null; then
     curl -fsS --max-time 10 https://www.yokup.com/__yokup-gate | jq .
     echo "✓ guardián de Yokup publicado y operativo"
     exit 0

@@ -1,56 +1,45 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import worker, { handleRequest } from "./src/index.js";
-import { TRUSTED_AFTER } from "./src/provenance.js";
 
 const signed = {
-  version:"v.10.08.2026.r8.10:30", deployedAt:TRUSTED_AFTER,
+  version:"v.10.08.2026.r8.10:01", deployedAt:"2026-08-10T08:01:59.443Z",
   deployer:"TrinityMBP14", machine:"MacBookPro14", signature:"TrinityMBP14 · MacBookPro14",
-  git:"815c841", gitShort:"815c841", gitFull:"815c841012345678901234567890123456789012", dirty:false
+  git:"d8a4ce0", gitShort:"d8a4ce0", gitFull:"d8a4ce0ad3ea1232a9701a1b94483bdd1a99d581", dirty:false
 };
+const env = (assetFetch = async () => new Response("asset")) => ({RELEASE_JSON:JSON.stringify(signed), ASSETS:{fetch:assetFetch}});
 
 test("el adaptador Cloudflare no confunde env con la función fetch", () => {
   assert.notEqual(worker.fetch, handleRequest);
-  assert.equal(worker.fetch.length, 1);
+  assert.equal(worker.fetch.length, 3);
 });
 
-test("un Pages antiguo queda aislado y la navegación sale por el fallback inmutable", async () => {
+test("la navegación sale de assets propios y nunca de Pages", async () => {
   const seen = [];
-  const fakeFetch = async (input) => {
-    const url = typeof input === "string" ? input : input.url;
-    seen.push(url);
-    if (url.includes("/version.json")) return Response.json({version:"v.03.08.2026.r1.18:27"});
-    return new Response("correcto", {headers:{"Content-Type":"text/plain"}});
-  };
-  const response = await handleRequest(new Request("https://www.yokup.com/help/?q=1"), fakeFetch);
+  const response = await handleRequest(new Request("https://www.yokup.com/help/?q=1"), env(async (request) => {
+    seen.push(request.url);
+    return new Response("correcto");
+  }), {});
   assert.equal(await response.text(), "correcto");
-  assert.equal(response.headers.get("X-Yokup-Gate"), "fallback");
-  assert.equal(seen.at(-1), "https://adc0c9e3.yokup.pages.dev/help/?q=1");
+  assert.deepEqual(seen, ["https://www.yokup.com/help/?q=1"]);
 });
 
-test("una release firmada sirve el origen principal y conserva método y cuerpo", async () => {
-  const seen = [];
-  const fakeFetch = async (input) => {
-    const url = typeof input === "string" ? input : input.url;
-    if (url.includes("/version.json")) return Response.json(signed);
-    seen.push(input);
-    return new Response("ok", {status:201});
-  };
-  await handleRequest(new Request("https://www.yokup.com/__yokup-gate"), fakeFetch);
-  const request = new Request("https://www.yokup.com/api/local", {method:"POST", body:"dato", headers:{"Content-Type":"text/plain"}});
-  const response = await handleRequest(request, fakeFetch);
-  assert.equal(response.status, 201);
-  assert.equal(response.headers.get("X-Yokup-Gate"), "primary");
-  assert.equal(seen[0].url, "https://yokup.pages.dev/api/local");
-  assert.equal(seen[0].method, "POST");
-  assert.equal(await seen[0].text(), "dato");
+test("version.json procede del sello inyectado, no del baseline de assets", async () => {
+  const response = await handleRequest(new Request("https://www.yokup.com/version.json"), env(), {});
+  assert.deepEqual(await response.json(), signed);
+  assert.equal(response.headers.get("X-Yokup-Gate"), "worker-assets");
 });
 
 test("el endpoint de control explica la decisión sin caché", async () => {
-  const fakeFetch = async () => Response.json(signed);
-  const response = await handleRequest(new Request("https://www.yokup.com/__yokup-gate"), fakeFetch);
+  const response = await handleRequest(new Request("https://www.yokup.com/__yokup-gate"), env(), {});
   const body = await response.json();
-  assert.equal(body.mode, "primary");
-  assert.equal(body.fallback, false);
+  assert.equal(body.mode, "worker-assets");
+  assert.equal(body.version, signed.version);
   assert.equal(response.headers.get("Cache-Control"), "no-store");
+});
+
+test("sin sello el Worker falla cerrado antes de servir assets", async () => {
+  const response = await handleRequest(new Request("https://www.yokup.com/"), {ASSETS:{fetch:() => { throw new Error("no debe ejecutarse"); }}}, {});
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).error, "missing-release");
 });
