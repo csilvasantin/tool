@@ -448,9 +448,24 @@ function foco(t){
   return s.length>110 ? s.slice(0,110).replace(/\s+\S*$/,"")+"…" : s;
 }
 
+// La declaración diaria es distinta de la membresía estable. Se pinta aparte y
+// manda como «Principal hoy»; `Proyecto` conserva todos los proyectos del censo.
+function proyectoPrincipalHoy(agente, maquina){
+  const id=window.ykAgentIdentity, raw=String(agente&&agente.id||agente&&agente.name||agente||"");
+  const parsed=id&&id.parse?id.parse(raw):null, expected=id&&id.scoped?id.scoped(raw,maquina||""):raw;
+  const matches=[];
+  PRO.forEach(p=>(p.daily_primary_agents||[]).forEach(d=>{
+    if(id&&id.key&&id.key(d.agent)===id.key(expected)) matches.push(p);
+    else if(!maquina&&id&&id.parse&&parsed&&id.key(id.parse(d.agent).persona)===id.key(parsed.persona)) matches.push(p);
+  }));
+  const unique=[...new Set(matches)];
+  return unique.length===1?unique[0]:null;
+}
+
 function tarjetaSil(a){
   const p=presenciaDe(a.name||a.id), on=vivo(p), ms=misionesDe(a.name||a.id);
   const maq=p&&p.machine?canon(p.machine):"";
+  const principalHoy=proyectoPrincipalHoy(a,maq);
   const tags=Array.isArray(a.tags)?a.tags:String(a.tags||"").split(",").map(s=>s.trim()).filter(Boolean);
   return '<div class="ag'+(on?"":" off")+'" style="--c:'+esc(a.color||"#78f3ff")+'">'+
     '<div class="top">'+retratoGrande(a.name||a.id, a.initials)+
@@ -462,6 +477,7 @@ function tarjetaSil(a){
       fila("Rol",esc(a.role||"—")+(a.archetype?' <span class="v mono">'+esc(a.archetype)+"</span>":""))+
       (a.duty?fila("De qué responde",esc(a.duty)):"")+
       fila("Corre en",maq?"🖥 "+(window.ykMaquina?ykMaquina.html(maq):esc(maq))+" · "+esc(hace(p&&p.updated)):"— sin latido","mono")+
+      (principalHoy?fila("Principal hoy",'<span class="agchip">★ '+esc(principalHoy.name||principalHoy.id)+'</span>',"principal-hoy"):"")+
       (function(){ const ps=PRO.filter(x=>(x.agents||[]).indexOf(a.id)>=0);
         return fila("Proyecto", ps.length?ps.map(x=>'<span class="agchip">📁 '+esc(x.name||x.id)+'</span>').join(" "):"— sin asignar", ps.length?"":"falta"); })()+
       (p&&foco(p.focus)?fila("Su foco",esc(foco(p.focus))):"")+
