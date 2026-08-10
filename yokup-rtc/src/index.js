@@ -22,6 +22,7 @@ import {
   validateCliAckBody
 } from "./cli-executor-contract.js";
 import { missionProofOrigin } from "./proof-origin.js";
+import { newSimulationTicket, ticketEvidenceFor } from "./simulation-evidence.js";
 import { SELLO_WORKER } from "./version-stamp.js";
 import { validateCoachCompletion, validateCoachLaunch, coachLessonForSlot, coachLessonForDimension, COACH_AUDIENCES, COACH_HOUR } from "./academy-coach.js";
 import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
@@ -4136,14 +4137,16 @@ async function createTicket(env, s) {
   const id = ("INC-" + now.toString(36).slice(-5) + Math.floor(Math.random() * 36).toString(36)).toUpperCase();
   const tech = ROSTER[hash(s.screen) % ROSTER.length];
   const loc = s.loc || "";
-  const triage = await aiRun(env, `Eres el copiloto de soporte de Yokup (mantenimiento de pantallas DOOH). Incidencia: la pantalla "${s.screen}"${loc ? " en " + loc : ""} lleva ${s.age || 300} segundos sin se\xF1al de emisi\xF3n (proof-of-play ca\xEDdo). Responde SOLO en espa\xF1ol, \xFAtil y concreto (m\xE1x 55 palabras), EXACTAMENTE en 3 l\xEDneas:
+  const source = s.source || "agent-iot";
+  const evidence = ticketEvidenceFor(source);
+  const triage = await aiRun(env, `Eres el copiloto de soporte de Yokup (mantenimiento de pantallas DOOH). ${evidence.triageContext}Incidencia: la pantalla "${s.screen}"${loc ? " en " + loc : ""} lleva ${s.age || 300} segundos sin se\xF1al de emisi\xF3n (proof-of-play ca\xEDdo). Responde SOLO en espa\xF1ol, \xFAtil y concreto (m\xE1x 55 palabras), EXACTAMENTE en 3 l\xEDneas:
 \u{1F50D} Causa probable: ...
 \u{1F6E0}\uFE0F Acci\xF3n inmediata: ...
 \u{1F477} T\xE9cnico: s\xED/no \u2014 motivo`, 170);
   await backfillTodayDisplayRefs(env, now);
-  await env.DB.prepare("INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, s.screen, "Pantalla sin se\xF1al de emisi\xF3n", loc, s.role || "", "open", "urgente", tech.name, s.source || "agent-iot", triage, now, now).run();
+  await env.DB.prepare("INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, s.screen, evidence.subject, loc, s.role || "", "open", "urgente", tech.name, source, triage, now, now).run();
   await ensureEntityDisplayRef(env, "mission", id, now);
-  await addEvent(env, id, "log", "Agente IoT", "Incidencia detectada autom\xE1ticamente: pantalla sin se\xF1al de emisi\xF3n (proof-of-play ca\xEDdo).");
+  await addEvent(env, id, "log", evidence.eventAuthor, evidence.eventText);
   await addEvent(env, id, "assign", "IA", `Auto-asignado a ${tech.name} (${tech.zone} \xB7 ${tech.skills}) por skills y zona.`);
   if (triage) await addEvent(env, id, "ai", "Copiloto IA", triage);
   await notifySubs(env);
@@ -8965,25 +8968,7 @@ Todo en español.`;
     if (url.pathname === "/ticket/simulate" && req.method === "POST") {
       try {
         await ensureSchema(env);
-        let screen, loc = "", role = "", age = 300;
-        try {
-          const r = await fetch("https://api.admira.store/signage/screens");
-          const d = await r.json();
-          const s = (d.screens || []).find((x) => x.online);
-          if (s) {
-            screen = s.screen;
-            loc = s.locName || s.loc || "";
-            role = s.role || "";
-          }
-        } catch (e) {
-        }
-        if (!screen) {
-          const c = ["Gr\xE0cia \xB7 Barcelona", "Madrid Centro", "Eixample \xB7 Barcelona", "Sant Andreu \xB7 Barcelona", "Sants \xB7 Barcelona"];
-          screen = "demo-" + Math.random().toString(36).slice(2, 7);
-          loc = c[Math.floor(Math.random() * c.length)];
-          role = "DOOH";
-        }
-        const id = await createTicket(env, { screen, loc, role, age, source: "agent-iot" });
+        const id = await createTicket(env, newSimulationTicket());
         return json({ ok: true, id });
       } catch (e) {
         return json({ error: String(e) }, 500);

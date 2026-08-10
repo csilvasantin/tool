@@ -108,6 +108,23 @@ test("los controles y el detalle exponen semántica accesible", () => {
   assert.match(html, /@media\(prefers-reduced-motion:reduce\)/);
 });
 
+test("una incidencia simulada muestra un distintivo y una real conserva su origen", () => {
+  const start = html.indexOf("function incidentSourceHtml(source)");
+  const end = html.indexOf("function incidenceRowHtml", start);
+  const sourceFn = html.slice(start, end);
+  const renderSource = new Function(`
+    function esc(value){return String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;");}
+    ${sourceFn}
+    return incidentSourceHtml;
+  `)();
+  assert.equal(renderSource("simulation"), '<span class="inc-simulation">SIMULACIÓN</span>');
+  assert.equal(renderSource("agent-iot"), "agent-iot");
+  assert.equal(renderSource("<origen>"), "&lt;origen>");
+  assert.match(html, /\.inc-simulation\{[^}]*color:var\(--accent\)/);
+  assert.match(renderer, /esc\(simulation\?'SIMULACIÓN':source\)/,
+    "el detalle también debe declarar la simulación sin HTML decorativo");
+});
+
 test("cada estado tiene un único control KPI y conserva filtrado accesible", () => {
   for (const state of ["open", "in_progress", "resolved"]) {
     assert.equal((html.match(new RegExp(`data-f="${state}"`, "g")) || []).length, 1, `${state} no se duplica en tabs`);
