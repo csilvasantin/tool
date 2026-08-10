@@ -1,12 +1,12 @@
 // Generado por deploy.sh en cada publicación. No editar a mano.
 export const SELLO_WORKER = {
-  "version": "v.10.08.2026.r4.01:01",
-  "deployedAt": "2026-08-09T23:01:18Z",
-  "deployer": "InfraOraculoMini",
+  "version": "v.10.08.2026.r5.08:05",
+  "deployedAt": "2026-08-10T06:05:15Z",
+  "deployer": "SubMorfeoMacMini",
   "machine": "MacMini",
-  "signature": "InfraOraculoMini · MacMini",
-  "git": "3e6cd73b66b940d3708787351d7998e1dccb8616",
-  "gitShort": "3e6cd73",
-  "gitFull": "3e6cd73b66b940d3708787351d7998e1dccb8616",
+  "signature": "SubMorfeoMacMini · MacMini",
+  "git": "6b0efd5eaa315cac21c4d93653d7c947ca54058a",
+  "gitShort": "6b0efd5",
+  "gitFull": "6b0efd5eaa315cac21c4d93653d7c947ca54058a",
   "dirty": false
 };
