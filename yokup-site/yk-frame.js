@@ -688,7 +688,7 @@
 
   var FLEET = { items:[], selected:"", busy:false, appList:null, appCount:null, appBody:null,
     appStatus:null, appsExpanded:false, appOpen:new Set(), cliList:null, cliCount:null, cliTitle:null,
-    cliMeta:null, cliOutput:null, cliInput:null, cliStatus:null, cliPower:null };
+    cliMeta:null, cliOutput:null, cliInput:null, cliStatus:null, cliPower:null, cliExpanded:"", cliDrafts:{} };
 
   function fleetText(tag, cls, value) { var node=el(tag,cls); node.textContent=String(value == null ? "" : value); return node; }
 
@@ -767,6 +767,7 @@
 
   function terminalAction(action) {
     var item=selectedCli(); if(!item || !item.active || FLEET.busy)return Promise.resolve();
+    var targetKey=fleetKey(item);
     var text=action === "write" ? String(FLEET.cliInput && FLEET.cliInput.value || "") : "";
     if(action === "write" && !text.trim()){fleetMessage("Escribe el mensaje que recibirá la sesión CLI.",true);return Promise.resolve();}
     FLEET.busy=true; fleetMessage(action === "write" ? "Enviando a la misma sesión…" : "Leyendo la misma sesión…",false);
@@ -776,8 +777,8 @@
       .then(function(data){return pollTerminal(data.command_id,Date.now()+30000);})
       .then(function(result){
         if(result.status === "failed")throw new Error(result.error||"La sesión rechazó la orden");
-        if(result.output && FLEET.cliOutput)FLEET.cliOutput.textContent=result.output;
-        if(action === "write" && FLEET.cliInput){FLEET.cliInput.value="";fleetMessage("Mensaje entregado a la sesión real. Actualizando respuesta…",false);setTimeout(function(){terminalAction("read");},1200);}
+        if(result.output && FLEET.cliOutput && FLEET.selected===targetKey)FLEET.cliOutput.textContent=result.output;
+        if(action === "write"){FLEET.cliDrafts[targetKey]="";if(FLEET.cliInput&&FLEET.selected===targetKey)FLEET.cliInput.value="";fleetMessage("Mensaje entregado a la sesión real. Actualizando respuesta…",false);setTimeout(function(){if(FLEET.selected===targetKey)terminalAction("read");},1200);}
         else fleetMessage("Sesión sincronizada · "+new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"}),false);
       }).catch(function(error){fleetMessage(error.message||"No se pudo comunicar con la sesión",true);})
       .finally(function(){FLEET.busy=false;renderFleet();});
@@ -811,22 +812,40 @@
   }
 
   function renderCli() {
-    if(!FLEET.cliList)return; FLEET.cliList.textContent="";
+    if(!FLEET.cliList)return; FLEET.cliList.textContent="";FLEET.cliInput=null;FLEET.cliPower=null;
     var clis=FLEET.items.filter(function(item){return item.host === "cli";});
     FLEET.cliCount.textContent=clis.filter(function(item){return item.active;}).length+"/"+clis.length+" vivos";
     if(!clis.length){FLEET.cliList.appendChild(el("p","yk-fleet-empty","Sin CLIs observados."));return;}
     if(!clis.some(function(item){return fleetKey(item)===FLEET.selected;}))FLEET.selected=fleetKey(clis.find(function(item){return item.active;})||clis[0]);
     clis.forEach(function(item){
-      var button=el("button","yk-cli-agent"+(fleetKey(item)===FLEET.selected?" selected":""));button.type="button";
-      var title=fleetText("b",null,item.persona+" · "+item.runtime);var meta=fleetText("small",null,item.machine+" · "+(item.active?"vivo":"parado"));
-      button.appendChild(title);button.appendChild(meta);button.addEventListener("click",function(){FLEET.selected=fleetKey(item);renderCli();if(item.active)terminalAction("read");});FLEET.cliList.appendChild(button);
+      var key=fleetKey(item),expanded=key===FLEET.cliExpanded,group=el("div","yk-cli-agent-group");
+      var button=el("button","yk-cli-agent"+(key===FLEET.selected?" selected":""));button.type="button";
+      button.setAttribute("aria-expanded",String(expanded));button.appendChild(el("span","yk-cli-chevron"));
+      button.appendChild(fleetText("b",null,item.persona+" · "+item.runtime));
+      button.appendChild(fleetText("small",item.active?"live":"",item.machine+" · "+(item.active?"vivo":"parado")));
+      var actions=el("div","yk-cli-agent-actions");actions.hidden=!expanded;
+      button.addEventListener("click",function(){
+        var changed=FLEET.selected!==key;FLEET.selected=key;FLEET.cliExpanded=expanded?"":key;
+        if(changed&&FLEET.cliOutput)FLEET.cliOutput.textContent=item.active?"Leyendo la sesión seleccionada…":"La sesión seleccionada está parada.";
+        renderCli();if(item.active&&!expanded)terminalAction("read");
+      });
+      group.appendChild(button);
+      if(expanded){
+        var controls=el("div","yk-cli-agent-buttons");
+        FLEET.cliPower=fleetButton(item.active?"■ Detener":"▶ Arrancar","yk-cli-power",function(){fleetControl(item,item.active?"stop":"start");});
+        FLEET.cliPower.disabled=FLEET.busy||(!item.active&&!item.watcher);controls.appendChild(FLEET.cliPower);
+        var read=fleetButton("↻ Leer","yk-cli-read",function(){terminalAction("read");});read.disabled=!item.active||FLEET.busy;controls.appendChild(read);actions.appendChild(controls);
+        var form=el("form","yk-cli-agent-form");FLEET.cliInput=el("textarea","yk-cli-input");FLEET.cliInput.maxLength=4000;FLEET.cliInput.rows=2;
+        FLEET.cliInput.placeholder="Mensaje para "+item.persona;FLEET.cliInput.value=FLEET.cliDrafts[key]||"";FLEET.cliInput.disabled=!item.active;
+        FLEET.cliInput.addEventListener("input",function(){FLEET.cliDrafts[key]=FLEET.cliInput.value;});form.appendChild(FLEET.cliInput);
+        var send=el("button","yk-cli-send","Enviar ↵");send.type="submit";send.disabled=!item.active||FLEET.busy;form.appendChild(send);
+        form.addEventListener("submit",function(event){event.preventDefault();terminalAction("write");});actions.appendChild(form);
+      }
+      group.appendChild(actions);FLEET.cliList.appendChild(group);
     });
     var selected=selectedCli(); if(!selected)return;
     FLEET.cliTitle.textContent=selected.persona+" · "+selected.runtime;
     FLEET.cliMeta.textContent=selected.machine+" · "+(selected.active?("PID "+selected.pid+" · sesión "+selected.session_id):"sesión parada");
-    if(FLEET.cliPower){FLEET.cliPower.textContent=selected.active?"■ Detener":"▶ Arrancar";FLEET.cliPower.disabled=FLEET.busy||(!selected.active&&!selected.watcher);}
-    var write=FLEET.cliInput && FLEET.cliInput.form && FLEET.cliInput.form.querySelector('[data-cli-write]');
-    if(FLEET.cliInput)FLEET.cliInput.disabled=!selected.active;if(write)write.disabled=!selected.active||FLEET.busy;
   }
 
   function renderFleet(){renderApps();renderCli();}
@@ -851,16 +870,13 @@
   function buildCliConsole() {
     var section=el("section","yk-cli-console");var side=el("div","yk-cli-side");var head=el("div","yk-fleet-head");
     head.appendChild(fleetText("b",null,"Control de CLIs"));FLEET.cliCount=fleetText("span",null,"…");head.appendChild(FLEET.cliCount);side.appendChild(head);
-    FLEET.cliList=el("div","yk-cli-list");side.appendChild(FLEET.cliList);section.appendChild(side);
+    FLEET.cliList=el("div","yk-cli-list");side.appendChild(FLEET.cliList);
+    FLEET.cliStatus=el("p","yk-cli-status");FLEET.cliStatus.setAttribute("role","status");side.appendChild(FLEET.cliStatus);section.appendChild(side);
     var terminal=el("div","yk-cli-terminal");var terminalHead=el("div","yk-cli-terminal-head");
     var identity=el("span");FLEET.cliTitle=fleetText("b",null,"Selecciona un CLI");FLEET.cliMeta=fleetText("small",null,"Sesión remota segura");identity.appendChild(FLEET.cliTitle);identity.appendChild(FLEET.cliMeta);terminalHead.appendChild(identity);
-    FLEET.cliPower=fleetButton("▶ Arrancar","yk-cli-power",function(){var item=selectedCli();if(item)fleetControl(item,item.active?"stop":"start");});terminalHead.appendChild(FLEET.cliPower);
-    terminalHead.appendChild(fleetButton("↻ Leer","yk-cli-read",function(){terminalAction("read");}));terminal.appendChild(terminalHead);
+    terminal.appendChild(terminalHead);
     FLEET.cliOutput=el("pre","yk-cli-output");FLEET.cliOutput.textContent="La salida de la sesión real aparecerá aquí.";terminal.appendChild(FLEET.cliOutput);
-    var form=el("form","yk-cli-form");FLEET.cliInput=el("textarea","yk-cli-input");FLEET.cliInput.maxLength=4000;FLEET.cliInput.rows=2;FLEET.cliInput.placeholder="Mensaje para la sesión CLI seleccionada";form.appendChild(FLEET.cliInput);
-    var send=fleetButton("Enviar ↵","yk-cli-send",function(){terminalAction("write");});send.setAttribute("data-cli-write","1");form.appendChild(send);
-    form.addEventListener("submit",function(event){event.preventDefault();terminalAction("write");});terminal.appendChild(form);
-    FLEET.cliStatus=el("p","yk-cli-status");FLEET.cliStatus.setAttribute("role","status");terminal.appendChild(FLEET.cliStatus);section.appendChild(terminal);return section;
+    section.appendChild(terminal);return section;
   }
 
   function build() {

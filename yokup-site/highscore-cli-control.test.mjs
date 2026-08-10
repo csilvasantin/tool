@@ -38,6 +38,20 @@ test("Experto contiene CLIs y la sesión remota real",()=>{
   assert.match(frame,/body\.pid=item\.pid/);
 });
 
+test("las acciones del CLI se despliegan bajo el agente y la derecha queda para su terminal",()=>{
+  assert.match(frame,/cliExpanded:""/);
+  assert.match(frame,/button\.setAttribute\("aria-expanded",String\(expanded\)\)/);
+  assert.match(frame,/actions=el\("div","yk-cli-agent-actions"\);actions\.hidden=!expanded/);
+  assert.match(frame,/controls\.appendChild\(FLEET\.cliPower\)/);
+  assert.match(frame,/form=el\("form","yk-cli-agent-form"\)/);
+  assert.match(frame,/terminal\.appendChild\(terminalHead\);[\s\S]*terminal\.appendChild\(FLEET\.cliOutput\);[\s\S]*section\.appendChild\(terminal\)/);
+  assert.match(frame,/FLEET\.selected===targetKey/);
+  assert.doesNotMatch(frame,/terminalHead\.appendChild\(FLEET\.cliPower\)/);
+  assert.doesNotMatch(frame,/terminal\.appendChild\(form\)/);
+  assert.match(css,/\.yk-cli-console\{display:grid;grid-template-columns:minmax\(250px,28%\) minmax\(0,1fr\)/);
+  assert.match(css,/\.yk-cli-agent-actions\[hidden\]\{display:none\}/);
+});
+
 test("el panel Experto usa todo el viewport sin reservar una franja lateral",()=>{
   assert.match(css,/\.yk-rail-bottom\{[\s\S]*?left:0; right:0; bottom:0/);
   assert.match(css,/\.yk-rail-bottom\{[\s\S]*?padding:14px 16px 16px/);
