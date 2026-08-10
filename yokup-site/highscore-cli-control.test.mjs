@@ -27,6 +27,24 @@ test("Avanzado contiene sólo el control global de DesktopAPP",()=>{
   assert.match(css,/\.yk-app-switch\[aria-checked="true"\]/);
 });
 
+test("debajo de Mostrar todos hay control global para Codex, Claude Code y OpenCode",()=>{
+  assert.match(highscore,/id="agentScopeReset"[\s\S]*id="desktopAppBulk"/);
+  assert.match(frame,/FLEET\.appBulk=document\.getElementById\("desktopAppBulk"\)/);
+  assert.match(frame,/\[\["Codex","Codex"\],\["Claude","Claude Code"\],\["OpenCode","OpenCode"\]\]\.forEach/);
+  assert.match(frame,/function bulkAppGroups\(runtime\)/);
+  assert.match(frame,/item\.host === "app"&&item\.watcher&&desktopAppName\(item\.runtime\)===runtime/);
+  assert.match(frame,/item\.machine\+"\|"\+runtime/);
+  assert.match(frame,/function bulkAppTargets\(runtime, action\)/);
+  assert.match(frame,/bulkAppControl\(runtime,"start"\)/);
+  assert.match(frame,/bulkAppControl\(runtime,"stop"\)/);
+  assert.match(frame,/Cerrar las "\+targets\.length\+" DesktopAPP "\+runtime\+" abiertas en los equipos/);
+  assert.match(frame,/Promise\.allSettled\(targets\.map/);
+  assert.match(frame,/function verifyAppBulkControl\(token,runtime,action,pass\)/);
+  assert.match(frame,/pass<3/);
+  assert.match(css,/\.yk-app-bulk\{display:grid/);
+  assert.match(css,/\.yk-app-bulk-action\.danger/);
+});
+
 test("todo el JavaScript inline de Highscore compila antes de publicar",()=>{
   const scripts=[...highscore.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map(match=>match[1]);
   assert.ok(scripts.length>0,"Highscore debe conservar al menos un script inline");

@@ -689,10 +689,10 @@
   }
 
   var FLEET = { items:[], selected:"", busy:false, focusQueued:"", appList:null, appCount:null, appBody:null,
-    appStatus:null, appsExpanded:false, appOpen:new Set(), cliOpen:new Set(), cliList:null, cliCount:null, cliTitle:null,
+    appStatus:null, appBulk:null, appBulkStatus:null, appNotice:"", appNoticeError:false, appsExpanded:false, appOpen:new Set(), cliOpen:new Set(), cliList:null, cliCount:null, cliTitle:null,
     cliMeta:null, cliMount:null, cliPtyStatus:null, cliStatus:null, cliBulk:null, cliPower:null, cliRead:null, cliFocus:null,
     cliInput:null, cliSend:null,
-    cliExpanded:"", structureKey:"", bulk:{runtime:"",action:"",token:0}, pty:{term:null,fit:null,socket:null,key:"",loaded:null,resize:null,retry:null,manual:false} };
+    cliExpanded:"", structureKey:"", bulk:{runtime:"",action:"",token:0}, appBulkState:{runtime:"",action:"",token:0}, pty:{term:null,fit:null,socket:null,key:"",loaded:null,resize:null,retry:null,manual:false} };
 
   function fleetText(tag, cls, value) { var node=el(tag,cls); node.textContent=String(value == null ? "" : value); return node; }
 
@@ -797,6 +797,67 @@
       .finally(function(){FLEET.busy=false;refreshFleetControls();});
   }
 
+  function bulkAppGroups(runtime) {
+    var groups={};
+    FLEET.items.filter(function(item){return item.host === "app"&&item.watcher&&desktopAppName(item.runtime)===runtime;}).forEach(function(item){
+      var key=item.machine+"|"+runtime;(groups[key]||(groups[key]=[])).push(item);
+    });
+    return Object.keys(groups).map(function(key){return groups[key];});
+  }
+
+  function bulkAppTargets(runtime, action) {
+    return bulkAppGroups(runtime).flatMap(function(group){
+      var active=group.filter(function(item){return item.active;});
+      if(action === "stop")return active;
+      if(active.length)return [];
+      var canonical=group.find(function(item){return item.watcher;});
+      return canonical?[canonical]:[];
+    });
+  }
+
+  function appBulkMessage(message,error) {
+    FLEET.appNotice=String(message||"");FLEET.appNoticeError=!!error;renderAppBulkControls();
+    if(FLEET.appStatus){FLEET.appStatus.textContent=FLEET.appNotice;FLEET.appStatus.classList.toggle("error",FLEET.appNoticeError);}
+  }
+
+  function verifyAppBulkControl(token,runtime,action,pass) {
+    if(FLEET.appBulkState.token!==token)return;
+    loadFleet().then(function(){
+      var groups=bulkAppGroups(runtime),active=groups.filter(function(group){return group.some(function(item){return item.active;});}).length;
+      var pending=action === "start" ? active<groups.length : active>0;
+      if(pending&&pass<3){
+        var targets=bulkAppTargets(runtime,action);FLEET.busy=true;refreshFleetControls();
+        appBulkMessage(runtime+": pasada "+(pass+1)+" sobre "+targets.length+" aplicaciones aún "+(action === "start"?"cerradas":"abiertas")+"…",false);
+        Promise.allSettled(targets.map(function(item){return fleetControlRequest(item,action);})).finally(function(){
+          FLEET.busy=false;refreshFleetControls();setTimeout(function(){verifyAppBulkControl(token,runtime,action,pass+1);},8000);
+        });
+        return;
+      }
+      var ok=action === "start" ? active===groups.length : active===0;
+      appBulkMessage(runtime+": "+active+"/"+groups.length+" abiertas tras "+pass+" pasada"+(pass===1?"":"s")+(ok?".":" · revisión necesaria."),!ok);
+      FLEET.appBulkState={runtime:"",action:"",token:token};renderAppBulkControls();
+    });
+  }
+
+  function bulkAppControl(runtime, action) {
+    if(FLEET.busy || FLEET.appBulkState.runtime)return;
+    var targets=bulkAppTargets(runtime,action);
+    if(!targets.length){appBulkMessage("No hay DesktopAPP "+runtime+" que "+(action === "start"?"abrir":"cerrar")+".",false);return;}
+    if(action === "stop" && !window.confirm("Cerrar las "+targets.length+" DesktopAPP "+runtime+" abiertas en los equipos?"))return;
+    var token=Date.now();FLEET.appBulkState={runtime:runtime,action:action,token:token};FLEET.busy=true;refreshFleetControls();
+    appBulkMessage((action === "start"?"Abriendo":"Cerrando")+" "+targets.length+" DesktopAPP "+runtime+"…",false);
+    Promise.allSettled(targets.map(function(item){return fleetControlRequest(item,action);})).then(function(results){
+      var accepted=results.filter(function(result){return result.status === "fulfilled";}).length;
+      var failures=results.length-accepted;
+      appBulkMessage(runtime+": "+accepted+" órdenes aceptadas"+(failures?" · "+failures+" rechazadas":"")+" · verificando procesos reales…",failures>0);
+    }).catch(function(error){appBulkMessage(error.message||"Falló el control global de DesktopAPP "+runtime,true);})
+      .finally(function(){
+        FLEET.busy=false;refreshFleetControls();
+        setTimeout(loadFleet,3000);
+        setTimeout(function(){verifyAppBulkControl(token,runtime,action,1);},12000);
+      });
+  }
+
   function bulkCliGroups(runtime) {
     var groups={};
     FLEET.items.filter(function(item){return item.host === "cli"&&!item.placeholder&&item.watcher&&item.runtime===runtime;}).forEach(function(item){
@@ -879,7 +940,20 @@
     if(FLEET.cliFocus)FLEET.cliFocus.disabled=!active||FLEET.busy;
     if(FLEET.cliInput)FLEET.cliInput.disabled=!active;
     if(FLEET.cliSend)FLEET.cliSend.disabled=!active||FLEET.busy;
-    renderBulkControls();
+    renderBulkControls();renderAppBulkControls();
+  }
+
+  function renderAppBulkControls() {
+    if(!FLEET.appBulk)return;FLEET.appBulk.textContent="";
+    FLEET.appBulk.appendChild(fleetText("b","yk-app-bulk-title","Control global DesktopAPP"));
+    [["Codex","Codex"],["Claude","Claude Code"],["OpenCode","OpenCode"]].forEach(function(config){
+      var runtime=config[0],label=config[1],groups=bulkAppGroups(runtime),active=groups.filter(function(group){return group.some(function(item){return item.active;});}).length,pending=FLEET.appBulkState.runtime===runtime,row=el("div","yk-app-bulk-row");
+      var copy=el("span","yk-app-bulk-copy");copy.appendChild(fleetText("b",null,label));copy.appendChild(fleetText("small",active?"live":"",active+"/"+groups.length+" abiertas"));row.appendChild(copy);
+      var start=fleetButton("","yk-app-bulk-action",function(){bulkAppControl(runtime,"start");});setFleetIcon(start,"play");start.title="Abrir todas las DesktopAPP "+label;start.setAttribute("aria-label",start.title);start.disabled=FLEET.busy||pending||groups.length===0||active===groups.length;row.appendChild(start);
+      var stop=fleetButton("","yk-app-bulk-action danger",function(){bulkAppControl(runtime,"stop");});setFleetIcon(stop,"power");stop.title="Cerrar todas las DesktopAPP "+label;stop.setAttribute("aria-label",stop.title);stop.disabled=FLEET.busy||pending||active===0;row.appendChild(stop);
+      FLEET.appBulk.appendChild(row);
+    });
+    FLEET.appBulkStatus=fleetText("p","yk-app-bulk-status"+(FLEET.appNoticeError?" error":""),FLEET.appNotice);FLEET.appBulkStatus.setAttribute("role","status");FLEET.appBulk.appendChild(FLEET.appBulkStatus);
   }
 
   function renderBulkControls() {
@@ -1105,7 +1179,7 @@
     paintSelectedCli();
   }
 
-  function renderFleet(){renderApps();renderCli();renderBulkControls();}
+  function renderFleet(){renderApps();renderCli();renderBulkControls();renderAppBulkControls();}
   function loadFleet() {
     return fetch(TELEGRAM+"/api/presence",{cache:"no-store"}).then(function(response){if(!response.ok)throw new Error("presence "+response.status);return response.json();})
       .then(function(payload){
@@ -1114,7 +1188,7 @@
         else{
           if(FLEET.appCount){var apps=items.filter(function(item){return item.host==="app";});FLEET.appCount.textContent=apps.filter(function(item){return item.active;}).length+"/"+apps.length+" vivas";}
           if(FLEET.cliCount){var clis=items.filter(function(item){return item.host==="cli";});FLEET.cliCount.textContent=cliCountLabel(clis);}
-          paintSelectedCli();renderBulkControls();
+          paintSelectedCli();renderBulkControls();renderAppBulkControls();
         }
         return payload;
       })
@@ -1288,6 +1362,7 @@
     fillSlot(slotL, "left");
     fillSlot(slotR, "right");
     fillSlot(slotB, "bottom");
+    FLEET.appBulk=document.getElementById("desktopAppBulk");
 
     // --- estado abierto/plegado por panel ---
     wire(icoL, "left");
