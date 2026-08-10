@@ -179,3 +179,27 @@ test("una subtarea huérfana no se cuela", async () => {
   assert.deepEqual(Array.from(r.added), []);
   assert.match(r.ignored[0].why, /madre/);
 });
+
+test("el plan de carton se reconoce en sus DOS familias, no solo en el esqueleto de fabrica", () => {
+  const { F } = harness();
+  // La ceremonia que salia cuando el planificador leia la nota de reparto de ids
+  // en vez del encargo. Ocho misiones vivas seguian con ella y quedaban fuera del
+  // barrido por no encajar en el patron del esqueleto.
+  const ceremonial = [
+    { code: "a", title: "Revisión del encargo y asignación de recursos", status: "pending" },
+    { code: "b", title: "Desarrollo y configuración del software", status: "pending" },
+    { code: "c", title: "Verificación y reporte del resultado", status: "pending" }
+  ];
+  assert.equal(F.isVirginSkeleton(ceremonial), true);
+  assert.equal(F.isVirginSkeleton([
+    { code: "a", title: "Revisar ids", status: "pending" },
+    { code: "b", title: "Asignar nuevo id", status: "pending" },
+    { code: "c", title: "Verificación y reporte", status: "pending" }
+  ]), true);
+  // Y un plan real sigue sin serlo, que es lo que protege de un barrido a ciegas.
+  assert.equal(F.isVirginSkeleton([
+    { code: "a", title: "Restaurar /api/input en el hub", status: "pending" },
+    { code: "b", title: "Instalar el agente en los dos MacBook Pro", status: "pending" },
+    { code: "c", title: "Desplegar y verificar en real", status: "pending" }
+  ]), false);
+});

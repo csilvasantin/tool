@@ -3871,7 +3871,12 @@ __name(saveMissionPlan, "saveMissionPlan");
 // perder el trabajo ya informado de sus compañeros. Aquí no se borra nunca: se
 // insertan los códigos que faltan y se retitula ÚNICAMENTE lo que sigue virgen
 // (pendiente, sin informe y sin captura).
-var SKELETON_TITLE_RE = /^(?:implementar|probar y aportar evidencia)\s*:|^documentar y reportar el resultado$/i;
+// Dos familias de plan de carton, no una. Al esqueleto de fabrica se suma la
+// ceremonia que escupia el planificador cuando leia la nota de reparto de ids en
+// vez del encargo: «Revision del encargo y asignacion de recursos / Desarrollo
+// del software / Verificacion y reporte». Ocho misiones vivas seguian con ella el
+// 10-ago y quedaban FUERA del barrido por no encajar en el patron anterior.
+var SKELETON_TITLE_RE = /^(?:implementar|probar y aportar evidencia)\s*:|^documentar y reportar el resultado$|^revisi[oó]n del encargo\b|^desarrollo (?:y configuraci[oó]n del software|del software)\b|^verificaci[oó]n y reporte\b|^revisar ids$|^asignar (?:un )?(?:nuevo )?id$/i;
 
 // Un plan es ESQUELETO cuando es exactamente el que siembra ensureFleetMainTasks
 // y nadie ha dejado trabajo dentro: las tres tareas de fábrica, sin subtareas,
@@ -4079,8 +4084,26 @@ async function proposePlan(env, mid) {
   let prompt;
   if (isFleet) {
     // El texto íntegro del encargo es el primer evento de la misión (fleetSync).
-    const ev = await env.DB.prepare("SELECT text FROM events WHERE ticket_id=? ORDER BY id ASC LIMIT 1").bind(mid).first();
-    const full = (ev && ev.text) || subject;
+    // EL ENCARGO NO ES SIEMPRE EL PRIMER EVENTO (Morfeo, 2026-08-10). Esto cogia
+    // la fila mas antigua a ciegas, y cuando yokup ha tenido que reasignar el id
+    // inserta ANTES su propia nota — «Reparto de ids: FLT-1330 ya pertenecia a
+    // otra mision…». La IA acababa planificando la contabilidad interna en vez
+    // del trabajo, y salian planes como «Revisar ids / Asignar id / Notificar
+    // cambio» (FLT-1099, FLT-1100, FLT-1371). El 10-ago hubo que rescatar TRES
+    // misiones a mano. Se descartan los eventos que escribe el propio yokup y se
+    // toma el primero que de verdad trae el encargo; si no hay ninguno, se cae al
+    // comportamiento de antes en vez de quedarse sin texto.
+    const { results: evs } = await env.DB.prepare(
+      "SELECT author, text FROM events WHERE ticket_id=? ORDER BY id ASC LIMIT 8"
+    ).bind(mid).all();
+    const esContable = (e) => {
+      const autor = String(e && e.author || "").trim().toLowerCase();
+      const txt = String(e && e.text || "");
+      if (autor === "yokup") return true;                       // lo escribe el sistema, no Carlos
+      return /^\s*reparto de ids\b|^\s*estado\s*→|^\s*misi[oó]n declarada/i.test(txt);
+    };
+    const util = (evs || []).find((e) => !esContable(e) && String(e.text || "").trim().length > 40);
+    const full = (util && util.text) || ((evs || [])[0] && evs[0].text) || subject;
     prompt = `Eres el agente principal de AdmiraNeXT, un equipo de agentes de IA que desarrolla software (webs, workers de Cloudflare, players de se\xF1alizaci\xF3n). Carlos, el arquitecto, ha hecho este ENCARGO al agente "${t.assignee || "un agente"}"${loc ? ' que corre en el ordenador "' + loc + '"' : ""}.
 
 ENCARGO:
