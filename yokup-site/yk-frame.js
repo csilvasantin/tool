@@ -689,7 +689,7 @@
   }
 
   var FLEET = { items:[], selected:"", busy:false, focusQueued:false, appList:null, appCount:null, appBody:null,
-    appStatus:null, appsExpanded:false, appOpen:new Set(), cliList:null, cliCount:null, cliTitle:null,
+    appStatus:null, appsExpanded:false, appOpen:new Set(), cliOpen:new Set(), cliList:null, cliCount:null, cliTitle:null,
     cliMeta:null, cliMount:null, cliPtyStatus:null, cliStatus:null, cliPower:null, cliRead:null, cliFocus:null,
     cliExpanded:"", structureKey:"", pty:{term:null,fit:null,socket:null,key:"",loaded:null,resize:null,retry:null,manual:false} };
 
@@ -957,29 +957,43 @@
     FLEET.cliCount.textContent=cliCountLabel(clis);
     if(!clis.length){FLEET.cliList.appendChild(el("p","yk-fleet-empty","Sin CLIs observados."));return;}
     if(!clis.some(function(item){return fleetKey(item)===FLEET.selected;}))FLEET.selected=fleetKey(clis.find(function(item){return item.active;})||clis[0]);
-    clis.forEach(function(item){
-      var key=fleetKey(item),expanded=key===FLEET.cliExpanded,group=el("div","yk-cli-agent-group");
-      var tab=el("div","yk-cli-agent-tab"+(key===FLEET.selected?" selected":""));
-      var button=el("button","yk-cli-agent"+(key===FLEET.selected?" selected":""));button.type="button";
-      button.setAttribute("aria-expanded",String(expanded));button.appendChild(el("span","yk-cli-chevron"));
-      button.appendChild(fleetText("b",null,item.placeholder?item.machine:(item.persona+" · "+item.runtime)));
-      button.appendChild(fleetText("small",item.active?"live":"",item.placeholder?"sin CLI anunciado":(item.machine+" · "+(item.active?(item.attached?"Terminal conectada":"tmux autónomo"):"parado"))));
-      button.addEventListener("click",function(){
-        var changed=FLEET.selected!==key,isOpen=FLEET.cliExpanded===key;
-        FLEET.selected=key;FLEET.cliExpanded=isOpen?"":key;
-        if(changed)disconnectSelectedPty(false);
-        renderCli();
+    var groups={};clis.forEach(function(item){(groups[item.machine]||(groups[item.machine]=[])).push(item);});
+    Object.keys(groups).sort(function(a,b){return a.localeCompare(b,"es");}).forEach(function(machine,index){
+      var items=groups[machine].sort(function(a,b){return Number(b.active)-Number(a.active)||a.persona.localeCompare(b.persona,"es")||a.runtime.localeCompare(b.runtime,"es");});
+      var real=items.filter(function(item){return !item.placeholder;}),active=real.filter(function(item){return item.active;}).length;
+      var open=FLEET.cliOpen.has(machine),rowsId="ykCliMachine"+index,group=el("fieldset","yk-cli-machine-group");
+      group.appendChild(fleetText("legend","yk-sr-only","CLIs de "+machine));
+      var toggle=el("button","yk-cli-machine");toggle.type="button";toggle.setAttribute("aria-expanded",String(open));toggle.setAttribute("aria-controls",rowsId);
+      toggle.appendChild(el("span","yk-cli-machine-chevron"));toggle.appendChild(fleetText("span","yk-cli-machine-name",machine));
+      toggle.appendChild(fleetText("span","yk-cli-machine-tally"+(active?" live":""),real.length?(active+"/"+real.length):"sin CLI"));
+      var rows=el("div","yk-cli-machine-rows");rows.id=rowsId;rows.hidden=!open;
+      toggle.addEventListener("click",function(){if(FLEET.cliOpen.has(machine))FLEET.cliOpen.delete(machine);else FLEET.cliOpen.add(machine);renderCli();});
+      group.appendChild(toggle);
+      items.forEach(function(item){
+        var key=fleetKey(item),expanded=key===FLEET.cliExpanded,agentGroup=el("div","yk-cli-agent-group");
+        var tab=el("div","yk-cli-agent-tab"+(key===FLEET.selected?" selected":""));
+        var button=el("button","yk-cli-agent"+(key===FLEET.selected?" selected":""));button.type="button";
+        button.setAttribute("aria-expanded",String(expanded));button.appendChild(el("span","yk-cli-chevron"));
+        button.appendChild(fleetText("b",null,item.placeholder?"Equipo sin CLI":(item.persona+" · "+item.runtime)));
+        button.appendChild(fleetText("small",item.active?"live":"",item.placeholder?"sin CLI anunciado":(item.active?(item.attached?"Terminal conectada":"tmux autónomo"):"parado")));
+        button.addEventListener("click",function(){
+          var changed=FLEET.selected!==key,isOpen=FLEET.cliExpanded===key;
+          FLEET.selected=key;FLEET.cliExpanded=isOpen?"":key;
+          if(changed)disconnectSelectedPty(false);
+          renderCli();
+        });
+        tab.appendChild(button);
+        if(expanded&&!item.placeholder){
+          var controls=el("div","yk-cli-agent-buttons");
+          FLEET.cliPower=fleetButton(item.active?"■":"▶","yk-cli-power",function(){fleetControl(item,item.active?"stop":"start");});
+          FLEET.cliPower.title=item.active?"Detener agente":"Arrancar agente";FLEET.cliPower.setAttribute("aria-label",FLEET.cliPower.title);
+          FLEET.cliPower.disabled=FLEET.busy||(!item.active&&!item.watcher);controls.appendChild(FLEET.cliPower);
+          FLEET.cliRead=fleetButton("↻","yk-cli-read",function(){connectSelectedPty(true);terminalAction("read");});FLEET.cliRead.title="Leer y reconectar PTY";FLEET.cliRead.setAttribute("aria-label",FLEET.cliRead.title);FLEET.cliRead.disabled=!item.active||FLEET.busy;controls.appendChild(FLEET.cliRead);
+          FLEET.cliFocus=fleetButton("◎","yk-cli-focus",function(){terminalAction("focus");});FLEET.cliFocus.title="Mostrar esta sesión en el equipo";FLEET.cliFocus.setAttribute("aria-label",FLEET.cliFocus.title);FLEET.cliFocus.disabled=!item.active;controls.appendChild(FLEET.cliFocus);tab.appendChild(controls);
+        }
+        agentGroup.appendChild(tab);rows.appendChild(agentGroup);
       });
-      tab.appendChild(button);
-      if(expanded&&!item.placeholder){
-        var controls=el("div","yk-cli-agent-buttons");
-        FLEET.cliPower=fleetButton(item.active?"■":"▶","yk-cli-power",function(){fleetControl(item,item.active?"stop":"start");});
-        FLEET.cliPower.title=item.active?"Detener agente":"Arrancar agente";FLEET.cliPower.setAttribute("aria-label",FLEET.cliPower.title);
-        FLEET.cliPower.disabled=FLEET.busy||(!item.active&&!item.watcher);controls.appendChild(FLEET.cliPower);
-        FLEET.cliRead=fleetButton("↻","yk-cli-read",function(){connectSelectedPty(true);terminalAction("read");});FLEET.cliRead.title="Leer y reconectar PTY";FLEET.cliRead.setAttribute("aria-label",FLEET.cliRead.title);FLEET.cliRead.disabled=!item.active||FLEET.busy;controls.appendChild(FLEET.cliRead);
-        FLEET.cliFocus=fleetButton("◎","yk-cli-focus",function(){terminalAction("focus");});FLEET.cliFocus.title="Mostrar esta sesión en el equipo";FLEET.cliFocus.setAttribute("aria-label",FLEET.cliFocus.title);FLEET.cliFocus.disabled=!item.active;controls.appendChild(FLEET.cliFocus);tab.appendChild(controls);
-      }
-      group.appendChild(tab);FLEET.cliList.appendChild(group);
+      group.appendChild(rows);FLEET.cliList.appendChild(group);
     });
     paintSelectedCli();
   }

@@ -57,6 +57,18 @@ test("Experto contiene CLIs y la sesión remota real",()=>{
   assert.doesNotMatch(frame,/"yk-cli-terminal-form"/);
 });
 
+test("Experto agrupa los agentes por equipo físico igual que Avanzado",()=>{
+  assert.match(frame,/cliOpen:new Set\(\)/);
+  assert.match(frame,/groups\[item\.machine\]/);
+  assert.match(frame,/FLEET\.cliOpen\.has\(machine\)/);
+  assert.match(frame,/"yk-cli-machine"/);
+  assert.match(frame,/toggle\.setAttribute\("aria-expanded",String\(open\)\)/);
+  assert.match(frame,/toggle\.setAttribute\("aria-controls",rowsId\)/);
+  assert.match(frame,/rows\.hidden=!open/);
+  assert.match(frame,/real\.length\?\(active\+"\/"\+real\.length\):"sin CLI"/);
+  assert.match(css,/\.yk-cli-machine-rows\[hidden\]\{display:none\}/);
+});
+
 test("las tres acciones viven compactas en la pestaña y la derecha queda sólo para xterm",()=>{
   assert.match(frame,/cliExpanded:""/);
   assert.match(frame,/button\.setAttribute\("aria-expanded",String\(expanded\)\)/);
