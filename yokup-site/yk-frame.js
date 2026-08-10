@@ -158,7 +158,7 @@
  * por la página) los nodos [data-yk-slot="left|right|bottom"] al panel
  * correspondiente. Si un slot no tiene nodos, muestra «— sin opciones».
  *
- * Estado abierto/plegado por panel en localStorage. NO toca acceso.js ni
+ * Los tres paneles nacen plegados en cada carga. NO toca acceso.js ni
  * avatar-widget.js.
  * ==========================================================================*/
 (function () {
@@ -193,7 +193,9 @@
     });
   }
   window.ykFetch = ykFetch;   // disponible para las páginas (ideas/objetivos)
-  var LS = "yk_frame_open_";  // + panel  -> "1" | "0"
+  // Los tres raíles empiezan SIEMPRE compactados. El estado anterior del
+  // navegador no puede volver a abrir una superficie operativa al entrar.
+  var OPEN_PANELS = { left:false, right:false, bottom:false };
 
   // NAV DE PLATAFORMA — fuente ÚNICA del menú tras la DMZ (zona app). Las
   // páginas de plataforma declaran <body data-yk-zone="app"> y nada más: los
@@ -688,7 +690,7 @@
 
   var FLEET = { items:[], selected:"", busy:false, appList:null, appCount:null, appBody:null,
     appStatus:null, appsExpanded:false, appOpen:new Set(), cliList:null, cliCount:null, cliTitle:null,
-    cliMeta:null, cliOutput:null, cliInput:null, cliStatus:null, cliPower:null, cliExpanded:"", cliDrafts:{} };
+    cliMeta:null, cliOutput:null, cliInput:null, cliStatus:null, cliPower:null, cliFocus:null, cliExpanded:"", cliDrafts:{} };
 
   function fleetText(tag, cls, value) { var node=el(tag,cls); node.textContent=String(value == null ? "" : value); return node; }
 
@@ -735,6 +737,14 @@
     var button=el("button",cls,label); button.type="button"; button.addEventListener("click",handler); return button;
   }
 
+  function desktopAppName(runtime) {
+    var value=String(runtime||"").toLowerCase();
+    if(value === "codex" || value === "openai" || value === "chatgpt")return "Codex";
+    if(value === "claude" || value === "claude code")return "Claude";
+    if(value === "opencode" || value === "open code")return "OpenCode";
+    return String(runtime||"DesktopAPP");
+  }
+
   function fleetControl(item, action) {
     if(FLEET.busy)return;
     if(action === "stop" && !window.confirm("Detener " + item.persona + " · " + item.runtime + " en " + item.machine + " (PID " + item.pid + ")?"))return;
@@ -770,7 +780,7 @@
     var targetKey=fleetKey(item);
     var text=action === "write" ? String(FLEET.cliInput && FLEET.cliInput.value || "") : "";
     if(action === "write" && !text.trim()){fleetMessage("Escribe el mensaje que recibirá la sesión CLI.",true);return Promise.resolve();}
-    FLEET.busy=true; fleetMessage(action === "write" ? "Enviando a la misma sesión…" : "Leyendo la misma sesión…",false);
+    FLEET.busy=true; fleetMessage(action === "write" ? "Enviando a la misma sesión…" : action === "focus" ? "Conectando la Terminal del equipo a esta sesión…" : "Leyendo la misma sesión…",false);
     var body=fleetTarget(item,action); if(action === "write")body.text=text;
     return ykFetch("/fleet/cli/terminal",{method:"POST",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify(body)})
       .then(function(response){return response.json().catch(function(){return {};}).then(function(data){if(!response.ok)throw new Error(data.error||("terminal "+response.status));return data;});})
@@ -779,6 +789,7 @@
         if(result.status === "failed")throw new Error(result.error||"La sesión rechazó la orden");
         if(result.output && FLEET.cliOutput && FLEET.selected===targetKey)FLEET.cliOutput.textContent=result.output;
         if(action === "write"){FLEET.cliDrafts[targetKey]="";if(FLEET.cliInput&&FLEET.selected===targetKey)FLEET.cliInput.value="";fleetMessage("Mensaje entregado a la sesión real. Actualizando respuesta…",false);setTimeout(function(){if(FLEET.selected===targetKey)terminalAction("read");},1200);}
+        else if(action === "focus"){fleetMessage("Terminal del equipo conectada a tmux:"+item.session_id+".",false);setTimeout(loadFleet,1200);}
         else fleetMessage("Sesión sincronizada · "+new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"}),false);
       }).catch(function(error){fleetMessage(error.message||"No se pudo comunicar con la sesión",true);})
       .finally(function(){FLEET.busy=false;renderFleet();});
@@ -802,9 +813,15 @@
       group.appendChild(toggle);
       items.forEach(function(item){
         var row=el("div","yk-app-row");var copy=el("span","yk-app-copy");
-        copy.appendChild(fleetText("b",null,item.persona+" · "+item.runtime));
-        copy.appendChild(fleetText("small",item.active?"live":"",item.active?("● activa · PID "+item.pid):"○ parada · ranura disponible"));row.appendChild(copy);
-        var action=fleetButton(item.active?"■ Detener":"▶ Abrir","yk-fleet-action",function(){fleetControl(item,item.active?"stop":"start");});
+        var appName=desktopAppName(item.runtime);
+        copy.appendChild(fleetText("b",null,appName));
+        copy.appendChild(fleetText("small",item.active?"live":"",item.persona+" · "+(item.active?("PID "+item.pid):"ranura disponible")));row.appendChild(copy);
+        var action=fleetButton("","yk-app-switch",function(){fleetControl(item,item.active?"stop":"start");});
+        action.setAttribute("role","switch");action.setAttribute("aria-checked",String(item.active));
+        action.setAttribute("aria-label",appName+" en "+machine+": "+(item.active?"abierta; cerrar":"cerrada; abrir"));
+        action.appendChild(fleetText("span","yk-app-switch-name",appName));
+        action.appendChild(fleetText("span","yk-app-switch-state",item.active?"Abierta":"Cerrada"));
+        action.appendChild(el("span","yk-app-switch-track"));
         action.disabled=FLEET.busy||(!item.active&&!item.watcher);row.appendChild(action);rows.appendChild(row);
       });
       group.appendChild(rows);FLEET.appList.appendChild(group);
@@ -812,7 +829,7 @@
   }
 
   function renderCli() {
-    if(!FLEET.cliList)return; FLEET.cliList.textContent="";FLEET.cliInput=null;FLEET.cliPower=null;
+    if(!FLEET.cliList)return; FLEET.cliList.textContent="";FLEET.cliInput=null;FLEET.cliPower=null;FLEET.cliFocus=null;
     var clis=FLEET.items.filter(function(item){return item.host === "cli";});
     FLEET.cliCount.textContent=clis.filter(function(item){return item.active;}).length+"/"+clis.length+" vivos";
     if(!clis.length){FLEET.cliList.appendChild(el("p","yk-fleet-empty","Sin CLIs observados."));return;}
@@ -822,7 +839,7 @@
       var button=el("button","yk-cli-agent"+(key===FLEET.selected?" selected":""));button.type="button";
       button.setAttribute("aria-expanded",String(expanded));button.appendChild(el("span","yk-cli-chevron"));
       button.appendChild(fleetText("b",null,item.persona+" · "+item.runtime));
-      button.appendChild(fleetText("small",item.active?"live":"",item.machine+" · "+(item.active?"vivo":"parado")));
+      button.appendChild(fleetText("small",item.active?"live":"",item.machine+" · "+(item.active?(item.attached?"Terminal conectada":"tmux autónomo"):"parado")));
       var actions=el("div","yk-cli-agent-actions");actions.hidden=!expanded;
       button.addEventListener("click",function(){
         var changed=FLEET.selected!==key,isOpen=FLEET.cliExpanded===key;
@@ -835,7 +852,8 @@
         var controls=el("div","yk-cli-agent-buttons");
         FLEET.cliPower=fleetButton(item.active?"■ Detener":"▶ Arrancar","yk-cli-power",function(){fleetControl(item,item.active?"stop":"start");});
         FLEET.cliPower.disabled=FLEET.busy||(!item.active&&!item.watcher);controls.appendChild(FLEET.cliPower);
-        var read=fleetButton("↻ Leer","yk-cli-read",function(){terminalAction("read");});read.disabled=!item.active||FLEET.busy;controls.appendChild(read);actions.appendChild(controls);
+        var read=fleetButton("↻ Leer","yk-cli-read",function(){terminalAction("read");});read.disabled=!item.active||FLEET.busy;controls.appendChild(read);
+        FLEET.cliFocus=fleetButton("◎ Mostrar en equipo","yk-cli-focus",function(){terminalAction("focus");});FLEET.cliFocus.disabled=!item.active||FLEET.busy;controls.appendChild(FLEET.cliFocus);actions.appendChild(controls);
         var form=el("form","yk-cli-agent-form");FLEET.cliInput=el("textarea","yk-cli-input");FLEET.cliInput.maxLength=4000;FLEET.cliInput.rows=2;
         FLEET.cliInput.placeholder="Mensaje para "+item.persona;FLEET.cliInput.value=FLEET.cliDrafts[key]||"";FLEET.cliInput.disabled=!item.active;
         FLEET.cliInput.addEventListener("input",function(){FLEET.cliDrafts[key]=FLEET.cliInput.value;});form.appendChild(FLEET.cliInput);
@@ -846,7 +864,7 @@
     });
     var selected=selectedCli(); if(!selected)return;
     FLEET.cliTitle.textContent=selected.persona+" · "+selected.runtime;
-    FLEET.cliMeta.textContent=selected.machine+" · "+(selected.active?("PID "+selected.pid+" · sesión "+selected.session_id):"sesión parada");
+    FLEET.cliMeta.textContent=selected.machine+" · "+(selected.active?("PID "+selected.pid+" · tmux:"+selected.session_id+" · "+(selected.attached?"Terminal conectada":"sin Terminal conectada")):"sesión parada");
   }
 
   function renderFleet(){renderApps();renderCli();}
@@ -986,6 +1004,11 @@
     slotR.appendChild(buildDesktopControl());
 
     var railB = el("aside", "yk-rail yk-rail-bottom");
+    var expertResize = el("div", "yk-expert-resizer");
+    expertResize.setAttribute("role", "separator");
+    expertResize.setAttribute("aria-label", "Redimensionar modo Experto");
+    expertResize.setAttribute("aria-orientation", "horizontal");
+    expertResize.setAttribute("tabindex", "0");
     var expert = el("div", "yk-expert");
     var expertHead = el("div", "yk-hd yk-expert-hd");
     expertHead.appendChild(el("span", "yk-expert-title", "EXPERTO"));
@@ -996,7 +1019,9 @@
     expert.appendChild(expertHead);
     var slotB = el("div", "yk-slot"); expert.appendChild(slotB);
     slotB.appendChild(buildCliConsole());
+    railB.appendChild(expertResize);
     railB.appendChild(expert);
+    wireExpertResize(railB, expertResize);
 
     root.appendChild(bar);
     root.appendChild(railL); root.appendChild(railR); root.appendChild(railB);
@@ -1759,9 +1784,9 @@
     // operativa bajo la consola ni se solapa con el formulario de mensajes.
   }
 
-  function isOpen(panel) { return localStorage.getItem(LS + panel) === "1"; }
+  function isOpen(panel) { return OPEN_PANELS[panel] === true; }
   function setOpen(panel, v) {
-    try { localStorage.setItem(LS + panel, v ? "1" : "0"); } catch (e) {}
+    OPEN_PANELS[panel] = !!v;
     document.documentElement.classList.toggle("yk-open-" + panel, !!v);
     // reflejar el estado en el icono (encendido/apagado)
     var ico = document.querySelector('.yk-ico[data-yk-panel="' + panel + '"]');
@@ -1769,11 +1794,25 @@
   }
 
   function wire(ico, panel) {
-    // restaurar estado guardado
-    setOpen(panel, isOpen(panel));
+    // Canon visual: Opciones, Avanzado y Experto nacen compactados.
+    setOpen(panel, false);
     ico.addEventListener("click", function () {
       setOpen(panel, !isOpen(panel));
     });
+  }
+
+  function wireExpertResize(rail, handle) {
+    var MIN=190, STEP=32, dragging=false;
+    function maxHeight(){return Math.max(MIN,window.innerHeight-Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--yk-bar-h")||46)-8);}
+    function apply(height){var value=Math.max(MIN,Math.min(maxHeight(),Math.round(height)));rail.style.height=value+"px";handle.setAttribute("aria-valuemin",String(MIN));handle.setAttribute("aria-valuemax",String(Math.round(maxHeight())));handle.setAttribute("aria-valuenow",String(value));}
+    function current(){return rail.getBoundingClientRect().height||240;}
+    handle.addEventListener("pointerdown",function(event){dragging=true;handle.setPointerCapture(event.pointerId);document.documentElement.classList.add("yk-resizing-expert");event.preventDefault();});
+    handle.addEventListener("pointermove",function(event){if(dragging)apply(window.innerHeight-event.clientY);});
+    function stop(event){if(!dragging)return;dragging=false;try{handle.releasePointerCapture(event.pointerId);}catch(_){}document.documentElement.classList.remove("yk-resizing-expert");}
+    handle.addEventListener("pointerup",stop);handle.addEventListener("pointercancel",stop);
+    handle.addEventListener("dblclick",function(){rail.style.height="";handle.removeAttribute("aria-valuenow");});
+    handle.addEventListener("keydown",function(event){var value=current();if(event.key==="ArrowUp")value+=STEP;else if(event.key==="ArrowDown")value-=STEP;else if(event.key==="Home")value=MIN;else if(event.key==="End")value=maxHeight();else return;event.preventDefault();apply(value);});
+    window.addEventListener("resize",function(){if(rail.style.height)apply(current());});
   }
 
   function closeRailOnNavigation(rail, panel) {

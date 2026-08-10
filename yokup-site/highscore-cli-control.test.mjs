@@ -20,6 +20,11 @@ test("Avanzado contiene sólo el control global de DesktopAPP",()=>{
   assert.match(frame,/FLEET\.appOpen\.has\(machine\)/);
   assert.match(frame,/groups\[item\.machine\]/);
   assert.match(css,/\.yk-app-body\[hidden\],\.yk-app-rows\[hidden\]\{display:none\}/);
+  assert.match(frame,/desktopAppName\(item\.runtime\)/);
+  assert.match(frame,/setAttribute\("role","switch"\)/);
+  assert.match(frame,/setAttribute\("aria-checked",String\(item\.active\)\)/);
+  assert.match(frame,/item\.active\?"Abierta":"Cerrada"/);
+  assert.match(css,/\.yk-app-switch\[aria-checked="true"\]/);
 });
 
 test("todo el JavaScript inline de Highscore compila antes de publicar",()=>{
@@ -36,6 +41,9 @@ test("Experto contiene CLIs y la sesión remota real",()=>{
   assert.match(frame,/FLEET\.cliOutput\.textContent=result\.output/);
   assert.match(frame,/machine:item\.machine,persona:item\.persona,runtime:item\.runtime,host:item\.host,session_id:item\.session_id/);
   assert.match(frame,/body\.pid=item\.pid/);
+  assert.match(frame,/terminalAction\("focus"\)/);
+  assert.match(frame,/tmux:"\+selected\.session_id/);
+  assert.match(frame,/selected\.attached\?"Terminal conectada":"sin Terminal conectada"/);
 });
 
 test("las acciones del CLI se despliegan bajo el agente y la derecha queda para su terminal",()=>{
@@ -60,6 +68,18 @@ test("el panel Experto usa todo el viewport sin reservar una franja lateral",()=
   assert.match(css,/\.yk-rail-bottom\{[\s\S]*?padding:14px 16px 16px/);
   assert.doesNotMatch(css,/\.yk-rail-bottom\{[\s\S]*?padding:[^;}]*--yk-avatar-safe/);
   assert.match(css,/\.yk-cli-console\{display:grid/);
+});
+
+test("Experto se redimensiona hacia arriba y los tres raíles nacen compactados",()=>{
+  assert.match(frame,/OPEN_PANELS = \{ left:false, right:false, bottom:false \}/);
+  assert.match(frame,/setOpen\(panel, false\)/);
+  assert.doesNotMatch(frame,/localStorage\.setItem\(LS \+ panel/);
+  assert.match(frame,/yk-expert-resizer/);
+  assert.match(frame,/window\.innerHeight-event\.clientY/);
+  assert.match(frame,/event\.key==="ArrowUp"/);
+  assert.match(frame,/event\.key==="End"/);
+  assert.match(css,/\.yk-expert-resizer\{[^}]*cursor:ns-resize/);
+  assert.match(css,/\.yk-rail-bottom\{[\s\S]*?display:flex;flex-direction:column;overflow:hidden/);
 });
 
 test("el sello del perímetro está arriba a la derecha de Experto",()=>{

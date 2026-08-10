@@ -8,9 +8,10 @@ const target={machine:"MacBookAirAzul",persona:"Smith",runtime:"Grok",host:"cli"
 const live={...target,verified:1,source:"process_snapshot",online:1,updated:now-2};
 const worker=await readFile(new URL("./src/index.js",import.meta.url),"utf8");
 
-test("la consola sólo acepta read/write sobre un CLI exacto",()=>{
+test("la consola sólo acepta read/write/focus sobre un CLI exacto",()=>{
   assert.deepEqual(normalizeCliTerminalRequest({...target,action:"read"}),{...target,action:"read",text:""});
   assert.deepEqual(normalizeCliTerminalRequest({...target,action:"write",text:"Responde exactamente: OK"}),{...target,action:"write",text:"Responde exactamente: OK"});
+  assert.deepEqual(normalizeCliTerminalRequest({...target,action:"focus"}),{...target,action:"focus",text:""});
   assert.throws(()=>normalizeCliTerminalRequest({...target,host:"app",action:"read"}),/terminal-requires-cli/);
   assert.throws(()=>normalizeCliTerminalRequest({...target,action:"shell",text:"pwd"}),/invalid-terminal-action/);
   assert.throws(()=>normalizeCliTerminalRequest({...target,action:"write",text:"hola\u0000"}),/invalid-terminal-text/);
@@ -28,6 +29,11 @@ test("revalida presencia y no reenvía ningún secreto del navegador",async()=>{
 test("la lectura devuelve sólo estado y salida acotada",async()=>{
   const env={TELEGRAM:{async fetch(){return Response.json({command:{action:"terminal_read",status:"done",output:"terminal real",input:"no debe salir",updated_at:99}});}}};
   assert.deepEqual(await readCliTerminalResult(env,"terminal:42"),{ok:true,command_id:"terminal:42",action:"read",status:"done",output:"terminal real",error:"",updated_at:99});
+});
+
+test("focus conserva la sesión exacta y devuelve la confirmación del equipo",async()=>{
+  const env={TELEGRAM:{async fetch(){return Response.json({command:{action:"terminal_focus",status:"done",output:"Terminal conectada a tmux:smith",updated_at:100}});}}};
+  assert.deepEqual(await readCliTerminalResult(env,"terminal:43"),{ok:true,command_id:"terminal:43",action:"focus",status:"done",output:"Terminal conectada a tmux:smith",error:"",updated_at:100});
 });
 
 test("la ruta está autenticada, auditada y jamás persiste el mensaje",()=>{

@@ -37,7 +37,7 @@ function requireBinding(env) {
 
 export function normalizeCliTerminalRequest(input) {
   const action = String(input && input.action || "").trim().toLowerCase();
-  if (action !== "read" && action !== "write") throw new AgentStopError("invalid-terminal-action", 400);
+  if (action !== "read" && action !== "write" && action !== "focus") throw new AgentStopError("invalid-terminal-action", 400);
   const target = normalizeAgentStopTarget(input);
   if (target.host !== "cli") throw new AgentStopError("terminal-requires-cli", 400);
   return { ...target, action, text:action === "write" ? terminalText(input && input.text) : "" };
@@ -108,11 +108,12 @@ export async function readCliTerminalResult(env, id) {
   const status = String(command.status || "").trim().toLowerCase();
   if (!TERMINAL_STATUSES.has(status)) throw new AgentStopError("terminal-status-invalid", 502);
   const action = String(command.action || "").trim().toLowerCase();
-  if (action !== "terminal_read" && action !== "terminal_write") {
+  if (action !== "terminal_read" && action !== "terminal_write" && action !== "terminal_focus") {
     throw new AgentStopError("terminal-command-mismatch", 409);
   }
   return {
-    ok:status !== "failed", command_id:safeId, action:action === "terminal_write" ? "write" : "read",
+    ok:status !== "failed", command_id:safeId,
+    action:action === "terminal_write" ? "write" : action === "terminal_focus" ? "focus" : "read",
     status, output:String(command.output || command.result || "").slice(-MAX_OUTPUT),
     error:String(command.error || "").slice(0, 300), updated_at:Number(command.updated_at || 0) || null
   };
