@@ -123,6 +123,8 @@ test("los controles CLI tienen iconos semánticos y dos toggles con estado",()=>
   assert.match(frame,/FLEET\.cliFocus\.setAttribute\("role","switch"\)/);
   assert.match(frame,/FLEET\.cliFocus\.setAttribute\("aria-checked",String\(item\.terminal_visible\)\)/);
   assert.match(css,/\.yk-cli-power,.yk-cli-focus\)\[aria-checked="true"\]/);
+  assert.match(css,/\.yk-cli-agent small\{flex:0 1 72px/);
+  assert.match(css,/width:28px;min-width:28px/);
 });
 
 test("el espejo usa assets xterm fijados y un canvas terminal enfocado",()=>{
