@@ -51,7 +51,7 @@ test("las acciones del CLI se despliegan bajo el agente y la derecha queda para 
   assert.doesNotMatch(frame,/terminalHead\.appendChild\(FLEET\.cliPower\)/);
   assert.doesNotMatch(frame,/terminal\.appendChild\(form\)/);
   assert.doesNotMatch(frame,/renderCli\(\);if\(item\.active/);
-  assert.match(css,/\.yk-cli-console\{display:grid;grid-template-columns:minmax\(250px,28%\) minmax\(0,1fr\)/);
+  assert.match(css,/\.yk-cli-console\{display:grid;grid-template-columns:minmax\(250px,28%\) minmax\(0,1fr\);gap:12px;height:100%;min-height:140px;flex:0 0 100%/);
   assert.match(css,/\.yk-cli-agent-actions\[hidden\]\{display:none\}/);
 });
 
