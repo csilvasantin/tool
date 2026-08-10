@@ -5193,6 +5193,17 @@ __name(fleetReconcileAll, "fleetReconcileAll");
 //   · opts.mission  → planifica ESA misión (la que se acaba de dar de alta)
 //   · opts.skeleton → incluye en la tanda las que sólo tienen el esqueleto INTACTO
 // Un esqueleto tocado (avance, informe o prueba) jamás entra: eso ya es trabajo.
+//
+// VIVA = open o in_progress, NUNCA `!= resolved` (Carlos, 2026-08-10 · encargo
+// #1334 a). `!= resolved` metía en la tanda a las CANCELADAS, que son la inmensa
+// mayoría de lo no resuelto: el 10-ago el contador decía 62 esqueletos y las
+// misiones vivas de toda la flota eran DOS, las dos ya con plan real. Barrer
+// «hasta que no queden esqueletos» gastaba 62 llamadas de IA en reescribirle el
+// plan a misiones muertas —cazado en vivo replanificando FLT-1252, una cancelada
+// que decía «ping»— y el número del tablero no hablaba de trabajo vivo.
+// Además /fleet/plan-tasks YA se niega a tocar una misión cancelada («su árbol no
+// se reescribe»): dos puertas al mismo árbol no pueden tener reglas distintas.
+const VIVA_SQL = "t.status IN ('open','in_progress')";
 async function fleetPlanPending(env, limit, opts = {}) {
   const n = Math.max(1, Math.min(+limit || 5, 20));
   let results;
@@ -5200,7 +5211,7 @@ async function fleetPlanPending(env, limit, opts = {}) {
   if (one) {
     const mid = await resolveFleetMissionReference(env, one);
     const row = mid ? await env.DB.prepare(
-      "SELECT id FROM tickets t WHERE t.id=? AND t.source='fleet' AND t.status!='resolved'"
+      "SELECT id FROM tickets t WHERE t.id=? AND t.source='fleet' AND " + VIVA_SQL
     ).bind(mid).first() : null;
     // Sin plan, o con el esqueleto virgen. Con trabajo dentro, no se toca.
     const cur = row ? await listMissionTasks(env, mid) : [];
@@ -5208,7 +5219,7 @@ async function fleetPlanPending(env, limit, opts = {}) {
   } else {
     ({ results } = await env.DB.prepare(
       `SELECT t.id FROM tickets t
-        WHERE t.source='fleet' AND t.status!='resolved'
+        WHERE t.source='fleet' AND ${VIVA_SQL}
           AND NOT EXISTS (SELECT 1 FROM mission_tasks m WHERE m.mission_id = t.id)
         ORDER BY t.created_at DESC LIMIT ?`
     ).bind(n).all());
@@ -5217,7 +5228,7 @@ async function fleetPlanPending(env, limit, opts = {}) {
       // mismo isVirginSkeleton que usa el carril de una sola misión.
       const { results: cand } = await env.DB.prepare(
         `SELECT t.id FROM tickets t
-          WHERE t.source='fleet' AND t.status!='resolved'
+          WHERE t.source='fleet' AND ${VIVA_SQL}
             AND (SELECT COUNT(*) FROM mission_tasks m WHERE m.mission_id=t.id) = 3
             AND NOT EXISTS (SELECT 1 FROM mission_tasks m WHERE m.mission_id=t.id
               AND (m.status='done' OR COALESCE(TRIM(m.report),'')<>'' OR COALESCE(TRIM(m.image),'')<>''))
@@ -5243,11 +5254,11 @@ async function fleetPlanPending(env, limit, opts = {}) {
   // el número que hacía falta ver y que antes no salía por ningún lado, porque
   // esas misiones no contaban como pendientes aunque no tuvieran plan real.
   const left = (await env.DB.prepare(
-    `SELECT COUNT(*) c FROM tickets t WHERE t.source='fleet' AND t.status!='resolved'
+    `SELECT COUNT(*) c FROM tickets t WHERE t.source='fleet' AND ${VIVA_SQL}
        AND NOT EXISTS (SELECT 1 FROM mission_tasks m WHERE m.mission_id = t.id)`
   ).first())?.c || 0;
   const esqueleto = (await env.DB.prepare(
-    `SELECT COUNT(*) c FROM tickets t WHERE t.source='fleet' AND t.status!='resolved'
+    `SELECT COUNT(*) c FROM tickets t WHERE t.source='fleet' AND ${VIVA_SQL}
        AND (SELECT COUNT(*) FROM mission_tasks m WHERE m.mission_id=t.id) = 3
        AND NOT EXISTS (SELECT 1 FROM mission_tasks m WHERE m.mission_id=t.id
          AND (m.status='done' OR COALESCE(TRIM(m.report),'')<>'' OR COALESCE(TRIM(m.image),'')<>''))`
