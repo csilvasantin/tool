@@ -82,7 +82,10 @@ case "$PREVIA" in
 esac
 SELLO="v.${HOY}.r${R}.${AHORA}"
 GIT="$(git rev-parse HEAD)"
-SUCIO=true; [ -z "$(git status --porcelain)" ] && SUCIO=false
+# La guarda inicial ya ha exigido un árbol limpio. El sello se genera DESPUÉS y
+# por definición modifica este fichero versionado; esa mutación efímera no puede
+# convertir en `dirty:true` un commit que acabamos de verificar limpio.
+SUCIO=false
 {
   echo "// Generado por deploy.sh en cada publicación. No editar a mano."
   echo "export const SELLO_WORKER = $(jq -n --arg v "$SELLO" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \

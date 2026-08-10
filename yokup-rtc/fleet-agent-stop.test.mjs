@@ -91,4 +91,6 @@ test("una prueba roja bloquea el deploy en vez de quedar como aviso", () => {
   assert.match(deploySource, /if \[ "\$fallos" -ne 0 \]; then/);
   assert.match(deploySource, /Deploy bloqueado: \$fallos fichero\(s\) de prueba en rojo/);
   assert.match(deploySource, /exit 1/);
+  assert.match(deploySource, /SUCIO=false/);
+  assert.doesNotMatch(deploySource, /SUCIO=true; \[ -z/);
 });
