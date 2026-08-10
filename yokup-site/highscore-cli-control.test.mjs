@@ -47,6 +47,12 @@ test("Experto contiene CLIs y la sesión remota real",()=>{
   assert.match(frame,/FLEET\.cliFocus\.disabled=!item\.active/);
   assert.match(frame,/tmux:"\+selected\.session_id/);
   assert.match(frame,/selected\.attached\?"Terminal conectada":"sin Terminal conectada"/);
+  assert.match(frame,/cliTerminalInput:null/);
+  assert.match(frame,/"yk-cli-terminal-form"/);
+  assert.match(frame,/"Terminal remota de "\+selected\.persona/);
+  assert.match(frame,/event\.key==="Enter"&&!event\.shiftKey&&!event\.isComposing/);
+  assert.match(frame,/terminalForm\.requestSubmit\(\)/);
+  assert.match(frame,/syncCliDraft\(fleetKey\(item\),FLEET\.cliTerminalInput\.value,FLEET\.cliTerminalInput\)/);
 });
 
 test("las acciones del CLI se despliegan bajo el agente y la derecha queda para su terminal",()=>{
@@ -57,13 +63,32 @@ test("las acciones del CLI se despliegan bajo el agente y la derecha queda para 
   assert.match(frame,/Pulsa Leer para sincronizar esta sesión/);
   assert.match(frame,/controls\.appendChild\(FLEET\.cliPower\)/);
   assert.match(frame,/form=el\("form","yk-cli-agent-form"\)/);
-  assert.match(frame,/terminal\.appendChild\(terminalHead\);[\s\S]*terminal\.appendChild\(FLEET\.cliOutput\);[\s\S]*section\.appendChild\(terminal\)/);
+  assert.match(frame,/terminal\.appendChild\(terminalHead\);[\s\S]*terminal\.appendChild\(FLEET\.cliOutput\);[\s\S]*terminal\.appendChild\(terminalForm\);[\s\S]*section\.appendChild\(terminal\)/);
   assert.match(frame,/FLEET\.selected===targetKey/);
   assert.doesNotMatch(frame,/terminalHead\.appendChild\(FLEET\.cliPower\)/);
   assert.doesNotMatch(frame,/terminal\.appendChild\(form\)/);
   assert.doesNotMatch(frame,/renderCli\(\);if\(item\.active/);
   assert.match(css,/\.yk-cli-console\{display:grid;grid-template-columns:minmax\(250px,28%\) minmax\(0,1fr\);gap:12px;height:100%;min-height:140px;flex:0 0 100%/);
   assert.match(css,/\.yk-cli-agent-actions\[hidden\]\{display:none\}/);
+});
+
+test("los refrescos conservan el foco y el mismo borrador en ambos editores",()=>{
+  assert.match(frame,/function fleetStructureKey\(items\)/);
+  assert.match(frame,/structure!==FLEET\.structureKey/);
+  assert.match(frame,/function activeCliEditor\(\)/);
+  assert.match(frame,/input\.focus\(\{preventScroll:true\}\)/);
+  assert.match(frame,/input\.setSelectionRange\(state\.start,state\.end\)/);
+  assert.match(frame,/function syncCliDraft\(key,value,source\)/);
+  assert.match(frame,/String\(FLEET\.cliDrafts\[targetKey\] \|\| ""\)/);
+  assert.match(frame,/FLEET\.busy=false;refreshFleetControls\(\)/);
+  assert.doesNotMatch(frame,/FLEET\.busy=false;renderFleet\(\)/);
+  assert.match(frame,/!FLEET\.busy && !activeCliEditor\(\)/);
+});
+
+test("la vista textual conserva la cuadrícula de tmux sin reenvolverla",()=>{
+  assert.match(frame,/vista textual/);
+  assert.match(css,/\.yk-cli-output\{[^}]*white-space:pre;word-break:normal;overflow-wrap:normal;tab-size:8/);
+  assert.doesNotMatch(css,/\.yk-cli-output\{[^}]*white-space:pre-wrap/);
 });
 
 test("el panel Experto usa todo el viewport sin reservar una franja lateral",()=>{
