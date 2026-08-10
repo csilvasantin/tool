@@ -797,9 +797,44 @@
       .finally(function(){FLEET.busy=false;refreshFleetControls();});
   }
 
+  function bulkCliGroups(runtime) {
+    var groups={};
+    FLEET.items.filter(function(item){return item.host === "cli"&&!item.placeholder&&item.watcher&&item.runtime===runtime;}).forEach(function(item){
+      var persona=String(item.persona||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+      var key=item.machine+"|"+persona+"|"+runtime;(groups[key]||(groups[key]=[])).push(item);
+    });
+    return Object.keys(groups).map(function(key){return groups[key];});
+  }
+
   function bulkCliTargets(runtime, action) {
-    return FLEET.items.filter(function(item){
-      return item.host === "cli" && !item.placeholder && item.watcher && item.runtime === runtime && (action === "start" ? !item.active : item.active);
+    return bulkCliGroups(runtime).flatMap(function(group){
+      var active=group.filter(function(item){return item.active;});
+      if(action === "stop")return active;
+      if(active.length)return [];
+      var canonical=group.find(function(item){
+        var persona=String(item.persona||"").toLowerCase();
+        return runtime === "Grok" ? item.session_id === "smith" : runtime === "Claude" ? item.session_id === (persona.indexOf("morfeo")===0?"morfeo":"neo") : item.session_id === (persona.indexOf("trinity")===0?"trinity":"oraculo");
+      });
+      return canonical?[canonical]:(group[0]?[group[0]]:[]);
+    });
+  }
+
+  function verifyBulkControl(token,runtime,action,pass) {
+    if(FLEET.bulk.token!==token)return;
+    loadFleet().then(function(){
+      var groups=bulkCliGroups(runtime),active=groups.filter(function(group){return group.some(function(item){return item.active;});}).length;
+      var pending=action === "start" ? active<groups.length : active>0;
+      if(pending&&pass<3){
+        var targets=bulkCliTargets(runtime,action);FLEET.busy=true;refreshFleetControls();
+        fleetMessage(runtime+": pasada "+(pass+1)+" sobre "+targets.length+" sesiones aún "+(action === "start"?"paradas":"activas")+"…",false);
+        Promise.allSettled(targets.map(function(item){return fleetControlRequest(item,action);})).finally(function(){
+          FLEET.busy=false;refreshFleetControls();setTimeout(function(){verifyBulkControl(token,runtime,action,pass+1);},8000);
+        });
+        return;
+      }
+      var ok=action === "start" ? active===groups.length : active===0;
+      fleetMessage(runtime+": "+active+"/"+groups.length+" activos tras "+pass+" pasada"+(pass===1?"":"s")+(ok?".":" · revisión necesaria."),!ok);
+      FLEET.bulk={runtime:"",action:"",token:token};renderBulkControls();
     });
   }
 
@@ -818,16 +853,7 @@
       .finally(function(){
         FLEET.busy=false;refreshFleetControls();renderBulkControls();
         setTimeout(loadFleet,3000);
-        setTimeout(function(){
-          if(FLEET.bulk.token!==token)return;
-          loadFleet().then(function(){
-            var all=FLEET.items.filter(function(item){return item.host === "cli"&&!item.placeholder&&item.watcher&&item.runtime===runtime;});
-            var active=all.filter(function(item){return item.active;}).length;
-            var ok=action === "start" ? active===all.length : active===0;
-            fleetMessage(runtime+": "+active+"/"+all.length+" activos tras la verificación"+(ok?".":" · revisión necesaria."),!ok);
-            FLEET.bulk={runtime:"",action:"",token:token};renderBulkControls();
-          });
-        },16000);
+        setTimeout(function(){verifyBulkControl(token,runtime,action,1);},16000);
       });
   }
 
@@ -860,10 +886,9 @@
     if(!FLEET.cliBulk)return;FLEET.cliBulk.textContent="";
     FLEET.cliBulk.appendChild(fleetText("b","yk-cli-bulk-title","Control global por agente"));
     ["Claude","Codex","Grok"].forEach(function(runtime){
-      var all=FLEET.items.filter(function(item){return item.host === "cli"&&!item.placeholder&&item.watcher&&item.runtime===runtime;});
-      var active=all.filter(function(item){return item.active;}).length,pending=FLEET.bulk.runtime===runtime,row=el("div","yk-cli-bulk-row");
-      var copy=el("span","yk-cli-bulk-copy");copy.appendChild(fleetText("b",null,runtime));copy.appendChild(fleetText("small",active?"live":"",active+"/"+all.length+" activos"));row.appendChild(copy);
-      var start=fleetButton("","yk-cli-bulk-action",function(){bulkFleetControl(runtime,"start");});setFleetIcon(start,"play");start.title="Arrancar todos los "+runtime;start.setAttribute("aria-label",start.title);start.disabled=FLEET.busy||pending||!all.some(function(item){return !item.active;});row.appendChild(start);
+      var groups=bulkCliGroups(runtime),active=groups.filter(function(group){return group.some(function(item){return item.active;});}).length,pending=FLEET.bulk.runtime===runtime,row=el("div","yk-cli-bulk-row");
+      var copy=el("span","yk-cli-bulk-copy");copy.appendChild(fleetText("b",null,runtime));copy.appendChild(fleetText("small",active?"live":"",active+"/"+groups.length+" activos"));row.appendChild(copy);
+      var start=fleetButton("","yk-cli-bulk-action",function(){bulkFleetControl(runtime,"start");});setFleetIcon(start,"play");start.title="Arrancar todos los "+runtime;start.setAttribute("aria-label",start.title);start.disabled=FLEET.busy||pending||active===groups.length;row.appendChild(start);
       var stop=fleetButton("","yk-cli-bulk-action danger",function(){bulkFleetControl(runtime,"stop");});setFleetIcon(stop,"power");stop.title="Detener todos los "+runtime;stop.setAttribute("aria-label",stop.title);stop.disabled=FLEET.busy||pending||active===0;row.appendChild(stop);
       FLEET.cliBulk.appendChild(row);
     });
