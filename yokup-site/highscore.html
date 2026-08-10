@@ -2358,6 +2358,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // Qué CLI tiene el cuadro de misión abierto (uno cada vez: es una acción, no un
   // formulario que se deje puesto). Guarda `machine|cli`.
   var CLI_COMPONIENDO = null;
+  // Una misión no es desired-state: repetir el POST crea otra orden. El mapa se
+  // llena antes de ceder al fetch para que dos Intro consecutivos compartan la
+  // misma petición en vez de encolar dos trabajos iguales.
+  var CLI_MISION_ENVIANDO = new Map();
 
   function hsCliKey(item) {
     return normaliza(item && item.machine) + "|" + normaliza(item && item.cli);
@@ -2542,9 +2546,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     list.querySelectorAll("[data-cli-mision-form]").forEach(function (form) {
       form.addEventListener("submit", function (evento) {
         evento.preventDefault();
-        var caja = form.querySelector(".cli-ctl-mision-tx"), clave = form.getAttribute("data-cli-mision-form");
-        var partes = String(clave).split("|");
-        hsCliEnviaMision(partes[0], partes[1], caja ? caja.value : "");
+        hsCliSubmitMision(form);
       });
     });
   }
@@ -2628,15 +2630,44 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // Mandar la misión. No se vigila el censo después: una misión no cambia el
   // estado del CLI —sigue vivo, ahora con trabajo—, así que fingir una espera de
   // "a ver si cambia algo" seria mentir sobre lo que se puede comprobar.
-  function hsCliEnviaMision(machine, cli, texto) {
+  function hsCliMisionPendiente(form, pendiente, reintento) {
+    if (!form) return;
+    if (pendiente) form.setAttribute("data-submitting", "1");
+    else form.removeAttribute("data-submitting");
+    form.setAttribute("aria-busy", pendiente ? "true" : "false");
+    var boton = form.querySelector('[type="submit"]');
+    if (!boton) return;
+    boton.disabled = !!pendiente;
+    boton.textContent = pendiente ? "✉ Enviando…" : (reintento ? "↻ Reintentar" : "✉ Enviar");
+  }
+
+  function hsCliSubmitMision(form) {
+    if (!form) return Promise.resolve(false);
+    var clave = form.getAttribute("data-cli-mision-form");
+    if (form.getAttribute("data-submitting") === "1") {
+      return CLI_MISION_ENVIANDO.get(String(clave)) || Promise.resolve(false);
+    }
+    var caja = form.querySelector(".cli-ctl-mision-tx"), partes = String(clave).split("|");
+    return hsCliEnviaMision(partes[0], partes[1], caja ? caja.value : "", form);
+  }
+
+  function hsCliEnviaMision(machine, cli, texto, form) {
     var limpio = normaliza(texto).replace(/\s+/g, " ").trim();
-    if (!limpio) { hsCliMensaje("Escribe la misión antes de enviarla.", true); return; }
-    if (limpio.length > 600) { hsCliMensaje("La misión no puede pasar de 600 caracteres (llevas " + limpio.length + ").", true); return; }
+    if (!limpio) { hsCliMensaje("Escribe la misión antes de enviarla.", true); return Promise.resolve(false); }
+    if (limpio.length > 600) { hsCliMensaje("La misión no puede pasar de 600 caracteres (llevas " + limpio.length + ").", true); return Promise.resolve(false); }
+    var clave = normaliza(machine) + "|" + normaliza(cli);
+    if (CLI_MISION_ENVIANDO.has(clave)) {
+      hsCliMisionPendiente(form, true, false);
+      return CLI_MISION_ENVIANDO.get(clave);
+    }
+    hsCliMisionPendiente(form, true, false);
     hsCliMensaje("Enviando la misión a " + machine + "…", false);
-    fetch(YK + "/fleet/cli", {
-      method:"POST", cache:"no-store",
-      headers:{ "content-type":"application/json" },
-      body:JSON.stringify({ machine:machine, cli:cli, action:"mission", text:limpio })
+    var peticion = Promise.resolve().then(function () {
+      return fetch(YK + "/fleet/cli", {
+        method:"POST", cache:"no-store",
+        headers:{ "content-type":"application/json" },
+        body:JSON.stringify({ machine:machine, cli:cli, action:"mission", text:limpio })
+      });
     }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (d) { return { status:r.status, ok:r.ok, body:d || {} }; });
     }).then(function (res) {
@@ -2647,9 +2678,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       hsRenderCliControl();
       hsCliMensaje("Misión encolada para " + cli + " en " + machine + ". Se le escribirá en su sesión en el próximo ciclo, cada " +
         CLI_CICLO_SEG + " s. Si se ha dormido entre medias, la orden se rechaza y se dice.", false);
+      return true;
     }).catch(function (e) {
+      hsCliMisionPendiente(form, false, true);
       hsCliMensaje(normaliza(e && e.message) || "No se pudo enviar la misión", true);
+      return false;
+    }).finally(function () {
+      if (CLI_MISION_ENVIANDO.get(clave) === peticion) CLI_MISION_ENVIANDO.delete(clave);
     });
+    CLI_MISION_ENVIANDO.set(clave, peticion);
+    return peticion;
   }
 
   function iniciaCliControl() {

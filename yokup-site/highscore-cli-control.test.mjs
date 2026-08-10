@@ -295,3 +295,74 @@ test("el cuadro de misión se abre en la fila y manda action mission con el text
   assert.doesNotMatch(envia,/hsCliVigila/);
   assert.match(envia,/Misión encolada para/);
 });
+
+test("dos submit simultáneos encolan una sola misión y el fallo permite reintentar",async()=>{
+  const funciones=["normaliza","hsCliMisionPendiente","hsCliSubmitMision","hsCliEnviaMision"].map(functionSource).join("\n");
+  const diferida=()=>{
+    let resolve,reject;
+    const promise=new Promise((ok,ko)=>{resolve=ok;reject=ko;});
+    return {promise,resolve,reject};
+  };
+  let respuesta=diferida(),fetches=0,renders=0;
+  const mensajes=[],cuerpos=[];
+  const boton={disabled:false,textContent:"✉ Enviar"};
+  const caja={value:"Revisa el watcher sin abrir apps"};
+  const atributos={};
+  const form={
+    setAttribute(nombre,valor){atributos[nombre]=String(valor);},
+    removeAttribute(nombre){delete atributos[nombre];},
+    getAttribute(nombre){return nombre==="data-cli-mision-form" ? "MacBookAir16plata|grok" : atributos[nombre];},
+    querySelector(selector){
+      if(selector==='[type="submit"]')return boton;
+      if(selector===".cli-ctl-mision-tx")return caja;
+      return null;
+    }
+  };
+  const api=new Function("fetch","form","mensajes","onRender",`
+    var YK="https://example.test",CLI_CICLO_SEG=20,CLI_COMPONIENDO="MacBookAir16plata|grok";
+    var CLI_MISION_ENVIANDO=new Map();
+    function hsCliMensaje(texto,error){mensajes.push({texto,error});}
+    function hsRenderCliControl(){onRender();}
+    ${funciones}
+    return {
+      submit:function(){return hsCliSubmitMision(form);},
+      componiendo:function(){return CLI_COMPONIENDO;}
+    };
+  `)(
+    (_url,opciones)=>{fetches++;cuerpos.push(JSON.parse(opciones.body));return respuesta.promise;},
+    form,mensajes,()=>{renders++;}
+  );
+
+  const primera=api.submit();
+  const duplicada=api.submit();
+  assert.equal(duplicada,primera,"el segundo Intro comparte la petición que ya está en curso");
+  assert.equal(atributos["data-submitting"],"1");
+  assert.equal(atributos["aria-busy"],"true");
+  assert.equal(boton.disabled,true);
+  assert.equal(boton.textContent,"✉ Enviando…");
+  await Promise.resolve();
+  assert.equal(fetches,1,"sólo sale un POST mientras la clave está ocupada");
+  assert.deepEqual(cuerpos[0],{machine:"MacBookAir16plata",cli:"grok",action:"mission",text:"Revisa el watcher sin abrir apps"});
+
+  respuesta.reject(new Error("red caída"));
+  assert.equal(await primera,false);
+  assert.equal(fetches,1);
+  assert.equal(caja.value,"Revisa el watcher sin abrir apps","el fallo conserva la misión escrita");
+  assert.equal(atributos["data-submitting"],undefined);
+  assert.equal(atributos["aria-busy"],"false");
+  assert.equal(boton.disabled,false);
+  assert.equal(boton.textContent,"↻ Reintentar");
+  assert.equal(mensajes.at(-1).texto,"red caída");
+  assert.equal(mensajes.at(-1).error,true);
+
+  respuesta=diferida();
+  const reintento=api.submit();
+  await Promise.resolve();
+  assert.equal(fetches,2,"al liberar el guard se permite exactamente un intento nuevo");
+  respuesta.resolve({status:202,ok:true,json:async()=>({ok:true,status:"queued"})});
+  assert.equal(await reintento,true);
+  assert.equal(renders,1,"el formulario sólo se cierra después de aceptar la misión");
+  assert.equal(api.componiendo(),null);
+  assert.match(mensajes.at(-1).texto,/Misión encolada para grok/);
+  assert.equal(mensajes.at(-1).error,false);
+});
