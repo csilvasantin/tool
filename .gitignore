@@ -1,4 +1,7 @@
 node_modules/
+# También como enlace: un worktree que apunta al node_modules del clon real
+# se colaba en el índice porque «node_modules/» sólo casa con directorios.
+node_modules
 .DS_Store
 .wrangler/
 *.log
