@@ -691,6 +691,7 @@
   var FLEET = { items:[], selected:"", busy:false, focusQueued:false, appList:null, appCount:null, appBody:null,
     appStatus:null, appsExpanded:false, appOpen:new Set(), cliOpen:new Set(), cliList:null, cliCount:null, cliTitle:null,
     cliMeta:null, cliMount:null, cliPtyStatus:null, cliStatus:null, cliPower:null, cliRead:null, cliFocus:null,
+    cliInput:null, cliSend:null,
     cliExpanded:"", structureKey:"", pty:{term:null,fit:null,socket:null,key:"",loaded:null,resize:null,retry:null,manual:false} };
 
   function fleetText(tag, cls, value) { var node=el(tag,cls); node.textContent=String(value == null ? "" : value); return node; }
@@ -795,6 +796,8 @@
     if(FLEET.cliPower)FLEET.cliPower.disabled=FLEET.busy||(!active&&!(item&&item.watcher));
     if(FLEET.cliRead)FLEET.cliRead.disabled=!active||FLEET.busy;
     if(FLEET.cliFocus)FLEET.cliFocus.disabled=!active||FLEET.busy;
+    if(FLEET.cliInput)FLEET.cliInput.disabled=!active;
+    if(FLEET.cliSend)FLEET.cliSend.disabled=!active||FLEET.busy;
   }
 
   function paintSelectedCli() {
@@ -808,6 +811,7 @@
     }
     FLEET.cliTitle.textContent=selected.persona+" · "+selected.runtime;
     FLEET.cliMeta.textContent=selected.machine+" · "+(selected.active?("PID "+selected.pid+" · tmux:"+selected.session_id):"sesión parada")+" · PTY en vivo con xterm.js";
+    if(FLEET.cliInput)FLEET.cliInput.placeholder="Mensaje para "+selected.persona+" en "+selected.machine;
     refreshFleetControls();
     if(isOpen("bottom")&&selected.active)connectSelectedPty(false);
     else if(!selected.active&&FLEET.pty.key){disconnectSelectedPty(false);ptyState("Sesión parada; el PTY no acepta entrada.",false);}
@@ -832,13 +836,11 @@
 
   function ensurePtyTerminal() {
     if(FLEET.pty.term||!FLEET.cliMount)return;
-    var term=new window.Terminal({cursorBlink:true,convertEol:false,scrollback:5000,allowProposedApi:false,
+    var term=new window.Terminal({cursorBlink:false,convertEol:false,scrollback:5000,allowProposedApi:false,disableStdin:true,
       fontFamily:'"SFMono-Regular",Consolas,"Liberation Mono",monospace',fontSize:12,lineHeight:1.12,
       theme:{background:"#02080d",foreground:"#bfe6df",cursor:"#78f3ff",selectionBackground:"#245064"}});
     var fit=new window.FitAddon.FitAddon();term.loadAddon(fit);term.open(FLEET.cliMount);FLEET.pty.term=term;FLEET.pty.fit=fit;
-    term.onData(function(data){ptySend({type:"input",data:bytesToBase64(new TextEncoder().encode(data))});});
     term.onResize(function(size){ptySend({type:"resize",cols:size.cols,rows:size.rows});});
-    term.textarea&&term.textarea.addEventListener("focus",function(){ptySend({type:"focus"});});
     if(window.ResizeObserver){FLEET.pty.resize=new ResizeObserver(function(){try{fit.fit();}catch(e){}});FLEET.pty.resize.observe(FLEET.cliMount);}
     setTimeout(function(){try{fit.fit();}catch(e){}},0);
   }
@@ -890,7 +892,7 @@
     });
   }
 
-  function terminalAction(action) {
+  function terminalAction(action, text) {
     var item=selectedCli(); if(!item || !item.active)return Promise.resolve();
     if(FLEET.busy){
       if(action === "focus"){
@@ -900,8 +902,10 @@
       return Promise.resolve();
     }
     var targetKey=fleetKey(item);
-    FLEET.busy=true; fleetMessage(action === "focus" ? "Conectando la Terminal del equipo a esta sesión…" : "Leyendo la misma sesión…",false);
+    var sentText=String(text||"");
+    FLEET.busy=true; fleetMessage(action === "focus" ? "Conectando la Terminal del equipo a esta sesión…" : action === "write" ? "Enviando el mensaje al agente…" : "Leyendo la misma sesión…",false);
     var body=fleetTarget(item,action);
+    if(action === "write")body.text=sentText;
     return ykFetch("/fleet/cli/terminal",{method:"POST",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify(body)})
       .then(function(response){return response.json().catch(function(){return {};}).then(function(data){if(!response.ok)throw new Error(data.error||("terminal "+response.status));return data;});})
       .then(function(data){return pollTerminal(data.command_id,Date.now()+30000);})
@@ -909,7 +913,10 @@
         if(result.status === "failed")throw new Error(result.error||"La sesión rechazó la orden");
         if(result.output&&FLEET.pty.term&&FLEET.selected===targetKey&&(!FLEET.pty.socket||FLEET.pty.socket.readyState!==1)){FLEET.pty.term.reset();FLEET.pty.term.write(new TextEncoder().encode(result.output.replace(/\n/g,"\r\n")));}
         if(action === "focus"){fleetMessage("Terminal del equipo conectada a tmux:"+item.session_id+".",false);setTimeout(loadFleet,1200);}
-        else fleetMessage("Sesión sincronizada · "+new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"}),false);
+        else if(action === "write"){
+          if(FLEET.cliInput&&FLEET.cliInput.value===sentText)FLEET.cliInput.value="";
+          fleetMessage("Mensaje entregado a "+item.persona+" · "+new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"}),false);
+        } else fleetMessage("Sesión sincronizada · "+new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"}),false);
       }).catch(function(error){fleetMessage(error.message||"No se pudo comunicar con la sesión",true);})
       .finally(function(){
         // El PTY/xterm no se reconstruye: conserva foco, composición y cursor.
@@ -1034,9 +1041,15 @@
     var terminal=el("div","yk-cli-terminal");var terminalHead=el("div","yk-cli-terminal-head");
     var identity=el("span");FLEET.cliTitle=fleetText("b",null,"Selecciona un CLI");FLEET.cliMeta=fleetText("small",null,"Sesión remota segura");identity.appendChild(FLEET.cliTitle);identity.appendChild(FLEET.cliMeta);terminalHead.appendChild(identity);
     terminal.appendChild(terminalHead);
-    FLEET.cliMount=el("div","yk-cli-xterm");FLEET.cliMount.setAttribute("aria-label","Terminal PTY remota interactiva");terminal.appendChild(FLEET.cliMount);
+    FLEET.cliMount=el("div","yk-cli-xterm");FLEET.cliMount.setAttribute("aria-label","Visor PTY remoto de solo lectura");terminal.appendChild(FLEET.cliMount);
     FLEET.cliPtyStatus=fleetText("small","yk-cli-pty-status","Abre Experto y selecciona una sesión viva.");FLEET.cliPtyStatus.setAttribute("role","status");terminal.appendChild(FLEET.cliPtyStatus);
-    terminal.appendChild(fleetText("small","yk-cli-terminal-help","PTY real · escribe directamente · ANSI, cursor y tamaño sincronizados por xterm.js"));
+    terminal.appendChild(fleetText("small","yk-cli-terminal-help","Visor PTY real · ANSI y tamaño sincronizados por xterm.js · escritura separada debajo"));
+    var form=el("form","yk-cli-terminal-form");
+    FLEET.cliInput=el("textarea","yk-cli-terminal-input");FLEET.cliInput.rows=2;FLEET.cliInput.maxLength=4000;FLEET.cliInput.disabled=true;FLEET.cliInput.setAttribute("aria-label","Mensaje para el agente CLI seleccionado");form.appendChild(FLEET.cliInput);
+    FLEET.cliSend=fleetText("button","yk-cli-terminal-send","Enviar ↵");FLEET.cliSend.type="submit";FLEET.cliSend.disabled=true;form.appendChild(FLEET.cliSend);
+    form.addEventListener("submit",function(event){event.preventDefault();var text=FLEET.cliInput.value;if(!text.trim()||FLEET.busy)return;terminalAction("write",text);});
+    FLEET.cliInput.addEventListener("keydown",function(event){if(event.key==="Enter"&&(event.metaKey||event.ctrlKey)){event.preventDefault();form.requestSubmit();}});
+    terminal.appendChild(form);
     section.appendChild(terminal);return section;
   }
 

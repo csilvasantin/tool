@@ -41,7 +41,8 @@ test("Experto contiene CLIs y la sesión remota real",()=>{
   assert.match(frame,/new WebSocket\(body\.url\)/);
   assert.match(frame,/window\.Terminal/);
   assert.match(frame,/window\.FitAddon\.FitAddon/);
-  assert.match(frame,/term\.onData/);
+  assert.match(frame,/disableStdin:true/);
+  assert.doesNotMatch(frame,/term\.onData/);
   assert.match(frame,/term\.onResize/);
   assert.match(frame,/ResizeObserver/);
   assert.match(frame,/machine:item\.machine,persona:item\.persona,runtime:item\.runtime,host:item\.host,session_id:item\.session_id/);
@@ -53,8 +54,8 @@ test("Experto contiene CLIs y la sesión remota real",()=>{
   assert.match(frame,/tmux:"\+selected\.session_id/);
   assert.match(frame,/PTY en vivo con xterm\.js/);
   assert.match(frame,/"yk-cli-xterm"/);
-  assert.doesNotMatch(frame,/cliTerminalInput/);
-  assert.doesNotMatch(frame,/"yk-cli-terminal-form"/);
+  assert.match(frame,/cliInput:null, cliSend:null/);
+  assert.match(frame,/"yk-cli-terminal-form"/);
 });
 
 test("Experto agrupa los agentes por equipo físico igual que Avanzado",()=>{
@@ -69,7 +70,7 @@ test("Experto agrupa los agentes por equipo físico igual que Avanzado",()=>{
   assert.match(css,/\.yk-cli-machine-rows\[hidden\]\{display:none\}/);
 });
 
-test("las tres acciones viven compactas en la pestaña y la derecha queda sólo para xterm",()=>{
+test("las tres acciones viven compactas en la pestaña y la escritura queda separada bajo el visor",()=>{
   assert.match(frame,/cliExpanded:""/);
   assert.match(frame,/button\.setAttribute\("aria-expanded",String\(expanded\)\)/);
   assert.match(frame,/tab=el\("div","yk-cli-agent-tab"/);
@@ -77,10 +78,14 @@ test("las tres acciones viven compactas en la pestaña y la derecha queda sólo 
   assert.match(frame,/controls\.appendChild\(FLEET\.cliPower\)/);
   assert.match(frame,/controls\.appendChild\(FLEET\.cliRead\)/);
   assert.match(frame,/controls\.appendChild\(FLEET\.cliFocus\)/);
-  assert.match(frame,/terminal\.appendChild\(terminalHead\);[\s\S]*terminal\.appendChild\(FLEET\.cliMount\);[\s\S]*section\.appendChild\(terminal\)/);
+  assert.match(frame,/terminal\.appendChild\(terminalHead\);[\s\S]*terminal\.appendChild\(FLEET\.cliMount\);[\s\S]*terminal\.appendChild\(form\);[\s\S]*section\.appendChild\(terminal\)/);
   assert.match(frame,/FLEET\.selected===targetKey/);
   assert.doesNotMatch(frame,/yk-cli-agent-form/);
-  assert.doesNotMatch(frame,/Mensaje para /);
+  assert.match(frame,/Mensaje para "\+selected\.persona\+" en "\+selected\.machine/);
+  assert.match(frame,/if\(action === "write"\)body\.text=sentText/);
+  assert.match(frame,/terminalAction\("write",text\)/);
+  assert.match(frame,/event\.metaKey\|\|event\.ctrlKey/);
+  assert.match(css,/\.yk-cli-terminal-form\{display:grid/);
   assert.match(css,/\.yk-cli-console\{display:grid;grid-template-columns:minmax\(250px,28%\) minmax\(0,1fr\);gap:12px;height:100%;min-height:140px;flex:0 0 100%/);
   assert.match(css,/\.yk-cli-agent-tab\{display:flex/);
 });
