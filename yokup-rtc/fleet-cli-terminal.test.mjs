@@ -8,10 +8,11 @@ const target={machine:"MacBookAirAzul",persona:"Smith",runtime:"Grok",host:"cli"
 const live={...target,verified:1,source:"process_snapshot",online:1,updated:now-2};
 const worker=await readFile(new URL("./src/index.js",import.meta.url),"utf8");
 
-test("la consola sólo acepta read/write/focus sobre un CLI exacto",()=>{
+test("la consola sólo acepta read/write/focus/unfocus sobre un CLI exacto",()=>{
   assert.deepEqual(normalizeCliTerminalRequest({...target,action:"read"}),{...target,action:"read",text:""});
   assert.deepEqual(normalizeCliTerminalRequest({...target,action:"write",text:"Responde exactamente: OK"}),{...target,action:"write",text:"Responde exactamente: OK"});
   assert.deepEqual(normalizeCliTerminalRequest({...target,action:"focus"}),{...target,action:"focus",text:""});
+  assert.deepEqual(normalizeCliTerminalRequest({...target,action:"unfocus"}),{...target,action:"unfocus",text:""});
   assert.throws(()=>normalizeCliTerminalRequest({...target,host:"app",action:"read"}),/terminal-requires-cli/);
   assert.throws(()=>normalizeCliTerminalRequest({...target,action:"shell",text:"pwd"}),/invalid-terminal-action/);
   assert.throws(()=>normalizeCliTerminalRequest({...target,action:"write",text:"hola\u0000"}),/invalid-terminal-text/);
@@ -34,6 +35,11 @@ test("la lectura devuelve sólo estado y salida acotada",async()=>{
 test("focus conserva la sesión exacta y devuelve la confirmación del equipo",async()=>{
   const env={TELEGRAM:{async fetch(){return Response.json({command:{action:"terminal_focus",status:"done",output:"Terminal conectada a tmux:smith",updated_at:100}});}}};
   assert.deepEqual(await readCliTerminalResult(env,"terminal:43"),{ok:true,command_id:"terminal:43",action:"focus",status:"done",output:"Terminal conectada a tmux:smith",error:"",updated_at:100});
+});
+
+test("unfocus deja vivo tmux y confirma que ya no se muestra en el equipo",async()=>{
+  const env={TELEGRAM:{async fetch(){return Response.json({command:{action:"terminal_unfocus",status:"done",output:"Terminal separada de tmux:smith",updated_at:101}});}}};
+  assert.deepEqual(await readCliTerminalResult(env,"terminal:44"),{ok:true,command_id:"terminal:44",action:"unfocus",status:"done",output:"Terminal separada de tmux:smith",error:"",updated_at:101});
 });
 
 test("la ruta está autenticada, auditada y jamás persiste el mensaje",()=>{

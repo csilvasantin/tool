@@ -46,10 +46,10 @@ test("Experto contiene CLIs y la sesión remota real",()=>{
   assert.match(frame,/term\.onResize/);
   assert.match(frame,/ResizeObserver/);
   assert.match(frame,/machine:item\.machine,persona:item\.persona,runtime:item\.runtime,host:item\.host,session_id:item\.session_id/);
-  assert.match(frame,/action === "stop" \|\| action === "read" \|\| action === "write" \|\| action === "focus"\)body\.pid=item\.pid/);
-  assert.match(frame,/terminalAction\("focus"\)/);
-  assert.match(frame,/focusQueued:false/);
-  assert.match(frame,/if\(FLEET\.busy\)\{[\s\S]*action === "focus"[\s\S]*FLEET\.focusQueued=true/);
+  assert.match(frame,/action === "stop" \|\| action === "read" \|\| action === "write" \|\| action === "focus" \|\| action === "unfocus"\)body\.pid=item\.pid/);
+  assert.match(frame,/terminalAction\(item\.terminal_visible\?"unfocus":"focus"\)/);
+  assert.match(frame,/focusQueued:""/);
+  assert.match(frame,/action === "focus" \|\| action === "unfocus"/);
   assert.match(frame,/FLEET\.cliFocus\.disabled=!item\.active/);
   assert.match(frame,/tmux:"\+selected\.session_id/);
   assert.match(frame,/PTY en vivo con xterm\.js/);
@@ -85,6 +85,9 @@ test("las tres acciones viven compactas en la pestaña y la escritura queda sepa
   assert.match(frame,/if\(action === "write"\)body\.text=sentText/);
   assert.match(frame,/terminalAction\("write",text\)/);
   assert.match(frame,/event\.metaKey\|\|event\.ctrlKey/);
+  assert.match(frame,/event\.stopPropagation\(\);submitCliEditor\(\)/);
+  assert.match(frame,/event\.code==="NumpadEnter"/);
+  assert.doesNotMatch(frame,/form\.requestSubmit\(\)/);
   assert.match(css,/\.yk-cli-terminal-form\{display:grid/);
   assert.match(css,/\.yk-cli-console\{display:grid;grid-template-columns:minmax\(250px,28%\) minmax\(0,1fr\);gap:12px;height:100%;min-height:140px;flex:0 0 100%/);
   assert.match(css,/\.yk-cli-agent-tab\{display:flex/);
@@ -107,6 +110,19 @@ test("los refrescos conservan el mismo xterm y nunca roban el foco",()=>{
   assert.match(frame,/FLEET\.busy=false;refreshFleetControls\(\)/);
   assert.doesNotMatch(frame,/FLEET\.busy=false;renderFleet\(\)/);
   assert.doesNotMatch(frame,/setInterval\(function\(\)\{if\(isOpen\("bottom"\)/);
+  assert.match(frame,/if\(FLEET\.pty\.socket!==socket\)return/);
+  assert.match(frame,/if\(FLEET\.pty\.term&&!sameSession\)/);
+});
+
+test("los controles CLI tienen iconos semánticos y dos toggles con estado",()=>{
+  assert.match(frame,/function fleetIcon\(name\)/);
+  assert.match(frame,/setFleetIcon\(FLEET\.cliPower,item\.active\?"power":"play"\)/);
+  assert.match(frame,/setFleetIcon\(FLEET\.cliRead,"reconnect"\)/);
+  assert.match(frame,/setFleetIcon\(FLEET\.cliFocus,item\.terminal_visible\?"displayOff":"display"\)/);
+  assert.match(frame,/FLEET\.cliPower\.setAttribute\("role","switch"\)/);
+  assert.match(frame,/FLEET\.cliFocus\.setAttribute\("role","switch"\)/);
+  assert.match(frame,/FLEET\.cliFocus\.setAttribute\("aria-checked",String\(item\.terminal_visible\)\)/);
+  assert.match(css,/\.yk-cli-power,.yk-cli-focus\)\[aria-checked="true"\]/);
 });
 
 test("el espejo usa assets xterm fijados y un canvas terminal enfocado",()=>{
