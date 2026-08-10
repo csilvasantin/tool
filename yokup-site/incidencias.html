@@ -126,9 +126,6 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
     <div class="inc-filters" data-yk-slot="left" aria-label="Filtros de incidencias">
       <div class="tabs">
         <button class="tab on" type="button" data-f="activas">Activas</button>
-        <button class="tab" type="button" data-f="open">Abiertas</button>
-        <button class="tab" type="button" data-f="in_progress">En curso</button>
-        <button class="tab" type="button" data-f="resolved">Resueltas</button>
         <button class="tab" type="button" data-f="todas">Todas</button>
       </div>
       <div class="inc-filter-selects">
@@ -336,9 +333,9 @@ window.addEventListener("yk:project-change",event=>{
   $("list").innerHTML='<div class="inc-empty">Filtrando incidencias…</div>';
   load();
 });
-// Filtro ÚNICO: lo fijan tanto las pestañas como los KPIs de arriba (que son
-// botones, no adornos). Se sincronizan los dos grupos para que no puedan
-// contradecirse: pulsar «18 abiertas» deja marcada también la pestaña Abiertas.
+// Filtro ÚNICO: Activas/Todas viven en las pestañas y cada estado exacto en su
+// KPI de arriba (son botones, no adornos). Se sincronizan ambos tipos de control
+// para que siempre haya una sola selección visible.
 function aplicaFiltro(f){
   FILTER=f;
   document.querySelectorAll(".tab").forEach(x=>{const on=x.dataset.f===f;x.classList.toggle("on",on);x.setAttribute("aria-pressed",String(on));});

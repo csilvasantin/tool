@@ -7,6 +7,37 @@ const shared = readFileSync(new URL("./yk-misiones.js", import.meta.url), "utf8"
 const frame = readFileSync(new URL("./yk-frame.js", import.meta.url), "utf8");
 const renderer = html.slice(html.indexOf("function incidenceRowHtml"), html.indexOf("async function askKb"));
 
+function filterHarness() {
+  const start = html.indexOf("function aplicaFiltro(f)");
+  const end = html.indexOf('aplicaFiltro("activas")', start);
+  assert.notEqual(start, -1, "falta aplicaFiltro");
+  assert.notEqual(end, -1, "falta la inicialización de filtros");
+  const script = html.slice(start, end);
+  const element = f => ({
+    dataset: { f },
+    classList: { on: false, toggle(_name, on) { this.on = on; } },
+    attrs: {},
+    setAttribute(name, value) { this.attrs[name] = value; },
+    onclick: null
+  });
+  const tabs = [element("activas"), element("todas")];
+  const kpis = [element("open"), element("in_progress"), element("resolved")];
+  const document = {
+    querySelectorAll(selector) {
+      if (selector === ".tab") return tabs;
+      if (selector === ".kpi[data-f]") return kpis;
+      return [];
+    }
+  };
+  let loads = 0;
+  const api = new Function("document", "load", `
+    let FILTER="activas";
+    ${script}
+    return {filter:()=>FILTER};
+  `)(document, () => { loads++; });
+  return { api, tabs, kpis, loads: () => loads };
+}
+
 test("Incidencias comparte shell y conserva una jerarquía horizontal propia", () => {
   assert.match(html, /href="\/yk-cabezal\.css\?v=r3"/);
   assert.match(html, /Proyecto \/ origen[\s\S]*Incidencia[\s\S]*Responsable \/ equipo[\s\S]*Estado \/ acciones/);
@@ -75,6 +106,25 @@ test("los controles y el detalle exponen semántica accesible", () => {
   assert.match(html, /querySelectorAll\("\.incident-row"\)[\s\S]*event\.key!=="Enter"&&event\.key!==" "/);
   assert.match(html, /\.incident-row:focus-visible\{outline:2px solid var\(--brand\)/);
   assert.match(html, /@media\(prefers-reduced-motion:reduce\)/);
+});
+
+test("cada estado tiene un único control KPI y conserva filtrado accesible", () => {
+  for (const state of ["open", "in_progress", "resolved"]) {
+    assert.equal((html.match(new RegExp(`data-f="${state}"`, "g")) || []).length, 1, `${state} no se duplica en tabs`);
+  }
+  assert.match(html, /class="tab on" type="button" data-f="activas">Activas<\/button>/);
+  assert.match(html, /class="tab" type="button" data-f="todas">Todas<\/button>/);
+
+  const { api, tabs, kpis, loads } = filterHarness();
+  kpis.forEach((kpi, index) => {
+    kpi.onclick();
+    assert.equal(api.filter(), kpi.dataset.f);
+    assert.equal(kpi.attrs["aria-pressed"], "true");
+    assert.equal(kpi.classList.on, true);
+    assert.equal(kpis.filter(item => item.attrs["aria-pressed"] === "true").length, 1);
+    assert.equal(tabs.filter(item => item.attrs["aria-pressed"] === "true").length, 0);
+    assert.equal(loads(), index + 1, "cada click actualiza una sola vez el listado");
+  });
 });
 
 test("el primer fetch y yk_seen esperan el scope canónico incluso en Todos", () => {
