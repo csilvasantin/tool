@@ -10,18 +10,18 @@
   function activeMissionRows(rows, activeAgentKeys) {
     var active = Object.create(null);
     (activeAgentKeys || []).forEach(function (agentKey) { active[key(agentKey)] = true; });
-    return (rows || []).filter(function (row) { return !!(row && row.vivo && active[laneKey(row)]); });
+    // La carrera representa trabajo factual, no conexión. Presencia, Desktop App
+    // y selector viven en otros controles y nunca pueden retirar una calle activa.
+    return (rows || []).filter(function (row) { return !!(row && active[laneKey(row)]); });
   }
 
-  function raceRows(rows, activeAgentKeys, extraAgentKeys) {
-    var extras = Object.create(null), seen = Object.create(null), automatic = 0;
-    (extraAgentKeys || []).forEach(function (agentKey) { extras[key(agentKey)] = true; });
+  function raceRows(rows, activeAgentKeys) {
+    var seen = Object.create(null);
     return activeMissionRows(rows, activeAgentKeys).filter(function (row) {
       var agentKey = laneKey(row);
       if (!agentKey || seen[agentKey]) return false;
       seen[agentKey] = true;
-      if (automatic < 3) { automatic += 1; return true; }
-      return !!extras[agentKey];
+      return true;
     });
   }
 

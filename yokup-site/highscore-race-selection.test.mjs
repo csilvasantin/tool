@@ -17,11 +17,10 @@ function names(selected) {
   return selected.map((row) => row.agente);
 }
 
-test("sin preferencia o con lista vacía corren como máximo los tres primeros elegibles", () => {
+test("corren todos los participantes factuales sin tope de tres", () => {
   const ranking = rows(["A", "B", "C", "D", "E"]);
   const active = ["a", "b", "c", "d", "e"];
-  assert.deepEqual(names(race.raceRows(ranking, active)), ["A", "B", "C"]);
-  assert.deepEqual(names(race.raceRows(ranking, active, [])), ["A", "B", "C"]);
+  assert.deepEqual(names(race.raceRows(ranking, active)), ["A", "B", "C", "D", "E"]);
 });
 
 test("con uno o dos elegibles la carrera no inventa calles", () => {
@@ -30,33 +29,33 @@ test("con uno o dos elegibles la carrera no inventa calles", () => {
   assert.deepEqual(names(race.raceRows(ranking, ["b", "d"])), ["B", "D"]);
 });
 
-test("los extras añaden calles 4+ sin duplicar el podio", () => {
+test("las calles se deduplican por familia canónica", () => {
   const ranking = rows(["A", "B", "C", "D", "E"]);
+  ranking.push({agente:"D",posicion:6,total:1,vivo:false});
   const active = ["a", "b", "c", "d", "e"];
-  assert.deepEqual(names(race.raceRows(ranking, active, ["c", "d", "e", "d"])),
+  assert.deepEqual(names(race.raceRows(ranking, active)),
     ["A", "B", "C", "D", "E"]);
 });
 
-test("un extra sin misión o sin vida no corre", () => {
+test("la ausencia de latido no excluye trabajo factual", () => {
   const ranking = rows(["A", "B", "C", "D", "E"]);
   ranking[3].vivo = false;
-  assert.deepEqual(names(race.raceRows(ranking, ["a", "b", "c", "d"], ["d", "e"])),
-    ["A", "B", "C"]);
+  assert.deepEqual(names(race.raceRows(ranking, ["a", "b", "c", "d"])),
+    ["A", "B", "C", "D"]);
 });
 
-test("cada cambio de ranking recalcula el podio y conserva la intención extra", () => {
+test("cada cambio de ranking recalcula todas las calles", () => {
   const active = ["a", "b", "c", "d", "e"];
-  assert.deepEqual(names(race.raceRows(rows(["A", "B", "C", "D", "E"]), active, ["A"])),
-    ["A", "B", "C"]);
-  assert.deepEqual(names(race.raceRows(rows(["E", "D", "C", "B", "A"]), active, ["A"])),
-    ["E", "D", "C", "A"]);
+  assert.deepEqual(names(race.raceRows(rows(["A", "B", "C", "D", "E"]), active)),
+    ["A", "B", "C", "D", "E"]);
+  assert.deepEqual(names(race.raceRows(rows(["E", "D", "C", "B", "A"]), active)),
+    ["E", "D", "C", "B", "A"]);
 });
 
-test("un extra oculto por el selector principal queda latente hasta volver al scope", () => {
-  const active = ["a", "b", "c", "d", "e"];
-  const full = rows(["A", "B", "C", "D", "E"]), scoped = full.slice(0, 4);
-  assert.deepEqual(names(race.raceRows(scoped, active, ["e"])), ["A", "B", "C"]);
-  assert.deepEqual(names(race.raceRows(full, active, ["e"])), ["A", "B", "C", "E"]);
+test("la elegibilidad factual no usa vivo ni selector local", () => {
+  const ranking = rows(["A", "B", "C", "D"]);
+  ranking[2].vivo = ranking[3].vivo = false;
+  assert.deepEqual(names(race.raceRows(ranking, ["a", "b", "c", "d"])), ["A", "B", "C", "D"]);
 });
 
 test("el corredor extra deja paso al interruptor real de DesktopAPP", () => {
@@ -85,9 +84,11 @@ test("equipo, presets y Clonar conservan el control de apps separado del filtro"
   assert.match(html, /hsActiveAgentKeys\(datos\.presencia, window\.ykAgentIdentity, datos\.presenceNow\)/);
 });
 
-test("Running Man conserva sólo los tres primeros elegibles y no altera ranking ni podio", () => {
+test("Running Man usa el censo factual completo y no altera ranking ni podio", () => {
   assert.match(html, /filasElegibles = enlaces\.map\(function \(enlace\) \{ return enlace\.fila; \}\)/);
   assert.match(html, /YkHighscoreRace\.raceRows\(filasElegibles, clavesActivas\)/);
-  assert.match(html, /filasElegibles\.slice\(0, 3\)/);
+  assert.match(html, /: filasElegibles;/);
+  assert.match(html, /completas = listaCompletaCache \|\| \[\]/);
+  assert.doesNotMatch(html, /filasElegibles\.slice\(0, 3\)/);
   assert.match(html, /pintaPodio\(listaCache\.slice\(0, 3\)\); pintaTabla\(listaVisible\(listaCache\)\); actualizaCarreraPodio\(\)/);
 });

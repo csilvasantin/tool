@@ -5822,6 +5822,55 @@ async function highscoreHistory(env, requestedAgent, ahora = Date.now()) {
 }
 __name(highscoreHistory, "highscoreHistory");
 
+// Participantes factuales de la carrera superior. La consulta no reutiliza
+// `/fleet/missions` ni `/tasks/all`: ambos son feeds de pantalla (paginables o
+// protegidos) y podrían ocultar al cuarto agente. Presencia tampoco decide quién
+// trabaja; sólo enriquecerá después la señal visual de cada calle.
+async function highscoreActiveWork(env, ahora = Date.now()) {
+  const [missions, tasks, objectives] = await Promise.all([
+    env.DB.prepare(`SELECT id,subject,assignee,loc,status,updated_at,live_at,created_at FROM tickets t ` +
+      `WHERE ${MISSION_SCOPE_SQL_T} AND status='in_progress'`).all().then((r) => r.results || []),
+    env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.updated_at,t.assignee,t.loc ` +
+      `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
+      `AND m.status IN ('in_progress','doing','active') ` +
+      `AND NOT (t.status='cancelled' AND COALESCE(t.closure_reason,'')='equivalent_mission')`).all().then((r) => r.results || []),
+    env.DB.prepare("SELECT id,title,status,author,author_identity,updated_at,created_at FROM ideas WHERE status='estudio'").all()
+      .then((r) => r.results || [])
+  ]);
+  const byFamily = new Map(), priority = { objective:1, mission:2, task:3 };
+  const visibleTitle = (raw, fallback) => {
+    let value = String(raw || "").trim()
+      .replace(/^\s*\[[^\]]+\]\s*/, "").replace(/^\s*[#>*-]+\s*/, "")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[`*_~]+/g, "");
+    value = value.split(/\r?\n|\s+(?:→|⇒|\|)\s+/).map((part) => part.trim()).filter(Boolean)[0] || value;
+    const phrase = value.match(/^.*?[.!?](?=\s+[A-ZÁÉÍÓÚÑ])/);
+    return String(phrase ? phrase[0] : value || fallback).trim().slice(0, 200);
+  };
+  const add = (raw, machine, kind, item, title) => {
+    const family = reportAgentFamily(raw, machine);
+    if (!family || family.family_key.startsWith("external:") || !parseAgentIdentity(family.family_name).suffix) return;
+    const executor = reportAgentIdentity(raw, machine);
+    const at = Math.max(Number(item.updated_at) || 0, Number(item.live_at) || 0, Number(item.created_at) || 0);
+    const candidate = { family_key:family.family_key, agent:family.family_name, executor, kind,
+      title:visibleTitle(title, kind === "task" ? "Tarea activa" : kind === "mission" ? "Misión activa" : "Objetivo en curso"), active_at:at };
+    const previous = byFamily.get(family.family_key);
+    if (!previous || priority[kind] > priority[previous.kind] ||
+        (priority[kind] === priority[previous.kind] && at > previous.active_at)) byFamily.set(family.family_key, candidate);
+  };
+  for (const mission of missions) add(mission.assignee, mission.loc, "mission", mission, mission.subject || "Misión activa");
+  for (const task of tasks) {
+    const executor = scopedMissionOwner(task.owner, "sub", task.assignee, task.loc);
+    add(executor, task.loc, "task", task, task.title || task.code || "Tarea activa");
+  }
+  for (const objective of objectives) {
+    const executor = String(objective.author_identity || highscoreAgent(objective.author) || "").trim();
+    add(executor, "", "objective", objective, objective.title || "Objetivo en curso");
+  }
+  const participants = [...byFamily.values()].sort((a, b) => b.active_at - a.active_at || a.agent.localeCompare(b.agent, "es"));
+  return { ok:true, generated_at:ahora, count:participants.length, participants };
+}
+__name(highscoreActiveWork, "highscoreActiveWork");
+
 function highscoreMetricPair(hour, day, field) {
   return { hour:Number(hour && hour[field]) || 0, day:Number(day && day[field]) || 0 };
 }
@@ -6479,6 +6528,11 @@ var index_default = {
       if (!agent) return json({ ok:false, error:"agent requerido" }, 400);
       const history = await highscoreHistory(env, agent);
       return json(history, history.ok ? 200 : 400);
+    }
+    if (url.pathname === "/highscore/active-work" && req.method === "GET") {
+      await ensureSchema(env);
+      await ensureIdeasSchema(env);
+      return json(await highscoreActiveWork(env));
     }
     // ── NOTIFICACIONES DEL SISTEMA DE LA FLOTA (FLT-1020) ────────────────────
     // Sin perímetro, como el resto de /fleet/*: quien publica es un vigilante que

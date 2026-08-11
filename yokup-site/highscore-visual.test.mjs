@@ -45,10 +45,10 @@ test("el corte descargado suena sólo durante el presite y se rebobina antes del
   assert.doesNotMatch(html, /function entra\(\)[\s\S]*?arranca\(\); fanfarriaPodio\(\)/);
 });
 
-test("el presite cuenta sólo agentes con misión en curso y latido reciente", () => {
-  assert.match(html, /function agentesEnLiza\(lista\)/);
-  assert.match(html, /filasConMisionEnCurso\(lista \|\| \[\], misionesEnCurso\(\)\)\.length/);
-  assert.match(html, /var vivos = agentesEnLiza\(listaCache\)/);
+test("el presite cuenta participantes factuales, independiente de scope y latido", () => {
+  assert.match(html, /function agentesEnLiza\(\)/);
+  assert.match(html, /return trabajosEnCurso\(\)\.length/);
+  assert.match(html, /var vivos = agentesEnLiza\(\)/);
   assert.match(html, /vivos === 1 \? " AGENTE EN LIZA" : " AGENTES EN LIZA"/);
   assert.doesNotMatch(html, /listaCache\.length \+ " AGENTES EN LIZA"/);
 });
@@ -238,8 +238,8 @@ test("Ordenador agrupa equipos y mantiene dentro de cada grupo la posición real
   assert.deepEqual(Array.from(context.equiposDesc), ["Uno", "Tres", "Dos", "Cuatro"]);
 });
 
-test("la misión factual queda legible junto al corredor sin estela truncada", () => {
-  assert.match(html, /<div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Estado de las misiones activas"><\/div>/);
+test("el trabajo factual queda legible junto al corredor sin estela truncada", () => {
+  assert.match(html, /<div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Trabajo activo por familia canónica"><\/div>/);
   assert.match(html, /\.refresh-mission\{[^}]*position:absolute[^}]*z-index:1[^}]*top:[0-9]+px[^}]*width:0[^}]*max-width:calc\(100% - var\(--finish-gutter\) - var\(--finish-width\) - 8px\)[^}]*translateX\(calc\(-100% - 13px\)\)/);
   assert.match(html, /\.refresh-mission-title\{[^}]*width:100%[^}]*direction:ltr[^}]*unicode-bidi:plaintext[^}]*white-space:nowrap[^}]*text-align:center/);
   assert.doesNotMatch(html, /\.refresh-mission-(?:ref|state|meta|project)\{/);
@@ -252,11 +252,9 @@ test("la misión factual queda legible junto al corredor sin estela truncada", (
   assert.doesNotMatch(html, /\.refresh-lane\.finished \.refresh-finish::before/);
   assert.match(html, /carril\.classList\.toggle\("cruzando", centroAtleta \+ RADIO_CORREDOR_PX >= metaLinea\)/);
   assert.match(html, /function actualizaCarreraPodio\(\)/);
-  assert.match(html, /function tituloMisionActiva\(mision\)/);
-  assert.match(html, /function resumenMisionActiva\(mision\)/);
-  assert.match(html, /normaliza\(m\.visible_state \|\| m\.status\)\.toLowerCase\(\) === "in_progress"/);
-  assert.match(html, /reference:normaliza\(mision\.display_ref \|\| mision\.id\)/);
-  assert.match(html, /title:tituloMisionActiva\(mision\), state:"EN CURSO"/);
+  assert.match(html, /function trabajosEnCurso\(\)/);
+  assert.match(html, /function resumenTrabajoActivo\(trabajo\)/);
+  assert.match(html, /title:trabajo\.title, state:"EN CURSO"/);
   assert.doesNotMatch(html, /function estelaMision|class="refresh-word"/);
   assert.match(html, /mision\.style\.left = posicionCorredor/);
   assert.match(html, /espacioMision = Math\.max\(0, centroAtleta - RADIO_CORREDOR_PX - 2\)/);
@@ -268,12 +266,11 @@ test("la misión factual queda legible junto al corredor sin estela truncada", (
   assert.match(html, /carril\.querySelector\('\[data-race-role="mission"\]'\)/);
 });
 
-test("todos los agentes con misión en curso tienen calles ordenadas, identidad visual y semántica accesible", () => {
-  assert.match(html, /YkHighscoreRace\.activeMissionRows\(lista \|\| \[\], claves\)/);
-  assert.match(html, /var corredores = filasConMisionEnCurso\(listaCache \|\| \[\], activas\)\.map/);
+test("todos los agentes con trabajo en curso tienen calles ordenadas, identidad visual y semántica accesible", () => {
+  assert.match(html, /var trabajos = trabajosEnCurso\(\), completas = listaCompletaCache \|\| \[\]/);
+  assert.match(html, /var corredores = trabajos\.map/);
   assert.doesNotMatch(html, /top = \(listaCache \|\| \[\]\)\.slice\(0, 3\)/);
-  assert.match(html, /misionActivaDeAgente\(activas, clave\)/);
-  assert.match(html, /resumenMisionActiva\(mision\)/);
+  assert.match(html, /resumenTrabajoActivo\(trabajo\)/);
   assert.doesNotMatch(html, /misionDesdePresencia|presencia viva, sin foco declarado/);
   assert.match(html, /var clasePuesto = puesto <= 3 \? "refresh-lane-p" \+ puesto : "refresh-lane-rank"/);
   assert.match(html, /refresh-lane ' \+ clasePuesto/);
@@ -282,7 +279,7 @@ test("todos los agentes con misión en curso tienen calles ordenadas, identidad 
   assert.match(html, /role="listitem"/);
   assert.match(html, /refresh-mission[^\n]*data-race-role="mission"[^\n]*title="' \+ esc\(resumen\.title\)[\s\S]*refresh-mission-title[\s\S]*refresh-runner runner-' \+ variant[\s\S]*refresh-agent/);
   assert.doesNotMatch(html, /refresh-mission-(?:ref|state|meta|project)/);
-  assert.match(html, /'<span class="refresh-agent" data-race-role="agent">' \+ esc\(agente\) \+ '<\/span>'/);
+  assert.match(html, /'<span class="refresh-agent" data-race-role="agent" title="Familia ' \+ esc\(agente\)[\s\S]*esc\(executor\)/);
   assert.doesNotMatch(html, /refresh-place-start/);
   assert.match(html, /class="refresh-place refresh-place-track" aria-hidden="true">' \+ puesto/);
   assert.match(html, /\.refresh-agent\{[^}]*left:calc\(100% - var\(--finish-gutter\) \+ var\(--agent-gap\)\)[^}]*right:4px[^}]*bottom:7px[^}]*font-size:12px[^}]*line-height:14px/);
@@ -297,9 +294,8 @@ test("todos los agentes con misión en curso tienen calles ordenadas, identidad 
   assert.match(html, /class="runner-accent"/);
   assert.match(html, /class="runner-shirt" fill="var\(--runner-shirt,#f8f8f8\)"/);
   assert.match(html, /class="runner-accent" fill="var\(--runner-stripe,#3466cc\)"/);
-  assert.match(html, /ykAgentIdentity\.missionPair\(agente, mision\.machine \|\| mision\.loc, \[mision\.screen\]\)/);
   assert.match(html, /class="refresh-lane refresh-lane-empty" role="listitem" data-race-empty="true"/);
-  assert.match(html, /SIN MISIONES ACTIVAS/);
+  assert.match(html, /SIN TRABAJO ACTIVO/);
   assert.match(html, /contenedor\.innerHTML = corredores\.length \? corredores\.join\(""\) : corredorSinMision/);
   assert.match(html, /carrera\.setAttribute\("data-lanes", String\(corredores\.length \|\| 1\)\)/);
   assert.match(html, /carrera\.classList\.toggle\("empty", corredores\.length === 0\)/);

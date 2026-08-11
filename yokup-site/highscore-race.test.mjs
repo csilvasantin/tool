@@ -9,18 +9,18 @@ vm.runInNewContext(moduleSource, sandbox);
 const race = sandbox.module.exports;
 const html = await readFile(new URL("./highscore.html", import.meta.url), "utf8");
 
-test("la carrera exige a la vez latido reciente y misión en curso", () => {
+test("la carrera exige trabajo factual pero no latido reciente", () => {
   const rows = Array.from({length:7}, (_, i) => ({agente:"Agente "+i, vivo:i !== 4}));
-  assert.deepEqual(race.activeMissionRows(rows, ["agente0","agente4","agente6"]).map(x => x.agente), ["Agente 0","Agente 6"]);
-  assert.match(html, /YkHighscoreRace\.activeMissionRows\(lista \|\| \[\], claves\)/);
+  assert.deepEqual(race.activeMissionRows(rows, ["agente0","agente4","agente6"]).map(x => x.agente), ["Agente 0","Agente 4","Agente 6"]);
+  assert.match(html, /trabajos = trabajosEnCurso\(\), completas = listaCompletaCache \|\| \[\]/);
   assert.doesNotMatch(html, /listaCache \|\| \[\]\)\.slice\(0, 3\)/);
 });
 
-test("sin misión real sólo queda un corredor neutro y el fallback legible", () => {
-  assert.match(html, /var mision = misionActivaDeAgente\(activas, clave\), resumen = resumenMisionActiva\(mision\)/);
+test("sin trabajo real sólo queda un corredor neutro y el fallback legible", () => {
+  assert.match(html, /var trabajoNoDisponible = !datos\.trabajosAvailable && !trabajos\.length/);
   assert.doesNotMatch(html, /misionDesdePresencia|presencia viva, sin foco declarado/);
   assert.match(html, /class="refresh-lane refresh-lane-empty"/);
-  assert.match(html, /SIN MISIONES ACTIVAS/);
+  assert.match(html, /SIN TRABAJO ACTIVO/);
   assert.match(html, /data-race-empty="true"/);
 });
 
