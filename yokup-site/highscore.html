@@ -450,10 +450,14 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .agent-scope-children .agent-scope-row{min-height:25px;background:rgba(120,243,255,.018)}
 .agent-scope-row.agent{grid-template-columns:minmax(0,1fr) auto;gap:6px;padding:4px 6px}
 .agent-scope-primary{display:grid;grid-template-columns:16px minmax(0,1fr);align-items:center;gap:7px;min-width:0;cursor:pointer}
-.agent-scope-running{display:grid;place-items:center;width:24px;height:24px;border:1px solid rgba(255,216,102,.18);
-  border-radius:5px;color:var(--dim);font-size:13px;line-height:1;cursor:pointer;filter:grayscale(1);opacity:.52}
-.agent-scope-running:has(input:checked){border-color:rgba(255,216,102,.65);color:var(--accent);background:rgba(255,216,102,.08)}
-.agent-scope-running:has(input:checked){filter:none;opacity:1}.agent-scope-running:hover,.agent-scope-running:focus-within{border-color:var(--accent);filter:none;opacity:1}
+.agent-scope-running{appearance:none;display:grid;place-items:center;width:24px;height:24px;padding:0;border:1px solid rgba(255,216,102,.18);
+  border-radius:5px;background:transparent;color:var(--dim);font:13px/1 var(--mono);cursor:pointer;filter:grayscale(1);opacity:.52}
+.agent-scope-running[aria-checked="true"]{border-color:rgba(255,216,102,.72);color:var(--accent);background:rgba(255,216,102,.09);
+  box-shadow:0 0 9px rgba(255,216,102,.18);filter:none;opacity:1}
+.agent-scope-running[aria-busy="true"]{border-color:var(--brand);color:var(--brand);filter:none;opacity:1;animation:app-toggle-wait .8s steps(2,end) infinite}
+.agent-scope-running:hover,.agent-scope-running:focus-visible{border-color:var(--accent);filter:none;opacity:1;outline:none}
+.agent-scope-running:disabled{cursor:not-allowed;filter:grayscale(1);opacity:.28}
+@keyframes app-toggle-wait{50%{opacity:.35}}
 .agent-scope-row input{margin:0;accent-color:var(--brand)}
 .agent-scope-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .agent-scope-actions{display:grid;gap:6px}
@@ -635,6 +639,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script src="/highscore-race.js?v=v.2026.08.04.running-plus-1"></script>
+<script src="/highscore-desktop-app.js?v=v.2026.08.11.desktop-toggle-1"></script>
 <script>
 (function () {
   "use strict";
@@ -1937,11 +1942,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
      doble clic calcula el ancho necesario para el contenido de esa columna. */
   var COLUMNAS_KEY = "yokup.highscore.columnas.v1";
   var AGENT_SCOPE_KEY = "yokup.highscore.agents.v1";
-  var RACE_EXTRA_SCOPE_KEY = "yokup.highscore.raceExtraAgents.v1";
   var DASHBOARD_TEAM_SCOPE_KEY = "yokup.dashboard.teams.v1";
   var AGENT_SCOPE = hsReadAgentScope();
-  var RACE_EXTRAS = hsReadRaceExtras();
   var AGENT_SCOPE_OPEN_TEAMS = new Set();
+  var DESKTOP_APP_PENDING = Object.create(null);
   var ordenTabla = { campo:"", direccion:"" };
   var filtroSoloVivos = false;
   var DIRECCION_INICIAL = {
@@ -1970,23 +1974,6 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (scope === null) localStorage.removeItem(AGENT_SCOPE_KEY);
       else localStorage.setItem(AGENT_SCOPE_KEY, JSON.stringify(Array.from(scope).map(String)));
     } catch (_) {}
-  }
-
-  function hsReadRaceExtras() {
-    try {
-      var value = JSON.parse(localStorage.getItem(RACE_EXTRA_SCOPE_KEY));
-      return new Set(Array.isArray(value) ? value.map(String) : []);
-    } catch (_) { return new Set(); }
-  }
-
-  function hsWriteRaceExtras(scope) {
-    try { localStorage.setItem(RACE_EXTRA_SCOPE_KEY, JSON.stringify(Array.from(scope || []).map(String))); } catch (_) {}
-  }
-
-  function hsSetRaceExtra(scope, key, checked) {
-    var next = new Set(Array.from(scope || [])), id = String(key);
-    if (checked) next.add(id); else next.delete(id);
-    return next;
   }
 
   function hsAgentScopeAllows(scope, agente) {
@@ -2096,7 +2083,77 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function hsClearCloneStatus() {
     var status = document.getElementById("agentScopeCloneStatus");
-    if (status) status.textContent = "";
+    if (status) { status.textContent = ""; status.style.color = ""; }
+  }
+
+  function hsDesktopApps() {
+    if (typeof YkHighscoreDesktopApp === "undefined") return [];
+    return YkHighscoreDesktopApp.items({ presence:datos.presencia || [], control_machines:datos.controlMachines || [] },
+      window.ykAgentIdentity, Date.now() / 1000);
+  }
+
+  function hsDesktopAppFor(agent, team) {
+    return typeof YkHighscoreDesktopApp === "undefined" ? null :
+      YkHighscoreDesktopApp.find(hsDesktopApps(), agent, team, window.ykAgentIdentity);
+  }
+
+  function hsDesktopAppMessage(message, error) {
+    var status = document.getElementById("agentScopeCloneStatus");
+    if (!status) return;
+    status.textContent = String(message || ""); status.style.color = error ? "var(--warn)" : "";
+  }
+
+  function hsRefreshDesktopApps() {
+    return fetch(TG + "/api/presence", { cache:"no-store" }).then(function (response) {
+      if (!response.ok) throw new Error("presence " + response.status);
+      return response.json();
+    }).then(function (payload) {
+      datos.presencia = payload.presence || []; datos.controlMachines = payload.control_machines || [];
+      hsRenderAgentScope(listaCompletaCache || []); return payload;
+    });
+  }
+
+  function hsVerifyDesktopApp(key, wanted, deadline) {
+    setTimeout(function () {
+      hsRefreshDesktopApps().then(function () {
+        var item = hsDesktopApps().find(function (app) { return app.key === key; });
+        if (item && item.active === wanted) {
+          delete DESKTOP_APP_PENDING[key]; hsRenderAgentScope(listaCompletaCache || []);
+          hsDesktopAppMessage("✓ " + item.persona + " · DesktopAPP " + (wanted ? "encendida" : "apagada") + " en " + item.machine, false);
+          return;
+        }
+        if (Date.now() >= deadline) {
+          delete DESKTOP_APP_PENDING[key]; hsRenderAgentScope(listaCompletaCache || []);
+          hsDesktopAppMessage("La orden fue aceptada, pero el equipo no confirmó el nuevo estado antes de 45 s.", true);
+          return;
+        }
+        hsVerifyDesktopApp(key, wanted, deadline);
+      }).catch(function () {
+        if (Date.now() < deadline) hsVerifyDesktopApp(key, wanted, deadline);
+      });
+    }, 2000);
+  }
+
+  function hsToggleDesktopApp(agent, team) {
+    var item = hsDesktopAppFor(agent, team);
+    if (!item) { hsDesktopAppMessage("Ese agente no tiene una DesktopAPP controlable en este equipo.", true); return; }
+    if (DESKTOP_APP_PENDING[item.key]) return;
+    var action = item.active ? "stop" : "start", wanted = action === "start";
+    DESKTOP_APP_PENDING[item.key] = { action:action, since:Date.now() };
+    hsRenderAgentScope(listaCompletaCache || []);
+    hsDesktopAppMessage((wanted ? "Encendiendo " : "Apagando ") + item.persona + " · DesktopAPP en " + item.machine + "…", false);
+    fetch(YK + "/fleet/agent/control", { method:"POST", cache:"no-store", headers:{"content-type":"application/json"},
+      body:JSON.stringify(YkHighscoreDesktopApp.target(item, action)) }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (payload) {
+        if (response.status === 401) throw new Error("Necesitas iniciar sesión de nuevo.");
+        if (!response.ok || payload.ok === false) throw new Error(normaliza(payload.error) || ("Control → " + response.status));
+        return payload;
+      });
+    }).then(function () { hsVerifyDesktopApp(item.key, wanted, Date.now() + 45000); })
+      .catch(function (error) {
+        delete DESKTOP_APP_PENDING[item.key]; hsRenderAgentScope(listaCompletaCache || []);
+        hsDesktopAppMessage(normaliza(error && error.message) || "No se pudo gobernar la DesktopAPP", true);
+      });
   }
 
   function aplicaAgentScope(lista) {
@@ -2127,10 +2184,15 @@ body.resizing-columns{cursor:col-resize;user-select:none}
           '<span class="agent-scope-label" id="' + groupId + '">' + esc(group.label) + '</span>' +
           '<span class="agent-scope-team-count" aria-hidden="true">' + group.items.length + '</span></button></div>' +
           '<div class="agent-scope-children" id="' + childrenId + '"' + (groupOpen ? '' : ' hidden') + '>' + group.items.map(function (item) {
+            var desktopApp = hsDesktopAppFor(item.label, group.key), pending = desktopApp && DESKTOP_APP_PENDING[desktopApp.key];
+            var active = !!(desktopApp && desktopApp.active), available = !!(desktopApp && (desktopApp.active || desktopApp.watcher));
+            var appTitle = !desktopApp ? item.label + ' · sin DesktopAPP controlable en ' + group.label :
+              item.label + ' · DesktopAPP ' + (active ? 'encendida' : 'apagada') + ' en ' + desktopApp.machine + '. Pulsa para ' + (active ? 'apagar.' : 'encender.');
             return '<div class="agent-scope-row agent"><label class="agent-scope-primary"><input type="checkbox" data-agent-scope-item value="' + esc(item.key) + '"' +
               (AGENT_SCOPE === null || AGENT_SCOPE.has(item.key) ? ' checked' : '') + '><span class="agent-scope-label" title="' + esc(item.label) + '">' + esc(item.label) + '</span></label>' +
-              '<label class="agent-scope-running" title="Corredor extra: ' + esc(item.label) + '"><input class="sr-only" type="checkbox" data-agent-running-plus value="' + esc(item.key) + '"' +
-              (RACE_EXTRAS.has(item.key) ? ' checked' : '') + ' aria-label="Seleccionar ' + esc(item.label) + ' como corredor extra"><span aria-hidden="true">🏃</span></label></div>';
+              '<button class="agent-scope-running" type="button" role="switch" data-agent-desktop-app="' + esc(item.key) + '" data-agent="' + esc(item.label) + '" data-team="' + esc(group.key) + '"' +
+              ' aria-checked="' + active + '" aria-busy="' + !!pending + '" aria-label="' + esc(appTitle) + '" title="' + esc(appTitle) + '"' +
+              ((!available || pending) ? ' disabled' : '') + '><span aria-hidden="true">🏃</span></button></div>';
           }).join("") + '</div></fieldset>';
       }).join("");
     var allInput = list.querySelector("[data-agent-scope-all]");
@@ -2169,10 +2231,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         hsWriteAgentScope(AGENT_SCOPE); hsRenderAgentScope(listaCompletaCache || []); pintaVistaFiltrada();
       });
     });
-    list.querySelectorAll("[data-agent-running-plus]").forEach(function (input) {
-      input.addEventListener("change", function () {
-        RACE_EXTRAS = hsSetRaceExtra(RACE_EXTRAS, input.value, input.checked);
-        hsWriteRaceExtras(RACE_EXTRAS); hsRenderAgentScope(listaCompletaCache || []); actualizaCarreraPodio();
+    list.querySelectorAll("[data-agent-desktop-app]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        hsToggleDesktopApp(button.getAttribute("data-agent"), button.getAttribute("data-team"));
       });
     });
   }
@@ -2880,12 +2941,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     }).filter(Boolean);
     var enlaces = corredores, filasElegibles = enlaces.map(function (enlace) { return enlace.fila; });
     var clavesActivas = enlaces.map(function (enlace) { return enlace.clave; });
-    var extras = typeof RACE_EXTRAS !== "undefined" ? RACE_EXTRAS : [];
     var filasCarrera = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.raceRows
-      ? YkHighscoreRace.raceRows(filasElegibles, clavesActivas, extras)
-      : filasElegibles.filter(function (fila, indice) {
-          return indice < 3 || extras.indexOf(claveAgenteCarrera(fila.agente)) >= 0;
-        });
+      ? YkHighscoreRace.raceRows(filasElegibles, clavesActivas)
+      : filasElegibles.slice(0, 3);
     var indiceLlamada = Math.floor(Math.max(0, filasCarrera.length - 1) / 2);
     corredores = filasCarrera.map(function (fila) {
       return enlaces.find(function (enlace) { return enlace.fila === fila; }) || null;

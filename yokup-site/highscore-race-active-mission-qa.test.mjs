@@ -127,10 +127,11 @@ test("sólo corren agentes con misión en curso y latido reciente", () => {
   assert.equal(race.lanes, 2);
   for (const index of [1, 3]) assert.match(race.html, new RegExp(`Agente-${index}`));
   for (const index of [2, 4, 5, 6]) assert.doesNotMatch(race.html, new RegExp(`Agente-${index}`));
-  assert.doesNotMatch(raceSource, /slice\(0,\s*3\)/);
+  assert.match(raceSource, /YkHighscoreRace\.raceRows\(filasElegibles, clavesActivas\)/);
+  assert.match(raceSource, /filasElegibles\.slice\(0, 3\)/);
 });
 
-test("los corredores extra conservan una clave y carril inequívocos", () => {
+test("el antiguo selector de corredores extra ya no añade calles 4 y 5", () => {
   const rows = Array.from({ length: 5 }, (_, i) => ({
     agente: `Persona-${i + 1}`, posicion: i + 1, total: 20 - i, vivo: true,
   }));
@@ -138,9 +139,10 @@ test("los corredores extra conservan una clave y carril inequívocos", () => {
     ["persona4", "persona5"]);
   const keys = [...race.html.matchAll(/data-agent-key="([^"]+)"/g)].map((m) => m[1]);
   const lanes = [...race.html.matchAll(/data-place="(\d+)"/g)].map((m) => Number(m[1]));
-  assert.equal(keys.length, 5);
-  assert.equal(new Set(keys).size, 5);
-  assert.deepEqual(lanes, [1, 2, 3, 4, 5]);
+  assert.equal(keys.length, 3);
+  assert.equal(new Set(keys).size, 3);
+  assert.deepEqual(lanes, [1, 2, 3]);
+  assert.doesNotMatch(race.html, /Persona-4|Persona-5/);
 });
 
 test("el dorsal se pinta UNA vez en el suelo de la pista", () => {
@@ -150,7 +152,7 @@ test("el dorsal se pinta UNA vez en el suelo de la pista", () => {
   const race = renderRace(rows, rows.map((row) => ({assignee:row.agente,status:"in_progress",subject:"Trabajo"})),
     ["dorsal4", "dorsal5"]);
   const ground = [...race.html.matchAll(/refresh-place-track" aria-hidden="true">(\d+)<\/span>/g)].map((match) => Number(match[1]));
-  assert.deepEqual(ground, [1, 2, 3, 4, 5]);
+  assert.deepEqual(ground, [1, 2, 3]);
   assert.doesNotMatch(race.html, /refresh-place-(?:start|finish)/);
 });
 

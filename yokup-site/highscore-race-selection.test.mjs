@@ -59,42 +59,33 @@ test("un extra oculto por el selector principal queda latente hasta volver al sc
   assert.deepEqual(names(race.raceRows(full, active, ["e"])), ["A", "B", "C", "E"]);
 });
 
-test("la preferencia de carrera usa almacenamiento propio y sobrevive al repintado", () => {
-  assert.match(html, /=\s*"yokup\.highscore\.raceExtraAgents\.v1"/);
-  assert.match(html, /function hsReadRaceExtras\(/);
-  assert.match(html, /function hsWriteRaceExtras\(/);
-  assert.match(html, /function hsSetRaceExtra\(/);
-  assert.match(html, /localStorage\.setItem\(RACE_EXTRA_SCOPE_KEY, JSON\.stringify\(/);
-  assert.match(html, /hsWriteRaceExtras\(RACE_EXTRAS\)/);
-  assert.match(html, /hsRenderAgentScope\(listaCompletaCache \|\| \[\]\)/,
-    "el repintado es lo que sincroniza todas las copias multi-equipo");
-});
-
-test("cada agente ofrece a la derecha un corredor visual, accesible y sin texto auxiliar", () => {
-  assert.match(html, /data-agent-running-plus value="' \+ esc\(item\.key\)/);
-  assert.match(html, /querySelectorAll\("\[data-agent-running-plus\]"\)\.forEach/);
-  assert.match(html, /aria-label="Seleccionar [^"]+ como corredor extra"/i);
+test("el corredor extra deja paso al interruptor real de DesktopAPP", () => {
+  assert.doesNotMatch(html, /yokup\.highscore\.raceExtraAgents|RACE_EXTRAS|data-agent-running-plus/);
+  assert.match(html, /highscore-desktop-app\.js/);
+  assert.match(html, /data-agent-desktop-app="' \+ esc\(item\.key\)/);
+  assert.match(html, /querySelectorAll\("\[data-agent-desktop-app\]"\)\.forEach/);
+  assert.match(html, /role="switch"/);
+  assert.match(html, /aria-checked="' \+ active/);
   assert.match(html, /<span aria-hidden="true">🏃<\/span>/);
-  assert.doesNotMatch(html, />Running \+<\/span>/);
-  assert.match(html, /class="sr-only" type="checkbox" data-agent-running-plus/);
+  assert.match(html, /DesktopAPP ' \+ \(active \? 'encendida' : 'apagada'\)/);
   assert.match(html, /\.agent-scope-row\.agent\{[^}]*grid-template-columns:minmax\(0,1fr\) auto/);
   assert.match(html, /\.agent-scope-primary\{[^}]*grid-template-columns:16px minmax\(0,1fr\)/);
   assert.match(html, /@media \(max-width:620px\)[\s\S]*?agent-scope/);
 });
 
-test("equipo, Todos, Clonar y reset principal no seleccionan ni borran extras", () => {
+test("equipo, Todos, Clonar y reset conservan el control de apps separado del filtro", () => {
   const teamStart = html.indexOf('querySelectorAll("[data-agent-scope-team]")');
-  const extraStart = html.indexOf('querySelectorAll("[data-agent-running-plus]")', teamStart);
-  assert.ok(teamStart >= 0 && extraStart > teamStart, "faltan controles principal y extra separados");
-  const primaryHandlers = html.slice(teamStart, extraStart);
-  assert.doesNotMatch(primaryHandlers, /hsSetRaceExtra|hsWriteRaceExtras|RACE_EXTRAS/);
+  const appStart = html.indexOf('querySelectorAll("[data-agent-desktop-app]")', teamStart);
+  assert.ok(teamStart >= 0 && appStart > teamStart, "faltan filtro principal e interruptor DesktopAPP separados");
+  const primaryHandlers = html.slice(teamStart, appStart);
+  assert.doesNotMatch(primaryHandlers, /hsToggleDesktopApp|DESKTOP_APP_PENDING/);
   assert.match(html, /hsCloneAgentScopeToDashboard\(AGENT_SCOPE,/);
   assert.match(html, /AGENT_SCOPE = null; hsWriteAgentScope\(AGENT_SCOPE\)/);
-  assert.doesNotMatch(html, /AGENT_SCOPE = null;[^\n]*RACE_EXTRAS\s*=/);
 });
 
-test("Running Man consume la selección visible y no altera ranking ni podio", () => {
+test("Running Man conserva sólo los tres primeros elegibles y no altera ranking ni podio", () => {
   assert.match(html, /filasElegibles = enlaces\.map\(function \(enlace\) \{ return enlace\.fila; \}\)/);
-  assert.match(html, /YkHighscoreRace\.raceRows\(filasElegibles, clavesActivas, extras\)/);
+  assert.match(html, /YkHighscoreRace\.raceRows\(filasElegibles, clavesActivas\)/);
+  assert.match(html, /filasElegibles\.slice\(0, 3\)/);
   assert.match(html, /pintaPodio\(listaCache\.slice\(0, 3\)\); pintaTabla\(listaVisible\(listaCache\)\); actualizaCarreraPodio\(\)/);
 });
