@@ -110,7 +110,7 @@ test("No concluida conserva tarea y puntos base; sólo pierde actividad y bonus"
 });
 
 test("el ranking distingue actividad actual de los totales históricos", () => {
-  assert.match(html, /datos = \{ tareas: \[\], tareasFresh: false, actividad: \[\],[^}]*misiones: \[\], ideas: \[\], decisiones: \[\], proyectos: \[\],[^}]*declaracionesPrincipales: \[\], controlMachines: \[\], turnos: null \}/);
+  assert.match(html, /datos = \{ tareas: \[\], tareasFresh: false, actividad: \[\],[^}]*misiones: \[\], ideas: \[\], decisiones: \[\], proyectos: \[\],[^}]*declaracionesPrincipales: \[\], controlMachines: \[\], presenceNow: 0, turnos: null \}/);
   assert.match(html, /seguroYokup\("\/tickets\?scope=fleet", function \(d\) \{ return d\.tickets \|\| \[\]; \}\)/);
   assert.match(html, /seguroYokup\("\/ideas"/);
   assert.match(html, /seguroYokup\("\/decisions"/);

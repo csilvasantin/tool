@@ -68,9 +68,9 @@ test("el corredor extra deja paso al interruptor real de DesktopAPP", () => {
   assert.match(html, /aria-checked="' \+ active/);
   assert.match(html, /<span aria-hidden="true">🏃<\/span>/);
   assert.match(html, /DesktopAPP ' \+ \(active \? 'encendida' : 'apagada'\)/);
-  assert.match(html, /\.agent-scope-row\.agent\{[^}]*grid-template-columns:minmax\(0,1\.2fr\) minmax\(0,1fr\) auto/);
+  assert.match(html, /\.agent-scope-row\.agent\{[^}]*grid-template-columns:minmax\(0,1fr\) auto/);
   assert.match(html, /data-agent-desktop-feedback=/, "el estado ocupa la columna intermedia sin reemplazar el switch");
-  assert.match(html, /\.agent-scope-primary\{[^}]*grid-template-columns:minmax\(0,1fr\) auto 28px/);
+  assert.match(html, /\.agent-scope-primary\{[^}]*grid-template-columns:minmax\(0,1fr\) auto 28px[^}]*width:100%/);
   assert.match(html, /Siguiendo' : 'No siguiendo'/);
   assert.match(html, /@media \(max-width:620px\)[\s\S]*?agent-scope/);
 });
@@ -81,8 +81,8 @@ test("equipo, Todos, Clonar y reset conservan el control de apps separado del fi
   assert.ok(teamStart >= 0 && appStart > teamStart, "faltan filtro principal e interruptor DesktopAPP separados");
   const primaryHandlers = html.slice(teamStart, appStart);
   assert.doesNotMatch(primaryHandlers, /hsToggleDesktopApp|DESKTOP_APP_PENDING/);
-  assert.match(html, /hsCloneAgentScopeToDashboard\(AGENT_SCOPE,/);
-  assert.match(html, /AGENT_SCOPE = null; hsWriteAgentScope\(AGENT_SCOPE\)/);
+  assert.match(html, /hsCloneAgentScopeToDashboard\(hsEffectiveAgentScope\(\),/);
+  assert.match(html, /AGENT_SCOPE = hsActiveAgentKeys\(hsDesktopApps\(\), window\.ykAgentIdentity\)/);
 });
 
 test("Running Man conserva sólo los tres primeros elegibles y no altera ranking ni podio", () => {

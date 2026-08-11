@@ -23,7 +23,7 @@ function payload(updated = 995) {
     }],
     presence:[{
       persona:"Neo",machine:"MacBookAirAzul",runtime:"Claude",host:"app",session_id:"desktop:claude",
-      pid:321,updated,verified:1,source:"process_snapshot",
+      pid:321,updated,online:1,verified:1,source:"process_snapshot",
     }],
   };
 }
@@ -38,6 +38,21 @@ test("amarillo sólo significa process_snapshot verificado y fresco", () => {
   assert.equal(trinity.watcher, true);
   const stale = apps.find(apps.items(payload(940), identity, 1000), "NeoMBAAzul", "MBAAzul", identity);
   assert.equal(stale.active, false, "un latido viejo no puede dejar el icono amarillo");
+});
+
+test("actividad canónica exige online, PID y reloj entre -30 s y +5 s", () => {
+  const row = {persona:"Neo",machine:"MacBookAirAzul",runtime:"Claude",host:"app",session_id:"desktop:claude",
+    pid:321,updated:970,online:1,verified:1,source:"process_snapshot"};
+  const active = override => apps.items({presence:[{...row,...override}]}, identity, 1000).some(item => item.active);
+  assert.equal(active({updated:970}),true,"el borde de 30 segundos sigue fresco");
+  assert.equal(active({updated:1005}),true,"se toleran hasta 5 segundos de deriva futura");
+  assert.equal(active({updated:969.99}),false);
+  assert.equal(active({updated:1005.01}),false);
+  assert.equal(active({online:0}),false);
+  assert.equal(active({online:false}),false);
+  assert.equal(active({pid:0}),false);
+  assert.equal(active({host:"cli"}),false);
+  assert.equal(active({verified:0}),false);
 });
 
 test("OpenCode instalado aparece apagado antes de su primer proceso", () => {
@@ -98,22 +113,24 @@ test("el corredor visible es un switch real, amarillo encendido y gris apagado",
   assert.doesNotMatch(html, /data-agent-running-plus|Corredor extra:/);
 });
 
-test("cada fila reserva la zona intermedia para feedback accesible y responsive", () => {
-  assert.match(html, /grid-template-columns:minmax\(0,1\.2fr\) minmax\(0,1fr\) auto/);
+test("cada fila prioriza el nombre, lleva seguimiento a la derecha y baja el feedback sin reservar ancho", () => {
+  assert.match(html, /\.agent-scope-row\.agent\{grid-template-columns:minmax\(0,1fr\) auto/);
+  assert.match(html, /\.agent-scope-primary\{[^}]*grid-template-columns:minmax\(0,1fr\) auto 28px[^}]*width:100%/);
   assert.match(html, /class="agent-scope-app-feedback' \+ \(feedback \? ' ' \+ feedback\.phase : ''\)/);
   assert.match(html, /data-agent-desktop-feedback=/);
   assert.match(html, /aria-live="polite"/);
   assert.match(html, /\.agent-scope-app-feedback\.pending\{color:var\(--brand\)\}/);
   assert.match(html, /\.agent-scope-app-feedback\.success\{color:var\(--good\)\}/);
   assert.match(html, /\.agent-scope-app-feedback\.error\{color:var\(--warn\)\}/);
-  assert.match(html, /@media \(max-width:620px\)[\s\S]*\.agent-scope-row\.agent\{grid-template-columns:minmax\(0,1fr\) minmax\(72px,\.9fr\) auto\}/);
+  assert.match(html, /\.agent-scope-app-feedback:empty\{display:none\}/);
+  assert.match(html, /@media \(max-width:620px\)[\s\S]*\.agent-scope-row\.agent\{grid-template-columns:minmax\(0,1fr\) auto\}/);
 });
 
 test("el selector nace también de slots apagados, no sólo de presencia o puntuación", () => {
   assert.match(html, /function hsAgentScopeGroups\(filas, presencias, identity, desktopApps\)/);
   assert.match(html, /\(desktopApps \|\| \[\]\)\.forEach\(function \(app\)/);
   assert.match(html, /id && id\.display \? id\.display\(raw, machine\) : raw/);
-  assert.match(html, /hsAgentScopeGroups\(lista \|\| \[\], datos\.presencia \|\| \[\], window\.ykAgentIdentity, hsDesktopApps\(\)\)/);
+  assert.match(html, /hsAgentScopeGroups\(lista \|\| \[\], datos\.presencia \|\| \[\], window\.ykAgentIdentity, desktopApps\)/);
 });
 
 test("pending, confirmación y fallo alimentan el feedback de la fila", () => {

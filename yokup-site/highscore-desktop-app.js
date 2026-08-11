@@ -42,16 +42,17 @@
       });
     });
     (payload && payload.presence || []).forEach(function (row) {
+      var updated = Number(row && row.updated || 0), pid = Number(row && row.pid || 0);
       if (!(row && row.verified && row.source === "process_snapshot" && String(row.host || "").toLowerCase() === "app" &&
-        Number(row.updated || 0) >= now - 35)) return;
+        row.online !== 0 && row.online !== false && pid > 0 && updated >= now - 30 && updated <= now + 5)) return;
       var name = String(row.machine || "").trim();
       if (!name) return;
       var groupKey = plainKey(name), group = groups[groupKey] || (groups[groupKey] = {
         machine:name, watcher:false, updated:Number(row.updated || 0), items:{}
       });
       var item = { machine:name, persona:String(row.persona || ""), runtime:String(row.runtime || ""), host:"app",
-        session_id:String(row.session_id || ""), pid:Number(row.pid || 0), active:true, verified:true,
-        watcher:group.watcher, updated:Number(row.updated || 0) };
+        session_id:String(row.session_id || ""), pid:pid, active:true, verified:true,
+        watcher:group.watcher, updated:updated };
       item.key = appKey(item); group.items[item.key] = item;
     });
     var result = [];

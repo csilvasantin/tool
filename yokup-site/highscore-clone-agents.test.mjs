@@ -118,7 +118,7 @@ test("alias histórico se canoniza y un agente sin equipo de Dashboard no invent
 });
 
 test("la acción reemplaza destino y publica confirmación o error accesible",()=>{
-  assert.match(highscore,/hsCloneAgentScopeToDashboard\(AGENT_SCOPE, listaCompletaCache \|\| \[\], localStorage, window\.ykAgentIdentity\)/);
+  assert.match(highscore,/hsCloneAgentScopeToDashboard\(hsEffectiveAgentScope\(\), listaCompletaCache \|\| \[\], localStorage, window\.ykAgentIdentity\)/);
   assert.match(highscore,/status\.textContent = hsCloneAgentScopeMessage\(result\)/);
   assert.match(highscore,/status\.textContent = "No se pudo guardar la selección del Dashboard"/);
   assert.match(highscore,/function hsClearCloneStatus\(\)/);

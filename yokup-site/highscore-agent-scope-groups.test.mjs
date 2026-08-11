@@ -97,20 +97,20 @@ test("el nodo equipo marca o desmarca hijos, conserva parcial y vuelve a Todos",
 
 test("cambiar un agente individual sincroniza todas sus copias al rerender",()=>{
   assert.match(source,/querySelectorAll\("\[data-agent-scope-item\]"\)\.forEach/);
-  assert.match(source,/AGENT_SCOPE = hsSetAgentScopeItem\(AGENT_SCOPE, button\.value, button\.getAttribute\("aria-checked"\) !== "true", keys\)/);
-  assert.match(source,/hsWriteAgentScope\(AGENT_SCOPE\); hsRenderAgentScope\(listaCompletaCache \|\| \[\]\); pintaVistaFiltrada\(\)/);
+  assert.match(source,/AGENT_SCOPE = hsSetAgentScopeItem\(effective, button\.value, button\.getAttribute\("aria-checked"\) !== "true", keys\)/);
+  assert.match(source,/hsWriteAgentScope\(AGENT_SCOPE, AGENT_SCOPE_MODE\); hsRenderAgentScope\(listaCompletaCache \|\| \[\]\); pintaVistaFiltrada\(\)/);
   assert.match(source,/group\.items\.map\(function \(item\) \{[\s\S]*?data-agent-scope-item value="' \+ esc\(item\.key\)/);
 });
 
 test("Todos, 0/N, persistencia, Clonar y reset conservan sus contratos",()=>{
-  assert.match(source,/count\.textContent = AGENT_SCOPE === null \? "Todos" : selected \+ "\/" \+ items\.length/);
+  assert.match(source,/count\.textContent = AGENT_SCOPE_MODE === "all" \? "Todos" : selected \+ "\/" \+ items\.length/);
   assert.match(source,/AGENT_SCOPE = allInput\.getAttribute\("aria-checked"\) === "true" \? new Set\(\) : null/);
   assert.match(source,/function hsReadAgentScope\(\)/);
-  assert.match(source,/function hsWriteAgentScope\(scope\)/);
+  assert.match(source,/function hsWriteAgentScope\(scope, mode\)/);
   assert.match(source,/id="agentScopeClone"/);
-  assert.match(source,/hsCloneAgentScopeToDashboard\(AGENT_SCOPE, listaCompletaCache \|\| \[\], localStorage, window\.ykAgentIdentity\)/);
+  assert.match(source,/hsCloneAgentScopeToDashboard\(hsEffectiveAgentScope\(\), listaCompletaCache \|\| \[\], localStorage, window\.ykAgentIdentity\)/);
   assert.match(source,/id="agentScopeReset"/);
-  assert.match(source,/AGENT_SCOPE = null; hsWriteAgentScope\(AGENT_SCOPE\)/);
+  assert.match(source,/AGENT_SCOPE = hsActiveAgentKeys\(hsDesktopApps\(\), window\.ykAgentIdentity\); AGENT_SCOPE_MODE = "active"/);
 });
 
 test("cada equipo es un grupo semántico, con padre parcial y layout móvil seguro",()=>{
