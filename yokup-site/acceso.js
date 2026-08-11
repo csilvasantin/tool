@@ -98,6 +98,7 @@
         google.accounts.id.initialize({
           client_id: CLIENT_ID,
           nonce: challenge.nonce,
+          state_cookie_domain: "yokup.com",
           ux_mode: "redirect",
           login_uri: LOGIN_URI,
           auto_select: false,

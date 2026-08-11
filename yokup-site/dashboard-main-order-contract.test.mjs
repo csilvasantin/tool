@@ -45,5 +45,5 @@ test("la cabecera global del producto permanece intacta", () => {
   assert.match(source, /<body data-yk-title="DASHBOARD" data-yk-zone="app">/);
   assert.match(source, /<link rel="stylesheet" href="\/yk-frame\.css\?[^"']+">/);
   assert.match(source, /<script src="\/yk-frame\.js\?[^"']+"><\/script>/);
-  assert.match(source, /<script src="\/acceso\.js"><\/script>/);
+  assert.match(source, /<script src="\/acceso\.js\?v=20260811-r3-a4427d998e23"><\/script>/);
 });
