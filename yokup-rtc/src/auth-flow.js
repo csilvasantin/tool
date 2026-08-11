@@ -5,6 +5,8 @@ const SESSION_COOKIE = "__Host-yk_session";
 const CHALLENGE_TTL_MS = 10 * 60 * 1000;
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 const MAX_GOOGLE_TOKEN_AGE_MS = 2 * 60 * 60 * 1000;
+export const AUTH_CALLBACK_URI = "https://api.yokup.com/auth/callback";
+const PUBLIC_ORIGIN = "https://www.yokup.com";
 
 function randomToken(bytes = 24) {
   const value = new Uint8Array(bytes);
@@ -27,10 +29,12 @@ export function parseCookies(header) {
 
 export function safeReturnPath(value) {
   const path = String(value || "/");
-  if (!path.startsWith("/") || path.startsWith("//") || /[\u0000-\u001f\u007f]/.test(path)) return "/";
+  if (/[\u0000-\u001f\u007f]/.test(path)) return "/";
   try {
-    const parsed = new URL(path, "https://www.yokup.com");
-    return parsed.origin === "https://www.yokup.com" ? parsed.pathname + parsed.search + parsed.hash : "/";
+    if (path.startsWith("//")) return "/";
+    const parsed = new URL(path, PUBLIC_ORIGIN);
+    if (!AUTH_ORIGINS.has(parsed.origin.toLowerCase())) return "/";
+    return parsed.pathname + parsed.search + parsed.hash;
   } catch (_) { return "/"; }
 }
 
@@ -58,12 +62,12 @@ export function clearSessionCookie() {
   return `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
 }
 
-function challengeCookie(state, maxAge = CHALLENGE_TTL_MS / 1000) {
-  return `${CHALLENGE_COOKIE}=${encodeURIComponent(state)}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
+function challengeCookie(state, maxAge = CHALLENGE_TTL_MS / 1000, sameSite = "Lax") {
+  return `${CHALLENGE_COOKIE}=${encodeURIComponent(state)}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=${sameSite}`;
 }
 
-function clearChallengeCookie() {
-  return `${CHALLENGE_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
+function clearChallengeCookie(sameSite = "Lax") {
+  return `${CHALLENGE_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=${sameSite}`;
 }
 
 export function sessionTokenFromRequest(request) {
@@ -83,7 +87,7 @@ export async function issueChallenge(env, returnPath, flow = "popup", now = Date
   const path = safeReturnPath(returnPath);
   await env.DB.prepare("INSERT INTO auth_challenges(state,nonce,return_path,flow,expires_at,used_at) VALUES(?,?,?,?,?,NULL)")
     .bind(state, nonce, path, flow, now + CHALLENGE_TTL_MS).run();
-  return { state, nonce, returnPath: path, cookie: challengeCookie(state), expiresAt: now + CHALLENGE_TTL_MS };
+  return { state, nonce, returnPath: path, cookie: challengeCookie(state, CHALLENGE_TTL_MS / 1000, flow === "redirect" ? "None" : "Lax"), expiresAt: now + CHALLENGE_TTL_MS };
 }
 
 export async function consumeChallenge(env, request, state, flow, now = Date.now()) {
@@ -127,6 +131,46 @@ function authJson(body, status, request, extraHeaders = {}) {
   return withCredentialCors(response, request);
 }
 
+function constantTimeTextEqual(left, right) {
+  const a = String(left || ""), b = String(right || "");
+  if (!a || a.length !== b.length) return false;
+  let difference = 0;
+  for (let index = 0; index < a.length; index += 1) difference |= a.charCodeAt(index) ^ b.charCodeAt(index);
+  return difference === 0;
+}
+
+export function googleCsrfValid(request, form) {
+  const cookie = parseCookies(request.headers.get("cookie")).g_csrf_token || "";
+  return constantTimeTextEqual(cookie, form && form.g_csrf_token);
+}
+
+export async function readGoogleCallbackForm(request) {
+  const type = String(request.headers.get("content-type") || "").split(";", 1)[0].trim().toLowerCase();
+  if (type !== "application/x-www-form-urlencoded") return null;
+  const length = Number(request.headers.get("content-length") || 0);
+  if (length > 20000) return null;
+  const raw = await request.text();
+  if (raw.length > 20000) return null;
+  const form = new URLSearchParams(raw);
+  return {
+    credential:form.get("credential") || "",
+    g_csrf_token:form.get("g_csrf_token") || "",
+    state:form.get("state") || ""
+  };
+}
+
+function redirectResponse(path, token) {
+  const headers = new Headers({
+    "location":PUBLIC_ORIGIN + safeReturnPath(path),
+    "cache-control":"no-store",
+    "Content-Security-Policy":"default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+    "Referrer-Policy":"no-referrer"
+  });
+  headers.append("Set-Cookie", sessionCookie(token));
+  headers.append("Set-Cookie", clearChallengeCookie("None"));
+  return new Response(null, { status:303, headers });
+}
+
 export async function handleAuthRequest(request, env, deps) {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/auth/")) return null;
@@ -139,10 +183,10 @@ export async function handleAuthRequest(request, env, deps) {
   if (url.pathname === "/auth/challenge" && request.method === "POST") {
     if (!authOrigin(request)) return authJson({ ok:false, error:"origin_not_allowed" }, 403, request);
     const body = await request.json().catch(() => ({}));
-    // El flujo popup no redirige. No almacenamos query/hash de la página porque
-    // podrían contener información sensible heredada de una navegación anterior.
-    const challenge = await issueChallenge(env, "/", "popup");
-    return authJson({ ok:true, state:challenge.state, nonce:challenge.nonce, expires_at:challenge.expiresAt }, 200, request, { "Set-Cookie":challenge.cookie });
+    const flow = body.flow === "redirect" ? "redirect" : "popup";
+    // return_to queda en D1, nunca viaja a Google ni comparte URL con el token.
+    const challenge = await issueChallenge(env, flow === "redirect" ? body.return_to : "/", flow);
+    return authJson({ ok:true, state:challenge.state, nonce:challenge.nonce, expires_at:challenge.expiresAt, login_uri:flow === "redirect" ? AUTH_CALLBACK_URI : undefined }, 200, request, { "Set-Cookie":challenge.cookie });
   }
   if (url.pathname === "/auth/session" && request.method === "GET") {
     if (!authOrigin(request)) return authJson({ ok:false, error:"origin_not_allowed" }, 403, request);
@@ -174,6 +218,20 @@ export async function handleAuthRequest(request, env, deps) {
     const headers = new Headers({ "content-type":"application/json", "cache-control":"no-store" });
     headers.append("Set-Cookie", sessionCookie(token)); headers.append("Set-Cookie", clearChallengeCookie());
     return withCredentialCors(new Response(JSON.stringify({ ok:true, email, name:String(google.name || "").trim() }), { status:200, headers }), request);
+  }
+  if (url.pathname === "/auth/callback" && request.method === "POST") {
+    const form = await readGoogleCallbackForm(request);
+    if (!form || !googleCsrfValid(request, form)) {
+      return authJson({ ok:false, error:"csrf_invalid" }, 403, request, { "Set-Cookie":clearChallengeCookie("None") });
+    }
+    const challenge = await consumeChallenge(env, request, form.state, "redirect");
+    if (!challenge) return authJson({ ok:false, error:"challenge_invalid" }, 401, request, { "Set-Cookie":clearChallengeCookie("None") });
+    const google = await verifyGoogleCredential(form.credential, challenge.nonce, deps.clientId, deps.fetchFn || fetch);
+    if (!google) return authJson({ ok:false, error:"credential_invalid" }, 401, request, { "Set-Cookie":clearChallengeCookie("None") });
+    const email = String(google.email).toLowerCase();
+    if (!(await deps.whitelist()).has(email)) return authJson({ ok:false, error:"not_allowed" }, 403, request, { "Set-Cookie":clearChallengeCookie("None") });
+    const token = await deps.makeSession(env, email, google.name || "");
+    return redirectResponse(challenge.returnPath, token);
   }
   return authJson({ ok:false, error:"not_found" }, 404, request);
 }

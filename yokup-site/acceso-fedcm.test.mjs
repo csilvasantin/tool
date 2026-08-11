@@ -10,19 +10,22 @@ test("el perímetro no abre One Tap mientras muestra el botón de Google", () =>
   assert.match(source, /google\.accounts\.id\.renderButton\s*\(/);
 });
 
-test("Google Identity se inicializa con challenge y sin FedCM", () => {
+test("Google Identity se inicializa con redirect top-level, challenge y sin FedCM", () => {
   const initializes = source.match(/google\.accounts\.id\.initialize\s*\(/g) || [];
   assert.equal(initializes.length, 1);
   assert.match(source, /\/auth\/challenge/);
   assert.match(source, /nonce:\s*challenge\.nonce/);
-  assert.match(source, /ux_mode:\s*["']popup["']/);
+  assert.match(source, /ux_mode:\s*["']redirect["']/);
+  assert.match(source, /login_uri:\s*LOGIN_URI/);
+  assert.match(source, /state:\s*challenge\.state/);
   assert.match(source, /use_fedcm_for_button:\s*false/);
-  assert.doesNotMatch(source, /return_path:location/);
+  assert.match(source, /return_to:returnTo/);
+  assert.doesNotMatch(source, /callback:\s*onCred/);
   assert.match(headers, /Cross-Origin-Opener-Policy:\s*same-origin-allow-popups/);
 });
 
-test("callback envía state y no persiste ni recibe tokens de sesión", () => {
-  assert.match(source, /credential:\s*resp\.credential,\s*state:activeChallenge\.state/);
+test("el navegador no procesa credenciales ni las persiste", () => {
+  assert.doesNotMatch(source, /resp\.credential|activeChallenge/);
   assert.match(source, /credentials:\s*"include"/);
   assert.doesNotMatch(source, /localStorage\.setItem\(SKEY/);
   assert.doesNotMatch(source, /o\.d\.token/);

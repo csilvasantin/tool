@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AUTH_COOKIE_NAMES, handleAuthRequest, safeReturnPath, sessionCookie, verifyGoogleCredential, withCredentialCors } from "./src/auth-flow.js";
+import { AUTH_CALLBACK_URI, AUTH_COOKIE_NAMES, handleAuthRequest, safeReturnPath, sessionCookie, verifyGoogleCredential, withCredentialCors } from "./src/auth-flow.js";
 
 class FakeDB {
   constructor() { this.rows = new Map(); }
@@ -48,9 +48,57 @@ function deps(nonceRef = { value:"" }) {
 
 test("return_path sólo conserva rutas del sitio", () => {
   assert.equal(safeReturnPath("/misiones?q=1#x"), "/misiones?q=1#x");
+  assert.equal(safeReturnPath("https://www.yokup.com/highscore?q=1"), "/highscore?q=1");
+  assert.equal(safeReturnPath("https://yokup.com/tareas"), "/tareas");
   assert.equal(safeReturnPath("https://evil.example/x"), "/");
   assert.equal(safeReturnPath("//evil.example/x"), "/");
   assert.equal(safeReturnPath("/ok\nSet-Cookie:x"), "/");
+});
+
+test("redirect GIS valida POST form, doble CSRF, state single-use y vuelve por 303 first-party", async () => {
+  const env = { DB:new FakeDB() };
+  const issued = await handleAuthRequest(request("/auth/challenge", {
+    method:"POST", headers:{"content-type":"application/json"},
+    body:JSON.stringify({flow:"redirect",return_to:"https://www.yokup.com/misiones?scope=active#top"})
+  }), env, deps());
+  assert.equal(issued.status, 200);
+  const challenge = await issued.json();
+  assert.equal(challenge.login_uri, AUTH_CALLBACK_URI);
+  assert.match(issued.headers.get("set-cookie"), /SameSite=None/);
+  const ownCookie = issued.headers.get("set-cookie").split(";", 1)[0];
+  const csrf = "gis-csrf-value";
+  const callback = () => new Request(AUTH_CALLBACK_URI, {
+    method:"POST",
+    headers:{"content-type":"application/x-www-form-urlencoded","cookie":`${ownCookie}; g_csrf_token=${csrf}`},
+    body:new URLSearchParams({credential:"id-token-secret",g_csrf_token:csrf,state:challenge.state})
+  });
+  const seen = { value:challenge.nonce };
+  const response = await handleAuthRequest(callback(), env, deps(seen));
+  assert.equal(response.status, 303);
+  assert.equal(response.headers.get("location"), "https://www.yokup.com/misiones?scope=active#top");
+  assert.match(response.headers.get("set-cookie"), /__Host-yk_session=/);
+  assert.doesNotMatch(response.headers.get("location"), /credential|id-token|state=/i);
+  assert.equal((await handleAuthRequest(callback(), env, deps(seen))).status, 401, "state no admite replay");
+});
+
+test("callback redirect rechaza CSRF ausente o distinto antes de verificar Google", async () => {
+  const env = { DB:new FakeDB() };
+  const issued = await handleAuthRequest(request("/auth/challenge", {
+    method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({flow:"redirect",return_to:"//evil.example/x"})
+  }), env, deps());
+  const challenge = await issued.json();
+  const ownCookie = issued.headers.get("set-cookie").split(";", 1)[0];
+  let googleCalls = 0;
+  const badDeps = deps({value:challenge.nonce});
+  badDeps.fetchFn = async () => { googleCalls += 1; throw new Error("no debe llamarse"); };
+  const bad = new Request(AUTH_CALLBACK_URI, {
+    method:"POST", headers:{"content-type":"application/x-www-form-urlencoded",cookie:`${ownCookie}; g_csrf_token=cookie`},
+    body:new URLSearchParams({credential:"secret",g_csrf_token:"body",state:challenge.state})
+  });
+  const response = await handleAuthRequest(bad, env, badDeps);
+  assert.equal(response.status, 403);
+  assert.equal(googleCalls, 0);
+  assert.doesNotMatch(await response.text(), /secret/);
 });
 
 test("token Google viaja por POST y exige issuer, audience, expiry, verificación y nonce", async () => {

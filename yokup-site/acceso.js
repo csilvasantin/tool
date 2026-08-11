@@ -9,6 +9,7 @@
 (function () {
   var CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
   var WORKER = "https://api.yokup.com";
+  var LOGIN_URI = WORKER + "/auth/callback";
   // Red de seguridad: rtc.yokup.com es el FALLBACK que usa yk-frame.js/ykFetch
   // cuando api.yokup.com falla por red. (28-jul-2026: antes apuntaba al host
   // workers.dev, que devolvía 404 y encima está bloqueado por ISPs españoles.)
@@ -18,7 +19,6 @@
   var WORKER_FALLBACK = "https://rtc.yokup.com";
   var SKEY = "yk_session";
   var rawFetch = window.fetch.bind(window);
-  var activeChallenge = null;
 
   // ¿La URL apunta al worker Yokup (dominio propio o fallback)? Solo estos hosts
   // reciben el Bearer de sesión y el manejo de 401. Prefijo ANCLADO al ORIGEN: tras
@@ -69,21 +69,6 @@
 
   function reveal() { document.documentElement.classList.remove("yk-locked"); var g = document.getElementById("yk-gate"); if (g) g.remove(); }
 
-  function onCred(resp) {
-    var err = document.querySelector("#yk-gate .err"); if (err) err.textContent = "Verificando acceso…";
-    if (!resp || !resp.credential || !activeChallenge) { if (err) err.textContent = "Google no devolvió una credencial válida."; return; }
-    rawFetch(WORKER + "/auth/login", { method: "POST", credentials:"include", headers: { "content-type": "application/json" }, body: JSON.stringify({ credential: resp.credential, state:activeChallenge.state }) })
-      .then(function (r) { return r.json().then(function (d) { return { s: r.status, d: d }; }); })
-      .then(function (o) {
-        activeChallenge = null;
-        if (o.s === 200 && o.d.ok) {
-          try { localStorage.removeItem(SKEY); if (o.d.email) localStorage.setItem("yk_email", o.d.email); } catch (e) {}
-          reveal(); resolveReady();
-        } else if (err) { err.textContent = o.s === 403 ? "Tu cuenta no está autorizada para Yokup." : "La solicitud caducó. Vuelve a intentarlo."; loadGIS(); }
-      })
-      .catch(function () { if (err) err.textContent = "Error de conexión."; });
-  }
-
   function showGate() {
     var mk = function () {
       if (document.getElementById("yk-gate")) return;
@@ -105,23 +90,22 @@
 
   function loadGIS() {
     var go = function () {
-      rawFetch(WORKER + "/auth/challenge", { method:"POST", credentials:"include", headers:{"content-type":"application/json"}, body:"{}" })
+      var returnTo = location.pathname + location.search + location.hash;
+      rawFetch(WORKER + "/auth/challenge", { method:"POST", credentials:"include", headers:{"content-type":"application/json"}, body:JSON.stringify({flow:"redirect",return_to:returnTo}) })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("challenge")); })
       .then(function (challenge) {
       try {
-        activeChallenge = challenge;
         google.accounts.id.initialize({
           client_id: CLIENT_ID,
-          callback: onCred,
           nonce: challenge.nonce,
-          ux_mode: "popup",
+          ux_mode: "redirect",
+          login_uri: LOGIN_URI,
           auto_select: false,
           cancel_on_tap_outside: false,
-          // Codex rechaza FedCM antes del callback. Se fuerza el popup clásico;
-          // no se inventa un redirect URI que Google Console no haya autorizado.
+          // Navegación top-level: el IAB no permite popup ni FedCM.
           use_fedcm_for_button: false
         });
-        google.accounts.id.renderButton(document.getElementById("yk-gbtn"), { theme: "filled_black", size: "large", text: "signin_with", shape: "pill", width: 240 });
+        google.accounts.id.renderButton(document.getElementById("yk-gbtn"), { theme: "filled_black", size: "large", text: "signin_with", shape: "pill", width: 240, state:challenge.state });
       } catch (e) { var er = document.querySelector("#yk-gate .err"); if (er) er.textContent = "No se pudo cargar el login de Google."; }
       }).catch(function () { var er = document.querySelector("#yk-gate .err"); if (er) er.textContent = "No se pudo iniciar el acceso seguro. Usa la página completa."; });
     };
