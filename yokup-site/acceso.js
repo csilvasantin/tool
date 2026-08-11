@@ -1,10 +1,9 @@
 /* Yokup · acceso.js — DMZ del helpdesk. Solo entra gente logueada (Google) y autorizada.
  * - Oculta la página hasta validar (gate estética Yokup, cian-teal).
  * - Login con Google (Google Identity Services), mismo Client ID que la flota Admira.
- * - Canjea la credencial de Google por una SESIÓN Yokup (12h) en el worker (/auth/login),
- *   que valida la whitelist (worker admira-whitelist). La sesión firmada es la que abre la API.
- * - Parchea window.fetch: añade el Bearer a TODA llamada al worker (incluye el avatar /copilot);
- *   si el worker responde 401, caduca la sesión y re-pide login.
+ * - El worker valida Google + whitelist y fija una sesión HttpOnly; ningún token
+ *   queda en URL, JSON, logs ni almacenamiento accesible a JavaScript.
+ * - Parchea window.fetch para enviar esa cookie sólo a los dos orígenes Yokup.
  * Instalar lo más arriba del <head>:  <script src="/acceso.js"></script>
  */
 (function () {
@@ -19,6 +18,7 @@
   var WORKER_FALLBACK = "https://rtc.yokup.com";
   var SKEY = "yk_session";
   var rawFetch = window.fetch.bind(window);
+  var activeChallenge = null;
 
   // ¿La URL apunta al worker Yokup (dominio propio o fallback)? Solo estos hosts
   // reciben el Bearer de sesión y el manejo de 401. Prefijo ANCLADO al ORIGEN: tras
@@ -31,10 +31,6 @@
   }
   function signable(u) {
     return isWorkerOrigin(u, WORKER) || isWorkerOrigin(u, WORKER_FALLBACK);
-  }
-
-  function sessionValid() {
-    try { var t = localStorage.getItem(SKEY); if (!t) return false; var p = JSON.parse(atob(t.split(".")[0].replace(/-/g, "+").replace(/_/g, "/"))); return p.exp && Date.now() < p.exp - 30000; } catch (e) { return false; }
   }
 
   // Ocultar el contenido de inmediato.
@@ -56,19 +52,16 @@
     "#yk-gate .foot{margin-top:22px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#3a5f6b}";
   (document.head || document.documentElement).appendChild(st);
 
-  // Fontanería del token: el fetch al worker espera a que haya sesión y añade el Bearer.
+  // Fontanería de sesión: espera al login y sólo envía la cookie HttpOnly al API.
   var resolveReady; var sessionReady = new Promise(function (r) { resolveReady = r; });
-  if (sessionValid()) resolveReady();
   window.fetch = function (input, init) {
     var u = typeof input === "string" ? input : (input && input.url) || "";
     if (!signable(u)) return rawFetch(input, init);
     return sessionReady.then(function () {
       init = init || {};
-      var h = new Headers(init.headers || {});
-      var t = localStorage.getItem(SKEY); if (t) h.set("Authorization", "Bearer " + t);
-      init.headers = h;
+      init.credentials = "include";
       return rawFetch(u, init).then(function (res) {
-        if (res.status === 401) { try { localStorage.removeItem(SKEY); } catch (e) {} location.reload(); }
+        if (res.status === 401) location.reload();
         return res;
       });
     });
@@ -78,13 +71,15 @@
 
   function onCred(resp) {
     var err = document.querySelector("#yk-gate .err"); if (err) err.textContent = "Verificando acceso…";
-    rawFetch(WORKER + "/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ credential: resp.credential }) })
+    if (!resp || !resp.credential || !activeChallenge) { if (err) err.textContent = "Google no devolvió una credencial válida."; return; }
+    rawFetch(WORKER + "/auth/login", { method: "POST", credentials:"include", headers: { "content-type": "application/json" }, body: JSON.stringify({ credential: resp.credential, state:activeChallenge.state }) })
       .then(function (r) { return r.json().then(function (d) { return { s: r.status, d: d }; }); })
       .then(function (o) {
-        if (o.s === 200 && o.d.token) {
-          try { localStorage.setItem(SKEY, o.d.token); if (o.d.email) localStorage.setItem("yk_email", o.d.email); } catch (e) {}
+        activeChallenge = null;
+        if (o.s === 200 && o.d.ok) {
+          try { localStorage.removeItem(SKEY); if (o.d.email) localStorage.setItem("yk_email", o.d.email); } catch (e) {}
           reveal(); resolveReady();
-        } else if (err) { err.textContent = o.s === 403 ? "Tu cuenta no está autorizada para Yokup." : "No se pudo validar el acceso."; }
+        } else if (err) { err.textContent = o.s === 403 ? "Tu cuenta no está autorizada para Yokup." : "La solicitud caducó. Vuelve a intentarlo."; loadGIS(); }
       })
       .catch(function () { if (err) err.textContent = "Error de conexión."; });
   }
@@ -110,30 +105,25 @@
 
   function loadGIS() {
     var go = function () {
+      rawFetch(WORKER + "/auth/challenge", { method:"POST", credentials:"include", headers:{"content-type":"application/json"}, body:"{}" })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("challenge")); })
+      .then(function (challenge) {
       try {
-        // Chrome 151/FedCM sólo permite una solicitud interactiva de identidad a
-        // la vez. Lanzar One Tap con prompt() mientras el botón oficial ya está
-        // visible dejaba una navigator.credentials.get pendiente; al pulsar el
-        // botón, Google intentaba abrir la segunda y el navegador integrado de
-        // Codex mostraba un popup negro (NotAllowedError: only one request may be
-        // outstanding). El botón es la ÚNICA puerta: un clic, una petición.
-        //
-        // El sello global evita además repetir initialize() si por accidente se
-        // inserta acceso.js más de una vez en la misma página.
-        if (!window.__ykGoogleIdentityInitialized) {
-          google.accounts.id.initialize({
-            client_id: CLIENT_ID,
-            callback: onCred,
-            auto_select: false,
-            cancel_on_tap_outside: false,
-            // El botón FedCM lo media Chromium dentro de la página y evita el
-            // popup clásico de accounts.google.com que queda negro en Codex.
-            use_fedcm_for_button: true
-          });
-          window.__ykGoogleIdentityInitialized = true;
-        }
+        activeChallenge = challenge;
+        google.accounts.id.initialize({
+          client_id: CLIENT_ID,
+          callback: onCred,
+          nonce: challenge.nonce,
+          ux_mode: "popup",
+          auto_select: false,
+          cancel_on_tap_outside: false,
+          // Codex rechaza FedCM antes del callback. Se fuerza el popup clásico;
+          // no se inventa un redirect URI que Google Console no haya autorizado.
+          use_fedcm_for_button: false
+        });
         google.accounts.id.renderButton(document.getElementById("yk-gbtn"), { theme: "filled_black", size: "large", text: "signin_with", shape: "pill", width: 240 });
       } catch (e) { var er = document.querySelector("#yk-gate .err"); if (er) er.textContent = "No se pudo cargar el login de Google."; }
+      }).catch(function () { var er = document.querySelector("#yk-gate .err"); if (er) er.textContent = "No se pudo iniciar el acceso seguro. Usa la página completa."; });
     };
     if (window.google && google.accounts && google.accounts.id) return go();
     var s = document.createElement("script"); s.src = "https://accounts.google.com/gsi/client"; s.async = true; s.defer = true; s.onload = go;
@@ -141,7 +131,15 @@
     document.head.appendChild(s);
   }
 
-  if (sessionValid()) { reveal(); } else { showGate(); }
+  // Migra una sesión bearer antigua una sola vez y elimina el token del storage.
+  var legacy = "";
+  try { legacy = localStorage.getItem(SKEY) || ""; localStorage.removeItem(SKEY); } catch (e) {}
+  var probeInit = { credentials:"include", cache:"no-store", headers:{} };
+  if (legacy) probeInit.headers.Authorization = "Bearer " + legacy;
+  rawFetch(WORKER + "/auth/session", probeInit)
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) { if (d && d.ok) { if (d.email) try { localStorage.setItem("yk_email", d.email); } catch (e) {} reveal(); resolveReady(); } else showGate(); })
+    .catch(showGate);
 
   // Gancho de pruebas (mismo patrón que YkDecisions._test): expone SÓLO el
   // predicado firmable para el harness. No altera el comportamiento en runtime.

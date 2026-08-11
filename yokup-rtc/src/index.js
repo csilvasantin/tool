@@ -1,4 +1,5 @@
 import puppeteer from "@cloudflare/puppeteer";
+import { handleAuthRequest, sessionTokenFromRequest, withCredentialCors } from "./auth-flow.js";
 import { memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
 import { baseAgentIdentity, identityKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 import { buildReportsPageFilter, encodeReportsCursor, parseReportsPageOptions } from "./reports-pagination.js";
@@ -77,10 +78,16 @@ __name(hmac, "hmac");
 async function makeSession(env, email, name = "") {
   // `name` procede del token Google ya verificado. Las sesiones antiguas sólo
   // traen email y siguen siendo compatibles mediante un alias local sin dominio.
-  const p = b64uJson({ email, name:String(name || "").replace(/\s+/g, " ").trim().slice(0, 80), exp: Date.now() + 12 * 3600 * 1e3 });
+  const p = b64uJson({ email, name:String(name || "").replace(/\s+/g, " ").trim().slice(0, 80), sid:crypto.randomUUID(), iat:Date.now(), exp: Date.now() + 12 * 3600 * 1e3 });
   return p + "." + b64u(await hmac(env, p));
 }
 __name(makeSession, "makeSession");
+var authRevocationSchemaReady = null;
+async function ensureAuthRevocationSchema(env) {
+  if (!authRevocationSchemaReady) authRevocationSchemaReady = env.DB.prepare("CREATE TABLE IF NOT EXISTS auth_session_revocations (sid TEXT PRIMARY KEY, expires_at INTEGER NOT NULL)").run()
+    .catch((error) => { authRevocationSchemaReady = null; throw error; });
+  return authRevocationSchemaReady;
+}
 async function readSession(env, token) {
   if (!token || token.indexOf(".") < 0) return null;
   const [p, sig] = token.split(".");
@@ -88,12 +95,23 @@ async function readSession(env, token) {
   try {
     const body = JSON.parse(decodeURIComponent(escape(atob(p.replace(/-/g, "+").replace(/_/g, "/")))));
     if (!body.exp || Date.now() > body.exp) return null;
+    if (body.sid && env.DB) {
+      await ensureAuthRevocationSchema(env);
+      if (await env.DB.prepare("SELECT sid FROM auth_session_revocations WHERE sid=? AND expires_at>?").bind(body.sid, Date.now()).first()) return null;
+    }
     return body;
   } catch (e) {
     return null;
   }
 }
 __name(readSession, "readSession");
+async function revokeSession(env, token) {
+  const session = await readSession(env, token);
+  if (!session || !session.sid || !env.DB) return;
+  await ensureAuthRevocationSchema(env);
+  await env.DB.prepare("INSERT OR REPLACE INTO auth_session_revocations(sid,expires_at) VALUES(?,?)").bind(session.sid, session.exp).run();
+}
+__name(revokeSession, "revokeSession");
 async function makePtyTicket(env, email, target) {
   const payload = b64uJson({
     scope:"pty-view", email:String(email || "").toLowerCase().slice(0, 120),
@@ -122,24 +140,9 @@ async function openPtyRoom(env, request, target, role) {
 }
 __name(openPtyRoom, "openPtyRoom");
 async function requireAuth(env, req) {
-  const h = req.headers.get("authorization") || "";
-  return readSession(env, h.replace(/^Bearer\s+/i, ""));
+  return readSession(env, sessionTokenFromRequest(req));
 }
 __name(requireAuth, "requireAuth");
-async function verifyGoogle(cred) {
-  try {
-    const r = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(cred));
-    if (!r.ok) return null;
-    const d = await r.json();
-    if (d.aud !== AUTH_CLIENT_ID) return null;
-    if (d.email_verified !== "true" && d.email_verified !== true) return null;
-    if (!d.email) return null;
-    return d;
-  } catch (e) {
-    return null;
-  }
-}
-__name(verifyGoogle, "verifyGoogle");
 var AI_MODELS = [
   "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
   "@cf/meta/llama-4-scout-17b-16e-instruct",
@@ -6319,9 +6322,11 @@ async function menuCounters(env) {
   return out;
 }
 __name(menuCounters, "menuCounters");
-var index_default = {
+var worker_app = {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
+    const authResponse = await handleAuthRequest(req, env, { clientId:AUTH_CLIENT_ID, whitelist, makeSession, readSession, revokeSession });
+    if (authResponse) return authResponse;
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
     // ── AUTOCURACIÓN DE LA RUTINA PROGRAMADA, INDEPENDIENTE DEL CRON (FLT-1016 c) ─
     // DIAGNÓSTICO (23/24-jul-2026): el cron scheduled() de este worker NO se invoca
@@ -6432,15 +6437,6 @@ var index_default = {
       else if (cached) { const h = new Headers(CORS); h.set("content-type", (cached.customMetadata && cached.customMetadata.ct) || "image/png"); h.set("cache-control", "public, max-age=600"); return new Response(cached.body, { headers: h }); }
       const h = new Headers(CORS); h.set("content-type", real ? ct : "image/png"); h.set("cache-control", real ? "public, max-age=3600" : "no-store");
       return new Response(real ? buf : new ArrayBuffer(0), { headers: h, status: real ? 200 : 502 });
-    }
-    if (url.pathname === "/auth/login" && req.method === "POST") {
-      const b = await req.json().catch(() => ({}));
-      const g = await verifyGoogle(b.credential || "");
-      if (!g) return json({ ok: false, error: "token inv\xE1lido" }, 401);
-      const email = String(g.email).toLowerCase();
-      const wl = await whitelist();
-      if (!wl.has(email)) return json({ ok: false, error: "no autorizado" }, 403);
-      return json({ ok: true, token: await makeSession(env, email, g.name || ""), email, name:String(g.name || "").trim() });
     }
     // Misiones de FLOTA: lectura pública (la consume admira.live/status, que no
     // pasa el gate Google) y sync idempotente. Van ANTES del perímetro.
@@ -9657,6 +9653,14 @@ T\xC9CNICO: ${q}`, 160);
     try {
       if (await tryAcquireBeatLease(env, "__scheduled", 120000)) await runScheduledRoutine(env, event);
     } catch (e) {}
+  }
+};
+var index_default = {
+  async fetch(req, env, ctx) {
+    return withCredentialCors(await worker_app.fetch(req, env, ctx), req);
+  },
+  scheduled(event, env, ctx) {
+    return worker_app.scheduled(event, env, ctx);
   }
 };
 var Room = class {

@@ -1,7 +1,7 @@
 // Resiliencia del tablero de /misiones (fix 23-jul-2026, SubNeoMini).
 // Cubre las TRES piezas del fix:
 //   1) acceso.js: el wrapper de window.fetch reconoce el host de respaldo como
-//      FIRMABLE (mismo Bearer + 401) además de api.yokup.com, sin tocar terceros.
+//      FIRMABLE (misma cookie HttpOnly + 401) además de api.yokup.com, sin tocar terceros.
 //   2) misiones.html: el tablero hereda el fallback api.yokup.com→rtc.yokup.com.
 //   3) misiones.html: un fallo de red NO se disfraza de «Sin misiones ✓» —
 //      muestra un aviso honesto con reintento y no miente en los KPIs.
@@ -49,10 +49,16 @@ function mockLocalStorage(initial) {
 
 // Corre acceso.js en un vm con una sesión (token) dada. Devuelve el contexto:
 // window.fetch queda parcheado con el wrapper REAL, y rawFetch registra llamadas.
-function runAcceso({token} = {}) {
+function runAcceso({token, authenticated = Boolean(token)} = {}) {
   const calls = [];
   const rawFetch = async (input, init) => {
-    calls.push({url: String(typeof input === 'string' ? input : (input && input.url)), init});
+    const url = String(typeof input === 'string' ? input : (input && input.url));
+    calls.push({url, init});
+    if (url.endsWith('/auth/session')) {
+      return {ok: authenticated, status: authenticated ? 200 : 401,
+        json: async () => authenticated ? ({ok: true, email: 'qa@example.com'}) : ({ok: false}),
+        text: async () => ''};
+    }
     return {ok: true, status: 200, json: async () => ({}), text: async () => ''};
   };
   const windowObj = {fetch: rawFetch};
@@ -83,7 +89,7 @@ test('acceso.js · signable() reconoce ambos hosts del worker y rechaza terceros
   assert.equal(signable('https://api.yokup.com.evil.example/x'), false, 'prefijo anclado, no cuela un homoglifo');
 });
 
-test('acceso.js · CON sesión: ambos hosts del worker llevan el Bearer; el tercero no', async () => {
+test('acceso.js · CON sesión: ambos hosts envían cookie HttpOnly; el tercero no', async () => {
   const token = jwtWithExp(3_600_000);
   const {windowObj, calls} = runAcceso({token});
 
@@ -91,16 +97,24 @@ test('acceso.js · CON sesión: ambos hosts del worker llevan el Bearer; el terc
   await windowObj.fetch('https://rtc.yokup.com/tickets?scope=fleet');
   await windowObj.fetch('https://admira-telegram.csilvasantin.workers.dev/api/presence');
 
-  const auth = calls.map(c => c.init && c.init.headers && c.init.headers.get('Authorization'));
-  assert.equal(auth[0], 'Bearer ' + token, 'api.yokup.com recibe el Bearer');
-  assert.equal(auth[1], 'Bearer ' + token, 'rtc.yokup.com (fallback) recibe el MISMO Bearer');
-  // El tercero pasa por rawFetch intacto (sin init reconstruido con Authorization).
-  const third = calls[2].init && calls[2].init.headers;
+  const probe = calls.find(c => c.url.endsWith('/auth/session'));
+  assert.equal(probe.init.headers.Authorization, 'Bearer ' + token,
+    'el bearer antiguo sólo se usa una vez para migrar a cookie');
+  for (const url of ['https://api.yokup.com/tickets?scope=fleet', 'https://rtc.yokup.com/tickets?scope=fleet']) {
+    const call = calls.find(c => c.url === url);
+    assert.equal(call.init.credentials, 'include', `${url} envía la cookie de sesión`);
+    assert.ok(!call.init.headers || !call.init.headers.get || !call.init.headers.get('Authorization'),
+      `${url} no expone bearer`);
+  }
+  // El tercero pasa por rawFetch intacto (sin credenciales reconstruidas).
+  const thirdCall = calls.find(c => c.url.startsWith('https://admira-telegram.'));
+  const third = thirdCall.init && thirdCall.init.headers;
   assert.ok(!third || !third.get || !third.get('Authorization'), 'el tercero NO recibe Bearer');
+  assert.notEqual(thirdCall.init && thirdCall.init.credentials, 'include', 'el tercero NO recibe cookies forzadas');
 });
 
 test('acceso.js · SIN sesión: los hosts firmables esperan sesión; el tercero pasa igual que antes', async () => {
-  const {windowObj, calls} = runAcceso({}); // sin token → sessionReady pendiente
+  const {windowObj, calls} = runAcceso({authenticated: false}); // sin cookie → sessionReady pendiente
 
   // Host firmable sin sesión: el wrapper NO llama a rawFetch (espera login),
   // exactamente el comportamiento previo de api.yokup.com.
@@ -110,9 +124,10 @@ test('acceso.js · SIN sesión: los hosts firmables esperan sesión; el tercero 
   windowObj.fetch('https://admira-telegram.csilvasantin.workers.dev/api/presence');
 
   await new Promise(r => setTimeout(r, 10));
-  assert.equal(calls.length, 1, 'sólo el tercero llega a la red; los firmables esperan sesión');
-  assert.equal(calls[0].url, 'https://admira-telegram.csilvasantin.workers.dev/api/presence');
-  const h = calls[0].init && calls[0].init.headers;
+  const appCalls = calls.filter(c => !c.url.endsWith('/auth/session'));
+  assert.equal(appCalls.length, 1, 'sólo el tercero llega a la red; los firmables esperan sesión');
+  assert.equal(appCalls[0].url, 'https://admira-telegram.csilvasantin.workers.dev/api/presence');
+  const h = appCalls[0].init && appCalls[0].init.headers;
   assert.ok(!h || !h.get || !h.get('Authorization'), 'el tercero sigue sin Bearer');
 });
 

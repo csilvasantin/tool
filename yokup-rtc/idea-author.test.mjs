@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {resolveIdeaAuthor, sessionDisplayName} from './src/idea-author.js';
 
 const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
+const authSource = await readFile(new URL('./src/auth-flow.js', import.meta.url), 'utf8');
 
 test('navegador autenticado puede omitir author y usa el nombre Google firmado', () => {
   assert.deepEqual(resolveIdeaAuthor({
@@ -73,7 +74,7 @@ test('POST /ideas valida sesión/token y persiste trazabilidad atómica', () => 
 });
 
 test('/auth/login incorpora el nombre verificado a la sesión', () => {
-  assert.match(source, /makeSession\(env, email, g\.name \|\| ""\)/);
+  assert.match(authSource, /makeSession\(env, email, google\.name \|\| ""\)/);
   assert.match(source, /const p = b64uJson\(\{ email, name:/);
   assert.doesNotMatch(source, /author\s*\|\|\s*"Carlos"/);
 });
