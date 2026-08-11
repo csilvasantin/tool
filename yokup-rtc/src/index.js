@@ -4032,11 +4032,30 @@ var CEREMONY_RE = /recibir\s+(el\s+)?encargo|leer\s+(las\s+|el\s+)?instrucci|ver
 function stepTitle(step) {
   return String((step && (step.title || step.titulo || step.step || step.name || step.paso || step.descripcion || step.description)) || "");
 }
-function flattenSteps(steps) {
+function flattenSteps(steps, relleno) {
   const letters = ["a", "b", "c", "d", "e", "f", "g", "h"];
   const tasks = [];
   const clean = (steps || []).filter((s) => { const t = stepTitle(s); return t && !CEREMONY_RE.test(t); });
-  clean.slice(0, 3).forEach((step, si) => {   // REGLA DE LOS TERCIOS: 3 pasos a/b/c (963)
+  // LA REGLA DE LOS TERCIOS NECESITA SUELO, NO SOLO TECHO (MorfeoMacMini, 11-08-2026).
+  // Aquí había un slice(0,3) y nada más: cortaba lo que sobraba pero no completaba lo
+  // que faltaba. El prompt pide «EXACTAMENTE 3 pasos» cuatro veces, sólo que pedirle
+  // algo a una IA no es lo mismo que comprobar que lo ha hecho: si devuelve dos, se
+  // guardan dos. Pasó el 11-ago con FLT-1381, que nació con la `a` y la `b` y sin `c`
+  // —y la `c` es siempre «verificar y reportar»—, así que el alta anunciaba tres pasos,
+  // el tercero no existía en ninguna parte y sólo se supo al intentar cerrarlo y recibir
+  // un 404. Lo que no consta, nadie lo echa de menos: por eso se rellena en vez de
+  // avisar. Un paso de molde que el agente reescribe es mucho mejor que un hueco.
+  // El relleno va DESPUÉS del filtro de ceremonia, o volvería a quedarse corto.
+  // Se rellena POR POSICIÓN, no por orden de lista: el hueco que queda casi siempre es
+  // la `c`, y la `c` es siempre «verificar y reportar» — meterle ahí el «preparar» del
+  // molde daría un plan de tres pasos que empieza dos veces y no termina nunca.
+  const base = clean.slice(0, 3);
+  const molde = Array.isArray(relleno) ? relleno : [];
+  for (let i = base.length; i < 3 && i < molde.length; i++) {
+    const rt = stepTitle(molde[i]);
+    if (rt && !base.some((b) => stepTitle(b) === rt)) base.push(molde[i]);
+  }
+  base.forEach((step, si) => {   // REGLA DE LOS TERCIOS: 3 pasos a/b/c (963)
     const code = letters[si];
     const title = String((step && (step.title || step.titulo || step.step || step.name || step.paso || step.descripcion || step.description)) || "").slice(0, 60) || "Paso " + code.toUpperCase();
     tasks.push({ code, title });
@@ -4128,8 +4147,11 @@ Responde SOLO con un array JSON v\xE1lido, sin texto adicional, con esta forma e
   // 8 pasos × 3 subtareas no caben en 500 tokens: el JSON se cortaba y el
   // parser sólo rescataba los 3 primeros pasos (Carlos, 2026-07-21).
   const raw = await aiRun(env, prompt, 1800);
-  let tasks = flattenSteps(parsePlanJson(raw));
-  if (!tasks.length) tasks = flattenSteps(isFleet ? defaultFleetPlan() : defaultPlan());
+  // El plan de fábrica ya no es sólo el paracaídas de «la IA no devolvió nada»:
+  // también tapa los huecos cuando devuelve un plan corto. Ver flattenSteps.
+  const relleno = isFleet ? defaultFleetPlan() : defaultPlan();
+  let tasks = flattenSteps(parsePlanJson(raw), relleno);
+  if (!tasks.length) tasks = flattenSteps(relleno, relleno);
   return saveMissionPlan(env, mid, tasks);
 }
 __name(proposePlan, "proposePlan");
