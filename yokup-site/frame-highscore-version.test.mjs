@@ -11,7 +11,8 @@ const admiraLive = await readFile(new URL("./admira-live.html", import.meta.url)
 const misiones = await readFile(new URL("./misiones.html", import.meta.url), "utf8");
 
 test("Avanzado ofrece Highscore fuera del propio Highscore y no declara vacío falso", () => {
-  assert.match(frame, /railR\.appendChild\(buildAdvancedNav\(\)\)/);
+  assert.match(frame, /var advancedNav = buildAdvancedNav\(\)/);
+  assert.match(frame, /if \(advancedNav\.childNodes\.length\) railR\.appendChild\(advancedNav\)/);
   assert.match(frame, /highscore\.href = "\/highscore"/);
   assert.match(frame, /if \(!active\) \{[\s\S]*nav\.appendChild\(highscore\)/);
   assert.match(frame, /aria-label", "Herramientas avanzadas de Yokup"/);

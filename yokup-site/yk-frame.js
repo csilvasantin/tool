@@ -1490,10 +1490,11 @@
 
     var railR = el("aside", "yk-rail yk-rail-right");
     railR.appendChild(el("div", "yk-hd", railRightLabel));
-    // Navegación canónica de producto. Avanzado no puede quedar vacío en las
-    // vistas sin herramientas propias: Highscore sigue siendo accesible desde
-    // cualquier otra página de la zona app, sin duplicarse en su propia vista.
-    railR.appendChild(buildAdvancedNav());
+    // Navegación canónica de producto. Highscore sigue siendo accesible desde
+    // cualquier otra página sin duplicarse en su propia vista; si no hay ningún
+    // enlace no se monta un <nav> vacío ni queda su hueco ante lectores de pantalla.
+    var advancedNav = buildAdvancedNav();
+    if (advancedNav.childNodes.length) railR.appendChild(advancedNav);
     var slotR = el("div", "yk-slot"); railR.appendChild(slotR);
     slotR.appendChild(buildDesktopControl());
 
@@ -1650,20 +1651,15 @@
     var path = (location.pathname.replace(/\/+$/, "") || "/").toLowerCase();
     var active = path === "/highscore" || path === "/highscore.html";
     // La página Highscore ya se identifica en el título del marco y en su H1:
-    // repetirla dentro de Avanzado no es navegación. En el resto de vistas la
-    // entrada conserva exactamente su posición canónica, antes de Normativa.
+    // repetirla dentro de Avanzado no es navegación. Normativa dejó de ser una
+    // acción operativa del raíl: su espejo documental sigue existiendo, pero no
+    // ocupa espacio ni queda anunciado como control de la aplicación.
     if (!active) {
       var highscore = el("a", "yk-set-btn yk-adv-link",
         '<span aria-hidden="true">🏃</span> HIGHSCORE');
       highscore.href = "/highscore";
       nav.appendChild(highscore);
     }
-    var normActive = path === "/normativa" || path === "/normativa.html";
-    var normativa = el("a", "yk-set-btn yk-adv-link" + (normActive ? " on" : ""),
-      '<span aria-hidden="true">§</span> NORMATIVA');
-    normativa.href = "/normativa";
-    if (normActive) normativa.setAttribute("aria-current", "page");
-    nav.appendChild(normativa);
     return nav;
   }
 

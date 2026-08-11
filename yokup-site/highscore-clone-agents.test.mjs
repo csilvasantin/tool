@@ -67,6 +67,8 @@ test("Avanzado ofrece Clonar agentes sin alterar el slot del menú superior",()=
   assert.equal((highscore.match(/id="advancedMenu"/g)||[]).length,1);
   assert.match(highscore,/<button class="agent-scope-clone" id="agentScopeClone" type="button" aria-describedby="agentScopeCloneStatus">Clonar agentes<\/button>/);
   assert.match(highscore,/id="agentScopeCloneStatus" role="status" aria-live="polite" aria-atomic="true"/);
+  assert.match(highscore,/id="agentScopeBody" hidden/);
+  assert.match(highscore,/class="agent-scope-body"[^>]*hidden/);
   assert.match(highscore,/<script src="\/yk-frame\.js/);
 });
 

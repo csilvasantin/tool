@@ -38,14 +38,14 @@ test("cada asset público enlazado por el shell existe", async () => {
   }
 });
 
-test("Opciones recupera el alta canónica y Avanzado conserva Highscore+Normativa", () => {
+test("Opciones recupera el alta canónica y Avanzado conserva Highscore sin Normativa", () => {
   assert.match(frame, /NUEVO PROYECTO/);
   assert.match(frame, /function openNewProject\(\)/);
   assert.match(frame, /function projectResponsibles\(raw\)/);
   assert.match(frame, /function normalizeProjectWeb\(rawValue\)/);
   assert.match(frame, /https:\/\/api\.yokup\.com\/projects/);
-  assert.match(frame, /normativa\.href = "\/normativa"/);
-  assert.match(frame, /normativa\.setAttribute\("aria-current", "page"\)/);
+  assert.doesNotMatch(frame, /normativa\.href = "\/normativa"/);
+  assert.doesNotMatch(frame, /> NORMATIVA/);
   assert.match(css, /\.yk-project-modal/);
 });
 

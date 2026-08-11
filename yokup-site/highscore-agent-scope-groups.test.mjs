@@ -97,14 +97,14 @@ test("el nodo equipo marca o desmarca hijos, conserva parcial y vuelve a Todos",
 
 test("cambiar un agente individual sincroniza todas sus copias al rerender",()=>{
   assert.match(source,/querySelectorAll\("\[data-agent-scope-item\]"\)\.forEach/);
-  assert.match(source,/AGENT_SCOPE = hsSetAgentScopeItem\(AGENT_SCOPE, input\.value, input\.checked, keys\)/);
+  assert.match(source,/AGENT_SCOPE = hsSetAgentScopeItem\(AGENT_SCOPE, button\.value, button\.getAttribute\("aria-checked"\) !== "true", keys\)/);
   assert.match(source,/hsWriteAgentScope\(AGENT_SCOPE\); hsRenderAgentScope\(listaCompletaCache \|\| \[\]\); pintaVistaFiltrada\(\)/);
   assert.match(source,/group\.items\.map\(function \(item\) \{[\s\S]*?data-agent-scope-item value="' \+ esc\(item\.key\)/);
 });
 
 test("Todos, 0/N, persistencia, Clonar y reset conservan sus contratos",()=>{
   assert.match(source,/count\.textContent = AGENT_SCOPE === null \? "Todos" : selected \+ "\/" \+ items\.length/);
-  assert.match(source,/AGENT_SCOPE = allInput\.checked \? null : new Set\(\)/);
+  assert.match(source,/AGENT_SCOPE = allInput\.getAttribute\("aria-checked"\) === "true" \? new Set\(\) : null/);
   assert.match(source,/function hsReadAgentScope\(\)/);
   assert.match(source,/function hsWriteAgentScope\(scope\)/);
   assert.match(source,/id="agentScopeClone"/);
@@ -116,8 +116,9 @@ test("Todos, 0/N, persistencia, Clonar y reset conservan sus contratos",()=>{
 test("cada equipo es un grupo semántico, con padre parcial y layout móvil seguro",()=>{
   assert.match(source,/<fieldset class="agent-scope-group" data-agent-scope-group=/);
   assert.match(source,/<legend class="sr-only">Equipo físico /);
-  assert.match(source,/data-agent-scope-team[^>]*aria-label="Seleccionar agentes de /);
-  assert.match(source,/input\.indeterminate = teamSelected > 0 && teamSelected < childKeys\.length/);
+  assert.match(source,/data-agent-scope-team[^>]*aria-checked="/);
+  assert.match(source,/role="checkbox" data-agent-scope-team/);
+  assert.match(source,/groupSelected === group\.items\.length \? 'true' : groupSelected \? 'mixed' : 'false'/);
   assert.match(source,/\.agent-scope-group\{[^}]*min-width:0[^}]*border:0/);
   assert.match(source,/\.agent-scope-children\{[^}]*display:grid[^}]*padding-left:14px/);
   assert.match(source,/\.agent-scope-label\{[^}]*min-width:0[^}]*text-overflow:ellipsis/);
@@ -140,15 +141,16 @@ test("los equipos arrancan compactados y conservan su apertura solo durante la v
 // FLT-1320 (Carlos, 2026-08-08): el desplegable vivía sólo en el triangulito de la
 // esquina. Ahora abre TODA la fila del ordenador; la casilla se queda con lo suyo,
 // que es seleccionar, y por eso deja de envolver al nombre.
-test("toda la fila del ordenador abre el desplegable, y la casilla sólo selecciona",()=>{
-  assert.match(source,/<label class="agent-scope-team-select"><input type="checkbox" data-agent-scope-team[^>]*><\/label>/,
-    "la casilla ya no envuelve el nombre: al pulsar el nombre se abriría la selección, no el desplegable");
+test("toda la fila del ordenador abre el desplegable, y el switch sólo selecciona",()=>{
+  assert.match(source,/<button class="agent-scope-team-select agent-scope-switch" type="button" role="checkbox" data-agent-scope-team/,
+    "el switch de selección es independiente del botón que despliega el equipo");
   const boton=source.slice(source.indexOf('<button class="agent-scope-team-toggle"'),
     source.indexOf("</button>",source.indexOf('<button class="agent-scope-team-toggle"')));
   assert.match(boton,/agent-scope-label/,"el nombre del ordenador va DENTRO del botón que despliega");
   assert.match(boton,/agent-scope-team-count/,"y el recuento también, para que toda la fila sea diana");
-  assert.match(source,/\.agent-scope-row\.team\{grid-template-columns:auto minmax\(0,1fr\)/);
+  assert.match(source,/\.agent-scope-row\.team\{grid-template-columns:minmax\(0,1fr\) auto/);
   assert.match(source,/\.agent-scope-team-toggle\{[^}]*text-align:left/);
   assert.match(source,/\.agent-scope-team-toggle::after\{content:"▸"/);
   assert.match(source,/\.agent-scope-team-toggle\[aria-expanded="true"\]::after\{content:"▾"\}/);
+  assert.match(source,/button\.addEventListener\("click", function \(event\) \{\s*event\.stopPropagation\(\)/);
 });

@@ -64,6 +64,12 @@ test("Avanzado ofrece el censo de agentes con Todos y multiseleccion accesible",
   assert.match(source,/function hsRenderAgentScope\(/);
   assert.match(source,/listaCompletaCache\s*=\s*calcula\(\)/);
   assert.match(source,/hsRenderAgentScope\(listaCompletaCache(?:\s*\|\|\s*\[\])?\)/);
+  assert.match(source,/id="agentScopeToggle"[^>]*aria-expanded="false"[^>]*aria-controls="agentScopeBody"/);
+  assert.match(source,/id="agentScopeBody" hidden/);
+  assert.match(source,/class="agent-scope-primary agent-scope-switch" type="button" role="switch"/);
+  assert.match(source,/>Siguiendo<|No siguiendo/);
+  assert.match(source,/\.agent-scope-switch-track::after/);
+  assert.match(source,/toggle\.setAttribute\("aria-expanded", String\(open\)\); body\.hidden = !open/);
 });
 
 test("uno o varios agentes sobreviven al reabrir la sesion",()=>{

@@ -36,20 +36,18 @@ function advancedNav(pathname){
   return new Function("el","location",`${functionSource(frame,"buildAdvancedNav")}\nreturn buildAdvancedNav();`)(el,{pathname});
 }
 
-test("/highscore no repite HIGHSCORE en Avanzado y conserva Normativa",()=>{
+test("/highscore no repite HIGHSCORE ni deja Normativa en Avanzado",()=>{
   for(const path of ["/highscore","/highscore/","/highscore.html"]){
     const nav=advancedNav(path);
-    assert.deepEqual(nav.children.map(node=>[node.href,node.innerHTML]),[
-      ["/normativa",'<span aria-hidden="true">§</span> NORMATIVA'],
-    ]);
+    assert.deepEqual(nav.children,[]);
   }
 });
 
-test("las demás rutas conservan HIGHSCORE antes de NORMATIVA y sus opciones superiores",()=>{
+test("las demás rutas conservan HIGHSCORE como única acción avanzada",()=>{
   const nav=advancedNav("/dashboard");
-  assert.deepEqual(nav.children.map(node=>node.href),["/highscore","/normativa"]);
+  assert.deepEqual(nav.children.map(node=>node.href),["/highscore"]);
   assert.match(nav.children[0].innerHTML,/HIGHSCORE/);
-  assert.match(nav.children[1].innerHTML,/NORMATIVA/);
+  assert.doesNotMatch(frame,/> NORMATIVA/);
 
   // HIGHSCORE cierra la barra, justo a la derecha de NOTIFICACIONES (Carlos, 2026-08-08).
   const expected=["DASHBOARD","OBJETIVOS","DECISIONES","MISIONES","TAREAS","INCIDENCIAS","INFORMES","NOTIFICACIONES","HIGHSCORE"];
