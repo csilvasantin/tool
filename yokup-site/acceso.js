@@ -111,9 +111,28 @@
   function loadGIS() {
     var go = function () {
       try {
-        google.accounts.id.initialize({ client_id: CLIENT_ID, callback: onCred, auto_select: false, cancel_on_tap_outside: false });
+        // Chrome 151/FedCM sólo permite una solicitud interactiva de identidad a
+        // la vez. Lanzar One Tap con prompt() mientras el botón oficial ya está
+        // visible dejaba una navigator.credentials.get pendiente; al pulsar el
+        // botón, Google intentaba abrir la segunda y el navegador integrado de
+        // Codex mostraba un popup negro (NotAllowedError: only one request may be
+        // outstanding). El botón es la ÚNICA puerta: un clic, una petición.
+        //
+        // El sello global evita además repetir initialize() si por accidente se
+        // inserta acceso.js más de una vez en la misma página.
+        if (!window.__ykGoogleIdentityInitialized) {
+          google.accounts.id.initialize({
+            client_id: CLIENT_ID,
+            callback: onCred,
+            auto_select: false,
+            cancel_on_tap_outside: false,
+            // El botón FedCM lo media Chromium dentro de la página y evita el
+            // popup clásico de accounts.google.com que queda negro en Codex.
+            use_fedcm_for_button: true
+          });
+          window.__ykGoogleIdentityInitialized = true;
+        }
         google.accounts.id.renderButton(document.getElementById("yk-gbtn"), { theme: "filled_black", size: "large", text: "signin_with", shape: "pill", width: 240 });
-        google.accounts.id.prompt();
       } catch (e) { var er = document.querySelector("#yk-gate .err"); if (er) er.textContent = "No se pudo cargar el login de Google."; }
     };
     if (window.google && google.accounts && google.accounts.id) return go();
