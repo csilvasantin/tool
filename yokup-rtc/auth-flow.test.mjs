@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AUTH_CALLBACK_URI, AUTH_HANDOFF_URI, AUTH_COOKIE_NAMES, handleAuthRequest, handoffOriginAllowed, safeReturnPath, sessionCookie, verifyGoogleCredential, withCredentialCors } from "./src/auth-flow.js";
+import { AUTH_CALLBACK_URI, AUTH_HANDOFF_URI, AUTH_COOKIE_NAMES, handleAuthRequest, handoffHtml, handoffOriginAllowed, safeReturnPath, sessionCookie, verifyGoogleCredential, withCredentialCors } from "./src/auth-flow.js";
 
 class FakeDB {
   constructor() { this.rows = new Map(); }
@@ -108,6 +108,30 @@ test("handoff Yokup acepta www o null opaco, ignora cookie vieja y rechaza crede
   assert.equal(handoffOriginAllowed(req({origin:"null",authorization:"Bearer x"})), false);
   assert.equal(handoffOriginAllowed(req({origin:"https://evil.example"})), false);
   assert.equal(handoffOriginAllowed(req({})), false);
+});
+
+test("handoff HTML real autoenvía y conserva un botón accesible sin datos sensibles", async () => {
+  const code = "d".repeat(43);
+  const response = handoffHtml(code);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-type"), "text/html; charset=utf-8");
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+  const csp = response.headers.get("content-security-policy");
+  assert.match(csp, /script-src 'nonce-([A-Za-z0-9_-]+)'/);
+  assert.match(csp, /form-action https:\/\/api\.yokup\.com\/auth\/handoff/);
+  assert.match(csp, /frame-ancestors 'self' https:\/\/accounts\.google\.com/);
+  assert.match(csp, /base-uri 'none'/);
+  assert.doesNotMatch(csp, /unsafe-inline|\*/);
+  const html = await response.text();
+  const nonce = csp.match(/script-src 'nonce-([^']+)'/)[1];
+  assert.match(html, new RegExp(`<script nonce="${nonce}"`));
+  assert.match(html, /<form id="handoff" method="post" target="_top" action="https:\/\/api\.yokup\.com\/auth\/handoff">/);
+  assert.match(html, /requestSubmit\(\)/);
+  assert.match(html, /<button type="submit">Continuar<\/button>/);
+  assert.match(html, /aria-live="polite"/);
+  assert.match(html, new RegExp(`name="code" value="${code}"`));
+  assert.doesNotMatch(html, /credential|g_csrf_token|state=|email|__Host-|session/i);
 });
 
 test("callback redirect rechaza CSRF ausente o distinto antes de verificar Google", async () => {

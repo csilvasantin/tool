@@ -80,7 +80,10 @@ test("challenge y callback POST los atiende el gate real, no Assets", async () =
     if (String(url).endsWith("/auth/challenge")) {
       return new Response('{"state":"s","nonce":"n"}', {status:200, headers:{"Content-Type":"application/json", "Set-Cookie":"__Host-yk_challenge=s; Secure; HttpOnly; Path=/"}});
     }
-    return new Response("handoff", {status:200, headers:{"Content-Type":"text/html"}});
+    return new Response("handoff", {status:200, headers:{
+      "Content-Type":"text/html", "Content-Security-Policy":"default-src 'none'; script-src 'nonce-test'; form-action https://api.yokup.com/auth/handoff; frame-ancestors 'self' https://accounts.google.com; base-uri 'none'",
+      "Set-Cookie":"__Host-yk_challenge=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=None"
+    }});
   };
   const challenge = await handleRequest(new Request("https://www.yokup.com/auth/challenge", {
     method:"POST", headers:{"Content-Type":"application/json"}, body:'{"flow":"redirect","return_to":"/dashboard"}'
@@ -93,6 +96,8 @@ test("challenge y callback POST los atiende el gate real, no Assets", async () =
   }), testEnv, {}, fetchImpl);
   assert.equal(callback.status, 200);
   assert.equal(await callback.text(), "handoff");
+  assert.match(callback.headers.get("Content-Security-Policy"), /form-action https:\/\/api\.yokup\.com\/auth\/handoff/);
+  assert.match(callback.headers.get("Set-Cookie"), /__Host-yk_challenge=;/);
   assert.equal(assetCalls, 0);
   assert.equal(calls[0].init.headers.Origin, "https://www.yokup.com");
   assert.equal(calls[1].init.headers.Cookie, "g_csrf_token=csrf; __Host-yk_challenge=s");

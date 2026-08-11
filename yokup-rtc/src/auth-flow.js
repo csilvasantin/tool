@@ -201,14 +201,15 @@ async function consumeHandoff(env, code, now = Date.now()) {
   return { email:String(row.email), name:String(row.name || ""), returnPath:safeReturnPath(row.return_path) };
 }
 
-function handoffHtml(code) {
+export function handoffHtml(code) {
   const nonce = randomToken(18);
-  const body = '<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"></head><body>' +
-    '<form id="handoff" method="post" action="' + AUTH_HANDOFF_URI + '"><input type="hidden" name="code" value="' + code + '"></form>' +
-    '<script nonce="' + nonce + '">document.getElementById("handoff").submit()</script></body></html>';
+  const body = '<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>Continuar acceso seguro</title></head><body>' +
+    '<main><h1>Acceso seguro</h1><p id="handoff-status" aria-live="polite">Continuando…</p>' +
+    '<form id="handoff" method="post" target="_top" action="' + AUTH_HANDOFF_URI + '"><input type="hidden" name="code" value="' + code + '"><button type="submit">Continuar</button></form></main>' +
+    '<script nonce="' + nonce + '">(function(){var f=document.getElementById("handoff");var s=document.getElementById("handoff-status");try{if(typeof f.requestSubmit==="function")f.requestSubmit();else f.submit()}catch(e){s.textContent="Pulsa Continuar para completar el acceso."}})()</script></body></html>';
   const headers = new Headers({
     "content-type":"text/html; charset=utf-8", "cache-control":"no-store", "Referrer-Policy":"no-referrer",
-    "Content-Security-Policy":`default-src 'none'; script-src 'nonce-${nonce}'; form-action ${AUTH_HANDOFF_URI}; frame-ancestors 'none'; base-uri 'none'`
+    "Content-Security-Policy":`default-src 'none'; script-src 'nonce-${nonce}'; form-action ${AUTH_HANDOFF_URI}; frame-ancestors 'self' https://accounts.google.com; base-uri 'none'`
   });
   headers.append("Set-Cookie", clearChallengeCookie("None"));
   return new Response(body, { status:200, headers });
