@@ -688,11 +688,12 @@
     return NAV.map(function (r) { return { label: r[0], href: r[1] }; });
   }
 
-  var FLEET = { items:[], selected:"", busy:false, focusQueued:"", appList:null, appCount:null, appBody:null,
+  var FLEET = { items:[], selected:"", selectedApp:"", busy:false, dispatchBusy:false, focusQueued:"", appList:null, appCount:null, appBody:null,
     appStatus:null, appBulk:null, appBulkStatus:null, appNotice:"", appNoticeError:false, appsExpanded:false, appOpen:new Set(), cliOpen:new Set(), cliList:null, cliCount:null, cliTitle:null,
-    cliMeta:null, cliMount:null, cliPtyStatus:null, cliStatus:null, cliBulk:null, cliPower:null, cliRead:null, cliFocus:null,
-    cliInput:null, cliSend:null,
-    cliExpanded:"", structureKey:"", bulk:{runtime:"",action:"",token:0}, appBulkState:{runtime:"",action:"",token:0}, pty:{term:null,fit:null,socket:null,key:"",loaded:null,resize:null,retry:null,manual:false} };
+    cliMeta:null, cliMount:null, cliPtyStatus:null, cliStatus:null, cliBulk:null, cliBulkStatus:null, expertAppStatus:null, cliPower:null, cliRead:null, cliFocus:null,
+    cliInput:null, cliSend:null, expertAppList:null, expertAppCount:null, expertAppOpen:new Set(), appDispatchKind:null,
+    appDispatchInput:null, appDispatchSend:null, appDispatchStatus:null,
+    cliExpanded:"", structureKey:"", appActions:{}, bulk:{runtime:"",action:"",token:0}, appBulkState:{runtime:"",action:"",token:0}, pty:{term:null,fit:null,socket:null,key:"",loaded:null,resize:null,retry:null,manual:false} };
 
   function fleetText(tag, cls, value) { var node=el(tag,cls); node.textContent=String(value == null ? "" : value); return node; }
 
@@ -788,7 +789,65 @@
       .then(function(response){return response.json().catch(function(){return {};}).then(function(body){if(!response.ok)throw new Error(body.error||("control "+response.status));return body;});})
   }
 
+  function pollFleetAgentControl(id, deadline) {
+    return ykFetch("/fleet/agent/control?id="+encodeURIComponent(id),{cache:"no-store"}).then(function(response){
+      return response.json().catch(function(){return {};}).then(function(body){if(!response.ok)throw new Error(body.error||("estado "+response.status));return body;});
+    }).then(function(body){
+      if(["done","stopped","already_running","already_stopped"].includes(body.status))return body;
+      if(body.status === "failed" || body.status === "rejected")throw new Error(body.error||"La máquina rechazó la orden");
+      if(Date.now()>=deadline)throw new Error("La máquina sigue ejecutando la orden; no se confirmó el resultado.");
+      return new Promise(function(resolve){setTimeout(resolve,750);}).then(function(){return pollFleetAgentControl(id,deadline);});
+    });
+  }
+
+  function appActionState(item) { return FLEET.appActions[fleetKey(item)] || null; }
+
+  function clearAppAction(key, token) {
+    var state=FLEET.appActions[key];
+    if(!state||state.token!==token)return;
+    delete FLEET.appActions[key];renderApps();renderExpertApps();
+  }
+
+  function verifyFleetAppControl(key, token) {
+    var state=FLEET.appActions[key];if(!state||state.token!==token)return;
+    loadFleet().then(function(){
+      state=FLEET.appActions[key];if(!state||state.token!==token)return;
+      var current=FLEET.items.find(function(candidate){return fleetKey(candidate)===key;});
+      var converged=!!current&&current.active===(state.action==="start");
+      if(converged){
+        state.phase="success";renderApps();renderExpertApps();
+        fleetMessage(desktopAppName(state.runtime)+(state.action==="start"?" abierta a pantalla completa y con foco.":" cerrada y verificada."),false);
+        setTimeout(function(){clearAppAction(key,token);},1800);return;
+      }
+      if(Date.now()>=state.deadline){
+        state.phase="error";state.detail="La orden no convergió en el proceso real";renderApps();renderExpertApps();
+        fleetMessage(desktopAppName(state.runtime)+": no se confirmó que quedara "+(state.action==="start"?"abierta":"cerrada")+".",true);
+        setTimeout(function(){clearAppAction(key,token);},8000);return;
+      }
+      setTimeout(function(){verifyFleetAppControl(key,token);},900);
+    });
+  }
+
+  function fleetAppControl(item, action) {
+    var key=fleetKey(item);if(FLEET.appActions[key])return;
+    if(action === "stop" && !window.confirm("Cerrar " + desktopAppName(item.runtime) + " de " + item.persona + " en " + item.machine + " (PID " + item.pid + ")?"))return;
+    var token=Date.now();FLEET.appActions[key]={action:action,token:token,deadline:token+30000,phase:"pending",runtime:item.runtime};
+    renderApps();renderExpertApps();
+    fleetMessage((action === "start" ? "Abriendo " : "Cerrando ") + desktopAppName(item.runtime) + " en " + item.machine + " · verificando el proceso real…",false);
+    fleetControlRequest(item,action).then(function(result){
+      if(result.status === "already_running" || result.status === "already_stopped")return result;
+      return pollFleetAgentControl(result.command_id,token+30000);
+    }).then(function(){
+      setTimeout(function(){verifyFleetAppControl(key,token);},650);
+    }).catch(function(error){
+      var state=FLEET.appActions[key];if(!state||state.token!==token)return;
+      state.phase="error";state.detail=error.message||"No se pudo enviar la orden";renderApps();renderExpertApps();fleetMessage(state.detail,true);
+      setTimeout(function(){clearAppAction(key,token);},8000);
+    });
+  }
+
   function fleetControl(item, action) {
+    if(item.host === "app"){fleetAppControl(item,action);return;}
     if(FLEET.busy)return;
     if(action === "stop" && !window.confirm("Detener " + item.persona + " · " + item.runtime + " en " + item.machine + " (PID " + item.pid + ")?"))return;
     FLEET.busy=true; fleetMessage((action === "start" ? "Arrancando " : "Deteniendo ") + item.persona + " en " + item.machine + "…",false);
@@ -919,13 +978,17 @@
   }
 
   function fleetMessage(message,error) {
-    [FLEET.appStatus,FLEET.cliStatus].forEach(function(status){
+    [FLEET.appStatus,FLEET.cliStatus,FLEET.cliBulkStatus,FLEET.expertAppStatus].forEach(function(status){
       if(!status)return;status.textContent=String(message||"");status.classList.toggle("error",!!error);
     });
   }
 
   function selectedCli() {
     return FLEET.items.find(function(item){return item.host === "cli" && fleetKey(item) === FLEET.selected;}) || null;
+  }
+
+  function selectedDesktopApp() {
+    return FLEET.items.find(function(item){return item.host === "app" && fleetKey(item) === FLEET.selectedApp;}) || null;
   }
 
   function cliCountLabel(items) {
@@ -940,7 +1003,37 @@
     if(FLEET.cliFocus)FLEET.cliFocus.disabled=!active||FLEET.busy;
     if(FLEET.cliInput)FLEET.cliInput.disabled=!active;
     if(FLEET.cliSend)FLEET.cliSend.disabled=!active||FLEET.busy;
+    refreshDesktopDispatch();
     renderBulkControls();renderAppBulkControls();
+  }
+
+  function desktopDispatchLabel(kind) {
+    return kind === "task" ? "Tarea" : kind === "objective" ? "Objetivo" : "Misión";
+  }
+
+  function refreshDesktopDispatch() {
+    var item=selectedDesktopApp(),ready=!!(item&&item.active),hasText=!!(FLEET.appDispatchInput&&FLEET.appDispatchInput.value.trim());
+    if(FLEET.appDispatchInput)FLEET.appDispatchInput.disabled=!ready||FLEET.dispatchBusy;
+    if(FLEET.appDispatchKind)FLEET.appDispatchKind.disabled=!ready||FLEET.dispatchBusy;
+    if(FLEET.appDispatchSend)FLEET.appDispatchSend.disabled=!ready||!hasText||FLEET.dispatchBusy;
+  }
+
+  function desktopDispatch() {
+    var item=selectedDesktopApp(),text=FLEET.appDispatchInput&&FLEET.appDispatchInput.value.trim();
+    if(!item||!text||FLEET.dispatchBusy)return;
+    var kind=FLEET.appDispatchKind.value,label=desktopDispatchLabel(kind),appName=desktopAppName(item.runtime);
+    FLEET.dispatchBusy=true;refreshDesktopDispatch();
+    FLEET.appDispatchStatus.textContent="// enviando "+label.toLowerCase()+" a "+item.persona+" · "+appName+"…";
+    FLEET.appDispatchStatus.classList.remove("error");
+    ykFetch("/fleet/nudge",{method:"POST",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify({
+      machine:item.machine,persona:item.persona,runtime:item.runtime,host:"app",priority:true,
+      text:"["+label.toUpperCase()+" · DESKTOPAPP]\n"+text
+    })}).then(function(response){return response.json().catch(function(){return {};}).then(function(body){if(!response.ok||body.ok===false)throw new Error(body.error||("dispatch "+response.status));return body;});})
+      .then(function(){
+        if(FLEET.appDispatchInput.value===text)FLEET.appDispatchInput.value="";
+        FLEET.appDispatchStatus.textContent="// "+label.toLowerCase()+" encolada para "+item.persona+" · "+appName+" en "+item.machine;
+      }).catch(function(error){FLEET.appDispatchStatus.textContent="// error al enviar: "+(error.message||error);FLEET.appDispatchStatus.classList.add("error");})
+      .finally(function(){FLEET.dispatchBusy=false;refreshDesktopDispatch();});
   }
 
   function renderAppBulkControls() {
@@ -1117,19 +1210,54 @@
       group.appendChild(toggle);
       items.forEach(function(item){
         var row=el("div","yk-app-row");var copy=el("span","yk-app-copy");
-        var appName=desktopAppName(item.runtime);
+        var appName=desktopAppName(item.runtime),progress=appActionState(item);
         copy.appendChild(fleetText("b",null,appName));
         copy.appendChild(fleetText("small",item.active?"live":"",item.persona+" · "+(item.active?("PID "+item.pid):"ranura disponible")));row.appendChild(copy);
-        var action=fleetButton("","yk-app-switch",function(){fleetControl(item,item.active?"stop":"start");});
+        var action=fleetButton("","yk-app-switch"+(progress?(" is-"+progress.phase+" is-"+progress.action):""),function(){fleetControl(item,item.active?"stop":"start");});
         action.setAttribute("role","switch");action.setAttribute("aria-checked",String(item.active));
-        action.setAttribute("aria-label",appName+" en "+machine+": "+(item.active?"abierta; cerrar":"cerrada; abrir"));
+        action.setAttribute("aria-busy",String(!!progress&&progress.phase==="pending"));
+        action.setAttribute("aria-label",appName+" en "+machine+": "+(progress?(progress.action==="start"?"abriendo":"cerrando"):(item.active?"abierta; cerrar":"cerrada; abrir")));
+        if(progress&&progress.detail)action.title=progress.detail;
         action.appendChild(fleetText("span","yk-app-switch-name",appName));
-        action.appendChild(fleetText("span","yk-app-switch-state",item.active?"Abierta":"Cerrada"));
+        action.appendChild(fleetText("span","yk-app-switch-state",progress?(progress.phase==="pending"?(progress.action==="start"?"Abriendo…":"Cerrando…"):(progress.phase==="success"?"Verificada":"Error")):(item.active?"Abierta":"Cerrada")));
         action.appendChild(el("span","yk-app-switch-track"));
-        action.disabled=FLEET.busy||(!item.active&&!item.watcher);row.appendChild(action);rows.appendChild(row);
+        action.disabled=!!progress||FLEET.busy||(!item.active&&!item.watcher);row.appendChild(action);rows.appendChild(row);
       });
       group.appendChild(rows);FLEET.appList.appendChild(group);
     });
+  }
+
+  function renderExpertApps() {
+    if(!FLEET.expertAppList)return;FLEET.expertAppList.textContent="";
+    var apps=FLEET.items.filter(function(item){return item.host === "app";});
+    FLEET.expertAppCount.textContent=apps.filter(function(item){return item.active;}).length+"/"+apps.length+" vivas";
+    if(!apps.length){FLEET.expertAppList.appendChild(el("p","yk-fleet-empty","Sin Desktop Apps censadas."));refreshDesktopDispatch();return;}
+    if(!apps.some(function(item){return fleetKey(item)===FLEET.selectedApp;}))FLEET.selectedApp=fleetKey(apps.find(function(item){return item.active;})||apps[0]);
+    var groups={};apps.forEach(function(item){(groups[item.machine]||(groups[item.machine]=[])).push(item);});
+    Object.keys(groups).sort(function(a,b){return a.localeCompare(b,"es");}).forEach(function(machine,index){
+      var items=groups[machine].sort(function(a,b){return Number(b.active)-Number(a.active)||a.persona.localeCompare(b.persona,"es")||a.runtime.localeCompare(b.runtime,"es");});
+      var active=items.filter(function(item){return item.active;}).length,open=FLEET.expertAppOpen.has(machine),rowsId="ykExpertAppMachine"+index;
+      var group=el("fieldset","yk-expert-app-group");group.appendChild(fleetText("legend","yk-sr-only","Desktop Apps de "+machine));
+      var toggle=el("button","yk-expert-app-machine");toggle.type="button";toggle.setAttribute("aria-expanded",String(open));toggle.setAttribute("aria-controls",rowsId);
+      toggle.appendChild(el("span","yk-app-chevron"));toggle.appendChild(fleetText("span","yk-expert-app-machine-name",machine));
+      toggle.appendChild(fleetText("span","yk-expert-app-tally"+(active?" live":""),active+"/"+items.length));group.appendChild(toggle);
+      var rows=el("div","yk-expert-app-rows");rows.id=rowsId;rows.hidden=!open;
+      toggle.addEventListener("click",function(){if(FLEET.expertAppOpen.has(machine))FLEET.expertAppOpen.delete(machine);else FLEET.expertAppOpen.add(machine);renderExpertApps();});
+      items.forEach(function(item){
+        var key=fleetKey(item),progress=appActionState(item),row=el("div","yk-expert-app-row"+(key===FLEET.selectedApp?" selected":""));
+        var select=fleetButton("","yk-expert-app-select",function(){FLEET.selectedApp=key;renderExpertApps();});
+        select.setAttribute("aria-pressed",String(key===FLEET.selectedApp));
+        select.appendChild(fleetText("b",null,item.persona+" · "+desktopAppName(item.runtime)));
+        select.appendChild(fleetText("small",item.active?"live":"",item.active?("PID "+item.pid):"apagada · enciéndela para enviar"));row.appendChild(select);
+        var power=fleetButton("","yk-expert-app-power"+(progress?(" is-"+progress.phase+" is-"+progress.action):""),function(){fleetControl(item,item.active?"stop":"start");});setFleetIcon(power,item.active?"power":"play");
+        power.setAttribute("role","switch");power.setAttribute("aria-checked",String(item.active));power.setAttribute("aria-label",(item.active?"Cerrar ":"Abrir ")+desktopAppName(item.runtime)+" de "+item.persona+" en "+machine);
+        power.setAttribute("aria-busy",String(!!progress&&progress.phase==="pending"));power.disabled=!!progress||FLEET.busy||(!item.active&&!item.watcher);row.appendChild(power);rows.appendChild(row);
+      });
+      group.appendChild(rows);FLEET.expertAppList.appendChild(group);
+    });
+    var selected=selectedDesktopApp();
+    if(FLEET.appDispatchInput)FLEET.appDispatchInput.placeholder=selected?(selected.active?("Encargo para "+selected.persona+" · "+desktopAppName(selected.runtime)+" en "+selected.machine):("Enciende "+desktopAppName(selected.runtime)+" para enviarle trabajo")):"Selecciona una Desktop App";
+    refreshDesktopDispatch();
   }
 
   function renderCli() {
@@ -1179,7 +1307,7 @@
     paintSelectedCli();
   }
 
-  function renderFleet(){renderApps();renderCli();renderBulkControls();renderAppBulkControls();}
+  function renderFleet(){renderApps();renderExpertApps();renderCli();renderBulkControls();renderAppBulkControls();}
   function loadFleet() {
     return fetch(TELEGRAM+"/api/presence",{cache:"no-store"}).then(function(response){if(!response.ok)throw new Error("presence "+response.status);return response.json();})
       .then(function(payload){
@@ -1187,6 +1315,7 @@
         if(structure!==FLEET.structureKey){FLEET.structureKey=structure;renderFleet();}
         else{
           if(FLEET.appCount){var apps=items.filter(function(item){return item.host==="app";});FLEET.appCount.textContent=apps.filter(function(item){return item.active;}).length+"/"+apps.length+" vivas";}
+          if(FLEET.expertAppCount){var expertApps=items.filter(function(item){return item.host==="app";});FLEET.expertAppCount.textContent=expertApps.filter(function(item){return item.active;}).length+"/"+expertApps.length+" vivas";}
           if(FLEET.cliCount){var clis=items.filter(function(item){return item.host==="cli";});FLEET.cliCount.textContent=cliCountLabel(clis);}
           paintSelectedCli();renderBulkControls();renderAppBulkControls();
         }
@@ -1207,12 +1336,36 @@
     return section;
   }
 
+  function buildExpertFold(title, count) {
+    var section=el("section","yk-expert-fold"),head=el("button","yk-expert-fold-head");head.type="button";head.setAttribute("aria-expanded","false");
+    head.appendChild(el("span","yk-expert-fold-chevron"));head.appendChild(fleetText("b",null,title));
+    if(count)head.appendChild(count);section.appendChild(head);
+    var body=el("div","yk-expert-fold-body");body.hidden=true;section.appendChild(body);
+    head.addEventListener("click",function(){var expanded=head.getAttribute("aria-expanded")==="true";head.setAttribute("aria-expanded",String(!expanded));body.hidden=expanded;});
+    return {section:section,head:head,body:body};
+  }
+
   function buildCliConsole() {
-    var section=el("section","yk-cli-console");var side=el("div","yk-cli-side");var head=el("div","yk-fleet-head");
-    head.appendChild(fleetText("b",null,"Control de CLIs"));FLEET.cliCount=fleetText("span",null,"…");head.appendChild(FLEET.cliCount);side.appendChild(head);
-    FLEET.cliList=el("div","yk-cli-list");side.appendChild(FLEET.cliList);
-    FLEET.cliBulk=el("section","yk-cli-bulk");FLEET.cliBulk.setAttribute("aria-label","Control global por agente");side.appendChild(FLEET.cliBulk);
-    FLEET.cliStatus=el("p","yk-cli-status");FLEET.cliStatus.setAttribute("role","status");side.appendChild(FLEET.cliStatus);section.appendChild(side);
+    var section=el("section","yk-cli-console"),side=el("div","yk-cli-side");
+    FLEET.cliCount=fleetText("span","yk-expert-fold-count","…");var cliFold=buildExpertFold("Control de CLIs",FLEET.cliCount);
+    FLEET.cliList=el("div","yk-cli-list");cliFold.body.appendChild(FLEET.cliList);
+    FLEET.cliStatus=el("p","yk-cli-status");FLEET.cliStatus.setAttribute("role","status");cliFold.body.appendChild(FLEET.cliStatus);side.appendChild(cliFold.section);
+    var bulkFold=buildExpertFold("Control global por agente");
+    FLEET.cliBulk=el("section","yk-cli-bulk");FLEET.cliBulk.setAttribute("aria-label","Control global por agente");bulkFold.body.appendChild(FLEET.cliBulk);
+    FLEET.cliBulkStatus=el("p","yk-cli-status");FLEET.cliBulkStatus.setAttribute("role","status");bulkFold.body.appendChild(FLEET.cliBulkStatus);side.appendChild(bulkFold.section);
+    FLEET.expertAppCount=fleetText("span","yk-expert-fold-count","…");var appFold=buildExpertFold("Control de Desktop Apps",FLEET.expertAppCount);
+    appFold.body.appendChild(fleetText("p","yk-fleet-help","Selecciona una app exacta. Si está apagada, enciéndela con su control antes de enviar trabajo."));
+    FLEET.expertAppList=el("div","yk-expert-app-list");appFold.body.appendChild(FLEET.expertAppList);
+    FLEET.expertAppStatus=el("p","yk-cli-status");FLEET.expertAppStatus.setAttribute("role","status");appFold.body.appendChild(FLEET.expertAppStatus);
+    var appForm=el("form","yk-app-dispatch-form");
+    FLEET.appDispatchKind=el("select","yk-app-dispatch-kind");FLEET.appDispatchKind.setAttribute("aria-label","Tipo de encargo");
+    [["mission","Misión"],["task","Tarea"],["objective","Objetivo"]].forEach(function(config){var option=el("option");option.value=config[0];option.textContent=config[1];FLEET.appDispatchKind.appendChild(option);});appForm.appendChild(FLEET.appDispatchKind);
+    FLEET.appDispatchInput=el("textarea","yk-app-dispatch-input");FLEET.appDispatchInput.rows=2;FLEET.appDispatchInput.maxLength=1500;FLEET.appDispatchInput.disabled=true;FLEET.appDispatchInput.setAttribute("aria-label","Encargo para la Desktop App seleccionada");appForm.appendChild(FLEET.appDispatchInput);
+    FLEET.appDispatchSend=fleetText("button","yk-app-dispatch-send","Enviar ⌘↵");FLEET.appDispatchSend.type="submit";FLEET.appDispatchSend.disabled=true;appForm.appendChild(FLEET.appDispatchSend);
+    appForm.addEventListener("submit",function(event){event.preventDefault();desktopDispatch();});
+    FLEET.appDispatchInput.addEventListener("input",refreshDesktopDispatch);
+    FLEET.appDispatchInput.addEventListener("keydown",function(event){var enter=event.key==="Enter"||event.code==="Enter"||event.code==="NumpadEnter";if(enter&&(event.metaKey||event.ctrlKey)&&!event.isComposing){event.preventDefault();desktopDispatch();}});
+    appFold.body.appendChild(appForm);FLEET.appDispatchStatus=el("p","yk-app-dispatch-status");FLEET.appDispatchStatus.setAttribute("role","status");FLEET.appDispatchStatus.setAttribute("aria-live","polite");appFold.body.appendChild(FLEET.appDispatchStatus);side.appendChild(appFold.section);section.appendChild(side);
     var terminal=el("div","yk-cli-terminal");var terminalHead=el("div","yk-cli-terminal-head");
     var identity=el("span");FLEET.cliTitle=fleetText("b",null,"Selecciona un CLI");FLEET.cliMeta=fleetText("small",null,"Sesión remota segura");identity.appendChild(FLEET.cliTitle);identity.appendChild(FLEET.cliMeta);terminalHead.appendChild(identity);
     terminal.appendChild(terminalHead);

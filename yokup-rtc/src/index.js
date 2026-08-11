@@ -3,7 +3,7 @@ import { memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, sele
 import { baseAgentIdentity, identityKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 import { buildReportsPageFilter, encodeReportsCursor, parseReportsPageOptions } from "./reports-pagination.js";
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
-import { AgentStopError, dispatchAgentStart, dispatchAgentStop, normalizeAgentStartTarget, normalizeAgentStopTarget } from "./fleet-agent-stop.js";
+import { AgentStopError, dispatchAgentStart, dispatchAgentStop, normalizeAgentStartTarget, normalizeAgentStopTarget, readAgentControlResult } from "./fleet-agent-stop.js";
 import { dispatchCliTerminal, normalizeCliTerminalRequest, readCliTerminalResult, verifyCliTerminalTarget } from "./fleet-cli-terminal.js";
 import { PtyRoom } from "./pty-room.js";
 import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, madridDayStart, sortDisplayRefCandidates } from "./display-ref.js";
@@ -7343,9 +7343,29 @@ var index_default = {
       }
     }
     if (url.pathname === "/fleet/agent/control") {
-      if (req.method !== "POST") return json({ ok:false, error:"method" }, 405);
       const sess = await requireAuth(env, req);
       if (!sess) return json({ error:"unauthorized" }, 401);
+      await ensureSchema(env);
+      if (req.method === "GET") {
+        const commandId = String(url.searchParams.get("id") || "").trim();
+        const audit = await env.DB.prepare(
+          "SELECT id,requested_by FROM fleet_agent_commands WHERE upstream_command_id=? AND action IN ('start','stop') ORDER BY created_at DESC LIMIT 1"
+        ).bind(commandId).first();
+        if (!audit || String(audit.requested_by || "").toLowerCase() !== String(sess.email || "").toLowerCase()) {
+          return json({ ok:false, error:"agent-control-command-not-found" }, 404);
+        }
+        try {
+          const result = await readAgentControlResult(env, commandId);
+          await env.DB.prepare(
+            "UPDATE fleet_agent_commands SET status=?,detail=?,updated_at=? WHERE id=?"
+          ).bind(result.status, result.error || "", Date.now(), audit.id).run();
+          return json(result);
+        } catch (error) {
+          const known = error instanceof AgentStopError;
+          return json({ ok:false, error:known ? error.code : "agent-control-status-failed" }, known ? error.status : 500);
+        }
+      }
+      if (req.method !== "POST") return json({ ok:false, error:"method" }, 405);
       let body;
       try { body = await req.json(); }
       catch { return json({ ok:false, error:"bad-json" }, 400); }
@@ -7357,7 +7377,6 @@ var index_default = {
         const code = error instanceof AgentStopError ? error.code : "invalid-target";
         return json({ ok:false, error:code }, error instanceof AgentStopError ? error.status : 400);
       }
-      await ensureSchema(env);
       const now = Date.now();
       const auditId = "control-" + now.toString(36) + "-" + crypto.randomUUID().slice(0, 8);
       await env.DB.prepare(

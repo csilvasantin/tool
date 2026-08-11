@@ -89,7 +89,7 @@ test("Experto agrupa los agentes por equipo físico igual que Avanzado",()=>{
 });
 
 test("debajo de los equipos hay control global para Claude, Codex y Grok",()=>{
-  assert.match(frame,/FLEET\.cliList=el\("div","yk-cli-list"\);side\.appendChild\(FLEET\.cliList\);[\s\S]*FLEET\.cliBulk=el\("section","yk-cli-bulk"\);/);
+  assert.match(frame,/FLEET\.cliList=el\("div","yk-cli-list"\);cliFold\.body\.appendChild\(FLEET\.cliList\);[\s\S]*FLEET\.cliBulk=el\("section","yk-cli-bulk"\);/);
   assert.match(frame,/\["Claude","Codex","Grok"\]\.forEach/);
   assert.match(frame,/function bulkCliTargets\(runtime, action\)/);
   assert.match(frame,/function bulkCliGroups\(runtime\)/);
@@ -188,6 +188,12 @@ test("Experto se redimensiona hacia arriba y los tres raíles nacen compactados"
   assert.match(frame,/event\.key==="End"/);
   assert.match(css,/\.yk-expert-resizer\{[^}]*cursor:ns-resize/);
   assert.match(css,/\.yk-rail-bottom\{[\s\S]*?display:flex;flex-direction:column;overflow:hidden/);
+  assert.match(frame,/buildExpertFold\("Control de CLIs",FLEET\.cliCount\)/);
+  assert.match(frame,/buildExpertFold\("Control global por agente"\)/);
+  assert.match(frame,/buildExpertFold\("Control de Desktop Apps",FLEET\.expertAppCount\)/);
+  assert.match(frame,/head\.setAttribute\("aria-expanded","false"\)/);
+  assert.match(frame,/body\.hidden=true/);
+  assert.match(css,/\.yk-expert-fold-body\[hidden\]\{display:none\}/);
 });
 
 test("el sello del perímetro está arriba a la derecha de Experto",()=>{

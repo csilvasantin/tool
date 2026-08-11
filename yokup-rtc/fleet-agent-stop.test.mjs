@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   AgentStopError, dispatchAgentStart, dispatchAgentStop, normalizeAgentStartTarget, normalizeAgentStopTarget,
-  sanitizeAgentStopResult, selectLiveAgentSession
+  readAgentControlResult, sanitizeAgentStopResult, selectLiveAgentSession
 } from "./src/fleet-agent-stop.js";
 
 const target = {
@@ -76,6 +76,17 @@ test("respuesta pública sanea estado y rechaza ids no trazables", () => {
   assert.throws(() => sanitizeAgentStopResult({ command_id:"id con espacios", status:"queued" }), AgentStopError);
 });
 
+test("el polling protegido conserva sólo estado final y error acotado", async () => {
+  const env={TELEGRAM:{async fetch(request){
+    assert.equal(new URL(request.url).pathname,"/api/fleet/agent/commands/start-7");
+    return Response.json({command:{action:"start",status:"failed",error:"desktop launched but fullscreen composer focus failed",input:"secreto",updated_at:77}});
+  }}};
+  assert.deepEqual(await readAgentControlResult(env,"start-7"),{
+    ok:false,command_id:"start-7",action:"start",status:"failed",
+    error:"desktop launched but fullscreen composer focus failed",updated_at:77
+  });
+});
+
 test("la ruta pública queda tras el perímetro Google y audita cada intento válido", () => {
   assert.match(workerSource, /PROTECTED[^\n]+"\/fleet\/agent\/stop"/);
   assert.match(workerSource, /PROTECTED[^\n]+"\/fleet\/agent\/control"/);
@@ -85,6 +96,8 @@ test("la ruta pública queda tras el perímetro Google y audita cada intento vá
   assert.match(workerSource, /CREATE TABLE IF NOT EXISTS fleet_agent_commands/);
   assert.match(workerSource, /INSERT INTO fleet_agent_commands/);
   assert.match(workerSource, /requested_by/);
+  assert.match(workerSource, /req\.method === "GET"[\s\S]*readAgentControlResult\(env, commandId\)/);
+  assert.match(workerSource, /action IN \('start','stop'\)/);
 });
 
 test("una prueba roja bloquea el deploy en vez de quedar como aviso", () => {

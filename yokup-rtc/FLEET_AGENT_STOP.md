@@ -43,3 +43,8 @@ acepta el arranque si el watcher de esa máquina está fresco y ha anunciado la
 ranura exacta `{persona,runtime,host,session_id}`. El watcher local limita APP y
 CLI a runtimes instalados, comprueba que no exista ya el proceso y vuelve a censarlo
 antes de confirmar. Un reintento devuelve `already_running` en vez de duplicarlo.
+
+El cliente autenticado consulta después `GET /fleet/agent/control?id=…`. Yokup
+comprueba que la orden pertenece al mismo usuario, lee el estado terminal del watcher
+y sólo entonces cierra el feedback visual. Para Desktop Apps, `done` significa además
+que el watcher confirmó pantalla completa, ventana al frente y compositor limpio.
