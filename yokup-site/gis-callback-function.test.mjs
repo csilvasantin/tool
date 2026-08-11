@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createCallbackProxy, createChallengeProxy } from './functions/_shared/gis-callback.mjs';
+import { onRequest as callbackOnRequest } from './functions/auth/callback.js';
+import { onRequest as challengeOnRequest } from './functions/auth/challenge.js';
+
+test('las Pages Functions reales resuelven su helper compartido', () => {
+  assert.equal(typeof callbackOnRequest, 'function');
+  assert.equal(typeof challengeOnRequest, 'function');
+});
 
 test('challenge same-origin preserva Set-Cookie y no acepta métodos o cuerpos amplios', async () => {
   let forwarded;

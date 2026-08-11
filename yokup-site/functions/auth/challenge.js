@@ -1,4 +1,4 @@
-import { createChallengeProxy } from '../../_shared/gis-callback.mjs';
+import { createChallengeProxy } from '../_shared/gis-callback.mjs';
 
 const handle = createChallengeProxy({
   backendUrl:'https://api.yokup.com/auth/challenge',

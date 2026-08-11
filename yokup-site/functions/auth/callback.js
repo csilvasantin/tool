@@ -1,4 +1,4 @@
-import { createCallbackProxy } from '../../_shared/gis-callback.mjs';
+import { createCallbackProxy } from '../_shared/gis-callback.mjs';
 
 const handle = createCallbackProxy({
   backendUrl:'https://api.yokup.com/auth/callback',
