@@ -448,8 +448,13 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .agent-scope-children{display:grid;gap:3px;padding-left:14px;border-left:1px solid rgba(120,243,255,.14)}
 .agent-scope-children[hidden]{display:none}
 .agent-scope-children .agent-scope-row{min-height:25px;background:rgba(120,243,255,.018)}
-.agent-scope-row.agent{grid-template-columns:minmax(0,1fr) auto;gap:6px;padding:4px 6px}
+.agent-scope-row.agent{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) auto;gap:6px;padding:4px 6px}
 .agent-scope-primary{display:grid;grid-template-columns:16px minmax(0,1fr);align-items:center;gap:7px;min-width:0;cursor:pointer}
+.agent-scope-app-feedback{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim);
+  font-size:8px;line-height:1.2;text-align:right}
+.agent-scope-app-feedback.pending{color:var(--brand)}
+.agent-scope-app-feedback.success{color:var(--good)}
+.agent-scope-app-feedback.error{color:var(--warn)}
 .agent-scope-running{appearance:none;display:grid;place-items:center;width:24px;height:24px;padding:0;border:1px solid rgba(255,216,102,.18);
   border-radius:5px;background:transparent;color:var(--dim);font:13px/1 var(--mono);cursor:pointer;filter:grayscale(1);opacity:.52}
 .agent-scope-running[aria-checked="true"]{border-color:rgba(255,216,102,.72);color:var(--accent);background:rgba(255,216,102,.09);
@@ -561,7 +566,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     padding:2px clamp(5px,1.8vw,11px);font-size:clamp(13px,4.2vw,18px);line-height:20px;letter-spacing:.1em}
   .score-progress td{padding-left:5px;padding-right:5px}.progression{grid-template-columns:88px repeat(6,76px);min-width:580px;gap:4px}
   .progression-step{grid-template-columns:13px minmax(0,1fr);column-gap:3px}.progression-dot{width:13px;height:13px;border-width:1px}.progression-step::before{top:6px}
-  .agent-scope-children{padding-left:8px}}
+  .agent-scope-children{padding-left:8px}.agent-scope-row.agent{grid-template-columns:minmax(0,1fr) minmax(72px,.9fr) auto}
+  .agent-scope-app-feedback{font-size:7.5px}}
 @media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.rank-filter[aria-pressed="true"],.activity-now,.activity-now::after,.plaza.podium-live::after,.refresh-runner svg,.runner-run-a,.runner-run-b,.runner-run-c,.progression-step.new .progression-dot,.race-call,.race-call::before,.race-call::after,.refresh-place{animation:none!important;transition:none!important}.refresh-runner .runner-run-b,.refresh-runner .runner-run-c{display:none}.runner-finish-win .gesto-a,.runner-finish-lose .gesto-a{animation:none;opacity:1}.runner-finish-win .gesto-b,.runner-finish-lose .gesto-b{display:none}}
 </style>
 </head>
@@ -639,7 +645,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script src="/highscore-race.js?v=v.2026.08.04.running-plus-1"></script>
-<script src="/highscore-desktop-app.js?v=v.2026.08.11.desktop-toggle-1"></script>
+<script src="/highscore-desktop-app.js?v=v.2026.08.11.desktop-feedback-1"></script>
 <script>
 (function () {
   "use strict";
@@ -1249,6 +1255,20 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         // objetivo activo manda aunque su timestamp sea anterior al heartbeat.
         marcaProyecto(f, p.project, t * 1000, p.focus, 0);
       }
+    });
+    // REGISTRO no significa «proceso encendido». Cada watcher publica también
+    // el inventario de ranuras controlables de su equipo. Esas ranuras deben
+    // dar nombre a la máquina aunque la Desktop App esté apagada; sólo la
+    // presencia verificada y fresca puede marcarla como viva.
+    (datos.controlMachines || []).forEach(function (control) {
+      var machine = normaliza(control && control.machine);
+      if (!machine) return;
+      (control.slots || []).forEach(function (slot) {
+        var f = fila(slot && slot.persona, machine); if (!f) return;
+        f.haLatido = true;
+        if (f.maquinas.indexOf(machine) < 0) f.maquinas.push(machine);
+        if (!f.runtime && slot.runtime) f.runtime = slot.runtime;
+      });
     });
     // Actividad AHORA, no totales históricos. Una sola señal por agente:
     // tarea > ventana viva > misión en curso > objetivo reciente.
@@ -1946,6 +1966,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   var AGENT_SCOPE = hsReadAgentScope();
   var AGENT_SCOPE_OPEN_TEAMS = new Set();
   var DESKTOP_APP_PENDING = Object.create(null);
+  var DESKTOP_APP_FEEDBACK = Object.create(null);
+  var DESKTOP_APP_FEEDBACK_SEQUENCE = 0;
   var ordenTabla = { campo:"", direccion:"" };
   var filtroSoloVivos = false;
   var DIRECCION_INICIAL = {
@@ -1994,7 +2016,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return allKeys.length && next.size === allKeys.length && allKeys.every(function (key) { return next.has(key); }) ? null : next;
   }
 
-  function hsAgentScopeGroups(filas, presencias, identity) {
+  function hsAgentScopeGroups(filas, presencias, identity, desktopApps) {
     var id = identity || window.ykAgentIdentity, items = [], byKey = Object.create(null);
     function teamKey(machine) {
       return (id && id.suffix && id.suffix(normaliza(machine))) || "SINMAQ";
@@ -2021,6 +2043,24 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var machine = normaliza(presence.machine || presence.loc), canonical = id && id.display ? id.display(raw, machine) : raw;
       var item = byKey[hsAgentKey(canonical)] || byKey[hsAgentKey(raw)];
       if (item) addTeam(item, machine);
+    });
+    // El selector avanzado es también el mando de ARRANQUE. Por eso su censo no
+    // puede depender sólo de filas que ya puntuaron o de procesos que ya laten:
+    // una DesktopAPP instalada pero apagada debe existir antes de su primer
+    // arranque. El watcher anuncia esas ranuras en control_machines; se añaden
+    // aquí como agentes de cero actividad y el corredor queda gris y accionable.
+    (desktopApps || []).forEach(function (app) {
+      var raw = normaliza(app && app.persona), machine = normaliza(app && app.machine);
+      if (!raw || !machine) return;
+      var parsed = id && id.parse ? id.parse(raw) : null;
+      if (parsed && parsed.role && parsed.role !== "main") return;
+      var canonical = id && id.display ? id.display(raw, machine) : raw;
+      var key = hsAgentKey(canonical), item = byKey[key];
+      if (!item) {
+        item = byKey[key] = { key:key, label:canonical, teams:[] };
+        items.push(item);
+      }
+      addTeam(item, machine);
     });
     items.forEach(function (item) {
       if (!item.teams.length) item.teams.push("SINMAQ");
@@ -2103,6 +2143,28 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     status.textContent = String(message || ""); status.style.color = error ? "var(--warn)" : "";
   }
 
+  function hsSetDesktopAppFeedback(key, phase, action, runtime, detail, duration) {
+    var token = ++DESKTOP_APP_FEEDBACK_SEQUENCE;
+    DESKTOP_APP_FEEDBACK[key] = { token:token, phase:phase, action:action, runtime:runtime, detail:normaliza(detail) };
+    setTimeout(function () {
+      if (!DESKTOP_APP_FEEDBACK[key] || DESKTOP_APP_FEEDBACK[key].token !== token) return;
+      delete DESKTOP_APP_FEEDBACK[key]; hsRenderAgentScope(listaCompletaCache || []);
+    }, duration || (phase === "success" ? 4500 : 8000));
+  }
+
+  function hsDesktopAppFeedback(item) {
+    if (!item || typeof YkHighscoreDesktopApp === "undefined") return null;
+    var pending = DESKTOP_APP_PENDING[item.key], feedback = pending ? {
+      phase:"pending", action:pending.action, runtime:pending.runtime || item.runtime, detail:""
+    } : DESKTOP_APP_FEEDBACK[item.key];
+    if (!feedback) return null;
+    return {
+      phase:feedback.phase,
+      detail:feedback.detail || "",
+      text:YkHighscoreDesktopApp.feedback(feedback.runtime || item.runtime, feedback.action, feedback.phase)
+    };
+  }
+
   function hsRefreshDesktopApps() {
     return fetch(TG + "/api/presence", { cache:"no-store" }).then(function (response) {
       if (!response.ok) throw new Error("presence " + response.status);
@@ -2118,18 +2180,30 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       hsRefreshDesktopApps().then(function () {
         var item = hsDesktopApps().find(function (app) { return app.key === key; });
         if (item && item.active === wanted) {
-          delete DESKTOP_APP_PENDING[key]; hsRenderAgentScope(listaCompletaCache || []);
+          var confirmed = DESKTOP_APP_PENDING[key] || { action:wanted ? "start" : "stop", runtime:item.runtime };
+          delete DESKTOP_APP_PENDING[key];
+          hsSetDesktopAppFeedback(key, "success", confirmed.action, confirmed.runtime || item.runtime, "");
+          hsRenderAgentScope(listaCompletaCache || []);
           hsDesktopAppMessage("✓ " + item.persona + " · DesktopAPP " + (wanted ? "encendida" : "apagada") + " en " + item.machine, false);
           return;
         }
         if (Date.now() >= deadline) {
-          delete DESKTOP_APP_PENDING[key]; hsRenderAgentScope(listaCompletaCache || []);
-          hsDesktopAppMessage("La orden fue aceptada, pero el equipo no confirmó el nuevo estado antes de 45 s.", true);
+          var expired = DESKTOP_APP_PENDING[key] || { action:wanted ? "start" : "stop", runtime:item && item.runtime };
+          var timeoutMessage = "El equipo no confirmó el nuevo estado antes de 45 s.";
+          delete DESKTOP_APP_PENDING[key];
+          hsSetDesktopAppFeedback(key, "error", expired.action, expired.runtime || (item && item.runtime), timeoutMessage);
+          hsRenderAgentScope(listaCompletaCache || []);
+          hsDesktopAppMessage("La orden fue aceptada, pero " + timeoutMessage.toLowerCase(), true);
           return;
         }
         hsVerifyDesktopApp(key, wanted, deadline);
       }).catch(function () {
-        if (Date.now() < deadline) hsVerifyDesktopApp(key, wanted, deadline);
+        if (Date.now() < deadline) { hsVerifyDesktopApp(key, wanted, deadline); return; }
+        var expired = DESKTOP_APP_PENDING[key] || { action:wanted ? "start" : "stop", runtime:"DesktopAPP" };
+        var refreshMessage = "No se pudo comprobar el estado final del equipo.";
+        delete DESKTOP_APP_PENDING[key];
+        hsSetDesktopAppFeedback(key, "error", expired.action, expired.runtime, refreshMessage);
+        hsRenderAgentScope(listaCompletaCache || []); hsDesktopAppMessage(refreshMessage, true);
       });
     }, 2000);
   }
@@ -2139,7 +2213,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     if (!item) { hsDesktopAppMessage("Ese agente no tiene una DesktopAPP controlable en este equipo.", true); return; }
     if (DESKTOP_APP_PENDING[item.key]) return;
     var action = item.active ? "stop" : "start", wanted = action === "start";
-    DESKTOP_APP_PENDING[item.key] = { action:action, since:Date.now() };
+    delete DESKTOP_APP_FEEDBACK[item.key];
+    DESKTOP_APP_PENDING[item.key] = { action:action, runtime:item.runtime, since:Date.now() };
     hsRenderAgentScope(listaCompletaCache || []);
     hsDesktopAppMessage((wanted ? "Encendiendo " : "Apagando ") + item.persona + " · DesktopAPP en " + item.machine + "…", false);
     fetch(YK + "/fleet/agent/control", { method:"POST", cache:"no-store", headers:{"content-type":"application/json"},
@@ -2151,8 +2226,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       });
     }).then(function () { hsVerifyDesktopApp(item.key, wanted, Date.now() + 45000); })
       .catch(function (error) {
-        delete DESKTOP_APP_PENDING[item.key]; hsRenderAgentScope(listaCompletaCache || []);
-        hsDesktopAppMessage(normaliza(error && error.message) || "No se pudo gobernar la DesktopAPP", true);
+        var errorMessage = normaliza(error && error.message) || "No se pudo gobernar la DesktopAPP";
+        delete DESKTOP_APP_PENDING[item.key];
+        hsSetDesktopAppFeedback(item.key, "error", action, item.runtime, errorMessage);
+        hsRenderAgentScope(listaCompletaCache || []); hsDesktopAppMessage(errorMessage, true);
       });
   }
 
@@ -2166,7 +2243,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function hsRenderAgentScope(lista) {
     var list = document.getElementById("agentScopeList"), count = document.getElementById("agentScopeCount");
     if (!list || !count) return;
-    var census = hsAgentScopeGroups(lista || [], datos.presencia || [], window.ykAgentIdentity), items = census.items;
+    var census = hsAgentScopeGroups(lista || [], datos.presencia || [], window.ykAgentIdentity, hsDesktopApps()), items = census.items;
     var keys = items.map(function (item) { return item.key; });
     var selected = AGENT_SCOPE === null ? items.length : items.filter(function (item) { return AGENT_SCOPE.has(item.key); }).length;
     count.textContent = AGENT_SCOPE === null ? "Todos" : selected + "/" + items.length;
@@ -2185,11 +2262,14 @@ body.resizing-columns{cursor:col-resize;user-select:none}
           '<span class="agent-scope-team-count" aria-hidden="true">' + group.items.length + '</span></button></div>' +
           '<div class="agent-scope-children" id="' + childrenId + '"' + (groupOpen ? '' : ' hidden') + '>' + group.items.map(function (item) {
             var desktopApp = hsDesktopAppFor(item.label, group.key), pending = desktopApp && DESKTOP_APP_PENDING[desktopApp.key];
+            var feedback = hsDesktopAppFeedback(desktopApp), feedbackTitle = feedback && (feedback.text + (feedback.detail ? " · " + feedback.detail : ""));
             var active = !!(desktopApp && desktopApp.active), available = !!(desktopApp && (desktopApp.active || desktopApp.watcher));
             var appTitle = !desktopApp ? item.label + ' · sin DesktopAPP controlable en ' + group.label :
-              item.label + ' · DesktopAPP ' + (active ? 'encendida' : 'apagada') + ' en ' + desktopApp.machine + '. Pulsa para ' + (active ? 'apagar.' : 'encender.');
+              (feedbackTitle || (item.label + ' · DesktopAPP ' + (active ? 'encendida' : 'apagada') + ' en ' + desktopApp.machine + '. Pulsa para ' + (active ? 'apagar.' : 'encender.')));
             return '<div class="agent-scope-row agent"><label class="agent-scope-primary"><input type="checkbox" data-agent-scope-item value="' + esc(item.key) + '"' +
               (AGENT_SCOPE === null || AGENT_SCOPE.has(item.key) ? ' checked' : '') + '><span class="agent-scope-label" title="' + esc(item.label) + '">' + esc(item.label) + '</span></label>' +
+              '<span class="agent-scope-app-feedback' + (feedback ? ' ' + feedback.phase : '') + '" data-agent-desktop-feedback="' + esc(item.key) + '" aria-live="polite" title="' + esc(feedbackTitle || '') + '">' +
+              (feedback ? esc(feedback.text) : '') + '</span>' +
               '<button class="agent-scope-running" type="button" role="switch" data-agent-desktop-app="' + esc(item.key) + '" data-agent="' + esc(item.label) + '" data-team="' + esc(group.key) + '"' +
               ' aria-checked="' + active + '" aria-busy="' + !!pending + '" aria-label="' + esc(appTitle) + '" title="' + esc(appTitle) + '"' +
               ((!available || pending) ? ' disabled' : '') + '><span aria-hidden="true">🏃</span></button></div>';
@@ -3020,7 +3100,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       registrados.objectives + '</b> objetivos, <b>' + registrados.windows + '</b> ventanas y <b>' +
       registrados.missions + '</b> misiones; ' + ((sinAutor.objectives || sinAutor.windows || sinAutor.missions) ? '<b>' +
       (sinAutor.objectives + sinAutor.windows + sinAutor.missions) + '</b> eventos automáticos o sin agente no reparten puntos. ' : '') +
-      'Se comprueban además <b>' + datos.presencia.length + '</b> registros de presencia para distinguir 0 de —, sin alterar la puntuación.</p>' +
+      'Se comprueban además <b>' + datos.presencia.length + '</b> registros de presencia y <b>' +
+      (datos.controlMachines || []).length + '</b> inventarios de equipo para distinguir 0 de — y registrado de encendido, sin alterar la puntuación.</p>' +
       '<p style="margin-top:8px"><b>Identidad normativa:</b> cada rótulo une agente y máquina: ' +
       '<b>NeoMBP16</b>, <b>MorfeoMBA16</b>… Si una actividad antigua no trae equipo, hereda el último equipo ' +
       'observado de esa familia; sin ninguna evidencia se marca <b>SINMAQ</b>. <a href="/normativa">Ver normativa →</a></p>';

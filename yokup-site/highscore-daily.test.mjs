@@ -45,6 +45,14 @@ test("sin actividad mantiene una pareja numérica hora/día sin guion inicial", 
   assert.match(html, /El latido no da puntos/);
 });
 
+test("una ranura controlable registra la máquina aunque la app esté apagada", () => {
+  assert.match(html, /\(datos\.controlMachines \|\| \[\]\)\.forEach\(function \(control\)/);
+  assert.match(html, /\(control\.slots \|\| \[\]\)\.forEach\(function \(slot\)/);
+  assert.match(html, /var f = fila\(slot && slot\.persona, machine\)/);
+  assert.match(html, /if \(f\.maquinas\.indexOf\(machine\) < 0\) f\.maquinas\.push\(machine\)/);
+  assert.match(html, /inventarios de equipo para distinguir 0 de — y registrado de encendido/);
+});
+
 test("Ventana Decisión ocupa dos líneas y conserva la cadencia horaria", () => {
   assert.match(html, /data-sort="ventanas"[^>]*aria-label="Ordenar por ventanas de decisión"><span class="sort-label-stack"><span>Ventana<\/span><span>Decisión<\/span><\/span>/);
   assert.doesNotMatch(html, /Ventanas hoy/i);

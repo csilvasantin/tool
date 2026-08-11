@@ -80,7 +80,15 @@
     return body;
   }
 
-  var api = { items:items, find:find, target:target, key:appKey };
+  function feedback(runtime, action, phase) {
+    var app = String(runtime || "DesktopAPP").trim() || "DesktopAPP";
+    var starting = action === "start";
+    if (phase === "success") return "// " + app + (starting ? " encendido" : " apagado");
+    if (phase === "error") return "// error al " + (starting ? "arrancar " : "apagar ") + app;
+    return "// " + (starting ? "arrancando " : "apagando ") + app;
+  }
+
+  var api = { items:items, find:find, target:target, feedback:feedback, key:appKey };
   root.YkHighscoreDesktopApp = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

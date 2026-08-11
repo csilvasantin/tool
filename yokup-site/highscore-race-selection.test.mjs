@@ -68,7 +68,8 @@ test("el corredor extra deja paso al interruptor real de DesktopAPP", () => {
   assert.match(html, /aria-checked="' \+ active/);
   assert.match(html, /<span aria-hidden="true">🏃<\/span>/);
   assert.match(html, /DesktopAPP ' \+ \(active \? 'encendida' : 'apagada'\)/);
-  assert.match(html, /\.agent-scope-row\.agent\{[^}]*grid-template-columns:minmax\(0,1fr\) auto/);
+  assert.match(html, /\.agent-scope-row\.agent\{[^}]*grid-template-columns:minmax\(0,1\.2fr\) minmax\(0,1fr\) auto/);
+  assert.match(html, /data-agent-desktop-feedback=/, "el estado ocupa la columna intermedia sin reemplazar el switch");
   assert.match(html, /\.agent-scope-primary\{[^}]*grid-template-columns:16px minmax\(0,1fr\)/);
   assert.match(html, /@media \(max-width:620px\)[\s\S]*?agent-scope/);
 });
