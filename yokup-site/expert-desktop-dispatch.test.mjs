@@ -51,6 +51,9 @@ test("el interruptor de DesktopApp pinta progreso hasta verificar el proceso rea
   assert.match(frame,/function verifyFleetAppControl\(key, token\)/);
   assert.match(frame,/function pollFleetAgentControl\(id, deadline\)/);
   assert.match(frame,/"\/fleet\/agent\/control\?id="\+encodeURIComponent\(id\)/);
+  assert.match(frame,/response\.status===404&&body\.error==="agent-control-command-not-found"/);
+  assert.match(frame,/status:"lookup_pending"/);
+  assert.match(frame,/if\(action === "stop" \|\| result\.status === "already_running"/);
   assert.match(frame,/body\.status === "failed" \|\| body\.status === "rejected"/);
   assert.match(frame,/current\.active===\(state\.action==="start"\)/);
   assert.match(frame,/setTimeout\(function\(\)\{verifyFleetAppControl\(key,token\);\},900\)/);

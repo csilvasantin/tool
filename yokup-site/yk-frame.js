@@ -791,7 +791,15 @@
 
   function pollFleetAgentControl(id, deadline) {
     return ykFetch("/fleet/agent/control?id="+encodeURIComponent(id),{cache:"no-store"}).then(function(response){
-      return response.json().catch(function(){return {};}).then(function(body){if(!response.ok)throw new Error(body.error||("estado "+response.status));return body;});
+      return response.json().catch(function(){return {};}).then(function(body){
+        // D1 puede no ver todavía la auditoría escrita por el POST anterior.
+        // Es un estado transitorio del seguimiento, no un fallo de la orden.
+        if(!response.ok&&response.status===404&&body.error==="agent-control-command-not-found"){
+          if(Date.now()>=deadline)throw new Error("No se pudo confirmar el resultado final de la máquina.");
+          return {status:"lookup_pending"};
+        }
+        if(!response.ok)throw new Error(body.error||("estado "+response.status));return body;
+      });
     }).then(function(body){
       if(["done","stopped","already_running","already_stopped"].includes(body.status))return body;
       if(body.status === "failed" || body.status === "rejected")throw new Error(body.error||"La máquina rechazó la orden");
@@ -835,7 +843,9 @@
     renderApps();renderExpertApps();
     fleetMessage((action === "start" ? "Abriendo " : "Cerrando ") + desktopAppName(item.runtime) + " en " + item.machine + " · verificando el proceso real…",false);
     fleetControlRequest(item,action).then(function(result){
-      if(result.status === "already_running" || result.status === "already_stopped")return result;
+      // Al cerrar, la única verdad es que el proceso desaparezca del snapshot
+      // verificado. No convertimos una lectura efímera del mando en un ERROR.
+      if(action === "stop" || result.status === "already_running" || result.status === "already_stopped")return result;
       return pollFleetAgentControl(result.command_id,token+30000);
     }).then(function(){
       setTimeout(function(){verifyFleetAppControl(key,token);},650);
