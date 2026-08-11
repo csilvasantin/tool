@@ -5833,6 +5833,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.updated_at,t.assignee,t.loc ` +
       `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
       `AND m.status IN ('in_progress','doing','active') ` +
+      `AND t.status='in_progress' ` +
       `AND NOT (t.status='cancelled' AND COALESCE(t.closure_reason,'')='equivalent_mission')`).all().then((r) => r.results || []),
     env.DB.prepare("SELECT id,title,status,author,author_identity,updated_at,created_at FROM ideas WHERE status='estudio'").all()
       .then((r) => r.results || [])
@@ -5846,8 +5847,14 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     const phrase = value.match(/^.*?[.!?](?=\s+[A-ZÁÉÍÓÚÑ])/);
     return String(phrase ? phrase[0] : value || fallback).trim().slice(0, 200);
   };
-  const add = (raw, machine, kind, item, title) => {
-    const family = reportAgentFamily(raw, machine);
+  const add = (raw, machine, kind, item, title, familyRaw = raw) => {
+    // `Mini` es el apellido operativo nuevo del mismo Mac Mini que el histórico
+    // `MacMini`. La carrera agrupa la máquina física: no abre dos calles cuando
+    // una misión antigua y su owner Infra/Sub usan grafías de generaciones distintas.
+    const familyParsed = parseAgentIdentity(familyRaw);
+    const family = familyParsed.suffix === "Mini"
+      ? reportAgentFamily(baseAgentIdentity(familyRaw), "MacMini")
+      : reportAgentFamily(familyRaw, machine);
     if (!family || family.family_key.startsWith("external:") || !parseAgentIdentity(family.family_name).suffix) return;
     const executor = reportAgentIdentity(raw, machine);
     const at = Math.max(Number(item.updated_at) || 0, Number(item.live_at) || 0, Number(item.created_at) || 0);
@@ -5860,7 +5867,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
   for (const mission of missions) add(mission.assignee, mission.loc, "mission", mission, mission.subject || "Misión activa");
   for (const task of tasks) {
     const executor = scopedMissionOwner(task.owner, "sub", task.assignee, task.loc);
-    add(executor, task.loc, "task", task, task.title || task.code || "Tarea activa");
+    add(executor, task.loc, "task", task, task.title || task.code || "Tarea activa", task.assignee);
   }
   for (const objective of objectives) {
     const executor = String(objective.author_identity || highscoreAgent(objective.author) || "").trim();

@@ -67,12 +67,36 @@ test("principal, Sub e Infra colapsan por familia y gana la tarea real más reci
 test("owner genérico se resuelve con assignee+loc y un relanzamiento factual no depende del latido",async()=>{
   const {db,env,F}=harness();
   db.exec(`INSERT INTO tickets VALUES
-    ('M1','Misión','MacBook Pro 14','fleet','mission','resolved','MorfeoMBP14',NULL,1,10,11)`);
+    ('M1','Misión','MacBook Pro 14','fleet','mission','in_progress','MorfeoMBP14',NULL,1,10,11)`);
   db.exec(`INSERT INTO mission_tasks VALUES ('M1','b','Ejecutar','active','subagente',20)`);
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,30)));
   assert.equal(result.count,1);
   assert.equal(result.participants[0].agent,"MorfeoMBP14");
   assert.equal(result.participants[0].executor,"SubMorfeoMBP14");
+});
+
+test("una tarea huérfana de misión cerrada no fabrica trabajo activo",async()=>{
+  const {db,env,F}=harness();
+  db.exec(`INSERT INTO tickets VALUES
+    ('M1','Misión cerrada','MacMini','fleet','mission','resolved','OraculoMacMini',NULL,1,10,11),
+    ('M2','Misión eliminada','MacBook Pro 14','fleet','mission','cancelled','NeoMBP14',NULL,1,10,11)`);
+  db.exec(`INSERT INTO mission_tasks VALUES
+    ('M1','a','Vieja','in_progress','SubOraculoMacMini',20),
+    ('M2','a','Vieja','in_progress','SubNeoMBP14',20)`);
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,30)));
+  assert.equal(result.count,0);
+});
+
+test("Mini y MacMini colapsan en la familia física de la misión",async()=>{
+  const {db,env,F}=harness();
+  db.exec(`INSERT INTO tickets VALUES
+    ('M1','Misión','admira-macmini','cli-declare','mission','in_progress','OraculoMini',NULL,1,10,11),
+    ('M2','Misión histórica','macmini','fleet','mission','in_progress','OraculoMacMini',NULL,1,12,13)`);
+  db.exec(`INSERT INTO mission_tasks VALUES ('M1','c','QA','in_progress','InfraOraculoMini',20)`);
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,30)));
+  assert.equal(result.count,1);
+  assert.equal(result.participants[0].agent,"OraculoMacMini");
+  assert.equal(result.participants[0].executor,"InfraOraculoMini");
 });
 
 test("sólo estudio atribuible a AdmiraNeXT entra como objetivo",async()=>{
