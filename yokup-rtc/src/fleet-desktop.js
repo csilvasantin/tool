@@ -52,6 +52,17 @@ export async function dispatchDesktopCapture(env,input) {
   return {target,result:{ok:true,command_id:commandId(result.command_id||result.id),status:String(result.status||"queued"),coalesced:result.coalesced===true}};
 }
 
+function closeEvidence(input) {
+  const number=(field,min,max)=>{const value=Number(input&&input[field]);if(!Number.isSafeInteger(value)||value<min||value>max)throw new AgentStopError("invalid-desktop-absence-"+field,400);return value;};
+  return {window_id:number("window_id",1,0x7fffffff)};
+}
+
+export async function dispatchDesktopVerifyClose(env,input) {
+  const target=desktopTarget(input),evidence=closeEvidence(input);
+  const result=await postInternal(env,"/api/fleet/desktop/verify-close",{...target,...evidence},"desktop-verify-close");
+  return {target,result:{ok:true,command_id:commandId(result.command_id||result.id),status:String(result.status||"queued")}};
+}
+
 export async function clearDesktopCapture(env,input) {
   const target=desktopTarget(input);
   await postInternal(env,"/api/fleet/desktop/capture/clear",target,"desktop-capture-clear");
@@ -76,23 +87,26 @@ export async function dispatchDesktopWrite(env,input) {
 }
 
 export async function readDesktopResult(env,id,expectedAction) {
-  requireBinding(env);const safeId=commandId(id),capture=expectedAction==="capture";
-  const path=capture?"/api/fleet/desktop/capture/consume":"/api/fleet/agent/commands/"+encodeURIComponent(safeId);
+  requireBinding(env);const safeId=commandId(id),capture=expectedAction==="capture",closeProof=expectedAction==="verify-close",oneShot=capture||closeProof;
+  const path=oneShot?"/api/fleet/desktop/capture/consume":"/api/fleet/agent/commands/"+encodeURIComponent(safeId);
   let response;
-  try{response=await env.TELEGRAM.fetch(new Request("https://telegram"+path,capture?{method:"POST",headers:{"content-type":"application/json",accept:"application/json"},body:JSON.stringify({id:Number(safeId)})}:{headers:{accept:"application/json"}}));}
+  try{response=await env.TELEGRAM.fetch(new Request("https://telegram"+path,oneShot?{method:"POST",headers:{"content-type":"application/json",accept:"application/json"},body:JSON.stringify({id:Number(safeId)})}:{headers:{accept:"application/json"}}));}
   catch{throw new AgentStopError("desktop-status-unavailable",502);}
   let payload={};try{payload=await response.json();}catch{}
   if(!response.ok)throw new AgentStopError(response.status===404?"desktop-command-not-found":"desktop-status-unavailable",response.status===404?404:502);
   const command=payload.command||payload,status=String(command.status||"").toLowerCase(),action=String(command.action||"").toLowerCase();
   if(!STATUSES.has(status))throw new AgentStopError("desktop-status-invalid",502);
-  if(action!==(capture?"desktop_capture":"desktop_write"))throw new AgentStopError("desktop-command-mismatch",409);
+  if(action!==(capture?"desktop_capture":closeProof?"desktop_verify_close":"desktop_write"))throw new AgentStopError("desktop-command-mismatch",409);
   let output={};try{output=JSON.parse(String(command.output||command.result||"{}"));}catch{}
   const result={ok:status!=="failed",command_id:safeId,status,error:String(command.error||"").slice(0,300),updated_at:Number(command.updated_at||0)||null};
-  if(capture&&status==="done"){
+  if(oneShot&&status==="done"){
     const image=String(output.image||"");
     if(!/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(image)||image.length>57000)throw new AgentStopError("desktop-frame-invalid",502);
-    Object.assign(result,{image,captured_at:Number(output.captured_at||0),window_id:Number(output.window_id||0)});
+    Object.assign(result,{image,captured_at:Number(output.captured_at||0),window_id:Number(output.window_id||0),pid:Number(output.pid||0),
+      x:Number(output.x||0),y:Number(output.y||0),width:Number(output.width||0),height:Number(output.height||0)});
+    if(closeProof)Object.assign(result,{process_present:output.process_present===true,window_present:output.window_present===true,
+      stable_samples:Number(output.stable_samples||0),stable_ms:Number(output.stable_ms||0),same_slot_processes:Number(output.same_slot_processes||0),matching_windows:Number(output.matching_windows||0),confirmed_at:Number(output.confirmed_at||0),proof_kind:String(output.proof_kind||"")});
   }
-  if(!capture&&status==="done")result.delivered=output.delivered===true;
+  if(!oneShot&&status==="done")result.delivered=output.delivered===true;
   return result;
 }

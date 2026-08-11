@@ -15,10 +15,11 @@ test("Experto separa los tres controles y los crea plegados",()=>{
   assert.match(css,/\.yk-expert-fold-body\[hidden\]\{display:none\}/);
 });
 
-test("Desktop Apps conserva el censo apagado y selecciona una identidad exacta",()=>{
+test("Desktop Apps conserva el censo apagado y sólo selecciona por clic explícito",()=>{
   assert.match(frame,/function renderExpertApps\(\)/);
   assert.match(frame,/item\.host === "app"/);
-  assert.match(frame,/FLEET\.selectedApp=fleetKey\(apps\.find/);
+  assert.doesNotMatch(frame,/FLEET\.selectedApp=fleetKey\(apps\.find/);
+  assert.match(frame,/disconnectSelectedPty\(true\);FLEET\.selectedApp=key/);
   assert.match(frame,/FLEET\.expertAppOpen\.has\(machine\)/);
   assert.match(frame,/item\.active\?\("PID "\+item\.pid\):"apagada · enciéndela para enviar"/);
   assert.match(frame,/power\.setAttribute\("role","switch"\)/);
@@ -79,15 +80,17 @@ test("un fallo terminal del watcher desconecta la captura y exige reconectar",()
 
 test("el interruptor de DesktopApp pinta progreso hasta verificar el proceso real",()=>{
   assert.match(frame,/appActions:\{\}/);
-  assert.match(frame,/function verifyFleetAppControl\(key, token\)/);
+  assert.match(frame,/function verifyFleetAppStart\(key, token\)/);
+  assert.match(frame,/function verifyFleetAppStop\(key,token,stable\)/);
   assert.match(frame,/function pollFleetAgentControl\(id, deadline\)/);
   assert.match(frame,/"\/fleet\/agent\/control\?id="\+encodeURIComponent\(id\)/);
   assert.match(frame,/response\.status===404&&body\.error==="agent-control-command-not-found"/);
   assert.match(frame,/status:"lookup_pending"/);
-  assert.match(frame,/if\(action === "stop" \|\| result\.status === "already_running"/);
   assert.match(frame,/body\.status === "failed" \|\| body\.status === "rejected"/);
-  assert.match(frame,/current\.active===\(state\.action==="start"\)/);
-  assert.match(frame,/setTimeout\(function\(\)\{verifyFleetAppControl\(key,token\);\},900\)/);
+  assert.match(frame,/Number\(current\.updated\)\*1000>=state\.orderAt/);
+  assert.match(frame,/pollFleetAgentControl\(result\.command_id/);
+  assert.match(frame,/proof_kind!=="absence_card"/);
+  assert.match(frame,/stable_samples\)<3/);
   assert.match(frame,/action\.setAttribute\("aria-busy",String\(!!progress&&progress\.phase==="pending"\)\)/);
   assert.match(frame,/progress\.action==="start"\?"Abriendo…":"Cerrando…"/);
   assert.match(css,/@property --yk-app-progress/);
@@ -95,4 +98,14 @@ test("el interruptor de DesktopApp pinta progreso hasta verificar el proceso rea
   assert.match(css,/@keyframes yk-app-border-progress\{to\{--yk-app-progress:360deg\}\}/);
   assert.match(css,/\.is-pending\.is-stop\{--yk-app-progress-color:#ff8a83\}/);
   assert.match(css,/prefers-reduced-motion:reduce/);
+});
+
+test("Experto nace neutral y ninguna selección Desktop abre o conserva un PTY",()=>{
+  assert.match(frame,/selected:"", selectedApp:""/);
+  assert.doesNotMatch(frame,/FLEET\.selected=fleetKey\(clis\.find/);
+  assert.match(frame,/Sin conexión · ningún PTY seleccionado/);
+  assert.match(frame,/FLEET\.cliDisconnect=fleetButton\("Desconectar"/);
+  assert.match(frame,/FLEET\.pty\.explicit=true/);
+  assert.match(frame,/!FLEET\.pty\.explicit/);
+  assert.doesNotMatch(frame,/if\(v\)setTimeout\(function\(\)\{connectSelectedPty/);
 });

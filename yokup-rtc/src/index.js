@@ -5,7 +5,7 @@ import { buildReportsPageFilter, encodeReportsCursor, parseReportsPageOptions } 
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
 import { AgentStopError, dispatchAgentStart, dispatchAgentStop, normalizeAgentStartTarget, normalizeAgentStopTarget, readAgentControlResult } from "./fleet-agent-stop.js";
 import { dispatchCliTerminal, normalizeCliTerminalRequest, readCliTerminalResult, verifyCliTerminalTarget } from "./fleet-cli-terminal.js";
-import { authorizeDesktopCaptureClear, clearDesktopCapture, dispatchDesktopCapture, dispatchDesktopWrite, readDesktopResult } from "./fleet-desktop.js";
+import { authorizeDesktopCaptureClear, clearDesktopCapture, dispatchDesktopCapture, dispatchDesktopVerifyClose, dispatchDesktopWrite, readDesktopResult } from "./fleet-desktop.js";
 import { PtyRoom } from "./pty-room.js";
 import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, madridDayStart, sortDisplayRefCandidates } from "./display-ref.js";
 import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_NOVELTY_INSERT_SQL, MISSION_NOVELTY_RECENT_SQL, MISSION_NOVELTY_TABLE_SQL, missionNoveltyContract, missionNoveltyEventKey } from "./mission-novelty.js";
@@ -45,7 +45,7 @@ var json = /* @__PURE__ */ __name((o, s = 200) => new Response(JSON.stringify(o)
 var AUTH_CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
 var WL_API = "https://admira-whitelist.csilvasantin.workers.dev";
 var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@admira.com", "agonzalez@admira.com", "jsedano@admira.com"];
-var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/agent/stop", "/fleet/agent/control", "/fleet/cli/terminal", "/fleet/desktop/write", "/fleet/desktop/capture", "/fleet/desktop/capture/clear", "/fleet/pty/ticket", "/equipo/machine", "/equipo/silicon", "/strategy", "/config"]);
+var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/agent/stop", "/fleet/agent/control", "/fleet/cli/terminal", "/fleet/desktop/write", "/fleet/desktop/capture", "/fleet/desktop/verify-close", "/fleet/desktop/capture/clear", "/fleet/pty/ticket", "/equipo/machine", "/equipo/silicon", "/strategy", "/config"]);
 var _wl = { at: 0, set: null };
 async function whitelist() {
   if (_wl.set && Date.now() - _wl.at < 3e5) return _wl.set;
@@ -7365,12 +7365,13 @@ var index_default = {
         return json({ ok:false, error:code }, known ? error.status : 500);
       }
     }
-    if (url.pathname === "/fleet/desktop/write" || url.pathname === "/fleet/desktop/capture") {
+    if (url.pathname === "/fleet/desktop/write" || url.pathname === "/fleet/desktop/capture" || url.pathname === "/fleet/desktop/verify-close") {
       const sess = await requireAuth(env, req);
       if (!sess) return json({ error:"unauthorized" }, 401);
       await ensureSchema(env);
       const capture = url.pathname === "/fleet/desktop/capture";
-      const auditAction = capture ? "desktop_capture" : "desktop_write";
+      const closeProof = url.pathname === "/fleet/desktop/verify-close";
+      const auditAction = capture ? "desktop_capture" : closeProof ? "desktop_verify_close" : "desktop_write";
       if (req.method === "GET") {
         const commandId = String(url.searchParams.get("id") || "").trim();
         const audit = await env.DB.prepare(
@@ -7380,7 +7381,7 @@ var index_default = {
           return json({ ok:false, error:"desktop-command-not-found" }, 404);
         }
         try {
-          const result = await readDesktopResult(env,commandId,capture?"capture":"write");
+          const result = await readDesktopResult(env,commandId,capture?"capture":closeProof?"verify-close":"write");
           await env.DB.prepare("UPDATE fleet_agent_commands SET status=?,detail=?,updated_at=? WHERE id=?")
             .bind(result.status,result.error||"",Date.now(),audit.id).run();
           return json(result);
@@ -7399,7 +7400,7 @@ var index_default = {
         "INSERT INTO fleet_agent_commands(id,action,machine,persona,runtime,host,session_id,pid,requested_by,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'requested',?,?)"
       ).bind(auditId,auditAction,target.machine,target.persona,target.runtime,target.host,target.session_id,target.pid,String(sess.email||"").slice(0,120),now,now).run();
       try{
-        const dispatched=capture?await dispatchDesktopCapture(env,body):await dispatchDesktopWrite(env,body);
+        const dispatched=capture?await dispatchDesktopCapture(env,body):closeProof?await dispatchDesktopVerifyClose(env,body):await dispatchDesktopWrite(env,body);
         await env.DB.prepare("UPDATE fleet_agent_commands SET status=?,upstream_command_id=?,detail='',updated_at=? WHERE id=?")
           .bind(dispatched.result.status,dispatched.result.command_id,Date.now(),auditId).run();
         return json(dispatched.result,202);
