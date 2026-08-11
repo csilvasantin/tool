@@ -7,6 +7,7 @@ import {
   baseAgentIdentity, parseAgentIdentity, reportAgentFamily, reportAgentIdentity,
   scopedAgentIdentity, sameAgentFamily,
 } from "../src/agent-identity.js";
+import {missionVisibleDetails,taskVisibleDetails} from "../src/mission-visible.js";
 
 const source=await readFile(new URL("../src/index.js",import.meta.url),"utf8");
 const grab=name=>{
@@ -18,114 +19,172 @@ const grabVar=name=>{
   assert.ok(m,`no se pudo extraer ${name}`); return m[0];
 };
 
-function harness(){
+function harness(presence){
   const db=new DatabaseSync(":memory:");
   db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,subject TEXT,loc TEXT,source TEXT,role TEXT,status TEXT,assignee TEXT,closure_reason TEXT,created_at INTEGER,updated_at INTEGER,live_at INTEGER)");
   db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,updated_at INTEGER)");
   db.exec("CREATE TABLE ideas(id TEXT PRIMARY KEY,title TEXT,status TEXT,author TEXT,author_identity TEXT,created_at INTEGER,updated_at INTEGER)");
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{all:async()=>({results:stmt.all(...args)})}},all:async()=>({results:stmt.all()})}}};
-  const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,
+  const TELEGRAM=presence===undefined?undefined:{fetch:async()=>({ok:presence!==null,json:async()=>presence||{}})};
+  const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,Request,
     baseAgentIdentity,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,
-    __name:(fn)=>fn});
+    missionVisibleDetails,taskVisibleDetails,__name:(fn)=>fn});
   vm.runInContext([
-    grabVar("HIGHSCORE_PERSONAS"),grabVar("MISSION_SCOPE_SQL_T"),grab("highscoreAgent"),
-    grab("scopedMissionOwner"),grab("highscoreActiveWork"),
+    grabVar("HIGHSCORE_PERSONAS"),grabVar("MISSION_SCOPE_SQL_T"),grabVar("PRESENCE_URL"),
+    grabVar("HIGHSCORE_ACTIVE_WORK_MS"),grabVar("HIGHSCORE_PROCESS_FRESH_MS"),grabVar("HIGHSCORE_CLOCK_SKEW_MS"),
+    grab("highscoreAgent"),grab("scopedMissionOwner"),grab("highscoreActiveWorkMillis"),
+    grab("highscoreActiveWorkFamily"),grab("highscoreVerifiedPresence"),grab("highscoreActiveWork"),
   ].join("\n"),context);
-  return {db,env:{DB},F:context};
+  return {db,env:{DB,TELEGRAM},F:context};
 }
 
-test("la carrera factual devuelve las cuatro familias aunque no haya presencia ni puntos",async()=>{
-  const {db,env,F}=harness(),now=1_786_460_000_000;
-  db.exec(`INSERT INTO tickets VALUES
-    ('M-MOR','Misión Morfeo','MacMini','fleet','mission','in_progress','MorfeoMacMini',NULL,1,100,101),
-    ('M-NEO','Misión Neo','MacBook Pro 14','fleet','mission','in_progress','NeoMBP14',NULL,1,110,111),
-    ('M-ORA','Misión Oráculo','MacMini','fleet','mission','in_progress','OraculoMacMini',NULL,1,120,121),
-    ('M-TRI','Misión Trinity','MacBook Pro 14','fleet','mission','in_progress','TrinityMBP14',NULL,1,130,131)`);
-  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,now)));
-  assert.equal(result.ok,true);
-  assert.equal(result.count,4);
-  assert.deepEqual(result.participants.map(row=>row.agent).sort(),
-    ["MorfeoMacMini","NeoMBP14","OraculoMacMini","TrinityMBP14"]);
-  assert.equal(result.generated_at,now);
+const NOW=1_786_460_000_000, MIN=60_000;
+const processRow=(persona,machine,updated=NOW)=>({
+  persona,machine,updated:Math.floor(updated/1000),verified:1,source:"process_snapshot",
+  online:1,pid:42,host:"cli",
+});
+function mission(db,{id="M1",agent="OraculoMacMini",machine="MacMini",at=NOW-5*MIN,status="in_progress",title="Misión"}={}){
+  db.prepare("INSERT INTO tickets VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(
+    id,title,machine,"fleet","mission",status,agent,null,at,at,at);
+}
+
+test("stale sin process_snapshot exacto se excluye aunque conserve status in_progress",async()=>{
+  const {db,env,F}=harness({ok:true,presence:[],now:NOW/1000});
+  mission(db,{agent:"NeoMBACrema",machine:"MacBookAirCrema",at:NOW-8*60*MIN});
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.count,0,"NeoMBACrema no puede revivir por una misión de hace ocho horas");
+  assert.equal(result.presence_available,true);
 });
 
-test("principal, Sub e Infra colapsan por familia y gana la tarea real más reciente",async()=>{
-  const {db,env,F}=harness();
-  db.exec(`INSERT INTO tickets VALUES
-    ('M1','Misión principal','MacMini','fleet','mission','in_progress','OraculoMacMini',NULL,1,10,11)`);
-  db.exec(`INSERT INTO mission_tasks VALUES
-    ('M1','a','Implementación','in_progress','SubOraculoMacMini',20),
-    ('M1','a1','QA factual','doing','InfraOraculoMacMini',30)`);
-  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,40)));
+test("stale con process_snapshot fresco de la misma familia+máquina sí participa",async()=>{
+  const {db,env,F}=harness({presence:[{...processRow("Neo","MacBook Pro 14"),online:null}],now:NOW/1000});
+  mission(db,{agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-8*60*MIN});
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(result.count,1);
-  assert.equal(result.participants[0].agent,"OraculoMacMini");
-  assert.equal(result.participants[0].executor,"InfraOraculoMacMini");
-  assert.equal(result.participants[0].kind,"task");
-  assert.equal(result.participants[0].title,"QA factual");
+  assert.equal(result.participants[0].agent,"NeoMBP14");
+  assert.equal(result.participants[0].operational_basis,"verified_process");
+  assert.equal(result.participants[0].presence_at,NOW);
 });
 
-test("owner genérico se resuelve con assignee+loc y un relanzamiento factual no depende del latido",async()=>{
-  const {db,env,F}=harness();
-  db.exec(`INSERT INTO tickets VALUES
-    ('M1','Misión','MacBook Pro 14','fleet','mission','in_progress','MorfeoMBP14',NULL,1,10,11)`);
-  db.exec(`INSERT INTO mission_tasks VALUES ('M1','b','Ejecutar','active','subagente',20)`);
-  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,30)));
+test("trabajo visible-v1 reciente participa sin presencia",async()=>{
+  const {db,env,F}=harness(null);
+  mission(db,{agent:"OraculoMacMini",machine:"MacMini",at:NOW-20*MIN});
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(result.count,1);
-  assert.equal(result.participants[0].agent,"MorfeoMBP14");
-  assert.equal(result.participants[0].executor,"SubMorfeoMBP14");
+  assert.equal(result.participants[0].operational_basis,"recent_work");
+  assert.equal("presence_at" in result.participants[0],false);
+  assert.equal(result.presence_available,false,"fallo presence no borra trabajo reciente");
 });
 
-test("una tarea huérfana de misión cerrada no fabrica trabajo activo",async()=>{
-  const {db,env,F}=harness();
-  db.exec(`INSERT INTO tickets VALUES
-    ('M1','Misión cerrada','MacMini','fleet','mission','resolved','OraculoMacMini',NULL,1,10,11),
-    ('M2','Misión eliminada','MacBook Pro 14','fleet','mission','cancelled','NeoMBP14',NULL,1,10,11)`);
-  db.exec(`INSERT INTO mission_tasks VALUES
-    ('M1','a','Vieja','in_progress','SubOraculoMacMini',20),
-    ('M2','a','Vieja','in_progress','SubNeoMBP14',20)`);
-  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,30)));
+test("presence sin misión, tarea u objetivo activo nunca sintetiza una calle",async()=>{
+  const {env,F}=harness({presence:[processRow("Smith","MacBookAirAzul")],now:NOW/1000});
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(result.count,0);
 });
 
-test("Mini y MacMini colapsan en la familia física de la misión",async()=>{
-  const {db,env,F}=harness();
-  db.exec(`INSERT INTO tickets VALUES
-    ('M1','Misión','admira-macmini','cli-declare','mission','in_progress','OraculoMini',NULL,1,10,11),
-    ('M2','Misión histórica','macmini','fleet','mission','in_progress','OraculoMacMini',NULL,1,12,13)`);
-  db.exec(`INSERT INTO mission_tasks VALUES ('M1','c','QA','in_progress','InfraOraculoMini',20)`);
-  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,30)));
-  assert.equal(result.count,1);
-  assert.equal(result.participants[0].agent,"OraculoMacMini");
-  assert.equal(result.participants[0].executor,"InfraOraculoMini");
+test("presence debe ser process_snapshot verificado, con PID, host y timestamp frescos",async()=>{
+  const invalid=[
+    {...processRow("Neo","MacBookAirCrema"),verified:0},
+    {...processRow("Neo","MacBookAirCrema"),source:"heartbeat"},
+    {...processRow("Neo","MacBookAirCrema"),pid:1},
+    {...processRow("Neo","MacBookAirCrema"),pid:"no-numérico"},
+    {...processRow("Neo","MacBookAirCrema"),pid:2.5},
+    {...processRow("Neo","MacBookAirCrema"),host:"ssh"},
+    {...processRow("Neo","MacBookAirCrema"),online:0},
+    {...processRow("Neo","MacBookAirCrema"),online:false},
+    processRow("Neo","MacBookAirCrema",NOW-31_000),
+    processRow("Neo","MacBookAirCrema",NOW+6_000),
+  ];
+  const {db,env,F}=harness({presence:invalid,now:NOW/1000});
+  mission(db,{agent:"NeoMBACrema",machine:"MacBookAirCrema",at:NOW-8*60*MIN});
+  assert.equal((await F.highscoreActiveWork(env,NOW)).count,0);
 });
 
-test("sólo estudio atribuible a AdmiraNeXT entra como objetivo",async()=>{
-  const {db,env,F}=harness();
+test("apellido explícito discordante con machine no rescata otra máquina",async()=>{
+  const {db,env,F}=harness({presence:[processRow("NeoMBP14","MacBookAirCrema")],now:NOW/1000});
+  mission(db,{agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-8*60*MIN});
+  assert.equal((await F.highscoreActiveWork(env,NOW)).count,0);
+});
+
+test("misma persona en otra máquina no rescata el trabajo stale",async()=>{
+  const {db,env,F}=harness({presence:[processRow("Neo","MacBook Pro 14")],now:NOW/1000});
+  mission(db,{agent:"NeoMBACrema",machine:"MacBookAirCrema",at:NOW-8*60*MIN});
+  assert.equal((await F.highscoreActiveWork(env,NOW)).count,0);
+});
+
+test("trabajo con timestamp futuro no entra por frescura aparente",async()=>{
+  const {db,env,F}=harness({presence:[],now:NOW/1000});
+  mission(db,{agent:"OraculoMacMini",machine:"MacMini",at:NOW+6_000});
+  assert.equal((await F.highscoreActiveWork(env,NOW)).count,0);
+});
+
+test("el límite exacto de 60 minutos sigue incluido y un milisegundo más queda fuera",async()=>{
+  const {db,env,F}=harness({presence:[],now:NOW/1000});
+  mission(db,{id:"M1",agent:"OraculoMacMini",machine:"MacMini",at:NOW-60*MIN});
+  mission(db,{id:"M2",agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-60*MIN-1});
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.deepEqual(result.participants.map(row=>row.agent),["OraculoMacMini"]);
+});
+
+test("task stale se descarta antes de priorizar y gana la misión reciente elegible",async()=>{
+  const {db,env,F}=harness({presence:[],now:NOW/1000});
+  mission(db,{agent:"OraculoMacMini",machine:"MacMini",at:NOW-10*MIN,title:"Misión reciente"});
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?)").run("M1","a","Tarea stale","in_progress","SubOraculoMacMini",NOW-3*60*MIN);
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.count,1);
+  assert.equal(result.participants[0].kind,"mission");
+  assert.equal(result.participants[0].executor,"OraculoMacMini");
+});
+
+test("presence rescata task stale y conserva prioridad task y ejecutor Sub/Infra",async()=>{
+  const {db,env,F}=harness({presence:[processRow("Oraculo","MacMini")],now:NOW/1000});
+  mission(db,{agent:"OraculoMacMini",machine:"MacMini",at:NOW-3*60*MIN});
+  db.exec(`INSERT INTO mission_tasks VALUES
+    ('M1','a','Implementación','in_progress','SubOraculoMacMini',${NOW-3*60*MIN}),
+    ('M1','a1','QA','doing','InfraOraculoMacMini',${NOW-2*60*MIN})`);
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.count,1);
+  assert.equal(result.participants[0].kind,"task");
+  assert.equal(result.participants[0].executor,"InfraOraculoMacMini");
+  assert.equal(result.participants[0].operational_basis,"verified_process");
+});
+
+test("Mini y MacMini colapsan con process_snapshot y owner genérico",async()=>{
+  const {db,env,F}=harness({presence:[processRow("Oraculo","MacMini")],now:NOW/1000});
+  mission(db,{id:"M1",agent:"OraculoMini",machine:"admira-macmini",at:NOW-3*60*MIN});
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?)").run("M1","b","Ejecutar","active","subagente",NOW-3*60*MIN);
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.count,1);
+  assert.equal(result.participants[0].agent,"OraculoMacMini");
+  assert.equal(result.participants[0].executor,"SubOraculoMini");
+});
+
+test("process_snapshot main, Sub o Infra resuelve a la misma familia canónica",async()=>{
+  for (const persona of ["OraculoMini","SubOraculoMini","InfraOraculoMini"]) {
+    const {db,env,F}=harness({presence:[processRow(persona,"MacMini")],now:NOW/1000});
+    mission(db,{agent:"OraculoMacMini",machine:"MacMini",at:NOW-3*60*MIN});
+    const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+    assert.equal(result.count,1,persona);
+    assert.equal(result.participants[0].agent,"OraculoMacMini",persona);
+  }
+});
+
+test("objetivo estudio reciente entra; Consejo, nueva y sin máquina no",async()=>{
+  const {db,env,F}=harness({presence:[],now:NOW/1000});
   db.exec(`INSERT INTO ideas VALUES
-    ('I1','Objetivo activo','estudio','OraculoMacMini','OraculoMacMini',1,50),
-    ('I2','Borrador','nueva','NeoMacMini','NeoMacMini',1,60),
-    ('I3','Consejo','estudio','CEO · Steve Jobs','',1,70),
-    ('I4','Sin máquina','estudio','Morfeo','Morfeo',1,80)`);
-  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,90)));
-  assert.equal(result.count,1);
-  assert.equal(result.participants[0].agent,"OraculoMacMini");
-  assert.equal(result.participants[0].kind,"objective");
+    ('I1','Objetivo activo','estudio','OraculoMacMini','OraculoMacMini',${NOW-10*MIN},${NOW-10*MIN}),
+    ('I2','Borrador','nueva','NeoMacMini','NeoMacMini',${NOW},${NOW}),
+    ('I3','Consejo','estudio','CEO · Steve Jobs','',${NOW},${NOW}),
+    ('I4','Sin máquina','estudio','Morfeo','Morfeo',${NOW},${NOW})`);
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.deepEqual(result.participants.map(row=>row.agent),["OraculoMacMini"]);
 });
 
-test("misión canónica por role entra aunque sea importada y el título conserva la limpieza visual",async()=>{
-  const {db,env,F}=harness();
-  db.exec(`INSERT INTO tickets VALUES
-    ('M1','[ALTA] **Mejorar Running Man** → texto editorial','MacMini','imported','mission','in_progress','OraculoMacMini',NULL,1,10,11)`);
-  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,20)));
-  assert.equal(result.count,1);
-  assert.equal(result.participants[0].agent,"OraculoMacMini");
-  assert.equal(result.participants[0].title,"Mejorar Running Man");
-});
-
-test("el endpoint es GET, usa fuente sin LIMIT y no expone reportes ni cuerpos privados",async()=>{
+test("endpoint GET agregado no expone payload de presence ni datos privados",()=>{
   assert.match(source,/url\.pathname === "\/highscore\/active-work" && req\.method === "GET"/);
   const fn=grab("highscoreActiveWork");
-  assert.doesNotMatch(fn,/\bLIMIT\b|\/tasks\/all|\/fleet\/missions/);
-  assert.doesNotMatch(fn,/\breport\b|\bbody\b|proof_image|image/);
+  assert.doesNotMatch(fn,/\bLIMIT\b|\/tasks\/all|\/fleet\/missions|\breport\b|\bbody\b|proof_image|image|pid|host|runtime/);
   assert.match(fn,/priority = \{ objective:1, mission:2, task:3 \}/);
+  assert.match(fn,/missionVisibleDetails/);
+  assert.match(fn,/taskVisibleDetails/);
 });

@@ -19,11 +19,11 @@ test("la carrera nace de hechos y el ranking completo sólo la enriquece",()=>{
   assert.match(source,/data-participants/);
 });
 
-test("la calle muestra trabajo, responsable real y señal de latido sin filtrar",()=>{
+test("la calle muestra trabajo, responsable real y fundamento operativo",()=>{
   assert.match(source,/resumenTrabajoActivo\(trabajo\)/);
   assert.match(source,/executor = normaliza\(resumen\.executor \|\| agente\)/);
-  assert.match(source,/fila\.vivo \? "con latido" : "sin latido"/);
-  assert.match(source,/without-heartbeat/);
+  assert.match(source,/resumen\.operationalBasis === "verified_process" \? "proceso verificado"/);
+  assert.match(source,/fila\.vivo \? "con latido" : "trabajo reciente"/);
   assert.match(source,/SIN TRABAJO ACTIVO/);
   assert.doesNotMatch(source,/misionDesdePresencia|presencia viva, sin foco declarado/);
 });

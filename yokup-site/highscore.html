@@ -96,8 +96,8 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   animation:rank-heartbeat 1.6s ease-in-out infinite}
 @keyframes rank-heartbeat{0%,100%{transform:scale(1);opacity:1}45%{transform:scale(1.18);opacity:.48}60%{transform:scale(1.04);opacity:.9}}
 
-/* Carrera de refresco: una calle por familia con misión, tarea u objetivo en
-   curso. El latido sólo cambia la señal visual; nunca retira trabajo factual. */
+/* Carrera de refresco: una calle por familia con trabajo canónico activo y
+   actividad visible-v1 reciente o proceso verificado en esa misma máquina. */
 .refresh-race{--track-start:2px;--finish-gutter:clamp(132px,15vw,184px);--finish-width:7px;--agent-gap:26px;
   position:relative;grid-column:2;grid-row:1;min-height:44px;min-width:0;padding:0;display:flex;align-items:flex-start;overflow:hidden;
   cursor:pointer;border-radius:5px}
@@ -149,8 +149,6 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   max-width:none;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
   white-space:normal;text-align:left;color:var(--lane);font-size:12px;font-weight:900;line-height:14px;letter-spacing:.025em;
   text-shadow:0 1px 5px #000,0 0 7px color-mix(in srgb,var(--lane) 45%,transparent);pointer-events:none}
-.refresh-lane.without-heartbeat .refresh-agent{color:var(--dim);text-shadow:0 1px 5px #000}
-.refresh-lane.without-heartbeat .refresh-runner{opacity:.62;filter:saturate(.55) drop-shadow(0 0 3px rgba(120,243,255,.18))}
 .refresh-runner{position:absolute;left:0;bottom:11px;width:25px;height:30px;transform:translateX(-50%);
   z-index:3;filter:drop-shadow(0 0 4px rgba(255,216,102,.45));will-change:left}
 .refresh-runner svg{display:block;position:absolute;inset:0;width:100%;height:100%;overflow:visible;shape-rendering:crispEdges;
@@ -3112,13 +3110,14 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var item = seen[key];
       return { key:claveAgenteCarrera(item.agent), agente:item.agent, executor:item.executor,
         kind:item.kind, title:item.title || (item.kind === "task" ? "Tarea activa" : item.kind === "mission" ? "Misión activa" : "Objetivo en curso"),
-        at:Number(item.active_at) || 0 };
+        at:Number(item.active_at) || 0, operationalBasis:item.operational_basis || "", presenceAt:Number(item.presence_at) || 0 };
     }).sort(function (a, b) { return b.at - a.at || a.agente.localeCompare(b.agente, "es"); });
   }
 
   function resumenTrabajoActivo(trabajo) {
     return { reference:"", title:trabajo.title, state:"EN CURSO", project:"",
-      executor:trabajo.executor, kind:trabajo.kind };
+      executor:trabajo.executor, kind:trabajo.kind, operationalBasis:trabajo.operationalBasis,
+      presenceAt:trabajo.presenceAt };
   }
 
   function actualizaCarreraPodio() {
@@ -3126,8 +3125,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var trabajos = trabajosEnCurso(), completas = listaCompletaCache || [], byKey = Object.create(null);
     completas.forEach(function (fila) { byKey[claveAgenteCarrera(fila && fila.agente)] = fila; });
     var corredores = trabajos.map(function (trabajo, index) {
-      var fila = byKey[trabajo.key] || { agente:trabajo.agente, posicion:completas.length + index + 1,
+      var base = byKey[trabajo.key] || { agente:trabajo.agente, posicion:completas.length + index + 1,
         total:0, vivo:false, maquinas:[], maquinasVivas:[] };
+      var fila = Object.assign({}, base, { vivo:!!base.vivo || trabajo.operationalBasis === "verified_process" });
       return { fila:fila, clave:trabajo.key, resumen:resumenTrabajoActivo(trabajo) };
     });
     corredores.sort(function (a, b) {
@@ -3148,8 +3148,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var variant = typeof YkHighscoreRace !== "undefined" ? YkHighscoreRace.runnerVariant(fila)
         : (clave.split("").reduce(function (n, c) { return n + c.charCodeAt(0); }, 0) % 2 ? "dark" : "light");
       var clasePuesto = puesto <= 3 ? "refresh-lane-p" + puesto : "refresh-lane-rank";
-      var heartbeat = fila.vivo ? "con latido" : "sin latido";
-      return '<div class="refresh-lane ' + clasePuesto + (fila.vivo ? "" : " without-heartbeat") +
+      var heartbeat = resumen.operationalBasis === "verified_process" ? "proceso verificado" : fila.vivo ? "con latido" : "trabajo reciente";
+      return '<div class="refresh-lane ' + clasePuesto +
         '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
         'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Puesto ' + puesto + ', familia ' + esc(agente) +
         '. Responsable ' + esc(executor) + ', ' + heartbeat + '. ' + esc(resumen.title) + '">' +

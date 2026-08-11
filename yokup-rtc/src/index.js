@@ -5822,12 +5822,57 @@ async function highscoreHistory(env, requestedAgent, ahora = Date.now()) {
 }
 __name(highscoreHistory, "highscoreHistory");
 
-// Participantes factuales de la carrera superior. La consulta no reutiliza
-// `/fleet/missions` ni `/tasks/all`: ambos son feeds de pantalla (paginables o
-// protegidos) y podrían ocultar al cuarto agente. Presencia tampoco decide quién
-// trabaja; sólo enriquecerá después la señal visual de cada calle.
+var HIGHSCORE_ACTIVE_WORK_MS = 60 * 60 * 1000;
+var HIGHSCORE_PROCESS_FRESH_MS = 30 * 1000;
+var HIGHSCORE_CLOCK_SKEW_MS = 5 * 1000;
+
+function highscoreActiveWorkMillis(value) {
+  let at = Number(value) || 0;
+  if (at > 0 && at < 4_102_444_800) at *= 1000;
+  return Number.isFinite(at) ? at : 0;
+}
+__name(highscoreActiveWorkMillis, "highscoreActiveWorkMillis");
+
+function highscoreActiveWorkFamily(raw, machine) {
+  const parsed = parseAgentIdentity(raw);
+  return parsed.suffix === "Mini"
+    ? reportAgentFamily(baseAgentIdentity(raw), "MacMini")
+    : reportAgentFamily(raw, machine);
+}
+__name(highscoreActiveWorkFamily, "highscoreActiveWorkFamily");
+
+async function highscoreVerifiedPresence(env, ahora) {
+  if (!env.TELEGRAM) return { available:false, by_family:new Map() };
+  try {
+    const response = await env.TELEGRAM.fetch(new Request(PRESENCE_URL, { headers:{ accept:"application/json" } }));
+    if (!response.ok) return { available:false, by_family:new Map() };
+    const payload = await response.json(), rows = Array.isArray(payload) ? payload : (payload.presence || payload.rows || []);
+    const byFamily = new Map();
+    for (const row of rows) {
+      const at = highscoreActiveWorkMillis(row && row.updated);
+      const pid = Number(row && row.pid);
+      if (!row || row.verified !== 1 || row.source !== "process_snapshot" || row.online === 0 || row.online === false ||
+          !Number.isSafeInteger(pid) || pid <= 1 || !["app", "cli"].includes(String(row.host || "").toLowerCase()) ||
+          at < ahora - HIGHSCORE_PROCESS_FRESH_MS || at > ahora + HIGHSCORE_CLOCK_SKEW_MS) continue;
+      const family = highscoreActiveWorkFamily(row.persona, row.machine);
+      const physicalFamily = highscoreActiveWorkFamily(baseAgentIdentity(row.persona), row.machine);
+      if (!family || !physicalFamily || family.family_key !== physicalFamily.family_key ||
+          family.family_key.startsWith("external:") || !parseAgentIdentity(family.family_name).suffix) continue;
+      if (!byFamily.has(family.family_key) || at > byFamily.get(family.family_key)) byFamily.set(family.family_key, at);
+    }
+    return { available:true, by_family:byFamily };
+  } catch {
+    return { available:false, by_family:new Map() };
+  }
+}
+__name(highscoreVerifiedPresence, "highscoreVerifiedPresence");
+
+// Participantes operativos de la carrera superior. La consulta no reutiliza
+// `/fleet/missions` ni `/tasks/all`: ambos son feeds paginables. Un estado activo
+// antiguo sólo participa si el censo de procesos confirma esa familia+máquina;
+// presencia por sí sola nunca sintetiza trabajo.
 async function highscoreActiveWork(env, ahora = Date.now()) {
-  const [missions, tasks, objectives] = await Promise.all([
+  const [missions, tasks, objectives, presence] = await Promise.all([
     env.DB.prepare(`SELECT id,subject,assignee,loc,status,updated_at,live_at,created_at FROM tickets t ` +
       `WHERE ${MISSION_SCOPE_SQL_T} AND status='in_progress'`).all().then((r) => r.results || []),
     env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.updated_at,t.assignee,t.loc ` +
@@ -5836,7 +5881,8 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
       `AND t.status='in_progress' ` +
       `AND NOT (t.status='cancelled' AND COALESCE(t.closure_reason,'')='equivalent_mission')`).all().then((r) => r.results || []),
     env.DB.prepare("SELECT id,title,status,author,author_identity,updated_at,created_at FROM ideas WHERE status='estudio'").all()
-      .then((r) => r.results || [])
+      .then((r) => r.results || []),
+    highscoreVerifiedPresence(env, ahora)
   ]);
   const byFamily = new Map(), priority = { objective:1, mission:2, task:3 };
   const visibleTitle = (raw, fallback) => {
@@ -5848,18 +5894,22 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     return String(phrase ? phrase[0] : value || fallback).trim().slice(0, 200);
   };
   const add = (raw, machine, kind, item, title, familyRaw = raw) => {
-    // `Mini` es el apellido operativo nuevo del mismo Mac Mini que el histórico
-    // `MacMini`. La carrera agrupa la máquina física: no abre dos calles cuando
-    // una misión antigua y su owner Infra/Sub usan grafías de generaciones distintas.
-    const familyParsed = parseAgentIdentity(familyRaw);
-    const family = familyParsed.suffix === "Mini"
-      ? reportAgentFamily(baseAgentIdentity(familyRaw), "MacMini")
-      : reportAgentFamily(familyRaw, machine);
+    const family = highscoreActiveWorkFamily(familyRaw, machine);
     if (!family || family.family_key.startsWith("external:") || !parseAgentIdentity(family.family_name).suffix) return;
     const executor = reportAgentIdentity(raw, machine);
-    const at = Math.max(Number(item.updated_at) || 0, Number(item.live_at) || 0, Number(item.created_at) || 0);
+    const at = Math.max(...[item.updated_at, item.live_at, item.created_at].map(highscoreActiveWorkMillis));
+    const visible = kind === "task"
+      ? taskVisibleDetails({ status:"in_progress", started_at:at }, ahora)
+      : missionVisibleDetails({ status:"in_progress", started_at:at }, ahora);
+    const cutoff = ahora - HIGHSCORE_ACTIVE_WORK_MS;
+    const recent = at > 0 && at >= cutoff && at <= ahora + HIGHSCORE_CLOCK_SKEW_MS &&
+      (visible.state === "in_progress" || at === cutoff);
+    const presenceAt = presence.by_family.get(family.family_key) || 0;
+    if (!recent && !presenceAt) return;
     const candidate = { family_key:family.family_key, agent:family.family_name, executor, kind,
-      title:visibleTitle(title, kind === "task" ? "Tarea activa" : kind === "mission" ? "Misión activa" : "Objetivo en curso"), active_at:at };
+      title:visibleTitle(title, kind === "task" ? "Tarea activa" : kind === "mission" ? "Misión activa" : "Objetivo en curso"),
+      active_at:at, operational_basis:recent ? "recent_work" : "verified_process" };
+    if (!recent) candidate.presence_at = presenceAt;
     const previous = byFamily.get(family.family_key);
     if (!previous || priority[kind] > priority[previous.kind] ||
         (priority[kind] === priority[previous.kind] && at > previous.active_at)) byFamily.set(family.family_key, candidate);
@@ -5874,7 +5924,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     add(executor, "", "objective", objective, objective.title || "Objetivo en curso");
   }
   const participants = [...byFamily.values()].sort((a, b) => b.active_at - a.active_at || a.agent.localeCompare(b.agent, "es"));
-  return { ok:true, generated_at:ahora, count:participants.length, participants };
+  return { ok:true, generated_at:ahora, presence_available:presence.available, count:participants.length, participants };
 }
 __name(highscoreActiveWork, "highscoreActiveWork");
 

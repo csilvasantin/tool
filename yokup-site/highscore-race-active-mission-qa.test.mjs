@@ -47,8 +47,8 @@ function renderRace(fullRows, work, scopedRows = fullRows, available = true) {
   };
 }
 
-const work = (agent, executor=agent, kind="mission", title="Trabajo activo", active_at=1) => ({
-  family_key:agent.toLowerCase(), agent, executor, kind, title, active_at,
+const work = (agent, executor=agent, kind="mission", title="Trabajo activo", active_at=1, operational_basis="recent_work") => ({
+  family_key:agent.toLowerCase(), agent, executor, kind, title, active_at, operational_basis,
 });
 
 test("sin trabajo factual aparece una calle visual pero declara cero participantes", () => {
@@ -82,7 +82,7 @@ test("la carrera factual es independiente del filtro del ranking", () => {
   assert.match(html,/trabajos = trabajosEnCurso\(\), completas = listaCompletaCache \|\| \[\]/);
 });
 
-test("cuatro trabajan aunque sólo dos estén seleccionados y con latido", () => {
+test("cuatro elegibles corren aunque sólo dos estén en el scope y ranking local", () => {
   const full = [
     {agente:"MorfeoMacMini",posicion:1,total:100,vivo:true},
     {agente:"NeoMBP14",posicion:2,total:90,vivo:true},
@@ -96,7 +96,17 @@ test("cuatro trabajan aunque sólo dos estén seleccionados y con latido", () =>
   assert.equal(new Set(keys).size,4);
   assert.deepEqual(lanes,[1,2,3,4]);
   for(const name of ["MorfeoMacMini","NeoMBP14","OraculoMacMini","TrinityMBP14"]) assert.match(race.html,new RegExp(name));
-  assert.equal((race.html.match(/without-heartbeat/g)||[]).length,2);
+  assert.equal((race.html.match(/data-heartbeat="trabajo-reciente"/g)||[]).length,2);
+});
+
+test("un participante rescatado por snapshot sintético se rotula proceso verificado", () => {
+  const item=work("NeoMBP14","SubNeoMBP14","task","Trabajo stale",1,"verified_process");
+  item.presence_at=2;
+  const race=renderRace([], [item], []);
+  assert.equal(race.participants,1);
+  assert.match(race.html,/data-heartbeat="proceso-verificado"/);
+  assert.match(race.html,/proceso verificado/);
+  assert.doesNotMatch(race.html,/sin latido|without-heartbeat/);
 });
 
 test("el dorsal se pinta una vez por cada participante sin tope", () => {
