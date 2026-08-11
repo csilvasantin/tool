@@ -97,6 +97,34 @@ export function sanitizeAgentStopResult(input) {
   return { ok:true, command_id:commandId, status:STATUS_VALUES.has(rawStatus) ? rawStatus : "accepted" };
 }
 
+export async function readAgentControlResult(env, id) {
+  if (!env || !env.TELEGRAM || typeof env.TELEGRAM.fetch !== "function") {
+    throw new AgentStopError("telegram-binding-unavailable", 503);
+  }
+  const safeId = safeCommandId(id);
+  if (!safeId) throw new AgentStopError("invalid-upstream-command", 400);
+  let response;
+  try {
+    response = await env.TELEGRAM.fetch(new Request("https://telegram/api/fleet/agent/commands/" + encodeURIComponent(safeId), {
+      headers:{ accept:"application/json" }
+    }));
+  } catch {
+    throw new AgentStopError("agent-control-status-unavailable", 502);
+  }
+  let payload = {};
+  try { payload = await response.json(); } catch {}
+  if (!response.ok) throw new AgentStopError(response.status === 404 ? "agent-control-command-not-found" : "agent-control-status-unavailable", response.status === 404 ? 404 : 502);
+  const command = payload.command || payload;
+  const status = String(command.status || "").trim().toLowerCase();
+  const action = String(command.action || "").trim().toLowerCase();
+  if (!STATUS_VALUES.has(status)) throw new AgentStopError("agent-control-status-invalid", 502);
+  if (action !== "start" && action !== "stop") throw new AgentStopError("agent-control-command-mismatch", 409);
+  return {
+    ok:status !== "failed" && status !== "rejected", command_id:safeId, action, status,
+    error:String(command.error || command.detail || "").slice(0, 300), updated_at:Number(command.updated_at || 0) || null
+  };
+}
+
 export async function dispatchAgentStop(env, input) {
   if (!env || !env.TELEGRAM || typeof env.TELEGRAM.fetch !== "function") {
     throw new AgentStopError("telegram-binding-unavailable", 503);
