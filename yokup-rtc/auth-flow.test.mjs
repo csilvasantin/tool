@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AUTH_CALLBACK_URI, AUTH_HANDOFF_URI, AUTH_COOKIE_NAMES, handleAuthRequest, safeReturnPath, sessionCookie, verifyGoogleCredential, withCredentialCors } from "./src/auth-flow.js";
+import { AUTH_CALLBACK_URI, AUTH_HANDOFF_URI, AUTH_COOKIE_NAMES, handleAuthRequest, handoffOriginAllowed, safeReturnPath, sessionCookie, verifyGoogleCredential, withCredentialCors } from "./src/auth-flow.js";
 
 class FakeDB {
   constructor() { this.rows = new Map(); }
@@ -91,7 +91,7 @@ test("redirect GIS valida CSRF, crea handoff opaco y sólo el backend emite sesi
   assert.doesNotMatch(html, /credential|id-token|state=/i);
   assert.match(html, new RegExp(`action="${AUTH_HANDOFF_URI.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
   const code = html.match(/name="code" value="([A-Za-z0-9_-]+)"/)[1];
-  const handoffRequest = () => request("/auth/handoff", { method:"POST", headers:{"content-type":"application/x-www-form-urlencoded"}, body:new URLSearchParams({code}) });
+  const handoffRequest = () => request("/auth/handoff", { method:"POST", headers:{origin:"null",cookie:"__Host-yk_session=stale","content-type":"application/x-www-form-urlencoded"}, body:new URLSearchParams({code}) });
   const attempts = await Promise.all([handleAuthRequest(handoffRequest(), env, deps(seen)), handleAuthRequest(handoffRequest(), env, deps(seen))]);
   assert.deepEqual(attempts.map(item => item.status).sort(), [303, 401], "dos canjes concurrentes sólo permiten un éxito");
   const completed = attempts.find(item => item.status === 303);
@@ -99,6 +99,15 @@ test("redirect GIS valida CSRF, crea handoff opaco y sólo el backend emite sesi
   assert.match(completed.headers.get("set-cookie"), /__Host-yk_session=/);
   assert.equal((await handleAuthRequest(handoffRequest(), env, deps(seen))).status, 401, "handoff no admite replay");
   assert.equal((await handleAuthRequest(callback(), env, deps(seen))).status, 401, "state no admite replay");
+});
+
+test("handoff Yokup acepta www o null opaco, ignora cookie vieja y rechaza credenciales", () => {
+  const req = (headers) => new Request("https://api.yokup.com/auth/handoff", {method:"POST", headers, body:"code=" + "a".repeat(43)});
+  assert.equal(handoffOriginAllowed(req({origin:"https://www.yokup.com"})), true);
+  assert.equal(handoffOriginAllowed(req({origin:"null",cookie:"__Host-yk_session=stale"})), true);
+  assert.equal(handoffOriginAllowed(req({origin:"null",authorization:"Bearer x"})), false);
+  assert.equal(handoffOriginAllowed(req({origin:"https://evil.example"})), false);
+  assert.equal(handoffOriginAllowed(req({})), false);
 });
 
 test("callback redirect rechaza CSRF ausente o distinto antes de verificar Google", async () => {

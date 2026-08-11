@@ -45,6 +45,12 @@ export function authOrigin(request) {
   return AUTH_ORIGINS.has(origin) ? origin : "";
 }
 
+export function handoffOriginAllowed(request) {
+  const origin = String(request.headers.get("origin") || "");
+  if (!AUTH_ORIGINS.has(origin.toLowerCase()) && origin !== "null") return false;
+  return !request.headers.get("authorization") && !request.headers.get("x-fleet-token") && !request.headers.get("x-fleet-session");
+}
+
 export function withCredentialCors(response, request) {
   const origin = authOrigin(request);
   if (!origin || response.status === 101) return response;
@@ -271,7 +277,10 @@ export async function handleAuthRequest(request, env, deps) {
     return handoffHtml(code);
   }
   if (url.pathname === "/auth/handoff" && request.method === "POST") {
-    if (!authOrigin(request)) return authJson({ ok:false, error:"origin_not_allowed" }, 403, request);
+    // El callback GIS puede vivir en un contexto sandboxed y enviar Origin:null.
+    // Este endpoint pre-sesión sólo consume un código opaco D1 one-shot; ignora
+    // cualquier cookie vieja y nunca admite credenciales explícitas.
+    if (!handoffOriginAllowed(request)) return authJson({ ok:false, error:"origin_not_allowed" }, 403, request);
     const type = String(request.headers.get("content-type") || "").split(";", 1)[0].trim().toLowerCase();
     if (type !== "application/x-www-form-urlencoded") return authJson({ ok:false, error:"invalid_form" }, 400, request);
     const raw = await request.text();
