@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AUTH_CALLBACK_URI, AUTH_COOKIE_NAMES, handleAuthRequest, safeReturnPath, sessionCookie, verifyGoogleCredential, withCredentialCors } from "./src/auth-flow.js";
+import { AUTH_CALLBACK_URI, AUTH_HANDOFF_URI, AUTH_COOKIE_NAMES, handleAuthRequest, safeReturnPath, sessionCookie, verifyGoogleCredential, withCredentialCors } from "./src/auth-flow.js";
 
 class FakeDB {
   constructor() { this.rows = new Map(); }
@@ -14,8 +14,18 @@ class FakeDB {
           db.rows.set(state, { state, nonce, return_path:returnPath, flow, expires_at:expiresAt, used_at:null });
           return { meta:{ changes:1 } };
         }
+        if (sql.startsWith("INSERT INTO auth_handoffs")) {
+          const [code, email, name, returnPath, expiresAt] = this.args;
+          db.rows.set("handoff:" + code, { code, email, name, return_path:returnPath, expires_at:expiresAt, used_at:null });
+          return { meta:{ changes:1 } };
+        }
         if (sql.startsWith("UPDATE auth_challenges")) {
           const [usedAt, state, now] = this.args; const row = db.rows.get(state);
+          if (!row || row.used_at || row.expires_at < now) return { meta:{ changes:0 } };
+          row.used_at = usedAt; return { meta:{ changes:1 } };
+        }
+        if (sql.startsWith("UPDATE auth_handoffs")) {
+          const [usedAt, code, now] = this.args; const row = db.rows.get("handoff:" + code);
           if (!row || row.used_at || row.expires_at < now) return { meta:{ changes:0 } };
           row.used_at = usedAt; return { meta:{ changes:1 } };
         }
@@ -23,6 +33,7 @@ class FakeDB {
       },
       async first() {
         if (sql.startsWith("SELECT state,nonce")) return db.rows.get(this.args[0]) || null;
+        if (sql.startsWith("SELECT code,email")) return db.rows.get("handoff:" + this.args[0]) || null;
         throw new Error("SQL no soportado: " + sql);
       }
     };
@@ -55,7 +66,7 @@ test("return_path sólo conserva rutas del sitio", () => {
   assert.equal(safeReturnPath("/ok\nSet-Cookie:x"), "/");
 });
 
-test("redirect GIS valida POST form, doble CSRF, state single-use y vuelve por 303 first-party", async () => {
+test("redirect GIS valida CSRF, crea handoff opaco y sólo el backend emite sesión", async () => {
   const env = { DB:new FakeDB() };
   const issued = await handleAuthRequest(request("/auth/challenge", {
     method:"POST", headers:{"content-type":"application/json"},
@@ -74,10 +85,19 @@ test("redirect GIS valida POST form, doble CSRF, state single-use y vuelve por 3
   });
   const seen = { value:challenge.nonce };
   const response = await handleAuthRequest(callback(), env, deps(seen));
-  assert.equal(response.status, 303);
-  assert.equal(response.headers.get("location"), "https://www.yokup.com/misiones?scope=active#top");
-  assert.match(response.headers.get("set-cookie"), /__Host-yk_session=/);
-  assert.doesNotMatch(response.headers.get("location"), /credential|id-token|state=/i);
+  assert.equal(response.status, 200);
+  assert.doesNotMatch(response.headers.get("set-cookie") || "", /__Host-yk_session=/);
+  const html = await response.text();
+  assert.doesNotMatch(html, /credential|id-token|state=/i);
+  assert.match(html, new RegExp(`action="${AUTH_HANDOFF_URI.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
+  const code = html.match(/name="code" value="([A-Za-z0-9_-]+)"/)[1];
+  const handoffRequest = () => request("/auth/handoff", { method:"POST", headers:{"content-type":"application/x-www-form-urlencoded"}, body:new URLSearchParams({code}) });
+  const attempts = await Promise.all([handleAuthRequest(handoffRequest(), env, deps(seen)), handleAuthRequest(handoffRequest(), env, deps(seen))]);
+  assert.deepEqual(attempts.map(item => item.status).sort(), [303, 401], "dos canjes concurrentes sólo permiten un éxito");
+  const completed = attempts.find(item => item.status === 303);
+  assert.equal(completed.headers.get("location"), "https://www.yokup.com/misiones?scope=active#top");
+  assert.match(completed.headers.get("set-cookie"), /__Host-yk_session=/);
+  assert.equal((await handleAuthRequest(handoffRequest(), env, deps(seen))).status, 401, "handoff no admite replay");
   assert.equal((await handleAuthRequest(callback(), env, deps(seen))).status, 401, "state no admite replay");
 });
 

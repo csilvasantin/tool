@@ -37,7 +37,7 @@ test("el navegador no procesa credenciales ni las persiste", () => {
 test("todas las páginas protegidas cargan el acceso cross-subdomain actual", async () => {
   const root = new URL("./", import.meta.url);
   const seal = createHash("sha256").update(source).digest("hex").slice(0, 12);
-  const expected = `/acceso.js?v=20260811-r3-${seal}`;
+  const expected = `/acceso.js?v=20260811-r4-${seal}`;
   let protectedPages = 0;
   for (const name of (await readdir(root, { recursive:true })).filter((file) => file.endsWith(".html"))) {
     const html = await readFile(new URL(name, root), "utf8");

@@ -70,3 +70,46 @@ test("sin sello el Worker falla cerrado antes de servir assets", async () => {
   assert.equal(response.status, 503);
   assert.equal((await response.json()).error, "missing-release");
 });
+
+test("challenge y callback POST los atiende el gate real, no Assets", async () => {
+  let assetCalls = 0;
+  const calls = [];
+  const testEnv = env(async () => { assetCalls += 1; return new Response("asset"); });
+  const fetchImpl = async (url, init) => {
+    calls.push({url, init});
+    if (String(url).endsWith("/auth/challenge")) {
+      return new Response('{"state":"s","nonce":"n"}', {status:200, headers:{"Content-Type":"application/json", "Set-Cookie":"__Host-yk_challenge=s; Secure; HttpOnly; Path=/"}});
+    }
+    return new Response("handoff", {status:200, headers:{"Content-Type":"text/html"}});
+  };
+  const challenge = await handleRequest(new Request("https://www.yokup.com/auth/challenge", {
+    method:"POST", headers:{"Content-Type":"application/json"}, body:'{"flow":"redirect","return_to":"/dashboard"}'
+  }), testEnv, {}, fetchImpl);
+  assert.equal(challenge.status, 200);
+  assert.match(challenge.headers.get("Set-Cookie"), /__Host-yk_challenge=s/);
+  const form = new URLSearchParams({credential:"jwt", state:"s", g_csrf_token:"csrf"}).toString();
+  const callback = await handleRequest(new Request("https://www.yokup.com/auth/callback", {
+    method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded", Cookie:"g_csrf_token=csrf; __Host-yk_challenge=s"}, body:form
+  }), testEnv, {}, fetchImpl);
+  assert.equal(callback.status, 200);
+  assert.equal(await callback.text(), "handoff");
+  assert.equal(assetCalls, 0);
+  assert.equal(calls[0].init.headers.Origin, "https://www.yokup.com");
+  assert.equal(calls[1].init.headers.Cookie, "g_csrf_token=csrf; __Host-yk_challenge=s");
+});
+
+test("el host bare canonicaliza navegación y nunca sirve o reenvía login", async () => {
+  let assets = 0, network = 0;
+  const testEnv = env(async () => { assets += 1; return new Response("asset"); });
+  for (const method of ["GET", "HEAD"]) {
+    const response = await handleRequest(new Request("https://yokup.com/dashboard?q=1", {method}), testEnv, {}, async () => { network += 1; });
+    assert.equal(response.status, 308);
+    assert.equal(response.headers.get("Location"), "https://www.yokup.com/dashboard?q=1");
+  }
+  const callback = await handleRequest(new Request("https://yokup.com/auth/callback", {
+    method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"}, body:"credential=secret"
+  }), testEnv, {}, async () => { network += 1; });
+  assert.equal(callback.status, 403);
+  assert.equal(assets, 0);
+  assert.equal(network, 0);
+});

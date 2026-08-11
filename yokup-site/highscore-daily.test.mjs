@@ -64,7 +64,7 @@ test("Ventana Decisión ocupa dos líneas y conserva la cadencia horaria", () =>
 });
 
 test("las tareas salen del plan A·B·C real y no del tablero público antiguo", () => {
-  assert.match(html, /<script src="\/acceso\.js\?v=20260811-r3-a4427d998e23"><\/script>[\s\S]*<body/);
+  assert.match(html, /<script src="\/acceso\.js\?v=20260811-r4-d77633add752"><\/script>[\s\S]*<body/);
   assert.match(html, /seguroYokup\("\/tasks\/all\?scope=fleet"/);
   assert.doesNotMatch(html, /\/api\/public\/tasks/);
   assert.match(html, /match\(\/\^\(\[a-c\]\)\(\?:\[1-3\]\)\?\$\//);

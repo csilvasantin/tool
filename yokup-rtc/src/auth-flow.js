@@ -5,8 +5,10 @@ const SESSION_COOKIE = "__Host-yk_session";
 const CHALLENGE_TTL_MS = 10 * 60 * 1000;
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 const MAX_GOOGLE_TOKEN_AGE_MS = 2 * 60 * 60 * 1000;
-export const AUTH_CALLBACK_URI = "https://api.yokup.com/auth/callback";
+export const AUTH_CALLBACK_URI = "https://www.yokup.com/auth/callback";
+export const AUTH_HANDOFF_URI = "https://api.yokup.com/auth/handoff";
 const PUBLIC_ORIGIN = "https://www.yokup.com";
+const HANDOFF_TTL_MS = 60 * 1000;
 
 function randomToken(bytes = 24) {
   const value = new Uint8Array(bytes);
@@ -78,6 +80,10 @@ export function sessionTokenFromRequest(request) {
 
 async function ensureChallengeSchema(env) {
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS auth_challenges (state TEXT PRIMARY KEY, nonce TEXT NOT NULL, return_path TEXT NOT NULL, flow TEXT NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER)").run();
+}
+
+async function ensureHandoffSchema(env) {
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS auth_handoffs (code TEXT PRIMARY KEY, email TEXT NOT NULL, name TEXT NOT NULL, return_path TEXT NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER)").run();
 }
 
 export async function issueChallenge(env, returnPath, flow = "popup", now = Date.now()) {
@@ -171,6 +177,37 @@ function redirectResponse(path, token) {
   return new Response(null, { status:303, headers });
 }
 
+async function issueHandoff(env, email, name, returnPath, now = Date.now()) {
+  await ensureHandoffSchema(env);
+  const code = randomToken(32);
+  await env.DB.prepare("INSERT INTO auth_handoffs(code,email,name,return_path,expires_at,used_at) VALUES(?,?,?,?,?,NULL)")
+    .bind(code, email, String(name || ""), safeReturnPath(returnPath), now + HANDOFF_TTL_MS).run();
+  return code;
+}
+
+async function consumeHandoff(env, code, now = Date.now()) {
+  await ensureHandoffSchema(env);
+  const row = await env.DB.prepare("SELECT code,email,name,return_path,expires_at,used_at FROM auth_handoffs WHERE code=?").bind(code).first();
+  if (!row || row.used_at || Number(row.expires_at) < now) return null;
+  const result = await env.DB.prepare("UPDATE auth_handoffs SET used_at=? WHERE code=? AND used_at IS NULL AND expires_at>=?")
+    .bind(now, code, now).run();
+  if (!result || !result.meta || Number(result.meta.changes) !== 1) return null;
+  return { email:String(row.email), name:String(row.name || ""), returnPath:safeReturnPath(row.return_path) };
+}
+
+function handoffHtml(code) {
+  const nonce = randomToken(18);
+  const body = '<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"></head><body>' +
+    '<form id="handoff" method="post" action="' + AUTH_HANDOFF_URI + '"><input type="hidden" name="code" value="' + code + '"></form>' +
+    '<script nonce="' + nonce + '">document.getElementById("handoff").submit()</script></body></html>';
+  const headers = new Headers({
+    "content-type":"text/html; charset=utf-8", "cache-control":"no-store", "Referrer-Policy":"no-referrer",
+    "Content-Security-Policy":`default-src 'none'; script-src 'nonce-${nonce}'; form-action ${AUTH_HANDOFF_URI}; frame-ancestors 'none'; base-uri 'none'`
+  });
+  headers.append("Set-Cookie", clearChallengeCookie("None"));
+  return new Response(body, { status:200, headers });
+}
+
 export async function handleAuthRequest(request, env, deps) {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/auth/")) return null;
@@ -230,8 +267,21 @@ export async function handleAuthRequest(request, env, deps) {
     if (!google) return authJson({ ok:false, error:"credential_invalid" }, 401, request, { "Set-Cookie":clearChallengeCookie("None") });
     const email = String(google.email).toLowerCase();
     if (!(await deps.whitelist()).has(email)) return authJson({ ok:false, error:"not_allowed" }, 403, request, { "Set-Cookie":clearChallengeCookie("None") });
-    const token = await deps.makeSession(env, email, google.name || "");
-    return redirectResponse(challenge.returnPath, token);
+    const code = await issueHandoff(env, email, google.name || "", challenge.returnPath);
+    return handoffHtml(code);
+  }
+  if (url.pathname === "/auth/handoff" && request.method === "POST") {
+    if (!authOrigin(request)) return authJson({ ok:false, error:"origin_not_allowed" }, 403, request);
+    const type = String(request.headers.get("content-type") || "").split(";", 1)[0].trim().toLowerCase();
+    if (type !== "application/x-www-form-urlencoded") return authJson({ ok:false, error:"invalid_form" }, 400, request);
+    const raw = await request.text();
+    if (raw.length > 1024) return authJson({ ok:false, error:"invalid_form" }, 400, request);
+    const code = new URLSearchParams(raw).get("code") || "";
+    if (!/^[A-Za-z0-9_-]{32,128}$/.test(code)) return authJson({ ok:false, error:"handoff_invalid" }, 401, request);
+    const handoff = await consumeHandoff(env, code);
+    if (!handoff) return authJson({ ok:false, error:"handoff_invalid" }, 401, request);
+    const token = await deps.makeSession(env, handoff.email, handoff.name);
+    return redirectResponse(handoff.returnPath, token);
   }
   return authJson({ ok:false, error:"not_found" }, 404, request);
 }

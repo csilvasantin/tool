@@ -9,7 +9,7 @@
 (function () {
   var CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
   var WORKER = "https://api.yokup.com";
-  var LOGIN_URI = WORKER + "/auth/callback";
+  var LOGIN_URI = "https://www.yokup.com/auth/callback";
   // Red de seguridad: rtc.yokup.com es el FALLBACK que usa yk-frame.js/ykFetch
   // cuando api.yokup.com falla por red. (28-jul-2026: antes apuntaba al host
   // workers.dev, que devolvía 404 y encima está bloqueado por ISPs españoles.)
@@ -91,7 +91,7 @@
   function loadGIS() {
     var go = function () {
       var returnTo = location.pathname + location.search + location.hash;
-      rawFetch(WORKER + "/auth/challenge", { method:"POST", credentials:"include", headers:{"content-type":"application/json"}, body:JSON.stringify({flow:"redirect",return_to:returnTo}) })
+      rawFetch("/auth/challenge", { method:"POST", credentials:"include", headers:{"content-type":"application/json"}, body:JSON.stringify({flow:"redirect",return_to:returnTo}) })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("challenge")); })
       .then(function (challenge) {
       try {

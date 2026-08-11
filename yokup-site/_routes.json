@@ -1,1 +1,1 @@
-{"version":1,"include":["/api/fleet-census"],"exclude":[]}
+{"version":1,"include":["/api/fleet-census","/auth/challenge","/auth/callback"],"exclude":[]}

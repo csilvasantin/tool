@@ -1,4 +1,5 @@
 const CENSUS_ORIGIN = "https://macmini.tail48b61c.ts.net/api/council/fleet-census";
+import { authProxy } from "./auth-proxy.js";
 
 function releaseFromEnv(env) {
   try { return JSON.parse(String(env.RELEASE_JSON || "")); } catch (_) { return null; }
@@ -32,6 +33,15 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
   const incoming = new URL(request.url);
   const release = releaseFromEnv(env);
   if (!release) return Response.json({ok:false, error:"missing-release"}, {status:503, headers:{"Cache-Control":"no-store"}});
+  if (incoming.hostname === "yokup.com") {
+    if (request.method === "GET" || request.method === "HEAD") {
+      incoming.hostname = "www.yokup.com";
+      return Response.redirect(incoming, 308);
+    }
+    if (incoming.pathname.startsWith("/auth/")) {
+      return Response.json({ok:false, error:"canonical_origin_required"}, {status:403, headers:{"Cache-Control":"no-store"}});
+    }
+  }
   if (request.method === "GET" && incoming.pathname === "/__yokup-gate") {
     return Response.json({...release, ok:true, mode:"worker-assets"}, {
       headers:{"Cache-Control":"no-store", "X-Yokup-Gate":"worker-assets", "X-Yokup-Gate-Version":release.version}
@@ -39,6 +49,9 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
   }
   if (request.method === "GET" && incoming.pathname === "/version.json") {
     return Response.json(release, {headers:{"Cache-Control":"no-store", "Access-Control-Allow-Origin":"*", "X-Yokup-Gate":"worker-assets"}});
+  }
+  if (incoming.pathname === "/auth/challenge" || incoming.pathname === "/auth/callback") {
+    return authProxy(request, fetchImpl);
   }
   if (incoming.pathname === "/api/fleet-census") return fleetCensus(request, ctx, fetchImpl);
   if ((incoming.pathname === "/agentica" || incoming.pathname === "/agentica.html") && (request.method === "GET" || request.method === "HEAD")) {
