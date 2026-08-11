@@ -27,8 +27,9 @@ test("Desktop Apps conserva el censo apagado y selecciona una identidad exacta",
 
 test("el compositor ofrece misión, tarea y objetivo sin fingir una PTY",()=>{
   assert.match(frame,/\[\["mission","Misión"\],\["task","Tarea"\],\["objective","Objetivo"\]\]/);
-  assert.match(frame,/ykFetch\("\/fleet\/nudge"/);
-  assert.match(frame,/machine:item\.machine,persona:item\.persona,runtime:item\.runtime,host:"app",priority:true/);
+  assert.match(frame,/ykFetch\("\/fleet\/desktop\/write"/);
+  assert.match(frame,/function desktopCommandTarget\(item\)/);
+  assert.match(frame,/machine:item\.machine,persona:item\.persona,runtime:item\.runtime,host:"app",session_id:item\.session_id,pid:item\.pid/);
   assert.match(frame,/text:"\["\+label\.toUpperCase\(\)\+" · DESKTOPAPP\]\\n"\+text/);
   assert.match(frame,/ready=!!\(item&&item\.active\)/);
   assert.match(frame,/FLEET\.appDispatchInput\.disabled=!ready\|\|FLEET\.dispatchBusy/);
@@ -40,10 +41,40 @@ test("el compositor ofrece misión, tarea y objetivo sin fingir una PTY",()=>{
 
 test("el panel conserva feedback visible de envío y de encendido",()=>{
   assert.match(frame,/\/\/ enviando "\+label\.toLowerCase\(\)\+" a "/);
-  assert.match(frame,/\/\/ "\+label\.toLowerCase\(\)\+" encolada para "/);
+  assert.match(frame,/\/\/ "\+label\.toLowerCase\(\)\+" entregada a "/);
   assert.match(frame,/FLEET\.expertAppStatus/);
   assert.match(frame,/\[FLEET\.appStatus,FLEET\.cliStatus,FLEET\.cliBulkStatus,FLEET\.expertAppStatus\]/);
   assert.match(css,/\.yk-app-dispatch-status\.error\{color:#ff7f87\}/);
+});
+
+test("la vista Desktop captura ahora y después serializa cada 10 s con lifecycle seguro",()=>{
+  assert.match(frame,/function startDesktopCapture\(item,label\)/);
+  assert.match(frame,/requestDesktopCapture\(token,key\)/);
+  assert.match(frame,/setTimeout\(function\(\)\{state\.timer=null;requestDesktopCapture\(token,key\);\},10000\)/);
+  assert.match(frame,/state\.inFlight=true/);
+  assert.match(frame,/FLEET\.desktopCapture\.token!==token\|\|FLEET\.desktopCapture\.key!==key/);
+  assert.match(frame,/controller\.abort\(\)/);
+  assert.match(frame,/visibilitychange/);
+  assert.match(frame,/pagehide/);
+  assert.match(frame,/stopDesktopCapture\(true,"Vista detenida: Experto está compactado\."\)/);
+  assert.match(frame,/fleetKey\(item\)!==state\.key/);
+  assert.match(frame,/Captura fallida: /);
+  assert.match(frame,/Capturada /);
+  assert.match(css,/\.yk-app-capture-meta\.stale/);
+});
+
+test("un reinicio con el mismo slot y PID nuevo corta la captura sin reintentar",()=>{
+  assert.match(frame,/function sameDesktopCommandTarget\(item,target\)/);
+  assert.match(frame,/Number\(item\.pid\)===Number\(target\.pid\)/);
+  assert.match(frame,/fleetKey\(item\)!==state\.key\|\|!sameDesktopCommandTarget\(item,state\.target\)\)stopDesktopCapture/);
+  assert.match(frame,/desktopCaptureTarget\(token,key\)[\s\S]*sameDesktopCommandTarget\(item,FLEET\.desktopCapture\.target\)\?item:null/);
+});
+
+test("un fallo terminal del watcher desconecta la captura y exige reconectar",()=>{
+  assert.match(frame,/terminalError\.desktopCaptureTerminal=true/);
+  assert.match(frame,/if\(error&&error\.desktopCaptureTerminal\)/);
+  assert.match(frame,/stopDesktopCapture\(true,"Captura detenida: "/);
+  assert.match(frame,/reconecta la Desktop App/);
 });
 
 test("el interruptor de DesktopApp pinta progreso hasta verificar el proceso real",()=>{

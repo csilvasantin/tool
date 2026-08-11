@@ -692,7 +692,9 @@
     appStatus:null, appBulk:null, appBulkStatus:null, appNotice:"", appNoticeError:false, appsExpanded:false, appOpen:new Set(), cliOpen:new Set(), cliList:null, cliCount:null, cliTitle:null,
     cliMeta:null, cliMount:null, cliPtyStatus:null, cliStatus:null, cliBulk:null, cliBulkStatus:null, expertAppStatus:null, cliPower:null, cliRead:null, cliFocus:null,
     cliInput:null, cliSend:null, expertAppList:null, expertAppCount:null, expertAppOpen:new Set(), appDispatchKind:null,
-    appDispatchInput:null, appDispatchSend:null, appDispatchStatus:null,
+    appDispatchInput:null, appDispatchSend:null, appDispatchStatus:null, appCapture:null, appCaptureImage:null, appCaptureMeta:null, appCaptureStatus:null,
+    desktopCapture:{timer:null,freshnessTimer:null,controller:null,token:0,key:"",target:null,inFlight:false,windowId:0,capturedAt:0,label:""},
+    desktopWrite:{controller:null,token:0,key:"",target:null},
     cliExpanded:"", structureKey:"", appActions:{}, bulk:{runtime:"",action:"",token:0}, appBulkState:{runtime:"",action:"",token:0}, pty:{term:null,fit:null,socket:null,key:"",loaded:null,resize:null,retry:null,manual:false} };
 
   function fleetText(tag, cls, value) { var node=el(tag,cls); node.textContent=String(value == null ? "" : value); return node; }
@@ -839,6 +841,8 @@
   function fleetAppControl(item, action) {
     var key=fleetKey(item);if(FLEET.appActions[key])return;
     if(action === "stop" && !window.confirm("Cerrar " + desktopAppName(item.runtime) + " de " + item.persona + " en " + item.machine + " (PID " + item.pid + ")?"))return;
+    if(action==="stop"&&FLEET.desktopCapture.key===key)stopDesktopCapture(true,"Vista detenida: se está apagando la app.");
+    if(action==="stop"&&FLEET.desktopWrite.key===key)stopDesktopWrite();
     var token=Date.now();FLEET.appActions[key]={action:action,token:token,deadline:token+30000,phase:"pending",runtime:item.runtime};
     renderApps();renderExpertApps();
     fleetMessage((action === "start" ? "Abriendo " : "Cerrando ") + desktopAppName(item.runtime) + " en " + item.machine + " · verificando el proceso real…",false);
@@ -1021,6 +1025,105 @@
     return kind === "task" ? "Tarea" : kind === "objective" ? "Objetivo" : "Misión";
   }
 
+  function desktopCommandTarget(item) {
+    return {machine:item.machine,persona:item.persona,runtime:item.runtime,host:"app",session_id:item.session_id,pid:item.pid};
+  }
+
+  function sameDesktopCommandTarget(item,target) {
+    return !!item&&!!target&&item.machine===target.machine&&item.persona===target.persona&&item.runtime===target.runtime&&item.host===target.host&&item.session_id===target.session_id&&Number(item.pid)===Number(target.pid);
+  }
+
+  function desktopCommandPoll(path,id,deadline,token,key,write) {
+    var state=write?FLEET.desktopWrite:FLEET.desktopCapture;
+    if(state.token!==token||state.key!==key)return Promise.reject(new Error(write?"entrega cancelada":"captura cancelada"));
+    return ykFetch(path+"?id="+encodeURIComponent(id),{cache:"no-store",signal:state.controller&&state.controller.signal})
+      .then(function(response){return response.json().catch(function(){return {};}).then(function(body){if(!response.ok)throw new Error(body.error||("estado "+response.status));return body;});})
+      .then(function(body){
+        if(state.token!==token||state.key!==key)throw new Error(write?"entrega cancelada":"captura cancelada");
+        if(body.status==="done"||body.status==="failed")return body;
+        if(Date.now()>=deadline)throw new Error("la ventana no respondió a tiempo");
+        return new Promise(function(resolve){setTimeout(resolve,600);}).then(function(){return desktopCommandPoll(path,id,deadline,token,key,write);});
+      });
+  }
+
+  function paintDesktopCaptureFreshness() {
+    var state=FLEET.desktopCapture;if(!FLEET.appCaptureMeta)return;
+    if(!state.capturedAt){FLEET.appCaptureMeta.textContent="Sin captura todavía";return;}
+    var age=Math.max(0,Math.floor((Date.now()-state.capturedAt)/1000));
+    FLEET.appCaptureMeta.textContent="Capturada "+new Date(state.capturedAt).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"})+" · hace "+age+" s";
+    FLEET.appCaptureMeta.classList.toggle("stale",age>15);
+  }
+
+  function clearDesktopCaptureRemote(target) {
+    if(!target)return;
+    ykFetch("/fleet/desktop/capture/clear",{method:"POST",cache:"no-store",keepalive:true,headers:{"content-type":"application/json"},body:JSON.stringify(target)}).catch(function(){});
+  }
+
+  function stopDesktopCapture(clearRemote,reason) {
+    var state=FLEET.desktopCapture,oldTarget=state.target;
+    state.token++;state.key="";state.target=null;state.inFlight=false;state.windowId=0;state.capturedAt=0;state.label="";
+    if(state.timer){clearTimeout(state.timer);state.timer=null;}if(state.freshnessTimer){clearInterval(state.freshnessTimer);state.freshnessTimer=null;}
+    if(state.controller){try{state.controller.abort();}catch(e){}state.controller=null;}
+    if(clearRemote&&oldTarget)clearDesktopCaptureRemote(oldTarget);
+    if(FLEET.appCaptureImage){FLEET.appCaptureImage.removeAttribute("src");FLEET.appCaptureImage.hidden=true;}
+    if(FLEET.appCaptureMeta){FLEET.appCaptureMeta.textContent="Sin captura todavía";FLEET.appCaptureMeta.classList.remove("stale");}
+    if(FLEET.appCaptureStatus)FLEET.appCaptureStatus.textContent=reason||"Vista desconectada";
+  }
+
+  function stopDesktopWrite() {
+    var state=FLEET.desktopWrite;state.token++;state.key="";state.target=null;
+    if(state.controller){try{state.controller.abort();}catch(e){}state.controller=null;}
+  }
+
+  function desktopCaptureTarget(token,key) {
+    var item=selectedDesktopApp();
+    return FLEET.desktopCapture.token===token&&FLEET.desktopCapture.key===key&&isOpen("bottom")&&item&&item.active&&fleetKey(item)===key&&sameDesktopCommandTarget(item,FLEET.desktopCapture.target)?item:null;
+  }
+
+  function scheduleDesktopCapture(token,key) {
+    var state=FLEET.desktopCapture;if(!desktopCaptureTarget(token,key))return stopDesktopCapture(true,"Vista detenida: la app ya no está conectada.");
+    if(state.timer)clearTimeout(state.timer);
+    state.timer=setTimeout(function(){state.timer=null;requestDesktopCapture(token,key);},10000);
+  }
+
+  function requestDesktopCapture(token,key) {
+    var state=FLEET.desktopCapture,item=desktopCaptureTarget(token,key);if(!item)return stopDesktopCapture(true,"Vista detenida: cambió la app seleccionada.");
+    if(state.inFlight)return;state.inFlight=true;state.controller=typeof AbortController==="function"?new AbortController():null;
+    if(FLEET.appCaptureStatus){FLEET.appCaptureStatus.textContent=state.capturedAt?"Actualizando la ventana…":"Capturando la ventana ahora…";FLEET.appCaptureStatus.classList.remove("error");}
+    var body=desktopCommandTarget(item);if(state.windowId)body.window_id=state.windowId;
+    ykFetch("/fleet/desktop/capture",{method:"POST",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify(body),signal:state.controller&&state.controller.signal})
+      .then(function(response){return response.json().catch(function(){return {};}).then(function(data){if(!response.ok)throw new Error(data.error||("captura "+response.status));return data;});})
+      .then(function(data){return desktopCommandPoll("/fleet/desktop/capture",data.command_id,Date.now()+22000,token,key,false);})
+      .then(function(result){
+        if(!desktopCaptureTarget(token,key))return;
+        if(result.status!=="done"||!result.image){var terminalError=new Error(result.error||"la máquina no entregó una captura");terminalError.desktopCaptureTerminal=true;throw terminalError;}
+        if(state.windowId&&Number(result.window_id)!==state.windowId)throw new Error("la ventana cambió durante el seguimiento");
+        state.windowId=Number(result.window_id)||0;state.capturedAt=Number(result.captured_at)||Date.now();
+        FLEET.appCaptureImage.src=result.image;FLEET.appCaptureImage.alt="Ventana de "+state.label+" tras recibir el encargo";FLEET.appCaptureImage.hidden=false;
+        FLEET.appCaptureStatus.textContent="Ventana conectada · siguiente captura en 10 s";FLEET.appCaptureStatus.classList.remove("error");
+        paintDesktopCaptureFreshness();if(!state.freshnessTimer)state.freshnessTimer=setInterval(paintDesktopCaptureFreshness,1000);
+      }).catch(function(error){
+        if(!desktopCaptureTarget(token,key))return;
+        if(error&&error.desktopCaptureTerminal){
+          stopDesktopCapture(true,"Captura detenida: "+(error.message||error)+" · reconecta la Desktop App.");
+          if(FLEET.appCaptureStatus)FLEET.appCaptureStatus.classList.add("error");
+          return;
+        }
+        FLEET.appCaptureStatus.textContent="Captura fallida: "+(error.message||error)+" · reintento en 10 s";FLEET.appCaptureStatus.classList.add("error");
+      }).finally(function(){
+        if(FLEET.desktopCapture.token!==token||FLEET.desktopCapture.key!==key)return;
+        state.inFlight=false;state.controller=null;scheduleDesktopCapture(token,key);
+      });
+  }
+
+  function startDesktopCapture(item,label) {
+    stopDesktopCapture(true,"");var state=FLEET.desktopCapture,key=fleetKey(item),token=state.token+1;
+    state.token=token;state.key=key;state.target=desktopCommandTarget(item);state.label=item.persona+" · "+desktopAppName(item.runtime);state.windowId=0;state.capturedAt=0;
+    if(FLEET.appCapture)FLEET.appCapture.hidden=false;
+    if(FLEET.appCaptureStatus){FLEET.appCaptureStatus.textContent=label+" entregada · primera captura inmediata";FLEET.appCaptureStatus.classList.remove("error");}
+    requestDesktopCapture(token,key);
+  }
+
   function refreshDesktopDispatch() {
     var item=selectedDesktopApp(),ready=!!(item&&item.active),hasText=!!(FLEET.appDispatchInput&&FLEET.appDispatchInput.value.trim());
     if(FLEET.appDispatchInput)FLEET.appDispatchInput.disabled=!ready||FLEET.dispatchBusy;
@@ -1035,15 +1138,21 @@
     FLEET.dispatchBusy=true;refreshDesktopDispatch();
     FLEET.appDispatchStatus.textContent="// enviando "+label.toLowerCase()+" a "+item.persona+" · "+appName+"…";
     FLEET.appDispatchStatus.classList.remove("error");
-    ykFetch("/fleet/nudge",{method:"POST",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify({
-      machine:item.machine,persona:item.persona,runtime:item.runtime,host:"app",priority:true,
+    stopDesktopCapture(true,"Vista detenida: enviando un nuevo encargo.");stopDesktopWrite();
+    var targetKey=fleetKey(item),writeState=FLEET.desktopWrite,token=writeState.token+1;writeState.token=token;writeState.key=targetKey;writeState.target=desktopCommandTarget(item);writeState.controller=typeof AbortController==="function"?new AbortController():null;
+    ykFetch("/fleet/desktop/write",{method:"POST",cache:"no-store",headers:{"content-type":"application/json"},signal:writeState.controller&&writeState.controller.signal,body:JSON.stringify(Object.assign(desktopCommandTarget(item),{
       text:"["+label.toUpperCase()+" · DESKTOPAPP]\n"+text
-    })}).then(function(response){return response.json().catch(function(){return {};}).then(function(body){if(!response.ok||body.ok===false)throw new Error(body.error||("dispatch "+response.status));return body;});})
-      .then(function(){
+    }))}).then(function(response){return response.json().catch(function(){return {};}).then(function(body){if(!response.ok||body.ok===false)throw new Error(body.error||("dispatch "+response.status));return body;});})
+      .then(function(body){
+        if(!sameDesktopCommandTarget(selectedDesktopApp(),writeState.target))throw new Error("cambió la Desktop App seleccionada");
+        return desktopCommandPoll("/fleet/desktop/write",body.command_id,Date.now()+22000,token,targetKey,true);
+      }).then(function(result){
+        if(result.status!=="done"||result.delivered!==true)throw new Error(result.error||"la ventana no confirmó la entrega");
         if(FLEET.appDispatchInput.value===text)FLEET.appDispatchInput.value="";
-        FLEET.appDispatchStatus.textContent="// "+label.toLowerCase()+" encolada para "+item.persona+" · "+appName+" en "+item.machine;
-      }).catch(function(error){FLEET.appDispatchStatus.textContent="// error al enviar: "+(error.message||error);FLEET.appDispatchStatus.classList.add("error");})
-      .finally(function(){FLEET.dispatchBusy=false;refreshDesktopDispatch();});
+        FLEET.appDispatchStatus.textContent="// "+label.toLowerCase()+" entregada a "+item.persona+" · "+appName+" en "+item.machine;
+        startDesktopCapture(item,label);
+      }).catch(function(error){stopDesktopCapture(true,"Vista detenida: la entrega no se confirmó.");FLEET.appDispatchStatus.textContent="// error al enviar: "+(error.message||error);FLEET.appDispatchStatus.classList.add("error");})
+      .finally(function(){if(writeState.token===token){writeState.controller=null;writeState.key="";writeState.target=null;}FLEET.dispatchBusy=false;refreshDesktopDispatch();});
   }
 
   function renderAppBulkControls() {
@@ -1255,7 +1364,7 @@
       toggle.addEventListener("click",function(){if(FLEET.expertAppOpen.has(machine))FLEET.expertAppOpen.delete(machine);else FLEET.expertAppOpen.add(machine);renderExpertApps();});
       items.forEach(function(item){
         var key=fleetKey(item),progress=appActionState(item),row=el("div","yk-expert-app-row"+(key===FLEET.selectedApp?" selected":""));
-        var select=fleetButton("","yk-expert-app-select",function(){FLEET.selectedApp=key;renderExpertApps();});
+        var select=fleetButton("","yk-expert-app-select",function(){if(FLEET.selectedApp!==key){stopDesktopCapture(true,"Vista detenida: cambió la app seleccionada.");stopDesktopWrite();}FLEET.selectedApp=key;renderExpertApps();});
         select.setAttribute("aria-pressed",String(key===FLEET.selectedApp));
         select.appendChild(fleetText("b",null,item.persona+" · "+desktopAppName(item.runtime)));
         select.appendChild(fleetText("small",item.active?"live":"",item.active?("PID "+item.pid):"apagada · enciéndela para enviar"));row.appendChild(select);
@@ -1318,6 +1427,15 @@
   }
 
   function renderFleet(){renderApps();renderExpertApps();renderCli();renderBulkControls();renderAppBulkControls();}
+  function reconcileDesktopCapture() {
+    var state=FLEET.desktopCapture;if(!state.key)return;
+    var item=selectedDesktopApp();
+    if(!isOpen("bottom")||!item||!item.active||fleetKey(item)!==state.key||!sameDesktopCommandTarget(item,state.target))stopDesktopCapture(true,"Vista detenida: la conexión o el slot cambiaron.");
+  }
+  function reconcileDesktopWrite() {
+    var state=FLEET.desktopWrite;if(!state.key)return;
+    var item=selectedDesktopApp();if(!isOpen("bottom")||!item||!item.active||fleetKey(item)!==state.key||!sameDesktopCommandTarget(item,state.target))stopDesktopWrite();
+  }
   function loadFleet() {
     return fetch(TELEGRAM+"/api/presence",{cache:"no-store"}).then(function(response){if(!response.ok)throw new Error("presence "+response.status);return response.json();})
       .then(function(payload){
@@ -1329,7 +1447,7 @@
           if(FLEET.cliCount){var clis=items.filter(function(item){return item.host==="cli";});FLEET.cliCount.textContent=cliCountLabel(clis);}
           paintSelectedCli();renderBulkControls();renderAppBulkControls();
         }
-        return payload;
+        reconcileDesktopCapture();reconcileDesktopWrite();return payload;
       })
       .catch(function(error){fleetMessage("No se pudo verificar la flota: "+(error.message||error),true);});
   }
@@ -1375,7 +1493,12 @@
     appForm.addEventListener("submit",function(event){event.preventDefault();desktopDispatch();});
     FLEET.appDispatchInput.addEventListener("input",refreshDesktopDispatch);
     FLEET.appDispatchInput.addEventListener("keydown",function(event){var enter=event.key==="Enter"||event.code==="Enter"||event.code==="NumpadEnter";if(enter&&(event.metaKey||event.ctrlKey)&&!event.isComposing){event.preventDefault();desktopDispatch();}});
-    appFold.body.appendChild(appForm);FLEET.appDispatchStatus=el("p","yk-app-dispatch-status");FLEET.appDispatchStatus.setAttribute("role","status");FLEET.appDispatchStatus.setAttribute("aria-live","polite");appFold.body.appendChild(FLEET.appDispatchStatus);side.appendChild(appFold.section);section.appendChild(side);
+    appFold.body.appendChild(appForm);FLEET.appDispatchStatus=el("p","yk-app-dispatch-status");FLEET.appDispatchStatus.setAttribute("role","status");FLEET.appDispatchStatus.setAttribute("aria-live","polite");appFold.body.appendChild(FLEET.appDispatchStatus);
+    FLEET.appCapture=el("figure","yk-app-capture");FLEET.appCapture.hidden=true;
+    FLEET.appCaptureImage=el("img","yk-app-capture-image");FLEET.appCaptureImage.hidden=true;FLEET.appCaptureImage.setAttribute("decoding","async");FLEET.appCapture.appendChild(FLEET.appCaptureImage);
+    var captureCaption=el("figcaption","yk-app-capture-caption");FLEET.appCaptureMeta=fleetText("span","yk-app-capture-meta","Sin captura todavía");captureCaption.appendChild(FLEET.appCaptureMeta);
+    FLEET.appCaptureStatus=fleetText("span","yk-app-capture-status","Vista desconectada");FLEET.appCaptureStatus.setAttribute("role","status");FLEET.appCaptureStatus.setAttribute("aria-live","polite");captureCaption.appendChild(FLEET.appCaptureStatus);FLEET.appCapture.appendChild(captureCaption);appFold.body.appendChild(FLEET.appCapture);
+    side.appendChild(appFold.section);section.appendChild(side);
     var terminal=el("div","yk-cli-terminal");var terminalHead=el("div","yk-cli-terminal-head");
     var identity=el("span");FLEET.cliTitle=fleetText("b",null,"Selecciona un CLI");FLEET.cliMeta=fleetText("small",null,"Sesión remota segura");identity.appendChild(FLEET.cliTitle);identity.appendChild(FLEET.cliMeta);terminalHead.appendChild(identity);
     terminal.appendChild(terminalHead);
@@ -1550,6 +1673,8 @@
     fetchCounters();
     loadFleet();
     setInterval(loadFleet, 10000);
+    document.addEventListener("visibilitychange",function(){if(document.hidden){stopDesktopCapture(true,"Vista detenida: Yokup quedó en segundo plano.");stopDesktopWrite();}});
+    window.addEventListener("pagehide",function(){stopDesktopCapture(true,"Vista desconectada.");stopDesktopWrite();});
     // El WebSocket PTY entrega cambios al instante. No se repinta ni se roba el
     // foco con lecturas temporizadas mientras alguien escribe en xterm.
   }
@@ -2285,7 +2410,7 @@
     if (ico) ico.setAttribute("aria-pressed", v ? "true" : "false");
     if(panel==="bottom"){
       if(v)setTimeout(function(){connectSelectedPty(false);if(FLEET.pty.term)try{FLEET.pty.fit.fit();}catch(e){}},0);
-      else disconnectSelectedPty(true);
+      else{disconnectSelectedPty(true);stopDesktopCapture(true,"Vista detenida: Experto está compactado.");stopDesktopWrite();}
     }
   }
 
