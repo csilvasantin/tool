@@ -69,7 +69,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .podio-arte{position:absolute;inset:0;z-index:0;pointer-events:none}
 .podio-arte canvas{display:block;width:100%;height:100%}
 .podio-velo{position:absolute;inset:0;background:linear-gradient(180deg,rgba(2,8,13,.03),transparent 58%,rgba(2,8,13,.22));z-index:1}
-.plaza{position:absolute;z-index:3;width:22%;display:flex;align-items:center;justify-content:center;gap:8px;
+.plaza{position:absolute;z-index:3;width:22%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
   padding:7px 10px;background:rgba(2,8,13,.74);border:1px solid;border-radius:6px;
   box-shadow:0 5px 18px rgba(0,0,0,.38);backdrop-filter:blur(3px);color:inherit;text-decoration:none}
 .plaza[href]{cursor:pointer;transition:transform .16s,background .16s,box-shadow .16s}
@@ -428,6 +428,13 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .agent-scope-body{display:grid;gap:10px}.agent-scope-body[hidden]{display:none}
 .agent-scope-help{margin:0;color:var(--dim);font-size:9px;line-height:1.5}
 .agent-scope-list{display:grid;gap:4px;max-height:min(52vh,430px);overflow:auto;padding-right:2px;scrollbar-width:thin}
+.agent-scope-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:3px;border:1px solid rgba(255,216,102,.28);border-radius:8px;background:rgba(2,8,13,.55)}
+.agent-scope-preset{appearance:none;min-width:0;padding:7px 5px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--dim);
+  font:900 8px/1.15 var(--mono);letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.agent-scope-preset:hover,.agent-scope-preset:focus-visible{border-color:var(--brand);color:var(--ink);outline:none}
+.agent-scope-preset[aria-checked="true"]{border-color:rgba(136,255,170,.55);background:rgba(136,255,170,.09);color:var(--good)}
+.agent-scope-presence{grid-column:1/-1;margin:1px 4px 2px;color:var(--dim);font-size:7.5px;line-height:1.35;text-align:center}
+.agent-scope-presence.stale{color:var(--warn)}
 .agent-scope-row{display:grid;align-items:center;gap:7px;min-height:28px;
   padding:5px 7px;border:1px solid var(--line);border-radius:7px;background:rgba(120,243,255,.025);color:var(--mut);
   font:700 9.5px/1.2 var(--mono)}
@@ -650,11 +657,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     <span class="agent-scope-chevron" aria-hidden="true"></span><span id="agentScopeTitle">Seguimiento de agentes</span><span class="agent-scope-count" id="agentScopeCount" role="status" aria-live="polite" aria-atomic="true">Todos</span>
   </button>
   <div class="agent-scope-body" id="agentScopeBody" hidden>
-    <p class="agent-scope-help">Por defecto se siguen sólo las Desktop Apps activas y verificadas. Puedes añadir agentes apagados manualmente; la selección permanece en este navegador hasta que la cambies.</p>
+    <p class="agent-scope-help">Activos usa presencia operativa verificada y fresca, tanto en app como en CLI. La selección manual permanece en este navegador hasta que la cambies.</p>
     <div class="agent-scope-list" id="agentScopeList" aria-live="polite"><div class="agent-scope-empty">Cargando agentes…</div></div>
     <div class="agent-scope-actions">
       <button class="agent-scope-clone" id="agentScopeClone" type="button" aria-describedby="agentScopeCloneStatus">Clonar agentes</button>
-      <button class="agent-scope-reset" id="agentScopeReset" type="button">Seguir activos · restablecer</button>
     </div>
     <section class="yk-app-bulk" id="desktopAppBulk" aria-label="Control global de DesktopAPP"></section>
     <p class="agent-scope-status" id="agentScopeCloneStatus" role="status" aria-live="polite" aria-atomic="true"></p>
@@ -824,7 +830,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   var datos = { tareas: [], tareasFresh: false, actividad: [], actividadMeta: null, actividadFresh: false,
     presencia: [], misiones: [], ideas: [], decisiones: [], proyectos: [],
-    declaracionesPrincipales: [], controlMachines: [], presenceNow: 0, turnos: null };
+    declaracionesPrincipales: [], controlMachines: [], presenceNow: 0, presenceAvailable: false, turnos: null };
   var DAILY_CACHE_KEY = "yokup.highscore.daily.v1";
   function guardaActividadDiaria(payload) {
     if (!payload || !Array.isArray(payload.scores) || payload.day !== claveDia(Date.now())) return;
@@ -867,6 +873,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       datos.misiones = r[1] || []; datos.ideas = r[2] || []; datos.decisiones = r[3] || [];
       datos.presencia = r[4] && r[4].presence || []; datos.controlMachines = r[4] && r[4].controlMachines || [];
       datos.presenceNow = r[4] && Number(r[4].now || 0) || 0;
+      datos.presenceAvailable = !!(r[4] && Number(r[4].now || 0) > 0);
       datos.proyectos = r[5] && r[5].projects || [];
       datos.declaracionesPrincipales = r[5] && r[5].declarations || [];
       datos.turnos = r[6] || null;
@@ -1510,14 +1517,14 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var detalleUrl = "/highscoreDetail?agent=" + encodeURIComponent(a.agente);
       try { sessionStorage.setItem("yokup.highscore.detail." + clave, JSON.stringify(a)); } catch (_) {}
       return '<a class="plaza ' + clases[i] + (a.vivo ? ' podium-live' : '') + '" href="' + esc(detalleUrl) + '"' +
-        ' aria-label="Ver detalle de ' + esc(a.agente) + ', puesto ' + medallas[i] + ', ' +
+        ' aria-label="Ver histórico de ' + esc(a.agente) + ', puesto ' + medallas[i] + ', ' +
           esc(scoreLabel + ". " + dailyTitle) + '"' +
-        (a.vivo ? ' title="Vivo · latido recibido hace menos de 15 minutos"' : ' title="Ver detalle del agente"') + '>' +
+        (a.vivo ? ' title="Vivo · abrir histórico del agente"' : ' title="Abrir histórico del agente"') + '>' +
         '<div class="avatar">' + a.agente.charAt(0).toUpperCase() + '</div>' +
-        '<div class="nom">' + agentNameHtml(a) + '</div>' +
+        '<div class="pts">' + parejaPuntosHtml(a) + '</div>' +
+        '<div class="nom"><span class="agent-name">' + esc(a.agente) + '</span></div>' +
         '<div class="maq">' + esc(a.runtime || "—") + '</div>' +
         pintaMaquinas(a, 3) +
-        '<div class="pts">' + parejaPuntosHtml(a) + '</div>' +
         '<div class="bloque">' + medallas[i] + '</div></a>';
     }).join("");
     programaBrazos();
@@ -1988,6 +1995,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   var AGENT_SCOPE = hsReadAgentScope();
   var AGENT_SCOPE_MODE = hsReadAgentScopeMode();
   var AGENT_SCOPE_OPEN_TEAMS = new Set();
+  var PRESENCE_REQUEST_SEQUENCE = 0, PRESENCE_APPLIED_SEQUENCE = 0;
   var DESKTOP_APP_PENDING = Object.create(null);
   var DESKTOP_APP_FEEDBACK = Object.create(null);
   var DESKTOP_APP_FEEDBACK_SEQUENCE = 0;
@@ -2034,11 +2042,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return scope instanceof Set && keys.length > 0 && keys.every(function (key) { return scope.has(key); });
   }
 
-  function hsActiveAgentKeys(desktopApps, identity) {
-    var id = identity || window.ykAgentIdentity, active = new Set();
-    (desktopApps || []).forEach(function (app) {
-      if (!(app && app.active)) return;
-      var raw = normaliza(app.persona), machine = normaliza(app.machine);
+  function hsActiveAgentKeys(presences, identity, nowSeconds) {
+    var id = identity || window.ykAgentIdentity, now = Number(nowSeconds || 0), active = new Set();
+    if (!Number.isFinite(now) || now <= 0 || !Array.isArray(presences)) return null;
+    (presences || []).forEach(function (presence) {
+      var updated = Number(presence && presence.updated || 0), pid = Number(presence && presence.pid || 0);
+      var host = normaliza(presence && presence.host).toLowerCase();
+      if (!(presence && presence.verified && presence.source === "process_snapshot" &&
+        (host === "app" || host === "cli") && presence.online !== 0 && presence.online !== false &&
+        pid > 0 && updated >= now - 30 && updated <= now + 5)) return;
+      var raw = normaliza(presence.persona || presence.agent || presence.assignee), machine = normaliza(presence.machine || presence.loc);
       var parsed = id && id.parse ? id.parse(raw) : null;
       if (!raw || (parsed && parsed.role && parsed.role !== "main")) return;
       active.add(hsAgentKey(id && id.display ? id.display(raw, machine) : raw));
@@ -2046,8 +2059,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return active;
   }
 
+  function hsBeginPresenceRequest() { PRESENCE_REQUEST_SEQUENCE += 1; return PRESENCE_REQUEST_SEQUENCE; }
+  function hsAcceptPresenceRequest(sequence) {
+    var value = Number(sequence || 0);
+    if (!Number.isInteger(value) || value <= 0 || value < PRESENCE_APPLIED_SEQUENCE) return false;
+    PRESENCE_APPLIED_SEQUENCE = value; return true;
+  }
+
   function hsAgentScopeMigration(scope, mode, keys, activeKeys) {
     if (mode !== "legacy") return { scope:scope, mode:mode, changed:false };
+    if (!(activeKeys instanceof Set)) return { scope:scope, mode:mode, changed:false };
     // La versión anterior guardaba `null` —o el array completo— para «Todos».
     // Ese estado no era una decisión selectiva y se migra al nuevo valor seguro:
     // únicamente procesos Desktop App verificados y frescos. Un subconjunto sí
@@ -2066,7 +2087,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   function hsEffectiveAgentScope() {
-    if (AGENT_SCOPE_MODE === "all") return null;
+    if (AGENT_SCOPE_MODE === "all" || (AGENT_SCOPE_MODE === "legacy" && AGENT_SCOPE === null)) return null;
+    if (AGENT_SCOPE_MODE === "active" && AGENT_SCOPE === null) return null;
     return AGENT_SCOPE instanceof Set ? new Set(Array.from(AGENT_SCOPE)) : new Set();
   }
 
@@ -2238,17 +2260,25 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   function hsRefreshDesktopApps() {
+    var requestSequence = hsBeginPresenceRequest();
     return fetch(TG + "/api/presence", { cache:"no-store" }).then(function (response) {
       if (!response.ok) throw new Error("presence " + response.status);
       return response.json();
     }).then(function (payload) {
+      if (!hsAcceptPresenceRequest(requestSequence)) return payload;
       datos.presencia = payload.presence || []; datos.controlMachines = payload.control_machines || [];
-      datos.presenceNow = Number(payload.now || 0);
+      datos.presenceNow = Number(payload.now || 0); datos.presenceAvailable = datos.presenceNow > 0;
       if (AGENT_SCOPE_MODE === "active") {
-        AGENT_SCOPE = hsActiveAgentKeys(hsDesktopApps(), window.ykAgentIdentity);
-        hsWriteAgentScope(AGENT_SCOPE, AGENT_SCOPE_MODE);
+        var activeKeys = hsActiveAgentKeys(datos.presencia, window.ykAgentIdentity, datos.presenceNow);
+        if (activeKeys instanceof Set) { AGENT_SCOPE = activeKeys; hsWriteAgentScope(AGENT_SCOPE, AGENT_SCOPE_MODE); }
       }
       hsRenderAgentScope(listaCompletaCache || []); pintaVistaFiltrada(); return payload;
+    }).catch(function (error) {
+      if (hsAcceptPresenceRequest(requestSequence)) {
+        datos.presenceAvailable = false;
+        hsRenderAgentScope(listaCompletaCache || []);
+      }
+      throw error;
     });
   }
 
@@ -2325,17 +2355,22 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var desktopApps = hsDesktopApps();
     var census = hsAgentScopeGroups(lista || [], datos.presencia || [], window.ykAgentIdentity, desktopApps), items = census.items;
     var keys = items.map(function (item) { return item.key; });
-    var activeKeys = hsActiveAgentKeys(desktopApps, window.ykAgentIdentity);
+    var activeKeys = hsActiveAgentKeys(datos.presencia, window.ykAgentIdentity,
+      datos.presenceAvailable ? datos.presenceNow : 0);
     hsEnsureAgentScopeMode(items, activeKeys);
     var effective = hsEffectiveAgentScope();
     var selected = effective === null ? items.length : items.filter(function (item) { return effective.has(item.key); }).length;
-    count.textContent = AGENT_SCOPE_MODE === "all" ? "Todos" : selected + "/" + items.length;
+    count.textContent = AGENT_SCOPE_MODE === "all" ? "Todos" :
+      (AGENT_SCOPE_MODE === "active" ? (activeKeys instanceof Set ? "Activos " + selected : "Activos · sin señal") :
+        (selected ? selected + "/" + items.length : "Ninguno"));
     if (!items.length) { list.innerHTML = '<div class="agent-scope-empty">No hay agentes disponibles.</div>'; return; }
-    var allState = selected === items.length ? "Todos" : selected ? selected + "/" + items.length : "Ninguno";
-    list.innerHTML = '<button class="agent-scope-row all agent-scope-switch" type="button" role="checkbox" data-agent-scope-all aria-checked="' +
-      (selected === items.length ? 'true' : selected ? 'mixed' : 'false') + '" aria-label="' +
-      (selected === items.length ? 'Dejar de seguir a todos los agentes' : 'Seguir a todos los agentes') + '"><span class="agent-scope-label">Todos (' + items.length +
-      ')</span><span class="agent-scope-switch-state">' + allState + '</span><span class="agent-scope-switch-track" aria-hidden="true"></span></button>' +
+    var noneSelected = AGENT_SCOPE_MODE === "manual" && selected === 0;
+    list.innerHTML = '<div class="agent-scope-presets" role="radiogroup" aria-label="Ámbito de agentes">' +
+      '<button class="agent-scope-preset" type="button" role="radio" data-agent-scope-preset="all" aria-checked="' + (AGENT_SCOPE_MODE === "all") + '">Todos</button>' +
+      '<button class="agent-scope-preset" type="button" role="radio" data-agent-scope-preset="active" aria-checked="' + (AGENT_SCOPE_MODE === "active") + '">Activos</button>' +
+      '<button class="agent-scope-preset" type="button" role="radio" data-agent-scope-preset="none" aria-checked="' + noneSelected + '">Ninguno</button>' +
+      '<span class="agent-scope-presence' + (activeKeys instanceof Set ? '' : ' stale') + '">' +
+      (activeKeys instanceof Set ? activeKeys.size + ' operativos · presencia verificada' : 'Presencia no disponible · se conserva la selección vigente') + '</span></div>' +
       census.groups.map(function (group, index) {
         var groupId = "agentScopeTeam" + index, childrenId = groupId + "Agents", groupOpen = AGENT_SCOPE_OPEN_TEAMS.has(group.key),
           groupSelected = effective === null ? group.items.length :
@@ -2366,12 +2401,19 @@ body.resizing-columns{cursor:col-resize;user-select:none}
               ((!available || pending) ? ' disabled' : '') + '><span aria-hidden="true">🏃</span></button></div>';
           }).join("") + '</div></fieldset>';
       }).join("");
-    var allInput = list.querySelector("[data-agent-scope-all]");
-    allInput.addEventListener("click", function () {
-      hsClearCloneStatus();
-      AGENT_SCOPE = allInput.getAttribute("aria-checked") === "true" ? new Set() : null;
-      AGENT_SCOPE_MODE = AGENT_SCOPE === null ? "all" : "manual";
-      hsWriteAgentScope(AGENT_SCOPE, AGENT_SCOPE_MODE); hsRenderAgentScope(listaCompletaCache || []); pintaVistaFiltrada();
+    list.querySelectorAll("[data-agent-scope-preset]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        hsClearCloneStatus();
+        var preset = button.getAttribute("data-agent-scope-preset");
+        if (preset === "all") { AGENT_SCOPE = null; AGENT_SCOPE_MODE = "all"; }
+        else if (preset === "none") { AGENT_SCOPE = new Set(); AGENT_SCOPE_MODE = "manual"; }
+        else {
+          AGENT_SCOPE_MODE = "active";
+          if (activeKeys instanceof Set) AGENT_SCOPE = new Set(Array.from(activeKeys));
+          else hsDesktopAppMessage("Presencia no disponible; se conserva la selección vigente.", true);
+        }
+        hsWriteAgentScope(AGENT_SCOPE, AGENT_SCOPE_MODE); hsRenderAgentScope(listaCompletaCache || []); pintaVistaFiltrada();
+      });
     });
     list.querySelectorAll("[data-agent-scope-team]").forEach(function (button) {
       var group = census.groups.find(function (item) { return item.key === button.value; });
@@ -2419,16 +2461,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function iniciaAgentScope() {
     var toggle = document.getElementById("agentScopeToggle"), body = document.getElementById("agentScopeBody");
-    var reset = document.getElementById("agentScopeReset"), clone = document.getElementById("agentScopeClone");
+    var clone = document.getElementById("agentScopeClone");
     if (toggle && body) toggle.addEventListener("click", function () {
       var open = toggle.getAttribute("aria-expanded") !== "true";
       toggle.setAttribute("aria-expanded", String(open)); body.hidden = !open;
-    });
-    if (reset) reset.addEventListener("click", function () {
-      hsClearCloneStatus();
-      AGENT_SCOPE = hsActiveAgentKeys(hsDesktopApps(), window.ykAgentIdentity); AGENT_SCOPE_MODE = "active";
-      hsWriteAgentScope(AGENT_SCOPE, AGENT_SCOPE_MODE);
-      hsRenderAgentScope(listaCompletaCache || []); pintaVistaFiltrada();
     });
     if (clone) clone.addEventListener("click", function () {
       var status = document.getElementById("agentScopeCloneStatus");
@@ -3298,6 +3334,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function actualizaMarcador() {
     if (refrescando) return Promise.resolve();
     refrescando = true;
+    var presenceRequestSequence = hsBeginPresenceRequest();
     document.getElementById("refreshCount").textContent = "ACT.";
     return Promise.all([
       seguroYokup("/tasks/all?scope=fleet", function (d) { return d.tasks || []; }),
@@ -3318,14 +3355,14 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var dailyFresh = !!(r[1] && r[1].day === claveDia(Date.now()) && Array.isArray(r[1].scores));
       datos.actividadFresh = dailyFresh && datos.tareasFresh;
       if (dailyFresh) { guardaActividadDiaria(r[1]); datos.actividadMeta = r[1]; datos.actividad = r[1].scores || []; }
-      if (r[2]) {
+      if (r[2] && hsAcceptPresenceRequest(presenceRequestSequence)) {
         datos.presencia = r[2].presence || []; datos.controlMachines = r[2].controlMachines || [];
-        datos.presenceNow = Number(r[2].now || 0);
+        datos.presenceNow = Number(r[2].now || 0); datos.presenceAvailable = datos.presenceNow > 0;
         if (AGENT_SCOPE_MODE === "active") {
-          AGENT_SCOPE = hsActiveAgentKeys(hsDesktopApps(), window.ykAgentIdentity);
-          hsWriteAgentScope(AGENT_SCOPE, AGENT_SCOPE_MODE);
+          var activeKeys = hsActiveAgentKeys(datos.presencia, window.ykAgentIdentity, datos.presenceNow);
+          if (activeKeys instanceof Set) { AGENT_SCOPE = activeKeys; hsWriteAgentScope(AGENT_SCOPE, AGENT_SCOPE_MODE); }
         }
-      }
+      } else if (!r[2] && hsAcceptPresenceRequest(presenceRequestSequence)) datos.presenceAvailable = false;
       if (r[3]) datos.misiones = r[3];
       if (r[4]) datos.ideas = r[4];
       if (r[5]) datos.decisiones = r[5];

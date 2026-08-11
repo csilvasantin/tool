@@ -15,7 +15,7 @@ const D = context.YkHighscoreDetail, ID = context.ykAgentIdentity;
 test("los tres puestos del podio navegan por click, Enter nativo y Space a la ruta exacta", () => {
   assert.match(highscore, /var detalleUrl = "\/highscoreDetail\?agent=" \+ encodeURIComponent\(a\.agente\)/);
   assert.match(highscore, /return '<a class="plaza ' \+ clases\[i\][\s\S]*href="' \+ esc\(detalleUrl\)/);
-  assert.match(highscore, /aria-label="Ver detalle de /);
+  assert.match(highscore, /aria-label="Ver histórico de /);
   assert.match(highscore, /evento\.key !== " " && evento\.key !== "Spacebar"/);
   assert.match(highscore, /evento\.preventDefault\(\); enlace\.click\(\)/);
   assert.doesNotMatch(highscore, /tabindex="-1"/);
@@ -50,9 +50,26 @@ test("los tres agentes visibles del snapshot de producción abren un detalle vá
   }
 });
 
-test("el detalle carga la revisión que incluye SmithMacMini y no el JS antiguo", () => {
-  assert.match(detailHtml, /src="\/highscore-detail\.js\?v=flt-1150-r7-smith"/);
+test("el detalle carga la revisión histórica y no el JS antiguo", () => {
+  assert.match(detailHtml, /src="\/highscore-detail\.js\?v=history-periods-r1"/);
   assert.doesNotMatch(detailHtml, /highscore-detail\.js\?v=flt-1150-a1/);
+});
+
+test("el histórico valida sello real, identidad exacta y serie ordenada sin futuro", () => {
+  const now=Date.UTC(2026,7,11,12), payload={ok:true,agent:"MorfeoMBP16",sampled_at:now,generated_at:now,
+    periods:{week:{start:"2026-08-10",end:"2026-08-11",points:108},month:{start:"2026-08-01",end:"2026-08-11",points:412},total:{start:"2026-07-02",end:"2026-08-11",points:930}},
+    evolution:{days:[{day:"2026-08-10",points:20},{day:"2026-08-11",points:88}]}};
+  const history=D.history(payload,"MorfeoMBP16",ID,now);
+  assert.equal(history.periods.week.points,108);
+  assert.deepEqual(Array.from(history.evolution,row=>[row.day,row.points]),[["2026-08-10",20],["2026-08-11",88]]);
+  assert.equal(D.history({...payload,agent:"MorfeoMBP14"},"MorfeoMBP16",ID,now),null);
+  assert.equal(D.history({...payload,sampled_at:0},"MorfeoMBP16",ID,now),null);
+  assert.equal(D.history({...payload,evolution:{days:[{day:"2026-08-12",points:1}]}},"MorfeoMBP16",ID,now),null);
+  assert.equal(D.history({...payload,evolution:{days:[{day:"2026-08-11",points:1},{day:"2026-08-11",points:2}]}},"MorfeoMBP16",ID,now),null);
+});
+
+test("un histórico válido basta para abrir un agente sin actividad de hoy", () => {
+  assert.match(detailHtml,/var known = !!data\.history \|\| !!data\.snap/);
 });
 
 test("estadísticas y hechos usan únicamente payloads operativos atribuibles", () => {
@@ -106,4 +123,9 @@ test("la vista usa DOM seguro, estados vacíos y diseño responsive", () => {
   assert.match(detailHtml, /\/tasks\/all\?scope=fleet/);
   assert.match(detailHtml, /\/fleet\/missions/);
   assert.match(detailHtml, /\/tickets\?scope=campo/);
+  assert.match(detailHtml, /\/highscore\/history\?agent="\+encodeURIComponent\(agent\)/);
+  assert.match(detailHtml, /Semana · lunes a hoy/);
+  assert.match(detailHtml, /Mes · día 1 a hoy/);
+  assert.match(detailHtml, /Total histórico/);
+  assert.match(detailHtml, /Histórico no disponible: no se muestran ceros/);
 });

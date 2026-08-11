@@ -27,8 +27,8 @@ test("Avanzado contiene sólo el control global de DesktopAPP",()=>{
   assert.match(css,/\.yk-app-switch\[aria-checked="true"\]/);
 });
 
-test("debajo de Mostrar todos hay control global para Codex, Claude Code y OpenCode",()=>{
-  assert.match(highscore,/id="agentScopeReset"[\s\S]*id="desktopAppBulk"/);
+test("debajo de los presets hay control global para Codex, Claude Code y OpenCode",()=>{
+  assert.match(highscore,/id="agentScopeClone"[\s\S]*id="desktopAppBulk"/);
   assert.match(frame,/FLEET\.appBulk=document\.getElementById\("desktopAppBulk"\)/);
   assert.match(frame,/\[\["Codex","Codex"\],\["Claude","Claude Code"\],\["OpenCode","OpenCode"\]\]\.forEach/);
   assert.match(frame,/function bulkAppGroups\(runtime\)/);

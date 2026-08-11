@@ -63,23 +63,33 @@ function fleet(updated=995){
   };
 }
 
-test("el default nace sólo de Desktop Apps activas, no del catálogo ni de CLIs",()=>{
-  const apps=desktop.items(fleet(),identity,1000),keys=api().active(apps,identity);
+test("Activos nace de presencia operativa canónica app o cli, nunca del catálogo",()=>{
+  const payload=fleet(),apps=desktop.items(payload,identity,1000),keys=api().active(payload.presence,identity,1000);
   assert.equal(apps.length,6,"las seis ranuras siguen disponibles como opt-in");
-  assert.deepEqual([...keys].sort(),["morfeomacmini","oraculomacmini"]);
+  assert.deepEqual([...keys].sort(),["morfeomacmini","neomacmini","oraculomacmini"]);
   assert.equal(apps.filter(item=>item.active).length,2);
 });
 
 test("presencia caducada no entra en el default aunque conserve ranura",()=>{
-  const apps=desktop.items(fleet(969),identity,1000),keys=api().active(apps,identity);
+  const payload=fleet(969),apps=desktop.items(payload,identity,1000),keys=api().active(payload.presence,identity,1000);
   assert.equal(keys.size,0);
   assert.equal(apps.length,6);
   assert.ok(apps.every(item=>item.active===false));
 });
 
+test("Activos exige snapshot verificado, PID, online, host operativo y reloj canónico",()=>{
+  const base={persona:"Neo",machine:"MacMini",source:"process_snapshot",verified:1,online:1,pid:44,updated:995};
+  const rows=[base,{...base,persona:"Morfeo",host:"web"},{...base,persona:"Nio",verified:0,host:"app"},
+    {...base,persona:"Smith",pid:0,host:"cli"},{...base,persona:"Trinity",online:0,host:"app"},
+    {...base,persona:"Oraculo",host:"cli"}];
+  rows[0].host="app";
+  assert.deepEqual([...api().active(rows,identity,1000)].sort(),["neomacmini","oraculomacmini"]);
+  assert.equal(api().active(rows,identity,0),null,"sin reloj de servidor no se fabrica una selección vacía");
+});
+
 test("ausencia y legado equivalente a Todos, incluso con extras, migran al snapshot activo",()=>{
   const A=api(),all=["morfeomacmini","neomacmini","niomacmini","oraculomacmini","smithmacmini","trinitymacmini"];
-  const active=new Set(["morfeomacmini","oraculomacmini"]);
+  const active=new Set(["morfeomacmini","neomacmini","oraculomacmini"]);
   for(const legacy of [null,new Set(all),new Set([...all,"retiradomacmini"])]){
     const result=A.migrate(legacy,"legacy",all,active);
     assert.equal(result.mode,"active");
@@ -116,16 +126,29 @@ test("layout y ARIA priorizan el nombre sin desplazar runner ni feedback",()=>{
   assert.match(html,/class="agent-scope-primary agent-scope-switch" type="button" role="switch"[^>]*aria-checked=/);
   assert.match(html,/aria-label="' \+ \(following \? 'Dejar de seguir a ' : 'Seguir a '\) \+ esc\(item\.label\)/);
   assert.match(html,/role="checkbox" data-agent-scope-team[^>]*aria-checked=/);
-  assert.match(html,/selected === items\.length \? 'true' : selected \? 'mixed' : 'false'/);
+  assert.match(html,/class="agent-scope-presets" role="radiogroup"/);
+  assert.match(html,/role="radio" data-agent-scope-preset="active" aria-checked=/);
 });
 
 test("los refrescos de presencia resincronizan el modo activo sin tocar el manual",()=>{
   const refresh=functionSource("hsRefreshDesktopApps");
-  assert.match(refresh,/if \(AGENT_SCOPE_MODE === "active"\)[\s\S]*AGENT_SCOPE = hsActiveAgentKeys\(hsDesktopApps\(\), window\.ykAgentIdentity\)/);
+  assert.match(refresh,/if \(AGENT_SCOPE_MODE === "active"\)[\s\S]*hsActiveAgentKeys\(datos\.presencia, window\.ykAgentIdentity, datos\.presenceNow\)/);
   const scoreboard=functionSource("actualizaMarcador");
-  assert.match(scoreboard,/if \(AGENT_SCOPE_MODE === "active"\)[\s\S]*AGENT_SCOPE = hsActiveAgentKeys\(hsDesktopApps\(\), window\.ykAgentIdentity\)/);
-  assert.equal((html.match(/AGENT_SCOPE = hsActiveAgentKeys\(hsDesktopApps\(\), window\.ykAgentIdentity\)/g)||[]).length,3,
-    "start/stop, refresco periódico y reset rearman sólo el modo activo");
+  assert.match(scoreboard,/if \(AGENT_SCOPE_MODE === "active"\)[\s\S]*hsActiveAgentKeys\(datos\.presencia, window\.ykAgentIdentity, datos\.presenceNow\)/);
+  assert.match(html,/if \(activeKeys instanceof Set\) \{ AGENT_SCOPE = activeKeys; hsWriteAgentScope/,
+    "un fallo transitorio no vacía el scope activo ya persistido");
+});
+
+test("una respuesta de presencia atrasada no pisa una nueva ni degrada su disponibilidad",()=>{
+  assert.match(html,/var PRESENCE_REQUEST_SEQUENCE = 0, PRESENCE_APPLIED_SEQUENCE = 0/);
+  const refresh=functionSource("hsRefreshDesktopApps");
+  assert.match(refresh,/var requestSequence = hsBeginPresenceRequest\(\)/);
+  assert.match(refresh,/if \(!hsAcceptPresenceRequest\(requestSequence\)\) return payload/);
+  assert.match(refresh,/catch[\s\S]*if \(hsAcceptPresenceRequest\(requestSequence\)\)[\s\S]*datos\.presenceAvailable = false/);
+  const scoreboard=functionSource("actualizaMarcador");
+  assert.match(scoreboard,/var presenceRequestSequence = hsBeginPresenceRequest\(\)/);
+  assert.match(scoreboard,/r\[2\] && hsAcceptPresenceRequest\(presenceRequestSequence\)/);
+  assert.match(scoreboard,/!r\[2\] && hsAcceptPresenceRequest\(presenceRequestSequence\)/);
 });
 
 test("la carga y los refrescos usan el reloj canónico de presencia",()=>{

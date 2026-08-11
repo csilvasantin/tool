@@ -66,6 +66,31 @@
     var parsed = identity.parse(value), resolved = identity.suffix(machine) || parsed.suffix;
     return resolved ? identity.display(parsed.persona, resolved) : text(value);
   }
+
+  function history(payload, agent, identity, now) {
+    var clock = Number(now) || Date.now(), sampled = Number(payload && payload.sampled_at), generated = Number(payload && payload.generated_at);
+    if (!(payload && payload.ok === true) || !Number.isInteger(sampled) || sampled <= 0 || sampled > clock + 60000 ||
+      !Number.isInteger(generated) || generated !== sampled) return null;
+    if (!sameFamily(payload.agent, "", agent, identity)) return null;
+    var periods = payload.periods || {}, names = ["week", "month", "total"], normalized = {};
+    for (var i=0; i<names.length; i++) {
+      var name=names[i], period=periods[name], points=Number(period && period.points);
+      if (!period || !Number.isFinite(points) || points < 0 || !/^\d{4}-\d{2}-\d{2}$/.test(text(period.end))) return null;
+      if (name !== "total" && !/^\d{4}-\d{2}-\d{2}$/.test(text(period.start))) return null;
+      normalized[name] = { start:period.start || null, end:period.end, points:points,
+        objectives:Number(period.objectives) || 0, windows:Number(period.windows) || 0,
+        missions:Number(period.missions) || 0, tasks:Number(period.tasks) || 0 };
+    }
+    var source = payload.evolution && payload.evolution.days;
+    if (!Array.isArray(source)) return null;
+    var seen=Object.create(null), previous="", todayKey=day(clock), evolution=[];
+    for (var j=0; j<source.length; j++) {
+      var row=source[j], date=text(row && row.day), value=Number(row && row.points);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > todayKey || date <= previous || seen[date] || !Number.isFinite(value) || value < 0) return null;
+      seen[date]=true; previous=date; evolution.push({ day:date, points:value });
+    }
+    return { agent:payload.agent, sampledAt:sampled, periods:normalized, evolution:evolution };
+  }
   function ranking(agent, daily, tasks, identity, now) {
     var names = Object.create(null);
     (daily && daily.scores || []).forEach(function (row) {
@@ -150,6 +175,6 @@
   }
 
   root.YkHighscoreDetail = { key:key, ms:ms, today:today, validAgent:validAgent, sameFamily:sameFamily, taskIdentity:taskIdentity,
-    snapshot:snapshot, scoreFor:scoreFor, ranking:ranking, taskCountToday:taskCountToday,
+    snapshot:snapshot, scoreFor:scoreFor, ranking:ranking, taskCountToday:taskCountToday, history:history,
     facts:facts, timeline:timeline, timeZone:TIME_ZONE };
 })(typeof window !== "undefined" ? window : globalThis);

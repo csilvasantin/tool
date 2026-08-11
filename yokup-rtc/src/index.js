@@ -5715,6 +5715,113 @@ async function highscorePeriodMetrics(env, inicio, fin) {
 }
 __name(highscorePeriodMetrics, "highscorePeriodMetrics");
 
+function highscoreNaturalPeriods(ahora) {
+  const today = madridDayKey(ahora), [year, month, date] = today.split("-").map(Number);
+  const weekday = new Date(Date.UTC(year, month - 1, date, 12)).getUTCDay();
+  const monday = new Date(Date.UTC(year, month - 1, date - ((weekday + 6) % 7), 12));
+  const key = (value) => value.toISOString().slice(0, 10);
+  const weekKey = key(monday), monthKey = `${year}-${String(month).padStart(2, "0")}-01`;
+  const week = missionDayRange(weekKey), currentMonth = missionDayRange(monthKey), currentDay = missionDayRange(today);
+  if (!week || !currentMonth || !currentDay) throw new Error("No se pudieron calcular los periodos naturales de Madrid");
+  return { today, week_key:weekKey, week_start:week.start, month_key:monthKey,
+    month_start:currentMonth.start, day_end:currentDay.end };
+}
+__name(highscoreNaturalPeriods, "highscoreNaturalPeriods");
+
+// Histórico factual del agente. No usa `highscore_snapshots`: esa tabla conserva
+// sólo 48 h para la flecha horaria. Aquí se recorren los mismos cuatro hechos del
+// marcador diario y se agrupan por el día REAL de Madrid. Las tareas conservan el
+// contrato A/A1..A3, B/B1..B3 y C/C1..C3: una única representante —la más reciente—
+// por misión, familia y día. Así semana/mes son la suma de días canónicos, no una
+// extrapolación del total actual ni una serie reconstruida en el navegador.
+async function highscoreHistory(env, requestedAgent, ahora = Date.now()) {
+  const parsed = parseAgentIdentity(requestedAgent), suffix = parsed.suffix;
+  if (parsed.role !== "main" || !suffix || !String(parsed.persona || "").trim()) {
+    return { ok:false, error:"agent debe ser una identidad principal con apellido de equipo" };
+  }
+  const wanted = reportAgentFamily(requestedAgent, "");
+  if (!wanted || !wanted.family_key || wanted.family_key.startsWith("external:")) {
+    return { ok:false, error:"agent no pertenece a una familia canónica" };
+  }
+  const periods = highscoreNaturalPeriods(ahora), fin = Math.min(periods.day_end, ahora + 1);
+  const rows = async (sql, ...binds) => ((await env.DB.prepare(sql).bind(...binds).all()).results || []);
+  const [ideas, decisions, missions, tasks] = await Promise.all([
+    rows("SELECT author,created_at FROM ideas WHERE created_at>0 AND created_at<?", fin),
+    rows("SELECT agent,machine,created_at FROM decisions WHERE created_at>0 AND created_at<?", fin),
+    rows(`SELECT * FROM (SELECT t.id,t.assignee,t.loc,t.status,t.closure_reason,${HIGHSCORE_MISSION_STARTED_SQL} scored_at, ` +
+      `EXISTS(SELECT 1 FROM mission_tasks mt3 WHERE mt3.mission_id=t.id) con_plan FROM tickets t WHERE ${AGENT_SOURCE_SQL_T}) ` +
+      `WHERE (status IN ('in_progress','resolved') OR (status='open' AND con_plan=1)) AND scored_at>0 AND scored_at<?`, fin),
+    rows(`SELECT m.mission_id,m.code,m.status,m.owner,m.updated_at,t.assignee,t.loc ` +
+      `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${AGENT_SOURCE_SQL_T} ` +
+      "AND NOT (t.status='cancelled' AND COALESCE(t.closure_reason,'')='equivalent_mission') " +
+      "AND m.updated_at>0 AND m.updated_at<? AND m.status IN ('in_progress','done')", fin)
+  ]);
+  const daily = new Map();
+  const familyMatches = (agent, machine) => {
+    const family = reportAgentFamily(agent, machine);
+    return !!family && family.family_key === wanted.family_key;
+  };
+  const bucket = (at) => {
+    const stamp = Number(at) || 0;
+    if (stamp <= 0 || stamp > ahora) return null;
+    const day = madridDayKey(stamp);
+    if (!daily.has(day)) daily.set(day, { day, objectives:0, windows:0, missions:0, tasks:0, points:0 });
+    return daily.get(day);
+  };
+  const add = (at, kind, points) => {
+    const row = bucket(at); if (!row) return;
+    row[kind] += 1; row.points += points;
+  };
+  for (const idea of ideas) {
+    const agent = highscoreAgent(idea.author);
+    // Un objetivo sin apellido físico no se adjudica a ciegas a uno de los
+    // equipos de la misma persona. Se conserva la identidad exacta o no suma.
+    if (agent && familyMatches(agent, "")) add(idea.created_at, "objectives", HIGHSCORE_WEIGHTS.objective);
+  }
+  for (const decision of decisions) if (familyMatches(decision.agent, decision.machine))
+    add(decision.created_at, "windows", HIGHSCORE_WEIGHTS.window);
+  for (const mission of missions) if (familyMatches(mission.assignee, mission.loc))
+    add(mission.scored_at, "missions", HIGHSCORE_WEIGHTS.mission);
+
+  const representatives = new Map();
+  for (const task of tasks) {
+    const match = String(task.code || "").toLowerCase().match(/^([a-c])(?:[1-3])?$/);
+    if (!match) continue;
+    const owner = scopedMissionOwner(task.owner, "sub", task.assignee, task.loc);
+    if (!familyMatches(owner, task.loc)) continue;
+    const stamp = Number(task.updated_at) || 0;
+    if (stamp <= 0 || stamp > ahora) continue;
+    const key = madridDayKey(stamp) + "|" + String(task.mission_id || "") + "|" + match[1];
+    const previous = representatives.get(key);
+    if (!previous || stamp >= Number(previous.updated_at)) representatives.set(key, task);
+  }
+  for (const task of representatives.values()) add(task.updated_at, "tasks", HIGHSCORE_TASK_WEIGHTS.task +
+    (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0));
+
+  const allDays = [...daily.values()].sort((a, b) => a.day.localeCompare(b.day));
+  const sum = (rows) => rows.reduce((total, row) => ({
+    objectives:total.objectives + row.objectives, windows:total.windows + row.windows,
+    missions:total.missions + row.missions, tasks:total.tasks + row.tasks, points:total.points + row.points
+  }), { objectives:0, windows:0, missions:0, tasks:0, points:0 });
+  const weekRows = allDays.filter((row) => row.day >= periods.week_key && row.day <= periods.today);
+  const monthRows = allDays.filter((row) => row.day >= periods.month_key && row.day <= periods.today);
+  const evolutionStart = new Date(Date.UTC(...periods.today.split("-").map(Number).map((n, i) => i === 1 ? n - 1 : n), 12));
+  evolutionStart.setUTCDate(evolutionStart.getUTCDate() - 29);
+  const evolutionKey = evolutionStart.toISOString().slice(0, 10), byDay = new Map(allDays.map((row) => [row.day, row]));
+  const evolution = [];
+  for (let cursor = new Date(evolutionStart); cursor.toISOString().slice(0, 10) <= periods.today; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    const day = cursor.toISOString().slice(0, 10), row = byDay.get(day);
+    evolution.push(row ? { ...row } : { day, objectives:0, windows:0, missions:0, tasks:0, points:0 });
+  }
+  const sampledAt = Date.now();
+  return { ok:true, agent:wanted.family_name, timezone:"Europe/Madrid", sampled_at:sampledAt, generated_at:sampledAt,
+    periods:{ week:{ start:periods.week_key, end:periods.today, ...sum(weekRows) },
+      month:{ start:periods.month_key, end:periods.today, ...sum(monthRows) },
+      total:{ start:allDays.length ? allDays[0].day : null, end:periods.today, ...sum(allDays) } },
+    evolution:{ start:evolutionKey, end:periods.today, days:evolution } };
+}
+__name(highscoreHistory, "highscoreHistory");
+
 function highscoreMetricPair(hour, day, field) {
   return { hour:Number(hour && hour[field]) || 0, day:Number(day && day[field]) || 0 };
 }
@@ -6364,6 +6471,14 @@ var index_default = {
       await ensureSchema(env);
       await ensureIdeasSchema(env);
       return json(await highscoreDaily(env));
+    }
+    if (url.pathname === "/highscore/history" && req.method === "GET") {
+      await ensureSchema(env);
+      await ensureIdeasSchema(env);
+      const agent = String(url.searchParams.get("agent") || "").trim();
+      if (!agent) return json({ ok:false, error:"agent requerido" }, 400);
+      const history = await highscoreHistory(env, agent);
+      return json(history, history.ok ? 200 : 400);
     }
     // ── NOTIFICACIONES DEL SISTEMA DE LA FLOTA (FLT-1020) ────────────────────
     // Sin perímetro, como el resto de /fleet/*: quien publica es un vigilante que

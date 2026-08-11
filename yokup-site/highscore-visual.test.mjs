@@ -69,6 +69,15 @@ test("la cabecera compacta conserva el sonido y elimina reloj y subtítulo", () 
   assert.doesNotMatch(html, /<th class="num">Vivo<\/th>/);
 });
 
+test("el podio usa una única tarjeta enlazada y coloca nombre debajo de puntos", () => {
+  assert.match(html,/\.plaza\{[^}]*display:flex[^}]*flex-direction:column/);
+  assert.match(html,/return '<a class="plaza '[\s\S]*?<div class="pts">' \+ parejaPuntosHtml\(a\) \+ '<\/div>' \+[\s\S]*?<div class="nom"><span class="agent-name">' \+ esc\(a\.agente\)/);
+  assert.match(html,/aria-label="Ver histórico de /);
+  assert.doesNotMatch(html,/<div class="nom">' \+ agentNameHtml\(a\)/,
+    "el botón de decisiones no puede quedar anidado dentro del enlace histórico");
+  assert.match(html,/\.plaza\[href\]:hover,\.plaza\[href\]:focus-visible/);
+});
+
 test("la vida hace latir el propio número de posición y no añade un punto", () => {
   assert.match(html, /\.rank-number\.live\{[^}]*color:var\(--good\)[^}]*animation:rank-heartbeat/);
   assert.match(html, /@keyframes rank-heartbeat/);
@@ -76,7 +85,7 @@ test("la vida hace latir el propio número de posición y no añade un punto", (
   assert.match(html, /lista\.forEach\(function \(fila, indice\) \{ fila\.posicion = indice \+ 1; \}\)/);
   assert.match(html, /<td class="n">' \+ posicionHtml\(a, a\.posicion \|\| i \+ 1\)/);
   assert.match(html, /function agentNameHtml\(a\)/);
-  assert.match(html, /<div class="nom">' \+ agentNameHtml\(a\) \+ '<\/div>/);
+  assert.match(html, /<div class="nom"><span class="agent-name">' \+ esc\(a\.agente\)/);
   assert.match(html, /número de posición parpadea en verde/);
   assert.doesNotMatch(html, /rank-live/);
   assert.doesNotMatch(html, /class="rank-cell"/);

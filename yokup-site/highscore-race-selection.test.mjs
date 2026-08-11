@@ -75,14 +75,14 @@ test("el corredor extra deja paso al interruptor real de DesktopAPP", () => {
   assert.match(html, /@media \(max-width:620px\)[\s\S]*?agent-scope/);
 });
 
-test("equipo, Todos, Clonar y reset conservan el control de apps separado del filtro", () => {
+test("equipo, presets y Clonar conservan el control de apps separado del filtro", () => {
   const teamStart = html.indexOf('querySelectorAll("[data-agent-scope-team]")');
   const appStart = html.indexOf('querySelectorAll("[data-agent-desktop-app]")', teamStart);
   assert.ok(teamStart >= 0 && appStart > teamStart, "faltan filtro principal e interruptor DesktopAPP separados");
   const primaryHandlers = html.slice(teamStart, appStart);
   assert.doesNotMatch(primaryHandlers, /hsToggleDesktopApp|DESKTOP_APP_PENDING/);
   assert.match(html, /hsCloneAgentScopeToDashboard\(hsEffectiveAgentScope\(\),/);
-  assert.match(html, /AGENT_SCOPE = hsActiveAgentKeys\(hsDesktopApps\(\), window\.ykAgentIdentity\)/);
+  assert.match(html, /hsActiveAgentKeys\(datos\.presencia, window\.ykAgentIdentity, datos\.presenceNow\)/);
 });
 
 test("Running Man conserva sólo los tres primeros elegibles y no altera ranking ni podio", () => {

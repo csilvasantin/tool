@@ -58,7 +58,9 @@ test("Avanzado ofrece el censo de agentes con Todos y multiseleccion accesible",
   assert.match(source,/data-yk-slot="right"[^>]*id="advancedMenu"/);
   assert.match(source,/id="agentScopeCount"/);
   assert.match(source,/id="agentScopeList"/);
-  assert.match(source,/data-agent-scope-all/);
+  assert.match(source,/data-agent-scope-preset="all"/);
+  assert.match(source,/data-agent-scope-preset="active"/);
+  assert.match(source,/data-agent-scope-preset="none"/);
   assert.match(source,/data-agent-scope-item/);
   assert.match(source,/>Todos</);
   assert.match(source,/function hsRenderAgentScope\(/);

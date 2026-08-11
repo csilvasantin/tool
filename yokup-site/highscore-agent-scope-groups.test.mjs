@@ -102,15 +102,20 @@ test("cambiar un agente individual sincroniza todas sus copias al rerender",()=>
   assert.match(source,/group\.items\.map\(function \(item\) \{[\s\S]*?data-agent-scope-item value="' \+ esc\(item\.key\)/);
 });
 
-test("Todos, 0/N, persistencia, Clonar y reset conservan sus contratos",()=>{
-  assert.match(source,/count\.textContent = AGENT_SCOPE_MODE === "all" \? "Todos" : selected \+ "\/" \+ items\.length/);
-  assert.match(source,/AGENT_SCOPE = allInput\.getAttribute\("aria-checked"\) === "true" \? new Set\(\) : null/);
+test("Todos, Activos y Ninguno son presets explícitos; manual y Clonar persisten",()=>{
+  assert.match(source,/class="agent-scope-presets" role="radiogroup" aria-label="Ámbito de agentes"/);
+  assert.match(source,/data-agent-scope-preset="all"[^>]*>Todos<\/button>/);
+  assert.match(source,/data-agent-scope-preset="active"[^>]*>Activos<\/button>/);
+  assert.match(source,/data-agent-scope-preset="none"[^>]*>Ninguno<\/button>/);
+  assert.match(source,/if \(preset === "all"\) \{ AGENT_SCOPE = null; AGENT_SCOPE_MODE = "all"; \}/);
+  assert.match(source,/preset === "none"\) \{ AGENT_SCOPE = new Set\(\); AGENT_SCOPE_MODE = "manual"; \}/);
+  assert.match(source,/if \(activeKeys instanceof Set\) AGENT_SCOPE = new Set\(Array\.from\(activeKeys\)\)/);
   assert.match(source,/function hsReadAgentScope\(\)/);
   assert.match(source,/function hsWriteAgentScope\(scope, mode\)/);
   assert.match(source,/id="agentScopeClone"/);
   assert.match(source,/hsCloneAgentScopeToDashboard\(hsEffectiveAgentScope\(\), listaCompletaCache \|\| \[\], localStorage, window\.ykAgentIdentity\)/);
-  assert.match(source,/id="agentScopeReset"/);
-  assert.match(source,/AGENT_SCOPE = hsActiveAgentKeys\(hsDesktopApps\(\), window\.ykAgentIdentity\); AGENT_SCOPE_MODE = "active"/);
+  assert.doesNotMatch(source,/id="agentScopeReset"/);
+  assert.doesNotMatch(source,/Todos \('/);
 });
 
 test("cada equipo es un grupo semántico, con padre parcial y layout móvil seguro",()=>{

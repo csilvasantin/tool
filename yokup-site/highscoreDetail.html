@@ -30,6 +30,9 @@ h1{margin:6px 0 4px;color:var(--brand);font-size:clamp(23px,5vw,42px);word-break
 .bar{height:12px;border-radius:20px;background:#031018;overflow:hidden}.bar i{display:block;height:100%;min-width:4px;background:linear-gradient(90deg,var(--brand),var(--accent));box-shadow:0 0 10px rgba(120,243,255,.3)}
 .hour button{appearance:none;border:0;background:transparent;color:var(--ink);font:inherit;font-size:11px;cursor:pointer}.hour-detail{grid-column:2/-1;margin:0;padding-left:18px;color:var(--mut);font-size:10px;line-height:1.6}
 .hour-detail[hidden]{display:none}.state{padding:28px;border:1px solid var(--line);border-radius:14px;background:var(--card)}.state h1{font-size:22px}.state p{color:var(--mut);line-height:1.6}
+.score-evolution{grid-column:1/-1}.score-days{display:grid;gap:8px}.score-day{display:grid;grid-template-columns:72px 1fr 56px;gap:10px;align-items:center}
+.score-day time{color:var(--mut);font-size:10px}.score-day-bar{height:12px;border-radius:20px;background:#031018;overflow:hidden}.score-day-bar i{display:block;height:100%;min-width:0;background:linear-gradient(90deg,var(--brand),var(--accent))}
+.score-day b{color:var(--accent);font-size:11px;text-align:right}.score-sampled{margin:12px 0 0;color:var(--dim);font-size:9px;line-height:1.45}
 @media(max-width:760px){.stats{grid-template-columns:repeat(3,1fr)}.grid{grid-template-columns:1fr}.timeline{grid-column:auto}}
 @media(max-width:470px){.wrap{padding:42px 14px 56px}.hero{grid-template-columns:1fr;text-align:center}.avatar{margin:auto}.stats{grid-template-columns:repeat(2,1fr)}.hour{grid-template-columns:50px 1fr auto}}
 .turno{margin:14px 0;padding:12px 14px;border:1px solid rgba(120,243,255,.22);border-radius:10px;background:rgba(2,8,13,.5)}
@@ -46,7 +49,7 @@ h1{margin:6px 0 4px;color:var(--brand);font-size:clamp(23px,5vw,42px);word-break
 </main>
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script src="/yk-avatar.js?v=v.2026.08.02.202305"></script>
-<script src="/highscore-detail.js?v=flt-1150-r7-smith"></script>
+<script src="/highscore-detail.js?v=history-periods-r1"></script>
 <script>
 (function () {
   "use strict";
@@ -102,27 +105,38 @@ h1{margin:6px 0 4px;color:var(--brand);font-size:clamp(23px,5vw,42px);word-break
       hour.events.forEach(function(event){ detail.appendChild(el("li","",event.type+" · "+event.detail)); }); row.append(time,bar,button,detail); list.appendChild(row); });
     panel.appendChild(list); if (!complete) panel.appendChild(el("p","empty","Evolución parcial: una o más fuentes de datos no están disponibles.")); return panel;
   }
+  function scoreEvolutionPanel(history, complete) {
+    var panel=el("section","panel score-evolution"), heading=el("h2","","Evolución de puntos · últimos 30 días"); panel.appendChild(heading);
+    if (!complete || !history) { panel.appendChild(el("p","empty","Histórico no disponible: no se muestran ceros en sustitución de datos ausentes.")); return panel; }
+    var days=history.evolution||[], list=el("div","score-days"); list.setAttribute("role","list");
+    if (!days.length) { panel.appendChild(el("p","empty","No hay días verificables en la serie histórica.")); return panel; }
+    var max=Math.max.apply(null,days.map(function(row){return row.points;}));
+    days.forEach(function(row){ var line=el("div","score-day"), time=el("time","",row.day.slice(8,10)+"/"+row.day.slice(5,7)),bar=el("div","score-day-bar"),fill=el("i"),points=el("b","",row.points+" pts");
+      line.setAttribute("role","listitem"); line.setAttribute("aria-label",row.day+": "+row.points+" puntos"); time.dateTime=row.day;
+      fill.style.width=(max?row.points/max*100:0)+"%"; bar.appendChild(fill); line.append(time,bar,points); list.appendChild(line); });
+    panel.appendChild(list); panel.appendChild(el("p","score-sampled","Datos canónicos muestreados el "+new Date(history.sampledAt).toLocaleString("es-ES",{timeZone:"Europe/Madrid"})+".")); return panel;
+  }
   function render(data) {
     var identitySourcesAvailable=data.available.daily||data.available.tasks||data.available.missions||data.available.incidents;
-    var known = !!data.snap || data.daily.scores.some(function(row){ return DETAIL.sameFamily(row.agent,row.machine,agent,ID); }) ||
+    var known = !!data.history || !!data.snap || data.daily.scores.some(function(row){ return DETAIL.sameFamily(row.agent,row.machine,agent,ID); }) ||
       data.tasks.some(function(t){ return DETAIL.sameFamily(DETAIL.taskIdentity(t,ID),t.loc,agent,ID); }) ||
       data.missions.some(function(m){ return DETAIL.sameFamily(m.assignee||m.persona,m.machine||m.loc,agent,ID); }) ||
       data.incidents.some(function(i){ return DETAIL.sameFamily(i.assignee||i.persona||i.agent,i.machine||i.loc,agent,ID); });
     if (!known && !identitySourcesAvailable) { state("Datos no disponibles", "No se pudo comprobar esta identidad porque las fuentes del Highscore no están disponibles."); return; }
     if (!known) { state("Agente no encontrado", "La identidad solicitada no aparece en el marcador ni en los datos operativos disponibles."); return; }
-    var calculated=DETAIL.scoreFor(agent,data.daily,data.tasks,ID), rank=DETAIL.ranking(agent,data.daily,data.tasks,ID), snap=data.snap;
+    var calculated=DETAIL.scoreFor(agent,data.daily,data.tasks,ID), rank=DETAIL.ranking(agent,data.daily,data.tasks,ID), snap=data.snap, history=data.history;
     var place=snap&&Number(snap.posicion)||rank.place||"—", total=snap&&Number(snap.total);
     if (!Number.isFinite(total)) total=data.available.daily&&data.available.tasks?calculated.total:"—";
     var taskCount=data.available.tasks?calculated.taskCount:"—";
     var fact=DETAIL.facts(agent,data.tasks,data.missions,data.incidents,ID), hours=DETAIL.timeline(agent,data.tasks,data.missions,data.incidents,ID);
     target.replaceChildren(); var hero=el("header","hero"), avatar=el("div","avatar",agent.charAt(0).toUpperCase()), avatarUrl=window.ykAvatar&&window.ykAvatar.img(agent);
     if (avatarUrl) { var image=document.createElement("img"); image.src=avatarUrl; image.alt="Avatar de "+agent; image.addEventListener("error",function(){ image.remove(); avatar.textContent=agent.charAt(0).toUpperCase(); }); avatar.replaceChildren(image); }
-    var identity=el("div"), eyebrow=el("div","eyebrow","Identidad canónica"), title=el("h1","",agent), source=el("p","source",snap?"Puesto y puntos del snapshot exacto del Highscore.":"Puesto reconstruido con actividad atribuible directamente; no se reasignan datos sin equipo.");
+    var identity=el("div"), eyebrow=el("div","eyebrow","Identidad canónica"), title=el("h1","",agent), source=el("p","source",history?"Histórico factual por periodos naturales de Europe/Madrid; identidad y equipo exactos.":(snap?"Puesto y puntos del snapshot exacto del Highscore.":"Puesto reconstruido con actividad atribuible directamente; no se reasignan datos sin equipo."));
     identity.append(eyebrow,title,source); hero.append(avatar,identity); target.appendChild(hero);
     var stats=el("section","stats"), scoreAvailable=!!snap||data.available.daily;
-    stats.append(stat(place,"Puesto"),stat(total,"Puntos"),stat(snap?snap.objetivos:(scoreAvailable?calculated.objectives:"—"),
-      "Objetivos"),stat(snap?snap.ventanas:(scoreAvailable?calculated.windows:"—"),"Ventanas"),
-      stat(snap?snap.misiones:(scoreAvailable?calculated.missions:"—"),"Misiones"),stat(snap?snap.tareas:taskCount,"Tareas hoy")); target.appendChild(stats);
+    stats.append(stat(place,"Puesto"),stat(total,"Puntos hoy"),stat(history?history.periods.week.points:"—","Semana · lunes a hoy"),
+      stat(history?history.periods.month.points:"—","Mes · día 1 a hoy"),stat(history?history.periods.total.points:"—","Total histórico"),
+      stat(snap?snap.tareas:taskCount,"Tareas hoy")); target.appendChild(stats);
     // CUÁNTO FALTA HASTA SU PRÓXIMA VENTANA (Carlos, 2026-08-07). El dato lo da
     // /fleet/turnos, que cruza las dos condiciones —su hora cumplida Y su turno
     // dentro del reparto— y devuelve la más tardía. Se pide aparte y en
@@ -131,7 +145,7 @@ h1{margin:6px 0 4px;color:var(--brand);font-size:clamp(23px,5vw,42px);word-break
     var operationalComplete=data.available.tasks&&data.available.missions&&data.available.incidents;
     var grid=el("div","grid"); grid.append(factsPanel("Lo que hizo bien",fact.good,"No hay hechos positivos verificables en los datos disponibles.",operationalComplete),
       factsPanel("A mejorar",fact.improve,"No hay pendientes o incidencias atribuibles en los datos disponibles.",operationalComplete),
-      timelinePanel(hours,operationalComplete)); target.appendChild(grid);
+      timelinePanel(hours,operationalComplete),scoreEvolutionPanel(history,data.available.history)); target.appendChild(grid);
   }
   if (!agent) { state("Falta el agente", "Abre el detalle desde uno de los tres puestos del podio o añade ?agent=<identidad-canónica>."); return; }
   if (!DETAIL.validAgent(agent,ID)) { state("Identidad no válida", "El parámetro agent debe contener una identidad canónica con apellido de equipo, por ejemplo MorfeoMBP16 u NeoMBAAzul."); return; }
@@ -140,10 +154,11 @@ h1{margin:6px 0 4px;color:var(--brand);font-size:clamp(23px,5vw,42px);word-break
     get(API+"/highscore/daily",function(d){return d||{scores:[]};},{scores:[]}),
     get(API+"/tasks/all?scope=fleet",function(d){return d.tasks||[];},[]),
     get(API+"/fleet/missions",function(d){return d.missions||[];},[]),
-    get(API+"/tickets?scope=campo&limit=500",function(d){return d.tickets||[];},[])
+    get(API+"/tickets?scope=campo&limit=500",function(d){return d.tickets||[];},[]),
+    get(API+"/highscore/history?agent="+encodeURIComponent(agent),function(d){ var value=DETAIL.history(d,agent,ID,Date.now()); if(!value) throw new Error("histórico inválido"); return value; },null)
   ]).then(function(rows){ render({daily:rows[0].value&&rows[0].value.scores?rows[0].value:{scores:[]},tasks:rows[1].value,
-      missions:rows[2].value,incidents:rows[3].value,snap:snap,
-      available:{daily:rows[0].ok,tasks:rows[1].ok,missions:rows[2].ok,incidents:rows[3].ok}}); });
+      missions:rows[2].value,incidents:rows[3].value,history:rows[4].value,snap:snap,
+      available:{daily:rows[0].ok,tasks:rows[1].ok,missions:rows[2].ok,incidents:rows[3].ok,history:rows[4].ok}}); });
 })();
 </script>
 <script src="/yk-frame.js?v=r19"></script>

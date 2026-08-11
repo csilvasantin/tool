@@ -116,5 +116,5 @@ test("la presentación usa hora/día también en podio y el ranking conserva tot
 
 test("el aria del podio verbaliza la comparación diaria además de mostrar el color", () => {
   assert.match(source, /var dailyTitle = tituloPuntosDiarios\(estadoPuntosDiarios\(a\)\)/);
-  assert.match(source, /aria-label="Ver detalle de '[\s\S]*esc\(scoreLabel \+ "\. " \+ dailyTitle\)/);
+  assert.match(source, /aria-label="Ver histórico de '[\s\S]*esc\(scoreLabel \+ "\. " \+ dailyTitle\)/);
 });
