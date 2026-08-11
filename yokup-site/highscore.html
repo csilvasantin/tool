@@ -52,11 +52,11 @@ header.cab{position:relative;display:grid;grid-template-columns:auto minmax(180p
 header.cab>h1{grid-column:1;grid-row:1;display:flex;align-items:center;align-self:center;gap:7px}
 h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:0;color:var(--brand);
   text-shadow:3px 3px 0 #0a4a58}
-.race-toggle{all:unset;display:inline-block;cursor:pointer;color:inherit;font:inherit;letter-spacing:inherit;
+.podium-toggle{all:unset;display:inline-block;cursor:pointer;color:inherit;font:inherit;letter-spacing:inherit;
   text-shadow:inherit;border-radius:5px;transition:color .16s,text-shadow .16s,transform .16s}
-.race-toggle:hover,.race-toggle:focus-visible{color:var(--ink);text-shadow:3px 3px 0 #0a4a58,0 0 12px rgba(120,243,255,.5)}
-.race-toggle:focus-visible{outline:2px solid var(--brand);outline-offset:5px}
-.race-toggle[aria-pressed="true"]{color:var(--accent);transform:translateY(1px);
+.podium-toggle:hover,.podium-toggle:focus-visible{color:var(--ink);text-shadow:3px 3px 0 #0a4a58,0 0 12px rgba(120,243,255,.5)}
+.podium-toggle:focus-visible{outline:2px solid var(--brand);outline-offset:5px}
+.podium-toggle[aria-expanded="true"]{color:var(--accent);transform:translateY(1px);
   text-shadow:3px 3px 0 #5a4310,0 0 12px rgba(255,216,102,.42)}
 
 /* podio: la ilustración conserva siempre su proporción 16:9 y ocupa el mismo
@@ -65,6 +65,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .podio{position:relative;width:100%;aspect-ratio:16/9;margin:12px 0 8px;overflow:hidden;
   isolation:isolate;background:#02080d;border:1px solid rgba(120,243,255,.12);
   box-shadow:0 18px 46px rgba(0,0,0,.34)}
+.podio[hidden]{display:none}
 .podio-arte{position:absolute;inset:0;z-index:0;pointer-events:none}
 .podio-arte canvas{display:block;width:100%;height:100%}
 .podio-velo{position:absolute;inset:0;background:linear-gradient(180deg,rgba(2,8,13,.03),transparent 58%,rgba(2,8,13,.22));z-index:1}
@@ -98,7 +99,9 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 /* Carrera de refresco: una calle sólo para quien tiene latido reciente Y ejecuta
    una misión en curso. Ninguna de las dos señales concede una calle por sí sola. */
 .refresh-race{--track-start:2px;--finish-gutter:clamp(132px,15vw,184px);--finish-width:7px;--agent-gap:26px;
-  position:relative;grid-column:2;grid-row:1;min-height:44px;min-width:0;padding:0;display:flex;align-items:flex-start;overflow:hidden}
+  position:relative;grid-column:2;grid-row:1;min-height:44px;min-width:0;padding:0;display:flex;align-items:flex-start;overflow:hidden;
+  cursor:pointer;border-radius:5px}
+.refresh-race:focus-visible{outline:2px solid var(--brand);outline-offset:4px}
 .refresh-lanes{width:100%;display:grid;gap:1px}
 .runner-symbols{position:absolute;width:0;height:0;overflow:hidden}
 .refresh-lane{position:relative;width:100%;min-width:0;min-height:42px}
@@ -570,12 +573,13 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
 <div class="wrap" id="pagina" style="visibility:hidden">
   <header class="cab">
-    <h1><button class="race-toggle" id="raceToggle" type="button" aria-pressed="false"
-      title="Pausar carrera para leer las misiones">HIGHSCORE</button>
+    <h1><button class="podium-toggle" id="podiumToggle" type="button" aria-expanded="false" aria-controls="podio"
+      title="Mostrar podio">HIGHSCORE</button>
       <button class="sonido" id="btnSonido" type="button" aria-pressed="false" title="Activar sonido">
         <span aria-hidden="true">♪</span><span class="sr-only" id="estadoSonido">Sonido desactivado</span>
       </button></h1>
-    <div class="refresh-race" id="refreshRace" role="timer" aria-label="Carrera de puntuación: 24 segundos hasta la meta">
+    <div class="refresh-race" id="refreshRace" role="button" tabindex="0" aria-pressed="false"
+      title="Pausar carrera para leer las misiones" aria-label="Carrera de puntuación: 24 segundos hasta la meta. Pulsa para parar la carrera.">
       <svg class="runner-symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
         <defs><symbol id="runnerReady" viewBox="0 0 24 24"><g class="runner-skin" fill="var(--runner-skin,#a05a2c)"><rect x="10" y="3" width="4" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="11" y="4" width="2" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="10" y="6" width="4" height="1"/><rect x="5" y="8" width="2" height="1"/><rect x="17" y="8" width="2" height="1"/><rect x="5" y="9" width="2" height="1"/><rect x="17" y="9" width="2" height="1"/><rect x="5" y="10" width="2" height="1"/><rect x="17" y="10" width="2" height="1"/><rect x="5" y="11" width="2" height="1"/><rect x="17" y="11" width="2" height="1"/><rect x="5" y="12" width="2" height="1"/><rect x="17" y="12" width="2" height="1"/><rect x="9" y="16" width="2" height="1"/><rect x="13" y="16" width="2" height="1"/><rect x="9" y="17" width="2" height="1"/><rect x="13" y="17" width="2" height="1"/><rect x="9" y="18" width="2" height="1"/><rect x="13" y="18" width="2" height="1"/></g><g class="runner-hair" fill="var(--runner-hair,#14100b)"><rect x="10" y="1" width="4" height="1"/><rect x="9" y="2" width="6" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="14" y="3" width="1" height="1"/></g><g class="runner-mustache" fill="var(--runner-hair,#14100b)"><rect x="10" y="5" width="4" height="1"/></g><g class="runner-eye" fill="#0d0a06"><rect x="10" y="4" width="1" height="1"/><rect x="13" y="4" width="1" height="1"/></g><g class="runner-shirt" fill="var(--runner-shirt,#f8f8f8)"><rect x="7" y="7" width="10" height="1"/><rect x="7" y="8" width="10" height="1"/><rect x="7" y="9" width="2" height="1"/><rect x="15" y="9" width="2" height="1"/><rect x="7" y="10" width="10" height="1"/><rect x="7" y="11" width="10" height="1"/><rect x="8" y="12" width="8" height="1"/></g><g class="runner-accent" fill="var(--runner-stripe,#3466cc)"><rect x="9" y="9" width="6" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="15" y="14" width="1" height="1"/><rect x="9" y="20" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/></g><g class="runner-short" fill="var(--runner-short,#f8f8f8)"><rect x="8" y="13" width="8" height="1"/><rect x="9" y="14" width="6" height="1"/><rect x="8" y="15" width="3" height="1"/><rect x="13" y="15" width="3" height="1"/></g><g class="runner-shoe" fill="var(--runner-shoe,#f8f8f8)"><rect x="8" y="19" width="3" height="1"/><rect x="13" y="19" width="3" height="1"/><rect x="8" y="20" width="1" height="1"/><rect x="10" y="20" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="15" y="20" width="1" height="1"/></g></symbol>
         <symbol id="runnerSet" viewBox="0 0 24 24"><g class="runner-skin" fill="var(--runner-skin,#a05a2c)"><rect x="2" y="12" width="3" height="1"/><rect x="14" y="12" width="5" height="1"/><rect x="1" y="13" width="3" height="1"/><rect x="14" y="13" width="2" height="1"/><rect x="17" y="13" width="2" height="1"/><rect x="1" y="14" width="2" height="1"/><rect x="14" y="14" width="3" height="1"/><rect x="0" y="15" width="2" height="1"/><rect x="9" y="15" width="3" height="1"/><rect x="13" y="15" width="5" height="1"/><rect x="0" y="16" width="2" height="1"/><rect x="9" y="16" width="2" height="1"/><rect x="13" y="16" width="2" height="1"/><rect x="16" y="16" width="2" height="1"/><rect x="0" y="17" width="2" height="1"/><rect x="8" y="17" width="2" height="1"/><rect x="13" y="17" width="2" height="1"/><rect x="16" y="17" width="2" height="1"/><rect x="0" y="18" width="2" height="1"/><rect x="8" y="18" width="2" height="1"/><rect x="13" y="18" width="2" height="1"/><rect x="16" y="18" width="2" height="1"/><rect x="13" y="19" width="2" height="1"/><rect x="16" y="19" width="2" height="1"/><rect x="13" y="20" width="2" height="1"/><rect x="16" y="20" width="2" height="1"/></g><g class="runner-hair" fill="var(--runner-hair,#14100b)"><rect x="13" y="10" width="6" height="1"/><rect x="12" y="11" width="7" height="1"/><rect x="12" y="12" width="2" height="1"/><rect x="12" y="13" width="2" height="1"/><rect x="12" y="14" width="2" height="1"/></g><g class="runner-mustache" fill="var(--runner-hair,#14100b)"><rect x="17" y="14" width="2" height="1"/></g><g class="runner-eye" fill="#0d0a06"><rect x="16" y="13" width="1" height="1"/></g><g class="runner-shirt" fill="var(--runner-shirt,#f8f8f8)"><rect x="6" y="10" width="6" height="1"/><rect x="5" y="11" width="7" height="1"/><rect x="5" y="12" width="3" height="1"/><rect x="5" y="13" width="7" height="1"/><rect x="7" y="14" width="5" height="1"/></g><g class="runner-accent" fill="var(--runner-stripe,#3466cc)"><rect x="6" y="9" width="2" height="1"/><rect x="8" y="12" width="4" height="1"/><rect x="1" y="20" width="2" height="1"/><rect x="8" y="20" width="2" height="1"/></g><g class="runner-short" fill="var(--runner-short,#f8f8f8)"><rect x="4" y="8" width="6" height="1"/><rect x="3" y="9" width="3" height="1"/><rect x="8" y="9" width="3" height="1"/><rect x="3" y="10" width="3" height="1"/><rect x="3" y="11" width="2" height="1"/></g><g class="runner-shoe" fill="var(--runner-shoe,#f8f8f8)"><rect x="0" y="19" width="4" height="1"/><rect x="7" y="19" width="4" height="1"/><rect x="0" y="20" width="1" height="1"/><rect x="3" y="20" width="1" height="1"/><rect x="7" y="20" width="1" height="1"/><rect x="10" y="20" width="1" height="1"/></g></symbol>
@@ -590,7 +594,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       <span class="sr-only" id="refreshCount">24 segundos</span>
     </div>
   </header>
-  <div class="podio" id="podio"></div>
+  <div class="podio" id="podio" hidden></div>
   <div class="table-scroll" id="rankingScroll">
     <table class="tabla" id="rankingTable">
       <colgroup>
@@ -3158,7 +3162,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     });
     var quedan = Math.max(0, Math.ceil((1 - progreso) * REFRESCO_MS / 1000));
     document.getElementById("refreshCount").textContent = quedan + " S";
-    document.getElementById("refreshRace").setAttribute("aria-label", "Próxima actualización de puntuación en " + quedan + " segundos");
+    document.getElementById("refreshRace").setAttribute("aria-label", "Próxima actualización de puntuación en " + quedan + " segundos. Pulsa para parar la carrera.");
   }
   function fijaFaseSalida(fase, llamada) {
     var carrera = document.getElementById("refreshRace");
@@ -3176,7 +3180,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       pintaCarrera(0);
       fijaFaseSalida(fases[paso], llamadas[paso]);
       document.getElementById("refreshCount").textContent = llamadas[paso];
-      document.getElementById("refreshRace").setAttribute("aria-label", llamadas[paso] + " · salida en " + (3 - paso) + " segundos");
+      document.getElementById("refreshRace").setAttribute("aria-label", llamadas[paso] + " · salida en " + (3 - paso) + " segundos. Pulsa para parar la carrera.");
       return;
     }
     fijaFaseSalida("", "");
@@ -3186,7 +3190,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     }
     pintaCarrera(1);
     document.getElementById("refreshCount").textContent = "META";
-    document.getElementById("refreshRace").setAttribute("aria-label", "Meta · celebrando el resultado");
+    document.getElementById("refreshRace").setAttribute("aria-label", "Meta · celebrando el resultado. Pulsa para parar la carrera.");
   }
   function avanzaCarrera(ahora) {
     if (carreraPausada) return;
@@ -3199,10 +3203,23 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     actualizaMarcador().then(iniciaCarrera);
   }
   function pintaControlCarrera() {
-    var boton = document.getElementById("raceToggle"), carrera = document.getElementById("refreshRace");
-    boton.setAttribute("aria-pressed", carreraPausada ? "true" : "false");
-    boton.title = carreraPausada ? "Reanudar carrera desde el punto de pausa" : "Pausar carrera para leer las misiones";
+    var carrera = document.getElementById("refreshRace");
+    carrera.setAttribute("aria-pressed", carreraPausada ? "true" : "false");
+    carrera.title = carreraPausada ? "Reanudar carrera desde el punto de pausa" : "Pausar carrera para leer las misiones";
+    if (carreraPausada) carrera.setAttribute("aria-label", "Carrera pausada. Pulsa para reanudarla.");
     carrera.classList.toggle("paused", carreraPausada);
+  }
+  function pintaControlPodio() {
+    var boton = document.getElementById("podiumToggle"), podio = document.getElementById("podio");
+    var visible = !podio.hidden;
+    boton.setAttribute("aria-expanded", visible ? "true" : "false");
+    boton.title = visible ? "Ocultar podio" : "Mostrar podio";
+  }
+  function alternaPodio() {
+    var podio = document.getElementById("podio");
+    podio.hidden = !podio.hidden;
+    pintaControlPodio();
+    if (!podio.hidden) dibujaPodio(brazosBajos);
   }
   function pausaOReiniciaCarrera() {
     if (!carreraPausada) {
@@ -3239,7 +3256,15 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     pintaMomentoCarrera(0);
     carreraFrame = requestAnimationFrame(avanzaCarrera);
   }
-  document.getElementById("raceToggle").addEventListener("click", pausaOReiniciaCarrera);
+  var pistaCarrera = document.getElementById("refreshRace");
+  pistaCarrera.addEventListener("click", pausaOReiniciaCarrera);
+  pistaCarrera.addEventListener("keydown", function (evento) {
+    if (evento.key !== "Enter" && evento.key !== " " && evento.key !== "Spacebar") return;
+    evento.preventDefault();
+    pausaOReiniciaCarrera();
+  });
+  document.getElementById("podiumToggle").addEventListener("click", alternaPodio);
+  pintaControlPodio();
 })();
 </script>
 <script src="/yk-frame.js?v=v.2026.08.02.202305"></script>

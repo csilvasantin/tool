@@ -85,7 +85,7 @@ test("la vida hace latir el propio número de posición y no añade un punto", (
 });
 
 test("todos los atletas pixelados recorren la línea y actualizan el marcador tras sprint y celebración", () => {
-  assert.match(html, /<header class="cab">[\s\S]*<h1><button class="race-toggle" id="raceToggle"[\s\S]*>HIGHSCORE<\/button>\s*<button class="sonido"[\s\S]*<\/button><\/h1>[\s\S]*class="refresh-race"[\s\S]*<\/header>/);
+  assert.match(html, /<header class="cab">[\s\S]*<h1><button class="podium-toggle" id="podiumToggle"[\s\S]*>HIGHSCORE<\/button>\s*<button class="sonido"[\s\S]*<\/button><\/h1>[\s\S]*class="refresh-race"[\s\S]*<\/header>/);
   assert.match(html, /header\.cab\{[^}]*grid-template-columns:auto minmax\(180px,1fr\)[^}]*grid-template-rows:auto/);
   assert.match(html, /header\.cab>h1\{[^}]*display:flex[^}]*align-items:center[^}]*align-self:center/);
   assert.match(html, /\.sonido\{[^}]*width:15px[^}]*height:15px[^}]*margin:0[^}]*font-size:7px/);
@@ -306,9 +306,19 @@ test("el podio conserva el latido vivo y usa la misma pareja hora/día", () => {
   assert.match(html, /datos\.actividadMeta && datos\.actividadMeta\.hourly/);
 });
 
-test("HIGHSCORE pausa la lectura y mantiene estático el nombre tras la meta", () => {
-  assert.match(html, /class="race-toggle" id="raceToggle"[^>]*aria-pressed="false"/);
-  assert.match(html, /document\.getElementById\("raceToggle"\)\.addEventListener\("click", pausaOReiniciaCarrera\)/);
+test("HIGHSCORE muestra y oculta un podio oculto por defecto", () => {
+  assert.match(html, /class="podium-toggle" id="podiumToggle"[^>]*aria-expanded="false"[^>]*aria-controls="podio"/);
+  assert.match(html, /<div class="podio" id="podio" hidden><\/div>/);
+  assert.match(html, /function alternaPodio\(\) \{[\s\S]*podio\.hidden = !podio\.hidden;[\s\S]*pintaControlPodio\(\)/);
+  assert.match(html, /document\.getElementById\("podiumToggle"\)\.addEventListener\("click", alternaPodio\)/);
+  assert.match(html, /\.podio\[hidden\]\{display:none\}/);
+  assert.doesNotMatch(html, /podiumToggle"\)\.addEventListener\("click", pausaOReiniciaCarrera\)/);
+});
+
+test("la pista pausa la lectura por ratón o teclado y mantiene estático el nombre tras la meta", () => {
+  assert.match(html, /class="refresh-race" id="refreshRace" role="button" tabindex="0" aria-pressed="false"/);
+  assert.match(html, /pistaCarrera\.addEventListener\("click", pausaOReiniciaCarrera\)/);
+  assert.match(html, /pistaCarrera\.addEventListener\("keydown", function \(evento\) \{[\s\S]*evento\.key !== "Enter"[\s\S]*evento\.key !== " "[\s\S]*evento\.preventDefault\(\);[\s\S]*pausaOReiniciaCarrera\(\)/);
   assert.match(html, /function pausaOReiniciaCarrera\(\)/);
   assert.match(html, /carreraTiempoPausado = Math\.max\(0, Math\.min\(CICLO_MS, performance\.now\(\) - carreraInicio\)\)/);
   assert.match(html, /document\.getElementById\("refreshCount"\)\.textContent = "PAUSA"/);
