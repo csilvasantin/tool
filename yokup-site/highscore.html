@@ -135,10 +135,11 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   opacity:0;visibility:hidden;transition:none}
 .refresh-mission-title{display:block;width:100%;max-width:none;direction:ltr;unicode-bidi:plaintext;
   white-space:nowrap;text-align:center;transform:translateX(0);will-change:transform}
+.refresh-mission-detail{display:block;width:100%;min-width:0}
 .refresh-mission-duration{display:none;color:var(--accent);font-weight:950;white-space:nowrap}
-.refresh-lane.finished .refresh-mission{display:flex;align-items:baseline;justify-content:center;gap:6px}
+.refresh-lane.finished .refresh-mission-detail{display:flex;align-items:baseline;justify-content:center;gap:6px;min-width:0}
 .refresh-lane.finished .refresh-mission-duration{display:block;flex:0 0 auto}
-.refresh-lane.finished .refresh-mission-title{display:block;width:auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.refresh-lane.finished .refresh-mission-title{display:block;flex:1 1 auto;width:auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .refresh-lane-empty{--lane:var(--dim);--runner-shirt:#78f3ff;--runner-stripe:#ffd866;min-height:42px}
 .refresh-lane-empty .refresh-track{min-height:42px;padding:0 18px}
 .refresh-lane-empty .refresh-track::before{display:none}
@@ -156,12 +157,16 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-lane-idle{--lane:var(--dim);opacity:.72}
 .refresh-lane-idle .refresh-fill{opacity:0}
 .refresh-lane-idle .refresh-runner{filter:grayscale(1) brightness(.85)}
-.refresh-lane-idle .refresh-mission{left:auto;right:42px;top:4px;width:auto;max-width:calc(100% - 82px);transform:none;
+.refresh-lane-idle .refresh-mission{left:var(--track-start);right:calc(var(--finish-gutter) + var(--finish-width) + 10px);top:2px;
+  width:auto;max-width:none;transform:none;display:flex;flex-direction:column;align-items:stretch;gap:1px;
   text-align:right;opacity:1;visibility:visible}
 .refresh-race.phase-ready .refresh-lane-idle .refresh-mission,.refresh-race.phase-set .refresh-lane-idle .refresh-mission,
 .refresh-race.phase-go .refresh-lane-idle .refresh-mission{opacity:1;visibility:visible}
-.refresh-lane-idle .refresh-mission-title{width:auto;text-align:right;opacity:.75}
-.refresh-mission-idle{color:var(--dim);font-size:9px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
+.refresh-lane-idle .refresh-mission-detail{display:flex;align-items:baseline;justify-content:flex-end;gap:6px;min-width:0}
+.refresh-lane-idle .refresh-mission-duration{display:block;flex:0 0 auto}
+.refresh-lane-idle .refresh-mission-title{flex:1 1 auto;width:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:right;opacity:.75}
+.refresh-mission-idle{display:block;overflow:hidden;color:var(--dim);font-size:9px;font-weight:900;letter-spacing:.1em;
+  text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap}
 .refresh-agent{position:absolute;z-index:2;left:calc(100% - var(--finish-gutter) + var(--agent-gap));right:4px;bottom:7px;
   max-width:none;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
   white-space:normal;text-align:left;color:var(--lane);font-size:12px;font-weight:900;line-height:14px;letter-spacing:.025em;
@@ -3200,8 +3205,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<span class="refresh-mission" data-race-role="mission" title="' +
         (resumen.idle ? 'Parado · sin avance ' + esc(resumen.since) + ' · última tarea asignada: ' : '') + esc(resumen.title) + '">' +
         (resumen.idle ? '<span class="refresh-mission-idle">PARADO · sin avance ' + esc(resumen.since) + '</span> ' : '') +
-        '<span class="refresh-mission-title">' + esc(resumen.title) + '</span>' +
-        '<strong class="refresh-mission-duration" title="Tiempo dedicado factual">⏱ ' + esc(resumen.duration) + '</strong></span>' +
+        '<span class="refresh-mission-detail"><span class="refresh-mission-title">' + esc(resumen.title) + '</span>' +
+        '<strong class="refresh-mission-duration" title="Tiempo dedicado factual">⏱ ' + esc(resumen.duration) + '</strong></span></span>' +
         '<span class="refresh-runner runner-' + variant + ' runner-skin-' + variant + '" data-race-role="runner" aria-hidden="true">' +
         '<svg class="runner-pose-ready" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerReady"></use></svg>' +
         '<svg class="runner-pose-set" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerSet"></use></svg>' +
