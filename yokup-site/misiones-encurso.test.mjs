@@ -118,6 +118,14 @@ test('la carga inicial abre En curso y, si no existe, Finalizadas', () => {
     'Finalizadas recarga su universo histórico; En curso reutiliza las filas vivas');
 });
 
+test('el scope inicial de proyecto no consume la cascada antes de recibir contadores', () => {
+  const projectChange=board.slice(board.indexOf('addEventListener("yk:project-change"'),board.indexOf('// (día del tablero'));
+  assert.match(projectChange,/PROJECT_SCOPE=event\.detail&&event\.detail\.project_id\|\|null/);
+  assert.doesNotMatch(projectChange,/didCascade\s*=\s*true/,
+    'el evento automático inicial dejaba Activas pulsado aunque hubiera misiones En curso');
+  assert.match(board,/const pick = nProg>0\?"in_progress":"resolved"/);
+});
+
 test('una fila No concluida no conserva el texto contradictorio en curso', () => {
   const html = Yk.rowHtml({
     id: 'FLT-TARDE', status: 'in_progress', assignee: 'Neo', machine: 'MacMini',

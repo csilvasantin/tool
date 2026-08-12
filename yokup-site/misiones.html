@@ -771,7 +771,10 @@ async function load(){
 if(window.addEventListener)window.addEventListener("yk:project-change",event=>{
   LOAD_GENERATION++;
   PROJECT_SCOPE=event.detail&&event.detail.project_id||null;
-  didCascade=true;
+  // El selector global emite también su estado inicial. Ese evento puede llegar
+  // antes que el primer /tickets: no debe consumir la preselección En curso →
+  // Finalizadas y dejar la pestaña legacy «Activas» marcada. Tras la primera
+  // carga didCascade ya es true; una elección manual queda protegida por userPicked.
   const board=$("list");
   if(board) board.innerHTML='<div class="empty">Filtrando misiones por proyecto…</div>';
   load();
