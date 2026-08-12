@@ -5890,6 +5890,7 @@ async function highscoreHistory(env, requestedAgent, ahora = Date.now()) {
 __name(highscoreHistory, "highscoreHistory");
 
 var HIGHSCORE_ACTIVE_WORK_MS = 20 * 60 * 1000;
+var HIGHSCORE_LANE_WORK_MS = 60 * 60 * 1000;
 var HIGHSCORE_PROCESS_FRESH_MS = 30 * 1000;
 var HIGHSCORE_CLOCK_SKEW_MS = 5 * 1000;
 
@@ -5988,6 +5989,11 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     const recent = at > 0 && at >= cutoff && at <= ahora + HIGHSCORE_CLOCK_SKEW_MS;
     const state = forcedState || (recent ? "running" : "assigned_stale");
     const presenceAt = presence.by_family.get(family.family_key) || 0;
+    const laneRecent = at > 0 && at >= ahora - HIGHSCORE_LANE_WORK_MS && at <= ahora + HIGHSCORE_CLOCK_SKEW_MS;
+    // Una asignación abierta no ocupa indefinidamente la carrera. Para entrar
+    // necesita un hecho material de la última hora o el proceso exacto verificado;
+    // este último acredita la calle, pero nunca el movimiento (20 min).
+    if (!forcedState && !laneRecent && !presenceAt) return;
     const candidate = { family_key:family.family_key, agent:family.family_name, executor, kind,
       title:visibleTitle(title, kind === "task" ? "Tarea activa" : kind === "mission" ? "Misión activa" : "Objetivo en curso"),
       state, active_at:at, work_progress_at:at, reachable:!!presenceAt };

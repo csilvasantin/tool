@@ -28,7 +28,7 @@ function harness(presence={ok:true,presence:[],now:NOW/1000}){
   vm.runInContext([
     grabVar("HIGHSCORE_PERSONAS"),grabVar("MISSION_SCOPE_SQL_T"),grabVar("PRESENCE_URL"),
     grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_WORK_STARTED_SQL"),grabVar("HIGHSCORE_MISSION_PROGRESS_SQL"),
-    grabVar("HIGHSCORE_ACTIVE_WORK_MS"),grabVar("HIGHSCORE_PROCESS_FRESH_MS"),grabVar("HIGHSCORE_CLOCK_SKEW_MS"),
+    grabVar("HIGHSCORE_ACTIVE_WORK_MS"),grabVar("HIGHSCORE_LANE_WORK_MS"),grabVar("HIGHSCORE_PROCESS_FRESH_MS"),grabVar("HIGHSCORE_CLOCK_SKEW_MS"),
     grab("highscoreAgent"),grab("scopedMissionOwner"),grab("highscoreActiveWorkMillis"),grab("highscoreActiveWorkFamily"),
     grab("highscoreElapsedTiming"),grab("highscoreVerifiedPresence"),grab("highscoreActiveWork"),
   ].join("\n"),context);
@@ -53,7 +53,7 @@ test("frontera exacta 20m: running hasta el límite y assigned_stale un milisegu
   });
 });
 
-test("presence sólo informa reachability: no rescata ni degrada el estado de trabajo",async()=>{
+test("presence rescata la calle stale, pero no la convierte en running",async()=>{
   const {db,env,F}=harness({presence:[processRow("Neo","MacBook Pro 14")],now:NOW/1000});
   mission(db,{id:"M1",agent:"OraculoMacMini",at:NOW-2*MIN});
   mission(db,{id:"M2",agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-8*60*MIN});
@@ -68,10 +68,27 @@ test("cuatro familias factuales conservan cuatro lanes aunque sólo dos avancen"
   mission(db,{id:"M1",agent:"OraculoMacMini",at:NOW-MIN});
   mission(db,{id:"M2",agent:"MorfeoMacMini",at:NOW-20*MIN});
   mission(db,{id:"M3",agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-21*MIN});
-  mission(db,{id:"M4",agent:"TrinityMBP16",machine:"MacBook Pro 16",at:NOW-5*60*MIN});
+  mission(db,{id:"M4",agent:"TrinityMBP16",machine:"MacBook Pro 16",at:NOW-40*MIN});
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(result.count,4); assert.equal(result.running_count,2);
   assert.deepEqual(result.participants.map(row=>row.state).sort(),["assigned_stale","assigned_stale","running","running"]);
+});
+
+test("asignación de más de 60m sin proceso verificado no fabrica carril",async()=>{
+  const {db,env,F}=harness();
+  mission(db,{id:"M1",agent:"NeoMBACrema",machine:"MacBookAirCrema",at:NOW-60*MIN-1});
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.count,0);
+  assert.equal(result.mode,"recent");
+});
+
+test("la frontera de elegibilidad incluye 60m exactos sin declarar movimiento",async()=>{
+  const {db,env,F}=harness();
+  mission(db,{id:"M1",agent:"OraculoMacMini",at:NOW-60*MIN});
+  mission(db,{id:"M2",agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-MIN});
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.count,2);
+  assert.equal(result.participants.find(row=>row.agent==="OraculoMacMini").state,"assigned_stale");
 });
 
 test("elapsed activo usa generated_at-start, separado del último progreso material",async()=>{
