@@ -67,8 +67,9 @@ test("la calle parada se marca, no corre y no afirma trabajo en curso", () => {
   assert.match(html, /resumen\.idle \? 'data-race-idle="true" ' : ''/);
   assert.match(html, /"ASIGNADO · SIN AVANCE"/);
   // Y el corredor se queda en la salida.
-  assert.match(html, /carril\.getAttribute\("data-race-idle"\) === "true"/);
-  assert.match(html, /if \(parado\) progresoAtleta = 0;/);
+  assert.match(html, /estadoTrabajo = carril\.getAttribute\("data-work-state"\)/);
+  assert.match(html, /noCorre = !!estadoTrabajo && estadoTrabajo !== "running"/);
+  assert.match(html, /progresoAtleta = noCorre \? 0 : progresoCarril/);
   assert.match(html, /carril\.classList\.remove\("place-revealed", "cruzando", "finished", "race-winner", "race-loser"\)/);
 });
 

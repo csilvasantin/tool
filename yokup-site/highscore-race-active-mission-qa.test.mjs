@@ -81,7 +81,7 @@ test("un participante factual crea una única calle", () => {
   assert.match(race.html,/SubOraculoMacMini/);
 });
 
-test("sin running muestra últimos trabajos B/N con hora y elapsed, sin corredor", () => {
+test("sin running muestra últimos trabajos B/N con hora, elapsed y pose de pie", () => {
   const ended=Date.now()-60_000;
   const recent=["OraculoMacMini","MorfeoMacMini","TrinityMBP16"].map((agent,index)=>({
     ...work(agent,agent,"mission",`Último ${index+1}`,ended-index*60_000,"last_work"),
@@ -90,7 +90,8 @@ test("sin running muestra últimos trabajos B/N con hora y elapsed, sin corredor
   const race=renderRace([],recent,[],true,"recent");
   assert.equal(race.participants,3);
   assert.equal((race.html.match(/refresh-lane-last/g)||[]).length,3);
-  assert.equal((race.html.match(/data-race-role="runner"/g)||[]).length,0);
+  assert.equal((race.html.match(/data-race-role="runner"/g)||[]).length,3);
+  assert.equal((race.html.match(/class="runner-standing"/g)||[]).length,3);
   assert.equal((race.html.match(/ÚLTIMO TRABAJO/g)||[]).length,3);
   assert.match(race.html,/⏱ 30 min/);
   assert.match(race.html,/<time>\d{2}:\d{2}<\/time>/);

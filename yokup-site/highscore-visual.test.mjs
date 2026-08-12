@@ -134,7 +134,8 @@ test("la pista pasa por los pies del corredor y termina en una meta visible", ()
   // (el fin de la cuenta): antes seguía intacta con el corredor encima.
   assert.match(html, /\.refresh-lane\.cruzando \.refresh-finish::before\{[^}]*translate\(-7px,-8px\)[^}]*opacity:0/);
   assert.match(html, /\.refresh-lane\.cruzando \.refresh-finish::after\{[^}]*translate\(7px,8px\)[^}]*opacity:0/);
-  assert.match(html, /var runner = isLast \? "" : '<span class="refresh-runner runner-' \+ variant/);
+  assert.match(html, /var runner = '<span class="refresh-runner runner-' \+ variant/);
+  assert.match(html, /class="runner-standing"[^>]*><use href="#runnerStanding"><\/use>/);
   assert.match(html, /class="refresh-place refresh-place-track" aria-hidden="true">' \+ puesto[\s\S]*runner \+ '<span class="refresh-finish" aria-hidden="true"/);
   assert.match(html, /var SALIDA_CORREDOR_OFFSET_PX = 15, META_CORREDOR_PX = 16, RADIO_CORREDOR_PX = 13/);
   assert.match(html, /inicioPista = relleno \? relleno\.offsetLeft : 0/);
@@ -286,7 +287,7 @@ test("todos los agentes con trabajo en curso tienen calles ordenadas, identidad 
   assert.match(html, /'<span class="refresh-agent-meta"><span class="refresh-agent" data-race-role="agent" title="Responsable ' \+ esc\(responsable\)[\s\S]*esc\(responsable\)[\s\S]*class="refresh-assignment"/);
   assert.doesNotMatch(html, /refresh-place-start/);
   assert.match(html, /class="refresh-place refresh-place-track" aria-hidden="true">' \+ puesto/);
-  assert.match(html, /\.refresh-agent\{position:static;display:block[^}]*text-align:right[^}]*font-size:11px[^}]*line-height:14px/);
+  assert.match(html, /\.refresh-agent\{position:static;display:block[^}]*text-align:left[^}]*color:var\(--accent\)[^}]*font-size:11px[^}]*line-height:14px/);
   assert.match(html, /\.refresh-lane-p1\{--lane:var\(--oro\);--runner-shirt:#ffd866;--runner-stripe:#8a4a2a\}/);
   assert.match(html, /\.refresh-lane-p2\{--lane:var\(--plata\);--runner-shirt:#e6ecf2;--runner-stripe:#3477c7\}/);
   assert.match(html, /\.refresh-lane-p3\{--lane:var\(--bronce\);--runner-shirt:#c87f3a;--runner-stripe:#2b1b12\}/);

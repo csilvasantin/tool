@@ -155,7 +155,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
    queda en la salida, la pista se apaga y el rótulo se ancla a la derecha —como en
    la calle vacía— porque pegado a la salida se saldría de la pista por la izquierda.
    Se ve siempre, no sólo al arrancar la carrera: es justo lo que hay que leer. */
-.refresh-lane-idle{--lane:var(--dim);opacity:.72}
+.refresh-lane-idle{--lane:var(--dim)}
 .refresh-lane-idle .refresh-fill{opacity:0}
 .refresh-lane-idle .refresh-runner{filter:grayscale(1) brightness(.85)}
 .refresh-lane-idle .refresh-mission{left:var(--track-start);right:calc(var(--finish-width) + 10px);top:2px;
@@ -198,7 +198,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 /* OJO especificidad: .refresh-runner svg (0,1,1) gana a una clase suelta (0,1,0);
    el mecanismo viejo pintaba por eso las poses de meta SUPERPUESTAS al ciclo.
    Todas las reglas de estado van prefijadas para ganar esa guerra. */
-.refresh-runner .runner-pose-ready,.refresh-runner .runner-pose-set,.refresh-runner .runner-pose-go,
+.refresh-runner .runner-standing,.refresh-runner .runner-pose-ready,.refresh-runner .runner-pose-set,.refresh-runner .runner-pose-go,
 .refresh-runner .runner-finish-win,.refresh-runner .runner-finish-lose{display:none}
 .runner-run-a{animation:runner-run-a .28s steps(1,end) infinite}
 .runner-run-b{animation:runner-run-b .28s steps(1,end) infinite}
@@ -210,6 +210,15 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-race.phase-ready .runner-pose-ready{display:block;opacity:1}
 .refresh-race.phase-set .runner-pose-set{display:block;opacity:1}
 .refresh-race.phase-go .runner-pose-go{display:block;opacity:1}
+.refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-standing{display:block;animation:none}
+.refresh-race.phase-ready .refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-pose-ready,
+.refresh-race.phase-set .refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-pose-set,
+.refresh-race.phase-go .refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-pose-go,
+.refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-run-a,
+.refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-run-b,
+.refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-run-c,
+.refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-finish-win,
+.refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-finish-lose{display:none;animation:none}
 .refresh-lane.finished.race-winner .runner-finish-win{display:block;animation:none;opacity:1}
 .refresh-lane.finished.race-loser .runner-finish-lose{display:block;animation:none;opacity:1}
 /* El gesto del final se ANIMA como en el arcade: el ganador bombea los brazos
@@ -261,10 +270,11 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-lanes{gap:5px}
 .refresh-lane{display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr) minmax(74px,96px);
   align-items:center;column-gap:10px;min-height:62px}
-.refresh-agent-meta{display:inline-flex;align-items:baseline;justify-content:flex-end;gap:5px;min-width:0;color:var(--lane)}
-.refresh-agent{position:static;display:block;min-width:0;max-width:none;overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap;text-align:right;color:inherit;font-size:11px;line-height:14px}
-.refresh-assignment{flex:0 0 auto;color:var(--dim);font-size:8px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.refresh-agent-meta{display:inline-flex;align-items:baseline;justify-content:flex-start;gap:5px;width:100%;min-width:0;color:var(--accent)}
+.refresh-agent{position:static;display:block;flex:0 1 auto;min-width:0;max-width:none;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;text-align:left;color:var(--accent);font-size:11px;font-weight:900;line-height:14px}
+.refresh-assignment{flex:0 0 auto;min-width:5ch;color:var(--ink);font-size:9px;font-weight:800;
+  font-variant-numeric:tabular-nums;text-align:left;white-space:nowrap}
 .refresh-lane-center{display:grid;grid-template-rows:15px 30px;min-width:0}
 .refresh-status{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;
   color:var(--dim);font-size:8px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
@@ -284,16 +294,19 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-mission-duration,.refresh-mission-idle{display:none!important}
 .refresh-elapsed{overflow:hidden;color:var(--accent);font-size:10px;font-variant-numeric:tabular-nums;
   text-align:right;text-overflow:ellipsis;white-space:nowrap}
-.refresh-lane-idle{--lane:var(--brand);opacity:.82}
+.refresh-lane-idle{--lane:var(--brand)}
+.refresh-lane-idle .refresh-lane-center{opacity:.82}
 .refresh-lane-idle .refresh-runner{filter:none}
 .refresh-lane-idle .refresh-mission,.refresh-lane-last .refresh-mission{position:absolute;left:var(--track-start);right:var(--finish-width);
   top:1px;display:block;width:auto;max-width:none;transform:none;text-align:right;opacity:1;visibility:visible}
 .refresh-lane-idle .refresh-mission-title,.refresh-lane-last .refresh-mission-title{text-align:right;opacity:.85}
 .refresh-lane-idle .runner-run-a,.refresh-lane-idle .runner-run-b,.refresh-lane-idle .runner-run-c{animation:none}
 .refresh-lane-idle .runner-run-b,.refresh-lane-idle .runner-run-c{display:none}
-.refresh-lane-last{--lane:#a7b3b8;filter:grayscale(1);opacity:.78}
+.refresh-lane-last{--lane:#a7b3b8}
+.refresh-lane-last .refresh-lane-center{filter:grayscale(1);opacity:.78}
+.refresh-lane-last .refresh-runner{filter:grayscale(1)}
 .refresh-lane-last .refresh-track::before{background:rgba(167,179,184,.2)}
-.refresh-lane-last .refresh-fill,.refresh-lane-last .refresh-runner,.refresh-lane-last .refresh-finish,.refresh-lane-last .refresh-place{display:none}
+.refresh-lane-last .refresh-fill,.refresh-lane-last .refresh-finish,.refresh-lane-last .refresh-place{display:none}
 .refresh-lane-empty{display:grid;grid-template-columns:minmax(112px,160px) minmax(0,1fr) minmax(74px,96px);min-height:54px}
 .refresh-lane-empty .refresh-track{grid-column:2;min-height:30px;padding:0}
 .refresh-lane-empty .refresh-mission{position:absolute;left:0;right:0;width:auto;transform:none;text-align:center;opacity:1;visibility:visible}
@@ -645,7 +658,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .wrap{padding-top:46px}h1{font-size:17px}
   .refresh-race{padding:0 3px}
   .refresh-lane{grid-template-columns:minmax(92px,126px) minmax(0,1fr) minmax(54px,65px);column-gap:5px;min-height:58px}
-  .refresh-agent{font-size:8px;line-height:10px}.refresh-assignment{font-size:7px}.refresh-status{font-size:6.5px;gap:3px}.refresh-elapsed{font-size:8px}
+  .refresh-agent{font-size:8px;line-height:10px}.refresh-assignment{font-size:8px}.refresh-status{font-size:6.5px;gap:3px}.refresh-elapsed{font-size:8px}
   .refresh-track{padding-left:var(--track-start);padding-right:var(--finish-width)}
   .refresh-mission{font-size:8px;line-height:12px}.refresh-mission-title{font-size:8px}
   .refresh-place{left:calc(var(--track-start) + 8px);bottom:0px;min-width:16px;font-size:9px;line-height:9px}
@@ -673,6 +686,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   <header class="cab">
     <div class="refresh-race" id="refreshRace" role="button" tabindex="0" aria-pressed="false"
       title="Pausar carrera para leer las misiones" aria-label="Carrera de puntuación: 24 segundos hasta la meta. Pulsa para parar la carrera.">
+      <svg class="runner-symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+        <symbol id="runnerStanding" viewBox="0 0 24 24"><g class="runner-skin"><rect x="10" y="3" width="4" height="4"/><rect x="6" y="9" width="2" height="7"/><rect x="16" y="9" width="2" height="7"/><rect x="9" y="16" width="2" height="6"/><rect x="13" y="16" width="2" height="6"/></g><g class="runner-hair"><rect x="9" y="2" width="6" height="2"/></g><g class="runner-mustache"><rect x="10" y="5" width="4" height="1"/></g><g class="runner-shirt"><rect x="8" y="8" width="8" height="7"/></g><g class="runner-accent"><rect x="8" y="11" width="8" height="1"/></g></symbol>
+      </defs></svg>
       <svg class="runner-symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
         <defs><symbol id="runnerReady" viewBox="0 0 24 24"><g class="runner-skin" fill="var(--runner-skin,#a05a2c)"><rect x="10" y="3" width="4" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="11" y="4" width="2" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="10" y="6" width="4" height="1"/><rect x="5" y="8" width="2" height="1"/><rect x="17" y="8" width="2" height="1"/><rect x="5" y="9" width="2" height="1"/><rect x="17" y="9" width="2" height="1"/><rect x="5" y="10" width="2" height="1"/><rect x="17" y="10" width="2" height="1"/><rect x="5" y="11" width="2" height="1"/><rect x="17" y="11" width="2" height="1"/><rect x="5" y="12" width="2" height="1"/><rect x="17" y="12" width="2" height="1"/><rect x="9" y="16" width="2" height="1"/><rect x="13" y="16" width="2" height="1"/><rect x="9" y="17" width="2" height="1"/><rect x="13" y="17" width="2" height="1"/><rect x="9" y="18" width="2" height="1"/><rect x="13" y="18" width="2" height="1"/></g><g class="runner-hair" fill="var(--runner-hair,#14100b)"><rect x="10" y="1" width="4" height="1"/><rect x="9" y="2" width="6" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="14" y="3" width="1" height="1"/></g><g class="runner-mustache" fill="var(--runner-hair,#14100b)"><rect x="10" y="5" width="4" height="1"/></g><g class="runner-eye" fill="#0d0a06"><rect x="10" y="4" width="1" height="1"/><rect x="13" y="4" width="1" height="1"/></g><g class="runner-shirt" fill="var(--runner-shirt,#f8f8f8)"><rect x="7" y="7" width="10" height="1"/><rect x="7" y="8" width="10" height="1"/><rect x="7" y="9" width="2" height="1"/><rect x="15" y="9" width="2" height="1"/><rect x="7" y="10" width="10" height="1"/><rect x="7" y="11" width="10" height="1"/><rect x="8" y="12" width="8" height="1"/></g><g class="runner-accent" fill="var(--runner-stripe,#3466cc)"><rect x="9" y="9" width="6" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="15" y="14" width="1" height="1"/><rect x="9" y="20" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/></g><g class="runner-short" fill="var(--runner-short,#f8f8f8)"><rect x="8" y="13" width="8" height="1"/><rect x="9" y="14" width="6" height="1"/><rect x="8" y="15" width="3" height="1"/><rect x="13" y="15" width="3" height="1"/></g><g class="runner-shoe" fill="var(--runner-shoe,#f8f8f8)"><rect x="8" y="19" width="3" height="1"/><rect x="13" y="19" width="3" height="1"/><rect x="8" y="20" width="1" height="1"/><rect x="10" y="20" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="15" y="20" width="1" height="1"/></g></symbol>
         <symbol id="runnerSet" viewBox="0 0 24 24"><g class="runner-skin" fill="var(--runner-skin,#a05a2c)"><rect x="2" y="12" width="3" height="1"/><rect x="14" y="12" width="5" height="1"/><rect x="1" y="13" width="3" height="1"/><rect x="14" y="13" width="2" height="1"/><rect x="17" y="13" width="2" height="1"/><rect x="1" y="14" width="2" height="1"/><rect x="14" y="14" width="3" height="1"/><rect x="0" y="15" width="2" height="1"/><rect x="9" y="15" width="3" height="1"/><rect x="13" y="15" width="5" height="1"/><rect x="0" y="16" width="2" height="1"/><rect x="9" y="16" width="2" height="1"/><rect x="13" y="16" width="2" height="1"/><rect x="16" y="16" width="2" height="1"/><rect x="0" y="17" width="2" height="1"/><rect x="8" y="17" width="2" height="1"/><rect x="13" y="17" width="2" height="1"/><rect x="16" y="17" width="2" height="1"/><rect x="0" y="18" width="2" height="1"/><rect x="8" y="18" width="2" height="1"/><rect x="13" y="18" width="2" height="1"/><rect x="16" y="18" width="2" height="1"/><rect x="13" y="19" width="2" height="1"/><rect x="16" y="19" width="2" height="1"/><rect x="13" y="20" width="2" height="1"/><rect x="16" y="20" width="2" height="1"/></g><g class="runner-hair" fill="var(--runner-hair,#14100b)"><rect x="13" y="10" width="6" height="1"/><rect x="12" y="11" width="7" height="1"/><rect x="12" y="12" width="2" height="1"/><rect x="12" y="13" width="2" height="1"/><rect x="12" y="14" width="2" height="1"/></g><g class="runner-mustache" fill="var(--runner-hair,#14100b)"><rect x="17" y="14" width="2" height="1"/></g><g class="runner-eye" fill="#0d0a06"><rect x="16" y="13" width="1" height="1"/></g><g class="runner-shirt" fill="var(--runner-shirt,#f8f8f8)"><rect x="6" y="10" width="6" height="1"/><rect x="5" y="11" width="7" height="1"/><rect x="5" y="12" width="3" height="1"/><rect x="5" y="13" width="7" height="1"/><rect x="7" y="14" width="5" height="1"/></g><g class="runner-accent" fill="var(--runner-stripe,#3466cc)"><rect x="6" y="9" width="2" height="1"/><rect x="8" y="12" width="4" height="1"/><rect x="1" y="20" width="2" height="1"/><rect x="8" y="20" width="2" height="1"/></g><g class="runner-short" fill="var(--runner-short,#f8f8f8)"><rect x="4" y="8" width="6" height="1"/><rect x="3" y="9" width="3" height="1"/><rect x="8" y="9" width="3" height="1"/><rect x="3" y="10" width="3" height="1"/><rect x="3" y="11" width="2" height="1"/></g><g class="runner-shoe" fill="var(--runner-shoe,#f8f8f8)"><rect x="0" y="19" width="4" height="1"/><rect x="7" y="19" width="4" height="1"/><rect x="0" y="20" width="1" height="1"/><rect x="3" y="20" width="1" height="1"/><rect x="7" y="20" width="1" height="1"/><rect x="10" y="20" width="1" height="1"/></g></symbol>
@@ -3269,7 +3285,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var clasePuesto = puesto <= 3 ? "refresh-lane-p" + puesto : "refresh-lane-rank";
       var isLast = resumen.state === "ÚLTIMO TRABAJO";
       var heartbeat = resumen.state.toLowerCase() + (resumen.reachable ? " · alcanzable" : "");
-      var runner = isLast ? "" : '<span class="refresh-runner runner-' + variant + ' runner-skin-' + variant + '" data-race-role="runner" aria-hidden="true">' +
+      var runner = '<span class="refresh-runner runner-' + variant + ' runner-skin-' + variant + '" data-race-role="runner" aria-hidden="true">' +
+        '<svg class="runner-standing" viewBox="0 0 24 24"><use href="#runnerStanding"></use></svg>' +
         '<svg class="runner-pose-ready" viewBox="0 0 24 24"><use href="#runnerReady"></use></svg>' +
         '<svg class="runner-pose-set" viewBox="0 0 24 24"><use href="#runnerSet"></use></svg>' +
         '<svg class="runner-pose-go" viewBox="0 0 24 24"><use href="#runnerGo"></use></svg>' +
@@ -3286,7 +3303,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '. Responsable ' + esc(responsable) + (executor !== responsable ? ', ejecuta ' + esc(executor) : '') + ', ' + heartbeat + '. ' +
         esc(resumen.title) + '. Hora ' + esc(resumen.clock) + '. Tiempo transcurrido ' + esc(resumen.duration) + '">' +
         '<span class="refresh-agent-meta"><span class="refresh-agent" data-race-role="agent" title="Responsable ' + esc(responsable) + '">' + esc(responsable) + '</span>' +
-        '<time class="refresh-assignment" datetime="' + (enlace.trabajo.assignmentAt ? new Date(enlace.trabajo.assignmentAt).toISOString() : '') + '" title="Hora factual de asignación">' + esc(resumen.assignmentClock) + '</time></span>' +
+        '<time class="refresh-assignment"' + (enlace.trabajo.assignmentAt
+          ? ' datetime="' + new Date(enlace.trabajo.assignmentAt).toISOString() + '" title="Hora factual de asignación" aria-label="Asignado a las ' + esc(resumen.assignmentClock) + '"'
+          : ' title="Hora de asignación no disponible" aria-label="Hora de asignación no disponible"') + '>' + esc(resumen.assignmentClock) + '</time></span>' +
         '<div class="refresh-lane-center"><div class="refresh-status"><strong>' + esc(resumen.state) + '</strong><time>' + esc(resumen.clock) + '</time></div>' +
         '<div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
@@ -3515,7 +3534,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     document.querySelectorAll(".refresh-lane").forEach(function (carril) {
       var puesto = Number(carril.getAttribute("data-place")) || 3;
       var ordenLlegada = Number(carril.getAttribute("data-race-order")) || puesto;
-      var progresoAtleta = progresoCarril(progreso, ordenLlegada);
+      var estadoTrabajo = carril.getAttribute("data-work-state") || "";
+      var noCorre = !!estadoTrabajo && estadoTrabajo !== "running";
+      var progresoAtleta = noCorre ? 0 : progresoCarril(progreso, ordenLlegada);
       var relleno = carril.querySelector('[data-race-role="fill"]');
       var corredor = carril.querySelector('[data-race-role="runner"]');
       var mision = carril.querySelector('[data-race-role="mission"]');
@@ -3529,22 +3550,15 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       // Un trabajo parado no avanza en la pista: el corredor se queda en la salida
       // y no gana ni pierde. Correr es una afirmación —«está haciendo esto ahora»—
       // y no se puede hacer con un trabajo que lleva horas sin moverse.
-      var parado = carril.getAttribute("data-race-idle") === "true";
-      if (parado) progresoAtleta = 0;
       centroAtleta = salidaCorredor + (metaLinea + META_CORREDOR_PX - salidaCorredor) * progresoAtleta;
       posicionCorredor = centroAtleta + "px";
       carril.classList.toggle("race-started", progresoAtleta > 0);
       if (corredor) corredor.style.left = posicionCorredor;
-      if (parado) {
+      if (noCorre) {
         carril.classList.remove("place-revealed", "cruzando", "finished", "race-winner", "race-loser");
         if (relleno) relleno.style.width = "0px";
-        // El rótulo NO sigue al corredor aquí: se ancla a la derecha por CSS, como
-        // la calle vacía. Pegado a la salida se saldría de la pista por la izquierda.
-        if (mision) { mision.style.left = ""; mision.style.width = ""; }
-        return;
-      }
-      if (carril.getAttribute("data-work-state") === "last_work") {
-        carril.classList.remove("place-revealed", "cruzando", "finished", "race-winner", "race-loser", "race-started");
+        // Todo estado distinto de running queda inequívocamente de pie en salida.
+        // Ni READY/SET/GO ni un latido de presencia pueden prestarle una zancada.
         if (mision) { mision.style.left = ""; mision.style.width = ""; }
         return;
       }
