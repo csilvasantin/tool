@@ -4945,6 +4945,7 @@ async function reconcileFleetTicket(env, id, prev, it, assignment, status, now, 
   }
   await env.DB.prepare("UPDATE tickets SET status=?,assignee=?,loc=?,screen=?,subject=?,source='fleet',project=?,project_id=?,role=?,updated_at=?,resolved_at=? WHERE id=?")
     .bind(status, asig, loc, fleetScreen(it, { assignee: asig, loc }), subject, project, project, role, now, status === "resolved" ? (prev.resolved_at || now) : null, id).run();
+  if (assignmentChanged) await addEvent(env, id, "assign", "flota", "Reasignado a " + asig + " en " + loc + ".");
   if (standalone) await ensureFleetStandaloneTask(env, id, subject, assignment, assignmentChanged);
   else if (assignmentChanged) await ensureFleetMainTasks(env, id, subject, assignment, true);
   return { changed: true, assignmentChanged, assignee: asig, loc, project, role, subject };
@@ -5057,6 +5058,7 @@ async function fleetSync(env) {
       ).run();
       // El texto íntegro del encargo queda como primer evento de la misión.
       await addEvent(env, id, "log", it.from_name || "Carlos", String(it.text || ""));
+      await addEvent(env, id, "assign", it.from_name || "Carlos", "Asignado a " + assignment.assignee + " en " + assignment.loc + ".");
       if (standalone) await ensureFleetStandaloneTask(env, id, fleetSubject(it.text), assignment, false);
       else await ensureFleetMainTasks(env, id, fleetSubject(it.text), assignment, false);
       if (standalone) {
@@ -5548,6 +5550,7 @@ var HIGHSCORE_WORK_STARTED_SQL = "COALESCE(t.started_at,CASE WHEN t.source IN ('
 // que haya cambiado el trabajo. Una transición de inicio o una tarea actualizada
 // sí son hechos de trabajo reproducibles.
 var HIGHSCORE_MISSION_PROGRESS_SQL = "MAX(COALESCE((SELECT MAX(mt.updated_at) FROM mission_tasks mt WHERE mt.mission_id=t.id AND mt.status IN ('in_progress','doing','active','done','resolved','completed')),0),COALESCE(" + HIGHSCORE_WORK_STARTED_SQL + ",0))";
+var HIGHSCORE_ASSIGNMENT_EVENT_SQL = "(SELECT MAX(e.ts) FROM events e WHERE e.ticket_id=t.id AND e.kind='assign')";
 var HIGHSCORE_PERSONAS = ["neo", "morfeo", "trinity", "oraculo", "smith", "whiterabbit", "cypher"];
 
 /** Quién firma un objetivo. Los autores llegan como los escribe cada sitio:
@@ -5923,6 +5926,20 @@ function highscoreElapsedTiming(item, kind, ahora) {
 }
 __name(highscoreElapsedTiming, "highscoreElapsedTiming");
 
+function highscoreAssignmentTiming(item, kind, ahora) {
+  const candidates = kind === "objective"
+    ? [[item && item.created_at, "objective_created"]]
+    : [[item && item.assignment_event_at, "assignment_event"],
+      [item && item.started_at, kind === "task" ? "task_started" : "mission_started"],
+      [item && item.assignment_born_at, "born_assigned"]];
+  for (const [raw, basis] of candidates) {
+    const at = highscoreActiveWorkMillis(raw);
+    if (at > 0 && at <= ahora + HIGHSCORE_CLOCK_SKEW_MS) return { assignment_at:at, assignment_basis:basis };
+  }
+  return null;
+}
+__name(highscoreAssignmentTiming, "highscoreAssignmentTiming");
+
 async function highscoreVerifiedPresence(env, ahora) {
   if (!env.TELEGRAM) return { available:false, by_family:new Map() };
   try {
@@ -5955,11 +5972,14 @@ __name(highscoreVerifiedPresence, "highscoreVerifiedPresence");
 async function highscoreActiveWork(env, ahora = Date.now()) {
   const [missions, tasks, objectives, presence] = await Promise.all([
     env.DB.prepare(`SELECT id,subject,assignee,loc,status,created_at,started_at,resolved_at,` +
+      `${HIGHSCORE_ASSIGNMENT_EVENT_SQL} assignment_event_at,` +
+      `CASE WHEN source IN ('decision-batch','cli-declare') AND COALESCE(TRIM(assignee),'')<>'' AND COALESCE(TRIM(loc),'')<>'' THEN created_at END assignment_born_at,` +
       `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,` +
       `${HIGHSCORE_MISSION_PROGRESS_SQL} work_progress_at FROM tickets t ` +
       `WHERE ${MISSION_SCOPE_SQL_T} AND status='in_progress'`).all().then((r) => r.results || []),
-    env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.started_at,m.updated_at,` +
-      `m.started_at work_started_at,m.updated_at work_progress_at,t.assignee,t.loc,t.resolved_at ` +
+    env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.started_at,m.created_at,m.updated_at,` +
+      `m.started_at work_started_at,m.updated_at work_progress_at,NULL assignment_event_at,` +
+      `CASE WHEN COALESCE(TRIM(m.executor),'')<>'' THEN m.created_at END assignment_born_at,t.assignee,t.loc,t.resolved_at ` +
       `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
       `AND m.status IN ('in_progress','doing','active') ` +
       `AND t.status='in_progress' ` +
@@ -5984,6 +6004,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     // La carrera y su reloj comparten una única marca material. Nunca se usa
     // updated_at/live_at del ticket, que también cambian por presencia/captura.
     const timing = highscoreElapsedTiming(item, kind, ahora);
+    const assignment = highscoreAssignmentTiming(item, kind, ahora);
     const at = highscoreActiveWorkMillis(item.work_progress_at || (kind === "objective" ? item.updated_at : 0));
     const cutoff = ahora - HIGHSCORE_ACTIVE_WORK_MS;
     const recent = at > 0 && at >= cutoff && at <= ahora + HIGHSCORE_CLOCK_SKEW_MS;
@@ -5998,6 +6019,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
       title:visibleTitle(title, kind === "task" ? "Tarea activa" : kind === "mission" ? "Misión activa" : "Objetivo en curso"),
       state, active_at:at, work_progress_at:at, reachable:!!presenceAt };
     if (timing) Object.assign(candidate, timing);
+    if (assignment) Object.assign(candidate, assignment);
     if (presenceAt) candidate.presence_at = presenceAt;
     const previous = byFamily.get(family.family_key);
     if (forcedState === "last_work") {
@@ -6028,12 +6050,15 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
   const runningCount = participants.filter((row) => row.state === "running").length;
   if (!runningCount) {
     const [recentMissions, recentTasks] = await Promise.all([
-      env.DB.prepare(`SELECT id,subject,assignee,loc,'mission' kind,resolved_at ended_at,` +
+      env.DB.prepare(`SELECT id,subject,assignee,loc,'mission' kind,resolved_at ended_at,started_at,created_at,` +
+        `${HIGHSCORE_ASSIGNMENT_EVENT_SQL} assignment_event_at,` +
+        `CASE WHEN source IN ('decision-batch','cli-declare') AND COALESCE(TRIM(assignee),'')<>'' AND COALESCE(TRIM(loc),'')<>'' THEN created_at END assignment_born_at,` +
         `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,${HIGHSCORE_MISSION_PROGRESS_SQL} work_progress_at ` +
         `FROM tickets t WHERE ${MISSION_SCOPE_SQL_T} AND status='resolved' AND resolved_at IS NOT NULL ` +
         `ORDER BY resolved_at DESC LIMIT 12`).all().then((r) => r.results || []),
-      env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.owner,m.executor,m.started_at work_started_at,` +
-        `m.updated_at work_progress_at,m.updated_at ended_at,t.assignee,t.loc,'task' kind ` +
+      env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.owner,m.executor,m.started_at,m.created_at,` +
+        `m.started_at work_started_at,m.updated_at work_progress_at,m.updated_at ended_at,NULL assignment_event_at,` +
+        `CASE WHEN COALESCE(TRIM(m.executor),'')<>'' THEN m.created_at END assignment_born_at,t.assignee,t.loc,'task' kind ` +
         `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
         `AND m.status IN ('done','resolved','completed') ORDER BY m.updated_at DESC LIMIT 12`).all().then((r) => r.results || [])
     ]);

@@ -95,9 +95,9 @@ test("la vida hace latir el propio número de posición y no añade un punto", (
 });
 
 test("todos los atletas pixelados recorren la línea y actualizan el marcador tras sprint y celebración", () => {
-  assert.match(html, /<header class="cab">[\s\S]*<h1><button class="podium-toggle" id="podiumToggle"[\s\S]*>HIGHSCORE<\/button>\s*<button class="sonido"[\s\S]*<\/button><\/h1>[\s\S]*class="refresh-race"[\s\S]*<\/header>/);
-  assert.match(html, /header\.cab\{[^}]*grid-template-columns:minmax\(0,1fr\)[^}]*grid-template-rows:auto auto/);
-  assert.match(html, /header\.cab>h1\{[^}]*grid-column:1;grid-row:1[^}]*display:flex[^}]*align-items:center/);
+  assert.match(html, /<header class="cab">[\s\S]*class="refresh-race"[\s\S]*<\/header>\s*<h1 class="score-divider"[\s\S]*>HIGHSCORE<\/button>\s*<button class="sonido"/);
+  assert.match(html, /header\.cab\{[^}]*display:block/);
+  assert.match(html, /\.score-divider\{[^}]*display:flex[^}]*align-items:center[^}]*width:100%/);
   assert.match(html, /\.sonido\{[^}]*width:15px[^}]*height:15px[^}]*margin:0[^}]*font-size:7px/);
   assert.match(html, /\.refresh-race\{[^}]*grid-column:1[^}]*grid-row:2/);
   assert.match(html, /class="refresh-runner runner-' \+ variant \+ ' runner-skin-' \+ variant/);
@@ -281,7 +281,7 @@ test("todos los agentes con trabajo en curso tienen calles ordenadas, identidad 
   // el estado de parado desde el 12-ago-2026, así que se comprueba con hueco.
   assert.match(html, /class="refresh-agent"[\s\S]*class="refresh-lane-center"[\s\S]*refresh-track[\s\S]*runner \+ '<span class="refresh-finish"[\s\S]*class="refresh-mission"/);
   assert.doesNotMatch(html, /refresh-mission-(?:ref|state|meta|project)/);
-  assert.match(html, /'<span class="refresh-agent" data-race-role="agent" title="Responsable ' \+ esc\(responsable\)[\s\S]*esc\(responsable\)/);
+  assert.match(html, /'<span class="refresh-agent-meta"><span class="refresh-agent" data-race-role="agent" title="Responsable ' \+ esc\(responsable\)[\s\S]*esc\(responsable\)[\s\S]*class="refresh-assignment"/);
   assert.doesNotMatch(html, /refresh-place-start/);
   assert.match(html, /class="refresh-place refresh-place-track" aria-hidden="true">' \+ puesto/);
   assert.match(html, /\.refresh-agent\{position:static;display:block[^}]*text-align:right[^}]*font-size:11px[^}]*line-height:14px/);

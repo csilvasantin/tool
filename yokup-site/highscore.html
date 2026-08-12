@@ -45,11 +45,11 @@ a{color:var(--brand)}
 
 /* ─────────── PÁGINA ─────────── */
 .wrap{max-width:1080px;margin:0 auto;padding:50px 18px 70px}
-header.cab{position:relative;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto;
-  align-items:stretch;row-gap:8px;min-height:44px;margin:0 0 8px}
-/* HIGHSCORE ocupa su propia banda: nunca compite por ancho ni altura con una
-   calle, incluso cuando hay cuatro o más participantes. */
-header.cab>h1{grid-column:1;grid-row:1;display:flex;align-items:center;gap:7px}
+header.cab{position:relative;display:block;min-height:44px;margin:0}
+/* La cabecera es sólo la carrera. El titular va después de la última pista para
+   actuar como divisor horizontal antes del ranking. */
+.score-divider{display:flex;align-items:center;gap:7px;width:100%;margin:7px 0 8px;padding:7px 0;
+  border-top:1px solid var(--line2);border-bottom:1px solid var(--line2)}
 h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:0;color:var(--brand);
   text-shadow:3px 3px 0 #0a4a58}
 .podium-toggle{all:unset;display:inline-block;cursor:pointer;color:inherit;font:inherit;letter-spacing:inherit;
@@ -260,10 +260,12 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
    trabajos a la vez y confundía la animación con la identidad del responsable. */
 .refresh-race{overflow:visible}
 .refresh-lanes{gap:5px}
-.refresh-lane{display:grid;grid-template-columns:minmax(112px,160px) minmax(0,1fr) minmax(74px,96px);
+.refresh-lane{display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr) minmax(74px,96px);
   align-items:center;column-gap:10px;min-height:62px}
-.refresh-agent{position:static;display:block;max-width:none;overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap;text-align:right;color:var(--lane);font-size:11px;line-height:14px}
+.refresh-agent-meta{display:inline-flex;align-items:baseline;justify-content:flex-end;gap:5px;min-width:0;color:var(--lane)}
+.refresh-agent{position:static;display:block;min-width:0;max-width:none;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;text-align:right;color:inherit;font-size:11px;line-height:14px}
+.refresh-assignment{flex:0 0 auto;color:var(--dim);font-size:8px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .refresh-lane-center{display:grid;grid-template-rows:15px 30px 16px;min-width:0}
 .refresh-status{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;
   color:var(--dim);font-size:8px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
@@ -638,10 +640,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 @media (max-width:620px){.podio{margin-top:20px}.plaza{width:27%;padding:4px 5px;gap:4px;background:rgba(2,8,13,.78)}
   .plaza.p2{left:7%;top:62%}.plaza.p1{left:36.5%;top:59%}.plaza.p3{right:6%;top:66%}
   .nom{font-size:7px}.pts{font-size:10px}
-  .wrap{padding-top:46px}header.cab{grid-template-columns:1fr;gap:5px}h1{font-size:17px}
+  .wrap{padding-top:46px}h1{font-size:17px}
   .refresh-race{padding:0 3px}
-  .refresh-lane{grid-template-columns:minmax(68px,82px) minmax(0,1fr) minmax(54px,65px);column-gap:5px;min-height:58px}
-  .refresh-agent{font-size:8px;line-height:10px}.refresh-status{font-size:6.5px;gap:3px}.refresh-elapsed{font-size:8px}
+  .refresh-lane{grid-template-columns:minmax(92px,126px) minmax(0,1fr) minmax(54px,65px);column-gap:5px;min-height:58px}
+  .refresh-agent{font-size:8px;line-height:10px}.refresh-assignment{font-size:7px}.refresh-status{font-size:6.5px;gap:3px}.refresh-elapsed{font-size:8px}
   .refresh-track{padding-left:var(--track-start);padding-right:var(--finish-width)}
   .refresh-mission{font-size:8px;line-height:12px}.refresh-mission-title{font-size:8px}
   .refresh-place{left:calc(var(--track-start) + 8px);bottom:0px;min-width:16px;font-size:9px;line-height:9px}
@@ -667,11 +669,6 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
 <div class="wrap" id="pagina" style="visibility:hidden">
   <header class="cab">
-    <h1><button class="podium-toggle" id="podiumToggle" type="button" aria-expanded="false" aria-controls="podio"
-      title="Mostrar podio">HIGHSCORE</button>
-      <button class="sonido" id="btnSonido" type="button" aria-pressed="false" title="Activar sonido">
-        <span aria-hidden="true">♪</span><span class="sr-only" id="estadoSonido">Sonido desactivado</span>
-      </button></h1>
     <div class="refresh-race" id="refreshRace" role="button" tabindex="0" aria-pressed="false"
       title="Pausar carrera para leer las misiones" aria-label="Carrera de puntuación: 24 segundos hasta la meta. Pulsa para parar la carrera.">
       <svg class="runner-symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -688,6 +685,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       <span class="sr-only" id="refreshCount">24 segundos</span>
     </div>
   </header>
+  <h1 class="score-divider" id="scoreDivider"><button class="podium-toggle" id="podiumToggle" type="button" aria-expanded="false" aria-controls="podio"
+    title="Mostrar podio">HIGHSCORE</button>
+    <button class="sonido" id="btnSonido" type="button" aria-pressed="false" title="Activar sonido">
+      <span aria-hidden="true">♪</span><span class="sr-only" id="estadoSonido">Sonido desactivado</span>
+    </button></h1>
   <div class="podio" id="podio" hidden></div>
   <div class="table-scroll" id="rankingScroll">
     <table class="tabla" id="rankingTable">
@@ -3195,6 +3197,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       return { key:claveAgenteCarrera(item.agent), agente:item.agent, executor:item.executor,
         kind:item.kind, title:item.title || (item.kind === "task" ? "Tarea activa" : item.kind === "mission" ? "Misión activa" : "Objetivo en curso"),
         state:item.state || "assigned_stale", reachable:item.reachable === true,
+        assignmentAt:Number(item.assignment_at) || 0, assignmentBasis:item.assignment_basis || "",
         startedAt:Number(item.work_started_at) || 0, at:Number(item.work_progress_at) || 0,
         endedAt:Number(item.ended_at) || 0, elapsedMs:Number.isFinite(Number(item.elapsed_ms)) ? Number(item.elapsed_ms) : null,
         timingBasis:item.timing_basis || "", presenceAt:Number(item.presence_at) || 0 };
@@ -3230,6 +3233,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return { reference:"", title:trabajo.title, state:stateLabel, project:"",
       executor:trabajo.executor, responsible:trabajo.agente, kind:trabajo.kind, reachable:trabajo.reachable,
       presenceAt:trabajo.presenceAt, at:Number(trabajo.at) || 0, idle:parado, clock:horaMadrid(clockAt),
+      assignmentClock:horaMadrid(trabajo.assignmentAt), assignmentBasis:trabajo.assignmentBasis,
       duration:duracion, timingBasis:trabajo.timingBasis };
   }
 
@@ -3240,7 +3244,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var corredores = trabajos.map(function (trabajo, index) {
       var base = byKey[trabajo.key] || { agente:trabajo.agente, posicion:completas.length + index + 1,
         total:0, vivo:false, maquinas:[], maquinasVivas:[] };
-      return { fila:Object.assign({}, base), clave:trabajo.key, resumen:resumenTrabajoActivo(trabajo) };
+      return { fila:Object.assign({}, base), clave:trabajo.key, trabajo:trabajo, resumen:resumenTrabajoActivo(trabajo) };
     });
     corredores.sort(function (a, b) {
       return (Number(a.fila.posicion) || 9999) - (Number(b.fila.posicion) || 9999) ||
@@ -3279,7 +3283,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Puesto ' + puesto + ', familia ' + esc(agente) +
         '. Responsable ' + esc(responsable) + (executor !== responsable ? ', ejecuta ' + esc(executor) : '') + ', ' + heartbeat + '. ' +
         esc(resumen.title) + '. Hora ' + esc(resumen.clock) + '. Tiempo transcurrido ' + esc(resumen.duration) + '">' +
-        '<span class="refresh-agent" data-race-role="agent" title="Responsable ' + esc(responsable) + '">' + esc(responsable) + '</span>' +
+        '<span class="refresh-agent-meta"><span class="refresh-agent" data-race-role="agent" title="Responsable ' + esc(responsable) + '">' + esc(responsable) + '</span>' +
+        '<time class="refresh-assignment" datetime="' + (enlace.trabajo.assignmentAt ? new Date(enlace.trabajo.assignmentAt).toISOString() : '') + '" title="Hora factual de asignación">' + esc(resumen.assignmentClock) + '</time></span>' +
         '<div class="refresh-lane-center"><div class="refresh-status"><strong>' + esc(resumen.state) + '</strong><time>' + esc(resumen.clock) + '</time></div>' +
         '<div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +

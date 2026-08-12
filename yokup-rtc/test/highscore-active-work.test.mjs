@@ -27,10 +27,10 @@ function harness(presence={ok:true,presence:[],now:NOW/1000}){
     baseAgentIdentity,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,__name:(fn)=>fn});
   vm.runInContext([
     grabVar("HIGHSCORE_PERSONAS"),grabVar("MISSION_SCOPE_SQL_T"),grabVar("PRESENCE_URL"),
-    grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_WORK_STARTED_SQL"),grabVar("HIGHSCORE_MISSION_PROGRESS_SQL"),
+    grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_WORK_STARTED_SQL"),grabVar("HIGHSCORE_MISSION_PROGRESS_SQL"),grabVar("HIGHSCORE_ASSIGNMENT_EVENT_SQL"),
     grabVar("HIGHSCORE_ACTIVE_WORK_MS"),grabVar("HIGHSCORE_LANE_WORK_MS"),grabVar("HIGHSCORE_PROCESS_FRESH_MS"),grabVar("HIGHSCORE_CLOCK_SKEW_MS"),
     grab("highscoreAgent"),grab("scopedMissionOwner"),grab("highscoreActiveWorkMillis"),grab("highscoreActiveWorkFamily"),
-    grab("highscoreElapsedTiming"),grab("highscoreVerifiedPresence"),grab("highscoreActiveWork"),
+    grab("highscoreElapsedTiming"),grab("highscoreAssignmentTiming"),grab("highscoreVerifiedPresence"),grab("highscoreActiveWork"),
   ].join("\n"),context);
   return {db,env:{DB,TELEGRAM},F:context};
 }
@@ -96,9 +96,29 @@ test("elapsed activo usa generated_at-start, separado del último progreso mater
   mission(db,{at:NOW-5*MIN,startedAt:NOW-45*MIN});
   db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
     .run("M1","a","Avance","in_progress","SubOraculoMini",NOW-45*MIN,NOW-45*MIN,NOW-5*MIN,"SubOraculoMini");
-  const row=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW))).participants[0];
+  const row=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW))).participants.find(item=>item.agent==="OraculoMacMini");
   assert.equal(row.work_started_at,NOW-45*MIN); assert.equal(row.work_progress_at,NOW-5*MIN);
   assert.equal(row.elapsed_ms,45*MIN); assert.equal(row.timing_basis,"start_to_generated_at");
+});
+
+test("assignment_at es factual y separado de inicio, progreso, presencia y fin",async()=>{
+  const {db,env,F}=harness({presence:[processRow("Oraculo","MacMini")],now:NOW/1000});
+  mission(db,{at:NOW-5*MIN,startedAt:NOW-40*MIN});
+  mission(db,{id:"M2",agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-MIN,startedAt:NOW-2*MIN});
+  db.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES (?,?,?,?,?)")
+    .run("M1",NOW-50*MIN,"assign","Carlos","Asignada");
+  const row=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW))).participants.find(item=>item.agent==="OraculoMacMini");
+  assert.equal(row.assignment_at,NOW-50*MIN); assert.equal(row.assignment_basis,"assignment_event");
+  assert.notEqual(row.assignment_at,row.work_started_at); assert.notEqual(row.assignment_at,row.work_progress_at);
+  assert.notEqual(row.assignment_at,row.presence_at);
+});
+
+test("assignment_at prioriza evento, luego started y born-assigned; futuro o ausente queda desconocido",()=>{
+  const {F}=harness();
+  assert.deepEqual(JSON.parse(JSON.stringify(F.highscoreAssignmentTiming({assignment_event_at:NOW-9*MIN,started_at:NOW-8*MIN,assignment_born_at:NOW-7*MIN},"mission",NOW))),
+    {assignment_at:NOW-9*MIN,assignment_basis:"assignment_event"});
+  assert.equal(F.highscoreAssignmentTiming({assignment_event_at:NOW+6_000},"mission",NOW),null);
+  assert.equal(F.highscoreAssignmentTiming({},"mission",NOW),null);
 });
 
 test("task gana por prioridad dentro del mismo state y Sub/Infra colapsan por familia",async()=>{

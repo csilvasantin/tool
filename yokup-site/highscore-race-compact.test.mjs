@@ -52,8 +52,8 @@ test("READY SET GO vive una sola vez en la pista central", () => {
 });
 
 test("HIGHSCORE vive en una banda propia sobre todos los carriles", () => {
-  assert.match(cssRule("header.cab>h1"), /grid-column:1;grid-row:1[^}]*align-items:center[^}]*gap:7px/);
-  assert.match(cssRule(".refresh-race"), /grid-column:1;grid-row:2/);
+  assert.match(cssRule(".score-divider"), /display:flex[^}]*align-items:center[^}]*width:100%[^}]*border-top:[^}]*border-bottom:/);
+  assert.ok(html.indexOf('id="refreshRace"') < html.indexOf('id="scoreDivider"'));
   assert.match(cssRule(".sonido"), /width:15px[^}]*height:15px[^}]*margin:0/);
 });
 
