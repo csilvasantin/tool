@@ -30,20 +30,19 @@ test("cada pista reserva tres líneas legibles y una separación compacta", () =
   assert.match(track, /padding:[^;}]*px/, "la pista conserva márgenes internos explícitos");
 });
 
-test("READY SET GO vive una sola vez en la pista central", () => {
-  const trackOpen = raceSource.indexOf("'<div class=\"refresh-track\">'");
-  const call = raceSource.indexOf('class="race-call"', trackOpen);
-  const trackClose = raceSource.indexOf("</div></div>'", trackOpen);
-  assert.ok(trackOpen >= 0 && call > trackOpen && call < trackClose,
-    "la pista elegida contiene la llamada READY/SET/GO");
-  assert.doesNotMatch(html, /<span class="race-call" id="raceCall"/,
-    "la llamada no puede seguir como overlay global");
-  assert.match(raceSource, /indiceLlamada = Math\.floor\(Math\.max\(0, filasCarrera\.length - 1\) \/ 2\)/,
-    "tres pistas eligen la segunda; una pista elige la primera");
-  assert.match(html, /document\.querySelector\("\.race-call"\)/,
-    "el cambio de fase actualiza el único aviso");
-  assert.match(cssRule(".race-call"), /left:var\(--track-start\)[^}]*right:calc\(var\(--finish-gutter\) \+ var\(--finish-width\)\)[^}]*margin-inline:auto[^}]*translateY\(-50%\)/,
-    "el aviso queda centrado entre el inicio de pista y la cinta");
+test("READY SET GO vive una sola vez fuera de los carriles y centrado por geometría real", () => {
+  const lanes = html.indexOf('id="refreshLanes"'), call = html.indexOf('id="raceCall"');
+  const raceClose = html.indexOf('</div>\n  </header>', lanes);
+  assert.ok(lanes >= 0 && call > lanes && call < raceClose, "la placa es hermana persistente de la lista");
+  assert.doesNotMatch(raceSource, /class="race-call"|indiceLlamada/,
+    "ningún modo de carril puede recrear o desaturar la placa");
+  assert.match(html, /document\.getElementById\("raceCall"\)/);
+  assert.match(html, /start = trackRect\.left - raceRect\.left \+ trackStart/);
+  assert.match(html, /meta = trackRect\.right - raceRect\.left - finishWidth/);
+  assert.match(html, /centro = \(start \+ meta\) \/ 2/);
+  assert.match(html, /new ResizeObserver\(centraLlamadaCarrera\)/);
+  assert.match(cssRule(".race-call"), /left:0[^}]*top:0[^}]*translate\(-50%,-50%\)/,
+    "la posición final la fija la medición, no una variable CSS eliminada");
   assert.match(cssRule(".race-call"), /font-size:clamp\(18px,2vw,24px\)[^}]*text-shadow:[^}]*var\(--call\)/,
     "la salida es grande y luminosa");
   assert.match(html, /@keyframes race-call-(?:ready|set|go)/,
@@ -84,7 +83,7 @@ test("compactar conserva orden de lectura y semántica accesible", () => {
   assert.match(raceSource, /role="listitem"/);
   assert.match(raceSource, /aria-label="Puesto ' \+ puesto \+ ', familia ' \+ esc\(agente\)[\s\S]*Responsable ' \+ esc\(responsable\)/);
   assert.match(raceSource, /data-race-role="runner" aria-hidden="true"/);
-  assert.match(raceSource, /class="race-call"[^>]*aria-hidden="true"/);
+  assert.match(html, /id="raceCall"[^>]*role="status"[^>]*aria-live="polite"/);
   assert.doesNotMatch(raceSource, /aria-hidden="true"[^>]*data-race-role="agent"/);
 });
 

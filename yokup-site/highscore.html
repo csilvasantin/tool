@@ -106,10 +106,10 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-lanes{width:100%;display:grid;gap:1px}
 .runner-symbols{position:absolute;width:0;height:0;overflow:hidden}
 .refresh-lane{position:relative;width:100%;min-width:0;min-height:42px}
-.refresh-track{position:relative;width:100%;min-height:42px;padding:1px calc(var(--finish-gutter) + var(--finish-width)) 16px var(--track-start)}
+.refresh-track{position:relative;width:100%;min-height:42px;padding:1px var(--finish-width) 16px var(--track-start)}
 /* La pista nace en x=2, el mismo borde estable donde la ventana móvil de misión
    deja su M inicial. La diferencia vertical evita que la línea tape el rótulo. */
-.refresh-track::before{content:"";position:absolute;left:var(--track-start);right:calc(var(--finish-gutter) + var(--finish-width));bottom:11px;height:2px;
+.refresh-track::before{content:"";position:absolute;left:var(--track-start);right:var(--finish-width);bottom:11px;height:2px;
   background:rgba(120,243,255,.22);box-shadow:0 1px 0 rgba(255,216,102,.16)}
 .refresh-fill{position:absolute;left:var(--track-start);bottom:11px;width:0;height:2px;background:linear-gradient(90deg,var(--lane),var(--accent),var(--brand));
   box-shadow:0 0 7px color-mix(in srgb,var(--lane) 55%,transparent)}
@@ -127,7 +127,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-lane-p3{--lane:var(--bronce);--runner-shirt:#c87f3a;--runner-stripe:#2b1b12}
 .refresh-lane-rank{--lane:#78f3ff;--runner-shirt:#8d5fd3;--runner-stripe:#ffd866}
 .refresh-mission{position:absolute;z-index:1;left:0;top:5px;width:0;
-  max-width:calc(100% - var(--finish-gutter) - var(--finish-width) - 8px);
+  max-width:calc(100% - var(--finish-width) - 8px);
   transform:translateX(calc(-100% - 13px));overflow:hidden;color:var(--mut);font-size:10px;font-weight:800;
   line-height:13px;letter-spacing:.015em;text-shadow:0 1px 5px #000;pointer-events:none;
   opacity:0;visibility:hidden;transition:opacity .16s linear;will-change:left,width,opacity}
@@ -158,7 +158,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-lane-idle{--lane:var(--dim);opacity:.72}
 .refresh-lane-idle .refresh-fill{opacity:0}
 .refresh-lane-idle .refresh-runner{filter:grayscale(1) brightness(.85)}
-.refresh-lane-idle .refresh-mission{left:var(--track-start);right:calc(var(--finish-gutter) + var(--finish-width) + 10px);top:2px;
+.refresh-lane-idle .refresh-mission{left:var(--track-start);right:calc(var(--finish-width) + 10px);top:2px;
   width:auto;max-width:none;transform:none;display:flex;flex-direction:column;align-items:stretch;gap:1px;
   text-align:right;opacity:1;visibility:visible}
 .refresh-race.phase-ready .refresh-lane-idle .refresh-mission,.refresh-race.phase-set .refresh-lane-idle .refresh-mission,
@@ -168,7 +168,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-lane-idle .refresh-mission-title{flex:1 1 auto;width:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:right;opacity:.75}
 .refresh-mission-idle{display:block;overflow:hidden;color:var(--dim);font-size:9px;font-weight:900;letter-spacing:.1em;
   text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap}
-.refresh-agent{position:absolute;z-index:2;left:calc(100% - var(--finish-gutter) + var(--agent-gap));right:4px;bottom:7px;
+.refresh-agent{position:absolute;z-index:2;left:calc(100% + var(--agent-gap));right:4px;bottom:7px;
   max-width:none;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
   white-space:normal;text-align:left;color:var(--lane);font-size:12px;font-weight:900;line-height:14px;letter-spacing:.025em;
   text-shadow:0 1px 5px #000,0 0 7px color-mix(in srgb,var(--lane) 45%,transparent);pointer-events:none}
@@ -184,7 +184,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-runner.runner-dark,.refresh-runner.runner-skin-dark{--runner-skin:#9c5228;--runner-hair:#14100b}
 .refresh-runner.runner-light,.refresh-runner.runner-skin-light{--runner-skin:#f8b98c;--runner-hair:#b45a1e}
 .refresh-runner .runner-hair,.refresh-runner .runner-mustache{fill:var(--runner-hair)}
-.refresh-finish{position:absolute;z-index:2;right:var(--finish-gutter);bottom:9px;width:var(--finish-width);height:32px;pointer-events:none}
+.refresh-finish{position:absolute;z-index:2;right:0;bottom:9px;width:var(--finish-width);height:32px;pointer-events:none}
 .refresh-finish::before,.refresh-finish::after{content:"";position:absolute;left:0;width:100%;height:50%;
   border:1px solid rgba(223,248,255,.75);background:conic-gradient(#dff8ff 25%,#02080d 0 50%,#dff8ff 0 75%,#02080d 0) 0 0/6px 6px;
   box-shadow:0 0 7px rgba(120,243,255,.48);transition:transform .45s steps(3,end),opacity .45s linear}
@@ -220,10 +220,9 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 @keyframes runner-gesto-a{0%,49%{opacity:1}50%,100%{opacity:0}}
 @keyframes runner-gesto-b{0%,49%{opacity:0}50%,100%{opacity:1}}
 .race-call{--call:#ffd866;--call-rgb:255,216,102;--call-deep:#5e3200;
-  position:absolute;z-index:5;left:var(--track-start);right:calc(var(--finish-gutter) + var(--finish-width));top:50%;
+  position:absolute;z-index:5;left:0;top:0;
   box-sizing:border-box;width:max-content;min-width:clamp(112px,12vw,158px);
-  max-width:calc(100% - var(--track-start) - var(--finish-gutter) - var(--finish-width) - 8px);
-  margin-inline:auto;padding:3px 18px;transform:translateY(-50%);isolation:isolate;
+  max-width:calc(100% - 8px);padding:3px 18px;transform:translate(-50%,-50%);isolation:isolate;
   border:2px solid var(--call);border-radius:2px;outline:2px solid #02080d;
   background:repeating-linear-gradient(90deg,var(--call-deep) 0 5px,#120b08 5px 10px);
   color:#fffce0;font-size:clamp(18px,2vw,24px);font-weight:950;line-height:23px;letter-spacing:.2em;text-align:center;
@@ -231,13 +230,13 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   text-shadow:2px 2px 0 #02080d,-1px -1px 0 #02080d,0 0 9px var(--call),0 0 18px rgba(var(--call-rgb),.85);
   box-shadow:0 0 0 2px rgba(var(--call-rgb),.25),inset 0 0 0 2px rgba(2,8,13,.78),
     inset 0 -7px 0 rgba(0,0,0,.24),0 0 18px rgba(var(--call-rgb),.72),0 0 34px rgba(var(--call-rgb),.28);
-  opacity:0;pointer-events:none}
+  opacity:0;filter:none;pointer-events:none}
 .race-call::before{content:"";position:absolute;z-index:-1;inset:-7px;border:1px solid rgba(var(--call-rgb),.8);
   clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 10px,100% calc(100% - 10px),calc(100% - 10px) 100%,10px 100%,0 calc(100% - 10px),0 10px);
   box-shadow:0 0 12px rgba(var(--call-rgb),.75)}
 .race-call::after{content:"";position:absolute;z-index:1;inset:2px;pointer-events:none;
   background:repeating-linear-gradient(180deg,transparent 0 3px,rgba(255,255,255,.1) 3px 4px);mix-blend-mode:screen}
-.refresh-race.phase-ready .race-call,.refresh-race.phase-set .race-call,.refresh-race.phase-go .race-call{opacity:1}
+.refresh-race.phase-ready .race-call,.refresh-race.phase-set .race-call,.refresh-race.phase-go .race-call{opacity:1;filter:none}
 .refresh-race.phase-ready .race-call{--call:#78f3ff;--call-rgb:120,243,255;--call-deep:#063846;
   color:#eaffff;border-color:#78f3ff;background:repeating-linear-gradient(90deg,#063846 0 5px,#07161d 5px 10px);
   animation:race-call-ready .46s steps(2,end) infinite alternate}
@@ -247,9 +246,9 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-race.phase-go .race-call{--call:#88ffaa;--call-rgb:136,255,170;--call-deep:#064625;
   color:#ecfff1;border-color:#88ffaa;background:repeating-linear-gradient(90deg,#064625 0 5px,#06170d 5px 10px);
   animation:race-call-go .72s cubic-bezier(.12,.8,.2,1) both}
-@keyframes race-call-ready{from{filter:brightness(.9);letter-spacing:.17em}to{filter:brightness(1.35);letter-spacing:.23em}}
-@keyframes race-call-set{from{transform:translateY(-50%) scaleX(.94);filter:brightness(1)}to{transform:translateY(-50%) scaleX(1.06);filter:brightness(1.45)}}
-@keyframes race-call-go{0%{transform:translateY(-50%) scale(.72);opacity:.05;filter:brightness(2.2)}42%{transform:translateY(-50%) scale(1.18);opacity:1;filter:brightness(1.65)}100%{transform:translateY(-50%) scale(1);opacity:1;filter:brightness(1)}}
+@keyframes race-call-ready{from{letter-spacing:.17em}to{letter-spacing:.23em}}
+@keyframes race-call-set{from{transform:translate(-50%,-50%) scaleX(.94)}to{transform:translate(-50%,-50%) scaleX(1.06)}}
+@keyframes race-call-go{0%{transform:translate(-50%,-50%) scale(.82)}42%{transform:translate(-50%,-50%) scale(1.12)}100%{transform:translate(-50%,-50%) scale(1)}}
 .refresh-race.paused .refresh-runner svg{animation-play-state:paused}
 @keyframes runner-run-a{0%,32%{opacity:1}33%,100%{opacity:0}}
 @keyframes runner-run-b{0%,32%{opacity:0}33%,65%{opacity:1}66%,100%{opacity:0}}
@@ -685,6 +684,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         <symbol id="runnerLoser" viewBox="0 0 24 24"><g class="runner-skin" fill="var(--runner-skin,#a05a2c)"><rect x="15" y="2" width="2" height="1"/><rect x="10" y="3" width="4" height="1"/><rect x="15" y="3" width="2" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="11" y="4" width="2" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="16" y="4" width="2" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="16" y="5" width="2" height="1"/><rect x="10" y="6" width="4" height="1"/><rect x="16" y="6" width="2" height="1"/><rect x="16" y="7" width="2" height="1"/><rect x="5" y="8" width="2" height="1"/><rect x="5" y="9" width="2" height="1"/><rect x="5" y="10" width="2" height="1"/><rect x="5" y="11" width="2" height="1"/><rect x="5" y="12" width="2" height="1"/><rect x="5" y="13" width="2" height="1"/><rect x="9" y="16" width="2" height="1"/><rect x="13" y="16" width="2" height="1"/><rect x="9" y="17" width="2" height="1"/><rect x="13" y="17" width="2" height="1"/><rect x="9" y="18" width="2" height="1"/><rect x="13" y="18" width="2" height="1"/></g><g class="runner-hair" fill="var(--runner-hair,#14100b)"><rect x="10" y="1" width="4" height="1"/><rect x="9" y="2" width="6" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="14" y="3" width="1" height="1"/></g><g class="runner-mustache" fill="var(--runner-hair,#14100b)"><rect x="10" y="5" width="4" height="1"/></g><g class="runner-eye" fill="#0d0a06"><rect x="10" y="4" width="1" height="1"/><rect x="13" y="4" width="1" height="1"/></g><g class="runner-shirt" fill="var(--runner-shirt,#f8f8f8)"><rect x="7" y="7" width="9" height="1"/><rect x="7" y="8" width="10" height="1"/><rect x="7" y="9" width="2" height="1"/><rect x="15" y="9" width="2" height="1"/><rect x="7" y="10" width="10" height="1"/><rect x="8" y="11" width="8" height="1"/><rect x="8" y="12" width="8" height="1"/></g><g class="runner-accent" fill="var(--runner-stripe,#3466cc)"><rect x="9" y="9" width="6" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="15" y="14" width="1" height="1"/><rect x="9" y="20" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/></g><g class="runner-short" fill="var(--runner-short,#f8f8f8)"><rect x="8" y="13" width="8" height="1"/><rect x="9" y="14" width="6" height="1"/><rect x="8" y="15" width="3" height="1"/><rect x="13" y="15" width="3" height="1"/></g><g class="runner-shoe" fill="var(--runner-shoe,#f8f8f8)"><rect x="8" y="19" width="3" height="1"/><rect x="13" y="19" width="3" height="1"/><rect x="8" y="20" width="1" height="1"/><rect x="10" y="20" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="15" y="20" width="1" height="1"/></g></symbol><symbol id="runnerLoserB" viewBox="0 0 24 24"><g class="runner-skin" fill="var(--runner-skin,#a05a2c)"><rect x="10" y="3" width="4" height="1"/><rect x="15" y="3" width="2" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="11" y="4" width="2" height="1"/><rect x="14" y="4" width="3" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="16" y="5" width="2" height="1"/><rect x="10" y="6" width="4" height="1"/><rect x="16" y="6" width="2" height="1"/><rect x="16" y="7" width="2" height="1"/><rect x="4" y="8" width="2" height="1"/><rect x="4" y="9" width="2" height="1"/><rect x="4" y="10" width="2" height="1"/><rect x="4" y="11" width="2" height="1"/><rect x="4" y="12" width="2" height="1"/><rect x="4" y="13" width="2" height="1"/><rect x="9" y="16" width="2" height="1"/><rect x="13" y="16" width="2" height="1"/><rect x="9" y="17" width="2" height="1"/><rect x="13" y="17" width="2" height="1"/><rect x="9" y="18" width="2" height="1"/><rect x="13" y="18" width="2" height="1"/></g><g class="runner-hair" fill="var(--runner-hair,#14100b)"><rect x="10" y="1" width="4" height="1"/><rect x="9" y="2" width="6" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="14" y="3" width="1" height="1"/></g><g class="runner-mustache" fill="var(--runner-hair,#14100b)"><rect x="10" y="5" width="4" height="1"/></g><g class="runner-eye" fill="#0d0a06"><rect x="10" y="4" width="1" height="1"/><rect x="13" y="4" width="1" height="1"/></g><g class="runner-shirt" fill="var(--runner-shirt,#f8f8f8)"><rect x="7" y="7" width="9" height="1"/><rect x="7" y="8" width="10" height="1"/><rect x="7" y="9" width="2" height="1"/><rect x="15" y="9" width="2" height="1"/><rect x="7" y="10" width="10" height="1"/><rect x="8" y="11" width="8" height="1"/><rect x="8" y="12" width="8" height="1"/></g><g class="runner-accent" fill="var(--runner-stripe,#3466cc)"><rect x="9" y="9" width="6" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="15" y="14" width="1" height="1"/><rect x="9" y="20" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/></g><g class="runner-short" fill="var(--runner-short,#f8f8f8)"><rect x="8" y="13" width="8" height="1"/><rect x="9" y="14" width="6" height="1"/><rect x="8" y="15" width="3" height="1"/><rect x="13" y="15" width="3" height="1"/></g><g class="runner-shoe" fill="var(--runner-shoe,#f8f8f8)"><rect x="8" y="19" width="3" height="1"/><rect x="13" y="19" width="3" height="1"/><rect x="8" y="20" width="1" height="1"/><rect x="10" y="20" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="15" y="20" width="1" height="1"/></g></symbol></defs>
       </svg>
       <div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Trabajo activo por familia canónica"></div>
+      <span class="race-call" id="raceCall" data-race-role="call" role="status" aria-live="polite" aria-atomic="true"></span>
       <span class="sr-only" id="refreshCount">24 segundos</span>
     </div>
   </header>
@@ -3258,7 +3258,6 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var filasCarrera = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.raceRows
       ? YkHighscoreRace.raceRows(filasElegibles, clavesActivas)
       : filasElegibles;
-    var indiceLlamada = Math.floor(Math.max(0, filasCarrera.length - 1) / 2);
     corredores = filasCarrera.map(function (fila) {
       return enlaces.find(function (enlace) { return enlace.fila === fila; }) || null;
     }).filter(Boolean).map(function (enlace, indice) {
@@ -3291,7 +3290,6 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<div class="refresh-lane-center"><div class="refresh-status"><strong>' + esc(resumen.state) + '</strong><time>' + esc(resumen.clock) + '</time></div>' +
         '<div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
-        (indice === indiceLlamada ? '<span class="race-call" data-race-role="call" aria-hidden="true"></span>' : '') +
         '<span class="refresh-place refresh-place-track" aria-hidden="true">' + puesto + '</span>' +
         '<span class="refresh-mission" data-race-role="mission" title="' + esc(resumen.title) + '"><span class="refresh-mission-title">' + esc(resumen.title) + '</span></span>' +
         runner + '<span class="refresh-finish" aria-hidden="true"></span></div></div>' +
@@ -3313,6 +3311,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       (datos.trabajosMode === "recent" ? "Últimos trabajos finalizados, sin animación. " : "Carrera de puntuación: 24 segundos hasta la meta. ") +
       "Pulsa para parar la carrera.");
     carrera.classList.toggle("empty", corredores.length === 0);
+    if (typeof centraLlamadaCarrera === "function") centraLlamadaCarrera();
     if (typeof sorteaOrdenLlegada === "function" && typeof ordenLlegadaFirma !== "undefined" && ordenLlegadaFirma)
       sorteaOrdenLlegada(false);
   }
@@ -3409,6 +3408,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   var SALIDA_CORREDOR_OFFSET_PX = 15, META_CORREDOR_PX = 16, RADIO_CORREDOR_PX = 13;
   var MITAD_RAPIDA_MS = REFRESCO_MS / 3;
   var carreraInicio = 0, carreraFrame = null, refrescando = false, carreraPausada = false, carreraTiempoPausado = 0;
+  var carreraTimersReducidos = [];
   var ordenLlegadaFirma = "", ordenLlegadaPorAgente = Object.create(null);
   var REDUCE_MOTION = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
@@ -3584,13 +3584,46 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     document.getElementById("refreshCount").textContent = quedan + " S";
     document.getElementById("refreshRace").setAttribute("aria-label", "Próxima actualización de puntuación en " + quedan + " segundos. Pulsa para parar la carrera.");
   }
+  function centraLlamadaCarrera() {
+    var carrera = document.getElementById("refreshRace"), aviso = document.getElementById("raceCall");
+    if (typeof document.querySelectorAll !== "function" || typeof getComputedStyle !== "function") return false;
+    var pistas = Array.from(document.querySelectorAll("#refreshLanes .refresh-track"));
+    if (!carrera || !aviso || !pistas.length) return false;
+    var pista = pistas[Math.floor((pistas.length - 1) / 2)];
+    var raceRect = carrera.getBoundingClientRect(), trackRect = pista.getBoundingClientRect();
+    var estilo = getComputedStyle(pista);
+    var trackStart = parseFloat(estilo.getPropertyValue("--track-start")) || 0;
+    var finishWidth = parseFloat(estilo.getPropertyValue("--finish-width")) || 0;
+    var start = trackRect.left - raceRect.left + trackStart;
+    var meta = trackRect.right - raceRect.left - finishWidth;
+    if (!(Number.isFinite(start) && Number.isFinite(meta)) || meta <= start) return false;
+    var centro = (start + meta) / 2;
+    aviso.style.left = centro + "px";
+    aviso.style.top = (trackRect.top - raceRect.top + trackRect.height / 2) + "px";
+    aviso.style.maxWidth = Math.max(0, meta - start - 8) + "px";
+    aviso.dataset.trackStart = String(start);
+    aviso.dataset.trackFinish = String(meta);
+    aviso.dataset.trackCenter = String(centro);
+    return true;
+  }
+  var observadorLlamadaCarrera = typeof ResizeObserver === "function"
+    ? new ResizeObserver(centraLlamadaCarrera) : null;
+  if (observadorLlamadaCarrera) {
+    observadorLlamadaCarrera.observe(document.getElementById("refreshRace"));
+    observadorLlamadaCarrera.observe(document.getElementById("refreshLanes"));
+  } else window.addEventListener("resize", centraLlamadaCarrera);
+
   function fijaFaseSalida(fase, llamada) {
     var carrera = document.getElementById("refreshRace");
     ["ready", "set", "go"].forEach(function (nombre) {
       carrera.classList.toggle("phase-" + nombre, nombre === fase);
     });
-    var aviso = document.querySelector(".race-call");
-    if (aviso) aviso.textContent = llamada || "";
+    var aviso = document.getElementById("raceCall");
+    if (aviso) {
+      aviso.textContent = llamada || "";
+      aviso.dataset.phase = fase || "idle";
+      centraLlamadaCarrera();
+    }
   }
   function pintaMomentoCarrera(transcurrido) {
     transcurrido = Math.max(0, Math.min(CICLO_MS, transcurrido));
@@ -3611,6 +3644,24 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     pintaCarrera(1);
     document.getElementById("refreshCount").textContent = "META";
     document.getElementById("refreshRace").setAttribute("aria-label", "Meta · celebrando el resultado. Pulsa para parar la carrera.");
+  }
+  function limpiaTimersCarreraReducida() {
+    carreraTimersReducidos.forEach(clearTimeout);
+    carreraTimersReducidos = [];
+  }
+  function programaCarreraReducida(desde) {
+    limpiaTimersCarreraReducida();
+    desde = Math.max(0, Math.min(CICLO_MS, Number(desde) || 0));
+    pintaMomentoCarrera(desde);
+    [PASO_SALIDA_MS, 2 * PASO_SALIDA_MS, SALIDA_MS, SALIDA_MS + REFRESCO_MS].forEach(function (marca) {
+      if (marca <= desde) return;
+      carreraTimersReducidos.push(setTimeout(function () {
+        if (!carreraPausada) pintaMomentoCarrera(marca);
+      }, marca - desde));
+    });
+    if (CICLO_MS > desde) carreraTimersReducidos.push(setTimeout(function () {
+      if (!carreraPausada) actualizaMarcador().then(iniciaCarrera);
+    }, CICLO_MS - desde));
   }
   function avanzaCarrera(ahora) {
     if (carreraPausada) return;
@@ -3646,6 +3697,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       carreraTiempoPausado = Math.max(0, Math.min(CICLO_MS, performance.now() - carreraInicio));
       carreraPausada = true;
       cancelAnimationFrame(carreraFrame);
+      limpiaTimersCarreraReducida();
       pintaMomentoCarrera(carreraTiempoPausado);
       document.getElementById("refreshCount").textContent = "PAUSA";
       pintaControlCarrera();
@@ -3655,7 +3707,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     carreraInicio = performance.now() - carreraTiempoPausado;
     pintaControlCarrera();
     if (REDUCE_MOTION) {
-      pintaMomentoCarrera(SALIDA_MS + REFRESCO_MS);
+      programaCarreraReducida(carreraTiempoPausado);
       return;
     }
     pintaMomentoCarrera(carreraTiempoPausado);
@@ -3663,14 +3715,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
   function iniciaCarrera() {
     cancelAnimationFrame(carreraFrame);
+    limpiaTimersCarreraReducida();
     carreraPausada = false;
     carreraTiempoPausado = 0;
     sorteaOrdenLlegada(true);
     pintaControlCarrera();
     carreraInicio = performance.now();
-    // Estado final legible y sin bucle RAF para quien pidió reducir movimiento.
+    // READY/SET/GO siguen siendo información bajo reduced-motion: cambian de
+    // forma discreta con timers, sin interpolar corredores ni abrir un bucle RAF.
     if (REDUCE_MOTION) {
-      pintaMomentoCarrera(SALIDA_MS + REFRESCO_MS);
+      programaCarreraReducida(0);
       return;
     }
     pintaMomentoCarrera(0);

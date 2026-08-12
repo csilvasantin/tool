@@ -117,7 +117,7 @@ test("todos los atletas pixelados recorren la línea y actualizan el marcador tr
 
 test("la pista pasa por los pies del corredor y termina en una meta visible", () => {
   assert.match(html, /\.refresh-race\{--track-start:2px;--finish-width:7px/);
-  assert.match(html, /\.refresh-track::before\{[^}]*left:var\(--track-start\)[^}]*right:calc\(var\(--finish-gutter\) \+ var\(--finish-width\)\)[^}]*bottom:[0-9]+px[^}]*height:2px/);
+  assert.match(html, /\.refresh-track::before\{[^}]*left:var\(--track-start\)[^}]*right:var\(--finish-width\)[^}]*bottom:[0-9]+px[^}]*height:2px/);
   assert.match(html, /\.refresh-fill\{[^}]*left:var\(--track-start\)[^}]*bottom:[0-9]+px[^}]*height:2px/);
   assert.match(html, /\.refresh-runner\{[^}]*bottom:[0-9]+px[^}]*transform:translateX\(-50%\)/);
   assert.match(html, /\.refresh-finish\{[^}]*width:var\(--finish-width\)/);
@@ -338,7 +338,7 @@ test("la pista pausa la lectura por ratón o teclado y mantiene estático el nom
   assert.match(html, /function avanzaCarrera\(ahora\) \{\s*if \(carreraPausada\) return;/);
   assert.doesNotMatch(html, /MARGEN_NOMBRE_META_PX|anchoAgente|inicioAgente|empujeAgente|cruceAgente/);
   assert.doesNotMatch(html, /agente\.style\.(?:transform|opacity|left)/);
-  assert.match(html, /\.refresh-agent\{[^}]*left:calc\(100% - var\(--finish-gutter\) \+ var\(--agent-gap\)\)[^}]*right:4px/);
+  assert.match(html, /\.refresh-agent\{position:static[^}]*text-overflow:ellipsis[^}]*white-space:nowrap/);
   assert.match(html, /\.refresh-race\.paused \.refresh-runner svg[^}]*animation-play-state:paused/);
 });
 
@@ -381,9 +381,8 @@ test("todos los corredores hacen la primera mitad al doble de velocidad y solo e
 });
 
 test("READY SET GO muestran su sprite real y la llegada muestra ganador y perdedores", () => {
-  assert.match(html, /class="race-call" data-race-role="call" aria-hidden="true"/);
-  assert.doesNotMatch(html, /class="race-call" id="raceCall"/);
-  assert.match(html, /document\.querySelector\("\.race-call"\)/);
+  assert.match(html, /class="race-call" id="raceCall" data-race-role="call" role="status"/);
+  assert.match(html, /document\.getElementById\("raceCall"\)/);
   assert.match(html, /<symbol id="runnerReady"/);
   assert.match(html, /<symbol id="runnerSet"/);
   assert.match(html, /<symbol id="runnerGo"/);

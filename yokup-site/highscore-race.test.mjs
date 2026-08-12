@@ -58,5 +58,6 @@ test("las calles 4+ tienen temporización acotada y la música queda limitada al
   assert.match(html, /trackfield-1722\.mp3/);
   assert.match(html, /bgm\.loop = true/);
   assert.match(html, /function entra\(\)[\s\S]*?para\(true\); fanfarriaPodio\(\)/);
-  assert.match(html, /if \(REDUCE_MOTION\)[\s\S]*?pintaMomentoCarrera\(SALIDA_MS \+ REFRESCO_MS\);[\s\S]*?return;/);
+  assert.match(html, /if \(REDUCE_MOTION\)[\s\S]*?programaCarreraReducida\(0\);[\s\S]*?return;/);
+  assert.match(html, /programaCarreraReducida[\s\S]*PASO_SALIDA_MS[\s\S]*2 \* PASO_SALIDA_MS[\s\S]*SALIDA_MS/);
 });

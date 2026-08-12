@@ -166,16 +166,17 @@ test("el dorsal se pinta una vez por cada participante sin tope", () => {
   assert.doesNotMatch(race.html, /refresh-place-(?:start|finish)/);
 });
 
-test("READY SET GO aparece sólo en la pista central", () => {
+test("READY SET GO no pertenece a ninguna pista generada", () => {
   const rows = Array.from({ length: 3 }, (_, i) => ({agente:`Centro-${i+1}`,posicion:i+1,total:20-i,vivo:true}));
   const race = renderRace(rows, rows.map((row) => work(row.agente)));
   const lanes = race.html.split('<div class="refresh-lane ').slice(1);
-  assert.equal((race.html.match(/class="race-call"/g)||[]).length, 1);
+  assert.equal((race.html.match(/class="race-call"/g)||[]).length, 0);
   assert.doesNotMatch(lanes[0], /class="race-call"/);
-  assert.match(lanes[1], /class="race-call"/);
+  assert.doesNotMatch(lanes[1], /class="race-call"/);
   assert.doesNotMatch(lanes[2], /class="race-call"/);
   const one = renderRace(rows.slice(0,1), [work("Centro-1")]);
-  assert.equal((one.html.match(/class="race-call"/g)||[]).length, 1);
+  assert.equal((one.html.match(/class="race-call"/g)||[]).length, 0);
+  assert.equal((html.match(/id="raceCall"/g)||[]).length, 1);
 });
 
 test("hay corredores negro y blanco, ambos con bigote pixelado", () => {
