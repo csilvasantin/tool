@@ -10,6 +10,10 @@ import {readFile} from 'node:fs/promises';
 
 const SRC = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
 const ruta = (p) => SRC.slice(SRC.indexOf(`url.pathname === "${p}"`), SRC.indexOf(`url.pathname === "${p}"`) + 2600);
+const contractStart = SRC.indexOf('const SYSTEM_NOTIFICATION_LIVE_MS');
+const contractEnd = SRC.indexOf('// CONTADORES DEL MENÚ SUPERIOR', contractStart);
+const contracts = new Function('__name', SRC.slice(contractStart, contractEnd) +
+  '; return {notificationContract,notificationSummary,SYSTEM_NOTIFICATION_LIVE_MS,SYSTEM_NOTIFICATION_UNCONFIRMED_MS};')(() => {});
 
 test('la tabla guarda la huella, el estado y la captura', () => {
   assert.match(SRC, /CREATE TABLE IF NOT EXISTS notifs \(/, 'existe la tabla');
@@ -68,11 +72,57 @@ test('cerrar no borra: queda el rastro de cuánto estuvo parado el equipo', () =
   assert.ok(!/DELETE FROM notifs/.test(SRC), 'ninguna ruta borra avisos');
 });
 
-test('el contador del menú sólo cuenta lo abierto', () => {
+test('el contador del menú alarma sólo por bloqueo live y conserva todos los estados', () => {
   const i = SRC.indexOf('async function menuCounters(');
   const b = SRC.slice(i, SRC.indexOf('__name(menuCounters', i));
-  assert.match(b, /SELECT COUNT\(\*\) n FROM notifs WHERE status='abierta'/, 'sólo abiertas');
-  assert.match(b, /out\.notificaciones = \{ abiertas:/, 'expone abiertas');
+  assert.match(b, /notificationSummary\(notifRows, notifNow\)/, 'el menú comparte el clasificador factual');
+  assert.match(b, /abiertas: notifSummary\.live/, 'el campo que pinta la alarma excluye sin confirmar, stale y backlog');
+  assert.match(b, /thresholds_ms:/, 'publica los umbrales usados');
+  assert.match(SRC, /"Cache-Control": "public, max-age=30"/, 'la alarma del menú no queda cacheada más de 30 s');
+});
+
+test('la API publica reloj, umbrales, estados y resumen sin borrar filas', () => {
+  const b = ruta('/fleet/notificaciones');
+  assert.match(SRC, /const SYSTEM_NOTIFICATION_LIVE_MS = 90 \* 1000/);
+  assert.match(SRC, /const SYSTEM_NOTIFICATION_UNCONFIRMED_MS = 5 \* 60 \* 1000/);
+  assert.match(b, /generated_at: now/);
+  assert.match(b, /thresholds_ms:/);
+  assert.match(b, /summary, abiertas: summary\.total_open/);
+  assert.match(b, /notificaciones: rows/);
+  assert.ok(!/DELETE FROM notifs/.test(SRC), 'clasificar stale nunca elimina el histórico');
+});
+
+test('los bordes 90 s y 300 s se clasifican con el reloj del servidor', () => {
+  const now = 1_800_000_000_000;
+  const at = (age, extra = {}) => contracts.notificationContract({status:'abierta',kind:'sistema',last_at:now-age,machine:'MacMini',...extra}, now);
+  assert.equal(at(89_999).activity_state, 'live');
+  assert.equal(at(90_000).activity_state, 'live');
+  assert.equal(at(90_001).activity_state, 'unconfirmed');
+  assert.equal(at(299_999).activity_state, 'unconfirmed');
+  assert.equal(at(300_000).activity_state, 'unconfirmed');
+  assert.equal(at(300_001).activity_state, 'stale');
+  assert.equal(at(-1).activity_state, 'stale', 'un timestamp futuro nunca bloquea una máquina');
+  assert.equal(at(now, {last_at:0}).activity_state, 'stale', 'un timestamp inválido falla cerrado');
+  assert.equal(at(10, {status:'cerrada'}).activity_state, 'closed');
+  assert.equal(at(10, {image:null}).blocks_machine, true, 'la ausencia de captura no altera la señal factual');
+});
+
+test('kinds no-sistema son backlog y el resumen deduplica máquinas live', () => {
+  const now = 1_800_000_000_000;
+  for (const kind of ['release','flota','bloqueo','auth','autenticacion',null,'']) {
+    const row = contracts.notificationContract({status:'abierta',kind,last_at:now-1,machine:'MacMini'}, now);
+    assert.equal(row.activity_state, 'backlog', kind);
+    assert.equal(row.blocks_machine, false, kind);
+  }
+  const summary = contracts.notificationSummary([
+    {status:'abierta',kind:'sistema',last_at:now-1,machine:'MacMini'},
+    {status:'abierta',kind:'sistema',last_at:now-2,machine:' macmini '},
+    {status:'abierta',kind:'sistema',last_at:now-100_000,machine:'MBP14'},
+    {status:'abierta',kind:'sistema',last_at:now-400_000,machine:'MBP16'},
+    {status:'abierta',kind:'release',last_at:now-1,machine:'MBP16'},
+    {status:'cerrada',kind:'sistema',last_at:now-1,machine:'MacMini'}
+  ], now);
+  assert.deepEqual(summary, {total_open:5,live:2,unconfirmed:1,stale:1,backlog:1,affected_machines:1});
 });
 
 test('publicar NO exige perímetro: el vigilante no tiene navegador', () => {

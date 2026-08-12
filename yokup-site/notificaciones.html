@@ -34,7 +34,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
       La CAPTURA manda: lo que hay que decidir se ve en la pantalla, no en el texto. */
 .grid{display:flex;flex-direction:column;gap:14px}
 .n{display:grid;grid-template-columns:340px 1fr;gap:0;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--card)}
-.n.abierta{border-color:rgba(255,95,86,.45);box-shadow:0 0 0 1px rgba(255,95,86,.12)}
+.n.reciente{border-color:rgba(255,95,86,.45);box-shadow:0 0 0 1px rgba(255,95,86,.12)}
+.n.historica{border-color:rgba(255,216,102,.28)}
 .n .shot{background:#050d14;display:flex;align-items:center;justify-content:center;min-height:190px;border-right:1px solid var(--line)}
 .n .shot img{width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in}
 .n .shot .none{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);padding:20px;text-align:center}
@@ -43,6 +44,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .n .top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .badge{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:4px 9px;border-radius:999px;font-weight:700}
 .badge.abierta{background:var(--alarm);color:#160406}
+.badge.historica{background:rgba(255,216,102,.14);color:var(--accent)}
 .badge.cerrada{background:rgba(136,255,170,.16);color:var(--good)}
 .maq{font-family:var(--mono);font-size:13px;letter-spacing:.04em;color:var(--brand);font-weight:700}
 .n h2{font-size:17px;line-height:1.35;font-weight:650;letter-spacing:-.01em}
@@ -56,6 +58,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .acts .go:hover{background:rgba(255,95,86,.12);color:var(--alarm)}
 .empty{border:1px dashed var(--line2);border-radius:14px;padding:44px 24px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12.5px;letter-spacing:.04em;line-height:1.7}
 .empty b{color:var(--good);display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.load-error{border:1px solid rgba(255,136,102,.45);border-radius:10px;background:rgba(255,136,102,.08);color:var(--warn);padding:10px 13px;margin:-6px 0 14px;font-size:13px;line-height:1.45}
+.load-error button{margin-left:8px;border:1px solid currentColor;border-radius:7px;background:transparent;color:inherit;padding:5px 9px;font:inherit;cursor:pointer}
 .foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
 #lb{position:fixed;inset:0;background:rgba(2,8,13,.94);display:none;align-items:center;justify-content:center;z-index:9999;padding:24px;cursor:zoom-out}
 #lb img{max-width:100%;max-height:100%;border-radius:10px;border:1px solid var(--line2)}
@@ -73,33 +77,37 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
       <span class="pi-toggle">Qué es esto <span class="pi-chevron">›</span></span>
     </summary>
     <div class="pi-body">
-      <p class="sub">Un diálogo del sistema en cualquier equipo de AdmiraNeXT —un permiso que pedir, una contraseña, un aviso de Gatekeeper— <b>detiene a ese equipo</b> hasta que un humano pulsa un botón. Antes nadie se enteraba hasta que alguien miraba esa pantalla por casualidad. Ahora el vigilante de cada máquina lo detecta, <b>captura la pantalla</b> y lo publica aquí.</p>
+      <p class="sub">Un diálogo del sistema confirmado en los últimos 90 segundos aparece como <b>aviso en vivo que requiere atención</b>. Entre 90 segundos y cinco minutos queda sin confirmar. Después pasa a histórico, igual que los avisos informativos, conservando su edad real sin afirmar que el equipo siga detenido.</p>
     </div>
   </details>
 
   <div class="tfilter" id="filtros">
-    <button class="tf on" data-f="abiertas">Sin atender</button>
-    <button class="tf" data-f="todas">Todas</button>
-    <span class="tf" id="resumen" style="cursor:default;border-color:transparent"></span>
+    <button class="tf on" data-f="abiertas" aria-pressed="true">Pendientes</button>
+    <button class="tf" data-f="todas" aria-pressed="false">Todas</button>
+    <span class="tf" id="resumen" role="status" aria-live="polite" style="cursor:default;border-color:transparent"></span>
   </div>
 
+  <div class="load-error" id="loadError" role="status" aria-live="polite" hidden><span id="loadErrorText"></span><button id="retryLoad" type="button">Reintentar</button></div>
   <div class="grid" id="lista"><div class="empty">Cargando…</div></div>
   <div class="foot">Yokup · notificaciones del sistema · vigilante por máquina · fuente <b>D1</b> (notifs)</div>
 </div>
-<div id="lb"><img id="lbImg" alt=""></div>
+<div id="lb" role="dialog" aria-modal="true" aria-label="Captura ampliada" tabindex="-1"><img id="lbImg" alt=""></div>
 
 <script>
 const WORKER="https://api.yokup.com";
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const _ms=v=>{v=+v||0;return v>4102444800?v:v*1000;};
-let VISTA="abiertas", DATOS=[];
+let VISTA="abiertas", DATOS=[], RESUMEN={total_open:0,live:0,unconfirmed:0,stale:0,backlog:0,affected_machines:0};
+let SERVER_NOW=0, SYNC_PERF=0, HAS_SNAPSHOT=false, SNAPSHOT_STALE=false, LB_TRIGGER=null;
 
 function hhmm(ms){ try{ return new Date(ms).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}); }catch(e){ return ""; } }
 function ddmm(ms){ try{ return new Date(ms).toLocaleDateString("es-ES",{day:"2-digit",month:"short"}); }catch(e){ return ""; } }
+function serverNow(){ return SERVER_NOW+Math.max(0,performance.now()-SYNC_PERF); }
 // Cuánto lleva ESPERANDO. Es el dato que decide si hay que ir corriendo o no.
 function espera(ms){
-  const s=Math.max(0,Math.round((Date.now()-ms)/1000));
+  if(!(ms>0)) return "edad desconocida";
+  const s=Math.max(0,Math.round((serverNow()-ms)/1000));
   if(s<90) return s+" s";
   const m=Math.round(s/60); if(m<90) return m+" min";
   const h=Math.floor(m/60); return h>=24 ? Math.floor(h/24)+" d "+(h%24)+" h" : h+" h "+(m%60)+" min";
@@ -119,6 +127,8 @@ const QUE={
   installer:"Instalador esperando confirmación"
 };
 const queEs=o=>QUE[String(o||"").toLowerCase()]||("Diálogo de "+(o||"el sistema"));
+const KIND={bloqueo:"Bloqueo operativo",flota:"Aviso de flota",release:"Aviso de versión",auth:"Aviso de acceso",autenticacion:"Aviso de acceso",conexion:"Aviso de conexión","correccion-informe":"Corrección de informe",sistema:"Diálogo del sistema"};
+const kindLabel=k=>KIND[String(k||"").toLowerCase()]||("Aviso "+String(k||"general"));
 
 function shotFallback(img,reason){
   const box=img&&img.closest(".shot"); if(!box)return;
@@ -137,38 +147,50 @@ function checkShot(img){
 function render(){
   const box=$("lista");
   const list=VISTA==="abiertas" ? DATOS.filter(n=>n.status==="abierta") : DATOS;
-  const abiertas=DATOS.filter(n=>n.status==="abierta").length;
-  $("resumen").textContent = abiertas
-    ? (abiertas===1?"1 equipo parado":abiertas+" equipos parados")
-    : "ningún equipo parado";
+  const live=SNAPSHOT_STALE?0:(RESUMEN.live|0), unconfirmed=SNAPSHOT_STALE?0:(RESUMEN.unconfirmed|0);
+  const historicos=(RESUMEN.stale|0)+(RESUMEN.backlog|0)+(SNAPSHOT_STALE?((RESUMEN.live|0)+(RESUMEN.unconfirmed|0)):0);
+  const affected=SNAPSHOT_STALE?0:(RESUMEN.affected_machines|0);
+  $("resumen").textContent = (live===1?"1 aviso en vivo":live+" avisos en vivo")+
+    " · "+unconfirmed+" sin confirmar · "+historicos+" históricos";
+  $("resumen").title=affected+" máquinas afectadas ahora · "+
+    (RESUMEN.stale|0)+" diálogos sin señal · "+(RESUMEN.backlog|0)+" avisos informativos";
   if(!list.length){
     box.innerHTML=VISTA==="abiertas"
-      ? '<div class="empty"><b>Ningún equipo parado</b>Nadie de la flota tiene un diálogo del sistema esperando. Si aparece uno, sale aquí con su captura.</div>'
+      ? '<div class="empty"><b>Sin avisos pendientes</b>No hay avisos recientes ni pendientes históricos abiertos.</div>'
       : '<div class="empty"><b>Sin registro</b>Todavía no se ha detectado ninguna notificación del sistema en la flota.</div>';
     return;
   }
   box.innerHTML=list.map(n=>{
-    const first=_ms(n.first_at), last=_ms(n.last_at), abierta=n.status==="abierta";
+    const first=_ms(n.first_at), last=n.last_at_ms||null, abierta=n.status==="abierta";
+    const originalState=String(n.activity_state||"stale");
+    const kind=String(n.kind||"").toLowerCase(), system=kind==="sistema";
+    const state=SNAPSHOT_STALE&&abierta&&system&&(originalState==="live"||originalState==="unconfirmed")?"stale":originalState;
+    const reciente=state==="live";
     const imageUrl=n.image+(String(n.image||"").includes("?")?"&":"?")+"v="+encodeURIComponent(n.last_at||0);
     const img=n.image
-      ? '<img src="'+esc(imageUrl)+'" crossorigin="anonymous" alt="Pantalla de '+esc(n.machine)+'" loading="lazy" data-full="'+esc(imageUrl)+'" onload="checkShot(this)" onerror="shotFallback(this,\'No se pudo descargar la captura\')">'
+      ? '<img src="'+esc(imageUrl)+'" crossorigin="anonymous" alt="Pantalla de '+esc(n.machine)+'" loading="lazy" data-full="'+esc(imageUrl)+'" tabindex="0" role="button" aria-label="Ampliar captura de '+esc(n.machine)+'" onload="checkShot(this)" onerror="shotFallback(this,\'No se pudo descargar la captura\')">'
       : '<div class="none">Sin captura<br>(el vigilante no pudo fotografiar la pantalla)</div>';
-    return '<div class="n '+(abierta?"abierta":"cerrada")+'">'+
+    const heading=system?queEs(n.owner):(n.titulo||kindLabel(kind));
+    const detail=system&&n.titulo?'<div class="quien">'+esc(n.titulo)+'</div>':'';
+    const source=system?'<div class="quien">Lo pide <b>'+esc(n.owner)+'</b></div>':'<div class="quien">Tipo <b>'+esc(kindLabel(kind))+'</b></div>';
+    const badge=state==="live"?"⚠ requiere atención":state==="unconfirmed"?"señal sin confirmar":state==="stale"?"histórico sin señal":state==="backlog"?"aviso pendiente":"✓ resuelta";
+    const age=abierta
+      ? (reciente?'🔄 última señal hace '+espera(last):'🗂 pendiente desde '+espera(first)+' · última señal hace '+espera(last))
+      : '⏱ duró '+espera_entre(first,_ms(n.closed_at)||last);
+    return '<div class="n '+(reciente?"reciente":(abierta?"historica":"cerrada"))+'">'+
       '<div class="shot">'+img+'</div>'+
       '<div class="body">'+
         '<div class="top">'+
-          '<span class="badge '+(abierta?"abierta":"cerrada")+'">'+(abierta?"⚠ sin atender":"✓ resuelta")+'</span>'+
+          '<span class="badge '+(reciente?"abierta":(abierta?"historica":"cerrada"))+'">'+badge+'</span>'+
           '<span class="maq">🖥 '+esc(n.machine)+'</span>'+
         '</div>'+
-        '<h2>'+esc(queEs(n.owner))+'</h2>'+
-        (n.titulo?'<div class="quien">'+esc(n.titulo)+'</div>':'')+
-        '<div class="quien">Lo pide <b>'+esc(n.owner)+'</b></div>'+
+        '<h2>'+esc(heading)+'</h2>'+detail+source+
         '<div class="acts">'+
-          (abierta?'<a class="go" target="_blank" rel="noopener" href="https://www.admira.live/control?rc='+encodeURIComponent(rcId(n.machine))+'&name='+encodeURIComponent(n.machine)+'">🖥 operar y resolverlo ↗</a>':'')+
+          (reciente?'<a class="go" target="_blank" rel="noopener" href="https://www.admira.live/control?rc='+encodeURIComponent(rcId(n.machine))+'&name='+encodeURIComponent(n.machine)+'">🖥 operar y resolverlo ↗</a>':'')+
           (abierta?'<button data-cerrar="'+esc(n.id)+'">✓ ya está atendido</button>':'')+
         '</div>'+
         '<div class="meta">'+
-          '<span>'+(abierta?"⏳ esperando "+espera(first):"⏱ duró "+espera_entre(first,_ms(n.closed_at)||last))+'</span>'+
+          '<span>'+age+'</span>'+
           '<span>📅 '+ddmm(first)+' '+hhmm(first)+'</span>'+
           '<span>👁 visto '+(n.seen_count||1)+'×</span>'+
         '</div>'+
@@ -185,21 +207,31 @@ function rcId(maq){ var n=String(maq||"").toLowerCase().replace(/[\s·._-]+/g,""
 async function load(){
   try{
     const r=await fetch(WORKER+"/fleet/notificaciones?todas=1",{cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
     const d=await r.json();
+    if(!d||!d.ok||!(Number(d.generated_at)>0)||!d.summary) throw new Error("respuesta incompleta");
+    SERVER_NOW=Number(d.generated_at); SYNC_PERF=performance.now();
     DATOS=(d&&d.notificaciones)||[];
-  }catch(e){ return; }
+    RESUMEN=d.summary; HAS_SNAPSHOT=true; SNAPSHOT_STALE=false; $("loadError").hidden=true;
+  }catch(e){
+    const msg=HAS_SNAPSHOT?"No se pudo actualizar. Se mantiene la última lectura; las edades siguen avanzando con el reloj del servidor.":"No se pudieron cargar las notificaciones. No hay datos suficientes para afirmar que no existan avisos.";
+    $("loadErrorText").textContent=msg; $("loadError").hidden=false;
+    if(HAS_SNAPSHOT){ SNAPSHOT_STALE=true; render(); }
+    else $("lista").innerHTML='<div class="empty"><b>Estado no disponible</b>'+esc(msg)+'</div>';
+    return;
+  }
   render();
 }
 
 $("filtros").addEventListener("click",e=>{
   const b=e.target.closest(".tf[data-f]"); if(!b) return;
   VISTA=b.dataset.f;
-  document.querySelectorAll("#filtros .tf[data-f]").forEach(x=>x.classList.toggle("on",x===b));
+  document.querySelectorAll("#filtros .tf[data-f]").forEach(x=>{const on=x===b;x.classList.toggle("on",on);x.setAttribute("aria-pressed",String(on));});
   render();
 });
 $("lista").addEventListener("click",async e=>{
   const im=e.target.closest("img[data-full]");
-  if(im){ $("lbImg").src=im.dataset.full; $("lb").style.display="flex"; return; }
+  if(im){ LB_TRIGGER=im; $("lbImg").src=im.dataset.full; $("lb").style.display="flex"; $("lb").focus(); return; }
   const b=e.target.closest("[data-cerrar]"); if(!b) return;
   b.disabled=true; b.textContent="cerrando…";
   try{
@@ -207,7 +239,11 @@ $("lista").addEventListener("click",async e=>{
     await load();
   }catch(e){ b.disabled=false; b.textContent="✓ ya está atendido"; }
 });
-$("lb").addEventListener("click",()=>{ $("lb").style.display="none"; });
+function closeLightbox(){ $("lb").style.display="none"; if(LB_TRIGGER)LB_TRIGGER.focus(); }
+$("lista").addEventListener("keydown",e=>{const im=e.target.closest("img[data-full]");if(im&&(e.key==="Enter"||e.key===" ")){e.preventDefault();im.click();}});
+$("lb").addEventListener("click",closeLightbox);
+$("lb").addEventListener("keydown",e=>{if(e.key==="Escape")closeLightbox();});
+$("retryLoad").addEventListener("click",load);
 
 load(); setInterval(load,20000);
 </script>

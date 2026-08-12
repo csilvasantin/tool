@@ -6277,6 +6277,51 @@ async function stats(env, scope, filters = {}) {
   return { open, in_progress: prog, resolved: res, mttr };
 }
 __name(stats, "stats");
+// Sólo un diálogo de sistema confirmado hace <=90 s puede afirmar que bloquea
+// una máquina AHORA. Hasta 5 min queda «sin confirmar» y después pasa a stale.
+// Los demás kinds son backlog informativo aunque estén abiertos. Nada se cierra
+// ni se borra automáticamente: esta clasificación sólo hace honesta la lectura.
+const SYSTEM_NOTIFICATION_LIVE_MS = 90 * 1000;
+const SYSTEM_NOTIFICATION_UNCONFIRMED_MS = 5 * 60 * 1000;
+function notificationContract(row, now = Date.now()) {
+  const raw = Number(row && row.last_at) || 0;
+  const lastAt = raw > 0 && raw < 4102444800 ? raw * 1000 : raw;
+  const validLastAt = lastAt > 0 && lastAt <= now;
+  const open = row && row.status === "abierta";
+  // Sólo el kind explícito `sistema` puede bloquear. Un kind ausente o nuevo
+  // falla cerrado como backlog; no se convierte en diálogo por defecto.
+  const system = String(row && row.kind || "").trim().toLowerCase() === "sistema";
+  const age = validLastAt ? now - lastAt : null;
+  let activityState = "closed";
+  if (open && !system) activityState = "backlog";
+  else if (open && (!validLastAt || age > SYSTEM_NOTIFICATION_UNCONFIRMED_MS)) activityState = "stale";
+  else if (open && age > SYSTEM_NOTIFICATION_LIVE_MS) activityState = "unconfirmed";
+  else if (open) activityState = "live";
+  return Object.assign({}, row, {
+    last_at_ms: validLastAt ? lastAt : null,
+    age_ms: age,
+    activity_state: activityState,
+    fresh: activityState === "live",
+    stale: activityState === "stale",
+    blocks_machine: activityState === "live",
+    requiere_atencion: activityState === "live"
+  });
+}
+__name(notificationContract, "notificationContract");
+function notificationSummary(rows, now = Date.now()) {
+  const summary = { total_open:0, live:0, unconfirmed:0, stale:0, backlog:0, affected_machines:0 };
+  const affected = new Set();
+  for (const raw of rows || []) {
+    const row = notificationContract(raw, now);
+    if (raw.status !== "abierta") continue;
+    summary.total_open++;
+    if (Object.prototype.hasOwnProperty.call(summary, row.activity_state)) summary[row.activity_state]++;
+    if (row.blocks_machine && String(raw.machine || "").trim()) affected.add(String(raw.machine).trim().toLowerCase());
+  }
+  summary.affected_machines = affected.size;
+  return summary;
+}
+__name(notificationSummary, "notificationSummary");
 // CONTADORES DEL MENÚ SUPERIOR (Carlos, 2026-07-23): un solo agregado para que
 // la barra (yk-frame.js) rotule «MISIONES 2/50» = 2 en curso / 50 esperando.
 // Semántica UNIFORME por sección: curso = «en ello ahora» (in_progress/estudio);
@@ -6345,10 +6390,15 @@ async function menuCounters(env) {
     ") THEN 1 ELSE 0 END) hechos FROM tickets t WHERE t.source='fleet' AND t.status='resolved'"
   ).first();
   out.informes = { hechos: (inf && inf.hechos) | 0, total: (inf && inf.total) | 0 };
-  // NOTIFICACIONES (FLT-1020): un diálogo del sistema en cualquier equipo de la
-  // flota es un equipo PARADO. Sólo cuenta lo abierto — o hay que ir o no hay nada.
-  const nt = await env.DB.prepare("SELECT COUNT(*) n FROM notifs WHERE status='abierta'").first();
-  out.notificaciones = { abiertas: (nt && nt.n) | 0 };
+  // NOTIFICACIONES: `abiertas` conserva el campo consumido por el menú, pero ahora
+  // sólo equivale a bloqueos live. El resto se expone sin activar el rojo urgente.
+  const notifNow = Date.now();
+  const notifRows = ((await env.DB.prepare(
+    "SELECT status,kind,last_at,machine FROM notifs WHERE status='abierta'"
+  ).all()).results) || [];
+  const notifSummary = notificationSummary(notifRows, notifNow);
+  out.notificaciones = Object.assign({ abiertas: notifSummary.live, generated_at: notifNow,
+    thresholds_ms: { live: SYSTEM_NOTIFICATION_LIVE_MS, unconfirmed: SYSTEM_NOTIFICATION_UNCONFIRMED_MS } }, notifSummary);
   // DECISIONES: relojes VIVOS = pending con deadline futuro (honesto: deadline>now,
   // no me fío del barrido de expiración que sólo corre en GET /decisions). El menú
   // pinta la cuenta atrás hacia el más próximo; sin ninguna viva, DECISIONES limpia.
@@ -6679,12 +6729,21 @@ var worker_app = {
     if (url.pathname === "/fleet/notificaciones" && req.method === "GET") {
       await ensureSchema(env);
       const todas = url.searchParams.get("todas") === "1";
+      const now = Date.now();
       const { results } = await env.DB.prepare(
         "SELECT * FROM notifs" + (todas ? "" : " WHERE status='abierta'") +
         " ORDER BY (status='abierta') DESC, last_at DESC LIMIT 200"
       ).all();
-      const abiertas = (results || []).filter((n) => n.status === "abierta").length;
-      return json({ ok: true, abiertas, notificaciones: results || [] });
+      const rows = (results || []).map((row) => notificationContract(row, now));
+      const openRows = ((await env.DB.prepare(
+        "SELECT status,kind,last_at,machine FROM notifs WHERE status='abierta'"
+      ).all()).results) || [];
+      const summary = notificationSummary(openRows, now);
+      return json({ ok: true, now, generated_at: now,
+        thresholds_ms: { live: SYSTEM_NOTIFICATION_LIVE_MS, unconfirmed: SYSTEM_NOTIFICATION_UNCONFIRMED_MS },
+        summary, abiertas: summary.total_open, requieren_atencion: summary.live,
+        pendientes_historicos: summary.unconfirmed + summary.stale + summary.backlog,
+        notificaciones: rows });
     }
     // Cierre a mano desde la propia sección (ya lo he atendido / no era nada).
     if (url.pathname === "/fleet/notificacion/cerrar" && req.method === "POST") {

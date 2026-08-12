@@ -317,16 +317,16 @@
       // INFORMES no es «curso/pend»: un informe no tiene estado, o está o no está
       // (Carlos, 24-jul-2026). Aquí el par es COBERTURA — de las misiones ya
       // terminadas, cuántas tienen su parte. Iguales = al día; si no, hay deuda.
-      // NOTIFICACIONES: sólo lo abierto, y en rojo. No es un ritmo de trabajo —
-      // es un equipo PARADO esperando a que alguien pulse un botón (FLT-1020).
+      // NOTIFICACIONES: la luz roja sólo representa máquinas con un diálogo de
+      // sistema confirmado en vivo. Backlog, stale y señales sin confirmar no
+      // pueden afirmar que una máquina esté bloqueada ahora.
       if (k === "notificaciones") {
-        var ab = d.abiertas | 0;
-        // La alarma no lleva número pero SÍ conserva su rojo: un equipo parado
-        // no es una novedad más, y perder esa distinción sería perder la única
-        // señal de la barra que pide ir AHORA.
+        var live = d.live | 0, machines = d.affected_machines | 0;
         s.textContent = "";
-        if (!ab) { s.removeAttribute("title"); s.classList.remove("yk-count-alarma"); return; }
-        s.setAttribute("title", ab === 1 ? "1 equipo parado por un diálogo del sistema" : ab + " equipos parados por un diálogo del sistema");
+        if (!machines) { s.removeAttribute("title"); s.classList.remove("yk-count-alarma"); return; }
+        s.setAttribute("title", machines === 1
+          ? "1 máquina con " + live + (live === 1 ? " aviso" : " avisos") + " de sistema en vivo"
+          : machines + " máquinas con " + live + " avisos de sistema en vivo");
         s.classList.add("yk-count-alarma");
         return;
       }
@@ -470,11 +470,14 @@
     var key = COUNTER_KEY[label], d = key && data[key];
     if (!d) return null;
     if (key === "notificaciones") {
-      var ab = d.abiertas | 0;
+      var live = d.live | 0, machines = d.affected_machines | 0,
+          uncertain = d.unconfirmed | 0, history = (d.stale | 0) + (d.backlog | 0);
       return {
-        n: ab, sig: "n:" + ab,
-        rows: [["equipos parados", ab, ab ? "alarma" : ""]],
-        foot: ab ? "Un diálogo del sistema tiene el equipo detenido." : "Ningún equipo bloqueado."
+        n: machines, sig: "n:" + machines + "/" + live + "/" + uncertain + "/" + history,
+        rows: [["máquinas afectadas ahora", machines, machines ? "alarma" : ""],
+               ["avisos en vivo", live, live ? "alarma" : ""],
+               ["sin confirmar", uncertain, ""], ["históricos", history, ""]],
+        foot: machines ? "Señal de sistema confirmada en los últimos 90 segundos." : "Sin bloqueos confirmados ahora."
       };
     }
     if (key === "informes") {
