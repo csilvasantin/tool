@@ -6938,7 +6938,7 @@ var worker_app = {
       if (!tk) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
       // Igual que informe y progreso: primero identidad, después cualquier write.
       const actor = validateMissionActor(tk, b.owner || b.by);
-      if (!actor.ok) return json({ ok: false, code: "owner_mismatch", error: actor.error, expected_assignee: actor.expected, received_owner: actor.actor, mission: mid, code, applied: false }, 403);
+      if (!actor.ok) return json({ ok: false, code: "owner_mismatch", error: actor.error, expected_assignee: actor.expected, received_owner: actor.actor, mission: mid, task_code: code, applied: false }, 403);
       if (tk.status === "resolved") {
         // Un standalone puede cerrar canónicamente en cualquiera de los dos órdenes:
         // informe→A o A→informe. El informe resuelve el ticket y deja A en done,
