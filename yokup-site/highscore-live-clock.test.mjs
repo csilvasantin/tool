@@ -80,6 +80,9 @@ test("stale y last_work usan fills grises visibles y pose quieta", () => {
   assert.match(html, /data-work-state\]:not\(\[data-work-state="running"\]\) \.runner-standing\{display:block;animation:none\}/);
   assert.match(html, /data-work-state\]:not\(\[data-work-state="running"\]\) \.runner-run-a[\s\S]*display:none;animation:none/);
   assert.doesNotMatch(html, /refresh-lane-idle \.refresh-runner\{filter:grayscale|refresh-lane-last \.refresh-runner\{filter:grayscale/);
+  assert.match(html, /\.runner-standing,\.refresh-runner \.runner-standing use\{fill:#b8c0c5;stroke:none\}/);
+  assert.match(html, /id="runnerStanding"[\s\S]*?class="runner-skin" fill="#b8c0c5"[\s\S]*?class="runner-hair" fill="#737f86"[\s\S]*?class="runner-shirt" fill="#a7b1b6"[\s\S]*?class="runner-accent" fill="#e0e5e8"/);
+  assert.match(html, /class="runner-standing"[^>]*fill="#b8c0c5"[^>]*><use href="#runnerStanding" fill="#b8c0c5">/);
 });
 
 test("active-work se entrega no-store para que un tick no tape un snapshot nuevo", () => {

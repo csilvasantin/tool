@@ -132,7 +132,7 @@ test("la pista pasa por los pies del corredor y termina en una meta visible", ()
   assert.match(html, /\.refresh-lane\.cruzando \.refresh-finish::before\{[^}]*translate\(-7px,-8px\)[^}]*opacity:0/);
   assert.match(html, /\.refresh-lane\.cruzando \.refresh-finish::after\{[^}]*translate\(7px,8px\)[^}]*opacity:0/);
   assert.match(html, /var runner = '<span class="refresh-runner runner-' \+ variant/);
-  assert.match(html, /class="runner-standing"[^>]*><use href="#runnerStanding"><\/use>/);
+  assert.match(html, /class="runner-standing"[^>]*fill="#b8c0c5"[^>]*><use href="#runnerStanding" fill="#b8c0c5"><\/use>/);
   assert.match(html, /class="refresh-mission"[\s\S]*runner \+ '<span class="refresh-finish" aria-hidden="true"/);
   assert.match(html, /var SALIDA_CORREDOR_OFFSET_PX = 15, META_CORREDOR_PX = 16, RADIO_CORREDOR_PX = 13/);
   assert.match(html, /inicioPista = relleno \? relleno\.offsetLeft : 0/);
