@@ -4448,8 +4448,32 @@ function ticketUniverseWhere(scope, filters = {}) {
   }
   const projectId = String(filters.project_id || "").trim().slice(0, 120);
   if (projectId) { clauses.push("COALESCE(NULLIF(t.project_id,''),t.project,'')=?"); binds.push(projectId); }
+  // FLT-1015 · SOLO LO VIVO. El tablero pinta por defecto las misiones activas,
+  // pero se traía el HISTORIAL ENTERO para descartarlo en el navegador: 1.132
+  // filas para enseñar 63, cada 12 s, y con ~24 consultas de actividad por página
+  // de mil ids. `state=vivas` recorta en SQL lo que el filtro ya iba a tirar.
+  // Los contadores NO se recortan: se completan aparte (ver countsFuera).
+  // Foto del universo ANTES del recorte de estado: es lo que hay que contar para
+  // que los KPIs de «Finalizada» y «Eliminada» digan la verdad aunque no se
+  // bajen esas filas.
+  const sinEstado = clauses.slice(), bindsSinEstado = binds.slice();
+  const soloVivas = String(filters.state || "") === "vivas";
+  // El recorte tiene UNA excepción, y no es cosmética: el tablero «Activas»
+  // conserva a propósito las misiones de FLOTA cerradas hace menos de 3 h
+  // (Carlos, 17-jul-2026) — las de la desktop app se cierran en segundos y sin
+  // esto se asignan y no se llegan a ver nunca. Si el SQL las tirara, el filtro
+  // por defecto perdería justo el trabajo que más corre.
+  if (soloVivas) clauses.push(
+    "(t.status NOT IN ('resolved','cancelled') OR (t.status='resolved' AND t.source='fleet' AND " +
+    "(CASE WHEN COALESCE(t.resolved_at,t.updated_at)<4102444800 THEN COALESCE(t.resolved_at,t.updated_at)*1000 " +
+    "ELSE COALESCE(t.resolved_at,t.updated_at) END) >= ?))");
+  if (soloVivas) binds.push(Date.now() - 3 * 3600 * 1000);
   return { ok:true, sql:clauses.length ? "WHERE " + clauses.join(" AND ") : "", binds,
-    day:filters.day || null, project_id:projectId || null };
+    day:filters.day || null, project_id:projectId || null, soloVivas,
+    // El mismo universo SIN el recorte de estado, para poder contar lo cerrado
+    // sin traérselo. Sin esto, pedir solo lo vivo dejaría los KPIs de
+    // «Finalizada» y «Eliminada» a cero, que es peor que tardar.
+    sqlSinEstado: sinEstado.length ? "WHERE " + sinEstado.join(" AND ") : "", bindsSinEstado };
 }
 async function listTickets(env, scope, limit, offset, filters = {}) {
   const universe = ticketUniverseWhere(scope, filters);
@@ -4494,9 +4518,24 @@ async function listTickets(env, scope, limit, offset, filters = {}) {
   const pidx = await projectIndex(env);
   for (const r of rows) r.project_name = resolveProject(pidx, r.project || "").name;
   await attachDisplayRefs(env, "mission", rows, (row) => row.id, (row) => row.created_at);
-  return { ok:true, rows, visible_counts:missionVisibleCounts(rows), universe:{
+  // Los KPIs del tablero cuentan TODO el universo, se traiga o no. Cuando se pide
+  // solo lo vivo, lo cerrado se cuenta con UNA agregada barata en vez de bajarse
+  // mil filas para sumarlas en el navegador.
+  const visible_counts = missionVisibleCounts(rows);
+  if (universe.soloVivas) {
+    const cerradas = await env.DB.prepare(
+      `SELECT SUM(CASE WHEN t.status='resolved' THEN 1 ELSE 0 END) resolved,
+              SUM(CASE WHEN t.status='cancelled' THEN 1 ELSE 0 END) cancelled,
+              COUNT(*) total FROM tickets t ${universe.sqlSinEstado}`
+    ).bind(...universe.bindsSinEstado).first();
+    visible_counts.resolved = Number(cerradas && cerradas.resolved) || 0;
+    visible_counts.cancelled = Number(cerradas && cerradas.cancelled) || 0;
+    visible_counts.total = Number(cerradas && cerradas.total) || visible_counts.total;
+  }
+  return { ok:true, rows, visible_counts, universe:{
     scope, day:universe.day, project_id:universe.project_id, limit:take, offset:skip,
     returned:rows.length, total, has_more:skip + rows.length < total,
+    state:universe.soloVivas ? "vivas" : "todas",
     state_semantics:"visible-v1", source_semantics:"mission-role-or-agent-source-v1"
   }};
 }
@@ -7811,7 +7850,8 @@ var worker_app = {
         // del bot-inbox (cron cada 2 min), no de las pantallas DOOH.
         if (scope !== "fleet") await reconcile(env);
         const limit = url.searchParams.get("limit"), offset = url.searchParams.get("offset");
-        const filters = { day:url.searchParams.get("day") || "", project_id:url.searchParams.get("project_id") || "" };
+        const filters = { day:url.searchParams.get("day") || "", project_id:url.searchParams.get("project_id") || "",
+          state:url.searchParams.get("state") || "" };
         const page = await listTickets(env, scope, limit, offset, filters);
         if (!page.ok) return json({ error:page.error }, 400);
         const legacyStats = await stats(env, scope, filters);

@@ -577,12 +577,20 @@ function addVisibleCounts(total,page){
   total=total||{unassigned:0,pending:0,in_progress:0,unconcluded:0,resolved:0,cancelled:0,total:0};
   VISIBLE_KEYS.forEach(k=>{total[k]+=Number(page[k])||0;});total.total+=Number(page.total)||0;return total;
 }
-async function fetchMissionUniverse(scope,day,projectId){
+// Filtros que NO necesitan el historial: lo que pintan ya está entre las misiones
+// vivas. Con ellos se pide state=vivas y el servidor recorta en SQL lo que el
+// tablero iba a tirar de todos modos — el 94 % de las filas. Los contadores de
+// «Finalizada»/«Eliminada» siguen llegando completos (el worker los cuenta con
+// una agregada, sin traerse las filas). «Finalizadas», «Eliminadas» y «Todas»
+// sí piden el universo entero, que es justo lo que enseñan.
+const FILTROS_SOLO_VIVAS=new Set(["activas","asignadas","in_progress","unconcluded"]);
+async function fetchMissionUniverse(scope,day,projectId,soloVivas){
   const limit=1000,rows=[],seen=new Set();let offset=0,first=null,counts=null,universe=null;
   for(let page=0;page<100;page++){
     let path="/tickets?scope="+encodeURIComponent(scope)+"&limit="+limit+"&offset="+offset;
     if(day)path+="&day="+encodeURIComponent(day);
     if(projectId)path+="&project_id="+encodeURIComponent(projectId);
+    if(soloVivas)path+="&state=vivas";
     const response=await ykf(path,{cache:"no-store"});if(!response.ok)throw new Error("tickets "+response.status);
     const data=await response.json();if(!first)first=data||{};
     const pageRows=(data&&((Array.isArray(data.rows)&&data.rows)||data.tickets))||[];
@@ -611,7 +619,7 @@ async function load(){
   const projectsP=ykf("/projects",{cache:"no-store"}).then(r=>r.json()).then(po=>{
     if(isCurrent())YkMisiones.setProyectos(po.projects||[]);
   }).catch(()=>{});
-  const ticketsP=fetchMissionUniverse(SCOPE,requestedDay,scopeAtStart);
+  const ticketsP=fetchMissionUniverse(SCOPE,requestedDay,scopeAtStart,FILTROS_SOLO_VIVAS.has(FILTER));
   await Promise.all([customizeP,projectsP]);
   if(!isCurrent())return;
   // El tablero SÍ es crítico: si /tickets no carga (red caída EN LOS DOS hosts),
