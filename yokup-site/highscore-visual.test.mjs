@@ -279,7 +279,7 @@ test("todos los agentes con trabajo en curso tienen calles ordenadas, identidad 
   assert.match(html, /role="listitem"/);
   assert.match(html, /refresh-mission[^\n]*data-race-role="mission"[^\n]*title="' \+ esc\(resumen\.title\)[\s\S]*refresh-mission-title[\s\S]*refresh-runner runner-' \+ variant[\s\S]*refresh-agent/);
   assert.doesNotMatch(html, /refresh-mission-(?:ref|state|meta|project)/);
-  assert.match(html, /'<span class="refresh-agent" data-race-role="agent" title="Familia ' \+ esc\(agente\)[\s\S]*esc\(executor\)/);
+  assert.match(html, /'<span class="refresh-agent" data-race-role="agent" title="Responsable ' \+ esc\(responsable\)[\s\S]*esc\(responsable\)/);
   assert.doesNotMatch(html, /refresh-place-start/);
   assert.match(html, /class="refresh-place refresh-place-track" aria-hidden="true">' \+ puesto/);
   assert.match(html, /\.refresh-agent\{[^}]*left:calc\(100% - var\(--finish-gutter\) \+ var\(--agent-gap\)\)[^}]*right:4px[^}]*bottom:7px[^}]*font-size:12px[^}]*line-height:14px/);
