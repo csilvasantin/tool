@@ -29,5 +29,8 @@ test('contador, filtro y agrupación conservan el estado Eliminada', () => {
   assert.match(board, /nDel=Number\(vc\.cancelled\)\|\|0/);
   assert.match(board, /\$\("kDel"\)\.textContent=nDel/);
   assert.match(board, /cancelled===n \? "cancelled"/);
-  assert.match(board, /nDel>0\?"cancelled"/);
+  assert.match(board, /data-f="cancelled"/);
+  assert.match(board, /FILTER!=="todas"\) base=base\.filter/);
+  assert.doesNotMatch(board, /nDel>0\?"cancelled"/,
+    'Eliminadas sigue accesible, pero ya no desplaza En curso/Finalizadas en la apertura');
 });

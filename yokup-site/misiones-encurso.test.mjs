@@ -110,8 +110,12 @@ test('filtros y etiquetas comparten el mismo estado visible a los 60 minutos', (
   assert.equal(Yk.coincideEstado(curso, 'unconcluded'), false);
 });
 
-test('la carga inicial prioriza No concluidas antes que Finalizadas', () => {
-  assert.match(board, /nNoCon>0\?"unconcluded"[\s\S]*nRes>0\?"resolved"/);
+test('la carga inicial abre En curso y, si no existe, Finalizadas', () => {
+  assert.match(board, /const pick = nProg>0\?"in_progress":"resolved"/);
+  assert.doesNotMatch(board, /nAsig>0\?"asignadas"/);
+  assert.match(board, /if\(!userPicked && !didCascade\)/);
+  assert.match(board, /if\(pick==="resolved"&&nRes>0\)\{ aplicaFiltro\(pick\); return; \}/,
+    'Finalizadas recarga su universo histórico; En curso reutiliza las filas vivas');
 });
 
 test('una fila No concluida no conserva el texto contradictorio en curso', () => {

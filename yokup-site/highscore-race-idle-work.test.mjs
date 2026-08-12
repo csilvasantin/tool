@@ -41,8 +41,8 @@ test("avanza hace poco corre; parado horas no, aunque el proceso siga vivo", () 
 
 test("el proceso vivo no rescata a un trabajo parado: sólo cuenta la marca de avance", () => {
   // Mismo agente, mismo verified_process, distinta marca de avance.
-  assert.equal(race.workIdle(AHORA - 19 * MIN, AHORA), false);
-  assert.equal(race.workIdle(AHORA - 21 * MIN, AHORA), true);
+  assert.equal(race.workIdle(AHORA - 20 * MIN, AHORA), false, "20:00 exactos aún corre");
+  assert.equal(race.workIdle(AHORA - 20 * MIN - 1, AHORA), true, "20:00.001 ya queda parado");
 });
 
 test("sin marca de avance se considera parado, nunca corriendo", () => {

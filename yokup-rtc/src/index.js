@@ -5539,6 +5539,15 @@ var HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL = "lower(COALESCE(e.author,''))='yok
 // esto, scored_at salía NULL —no hay evento de «pasa a en curso» que buscar—
 // y las cinco misiones que declaré seguían contando como una (2026-08-05).
 var HIGHSCORE_MISSION_STARTED_SQL = "CASE WHEN t.source IN ('decision-batch','cli-declare') THEN t.created_at ELSE COALESCE((SELECT MIN(e.ts) FROM events e WHERE e.ticket_id=t.id AND " + HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL + "),(SELECT MIN(mt.updated_at) FROM mission_tasks mt WHERE mt.mission_id=t.id AND mt.status IN ('in_progress','done')),CASE WHEN EXISTS(SELECT 1 FROM mission_tasks mt2 WHERE mt2.mission_id=t.id) THEN t.created_at END) END";
+// Inicio de TRABAJO (más estricto que el sello de puntuación histórica): un plan
+// pendiente no basta. Hace falta started_at, una misión nacida ya en curso, una
+// transición interna de Yokup o la primera tarea realmente iniciada/hecha.
+var HIGHSCORE_WORK_STARTED_SQL = "COALESCE(t.started_at,CASE WHEN t.source IN ('decision-batch','cli-declare') THEN t.created_at END,(SELECT MIN(e.ts) FROM events e WHERE e.ticket_id=t.id AND " + HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL + "),(SELECT MIN(COALESCE(mt.started_at,mt.updated_at)) FROM mission_tasks mt WHERE mt.mission_id=t.id AND mt.status IN ('in_progress','doing','active','done','resolved','completed')))";
+// Avance MATERIAL de una misión. `tickets.updated_at` y `live_at` quedan fuera a
+// propósito: /fleet/progress los refresca con heartbeats/capturas y eso no prueba
+// que haya cambiado el trabajo. Una transición de inicio o una tarea actualizada
+// sí son hechos de trabajo reproducibles.
+var HIGHSCORE_MISSION_PROGRESS_SQL = "MAX(COALESCE((SELECT MAX(mt.updated_at) FROM mission_tasks mt WHERE mt.mission_id=t.id AND mt.status IN ('in_progress','doing','active','done','resolved','completed')),0),COALESCE(" + HIGHSCORE_WORK_STARTED_SQL + ",0))";
 var HIGHSCORE_PERSONAS = ["neo", "morfeo", "trinity", "oraculo", "smith", "whiterabbit", "cypher"];
 
 /** Quién firma un objetivo. Los autores llegan como los escribe cada sitio:
@@ -5899,6 +5908,19 @@ function highscoreActiveWorkFamily(raw, machine) {
 }
 __name(highscoreActiveWorkFamily, "highscoreActiveWorkFamily");
 
+function highscoreDedicatedTiming(item, kind, ahora) {
+  if (kind !== "mission" && kind !== "task") return null;
+  const start = highscoreActiveWorkMillis(item && (item.work_started_at || item.started_at));
+  const progress = highscoreActiveWorkMillis(item && (item.work_progress_at || item.updated_at));
+  const resolved = highscoreActiveWorkMillis(item && item.resolved_at);
+  const end = resolved || progress;
+  if (!start || !end || start > end || start > ahora + HIGHSCORE_CLOCK_SKEW_MS ||
+      end > ahora + HIGHSCORE_CLOCK_SKEW_MS) return null;
+  return { work_started_at:start, work_progress_at:end, dedicated_ms:end - start,
+    timing_basis:resolved ? "start_to_resolved" : kind === "task" ? "task_start_to_last_update" : "mission_start_to_last_material_progress" };
+}
+__name(highscoreDedicatedTiming, "highscoreDedicatedTiming");
+
 async function highscoreVerifiedPresence(env, ahora) {
   if (!env.TELEGRAM) return { available:false, by_family:new Map() };
   try {
@@ -5931,9 +5953,12 @@ __name(highscoreVerifiedPresence, "highscoreVerifiedPresence");
 // presencia por sí sola nunca sintetiza trabajo.
 async function highscoreActiveWork(env, ahora = Date.now()) {
   const [missions, tasks, objectives, presence] = await Promise.all([
-    env.DB.prepare(`SELECT id,subject,assignee,loc,status,updated_at,live_at,created_at FROM tickets t ` +
+    env.DB.prepare(`SELECT id,subject,assignee,loc,status,created_at,started_at,resolved_at,` +
+      `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,` +
+      `${HIGHSCORE_MISSION_PROGRESS_SQL} work_progress_at FROM tickets t ` +
       `WHERE ${MISSION_SCOPE_SQL_T} AND status='in_progress'`).all().then((r) => r.results || []),
-    env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.updated_at,t.assignee,t.loc ` +
+    env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.started_at,m.updated_at,` +
+      `m.started_at work_started_at,m.updated_at work_progress_at,t.assignee,t.loc,t.resolved_at ` +
       `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
       `AND m.status IN ('in_progress','doing','active') ` +
       `AND t.status='in_progress' ` +
@@ -5955,7 +5980,10 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     const family = highscoreActiveWorkFamily(familyRaw, machine);
     if (!family || family.family_key.startsWith("external:") || !parseAgentIdentity(family.family_name).suffix) return;
     const executor = reportAgentIdentity(raw, machine);
-    const at = Math.max(...[item.updated_at, item.live_at, item.created_at].map(highscoreActiveWorkMillis));
+    // La carrera y su reloj comparten una única marca material. Nunca se usa
+    // updated_at/live_at del ticket, que también cambian por presencia/captura.
+    const timing = highscoreDedicatedTiming(item, kind, ahora);
+    const at = highscoreActiveWorkMillis(item.work_progress_at || (kind === "objective" ? item.updated_at : 0));
     const visible = kind === "task"
       ? taskVisibleDetails({ status:"in_progress", started_at:at }, ahora)
       : missionVisibleDetails({ status:"in_progress", started_at:at }, ahora);
@@ -5966,7 +5994,8 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     if (!recent && !presenceAt) return;
     const candidate = { family_key:family.family_key, agent:family.family_name, executor, kind,
       title:visibleTitle(title, kind === "task" ? "Tarea activa" : kind === "mission" ? "Misión activa" : "Objetivo en curso"),
-      active_at:at, operational_basis:recent ? "recent_work" : "verified_process" };
+      active_at:at, work_progress_at:at, operational_basis:recent ? "recent_work" : "verified_process" };
+    if (timing) Object.assign(candidate, timing);
     if (!recent) candidate.presence_at = presenceAt;
     const previous = byFamily.get(family.family_key);
     if (!previous || priority[kind] > priority[previous.kind] ||

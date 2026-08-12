@@ -63,6 +63,16 @@
     return "hace " + hours + " h" + (rest ? " " + rest + " min" : "");
   }
 
+  function durationLabel(value) {
+    if (value === null || value === undefined || value === "") return "—";
+    var ms = Number(value);
+    if (!Number.isFinite(ms) || ms < 0) return "—";
+    var minutes = Math.floor(ms / 60000);
+    if (minutes < 1) return "<1 min";
+    var hours = Math.floor(minutes / 60), rest = minutes % 60;
+    return hours ? hours + " h" + (rest ? " " + rest + " min" : "") : minutes + " min";
+  }
+
   function runnerVariant(row) {
     var value = laneKey(row), hash = 0;
     for (var i = 0; i < value.length; i++) hash = ((hash * 31) + value.charCodeAt(i)) >>> 0;
@@ -110,7 +120,7 @@
   }
 
   var api = { key:key, activeMissionRows:activeMissionRows, raceRows:raceRows, laneKey:laneKey, runnerVariant:runnerVariant,
-    IDLE_AFTER_MS:IDLE_AFTER_MS, workIdle:workIdle, sinceLabel:sinceLabel,
+    IDLE_AFTER_MS:IDLE_AFTER_MS, workIdle:workIdle, sinceLabel:sinceLabel, durationLabel:durationLabel,
     finishPose:finishPose, finishAdvanceMs:finishAdvanceMs, randomFinishOrder:randomFinishOrder,
     avoidRepeatedWinner:avoidRepeatedWinner };
   root.YkHighscoreRace = api;

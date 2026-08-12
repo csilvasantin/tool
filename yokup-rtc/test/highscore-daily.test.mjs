@@ -19,7 +19,7 @@ const grabVar=name=>{
 function harness(){
   const db=new DatabaseSync(":memory:");
   db.exec("CREATE TABLE ideas(id TEXT PRIMARY KEY,title TEXT,author TEXT,status TEXT,project TEXT,decision_id TEXT,mission_id TEXT,created_at INTEGER,updated_at INTEGER)");
-  db.exec("CREATE TABLE decisions(id TEXT PRIMARY KEY,machine TEXT,agent TEXT,question TEXT,status TEXT,project TEXT,mission TEXT,parent_decision TEXT,batch_id TEXT,created_at INTEGER,decided_at INTEGER)");
+  db.exec("CREATE TABLE decisions(id TEXT PRIMARY KEY,machine TEXT,agent TEXT,question TEXT,status TEXT,chosen_by TEXT,project TEXT,mission TEXT,parent_decision TEXT,batch_id TEXT,created_at INTEGER,decided_at INTEGER)");
   db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,subject TEXT,loc TEXT,source TEXT,status TEXT,assignee TEXT,project TEXT,closure_reason TEXT,created_at INTEGER,updated_at INTEGER)");
   db.exec("CREATE TABLE mission_batches(id TEXT PRIMARY KEY,decision_id TEXT)");
   db.exec("CREATE TABLE mission_batch_items(batch_id TEXT,position INTEGER,mission_id TEXT)");
@@ -127,6 +127,19 @@ test("un día sin actividad devuelve un marcador vacío, no un error", async () 
   assert.deepEqual(d.traceability.chains,[]);
   assert.deepEqual(d.traceability.unlinked,[]);
   assert.equal(d.day,madridDayKey(Date.now()));
+});
+
+test("FORMACION atribuye sólo la ventana al agente rotatorio, nunca a Carlos ni Smith", async () => {
+  const {db,env,F}=harness();
+  db.prepare("INSERT INTO decisions(id,machine,agent,question,status,chosen_by,project,parent_decision,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
+    .run("DCL-form-academy","MacBookProNegro14","TrinityMBP14","Formación de la hora — Tecnología","expired","Carlos · Smith","admira-academy","FORMACION",HOY);
+  const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
+  const trinity=d.scores.find(row=>row.agent==="TrinityMBP14");
+  assert.deepEqual({windows:trinity.windows,window_points:trinity.window_points,missions:trinity.missions,mission_points:trinity.mission_points},
+    {windows:1,window_points:8,missions:0,mission_points:0});
+  assert.equal(d.scores.some(row=>/Carlos|Smith/i.test(row.agent)),false,
+    "chosen_by y el productor de la cápsula no sustituyen a decisions.agent");
+  assert.equal(d.traceability.chains[0].project,"admira-academy");
 });
 
 test("la trazabilidad usa sólo llaves reales para objetivo → ventana → misión → tareas → puntos", async () => {
