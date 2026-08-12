@@ -29,6 +29,40 @@
     return key(row && (row.agente || row.persona || row.agent));
   }
 
+  /* Trabajo que AVANZA frente a máquina ENCENDIDA. La calle las confundía: el
+     12-ago-2026 NeoMBP14 llevaba 330 minutos sin que su tarea se moviera y
+     TrinityMBP14 499, y los dos salían corriendo con su título porque su proceso
+     seguía vivo (operational_basis=verified_process, presencia de hace 0 minutos).
+     Correr es afirmar «está haciendo esto ahora», y eso no se sostiene con la
+     marca de avance parada. El umbral son cuatro pulsos perdidos: el mandamiento
+     11 pide reportar cada 5 minutos, así que a los 20 sin tocar el trabajo ya no
+     se puede pintar avanzando. Sin marca de avance se considera parado: si no
+     consta que se movió, no se afirma que se mueve. */
+  var IDLE_AFTER_MS = 20 * 60 * 1000;
+
+  function workIdle(activeAt, now) {
+    var mark = Number(activeAt) || 0;
+    if (!mark) return true;
+    return ((Number(now) || Date.now()) - mark) > IDLE_AFTER_MS;
+  }
+
+  /* Una marca disparatada no se pinta como si fuera un dato: una fecha de 1970 —o
+     unos segundos donde se esperaban milisegundos— produciría «hace 496263 h», que
+     no informa de nada y encima parece un cálculo. Por encima de un mes se admite
+     que no hay marca fiable, y sigue contando como parado. */
+  var MARCA_IMPLAUSIBLE_MS = 30 * 24 * 60 * 60 * 1000;
+
+  function sinceLabel(activeAt, now) {
+    var mark = Number(activeAt) || 0;
+    if (!mark) return "sin marca de avance";
+    var age = (Number(now) || Date.now()) - mark;
+    if (age > MARCA_IMPLAUSIBLE_MS) return "sin marca de avance fiable";
+    var min = Math.max(0, Math.round(age / 60000));
+    if (min < 60) return "hace " + min + " min";
+    var hours = Math.floor(min / 60), rest = min % 60;
+    return "hace " + hours + " h" + (rest ? " " + rest + " min" : "");
+  }
+
   function runnerVariant(row) {
     var value = laneKey(row), hash = 0;
     for (var i = 0; i < value.length; i++) hash = ((hash * 31) + value.charCodeAt(i)) >>> 0;
@@ -76,6 +110,7 @@
   }
 
   var api = { key:key, activeMissionRows:activeMissionRows, raceRows:raceRows, laneKey:laneKey, runnerVariant:runnerVariant,
+    IDLE_AFTER_MS:IDLE_AFTER_MS, workIdle:workIdle, sinceLabel:sinceLabel,
     finishPose:finishPose, finishAdvanceMs:finishAdvanceMs, randomFinishOrder:randomFinishOrder,
     avoidRepeatedWinner:avoidRepeatedWinner };
   root.YkHighscoreRace = api;

@@ -145,6 +145,19 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-race.phase-go .refresh-lane-empty .refresh-mission{opacity:1;visibility:visible}
 .refresh-lane-empty .refresh-mission-title{width:auto}
 .refresh-lane-empty .refresh-runner{bottom:11px}
+/* Calle PARADA: el trabajo existe y sigue asignado, pero no avanza. El corredor se
+   queda en la salida, la pista se apaga y el rótulo se ancla a la derecha —como en
+   la calle vacía— porque pegado a la salida se saldría de la pista por la izquierda.
+   Se ve siempre, no sólo al arrancar la carrera: es justo lo que hay que leer. */
+.refresh-lane-idle{--lane:var(--dim);opacity:.72}
+.refresh-lane-idle .refresh-fill{opacity:0}
+.refresh-lane-idle .refresh-runner{filter:grayscale(1) brightness(.85)}
+.refresh-lane-idle .refresh-mission{left:auto;right:42px;top:4px;width:auto;max-width:calc(100% - 82px);transform:none;
+  text-align:right;opacity:1;visibility:visible}
+.refresh-race.phase-ready .refresh-lane-idle .refresh-mission,.refresh-race.phase-set .refresh-lane-idle .refresh-mission,
+.refresh-race.phase-go .refresh-lane-idle .refresh-mission{opacity:1;visibility:visible}
+.refresh-lane-idle .refresh-mission-title{width:auto;text-align:right;opacity:.75}
+.refresh-mission-idle{color:var(--dim);font-size:9px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
 .refresh-agent{position:absolute;z-index:2;left:calc(100% - var(--finish-gutter) + var(--agent-gap));right:4px;bottom:7px;
   max-width:none;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
   white-space:normal;text-align:left;color:var(--lane);font-size:12px;font-weight:900;line-height:14px;letter-spacing:.025em;
@@ -668,7 +681,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 </section>
 
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
-<script src="/highscore-race.js?v=v.2026.08.04.running-plus-1"></script>
+<script src="/highscore-race.js?v=v.12.08.2026.r1.trabajo-parado"></script>
 <script src="/highscore-desktop-app.js?v=v.2026.08.11.active-default-2"></script>
 <script>
 (function () {
@@ -3114,21 +3127,34 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     }).sort(function (a, b) { return b.at - a.at || a.agente.localeCompare(b.agente, "es"); });
   }
 
-  function resumenTrabajoActivo(trabajo) {
-    return { reference:"", title:trabajo.title, state:"EN CURSO", project:"",
+  // La regla vive en highscore-race.js, que es donde se puede probar de verdad:
+  // un trabajo está EN CURSO si AVANZA hace poco, no si la máquina está encendida.
+  function trabajoParado(at, ahora) {
+    return typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.workIdle
+      ? YkHighscoreRace.workIdle(at, ahora) : !Number(at);
+  }
+  function desdeHace(at, ahora) {
+    return typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.sinceLabel
+      ? YkHighscoreRace.sinceLabel(at, ahora) : "sin marca de avance";
+  }
+
+  function resumenTrabajoActivo(trabajo, ahora) {
+    var parado = trabajoParado(trabajo.at, ahora);
+    return { reference:"", title:trabajo.title, state:parado ? "SIN AVANCE" : "EN CURSO", project:"",
       executor:trabajo.executor, responsible:trabajo.agente, kind:trabajo.kind, operationalBasis:trabajo.operationalBasis,
-      presenceAt:trabajo.presenceAt };
+      presenceAt:trabajo.presenceAt, at:Number(trabajo.at) || 0, idle:parado, since:desdeHace(trabajo.at, ahora) };
   }
 
   function actualizaCarreraPodio() {
     var contenedor = document.getElementById("refreshLanes");
     var trabajos = trabajosEnCurso(), completas = listaCompletaCache || [], byKey = Object.create(null);
+    var ahora = Date.now();
     completas.forEach(function (fila) { byKey[claveAgenteCarrera(fila && fila.agente)] = fila; });
     var corredores = trabajos.map(function (trabajo, index) {
       var base = byKey[trabajo.key] || { agente:trabajo.agente, posicion:completas.length + index + 1,
         total:0, vivo:false, maquinas:[], maquinasVivas:[] };
       var fila = Object.assign({}, base, { vivo:!!base.vivo || trabajo.operationalBasis === "verified_process" });
-      return { fila:fila, clave:trabajo.key, resumen:resumenTrabajoActivo(trabajo) };
+      return { fila:fila, clave:trabajo.key, resumen:resumenTrabajoActivo(trabajo, ahora) };
     });
     corredores.sort(function (a, b) {
       return (Number(a.fila.posicion) || 9999) - (Number(b.fila.posicion) || 9999) ||
@@ -3149,16 +3175,23 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var variant = typeof YkHighscoreRace !== "undefined" ? YkHighscoreRace.runnerVariant(fila)
         : (clave.split("").reduce(function (n, c) { return n + c.charCodeAt(0); }, 0) % 2 ? "dark" : "light");
       var clasePuesto = puesto <= 3 ? "refresh-lane-p" + puesto : "refresh-lane-rank";
-      var heartbeat = resumen.operationalBasis === "verified_process" ? "proceso verificado" : fila.vivo ? "con latido" : "trabajo reciente";
-      return '<div class="refresh-lane ' + clasePuesto +
+      // Parado manda sobre el fundamento operativo: decir «proceso verificado» de
+      // un trabajo que no se mueve desde hace horas es cierto y engañoso a la vez.
+      var heartbeat = resumen.idle ? "parado · sin avance " + resumen.since
+        : resumen.operationalBasis === "verified_process" ? "proceso verificado" : fila.vivo ? "con latido" : "trabajo reciente";
+      return '<div class="refresh-lane ' + clasePuesto + (resumen.idle ? " refresh-lane-idle" : "") +
         '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
+        (resumen.idle ? 'data-race-idle="true" ' : '') +
         'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Puesto ' + puesto + ', familia ' + esc(agente) +
-        '. Responsable ' + esc(responsable) + (executor !== responsable ? ', ejecuta ' + esc(executor) : '') + ', ' + heartbeat + '. ' + esc(resumen.title) + '">' +
+        '. Responsable ' + esc(responsable) + (executor !== responsable ? ', ejecuta ' + esc(executor) : '') + ', ' + heartbeat + '. ' +
+        (resumen.idle ? 'Última tarea asignada: ' : '') + esc(resumen.title) + '">' +
         '<div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
         (indice === indiceLlamada ? '<span class="race-call" data-race-role="call" aria-hidden="true"></span>' : '') +
         '<span class="refresh-place refresh-place-track" aria-hidden="true">' + puesto + '</span>' +
-        '<span class="refresh-mission" data-race-role="mission" title="' + esc(resumen.title) + '">' +
+        '<span class="refresh-mission" data-race-role="mission" title="' +
+        (resumen.idle ? 'Parado · sin avance ' + esc(resumen.since) + ' · última tarea asignada: ' : '') + esc(resumen.title) + '">' +
+        (resumen.idle ? '<span class="refresh-mission-idle">PARADO · sin avance ' + esc(resumen.since) + '</span> ' : '') +
         '<span class="refresh-mission-title">' + esc(resumen.title) + '</span></span>' +
         '<span class="refresh-runner runner-' + variant + ' runner-skin-' + variant + '" data-race-role="runner" aria-hidden="true">' +
         '<svg class="runner-pose-ready" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerReady"></use></svg>' +
@@ -3401,8 +3434,23 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var salidaCorredor = inicioPista + SALIDA_CORREDOR_OFFSET_PX;
       var centroAtleta = salidaCorredor + (metaLinea + META_CORREDOR_PX - salidaCorredor) * progresoAtleta;
       var posicionCorredor = centroAtleta + "px";
+      // Un trabajo parado no avanza en la pista: el corredor se queda en la salida
+      // y no gana ni pierde. Correr es una afirmación —«está haciendo esto ahora»—
+      // y no se puede hacer con un trabajo que lleva horas sin moverse.
+      var parado = carril.getAttribute("data-race-idle") === "true";
+      if (parado) progresoAtleta = 0;
+      centroAtleta = salidaCorredor + (metaLinea + META_CORREDOR_PX - salidaCorredor) * progresoAtleta;
+      posicionCorredor = centroAtleta + "px";
       carril.classList.toggle("race-started", progresoAtleta > 0);
       if (corredor) corredor.style.left = posicionCorredor;
+      if (parado) {
+        carril.classList.remove("place-revealed", "cruzando", "finished", "race-winner", "race-loser");
+        if (relleno) relleno.style.width = "0px";
+        // El rótulo NO sigue al corredor aquí: se ancla a la derecha por CSS, como
+        // la calle vacía. Pegado a la salida se saldría de la pista por la izquierda.
+        if (mision) mision.style.left = "";
+        return;
+      }
       if (carril.getAttribute("data-race-empty") === "true") {
         carril.classList.toggle("race-started", false);
         carril.classList.toggle("place-revealed", false);

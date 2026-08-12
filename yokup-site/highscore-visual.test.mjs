@@ -253,8 +253,10 @@ test("el trabajo factual queda legible junto al corredor sin estela truncada", (
   assert.match(html, /carril\.classList\.toggle\("cruzando", centroAtleta \+ RADIO_CORREDOR_PX >= metaLinea\)/);
   assert.match(html, /function actualizaCarreraPodio\(\)/);
   assert.match(html, /function trabajosEnCurso\(\)/);
-  assert.match(html, /function resumenTrabajoActivo\(trabajo\)/);
-  assert.match(html, /title:trabajo\.title, state:"EN CURSO"/);
+  assert.match(html, /function resumenTrabajoActivo\(trabajo, ahora\)/);
+  // «EN CURSO» dejó de ser incondicional el 12-ago-2026: un trabajo que no avanza
+  // se declara SIN AVANCE aunque el proceso del agente siga vivo.
+  assert.match(html, /title:trabajo\.title, state:parado \? "SIN AVANCE" : "EN CURSO"/);
   assert.doesNotMatch(html, /function estelaMision|class="refresh-word"/);
   assert.match(html, /mision\.style\.left = posicionCorredor/);
   assert.match(html, /espacioMision = Math\.max\(0, centroAtleta - RADIO_CORREDOR_PX - 2\)/);
@@ -270,14 +272,16 @@ test("todos los agentes con trabajo en curso tienen calles ordenadas, identidad 
   assert.match(html, /var trabajos = trabajosEnCurso\(\), completas = listaCompletaCache \|\| \[\]/);
   assert.match(html, /var corredores = trabajos\.map/);
   assert.doesNotMatch(html, /top = \(listaCache \|\| \[\]\)\.slice\(0, 3\)/);
-  assert.match(html, /resumenTrabajoActivo\(trabajo\)/);
+  assert.match(html, /resumenTrabajoActivo\(trabajo, ahora\)/);
   assert.doesNotMatch(html, /misionDesdePresencia|presencia viva, sin foco declarado/);
   assert.match(html, /var clasePuesto = puesto <= 3 \? "refresh-lane-p" \+ puesto : "refresh-lane-rank"/);
   assert.match(html, /refresh-lane ' \+ clasePuesto/);
   assert.match(html, /data-place="' \+ puesto/);
   assert.match(html, /data-agent-key="' \+ esc\(clave\)/);
   assert.match(html, /role="listitem"/);
-  assert.match(html, /refresh-mission[^\n]*data-race-role="mission"[^\n]*title="' \+ esc\(resumen\.title\)[\s\S]*refresh-mission-title[\s\S]*refresh-runner runner-' \+ variant[\s\S]*refresh-agent/);
+  // El orden de las capas no cambia; el title del rótulo sí puede llevar delante
+  // el estado de parado desde el 12-ago-2026, así que se comprueba con hueco.
+  assert.match(html, /refresh-mission[^\n]*data-race-role="mission"[^\n]*title="'[\s\S]{0,220}esc\(resumen\.title\)[\s\S]*refresh-mission-title[\s\S]*refresh-runner runner-' \+ variant[\s\S]*refresh-agent/);
   assert.doesNotMatch(html, /refresh-mission-(?:ref|state|meta|project)/);
   assert.match(html, /'<span class="refresh-agent" data-race-role="agent" title="Responsable ' \+ esc\(responsable\)[\s\S]*esc\(responsable\)/);
   assert.doesNotMatch(html, /refresh-place-start/);

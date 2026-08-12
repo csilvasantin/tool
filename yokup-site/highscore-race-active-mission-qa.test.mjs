@@ -47,7 +47,10 @@ function renderRace(fullRows, work, scopedRows = fullRows, available = true) {
   };
 }
 
-const work = (agent, executor=agent, kind="mission", title="Trabajo activo", active_at=1, operational_basis="recent_work") => ({
+// active_at por defecto = AHORA. Antes era 1 (1-ene-1970), que servía mientras la
+// marca sólo desempataba; desde que decide si el corredor corre, un 1 convierte a
+// todos los fixtures en trabajo parado y las pruebas dejarían de comprobar lo suyo.
+const work = (agent, executor=agent, kind="mission", title="Trabajo activo", active_at=Date.now(), operational_basis="recent_work") => ({
   family_key:agent.toLowerCase(), agent, executor, kind, title, active_at, operational_basis,
 });
 
@@ -87,7 +90,7 @@ test("cuatro elegibles corren aunque sólo dos estén en el scope y ranking loca
     {agente:"MorfeoMacMini",posicion:1,total:100,vivo:true},
     {agente:"NeoMBP14",posicion:2,total:90,vivo:true},
   ];
-  const jobs=["MorfeoMacMini","NeoMBP14","OraculoMacMini","TrinityMBP14"].map((name,i)=>work(name,`Sub${name}`,"task",`Trabajo ${i+1}`,i+1));
+  const jobs=["MorfeoMacMini","NeoMBP14","OraculoMacMini","TrinityMBP14"].map((name,i)=>work(name,`Sub${name}`,"task",`Trabajo ${i+1}`));
   const race = renderRace(full,jobs,[]);
   const keys = [...race.html.matchAll(/data-agent-key="([^"]+)"/g)].map((m) => m[1]);
   const lanes = [...race.html.matchAll(/data-place="(\d+)"/g)].map((m) => Number(m[1]));
@@ -99,14 +102,34 @@ test("cuatro elegibles corren aunque sólo dos estén en el scope y ranking loca
   assert.equal((race.html.match(/data-heartbeat="trabajo-reciente"/g)||[]).length,2);
 });
 
-test("un participante rescatado por snapshot sintético se rotula proceso verificado", () => {
-  const item=work("NeoMBP14","SubNeoMBP14","task","Trabajo stale",1,"verified_process");
-  item.presence_at=2;
+// CONTRATO CAMBIADO el 12-ago-2026 por orden de Carlos. Antes esta prueba exigía
+// que un trabajo stale rescatado por snapshot se rotulara «proceso verificado»:
+// cierto sobre el PROCESO y engañoso sobre el TRABAJO. Con ella en verde,
+// NeoMBP14 salía corriendo con su tarea llevando 330 minutos sin tocarla y
+// TrinityMBP14 499. «La información tiene que ser veraz: podrían llegar a
+// aparecer, pero al correr no debería mostrar que están haciendo algo porque no
+// lo están haciendo». Aparecer, sí; afirmar, no.
+test("un participante con el proceso vivo pero el trabajo parado se rotula PARADO, no corriendo", () => {
+  const item=work("NeoMBP14","SubNeoMBP14","task","Trabajo stale",Date.now()-330*60*1000,"verified_process");
+  item.presence_at=Date.now();
   const race=renderRace([], [item], []);
   assert.equal(race.participants,1);
+  // Sigue apareciendo: no se le borra de la pista.
+  assert.match(race.html,/NeoMBP14/);
+  // Pero ni corre ni se ampara en el proceso verificado.
+  assert.match(race.html,/data-race-idle="true"/);
+  assert.match(race.html,/refresh-lane-idle/);
+  assert.match(race.html,/PARADO · sin avance hace 5 h 30 min/);
+  assert.doesNotMatch(race.html,/data-heartbeat="proceso-verificado"/);
+});
+
+test("con el trabajo fresco sí se rotula el fundamento operativo y corre", () => {
+  const item=work("NeoMBP14","SubNeoMBP14","task","Trabajo vivo",Date.now()-3*60*1000,"verified_process");
+  item.presence_at=Date.now();
+  const race=renderRace([], [item], []);
   assert.match(race.html,/data-heartbeat="proceso-verificado"/);
-  assert.match(race.html,/proceso verificado/);
-  assert.doesNotMatch(race.html,/sin latido|without-heartbeat/);
+  assert.doesNotMatch(race.html,/data-race-idle="true"/);
+  assert.doesNotMatch(race.html,/PARADO/);
 });
 
 test("el dorsal se pinta una vez por cada participante sin tope", () => {

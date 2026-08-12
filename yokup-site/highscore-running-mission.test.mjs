@@ -20,7 +20,7 @@ test("la carrera nace de hechos y el ranking completo sólo la enriquece",()=>{
 });
 
 test("la calle muestra trabajo, responsable real y fundamento operativo",()=>{
-  assert.match(source,/resumenTrabajoActivo\(trabajo\)/);
+  assert.match(source,/resumenTrabajoActivo\(trabajo, ahora\)/);
   assert.match(source,/responsable = normaliza\(resumen\.responsible \|\| agente\)/);
   assert.match(source,/executor = normaliza\(resumen\.executor \|\| responsable\)/);
   assert.match(source,/>\' \+ esc\(responsable\) \+ \'<\/span>\'/);
