@@ -20,7 +20,8 @@ function functionSource(name) {
 test("un trabajo abierto usa generated_at más performance elapsed sin mutar el hecho", () => {
   const row = { state:"assigned_stale", work_started_at:1_000, work_progress_at:9_000 };
   const before = structuredClone(row);
-  assert.deepEqual({ ...race.workClock(row, 11_000, 2_500) }, { at:13_500, durationMs:12_500, closed:false });
+  assert.deepEqual({ ...race.workClock(row, 11_000, 2_500) }, { at:13_500, durationMs:12_500,
+    missionDurationMs:12_500, sessionDurationMs:null, sessionState:"unknown", closed:false });
   assert.deepEqual(row, before);
 });
 
@@ -47,7 +48,8 @@ test("Madrid resuelve correctamente ambos lados del cambio DST", () => {
 
 test("un trabajo finalizado congela hora y duración en ended_at", () => {
   const row = { state:"last_work", work_started_at:2_000, ended_at:8_000 };
-  assert.deepEqual({ ...race.workClock(row, 40_000, 99_000) }, { at:8_000, durationMs:6_000, closed:true });
+  assert.deepEqual({ ...race.workClock(row, 40_000, 99_000) }, { at:8_000, durationMs:6_000,
+    missionDurationMs:6_000, sessionDurationMs:null, sessionState:"unknown", closed:true });
   assert.equal(race.workClock({ state:"running" }, 40_000, 5_000).durationMs, null);
   assert.equal(race.workClock({ state:"last_work", work_started_at:9_000, ended_at:8_000 }, 40_000, 5_000).durationMs, null);
   assert.equal(race.workClock({ state:"running", work_started_at:50_000 }, 40_000, 5_000).durationMs, null);
@@ -62,10 +64,10 @@ test("el tick sólo actualiza reloj, duración y aria; nunca progreso ni estado"
   assert.match(html, /visibilitychange[\s\S]*actualizaRelojesCarrera\(\)[\s\S]*actualizaMarcador\(\)/);
 });
 
-test("la derecha muestra hora Madrid // duración y reserva ancho responsive", () => {
-  assert.match(html, /class="refresh-time"[\s\S]*class="refresh-now"[\s\S]*refresh-time-sep[^>]*>\/\/<[\s\S]*class="refresh-elapsed"/);
-  assert.match(html, /grid-template-columns:minmax\(150px,220px\) minmax\(0,1fr\) minmax\(118px,160px\)/);
-  assert.match(html, /@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(92px,126px\) minmax\(0,1fr\) minmax\(104px,116px\)/);
+test("la derecha muestra hora // misión // sesión y reserva ancho responsive", () => {
+  assert.match(html, /class="refresh-time"[\s\S]*class="refresh-now"[\s\S]*class="refresh-elapsed"[\s\S]*class="refresh-session-elapsed"/);
+  assert.match(html, /grid-template-columns:minmax\(150px,220px\) minmax\(0,1fr\) minmax\(196px,228px\)/);
+  assert.match(html, /@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(92px,126px\) minmax\(0,1fr\) minmax\(168px,184px\)/);
   assert.match(html, /timeZone:"Europe\/Madrid"/);
 });
 
@@ -75,10 +77,12 @@ test("dorsal y toda su mecánica desaparecen de CSS DOM y JS", () => {
     "data-place puede conservarse únicamente como orden interno de carrera");
 });
 
-test("stale y last_work usan fills grises visibles y pose quieta", () => {
+test("stale corre sólo B/N cosmético y last_work conserva pose quieta", () => {
   assert.match(html, /data-work-state\]:not\(\[data-work-state="running"\]\) \.refresh-runner\{[\s\S]*--runner-skin:#b8c0c5;--runner-hair:#737f86;--runner-shirt:#a7b1b6;--runner-stripe:#e0e5e8/);
-  assert.match(html, /data-work-state\]:not\(\[data-work-state="running"\]\) \.runner-standing\{display:block;animation:none\}/);
-  assert.match(html, /data-work-state\]:not\(\[data-work-state="running"\]\) \.runner-run-a[\s\S]*display:none;animation:none/);
+  assert.match(html, /data-work-state="last_work"\] \.runner-standing\{display:block;animation:none\}/);
+  assert.match(html, /data-work-state="last_work"\] \.runner-run-a[\s\S]*display:none;animation:none/);
+  assert.match(html, /carreraCosmetica = estadoTrabajo === "assigned_stale"/);
+  assert.match(html, /Math\.min\(carreraCosmetica \? \.94 : 1/);
   assert.doesNotMatch(html, /refresh-lane-idle \.refresh-runner\{filter:grayscale|refresh-lane-last \.refresh-runner\{filter:grayscale/);
   assert.match(html, /\.runner-standing,\.refresh-runner \.runner-standing use\{fill:#b8c0c5;stroke:none\}/);
   assert.match(html, /id="runnerStanding"[\s\S]*?class="runner-skin" fill="#b8c0c5"[\s\S]*?class="runner-hair" fill="#737f86"[\s\S]*?class="runner-shirt" fill="#a7b1b6"[\s\S]*?class="runner-accent" fill="#e0e5e8"/);

@@ -93,8 +93,8 @@ test("sin running muestra últimos trabajos B/N con hora, elapsed y pose de pie"
   assert.equal((race.html.match(/data-race-role="runner"/g)||[]).length,3);
   assert.equal((race.html.match(/class="runner-standing"/g)||[]).length,3);
   assert.equal((race.html.match(/ÚLTIMO TRABAJO/g)||[]).length,3);
-  assert.match(race.html,/>30 min<\/strong>/);
-  assert.match(race.html,/<time>\d{2}:\d{2}<\/time>/);
+  assert.match(race.html,/>00:30:00<\/strong>/);
+  assert.match(race.html,/<time>\d{2}:\d{2}:\d{2}<\/time>/);
 });
 
 test("fallo del endpoint borra la lectura anterior y declara no disponible", () => {

@@ -253,7 +253,7 @@ test("el trabajo factual sigue por detrás del corredor sin solapar nombre ni re
   assert.match(html, /\.refresh-lane\.cruzando \.refresh-finish::before\{[^}]*opacity:0\}/);
   assert.match(html, /\.refresh-lane\.cruzando \.refresh-finish::after\{[^}]*opacity:0\}/);
   assert.doesNotMatch(html, /\.refresh-lane\.finished \.refresh-finish::before/);
-  assert.match(html, /carril\.classList\.toggle\("cruzando", centroAtleta \+ RADIO_CORREDOR_PX >= metaLinea\)/);
+  assert.match(html, /carril\.classList\.toggle\("cruzando", !carreraCosmetica && centroAtleta \+ RADIO_CORREDOR_PX >= metaLinea\)/);
   assert.match(html, /function actualizaCarreraPodio\(\)/);
   assert.match(html, /function trabajosEnCurso\(\)/);
   assert.match(html, /function resumenTrabajoActivo\(trabajo\)/);
@@ -417,9 +417,9 @@ test("READY SET GO muestran su sprite real y la llegada muestra ganador y perded
   assert.match(html, /var fases = \["ready", "set", "go"\], llamadas = \["READY", "SET", "GO"\]/);
   assert.match(html, /if \(transcurrido < SALIDA_MS\)/);
   assert.match(html, /pintaCarrera\(\(transcurrido - SALIDA_MS\) \/ REFRESCO_MS\)/);
-  assert.match(html, /carril\.classList\.toggle\("finished", progresoAtleta >= 1\)/);
-  assert.match(html, /carril\.classList\.toggle\("race-winner", ordenLlegada === 1\)/);
-  assert.match(html, /carril\.classList\.toggle\("race-loser", ordenLlegada !== 1\)/);
+  assert.match(html, /carril\.classList\.toggle\("finished", !carreraCosmetica && progresoAtleta >= 1\)/);
+  assert.match(html, /carril\.classList\.toggle\("race-winner", !carreraCosmetica && ordenLlegada === 1\)/);
+  assert.match(html, /carril\.classList\.toggle\("race-loser", !carreraCosmetica && ordenLlegada !== 1\)/);
   assert.match(html, /\.refresh-lane\.finished\.race-winner \.runner-finish-win\{[^}]*display:block[^}]*opacity:1/);
   assert.match(html, /\.refresh-lane\.finished\.race-loser \.runner-finish-lose\{[^}]*display:block[^}]*opacity:1/);
   assert.match(html, /document\.getElementById\("refreshCount"\)\.textContent = "META"/);

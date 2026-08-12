@@ -201,15 +201,15 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-race.phase-ready .runner-pose-ready{display:block;opacity:1}
 .refresh-race.phase-set .runner-pose-set{display:block;opacity:1}
 .refresh-race.phase-go .runner-pose-go{display:block;opacity:1}
-.refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-standing{display:block;animation:none}
-.refresh-race.phase-ready .refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-pose-ready,
-.refresh-race.phase-set .refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-pose-set,
-.refresh-race.phase-go .refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-pose-go,
-.refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-run-a,
-.refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-run-b,
-.refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-run-c,
-.refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-finish-win,
-.refresh-lane[data-work-state]:not([data-work-state="running"]) .runner-finish-lose{display:none;animation:none}
+.refresh-lane[data-work-state="last_work"] .runner-standing{display:block;animation:none}
+.refresh-race.phase-ready .refresh-lane[data-work-state="last_work"] .runner-pose-ready,
+.refresh-race.phase-set .refresh-lane[data-work-state="last_work"] .runner-pose-set,
+.refresh-race.phase-go .refresh-lane[data-work-state="last_work"] .runner-pose-go,
+.refresh-lane[data-work-state="last_work"] .runner-run-a,
+.refresh-lane[data-work-state="last_work"] .runner-run-b,
+.refresh-lane[data-work-state="last_work"] .runner-run-c,
+.refresh-lane[data-work-state="last_work"] .runner-finish-win,
+.refresh-lane[data-work-state="last_work"] .runner-finish-lose{display:none;animation:none}
 .refresh-lane.finished.race-winner .runner-finish-win{display:block;animation:none;opacity:1}
 .refresh-lane.finished.race-loser .runner-finish-lose{display:block;animation:none;opacity:1}
 /* El gesto del final se ANIMA como en el arcade: el ganador bombea los brazos
@@ -259,7 +259,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
    trabajos a la vez y confundía la animación con la identidad del responsable. */
 .refresh-race{overflow:visible}
 .refresh-lanes{gap:2px}
-.refresh-lane{display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr) minmax(118px,160px);
+.refresh-lane{display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr) minmax(196px,228px);
   align-items:center;column-gap:8px;min-height:50px}
 .refresh-agent-meta{display:inline-flex;align-items:baseline;justify-content:flex-start;gap:5px;width:100%;min-width:0;color:var(--accent)}
 .refresh-agent{position:static;display:block;flex:0 1 auto;min-width:0;max-width:none;overflow:hidden;text-overflow:ellipsis;
@@ -285,7 +285,8 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-time{display:flex;align-items:baseline;justify-content:flex-end;gap:5px;min-width:0;color:var(--accent);
   font-size:10px;font-variant-numeric:tabular-nums;font-weight:900;text-align:right;white-space:nowrap}
 .refresh-now{color:var(--ink);font-weight:900}.refresh-time-sep{color:var(--dim)}
-.refresh-elapsed{overflow:hidden;color:var(--accent);text-overflow:ellipsis;white-space:nowrap}
+.refresh-elapsed,.refresh-session-elapsed{overflow:hidden;color:var(--accent);text-overflow:ellipsis;white-space:nowrap}
+.refresh-session-elapsed[data-session-state="unknown"]{color:var(--dim)}
 .refresh-lane-idle{--lane:var(--brand)}
 .refresh-lane-idle .refresh-lane-center{opacity:.82}
 .refresh-lane[data-work-state]:not([data-work-state="running"]) .refresh-runner{
@@ -294,8 +295,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-lane-idle .refresh-mission,.refresh-lane-last .refresh-mission{position:absolute;left:var(--track-start);right:var(--finish-width);
   top:1px;display:block;width:auto;max-width:none;transform:none;text-align:right;opacity:1;visibility:visible}
 .refresh-lane-idle .refresh-mission-title,.refresh-lane-last .refresh-mission-title{text-align:right;opacity:.85}
-.refresh-lane-idle .runner-run-a,.refresh-lane-idle .runner-run-b,.refresh-lane-idle .runner-run-c{animation:none}
-.refresh-lane-idle .runner-run-b,.refresh-lane-idle .runner-run-c{display:none}
+.refresh-lane-idle.race-started .refresh-mission{right:auto}
 .refresh-lane-last{--lane:#a7b3b8}
 .refresh-lane-last .refresh-lane-center{filter:grayscale(1);opacity:.78}
 .refresh-lane-last .refresh-runner{filter:drop-shadow(0 0 3px rgba(205,214,219,.72))}
@@ -651,8 +651,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .nom{font-size:7px}.pts{font-size:10px}
   .wrap{padding-top:46px}h1{font-size:17px}
   .refresh-race{padding:0 3px}
-  .refresh-lane{grid-template-columns:minmax(92px,126px) minmax(0,1fr) minmax(104px,116px);column-gap:4px;min-height:48px}
-  .refresh-agent{font-size:8px;line-height:10px}.refresh-assignment{font-size:8px}.refresh-status{font-size:6.5px;gap:3px}.refresh-time{gap:3px;font-size:8px}
+  .refresh-lane{grid-template-columns:minmax(92px,126px) minmax(0,1fr) minmax(168px,184px);column-gap:4px;min-height:48px}
+  .refresh-agent{font-size:8px;line-height:10px}.refresh-assignment{font-size:8px}.refresh-status{font-size:6.5px;gap:3px}.refresh-time{gap:2px;font-size:7.5px}
   .refresh-track{padding-left:var(--track-start);padding-right:var(--finish-width)}
   .refresh-mission{font-size:8px;line-height:12px}.refresh-mission-title{font-size:8px}
   .race-call{min-width:min(96px,calc(100% - var(--track-start) - var(--finish-width) - 8px));
@@ -3214,7 +3214,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         assignmentAt:Number(item.assignment_at) || 0, assignmentBasis:item.assignment_basis || "",
         startedAt:Number(item.work_started_at) || 0, at:Number(item.work_progress_at) || 0,
         endedAt:Number(item.ended_at) || 0, elapsedMs:Number.isFinite(Number(item.elapsed_ms)) ? Number(item.elapsed_ms) : null,
-        timingBasis:item.timing_basis || "", presenceAt:Number(item.presence_at) || 0 };
+        timingBasis:item.timing_basis || "", presenceAt:Number(item.presence_at) || 0,
+        sessionDedicatedMs:Number.isFinite(Number(item.session_dedicated_ms)) ? Number(item.session_dedicated_ms) : null,
+        sessionState:item.session_state || "unknown", sessionBasis:item.session_basis || "",
+        sessionSurface:item.session_surface || "" };
     }).sort(function (a, b) { return (a.state === "running" ? -1 : 1) - (b.state === "running" ? -1 : 1) ||
       (b.state === "last_work" ? b.endedAt : b.at) - (a.state === "last_work" ? a.endedAt : a.at) ||
       a.agente.localeCompare(b.agente, "es"); });
@@ -3234,7 +3237,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function horaMadrid(at) {
     if (!(Number(at) > 0)) return "—";
     try {
-      return new Intl.DateTimeFormat("es-ES", { timeZone:"Europe/Madrid", hour:"2-digit", minute:"2-digit", hourCycle:"h23" }).format(new Date(Number(at)));
+      return new Intl.DateTimeFormat("es-ES", { timeZone:"Europe/Madrid", hour:"2-digit", minute:"2-digit", second:"2-digit", hourCycle:"h23" }).format(new Date(Number(at)));
     } catch (_) { return "—"; }
   }
 
@@ -3245,8 +3248,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         datos.trabajosClientAt ? Math.max(0, performance.now() - datos.trabajosClientAt) : 0)
       : { at:trabajo.state === "last_work" ? trabajo.endedAt : datos.trabajosGeneratedAt,
           durationMs:trabajo.elapsedMs };
-    var duracion = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.durationLabel
-      ? YkHighscoreRace.durationLabel(reloj.durationMs) : "—";
+    var duracion = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.clockDurationLabel
+      ? YkHighscoreRace.clockDurationLabel(reloj.missionDurationMs) : "—";
+    var sesion = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.clockDurationLabel
+      ? YkHighscoreRace.clockDurationLabel(reloj.sessionDurationMs) : "—";
     var stateLabel = trabajo.state === "running" ? "EN CURSO" : trabajo.state === "last_work" ? "ÚLTIMO TRABAJO" : "ASIGNADO · SIN AVANCE";
     var clockAt = trabajo.state === "last_work" ? trabajo.endedAt : trabajo.at;
     return { reference:"", title:trabajo.title, state:stateLabel, project:"",
@@ -3254,7 +3259,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       presenceAt:trabajo.presenceAt, at:Number(trabajo.at) || 0, idle:parado, clock:horaMadrid(clockAt),
       liveClock:horaMadrid(reloj.at), liveClockAt:Number(reloj.at) || 0,
       assignmentClock:horaMadrid(trabajo.assignmentAt), assignmentBasis:trabajo.assignmentBasis,
-      duration:duracion, timingBasis:trabajo.timingBasis };
+      duration:duracion, sessionDuration:sesion, sessionState:reloj.sessionState,
+      sessionBasis:trabajo.sessionBasis, sessionSurface:trabajo.sessionSurface, timingBasis:trabajo.timingBasis };
   }
 
   function actualizaRelojesCarrera() {
@@ -3262,21 +3268,27 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     document.querySelectorAll(".refresh-time[data-work-state]").forEach(function (bloque) {
       var work = { state:bloque.getAttribute("data-work-state") || "",
         work_started_at:Number(bloque.getAttribute("data-work-start")) || 0,
-        ended_at:Number(bloque.getAttribute("data-work-end")) || 0 };
+        ended_at:Number(bloque.getAttribute("data-work-end")) || 0,
+        session_dedicated_ms:bloque.getAttribute("data-session-duration") === "" ? null : Number(bloque.getAttribute("data-session-duration")),
+        session_state:bloque.getAttribute("data-session-state") || "unknown" };
       var reloj = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.workClock
         ? YkHighscoreRace.workClock(work, datos.trabajosGeneratedAt, elapsed) : { at:0, durationMs:null };
       var ahora = bloque.querySelector(".refresh-now"), duracion = bloque.querySelector(".refresh-elapsed");
+      var sesion = bloque.querySelector(".refresh-session-elapsed");
       var clockLabel = horaMadrid(reloj.at);
-      var durationLabel = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.durationLabel
-        ? YkHighscoreRace.durationLabel(reloj.durationMs) : "—";
+      var durationLabel = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.clockDurationLabel
+        ? YkHighscoreRace.clockDurationLabel(reloj.missionDurationMs) : "—";
+      var sessionLabel = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.clockDurationLabel
+        ? YkHighscoreRace.clockDurationLabel(reloj.sessionDurationMs) : "—";
       if (ahora) {
         ahora.textContent = clockLabel;
         if (reloj.at > 0) ahora.setAttribute("datetime", new Date(reloj.at).toISOString());
         else ahora.removeAttribute("datetime");
       }
       if (duracion) duracion.textContent = durationLabel;
+      if (sesion) sesion.textContent = sessionLabel;
       bloque.setAttribute("aria-label", (reloj.closed ? "Finalizado a las " : "Hora actual ") + clockLabel +
-        ". Tiempo transcurrido " + durationLabel);
+        ". Tiempo de misión " + durationLabel + ". Tiempo de sesión " + sessionLabel);
     });
   }
 
@@ -3325,7 +3337,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         (resumen.idle ? 'data-race-idle="true" ' : '') +
         'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Carril de la familia ' + esc(agente) +
         '. Responsable ' + esc(responsable) + (executor !== responsable ? ', ejecuta ' + esc(executor) : '') + ', ' + heartbeat + '. ' +
-        esc(resumen.title) + '. Hora ' + esc(resumen.clock) + '. Tiempo transcurrido ' + esc(resumen.duration) + '">' +
+        esc(resumen.title) + '. Hora ' + esc(resumen.clock) + '. Tiempo de misión ' + esc(resumen.duration) +
+        '. Tiempo de sesión ' + esc(resumen.sessionDuration) + '">' +
         '<span class="refresh-agent-meta"><span class="refresh-agent" data-race-role="agent" title="Responsable ' + esc(responsable) + '">' + esc(responsable) + '</span>' +
         '<time class="refresh-assignment"' + (enlace.trabajo.assignmentAt
           ? ' datetime="' + new Date(enlace.trabajo.assignmentAt).toISOString() + '" title="Hora factual de asignación" aria-label="Asignado a las ' + esc(resumen.assignmentClock) + '"'
@@ -3337,9 +3350,14 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         runner + '<span class="refresh-finish" aria-hidden="true"></span></div></div>' +
         '<div class="refresh-time" title="Tiempo transcurrido factual" data-work-state="' + esc(isLast ? "last_work" : resumen.idle ? "assigned_stale" : "running") + '"' +
           ' data-work-start="' + (Number(enlace.trabajo.startedAt) || 0) + '" data-work-end="' + (Number(enlace.trabajo.endedAt) || 0) + '"' +
-          ' aria-label="' + (isLast ? "Finalizado a las " : "Hora actual ") + esc(resumen.liveClock) + '. Tiempo transcurrido ' + esc(resumen.duration) + '">' +
+          ' data-session-duration="' + (enlace.trabajo.sessionDedicatedMs === null ? '' : Math.max(0, Number(enlace.trabajo.sessionDedicatedMs) || 0)) + '"' +
+          ' data-session-state="' + esc(enlace.trabajo.sessionState || "unknown") + '"' +
+          ' aria-label="' + (isLast ? "Finalizado a las " : "Hora actual ") + esc(resumen.liveClock) +
+          '. Tiempo de misión ' + esc(resumen.duration) + '. Tiempo de sesión ' + esc(resumen.sessionDuration) + '">' +
           '<time class="refresh-now"' + (resumen.liveClockAt ? ' datetime="' + new Date(resumen.liveClockAt).toISOString() + '"' : '') + '>' + esc(resumen.liveClock) + '</time>' +
-          '<span class="refresh-time-sep" aria-hidden="true">//</span><strong class="refresh-elapsed">' + esc(resumen.duration) + '</strong></div></div>';
+          '<span class="refresh-time-sep" aria-hidden="true">//</span><strong class="refresh-elapsed">' + esc(resumen.duration) + '</strong>' +
+          '<span class="refresh-time-sep" aria-hidden="true">//</span><strong class="refresh-session-elapsed" data-session-state="' +
+          esc(enlace.trabajo.sessionState || "unknown") + '">' + esc(resumen.sessionDuration) + '</strong></div></div>';
     }).filter(Boolean);
     var trabajoNoDisponible = !datos.trabajosAvailable && !trabajos.length;
     var etiquetaVacia = trabajoNoDisponible ? "TRABAJO NO DISPONIBLE" : "SIN TRABAJO ASIGNADO";
@@ -3563,8 +3581,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var puesto = Number(carril.getAttribute("data-place")) || 3;
       var ordenLlegada = Number(carril.getAttribute("data-race-order")) || puesto;
       var estadoTrabajo = carril.getAttribute("data-work-state") || "";
-      var noCorre = !!estadoTrabajo && estadoTrabajo !== "running";
-      var progresoAtleta = noCorre ? 0 : progresoCarril(progreso, ordenLlegada);
+      var carreraCosmetica = estadoTrabajo === "assigned_stale";
+      var noCorre = !!estadoTrabajo && estadoTrabajo !== "running" && !carreraCosmetica;
+      // SIN AVANCE puede recorrer la misma geometría únicamente como señal
+      // cosmética B/N. Se detiene antes de meta y jamás obtiene puesto, puntos
+      // ni cambia el state/work_progress_at factual.
+      var progresoAtleta = noCorre ? 0 : Math.min(carreraCosmetica ? .94 : 1, progresoCarril(progreso, ordenLlegada));
       var relleno = carril.querySelector('[data-race-role="fill"]');
       var corredor = carril.querySelector('[data-race-role="runner"]');
       var mision = carril.querySelector('[data-race-role="mission"]');
@@ -3600,10 +3622,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       // La cinta se rompe cuando el corredor la TOCA. Su posición se mide en
       // el DOM: pista, cinta y gutter del nombre comparten así la misma
       // geometría responsive sin constantes paralelas que puedan divergir.
-      carril.classList.toggle("cruzando", centroAtleta + RADIO_CORREDOR_PX >= metaLinea);
-      carril.classList.toggle("finished", progresoAtleta >= 1);
-      carril.classList.toggle("race-winner", ordenLlegada === 1);
-      carril.classList.toggle("race-loser", ordenLlegada !== 1);
+      carril.classList.toggle("cruzando", !carreraCosmetica && centroAtleta + RADIO_CORREDOR_PX >= metaLinea);
+      carril.classList.toggle("finished", !carreraCosmetica && progresoAtleta >= 1);
+      carril.classList.toggle("race-winner", !carreraCosmetica && ordenLlegada === 1);
+      carril.classList.toggle("race-loser", !carreraCosmetica && ordenLlegada !== 1);
       if (relleno) {
         var avancePista = Math.max(0, Math.min(metaLinea - inicioPista, centroAtleta - inicioPista));
         relleno.style.width = avancePista + "px";

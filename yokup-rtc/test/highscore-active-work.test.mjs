@@ -15,14 +15,15 @@ const grab=name=>{
 };
 const grabVar=name=>{const m=new RegExp(`var ${name} = [^\\n]+;`).exec(source);assert.ok(m,name);return m[0];};
 
-function harness(presence={ok:true,presence:[],now:NOW/1000}){
+function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
   const db=new DatabaseSync(":memory:");
   db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,subject TEXT,loc TEXT,source TEXT,role TEXT,status TEXT,assignee TEXT,closure_reason TEXT,created_at INTEGER,started_at INTEGER,updated_at INTEGER,live_at INTEGER,resolved_at INTEGER)");
   db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,started_at INTEGER,created_at INTEGER,updated_at INTEGER,executor TEXT)");
   db.exec("CREATE TABLE ideas(id TEXT PRIMARY KEY,title TEXT,status TEXT,author TEXT,author_identity TEXT,created_at INTEGER,updated_at INTEGER)");
   db.exec("CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT,ticket_id TEXT,ts INTEGER,kind TEXT,author TEXT,text TEXT)");
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{all:async()=>({results:stmt.all(...args)})}},all:async()=>({results:stmt.all()})}}};
-  const TELEGRAM=presence===null?undefined:{fetch:async()=>({ok:true,json:async()=>presence})};
+  const TELEGRAM=presence===null?undefined:{fetch:async(request)=>({ok:true,json:async()=>
+    String(request.url).includes("work-sessions") ? {ok:true,sessions:workSessions} : presence})};
   const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,Request,
     baseAgentIdentity,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,__name:(fn)=>fn});
   vm.runInContext([
@@ -30,7 +31,7 @@ function harness(presence={ok:true,presence:[],now:NOW/1000}){
     grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_WORK_STARTED_SQL"),grabVar("HIGHSCORE_MISSION_PROGRESS_SQL"),grabVar("HIGHSCORE_ASSIGNMENT_EVENT_SQL"),
     grabVar("HIGHSCORE_ACTIVE_WORK_MS"),grabVar("HIGHSCORE_LANE_WORK_MS"),grabVar("HIGHSCORE_PROCESS_FRESH_MS"),grabVar("HIGHSCORE_CLOCK_SKEW_MS"),
     grab("highscoreAgent"),grab("scopedMissionOwner"),grab("highscoreActiveWorkMillis"),grab("highscoreActiveWorkFamily"),
-    grab("highscoreElapsedTiming"),grab("highscoreAssignmentTiming"),grab("highscoreVerifiedPresence"),grab("highscoreActiveWork"),
+    grab("highscoreElapsedTiming"),grab("highscoreAssignmentTiming"),grab("highscoreVerifiedPresence"),grab("highscoreLinkedSession"),grab("highscoreActiveWork"),
   ].join("\n"),context);
   return {db,env:{DB,TELEGRAM},F:context};
 }
@@ -161,4 +162,48 @@ test("endpoint agregado expone sólo señales mínimas y ningún payload privado
   assert.match(grab("highscoreActiveWork"),/state === "running"/);
   for(const secret of ["report","body","proof_image","image","runtime","session_id"])
     assert.equal(source.includes(`participants.${secret}`),false);
+});
+
+test("sesión dedicada requiere vínculo exacto y una sola encarnación",async()=>{
+  const sessions=[{persona:"Oraculo",machine:"MacMini",work_ref:"M1",surface:"cli",
+    started_at:(NOW-15*MIN)/1000,ended_at:null,state:"open",basis:"process_birth"}];
+  const {db,env,F}=harness(undefined,sessions);
+  mission(db,{id:"M1",at:NOW-5*MIN,startedAt:NOW-5*MIN});
+  const row=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW))).participants[0];
+  assert.equal(row.session_dedicated_ms,15*MIN);
+  assert.equal(row.session_state,"open"); assert.equal(row.session_basis,"process_birth");
+  assert.equal(row.session_surface,"cli");
+  for(const forbidden of ["pid","session_id","incarnation_id","work_ref"])
+    assert.equal(Object.hasOwn(row,forbidden),false);
+});
+
+test("sesión ambigua o silenciosa nunca inventa dedicación",async()=>{
+  const exact={persona:"Oraculo",machine:"MacMini",work_ref:"M1",surface:"app",
+    started_at:(NOW-20*MIN)/1000,ended_at:null,state:"open",basis:"process_birth"};
+  const ambiguous=harness(undefined,[exact,{...exact,surface:"cli",started_at:(NOW-10*MIN)/1000}]);
+  mission(ambiguous.db,{id:"M1",at:NOW-MIN});
+  let row=JSON.parse(JSON.stringify(await ambiguous.F.highscoreActiveWork(ambiguous.env,NOW))).participants[0];
+  assert.equal(Object.hasOwn(row,"session_dedicated_ms"),false);
+  const unknown=harness(undefined,[{...exact,state:"unknown"}]);
+  mission(unknown.db,{id:"M1",at:NOW-MIN});
+  row=JSON.parse(JSON.stringify(await unknown.F.highscoreActiveWork(unknown.env,NOW))).participants[0];
+  assert.equal(row.session_state,"unknown"); assert.equal(row.session_dedicated_ms,null);
+});
+
+test("rollover conserva una única encarnación viva sin sumar la cerrada anterior",async()=>{
+  const previous={persona:"Oraculo",machine:"MacMini",work_ref:"M1",surface:"cli",
+    started_at:(NOW-40*MIN)/1000,ended_at:(NOW-20*MIN)/1000,state:"closed",basis:"process_absent"};
+  const current={...previous,started_at:(NOW-10*MIN)/1000,ended_at:null,state:"open",basis:"process_birth"};
+  const {db,env,F}=harness(undefined,[previous,current]);
+  mission(db,{id:"M1",at:NOW-MIN});
+  const row=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW))).participants[0];
+  assert.equal(row.session_state,"open");
+  assert.equal(row.session_dedicated_ms,10*MIN);
+});
+
+test("dos encarnaciones vivas o una viva más otra unknown siguen ambiguas",()=>{
+  const {F}=harness();
+  const open={state:"open",started_at:NOW-1000};
+  assert.equal(F.highscoreLinkedSession([open,{...open,started_at:NOW-500}]),null);
+  assert.equal(F.highscoreLinkedSession([open,{state:"unknown",started_at:NOW-2000}]),null);
 });

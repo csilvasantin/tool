@@ -4015,6 +4015,18 @@ function isVirginSkeleton(tasks) {
 }
 __name(isVirginSkeleton, "isVirginSkeleton");
 
+async function bindPresenceWork(env, persona, machine, workRef) {
+  if (!env.TELEGRAM || !persona || !machine || !workRef) return false;
+  try {
+    const response = await env.TELEGRAM.fetch(new Request("https://telegram/api/presence/work-bind", {
+      method:"POST", headers:{"content-type":"application/json"},
+      body:JSON.stringify({persona, machine, work_ref:workRef})
+    }));
+    return response.ok;
+  } catch { return false; }
+}
+__name(bindPresenceWork, "bindPresenceWork");
+
 // Funde tasks en el plan vigente sin destruir nada. Devuelve qué entró, qué se
 // retituló y qué se ignoró CON EL MOTIVO: un merge que calla lo que descartó es
 // indistinguible de uno que no hizo nada.
@@ -4101,6 +4113,8 @@ async function setTaskStatus(env, mid, code, status, report, owner, image, image
     "updated_at=? WHERE mission_id=? AND code=?")
     .bind(st, rp, ow, ex, im, ik, st, now, st, now, mid, code).run();
   const row = await env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
+  if (row && ["in_progress","doing","active"].includes(String(row.status || "")) && mission)
+    await bindPresenceWork(env, row.executor || row.owner, mission.loc, `${mid}:${code}`);
   if (row) await attachDisplayRefs(env, "task", row, taskDisplayKey, (item) => item.created_at || item.updated_at);
   return row;
 }
@@ -6041,10 +6055,13 @@ function highscoreAssignmentTiming(item, kind, ahora) {
 __name(highscoreAssignmentTiming, "highscoreAssignmentTiming");
 
 async function highscoreVerifiedPresence(env, ahora) {
-  if (!env.TELEGRAM) return { available:false, by_family:new Map() };
+  if (!env.TELEGRAM) return { available:false, by_family:new Map(), sessions:new Map() };
   try {
-    const response = await env.TELEGRAM.fetch(new Request(PRESENCE_URL, { headers:{ accept:"application/json" } }));
-    if (!response.ok) return { available:false, by_family:new Map() };
+    const [response, sessionResponse] = await Promise.all([
+      env.TELEGRAM.fetch(new Request(PRESENCE_URL, { headers:{ accept:"application/json" } })),
+      env.TELEGRAM.fetch(new Request("https://telegram/api/presence/work-sessions", { headers:{ accept:"application/json" } }))
+    ]);
+    if (!response.ok) return { available:false, by_family:new Map(), sessions:new Map() };
     const payload = await response.json(), rows = Array.isArray(payload) ? payload : (payload.presence || payload.rows || []);
     const byFamily = new Map();
     for (const row of rows) {
@@ -6059,12 +6076,43 @@ async function highscoreVerifiedPresence(env, ahora) {
           family.family_key.startsWith("external:") || !parseAgentIdentity(family.family_name).suffix) continue;
       if (!byFamily.has(family.family_key) || at > byFamily.get(family.family_key)) byFamily.set(family.family_key, at);
     }
-    return { available:true, by_family:byFamily };
+    const sessions = new Map();
+    if (sessionResponse.ok) {
+      const sessionPayload = await sessionResponse.json();
+      for (const row of Array.isArray(sessionPayload.sessions) ? sessionPayload.sessions : []) {
+        const family = highscoreActiveWorkFamily(row && row.persona, row && row.machine);
+        const ref = String(row && row.work_ref || "");
+        const started = highscoreActiveWorkMillis(row && row.started_at);
+        const ended = highscoreActiveWorkMillis(row && row.ended_at);
+        const state = ["open", "closed", "unknown"].includes(String(row && row.state)) ? String(row.state) : "unknown";
+        if (!family || !ref || !started || started > ahora + HIGHSCORE_CLOCK_SKEW_MS ||
+            ended > ahora + HIGHSCORE_CLOCK_SKEW_MS || ended && ended < started) continue;
+        const key = `${family.family_key}|${ref}`, list = sessions.get(key) || [];
+        list.push({ started_at:started, ended_at:ended || null, state,
+          basis:String(row.basis || "process_birth").slice(0,40),
+          surface:["app","cli"].includes(String(row.surface)) ? String(row.surface) : "" });
+        sessions.set(key, list);
+      }
+    }
+    return { available:true, by_family:byFamily, sessions };
   } catch {
-    return { available:false, by_family:new Map() };
+    return { available:false, by_family:new Map(), sessions:new Map() };
   }
 }
 __name(highscoreVerifiedPresence, "highscoreVerifiedPresence");
+
+function highscoreLinkedSession(rows) {
+  const sessions = Array.isArray(rows) ? rows : [];
+  if (sessions.length === 1) return sessions[0];
+  const open = sessions.filter((row) => row && row.state === "open");
+  const unknown = sessions.filter((row) => row && row.state === "unknown");
+  // Un rollover factual deja historia cerrada detrás de una única encarnación
+  // viva. Esa historia no vuelve ambiguo el reloj actual. Dos vivas, o una viva
+  // más otra silenciosa, sí son concurrencia no demostrable y fallan cerrado.
+  if (open.length === 1 && unknown.length === 0) return open[0];
+  return null;
+}
+__name(highscoreLinkedSession, "highscoreLinkedSession");
 
 // Estado único para tabla y carrera. Un assignment canónico siempre conserva su
 // calle; sólo es `running` si el progreso MATERIAL es de hace <=20 minutos.
@@ -6097,7 +6145,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     const phrase = value.match(/^.*?[.!?](?=\s+[A-ZÁÉÍÓÚÑ])/);
     return String(phrase ? phrase[0] : value || fallback).trim().slice(0, 200);
   };
-  const add = (raw, machine, kind, item, title, familyRaw = raw, forcedState = "") => {
+  const add = (raw, machine, kind, item, title, familyRaw = raw, forcedState = "", workRef = "") => {
     const family = highscoreActiveWorkFamily(familyRaw, machine);
     if (!family || family.family_key.startsWith("external:") || !parseAgentIdentity(family.family_name).suffix) return;
     const executor = reportAgentIdentity(raw, machine);
@@ -6118,6 +6166,19 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     const candidate = { family_key:family.family_key, agent:family.family_name, executor, kind,
       title:visibleTitle(title, kind === "task" ? "Tarea activa" : kind === "mission" ? "Misión activa" : "Objetivo en curso"),
       state, active_at:at, work_progress_at:at, reachable:!!presenceAt };
+    const linkedSessions = presence.sessions && presence.sessions.get(`${family.family_key}|${workRef}`) || [];
+    // Exactamente una encarnación vinculada: cero o varias son ambiguas y por
+    // contrato no se suman ni se elige una de forma heurística.
+    const linked = highscoreLinkedSession(linkedSessions);
+    if (linked) {
+      candidate.session_state = linked.state;
+      candidate.session_basis = linked.basis;
+      candidate.session_surface = linked.surface;
+      if (linked.state === "open") candidate.session_dedicated_ms = Math.max(0, ahora - linked.started_at);
+      else if (linked.state === "closed" && linked.ended_at)
+        candidate.session_dedicated_ms = Math.max(0, linked.ended_at - linked.started_at);
+      else candidate.session_dedicated_ms = null;
+    }
     if (timing) Object.assign(candidate, timing);
     if (assignment) Object.assign(candidate, assignment);
     if (presenceAt) candidate.presence_at = presenceAt;
@@ -6135,14 +6196,17 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
         (stateRank === previousRank && priority[kind] === priority[previous.kind] && at > previous.active_at))
       byFamily.set(family.family_key, candidate);
   };
-  for (const mission of missions) add(mission.assignee, mission.loc, "mission", mission, mission.subject || "Misión activa");
+  for (const mission of missions) add(mission.assignee, mission.loc, "mission", mission, mission.subject || "Misión activa",
+    mission.assignee, "", String(mission.id || ""));
   for (const task of tasks) {
     const executor = scopedMissionOwner(task.executor || task.owner, "sub", task.assignee, task.loc);
-    add(executor, task.loc, "task", task, task.title || task.code || "Tarea activa", task.assignee);
+    add(executor, task.loc, "task", task, task.title || task.code || "Tarea activa", task.assignee, "",
+      `${String(task.mission_id || "")}:${String(task.code || "")}`);
   }
   for (const objective of objectives) {
     const executor = String(objective.author_identity || highscoreAgent(objective.author) || "").trim();
-    add(executor, "", "objective", objective, objective.title || "Objetivo en curso");
+    add(executor, "", "objective", objective, objective.title || "Objetivo en curso", executor, "",
+      `objective:${String(objective.id || "")}`);
   }
   let participants = [...byFamily.values()].sort((a, b) =>
     (a.state === "running" ? 0 : 1) - (b.state === "running" ? 0 : 1) ||
@@ -6794,6 +6858,7 @@ var worker_app = {
           capturedAt = capture.value;
         }
         const now = Date.now();
+        await bindPresenceWork(env, actor.actor || t.assignee, t.loc, mid);
         if (img) {
           await env.DB.prepare(
             "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,live_shot=?,live_at=?,live_kind=?,live_surface=?,live_context=?,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"

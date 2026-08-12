@@ -73,6 +73,15 @@
     return hours ? hours + " h" + (rest ? " " + rest + " min" : "") : minutes + " min";
   }
 
+  function clockDurationLabel(value) {
+    if (value === null || value === undefined || value === "") return "—";
+    var ms = Number(value);
+    if (!Number.isFinite(ms) || ms < 0) return "—";
+    var total = Math.floor(ms / 1000), hours = Math.floor(total / 3600);
+    var minutes = Math.floor((total % 3600) / 60), seconds = total % 60;
+    return String(hours).padStart(2,"0") + ":" + String(minutes).padStart(2,"0") + ":" + String(seconds).padStart(2,"0");
+  }
+
   /* El reloj visible se ancla al generated_at del servidor. El paso del tiempo
      sólo avanza la presentación de un trabajo abierto; nunca se reutiliza como
      work_progress_at ni puede cambiar el estado factual de la calle. */
@@ -85,7 +94,14 @@
     var closed = state === "last_work" || ended > 0;
     var at = closed ? ended : (anchor > 0 ? anchor + elapsed : 0);
     var durationMs = start > 0 && at >= start ? at - start : null;
-    return { at:at, durationMs:durationMs, closed:closed };
+    var sessionState = String(row && (row.session_state || row.sessionState) || "unknown");
+    var dedicatedRaw = row && (row.session_dedicated_ms !== undefined ? row.session_dedicated_ms : row.sessionDedicatedMs);
+    var dedicated = dedicatedRaw === null || dedicatedRaw === undefined || dedicatedRaw === "" ? NaN : Number(dedicatedRaw);
+    var sessionDurationMs = Number.isFinite(dedicated) && dedicated >= 0
+      ? dedicated + (sessionState === "open" ? elapsed : 0) : null;
+    if (sessionState === "unknown") sessionDurationMs = null;
+    return { at:at, durationMs:durationMs, missionDurationMs:durationMs,
+      sessionDurationMs:sessionDurationMs, sessionState:sessionState, closed:closed };
   }
 
   function runnerVariant(row) {
@@ -135,7 +151,8 @@
   }
 
   var api = { key:key, activeMissionRows:activeMissionRows, raceRows:raceRows, laneKey:laneKey, runnerVariant:runnerVariant,
-    IDLE_AFTER_MS:IDLE_AFTER_MS, workIdle:workIdle, sinceLabel:sinceLabel, durationLabel:durationLabel, workClock:workClock,
+    IDLE_AFTER_MS:IDLE_AFTER_MS, workIdle:workIdle, sinceLabel:sinceLabel, durationLabel:durationLabel,
+    clockDurationLabel:clockDurationLabel, workClock:workClock,
     finishPose:finishPose, finishAdvanceMs:finishAdvanceMs, randomFinishOrder:randomFinishOrder,
     avoidRepeatedWinner:avoidRepeatedWinner };
   root.YkHighscoreRace = api;

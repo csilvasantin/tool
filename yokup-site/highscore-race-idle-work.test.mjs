@@ -60,16 +60,16 @@ test("la etiqueta dice desde cuándo está parado, en minutos y en horas", () =>
   assert.equal(race.sinceLabel(AHORA - 499 * MIN, AHORA), "hace 8 h 19 min");
 });
 
-test("la calle parada se marca, no corre y no afirma trabajo en curso", () => {
+test("la calle stale se marca SIN AVANCE y sólo corre cosméticamente en B/N", () => {
   assert.match(html, /resumenTrabajoActivo\(trabajo\)/);
   assert.match(html, /trabajo\.state === "running" \? "EN CURSO"/);
   assert.match(html, /resumen\.idle \? " refresh-lane-idle" : ""/);
   assert.match(html, /resumen\.idle \? 'data-race-idle="true" ' : ''/);
   assert.match(html, /"ASIGNADO · SIN AVANCE"/);
-  // Y el corredor se queda en la salida.
+  // La geometría se anima sin convertirla en avance, ganador ni fin.
   assert.match(html, /estadoTrabajo = carril\.getAttribute\("data-work-state"\)/);
-  assert.match(html, /noCorre = !!estadoTrabajo && estadoTrabajo !== "running"/);
-  assert.match(html, /progresoAtleta = noCorre \? 0 : progresoCarril/);
+  assert.match(html, /carreraCosmetica = estadoTrabajo === "assigned_stale"/);
+  assert.match(html, /!carreraCosmetica && ordenLlegada === 1/);
   assert.match(html, /carril\.classList\.remove\("cruzando", "finished", "race-winner", "race-loser"\)/);
 });
 

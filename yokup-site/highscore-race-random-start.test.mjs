@@ -85,6 +85,7 @@ test("data-race-order decide ventaja y ganador; data-place queda sólo interno",
   assert.match(draw, /carril\.setAttribute\("data-race-order",\s*String\(orden\)\)/);
   assert.match(draw, /classList\.toggle\("race-winner",\s*orden\s*===\s*1\)/);
   assert.match(draw, /classList\.toggle\("race-loser",\s*orden\s*!==\s*1\)/);
+  assert.match(draw, /data-work-state="running"/, "sólo running entra en el sorteo factual");
 
   const progress = functionSource("progresoCarril");
   assert.match(progress, /function progresoCarril\(progresoCiclo,\s*ordenLlegada\)/);
@@ -93,8 +94,8 @@ test("data-race-order decide ventaja y ganador; data-place queda sólo interno",
   const paint = functionSource("pintaCarrera");
   assert.match(paint, /ordenLlegada\s*=\s*Number\(carril\.getAttribute\("data-race-order"\)\)\s*\|\|\s*puesto/);
   assert.match(paint, /progresoCarril\(progreso,\s*ordenLlegada\)/);
-  assert.match(paint, /classList\.toggle\("race-winner",\s*ordenLlegada\s*===\s*1\)/);
-  assert.match(paint, /classList\.toggle\("race-loser",\s*ordenLlegada\s*!==\s*1\)/);
+  assert.match(paint, /classList\.toggle\("race-winner",\s*!carreraCosmetica && ordenLlegada\s*===\s*1\)/);
+  assert.match(paint, /classList\.toggle\("race-loser",\s*!carreraCosmetica && ordenLlegada\s*!==\s*1\)/);
   assert.doesNotMatch(paint, /progresoCarril\(progreso,\s*puesto\)/);
 
   assert.match(render, /sorteaOrdenLlegada\(false\)/,
