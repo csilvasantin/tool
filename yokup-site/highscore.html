@@ -45,11 +45,11 @@ a{color:var(--brand)}
 
 /* ─────────── PÁGINA ─────────── */
 .wrap{max-width:1080px;margin:0 auto;padding:50px 18px 70px}
-header.cab{position:relative;display:grid;grid-template-columns:auto minmax(180px,1fr);grid-template-rows:auto;
-  align-items:stretch;column-gap:22px;min-height:44px;margin:0 0 8px}
-/* El rótulo y el mute comparten la altura de toda la carrera: así quedan
-   alineados con su carril central, no flotando sobre la primera pista. */
-header.cab>h1{grid-column:1;grid-row:1;display:flex;align-items:center;align-self:center;gap:7px}
+header.cab{position:relative;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto;
+  align-items:stretch;row-gap:8px;min-height:44px;margin:0 0 8px}
+/* HIGHSCORE ocupa su propia banda: nunca compite por ancho ni altura con una
+   calle, incluso cuando hay cuatro o más participantes. */
+header.cab>h1{grid-column:1;grid-row:1;display:flex;align-items:center;gap:7px}
 h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:0;color:var(--brand);
   text-shadow:3px 3px 0 #0a4a58}
 .podium-toggle{all:unset;display:inline-block;cursor:pointer;color:inherit;font:inherit;letter-spacing:inherit;
@@ -96,10 +96,11 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   animation:rank-heartbeat 1.6s ease-in-out infinite}
 @keyframes rank-heartbeat{0%,100%{transform:scale(1);opacity:1}45%{transform:scale(1.18);opacity:.48}60%{transform:scale(1.04);opacity:.9}}
 
-/* Carrera de refresco: una calle por familia con trabajo canónico activo y
-   actividad visible-v1 reciente o proceso verificado en esa misma máquina. */
-.refresh-race{--track-start:2px;--finish-gutter:clamp(132px,15vw,184px);--finish-width:7px;--agent-gap:26px;
-  position:relative;grid-column:2;grid-row:1;min-height:44px;min-width:0;padding:0;display:flex;align-items:flex-start;overflow:hidden;
+/* Carrera de refresco: una calle por familia con trabajo canónico asignado.
+   Sólo el avance material dentro de 20 minutos activa movimiento; la presencia
+   informa alcance, pero nunca convierte por sí sola una asignación en carrera. */
+.refresh-race{--track-start:2px;--finish-width:7px;
+  position:relative;grid-column:1;grid-row:2;min-height:44px;min-width:0;padding:0;display:flex;align-items:flex-start;overflow:hidden;
   cursor:pointer;border-radius:5px}
 .refresh-race:focus-visible{outline:2px solid var(--brand);outline-offset:4px}
 .refresh-lanes{width:100%;display:grid;gap:1px}
@@ -253,6 +254,45 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 @keyframes runner-run-a{0%,32%{opacity:1}33%,100%{opacity:0}}
 @keyframes runner-run-b{0%,32%{opacity:0}33%,65%{opacity:1}66%,100%{opacity:0}}
 @keyframes runner-run-c{0%,65%{opacity:0}66%,100%{opacity:1}}
+
+/* Estado único /highscore/active-work: nombre, pista y tiempo comparten fila.
+   El rótulo ya no viaja con el muñeco, porque eso hacía imposible leer cuatro
+   trabajos a la vez y confundía la animación con la identidad del responsable. */
+.refresh-race{overflow:visible}
+.refresh-lanes{gap:5px}
+.refresh-lane{display:grid;grid-template-columns:minmax(112px,160px) minmax(0,1fr) minmax(74px,96px);
+  align-items:center;column-gap:10px;min-height:62px}
+.refresh-agent{position:static;display:block;max-width:none;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;text-align:right;color:var(--lane);font-size:11px;line-height:14px}
+.refresh-lane-center{display:grid;grid-template-rows:15px 30px 16px;min-width:0}
+.refresh-status{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;
+  color:var(--dim);font-size:8px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.refresh-status strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--lane)}
+.refresh-status time{flex:0 0 auto;font-variant-numeric:tabular-nums}
+.refresh-track{min-height:30px;padding:0 var(--finish-width) 0 var(--track-start)}
+.refresh-track::before{left:var(--track-start);right:var(--finish-width);bottom:7px}
+.refresh-fill{bottom:7px}.refresh-runner{bottom:7px}.refresh-finish{right:0;bottom:5px}
+.refresh-place{bottom:-4px}
+.refresh-mission{position:static;display:block;width:auto;max-width:none;transform:none;overflow:hidden;
+  color:var(--mut);font-size:9px;line-height:14px;opacity:1;visibility:visible;transition:none}
+.refresh-race.phase-ready .refresh-mission,.refresh-race.phase-set .refresh-mission,.refresh-race.phase-go .refresh-mission{
+  opacity:1;visibility:visible}
+.refresh-mission-detail{display:block}.refresh-mission-title{overflow:hidden;text-overflow:ellipsis;text-align:left}
+.refresh-mission-duration,.refresh-mission-idle{display:none!important}
+.refresh-elapsed{overflow:hidden;color:var(--accent);font-size:10px;font-variant-numeric:tabular-nums;
+  text-align:right;text-overflow:ellipsis;white-space:nowrap}
+.refresh-lane-idle{--lane:var(--brand);opacity:.82}
+.refresh-lane-idle .refresh-runner{filter:none}
+.refresh-lane-idle .refresh-mission{position:static;display:block;width:auto;max-width:none;transform:none;text-align:left}
+.refresh-lane-idle .refresh-mission-title{text-align:left;opacity:.85}
+.refresh-lane-idle .runner-run-a,.refresh-lane-idle .runner-run-b,.refresh-lane-idle .runner-run-c{animation:none}
+.refresh-lane-idle .runner-run-b,.refresh-lane-idle .runner-run-c{display:none}
+.refresh-lane-last{--lane:#a7b3b8;filter:grayscale(1);opacity:.78}
+.refresh-lane-last .refresh-track::before{background:rgba(167,179,184,.2)}
+.refresh-lane-last .refresh-fill,.refresh-lane-last .refresh-runner,.refresh-lane-last .refresh-finish,.refresh-lane-last .refresh-place{display:none}
+.refresh-lane-empty{display:grid;grid-template-columns:minmax(112px,160px) minmax(0,1fr) minmax(74px,96px);min-height:54px}
+.refresh-lane-empty .refresh-track{grid-column:2;min-height:30px;padding:0}
+.refresh-lane-empty .refresh-mission{position:static;text-align:center}
 
 /* tabla */
 .table-scroll{width:100%;margin-top:14px;overflow-x:auto;overflow-y:hidden;
@@ -598,13 +638,14 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 @media (max-width:620px){.podio{margin-top:20px}.plaza{width:27%;padding:4px 5px;gap:4px;background:rgba(2,8,13,.78)}
   .plaza.p2{left:7%;top:62%}.plaza.p1{left:36.5%;top:59%}.plaza.p3{right:6%;top:66%}
   .nom{font-size:7px}.pts{font-size:10px}
-  .wrap{padding-top:46px}header.cab{grid-template-columns:auto minmax(90px,1fr);gap:10px}h1{font-size:17px}
-  .refresh-race{--track-start:2px;--finish-gutter:clamp(94px,28vw,112px);--agent-gap:26px;padding:0 10px}
-  .refresh-track{padding-left:var(--track-start);padding-right:calc(var(--finish-gutter) + var(--finish-width))}
-  .refresh-mission{max-width:calc(100% - var(--finish-gutter) - var(--finish-width) - 5px);font-size:9px;line-height:13px}.refresh-mission-title{font-size:9px}
+  .wrap{padding-top:46px}header.cab{grid-template-columns:1fr;gap:5px}h1{font-size:17px}
+  .refresh-race{padding:0 3px}
+  .refresh-lane{grid-template-columns:minmax(68px,82px) minmax(0,1fr) minmax(54px,65px);column-gap:5px;min-height:58px}
+  .refresh-agent{font-size:8px;line-height:10px}.refresh-status{font-size:6.5px;gap:3px}.refresh-elapsed{font-size:8px}
+  .refresh-track{padding-left:var(--track-start);padding-right:var(--finish-width)}
+  .refresh-mission{font-size:8px;line-height:12px}.refresh-mission-title{font-size:8px}
   .refresh-place{left:calc(var(--track-start) + 8px);bottom:0px;min-width:16px;font-size:9px;line-height:9px}
-  .refresh-agent{left:calc(100% - var(--finish-gutter) + var(--agent-gap));right:2px;bottom:6px;font-size:9px;line-height:11px}
-  .race-call{min-width:min(96px,calc(100% - var(--track-start) - var(--finish-gutter) - var(--finish-width) - 8px));
+  .race-call{min-width:min(96px,calc(100% - var(--track-start) - var(--finish-width) - 8px));
     padding:2px clamp(5px,1.8vw,11px);font-size:clamp(13px,4.2vw,18px);line-height:20px;letter-spacing:.1em}
   .score-progress td{padding-left:5px;padding-right:5px}.progression{grid-template-columns:88px repeat(6,76px);min-width:580px;gap:4px}
   .progression-step{grid-template-columns:13px minmax(0,1fr);column-gap:3px}.progression-dot{width:13px;height:13px;border-width:1px}.progression-step::before{top:6px}
@@ -853,7 +894,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   var datos = { tareas: [], tareasFresh: false, actividad: [], actividadMeta: null, actividadFresh: false,
     presencia: [], misiones: [], ideas: [], decisiones: [], proyectos: [],
     declaracionesPrincipales: [], controlMachines: [], presenceNow: 0, presenceAvailable: false,
-    trabajos: [], trabajosAvailable: false, turnos: null };
+    trabajos: [], trabajosAvailable: false, trabajosGeneratedAt: 0, trabajosMode: "unavailable", turnos: null };
   var DAILY_CACHE_KEY = "yokup.highscore.daily.v1";
   function guardaActividadDiaria(payload) {
     if (!payload || !Array.isArray(payload.scores) || payload.day !== claveDia(Date.now())) return;
@@ -903,7 +944,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       datos.proyectos = r[5] && r[5].projects || [];
       datos.declaracionesPrincipales = r[5] && r[5].declarations || [];
       datos.turnos = r[6] || null;
-      datos.trabajosAvailable = !!r[7]; datos.trabajos = r[7] && r[7].participants || [];
+      datos.trabajosAvailable = !!r[7];
+      datos.trabajos = r[7] && r[7].participants || [];
+      datos.trabajosGeneratedAt = r[7] && Number(r[7].generated_at) || 0;
+      datos.trabajosMode = r[7] && normaliza(r[7].mode) || "unavailable";
       pon(76, "OBJETIVOS · VENTANAS · MISIONES · " + ((a && a.recorded && a.recorded.objectives) || 0) + " / " + ((a && a.recorded && a.recorded.windows) || 0) + " / " + ((a && a.recorded && a.recorded.missions) || 0));
       pon(94, "PRESENCIA · " + datos.presencia.length + " AGENTES");
       setTimeout(function () { pon(100, "LISTO"); listo(); }, 350);
@@ -1484,6 +1528,18 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       }
       return f;
     });
+    // Tabla y carrera leen la MISMA afirmación server-side. Presencia, scope y
+    // actividad local no pueden encender el parpadeo de una métrica.
+    var workByAgent = Object.create(null);
+    if (datos.trabajosAvailable) (datos.trabajos || []).forEach(function (work) {
+      if (!work || work.state === "last_work") return;
+      workByAgent[claveAgenteCarrera(work.agent)] = work;
+    });
+    lista.forEach(function (fila) {
+      var work = workByAgent[claveAgenteCarrera(fila.agente)];
+      fila.workState = work && work.state || "";
+      fila.workKind = work && work.kind || "";
+    });
     lista.sort(function (a, b) { return b.total - a.total || a.agente.localeCompare(b.agente); });
     lista.forEach(function (fila, indice) { fila.posicion = indice + 1; });
     return lista;
@@ -1880,7 +1936,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // carrera, que es donde un cero no se contradice. Afecta por igual a las
   // cuatro columnas (objetivos, ventanas, misiones, tareas).
   function numeroActividad(a, tipo, valor, singular) {
-    if (a.actividad !== tipo) return valor;
+    var kindToMetric = { objective:"objetivos", mission:"misiones", task:"tareas" };
+    var hasEndpointState = Object.prototype.hasOwnProperty.call(a || {}, "workState");
+    if (hasEndpointState ? (a.workState !== "running" || kindToMetric[a.workKind] !== tipo) : a.actividad !== tipo) return valor;
     if (!(Number(valor) > 0)) return valor;
     var detalle = normaliza(a.actividadDetalle), texto = detalle || singular;
     return '<span class="activity-now" title="' + esc(texto) + '" aria-label="' + esc(valor + " " + tipo + ". " + texto) + '">' + valor + '</span>';
@@ -3125,16 +3183,24 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     (datos.trabajos || []).forEach(function (item) {
       if (!item || !normaliza(item.agent) || !normaliza(item.executor)) return;
       var key = normaliza(item.family_key) || claveAgenteCarrera(item.agent), previous = seen[key];
-      if (!previous || priority[item.kind] > priority[previous.kind] ||
-          (priority[item.kind] === priority[previous.kind] && Number(item.active_at) > Number(previous.active_at))) seen[key] = item;
+      var itemAt = Number(item.state === "last_work" ? item.ended_at : item.work_progress_at) || 0;
+      var previousAt = Number(previous && (previous.state === "last_work" ? previous.ended_at : previous.work_progress_at)) || 0;
+      if (!previous || item.state === "last_work" && previous.state === "last_work" && itemAt > previousAt ||
+          item.state !== "last_work" && (item.state === "running" && previous.state !== "running" ||
+          item.state === previous.state && priority[item.kind] > priority[previous.kind] ||
+          item.state === previous.state && priority[item.kind] === priority[previous.kind] && itemAt > previousAt)) seen[key] = item;
     });
     return Object.keys(seen).map(function (key) {
       var item = seen[key];
       return { key:claveAgenteCarrera(item.agent), agente:item.agent, executor:item.executor,
         kind:item.kind, title:item.title || (item.kind === "task" ? "Tarea activa" : item.kind === "mission" ? "Misión activa" : "Objetivo en curso"),
-        at:Number(item.work_progress_at || item.active_at) || 0, dedicatedMs:Number.isFinite(Number(item.dedicated_ms)) ? Number(item.dedicated_ms) : null,
-        timingBasis:item.timing_basis || "", operationalBasis:item.operational_basis || "", presenceAt:Number(item.presence_at) || 0 };
-    }).sort(function (a, b) { return b.at - a.at || a.agente.localeCompare(b.agente, "es"); });
+        state:item.state || "assigned_stale", reachable:item.reachable === true,
+        startedAt:Number(item.work_started_at) || 0, at:Number(item.work_progress_at) || 0,
+        endedAt:Number(item.ended_at) || 0, elapsedMs:Number.isFinite(Number(item.elapsed_ms)) ? Number(item.elapsed_ms) : null,
+        timingBasis:item.timing_basis || "", presenceAt:Number(item.presence_at) || 0 };
+    }).sort(function (a, b) { return (a.state === "running" ? -1 : 1) - (b.state === "running" ? -1 : 1) ||
+      (b.state === "last_work" ? b.endedAt : b.at) - (a.state === "last_work" ? a.endedAt : a.at) ||
+      a.agente.localeCompare(b.agente, "es"); });
   }
 
   // La regla vive en highscore-race.js, que es donde se puede probar de verdad:
@@ -3148,26 +3214,33 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       ? YkHighscoreRace.sinceLabel(at, ahora) : "sin marca de avance";
   }
 
-  function resumenTrabajoActivo(trabajo, ahora) {
-    var parado = trabajoParado(trabajo.at, ahora);
+  function horaMadrid(at) {
+    if (!(Number(at) > 0)) return "—";
+    try {
+      return new Intl.DateTimeFormat("es-ES", { timeZone:"Europe/Madrid", hour:"2-digit", minute:"2-digit", hourCycle:"h23" }).format(new Date(Number(at)));
+    } catch (_) { return "—"; }
+  }
+
+  function resumenTrabajoActivo(trabajo) {
+    var parado = trabajo.state !== "running";
     var duracion = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.durationLabel
-      ? YkHighscoreRace.durationLabel(trabajo.dedicatedMs) : "—";
-    return { reference:"", title:trabajo.title, state:parado ? "SIN AVANCE" : "EN CURSO", project:"",
-      executor:trabajo.executor, responsible:trabajo.agente, kind:trabajo.kind, operationalBasis:trabajo.operationalBasis,
-      presenceAt:trabajo.presenceAt, at:Number(trabajo.at) || 0, idle:parado, since:desdeHace(trabajo.at, ahora),
+      ? YkHighscoreRace.durationLabel(trabajo.elapsedMs) : "—";
+    var stateLabel = trabajo.state === "running" ? "EN CURSO" : trabajo.state === "last_work" ? "ÚLTIMO TRABAJO" : "ASIGNADO · SIN AVANCE";
+    var clockAt = trabajo.state === "last_work" ? trabajo.endedAt : trabajo.at;
+    return { reference:"", title:trabajo.title, state:stateLabel, project:"",
+      executor:trabajo.executor, responsible:trabajo.agente, kind:trabajo.kind, reachable:trabajo.reachable,
+      presenceAt:trabajo.presenceAt, at:Number(trabajo.at) || 0, idle:parado, clock:horaMadrid(clockAt),
       duration:duracion, timingBasis:trabajo.timingBasis };
   }
 
   function actualizaCarreraPodio() {
     var contenedor = document.getElementById("refreshLanes");
     var trabajos = trabajosEnCurso(), completas = listaCompletaCache || [], byKey = Object.create(null);
-    var ahora = Date.now();
     completas.forEach(function (fila) { byKey[claveAgenteCarrera(fila && fila.agente)] = fila; });
     var corredores = trabajos.map(function (trabajo, index) {
       var base = byKey[trabajo.key] || { agente:trabajo.agente, posicion:completas.length + index + 1,
         total:0, vivo:false, maquinas:[], maquinasVivas:[] };
-      var fila = Object.assign({}, base, { vivo:!!base.vivo || trabajo.operationalBasis === "verified_process" });
-      return { fila:fila, clave:trabajo.key, resumen:resumenTrabajoActivo(trabajo, ahora) };
+      return { fila:Object.assign({}, base), clave:trabajo.key, resumen:resumenTrabajoActivo(trabajo) };
     });
     corredores.sort(function (a, b) {
       return (Number(a.fila.posicion) || 9999) - (Number(b.fila.posicion) || 9999) ||
@@ -3188,60 +3261,49 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var variant = typeof YkHighscoreRace !== "undefined" ? YkHighscoreRace.runnerVariant(fila)
         : (clave.split("").reduce(function (n, c) { return n + c.charCodeAt(0); }, 0) % 2 ? "dark" : "light");
       var clasePuesto = puesto <= 3 ? "refresh-lane-p" + puesto : "refresh-lane-rank";
-      // Parado manda sobre el fundamento operativo: decir «proceso verificado» de
-      // un trabajo que no se mueve desde hace horas es cierto y engañoso a la vez.
-      var heartbeat = resumen.idle ? "parado · sin avance " + resumen.since
-        : resumen.operationalBasis === "verified_process" ? "proceso verificado" : fila.vivo ? "con latido" : "trabajo reciente";
-      return '<div class="refresh-lane ' + clasePuesto + (resumen.idle ? " refresh-lane-idle" : "") +
+      var isLast = resumen.state === "ÚLTIMO TRABAJO";
+      var heartbeat = resumen.state.toLowerCase() + (resumen.reachable ? " · alcanzable" : "");
+      var runner = isLast ? "" : '<span class="refresh-runner runner-' + variant + ' runner-skin-' + variant + '" data-race-role="runner" aria-hidden="true">' +
+        '<svg class="runner-pose-ready" viewBox="0 0 24 24"><use href="#runnerReady"></use></svg>' +
+        '<svg class="runner-pose-set" viewBox="0 0 24 24"><use href="#runnerSet"></use></svg>' +
+        '<svg class="runner-pose-go" viewBox="0 0 24 24"><use href="#runnerGo"></use></svg>' +
+        '<svg class="runner-run-a" viewBox="0 0 24 24"><use href="#runnerRunA"></use></svg>' +
+        '<svg class="runner-run-b" viewBox="0 0 24 24"><use href="#runnerRunB"></use></svg>' +
+        '<svg class="runner-run-c" viewBox="0 0 24 24"><use href="#runnerRunC"></use></svg>' +
+        '<svg class="runner-finish-win" viewBox="0 0 24 24"><use class="gesto-a" href="#runnerWinner"></use><use class="gesto-b" href="#runnerWinnerB"></use></svg>' +
+        '<svg class="runner-finish-lose" viewBox="0 0 24 24"><use class="gesto-a" href="#runnerLoser"></use><use class="gesto-b" href="#runnerLoserB"></use></svg></span>';
+      return '<div class="refresh-lane ' + clasePuesto + (resumen.idle ? " refresh-lane-idle" : "") + (isLast ? " refresh-lane-last" : "") +
         '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
+        'data-work-state="' + esc(isLast ? "last_work" : resumen.idle ? "assigned_stale" : "running") + '" ' +
         (resumen.idle ? 'data-race-idle="true" ' : '') +
         'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Puesto ' + puesto + ', familia ' + esc(agente) +
         '. Responsable ' + esc(responsable) + (executor !== responsable ? ', ejecuta ' + esc(executor) : '') + ', ' + heartbeat + '. ' +
-        (resumen.idle ? 'Última tarea asignada: ' : '') + esc(resumen.title) + '. Tiempo dedicado ' + esc(resumen.duration) + '">' +
+        esc(resumen.title) + '. Hora ' + esc(resumen.clock) + '. Tiempo transcurrido ' + esc(resumen.duration) + '">' +
+        '<span class="refresh-agent" data-race-role="agent" title="Responsable ' + esc(responsable) + '">' + esc(responsable) + '</span>' +
+        '<div class="refresh-lane-center"><div class="refresh-status"><strong>' + esc(resumen.state) + '</strong><time>' + esc(resumen.clock) + '</time></div>' +
         '<div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
         (indice === indiceLlamada ? '<span class="race-call" data-race-role="call" aria-hidden="true"></span>' : '') +
         '<span class="refresh-place refresh-place-track" aria-hidden="true">' + puesto + '</span>' +
-        '<span class="refresh-mission" data-race-role="mission" title="' +
-        (resumen.idle ? 'Parado · sin avance ' + esc(resumen.since) + ' · última tarea asignada: ' : '') + esc(resumen.title) + '">' +
-        (resumen.idle ? '<span class="refresh-mission-idle">PARADO · sin avance ' + esc(resumen.since) + '</span> ' : '') +
-        '<span class="refresh-mission-detail"><span class="refresh-mission-title">' + esc(resumen.title) + '</span>' +
-        '<strong class="refresh-mission-duration" title="Tiempo dedicado factual">⏱ ' + esc(resumen.duration) + '</strong></span></span>' +
-        '<span class="refresh-runner runner-' + variant + ' runner-skin-' + variant + '" data-race-role="runner" aria-hidden="true">' +
-        '<svg class="runner-pose-ready" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerReady"></use></svg>' +
-        '<svg class="runner-pose-set" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerSet"></use></svg>' +
-        '<svg class="runner-pose-go" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerGo"></use></svg>' +
-        '<svg class="runner-run-a" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerRunA"></use></svg>' +
-        '<svg class="runner-run-b" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerRunB"></use></svg>' +
-        '<svg class="runner-run-c" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerRunC"></use></svg>' +
-        '<svg class="runner-finish-win" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use class="gesto-a" href="#runnerWinner"></use><use class="gesto-b" href="#runnerWinnerB"></use></svg>' +
-        '<svg class="runner-finish-lose" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use class="gesto-a" href="#runnerLoser"></use><use class="gesto-b" href="#runnerLoserB"></use></svg></span>' +
-        '<span class="refresh-agent" data-race-role="agent" title="Responsable ' + esc(responsable) + (executor !== responsable ? ' · ejecuta ' + esc(executor) : '') + ' · ' + heartbeat + '">' + esc(responsable) + '</span>' +
-        '<span class="refresh-finish" aria-hidden="true"></span></div></div>';
+        runner + '<span class="refresh-finish" aria-hidden="true"></span></div>' +
+        '<span class="refresh-mission" data-race-role="mission" title="' + esc(resumen.title) + '"><span class="refresh-mission-title">' + esc(resumen.title) + '</span></span></div>' +
+        '<strong class="refresh-elapsed" title="Tiempo transcurrido factual">⏱ ' + esc(resumen.duration) + '</strong></div>';
     }).filter(Boolean);
     var trabajoNoDisponible = !datos.trabajosAvailable && !trabajos.length;
-    var etiquetaVacia = trabajoNoDisponible ? "TRABAJO NO DISPONIBLE" : "SIN TRABAJO ACTIVO";
+    var etiquetaVacia = trabajoNoDisponible ? "TRABAJO NO DISPONIBLE" : "SIN TRABAJO ASIGNADO";
     var corredorSinMision = '<div class="refresh-lane refresh-lane-empty" role="listitem" data-race-empty="true" ' +
       'aria-label="' + etiquetaVacia.toLowerCase() + '"><div class="refresh-track">' +
-      '<span class="race-call" data-race-role="call" aria-hidden="true"></span>' +
-      '<span class="refresh-mission" data-race-role="mission"><span class="refresh-mission-title">' + etiquetaVacia + '</span></span>' +
-      '<span class="refresh-runner runner-light runner-skin-light" data-race-role="runner" aria-hidden="true">' +
-      '<svg class="runner-pose-ready" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerReady"></use></svg>' +
-      '<svg class="runner-pose-set" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerSet"></use></svg>' +
-      '<svg class="runner-pose-go" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerGo"></use></svg>' +
-      '<svg class="runner-run-a" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerRunA"></use></svg>' +
-      '<svg class="runner-run-b" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerRunB"></use></svg>' +
-      '<svg class="runner-run-c" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerRunC"></use></svg>' +
-      '<svg class="runner-finish-win" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use class="gesto-a" href="#runnerWinner"></use><use class="gesto-b" href="#runnerWinnerB"></use></svg>' +
-      '<svg class="runner-finish-lose" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use class="gesto-a" href="#runnerLoser"></use><use class="gesto-b" href="#runnerLoserB"></use></svg></span></div></div>';
+      '<span class="refresh-mission" data-race-role="mission"><span class="refresh-mission-title">' + etiquetaVacia + '</span></span></div></div>';
     contenedor.innerHTML = corredores.length ? corredores.join("") : corredorSinMision;
     var carrera = document.getElementById("refreshRace");
     carrera.setAttribute("data-lanes", String(corredores.length || 1));
     carrera.setAttribute("data-participants", String(corredores.length));
+    carrera.setAttribute("data-running", String(corredores.filter(function (c) { return c.indexOf('data-work-state="running"') >= 0; }).length));
     carrera.setAttribute("data-work-available", datos.trabajosAvailable ? "true" : "false");
     carrera.setAttribute("aria-label", corredores.length + (corredores.length === 1 ? " agente en liza. " : " agentes en liza. ") +
-      (datos.trabajosAvailable ? "" : "Datos de trabajo no disponibles; se conserva la última lectura. ") +
-      "Carrera de puntuación: 24 segundos hasta la meta. Pulsa para parar la carrera.");
+      (datos.trabajosAvailable ? "" : "Datos de trabajo no disponibles. ") +
+      (datos.trabajosMode === "recent" ? "Últimos trabajos finalizados, sin animación. " : "Carrera de puntuación: 24 segundos hasta la meta. ") +
+      "Pulsa para parar la carrera.");
     carrera.classList.toggle("empty", corredores.length === 0);
     if (typeof sorteaOrdenLlegada === "function" && typeof ordenLlegadaFirma !== "undefined" && ordenLlegadaFirma)
       sorteaOrdenLlegada(false);
@@ -3300,7 +3362,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     entradaTimer = setTimeout(entra, ENTRADA_AUTOMATICA_MS);
   }
   function agentesEnLiza() {
-    return trabajosEnCurso().length;
+    return datos.trabajosAvailable && datos.trabajosMode === "active"
+      ? trabajosEnCurso().filter(function (work) { return work.state === "running" || work.state === "assigned_stale"; }).length : 0;
   }
   function listo() {
     listaCompletaCache = calcula();
@@ -3342,7 +3405,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   var REDUCE_MOTION = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
   function sorteaOrdenLlegada(forzar) {
-    var carriles = Array.from(document.querySelectorAll('.refresh-lane[data-agent-key]'));
+    var carriles = Array.from(document.querySelectorAll('.refresh-lane[data-agent-key][data-work-state="running"]'));
     var claves = carriles.map(function (carril) { return carril.getAttribute("data-agent-key") || ""; });
     var firma = claves.slice().sort().join("|");
     if (!carriles.length) {
@@ -3412,8 +3475,15 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       // todos. Si esta vuelta no contesta se conserva el anterior, que envejece
       // mejor que caer al cupo y prometer una ventana que no toca.
       if (r[7]) datos.turnos = r[7];
-      if (r[8]) { datos.trabajos = r[8].participants || []; datos.trabajosAvailable = true; }
-      else datos.trabajosAvailable = false;
+      if (r[8]) {
+        datos.trabajos = r[8].participants || []; datos.trabajosAvailable = true;
+        datos.trabajosGeneratedAt = Number(r[8].generated_at) || 0;
+        datos.trabajosMode = normaliza(r[8].mode) || "active";
+      } else {
+        // Fallo cerrado: no se conserva una carrera antigua como si fuera actual.
+        datos.trabajos = []; datos.trabajosAvailable = false;
+        datos.trabajosGeneratedAt = 0; datos.trabajosMode = "unavailable";
+      }
       fallos = [];
       var listaCompleta = calcula(), l = aplicaAgentScope(listaCompleta);
       var cambioLider = listaCache && l[0] && listaCache[0] && l[0].agente !== listaCache[0].agente;
@@ -3489,17 +3559,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         var avancePista = Math.max(0, Math.min(metaLinea - inicioPista, centroAtleta - inicioPista));
         relleno.style.width = avancePista + "px";
       }
-      if (mision) {
-        // La ventana termina justo detrás del corredor y crece con él hasta la
-        // meta. El título permanece centrado en todo el espacio ya conquistado.
-        var espacioMision = Math.max(0, centroAtleta - RADIO_CORREDOR_PX - 2);
-        var tituloMision = mision.querySelector(".refresh-mission-title");
-        mision.style.left = posicionCorredor;
-        mision.style.width = espacioMision + "px";
-        if (tituloMision) {
-          tituloMision.style.transform = "translateX(0)";
-        }
-      }
+      // El título queda bajo la pista: la animación nunca desplaza texto.
+      if (mision) { mision.style.left = ""; mision.style.width = ""; }
     });
     var quedan = Math.max(0, Math.ceil((1 - progreso) * REFRESCO_MS / 1000));
     document.getElementById("refreshCount").textContent = quedan + " S";

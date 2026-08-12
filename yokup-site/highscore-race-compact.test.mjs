@@ -20,13 +20,13 @@ function pixels(rule, property) {
   return Number(match[1]);
 }
 
-test("cada pista reduce drásticamente altura y separación", () => {
+test("cada pista reserva tres líneas legibles y una separación compacta", () => {
   const lanes = cssRule(".refresh-lanes");
   const lane = cssRule(".refresh-lane");
   const track = cssRule(".refresh-track");
-  assert.ok(pixels(lane, "min-height") <= 42, "el carril debe ocupar como máximo 42px");
-  assert.ok(pixels(track, "min-height") <= 42, "la pista debe ocupar como máximo 42px");
-  assert.ok(pixels(lanes, "gap") <= 1, "la separación vertical debe ser como máximo 1px");
+  assert.ok(pixels(lane, "min-height") <= 62, "el carril debe ocupar como máximo 62px");
+  assert.ok(pixels(track, "min-height") <= 42, "la pista física debe ocupar como máximo 42px");
+  assert.ok(pixels(lanes, "gap") <= 5, "la separación vertical debe ser como máximo 5px");
   assert.match(track, /padding:[^;}]*px/, "la pista conserva márgenes internos explícitos");
 });
 
@@ -51,8 +51,9 @@ test("READY SET GO vive una sola vez en la pista central", () => {
   assert.match(html, /READY[\s\S]*SET[\s\S]*GO/);
 });
 
-test("HIGHSCORE y el mute se alinean con el carril central", () => {
-  assert.match(cssRule("header.cab>h1"), /align-items:center[^}]*align-self:center[^}]*gap:7px/);
+test("HIGHSCORE vive en una banda propia sobre todos los carriles", () => {
+  assert.match(cssRule("header.cab>h1"), /grid-column:1;grid-row:1[^}]*align-items:center[^}]*gap:7px/);
+  assert.match(cssRule(".refresh-race"), /grid-column:1;grid-row:2/);
   assert.match(cssRule(".sonido"), /width:15px[^}]*height:15px[^}]*margin:0/);
 });
 
@@ -63,19 +64,14 @@ test("el dorsal nace oculto bajo la línea y el corredor pasa por encima", () =>
     "el corredor pasa visualmente por encima del dorsal pintado");
 });
 
-test("la misión queda por detrás de la espalda del corredor", () => {
-  const mission = raceSource.indexOf('class="refresh-mission"');
-  const runner = raceSource.indexOf('class="refresh-runner ');
-  const agent = raceSource.indexOf('class="refresh-agent"');
-  assert.ok(mission >= 0 && mission < runner && runner < agent,
-    "el orden de lectura debe ser misión, corredor decorativo y agente");
-  assert.match(cssRule(".refresh-mission"), /z-index:1/);
+test("la misión queda bajo la pista y no se desplaza con el corredor", () => {
+  assert.match(raceSource,/class="refresh-agent"[\s\S]*class="refresh-lane-center"[\s\S]*runner \+ '<span class="refresh-finish"[\s\S]*class="refresh-mission"/,
+    "el DOM generado debe leerse agente, pista decorativa y misión");
+  assert.match(html,/\.refresh-mission\{position:static;display:block/);
   assert.match(cssRule(".refresh-runner"), /z-index:3/);
-  assert.match(cssRule(".refresh-mission"), /transform:translateX\(calc\(-100% - [^)]+\)\)/,
-    "el texto termina justo antes de la espalda del corredor");
-  assert.match(html, /mision\.style\.left = posicionCorredor/);
-  assert.match(cssRule(".refresh-mission-title"), /width:100%[^}]*text-align:center/,
-    "el texto usa todo el tramo conquistado desde el borde de MISIÓN");
+  assert.match(html, /mision\.style\.left = ""; mision\.style\.width = ""/);
+  assert.match(html,/\.refresh-mission-title\{overflow:hidden;text-overflow:ellipsis;text-align:left\}/,
+    "el texto permanece legible y no invade el tiempo");
 });
 
 test("el sprint termina pronto y deja una celebración larga", () => {

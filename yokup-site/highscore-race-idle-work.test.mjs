@@ -61,12 +61,11 @@ test("la etiqueta dice desde cuándo está parado, en minutos y en horas", () =>
 });
 
 test("la calle parada se marca, no corre y no afirma trabajo en curso", () => {
-  assert.match(html, /resumenTrabajoActivo\(trabajo, ahora\)/);
-  assert.match(html, /state:parado \? "SIN AVANCE" : "EN CURSO"/);
+  assert.match(html, /resumenTrabajoActivo\(trabajo\)/);
+  assert.match(html, /trabajo\.state === "running" \? "EN CURSO"/);
   assert.match(html, /resumen\.idle \? " refresh-lane-idle" : ""/);
   assert.match(html, /resumen\.idle \? 'data-race-idle="true" ' : ''/);
-  // Parado manda sobre el fundamento operativo en la etiqueta.
-  assert.match(html, /resumen\.idle \? "parado · sin avance " \+ resumen\.since/);
+  assert.match(html, /"ASIGNADO · SIN AVANCE"/);
   // Y el corredor se queda en la salida.
   assert.match(html, /carril\.getAttribute\("data-race-idle"\) === "true"/);
   assert.match(html, /if \(parado\) progresoAtleta = 0;/);
@@ -78,5 +77,5 @@ test("el rótulo del parado se lee sin depender de que la carrera arranque", () 
   // calle parada nunca recibe: sin esto el parado saldría mudo.
   assert.match(html, /\.refresh-lane-idle \.refresh-mission\{[^}]*opacity:1;visibility:visible/);
   assert.match(html, /phase-go \.refresh-lane-idle \.refresh-mission\{opacity:1;visibility:visible\}/);
-  assert.match(html, /PARADO · sin avance/);
+  assert.match(html, /ASIGNADO · SIN AVANCE/);
 });

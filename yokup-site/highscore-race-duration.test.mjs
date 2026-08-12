@@ -17,25 +17,22 @@ test("formatea únicamente duraciones factuales válidas",()=>{
   assert.equal(race.durationLabel((2*60+7)*60_000),"2 h 7 min");
 });
 
-test("el tiempo aparece en negrita junto a la misión sin invadir meta ni el nombre",()=>{
-  assert.match(html,/<span class="refresh-mission-detail"><span class="refresh-mission-title">[^\n]+<\/span>' \+\s*'<strong class="refresh-mission-duration"/);
-  assert.match(html,/\.refresh-mission-duration\{display:none[^}]*font-weight:950/);
-  assert.match(html,/\.refresh-lane\.finished \.refresh-mission-detail\{display:flex;[^}]*justify-content:center;[^}]*gap:6px/);
-  assert.match(html,/\.refresh-lane\.finished \.refresh-mission-duration\{display:block;flex:0 0 auto\}/);
-  assert.match(html,/\.refresh-lane\.finished \.refresh-mission-title\{display:block;flex:1 1 auto;width:auto;min-width:0;overflow:hidden;text-overflow:ellipsis\}/,
-    "en móvil el título cede espacio con elipsis, pero el reloj factual permanece visible");
-  assert.match(html,/\.refresh-lane-idle \.refresh-mission\{left:var\(--track-start\);right:calc\(var\(--finish-gutter\) \+ var\(--finish-width\) \+ 10px\)/,
-    "el carril parado termina antes del gutter reservado para meta y nombre");
-  assert.match(html,/\.refresh-lane-idle \.refresh-mission-duration\{display:block;flex:0 0 auto\}/,
-    "el reloj sigue visible junto a la misión parada");
-  assert.match(html,/\.refresh-lane\{[^}]*min-height:42px[^}]*\}[\s\S]*\.refresh-track\{[^}]*min-height:42px[^}]*\}/,
-    "cada calle conserva su altura compacta al separar estado y detalle dentro del mismo carril");
-  assert.match(html,/Tiempo dedicado factual/);
-  assert.match(html,/aria-label="Puesto '[\s\S]*Tiempo dedicado/);
+test("el tiempo factual ocupa una columna fija a la derecha de la pista",()=>{
+  assert.match(html,/grid-template-columns:minmax\(112px,160px\) minmax\(0,1fr\) minmax\(74px,96px\)/);
+  assert.match(html,/<strong class="refresh-elapsed" title="Tiempo transcurrido factual">⏱ /);
+  assert.match(html,/\.refresh-elapsed\{[^}]*font-variant-numeric:tabular-nums;[^}]*text-align:right/);
+  assert.match(html,/<span class="refresh-agent"[^>]*>[\s\S]*<div class="refresh-lane-center">/,
+    "el nombre queda antes de la pista, no montado sobre la meta");
+  assert.match(html,/<div class="refresh-status"><strong>' \+ esc\(resumen\.state\) \+ '<\/strong><time>/);
+  assert.match(html,/<span class="refresh-mission"[^>]*><span class="refresh-mission-title">/);
+  assert.match(html,/Tiempo transcurrido factual/);
+  assert.match(html,/aria-label="Puesto '[\s\S]*Tiempo transcurrido/);
+  assert.doesNotMatch(html,/Tiempo dedicado factual|dedicated_ms/);
 });
 
-test("la UI consume work_progress_at y dedicated_ms sin calcularlos con Date.now",()=>{
-  assert.match(html,/at:Number\(item\.work_progress_at \|\| item\.active_at\)/);
-  assert.match(html,/dedicatedMs:Number\.isFinite\(Number\(item\.dedicated_ms\)\)/);
-  assert.doesNotMatch(html,/dedicatedMs:[^\n]*Date\.now/);
+test("la UI consume work_progress_at y elapsed_ms sin calcular el estado con Date.now",()=>{
+  assert.match(html,/at:Number\(item\.work_progress_at\) \|\| 0/);
+  assert.match(html,/elapsedMs:Number\.isFinite\(Number\(item\.elapsed_ms\)\)/);
+  assert.match(html,/state:item\.state \|\| "assigned_stale"/);
+  assert.doesNotMatch(html,/elapsedMs:[^\n]*Date\.now/);
 });

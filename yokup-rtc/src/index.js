@@ -5889,7 +5889,7 @@ async function highscoreHistory(env, requestedAgent, ahora = Date.now()) {
 }
 __name(highscoreHistory, "highscoreHistory");
 
-var HIGHSCORE_ACTIVE_WORK_MS = 60 * 60 * 1000;
+var HIGHSCORE_ACTIVE_WORK_MS = 20 * 60 * 1000;
 var HIGHSCORE_PROCESS_FRESH_MS = 30 * 1000;
 var HIGHSCORE_CLOCK_SKEW_MS = 5 * 1000;
 
@@ -5908,18 +5908,19 @@ function highscoreActiveWorkFamily(raw, machine) {
 }
 __name(highscoreActiveWorkFamily, "highscoreActiveWorkFamily");
 
-function highscoreDedicatedTiming(item, kind, ahora) {
-  if (kind !== "mission" && kind !== "task") return null;
-  const start = highscoreActiveWorkMillis(item && (item.work_started_at || item.started_at));
+function highscoreElapsedTiming(item, kind, ahora) {
+  const start = highscoreActiveWorkMillis(item && (item.work_started_at || item.started_at ||
+    (kind === "objective" ? item.created_at : 0)));
   const progress = highscoreActiveWorkMillis(item && (item.work_progress_at || item.updated_at));
-  const resolved = highscoreActiveWorkMillis(item && item.resolved_at);
-  const end = resolved || progress;
-  if (!start || !end || start > end || start > ahora + HIGHSCORE_CLOCK_SKEW_MS ||
-      end > ahora + HIGHSCORE_CLOCK_SKEW_MS) return null;
-  return { work_started_at:start, work_progress_at:end, dedicated_ms:end - start,
-    timing_basis:resolved ? "start_to_resolved" : kind === "task" ? "task_start_to_last_update" : "mission_start_to_last_material_progress" };
+  const ended = highscoreActiveWorkMillis(item && (item.ended_at || item.resolved_at));
+  const end = ended || ahora;
+  if (!start || start > end || start > ahora + HIGHSCORE_CLOCK_SKEW_MS ||
+      end > ahora + HIGHSCORE_CLOCK_SKEW_MS || progress > ahora + HIGHSCORE_CLOCK_SKEW_MS) return null;
+  return { work_started_at:start, work_progress_at:progress || 0, ended_at:ended || null,
+    elapsed_ms:end - start,
+    timing_basis:ended ? "start_to_end" : "start_to_generated_at" };
 }
-__name(highscoreDedicatedTiming, "highscoreDedicatedTiming");
+__name(highscoreElapsedTiming, "highscoreElapsedTiming");
 
 async function highscoreVerifiedPresence(env, ahora) {
   if (!env.TELEGRAM) return { available:false, by_family:new Map() };
@@ -5947,10 +5948,9 @@ async function highscoreVerifiedPresence(env, ahora) {
 }
 __name(highscoreVerifiedPresence, "highscoreVerifiedPresence");
 
-// Participantes operativos de la carrera superior. La consulta no reutiliza
-// `/fleet/missions` ni `/tasks/all`: ambos son feeds paginables. Un estado activo
-// antiguo sólo participa si el censo de procesos confirma esa familia+máquina;
-// presencia por sí sola nunca sintetiza trabajo.
+// Estado único para tabla y carrera. Un assignment canónico siempre conserva su
+// calle; sólo es `running` si el progreso MATERIAL es de hace <=20 minutos.
+// Presence únicamente añade reachability y nunca cambia el estado del trabajo.
 async function highscoreActiveWork(env, ahora = Date.now()) {
   const [missions, tasks, objectives, presence] = await Promise.all([
     env.DB.prepare(`SELECT id,subject,assignee,loc,status,created_at,started_at,resolved_at,` +
@@ -5976,30 +5976,36 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     const phrase = value.match(/^.*?[.!?](?=\s+[A-ZÁÉÍÓÚÑ])/);
     return String(phrase ? phrase[0] : value || fallback).trim().slice(0, 200);
   };
-  const add = (raw, machine, kind, item, title, familyRaw = raw) => {
+  const add = (raw, machine, kind, item, title, familyRaw = raw, forcedState = "") => {
     const family = highscoreActiveWorkFamily(familyRaw, machine);
     if (!family || family.family_key.startsWith("external:") || !parseAgentIdentity(family.family_name).suffix) return;
     const executor = reportAgentIdentity(raw, machine);
     // La carrera y su reloj comparten una única marca material. Nunca se usa
     // updated_at/live_at del ticket, que también cambian por presencia/captura.
-    const timing = highscoreDedicatedTiming(item, kind, ahora);
+    const timing = highscoreElapsedTiming(item, kind, ahora);
     const at = highscoreActiveWorkMillis(item.work_progress_at || (kind === "objective" ? item.updated_at : 0));
-    const visible = kind === "task"
-      ? taskVisibleDetails({ status:"in_progress", started_at:at }, ahora)
-      : missionVisibleDetails({ status:"in_progress", started_at:at }, ahora);
     const cutoff = ahora - HIGHSCORE_ACTIVE_WORK_MS;
-    const recent = at > 0 && at >= cutoff && at <= ahora + HIGHSCORE_CLOCK_SKEW_MS &&
-      (visible.state === "in_progress" || at === cutoff);
+    const recent = at > 0 && at >= cutoff && at <= ahora + HIGHSCORE_CLOCK_SKEW_MS;
+    const state = forcedState || (recent ? "running" : "assigned_stale");
     const presenceAt = presence.by_family.get(family.family_key) || 0;
-    if (!recent && !presenceAt) return;
     const candidate = { family_key:family.family_key, agent:family.family_name, executor, kind,
       title:visibleTitle(title, kind === "task" ? "Tarea activa" : kind === "mission" ? "Misión activa" : "Objetivo en curso"),
-      active_at:at, work_progress_at:at, operational_basis:recent ? "recent_work" : "verified_process" };
+      state, active_at:at, work_progress_at:at, reachable:!!presenceAt };
     if (timing) Object.assign(candidate, timing);
-    if (!recent) candidate.presence_at = presenceAt;
+    if (presenceAt) candidate.presence_at = presenceAt;
     const previous = byFamily.get(family.family_key);
-    if (!previous || priority[kind] > priority[previous.kind] ||
-        (priority[kind] === priority[previous.kind] && at > previous.active_at)) byFamily.set(family.family_key, candidate);
+    if (forcedState === "last_work") {
+      const candidateEnd = highscoreActiveWorkMillis(candidate.ended_at);
+      const previousEnd = highscoreActiveWorkMillis(previous && previous.ended_at);
+      if (!previous || candidateEnd > previousEnd) byFamily.set(family.family_key, candidate);
+      return;
+    }
+    const stateRank = state === "running" ? 2 : state === "assigned_stale" ? 1 : 0;
+    const previousRank = previous && (previous.state === "running" ? 2 : previous.state === "assigned_stale" ? 1 : 0);
+    if (!previous || stateRank > previousRank ||
+        (stateRank === previousRank && priority[kind] > priority[previous.kind]) ||
+        (stateRank === previousRank && priority[kind] === priority[previous.kind] && at > previous.active_at))
+      byFamily.set(family.family_key, candidate);
   };
   for (const mission of missions) add(mission.assignee, mission.loc, "mission", mission, mission.subject || "Misión activa");
   for (const task of tasks) {
@@ -6010,8 +6016,32 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     const executor = String(objective.author_identity || highscoreAgent(objective.author) || "").trim();
     add(executor, "", "objective", objective, objective.title || "Objetivo en curso");
   }
-  const participants = [...byFamily.values()].sort((a, b) => b.active_at - a.active_at || a.agent.localeCompare(b.agent, "es"));
-  return { ok:true, generated_at:ahora, presence_available:presence.available, count:participants.length, participants };
+  let participants = [...byFamily.values()].sort((a, b) =>
+    (a.state === "running" ? 0 : 1) - (b.state === "running" ? 0 : 1) ||
+    b.active_at - a.active_at || a.agent.localeCompare(b.agent, "es"));
+  const runningCount = participants.filter((row) => row.state === "running").length;
+  if (!runningCount) {
+    const [recentMissions, recentTasks] = await Promise.all([
+      env.DB.prepare(`SELECT id,subject,assignee,loc,'mission' kind,resolved_at ended_at,` +
+        `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,${HIGHSCORE_MISSION_PROGRESS_SQL} work_progress_at ` +
+        `FROM tickets t WHERE ${MISSION_SCOPE_SQL_T} AND status='resolved' AND resolved_at IS NOT NULL ` +
+        `ORDER BY resolved_at DESC LIMIT 12`).all().then((r) => r.results || []),
+      env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.owner,m.executor,m.started_at work_started_at,` +
+        `m.updated_at work_progress_at,m.updated_at ended_at,t.assignee,t.loc,'task' kind ` +
+        `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
+        `AND m.status IN ('done','resolved','completed') ORDER BY m.updated_at DESC LIMIT 12`).all().then((r) => r.results || [])
+    ]);
+    byFamily.clear();
+    for (const row of [...recentMissions, ...recentTasks].sort((a,b) =>
+      highscoreActiveWorkMillis(b.ended_at) - highscoreActiveWorkMillis(a.ended_at))) {
+      const raw = row.kind === "task" ? scopedMissionOwner(row.executor || row.owner, "sub", row.assignee, row.loc) : row.assignee;
+      add(raw, row.loc, row.kind, row, row.title || row.subject || "Último trabajo", row.assignee, "last_work");
+    }
+    participants = [...byFamily.values()].sort((a,b) =>
+      highscoreActiveWorkMillis(b.ended_at) - highscoreActiveWorkMillis(a.ended_at)).slice(0,3);
+  }
+  return { ok:true, generated_at:ahora, timezone:"Europe/Madrid", presence_available:presence.available,
+    mode:runningCount ? "active" : "recent", running_count:runningCount, count:participants.length, participants };
 }
 __name(highscoreActiveWork, "highscoreActiveWork");
 

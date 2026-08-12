@@ -17,7 +17,7 @@ const cycleStart = html.indexOf("var REFRESCO_MS");
 const cycleEnd = html.indexOf("\n  document.getElementById(\"btnSonido\")", cycleStart);
 const cycleSource = html.slice(cycleStart, cycleEnd);
 
-function renderRace(fullRows, work, scopedRows = fullRows, available = true) {
+function renderRace(fullRows, work, scopedRows = fullRows, available = true, mode = "active") {
   const nodes = {
     refreshLanes: { innerHTML: "" },
     refreshRace: {
@@ -29,14 +29,14 @@ function renderRace(fullRows, work, scopedRows = fullRows, available = true) {
   const context = vm.createContext({
     listaCache: scopedRows,
     listaCompletaCache: fullRows,
-    datos: { trabajos: work || [], trabajosAvailable: available },
+    datos: { trabajos: work || [], trabajosAvailable: available, trabajosMode: available ? mode : "unavailable" },
     document: { getElementById: (id) => nodes[id] },
     normaliza: (value) => String(value == null ? "" : value).trim(),
     esc: (value) => String(value == null ? "" : value)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"),
     window: { ykAgentIdentity: identitySandbox.ykAgentIdentity },
     YkHighscoreRace: raceHelperSandbox.module.exports,
-    Number, String, Math, Date,
+    Number, String, Math, Date, Intl,
   });
   vm.runInContext(`${raceSource}\nactualizaCarreraPodio();`, context);
   return {
@@ -50,8 +50,9 @@ function renderRace(fullRows, work, scopedRows = fullRows, available = true) {
 // active_at por defecto = AHORA. Antes era 1 (1-ene-1970), que servía mientras la
 // marca sólo desempataba; desde que decide si el corredor corre, un 1 convierte a
 // todos los fixtures en trabajo parado y las pruebas dejarían de comprobar lo suyo.
-const work = (agent, executor=agent, kind="mission", title="Trabajo activo", active_at=Date.now(), operational_basis="recent_work") => ({
-  family_key:agent.toLowerCase(), agent, executor, kind, title, active_at, operational_basis,
+const work = (agent, executor=agent, kind="mission", title="Trabajo activo", active_at=Date.now(), state="running") => ({
+  family_key:agent.toLowerCase(), agent, executor, kind, title, active_at,
+  work_started_at:active_at-30*60*1000,work_progress_at:active_at,elapsed_ms:30*60*1000,state,
 });
 
 test("sin trabajo factual aparece una calle visual pero declara cero participantes", () => {
@@ -60,9 +61,9 @@ test("sin trabajo factual aparece una calle visual pero declara cero participant
   assert.equal(race.lanes,1);
   assert.equal(race.participants,0);
   assert.equal(race.empty,true);
-  assert.equal((race.html.match(/data-race-role="runner"/g)||[]).length,1);
+  assert.equal((race.html.match(/data-race-role="runner"/g)||[]).length,0);
   assert.match(race.html,/class="refresh-lane refresh-lane-empty"/);
-  assert.match(race.html,/SIN TRABAJO ACTIVO/);
+  assert.match(race.html,/SIN TRABAJO ASIGNADO/);
   assert.doesNotMatch(race.html,/OraculoMacMini|refresh-fill|refresh-place|refresh-finish/);
   assert.deepEqual(rows,[{agente:"OraculoMacMini",posicion:1,total:975,vivo:true}],
     "la carrera no puede retirar ni mutar la fila del ranking");
@@ -78,6 +79,29 @@ test("un participante factual crea una única calle", () => {
   assert.equal((race.html.match(/data-race-role="runner"/g)||[]).length,1);
   assert.match(race.html,/refresh-place-track[^>]*>1<\/span>/);
   assert.match(race.html,/SubOraculoMacMini/);
+});
+
+test("sin running muestra últimos trabajos B/N con hora y elapsed, sin corredor", () => {
+  const ended=Date.now()-60_000;
+  const recent=["OraculoMacMini","MorfeoMacMini","TrinityMBP16"].map((agent,index)=>({
+    ...work(agent,agent,"mission",`Último ${index+1}`,ended-index*60_000,"last_work"),
+    ended_at:ended-index*60_000,elapsed_ms:(index+1)*30*60_000,
+  }));
+  const race=renderRace([],recent,[],true,"recent");
+  assert.equal(race.participants,3);
+  assert.equal((race.html.match(/refresh-lane-last/g)||[]).length,3);
+  assert.equal((race.html.match(/data-race-role="runner"/g)||[]).length,0);
+  assert.equal((race.html.match(/ÚLTIMO TRABAJO/g)||[]).length,3);
+  assert.match(race.html,/⏱ 30 min/);
+  assert.match(race.html,/<time>\d{2}:\d{2}<\/time>/);
+});
+
+test("fallo del endpoint borra la lectura anterior y declara no disponible", () => {
+  const race=renderRace([],[],[],false,"unavailable");
+  assert.equal(race.participants,0); assert.match(race.html,/TRABAJO NO DISPONIBLE/);
+  assert.match(html,/datos\.trabajos = \[\]; datos\.trabajosAvailable = false/);
+  assert.match(html,/Datos de trabajo no disponibles\. /);
+  assert.doesNotMatch(html,/se conserva la última lectura/);
 });
 
 test("la carrera factual es independiente del filtro del ranking", () => {
@@ -99,7 +123,7 @@ test("cuatro elegibles corren aunque sólo dos estén en el scope y ranking loca
   assert.equal(new Set(keys).size,4);
   assert.deepEqual(lanes,[1,2,3,4]);
   for(const name of ["MorfeoMacMini","NeoMBP14","OraculoMacMini","TrinityMBP14"]) assert.match(race.html,new RegExp(name));
-  assert.equal((race.html.match(/data-heartbeat="trabajo-reciente"/g)||[]).length,2);
+  assert.equal((race.html.match(/data-work-state="running"/g)||[]).length,4);
 });
 
 // CONTRATO CAMBIADO el 12-ago-2026 por orden de Carlos. Antes esta prueba exigía
@@ -110,7 +134,7 @@ test("cuatro elegibles corren aunque sólo dos estén en el scope y ranking loca
 // aparecer, pero al correr no debería mostrar que están haciendo algo porque no
 // lo están haciendo». Aparecer, sí; afirmar, no.
 test("un participante con el proceso vivo pero el trabajo parado se rotula PARADO, no corriendo", () => {
-  const item=work("NeoMBP14","SubNeoMBP14","task","Trabajo stale",Date.now()-330*60*1000,"verified_process");
+  const item=work("NeoMBP14","SubNeoMBP14","task","Trabajo stale",Date.now()-330*60*1000,"assigned_stale");
   item.presence_at=Date.now();
   const race=renderRace([], [item], []);
   assert.equal(race.participants,1);
@@ -119,17 +143,17 @@ test("un participante con el proceso vivo pero el trabajo parado se rotula PARAD
   // Pero ni corre ni se ampara en el proceso verificado.
   assert.match(race.html,/data-race-idle="true"/);
   assert.match(race.html,/refresh-lane-idle/);
-  assert.match(race.html,/PARADO · sin avance hace 5 h 30 min/);
+  assert.match(race.html,/ASIGNADO · SIN AVANCE/);
   assert.doesNotMatch(race.html,/data-heartbeat="proceso-verificado"/);
 });
 
 test("con el trabajo fresco sí se rotula el fundamento operativo y corre", () => {
-  const item=work("NeoMBP14","SubNeoMBP14","task","Trabajo vivo",Date.now()-3*60*1000,"verified_process");
+  const item=work("NeoMBP14","SubNeoMBP14","task","Trabajo vivo",Date.now()-3*60*1000,"running");
   item.presence_at=Date.now();
   const race=renderRace([], [item], []);
-  assert.match(race.html,/data-heartbeat="proceso-verificado"/);
+  assert.match(race.html,/data-work-state="running"/);
   assert.doesNotMatch(race.html,/data-race-idle="true"/);
-  assert.doesNotMatch(race.html,/PARADO/);
+  assert.doesNotMatch(race.html,/ASIGNADO · SIN AVANCE/);
 });
 
 test("el dorsal se pinta una vez por cada participante sin tope", () => {

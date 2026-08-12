@@ -110,7 +110,7 @@ test("No concluida conserva tarea y puntos base; sólo pierde actividad y bonus"
 });
 
 test("el ranking distingue actividad actual de los totales históricos", () => {
-  assert.match(html, /datos = \{ tareas: \[\], tareasFresh: false, actividad: \[\],[^}]*misiones: \[\], ideas: \[\], decisiones: \[\], proyectos: \[\],[^}]*declaracionesPrincipales: \[\], controlMachines: \[\], presenceNow: 0, presenceAvailable: false,[^}]*trabajos: \[\], trabajosAvailable: false, turnos: null \}/);
+  assert.match(html, /datos = \{ tareas: \[\], tareasFresh: false, actividad: \[\],[^}]*misiones: \[\], ideas: \[\], decisiones: \[\], proyectos: \[\],[^}]*declaracionesPrincipales: \[\], controlMachines: \[\], presenceNow: 0, presenceAvailable: false,[^}]*trabajos: \[\], trabajosAvailable: false,[^}]*trabajosMode: "unavailable", turnos: null \}/);
   assert.match(html, /seguroYokup\("\/tickets\?scope=fleet", function \(d\) \{ return d\.tickets \|\| \[\]; \}\)/);
   assert.match(html, /seguroYokup\("\/ideas"/);
   assert.match(html, /seguroYokup\("\/decisions"/);
@@ -135,12 +135,12 @@ test("un fallo transitorio de la API no reinicia el acumulado diario", () => {
   assert.match(html, /datos\.actividadFresh = dailyFresh && datos\.tareasFresh/);
 });
 
-test("solo parpadea una categoría y la tarea activa tiene la máxima prioridad", () => {
+test("el parpadeo consume el mismo state y kind factuales que la carrera", () => {
   assert.match(html, /PRIORIDAD_ACTIVIDAD = \{ objetivos:1, misiones:2, ventanas:3, tareas:4 \}/);
   assert.match(html, /function adoptaActividad\(destino, tipo, at, detalle\)/);
   assert.match(html, /if \(nueva < actual/);
   assert.match(html, /function numeroActividad\(a, tipo, valor, singular\)/);
-  assert.match(html, /if \(a\.actividad !== tipo\) return valor/);
+  assert.match(html, /hasEndpointState \? \(a\.workState !== "running" \|\| kindToMetric\[a\.workKind\] !== tipo\) : a\.actividad !== tipo/);
   assert.match(html, /class="activity-now"/);
   assert.match(html, /Si ninguno parpadea, está <b>idle<\/b>/);
 });
@@ -162,7 +162,7 @@ test("el indicador de actividad conserva texto accesible y detalle contextual", 
   assert.equal(context.idle, 18);
 });
 
-test("la decisión de estado ejecuta la precedencia tarea > ventana > misión > objetivo", () => {
+test("el estado de endpoint prima sobre la precedencia local y sobre presencia", () => {
   const start = html.indexOf("function calcula() {");
   const end = html.indexOf("\n\n  var brazosTimer", start);
   assert.ok(start >= 0 && end > start, "falta calcula");
@@ -176,6 +176,8 @@ test("la decisión de estado ejecuta la precedencia tarea > ventana > misión > 
     decisiones: [{status:"live", agent:"Neo", machine:"", created_at:now, deadline:now + 60000, question:"Elegir", project_id:"xpaceos"}],
     proyectos: [{id:"xpaceos", name:"XpaceOS", web:"www.xpaceos.com"}]
   };
+  fixture.trabajosAvailable = true;
+  fixture.trabajos = [{agent:"Neo", state:"running", kind:"task"}];
   let observations = 0;
   const context = vm.createContext({
     datos: fixture,
@@ -184,6 +186,7 @@ test("la decisión de estado ejecuta la precedencia tarea > ventana > misión > 
       key: (raw) => String(raw || "").toLowerCase(), display: (base) => base, scoped: (assignee) => assignee
     }},
     normaliza: (value) => String(value == null ? "" : value).trim(),
+    claveAgenteCarrera: (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]/g, ""),
     tareasDeHoy: () => fixture.tareas,
     comoMs(value) { const n = Number(value) || 0; return n > 0 && n < 1e11 ? n * 1000 : n; },
     esReciente(value, margin) { return now - Number(value) < margin; },
@@ -197,6 +200,8 @@ test("la decisión de estado ejecuta la precedencia tarea > ventana > misión > 
   });
   vm.runInContext(`${html.slice(start, end)}\nglobalThis.primero = calcula();`, context);
   assert.equal(context.primero[0].actividad, "tareas");
+  assert.equal(context.primero[0].workState, "running");
+  assert.equal(context.primero[0].workKind, "task");
   assert.equal(context.primero[0].proyecto, "xpaceos.com");
   context.datos.tareas = [];
   vm.runInContext("globalThis.segundo = calcula();", context);
@@ -207,6 +212,7 @@ test("la decisión de estado ejecuta la precedencia tarea > ventana > misión > 
   context.datos.misiones = [];
   vm.runInContext("globalThis.cuarto = calcula();", context);
   assert.equal(context.cuarto[0].actividad, "objetivos");
+  assert.equal(context.cuarto[0].workState, "running");
   const validObservations = observations;
   // Respuestas 200 pero arrays de scoring temporalmente incompletos: presencia
   // viva mantiene la fila, sin escribir un cero sobre el baseline válido.
