@@ -3717,7 +3717,7 @@ function scopedMissionOwner(raw, fallbackRole, assignee, machine) {
 __name(scopedMissionOwner, "scopedMissionOwner");
 async function listMissionTasks(env, mid) {
   const { results } = await env.DB.prepare(
-    "SELECT mission_id, code, title, status, owner, executor, report, image, image_kind, created_at, updated_at FROM mission_tasks WHERE mission_id=? ORDER BY code"
+    "SELECT mission_id, code, title, status, owner, executor, report, image, image_kind, created_at, started_at, updated_at FROM mission_tasks WHERE mission_id=? ORDER BY code"
   ).bind(mid).all();
   const rows = results || [];
   await attachDisplayRefs(env, "task", rows, taskDisplayKey, (row) => row.created_at || row.updated_at);
@@ -3832,9 +3832,9 @@ async function listAllMissionTasks(env, scope) {
     : scope === "todas" ? ""
     : `WHERE ${FIELD_SOURCE_SQL_T}`;
   const { results } = await env.DB.prepare(
-    // ADITIVO (Carlos, 2026-07-23 · /informes): además de la hora de inicio de la
-    // misión (t.created_at → mission_created) traemos la de FIN (t.resolved_at →
-    // mission_resolved) y la PRUEBA de cierre de la misión (t.proof_image →
+    // ADITIVO (Carlos, 2026-07-23 · /informes): además del sello de creación
+    // conservamos inicio de trabajo factual, FIN (t.resolved_at →
+    // mission_resolved) y PRUEBA de cierre (t.proof_image →
     // mission_proof) para que la columna Captura tenga un fallback real cuando la
     // tarea no dejó imagen propia. No rompe a /tareas: sólo añade campos.
     `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.executor, m.report, m.image, m.image_kind, m.created_at, m.started_at, m.updated_at,
@@ -3847,6 +3847,7 @@ async function listAllMissionTasks(env, scope) {
             -- y la columna Proceso conserva su comportamiento de siempre.
             i.source_image AS idea_image, i.source_url AS idea_url, i.id AS idea_id,
             t.id AS parent_ticket_id, t.status AS mission_status, t.created_at AS mission_created,
+            ${HIGHSCORE_WORK_STARTED_SQL} AS mission_started,
             t.resolved_at AS mission_resolved, t.proof_image AS mission_proof,
             t.points_start AS points_start, t.points_end AS points_end
        FROM mission_tasks m LEFT JOIN tickets t ON t.id = m.mission_id
@@ -3860,7 +3861,13 @@ async function listAllMissionTasks(env, scope) {
     // Alias conservado porque `visible_state` sigue siendo el contrato temporal
     // común; `operational` sólo añade el ciclo del padre.
     const visible = operational;
-    return { ...task, visible_state:visible.state, active_since:visible.active_since,
+    const missionStarted = highscoreActiveWorkMillis(task.mission_started);
+    const missionResolved = highscoreActiveWorkMillis(task.mission_resolved);
+    const timingValid = missionStarted > 0 && (!missionResolved || missionResolved >= missionStarted);
+    return { ...task, visible_state:visible.state,
+      mission_started:timingValid ? missionStarted : null,
+      mission_generated_at:now, mission_timing_basis:timingValid ? (missionResolved ? "start_to_end" : "start_to_generated_at") : "missing_or_invalid_start",
+      active_since:visible.active_since,
       visible_state_at:visible.transition_at, visible_state_reason:visible.reason,
       operational_state:operational.operational_state, parent_lifecycle:operational.parent_lifecycle,
       agent_identity: reportAgentIdentity(task.assignee, task.loc),
@@ -3908,13 +3915,15 @@ __name(attachReportDisplayRefs, "attachReportDisplayRefs");
 
 async function listMissionReportsPage(env, scope, options) {
   const filter = buildReportsPageFilter(options, reportScopeClause(scope));
-  const sql = `SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.report,m.image,m.image_kind,m.created_at,m.updated_at,
+  const generatedAt = Date.now();
+  const sql = `SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.report,m.image,m.image_kind,m.created_at,m.started_at,m.updated_at,
       t.subject,t.screen,t.loc,t.project,t.source,t.role AS mission_role,t.assignee,
       t.live_surface AS process_surface,t.live_context AS process_context,
       CASE WHEN t.live_kind='process' THEN t.live_shot ELSE NULL END AS process_image,
       CASE WHEN t.live_kind='process' THEN t.live_at ELSE NULL END AS process_captured_at,
       i.source_image AS idea_image, i.source_url AS idea_url, i.id AS idea_id,
-      t.status AS mission_status,t.created_at AS mission_created,t.resolved_at AS mission_resolved,t.proof_image AS mission_proof,
+      t.status AS mission_status,t.created_at AS mission_created,${HIGHSCORE_WORK_STARTED_SQL} AS mission_started,
+      t.resolved_at AS mission_resolved,t.proof_image AS mission_proof,
       t.points_start AS points_start,t.points_end AS points_end
     FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id
     LEFT JOIN ideas i ON i.mission_id = t.id AND COALESCE(i.source_image,'') <> ''
@@ -3922,7 +3931,14 @@ async function listMissionReportsPage(env, scope, options) {
     ORDER BY COALESCE(m.updated_at,0) DESC,m.mission_id DESC,m.code DESC LIMIT ?`;
   const result = await env.DB.prepare(sql).bind(...filter.page_binds, options.limit + 1).all();
   const fetched = result.results || [], hasMore = fetched.length > options.limit;
-  const rows = fetched.slice(0, options.limit).map(enrichReportTaskIdentity);
+  const rows = fetched.slice(0, options.limit).map((raw) => {
+    const row = enrichReportTaskIdentity(raw);
+    const started = highscoreActiveWorkMillis(row.mission_started);
+    const resolved = highscoreActiveWorkMillis(row.mission_resolved);
+    const valid = started > 0 && (!resolved || resolved >= started);
+    return { ...row, mission_started:valid ? started : null, mission_generated_at:generatedAt,
+      mission_timing_basis:valid ? (resolved ? "start_to_end" : "start_to_generated_at") : "missing_or_invalid_start" };
+  });
   await attachReportDisplayRefs(env, rows);
   let total = null;
   if (options.include_total) {
@@ -3935,7 +3951,8 @@ async function listMissionReportsPage(env, scope, options) {
     tasks:rows,
     next_cursor:hasMore && rows.length ? encodeReportsCursor(rows[rows.length - 1]) : null,
     has_more:hasMore,
-    total
+    total,
+    generated_at:generatedAt
   };
 }
 __name(listMissionReportsPage, "listMissionReportsPage");
@@ -5658,12 +5675,13 @@ var HIGHSCORE_MISSION_STARTED_SQL = "CASE WHEN t.source IN ('decision-batch','cl
 // Inicio de TRABAJO (más estricto que el sello de puntuación histórica): un plan
 // pendiente no basta. Hace falta started_at, una misión nacida ya en curso, una
 // transición interna de Yokup o la primera tarea realmente iniciada/hecha.
-var HIGHSCORE_WORK_STARTED_SQL = "COALESCE(t.started_at,CASE WHEN t.source IN ('decision-batch','cli-declare') THEN t.created_at END,(SELECT MIN(e.ts) FROM events e WHERE e.ticket_id=t.id AND " + HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL + "),(SELECT MIN(COALESCE(mt.started_at,mt.updated_at)) FROM mission_tasks mt WHERE mt.mission_id=t.id AND mt.status IN ('in_progress','doing','active','done','resolved','completed')))";
-// Avance MATERIAL de una misión. `tickets.updated_at` y `live_at` quedan fuera a
-// propósito: /fleet/progress los refresca con heartbeats/capturas y eso no prueba
-// que haya cambiado el trabajo. Una transición de inicio o una tarea actualizada
-// sí son hechos de trabajo reproducibles.
-var HIGHSCORE_MISSION_PROGRESS_SQL = "MAX(COALESCE((SELECT MAX(mt.updated_at) FROM mission_tasks mt WHERE mt.mission_id=t.id AND mt.status IN ('in_progress','doing','active','done','resolved','completed')),0),COALESCE(" + HIGHSCORE_WORK_STARTED_SQL + ",0))";
+var HIGHSCORE_WORK_STARTED_SQL = "COALESCE(t.started_at,(SELECT MIN(e.ts) FROM events e WHERE e.ticket_id=t.id AND " + HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL + "),(SELECT MIN(mt.started_at) FROM mission_tasks mt WHERE mt.mission_id=t.id AND mt.started_at IS NOT NULL AND mt.status IN ('in_progress','doing','active','done','resolved','completed')))";
+// Avance MATERIAL de una misión. `tickets.updated_at`, `live_at` y
+// `mission_tasks.updated_at` quedan fuera: los tres también cambian por report,
+// owner, imagen o heartbeat. Cada started_at de tarea sí es un hecho material;
+// hasta que exista un sello de fin propio de tarea, un cierre no se infiere de
+// una edición posterior.
+var HIGHSCORE_MISSION_PROGRESS_SQL = "MAX(COALESCE((SELECT MAX(mt.started_at) FROM mission_tasks mt WHERE mt.mission_id=t.id AND mt.started_at IS NOT NULL AND mt.status IN ('in_progress','doing','active','done','resolved','completed')),0),COALESCE(" + HIGHSCORE_WORK_STARTED_SQL + ",0))";
 // Revisión de carrera: a diferencia del reloj/estado histórico, no puede
 // depender de `mission_tasks.updated_at`, porque `setTaskStatus` también lo
 // mueve al editar report, owner o evidencia sin que exista avance material.
@@ -6122,6 +6140,35 @@ function highscoreLinkedSession(rows) {
 }
 __name(highscoreLinkedSession, "highscoreLinkedSession");
 
+// Dos relojes, una sola fuente de verdad. Una encarnación exacta mide sesión;
+// si no existe un vínculo único pero sí un intervalo de trabajo válido, se
+// publica ese mismo intervalo con una base explícita. Nunca se presenta el
+// fallback como telemetría de proceso ni se elige una sesión ambigua.
+function highscoreDedicatedTiming(linked, timing, ahora) {
+  if (!timing || !Number.isFinite(Number(timing.elapsed_ms))) return null;
+  const workEnd = Number(timing.ended_at) || Number(ahora) || 0;
+  if (linked) {
+    const start = Number(linked.started_at) || 0;
+    let end = linked.state === "closed" ? Number(linked.ended_at) || 0
+      : linked.state === "open" ? Number(ahora) || 0 : 0;
+    let basis = String(linked.basis || "exact_session").slice(0, 40);
+    if (Number(timing.ended_at) > 0 && linked.state === "open") {
+      end = workEnd;
+      basis = "exact_session_capped_at_work_end";
+    } else if (Number(timing.ended_at) > 0 && end > workEnd) {
+      end = workEnd;
+      basis = "exact_session_capped_at_work_end";
+    }
+    if (start > 0 && end >= start) return { session_dedicated_ms:end - start,
+      session_state:Number(timing.ended_at) > 0 ? "closed" : linked.state,
+      dedicated_basis:basis, session_surface:linked.surface || "" };
+  }
+  return { session_dedicated_ms:Number(timing.elapsed_ms),
+    session_state:Number(timing.ended_at) > 0 ? "closed" : "open",
+    dedicated_basis:"work_interval_fallback", session_surface:"" };
+}
+__name(highscoreDedicatedTiming, "highscoreDedicatedTiming");
+
 // Estado único para tabla y carrera. Un assignment canónico siempre conserva su
 // calle; sólo es `running` si el progreso MATERIAL es de hace <=20 minutos.
 // Presence únicamente añade reachability y nunca cambia el estado del trabajo.
@@ -6135,7 +6182,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
       `${HIGHSCORE_RACE_PROGRESS_SQL} race_progress_at FROM tickets t ` +
       `WHERE ${MISSION_SCOPE_SQL_T} AND status='in_progress'`).all().then((r) => r.results || []),
     env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.started_at,m.created_at,m.updated_at,` +
-      `m.started_at work_started_at,m.updated_at work_progress_at,m.started_at race_progress_at,NULL assignment_event_at,` +
+      `m.started_at work_started_at,m.started_at work_progress_at,m.started_at race_progress_at,NULL assignment_event_at,` +
       `CASE WHEN COALESCE(TRIM(m.executor),'')<>'' THEN m.created_at END assignment_born_at,t.assignee,t.loc,t.resolved_at ` +
       `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
       `AND m.status IN ('in_progress','doing','active') ` +
@@ -6174,26 +6221,24 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     if (!forcedState && !laneRecent && !presenceAt) return;
     const raceProgressAt = highscoreActiveWorkMillis(item.race_progress_at ||
       (kind === "objective" ? item.created_at : 0));
-    const raceRevision = [family.family_key, kind, workRef,
-      assignment && assignment.assignment_at || 0, raceProgressAt || 0].join("|");
+    const raceRevision = "r1:" + hash([family.family_key, kind, workRef,
+      assignment && assignment.assignment_at || 0, raceProgressAt || 0].join("|")).toString(36);
+    // Un último trabajo necesita comienzo y fin factuales. En particular,
+    // mission_tasks.updated_at no puede hacer de fin: un informe tardío lo
+    // movería y descongelaría la duración. Mientras una tarea no tenga ended_at
+    // canónico se omite del fallback histórico en vez de inventarlo.
+    if (forcedState === "last_work" && (!timing || !Number(timing.ended_at))) return;
     const candidate = { family_key:family.family_key, agent:family.family_name, executor, kind,
       title:visibleTitle(title, kind === "task" ? "Tarea activa" : kind === "mission" ? "Misión activa" : "Objetivo en curso"),
       state, active_at:at, work_progress_at:at, reachable:!!presenceAt,
-      work_ref:String(workRef || ""), race_revision:raceRevision };
+      race_revision:raceRevision };
     const linkedSessions = presence.sessions && presence.sessions.get(`${family.family_key}|${workRef}`) || [];
     // Exactamente una encarnación vinculada: cero o varias son ambiguas y por
     // contrato no se suman ni se elige una de forma heurística.
     const linked = highscoreLinkedSession(linkedSessions);
-    if (linked) {
-      candidate.session_state = linked.state;
-      candidate.session_basis = linked.basis;
-      candidate.session_surface = linked.surface;
-      if (linked.state === "open") candidate.session_dedicated_ms = Math.max(0, ahora - linked.started_at);
-      else if (linked.state === "closed" && linked.ended_at)
-        candidate.session_dedicated_ms = Math.max(0, linked.ended_at - linked.started_at);
-      else candidate.session_dedicated_ms = null;
-    }
     if (timing) Object.assign(candidate, timing);
+    const dedicated = highscoreDedicatedTiming(linked, timing, ahora);
+    if (dedicated) Object.assign(candidate, dedicated);
     if (assignment) Object.assign(candidate, assignment);
     if (presenceAt) candidate.presence_at = presenceAt;
     const previous = byFamily.get(family.family_key);
@@ -6235,7 +6280,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
         `FROM tickets t WHERE ${MISSION_SCOPE_SQL_T} AND status='resolved' AND resolved_at IS NOT NULL ` +
         `ORDER BY resolved_at DESC LIMIT 12`).all().then((r) => r.results || []),
       env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.owner,m.executor,m.started_at,m.created_at,` +
-        `m.started_at work_started_at,m.updated_at work_progress_at,m.updated_at ended_at,NULL assignment_event_at,` +
+        `m.started_at work_started_at,m.started_at work_progress_at,NULL ended_at,NULL assignment_event_at,` +
         `CASE WHEN COALESCE(TRIM(m.executor),'')<>'' THEN m.created_at END assignment_born_at,t.assignee,t.loc,'task' kind ` +
         `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
         `AND m.status IN ('done','resolved','completed') ORDER BY m.updated_at DESC LIMIT 12`).all().then((r) => r.results || [])

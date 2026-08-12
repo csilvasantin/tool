@@ -30,8 +30,8 @@ function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
     grabVar("HIGHSCORE_PERSONAS"),grabVar("MISSION_SCOPE_SQL_T"),grabVar("PRESENCE_URL"),
     grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_WORK_STARTED_SQL"),grabVar("HIGHSCORE_MISSION_PROGRESS_SQL"),grabVar("HIGHSCORE_RACE_PROGRESS_SQL"),grabVar("HIGHSCORE_ASSIGNMENT_EVENT_SQL"),
     grabVar("HIGHSCORE_ACTIVE_WORK_MS"),grabVar("HIGHSCORE_LANE_WORK_MS"),grabVar("HIGHSCORE_PROCESS_FRESH_MS"),grabVar("HIGHSCORE_CLOCK_SKEW_MS"),
-    grab("highscoreAgent"),grab("scopedMissionOwner"),grab("highscoreActiveWorkMillis"),grab("highscoreActiveWorkFamily"),
-    grab("highscoreElapsedTiming"),grab("highscoreAssignmentTiming"),grab("highscoreVerifiedPresence"),grab("highscoreLinkedSession"),grab("highscoreActiveWork"),
+    grab("hash"),grab("highscoreAgent"),grab("scopedMissionOwner"),grab("highscoreActiveWorkMillis"),grab("highscoreActiveWorkFamily"),
+    grab("highscoreElapsedTiming"),grab("highscoreAssignmentTiming"),grab("highscoreVerifiedPresence"),grab("highscoreLinkedSession"),grab("highscoreDedicatedTiming"),grab("highscoreActiveWork"),
   ].join("\n"),context);
   return {db,env:{DB,TELEGRAM},F:context};
 }
@@ -92,14 +92,18 @@ test("la frontera de elegibilidad incluye 60m exactos sin declarar movimiento",a
   assert.equal(result.participants.find(row=>row.agent==="OraculoMacMini").state,"assigned_stale");
 });
 
-test("elapsed activo usa generated_at-start, separado del último progreso material",async()=>{
+test("elapsed activo usa generated_at-start y report updated_at no compra progreso",async()=>{
   const {db,env,F}=harness();
-  mission(db,{at:NOW-5*MIN,startedAt:NOW-45*MIN});
+  mission(db,{at:NOW-45*MIN,startedAt:NOW-45*MIN});
+  mission(db,{id:"M2",agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-MIN});
   db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
     .run("M1","a","Avance","in_progress","SubOraculoMini",NOW-45*MIN,NOW-45*MIN,NOW-5*MIN,"SubOraculoMini");
   const row=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW))).participants.find(item=>item.agent==="OraculoMacMini");
-  assert.equal(row.work_started_at,NOW-45*MIN); assert.equal(row.work_progress_at,NOW-5*MIN);
+  assert.equal(row.state,"assigned_stale");
+  assert.equal(row.work_started_at,NOW-45*MIN); assert.equal(row.work_progress_at,NOW-45*MIN);
   assert.equal(row.elapsed_ms,45*MIN); assert.equal(row.timing_basis,"start_to_generated_at");
+  assert.equal(row.session_dedicated_ms,45*MIN);
+  assert.equal(row.dedicated_basis,"work_interval_fallback");
 });
 
 test("assignment_at es factual y separado de inicio, progreso, presencia y fin",async()=>{
@@ -124,13 +128,15 @@ test("assignment_at prioriza evento, luego started y born-assigned; futuro o aus
 
 test("task gana por prioridad dentro del mismo state y Sub/Infra colapsan por familia",async()=>{
   const {db,env,F}=harness();
-  mission(db,{agent:"OraculoMini",at:NOW-10*MIN});
+  mission(db,{agent:"OraculoMini",at:NOW-40*MIN});
+  mission(db,{id:"M2",agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-MIN});
   db.exec(`INSERT INTO mission_tasks VALUES
     ('M1','a','Implementar','in_progress','OraculoMini',${NOW-35*MIN},${NOW-40*MIN},${NOW-6*MIN},'SubOraculoMini'),
     ('M1','a1','QA','doing','OraculoMini',${NOW-30*MIN},${NOW-35*MIN},${NOW-5*MIN},'InfraOraculoMini')`);
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
-  assert.equal(result.count,1); assert.equal(result.participants[0].agent,"OraculoMacMini");
-  assert.equal(result.participants[0].kind,"task"); assert.equal(result.participants[0].executor,"InfraOraculoMini");
+  assert.equal(result.count,2);
+  const oraculo=result.participants.find((row)=>row.agent==="OraculoMacMini");
+  assert.equal(oraculo.kind,"task"); assert.equal(oraculo.executor,"InfraOraculoMini");
 });
 
 test("sin running devuelve top3 finalizados deduplicados, no presencia ni asignaciones stale",async()=>{
@@ -186,7 +192,21 @@ test("report o retítulo no renuevan race_revision de tarea o misión activa",as
   assert.equal(afterPayload.count,2,JSON.stringify(afterPayload));
   const after=afterPayload.participants.find((row)=>row.agent==="MorfeoMacMini");
   assert.equal(after.race_revision,before.race_revision);
-  assert.match(after.race_revision,new RegExp(`\\|${NOW-30*MIN}$`));
+  assert.equal(after.work_progress_at,before.work_progress_at);
+  assert.equal(after.state,before.state);
+  assert.match(after.race_revision,/^r1:[a-z0-9]+$/);
+});
+
+test("un task finalizado sin ended_at factual no usa report updated_at como fin",async()=>{
+  const {db,env,F}=harness();
+  mission(db,{id:"R1",agent:"OraculoMacMini",at:NOW-10*MIN,startedAt:NOW-30*MIN,status:"resolved"});
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
+    .run("R1","a","Informe tardío","done","OraculoMacMini",NOW-25*MIN,NOW-25*MIN,NOW-MIN,"InfraOraculoMini");
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.count,1,JSON.stringify(result));
+  assert.equal(result.participants[0].kind,"mission");
+  assert.equal(result.participants[0].ended_at,NOW-10*MIN);
+  assert.equal(result.participants[0].elapsed_ms,20*MIN);
 });
 
 test("endpoint agregado expone sólo señales mínimas y ningún payload privado",()=>{
@@ -201,27 +221,55 @@ test("sesión dedicada requiere vínculo exacto y una sola encarnación",async()
     started_at:(NOW-15*MIN)/1000,ended_at:null,state:"open",basis:"process_birth"}];
   const {db,env,F}=harness(undefined,sessions);
   mission(db,{id:"M1",at:NOW-5*MIN,startedAt:NOW-5*MIN});
-  const row=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW))).participants[0];
+  const payload=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(payload.count,1,JSON.stringify(payload));
+  const row=payload.participants[0];
   assert.equal(row.session_dedicated_ms,15*MIN);
-  assert.equal(row.session_state,"open"); assert.equal(row.session_basis,"process_birth");
+  assert.equal(row.session_state,"open"); assert.equal(row.dedicated_basis,"process_birth");
   assert.equal(row.session_surface,"cli");
   for(const forbidden of ["pid","session_id","incarnation_id"])
     assert.equal(Object.hasOwn(row,forbidden),false);
-  assert.equal(row.work_ref,"M1");
-  assert.match(row.race_revision,/oraculo.*\|mission\|M1\|/);
+  assert.equal(Object.hasOwn(row,"work_ref"),false);
+  assert.match(row.race_revision,/^r1:[a-z0-9]+$/);
+  assert.doesNotMatch(row.race_revision,/M1|oraculo|mission/i);
 });
 
-test("sesión ambigua o silenciosa nunca inventa dedicación",async()=>{
+test("sesión ambigua o silenciosa usa el intervalo factual sin fingir medición",async()=>{
   const exact={persona:"Oraculo",machine:"MacMini",work_ref:"M1",surface:"app",
     started_at:(NOW-20*MIN)/1000,ended_at:null,state:"open",basis:"process_birth"};
   const ambiguous=harness(undefined,[exact,{...exact,surface:"cli",started_at:(NOW-10*MIN)/1000}]);
   mission(ambiguous.db,{id:"M1",at:NOW-MIN});
   let row=JSON.parse(JSON.stringify(await ambiguous.F.highscoreActiveWork(ambiguous.env,NOW))).participants[0];
-  assert.equal(Object.hasOwn(row,"session_dedicated_ms"),false);
+  assert.equal(row.session_dedicated_ms,MIN);
+  assert.equal(row.dedicated_basis,"work_interval_fallback");
   const unknown=harness(undefined,[{...exact,state:"unknown"}]);
   mission(unknown.db,{id:"M1",at:NOW-MIN});
   row=JSON.parse(JSON.stringify(await unknown.F.highscoreActiveWork(unknown.env,NOW))).participants[0];
-  assert.equal(row.session_state,"unknown"); assert.equal(row.session_dedicated_ms,null);
+  assert.equal(row.session_state,"open"); assert.equal(row.session_dedicated_ms,MIN);
+  assert.equal(row.dedicated_basis,"work_interval_fallback");
+});
+
+test("una sesión abierta se congela exactamente al fin factual del trabajo",()=>{
+  const {F}=harness();
+  const timing={work_started_at:NOW-30*MIN,ended_at:NOW-5*MIN,elapsed_ms:25*MIN};
+  const result=F.highscoreDedicatedTiming({state:"open",started_at:NOW-20*MIN,ended_at:null,basis:"process_birth",surface:"cli"},timing,NOW);
+  assert.deepEqual(JSON.parse(JSON.stringify(result)),{session_dedicated_ms:15*MIN,session_state:"closed",
+    dedicated_basis:"exact_session_capped_at_work_end",session_surface:"cli"});
+});
+
+test("sin inicio factual no publica ninguna de las dos duraciones",()=>{
+  const {F}=harness();
+  assert.equal(F.highscoreElapsedTiming({work_progress_at:NOW-MIN},"mission",NOW),null);
+  assert.equal(F.highscoreDedicatedTiming(null,null,NOW),null);
+});
+
+test("born-assigned sin started ni transición no se convierte en inicio de trabajo",()=>{
+  const {F}=harness();
+  const item={assignment_born_at:NOW-MIN,created_at:NOW-MIN,work_progress_at:NOW-MIN};
+  assert.deepEqual(JSON.parse(JSON.stringify(F.highscoreAssignmentTiming(item,"mission",NOW))),
+    {assignment_at:NOW-MIN,assignment_basis:"born_assigned"});
+  assert.equal(F.highscoreElapsedTiming(item,"mission",NOW),null);
+  assert.equal(F.highscoreDedicatedTiming(null,null,NOW),null);
 });
 
 test("rollover conserva una única encarnación viva sin sumar la cerrada anterior",async()=>{

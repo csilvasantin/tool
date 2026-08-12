@@ -533,25 +533,23 @@ function renderLoadError(){
 function shotHTML(src,title,alt,mission){ return src
   ? `<a class="shot-a" href="${esc(src)}" data-full="${esc(src)}" title="${esc(title)}"><img class="shot-img${mission?' shot-mission':''}" loading="lazy" decoding="async" src="${esc(src)}" alt="${esc(alt)}"></a>`
   : `<span class="shot-none" title="${esc(title)}">—</span>`; }
-// Celda TIEMPO: hora INICIO (created_at de la misión) → hora FIN (resolved_at si está
-// resuelta; si no, el último updated_at de sus tareas · «en curso»). Fecha corta delante
-// SÓLO si la misión no empezó hoy. Duración compacta.
+// Celda TIEMPO: usa el mismo inicio factual que Highscore. Un created_at, report,
+// updated_at o latido no sustituyen started_at/transición interna. Las abiertas
+// terminan en el generated_at del servidor; las resueltas quedan congeladas.
 function tiempoHTML(t){
-  const start=_ms(t.mission_created);
+  const start=_ms(t.mission_started);
   if(!start) return '<span class="tcell tdur">—</span>';
   const resolved=_ms(t.mission_resolved);
   const done=(t.mission_status==='resolved')||!!resolved;
-  const latest=MLAST[String(t.mission_id)]||0;
-  const endMs=resolved||(done?latest:latest);
+  const generated=_ms(t.mission_generated_at);
+  const endMs=resolved||(!done?generated:0);
   const live=!done;
   const pref=esHoy(start)?'':('<span class="tdate">'+ddmm(start)+'</span>');
   const ini=hhmm(start);
   let body;
   if(endMs && endMs>=start){
     body=ini+' → '+hhmm(endMs)+(live?' · <span class="tlive">en curso</span>':' · <span class="tdur">'+durTxt(start,endMs)+'</span>');
-  }else{
-    body=ini+' → <span class="tlive">en curso</span>';
-  }
+  }else body=ini+' → '+(live?'<span class="tlive">en curso</span>':'—');
   return '<span class="tcell">'+pref+'⏱ '+body+'</span>';
 }
 // Referencia humana canónica de la API: 0047.06/08/2026.19:09 →

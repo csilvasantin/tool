@@ -3216,13 +3216,13 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       return { key:claveAgenteCarrera(item.agent), agente:item.agent, executor:item.executor,
         kind:item.kind, title:item.title || (item.kind === "task" ? "Tarea activa" : item.kind === "mission" ? "Misión activa" : "Objetivo en curso"),
         state:item.state || "assigned_stale", reachable:item.reachable === true,
-        workRef:item.work_ref || "", raceRevision:item.race_revision || "",
+        raceRevision:item.race_revision || "",
         assignmentAt:Number(item.assignment_at) || 0, assignmentBasis:item.assignment_basis || "",
         startedAt:Number(item.work_started_at) || 0, at:Number(item.work_progress_at) || 0,
         endedAt:Number(item.ended_at) || 0, elapsedMs:Number.isFinite(Number(item.elapsed_ms)) ? Number(item.elapsed_ms) : null,
         timingBasis:item.timing_basis || "", presenceAt:Number(item.presence_at) || 0,
         sessionDedicatedMs:Number.isFinite(Number(item.session_dedicated_ms)) ? Number(item.session_dedicated_ms) : null,
-        sessionState:item.session_state || "unknown", sessionBasis:item.session_basis || "",
+        sessionState:item.session_state || "unknown", sessionBasis:item.dedicated_basis || item.session_basis || "",
         sessionSurface:item.session_surface || "" };
     }).sort(function (a, b) { return (a.state === "running" ? -1 : 1) - (b.state === "running" ? -1 : 1) ||
       (b.state === "last_work" ? b.endedAt : b.at) - (a.state === "last_work" ? a.endedAt : a.at) ||
@@ -3304,13 +3304,17 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       ? YkHighscoreRace.clockDurationLabel(reloj.missionDurationMs) : "—";
     var sesion = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.clockDurationLabel
       ? YkHighscoreRace.clockDurationLabel(reloj.sessionDurationMs) : "—";
+    var sessionLabel = trabajo.sessionBasis === "work_interval_fallback"
+      ? "Tiempo de trabajo; sin sesión medida"
+      : trabajo.sessionDedicatedMs === null ? "Sesión no disponible" : "Tiempo de sesión exacta";
     var stateLabel = trabajo.state === "running" ? "EN CURSO" : trabajo.state === "last_work" ? "FINALIZADO" : "SIN AVANCE";
     return { reference:"", title:trabajo.title, state:stateLabel, project:"",
       executor:trabajo.executor, responsible:trabajo.agente, kind:trabajo.kind, reachable:trabajo.reachable,
       presenceAt:trabajo.presenceAt, at:Number(trabajo.at) || 0, idle:parado,
       assignmentClock:horaMadrid(trabajo.assignmentAt), assignmentBasis:trabajo.assignmentBasis,
       duration:duracion, sessionDuration:sesion, sessionState:reloj.sessionState,
-      sessionBasis:trabajo.sessionBasis, sessionSurface:trabajo.sessionSurface, timingBasis:trabajo.timingBasis };
+      sessionBasis:trabajo.sessionBasis, sessionLabel:sessionLabel,
+      sessionSurface:trabajo.sessionSurface, timingBasis:trabajo.timingBasis };
   }
 
   function actualizaRelojesCarrera() {
@@ -3321,6 +3325,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         ended_at:Number(bloque.getAttribute("data-work-end")) || 0,
         session_dedicated_ms:bloque.getAttribute("data-session-duration") === "" ? null : Number(bloque.getAttribute("data-session-duration")),
         session_state:bloque.getAttribute("data-session-state") || "unknown" };
+      var sessionBasis = bloque.getAttribute("data-dedicated-basis") || "";
+      var sessionDescription = sessionBasis === "work_interval_fallback"
+        ? "Tiempo de trabajo; sin sesión medida"
+        : bloque.getAttribute("data-session-duration") === "" ? "Sesión no disponible" : "Tiempo de sesión exacta";
       var reloj = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.workClock
         ? YkHighscoreRace.workClock(work, datos.trabajosGeneratedAt, elapsed) : { at:0, durationMs:null };
       var duracion = bloque.querySelector(".refresh-elapsed");
@@ -3331,9 +3339,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         ? YkHighscoreRace.clockDurationLabel(reloj.sessionDurationMs) : "—";
       if (duracion) duracion.textContent = durationLabel;
       if (sesion) sesion.textContent = sessionLabel;
+      if (sesion) sesion.setAttribute("title", sessionDescription);
       var estado = bloque.querySelector(".refresh-work-state");
       bloque.setAttribute("aria-label", (estado ? estado.textContent : "Estado no disponible") +
-        ". Tiempo de misión " + durationLabel + ". Tiempo de sesión " + sessionLabel);
+        ". Tiempo de misión " + durationLabel + ". " + sessionDescription + " " + sessionLabel);
     });
   }
 
@@ -3399,11 +3408,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
           ' data-work-start="' + (Number(enlace.trabajo.startedAt) || 0) + '" data-work-end="' + (Number(enlace.trabajo.endedAt) || 0) + '"' +
           ' data-session-duration="' + (enlace.trabajo.sessionDedicatedMs === null ? '' : Math.max(0, Number(enlace.trabajo.sessionDedicatedMs) || 0)) + '"' +
           ' data-session-state="' + esc(enlace.trabajo.sessionState || "unknown") + '"' +
-          ' aria-label="' + esc(resumen.state) + '. Tiempo de misión ' + esc(resumen.duration) + '. Tiempo de sesión ' + esc(resumen.sessionDuration) + '">' +
+          ' data-dedicated-basis="' + esc(enlace.trabajo.sessionBasis || "") + '"' +
+          ' aria-label="' + esc(resumen.state) + '. Tiempo de misión ' + esc(resumen.duration) + '. ' + esc(resumen.sessionLabel) + ' ' + esc(resumen.sessionDuration) + '">' +
           '<strong class="refresh-work-state">' + esc(resumen.state) + '</strong><span class="refresh-time-sep" aria-hidden="true">//</span>' +
           '<strong class="refresh-elapsed">' + esc(resumen.duration) + '</strong>' +
           '<span class="refresh-time-sep" aria-hidden="true">//</span><strong class="refresh-session-elapsed" data-session-state="' +
-          esc(enlace.trabajo.sessionState || "unknown") + '">' + esc(resumen.sessionDuration) + '</strong></div></div>';
+          esc(enlace.trabajo.sessionState || "unknown") + '" title="' + esc(resumen.sessionLabel) + '">' + esc(resumen.sessionDuration) + '</strong></div></div>';
     }).filter(Boolean);
     var trabajoNoDisponible = !datos.trabajosAvailable && !trabajos.length;
     var etiquetaVacia = trabajoNoDisponible ? "TRABAJO NO DISPONIBLE" : "SIN TRABAJO ASIGNADO";
