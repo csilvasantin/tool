@@ -117,16 +117,18 @@ test("el endpoint usa backlog, historial y actividad globales del proyecto exact
   assert.doesNotMatch(body, /Math\.random|ORDER BY RANDOM|infer|guess/i);
 });
 
-test("el publicador conserva cuota y orden exacto 3 + back + custom", () => {
-  const stateAt = script.indexOf("/fleet/onidle-state");
-  const proposalsAt = script.indexOf("/fleet/onidle-proposals");
-  const postAt = script.indexOf('-X POST "$API/decisions"');
-  assert.ok(stateAt >= 0 && stateAt < proposalsAt && proposalsAt < postAt,
-    "la cuota debe comprobarse antes de obtener propuestas y antes del POST");
-  assert.match(script, /if len\(rows\)!=3: raise SystemExit/);
-  assert.match(script, /ops \+= \["\u21a9 Volver atrás", "\u270d\ufe0f Custom · Escribe la mejora que quieras a mano"\]/);
-  assert.match(script, /targets \+= \[None,None\]/);
-  assert.match(script, /if not target or not re\.fullmatch/);
-  assert.doesNotMatch(script, /explicit_new/);
-  assert.match(script, /OnIdle bloqueado: \$reason · cupo \$\{used\}\/8/);
+test("el publicador servidor conserva cuota y orden exacto 3 + back + custom", () => {
+  const publish = source.slice(source.indexOf("async function publishScheduledOnIdle"),
+    source.indexOf("__name(publishScheduledOnIdle"));
+  const stateAt = publish.indexOf("operationalOnIdleState");
+  const proposalsAt = publish.indexOf("canonicalOnIdleProposals");
+  const insertAt = publish.indexOf("INSERT OR IGNORE INTO decisions");
+  assert.ok(stateAt >= 0 && stateAt < proposalsAt && proposalsAt < insertAt,
+    "la cuota debe comprobarse antes de obtener propuestas y antes del INSERT");
+  assert.match(publish, /proposalResult\.proposals\.length !== 3/);
+  assert.match(publish, /concat\(\["↩ Volver atrás", "✍️ Custom · Escribe la mejora que quieras a mano"\]\)/);
+  assert.match(publish, /concat\(\[null, null\]\)/);
+  assert.match(publish, /ordinal > ONIDLE_DAILY_LIMIT/);
+  assert.doesNotMatch(script, /onidle-proposals|\/decisions|-X POST/,
+    "el observador local no vuelve a ser productor");
 });

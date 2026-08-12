@@ -64,14 +64,15 @@ test("el dorsal nace oculto bajo la línea y el corredor pasa por encima", () =>
     "el corredor pasa visualmente por encima del dorsal pintado");
 });
 
-test("la misión queda bajo la pista y no se desplaza con el corredor", () => {
-  assert.match(raceSource,/class="refresh-agent"[\s\S]*class="refresh-lane-center"[\s\S]*runner \+ '<span class="refresh-finish"[\s\S]*class="refresh-mission"/,
-    "el DOM generado debe leerse agente, pista decorativa y misión");
-  assert.match(html,/\.refresh-mission\{position:static;display:block/);
+test("la misión vive dentro de la pista y sigue por detrás del corredor", () => {
+  assert.match(raceSource,/class="refresh-agent"[\s\S]*class="refresh-lane-center"[\s\S]*class="refresh-mission"[\s\S]*runner \+ '<span class="refresh-finish"/,
+    "el DOM generado debe leerse agente, pista con misión y corredor por encima");
+  assert.match(html,/\.refresh-mission\{position:absolute;z-index:1/);
   assert.match(cssRule(".refresh-runner"), /z-index:3/);
-  assert.match(html, /mision\.style\.left = ""; mision\.style\.width = ""/);
-  assert.match(html,/\.refresh-mission-title\{overflow:hidden;text-overflow:ellipsis;text-align:left\}/,
-    "el texto permanece legible y no invade el tiempo");
+  assert.match(html, /mision\.style\.left = posicionCorredor/);
+  assert.match(html, /mision\.style\.width = espacioMision \+ "px"/);
+  assert.match(html,/\.refresh-mission-detail\{display:block\}\.refresh-mission-title\{overflow:hidden;text-overflow:ellipsis;text-align:right\}/,
+    "el texto se recorta dentro del recorrido y no invade el tiempo");
 });
 
 test("el sprint termina pronto y deja una celebración larga", () => {

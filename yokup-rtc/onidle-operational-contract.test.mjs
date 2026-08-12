@@ -28,22 +28,10 @@ test('API publica elegibilidad y aplica el mismo guard al alta OnIdle',()=>{
     'OnIdle debe pasar primero por su guard canónico');
 });
 
-test('script versionado consulta el guard y publica exactamente 3 + atrás + custom',()=>{
+test('cliente versionado queda retirado como productor y sólo observa el guard',()=>{
   assert.match(script,/ONIDLE_AGENT:-OraculoMini/);
-  assert.match(script,/OraculoMacMini\) AGENT="OraculoMini"/);
   assert.match(script,/fleet\/onidle-state/);
-  assert.match(script,/fleet\/onidle-proposals/);
-  assert.match(script,/\["↩ Volver atrás", "✍️ Custom · Escribe la mejora que quieras a mano"\]/);
-  assert.match(script,/"onidle":True/);
-  assert.match(script,/"option_targets":targets/);
-  assert.match(script,/\$\(\(used\+1\)\)\/8/);
-  assert.match(script,/EXIT_PUBLISHED=0/);
-  assert.match(script,/EXIT_BLOCKED=10/);
-  assert.match(script,/EXIT_ERROR=20/);
-  assert.match(script,/sound Glass/);
-  assert.match(script,/decided\|expired\|cancelled/);
-  assert.match(script,/sound Ping/);
-  assert.doesNotMatch(script,/ONIDLE_OPTIONS_FILE|onidle-opciones|head -3|head -5/);
+  assert.doesNotMatch(script,/fleet\/onidle-proposals|\/decisions|afplay|Glass|Ping|-X POST|--watch/);
 });
 
 test('el fallo anterior se reproduce como contexto granular ausente',()=>{
@@ -55,107 +43,36 @@ test('el fallo anterior se reproduce como contexto granular ausente',()=>{
   assert.match(source,/code: "exact_project_required"/);
 });
 
-const canonicalLines=[
-  JSON.stringify({title:'Mejora uno',target_mission_id:'INC-ONE'}),
-  JSON.stringify({title:'Mejora dos',target_mission_id:'DCL-TWO'}),
-  JSON.stringify({title:'Mejora tres',target_mission_id:'FLT-THREE'})
-].join('\n')+'\n';
-
-async function dryRun(extra={},proposalLines=canonicalLines,censusAgent='OraculoMini') {
+async function runObserver(args=[]) {
   const dir=await mkdtemp(join(tmpdir(),'onidle-project-'));
   const curl=join(dir,'curl');
+  const trace=join(dir,'trace');
   await writeFile(curl,`#!/bin/sh
-case "$*" in
-  *fleet/onidle-state*) echo '{"ok":true,"can_open":true,"quota":{"used":2},"reason":"ready"}' ;;
-  */projects*) echo '{"projects":[{"id":"yokup","name":"Yokup","status":"activo","agents":["${censusAgent}"],"machines":["admira-macmini"]}]}' ;;
-  *fleet/onidle-proposals*) cat <<'JSONL'
-${proposalLines.trimEnd()}
-JSONL
-    printf '200'
-  ;;
-  *) exit 91 ;;
-esac
+printf '%s\\n' "$*" >> "$TRACE"
+printf '{"ok":true,"can_open":false,"reason":"active_mission","quota":{"used":3}}'
 `,{mode:0o755});
-  return spawnSync('bash',[new URL('./tools/onidle-hora.sh',import.meta.url).pathname],{
-    encoding:'utf8',env:{...process.env,PATH:`${dir}:${process.env.PATH}`,ONIDLE_DRY_RUN:'1',...extra}
+  const result=spawnSync('bash',[new URL('./tools/onidle-hora.sh',import.meta.url).pathname,...args],{
+    encoding:'utf8',env:{...process.env,PATH:`${dir}:${process.env.PATH}`,TRACE:trace}
   });
+  let calls=''; try { calls=await readFile(trace,'utf8'); } catch {}
+  return {result,calls};
 }
 
-test('dry-run deriva Yokup/YOKUP y conserva 3 + back + custom sin POST real',async()=>{
-  const result=await dryRun();
-  assert.equal(result.status,10,result.stderr);
-  const contract=JSON.parse(result.stdout.trim());
-  assert.equal(contract.result,'blocked');
-  assert.equal(contract.reason,'dry_run');
-  assert.equal(contract.published,false);
-  const payload=contract.payload;
-  assert.deepEqual([payload.project_id,payload.project,payload.project_slug],['yokup','Yokup','YOKUP']);
-  assert.equal(payload.agent,'OraculoMini');
-  assert.deepEqual(payload.options,['Mejora uno','Mejora dos','Mejora tres','↩ Volver atrás','✍️ Custom · Escribe la mejora que quieras a mano']);
-  assert.deepEqual(payload.option_targets,[{target_mission_id:'INC-ONE'},{target_mission_id:'DCL-TWO'},{target_mission_id:'FLT-THREE'},null,null]);
-  assert.equal(payload.onidle,true);
+test('observador hace un único GET y jamás intenta publicar',async()=>{
+  const {result,calls}=await runObserver(['--status']);
+  assert.equal(result.status,0,result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout),{
+    ok:true,can_open:false,reason:'active_mission',quota:{used:3}
+  });
+  assert.match(calls,/fleet\/onidle-state/);
+  assert.doesNotMatch(calls,/decisions|onidle-proposals|-X POST/);
 });
 
-test('dry-run acepta OraculoMini contra un censo histórico stale',async()=>{
-  const result=await dryRun({ONIDLE_AGENT:'OraculoMini'},canonicalLines,'OraculoMacMini');
-  assert.equal(result.status,10,result.stderr);
-  const contract=JSON.parse(result.stdout.trim());
-  assert.equal(contract.reason,'dry_run');
-  assert.equal(contract.payload.agent,'OraculoMini');
-});
-
-test('dry-run convierte ONIDLE_AGENT histórico antes de emitir',async()=>{
-  const result=await dryRun({ONIDLE_AGENT:'OraculoMacMini'});
-  assert.equal(result.status,10,result.stderr);
-  const contract=JSON.parse(result.stdout.trim());
-  assert.equal(contract.reason,'dry_run');
-  assert.equal(contract.payload.agent,'OraculoMini');
-});
-
-test('dry-run rechaza cualquier mejora sin misión y evidencia canónica',async()=>{
-  const lines=[
-    JSON.stringify({title:'Mejora nueva explícita',target_mission_id:null,explicit_new:true}),
-    JSON.stringify({title:'Resolver misión real',target_mission_id:'INC-OMPEIL'}),
-    JSON.stringify({title:'Resolver otra misión',target_mission_id:'DCL-REAL'})
-  ].join('\n')+'\n';
-  const result=await dryRun({},lines);
-  assert.equal(result.status,20,result.stderr);
-  assert.equal(JSON.parse(result.stdout.trim()).reason,'proposals_invalid');
-});
-
-test('script ignora cualquier fichero manual stale y usa sólo la respuesta canónica',async()=>{
-  const result=await dryRun({ONIDLE_OPTIONS_FILE:'/tmp/no-debe-leerse'});
-  assert.equal(result.status,10,result.stderr);
-  const payload=JSON.parse(result.stdout.trim()).payload;
-  assert.equal(payload.options[0],'Mejora uno');
-  assert.doesNotMatch(script,/ONIDLE_OPTIONS_FILE/);
-});
-
-test('menos de tres, duplicadas o null ambiguo fallan cerrado antes del POST',async()=>{
-  const invalid=[
-    canonicalLines.trim().split('\n').slice(0,2).join('\n')+'\n',
-    [JSON.stringify({title:'Igual',target_mission_id:'INC-1'}),JSON.stringify({title:'igual',target_mission_id:'INC-2'}),JSON.stringify({title:'Tres',target_mission_id:'INC-3'})].join('\n')+'\n',
-    [JSON.stringify({title:'Sin origen',target_mission_id:null}),JSON.stringify({title:'Dos',target_mission_id:'INC-2'}),JSON.stringify({title:'Tres',target_mission_id:'INC-3'})].join('\n')+'\n'
-  ];
-  for (const lines of invalid) {
-    const result=await dryRun({},lines);
-    assert.equal(result.status,20);
-    assert.match(result.stderr,/propuestas canónicas inválidas o incompletas/);
-    assert.deepEqual(JSON.parse(result.stdout),{
-      result:'error',published:false,reason:'proposals_invalid'
-    });
-  }
-});
-
-test('override de nombre o slug inconsistente falla cerrado antes del POST',async()=>{
-  for (const env of [{ONIDLE_PROJECT:'Otro'},{ONIDLE_PROJECT_SLUG:'OTRO'},{ONIDLE_PROJECT_ID:'no-asignado'}]) {
-    const result=await dryRun(env);
-    assert.equal(result.status,20);
-    assert.match(result.stderr,/contexto granular inválido/);
-    assert.deepEqual(JSON.parse(result.stdout),{
-      result:'error',published:false,reason:'project_context_invalid'
-    });
-  }
+test('cualquier antiguo modo de publicación falla antes de tocar red',async()=>{
+  const {result,calls}=await runObserver(['--watch']);
+  assert.equal(result.status,64);
+  assert.equal(calls,'');
+  assert.match(result.stdout,/publisher_local_retirado/);
 });
 
 test('started_at se fija una vez y los reportes no reinician el reloj',()=>{

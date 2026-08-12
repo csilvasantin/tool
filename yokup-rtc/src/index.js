@@ -261,6 +261,12 @@ async function applySchema(env) {
   // OnIdle puede apuntar a una misión canónica sin convertir su título en una
   // pseudo-clave frágil. Las filas históricas conservan NULL.
   await env.DB.exec("ALTER TABLE decisions ADD COLUMN option_targets TEXT").catch(() => {});
+  // Reserva durable del publicador OnIDLE del servidor. La clave identidad+día+
+  // ordinal hace que cron y piggyback reparen el mismo intento tras un timeout,
+  // en vez de abrir dos ventanas. La decisión conserva el estado funcional; este
+  // ledger sólo registra la publicación idempotente y nunca contiene secretos.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS onidle_ticks (identity_key TEXT NOT NULL, day TEXT NOT NULL, ordinal INTEGER NOT NULL, agent TEXT NOT NULL, machine TEXT NOT NULL, project_id TEXT NOT NULL, decision_id TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'reserved', reserved_at INTEGER NOT NULL, published_at INTEGER, PRIMARY KEY(identity_key,day,ordinal))");
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_onidle_ticks_status ON onidle_ticks(status,reserved_at)");
   // Una decisión de misiones es una tanda, no cinco trabajos independientes.
   // Se persiste la cola, pero cada cierre deja la tanda en
   // `awaiting_continuation`: la siguiente misión sólo puede salir de una nueva
@@ -1872,6 +1878,9 @@ async function runScheduledRoutine(env, event) {
   // pasan a Eliminadas. Va después del sync/reconcile para observar cualquier
   // cierre o actividad externa recién llegada antes de decidir; el lease vive en D1.
   await step("dailyMissionClose", () => runDailyMissionClose(env));
+  // OnIDLE nace únicamente aquí, bajo el mismo lease D1 de cron/piggyback. Los
+  // clientes locales se limitan a observar; no publican ni reproducen avisos.
+  await step("onIdle", () => runOnIdleTick(env));
   // Consejo generador (idempotente por hueco de 3h; su propia bitácora council_ticks).
   await step("council", () => runCouncilTick(env));
   // Cápsula de la hora para admira.academy (idempotente por hora; clave primaria).
@@ -3426,19 +3435,25 @@ async function operationalOnIdleState(env, identity, now = Date.now()) {
     env.DB.prepare("SELECT m.mission_id,m.code,m.status,m.started_at,m.created_at,m.updated_at,t.assignee,t.loc " +
       "FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE m.status IN ('in_progress','doing','active','unconcluded') " +
       "AND t.status NOT IN ('resolved','cancelled')").all(),
-    env.DB.prepare("SELECT id,agent,machine,deadline FROM decisions WHERE status='pending' AND deadline>?").bind(now).all()
+    // Una decisión pending bloquea aunque su deadline haya pasado: primero debe
+    // converger expireDecisions. Publicar encima de una fila aún pendiente crea
+    // dos preguntas visibles y rompe el orden de la tanda.
+    env.DB.prepare("SELECT id,agent,machine,deadline FROM decisions WHERE status='pending'").all()
   ]);
-  const owns = (row) => sameAgentFamily(row.assignee || row.agent || "", identity.agent) &&
-    memberRefMatches("machine", row.loc || row.machine || identity.machine, identity.machine);
-  const missions = (missionResult.results || []).filter(owns);
-  const tasks = (taskResult.results || []).filter(owns);
-  const live = (decisionResult.results || []).filter(owns).length;
+  // OnIDLE es un carrusel GLOBAL: no debe preguntar a una segunda familia mientras
+  // otra misión, tarea o decisión sigue activa. El selector de identidad sólo fija
+  // quién publicará la próxima ventana; nunca reduce el universo de bloqueo.
+  const missions = missionResult.results || [];
+  const tasks = taskResult.results || [];
+  const live = (decisionResult.results || []).length;
   const range = missionDayRange(madridDayKey(now));
   const usedRows = range ? (await env.DB.prepare(
     "SELECT agent,machine FROM decisions WHERE (parent_decision IS NULL OR parent_decision='') " +
     "AND mission=? AND created_at>=? AND created_at<?"
   ).bind(ONIDLE_MISSION_MARKER, range.start, range.end).all()).results || [] : [];
-  const windowsToday = usedRows.filter(owns).length;
+  // El cupo de ocho también es global. Contar sólo la identidad candidata permitía
+  // ocho ventanas por agente y multiplicaba el límite diario de la plataforma.
+  const windowsToday = usedRows.length;
   const eligibility = onIdleEligibility({ missions, tasks, live_decisions:live,
     windows_today:windowsToday, now, daily_limit:ONIDLE_DAILY_LIMIT });
   return { ...eligibility, agent:identity.agent, machine:identity.machine,
@@ -3504,6 +3519,91 @@ async function canonicalOnIdleProposals(env, identity, requestedProjectId) {
   }), project_id:projectId, agent:identity.agent, machine:identity.machine };
 }
 __name(canonicalOnIdleProposals, "canonicalOnIdleProposals");
+
+function onIdleTickDecisionId(identity, day, ordinal) {
+  return "DEC-ONIDLE-" + String(day || "").replace(/[^0-9]/g, "") + "-" +
+    identityKey(identity.agent).slice(0, 24) + "-" + identityKey(identity.machine).slice(0, 24) + "-" + ordinal;
+}
+__name(onIdleTickDecisionId, "onIdleTickDecisionId");
+
+// Construye pares exactos desde el censo, no un agente o una máquina sueltos.
+// Un agente con apellido sólo casa con la máquina que reproduce esa identidad;
+// los pares ambiguos fallan cerrados en exactDecisionProjectAssignment.
+async function scheduledOnIdleAssignments(env) {
+  const projects = await listProjects(env), out = [], seen = new Set();
+  for (const project of projects.filter((row) => String(row.status || "activo").toLowerCase() === "activo")) {
+    for (const agentRef of project.agents || []) {
+      for (const machine of project.machines || []) {
+        const identity = resolveDecisionIdentity(agentRef, machine);
+        if (!identity.ok || reportAgentIdentity(identity.agent, identity.machine) !== canonicalProjectAgentRef(agentRef)) continue;
+        const assignment = await exactDecisionProjectAssignment(env, identity.agent, identity.machine, project.id);
+        if (!assignment || String(assignment.id) !== String(project.id)) continue;
+        const key = identityKey(identity.agent) + "@" + identityKey(identity.machine);
+        if (seen.has(key)) continue;
+        seen.add(key); out.push({ identity, project:assignment, identity_key:key });
+      }
+    }
+  }
+  // listProjects no promete orden; un orden canónico evita que dos isolates elijan
+  // familias distintas para el mismo ordinal global tras una respuesta reordenada.
+  return out.sort((a, b) => a.identity_key.localeCompare(b.identity_key));
+}
+__name(scheduledOnIdleAssignments, "scheduledOnIdleAssignments");
+
+async function publishScheduledOnIdle(env, candidate, now = Date.now()) {
+  const { identity, project, identity_key:identityKeyValue } = candidate;
+  const state = await operationalOnIdleState(env, identity, now);
+  if (!state.can_open) return { ok:true, published:false, reason:state.reason };
+  const proposalResult = await canonicalOnIdleProposals(env, identity, project.id);
+  if (!proposalResult.ok || !Array.isArray(proposalResult.proposals) || proposalResult.proposals.length !== 3) {
+    return { ok:true, published:false, reason:proposalResult.code || "proposals_unavailable" };
+  }
+  const day = madridDayKey(now), ordinal = state.quota.used + 1;
+  if (ordinal < 1 || ordinal > ONIDLE_DAILY_LIMIT) return { ok:true, published:false, reason:"daily_limit" };
+  const decisionId = onIdleTickDecisionId(identity, day, ordinal);
+  const options = proposalResult.proposals.map((row) => String(row.title || "").slice(0, 200))
+    .concat(["↩ Volver atrás", "✍️ Custom · Escribe la mejora que quieras a mano"]);
+  const targets = proposalResult.proposals.map((row) => ({ target_mission_id:String(row.target_mission_id) }))
+    .concat([null, null]);
+  const deadline = now + 5 * 60000;
+  const reserve = env.DB.prepare(
+    "INSERT OR IGNORE INTO onidle_ticks (identity_key,day,ordinal,agent,machine,project_id,decision_id,status,reserved_at) VALUES (?,?,?,?,?,?,?,'reserved',?)"
+  ).bind(identityKeyValue, day, ordinal, identity.agent, identity.machine, project.id, decisionId, now);
+  // El INSERT de la decisión vuelve a comprobar que no apareció otra pregunta
+  // entre el guard y el batch. D1 ejecuta batch de forma atómica; si un timeout
+  // deja una reserva antigua, el mismo id la repara en el siguiente tick.
+  const decision = env.DB.prepare(
+    "INSERT OR IGNORE INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id,option_targets) " +
+    "SELECT ?,?,?,? ,?,?,0,'pending',?,?,?,?,?,?, '', '',? WHERE NOT EXISTS (" +
+    "SELECT 1 FROM decisions WHERE status='pending') AND NOT EXISTS (" +
+    "SELECT 1 FROM tickets WHERE status IN ('in_progress','unconcluded')) AND NOT EXISTS (" +
+    "SELECT 1 FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id " +
+    "WHERE m.status IN ('in_progress','doing','active','unconcluded') AND t.status NOT IN ('resolved','cancelled'))"
+  ).bind(decisionId, identity.machine, identity.agent, "highscore", "Ventana OnIDLE " + ordinal + "/" + ONIDLE_DAILY_LIMIT,
+    JSON.stringify(options), now, deadline, DECIDE_URL, ONIDLE_MISSION_MARKER, project.id,
+    String(project.slug || decisionProjectSlug(project.name || project.id)).toUpperCase(), JSON.stringify(targets));
+  const mark = env.DB.prepare(
+    "UPDATE onidle_ticks SET status='published',published_at=? WHERE identity_key=? AND day=? AND ordinal=? " +
+    "AND EXISTS(SELECT 1 FROM decisions WHERE id=? AND status='pending')"
+  ).bind(now, identityKeyValue, day, ordinal, decisionId);
+  if (typeof env.DB.batch === "function") await env.DB.batch([reserve, decision, mark]);
+  else { await reserve.run(); await decision.run(); await mark.run(); }
+  const published = await env.DB.prepare("SELECT id FROM decisions WHERE id=? AND status='pending'").bind(decisionId).first();
+  if (published) await ensureEntityDisplayRef(env, "window", decisionId, now);
+  return { ok:true, published:!!published, decision_id:published ? decisionId : null,
+    reason:published ? "published" : "concurrent_block", ordinal, agent:identity.agent, machine:identity.machine, project_id:project.id };
+}
+__name(publishScheduledOnIdle, "publishScheduledOnIdle");
+
+async function runOnIdleTick(env, now = Date.now()) {
+  const results = [];
+  for (const candidate of await scheduledOnIdleAssignments(env)) {
+    results.push(await publishScheduledOnIdle(env, candidate, now));
+  }
+  return { ok:true, evaluated_at:now, results,
+    published:results.filter((row) => row.published).length, publisher:"server-scheduled-v1" };
+}
+__name(runOnIdleTick, "runOnIdleTick");
 
 async function pauseTimedOutOnIdleBatches(env, identity, now = Date.now()) {
   const cutoff = now - MISSION_UNCONCLUDED_AFTER_MS;

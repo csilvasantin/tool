@@ -241,10 +241,12 @@ test("Ordenador agrupa equipos y mantiene dentro de cada grupo la posición real
   assert.deepEqual(Array.from(context.equiposDesc), ["Uno", "Tres", "Dos", "Cuatro"]);
 });
 
-test("el trabajo factual queda fijo bajo la pista y no solapa nombre ni reloj", () => {
+test("el trabajo factual sigue por detrás del corredor sin solapar nombre ni reloj", () => {
   assert.match(html, /<div class="refresh-lanes" id="refreshLanes" role="list" aria-label="Trabajo activo por familia canónica"><\/div>/);
-  assert.match(html, /\.refresh-mission\{position:static;display:block;width:auto;max-width:none;transform:none;overflow:hidden/);
-  assert.match(html, /\.refresh-mission-title\{overflow:hidden;text-overflow:ellipsis;text-align:left\}/);
+  assert.match(html, /\.refresh-mission\{position:absolute;z-index:1/);
+  assert.match(html, /\.refresh-mission-detail\{display:block\}\.refresh-mission-title\{overflow:hidden;text-overflow:ellipsis;text-align:right\}/);
+  assert.match(html, /mision\.style\.left = posicionCorredor/);
+  assert.match(html, /mision\.style\.width = espacioMision \+ "px"/);
   assert.doesNotMatch(html, /\.refresh-mission-(?:ref|state|meta|project)\{/);
   assert.match(html, /@media \(max-width:620px\)[\s\S]*?\.refresh-mission\{font-size:8px;line-height:12px\}/);
   // La cinta se rompe en el fotograma del CRUCE, no al acabar la cuenta: la

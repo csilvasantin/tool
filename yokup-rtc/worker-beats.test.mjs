@@ -52,6 +52,7 @@ vm.runInContext(`
   const bump = (n) => { __stub.calls[n] = (__stub.calls[n] || 0) + 1; if (__stub.throwOn === n) throw new Error('boom-' + n); };
   globalThis.ensureSchema = async () => { if (__stub.scheduleThrows) throw new Error('no-schema'); };
   globalThis.runDailyMissionClose = async () => bump('dailyMissionClose');
+  globalThis.runOnIdleTick = async () => bump('onIdle');
   globalThis.expireDecisionsAndStartBatches = async () => bump('expireDecisions');
   globalThis.reconcile = async () => bump('reconcile');
   globalThis.checkWebs = async () => bump('checkWebs');
@@ -123,7 +124,7 @@ test('rutina: corre todas las sub-rutinas y deja latido ok en cada una', async (
   const out = await runScheduledRoutine(env, null);
   const calls = context.stubCalls();
   // Sub-rutinas siempre presentes en cada tick.
-  for (const n of ['dailyMissionClose', 'expireDecisions', 'reconcile', 'fleetSync', 'fleetPlan', 'fleetReconcile', 'council']) {
+  for (const n of ['dailyMissionClose', 'onIdle', 'expireDecisions', 'reconcile', 'fleetSync', 'fleetPlan', 'fleetReconcile', 'council']) {
     assert.equal(calls[n], 1, n + ' debe correr una vez');
     assert.equal(out[n].ok, true, n + ' latido ok');
   }
@@ -134,7 +135,7 @@ test('rutina: corre todas las sub-rutinas y deja latido ok en cada una', async (
   // Y queda registrado en worker_beats.
   const beats = env._db.prepare('SELECT routine,ok FROM worker_beats').all();
   const names = beats.map((b) => b.routine);
-  for (const n of ['dailyMissionClose', 'expireDecisions', 'reconcile', 'checkWebs', 'fleetSync', 'fleetPlan', 'fleetReconcile', 'council']) {
+  for (const n of ['dailyMissionClose', 'onIdle', 'expireDecisions', 'reconcile', 'checkWebs', 'fleetSync', 'fleetPlan', 'fleetReconcile', 'council']) {
     assert.ok(names.includes(n), 'bitácora incluye ' + n);
   }
 });

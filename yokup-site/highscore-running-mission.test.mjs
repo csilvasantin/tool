@@ -37,11 +37,13 @@ test("texto, agente y tiempo ocupan columnas propias sin marquee",()=>{
   assert.doesNotMatch(source,/<marquee|function estelaMision|class="refresh-word"/);
 });
 
-test("el trabajo queda fijo bajo la pista mientras sólo se mueve el corredor",()=>{
-  assert.match(source,/\.refresh-mission\{position:static;display:block/);
+test("el trabajo vuelve dentro de la pista y sigue por detrás del corredor",()=>{
+  assert.match(source,/\.refresh-mission\{position:absolute;z-index:1/);
   assert.match(source,/\.refresh-runner\{[^}]*z-index:3/);
   assert.match(source,/carril\.querySelector\('\[data-race-role="mission"\]'\)/);
-  assert.match(source,/mision\.style\.left = ""; mision\.style\.width = ""/);
+  assert.match(source,/mision\.style\.left = posicionCorredor/);
+  assert.match(source,/mision\.style\.width = espacioMision \+ "px"/);
+  assert.ok(source.indexOf('data-race-role="mission"') < source.indexOf("runner + '<span class=\"refresh-finish\""));
 });
 
 test("Running Man convive con filtros, puntos hora\/día y detalle plegable",()=>{

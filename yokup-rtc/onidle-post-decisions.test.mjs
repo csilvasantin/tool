@@ -28,7 +28,7 @@ function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMis
     async all(){
       if (sql.includes("FROM tickets WHERE status IN ('in_progress','unconcluded')")) return {results:state.missions};
       if (sql.includes('FROM mission_tasks m JOIN tickets t')&&sql.includes("m.status IN ('in_progress'")) return {results:state.tasks};
-      if (sql.includes("FROM decisions WHERE status='pending' AND deadline>?")) return {results:state.decisions.filter(d=>d.status==='pending'&&d.deadline>args[0])};
+      if (sql.includes("FROM decisions WHERE status='pending'")) return {results:state.decisions.filter(d=>d.status==='pending')};
       if (sql.includes('AND mission=? AND created_at>=? AND created_at<?')) return {results:state.decisions.filter(d=>d.mission===args[0]&&d.created_at>=args[1]&&d.created_at<args[2]).map(d=>({agent:d.agent,machine:d.machine}))};
       if (sql.includes('SELECT DISTINCT b.id,b.agent,b.machine FROM mission_batches')) return {results:[]};
       if (sql.startsWith('SELECT id,subject,status,priority,assignee,loc,project,project_id,created_at,updated_at FROM tickets')) return {results:state.backlog.filter(row=>
