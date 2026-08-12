@@ -340,6 +340,20 @@
         s.classList.toggle("yk-count-debe", faltan > 0);
         return;
       }
+      if (k === "tareas") {
+        var taskRun = d.curso | 0, taskPend = d.pend | 0, taskOld = d.no_concluidas | 0,
+            taskArchived = d.archivadas_incompletas | 0, taskOrphans = d.huerfanas | 0,
+            taskInvalid = d.padre_invalido | 0, taskDebt = taskArchived + taskOrphans + taskInvalid;
+        s.textContent = "";
+        if (taskRun + taskPend + taskOld === 0) {
+          if (taskDebt) s.setAttribute("title", "0 tareas operativas · " + taskDebt + " con deuda de integridad histórica");
+          else s.removeAttribute("title");
+          return;
+        }
+        s.setAttribute("title", taskRun + " en curso · " + taskPend + " pendientes operativas · " +
+          taskOld + " no concluidas" + (taskDebt ? " · " + taskDebt + " con deuda de integridad histórica" : ""));
+        return;
+      }
       var curso = d.curso | 0, pend = d.pend | 0;
       // 0/0 → nada (Carlos, 2026-07-23): sección vacía enseña sólo su rótulo limpio.
       s.textContent = "";
@@ -487,6 +501,20 @@
         rows: [["con informe", he, ""], ["misiones cerradas", to, ""],
                ["faltan", fa, fa > 0 ? "debe" : ""]],
         foot: fa > 0 ? "Hay misiones terminadas sin su parte." : "Todo el ciclo cerrado con informe."
+      };
+    }
+    if (key === "tareas") {
+      var tc = d.curso | 0, tp = d.pend | 0, tn = d.no_concluidas | 0,
+          ta = d.archivadas_incompletas | 0, th = d.huerfanas | 0,
+          ti = d.padre_invalido | 0, tt = d.total_historico | 0;
+      return {
+        n: tc + tp + tn, sig: tc + "/" + tp + "/" + tn + "/archive:" + ta,
+        rows: [["en curso", tc, ""], ["pendientes operativas", tp, ""],
+               ["no concluidas", tn, tn ? "debe" : ""],
+               ["archivadas incompletas", ta, ta ? "debe" : ""],
+               ["huérfanas", th, th ? "debe" : ""], ["padre inválido", ti, ti ? "debe" : ""]],
+        foot: ta + th + ti ? "Deuda de integridad separada · " + tt + " tareas en el histórico; no enciende la señal operativa."
+          : "Sólo tareas bajo misiones abiertas o en curso."
       };
     }
     var cu = d.curso | 0, pe = d.pend | 0;

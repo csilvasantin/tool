@@ -83,6 +83,29 @@ export function taskVisibleState(task, now = Date.now()) {
   return taskVisibleDetails(task, now).state;
 }
 
+// Estado operativo de una tarea dentro del ciclo de vida de su misión. La hija
+// terminal manda siempre; una hija abierta sólo es accionable si el padre existe
+// y está técnicamente open/in_progress. Cualquier otro padre falla cerrado y se
+// conserva como deuda histórica, sin mutar la fila D1.
+export function taskOperationalDetails(task, now = Date.now()) {
+  const visible = taskVisibleDetails(task, now);
+  const childStatus = String(task && task.status || '').toLowerCase();
+  const parentStatus = String(task && task.mission_status || '').toLowerCase();
+  const childTerminal = ['done','resolved','completed'].includes(childStatus);
+  const childCancelled = childStatus === 'cancelled';
+  const parentMissing = task == null || task.parent_ticket_id == null;
+  const parentLifecycle = parentMissing ? 'orphaned'
+    : ['open','in_progress'].includes(parentStatus) ? 'actionable'
+    : ['resolved','cancelled'].includes(parentStatus) ? 'archived'
+    : 'invalid_parent';
+  const operationalState = childTerminal ? 'done' : childCancelled ? 'cancelled'
+    : parentLifecycle === 'orphaned' ? 'orphaned'
+    : parentLifecycle === 'invalid_parent' ? 'invalid_parent'
+    : parentLifecycle === 'archived' ? 'archived_incomplete'
+    : visible.state;
+  return { ...visible, operational_state:operationalState, parent_lifecycle:parentLifecycle };
+}
+
 export function onIdleEligibility({ missions = [], tasks = [], live_decisions = 0,
   windows_today = 0, now = Date.now(), daily_limit = 8 } = {}) {
   const missionStates = missions.map((row) => missionVisibleDetails(row, now, row.activity || false));

@@ -29,7 +29,7 @@ import { missionProofOrigin } from "./proof-origin.js";
 import { SELLO_WORKER } from "./version-stamp.js";
 import { validateCoachCompletion, validateCoachLaunch, coachLessonForSlot, coachLessonForDimension, COACH_AUDIENCES, COACH_HOUR } from "./academy-coach.js";
 import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
-  onIdleEligibility, taskVisibleDetails } from "./mission-visible.js";
+  onIdleEligibility, taskOperationalDetails, taskVisibleDetails } from "./mission-visible.js";
 import { DAILY_MISSION_CLOSE_AUTHOR, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_LEASE_MS, DAILY_MISSION_CLOSE_REASON, MISSION_UNCONCLUDED_AFTER_MS, dailyMissionCloseEventText, dailyMissionClosePlan } from "./daily-mission-close.js";
 import { selectOnIdleProposals } from "./onidle-proposals.js";
 import { canonicalProjectAgentRef, canonicalProjectAgentRefs, YOKUP_MINI_MEMBER_BACKFILL_SQL } from "./project-member-identity.js";
@@ -3746,19 +3746,23 @@ async function listAllMissionTasks(env, scope) {
             -- una misión que no viene de una idea sigue exactamente igual, con NULL,
             -- y la columna Proceso conserva su comportamiento de siempre.
             i.source_image AS idea_image, i.source_url AS idea_url, i.id AS idea_id,
-            t.status AS mission_status, t.created_at AS mission_created,
+            t.id AS parent_ticket_id, t.status AS mission_status, t.created_at AS mission_created,
             t.resolved_at AS mission_resolved, t.proof_image AS mission_proof,
             t.points_start AS points_start, t.points_end AS points_end
-       FROM mission_tasks m JOIN tickets t ON t.id = m.mission_id
+       FROM mission_tasks m LEFT JOIN tickets t ON t.id = m.mission_id
        LEFT JOIN ideas i ON i.mission_id = t.id AND COALESCE(i.source_image,'') <> ''
        ${where}
        ORDER BY m.mission_id, m.code`
   ).all();
   const now = Date.now();
   const rows = (results || []).map((task) => {
-    const visible = taskVisibleDetails(task, now);
+    const operational = taskOperationalDetails(task, now);
+    // Alias conservado porque `visible_state` sigue siendo el contrato temporal
+    // común; `operational` sólo añade el ciclo del padre.
+    const visible = operational;
     return { ...task, visible_state:visible.state, active_since:visible.active_since,
       visible_state_at:visible.transition_at, visible_state_reason:visible.reason,
+      operational_state:operational.operational_state, parent_lifecycle:operational.parent_lifecycle,
       agent_identity: reportAgentIdentity(task.assignee, task.loc),
       ...legacyReportIdentityFields(task) };
   });
@@ -6367,17 +6371,36 @@ async function menuCounters(env) {
     "SELECT status, COUNT(*) n FROM ideas WHERE status IN ('nueva','estudio') GROUP BY status"
   ).all()).results || [];
   for (const r of id) { if (r.status === "estudio") out.objetivos.curso = r.n; else if (r.status === "nueva") out.objetivos.pend = r.n; }
-  // Tareas = mission_tasks (todas).
+  // Tareas: sólo son accionables si su misión padre sigue open/in_progress.
+  // Las hijas no terminales bajo un padre terminal, desconocido o ausente son
+  // deuda archivada: se conservan sin mutar su status, pero no inflan Pendientes.
   const ta = (await env.DB.prepare(
-    "SELECT CASE WHEN status='in_progress' AND " +
-    "(CASE WHEN COALESCE(started_at,updated_at,created_at)<4102444800 THEN COALESCE(started_at,updated_at,created_at)*1000 ELSE COALESCE(started_at,updated_at,created_at) END)<=? " +
-    "THEN 'unconcluded' ELSE status END visible_state, COUNT(*) n FROM mission_tasks " +
-    "WHERE status IN ('pending','in_progress') GROUP BY visible_state"
+    "SELECT CASE " +
+    "WHEN m.status IN ('done','resolved','completed') THEN 'done' " +
+    "WHEN m.status='cancelled' THEN 'cancelled' " +
+    "WHEN t.id IS NULL THEN 'orphaned' " +
+    "WHEN COALESCE(t.status,'') NOT IN ('open','in_progress','resolved','cancelled') THEN 'invalid_parent' " +
+    "WHEN t.status IN ('resolved','cancelled') AND m.status NOT IN ('done','resolved','completed','cancelled') THEN 'archived_incomplete' " +
+    "WHEN m.status IN ('in_progress','doing','active','unconcluded') AND t.status IN ('open','in_progress') AND " +
+    "(CASE WHEN COALESCE(m.started_at,m.updated_at,m.created_at)<4102444800 THEN COALESCE(m.started_at,m.updated_at,m.created_at)*1000 ELSE COALESCE(m.started_at,m.updated_at,m.created_at) END)<=? THEN 'unconcluded' " +
+    "WHEN m.status IN ('in_progress','doing','active','unconcluded') AND t.status IN ('open','in_progress') THEN 'in_progress' " +
+    "WHEN m.status='pending' AND t.status IN ('open','in_progress') THEN 'pending' ELSE 'invalid_parent' END visible_state, COUNT(*) n " +
+    "FROM mission_tasks m LEFT JOIN tickets t ON t.id=m.mission_id GROUP BY visible_state"
   ).bind(cutoff).all()).results || [];
   out.tareas.no_concluidas = 0;
+  out.tareas.archivadas_incompletas = 0;
+  out.tareas.huerfanas = 0;
+  out.tareas.padre_invalido = 0;
+  out.tareas.total_historico = 0;
+  out.tareas.universe = "all_history";
+  out.tareas.state_semantics = "parent-aware-v1";
   for (const r of ta) { if (r.visible_state === "in_progress") out.tareas.curso = r.n;
     else if (r.visible_state === "pending") out.tareas.pend = r.n;
-    else if (r.visible_state === "unconcluded") out.tareas.no_concluidas = r.n; }
+    else if (r.visible_state === "unconcluded") out.tareas.no_concluidas = r.n;
+    else if (r.visible_state === "archived_incomplete") out.tareas.archivadas_incompletas = r.n;
+    else if (r.visible_state === "orphaned") out.tareas.huerfanas = r.n;
+    else if (r.visible_state === "invalid_parent") out.tareas.padre_invalido = r.n;
+    out.tareas.total_historico += r.n; }
   // INFORMES no tienen estado: o están escritos o no están (Carlos, 24-jul-2026).
   // Antes se contaban «en curso/pendientes» las tareas CON parte que seguían abiertas
   // — doblemente falso: le inventaba un ciclo de vida al informe e ignoraba justo los

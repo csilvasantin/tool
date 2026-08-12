@@ -39,6 +39,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .taskfold{display:flex;align-items:center;gap:7px;margin:0 16px 9px 32px;border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--mut);font:10px var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:5px 9px;cursor:pointer}
 .taskfold:hover,.taskfold:focus-visible{color:var(--brand);border-color:var(--line2);outline:none}
 .taskfold .caret{transition:transform .15s}.taskmission.open .taskfold .caret{transform:rotate(90deg)}
+.archive-note{margin:8px 16px 8px 32px;padding:8px 10px;border:1px solid rgba(255,216,102,.32);border-radius:8px;background:rgba(255,216,102,.07);color:var(--accent);font:10.5px var(--mono);line-height:1.45}
+.node.archived-incomplete{opacity:.76}.node .archive-badge{flex-basis:100%;margin-left:30px;color:var(--accent);font:9.5px var(--mono);letter-spacing:.04em;text-transform:uppercase}.node.archived-incomplete .chip:disabled{cursor:not-allowed;filter:saturate(.25)}
 /* AGENTE/PLATAFORMA primero; los mismos seis carriles legibles de /misiones. */
 .hd.project-id-layout{width:max-content;min-width:100%;grid-template-columns:8px var(--c-who,170px) var(--c-id,170px) var(--c-mis,296px) var(--c-ord,250px) var(--c-est,124px)}
 .taskboard .tk .rz{display:none}
@@ -196,7 +198,10 @@ async function load(){
   // Agrupa por misión y filtra por fecha de creación (sólo las del rango).
   // Con foco (?mission=), esa misión se muestra IGNORANDO el filtro de fecha (para
   // que el enlace abra aunque sea de otro día); sin foco, sólo las del rango. (964)
-  const scopedRows=PROJECT_SCOPE?rows.filter(row=>String(row.project||"")===PROJECT_SCOPE):rows;
+  let scopedRows=PROJECT_SCOPE?rows.filter(row=>String(row.project||"")===PROJECT_SCOPE):rows;
+  // La vista normal no se contamina con deuda de padres terminales. «Todas» y
+  // un enlace directo conservan esas filas para auditarlas con etiqueta propia.
+  if(DFILTER.mode!=="todas"&&!FOCUS) scopedRows=scopedRows.filter(row=>!esDeudaArchivada(row));
   const groups=YkMisiones.groupByMission(scopedRows)
     .filter(g=>FOCUS?g.mission.id===FOCUS:inRange(g.mission.created_at));
   GROUPS=groups;
@@ -225,10 +230,19 @@ if(window.addEventListener)window.addEventListener("yk:project-change",event=>{
 // Estado canónico de UNA tarea (paso a/b/c), espejo de YkMisiones.estadoDe pero
 // sobre el estado propio de la tarea y su dueño (owner ↔ assignee de la misión).
 function taskEstado(t){
-  if(t.status==="done"||t.status==="resolved") return "Finalizada";
-  if(t.status==="in_progress") return "En curso";
+  if(t.operational_state==="done"||t.status==="done"||t.status==="resolved"||t.status==="completed") return "Finalizada";
+  if(t.operational_state==="cancelled"||t.status==="cancelled") return "Cancelada";
+  if(t.operational_state==="orphaned") return "Huérfana";
+  if(t.operational_state==="invalid_parent") return "Padre inválido";
+  if(t.operational_state==="archived_incomplete") return "Archivada incompleta";
+  const parent=String(t.mission_status||"").toLowerCase();
+  if(parent==="resolved"||parent==="cancelled") return "Archivada incompleta";
+  if(parent!=="open"&&parent!=="in_progress") return "Padre inválido";
+  if(t.operational_state==="unconcluded") return "No concluida";
+  if(t.status==="in_progress"||t.status==="doing"||t.status==="active"||t.status==="unconcluded") return "En curso";
   return t.owner ? "Pendiente" : "Sin asignar";
 }
+function esDeudaArchivada(t){return ["Archivada incompleta","Huérfana","Padre inválido"].includes(taskEstado(t));}
 // Filtra los grupos por el KPI de estado activo y por el buscador del cabezal.
 const STATE_LBL={sin:"Sin asignar",asignadas:"Pendiente",in_progress:"En curso",resolved:"Finalizada"};
 function visibles(){
@@ -278,9 +292,11 @@ function render(){
   const _head='<div class="hd lhead project-id-layout" role="row"><div aria-hidden="true"></div>'+TASK_SORT_COLUMNS.map(([key,label])=>taskSortHead(key,label)).join("")+'</div>';
   box.innerHTML=_bc+_head+gs.map(g=>{
     const _op=OPEN_CARDS.has(g.mission.id)||g.mission.id===FOCUS;
+    const _arch=g.tasks.filter(esDeudaArchivada);
     const mission={...g.mission,_tasks:g.tasks,_prog:YkMisiones.tercios(g.tasks,g.mission.role==="standalone-task")};
     return `<section class="taskmission ${_op?'open':''}" data-id="${esc(g.mission.id)}">
       ${YkMisiones.rowHtml(mission)}
+      ${_arch.length?'<div class="archive-note" role="status">Archivada incompleta · misión '+esc(g.mission.status||'sin padre válido')+' · '+_arch.length+' '+(_arch.length===1?'tarea no terminal':'tareas no terminales')+' conservadas sólo en el histórico.</div>':''}
       <button type="button" class="taskfold" aria-expanded="${_op}" aria-controls="tasks-${esc(g.mission.id)}"><span class="caret">▸</span> ${_op?'Ocultar':'Mostrar'} árbol accionable</button>
       <div class="taskdetail" id="tasks-${esc(g.mission.id)}"${_op?'':' hidden'}><div class="tree">${YkMisiones.stepsHtml(g.tasks)}</div></div>
     </section>`;
@@ -294,6 +310,14 @@ function render(){
   // chips clicables: avanzan estado contra el worker y repintan
   box.querySelectorAll(".taskmission").forEach(card=>{
     const mid=card.dataset.id;
+    const group=gs.find(g=>g.mission.id===mid);
+    (group?group.tasks:[]).filter(esDeudaArchivada).forEach(t=>{
+      const node=Array.from(card.querySelectorAll(".node")).find(n=>n.dataset.code===t.code);if(!node)return;
+      node.classList.add("archived-incomplete");
+      const state=taskEstado(t), parent=String(t.mission_status||t.parent_lifecycle||"ausente");
+      const chip=node.querySelector(".chip");if(chip){chip.disabled=true;chip.title=state+" · misión padre "+parent;}
+      const badge=document.createElement("span");badge.className="archive-badge";badge.textContent=state+" · padre "+parent;node.appendChild(badge);
+    });
     // El botón es el ÚNICO control que pliega/despliega. El clic libre en la
     // fila queda reservado al selector compartido de misión (bindRows).
     const toggle=()=>{

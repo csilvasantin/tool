@@ -112,5 +112,5 @@ test('menú declara explícitamente alcance global y la misma semántica visible
   assert.match(menu, /t\.status NOT IN \('resolved','cancelled'\)/);
   assert.match(menu, /mission_tasks m WHERE m\.mission_id=t\.id AND m\.status IN \('in_progress','done','resolved'\)/);
   assert.match(menu, /COALESCE\(t\.started_at,t\.created_at\)<4102444800/);
-  assert.match(menu, /COALESCE\(started_at,updated_at,created_at\)<4102444800/);
+  assert.match(menu, /COALESCE\(m\.started_at,m\.updated_at,m\.created_at\)<4102444800/);
 });
