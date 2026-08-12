@@ -49,6 +49,16 @@ test("resuelve páginas HTML limpias sin delegar redirecciones al motor de asset
   assert.deepEqual(seen, ["/dashboard.html"]);
 });
 
+test("Highscore usa un shell físico ligado al commit y conserva la URL limpia", async () => {
+  const seen = [];
+  const response = await handleRequest(new Request("https://www.yokup.com/highscore?e2e=nuevo"), env(async (request) => {
+    seen.push(request.url);
+    return new Response("highscore nuevo");
+  }), {});
+  assert.equal(await response.text(), "highscore nuevo");
+  assert.deepEqual(seen, ["https://www.yokup.com/highscore-d8a4ce0.html?e2e=nuevo"]);
+});
+
 test("version.json procede del sello inyectado, no del baseline de assets", async () => {
   const response = await handleRequest(new Request("https://www.yokup.com/version.json"), env(), {});
   assert.deepEqual(await response.json(), signed);

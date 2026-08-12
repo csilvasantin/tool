@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -53,4 +53,9 @@ await mkdir(targetRoot, {recursive:true});
 await cp(sourceRoot, targetRoot, {recursive:true, filter:publicFilter});
 await writeFile(join(targetRoot, "version.json"), JSON.stringify(release, null, 2) + "\n");
 await stamp(release.version);
+const releaseKey = String(release.gitShort || "").trim();
+if (!/^[a-f0-9]{7,40}$/i.test(releaseKey)) throw new Error("gitShort de release inválido");
+// El documento de Highscore cambia de clave física en cada release. Así una
+// navegación autenticada no puede recibir un shell anterior desde Worker Assets.
+await copyFile(join(targetRoot, "highscore.html"), join(targetRoot, `highscore-${releaseKey}.html`));
 console.log(`Assets canónicos preparados: ${release.version}`);

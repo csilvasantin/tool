@@ -25,6 +25,10 @@ test("el artefacto Worker contiene sólo runtime público y el sello exacto", as
     await assert.rejects(access(join(target, "deploy-version.test.mjs")));
     await assert.rejects(access(join(target, "_redirects")));
     assert.match(await readFile(join(target, "dashboard.html"), "utf8"), /yk-frame\.js\?v=v\.10\.08\.2026\.r8\.10%3A01/);
+    assert.equal(
+      await readFile(join(target, "highscore-d8a4ce0.html"), "utf8"),
+      await readFile(join(target, "highscore.html"), "utf8")
+    );
   } finally {
     await rm(target, {recursive:true, force:true});
   }
@@ -45,6 +49,7 @@ test("el guardián recibe el mismo artefacto y sello que Pages, sin carrera cont
   try{
     await writeFile(join(source,"version.json"),JSON.stringify(release));
     await writeFile(join(source,"dashboard.html"),'<meta name="viewport" content="width=device-width"><script src="/yk-frame.js?v=old"></script><p>artefacto-r11</p>');
+    await writeFile(join(source,"highscore.html"),'<meta name="viewport" content="width=device-width"><p>highscore-r11</p>');
     await writeFile(join(source,"yk-frame.js"),"window.release='r11';");
     const result=spawnSync(process.execPath,[new URL("./build-assets.mjs",import.meta.url).pathname,target],{
       encoding:"utf8",env:{...process.env,RELEASE_JSON:JSON.stringify(release),YOKUP_ASSET_SOURCE:source}
@@ -52,6 +57,7 @@ test("el guardián recibe el mismo artefacto y sello que Pages, sin carrera cont
     assert.equal(result.status,0,result.stderr);
     assert.match(await readFile(join(target,"dashboard.html"),"utf8"),/artefacto-r11/);
     assert.equal(await readFile(join(target,"yk-frame.js"),"utf8"),"window.release='r11';");
+    assert.match(await readFile(join(target,"highscore-d8a4ce0.html"),"utf8"),/highscore-r11/);
     assert.match(deploy,/YOKUP_RELEASE_JSON/);
     assert.match(deploy,/YOKUP_ASSET_SOURCE/);
     assert.match(deploy,/if \[ -n "\$\{YOKUP_RELEASE_JSON:-\}" \] && \[ -n "\$\{YOKUP_ASSET_SOURCE:-\}" \]; then/);

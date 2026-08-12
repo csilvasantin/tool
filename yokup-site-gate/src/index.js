@@ -58,7 +58,11 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
     return Response.redirect(new URL("/dashboard", incoming), 301);
   }
   let candidates;
-  if (incoming.pathname === "/") candidates = ["/index.html"];
+  const releaseKey = String(release.gitShort || "").trim();
+  if ((incoming.pathname === "/highscore" || incoming.pathname === "/highscore.html") && /^[a-f0-9]{7,40}$/i.test(releaseKey)) {
+    candidates = [`/highscore-${releaseKey}.html`];
+  }
+  else if (incoming.pathname === "/") candidates = ["/index.html"];
   else if (incoming.pathname === "/mcp" || incoming.pathname === "/mcp/") candidates = ["/mcp/index.html"];
   else if (incoming.pathname === "/help" || incoming.pathname === "/help/") candidates = ["/help/index.html"];
   else if (incoming.pathname.endsWith("/")) candidates = [incoming.pathname + "index.html"];
