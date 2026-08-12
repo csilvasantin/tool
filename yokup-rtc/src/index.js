@@ -5664,6 +5664,14 @@ var HIGHSCORE_WORK_STARTED_SQL = "COALESCE(t.started_at,CASE WHEN t.source IN ('
 // que haya cambiado el trabajo. Una transición de inicio o una tarea actualizada
 // sí son hechos de trabajo reproducibles.
 var HIGHSCORE_MISSION_PROGRESS_SQL = "MAX(COALESCE((SELECT MAX(mt.updated_at) FROM mission_tasks mt WHERE mt.mission_id=t.id AND mt.status IN ('in_progress','doing','active','done','resolved','completed')),0),COALESCE(" + HIGHSCORE_WORK_STARTED_SQL + ",0))";
+// Revisión de carrera: a diferencia del reloj/estado histórico, no puede
+// depender de `mission_tasks.updated_at`, porque `setTaskStatus` también lo
+// mueve al editar report, owner o evidencia sin que exista avance material.
+// La revisión de la misión usa su inicio factual. Cada tarea iniciada ya cambia
+// además `kind|work_ref|started_at`; no necesitamos inferir una transición desde
+// `updated_at`. Así un informe, retítulo, evidencia o heartbeat nunca regala
+// otras tres vueltas monocromas, tampoco después de cerrar una tarea.
+var HIGHSCORE_RACE_PROGRESS_SQL = HIGHSCORE_WORK_STARTED_SQL;
 var HIGHSCORE_ASSIGNMENT_EVENT_SQL = "(SELECT MAX(e.ts) FROM events e WHERE e.ticket_id=t.id AND e.kind='assign')";
 var HIGHSCORE_PERSONAS = ["neo", "morfeo", "trinity", "oraculo", "smith", "whiterabbit", "cypher"];
 
@@ -6123,10 +6131,11 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
       `${HIGHSCORE_ASSIGNMENT_EVENT_SQL} assignment_event_at,` +
       `CASE WHEN source IN ('decision-batch','cli-declare') AND COALESCE(TRIM(assignee),'')<>'' AND COALESCE(TRIM(loc),'')<>'' THEN created_at END assignment_born_at,` +
       `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,` +
-      `${HIGHSCORE_MISSION_PROGRESS_SQL} work_progress_at FROM tickets t ` +
+      `${HIGHSCORE_MISSION_PROGRESS_SQL} work_progress_at,` +
+      `${HIGHSCORE_RACE_PROGRESS_SQL} race_progress_at FROM tickets t ` +
       `WHERE ${MISSION_SCOPE_SQL_T} AND status='in_progress'`).all().then((r) => r.results || []),
     env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.started_at,m.created_at,m.updated_at,` +
-      `m.started_at work_started_at,m.updated_at work_progress_at,NULL assignment_event_at,` +
+      `m.started_at work_started_at,m.updated_at work_progress_at,m.started_at race_progress_at,NULL assignment_event_at,` +
       `CASE WHEN COALESCE(TRIM(m.executor),'')<>'' THEN m.created_at END assignment_born_at,t.assignee,t.loc,t.resolved_at ` +
       `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
       `AND m.status IN ('in_progress','doing','active') ` +
@@ -6163,9 +6172,14 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     // necesita un hecho material de la última hora o el proceso exacto verificado;
     // este último acredita la calle, pero nunca el movimiento (20 min).
     if (!forcedState && !laneRecent && !presenceAt) return;
+    const raceProgressAt = highscoreActiveWorkMillis(item.race_progress_at ||
+      (kind === "objective" ? item.created_at : 0));
+    const raceRevision = [family.family_key, kind, workRef,
+      assignment && assignment.assignment_at || 0, raceProgressAt || 0].join("|");
     const candidate = { family_key:family.family_key, agent:family.family_name, executor, kind,
       title:visibleTitle(title, kind === "task" ? "Tarea activa" : kind === "mission" ? "Misión activa" : "Objetivo en curso"),
-      state, active_at:at, work_progress_at:at, reachable:!!presenceAt };
+      state, active_at:at, work_progress_at:at, reachable:!!presenceAt,
+      work_ref:String(workRef || ""), race_revision:raceRevision };
     const linkedSessions = presence.sessions && presence.sessions.get(`${family.family_key}|${workRef}`) || [];
     // Exactamente una encarnación vinculada: cero o varias son ambiguas y por
     // contrato no se suman ni se elige una de forma heurística.

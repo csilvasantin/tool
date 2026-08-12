@@ -28,7 +28,7 @@ function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
     baseAgentIdentity,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,__name:(fn)=>fn});
   vm.runInContext([
     grabVar("HIGHSCORE_PERSONAS"),grabVar("MISSION_SCOPE_SQL_T"),grabVar("PRESENCE_URL"),
-    grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_WORK_STARTED_SQL"),grabVar("HIGHSCORE_MISSION_PROGRESS_SQL"),grabVar("HIGHSCORE_ASSIGNMENT_EVENT_SQL"),
+    grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_WORK_STARTED_SQL"),grabVar("HIGHSCORE_MISSION_PROGRESS_SQL"),grabVar("HIGHSCORE_RACE_PROGRESS_SQL"),grabVar("HIGHSCORE_ASSIGNMENT_EVENT_SQL"),
     grabVar("HIGHSCORE_ACTIVE_WORK_MS"),grabVar("HIGHSCORE_LANE_WORK_MS"),grabVar("HIGHSCORE_PROCESS_FRESH_MS"),grabVar("HIGHSCORE_CLOCK_SKEW_MS"),
     grab("highscoreAgent"),grab("scopedMissionOwner"),grab("highscoreActiveWorkMillis"),grab("highscoreActiveWorkFamily"),
     grab("highscoreElapsedTiming"),grab("highscoreAssignmentTiming"),grab("highscoreVerifiedPresence"),grab("highscoreLinkedSession"),grab("highscoreActiveWork"),
@@ -157,6 +157,38 @@ test("presence sin trabajo no sintetiza lane",async()=>{
   assert.equal(result.count,0); assert.equal(result.mode,"recent");
 });
 
+test("misión open con tareas pending y presence queda fuera; claim in_progress sí entra",async()=>{
+  const {db,env,F}=harness({presence:[processRow("Morfeo","MacMini")],now:NOW/1000});
+  mission(db,{id:"FLT-1409",agent:"MorfeoMacMini",at:NOW-MIN,status:"open"});
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
+    .run("FLT-1409","a","Pendiente","pending","MorfeoMacMini",null,NOW-MIN,NOW-MIN,null);
+  let result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.count,0,"presence no inventa actividad para FLT-1409");
+  db.prepare("UPDATE tickets SET status='in_progress' WHERE id='FLT-1409'").run();
+  db.prepare("UPDATE mission_tasks SET status='in_progress',executor='SubMorfeoMacMini',started_at=?,updated_at=? WHERE mission_id='FLT-1409' AND code='a'")
+    .run(NOW-MIN,NOW-MIN);
+  result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.count,1); assert.equal(result.participants[0].state,"running");
+});
+
+test("report o retítulo no renuevan race_revision de tarea o misión activa",async()=>{
+  const {db,env,F}=harness({presence:[processRow("Morfeo","MacMini")],now:NOW/1000});
+  mission(db,{id:"M1",agent:"MorfeoMacMini",at:NOW-30*MIN,startedAt:NOW-30*MIN});
+  mission(db,{id:"M2",agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-MIN});
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
+    .run("M1","a","Original","in_progress","MorfeoMacMini",NOW-30*MIN,NOW-31*MIN,NOW-25*MIN,"SubMorfeoMacMini");
+  const beforePayload=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(beforePayload.count,2,JSON.stringify(beforePayload));
+  const before=beforePayload.participants.find((row)=>row.agent==="MorfeoMacMini");
+  db.prepare("UPDATE mission_tasks SET title=?,updated_at=? WHERE mission_id='M1' AND code='a'")
+    .run("Retitulada con informe nuevo",NOW-MIN);
+  const afterPayload=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(afterPayload.count,2,JSON.stringify(afterPayload));
+  const after=afterPayload.participants.find((row)=>row.agent==="MorfeoMacMini");
+  assert.equal(after.race_revision,before.race_revision);
+  assert.match(after.race_revision,new RegExp(`\\|${NOW-30*MIN}$`));
+});
+
 test("endpoint agregado expone sólo señales mínimas y ningún payload privado",()=>{
   assert.match(source,/url\.pathname === "\/highscore\/active-work" && req\.method === "GET"/);
   assert.match(grab("highscoreActiveWork"),/state === "running"/);
@@ -173,8 +205,10 @@ test("sesión dedicada requiere vínculo exacto y una sola encarnación",async()
   assert.equal(row.session_dedicated_ms,15*MIN);
   assert.equal(row.session_state,"open"); assert.equal(row.session_basis,"process_birth");
   assert.equal(row.session_surface,"cli");
-  for(const forbidden of ["pid","session_id","incarnation_id","work_ref"])
+  for(const forbidden of ["pid","session_id","incarnation_id"])
     assert.equal(Object.hasOwn(row,forbidden),false);
+  assert.equal(row.work_ref,"M1");
+  assert.match(row.race_revision,/oraculo.*\|mission\|M1\|/);
 });
 
 test("sesión ambigua o silenciosa nunca inventa dedicación",async()=>{

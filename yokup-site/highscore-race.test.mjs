@@ -12,7 +12,7 @@ const html = await readFile(new URL("./highscore.html", import.meta.url), "utf8"
 test("la carrera exige trabajo factual pero no latido reciente", () => {
   const rows = Array.from({length:7}, (_, i) => ({agente:"Agente "+i, vivo:i !== 4}));
   assert.deepEqual(race.activeMissionRows(rows, ["agente0","agente4","agente6"]).map(x => x.agente), ["Agente 0","Agente 4","Agente 6"]);
-  assert.match(html, /trabajos = trabajosEnCurso\(\), completas = listaCompletaCache \|\| \[\]/);
+  assert.match(html, /trabajos = trabajosCarrera\(\), completas = listaCompletaCache \|\| \[\]/);
   assert.doesNotMatch(html, /listaCache \|\| \[\]\)\.slice\(0, 3\)/);
 });
 

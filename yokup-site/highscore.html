@@ -3211,6 +3211,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       return { key:claveAgenteCarrera(item.agent), agente:item.agent, executor:item.executor,
         kind:item.kind, title:item.title || (item.kind === "task" ? "Tarea activa" : item.kind === "mission" ? "Misión activa" : "Objetivo en curso"),
         state:item.state || "assigned_stale", reachable:item.reachable === true,
+        workRef:item.work_ref || "", raceRevision:item.race_revision || "",
         assignmentAt:Number(item.assignment_at) || 0, assignmentBasis:item.assignment_basis || "",
         startedAt:Number(item.work_started_at) || 0, at:Number(item.work_progress_at) || 0,
         endedAt:Number(item.ended_at) || 0, elapsedMs:Number.isFinite(Number(item.elapsed_ms)) ? Number(item.elapsed_ms) : null,
@@ -3222,6 +3223,52 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       (b.state === "last_work" ? b.endedAt : b.at) - (a.state === "last_work" ? a.endedAt : a.at) ||
       a.agente.localeCompare(b.agente, "es"); });
   }
+
+  var staleRaceMemory = Object.create(null);
+  var staleRaceChannel = typeof BroadcastChannel === "function" ? new BroadcastChannel("yk.highscore.stale-race.v1") : null;
+  function estadoCarreraStale(trabajo) {
+    if (!trabajo || trabajo.state !== "assigned_stale") return null;
+    // Compatibilidad fail-visible durante un despliegue escalonado: una API
+    // antigua sin revision no puede persistir presupuesto, pero tampoco hace
+    // desaparecer un trabajo factual antes de recibir el contrato nuevo.
+    if (!trabajo.raceRevision) return { key:"", record:{ revision:"", server_started_at:0, cycles:0 } };
+    var storageKey = YkHighscoreRace.staleRaceStorageKey(trabajo.key), raw = null;
+    try { raw = localStorage.getItem(storageKey); } catch (_) { raw = staleRaceMemory[storageKey] || null; }
+    var record = YkHighscoreRace.staleRaceRecord(raw, trabajo.raceRevision, datos.trabajosGeneratedAt);
+    var serialized = JSON.stringify(record);
+    if (raw !== serialized) {
+      try { localStorage.setItem(storageKey, serialized); } catch (_) { staleRaceMemory[storageKey] = serialized; }
+    }
+    return { key:storageKey, record:record };
+  }
+  function trabajosCarrera() {
+    return trabajosEnCurso().filter(function (trabajo) {
+      if (trabajo.state !== "assigned_stale") return true;
+      var state = estadoCarreraStale(trabajo);
+      return state && YkHighscoreRace.staleRaceVisible(state.record);
+    });
+  }
+  function completaCicloStale() {
+    if (document.hidden) return;
+    document.querySelectorAll('.refresh-lane[data-work-state="assigned_stale"][data-race-revision]').forEach(function (lane) {
+      var revision = lane.getAttribute("data-race-revision") || "";
+      var family = lane.getAttribute("data-agent-key") || "";
+      var expected = Number(lane.getAttribute("data-stale-anchor")) || 0;
+      var storageKey = YkHighscoreRace.staleRaceStorageKey(family), raw = null;
+      try { raw = localStorage.getItem(storageKey); } catch (_) { raw = staleRaceMemory[storageKey] || null; }
+      var current = YkHighscoreRace.staleRaceRecord(raw, revision, expected);
+      var next = YkHighscoreRace.staleRaceComplete(current, expected, CICLO_MS);
+      if (next.cycles === current.cycles) return;
+      var serialized = JSON.stringify(next);
+      try { localStorage.setItem(storageKey, serialized); } catch (_) { staleRaceMemory[storageKey] = serialized; }
+      if (staleRaceChannel) staleRaceChannel.postMessage({ key:storageKey, revision:revision, cycles:next.cycles });
+    });
+  }
+  function sincronizaCarreraStale() { if (listaCompletaCache) actualizaCarreraPodio(); }
+  if (window.addEventListener) window.addEventListener("storage", function (event) {
+    if (event.key && event.key.indexOf("yk.highscore.stale-race.v1:") === 0) sincronizaCarreraStale();
+  });
+  if (staleRaceChannel) staleRaceChannel.addEventListener("message", sincronizaCarreraStale);
 
   // La regla vive en highscore-race.js, que es donde se puede probar de verdad:
   // un trabajo está EN CURSO si AVANZA hace poco, no si la máquina está encendida.
@@ -3294,7 +3341,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function actualizaCarreraPodio() {
     var contenedor = document.getElementById("refreshLanes");
-    var trabajos = trabajosEnCurso(), completas = listaCompletaCache || [], byKey = Object.create(null);
+    var trabajos = trabajosCarrera(), completas = listaCompletaCache || [], byKey = Object.create(null);
     completas.forEach(function (fila) { byKey[claveAgenteCarrera(fila && fila.agente)] = fila; });
     var corredores = trabajos.map(function (trabajo, index) {
       var base = byKey[trabajo.key] || { agente:trabajo.agente, posicion:completas.length + index + 1,
@@ -3320,6 +3367,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         : (clave.split("").reduce(function (n, c) { return n + c.charCodeAt(0); }, 0) % 2 ? "dark" : "light");
       var clasePuesto = puesto <= 3 ? "refresh-lane-p" + puesto : "refresh-lane-rank";
       var isLast = resumen.state === "ÚLTIMO TRABAJO";
+      var staleState = enlace.trabajo.state === "assigned_stale" ? estadoCarreraStale(enlace.trabajo) : null;
       var heartbeat = resumen.state.toLowerCase() + (resumen.reachable ? " · alcanzable" : "");
       var runner = '<span class="refresh-runner runner-' + variant + ' runner-skin-' + variant + '" data-race-role="runner" aria-hidden="true">' +
         '<svg class="runner-standing" viewBox="0 0 24 24" fill="#b8c0c5"><use href="#runnerStanding" fill="#b8c0c5"></use></svg>' +
@@ -3334,6 +3382,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       return '<div class="refresh-lane ' + clasePuesto + (resumen.idle ? " refresh-lane-idle" : "") + (isLast ? " refresh-lane-last" : "") +
         '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
         'data-work-state="' + esc(isLast ? "last_work" : resumen.idle ? "assigned_stale" : "running") + '" ' +
+        (staleState && enlace.trabajo.raceRevision ? 'data-race-revision="' + esc(enlace.trabajo.raceRevision) + '" data-stale-anchor="' +
+          Number(staleState.record.server_started_at) + '" data-stale-cycles="' + Number(staleState.record.cycles) + '" ' : '') +
         (resumen.idle ? 'data-race-idle="true" ' : '') +
         'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Carril de la familia ' + esc(agente) +
         '. Responsable ' + esc(responsable) + (executor !== responsable ? ', ejecuta ' + esc(executor) : '') + ', ' + heartbeat + '. ' +
@@ -3434,7 +3484,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
   function agentesEnLiza() {
     return datos.trabajosAvailable && datos.trabajosMode === "active"
-      ? trabajosEnCurso().filter(function (work) { return work.state === "running" || work.state === "assigned_stale"; }).length : 0;
+      ? trabajosCarrera().filter(function (work) { return work.state === "running" || work.state === "assigned_stale"; }).length : 0;
   }
   function listo() {
     listaCompletaCache = calcula();
@@ -3718,7 +3768,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       }, marca - desde));
     });
     if (CICLO_MS > desde) carreraTimersReducidos.push(setTimeout(function () {
-      if (!carreraPausada) actualizaMarcador().then(iniciaCarrera);
+      if (!carreraPausada) { completaCicloStale(); actualizaMarcador().then(iniciaCarrera); }
     }, CICLO_MS - desde));
   }
   function avanzaCarrera(ahora) {
@@ -3729,6 +3779,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       carreraFrame = requestAnimationFrame(avanzaCarrera);
       return;
     }
+    completaCicloStale();
     actualizaMarcador().then(iniciaCarrera);
   }
   function pintaControlCarrera() {

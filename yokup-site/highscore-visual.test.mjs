@@ -267,7 +267,7 @@ test("el trabajo factual sigue por detrás del corredor sin solapar nombre ni re
 });
 
 test("todos los agentes con trabajo en curso tienen calles ordenadas, identidad visual y semántica accesible", () => {
-  assert.match(html, /var trabajos = trabajosEnCurso\(\), completas = listaCompletaCache \|\| \[\]/);
+  assert.match(html, /var trabajos = trabajosCarrera\(\), completas = listaCompletaCache \|\| \[\]/);
   assert.match(html, /var corredores = trabajos\.map/);
   assert.doesNotMatch(html, /top = \(listaCache \|\| \[\]\)\.slice\(0, 3\)/);
   assert.match(html, /resumenTrabajoActivo\(trabajo\)/);

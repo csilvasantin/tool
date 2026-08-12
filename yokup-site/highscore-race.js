@@ -104,6 +104,35 @@
       sessionDurationMs:sessionDurationMs, sessionState:sessionState, closed:closed };
   }
 
+  var STALE_RACE_MAX_CYCLES = 3;
+
+  function staleRaceStorageKey(family) {
+    return "yk.highscore.stale-race.v1:" + key(family);
+  }
+
+  function staleRaceRecord(raw, revision, serverAt) {
+    var value = null;
+    try { value = typeof raw === "string" ? JSON.parse(raw) : raw; } catch (_) {}
+    if (!value || value.revision !== revision) return {
+      revision:revision, server_started_at:Number(serverAt) || 0, cycles:0
+    };
+    return { revision:revision, server_started_at:Number(value.server_started_at) || Number(serverAt) || 0,
+      cycles:Math.max(0, Math.min(STALE_RACE_MAX_CYCLES, Math.floor(Number(value.cycles) || 0))) };
+  }
+
+  function staleRaceComplete(record, expectedAnchor, cycleMs) {
+    var current = staleRaceRecord(record, record && record.revision, expectedAnchor);
+    if (Number(current.server_started_at) !== Number(expectedAnchor) || current.cycles >= STALE_RACE_MAX_CYCLES)
+      return current;
+    return { revision:current.revision,
+      server_started_at:Number(expectedAnchor) + Math.max(1, Number(cycleMs) || 1),
+      cycles:current.cycles + 1 };
+  }
+
+  function staleRaceVisible(record) {
+    return !record || Number(record.cycles || 0) < STALE_RACE_MAX_CYCLES;
+  }
+
   function runnerVariant(row) {
     var value = laneKey(row), hash = 0;
     for (var i = 0; i < value.length; i++) hash = ((hash * 31) + value.charCodeAt(i)) >>> 0;
@@ -153,6 +182,8 @@
   var api = { key:key, activeMissionRows:activeMissionRows, raceRows:raceRows, laneKey:laneKey, runnerVariant:runnerVariant,
     IDLE_AFTER_MS:IDLE_AFTER_MS, workIdle:workIdle, sinceLabel:sinceLabel, durationLabel:durationLabel,
     clockDurationLabel:clockDurationLabel, workClock:workClock,
+    STALE_RACE_MAX_CYCLES:STALE_RACE_MAX_CYCLES, staleRaceStorageKey:staleRaceStorageKey,
+    staleRaceRecord:staleRaceRecord, staleRaceComplete:staleRaceComplete, staleRaceVisible:staleRaceVisible,
     finishPose:finishPose, finishAdvanceMs:finishAdvanceMs, randomFinishOrder:randomFinishOrder,
     avoidRepeatedWinner:avoidRepeatedWinner };
   root.YkHighscoreRace = api;
