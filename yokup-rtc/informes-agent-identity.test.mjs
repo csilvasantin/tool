@@ -21,7 +21,8 @@ test("aliases históricos se normalizan sin inventar máquina", () => {
 });
 
 test("el feed añade agent_identity y las dos salidas lo consumen", () => {
-  assert.match(worker, /agent_identity:\s*reportAgentIdentity\(task\.owner, task\.loc\)/);
+  assert.match(worker, /agent_identity:\s*reportAgentIdentity\(task\.assignee, task\.loc\)/);
+  assert.match(worker, /reportAgentFamily\(task\.executor \|\| task\.owner, task\.loc\)/);
   assert.match(site, /const person=t\.agent_identity\|\|t\.owner\|\|""/);
   assert.match(pdf, /t\.agent_identity\s*\|\|\s*t\.owner\s*\|\|\s*""/);
 });

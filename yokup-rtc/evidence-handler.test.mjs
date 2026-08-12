@@ -45,7 +45,7 @@ function fleetClosureEnv(source = "fleet") {
       state.batches += 1;
       const results = statements.map((item) => {
         if (item.sql.startsWith("INSERT INTO mission_tasks")) {
-          state.task = { owner: item.args[4], report: item.args[5], image: item.args[6], image_kind: item.args[7] };
+          state.task = { owner: item.args[4], executor:item.args[5], report:item.args[6], image:item.args[7], image_kind:item.args[8] };
         }
         if (item.sql.startsWith("UPDATE tickets SET status='resolved'")) {
           state.ticket.status = "resolved";

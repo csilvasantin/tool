@@ -50,7 +50,7 @@ function standaloneEnv() {
       }
       if (sql.startsWith('UPDATE mission_tasks SET status=')) {
         const task=state.tasks.get(args.at(-1));
-        Object.assign(task,{status:args[0],report:args[1],owner:args[2],image:args[3],image_kind:args[4],updated_at:args[9]});
+        Object.assign(task,{status:args[0],report:args[1],owner:args[2],executor:args[3],image:args[4],image_kind:args[5],updated_at:args[9]});
       } else if (sql.startsWith("UPDATE tickets SET proof_image=?,proof_kind='final'")) {
         state.ticket.proof_image=args[0]; state.ticket.proof_kind='final';
       } else if (sql.startsWith('UPDATE tickets SET status=?, updated_at=')) {
@@ -70,7 +70,7 @@ function standaloneEnv() {
         const {sql,args}=item;
         if (sql.startsWith('INSERT OR IGNORE INTO display_refs')) state.displayRefs.set(args[1],args[5]);
         else if (sql.startsWith('INSERT INTO mission_tasks')) {
-          state.tasks.set(args[1],{mission_id:args[0],code:args[1],title:args[2],status:'done',owner:args[4],report:args[5],image:args[6],image_kind:args[7],created_at:args[8],updated_at:args[9]});
+          state.tasks.set(args[1],{mission_id:args[0],code:args[1],title:args[2],status:'done',owner:args[4],executor:args[5],report:args[6],image:args[7],image_kind:args[8],created_at:args[9],updated_at:args[10]});
         } else if (sql.startsWith("UPDATE tickets SET status='resolved'")) {
           state.ticket.status='resolved'; state.ticket.proof_image=args[1]; state.ticket.proof_kind='final';
         } else if (sql.startsWith('INSERT INTO events')) state.events.push({text:args[4],kind:args[2]});
@@ -141,8 +141,7 @@ test('standalone resuelto rechaza cualquier cambio y conserva el cierre',async()
     ['informe distinto',{report:'Informe de tarea alterado'}],
     ['prueba distinta',{image:'https://api.yokup.com/media/fleet/otra.png'}],
     ['estado distinto',{status:'in_progress'}],
-    ['tarea distinta',{code:'b'}],
-    ['responsable distinto',{owner:'InfraOraculoMacMini'}]
+    ['tarea distinta',{code:'b'}]
   ]) {
     const response=await worker.fetch(taskRequest(overrides),env,{});
     const body=await response.json();

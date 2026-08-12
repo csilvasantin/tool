@@ -6950,16 +6950,17 @@ var worker_app = {
         const cur = code === "a"
           ? await env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first()
           : null;
+        const principalOwner = reportAgentIdentity(tk.assignee, tk.loc) || tk.assignee;
         const compatible = tk.role === "standalone-task" && code === "a" && b.status === "done" &&
           requestedReport.length > 0 && requestedReport.length <= 2e3 && requestedReport.trim().length > 0 &&
           tk.proof_kind === "final" && !!tk.proof_image && requestedImage === tk.proof_image && !!cur &&
           (cur.status === "in_progress" || cur.status === "done") &&
-          (!cur.owner || cur.owner === actor.actor) &&
+          (!cur.owner || cur.owner === principalOwner || sameAgentFamily(cur.owner, tk.assignee)) &&
           (!cur.report || cur.report === requestedReport) &&
           (!cur.image || cur.image === requestedImage) &&
           (!cur.image_kind || cur.image_kind === "final");
         if (!compatible) return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada y sólo admite la convergencia exacta de A con su prueba final", status: tk.status, mission: mid, task_code: code, applied: false }, 409);
-        const exact = cur.status === "done" && cur.owner === actor.actor &&
+        const exact = cur.status === "done" && cur.owner === principalOwner &&
           cur.report === requestedReport && cur.image === requestedImage && cur.image_kind === "final";
         const row = exact ? cur : await setTaskStatus(env, mid, code, "done", requestedReport, actor.actor, requestedImage, "final");
         if (!row) return json({ ok: false, error: "no se pudo converger la tarea «a» de " + mid }, 500);
