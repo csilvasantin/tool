@@ -3116,7 +3116,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function resumenTrabajoActivo(trabajo) {
     return { reference:"", title:trabajo.title, state:"EN CURSO", project:"",
-      executor:trabajo.executor, kind:trabajo.kind, operationalBasis:trabajo.operationalBasis,
+      executor:trabajo.executor, responsible:trabajo.agente, kind:trabajo.kind, operationalBasis:trabajo.operationalBasis,
       presenceAt:trabajo.presenceAt };
   }
 
@@ -3144,7 +3144,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       return enlaces.find(function (enlace) { return enlace.fila === fila; }) || null;
     }).filter(Boolean).map(function (enlace, indice) {
       var fila = enlace.fila, clave = enlace.clave, resumen = enlace.resumen;
-      var puesto = indice + 1, agente = normaliza(fila.agente), executor = normaliza(resumen.executor || agente);
+      var puesto = indice + 1, agente = normaliza(fila.agente), responsable = normaliza(resumen.responsible || agente);
+      var executor = normaliza(resumen.executor || responsable);
       var variant = typeof YkHighscoreRace !== "undefined" ? YkHighscoreRace.runnerVariant(fila)
         : (clave.split("").reduce(function (n, c) { return n + c.charCodeAt(0); }, 0) % 2 ? "dark" : "light");
       var clasePuesto = puesto <= 3 ? "refresh-lane-p" + puesto : "refresh-lane-rank";
@@ -3152,7 +3153,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       return '<div class="refresh-lane ' + clasePuesto +
         '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
         'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Puesto ' + puesto + ', familia ' + esc(agente) +
-        '. Responsable ' + esc(executor) + ', ' + heartbeat + '. ' + esc(resumen.title) + '">' +
+        '. Responsable ' + esc(responsable) + (executor !== responsable ? ', ejecuta ' + esc(executor) : '') + ', ' + heartbeat + '. ' + esc(resumen.title) + '">' +
         '<div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
         (indice === indiceLlamada ? '<span class="race-call" data-race-role="call" aria-hidden="true"></span>' : '') +
@@ -3168,7 +3169,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<svg class="runner-run-c" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use href="#runnerRunC"></use></svg>' +
         '<svg class="runner-finish-win" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use class="gesto-a" href="#runnerWinner"></use><use class="gesto-b" href="#runnerWinnerB"></use></svg>' +
         '<svg class="runner-finish-lose" viewBox="0 0 24 24" preserveAspectRatio="xMidYMax meet"><use class="gesto-a" href="#runnerLoser"></use><use class="gesto-b" href="#runnerLoserB"></use></svg></span>' +
-        '<span class="refresh-agent" data-race-role="agent" title="Familia ' + esc(agente) + ' · ' + heartbeat + '">' + esc(executor) + '</span>' +
+        '<span class="refresh-agent" data-race-role="agent" title="Responsable ' + esc(responsable) + (executor !== responsable ? ' · ejecuta ' + esc(executor) : '') + ' · ' + heartbeat + '">' + esc(responsable) + '</span>' +
         '<span class="refresh-finish" aria-hidden="true"></span></div></div>';
     }).filter(Boolean);
     var trabajoNoDisponible = !datos.trabajosAvailable && !trabajos.length;

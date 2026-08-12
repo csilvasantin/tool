@@ -199,11 +199,10 @@ test("la adopción OnIdle puntúa sólo la misión canónica y excluye el conten
   const row=d.scores.find(item=>item.agent==="OraculoMacMini");
   assert.ok(row);
   assert.equal(row.missions,1,"el contenedor cancelado no vuelve a contar como misión");
-  assert.deepEqual(d.hourly.scores.find(item=>item.agent==="OraculoMacMini").metrics.points,{hour:48,day:48},
-    "la identidad principal recibe una ventana y una misión, no el contenedor cancelado");
-  const taskOwner=d.hourly.scores.find(item=>item.agent==="SubOraculoMacMini");
-  assert.deepEqual(taskOwner.metrics.tasks,{hour:1,day:1},"la tarea residual del contenedor no da puntos");
-  assert.deepEqual(taskOwner.metrics.points,{hour:15,day:15},"la tarea canónica puntúa una sola vez");
+  const principal=d.hourly.scores.find(item=>item.agent==="OraculoMacMini");
+  assert.deepEqual(principal.metrics.tasks,{hour:1,day:1},"la tarea residual del contenedor no da puntos");
+  assert.deepEqual(principal.metrics.points,{hour:63,day:63},
+    "ventana, misión y tarea puntúan una sola vez al agente principal");
   assert.ok(!d.traceability.unlinked.some(item=>item.mission_id==="MIS-CONT"),
     "la tarea residual tampoco debe aparecer como evidencia puntuable o huérfana");
   assert.equal(d.traceability.chains.filter(chain=>chain.mission?.id==="DCL-REAL").length,1);
@@ -350,9 +349,7 @@ test("el payload horario nace de totales autoritativos e incluye las familias A/
   const totals=JSON.parse(JSON.stringify(await F.highscoreCurrentTotals(env,[{
     agent:"OraculoMacMini",machine:"MacMini",objective_points:20,window_points:8,mission_points:40,
   }],inicio,fin)));
-  assert.deepEqual(totals.map(row=>[row.agent,row.points]),[
-    ["InfraOraculoMacMini",25],["OraculoMacMini",68],["SubOraculoMacMini",15],
-  ]);
+  assert.deepEqual(totals.map(row=>[row.agent,row.points]),[["OraculoMacMini",108]]);
   assert.match(source,/const legacyHourly = await highscoreHourlyTrend\(env, current, ahora\)/);
   assert.match(source,/const hourly = await highscoreHourlyContract\(env, legacyHourly, ahora, inicio, fin\)/);
   assert.match(source,/return \{ ok: true,[^}]*scores, traceability, hourly \}/);

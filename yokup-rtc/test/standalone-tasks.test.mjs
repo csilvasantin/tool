@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import vm from "node:vm";
 import {DatabaseSync} from "node:sqlite";
 import {readFile} from "node:fs/promises";
-import {baseAgentIdentity, scopedAgentIdentity} from "../src/agent-identity.js";
+import {baseAgentIdentity, scopedAgentIdentity, reportAgentIdentity} from "../src/agent-identity.js";
 
 const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
 const grab = (name) => {
@@ -15,7 +15,7 @@ const grab = (name) => {
 
 function harness() {
   const db = new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,report TEXT,image TEXT,created_at INTEGER,updated_at INTEGER,PRIMARY KEY(mission_id,code))");
+  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,report TEXT,image TEXT,created_at INTEGER,updated_at INTEGER,executor TEXT,PRIMARY KEY(mission_id,code))");
   const DB = {prepare(sql) { const stmt = db.prepare(sql); return {
     bind(...args) { return {
       first: async () => stmt.get(...args) || null,
@@ -24,7 +24,7 @@ function harness() {
     }; }
   }; }};
   const listMissionTasks = async (_env, id) => DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? ORDER BY code").bind(id).all().then((r) => r.results);
-  const context = vm.createContext({String, Date, baseAgentIdentity, scopedAgentIdentity, listMissionTasks, __name: (fn) => fn});
+  const context = vm.createContext({String, Date, baseAgentIdentity, scopedAgentIdentity, reportAgentIdentity, listMissionTasks, __name: (fn) => fn});
   vm.runInContext(["cleanMissionAttributions", "fleetSubject", "fleetStandaloneTask", "ensureFleetStandaloneTask"].map(grab).join("\n"), context);
   return {db, env: {DB}, F: context};
 }
@@ -69,14 +69,14 @@ test("una tarea suelta crea una sola fila y conserva misión-contenedor", async 
   const assignment = {assignee: "OraculoMBAPlata", loc: "MacBookAirPlata"};
   await F.ensureFleetStandaloneTask(env, "FLT-TEST", "Dibujar un plátano en ASCII.", assignment, false);
   const rows = db.prepare("SELECT code,title,status,owner FROM mission_tasks ORDER BY code").all().map((row) => ({...row}));
-  assert.deepEqual(rows, [{code:"a", title:"Dibujar un plátano en ASCII.", status:"pending", owner:"SubOraculoMBAPlata"}]);
+  assert.deepEqual(rows, [{code:"a", title:"Dibujar un plátano en ASCII.", status:"pending", owner:"OraculoMBAPlata"}]);
   await F.ensureFleetStandaloneTask(env, "FLT-TEST", "Dibujar un plátano en ASCII.", assignment, false);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM mission_tasks").get().n, 1);
 });
 
 test("la reparación elimina ceremonia pendiente, nunca trabajo iniciado", async () => {
   const {db, env, F} = harness();
-  const insert = db.prepare("INSERT INTO mission_tasks VALUES(?,?,?,?,?,?,?,?,?)");
+  const insert = db.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,image,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)");
   insert.run("FLT-TEST", "a", "Tarea real", "pending", "SubOraculoMBAPlata", null, null, 1, 1);
   insert.run("FLT-TEST", "b", "Ceremonia", "pending", "SubOraculoMBAPlata", null, null, 1, 1);
   insert.run("FLT-TEST", "c", "Evidencia ya iniciada", "in_progress", "InfraOraculoMBAPlata", null, null, 1, 1);

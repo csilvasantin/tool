@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import vm from "node:vm";
 import { DatabaseSync } from "node:sqlite";
 import { readFile } from "node:fs/promises";
-import { baseAgentIdentity, scopedAgentIdentity, parseAgentIdentity, sameAgentFamily } from "../src/agent-identity.js";
+import { baseAgentIdentity, scopedAgentIdentity, parseAgentIdentity, sameAgentFamily, reportAgentIdentity } from "../src/agent-identity.js";
 
 const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
 const grab = (name) => {
@@ -27,7 +27,7 @@ const grabVar = (name) => {
 
 function harness() {
   const db = new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,report TEXT,image TEXT,image_kind TEXT,created_at INTEGER,updated_at INTEGER,PRIMARY KEY(mission_id,code))");
+  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,report TEXT,image TEXT,image_kind TEXT,created_at INTEGER,updated_at INTEGER,executor TEXT,PRIMARY KEY(mission_id,code))");
   const DB = { prepare(sql) { const stmt = db.prepare(sql); return {
     bind(...args) { return {
       first: async () => stmt.get(...args) || null,
@@ -39,7 +39,7 @@ function harness() {
     DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? ORDER BY code").bind(id).all().then((r) => r.results);
   const context = vm.createContext({
     String, Date, Array, Set, Map, RegExp, Object,
-    baseAgentIdentity, scopedAgentIdentity, parseAgentIdentity, sameAgentFamily,
+    baseAgentIdentity, scopedAgentIdentity, parseAgentIdentity, sameAgentFamily, reportAgentIdentity,
     listMissionTasks, __name: (fn) => fn
   });
   vm.runInContext([
@@ -95,7 +95,8 @@ test("el agente cuelga sus subtareas y la madre entra antes que la hija venga do
   assert.deepEqual(Array.from(r.added), ["a1", "a2", "b1"]);
   assert.deepEqual(Array.from(r.tasks.map((t) => t.code)), ["a", "a1", "a2", "b", "b1", "c"]);
   // Se cuelgan del agente de la misión, no del genérico «subagente».
-  assert.equal(r.tasks.find((t) => t.code === "a1").owner, "SubMorfeoMacMini");
+  assert.equal(r.tasks.find((t) => t.code === "a1").owner, "MorfeoMacMini");
+  assert.equal(r.tasks.find((t) => t.code === "a1").executor, "SubMorfeoMacMini");
 });
 
 test("ampliar el árbol no borra el trabajo ya hecho por otro", async () => {

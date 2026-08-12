@@ -307,6 +307,16 @@ async function applySchema(env) {
   await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN created_at INTEGER").catch(() => {});
   // Inicio operativo estable: repetir reportes/heartbeats no reinicia el reloj.
   await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN started_at INTEGER").catch(() => {});
+  // El responsable de una tarea es siempre el agente principal de la misión.
+  // Sub*/Infra* describen únicamente quién la ejecutó y no reciben puntuación.
+  await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN executor TEXT").catch(() => {});
+  await env.DB.exec(
+    "UPDATE mission_tasks SET executor=CASE WHEN COALESCE(TRIM(executor),'')='' AND COALESCE(TRIM(owner),'')<>'' " +
+    "AND owner<>(SELECT assignee FROM tickets WHERE tickets.id=mission_tasks.mission_id) THEN owner ELSE executor END, " +
+    "owner=(SELECT assignee FROM tickets WHERE tickets.id=mission_tasks.mission_id) " +
+    "WHERE EXISTS(SELECT 1 FROM tickets WHERE tickets.id=mission_tasks.mission_id AND COALESCE(TRIM(assignee),'')<>'' " +
+    "AND COALESCE(mission_tasks.owner,'')<>assignee)"
+  ).catch(() => {});
   await env.DB.exec("UPDATE mission_tasks SET created_at=updated_at WHERE created_at IS NULL").catch(() => {});
   // Llave de lectura del service worker (ver /push/subscribe). Idempotente.
   await env.DB.exec("ALTER TABLE subs ADD COLUMN peek_key TEXT").catch(() => {});
@@ -2694,11 +2704,11 @@ async function reconcileQueuedBatchItems(env, batchId) {
 __name(reconcileQueuedBatchItems, "reconcileQueuedBatchItems");
 function batchMissionPlan(title, agent, machine) {
   const short = String(title || "Misión").slice(0, 70);
-  const base = baseAgentIdentity(agent) || "Agente";
+  const owner = reportAgentIdentity(agent, machine) || agent || "Agente";
   return [
-    { code: "a", title: "Implementar: " + short, owner: scopedAgentIdentity(base, machine, "sub") },
-    { code: "b", title: "Verificar y entregar evidencia: " + short, owner: scopedAgentIdentity(base, machine, "sub") },
-    { code: "c", title: "Documentar informe factual autorizado", owner: scopedAgentIdentity(base, machine, "infra") }
+    { code: "a", title: "Implementar: " + short, owner, executor:scopedAgentIdentity(owner, machine, "sub") },
+    { code: "b", title: "Verificar y entregar evidencia: " + short, owner, executor:scopedAgentIdentity(owner, machine, "sub") },
+    { code: "c", title: "Documentar informe factual autorizado", owner, executor:scopedAgentIdentity(owner, machine, "infra") }
   ];
 }
 __name(batchMissionPlan, "batchMissionPlan");
@@ -3158,8 +3168,8 @@ async function activateNextMissionBatchItem(env, batchId, triggerDecisionId) {
   ];
   for (const task of batchMissionPlan(next.title, batch.agent, batch.machine)) {
     atomic.push(env.DB.prepare(
-      "INSERT OR IGNORE INTO mission_tasks(mission_id,code,title,status,owner,report,created_at,updated_at) VALUES(?,?,?,'pending',?,NULL,?,?)"
-    ).bind(missionId, task.code, task.title, task.owner, now, now));
+      "INSERT OR IGNORE INTO mission_tasks(mission_id,code,title,status,owner,executor,report,created_at,updated_at) VALUES(?,?,?,'pending',?,?,NULL,?,?)"
+    ).bind(missionId, task.code, task.title, task.owner, task.executor, now, now));
   }
   atomic.push(
     env.DB.prepare("UPDATE mission_batch_items SET mission_id=?, status='active', updated_at=? WHERE batch_id=? AND position=? AND status='queued'")
@@ -3584,8 +3594,8 @@ function validTaskCode(c) {
   return typeof c === "string" && TASK_CODE.test(c);
 }
 __name(validTaskCode, "validTaskCode");
-// Capa sugerida: los pasos (a/b/c) los ejecuta un subagente; las subtareas de
-// verificación/reporte las cubre un infraagente.
+// Capa de ejecución sugerida. Nunca es el responsable ni el propietario de
+// puntos: owner/assignee pertenecen siempre al agente principal.
 function ownerFor(code, title) {
   if (/^[a-h]$/.test(code)) return "subagente";
   if (/verif|comprueb|report|valida|confirm|document|registr|informe|notific|cierr|cerra/i.test(title || "")) return "infraagente";
@@ -3607,7 +3617,7 @@ function scopedMissionOwner(raw, fallbackRole, assignee, machine) {
 __name(scopedMissionOwner, "scopedMissionOwner");
 async function listMissionTasks(env, mid) {
   const { results } = await env.DB.prepare(
-    "SELECT mission_id, code, title, status, owner, report, image, image_kind, created_at, updated_at FROM mission_tasks WHERE mission_id=? ORDER BY code"
+    "SELECT mission_id, code, title, status, owner, executor, report, image, image_kind, created_at, updated_at FROM mission_tasks WHERE mission_id=? ORDER BY code"
   ).bind(mid).all();
   const rows = results || [];
   await attachDisplayRefs(env, "task", rows, taskDisplayKey, (row) => row.created_at || row.updated_at);
@@ -3727,7 +3737,7 @@ async function listAllMissionTasks(env, scope) {
     // mission_resolved) y la PRUEBA de cierre de la misión (t.proof_image →
     // mission_proof) para que la columna Captura tenga un fallback real cuando la
     // tarea no dejó imagen propia. No rompe a /tareas: sólo añade campos.
-    `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.report, m.image, m.image_kind, m.created_at, m.started_at, m.updated_at,
+    `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.executor, m.report, m.image, m.image_kind, m.created_at, m.started_at, m.updated_at,
             t.subject, t.screen, t.loc, t.project, t.source, t.role, t.assignee, t.live_shot, t.live_at, t.live_kind,
             t.live_surface AS process_surface, t.live_context AS process_context,
             CASE WHEN t.live_kind='process' THEN t.live_shot ELSE NULL END AS process_image,
@@ -3749,7 +3759,7 @@ async function listAllMissionTasks(env, scope) {
     const visible = taskVisibleDetails(task, now);
     return { ...task, visible_state:visible.state, active_since:visible.active_since,
       visible_state_at:visible.transition_at, visible_state_reason:visible.reason,
-      agent_identity: reportAgentIdentity(task.owner, task.loc),
+      agent_identity: reportAgentIdentity(task.assignee, task.loc),
       ...legacyReportIdentityFields(task) };
   });
   await attachDisplayRefs(env, "task", rows, taskDisplayKey, (row) => row.created_at || row.updated_at);
@@ -3765,15 +3775,15 @@ async function listAllMissionTasks(env, scope) {
 __name(listAllMissionTasks, "listAllMissionTasks");
 
 function legacyReportIdentityFields(task) {
-  const identity = reportAgentFamily(task.owner, task.loc);
+  const identity = reportAgentFamily(task.executor || task.owner, task.loc);
   return { executor:identity.executor, executor_role:identity.role,
     family_key:identity.family_key, family_name:identity.family_name };
 }
 __name(legacyReportIdentityFields, "legacyReportIdentityFields");
 
 function enrichReportTaskIdentity(task) {
-  const identity = reportAgentFamily(task.owner, task.loc);
-  return { ...task, agent_identity: reportAgentIdentity(task.owner, task.loc), ...identity };
+  const identity = reportAgentFamily(task.executor || task.owner, task.loc);
+  return { ...task, agent_identity: reportAgentIdentity(task.assignee || task.owner, task.loc), ...identity };
 }
 __name(enrichReportTaskIdentity, "enrichReportTaskIdentity");
 
@@ -3794,7 +3804,7 @@ __name(attachReportDisplayRefs, "attachReportDisplayRefs");
 
 async function listMissionReportsPage(env, scope, options) {
   const filter = buildReportsPageFilter(options, reportScopeClause(scope));
-  const sql = `SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.report,m.image,m.image_kind,m.created_at,m.updated_at,
+  const sql = `SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.report,m.image,m.image_kind,m.created_at,m.updated_at,
       t.subject,t.screen,t.loc,t.project,t.source,t.role AS mission_role,t.assignee,
       t.live_surface AS process_surface,t.live_context AS process_context,
       CASE WHEN t.live_kind='process' THEN t.live_shot ELSE NULL END AS process_image,
@@ -3845,18 +3855,19 @@ async function saveMissionPlan(env, mid, tasks) {
     seen.add(code);
     const title = String((t && t.title) || "").slice(0, 120);
     const status = TASK_STATUS.includes(t && t.status) ? t.status : "pending";
-    const suggested = t && t.owner ? String(t.owner).slice(0, 40) : ownerFor(code, title);
-    const owner = mission
+    const suggested = t && (t.executor || t.owner) ? String(t.executor || t.owner).slice(0, 40) : ownerFor(code, title);
+    const executor = mission
       ? scopedMissionOwner(suggested, /^infra/i.test(suggested) ? "infra" : "sub", mission.assignee, mission.loc)
       : suggested;
+    const owner = mission ? reportAgentIdentity(mission.assignee, mission.loc) : suggested;
     const report = t && t.report != null ? String(t.report).slice(0, 2e3) : null;
-    clean.push({ mission_id: mid, code, title, status, owner, report, created_at: now, updated_at: now });
+    clean.push({ mission_id: mid, code, title, status, owner, executor, report, created_at: now, updated_at: now });
   }
   await env.DB.prepare("DELETE FROM mission_tasks WHERE mission_id=?").bind(mid).run();
   for (const r of clean) {
     await env.DB.prepare(
-      "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)"
-    ).bind(r.mission_id, r.code, r.title, r.status, r.owner, r.report, r.created_at, r.updated_at).run();
+      "INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)"
+    ).bind(r.mission_id, r.code, r.title, r.status, r.owner, r.executor, r.report, r.created_at, r.updated_at).run();
   }
   return listMissionTasks(env, mid);
 }
@@ -3949,14 +3960,15 @@ async function mergeMissionPlan(env, mid, tasks, ticket) {
       if (subCount[step] >= 3) { ignored.push({ code, why: "«" + step + "» ya tiene sus 3 subtareas" }); continue; }
       subCount[step]++;
     }
-    const suggested = t && t.owner ? String(t.owner).slice(0, 40) : ownerFor(code, title);
-    const owner = ticket
+    const suggested = t && (t.executor || t.owner) ? String(t.executor || t.owner).slice(0, 40) : ownerFor(code, title);
+    const executor = ticket
       ? scopedMissionOwner(suggested, /^infra/i.test(suggested) ? "infra" : "sub", ticket.assignee, ticket.loc)
       : suggested;
+    const owner = ticket ? reportAgentIdentity(ticket.assignee, ticket.loc) : suggested;
     await env.DB.prepare(
-      "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)"
-    ).bind(mid, code, title, "pending", owner, null, now, now).run();
-    byCode.set(code, { code, title, status: "pending", owner });
+      "INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)"
+    ).bind(mid, code, title, "pending", owner, executor, null, now, now).run();
+    byCode.set(code, { code, title, status: "pending", owner, executor });
     added.push(code);
   }
   return { tasks: await listMissionTasks(env, mid), added, retitled, ignored };
@@ -3968,11 +3980,11 @@ async function setTaskStatus(env, mid, code, status, report, owner, image, image
   if (!cur) return null;
   const st = TASK_STATUS.includes(status) ? status : cur.status;
   const rp = report != null ? String(report).slice(0, 2e3) : cur.report;
-  let ow = owner != null ? String(owner).slice(0, 40) : cur.owner;
-  if (owner != null) {
-    const mission = await env.DB.prepare("SELECT assignee,loc FROM tickets WHERE id=?").bind(mid).first();
-    if (mission) ow = scopedMissionOwner(ow, parseAgentIdentity(ow).role, mission.assignee, mission.loc);
-  }
+  const mission = await env.DB.prepare("SELECT assignee,loc FROM tickets WHERE id=?").bind(mid).first();
+  const ow = mission ? reportAgentIdentity(mission.assignee, mission.loc) : cur.owner;
+  const ex = owner != null && mission
+    ? scopedMissionOwner(String(owner).slice(0, 40), parseAgentIdentity(owner).role, mission.assignee, mission.loc)
+    : cur.executor;
   // Captura PROPIA del paso: cada paso deja constancia con su enlace/miniatura. (954)
   const im = image != null && normalizeProofImage(image).value ? normalizeProofImage(image).value : cur.image;
   const ik = image != null ? (imageKind === "final" ? "final" : "task") : cur.image_kind;
@@ -3980,10 +3992,10 @@ async function setTaskStatus(env, mid, code, status, report, owner, image, image
   // `started_at` sólo nace en la primera transición a in_progress. Un reporte o
   // heartbeat repetido actualiza updated_at, pero no compra otros 60 minutos.
   // Volver explícitamente a pending inicia un ciclo nuevo y limpia el sello.
-  await env.DB.prepare("UPDATE mission_tasks SET status=?, report=?, owner=?, image=?, image_kind=?, " +
+  await env.DB.prepare("UPDATE mission_tasks SET status=?, report=?, owner=?, executor=?, image=?, image_kind=?, " +
     "started_at=CASE WHEN ?='in_progress' THEN COALESCE(started_at,?) WHEN ?='pending' AND status!='pending' THEN NULL ELSE started_at END, " +
     "updated_at=? WHERE mission_id=? AND code=?")
-    .bind(st, rp, ow, im, ik, st, now, st, now, mid, code).run();
+    .bind(st, rp, ow, ex, im, ik, st, now, st, now, mid, code).run();
   const row = await env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
   if (row) await attachDisplayRefs(env, "task", row, taskDisplayKey, (item) => item.created_at || item.updated_at);
   return row;
@@ -4844,11 +4856,11 @@ __name(existingFleetMissionContext, "existingFleetMissionContext");
 
 function fleetMainTasks(subject, assignment) {
   const short = String(subject || "Encargo de la flota").slice(0, 70);
-  const base = assignment.assignee || "Agente";
+  const owner = reportAgentIdentity(assignment.assignee || "Agente", assignment.loc) || assignment.assignee || "Agente";
   return [
-    { code: "a", title: "Implementar: " + short, owner: scopedAgentIdentity(base, assignment.loc, "sub") },
-    { code: "b", title: "Probar y aportar evidencia: " + short, owner: scopedAgentIdentity(base, assignment.loc, "sub") },
-    { code: "c", title: "Documentar y reportar el resultado", owner: scopedAgentIdentity(base, assignment.loc, "infra") }
+    { code: "a", title: "Implementar: " + short, owner, executor:scopedAgentIdentity(owner, assignment.loc, "sub") },
+    { code: "b", title: "Probar y aportar evidencia: " + short, owner, executor:scopedAgentIdentity(owner, assignment.loc, "sub") },
+    { code: "c", title: "Documentar y reportar el resultado", owner, executor:scopedAgentIdentity(owner, assignment.loc, "infra") }
   ];
 }
 __name(fleetMainTasks, "fleetMainTasks");
@@ -4858,8 +4870,8 @@ async function ensureFleetMainTasks(env, missionId, subject, assignment, reassig
   const now = Date.now();
   for (const task of main) {
     if (!byCode.has(task.code)) {
-      await env.DB.prepare("INSERT OR IGNORE INTO mission_tasks(mission_id,code,title,status,owner,report,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)")
-        .bind(missionId, task.code, task.title, "pending", task.owner, null, now, now).run();
+      await env.DB.prepare("INSERT OR IGNORE INTO mission_tasks(mission_id,code,title,status,owner,executor,report,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)")
+        .bind(missionId, task.code, task.title, "pending", task.owner, task.executor, null, now, now).run();
     }
   }
   if (!reassignPending) return;
@@ -4879,9 +4891,10 @@ async function ensureFleetMainTasks(env, missionId, subject, assignment, reassig
     // Las tres principales tienen reparto canónico fijo; al reparar se conserva
     // status/report/image y se corrige únicamente la identidad visible.
     if (/^[abc]$/.test(task.code)) {
-      const owner = scopedAgentIdentity(assignment.assignee, assignment.loc, task.code === "c" ? "infra" : "sub");
-      if (owner && owner !== raw) await env.DB.prepare("UPDATE mission_tasks SET owner=?,updated_at=? WHERE mission_id=? AND code=?")
-        .bind(owner, now, missionId, task.code).run();
+      const owner = reportAgentIdentity(assignment.assignee, assignment.loc);
+      const executor = scopedAgentIdentity(assignment.assignee, assignment.loc, task.code === "c" ? "infra" : "sub");
+      if (owner && owner !== raw) await env.DB.prepare("UPDATE mission_tasks SET owner=?,executor=COALESCE(NULLIF(executor,''),?),updated_at=? WHERE mission_id=? AND code=?")
+        .bind(owner, executor, now, missionId, task.code).run();
     }
   }
 }
@@ -4892,17 +4905,17 @@ __name(ensureFleetMainTasks, "ensureFleetMainTasks");
 // fila `a`, visible y operable desde /tareas como el encargo que pidió Carlos.
 async function ensureFleetStandaloneTask(env, missionId, subject, assignment, reassignPending) {
   const current = await listMissionTasks(env, missionId);
-  const base = assignment.assignee || "Agente";
-  const owner = scopedAgentIdentity(base, assignment.loc, "sub");
+  const owner = reportAgentIdentity(assignment.assignee || "Agente", assignment.loc) || assignment.assignee || "Agente";
+  const executor = scopedAgentIdentity(owner, assignment.loc, "sub");
   const now = Date.now();
   const task = current.find((row) => row.code === "a");
   if (!task) {
     await env.DB.prepare(
-      "INSERT OR IGNORE INTO mission_tasks(mission_id,code,title,status,owner,report,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)"
-    ).bind(missionId, "a", String(subject || "Tarea suelta").slice(0, 120), "pending", owner, null, now, now).run();
+      "INSERT OR IGNORE INTO mission_tasks(mission_id,code,title,status,owner,executor,report,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)"
+    ).bind(missionId, "a", String(subject || "Tarea suelta").slice(0, 120), "pending", owner, executor, null, now, now).run();
   } else if (reassignPending && task.status === "pending" && owner && task.owner !== owner) {
-    await env.DB.prepare("UPDATE mission_tasks SET owner=?,updated_at=? WHERE mission_id=? AND code='a'")
-      .bind(owner, now, missionId).run();
+    await env.DB.prepare("UPDATE mission_tasks SET owner=?,executor=COALESCE(NULLIF(executor,''),?),updated_at=? WHERE mission_id=? AND code='a'")
+      .bind(owner, executor, now, missionId).run();
   }
   // Repara únicamente el plan ceremonial que pudiera haber creado una versión
   // anterior. Nunca borra trabajo iniciado, informes ni pruebas.
@@ -5747,7 +5760,7 @@ async function highscorePeriodMetrics(env, inicio, fin) {
     if (!previous || Number(task.updated_at) >= Number(previous.updated_at)) representatives.set(family, task);
   }
   for (const task of representatives.values()) {
-    const agent = scopedMissionOwner(task.owner, "sub", task.assignee, task.loc), row = rowFor(agent, task.loc);
+    const row = rowFor(task.assignee, task.loc);
     if (!row) continue;
     row.tasks += 1;
     row.points += HIGHSCORE_TASK_WEIGHTS.task +
@@ -5829,8 +5842,7 @@ async function highscoreHistory(env, requestedAgent, ahora = Date.now()) {
   for (const task of tasks) {
     const match = String(task.code || "").toLowerCase().match(/^([a-c])(?:[1-3])?$/);
     if (!match) continue;
-    const owner = scopedMissionOwner(task.owner, "sub", task.assignee, task.loc);
-    if (!familyMatches(owner, task.loc)) continue;
+    if (!familyMatches(task.assignee, task.loc)) continue;
     const stamp = Number(task.updated_at) || 0;
     if (stamp <= 0 || stamp > ahora) continue;
     const key = madridDayKey(stamp) + "|" + String(task.mission_id || "") + "|" + match[1];
@@ -5917,7 +5929,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
   const [missions, tasks, objectives, presence] = await Promise.all([
     env.DB.prepare(`SELECT id,subject,assignee,loc,status,updated_at,live_at,created_at FROM tickets t ` +
       `WHERE ${MISSION_SCOPE_SQL_T} AND status='in_progress'`).all().then((r) => r.results || []),
-    env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.updated_at,t.assignee,t.loc ` +
+    env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.updated_at,t.assignee,t.loc ` +
       `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
       `AND m.status IN ('in_progress','doing','active') ` +
       `AND t.status='in_progress' ` +
@@ -5958,7 +5970,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
   };
   for (const mission of missions) add(mission.assignee, mission.loc, "mission", mission, mission.subject || "Misión activa");
   for (const task of tasks) {
-    const executor = scopedMissionOwner(task.owner, "sub", task.assignee, task.loc);
+    const executor = scopedMissionOwner(task.executor || task.owner, "sub", task.assignee, task.loc);
     add(executor, task.loc, "task", task, task.title || task.code || "Tarea activa", task.assignee);
   }
   for (const objective of objectives) {
@@ -6045,10 +6057,9 @@ async function highscoreCurrentTotals(env, scores, inicio, fin) {
     if (!previous || Number(task.updated_at) >= Number(previous.updated_at)) representatives.set(family, task);
   }
   for (const task of representatives.values()) {
-    const agent = scopedMissionOwner(task.owner, "sub", task.assignee, task.loc);
     const points = HIGHSCORE_TASK_WEIGHTS.task +
       (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0);
-    add(agent, task.loc, points);
+    add(task.assignee, task.loc, points);
   }
   return [...totals.values()].sort((a, b) => a.agent_key.localeCompare(b.agent_key));
 }
@@ -6792,6 +6803,8 @@ var worker_app = {
       // Una firma cruzada se rechaza completa: no deja ningún rastro falso.
       const actor = validateMissionActor(t, owner);
       if (!actor.ok) return json({ ok: false, code: "owner_mismatch", error: actor.error, expected_assignee: actor.expected, received_owner: actor.actor, applied: false }, 403);
+      const principalOwner = reportAgentIdentity(t.assignee, t.loc) || t.assignee;
+      const executorOwner = actor.actor !== principalOwner ? actor.actor : null;
       if (t.status === "cancelled") return json({ ok: false, code: "mission_closed", error: "la misión está cancelada", status: t.status, applied: false }, 409);
       if (t.status !== "resolved") {
         const processEvidence = validateMissionProcessEvidence(t);
@@ -6815,8 +6828,8 @@ var worker_app = {
             local_resolved:true, proof_saved:true, inbox_updated:false, sync_required:true, proof_image:rawImage }, 502);
           const now = Date.now();
           await env.DB.batch([
-            env.DB.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,image,image_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report,status='done',owner=excluded.owner,image=excluded.image,image_kind='final',updated_at=excluded.updated_at")
-              .bind(mid,"z1","Informe del InfraAgente","done",owner,report,rawImage,"final",now,now),
+            env.DB.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,image,image_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report,status='done',owner=excluded.owner,executor=COALESCE(excluded.executor,mission_tasks.executor),image=excluded.image,image_kind='final',updated_at=excluded.updated_at")
+              .bind(mid,"z1","Informe del agente","done",principalOwner,executorOwner,report,rawImage,"final",now,now),
             env.DB.prepare("UPDATE mission_tasks SET status='done',updated_at=? WHERE mission_id=? AND code!='z1'").bind(now,mid),
             env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid,now,"log",owner,"📝 Informe standalone recuperado: "+report.slice(0,240))
           ]);
@@ -6830,7 +6843,7 @@ var worker_app = {
           return json({ok:true,mission:mid,resolved:true,resumed:true,repaired_standalone:true,inbox_updated:true,proof_image:rawImage,batch,target_batch:targetBatch});
         }
         const sameClosure = t.proof_kind === "final" && t.proof_image === rawImage && previous &&
-          previous.owner === owner && previous.report === report && previous.image === rawImage && previous.image_kind === "final";
+          previous.owner === principalOwner && previous.report === report && previous.image === rawImage && previous.image_kind === "final";
         if (!sameClosure) return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada y sólo admite reintentar exactamente el mismo cierre", status: t.status, applied: false }, 409);
         // El reintento existe justo para completar un cierre a medias: si quedó un
         // padre contradiciendo a sus hijas, aquí es donde se repara.
@@ -6861,9 +6874,9 @@ var worker_app = {
       const puntosCierre = await puntosDeAgenteAhora(env, t.assignee || actor.actor);
       const writes = await env.DB.batch([
         env.DB.prepare(
-          "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,image,image_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) " +
-          "ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report,status='done',owner=excluded.owner,image=excluded.image,image_kind='final',updated_at=excluded.updated_at"
-        ).bind(mid, "z1", "Informe del InfraAgente", "done", owner, report, image, "final", now, now),
+          "INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,image,image_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) " +
+          "ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report,status='done',owner=excluded.owner,executor=COALESCE(excluded.executor,mission_tasks.executor),image=excluded.image,image_kind='final',updated_at=excluded.updated_at"
+        ).bind(mid, "z1", "Informe del agente", "done", principalOwner, executorOwner, report, image, "final", now, now),
         env.DB.prepare(
           "UPDATE tickets SET status='resolved',resolved_at=COALESCE(resolved_at,?),proof_image=?,proof_kind='final',agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),points_end=?,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
         ).bind(now, image, runtime, host, puntosCierre, puntosCierre, now, mid),
@@ -8989,10 +9002,11 @@ Todo en español.`;
               .bind(missionId, now, "status", identity.agent, "Misión declarada desde el CLI: pasa a en curso (in_progress).")];
           for (const t of tasks) {
             const suggested = ownerFor(t.code, t.title);
-            const owner = scopedMissionOwner(suggested, /^infra/i.test(suggested) ? "infra" : "sub", identity.agent, identity.machine);
+            const owner = reportAgentIdentity(identity.agent, identity.machine);
+            const executor = scopedMissionOwner(suggested, /^infra/i.test(suggested) ? "infra" : "sub", identity.agent, identity.machine);
             statements.push(env.DB.prepare(
-              "INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)"
-            ).bind(missionId, t.code, t.title, t.status, owner, t.report, now, now));
+              "INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)"
+            ).bind(missionId, t.code, t.title, t.status, owner, executor, t.report, now, now));
             if (t.evidence) statements.push(env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)")
               .bind(missionId, now, "log", identity.agent, `Tarea ${t.code} declarada hecha desde el CLI · ${t.evidence.text}`));
           }

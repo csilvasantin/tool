@@ -22,7 +22,7 @@ const grabVar=name=>{
 function harness(presence){
   const db=new DatabaseSync(":memory:");
   db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,subject TEXT,loc TEXT,source TEXT,role TEXT,status TEXT,assignee TEXT,closure_reason TEXT,created_at INTEGER,updated_at INTEGER,live_at INTEGER)");
-  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,updated_at INTEGER)");
+  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,updated_at INTEGER,executor TEXT)");
   db.exec("CREATE TABLE ideas(id TEXT PRIMARY KEY,title TEXT,status TEXT,author TEXT,author_identity TEXT,created_at INTEGER,updated_at INTEGER)");
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{all:async()=>({results:stmt.all(...args)})}},all:async()=>({results:stmt.all()})}}};
   const TELEGRAM=presence===undefined?undefined:{fetch:async()=>({ok:presence!==null,json:async()=>presence||{}})};
@@ -129,7 +129,7 @@ test("el límite exacto de 60 minutos sigue incluido y un milisegundo más queda
 test("task stale se descarta antes de priorizar y gana la misión reciente elegible",async()=>{
   const {db,env,F}=harness({presence:[],now:NOW/1000});
   mission(db,{agent:"OraculoMacMini",machine:"MacMini",at:NOW-10*MIN,title:"Misión reciente"});
-  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?)").run("M1","a","Tarea stale","in_progress","SubOraculoMacMini",NOW-3*60*MIN);
+  db.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,updated_at) VALUES (?,?,?,?,?,?)").run("M1","a","Tarea stale","in_progress","SubOraculoMacMini",NOW-3*60*MIN);
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(result.count,1);
   assert.equal(result.participants[0].kind,"mission");
@@ -139,7 +139,7 @@ test("task stale se descarta antes de priorizar y gana la misión reciente elegi
 test("presence rescata task stale y conserva prioridad task y ejecutor Sub/Infra",async()=>{
   const {db,env,F}=harness({presence:[processRow("Oraculo","MacMini")],now:NOW/1000});
   mission(db,{agent:"OraculoMacMini",machine:"MacMini",at:NOW-3*60*MIN});
-  db.exec(`INSERT INTO mission_tasks VALUES
+  db.exec(`INSERT INTO mission_tasks(mission_id,code,title,status,owner,updated_at) VALUES
     ('M1','a','Implementación','in_progress','SubOraculoMacMini',${NOW-3*60*MIN}),
     ('M1','a1','QA','doing','InfraOraculoMacMini',${NOW-2*60*MIN})`);
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
@@ -152,7 +152,7 @@ test("presence rescata task stale y conserva prioridad task y ejecutor Sub/Infra
 test("Mini y MacMini colapsan con process_snapshot y owner genérico",async()=>{
   const {db,env,F}=harness({presence:[processRow("Oraculo","MacMini")],now:NOW/1000});
   mission(db,{id:"M1",agent:"OraculoMini",machine:"admira-macmini",at:NOW-3*60*MIN});
-  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?)").run("M1","b","Ejecutar","active","subagente",NOW-3*60*MIN);
+  db.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,updated_at) VALUES (?,?,?,?,?,?)").run("M1","b","Ejecutar","active","subagente",NOW-3*60*MIN);
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(result.count,1);
   assert.equal(result.participants[0].agent,"OraculoMacMini");
