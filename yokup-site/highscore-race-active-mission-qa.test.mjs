@@ -92,9 +92,9 @@ test("sin running muestra últimos trabajos B/N con hora, elapsed y pose de pie"
   assert.equal((race.html.match(/refresh-lane-last/g)||[]).length,3);
   assert.equal((race.html.match(/data-race-role="runner"/g)||[]).length,3);
   assert.equal((race.html.match(/class="runner-standing"/g)||[]).length,3);
-  assert.equal((race.html.match(/ÚLTIMO TRABAJO/g)||[]).length,3);
+  assert.equal((race.html.match(/class="refresh-work-state">FINALIZADO<\/strong>/g)||[]).length,3);
   assert.match(race.html,/>00:30:00<\/strong>/);
-  assert.match(race.html,/<time>\d{2}:\d{2}:\d{2}<\/time>/);
+  assert.match(race.html,/class="refresh-work-state">FINALIZADO<\/strong>/);
 });
 
 test("fallo del endpoint borra la lectura anterior y declara no disponible", () => {
@@ -144,7 +144,7 @@ test("un participante con el proceso vivo pero el trabajo parado se rotula PARAD
   // Pero ni corre ni se ampara en el proceso verificado.
   assert.match(race.html,/data-race-idle="true"/);
   assert.match(race.html,/refresh-lane-idle/);
-  assert.match(race.html,/ASIGNADO · SIN AVANCE/);
+  assert.match(race.html,/class="refresh-work-state">SIN AVANCE<\/strong>/);
   assert.doesNotMatch(race.html,/data-heartbeat="proceso-verificado"/);
 });
 
@@ -154,7 +154,7 @@ test("con el trabajo fresco sí se rotula el fundamento operativo y corre", () =
   const race=renderRace([], [item], []);
   assert.match(race.html,/data-work-state="running"/);
   assert.doesNotMatch(race.html,/data-race-idle="true"/);
-  assert.doesNotMatch(race.html,/ASIGNADO · SIN AVANCE/);
+  assert.doesNotMatch(race.html,/class="refresh-work-state">SIN AVANCE<\/strong>/);
 });
 
 test("ningún participante recupera un dorsal aunque haya más de tres", () => {

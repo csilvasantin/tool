@@ -23,15 +23,15 @@ test("la calle muestra trabajo, responsable, state factual y hora Madrid",()=>{
   assert.match(source,/resumenTrabajoActivo\(trabajo\)/);
   assert.match(source,/responsable = normaliza\(resumen\.responsible \|\| agente\)/);
   assert.match(source,/executor = normaliza\(resumen\.executor \|\| responsable\)/);
-  assert.match(source,/>\' \+ esc\(responsable\) \+ \'<\/span>\'/);
+  assert.match(source,/title="Responsable ' \+ esc\(responsable\) \+ '\">' \+ esc\(responsable\) \+ '<\/span>/);
   assert.match(source,/stateLabel = trabajo\.state === "running" \? "EN CURSO"/);
-  assert.match(source,/clock:horaMadrid\(clockAt\)/);
+  assert.match(source,/assignmentClock:horaMadrid\(trabajo\.assignmentAt\)/);
   assert.match(source,/SIN TRABAJO ASIGNADO/);
   assert.doesNotMatch(source,/misionDesdePresencia|presencia viva, sin foco declarado/);
 });
 
-test("texto, agente y reloj vivo ocupan columnas propias sin marquee",()=>{
-  assert.match(source,/\.refresh-lane\{display:grid;grid-template-columns:minmax\(150px,220px\) minmax\(0,1fr\) minmax\(196px,228px\)/);
+test("texto, agente y estado con tiempos ocupan columnas propias sin marquee",()=>{
+  assert.match(source,/\.refresh-lane\{display:grid;grid-template-columns:minmax\(150px,210px\) minmax\(0,1fr\) minmax\(174px,208px\)/);
   assert.match(source,/\.refresh-agent\{[^}]*text-overflow:ellipsis[^}]*white-space:nowrap/);
   assert.match(source,/@media \(max-width:620px\)[\s\S]*?\.refresh-mission-title\{font-size:8px\}/);
   assert.doesNotMatch(source,/<marquee|function estelaMision|class="refresh-word"/);

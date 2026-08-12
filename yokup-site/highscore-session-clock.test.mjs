@@ -29,6 +29,7 @@ test("sesión cerrada queda congelada y unknown o ausente se muestra como guion"
 test("DOM expone sólo duración y estado de sesión, nunca PID ni session id",()=>{
   assert.match(html,/data-session-duration=/);
   assert.match(html,/data-session-state=/);
-  assert.match(html,/refresh-now[\s\S]*refresh-elapsed[\s\S]*refresh-session-elapsed/);
+  assert.match(html,/refresh-work-state[\s\S]*refresh-elapsed[\s\S]*refresh-session-elapsed/);
+  assert.doesNotMatch(html,/class="refresh-now"/);
   assert.doesNotMatch(html,/data-(?:pid|session-id|incarnation)/);
 });

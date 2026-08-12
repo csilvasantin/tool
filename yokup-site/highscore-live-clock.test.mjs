@@ -55,20 +55,20 @@ test("un trabajo finalizado congela hora y duración en ended_at", () => {
   assert.equal(race.workClock({ state:"running", work_started_at:50_000 }, 40_000, 5_000).durationMs, null);
 });
 
-test("el tick sólo actualiza reloj, duración y aria; nunca progreso ni estado", () => {
+test("el tick sólo actualiza duraciones y aria; nunca reloj, progreso ni estado", () => {
   const tick = functionSource("actualizaRelojesCarrera");
   assert.match(tick, /performance\.now\(\) - datos\.trabajosClientAt/);
-  assert.match(tick, /\.refresh-now/);
+  assert.doesNotMatch(tick, /\.refresh-now|horaMadrid/);
   assert.match(tick, /\.refresh-elapsed/);
   assert.doesNotMatch(tick, /work_progress_at\s*=|data-work-state[^\n]*setAttribute|classList|pintaCarrera|elapsed\s*\+=/);
   assert.match(html, /visibilitychange[\s\S]*actualizaRelojesCarrera\(\)[\s\S]*actualizaMarcador\(\)/);
 });
 
-test("la derecha muestra hora // misión // sesión y reserva ancho responsive", () => {
-  assert.match(html, /class="refresh-time"[\s\S]*class="refresh-now"[\s\S]*class="refresh-elapsed"[\s\S]*class="refresh-session-elapsed"/);
-  assert.match(html, /grid-template-columns:minmax\(150px,220px\) minmax\(0,1fr\) minmax\(196px,228px\)/);
-  assert.match(html, /@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(92px,126px\) minmax\(0,1fr\) minmax\(168px,184px\)/);
-  assert.match(html, /timeZone:"Europe\/Madrid"/);
+test("la derecha muestra estado // misión // sesión y reserva ancho responsive", () => {
+  assert.match(html, /class="refresh-time"[\s\S]*class="refresh-work-state"[\s\S]*class="refresh-elapsed"[\s\S]*class="refresh-session-elapsed"/);
+  assert.doesNotMatch(html, /class="refresh-now"/);
+  assert.match(html, /grid-template-columns:minmax\(150px,210px\) minmax\(0,1fr\) minmax\(174px,208px\)/);
+  assert.match(html, /@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(82px,112px\) minmax\(0,1fr\) minmax\(132px,146px\)/);
 });
 
 test("dorsal y toda su mecánica desaparecen de CSS DOM y JS", () => {
@@ -82,7 +82,9 @@ test("stale corre sólo B/N cosmético y last_work conserva pose quieta", () => 
   assert.match(html, /data-work-state="last_work"\] \.runner-standing\{display:block;animation:none\}/);
   assert.match(html, /data-work-state="last_work"\] \.runner-run-a[\s\S]*display:none;animation:none/);
   assert.match(html, /carreraCosmetica = estadoTrabajo === "assigned_stale"/);
-  assert.match(html, /Math\.min\(carreraCosmetica \? \.94 : 1/);
+  assert.match(html, /Math\.min\(1, progresoCarril/);
+  assert.match(html, /toggle\("cruzando", centroAtleta \+ RADIO_CORREDOR_PX >= metaLinea\)/);
+  assert.match(html, /toggle\("cosmetic-finished", carreraCosmetica && progresoAtleta >= 1\)/);
   assert.doesNotMatch(html, /refresh-lane-idle \.refresh-runner\{filter:grayscale|refresh-lane-last \.refresh-runner\{filter:grayscale/);
   assert.match(html, /\.runner-standing,\.refresh-runner \.runner-standing use\{fill:#b8c0c5;stroke:none\}/);
   assert.match(html, /id="runnerStanding"[\s\S]*?class="runner-skin" fill="#b8c0c5"[\s\S]*?class="runner-hair" fill="#737f86"[\s\S]*?class="runner-shirt" fill="#a7b1b6"[\s\S]*?class="runner-accent" fill="#e0e5e8"/);

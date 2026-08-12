@@ -80,7 +80,7 @@ test("el sprint termina pronto y deja una celebración larga", () => {
 test("compactar conserva orden de lectura y semántica accesible", () => {
   assert.match(html, /id="refreshLanes" role="list" aria-label="[^"]+"/);
   assert.match(raceSource, /role="listitem"/);
-  assert.match(raceSource, /aria-label="Carril de la familia ' \+ esc\(agente\)[\s\S]*Responsable ' \+ esc\(responsable\)/);
+  assert.match(raceSource, /aria-label="Asignado ' \+ esc\(resumen\.assignmentClock\)[\s\S]*Carril de la familia ' \+ esc\(agente\)[\s\S]*Responsable ' \+ esc\(responsable\)/);
   assert.match(raceSource, /data-race-role="runner" aria-hidden="true"/);
   assert.match(html, /id="raceCall"[^>]*role="status"[^>]*aria-live="polite"/);
   assert.doesNotMatch(raceSource, /aria-hidden="true"[^>]*data-race-role="agent"/);

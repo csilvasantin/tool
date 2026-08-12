@@ -124,8 +124,8 @@ test("la pista pasa por los pies del corredor y termina en una meta visible", ()
   assert.match(html, /\.refresh-finish\{right:0;bottom:5px\}/);
   assert.doesNotMatch(html, /refresh-place|place-revealed|rectDorsal|\bdorsal\b/i);
   assert.match(html, /\.refresh-lanes\{gap:2px\}/);
-  assert.match(html, /\.refresh-lane\{[^}]*min-height:50px/);
-  assert.match(html, /\.refresh-track\{min-height:30px;padding:0 var\(--finish-width\) 0 var\(--track-start\)/);
+  assert.match(html, /\.refresh-lane\{[^}]*min-height:38px/);
+  assert.match(html, /\.refresh-track\{min-height:31px;padding:0 var\(--finish-width\) 0 var\(--track-start\)/);
   assert.match(html, /\.refresh-finish::before,\.refresh-finish::after\{[^}]*conic-gradient[^}]*transition:transform \.45s steps\(3,end\),opacity \.45s linear/);
   // La cinta la rompe `cruzando` (el fotograma del cruce), no `finished`
   // (el fin de la cuenta): antes seguía intacta con el corredor encima.
@@ -253,11 +253,11 @@ test("el trabajo factual sigue por detrás del corredor sin solapar nombre ni re
   assert.match(html, /\.refresh-lane\.cruzando \.refresh-finish::before\{[^}]*opacity:0\}/);
   assert.match(html, /\.refresh-lane\.cruzando \.refresh-finish::after\{[^}]*opacity:0\}/);
   assert.doesNotMatch(html, /\.refresh-lane\.finished \.refresh-finish::before/);
-  assert.match(html, /carril\.classList\.toggle\("cruzando", !carreraCosmetica && centroAtleta \+ RADIO_CORREDOR_PX >= metaLinea\)/);
+  assert.match(html, /carril\.classList\.toggle\("cruzando", centroAtleta \+ RADIO_CORREDOR_PX >= metaLinea\)/);
   assert.match(html, /function actualizaCarreraPodio\(\)/);
   assert.match(html, /function trabajosEnCurso\(\)/);
   assert.match(html, /function resumenTrabajoActivo\(trabajo\)/);
-  assert.match(html, /stateLabel = trabajo\.state === "running" \? "EN CURSO" : trabajo\.state === "last_work" \? "ÚLTIMO TRABAJO"/);
+  assert.match(html, /stateLabel = trabajo\.state === "running" \? "EN CURSO" : trabajo\.state === "last_work" \? "FINALIZADO"/);
   assert.doesNotMatch(html, /function estelaMision|class="refresh-word"/);
   assert.match(html, /mision\.style\.left = ""; mision\.style\.width = ""/);
   assert.doesNotMatch(html, /desbordeMision|avanceMision/);
@@ -279,9 +279,9 @@ test("todos los agentes con trabajo en curso tienen calles ordenadas, identidad 
   assert.match(html, /role="listitem"/);
   // El orden de las capas no cambia; el title del rótulo sí puede llevar delante
   // el estado de parado desde el 12-ago-2026, así que se comprueba con hueco.
-  assert.match(html, /class="refresh-agent"[\s\S]*class="refresh-lane-center"[\s\S]*refresh-track[\s\S]*runner \+ '<span class="refresh-finish"[\s\S]*class="refresh-mission"/);
+  assert.match(html, /class="refresh-agent"[\s\S]*class="refresh-lane-center"[\s\S]*refresh-track[\s\S]*class="refresh-mission"[\s\S]*runner \+ '<span class="refresh-finish"/);
   assert.doesNotMatch(html, /refresh-mission-(?:ref|state|meta|project)/);
-  assert.match(html, /'<span class="refresh-agent-meta"><span class="refresh-agent" data-race-role="agent" title="Responsable ' \+ esc\(responsable\)[\s\S]*esc\(responsable\)[\s\S]*class="refresh-assignment"/);
+  assert.match(html, /'<span class="refresh-agent-meta"><time class="refresh-assignment"[\s\S]*<span class="refresh-agent" data-race-role="agent" title="Responsable ' \+ esc\(responsable\)/);
   assert.doesNotMatch(html, /refresh-place|place-revealed/);
   assert.match(html, /\.refresh-agent\{position:static;display:block[^}]*text-align:left[^}]*color:var\(--accent\)[^}]*font-size:11px[^}]*line-height:14px/);
   assert.match(html, /\.refresh-lane-p1\{--lane:var\(--oro\);--runner-shirt:#ffd866;--runner-stripe:#8a4a2a\}/);

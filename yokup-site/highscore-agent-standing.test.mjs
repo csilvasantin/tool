@@ -37,26 +37,30 @@ test("standing es un sprite dedicado para last_work y stale conserva carrera cos
   assert.match(html,/carreraCosmetica = estadoTrabajo === "assigned_stale"/);
 });
 
-test("running compite; stale corre B\/N sin meta y last queda en salida",()=>{
+test("running compite; stale cruza B\/N sin ganar y last queda en salida",()=>{
   assert.match(html,/phase-ready \.runner-pose-ready\{display:block;opacity:1\}/);
   assert.match(html,/phase-set \.runner-pose-set\{display:block;opacity:1\}/);
   assert.match(html,/phase-go \.runner-pose-go\{display:block;opacity:1\}/);
   assert.match(html,/\.runner-run-a\{animation:runner-run-a/);
   assert.match(html,/finished\.race-winner \.runner-finish-win\{display:block/);
-  assert.match(html,/progresoAtleta = noCorre \? 0 : Math\.min\(carreraCosmetica \? \.94 : 1/);
+  assert.match(html,/progresoAtleta = noCorre \? 0 : Math\.min\(1, progresoCarril/);
+  assert.match(html,/toggle\("cosmetic-finished", carreraCosmetica && progresoAtleta >= 1\)/);
+  assert.match(html,/\.refresh-lane\.cosmetic-finished \.runner-standing\{display:block/);
   assert.match(html,/!carreraCosmetica && ordenLlegada === 1/);
   assert.match(html,/if \(noCorre\)[\s\S]*relleno\.style\.width = "0px"[\s\S]*return;/);
 });
 
-test("responsive conserva reloj fijo y nombre truncable en cinco anchos y zoom 200%",()=>{
-  assert.match(html,/grid-template-columns:minmax\(150px,220px\) minmax\(0,1fr\) minmax\(196px,228px\)/);
-  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(92px,126px\) minmax\(0,1fr\) minmax\(168px,184px\)/);
+test("responsive conserva estado y tiempos fijos con nombre truncable en cinco anchos y zoom 200%",()=>{
+  assert.match(html,/grid-template-columns:minmax\(150px,210px\) minmax\(0,1fr\) minmax\(174px,208px\)/);
+  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(82px,112px\) minmax\(0,1fr\) minmax\(132px,146px\)/);
+  assert.match(html,/@media \(max-width:340px\)\{\.refresh-lane\{grid-template-columns:minmax\(72px,96px\) minmax\(58px,1fr\) minmax\(126px,138px\)/);
   for(const width of [1265,1024,760,390,320]){
     const content=Math.min(1080,width-36), mobile=width<=620;
-    const agentMin=mobile?92:150, elapsedMin=mobile?168:196, gaps=mobile?8:16;
+    const agentMin=width<=340?72:mobile?82:width<=800?112:width<=1100?132:150;
+    const elapsedMin=width<=340?126:mobile?132:width<=800?150:width<=1100?164:174, gaps=mobile?6:12;
     assert.ok(content-agentMin-elapsedMin-gaps>=0,`${width}px conserva pista sin overflow`);
   }
-  assert.ok(1265/2-36-92-168-8>=0,"zoom 200% del escritorio conserva las tres columnas");
+  assert.ok(1265/2-36-82-132-6>=0,"zoom 200% del escritorio conserva las tres columnas");
   assert.match(html,/\.refresh-assignment\{[^}]*white-space:nowrap/);
   assert.match(html,/\.refresh-agent\{[^}]*min-width:0[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
 });

@@ -65,12 +65,13 @@ test("la calle stale se marca SIN AVANCE y sólo corre cosméticamente en B/N", 
   assert.match(html, /trabajo\.state === "running" \? "EN CURSO"/);
   assert.match(html, /resumen\.idle \? " refresh-lane-idle" : ""/);
   assert.match(html, /resumen\.idle \? 'data-race-idle="true" ' : ''/);
-  assert.match(html, /"ASIGNADO · SIN AVANCE"/);
-  // La geometría se anima sin convertirla en avance, ganador ni fin.
+  assert.match(html, /"SIN AVANCE"/);
+  // La geometría cruza sin convertirla en avance, ganador ni fin factual.
   assert.match(html, /estadoTrabajo = carril\.getAttribute\("data-work-state"\)/);
   assert.match(html, /carreraCosmetica = estadoTrabajo === "assigned_stale"/);
   assert.match(html, /!carreraCosmetica && ordenLlegada === 1/);
-  assert.match(html, /carril\.classList\.remove\("cruzando", "finished", "race-winner", "race-loser"\)/);
+  assert.match(html, /toggle\("cosmetic-finished", carreraCosmetica && progresoAtleta >= 1\)/);
+  assert.match(html, /carril\.classList\.remove\("cruzando", "finished", "cosmetic-finished", "race-winner", "race-loser"\)/);
 });
 
 test("el rótulo del parado se lee sin depender de que la carrera arranque", () => {
@@ -78,5 +79,5 @@ test("el rótulo del parado se lee sin depender de que la carrera arranque", () 
   // calle parada nunca recibe: sin esto el parado saldría mudo.
   assert.match(html, /\.refresh-lane-idle \.refresh-mission\{[^}]*opacity:1;visibility:visible/);
   assert.match(html, /phase-go \.refresh-lane-idle \.refresh-mission\{opacity:1;visibility:visible\}/);
-  assert.match(html, /ASIGNADO · SIN AVANCE/);
+  assert.match(html, /"SIN AVANCE"/);
 });
