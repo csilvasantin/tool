@@ -6898,7 +6898,9 @@ var worker_app = {
     if (url.pathname === "/highscore/active-work" && req.method === "GET") {
       await ensureSchema(env);
       await ensureIdeasSchema(env);
-      return json(await highscoreActiveWork(env));
+      const response = json(await highscoreActiveWork(env));
+      response.headers.set("cache-control", "no-store");
+      return response;
     }
     // ── NOTIFICACIONES DEL SISTEMA DE LA FLOTA (FLT-1020) ────────────────────
     // Sin perímetro, como el resto de /fleet/*: quien publica es un vigilante que

@@ -56,11 +56,10 @@ test("HIGHSCORE vive en una banda propia sobre todos los carriles", () => {
   assert.match(cssRule(".sonido"), /width:15px[^}]*height:15px[^}]*margin:0/);
 });
 
-test("el dorsal nace oculto bajo la línea y el corredor pasa por encima", () => {
-  assert.match(cssRule(".refresh-place"), /z-index:2[^}]*left:calc\(var\(--track-start\) \+ 8px\)[^}]*bottom:0[^}]*opacity:0[^}]*visibility:hidden/);
-  assert.match(html, /\.refresh-lane\.place-revealed \.refresh-place\{opacity:\.88;visibility:visible\}/);
+test("la pista elimina por completo el dorsal y conserva al corredor sobre la misión", () => {
+  assert.doesNotMatch(html, /refresh-place|place-revealed|\bdorsal\b/i);
   assert.match(cssRule(".refresh-runner"), /z-index:3/,
-    "el corredor pasa visualmente por encima del dorsal pintado");
+    "el corredor pasa visualmente por encima de la misión");
 });
 
 test("la misión vive dentro de la pista y sigue por detrás del corredor", () => {
@@ -81,7 +80,7 @@ test("el sprint termina pronto y deja una celebración larga", () => {
 test("compactar conserva orden de lectura y semántica accesible", () => {
   assert.match(html, /id="refreshLanes" role="list" aria-label="[^"]+"/);
   assert.match(raceSource, /role="listitem"/);
-  assert.match(raceSource, /aria-label="Puesto ' \+ puesto \+ ', familia ' \+ esc\(agente\)[\s\S]*Responsable ' \+ esc\(responsable\)/);
+  assert.match(raceSource, /aria-label="Carril de la familia ' \+ esc\(agente\)[\s\S]*Responsable ' \+ esc\(responsable\)/);
   assert.match(raceSource, /data-race-role="runner" aria-hidden="true"/);
   assert.match(html, /id="raceCall"[^>]*role="status"[^>]*aria-live="polite"/);
   assert.doesNotMatch(raceSource, /aria-hidden="true"[^>]*data-race-role="agent"/);

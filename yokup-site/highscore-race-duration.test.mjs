@@ -18,15 +18,15 @@ test("formatea únicamente duraciones factuales válidas",()=>{
 });
 
 test("el tiempo factual ocupa una columna fija a la derecha de la pista",()=>{
-  assert.match(html,/grid-template-columns:minmax\(112px,160px\) minmax\(0,1fr\) minmax\(74px,96px\)/);
-  assert.match(html,/<strong class="refresh-elapsed" title="Tiempo transcurrido factual">⏱ /);
-  assert.match(html,/\.refresh-elapsed\{[^}]*font-variant-numeric:tabular-nums;[^}]*text-align:right/);
+  assert.match(html,/grid-template-columns:minmax\(112px,160px\) minmax\(0,1fr\) minmax\(118px,160px\)/);
+  assert.match(html,/class="refresh-time"[\s\S]*class="refresh-now"[\s\S]*\/\/[\s\S]*class="refresh-elapsed"/);
+  assert.match(html,/\.refresh-time\{[^}]*font-variant-numeric:tabular-nums[^}]*text-align:right/);
   assert.match(html,/<span class="refresh-agent"[^>]*>[\s\S]*<div class="refresh-lane-center">/,
     "el nombre queda antes de la pista, no montado sobre la meta");
   assert.match(html,/<div class="refresh-status"><strong>' \+ esc\(resumen\.state\) \+ '<\/strong><time>/);
   assert.match(html,/<span class="refresh-mission"[^>]*><span class="refresh-mission-title">/);
   assert.match(html,/Tiempo transcurrido factual/);
-  assert.match(html,/aria-label="Puesto '[\s\S]*Tiempo transcurrido/);
+  assert.match(html,/aria-label="Carril de la familia '[\s\S]*Tiempo transcurrido/);
   assert.doesNotMatch(html,/Tiempo dedicado factual|dedicated_ms/);
 });
 

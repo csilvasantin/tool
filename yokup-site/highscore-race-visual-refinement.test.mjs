@@ -23,15 +23,9 @@ test("la misión permanece totalmente oculta en salida y progreso cero", () => {
   assert.match(html, /\.refresh-lane\.race-started \.refresh-mission\{[^}]*opacity:1[^}]*visibility:visible/);
 });
 
-test("el dorsal queda bajo la línea, oculto hasta ser rebasado y debajo del corredor", () => {
-  const place = cssRule(".refresh-place"), runner = cssRule(".refresh-runner");
-  const placeZ = Number(place.match(/z-index:([0-9.]+)/)?.[1]);
-  const runnerZ = Number(runner.match(/z-index:([0-9.]+)/)?.[1]);
-  assert.ok(placeZ > 0 && placeZ < runnerZ, `z-index dorsal ${placeZ}, corredor ${runnerZ}`);
-  assert.match(place, /bottom:0/, "el dorsal debe quedar bajo la línea situada en bottom 13px");
-  assert.match(place, /opacity:0[^}]*visibility:hidden/);
-  assert.match(html, /\.refresh-lane\.place-revealed \.refresh-place\{opacity:\.88;visibility:visible\}/);
-  assert.match(place, /font-weight:(?:900|950)/);
+test("no queda dorsal entre la línea y el corredor", () => {
+  assert.doesNotMatch(html, /refresh-place|place-revealed|rectDorsal|\bdorsal\b/i);
+  assert.match(cssRule(".refresh-runner"), /z-index:3/);
 });
 
 test("el nombre vive en su columna y la cinta termina en el borde de pista", () => {

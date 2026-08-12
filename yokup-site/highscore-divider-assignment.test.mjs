@@ -27,8 +27,8 @@ test("la primera columna conserva nombre y hora factual inmediata sin sacrificar
 });
 
 test("desktop y móvil reservan ancho al nombre+hora manteniendo pista y elapsed",()=>{
-  assert.match(html,/grid-template-columns:minmax\(150px,220px\) minmax\(0,1fr\) minmax\(74px,96px\)/);
-  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(92px,126px\) minmax\(0,1fr\) minmax\(54px,65px\)/);
+  assert.match(html,/grid-template-columns:minmax\(150px,220px\) minmax\(0,1fr\) minmax\(118px,160px\)/);
+  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(92px,126px\) minmax\(0,1fr\) minmax\(104px,116px\)/);
   assert.match(html,/\.refresh-lane-last/);
   assert.match(html,/\.refresh-elapsed/);
 });

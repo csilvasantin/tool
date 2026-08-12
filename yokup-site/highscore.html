@@ -103,9 +103,9 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   position:relative;grid-column:1;grid-row:2;min-height:44px;min-width:0;padding:0;display:flex;align-items:flex-start;overflow:hidden;
   cursor:pointer;border-radius:5px}
 .refresh-race:focus-visible{outline:2px solid var(--brand);outline-offset:4px}
-.refresh-lanes{width:100%;display:grid;gap:1px}
+.refresh-lanes{width:100%;display:grid;gap:2px}
 .runner-symbols{position:absolute;width:0;height:0;overflow:hidden}
-.refresh-lane{position:relative;width:100%;min-width:0;min-height:42px}
+.refresh-lane{position:relative;width:100%;min-width:0;min-height:50px}
 .refresh-track{position:relative;width:100%;min-height:42px;padding:1px var(--finish-width) 16px var(--track-start)}
 /* La pista nace en x=2, el mismo borde estable donde la ventana móvil de misión
    deja su M inicial. La diferencia vertical evita que la línea tape el rótulo. */
@@ -113,15 +113,6 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   background:rgba(120,243,255,.22);box-shadow:0 1px 0 rgba(255,216,102,.16)}
 .refresh-fill{position:absolute;left:var(--track-start);bottom:11px;width:0;height:2px;background:linear-gradient(90deg,var(--lane),var(--accent),var(--brand));
   box-shadow:0 0 7px color-mix(in srgb,var(--lane) 55%,transparent)}
-.refresh-place{position:absolute;z-index:2;left:calc(var(--track-start) + 8px);bottom:0px;min-width:16px;padding:0 1px;
-  transform:translateX(-50%) skewX(-8deg);transform-origin:center bottom;
-  border:0;background:transparent;color:color-mix(in srgb,var(--lane) 88%,#fff);
-  font-size:9px;font-weight:950;line-height:9px;text-align:center;letter-spacing:.03em;
-  opacity:0;visibility:hidden;-webkit-text-stroke:.25px rgba(2,8,13,.9);
-  text-shadow:0 1px 0 #02080d,0 0 6px color-mix(in srgb,var(--lane) 58%,transparent);
-  transition:opacity .12s linear;pointer-events:none;user-select:none}
-.refresh-lane.place-revealed .refresh-place{opacity:.88;visibility:visible}
-.refresh-place-track{mix-blend-mode:normal}
 .refresh-lane-p1{--lane:var(--oro);--runner-shirt:#ffd866;--runner-stripe:#8a4a2a}
 .refresh-lane-p2{--lane:var(--plata);--runner-shirt:#e6ecf2;--runner-stripe:#3477c7}
 .refresh-lane-p3{--lane:var(--bronce);--runner-shirt:#c87f3a;--runner-stripe:#2b1b12}
@@ -157,7 +148,6 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
    Se ve siempre, no sólo al arrancar la carrera: es justo lo que hay que leer. */
 .refresh-lane-idle{--lane:var(--dim)}
 .refresh-lane-idle .refresh-fill{opacity:0}
-.refresh-lane-idle .refresh-runner{filter:grayscale(1) brightness(.85)}
 .refresh-lane-idle .refresh-mission{left:var(--track-start);right:calc(var(--finish-width) + 10px);top:2px;
   width:auto;max-width:none;transform:none;display:flex;flex-direction:column;align-items:stretch;gap:1px;
   text-align:right;opacity:1;visibility:visible}
@@ -267,9 +257,9 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
    El rótulo ya no viaja con el muñeco, porque eso hacía imposible leer cuatro
    trabajos a la vez y confundía la animación con la identidad del responsable. */
 .refresh-race{overflow:visible}
-.refresh-lanes{gap:5px}
-.refresh-lane{display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr) minmax(74px,96px);
-  align-items:center;column-gap:10px;min-height:62px}
+.refresh-lanes{gap:2px}
+.refresh-lane{display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr) minmax(118px,160px);
+  align-items:center;column-gap:8px;min-height:50px}
 .refresh-agent-meta{display:inline-flex;align-items:baseline;justify-content:flex-start;gap:5px;width:100%;min-width:0;color:var(--accent)}
 .refresh-agent{position:static;display:block;flex:0 1 auto;min-width:0;max-width:none;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;text-align:left;color:var(--accent);font-size:11px;font-weight:900;line-height:14px}
@@ -283,7 +273,6 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-track{min-height:30px;padding:0 var(--finish-width) 0 var(--track-start)}
 .refresh-track::before{left:var(--track-start);right:var(--finish-width);bottom:7px}
 .refresh-fill{bottom:7px}.refresh-runner{bottom:7px}.refresh-finish{right:0;bottom:5px}
-.refresh-place{bottom:-4px}
 .refresh-mission{position:absolute;z-index:1;top:1px;left:var(--track-start);display:block;width:0;max-width:none;
   transform:translateX(calc(-100% - 13px));overflow:hidden;color:var(--mut);font-size:9px;line-height:14px;
   opacity:0;visibility:hidden;transition:opacity .12s linear;pointer-events:none}
@@ -292,11 +281,15 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-race.phase-go .refresh-lane:not(.refresh-lane-idle):not(.refresh-lane-last) .refresh-mission{opacity:0;visibility:hidden}
 .refresh-mission-detail{display:block}.refresh-mission-title{overflow:hidden;text-overflow:ellipsis;text-align:right}
 .refresh-mission-duration,.refresh-mission-idle{display:none!important}
-.refresh-elapsed{overflow:hidden;color:var(--accent);font-size:10px;font-variant-numeric:tabular-nums;
-  text-align:right;text-overflow:ellipsis;white-space:nowrap}
+.refresh-time{display:flex;align-items:baseline;justify-content:flex-end;gap:5px;min-width:0;color:var(--accent);
+  font-size:10px;font-variant-numeric:tabular-nums;font-weight:900;text-align:right;white-space:nowrap}
+.refresh-now{color:var(--ink);font-weight:900}.refresh-time-sep{color:var(--dim)}
+.refresh-elapsed{overflow:hidden;color:var(--accent);text-overflow:ellipsis;white-space:nowrap}
 .refresh-lane-idle{--lane:var(--brand)}
 .refresh-lane-idle .refresh-lane-center{opacity:.82}
-.refresh-lane-idle .refresh-runner{filter:none}
+.refresh-lane[data-work-state]:not([data-work-state="running"]) .refresh-runner{
+  --runner-skin:#b8c0c5;--runner-hair:#737f86;--runner-shirt:#a7b1b6;--runner-stripe:#e0e5e8;
+  filter:drop-shadow(0 0 3px rgba(205,214,219,.72))}
 .refresh-lane-idle .refresh-mission,.refresh-lane-last .refresh-mission{position:absolute;left:var(--track-start);right:var(--finish-width);
   top:1px;display:block;width:auto;max-width:none;transform:none;text-align:right;opacity:1;visibility:visible}
 .refresh-lane-idle .refresh-mission-title,.refresh-lane-last .refresh-mission-title{text-align:right;opacity:.85}
@@ -304,10 +297,10 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-lane-idle .runner-run-b,.refresh-lane-idle .runner-run-c{display:none}
 .refresh-lane-last{--lane:#a7b3b8}
 .refresh-lane-last .refresh-lane-center{filter:grayscale(1);opacity:.78}
-.refresh-lane-last .refresh-runner{filter:grayscale(1)}
+.refresh-lane-last .refresh-runner{filter:drop-shadow(0 0 3px rgba(205,214,219,.72))}
 .refresh-lane-last .refresh-track::before{background:rgba(167,179,184,.2)}
-.refresh-lane-last .refresh-fill,.refresh-lane-last .refresh-finish,.refresh-lane-last .refresh-place{display:none}
-.refresh-lane-empty{display:grid;grid-template-columns:minmax(112px,160px) minmax(0,1fr) minmax(74px,96px);min-height:54px}
+.refresh-lane-last .refresh-fill,.refresh-lane-last .refresh-finish{display:none}
+.refresh-lane-empty{display:grid;grid-template-columns:minmax(112px,160px) minmax(0,1fr) minmax(118px,160px);min-height:50px}
 .refresh-lane-empty .refresh-track{grid-column:2;min-height:30px;padding:0}
 .refresh-lane-empty .refresh-mission{position:absolute;left:0;right:0;width:auto;transform:none;text-align:center;opacity:1;visibility:visible}
 
@@ -657,11 +650,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .nom{font-size:7px}.pts{font-size:10px}
   .wrap{padding-top:46px}h1{font-size:17px}
   .refresh-race{padding:0 3px}
-  .refresh-lane{grid-template-columns:minmax(92px,126px) minmax(0,1fr) minmax(54px,65px);column-gap:5px;min-height:58px}
-  .refresh-agent{font-size:8px;line-height:10px}.refresh-assignment{font-size:8px}.refresh-status{font-size:6.5px;gap:3px}.refresh-elapsed{font-size:8px}
+  .refresh-lane{grid-template-columns:minmax(92px,126px) minmax(0,1fr) minmax(104px,116px);column-gap:4px;min-height:48px}
+  .refresh-agent{font-size:8px;line-height:10px}.refresh-assignment{font-size:8px}.refresh-status{font-size:6.5px;gap:3px}.refresh-time{gap:3px;font-size:8px}
   .refresh-track{padding-left:var(--track-start);padding-right:var(--finish-width)}
   .refresh-mission{font-size:8px;line-height:12px}.refresh-mission-title{font-size:8px}
-  .refresh-place{left:calc(var(--track-start) + 8px);bottom:0px;min-width:16px;font-size:9px;line-height:9px}
   .race-call{min-width:min(96px,calc(100% - var(--track-start) - var(--finish-width) - 8px));
     padding:2px clamp(5px,1.8vw,11px);font-size:clamp(13px,4.2vw,18px);line-height:20px;letter-spacing:.1em}
   .score-progress td{padding-left:5px;padding-right:5px}.progression{grid-template-columns:88px repeat(6,76px);min-width:580px;gap:4px}
@@ -669,7 +661,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .agent-scope-children{padding-left:8px}.agent-scope-row.agent{grid-template-columns:minmax(0,1fr) auto}
   .agent-scope-primary{grid-template-columns:minmax(0,1fr) auto 28px;gap:5px}.agent-scope-switch-state{font-size:7px}
   .agent-scope-app-feedback{font-size:7.5px;text-align:left}}
-@media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.rank-filter[aria-pressed="true"],.activity-now,.activity-now::after,.plaza.podium-live::after,.refresh-runner svg,.runner-run-a,.runner-run-b,.runner-run-c,.progression-step.new .progression-dot,.race-call,.race-call::before,.race-call::after,.refresh-place{animation:none!important;transition:none!important}.refresh-runner .runner-run-b,.refresh-runner .runner-run-c{display:none}.runner-finish-win .gesto-a,.runner-finish-lose .gesto-a{animation:none;opacity:1}.runner-finish-win .gesto-b,.runner-finish-lose .gesto-b{display:none}}
+@media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.rank-filter[aria-pressed="true"],.activity-now,.activity-now::after,.plaza.podium-live::after,.refresh-runner svg,.runner-run-a,.runner-run-b,.runner-run-c,.progression-step.new .progression-dot,.race-call,.race-call::before,.race-call::after{animation:none!important;transition:none!important}.refresh-runner .runner-run-b,.refresh-runner .runner-run-c{display:none}.runner-finish-win .gesto-a,.runner-finish-lose .gesto-a{animation:none;opacity:1}.runner-finish-win .gesto-b,.runner-finish-lose .gesto-b{display:none}}
 </style>
 </head>
 <body data-yk-title="HIGHSCORE" data-yk-zone="app">
@@ -915,7 +907,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   var datos = { tareas: [], tareasFresh: false, actividad: [], actividadMeta: null, actividadFresh: false,
     presencia: [], misiones: [], ideas: [], decisiones: [], proyectos: [],
     declaracionesPrincipales: [], controlMachines: [], presenceNow: 0, presenceAvailable: false,
-    trabajos: [], trabajosAvailable: false, trabajosGeneratedAt: 0, trabajosMode: "unavailable", turnos: null };
+    trabajos: [], trabajosAvailable: false, trabajosGeneratedAt: 0, trabajosClientAt: 0,
+    trabajosMode: "unavailable", turnos: null };
   var DAILY_CACHE_KEY = "yokup.highscore.daily.v1";
   function guardaActividadDiaria(payload) {
     if (!payload || !Array.isArray(payload.scores) || payload.day !== claveDia(Date.now())) return;
@@ -968,6 +961,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       datos.trabajosAvailable = !!r[7];
       datos.trabajos = r[7] && r[7].participants || [];
       datos.trabajosGeneratedAt = r[7] && Number(r[7].generated_at) || 0;
+      datos.trabajosClientAt = datos.trabajosGeneratedAt ? performance.now() : 0;
       datos.trabajosMode = r[7] && normaliza(r[7].mode) || "unavailable";
       pon(76, "OBJETIVOS · VENTANAS · MISIONES · " + ((a && a.recorded && a.recorded.objectives) || 0) + " / " + ((a && a.recorded && a.recorded.windows) || 0) + " / " + ((a && a.recorded && a.recorded.missions) || 0));
       pon(94, "PRESENCIA · " + datos.presencia.length + " AGENTES");
@@ -3245,15 +3239,44 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function resumenTrabajoActivo(trabajo) {
     var parado = trabajo.state !== "running";
+    var reloj = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.workClock
+      ? YkHighscoreRace.workClock(trabajo, datos.trabajosGeneratedAt,
+        datos.trabajosClientAt ? Math.max(0, performance.now() - datos.trabajosClientAt) : 0)
+      : { at:trabajo.state === "last_work" ? trabajo.endedAt : datos.trabajosGeneratedAt,
+          durationMs:trabajo.elapsedMs };
     var duracion = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.durationLabel
-      ? YkHighscoreRace.durationLabel(trabajo.elapsedMs) : "—";
+      ? YkHighscoreRace.durationLabel(reloj.durationMs) : "—";
     var stateLabel = trabajo.state === "running" ? "EN CURSO" : trabajo.state === "last_work" ? "ÚLTIMO TRABAJO" : "ASIGNADO · SIN AVANCE";
     var clockAt = trabajo.state === "last_work" ? trabajo.endedAt : trabajo.at;
     return { reference:"", title:trabajo.title, state:stateLabel, project:"",
       executor:trabajo.executor, responsible:trabajo.agente, kind:trabajo.kind, reachable:trabajo.reachable,
       presenceAt:trabajo.presenceAt, at:Number(trabajo.at) || 0, idle:parado, clock:horaMadrid(clockAt),
+      liveClock:horaMadrid(reloj.at), liveClockAt:Number(reloj.at) || 0,
       assignmentClock:horaMadrid(trabajo.assignmentAt), assignmentBasis:trabajo.assignmentBasis,
       duration:duracion, timingBasis:trabajo.timingBasis };
+  }
+
+  function actualizaRelojesCarrera() {
+    var elapsed = datos.trabajosClientAt ? Math.max(0, performance.now() - datos.trabajosClientAt) : 0;
+    document.querySelectorAll(".refresh-time[data-work-state]").forEach(function (bloque) {
+      var work = { state:bloque.getAttribute("data-work-state") || "",
+        work_started_at:Number(bloque.getAttribute("data-work-start")) || 0,
+        ended_at:Number(bloque.getAttribute("data-work-end")) || 0 };
+      var reloj = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.workClock
+        ? YkHighscoreRace.workClock(work, datos.trabajosGeneratedAt, elapsed) : { at:0, durationMs:null };
+      var ahora = bloque.querySelector(".refresh-now"), duracion = bloque.querySelector(".refresh-elapsed");
+      var clockLabel = horaMadrid(reloj.at);
+      var durationLabel = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.durationLabel
+        ? YkHighscoreRace.durationLabel(reloj.durationMs) : "—";
+      if (ahora) {
+        ahora.textContent = clockLabel;
+        if (reloj.at > 0) ahora.setAttribute("datetime", new Date(reloj.at).toISOString());
+        else ahora.removeAttribute("datetime");
+      }
+      if (duracion) duracion.textContent = durationLabel;
+      bloque.setAttribute("aria-label", (reloj.closed ? "Finalizado a las " : "Hora actual ") + clockLabel +
+        ". Tiempo transcurrido " + durationLabel);
+    });
   }
 
   function actualizaCarreraPodio() {
@@ -3299,7 +3322,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
         'data-work-state="' + esc(isLast ? "last_work" : resumen.idle ? "assigned_stale" : "running") + '" ' +
         (resumen.idle ? 'data-race-idle="true" ' : '') +
-        'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Puesto ' + puesto + ', familia ' + esc(agente) +
+        'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Carril de la familia ' + esc(agente) +
         '. Responsable ' + esc(responsable) + (executor !== responsable ? ', ejecuta ' + esc(executor) : '') + ', ' + heartbeat + '. ' +
         esc(resumen.title) + '. Hora ' + esc(resumen.clock) + '. Tiempo transcurrido ' + esc(resumen.duration) + '">' +
         '<span class="refresh-agent-meta"><span class="refresh-agent" data-race-role="agent" title="Responsable ' + esc(responsable) + '">' + esc(responsable) + '</span>' +
@@ -3309,10 +3332,13 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<div class="refresh-lane-center"><div class="refresh-status"><strong>' + esc(resumen.state) + '</strong><time>' + esc(resumen.clock) + '</time></div>' +
         '<div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
-        '<span class="refresh-place refresh-place-track" aria-hidden="true">' + puesto + '</span>' +
         '<span class="refresh-mission" data-race-role="mission" title="' + esc(resumen.title) + '"><span class="refresh-mission-title">' + esc(resumen.title) + '</span></span>' +
         runner + '<span class="refresh-finish" aria-hidden="true"></span></div></div>' +
-        '<strong class="refresh-elapsed" title="Tiempo transcurrido factual">⏱ ' + esc(resumen.duration) + '</strong></div>';
+        '<div class="refresh-time" title="Tiempo transcurrido factual" data-work-state="' + esc(isLast ? "last_work" : resumen.idle ? "assigned_stale" : "running") + '"' +
+          ' data-work-start="' + (Number(enlace.trabajo.startedAt) || 0) + '" data-work-end="' + (Number(enlace.trabajo.endedAt) || 0) + '"' +
+          ' aria-label="' + (isLast ? "Finalizado a las " : "Hora actual ") + esc(resumen.liveClock) + '. Tiempo transcurrido ' + esc(resumen.duration) + '">' +
+          '<time class="refresh-now"' + (resumen.liveClockAt ? ' datetime="' + new Date(resumen.liveClockAt).toISOString() + '"' : '') + '>' + esc(resumen.liveClock) + '</time>' +
+          '<span class="refresh-time-sep" aria-hidden="true">//</span><strong class="refresh-elapsed">' + esc(resumen.duration) + '</strong></div></div>';
     }).filter(Boolean);
     var trabajoNoDisponible = !datos.trabajosAvailable && !trabajos.length;
     var etiquetaVacia = trabajoNoDisponible ? "TRABAJO NO DISPONIBLE" : "SIN TRABAJO ASIGNADO";
@@ -3505,11 +3531,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (r[8]) {
         datos.trabajos = r[8].participants || []; datos.trabajosAvailable = true;
         datos.trabajosGeneratedAt = Number(r[8].generated_at) || 0;
+        datos.trabajosClientAt = datos.trabajosGeneratedAt ? performance.now() : 0;
         datos.trabajosMode = normaliza(r[8].mode) || "active";
       } else {
         // Fallo cerrado: no se conserva una carrera antigua como si fuera actual.
         datos.trabajos = []; datos.trabajosAvailable = false;
-        datos.trabajosGeneratedAt = 0; datos.trabajosMode = "unavailable";
+        datos.trabajosGeneratedAt = 0; datos.trabajosClientAt = 0; datos.trabajosMode = "unavailable";
       }
       fallos = [];
       var listaCompleta = calcula(), l = aplicaAgentScope(listaCompleta);
@@ -3540,7 +3567,6 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var relleno = carril.querySelector('[data-race-role="fill"]');
       var corredor = carril.querySelector('[data-race-role="runner"]');
       var mision = carril.querySelector('[data-race-role="mission"]');
-      var dorsal = carril.querySelector(".refresh-place");
       var cinta = carril.querySelector(".refresh-finish");
       var inicioPista = relleno ? relleno.offsetLeft : 0;
       var metaLinea = cinta ? cinta.offsetLeft : Math.max(inicioPista, carril.clientWidth - 36);
@@ -3555,7 +3581,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       carril.classList.toggle("race-started", progresoAtleta > 0);
       if (corredor) corredor.style.left = posicionCorredor;
       if (noCorre) {
-        carril.classList.remove("place-revealed", "cruzando", "finished", "race-winner", "race-loser");
+        carril.classList.remove("cruzando", "finished", "race-winner", "race-loser");
         if (relleno) relleno.style.width = "0px";
         // Todo estado distinto de running queda inequívocamente de pie en salida.
         // Ni READY/SET/GO ni un latido de presencia pueden prestarle una zancada.
@@ -3564,17 +3590,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       }
       if (carril.getAttribute("data-race-empty") === "true") {
         carril.classList.toggle("race-started", false);
-        carril.classList.toggle("place-revealed", false);
         carril.classList.toggle("cruzando", false);
         carril.classList.toggle("finished", false);
         carril.classList.toggle("race-winner", false);
         carril.classList.toggle("race-loser", false);
         return;
       }
-      if (dorsal && corredor) {
-        var rectCorredor = corredor.getBoundingClientRect(), rectDorsal = dorsal.getBoundingClientRect();
-        carril.classList.toggle("place-revealed", rectCorredor.left >= rectDorsal.right);
-      } else carril.classList.toggle("place-revealed", false);
       // La cinta se rompe cuando el corredor la TOCA. Su posición se mide en
       // el DOM: pista, cinta y gutter del nombre comparten así la misma
       // geometría responsive sin constantes paralelas que puedan divergir.
@@ -3752,6 +3773,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     pausaOReiniciaCarrera();
   });
   document.getElementById("podiumToggle").addEventListener("click", alternaPodio);
+  window.setInterval(actualizaRelojesCarrera, 1000);
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) return;
+    actualizaRelojesCarrera();
+    actualizaMarcador();
+  });
   pintaControlPodio();
 })();
 </script>

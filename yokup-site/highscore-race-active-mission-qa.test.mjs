@@ -77,7 +77,7 @@ test("un participante factual crea una única calle", () => {
   assert.equal(race.empty,false);
   assert.equal((race.html.match(/class="refresh-lane /g)||[]).length,1);
   assert.equal((race.html.match(/data-race-role="runner"/g)||[]).length,1);
-  assert.match(race.html,/refresh-place-track[^>]*>1<\/span>/);
+  assert.doesNotMatch(race.html,/refresh-place|place-revealed/);
   assert.match(race.html,/SubOraculoMacMini/);
 });
 
@@ -93,7 +93,7 @@ test("sin running muestra últimos trabajos B/N con hora, elapsed y pose de pie"
   assert.equal((race.html.match(/data-race-role="runner"/g)||[]).length,3);
   assert.equal((race.html.match(/class="runner-standing"/g)||[]).length,3);
   assert.equal((race.html.match(/ÚLTIMO TRABAJO/g)||[]).length,3);
-  assert.match(race.html,/⏱ 30 min/);
+  assert.match(race.html,/>30 min<\/strong>/);
   assert.match(race.html,/<time>\d{2}:\d{2}<\/time>/);
 });
 
@@ -124,7 +124,7 @@ test("cuatro elegibles corren aunque sólo dos estén en el scope y ranking loca
   assert.equal(new Set(keys).size,4);
   assert.deepEqual(lanes,[1,2,3,4]);
   for(const name of ["MorfeoMacMini","NeoMBP14","OraculoMacMini","TrinityMBP14"]) assert.match(race.html,new RegExp(name));
-  assert.equal((race.html.match(/data-work-state="running"/g)||[]).length,4);
+  assert.equal((race.html.match(/data-agent-key="[^"]+"[^>]*data-work-state="running"/g)||[]).length,4);
 });
 
 // CONTRATO CAMBIADO el 12-ago-2026 por orden de Carlos. Antes esta prueba exigía
@@ -157,14 +157,14 @@ test("con el trabajo fresco sí se rotula el fundamento operativo y corre", () =
   assert.doesNotMatch(race.html,/ASIGNADO · SIN AVANCE/);
 });
 
-test("el dorsal se pinta una vez por cada participante sin tope", () => {
+test("ningún participante recupera un dorsal aunque haya más de tres", () => {
   const rows = Array.from({ length: 5 }, (_, i) => ({
     agente: `Dorsal-${i + 1}`, posicion: i + 1, total: 20 - i, vivo: true,
   }));
   const race = renderRace(rows,rows.map(row=>work(row.agente)));
-  const ground = [...race.html.matchAll(/refresh-place-track" aria-hidden="true">(\d+)<\/span>/g)].map((match) => Number(match[1]));
-  assert.deepEqual(ground, [1, 2, 3, 4, 5]);
-  assert.doesNotMatch(race.html, /refresh-place-(?:start|finish)/);
+  assert.equal(race.participants,5);
+  assert.equal((race.html.match(/data-place="/g)||[]).length,5,"data-place queda sólo como orden interno");
+  assert.doesNotMatch(race.html, /refresh-place|place-revealed/);
 });
 
 test("READY SET GO no pertenece a ninguna pista generada", () => {

@@ -39,35 +39,11 @@ test("la pista nace cerca del borde izquierdo bajo MISIÓN, no en el antiguo mar
   assert.match(cssRule(".refresh-mission"), /left:0/);
 });
 
-test("el dorsal empieza oculto bajo la línea y aparece sólo cuando el corredor lo rebasa", () => {
-  const place = cssRule(".refresh-place");
-  const line = cssRule(".refresh-track::before");
-  const placeBottom = Number(place.match(/bottom:(-?[0-9.]+)(?:px)?/)?.[1]);
-  const lineBottom = Number(line.match(/bottom:(-?[0-9.]+)(?:px)?/)?.[1]);
-  assert.ok(Number.isFinite(placeBottom) && Number.isFinite(lineBottom));
-  assert.ok(placeBottom < lineBottom, `dorsal ${placeBottom}px debe quedar bajo línea ${lineBottom}px`);
-  assert.match(place, /opacity:0/);
-  assert.match(place, /visibility:hidden/);
-  assert.match(html, /\.refresh-lane\.place-revealed \.refresh-place\{[^}]*opacity:(?:\.88|1)[^}]*visibility:visible/);
-
+test("la salida aleatoria no necesita dorsal ni geometría auxiliar", () => {
+  assert.doesNotMatch(html, /refresh-place|place-revealed|rectDorsal|\bdorsal\b/i);
   const paint = functionSource("pintaCarrera");
-  assert.match(paint, /dorsal\s*=\s*carril\.querySelector\(["']\.refresh-place["']\)/);
-  const rearEdge = /centroAtleta\s*-\s*RADIO_CORREDOR_PX\s*>\s*dorsalX/;
-  const rectEdge = /rectCorredor\.left\s*>=?\s*rectDorsal\.right/;
-  if (rectEdge.test(paint)) {
-    assert.match(paint, /rectCorredor\s*=\s*corredor\.getBoundingClientRect\(\)/);
-    assert.match(paint, /rectDorsal\s*=\s*dorsal\.getBoundingClientRect\(\)/);
-    assert.match(paint, /carril\.classList\.toggle\("place-revealed",\s*rectCorredor\.left\s*>=?\s*rectDorsal\.right\)/);
-  } else {
-    assert.match(paint, /dorsalX\s*=\s*dorsal\s*\?\s*dorsal\.offsetLeft/);
-    assert.match(paint, rearEdge, "debe pasar el borde trasero completo del corredor");
-    const namedCondition = paint.match(new RegExp(`(?:var|let|const)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*${rearEdge.source}`));
-    if (namedCondition) {
-      assert.match(paint, new RegExp(`carril\\.classList\\.toggle\\("place-revealed",\\s*${namedCondition[1]}\\)`));
-    } else {
-      assert.match(paint, new RegExp(`carril\\.classList\\.toggle\\("place-revealed",\\s*${rearEdge.source}\\)`));
-    }
-  }
+  assert.match(paint, /salidaCorredor\s*=\s*inicioPista \+ SALIDA_CORREDOR_OFFSET_PX/);
+  assert.match(paint, /corredor\.style\.left = posicionCorredor/);
 });
 
 test("el sorteo puro de llegada acepta RNG inyectable y devuelve una permutación determinista", () => {
@@ -95,10 +71,10 @@ test("reiniciar cambia de ganador aunque el RNG repita el mismo sorteo", () => {
   assert.deepEqual(Array.from(race.avoidRepeatedWinner([1], ["oraculo"], "oraculo")), [1]);
 });
 
-test("data-race-order decide ventaja y ganador sin sustituir el dorsal data-place", () => {
+test("data-race-order decide ventaja y ganador; data-place queda sólo interno", () => {
   const render = functionSource("actualizaCarreraPodio");
   assert.match(render, /data-place="' \+ puesto \+ '"/);
-  assert.match(render, /refresh-place refresh-place-track[^>]*>' \+ puesto \+ '<\/span>/);
+  assert.doesNotMatch(render, /refresh-place|place-revealed/);
 
   const draw = functionSource("sorteaOrdenLlegada");
   assert.match(draw, /if \(forzar \|\| firma !== ordenLlegadaFirma \|\| !ordenLlegadaPorAgente\)/,

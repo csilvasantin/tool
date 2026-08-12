@@ -70,7 +70,7 @@ test("la calle parada se marca, no corre y no afirma trabajo en curso", () => {
   assert.match(html, /estadoTrabajo = carril\.getAttribute\("data-work-state"\)/);
   assert.match(html, /noCorre = !!estadoTrabajo && estadoTrabajo !== "running"/);
   assert.match(html, /progresoAtleta = noCorre \? 0 : progresoCarril/);
-  assert.match(html, /carril\.classList\.remove\("place-revealed", "cruzando", "finished", "race-winner", "race-loser"\)/);
+  assert.match(html, /carril\.classList\.remove\("cruzando", "finished", "race-winner", "race-loser"\)/);
 });
 
 test("el rótulo del parado se lee sin depender de que la carrera arranque", () => {

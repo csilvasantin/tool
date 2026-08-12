@@ -73,6 +73,21 @@
     return hours ? hours + " h" + (rest ? " " + rest + " min" : "") : minutes + " min";
   }
 
+  /* El reloj visible se ancla al generated_at del servidor. El paso del tiempo
+     sólo avanza la presentación de un trabajo abierto; nunca se reutiliza como
+     work_progress_at ni puede cambiar el estado factual de la calle. */
+  function workClock(row, serverAt, clientElapsedMs) {
+    var state = String(row && row.state || "");
+    var start = Number(row && (row.work_started_at || row.startedAt)) || 0;
+    var ended = Number(row && (row.ended_at || row.endedAt)) || 0;
+    var anchor = Number(serverAt) || 0;
+    var elapsed = Math.max(0, Number(clientElapsedMs) || 0);
+    var closed = state === "last_work" || ended > 0;
+    var at = closed ? ended : (anchor > 0 ? anchor + elapsed : 0);
+    var durationMs = start > 0 && at >= start ? at - start : null;
+    return { at:at, durationMs:durationMs, closed:closed };
+  }
+
   function runnerVariant(row) {
     var value = laneKey(row), hash = 0;
     for (var i = 0; i < value.length; i++) hash = ((hash * 31) + value.charCodeAt(i)) >>> 0;
@@ -120,7 +135,7 @@
   }
 
   var api = { key:key, activeMissionRows:activeMissionRows, raceRows:raceRows, laneKey:laneKey, runnerVariant:runnerVariant,
-    IDLE_AFTER_MS:IDLE_AFTER_MS, workIdle:workIdle, sinceLabel:sinceLabel, durationLabel:durationLabel,
+    IDLE_AFTER_MS:IDLE_AFTER_MS, workIdle:workIdle, sinceLabel:sinceLabel, durationLabel:durationLabel, workClock:workClock,
     finishPose:finishPose, finishAdvanceMs:finishAdvanceMs, randomFinishOrder:randomFinishOrder,
     avoidRepeatedWinner:avoidRepeatedWinner };
   root.YkHighscoreRace = api;

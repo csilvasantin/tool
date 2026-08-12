@@ -48,14 +48,14 @@ test("running conserva salida, zancadas y meta; stale/last quedan en salida",()=
 });
 
 test("responsive conserva reloj fijo y nombre truncable en cinco anchos y zoom 200%",()=>{
-  assert.match(html,/grid-template-columns:minmax\(150px,220px\) minmax\(0,1fr\) minmax\(74px,96px\)/);
-  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(92px,126px\) minmax\(0,1fr\) minmax\(54px,65px\)/);
+  assert.match(html,/grid-template-columns:minmax\(150px,220px\) minmax\(0,1fr\) minmax\(118px,160px\)/);
+  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(92px,126px\) minmax\(0,1fr\) minmax\(104px,116px\)/);
   for(const width of [1265,1024,760,390,320]){
     const content=Math.min(1080,width-36), mobile=width<=620;
-    const agentMin=mobile?92:150, elapsedMin=mobile?54:74, gaps=mobile?10:20;
+    const agentMin=mobile?92:150, elapsedMin=mobile?104:118, gaps=mobile?8:16;
     assert.ok(content-agentMin-elapsedMin-gaps>=0,`${width}px conserva pista sin overflow`);
   }
-  assert.ok(1265/2-36-92-54-10>=0,"zoom 200% del escritorio conserva las tres columnas");
+  assert.ok(1265/2-36-92-104-8>=0,"zoom 200% del escritorio conserva las tres columnas");
   assert.match(html,/\.refresh-assignment\{[^}]*white-space:nowrap/);
   assert.match(html,/\.refresh-agent\{[^}]*min-width:0[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
 });
