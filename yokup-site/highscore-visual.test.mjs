@@ -36,9 +36,9 @@ test("el presite deja respirar la carátula sin caja ni gráficos 4-bit", () => 
   assert.doesNotMatch(html, /<svg[^>]*class="corredor"/);
 });
 
-test("el presite entra solo tras 5 segundos si nadie pulsa", () => {
-  assert.match(html, /PULSA PARA EMPEZAR · AUTO EN 5 S/);
-  assert.match(html, /var ENTRADA_AUTOMATICA_MS = 5 \* 1000/);
+test("el presite entra solo tras 3 segundos si nadie pulsa", () => {
+  assert.match(html, /PULSA PARA EMPEZAR · AUTO EN 3 S/);
+  assert.match(html, /var ENTRADA_AUTOMATICA_MS = 3 \* 1000/);
   assert.match(html, /entradaTimer = setTimeout\(entra, ENTRADA_AUTOMATICA_MS\)/);
   assert.match(html, /if \(entradaHecha\) return/);
   assert.match(html, /clearTimeout\(entradaTimer\); clearInterval\(cuentaEntradaTimer\)/);

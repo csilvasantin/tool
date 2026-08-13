@@ -697,7 +697,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   <div class="presite-ui">
     <div class="barra"><i id="barra"></i></div>
     <div class="pie" id="pieCarga">CARGANDO…</div>
-    <div class="pulsa" id="pulsa" style="visibility:hidden">PULSA PARA EMPEZAR · AUTO EN 5 S</div>
+    <div class="pulsa" id="pulsa" style="visibility:hidden">PULSA PARA EMPEZAR · AUTO EN 3 S</div>
   </div>
 </div>
 
@@ -3542,9 +3542,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     n.innerHTML = html;
   }
 
-  /* De 15 s a 5: la carátula es una portada, no una sala de espera. Y solo la
-     primera visita de la sesión — las repetidas entran directas desde listo(). */
-  var ENTRADA_AUTOMATICA_MS = 5 * 1000;
+  /* De 15 s a 5 y de 5 a 3 (Carlos, tras probarlo): la carátula es una portada,
+     no una sala de espera. Y solo la primera visita de la sesión — las
+     repetidas entran directas desde listo(). */
+  var ENTRADA_AUTOMATICA_MS = 3 * 1000;
   var listaCompletaCache = null, listaCache = null, entradaTimer = null, cuentaEntradaTimer = null, entradaHecha = false;
   function programaEntradaAutomatica() {
     var quedan = ENTRADA_AUTOMATICA_MS / 1000, pulsa = document.getElementById("pulsa");
