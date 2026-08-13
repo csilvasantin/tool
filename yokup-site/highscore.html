@@ -297,7 +297,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-lane-idle .refresh-mission,.refresh-lane-last .refresh-mission{position:absolute;left:var(--track-start);right:var(--finish-width);
   top:1px;display:block;width:auto;max-width:none;transform:none;text-align:right;opacity:1;visibility:visible}
 .refresh-lane-idle .refresh-mission-title,.refresh-lane-last .refresh-mission-title{text-align:right;opacity:.85}
-.refresh-lane-idle.race-started .refresh-mission{right:auto}
+.refresh-lane-idle.race-started .refresh-mission{right:auto;transform:translateX(calc(-100% - 13px))}
 .refresh-lane-last{--lane:#a7b3b8}
 .refresh-lane-last .refresh-lane-center{filter:grayscale(1);opacity:.78}
 .refresh-lane-last .refresh-runner{filter:drop-shadow(0 0 3px rgba(205,214,219,.72))}

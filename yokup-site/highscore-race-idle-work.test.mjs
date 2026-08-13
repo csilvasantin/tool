@@ -81,3 +81,12 @@ test("el rótulo del parado se lee sin depender de que la carrera arranque", () 
   assert.match(html, /phase-go \.refresh-lane-idle \.refresh-mission\{opacity:1;visibility:visible\}/);
   assert.match(html, /"SIN AVANCE"/);
 });
+
+test("cuando el fantasma corre, el rótulo vuelve a su espalda", () => {
+  assert.match(html,
+    /\.refresh-lane-idle\.race-started \.refresh-mission\{[^}]*right:auto[^}]*transform:translateX\(calc\(-100% - 13px\)\)/,
+    "assigned_stale debe retirar el texto hacia la izquierda del corredor al arrancar");
+  assert.match(html, /\.refresh-mission\{position:absolute;z-index:1/);
+  assert.match(html, /\.refresh-runner\{[^}]*z-index:3/,
+    "el corredor conserva un plano superior al rótulo");
+});
