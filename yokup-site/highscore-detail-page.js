@@ -44,10 +44,14 @@
         .catch(function(){status.textContent="No se pudo contactar con el scheduler. Vuelve a intentarlo.";})
         .finally(function(){button.disabled=false;button.removeAttribute("aria-busy");});}
     button.addEventListener("click",function(){perform(requestId(),0);});return control;}
-  function hero(data,stateValue){var hero=el("header","hero"),avatar=el("div","avatar",stateValue.agent.charAt(0).toUpperCase());
+  function nextAgentControl(data,stateValue){var button=el("button","next-agent","→"),next=D.nextRankedAgent(data.ranking);button.type="button";
+    if(!next){button.disabled=true;button.setAttribute("aria-label","Siguiente agente no disponible: no hay otro agente en el ranking factual de este proyecto y periodo.");button.title="No hay otro agente factual en este ranking";return button;}
+    button.setAttribute("aria-label","Siguiente agente en la clasificación: "+next.agent+", puesto "+next.position+". Al final vuelve al número 1.");button.title="Ir a "+next.agent+" · puesto "+next.position;
+    button.addEventListener("click",function(){selectAgent(next.agent);});return button;}
+  function hero(data,stateValue){var hero=el("header","hero"),avatarStack=el("div","avatar-stack"),avatar=el("div","avatar",stateValue.agent.charAt(0).toUpperCase());
     var avatarUrl=window.ykAvatar&&window.ykAvatar.img(stateValue.agent);if(avatarUrl){var image=document.createElement("img");image.src=avatarUrl;image.alt="Avatar de "+stateValue.agent;avatar.replaceChildren(image);}
     var identity=el("div","identity"),eyebrow=el("div","eyebrow","Identidad canónica · "+stateValue.projectId),titleRow=el("div","identity-title-row"),title=el("h1","",stateValue.agent);
-    titleRow.append(title,onIdleControl(stateValue));identity.append(eyebrow,titleRow,el("p","source","Actividad factual de "+LABELS[data.period].toLowerCase()+" · "+data.timezone+" · "+data.from+" → "+data.to));hero.append(avatar,identity);return hero;}
+    avatarStack.append(avatar,nextAgentControl(data,stateValue));titleRow.append(title,onIdleControl(stateValue));identity.append(eyebrow,titleRow,el("p","source","Actividad factual de "+LABELS[data.period].toLowerCase()+" · "+data.timezone+" · "+data.from+" → "+data.to));hero.append(avatarStack,identity);return hero;}
   function metricGrid(metrics,selected,onSelect){var fields={all:"points",objective:"objectives",window:"windows",mission:"missions",task:"tasks"};var grid=el("section","metric-grid");grid.setAttribute("aria-label","Filtrar cronología por tipo");
     D.types.forEach(function(type){var card=el("button","metric");card.type="button";card.dataset.type=type;card.setAttribute("aria-pressed",String(type===selected));card.setAttribute("aria-controls","factual-timeline");
       card.setAttribute("aria-label",TYPE_LABELS[type]+": "+metrics[fields[type]]+". "+(type==="all"?"Mostrar toda la cronología":"Filtrar la cronología"));card.append(el("b","",metrics[fields[type]]),el("span","",TYPE_LABELS[type]));
@@ -76,6 +80,7 @@
     .catch(function(){if(revision!==requestRevision)return;periodFailure(stateValue);})
     .finally(function(){if(revision===requestRevision)target.classList.remove("loading");});}
   function selectPeriod(period){var value=current();if(value.period===period)return;value.period=period;setUrl(value,false);load(value);}
+  function selectAgent(agent){var value=current();if(value.agent===agent)return;value.agent=agent;setUrl(value,false);activeData=null;activeScope="";load(value);}
   function selectType(type){var value=current();if(value.type===type)return;value.type=type;setUrl(value,false);if(activeData)render(activeData,value);}
   function selectOrder(){var value=current();value.order=value.order==="desc"?"asc":"desc";setUrl(value,false);if(activeData)render(activeData,value);}
   function boot(replace){var value=current();if(!value.agent){state("Falta el agente","Abre el detalle desde el Highscore.");return;}if(!D.validAgent(value.agent,ID)){state("Identidad no válida","agent debe ser una identidad principal con apellido de equipo.");return;}

@@ -156,6 +156,33 @@
     return Math.max(0,Number(row && row[field])||0);
   }
 
+  /* El servidor es la única fuente del orden de la clasificación. Esta capa
+     valida el scope y la identidad de cada fila antes de habilitar navegación;
+     un ranking parcial o ambiguo se degrada honestamente a «no disponible». */
+  function rankingFromHistory(value, requested, identity) {
+    if (!value || text(value.project_id) !== text(requested && requested.projectId) ||
+      text(value.period) !== text(requested && requested.period) || !Array.isArray(value.ordered) || !value.ordered.length) return null;
+    var currentIndex=Number(value.current_index);
+    if (!Number.isInteger(currentIndex) || currentIndex < 0 || currentIndex >= value.ordered.length) return null;
+    var seen=Object.create(null), ordered=[], previousPoints=Infinity, requestedMatches=[];
+    for (var i=0;i<value.ordered.length;i++) {
+      var row=value.ordered[i]||{}, agent=text(row.agent), points=Number(row.points), position=Number(row.position), parsed=identity.parse(agent);
+      var identityKey=identity.key(parsed.persona)+"|"+text(parsed.suffix);
+      if (!validAgent(agent,identity) || seen[identityKey] || !Number.isFinite(points) || points < 0 ||
+        !Number.isInteger(position) || position !== i+1 || points > previousPoints) return null;
+      seen[identityKey]=true;previousPoints=points;
+      if (sameFamily(agent,"",requested.agent,identity)) requestedMatches.push(i);
+      ordered.push({agent:agent,points:points,position:position});
+    }
+    if (requestedMatches.length !== 1 || requestedMatches[0] !== currentIndex) return null;
+    return {projectId:text(value.project_id),period:text(value.period),ordered:ordered,currentIndex:currentIndex};
+  }
+  function nextRankedAgent(value) {
+    if (!value || !Array.isArray(value.ordered) || value.ordered.length < 2 ||
+      !Number.isInteger(value.currentIndex) || value.currentIndex < 0 || value.currentIndex >= value.ordered.length) return null;
+    return value.ordered[(value.currentIndex+1)%value.ordered.length] || null;
+  }
+
   function snapshot(agent) {
     try { return JSON.parse(sessionStorage.getItem("yokup.highscore.detail." + key(agent)) || "null"); }
     catch (_) { return null; }
@@ -250,8 +277,9 @@
       previousAt=at; timeline.push({type:text(event.type)||"Actividad",id:text(event.id),title:text(event.title)||text(event.detail)||"Sin título",
         at:at,day:eventDay,projectId:text(event.project_id || requested.projectId),points:eventPoints});
     }
+    var factualRanking=rankingFromHistory(payload.ranking,requested,identity);
     return {agent:payload.agent,projectId:payload.project_id,period:payload.period,timezone:text(payload.timezone)||TIME_ZONE,
-      from:from,to:to,label:text(payload.label),sampledAt:sampled,metrics:metrics,evolution:normalizedDays,timeline:timeline};
+      from:from,to:to,label:text(payload.label),sampledAt:sampled,metrics:metrics,evolution:normalizedDays,timeline:timeline,ranking:factualRanking};
   }
   function ranking(agent, daily, tasks, identity, now) {
     var names = Object.create(null);
@@ -340,6 +368,7 @@
     snapshot:snapshot, scoreFor:scoreFor, ranking:ranking, taskCountToday:taskCountToday, history:history,
     periods:PERIODS.slice(), types:TYPES.slice(), orders:ORDERS.slice(), validPeriod:validPeriod, validType:validType, validOrder:validOrder, canonicalType:canonicalType,
     queryState:queryState, detailUrl:detailUrl, timelineForType:timelineForType, metricForType:metricForType,
+    rankingFromHistory:rankingFromHistory, nextRankedAgent:nextRankedAgent,
     evolutionGroups:evolutionGroups, timelineGroups:timelineGroups, periodHistory:periodHistory,
     nextWindow:nextWindow, windowCountdown:windowCountdown, decisionUrl:decisionUrl, onIdleDecisionError:onIdleDecisionError,
     facts:facts, timeline:timeline, timeZone:TIME_ZONE };
