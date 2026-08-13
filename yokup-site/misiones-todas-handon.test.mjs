@@ -4,11 +4,11 @@ import {readFile} from "node:fs/promises";
 
 const board=await readFile(new URL("./misiones.html",import.meta.url),"utf8");
 
-test("Todas usa delegación estable después de que el marco mueva las pestañas",()=>{
-  assert.match(board,/document\.addEventListener\("click",event=>\{/);
-  assert.match(board,/closest\("#missionStateTabs \.tab\[data-f\]"\)/);
+test("Todas conserva listener directo cuando el marco mueve el mismo nodo",()=>{
+  assert.match(board,/STATE_TABS\.forEach\(button=>button\.addEventListener\("click",\(\)=>\{/);
   assert.match(board,/userPicked=true;aplicaFiltro\(button\.dataset\.f\)/);
-  assert.doesNotMatch(board,/STATE_TABS\.forEach\(b=>b\.onclick=/);
+  assert.match(board,/mover \(no clonar\): preserva los event listeners ya enlazados|MUEVE estos mismos nodos al raíl \(no los clona\)/);
+  assert.doesNotMatch(board,/document\.addEventListener\("click",event=>/);
 });
 
 test("Activas conserva handON cli-declare resueltos recientes",()=>{

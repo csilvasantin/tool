@@ -809,14 +809,12 @@ function aplicaFiltro(f){
   sincronizaFiltro(f);
   load();
 }
-// El marco común mueve missionStateTabs al raíl lateral. La delegación mantiene
-// activo el control visible aunque el marco lo reubique y evita reinstalar
-// handlers en cada refresco del tablero.
-document.addEventListener("click",event=>{
-  const button=event.target&&event.target.closest&&event.target.closest("#missionStateTabs .tab[data-f]");
-  if(!button)return;
+// El marco común MUEVE estos mismos nodos al raíl (no los clona), de modo que
+// los listeners directos sobreviven al traslado y el control visible conserva
+// su identidad/estado ARIA. `addEventListener` evita pisar otros contratos.
+STATE_TABS.forEach(button=>button.addEventListener("click",()=>{
   userPicked=true;aplicaFiltro(button.dataset.f);
-});
+}));
 // (el clic en los KPIs lo reenvía yk-cabezal.js a onState → aplicaFiltro)
 if(window.addEventListener) window.addEventListener("yk:mission-deadline",()=>load());
 if(window.addEventListener) window.addEventListener("yk:mission-project",()=>load());
