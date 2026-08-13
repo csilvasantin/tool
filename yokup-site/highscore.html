@@ -10,7 +10,23 @@
 <meta name="description" content="Marcador de la flota de agentes AdmiraNeXT: quién trabaja más, en cualquier momento.">
 <meta name="robots" content="noindex,nofollow">
 <script src="/acceso.js?v=20260811-r4-d77633add752"></script>
-<link rel="preload" as="image" href="/img/highscore-presite-decathlon.png">
+<script>
+/* La carátula es la ceremonia de la PRIMERA visita de la sesión. Las siguientes
+   entran directas: sin imagen de 1,3 MB, sin espera. Se decide aquí, antes de
+   pintar nada, para que la visita repetida ni siquiera pida el PNG (el preload
+   se inyecta solo cuando toca). */
+(function () {
+  var vista = false;
+  try { vista = sessionStorage.getItem("yk.hs.presite") === "1"; } catch (_) {}
+  window.__YK_PRESITE__ = !vista;
+  if (!vista) {
+    document.documentElement.classList.add("con-presite");
+    var l = document.createElement("link");
+    l.rel = "preload"; l.as = "image"; l.href = "/img/highscore-presite-decathlon.webp";
+    document.head.appendChild(l);
+  }
+})();
+</script>
 <link rel="stylesheet" href="/yk-frame.css?v=r19">
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;
@@ -27,9 +43,11 @@ a{color:var(--brand)}
 /* ─────────── PANTALLA DE CARGA ─────────── */
 /* PRESITE: la carátula 16:9 se ve completa incluso en resoluciones o relaciones
    de aspecto menores. La interfaz queda reducida a la carga y la entrada. */
-#carga{position:fixed;inset:0;z-index:9999;
-  background:#000 url("/img/highscore-presite-decathlon.png") center center/contain no-repeat;
+#carga{position:fixed;inset:0;z-index:9999;background:#000;
   cursor:pointer;overflow:hidden;isolation:isolate}
+/* La imagen solo existe en la primera visita de la sesión (html.con-presite,
+   lo decide el script del head). En WebP: mismo cuadro, una fracción del peso. */
+html.con-presite #carga{background:#000 url("/img/highscore-presite-decathlon.webp") center center/contain no-repeat}
 #carga::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
   background:linear-gradient(180deg,rgba(0,0,0,.04) 0 58%,rgba(0,0,0,.48) 100%)}
 #carga.fuera{opacity:0;pointer-events:none;transition:opacity .5s}
@@ -679,7 +697,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   <div class="presite-ui">
     <div class="barra"><i id="barra"></i></div>
     <div class="pie" id="pieCarga">CARGANDO…</div>
-    <div class="pulsa" id="pulsa" style="visibility:hidden">PULSA PARA EMPEZAR · AUTO EN 15 S</div>
+    <div class="pulsa" id="pulsa" style="visibility:hidden">PULSA PARA EMPEZAR · AUTO EN 5 S</div>
   </div>
 </div>
 
@@ -818,9 +836,17 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     if (entradaArmadaPorAudio) { entradaArmadaPorAudio = false; return; }
     entra();
   }
-  cargaPresite.addEventListener("pointerdown", desbloqueaAudioPresite, { once:true, capture:true });
-  document.addEventListener("keydown", desbloqueaAudioPresite, { once:true, capture:true });
-  arranca();
+  /* El MP3 (1,4 MB) solo se toca tras un GESTO. Antes arranca() corría al
+     cargar: el navegador bloqueaba el autoplay pero el fichero entero ya había
+     bajado — en cada visita, sonara o no. Ahora el Audio ni se crea hasta que
+     alguien pulsa la carátula, una tecla o el botón de sonido; y en las visitas
+     repetidas (sin carátula) no se arma ningún desbloqueo que pudiera disparar
+     la música con el primer teclazo. */
+  if (window.__YK_PRESITE__ !== false) {
+    cargaPresite.addEventListener("pointerdown", desbloqueaAudioPresite, { once:true, capture:true });
+    document.addEventListener("keydown", desbloqueaAudioPresite, { once:true, capture:true });
+  }
+  pintaSonido(false);
   function fanfarriaPodio() {   // remate corto al revelar el podio / cambio de líder
     if (!ac) { ac = new (window.AudioContext || window.webkitAudioContext)(); }
     if (ac.state === "suspended") { try { ac.resume(); } catch (_) {} }
@@ -898,10 +924,24 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     document.getElementById("barra").style.width = pct + "%";
     if (txt) document.getElementById("pieCarga").textContent = txt;
   }
+  // Mismo memo compartido que el marco (definido «si no existe» en ambos):
+  // si yk-frame ya pidió /projects o /api/presence en esta misma carga, la
+  // página reutiliza SU JSON en vez de repetir el viaje — y viceversa.
+  window.__ykJsonOnce = window.__ykJsonOnce || function (clave, ttlMs, trae) {
+    var store = (window.__ykJsonOnceStore = window.__ykJsonOnceStore || {});
+    var hit = store[clave];
+    if (hit && Date.now() - hit.at < (ttlMs || 4000)) return hit.p;
+    var p = trae();
+    store[clave] = { at: Date.now(), p: p };
+    p.catch(function () { if (store[clave] && store[clave].p === p) delete store[clave]; });
+    return p;
+  };
   function pedirDesde(base, ruta) {
-    return fetch(base + ruta, { cache: "no-store" }).then(function (r) {
-      if (!r.ok) throw new Error(ruta + " → " + r.status);
-      return r.json();
+    return window.__ykJsonOnce(base + ruta, 4000, function () {
+      return fetch(base + ruta, { cache: "no-store" }).then(function (r) {
+        if (!r.ok) throw new Error(ruta + " → " + r.status);
+        return r.json();
+      });
     });
   }
 
@@ -931,47 +971,54 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   pon(8, "CONECTANDO CON LA FLOTA…");
-  seguroYokup("/tasks/all?scope=fleet", function (d) { return d.tasks || []; })
-    .then(function (t) {
-      datos.tareasFresh = Array.isArray(t); datos.tareas = t || [];
-      pon(42, "TABLERO DE TAREAS · " + tareasDeHoy().length + " HOY");
-      return Promise.all([
-        seguroYokup("/highscore/daily", function (d) { return d; }),
-        seguroYokup("/tickets?scope=fleet", function (d) { return d.tickets || []; }),
-        seguroYokup("/ideas", function (d) { return d.ideas || []; }),
-        seguroYokup("/decisions", function (d) { return d.items || d.decisions || []; }),
-        seguro("/api/presence", function (d) { return {
-          presence:d.presence || [], controlMachines:d.control_machines || [], now:Number(d.now || 0)
-        }; }),
-        seguroYokup("/projects", function (d) { return {
-          projects:d.projects || [], declarations:d.principal_declarations || []
-        }; }),
-        // Reparto de turnos: quién abre cuándo. Es lo que hace honesta la cuenta
-        // atrás de la fila desplegada; si no responde, esa cifra cae al cupo.
-        seguroYokup("/fleet/turnos", function (d) { return d && d.ok ? d : null; }),
-        seguroYokup("/highscore/active-work", function (d) {
-          return d && d.ok && Array.isArray(d.participants) ? d : null;
-        })
-      ]);
+  /* BATCH TOTAL: las nueve llamadas salen A LA VEZ. Antes /tasks/all iba solo
+     por delante —únicamente para poner su cifra en la barra— y el resto esperaba
+     su latencia entera sin motivo. La barra sigue contando el tablero: lo dice
+     cuando la respuesta llega, no antes. */
+  Promise.all([
+    seguroYokup("/tasks/all?scope=fleet", function (d) { return d.tasks || []; })
+      .then(function (t) {
+        datos.tareasFresh = Array.isArray(t); datos.tareas = t || [];
+        pon(42, "TABLERO DE TAREAS · " + tareasDeHoy().length + " HOY");
+        return t;
+      }),
+    seguroYokup("/highscore/daily", function (d) { return d; }),
+    seguroYokup("/tickets?scope=fleet", function (d) { return d.tickets || []; }),
+    // slim=1: solo los campos que el marcador usa y sin la sincronización
+    // perezosa idea→decisión que hacía de /ideas el más lento del batch.
+    seguroYokup("/ideas?slim=1", function (d) { return d.ideas || []; }),
+    seguroYokup("/decisions", function (d) { return d.items || d.decisions || []; }),
+    seguro("/api/presence", function (d) { return {
+      presence:d.presence || [], controlMachines:d.control_machines || [], now:Number(d.now || 0)
+    }; }),
+    seguroYokup("/projects", function (d) { return {
+      projects:d.projects || [], declarations:d.principal_declarations || []
+    }; }),
+    // Reparto de turnos: quién abre cuándo. Es lo que hace honesta la cuenta
+    // atrás de la fila desplegada; si no responde, esa cifra cae al cupo.
+    seguroYokup("/fleet/turnos", function (d) { return d && d.ok ? d : null; }),
+    seguroYokup("/highscore/active-work", function (d) {
+      return d && d.ok && Array.isArray(d.participants) ? d : null;
     })
+  ])
     .then(function (r) {
-      var fresh = !!(r[0] && r[0].day === claveDia(Date.now()) && Array.isArray(r[0].scores));
-      var a = fresh ? r[0] : actividadDiariaGuardada();
-      if (fresh) guardaActividadDiaria(r[0]);
+      var fresh = !!(r[1] && r[1].day === claveDia(Date.now()) && Array.isArray(r[1].scores));
+      var a = fresh ? r[1] : actividadDiariaGuardada();
+      if (fresh) guardaActividadDiaria(r[1]);
       datos.actividadFresh = fresh && datos.tareasFresh;
       datos.actividadMeta = a || null; datos.actividad = a && a.scores || [];
-      datos.misiones = r[1] || []; datos.ideas = r[2] || []; datos.decisiones = r[3] || [];
-      datos.presencia = r[4] && r[4].presence || []; datos.controlMachines = r[4] && r[4].controlMachines || [];
-      datos.presenceNow = r[4] && Number(r[4].now || 0) || 0;
-      datos.presenceAvailable = !!(r[4] && Number(r[4].now || 0) > 0);
-      datos.proyectos = r[5] && r[5].projects || [];
-      datos.declaracionesPrincipales = r[5] && r[5].declarations || [];
-      datos.turnos = r[6] || null;
-      datos.trabajosAvailable = !!r[7];
-      datos.trabajos = r[7] && r[7].participants || [];
-      datos.trabajosGeneratedAt = r[7] && Number(r[7].generated_at) || 0;
+      datos.misiones = r[2] || []; datos.ideas = r[3] || []; datos.decisiones = r[4] || [];
+      datos.presencia = r[5] && r[5].presence || []; datos.controlMachines = r[5] && r[5].controlMachines || [];
+      datos.presenceNow = r[5] && Number(r[5].now || 0) || 0;
+      datos.presenceAvailable = !!(r[5] && Number(r[5].now || 0) > 0);
+      datos.proyectos = r[6] && r[6].projects || [];
+      datos.declaracionesPrincipales = r[6] && r[6].declarations || [];
+      datos.turnos = r[7] || null;
+      datos.trabajosAvailable = !!r[8];
+      datos.trabajos = r[8] && r[8].participants || [];
+      datos.trabajosGeneratedAt = r[8] && Number(r[8].generated_at) || 0;
       datos.trabajosClientAt = datos.trabajosGeneratedAt ? performance.now() : 0;
-      datos.trabajosMode = r[7] && normaliza(r[7].mode) || "unavailable";
+      datos.trabajosMode = r[8] && normaliza(r[8].mode) || "unavailable";
       pon(76, "OBJETIVOS · VENTANAS · MISIONES · " + ((a && a.recorded && a.recorded.objectives) || 0) + " / " + ((a && a.recorded && a.recorded.windows) || 0) + " / " + ((a && a.recorded && a.recorded.missions) || 0));
       pon(94, "PRESENCIA · " + datos.presencia.length + " AGENTES");
       setTimeout(function () { pon(100, "LISTO"); listo(); }, 350);
@@ -1606,7 +1653,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       brazosTimer = setInterval(function () { brazosBajos = !brazosBajos; dibujaPodio(brazosBajos); }, 900);
     }
     if (!imagenPodio) {
-      imagenPodio = new Image(); imagenPodio.onload = listo; imagenPodio.src = "/img/highscore-podio-pixel.png";
+      imagenPodio = new Image(); imagenPodio.onload = listo;
+      // WebP con la misma ilustración (~1/7 del peso); si un navegador de kiosko
+      // antiguo no lo traga, cae al PNG original sin perder el podio.
+      imagenPodio.onerror = function () { imagenPodio.onerror = null; imagenPodio.src = "/img/highscore-podio-pixel.png"; };
+      imagenPodio.src = "/img/highscore-podio-pixel.webp";
     } else if (imagenPodio.complete) listo(); else imagenPodio.onload = listo;
   }
 
@@ -3491,7 +3542,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     n.innerHTML = html;
   }
 
-  var ENTRADA_AUTOMATICA_MS = 15 * 1000;
+  /* De 15 s a 5: la carátula es una portada, no una sala de espera. Y solo la
+     primera visita de la sesión — las repetidas entran directas desde listo(). */
+  var ENTRADA_AUTOMATICA_MS = 5 * 1000;
   var listaCompletaCache = null, listaCache = null, entradaTimer = null, cuentaEntradaTimer = null, entradaHecha = false;
   function programaEntradaAutomatica() {
     var quedan = ENTRADA_AUTOMATICA_MS / 1000, pulsa = document.getElementById("pulsa");
@@ -3511,6 +3564,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     listaCompletaCache = calcula();
     hsRenderAgentScope(listaCompletaCache); listaCache = aplicaAgentScope(listaCompletaCache);
     pintaPodio(listaCache.slice(0, 3)); pintaTabla(listaVisible(listaCache)); pintaFormula(listaCache); actualizaCarreraPodio();
+    // Visita repetida de la sesión: la ceremonia ya se vio. Del final de la
+    // barra al ranking, sin pulsa, sin cuenta atrás y sin fanfarria.
+    if (window.__YK_PRESITE__ === false) { entra(); return; }
     document.getElementById("pulsa").style.visibility = "visible";
     var vivos = agentesEnLiza();
     document.getElementById("pieCarga").textContent = vivos + (vivos === 1 ? " AGENTE EN LIZA" : " AGENTES EN LIZA");
@@ -3521,13 +3577,18 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function entra() {
     if (entradaHecha) return;
     entradaHecha = true;
+    try { sessionStorage.setItem("yk.hs.presite", "1"); } catch (_) {}
     clearTimeout(entradaTimer); clearInterval(cuentaEntradaTimer);
     document.getElementById("carga").removeEventListener("click", solicitaEntrada);
     document.removeEventListener("keydown", solicitaEntrada);
     cargaPresite.removeEventListener("pointerdown", desbloqueaAudioPresite, true);
     document.removeEventListener("keydown", desbloqueaAudioPresite, true);
     entradaArmadaPorAudio = false;
-    para(true); fanfarriaPodio();
+    para(true);
+    // La fanfarria WebAudio solo tras la ceremonia (hubo gesto o cuenta atrás
+    // visible); en la entrada directa sonaría a destiempo y el contexto ni
+    // siquiera estaría desbloqueado.
+    if (window.__YK_PRESITE__ !== false) fanfarriaPodio();
     var c = document.getElementById("carga");
     c.classList.add("fuera");
     document.getElementById("pagina").style.visibility = "visible";
@@ -3584,7 +3645,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         presence:d.presence || [], controlMachines:d.control_machines || [], now:Number(d.now || 0)
       }; }),
       seguroYokup("/tickets?scope=fleet", function (d) { return d.tickets || []; }),
-      seguroYokup("/ideas", function (d) { return d.ideas || []; }),
+      seguroYokup("/ideas?slim=1", function (d) { return d.ideas || []; }),
       seguroYokup("/decisions", function (d) { return d.items || d.decisions || []; }),
       seguroYokup("/projects", function (d) { return {
         projects:d.projects || [], declarations:d.principal_declarations || []

@@ -7,15 +7,25 @@ const html = fs.readFileSync(new URL("./highscore.html", import.meta.url), "utf8
 const image = fs.readFileSync(new URL("./img/highscore-presite-decathlon.png", import.meta.url));
 
 test("la carátula Decathlon vive solo en el presite del Highscore", () => {
-  assert.match(html, /<link rel="preload" as="image" href="\/img\/highscore-presite-decathlon\.png">/);
-  assert.match(html, /#carga\{[^}]*highscore-presite-decathlon\.png[^}]*contain no-repeat/s);
+  // FLT-1423: el preload ya no es un <link> estático — lo inyecta el script del
+  // head SOLO en la primera visita de la sesión, y en WebP (86 KB vs 1,3 MB).
+  assert.doesNotMatch(html, /<link rel="preload" as="image" href="\/img\/highscore-presite-decathlon/);
+  assert.match(html, /sessionStorage\.getItem\("yk\.hs\.presite"\)/);
+  assert.match(html, /l\.href = "\/img\/highscore-presite-decathlon\.webp"/);
+  assert.match(html, /html\.con-presite #carga\{[^}]*highscore-presite-decathlon\.webp[^}]*contain no-repeat/s);
   assert.match(html, /#carga::before/);
   assert.doesNotMatch(html, /\.podio\{[^}]*highscore-presite-decathlon/s);
 });
 
+test("la visita repetida de la sesión entra directa, sin carátula ni cuenta atrás", () => {
+  assert.match(html, /window\.__YK_PRESITE__ = !vista/);
+  assert.match(html, /if \(window\.__YK_PRESITE__ === false\) \{ entra\(\); return; \}/);
+  assert.match(html, /sessionStorage\.setItem\("yk\.hs\.presite", "1"\)/);
+});
+
 test("la carátula completa reescala el CTA sobre su borde en pantallas estrechas", () => {
   assert.match(html, /@media \(max-aspect-ratio:16\/9\)\{\.presite-ui\{bottom:calc\(\(100vh - 56\.25vw\)\/2/);
-  assert.doesNotMatch(html, /highscore-presite-decathlon\.png[^}]*cover/);
+  assert.doesNotMatch(html, /highscore-presite-decathlon\.(?:png|webp)[^}]*cover/);
 });
 
 test("el presite deja respirar la carátula sin caja ni gráficos 4-bit", () => {
@@ -26,9 +36,9 @@ test("el presite deja respirar la carátula sin caja ni gráficos 4-bit", () => 
   assert.doesNotMatch(html, /<svg[^>]*class="corredor"/);
 });
 
-test("el presite entra solo tras 15 segundos si nadie pulsa", () => {
-  assert.match(html, /PULSA PARA EMPEZAR · AUTO EN 15 S/);
-  assert.match(html, /var ENTRADA_AUTOMATICA_MS = 15 \* 1000/);
+test("el presite entra solo tras 5 segundos si nadie pulsa", () => {
+  assert.match(html, /PULSA PARA EMPEZAR · AUTO EN 5 S/);
+  assert.match(html, /var ENTRADA_AUTOMATICA_MS = 5 \* 1000/);
   assert.match(html, /entradaTimer = setTimeout\(entra, ENTRADA_AUTOMATICA_MS\)/);
   assert.match(html, /if \(entradaHecha\) return/);
   assert.match(html, /clearTimeout\(entradaTimer\); clearInterval\(cuentaEntradaTimer\)/);
@@ -40,9 +50,12 @@ test("el corte descargado suena sólo durante el presite y se rebobina antes del
   assert.match(html, /cargaPresite\.addEventListener\("pointerdown", desbloqueaAudioPresite, \{ once:true, capture:true \}\)/);
   assert.match(html, /document\.addEventListener\("keydown", desbloqueaAudioPresite, \{ once:true, capture:true \}\)/);
   assert.match(html, /desbloqueaAudioPresite[\s\S]*?arranca\(\);/);
-  assert.match(html, /function entra\(\)[\s\S]*?para\(true\); fanfarriaPodio\(\)/);
+  // La fanfarria solo suena tras la ceremonia; la entrada directa (visita
+  // repetida) va en silencio y el MP3 no se descarga sin gesto.
+  assert.match(html, /function entra\(\)[\s\S]*?para\(true\);[\s\S]*?if \(window\.__YK_PRESITE__ !== false\) fanfarriaPodio\(\)/);
   assert.match(html, /if \(rebobina\) bgm\.currentTime = 0/);
   assert.doesNotMatch(html, /function entra\(\)[\s\S]*?arranca\(\); fanfarriaPodio\(\)/);
+  assert.doesNotMatch(html, /\n  arranca\(\);\n/);
 });
 
 test("el presite cuenta participantes factuales, independiente de scope y latido", () => {

@@ -57,7 +57,7 @@ test("las calles 4+ tienen temporización acotada y la música queda limitada al
   // El corte descargado el 3-ago-2026 suena en bucle mientras vive el presite.
   assert.match(html, /trackfield-1722\.mp3/);
   assert.match(html, /bgm\.loop = true/);
-  assert.match(html, /function entra\(\)[\s\S]*?para\(true\); fanfarriaPodio\(\)/);
+  assert.match(html, /function entra\(\)[\s\S]*?para\(true\);[\s\S]*?if \(window\.__YK_PRESITE__ !== false\) fanfarriaPodio\(\)/);
   assert.match(html, /if \(REDUCE_MOTION\)[\s\S]*?programaCarreraReducida\(0\);[\s\S]*?return;/);
   assert.match(html, /programaCarreraReducida[\s\S]*PASO_SALIDA_MS[\s\S]*2 \* PASO_SALIDA_MS[\s\S]*SALIDA_MS/);
 });

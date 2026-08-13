@@ -193,6 +193,22 @@
     });
   }
   window.ykFetch = ykFetch;   // disponible para las páginas (ideas/objetivos)
+
+  // FLT-1423 · un GET, un viaje. El marco y la página pedían /projects y
+  // /api/presence CADA UNO por su cuenta en la misma carga. Este memo comparte
+  // el JSON ya parseado durante un TTL corto (4 s): mata el duplicado del
+  // arranque sin interferir con los refrescos periódicos, que van a >10 s.
+  // Se define «si no existe» aquí y en las páginas que lo usan, para no
+  // depender del orden de carga. Un fallo no se cachea: el reintento es libre.
+  window.__ykJsonOnce = window.__ykJsonOnce || function (clave, ttlMs, trae) {
+    var store = (window.__ykJsonOnceStore = window.__ykJsonOnceStore || {});
+    var hit = store[clave];
+    if (hit && Date.now() - hit.at < (ttlMs || 4000)) return hit.p;
+    var p = trae();
+    store[clave] = { at: Date.now(), p: p };
+    p.catch(function () { if (store[clave] && store[clave].p === p) delete store[clave]; });
+    return p;
+  };
   // Los tres raíles empiezan SIEMPRE compactados. El estado anterior del
   // navegador no puede volver a abrir una superficie operativa al entrar.
   var OPEN_PANELS = { left:false, right:false, bottom:false };
@@ -1552,7 +1568,9 @@
     var item=selectedDesktopApp();if(!isOpen("bottom")||!item||!item.active||fleetKey(item)!==state.key||!sameDesktopCommandTarget(item,state.target))stopDesktopWrite();
   }
   function loadFleet() {
-    return fetch(TELEGRAM+"/api/presence",{cache:"no-store"}).then(function(response){if(!response.ok)throw new Error("presence "+response.status);return response.json();})
+    return window.__ykJsonOnce(TELEGRAM+"/api/presence", 4000, function(){
+      return fetch(TELEGRAM+"/api/presence",{cache:"no-store"}).then(function(response){if(!response.ok)throw new Error("presence "+response.status);return response.json();});
+    })
       .then(function(payload){
         var items=fleetItems(payload),structure=fleetStructureKey(items);FLEET.items=items;
         if(structure!==FLEET.structureKey){FLEET.structureKey=structure;renderFleet();}
@@ -2420,7 +2438,9 @@
     paintProject();
     function loadProjects(){
       var seq=++projectLoadSeq;
-      return ykFetch("/projects", {cache:"no-store"}).then(function (r) { return r.json(); }).then(function (d) {
+      return window.__ykJsonOnce(WORKER + "/projects", 4000, function () {
+        return ykFetch("/projects", {cache:"no-store"}).then(function (r) { return r.json(); });
+      }).then(function (d) {
         if(seq!==projectLoadSeq)return false;var result=projectNovelty.observe(d||{}),metadata=projectNovelty.meta(d||{});
         PROJECT_CATALOG = (d && d.projects || []).filter(function (p) {return p && p.id && String(p.status || "activo").toLowerCase() !== "archivado";});
         projectTotal=metadata.total;

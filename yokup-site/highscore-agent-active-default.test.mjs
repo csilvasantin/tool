@@ -153,7 +153,7 @@ test("una respuesta de presencia atrasada no pisa una nueva ni degrada su dispon
 
 test("la carga y los refrescos usan el reloj canónico de presencia",()=>{
   assert.match(html,/presence:d\.presence \|\| \[\], controlMachines:d\.control_machines \|\| \[\], now:Number\(d\.now \|\| 0\)/);
-  assert.match(html,/datos\.presenceNow = r\[4\] && Number\(r\[4\]\.now \|\| 0\) \|\| 0/);
+  assert.match(html,/datos\.presenceNow = r\[5\] && Number\(r\[5\]\.now \|\| 0\) \|\| 0/);
   assert.match(html,/window\.ykAgentIdentity, Number\(datos\.presenceNow \|\| 0\) \|\| Date\.now\(\) \/ 1000/);
   const refresh=functionSource("hsRefreshDesktopApps");
   assert.match(refresh,/datos\.presenceNow = Number\(payload\.now \|\| 0\)/);

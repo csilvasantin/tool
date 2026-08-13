@@ -67,6 +67,10 @@ function audioHarness(){
     entradaHecha:false,entradaTimer:1,cuentaEntradaTimer:2,
     clearTimeout(){},clearInterval(){},setTimeout(fn){fn();},
     fanfarriaPodio(){},iniciaCarrera(){},
+    // FLT-1423: el runtime real consulta window.__YK_PRESITE__ (primera visita
+    // de la sesión → ceremonia completa) y sella sessionStorage al entrar.
+    window:{__YK_PRESITE__:true},
+    sessionStorage:{setItem(){},getItem(){return null;}},
   };
   vm.createContext(sandbox);
   const audioStart=source.indexOf("var ac = null, sonando = false, bgm = null;");

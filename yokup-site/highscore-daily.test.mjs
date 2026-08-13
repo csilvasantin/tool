@@ -112,7 +112,7 @@ test("No concluida conserva tarea y puntos base; sólo pierde actividad y bonus"
 test("el ranking distingue actividad actual de los totales históricos", () => {
   assert.match(html, /datos = \{ tareas: \[\], tareasFresh: false, actividad: \[\],[^}]*misiones: \[\], ideas: \[\], decisiones: \[\], proyectos: \[\],[^}]*declaracionesPrincipales: \[\], controlMachines: \[\], presenceNow: 0, presenceAvailable: false,[^}]*trabajos: \[\], trabajosAvailable: false,[^}]*trabajosMode: "unavailable", turnos: null \}/);
   assert.match(html, /seguroYokup\("\/tickets\?scope=fleet", function \(d\) \{ return d\.tickets \|\| \[\]; \}\)/);
-  assert.match(html, /seguroYokup\("\/ideas"/);
+  assert.match(html, /seguroYokup\("\/ideas\?slim=1"/);
   assert.match(html, /seguroYokup\("\/decisions"/);
   assert.match(html, /seguroYokup\("\/projects"/);
   assert.match(html, /normaliza\(m\.visible_state \|\| m\.status\)\.toLowerCase\(\) === "in_progress"/);
@@ -126,8 +126,9 @@ test("un fallo transitorio de la API no reinicia el acumulado diario", () => {
   assert.match(html, /function guardaActividadDiaria\(payload\)/);
   assert.match(html, /payload\.day !== claveDia\(Date\.now\(\)\)/);
   assert.match(html, /function actividadDiariaGuardada\(\)/);
-  assert.match(html, /var fresh = !!\(r\[0\] && r\[0\]\.day === claveDia\(Date\.now\(\)\)/);
-  assert.match(html, /var a = fresh \? r\[0\] : actividadDiariaGuardada\(\)/);
+  // FLT-1423: el batch es total — r[0] son las tareas y el daily pasa a r[1].
+  assert.match(html, /var fresh = !!\(r\[1\] && r\[1\]\.day === claveDia\(Date\.now\(\)\)/);
+  assert.match(html, /var a = fresh \? r\[1\] : actividadDiariaGuardada\(\)/);
   assert.match(html, /datos\.actividadFresh = fresh/);
   assert.match(html, /var dailyFresh = !!\(r\[1\] && r\[1\]\.day === claveDia\(Date\.now\(\)\)/);
   assert.match(html, /datos\.actividadFresh = dailyFresh/);

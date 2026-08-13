@@ -3,3 +3,20 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Cross-Origin-Opener-Policy: same-origin-allow-popups
+
+# FLT-1423 · caché de assets. Pages servía TODO con max-age=0,must-revalidate:
+# cada visita revalidaba cada fichero, incluidos los versionados con ?v= (cuyo
+# URL cambia cuando cambia el contenido — revalidarlos es pagar dos veces).
+# Los .js/.css van con ?v= en todas las páginas del site → immutable un año:
+# un deploy nuevo cambia el ?v= y el navegador pide el URL nuevo solo.
+/*.js
+  Cache-Control: public, max-age=31536000, immutable
+/*.css
+  Cache-Control: public, max-age=31536000, immutable
+# Imágenes y audio no llevan ?v= — una semana de caché: si algún día se
+# sustituye una en caliente, tarda 7 días en refrescar o se renombra el fichero.
+/img/*
+  Cache-Control: public, max-age=604800
+/media/*
+  Cache-Control: public, max-age=604800
+# El HTML sigue como estaba: must-revalidate para que un deploy se vea al momento.
