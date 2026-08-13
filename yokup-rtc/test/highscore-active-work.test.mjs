@@ -80,6 +80,29 @@ test("handON fleet resuelto sin started_at sustituye el trabajo viejo del carril
   assert.equal(result.participants[0].reference,"FLT-HANDON");
 });
 
+test("un handON resuelto rellena una calle libre mientras otra familia sigue activa",async()=>{
+  const {db,env,F}=harness();
+  mission(db,{id:"DCL-ACTIVA",agent:"OraculoMacMini",at:NOW-MIN,title:"QA activa"});
+  db.prepare("INSERT INTO tickets VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run("FLT-1413","handON del jueves, Morfeo","MacMini","fleet","mission","resolved","MorfeoMacMini",null,NOW-4*MIN,null,NOW-2*MIN,NOW-2*MIN,NOW-2*MIN,"https://proof.test/handon.png");
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
+    .run("FLT-1413","z1","Informe del agente","done","MorfeoMacMini",null,NOW-3*MIN,NOW-2*MIN,"MorfeoMacMini");
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.mode,"active"); assert.equal(result.running_count,1); assert.equal(result.count,2);
+  assert.deepEqual(result.participants.map(row=>[row.reference,row.state]),[
+    ["DCL-ACTIVA","running"],["FLT-1413","last_work"],
+  ]);
+});
+
+test("un finalizado nunca sustituye el trabajo activo de su propia familia",async()=>{
+  const {db,env,F}=harness();
+  mission(db,{id:"DCL-ACTIVA",agent:"OraculoMacMini",at:NOW-5*MIN,title:"QA activa"});
+  mission(db,{id:"DCL-CERRADA",agent:"OraculoMacMini",at:NOW-MIN,startedAt:NOW-20*MIN,status:"resolved",title:"Cerrada"});
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.count,1); assert.equal(result.participants[0].reference,"DCL-ACTIVA");
+  assert.equal(result.participants[0].state,"running");
+});
+
 test("presence rescata la calle stale, pero no la convierte en running",async()=>{
   const {db,env,F}=harness({presence:[processRow("Neo","MacBook Pro 14")],now:NOW/1000});
   mission(db,{id:"M1",agent:"OraculoMacMini",at:NOW-2*MIN});

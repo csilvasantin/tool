@@ -6244,6 +6244,10 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     if (presenceAt) candidate.presence_at = presenceAt;
     const previous = byFamily.get(family.family_key);
     if (forcedState === "last_work") {
+      // Un trabajo cerrado sólo rellena una calle libre. Nunca sustituye una
+      // misión/tarea abierta de la misma familia, aunque su resolved_at sea más
+      // nuevo que el progreso material del trabajo que sigue en curso.
+      if (previous && previous.state !== "last_work") return;
       const candidateEnd = highscoreActiveWorkMillis(candidate.ended_at);
       const previousEnd = highscoreActiveWorkMillis(previous && previous.ended_at);
       if (!previous || candidateEnd > previousEnd) byFamily.set(family.family_key, candidate);
@@ -6272,7 +6276,12 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     (a.state === "running" ? 0 : 1) - (b.state === "running" ? 0 : 1) ||
     b.active_at - a.active_at || a.agent.localeCompare(b.agent, "es"));
   const runningCount = participants.filter((row) => row.state === "running").length;
-  if (!runningCount) {
+  // La pista conserva hasta tres calles legibles. Si hay una o dos familias
+  // activas, las calles libres muestran el último trabajo factual de otras
+  // familias; así un handON ya cerrado no desaparece sólo porque otro agente
+  // haya empezado después. Sin ningún running se conserva el contrato anterior:
+  // sólo top-3 finalizados, sin rescatar asignaciones stale.
+  if (!runningCount || participants.length < 3) {
     const [recentMissions, recentTasks] = await Promise.all([
       env.DB.prepare(`SELECT id,subject,assignee,loc,'mission' kind,resolved_at ended_at,started_at,created_at,` +
         `${HIGHSCORE_ASSIGNMENT_EVENT_SQL} assignment_event_at,` +
@@ -6286,15 +6295,20 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
         `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
         `AND m.status IN ('done','resolved','completed') ORDER BY m.updated_at DESC LIMIT 12`).all().then((r) => r.results || [])
     ]);
-    byFamily.clear();
+    if (!runningCount) byFamily.clear();
     for (const row of [...recentMissions, ...recentTasks].sort((a,b) =>
       highscoreActiveWorkMillis(b.ended_at) - highscoreActiveWorkMillis(a.ended_at))) {
       const raw = row.kind === "task" ? scopedMissionOwner(row.executor || row.owner, "sub", row.assignee, row.loc) : row.assignee;
       add(raw, row.loc, row.kind, row, row.title || row.subject || "Último trabajo", row.assignee, "last_work",
         row.kind === "task" ? `${String(row.mission_id || "")}:${String(row.code || "")}` : String(row.id || ""));
+      if (byFamily.size >= 3) break;
     }
     participants = [...byFamily.values()].sort((a,b) =>
-      highscoreActiveWorkMillis(b.ended_at) - highscoreActiveWorkMillis(a.ended_at)).slice(0,3);
+      (a.state === "running" ? 0 : a.state === "assigned_stale" ? 1 : 2) -
+        (b.state === "running" ? 0 : b.state === "assigned_stale" ? 1 : 2) ||
+      (a.state === "last_work" && b.state === "last_work"
+        ? highscoreActiveWorkMillis(b.ended_at) - highscoreActiveWorkMillis(a.ended_at)
+        : b.active_at - a.active_at)).slice(0,3);
   }
   return { ok:true, generated_at:ahora, timezone:"Europe/Madrid", presence_available:presence.available,
     mode:runningCount ? "active" : "recent", running_count:runningCount, count:participants.length, participants };
