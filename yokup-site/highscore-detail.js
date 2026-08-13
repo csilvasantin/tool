@@ -231,6 +231,25 @@
       granularity:text(value.granularity),labels:labels,series:series};
   }
 
+  /* Un punto no atribuye trabajo concreto: sólo deriva el bucket acumulado
+     alineado que ya entregó comparison_evolution. */
+  function comparisonMarkerPoint(evolution, seriesIndex, pointIndex) {
+    if (!evolution || !Array.isArray(evolution.labels) || !Array.isArray(evolution.series) ||
+      !Number.isInteger(seriesIndex) || !Number.isInteger(pointIndex) || seriesIndex<0 || pointIndex<0 ||
+      seriesIndex>=evolution.series.length || pointIndex>=evolution.labels.length) return null;
+    var series=evolution.series[seriesIndex],label=evolution.labels[pointIndex];
+    if (!series || !Array.isArray(series.values) || pointIndex>=series.values.length || !label) return null;
+    var cumulative=Number(series.values[pointIndex]),previous=pointIndex?Number(series.values[pointIndex-1]):0,leader=0;
+    if (!Number.isFinite(cumulative) || !Number.isFinite(previous)) return null;
+    for (var i=0;i<evolution.series.length;i++) {
+      var candidate=Number(evolution.series[i]&&evolution.series[i].values&&evolution.series[i].values[pointIndex]);
+      if (!Number.isFinite(candidate)) return null;if(candidate>leader)leader=candidate;
+    }
+    return {agent:text(series.agent),position:Number(series.position),label:text(label.label),at:Number(label.at),
+      cumulative:cumulative,delta:cumulative-previous,share:leader?cumulative/leader:0,leaderGap:leader-cumulative,
+      seriesIndex:seriesIndex,pointIndex:pointIndex,current:!!series.current};
+  }
+
   /* Contexto cruzado explícito, nunca un hecho del timeline seleccionado. El
      enlace debe volver al mismo detalle con el project_id que afirma el
      servidor; si no coincide, el panel se omite en vez de fabricar navegación. */
@@ -443,6 +462,7 @@
     queryState:queryState, detailUrl:detailUrl, timelineForType:timelineForType, metricForType:metricForType,
     rankingFromHistory:rankingFromHistory, previousRankedAgent:previousRankedAgent, nextRankedAgent:nextRankedAgent,
     rankingComparisonRows:rankingComparisonRows, comparisonEvolutionFromHistory:comparisonEvolutionFromHistory,
+    comparisonMarkerPoint:comparisonMarkerPoint,
     latestWorkFromHistory:latestWorkFromHistory,
     evolutionGroups:evolutionGroups, timelineGroups:timelineGroups, periodHistory:periodHistory,
     nextWindow:nextWindow, windowCountdown:windowCountdown, decisionUrl:decisionUrl, onIdleDecisionError:onIdleDecisionError,

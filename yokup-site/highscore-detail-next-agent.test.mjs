@@ -73,7 +73,8 @@ test("dos flechas bajo avatar conservan URL completa y usan pushState+load",()=>
 
 test("botones nativos conservan teclado, ARIA, blanco táctil 44px y responsive móvil",()=>{
   assert.match(page,/rankButton\("←","previous-agent"/);assert.match(page,/rankButton\("→","next-agent"/);
-  assert.match(page,/button\.type="button"/);assert.doesNotMatch(page,/rankButton[\s\S]*keydown/);
+  const rankButtonBody=/function rankButton\([\s\S]*?return button;\}/.exec(page)?.[0]||"";
+  assert.match(rankButtonBody,/button\.type="button"/);assert.doesNotMatch(rankButtonBody,/keydown/);
   assert.match(html,/\.avatar-stack\{[^}]*display:flex[^}]*flex-direction:column/);
   assert.match(html,/\.rank-navigation\{[^}]*display:flex/);
   assert.match(html,/\.rank-agent\{[^}]*min-width:44px[^}]*height:44px/);
