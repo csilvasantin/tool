@@ -34,3 +34,17 @@ test('callback same-origin valida double CSRF antes de reenviar POST exacto', as
   const bad = await handle(new Request('https://www.yokup.com/auth/callback', {method:'POST',headers:{'content-type':'application/x-www-form-urlencoded',cookie:'g_csrf_token=otro'},body}));
   assert.equal(bad.status,403); assert.equal(calls,1); assert.doesNotMatch(await bad.text(),/secret-token/);
 });
+
+test('callback same-origin preserva el 303 de relevo sin ejecutar HTML intermedio', async () => {
+  const handle = createCallbackProxy({ backendUrl:'https://api.yokup.com/auth/callback', publicOrigin:'https://www.yokup.com', fetchImpl:async () => {
+    return new Response(null, {status:303, headers:{Location:'https://api.yokup.com/auth/handoff?code=opaque','Referrer-Policy':'no-referrer'}});
+  }});
+  const body = new URLSearchParams({credential:'secret-token',state:'state',g_csrf_token:'csrf'});
+  const response = await handle(new Request('https://www.yokup.com/auth/callback', {method:'POST',headers:{'content-type':'application/x-www-form-urlencoded',cookie:'g_csrf_token=csrf; __Host-yk_challenge=state'},body}));
+  assert.equal(response.status, 303);
+  assert.equal(response.headers.get('location'), 'https://api.yokup.com/auth/handoff?code=opaque');
+  assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
+  assert.equal(response.headers.get('cross-origin-opener-policy'), 'same-origin-allow-popups');
+  assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(await response.text(), '');
+});

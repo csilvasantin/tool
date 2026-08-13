@@ -90,8 +90,9 @@ test("challenge y callback POST los atiende el gate real, no Assets", async () =
     if (String(url).endsWith("/auth/challenge")) {
       return new Response('{"state":"s","nonce":"n"}', {status:200, headers:{"Content-Type":"application/json", "Set-Cookie":"__Host-yk_challenge=s; Secure; HttpOnly; Path=/"}});
     }
-    return new Response("handoff", {status:200, headers:{
-      "Content-Type":"text/html", "Content-Security-Policy":"default-src 'none'; script-src 'nonce-test'; form-action https://api.yokup.com/auth/handoff; frame-ancestors 'self' https://accounts.google.com; base-uri 'none'",
+    return new Response(null, {status:303, headers:{
+      "Location":"https://api.yokup.com/auth/handoff?code=opaque", "Content-Security-Policy":"default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+      "Referrer-Policy":"no-referrer",
       "Set-Cookie":"__Host-yk_challenge=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=None"
     }});
   };
@@ -104,9 +105,12 @@ test("challenge y callback POST los atiende el gate real, no Assets", async () =
   const callback = await handleRequest(new Request("https://www.yokup.com/auth/callback", {
     method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded", Cookie:"g_csrf_token=csrf; __Host-yk_challenge=s"}, body:form
   }), testEnv, {}, fetchImpl);
-  assert.equal(callback.status, 200);
-  assert.equal(await callback.text(), "handoff");
-  assert.match(callback.headers.get("Content-Security-Policy"), /form-action https:\/\/api\.yokup\.com\/auth\/handoff/);
+  assert.equal(callback.status, 303);
+  assert.equal(callback.headers.get("Location"), "https://api.yokup.com/auth/handoff?code=opaque");
+  assert.equal(callback.headers.get("Referrer-Policy"), "no-referrer");
+  assert.equal(callback.headers.get("Cross-Origin-Opener-Policy"), "same-origin-allow-popups");
+  assert.equal(callback.headers.get("X-Content-Type-Options"), "nosniff");
+  assert.equal(await callback.text(), "");
   assert.match(callback.headers.get("Set-Cookie"), /__Host-yk_challenge=;/);
   assert.equal(assetCalls, 0);
   assert.equal(calls[0].init.headers.Origin, "https://www.yokup.com");

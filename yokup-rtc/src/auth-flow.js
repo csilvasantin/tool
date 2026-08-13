@@ -201,35 +201,15 @@ async function consumeHandoff(env, code, now = Date.now()) {
   return { email:String(row.email), name:String(row.name || ""), returnPath:safeReturnPath(row.return_path) };
 }
 
-export function handoffHtml(code) {
-  const nonce = randomToken(18);
-  const body = '<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>Continuar acceso seguro</title></head><body>' +
-    '<main><h1>Acceso seguro</h1><p id="handoff-status" aria-live="polite">Continuando…</p>' +
-    '<form id="handoff" method="post" target="_top" action="' + AUTH_HANDOFF_URI + '"><input type="hidden" name="code" value="' + code + '"><button type="submit">Continuar</button></form>' +
-    '<p id="handoff-link"><a rel="noreferrer nofollow" target="_top" href="' + AUTH_HANDOFF_URI + '?code=' + encodeURIComponent(code) + '">Continuar por enlace</a></p>' +
-    '<p id="handoff-ayuda">Si esto no avanza solo en unos segundos, usa «Continuar por enlace».</p></main>' +
-    '<noscript><p>Pulsa Continuar para completar el acceso.</p></noscript>' +
-    '<script nonce="' + nonce + '">(function(){' +
-    'var f=document.getElementById("handoff"),s=document.getElementById("handoff-status");' +
-    'function rescate(motivo){' +
-      's.textContent="El acceso no ha podido completarse solo ("+motivo+"). Continua por el enlace de abajo.";' +
-      'var a=document.getElementById("handoff-link");if(a)a.hidden=false;' +   // por si alguien lo ocultó
-
-    '}' +
-    'try{if(typeof f.requestSubmit==="function")f.requestSubmit();else f.submit()}catch(e){rescate("bloqueado")}' +
-    // Un envio de formulario BLOQUEADO no lanza excepcion: el navegador
-    // simplemente no navega, y la pagina se queda en «Continuando…» para
-    // siempre sin decir por que. Pasa en contextos sandboxed sin allow-forms y
-    // con politicas que cortan form-action. El vigia lo convierte en algo que
-    // el usuario puede resolver.
-    'setTimeout(function(){if(!document.hidden&&s)rescate("sin respuesta")},1500);' +
-    '})()</script></body></html>';
+export function handoffRedirect(code) {
   const headers = new Headers({
-    "content-type":"text/html; charset=utf-8", "cache-control":"no-store", "Referrer-Policy":"no-referrer",
-    "Content-Security-Policy":`default-src 'none'; script-src 'nonce-${nonce}'; form-action ${AUTH_HANDOFF_URI}; frame-ancestors 'self' https://accounts.google.com; base-uri 'none'`
+    "location":AUTH_HANDOFF_URI + "?code=" + encodeURIComponent(code),
+    "cache-control":"no-store",
+    "Referrer-Policy":"no-referrer",
+    "Content-Security-Policy":"default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
   });
   headers.append("Set-Cookie", clearChallengeCookie("None"));
-  return new Response(body, { status:200, headers });
+  return new Response(null, { status:303, headers });
 }
 
 export async function handleAuthRequest(request, env, deps) {
@@ -292,12 +272,14 @@ export async function handleAuthRequest(request, env, deps) {
     const email = String(google.email).toLowerCase();
     if (!(await deps.whitelist()).has(email)) return authJson({ ok:false, error:"not_allowed" }, 403, request, { "Set-Cookie":clearChallengeCookie("None") });
     const code = await issueHandoff(env, email, google.name || "", challenge.returnPath);
-    return handoffHtml(code);
+    // No interponemos HTML ni JavaScript entre el callback de Google y el
+    // canje. Un formulario programático con target=_top puede ser bloqueado en
+    // silencio por el contexto GIS; una redirección HTTP 303 es una navegación
+    // del propio flujo y funciona sin script, formulario ni activación manual.
+    return handoffRedirect(code);
   }
-  // Relevo POR ENLACE. Existe porque el envio del formulario se puede bloquear en
-  // SILENCIO (sandbox sin allow-forms, politicas que cortan form-action) y ahi el
-  // usuario se queda mirando «Continuando…» sin salida. Una navegacion normal no
-  // la gobierna form-action, asi que funciona justo donde el POST calla.
+  // Relevo por navegación. El callback same-origin redirige aquí tras validar
+  // Google para que la cookie __Host- de sesión nazca en api.yokup.com.
   // No hay hueco de CSRF: el secreto ES el codigo, es de un solo uso (consumeHandoff
   // lo marca de forma atomica) y caduca. La pagina que lo ofrece va con
   // Referrer-Policy: no-referrer, asi que el codigo no viaja a ningun tercero.

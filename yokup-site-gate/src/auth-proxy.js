@@ -25,6 +25,11 @@ function noStore(response) {
   const headers = new Headers(response.headers);
   headers.set("Cache-Control", "no-store");
   headers.set("Referrer-Policy", "no-referrer");
+  // Estas rutas no pasan por Workers Assets, por lo que tampoco reciben
+  // yokup-site/_headers. Mantener aquí el COOP de GIS evita que el callback
+  // cambie de política respecto a la página que abrió el acceso.
+  headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  headers.set("X-Content-Type-Options", "nosniff");
   return new Response(response.body, { status:response.status, statusText:response.statusText, headers });
 }
 

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AUTH_CALLBACK_URI, AUTH_HANDOFF_URI, AUTH_COOKIE_NAMES, handleAuthRequest, handoffHtml, handoffOriginAllowed, safeReturnPath, sessionCookie, verifyGoogleCredential, withCredentialCors } from "./src/auth-flow.js";
+import { AUTH_CALLBACK_URI, AUTH_HANDOFF_URI, AUTH_COOKIE_NAMES, handleAuthRequest, handoffRedirect, handoffOriginAllowed, safeReturnPath, sessionCookie, verifyGoogleCredential, withCredentialCors } from "./src/auth-flow.js";
 
 class FakeDB {
   constructor() { this.rows = new Map(); }
@@ -58,6 +58,7 @@ function deps(nonceRef = { value:"" }) {
 }
 
 test("return_path sólo conserva rutas del sitio", () => {
+  assert.equal(new URL(AUTH_CALLBACK_URI).hostname, "www.yokup.com", "GIS siempre publica el host canónico");
   assert.equal(safeReturnPath("/misiones?q=1#x"), "/misiones?q=1#x");
   assert.equal(safeReturnPath("https://www.yokup.com/highscore?q=1"), "/highscore?q=1");
   assert.equal(safeReturnPath("https://yokup.com/tareas"), "/tareas");
@@ -85,13 +86,15 @@ test("redirect GIS valida CSRF, crea handoff opaco y sólo el backend emite sesi
   });
   const seen = { value:challenge.nonce };
   const response = await handleAuthRequest(callback(), env, deps(seen));
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 303);
   assert.doesNotMatch(response.headers.get("set-cookie") || "", /__Host-yk_session=/);
-  const html = await response.text();
-  assert.doesNotMatch(html, /credential|id-token|state=/i);
-  assert.match(html, new RegExp(`action="${AUTH_HANDOFF_URI.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
-  const code = html.match(/name="code" value="([A-Za-z0-9_-]+)"/)[1];
-  const handoffRequest = () => request("/auth/handoff", { method:"POST", headers:{origin:"null",cookie:"__Host-yk_session=stale","content-type":"application/x-www-form-urlencoded"}, body:new URLSearchParams({code}) });
+  assert.match(response.headers.get("set-cookie"), /__Host-yk_challenge=;/);
+  assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+  const handoffLocation = new URL(response.headers.get("location"));
+  assert.equal(handoffLocation.origin + handoffLocation.pathname, AUTH_HANDOFF_URI);
+  const code = handoffLocation.searchParams.get("code");
+  assert.match(code, /^[A-Za-z0-9_-]{43}$/);
+  const handoffRequest = () => new Request(AUTH_HANDOFF_URI + "?code=" + encodeURIComponent(code), {method:"GET"});
   const attempts = await Promise.all([handleAuthRequest(handoffRequest(), env, deps(seen)), handleAuthRequest(handoffRequest(), env, deps(seen))]);
   assert.deepEqual(attempts.map(item => item.status).sort(), [303, 401], "dos canjes concurrentes sólo permiten un éxito");
   const completed = attempts.find(item => item.status === 303);
@@ -110,28 +113,18 @@ test("handoff Yokup acepta www o null opaco, ignora cookie vieja y rechaza crede
   assert.equal(handoffOriginAllowed(req({})), false);
 });
 
-test("handoff HTML real autoenvía y conserva un botón accesible sin datos sensibles", async () => {
+test("handoff del callback es una redirección HTTP sin HTML ni JavaScript", async () => {
   const code = "d".repeat(43);
-  const response = handoffHtml(code);
-  assert.equal(response.status, 200);
-  assert.equal(response.headers.get("content-type"), "text/html; charset=utf-8");
+  const response = handoffRedirect(code);
+  assert.equal(response.status, 303);
+  assert.equal(response.headers.get("location"), AUTH_HANDOFF_URI + "?code=" + code);
   assert.equal(response.headers.get("cache-control"), "no-store");
   assert.equal(response.headers.get("referrer-policy"), "no-referrer");
   const csp = response.headers.get("content-security-policy");
-  assert.match(csp, /script-src 'nonce-([A-Za-z0-9_-]+)'/);
-  assert.match(csp, /form-action https:\/\/api\.yokup\.com\/auth\/handoff/);
-  assert.match(csp, /frame-ancestors 'self' https:\/\/accounts\.google\.com/);
+  assert.match(csp, /default-src 'none'/);
+  assert.match(csp, /frame-ancestors 'none'/);
   assert.match(csp, /base-uri 'none'/);
-  assert.doesNotMatch(csp, /unsafe-inline|\*/);
-  const html = await response.text();
-  const nonce = csp.match(/script-src 'nonce-([^']+)'/)[1];
-  assert.match(html, new RegExp(`<script nonce="${nonce}"`));
-  assert.match(html, /<form id="handoff" method="post" target="_top" action="https:\/\/api\.yokup\.com\/auth\/handoff">/);
-  assert.match(html, /requestSubmit\(\)/);
-  assert.match(html, /<button type="submit">Continuar<\/button>/);
-  assert.match(html, /aria-live="polite"/);
-  assert.match(html, new RegExp(`name="code" value="${code}"`));
-  assert.doesNotMatch(html, /credential|g_csrf_token|state=|email|__Host-|session/i);
+  assert.equal(await response.text(), "");
 });
 
 test("callback redirect rechaza CSRF ausente o distinto antes de verificar Google", async () => {
