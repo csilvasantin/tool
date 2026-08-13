@@ -6323,14 +6323,23 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
   for (const { family, task } of rankingTasks.values()) rankingAdd(family.family_name, task.loc,
     HIGHSCORE_TASK_WEIGHTS.task +
       (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0));
-  if (!rankingTotals.has(wanted.family_key)) rankingTotals.set(wanted.family_key, { agent:wanted.family_name, points:0 });
-  const ordered = [...rankingTotals.entries()].sort((a, b) => b[1].points - a[1].points ||
+  // `ordered` es el universo factual completo del scope, no un podio. Un agente
+  // sin puntos no se añade para hacer navegable una pantalla vacía: en ese caso
+  // current_index/previous/next son null. La navegación es lineal: el primero
+  // no tiene previous y el último puntuado no tiene next.
+  const ordered = [...rankingTotals.entries()].filter(([, row]) => Number(row.points) > 0)
+    .sort((a, b) => b[1].points - a[1].points ||
     a[1].agent.localeCompare(b[1].agent, "es")).map(([familyKey, row], index) => ({
       agent:row.agent, points:row.points, position:index + 1, family_key:familyKey
     }));
   const currentIndex = ordered.findIndex((row) => row.family_key === wanted.family_key);
+  const publicRow = (row) => row ? { agent:row.agent, points:row.points, position:row.position } : null;
+  const previous = currentIndex > 0 ? publicRow(ordered[currentIndex - 1]) : null;
+  const next = currentIndex >= 0 && currentIndex < ordered.length - 1
+    ? publicRow(ordered[currentIndex + 1]) : null;
   const ranking = { project_id:exactProjectId, period:range.period,
-    ordered:ordered.map(({ family_key, ...row }) => row), current_index:currentIndex };
+    ordered:ordered.map(publicRow), current_index:currentIndex >= 0 ? currentIndex : null,
+    previous, next };
 
   // El detalle conserva su timeline puro, pero explica honestamente si el
   // trabajo más reciente de la familia pertenece a otro proyecto y ofrece el

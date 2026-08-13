@@ -122,7 +122,8 @@ test("hoy, ayer, semana, mes y año usan rangos naturales y una sola fuente fact
   assert.equal(todayResult.range.start,Date.UTC(2026,7,12,22),"00:00 CEST");
   assert.deepEqual([todayResult.range.from,todayResult.range.to],["2026-08-13","2026-08-13"]);
   assert.deepEqual(todayResult.ranking,{project_id:"yokup",period:"today",
-    ordered:[{agent:"MorfeoMBP16",points:83,position:1},{agent:"MorfeoMBP14",points:20,position:2}],current_index:0});
+    ordered:[{agent:"MorfeoMBP16",points:83,position:1},{agent:"MorfeoMBP14",points:20,position:2}],current_index:0,
+    previous:null,next:{agent:"MorfeoMBP14",points:20,position:2}});
   assert.equal(todayResult.latest_work,null,"sin cierre/progreso factual no inventa trabajo reciente");
   const yesterdayResult=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,"MorfeoMBP16","yokup","yesterday",now)));
   assert.equal(yesterdayResult.range.end,todayResult.range.start);
@@ -168,11 +169,58 @@ test("ranking canonicaliza OraculoMacMini en OraculoMini, suma 875+40 y renumera
   assert.equal(result.metrics.points,915,"timeline y total también conservan los 40 puntos legacy");
   assert.deepEqual(result.ranking,{project_id:'yokup',period:'today',ordered:[
     {agent:'OraculoMini',points:915,position:1},{agent:'TrinityMBP14',points:40,position:2}
-  ],current_index:0});
+  ],current_index:0,previous:null,next:{agent:'TrinityMBP14',points:40,position:2}});
   assert.equal(result.ranking.ordered.some(row=>row.agent==='OraculoMacMini'),false);
   const legacyRequest=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,'OraculoMacMini','yokup','today',now)));
   assert.equal(legacyRequest.agent,'OraculoMini');
   assert.equal(legacyRequest.ranking.current_index,0);
+});
+
+test("ranking devuelve todos los puntuados, excluye cero y corta navegación en los extremos",async()=>{
+  const {db,env,F}=harness(),now=Date.UTC(2026,7,13,18),today=Date.UTC(2026,7,13,8),yesterday=Date.UTC(2026,7,12,8);
+  db.exec("INSERT INTO projects VALUES ('scope','Scope'),('otro','Otro')");
+  const agents=[
+    ['OraculoMini','MacMini',5],['TrinityMBP14','MacBookProNegro14',4],['MorfeoMBP16','MacBookPro16',3],
+    ['NeoMBAAzul','MacBookAirAzul',2],['SmithMBP14','MacBookProNegro14',1]
+  ];
+  for(const [agent,machine,count] of agents) for(let i=0;i<count;i++) db.prepare(
+    "INSERT INTO tickets(id,source,role,status,assignee,loc,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,subject,project,project_id,proof_image) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+  ).run(`${agent}-${i}`,'decision-batch','mission','resolved',agent,machine,null,today+i,today+i,today+i,today+i,today+i,'Trabajo','Scope','scope','proof');
+  // Mismo agente y fecha, pero otro proyecto: jamás entra en el ranking scope.
+  db.prepare("INSERT INTO tickets(id,source,role,status,assignee,loc,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,subject,project,project_id,proof_image) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run('SMITH-OTRO','decision-batch','mission','resolved','SmithMBP14','MacBookProNegro14',null,today,today,today,today,today,'Ajeno','Otro','otro','proof');
+
+  for(const period of ['today','week','month','year']) {
+    const result=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,'SmithMBP14','scope',period,now)));
+    assert.deepEqual(result.ranking.ordered.map(row=>[row.agent,row.points,row.position]),[
+      ['OraculoMini',200,1],['TrinityMBP14',160,2],['MorfeoMBP16',120,3],['NeoMBAAzul',80,4],['SmithMBP14',40,5]
+    ],period);
+    assert.equal(result.ranking.current_index,4,period);
+    assert.deepEqual(result.ranking.previous,{agent:'NeoMBAAzul',points:80,position:4},period);
+    assert.equal(result.ranking.next,null,period);
+  }
+  // Ayer conserva el mismo contrato completo con un conjunto factual distinto.
+  for(const [index,[agent,machine]] of agents.entries()) db.prepare(
+    "INSERT INTO decisions(id,agent,machine,created_at,question,status,project) VALUES(?,?,?,?,?,?,?)"
+  ).run(`Y-${index}`,agent,machine,yesterday+index,'Ventana','decided','scope');
+  const previousDay=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,'SmithMBP14','scope','yesterday',now)));
+  assert.equal(previousDay.ranking.ordered.length,5);
+  assert.ok(previousDay.ranking.ordered.every(row=>row.points===8));
+  assert.deepEqual(previousDay.ranking.ordered.map(row=>row.position),[1,2,3,4,5]);
+
+  const zero=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,'TrinityMBA16','scope','today',now)));
+  assert.equal(zero.metrics.points,0);
+  assert.equal(zero.ranking.ordered.length,5);
+  assert.equal(zero.ranking.ordered.some(row=>row.agent==='TrinityMBA16'),false);
+  assert.equal(zero.ranking.current_index,null);
+  assert.equal(zero.ranking.previous,null);assert.equal(zero.ranking.next,null);
+  const first=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,'OraculoMini','scope','today',now)));
+  assert.equal(first.ranking.current_index,0);assert.equal(first.ranking.previous,null);
+  assert.deepEqual(first.ranking.next,{agent:'TrinityMBP14',points:160,position:2});
+  const singleton=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,'SmithMBP14','otro','today',now)));
+  assert.deepEqual(singleton.ranking,{project_id:'otro',period:'today',ordered:[
+    {agent:'SmithMBP14',points:40,position:1}
+  ],current_index:0,previous:null,next:null});
 });
 
 test("scope histórico falla cerrado ante proyecto, periodo o identidad no exactos",async()=>{
