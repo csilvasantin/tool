@@ -30,7 +30,15 @@
       return fetch(API+"/fleet/onidle-request",{method:"POST",credentials:"include",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify({request_id:id,agent:stateValue.agent,project_id:stateValue.projectId})})
         .then(function(response){return response.json().catch(function(){return {};}).then(function(payload){return {response:response,payload:payload};});})
         .then(function(result){var payload=result.payload;if(result.response.status===202&&attempt<5){return new Promise(function(resolve){window.setTimeout(function(){resolve(perform(id,attempt+1));},1200);});}
-          if((payload.status==="created"||payload.status==="existing")&&payload.url){status.textContent=payload.status==="existing"?"Ya hay una ventana viva; abriéndola…":"Ventana creada por el scheduler; abriéndola…";window.location.assign(payload.url);return;}
+          if(payload.status==="created"||payload.status==="existing"){
+            var destination=D.decisionUrl(payload,stateValue);if(!destination){status.textContent="La ventana recibida no es válida: falta su identificador.";return;}
+            status.textContent="Validando la ventana exacta…";
+            return fetch(API+"/decisions?all=1&since=0&limit=500&agent="+encodeURIComponent(stateValue.agent),{cache:"no-store"})
+              .then(function(response){if(!response.ok)throw new Error("decision_"+response.status);return response.json();})
+              .then(function(result){var decision=result&&Array.isArray(result.items)?result.items.find(function(item){return String(item&&item.id||"")===String(payload.decision_id);}):null;
+                if(decision)decision.ok=true;var invalid=D.onIdleDecisionError(decision,stateValue,ID,payload.decision_id);if(invalid){status.textContent="La ventana recibida no es válida: "+invalid;return;}
+                status.textContent=payload.status==="existing"?"Ya hay una ventana válida; abriéndola…":"Ventana creada por el scheduler; abriéndola…";window.location.assign(D.decisionUrl(payload,stateValue));})
+              .catch(function(){status.textContent="La ventana recibida no es válida o no se pudo verificar. No se abrirá una lista vacía.";});}
           if(payload.status==="blocked"){status.textContent=onIdleMessage(payload.reason);return;}if(result.response.status===401){status.textContent="La sesión ha caducado. Inicia sesión y vuelve a solicitar.";return;}
           status.textContent="La solicitud no pudo completarse. Vuelve a intentarlo.";})
         .catch(function(){status.textContent="No se pudo contactar con el scheduler. Vuelve a intentarlo.";})

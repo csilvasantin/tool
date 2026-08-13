@@ -78,7 +78,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px}
   <!-- VIVAS: reloj corriendo y opciones pulsables (POST /decisions/<id>/choose) -->
   <section class="decs" id="decs">
     <div class="decs-hd">⏳ Relojes de decisión <span class="decs-n" id="decsN"></span></div>
-    <div class="decs-list" id="decsList"></div>
+    <div class="decs-list" id="decsList" aria-live="polite"></div>
   </section>
 
   <!-- HISTÓRICO: una hoja, una decisión por fila. Los hooks data-* son el
@@ -114,7 +114,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px}
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-avatar.js?v=r2"></script>
 <script src="/yk-frame.js?v=r31"></script>
-<script src="/yk-decisions.js?v=20260723b"></script>
+<script src="/yk-decisions.js?v=decision-target-r1"></script>
 <script src="/yk-decisiones-grid.js?v=r1"></script>
 <script>
 YkDecisions.mount({worker:"https://api.yokup.com", mode:"full"});

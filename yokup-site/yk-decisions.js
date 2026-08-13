@@ -20,6 +20,7 @@
   var CSS = ".decs{margin:0 0 18px;border:1px solid var(--warn,#ffb545);border-radius:12px;background:rgba(255,181,69,.05);padding:13px 15px}.decs-hd{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--warn,#ffb545);font-weight:700;display:flex;gap:9px;margin-bottom:11px}.decs-n{color:var(--mut)}.decs-list,.dec-opts{display:flex;flex-direction:column;gap:8px}.dec{border:1px solid var(--line2);border-radius:10px;background:var(--card);padding:12px 13px;min-width:0}.dec.urge{border-color:#ff6b6b}.dec-project{display:grid;gap:5px;margin:-1px 0 12px;padding:0 0 11px;border-bottom:1px solid var(--line2)}.dec-project-label{font-family:var(--mono);font-size:9px;line-height:1.3;font-weight:800;letter-spacing:.15em;text-transform:uppercase;color:var(--good,#3df08a)}.dec-project-name{margin:0;color:var(--ink);font-size:clamp(16px,2.1vw,20px);line-height:1.2;font-weight:800;overflow-wrap:anywhere}.dec-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}.dec-k,.dec-clock,.dec-done{font-family:var(--mono);font-size:10px}.dec-k{color:var(--mut);border:1px solid var(--line);border-radius:6px;padding:3px 7px}.dec-clock{margin-left:auto;color:var(--warn,#ffb545);font-size:15px;font-weight:700}.dec-q{font-size:13px;line-height:1.4;color:var(--ink);margin-bottom:10px}.dec-opt{display:flex;gap:8px;text-align:left;width:100%;font:inherit;font-size:12px;color:var(--ink);cursor:pointer;background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 10px}.dec-opt:focus-visible{outline:3px solid var(--ink);outline-offset:2px}.dec-opt.rec{border-color:var(--warn,#ffb545);position:relative;overflow:hidden;--fill:0%}.dec-opt.rec:before{content:'';position:absolute;inset:0 auto 0 0;width:var(--fill);background:rgba(255,181,69,.18);transition:width 1s linear}.dec-opt span{position:relative}.dec-opt .n{font-family:var(--mono);color:var(--mut)}.dec-opt:disabled{cursor:default;opacity:.72}.dec-opt.effective{opacity:1;border-color:var(--good,#3df08a);background:rgba(61,240,138,.09);box-shadow:inset 3px 0 0 var(--good,#3df08a)}.dec-opt.effective.expired{border-color:var(--warn,#ffb545);background:rgba(255,181,69,.08);box-shadow:inset 3px 0 0 var(--warn,#ffb545)}.dec-done{padding-top:8px}.dec-done.ok{color:var(--good,#3df08a)}.dec-done.exp{color:var(--mut)}.dec-batch{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:11px;color:var(--mut)}.dec-batch b{color:var(--ink)}.dec-batch.paused{color:var(--warn,#ffb545)}@media(max-width:520px){.decs{padding:11px}.dec{padding:11px}.dec-project-name{font-size:16px}.dec-clock{width:100%;margin-left:0}.dec-opt{font-size:13px;padding:10px}}";
   CSS += ".dec-project-rest{font-family:var(--mono);font-size:10px;color:var(--mut)}";
   CSS += ".dec-ref{color:var(--accent,#ffd866);font-weight:700}";
+  CSS += ".decs-target-state{margin:0;padding:12px;border:1px solid var(--line2);border-radius:9px;color:var(--mut);font:600 11px/1.6 var(--mono)}.decs-target-state.error{border-color:var(--warn,#ff8866);color:var(--warn,#ff8866);background:rgba(255,136,102,.06)}";
   /* Histórico tabular: una sola hoja con filas alineadas. El overflow horizontal
      conserva columnas legibles y, en móvil estrecho, cada celda muestra su rótulo. */
   CSS += ".decs.hist{padding:0;overflow:hidden}.decs.hist>.decs-hd{padding:13px 15px 0}"
@@ -373,6 +374,26 @@
     return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
   }
 
+  function targetSpec(search) {
+    var params = new URLSearchParams(String(search || "").replace(/^\?/, ""));
+    var id=String(params.get("decision_id")||"").trim();if(!id)return null;
+    return {id:id,agent:String(params.get("agent")||"").trim(),projectId:String(params.get("project_id")||"").trim()};
+  }
+  function identityKey(value,machine) {
+    return String(agenteVisible(value,machine)||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  }
+  function targetDecisionError(item,target) {
+    if (!item||String(item.id||"")!==String(target&&target.id||"")) return "La decisión devuelta no coincide con la solicitada.";
+    if (String(item.status||"")!=="pending") return "La decisión solicitada ya no está pendiente.";
+    if (!target.agent||identityKey(item.agent,item.machine)!==identityKey(target.agent,"")) return "La decisión solicitada pertenece a otro agente.";
+    if (!target.projectId||String(item.project_id||"")!==target.projectId) return "La decisión solicitada pertenece a otro proyecto.";
+    var options=item.options,recommended=Number(item.recommended);
+    if (!Array.isArray(options)||options.length!==5||options.some(function(option){return !String(option==null?"":option).trim();})) return "La decisión solicitada no contiene exactamente cinco opciones válidas.";
+    if (!/volver\s+atr[aá]s/i.test(String(options[3]))||!/custom|escribe\s+la\s+mejora/i.test(String(options[4]))) return "La decisión solicitada no respeta el orden canónico de opciones.";
+    if (!Number.isInteger(recommended)||recommended<0||recommended>2) return "La decisión solicitada no tiene una recomendación canónica.";
+    return "";
+  }
+
   function mount(config) {
     config = config || {};
     var full = config.mode === "full", summary = config.mode === "summary";
@@ -385,13 +406,14 @@
     // sig/histSig arrancan en null (no ""): con cero elementos la firma también es
 // "" y el primer render se saltaba, dejando la sección vacía sin su mensaje.
     var api = config.worker.replace(/\/$/, "") + "/decisions", decisions = [], sig = null, histSig = null, truncated = false, projectScope = null;
+    var target = full ? targetSpec(window.location&&window.location.search) : null, targetError = "";
     // FILTRO de los chips (Carlos): null = todas; si no, un estado. Pulsar el chip
     // activo otra vez vuelve a todas. VIVAS actúa sobre la sección de relojes;
     // DECIDIDAS/VENCIDAS/CANCELADAS acotan el histórico a ese estado.
     var filter = null;
     var dayInput = full ? document.getElementById("decisionDay") : null;
     var selectedDay = ymd(new Date());
-    if (dayInput) { dayInput.value = selectedDay; dayInput.addEventListener("change", function () {
+    if (dayInput) { dayInput.value = selectedDay; dayInput.disabled=!!target; dayInput.addEventListener("change", function () {
       selectedDay = dayInput.value || ymd(new Date()); sig = null; histSig = null; renderFull();
     }); }
     var STATUS_LABEL = {pending:"vivas", decided:"decididas", expired:"vencidas", cancelled:"canceladas"};
@@ -407,8 +429,23 @@
       Object.keys(n).forEach(function (k) { var el = document.querySelector("[data-dec-count='" + k + "']"); if (el) el.textContent = n[k]; });
     }
 
+    function renderTargetState(message,error) {
+      section.hidden=false;if(histSec)histSec.hidden=true;
+      var count=document.getElementById("decsN");if(count)count.textContent="· decisión solicitada";
+      list.innerHTML='<p class="decs-target-state'+(error?' error':'')+'" role="'+(error?'alert':'status')+'" aria-live="'+(error?'assertive':'polite')+'">'+esc(message)+'</p>';
+    }
+    function renderTarget() {
+      counters(decisions,[]);if(targetError){renderTargetState(targetError,true);return;}
+      var item=decisions[0],invalid=targetDecisionError(item,target);
+      if(invalid){renderTargetState(invalid,true);return;}
+      section.hidden=false;if(histSec)histSec.hidden=true;
+      var count=document.getElementById("decsN");if(count)count.textContent="· 1 esperando tu decisión";
+      list.innerHTML=renderGroups([item],null);
+    }
+
     // Vista COMPLETA: vivas arriba, cerradas abajo. Todo del worker.
     function renderFull() {
+      if(target){renderTarget();return;}
       var dayItems = decisions.filter(function (d) { return !projectScope || String(d.project_id || "") === projectScope; })
         .filter(function (d) { return ymd(d.created_at) === selectedDay; });
       var live = dayItems.filter(function (d) { return d.status === "pending"; });
@@ -516,16 +553,25 @@
       truncated = true;
       return out;
     }
+    async function fetchTarget() {
+      var q=api+"?all=1&since=0&limit=500&agent="+encodeURIComponent(target.agent)+"&_t="+Date.now();
+      var response=await fetch(q,{cache:"no-store"});if(!response.ok)throw new Error("target_"+response.status);
+      var payload=await response.json();if(!(payload&&payload.ok===true&&Array.isArray(payload.items)))throw new Error("target_contract");
+      var item=payload.items.find(function(row){return String(row&&row.id||"")===target.id;});
+      if(!item){targetError="No se encontró la decisión solicitada para este agente y proyecto.";return [];}
+      targetError=targetDecisionError(item,target);return targetError?[]:[item];
+    }
     async function load() {
       try {
-        if (full) { decisions = await fetchAll(); }
+        if (target) { targetError="";decisions = await fetchTarget(); }
+        else if (full) { decisions = await fetchAll(); }
         else {
           var query = summary ? "?status=pending&limit=500&_t=" : "?_t=";
           var r = await fetch(api + query + Date.now(), {cache:"no-store"}), d = await r.json();
           decisions = d.items || [];
         }
         render();
-      } catch (e) {}
+      } catch (e) { if(target){targetError="No se pudo cargar la decisión solicitada. Vuelve a intentarlo.";decisions=[];renderTarget();} }
     }
     setInterval(function () { var refresh = false; decisions.forEach(function (d) { if (d.status !== "pending") return; d.secondsLeft = Math.max(0, d.secondsLeft - 1); var clock = document.querySelector("[data-clock='" + d.id + "']"); if (clock) { clock.textContent = mmss(d.secondsLeft); var fill = document.querySelector("[data-fill='" + d.id + "']"); if (fill) fill.style.setProperty("--fill", pct(d) + "%"); } if (!d.secondsLeft) refresh = true; }); if (refresh) load(); }, 1000);
     if (!summary) document.addEventListener("click", async function (e) {
@@ -542,12 +588,14 @@
         await fetch(api + "/" + encodeURIComponent(b.dataset.dec) + "/choose", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({choice:choice,by:"Carlos",custom_text:customText})});
       } finally { load(); }
     });
-    if (full) wireChips();
+    if (full&&!target) wireChips();
     if (full && window.addEventListener) window.addEventListener("yk:project-change", function (event) {
+      if(target)return;
       projectScope = event.detail && event.detail.project_id || null;
       sig = null; histSig = null; renderFull();
     });
+    if(target)renderTargetState("Cargando la decisión solicitada…",false);
     load(); setInterval(load, 15000);
   }
-  window.YkDecisions = {mount:mount,_test:{card:card,projectName:projectName,stamp:stamp,groupDecisions:groupDecisions,renderGroups:renderGroups,stateText:stateText,decisionGridRow:decisionGridRow,renderDecisionGridRows:renderDecisionGridRows,durationText:durationText,decisionGridDetail:decisionGridDetail}};
+  window.YkDecisions = {mount:mount,_test:{card:card,projectName:projectName,stamp:stamp,groupDecisions:groupDecisions,renderGroups:renderGroups,stateText:stateText,decisionGridRow:decisionGridRow,renderDecisionGridRows:renderDecisionGridRows,durationText:durationText,decisionGridDetail:decisionGridDetail,targetSpec:targetSpec,targetDecisionError:targetDecisionError}};
 })();

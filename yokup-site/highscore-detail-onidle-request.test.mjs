@@ -33,9 +33,29 @@ test("la UI sólo solicita al scheduler autenticado y jamás crea decisiones",()
   assert.doesNotMatch(page,/options:|machine:/);
 });
 
-test("created/existing navegan y blocked/error permanecen visibles",()=>{
+test("created/existing sólo navegan tras validar la decisión exacta",()=>{
   assert.match(page,/payload\.status==="created"\|\|payload\.status==="existing"/);
-  assert.match(page,/window\.location\.assign\(payload\.url\)/);
+  assert.match(page,/D\.onIdleDecisionError\(decision,stateValue,ID,payload\.decision_id\)/);
+  assert.match(page,/window\.location\.assign\(D\.decisionUrl\(payload,stateValue\)\)/);
+  assert.match(page,/La ventana recibida no es válida/);
   assert.match(page,/payload\.status==="blocked"/);assert.match(page,/La sesión ha caducado/);
   assert.match(page,/No se pudo contactar con el scheduler/);
+});
+
+test("la ruta focal conserva decision_id, agent y project_id",()=>{
+  const state={agent:"TrinityMBP14",projectId:"gran-de-gracia"};
+  assert.equal(D.decisionUrl({status:"created",decision_id:"DCL-form-5"},state),
+    "/decisiones?decision_id=DCL-form-5&agent=TrinityMBP14&project_id=gran-de-gracia");
+  assert.equal(D.decisionUrl({status:"existing",decision_id:""},state),"");
+});
+
+test("la prevalidación rechaza ventanas ajenas, cerradas o sin cinco opciones canónicas",()=>{
+  const state={agent:"TrinityMBP14",projectId:"gran-de-gracia"};
+  const valid={ok:true,id:"DCL-5",agent:"TrinityMBP14",status:"pending",project_id:"gran-de-gracia",recommended:0,
+    options:["Mejora A","Mejora B","Mejora C","↩ Volver atrás","✍️ Custom · Escribe la mejora"]};
+  assert.equal(D.onIdleDecisionError(valid,state,ID,"DCL-5"),"");
+  assert.match(D.onIdleDecisionError({...valid,options:valid.options.slice(0,3)},state,ID,"DCL-5"),/cinco opciones/);
+  assert.match(D.onIdleDecisionError({...valid,project_id:"admira-academy"},state,ID,"DCL-5"),/otro proyecto/);
+  assert.match(D.onIdleDecisionError({...valid,status:"expired"},state,ID,"DCL-5"),/ya no está pendiente/);
+  assert.match(D.onIdleDecisionError({...valid,options:["A","B","C","Custom","Volver atrás"]},state,ID,"DCL-5"),/orden canónico/);
 });

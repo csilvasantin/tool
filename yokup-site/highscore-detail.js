@@ -123,6 +123,28 @@
     return (hours?hours+" h ":"")+minutes+" min "+String(rest).padStart(2,"0")+" s";
   }
 
+  /* La respuesta del scheduler no es permiso para abrir una lista genérica. La
+     UI conserva el alcance exacto y pre-valida la decisión antes de navegar. */
+  function decisionUrl(payload, state) {
+    var status=text(payload && payload.status), decisionId=text(payload && payload.decision_id);
+    if ((status!=="created"&&status!=="existing")||!decisionId) return "";
+    var params=new URLSearchParams();
+    params.set("decision_id",decisionId);params.set("agent",text(state&&state.agent));
+    params.set("project_id",text(state&&state.projectId));
+    return "/decisiones?"+params.toString();
+  }
+  function onIdleDecisionError(decision, state, identity, expectedId) {
+    if (!(decision&&decision.ok===true)||text(decision.id)!==text(expectedId)) return "La decisión recibida no coincide con la solicitada.";
+    if (text(decision.status)!=="pending") return "La decisión recibida ya no está pendiente.";
+    if (text(decision.project_id)!==text(state&&state.projectId)) return "La decisión recibida pertenece a otro proyecto.";
+    if (!text(decision.agent)||!sameFamily(decision.agent,decision.machine,state&&state.agent,identity)) return "La decisión recibida pertenece a otro agente.";
+    var options=decision.options, recommended=Number(decision.recommended);
+    if (!Array.isArray(options)||options.length!==5||options.some(function(option){return !text(option);})) return "La decisión recibida no contiene exactamente cinco opciones válidas.";
+    if (!/volver\s+atr[aá]s/i.test(text(options[3]))||!/custom|escribe\s+la\s+mejora/i.test(text(options[4]))) return "La decisión recibida no respeta el orden canónico de opciones.";
+    if (!Number.isInteger(recommended)||recommended<0||recommended>2) return "La decisión recibida no tiene una recomendación canónica.";
+    return "";
+  }
+
   function timelineForType(timeline, type) {
     var selected=validType(type) ? type : "all";
     return selected === "all" ? Array.from(timeline || []) : (timeline || []).filter(function(event){
@@ -319,6 +341,6 @@
     periods:PERIODS.slice(), types:TYPES.slice(), orders:ORDERS.slice(), validPeriod:validPeriod, validType:validType, validOrder:validOrder, canonicalType:canonicalType,
     queryState:queryState, detailUrl:detailUrl, timelineForType:timelineForType, metricForType:metricForType,
     evolutionGroups:evolutionGroups, timelineGroups:timelineGroups, periodHistory:periodHistory,
-    nextWindow:nextWindow, windowCountdown:windowCountdown,
+    nextWindow:nextWindow, windowCountdown:windowCountdown, decisionUrl:decisionUrl, onIdleDecisionError:onIdleDecisionError,
     facts:facts, timeline:timeline, timeZone:TIME_ZONE };
 })(typeof window !== "undefined" ? window : globalThis);
