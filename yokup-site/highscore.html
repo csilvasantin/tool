@@ -3309,9 +3309,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       ? YkHighscoreRace.clockDurationLabel(reloj.missionDurationMs) : "—";
     var sesion = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.clockDurationLabel
       ? YkHighscoreRace.clockDurationLabel(reloj.sessionDurationMs) : "—";
-    var sessionLabel = trabajo.sessionBasis === "work_interval_fallback"
-      ? "Tiempo de trabajo; sin sesión medida"
-      : trabajo.sessionDedicatedMs === null ? "Sesión no disponible" : "Tiempo de sesión exacta";
+    var sessionLabel = trabajo.sessionDedicatedMs === null
+      ? "Horas operando no disponibles" : "Horas operando del agente";
     var stateLabel = trabajo.state === "running" ? "EN CURSO" : trabajo.state === "last_work" ? "FINALIZADO" : "SIN AVANCE";
     return { reference:trabajo.reference || "", title:trabajo.title, state:stateLabel, project:"",
       executor:trabajo.executor, responsible:trabajo.agente, kind:trabajo.kind, reachable:trabajo.reachable,
@@ -3330,10 +3329,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         ended_at:Number(bloque.getAttribute("data-work-end")) || 0,
         session_dedicated_ms:bloque.getAttribute("data-session-duration") === "" ? null : Number(bloque.getAttribute("data-session-duration")),
         session_state:bloque.getAttribute("data-session-state") || "unknown" };
-      var sessionBasis = bloque.getAttribute("data-dedicated-basis") || "";
-      var sessionDescription = sessionBasis === "work_interval_fallback"
-        ? "Tiempo de trabajo; sin sesión medida"
-        : bloque.getAttribute("data-session-duration") === "" ? "Sesión no disponible" : "Tiempo de sesión exacta";
+      var sessionDescription = bloque.getAttribute("data-session-duration") === ""
+        ? "Horas operando no disponibles" : "Horas operando del agente";
       var reloj = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.workClock
         ? YkHighscoreRace.workClock(work, datos.trabajosGeneratedAt, elapsed) : { at:0, durationMs:null };
       var duracion = bloque.querySelector(".refresh-elapsed");

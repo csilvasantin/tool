@@ -6457,10 +6457,11 @@ function highscoreLinkedSession(rows) {
 }
 __name(highscoreLinkedSession, "highscoreLinkedSession");
 
-// Dos relojes, una sola fuente de verdad. Una encarnación exacta mide sesión;
-// si no existe un vínculo único pero sí un intervalo de trabajo válido, se
-// publica ese mismo intervalo con una base explícita. Nunca se presenta el
-// fallback como telemetría de proceso ni se elige una sesión ambigua.
+// Dos relojes, dos hechos distintos. El intervalo de trabajo mide la misión;
+// sólo una encarnación exacta vinculada por work_ref mide cuánto lleva operando
+// la sesión del agente. Cero, varias o una sesión unknown fallan cerrado: copiar
+// elapsed_ms en el extremo derecho produjo dos relojes idénticos y afirmaba una
+// telemetría de proceso que el servidor realmente no tenía.
 function highscoreDedicatedTiming(linked, timing, ahora) {
   if (!timing || !Number.isFinite(Number(timing.elapsed_ms))) return null;
   const workEnd = Number(timing.ended_at) || Number(ahora) || 0;
@@ -6480,9 +6481,7 @@ function highscoreDedicatedTiming(linked, timing, ahora) {
       session_state:Number(timing.ended_at) > 0 ? "closed" : linked.state,
       dedicated_basis:basis, session_surface:linked.surface || "" };
   }
-  return { session_dedicated_ms:Number(timing.elapsed_ms),
-    session_state:Number(timing.ended_at) > 0 ? "closed" : "open",
-    dedicated_basis:"work_interval_fallback", session_surface:"" };
+  return null;
 }
 __name(highscoreDedicatedTiming, "highscoreDedicatedTiming");
 

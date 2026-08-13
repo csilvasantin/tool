@@ -30,9 +30,19 @@ test("DOM expone sólo duración y estado de sesión, nunca PID ni session id",(
   assert.match(html,/data-session-duration=/);
   assert.match(html,/data-session-state=/);
   assert.match(html,/data-dedicated-basis=/);
-  assert.match(html,/Tiempo de trabajo; sin sesión medida/);
+  assert.match(html,/Horas operando del agente/);
+  assert.match(html,/Horas operando no disponibles/);
+  assert.doesNotMatch(html,/Tiempo de trabajo; sin sesión medida|work_interval_fallback/);
   assert.match(html,/refresh-work-state[\s\S]*refresh-elapsed[\s\S]*refresh-session-elapsed/);
   assert.doesNotMatch(html,/class="refresh-now"/);
   assert.doesNotMatch(html,/data-(?:pid|session-id|incarnation)/);
   assert.doesNotMatch(html,/data-work-ref/);
+});
+
+test("caso screenshot: ambos relojes nunca se igualan mediante fallback de presentación",()=>{
+  const row={state:"running",work_started_at:1_000,session_state:"unknown",session_dedicated_ms:null};
+  const clock=race.workClock(row,19_000,0);
+  assert.equal(race.clockDurationLabel(clock.missionDurationMs),"00:00:18");
+  assert.equal(race.clockDurationLabel(clock.sessionDurationMs),"—");
+  assert.notEqual(clock.missionDurationMs,clock.sessionDurationMs);
 });

@@ -183,8 +183,9 @@ test("elapsed activo usa generated_at-start y report updated_at no compra progre
   assert.equal(row.state,"assigned_stale");
   assert.equal(row.work_started_at,NOW-45*MIN); assert.equal(row.work_progress_at,NOW-45*MIN);
   assert.equal(row.elapsed_ms,45*MIN); assert.equal(row.timing_basis,"start_to_generated_at");
-  assert.equal(row.session_dedicated_ms,45*MIN);
-  assert.equal(row.dedicated_basis,"work_interval_fallback");
+  assert.equal(Object.hasOwn(row,"session_dedicated_ms"),false,
+    "sin sesión vinculada el extremo derecho no puede copiar los 45 min del trabajo");
+  assert.equal(Object.hasOwn(row,"dedicated_basis"),false);
 });
 
 test("assignment_at es factual y separado de inicio, progreso, presencia y fin",async()=>{
@@ -348,19 +349,41 @@ test("sesión dedicada requiere vínculo exacto y una sola encarnación",async()
   assert.doesNotMatch(row.race_revision,/M1|oraculo|mission/i);
 });
 
-test("sesión ambigua o silenciosa usa el intervalo factual sin fingir medición",async()=>{
+test("sesión ambigua o silenciosa queda desconocida y nunca copia el reloj de trabajo",async()=>{
   const exact={persona:"Oraculo",machine:"MacMini",work_ref:"M1",surface:"app",
     started_at:(NOW-20*MIN)/1000,ended_at:null,state:"open",basis:"process_birth"};
   const ambiguous=harness(undefined,[exact,{...exact,surface:"cli",started_at:(NOW-10*MIN)/1000}]);
   mission(ambiguous.db,{id:"M1",at:NOW-MIN});
   let row=JSON.parse(JSON.stringify(await ambiguous.F.highscoreActiveWork(ambiguous.env,NOW))).participants[0];
-  assert.equal(row.session_dedicated_ms,MIN);
-  assert.equal(row.dedicated_basis,"work_interval_fallback");
+  assert.equal(row.elapsed_ms,MIN);
+  assert.equal(Object.hasOwn(row,"session_dedicated_ms"),false);
+  assert.equal(Object.hasOwn(row,"dedicated_basis"),false);
   const unknown=harness(undefined,[{...exact,state:"unknown"}]);
   mission(unknown.db,{id:"M1",at:NOW-MIN});
   row=JSON.parse(JSON.stringify(await unknown.F.highscoreActiveWork(unknown.env,NOW))).participants[0];
-  assert.equal(row.session_state,"open"); assert.equal(row.session_dedicated_ms,MIN);
-  assert.equal(row.dedicated_basis,"work_interval_fallback");
+  assert.equal(row.elapsed_ms,MIN);
+  assert.equal(Object.hasOwn(row,"session_state"),false);
+  assert.equal(Object.hasOwn(row,"session_dedicated_ms"),false);
+});
+
+test("reproduce screenshot: sin sesión el reloj derecho no repite el mismo valor del izquierdo",async()=>{
+  const {db,env,F}=harness();
+  mission(db,{id:"M1",at:NOW-18*MIN,startedAt:NOW-18*MIN});
+  const row=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW))).participants[0];
+  assert.equal(row.elapsed_ms,18*MIN);
+  assert.equal(Object.hasOwn(row,"session_dedicated_ms"),false);
+});
+
+test("trabajo y sesión exacta publican valores distintos sin inflar ni capar la sesión abierta",async()=>{
+  const sessions=[{persona:"Oraculo",machine:"MacMini",work_ref:"M1",surface:"cli",
+    started_at:(NOW-42*MIN)/1000,ended_at:null,state:"open",basis:"process_birth"}];
+  const {db,env,F}=harness(undefined,sessions);
+  mission(db,{id:"M1",at:NOW-12*MIN,startedAt:NOW-12*MIN});
+  const row=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW))).participants[0];
+  assert.equal(row.elapsed_ms,12*MIN);
+  assert.equal(row.session_dedicated_ms,42*MIN);
+  assert.equal(row.session_state,"open");
+  assert.equal(row.dedicated_basis,"process_birth");
 });
 
 test("una sesión abierta se congela exactamente al fin factual del trabajo",()=>{
