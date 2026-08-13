@@ -14,9 +14,9 @@ const D=context.YkHighscoreDetail,ID=context.ykAgentIdentity;
 test("los cinco periodos son canónicos y URL conserva agente, proyecto y periodo",()=>{
   assert.deepEqual(Array.from(D.periods),["today","yesterday","week","month","year"]);
   assert.deepEqual(JSON.parse(JSON.stringify(D.queryState("?agent=TrinityMBP14&project_id=yokup.com&period=week"))),
-    {agent:"TrinityMBP14",projectId:"yokup.com",period:"week"});
+    {agent:"TrinityMBP14",projectId:"yokup.com",period:"week",type:"all"});
   assert.equal(D.detailUrl({agent:"TrinityMBP14",projectId:"yokup.com",period:"year"}),
-    "/highscoreDetail?agent=TrinityMBP14&project_id=yokup.com&period=year");
+    "/highscoreDetail?agent=TrinityMBP14&project_id=yokup.com&period=year&type=all");
   assert.equal(D.queryState("?agent=TrinityMBP14&project_id=yokup.com&period=unknown").period,"today");
 });
 

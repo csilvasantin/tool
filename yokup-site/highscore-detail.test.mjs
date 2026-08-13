@@ -13,7 +13,7 @@ vm.runInContext(detailSource, context);
 const D = context.YkHighscoreDetail, ID = context.ykAgentIdentity;
 
 test("los tres puestos del podio navegan por click, Enter nativo y Space a la ruta exacta", () => {
-  assert.match(highscore, /var detalleUrl = a\.proyectoId \? "\/highscoreDetail\?agent=" \+ encodeURIComponent\(a\.agente\)[\s\S]*"&project_id=" \+ encodeURIComponent\(a\.proyectoId\) \+ "&period=today" : ""/);
+  assert.match(highscore, /var detalleUrl = a\.proyectoId \? "\/highscoreDetail\?agent=" \+ encodeURIComponent\(a\.agente\)[\s\S]*"&project_id=" \+ encodeURIComponent\(a\.proyectoId\) \+ "&period=today&type=all" : ""/);
   assert.match(highscore, /return '<a class="plaza ' \+ clases\[i\][\s\S]*detalleUrl \? ' href="' \+ esc\(detalleUrl\)/);
   assert.match(highscore, /aria-label="Ver histórico de /);
   assert.match(highscore, /evento\.key !== " " && evento\.key !== "Spacebar"/);

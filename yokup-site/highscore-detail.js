@@ -5,6 +5,7 @@
   var DAY = new Intl.DateTimeFormat("en-CA", { timeZone:TIME_ZONE, year:"numeric", month:"2-digit", day:"2-digit" });
   var HOUR = new Intl.DateTimeFormat("es-ES", { timeZone:TIME_ZONE, hour:"2-digit", hour12:false });
   var PERIODS = ["today", "yesterday", "week", "month", "year"];
+  var TYPES = ["all", "objective", "window", "mission", "task"];
 
   function text(value) { return String(value == null ? "" : value).trim(); }
   function ms(value) { var n = Number(value) || 0; return n > 0 && n < 1e11 ? n * 1000 : n; }
@@ -36,17 +37,26 @@
   function mainTask(code) { return /^([a-c])(?:[1-3])?$/i.test(text(code)); }
 
   function validPeriod(value) { return PERIODS.indexOf(text(value).toLowerCase()) >= 0; }
+  function validType(value) { return TYPES.indexOf(text(value).toLowerCase()) >= 0; }
+  function canonicalType(value) {
+    var aliases={objective:"objective",objectives:"objective",idea:"objective",objetivo:"objective",
+      window:"window",windows:"window",decision:"window",ventana:"window",
+      mission:"mission",missions:"mission",mision:"mission",
+      task:"task",tasks:"task",tarea:"task"};
+    return aliases[key(value)] || "";
+  }
   function queryState(search) {
     var params = new URLSearchParams(String(search || "").replace(/^\?/, ""));
-    var period = text(params.get("period")).toLowerCase();
+    var period = text(params.get("period")).toLowerCase(), type=text(params.get("type")).toLowerCase();
     return { agent:text(params.get("agent")), projectId:text(params.get("project_id")),
-      period:validPeriod(period) ? period : "today" };
+      period:validPeriod(period) ? period : "today", type:validType(type) ? type : "all" };
   }
   function detailUrl(state) {
     var params = new URLSearchParams();
     params.set("agent", text(state && state.agent));
     params.set("project_id", text(state && state.projectId));
     params.set("period", validPeriod(state && state.period) ? state.period : "today");
+    params.set("type", validType(state && state.type) ? state.type : "all");
     return "/highscoreDetail?" + params.toString();
   }
 
@@ -66,6 +76,17 @@
     if (!seconds) return "ahora";
     var hours=Math.floor(seconds/3600), minutes=Math.floor((seconds%3600)/60), rest=seconds%60;
     return (hours?hours+" h ":"")+minutes+" min "+String(rest).padStart(2,"0")+" s";
+  }
+
+  function timelineForType(timeline, type) {
+    var selected=validType(type) ? type : "all";
+    return selected === "all" ? Array.from(timeline || []) : (timeline || []).filter(function(event){
+      return canonicalType(event && event.type) === selected;
+    });
+  }
+  function metricForType(row, type) {
+    var field={all:"points",objective:"objectives",window:"windows",mission:"missions",task:"tasks"}[validType(type)?type:"all"];
+    return Math.max(0,Number(row && row[field])||0);
   }
 
   function snapshot(agent) {
@@ -246,7 +267,8 @@
 
   root.YkHighscoreDetail = { key:key, ms:ms, today:today, validAgent:validAgent, sameFamily:sameFamily, taskIdentity:taskIdentity,
     snapshot:snapshot, scoreFor:scoreFor, ranking:ranking, taskCountToday:taskCountToday, history:history,
-    periods:PERIODS.slice(), validPeriod:validPeriod, queryState:queryState, detailUrl:detailUrl, periodHistory:periodHistory,
+    periods:PERIODS.slice(), types:TYPES.slice(), validPeriod:validPeriod, validType:validType, canonicalType:canonicalType,
+    queryState:queryState, detailUrl:detailUrl, timelineForType:timelineForType, metricForType:metricForType, periodHistory:periodHistory,
     nextWindow:nextWindow, windowCountdown:windowCountdown,
     facts:facts, timeline:timeline, timeZone:TIME_ZONE };
 })(typeof window !== "undefined" ? window : globalThis);
