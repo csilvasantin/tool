@@ -6034,6 +6034,7 @@ __name(highscoreHistory, "highscoreHistory");
 
 var HIGHSCORE_ACTIVE_WORK_MS = 20 * 60 * 1000;
 var HIGHSCORE_LANE_WORK_MS = 60 * 60 * 1000;
+var HIGHSCORE_RECENT_WORK_MS = 24 * 60 * 60 * 1000;
 var HIGHSCORE_PROCESS_FRESH_MS = 30 * 1000;
 var HIGHSCORE_CLOCK_SKEW_MS = 5 * 1000;
 
@@ -6215,10 +6216,17 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     const state = forcedState || (recent ? "running" : "assigned_stale");
     const presenceAt = presence.by_family.get(family.family_key) || 0;
     const laneRecent = at > 0 && at >= ahora - HIGHSCORE_LANE_WORK_MS && at <= ahora + HIGHSCORE_CLOCK_SKEW_MS;
+    const linkedSessions = presence.sessions && presence.sessions.get(`${family.family_key}|${workRef}`) || [];
+    // Una sesión sólo acredita ESTE trabajo si conserva la referencia exacta.
+    // La presencia genérica de la familia sirve para reachability, pero no puede
+    // resucitar una asignación vieja: eso hizo correr a NeoMBP14 con una DCL del
+    // día anterior mientras sus misiones puntuadas de hoy quedaban ocultas.
+    const linked = highscoreLinkedSession(linkedSessions);
+    const linkedOpen = !!(linked && linked.state === "open");
     // Una asignación abierta no ocupa indefinidamente la carrera. Para entrar
     // necesita un hecho material de la última hora o el proceso exacto verificado;
     // este último acredita la calle, pero nunca el movimiento (20 min).
-    if (!forcedState && !laneRecent && !presenceAt) return;
+    if (!forcedState && !laneRecent && !linkedOpen) return;
     const raceProgressAt = highscoreActiveWorkMillis(item.race_progress_at ||
       (kind === "objective" ? item.created_at : 0));
     const raceRevision = "r1:" + hash([family.family_key, kind, workRef,
@@ -6233,10 +6241,8 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
       title:visibleTitle(title, kind === "task" ? "Tarea activa" : kind === "mission" ? "Misión activa" : "Objetivo en curso"),
       state, active_at:at, work_progress_at:at, reachable:!!presenceAt,
       race_revision:raceRevision };
-    const linkedSessions = presence.sessions && presence.sessions.get(`${family.family_key}|${workRef}`) || [];
     // Exactamente una encarnación vinculada: cero o varias son ambiguas y por
     // contrato no se suman ni se elige una de forma heurística.
-    const linked = highscoreLinkedSession(linkedSessions);
     if (timing) Object.assign(candidate, timing);
     const dedicated = highscoreDedicatedTiming(linked, timing, ahora);
     if (dedicated) Object.assign(candidate, dedicated);
@@ -6282,26 +6288,22 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
   // haya empezado después. Sin ningún running se conserva el contrato anterior:
   // sólo top-3 finalizados, sin rescatar asignaciones stale.
   if (!runningCount || participants.length < 3) {
-    const [recentMissions, recentTasks] = await Promise.all([
-      env.DB.prepare(`SELECT id,subject,assignee,loc,'mission' kind,resolved_at ended_at,started_at,created_at,` +
+    const recentMissions = await env.DB.prepare(
+      `SELECT id,subject,assignee,loc,'mission' kind,resolved_at ended_at,started_at,created_at,` +
         `${HIGHSCORE_ASSIGNMENT_EVENT_SQL} assignment_event_at,` +
         `CASE WHEN source IN ('decision-batch','cli-declare') AND COALESCE(TRIM(assignee),'')<>'' AND COALESCE(TRIM(loc),'')<>'' THEN created_at END assignment_born_at,` +
         `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,${HIGHSCORE_MISSION_PROGRESS_SQL} work_progress_at ` +
         `FROM tickets t WHERE ${MISSION_SCOPE_SQL_T} AND status='resolved' AND resolved_at IS NOT NULL ` +
-        `ORDER BY resolved_at DESC LIMIT 12`).all().then((r) => r.results || []),
-      env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.owner,m.executor,m.started_at,m.created_at,` +
-        `m.started_at work_started_at,m.started_at work_progress_at,NULL ended_at,NULL assignment_event_at,` +
-        `CASE WHEN COALESCE(TRIM(m.executor),'')<>'' THEN m.created_at END assignment_born_at,t.assignee,t.loc,'task' kind ` +
-        `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
-        `AND m.status IN ('done','resolved','completed') ORDER BY m.updated_at DESC LIMIT 12`).all().then((r) => r.results || [])
-    ]);
+        `AND resolved_at>=? AND resolved_at<=? ORDER BY resolved_at DESC`
+    ).bind(ahora - HIGHSCORE_RECENT_WORK_MS, ahora + HIGHSCORE_CLOCK_SKEW_MS).all().then((r) => r.results || []);
     if (!runningCount) byFamily.clear();
-    for (const row of [...recentMissions, ...recentTasks].sort((a,b) =>
+    // Se recorren todos los cierres factuales de las últimas 24 h y se deduplican
+    // después por familia. Un LIMIT previo por filas dejaba fuera a Neo/Trinity
+    // cuando otra persona había cerrado muchas tareas más recientes.
+    for (const row of recentMissions.sort((a,b) =>
       highscoreActiveWorkMillis(b.ended_at) - highscoreActiveWorkMillis(a.ended_at))) {
-      const raw = row.kind === "task" ? scopedMissionOwner(row.executor || row.owner, "sub", row.assignee, row.loc) : row.assignee;
-      add(raw, row.loc, row.kind, row, row.title || row.subject || "Último trabajo", row.assignee, "last_work",
-        row.kind === "task" ? `${String(row.mission_id || "")}:${String(row.code || "")}` : String(row.id || ""));
-      if (byFamily.size >= 3) break;
+      add(row.assignee, row.loc, row.kind, row, row.subject || "Último trabajo", row.assignee, "last_work",
+        String(row.id || ""));
     }
     participants = [...byFamily.values()].sort((a,b) =>
       (a.state === "running" ? 0 : a.state === "assigned_stale" ? 1 : 2) -

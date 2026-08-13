@@ -29,7 +29,7 @@ function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
   vm.runInContext([
     grabVar("HIGHSCORE_PERSONAS"),grabVar("MISSION_SCOPE_SQL_T"),grabVar("PRESENCE_URL"),
     grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_WORK_STARTED_SQL"),grabVar("HIGHSCORE_MISSION_PROGRESS_SQL"),grabVar("HIGHSCORE_RACE_PROGRESS_SQL"),grabVar("HIGHSCORE_ASSIGNMENT_EVENT_SQL"),
-    grabVar("HIGHSCORE_ACTIVE_WORK_MS"),grabVar("HIGHSCORE_LANE_WORK_MS"),grabVar("HIGHSCORE_PROCESS_FRESH_MS"),grabVar("HIGHSCORE_CLOCK_SKEW_MS"),
+    grabVar("HIGHSCORE_ACTIVE_WORK_MS"),grabVar("HIGHSCORE_LANE_WORK_MS"),grabVar("HIGHSCORE_RECENT_WORK_MS"),grabVar("HIGHSCORE_PROCESS_FRESH_MS"),grabVar("HIGHSCORE_CLOCK_SKEW_MS"),
     grab("hash"),grab("highscoreAgent"),grab("scopedMissionOwner"),grab("highscoreActiveWorkMillis"),grab("highscoreActiveWorkFamily"),
     grab("highscoreElapsedTiming"),grab("highscoreAssignmentTiming"),grab("highscoreVerifiedPresence"),grab("highscoreLinkedSession"),grab("highscoreDedicatedTiming"),grab("highscoreActiveWork"),
   ].join("\n"),context);
@@ -103,14 +103,25 @@ test("un finalizado nunca sustituye el trabajo activo de su propia familia",asyn
   assert.equal(result.participants[0].state,"running");
 });
 
-test("presence rescata la calle stale, pero no la convierte en running",async()=>{
+test("presence familiar no resucita una asignación vieja sin sesión exacta",async()=>{
   const {db,env,F}=harness({presence:[processRow("Neo","MacBook Pro 14")],now:NOW/1000});
   mission(db,{id:"M1",agent:"OraculoMacMini",at:NOW-2*MIN});
   mission(db,{id:"M2",agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-8*60*MIN});
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
-  const neo=result.participants.find(row=>row.agent==="NeoMBP14");
-  assert.equal(neo.state,"assigned_stale"); assert.equal(neo.reachable,true); assert.equal(neo.presence_at,NOW);
+  assert.equal(result.participants.some(row=>row.agent==="NeoMBP14"),false);
   assert.equal(result.participants.find(row=>row.agent==="OraculoMacMini").state,"running");
+});
+
+test("sesión abierta con work_ref exacto conserva la calle stale sin fingir avance",async()=>{
+  const sessions=[{persona:"SubNeo",machine:"MacBookProNegro14",work_ref:"M2",surface:"cli",
+    started_at:(NOW-8*60*MIN)/1000,ended_at:null,state:"open",basis:"process_birth"}];
+  const {db,env,F}=harness({presence:[processRow("SubNeo","MacBookProNegro14")],now:NOW/1000},sessions);
+  mission(db,{id:"M1",agent:"OraculoMacMini",at:NOW-2*MIN});
+  mission(db,{id:"M2",agent:"NeoMBP14",machine:"MacBookProNegro14",at:NOW-8*60*MIN});
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  const neo=result.participants.find(row=>row.agent==="NeoMBP14");
+  assert.equal(neo.state,"assigned_stale"); assert.equal(neo.reachable,true);
+  assert.equal(neo.executor,"NeoMBP14"); assert.equal(neo.dedicated_basis,"process_birth");
 });
 
 test("cuatro familias factuales conservan cuatro lanes aunque sólo dos avancen",async()=>{
@@ -186,6 +197,38 @@ test("task gana por prioridad dentro del mismo state y Sub/Infra colapsan por fa
   assert.equal(result.count,2);
   const oraculo=result.participants.find((row)=>row.agent==="OraculoMacMini");
   assert.equal(oraculo.kind,"task"); assert.equal(oraculo.executor,"InfraOraculoMini");
+});
+
+test("SubNeo y subTrinity ejecutan pero las calles visibles son NeoMBP14 y TrinityMBP14",async()=>{
+  const {db,env,F}=harness({presence:[
+    processRow("SubNeo","MacBookProNegro14"),processRow("subTrinity","MacBookProNegro14")
+  ],now:NOW/1000});
+  mission(db,{id:"DCL-NEO",agent:"NeoMBP14",machine:"MacBookProNegro14",at:NOW-3*MIN,title:"Misión de Neo"});
+  mission(db,{id:"FLT-TRINITY",agent:"subTrinity",machine:"MacBookProNegro14",at:NOW-2*MIN,title:"HandON de Trinity"});
+  db.exec(`INSERT INTO mission_tasks VALUES
+    ('DCL-NEO','a','Ejecutar Neo','in_progress','NeoMBP14',${NOW-3*MIN},${NOW-3*MIN},${NOW-MIN},'SubNeo'),
+    ('FLT-TRINITY','a','Ejecutar Trinity','in_progress','subTrinity',${NOW-2*MIN},${NOW-2*MIN},${NOW-MIN},'subTrinity')`);
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.deepEqual(result.participants.map(row=>row.agent).sort(),["NeoMBP14","TrinityMBP14"]);
+  const neo=result.participants.find(row=>row.agent==="NeoMBP14");
+  const trinity=result.participants.find(row=>row.agent==="TrinityMBP14");
+  assert.equal(neo.executor,"SubNeoMBP14"); assert.equal(neo.family_key,"neo@mbp14");
+  assert.equal(trinity.executor,"SubTrinityMBP14"); assert.equal(trinity.family_key,"trinity@mbp14");
+  assert.equal(neo.reachable,true); assert.equal(trinity.reachable,true);
+});
+
+test("el dedupe por familia ocurre después de leer los cierres y no oculta a NeoMBP14",async()=>{
+  const {db,env,F}=harness();
+  mission(db,{id:"ACTIVA",agent:"OraculoMacMini",at:NOW-MIN,title:"QA activa"});
+  for(let i=0;i<16;i++) mission(db,{id:`MORFEO-${i}`,agent:"MorfeoMacMini",machine:"MacMini",
+    at:NOW-(i+2)*MIN,startedAt:NOW-(i+7)*MIN,status:"resolved",title:`Cierre Morfeo ${i}`});
+  mission(db,{id:"NEO-HOY",agent:"SubNeo",machine:"MacBookProNegro14",at:NOW-30*MIN,
+    startedAt:NOW-40*MIN,status:"resolved",title:"Misión puntuada de Neo"});
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.count,3,JSON.stringify(result));
+  const neo=result.participants.find(row=>row.agent==="NeoMBP14");
+  assert.equal(neo.reference,"NEO-HOY"); assert.equal(neo.state,"last_work");
+  assert.equal(neo.executor,"SubNeoMBP14");
 });
 
 test("sin running devuelve top3 finalizados deduplicados, no presencia ni asignaciones stale",async()=>{
