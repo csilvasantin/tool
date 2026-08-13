@@ -2004,8 +2004,14 @@ async function resolveCreationProject(env, context = {}) {
         inherited:true, inherited_from:String(inherited.day || "") };
     }
   }
+  // DEFAULT DE LA FLOTA (Carlos, 13-ago-2026): si no hay proyecto concreto,
+  // Galaxia Admira. Así yokup.com nunca deja un hueco ni adivina el censo.
+  const fallback = await exactActiveProject(env, "galaxia-admira");
+  if (fallback) {
+    return { ok:true, project_id:fallback.id, project:fallback.name || fallback.id, defaulted:true };
+  }
   return { ok:false, status:400, code:"project_required",
-    error:"No se puede crear una misión sin project_id explícito, heredado o declarado para el agente y la máquina" };
+    error:"No se puede crear una misión sin project_id explícito, heredado, declarado o el default Galaxia Admira" };
 }
 __name(resolveCreationProject, "resolveCreationProject");
 
@@ -5153,7 +5159,7 @@ async function fleetSync(env) {
       // proyecto. Ninguna misión nace sin él por haber esquivado el guard.
       if (!projectContext.ok) {
         rejected.push({ inbox_id:it.id, code:"project_required",
-          error:"No se puede crear una misión sin project_id explícito, heredado o declarado para el agente y la máquina" });
+          error:"No se puede crear una misión sin project_id explícito, heredado, declarado o el default Galaxia Admira" });
         continue;
       }
       // Una CANCELADA sin ticket no genera lápida: cancelar es reconocer que algo no

@@ -159,8 +159,8 @@ test("el nombre del agente es el gatillo, y sólo si hay proyecto de censo", () 
   assert.match(conCenso, /data-yk-launch="1"/);
   assert.match(conCenso, /data-proyecto="webmaster-admiranext"/);
   assert.match(conCenso, /data-maquina="MacBookAirCrema"/);
-  // el comodín no es un proyecto: es deuda de configuración, no hay qué proponer
-  assert.doesNotMatch(f({ agente:"X", proyecto:"suscositas.com", proyectoOrigen:"defecto", proyectoId:"" }),
+  // el default no abre ventana de mejora: Galaxia Admira es paraguas, no faena
+  assert.doesNotMatch(f({ agente:"X", proyecto:"Galaxia Admira", proyectoOrigen:"defecto", proyectoId:"galaxia-admira" }),
     /data-yk-launch/);
   // sin id canónico tampoco: la ruta lo rechazaría, mejor no pintar el botón
   assert.doesNotMatch(f({ agente:"X", proyecto:"algo.com", proyectoOrigen:"trabajo", proyectoId:"" }),

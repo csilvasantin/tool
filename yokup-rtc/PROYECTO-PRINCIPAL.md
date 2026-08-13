@@ -20,7 +20,7 @@ Highscore resuelve el proyecto mostrado con este orden:
    tarea > ventana > misión > objetivo; entre candidatos de proyecto se conserva
    el más reciente.
 3. Proyecto estable del censo (`primary_responsible`, `owner` o membresía exacta).
-4. `suscositas.com` como respaldo cuando no existe ninguna señal anterior.
+4. `Galaxia Admira` (`galaxia-admira`) como default de la flota cuando no existe ninguna señal anterior.
 
 La declaración vence al trabajo activo porque expresa una decisión humana para el
 día completo. La clave incluye el día de Madrid y la identidad exacta, de modo que

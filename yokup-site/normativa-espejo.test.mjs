@@ -41,6 +41,8 @@ const REGLAS = [
   "Cositas: delegar es obligatorio y el cierre declara el contexto gastado",
   "Cada proyecto abre dos puertas: /help para el carbono y /mcp para el silicio",
   "El aviso de recarga dice la versión, no que hay una versión",
+  "Todo agente tiene un proyecto principal, y se declara donde se mira",
+  "El alta y el cierre son la misma obligación, y alcanzan a todos",
 ];
 
 const bloque = source.slice(

@@ -10,8 +10,7 @@ import vm from "node:vm";
 //   1. el proyecto principal DECLARADO para hoy — la asignación de Carlos,
 //   2. lo que está haciendo ahora (derivado del trabajo), si no hay declaración,
 //   3. su proyecto estructural del censo (projects + agents/primary_responsible),
-//   4. suscositas.com — comodín que debería verse casi nunca; si sale, es que a
-//      ese agente no se le ha asignado proyecto.
+//   4. Galaxia Admira — default de la flota cuando no hay proyecto concreto.
 const source = await readFile(new URL("./highscore.html", import.meta.url), "utf8");
 const identitySource = await readFile(new URL("./yk-agent-identity.js", import.meta.url), "utf8");
 const identityContext = vm.createContext({});
@@ -100,12 +99,13 @@ test("la declaración diaria exacta gana al proyecto estructural del censo", () 
     "la declaración de TrinityMBP14 no se hereda en otra máquina");
 });
 
-test("la cascada declarado → trabajo → censo → suscositas está en el código", () => {
+test("la cascada declarado → trabajo → censo → Galaxia Admira está en el código", () => {
   assert.match(source, /if \(f\.proyecto\) \{\s*f\.proyectoOrigen = "trabajo";/);
   assert.match(source, /f\.proyectoOrigen = "declarado"/);
   assert.match(source, /f\.proyectoOrigen = "principal"/);
-  assert.match(source, /f\.proyecto = "suscositas\.com"; f\.proyectoUrl = "https:\/\/www\.suscositas\.com"/);
+  assert.match(source, /f\.proyecto = "Galaxia Admira"; f\.proyectoUrl = "https:\/\/www\.admiranext\.com"/);
   assert.match(source, /f\.proyectoOrigen = "defecto"/);
+  assert.match(source, /f\.proyectoId = "galaxia-admira"/);
   assert.match(source, /principal_declarations \|\| \[\]/);
 });
 
@@ -124,9 +124,9 @@ test("el chip dice de dónde sale el proyecto y marca en ámbar el que falta", (
     /class="project-chip principal"[\s\S]*Proyecto principal/);
   assert.match(html({ proyecto:"admira.academy", proyectoUrl:"https://admira.academy", proyectoOrigen:"declarado" }),
     /class="project-chip principal"[\s\S]*Proyecto principal de hoy/);
-  const falta = html({ proyecto:"suscositas.com", proyectoUrl:"https://www.suscositas.com", proyectoOrigen:"defecto" });
+  const falta = html({ proyecto:"Galaxia Admira", proyectoUrl:"https://www.admiranext.com", proyectoOrigen:"defecto" });
   assert.match(falta, /class="project-chip defecto"/);
-  assert.match(falta, /Sin proyecto asignado en el censo/);
+  assert.match(falta, /Sin proyecto concreto del día · Galaxia Admira/);
   assert.match(source, /\.project-chip\.defecto\{color:#ffb454/);
 });
 
@@ -163,5 +163,5 @@ test("sin declaración diaria sigue mandando el trabajo, y luego el censo", () =
   const bloque = source.slice(i, i + 2200);
   assert.match(bloque, /\} else if \(f\.proyecto\) \{/, "el trabajo sigue siendo el segundo criterio");
   assert.match(bloque, /proyectoDeCenso\(f\)/, "el censo sigue siendo el respaldo");
-  assert.match(bloque, /suscositas\.com/, "y el comodín sigue al final");
+  assert.match(bloque, /Galaxia Admira/, "y el default de la flota sigue al final");
 });

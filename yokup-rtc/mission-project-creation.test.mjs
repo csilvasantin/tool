@@ -464,5 +464,5 @@ test("contrato cruzado: fleet, batch, declare e incident no adivinan texto", asy
   assert.match(source,/INSERT OR IGNORE INTO tickets\(id,screen,subject,loc,project,project_id,role/);
   assert.match(source,/decision-batch[\s\S]*project,project_id/);
   assert.match(source,/INSERT INTO tickets\([^)]*project,project_id,parent_id,created_at/);
-  assert.match(source,/No se puede crear una misión sin project_id explícito, heredado o declarado/);
+  assert.match(source,/No se puede crear una misión sin project_id explícito, heredado, declarado o el default Galaxia Admira/);
 });

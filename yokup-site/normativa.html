@@ -842,7 +842,7 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
         mentalmente) y qué versión está ejecutando esta pestaña. Sin eso, el aviso sólo repite
         lo que ya se ve.</p>
       <p><b>No se reescribe en cada sitio.</b> La implementación de referencia es
-        <code>admiranext.com/assets/admira-version-watch.js</code>: se comparte, y quien la
+        <code>admira-version-watch.js</code>, servido por admiranext.com: se comparte, y quien la
         mejore la mejora para todos. Un aviso distinto por sitio es la forma más cara de tener
         cuatro comportamientos donde debería haber uno.</p>
       <p><i>(Carlos, 9 de agosto de 2026: «en lugar de versión nueva pon la versión &mdash;se
@@ -850,7 +850,68 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font:12px/1.4 var(--mo
     </div>
   </section>
 
-  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.09.08.2026.r2.14:24 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
+  <section class="rule">
+    <div class="num">26</div>
+    <div>
+      <h2>Todo agente tiene un proyecto principal, y se declara donde se mira</h2>
+      <p>Cada agente trabaja cada día en <b>UN proyecto principal</b>. No es una etiqueta
+        decorativa: es lo que contesta a «¿en qué anda este equipo ahora mismo?» sin tener que
+        preguntar. Lo fija Carlos al despertar al agente —«hoy nos dedicamos a X»— y <b>eso ES la
+        asignación</b>, no charla. Si no lo dice, el agente <b>define la tarea del día</b> y la
+        declara igual: nadie trabaja sin proyecto principal.</p>
+      <p><b>Si no hay proyecto concreto —handON, coordinación, ponerse al día— el default es
+        Galaxia Admira.</b> yokup.com no adivina el censo ni deja un hueco: anuncia
+        <b>Galaxia Admira</b> para que todo el mundo sepa en qué está ese agente. Se aplica
+        solo, con <code>foco.sh --default</code> o al comprobar que hoy no hay declaración.
+        <i>(Carlos, 13 de agosto de 2026.)</i></p>
+      <div class="formula">foco.sh "&lt;proyecto&gt;" "&lt;en qué consiste&gt;" &rarr; ficha + latido + yokup.com &nbsp;·&nbsp; sin proyecto &rarr; Galaxia Admira</div>
+      <p><b>Y se declara EN TODAS LAS SUPERFICIES, o no cuenta.</b> El proyecto del día vive en más
+        de un sitio —la ficha del equipo en el registro de flota y el latido de presencia que cada
+        máquina emite cada dos minutos— y las pantallas se quedan con <b>la señal más fresca</b>.
+        Declararlo en una sola es peor que no declararlo: el agente cree que lo dijo y el panel
+        anuncia otra cosa.</p>
+      <p>Pasó el 10 de agosto de 2026 y por eso está escrito: Carlos dijo <b>admira.live</b>, el
+        agente lo declaró bien en Yokup… y <b>yokup.com/highscore seguía anunciando admiranext.com</b>
+        durante horas, porque el fichero del latido conservaba el valor del sábado. Un agente puede
+        declarar bien y mentir igual.</p>
+      <p>Por eso la orden es <b>un solo comando</b>: <code>foco.sh</code> escribe las dos superficies
+        y late en el acto. Quien fije el foco de otra manera está obligado a comprobar las dos.
+        <i>(Carlos, 10 de agosto de 2026: «haz lo que sea para que no vuelva a pasar».)</i></p>
+    </div>
+  </section>
+
+  <section class="rule">
+    <div class="num">27</div>
+    <div>
+      <h2>El alta y el cierre son la misma obligación, y alcanzan a todos</h2>
+      <p>Las reglas <b>14</b>, <b>17</b> y <b>22</b> ya dicen cada una su parte: dar de alta el
+        trabajo al nacer, declarar los puntos con su total, y cerrar con las tres líneas de tiempo,
+        puntos y ranking. Esta regla dice lo que faltaba y era justo lo que se incumplía: <b>no son
+        tres deberes sueltos entre los que elegir, son uno indivisible</b>. Un encargo tiene dos
+        puntas y las dos son obligatorias.</p>
+      <div class="formula">Sin alta no se empieza &middot; sin las tres líneas no está cerrado &middot; lo que no tiene las dos, no cuenta</div>
+      <p><b>Por qué hace falta escribirlo aunque las tres ya existan.</b> Porque cumplir media
+        norma se siente como cumplirla. El agente que da de alta y entrega sin cifras cree que ha
+        trabajado bien, y el que informa con cifras de algo que nunca dio de alta también. Las dos
+        mitades producen el mismo daño: un trabajo que no se puede ver, ni comparar, ni acreditar.
+        Al separarlas, cada agente elegía sin querer cuál se saltaba.</p>
+      <p><b>Lo que significa «no cuenta».</b> No es una reprimenda: es el estado real del trabajo.
+        Un encargo sin alta no aparece en <b>yokup.com/misiones</b>, así que otro agente puede
+        repetirlo o pisarlo, y no puntúa. Un encargo sin sus tres líneas no acredita: nadie sabe
+        cuánto costó, cuánto sumó ni dónde dejó a su agente. Hecho y no registrado es, para la
+        flota, exactamente lo mismo que no hecho.</p>
+      <p><b>Y alcanza a TODOS los agentes de AdmiraNeXT, sin excepción.</b> Da igual la persona, el
+        modelo, la capa o la máquina: Claude, Codex, CLI; principal, sub o infra. No hay encargo
+        pequeño que exima —el tamaño no es un criterio, y quien lo usa como criterio siempre acaba
+        eximiéndose de casi todo—, ni superficie que dispense, ni prisa que lo justifique. Si da
+        tiempo a hacerlo, da tiempo a anotarlo.</p>
+      <p><i>(Carlos, 12 de agosto de 2026: «esto hay que elevarlo a normativa de AdmiraNeXT para
+        que nadie haga nada sin anotarlo en yokup e informar al final con los puntos, el ranking y
+        el tiempo dedicado, todos los agentes de AdmiraNeXT».)</i></p>
+    </div>
+  </section>
+
+  <footer class="foot">Fuente única: <a href="/yk-agent-identity.js?v=v.2026.08.02.202305">yk-agent-identity.js</a> · Espejo de <a href="https://www.admiranext.com/normativa">admiranext.com/normativa</a> · v.12.08.2026.r22.16:48 · Versiones: <a href="https://www.admiranext.com/webmaster">/webmaster</a> · La normativa crece aquí, numerada y verificable.</footer>
 </main>
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script>

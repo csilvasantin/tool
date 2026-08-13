@@ -1542,10 +1542,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
           f.proyecto = censo.label; f.proyectoUrl = censo.url; f.proyectoOrigen = "principal";
           f.proyectoId = censo.id;
         } else {
-          // Último recurso, y debería verse casi nunca: si sale, es que a ese
-          // agente no se le ha asignado proyecto en el censo.
-          f.proyecto = "suscositas.com"; f.proyectoUrl = "https://www.suscositas.com";
-          f.proyectoOrigen = "defecto";
+          // Último recurso: sin declaración, sin faena y sin censo. Ya no es un
+          // hueco ni un comodín inventado: es Galaxia Admira, el default de la
+          // flota (Carlos, 13-ago-2026). Así yokup.com siempre dice en qué está
+          // el agente, en vez de adivinar o dejar «—».
+          f.proyecto = "Galaxia Admira"; f.proyectoUrl = "https://www.admiranext.com";
+          f.proyectoOrigen = "defecto"; f.proyectoId = "galaxia-admira";
         }
       }
       return f;
@@ -1651,8 +1653,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function agentNameHtml(a) {
     var nombre = esc(a && a.agente || "");
     var proyecto = a && a.proyecto, origen = a && a.proyectoOrigen;
-    // Sin proyecto de censo no hay nada que proponer: el comodín no es un
-    // proyecto, es una deuda de configuración.
+    // Galaxia Admira (origen defecto) es el paraguas, no una faena: no se abre
+    // ventana de mejora sobre el default.
     if (!proyecto || origen === "defecto" || !(a && a.proyectoId)) {
       return '<span class="agent-name">' + nombre + '</span>';
     }
@@ -1889,7 +1891,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     trabajo:"Proyecto en curso · sale de su trabajo de las últimas horas",
     declarado:"Proyecto principal de hoy · declarado expresamente; no hay una tarea activa que lo sustituya",
     principal:"Proyecto principal estructural · asignado en el censo; hoy no se declaró otro",
-    defecto:"Sin proyecto asignado en el censo — hay que darle uno"
+    defecto:"Sin proyecto concreto del día · Galaxia Admira, el default de la flota"
   };
   function proyectoHtml(a) {
     if (!a.proyecto) return '<span class="project-empty">—</span>';
