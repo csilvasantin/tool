@@ -5945,6 +5945,145 @@ function highscoreNaturalPeriods(ahora) {
 }
 __name(highscoreNaturalPeriods, "highscoreNaturalPeriods");
 
+var HIGHSCORE_HISTORY_PERIODS = ["today", "yesterday", "week", "month", "year"];
+
+function highscoreHistoryRange(period, ahora = Date.now()) {
+  const selected = String(period || "month").trim().toLowerCase();
+  if (!HIGHSCORE_HISTORY_PERIODS.includes(selected)) return null;
+  const natural = highscoreNaturalPeriods(ahora), today = missionDayRange(natural.today);
+  if (!today) return null;
+  const yesterdayKey = madridDayKey(today.start - 1), yearKey = `${natural.today.slice(0, 4)}-01-01`;
+  const startKey = selected === "today" ? natural.today : selected === "yesterday" ? yesterdayKey
+    : selected === "week" ? natural.week_key : selected === "month" ? natural.month_key : yearKey;
+  const startRange = missionDayRange(startKey);
+  const end = selected === "yesterday" ? today.start : Math.min(today.end, Number(ahora) + 1);
+  const endDay = selected === "yesterday" ? yesterdayKey : natural.today;
+  if (!startRange || startRange.start >= end) return null;
+  return { period:selected, start:startRange.start, end, start_day:startKey, end_day:endDay };
+}
+__name(highscoreHistoryRange, "highscoreHistoryRange");
+
+function highscoreHistoryDayKeys(startDay, endDay) {
+  const first = missionDayRange(startDay), last = missionDayRange(endDay);
+  if (!first || !last || first.start > last.start) return [];
+  const days = [];
+  for (let cursor = first.start; cursor <= last.start && days.length < 370; ) {
+    days.push(madridDayKey(cursor + 12 * 60 * 60 * 1000));
+    const current = missionDayRange(days[days.length - 1]);
+    if (!current || current.end <= cursor) break;
+    cursor = current.end;
+  }
+  return days;
+}
+__name(highscoreHistoryDayKeys, "highscoreHistoryDayKeys");
+
+// Detalle histórico exacto de UNA familia dentro de UN proyecto canónico. Los
+// cinco periodos salen de medianoches Europe/Madrid (no de restar 24 h), y las
+// métricas, la serie y la cronología nacen de la misma lista de hechos. Así no
+// puede haber puntos en el total que no aparezcan en el día o en el timeline.
+async function highscoreProjectHistory(env, requestedAgent, projectId, period = "today", ahora = Date.now()) {
+  const parsed = parseAgentIdentity(requestedAgent), suffix = parsed.suffix;
+  if (parsed.role !== "main" || !suffix || !String(parsed.persona || "").trim()) {
+    return { ok:false, code:"exact_agent_required", error:"agent debe ser una identidad principal con apellido de equipo" };
+  }
+  const wanted = reportAgentFamily(requestedAgent, "");
+  if (!wanted || !wanted.family_key || wanted.family_key.startsWith("external:")) {
+    return { ok:false, code:"exact_agent_required", error:"agent no pertenece a una familia canónica" };
+  }
+  const exactProjectId = String(projectId || "").trim().slice(0, 120);
+  if (!exactProjectId) return { ok:false, code:"project_id_required", error:"project_id exacto requerido" };
+  const project = await env.DB.prepare("SELECT id,name FROM projects WHERE id=?").bind(exactProjectId).first();
+  if (!project || String(project.id) !== exactProjectId) {
+    return { ok:false, code:"invalid_project_id", error:"project_id no pertenece al censo" };
+  }
+  const range = highscoreHistoryRange(period, ahora);
+  if (!range) return { ok:false, code:"invalid_period", error:"period debe ser today, yesterday, week, month o year" };
+  const rows = async (sql, ...binds) => ((await env.DB.prepare(sql).bind(...binds).all()).results || []);
+  const [ideas, decisions, missions, tasks] = await Promise.all([
+    rows("SELECT id,title,author,author_identity,project,created_at FROM ideas " +
+      "WHERE project=? AND created_at>=? AND created_at<?", exactProjectId, range.start, range.end),
+    rows("SELECT id,question,status,agent,machine,project,created_at FROM decisions " +
+      "WHERE project=? AND created_at>=? AND created_at<?", exactProjectId, range.start, range.end),
+    rows(`SELECT * FROM (SELECT t.id,t.subject,t.assignee,t.loc,t.status,t.project,t.project_id,` +
+      `${HIGHSCORE_MISSION_STARTED_SQL} scored_at, ` +
+      `EXISTS(SELECT 1 FROM mission_tasks mt3 WHERE mt3.mission_id=t.id) con_plan FROM tickets t ` +
+      `WHERE ${AGENT_SOURCE_SQL_T}) WHERE COALESCE(NULLIF(project_id,''),project)=? ` +
+      `AND (status IN ('in_progress','resolved') OR (status='open' AND con_plan=1)) ` +
+      `AND scored_at>=? AND scored_at<?`, exactProjectId, range.start, range.end),
+    rows(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.updated_at,` +
+      `t.assignee,t.loc,t.project,t.project_id FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id ` +
+      `WHERE ${AGENT_SOURCE_SQL_T} AND COALESCE(NULLIF(t.project_id,''),t.project)=? ` +
+      `AND NOT (t.status='cancelled' AND COALESCE(t.closure_reason,'')='equivalent_mission') ` +
+      `AND m.updated_at>=? AND m.updated_at<? AND m.status IN ('in_progress','done')`,
+      exactProjectId, range.start, range.end)
+  ]);
+  const familyMatches = (agent, machine) => {
+    const family = reportAgentFamily(agent, machine);
+    return !!family && family.family_key === wanted.family_key;
+  };
+  const timeline = [];
+  const push = (type, row, at, points, extra = {}) => {
+    const stamp = Number(at) || 0;
+    if (stamp < range.start || stamp >= range.end) return;
+    timeline.push({ type, id:String(row.id || ""), title:String(row.title || "").trim().slice(0, 300),
+      at:stamp, day:madridDayKey(stamp), project_id:exactProjectId, points, ...extra });
+  };
+  for (const idea of ideas) {
+    // Misma atribución que /highscore/daily: la firma pública es el hecho que
+    // puntúa. author_identity es procedencia interna y no puede sumar por una
+    // firma genérica que el marcador diario mantendría separada.
+    const identity = String(highscoreAgent(idea.author) || "").trim();
+    if (identity && familyMatches(identity, "")) push("objective", idea, idea.created_at, HIGHSCORE_WEIGHTS.objective,
+      { agent:wanted.family_name, status:"created", scoring:true });
+  }
+  for (const decision of decisions) if (familyMatches(decision.agent, decision.machine))
+    push("window", { ...decision, title:decision.question }, decision.created_at, HIGHSCORE_WEIGHTS.window,
+      { agent:wanted.family_name, status:String(decision.status || ""), scoring:true });
+  for (const mission of missions) if (familyMatches(mission.assignee, mission.loc))
+    push("mission", { ...mission, title:mission.subject }, mission.scored_at, HIGHSCORE_WEIGHTS.mission,
+      { agent:wanted.family_name, status:String(mission.status || ""), scoring:true });
+
+  const ownTasks = tasks.filter((task) => familyMatches(task.assignee, task.loc));
+  const representatives = new Map();
+  for (const task of ownTasks) {
+    const match = String(task.code || "").toLowerCase().match(/^([a-c])(?:[1-3])?$/);
+    if (!match) continue;
+    const key = `${String(task.mission_id || "")}|${match[1]}`, previous = representatives.get(key);
+    if (!previous || Number(task.updated_at) >= Number(previous.updated_at)) representatives.set(key, task);
+  }
+  for (const task of ownTasks) {
+    const match = String(task.code || "").toLowerCase().match(/^([a-c])(?:[1-3])?$/);
+    if (!match) continue;
+    const scoring = representatives.get(`${String(task.mission_id || "")}|${match[1]}`) === task;
+    const points = scoring ? HIGHSCORE_TASK_WEIGHTS.task +
+      (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0) : 0;
+    const executor = reportAgentIdentity(task.executor || task.owner || task.assignee, task.loc);
+    push("task", { ...task, id:`${String(task.mission_id)}:${String(task.code)}` }, task.updated_at, points,
+      { agent:wanted.family_name, executor, status:String(task.status || ""), mission_id:String(task.mission_id || ""),
+        code:String(task.code || ""), scoring });
+  }
+  const typeRank = { objective:0, window:1, mission:2, task:3 };
+  timeline.sort((a, b) => b.at - a.at || (typeRank[a.type] ?? 9) - (typeRank[b.type] ?? 9) || a.id.localeCompare(b.id));
+  const blank = () => ({ objectives:0, windows:0, missions:0, tasks:0, points:0 });
+  const metrics = blank(), byDay = new Map(highscoreHistoryDayKeys(range.start_day, range.end_day).map((day) => [day, { day, ...blank() }]));
+  for (const item of timeline) {
+    const bucket = byDay.get(item.day);
+    if (!bucket) continue;
+    const field = item.type === "objective" ? "objectives" : item.type === "window" ? "windows"
+      : item.type === "mission" ? "missions" : item.scoring ? "tasks" : "";
+    if (field) { metrics[field] += 1; bucket[field] += 1; }
+    metrics.points += item.points; bucket.points += item.points;
+  }
+  const generatedAt = Number(ahora);
+  return { ok:true, agent:wanted.family_name, project_id:exactProjectId, project_name:String(project.name || exactProjectId),
+    timezone:"Europe/Madrid", period:range.period,
+    range:{ start:range.start, end:range.end, start_day:range.start_day, end_day:range.end_day,
+      from:range.start_day, to:range.end_day },
+    generated_at:generatedAt, sampled_at:generatedAt, metrics,
+    evolution:{ start:range.start_day, end:range.end_day, days:[...byDay.values()] }, timeline };
+}
+__name(highscoreProjectHistory, "highscoreProjectHistory");
+
 // Histórico factual del agente. No usa `highscore_snapshots`: esa tabla conserva
 // sólo 48 h para la flecha horaria. Aquí se recorren los mismos cuatro hechos del
 // marcador diario y se agrupan por el día REAL de Madrid. Las tareas conservan el
@@ -7040,7 +7179,10 @@ var worker_app = {
       await ensureIdeasSchema(env);
       const agent = String(url.searchParams.get("agent") || "").trim();
       if (!agent) return json({ ok:false, error:"agent requerido" }, 400);
-      const history = await highscoreHistory(env, agent);
+      const projectId = String(url.searchParams.get("project_id") || "").trim();
+      const history = projectId
+        ? await highscoreProjectHistory(env, agent, projectId, url.searchParams.get("period") || "today")
+        : await highscoreHistory(env, agent);
       return json(history, history.ok ? 200 : 400);
     }
     if (url.pathname === "/highscore/active-work" && req.method === "GET") {
