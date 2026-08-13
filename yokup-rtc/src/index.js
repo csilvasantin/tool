@@ -32,6 +32,8 @@ import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
   onIdleEligibility, taskOperationalDetails, taskVisibleDetails } from "./mission-visible.js";
 import { DAILY_MISSION_CLOSE_AUTHOR, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_LEASE_MS, DAILY_MISSION_CLOSE_REASON, MISSION_UNCONCLUDED_AFTER_MS, dailyMissionCloseEventText, dailyMissionClosePlan } from "./daily-mission-close.js";
 import { selectOnIdleProposals } from "./onidle-proposals.js";
+import { ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION, isCanonicalOnIdleDecision,
+  isCanonicalOnIdleOptions, selectCanonicalLiveOnIdleDecision } from "./onidle-decision-contract.js";
 import { canonicalProjectAgentRef, canonicalProjectAgentRefs, YOKUP_MINI_MEMBER_BACKFILL_SQL } from "./project-member-identity.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -3440,23 +3442,28 @@ __name(openInitialMissionDecision, "openInitialMissionDecision");
 const ONIDLE_DAILY_LIMIT = 8;
 const ONIDLE_MISSION_MARKER = "OnIdle horario";
 
-async function operationalOnIdleState(env, identity, now = Date.now()) {
+async function operationalOnIdleState(env, identity, requestedProjectId = "", now = Date.now()) {
   const [missionResult, taskResult, decisionResult] = await Promise.all([
     env.DB.prepare("SELECT id,status,assignee,loc,created_at,started_at,updated_at,live_at,source FROM tickets WHERE status IN ('in_progress','unconcluded')").all(),
     env.DB.prepare("SELECT m.mission_id,m.code,m.status,m.started_at,m.created_at,m.updated_at,t.assignee,t.loc " +
       "FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE m.status IN ('in_progress','doing','active','unconcluded') " +
       "AND t.status NOT IN ('resolved','cancelled')").all(),
-    // Una decisión pending bloquea aunque su deadline haya pasado: primero debe
-    // converger expireDecisions. Publicar encima de una fila aún pendiente crea
-    // dos preguntas visibles y rompe el orden de la tanda.
-    env.DB.prepare("SELECT id,agent,machine,deadline FROM decisions WHERE status='pending'").all()
+    // Sólo una ventana OnIDLE canónica del mismo scope bloquea. Academy, una
+    // decisión de otro proyecto/familia o una fila legacy incompleta no puede
+    // secuestrar el botón ni presentarse como `existing`.
+    requestedProjectId ? env.DB.prepare(
+      "SELECT id,agent,machine,project,mission,surface,options,status,deadline,created_at FROM decisions " +
+      "WHERE status='pending' AND mission=? AND surface='highscore' AND project=? ORDER BY created_at DESC,id DESC"
+    ).bind(ONIDLE_MISSION_MARKER, requestedProjectId).all() : Promise.resolve({ results:[] })
   ]);
-  // OnIDLE es un carrusel GLOBAL: no debe preguntar a una segunda familia mientras
-  // otra misión, tarea o decisión sigue activa. El selector de identidad sólo fija
-  // quién publicará la próxima ventana; nunca reduce el universo de bloqueo.
+  // Misión, tarea y cupo siguen siendo globales. La decisión viva es la excepción:
+  // sólo bloquea el scope solicitado y únicamente si cumple el contrato OnIDLE;
+  // una cápsula Academy o una fila de otra familia/proyecto no son este carril.
   const missions = missionResult.results || [];
   const tasks = taskResult.results || [];
-  const live = (decisionResult.results || []).length;
+  const live = selectCanonicalLiveOnIdleDecision(decisionResult.results || [], {
+    agent:identity.agent, machine:identity.machine, project_id:requestedProjectId
+  }, ONIDLE_MISSION_MARKER) ? 1 : 0;
   const range = missionDayRange(madridDayKey(now));
   const usedRows = range ? (await env.DB.prepare(
     "SELECT agent,machine FROM decisions WHERE (parent_decision IS NULL OR parent_decision='') " +
@@ -3563,7 +3570,7 @@ __name(scheduledOnIdleAssignments, "scheduledOnIdleAssignments");
 
 async function publishScheduledOnIdle(env, candidate, now = Date.now()) {
   const { identity, project, identity_key:identityKeyValue } = candidate;
-  const state = await operationalOnIdleState(env, identity, now);
+  const state = await operationalOnIdleState(env, identity, project.id, now);
   if (!state.can_open) return { ok:true, published:false, reason:state.reason };
   const proposalResult = await canonicalOnIdleProposals(env, identity, project.id);
   if (!proposalResult.ok || !Array.isArray(proposalResult.proposals) || proposalResult.proposals.length !== 3) {
@@ -3573,7 +3580,8 @@ async function publishScheduledOnIdle(env, candidate, now = Date.now()) {
   if (ordinal < 1 || ordinal > ONIDLE_DAILY_LIMIT) return { ok:true, published:false, reason:"daily_limit" };
   const decisionId = onIdleTickDecisionId(identity, day, ordinal);
   const options = proposalResult.proposals.map((row) => String(row.title || "").slice(0, 200))
-    .concat(["↩ Volver atrás", "✍️ Custom · Escribe la mejora que quieras a mano"]);
+    .concat([ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION]);
+  if (!isCanonicalOnIdleOptions(options)) return { ok:true, published:false, reason:"invalid_canonical_options" };
   const targets = proposalResult.proposals.map((row) => ({ target_mission_id:String(row.target_mission_id) }))
     .concat([null, null]);
   const deadline = now + 5 * 60000;
@@ -3586,22 +3594,37 @@ async function publishScheduledOnIdle(env, candidate, now = Date.now()) {
   const decision = env.DB.prepare(
     "INSERT OR IGNORE INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id,option_targets) " +
     "SELECT ?,?,?,? ,?,?,0,'pending',?,?,?,?,?,?, '', '',? WHERE NOT EXISTS (" +
-    "SELECT 1 FROM decisions WHERE status='pending') AND NOT EXISTS (" +
+    "SELECT 1 FROM decisions WHERE status='pending' AND mission=? AND surface='highscore' AND project=? " +
+    "AND replace(lower(agent),'macmini','mini')=replace(lower(?),'macmini','mini') " +
+    "AND lower(replace(machine,' ',''))=lower(replace(?,' ','')) " +
+    "AND json_valid(options) AND json_array_length(options)=5 " +
+    "AND TRIM(json_extract(options,'$[0]'))<>'' AND TRIM(json_extract(options,'$[1]'))<>'' " +
+    "AND TRIM(json_extract(options,'$[2]'))<>'' " +
+    "AND lower(TRIM(json_extract(options,'$[0]')))<>lower(TRIM(json_extract(options,'$[1]'))) " +
+    "AND lower(TRIM(json_extract(options,'$[0]')))<>lower(TRIM(json_extract(options,'$[2]'))) " +
+    "AND lower(TRIM(json_extract(options,'$[1]')))<>lower(TRIM(json_extract(options,'$[2]'))) " +
+    "AND json_extract(options,'$[3]')=? AND json_extract(options,'$[4]')=?) AND NOT EXISTS (" +
     "SELECT 1 FROM tickets WHERE status IN ('in_progress','unconcluded')) AND NOT EXISTS (" +
     "SELECT 1 FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id " +
     "WHERE m.status IN ('in_progress','doing','active','unconcluded') AND t.status NOT IN ('resolved','cancelled'))"
   ).bind(decisionId, identity.machine, identity.agent, "highscore", "Ventana OnIDLE " + ordinal + "/" + ONIDLE_DAILY_LIMIT,
     JSON.stringify(options), now, deadline, DECIDE_URL, ONIDLE_MISSION_MARKER, project.id,
-    String(project.slug || decisionProjectSlug(project.name || project.id)).toUpperCase(), JSON.stringify(targets));
+    String(project.slug || decisionProjectSlug(project.name || project.id)).toUpperCase(), JSON.stringify(targets),
+    ONIDLE_MISSION_MARKER, project.id, identity.agent, identity.machine, ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION);
   const mark = env.DB.prepare(
     "UPDATE onidle_ticks SET status='published',published_at=? WHERE identity_key=? AND day=? AND ordinal=? " +
     "AND EXISTS(SELECT 1 FROM decisions WHERE id=? AND status='pending')"
   ).bind(now, identityKeyValue, day, ordinal, decisionId);
   if (typeof env.DB.batch === "function") await env.DB.batch([reserve, decision, mark]);
   else { await reserve.run(); await decision.run(); await mark.run(); }
-  const published = await env.DB.prepare("SELECT id FROM decisions WHERE id=? AND status='pending'").bind(decisionId).first();
+  const publishedRow = await env.DB.prepare(
+    "SELECT id,agent,machine,project,mission,surface,options,status,deadline FROM decisions WHERE id=? AND status='pending'"
+  ).bind(decisionId).first();
+  const published = isCanonicalOnIdleDecision(publishedRow, {
+    agent:identity.agent, machine:identity.machine, project_id:project.id
+  }, ONIDLE_MISSION_MARKER);
   if (published) await ensureEntityDisplayRef(env, "window", decisionId, now);
-  return { ok:true, published:!!published, decision_id:published ? decisionId : null,
+  return { ok:true, published, decision_id:published ? decisionId : null,
     reason:published ? "published" : "concurrent_block", ordinal, agent:identity.agent, machine:identity.machine, project_id:project.id };
 }
 __name(publishScheduledOnIdle, "publishScheduledOnIdle");
@@ -3621,10 +3644,14 @@ function onIdleDecisionUrl(decisionId) {
 }
 __name(onIdleDecisionUrl, "onIdleDecisionUrl");
 
-async function liveOnIdleDecision(env) {
-  return env.DB.prepare(
-    "SELECT id,agent,machine,project,deadline FROM decisions WHERE status='pending' ORDER BY created_at DESC,id DESC LIMIT 1"
-  ).first();
+async function liveOnIdleDecision(env, identity, requestedProjectId) {
+  const result = await env.DB.prepare(
+    "SELECT id,agent,machine,project,mission,surface,options,status,deadline,created_at FROM decisions " +
+    "WHERE status='pending' AND mission=? AND surface='highscore' AND project=? ORDER BY created_at DESC,id DESC"
+  ).bind(ONIDLE_MISSION_MARKER, requestedProjectId).all();
+  return selectCanonicalLiveOnIdleDecision(result.results || [], {
+    agent:identity.agent, machine:identity.machine, project_id:requestedProjectId
+  }, ONIDLE_MISSION_MARKER);
 }
 __name(liveOnIdleDecision, "liveOnIdleDecision");
 
@@ -3693,6 +3720,21 @@ async function requestImmediateOnIdle(env, input, session, now = Date.now()) {
       return { status:409, body:{ ok:false, status:"conflict", code:"request_id_conflict",
         error:"request_id ya pertenece a otra solicitud" } };
     }
+    if (previous.status === "created" || previous.status === "existing") {
+      const priorDecision = previous.decision_id && await env.DB.prepare(
+        "SELECT id,agent,machine,project,mission,surface,options,status,deadline FROM decisions WHERE id=?"
+      ).bind(previous.decision_id).first();
+      if (!isCanonicalOnIdleDecision(priorDecision, {
+        agent:previous.agent, machine:previous.machine, project_id:previous.project_id
+      }, ONIDLE_MISSION_MARKER)) {
+        // Repara ledgers creados por el bug histórico que enlazó decisiones
+        // Academy/ajenas. El mismo request_id puede continuar, nunca migrar scope.
+        await env.DB.prepare(
+          "UPDATE onidle_requests SET status='requested',decision_id=NULL,reason='invalid_existing_repaired',deadline=NULL,updated_at=? WHERE id=?"
+        ).bind(now, requestId).run();
+        previous.status = "requested";
+      }
+    }
     if (previous.status !== "requested" && previous.status !== "processing") {
       return { status:previous.status === "blocked" ? 409 : 200,
         body:onIdleRequestResponse(previous, true) };
@@ -3708,14 +3750,14 @@ async function requestImmediateOnIdle(env, input, session, now = Date.now()) {
     "INSERT OR IGNORE INTO onidle_requests (id,requested_by,agent,machine,project_id,status,created_at,updated_at) VALUES (?,?,?,?,?,'requested',?,?)"
   ).bind(requestId, session.email, identity.agent, identity.machine, requestedProjectId, now, now).run();
 
-  let live = await liveOnIdleDecision(env);
+  let live = await liveOnIdleDecision(env, identity, requestedProjectId);
   if (live) {
     const row = await finishOnIdleRequest(env, requestId, "existing", {
       decision_id:live.id, deadline:live.deadline, reason:"live_decision"
     }, now);
     return { status:200, body:onIdleRequestResponse(row) };
   }
-  let operational = await operationalOnIdleState(env, identity, now);
+  let operational = await operationalOnIdleState(env, identity, requestedProjectId, now);
   if (!operational.can_open) {
     const row = await finishOnIdleRequest(env, requestId, "blocked", { reason:operational.reason }, now);
     return { status:409, body:{ ...onIdleRequestResponse(row), blockers:operational.blockers,
@@ -3724,7 +3766,7 @@ async function requestImmediateOnIdle(env, input, session, now = Date.now()) {
 
   const leaseName = "onidle-request:" + candidate.identity_key + "@" + identityKey(requestedProjectId);
   if (!(await tryAcquireBeatLease(env, leaseName, 5000))) {
-    live = await liveOnIdleDecision(env);
+    live = await liveOnIdleDecision(env, identity, requestedProjectId);
     if (live) {
       const row = await finishOnIdleRequest(env, requestId, "existing", {
         decision_id:live.id, deadline:live.deadline, reason:"live_decision"
@@ -3739,14 +3781,14 @@ async function requestImmediateOnIdle(env, input, session, now = Date.now()) {
 
   // Segunda lectura dentro del lease: el estado pudo cambiar entre el clic y el
   // turno de D1. Nunca se publica basándose en el guard anterior.
-  live = await liveOnIdleDecision(env);
+  live = await liveOnIdleDecision(env, identity, requestedProjectId);
   if (live) {
     const row = await finishOnIdleRequest(env, requestId, "existing", {
       decision_id:live.id, deadline:live.deadline, reason:"live_decision"
     }, now);
     return { status:200, body:onIdleRequestResponse(row) };
   }
-  operational = await operationalOnIdleState(env, identity, now);
+  operational = await operationalOnIdleState(env, identity, requestedProjectId, now);
   if (!operational.can_open) {
     const row = await finishOnIdleRequest(env, requestId, "blocked", { reason:operational.reason }, now);
     return { status:409, body:{ ...onIdleRequestResponse(row), blockers:operational.blockers,
@@ -3760,7 +3802,7 @@ async function requestImmediateOnIdle(env, input, session, now = Date.now()) {
     }, now);
     return { status:201, body:onIdleRequestResponse(row) };
   }
-  live = await liveOnIdleDecision(env);
+  live = await liveOnIdleDecision(env, identity, requestedProjectId);
   if (live) {
     const row = await finishOnIdleRequest(env, requestId, "existing", {
       decision_id:live.id, deadline:live.deadline, reason:"live_decision"
@@ -9859,9 +9901,14 @@ Todo en español.`;
         if (!decisionIdentity.ok) {
           return json({ ok: false, error: decisionIdentity.error, code: "exact_identity_required" }, 400);
         }
+        const requestedProjectId = String(b.project_id || (continuation && parent ? parent.project : "")).trim().slice(0, 120);
         const onIdle = !continuation && (b.onidle === true || String(b.mission || "") === ONIDLE_MISSION_MARKER);
+        if (onIdle && !isCanonicalOnIdleOptions(opts)) {
+          return json({ ok:false, error:"OnIDLE requiere 3 propuestas distintas, «Volver atrás» como cuarta opción y «Custom» como quinta",
+            code:"invalid_onidle_options" }, 400);
+        }
         if (onIdle && b.user_override !== true) {
-          const operational = await operationalOnIdleState(env, decisionIdentity);
+          const operational = await operationalOnIdleState(env, decisionIdentity, requestedProjectId);
           if (!operational.can_open) {
             return json({ ok:false, error:"onidle_blocked", code:operational.reason,
               blockers:operational.blockers, quota:operational.quota,
@@ -9873,7 +9920,6 @@ Todo en español.`;
         // Cuando agent+machine participa en varios proyectos, la raíz debe
         // seleccionar uno por id. Las continuaciones heredan el id ya
         // autorizado de su decisión raíz. Una selección ajena falla cerrado.
-        const requestedProjectId = String(b.project_id || (continuation && parent ? parent.project : "")).trim().slice(0, 120);
         const assignment = await exactDecisionProjectAssignment(
           env, decisionIdentity.agent, decisionIdentity.machine, requestedProjectId
         );

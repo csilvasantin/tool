@@ -12,7 +12,7 @@ const script=await readFile(new URL('./tools/onidle-hora.sh',import.meta.url),'u
 test('API publica elegibilidad y aplica el mismo guard al alta OnIdle',()=>{
   assert.match(source,/ONIDLE_DAILY_LIMIT = 8/);
   assert.match(source,/url\.pathname === "\/fleet\/onidle-state"/);
-  assert.match(source,/operationalOnIdleState\(env, decisionIdentity\)/);
+  assert.match(source,/operationalOnIdleState\(env, decisionIdentity, requestedProjectId\)/);
   assert.match(source,/pauseTimedOutOnIdleBatches/);
   assert.match(source,/WHERE id=\? AND status='active'/);
   assert.match(source,/operational_limit_ms:MISSION_UNCONCLUDED_AFTER_MS/);
@@ -24,7 +24,7 @@ test('API publica elegibilidad y aplica el mismo guard al alta OnIdle',()=>{
   const post=source.slice(source.indexOf('if (url.pathname === "/decisions" && req.method === "POST")'));
   assert.match(post,/if \(!continuation && !userOverride && !onIdle\)/,
     'el cupo horario residual sólo se aplica a decisiones no-OnIdle');
-  assert.ok(post.indexOf('operationalOnIdleState(env, decisionIdentity)') < post.indexOf('!continuation && !userOverride && !onIdle'),
+  assert.ok(post.indexOf('operationalOnIdleState(env, decisionIdentity, requestedProjectId)') < post.indexOf('!continuation && !userOverride && !onIdle'),
     'OnIdle debe pasar primero por su guard canónico');
 });
 

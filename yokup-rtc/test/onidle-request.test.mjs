@@ -31,8 +31,8 @@ test("el cliente no puede suministrar máquina, opciones ni una decisión",()=>{
 
 test("la ejecución inmediata conserva guardas, lease y publicador del scheduler",()=>{
   const request=body("requestImmediateOnIdle");
-  assert.match(request,/liveOnIdleDecision\(env\)/);
-  assert.equal((request.match(/operationalOnIdleState\(env, identity, now\)/g)||[]).length,2,"guard antes y dentro del lease");
+  assert.match(request,/liveOnIdleDecision\(env, identity, requestedProjectId\)/);
+  assert.equal((request.match(/operationalOnIdleState\(env, identity, requestedProjectId, now\)/g)||[]).length,2,"guard scoped antes y dentro del lease");
   assert.match(request,/tryAcquireBeatLease\(env, leaseName, 5000\)/);
   assert.match(request,/publishScheduledOnIdle\(env, candidate, now\)/);
   assert.doesNotMatch(request,/INSERT[^\n]+INTO decisions/);

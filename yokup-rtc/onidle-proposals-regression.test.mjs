@@ -126,7 +126,8 @@ test("el publicador servidor conserva cuota y orden exacto 3 + back + custom", (
   assert.ok(stateAt >= 0 && stateAt < proposalsAt && proposalsAt < insertAt,
     "la cuota debe comprobarse antes de obtener propuestas y antes del INSERT");
   assert.match(publish, /proposalResult\.proposals\.length !== 3/);
-  assert.match(publish, /concat\(\["↩ Volver atrás", "✍️ Custom · Escribe la mejora que quieras a mano"\]\)/);
+  assert.match(publish, /concat\(\[ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION\]\)/);
+  assert.match(publish, /isCanonicalOnIdleOptions\(options\)/);
   assert.match(publish, /concat\(\[null, null\]\)/);
   assert.match(publish, /ordinal > ONIDLE_DAILY_LIMIT/);
   assert.doesNotMatch(script, /onidle-proposals|\/decisions|-X POST/,

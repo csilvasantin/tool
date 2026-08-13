@@ -103,7 +103,7 @@ test('el reloj horario permanece para decisiones ordinarias y excluye OnIdle', (
   assert.match(source, /var HOURLY_WINDOW_MS = 60 \* 60 \* 1000;/);
   assert.match(source, /error: "hourly_limit"/);
   assert.match(source, /if \(!continuation && !userOverride && !onIdle\)/);
-  assert.match(source, /operationalOnIdleState\(env, decisionIdentity\)/);
+  assert.match(source, /operationalOnIdleState\(env, decisionIdentity, requestedProjectId\)/);
   // la consulta mira los ultimos 60 min, no la clave de hora
   // openInitial mira solo la ultima (LIMIT 1); POST /decisions cuenta cuantas
   // decisiones ORDINARIAS caben, porque a mano el cupo es 6 y no 1.

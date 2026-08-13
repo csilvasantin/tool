@@ -171,7 +171,7 @@ test('POST persiste option_targets estructurado y rechaza ids inexistentes antes
 test('OnIdle mantiene bloqueos por decisión viva, misión fresca y tarea fresca',async()=>{
   const now=Date.UTC(2026,7,7,10),fresh=now-HOUR+1;
   for (const [label,input,reason] of [
-    ['decisión viva',{decisions:[{id:'DEC-live',agent:'OraculoMacMini',machine:'admira-macmini',mission:'OnIdle horario',status:'pending',created_at:now-1000,deadline:now+60_000}]},'live_decision'],
+    ['decisión viva',{decisions:[{id:'DEC-live',agent:'OraculoMacMini',machine:'admira-macmini',project:'yokup',mission:'OnIdle horario',surface:'highscore',options:JSON.stringify(baseBody.options),status:'pending',created_at:now-1000,deadline:now+60_000}]},'live_decision'],
     ['misión fresca',{missions:[{id:'FLT-fresh',assignee:'OraculoMacMini',loc:'admira-macmini',status:'in_progress',created_at:fresh}]},'active_mission'],
     ['tarea fresca',{tasks:[{mission_id:'FLT-fresh',code:'a',assignee:'OraculoMacMini',loc:'admira-macmini',status:'in_progress',started_at:fresh}]},'active_task']
   ]) {
@@ -210,5 +210,8 @@ test('la excepción OnIdle no relaja decisiones manuales, automáticas ni format
     box=decisionEnv({now});
     result=await response(box.env,{...baseBody,options:baseBody.options.slice(0,4)});
     assert.equal(result.status,400);assert.match(result.json.error,/3 mejoras/);
+    box=decisionEnv({now});
+    result=await response(box.env,{...baseBody,options:[baseBody.options[0],baseBody.options[0],...baseBody.options.slice(2)]});
+    assert.equal(result.status,400);assert.equal(result.json.code,'invalid_onidle_options');
   } finally {Date.now=original;}
 });

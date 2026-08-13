@@ -24,22 +24,23 @@ test("publicación es determinista, atómica y repara una reserva",()=>{
   assert.match(source,/ordinal > ONIDLE_DAILY_LIMIT/);
 });
 
-test("bloquea trabajo y cualquier decisión pending, con identidad y proyecto exactos",()=>{
-  assert.match(source,/SELECT id,agent,machine,deadline FROM decisions WHERE status='pending'/);
-  assert.doesNotMatch(source,/SELECT id,agent,machine,deadline FROM decisions WHERE status='pending' AND deadline/);
+test("bloquea trabajo y sólo OnIDLE pending canónico del mismo scope",()=>{
+  assert.match(source,/WHERE status='pending' AND mission=\? AND surface='highscore' AND project=\?/);
+  assert.match(source,/selectCanonicalLiveOnIdleDecision/);
   const state=source.slice(source.indexOf("async function operationalOnIdleState"),source.indexOf("__name(operationalOnIdleState"));
   assert.doesNotMatch(state,/filter\(owns\)|const owns/,
-    "misión, tarea, decisión y cupo deben bloquear globalmente, no por candidato");
-  assert.match(state,/const live = \(decisionResult\.results \|\| \[\]\)\.length/);
+    "misión, tarea y cupo permanecen globales; la decisión usa selector scoped canónico");
+  assert.match(state,/const live = selectCanonicalLiveOnIdleDecision/);
   assert.match(state,/const windowsToday = usedRows\.length/);
   assert.match(source,/scheduledOnIdleAssignments/);
   assert.match(source,/exactDecisionProjectAssignment\(env, identity\.agent, identity\.machine, project\.id\)/);
-  assert.match(source,/operationalOnIdleState\(env, identity, now\)/);
+  assert.match(source,/operationalOnIdleState\(env, identity, project\.id, now\)/);
   const publish=source.slice(source.indexOf("async function publishScheduledOnIdle"),source.indexOf("__name(publishScheduledOnIdle"));
-  assert.match(publish,/SELECT 1 FROM decisions WHERE status='pending'/);
+  assert.match(publish,/SELECT 1 FROM decisions WHERE status='pending' AND mission=\? AND surface='highscore' AND project=\?/);
+  assert.match(publish,/json_array_length\(options\)=5/);
   assert.match(publish,/SELECT 1 FROM tickets WHERE status IN \('in_progress','unconcluded'\)/);
   assert.match(publish,/SELECT 1 FROM mission_tasks m JOIN tickets t ON t\.id=m\.mission_id/);
-  assert.doesNotMatch(publish,/replace\(lower\(agent\).*identity\.agent/);
+  assert.match(publish,/replace\(lower\(agent\),'macmini','mini'\)=replace\(lower\(\?\),'macmini','mini'\)/);
   assert.match(source,/return out\.sort\(\(a, b\) => a\.identity_key\.localeCompare\(b\.identity_key\)\)/);
 });
 
