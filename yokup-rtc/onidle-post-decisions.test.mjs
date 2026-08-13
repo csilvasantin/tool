@@ -181,6 +181,39 @@ test('OnIdle mantiene bloqueos por decisión viva, misión fresca y tarea fresca
   }
 });
 
+test('OnIdle aísla misión y tarea por familia más máquina, no por actividad ajena',async()=>{
+  const now=Date.UTC(2026,7,7,10),fresh=now-HOUR+1,original=Date.now;Date.now=()=>now;
+  try {
+    for (const [label,input] of [
+      ['Trinity en MBP14',{missions:[{id:'DCL-trinity',assignee:'TrinityMBP14',loc:'MacBookProNegro14',status:'in_progress',created_at:fresh}]}],
+      ['Oraculo en otro equipo',{missions:[{id:'DCL-oraculo16',assignee:'OraculoMBP16',loc:'MacBookPro16',status:'in_progress',created_at:fresh}]}],
+      ['Oraculo sin máquina',{missions:[{id:'DCL-oraculo-unknown',assignee:'Oraculo',loc:'',status:'in_progress',created_at:fresh}]}],
+      ['tarea de Trinity',{tasks:[{mission_id:'DCL-trinity',code:'a',assignee:'TrinityMBP14',loc:'MacBookProNegro14',status:'in_progress',started_at:fresh}]}]
+    ]) {
+      const {env}=decisionEnv({now,...input}),result=await response(env);
+      assert.equal(result.status,200,label+': '+JSON.stringify(result.json));
+      assert.equal(result.json.ok,true,label);
+    }
+    let box=decisionEnv({now,missions:[{id:'DCL-own',assignee:'OraculoMacMini',loc:'Mac Mini',status:'in_progress',created_at:fresh}]});
+    let result=await response(box.env);assert.equal(result.status,409);assert.equal(result.json.code,'active_mission');
+    box=decisionEnv({now,tasks:[{mission_id:'DCL-own',code:'a',assignee:'SubOraculoMini',loc:'admira-macmini',status:'in_progress',started_at:fresh}]});
+    result=await response(box.env);assert.equal(result.status,409);assert.equal(result.json.code,'active_task');
+  } finally {Date.now=original;}
+});
+
+test('GET onidle-state no atribuye a OraculoMini la misión activa de TrinityMBP14',async()=>{
+  const now=Date.UTC(2026,7,7,10),fresh=now-HOUR+1,original=Date.now;Date.now=()=>now;
+  const request=new Request('https://api.yokup.com/fleet/onidle-state?agent=OraculoMini&machine=admira-macmini');
+  try {
+    let box=decisionEnv({now,missions:[{id:'DCL-msrsw0wrfe5n',assignee:'TrinityMBP14',loc:'MacBookProNegro14',status:'in_progress',created_at:fresh}]});
+    let result=await worker.fetch(request,box.env,{}),body=await result.json();
+    assert.equal(result.status,200);assert.equal(body.can_open,true);assert.equal(body.blockers.missions,0);
+    box=decisionEnv({now,missions:[{id:'DCL-own',assignee:'OraculoMacMini',loc:'Mac Mini',status:'in_progress',created_at:fresh}]});
+    result=await worker.fetch(request,box.env,{});body=await result.json();
+    assert.equal(result.status,200);assert.equal(body.can_open,false);assert.equal(body.reason,'active_mission');assert.equal(body.blockers.missions,1);
+  } finally {Date.now=original;}
+});
+
 test('OnIdle bloquea exactamente al consumir 8/8',async()=>{
   const now=Date.UTC(2026,7,7,10),range=missionDayRange('2026-08-07');
   const decisions=Array.from({length:8},(_,i)=>({id:`DEC-${i}`,agent:'OraculoMacMini',machine:'admira-macmini',mission:'OnIdle horario',status:'decided',created_at:range.start+i*60_000,deadline:range.start+i*60_000+300_000}));

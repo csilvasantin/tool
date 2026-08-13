@@ -3442,6 +3442,12 @@ __name(openInitialMissionDecision, "openInitialMissionDecision");
 const ONIDLE_DAILY_LIMIT = 8;
 const ONIDLE_MISSION_MARKER = "OnIdle horario";
 
+function matchesOnIdleIdentity(row, identity) {
+  return !!(row && identity && sameAgentFamily(row.assignee, identity.agent) &&
+    memberRefMatches("machine", row.loc, identity.machine));
+}
+__name(matchesOnIdleIdentity, "matchesOnIdleIdentity");
+
 async function operationalOnIdleState(env, identity, requestedProjectId = "", now = Date.now()) {
   const [missionResult, taskResult, decisionResult] = await Promise.all([
     env.DB.prepare("SELECT id,status,assignee,loc,created_at,started_at,updated_at,live_at,source FROM tickets WHERE status IN ('in_progress','unconcluded')").all(),
@@ -3456,11 +3462,11 @@ async function operationalOnIdleState(env, identity, requestedProjectId = "", no
       "WHERE status='pending' AND mission=? AND surface='highscore' AND project=? ORDER BY created_at DESC,id DESC"
     ).bind(ONIDLE_MISSION_MARKER, requestedProjectId).all() : Promise.resolve({ results:[] })
   ]);
-  // Misión, tarea y cupo siguen siendo globales. La decisión viva es la excepción:
-  // sólo bloquea el scope solicitado y únicamente si cumple el contrato OnIDLE;
-  // una cápsula Academy o una fila de otra familia/proyecto no son este carril.
-  const missions = missionResult.results || [];
-  const tasks = taskResult.results || [];
+  // Una misión/tarea sólo bloquea a su familia en su equipo físico. El proyecto
+  // compartido y la presencia de otro agente no prueban propiedad operativa;
+  // aliases históricos de persona/máquina sí convergen mediante los resolvers.
+  const missions = (missionResult.results || []).filter((row) => matchesOnIdleIdentity(row, identity));
+  const tasks = (taskResult.results || []).filter((row) => matchesOnIdleIdentity(row, identity));
   const live = selectCanonicalLiveOnIdleDecision(decisionResult.results || [], {
     agent:identity.agent, machine:identity.machine, project_id:requestedProjectId
   }, ONIDLE_MISSION_MARKER) ? 1 : 0;

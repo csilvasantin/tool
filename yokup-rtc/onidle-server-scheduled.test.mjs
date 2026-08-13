@@ -28,8 +28,11 @@ test("bloquea trabajo y sólo OnIDLE pending canónico del mismo scope",()=>{
   assert.match(source,/WHERE status='pending' AND mission=\? AND surface='highscore' AND project=\?/);
   assert.match(source,/selectCanonicalLiveOnIdleDecision/);
   const state=source.slice(source.indexOf("async function operationalOnIdleState"),source.indexOf("__name(operationalOnIdleState"));
-  assert.doesNotMatch(state,/filter\(owns\)|const owns/,
-    "misión, tarea y cupo permanecen globales; la decisión usa selector scoped canónico");
+  assert.equal((state.match(/\.filter\(\(row\) => matchesOnIdleIdentity\(row, identity\)\)/g)||[]).length,2,
+    "misión y tarea se aíslan por la misma identidad operativa");
+  const owner=source.slice(source.indexOf("function matchesOnIdleIdentity"),source.indexOf("__name(matchesOnIdleIdentity"));
+  assert.match(owner,/sameAgentFamily\(row\.assignee, identity\.agent\)/);
+  assert.match(owner,/memberRefMatches\("machine", row\.loc, identity\.machine\)/);
   assert.match(state,/const live = selectCanonicalLiveOnIdleDecision/);
   assert.match(state,/const windowsToday = usedRows\.length/);
   assert.match(source,/scheduledOnIdleAssignments/);
