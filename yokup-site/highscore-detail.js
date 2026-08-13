@@ -6,6 +6,9 @@
   var HOUR = new Intl.DateTimeFormat("es-ES", { timeZone:TIME_ZONE, hour:"2-digit", hour12:false });
   var PERIODS = ["today", "yesterday", "week", "month", "year"];
   var TYPES = ["all", "objective", "window", "mission", "task"];
+  var ORDERS = ["desc", "asc"];
+  var METRICS = ["objectives", "windows", "missions", "tasks", "points"];
+  var MONTH = new Intl.DateTimeFormat("es-ES", { timeZone:TIME_ZONE, month:"long", year:"numeric" });
 
   function text(value) { return String(value == null ? "" : value).trim(); }
   function ms(value) { var n = Number(value) || 0; return n > 0 && n < 1e11 ? n * 1000 : n; }
@@ -38,6 +41,7 @@
 
   function validPeriod(value) { return PERIODS.indexOf(text(value).toLowerCase()) >= 0; }
   function validType(value) { return TYPES.indexOf(text(value).toLowerCase()) >= 0; }
+  function validOrder(value) { return ORDERS.indexOf(text(value).toLowerCase()) >= 0; }
   function canonicalType(value) {
     var aliases={objective:"objective",objectives:"objective",idea:"objective",objetivo:"objective",
       window:"window",windows:"window",decision:"window",ventana:"window",
@@ -47,9 +51,10 @@
   }
   function queryState(search) {
     var params = new URLSearchParams(String(search || "").replace(/^\?/, ""));
-    var period = text(params.get("period")).toLowerCase(), type=text(params.get("type")).toLowerCase();
+    var period = text(params.get("period")).toLowerCase(), type=text(params.get("type")).toLowerCase(), order=text(params.get("order")).toLowerCase();
     return { agent:text(params.get("agent")), projectId:text(params.get("project_id")),
-      period:validPeriod(period) ? period : "today", type:validType(type) ? type : "all" };
+      period:validPeriod(period) ? period : "today", type:validType(type) ? type : "all",
+      order:validOrder(order) ? order : "desc" };
   }
   function detailUrl(state) {
     var params = new URLSearchParams();
@@ -57,7 +62,47 @@
     params.set("project_id", text(state && state.projectId));
     params.set("period", validPeriod(state && state.period) ? state.period : "today");
     params.set("type", validType(state && state.type) ? state.type : "all");
+    params.set("order", validOrder(state && state.order) ? state.order : "desc");
     return "/highscoreDetail?" + params.toString();
+  }
+
+  function isoDate(value) {
+    var match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(text(value));
+    return match ? new Date(Date.UTC(Number(match[1]),Number(match[2])-1,Number(match[3]),12)) : null;
+  }
+  function dateKey(value) { return value.toISOString().slice(0,10); }
+  function shiftDay(value, amount) { var date=isoDate(value);if(!date)return "";date.setUTCDate(date.getUTCDate()+amount);return dateKey(date); }
+  function monday(value) { var date=isoDate(value);if(!date)return "";return shiftDay(value,-((date.getUTCDay()+6)%7)); }
+  function shortDate(value) { return text(value).slice(8,10)+"/"+text(value).slice(5,7); }
+  function groupKey(value, period) { return period==="year"?text(value).slice(0,7):period==="month"?monday(value):text(value); }
+  function groupMeta(keyValue, period, firstDay, lastDay) {
+    if(period==="year"){
+      var monthDate=isoDate(keyValue+"-01"),monthLabel=monthDate?MONTH.format(monthDate):keyValue;
+      return {key:keyValue,start:firstDay,end:lastDay,label:monthLabel.charAt(0).toUpperCase()+monthLabel.slice(1),grain:"month"};
+    }
+    if(period==="month"){
+      var naturalEnd=shiftDay(keyValue,6),label="Semana "+shortDate(keyValue)+"–"+shortDate(naturalEnd);
+      if(firstDay!==keyValue||lastDay!==naturalEnd)label+=" · datos "+shortDate(firstDay)+"–"+shortDate(lastDay);
+      return {key:keyValue,start:firstDay,end:lastDay,naturalStart:keyValue,naturalEnd:naturalEnd,label:label,grain:"week"};
+    }
+    return {key:keyValue,start:firstDay,end:lastDay,label:shortDate(keyValue),grain:"day"};
+  }
+  function chronologicalGroups(rows, period, order) {
+    var grouped=Object.create(null),sequence=[];
+    (rows||[]).forEach(function(row){var rowDay=text(row&&row.day),group=groupKey(rowDay,period);if(!rowDay||!group)return;
+      if(!grouped[group]){grouped[group]={key:group,rows:[],first:rowDay,last:rowDay};sequence.push(group);}
+      grouped[group].rows.push(row);if(rowDay<grouped[group].first)grouped[group].first=rowDay;if(rowDay>grouped[group].last)grouped[group].last=rowDay;});
+    sequence.sort(function(a,b){return (validOrder(order)?order:"desc")==="asc"?a.localeCompare(b):b.localeCompare(a);});
+    return sequence.map(function(group){var current=grouped[group],meta=groupMeta(group,period,current.first,current.last);return Object.assign(meta,{rows:current.rows.slice()});});
+  }
+  function evolutionGroups(days, period, order) {
+    return chronologicalGroups(days,period,order).map(function(group){var total={};METRICS.forEach(function(metric){total[metric]=0;});
+      group.rows.forEach(function(row){METRICS.forEach(function(metric){total[metric]+=Number(row[metric]);});});
+      return Object.assign({},group,total,{day:group.key,count:group.rows.length});});
+  }
+  function timelineGroups(timeline, period, order) {
+    var selected=validOrder(order)?order:"desc",events=Array.from(timeline||[]).sort(function(a,b){return selected==="asc"?a.at-b.at:b.at-a.at;});
+    return chronologicalGroups(events,period,selected).map(function(group){return Object.assign({},group,{events:group.rows});});
   }
 
   function nextWindow(payload, agent, identity) {
@@ -166,18 +211,22 @@
     if (!Array.isArray(days) || !Array.isArray(payload.timeline)) return null;
     var previous="", normalizedDays=[];
     for (var j=0;j<days.length;j++) {
-      var row=days[j]||{}, date=text(row.day), points=Number(row.points);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < from || date > to || date <= previous || !Number.isFinite(points) || points < 0) return null;
-      previous=date; normalizedDays.push({day:date,points:points,objectives:Number(row.objectives)||0,windows:Number(row.windows)||0,
-        missions:Number(row.missions)||0,tasks:Number(row.tasks)||0});
+      var row=days[j]||{}, date=text(row.day), normalizedRow={day:date};
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < from || date > to || date <= previous) return null;
+      for(var dayMetric=0;dayMetric<METRICS.length;dayMetric++){
+        var dayMetricName=METRICS[dayMetric],dayMetricValue=Number(row[dayMetricName]);
+        if(!Number.isFinite(dayMetricValue)||dayMetricValue<0)return null;normalizedRow[dayMetricName]=dayMetricValue;
+      }
+      previous=date; normalizedDays.push(normalizedRow);
     }
     var timeline=[], previousAt=Infinity;
     for (var k=0;k<payload.timeline.length;k++) {
       var event=payload.timeline[k]||{}, at=ms(event.at), eventDay=text(event.day || day(at));
       if (!at || at > clock + 60000 || at > previousAt || eventDay < from || eventDay > to ||
         (event.project_id != null && text(event.project_id) !== text(requested.projectId))) return null;
+      var eventPoints=Number(event.points);if(!Number.isFinite(eventPoints)||eventPoints<0)return null;
       previousAt=at; timeline.push({type:text(event.type)||"Actividad",id:text(event.id),title:text(event.title)||text(event.detail)||"Sin título",
-        at:at,day:eventDay,projectId:text(event.project_id || requested.projectId),points:Number(event.points)||0});
+        at:at,day:eventDay,projectId:text(event.project_id || requested.projectId),points:eventPoints});
     }
     return {agent:payload.agent,projectId:payload.project_id,period:payload.period,timezone:text(payload.timezone)||TIME_ZONE,
       from:from,to:to,label:text(payload.label),sampledAt:sampled,metrics:metrics,evolution:normalizedDays,timeline:timeline};
@@ -267,8 +316,9 @@
 
   root.YkHighscoreDetail = { key:key, ms:ms, today:today, validAgent:validAgent, sameFamily:sameFamily, taskIdentity:taskIdentity,
     snapshot:snapshot, scoreFor:scoreFor, ranking:ranking, taskCountToday:taskCountToday, history:history,
-    periods:PERIODS.slice(), types:TYPES.slice(), validPeriod:validPeriod, validType:validType, canonicalType:canonicalType,
-    queryState:queryState, detailUrl:detailUrl, timelineForType:timelineForType, metricForType:metricForType, periodHistory:periodHistory,
+    periods:PERIODS.slice(), types:TYPES.slice(), orders:ORDERS.slice(), validPeriod:validPeriod, validType:validType, validOrder:validOrder, canonicalType:canonicalType,
+    queryState:queryState, detailUrl:detailUrl, timelineForType:timelineForType, metricForType:metricForType,
+    evolutionGroups:evolutionGroups, timelineGroups:timelineGroups, periodHistory:periodHistory,
     nextWindow:nextWindow, windowCountdown:windowCountdown,
     facts:facts, timeline:timeline, timeZone:TIME_ZONE };
 })(typeof window !== "undefined" ? window : globalThis);

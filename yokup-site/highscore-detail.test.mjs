@@ -23,7 +23,7 @@ test("los tres puestos del podio navegan por click, Enter nativo y Space a la ru
 
 test("el detalle valida identidad, conserva vuelta y no depende de texto inventado", () => {
   assert.match(detailHtml, /href="\/highscore"[^>]*aria-label="Volver al Highscore"/);
-  assert.match(detailHtml, /highscore-detail-page\.js\?v=onidle-type-filter-r2/);
+  assert.match(detailHtml, /highscore-detail-page\.js\?v=history-groups-order-r1/);
   assert.match(detailHtml, /DETAIL\.validAgent\(agent,ID\)/);
   assert.match(detailHtml, /Falta el agente/);
   assert.match(detailHtml, /Agente no encontrado/);
@@ -51,7 +51,7 @@ test("los tres agentes visibles del snapshot de producción abren un detalle vá
 });
 
 test("el detalle carga la revisión histórica y no el JS antiguo", () => {
-  assert.match(detailHtml, /src="\/highscore-detail\.js\?v=onidle-type-filter-r2"/);
+  assert.match(detailHtml, /src="\/highscore-detail\.js\?v=history-groups-order-r1"/);
   assert.doesNotMatch(detailHtml, /highscore-detail\.js\?v=flt-1150-a1/);
 });
 

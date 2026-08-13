@@ -12,10 +12,10 @@ vm.runInContext(helper,context);const D=context.YkHighscoreDetail;
 test("type es canónico, conserva todo el scope URL y degrada a Todos",()=>{
   assert.deepEqual(Array.from(D.types),["all","objective","window","mission","task"]);
   assert.deepEqual(JSON.parse(JSON.stringify(D.queryState("?agent=TrinityMBP14&project_id=yokup.com&period=week&type=mission"))),
-    {agent:"TrinityMBP14",projectId:"yokup.com",period:"week",type:"mission"});
+    {agent:"TrinityMBP14",projectId:"yokup.com",period:"week",type:"mission",order:"desc"});
   assert.equal(D.queryState("?agent=A&project_id=P&period=today&type=nope").type,"all");
   assert.equal(D.detailUrl({agent:"TrinityMBP14",projectId:"yokup.com",period:"year",type:"task"}),
-    "/highscoreDetail?agent=TrinityMBP14&project_id=yokup.com&period=year&type=task");
+    "/highscoreDetail?agent=TrinityMBP14&project_id=yokup.com&period=year&type=task&order=desc");
 });
 
 test("cada pastilla filtra sólo su tipo factual y Puntos equivale a Todos",()=>{
@@ -34,7 +34,7 @@ test("cambiar tipo no consulta de nuevo y back-forward restaura filtro o periodo
   assert.doesNotMatch(page,/function selectType\(type\)[^}]*load\(/);
   assert.match(page,/activeScope=stateValue\.agent\+"\|"\+stateValue\.projectId\+"\|"\+stateValue\.period/);
   assert.match(page,/if\(activeData&&activeScope===scope\)render\(activeData,value\);else load\(value\)/);
-  assert.match(page,/pushState"\]\(\{period:next\.period,type:next\.type\}/);
+  assert.match(page,/pushState"\]\(\{period:next\.period,type:next\.type,order:next\.order\}/);
   assert.match(page,/window\.addEventListener\("popstate",function\(\)\{boot\(false\);\}\)/);
 });
 
