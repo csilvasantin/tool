@@ -41,6 +41,14 @@ function harness(){
   return {db,env:{DB},F:context};
 }
 
+function factualMarker(comparison, seriesIndex, labelIndex) {
+  const series=comparison.series[seriesIndex],label=comparison.labels[labelIndex];
+  const cumulative=series.values[labelIndex],previous=labelIndex?series.values[labelIndex-1]:0;
+  const leader=Math.max(0,...comparison.series.map(row=>row.values[labelIndex]));
+  return {agent:series.agent,position:series.position,label:label.label,at:label.at,
+    cumulative,delta:cumulative-previous,share:leader?cumulative/leader:0,leader_gap:leader-cumulative};
+}
+
 test("semana y mes son naturales de Madrid, incluidos medianoche y DST",()=>{
   const {F}=harness();
   const summer=JSON.parse(JSON.stringify(F.highscoreNaturalPeriods(Date.UTC(2026,7,11,12))));
@@ -243,8 +251,23 @@ test("ranking devuelve todos los puntuados, excluye cero y corta navegación en 
     assert.ok(comparison.series.every(row=>row.values.every((value,index,all)=>
       value>=0&&(!index||value>=all[index-1]))),period);
     assert.deepEqual(comparison.series.map(row=>row.values.at(-1)),comparison.series.map(row=>row.points),period);
+    assert.ok(comparison.series.every(row=>row.values.reduce((sum,value,index,all)=>
+      sum+value-(index?all[index-1]:0),0)===row.points),`${period}: la suma de deltas reproduce el final`);
     assert.deepEqual(comparison.series.map(row=>row.current),[false,false,false,false,true],period);
     assert.ok(comparison.series.every(row=>row.values[0]===0),`${period} conserva el cero factual inicial`);
+    const smithIndex=comparison.series.findIndex(row=>row.agent==='SmithMBP14');
+    const activeIndex=comparison.series[smithIndex].values.findIndex((value,index,all)=>value>(index?all[index-1]:0));
+    const marker=factualMarker(comparison,smithIndex,activeIndex);
+    assert.deepEqual(marker,{
+      agent:'SmithMBP14',position:5,label:comparison.labels[activeIndex].label,
+      at:comparison.labels[activeIndex].at,cumulative:40,delta:40,share:.2,leader_gap:160
+    },period);
+    assert.deepEqual(factualMarker(comparison,smithIndex,0),{
+      agent:'SmithMBP14',position:5,label:comparison.labels[0].label,
+      at:comparison.labels[0].at,cumulative:0,delta:0,share:0,leader_gap:0
+    },`${period}: el cero inicial no fabrica cuota ni distancia`);
+    assert.deepEqual(Object.keys(marker),['agent','position','label','at','cumulative','delta','share','leader_gap'],
+      `${period}: el marcador agregado no atribuye id, tipo, título o misión`);
   }
   // Ayer conserva el mismo contrato completo con un conjunto factual distinto.
   for(const [index,[agent,machine]] of agents.entries()) db.prepare(

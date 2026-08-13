@@ -6397,6 +6397,12 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
     return { agent:row.agent, position:row.position, points:row.points,
       current:seriesIndex === currentIndex, values:intervals.map((points) => accumulated += points) };
   });
+  // Contrato del marcador: labels[i] aporta el inicio factual del bucket y
+  // series[s].values[i] el acumulado de esa familia hasta ese bucket. De ahí se
+  // derivan exactamente delta (resta del acumulado anterior), cuota y distancia
+  // al máximo del mismo índice. El bucket puede agregar varios hechos: por eso
+  // esta serie no publica id/tipo/título ni permite atribuir el delta a una
+  // misión concreta; esa explicación pertenece exclusivamente al timeline.
   const comparisonEvolution = { project_id:exactProjectId, period:range.period, timezone:"Europe/Madrid",
     mode:"cumulative", granularity:axis ? axis.granularity : null,
     labels:axisLabels.map(({ key, label, at }) => ({ key, label, at })), series:comparisonSeries };
