@@ -26,8 +26,10 @@ a{color:var(--brand)}.wrap{max-width:1040px;margin:0 auto;padding:54px 20px 72px
 .latest-work{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:14px 0;padding:14px 16px;border:1px solid rgba(255,216,102,.42);border-radius:12px;background:rgba(255,216,102,.07)}
 .latest-work-body{min-width:0}.latest-work h2{margin:0 0 6px;color:var(--accent);font-size:12px}.latest-work-project{display:block;color:var(--ink);font-size:12px}.latest-work-title,.latest-work-meta{margin:5px 0 0;color:var(--mut);font-size:10px;line-height:1.45}.latest-work-meta{color:var(--dim)}
 .latest-work-link{flex:0 0 auto;padding:10px 12px;border:1px solid rgba(120,243,255,.45);border-radius:8px;text-decoration:none;font-size:10px;font-weight:900}.latest-work-link:hover,.latest-work-link:focus-visible{border-color:var(--brand);color:var(--ink);outline:2px solid var(--brand);outline-offset:2px}
-.ranking-comparison{margin:0 0 18px}.ranking-comparison-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}.ranking-comparison-row{display:grid;grid-template-columns:48px minmax(150px,230px) 1fr 72px;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:#061019}
-.ranking-comparison-row.current{border-color:var(--accent);background:rgba(255,216,102,.08);box-shadow:inset 3px 0 0 var(--accent)}.comparison-position{color:var(--accent);font-size:12px;font-weight:950}.comparison-agent{min-width:0;overflow-wrap:anywhere;color:var(--ink);font-size:11px}.comparison-bar{height:13px;overflow:hidden;border-radius:999px;background:#031018}.comparison-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--accent));box-shadow:0 0 10px rgba(120,243,255,.25)}.comparison-points{text-align:right;color:var(--accent);font-size:11px;white-space:nowrap}
+.ranking-series{margin:0 0 18px}.series-chart-wrap{width:100%;overflow-x:auto;overscroll-behavior-inline:contain}.series-chart-svg{display:block;width:100%;height:auto;min-width:640px;background:rgba(2,8,13,.5);border:1px solid var(--line);border-radius:10px}
+.series-grid-line{stroke:rgba(70,144,160,.22);stroke-width:1}.series-axis-x,.series-axis-y{fill:var(--dim);font:800 9px var(--mono)}.series-axis-x{text-anchor:middle}.series-axis-y{text-anchor:end}.series-line{opacity:.72}.series-line.current{opacity:1;filter:drop-shadow(0 0 4px rgba(255,216,102,.55))}
+.series-legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin:14px 0;padding:0;list-style:none}.series-legend li{display:grid;grid-template-columns:10px minmax(110px,1fr) auto;gap:7px;align-items:center;color:var(--mut);font-size:10px}.series-legend li.current{color:var(--ink)}.series-legend li>span:first-child{width:9px;height:9px;border-radius:50%}.series-legend strong{overflow-wrap:anywhere}.series-legend li>span:last-child{color:var(--accent);white-space:nowrap}.series-color-0{background:#78f3ff}.series-color-1{background:#ffd866}.series-color-2{background:#88ffaa}.series-color-3{background:#ff8b6b}.series-color-4{background:#bd93f9}.series-color-5{background:#ff79c6}.series-color-6{background:#8be9fd}.series-color-7{background:#f1fa8c}
+.ranking-series details{margin-top:12px;color:var(--mut);font-size:10px}.ranking-series summary{min-height:44px;display:flex;align-items:center;width:max-content;max-width:100%;cursor:pointer;color:var(--brand);font-weight:900}.series-data-table{width:100%;margin-top:8px;border-collapse:collapse;font-size:9px}.series-data-table caption{padding:8px;text-align:left;color:var(--ink);font-weight:900}.series-data-table th,.series-data-table td{padding:7px;border:1px solid var(--line);text-align:right}.series-data-table th:first-child{text-align:left}.series-data-table .current{background:rgba(255,216,102,.08);color:var(--accent)}
 h1{margin:6px 0 4px;color:var(--brand);font-size:clamp(23px,5vw,42px);word-break:break-word}.source{margin:0;color:var(--mut);font-size:11px;line-height:1.5}
 .identity{min-width:0}.identity-title-row{display:flex;align-items:center;justify-content:space-between;gap:18px}.identity-title-row h1{min-width:0}
 .onidle-control{display:grid;grid-template-columns:auto auto;align-items:center;justify-content:end;gap:7px 10px;min-width:max-content}
@@ -63,7 +65,7 @@ h1{margin:6px 0 4px;color:var(--brand);font-size:clamp(23px,5vw,42px);word-break
 .loading{opacity:.58;pointer-events:none}.period-error{grid-column:1/-1}
 @media(max-width:760px){.stats{grid-template-columns:repeat(3,1fr)}.grid{grid-template-columns:1fr}.timeline{grid-column:auto}.identity-title-row{align-items:flex-start;flex-direction:column;gap:9px}.onidle-control{justify-content:start}.onidle-status{text-align:left}}
 @media(max-width:760px){.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.score-evolution,.timeline{grid-column:1/-1}.score-day{grid-template-columns:minmax(128px,190px) 1fr 54px}}
-@media(max-width:470px){.wrap{padding:42px 14px 56px}.hero{grid-template-columns:1fr;text-align:center}.avatar-stack{margin:auto}.identity-title-row{align-items:center}.onidle-control{justify-content:center;grid-template-columns:1fr}.onidle-status{text-align:center}.latest-work{align-items:stretch;flex-direction:column}.latest-work-link{text-align:center}.ranking-comparison-row{grid-template-columns:42px 1fr auto;gap:7px}.comparison-bar{grid-column:2/-1;grid-row:2}.stats{grid-template-columns:repeat(2,1fr)}.hour{grid-template-columns:50px 1fr auto}.period-nav button{flex-basis:30%}.period-heading-controls{justify-content:flex-start}.score-day{grid-template-columns:1fr 48px}.score-day .score-day-bar{grid-column:1/-1;grid-row:2}.event{grid-template-columns:1fr auto}.event time{grid-column:1/-1}}
+@media(max-width:470px){.wrap{padding:42px 14px 56px}.hero{grid-template-columns:1fr;text-align:center}.avatar-stack{margin:auto}.identity-title-row{align-items:center}.onidle-control{justify-content:center;grid-template-columns:1fr}.onidle-status{text-align:center}.latest-work{align-items:stretch;flex-direction:column}.latest-work-link{text-align:center}.series-chart-wrap{margin-inline:-4px;width:calc(100% + 8px)}.series-chart-svg{min-width:560px}.series-legend{display:grid;grid-template-columns:1fr}.series-data-table{min-width:560px}.ranking-series details{overflow-x:auto}.stats{grid-template-columns:repeat(2,1fr)}.hour{grid-template-columns:50px 1fr auto}.period-nav button{flex-basis:30%}.period-heading-controls{justify-content:flex-start}.score-day{grid-template-columns:1fr 48px}.score-day .score-day-bar{grid-column:1/-1;grid-row:2}.event{grid-template-columns:1fr auto}.event time{grid-column:1/-1}}
 .turno{margin:14px 0;padding:12px 14px;border:1px solid rgba(120,243,255,.22);border-radius:10px;background:rgba(2,8,13,.5)}
 .turno-t{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut,#75aab9);font-weight:800}
 .turno-v{font-size:26px;font-weight:800;line-height:1.15;margin:4px 0 2px;color:var(--brand,#78f3ff);font-variant-numeric:tabular-nums}
@@ -71,14 +73,14 @@ h1{margin:6px 0 4px;color:var(--brand);font-size:clamp(23px,5vw,42px);word-break
 .turno-m{font-size:11px;color:var(--dim,#4d7a88)}
 </style>
 </head>
-<body data-yk-title="DETALLE HIGHSCORE" data-yk-zone="app">
+<body data-yk-title="HIGHSCORE" data-yk-zone="app" data-yk-parent="/highscore">
 <main class="wrap">
   <a class="back" href="/highscore" aria-label="Volver al Highscore">← Volver al Highscore</a>
   <div id="content" aria-live="polite"><section class="state"><p>Cargando datos reales…</p></section></div>
 </main>
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script src="/yk-avatar.js?v=v.2026.08.02.202305"></script>
-<script src="/highscore-detail.js?v=ranking-comparison-r1"></script>
+<script src="/highscore-detail.js?v=ranking-series-r1"></script>
 <script type="application/x-yokup-legacy-detail">
 (function () {
   "use strict";
@@ -190,7 +192,7 @@ h1{margin:6px 0 4px;color:var(--brand);font-size:clamp(23px,5vw,42px);word-break
       available:{daily:rows[0].ok,tasks:rows[1].ok,missions:rows[2].ok,incidents:rows[3].ok,history:rows[4].ok}}); });
 })();
 </script>
-<script src="/highscore-detail-page.js?v=ranking-comparison-r1"></script>
-<script src="/yk-frame.js?v=r19"></script>
+<script src="/highscore-detail-page.js?v=ranking-series-r1"></script>
+<script src="/yk-frame.js?v=r19-parent1"></script>
 </body>
 </html>

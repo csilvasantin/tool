@@ -720,7 +720,10 @@
   // «Label:href|…»); sin nada, el menú global de la home.
   function pageNav() {
     if (document.body.getAttribute("data-yk-zone") === "app") {
-      var path = (location.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+      /* Las vistas detalle declaran su sección padre; el menú sigue saliendo de
+         APP_NAV y no necesitan copiarlo ni falsificar enlaces propios. */
+      var parentPath = document.body.getAttribute("data-yk-parent");
+      var path = (parentPath || location.pathname.replace(/\/+$/, "") || "/").toLowerCase();
       return APP_NAV.map(function (r) {
         return { label: r[0], href: r[1], active: (path === r[1] || path === r[1] + ".html") };
       });

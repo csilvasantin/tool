@@ -194,6 +194,43 @@
       ratio:max ? row.points/max : 0,current:index===value.currentIndex};});
   }
 
+  /* Serie comparativa factual. No reconstruimos puntos desde el ranking: el
+     gráfico sólo se habilita cuando el servidor entrega el mismo universo,
+     orden, total y foco que ranking.ordered para el scope solicitado. */
+  function comparisonEvolutionFromHistory(value, rankingValue, requested, identity) {
+    var expectedGrain={today:"hour",yesterday:"hour",week:"day",month:"day",year:"month"};
+    var maximum={hour:25,day:31,month:12};
+    if (!value || !rankingValue || text(value.project_id)!==text(requested&&requested.projectId) ||
+      text(value.period)!==text(requested&&requested.period) || text(value.timezone)!==TIME_ZONE ||
+      text(value.mode)!=="cumulative" || text(value.granularity)!==expectedGrain[text(requested&&requested.period)] ||
+      !Array.isArray(value.labels) || !value.labels.length || value.labels.length>maximum[value.granularity] ||
+      !Array.isArray(value.series) || value.series.length!==rankingValue.ordered.length) return null;
+    var labels=[],previousAt=-Infinity,seenLabels=Object.create(null);
+    for (var i=0;i<value.labels.length;i++) {
+      var sourceLabel=value.labels[i]||{},labelKey=text(sourceLabel.key),label=text(sourceLabel.label),at=ms(sourceLabel.at);
+      if (!labelKey || !label || !Number.isFinite(at) || at<=previousAt || seenLabels[labelKey]) return null;
+      seenLabels[labelKey]=true;previousAt=at;labels.push({key:labelKey,label:label,at:at});
+    }
+    var series=[];
+    for (var j=0;j<value.series.length;j++) {
+      var source=value.series[j]||{},ranked=rankingValue.ordered[j],points=Number(source.points),position=Number(source.position);
+      var shouldCurrent=j===rankingValue.currentIndex;
+      if (!sameFamily(source.agent,"",ranked.agent,identity) || text(source.agent)!==text(ranked.agent) ||
+        position!==ranked.position || points!==ranked.points || source.current!==shouldCurrent || !Array.isArray(source.values) ||
+        source.values.length!==labels.length) return null;
+      var values=[],previousValue=0;
+      for (var k=0;k<source.values.length;k++) {
+        var point=Number(source.values[k]);
+        if (!Number.isFinite(point) || point<0 || point<previousValue) return null;
+        previousValue=point;values.push(point);
+      }
+      if (values[values.length-1]!==points) return null;
+      series.push({agent:text(source.agent),position:position,points:points,current:shouldCurrent,values:values});
+    }
+    return {projectId:text(value.project_id),period:text(value.period),timezone:TIME_ZONE,mode:"cumulative",
+      granularity:text(value.granularity),labels:labels,series:series};
+  }
+
   /* Contexto cruzado explícito, nunca un hecho del timeline seleccionado. El
      enlace debe volver al mismo detalle con el project_id que afirma el
      servidor; si no coincide, el panel se omite en vez de fabricar navegación. */
@@ -312,9 +349,10 @@
     }
     var factualRanking=rankingFromHistory(payload.ranking,requested,identity);
     var latestWork=latestWorkFromHistory(payload.latest_work,requested,identity,clock);
+    var comparisonEvolution=comparisonEvolutionFromHistory(payload.comparison_evolution,factualRanking,requested,identity);
     return {agent:payload.agent,projectId:payload.project_id,period:payload.period,timezone:text(payload.timezone)||TIME_ZONE,
       from:from,to:to,label:text(payload.label),sampledAt:sampled,metrics:metrics,evolution:normalizedDays,timeline:timeline,
-      ranking:factualRanking,latestWork:latestWork};
+      ranking:factualRanking,latestWork:latestWork,comparisonEvolution:comparisonEvolution};
   }
   function ranking(agent, daily, tasks, identity, now) {
     var names = Object.create(null);
@@ -404,7 +442,8 @@
     periods:PERIODS.slice(), types:TYPES.slice(), orders:ORDERS.slice(), validPeriod:validPeriod, validType:validType, validOrder:validOrder, canonicalType:canonicalType,
     queryState:queryState, detailUrl:detailUrl, timelineForType:timelineForType, metricForType:metricForType,
     rankingFromHistory:rankingFromHistory, previousRankedAgent:previousRankedAgent, nextRankedAgent:nextRankedAgent,
-    rankingComparisonRows:rankingComparisonRows, latestWorkFromHistory:latestWorkFromHistory,
+    rankingComparisonRows:rankingComparisonRows, comparisonEvolutionFromHistory:comparisonEvolutionFromHistory,
+    latestWorkFromHistory:latestWorkFromHistory,
     evolutionGroups:evolutionGroups, timelineGroups:timelineGroups, periodHistory:periodHistory,
     nextWindow:nextWindow, windowCountdown:windowCountdown, decisionUrl:decisionUrl, onIdleDecisionError:onIdleDecisionError,
     facts:facts, timeline:timeline, timeZone:TIME_ZONE };

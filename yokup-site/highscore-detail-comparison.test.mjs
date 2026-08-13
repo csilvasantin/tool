@@ -39,15 +39,14 @@ test("empty y singleton son estados factuales válidos y puntos cero fallan cerr
 });
 
 test("gráfico usa ranking completo, no type, y DOM seguro con semántica accesible",()=>{
-  assert.match(page,/function rankingComparison\(data,stateValue\)/);
-  assert.match(page,/D\.rankingComparisonRows\(data\.ranking\)/);
-  assert.match(page,/if\(!data\.ranking\)[\s\S]*comparación factual no está disponible/);
-  assert.match(page,/el\("ol","ranking-comparison-list"\)/);
+  assert.match(page,/function rankingSeriesChart\(data,stateValue\)/);
+  assert.match(page,/var evolution=data\.comparisonEvolution/);
+  assert.match(page,/if\(!evolution\)[\s\S]*evolución comparada factual no está disponible/);
+  assert.match(page,/document\.createElementNS\(SVG_NS,"polyline"\)/);
   assert.match(page,/item\.setAttribute\("aria-current","true"\)/);
-  assert.match(page,/fill\.style\.width=\(row\.ratio\*100\)\+"%"/);
-  assert.match(page,/Comparación de puntos · "\+LABELS\[data\.period\]/);
-  assert.doesNotMatch(page,/rankingComparison\([^)]*type/);
-  assert.doesNotMatch(page,/ranking-comparison[\s\S]{0,600}innerHTML/);
+  assert.match(page,/Evolución comparada · "\+LABELS\[data\.period\]/);
+  assert.doesNotMatch(page,/rankingSeriesChart\([^)]*type/);
+  assert.doesNotMatch(page,/ranking-series[\s\S]{0,600}innerHTML/);
 });
 
 test("flechas muestran puesto destino sólo cuando existe y conservan blancos de 44px",()=>{
@@ -56,13 +55,13 @@ test("flechas muestran puesto destino sólo cuando existe y conservan blancos de
   assert.match(page,/rankButton\("←","previous-agent",previous/);
   assert.match(page,/rankButton\("→","next-agent",next/);
   assert.match(html,/\.rank-agent\{[^}]*min-width:44px[^}]*height:44px/);
-  assert.match(html,/\.ranking-comparison-list\{[^}]*display:grid/);
-  assert.match(html,/@media\(max-width:470px\)[\s\S]*\.ranking-comparison-row\{/);
+  assert.match(html,/\.series-legend\{[^}]*display:flex/);
+  assert.match(html,/@media\(max-width:470px\)[\s\S]*\.series-chart-wrap\{/);
 });
 
 test("periodo recarga comparación; type y order sólo rerenderizan el mismo ranking",()=>{
   assert.match(page,/function selectPeriod\(period\)[\s\S]*load\(value\)/);
   assert.match(page,/function selectType\(type\)[\s\S]*render\(activeData,value\)/);
   assert.match(page,/function selectOrder\(\)[\s\S]*render\(activeData,value\)/);
-  assert.match(page,/target\.append\(hero\(data,stateValue\),periodNav\(stateValue\.period,selectPeriod\),rankingComparison\(data,stateValue\)\)/);
+  assert.match(page,/target\.append\(hero\(data,stateValue\),periodNav\(stateValue\.period,selectPeriod\),rankingSeriesChart\(data,stateValue\)\)/);
 });
