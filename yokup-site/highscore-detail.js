@@ -183,6 +183,28 @@
     return value.ordered[(value.currentIndex+1)%value.ordered.length] || null;
   }
 
+  /* Contexto cruzado explícito, nunca un hecho del timeline seleccionado. El
+     enlace debe volver al mismo detalle con el project_id que afirma el
+     servidor; si no coincide, el panel se omite en vez de fabricar navegación. */
+  function latestWorkFromHistory(value, requested, identity, now) {
+    if (value == null) return null;
+    var agent=text(value.agent),executor=text(value.executor),projectId=text(value.project_id),projectName=text(value.project_name);
+    var status=text(value.status),at=ms(value.at),startedAt=ms(value.started_at),finishedAt=ms(value.finished_at),duration=Number(value.duration_ms);
+    if (!sameFamily(agent,"",requested.agent,identity) || !projectId || !projectName ||
+      ["running","finalized"].indexOf(status)<0 || !at || at > Number(now||Date.now())+60000) return null;
+    if (executor && !sameFamily(executor,"",requested.agent,identity)) return null;
+    if (startedAt && startedAt > at || finishedAt && (finishedAt > at || status!=="finalized") ||
+      status==="finalized" && !finishedAt || !Number.isFinite(duration) || duration < 0) return null;
+    var detail=text(value.detail_url),url;
+    try { url=new URL(detail,"https://yokup.local"); } catch (_) { return null; }
+    if (url.origin!=="https://yokup.local" || url.pathname!=="/highscoreDetail" ||
+      !sameFamily(url.searchParams.get("agent"),"",requested.agent,identity) ||
+      text(url.searchParams.get("project_id"))!==projectId || url.searchParams.get("period")!=="today") return null;
+    return {agent:agent,executor:executor,reference:text(value.reference),title:text(value.title)||"Trabajo reciente",
+      projectId:projectId,projectName:projectName,status:status,at:at,startedAt:startedAt||null,
+      finishedAt:finishedAt||null,durationMs:duration,detailUrl:url.pathname+url.search};
+  }
+
   function snapshot(agent) {
     try { return JSON.parse(sessionStorage.getItem("yokup.highscore.detail." + key(agent)) || "null"); }
     catch (_) { return null; }
@@ -278,8 +300,10 @@
         at:at,day:eventDay,projectId:text(event.project_id || requested.projectId),points:eventPoints});
     }
     var factualRanking=rankingFromHistory(payload.ranking,requested,identity);
+    var latestWork=latestWorkFromHistory(payload.latest_work,requested,identity,clock);
     return {agent:payload.agent,projectId:payload.project_id,period:payload.period,timezone:text(payload.timezone)||TIME_ZONE,
-      from:from,to:to,label:text(payload.label),sampledAt:sampled,metrics:metrics,evolution:normalizedDays,timeline:timeline,ranking:factualRanking};
+      from:from,to:to,label:text(payload.label),sampledAt:sampled,metrics:metrics,evolution:normalizedDays,timeline:timeline,
+      ranking:factualRanking,latestWork:latestWork};
   }
   function ranking(agent, daily, tasks, identity, now) {
     var names = Object.create(null);
@@ -368,7 +392,7 @@
     snapshot:snapshot, scoreFor:scoreFor, ranking:ranking, taskCountToday:taskCountToday, history:history,
     periods:PERIODS.slice(), types:TYPES.slice(), orders:ORDERS.slice(), validPeriod:validPeriod, validType:validType, validOrder:validOrder, canonicalType:canonicalType,
     queryState:queryState, detailUrl:detailUrl, timelineForType:timelineForType, metricForType:metricForType,
-    rankingFromHistory:rankingFromHistory, nextRankedAgent:nextRankedAgent,
+    rankingFromHistory:rankingFromHistory, nextRankedAgent:nextRankedAgent, latestWorkFromHistory:latestWorkFromHistory,
     evolutionGroups:evolutionGroups, timelineGroups:timelineGroups, periodHistory:periodHistory,
     nextWindow:nextWindow, windowCountdown:windowCountdown, decisionUrl:decisionUrl, onIdleDecisionError:onIdleDecisionError,
     facts:facts, timeline:timeline, timeZone:TIME_ZONE };

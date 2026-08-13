@@ -56,6 +56,14 @@
     D.types.forEach(function(type){var card=el("button","metric");card.type="button";card.dataset.type=type;card.setAttribute("aria-pressed",String(type===selected));card.setAttribute("aria-controls","factual-timeline");
       card.setAttribute("aria-label",TYPE_LABELS[type]+": "+metrics[fields[type]]+". "+(type==="all"?"Mostrar toda la cronología":"Filtrar la cronología"));card.append(el("b","",metrics[fields[type]]),el("span","",TYPE_LABELS[type]));
       card.addEventListener("click",function(){onSelect(type);});grid.append(card);});return grid;}
+  function latestWorkPanel(data,stateValue){var work=data.latestWork;if(!work||work.projectId===stateValue.projectId)return null;
+    var panel=el("aside","latest-work"),body=el("div","latest-work-body"),heading=el("h2","","Trabajo más reciente en otro proyecto");
+    var project=el("strong","latest-work-project",work.projectName+" · "+work.projectId),title=el("p","latest-work-title",(work.reference?work.reference+" · ":"")+work.title);
+    var when=new Date(work.at).toLocaleString("es-ES",{timeZone:data.timezone,dateStyle:"medium",timeStyle:"medium"});
+    var status=work.status==="running"?"En curso":"Finalizado",meta=el("p","latest-work-meta",status+" · "+when+(work.executor?" · ejecuta "+work.executor:""));
+    var link=el("a","latest-work-link","Abrir histórico de "+work.projectName+" →");link.href=work.detailUrl;
+    link.setAttribute("aria-label","Abrir el histórico factual de "+stateValue.agent+" en "+work.projectName);
+    body.append(heading,project,title,meta);panel.append(body,link);panel.setAttribute("aria-label","Contexto de trabajo más reciente fuera del proyecto actual");return panel;}
   function orderText(order){return order==="asc"?"más antiguo primero":"más reciente primero";}
   function orderButton(order,onSelect,label){var button=el("button","chronology-order","Fecha · "+orderText(order)+(order==="asc"?" ↑":" ↓"));button.type="button";button.dataset.order=order;
     button.setAttribute("aria-label",label+". Orden actual: "+orderText(order)+". Pulsar para invertir.");button.addEventListener("click",onSelect);return button;}
@@ -72,7 +80,7 @@
       group.events.forEach(function(event){var item=el("li","event"),time=el("time","",new Date(event.at).toLocaleString("es-ES",{timeZone:data.timezone,day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}));time.dateTime=new Date(event.at).toISOString();
         var body=el("div"),eventTitle=el("strong","",event.type+" · "+event.title);body.append(eventTitle);if(event.id)body.append(el("small","",event.id));item.append(time,body,el("span","event-points",event.points?"+"+event.points+" pts":""));list.append(item);});section.append(groupHead,list);grouped.append(section);});panel.append(grouped);return panel;}
   function render(data,stateValue){target.replaceChildren();var back=document.querySelector(".back");back.href=backUrl(stateValue.projectId);
-    target.append(hero(data,stateValue),periodNav(stateValue.period,selectPeriod));var grid=el("div","grid");grid.append(metricGrid(data.metrics,stateValue.type,selectType),evolution(data,stateValue.type,stateValue.order,selectOrder),chronology(data,stateValue.type,stateValue.order,selectOrder));target.append(grid);
+    target.append(hero(data,stateValue),periodNav(stateValue.period,selectPeriod));var recent=latestWorkPanel(data,stateValue);if(recent)target.append(recent);var grid=el("div","grid");grid.append(metricGrid(data.metrics,stateValue.type,selectType),evolution(data,stateValue.type,stateValue.order,selectOrder),chronology(data,stateValue.type,stateValue.order,selectOrder));target.append(grid);
     target.append(el("p","score-sampled","Datos canónicos muestreados el "+new Date(data.sampledAt).toLocaleString("es-ES",{timeZone:data.timezone})+"."));}
   function endpoint(stateValue){return API+"/highscore/history?agent="+encodeURIComponent(stateValue.agent)+"&project_id="+encodeURIComponent(stateValue.projectId)+"&period="+encodeURIComponent(stateValue.period);}
   function load(stateValue){var revision=++requestRevision;target.classList.add("loading");return fetch(endpoint(stateValue),{cache:"no-store"}).then(function(response){if(!response.ok)throw new Error(String(response.status));return response.json();})
