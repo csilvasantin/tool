@@ -6196,6 +6196,44 @@ function highscoreHistoryDayKeys(startDay, endDay) {
 }
 __name(highscoreHistoryDayKeys, "highscoreHistoryDayKeys");
 
+// Eje compartido de la comparación. Las horas avanzan por instante absoluto:
+// así un día de cambio horario tiene honestamente 23 o 25 intervalos. Semana y
+// mes usan días naturales de Madrid, y el año meses, manteniendo el payload en
+// como máximo 25/31/12 puntos respectivamente.
+function highscoreComparisonAxis(range) {
+  if (!range) return null;
+  const labels = [];
+  if (["today", "yesterday"].includes(range.period)) {
+    for (let at = range.start; at < range.end && labels.length < 25; at += 60 * 60 * 1000) {
+      const hour = madridHourKey(at);
+      labels.push({ key:`${hour}@${at}`, label:`${hour.slice(11)}:00`, at });
+    }
+    return { granularity:"hour", labels };
+  }
+  if (["week", "month"].includes(range.period)) {
+    for (const day of highscoreHistoryDayKeys(range.start_day, range.end_day)) {
+      const natural = missionDayRange(day);
+      if (natural && natural.start < range.end) labels.push({ key:day, label:day.slice(5), at:natural.start });
+    }
+    return { granularity:"day", labels };
+  }
+  if (range.period === "year") {
+    const first = String(range.start_day || "").slice(0, 7), last = String(range.end_day || "").slice(0, 7);
+    let [year, month] = first.split("-").map(Number);
+    while (year && month && labels.length < 12) {
+      const key = `${year}-${String(month).padStart(2, "0")}`;
+      if (key > last) break;
+      const natural = missionDayRange(`${key}-01`);
+      if (natural && natural.start < range.end) labels.push({ key, label:key, at:natural.start });
+      month += 1;
+      if (month > 12) { year += 1; month = 1; }
+    }
+    return { granularity:"month", labels };
+  }
+  return null;
+}
+__name(highscoreComparisonAxis, "highscoreComparisonAxis");
+
 // `MacMini` fue el apellido derivado de la máquina antes de que la identidad
 // operativa del mismo equipo pasara a `Mini`. Dentro del histórico ambos son la
 // misma familia física: se canonicalizan antes de filtrar, deduplicar y sumar,
@@ -6297,22 +6335,24 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
   // global: hacerlo mezclaría Pixeria con el cierre factual de admira-tv que
   // motivó este contrato. Todas las filas nacen de las mismas cuatro fuentes y
   // pesos que la cronología anterior.
-  const rankingTotals = new Map();
+  const rankingTotals = new Map(), rankingEvents = [];
   const rankingFamily = (agent, machine) => {
     const family = highscoreCanonicalHistoryFamily(agent, machine), identity = family && parseAgentIdentity(family.family_name);
     return family && family.family_key && !family.family_key.startsWith("external:") &&
       identity && identity.role === "main" && identity.suffix ? family : null;
   };
-  const rankingAdd = (agent, machine, points) => {
+  const rankingAdd = (agent, machine, points, at) => {
     const family = rankingFamily(agent, machine);
-    if (!family) return;
+    const stamp = Number(at) || 0, score = Number(points) || 0;
+    if (!family || score <= 0 || stamp < range.start || stamp >= range.end) return;
     const current = rankingTotals.get(family.family_key) || { agent:family.family_name, points:0 };
-    current.points += Number(points) || 0;
+    current.points += score;
     rankingTotals.set(family.family_key, current);
+    rankingEvents.push({ family_key:family.family_key, at:stamp, points:score });
   };
-  for (const idea of ideas) rankingAdd(highscoreAgent(idea.author), "", HIGHSCORE_WEIGHTS.objective);
-  for (const decision of decisions) rankingAdd(decision.agent, decision.machine, HIGHSCORE_WEIGHTS.window);
-  for (const mission of missions) rankingAdd(mission.assignee, mission.loc, HIGHSCORE_WEIGHTS.mission);
+  for (const idea of ideas) rankingAdd(highscoreAgent(idea.author), "", HIGHSCORE_WEIGHTS.objective, idea.created_at);
+  for (const decision of decisions) rankingAdd(decision.agent, decision.machine, HIGHSCORE_WEIGHTS.window, decision.created_at);
+  for (const mission of missions) rankingAdd(mission.assignee, mission.loc, HIGHSCORE_WEIGHTS.mission, mission.scored_at);
   const rankingTasks = new Map();
   for (const task of tasks) {
     const match = String(task.code || "").toLowerCase().match(/^([a-c])(?:[1-3])?$/), family = rankingFamily(task.assignee, task.loc);
@@ -6322,7 +6362,8 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
   }
   for (const { family, task } of rankingTasks.values()) rankingAdd(family.family_name, task.loc,
     HIGHSCORE_TASK_WEIGHTS.task +
-      (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0));
+      (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0),
+    task.updated_at);
   // `ordered` es el universo factual completo del scope, no un podio, y la
   // fuente única para cualquier comparativa: el consumidor puede obtener el
   // máximo de ordered[0].points y derivar cada ratio sin duplicar puntos ni
@@ -6343,6 +6384,22 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
   const ranking = { project_id:exactProjectId, period:range.period,
     ordered:ordered.map(publicRow), current_index:currentIndex >= 0 ? currentIndex : null,
     previous, next };
+  const axis = highscoreComparisonAxis(range), axisLabels = axis ? axis.labels : [];
+  const comparisonSeries = ordered.map((row, seriesIndex) => {
+    const intervals = Array(axisLabels.length).fill(0);
+    for (const event of rankingEvents) {
+      if (event.family_key !== row.family_key) continue;
+      let bucket = -1;
+      for (let index = 0; index < axisLabels.length && axisLabels[index].at <= event.at; index += 1) bucket = index;
+      if (bucket >= 0) intervals[bucket] += event.points;
+    }
+    let accumulated = 0;
+    return { agent:row.agent, position:row.position, points:row.points,
+      current:seriesIndex === currentIndex, values:intervals.map((points) => accumulated += points) };
+  });
+  const comparisonEvolution = { project_id:exactProjectId, period:range.period, timezone:"Europe/Madrid",
+    mode:"cumulative", granularity:axis ? axis.granularity : null,
+    labels:axisLabels.map(({ key, label, at }) => ({ key, label, at })), series:comparisonSeries };
 
   // El detalle conserva su timeline puro, pero explica honestamente si el
   // trabajo más reciente de la familia pertenece a otro proyecto y ofrece el
@@ -6399,7 +6456,8 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
     timezone:"Europe/Madrid", period:range.period,
     range:{ start:range.start, end:range.end, start_day:range.start_day, end_day:range.end_day,
       from:range.start_day, to:range.end_day },
-    generated_at:generatedAt, sampled_at:generatedAt, metrics, ranking, latest_work:latestWork,
+    generated_at:generatedAt, sampled_at:generatedAt, metrics, ranking,
+    comparison_evolution:comparisonEvolution, latest_work:latestWork,
     evolution:{ start:range.start_day, end:range.end_day, days:[...byDay.values()] }, timeline };
 }
 __name(highscoreProjectHistory, "highscoreProjectHistory");

@@ -35,8 +35,8 @@ function harness(){
     grabVar("HIGHSCORE_WEIGHTS"),grabVar("HIGHSCORE_TASK_WEIGHTS"),grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),
     grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_WORK_STARTED_SQL"),grabVar("HIGHSCORE_MISSION_PROGRESS_SQL"),
     grabVar("HIGHSCORE_PERSONAS"),grabVar("AGENT_SOURCE_SQL_T"),grabVar("MISSION_SCOPE_SQL_T"),
-    grabVar("HIGHSCORE_HISTORY_PERIODS"),grab("highscoreAgent"),grab("highscoreNaturalPeriods"),
-    grab("highscoreHistoryRange"),grab("highscoreHistoryDayKeys"),grab("highscoreCanonicalHistoryFamily"),grab("highscoreProjectHistory"),grab("highscoreHistory")
+    grabVar("HIGHSCORE_HISTORY_PERIODS"),grab("highscoreAgent"),grab("madridHourKey"),grab("highscoreNaturalPeriods"),
+    grab("highscoreHistoryRange"),grab("highscoreHistoryDayKeys"),grab("highscoreComparisonAxis"),grab("highscoreCanonicalHistoryFamily"),grab("highscoreProjectHistory"),grab("highscoreHistory")
   ].join("\n"),context);
   return {db,env:{DB},F:context};
 }
@@ -51,6 +51,19 @@ test("semana y mes son naturales de Madrid, incluidos medianoche y DST",()=>{
   const winter=JSON.parse(JSON.stringify(F.highscoreNaturalPeriods(Date.UTC(2026,0,15,12))));
   assert.equal(winter.week_key,"2026-01-12");
   assert.equal(winter.month_start,Date.UTC(2025,11,31,23),"día 1 00:00 CET");
+});
+
+test("eje comparativo horario respeta días Madrid de 23 y 25 horas",()=>{
+  const {F}=harness();
+  const spring=F.highscoreHistoryRange("yesterday",Date.UTC(2026,2,30,12));
+  const autumn=F.highscoreHistoryRange("yesterday",Date.UTC(2026,9,26,12));
+  const springAxis=JSON.parse(JSON.stringify(F.highscoreComparisonAxis(spring)));
+  const autumnAxis=JSON.parse(JSON.stringify(F.highscoreComparisonAxis(autumn)));
+  assert.equal(springAxis.granularity,"hour");
+  assert.equal(springAxis.labels.length,23,"domingo de salto CET→CEST");
+  assert.equal(autumnAxis.labels.length,25,"domingo de repetición CEST→CET");
+  assert.equal(new Set(autumnAxis.labels.map(row=>row.key)).size,25,"la hora repetida conserva key factual única");
+  assert.ok(autumnAxis.labels.every((row,index,all)=>!index||all[index-1].at<row.at));
 });
 
 test("histórico usa hechos canónicos, identidad exacta y deduplicación diaria A/B/C",async()=>{
@@ -170,6 +183,10 @@ test("ranking canonicaliza OraculoMacMini en OraculoMini, suma 875+40 y renumera
   assert.deepEqual(result.ranking,{project_id:'yokup',period:'today',ordered:[
     {agent:'OraculoMini',points:915,position:1},{agent:'TrinityMBP14',points:40,position:2}
   ],current_index:0,previous:null,next:{agent:'TrinityMBP14',points:40,position:2}});
+  assert.deepEqual(result.comparison_evolution.series.map(row=>[row.agent,row.points]),[
+    ['OraculoMini',915],['TrinityMBP14',40]
+  ],"la serie fusiona el alias legacy igual que el ranking");
+  assert.equal(result.comparison_evolution.series[0].values.at(-1),915);
   assert.equal(result.ranking.ordered.some(row=>row.agent==='OraculoMacMini'),false);
   const legacyRequest=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,'OraculoMacMini','yokup','today',now)));
   assert.equal(legacyRequest.agent,'OraculoMini');
@@ -214,6 +231,20 @@ test("ranking devuelve todos los puntuados, excluye cero y corta navegación en 
       {agent:'SmithMBP14',points:40,position:5,ratio:.2,current:true}
     ],period);
     assert.equal('comparison' in result,false,"no duplica la fuente factual");
+    const comparison=result.comparison_evolution;
+    assert.deepEqual([comparison.project_id,comparison.period,comparison.timezone,comparison.mode],
+      ['scope',period,'Europe/Madrid','cumulative'],period);
+    assert.equal(comparison.series.length,5,period);
+    assert.deepEqual(comparison.series.map(row=>[row.agent,row.position,row.points]),
+      result.ranking.ordered.map(row=>[row.agent,row.position,row.points]),period);
+    assert.ok(comparison.labels.length>1,`${period} no colapsa el eje a una fecha inútil`);
+    assert.ok(comparison.labels.length<=({today:25,week:7,month:31,year:12})[period],period);
+    assert.ok(comparison.series.every(row=>row.values.length===comparison.labels.length),period);
+    assert.ok(comparison.series.every(row=>row.values.every((value,index,all)=>
+      value>=0&&(!index||value>=all[index-1]))),period);
+    assert.deepEqual(comparison.series.map(row=>row.values.at(-1)),comparison.series.map(row=>row.points),period);
+    assert.deepEqual(comparison.series.map(row=>row.current),[false,false,false,false,true],period);
+    assert.ok(comparison.series.every(row=>row.values[0]===0),`${period} conserva el cero factual inicial`);
   }
   // Ayer conserva el mismo contrato completo con un conjunto factual distinto.
   for(const [index,[agent,machine]] of agents.entries()) db.prepare(
@@ -226,6 +257,9 @@ test("ranking devuelve todos los puntuados, excluye cero y corta navegación en 
   assert.deepEqual(previousDay.ranking.ordered.map(row=>row.agent),[
     'MorfeoMBP16','NeoMBAAzul','OraculoMini','SmithMBP14','TrinityMBP14'
   ],"empate estable por identidad canónica");
+  assert.deepEqual(previousDay.comparison_evolution.series.map(row=>row.agent),
+    previousDay.ranking.ordered.map(row=>row.agent));
+  assert.ok(previousDay.comparison_evolution.series.every(row=>row.values.at(-1)===8));
 
   const zero=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,'TrinityMBA16','scope','today',now)));
   assert.equal(zero.metrics.points,0);
@@ -240,14 +274,19 @@ test("ranking devuelve todos los puntuados, excluye cero y corta navegación en 
   assert.deepEqual(singleton.ranking,{project_id:'otro',period:'today',ordered:[
     {agent:'SmithMBP14',points:40,position:1}
   ],current_index:0,previous:null,next:null});
+  assert.deepEqual(singleton.comparison_evolution.series.map(row=>[row.agent,row.points]),[['SmithMBP14',40]]);
 });
 
 test("scope histórico falla cerrado ante proyecto, periodo o identidad no exactos",async()=>{
   const {db,env,F}=harness(),now=Date.UTC(2026,7,13,12);
-  db.exec("INSERT INTO projects VALUES ('yokup','Yokup')");
+  db.exec("INSERT INTO projects VALUES ('yokup','Yokup'),('vacio','Vacío')");
   assert.equal((await F.highscoreProjectHistory(env,"SubMorfeoMBP16","yokup","today",now)).code,"exact_agent_required");
   assert.equal((await F.highscoreProjectHistory(env,"MorfeoMBP16","Yokup","today",now)).code,"invalid_project_id");
   assert.equal((await F.highscoreProjectHistory(env,"MorfeoMBP16","yokup","quarter",now)).code,"invalid_period");
+  const empty=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,"MorfeoMBP16","vacio","today",now)));
+  assert.equal(empty.ok,true);
+  assert.ok(empty.comparison_evolution.labels.length>1);
+  assert.deepEqual(empty.comparison_evolution.series,[],"sin hechos no fabrica una línea a cero");
   assert.match(source,/url\.searchParams\.get\("project_id"\)/);
   assert.match(source,/url\.searchParams\.get\("period"\) \|\| "today"/);
 });
