@@ -80,6 +80,27 @@ test("handON fleet resuelto sin started_at sustituye el trabajo viejo del carril
   assert.equal(result.participants[0].reference,"FLT-HANDON");
 });
 
+test("FLT-1419 cerrado conserva el inicio de asignación aunque el primer progreso llegara al final",async()=>{
+  const {db,env,F}=harness();
+  const assigned=NOW-10*MIN, closed=NOW-5_000;
+  db.prepare("INSERT INTO tickets VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run("FLT-1419","Galería pública","MacMini","fleet","mission","resolved","MorfeoMacMini",null,
+      assigned-5_000,null,closed,closed,closed,"https://proof.test/gallery.png");
+  db.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES (?,?,?,?,?)")
+    .run("FLT-1419",assigned,"assign","Carlos","Asignado a MorfeoMacMini en macmini.");
+  // Reproduce el sello tardío de producción: el informe hizo aparecer una
+  // transición interna apenas antes del resolved, pero no puede borrar los
+  // diez minutos que ya acredita la asignación de una misión cerrada con prueba.
+  db.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES (?,?,?,?,?)")
+    .run("FLT-1419",closed,"status","yokup","Estado → in_progress");
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.mode,"recent"); assert.equal(result.count,1);
+  const row=result.participants[0];
+  assert.equal(row.reference,"FLT-1419"); assert.equal(row.state,"last_work");
+  assert.equal(row.work_started_at,assigned); assert.equal(row.ended_at,closed);
+  assert.equal(row.elapsed_ms,closed-assigned); assert.ok(row.elapsed_ms>0);
+});
+
 test("un handON resuelto rellena una calle libre mientras otra familia sigue activa",async()=>{
   const {db,env,F}=harness();
   mission(db,{id:"DCL-ACTIVA",agent:"OraculoMacMini",at:NOW-MIN,title:"QA activa"});

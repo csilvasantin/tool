@@ -5237,14 +5237,21 @@ async function reconcileFleetTicket(env, id, prev, it, assignment, status, now, 
   const project = prev.project_id || prev.project || "";
   const role = standalone ? "standalone-task" : String(it.from_name || prev.role || "").slice(0, 80);
   const assignmentChanged = assignment.complete && (prev.assignee !== asig || (prev.loc || "") !== loc);
-  const changed = prev.status !== status || prev.assignee !== asig || (prev.loc || "") !== loc ||
+  const changed = prev.status !== status || (status === "in_progress" && !(Number(prev.started_at) > 0)) ||
+    prev.assignee !== asig || (prev.loc || "") !== loc ||
     prev.subject !== subject || prev.source !== "fleet" || (prev.project || "") !== project || (prev.role || "") !== role;
   if (!changed) {
     if (standalone) await ensureFleetStandaloneTask(env, id, subject, assignment, false);
     return { changed: false, assignmentChanged: false, assignee: asig, loc, project, role, subject };
   }
-  await env.DB.prepare("UPDATE tickets SET status=?,assignee=?,loc=?,screen=?,subject=?,source='fleet',project=?,project_id=?,role=?,updated_at=?,resolved_at=? WHERE id=?")
-    .bind(status, asig, loc, fleetScreen(it, { assignee: asig, loc }), subject, project, project, role, now, status === "resolved" ? (prev.resolved_at || now) : null, id).run();
+  // El feed puede pasar de pending a active antes del siguiente sync. Esa
+  // transición ES el claim factual del encargo y debe sellar started_at: si sólo
+  // cambiamos status, active-work ve la misión pero no tiene reloj/progreso y la
+  // elimina del corredor. COALESCE conserva cualquier inicio más preciso escrito
+  // por nudge/task-status.
+  await env.DB.prepare("UPDATE tickets SET status=?,assignee=?,loc=?,screen=?,subject=?,source='fleet',project=?,project_id=?,role=?,started_at=CASE WHEN ?='in_progress' THEN COALESCE(started_at,?) ELSE started_at END,updated_at=?,resolved_at=? WHERE id=?")
+    .bind(status, asig, loc, fleetScreen(it, { assignee: asig, loc }), subject, project, project, role,
+      status, now, now, status === "resolved" ? (prev.resolved_at || now) : null, id).run();
   if (assignmentChanged) await addEvent(env, id, "assign", "flota", "Reasignado a " + asig + " en " + loc + ".");
   if (standalone) await ensureFleetStandaloneTask(env, id, subject, assignment, assignmentChanged);
   else if (assignmentChanged) await ensureFleetMainTasks(env, id, subject, assignment, true);
@@ -5308,7 +5315,7 @@ async function fleetSync(env) {
     const id = await fleetMissionId(env, it);   // sólo reserva id tras validar proyecto
     let st = FLEET_ST[it.status] || "open";
     const ts = epochMs(it.ts, now);
-    const prev = await env.DB.prepare("SELECT id,subject,project,project_id,source,role,status,assignee,loc,proof_image,resolved_at FROM tickets WHERE id=?").bind(id).first();
+    const prev = await env.DB.prepare("SELECT id,subject,project,project_id,source,role,status,assignee,loc,proof_image,started_at,resolved_at FROM tickets WHERE id=?").bind(id).first();
     // Un DONE del agente no basta: Yokup sólo finaliza cuando el cierre incluye
     // un pantallazo real del trabajo. El bot puede haber terminado, pero la misión
     // permanece EN CURSO hasta que /fleet/informe registre proof_image.
@@ -5348,10 +5355,11 @@ async function fleetSync(env) {
         // points_end daba 0 — /informes decía «0 pts» de encargos que habían producido
         // 40 (Carlos lo vio en la sábana, 2026-08-08). El await se resuelve antes de
         // que exista la fila, así que el número es el de ANTES de este encargo.
-        "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,project,project_id,role,status,priority,assignee,source,ai_triage,created_at,updated_at,resolved_at,project_inherited,project_inherited_from,points_start) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,project,project_id,role,status,priority,assignee,source,ai_triage,created_at,started_at,updated_at,resolved_at,project_inherited,project_inherited_from,points_start) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(
         id, fleetScreen(it, assignment), fleetSubject(it.text), assignment.loc, projectContext.project_id, projectContext.project_id, it.from_name || "",
-        st, fleetPriority(it.text), assignment.assignee, "fleet", "", ts, now,
+        st, fleetPriority(it.text), assignment.assignee, "fleet", "", ts,
+        st === "in_progress" ? ts : null, now,
         st === "resolved" ? epochMs(it.done_at, now) : null,
         projectContext.inherited ? 1 : 0, projectContext.inherited_from || null,
         await puntosDeAgenteAhora(env, assignment.assignee)
@@ -5844,7 +5852,7 @@ var HIGHSCORE_MISSION_STARTED_SQL = "CASE WHEN t.source IN ('decision-batch','cl
 // Inicio de TRABAJO (más estricto que el sello de puntuación histórica): un plan
 // pendiente no basta. Hace falta started_at, una misión nacida ya en curso, una
 // transición interna de Yokup o la primera tarea realmente iniciada/hecha.
-var HIGHSCORE_WORK_STARTED_SQL = "COALESCE(t.started_at,(SELECT MIN(e.ts) FROM events e WHERE e.ticket_id=t.id AND " + HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL + "),(SELECT MIN(mt.started_at) FROM mission_tasks mt WHERE mt.mission_id=t.id AND mt.started_at IS NOT NULL AND mt.status IN ('in_progress','doing','active','done','resolved','completed')),CASE WHEN t.source='cli-declare' THEN t.created_at END,CASE WHEN t.status='resolved' AND COALESCE(TRIM(t.proof_image),'')<>'' THEN " + HIGHSCORE_MISSION_STARTED_SQL + " END)";
+var HIGHSCORE_WORK_STARTED_SQL = "COALESCE(t.started_at,CASE WHEN t.source='fleet' AND t.status='resolved' AND COALESCE(TRIM(t.proof_image),'')<>'' THEN (SELECT MIN(e.ts) FROM events e WHERE e.ticket_id=t.id AND e.kind='assign') END,(SELECT MIN(e.ts) FROM events e WHERE e.ticket_id=t.id AND " + HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL + "),(SELECT MIN(mt.started_at) FROM mission_tasks mt WHERE mt.mission_id=t.id AND mt.started_at IS NOT NULL AND mt.status IN ('in_progress','doing','active','done','resolved','completed')),CASE WHEN t.source='cli-declare' THEN t.created_at END,CASE WHEN t.status='resolved' AND COALESCE(TRIM(t.proof_image),'')<>'' THEN " + HIGHSCORE_MISSION_STARTED_SQL + " END)";
 // Avance MATERIAL de una misión. `tickets.updated_at`, `live_at` y
 // `mission_tasks.updated_at` quedan fuera: los tres también cambian por report,
 // owner, imagen o heartbeat. Cada started_at de tarea sí es un hecho material;
@@ -7246,8 +7254,8 @@ var worker_app = {
         await bindPresenceWork(env, actor.actor || t.assignee, t.loc, mid);
         if (img) {
           await env.DB.prepare(
-            "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,live_shot=?,live_at=?,live_kind=?,live_surface=?,live_context=?,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
-          ).bind(img, capturedAt, liveKind, captureSurface, captureContext, await puntosDeAgenteAhora(env, t.assignee || actor.actor), now, mid).run();
+            "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,started_at=CASE WHEN status='open' THEN COALESCE(started_at,?) ELSE started_at END,live_shot=?,live_at=?,live_kind=?,live_surface=?,live_context=?,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
+          ).bind(capturedAt, img, capturedAt, liveKind, captureSurface, captureContext, await puntosDeAgenteAhora(env, t.assignee || actor.actor), now, mid).run();
         // Red de seguridad del sello de SALIDA: las misiones nacen ya con
         // points_start (fleetSync), pero las creadas por otras vias o antes de ese
         // cambio llegan aqui sin el. Va con COALESCE en las DOS ramas, con captura
@@ -7257,8 +7265,8 @@ var worker_app = {
         // no habia producido nada.
         } else {
           await env.DB.prepare(
-            "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
-          ).bind(await puntosDeAgenteAhora(env, t.assignee || actor.actor), now, mid).run();
+            "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,started_at=CASE WHEN status='open' THEN COALESCE(started_at,?) ELSE started_at END,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
+          ).bind(now, await puntosDeAgenteAhora(env, t.assignee || actor.actor), now, mid).run();
         }
         // Telegram es un espejo completo de la misión: el usuario ve el avance y
         // la captura sin tener que abrir YOKUP.

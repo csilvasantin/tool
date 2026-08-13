@@ -13,7 +13,7 @@ const grab=name=>{
 
 function harness(){
   const db=new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,screen TEXT,subject TEXT,loc TEXT,project TEXT,source TEXT,role TEXT,status TEXT,assignee TEXT,proof_image TEXT,resolved_at INTEGER,updated_at INTEGER,project_id TEXT)");
+  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,screen TEXT,subject TEXT,loc TEXT,project TEXT,source TEXT,role TEXT,status TEXT,assignee TEXT,proof_image TEXT,resolved_at INTEGER,updated_at INTEGER,project_id TEXT,started_at INTEGER)");
   db.exec("CREATE TABLE fleet_ids(inbox_id INTEGER PRIMARY KEY,mission_id TEXT UNIQUE,created_at INTEGER)");
   db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,report TEXT,image TEXT,created_at INTEGER,updated_at INTEGER,executor TEXT,PRIMARY KEY(mission_id,code))");
   db.exec("CREATE TABLE project_members(project_id TEXT,kind TEXT,ref TEXT)");
@@ -29,8 +29,8 @@ const rows=(db,id)=>db.prepare("SELECT code,title,status,owner,report FROM missi
 
 test("#1112 repara FLT-1140 por procedencia sin tocar FLT-1112 y queda idempotente",async()=>{
   const {db,env,F}=harness(),text="[PRIORIDAD ABSOLUTA] Yokup: corregir en /tareas la ausencia de retratos de agentes";
-  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1112","otra #999","Misión ajena","MacBook Pro 16","otro","fleet","otro-role","resolved","NeoMBP16","proof",7,9,"otro");
-  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1140","NeoMBP16·MacBook Pro 16 #1112",text,"MacBook Pro 16","yokup","fleet","otro-role","in_progress","NeoMBP16",null,null,10,"yokup");
+  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1112","otra #999","Misión ajena","MacBook Pro 16","otro","fleet","otro-role","resolved","NeoMBP16","proof",7,9,"otro",null);
+  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1140","NeoMBP16·MacBook Pro 16 #1112",text,"MacBook Pro 16","yokup","fleet","otro-role","in_progress","NeoMBP16",null,null,10,"yokup",10);
   db.prepare("INSERT INTO fleet_ids VALUES(?,?,?)").run(1112,"FLT-1140",1);
   for(const task of [["a","Revisar ids","done","SubOraculoMini","hecho"],["b","Asignar id","done","InfraOraculoMini","verificado"],["a1","Plan de Trinity","pending","InfraTrinityMBP16",null],["b1","Ejecutar Trinity","pending","SubTrinityMBP16",null]]){
     db.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,image,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)").run("FLT-1140",...task,null,1,1);
@@ -54,8 +54,8 @@ test("#1112 repara FLT-1140 por procedencia sin tocar FLT-1112 y queda idempoten
 
 test("mapping sin procedencia se reasigna y deja ambos tickets ajenos intactos",async()=>{
   const {db,env,F}=harness(),it={id:1112,text:"Yokup: encargo nuevo",target_persona:"Oraculo",target_machine:"admira-macmini"};
-  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1112","x #9",it.text,"x","otro","incident","r","resolved","Neo",null,1,1,"otro");
-  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1140","x #8",it.text,"x","otro","incident","r","open","Trinity",null,null,1,"otro");
+  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1112","x #9",it.text,"x","otro","incident","r","resolved","Neo",null,1,1,"otro",null);
+  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1140","x #8",it.text,"x","otro","incident","r","open","Trinity",null,null,1,"otro",null);
   db.prepare("INSERT INTO fleet_ids VALUES(?,?,?)").run(1112,"FLT-1140",1);
   const before=JSON.stringify(db.prepare("SELECT * FROM tickets ORDER BY id").all()),id=await F.fleetMissionId(env,it);
   assert.equal(id,"FLT-1141");assert.equal(JSON.stringify(db.prepare("SELECT * FROM tickets ORDER BY id").all()),before);
@@ -69,14 +69,19 @@ test("fleetSync usa feed público y fallback censado, nunca el privado 401",()=>
   assert.match(block,/const assignment = await resolveFleetAssignment\(env, it\)/);
   const helper=source.slice(source.indexOf("async function reconcileFleetTicket"),source.indexOf("__name(reconcileFleetTicket"));assert.match(helper,/assignment\.complete/);
   assert.match(block,/reconcileFleetTicket\(env, id, prev, it, assignment, st, now, standalone\)/);
+  assert.match(block,/created_at,started_at,updated_at/,
+    "una misión fleet que nace active debe persistir started_at en el mismo INSERT");
+  assert.match(block,/st === "in_progress" \? ts : null/);
+  assert.match(helper,/started_at=CASE WHEN \?='in_progress' THEN COALESCE\(started_at,\?\)/,
+    "pending→active por sync debe sellar el inicio factual sin sobrescribir uno previo");
 });
 
 test("una identidad Mini canónica del inbox sobrevive sync y alcanza A/B/C", async()=>{
   const {db,env,F}=harness();
   const text="Controlar Grok por CLI sin aplicaciones desktop";
   const it={id:1333,text,target_persona:"OraculoMini",target_machine:"macmini",project_id:"yokup",from_name:"status-web"};
-  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").run(
-    "FLT-1365","OraculoMacMini·macmini #1333",text,"macmini","yokup","fleet","status-web","in_progress","OraculoMacMini",null,null,10,"yokup"
+  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(
+    "FLT-1365","OraculoMacMini·macmini #1333",text,"macmini","yokup","fleet","status-web","in_progress","OraculoMacMini",null,null,10,"yokup",10
   );
   for (const task of [["a","Implementar","done","SubOraculoMacMini","hecho"],["b","Probar","done","SubOraculoMacMini","verificado"],["c","Reportar","in_progress","InfraOraculoMacMini","en QA"]]) {
     db.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,report,image,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)").run("FLT-1365",...task,null,1,1);
@@ -87,4 +92,15 @@ test("una identidad Mini canónica del inbox sobrevive sync y alcanza A/B/C", as
   assert.equal(row(db,"FLT-1365").assignee,"OraculoMini");
   assert.deepEqual(rows(db,"FLT-1365").map(x=>x.owner),["OraculoMini","OraculoMini","OraculoMini"]);
   assert.deepEqual(rows(db,"FLT-1365").map(x=>x.report),["hecho","verificado","en QA"]);
+});
+
+test("sync repara una fleet ya in_progress que quedó sin started_at",async()=>{
+  const {db,env,F}=harness(),text="Galería pública";
+  db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(
+    "FLT-1419","MorfeoMacMini·macmini #1392",text,"macmini","ainimation-studio","fleet","status-web",
+    "in_progress","MorfeoMacMini",null,null,10,"ainimation-studio",null);
+  const it={id:1392,text,target_persona:"Morfeo",target_machine:"macmini",project_id:"ainimation-studio",from_name:"status-web"};
+  const result=await F.reconcileFleetTicket(env,"FLT-1419",row(db,"FLT-1419"),it,F.fleetAssignment(it),"in_progress",20);
+  assert.equal(result.changed,true);
+  assert.equal(row(db,"FLT-1419").started_at,20);
 });
