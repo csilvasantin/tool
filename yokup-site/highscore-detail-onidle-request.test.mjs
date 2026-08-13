@@ -1,0 +1,41 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import vm from "node:vm";
+
+const helper=fs.readFileSync(new URL("./highscore-detail.js",import.meta.url),"utf8");
+const page=fs.readFileSync(new URL("./highscore-detail-page.js",import.meta.url),"utf8");
+const html=fs.readFileSync(new URL("./highscoreDetail.html",import.meta.url),"utf8");
+const identity=fs.readFileSync(new URL("./yk-agent-identity.js",import.meta.url),"utf8");
+const context=vm.createContext({Intl,Date,URLSearchParams,sessionStorage:{getItem:()=>null}});
+vm.runInContext(identity,context);vm.runInContext(helper,context);
+const D=context.YkHighscoreDetail,ID=context.ykAgentIdentity;
+
+test("la cuenta atrás selecciona sólo la familia exacta y llega a ahora",()=>{
+  const now=Date.now(),payload={ok:true,agentes:3,pasoMin:20,turnos:[
+    {agent:"NeoMBP14",proxima:now+1000,turno:1},{agent:"TrinityMBP14",proxima:now+65000,turno:2}
+  ]};
+  const value=D.nextWindow(payload,"TrinityMBP14",ID);assert.equal(value.turn,2);assert.equal(value.at,now+65000);
+  assert.equal(D.windowCountdown(now+65000,now),"1 min 05 s");assert.equal(D.windowCountdown(now-1,now),"ahora");
+});
+
+test("el control vive a la derecha del nombre y es accesible",()=>{
+  assert.match(page,/titleRow\.append\(title,onIdleControl\(stateValue\)\)/);
+  assert.match(html,/\.identity-title-row\{display:flex;[^}]*justify-content:space-between/);
+  assert.match(page,/aria-label","Próxima ventana OnIDLE de /);assert.match(page,/status\.setAttribute\("role","status"\)/);
+  assert.match(page,/button\.setAttribute\("aria-busy","true"\)/);assert.match(page,/button\.disabled=true/);
+});
+
+test("la UI sólo solicita al scheduler autenticado y jamás crea decisiones",()=>{
+  assert.match(page,/fetch\(API\+"\/fleet\/onidle-request",\{method:"POST",credentials:"include"/);
+  assert.match(page,/JSON\.stringify\(\{request_id:id,agent:stateValue\.agent,project_id:stateValue\.projectId\}\)/);
+  assert.doesNotMatch(page,/fetch\([^\n]*\/decisions[^\n]*method:"POST"/);
+  assert.doesNotMatch(page,/options:|machine:/);
+});
+
+test("created/existing navegan y blocked/error permanecen visibles",()=>{
+  assert.match(page,/payload\.status==="created"\|\|payload\.status==="existing"/);
+  assert.match(page,/window\.location\.assign\(payload\.url\)/);
+  assert.match(page,/payload\.status==="blocked"/);assert.match(page,/La sesión ha caducado/);
+  assert.match(page,/No se pudo contactar con el scheduler/);
+});

@@ -46,7 +46,7 @@ var json = /* @__PURE__ */ __name((o, s = 200) => new Response(JSON.stringify(o)
 var AUTH_CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
 var WL_API = "https://admira-whitelist.csilvasantin.workers.dev";
 var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@admira.com", "agonzalez@admira.com", "jsedano@admira.com"];
-var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/agent/stop", "/fleet/agent/control", "/fleet/cli/terminal", "/fleet/desktop/write", "/fleet/desktop/capture", "/fleet/desktop/verify-close", "/fleet/desktop/capture/clear", "/fleet/pty/ticket", "/equipo/machine", "/equipo/silicon", "/strategy", "/config"]);
+var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/onidle-request", "/fleet/agent/stop", "/fleet/agent/control", "/fleet/cli/terminal", "/fleet/desktop/write", "/fleet/desktop/capture", "/fleet/desktop/verify-close", "/fleet/desktop/capture/clear", "/fleet/pty/ticket", "/equipo/machine", "/equipo/silicon", "/strategy", "/config"]);
 var _wl = { at: 0, set: null };
 async function whitelist() {
   if (_wl.set && Date.now() - _wl.at < 3e5) return _wl.set;
@@ -267,6 +267,11 @@ async function applySchema(env) {
   // ledger sólo registra la publicación idempotente y nunca contiene secretos.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS onidle_ticks (identity_key TEXT NOT NULL, day TEXT NOT NULL, ordinal INTEGER NOT NULL, agent TEXT NOT NULL, machine TEXT NOT NULL, project_id TEXT NOT NULL, decision_id TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'reserved', reserved_at INTEGER NOT NULL, published_at INTEGER, PRIMARY KEY(identity_key,day,ordinal))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_onidle_ticks_status ON onidle_ticks(status,reserved_at)");
+  // Peticiones humanas de ventana inmediata. El navegador nunca crea decisiones:
+  // deja una intención idempotente y el servidor la resuelve con el mismo
+  // publicador OnIDLE que usa scheduled(), bajo lease y guardas operativas.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS onidle_requests (id TEXT PRIMARY KEY, requested_by TEXT NOT NULL, agent TEXT NOT NULL, machine TEXT NOT NULL, project_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'requested', decision_id TEXT, reason TEXT, deadline INTEGER, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)");
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_onidle_requests_identity ON onidle_requests(agent,machine,project_id,created_at)");
   // Una decisión de misiones es una tanda, no cinco trabajos independientes.
   // Se persiste la cola, pero cada cierre deja la tanda en
   // `awaiting_continuation`: la siguiente misión sólo puede salir de una nueva
@@ -3610,6 +3615,164 @@ async function runOnIdleTick(env, now = Date.now()) {
     published:results.filter((row) => row.published).length, publisher:"server-scheduled-v1" };
 }
 __name(runOnIdleTick, "runOnIdleTick");
+
+function onIdleDecisionUrl(decisionId) {
+  return DECIDE_URL + (decisionId ? "?decision_id=" + encodeURIComponent(decisionId) : "");
+}
+__name(onIdleDecisionUrl, "onIdleDecisionUrl");
+
+async function liveOnIdleDecision(env) {
+  return env.DB.prepare(
+    "SELECT id,agent,machine,project,deadline FROM decisions WHERE status='pending' ORDER BY created_at DESC,id DESC LIMIT 1"
+  ).first();
+}
+__name(liveOnIdleDecision, "liveOnIdleDecision");
+
+async function requestedOnIdleAssignment(env, requestedAgent, requestedProjectId) {
+  const project = (await listProjects(env)).find((row) => String(row.id) === String(requestedProjectId) &&
+    String(row.status || "activo").toLowerCase() === "activo");
+  if (!project) return null;
+  const candidates = [];
+  for (const agentRef of project.agents || []) {
+    if (!memberRefMatches("agent", agentRef, requestedAgent)) continue;
+    for (const machine of project.machines || []) {
+      // La máquina deriva el apellido; agentRef sólo autoriza la familia exacta.
+      // Así el alias histórico OraculoMacMini converge a OraculoMini sin aceptar
+      // que NeoMBP14 se convierta en NeoMini por compartir persona.
+      const identity = resolveDecisionIdentity(parseAgentIdentity(agentRef).persona, machine);
+      if (!identity.ok || identityKey(identity.agent) !== identityKey(requestedAgent)) continue;
+      const assignment = await exactDecisionProjectAssignment(env, identity.agent, identity.machine, project.id);
+      if (!assignment || String(assignment.id) !== String(project.id)) continue;
+      candidates.push({ identity, project:assignment,
+        identity_key:identityKey(identity.agent) + "@" + identityKey(identity.machine) });
+    }
+  }
+  return candidates.length === 1 ? candidates[0] : null;
+}
+__name(requestedOnIdleAssignment, "requestedOnIdleAssignment");
+
+function onIdleRequestResponse(row, replayed = false) {
+  const status = String(row && row.status || "processing");
+  const decisionId = String(row && row.decision_id || "");
+  return { ok:status === "created" || status === "existing", status,
+    request_id:String(row && row.id || ""), agent:String(row && row.agent || ""),
+    machine:String(row && row.machine || ""), project_id:String(row && row.project_id || ""),
+    decision_id:decisionId || null, deadline:Number(row && row.deadline) || null,
+    reason:String(row && row.reason || ""), url:decisionId ? onIdleDecisionUrl(decisionId) : null,
+    replayed:!!replayed, publisher:"server-scheduled-v1" };
+}
+__name(onIdleRequestResponse, "onIdleRequestResponse");
+
+async function finishOnIdleRequest(env, requestId, status, detail = {}, now = Date.now()) {
+  await env.DB.prepare(
+    "UPDATE onidle_requests SET status=?,decision_id=?,reason=?,deadline=?,updated_at=? WHERE id=?"
+  ).bind(status, detail.decision_id || null, detail.reason || status,
+    Number(detail.deadline) || null, now, requestId).run();
+  return env.DB.prepare("SELECT * FROM onidle_requests WHERE id=?").bind(requestId).first();
+}
+__name(finishOnIdleRequest, "finishOnIdleRequest");
+
+// El botón de HighscoreDetail sólo deja esta solicitud autenticada. Resolverla
+// sigue siendo trabajo del scheduler servidor: mismo censo, guard global, cupo,
+// propuestas y publicador; el lease evita que dos isolates ejecuten el mismo
+// intento a la vez y onidle_ticks mantiene idempotente la decisión resultante.
+async function requestImmediateOnIdle(env, input, session, now = Date.now()) {
+  const requestId = String(input && input.request_id || "").trim();
+  const requestedAgent = canonicalProjectAgentRef(input && input.agent);
+  const requestedProjectId = String(input && input.project_id || "").trim();
+  if (!/^[A-Za-z0-9_-]{8,80}$/.test(requestId)) return { status:400,
+    body:{ ok:false, status:"invalid", code:"request_id_required", error:"request_id idempotente requerido" } };
+  if (!requestedAgent || !requestedProjectId || requestedProjectId.length > 120) return { status:400,
+    body:{ ok:false, status:"invalid", code:"exact_scope_required", error:"agent y project_id exactos requeridos" } };
+
+  const previous = await env.DB.prepare("SELECT * FROM onidle_requests WHERE id=?").bind(requestId).first();
+  if (previous) {
+    if (String(previous.requested_by) !== String(session.email) ||
+        identityKey(previous.agent) !== identityKey(requestedAgent) ||
+        String(previous.project_id) !== requestedProjectId) {
+      return { status:409, body:{ ok:false, status:"conflict", code:"request_id_conflict",
+        error:"request_id ya pertenece a otra solicitud" } };
+    }
+    if (previous.status !== "requested" && previous.status !== "processing") {
+      return { status:previous.status === "blocked" ? 409 : 200,
+        body:onIdleRequestResponse(previous, true) };
+    }
+  }
+
+  const candidate = await requestedOnIdleAssignment(env, requestedAgent, requestedProjectId);
+  if (!candidate) return { status:409, body:{ ok:false, status:"blocked",
+    code:"exact_assignment_required", reason:"exact_assignment_required",
+    error:"No existe una asignación única de agente, equipo y proyecto" } };
+  const identity = candidate.identity;
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO onidle_requests (id,requested_by,agent,machine,project_id,status,created_at,updated_at) VALUES (?,?,?,?,?,'requested',?,?)"
+  ).bind(requestId, session.email, identity.agent, identity.machine, requestedProjectId, now, now).run();
+
+  let live = await liveOnIdleDecision(env);
+  if (live) {
+    const row = await finishOnIdleRequest(env, requestId, "existing", {
+      decision_id:live.id, deadline:live.deadline, reason:"live_decision"
+    }, now);
+    return { status:200, body:onIdleRequestResponse(row) };
+  }
+  let operational = await operationalOnIdleState(env, identity, now);
+  if (!operational.can_open) {
+    const row = await finishOnIdleRequest(env, requestId, "blocked", { reason:operational.reason }, now);
+    return { status:409, body:{ ...onIdleRequestResponse(row), blockers:operational.blockers,
+      quota:operational.quota } };
+  }
+
+  const leaseName = "onidle-request:" + candidate.identity_key + "@" + identityKey(requestedProjectId);
+  if (!(await tryAcquireBeatLease(env, leaseName, 5000))) {
+    live = await liveOnIdleDecision(env);
+    if (live) {
+      const row = await finishOnIdleRequest(env, requestId, "existing", {
+        decision_id:live.id, deadline:live.deadline, reason:"live_decision"
+      }, now);
+      return { status:200, body:onIdleRequestResponse(row) };
+    }
+    await env.DB.prepare("UPDATE onidle_requests SET status='processing',reason='lease_busy',updated_at=? WHERE id=?")
+      .bind(now, requestId).run();
+    const row = await env.DB.prepare("SELECT * FROM onidle_requests WHERE id=?").bind(requestId).first();
+    return { status:202, body:onIdleRequestResponse(row) };
+  }
+
+  // Segunda lectura dentro del lease: el estado pudo cambiar entre el clic y el
+  // turno de D1. Nunca se publica basándose en el guard anterior.
+  live = await liveOnIdleDecision(env);
+  if (live) {
+    const row = await finishOnIdleRequest(env, requestId, "existing", {
+      decision_id:live.id, deadline:live.deadline, reason:"live_decision"
+    }, now);
+    return { status:200, body:onIdleRequestResponse(row) };
+  }
+  operational = await operationalOnIdleState(env, identity, now);
+  if (!operational.can_open) {
+    const row = await finishOnIdleRequest(env, requestId, "blocked", { reason:operational.reason }, now);
+    return { status:409, body:{ ...onIdleRequestResponse(row), blockers:operational.blockers,
+      quota:operational.quota } };
+  }
+  const published = await publishScheduledOnIdle(env, candidate, now);
+  if (published.published) {
+    const decision = await env.DB.prepare("SELECT deadline FROM decisions WHERE id=?").bind(published.decision_id).first();
+    const row = await finishOnIdleRequest(env, requestId, "created", {
+      decision_id:published.decision_id, deadline:decision && decision.deadline, reason:"published"
+    }, now);
+    return { status:201, body:onIdleRequestResponse(row) };
+  }
+  live = await liveOnIdleDecision(env);
+  if (live) {
+    const row = await finishOnIdleRequest(env, requestId, "existing", {
+      decision_id:live.id, deadline:live.deadline, reason:"live_decision"
+    }, now);
+    return { status:200, body:onIdleRequestResponse(row) };
+  }
+  const row = await finishOnIdleRequest(env, requestId, "blocked", {
+    reason:published.reason || "scheduler_rejected"
+  }, now);
+  return { status:409, body:onIdleRequestResponse(row) };
+}
+__name(requestImmediateOnIdle, "requestImmediateOnIdle");
 
 async function pauseTimedOutOnIdleBatches(env, identity, now = Date.now()) {
   const cutoff = now - MISSION_UNCONCLUDED_AFTER_MS;
@@ -8842,6 +9005,23 @@ var worker_app = {
         if (!identity.ok) return json({ ok:false, code:"exact_identity_required", error:identity.error }, 400);
         return json({ ok:true, ...(await operationalOnIdleState(env, identity)) });
       } catch (e) { return json({ ok:false, error:String(e) }, 500); }
+    }
+    // Solicitud autenticada de ejecución inmediata del tick OnIDLE para una
+    // identidad exacta. No acepta opciones, máquina ni payload de decisión: el
+    // servidor los deriva del censo y pasa por la misma rutina scheduled.
+    if (url.pathname === "/fleet/onidle-request" && req.method === "POST") {
+      try {
+        await ensureSchema(env);
+        const session = await requireAuth(env, req);
+        if (!session) return json({ ok:false, status:"unauthorized", error:"unauthorized" }, 401);
+        let body;
+        try { body = await req.json(); }
+        catch { return json({ ok:false, status:"invalid", error:"bad-json" }, 400); }
+        const result = await requestImmediateOnIdle(env, body, session);
+        const response = json(result.body, result.status);
+        response.headers.set("cache-control", "no-store");
+        return response;
+      } catch (e) { return json({ ok:false, status:"error", error:String(e) }, 500); }
     }
     // Fuente única de las tres alternativas OnIdle. El cuerpo es JSONL para que
     // el launchd pueda consumirlo sin fichero intermedio; nunca devuelve 1/2

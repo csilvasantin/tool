@@ -50,6 +50,24 @@
     return "/highscoreDetail?" + params.toString();
   }
 
+  function nextWindow(payload, agent, identity) {
+    if (!(payload && payload.ok === true) || !Array.isArray(payload.turnos)) return null;
+    for (var i=0;i<payload.turnos.length;i++) {
+      var row=payload.turnos[i]||{}, next=Number(row.proxima);
+      if (sameFamily(row.agent, "", agent, identity) && Number.isFinite(next) && next > 0) {
+        return { at:next, turn:Number(row.turno)||0, agents:Number(payload.agentes)||0,
+          stepMinutes:Number(payload.pasoMin)||0 };
+      }
+    }
+    return null;
+  }
+  function windowCountdown(nextAt, now) {
+    var seconds=Math.max(0,Math.ceil((Number(nextAt)-Number(now||Date.now()))/1000));
+    if (!seconds) return "ahora";
+    var hours=Math.floor(seconds/3600), minutes=Math.floor((seconds%3600)/60), rest=seconds%60;
+    return (hours?hours+" h ":"")+minutes+" min "+String(rest).padStart(2,"0")+" s";
+  }
+
   function snapshot(agent) {
     try { return JSON.parse(sessionStorage.getItem("yokup.highscore.detail." + key(agent)) || "null"); }
     catch (_) { return null; }
@@ -229,5 +247,6 @@
   root.YkHighscoreDetail = { key:key, ms:ms, today:today, validAgent:validAgent, sameFamily:sameFamily, taskIdentity:taskIdentity,
     snapshot:snapshot, scoreFor:scoreFor, ranking:ranking, taskCountToday:taskCountToday, history:history,
     periods:PERIODS.slice(), validPeriod:validPeriod, queryState:queryState, detailUrl:detailUrl, periodHistory:periodHistory,
+    nextWindow:nextWindow, windowCountdown:windowCountdown,
     facts:facts, timeline:timeline, timeZone:TIME_ZONE };
 })(typeof window !== "undefined" ? window : globalThis);
