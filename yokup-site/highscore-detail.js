@@ -4,6 +4,7 @@
   var TIME_ZONE = "Europe/Madrid";
   var DAY = new Intl.DateTimeFormat("en-CA", { timeZone:TIME_ZONE, year:"numeric", month:"2-digit", day:"2-digit" });
   var HOUR = new Intl.DateTimeFormat("es-ES", { timeZone:TIME_ZONE, hour:"2-digit", hour12:false });
+  var PERIODS = ["today", "yesterday", "week", "month", "year"];
 
   function text(value) { return String(value == null ? "" : value).trim(); }
   function ms(value) { var n = Number(value) || 0; return n > 0 && n < 1e11 ? n * 1000 : n; }
@@ -33,6 +34,21 @@
     return generic ? identity.scoped(task.assignee, task.loc, generic) : (owner || task.assignee || "");
   }
   function mainTask(code) { return /^([a-c])(?:[1-3])?$/i.test(text(code)); }
+
+  function validPeriod(value) { return PERIODS.indexOf(text(value).toLowerCase()) >= 0; }
+  function queryState(search) {
+    var params = new URLSearchParams(String(search || "").replace(/^\?/, ""));
+    var period = text(params.get("period")).toLowerCase();
+    return { agent:text(params.get("agent")), projectId:text(params.get("project_id")),
+      period:validPeriod(period) ? period : "today" };
+  }
+  function detailUrl(state) {
+    var params = new URLSearchParams();
+    params.set("agent", text(state && state.agent));
+    params.set("project_id", text(state && state.projectId));
+    params.set("period", validPeriod(state && state.period) ? state.period : "today");
+    return "/highscoreDetail?" + params.toString();
+  }
 
   function snapshot(agent) {
     try { return JSON.parse(sessionStorage.getItem("yokup.highscore.detail." + key(agent)) || "null"); }
@@ -90,6 +106,42 @@
       seen[date]=true; previous=date; evolution.push({ day:date, points:value });
     }
     return { agent:payload.agent, sampledAt:sampled, periods:normalized, evolution:evolution };
+  }
+
+  /* Contrato periodizado: el servidor hace el corte factual. El navegador sólo
+     valida y presenta; nunca recorta un histórico parcial para fingir Hoy/Ayer. */
+  function periodHistory(payload, requested, identity, now) {
+    var clock=Number(now)||Date.now(), sampled=Number(payload && (payload.generated_at || payload.sampled_at));
+    if (!(payload && payload.ok === true) || !Number.isInteger(sampled) || sampled <= 0 || sampled > clock + 60000) return null;
+    if (!sameFamily(payload.agent, "", requested.agent, identity) || text(payload.project_id) !== text(requested.projectId) ||
+      text(payload.period) !== text(requested.period)) return null;
+    var range=payload.range || {}, from=text(payload.from || range.start_day), to=text(payload.to || range.end_day);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) return null;
+    var sourceMetrics=payload.metrics || {}, metrics={}, metricNames=["objectives","windows","missions","tasks","points"];
+    for (var i=0;i<metricNames.length;i++) {
+      var metric=metricNames[i], value=Number(sourceMetrics[metric]);
+      if (!Number.isFinite(value) || value < 0) return null;
+      metrics[metric]=value;
+    }
+    var days=payload.evolution && payload.evolution.days;
+    if (!Array.isArray(days) || !Array.isArray(payload.timeline)) return null;
+    var previous="", normalizedDays=[];
+    for (var j=0;j<days.length;j++) {
+      var row=days[j]||{}, date=text(row.day), points=Number(row.points);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < from || date > to || date <= previous || !Number.isFinite(points) || points < 0) return null;
+      previous=date; normalizedDays.push({day:date,points:points,objectives:Number(row.objectives)||0,windows:Number(row.windows)||0,
+        missions:Number(row.missions)||0,tasks:Number(row.tasks)||0});
+    }
+    var timeline=[], previousAt=Infinity;
+    for (var k=0;k<payload.timeline.length;k++) {
+      var event=payload.timeline[k]||{}, at=ms(event.at), eventDay=text(event.day || day(at));
+      if (!at || at > clock + 60000 || at > previousAt || eventDay < from || eventDay > to ||
+        (event.project_id != null && text(event.project_id) !== text(requested.projectId))) return null;
+      previousAt=at; timeline.push({type:text(event.type)||"Actividad",id:text(event.id),title:text(event.title)||text(event.detail)||"Sin título",
+        at:at,day:eventDay,projectId:text(event.project_id || requested.projectId),points:Number(event.points)||0});
+    }
+    return {agent:payload.agent,projectId:payload.project_id,period:payload.period,timezone:text(payload.timezone)||TIME_ZONE,
+      from:from,to:to,label:text(payload.label),sampledAt:sampled,metrics:metrics,evolution:normalizedDays,timeline:timeline};
   }
   function ranking(agent, daily, tasks, identity, now) {
     var names = Object.create(null);
@@ -176,5 +228,6 @@
 
   root.YkHighscoreDetail = { key:key, ms:ms, today:today, validAgent:validAgent, sameFamily:sameFamily, taskIdentity:taskIdentity,
     snapshot:snapshot, scoreFor:scoreFor, ranking:ranking, taskCountToday:taskCountToday, history:history,
+    periods:PERIODS.slice(), validPeriod:validPeriod, queryState:queryState, detailUrl:detailUrl, periodHistory:periodHistory,
     facts:facts, timeline:timeline, timeZone:TIME_ZONE };
 })(typeof window !== "undefined" ? window : globalThis);

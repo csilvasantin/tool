@@ -1621,9 +1621,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var metric = metricaHoraDia(a,"points");
       var dailyTitle = tituloPuntosDiarios(estadoPuntosDiarios(a));
       var scoreLabel = metric.hour + " puntos en esta hora y " + metric.day + " hoy";
-      var detalleUrl = "/highscoreDetail?agent=" + encodeURIComponent(a.agente);
+      var detalleUrl = a.proyectoId ? "/highscoreDetail?agent=" + encodeURIComponent(a.agente) +
+        "&project_id=" + encodeURIComponent(a.proyectoId) + "&period=today" : "";
       try { sessionStorage.setItem("yokup.highscore.detail." + clave, JSON.stringify(a)); } catch (_) {}
-      return '<a class="plaza ' + clases[i] + (a.vivo ? ' podium-live' : '') + '" href="' + esc(detalleUrl) + '"' +
+      return '<a class="plaza ' + clases[i] + (a.vivo ? ' podium-live' : '') + '"' + (detalleUrl ? ' href="' + esc(detalleUrl) + '"' : ' aria-disabled="true"') +
         ' aria-label="Ver histórico de ' + esc(a.agente) + ', puesto ' + medallas[i] + ', ' +
           esc(scoreLabel + ". " + dailyTitle) + '"' +
         (a.vivo ? ' title="Vivo · abrir histórico del agente"' : ' title="Abrir histórico del agente"') + '>' +

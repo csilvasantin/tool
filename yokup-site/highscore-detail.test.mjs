@@ -13,8 +13,8 @@ vm.runInContext(detailSource, context);
 const D = context.YkHighscoreDetail, ID = context.ykAgentIdentity;
 
 test("los tres puestos del podio navegan por click, Enter nativo y Space a la ruta exacta", () => {
-  assert.match(highscore, /var detalleUrl = "\/highscoreDetail\?agent=" \+ encodeURIComponent\(a\.agente\)/);
-  assert.match(highscore, /return '<a class="plaza ' \+ clases\[i\][\s\S]*href="' \+ esc\(detalleUrl\)/);
+  assert.match(highscore, /var detalleUrl = a\.proyectoId \? "\/highscoreDetail\?agent=" \+ encodeURIComponent\(a\.agente\)[\s\S]*"&project_id=" \+ encodeURIComponent\(a\.proyectoId\) \+ "&period=today" : ""/);
+  assert.match(highscore, /return '<a class="plaza ' \+ clases\[i\][\s\S]*detalleUrl \? ' href="' \+ esc\(detalleUrl\)/);
   assert.match(highscore, /aria-label="Ver histórico de /);
   assert.match(highscore, /evento\.key !== " " && evento\.key !== "Spacebar"/);
   assert.match(highscore, /evento\.preventDefault\(\); enlace\.click\(\)/);
@@ -23,7 +23,7 @@ test("los tres puestos del podio navegan por click, Enter nativo y Space a la ru
 
 test("el detalle valida identidad, conserva vuelta y no depende de texto inventado", () => {
   assert.match(detailHtml, /href="\/highscore"[^>]*aria-label="Volver al Highscore"/);
-  assert.match(detailHtml, /new URLSearchParams\(location\.search\)\.get\("agent"\)/);
+  assert.match(detailHtml, /highscore-detail-page\.js\?v=period-filter-r1/);
   assert.match(detailHtml, /DETAIL\.validAgent\(agent,ID\)/);
   assert.match(detailHtml, /Falta el agente/);
   assert.match(detailHtml, /Agente no encontrado/);
