@@ -36,7 +36,8 @@ test("el selector común nace en Todos y sólo admite ids activos del censo",()=
   assert.match(frame,/ykFetch\("\/projects", \{cache:"no-store"\}\)/);
   assert.match(frame,/String\(p\.status \|\| "activo"\)\.toLowerCase\(\) !== "archivado"/);
   assert.match(frame,/return resolveProjectScope\(query, stored, PROJECT_CATALOG\)/);
-  assert.match(frame,/\[\{id:null,name:"Todos",web:"Todos los proyectos"\}\]\.concat\(PROJECT_CATALOG\)/);
+  assert.match(frame,/\[\{id:null,name:"Todos",web:"Todos los proyectos"\}\]\.concat\(selectableProjects\)/);
+  assert.match(frame,/selectableProjects = globalProjectScopeSurface\(location\.pathname\) \? \[\] : PROJECT_CATALOG/);
   assert.doesNotMatch(frame,/activeProjectKey|PROJECT_ORDER|pathname[^\n]+admira-live/);
 });
 

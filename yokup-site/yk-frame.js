@@ -235,6 +235,15 @@
   // el `id` canónico del censo, nunca nombres, dominios o inferencias por pathname.
   var PROJECT_SCOPE_KEY = "yokup.project.scope.v1";
   var PROJECT_SCOPE = null, PROJECT_CATALOG = [];
+  // Highscore es una clasificación global por agente. Arrastrar hasta ella el
+  // project_id persistido por otra sección hacía que el cabezal prometiera un
+  // alcance que ni /highscore/daily ni /highscore/active-work aplican: la tabla
+  // podía quedar vacía mientras la carrera conservaba títulos globales. En esta
+  // superficie el único alcance honesto es Todos; no borramos la preferencia
+  // guardada, para que siga vigente al volver a una sección que sí es filtrable.
+  function globalProjectScopeSurface(pathname) {
+    return /^\/highscore(?:\.html)?\/?$/i.test(String(pathname || ""));
+  }
   function projectScopeMatch(row, projectId) {
     return projectId == null || String(row && (row.project_id || row.project) || "") === String(projectId);
   }
@@ -2350,14 +2359,18 @@
     }
     function requestedProjectId() {
       var query = "", stored = "";
+      if (globalProjectScopeSurface(location.pathname)) return null;
       try { query = new URL(location.href).searchParams.get("project_id") || ""; } catch (e) {}
       try { stored = localStorage.getItem(PROJECT_SCOPE_KEY) || ""; } catch (e) {}
       return resolveProjectScope(query, stored, PROJECT_CATALOG);
     }
     function rememberProject(projectId) {
+      var globalOnly = globalProjectScopeSurface(location.pathname);
       try {
-        if (projectId) localStorage.setItem(PROJECT_SCOPE_KEY, projectId);
-        else localStorage.removeItem(PROJECT_SCOPE_KEY);
+        if (!globalOnly) {
+          if (projectId) localStorage.setItem(PROJECT_SCOPE_KEY, projectId);
+          else localStorage.removeItem(PROJECT_SCOPE_KEY);
+        }
       } catch (e) {}
       try {
         var url = new URL(location.href);
@@ -2367,7 +2380,7 @@
       } catch (e) {}
     }
     function publishProject(projectId, persist) {
-      PROJECT_SCOPE = validProjectId(projectId);
+      PROJECT_SCOPE = globalProjectScopeSurface(location.pathname) ? null : validProjectId(projectId);
       if (persist) rememberProject(PROJECT_SCOPE);
       // CustomEvent se entrega síncronamente: los consumidores limpian o repintan
       // su DOM viejo antes de que el botón pueda anunciar el nuevo proyecto.
@@ -2385,7 +2398,8 @@
       btn.setAttribute("data-yk-project-total",String(projectTotal));
       btn.title = "Proyecto · " + full;
       menu.innerHTML = "";
-      [{id:null,name:"Todos",web:"Todos los proyectos"}].concat(PROJECT_CATALOG).forEach(function (p) {
+      var selectableProjects = globalProjectScopeSurface(location.pathname) ? [] : PROJECT_CATALOG;
+      [{id:null,name:"Todos",web:"Todos los proyectos"}].concat(selectableProjects).forEach(function (p) {
         var on = p.id === PROJECT_SCOPE;
         var option = el("button", "yk-proj-opt" + (on ? " on" : ""),
           '<span class="yk-proj-ic" aria-hidden="true">' + (p.id ? "📁" : "◉") + '</span>'

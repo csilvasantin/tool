@@ -692,7 +692,8 @@ async function load(){
   // asignan y nunca se llegan a ver en el tablero por defecto. (Carlos, 2026-07-17.)
   if(FILTER==="activas"){
     const _ms=v=>{v=+v||0;return v>4102444800?v:v*1000;}, FRESH=3*3600*1000;
-    base=base.filter(t=>t.status!=="cancelled" && (t.status!=="resolved" || (t.source==="fleet" && (Date.now()-_ms(t.resolved_at||t.updated_at))<FRESH)));
+    const missionSource=t=>t.role==="mission"||["fleet","decision-batch","cli-declare"].includes(t.source);
+    base=base.filter(t=>t.status!=="cancelled" && (t.status!=="resolved" || (missionSource(t) && (Date.now()-_ms(t.resolved_at||t.updated_at))<FRESH)));
   }
   else if(FILTER!=="todas") base=base.filter(t=>YkMisiones.coincideEstado(t,FILTER));
   // Selectores CRUZADOS y solo con quien TIENE misiones en el contexto actual:
@@ -808,7 +809,14 @@ function aplicaFiltro(f){
   sincronizaFiltro(f);
   load();
 }
-STATE_TABS.forEach(b=>b.onclick=()=>{userPicked=true;aplicaFiltro(b.dataset.f);});
+// El marco común mueve missionStateTabs al raíl lateral. La delegación mantiene
+// activo el control visible aunque el marco lo reubique y evita reinstalar
+// handlers en cada refresco del tablero.
+document.addEventListener("click",event=>{
+  const button=event.target&&event.target.closest&&event.target.closest("#missionStateTabs .tab[data-f]");
+  if(!button)return;
+  userPicked=true;aplicaFiltro(button.dataset.f);
+});
 // (el clic en los KPIs lo reenvía yk-cabezal.js a onState → aplicaFiltro)
 if(window.addEventListener) window.addEventListener("yk:mission-deadline",()=>load());
 if(window.addEventListener) window.addEventListener("yk:mission-project",()=>load());
