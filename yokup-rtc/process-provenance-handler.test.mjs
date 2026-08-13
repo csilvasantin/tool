@@ -17,7 +17,10 @@ function harness() {
             async all(){return{results:[]};},
             async run(){
               if(sql.includes("live_surface=?,live_context=?")){
-                state.writes.push({image:args[0],captured_at:args[1],kind:args[2],surface:args[3],context:args[4]});
+                // El primer bind sella started_at al reclamar una misión open;
+                // la procedencia de la captura conserva las cinco posiciones
+                // siguientes del UPDATE.
+                state.writes.push({image:args[1],captured_at:args[2],kind:args[3],surface:args[4],context:args[5]});
                 state.ticket.status="in_progress";
               }
               return{meta:{changes:1}};
