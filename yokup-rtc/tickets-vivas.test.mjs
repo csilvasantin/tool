@@ -11,9 +11,10 @@ test("el universo «vivas» recorta el historial en SQL", () => {
   assert.match(src, /t\.status NOT IN \('resolved','cancelled'\)/);
 });
 
-test("«vivas» conserva las misiones de FLOTA cerradas hace menos de 3 h", () => {
-  assert.match(src, /t\.status='resolved' AND t\.source='fleet'/,
-    "sin esta excepcion el tablero por defecto perderia el trabajo de la desktop app");
+test("«vivas» conserva toda misión de agente cerrada hace menos de 3 h", () => {
+  assert.match(src, /t\.status='resolved' AND " \+ MISSION_SCOPE_SQL_T/,
+    "sin esta excepcion el tablero por defecto pierde los handON declarados desde CLI");
+  assert.doesNotMatch(src, /t\.status='resolved' AND t\.source='fleet'/);
   assert.match(src, /3 \* 3600 \* 1000/);
 });
 

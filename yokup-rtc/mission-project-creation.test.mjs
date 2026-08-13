@@ -135,6 +135,14 @@ test("POST /declare crea ticket, proyecto, plan y evento en un solo batch", asyn
   assert.equal(state.ticketBatches,beforeBatches+1);
 });
 
+test("POST /declare sella started_at en el handON y sus tareas activas", async()=>{
+  const response=await post("/declare",{agent:"OraculoMacMini",machine:"admira-macmini",project_id:"xpaceos",subject:"handON visible",tasks:[{code:"a",title:"Saludar",status:"in_progress"}]});
+  assert.equal(response.status,200,await response.text());
+  const sql=state.atomicBatches.flat();
+  assert.ok(sql.some(line=>line.startsWith("UPDATE tickets SET started_at=COALESCE(started_at,?)")));
+  assert.ok(sql.some(line=>line.startsWith("UPDATE mission_tasks SET started_at=COALESCE(started_at,?)")));
+});
+
 test("POST /declare rechaza proyecto activo no asignado al agente+máquina", async()=>{
   const before=state.tickets.length;
   const response=await post("/declare",{agent:"NeoMacMini",machine:"admira-macmini",project_id:"xpaceos",subject:"No autorizado",tasks:[{code:"a",title:"No crear",status:"pending"}]});

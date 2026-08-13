@@ -17,7 +17,7 @@ const grabVar=name=>{const m=new RegExp(`var ${name} = [^\\n]+;`).exec(source);a
 
 function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
   const db=new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,subject TEXT,loc TEXT,source TEXT,role TEXT,status TEXT,assignee TEXT,closure_reason TEXT,created_at INTEGER,started_at INTEGER,updated_at INTEGER,live_at INTEGER,resolved_at INTEGER)");
+  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,subject TEXT,loc TEXT,source TEXT,role TEXT,status TEXT,assignee TEXT,closure_reason TEXT,created_at INTEGER,started_at INTEGER,updated_at INTEGER,live_at INTEGER,resolved_at INTEGER,proof_image TEXT)");
   db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,started_at INTEGER,created_at INTEGER,updated_at INTEGER,executor TEXT)");
   db.exec("CREATE TABLE ideas(id TEXT PRIMARY KEY,title TEXT,status TEXT,author TEXT,author_identity TEXT,created_at INTEGER,updated_at INTEGER)");
   db.exec("CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT,ticket_id TEXT,ts INTEGER,kind TEXT,author TEXT,text TEXT)");
@@ -40,7 +40,7 @@ const NOW=1_786_460_000_000, MIN=60_000;
 const processRow=(persona,machine,updated=NOW)=>({persona,machine,updated:Math.floor(updated/1000),verified:1,source:"process_snapshot",online:null,pid:42,host:"cli"});
 function mission(db,{id="M1",agent="OraculoMacMini",machine="MacMini",at=NOW-5*MIN,startedAt,status="in_progress",title="Misión"}={}){
   const start=startedAt===undefined?at:startedAt;
-  db.prepare("INSERT INTO tickets VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)").run(id,title,machine,"fleet","mission",status,agent,null,at,start,at,at,status==="resolved"?at:null);
+  db.prepare("INSERT INTO tickets VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(id,title,machine,"fleet","mission",status,agent,null,at,start,at,at,status==="resolved"?at:null,status==="resolved"?"https://proof.test/evidence.png":null);
 }
 
 test("frontera exacta 20m: running hasta el límite y assigned_stale un milisegundo después",async()=>{
@@ -52,6 +52,32 @@ test("frontera exacta 20m: running hasta el límite y assigned_stale un milisegu
   assert.deepEqual(Object.fromEntries(result.participants.map(row=>[row.agent,row.state])),{
     OraculoMacMini:"running",NeoMBP14:"assigned_stale",
   });
+});
+
+test("handON cli-declare legado aparece inmediatamente aunque no persistiera started_at",async()=>{
+  const {db,env,F}=harness();
+  db.prepare("INSERT INTO tickets VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run("DCL-HANDON","handON de OraculoMini, saludo y reporte","MacMini","cli-declare","mission","in_progress","OraculoMini",null,NOW-MIN,null,NOW-MIN,NOW-MIN,null,null);
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
+    .run("DCL-HANDON","a","Saludar","in_progress","OraculoMini",null,NOW-MIN,NOW-MIN,"SubOraculoMini");
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.mode,"active"); assert.equal(result.running_count,1);
+  assert.equal(result.participants[0].title,"handON de OraculoMini, saludo y reporte");
+  assert.equal(result.participants[0].reference,"DCL-HANDON");
+  assert.equal(result.participants[0].work_started_at,NOW-MIN);
+});
+
+test("handON fleet resuelto sin started_at sustituye el trabajo viejo del carril",async()=>{
+  const {db,env,F}=harness();
+  mission(db,{id:"OLD",agent:"MorfeoMacMini",at:NOW-40*MIN,startedAt:NOW-60*MIN,status:"resolved",title:"Trabajo viejo"});
+  db.prepare("INSERT INTO tickets VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run("FLT-HANDON","handON del jueves, Morfeo","MacMini","fleet","mission","resolved","MorfeoMacMini",null,NOW-2*MIN,null,NOW-MIN,NOW-MIN,NOW-MIN,"https://proof.test/handon.png");
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
+    .run("FLT-HANDON","z1","Informe del agente","done","MorfeoMacMini",null,NOW-MIN,NOW-MIN,"MorfeoMacMini");
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.mode,"recent"); assert.equal(result.count,1);
+  assert.equal(result.participants[0].title,"handON del jueves, Morfeo");
+  assert.equal(result.participants[0].reference,"FLT-HANDON");
 });
 
 test("presence rescata la calle stale, pero no la convierte en running",async()=>{
@@ -230,6 +256,7 @@ test("sesión dedicada requiere vínculo exacto y una sola encarnación",async()
   for(const forbidden of ["pid","session_id","incarnation_id"])
     assert.equal(Object.hasOwn(row,forbidden),false);
   assert.equal(Object.hasOwn(row,"work_ref"),false);
+  assert.equal(row.reference,"M1");
   assert.match(row.race_revision,/^r1:[a-z0-9]+$/);
   assert.doesNotMatch(row.race_revision,/M1|oraculo|mission/i);
 });

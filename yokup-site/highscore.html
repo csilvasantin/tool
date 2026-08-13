@@ -3214,6 +3214,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return Object.keys(seen).map(function (key) {
       var item = seen[key];
       return { key:claveAgenteCarrera(item.agent), agente:item.agent, executor:item.executor,
+        reference:item.reference || "",
         kind:item.kind, title:item.title || (item.kind === "task" ? "Tarea activa" : item.kind === "mission" ? "Misión activa" : "Objetivo en curso"),
         state:item.state || "assigned_stale", reachable:item.reachable === true,
         raceRevision:item.race_revision || "",
@@ -3308,7 +3309,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       ? "Tiempo de trabajo; sin sesión medida"
       : trabajo.sessionDedicatedMs === null ? "Sesión no disponible" : "Tiempo de sesión exacta";
     var stateLabel = trabajo.state === "running" ? "EN CURSO" : trabajo.state === "last_work" ? "FINALIZADO" : "SIN AVANCE";
-    return { reference:"", title:trabajo.title, state:stateLabel, project:"",
+    return { reference:trabajo.reference || "", title:trabajo.title, state:stateLabel, project:"",
       executor:trabajo.executor, responsible:trabajo.agente, kind:trabajo.kind, reachable:trabajo.reachable,
       presenceAt:trabajo.presenceAt, at:Number(trabajo.at) || 0, idle:parado,
       assignmentClock:horaMadrid(trabajo.assignmentAt), assignmentBasis:trabajo.assignmentBasis,
@@ -3402,7 +3403,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<span class="refresh-agent" data-race-role="agent" title="Responsable ' + esc(responsable) + '">' + esc(responsable) + '</span></span>' +
         '<div class="refresh-lane-center"><div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
-        '<span class="refresh-mission" data-race-role="mission" title="' + esc(resumen.title) + '"><span class="refresh-mission-title">' + esc(resumen.title) + '</span></span>' +
+        '<span class="refresh-mission" data-race-role="mission" title="' + esc([resumen.reference,resumen.title].filter(Boolean).join(" · ")) + '"><span class="refresh-mission-title">' + esc((resumen.reference ? resumen.reference + " · " : "") + resumen.title) + '</span></span>' +
         runner + '<span class="refresh-finish" aria-hidden="true"></span></div></div>' +
         '<div class="refresh-time" title="Estado y tiempos factuales" data-work-state="' + esc(isLast ? "last_work" : resumen.idle ? "assigned_stale" : "running") + '"' +
           ' data-work-start="' + (Number(enlace.trabajo.startedAt) || 0) + '" data-work-end="' + (Number(enlace.trabajo.endedAt) || 0) + '"' +

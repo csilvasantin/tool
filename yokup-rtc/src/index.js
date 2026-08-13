@@ -4606,12 +4606,12 @@ function ticketUniverseWhere(scope, filters = {}) {
   const sinEstado = clauses.slice(), bindsSinEstado = binds.slice();
   const soloVivas = String(filters.state || "") === "vivas";
   // El recorte tiene UNA excepción, y no es cosmética: el tablero «Activas»
-  // conserva a propósito las misiones de FLOTA cerradas hace menos de 3 h
+  // conserva a propósito las misiones de agente cerradas hace menos de 3 h
   // (Carlos, 17-jul-2026) — las de la desktop app se cierran en segundos y sin
   // esto se asignan y no se llegan a ver nunca. Si el SQL las tirara, el filtro
   // por defecto perdería justo el trabajo que más corre.
   if (soloVivas) clauses.push(
-    "(t.status NOT IN ('resolved','cancelled') OR (t.status='resolved' AND t.source='fleet' AND " +
+    "(t.status NOT IN ('resolved','cancelled') OR (t.status='resolved' AND " + MISSION_SCOPE_SQL_T + " AND " +
     "(CASE WHEN COALESCE(t.resolved_at,t.updated_at)<4102444800 THEN COALESCE(t.resolved_at,t.updated_at)*1000 " +
     "ELSE COALESCE(t.resolved_at,t.updated_at) END) >= ?))");
   if (soloVivas) binds.push(Date.now() - 3 * 3600 * 1000);
@@ -5675,7 +5675,7 @@ var HIGHSCORE_MISSION_STARTED_SQL = "CASE WHEN t.source IN ('decision-batch','cl
 // Inicio de TRABAJO (más estricto que el sello de puntuación histórica): un plan
 // pendiente no basta. Hace falta started_at, una misión nacida ya en curso, una
 // transición interna de Yokup o la primera tarea realmente iniciada/hecha.
-var HIGHSCORE_WORK_STARTED_SQL = "COALESCE(t.started_at,(SELECT MIN(e.ts) FROM events e WHERE e.ticket_id=t.id AND " + HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL + "),(SELECT MIN(mt.started_at) FROM mission_tasks mt WHERE mt.mission_id=t.id AND mt.started_at IS NOT NULL AND mt.status IN ('in_progress','doing','active','done','resolved','completed')))";
+var HIGHSCORE_WORK_STARTED_SQL = "COALESCE(t.started_at,(SELECT MIN(e.ts) FROM events e WHERE e.ticket_id=t.id AND " + HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL + "),(SELECT MIN(mt.started_at) FROM mission_tasks mt WHERE mt.mission_id=t.id AND mt.started_at IS NOT NULL AND mt.status IN ('in_progress','doing','active','done','resolved','completed')),CASE WHEN t.source='cli-declare' THEN t.created_at END,CASE WHEN t.status='resolved' AND COALESCE(TRIM(t.proof_image),'')<>'' THEN " + HIGHSCORE_MISSION_STARTED_SQL + " END)";
 // Avance MATERIAL de una misión. `tickets.updated_at`, `live_at` y
 // `mission_tasks.updated_at` quedan fuera: los tres también cambian por report,
 // owner, imagen o heartbeat. Cada started_at de tarea sí es un hecho material;
@@ -6229,6 +6229,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     // canónico se omite del fallback histórico en vez de inventarlo.
     if (forcedState === "last_work" && (!timing || !Number(timing.ended_at))) return;
     const candidate = { family_key:family.family_key, agent:family.family_name, executor, kind,
+      reference:String(workRef || "").slice(0,120),
       title:visibleTitle(title, kind === "task" ? "Tarea activa" : kind === "mission" ? "Misión activa" : "Objetivo en curso"),
       state, active_at:at, work_progress_at:at, reachable:!!presenceAt,
       race_revision:raceRevision };
@@ -6289,7 +6290,8 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     for (const row of [...recentMissions, ...recentTasks].sort((a,b) =>
       highscoreActiveWorkMillis(b.ended_at) - highscoreActiveWorkMillis(a.ended_at))) {
       const raw = row.kind === "task" ? scopedMissionOwner(row.executor || row.owner, "sub", row.assignee, row.loc) : row.assignee;
-      add(raw, row.loc, row.kind, row, row.title || row.subject || "Último trabajo", row.assignee, "last_work");
+      add(raw, row.loc, row.kind, row, row.title || row.subject || "Último trabajo", row.assignee, "last_work",
+        row.kind === "task" ? `${String(row.mission_id || "")}:${String(row.code || "")}` : String(row.id || ""));
     }
     participants = [...byFamily.values()].sort((a,b) =>
       highscoreActiveWorkMillis(b.ended_at) - highscoreActiveWorkMillis(a.ended_at)).slice(0,3);
@@ -9408,6 +9410,17 @@ Todo en español.`;
             ).bind(missionId, t.code, t.title, t.status, owner, executor, t.report, now, now));
             if (t.evidence) statements.push(env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)")
               .bind(missionId, now, "log", identity.agent, `Tarea ${t.code} declarada hecha desde el CLI · ${t.evidence.text}`));
+          }
+          // /declare registra trabajo que ya está en curso (o terminado), no un
+          // plan futuro. Persistir el inicio en ticket y tareas evita que
+          // active-work descarte el handON mientras highscore/daily sí lo puntúa.
+          if (tasks.some((t) => ["in_progress", "doing", "active", "done"].includes(t.status))) {
+            statements.push(env.DB.prepare("UPDATE tickets SET started_at=COALESCE(started_at,?) WHERE id=?")
+              .bind(now, missionId));
+          }
+          for (const t of tasks.filter((item) => ["in_progress", "doing", "active", "done"].includes(item.status))) {
+            statements.push(env.DB.prepare("UPDATE mission_tasks SET started_at=COALESCE(started_at,?) WHERE mission_id=? AND code=?")
+              .bind(now, missionId, t.code));
           }
           if (b.resolve === true) {
             statements.push(env.DB.prepare("UPDATE tickets SET status='resolved',resolved_at=?,updated_at=? WHERE id=?").bind(now, now, missionId));
