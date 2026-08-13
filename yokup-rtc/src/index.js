@@ -9195,6 +9195,21 @@ var worker_app = {
       try {
         await ensureIdeasSchema(env);
         if (req.method === "GET") {
+          // slim=1 (FLT-1423): lo que el Highscore necesita — autor, título,
+          // proyecto, estado y fechas de las ideas con vida en las últimas 24 h.
+          // El feed completo de abajo carga TODAS las ideas con body/review/media
+          // y además ejecuta una sincronización idea→decisión EN SERIE por cada
+          // idea con reloj; eso lo convertía en la llamada más lenta del batch
+          // (4-7,6 s medidos). Esta rama ni parsea ni sincroniza: la vista que
+          // solo pinta actividad fresca no debe pagar el precio del feed entero.
+          if (url.searchParams.get("slim") === "1") {
+            const desde = Date.now() - 24 * 60 * 60 * 1000;
+            const r = await env.DB.prepare(
+              "SELECT id,title,author,status,created_at,updated_at,project FROM ideas " +
+              "WHERE COALESCE(updated_at, created_at) >= ? ORDER BY created_at DESC LIMIT 300"
+            ).bind(desde).all();
+            return json({ ideas: r.results || [], slim: true });
+          }
           const r = await env.DB.prepare("SELECT id,title,body,author,tag,status,created_at,updated_at,mission_id,seat,review,media,project,decision_id FROM ideas ORDER BY created_at DESC").all();
           const rows = r.results || [];
           // `review` y `media` viajan YA PARSEADOS como objeto (o null): el front los pinta directo.

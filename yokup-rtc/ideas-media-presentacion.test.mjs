@@ -51,5 +51,9 @@ test('el media nuevo se FUSIONA sobre el existente (no pisa los otros kinds)', (
 // ── GET /ideas devuelve el media (con presentacion dentro) ya parseado ────────
 test('GET /ideas parsea y devuelve media (donde vive la presentacion)', () => {
   const g = source.slice(source.indexOf('/ideas" && (req.method === "GET"'));
-  assert.match(g.slice(0, 900), /it\.media\s*=\s*JSON\.parse\(it\.media\)/);
+  // La ventana era de 900 caracteres; la rama slim=1 (FLT-1423) vive antes del
+  // feed completo y empuja el parseo más abajo. Se amplía sin perder el ancla.
+  assert.match(g.slice(0, 2600), /it\.media\s*=\s*JSON\.parse\(it\.media\)/);
+  // Y la rama slim ni parsea ni sincroniza: devuelve campos planos.
+  assert.match(g.slice(0, 2600), /url\.searchParams\.get\("slim"\) === "1"/);
 });
