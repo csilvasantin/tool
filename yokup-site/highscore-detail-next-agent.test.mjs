@@ -76,6 +76,6 @@ test("botones nativos conservan teclado, ARIA, blanco táctil 44px y responsive 
   assert.match(page,/button\.type="button"/);assert.doesNotMatch(page,/rankButton[\s\S]*keydown/);
   assert.match(html,/\.avatar-stack\{[^}]*display:flex[^}]*flex-direction:column/);
   assert.match(html,/\.rank-navigation\{[^}]*display:flex/);
-  assert.match(html,/\.rank-agent\{[^}]*width:44px[^}]*height:44px/);
+  assert.match(html,/\.rank-agent\{[^}]*min-width:44px[^}]*height:44px/);
   assert.match(html,/@media\(max-width:470px\)[\s\S]*\.avatar-stack\{margin:auto\}/);
 });

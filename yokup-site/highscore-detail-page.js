@@ -44,7 +44,7 @@
         .catch(function(){status.textContent="No se pudo contactar con el scheduler. Vuelve a intentarlo.";})
         .finally(function(){button.disabled=false;button.removeAttribute("aria-busy");});}
     button.addEventListener("click",function(){perform(requestId(),0);});return control;}
-  function rankButton(symbol,className,neighbor,availableLabel,missingLabel){var button=el("button","rank-agent "+className,symbol);button.type="button";
+  function rankButton(symbol,className,neighbor,availableLabel,missingLabel){var visible=className==="previous-agent"?(neighbor?symbol+" #"+neighbor.position:symbol):(neighbor?"#"+neighbor.position+" "+symbol:symbol),button=el("button","rank-agent "+className,visible);button.type="button";
     if(!neighbor){button.disabled=true;button.setAttribute("aria-label",missingLabel);button.title=missingLabel;return button;}
     button.setAttribute("aria-label",availableLabel+neighbor.agent+", puesto "+neighbor.position+".");button.title="Ir a "+neighbor.agent+" · puesto "+neighbor.position;
     button.addEventListener("click",function(){selectAgent(neighbor.agent);});return button;}
@@ -60,6 +60,12 @@
     D.types.forEach(function(type){var card=el("button","metric");card.type="button";card.dataset.type=type;card.setAttribute("aria-pressed",String(type===selected));card.setAttribute("aria-controls","factual-timeline");
       card.setAttribute("aria-label",TYPE_LABELS[type]+": "+metrics[fields[type]]+". "+(type==="all"?"Mostrar toda la cronología":"Filtrar la cronología"));card.append(el("b","",metrics[fields[type]]),el("span","",TYPE_LABELS[type]));
       card.addEventListener("click",function(){onSelect(type);});grid.append(card);});return grid;}
+  function rankingComparison(data,stateValue){var panel=el("section","panel ranking-comparison"),heading=el("div","period-heading"),title=el("h2","","Comparación de puntos · "+LABELS[data.period]);
+    heading.append(title,el("span","period-range",stateValue.projectId+" · periodo completo"));panel.append(heading);panel.setAttribute("aria-label","Comparación de puntos de todos los agentes en "+LABELS[data.period]);
+    if(!data.ranking){panel.append(el("p","empty","La comparación factual no está disponible para este proyecto y periodo."));return panel;}
+    var rows=D.rankingComparisonRows(data.ranking);if(!rows.length){panel.append(el("p","empty","Ningún agente ha puntuado en este proyecto y periodo."));return panel;}
+    var list=el("ol","ranking-comparison-list");rows.forEach(function(row){var item=el("li","ranking-comparison-row"+(row.current?" current":"")),position=el("span","comparison-position","#"+row.position),agent=el("strong","comparison-agent",row.agent),bar=el("span","comparison-bar"),fill=el("i"),points=el("b","comparison-points",row.points+" pts");
+      item.setAttribute("aria-label","Puesto "+row.position+": "+row.agent+", "+row.points+" puntos"+(row.current?", agente actual":""));if(row.current)item.setAttribute("aria-current","true");bar.setAttribute("aria-hidden","true");fill.style.width=(row.ratio*100)+"%";bar.append(fill);item.append(position,agent,bar,points);list.append(item);});panel.append(list);return panel;}
   function latestWorkPanel(data,stateValue){var work=data.latestWork;if(!work||work.projectId===stateValue.projectId)return null;
     var panel=el("aside","latest-work"),body=el("div","latest-work-body"),heading=el("h2","","Trabajo más reciente en otro proyecto");
     var project=el("strong","latest-work-project",work.projectName+" · "+work.projectId),title=el("p","latest-work-title",(work.reference?work.reference+" · ":"")+work.title);
@@ -84,7 +90,7 @@
       group.events.forEach(function(event){var item=el("li","event"),time=el("time","",new Date(event.at).toLocaleString("es-ES",{timeZone:data.timezone,day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}));time.dateTime=new Date(event.at).toISOString();
         var body=el("div"),eventTitle=el("strong","",event.type+" · "+event.title);body.append(eventTitle);if(event.id)body.append(el("small","",event.id));item.append(time,body,el("span","event-points",event.points?"+"+event.points+" pts":""));list.append(item);});section.append(groupHead,list);grouped.append(section);});panel.append(grouped);return panel;}
   function render(data,stateValue){target.replaceChildren();var back=document.querySelector(".back");back.href=backUrl(stateValue.projectId);
-    target.append(hero(data,stateValue),periodNav(stateValue.period,selectPeriod));var recent=latestWorkPanel(data,stateValue);if(recent)target.append(recent);var grid=el("div","grid");grid.append(metricGrid(data.metrics,stateValue.type,selectType),evolution(data,stateValue.type,stateValue.order,selectOrder),chronology(data,stateValue.type,stateValue.order,selectOrder));target.append(grid);
+    target.append(hero(data,stateValue),periodNav(stateValue.period,selectPeriod),rankingComparison(data,stateValue));var recent=latestWorkPanel(data,stateValue);if(recent)target.append(recent);var grid=el("div","grid");grid.append(metricGrid(data.metrics,stateValue.type,selectType),evolution(data,stateValue.type,stateValue.order,selectOrder),chronology(data,stateValue.type,stateValue.order,selectOrder));target.append(grid);
     target.append(el("p","score-sampled","Datos canónicos muestreados el "+new Date(data.sampledAt).toLocaleString("es-ES",{timeZone:data.timezone})+"."));}
   function endpoint(stateValue){return API+"/highscore/history?agent="+encodeURIComponent(stateValue.agent)+"&project_id="+encodeURIComponent(stateValue.projectId)+"&period="+encodeURIComponent(stateValue.period);}
   function load(stateValue){var revision=++requestRevision;target.classList.add("loading");return fetch(endpoint(stateValue),{cache:"no-store"}).then(function(response){if(!response.ok)throw new Error(String(response.status));return response.json();})

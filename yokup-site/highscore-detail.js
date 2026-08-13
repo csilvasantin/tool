@@ -161,22 +161,22 @@
      un ranking parcial o ambiguo se degrada honestamente a «no disponible». */
   function rankingFromHistory(value, requested, identity) {
     if (!value || text(value.project_id) !== text(requested && requested.projectId) ||
-      text(value.period) !== text(requested && requested.period) || !Array.isArray(value.ordered) || !value.ordered.length) return null;
+      text(value.period) !== text(requested && requested.period) || !Array.isArray(value.ordered)) return null;
     /* null significa «este agente no puntuó»: Number(null) sería 0 y lo haría
        pasar falsamente por el líder. El índice del contrato debe ser numérico. */
-    var currentIndex=typeof value.current_index === "number" ? value.current_index : NaN;
-    if (!Number.isInteger(currentIndex) || currentIndex < 0 || currentIndex >= value.ordered.length) return null;
+    var currentIndex=value.current_index == null ? null : (typeof value.current_index === "number" ? value.current_index : NaN);
+    if (currentIndex !== null && (!Number.isInteger(currentIndex) || currentIndex < 0 || currentIndex >= value.ordered.length)) return null;
     var seen=Object.create(null), ordered=[], previousPoints=Infinity, requestedMatches=[];
     for (var i=0;i<value.ordered.length;i++) {
       var row=value.ordered[i]||{}, agent=text(row.agent), points=Number(row.points), position=Number(row.position), parsed=identity.parse(agent);
       var identityKey=identity.key(parsed.persona)+"|"+text(parsed.suffix);
-      if (!validAgent(agent,identity) || seen[identityKey] || !Number.isFinite(points) || points < 0 ||
+      if (!validAgent(agent,identity) || seen[identityKey] || !Number.isFinite(points) || points <= 0 ||
         !Number.isInteger(position) || position !== i+1 || points > previousPoints) return null;
       seen[identityKey]=true;previousPoints=points;
       if (sameFamily(agent,"",requested.agent,identity)) requestedMatches.push(i);
       ordered.push({agent:agent,points:points,position:position});
     }
-    if (requestedMatches.length !== 1 || requestedMatches[0] !== currentIndex) return null;
+    if (currentIndex === null ? requestedMatches.length !== 0 : requestedMatches.length !== 1 || requestedMatches[0] !== currentIndex) return null;
     return {projectId:text(value.project_id),period:text(value.period),ordered:ordered,currentIndex:currentIndex};
   }
   function rankedAgentAt(value, offset) {
@@ -187,6 +187,12 @@
   }
   function previousRankedAgent(value) { return rankedAgentAt(value,-1); }
   function nextRankedAgent(value) { return rankedAgentAt(value,1); }
+  function rankingComparisonRows(value) {
+    if (!value || !Array.isArray(value.ordered)) return [];
+    var max=value.ordered.length ? Number(value.ordered[0].points) : 0;
+    return value.ordered.map(function(row,index){return {agent:row.agent,points:row.points,position:row.position,
+      ratio:max ? row.points/max : 0,current:index===value.currentIndex};});
+  }
 
   /* Contexto cruzado explícito, nunca un hecho del timeline seleccionado. El
      enlace debe volver al mismo detalle con el project_id que afirma el
@@ -397,7 +403,8 @@
     snapshot:snapshot, scoreFor:scoreFor, ranking:ranking, taskCountToday:taskCountToday, history:history,
     periods:PERIODS.slice(), types:TYPES.slice(), orders:ORDERS.slice(), validPeriod:validPeriod, validType:validType, validOrder:validOrder, canonicalType:canonicalType,
     queryState:queryState, detailUrl:detailUrl, timelineForType:timelineForType, metricForType:metricForType,
-    rankingFromHistory:rankingFromHistory, previousRankedAgent:previousRankedAgent, nextRankedAgent:nextRankedAgent, latestWorkFromHistory:latestWorkFromHistory,
+    rankingFromHistory:rankingFromHistory, previousRankedAgent:previousRankedAgent, nextRankedAgent:nextRankedAgent,
+    rankingComparisonRows:rankingComparisonRows, latestWorkFromHistory:latestWorkFromHistory,
     evolutionGroups:evolutionGroups, timelineGroups:timelineGroups, periodHistory:periodHistory,
     nextWindow:nextWindow, windowCountdown:windowCountdown, decisionUrl:decisionUrl, onIdleDecisionError:onIdleDecisionError,
     facts:facts, timeline:timeline, timeZone:TIME_ZONE };
