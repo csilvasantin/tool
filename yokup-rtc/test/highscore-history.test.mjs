@@ -22,8 +22,8 @@ function harness(){
   db.exec("CREATE TABLE projects(id TEXT PRIMARY KEY,name TEXT)");
   db.exec("CREATE TABLE ideas(id TEXT PRIMARY KEY,author TEXT,created_at INTEGER,title TEXT,author_identity TEXT,project TEXT)");
   db.exec("CREATE TABLE decisions(id TEXT PRIMARY KEY,agent TEXT,machine TEXT,created_at INTEGER,question TEXT,status TEXT,project TEXT)");
-  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,source TEXT,status TEXT,assignee TEXT,loc TEXT,closure_reason TEXT,created_at INTEGER,subject TEXT,project TEXT,project_id TEXT)");
-  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,status TEXT,owner TEXT,updated_at INTEGER,title TEXT,executor TEXT)");
+  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,source TEXT,role TEXT,status TEXT,assignee TEXT,loc TEXT,closure_reason TEXT,created_at INTEGER,started_at INTEGER,updated_at INTEGER,live_at INTEGER,resolved_at INTEGER,subject TEXT,project TEXT,project_id TEXT,proof_image TEXT)");
+  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,status TEXT,owner TEXT,updated_at INTEGER,title TEXT,executor TEXT,started_at INTEGER,created_at INTEGER)");
   db.exec("CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT,ticket_id TEXT,ts INTEGER,kind TEXT,author TEXT,text TEXT)");
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{
     all:async()=>({results:stmt.all(...args)}),first:async()=>stmt.get(...args)
@@ -33,7 +33,8 @@ function harness(){
     madridDayKey,madridDayStart,missionDayRange,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedMissionOwner,__name:(fn)=>fn});
   vm.runInContext([
     grabVar("HIGHSCORE_WEIGHTS"),grabVar("HIGHSCORE_TASK_WEIGHTS"),grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),
-    grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_PERSONAS"),grabVar("AGENT_SOURCE_SQL_T"),
+    grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_WORK_STARTED_SQL"),grabVar("HIGHSCORE_MISSION_PROGRESS_SQL"),
+    grabVar("HIGHSCORE_PERSONAS"),grabVar("AGENT_SOURCE_SQL_T"),grabVar("MISSION_SCOPE_SQL_T"),
     grabVar("HIGHSCORE_HISTORY_PERIODS"),grab("highscoreAgent"),grab("highscoreNaturalPeriods"),
     grab("highscoreHistoryRange"),grab("highscoreHistoryDayKeys"),grab("highscoreProjectHistory"),grab("highscoreHistory")
   ].join("\n"),context);
@@ -120,9 +121,31 @@ test("hoy, ayer, semana, mes y año usan rangos naturales y una sola fuente fact
   ]);
   assert.equal(todayResult.range.start,Date.UTC(2026,7,12,22),"00:00 CEST");
   assert.deepEqual([todayResult.range.from,todayResult.range.to],["2026-08-13","2026-08-13"]);
+  assert.deepEqual(todayResult.ranking,{project_id:"yokup",period:"today",
+    ordered:[{agent:"MorfeoMBP16",points:83,position:1},{agent:"MorfeoMBP14",points:20,position:2}],current_index:0});
+  assert.equal(todayResult.latest_work,null,"sin cierre/progreso factual no inventa trabajo reciente");
   const yesterdayResult=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,"MorfeoMBP16","yokup","yesterday",now)));
   assert.equal(yesterdayResult.range.end,todayResult.range.start);
   assert.equal(yesterdayResult.evolution.days.length,1);
+});
+
+test("pixeria permanece pura aunque el último trabajo de Trinity sea admira-tv",async()=>{
+  const {db,env,F}=harness(),now=Date.UTC(2026,7,13,18),morning=Date.UTC(2026,7,13,9,28),evening=Date.UTC(2026,7,13,17,17);
+  db.exec("INSERT INTO projects VALUES ('pixeria','Pixeria'),('admira-tv','Admira TV')");
+  db.exec(`INSERT INTO tickets(id,source,status,assignee,loc,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,subject,project,project_id,proof_image) VALUES
+    ('PIX-1','fleet','resolved','TrinityMBP14','MacBookProNegro14',NULL,${morning},${morning},${morning},${morning},${morning},'Trabajo de Pixeria','Pixeria','pixeria','proof'),
+    ('DCL-msrt8i1zu0ky','fleet','resolved','TrinityMBP14','MacBookProNegro14',NULL,${evening-617601},${evening-617601},${evening},${evening},${evening},'Status integral del player remoto','Admira TV','admira-tv','proof')`);
+  db.exec(`INSERT INTO mission_tasks(mission_id,code,status,owner,updated_at,title,executor,started_at,created_at) VALUES
+    ('PIX-1','a','done','TrinityMBP14',${morning},'Pixeria A','SubTrinityMBP14',${morning},${morning}),
+    ('DCL-msrt8i1zu0ky','a','done','TrinityMBP14',${evening},'Player A','SubTrinityMBP14',${evening-617601},${evening-617601})`);
+  const result=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,"TrinityMBP14","pixeria","today",now)));
+  assert.ok(result.timeline.every(row=>row.project_id==="pixeria"));
+  assert.equal(result.metrics.points,55);
+  assert.equal(result.ranking.project_id,"pixeria");
+  assert.deepEqual(result.ranking.ordered,[{agent:"TrinityMBP14",points:55,position:1}]);
+  assert.equal(result.latest_work.project_id,"admira-tv");
+  assert.equal(result.latest_work.executor,"SubTrinityMBP14");
+  assert.match(result.latest_work.detail_url,/project_id=admira-tv/);
 });
 
 test("scope histórico falla cerrado ante proyecto, periodo o identidad no exactos",async()=>{

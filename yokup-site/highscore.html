@@ -120,9 +120,11 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-mission{position:absolute;z-index:1;left:0;top:5px;width:0;
   max-width:calc(100% - var(--finish-width) - 8px);
   transform:translateX(calc(-100% - 13px));overflow:hidden;color:var(--mut);font-size:10px;font-weight:800;
-  line-height:13px;letter-spacing:.015em;text-shadow:0 1px 5px #000;pointer-events:none;
+  line-height:13px;letter-spacing:.015em;text-shadow:0 1px 5px #000;pointer-events:none;text-decoration:none;
   opacity:0;visibility:hidden;transition:opacity .16s linear;will-change:left,width,opacity}
 .refresh-lane.race-started .refresh-mission{opacity:1;visibility:visible}
+.refresh-lane.race-started a.refresh-mission{pointer-events:auto}
+.refresh-lane.race-started a.refresh-mission:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 .refresh-race.phase-ready .refresh-mission,.refresh-race.phase-set .refresh-mission,.refresh-race.phase-go .refresh-mission{
   opacity:0;visibility:hidden;transition:none}
 .refresh-mission-title{display:block;width:100%;max-width:none;direction:ltr;unicode-bidi:plaintext;
@@ -1556,13 +1558,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     // actividad local no pueden encender el parpadeo de una métrica.
     var workByAgent = Object.create(null);
     if (datos.trabajosAvailable) (datos.trabajos || []).forEach(function (work) {
-      if (!work || work.state === "last_work") return;
+      if (!work) return;
       workByAgent[claveAgenteCarrera(work.agent)] = work;
     });
     lista.forEach(function (fila) {
       var work = workByAgent[claveAgenteCarrera(fila.agente)];
       fila.workState = work && work.state || "";
       fila.workKind = work && work.kind || "";
+      fila.workProjectId = work && work.project_id || "";
+      fila.workProjectName = work && work.project_name || "";
+      fila.workDetailUrl = work && work.detail_url || "";
     });
     lista.sort(function (a, b) { return b.total - a.total || a.agente.localeCompare(b.agente); });
     lista.forEach(function (fila, indice) { fila.posicion = indice + 1; });
@@ -1621,8 +1626,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var metric = metricaHoraDia(a,"points");
       var dailyTitle = tituloPuntosDiarios(estadoPuntosDiarios(a));
       var scoreLabel = metric.hour + " puntos en esta hora y " + metric.day + " hoy";
-      var detalleUrl = a.proyectoId ? "/highscoreDetail?agent=" + encodeURIComponent(a.agente) +
-        "&project_id=" + encodeURIComponent(a.proyectoId) + "&period=today&type=all" : "";
+      var detailProject = a.workProjectId || a.proyectoId;
+      var detalleUrl = a.workDetailUrl || (detailProject ? "/highscoreDetail?agent=" + encodeURIComponent(a.agente) +
+        "&project_id=" + encodeURIComponent(detailProject) + "&period=today&type=all" : "");
       try { sessionStorage.setItem("yokup.highscore.detail." + clave, JSON.stringify(a)); } catch (_) {}
       return '<a class="plaza ' + clases[i] + (a.vivo ? ' podium-live' : '') + '"' + (detalleUrl ? ' href="' + esc(detalleUrl) + '"' : ' aria-disabled="true"') +
         ' aria-label="Ver histórico de ' + esc(a.agente) + ', puesto ' + medallas[i] + ', ' +
@@ -3219,6 +3225,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var item = seen[key];
       return { key:claveAgenteCarrera(item.agent), agente:item.agent, executor:item.executor,
         reference:item.reference || "",
+        projectId:item.project_id || "", projectName:item.project_name || "", detailUrl:item.detail_url || "",
         kind:item.kind, title:item.title || (item.kind === "task" ? "Tarea activa" : item.kind === "mission" ? "Misión activa" : "Objetivo en curso"),
         state:item.state || "assigned_stale", reachable:item.reachable === true,
         raceRevision:item.race_revision || "",
@@ -3312,7 +3319,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var sessionLabel = trabajo.sessionDedicatedMs === null
       ? "Horas operando no disponibles" : "Horas operando del agente";
     var stateLabel = trabajo.state === "running" ? "EN CURSO" : trabajo.state === "last_work" ? "FINALIZADO" : "SIN AVANCE";
-    return { reference:trabajo.reference || "", title:trabajo.title, state:stateLabel, project:"",
+    return { reference:trabajo.reference || "", title:trabajo.title, state:stateLabel,
+      project:trabajo.projectName || "", projectId:trabajo.projectId || "", detailUrl:trabajo.detailUrl || "",
       executor:trabajo.executor, responsible:trabajo.agente, kind:trabajo.kind, reachable:trabajo.reachable,
       presenceAt:trabajo.presenceAt, at:Number(trabajo.at) || 0, idle:parado,
       assignmentClock:horaMadrid(trabajo.assignmentAt), assignmentBasis:trabajo.assignmentBasis,
@@ -3404,7 +3412,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<span class="refresh-agent" data-race-role="agent" title="Responsable ' + esc(responsable) + '">' + esc(responsable) + '</span></span>' +
         '<div class="refresh-lane-center"><div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
-        '<span class="refresh-mission" data-race-role="mission" title="' + esc([resumen.reference,resumen.title].filter(Boolean).join(" · ")) + '"><span class="refresh-mission-title">' + esc((resumen.reference ? resumen.reference + " · " : "") + resumen.title) + '</span></span>' +
+        (resumen.detailUrl ? '<a class="refresh-mission" data-race-role="mission" href="' + esc(resumen.detailUrl) +
+          '" title="' + esc([resumen.reference,resumen.title,resumen.project].filter(Boolean).join(" · ")) +
+          '"><span class="refresh-mission-title">' + esc((resumen.reference ? resumen.reference + " · " : "") + resumen.title +
+          (resumen.project ? " · " + resumen.project : "")) + '</span></a>' :
+          '<span class="refresh-mission" data-race-role="mission" title="' + esc([resumen.reference,resumen.title].filter(Boolean).join(" · ")) +
+          '"><span class="refresh-mission-title">' + esc((resumen.reference ? resumen.reference + " · " : "") + resumen.title) + '</span></span>') +
         runner + '<span class="refresh-finish" aria-hidden="true"></span></div></div>' +
         '<div class="refresh-time" title="Estado y tiempos factuales" data-work-state="' + esc(isLast ? "last_work" : resumen.idle ? "assigned_stale" : "running") + '"' +
           ' data-work-start="' + (Number(enlace.trabajo.startedAt) || 0) + '" data-work-end="' + (Number(enlace.trabajo.endedAt) || 0) + '"' +

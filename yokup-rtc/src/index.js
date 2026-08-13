@@ -6218,7 +6218,7 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
   const range = highscoreHistoryRange(period, ahora);
   if (!range) return { ok:false, code:"invalid_period", error:"period debe ser today, yesterday, week, month o year" };
   const rows = async (sql, ...binds) => ((await env.DB.prepare(sql).bind(...binds).all()).results || []);
-  const [ideas, decisions, missions, tasks] = await Promise.all([
+  const [ideas, decisions, missions, tasks, latestMissions, projects] = await Promise.all([
     rows("SELECT id,title,author,author_identity,project,created_at FROM ideas " +
       "WHERE project=? AND created_at>=? AND created_at<?", exactProjectId, range.start, range.end),
     rows("SELECT id,question,status,agent,machine,project,created_at FROM decisions " +
@@ -6234,7 +6234,14 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
       `WHERE ${AGENT_SOURCE_SQL_T} AND COALESCE(NULLIF(t.project_id,''),t.project)=? ` +
       `AND NOT (t.status='cancelled' AND COALESCE(t.closure_reason,'')='equivalent_mission') ` +
       `AND m.updated_at>=? AND m.updated_at<? AND m.status IN ('in_progress','done')`,
-      exactProjectId, range.start, range.end)
+      exactProjectId, range.start, range.end),
+    rows(`SELECT t.id,t.subject,t.assignee,t.loc,t.status,t.project,t.project_id,t.resolved_at,` +
+      `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,${HIGHSCORE_MISSION_PROGRESS_SQL} work_progress_at,` +
+      `(SELECT COALESCE(NULLIF(mt.executor,''),NULLIF(mt.owner,'')) FROM mission_tasks mt ` +
+      `WHERE mt.mission_id=t.id ORDER BY COALESCE(mt.updated_at,0) DESC LIMIT 1) executor ` +
+      `FROM tickets t WHERE ${MISSION_SCOPE_SQL_T} AND t.status IN ('in_progress','resolved') ` +
+      `ORDER BY COALESCE(t.resolved_at,${HIGHSCORE_MISSION_PROGRESS_SQL}) DESC`),
+    rows("SELECT id,name FROM projects")
   ]);
   const familyMatches = (agent, machine) => {
     const family = reportAgentFamily(agent, machine);
@@ -6270,6 +6277,72 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
     const key = `${String(task.mission_id || "")}|${match[1]}`, previous = representatives.get(key);
     if (!previous || Number(task.updated_at) >= Number(previous.updated_at)) representatives.set(key, task);
   }
+  // Ranking del mismo proyecto y del mismo rango. No se deriva del daily
+  // global: hacerlo mezclaría Pixeria con el cierre factual de admira-tv que
+  // motivó este contrato. Todas las filas nacen de las mismas cuatro fuentes y
+  // pesos que la cronología anterior.
+  const rankingTotals = new Map();
+  const rankingFamily = (agent, machine) => {
+    const family = reportAgentFamily(agent, machine), identity = family && parseAgentIdentity(family.family_name);
+    return family && family.family_key && !family.family_key.startsWith("external:") &&
+      identity && identity.role === "main" && identity.suffix ? family : null;
+  };
+  const rankingAdd = (agent, machine, points) => {
+    const family = rankingFamily(agent, machine);
+    if (!family) return;
+    const current = rankingTotals.get(family.family_key) || { agent:family.family_name, points:0 };
+    current.points += Number(points) || 0;
+    rankingTotals.set(family.family_key, current);
+  };
+  for (const idea of ideas) rankingAdd(highscoreAgent(idea.author), "", HIGHSCORE_WEIGHTS.objective);
+  for (const decision of decisions) rankingAdd(decision.agent, decision.machine, HIGHSCORE_WEIGHTS.window);
+  for (const mission of missions) rankingAdd(mission.assignee, mission.loc, HIGHSCORE_WEIGHTS.mission);
+  const rankingTasks = new Map();
+  for (const task of tasks) {
+    const match = String(task.code || "").toLowerCase().match(/^([a-c])(?:[1-3])?$/), family = rankingFamily(task.assignee, task.loc);
+    if (!match || !family) continue;
+    const key = `${family.family_key}|${String(task.mission_id || "")}|${match[1]}`, previous = rankingTasks.get(key);
+    if (!previous || Number(task.updated_at) >= Number(previous.task.updated_at)) rankingTasks.set(key, { family, task });
+  }
+  for (const { family, task } of rankingTasks.values()) rankingAdd(family.family_name, task.loc,
+    HIGHSCORE_TASK_WEIGHTS.task +
+      (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0));
+  if (!rankingTotals.has(wanted.family_key)) rankingTotals.set(wanted.family_key, { agent:wanted.family_name, points:0 });
+  const ordered = [...rankingTotals.entries()].sort((a, b) => b[1].points - a[1].points ||
+    a[1].agent.localeCompare(b[1].agent, "es")).map(([familyKey, row], index) => ({
+      agent:row.agent, points:row.points, position:index + 1, family_key:familyKey
+    }));
+  const currentIndex = ordered.findIndex((row) => row.family_key === wanted.family_key);
+  const ranking = { project_id:exactProjectId, period:range.period,
+    ordered:ordered.map(({ family_key, ...row }) => row), current_index:currentIndex };
+
+  // El detalle conserva su timeline puro, pero explica honestamente si el
+  // trabajo más reciente de la familia pertenece a otro proyecto y ofrece el
+  // enlace exacto. La separación evita que un carril global parezca un evento
+  // ausente del proyecto que estaba seleccionado en la pantalla.
+  const projectsByKey = new Map();
+  for (const row of projects) {
+    projectsByKey.set(String(row.id || "").trim().toLowerCase(), row);
+    projectsByKey.set(String(row.name || "").trim().toLowerCase(), row);
+  }
+  let latestWork = null;
+  for (const row of latestMissions) {
+    if (!familyMatches(row.assignee, row.loc)) continue;
+    const projectRow = projectsByKey.get(String(row.project_id || row.project || "").trim().toLowerCase());
+    if (!projectRow || !projectRow.id) continue;
+    const startedAt = Number(row.work_started_at) || 0, finishedAt = Number(row.resolved_at) || 0;
+    const factualAt = finishedAt || Number(row.work_progress_at) || startedAt;
+    if (!factualAt || latestWork && factualAt <= latestWork.at) continue;
+    latestWork = { agent:wanted.family_name,
+      executor:reportAgentIdentity(row.executor || row.assignee, row.loc),
+      reference:String(row.id || ""), title:String(row.subject || "").trim().slice(0, 300),
+      project_id:String(projectRow.id), project_name:String(projectRow.name || projectRow.id),
+      status:finishedAt ? "finalized" : "running", at:factualAt,
+      started_at:startedAt || null, finished_at:finishedAt || null,
+      duration_ms:startedAt && (finishedAt || ahora) >= startedAt ? (finishedAt || ahora) - startedAt : null,
+      detail_url:"/highscoreDetail?agent=" + encodeURIComponent(wanted.family_name) +
+        "&project_id=" + encodeURIComponent(String(projectRow.id)) + "&period=today&type=all" };
+  }
   for (const task of ownTasks) {
     const match = String(task.code || "").toLowerCase().match(/^([a-c])(?:[1-3])?$/);
     if (!match) continue;
@@ -6298,7 +6371,7 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
     timezone:"Europe/Madrid", period:range.period,
     range:{ start:range.start, end:range.end, start_day:range.start_day, end_day:range.end_day,
       from:range.start_day, to:range.end_day },
-    generated_at:generatedAt, sampled_at:generatedAt, metrics,
+    generated_at:generatedAt, sampled_at:generatedAt, metrics, ranking, latest_work:latestWork,
     evolution:{ start:range.start_day, end:range.end_day, days:[...byDay.values()] }, timeline };
 }
 __name(highscoreProjectHistory, "highscoreProjectHistory");
@@ -6537,8 +6610,8 @@ __name(highscoreDedicatedTiming, "highscoreDedicatedTiming");
 // calle; sólo es `running` si el progreso MATERIAL es de hace <=20 minutos.
 // Presence únicamente añade reachability y nunca cambia el estado del trabajo.
 async function highscoreActiveWork(env, ahora = Date.now()) {
-  const [missions, tasks, objectives, presence] = await Promise.all([
-    env.DB.prepare(`SELECT id,subject,assignee,loc,status,created_at,started_at,resolved_at,` +
+  const [missions, tasks, objectives, presence, pidx] = await Promise.all([
+    env.DB.prepare(`SELECT id,subject,assignee,loc,status,project,project_id,created_at,started_at,resolved_at,` +
       `${HIGHSCORE_ASSIGNMENT_EVENT_SQL} assignment_event_at,` +
       `CASE WHEN source IN ('decision-batch','cli-declare') AND COALESCE(TRIM(assignee),'')<>'' AND COALESCE(TRIM(loc),'')<>'' THEN created_at END assignment_born_at,` +
       `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,` +
@@ -6547,14 +6620,15 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
       `WHERE ${MISSION_SCOPE_SQL_T} AND status='in_progress'`).all().then((r) => r.results || []),
     env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.started_at,m.created_at,m.updated_at,` +
       `m.started_at work_started_at,m.started_at work_progress_at,m.started_at race_progress_at,NULL assignment_event_at,` +
-      `CASE WHEN COALESCE(TRIM(m.executor),'')<>'' THEN m.created_at END assignment_born_at,t.assignee,t.loc,t.resolved_at ` +
+      `CASE WHEN COALESCE(TRIM(m.executor),'')<>'' THEN m.created_at END assignment_born_at,t.assignee,t.loc,t.project,t.project_id,t.resolved_at ` +
       `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
       `AND m.status IN ('in_progress','doing','active') ` +
       `AND t.status='in_progress' ` +
       `AND NOT (t.status='cancelled' AND COALESCE(t.closure_reason,'')='equivalent_mission')`).all().then((r) => r.results || []),
-    env.DB.prepare("SELECT id,title,status,author,author_identity,updated_at,created_at FROM ideas WHERE status='estudio'").all()
+    env.DB.prepare("SELECT id,title,status,author,author_identity,project,updated_at,created_at FROM ideas WHERE status='estudio'").all()
       .then((r) => r.results || []),
-    highscoreVerifiedPresence(env, ahora)
+    highscoreVerifiedPresence(env, ahora),
+    projectIndex(env)
   ]);
   const byFamily = new Map(), priority = { objective:1, mission:2, task:3 };
   const visibleTitle = (raw, fallback) => {
@@ -6604,6 +6678,13 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
       title:visibleTitle(title, kind === "task" ? "Tarea activa" : kind === "mission" ? "Misión activa" : "Objetivo en curso"),
       state, active_at:at, work_progress_at:at, reachable:!!presenceAt,
       race_revision:raceRevision };
+    const scopedProject = resolveProject(pidx, item.project_id || item.project || "");
+    if (scopedProject.id) {
+      candidate.project_id = scopedProject.id;
+      candidate.project_name = scopedProject.name;
+      candidate.detail_url = "/highscoreDetail?agent=" + encodeURIComponent(family.family_name) +
+        "&project_id=" + encodeURIComponent(scopedProject.id) + "&period=today&type=all";
+    }
     // Exactamente una encarnación vinculada: cero o varias son ambiguas y por
     // contrato no se suman ni se elige una de forma heurística.
     if (timing) Object.assign(candidate, timing);
@@ -6652,7 +6733,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
   // sólo top-3 finalizados, sin rescatar asignaciones stale.
   if (!runningCount || participants.length < 3) {
     const recentMissions = await env.DB.prepare(
-      `SELECT id,subject,assignee,loc,'mission' kind,resolved_at ended_at,started_at,created_at,` +
+      `SELECT id,subject,assignee,loc,project,project_id,'mission' kind,resolved_at ended_at,started_at,created_at,` +
         `${HIGHSCORE_ASSIGNMENT_EVENT_SQL} assignment_event_at,` +
         `CASE WHEN source IN ('decision-batch','cli-declare') AND COALESCE(TRIM(assignee),'')<>'' AND COALESCE(TRIM(loc),'')<>'' THEN created_at END assignment_born_at,` +
         `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,${HIGHSCORE_MISSION_PROGRESS_SQL} work_progress_at ` +

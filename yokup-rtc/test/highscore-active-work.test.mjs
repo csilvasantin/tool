@@ -17,10 +17,11 @@ const grabVar=name=>{const m=new RegExp(`var ${name} = [^\\n]+;`).exec(source);a
 
 function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
   const db=new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,subject TEXT,loc TEXT,source TEXT,role TEXT,status TEXT,assignee TEXT,closure_reason TEXT,created_at INTEGER,started_at INTEGER,updated_at INTEGER,live_at INTEGER,resolved_at INTEGER,proof_image TEXT)");
+  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,subject TEXT,loc TEXT,source TEXT,role TEXT,status TEXT,assignee TEXT,closure_reason TEXT,created_at INTEGER,started_at INTEGER,updated_at INTEGER,live_at INTEGER,resolved_at INTEGER,proof_image TEXT,project TEXT,project_id TEXT)");
   db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,started_at INTEGER,created_at INTEGER,updated_at INTEGER,executor TEXT)");
-  db.exec("CREATE TABLE ideas(id TEXT PRIMARY KEY,title TEXT,status TEXT,author TEXT,author_identity TEXT,created_at INTEGER,updated_at INTEGER)");
+  db.exec("CREATE TABLE ideas(id TEXT PRIMARY KEY,title TEXT,status TEXT,author TEXT,author_identity TEXT,project TEXT,created_at INTEGER,updated_at INTEGER)");
   db.exec("CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT,ticket_id TEXT,ts INTEGER,kind TEXT,author TEXT,text TEXT)");
+  db.exec("CREATE TABLE projects(id TEXT PRIMARY KEY,name TEXT)");
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{all:async()=>({results:stmt.all(...args)})}},all:async()=>({results:stmt.all()})}}};
   const TELEGRAM=presence===null?undefined:{fetch:async(request)=>({ok:true,json:async()=>
     String(request.url).includes("work-sessions") ? {ok:true,sessions:workSessions} : presence})};
@@ -30,7 +31,7 @@ function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
     grabVar("HIGHSCORE_PERSONAS"),grabVar("MISSION_SCOPE_SQL_T"),grabVar("PRESENCE_URL"),
     grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_WORK_STARTED_SQL"),grabVar("HIGHSCORE_MISSION_PROGRESS_SQL"),grabVar("HIGHSCORE_RACE_PROGRESS_SQL"),grabVar("HIGHSCORE_ASSIGNMENT_EVENT_SQL"),
     grabVar("HIGHSCORE_ACTIVE_WORK_MS"),grabVar("HIGHSCORE_LANE_WORK_MS"),grabVar("HIGHSCORE_RECENT_WORK_MS"),grabVar("HIGHSCORE_PROCESS_FRESH_MS"),grabVar("HIGHSCORE_CLOCK_SKEW_MS"),
-    grab("hash"),grab("highscoreAgent"),grab("scopedMissionOwner"),grab("highscoreActiveWorkMillis"),grab("highscoreActiveWorkFamily"),
+    grab("projectSlug"),grab("projectIndex"),grab("resolveProject"),grab("hash"),grab("highscoreAgent"),grab("scopedMissionOwner"),grab("highscoreActiveWorkMillis"),grab("highscoreActiveWorkFamily"),
     grab("highscoreElapsedTiming"),grab("highscoreAssignmentTiming"),grab("highscoreVerifiedPresence"),grab("highscoreLinkedSession"),grab("highscoreDedicatedTiming"),grab("highscoreActiveWork"),
   ].join("\n"),context);
   return {db,env:{DB,TELEGRAM},F:context};
@@ -40,7 +41,7 @@ const NOW=1_786_460_000_000, MIN=60_000;
 const processRow=(persona,machine,updated=NOW)=>({persona,machine,updated:Math.floor(updated/1000),verified:1,source:"process_snapshot",online:null,pid:42,host:"cli"});
 function mission(db,{id="M1",agent="OraculoMacMini",machine="MacMini",at=NOW-5*MIN,startedAt,status="in_progress",title="Misión"}={}){
   const start=startedAt===undefined?at:startedAt;
-  db.prepare("INSERT INTO tickets VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(id,title,machine,"fleet","mission",status,agent,null,at,start,at,at,status==="resolved"?at:null,status==="resolved"?"https://proof.test/evidence.png":null);
+  db.prepare("INSERT INTO tickets(id,subject,loc,source,role,status,assignee,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,proof_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(id,title,machine,"fleet","mission",status,agent,null,at,start,at,at,status==="resolved"?at:null,status==="resolved"?"https://proof.test/evidence.png":null);
 }
 
 test("frontera exacta 20m: running hasta el límite y assigned_stale un milisegundo después",async()=>{
@@ -56,7 +57,7 @@ test("frontera exacta 20m: running hasta el límite y assigned_stale un milisegu
 
 test("handON cli-declare legado aparece inmediatamente aunque no persistiera started_at",async()=>{
   const {db,env,F}=harness();
-  db.prepare("INSERT INTO tickets VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+  db.prepare("INSERT INTO tickets(id,subject,loc,source,role,status,assignee,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,proof_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .run("DCL-HANDON","handON de OraculoMini, saludo y reporte","MacMini","cli-declare","mission","in_progress","OraculoMini",null,NOW-MIN,null,NOW-MIN,NOW-MIN,null,null);
   db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
     .run("DCL-HANDON","a","Saludar","in_progress","OraculoMini",null,NOW-MIN,NOW-MIN,"SubOraculoMini");
@@ -70,7 +71,7 @@ test("handON cli-declare legado aparece inmediatamente aunque no persistiera sta
 test("handON fleet resuelto sin started_at sustituye el trabajo viejo del carril",async()=>{
   const {db,env,F}=harness();
   mission(db,{id:"OLD",agent:"MorfeoMacMini",at:NOW-40*MIN,startedAt:NOW-60*MIN,status:"resolved",title:"Trabajo viejo"});
-  db.prepare("INSERT INTO tickets VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+  db.prepare("INSERT INTO tickets(id,subject,loc,source,role,status,assignee,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,proof_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .run("FLT-HANDON","handON del jueves, Morfeo","MacMini","fleet","mission","resolved","MorfeoMacMini",null,NOW-2*MIN,null,NOW-MIN,NOW-MIN,NOW-MIN,"https://proof.test/handon.png");
   db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
     .run("FLT-HANDON","z1","Informe del agente","done","MorfeoMacMini",null,NOW-MIN,NOW-MIN,"MorfeoMacMini");
@@ -83,7 +84,7 @@ test("handON fleet resuelto sin started_at sustituye el trabajo viejo del carril
 test("FLT-1419 cerrado conserva el inicio de asignación aunque el primer progreso llegara al final",async()=>{
   const {db,env,F}=harness();
   const assigned=NOW-10*MIN, closed=NOW-5_000;
-  db.prepare("INSERT INTO tickets VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+  db.prepare("INSERT INTO tickets(id,subject,loc,source,role,status,assignee,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,proof_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .run("FLT-1419","Galería pública","MacMini","fleet","mission","resolved","MorfeoMacMini",null,
       assigned-5_000,null,closed,closed,closed,"https://proof.test/gallery.png");
   db.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES (?,?,?,?,?)")
@@ -104,7 +105,7 @@ test("FLT-1419 cerrado conserva el inicio de asignación aunque el primer progre
 test("un handON resuelto rellena una calle libre mientras otra familia sigue activa",async()=>{
   const {db,env,F}=harness();
   mission(db,{id:"DCL-ACTIVA",agent:"OraculoMacMini",at:NOW-MIN,title:"QA activa"});
-  db.prepare("INSERT INTO tickets VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+  db.prepare("INSERT INTO tickets(id,subject,loc,source,role,status,assignee,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,proof_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .run("FLT-1413","handON del jueves, Morfeo","MacMini","fleet","mission","resolved","MorfeoMacMini",null,NOW-4*MIN,null,NOW-2*MIN,NOW-2*MIN,NOW-2*MIN,"https://proof.test/handon.png");
   db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
     .run("FLT-1413","z1","Informe del agente","done","MorfeoMacMini",null,NOW-3*MIN,NOW-2*MIN,"MorfeoMacMini");
@@ -237,6 +238,19 @@ test("SubNeo y subTrinity ejecutan pero las calles visibles son NeoMBP14 y Trini
   assert.equal(neo.executor,"SubNeoMBP14"); assert.equal(neo.family_key,"neo@mbp14");
   assert.equal(trinity.executor,"SubTrinityMBP14"); assert.equal(trinity.family_key,"trinity@mbp14");
   assert.equal(neo.reachable,true); assert.equal(trinity.reachable,true);
+});
+
+test("el carril Trinity expone el proyecto exacto y nunca hereda Pixeria del ranking",async()=>{
+  const {db,env,F}=harness();
+  db.exec("INSERT INTO projects VALUES ('pixeria','Pixeria'),('admira-tv','Admira TV')");
+  mission(db,{id:"DCL-msrt8i1zu0ky",agent:"TrinityMBP14",machine:"MacBookProNegro14",at:NOW-MIN,
+    title:"Status integral del player remoto"});
+  db.exec("UPDATE tickets SET project='Admira TV',project_id='admira-tv' WHERE id='DCL-msrt8i1zu0ky'");
+  const row=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW))).participants[0];
+  assert.equal(row.agent,"TrinityMBP14");
+  assert.equal(row.project_id,"admira-tv");
+  assert.equal(row.project_name,"Admira TV");
+  assert.match(row.detail_url,/agent=TrinityMBP14.*project_id=admira-tv/);
 });
 
 test("el dedupe por familia ocurre después de leer los cierres y no oculta a NeoMBP14",async()=>{
