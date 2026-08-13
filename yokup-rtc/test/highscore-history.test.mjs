@@ -198,6 +198,22 @@ test("ranking devuelve todos los puntuados, excluye cero y corta navegación en 
     assert.equal(result.ranking.current_index,4,period);
     assert.deepEqual(result.ranking.previous,{agent:'NeoMBAAzul',points:80,position:4},period);
     assert.equal(result.ranking.next,null,period);
+    // Contrato suficiente para la gráfica comparativa: una sola verdad factual.
+    // max y ratio son derivados exactos; no existe un segundo array comparison
+    // que pueda divergir del ranking o reintroducir agentes sin puntos.
+    const max=result.ranking.ordered[0].points;
+    const bars=result.ranking.ordered.map((row,index)=>({
+      agent:row.agent,points:row.points,position:row.position,
+      ratio:row.points/max,current:index===result.ranking.current_index
+    }));
+    assert.deepEqual(bars,[
+      {agent:'OraculoMini',points:200,position:1,ratio:1,current:false},
+      {agent:'TrinityMBP14',points:160,position:2,ratio:.8,current:false},
+      {agent:'MorfeoMBP16',points:120,position:3,ratio:.6,current:false},
+      {agent:'NeoMBAAzul',points:80,position:4,ratio:.4,current:false},
+      {agent:'SmithMBP14',points:40,position:5,ratio:.2,current:true}
+    ],period);
+    assert.equal('comparison' in result,false,"no duplica la fuente factual");
   }
   // Ayer conserva el mismo contrato completo con un conjunto factual distinto.
   for(const [index,[agent,machine]] of agents.entries()) db.prepare(
@@ -207,6 +223,9 @@ test("ranking devuelve todos los puntuados, excluye cero y corta navegación en 
   assert.equal(previousDay.ranking.ordered.length,5);
   assert.ok(previousDay.ranking.ordered.every(row=>row.points===8));
   assert.deepEqual(previousDay.ranking.ordered.map(row=>row.position),[1,2,3,4,5]);
+  assert.deepEqual(previousDay.ranking.ordered.map(row=>row.agent),[
+    'MorfeoMBP16','NeoMBAAzul','OraculoMini','SmithMBP14','TrinityMBP14'
+  ],"empate estable por identidad canónica");
 
   const zero=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,'TrinityMBA16','scope','today',now)));
   assert.equal(zero.metrics.points,0);

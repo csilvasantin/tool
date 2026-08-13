@@ -6323,7 +6323,10 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
   for (const { family, task } of rankingTasks.values()) rankingAdd(family.family_name, task.loc,
     HIGHSCORE_TASK_WEIGHTS.task +
       (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0));
-  // `ordered` es el universo factual completo del scope, no un podio. Un agente
+  // `ordered` es el universo factual completo del scope, no un podio, y la
+  // fuente única para cualquier comparativa: el consumidor puede obtener el
+  // máximo de ordered[0].points y derivar cada ratio sin duplicar puntos ni
+  // identidades en otro payload. Un agente
   // sin puntos no se añade para hacer navegable una pantalla vacía: en ese caso
   // current_index/previous/next son null. La navegación es lineal: el primero
   // no tiene previous y el último puntuado no tiene next.
