@@ -6196,6 +6196,22 @@ function highscoreHistoryDayKeys(startDay, endDay) {
 }
 __name(highscoreHistoryDayKeys, "highscoreHistoryDayKeys");
 
+// `MacMini` fue el apellido derivado de la máquina antes de que la identidad
+// operativa del mismo equipo pasara a `Mini`. Dentro del histórico ambos son la
+// misma familia física: se canonicalizan antes de filtrar, deduplicar y sumar,
+// para que OraculoMini no aparezca dos veces ni pierda los puntos antiguos.
+function highscoreCanonicalHistoryFamily(agent, machine) {
+  const family = reportAgentFamily(agent, machine);
+  if (!family || !family.family_key || family.family_key.startsWith("external:")) return family;
+  const parsed = parseAgentIdentity(family.family_name);
+  if (parsed.suffix !== "MacMini") return family;
+  return { ...family,
+    family_key:`${identityKey(parsed.persona)}@mini`,
+    family_name:`${parsed.persona}Mini`
+  };
+}
+__name(highscoreCanonicalHistoryFamily, "highscoreCanonicalHistoryFamily");
+
 // Detalle histórico exacto de UNA familia dentro de UN proyecto canónico. Los
 // cinco periodos salen de medianoches Europe/Madrid (no de restar 24 h), y las
 // métricas, la serie y la cronología nacen de la misma lista de hechos. Así no
@@ -6205,7 +6221,7 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
   if (parsed.role !== "main" || !suffix || !String(parsed.persona || "").trim()) {
     return { ok:false, code:"exact_agent_required", error:"agent debe ser una identidad principal con apellido de equipo" };
   }
-  const wanted = reportAgentFamily(requestedAgent, "");
+  const wanted = highscoreCanonicalHistoryFamily(requestedAgent, "");
   if (!wanted || !wanted.family_key || wanted.family_key.startsWith("external:")) {
     return { ok:false, code:"exact_agent_required", error:"agent no pertenece a una familia canónica" };
   }
@@ -6244,7 +6260,7 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
     rows("SELECT id,name FROM projects")
   ]);
   const familyMatches = (agent, machine) => {
-    const family = reportAgentFamily(agent, machine);
+    const family = highscoreCanonicalHistoryFamily(agent, machine);
     return !!family && family.family_key === wanted.family_key;
   };
   const timeline = [];
@@ -6283,7 +6299,7 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
   // pesos que la cronología anterior.
   const rankingTotals = new Map();
   const rankingFamily = (agent, machine) => {
-    const family = reportAgentFamily(agent, machine), identity = family && parseAgentIdentity(family.family_name);
+    const family = highscoreCanonicalHistoryFamily(agent, machine), identity = family && parseAgentIdentity(family.family_name);
     return family && family.family_key && !family.family_key.startsWith("external:") &&
       identity && identity.role === "main" && identity.suffix ? family : null;
   };

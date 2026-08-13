@@ -5,7 +5,7 @@ import {DatabaseSync} from "node:sqlite";
 import {readFile} from "node:fs/promises";
 import {madridDayKey,madridDayStart} from "../src/display-ref.js";
 import {missionDayRange} from "../src/mission-visible.js";
-import {parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity} from "../src/agent-identity.js";
+import {identityKey,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity} from "../src/agent-identity.js";
 
 const source=await readFile(new URL("../src/index.js",import.meta.url),"utf8");
 const grab=name=>{
@@ -30,13 +30,13 @@ function harness(){
   }}}}};
   const scopedMissionOwner=(owner,role,assignee,machine)=>scopedAgentIdentity(owner||assignee,machine,role);
   const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,
-    madridDayKey,madridDayStart,missionDayRange,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedMissionOwner,__name:(fn)=>fn});
+    madridDayKey,madridDayStart,missionDayRange,identityKey,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedMissionOwner,__name:(fn)=>fn});
   vm.runInContext([
     grabVar("HIGHSCORE_WEIGHTS"),grabVar("HIGHSCORE_TASK_WEIGHTS"),grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),
     grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_WORK_STARTED_SQL"),grabVar("HIGHSCORE_MISSION_PROGRESS_SQL"),
     grabVar("HIGHSCORE_PERSONAS"),grabVar("AGENT_SOURCE_SQL_T"),grabVar("MISSION_SCOPE_SQL_T"),
     grabVar("HIGHSCORE_HISTORY_PERIODS"),grab("highscoreAgent"),grab("highscoreNaturalPeriods"),
-    grab("highscoreHistoryRange"),grab("highscoreHistoryDayKeys"),grab("highscoreProjectHistory"),grab("highscoreHistory")
+    grab("highscoreHistoryRange"),grab("highscoreHistoryDayKeys"),grab("highscoreCanonicalHistoryFamily"),grab("highscoreProjectHistory"),grab("highscoreHistory")
   ].join("\n"),context);
   return {db,env:{DB},F:context};
 }
@@ -146,6 +146,33 @@ test("pixeria permanece pura aunque el último trabajo de Trinity sea admira-tv"
   assert.equal(result.latest_work.project_id,"admira-tv");
   assert.equal(result.latest_work.executor,"SubTrinityMBP14");
   assert.match(result.latest_work.detail_url,/project_id=admira-tv/);
+});
+
+test("ranking canonicaliza OraculoMacMini en OraculoMini, suma 875+40 y renumera",async()=>{
+  const {db,env,F}=harness(),now=Date.UTC(2026,7,13,18),at=Date.UTC(2026,7,13,8);
+  db.exec("INSERT INTO projects VALUES ('yokup','Yokup')");
+  db.exec(`INSERT INTO ideas(id,author,created_at,title,author_identity,project) VALUES
+    ('O-OBJ','OraculoMini',${at},'Objetivo','OraculoMini','yokup')`);
+  for(let i=0;i<21;i++) db.prepare(
+    "INSERT INTO tickets(id,source,role,status,assignee,loc,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,subject,project,project_id,proof_image) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+  ).run(`O-${i}`,'decision-batch','mission','resolved','OraculoMini','MacMini',null,at+i,at+i,at+i,at+i,at+i,`Misión ${i}`,'Yokup','yokup','proof');
+  db.prepare("INSERT INTO mission_tasks(mission_id,code,status,owner,updated_at,title,executor,started_at,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
+    .run('O-0','a','done','OraculoMini',at+100,'Tarea A','SubOraculoMini',at,at);
+  db.prepare("INSERT INTO tickets(id,source,role,status,assignee,loc,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,subject,project,project_id,proof_image) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run('O-LEGACY','decision-batch','mission','resolved','OraculoMacMini','MacMini',null,at+200,at+200,at+200,at+200,at+200,'Misión legacy','Yokup','yokup','proof');
+  db.prepare("INSERT INTO tickets(id,source,role,status,assignee,loc,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,subject,project,project_id,proof_image) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run('T-1','decision-batch','mission','resolved','TrinityMBP14','MacBookProNegro14',null,at+300,at+300,at+300,at+300,at+300,'Misión Trinity','Yokup','yokup','proof');
+
+  const result=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,'OraculoMini','yokup','today',now)));
+  assert.equal(result.agent,'OraculoMini');
+  assert.equal(result.metrics.points,915,"timeline y total también conservan los 40 puntos legacy");
+  assert.deepEqual(result.ranking,{project_id:'yokup',period:'today',ordered:[
+    {agent:'OraculoMini',points:915,position:1},{agent:'TrinityMBP14',points:40,position:2}
+  ],current_index:0});
+  assert.equal(result.ranking.ordered.some(row=>row.agent==='OraculoMacMini'),false);
+  const legacyRequest=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,'OraculoMacMini','yokup','today',now)));
+  assert.equal(legacyRequest.agent,'OraculoMini');
+  assert.equal(legacyRequest.ranking.current_index,0);
 });
 
 test("scope histórico falla cerrado ante proyecto, periodo o identidad no exactos",async()=>{
