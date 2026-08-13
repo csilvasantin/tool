@@ -37,13 +37,13 @@ test("standing es un sprite dedicado para last_work y stale conserva carrera cos
   assert.match(html,/carreraCosmetica = estadoTrabajo === "assigned_stale"/);
 });
 
-test("running compite; stale cruza B\/N sin ganar y last queda en salida",()=>{
+test("running compite; stale cruza B\/N sin ganar y last queda quieto en meta",()=>{
   assert.match(html,/phase-ready \.runner-pose-ready\{display:block;opacity:1\}/);
   assert.match(html,/phase-set \.runner-pose-set\{display:block;opacity:1\}/);
   assert.match(html,/phase-go \.runner-pose-go\{display:block;opacity:1\}/);
   assert.match(html,/\.runner-run-a\{animation:runner-run-a/);
   assert.match(html,/finished\.race-winner \.runner-finish-win\{display:block/);
-  assert.match(html,/progresoAtleta = noCorre \? 0 : Math\.min\(1, progresoCarril/);
+  assert.match(html,/progresoAtleta = trabajoFinalizado \? 1 : noCorre \? 0 : Math\.min\(1, progresoCarril/);
   assert.match(html,/toggle\("cosmetic-finished", carreraCosmetica && progresoAtleta >= 1\)/);
   assert.match(html,/\.refresh-lane\.cosmetic-finished \.runner-standing\{display:block/);
   assert.match(html,/!carreraCosmetica && ordenLlegada === 1/);

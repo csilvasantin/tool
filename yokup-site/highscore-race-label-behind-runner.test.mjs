@@ -44,6 +44,27 @@ test("el fantasma assigned_stale restaura la geometría hacia atrás al empezar 
     "la clase que activa la excepción corresponde al progreso cosmético real");
 });
 
+test("el histórico last_work queda en meta y conserva todo el rótulo detrás del corredor", () => {
+  const finishedGhost = cssRule(".refresh-lane-last .refresh-mission");
+  assert.match(finishedGhost, /right:auto/);
+  assert.match(finishedGhost, /transform:translateX\(calc\(-100% - 13px\)\)/,
+    "last_work necesita la misma proyección hacia atrás que el fantasma móvil");
+  assert.match(paintSource, /trabajoFinalizado = estadoTrabajo === "last_work"/);
+  assert.match(paintSource, /progresoAtleta = trabajoFinalizado \? 1 : noCorre \? 0/,
+    "un trabajo finalizado se representa quieto en meta, no pegado a la salida");
+  assert.match(paintSource,
+    /if \(noCorre\) \{[\s\S]*if \(mision && trabajoFinalizado\) \{[\s\S]*mision\.style\.left = posicionCorredor;[\s\S]*mision\.style\.width = espacioFinalizado \+ "px"/,
+    "la ventana finalizada debe anclarse al centro del runner y medir sólo lo ya recorrido");
+
+  // Contrato geométrico: translateX(-100% - 13px) coloca el borde derecho del
+  // texto 13px detrás del centro. El sprite mide 25px, por lo que ni siquiera
+  // toca su borde izquierdo (12.5px): no basta con un z-index correcto.
+  const runnerCenter = 900, runnerLeft = runnerCenter - 25 / 2;
+  const labelWidth = 600, labelRight = runnerCenter - 13;
+  assert.ok(labelRight < runnerLeft);
+  assert.ok(labelRight - labelWidth < labelRight);
+});
+
 test("la corrección geométrica conserva meta, controles y orden semántico del carril", () => {
   assert.match(html, /id="refreshRace" role="button" tabindex="0" aria-pressed="false"/);
   assert.match(renderSource,

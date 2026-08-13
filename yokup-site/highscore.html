@@ -298,6 +298,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   top:1px;display:block;width:auto;max-width:none;transform:none;text-align:right;opacity:1;visibility:visible}
 .refresh-lane-idle .refresh-mission-title,.refresh-lane-last .refresh-mission-title{text-align:right;opacity:.85}
 .refresh-lane-idle.race-started .refresh-mission{right:auto;transform:translateX(calc(-100% - 13px))}
+.refresh-lane-last .refresh-mission{right:auto;transform:translateX(calc(-100% - 13px))}
 .refresh-lane-last{--lane:#a7b3b8}
 .refresh-lane-last .refresh-lane-center{filter:grayscale(1);opacity:.78}
 .refresh-lane-last .refresh-runner{filter:drop-shadow(0 0 3px rgba(205,214,219,.72))}
@@ -3639,11 +3640,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var ordenLlegada = Number(carril.getAttribute("data-race-order")) || puesto;
       var estadoTrabajo = carril.getAttribute("data-work-state") || "";
       var carreraCosmetica = estadoTrabajo === "assigned_stale";
+      var trabajoFinalizado = estadoTrabajo === "last_work";
       var noCorre = !!estadoTrabajo && estadoTrabajo !== "running" && !carreraCosmetica;
       // SIN AVANCE recorre la geometría completa únicamente como señal
       // cosmética B/N. Cruza la meta, pero jamás obtiene puesto, puntos ni
       // cambia el state/work_progress_at factual.
-      var progresoAtleta = noCorre ? 0 : Math.min(1, progresoCarril(progreso, ordenLlegada));
+      var progresoAtleta = trabajoFinalizado ? 1 : noCorre ? 0 : Math.min(1, progresoCarril(progreso, ordenLlegada));
       var relleno = carril.querySelector('[data-race-role="fill"]');
       var corredor = carril.querySelector('[data-race-role="runner"]');
       var mision = carril.querySelector('[data-race-role="mission"]');
@@ -3662,8 +3664,15 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (noCorre) {
         carril.classList.remove("cruzando", "finished", "cosmetic-finished", "race-winner", "race-loser");
         if (relleno) relleno.style.width = "0px";
-        // El histórico y los estados vacíos quedan inequívocamente en salida.
-        if (mision) { mision.style.left = ""; mision.style.width = ""; }
+        // El histórico queda quieto en meta y su ventana se proyecta sólo
+        // hacia atrás. No compite ni rellena pista, pero tampoco pone el texto
+        // delante del corredor gris. Otros estados no participantes permanecen
+        // inequívocamente en salida.
+        if (mision && trabajoFinalizado) {
+          var espacioFinalizado = Math.max(0, centroAtleta - inicioPista - RADIO_CORREDOR_PX - 2);
+          mision.style.left = posicionCorredor;
+          mision.style.width = espacioFinalizado + "px";
+        } else if (mision) { mision.style.left = ""; mision.style.width = ""; }
         return;
       }
       if (carril.getAttribute("data-race-empty") === "true") {
