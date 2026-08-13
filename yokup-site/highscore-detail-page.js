@@ -44,14 +44,18 @@
         .catch(function(){status.textContent="No se pudo contactar con el scheduler. Vuelve a intentarlo.";})
         .finally(function(){button.disabled=false;button.removeAttribute("aria-busy");});}
     button.addEventListener("click",function(){perform(requestId(),0);});return control;}
-  function nextAgentControl(data,stateValue){var button=el("button","next-agent","→"),next=D.nextRankedAgent(data.ranking);button.type="button";
-    if(!next){button.disabled=true;button.setAttribute("aria-label","Siguiente agente no disponible: no hay otro agente en el ranking factual de este proyecto y periodo.");button.title="No hay otro agente factual en este ranking";return button;}
-    button.setAttribute("aria-label","Siguiente agente en la clasificación: "+next.agent+", puesto "+next.position+". Al final vuelve al número 1.");button.title="Ir a "+next.agent+" · puesto "+next.position;
-    button.addEventListener("click",function(){selectAgent(next.agent);});return button;}
+  function rankButton(symbol,className,neighbor,availableLabel,missingLabel){var button=el("button","rank-agent "+className,symbol);button.type="button";
+    if(!neighbor){button.disabled=true;button.setAttribute("aria-label",missingLabel);button.title=missingLabel;return button;}
+    button.setAttribute("aria-label",availableLabel+neighbor.agent+", puesto "+neighbor.position+".");button.title="Ir a "+neighbor.agent+" · puesto "+neighbor.position;
+    button.addEventListener("click",function(){selectAgent(neighbor.agent);});return button;}
+  function rankNavigation(data,stateValue){var navigation=el("nav","rank-navigation"),previous=D.previousRankedAgent(data.ranking),next=D.nextRankedAgent(data.ranking);
+    navigation.setAttribute("aria-label","Navegar por la clasificación factual de "+stateValue.projectId);
+    navigation.append(rankButton("←","previous-agent",previous,"Subir una posición en la clasificación: ","No hay una posición superior en esta clasificación."),
+      rankButton("→","next-agent",next,"Bajar una posición en la clasificación: ","No hay una posición inferior en esta clasificación."));return navigation;}
   function hero(data,stateValue){var hero=el("header","hero"),avatarStack=el("div","avatar-stack"),avatar=el("div","avatar",stateValue.agent.charAt(0).toUpperCase());
     var avatarUrl=window.ykAvatar&&window.ykAvatar.img(stateValue.agent);if(avatarUrl){var image=document.createElement("img");image.src=avatarUrl;image.alt="Avatar de "+stateValue.agent;avatar.replaceChildren(image);}
     var identity=el("div","identity"),eyebrow=el("div","eyebrow","Identidad canónica · "+stateValue.projectId),titleRow=el("div","identity-title-row"),title=el("h1","",stateValue.agent);
-    avatarStack.append(avatar,nextAgentControl(data,stateValue));titleRow.append(title,onIdleControl(stateValue));identity.append(eyebrow,titleRow,el("p","source","Actividad factual de "+LABELS[data.period].toLowerCase()+" · "+data.timezone+" · "+data.from+" → "+data.to));hero.append(avatarStack,identity);return hero;}
+    avatarStack.append(avatar,rankNavigation(data,stateValue));titleRow.append(title,onIdleControl(stateValue));identity.append(eyebrow,titleRow,el("p","source","Actividad factual de "+LABELS[data.period].toLowerCase()+" · "+data.timezone+" · "+data.from+" → "+data.to));hero.append(avatarStack,identity);return hero;}
   function metricGrid(metrics,selected,onSelect){var fields={all:"points",objective:"objectives",window:"windows",mission:"missions",task:"tasks"};var grid=el("section","metric-grid");grid.setAttribute("aria-label","Filtrar cronología por tipo");
     D.types.forEach(function(type){var card=el("button","metric");card.type="button";card.dataset.type=type;card.setAttribute("aria-pressed",String(type===selected));card.setAttribute("aria-controls","factual-timeline");
       card.setAttribute("aria-label",TYPE_LABELS[type]+": "+metrics[fields[type]]+". "+(type==="all"?"Mostrar toda la cronología":"Filtrar la cronología"));card.append(el("b","",metrics[fields[type]]),el("span","",TYPE_LABELS[type]));

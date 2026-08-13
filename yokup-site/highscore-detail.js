@@ -162,7 +162,9 @@
   function rankingFromHistory(value, requested, identity) {
     if (!value || text(value.project_id) !== text(requested && requested.projectId) ||
       text(value.period) !== text(requested && requested.period) || !Array.isArray(value.ordered) || !value.ordered.length) return null;
-    var currentIndex=Number(value.current_index);
+    /* null significa «este agente no puntuó»: Number(null) sería 0 y lo haría
+       pasar falsamente por el líder. El índice del contrato debe ser numérico. */
+    var currentIndex=typeof value.current_index === "number" ? value.current_index : NaN;
     if (!Number.isInteger(currentIndex) || currentIndex < 0 || currentIndex >= value.ordered.length) return null;
     var seen=Object.create(null), ordered=[], previousPoints=Infinity, requestedMatches=[];
     for (var i=0;i<value.ordered.length;i++) {
@@ -177,11 +179,14 @@
     if (requestedMatches.length !== 1 || requestedMatches[0] !== currentIndex) return null;
     return {projectId:text(value.project_id),period:text(value.period),ordered:ordered,currentIndex:currentIndex};
   }
-  function nextRankedAgent(value) {
+  function rankedAgentAt(value, offset) {
     if (!value || !Array.isArray(value.ordered) || value.ordered.length < 2 ||
       !Number.isInteger(value.currentIndex) || value.currentIndex < 0 || value.currentIndex >= value.ordered.length) return null;
-    return value.ordered[(value.currentIndex+1)%value.ordered.length] || null;
+    var target=value.currentIndex+offset;
+    return target >= 0 && target < value.ordered.length ? value.ordered[target] || null : null;
   }
+  function previousRankedAgent(value) { return rankedAgentAt(value,-1); }
+  function nextRankedAgent(value) { return rankedAgentAt(value,1); }
 
   /* Contexto cruzado explícito, nunca un hecho del timeline seleccionado. El
      enlace debe volver al mismo detalle con el project_id que afirma el
@@ -392,7 +397,7 @@
     snapshot:snapshot, scoreFor:scoreFor, ranking:ranking, taskCountToday:taskCountToday, history:history,
     periods:PERIODS.slice(), types:TYPES.slice(), orders:ORDERS.slice(), validPeriod:validPeriod, validType:validType, validOrder:validOrder, canonicalType:canonicalType,
     queryState:queryState, detailUrl:detailUrl, timelineForType:timelineForType, metricForType:metricForType,
-    rankingFromHistory:rankingFromHistory, nextRankedAgent:nextRankedAgent, latestWorkFromHistory:latestWorkFromHistory,
+    rankingFromHistory:rankingFromHistory, previousRankedAgent:previousRankedAgent, nextRankedAgent:nextRankedAgent, latestWorkFromHistory:latestWorkFromHistory,
     evolutionGroups:evolutionGroups, timelineGroups:timelineGroups, periodHistory:periodHistory,
     nextWindow:nextWindow, windowCountdown:windowCountdown, decisionUrl:decisionUrl, onIdleDecisionError:onIdleDecisionError,
     facts:facts, timeline:timeline, timeZone:TIME_ZONE };
