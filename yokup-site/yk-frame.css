@@ -184,6 +184,32 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
   opacity:0; transform:translateY(-4px); pointer-events:none;
   transition:opacity .13s ease, transform .13s ease;
 }
+/* Submenú del HIGHSCORE (FLT-1426): hermano clicable del popover — misma caja,
+   pero sus filas son enlaces de verdad (Marcador + podio del día → Detalle). */
+.yk-submenu{
+  position:fixed; z-index:calc(var(--yk-z) + 4);
+  min-width:196px; max-width:320px;
+  padding:8px;
+  background:var(--yk-bg); border:1px solid var(--yk-line2); border-radius:8px;
+  box-shadow:0 10px 28px rgba(0,0,0,.55), 0 0 0 1px rgba(120,243,255,.06) inset;
+  font-family:var(--yk-mono); font-size:11.5px; line-height:1.45; color:var(--yk-ink);
+  opacity:0; transform:translateY(-4px); pointer-events:none;
+  transition:opacity .13s ease, transform .13s ease;
+}
+.yk-submenu.on{ opacity:1; transform:translateY(0); pointer-events:auto }
+.yk-submenu .yk-sub-h{
+  font-size:9.5px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--yk-hi); font-weight:700; margin:2px 3px 6px;
+}
+.yk-submenu a{
+  display:flex; justify-content:space-between; align-items:baseline; gap:14px;
+  padding:5px 8px; border-radius:6px; text-decoration:none; color:var(--yk-ink);
+}
+.yk-submenu a:hover, .yk-submenu a:focus-visible{
+  background:rgba(120,243,255,.10); outline:none; color:var(--yk-hi);
+}
+.yk-submenu a b{ font-weight:700; font-variant-numeric:tabular-nums; color:var(--yk-mut) }
+.yk-submenu .yk-sub-espera{ padding:5px 8px; color:var(--yk-mut) }
 .yk-navpop.on{ opacity:1; transform:translateY(0) }
 .yk-navpop .yk-pop-h{
   font-size:9.5px; letter-spacing:.1em; text-transform:uppercase;

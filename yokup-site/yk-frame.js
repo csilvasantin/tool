@@ -660,6 +660,9 @@
   // exactamente igual, que es lo que pidió Carlos.
   function wireNavPop(a, label) {
     a.setAttribute("data-yk-sec", label);
+    // HIGHSCORE no tiene contador y su hover quedaba mudo: en vez del tooltip
+    // de cifras abre un SUBMENÚ clicable con sus vistas (FLT-1426).
+    if (label === "HIGHSCORE") { wireHsSubmenu(a); return; }
     a.setAttribute("aria-describedby", "yk-navpop");
     function show() { if (_lastCounters) paintPop(a, label, _lastCounters); }
     a.addEventListener("mouseenter", show);
@@ -672,6 +675,95 @@
   }
   window.addEventListener("scroll", hidePop, true);
   window.addEventListener("resize", hidePop);
+
+  // ── Submenú de vistas del HIGHSCORE (FLT-1426, Carlos 2026-08-14) ─────────
+  // El Marcador y el podio del día EN VIVO: cada puesto lleva a su Detalle,
+  // que es donde viven la evolución y las series. Los datos se piden al ABRIR
+  // el submenú, nunca al cargar la página —un submenú no puede costarle una
+  // llamada a cada página del site—, y se guardan 60 s en sessionStorage.
+  var HS_SUB_TTL_MS = 60000, HS_SUB_KEY = "yokup.hs.submenu.v1";
+  var _hsSub = null, _hsSubClose = null;
+  function hsSubTop() {
+    try {
+      var hit = JSON.parse(sessionStorage.getItem(HS_SUB_KEY) || "null");
+      if (hit && Date.now() - hit.at < HS_SUB_TTL_MS && Array.isArray(hit.top)) return Promise.resolve(hit.top);
+    } catch (_) {}
+    return ykFetch("/highscore/daily", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var top = (d && d.scores || []).map(function (s) {
+          return { agent: String(s.agent || ""),
+            pts: (Number(s.objective_points) || 0) + (Number(s.window_points) || 0) + (Number(s.mission_points) || 0) };
+        }).filter(function (s) { return s.agent; })
+          .sort(function (a, b) { return b.pts - a.pts; }).slice(0, 3);
+        try { sessionStorage.setItem(HS_SUB_KEY, JSON.stringify({ at: Date.now(), top: top })); } catch (_) {}
+        return top;
+      });
+  }
+  function hsSubEl() {
+    if (_hsSub) return _hsSub;
+    _hsSub = el("div", "yk-submenu");
+    _hsSub.id = "yk-hs-submenu";
+    _hsSub.setAttribute("role", "menu");
+    _hsSub.setAttribute("aria-label", "Vistas del Highscore");
+    document.body.appendChild(_hsSub);
+    _hsSub.addEventListener("mouseenter", function () { clearTimeout(_hsSubClose); });
+    _hsSub.addEventListener("mouseleave", hsSubHideSoon);
+    return _hsSub;
+  }
+  function hsSubRow(href, texto, cifra) {
+    return '<a role="menuitem" href="' + href + '"><span>' + esc(texto) + "</span>" +
+           (cifra != null ? "<b>" + esc(String(cifra)) + "</b>" : "") + "</a>";
+  }
+  function hsSubShow(a) {
+    clearTimeout(_hsSubClose);
+    var p = hsSubEl();
+    p.innerHTML = '<div class="yk-sub-h">HIGHSCORE · HOY</div>' +
+      hsSubRow("/highscore", "Marcador", null) +
+      '<div class="yk-sub-r yk-sub-espera">podio…</div>';
+    var r = a.getBoundingClientRect();
+    p.style.top = Math.round(r.bottom + 7) + "px";
+    p.style.left = "0px";
+    var w = p.offsetWidth;
+    var x = Math.round(r.left + r.width / 2 - w / 2);
+    p.style.left = Math.max(8, Math.min(x, window.innerWidth - w - 8)) + "px";
+    p.classList.add("on");
+    hsSubTop().then(function (top) {
+      if (!p.classList.contains("on")) return;
+      var medallas = ["🥇", "🥈", "🥉"];
+      var filas = (top || []).map(function (s, i) {
+        return hsSubRow("/highscoreDetail?agent=" + encodeURIComponent(s.agent),
+          medallas[i] + " " + s.agent, s.pts + " pt");
+      }).join("");
+      p.innerHTML = '<div class="yk-sub-h">HIGHSCORE · HOY</div>' +
+        hsSubRow("/highscore", "Marcador", null) +
+        (filas || '<div class="yk-sub-r yk-sub-espera">sin puntos aún</div>');
+      // Recolocar: el ancho cambia al llegar el podio y no puede salirse.
+      p.style.left = "0px";
+      var w2 = p.offsetWidth, x2 = Math.round(r.left + r.width / 2 - w2 / 2);
+      p.style.left = Math.max(8, Math.min(x2, window.innerWidth - w2 - 8)) + "px";
+    }).catch(function () {
+      var espera = p.querySelector(".yk-sub-espera");
+      if (espera) espera.textContent = "podio no disponible";
+    });
+  }
+  function hsSubHide() { if (_hsSub) _hsSub.classList.remove("on"); }
+  function hsSubHideSoon() {
+    clearTimeout(_hsSubClose);
+    // La holgura da tiempo a cruzar del rótulo al submenú sin que se esfume.
+    _hsSubClose = setTimeout(hsSubHide, 220);
+  }
+  function wireHsSubmenu(a) {
+    a.setAttribute("aria-haspopup", "menu");
+    a.setAttribute("aria-controls", "yk-hs-submenu");
+    a.addEventListener("mouseenter", function () { hsSubShow(a); });
+    a.addEventListener("focus", function () { hsSubShow(a); });
+    a.addEventListener("mouseleave", hsSubHideSoon);
+    a.addEventListener("blur", hsSubHideSoon);
+  }
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") hsSubHide(); });
+  window.addEventListener("scroll", hsSubHide, true);
+  window.addEventListener("resize", hsSubHide);
 
   // UN fetch por página al agregado del worker. Si falla, el menú se queda sin
   // contadores (degradación silenciosa: nada de toasts ni reintentos).
@@ -1700,7 +1792,9 @@
       if (c) a.appendChild(c);
       // Sólo las secciones con cifras entran en la referencia lumínica;
       // DASHBOARD no cuenta nada, así que ni se enciende ni saca tarjeta.
-      if (COUNTER_KEY[it.label] || it.label === "DECISIONES") wireNavPop(a, it.label);
+      // HIGHSCORE tampoco tiene contador pero SÍ entra: su hover abre el
+      // submenú de vistas (FLT-1426), no el tooltip de cifras.
+      if (COUNTER_KEY[it.label] || it.label === "DECISIONES" || it.label === "HIGHSCORE") wireNavPop(a, it.label);
       nav.appendChild(a);
     });
 
