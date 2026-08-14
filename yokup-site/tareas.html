@@ -187,13 +187,30 @@ function filterLabel(){
 }
 
 let TASK_LOAD_GENERATION=0;
+function taskServerFilters(){
+  const filters={projectId:PROJECT_SCOPE||"",mission:FOCUS||""};
+  if(FOCUS||DFILTER.mode==="todas")return filters;
+  if(DFILTER.mode==="7d"){filters.createdFrom=Date.now()-7*86400000;return filters;}
+  let ymd;
+  if(DFILTER.mode==="dia")ymd=DFILTER.day;
+  else if(DFILTER.mode==="ayer"){const d=new Date();d.setDate(d.getDate()-1);ymd=_ymd(d);}
+  else ymd=_ymd(new Date());
+  if(ymd){const[s,e]=dayBounds(ymd);filters.createdFrom=s;filters.createdTo=e;}
+  return filters;
+}
 async function load(){
   const generation=++TASK_LOAD_GENERATION, scopeAtStart=PROJECT_SCOPE;
   // scope=todas: el árbol de tareas es el mismo modelo para las misiones de la
   // flota (encargos a los agentes) y las de campo (incidencias de pantallas).
   // UNA sola petición al endpoint agregado /tasks/all (antes: /tickets + un
   // fetch por misión = N+1, cada 15 s; ahora una query D1 con JOIN).
-  let rows; try{ rows=await YkMisiones.fetchAllTasks("todas"); }catch(e){ return; }
+  let rows; try{ rows=await YkMisiones.fetchAllTasks("todas",taskServerFilters()); }catch(e){
+    if(generation!==TASK_LOAD_GENERATION||scopeAtStart!==PROJECT_SCOPE)return;
+    const board=$("grid");
+    if(board)board.innerHTML='<div class="bigempty"><b>No se pudieron cargar las tareas</b>La consulta a Yokup ha fallado. <button type="button" class="tgl" id="retryTasks">Reintentar</button></div>';
+    const retry=$("retryTasks");if(retry)retry.onclick=load;
+    return;
+  }
   if(generation!==TASK_LOAD_GENERATION||scopeAtStart!==PROJECT_SCOPE)return;
   // Agrupa por misión y filtra por fecha de creación (sólo las del rango).
   // Con foco (?mission=), esa misión se muestra IGNORANDO el filtro de fecha (para

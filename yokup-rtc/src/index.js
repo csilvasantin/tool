@@ -4044,18 +4044,46 @@ async function runDailyMissionClose(env, now = Date.now()) {
 }
 __name(runDailyMissionClose, "runDailyMissionClose");
 
-async function listAllMissionTasks(env, scope) {
-  const where = scope === "fleet" ? `WHERE ${AGENT_SOURCE_SQL_T}`
-    : scope === "todas" ? ""
-    : `WHERE ${FIELD_SOURCE_SQL_T}`;
-  const { results } = await env.DB.prepare(
+function parseAllTasksFilters(params) {
+  const projectId = String(params.get("project_id") || "").trim();
+  const mission = String(params.get("mission") || "").trim();
+  const parseTime = (name) => {
+    const raw = String(params.get(name) || "").trim();
+    if (!raw) return null;
+    if (!/^\d{10,13}$/.test(raw)) return NaN;
+    const value = Number(raw);
+    return Number.isSafeInteger(value) ? value : NaN;
+  };
+  const createdFrom = parseTime("created_from");
+  const createdTo = parseTime("created_to");
+  if (projectId.length > 160) return { ok:false, error:"project_id demasiado largo" };
+  if (mission.length > 100) return { ok:false, error:"mission demasiado larga" };
+  if (Number.isNaN(createdFrom) || Number.isNaN(createdTo)) return { ok:false, error:"created_from/created_to deben ser epoch ms" };
+  if (createdFrom != null && createdTo != null && createdFrom >= createdTo) return { ok:false, error:"rango de creación inválido" };
+  return { ok:true, projectId, mission, createdFrom, createdTo };
+}
+__name(parseAllTasksFilters, "parseAllTasksFilters");
+
+async function listAllMissionTasks(env, scope, filters = {}) {
+  const clauses = [], binds = [];
+  if (scope === "fleet") clauses.push(AGENT_SOURCE_SQL_T);
+  else if (scope !== "todas") clauses.push(FIELD_SOURCE_SQL_T);
+  if (filters.projectId) {
+    clauses.push("COALESCE(NULLIF(t.project_id,''),t.project)=?");
+    binds.push(filters.projectId);
+  }
+  if (filters.mission) { clauses.push("m.mission_id=?"); binds.push(filters.mission); }
+  if (filters.createdFrom != null) { clauses.push("t.created_at>=?"); binds.push(filters.createdFrom); }
+  if (filters.createdTo != null) { clauses.push("t.created_at<?"); binds.push(filters.createdTo); }
+  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  const prepared = env.DB.prepare(
     // ADITIVO (Carlos, 2026-07-23 · /informes): además del sello de creación
     // conservamos inicio de trabajo factual, FIN (t.resolved_at →
     // mission_resolved) y PRUEBA de cierre (t.proof_image →
     // mission_proof) para que la columna Captura tenga un fallback real cuando la
     // tarea no dejó imagen propia. No rompe a /tareas: sólo añade campos.
     `SELECT m.mission_id, m.code, m.title, m.status, m.owner, m.executor, m.report, m.image, m.image_kind, m.created_at, m.started_at, m.updated_at,
-            t.subject, t.screen, t.loc, t.project, t.source, t.role, t.assignee, t.live_shot, t.live_at, t.live_kind,
+            t.subject, t.screen, t.loc, COALESCE(NULLIF(t.project_id,''),t.project) AS project, t.source, t.role, t.assignee, t.live_shot, t.live_at, t.live_kind,
             t.live_surface AS process_surface, t.live_context AS process_context,
             CASE WHEN t.live_kind='process' THEN t.live_shot ELSE NULL END AS process_image,
             CASE WHEN t.live_kind='process' THEN t.live_at ELSE NULL END AS process_captured_at,
@@ -4071,7 +4099,8 @@ async function listAllMissionTasks(env, scope) {
        LEFT JOIN ideas i ON i.mission_id = t.id AND COALESCE(i.source_image,'') <> ''
        ${where}
        ORDER BY m.mission_id, m.code`
-  ).all();
+  );
+  const { results } = await (binds.length ? prepared.bind(...binds) : prepared).all();
   const now = Date.now();
   const rows = (results || []).map((task) => {
     const operational = taskOperationalDetails(task, now);
@@ -8869,7 +8898,9 @@ var worker_app = {
           if (!options.ok) return json({ error:options.error, applied:false }, 400);
           return json(await listMissionReportsPage(env, scope, options));
         }
-        return json({ tasks: await listAllMissionTasks(env, scope) });
+        const filters = parseAllTasksFilters(url.searchParams);
+        if (!filters.ok) return json({ error:filters.error, applied:false }, 400);
+        return json({ tasks: await listAllMissionTasks(env, scope, filters) });
       } catch (e) {
         return json({ error: String(e) }, 500);
       }

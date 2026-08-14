@@ -1025,8 +1025,15 @@
     });
   }
 
-  function fetchAllTasks(scope) {
-    var q = scope ? "?scope=" + encodeURIComponent(scope) : "";
+  function fetchAllTasks(scope, filters) {
+    var params = new URLSearchParams();
+    if (scope) params.set("scope", scope);
+    filters = filters || {};
+    if (filters.projectId) params.set("project_id", filters.projectId);
+    if (filters.mission) params.set("mission", filters.mission);
+    if (filters.createdFrom != null) params.set("created_from", String(filters.createdFrom));
+    if (filters.createdTo != null) params.set("created_to", String(filters.createdTo));
+    var q = params.toString() ? "?" + params.toString() : "";
     // Hereda la red de seguridad del menú (yk-frame.js/ykFetch): api.yokup.com y,
     // si RECHAZA por red, reintento contra workers.dev — así el progreso a·b·c no
     // se pierde en redes que bloquean un host. Guarda por si ykFetch aún no cargó.
@@ -1034,8 +1041,13 @@
       ? window.ykFetch("/tasks/all" + q, { cache: "no-store" })
       : window.fetch(CFG.worker + "/tasks/all" + q, { cache: "no-store" });
     return p
-      .then(function (r) { return r.json(); })
-      .then(function (d) { return d.tasks || []; });
+      .then(function (r) { return r.json().then(function (d) { return { response:r, data:d }; }); })
+      .then(function (result) {
+        if (!result.response.ok || !Array.isArray(result.data.tasks)) {
+          throw new Error((result.data && result.data.error) || "No se pudieron cargar las tareas");
+        }
+        return result.data.tasks;
+      });
   }
   // Agrupa el array plano de /tasks/all por misión → [{mission, tasks}], la forma
   // que consumen /tareas e /informes. Preserva el orden de aparición.

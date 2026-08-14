@@ -450,7 +450,7 @@ test("el ámbito de flota incluye las misiones nacidas de una ventana de decisi�
   // El trabajo de agente entra por tres puertas; el ámbito «fleet» tiene que verlas:
   // bandeja, ventana de decisión y declaración CLI con evidencia.
   assert.match(source, /var AGENT_SOURCE_SQL = "source IN \('fleet','decision-batch','cli-declare'\)"/);
-  assert.match(source, /scope === "fleet" \? `WHERE \$\{AGENT_SOURCE_SQL_T\}`/);
+  assert.match(source, /if \(scope === "fleet"\) clauses\.push\(AGENT_SOURCE_SQL_T\)/);
   assert.match(source, /scope === "fleet" \? AGENT_SOURCE_SQL/);
   assert.doesNotMatch(source, /scope === "fleet" \? "WHERE t\.source='fleet'"/);
   assert.doesNotMatch(source, /scope === "fleet" \? "source='fleet'"/);
