@@ -64,8 +64,38 @@
   function svgText(x,y,value,className){var node=document.createElementNS(SVG_NS,"text");node.setAttribute("x",String(x));node.setAttribute("y",String(y));if(className)node.setAttribute("class",className);node.textContent=String(value);return node;}
   function markerCopy(point){return point.agent+", puesto "+point.position+", "+point.label+": "+point.cumulative+" puntos acumulados, "+(point.delta>=0?"+":"")+point.delta+" puntos en este intervalo, "+(point.leaderGap?"brecha con líder "+point.leaderGap+" puntos":"líder en este punto");}
   function markerStamp(point,timezone){return point.label+" · "+new Date(point.at).toLocaleString("es-ES",{timeZone:timezone,dateStyle:"short",timeStyle:"short"});}
+  // SELECTOR DE PROYECTO EN LA ESQUINA DEL GRÁFICO (Carlos, 14-ago-2026). Aquí había
+  // una etiqueta muerta que repetía el proyecto de la URL. Un agente reparte el día
+  // entre varios proyectos, y para leer su registro de misiones había que volver al
+  // Highscore y adivinar en cuál estuvo. Ahora lista SOLO donde trabajó en el periodo,
+  // con cuántas misiones en cada uno, y saltar es un clic. Si solo hay uno, no se
+  // pinta un desplegable de una opción: se deja el rótulo de siempre.
+  function projectScopePicker(data,stateValue){
+    var lista=data.projectsWorked||[];
+    if(lista.length<2){
+      var solo=lista[0];
+      return el("span","period-range",(solo?solo.projectName:stateValue.projectId)+" · periodo completo");
+    }
+    var wrap=el("div","period-range project-scope"),etiqueta=el("label","project-scope-label","Proyecto"),
+        select=document.createElement("select"),id="project-scope-"+(++chartSequence);
+    select.id=id;select.className="project-scope-select";
+    etiqueta.setAttribute("for",id);
+    select.setAttribute("aria-label","Proyecto del que se muestra el registro de misiones de "+stateValue.agent);
+    lista.forEach(function(row){
+      var option=document.createElement("option");
+      option.value=row.projectId;
+      // La cuenta de misiones es el dato que hace útil el salto: dice dónde estuvo
+      // el trabajo de verdad, no solo dónde hubo algo.
+      option.textContent=row.projectName+(row.missions?" · "+row.missions+(row.missions===1?" misión":" misiones"):"");
+      if(row.projectId===stateValue.projectId)option.selected=true;
+      select.append(option);
+    });
+    select.addEventListener("change",function(){selectProject(select.value);});
+    wrap.append(etiqueta,select);
+    return wrap;
+  }
   function rankingSeriesChart(data,stateValue){var panel=el("section","panel ranking-series"),heading=el("div","period-heading"),title=el("h2","","Evolución comparada · "+LABELS[data.period]);
-    heading.append(title,el("span","period-range",stateValue.projectId+" · periodo completo"));panel.append(heading);panel.setAttribute("aria-label","Evolución temporal de puntos de todos los agentes en "+LABELS[data.period]);
+    heading.append(title,projectScopePicker(data,stateValue));panel.append(heading);panel.setAttribute("aria-label","Evolución temporal de puntos de todos los agentes en "+LABELS[data.period]);
     var evolution=data.comparisonEvolution;if(!evolution){panel.append(el("p","empty","La evolución comparada factual no está disponible para este proyecto y periodo."));return panel;}
     if(!evolution.series.length){panel.append(el("p","empty","Ningún agente ha puntuado en este proyecto y periodo."));return panel;}
     var width=900,height=360,left=62,right=20,top=24,bottom=48,plotWidth=width-left-right,plotHeight=height-top-bottom;
@@ -132,6 +162,12 @@
   function selectPeriod(period){var value=current();if(value.period===period)return;value.period=period;setUrl(value,false);load(value);}
   function selectAgent(agent){var value=current();if(value.agent===agent)return;value.agent=agent;setUrl(value,false);activeData=null;activeScope="";load(value);}
   function selectType(type){var value=current();if(value.type===type)return;value.type=type;setUrl(value,false);if(activeData)render(activeData,value);}
+  // Cambiar de proyecto es cambiar de ÁMBITO, no de filtro: el histórico se pide por
+  // project_id, así que hay que soltar los datos en memoria y releer, igual que hace
+  // selectAgent. Reutilizar activeData aquí enseñaría el registro del proyecto
+  // anterior bajo el nombre del nuevo, que es peor que no tener selector.
+  function selectProject(projectId){var value=current();if(!projectId||value.projectId===projectId)return;
+    value.projectId=projectId;setUrl(value,false);activeData=null;activeScope="";load(value);}
   function selectOrder(){var value=current();value.order=value.order==="desc"?"asc":"desc";setUrl(value,false);if(activeData)render(activeData,value);}
   function boot(replace){var value=current();if(!value.agent){state("Falta el agente","Abre el detalle desde el Highscore.");return;}if(!D.validAgent(value.agent,ID)){state("Identidad no válida","agent debe ser una identidad principal con apellido de equipo.");return;}
     if(!value.projectId){state("Falta el proyecto","El detalle factual necesita project_id exacto; vuelve al Highscore y abre el agente desde su proyecto.");return;}if(replace)setUrl(value,true);var scope=value.agent+"|"+value.projectId+"|"+value.period;if(activeData&&activeScope===scope)render(activeData,value);else load(value);}

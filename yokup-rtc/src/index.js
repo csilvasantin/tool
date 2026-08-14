@@ -6416,6 +6416,22 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
     projectsByKey.set(String(row.id || "").trim().toLowerCase(), row);
     projectsByKey.set(String(row.name || "").trim().toLowerCase(), row);
   }
+  // EN QUÉ PROYECTOS HA TRABAJADO ESTE AGENTE EN ESTE PERIODO (14-ago-2026, Carlos).
+  // El detalle se abre SIEMPRE contra un proyecto, y hasta aquí la esquina del gráfico
+  // solo sabía repetir cuál era. Pero un agente reparte el día entre varios, y para
+  // leer su registro de misiones hay que poder saltar de uno a otro sin volver al
+  // Highscore y adivinar dónde estuvo. Este recorrido ya existía para `latest_work`,
+  // así que el dato sale gratis: lo único que faltaba era ACOTARLO al periodo —
+  // latestMissions no lleva filtro de fechas, trae el histórico entero— y agruparlo.
+  const worked = new Map();
+  const notaProyecto = (projectRow, factualAt) => {
+    const key = String(projectRow.id);
+    const acc = worked.get(key) ||
+      { project_id:key, project_name:String(projectRow.name || key), missions:0, last_at:0 };
+    acc.missions += 1;
+    if (factualAt > acc.last_at) acc.last_at = factualAt;
+    worked.set(key, acc);
+  };
   let latestWork = null;
   for (const row of latestMissions) {
     if (!familyMatches(row.assignee, row.loc)) continue;
@@ -6423,6 +6439,7 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
     if (!projectRow || !projectRow.id) continue;
     const startedAt = Number(row.work_started_at) || 0, finishedAt = Number(row.resolved_at) || 0;
     const factualAt = finishedAt || Number(row.work_progress_at) || startedAt;
+    if (factualAt >= range.start && factualAt < range.end) notaProyecto(projectRow, factualAt);
     if (!factualAt || latestWork && factualAt <= latestWork.at) continue;
     latestWork = { agent:wanted.family_name,
       executor:reportAgentIdentity(row.executor || row.assignee, row.loc),
@@ -6463,6 +6480,18 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
     range:{ start:range.start, end:range.end, start_day:range.start_day, end_day:range.end_day,
       from:range.start_day, to:range.end_day },
     generated_at:generatedAt, sampled_at:generatedAt, metrics, ranking,
+    // El proyecto abierto va SIEMPRE en la lista aunque no tenga misiones en el
+    // periodo: es el que está en pantalla y el selector no puede quedarse sin la
+    // opción que representa lo que se está mirando. Orden: más misiones primero y,
+    // a igualdad, lo más reciente — que es como se busca «dónde estuve hoy».
+    projects_worked:(() => {
+      if (!worked.has(exactProjectId)) {
+        worked.set(exactProjectId, { project_id:exactProjectId,
+          project_name:String(project.name || exactProjectId), missions:0, last_at:0 });
+      }
+      return [...worked.values()].sort((a, b) => b.missions - a.missions || b.last_at - a.last_at ||
+        a.project_id.localeCompare(b.project_id));
+    })(),
     comparison_evolution:comparisonEvolution, latest_work:latestWork,
     evolution:{ start:range.start_day, end:range.end_day, days:[...byDay.values()] }, timeline };
 }

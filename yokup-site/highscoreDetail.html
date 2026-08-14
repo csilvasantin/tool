@@ -58,7 +58,15 @@ h1{margin:6px 0 4px;color:var(--brand);font-size:clamp(23px,5vw,42px);word-break
 .period-nav button[aria-pressed="true"]{border-color:rgba(120,243,255,.48);background:rgba(120,243,255,.1);color:var(--brand);box-shadow:inset 0 -2px 0 var(--brand)}
 .period-heading{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline;margin:0 0 14px}
 .period-heading-controls{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px 14px}.chronology-order{color:var(--brand)}
-.period-heading h2{margin:0}.period-range{color:var(--dim);font-size:10px}.metric-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.period-heading h2{margin:0}.period-range{color:var(--dim);font-size:10px}
+/* Selector de proyecto en la esquina del gráfico: ocupa el sitio del rótulo que había
+   antes, así que hereda su tamaño y su color apagado — es un control de ámbito, no el
+   protagonista del panel. El área táctil sí sube a 28px: se usa con el dedo en la tablet. */
+.project-scope{display:inline-flex;align-items:center;gap:6px}
+.project-scope-label{text-transform:uppercase;letter-spacing:.08em;color:var(--dim);font-size:10px}
+.project-scope-select{min-height:28px;background:#0b1119;color:var(--ink,#e7edf7);border:1px solid var(--line);
+  border-radius:8px;padding:3px 8px;font:inherit;font-size:11px;max-width:min(340px,52vw);cursor:pointer}
+.project-scope-select:hover,.project-scope-select:focus{border-color:var(--brand);outline:none}.metric-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
 .metric{appearance:none;width:100%;padding:16px;border:1px solid var(--line);border-radius:10px;background:var(--card2);color:inherit;font:inherit;text-align:left;cursor:pointer}
 .metric:hover,.metric:focus-visible{border-color:var(--brand);outline:none;box-shadow:0 0 0 2px rgba(120,243,255,.12)}.metric[aria-pressed="true"]{border-color:var(--accent);background:rgba(255,216,102,.08);box-shadow:inset 0 -3px 0 var(--accent)}
 .metric b{display:block;color:var(--accent);font-size:22px}.metric span{color:var(--dim);font-size:9px;text-transform:uppercase}.metric[aria-pressed="true"] span{color:var(--ink)}

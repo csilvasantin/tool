@@ -253,6 +253,23 @@
   /* Contexto cruzado explícito, nunca un hecho del timeline seleccionado. El
      enlace debe volver al mismo detalle con el project_id que afirma el
      servidor; si no coincide, el panel se omite en vez de fabricar navegación. */
+  // EN QUÉ PROYECTOS ESTUVO EL AGENTE EN ESTE PERIODO. Alimenta el selector de la
+  // esquina del gráfico. Contrato defensivo a propósito: si el backend todavía no
+  // manda el campo —una pestaña abierta desde antes del despliegue del worker—, se
+  // devuelve al menos el proyecto abierto, así el selector nunca aparece vacío ni
+  // desaparece la referencia de lo que se está mirando.
+  function projectsWorkedFromHistory(value, currentId, currentName) {
+    var actual=text(currentId), lista=[], vistos=Object.create(null);
+    (Array.isArray(value)?value:[]).forEach(function(row){
+      if(!row) return;
+      var id=text(row.project_id); if(!id||vistos[id]) return;
+      vistos[id]=true;
+      lista.push({projectId:id,projectName:text(row.project_name)||id,
+        missions:Math.max(0,Number(row.missions)||0),lastAt:ms(row.last_at)});
+    });
+    if(actual&&!vistos[actual]) lista.unshift({projectId:actual,projectName:text(currentName)||actual,missions:0,lastAt:0});
+    return lista;
+  }
   function latestWorkFromHistory(value, requested, identity, now) {
     if (value == null) return null;
     var agent=text(value.agent),executor=text(value.executor),projectId=text(value.project_id),projectName=text(value.project_name);
@@ -371,7 +388,8 @@
     var comparisonEvolution=comparisonEvolutionFromHistory(payload.comparison_evolution,factualRanking,requested,identity);
     return {agent:payload.agent,projectId:payload.project_id,period:payload.period,timezone:text(payload.timezone)||TIME_ZONE,
       from:from,to:to,label:text(payload.label),sampledAt:sampled,metrics:metrics,evolution:normalizedDays,timeline:timeline,
-      ranking:factualRanking,latestWork:latestWork,comparisonEvolution:comparisonEvolution};
+      ranking:factualRanking,latestWork:latestWork,comparisonEvolution:comparisonEvolution,
+      projectsWorked:projectsWorkedFromHistory(payload.projects_worked,payload.project_id,payload.project_name)};
   }
   function ranking(agent, daily, tasks, identity, now) {
     var names = Object.create(null);
