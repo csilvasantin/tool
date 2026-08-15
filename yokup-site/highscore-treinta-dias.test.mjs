@@ -44,7 +44,7 @@ test("los días anteriores al primer registro se marcan, no se pintan como flojo
   const fn = html.slice(html.indexOf("function diasGraficoHtml"), html.indexOf("function abreDias"));
   assert.match(fn, /var previo = primero && x\.clave < primero/);
   assert.match(fn, /antes de que hubiera registro/);
-  assert.match(html, /\.dias-graf \.previo\{/);
+  assert.match(html, /\.dias-graf \.dg-previo\{/);
 });
 
 test("un fallo de lectura se dice, no se disfraza de mes vacío", () => {
@@ -92,4 +92,23 @@ test("por días se conservan los vacíos; por semanas y meses no se inventan", (
   assert.match(fn, /diasGrano === "dia"\s*\?\s*\(\(d\.evolution && d\.evolution\.days\)/);
   // Y una barra agrupada dice sobre cuántos días se calculó.
   assert.match(fn, /x\.dias > 1 \? " \(" \+ x\.dias \+ " días con actividad\)" : ""/);
+});
+
+// La avería que costó una captura (15-ago-2026): las 30 barras salían como 30
+// rayas horizontales de 3px. El SVG emitido era CORRECTO; lo que fallaba era el
+// nombre de la clase. La página ya tenía .barra{width:100%;height:3px} para la
+// barra de vida, y en SVG `width` y `height` son PROPIEDADES CSS de geometría:
+// una regla con ese nombre pisa los atributos de cada <rect>.
+test("las clases del gráfico no colisionan con ninguna regla de geometría", () => {
+  const svg = html.slice(html.indexOf("function diasGraficoHtml"), html.indexOf("function abreDias"));
+  assert.doesNotMatch(svg, /class="' \+ \(previo \? "previo"/,
+    "«previo» y «barra» son nombres del resto de la página");
+  assert.match(svg, /"dg-previo" : x\.clave === hoy \? "dg-barra dg-hoy" : "dg-barra"/);
+  // Y ninguna regla que alcance a las barras puede fijar width o height.
+  const reglas = [...html.matchAll(/\.dg-(?:barra|previo|hoy)[^{]*\{([^}]*)\}/g)].map((m) => m[1]);
+  assert.ok(reglas.length >= 2, "las clases del gráfico tienen estilo propio");
+  for (const r of reglas) {
+    assert.doesNotMatch(r, /(?:^|;)\s*(?:width|height)\s*:/,
+      "en SVG width/height son geometría: una regla así deforma las barras");
+  }
 });

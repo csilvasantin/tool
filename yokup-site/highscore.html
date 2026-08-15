@@ -161,11 +161,17 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .dias-granos .grano.on{border-color:var(--brand,#78f3ff);color:var(--brand,#78f3ff);
   box-shadow:0 0 0 1px rgba(120,243,255,.18) inset}
 .dias-graf{width:100%;height:auto;display:block}
-.dias-graf .barra{fill:var(--brand,#78f3ff);opacity:.62}
-.dias-graf .barra.hoy{opacity:1;fill:var(--accent,#ffd866)}
+/* CLASES PROPIAS Y NO «barra» (Carlos vio las barras como rayas horizontales,
+   15-ago-2026). La página ya tenía .barra{width:100%;height:3px} para la barra
+   de vida bajo cada nombre, y en SVG `width` y `height` son PROPIEDADES CSS de
+   geometría: esa regla pisaba los atributos de cada <rect> y convertía las 30
+   barras en 30 rayas de 3px. El SVG emitido era correcto; lo que fallaba era
+   el nombre. Prefijo dg- para que no vuelva a pasar. */
+.dias-graf .dg-barra{fill:var(--brand,#78f3ff);opacity:.62}
+.dias-graf .dg-barra.dg-hoy{opacity:1;fill:var(--accent,#ffd866)}
 /* Los días anteriores al primero con actividad NO son días flojos: son días en
    los que esto no existía. Se rayan para que la curva no se apunte un mérito. */
-.dias-graf .previo{fill:var(--dim,#4d7a88);opacity:.18}
+.dias-graf .dg-previo{fill:var(--dim,#4d7a88);opacity:.18}
 .dias-graf .eje{stroke:rgba(120,243,255,.18);stroke-width:1}
 .dias-graf text{fill:var(--dim,#4d7a88);font-family:var(--mono,monospace);font-size:9px}
 .dias-leyenda{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono,monospace);
@@ -1874,7 +1880,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var v = Number(x.points) || 0, alto = Math.round((v / tope) * (base - 12));
       var previo = primero && x.clave < primero;
       var y = base - Math.max(v > 0 ? 1 : 0, alto);
-      var cls = previo ? "previo" : x.clave === hoy ? "barra hoy" : "barra";
+      var cls = previo ? "dg-previo" : x.clave === hoy ? "dg-barra dg-hoy" : "dg-barra";
       var rot = previo ? x.clave + " · antes de que hubiera registro"
         : x.clave + " · " + v + " pts" + (x.dias > 1 ? " (" + x.dias + " días con actividad)" : "");
       return '<rect class="' + cls + '" x="' + (pad + i * ancho) + '" y="' + (previo ? base - 4 : y) +
