@@ -39,6 +39,23 @@ test("conserva alias, puertas MCP/Help y fallback SPA sin _redirects", async () 
   assert.deepEqual(seen, ["/help/index.html", "/mcp/index.html", "/desconocida.html", "/desconocida", "/index.html"]);
 });
 
+// El equipo de personas vive en agentes.html por los enlaces vivos que apuntan
+// ahí, pero «agente» es SILICIO en el resto de la plataforma. La regla tiene que
+// estar AQUÍ: _redirects es de Pages y a www.yokup.com lo sirve este worker, así
+// que la alias declarada allí no la ve nadie y /carbono caía al catch-all —
+// sirviendo la portada con un 200, que ni siquiera parece un error.
+test("/carbono sirve el panel del equipo de carbono, no la portada", async () => {
+  const seen = [];
+  const assetEnv = env(async (request) => {
+    seen.push(new URL(request.url).pathname);
+    return new Response("sí");
+  });
+  assert.equal(await (await handleRequest(new Request("https://www.yokup.com/carbono"), assetEnv, {})).text(), "sí");
+  assert.equal(await (await handleRequest(new Request("https://www.yokup.com/carbono/"), assetEnv, {})).text(), "sí");
+  assert.deepEqual(seen, ["/agentes.html", "/agentes.html"],
+    "con y sin barra final tienen que resolver al mismo fichero");
+});
+
 test("resuelve páginas HTML limpias sin delegar redirecciones al motor de assets", async () => {
   const seen = [];
   const response = await handleRequest(new Request("https://www.yokup.com/dashboard"), env(async (request) => {

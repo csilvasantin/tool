@@ -63,6 +63,14 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
     candidates = [`/highscore-${releaseKey}.html`];
   }
   else if (incoming.pathname === "/") candidates = ["/index.html"];
+  // CARBONO. La página del equipo de personas vive en agentes.html por los
+  // enlaces vivos que apuntan ahí, pero «agente» es SILICIO en toda la
+  // plataforma y el mismo rótulo para las dos mitades del equipo se lee mal.
+  // Va aquí y no en _redirects porque www.yokup.com lo sirve este worker: el
+  // _redirects de Pages no lo ve nadie, y una ruta que no enruta cae al
+  // catch-all y sirve la portada con un 200 — la forma más cara de decir que
+  // algo no existe, porque ni siquiera parece un error.
+  else if (incoming.pathname === "/carbono" || incoming.pathname === "/carbono/") candidates = ["/agentes.html"];
   else if (incoming.pathname === "/mcp" || incoming.pathname === "/mcp/") candidates = ["/mcp/index.html"];
   else if (incoming.pathname === "/help" || incoming.pathname === "/help/") candidates = ["/help/index.html"];
   else if (incoming.pathname.endsWith("/")) candidates = [incoming.pathname + "index.html"];

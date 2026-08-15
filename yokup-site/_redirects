@@ -11,6 +11,10 @@
 # persona de SILICIO: el mismo rótulo para las dos mitades del equipo es la clase
 # de ambigüedad que hace que un panel de control se lea mal. /carbono es la ruta
 # que dice lo que es; /agentes se conserva porque hay enlaces vivos apuntando ahí.
+# OJO: esta línea SOLO vale para el espejo de Pages (yokup.pages.dev).
+# www.yokup.com lo sirve el gate por Worker Assets y NO lee este fichero — la
+# regla que de verdad enruta /carbono está en yokup-site-gate/src/index.js.
+# Declararla solo aquí dejaba /carbono cayendo al catch-all: portada con un 200.
 /carbono          /agentes.html      200
 /carbono/         /agentes.html      200
 /*                /index.html   200
