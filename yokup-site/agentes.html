@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="/acceso.js?v=20260811-r4-d77633add752"></script>
-<title>Panel de agentes · Yokup Soporte</title>
+<title>Equipo de carbono · Yokup</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#02080d">
 <link rel="manifest" href="/manifest.webmanifest">
@@ -15,74 +15,305 @@
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
-.wrap{max-width:1000px;margin:0 auto;padding:22px 24px 48px}
-nav{display:flex;align-items:center;justify-content:space-between;padding:4px 0 16px}
-.logo{font-family:var(--mono);font-weight:700;letter-spacing:.14em;font-size:15px;text-transform:uppercase;display:flex;align-items:center;gap:9px}.logo b{color:var(--brand)}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--brand);box-shadow:0 0 22px rgba(120,243,255,.5);animation:blink 2s infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-.back{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);text-decoration:none}.back:hover{color:var(--brand)}
+.wrap{max-width:1100px;margin:0 auto;padding:22px 24px 64px}
 h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
-.sub{color:var(--mut);font-size:14.5px;margin-bottom:20px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
-.ag{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:20px}
-.ag.busy{border-color:rgba(255,136,102,.4)}
-.top{display:flex;align-items:center;gap:13px;margin-bottom:14px}
+.sub{color:var(--mut);font-size:14.5px;margin-bottom:6px;max-width:74ch}
+.sub b{color:var(--ink);font-weight:600}
+/* CUENTA por estado. Es lo primero que se mira: cuánta gente hay y cuánta está
+   ahora mismo trabajando. Los cuatro estados se enseñan SIEMPRE, incluso a cero,
+   porque un hueco vacío dice tanto como un número. */
+.cuenta{display:flex;gap:9px;flex-wrap:wrap;margin:16px 0 18px}
+.chip{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);border-radius:9px;padding:7px 11px;color:var(--mut);background:var(--card);cursor:pointer}
+.chip b{color:var(--ink);font-size:13px;margin-right:5px}
+.chip[aria-pressed="true"]{border-color:var(--line2);color:var(--ink);box-shadow:0 0 0 1px rgba(120,243,255,.14) inset}
+.chip.t b{color:var(--good)}.chip.a b{color:var(--accent)}.chip.s b{color:var(--dim)}.chip.b b{color:var(--warn)}
+.barra{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+button{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--line2);border-radius:9px;padding:9px 14px;background:var(--card2);color:var(--brand);cursor:pointer}
+button:hover{border-color:var(--brand)}
+button.plano{border-color:var(--line);color:var(--mut);background:transparent}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px}
+.p{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:18px 20px 16px;display:flex;flex-direction:column;gap:12px}
+.p.en-turno{border-color:rgba(136,255,170,.34)}
+.p.baja{opacity:.5}
+.top{display:flex;align-items:center;gap:13px}
 .av{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,rgba(120,243,255,.22),rgba(255,216,102,.14));display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:15px;color:var(--brand);flex:0 0 auto}
-.who b{font-size:16px;display:block}.who span{font-family:var(--mono);font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
-.skills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.who{min-width:0;flex:1}
+.who b{font-size:16px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.who span{font-family:var(--mono);font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+/* El punto de estado se acompaña SIEMPRE de su palabra. Un color solo no se lee
+   en daltonismo ni en una tablet al sol, y este panel se mira desde la calle. */
+.est{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;display:inline-flex;align-items:center;gap:6px;color:var(--mut)}
+.est i{width:8px;height:8px;border-radius:50%;background:var(--dim);display:block;flex:0 0 auto}
+.est.en-turno{color:var(--good)}.est.en-turno i{background:var(--good);box-shadow:0 0 10px rgba(136,255,170,.7)}
+.est.ausente{color:var(--accent)}.est.ausente i{background:var(--accent)}
+.est.sin-latido i{background:transparent;border:1px solid var(--dim)}
+.est.baja{color:var(--warn)}.est.baja i{background:var(--warn)}
+.foco{border-left:2px solid var(--line2);padding:2px 0 2px 11px;font-size:14px;color:var(--ink);min-height:20px}
+.foco em{font-style:normal;color:var(--dim)}
+.foco small{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin-top:3px}
+.skills{display:flex;gap:6px;flex-wrap:wrap}
 .skills span{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);border:1px solid var(--line);border-radius:7px;padding:4px 8px}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
-.stat{border:1px solid var(--line);border-radius:9px;padding:9px 4px}
-.stat b{font-family:var(--sans);font-weight:700;font-size:18px;display:block}.stat.o b{color:var(--warn)}.stat.p b{color:var(--accent)}.stat.r b{color:var(--good)}.stat.m b{color:var(--brand)}
+.carga{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.stat{border:1px solid var(--line);border-radius:9px;padding:8px 4px}
+.stat b{font-weight:700;font-size:17px;display:block}.stat.o b{color:var(--warn)}.stat.p2 b{color:var(--accent)}.stat.r b{color:var(--good)}
 .stat span{font-family:var(--mono);font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
-.bar{height:5px;border-radius:99px;background:rgba(255,255,255,.06);margin-top:14px;overflow:hidden}
-.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--good),var(--accent),var(--warn))}
-.load{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-top:7px;display:flex;justify-content:space-between}
-.foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
+.acc{display:flex;gap:7px;flex-wrap:wrap;margin-top:auto;padding-top:2px}
+.acc button{padding:7px 11px;font-size:10px}
+.vacio,.load{border:1px dashed var(--line);border-radius:14px;padding:26px;color:var(--mut);font-family:var(--mono);font-size:12px;text-align:center;grid-column:1/-1}
+.foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);line-height:1.7}.foot b{color:var(--brand)}
+/* MODAL de ficha. Mismo patrón que /equipo: caja centrada, campos declarados en
+   un array para que el formulario y lo que se manda al worker no puedan divergir. */
+.mod{position:fixed;inset:0;background:rgba(2,8,13,.78);backdrop-filter:blur(3px);display:none;place-items:center;padding:20px;z-index:60}
+.mod.on{display:grid}
+.box{background:var(--card);border:1px solid var(--line2);border-radius:16px;padding:22px 24px;width:min(460px,100%);max-height:88vh;overflow:auto}
+.box h3{font-size:18px;margin-bottom:14px}
+.f{margin-bottom:12px}
+.f label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--mut);margin-bottom:5px}
+.f input,.f select,.f textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 11px;color:var(--ink);font-family:var(--sans);font-size:14px}
+.f textarea{min-height:66px;resize:vertical}
+.mbtns{display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap}
+.msg{font-family:var(--mono);font-size:11px;color:var(--mut)}
+.msg.err{color:var(--warn)}.msg.ok{color:var(--good)}
+@media(max-width:560px){.wrap{padding:16px 14px 48px}.grid{grid-template-columns:1fr}}
 </style>
 </head>
-<body data-yk-title="AGENTES">
+<body data-yk-title="CARBONO" data-yk-zone="app">
 <div class="wrap">
-  <nav>
-    <a href="/incidencias" class="back">← Bandeja</a>
-  </nav>
-  <h1>Panel de agentes</h1>
-  <p class="sub">Técnicos de la red Yokup: carga actual, especialidad, zona y rendimiento (auto-asignación por IA).</p>
-  <div class="grid" id="grid"><div style="color:var(--dim);font-family:var(--mono);padding:20px">Cargando…</div></div>
-  <div class="foot">Yokup · panel de agentes · datos <b>D1</b> · asignación por <b>IA</b> (skills + zona)</div>
+  <h1>Equipo de carbono</h1>
+  <p class="sub">Las <b>personas</b> de la flota, con las mismas primitivas que los agentes de silicio: identidad, latido y foco. Con una diferencia que es real y no capricho — una persona <b>no tiene máquina</b> y <b>no late cada cinco minutos</b>: su ventana es un turno.</p>
 
-  <!-- EXPERTO: JSON crudo de agentes del worker yokup-rtc -->
-  <div class="yk-expert-btns" data-yk-slot="bottom">
-    <button data-yk-fetch="/agents">agentes JSON</button>
+  <div class="cuenta" id="cuenta" role="group" aria-label="Filtrar por estado"></div>
+
+  <div class="barra">
+    <button id="alta">➕ dar de alta a una persona</button>
+    <button class="plano" id="recargar">recargar</button>
+    <span class="msg" id="aviso"></span>
   </div>
-  <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa «agentes JSON» para volcar los datos crudos del worker.</pre>
+
+  <div class="grid" id="grid"><div class="load">Cargando censo…</div></div>
+
+  <div class="foot">
+    Censo en <b>D1</b> · carril abierto <b>/fleet/carbon</b> — quien late es quien trabaja, y no se le pide cruzar el perímetro con la sesión de otro<br>
+    Carga de partes desde <b>/agents</b> (tras sesión) · silicio en <b>/equipo</b> · reparto de incidencias por habilidad y zona
+  </div>
+
+  <!-- EXPERTO: JSON crudo del censo de carbono -->
+  <div class="yk-expert-btns" data-yk-slot="bottom">
+    <button data-yk-fetch="/fleet/carbon">censo JSON</button>
+    <button data-yk-fetch="/fleet/equipo">equipo completo JSON</button>
+  </div>
+  <pre class="yk-expert-out" data-yk-slot="bottom">Pulsa «censo JSON» para volcar los datos crudos del worker.</pre>
 </div>
+
+<!-- Ficha: alta y edición. -->
+<div class="mod" id="fichaMod" role="dialog" aria-modal="true" aria-labelledby="fichaTit">
+  <div class="box">
+    <h3 id="fichaTit">Dar de alta</h3>
+    <div id="fichaCampos"></div>
+    <div class="mbtns">
+      <button id="fichaSave">Guardar</button>
+      <button class="plano" id="fichaBaja" hidden>Dar de baja</button>
+      <button class="plano" id="fichaClose">Cerrar</button>
+      <span class="msg" id="fichaMsg"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Latido: decir en qué anda. -->
+<div class="mod" id="latMod" role="dialog" aria-modal="true" aria-labelledby="latTit">
+  <div class="box">
+    <h3 id="latTit">¿En qué andas?</h3>
+    <div class="f">
+      <label for="latFoco">Foco — dónde estás y qué haces</label>
+      <textarea id="latFoco" placeholder="p. ej. en el tótem de Gràcia, cambiando el player"></textarea>
+    </div>
+    <div class="mbtns">
+      <button id="latSave">Latir</button>
+      <button class="plano" id="latMudo">Sigo aquí (sin cambiar el foco)</button>
+      <button class="plano" id="latClose">Cerrar</button>
+      <span class="msg" id="latMsg"></span>
+    </div>
+  </div>
+</div>
+
 <script>
 const WORKER="https://api.yokup.com";
+const $=x=>document.getElementById(x);
 const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
-function initials(n){ return n.split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase(); }
-async function load(){
-  let d; try{ const r=await fetch(WORKER+"/agents",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
-  const ags=d.agents||[];
-  document.getElementById("grid").innerHTML=ags.map(a=>{
-    const active=(a.open||0)+(a.in_progress||0);
-    const total=active+(a.resolved||0);
-    const pct=total?Math.round(active/total*100):0;
-    return `<div class="ag ${active>0?'busy':''}">
-      <div class="top"><div class="av">${esc(initials(a.name))}</div><div class="who"><b>${esc(a.name)}</b><span>${esc(a.zone)}</span></div></div>
-      <div class="skills">${String(a.skills||"").split(",").map(s=>`<span>${esc(s.trim())}</span>`).join("")}</div>
-      <div class="stats">
-        <div class="stat o"><b>${a.open||0}</b><span>abiertas</span></div>
-        <div class="stat p"><b>${a.in_progress||0}</b><span>en curso</span></div>
-        <div class="stat r"><b>${a.resolved||0}</b><span>resueltas</span></div>
-        
-      </div>
-      <div class="bar"><i style="width:${pct}%"></i></div>
-      <div class="load"><span>carga activa</span><span>${active} ticket${active===1?'':'s'}</span></div>
-    </div>`;
-  }).join("");
+
+/* Campos de la ficha. Definen el formulario Y lo que se manda al worker, así que
+   añadir un dato es una línea aquí y no tres sitios que se desincronizan. */
+const CAMPOS=[
+  {k:"name",   t:"Nombre",     ph:"Laura R."},
+  {k:"role",   t:"Oficio",     ph:"técnica de campo"},
+  {k:"zone",   t:"Zona",       ph:"Barcelona"},
+  {k:"skills", t:"Habilidades (separadas por comas)", ph:"redes, players"},
+  {k:"contact",t:"Contacto",   ph:"@laura · 6xx xxx xxx"}
+];
+const ETIQUETA={"en-turno":"en turno","ausente":"ausente","sin-latido":"sin latido","baja":"de baja"};
+
+let CENSO=[], CARGA={}, FILTRO="", EDITA=null, LATE=null;
+
+/* «hace 12 min» a partir del silencio que calcula el SERVIDOR. No se resta contra
+   Date.now() del navegador a propósito: un portátil con la hora torcida pintaría
+   a media plantilla ausente. */
+function hace(ms){
+  if(ms==null) return "";
+  const m=Math.round(ms/60000);
+  if(m<1) return "hace menos de un minuto";
+  if(m<60) return "hace "+m+" min";
+  const h=Math.floor(m/60);
+  return h<24 ? "hace "+h+" h "+(m%60?(m%60)+" min":"") : "hace "+Math.floor(h/24)+" días";
 }
-load(); setInterval(load,12000);
+function iniciales(n){
+  return String(n||"?").trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase()||"?";
+}
+function aviso(t,cls){ const a=$("aviso"); a.textContent=t||""; a.className="msg"+(cls?" "+cls:""); }
+
+async function cargar(){
+  let d;
+  try{
+    const r=await fetch(WORKER+"/fleet/carbon",{cache:"no-store"});
+    d=await r.json();
+  }catch(e){
+    $("grid").innerHTML='<div class="vacio">No se pudo leer el censo: '+esc(String(e))+'</div>';
+    return;
+  }
+  if(!d||!d.ok){
+    $("grid").innerHTML='<div class="vacio">El worker no devolvió censo.</div>';
+    return;
+  }
+  CENSO=d.members||[];
+  /* La carga de partes vive tras el perímetro. Si no hay sesión NO se pinta un
+     cero —que se leería como «no tiene trabajo»— sino que no se pinta nada. */
+  try{
+    const r=await fetch(WORKER+"/agents",{cache:"no-store"});
+    const a=await r.json();
+    CARGA={};
+    (a.agents||[]).forEach(x=>{ CARGA[x.name]={open:x.open||0,in_progress:x.in_progress||0,resolved:x.resolved||0}; });
+  }catch(e){ CARGA={}; }
+  pintaCuenta(d.cuenta||{});
+  pinta();
+}
+
+function pintaCuenta(c){
+  const filas=[["","total",c.total||0,""],["en-turno","en turno",c["en-turno"]||0,"t"],
+    ["ausente","ausentes",c.ausente||0,"a"],["sin-latido","sin latido",c["sin-latido"]||0,"s"],
+    ["baja","de baja",c.baja||0,"b"]];
+  $("cuenta").innerHTML=filas.map(([k,t,n,cls])=>
+    '<button class="chip '+cls+'" data-f="'+esc(k)+'" aria-pressed="'+(FILTRO===k)+'"><b>'+n+'</b>'+esc(t)+'</button>').join("");
+  document.querySelectorAll("#cuenta .chip").forEach(b=>{
+    b.onclick=()=>{ FILTRO = FILTRO===b.dataset.f ? "" : b.dataset.f; pintaCuenta(c); pinta(); };
+  });
+}
+
+function tarjeta(p){
+  const carga=CARGA[p.name];
+  const foco = p.focus
+    ? esc(p.focus)+'<small>'+esc(hace(p.focus_at?Date.now()-p.focus_at:null)||"")+'</small>'
+    : '<em>'+(p.estado==="sin-latido"?"aún no ha dicho en qué anda":"sin foco declarado")+'</em>';
+  return '<article class="p '+esc(p.estado)+'">'+
+    '<div class="top"><div class="av">'+esc(iniciales(p.name))+'</div>'+
+      '<div class="who"><b>'+esc(p.name)+'</b><span>'+esc([p.role,p.zone].filter(Boolean).join(" · ")||"sin oficio")+'</span></div></div>'+
+    '<div class="est '+esc(p.estado)+'"><i aria-hidden="true"></i>'+esc(ETIQUETA[p.estado]||p.estado)+
+      (p.silencio_ms!=null?' · '+esc(hace(p.silencio_ms)):"")+'</div>'+
+    '<div class="foco">'+foco+'</div>'+
+    (p.skills&&p.skills.length?'<div class="skills">'+p.skills.map(s=>'<span>'+esc(s)+'</span>').join("")+'</div>':"")+
+    (carga?'<div class="carga">'+
+      '<div class="stat o"><b>'+carga.open+'</b><span>abiertas</span></div>'+
+      '<div class="stat p2"><b>'+carga.in_progress+'</b><span>en curso</span></div>'+
+      '<div class="stat r"><b>'+carga.resolved+'</b><span>resueltas</span></div></div>':"")+
+    '<div class="acc">'+
+      (p.status==="baja"?"":'<button data-lat="'+esc(p.id)+'">latir</button>')+
+      '<button class="plano" data-ed="'+esc(p.id)+'">ficha</button>'+
+    '</div></article>';
+}
+
+function pinta(){
+  const lista=FILTRO?CENSO.filter(p=>p.estado===FILTRO):CENSO;
+  $("grid").innerHTML = lista.length
+    ? lista.map(tarjeta).join("")
+    : '<div class="vacio">'+(CENSO.length?"Nadie en este estado.":"El censo está vacío. Da de alta a la primera persona.")+'</div>';
+  document.querySelectorAll("[data-ed]").forEach(b=>{ b.onclick=()=>abreFicha(b.dataset.ed); });
+  document.querySelectorAll("[data-lat]").forEach(b=>{ b.onclick=()=>abreLatido(b.dataset.lat); });
+}
+
+/* ── FICHA ─────────────────────────────────────────────────────────────── */
+function abreFicha(id){
+  EDITA = id ? CENSO.find(p=>p.id===id)||null : null;
+  $("fichaTit").textContent = EDITA ? "Ficha de "+EDITA.name : "Dar de alta";
+  $("fichaCampos").innerHTML = CAMPOS.map(c=>{
+    let v = EDITA ? EDITA[c.k] : "";
+    if(c.k==="skills" && Array.isArray(v)) v=v.join(", ");
+    return '<div class="f"><label for="c_'+c.k+'">'+esc(c.t)+'</label>'+
+      '<input id="c_'+c.k+'" value="'+esc(v||"")+'" placeholder="'+esc(c.ph)+'"></div>';
+  }).join("");
+  $("fichaBaja").hidden = !EDITA || EDITA.status==="baja";
+  $("fichaMsg").textContent="";
+  $("fichaMod").classList.add("on");
+  const primero=$("c_name"); if(primero) primero.focus();
+}
+async function guardaFicha(status){
+  const cuerpo={};
+  CAMPOS.forEach(c=>{ const el=$("c_"+c.k); if(el) cuerpo[c.k]=el.value; });
+  if(EDITA) cuerpo.id=EDITA.id;
+  cuerpo.status = status || (EDITA?EDITA.status:"activo");
+  cuerpo.author = "yokup-web";
+  const m=$("fichaMsg"); m.className="msg"; m.textContent="Guardando…";
+  try{
+    const r=await fetch(WORKER+"/fleet/carbon",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(cuerpo)});
+    const d=await r.json();
+    if(!d.ok){ m.className="msg err"; m.textContent=d.error||"No se pudo guardar"; return; }
+    $("fichaMod").classList.remove("on");
+    aviso(status==="baja" ? d.member.name+" queda de baja — sigue firmando su histórico" : "Ficha de "+d.member.name+" guardada","ok");
+    cargar();
+  }catch(e){ m.className="msg err"; m.textContent=String(e); }
+}
+$("alta").onclick=()=>abreFicha(null);
+$("recargar").onclick=()=>{ aviso(""); cargar(); };
+$("fichaSave").onclick=()=>guardaFicha(null);
+$("fichaBaja").onclick=()=>{
+  /* No hay borrado: el worker lo rechaza a propósito, porque los partes ya
+     cerrados apuntan a esta persona por nombre. */
+  if(confirm("Dar de baja a "+EDITA.name+"?\n\nSale de la plantilla que reparte partes, pero NO se borra: su histórico tiene que seguir teniendo autor.")) guardaFicha("baja");
+};
+$("fichaClose").onclick=()=>$("fichaMod").classList.remove("on");
+
+/* ── LATIDO ────────────────────────────────────────────────────────────── */
+function abreLatido(id){
+  LATE = CENSO.find(p=>p.id===id)||null;
+  if(!LATE) return;
+  $("latTit").textContent="¿En qué anda "+LATE.name+"?";
+  $("latFoco").value = LATE.focus||"";
+  $("latMsg").textContent="";
+  $("latMod").classList.add("on");
+  $("latFoco").focus();
+}
+async function late(conFoco){
+  const m=$("latMsg"); m.className="msg"; m.textContent="Latiendo…";
+  const cuerpo={id:LATE.id};
+  if(conFoco) cuerpo.focus=$("latFoco").value;
+  try{
+    const r=await fetch(WORKER+"/fleet/carbon/beat",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(cuerpo)});
+    const d=await r.json();
+    if(!d.ok){ m.className="msg err"; m.textContent=d.error||"No se pudo latir"; return; }
+    $("latMod").classList.remove("on");
+    aviso(d.member.name+" en turno"+(d.member.focus?" · "+d.member.focus:""),"ok");
+    cargar();
+  }catch(e){ m.className="msg err"; m.textContent=String(e); }
+}
+$("latSave").onclick=()=>late(true);
+$("latMudo").onclick=()=>late(false);
+$("latClose").onclick=()=>$("latMod").classList.remove("on");
+
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"){ $("fichaMod").classList.remove("on"); $("latMod").classList.remove("on"); }
+});
+
+cargar();
+/* Cada 30 s: el latido de una persona no cambia por segundos y refrescar más a
+   menudo solo gasta batería en la tablet del taller. */
+setInterval(cargar,30000);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-frame.js?v=r31"></script>

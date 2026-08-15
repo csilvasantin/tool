@@ -7,4 +7,10 @@
 /mcp/             /mcp/index.html    200
 /help             /help/index.html   200
 /help/            /help/index.html   200
+# CARBONO. La página se llamaba /agentes, y «agente» en toda la plataforma es una
+# persona de SILICIO: el mismo rótulo para las dos mitades del equipo es la clase
+# de ambigüedad que hace que un panel de control se lea mal. /carbono es la ruta
+# que dice lo que es; /agentes se conserva porque hay enlaces vivos apuntando ahí.
+/carbono          /agentes.html      200
+/carbono/         /agentes.html      200
 /*                /index.html   200
