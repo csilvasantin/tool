@@ -3463,12 +3463,19 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<span class="refresh-agent" data-race-role="agent" title="Responsable ' + esc(responsable) + '">' + esc(responsable) + '</span></span>' +
         '<div class="refresh-lane-center"><div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
+        // EL ID INTERNO NO SE LEE (Carlos, 15-ago-2026). La calle abría con
+        // «DCL-msunkvpfosjw:a · », que es la clave primaria de la misión y el
+        // código de la tarea: no le dice NADA a quien mira el marcador y se comía
+        // el arranque de la única línea que sí importa, el título del trabajo. La
+        // trazabilidad no se pierde — la calle es un enlace a la misión y ahí está
+        // su referencia legible (norma 5). Se quita también del tooltip: el que
+        // pasa el ratón por encima es la misma persona.
         (resumen.detailUrl ? '<a class="refresh-mission" data-race-role="mission" href="' + esc(resumen.detailUrl) +
-          '" title="' + esc([resumen.reference,resumen.title,resumen.project].filter(Boolean).join(" · ")) +
-          '"><span class="refresh-mission-title">' + esc((resumen.reference ? resumen.reference + " · " : "") + resumen.title +
+          '" title="' + esc([resumen.title,resumen.project].filter(Boolean).join(" · ")) +
+          '"><span class="refresh-mission-title">' + esc(resumen.title +
           (resumen.project ? " · " + resumen.project : "")) + '</span></a>' :
-          '<span class="refresh-mission" data-race-role="mission" title="' + esc([resumen.reference,resumen.title].filter(Boolean).join(" · ")) +
-          '"><span class="refresh-mission-title">' + esc((resumen.reference ? resumen.reference + " · " : "") + resumen.title) + '</span></span>') +
+          '<span class="refresh-mission" data-race-role="mission" title="' + esc(resumen.title) +
+          '"><span class="refresh-mission-title">' + esc(resumen.title) + '</span></span>') +
         runner + '<span class="refresh-finish" aria-hidden="true"></span></div></div>' +
         '<div class="refresh-time" title="Estado y tiempos factuales" data-work-state="' + esc(isLast ? "last_work" : resumen.idle ? "assigned_stale" : "running") + '"' +
           ' data-work-start="' + (Number(enlace.trabajo.startedAt) || 0) + '" data-work-end="' + (Number(enlace.trabajo.endedAt) || 0) + '"' +

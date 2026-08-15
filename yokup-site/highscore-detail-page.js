@@ -130,7 +130,9 @@
     evolution.labels.forEach(function(label,labelIndex){var row=document.createElement("tr"),time=document.createElement("time");time.dateTime=new Date(label.at).toISOString();time.textContent=label.label;var dateCell=document.createElement("th");dateCell.scope="row";dateCell.append(time);row.append(dateCell);evolution.series.forEach(function(series){row.append(el("td",series.current?"current":"",series.values[labelIndex]+" pts"));});body.append(row);});table.append(caption,head,body);details.append(summary,table);panel.append(details);return panel;}
   function latestWorkPanel(data,stateValue){var work=data.latestWork;if(!work||work.projectId===stateValue.projectId)return null;
     var panel=el("aside","latest-work"),body=el("div","latest-work-body"),heading=el("h2","","Trabajo más reciente en otro proyecto");
-    var project=el("strong","latest-work-project",work.projectName+" · "+work.projectId),title=el("p","latest-work-title",(work.reference?work.reference+" · ":"")+work.title);
+    // Sin el id interno delante (Carlos, 15-ago-2026): el mismo ruido que se
+    // quitó de la calle de la carrera. El enlace de abajo lleva a la ficha.
+    var project=el("strong","latest-work-project",work.projectName+" · "+work.projectId),title=el("p","latest-work-title",work.title);
     var when=new Date(work.at).toLocaleString("es-ES",{timeZone:data.timezone,dateStyle:"medium",timeStyle:"medium"});
     var status=work.status==="running"?"En curso":"Finalizado",meta=el("p","latest-work-meta",status+" · "+when+(work.executor?" · ejecuta "+work.executor:""));
     var link=el("a","latest-work-link","Abrir histórico de "+work.projectName+" →");link.href=work.detailUrl;
