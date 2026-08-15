@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import vm from "node:vm";
 import { readFile } from "node:fs/promises";
+import { reportAgentFamily } from "../src/agent-identity.js";
 
 const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
 const fn = source.slice(source.indexOf("async function highscoreFleetHistory"),
@@ -65,9 +67,50 @@ test("el detalle lista por el MISMO scored_at que puntúa la barra", () => {
   // que dice explicar.
   assert.match(detalle, /\$\{HIGHSCORE_MISSION_STARTED_SQL\} scored_at/);
   assert.match(detalle, /AND scored_at>=\? AND scored_at<\?/);
+  assert.match(detalle, /ORDER BY scored_at ASC/,
+    "día, semana y mes deben leerse desde la primera hora hasta la última");
   // Y el mismo filtro de alcance y de estados que la agregación.
   assert.match(detalle, /\$\{AGENT_SOURCE_SQL_T\}/);
   assert.match(detalle, /status IN \('in_progress','resolved'\) OR \(status='open' AND con_plan=1\)/);
+});
+
+test("la jornada usa inicio y cierre factuales, no updated_at", () => {
+  const jornada = source.slice(source.indexOf("function highscoreFleetWorkday"),
+    source.indexOf('__name(highscoreFleetWorkday, "highscoreFleetWorkday");'));
+  assert.match(detalle, /\$\{HIGHSCORE_WORK_STARTED_SQL\} work_started_at/);
+  assert.match(detalle, /t\.resolved_at finished_at/);
+  assert.match(jornada, /row\.work_started_at \|\| row\.scored_at/);
+  assert.match(jornada, /row\.finished_at/);
+  assert.doesNotMatch(jornada, /updated_at/,
+    "una sincronización tardía no puede convertir al agente en Night Owl");
+  assert.match(jornada, /early_bird/);
+  assert.match(jornada, /night_owl/);
+  assert.match(jornada, /ongoing_missions:ongoing/,
+    "si queda trabajo abierto, la API no puede fingir una hora de salida");
+});
+
+test("Early Bird es el primer inicio y Night Owl el último cierre aunque lleguen desordenados", () => {
+  const millis = source.slice(source.indexOf("function highscoreActiveWorkMillis"),
+    source.indexOf('__name(highscoreActiveWorkMillis, "highscoreActiveWorkMillis");') +
+      '__name(highscoreActiveWorkMillis, "highscoreActiveWorkMillis");'.length);
+  const jornada = source.slice(source.indexOf("function highscoreFleetWorkday"),
+    source.indexOf('__name(highscoreFleetWorkday, "highscoreFleetWorkday");') +
+      '__name(highscoreFleetWorkday, "highscoreFleetWorkday");'.length);
+  const context = vm.createContext({ reportAgentFamily, Number, String, Array,
+    __name:(value) => value });
+  vm.runInContext(`${millis}\n${jornada}`, context);
+  const base = 1_786_800_000_000;
+  const result = JSON.parse(JSON.stringify(context.highscoreFleetWorkday([
+    {id:"M-TARDE",assignee:"TrinityMBP16",loc:"MacBookPro16",work_started_at:base + 30_000,finished_at:base + 90_000},
+    {id:"M-TEMPRANO",assignee:"NeoMBP16",loc:"MacBookPro16",work_started_at:base + 10_000,finished_at:null},
+    {id:"M-NOCHE",assignee:"MorfeoMacMini",loc:"MacMini",work_started_at:base + 20_000,finished_at:base + 120_000},
+  ])));
+  assert.equal(result.early_bird.agent, "NeoMBP16");
+  assert.equal(result.early_bird.at, base + 10_000);
+  assert.equal(result.night_owl.agent, "MorfeoMacMini");
+  assert.equal(result.night_owl.at, base + 120_000);
+  assert.equal(result.ongoing_missions, 1);
+  assert.equal(result.state, "open");
 });
 
 test("el rango va en días de Madrid, no en UTC", () => {
@@ -86,6 +129,9 @@ test("cada misión sale con su autor canónico y su referencia legible", () => {
   // es lo que se enseña en el resto de la plataforma.
   assert.match(detalle, /reportAgentFamily\(r\.assignee, r\.loc \|\| ""\)/);
   assert.match(detalle, /attachDisplayRefs\(env, "mission", filas/);
+  assert.match(detalle, /workday: highscoreFleetWorkday\(filas\)/);
+  assert.match(detalle, /started_at: highscoreActiveWorkMillis/);
+  assert.match(detalle, /finished_at: highscoreActiveWorkMillis/);
 });
 
 test("el detalle comparte ruta con el agregado y no abre una tercera", () => {

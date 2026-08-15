@@ -188,7 +188,31 @@ test("cada misión dice hora, quién, qué y en qué estado", () => {
   assert.match(fn, /class="l-quien"/);
   assert.match(fn, /class="l-que"/);
   assert.match(fn, /class="l-est /);
-  assert.match(fn, /timeZone: "Europe\/Madrid"/, "la hora es la que se vivió, no UTC");
+  assert.match(html, /timeZone: "Europe\/Madrid"/, "la hora es la que se vivió, no UTC");
+});
+
+test("día, semana y mes se ordenan otra vez en cliente de primera a última hora", () => {
+  const fn = html.slice(html.indexOf("function listaMisionesHtml"), html.indexOf("function seleccionaBarra"));
+  assert.match(fn, /\(d\.missions \|\| \[\]\)\.slice\(\)\.sort/,
+    "el navegador no debe confiar ciegamente en el orden recibido");
+  assert.match(fn, /\(Number\(a\.at\) \|\| 0\) - \(Number\(b\.at\) \|\| 0\)/);
+  assert.match(fn, /variasFechas = d\.desde !== d\.hasta/);
+  assert.match(fn, /marcaMadrid\(x\.at, variasFechas\)/,
+    "en semana y mes también se necesita el día para leer la cronología");
+});
+
+test("la fecha lleva al lado los premios factuales de inicio y fin", () => {
+  const fn = html.slice(html.indexOf("function jornadaPeriodoHtml"), html.indexOf("function listaMisionesHtml"));
+  assert.match(fn, /class="l-cab"><h3>/,
+    "jornada y fecha comparten cabecera y no quedan separadas en otro panel");
+  assert.match(fn, /Early Bird/);
+  assert.match(fn, /Night Owl/);
+  assert.match(fn, /jornada\.early_bird/);
+  assert.match(fn, /jornada\.night_owl/);
+  assert.match(fn, /ongoing_missions/);
+  assert.match(html, /\.dg-lista \.l-cab\{[^}]*display:flex/);
+  assert.match(html, /\.dg-lista \.l-early\{[^}]*color:var\(--good/);
+  assert.match(html, /\.dg-lista \.l-night\{[^}]*color:var\(--accent/);
 });
 
 test("un periodo con puntos y sin misiones EXPLICA de dónde salen los puntos", () => {

@@ -167,7 +167,16 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 /* LA LISTA de misiones del periodo seleccionado. Aparece DEBAJO del gráfico y
    no en el globo: el globo es un vistazo al pasar, esto se lee con calma. */
 .dg-lista{margin-top:16px;border-top:1px solid rgba(120,243,255,.16);padding-top:13px}
-.dg-lista h3{font-size:14.5px;margin-bottom:2px}
+.dg-lista .l-cab{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;margin-bottom:4px}
+.dg-lista h3{font-size:14.5px;margin:0}
+.dg-lista .l-jornada{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.dg-lista .l-premio{display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(120,243,255,.22);
+  border-radius:999px;padding:4px 8px;font-family:var(--mono,monospace);font-size:9.5px;
+  letter-spacing:.04em;white-space:nowrap;background:rgba(2,8,13,.48)}
+.dg-lista .l-premio b{font-size:10px}
+.dg-lista .l-early{color:var(--good,#88ffaa);border-color:rgba(136,255,170,.34)}
+.dg-lista .l-night{color:var(--accent,#ffd866);border-color:rgba(255,216,102,.34)}
+.dg-lista .l-open{color:var(--mut,#75aab9)}
 .dg-lista .l-sub{font-family:var(--mono,monospace);font-size:10px;letter-spacing:.06em;
   text-transform:uppercase;color:var(--dim,#4d7a88);margin-bottom:10px}
 .dg-lista ul{list-style:none;margin:0;padding:0;max-height:270px;overflow:auto}
@@ -175,6 +184,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   border-bottom:1px solid rgba(120,243,255,.07);font-size:13px}
 .dg-lista li:last-child{border-bottom:0}
 .dg-lista .l-hora{font-family:var(--mono,monospace);font-size:10px;color:var(--dim,#4d7a88);flex:0 0 38px}
+.dg-lista .l-hora[data-rango="true"]{flex-basis:78px}
 .dg-lista .l-quien{font-weight:700;color:var(--brand,#78f3ff);flex:0 0 118px;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .dg-lista .l-que{flex:1;color:var(--ink,#dff8ff);min-width:0}
@@ -2011,8 +2021,37 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return el;
   }
 
+  function marcaMadrid(epoch, conFecha) {
+    var opciones = { timeZone: "Europe/Madrid", hour: "2-digit", minute: "2-digit" };
+    if (conFecha) { opciones.day = "2-digit"; opciones.month = "2-digit"; }
+    return new Date(Number(epoch) || 0).toLocaleString("es-ES", opciones).replace(",", " ·");
+  }
+
+  function jornadaPeriodoHtml(d) {
+    var jornada = d && d.workday || {}, variasFechas = d && d.desde !== d.hasta;
+    var temprano = jornada.early_bird, nocturno = jornada.night_owl;
+    if (!temprano && !nocturno) return "";
+    var html = '<div class="l-jornada" aria-label="Inicio y fin de la jornada del periodo">';
+    if (temprano) html += '<span class="l-premio l-early" title="Primer agente en empezar a trabajar">' +
+      '🌅 <b>Early Bird</b> · ' + esc(temprano.agent || "—") + ' · ' + esc(marcaMadrid(temprano.at, variasFechas)) + '</span>';
+    if (nocturno) html += '<span class="l-premio l-night" title="Último agente en terminar su trabajo">' +
+      '🦉 <b>Night Owl</b> · ' + esc(nocturno.agent || "—") + ' · ' + esc(marcaMadrid(nocturno.at, variasFechas)) + '</span>';
+    if (Number(jornada.ongoing_missions) > 0) html += '<span class="l-premio l-open">' +
+      esc(jornada.ongoing_missions) + (Number(jornada.ongoing_missions) === 1 ? ' misión abierta' : ' misiones abiertas') + '</span>';
+    return html + '</div>';
+  }
+
+  function cabeceraPeriodoHtml(fila, d) {
+    return '<div class="l-cab"><h3>' + esc(diasRotulo(fila)) + ' · ' +
+      esc(Number(fila.points) || 0) + ' pts</h3>' + jornadaPeriodoHtml(d) + '</div>';
+  }
+
   function listaMisionesHtml(fila, d) {
-    var m = d.missions || [];
+    // El Worker ya entrega ASC, pero el orden visible no puede depender de la
+    // estabilidad de una respuesta intermedia o de una caché antigua.
+    var m = (d.missions || []).slice().sort(function (a, b) {
+      return (Number(a.at) || 0) - (Number(b.at) || 0) || String(a.id || "").localeCompare(String(b.id || ""));
+    });
     if (!m.length) {
       // Puede haber puntos sin ninguna misión: los objetivos, las ventanas de
       // decisión y las tareas también puntúan. Decirlo es más útil que un
@@ -2020,10 +2059,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       return '<div class="l-vacio">Ninguna misión puntuó en este periodo' +
         (Number(fila.points) > 0 ? ' — los ' + esc(fila.points) + ' puntos vienen de objetivos, ventanas de decisión o tareas sueltas.' : '.') + '</div>';
     }
+    var variasFechas = d.desde !== d.hasta;
     return '<ul>' + m.map(function (x) {
-      var h = new Date(x.at).toLocaleTimeString("es-ES", { timeZone: "Europe/Madrid", hour: "2-digit", minute: "2-digit" });
+      var h = marcaMadrid(x.at, variasFechas);
       var estado = x.status === "resolved" ? "hecha" : x.status === "in_progress" ? "en curso" : "abierta";
-      return '<li><span class="l-hora">' + esc(h) + '</span>' +
+      return '<li><span class="l-hora" data-rango="' + (variasFechas ? 'true' : 'false') + '">' + esc(h) + '</span>' +
         '<span class="l-quien">' + esc(x.agent || "—") + '</span>' +
         '<span class="l-que">' + esc(x.subject || "(sin título)") +
         '<small>' + esc(x.display_ref || x.id) + (x.project_id ? " · " + esc(x.project_id) : "") + '</small></span>' +
@@ -2039,7 +2079,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     if (zonas[indice]) zonas[indice].classList.add("sel");
     if (barras[indice]) barras[indice].classList.add("sel");
     var caja = diasListaEl(), rango = rangoDe(fila);
-    caja.innerHTML = '<h3>' + esc(diasRotulo(fila)) + ' · ' + esc(Number(fila.points) || 0) + ' pts</h3>' +
+    caja.innerHTML = cabeceraPeriodoHtml(fila, null) +
       '<p class="l-sub">misiones del periodo, en hora de Madrid</p>' +
       '<div class="l-carga">Cargando misiones…</div>';
     fetch(YK + "/highscore/history?scope=global&desde=" + encodeURIComponent(rango.desde) +
@@ -2047,7 +2087,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d || !d.ok) throw new Error(d && d.error || "sin datos");
-        caja.innerHTML = '<h3>' + esc(diasRotulo(fila)) + ' · ' + esc(Number(fila.points) || 0) + ' pts</h3>' +
+        caja.innerHTML = cabeceraPeriodoHtml(fila, d) +
           '<p class="l-sub">' + esc(d.total) + (d.total === 1 ? " misión" : " misiones") + ' · hora de Madrid</p>' +
           listaMisionesHtml(fila, d);
       })

@@ -6726,6 +6726,36 @@ async function highscoreFleetHistory(env, ahora = Date.now()) {
 }
 __name(highscoreFleetHistory, "highscoreFleetHistory");
 
+// La jornada no se deduce de `updated_at`: ese campo también cambia por
+// sincronizaciones e informes tardíos. El primer turno sale del inicio factual
+// del trabajo y el último del cierre factual (`resolved_at`). Si queda alguna
+// misión abierta, se declara; nunca se convierte su último latido en una salida.
+function highscoreFleetWorkday(rows) {
+  const missions = Array.isArray(rows) ? rows : [];
+  const stamp = (value) => {
+    const at = highscoreActiveWorkMillis(value);
+    return Number.isFinite(at) && at > 0 ? at : 0;
+  };
+  const withAgent = (row, at) => {
+    if (!row || !at) return null;
+    const family = reportAgentFamily(row.assignee, row.loc || "");
+    return { at,
+      agent:(family && family.family_name) || String(row.assignee || "").trim(),
+      mission_id:String(row.id || ""), display_ref:row.display_ref || null };
+  };
+  const starts = missions.map((row) => ({ row, at:stamp(row.work_started_at || row.scored_at) }))
+    .filter((item) => item.at).sort((a, b) => a.at - b.at || String(a.row.id || "").localeCompare(String(b.row.id || "")));
+  const finishes = missions.map((row) => ({ row, at:stamp(row.finished_at) }))
+    .filter((item) => item.at).sort((a, b) => b.at - a.at || String(a.row.id || "").localeCompare(String(b.row.id || "")));
+  const ongoing = missions.filter((row) => !stamp(row.finished_at)).length;
+  return { first_started_at:starts[0] ? starts[0].at : null,
+    last_finished_at:finishes[0] ? finishes[0].at : null,
+    early_bird:starts[0] ? withAgent(starts[0].row, starts[0].at) : null,
+    night_owl:finishes[0] ? withAgent(finishes[0].row, finishes[0].at) : null,
+    ongoing_missions:ongoing, state:ongoing ? "open" : finishes.length ? "closed" : "unknown" };
+}
+__name(highscoreFleetWorkday, "highscoreFleetWorkday");
+
 // LAS MISIONES DE UN PERIODO, con su autor. Es el detalle que hay debajo de una
 // barra seleccionada: la barra dice CUÁNTO, esto dice QUÉ y DE QUIÉN.
 //
@@ -6744,6 +6774,7 @@ async function highscoreFleetMissions(env, desdeDia, hastaDia) {
   const { results } = await env.DB.prepare(
     `SELECT * FROM (SELECT t.id,t.subject,t.assignee,t.loc,t.status,t.project,t.project_id,t.created_at,` +
     `${HIGHSCORE_MISSION_STARTED_SQL} scored_at,` +
+    `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,t.resolved_at finished_at,` +
     `EXISTS(SELECT 1 FROM mission_tasks mt3 WHERE mt3.mission_id=t.id) con_plan ` +
     `FROM tickets t WHERE ${AGENT_SOURCE_SQL_T}) ` +
     `WHERE (status IN ('in_progress','resolved') OR (status='open' AND con_plan=1)) ` +
@@ -6752,12 +6783,16 @@ async function highscoreFleetMissions(env, desdeDia, hastaDia) {
   const filas = results || [];
   await attachDisplayRefs(env, "mission", filas, (row) => row.id, (row) => row.created_at);
   return { ok: true, desde: desde.day, hasta: hasta.day, total: filas.length,
+    workday: highscoreFleetWorkday(filas),
     missions: filas.map((r) => {
       const familia = reportAgentFamily(r.assignee, r.loc || "");
       return { id: r.id, display_ref: r.display_ref || null, subject: r.subject || "",
         agent: (familia && familia.family_name) || String(r.assignee || "").trim(),
         machine: r.loc || "", status: r.status, project_id: r.project_id || r.project || "",
-        at: Number(r.scored_at) || 0, points: HIGHSCORE_WEIGHTS.mission };
+        at: Number(r.scored_at) || 0,
+        started_at: highscoreActiveWorkMillis(r.work_started_at || r.scored_at) || null,
+        finished_at: highscoreActiveWorkMillis(r.finished_at) || null,
+        points: HIGHSCORE_WEIGHTS.mission };
     }) };
 }
 __name(highscoreFleetMissions, "highscoreFleetMissions");
