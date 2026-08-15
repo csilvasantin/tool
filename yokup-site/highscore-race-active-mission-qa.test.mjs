@@ -106,7 +106,10 @@ test("fallo del endpoint borra la lectura anterior y declara no disponible", () 
 });
 
 test("la carrera factual es independiente del filtro del ranking", () => {
-  assert.match(html,/listaCache = aplicaAgentScope\(listaCompletaCache \|\| \[\]\);\s*pintaPodio\(listaCache\.slice\(0, 3\)\); pintaTabla\(listaVisible\(listaCache\)\); actualizaCarreraPodio\(\)/);
+  // El segundo argumento es el sumador de la flota (15-ago-2026) y sale de la
+  // MISMA listaCache: el podio y su total siguen colgando del ranking, no de
+  // la carrera, que es lo que este test protege.
+  assert.match(html,/listaCache = aplicaAgentScope\(listaCompletaCache \|\| \[\]\);\s*pintaPodio\(listaCache\.slice\(0, 3\), listaCache\); pintaTabla\(listaVisible\(listaCache\)\); actualizaCarreraPodio\(\)/);
   assert.match(html,/trabajos = trabajosCarrera\(\), completas = listaCompletaCache \|\| \[\]/);
 });
 

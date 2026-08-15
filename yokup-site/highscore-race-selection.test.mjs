@@ -90,5 +90,7 @@ test("Running Man usa el censo factual completo y no altera ranking ni podio", (
   assert.match(html, /: filasElegibles;/);
   assert.match(html, /completas = listaCompletaCache \|\| \[\]/);
   assert.doesNotMatch(html, /filasElegibles\.slice\(0, 3\)/);
-  assert.match(html, /pintaPodio\(listaCache\.slice\(0, 3\)\); pintaTabla\(listaVisible\(listaCache\)\); actualizaCarreraPodio\(\)/);
+  // El sumador de la flota que se añadió al podio recibe listaCache, NO
+  // filasElegibles: el Running Man sigue sin tocar ni ranking ni podio.
+  assert.match(html, /pintaPodio\(listaCache\.slice\(0, 3\), listaCache\); pintaTabla\(listaVisible\(listaCache\)\); actualizaCarreraPodio\(\)/);
 });

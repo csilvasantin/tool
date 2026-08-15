@@ -101,6 +101,22 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   pointer-events:none;animation:podium-heartbeat 1.6s ease-in-out infinite}
 @keyframes podium-heartbeat{0%,100%{opacity:.92;transform:scale(1)}45%{opacity:.3;transform:scale(1.025)}60%{opacity:.78;transform:scale(1.008)}}
 .podio .avatar,.podio .maq,.podio .maqs,.podio .bloque{display:none}
+/* SUMADOR DE LA FLOTA (Carlos, 15-ago-2026). El podio enseñaba tres cifras y
+   ninguna decía cuánto había hecho el equipo entero: para saberlo había que
+   bajar a la tabla y sumar a mano. Va arriba a la IZQUIERDA, en espejo de la
+   bandera que el arte lleva pintada a la derecha — misma altura y misma
+   distancia al borde, para que la escena quede equilibrada y no parezca un
+   cartel pegado encima. Hereda la caja de .plaza: es el mismo tipo de dato y
+   tiene que leerse igual. */
+.podio-total{position:absolute;z-index:3;left:9%;top:7%;width:22%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  padding:7px 10px;background:rgba(2,8,13,.74);border:1px solid rgba(120,243,255,.42);border-radius:6px;
+  box-shadow:0 5px 18px rgba(0,0,0,.38);backdrop-filter:blur(3px)}
+.podio-total .pts{color:var(--brand)}
+.podio-total .tot-rot{font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--mut);text-align:center;line-height:1.3}
+@media (max-width:620px){.podio-total{left:4%;top:4%;width:30%;padding:5px 7px}
+  .podio-total .pts{font-size:14px}.podio-total .tot-rot{font-size:8px}}
 .nom{font-size:12px;font-weight:800;letter-spacing:.03em;text-align:center;word-break:break-word;padding:0}
 .pts{display:inline-flex;align-items:center;gap:5px;font-size:18px;font-weight:900;margin:0;letter-spacing:.02em;white-space:nowrap}
 .p1 .pts{color:var(--oro)} .p2 .pts{color:var(--plata)} .p3 .pts{color:var(--bronce)}
@@ -1666,9 +1682,41 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       '<div class="podio-velo"></div></div>';
   }
 
-  function pintaPodio(top) {
+  // Suma de TODA la lista que se está mirando, no de los tres del podio. Se
+  // suman las MISMAS cifras que pinta cada fila (metricaHoraDia) en vez de
+  // recalcular por otra vía: si el sumador y la tabla no salieran del mismo
+  // sitio acabarían discrepando, y un total que no cuadra con lo que hay debajo
+  // es peor que no poner total.
+  //
+  // Y suma lo que se ESTÁ VIENDO: con un filtro de proyecto puesto, el total es
+  // el de ese alcance. Enseñar el global mientras la tabla enseña un subconjunto
+  // sería una cifra que contradice a la pantalla; por eso el rótulo dice cuántos
+  // agentes ha contado.
+  function totalPodioHtml(todos) {
+    var lista = Array.isArray(todos) ? todos.filter(Boolean) : [];
+    if (!lista.length) return "";
+    var hora = 0, dia = 0;
+    lista.forEach(function (a) {
+      var m = metricaHoraDia(a, "points");
+      hora += Math.max(0, Number(m.hour) || 0);
+      dia += Math.max(0, Number(m.day) || 0);
+    });
+    var rotulo = lista.length + (lista.length === 1 ? " agente" : " agentes");
+    var titulo = "Toda la flota: " + hora + " puntos en esta hora y " + dia + " hoy, sumando " + rotulo;
+    return '<div class="podio-total" role="text" aria-label="' + esc(titulo) + '" title="' + esc(titulo) + '">' +
+      '<div class="pts">' +
+        '<span class="score-number score-hour ' + (hora > 0 ? "hour-positive" : "hour-zero") + '">' + esc(hora) + '</span>' +
+        '<span class="score-period" aria-hidden="true">hora</span>' +
+        '<span class="score-separator" aria-hidden="true">/</span>' +
+        '<span class="score-number score-day">' + esc(dia) + '</span>' +
+        '<span class="score-period" aria-hidden="true">hoy</span>' +
+      '</div>' +
+      '<div class="tot-rot">toda la flota<br>' + esc(rotulo) + '</div></div>';
+  }
+
+  function pintaPodio(top, todos) {
     var orden = [top[1], top[0], top[2]], clases = ["p2", "p1", "p3"], medallas = ["2", "1", "3"];
-    document.getElementById("podio").innerHTML = escenaPodio() + orden.map(function (a, i) {
+    document.getElementById("podio").innerHTML = escenaPodio() + totalPodioHtml(todos) + orden.map(function (a, i) {
       // Una plaza sin agente no representa nada y, sin la clase p1/p2/p3,
       // conservaba ancho, padding y borde en la posición estática: era la barra
       // redondeada vacía que aparecía encima del arte del podio.
@@ -2623,7 +2671,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function pintaVistaFiltrada() {
     listaCache = aplicaAgentScope(listaCompletaCache || []);
-    pintaPodio(listaCache.slice(0, 3)); pintaTabla(listaVisible(listaCache)); actualizaCarreraPodio();
+    pintaPodio(listaCache.slice(0, 3), listaCache); pintaTabla(listaVisible(listaCache)); actualizaCarreraPodio();
   }
 
   function iniciaAgentScope() {
@@ -3571,7 +3619,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function listo() {
     listaCompletaCache = calcula();
     hsRenderAgentScope(listaCompletaCache); listaCache = aplicaAgentScope(listaCompletaCache);
-    pintaPodio(listaCache.slice(0, 3)); pintaTabla(listaVisible(listaCache)); pintaFormula(listaCache); actualizaCarreraPodio();
+    pintaPodio(listaCache.slice(0, 3), listaCache); pintaTabla(listaVisible(listaCache)); pintaFormula(listaCache); actualizaCarreraPodio();
     // Visita repetida de la sesión: la ceremonia ya se vio. Del final de la
     // barra al ranking, sin pulsa, sin cuenta atrás y sin fanfarria.
     if (window.__YK_PRESITE__ === false) { entra(); return; }
@@ -3702,7 +3750,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var cambioLider = listaCache && l[0] && listaCache[0] && l[0].agente !== listaCache[0].agente;
       listaCompletaCache = listaCompleta;
       listaCache = l;
-      hsRenderAgentScope(listaCompletaCache); pintaPodio(l.slice(0, 3)); pintaTabla(listaVisible(l)); pintaFormula(l); actualizaCarreraPodio();
+      hsRenderAgentScope(listaCompletaCache); pintaPodio(l.slice(0, 3), l); pintaTabla(listaVisible(l)); pintaFormula(l); actualizaCarreraPodio();
       if (cambioLider && sonando) fanfarriaPodio();   // récord batido
     }).finally(function () { refrescando = false; });
   }
