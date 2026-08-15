@@ -98,17 +98,23 @@ test("el marcador diario suma objetivos, ventanas y misiones del día de Madrid"
   assert.equal(rosa.window_points,16);
   assert.equal(rosa.missions,3,"cuentan las dos puertas: bandeja de encargos Y ventana de decisión");
   assert.equal(rosa.mission_points,120);
+  assert.equal(rosa.yesterday_points,88,"ayer conserva la misma fórmula visible: 1 ventana + 2 misiones");
+  assert.equal(rosa.day_comparison,"sube");
   assert.ok(!d.traceability.unlinked.some(x=>x.id==="FLT-5"),"cerrar hoy una misión iniciada ayer no vuelve a puntuar ni entra en la traza diaria");
 
   const oraculo=d.scores.find(s=>s.agent==="Oráculo");
   assert.equal(oraculo.objectives,2,"solo los objetivos creados hoy");
   assert.equal(oraculo.objective_points,40);
+  assert.equal(oraculo.yesterday_points,20);
+  assert.equal(oraculo.day_comparison,"sube");
   assert.equal(oraculo.machine,"","el objetivo no trae máquina: lo funde el marcador");
 
   assert.ok(!d.scores.some(s=>/steve|carlos|tecnico/i.test(s.agent)),"nadie ajeno a la flota entra en la tabla");
   const azul=d.scores.find(s=>s.agent==="TrinityMBAAzul");
   assert.equal(azul.windows,1);
   assert.equal(azul.missions,0);
+  assert.equal(azul.yesterday_points,0,"un agente nuevo hoy se compara contra cero");
+  assert.equal(azul.day_comparison,"sube");
   assert.equal(d.traceability.version,1);
   assert.equal(d.traceability.coverage.objectives,3,"la cobertura conserva también el objetivo no atribuible; scores decide quién puntúa");
   assert.equal(d.traceability.coverage.windows,3);
@@ -127,6 +133,26 @@ test("un día sin actividad devuelve un marcador vacío, no un error", async () 
   assert.deepEqual(d.traceability.chains,[]);
   assert.deepEqual(d.traceability.unlinked,[]);
   assert.equal(d.day,madridDayKey(Date.now()));
+});
+
+test("la comparación diaria distingue subir, bajar e igualar con la fórmula visible", async () => {
+  const {db,env,F}=harness();
+  const ayer=madridDayStart(HOY)-60*60*1000;
+  db.exec(`INSERT INTO decisions(id,machine,agent,question,status,created_at) VALUES
+    ('UP-Y','MacMini','NeoMacMini','ayer','decided',${ayer}),
+    ('UP-H1','MacMini','NeoMacMini','hoy 1','decided',${HOY}),
+    ('UP-H2','MacMini','NeoMacMini','hoy 2','decided',${HOY+1}),
+    ('DOWN-Y1','MacMini','MorfeoMacMini','ayer 1','decided',${ayer}),
+    ('DOWN-Y2','MacMini','MorfeoMacMini','ayer 2','decided',${ayer+1}),
+    ('DOWN-H','MacMini','MorfeoMacMini','hoy','decided',${HOY}),
+    ('SAME-Y','MacMini','TrinityMacMini','ayer','decided',${ayer}),
+    ('SAME-H','MacMini','TrinityMacMini','hoy','decided',${HOY})`);
+  const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
+  assert.deepEqual(d.scores.map(row=>[row.agent,row.window_points,row.yesterday_points,row.day_comparison]).sort(),[
+    ["MorfeoMacMini",8,16,"baja"],
+    ["NeoMacMini",16,8,"sube"],
+    ["TrinityMacMini",8,8,"igual"]
+  ]);
 });
 
 test("FORMACION atribuye sólo la ventana al agente rotatorio, nunca a Carlos ni Smith", async () => {

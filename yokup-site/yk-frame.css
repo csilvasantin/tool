@@ -209,6 +209,9 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
   background:rgba(120,243,255,.10); outline:none; color:var(--yk-hi);
 }
 .yk-submenu a b{ font-weight:700; font-variant-numeric:tabular-nums; color:var(--yk-mut) }
+.yk-submenu .yk-sub-score.sube{ color:#88ffaa; text-shadow:0 0 8px rgba(136,255,170,.28) }
+.yk-submenu .yk-sub-score.baja{ color:#ff7f87; text-shadow:0 0 8px rgba(255,127,135,.25) }
+.yk-submenu .yk-sub-score.igual{ color:#ffd45e; text-shadow:0 0 8px rgba(255,212,94,.24) }
 .yk-submenu .yk-sub-espera{ padding:5px 8px; color:var(--yk-mut) }
 .yk-navpop.on{ opacity:1; transform:translateY(0) }
 .yk-navpop .yk-pop-h{

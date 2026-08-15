@@ -681,7 +681,7 @@
   // que es donde viven la evolución y las series. Los datos se piden al ABRIR
   // el submenú, nunca al cargar la página —un submenú no puede costarle una
   // llamada a cada página del site—, y se guardan 60 s en sessionStorage.
-  var HS_SUB_TTL_MS = 60000, HS_SUB_KEY = "yokup.hs.submenu.v1";
+  var HS_SUB_TTL_MS = 60000, HS_SUB_KEY = "yokup.hs.submenu.v2";
   var _hsSub = null, _hsSubClose = null;
   function hsSubTop() {
     try {
@@ -693,7 +693,9 @@
       .then(function (d) {
         var top = (d && d.scores || []).map(function (s) {
           return { agent: String(s.agent || ""),
-            pts: (Number(s.objective_points) || 0) + (Number(s.window_points) || 0) + (Number(s.mission_points) || 0) };
+            pts: (Number(s.objective_points) || 0) + (Number(s.window_points) || 0) + (Number(s.mission_points) || 0),
+            ayer: Number(s.yesterday_points) || 0,
+            comparacion: ["sube", "baja", "igual"].indexOf(s.day_comparison) >= 0 ? s.day_comparison : "igual" };
         }).filter(function (s) { return s.agent; })
           .sort(function (a, b) { return b.pts - a.pts; }).slice(0, 3);
         try { sessionStorage.setItem(HS_SUB_KEY, JSON.stringify({ at: Date.now(), top: top })); } catch (_) {}
@@ -711,9 +713,18 @@
     _hsSub.addEventListener("mouseleave", hsSubHideSoon);
     return _hsSub;
   }
-  function hsSubRow(href, texto, cifra) {
+  function hsSubRow(href, texto, cifra, comparacion, ayer) {
+    var dato = "";
+    if (cifra != null) {
+      var estado = ["sube", "baja", "igual"].indexOf(comparacion) >= 0 ? comparacion : "igual";
+      var simbolo = estado === "sube" ? "▲" : estado === "baja" ? "▼" : "=";
+      var lectura = estado === "sube" ? "superior a ayer" : estado === "baja" ? "inferior a ayer" : "igual que ayer";
+      dato = '<b class="yk-sub-score ' + estado + '" title="Ayer: ' + esc(String(Number(ayer) || 0)) +
+        ' pt · ' + lectura + '" aria-label="' + esc(String(cifra)) + ', ' + lectura + '">' +
+        '<span aria-hidden="true">' + simbolo + '</span> ' + esc(String(cifra)) + "</b>";
+    }
     return '<a role="menuitem" href="' + href + '"><span>' + esc(texto) + "</span>" +
-           (cifra != null ? "<b>" + esc(String(cifra)) + "</b>" : "") + "</a>";
+           dato + "</a>";
   }
   function hsSubShow(a) {
     clearTimeout(_hsSubClose);
@@ -733,7 +744,7 @@
       var medallas = ["🥇", "🥈", "🥉"];
       var filas = (top || []).map(function (s, i) {
         return hsSubRow("/highscoreDetail?agent=" + encodeURIComponent(s.agent),
-          medallas[i] + " " + s.agent, s.pts + " pt");
+          medallas[i] + " " + s.agent, s.pts + " pt", s.comparacion, s.ayer);
       }).join("");
       p.innerHTML = '<div class="yk-sub-h">HIGHSCORE · HOY</div>' +
         hsSubRow("/highscore", "Marcador", null) +

@@ -25,6 +25,8 @@ test("el submenú lleva al Marcador y al Detalle de cada puesto del podio", () =
   assert.match(frame, /\/highscoreDetail\?agent=" \+ encodeURIComponent\(s\.agent\)/);
   // El podio se recorta a tres y se ordena por puntos totales de las tres patas.
   assert.match(frame, /objective_points[\s\S]*?window_points[\s\S]*?mission_points/);
+  assert.match(frame, /yesterday_points/);
+  assert.match(frame, /day_comparison/);
   assert.match(frame, /\.slice\(0, 3\)/);
 });
 
@@ -49,4 +51,9 @@ test("el CSS del submenú existe, sus filas son enlaces y solo se toca cuando es
   assert.match(css, /\.yk-submenu\.on\{[\s\S]*?pointer-events:auto/);
   assert.match(css, /\.yk-submenu a\{/);
   assert.match(css, /\.yk-submenu a:hover, \.yk-submenu a:focus-visible\{/);
+  assert.match(css, /\.yk-submenu \.yk-sub-score\.sube\{ color:#88ffaa/);
+  assert.match(css, /\.yk-submenu \.yk-sub-score\.baja\{ color:#ff7f87/);
+  assert.match(css, /\.yk-submenu \.yk-sub-score\.igual\{ color:#ffd45e/);
+  assert.match(frame, /simbolo = estado === "sube" \? "▲" : estado === "baja" \? "▼" : "="/,
+    "la comparación no depende solamente del color");
 });

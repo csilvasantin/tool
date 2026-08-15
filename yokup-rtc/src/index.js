@@ -7261,6 +7261,12 @@ __name(cliMisionTexto, "cliMisionTexto");
 
 async function highscoreDaily(env) {
   const ahora = Date.now(), inicio = madridDayStart(ahora), fin = madridDayStart(inicio + 36 * 60 * 60 * 1e3);
+  // La comparación del podio usa el MISMO marcador visible (objetivos +
+  // ventanas + misiones), no `metrics.points`, que también contiene tareas.
+  // Mezclar ambas fórmulas haría que un 360 de hoy se comparase con un total de
+  // ayer que el usuario nunca vio. El comienzo se calcula como día de Madrid,
+  // no restando 24 h, para respetar los cambios de horario.
+  const ayerInicio = madridDayStart(inicio - 1);
   const acc = /* @__PURE__ */ new Map();
   const fila = (agent, machine) => {
     const a = String(agent || "").trim();
@@ -7313,8 +7319,24 @@ async function highscoreDaily(env) {
     const f = fila(r.assignee, r.loc);
     if (f) { f.missions += Number(r.c) || 0; f.mission_points += (Number(r.c) || 0) * HIGHSCORE_WEIGHTS.mission; }
   }
-  const traceability = await highscoreTraceability(env, inicio, fin, ahora);
+  const [traceability, ayerMetricas] = await Promise.all([
+    highscoreTraceability(env, inicio, fin, ahora),
+    highscorePeriodMetrics(env, ayerInicio, inicio)
+  ]);
   const scores = [...acc.values()];
+  const agentKey = (agent) => String(agent || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "");
+  for (const score of scores) {
+    const ayer = ayerMetricas.get(agentKey(score.agent));
+    const yesterdayPoints = ayer ?
+      (Number(ayer.objectives) || 0) * HIGHSCORE_WEIGHTS.objective +
+      (Number(ayer.windows) || 0) * HIGHSCORE_WEIGHTS.window +
+      (Number(ayer.missions) || 0) * HIGHSCORE_WEIGHTS.mission : 0;
+    const todayPoints = (Number(score.objective_points) || 0) +
+      (Number(score.window_points) || 0) + (Number(score.mission_points) || 0);
+    score.yesterday_points = yesterdayPoints;
+    score.day_comparison = todayPoints > yesterdayPoints ? "sube" : todayPoints < yesterdayPoints ? "baja" : "igual";
+  }
   const current = await highscoreCurrentTotals(env, scores, inicio, fin);
   const legacyHourly = await highscoreHourlyTrend(env, current, ahora);
   const hourly = await highscoreHourlyContract(env, legacyHourly, ahora, inicio, fin);
