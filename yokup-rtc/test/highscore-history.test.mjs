@@ -36,7 +36,7 @@ function harness(){
     grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_WORK_STARTED_SQL"),grabVar("HIGHSCORE_MISSION_PROGRESS_SQL"),
     grabVar("HIGHSCORE_PERSONAS"),grabVar("AGENT_SOURCE_SQL_T"),grabVar("MISSION_SCOPE_SQL_T"),
     grabVar("HIGHSCORE_HISTORY_PERIODS"),grab("highscoreAgent"),grab("madridHourKey"),grab("highscoreNaturalPeriods"),
-    grab("highscoreHistoryRange"),grab("highscoreHistoryDayKeys"),grab("highscoreComparisonAxis"),grab("highscoreCanonicalHistoryFamily"),grab("highscoreProjectHistory"),grab("highscoreHistory")
+    grab("highscoreHistoryRange"),grab("highscoreHistoryDayKeys"),grab("highscoreComparisonAxis"),grab("highscoreCanonicalHistoryFamily"),grab("highscoreProjectHistory"),grab("highscoreDailyRows"),grab("highscoreHistoryPayload"),grab("highscoreHistory")
   ].join("\n"),context);
   return {db,env:{DB},F:context};
 }

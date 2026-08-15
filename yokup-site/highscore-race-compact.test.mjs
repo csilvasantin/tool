@@ -50,9 +50,10 @@ test("READY SET GO vive una sola vez fuera de los carriles y centrado por geomet
   assert.match(html, /READY[\s\S]*SET[\s\S]*GO/);
 });
 
-test("HIGHSCORE vive en una banda propia sobre todos los carriles", () => {
+test("la banda vive por sí sola y encabeza todos los carriles", () => {
   assert.match(cssRule(".score-divider"), /display:flex[^}]*align-items:center[^}]*width:100%[^}]*border-top:[^}]*border-bottom:/);
-  assert.ok(html.indexOf('id="refreshRace"') < html.indexOf('id="scoreDivider"'));
+  // Invertido el 15-ago-2026: la banda encabeza la página y la carrera va debajo.
+  assert.ok(html.indexOf('id="scoreDivider"') < html.indexOf('id="refreshRace"'));
   assert.match(cssRule(".sonido"), /width:15px[^}]*height:15px[^}]*margin:0/);
 });
 

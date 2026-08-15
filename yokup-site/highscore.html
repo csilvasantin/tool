@@ -74,6 +74,15 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   text-shadow:inherit;border-radius:5px;transition:color .16s,text-shadow .16s,transform .16s}
 .podium-toggle:hover,.podium-toggle:focus-visible{color:var(--ink);text-shadow:3px 3px 0 #0a4a58,0 0 12px rgba(120,243,255,.5)}
 .podium-toggle:focus-visible{outline:2px solid var(--brand);outline-offset:5px}
+/* RANKING es hermano de HIGHSCORE pero no es el titular de la sección: mismo
+   gesto, un punto por debajo en peso, para que la jerarquía se lea sin leer.
+   Deshabilitado cuando no hay nada que desplegar (5 agentes o menos): un botón
+   que no puede hacer nada no debe parecer que puede. */
+.ranking-toggle{font-size:.62em;opacity:.72;letter-spacing:.16em}
+.ranking-toggle:hover,.ranking-toggle:focus-visible{opacity:1}
+.ranking-toggle.on{opacity:1;color:var(--brand)}
+.ranking-toggle:disabled{opacity:.28;cursor:default;text-shadow:none}
+.ranking-toggle:disabled:hover{color:inherit;text-shadow:none}
 .podium-toggle[aria-expanded="true"]{color:var(--accent);transform:translateY(1px);
   text-shadow:3px 3px 0 #5a4310,0 0 12px rgba(255,216,102,.42)}
 
@@ -115,6 +124,43 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .podio-total .pts{color:var(--brand)}
 .podio-total .tot-rot{font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
   color:var(--mut);text-align:center;line-height:1.3}
+.podio-total{cursor:pointer;font:inherit;color:inherit;text-align:center}
+.podio-total:hover,.podio-total:focus-visible{border-color:var(--brand);outline:none;
+  box-shadow:0 7px 22px rgba(0,0,0,.5),0 0 0 2px var(--brand)}
+.podio-total .tot-mas{font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.podio-total:hover .tot-mas,.podio-total:focus-visible .tot-mas{color:var(--brand)}
+
+/* LOS 30 DÍAS DE LA FLOTA. Panel modal en vez de un bloque más en la página: la
+   pregunta «¿rendimos más cada día?» se hace de vez en cuando, y ocupar sitio
+   permanente para responderla empujaría hacia abajo lo que sí se mira siempre. */
+.dias-mod{position:fixed;inset:0;background:rgba(2,8,13,.82);backdrop-filter:blur(4px);
+  display:none;place-items:center;padding:20px;z-index:80}
+.dias-mod.on{display:grid}
+.dias-box{background:var(--card,#0a1620);border:1px solid rgba(120,243,255,.34);border-radius:16px;
+  padding:22px 24px 18px;width:min(760px,100%);max-height:90vh;overflow:auto}
+.dias-box h2{font-size:19px;margin-bottom:3px}
+.dias-sub{font-size:13px;color:var(--mut);margin-bottom:16px}
+/* El veredicto va ARRIBA y en palabras. La gráfica lo sostiene; no lo sustituye:
+   quien mira treinta barras a ojo no sabe si sube, cree que sabe. */
+.dias-veredicto{border:1px solid var(--line,rgba(120,243,255,.16));border-left-width:3px;border-radius:9px;
+  padding:11px 14px;margin-bottom:16px;font-size:14.5px;line-height:1.5}
+.dias-veredicto.sube{border-left-color:var(--good,#88ffaa)}
+.dias-veredicto.baja{border-left-color:var(--warn,#ff8866)}
+.dias-veredicto.igual{border-left-color:var(--accent,#ffd866)}
+.dias-veredicto.sin-base{border-left-color:var(--dim,#4d7a88);color:var(--mut)}
+.dias-veredicto b{font-size:17px}
+.dias-graf{width:100%;height:auto;display:block}
+.dias-graf .barra{fill:var(--brand,#78f3ff);opacity:.62}
+.dias-graf .barra.hoy{opacity:1;fill:var(--accent,#ffd866)}
+/* Los días anteriores al primero con actividad NO son días flojos: son días en
+   los que esto no existía. Se rayan para que la curva no se apunte un mérito. */
+.dias-graf .previo{fill:var(--dim,#4d7a88);opacity:.18}
+.dias-graf .eje{stroke:rgba(120,243,255,.18);stroke-width:1}
+.dias-graf text{fill:var(--dim,#4d7a88);font-family:var(--mono,monospace);font-size:9px}
+.dias-leyenda{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono,monospace);
+  font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.dias-cerrar{margin-top:16px}
+@media (max-width:560px){.dias-box{padding:16px 14px}.dias-veredicto{font-size:13px}}
 @media (max-width:620px){.podio-total{left:4%;top:4%;width:30%;padding:5px 7px}
   .podio-total .pts{font-size:14px}.podio-total .tot-rot{font-size:8px}}
 .nom{font-size:12px;font-weight:800;letter-spacing:.03em;text-align:center;word-break:break-word;padding:0}
@@ -718,6 +764,20 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 </div>
 
 <div class="wrap" id="pagina" style="visibility:hidden">
+  <!-- EL DIVISOR VA ARRIBA (Carlos, 15-ago-2026). Estaba DEBAJO de la carrera, y
+       ahí no dividía nada: quien entraba se encontraba primero los corredores y
+       el rótulo de la sección aparecía a media página, cuando ya no hacía falta
+       que le dijeran dónde estaba. Arriba, pegado al menú, encabeza la página y
+       deja sus dos mandos a mano antes de mirar nada.
+       Son DOS botones y cada uno hace UNA cosa: HIGHSCORE abre el podio (lo que
+       ya hacía, aunque el rótulo no lo dijera) y RANKING gobierna la tabla. -->
+  <h1 class="score-divider" id="scoreDivider"><button class="podium-toggle" id="podiumToggle" type="button" aria-expanded="false" aria-controls="podio"
+    title="Mostrar podio">HIGHSCORE</button>
+    <button class="podium-toggle ranking-toggle" id="rankingToggle" type="button" aria-expanded="false" aria-controls="rankingScroll"
+      title="Ver la tabla completa">RANKING</button>
+    <button class="sonido" id="btnSonido" type="button" aria-pressed="false" title="Activar sonido">
+      <span aria-hidden="true">♪</span><span class="sr-only" id="estadoSonido">Sonido desactivado</span>
+    </button></h1>
   <header class="cab">
     <div class="refresh-race" id="refreshRace" role="button" tabindex="0" aria-pressed="false"
       title="Pausar carrera para leer las misiones" aria-label="Carrera de puntuación: 24 segundos hasta la meta. Pulsa para parar la carrera.">
@@ -739,12 +799,17 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       <span class="sr-only" id="refreshCount">24 segundos</span>
     </div>
   </header>
-  <h1 class="score-divider" id="scoreDivider"><button class="podium-toggle" id="podiumToggle" type="button" aria-expanded="false" aria-controls="podio"
-    title="Mostrar podio">HIGHSCORE</button>
-    <button class="sonido" id="btnSonido" type="button" aria-pressed="false" title="Activar sonido">
-      <span aria-hidden="true">♪</span><span class="sr-only" id="estadoSonido">Sonido desactivado</span>
-    </button></h1>
   <div class="podio" id="podio" hidden></div>
+
+  <!-- Los 30 días de TODA la flota. Se abre desde el sumador del podio. -->
+  <div class="dias-mod" id="diasMod" role="dialog" aria-modal="true" aria-labelledby="diasTit">
+    <div class="dias-box">
+      <h2 id="diasTit">Últimos 30 días · toda la flota</h2>
+      <p class="dias-sub" id="diasSub">Cargando…</p>
+      <div id="diasCuerpo"></div>
+      <button class="dias-cerrar" id="diasCerrar" type="button">Cerrar</button>
+    </div>
+  </div>
   <div class="table-scroll" id="rankingScroll">
     <table class="tabla" id="rankingTable">
       <colgroup>
@@ -1703,7 +1768,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     });
     var rotulo = lista.length + (lista.length === 1 ? " agente" : " agentes");
     var titulo = "Toda la flota: " + hora + " puntos en esta hora y " + dia + " hoy, sumando " + rotulo;
-    return '<div class="podio-total" role="text" aria-label="' + esc(titulo) + '" title="' + esc(titulo) + '">' +
+    return '<button type="button" class="podio-total" id="podioTotal" aria-label="' + esc(titulo) + ' — pulsa para ver los últimos 30 días" title="' + esc(titulo) + ' · pulsa para ver los últimos 30 días">' +
       '<div class="pts">' +
         '<span class="score-number score-hour ' + (hora > 0 ? "hour-positive" : "hour-zero") + '">' + esc(hora) + '</span>' +
         '<span class="score-period" aria-hidden="true">hora</span>' +
@@ -1711,8 +1776,95 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<span class="score-number score-day">' + esc(dia) + '</span>' +
         '<span class="score-period" aria-hidden="true">hoy</span>' +
       '</div>' +
-      '<div class="tot-rot">toda la flota<br>' + esc(rotulo) + '</div></div>';
+      '<div class="tot-rot">toda la flota<br>' + esc(rotulo) + '</div>' +
+      '<div class="tot-mas" aria-hidden="true">30 días ↗</div></button>';
   }
+
+  // ── LOS 30 DÍAS DE LA FLOTA ─────────────────────────────────────────────
+  // Responde a la única pregunta que el marcador diario no puede responder:
+  // ¿el equipo rinde MÁS cada día? Y la responde en palabras antes que en
+  // barras — quien mira treinta barras a ojo no sabe si sube, cree que sabe.
+  var diasCache = null;
+
+  function diasVeredictoHtml(d) {
+    var t = d.trend || {}, r = t.reciente || {}, p = t.previo || {};
+    if (!t.comparable) {
+      // Sin base no se inventa un porcentaje. Decir «+300%» sobre dos días
+      // sueltos no es medir, es adornar.
+      return '<div class="dias-veredicto sin-base">Todavía <b>no hay base</b> para decir si la flota rinde más: ' +
+        'hacen falta al menos 3 días con actividad en cada tramo de 7 y ahora hay ' +
+        esc(r.con_dato || 0) + ' y ' + esc(p.con_dato || 0) + '.</div>';
+    }
+    var pct = Number(t.variacion_pct) || 0, signo = pct > 0 ? "+" : "";
+    var frase = t.direccion === "sube" ? "La flota rinde <b>más</b> que la semana anterior"
+      : t.direccion === "baja" ? "La flota rinde <b>menos</b> que la semana anterior"
+      : "La flota rinde <b>igual</b> que la semana anterior";
+    return '<div class="dias-veredicto ' + esc(t.direccion) + '">' + frase +
+      ': <b>' + signo + esc(pct) + '%</b>.<br>' +
+      'Últimos 7 días ' + esc(r.points || 0) + ' pts (' + esc(r.media || 0) + '/día, ' + esc(r.con_dato || 0) + ' días con actividad) · ' +
+      'los 7 anteriores ' + esc(p.points || 0) + ' pts (' + esc(p.media || 0) + '/día, ' + esc(p.con_dato || 0) + ' días).</div>';
+  }
+
+  function diasGraficoHtml(d) {
+    var dias = (d.evolution && d.evolution.days) || [];
+    if (!dias.length) return '<p class="dias-sub">Sin días que dibujar.</p>';
+    var W = 720, H = 210, base = H - 22, pad = 26;
+    var ancho = (W - pad) / dias.length, barra = Math.max(3, ancho - 3);
+    var tope = Math.max.apply(null, dias.map(function (x) { return Number(x.points) || 0; }).concat([1]));
+    var hoy = d.evolution.end, primero = d.first_day || null;
+    var barras = dias.map(function (x, i) {
+      var v = Number(x.points) || 0, alto = Math.round((v / tope) * (base - 12));
+      var previo = primero && x.day < primero;
+      var y = base - Math.max(v > 0 ? 1 : 0, alto);
+      var cls = previo ? "previo" : x.day === hoy ? "barra hoy" : "barra";
+      var rot = previo ? x.day + " · antes de que hubiera registro" : x.day + " · " + v + " pts";
+      return '<rect class="' + cls + '" x="' + (pad + i * ancho) + '" y="' + (previo ? base - 4 : y) +
+        '" width="' + barra + '" height="' + (previo ? 4 : Math.max(1, base - y)) + '" rx="1">' +
+        '<title>' + esc(rot) + '</title></rect>';
+    }).join("");
+    var etiqueta = function (i) { return dias[i] ? dias[i].day.slice(5) : ""; };
+    return '<svg class="dias-graf" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
+      'aria-label="Puntos por día de los últimos ' + dias.length + ' días. Máximo ' + tope + ' puntos.">' +
+      '<line class="eje" x1="' + pad + '" y1="' + base + '" x2="' + W + '" y2="' + base + '"/>' +
+      '<text x="0" y="14">' + esc(tope) + '</text><text x="0" y="' + base + '">0</text>' +
+      barras +
+      '<text x="' + pad + '" y="' + (base + 14) + '">' + esc(etiqueta(0)) + '</text>' +
+      '<text x="' + (W - 34) + '" y="' + (base + 14) + '">' + esc(etiqueta(dias.length - 1)) + '</text>' +
+      '</svg>' +
+      '<div class="dias-leyenda"><span>■ día con puntos</span><span>■ hoy</span>' +
+      (primero ? '<span>▬ antes del primer registro (' + esc(primero) + ')</span>' : "") + '</div>';
+  }
+
+  function abreDias() {
+    var mod = document.getElementById("diasMod");
+    mod.classList.add("on");
+    document.getElementById("diasCerrar").focus();
+    if (diasCache) return pintaDias(diasCache);
+    document.getElementById("diasSub").textContent = "Cargando los últimos 30 días…";
+    document.getElementById("diasCuerpo").innerHTML = "";
+    fetch(YK + "/highscore/history?scope=global", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok) throw new Error(d && d.error || "sin datos");
+        diasCache = d; pintaDias(d);
+      })
+      .catch(function (e) {
+        // Se dice que no se pudo leer. Un panel vacío se leería como «la flota
+        // no ha hecho nada en un mes».
+        document.getElementById("diasSub").textContent = "No se pudo leer el histórico: " + String(e.message || e);
+        document.getElementById("diasCuerpo").innerHTML = "";
+      });
+  }
+
+  function pintaDias(d) {
+    var total = d.periods && d.periods.month ? d.periods.month.points : 0;
+    document.getElementById("diasSub").textContent =
+      "Del " + (d.evolution.start || "?") + " al " + (d.evolution.end || "?") +
+      " · " + total + " puntos este mes · una tarea se cuenta una vez aunque la toquen dos agentes";
+    document.getElementById("diasCuerpo").innerHTML = diasVeredictoHtml(d) + diasGraficoHtml(d);
+  }
+
+  function cierraDias() { document.getElementById("diasMod").classList.remove("on"); }
 
   function pintaPodio(top, todos) {
     var orden = [top[1], top[0], top[2]], clases = ["p2", "p1", "p3"], medallas = ["2", "1", "3"];
@@ -2833,7 +2985,43 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     });
   }
 
-  function pintaTabla(lista) {
+  // LA TABLA NACE COMPACTA (Carlos, 15-ago-2026): las cinco primeras filas y
+  // nada más. Con veintitantos agentes, quien entraba se comía una tabla que no
+  // cabía en pantalla para enterarse de lo único que se mira de un vistazo, que
+  // es quién va delante. El resto sigue a un clic en RANKING.
+  //
+  // Se recorta al PINTAR y no con CSS (un display:none dejaría veinte filas
+  // construidas y ordenándose para no verse) pero la lista completa se guarda,
+  // así que desplegar no vuelve a pedir datos ni reordena nada.
+  var RANKING_COMPACTO_FILAS = 5;
+  var rankingCompacto = true, rankingListaCache = [];
+
+  function rankingRecorta(lista) {
+    return rankingCompacto ? lista.slice(0, RANKING_COMPACTO_FILAS) : lista;
+  }
+
+  function pintaRankingToggle(total) {
+    var boton = document.getElementById("rankingToggle");
+    if (!boton) return;
+    // Con cinco agentes o menos no hay nada que desplegar: el botón se apaga en
+    // vez de mentir con un «ver los 4» que no cambiaría nada.
+    var sobran = Math.max(0, total - RANKING_COMPACTO_FILAS);
+    boton.disabled = !sobran;
+    boton.setAttribute("aria-expanded", String(!rankingCompacto));
+    boton.title = !sobran ? "No hay más agentes que mostrar"
+      : rankingCompacto ? "Ver los " + total + " agentes" : "Ver solo los " + RANKING_COMPACTO_FILAS + " primeros";
+    boton.classList.toggle("on", !rankingCompacto);
+  }
+
+  function alternaRanking() {
+    rankingCompacto = !rankingCompacto;
+    pintaTabla(rankingListaCache);
+  }
+
+  function pintaTabla(listaEntera) {
+    rankingListaCache = Array.isArray(listaEntera) ? listaEntera : [];
+    pintaRankingToggle(rankingListaCache.length);
+    var lista = rankingRecorta(rankingListaCache);
     document.getElementById("filas").innerHTML = lista.map(function (a, i) {
       var alterna = i % 2 ? " alt" : "", progressId = "score-progress-" + hsAgentKey(a.agente);
       return '<tr class="score-main' + alterna + '"><td class="n">' + posicionHtml(a, a.posicion || i + 1) + '</td>' +
@@ -3993,6 +4181,20 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     pausaOReiniciaCarrera();
   });
   document.getElementById("podiumToggle").addEventListener("click", alternaPodio);
+  document.getElementById("rankingToggle").addEventListener("click", alternaRanking);
+  // El sumador se pinta y repinta con el podio, así que el manejador se
+  // delega en el contenedor en vez de atarlo al nodo: si se atara, el primer
+  // repintado del podio se llevaría el clic por delante sin avisar.
+  document.getElementById("podio").addEventListener("click", function (e) {
+    if (e.target && e.target.closest && e.target.closest("#podioTotal")) abreDias();
+  });
+  document.getElementById("diasCerrar").addEventListener("click", cierraDias);
+  document.getElementById("diasMod").addEventListener("click", function (e) {
+    if (e.target === document.getElementById("diasMod")) cierraDias();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && document.getElementById("diasMod").classList.contains("on")) cierraDias();
+  });
   window.setInterval(actualizaRelojesCarrera, 1000);
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) return;

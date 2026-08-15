@@ -6568,15 +6568,11 @@ __name(highscoreProjectHistory, "highscoreProjectHistory");
 // contrato A/A1..A3, B/B1..B3 y C/C1..C3: una única representante —la más reciente—
 // por misión, familia y día. Así semana/mes son la suma de días canónicos, no una
 // extrapolación del total actual ni una serie reconstruida en el navegador.
-async function highscoreHistory(env, requestedAgent, ahora = Date.now()) {
-  const parsed = parseAgentIdentity(requestedAgent), suffix = parsed.suffix;
-  if (parsed.role !== "main" || !suffix || !String(parsed.persona || "").trim()) {
-    return { ok:false, error:"agent debe ser una identidad principal con apellido de equipo" };
-  }
-  const wanted = reportAgentFamily(requestedAgent, "");
-  if (!wanted || !wanted.family_key || wanted.family_key.startsWith("external:")) {
-    return { ok:false, error:"agent no pertenece a una familia canónica" };
-  }
+// El recuento diario, con un filtro de pertenencia inyectado. Existe para que el
+// histórico de UN agente y el de TODA la flota salgan del mismo sitio: si cada
+// uno sumara por su cuenta acabarían diciendo cosas distintas del mismo día, y
+// entonces la curva que se mira para decidir no vale para decidir nada.
+async function highscoreDailyRows(env, pertenece, ahora) {
   const periods = highscoreNaturalPeriods(ahora), fin = Math.min(periods.day_end, ahora + 1);
   const rows = async (sql, ...binds) => ((await env.DB.prepare(sql).bind(...binds).all()).results || []);
   const [ideas, decisions, missions, tasks] = await Promise.all([
@@ -6591,10 +6587,7 @@ async function highscoreHistory(env, requestedAgent, ahora = Date.now()) {
       "AND m.updated_at>0 AND m.updated_at<? AND m.status IN ('in_progress','done')", fin)
   ]);
   const daily = new Map();
-  const familyMatches = (agent, machine) => {
-    const family = reportAgentFamily(agent, machine);
-    return !!family && family.family_key === wanted.family_key;
-  };
+  const familyMatches = pertenece;
   const bucket = (at) => {
     const stamp = Number(at) || 0;
     if (stamp <= 0 || stamp > ahora) return null;
@@ -6632,6 +6625,12 @@ async function highscoreHistory(env, requestedAgent, ahora = Date.now()) {
     (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0));
 
   const allDays = [...daily.values()].sort((a, b) => a.day.localeCompare(b.day));
+  return { periods, allDays };
+}
+__name(highscoreDailyRows, "highscoreDailyRows");
+
+// La forma pública del histórico, común a un agente y a la flota entera.
+function highscoreHistoryPayload(periods, allDays, extra) {
   const sum = (rows) => rows.reduce((total, row) => ({
     objectives:total.objectives + row.objectives, windows:total.windows + row.windows,
     missions:total.missions + row.missions, tasks:total.tasks + row.tasks, points:total.points + row.points
@@ -6647,11 +6646,70 @@ async function highscoreHistory(env, requestedAgent, ahora = Date.now()) {
     evolution.push(row ? { ...row } : { day, objectives:0, windows:0, missions:0, tasks:0, points:0 });
   }
   const sampledAt = Date.now();
-  return { ok:true, agent:wanted.family_name, timezone:"Europe/Madrid", sampled_at:sampledAt, generated_at:sampledAt,
+  return Object.assign({ ok:true, timezone:"Europe/Madrid", sampled_at:sampledAt, generated_at:sampledAt,
     periods:{ week:{ start:periods.week_key, end:periods.today, ...sum(weekRows) },
       month:{ start:periods.month_key, end:periods.today, ...sum(monthRows) },
       total:{ start:allDays.length ? allDays[0].day : null, end:periods.today, ...sum(allDays) } },
-    evolution:{ start:evolutionKey, end:periods.today, days:evolution } };
+    evolution:{ start:evolutionKey, end:periods.today, days:evolution } }, extra || {});
+}
+__name(highscoreHistoryPayload, "highscoreHistoryPayload");
+
+// EL HISTÓRICO DE TODA LA FLOTA. Misma agregación que el de un agente, sin
+// filtro de familia. Existe para responder a una pregunta que hasta ahora no
+// tenía respuesta en ninguna pantalla: ¿el equipo rinde más cada día?
+//
+// Dos honestidades que el payload lleva encima, porque sin ellas la curva
+// engaña sola:
+//  · `first_day` es el primer día con actividad REAL. Los días anteriores a que
+//    esto existiera salen a cero como cualquier otro, y una gráfica que empieza
+//    en cero y sube dibuja un progreso que nadie hizo: es el propio sistema
+//    naciendo. Quien pinte la curva tiene que poder sombrear esa zona.
+//  · `trend` compara los últimos 7 días con los 7 anteriores y dice cuántos días
+//    de cada tramo tienen dato. Un «+300%» calculado sobre dos días sueltos no
+//    es una tendencia, es ruido con signo.
+//
+// Un apunte de recuento: una tarea se cuenta UNA vez aunque la toquen dos
+// agentes (la deduplicación es por día+misión+letra). Por eso el total global
+// puede ser menor que la suma de los históricos individuales — mide el trabajo
+// hecho, no la suma de atribuciones.
+async function highscoreFleetHistory(env, ahora = Date.now()) {
+  const { periods, allDays } = await highscoreDailyRows(env, () => true, ahora);
+  const payload = highscoreHistoryPayload(periods, allDays, { scope: "global", agent: null });
+  const dias = payload.evolution.days;
+  const tramo = (desde, hasta) => {
+    const filas = dias.slice(desde, hasta);
+    const puntos = filas.reduce((t, r) => t + (Number(r.points) || 0), 0);
+    const conDato = filas.filter((r) => (Number(r.points) || 0) > 0).length;
+    return { dias: filas.length, con_dato: conDato, points: puntos,
+      media: filas.length ? Math.round((puntos / filas.length) * 10) / 10 : 0 };
+  };
+  const reciente = tramo(dias.length - 7, dias.length);
+  const previo = tramo(dias.length - 14, dias.length - 7);
+  // Sin base con la que comparar no se inventa un porcentaje: se dice que no lo hay.
+  const comparable = previo.con_dato >= 3 && reciente.con_dato >= 3 && previo.points > 0;
+  payload.first_day = allDays.length ? allDays[0].day : null;
+  payload.trend = { reciente, previo, comparable,
+    variacion_pct: comparable ? Math.round(((reciente.points - previo.points) / previo.points) * 1000) / 10 : null,
+    direccion: !comparable ? "sin-base"
+      : reciente.points > previo.points ? "sube" : reciente.points < previo.points ? "baja" : "igual" };
+  return payload;
+}
+__name(highscoreFleetHistory, "highscoreFleetHistory");
+
+async function highscoreHistory(env, requestedAgent, ahora = Date.now()) {
+  const parsed = parseAgentIdentity(requestedAgent), suffix = parsed.suffix;
+  if (parsed.role !== "main" || !suffix || !String(parsed.persona || "").trim()) {
+    return { ok:false, error:"agent debe ser una identidad principal con apellido de equipo" };
+  }
+  const wanted = reportAgentFamily(requestedAgent, "");
+  if (!wanted || !wanted.family_key || wanted.family_key.startsWith("external:")) {
+    return { ok:false, error:"agent no pertenece a una familia canónica" };
+  }
+  const { periods, allDays } = await highscoreDailyRows(env, (agent, machine) => {
+    const family = reportAgentFamily(agent, machine);
+    return !!family && family.family_key === wanted.family_key;
+  }, ahora);
+  return highscoreHistoryPayload(periods, allDays, { agent:wanted.family_name });
 }
 __name(highscoreHistory, "highscoreHistory");
 
@@ -7756,6 +7814,12 @@ var worker_app = {
       await ensureSchema(env);
       await ensureIdeasSchema(env);
       const agent = String(url.searchParams.get("agent") || "").trim();
+      // scope=global responde por TODA la flota y no lleva agente. Va por el
+      // mismo endpoint a propósito: es el mismo dato con otro alcance, y tener
+      // dos rutas para la misma pregunta acaba en dos recuentos distintos.
+      if (String(url.searchParams.get("scope") || "").toLowerCase() === "global") {
+        return json(await highscoreFleetHistory(env));
+      }
       if (!agent) return json({ ok:false, error:"agent requerido" }, 400);
       const projectId = String(url.searchParams.get("project_id") || "").trim();
       const history = projectId

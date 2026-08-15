@@ -106,5 +106,5 @@ test("filtrar agentes renumera y el repintado vuelve a contraer sus detalles",()
   ]);
   assert.deepEqual(filtered.map(row=>[row.agente,row.posicion]),[["NeoMacMini",1]]);
   assert.match(source,/function pintaVistaFiltrada\(\)[\s\S]*pintaTabla\(listaVisible\(listaCache\)\)/);
-  assert.match(source,/function pintaTabla\(lista\)[\s\S]*progressId = "score-progress-" \+ hsAgentKey\(a\.agente\)[\s\S]*id="' \+ esc\(progressId\) \+ '" hidden>/);
+  assert.match(source,/function pintaTabla\(listaEntera\)[\s\S]*progressId = "score-progress-" \+ hsAgentKey\(a\.agente\)[\s\S]*id="' \+ esc\(progressId\) \+ '" hidden>/);
 });

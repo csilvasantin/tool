@@ -74,7 +74,9 @@ test("la imagen conserva las proporciones 16:9 entregadas", () => {
 });
 
 test("la cabecera compacta conserva el sonido y elimina reloj y subtítulo", () => {
-  assert.match(html, />HIGHSCORE<\/button>\s*<button class="sonido"/);
+  // Entre HIGHSCORE y el sonido entra ahora RANKING (Carlos, 15-ago-2026):
+  // los tres mandos comparten la banda y el de sonido sigue siendo el último.
+  assert.match(html, />HIGHSCORE<\/button>\s*<button class="podium-toggle ranking-toggle"[\s\S]*?>RANKING<\/button>\s*<button class="sonido"/);
   assert.doesNotMatch(html, /class="cab-tools"/);
   assert.match(html, /class="sonido"[^>]*aria-pressed="false"/);
   assert.doesNotMatch(html, /<time class="reloj"/);
@@ -108,7 +110,8 @@ test("la vida hace latir el propio número de posición y no añade un punto", (
 });
 
 test("todos los atletas pixelados recorren la línea y actualizan el marcador tras sprint y celebración", () => {
-  assert.match(html, /<header class="cab">[\s\S]*class="refresh-race"[\s\S]*<\/header>\s*<h1 class="score-divider"[\s\S]*>HIGHSCORE<\/button>\s*<button class="sonido"/);
+  // La banda encabeza la página y la carrera va debajo (Carlos, 15-ago-2026).
+  assert.match(html, /<h1 class="score-divider"[\s\S]*>HIGHSCORE<\/button>[\s\S]*?<\/h1>\s*<header class="cab">[\s\S]*class="refresh-race"[\s\S]*<\/header>/);
   assert.match(html, /header\.cab\{[^}]*display:block/);
   assert.match(html, /\.score-divider\{[^}]*display:flex[^}]*align-items:center[^}]*width:100%/);
   assert.match(html, /\.sonido\{[^}]*width:15px[^}]*height:15px[^}]*margin:0[^}]*font-size:7px/);
