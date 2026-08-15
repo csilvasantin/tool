@@ -12,6 +12,7 @@ import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, 
 import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_NOVELTY_INSERT_SQL, MISSION_NOVELTY_RECENT_SQL, MISSION_NOVELTY_TABLE_SQL, missionNoveltyContract, missionNoveltyEventKey } from "./mission-novelty.js";
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
 import { resolveIdeaAuthor } from "./idea-author.js";
+import { CARBON_BEAT_WINDOW_MS, CARBON_MEMBERS_INDEX_SQL, CARBON_MEMBERS_TABLE_SQL, carbonBeat, carbonRow, carbonSeedSql, normalizeCarbonMember } from "./carbon-members.js";
 import {
   CLI_CATALOGO,
   ackMatchesCommand,
@@ -210,6 +211,32 @@ var ROSTER = [
   { name: "Sof\xEDa P.", skills: "retail, DOOH", zone: "Bilbao" },
   { name: "Construcciones Oria", skills: "obra, instalaci\xF3n", zone: "Barcelona" }
 ];
+// ROSTER ya NO es la plantilla: es la SEMILLA con la que nace el censo de
+// carbono la primera vez, para que el día del despliegue nada cambie de sitio.
+// A partir de ahí la verdad está en la tabla `carbon_members` y se edita desde
+// /equipo, no editando este fichero y volviendo a desplegar el worker.
+//
+// El orden importa: el reparto de incidencias es `hash(pantalla) % plantilla`, y
+// sembrar por orden alfabético habría movido a cada técnico de pantalla sin que
+// nadie lo pidiera. Por eso el alta lleva `created_at` incremental y la lectura
+// ordena por ahí: la plantilla sembrada conserva EXACTAMENTE el orden del array.
+// Fecha de nacimiento del censo, fija y anterior a cualquier alta real, para que
+// la plantilla sembrada quede SIEMPRE por delante en el ORDER BY created_at y
+// quien se dé de alta mañana no se cuele en medio del reparto.
+var CARBON_ROSTER_SEED_SQL = carbonSeedSql(ROSTER, Date.parse("2026-08-15T00:00:00Z"));
+
+// La plantilla ACTIVA, en el orden en que se dio de alta. Es lo que reparte
+// incidencias y lo que sale por /agents. Si alguien vacía la tabla se cae a
+// ROSTER en vez de dejar las incidencias sin asignar: quedarse sin plantilla no
+// puede significar quedarse sin poder abrir un parte.
+async function carbonRoster(env) {
+  const rows = ((await env.DB.prepare(
+    "SELECT id,name,role,zone,skills,contact,status,created_at,updated_at,last_beat_at,focus,focus_at " +
+    "FROM carbon_members WHERE status='activo' ORDER BY created_at ASC, id ASC").all()).results) || [];
+  return rows.length ? rows : ROSTER.map((t) => Object.assign({ id: "", status: "activo" }, t));
+}
+__name(carbonRoster, "carbonRoster");
+
 function hash(s) {
   let h = 0;
   for (const c of String(s)) h = h * 31 + c.charCodeAt(0) >>> 0;
@@ -377,6 +404,13 @@ async function applySchema(env) {
   // «hoy el proyecto principal de X es Y» y conserva los días anteriores.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS agent_project_declarations (day TEXT NOT NULL, agent_key TEXT NOT NULL, agent TEXT NOT NULL, project_id TEXT NOT NULL, declared_by TEXT, statement TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(day,agent_key))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_apd_project_day ON agent_project_declarations(project_id,day)");
+  // CENSO DE CARBONO. Hasta hoy las personas del equipo eran cinco nombres
+  // escritos a mano en la constante ROSTER de este mismo fichero: sin alta, sin
+  // baja, sin latido y sin forma de comprobar que existen. La tabla las saca del
+  // código y las pone donde ya vive el silicio. Ver src/carbon-members.js.
+  await env.DB.exec(CARBON_MEMBERS_TABLE_SQL);
+  await env.DB.exec(CARBON_MEMBERS_INDEX_SQL);
+  await env.DB.exec(CARBON_ROSTER_SEED_SQL);
   // RESPONSABLE PRINCIPAL del proyecto. Se conserva la columna `owner` para no
   // romper a los clientes históricos, pero el contrato público también lo expone
   // como `primary_responsible`. Si aún no se ha guardado uno, el responsable por
@@ -4623,7 +4657,8 @@ async function createTicket(env, s) {
   if (existing) return existing.id;
   const now = Date.now();
   const id = ("INC-" + now.toString(36).slice(-5) + Math.floor(Math.random() * 36).toString(36)).toUpperCase();
-  const tech = ROSTER[hash(s.screen) % ROSTER.length];
+  const plantilla = await carbonRoster(env);
+  const tech = plantilla[hash(s.screen) % plantilla.length];
   const loc = s.loc || "";
   const triage = await aiRun(env, `Eres el copiloto de soporte de Yokup (mantenimiento de pantallas DOOH). Incidencia: la pantalla "${s.screen}"${loc ? " en " + loc : ""} lleva ${s.age || 300} segundos sin se\xF1al de emisi\xF3n (proof-of-play ca\xEDdo). Responde SOLO en espa\xF1ol, \xFAtil y concreto (m\xE1x 55 palabras), EXACTAMENTE en 3 l\xEDneas:
 \u{1F50D} Causa probable: ...
@@ -4667,7 +4702,8 @@ async function createIncident(env, inc) {
   const loc = String((inc && inc.loc) || "").slice(0, 80);
   const prio = ["urgente", "alta", "normal", "baja"].includes(inc && inc.severity) ? inc.severity : "alta";
   const source = String((inc && inc.source) || "external").slice(0, 24);
-  const assignee = (String((inc && inc.assignee) || "").slice(0, 60)) || (ROSTER[hash(resource) % ROSTER.length].name);
+  const plantilla = await carbonRoster(env);
+  const assignee = (String((inc && inc.assignee) || "").slice(0, 60)) || (plantilla[hash(resource) % plantilla.length].name);
   await backfillTodayDisplayRefs(env, now);
   await env.DB.prepare("INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,project_inherited,project_inherited_from,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .bind(id, resource, subject, loc, kind, "open", prio, assignee, source, "", projectContext.project_id, projectContext.project_id, projectContext.inherited ? 1 : 0, projectContext.inherited_from || null, now, now).run();
@@ -7613,6 +7649,99 @@ var worker_app = {
       for (const r of rows) by[r.team] = { text: r.text || "", updated_at: r.updated_at || 0, updated_by: r.updated_by || "" };
       const blank = { text: "", updated_at: 0, updated_by: "" };
       return json({ ok: true, strategy: { atomos: by.atomos || blank, bits: by.bits || blank } });
+    }
+    // ── CARBONO ─────────────────────────────────────────────────────────────
+    // Va por el carril /fleet/* (abierto) por la misma razón que el resto: quien
+    // late es quien trabaja, y obligarle a cruzar el perímetro con la sesión de
+    // Google de Carlos sería pedirle que se haga pasar por él. Editar la ficha
+    // de otra persona sí es gestión, pero el carril ya distingue lo uno de lo
+    // otro para el silicio y no se inventa aquí un perímetro distinto.
+    if (url.pathname === "/fleet/carbon" && req.method === "GET") {
+      await ensureSchema(env);
+      const ahora = Date.now();
+      const rows = ((await env.DB.prepare(
+        "SELECT id,name,role,zone,skills,contact,status,created_at,updated_at,last_beat_at,focus,focus_at " +
+        "FROM carbon_members ORDER BY created_at ASC, id ASC").all()).results) || [];
+      const members = rows.map((r) => carbonRow(r, ahora));
+      const cuenta = { total: members.length, en_turno: 0, ausente: 0, "sin-latido": 0, baja: 0 };
+      for (const m of members) cuenta[m.estado] = (cuenta[m.estado] || 0) + 1;
+      return json({ ok: true, now: ahora, window_ms: CARBON_BEAT_WINDOW_MS, cuenta, members });
+    }
+    if (url.pathname === "/fleet/carbon" && req.method === "POST") {
+      await ensureSchema(env);
+      const body = await req.json().catch(() => ({}));
+      // NO hay borrado duro: los partes ya cerrados apuntan a esta persona por
+      // nombre y borrarla dejaría un histórico firmado por un fantasma. Quien se
+      // va se pone de baja, sale de la plantilla que reparte y sigue explicando
+      // quién hizo lo que hizo.
+      if (body && body.delete === true) {
+        return json({ ok: false, code: "carbon_no_hard_delete",
+          error: "una persona no se borra: se da de baja con status:\"baja\", para no dejar el histórico sin autor" }, 400);
+      }
+      const ahora = Date.now();
+      const normalizado = normalizeCarbonMember(body, ahora);
+      if (!normalizado.ok) return json({ ok: false, code: normalizado.code, error: normalizado.error }, 400);
+      const m = normalizado.member;
+      await env.DB.prepare(
+        "INSERT INTO carbon_members(id,name,role,zone,skills,contact,status,created_at,updated_at,created_by) " +
+        "VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET " +
+        "name=excluded.name, role=excluded.role, zone=excluded.zone, skills=excluded.skills, " +
+        "contact=excluded.contact, status=excluded.status, updated_at=excluded.updated_at"
+      ).bind(m.id, m.name, m.role, m.zone, m.skills, m.contact, m.status, ahora, ahora, m.created_by).run();
+      const fila = await env.DB.prepare("SELECT * FROM carbon_members WHERE id=?").bind(m.id).first();
+      return json({ ok: true, member: carbonRow(fila, ahora) });
+    }
+    if (url.pathname === "/fleet/carbon/beat" && req.method === "POST") {
+      await ensureSchema(env);
+      const parsed = carbonBeat(await req.json().catch(() => ({})));
+      if (!parsed.ok) return json({ ok: false, code: parsed.code, error: parsed.error }, 400);
+      // Un latido de alguien que no está en el censo NO da de alta a nadie: se
+      // dice que no existe. Dejar que un latido cree personas convertiría un
+      // dedazo en plantilla y el censo dejaría de poder creerse.
+      const existe = await env.DB.prepare("SELECT id FROM carbon_members WHERE id=?").bind(parsed.id).first();
+      if (!existe) return json({ ok: false, code: "carbon_unknown",
+        error: "esa persona no está en el censo: dala de alta antes de latir" }, 404);
+      const ahora = Date.now();
+      // focus null = «no toques el foco»: quien pulsa «sigo aquí» sin escribir
+      // nada no puede borrar el «en el tótem de Gràcia» que dejó antes.
+      await env.DB.prepare(
+        "UPDATE carbon_members SET last_beat_at=?, focus=COALESCE(?,focus), " +
+        "focus_at=CASE WHEN ? IS NULL THEN focus_at ELSE ? END WHERE id=?"
+      ).bind(ahora, parsed.focus, parsed.focus, ahora, parsed.id).run();
+      const fila = await env.DB.prepare("SELECT * FROM carbon_members WHERE id=?").bind(parsed.id).first();
+      return json({ ok: true, member: carbonRow(fila, ahora) });
+    }
+    // El equipo COMPLETO en una sola lectura, silicio y carbono con la misma
+    // forma. Existe para que ninguna pantalla tenga que cruzar dos censos por su
+    // cuenta y acabe contando distinto que la de al lado.
+    if (url.pathname === "/fleet/equipo" && req.method === "GET") {
+      await ensureSchema(env);
+      const ahora = Date.now();
+      const rows = ((await env.DB.prepare(
+        "SELECT id,name,role,zone,skills,contact,status,created_at,updated_at,last_beat_at,focus,focus_at " +
+        "FROM carbon_members ORDER BY created_at ASC, id ASC").all()).results) || [];
+      const carbono = rows.map((r) => carbonRow(r, ahora));
+      // El censo de silicio vive en admira-fleet y es su fuente única. Si no
+      // contesta se dice que no contesta (`silicio_disponible:false`) en vez de
+      // devolver una lista vacía, que se leería como «no hay agentes».
+      let silicio = [], silicioOk = false;
+      try {
+        const r = await env.FLEET_SVC.fetch(new Request(FLEET_API + "/silicon", {
+          headers: { authorization: "Bearer " + env.FLEET_TOKEN,
+                     "user-agent": "Mozilla/5.0 (compatible; yokup-rtc)" }
+        }));
+        if (r.ok) {
+          const d = await r.json().catch(() => ({}));
+          silicio = (d.silicon || []).map((s) => ({ kind: "silicio", id: String(s.id || ""),
+            name: String(s.name || s.id || ""), role: String(s.capa || s.role || ""),
+            machine: String(s.machine || ""), status: String(s.status || "activo") }));
+          silicioOk = true;
+        }
+      } catch (e) {}
+      return json({ ok: true, now: ahora, window_ms: CARBON_BEAT_WINDOW_MS,
+        silicio_disponible: silicioOk, silicio, carbono,
+        totales: { silicio: silicio.length, carbono: carbono.length,
+          carbono_en_turno: carbono.filter((c) => c.estado === "en-turno").length } });
     }
     if (url.pathname === "/fleet/missions") {
       await ensureSchema(env);
@@ -10619,7 +10748,16 @@ Todo en español.`;
           a[r.status] = r.n;
           if (r.status === "resolved" && r.mttr) a.mttr = Math.round(r.mttr / 6e4);
         }
-        const agents = ROSTER.map((t) => Object.assign({}, t, map[t.name] || { open: 0, in_progress: 0, resolved: 0, mttr: null }));
+        // La plantilla sale del CENSO, no de la constante. Se conserva la forma
+        // de la respuesta (name/skills/zone + contadores) para no romper a
+        // /agentes ni a la bandeja, y se añade lo que el censo sí sabe y la
+        // constante no podía saber: id, estado y foco.
+        const ahora = Date.now();
+        const agents = (await carbonRoster(env)).map((t) => {
+          const fila = carbonRow(t, ahora);
+          return Object.assign({}, fila, { skills: fila.skills.join(", ") },
+            map[t.name] || { open: 0, in_progress: 0, resolved: 0, mttr: null });
+        });
         return json({ agents });
       } catch (e) {
         return json({ error: String(e) }, 500);
