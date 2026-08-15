@@ -160,3 +160,48 @@ test("el globo se frena en los bordes del lienzo", () => {
   assert.match(cuerpo, /if \(x \+ ancho > lienzo\.width\)/);
   assert.match(cuerpo, /if \(y \+ alto > lienzo\.height\)/);
 });
+
+// Carlos, 15-ago-2026: las barras tienen que ser seleccionables y mostrar
+// debajo todas las misiones de ese periodo y de quién son.
+test("seleccionar una barra pide EXACTAMENTE el rango que esa barra suma", () => {
+  // Si cada sitio dedujera «de qué a qué día», la lista podría pedir un rango
+  // distinto del que la barra sumó y contradecir al total que dice explicar.
+  const fn = html.slice(html.indexOf("function rangoDe(fila)"), html.indexOf("function diasListaEl"));
+  assert.match(fn, /if \(diasGrano === "dia"\) return \{ desde: fila\.clave, hasta: fila\.clave \}/);
+  assert.match(fn, /f\.setUTCDate\(f\.getUTCDate\(\) \+ 6\)/, "la semana termina 6 días después de su lunes");
+  assert.match(fn, /new Date\(Date\.UTC\(Number\(p\[0\]\), Number\(p\[1\]\), 0, 12\)\)/,
+    "día 0 del mes siguiente = último del mes, sin tablas de 28/30/31");
+  assert.match(html, /scope=global&desde=" \+ encodeURIComponent\(rango\.desde\)/);
+});
+
+test("la selección se ve en la barra, no solo en la lista", () => {
+  assert.match(html, /\.dias-graf \.dg-zona\.sel\{/);
+  assert.match(html, /\.dias-graf \.dg-barra\.sel\{/);
+  const fn = html.slice(html.indexOf("function seleccionaBarra"), html.indexOf("function abreDias"));
+  assert.match(fn, /querySelectorAll\("\.dg-zona\.sel,\.dg-barra\.sel"\)/,
+    "seleccionar una barra deselecciona la anterior");
+});
+
+test("cada misión dice hora, quién, qué y en qué estado", () => {
+  const fn = html.slice(html.indexOf("function listaMisionesHtml"), html.indexOf("function seleccionaBarra"));
+  assert.match(fn, /class="l-hora"/);
+  assert.match(fn, /class="l-quien"/);
+  assert.match(fn, /class="l-que"/);
+  assert.match(fn, /class="l-est /);
+  assert.match(fn, /timeZone: "Europe\/Madrid"/, "la hora es la que se vivió, no UTC");
+});
+
+test("un periodo con puntos y sin misiones EXPLICA de dónde salen los puntos", () => {
+  // Los objetivos, las ventanas de decisión y las tareas también puntúan. Un
+  // «no hay nada» se leería como que el dato falló.
+  const fn = html.slice(html.indexOf("function listaMisionesHtml"), html.indexOf("function seleccionaBarra"));
+  assert.match(fn, /Ninguna misión puntuó en este periodo/);
+  assert.match(fn, /objetivos, ventanas de decisión o tareas sueltas/);
+  assert.match(fn, /No se pudieron leer las misiones|l-vacio/);
+});
+
+test("cambiar de lupa retira la lista de la barra que ya no existe", () => {
+  assert.match(html, /La lista se retira al repintar: pertenecía a una barra que ya no existe/);
+  const pinta = html.slice(html.indexOf("function pintaDias(d)"));
+  assert.match(pinta.slice(0, 900), /diasCuerpo"\)\.innerHTML = diasVeredictoHtml\(d\) \+ diasGraficoHtml\(d\)/);
+});

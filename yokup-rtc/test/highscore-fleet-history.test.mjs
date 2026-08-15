@@ -53,3 +53,42 @@ test("scope=global no exige agente y no abre una segunda ruta para el mismo dato
   assert.doesNotMatch(source, /"\/highscore\/history\/global"/,
     "es el mismo dato con otro alcance: dos rutas acabarían en dos recuentos");
 });
+
+// Carlos, 15-ago-2026: al seleccionar una barra hay que ver debajo todas las
+// misiones de ese periodo y de quién son.
+const detalle = source.slice(source.indexOf("async function highscoreFleetMissions"),
+  source.indexOf('__name(highscoreFleetMissions, "highscoreFleetMissions");'));
+
+test("el detalle lista por el MISMO scored_at que puntúa la barra", () => {
+  // Listar por created_at o resolved_at —que es lo cómodo— haría que la lista y
+  // la barra hablaran de conjuntos distintos: el detalle contradiría al total
+  // que dice explicar.
+  assert.match(detalle, /\$\{HIGHSCORE_MISSION_STARTED_SQL\} scored_at/);
+  assert.match(detalle, /AND scored_at>=\? AND scored_at<\?/);
+  // Y el mismo filtro de alcance y de estados que la agregación.
+  assert.match(detalle, /\$\{AGENT_SOURCE_SQL_T\}/);
+  assert.match(detalle, /status IN \('in_progress','resolved'\) OR \(status='open' AND con_plan=1\)/);
+});
+
+test("el rango va en días de Madrid, no en UTC", () => {
+  // Un cierre de las 00:30 pertenece al día que la persona vivió.
+  assert.match(detalle, /missionDayRange\(desdeDia\), hasta = missionDayRange\(hastaDia \|\| desdeDia\)/);
+  assert.match(detalle, /\.bind\(desde\.start, hasta\.end\)/);
+});
+
+test("un rango inválido se rechaza antes de consultar", () => {
+  assert.match(detalle, /if \(!desde \|\| !hasta \|\| hasta\.end < desde\.start\)/);
+  assert.match(detalle, /rango inválido/);
+});
+
+test("cada misión sale con su autor canónico y su referencia legible", () => {
+  // El assignee crudo puede venir con apellido de máquina o sin él; la familia
+  // es lo que se enseña en el resto de la plataforma.
+  assert.match(detalle, /reportAgentFamily\(r\.assignee, r\.loc \|\| ""\)/);
+  assert.match(detalle, /attachDisplayRefs\(env, "mission", filas/);
+});
+
+test("el detalle comparte ruta con el agregado y no abre una tercera", () => {
+  assert.match(source, /const desde = String\(url\.searchParams\.get\("desde"\) \|\| ""\)\.trim\(\)/);
+  assert.doesNotMatch(source, /"\/highscore\/day"/);
+});

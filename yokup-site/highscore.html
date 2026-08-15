@@ -162,6 +162,29 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   box-shadow:0 0 0 1px rgba(120,243,255,.18) inset}
 .dias-graf{width:100%;height:auto;display:block}
 .dias-graf .dg-zona{fill:transparent;cursor:pointer}
+.dias-graf .dg-zona.sel{fill:rgba(120,243,255,.10)}
+.dias-graf .dg-barra.sel{opacity:1;fill:var(--brand,#78f3ff)}
+/* LA LISTA de misiones del periodo seleccionado. Aparece DEBAJO del gráfico y
+   no en el globo: el globo es un vistazo al pasar, esto se lee con calma. */
+.dg-lista{margin-top:16px;border-top:1px solid rgba(120,243,255,.16);padding-top:13px}
+.dg-lista h3{font-size:14.5px;margin-bottom:2px}
+.dg-lista .l-sub{font-family:var(--mono,monospace);font-size:10px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--dim,#4d7a88);margin-bottom:10px}
+.dg-lista ul{list-style:none;margin:0;padding:0;max-height:270px;overflow:auto}
+.dg-lista li{display:flex;gap:10px;align-items:baseline;padding:7px 0;
+  border-bottom:1px solid rgba(120,243,255,.07);font-size:13px}
+.dg-lista li:last-child{border-bottom:0}
+.dg-lista .l-hora{font-family:var(--mono,monospace);font-size:10px;color:var(--dim,#4d7a88);flex:0 0 38px}
+.dg-lista .l-quien{font-weight:700;color:var(--brand,#78f3ff);flex:0 0 118px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.dg-lista .l-que{flex:1;color:var(--ink,#dff8ff);min-width:0}
+.dg-lista .l-que small{display:block;font-family:var(--mono,monospace);font-size:9.5px;
+  letter-spacing:.05em;text-transform:uppercase;color:var(--dim,#4d7a88)}
+.dg-lista .l-est{font-family:var(--mono,monospace);font-size:9.5px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--dim,#4d7a88);flex:0 0 auto}
+.dg-lista .l-est.resolved{color:var(--good,#88ffaa)}
+.dg-lista .l-est.in_progress{color:var(--accent,#ffd866)}
+.dg-lista .l-vacio,.dg-lista .l-carga{font-size:13px;color:var(--mut,#75aab9);padding:6px 0}
 .dias-graf .dg-zona:hover{fill:rgba(120,243,255,.06)}
 /* El globo se posiciona sobre el gráfico, que por eso es relativo. */
 .dias-lienzo{position:relative}
@@ -1963,6 +1986,77 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         : '<div class="g-nadie">' + (pts ? "sin desglose por agente" : "nadie puntuó este día") + '</div>');
   }
 
+  // ── SELECCIÓN DE BARRA ──────────────────────────────────────────────────
+  // El rango real que cubre la barra. Es lo que decide qué se lista, así que se
+  // calcula UNA vez y aquí: si cada sitio dedujera «de qué a qué día», la lista
+  // podría pedir un rango distinto del que la barra sumó.
+  function rangoDe(fila) {
+    if (diasGrano === "dia") return { desde: fila.clave, hasta: fila.clave };
+    if (diasGrano === "semana") {
+      var f = new Date(fila.clave + "T12:00:00Z");
+      f.setUTCDate(f.getUTCDate() + 6);
+      return { desde: fila.clave, hasta: f.toISOString().slice(0, 10) };
+    }
+    var p = fila.clave.split("-"), ultimo = new Date(Date.UTC(Number(p[0]), Number(p[1]), 0, 12));
+    return { desde: fila.clave + "-01", hasta: ultimo.toISOString().slice(0, 10) };
+  }
+
+  function diasListaEl() {
+    var el = document.getElementById("dgLista");
+    if (el) return el;
+    el = document.createElement("div");
+    el.className = "dg-lista";
+    el.id = "dgLista";
+    document.getElementById("diasCuerpo").appendChild(el);
+    return el;
+  }
+
+  function listaMisionesHtml(fila, d) {
+    var m = d.missions || [];
+    if (!m.length) {
+      // Puede haber puntos sin ninguna misión: los objetivos, las ventanas de
+      // decisión y las tareas también puntúan. Decirlo es más útil que un
+      // «no hay nada», que se leería como que el dato falló.
+      return '<div class="l-vacio">Ninguna misión puntuó en este periodo' +
+        (Number(fila.points) > 0 ? ' — los ' + esc(fila.points) + ' puntos vienen de objetivos, ventanas de decisión o tareas sueltas.' : '.') + '</div>';
+    }
+    return '<ul>' + m.map(function (x) {
+      var h = new Date(x.at).toLocaleTimeString("es-ES", { timeZone: "Europe/Madrid", hour: "2-digit", minute: "2-digit" });
+      var estado = x.status === "resolved" ? "hecha" : x.status === "in_progress" ? "en curso" : "abierta";
+      return '<li><span class="l-hora">' + esc(h) + '</span>' +
+        '<span class="l-quien">' + esc(x.agent || "—") + '</span>' +
+        '<span class="l-que">' + esc(x.subject || "(sin título)") +
+        '<small>' + esc(x.display_ref || x.id) + (x.project_id ? " · " + esc(x.project_id) : "") + '</small></span>' +
+        '<span class="l-est ' + esc(x.status) + '">' + esc(estado) + '</span></li>';
+    }).join("") + '</ul>';
+  }
+
+  function seleccionaBarra(indice) {
+    var fila = diasFilas[indice];
+    if (!fila) return;
+    document.querySelectorAll(".dg-zona.sel,.dg-barra.sel").forEach(function (n) { n.classList.remove("sel"); });
+    var zonas = document.querySelectorAll(".dg-zona"), barras = document.querySelectorAll(".dg-barra,.dg-previo");
+    if (zonas[indice]) zonas[indice].classList.add("sel");
+    if (barras[indice]) barras[indice].classList.add("sel");
+    var caja = diasListaEl(), rango = rangoDe(fila);
+    caja.innerHTML = '<h3>' + esc(diasRotulo(fila)) + ' · ' + esc(Number(fila.points) || 0) + ' pts</h3>' +
+      '<p class="l-sub">misiones del periodo, en hora de Madrid</p>' +
+      '<div class="l-carga">Cargando misiones…</div>';
+    fetch(YK + "/highscore/history?scope=global&desde=" + encodeURIComponent(rango.desde) +
+      "&hasta=" + encodeURIComponent(rango.hasta), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok) throw new Error(d && d.error || "sin datos");
+        caja.innerHTML = '<h3>' + esc(diasRotulo(fila)) + ' · ' + esc(Number(fila.points) || 0) + ' pts</h3>' +
+          '<p class="l-sub">' + esc(d.total) + (d.total === 1 ? " misión" : " misiones") + ' · hora de Madrid</p>' +
+          listaMisionesHtml(fila, d);
+      })
+      .catch(function (e) {
+        caja.innerHTML = '<h3>' + esc(diasRotulo(fila)) + '</h3>' +
+          '<div class="l-vacio">No se pudieron leer las misiones: ' + esc(String(e.message || e)) + '</div>';
+      });
+  }
+
   function abreDias() {
     var mod = document.getElementById("diasMod");
     mod.classList.add("on");
@@ -1989,6 +2083,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     document.getElementById("diasSub").textContent =
       "Del " + (d.evolution.start || "?") + " al " + (d.evolution.end || "?") +
       " · " + total + " puntos este mes · una tarea se cuenta una vez aunque la toquen dos agentes";
+    // La lista se retira al repintar: pertenecía a una barra que ya no existe.
     document.getElementById("diasCuerpo").innerHTML = diasVeredictoHtml(d) + diasGraficoHtml(d);
   }
 
@@ -4346,6 +4441,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     });
   })();
   document.getElementById("diasCuerpo").addEventListener("click", function (e) {
+    var zona = e.target && e.target.closest && e.target.closest(".dg-zona");
+    if (zona) { seleccionaBarra(Number(zona.dataset.i)); return; }
     var b = e.target && e.target.closest && e.target.closest(".grano");
     if (!b || !diasCache) return;
     diasGrano = b.dataset.grano;

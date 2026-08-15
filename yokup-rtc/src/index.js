@@ -6726,6 +6726,42 @@ async function highscoreFleetHistory(env, ahora = Date.now()) {
 }
 __name(highscoreFleetHistory, "highscoreFleetHistory");
 
+// LAS MISIONES DE UN PERIODO, con su autor. Es el detalle que hay debajo de una
+// barra seleccionada: la barra dice CUÁNTO, esto dice QUÉ y DE QUIÉN.
+//
+// Usa exactamente el mismo `scored_at` que puntúa la barra (HIGHSCORE_MISSION_
+// STARTED_SQL) y el mismo filtro de alcance. Si listara por `created_at` o por
+// `resolved_at` —que es lo cómodo— la lista y la barra hablarían de conjuntos
+// distintos, y el detalle contradiría al total que dice explicar.
+//
+// El rango va en días de Madrid, no en UTC: un cierre de las 00:30 pertenece al
+// día que la persona vivió, no al anterior.
+async function highscoreFleetMissions(env, desdeDia, hastaDia) {
+  const desde = missionDayRange(desdeDia), hasta = missionDayRange(hastaDia || desdeDia);
+  if (!desde || !hasta || hasta.end < desde.start) {
+    return { ok: false, error: "rango inválido: se esperan días AAAA-MM-DD" };
+  }
+  const { results } = await env.DB.prepare(
+    `SELECT * FROM (SELECT t.id,t.subject,t.assignee,t.loc,t.status,t.project,t.project_id,t.created_at,` +
+    `${HIGHSCORE_MISSION_STARTED_SQL} scored_at,` +
+    `EXISTS(SELECT 1 FROM mission_tasks mt3 WHERE mt3.mission_id=t.id) con_plan ` +
+    `FROM tickets t WHERE ${AGENT_SOURCE_SQL_T}) ` +
+    `WHERE (status IN ('in_progress','resolved') OR (status='open' AND con_plan=1)) ` +
+    `AND scored_at>=? AND scored_at<? ORDER BY scored_at ASC`
+  ).bind(desde.start, hasta.end).all();
+  const filas = results || [];
+  await attachDisplayRefs(env, "mission", filas, (row) => row.id, (row) => row.created_at);
+  return { ok: true, desde: desde.day, hasta: hasta.day, total: filas.length,
+    missions: filas.map((r) => {
+      const familia = reportAgentFamily(r.assignee, r.loc || "");
+      return { id: r.id, display_ref: r.display_ref || null, subject: r.subject || "",
+        agent: (familia && familia.family_name) || String(r.assignee || "").trim(),
+        machine: r.loc || "", status: r.status, project_id: r.project_id || r.project || "",
+        at: Number(r.scored_at) || 0, points: HIGHSCORE_WEIGHTS.mission };
+    }) };
+}
+__name(highscoreFleetMissions, "highscoreFleetMissions");
+
 async function highscoreHistory(env, requestedAgent, ahora = Date.now()) {
   const parsed = parseAgentIdentity(requestedAgent), suffix = parsed.suffix;
   if (parsed.role !== "main" || !suffix || !String(parsed.persona || "").trim()) {
@@ -7854,6 +7890,13 @@ var worker_app = {
       // mismo endpoint a propósito: es el mismo dato con otro alcance, y tener
       // dos rutas para la misma pregunta acaba en dos recuentos distintos.
       if (String(url.searchParams.get("scope") || "").toLowerCase() === "global") {
+        // Con `desde` se pide el DETALLE de un periodo en vez del agregado: es
+        // el mismo alcance mirado de cerca, así que comparte ruta y filtro.
+        const desde = String(url.searchParams.get("desde") || "").trim();
+        if (desde) {
+          const detalle = await highscoreFleetMissions(env, desde, String(url.searchParams.get("hasta") || "").trim());
+          return json(detalle, detalle.ok ? 200 : 400);
+        }
         return json(await highscoreFleetHistory(env));
       }
       if (!agent) return json({ ok:false, error:"agent requerido" }, 400);
