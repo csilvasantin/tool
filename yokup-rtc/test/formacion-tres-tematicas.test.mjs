@@ -91,7 +91,16 @@ test("la ventana dura lo que su hora, no dos minutos", async () => {
   const {db,env,F}=harness();
   await abre(F,env);
   const fila=db.prepare("SELECT * FROM decisions WHERE id=?").get("DCL-form-"+HORA.toString(36));
-  assert.equal(fila.deadline,HORA+3600000,"se cierra con su hora: después, su cápsula ya no es la de ahora");
+  // La ventana se cierra con su hora... SALVO en los últimos 2 minutos de esa
+  // hora, en los que el mínimo de la casa manda y la empuja un poco más allá.
+  // Es exactamente lo que hace el código —max(finDeHora, ahora+ACADEMY_DECISION_MIN)—
+  // y lo que afirma la línea de abajo, con la que esta aserción se contradecía:
+  // fijada al minuto exacto, el test se ponía rojo durante los últimos 2 minutos
+  // de CADA hora y bloqueaba el despliegue del worker a toda la flota.
+  // Corregido por NeoMBP16 el 15-ago-2026 tras verlo caer a las 22:59.
+  const minimo=fila.created_at+2*60*1000;
+  assert.equal(fila.deadline,Math.max(HORA+3600000,minimo),
+    "se cierra con su hora, o con el mínimo de la casa si su hora ya se acaba");
   assert.ok(fila.deadline-fila.created_at>=2*60*1000,"nunca menos que el mínimo de la casa");
 });
 
