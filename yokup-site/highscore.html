@@ -161,6 +161,23 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .dias-granos .grano.on{border-color:var(--brand,#78f3ff);color:var(--brand,#78f3ff);
   box-shadow:0 0 0 1px rgba(120,243,255,.18) inset}
 .dias-graf{width:100%;height:auto;display:block}
+.dias-graf .dg-zona{fill:transparent;cursor:pointer}
+.dias-graf .dg-zona:hover{fill:rgba(120,243,255,.06)}
+/* El globo se posiciona sobre el gráfico, que por eso es relativo. */
+.dias-lienzo{position:relative}
+.dg-globo{position:absolute;z-index:5;pointer-events:none;opacity:0;transition:opacity .12s;
+  background:rgba(2,8,13,.96);border:1px solid rgba(120,243,255,.42);border-radius:9px;
+  padding:9px 12px;min-width:186px;box-shadow:0 8px 24px rgba(0,0,0,.6)}
+.dg-globo.on{opacity:1}
+.dg-globo .g-dia{font-family:var(--mono,monospace);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut,#75aab9)}
+.dg-globo .g-pts{font-size:19px;font-weight:900;color:var(--brand,#78f3ff);margin:1px 0 7px}
+.dg-globo .g-pts small{font-size:10px;font-weight:700;color:var(--mut,#75aab9);letter-spacing:.06em}
+.dg-globo ol{list-style:none;margin:0;padding:7px 0 0;border-top:1px solid rgba(120,243,255,.16)}
+.dg-globo li{display:flex;align-items:baseline;gap:7px;font-size:12.5px;line-height:1.7}
+.dg-globo li b{color:var(--ink,#dff8ff);font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dg-globo li i{font-style:normal;color:var(--dim,#4d7a88);font-family:var(--mono,monospace);font-size:10px;width:12px}
+.dg-globo li span{color:var(--accent,#ffd866);font-family:var(--mono,monospace);font-size:11px}
+.dg-globo .g-nadie{font-size:12px;color:var(--dim,#4d7a88);padding-top:7px;border-top:1px solid rgba(120,243,255,.16)}
 /* CLASES PROPIAS Y NO «barra» (Carlos vio las barras como rayas horizontales,
    15-ago-2026). La página ya tenía .barra{width:100%;height:3px} para la barra
    de vida bajo cada nombre, y en SVG `width` y `height` son PROPIEDADES CSS de
@@ -1830,7 +1847,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // navegador sobre all_days (los días con actividad, que el worker manda
   // enteros) en vez de pedir tres consultas: cambiar de lupa es instantáneo y,
   // sobre todo, las tres salen del MISMO dato y no pueden discrepar.
-  var diasGrano = "dia";
+  var diasGrano = "dia", diasFilas = [];
   var GRANOS = [["dia", "días", 30], ["semana", "semanas", 12], ["mes", "meses", 12]];
 
   // Lunes de la semana ISO a la que pertenece el día, en clave AAAA-MM-DD. Se
@@ -1846,12 +1863,21 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var mapa = new Map();
     (todos || []).forEach(function (x) {
       var clave = grano === "mes" ? x.day.slice(0, 7) : grano === "semana" ? lunesDe(x.day) : x.day;
-      var fila = mapa.get(clave) || { clave: clave, points: 0, dias: 0 };
+      var fila = mapa.get(clave) || { clave: clave, points: 0, dias: 0, por: {} };
       fila.points += Number(x.points) || 0;
       fila.dias += 1;
+      // El podio del periodo se RECALCULA sumando a cada agente. Quedarse con
+      // los tres de cada día daría un podio falso: el cuarto de todos los días
+      // puede ser el primero de la semana.
+      (x.top || []).forEach(function (t) { fila.por[t.agent] = (fila.por[t.agent] || 0) + t.points; });
       mapa.set(clave, fila);
     });
-    return [...mapa.values()].sort(function (a, b) { return a.clave.localeCompare(b.clave); }).slice(-tope);
+    return [...mapa.values()].map(function (f) {
+      f.top = Object.keys(f.por).map(function (a) { return { agent: a, points: f.por[a] }; })
+        .sort(function (a, b) { return b.points - a.points || a.agent.localeCompare(b.agent, "es"); });
+      delete f.por;
+      return f;
+    }).sort(function (a, b) { return a.clave.localeCompare(b.clave); }).slice(-tope);
   }
 
   function diasSelectorHtml() {
@@ -1869,7 +1895,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     // agrupa sobre los días CON actividad, porque una semana sin ninguno no
     // llegó a existir para la flota.
     var dias = diasGrano === "dia"
-      ? ((d.evolution && d.evolution.days) || []).map(function (x) { return { clave: x.day, points: x.points, dias: 1 }; })
+      ? ((d.evolution && d.evolution.days) || []).map(function (x) { return { clave: x.day, points: x.points, dias: 1, top: x.top || [] }; })
       : agrupaDias(d.all_days, diasGrano, conf[2]);
     if (!dias.length) return '<p class="dias-sub">Sin días que dibujar.</p>';
     var W = 720, H = 210, base = H - 22, pad = 26;
@@ -1883,21 +1909,58 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var cls = previo ? "dg-previo" : x.clave === hoy ? "dg-barra dg-hoy" : "dg-barra";
       var rot = previo ? x.clave + " · antes de que hubiera registro"
         : x.clave + " · " + v + " pts" + (x.dias > 1 ? " (" + x.dias + " días con actividad)" : "");
-      return '<rect class="' + cls + '" x="' + (pad + i * ancho) + '" y="' + (previo ? base - 4 : y) +
-        '" width="' + barra + '" height="' + (previo ? 4 : Math.max(1, base - y)) + '" rx="1">' +
-        '<title>' + esc(rot) + '</title></rect>';
+      // La zona sensible al ratón es una columna de altura COMPLETA, no la barra:
+      // apuntar a una barra de 3px de alto es imposible, y los días flojos —que
+      // son justo los que interesa investigar— serían los más difíciles de mirar.
+      return '<rect class="dg-zona" x="' + (pad + i * ancho) + '" y="0" width="' + ancho +
+        '" height="' + base + '" data-i="' + i + '"><title>' + esc(rot) + '</title></rect>' +
+        '<rect class="' + cls + '" x="' + (pad + i * ancho) + '" y="' + (previo ? base - 4 : y) +
+        '" width="' + barra + '" height="' + (previo ? 4 : Math.max(1, base - y)) + '" rx="1" pointer-events="none"/>';
     }).join("");
     var etiqueta = function (i) { return dias[i] ? (diasGrano === "mes" ? dias[i].clave : dias[i].clave.slice(5)) : ""; };
-    return diasSelectorHtml() + '<svg class="dias-graf" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
+    diasFilas = dias;
+    return diasSelectorHtml() + '<div class="dias-lienzo"><div class="dg-globo" id="dgGlobo" role="tooltip"></div><svg class="dias-graf" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
       'aria-label="Puntos del Equipo de Silicio por ' + conf[1] + ', ' + dias.length + ' barras. Máximo ' + tope + ' puntos.">' +
       '<line class="eje" x1="' + pad + '" y1="' + base + '" x2="' + W + '" y2="' + base + '"/>' +
       '<text x="0" y="14">' + esc(tope) + '</text><text x="0" y="' + base + '">0</text>' +
       barras +
       '<text x="' + pad + '" y="' + (base + 14) + '">' + esc(etiqueta(0)) + '</text>' +
       '<text x="' + (W - 34) + '" y="' + (base + 14) + '">' + esc(etiqueta(dias.length - 1)) + '</text>' +
-      '</svg>' +
+      '</svg></div>' +
       '<div class="dias-leyenda"><span>■ día con puntos</span><span>■ hoy</span>' +
       (primero ? '<span>▬ antes del primer registro (' + esc(primero) + ')</span>' : "") + '</div>';
+  }
+
+  // ETIQUETA HUMANA del periodo. Una semana no se dice «2026-08-10»: se dice de
+  // qué día a qué día, que es lo que permite reconocerla.
+  function diasRotulo(fila) {
+    if (diasGrano === "mes") {
+      var m = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+      var p = fila.clave.split("-");
+      return m[Number(p[1]) - 1] + " de " + p[0];
+    }
+    if (diasGrano === "semana") {
+      var f = new Date(fila.clave + "T12:00:00Z");
+      f.setUTCDate(f.getUTCDate() + 6);
+      return "semana del " + fila.clave.slice(8) + "/" + fila.clave.slice(5, 7) +
+        " al " + f.toISOString().slice(8, 10) + "/" + f.toISOString().slice(5, 7);
+    }
+    return fila.clave.slice(8) + "/" + fila.clave.slice(5, 7) + "/" + fila.clave.slice(0, 4);
+  }
+
+  function globoHtml(fila) {
+    var pts = Number(fila.points) || 0;
+    var top = (fila.top || []).slice(0, 3);
+    var medalla = ["1", "2", "3"];
+    return '<div class="g-dia">' + esc(diasRotulo(fila)) + '</div>' +
+      '<div class="g-pts">' + esc(pts) + ' <small>PTS</small></div>' +
+      (top.length
+        ? '<ol>' + top.map(function (t, i) {
+            return '<li><i>' + medalla[i] + '</i><b>' + esc(t.agent) + '</b><span>' + esc(t.points) + '</span></li>';
+          }).join("") + '</ol>'
+        // Un día sin puntos no tiene podio, y una lista vacía se leería como un
+        // fallo de carga. Se dice lo que pasó.
+        : '<div class="g-nadie">' + (pts ? "sin desglose por agente" : "nadie puntuó este día") + '</div>');
   }
 
   function abreDias() {
@@ -4254,6 +4317,34 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     if (e.target && e.target.closest && e.target.closest("#podioTotal")) abreDias();
   });
   // El selector se repinta con el panel, así que también se delega.
+  // El globo sigue al ratón sobre el gráfico. Se delega en el cuerpo del panel
+  // porque el SVG se repinta entero al cambiar de lupa.
+  (function () {
+    var cuerpo = document.getElementById("diasCuerpo");
+    function mueve(e) {
+      var zona = e.target && e.target.closest && e.target.closest(".dg-zona");
+      var globo = document.getElementById("dgGlobo");
+      if (!globo) return;
+      if (!zona) { globo.classList.remove("on"); return; }
+      var fila = diasFilas[Number(zona.dataset.i)];
+      if (!fila) { globo.classList.remove("on"); return; }
+      globo.innerHTML = globoHtml(fila);
+      globo.classList.add("on");
+      // Se coloca respecto al LIENZO y se frena en sus bordes: pegado al último
+      // día, un globo centrado se saldría del panel y quedaría cortado.
+      var lienzo = globo.parentElement.getBoundingClientRect();
+      var x = e.clientX - lienzo.left + 14, y = e.clientY - lienzo.top + 14;
+      var ancho = globo.offsetWidth || 190, alto = globo.offsetHeight || 120;
+      if (x + ancho > lienzo.width) x = e.clientX - lienzo.left - ancho - 14;
+      if (y + alto > lienzo.height) y = Math.max(0, lienzo.height - alto);
+      globo.style.left = Math.max(0, x) + "px";
+      globo.style.top = y + "px";
+    }
+    cuerpo.addEventListener("mousemove", mueve);
+    cuerpo.addEventListener("mouseleave", function () {
+      var g = document.getElementById("dgGlobo"); if (g) g.classList.remove("on");
+    });
+  })();
   document.getElementById("diasCuerpo").addEventListener("click", function (e) {
     var b = e.target && e.target.closest && e.target.closest(".grano");
     if (!b || !diasCache) return;

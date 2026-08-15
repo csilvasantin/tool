@@ -112,3 +112,51 @@ test("las clases del gráfico no colisionan con ninguna regla de geometría", ()
       "en SVG width/height son geometría: una regla así deforma las barras");
   }
 });
+
+// Carlos, 15-ago-2026: al pasar por encima hay que ver qué día era, cuántos
+// puntos se hicieron y los 3 agentes que más puntuaron ese día.
+test("el globo dice día, puntos y los tres primeros", () => {
+  const fn = html.slice(html.indexOf("function globoHtml"), html.indexOf("function abreDias"));
+  assert.match(fn, /var top = \(fila\.top \|\| \[\]\)\.slice\(0, 3\)/);
+  assert.match(fn, /class="g-dia"/);
+  assert.match(fn, /class="g-pts"/);
+  // Un día sin puntos no tiene podio, y una lista vacía se leería como un fallo
+  // de carga: se dice lo que pasó.
+  assert.match(fn, /nadie puntuó este día/);
+  assert.match(fn, /sin desglose por agente/);
+});
+
+test("la zona sensible es la columna entera, no la barra", () => {
+  // Apuntar a una barra de 3px es imposible, y los días flojos —justo los que
+  // interesa investigar— serían los más difíciles de mirar.
+  const svg = html.slice(html.indexOf("function diasGraficoHtml"), html.indexOf("function diasRotulo"));
+  assert.match(svg, /class="dg-zona" x="[\s\S]*?y="0" width="' \+ ancho/);
+  assert.match(svg, /height="' \+ base \+ '" data-i="' \+ i/);
+  // Y la barra pintada no roba el ratón a su propia zona.
+  assert.match(svg, /rx="1" pointer-events="none"/);
+});
+
+test("agrupar RECALCULA el podio del periodo, no acumula podios diarios", () => {
+  // Quedarse con los tres de cada día daría un podio falso: el cuarto de todos
+  // los días puede ser el primero de la semana.
+  const fn = html.slice(html.indexOf("function agrupaDias"), html.indexOf("function diasSelectorHtml"));
+  assert.match(fn, /\(x\.top \|\| \[\]\)\.forEach\(function \(t\) \{ fila\.por\[t\.agent\] = \(fila\.por\[t\.agent\] \|\| 0\) \+ t\.points; \}\)/);
+  assert.match(fn, /\.sort\(function \(a, b\) \{ return b\.points - a\.points/);
+});
+
+test("el periodo se dice en humano, no en clave", () => {
+  // Una semana no se reconoce por «2026-08-10»: se reconoce por de qué día a
+  // qué día va.
+  const fn = html.slice(html.indexOf("function diasRotulo"), html.indexOf("function globoHtml"));
+  assert.match(fn, /"semana del " \+/);
+  assert.match(fn, /"enero","febrero"/);
+});
+
+test("el globo se frena en los bordes del lienzo", () => {
+  // Pegado al último día, un globo que no se frena se sale del panel y queda
+  // cortado justo cuando más se mira.
+  const fn = html.slice(html.indexOf("function mueve(e)"));
+  const cuerpo = fn.slice(0, fn.indexOf("cuerpo.addEventListener"));
+  assert.match(cuerpo, /if \(x \+ ancho > lienzo\.width\)/);
+  assert.match(cuerpo, /if \(y \+ alto > lienzo\.height\)/);
+});

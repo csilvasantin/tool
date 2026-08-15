@@ -6592,23 +6592,31 @@ async function highscoreDailyRows(env, pertenece, ahora) {
     const stamp = Number(at) || 0;
     if (stamp <= 0 || stamp > ahora) return null;
     const day = madridDayKey(stamp);
-    if (!daily.has(day)) daily.set(day, { day, objectives:0, windows:0, missions:0, tasks:0, points:0 });
+    if (!daily.has(day)) daily.set(day, { day, objectives:0, windows:0, missions:0, tasks:0, points:0, por_agente:{} });
     return daily.get(day);
   };
-  const add = (at, kind, points) => {
+  // QUIÉN puntuó cada día, además de cuánto. Se acumula aquí y no en una
+  // segunda pasada porque es el único punto del código que ya sabe, a la vez,
+  // el día, los puntos y de quién son: recalcularlo aparte abriría la puerta a
+  // que el desglose no sumara el total.
+  const add = (at, kind, points, agent, machine) => {
     const row = bucket(at); if (!row) return;
     row[kind] += 1; row.points += points;
+    const familia = reportAgentFamily(agent, machine || "");
+    const nombre = (familia && familia.family_name) || String(agent || "").trim();
+    if (!nombre) return;
+    row.por_agente[nombre] = (row.por_agente[nombre] || 0) + points;
   };
   for (const idea of ideas) {
     const agent = highscoreAgent(idea.author);
     // Un objetivo sin apellido físico no se adjudica a ciegas a uno de los
     // equipos de la misma persona. Se conserva la identidad exacta o no suma.
-    if (agent && familyMatches(agent, "")) add(idea.created_at, "objectives", HIGHSCORE_WEIGHTS.objective);
+    if (agent && familyMatches(agent, "")) add(idea.created_at, "objectives", HIGHSCORE_WEIGHTS.objective, agent, "");
   }
   for (const decision of decisions) if (familyMatches(decision.agent, decision.machine))
-    add(decision.created_at, "windows", HIGHSCORE_WEIGHTS.window);
+    add(decision.created_at, "windows", HIGHSCORE_WEIGHTS.window, decision.agent, decision.machine);
   for (const mission of missions) if (familyMatches(mission.assignee, mission.loc))
-    add(mission.scored_at, "missions", HIGHSCORE_WEIGHTS.mission);
+    add(mission.scored_at, "missions", HIGHSCORE_WEIGHTS.mission, mission.assignee, mission.loc);
 
   const representatives = new Map();
   for (const task of tasks) {
@@ -6622,7 +6630,8 @@ async function highscoreDailyRows(env, pertenece, ahora) {
     if (!previous || stamp >= Number(previous.updated_at)) representatives.set(key, task);
   }
   for (const task of representatives.values()) add(task.updated_at, "tasks", HIGHSCORE_TASK_WEIGHTS.task +
-    (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0));
+    (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0),
+    task.assignee, task.loc);
 
   const allDays = [...daily.values()].sort((a, b) => a.day.localeCompare(b.day));
   return { periods, allDays };
@@ -6694,6 +6703,21 @@ async function highscoreFleetHistory(env, ahora = Date.now()) {
   // meses, es un adorno. Son pocas filas (una por día vivido) y viajan enteras
   // para que el front pueda reagrupar sin volver a preguntar.
   payload.all_days = allDays;
+  // El desglose viaja como LISTA ORDENADA, no como objeto: quien lo pinta no
+  // debería tener que ordenar para saber quién fue primero, y un objeto no
+  // garantiza orden. Van todos los agentes del día, no solo tres: agrupando por
+  // semanas o meses hay que volver a sumar, y quedarse con los tres de cada día
+  // daría un podio semanal falso — el cuarto de todos los días puede ser el
+  // primero de la semana.
+  const ordena = (fila) => {
+    fila.top = Object.keys(fila.por_agente || {})
+      .map((agent) => ({ agent, points: fila.por_agente[agent] }))
+      .sort((a, b) => b.points - a.points || a.agent.localeCompare(b.agent, "es"));
+    delete fila.por_agente;
+    return fila;
+  };
+  payload.all_days.forEach(ordena);
+  payload.evolution.days.forEach(ordena);
   payload.trend = { reciente, previo, comparable,
     variacion_pct: comparable ? Math.round(((reciente.points - previo.points) / previo.points) * 1000) / 10 : null,
     direccion: !comparable ? "sin-base"
@@ -6715,7 +6739,13 @@ async function highscoreHistory(env, requestedAgent, ahora = Date.now()) {
     const family = reportAgentFamily(agent, machine);
     return !!family && family.family_key === wanted.family_key;
   }, ahora);
-  return highscoreHistoryPayload(periods, allDays, { agent:wanted.family_name });
+  // El desglose por agente sólo tiene sentido en el global. Aquí sería una sola
+  // entrada repitiendo el nombre que ya está en la raíz, así que no se publica:
+  // un campo que no aporta y que hay que mantener es deuda.
+  const payload = highscoreHistoryPayload(periods, allDays, { agent:wanted.family_name });
+  allDays.forEach((fila) => { delete fila.por_agente; });
+  payload.evolution.days.forEach((fila) => { delete fila.por_agente; });
+  return payload;
 }
 __name(highscoreHistory, "highscoreHistory");
 
