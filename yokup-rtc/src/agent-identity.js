@@ -26,6 +26,14 @@ const PERSONAS = [
   ["Trinity", ["trinity"]],
   ["Smith", ["smith", "cypher", "agente smith"]],
   ["WhiteRabbit", ["whiterabbit", "white rabbit"]],
+  // Niobe corre de verdad en el MacMini (launchd com.admiranext.agente-niobe +
+  // agent-inbox-niobe + sesión tmux + presencia), pero faltaba aquí, y una persona que
+  // no está en este diccionario NO PUEDE CERRAR NADA: parseAgentIdentity cae al return
+  // final con suffix vacío, y validateMissionActor lo compara contra machineSuffix(loc)
+  // — «MacMini» — así que devuelve 403 owner_mismatch con expected y received IDÉNTICOS
+  // («NiobeMacMini» vs «NiobeMacMini»), que es el peor error posible de diagnosticar.
+  // Lo destapó NiobeMacMini el 15-08-2026 intentando cerrar FLT-1445.
+  ["Niobe", ["niobe"]],
 ];
 // Apellidos que se usaron antes y siguen vivos en datos ya guardados. Se leen,
 // pero al volver a escribir salen con el apellido actual.

@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   baseAgentIdentity,
+  machineSuffix,
+  parseAgentIdentity,
   sameAgentFamily,
   scopedAgentIdentity,
 } from "./src/agent-identity.js";
@@ -57,4 +59,18 @@ test("lee aliases históricos sin perder la familia operativa", () => {
 test("una máquina vacía o desconocida nunca hereda Mini por prefijo vacío", () => {
   assert.equal(scopedAgentIdentity("Oraculo", ""), "Oraculo");
   assert.equal(scopedAgentIdentity("Oraculo", "equipo-desconocido"), "Oraculo");
+});
+
+// Una persona que corre de verdad en la flota pero no está en el diccionario NO
+// PUEDE CERRAR NADA: parseAgentIdentity cae al return final con suffix vacío, y
+// validateMissionActor lo compara contra machineSuffix(loc) devolviendo 403
+// owner_mismatch con expected y received IDÉNTICOS. Le pasó a NiobeMacMini el
+// 15-08-2026 con FLT-1445, y el mensaje de error no daba ninguna pista.
+test("Niobe está en el diccionario y su apellido case con su máquina", () => {
+  assert.equal(baseAgentIdentity("NiobeMacMini"), "Niobe");
+  assert.equal(parseAgentIdentity("NiobeMacMini").suffix, machineSuffix("macmini"));
+  assert.equal(parseAgentIdentity("NiobeMacMini").legacy, false);
+  assert.equal(parseAgentIdentity("SubNiobeMacMini").role, "sub");
+  assert.equal(scopedAgentIdentity("Niobe", "MacMini"), "NiobeMacMini");
+  assert.equal(sameAgentFamily("Niobe", "NiobeMacMini"), true);
 });
