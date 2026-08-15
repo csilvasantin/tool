@@ -6688,6 +6688,12 @@ async function highscoreFleetHistory(env, ahora = Date.now()) {
   // Sin base con la que comparar no se inventa un porcentaje: se dice que no lo hay.
   const comparable = previo.con_dato >= 3 && reciente.con_dato >= 3 && previo.points > 0;
   payload.first_day = allDays.length ? allDays[0].day : null;
+  // TODOS los días con actividad, no solo los 30 del carrusel. Agrupar por
+  // semanas o por meses sobre una ventana de 30 días daría cuatro barras y dos
+  // barras: un eje de meses que solo puede enseñar dos meses no es un eje de
+  // meses, es un adorno. Son pocas filas (una por día vivido) y viajan enteras
+  // para que el front pueda reagrupar sin volver a preguntar.
+  payload.all_days = allDays;
   payload.trend = { reciente, previo, comparable,
     variacion_pct: comparable ? Math.round(((reciente.points - previo.points) / previo.points) * 1000) / 10 : null,
     direccion: !comparable ? "sin-base"

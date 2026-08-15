@@ -74,9 +74,9 @@ test("la imagen conserva las proporciones 16:9 entregadas", () => {
 });
 
 test("la cabecera compacta conserva el sonido y elimina reloj y subtítulo", () => {
-  // Entre HIGHSCORE y el sonido entra ahora RANKING (Carlos, 15-ago-2026):
-  // los tres mandos comparten la banda y el de sonido sigue siendo el último.
-  assert.match(html, />HIGHSCORE<\/button>\s*<button class="podium-toggle ranking-toggle"[\s\S]*?>RANKING<\/button>\s*<button class="sonido"/);
+  // RANKING salió de esta banda y bajó a encabezar su tabla (Carlos,
+  // 15-ago-2026): arriba parecía un segundo título de la página.
+  assert.match(html, />HIGHSCORE<\/button>\s*<button class="sonido"/);
   assert.doesNotMatch(html, /class="cab-tools"/);
   assert.match(html, /class="sonido"[^>]*aria-pressed="false"/);
   assert.doesNotMatch(html, /<time class="reloj"/);

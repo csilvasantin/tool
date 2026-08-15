@@ -78,7 +78,11 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
    gesto, un punto por debajo en peso, para que la jerarquía se lea sin leer.
    Deshabilitado cuando no hay nada que desplegar (5 agentes o menos): un botón
    que no puede hacer nada no debe parecer que puede. */
-.ranking-toggle{font-size:.62em;opacity:.72;letter-spacing:.16em}
+/* La banda del RANKING es hermana de la de arriba pero un escalón por debajo:
+   aquella titula la página, esta titula una tabla. */
+.rank-divider{display:flex;align-items:center;justify-content:center;width:100%;margin:14px 0 6px;padding:6px 0;
+  border-top:1px solid rgba(120,243,255,.14);border-bottom:1px solid rgba(120,243,255,.14)}
+.ranking-toggle{font-size:.78em;opacity:.82;letter-spacing:.18em}
 .ranking-toggle:hover,.ranking-toggle:focus-visible{opacity:1}
 .ranking-toggle.on{opacity:1;color:var(--brand)}
 .ranking-toggle:disabled{opacity:.28;cursor:default;text-shadow:none}
@@ -149,6 +153,13 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .dias-veredicto.igual{border-left-color:var(--accent,#ffd866)}
 .dias-veredicto.sin-base{border-left-color:var(--dim,#4d7a88);color:var(--mut)}
 .dias-veredicto b{font-size:17px}
+.dias-granos{display:flex;gap:6px;margin-bottom:10px}
+.dias-granos .grano{font-family:var(--mono,monospace);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  border:1px solid var(--line,rgba(120,243,255,.16));border-radius:8px;padding:6px 12px;
+  background:transparent;color:var(--mut,#75aab9);cursor:pointer}
+.dias-granos .grano:hover{border-color:var(--brand,#78f3ff);color:var(--ink,#dff8ff)}
+.dias-granos .grano.on{border-color:var(--brand,#78f3ff);color:var(--brand,#78f3ff);
+  box-shadow:0 0 0 1px rgba(120,243,255,.18) inset}
 .dias-graf{width:100%;height:auto;display:block}
 .dias-graf .barra{fill:var(--brand,#78f3ff);opacity:.62}
 .dias-graf .barra.hoy{opacity:1;fill:var(--accent,#ffd866)}
@@ -773,8 +784,6 @@ body.resizing-columns{cursor:col-resize;user-select:none}
        ya hacía, aunque el rótulo no lo dijera) y RANKING gobierna la tabla. -->
   <h1 class="score-divider" id="scoreDivider"><button class="podium-toggle" id="podiumToggle" type="button" aria-expanded="false" aria-controls="podio"
     title="Mostrar podio">HIGHSCORE</button>
-    <button class="podium-toggle ranking-toggle" id="rankingToggle" type="button" aria-expanded="false" aria-controls="rankingScroll"
-      title="Ver la tabla completa">RANKING</button>
     <button class="sonido" id="btnSonido" type="button" aria-pressed="false" title="Activar sonido">
       <span aria-hidden="true">♪</span><span class="sr-only" id="estadoSonido">Sonido desactivado</span>
     </button></h1>
@@ -804,12 +813,18 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   <!-- Los 30 días de TODA la flota. Se abre desde el sumador del podio. -->
   <div class="dias-mod" id="diasMod" role="dialog" aria-modal="true" aria-labelledby="diasTit">
     <div class="dias-box">
-      <h2 id="diasTit">Últimos 30 días · toda la flota</h2>
+      <h2 id="diasTit">Equipo de Silicio · evolución</h2>
       <p class="dias-sub" id="diasSub">Cargando…</p>
       <div id="diasCuerpo"></div>
       <button class="dias-cerrar" id="diasCerrar" type="button">Cerrar</button>
     </div>
   </div>
+  <!-- RANKING encabeza LA TABLA (Carlos, 15-ago-2026). Arriba, al lado de
+       HIGHSCORE, parecía un segundo título de la página y no se entendía qué
+       gobernaba. Aquí no hay duda: es el rótulo de lo que hay justo debajo, y
+       el botón despliega esa misma tabla. -->
+  <h2 class="rank-divider" id="rankDivider"><button class="podium-toggle ranking-toggle" id="rankingToggle" type="button"
+    aria-expanded="false" aria-controls="rankingScroll" title="Ver la tabla completa">RANKING</button></h2>
   <div class="table-scroll" id="rankingScroll">
     <table class="tabla" id="rankingTable">
       <colgroup>
@@ -1767,7 +1782,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       dia += Math.max(0, Number(m.day) || 0);
     });
     var rotulo = lista.length + (lista.length === 1 ? " agente" : " agentes");
-    var titulo = "Toda la flota: " + hora + " puntos en esta hora y " + dia + " hoy, sumando " + rotulo;
+    var titulo = "Equipo de Silicio: " + hora + " puntos en esta hora y " + dia + " hoy, sumando " + rotulo;
     return '<button type="button" class="podio-total" id="podioTotal" aria-label="' + esc(titulo) + ' — pulsa para ver los últimos 30 días" title="' + esc(titulo) + ' · pulsa para ver los últimos 30 días">' +
       '<div class="pts">' +
         '<span class="score-number score-hour ' + (hora > 0 ? "hour-positive" : "hour-zero") + '">' + esc(hora) + '</span>' +
@@ -1776,7 +1791,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<span class="score-number score-day">' + esc(dia) + '</span>' +
         '<span class="score-period" aria-hidden="true">hoy</span>' +
       '</div>' +
-      '<div class="tot-rot">toda la flota<br>' + esc(rotulo) + '</div>' +
+      '<div class="tot-rot">equipo de silicio<br>' + esc(rotulo) + '</div>' +
       '<div class="tot-mas" aria-hidden="true">30 días ↗</div></button>';
   }
 
@@ -1791,40 +1806,84 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     if (!t.comparable) {
       // Sin base no se inventa un porcentaje. Decir «+300%» sobre dos días
       // sueltos no es medir, es adornar.
-      return '<div class="dias-veredicto sin-base">Todavía <b>no hay base</b> para decir si la flota rinde más: ' +
+      return '<div class="dias-veredicto sin-base">Todavía <b>no hay base</b> para decir si el Equipo de Silicio rinde más: ' +
         'hacen falta al menos 3 días con actividad en cada tramo de 7 y ahora hay ' +
         esc(r.con_dato || 0) + ' y ' + esc(p.con_dato || 0) + '.</div>';
     }
     var pct = Number(t.variacion_pct) || 0, signo = pct > 0 ? "+" : "";
-    var frase = t.direccion === "sube" ? "La flota rinde <b>más</b> que la semana anterior"
-      : t.direccion === "baja" ? "La flota rinde <b>menos</b> que la semana anterior"
-      : "La flota rinde <b>igual</b> que la semana anterior";
+    var frase = t.direccion === "sube" ? "El Equipo de Silicio rinde <b>más</b> que el periodo anterior"
+      : t.direccion === "baja" ? "El Equipo de Silicio rinde <b>menos</b> que el periodo anterior"
+      : "El Equipo de Silicio rinde <b>igual</b> que el periodo anterior";
     return '<div class="dias-veredicto ' + esc(t.direccion) + '">' + frase +
       ': <b>' + signo + esc(pct) + '%</b>.<br>' +
       'Últimos 7 días ' + esc(r.points || 0) + ' pts (' + esc(r.media || 0) + '/día, ' + esc(r.con_dato || 0) + ' días con actividad) · ' +
       'los 7 anteriores ' + esc(p.points || 0) + ' pts (' + esc(p.media || 0) + '/día, ' + esc(p.con_dato || 0) + ' días).</div>';
   }
 
+  // AGRUPACIÓN. Los mismos hechos mirados con tres lupas. Se agrupa en el
+  // navegador sobre all_days (los días con actividad, que el worker manda
+  // enteros) en vez de pedir tres consultas: cambiar de lupa es instantáneo y,
+  // sobre todo, las tres salen del MISMO dato y no pueden discrepar.
+  var diasGrano = "dia";
+  var GRANOS = [["dia", "días", 30], ["semana", "semanas", 12], ["mes", "meses", 12]];
+
+  // Lunes de la semana ISO a la que pertenece el día, en clave AAAA-MM-DD. Se
+  // usa el lunes y no el número de semana porque el número se reinicia cada año
+  // y ordenaría diciembre antes que enero.
+  function lunesDe(dia) {
+    var f = new Date(dia + "T12:00:00Z"), d = f.getUTCDay() || 7;
+    f.setUTCDate(f.getUTCDate() - (d - 1));
+    return f.toISOString().slice(0, 10);
+  }
+
+  function agrupaDias(todos, grano, tope) {
+    var mapa = new Map();
+    (todos || []).forEach(function (x) {
+      var clave = grano === "mes" ? x.day.slice(0, 7) : grano === "semana" ? lunesDe(x.day) : x.day;
+      var fila = mapa.get(clave) || { clave: clave, points: 0, dias: 0 };
+      fila.points += Number(x.points) || 0;
+      fila.dias += 1;
+      mapa.set(clave, fila);
+    });
+    return [...mapa.values()].sort(function (a, b) { return a.clave.localeCompare(b.clave); }).slice(-tope);
+  }
+
+  function diasSelectorHtml() {
+    return '<div class="dias-granos" role="group" aria-label="Agrupar por">' +
+      GRANOS.map(function (g) {
+        return '<button type="button" class="grano' + (diasGrano === g[0] ? " on" : "") + '" data-grano="' +
+          g[0] + '" aria-pressed="' + (diasGrano === g[0]) + '">' + g[1] + '</button>';
+      }).join("") + '</div>';
+  }
+
   function diasGraficoHtml(d) {
-    var dias = (d.evolution && d.evolution.days) || [];
+    var conf = GRANOS.filter(function (g) { return g[0] === diasGrano; })[0] || GRANOS[0];
+    // Por días se conserva el carrusel de 30 (incluye los vacíos, que son
+    // información: un día a cero es un día parado). Por semanas y meses se
+    // agrupa sobre los días CON actividad, porque una semana sin ninguno no
+    // llegó a existir para la flota.
+    var dias = diasGrano === "dia"
+      ? ((d.evolution && d.evolution.days) || []).map(function (x) { return { clave: x.day, points: x.points, dias: 1 }; })
+      : agrupaDias(d.all_days, diasGrano, conf[2]);
     if (!dias.length) return '<p class="dias-sub">Sin días que dibujar.</p>';
     var W = 720, H = 210, base = H - 22, pad = 26;
     var ancho = (W - pad) / dias.length, barra = Math.max(3, ancho - 3);
     var tope = Math.max.apply(null, dias.map(function (x) { return Number(x.points) || 0; }).concat([1]));
-    var hoy = d.evolution.end, primero = d.first_day || null;
+    var hoy = diasGrano === "dia" ? d.evolution.end : null, primero = diasGrano === "dia" ? (d.first_day || null) : null;
     var barras = dias.map(function (x, i) {
       var v = Number(x.points) || 0, alto = Math.round((v / tope) * (base - 12));
-      var previo = primero && x.day < primero;
+      var previo = primero && x.clave < primero;
       var y = base - Math.max(v > 0 ? 1 : 0, alto);
-      var cls = previo ? "previo" : x.day === hoy ? "barra hoy" : "barra";
-      var rot = previo ? x.day + " · antes de que hubiera registro" : x.day + " · " + v + " pts";
+      var cls = previo ? "previo" : x.clave === hoy ? "barra hoy" : "barra";
+      var rot = previo ? x.clave + " · antes de que hubiera registro"
+        : x.clave + " · " + v + " pts" + (x.dias > 1 ? " (" + x.dias + " días con actividad)" : "");
       return '<rect class="' + cls + '" x="' + (pad + i * ancho) + '" y="' + (previo ? base - 4 : y) +
         '" width="' + barra + '" height="' + (previo ? 4 : Math.max(1, base - y)) + '" rx="1">' +
         '<title>' + esc(rot) + '</title></rect>';
     }).join("");
-    var etiqueta = function (i) { return dias[i] ? dias[i].day.slice(5) : ""; };
-    return '<svg class="dias-graf" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
-      'aria-label="Puntos por día de los últimos ' + dias.length + ' días. Máximo ' + tope + ' puntos.">' +
+    var etiqueta = function (i) { return dias[i] ? (diasGrano === "mes" ? dias[i].clave : dias[i].clave.slice(5)) : ""; };
+    return diasSelectorHtml() + '<svg class="dias-graf" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
+      'aria-label="Puntos del Equipo de Silicio por ' + conf[1] + ', ' + dias.length + ' barras. Máximo ' + tope + ' puntos.">' +
       '<line class="eje" x1="' + pad + '" y1="' + base + '" x2="' + W + '" y2="' + base + '"/>' +
       '<text x="0" y="14">' + esc(tope) + '</text><text x="0" y="' + base + '">0</text>' +
       barras +
@@ -4187,6 +4246,13 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // repintado del podio se llevaría el clic por delante sin avisar.
   document.getElementById("podio").addEventListener("click", function (e) {
     if (e.target && e.target.closest && e.target.closest("#podioTotal")) abreDias();
+  });
+  // El selector se repinta con el panel, así que también se delega.
+  document.getElementById("diasCuerpo").addEventListener("click", function (e) {
+    var b = e.target && e.target.closest && e.target.closest(".grano");
+    if (!b || !diasCache) return;
+    diasGrano = b.dataset.grano;
+    pintaDias(diasCache);
   });
   document.getElementById("diasCerrar").addEventListener("click", cierraDias);
   document.getElementById("diasMod").addEventListener("click", function (e) {

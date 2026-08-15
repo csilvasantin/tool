@@ -67,7 +67,10 @@ test("el total sale de las MISMAS cifras que pinta cada fila", () => {
 test("declara cuántos agentes ha contado, para que el filtro no lo vuelva engañoso", () => {
   const fn = html.slice(html.indexOf("function totalPodioHtml"), html.indexOf("function pintaPodio"));
   assert.match(fn, /lista\.length \+ \(lista\.length === 1 \? " agente" : " agentes"\)/);
-  assert.match(fn, /toda la flota/);
+  // «toda la flota» pasó a «equipo de silicio» (Carlos, 15-ago-2026): desde
+  // que existe el censo de carbono, «flota» ya no distingue quién puntúa —
+  // una persona del carbono NO puntúa en este marcador.
+  assert.match(fn, /equipo de silicio/);
   // Sin nadie a quien sumar no se pinta un cero: no se pinta nada.
   assert.match(fn, /if \(!lista\.length\) return "";/);
 });

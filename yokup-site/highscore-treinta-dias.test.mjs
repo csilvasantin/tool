@@ -25,8 +25,8 @@ test("el veredicto va en PALABRAS y antes que las barras", () => {
   const cuerpo = html.slice(html.indexOf("function pintaDias(d)"));
   assert.match(cuerpo.slice(0, 700), /diasVeredictoHtml\(d\) \+ diasGraficoHtml\(d\)/,
     "primero el veredicto, después el gráfico");
-  assert.match(html, /La flota rinde <b>más<\/b>/);
-  assert.match(html, /La flota rinde <b>menos<\/b>/);
+  assert.match(html, /El Equipo de Silicio rinde <b>más<\/b>/);
+  assert.match(html, /El Equipo de Silicio rinde <b>menos<\/b>/);
 });
 
 test("sin base suficiente NO se inventa un porcentaje", () => {
@@ -42,7 +42,7 @@ test("los días anteriores al primer registro se marcan, no se pintan como flojo
   // Días en los que esto no existía salen a cero como cualquier otro: una curva
   // que arranca en cero y sube dibuja un mérito que nadie hizo.
   const fn = html.slice(html.indexOf("function diasGraficoHtml"), html.indexOf("function abreDias"));
-  assert.match(fn, /var previo = primero && x\.day < primero/);
+  assert.match(fn, /var previo = primero && x\.clave < primero/);
   assert.match(fn, /antes de que hubiera registro/);
   assert.match(html, /\.dias-graf \.previo\{/);
 });
@@ -57,4 +57,39 @@ test("el panel se cierra por botón, por fondo y por Escape", () => {
   assert.match(html, /if \(e\.target === document\.getElementById\("diasMod"\)\) cierraDias\(\)/);
   assert.match(html, /e\.key === "Escape" && document\.getElementById\("diasMod"\)\.classList\.contains\("on"\)/);
   assert.match(html, /role="dialog" aria-modal="true" aria-labelledby="diasTit"/);
+});
+
+// Carlos, 15-ago-2026: el gráfico agrupa por días, semanas o meses.
+test("las tres lupas salen del MISMO dato, sin volver a preguntar", () => {
+  // Tres consultas distintas podrían discrepar entre sí; y cambiar de lupa
+  // tiene que ser instantáneo, no un viaje a la red.
+  assert.match(html, /var GRANOS = \[\["dia", "días", 30\], \["semana", "semanas", 12\], \["mes", "meses", 12\]\]/);
+  assert.match(html, /function agrupaDias\(todos, grano, tope\)/);
+  const clic = html.slice(html.indexOf('closest(".grano")'));
+  assert.match(clic.slice(0, 200), /pintaDias\(diasCache\)/);
+  assert.doesNotMatch(clic.slice(0, 200), /fetch/);
+});
+
+test("las semanas se agrupan por su LUNES, no por número de semana", () => {
+  // El número se reinicia cada año y ordenaría diciembre antes que enero.
+  assert.match(html, /function lunesDe\(dia\)/);
+  const fn = html.slice(html.indexOf("function lunesDe"), html.indexOf("function agrupaDias"));
+  assert.match(fn, /f\.setUTCDate\(f\.getUTCDate\(\) - \(d - 1\)\)/);
+  assert.match(fn, /var f = new Date\(dia \+ "T12:00:00Z"\), d = f\.getUTCDay\(\) \|\| 7/,
+    "el domingo es 0 en JS y sin el ||7 caería en la semana siguiente");
+});
+
+test("semanas y meses necesitan MÁS de 30 días, y el worker los manda", () => {
+  // Agrupar por meses una ventana de 30 días daría dos barras: eso no es un eje
+  // de meses, es un adorno.
+  assert.match(html, /agrupaDias\(d\.all_days, diasGrano, conf\[2\]\)/);
+});
+
+test("por días se conservan los vacíos; por semanas y meses no se inventan", () => {
+  // Un día a cero es información (la flota estuvo parada). Una semana sin
+  // ningún día con actividad no llegó a existir.
+  const fn = html.slice(html.indexOf("function diasGraficoHtml"), html.indexOf("function abreDias"));
+  assert.match(fn, /diasGrano === "dia"\s*\?\s*\(\(d\.evolution && d\.evolution\.days\)/);
+  // Y una barra agrupada dice sobre cuántos días se calculó.
+  assert.match(fn, /x\.dias > 1 \? " \(" \+ x\.dias \+ " días con actividad\)" : ""/);
 });
