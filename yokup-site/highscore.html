@@ -227,7 +227,16 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .dias-leyenda{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono,monospace);
   font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
 .dias-cerrar{margin-top:16px}
-@media (max-width:560px){.dias-box{padding:16px 14px}.dias-veredicto{font-size:13px}}
+@media (max-width:560px){
+  .dias-box{padding:16px 14px}.dias-veredicto{font-size:13px}
+  .dg-lista .l-cab,.dg-lista .l-jornada{width:100%;min-width:0}
+  .dg-lista .l-premio{max-width:100%;white-space:normal;font-size:8.5px}
+  .dg-lista li{display:grid;grid-template-columns:74px minmax(0,1fr) auto;gap:4px 8px}
+  .dg-lista .l-hora,.dg-lista .l-hora[data-rango="true"]{grid-column:1;grid-row:1;flex:auto}
+  .dg-lista .l-quien{grid-column:2;grid-row:1;min-width:0;flex:auto}
+  .dg-lista .l-est{grid-column:3;grid-row:1}
+  .dg-lista .l-que{grid-column:2/4;grid-row:2}
+}
 @media (max-width:620px){.podio-total{left:4%;top:4%;width:30%;padding:5px 7px}
   .podio-total .pts{font-size:14px}.podio-total .tot-rot{font-size:8px}}
 .nom{font-size:12px;font-weight:800;letter-spacing:.03em;text-align:center;word-break:break-word;padding:0}

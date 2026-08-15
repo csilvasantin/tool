@@ -215,6 +215,17 @@ test("la fecha lleva al lado los premios factuales de inicio y fin", () => {
   assert.match(html, /\.dg-lista \.l-night\{[^}]*color:var\(--accent/);
 });
 
+test("los premios y la cronología no desbordan en móvil", () => {
+  const mobile = html.slice(html.indexOf("@media (max-width:560px)"),
+    html.indexOf("@media (max-width:620px)"));
+  assert.match(mobile, /\.dg-lista \.l-cab,\.dg-lista \.l-jornada\{width:100%;min-width:0\}/);
+  assert.match(mobile, /\.dg-lista \.l-premio\{max-width:100%;white-space:normal/,
+    "los nombres largos de los ganadores deben poder plegarse");
+  assert.match(mobile, /grid-template-columns:74px minmax\(0,1fr\) auto/);
+  assert.match(mobile, /\.dg-lista \.l-que\{grid-column:2\/4;grid-row:2\}/,
+    "el título baja a una segunda línea sin empujar el estado fuera de pantalla");
+});
+
 test("un periodo con puntos y sin misiones EXPLICA de dónde salen los puntos", () => {
   // Los objetivos, las ventanas de decisión y las tareas también puntúan. Un
   // «no hay nada» se leería como que el dato falló.
