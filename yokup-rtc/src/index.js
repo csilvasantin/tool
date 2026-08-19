@@ -3940,6 +3940,50 @@ function declaredEvidence(raw) {
   };
 }
 
+// POST /declare puede completar el lote D1 y perder únicamente la respuesta
+// (timeout del cliente, cambio de host api↔rtc, corte de red). Un reintento no
+// debe convertirse en otra misión ni en otros 40+15 puntos. La huella incluye
+// sólo datos ya validados y el día operativo de Madrid: la misma declaración es
+// idempotente durante la jornada, pero mañana puede volver a declararse.
+// `idempotency_key` permite repetir deliberadamente un texto idéntico usando
+// una clave nueva, y a la vez da a clientes nuevos una llave explícita estable.
+async function declareMissionId(input) {
+  const canonical = JSON.stringify({
+    v:1,
+    day:input.day,
+    agent:input.agent,
+    machine:input.machine,
+    project_id:input.project_id,
+    parent_id:input.parent_id || "",
+    decision_id:input.decision_id || "",
+    batch_id:input.batch_id || "",
+    subject:input.subject,
+    tasks:input.tasks.map((task) => ({
+      code:task.code,
+      title:task.title,
+      status:task.status,
+      report:task.report || "",
+      evidence:task.evidence ? task.evidence.text : ""
+    })),
+    resolve:input.resolve === true,
+    evidence:input.evidence ? input.evidence.text : "",
+    idempotency_key:input.idempotency_key || ""
+  });
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+  const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return "DCL-" + hex.slice(0, 24);
+}
+__name(declareMissionId, "declareMissionId");
+
+function sameIdempotentDeclaration(existing, identity, projectId, subject) {
+  return !!existing && existing.source === "cli-declare" &&
+    sameAgentFamily(existing.assignee || "", identity.agent) &&
+    memberRefMatches("machine", existing.loc || identity.machine, identity.machine) &&
+    String(existing.project_id || existing.project || "") === projectId &&
+    String(existing.subject || "") === subject;
+}
+__name(sameIdempotentDeclaration, "sameIdempotentDeclaration");
+
 var TASK_STATUS = ["pending", "in_progress", "done"];
 function validTaskCode(c) {
   return typeof c === "string" && TASK_CODE.test(c);
@@ -10328,6 +10372,10 @@ Todo en español.`;
         let missionId = String(b.mission_id || "").trim().slice(0, 80);
         let creada = false;
         let persistedAtomically = false;
+        const rawIdempotencyKey = String(req.headers.get("idempotency-key") || b.idempotency_key || "").trim();
+        if (rawIdempotencyKey.length > 128 || /[\u0000-\u001f\u007f]/.test(rawIdempotencyKey)) {
+          return json({ ok:false, error:"idempotency_key inválida", code:"invalid_idempotency_key" }, 400);
+        }
         const inheritedContext = await validateDeclareCreationContext(env, b, identity);
         if (!inheritedContext.ok) return json({ ok:false, error:inheritedContext.error, code:inheritedContext.code }, inheritedContext.status);
         const projectContext = await resolveCreationProject(env, {
@@ -10346,6 +10394,14 @@ Todo en español.`;
         if (!authorized || authorized.id !== projectContext.project_id) {
           return json({ ok:false, error:"proyecto no autorizado para agente+máquina", code:"exact_project_required" }, 400);
         }
+        const idempotentResponse = async (existing) => {
+          const display_ref = await ensureEntityDisplayRef(env, "mission", existing.id, existing.created_at || now);
+          return json({ ok:true, mission_id:existing.id, display_ref, creada:false,
+            cerrada:existing.status === "resolved", idempotent:true,
+            agent:identity.agent, machine:identity.machine, project:projectContext.project,
+            project_id:projectContext.project_id,
+            tasks:tasks.map((t) => ({ code:t.code, status:t.status, evidencia:!!t.evidence })) });
+        };
         if (missionId) {
           const existing = await env.DB.prepare("SELECT id,assignee,loc,project,project_id FROM tickets WHERE id=?").bind(missionId).first();
           if (!existing) return json({ ok: false, error: "mission_id no existe" }, 404);
@@ -10356,7 +10412,25 @@ Todo en español.`;
           await env.DB.prepare("UPDATE tickets SET subject=?,project=?,project_id=?,parent_id=COALESCE(?,parent_id),updated_at=? WHERE id=?")
             .bind(subject, projectContext.project_id, projectContext.project_id, inheritedContext.parent_id, now, missionId).run();
         } else {
-          missionId = "DCL-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
+          missionId = await declareMissionId({
+            day:madridDayKey(now), agent:identity.agent, machine:identity.machine,
+            project_id:projectContext.project_id, parent_id:inheritedContext.parent_id,
+            decision_id:String(b.decision_id || "").trim(), batch_id:String(b.batch_id || "").trim(),
+            subject, tasks, resolve:b.resolve === true, evidence:evidenciaMision,
+            idempotency_key:rawIdempotencyKey
+          });
+          // Camino normal del reintento: la primera petición terminó en D1 y el
+          // cliente no recibió su 200. No se reescribe nada; se devuelve la misma
+          // misión y la misma referencia visible.
+          const previous = await env.DB.prepare(
+            "SELECT id,subject,assignee,loc,project,project_id,source,status,created_at FROM tickets WHERE id=?"
+          ).bind(missionId).first();
+          if (previous) {
+            if (!sameIdempotentDeclaration(previous, identity, projectContext.project_id, subject)) {
+              return json({ ok:false, error:"colisión de idempotencia", code:"idempotency_conflict" }, 409);
+            }
+            return idempotentResponse(previous);
+          }
           // `screen` lleva un índice UNIQUE entre tickets NO resueltos (una sola
           // incidencia abierta por pantalla física). Sembrarlo con el proyecto
           // dejaba una única misión declarable por proyecto y reventaba la
@@ -10405,7 +10479,20 @@ Todo en español.`;
           }
           // D1 batch es atómico: ticket, proyecto, plan y eventos nacen juntos.
           // Si falla cualquier sentencia no queda una misión parcial u huérfana.
-          await env.DB.batch(statements);
+          try {
+            await env.DB.batch(statements);
+          } catch (error) {
+            // Dos reintentos pueden superar a la vez la lectura anterior. D1
+            // conserva la PK única y el batch atómico: el perdedor consulta el
+            // ganador y responde con él, pero no oculta ningún otro fallo.
+            const winner = await env.DB.prepare(
+              "SELECT id,subject,assignee,loc,project,project_id,source,status,created_at FROM tickets WHERE id=?"
+            ).bind(missionId).first();
+            if (sameIdempotentDeclaration(winner, identity, projectContext.project_id, subject)) {
+              return idempotentResponse(winner);
+            }
+            throw error;
+          }
           persistedAtomically = true;
           creada = true;
         }

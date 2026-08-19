@@ -3,12 +3,15 @@ import assert from "node:assert/strict";
 import worker from "./src/index.js";
 
 function harness() {
-  const state = { tickets:[], refs:new Map(), fleetIds:new Map(), decisions:new Map(), batches:new Map(), items:[], novelties:[], nextNoveltyCursor:1, atomicBatches:[], allowDeclaration:false, allowInherited:false, batchCalls:0, ticketBatches:0,
+  const state = { tickets:[], refs:new Map(), fleetIds:new Map(), decisions:new Map(), batches:new Map(), items:[], novelties:[], nextNoveltyCursor:1, atomicBatches:[], allowDeclaration:false, allowInherited:false, batchCalls:0, ticketBatches:0, declareRaceGate:null, enforceTicketUniqueness:false,
     projects:[{id:"xpaceos",name:"XpaceOS",status:"activo"}],
     members:[{project_id:"xpaceos",kind:"agent",ref:"OraculoMacMini"},{project_id:"xpaceos",kind:"machine",ref:"admira-macmini"}] };
   const statement = (sql, args=[]) => ({
     sql, args, bind(...next) { return statement(sql, next); },
     async first() {
+      if (sql === "SELECT id,subject,assignee,loc,project,project_id,source,status,created_at FROM tickets WHERE id=?" && state.declareRaceGate) {
+        await state.declareRaceGate();
+      }
       if (sql === "SELECT id FROM tickets WHERE screen=? AND status!='resolved'") return null;
       if (sql === "SELECT id,name,status FROM projects WHERE id=?")
         return state.projects.find(project=>project.id===args[0])||null;
@@ -95,7 +98,16 @@ function harness() {
   }
   const DB={
     async exec(){}, prepare(sql){return statement(sql);},
-    async batch(items){state.batchCalls++; state.atomicBatches.push(items.map(item=>item.sql)); if(items.some(item=>item.sql.startsWith("INSERT INTO tickets")))state.ticketBatches++; for(const item of items) apply(item.sql,item.args); return items.map(()=>({meta:{changes:1}}));}
+    async batch(items){
+      state.batchCalls++; state.atomicBatches.push(items.map(item=>item.sql));
+      const ticketInsert=items.find(item=>item.sql.startsWith("INSERT INTO tickets"));
+      if(ticketInsert){
+        state.ticketBatches++;
+        if(state.enforceTicketUniqueness&&state.tickets.some(row=>row.id===ticketInsert.args[0])) throw new Error("D1_ERROR: UNIQUE constraint failed: tickets.id");
+      }
+      for(const item of items) apply(item.sql,item.args);
+      return items.map(()=>({meta:{changes:1}}));
+    }
   };
   return {env:{DB},state};
 }
@@ -133,6 +145,46 @@ test("POST /declare crea ticket, proyecto, plan y evento en un solo batch", asyn
   const ticket=state.tickets.find(row=>row.source==="cli-declare");
   assert.equal(ticket.project_id,"xpaceos"); assert.equal(ticket.project,"xpaceos");
   assert.equal(state.ticketBatches,beforeBatches+1);
+});
+
+test("POST /declare es idempotente si el cliente reintenta tras perder la respuesta", async()=>{
+  const body={agent:"OraculoMacMini",machine:"admira-macmini",project_id:"xpaceos",
+    subject:"Reintento tras timeout",tasks:[{code:"a",title:"Registrar login",status:"in_progress"}]};
+  const before=state.tickets.length, beforeBatches=state.ticketBatches;
+  const first=await post("/declare",body), firstJson=await first.json();
+  const repeated=await post("/declare",body), repeatedJson=await repeated.json();
+  assert.equal(first.status,200); assert.equal(repeated.status,200);
+  assert.equal(repeatedJson.mission_id,firstJson.mission_id);
+  assert.equal(repeatedJson.creada,false); assert.equal(repeatedJson.idempotent,true);
+  assert.equal(state.tickets.length,before+1,"el reintento no crea otro ticket");
+  assert.equal(state.ticketBatches,beforeBatches+1,"el reintento no ejecuta otro lote de alta");
+});
+
+test("POST /declare permite repetir deliberadamente con otra idempotency_key", async()=>{
+  const body={agent:"OraculoMacMini",machine:"admira-macmini",project_id:"xpaceos",
+    subject:"Trabajo idéntico deliberado",tasks:[{code:"a",title:"Ejecutar",status:"pending"}]};
+  const one=await post("/declare",{...body,idempotency_key:"intento-1"});
+  const two=await post("/declare",{...body,idempotency_key:"intento-2"});
+  const oneJson=await one.json(), twoJson=await two.json();
+  assert.equal(one.status,200); assert.equal(two.status,200);
+  assert.notEqual(oneJson.mission_id,twoJson.mission_id);
+  assert.equal(oneJson.creada,true); assert.equal(twoJson.creada,true);
+});
+
+test("POST /declare converge si dos altas iguales compiten a la vez", async()=>{
+  const box=harness(); box.state.enforceTicketUniqueness=true;
+  let reads=0, release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  box.state.declareRaceGate=async()=>{reads++; if(reads===2) release(); await gate;};
+  const body={agent:"OraculoMacMini",machine:"admira-macmini",project_id:"xpaceos",
+    subject:"Carrera de reintentos",tasks:[{code:"a",title:"Registrar una sola vez",status:"pending"}]};
+  const request=()=>worker.fetch(new Request("https://api.yokup.test/declare",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}),box.env,{});
+  const [one,two]=await Promise.all([request(),request()]);
+  const [oneJson,twoJson]=await Promise.all([one.json(),two.json()]);
+  assert.equal(one.status,200); assert.equal(two.status,200);
+  assert.equal(oneJson.mission_id,twoJson.mission_id);
+  assert.equal(box.state.tickets.filter(row=>row.source==="cli-declare").length,1);
+  assert.equal([oneJson.idempotent,twoJson.idempotent].filter(Boolean).length,1,"la petición perdedora recupera la ganadora");
 });
 
 test("POST /declare sella started_at en el handON y sus tareas activas", async()=>{
