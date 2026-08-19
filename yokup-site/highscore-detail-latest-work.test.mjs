@@ -29,5 +29,5 @@ test("el panel es independiente del filtro type y enlaza el proyecto factual",()
   assert.doesNotMatch(page,/latestWorkPanel\(data,stateValue\.type/);
   assert.match(page,/link\.href=work\.detailUrl/);
   assert.match(page,/Trabajo más reciente en otro proyecto/);
-  assert.match(html,/\.latest-work\{/);assert.match(html,/highscore-detail\.js\?v=marker-inspector-r1/);
+  assert.match(html,/\.latest-work\{/);assert.match(html,/highscore-detail\.js\?v=weekly-control-r1/);
 });
