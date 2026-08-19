@@ -82,10 +82,12 @@ test("histórico usa hechos canónicos, identidad exacta y deduplicación diaria
     ('D3','MorfeoMBP14','MacBook Pro 14',${aug10}),('DF','MorfeoMBP16','MacBook Pro 16',${now+60000})`);
   db.exec(`INSERT INTO tickets(id,source,status,assignee,loc,closure_reason,created_at) VALUES
     ('M1','decision-batch','in_progress','MorfeoMBP16','MacBook Pro 16',NULL,${aug10}),
-    ('EQ','fleet','cancelled','MorfeoMBP16','MacBook Pro 16','equivalent_mission',${aug10})`);
+    ('EQ','fleet','cancelled','MorfeoMBP16','MacBook Pro 16','equivalent_mission',${aug10}),
+    ('CANCEL','cli-declare','cancelled','MorfeoMBP16','MacBook Pro 16',NULL,${aug10})`);
   db.exec(`INSERT INTO mission_tasks(mission_id,code,status,owner,updated_at) VALUES
     ('M1','a','done','SubMorfeoMBP16',${aug10+1000}),('M1','a1','in_progress','SubMorfeoMBP16',${aug10+2000}),
-    ('M1','b','done','SubMorfeoMBP16',${aug10+3000}),('EQ','c','done','SubMorfeoMBP16',${aug10+4000})`);
+    ('M1','b','done','SubMorfeoMBP16',${aug10+3000}),('EQ','c','done','SubMorfeoMBP16',${aug10+4000}),
+    ('CANCEL','a','in_progress','SubMorfeoMBP16',${aug10+5000})`);
   const result=JSON.parse(JSON.stringify(await F.highscoreHistory(env,"MorfeoMBP16",now)));
   assert.equal(result.ok,true);
   assert.equal(result.agent,"MorfeoMBP16");

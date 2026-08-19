@@ -6064,7 +6064,7 @@ async function highscoreTraceability(env, inicio, fin, ahora) {
     "FROM mission_tasks m LEFT JOIN tickets t ON t.id=m.mission_id " +
     "WHERE ((COALESCE(m.created_at,m.updated_at)>=? AND COALESCE(m.created_at,m.updated_at)<?) " +
     "OR (m.updated_at>=? AND m.updated_at<?)) " +
-    "AND NOT (t.status='cancelled' AND COALESCE(t.closure_reason,'')='equivalent_mission')"
+    "AND COALESCE(t.status,'')!='cancelled'"
   ).bind(inicio, fin, inicio, fin).all()).results || []);
   // Esta consulta no usa fechas: son exclusivamente llaves de unión. Las etapas
   // que no pertenecen al día no se publican, pero la llave permite distinguir
@@ -6239,7 +6239,7 @@ async function highscorePeriodMetrics(env, inicio, fin) {
   const taskRows = ((await env.DB.prepare(
     `SELECT m.mission_id,m.code,m.status,m.owner,m.updated_at,t.assignee,t.loc ` +
     `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${AGENT_SOURCE_SQL_T} ` +
-    "AND NOT (t.status='cancelled' AND COALESCE(t.closure_reason,'')='equivalent_mission') " +
+    "AND COALESCE(t.status,'')!='cancelled' " +
     "AND m.updated_at>=? AND m.updated_at<? AND m.status IN ('in_progress','done')"
   ).bind(inicio, fin).all()).results || []);
   const representatives = new Map();
@@ -6395,7 +6395,7 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
     rows(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.updated_at,` +
       `t.assignee,t.loc,t.project,t.project_id FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id ` +
       `WHERE ${AGENT_SOURCE_SQL_T} AND COALESCE(NULLIF(t.project_id,''),t.project)=? ` +
-      `AND NOT (t.status='cancelled' AND COALESCE(t.closure_reason,'')='equivalent_mission') ` +
+      `AND COALESCE(t.status,'')!='cancelled' ` +
       `AND m.updated_at>=? AND m.updated_at<? AND m.status IN ('in_progress','done')`,
       exactProjectId, range.start, range.end),
     rows(`SELECT t.id,t.subject,t.assignee,t.loc,t.status,t.project,t.project_id,t.resolved_at,` +
@@ -6627,7 +6627,7 @@ async function highscoreDailyRows(env, pertenece, ahora) {
       `WHERE (status IN ('in_progress','resolved') OR (status='open' AND con_plan=1)) AND scored_at>0 AND scored_at<?`, fin),
     rows(`SELECT m.mission_id,m.code,m.status,m.owner,m.updated_at,t.assignee,t.loc ` +
       `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${AGENT_SOURCE_SQL_T} ` +
-      "AND NOT (t.status='cancelled' AND COALESCE(t.closure_reason,'')='equivalent_mission') " +
+      "AND COALESCE(t.status,'')!='cancelled' " +
       "AND m.updated_at>0 AND m.updated_at<? AND m.status IN ('in_progress','done')", fin)
   ]);
   const daily = new Map();
@@ -7019,7 +7019,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
       `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
       `AND m.status IN ('in_progress','doing','active') ` +
       `AND t.status='in_progress' ` +
-      `AND NOT (t.status='cancelled' AND COALESCE(t.closure_reason,'')='equivalent_mission')`).all().then((r) => r.results || []),
+      `AND COALESCE(t.status,'')!='cancelled'`).all().then((r) => r.results || []),
     env.DB.prepare("SELECT id,title,status,author,author_identity,project,updated_at,created_at FROM ideas WHERE status='estudio'").all()
       .then((r) => r.results || []),
     highscoreVerifiedPresence(env, ahora),
@@ -7220,7 +7220,7 @@ async function highscoreCurrentTotals(env, scores, inicio, fin) {
   const taskRows = ((await env.DB.prepare(
     `SELECT m.mission_id,m.code,m.status,m.owner,m.updated_at,t.assignee,t.loc ` +
     `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${AGENT_SOURCE_SQL_T} ` +
-    "AND NOT (t.status='cancelled' AND COALESCE(t.closure_reason,'')='equivalent_mission') " +
+    "AND COALESCE(t.status,'')!='cancelled' " +
     "AND m.updated_at>=? AND m.updated_at<? AND m.status IN ('in_progress','done')"
   ).bind(inicio, fin).all()).results || []);
   const representatives = new Map();

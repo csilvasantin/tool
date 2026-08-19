@@ -229,9 +229,11 @@ test("la adopción OnIdle puntúa sólo la misión canónica y excluye el conten
   db.exec(`INSERT INTO mission_batch_items(batch_id,position,mission_id) VALUES ('B-ADOPT',0,'DCL-REAL')`);
   db.exec(`INSERT INTO tickets(id,subject,loc,source,status,assignee,project,closure_reason,created_at,updated_at) VALUES
     ('MIS-CONT','Contenedor sustituido','MacMini','decision-batch','cancelled','OraculoMacMini','yokup','equivalent_mission',${HOY},${HOY}),
+    ('DCL-DUP','Duplicado cancelado','MacMini','cli-declare','cancelled','OraculoMacMini','yokup',NULL,${HOY},${HOY}),
     ('DCL-REAL','Misión canónica','MacMini','cli-declare','in_progress','OraculoMacMini','yokup',NULL,${HOY},${HOY})`);
   db.exec(`INSERT INTO mission_tasks(mission_id,code,title,status,owner,created_at,updated_at) VALUES
     ('MIS-CONT','a','Tarea residual del contenedor','done','SubOraculoMacMini',${HOY},${HOY}),
+    ('DCL-DUP','a','Tarea activa del duplicado','in_progress','SubOraculoMacMini',${HOY},${HOY}),
     ('DCL-REAL','a','Tarea canónica','done','SubOraculoMacMini',${HOY},${HOY})`);
 
   const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
@@ -244,6 +246,8 @@ test("la adopción OnIdle puntúa sólo la misión canónica y excluye el conten
     "ventana, misión y tarea puntúan una sola vez al agente principal");
   assert.ok(!d.traceability.unlinked.some(item=>item.mission_id==="MIS-CONT"),
     "la tarea residual tampoco debe aparecer como evidencia puntuable o huérfana");
+  assert.ok(!d.traceability.unlinked.some(item=>item.mission_id==="DCL-DUP"),
+    "una tarea activa dentro de cualquier misión cancelada aporta cero y desaparece de la traza");
   assert.equal(d.traceability.chains.filter(chain=>chain.mission?.id==="DCL-REAL").length,1);
 });
 
