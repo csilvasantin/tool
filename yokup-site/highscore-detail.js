@@ -250,6 +250,41 @@
       seriesIndex:seriesIndex,pointIndex:pointIndex,current:!!series.current};
   }
 
+  /* Control semanal factual. No reconstruye puntos ni mezcla proyectos: usa el
+     mismo ranking y la misma serie acumulada que el servidor ya validó para el
+     detalle abierto. La comparación de puesto toma el último corte anterior de
+     la semana; un agente a cero aún no tenía posición, no era el último. */
+  function weeklyRankAt(evolution, pointIndex, agent) {
+    if (!evolution || !Array.isArray(evolution.series) || !Number.isInteger(pointIndex) || pointIndex<0) return null;
+    var rows=[];
+    for (var i=0;i<evolution.series.length;i++) {
+      var series=evolution.series[i],points=Number(series&&series.values&&series.values[pointIndex]);
+      if (!series || !Number.isFinite(points) || points<=0) continue;
+      rows.push({agent:text(series.agent),points:points});
+    }
+    rows.sort(function(a,b){return b.points-a.points||a.agent.localeCompare(b.agent);});
+    var index=rows.findIndex(function(row){return row.agent===text(agent);});
+    return index<0?null:index+1;
+  }
+  function weeklyControl(value) {
+    if (!value || value.period!=="week" || !value.ranking || !value.comparisonEvolution ||
+      !Array.isArray(value.evolution) || !Array.isArray(value.ranking.ordered) ||
+      !Number.isInteger(value.ranking.currentIndex)) return null;
+    var current=value.ranking.ordered[value.ranking.currentIndex],leader=value.ranking.ordered[0],
+      evolution=value.comparisonEvolution,last=evolution.labels.length-1;
+    if (!current || !leader || last<0) return null;
+    var currentSeries=evolution.series.find(function(row){return row.current===true;});
+    if (!currentSeries || Number(currentSeries.values[last])!==Number(current.points)) return null;
+    var previousPosition=last>0?weeklyRankAt(evolution,last-1,current.agent):null;
+    var currentPosition=Number(current.position),change=previousPosition===null?null:previousPosition-currentPosition;
+    return {
+      zeroDays:value.evolution.filter(function(row){return Number(row.points)===0;}).map(function(row){return row.day;}),
+      currentPosition:currentPosition,previousPosition:previousPosition,rankChange:change,rankFell:change!==null&&change<0,
+      points:Number(current.points),leaderAgent:text(leader.agent),leaderPoints:Number(leader.points),
+      leaderGap:Math.max(0,Number(leader.points)-Number(current.points))
+    };
+  }
+
   /* Contexto cruzado explícito, nunca un hecho del timeline seleccionado. El
      enlace debe volver al mismo detalle con el project_id que afirma el
      servidor; si no coincide, el panel se omite en vez de fabricar navegación. */
@@ -480,7 +515,7 @@
     queryState:queryState, detailUrl:detailUrl, timelineForType:timelineForType, metricForType:metricForType,
     rankingFromHistory:rankingFromHistory, previousRankedAgent:previousRankedAgent, nextRankedAgent:nextRankedAgent,
     rankingComparisonRows:rankingComparisonRows, comparisonEvolutionFromHistory:comparisonEvolutionFromHistory,
-    comparisonMarkerPoint:comparisonMarkerPoint,
+    comparisonMarkerPoint:comparisonMarkerPoint, weeklyControl:weeklyControl,
     latestWorkFromHistory:latestWorkFromHistory,
     evolutionGroups:evolutionGroups, timelineGroups:timelineGroups, periodHistory:periodHistory,
     nextWindow:nextWindow, windowCountdown:windowCountdown, decisionUrl:decisionUrl, onIdleDecisionError:onIdleDecisionError,

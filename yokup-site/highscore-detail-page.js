@@ -138,6 +138,17 @@
     var link=el("a","latest-work-link","Abrir histórico de "+work.projectName+" →");link.href=work.detailUrl;
     link.setAttribute("aria-label","Abrir el histórico factual de "+stateValue.agent+" en "+work.projectName);
     body.append(heading,project,title,meta);panel.append(body,link);panel.setAttribute("aria-label","Contexto de trabajo más reciente fuera del proyecto actual");return panel;}
+  function weeklyControlPanel(data){var control=D.weeklyControl(data);if(!control)return null;
+    var panel=el("section","panel weekly-control"),head=el("div","period-heading"),grid=el("div","weekly-control-grid");
+    head.append(el("h2","","Control semanal"),el("span","period-range",data.from+" — "+data.to));panel.append(head);
+    function signal(name,value,detail,alert){var card=el("article","weekly-signal "+(alert?"alert":"good"));card.append(el("span","weekly-signal-label",name),el("b","",value),el("small","",detail));return card;}
+    var zeroDetail=control.zeroDays.length?control.zeroDays.join(" · "):"Ningún día a cero";
+    var rankDetail=control.previousPosition===null?"Sin posición puntuable en el corte anterior":control.rankChange===0?"Sin cambio desde el corte anterior":control.rankChange>0?"Sube "+control.rankChange+(control.rankChange===1?" puesto":" puestos"):"Cae "+Math.abs(control.rankChange)+(control.rankChange===-1?" puesto":" puestos");
+    var gapDetail=control.leaderGap?control.leaderAgent+" lidera con "+control.leaderPoints+" pts":"Lidera el proyecto en este periodo";
+    grid.append(signal("Días a cero",String(control.zeroDays.length),zeroDetail,control.zeroDays.length>0),
+      signal("Ranking","#"+control.currentPosition,rankDetail,control.rankFell),
+      signal("Brecha líder",control.leaderGap+" pts",gapDetail,control.leaderGap>0));
+    panel.append(grid);panel.setAttribute("aria-label","Control semanal factual: días a cero, cambio de ranking y brecha con el líder");return panel;}
   function orderText(order){return order==="asc"?"más antiguo primero":"más reciente primero";}
   function orderButton(order,onSelect,label){var button=el("button","chronology-order","Fecha · "+orderText(order)+(order==="asc"?" ↑":" ↓"));button.type="button";button.dataset.order=order;
     button.setAttribute("aria-label",label+". Orden actual: "+orderText(order)+". Pulsar para invertir.");button.addEventListener("click",onSelect);return button;}
@@ -154,7 +165,7 @@
       group.events.forEach(function(event){var item=el("li","event"),time=el("time","",new Date(event.at).toLocaleString("es-ES",{timeZone:data.timezone,day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}));time.dateTime=new Date(event.at).toISOString();
         var body=el("div"),eventTitle=el("strong","",event.type+" · "+event.title);body.append(eventTitle);if(event.id)body.append(el("small","",event.id));item.append(time,body,el("span","event-points",event.points?"+"+event.points+" pts":""));list.append(item);});section.append(groupHead,list);grouped.append(section);});panel.append(grouped);return panel;}
   function render(data,stateValue){target.replaceChildren();var back=document.querySelector(".back");back.href=backUrl(stateValue.projectId);
-    target.append(hero(data,stateValue),periodNav(stateValue.period,selectPeriod),rankingSeriesChart(data,stateValue));var recent=latestWorkPanel(data,stateValue);if(recent)target.append(recent);var grid=el("div","grid");grid.append(metricGrid(data.metrics,stateValue.type,selectType),evolution(data,stateValue.type,stateValue.order,selectOrder),chronology(data,stateValue.type,stateValue.order,selectOrder));target.append(grid);
+    target.append(hero(data,stateValue),periodNav(stateValue.period,selectPeriod));var weekly=weeklyControlPanel(data);if(weekly)target.append(weekly);target.append(rankingSeriesChart(data,stateValue));var recent=latestWorkPanel(data,stateValue);if(recent)target.append(recent);var grid=el("div","grid");grid.append(metricGrid(data.metrics,stateValue.type,selectType),evolution(data,stateValue.type,stateValue.order,selectOrder),chronology(data,stateValue.type,stateValue.order,selectOrder));target.append(grid);
     target.append(el("p","score-sampled","Datos canónicos muestreados el "+new Date(data.sampledAt).toLocaleString("es-ES",{timeZone:data.timezone})+"."));}
   function endpoint(stateValue){return API+"/highscore/history?agent="+encodeURIComponent(stateValue.agent)+"&project_id="+encodeURIComponent(stateValue.projectId)+"&period="+encodeURIComponent(stateValue.period);}
   function load(stateValue){var revision=++requestRevision;target.classList.add("loading");return fetch(endpoint(stateValue),{cache:"no-store"}).then(function(response){if(!response.ok)throw new Error(String(response.status));return response.json();})

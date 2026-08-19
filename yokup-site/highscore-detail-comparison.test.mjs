@@ -63,5 +63,5 @@ test("periodo recarga comparación; type y order sólo rerenderizan el mismo ran
   assert.match(page,/function selectPeriod\(period\)[\s\S]*load\(value\)/);
   assert.match(page,/function selectType\(type\)[\s\S]*render\(activeData,value\)/);
   assert.match(page,/function selectOrder\(\)[\s\S]*render\(activeData,value\)/);
-  assert.match(page,/target\.append\(hero\(data,stateValue\),periodNav\(stateValue\.period,selectPeriod\),rankingSeriesChart\(data,stateValue\)\)/);
+  assert.match(page,/target\.append\(hero\(data,stateValue\),periodNav\(stateValue\.period,selectPeriod\)\);var weekly=weeklyControlPanel\(data\);if\(weekly\)target\.append\(weekly\);target\.append\(rankingSeriesChart\(data,stateValue\)\)/);
 });
