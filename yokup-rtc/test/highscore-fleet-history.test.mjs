@@ -101,9 +101,11 @@ test("Early Bird es el primer inicio y Night Owl el último cierre aunque llegue
   vm.runInContext(`${millis}\n${jornada}`, context);
   const base = 1_786_800_000_000;
   const result = JSON.parse(JSON.stringify(context.highscoreFleetWorkday([
+    {id:"M-SIN-AGENTE",assignee:"",loc:"",status:"resolved",work_started_at:base,finished_at:base + 180_000},
+    {id:"M-FIN-IMPOSIBLE",assignee:"SmithMBP16",loc:"MacBookPro16",status:"resolved",work_started_at:base + 50_000,finished_at:base - 1},
     {id:"M-TARDE",assignee:"TrinityMBP16",loc:"MacBookPro16",work_started_at:base + 30_000,finished_at:base + 90_000},
-    {id:"M-TEMPRANO",assignee:"NeoMBP16",loc:"MacBookPro16",work_started_at:base + 10_000,finished_at:null},
-    {id:"M-NOCHE",assignee:"MorfeoMacMini",loc:"MacMini",work_started_at:base + 20_000,finished_at:base + 120_000},
+    {id:"M-TEMPRANO",assignee:"NeoMBP16",loc:"MacBookPro16",status:"in_progress",work_started_at:base + 10_000,finished_at:null},
+    {id:"M-NOCHE",assignee:"MorfeoMacMini",loc:"MacMini",status:"resolved",work_started_at:base + 20_000,finished_at:base + 120_000},
   ])));
   assert.equal(result.early_bird.agent, "NeoMBP16");
   assert.equal(result.early_bird.at, base + 10_000);
@@ -111,6 +113,15 @@ test("Early Bird es el primer inicio y Night Owl el último cierre aunque llegue
   assert.equal(result.night_owl.at, base + 120_000);
   assert.equal(result.ongoing_missions, 1);
   assert.equal(result.state, "open");
+});
+
+test("los premios no recaen en identidades desconocidas ni en cierres anteriores al inicio", () => {
+  const jornada = source.slice(source.indexOf("function highscoreFleetWorkday"),
+    source.indexOf('__name(highscoreFleetWorkday, "highscoreFleetWorkday");'));
+  assert.match(jornada, /!family\.family_key\.startsWith\("external:"\)/);
+  assert.match(jornada, /!item\.start \|\| item\.at >= item\.start/);
+  assert.match(jornada, /!\["resolved", "cancelled"\]\.includes/,
+    "cerrada sin reloj válido no significa que la misión siga abierta");
 });
 
 test("el rango va en días de Madrid, no en UTC", () => {

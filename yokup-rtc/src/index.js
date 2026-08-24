@@ -6860,6 +6860,13 @@ function highscoreFleetWorkday(rows) {
     const at = highscoreActiveWorkMillis(value);
     return Number.isFinite(at) && at > 0 ? at : 0;
   };
+  // Un premio de la jornada solo puede recaer en alguien de la FLOTA. Sin identidad
+  // reconocida reportAgentFamily marca el family_key con "external:", y el galardón
+  // acababa en un nombre vacío: Early Bird para nadie.
+  const deLaFlota = (row) => {
+    const family = reportAgentFamily(row && row.assignee, (row && row.loc) || "");
+    return !!(family && family.family_key && !family.family_key.startsWith("external:"));
+  };
   const withAgent = (row, at) => {
     if (!row || !at) return null;
     const family = reportAgentFamily(row.assignee, row.loc || "");
@@ -6868,10 +6875,16 @@ function highscoreFleetWorkday(rows) {
       mission_id:String(row.id || ""), display_ref:row.display_ref || null };
   };
   const starts = missions.map((row) => ({ row, at:stamp(row.work_started_at || row.scored_at) }))
-    .filter((item) => item.at).sort((a, b) => a.at - b.at || String(a.row.id || "").localeCompare(String(b.row.id || "")));
-  const finishes = missions.map((row) => ({ row, at:stamp(row.finished_at) }))
-    .filter((item) => item.at).sort((a, b) => b.at - a.at || String(a.row.id || "").localeCompare(String(b.row.id || "")));
-  const ongoing = missions.filter((row) => !stamp(row.finished_at)).length;
+    .filter((item) => item.at && deLaFlota(item.row)).sort((a, b) => a.at - b.at || String(a.row.id || "").localeCompare(String(b.row.id || "")));
+  // Un cierre ANTERIOR a su propio inicio es un reloj imposible, no una jornada larga:
+  // coronaba Night Owl a la misión con la hora peor guardada.
+  const finishes = missions.map((row) => ({ row, at:stamp(row.finished_at), start:stamp(row.work_started_at || row.scored_at) }))
+    .filter((item) => item.at && deLaFlota(item.row) && (!item.start || item.at >= item.start))
+    .sort((a, b) => b.at - a.at || String(a.row.id || "").localeCompare(String(b.row.id || "")));
+  // Cerrada sin reloj válido NO significa que siga abierta: contando solo por la falta de
+  // finished_at, una misión resuelta sin hora dejaba la jornada en "open" para siempre.
+  const ongoing = missions.filter((row) => !stamp(row.finished_at) &&
+    !["resolved", "cancelled"].includes(String((row && row.status) || "").toLowerCase())).length;
   return { first_started_at:starts[0] ? starts[0].at : null,
     last_finished_at:finishes[0] ? finishes[0].at : null,
     early_bird:starts[0] ? withAgent(starts[0].row, starts[0].at) : null,
