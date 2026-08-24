@@ -5417,11 +5417,19 @@ async function reconcileFleetTicket(env, id, prev, it, assignment, status, now, 
 __name(reconcileFleetTicket, "reconcileFleetTicket");
 
 // ── PRESUPUESTO DEL SYNC ────────────────────────────────────────────────────
-// fleetSync recorría SIEMPRE el buzón entero y por cada entrada lanzaba hasta ~33
-// consultas a D1 en serie. Con el buzón en 80 entradas eso son del orden de 1.500-2.600
-// subpeticiones por llamada, y el límite de un Worker es 1.000: desde el 23-08-2026
-// POST /fleet/sync dejó de responder (curl: http 000, sin cuerpo, aún con 600 s de
-// espera). No se rompió de golpe — el buzón crece, nada lo vacía y un día cruzó la pared.
+// fleetSync recorre SIEMPRE el buzón entero y por cada entrada encadena hasta ~33
+// consultas a D1 EN SERIE. Con el buzón en 80 entradas la llamada tarda ~152 s medidos.
+//
+// OJO, esto NO es una caída, y el primer diagnóstico se equivocó: los http 000 que se
+// veían eran el TIMEOUT DEL CLIENTE, no el worker muriéndose. Con 600 s de espera
+// responde 200 en 151,8 s — y esa medición es del camino barato (seen:80, created:0,
+// updated:0); con trabajo real es peor. El endpoint nunca estuvo muerto: es que ningún
+// cliente aguanta dos minutos y medio (alta-mision.sh usaba 15-25 s), así que en la
+// práctica nadie conseguía materializar una misión. Tampoco está probado que se pase
+// del límite de 1.000 subpeticiones de un Worker: si lo excediera lanzaría error, no
+// un 200. Lo medido es el coste, no el tope.
+//
+// Y empeora solo: el buzón crece y nada lo vacía — 50 de las 80 entradas son de julio.
 //
 // Arreglo: presupuesto por llamada. Se atiende lo nuevo con PRIORIDAD y el resto se repasa
 // en una ventana rotatoria, de modo que nada queda sin mirar aunque ninguna llamada lo mire
