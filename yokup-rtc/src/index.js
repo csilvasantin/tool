@@ -5416,6 +5416,66 @@ async function reconcileFleetTicket(env, id, prev, it, assignment, status, now, 
 }
 __name(reconcileFleetTicket, "reconcileFleetTicket");
 
+// ── PRESUPUESTO DEL SYNC ────────────────────────────────────────────────────
+// fleetSync recorría SIEMPRE el buzón entero y por cada entrada lanzaba hasta ~33
+// consultas a D1 en serie. Con el buzón en 80 entradas eso son del orden de 1.500-2.600
+// subpeticiones por llamada, y el límite de un Worker es 1.000: desde el 23-08-2026
+// POST /fleet/sync dejó de responder (curl: http 000, sin cuerpo, aún con 600 s de
+// espera). No se rompió de golpe — el buzón crece, nada lo vacía y un día cruzó la pared.
+//
+// Arreglo: presupuesto por llamada. Se atiende lo nuevo con PRIORIDAD y el resto se repasa
+// en una ventana rotatoria, de modo que nada queda sin mirar aunque ninguna llamada lo mire
+// todo. Quien quiera drenar el buzón llama varias veces: la respuesta dice `more:true`.
+var FLEET_SYNC_LOTE = 25;                   // 25 × ~33 consultas ≈ 825 < 1.000
+var FLEET_SYNC_CURSOR = "fleet_sync_cursor";
+var FLEET_SYNC_VISTO  = "fleet_sync_visto";  // id de encargo más alto ya atendido
+
+async function prefLeer(env, key, porDefecto) {
+  try {
+    const r = await env.DB.prepare("SELECT value FROM prefs WHERE key=?").bind(key).first();
+    const n = r && r.value != null ? parseInt(r.value, 10) : NaN;
+    return Number.isFinite(n) ? n : porDefecto;
+  } catch (e) { return porDefecto; }
+}
+async function prefEscribir(env, key, valor) {
+  try {
+    await env.DB.prepare(
+      "INSERT INTO prefs (key,value,updated_at) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at"
+    ).bind(key, String(valor), Date.now()).run();
+  } catch (e) {}
+}
+
+// Reparte el buzón entre lo que se atiende AHORA y lo que espera al siguiente sync.
+// Pura a propósito: sin D1 dentro, para poder probarla sin base de datos.
+function fleetSyncLote(items, cursor, visto, lote) {
+  const nuevos = [], resto = [];
+  for (const it of items) {
+    if (!it || !it.id) continue;
+    (Number(it.id) > Number(visto) ? nuevos : resto).push(it);
+  }
+  // Lo nuevo tiene PRIORIDAD, no barra libre. La primera versión los atendía todos sin
+  // tope y su propio test la tumbó: con la marca de agua a 0 (primer sync tras desplegar)
+  // TODO el buzón cuenta como nuevo y se reproducía el fallo intacto.
+  nuevos.sort(function (a, b) { return Number(a.id) - Number(b.id); });
+  const elegidos = nuevos.slice(0, lote);
+  const hueco = Math.max(0, lote - elegidos.length);
+  let inicio = 0;
+  if (resto.length) inicio = ((cursor % resto.length) + resto.length) % resto.length;
+  const delResto = Math.min(hueco, resto.length);
+  for (let k = 0; k < delResto; k++) elegidos.push(resto[(inicio + k) % resto.length]);
+  const avance = resto.length ? (inicio + delResto) % resto.length : 0;
+  // La marca de agua NO salta a los nuevos que no cupieron: si avanzara, dejarían de ser
+  // nuevos sin haberse procesado y caerían a la ventana lenta.
+  const nuevosAtendidos = Math.min(nuevos.length, lote);
+  const vistoNuevo = nuevosAtendidos ? Number(nuevos[nuevosAtendidos - 1].id) : Number(visto) || 0;
+  return {
+    elegidos: elegidos,
+    cursor: avance,
+    visto: Math.max(Number(visto) || 0, vistoNuevo),
+    pendientes: (nuevos.length - nuevosAtendidos) + (resto.length - delResto),
+  };
+}
+
 async function fleetSync(env) {
   let items = [];
   try {
@@ -5430,6 +5490,12 @@ async function fleetSync(env) {
   const now = Date.now();
   let created = 0, updated = 0;
   const rejected = [];
+  // presupuesto por llamada: lo nuevo primero, el resto en ventana rotatoria (ver arriba)
+  const totalBuzon = items.length;
+  const cursorPrev = await prefLeer(env, FLEET_SYNC_CURSOR, 0);
+  const vistoPrev  = await prefLeer(env, FLEET_SYNC_VISTO, 0);
+  const lote = fleetSyncLote(items, cursorPrev, vistoPrev, FLEET_SYNC_LOTE);
+  items = lote.elegidos;
   for (const it of items) {
     if (!it || !it.id) continue;
     if (!fleetEsMision(it)) continue;   // charla de Telegram: ni misión ni tarea
@@ -5564,7 +5630,13 @@ async function fleetSync(env) {
       }
     }
   }
-  return { ok:true, partial:rejected.length > 0, seen:items.length, created, updated, rejected };
+  // el cursor avanza aunque haya rechazos: si una entrada rota bloqueara la ventana,
+  // el buzón dejaría de repasarse entero y volveríamos al problema de siempre.
+  await prefEscribir(env, FLEET_SYNC_CURSOR, lote.cursor);
+  await prefEscribir(env, FLEET_SYNC_VISTO, lote.visto);
+  return { ok:true, partial:rejected.length > 0, seen:items.length,
+           inbox:totalBuzon, pending:lote.pendientes, more:lote.pendientes > 0,
+           created, updated, rejected };
 }
 __name(fleetSync, "fleetSync");
 
