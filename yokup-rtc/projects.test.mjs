@@ -7,6 +7,7 @@ import {readFile} from 'node:fs/promises';
 import {FLEET_MISSIONS_SQL} from './src/mission-sources.js';
 
 const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
+const responsiblesSource = await readFile(new URL('./src/project-responsibles.js', import.meta.url), 'utf8');
 const missionReferenceSource = source.match(/function normalizeMissionReference\(raw\) \{[\s\S]*?\n\}/)?.[0] || '';
 assert.ok(missionReferenceSource, 'no se encontró normalizeMissionReference');
 const normalizeMissionReference = new Function(`${missionReferenceSource}\nreturn normalizeMissionReference;`)();
@@ -60,9 +61,10 @@ test('las listas de misiones llevan project_id, alias legado y nombre humano', (
   assert.match(source, /project_name: resolveProject\(pidx, r\.project \|\| ""\)\.name/);
 });
 
-// ── FLT-985 b — orden de las fichas y responsable de carbono ────────────────
-test('el esquema añade owner (responsable de carbono) y sort_order', () => {
+// ── FLT-985 b / FLT-1505 — orden y responsables del proyecto ────────────────
+test('el esquema conserva owner (silicio), separa carbono y añade sort_order', () => {
   assert.match(source, /ALTER TABLE projects ADD COLUMN owner TEXT/);
+  assert.match(source, /ALTER TABLE projects ADD COLUMN carbon_responsible TEXT NOT NULL DEFAULT ''/);
   assert.match(source, /ALTER TABLE projects ADD COLUMN sort_order INTEGER/);
 });
 
@@ -70,18 +72,20 @@ test('el orden manual manda y lo no colocado cae detrás con el orden de siempre
   assert.match(source, /ORDER BY \(sort_order IS NULL\), sort_order, \(status='activo'\) DESC, name COLLATE NOCASE/);
 });
 
-test('owner viaja en la lista y se guarda en el alta/edición', () => {
+test('owner/silicio viaja en la lista y se guarda en el alta/edición', () => {
   assert.match(source, /const canonicalOwner = canonicalProjectAgentRef\(p\.owner \|\| ""\)/);
   assert.match(source, /owner: canonicalOwner/);
-  assert.match(source, /const primaryResponsible = canonicalProjectAgentRef\(b && b\.primary_responsible !== undefined/);
+  assert.match(source, /const requestedSiliconResponsible = canonicalProjectAgentRef\(b && b\.silicon_responsible !== undefined/);
+  assert.match(source, /const primaryResponsible = prev \? canonicalProjectAgentRef\(prev\.owner \|\| ""\) : requestedSiliconResponsible/);
   assert.match(source, /owner: primaryResponsible/);
-  assert.match(source, /INSERT INTO projects \(id,name,blurb,web,status,color,owner,/);
-  assert.match(source, /owner=excluded\.owner/);
+  assert.match(responsiblesSource, /INSERT INTO projects \(id,name,blurb,web,status,color,owner,carbon_responsible,/);
+  assert.doesNotMatch(responsiblesSource, /DO UPDATE SET[^;]*owner=|DO UPDATE SET[^;]*carbon_responsible=/);
 });
 
-test('owner es el Responsable Principal compatible y NeoMacMini su valor por defecto', () => {
+test('owner es el Responsable Silicio; Principal queda como alias compatible', () => {
   assert.match(source, /primary_responsible: canonicalOwner \|\| "NeoMacMini"/);
-  assert.match(source, /canonicalProjectAgentRef\(b && b\.primary_responsible !== undefined/);
+  assert.match(source, /silicon_responsible: siliconResponsible/);
+  assert.match(source, /b && b\.primary_responsible !== undefined/);
   assert.match(source, /owner: primaryResponsible/);
 });
 

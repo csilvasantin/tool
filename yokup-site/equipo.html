@@ -311,17 +311,16 @@ const F_EQ=[
 const F_PRO=[
   {k:"name",  l:"Nombre",           t:"text", ph:"Yokup"},
   {k:"blurb", l:"Descripción",      t:"area", ph:"De qué va, en una línea"},
-  // De CARBONO: la persona humana que responde del proyecto, frente al equipo de
-  // silicio. Texto libre — es un nombre, no un id del censo. Vacío = no se pinta.
-  {k:"owner", l:"Responsable de carbono", t:"text", ph:"Carlos"},
-  {k:"responsibles_text",l:"Responsables y roles",t:"area",ph:"Carlos | Responsable principal"},
+  // FLT-1505: `owner` era un agente de silicio aunque esta pantalla lo llamaba
+  // carbono. Los dos responsables viajan ahora por campos inequívocos para que
+  // editar al humano nunca reescriba la familia de agente asignada.
+  {k:"silicon_responsible",l:"Responsable Silicio",t:"text",ph:"NiobeMacMini"},
+  {k:"carbon_responsible",l:"Responsable Carbono",t:"text",ph:"Carlos"},
   {k:"web",   l:"Web",              t:"text", ph:"www.yokup.com"},
   {k:"status",l:"Estado",           t:"sel",  opts:[["activo","Activo"],["pausado","Pausado"],["archivado","Archivado"]]},
   {k:"color", l:"Color",            t:"text", ph:"#3df08a"}
 ];
-function responsablesDe(p){return Array.isArray(p.responsibles)&&p.responsibles.length?p.responsibles:(p.owner?[{name:p.owner,role:"Responsable principal"}]:[]);}
-function responsablesTexto(p){return responsablesDe(p||{}).map(r=>r.name+(r.role?" | "+r.role:"")).join("\n");}
-function parseResponsables(txt){return String(txt||"").split(/\n|,/).map(x=>x.trim()).filter(Boolean).map(x=>{const p=x.split("|");return{name:p.shift().trim(),role:p.join("|").trim()};});}
+function responsablesDe(p){return Array.isArray(p.responsibles)&&p.responsibles.length?p.responsibles:(p.carbon_responsible?[{name:p.carbon_responsible,role:"Responsable Carbono"}]:[]);}
 function normalizaWebProyecto(value){let v=String(value||"").trim();if(!v)return "";if(!/^https?:\/\//i.test(v))v="https://"+v;const u=new URL(v);return u.href.replace(/\/$/,"");}
 function fechaSeguimiento(ms){return ms?new Date(ms).toLocaleString("es-ES",{timeZone:"Europe/Madrid"}):"";}
 const CAPAS={
@@ -864,7 +863,7 @@ function abrir(tipo,id){
     ? "El proyecto vive en yokup y se asigna a las máquinas y agentes del censo de admira-fleet. Su nombre es el que sale en la ficha de cada decisión y de cada misión."
     : "Aquí se edita la parte humana de la ficha; el estado de encendido no se edita, se comprueba. La ficha la comparte admira.live/control.";
   $("mForm").innerHTML=campos.map(f=>{
-    let v=f.k==="responsibles_text"?responsablesTexto(dato):dato[f.k]; if(Array.isArray(v)) v=v.join(", ");
+    let v=dato[f.k]; if(Array.isArray(v)) v=v.join(", ");
     v=v==null?"":String(v);
     if(f.t==="area") return '<div class="f"><label>'+esc(f.l)+'</label><textarea data-k="'+f.k+'" placeholder="'+esc(f.ph||"")+'">'+esc(v)+'</textarea></div>';
     if(f.t==="sel")  return '<div class="f"><label>'+esc(f.l)+'</label><select data-k="'+f.k+'">'+f.opts.map(o=>'<option value="'+o[0]+'"'+(String(v)===o[0]?" selected":"")+'>'+esc(o[1])+'</option>').join("")+'</select></div>';
@@ -901,6 +900,7 @@ $("mod").onclick=e=>{ if(e.target===$("mod")) $("mod").classList.remove("on"); }
 
 $("mSave").onclick=async()=>{
   const body={by:"yokup/equipo"};
+  let cambioResponsables=null;
   $("mForm").querySelectorAll("[data-k]").forEach(el=>{
     let v=el.value.trim();
     if(el.dataset.k==="tags") body.tags=v?v.split(",").map(s=>s.trim()).filter(Boolean):[];
@@ -913,7 +913,17 @@ $("mSave").onclick=async()=>{
     // [] borraría las asignaciones que ya tuviera el proyecto.
     if(SIL.length) body.agents=AG_SEL.slice();
     try{body.web=normalizaWebProyecto(body.web);}catch(e){$("mMsg").textContent="web no válida";return;}
-    body.responsibles=parseResponsables(body.responsibles_text||""); delete body.responsibles_text;
+    const anterior=PRO.find(p=>p.id===ED.id)||null;
+    cambioResponsables={
+      anterior,
+      silicon:String(body.silicon_responsible||"").trim(),
+      carbon:String(body.carbon_responsible||"").trim()
+    };
+    // El alta/edición histórica de proyectos queda limitada a metadatos. Los
+    // dos responsables se guardan únicamente por el endpoint autenticado con
+    // CAS, para que ningún formulario antiguo pueda eludir ese contrato.
+    delete body.silicon_responsible;
+    delete body.carbon_responsible;
   }
   if(ED.id) body.id=ED.id;
   if((ED.tipo==="sil"||ED.tipo==="pro")&&!ED.id&&!body.name){ $("mMsg").textContent="pon un nombre"; return; }
@@ -923,6 +933,28 @@ $("mSave").onclick=async()=>{
       {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
     const d=await r.json().catch(()=>({}));
     if(!r.ok||!d.ok) throw new Error(d.error||("HTTP "+r.status));
+    if(ED.tipo==="pro"&&cambioResponsables){
+      const base=cambioResponsables.anterior||d.project||{};
+      const project=(d.project&&d.project.id)||ED.id||body.id;
+      const siliconActual=String(base.silicon_responsible??base.primary_responsible??base.owner??"").trim();
+      const carbonActual=String(base.carbon_responsible??"").trim();
+      const cambio={project};
+      if(cambioResponsables.silicon!==siliconActual){
+        cambio.silicon_responsible=cambioResponsables.silicon;
+        cambio.expected_silicon_responsible=siliconActual;
+      }
+      if(cambioResponsables.carbon!==carbonActual){
+        cambio.carbon_responsible=cambioResponsables.carbon;
+        cambio.expected_carbon_responsible=carbonActual;
+      }
+      if(Object.keys(cambio).length>1){
+        const rr=await fetch(WORKER+"/projects/responsibles",{
+          method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(cambio)
+        });
+        const dr=await rr.json().catch(()=>({}));
+        if(!rr.ok||!dr.ok) throw new Error(dr.error||("responsables HTTP "+rr.status));
+      }
+    }
     $("mMsg").textContent="✓ guardado";
     await cargar();
     setTimeout(()=>$("mod").classList.remove("on"),450);

@@ -77,6 +77,7 @@ h1{font-size:clamp(23px,2.8vw,33px);line-height:1.12;letter-spacing:-.02em;margi
 .pa-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;font-family:var(--mono);font-size:8.8px;color:var(--dim)}.pa-meta a{color:var(--brand);text-decoration:none}.pa-meta a:hover{text-decoration:underline}.pa-live{color:var(--good)}.pa-offline{color:var(--accent)}
 .pa-port{position:absolute;top:50%;transform:translateY(-50%);width:24px;height:28px;border:1px solid var(--line2);border-radius:7px;background:#0b1a24;color:var(--brand);display:grid;place-items:center;font-size:14px;cursor:grab;touch-action:none}.pa-port:active{cursor:grabbing}.pa-port:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.pa-agent-node .pa-port{left:5px}.pa-project-node .pa-port{top:auto;right:4px;bottom:4px;transform:none;cursor:default;color:var(--good)}.pa-hide,.pa-card-move{position:absolute;z-index:3;top:3px;width:18px;height:18px;border:0;border-radius:5px;background:transparent;font:800 12px/1 var(--mono)}.pa-hide{right:4px;color:var(--dim);cursor:pointer}.pa-card-move{right:24px;color:var(--brand);cursor:move;touch-action:none}.pa-card-move.dragging{background:rgba(255,216,102,.13);color:var(--accent)}.pa-hide:hover,.pa-hide:focus-visible{background:rgba(255,136,102,.14);color:var(--warn);outline:none}.pa-card-move:hover,.pa-card-move:focus-visible{background:rgba(120,243,255,.1);color:var(--ink);outline:none}
 .pa-primary{display:flex;align-items:center;gap:7px;margin:7px 0 5px;padding:7px 9px;border:1px solid rgba(255,216,102,.24);border-radius:8px;background:rgba(255,216,102,.055);font:700 9px/1.25 var(--mono)}.pa-primary b{color:var(--accent);letter-spacing:.08em;text-transform:uppercase}.pa-primary span{color:var(--ink);font-size:10px}.pa-chip.primary{border-color:rgba(255,216,102,.48);color:var(--accent);box-shadow:0 0 12px rgba(255,216,102,.08)}
+.pa-responsibles{display:grid;gap:5px;margin:7px 0 5px}.pa-responsible{display:grid;grid-template-columns:minmax(112px,auto) minmax(0,1fr) auto;align-items:center;gap:7px;padding:7px 9px;border:1px solid rgba(255,216,102,.24);border-radius:8px;background:rgba(255,216,102,.055);font:700 9px/1.25 var(--mono)}.pa-responsible label,.pa-responsible b{color:var(--accent);letter-spacing:.08em;text-transform:uppercase}.pa-responsible span{grid-column:2/4;color:var(--ink);font-size:10px}.pa-responsible input{min-width:0;width:100%;height:32px;border:1px solid var(--line2);border-radius:6px;background:rgba(2,8,13,.72);color:var(--ink);font:700 10px/1 var(--mono);padding:0 8px}.pa-responsible input::placeholder{color:var(--dim)}.pa-responsible input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}.pa-responsible button{min-width:68px;min-height:32px;border:1px solid rgba(136,255,170,.36);border-radius:6px;background:rgba(136,255,170,.08);color:var(--good);font:800 8px/1 var(--mono);cursor:pointer}.pa-responsible button:hover,.pa-responsible button:focus-visible{background:rgba(136,255,170,.16);border-color:var(--good);outline:2px solid rgba(136,255,170,.34);outline-offset:1px}.pa-responsible button:disabled{cursor:not-allowed;opacity:.38}.pa-responsible[aria-busy="true"]{border-color:rgba(120,243,255,.4)}.pa-responsible small{grid-column:2/4;min-height:0;color:var(--dim);font:7px/1.25 var(--mono)}
 .pa-lane{position:relative;z-index:0;min-height:100%;display:grid;place-items:center;color:var(--dim);font:9px/1.55 var(--mono);letter-spacing:.08em;text-transform:uppercase;text-align:center;padding-top:32px}.pa-lane b{color:var(--accent);display:block;font-size:18px;margin-bottom:5px}.pa-lane span{max-width:130px}
 .pa-assigned{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px;min-height:22px}.pa-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:999px;padding:2px 3px 2px 7px;font:9px/1.2 var(--mono);color:var(--mut);background:rgba(120,243,255,.04)}.pa-chip.legacy{border-style:dashed;color:var(--accent)}.pa-chip button{width:17px;height:17px;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}.pa-chip button:hover{background:rgba(255,136,102,.16);color:var(--warn)}.pa-empty{font:10px/1.5 var(--mono);color:var(--warn)}
 .pa-decision{width:100%;border:1px solid rgba(255,216,102,.34);border-radius:7px;background:rgba(255,216,102,.06);color:var(--accent);font:800 8.8px/1.25 var(--mono);letter-spacing:.04em;text-align:left;padding:7px 8px;cursor:pointer}.pa-decision:hover,.pa-decision:focus-visible{border-color:var(--accent);background:rgba(255,216,102,.12);outline:none}.pa-decision:disabled{opacity:.5;cursor:wait}
@@ -88,6 +89,8 @@ h1{font-size:clamp(23px,2.8vw,33px);line-height:1.12;letter-spacing:-.02em;margi
 @media(max-width:1200px){.wrap{padding:22px 24px 48px}.pa-map{grid-template-columns:minmax(240px,340px) minmax(260px,360px);gap:clamp(56px,7vw,88px);justify-content:center}}
 @media(min-width:2200px){.pa-shell{padding:clamp(20px,1.15vw,36px)}.pa-map{grid-template-columns:minmax(440px,620px) minmax(460px,660px)}.pa-head p{font-size:clamp(12.5px,.68vw,17px);max-width:980px}.pa-col-title{font-size:clamp(8.8px,.48vw,12px)}.pa-count{font-size:clamp(8px,.42vw,10.5px)}.pa-name b{font-size:clamp(11.2px,.58vw,14.5px)}.pa-name span{font-size:clamp(7.7px,.4vw,10px)}.pulse{grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}.frame iframe{height:clamp(420px,26vw,760px)}.mods{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}}
 @media(max-width:900px){.sub{white-space:normal;font-size:13px;line-height:1.45}.pa-map{grid-template-columns:minmax(0,1fr);gap:14px}.pa-links{display:none}.pa-col,.pa-project-node,.pa-team-node{transform:none!important}.pa-move,.pa-card-move{display:none}}
+@media(max-width:620px){.pa-responsible{grid-template-columns:minmax(0,1fr) auto}.pa-responsible label,.pa-responsible b{grid-column:1/-1}.pa-responsible span{grid-column:1/-1}.pa-responsible small{grid-column:1/-1}.pa-responsible input{grid-column:1}.pa-responsible button{grid-column:2;min-width:44px}.pa-project-summary{padding-right:31px}.pa-card-move{display:none}}
+@media(pointer:coarse){.pa-responsible button{min-width:44px;min-height:44px}}
 @media(max-width:620px){.pa-head{display:block}.pa-refresh{margin-top:10px}.pa-shell{padding:12px}.pa-project-summary{padding-right:45px}.pa-state{display:none}.pa-project-heading{gap:3px}}
 
 /* XPERIENCIAS EN VIVO — marcos cuadráticos con feed real (doctrina: nada de capturas) */
@@ -221,6 +224,8 @@ let PROJECT_TEAM_CENSUS=[];
 let PROJECT_BUSY="";
 const PROJECT_IMPORTANCE_PENDING=new Map();
 let PROJECT_IMPORTANCE_REV=0;
+const PROJECT_RESPONSIBLES_PENDING=new Set();
+const PROJECT_CARBON_DRAFTS=new Map();
 let PROJECT_DECISION_BUSY="";
 let PROJECT_STOP_BUSY="";
 const PROJECT_STOP_STATES=new Map();
@@ -363,6 +368,21 @@ function paWeb(value){
 }
 function paProjectsForScope(){return paScopeIsAll(PROJECT_SCOPE)?PROJECT_CATALOG.slice():PROJECT_CATALOG.filter(project=>paScopeAllows(PROJECT_SCOPE,project.id));}
 function paImportance(project){const value=Number(project&&project.importance);return Number.isInteger(value)&&value>=0&&value<=5?value:0;}
+function paSiliconResponsible(project){
+  // Un campo explícito, incluso vacío, manda. El fallback NeoMacMini sólo existe
+  // para respuestas históricas que todavía no publican `silicon_responsible`.
+  if(project&&Object.prototype.hasOwnProperty.call(project,"silicon_responsible"))return String(project.silicon_responsible??"").trim();
+  return String(project&&project.primary_responsible||project&&project.owner||"NeoMacMini").trim()||"NeoMacMini";
+}
+function paCarbonResponsible(project){return String(project&&project.carbon_responsible||"").trim().slice(0,80);}
+function paCarbonDraft(project){return PROJECT_CARBON_DRAFTS.has(project.id)?PROJECT_CARBON_DRAFTS.get(project.id):paCarbonResponsible(project);}
+function paProjectResponsibles(project,silicon){
+  const carbon=paCarbonResponsible(project),draft=paCarbonDraft(project),saving=PROJECT_RESPONSIBLES_PENDING.has(project.id),changed=draft.trim()!==carbon;
+  const inputId="pa-carbon-"+project.id;
+  return '<div class="pa-responsibles" aria-label="Responsables de '+esc(project.name||project.id)+'">'+
+    '<div class="pa-responsible pa-responsible-carbon" data-pa-carbon-row="'+esc(project.id)+'"'+(saving?' aria-busy="true"':'')+'><label for="'+esc(inputId)+'">Responsable Carbono</label><input id="'+esc(inputId)+'" data-pa-carbon-input="'+esc(project.id)+'" maxlength="80" autocomplete="name" placeholder="Sin asignar" value="'+esc(draft)+'"'+(saving?' disabled':'')+'><button type="button" data-pa-carbon-save="'+esc(project.id)+'"'+(saving||!changed?' disabled':'')+'>'+(saving?'Guardando…':'Guardar')+'</button><small data-pa-carbon-status="'+esc(project.id)+'" role="status" aria-live="polite"></small></div>'+
+    '<div class="pa-responsible pa-responsible-silicon" data-pa-silicon-responsible="'+esc(project.id)+'"><b>Responsable Silicio</b><span>👤 '+esc(silicon||"Sin asignar")+'</span></div></div>';
+}
 function paImportanceControl(project){
   const value=paImportance(project),name=String(project.name||project.id),saving=PROJECT_IMPORTANCE_PENDING.has(project.id);
   const buttons=[1,2,3,4,5].map(level=>{
@@ -370,6 +390,25 @@ function paImportanceControl(project){
     return '<button type="button" class="'+(level<=value?'filled':'')+'" data-pa-importance-project="'+esc(project.id)+'" data-pa-importance-value="'+level+'" aria-label="'+esc(label)+'" aria-pressed="'+(selected?'true':'false')+'" title="'+esc(label)+'"'+(saving?' disabled':'')+'>★</button>';
   }).join("");
   return '<div class="pa-importance'+(saving?' saving':'')+'" role="group" aria-label="Importancia de '+esc(name)+': '+value+' de 5">'+buttons+'</div>';
+}
+function paFocusCarbon(projectId){requestAnimationFrame(()=>{const input=pa("projectAgentProjects").querySelector('[data-pa-carbon-input="'+CSS.escape(projectId)+'"]');if(input){input.focus();input.setSelectionRange(input.value.length,input.value.length);}});}
+async function paSaveCarbonResponsible(projectId){
+  if(PROJECT_RESPONSIBLES_PENDING.has(projectId))return;
+  const project=PROJECT_CATALOG.find(row=>row.id===projectId),input=pa("projectAgentProjects").querySelector('[data-pa-carbon-input="'+CSS.escape(projectId)+'"]');
+  if(!project||!input)return paMessage("No se encontró el proyecto","err");
+  const previous=paCarbonResponsible(project),next=String(input.value||"").trim().slice(0,80);
+  PROJECT_CARBON_DRAFTS.set(projectId,next);
+  if(next===previous){PROJECT_CARBON_DRAFTS.delete(projectId);paRender();return;}
+  PROJECT_RESPONSIBLES_PENDING.add(projectId);paRender();paMessage("Guardando Responsable Carbono de "+(project.name||project.id)+"…");
+  try{
+    const d=await paJson("/projects/responsibles",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({project:projectId,carbon_responsible:next,expected_carbon_responsible:previous})});
+    if(!d.project)throw new Error("respuesta sin proyecto");
+    paReplaceProject(d.project);PROJECT_CARBON_DRAFTS.delete(projectId);paMessage("✓ Responsable Carbono de "+(d.project.name||d.project.id)+": "+(paCarbonResponsible(d.project)||"sin asignar"),"ok");
+  }catch(e){
+    const current=e&&e.payload&&typeof e.payload.current_carbon_responsible==="string"?e.payload.current_carbon_responsible:null;
+    if(current!==null){paReplaceProject({...project,carbon_responsible:current});paMessage("↻ Responsable Carbono cambió en otra pestaña · revisa antes de guardar","");}
+    else paMessage("✗ no se guardó Responsable Carbono · "+(e&&e.message||e),"err");
+  }finally{PROJECT_RESPONSIBLES_PENDING.delete(projectId);paRender();paFocusCarbon(projectId);}
 }
 function paReplaceProject(project){
   if(!project||!project.id)return;
@@ -487,7 +526,7 @@ function paFamilyId(value,machine){
 function paAgentRole(value){return window.ykAgentIdentity?(ykAgentIdentity.parse(value).role||"main"):/^Sub/i.test(value)?"sub":/^Infra/i.test(value)?"infra":"main";}
 function paProjectAgentRefs(project){
   const refs=Array.isArray(project&&project.agents)?project.agents.slice():[];
-  const explicit=String(project&&project.owner||project&&project.primary_responsible||"").trim();
+  const explicit=paSiliconResponsible(project);
   if(explicit&&!refs.includes(explicit))refs.push(explicit);
   const firstMachine=Array.isArray(project&&project.machines)&&project.machines.length?project.machines[0]:"";
   return [...new Set(refs.map(ref=>paAgentId(ref,(window.ykAgentIdentity&&ykAgentIdentity.canonicalMachine(ref))||firstMachine)).filter(Boolean))];
@@ -569,7 +608,6 @@ function paProjectHasTeam(project,team){
   const key=typeof team==="string"?team:team&&team.key;
   return !!key&&(project.machines||[]).some(machine=>paTeamKey(machine)===key);
 }
-function paPrimaryResponsible(project){return String(project&&project.primary_responsible||project&&project.owner||"NeoMacMini").trim()||"NeoMacMini";}
 function paTeamHasProject(team,projects){const key=typeof team==="string"?team:team&&team.key;return !!key&&(Array.isArray(projects)?projects:[]).some(project=>project.status!=="archivado"&&(project.machines||[]).some(machine=>paTeamKey(machine)===key));}
 // Firma histórica cubierta por el segundo parámetro explícito: function paTeamHasProject(team)
 function paNodeKey(kind,id){return kind+"|"+id;}
@@ -636,12 +674,12 @@ function paRender(){
     const archived=project.status==="archivado";
     const web=paWeb(project.web),shot=paProjectShot(project),busy=PROJECT_BUSY.startsWith(project.id+"|");
     const teamChips=assignedTeams.length?assignedTeams.map(ref=>'<span class="pa-chip">▣ '+esc(ref)+'<button type="button" data-pa-remove-team="'+esc(ref)+'" data-project="'+esc(project.id)+'" aria-label="Quitar '+esc(ref)+' de '+esc(project.name||project.id)+'"'+(busy?' disabled':'')+'>×</button></span>').join(""):'<span class="pa-empty">Sin equipos asociados</span>';
-    const primary=paPrimaryResponsible(project);
-    const primaryId=paFamilyId(primary,assignedTeams[0]||"");
-    const agentChips=assignedGroups.length?assignedGroups.map(group=>{const row=byFamily.get(group.id),memberRows=group.refs.map(ref=>byId.get(ref)).filter(Boolean),visible=row&&paProjectHasTeam(project,row.team),isPrimary=group.id===primaryId,helpers=group.helpers.length?'<small>'+group.helpers.map(ref=>esc(ref)).join(' · ')+'</small>':'';return '<span class="pa-chip-family'+(visible?'':' legacy')+(isPrimary?' primary':'')+'" title="'+esc(isPrimary?'Responsable Principal':memberRows.some(item=>!item.online)?'Familia asignada · algún miembro sin actividad':visible?'Agente principal y familia elegidos':'Referencia sin equipo asociado')+'"><span>👤 '+esc(group.id)+helpers+'</span><button type="button" data-pa-family-remove="'+esc(group.id)+'" data-project="'+esc(project.id)+'" aria-label="Quitar la familia '+esc(group.id)+'"'+(busy?' disabled':'')+'>×</button></span>';}).join(""):'<span class="pa-empty">Sin agentes elegidos</span>';
+    const silicon=paSiliconResponsible(project);
+    const primaryId=paFamilyId(silicon,assignedTeams[0]||"");
+    const agentChips=assignedGroups.length?assignedGroups.map(group=>{const row=byFamily.get(group.id),memberRows=group.refs.map(ref=>byId.get(ref)).filter(Boolean),visible=row&&paProjectHasTeam(project,row.team),isPrimary=group.id===primaryId,helpers=group.helpers.length?'<small>'+group.helpers.map(ref=>esc(ref)).join(' · ')+'</small>':'';return '<span class="pa-chip-family'+(visible?'':' legacy')+(isPrimary?' primary':'')+'" title="'+esc(isPrimary?'Responsable Silicio':memberRows.some(item=>!item.online)?'Familia asignada · algún miembro sin actividad':visible?'Agente principal y familia elegidos':'Referencia sin equipo asociado')+'"><span>👤 '+esc(group.id)+helpers+'</span><button type="button" data-pa-family-remove="'+esc(group.id)+'" data-project="'+esc(project.id)+'" aria-label="Quitar la familia '+esc(group.id)+'"'+(busy?' disabled':'')+'>×</button></span>';}).join(""):'<span class="pa-empty">Sin agentes elegidos</span>';
     const target=LINK_CLICK_AGENT&&!archived?'<button class="pa-target" type="button" data-pa-target="'+esc(project.id)+'"'+(busy?' disabled':'')+'>Conectar aquí</button>':'';
     const nodeKey=paNodeKey("project",project.id);
-    return '<details class="pa-project-node '+esc(project.status||"activo")+'" data-project-node="'+esc(project.id)+'" data-pa-node-key="'+esc(nodeKey)+'" style="--pc:'+paColor(project.color)+';'+paNodeVars(nodeKey)+'"'+(openProjects.has(project.id)?' open':'')+'><summary class="pa-project-summary"><div class="pa-folder"><span>📁</span>'+(shot?'<img loading="lazy" alt="" src="'+esc(shot)+'" onerror="this.remove()">':'')+'</div><div class="pa-project-main"><div class="pa-name"><div class="pa-project-heading"><b title="'+esc(project.name||project.id)+'">'+esc(project.name||project.id)+'</b>'+paImportanceControl(project)+'</div><span>'+(web?esc(new URL(web).hostname):esc(project.id))+'</span></div><div class="pa-project-controls">'+target+'<span class="pa-state '+esc(project.status||"activo")+'">'+esc(project.status||"activo")+'</span><span class="pa-expand">detalle</span></div></div><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(project.name||project.id)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-project="'+esc(project.id)+'" aria-label="Ocultar '+esc(project.name||project.id)+'" title="Ocultar proyecto">×</button><span class="pa-port" data-project-port="'+esc(project.id)+'">◆</span></summary><div class="pa-project-detail"><div class="pa-meta"><span>'+assignedTeams.length+' equipos</span><span>'+assignedGroups.length+' agentes principales</span><span>'+(project.missions||0)+' en curso</span>'+(web?'<a href="'+esc(web)+'" target="_blank" rel="noopener">abrir ↗</a>':'')+'</div><div class="pa-primary"><b>Responsable Principal</b><span>👤 '+esc(primaryId||primary)+'</span></div><div class="pa-assigned">'+teamChips+'</div><div class="pa-assigned">'+agentChips+'</div></div></details>';
+    return '<details class="pa-project-node '+esc(project.status||"activo")+'" data-project-node="'+esc(project.id)+'" data-pa-node-key="'+esc(nodeKey)+'" style="--pc:'+paColor(project.color)+';'+paNodeVars(nodeKey)+'"'+(openProjects.has(project.id)?' open':'')+'><summary class="pa-project-summary"><div class="pa-folder"><span>📁</span>'+(shot?'<img loading="lazy" alt="" src="'+esc(shot)+'" onerror="this.remove()">':'')+'</div><div class="pa-project-main"><div class="pa-name"><div class="pa-project-heading"><b title="'+esc(project.name||project.id)+'">'+esc(project.name||project.id)+'</b>'+paImportanceControl(project)+'</div><span>'+(web?esc(new URL(web).hostname):esc(project.id))+'</span></div><div class="pa-project-controls">'+target+'<span class="pa-state '+esc(project.status||"activo")+'">'+esc(project.status||"activo")+'</span><span class="pa-expand">detalle</span></div></div><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(project.name||project.id)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-project="'+esc(project.id)+'" aria-label="Ocultar '+esc(project.name||project.id)+'" title="Ocultar proyecto">×</button><span class="pa-port" data-project-port="'+esc(project.id)+'">◆</span></summary><div class="pa-project-detail"><div class="pa-meta"><span>'+assignedTeams.length+' equipos</span><span>'+assignedGroups.length+' agentes principales</span><span>'+(project.missions||0)+' en curso</span>'+(web?'<a href="'+esc(web)+'" target="_blank" rel="noopener">abrir ↗</a>':'')+'</div>'+paProjectResponsibles(project,primaryId||silicon)+'<div class="pa-assigned">'+teamChips+'</div><div class="pa-assigned">'+agentChips+'</div></div></details>';
   }).join(""):'<div class="pa-loading">'+emptyProjects+'</div>');
   teamsBox.querySelectorAll("[data-link-agent]").forEach(port=>{
     port.onpointerdown=paStartDrag;
@@ -658,6 +696,17 @@ function paRender(){
   projectsBox.querySelectorAll("[data-pa-importance-value]").forEach(button=>{
     button.onpointerdown=event=>event.stopPropagation();
     button.onclick=event=>{event.preventDefault();event.stopPropagation();paSetProjectImportance(button.dataset.paImportanceProject,Number(button.dataset.paImportanceValue));};
+  });
+  projectsBox.querySelectorAll("[data-pa-carbon-input]").forEach(input=>{
+    const projectId=input.dataset.paCarbonInput,project=PROJECT_CATALOG.find(row=>row.id===projectId),canonical=paCarbonResponsible(project);
+    input.onpointerdown=event=>event.stopPropagation();
+    input.onclick=event=>event.stopPropagation();
+    input.oninput=()=>{PROJECT_CARBON_DRAFTS.set(projectId,input.value);const save=projectsBox.querySelector('[data-pa-carbon-save="'+CSS.escape(projectId)+'"]');if(save)save.disabled=PROJECT_RESPONSIBLES_PENDING.has(projectId)||input.value.trim()===canonical;};
+    input.onkeydown=event=>{event.stopPropagation();if(event.key==="Enter"){event.preventDefault();paSaveCarbonResponsible(projectId);}else if(event.key==="Escape"){event.preventDefault();PROJECT_CARBON_DRAFTS.delete(projectId);input.value=canonical;const save=projectsBox.querySelector('[data-pa-carbon-save="'+CSS.escape(projectId)+'"]');if(save)save.disabled=true;const status=projectsBox.querySelector('[data-pa-carbon-status="'+CSS.escape(projectId)+'"]');if(status)status.textContent="Edición cancelada";}};
+  });
+  projectsBox.querySelectorAll("[data-pa-carbon-save]").forEach(button=>{
+    button.onpointerdown=event=>event.stopPropagation();
+    button.onclick=event=>{event.preventDefault();event.stopPropagation();paSaveCarbonResponsible(button.dataset.paCarbonSave);};
   });
   document.querySelectorAll("[data-pa-node-move]").forEach(handle=>{handle.onpointerdown=paStartNodeMove;handle.onclick=event=>{event.preventDefault();event.stopPropagation();};handle.ondblclick=paResetNode;});
   document.querySelectorAll(".pa-project-node,.pa-team-node").forEach(node=>node.ontoggle=()=>requestAnimationFrame(paDrawLinks));

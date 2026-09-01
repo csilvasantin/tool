@@ -11,6 +11,7 @@ import {
 } from './src/project-novelty.js';
 
 const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
+const responsiblesSource = await readFile(new URL('./src/project-responsibles.js', import.meta.url), 'utf8');
 
 function databaseWithHistoricalProject() {
   const db = new DatabaseSync(':memory:');
@@ -88,7 +89,7 @@ test('GET /projects conserva projects[] y añade el contrato en raíz', () => {
 });
 
 test('toda creación web, CLI o automática converge en el único POST/upsert', () => {
-  assert.equal((source.match(/INSERT INTO projects \(id,name,blurb,web,status,color,owner,/g) || []).length, 1);
+  assert.equal(((source + responsiblesSource).match(/INSERT INTO projects \(id,name,blurb,web,status,color,owner,/g) || []).length, 1);
   assert.equal((source.match(/const r = await upsertProject\(env, b\)/g) || []).length, 1);
   assert.match(source, /url\.pathname === "\/projects" && req\.method === "POST"/);
   const upsert = source.slice(source.indexOf('async function upsertProject'), source.indexOf('__name(upsertProject'));

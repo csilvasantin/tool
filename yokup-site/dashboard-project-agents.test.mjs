@@ -206,13 +206,15 @@ test("cada proyecto nace como cabecera y permite expandir sus detalles",()=>{
   assert.match(source,/data-project-port=/);
 });
 
-test("el detalle muestra el Responsable Principal y NeoMacMini es el valor por defecto",()=>{
-  assert.match(source,/function paPrimaryResponsible\(project\)/);
+test("el detalle llama Responsable Silicio al agente existente y conserva NeoMacMini por defecto",()=>{
+  assert.match(source,/function paSiliconResponsible\(project\)/);
+  assert.match(source,/hasOwnProperty\.call\(project,"silicon_responsible"\)/);
   assert.match(source,/primary_responsible\|\|project&&project\.owner\|\|"NeoMacMini"/);
-  assert.match(source,/<b>Responsable Principal<\/b>/);
-  assert.match(source,/class="pa-primary"/);
+  assert.match(source,/<b>Responsable Silicio<\/b>/);
+  assert.doesNotMatch(source,/<b>Responsable Principal<\/b>/);
+  assert.match(source,/class="pa-responsible pa-responsible-silicon"/);
   assert.match(source,/isPrimary=group\.id===primaryId/);
-  assert.match(source,/isPrimary\?'Responsable Principal'/);
+  assert.match(source,/isPrimary\?'Responsable Silicio'/);
 });
 
 test("cada equipo físico contiene sus agentes latiendo y su flecha individual",()=>{

@@ -36,6 +36,7 @@ import { selectOnIdleProposals } from "./onidle-proposals.js";
 import { ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION, isCanonicalOnIdleDecision,
   isCanonicalOnIdleOptions, selectCanonicalLiveOnIdleDecision } from "./onidle-decision-contract.js";
 import { canonicalProjectAgentRef, canonicalProjectAgentRefs, YOKUP_MINI_MEMBER_BACKFILL_SQL } from "./project-member-identity.js";
+import { PROJECT_BOTH_RESPONSIBLES_CAS_SQL, PROJECT_CARBON_CAS_SQL, PROJECT_METADATA_UPSERT_SQL, PROJECT_SILICON_CAS_SQL, projectCarbonResponsible, validateProjectResponsibleTypes } from "./project-responsibles.js";
 import { AGENT_SOURCE_SQL, AGENT_SOURCE_SQL_T, FIELD_SOURCE_SQL_T, MISSION_SCOPE_SQL,
   MISSION_SCOPE_SQL_T, FIELD_MISSION_SCOPE_SQL_T, FLEET_MISSIONS_SQL } from "./mission-sources.js";
 var __defProp = Object.defineProperty;
@@ -394,7 +395,7 @@ async function applySchema(env) {
   // adivinador por palabras de yk-misiones.js y la columna `project` de
   // decisions—, así que /decisiones acababa enseñando «Proyecto sin identificar».
   // Aquí vive el censo REAL, con su alta, su baja y sus asignaciones.
-  await env.DB.exec("CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT, blurb TEXT, web TEXT, status TEXT DEFAULT 'activo', color TEXT, importance INTEGER NOT NULL DEFAULT 0 CHECK (importance BETWEEN 0 AND 5), created_at INTEGER, updated_at INTEGER, updated_by TEXT)");
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT, blurb TEXT, web TEXT, status TEXT DEFAULT 'activo', color TEXT, importance INTEGER NOT NULL DEFAULT 0 CHECK (importance BETWEEN 0 AND 5), carbon_responsible TEXT NOT NULL DEFAULT '', created_at INTEGER, updated_at INTEGER, updated_by TEXT)");
   // Sólo las altas posteriores a este esquema escriben aquí. No se hace backfill:
   // el despliegue establece baseline y no anuncia como nuevos proyectos históricos.
   await env.DB.exec(PROJECT_NOVELTY_TABLE_SQL);
@@ -417,11 +418,12 @@ async function applySchema(env) {
   await env.DB.exec(CARBON_MEMBERS_TABLE_SQL);
   await env.DB.exec(CARBON_MEMBERS_INDEX_SQL);
   await env.DB.exec(CARBON_ROSTER_SEED_SQL);
-  // RESPONSABLE PRINCIPAL del proyecto. Se conserva la columna `owner` para no
-  // romper a los clientes históricos, pero el contrato público también lo expone
-  // como `primary_responsible`. Si aún no se ha guardado uno, el responsable por
-  // defecto compartido con AdmiraNeXT Webmaster es NeoMacMini.
+  // RESPONSABLES DEL PROYECTO (FLT-1505). `owner` ya contiene al agente de
+  // silicio; se conserva y se sigue exponiendo como `primary_responsible` para no
+  // romper clientes históricos. Carbono vive en una columna independiente: un
+  // nombre humano nunca debe mezclarse con el censo de agentes operativos.
   await env.DB.exec("ALTER TABLE projects ADD COLUMN owner TEXT").catch(() => {});
+  await env.DB.exec("ALTER TABLE projects ADD COLUMN carbon_responsible TEXT NOT NULL DEFAULT ''").catch(() => {});
   await env.DB.exec(YOKUP_MINI_MEMBER_BACKFILL_SQL);
   // ORDEN de las fichas, el que Carlos deja al arrastrarlas. Va en la tabla y no
   // en el navegador a propósito: el orden es del proyecto, no del portátil desde
@@ -2141,11 +2143,15 @@ async function listProjects(env) {
   }
   return rows.map((p) => {
     const canonicalOwner = canonicalProjectAgentRef(p.owner || "");
+    const siliconResponsible = canonicalOwner;
+    const carbonResponsible = String(p.carbon_responsible || "").trim().slice(0, 80);
     return {
       id: p.id, name: p.name || p.id, blurb: p.blurb || "", web: p.web || "",
       status: p.status || "activo", color: p.color || "",
       owner: canonicalOwner,
       primary_responsible: canonicalOwner || "NeoMacMini",
+      silicon_responsible: siliconResponsible,
+      carbon_responsible: carbonResponsible,
       sort_order: p.sort_order == null ? null : Number(p.sort_order),
       importance: Number.isInteger(Number(p.importance))
         ? Math.max(0, Math.min(5, Number(p.importance))) : 0,
@@ -2179,20 +2185,28 @@ async function upsertProject(env, b) {
   };
   const status = ["activo", "pausado", "archivado"].includes(String((b && b.status) || "").toLowerCase())
     ? String(b.status).toLowerCase() : (prev ? (prev.status || "activo") : "activo");
-  const primaryResponsible = canonicalProjectAgentRef(b && b.primary_responsible !== undefined
-    ? String(b.primary_responsible).trim().slice(0, 80)
-    : val("owner", 80));
+  const requestedSiliconResponsible = canonicalProjectAgentRef(b && b.silicon_responsible !== undefined
+    ? String(b.silicon_responsible).trim().slice(0, 80)
+    : b && b.primary_responsible !== undefined
+      ? String(b.primary_responsible).trim().slice(0, 80)
+      : val("owner", 80));
+  const primaryResponsible = prev ? canonicalProjectAgentRef(prev.owner || "") : requestedSiliconResponsible;
+  const carbonResponsible = prev
+    ? projectCarbonResponsible(prev.carbon_responsible)
+    : projectCarbonResponsible(val("carbon_responsible", 80));
+  if (/\p{Cc}/u.test(carbonResponsible)) {
+    return { ok: false, error: "carbon_responsible contiene caracteres de control", status: 400 };
+  }
   const row = {
     id, name: name || (prev && prev.name) || id,
     blurb: val("blurb", 240), web: val("web", 160).replace(/\/+$/, ""),
     status, color: val("color", 24), owner: primaryResponsible,
+    carbon_responsible: carbonResponsible,
     created_at: prev ? prev.created_at : now, updated_at: now,
     updated_by: String((b && b.by) || "").slice(0, 60)
   };
-  const saveProject = env.DB.prepare(
-    "INSERT INTO projects (id,name,blurb,web,status,color,owner,created_at,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?)" +
-    " ON CONFLICT(id) DO UPDATE SET name=excluded.name, blurb=excluded.blurb, web=excluded.web, status=excluded.status, color=excluded.color, owner=excluded.owner, updated_at=excluded.updated_at, updated_by=excluded.updated_by"
-  ).bind(row.id, row.name, row.blurb, row.web, row.status, row.color, row.owner, row.created_at, row.updated_at, row.updated_by);
+  const saveProject = env.DB.prepare(PROJECT_METADATA_UPSERT_SQL)
+    .bind(row.id, row.name, row.blurb, row.web, row.status, row.color, row.owner, row.carbon_responsible, row.created_at, row.updated_at, row.updated_by);
   if (!prev) {
     // D1 ejecuta el batch como transacción: el proyecto y su cursor aparecen
     // juntos. event_key UNIQUE hace inocuo repetir la misma alta tras un timeout.
@@ -8826,6 +8840,7 @@ var worker_app = {
     //   POST /projects/assign           asignar/quitar uno {project,kind,ref,remove?}
     //   POST /projects/order            orden de las fichas {ids:[...]} (arrastrar)
     //   POST /projects/importance       importancia compartida {project,importance:0..5}
+    //   POST /projects/responsibles     responsables silicio/carbono del proyecto
     //   POST /projects/mission          proyecto de una misión {mission,project}
     //   GET  /projects/principal        declaraciones vigentes del día de Madrid
     //   POST /projects/principal        declara {agent,machine?,project,declared_by?,statement?}
@@ -8843,6 +8858,10 @@ var worker_app = {
     if (url.pathname === "/projects" && req.method === "POST") {
       try {
         const b = await req.json().catch(() => ({}));
+        const validTypes = validateProjectResponsibleTypes(b);
+        if (!validTypes.ok) {
+          return json({ ok: false, error: validTypes.field + " debe ser string" }, 400);
+        }
         const r = await upsertProject(env, b);
         return json(r, r.ok ? 200 : (r.status || 400));
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }
@@ -8888,6 +8907,106 @@ var worker_app = {
           if (latestImportance !== b.importance) return json({ ok: false, error: "importance conflict", current_importance: latestImportance }, 409);
         }
         return json({ ok: true, changed: true, previous_importance: current,
+          project: (await listProjects(env)).find((row) => row.id === projectId) || null });
+      } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
+    if (url.pathname === "/projects/responsibles" && req.method === "POST") {
+      try {
+        // Ambos responsables son datos de gobierno del proyecto. La lectura es
+        // pública, pero la edición exige sesión y atribuye el cambio al usuario
+        // autenticado, nunca a un `by` aportado por el navegador.
+        const sess = await requireAuth(env, req);
+        if (!sess) return json({ ok: false, error: "unauthorized" }, 401);
+        await ensureSchema(env);
+        const b = await req.json().catch(() => ({}));
+        const validTypes = validateProjectResponsibleTypes(b);
+        if (!validTypes.ok) {
+          return json({ ok: false, error: validTypes.field + " debe ser string" }, 400);
+        }
+        const projectId = String((b && b.project) || "").trim();
+        if (!projectId) return json({ ok: false, error: "project requerido" }, 400);
+        const hasSilicon = Object.prototype.hasOwnProperty.call(b || {}, "silicon_responsible") ||
+          Object.prototype.hasOwnProperty.call(b || {}, "primary_responsible");
+        const hasCarbon = Object.prototype.hasOwnProperty.call(b || {}, "carbon_responsible");
+        if (!hasSilicon && !hasCarbon) {
+          return json({ ok: false, error: "silicon_responsible o carbon_responsible requerido" }, 400);
+        }
+        if (hasSilicon && !Object.prototype.hasOwnProperty.call(b || {}, "expected_silicon_responsible")) {
+          return json({ ok: false, error: "expected_silicon_responsible requerido" }, 400);
+        }
+        if (hasCarbon && !Object.prototype.hasOwnProperty.call(b || {}, "expected_carbon_responsible")) {
+          return json({ ok: false, error: "expected_carbon_responsible requerido" }, 400);
+        }
+        const previous = await env.DB.prepare("SELECT id,status,owner,carbon_responsible FROM projects WHERE id=?")
+          .bind(projectId).first();
+        if (!previous) return json({ ok: false, error: "project no existe en el censo" }, 404);
+        if (String(previous.status || "activo").toLowerCase() === "archivado") {
+          return json({ ok: false, error: "project archivado" }, 409);
+        }
+        const siliconInput = Object.prototype.hasOwnProperty.call(b || {}, "silicon_responsible")
+          ? b.silicon_responsible : b.primary_responsible;
+        const siliconResponsible = hasSilicon
+          ? canonicalProjectAgentRef(siliconInput.trim().slice(0, 80))
+          : canonicalProjectAgentRef(previous.owner || "");
+        const carbonResponsible = hasCarbon
+          ? projectCarbonResponsible(b.carbon_responsible)
+          : projectCarbonResponsible(previous.carbon_responsible);
+        if (/\p{Cc}/u.test(carbonResponsible)) {
+          return json({ ok: false, error: "carbon_responsible contiene caracteres de control" }, 400);
+        }
+        const previousOwnerRaw = String(previous.owner || "");
+        const previousCarbonRaw = String(previous.carbon_responsible || "");
+        const previousSilicon = canonicalProjectAgentRef(previousOwnerRaw);
+        const previousCarbon = projectCarbonResponsible(previousCarbonRaw);
+        const expectedSilicon = hasSilicon
+          ? canonicalProjectAgentRef(b.expected_silicon_responsible.trim().slice(0, 80))
+          : previousSilicon;
+        const expectedCarbon = hasCarbon ? projectCarbonResponsible(b.expected_carbon_responsible) : previousCarbon;
+        const siliconChanged = hasSilicon && siliconResponsible !== previousSilicon;
+        const carbonChanged = hasCarbon && carbonResponsible !== previousCarbon;
+        if ((siliconChanged && expectedSilicon !== previousSilicon) ||
+            (carbonChanged && expectedCarbon !== previousCarbon)) {
+          return json({ ok: false, error: "responsibles conflict",
+            current_silicon_responsible: previousSilicon,
+            current_carbon_responsible: previousCarbon }, 409);
+        }
+        if (!siliconChanged && !carbonChanged) {
+          return json({ ok: true, changed: false,
+            project: (await listProjects(env)).find((row) => row.id === projectId) || null });
+        }
+        const updatedAt = Date.now(), updatedBy = String(sess.email || sess.user || "web").slice(0, 120);
+        let changed;
+        if (siliconChanged && carbonChanged) {
+          changed = await env.DB.prepare(PROJECT_BOTH_RESPONSIBLES_CAS_SQL)
+            .bind(siliconResponsible, carbonResponsible, updatedAt, updatedBy, projectId, previousOwnerRaw, previousCarbonRaw).run();
+        } else if (siliconChanged) {
+          changed = await env.DB.prepare(PROJECT_SILICON_CAS_SQL)
+            .bind(siliconResponsible, updatedAt, updatedBy, projectId, previousOwnerRaw).run();
+        } else {
+          changed = await env.DB.prepare(PROJECT_CARBON_CAS_SQL)
+            .bind(carbonResponsible, updatedAt, updatedBy, projectId, previousCarbonRaw).run();
+        }
+        if (!changed || !changed.meta || Number(changed.meta.changes) !== 1) {
+          const latest = await env.DB.prepare("SELECT id,status,owner,carbon_responsible FROM projects WHERE id=?")
+            .bind(projectId).first();
+          if (!latest) return json({ ok: false, error: "project no existe en el censo" }, 404);
+          if (String(latest.status || "activo").toLowerCase() === "archivado") {
+            return json({ ok: false, error: "project archivado" }, 409);
+          }
+          const latestSilicon = canonicalProjectAgentRef(latest.owner || "");
+          const latestCarbon = projectCarbonResponsible(latest.carbon_responsible);
+          if ((!hasSilicon || latestSilicon === siliconResponsible) &&
+              (!hasCarbon || latestCarbon === carbonResponsible)) {
+            return json({ ok: true, changed: false, converged: true,
+              project: (await listProjects(env)).find((row) => row.id === projectId) || null });
+          }
+          return json({ ok: false, error: "responsibles conflict",
+            current_silicon_responsible: latestSilicon,
+            current_carbon_responsible: latestCarbon }, 409);
+        }
+        return json({ ok: true, changed: true,
+          previous_silicon_responsible: previousSilicon,
+          previous_carbon_responsible: previousCarbon,
           project: (await listProjects(env)).find((row) => row.id === projectId) || null });
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
