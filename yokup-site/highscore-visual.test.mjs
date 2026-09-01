@@ -88,7 +88,7 @@ test("la cabecera compacta conserva el sonido y elimina reloj y subtítulo", () 
 test("el podio usa una única tarjeta enlazada y coloca nombre debajo de puntos", () => {
   assert.match(html,/\.plaza\{[^}]*display:flex[^}]*flex-direction:column/);
   assert.match(html,/return '<a class="plaza '[\s\S]*?<div class="pts">' \+ parejaPuntosHtml\(a\) \+ '<\/div>' \+[\s\S]*?<div class="nom"><span class="agent-name">' \+ esc\(nombreAgenteVisible\(a\.agente\)\)/);
-  assert.match(html,/aria-label="Ver histórico de /);
+  assert.match(html,/aria-label="Ver histórico de ' \+ esc\(nombreAgenteVisible\(a\.agente\)\)/);
   assert.doesNotMatch(html,/<div class="nom">' \+ agentNameHtml\(a\)/,
     "el botón de decisiones no puede quedar anidado dentro del enlace histórico");
   assert.match(html,/\.plaza\[href\]:hover,\.plaza\[href\]:focus-visible/);

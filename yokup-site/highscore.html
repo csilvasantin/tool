@@ -2173,7 +2173,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         "&project_id=" + encodeURIComponent(detailProject) + "&period=today&type=all" : "");
       try { sessionStorage.setItem("yokup.highscore.detail." + clave, JSON.stringify(a)); } catch (_) {}
       return '<a class="plaza ' + clases[i] + (a.vivo ? ' podium-live' : '') + '"' + (detalleUrl ? ' href="' + esc(detalleUrl) + '"' : ' aria-disabled="true"') +
-        ' aria-label="Ver histórico de ' + esc(a.agente) + ', puesto ' + medallas[i] + ', ' +
+        ' aria-label="Ver histórico de ' + esc(nombreAgenteVisible(a.agente)) + ', puesto ' + medallas[i] + ', ' +
           esc(scoreLabel + ". " + dailyTitle) + '"' +
         (a.vivo ? ' title="Vivo · abrir histórico del agente"' : ' title="Abrir histórico del agente"') + '>' +
         '<div class="avatar">' + a.agente.charAt(0).toUpperCase() + '</div>' +
