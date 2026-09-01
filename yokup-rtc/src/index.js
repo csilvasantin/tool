@@ -8427,7 +8427,11 @@ var worker_app = {
       // informe. La tarea standalone es la excepción estructural: misión y tarea
       // son la misma unidad y comparten honestamente el texto de este informe.
       if (t.status !== "resolved" && t.role !== "standalone-task") {
-        const closureTasks = (await listMissionTasks(env, mid)).filter((task) => task.code !== "z1");
+        // Lectura cruda: listMissionTasks adjunta display_refs y puede escribirlos;
+        // un preflight rechazado debe conservar applied:false sin ninguna mutación.
+        const closureTasks = ((await env.DB.prepare(
+          "SELECT code,status,report FROM mission_tasks WHERE mission_id=? AND code!='z1' ORDER BY code"
+        ).bind(mid).all()).results || []);
         const canConverge = (task) => {
           if (String(task.code || "").length !== 1) return false;
           const children = closureTasks.filter((child) => String(child.code || "").startsWith(task.code) && String(child.code || "").length === 2);

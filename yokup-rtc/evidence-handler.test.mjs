@@ -6,7 +6,9 @@ function fleetClosureEnv(source = "fleet") {
   const state = {
     ticket: { id: "FLT-77", assignee: "OraculoMacMini", loc: "Mac Mini", status: "open", source, screen: source === "fleet" ? "Encargo #77" : "decision:B1", created_at: Date.now()-60_000, proof_image: null, proof_kind: null,
       live_shot:"https://yokup-rtc.test/media/fleet/process.png",live_at:Date.now()-30_000,live_kind:"process",live_surface:"cli",live_context:"command_output" },
-    task: null, batches: 0, directRuns: 0, telegramFail: true, telegramCalls: 0,
+    task: null,
+    plan: ["a","b","c"].map((code) => ({ mission_id:"FLT-77",code,status:"done",report:"Informe "+code })),
+    batches: 0, directRuns: 0, telegramFail: true, telegramCalls: 0,
     accepted: false, failBatchCoord: false, batch: { id: "B1", status: "active", active_mission_id: "FLT-77" }, item: { batch_id: "B1", mission_id: "FLT-77", status: "active", position: 0 }
   };
   const statement = (sql, args = []) => ({
@@ -27,6 +29,7 @@ function fleetClosureEnv(source = "fleet") {
       return null;
     },
     async all() {
+      if (sql.includes("FROM mission_tasks WHERE mission_id=?") && sql.includes("ORDER BY code")) return { results:state.plan.map((row) => ({ ...row })) };
       if (sql.includes("FROM mission_batch_items i LEFT JOIN tickets")) return { results: [] };
       if (sql.includes("FROM mission_batch_items WHERE batch_id=? ORDER BY position")) return { results: [{ ...state.item }] };
       return { results: [] };

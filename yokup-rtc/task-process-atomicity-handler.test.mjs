@@ -48,6 +48,7 @@ test("task-status sin proceso rechaza el cierre open sin auto-claim, evento, pla
     method:"POST", headers:{ "content-type":"application/json" },
     body:JSON.stringify({
       mission:ticket.id, code:"c", status:"done", owner:"InfraOraculoMacMini",
+      report:"C verificada",
       image:"https://yokup.test/media/fleet/final.png",
     }),
   });

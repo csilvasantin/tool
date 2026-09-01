@@ -21,21 +21,25 @@ test('el contador de informes ya no habla de curso/pendiente', () => {
   assert.ok(!/out\.informes\.pend/.test(b), 'nada de «informes pendientes»');
 });
 
-test('informes = cobertura {hechos,total} sobre misiones de flota resueltas', () => {
+test('informes = cobertura estricta {hechos,total} sobre misiones de flota resueltas', () => {
   const b = menuBody();
   assert.match(b, /out\.informes = \{ hechos:/, 'expone hechos');
   assert.match(b, /total:/, 'expone total');
   const q = b.slice(b.indexOf('SELECT COUNT(*) total'), b.indexOf('out.informes ='));
   assert.match(q, /t\.source='fleet'/, 'sólo misiones de flota');
   assert.match(q, /t\.status='resolved'/, 'el universo son las TERMINADAS: son las que deben parte');
-  assert.match(q, /TRIM\(m\.report\)!=''/, 'un parte vacío no cuenta como informe');
+  assert.match(q, /z\.code='z1'/, 'exige el informe final canónico');
+  assert.match(q, /TRIM\(z\.report\)!=''/, 'un z1 vacío no cuenta como informe');
+  assert.match(q, /m\.status='done'.*m\.report IS NULL/, 'detecta tareas hechas sin parte');
+  assert.match(q, /p\.status NOT IN/, 'detecta árboles todavía abiertos');
 });
 
-test('una misión resuelta con parte en CUALQUIER tarea cuenta como cubierta', () => {
+test('un parte cualquiera no cubre una misión: hacen falta z1 y árbol íntegro', () => {
   const b = menuBody();
   const q = b.slice(b.indexOf('SELECT COUNT(*) total'), b.indexOf('out.informes ='));
-  assert.match(q, /EXISTS \(/, 'EXISTS: basta un parte, no uno por tarea');
-  assert.match(q, /m\.mission_id=t\.id/, 'ata el parte a su misión');
+  assert.match(q, /EXISTS \(/, 'z1 debe existir');
+  assert.match(q, /NOT EXISTS \(/, 'la deuda invalida la cobertura');
+  assert.match(q, /z\.mission_id=t\.id/, 'ata el informe final a su misión');
 });
 
 test('/fleet/missions publica has_report para poder señalar la que falta', () => {

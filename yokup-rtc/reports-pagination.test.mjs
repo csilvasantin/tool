@@ -15,11 +15,11 @@ function options(query = "") {
 
 function fixture() {
   const db = new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,source TEXT,project TEXT)");
+  db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,source TEXT,project TEXT,project_id TEXT)");
   db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,report TEXT,updated_at INTEGER,PRIMARY KEY(mission_id,code))");
   db.exec("CREATE INDEX idx_mtasks_reports_page ON mission_tasks(updated_at DESC,mission_id DESC,code DESC) WHERE report IS NOT NULL AND TRIM(report)<>''");
-  const ticket = db.prepare("INSERT INTO tickets VALUES(?,?,?)");
-  for (const row of [["M1","fleet","yokup"],["M2","decision-batch","admira"],["M3","cli-declare","yokup"],["WEB","field","yokup"]]) ticket.run(...row);
+  const ticket = db.prepare("INSERT INTO tickets VALUES(?,?,?,?)");
+  for (const row of [["M1","fleet","yokup",null],["M2","decision-batch","admira","admira"],["M3","cli-declare","legacy","yokup"],["WEB","field","yokup","yokup"]]) ticket.run(...row);
   const task = db.prepare("INSERT INTO mission_tasks VALUES(?,?,?,?)");
   for (const row of [
     ["M3","c","tres-c",300],["M3","b","tres-b",300],["M2","a","dos-a",300],
@@ -74,7 +74,7 @@ test("proyecto se filtra en SQL antes del límite, total y cursor", () => {
   const parsed = options(`limit=1&project=yokup&cursor=${encodeURIComponent(first.cursor)}`);
   assert.deepEqual(page(db, parsed).tasks.map((row) => row.mission_id), ["M3"]);
   const filter = buildReportsPageFilter(parsed, "t.source IN ('fleet','decision-batch','cli-declare')");
-  assert.match(filter.count_sql, /t\.project=\?/);
+  assert.match(filter.count_sql, /COALESCE\(NULLIF\(t\.project_id,''\),t\.project\)=\?/);
   assert.deepEqual(filter.count_binds, ["yokup"]);
 });
 

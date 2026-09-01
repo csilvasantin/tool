@@ -82,9 +82,12 @@ test('hosts web parecidos siguen externos y fallan cerrados si devuelven HTML',a
 
 test('/fleet/sync consulta el proof final mediante el origen canónico',()=>{
   const proof=extract('hasMissionProof');
+  const closure=extract('hasCanonicalFleetClosure');
   const sync=extract('fleetSync');
   assert.match(proof,/validateProofImage\(env, row\.proof_image, missionProofOrigin\(row\.proof_image\)\)/);
-  assert.match(sync,/proofRequired && !\(prev && await hasMissionProof\(env, id\)\)/);
+  assert.match(closure,/await hasMissionProof\(env, mid\)/);
+  assert.match(closure,/task\.code === "z1"/);
+  assert.match(sync,/canonicalCloseRequired && !\(prev && await hasCanonicalFleetClosure\(env, id\)\)/);
   assert.match(sync,/prev\.status === "resolved"[\s\S]*?await hasMissionProof\(env, id\)/);
   assert.doesNotMatch(proof,/validateProofImage\(env, row\.proof_image, "https:\/\/yokup-rtc/);
 });

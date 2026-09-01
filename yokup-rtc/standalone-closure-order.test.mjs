@@ -31,7 +31,10 @@ function standaloneEnv() {
       return null;
     },
     async all(){
-      if (sql.includes('FROM mission_tasks WHERE mission_id=? ORDER BY code')) return {results:[...state.tasks.values()].map(x=>({...x})).sort((a,b)=>a.code.localeCompare(b.code))};
+      if (sql.includes('FROM mission_tasks WHERE mission_id=?') && sql.includes('ORDER BY code')) {
+        const rows=[...state.tasks.values()].filter(x=>!sql.includes("code!='z1'")||x.code!=='z1');
+        return {results:rows.map(x=>({...x})).sort((a,b)=>a.code.localeCompare(b.code))};
+      }
       if (sql.includes('SELECT entity_type,entity_key,display_ref FROM display_refs')) {
         return {results:args.slice(1).flatMap(key=>state.displayRefs.has(key)?[{entity_type:args[0],entity_key:key,display_ref:state.displayRefs.get(key)}]:[])};
       }
@@ -74,6 +77,9 @@ function standaloneEnv() {
           state.tasks.set(args[1],{mission_id:args[0],code:args[1],title:args[2],status:'done',owner:args[4],executor:args[5],report:args[6],image:args[7],image_kind:args[8],created_at:args[9],updated_at:args[10]});
         } else if (sql.startsWith("UPDATE tickets SET status='resolved'")) {
           state.ticket.status='resolved'; state.ticket.proof_image=args[1]; state.ticket.proof_kind='final';
+          state.ticket.agent_runtime=args[2]||state.ticket.agent_runtime;
+          state.ticket.agent_host=args[3]||state.ticket.agent_host;
+          state.ticket.points_end??=args[4]; state.ticket.points_start??=args[5];
         } else if (sql.startsWith("UPDATE tickets SET proof_image=?,proof_kind='final',agent_runtime=")) {
           state.ticket.proof_image=args[0]; state.ticket.proof_kind='final';
           state.ticket.agent_runtime=args[1]||state.ticket.agent_runtime;
@@ -159,7 +165,7 @@ test('standalone resuelto rechaza cualquier cambio y conserva el cierre',async()
   assertCanonical(state);
 });
 
-test('árbol fleet: task-status resuelve antes y /fleet/informe completa z1 una sola vez',async()=>{
+test('árbol fleet: task-status espera z1 y /fleet/informe realiza el único cierre',async()=>{
   const {env,state}=standaloneEnv();
   state.ticket.role='status-web';
   state.tasks=new Map([
@@ -168,12 +174,14 @@ test('árbol fleet: task-status resuelve antes y /fleet/informe completa z1 una 
     ['c',{mission_id:'FLT-1243',code:'c',title:'C',status:'in_progress',owner:'InfraOraculoMacMini',report:null,image:null,image_kind:null,created_at:1,updated_at:3}]
   ]);
   const task=await ok(await worker.fetch(taskRequest({code:'c',owner:'InfraOraculoMacMini'}),env,{}),'task-status C');
-  assert.equal(task.fleet.status,'resolved');
-  assert.equal(state.ticket.status,'resolved');
-  assert.equal(state.tasks.has('z1'),false,'el auto-reconcile todavía no inventa informe');
+  assert.equal(task.fleet.status,'in_progress');
+  assert.equal(task.fleet.blocked,'sin-informe');
+  assert.equal(state.ticket.status,'in_progress');
+  assert.equal(state.tasks.has('z1'),false,'el reconciliador nunca inventa el informe final');
 
-  const repaired=await ok(await worker.fetch(informeRequest(),env,{}),'informe tras auto-resolve');
-  assert.equal(repaired.repaired_auto_resolved,true);
+  const repaired=await ok(await worker.fetch(informeRequest(),env,{}),'informe canónico');
+  assert.equal(repaired.resolved,true);
+  assert.equal(repaired.repaired_auto_resolved,undefined);
   assertCanonical(state);
   assert.equal(state.ticket.agent_runtime,'Codex');
   assert.equal(state.ticket.agent_host,'app');
