@@ -4671,10 +4671,88 @@ var CEREMONY_RE = /recibir\s+(el\s+)?encargo|leer\s+(las\s+|el\s+)?instrucci|ver
 function stepTitle(step) {
   return String((step && (step.title || step.titulo || step.step || step.name || step.paso || step.descripcion || step.description)) || "");
 }
-function flattenSteps(steps, relleno) {
+// EL ENCARGO SUELE TRAER SU PROPIO PLAN, Y HASTA HOY SE TIRABA (2026-09-01).
+// alta-mision.sh le pide al agente, por escrito, que describa «su plan a·b·c», y
+// muchos encargos de Carlos vienen ya enumerados. Aun así el plan salía SIEMPRE de
+// una llamada a la IA, que reescribía por su cuenta lo que ya estaba dicho. Pasó el
+// 1-sep con la FLT-1503: el encargo decía literalmente «b) Diagnosticar por qué un
+// mensaje no llega: leer el worker admira-telegram y los scripts del vault» y el
+// planificador escribió «Crear nuevo bot con funcionalidades mejoradas». Nadie pidió
+// un bot nuevo.
+//
+// Lo que está escrito se OBEDECE. Sólo se acepta como plan explícito si trae al menos
+// dos marcas correlativas desde la primera (a· y b·, o 1. y 2.): con una sola no hay
+// forma de distinguir un plan de una frase que empieza por «a)».
+function extraerPlanExplicito(texto) {
+  const t = String(texto || "");
+  // a) a. a· / 1) 1. 1· — al principio de línea o tras un punto y espacio.
+  const marcas = [...t.matchAll(/(?:^|[\s(])([a-hA-H1-8])[).·:]\s+/g)];
+  if (marcas.length < 2) return null;
+  const orden = "abcdefgh";
+  const pasos = [];
+  for (let i = 0; i < marcas.length; i++) {
+    const letra = String(marcas[i][1]).toLowerCase();
+    const idx = /[1-8]/.test(letra) ? Number(letra) - 1 : orden.indexOf(letra);
+    if (idx !== pasos.length) continue;                 // correlativo o no vale
+    const desde = marcas[i].index + marcas[i][0].length;
+    const hasta = i + 1 < marcas.length ? marcas[i + 1].index : t.length;
+    const cuerpo = t.slice(desde, hasta).trim().replace(/\s+/g, " ");
+    if (cuerpo.length < 8) continue;
+    pasos.push({ title: cuerpo, subtasks: [] });
+  }
+  return pasos.length >= 2 ? pasos.slice(0, 3) : null;
+}
+__name(extraerPlanExplicito, "extraerPlanExplicito");
+
+// UNA SUBTAREA TIENE QUE APOYARSE EN EL ENCARGO (2026-09-01).
+// El prompt ya pide no inventar, pero pedírselo a un modelo no es comprobarlo: si
+// devuelve igualmente tres subtareas por paso, sin esto entran tal cual. Aquí se
+// exige que la subtarea comparta al menos UNA palabra de contenido con el texto del
+// encargo. No es semántica, es un suelo: «Recompilar software» o «Actualizar base de
+// datos» en un encargo sobre identificadores no comparten nada y se caen.
+//
+// El sesgo es DELIBERADO y asimétrico: perder una subtarea buena cuesta poco -son
+// opcionales y el agente puede añadirla con /fleet/plan-tasks-, mientras que colar
+// una inventada bloquea el cierre de la misión durante semanas. Ante la duda, fuera.
+// Los pasos a/b/c NO pasan por este filtro: salen del asunto y son estructurales.
+var PALABRAS_VACIAS = new Set(["para","por","con","los","las","del","que","una","uno","este","esta","esto",
+  "sus","sobre","desde","hasta","donde","como","cuando","todo","toda","todos","todas","cada","mas","muy",
+  "hacer","haber","tener","poder","estar","segun","entre","tras","ante","bajo","sino","pero","aunque"]);
+function palabrasDeContenido(texto) {
+  return new Set(String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !PALABRAS_VACIAS.has(w)));
+}
+__name(palabrasDeContenido, "palabrasDeContenido");
+// El PASO C es «verificar y reportar» por doctrina, no por el encargo: sus subtareas
+// (verificar en real, publicar a la URL pública, avisar al grupo) son estructurales y
+// NO tienen por qué aparecer en el texto. Filtrarlas era el falso positivo más caro
+// del primer intento: se llevaba por delante justo las tres que siempre hay que hacer.
+var CIERRE_DOCTRINAL_RE = /verific|comprob|report|informe|public|notific|avis|captur|evidenc|prueba|marcar/i;
+// «identificacion» y «identificador» son la misma palabra a estos efectos. Sin esto,
+// una subtarea legítima se caía por una letra de diferencia. Diez caracteres de raíz
+// común es prudente: no empareja «config» con «configuracion» por accidente.
+function mismaRaiz(a, b) {
+  if (a === b) return true;
+  const n = Math.min(a.length, b.length);
+  if (n < 6) return false;
+  let i = 0; while (i < n && a[i] === b[i]) i++;
+  return i >= 6 && i >= Math.min(a.length, b.length) - 4;
+}
+__name(mismaRaiz, "mismaRaiz");
+function subtareaRespaldada(subtarea, encargoPalabras, esCierre) {
+  if (esCierre && CIERRE_DOCTRINAL_RE.test(String(subtarea || ""))) return true;
+  const suyas = palabrasDeContenido(subtarea);
+  for (const w of suyas) for (const e of encargoPalabras) if (mismaRaiz(w, e)) return true;
+  return false;
+}
+__name(subtareaRespaldada, "subtareaRespaldada");
+
+function flattenSteps(steps, relleno, encargo) {
   const letters = ["a", "b", "c", "d", "e", "f", "g", "h"];
   const tasks = [];
   const clean = (steps || []).filter((s) => { const t = stepTitle(s); return t && !CEREMONY_RE.test(t); });
+  // Sin encargo (llamadas antiguas) no se filtra: mejor no tocar que romper.
+  const vocabulario = encargo ? palabrasDeContenido(encargo) : null;
   // LA REGLA DE LOS TERCIOS NECESITA SUELO, NO SOLO TECHO (MorfeoMacMini, 11-08-2026).
   // Aquí había un slice(0,3) y nada más: cortaba lo que sobraba pero no completaba lo
   // que faltaba. El prompt pide «EXACTAMENTE 3 pasos» cuatro veces, sólo que pedirle
@@ -4689,10 +4767,17 @@ function flattenSteps(steps, relleno) {
   // la `c`, y la `c` es siempre «verificar y reportar» — meterle ahí el «preparar» del
   // molde daría un plan de tres pasos que empieza dos veces y no termina nunca.
   const base = clean.slice(0, 3);
+  // SOLO SE RELLENA LA `c`, Y SOLO CON LA VERIFICACIÓN (2026-09-01). Antes se
+  // completaba hasta 3 con el molde de fábrica —«Preparar: alcance y punto de
+  // partida», «Ejecutar el encargo»— y eso es trabajo INVENTADO metido en el árbol,
+  // que luego el cierre exige dar por hecho. La `c` es la excepción legítima: todo
+  // encargo termina verificando y reportando, lo diga o no, porque lo manda la
+  // doctrina y no el planificador. El hueco de FLT-1381 (nacer sin `c` y descubrirlo
+  // con un 404 al cerrar) se tapa igual, sin fabricar las otras dos.
   const molde = Array.isArray(relleno) ? relleno : [];
-  for (let i = base.length; i < 3 && i < molde.length; i++) {
-    const rt = stepTitle(molde[i]);
-    if (rt && !base.some((b) => stepTitle(b) === rt)) base.push(molde[i]);
+  const cierre = molde[molde.length - 1];
+  if (base.length && base.length < 3 && cierre && !base.some((b) => /verific/i.test(stepTitle(b)))) {
+    base.push({ title: stepTitle(cierre), subtasks: [] });
   }
   base.forEach((step, si) => {   // REGLA DE LOS TERCIOS: 3 pasos a/b/c (963)
     const code = letters[si];
@@ -4701,7 +4786,13 @@ function flattenSteps(steps, relleno) {
     const subsRaw = step && (step.subtasks || step.subtareas || step.tasks || step.tareas || step.pasos || step.items || step.steps);
     const subs = (Array.isArray(subsRaw) ? subsRaw : [])
       .map((s) => typeof s === "string" ? s : (s && (s.title || s.text || s.name)) || "")
-      .filter((st) => st && !CEREMONY_RE.test(st));   // fuera la ceremonia también en subtareas
+      .filter((st) => st && !CEREMONY_RE.test(st))   // fuera la ceremonia también en subtareas
+      .filter((st) => !vocabulario || subtareaRespaldada(st, vocabulario, code === "c"));
+    // CERO SUBTAREAS ES UNA RESPUESTA VÁLIDA. El plan no se ensancha para llegar a
+    // nueve: si el encargo no dice CÓMO, no hay subtareas que sacar, y el chip ya
+    // sabe decir «plan incompleto» (borde discontinuo + ◌) en vez de disimularlo con
+    // relleno. Las 5 subtareas descartadas de FLT-1487 y las 3 de FLT-1503 salieron
+    // exactamente de este hueco: nueve casillas obligatorias que había que llenar.
     subs.slice(0, 3).forEach((st, i) => {
       tasks.push({ code: code + (i + 1), title: String(st).slice(0, 60) });
     });
@@ -4733,6 +4824,8 @@ __name(defaultFleetPlan, "defaultFleetPlan");
 // de una pantalla DOOH; una de FLOTA es un encargo de Carlos a un agente de
 // software. Con el prompt de campo, la IA planificaba los encargos como si fueran
 // pantallas rotas («verificar si la pantalla Morfeo está encendida»).
+function relleno0(isFleet) { return isFleet ? defaultFleetPlan() : defaultPlan(); }
+__name(relleno0, "relleno0");
 async function proposePlan(env, mid) {
   const t = await env.DB.prepare("SELECT * FROM tickets WHERE id=?").bind(mid).first();
   const subject = t ? t.subject : "Incidencia";
@@ -4763,16 +4856,30 @@ async function proposePlan(env, mid) {
     };
     const util = (evs || []).find((e) => !esContable(e) && String(e.text || "").trim().length > 40);
     const full = (util && util.text) || ((evs || [])[0] && evs[0].text) || subject;
+    // EL PROMPT SE CONTRADECÍA A SÍ MISMO (2026-09-01). Pedía «usa SOLO los pasos que
+    // el encargo REALMENTE necesite» y, en la misma frase, «EXACTAMENTE 3 pasos con
+    // EXACTAMENTE 3 subtareas» — repetido cuatro veces. Gana lo que se repite: doce
+    // casillas obligatorias para todo encargo, del tamaño que sea. Un cambio de
+    // identidad tiene tres pasos reales; las otras nueve casillas hay que llenarlas
+    // con algo, y ese algo se lo inventa el modelo. Así nacieron los cinco pasos de
+    // migración de servidor de FLT-1487 y el «Crear nuevo bot» de FLT-1503.
+    // Ahora: las subtareas son OPCIONALES y sólo salen de lo que el encargo dice.
     prompt = `Eres el agente principal de AdmiraNeXT, un equipo de agentes de IA que desarrolla software (webs, workers de Cloudflare, players de se\xF1alizaci\xF3n). Carlos, el arquitecto, ha hecho este ENCARGO al agente "${t.assignee || "un agente"}"${loc ? ' que corre en el ordenador "' + loc + '"' : ""}.
 
 ENCARGO:
 ${String(full).slice(0, 900)}
 
-Descomp\xF3n el encargo en un PLAN AJUSTADO A SU TAMA\xD1O: usa SOLO los pasos que el encargo REALMENTE necesite (EXACTAMENTE 3 pasos a/b/c, cada uno con EXACTAMENTE 3 subtareas (REGLA DE LOS TERCIOS de la casa: la misi\xF3n es SIEMPRE 3 tareas x 3 subtareas, para todos los agentes por igual; lo que no quepa va al TEXTO del paso o baja a microtarea, NO se ensancha el plan)), con c\xF3digos correlativos desde "a" (a, b, c…), cada uno con EXACTAMENTE 3 subtareas. Una tarea peque\xF1a (p.ej. dibujar algo, un cambio de una l\xEDnea) son 1-3 pasos, NO ocho: no rellenes con ceremonia (recibir encargo, leer instrucciones, verificar prioridad, asignar subagente). El array tendr\xE1 TANTOS objetos como pasos reales, no ocho por defecto. Doctrina del equipo: los pasos los ejecuta un subagente y la verificaci\xF3n/reporte la cubre un infraagente; nada se da por hecho sin verificarlo en real y publicarlo a su URL p\xFAblica. Pasos concretos y accionables SOBRE ESTE ENCARGO (no inventes averías de hardware ni pantallas: esto es trabajo de software), en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
+Descomp\xF3n el encargo en un plan de 3 pasos: a, b y c. El paso c es SIEMPRE verificar y reportar.
 
-Responde SOLO con un array JSON v\xE1lido, sin texto adicional, con esta forma exacta:
-[{"code":"a","title":"<paso a: concreto, dice el trabajo real>","subtasks":["<sub a1>","<sub a2>","<sub a3>"]},{"code":"b","title":"<paso b: concreto>","subtasks":["<sub b1>","<sub b2>","<sub b3>"]},{"code":"c","title":"<paso c: verificar y reportar>","subtasks":["<sub c1>","<sub c2>","<sub c3>"]}]
-(EXACTAMENTE 3 objetos a/b/c, cada uno con EXACTAMENTE 3 subtareas: 3x3. Nunca 8.)`;
+REGLA QUE MANDA SOBRE TODAS LAS DEM\xC1S: no inventes trabajo. Cada paso y cada subtarea tiene que poder se\xF1alarse en el TEXTO del encargo de arriba. Si el encargo no dice C\xD3MO hacer algo, ese paso va SIN subtareas: cero es una respuesta correcta y esperada, y es MUCHO mejor que rellenar.
+
+Nunca deduzcas el procedimiento habitual de una tarea que suena parecida. Ejemplo real de lo que NO hay que hacer: un encargo que dec\xEDa «cambiar la identidad can\xF3nica de un agente de Neo a Link» se plane\xF3 como «Conectar con Neo / Descargar configuraci\xF3n / Crear cuenta en Link / Subir configuraci\xF3n / Asignar permisos», el manual de cualquier migraci\xF3n de servidor. No hab\xEDa ning\xFAn servidor: eran cinco pasos de trabajo que nadie hizo ni ten\xEDa que hacer, y bloquearon el cierre de la misi\xF3n durante semanas.
+
+Cada paso lleva de 0 a 3 subtareas, s\xF3lo las que el encargo respalde. No rellenes con ceremonia (recibir encargo, leer instrucciones, verificar prioridad, asignar subagente) ni con procedimiento gen\xE9rico (recompilar, refrescar cach\xE9, actualizar base de datos) si el encargo no lo menciona. Esto es trabajo de software: no inventes aver\xEDas de hardware ni pantallas. En espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
+
+Responde SOLO con un array JSON v\xE1lido, sin texto adicional, con esta forma:
+[{"code":"a","title":"<paso a: el trabajo real que dice el encargo>","subtasks":["<s\xF3lo si el encargo dice c\xF3mo>"]},{"code":"b","title":"<paso b>","subtasks":[]},{"code":"c","title":"<verificar y reportar>","subtasks":[]}]
+(3 objetos a/b/c. Las subtareas, de 0 a 3 cada uno: vac\xEDo si el encargo no las respalda.)`;
   } else {
     prompt = `Eres el agente principal del helpdesk Yokup (mantenimiento de pantallas DOOH de admira.tv). Descomp\xF3n la RESOLUCI\xD3N de esta incidencia en un PLAN AJUSTADO A SU TAMA\xD1O: SOLO los pasos que de verdad haga falta (EXACTAMENTE 3 pasos a/b/c, cada uno con EXACTAMENTE 3 subtareas (REGLA DE LOS TERCIOS de la casa: la misi\xF3n es SIEMPRE 3 tareas x 3 subtareas, para todos los agentes por igual; lo que no quepa va al TEXTO del paso o baja a microtarea, NO se ensancha el plan)), con c\xF3digos correlativos desde "a" (a, b, c…). Una incidencia sencilla son 1-3 pasos, NO ocho: no rellenes con ceremonia. Cada paso lleva EXACTAMENTE 3 subtareas concretas (verificaci\xF3n o ejecuci\xF3n). El array tendr\xE1 TANTOS objetos como pasos reales. Pasos concretos y accionables para resolver la aver\xEDa, en espa\xF1ol, cada title de m\xE1ximo 60 caracteres.
 
@@ -4785,11 +4892,20 @@ Responde SOLO con un array JSON v\xE1lido, sin texto adicional, con esta forma e
   }
   // 8 pasos × 3 subtareas no caben en 500 tokens: el JSON se cortaba y el
   // parser sólo rescataba los 3 primeros pasos (Carlos, 2026-07-21).
+  // LO QUE EL ENCARGO YA DICE NO SE LE PREGUNTA A LA IA. Si Carlos (o el agente que
+  // dio de alta) escribió su plan a·b·c, ese ES el plan: obedecerlo cuesta cero
+  // llamadas y no puede inventar nada. La IA queda para los encargos que llegan en
+  // prosa, que son los que de verdad hay que descomponer.
+  const explicito = isFleet ? extraerPlanExplicito(full) : null;
+  if (explicito) {
+    const propios = flattenSteps(explicito, relleno0(isFleet), full);
+    if (propios.length) return saveMissionPlan(env, mid, propios);
+  }
   const raw = await aiRun(env, prompt, 1800);
   // El plan de fábrica ya no es sólo el paracaídas de «la IA no devolvió nada»:
   // también tapa los huecos cuando devuelve un plan corto. Ver flattenSteps.
-  const relleno = isFleet ? defaultFleetPlan() : defaultPlan();
-  let tasks = flattenSteps(parsePlanJson(raw), relleno);
+  const relleno = relleno0(isFleet);
+  let tasks = flattenSteps(parsePlanJson(raw), relleno, isFleet ? full : "");
   if (!tasks.length) tasks = flattenSteps(relleno, relleno);
   return saveMissionPlan(env, mid, tasks);
 }
@@ -11854,6 +11970,12 @@ var Room = class {
 export {
   PtyRoom,
   Room,
+  // Puras y sin estado: se exportan para poder PROBARLAS. Un worker de módulos sólo
+  // usa `default` como manejador; los demás nombres no cambian su comportamiento.
+  extraerPlanExplicito,
+  palabrasDeContenido,
+  subtareaRespaldada,
+  flattenSteps,
   index_default as default
 };
 //# sourceMappingURL=index.js.map
