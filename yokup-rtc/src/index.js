@@ -394,7 +394,7 @@ async function applySchema(env) {
   // adivinador por palabras de yk-misiones.js y la columna `project` de
   // decisions—, así que /decisiones acababa enseñando «Proyecto sin identificar».
   // Aquí vive el censo REAL, con su alta, su baja y sus asignaciones.
-  await env.DB.exec("CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT, blurb TEXT, web TEXT, status TEXT DEFAULT 'activo', color TEXT, created_at INTEGER, updated_at INTEGER, updated_by TEXT)");
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT, blurb TEXT, web TEXT, status TEXT DEFAULT 'activo', color TEXT, importance INTEGER NOT NULL DEFAULT 0 CHECK (importance BETWEEN 0 AND 5), created_at INTEGER, updated_at INTEGER, updated_by TEXT)");
   // Sólo las altas posteriores a este esquema escriben aquí. No se hace backfill:
   // el despliegue establece baseline y no anuncia como nuevos proyectos históricos.
   await env.DB.exec(PROJECT_NOVELTY_TABLE_SQL);
@@ -427,6 +427,10 @@ async function applySchema(env) {
   // en el navegador a propósito: el orden es del proyecto, no del portátil desde
   // el que se miró. NULL = nunca se ha tocado → cae al orden de siempre.
   await env.DB.exec("ALTER TABLE projects ADD COLUMN sort_order INTEGER").catch(() => {});
+  // IMPORTANCIA DEL PROYECTO (FLT-1504). Es un valor compartido del censo, no
+  // una preferencia local del navegador: 0 = sin priorizar y 5 = importancia
+  // maxima. El DEFAULT hace que todo el historico nazca de forma honesta en 0.
+  await env.DB.exec("ALTER TABLE projects ADD COLUMN importance INTEGER NOT NULL DEFAULT 0 CHECK (importance BETWEEN 0 AND 5)").catch(() => {});
   // El proyecto de una MISIÓN. No se reutiliza `loc`: en las misiones de flota
   // `loc` es la MÁQUINA destino (fleetSync la escribe ahí), no el proyecto.
   await env.DB.exec("ALTER TABLE tickets ADD COLUMN project TEXT").catch(() => {});
@@ -2143,6 +2147,8 @@ async function listProjects(env) {
       owner: canonicalOwner,
       primary_responsible: canonicalOwner || "NeoMacMini",
       sort_order: p.sort_order == null ? null : Number(p.sort_order),
+      importance: Number.isInteger(Number(p.importance))
+        ? Math.max(0, Math.min(5, Number(p.importance))) : 0,
       machines: mem.filter((m) => m.project_id === p.id && m.kind === "machine").map((m) => m.ref),
       agents: canonicalProjectAgentRefs(mem.filter((m) => m.project_id === p.id && m.kind === "agent")
         .map((m) => m.ref)),
@@ -8819,6 +8825,7 @@ var worker_app = {
     //   POST /projects/delete           baja  {id}
     //   POST /projects/assign           asignar/quitar uno {project,kind,ref,remove?}
     //   POST /projects/order            orden de las fichas {ids:[...]} (arrastrar)
+    //   POST /projects/importance       importancia compartida {project,importance:0..5}
     //   POST /projects/mission          proyecto de una misión {mission,project}
     //   GET  /projects/principal        declaraciones vigentes del día de Madrid
     //   POST /projects/principal        declara {agent,machine?,project,declared_by?,statement?}
@@ -8838,6 +8845,50 @@ var worker_app = {
         const b = await req.json().catch(() => ({}));
         const r = await upsertProject(env, b);
         return json(r, r.ok ? 200 : (r.status || 400));
+      } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
+    if (url.pathname === "/projects/importance" && req.method === "POST") {
+      try {
+        // La lectura del censo sigue abierta, pero priorizar un proyecto es una
+        // decision humana persistente. El actor sale de la sesion Google; nunca
+        // se confia en un `by` enviado por el cliente.
+        const sess = await requireAuth(env, req);
+        if (!sess) return json({ ok: false, error: "unauthorized" }, 401);
+        await ensureSchema(env);
+        const b = await req.json().catch(() => ({}));
+        const projectId = String((b && b.project) || "").trim();
+        if (!projectId) return json({ ok: false, error: "project requerido" }, 400);
+        if (!Number.isInteger(b && b.importance) || b.importance < 0 || b.importance > 5) {
+          return json({ ok: false, error: "importance debe ser un entero entre 0 y 5" }, 400);
+        }
+        if (!Number.isInteger(b && b.expected_importance) || b.expected_importance < 0 || b.expected_importance > 5) {
+          return json({ ok: false, error: "expected_importance debe ser un entero entre 0 y 5" }, 400);
+        }
+        const previous = await env.DB.prepare("SELECT id,status,importance FROM projects WHERE id=?").bind(projectId).first();
+        if (!previous) return json({ ok: false, error: "project no existe en el censo" }, 404);
+        if (String(previous.status || "activo").toLowerCase() === "archivado") {
+          return json({ ok: false, error: "project archivado" }, 409);
+        }
+        const current = Number.isInteger(Number(previous.importance)) ? Number(previous.importance) : 0;
+        if (current === b.importance) {
+          return json({ ok: true, changed: false, previous_importance: current,
+            project: (await listProjects(env)).find((row) => row.id === projectId) || null });
+        }
+        if (current !== b.expected_importance) {
+          return json({ ok: false, error: "importance conflict", current_importance: current }, 409);
+        }
+        const updatedAt = Date.now(), updatedBy = String(sess.email || sess.user || "web").slice(0, 120);
+        const changed = await env.DB.prepare("UPDATE projects SET importance=?,updated_at=?,updated_by=? WHERE id=? AND COALESCE(importance,0)=? AND COALESCE(status,'activo')!='archivado'")
+          .bind(b.importance, updatedAt, updatedBy, projectId, current).run();
+        if (!changed || !changed.meta || Number(changed.meta.changes) !== 1) {
+          const latest = await env.DB.prepare("SELECT id,status,importance FROM projects WHERE id=?").bind(projectId).first();
+          if (!latest) return json({ ok: false, error: "project no existe en el censo" }, 404);
+          if (String(latest.status || "activo").toLowerCase() === "archivado") return json({ ok: false, error: "project archivado" }, 409);
+          const latestImportance = Number.isInteger(Number(latest.importance)) ? Number(latest.importance) : 0;
+          if (latestImportance !== b.importance) return json({ ok: false, error: "importance conflict", current_importance: latestImportance }, 409);
+        }
+        return json({ ok: true, changed: true, previous_importance: current,
+          project: (await listProjects(env)).find((row) => row.id === projectId) || null });
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
     if (url.pathname === "/projects/principal" && req.method === "GET") {
