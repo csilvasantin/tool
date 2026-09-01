@@ -162,14 +162,16 @@ export function agentFamilySqlKey(expression) {
   const roleless = `(CASE WHEN ${raw} LIKE 'infra%' THEN substr(${raw},6) ` +
     `WHEN ${raw} LIKE 'sub%' THEN substr(${raw},4) ELSE ${raw} END)`;
   const agentless = `(CASE WHEN ${roleless} LIKE 'agente%' THEN substr(${roleless},7) ELSE ${roleless} END)`;
-  const clauses = PERSONAS.map(([name, aliases]) => {
-    const candidates = [...new Set([name, ...aliases].map((alias) =>
-      identityKey(alias).replace(/^agente/, '')).filter(Boolean))];
-    return `WHEN ${candidates.map((alias) => `${agentless} LIKE '${alias}%'`).join(' OR ')} THEN '${identityKey(name)}'`;
-  });
+  const aliases = PERSONAS.flatMap(([name, values]) =>
+    [...new Set([name, ...values].map((value) => identityKey(value).replace(/^agente/, '')).filter(Boolean))]
+      .map((alias) => [identityKey(name), alias]));
+  const aliasesJson = JSON.stringify(aliases).replaceAll("'", "''");
   // Para identidades ajenas al censo parseAgentIdentity conserva el valor crudo,
-  // incluido Sub/Infra; por eso el fallback es raw y no roleless.
-  return `(CASE ${clauses.join(' ')} ELSE ${raw} END)`;
+  // incluido Sub/Infra; por eso el fallback es raw y no roleless. JSON1 evita
+  // repetir el árbol normalizador una vez por alias dentro de cada guarda D1.
+  return `COALESCE((SELECT json_extract(family_alias.value,'$[0]') FROM json_each('${aliasesJson}') AS family_alias ` +
+    `WHERE ${agentless} LIKE json_extract(family_alias.value,'$[1]')||'%' ` +
+    `ORDER BY length(json_extract(family_alias.value,'$[1]')) DESC,family_alias.key ASC LIMIT 1),${raw})`;
 }
 
 export const AGENT_IDENTITY_SPEC = Object.freeze({

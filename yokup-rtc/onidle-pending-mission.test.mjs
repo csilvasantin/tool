@@ -92,12 +92,14 @@ test('normalización SQL de familia y máquina equivale a la normalización JS',
   for (const value of agents) insert.run('agent', value);
   for (const value of machines) insert.run('machine', value);
 
-  const agentRows = db.prepare(`SELECT value,${agentFamilySqlKey('value')} normalized FROM aliases WHERE kind='agent'`).all();
+  const agentRows = db.prepare(`SELECT source_alias.value,${agentFamilySqlKey('source_alias.value')} normalized ` +
+    `FROM aliases AS source_alias WHERE kind='agent'`).all();
   for (const row of agentRows) {
     assert.equal(row.normalized, agentFamilyKey(row.value), `SQL/JS agente: ${row.value}`);
     assert.equal(row.normalized === agentFamilyKey('OraculoMini'), sameAgentFamily(row.value, 'OraculoMini'), row.value);
   }
-  const machineRows = db.prepare(`SELECT value,${machineRefSqlKey('value')} normalized FROM aliases WHERE kind='machine'`).all();
+  const machineRows = db.prepare(`SELECT source_alias.value,${machineRefSqlKey('source_alias.value')} normalized ` +
+    `FROM aliases AS source_alias WHERE kind='machine'`).all();
   for (const row of machineRows) {
     assert.equal(row.normalized, machineRefKey(row.value), `SQL/JS máquina: ${row.value}`);
     assert.equal(row.normalized === machineRefKey('Mac Mini'), memberRefMatches('machine', row.value, 'Mac Mini'), row.value);
