@@ -615,9 +615,14 @@
     });
     if (!top.length && !sub.length && !extra) return null;
     var hecho = function (a) { return a.filter(function (r) { return r.status === "done"; }).length; };
+    // «No aplicaba» (estado no_aplica, 1-sep-2026) tiene cuenta PROPIA: concluye el
+    // arbol pero NUNCA suma como hecho. Copiado del worker a proposito, igual que el
+    // resto de esta funcion, para que tablero y navegador no puedan divergir.
+    var nada = function (a) { return a.filter(function (r) { return r.status === "no_aplica"; }).length; };
     if (standalone) {
       return {
         done: hecho(top), total: Math.max(1, top.length),
+        na: nada(top), sna: 0,
         sdone: 0, stotal: 0,
         topN: top.length, subN: 0,
         incompleto: false, standalone: true,
@@ -634,6 +639,7 @@
     // no se disimula bajando el denominador. Nunca se inventan filas.
     return {
       done: hecho(top), total: 3,
+      na: nada(top), sna: nada(sub),
       sdone: hecho(sub), stotal: 9,
       topN: top.length, subN: sub.length,
       incompleto: top.length < 3 || sub.length < 9,
@@ -649,16 +655,23 @@
   //               cuántas filas hay definidas de las 3 y las 9 que tocan.
   function progHtml(p) {
     if (!p || !p.total) return "";
+    // CONCLUIDO no es PLENO. Un paso descartado cierra el arbol pero no se pinta
+    // como hecho: la barra solo avanza con trabajo real, y el descarte se dice
+    // aparte. Si se sumara a `done`, una mision con 5 pasos inventados leeria
+    // 12/12 y el planificador que los invento seguiria invisible.
+    var na = (p.na | 0) + (p.sna | 0);
     var pct = p.standalone ? Math.round(100 * p.done / p.total) : Math.round(100 * (p.done * 3 + p.sdone) / (p.total * 3 + p.stotal));
     var pleno = p.done >= p.total && (p.standalone || p.sdone >= p.stotal);
     var hechoInc = !pleno && p.topN > 0 && p.done >= p.topN && p.sdone >= p.subN;
     var tip = p.done + " de " + p.total + (p.standalone ? " tarea suelta hecha" : " tareas hechas · " + p.sdone + " de " + p.stotal + " subtareas")
+      + (na ? " · " + na + " NO APLICABAN (descartados con motivo; no cuentan como hechos)" : "")
       + (p.incompleto ? " · PLAN INCOMPLETO: sólo hay " + p.topN + " de 3 tareas y " + p.subN + " de 9 subtareas definidas" : "")
       + (p.extra ? " · +" + p.extraDone + "/" + p.extra + " pasos de un plan antiguo (d…h), fuera de los tercios" : "");
     return '<span class="prog' + (pleno ? " full" : "") + (hechoInc ? " hechoinc" : "") + (p.incompleto ? " inc" : "") + '" title="' + esc(tip) + '">' +
       '<span class="prog-fill" style="width:' + pct + '%"></span>' +
       "<b>" + p.done + "/" + p.total + "</b>" +
       (p.standalone ? "" : '<i class="prog-sub">' + p.sdone + "/" + p.stotal + "</i>") +
+      (na ? '<i class="prog-na">' + na + " n/a</i>" : "") +
       (p.extra ? '<i class="prog-mas">+' + p.extra + "</i>" : "") +
       (p.incompleto ? '<i class="prog-inc" aria-hidden="true">◌</i>' : "") + "</span>";
   }

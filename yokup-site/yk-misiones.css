@@ -116,6 +116,10 @@
 .prog{min-width:58px;gap:4px;padding:0 5px}
 .prog i{position:relative;z-index:1;font-style:normal;color:var(--dim);font-size:8.5px}
 .prog .prog-mas{color:var(--warn)}
+/* Pasos DESCARTADOS con motivo (estado no_aplica). Deliberadamente apagado y sin
+   verde: concluyen el arbol pero no son trabajo hecho, y el color no debe
+   sugerir lo contrario. El tooltip del chip explica que no cuentan como hechos. */
+.prog .prog-na{color:var(--muted,#8a8f98);font-style:normal;opacity:.85}
 .prog.full{border-color:rgba(136,255,170,.4)}.prog.full .prog-fill{background:rgba(136,255,170,.22)}.prog.full b{color:var(--good)}
 /* PLAN INCOMPLETO (979 c): el denominador es siempre 3 y 9, así que un plan a
    medio definir se DICE — borde discontinuo + ◌ atenuado — en vez de bajarle el
