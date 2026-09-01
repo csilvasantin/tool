@@ -56,7 +56,9 @@ test("blockers de misión y tarea pertenecen sólo a agent+machine exactos",asyn
 });
 
 test("trabajo ajeno no bloquea y los alias históricos del Mini sí casan",async()=>{
-  const identity=resolveDecisionIdentity("OraculoMacMini","Mac Mini");assert.equal(identity.agent,"OraculoMini");
+  // Se invirtio el 1-sep-2026 (normativa 02): el alias que se lee es "Mini" y el que
+  // se escribe, "MacMini".
+  const identity=resolveDecisionIdentity("OraculoMini","Mac Mini");assert.equal(identity.agent,"OraculoMacMini");
   const {run,env}=operationalHarness({missions:[activeMission("foreign","NeoMini","Mac Mini"),activeMission("wrong-host","OraculoMBP14","MacBook Pro 14")],tasks:[activeTask("foreign-t","NeoMini","Mac Mini")]});
   const state=await run(env,identity,"yokup",NOW);assert.equal(state.can_open,true);assert.equal(state.reason,"ready");
   for(const owner of ["Oraculo","OraculoMacMini","SubOraculoMini","InfraOraculoMini"]){
@@ -96,7 +98,7 @@ test("handler /fleet/onidle-state exige identidad resoluble y llama el guard con
   assert.match(route,/resolveDecisionIdentity\(url\.searchParams\.get\("agent"\), url\.searchParams\.get\("machine"\)\)/);
   assert.match(route,/if \(!identity\.ok\) return json\(\{ ok:false, code:"exact_identity_required"/);
   assert.match(route,/operationalOnIdleState\(env, identity\)/);
-  const mini=resolveDecisionIdentity("OraculoMacMini","Mac Mini");assert.deepEqual(mini,{ok:true,agent:"OraculoMini",machine:"Mac Mini"});
+  const mini=resolveDecisionIdentity("OraculoMini","Mac Mini");assert.deepEqual(mini,{ok:true,agent:"OraculoMacMini",machine:"Mac Mini"});
   assert.equal(resolveDecisionIdentity("OraculoMBP14","Mac Mini").ok,false);
   assert.equal(resolveDecisionIdentity("OraculoMini","").ok,false);
 });

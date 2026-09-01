@@ -6145,7 +6145,11 @@ var HIGHSCORE_MISSION_PROGRESS_SQL = "MAX(COALESCE((SELECT MAX(mt.started_at) FR
 // otras tres vueltas monocromas, tampoco después de cerrar una tarea.
 var HIGHSCORE_RACE_PROGRESS_SQL = HIGHSCORE_WORK_STARTED_SQL;
 var HIGHSCORE_ASSIGNMENT_EVENT_SQL = "(SELECT MAX(e.ts) FROM events e WHERE e.ticket_id=t.id AND e.kind='assign')";
-var HIGHSCORE_PERSONAS = ["neo", "morfeo", "trinity", "oraculo", "smith", "whiterabbit", "cypher", "niobe"];
+// Quinta copia a mano del censo, y la que decide si un objetivo puntúa: sin estar
+// aquí, una idea firmada por Link no le sumaría nada. Las otras cuatro son PERSONAS
+// en agent-identity.js, la lista de principalAgentIdentity, la regex de
+// cleanMissionAttributions y los nombres escritos a mano en admira.live/control.
+var HIGHSCORE_PERSONAS = ["neo", "link", "morfeo", "trinity", "oraculo", "smith", "whiterabbit", "cypher", "niobe"];
 
 /** Quién firma un objetivo. Los autores llegan como los escribe cada sitio:
  *  «Oráculo», «Neo16 (Claude)», «Carlos · Oraculo» o un asiento del Consejo

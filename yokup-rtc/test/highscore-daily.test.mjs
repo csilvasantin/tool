@@ -4,7 +4,7 @@ import vm from "node:vm";
 import {DatabaseSync} from "node:sqlite";
 import {readFile} from "node:fs/promises";
 import {madridDayKey,madridDayStart} from "../src/display-ref.js";
-import {machineSuffix} from "../src/agent-identity.js";
+import {canonicalMachineSuffix,groupingIdentityKey,machineSuffix,parseAgentIdentity,scopedAgentIdentity} from "../src/agent-identity.js";
 import {AGENT_SOURCE_SQL, AGENT_SOURCE_SQL_T, FIELD_SOURCE_SQL_T} from "../src/mission-sources.js";
 
 const source=await readFile(new URL("../src/index.js",import.meta.url),"utf8");
@@ -31,7 +31,10 @@ function harness(){
   // machineSuffix entra en el sandbox como el resto: el marcador agrupa por el
   // APELLIDO canonico de la maquina, porque el mismo equipo llega escrito como
   // 'macmini', 'admira-macmini' o 'MacMini' segun quien escriba.
-  const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,madridDayKey,madridDayStart,machineSuffix,
+  // groupingIdentityKey y canonicalMachineSuffix entran por lo mismo que machineSuffix:
+  // el agente tambien llega escrito de dos formas (MorfeoMini / MorfeoMacMini) y sin
+  // ellas el marcador volveria a partir a un agente en dos filas.
+  const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,madridDayKey,madridDayStart,machineSuffix,groupingIdentityKey,canonicalMachineSuffix,parseAgentIdentity,scopedAgentIdentity,
     AGENT_SOURCE_SQL,AGENT_SOURCE_SQL_T,
     reportAgentIdentity:(agent)=>String(agent||""),
     scopedMissionOwner:(owner,_role,assignee)=>String(owner||assignee||""),
@@ -40,7 +43,7 @@ function harness(){
     grabVar("HIGHSCORE_WEIGHTS"),grabVar("HIGHSCORE_TASK_WEIGHTS"),grabVar("HIGHSCORE_RECENT_MS"),
     grabVar("HIGHSCORE_TREND_MS"),grabVar("HIGHSCORE_TREND_TOLERANCE_MS"),
     grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_PERSONAS"),
-    grab("madridHourKey"),grab("highscoreAgent"),
+    grab("madridHourKey"),grab("highscoreAgent"),grab("canonicalHighscoreAgent"),
     grab("highscoreTraceability"),grab("highscorePeriodMetrics"),grab("highscoreMetricPair"),grab("highscoreHourlyContract"),
     grab("highscoreCurrentTotals"),grab("highscoreHourlyTrend"),grab("highscoreDaily")
   ].join("\n"),context);
