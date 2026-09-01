@@ -1,7 +1,7 @@
 const PROJECT_SHOT_HOSTS = new Set([
   "pixeria.com", "xpaceos.com", "yokup.com", "admira.live", "admira.tv",
   "admira.store", "clearchannel.tv", "admiranext.com", "ainimation.studio",
-  "digitalavatar.ai", "carlossilva.info"
+  "digitalavatar.ai", "digitalsignage.ai", "admira.academy", "carlossilva.info"
 ]);
 
 export function normalizeProjectWeb(raw) {

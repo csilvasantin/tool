@@ -14,12 +14,13 @@ test("paWeb acepta http(s) y dominios históricos, pero rechaza destinos peligro
 });
 
 test("el icono enlaza la web canónica sin convertir la captura en destino", () => {
-  assert.match(source,/class="pa-folder pa-project-web"[^>]*data-pa-project-web/);
-  assert.match(source,/href="'\+esc\(web\)\+'" target="_blank" rel="noopener noreferrer"/);
-  assert.match(source,/aria-label="Abrir '\+esc\(projectName\)\+' en '\+esc\(webHost\)\+' · nueva pestaña"/);
-  assert.match(source,/<img loading="lazy" alt="" src="'\+esc\(shot\)\+'" draggable="false"/);
-  assert.match(source,/:'<div class="pa-folder" aria-hidden="true">/);
-  assert.doesNotMatch(source,/href="'\+esc\(shot\)/);
+  assert.match(source,/class=\"pa-folder pa-project-web\"[^>]*data-pa-project-web/);
+  assert.match(source,/href=\"'\+esc\(web\)\+'\" target=\"_blank\" rel=\"noopener noreferrer\"/);
+  assert.match(source,/aria-label=\"Abrir '\+esc\(name\)\+' en '\+esc\(host\)\+' · nueva pestaña\"/);
+  assert.match(source,/<img loading=\"lazy\" alt=\"Captura de '\+esc\(name\)\+'\" src=\"'\+esc\(shot\)\+'\" draggable=\"false\"/);
+  assert.match(source,/versioned\?'<span class=\"pa-version-thumb\"/);
+  assert.match(source,/:\s*'<span aria-hidden=\"true\">📁<\/span>'/);
+  assert.doesNotMatch(source,/href=\"'\+esc\(shot\)/);
 });
 
 test("el enlace no alterna details ni inicia drag, y conserva navegación nativa", () => {

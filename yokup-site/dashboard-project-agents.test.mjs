@@ -191,7 +191,8 @@ test("cada proyecto usa una captura real de su solución en vez de una carpeta g
   assert.match(source,/PROJECTS_API\+"\/shot\?url="\+encodeURIComponent\(shotUrl\.href\)/);
   assert.match(source,/project\.id==="yokup-ideas-objetivos"\?"https:\/\/www\.yokup\.com\/objetivos"/);
   assert.match(source,/pixeria\\\.com\$\/i\.test\(shotUrl\.hostname\)\)shotUrl\.searchParams\.set\("gate","off"\)/);
-  assert.match(source,/<img loading="lazy" alt="" src=/);
+  assert.match(source,/<img loading="lazy" alt="Captura de /);
+  assert.match(source,/versioned\?'<span class="pa-version-thumb"/);
   assert.match(source,/\.pa-folder img\{[^}]*object-fit:cover;object-position:top center/);
 });
 

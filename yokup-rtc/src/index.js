@@ -37,6 +37,7 @@ import { ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION, isCanonicalOnIdleDecision,
   isCanonicalOnIdleOptions, selectCanonicalLiveOnIdleDecision } from "./onidle-decision-contract.js";
 import { canonicalProjectAgentRef, canonicalProjectAgentRefs, YOKUP_MINI_MEMBER_BACKFILL_SQL } from "./project-member-identity.js";
 import { PROJECT_BOTH_RESPONSIBLES_CAS_SQL, PROJECT_CARBON_CAS_SQL, PROJECT_METADATA_UPSERT_SQL, PROJECT_SILICON_CAS_SQL, projectCarbonResponsible, validateProjectResponsibleTypes } from "./project-responsibles.js";
+import { PROJECT_CARBON_ASSIGNMENTS_TABLE_SQL, PROJECT_CARBON_ASSIGNMENT_UPSERT_IF_CURRENT_SQL, PROJECT_CARBON_ASSIGNMENT_UPSERT_SQL, projectCarbonKey } from "./project-carbon-assignments.js";
 import { isProjectShotAllowed, normalizeProjectWeb } from "./project-web.js";
 import { AGENT_SOURCE_SQL, AGENT_SOURCE_SQL_T, FIELD_SOURCE_SQL_T, MISSION_SCOPE_SQL,
   MISSION_SCOPE_SQL_T, FIELD_MISSION_SCOPE_SQL_T, FLEET_MISSIONS_SQL } from "./mission-sources.js";
@@ -425,6 +426,7 @@ async function applySchema(env) {
   // nombre humano nunca debe mezclarse con el censo de agentes operativos.
   await env.DB.exec("ALTER TABLE projects ADD COLUMN owner TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE projects ADD COLUMN carbon_responsible TEXT NOT NULL DEFAULT ''").catch(() => {});
+  await env.DB.exec(PROJECT_CARBON_ASSIGNMENTS_TABLE_SQL);
   await env.DB.exec(YOKUP_MINI_MEMBER_BACKFILL_SQL);
   // ORDEN de las fichas, el que Carlos deja al arrastrarlas. Va en la tabla y no
   // en el navegador a propósito: el orden es del proyecto, no del portátil desde
@@ -2130,6 +2132,8 @@ async function listProjects(env) {
   const rows = results || [];
   if (!rows.length) return [];
   const mem = (await env.DB.prepare("SELECT project_id, kind, ref FROM project_members").all()).results || [];
+  const carbonAssignments = (await env.DB.prepare("SELECT project_id,carbon_key,first_assigned_at FROM project_carbon_assignments").all()).results || [];
+  const carbonFirstByProject = new Map(carbonAssignments.map((row) => [String(row.project_id) + "|" + String(row.carbon_key), Number(row.first_assigned_at) || 0]));
   const declarations = await listPrincipalProjectDeclarations(env);
   // VIVA = EN CURSO (Carlos, FLT-985 c1). Hasta aquí `missions` sumaba también las
   // `open` —encargadas y sin empezar— y una ficha con varias misiones en la cola
@@ -2153,6 +2157,9 @@ async function listProjects(env) {
       primary_responsible: canonicalOwner || "NeoMacMini",
       silicon_responsible: siliconResponsible,
       carbon_responsible: carbonResponsible,
+      carbon_first_assigned_at: carbonResponsible
+        ? carbonFirstByProject.get(String(p.id) + "|" + projectCarbonKey(carbonResponsible)) || null
+        : null,
       sort_order: p.sort_order == null ? null : Number(p.sort_order),
       importance: Number.isInteger(Number(p.importance))
         ? Math.max(0, Math.min(5, Number(p.importance))) : 0,
@@ -2240,10 +2247,15 @@ async function upsertProject(env, b) {
   if (!prev) {
     // D1 ejecuta el batch como transacción: el proyecto y su cursor aparecen
     // juntos. event_key UNIQUE hace inocuo repetir la misma alta tras un timeout.
-    await env.DB.batch([
+    const initialStatements = [
       saveProject,
       env.DB.prepare(PROJECT_NOVELTY_INSERT_SQL).bind(projectNoveltyEventKey(row.id), row.id)
-    ]);
+    ];
+    if (row.carbon_responsible) {
+      initialStatements.push(env.DB.prepare(PROJECT_CARBON_ASSIGNMENT_UPSERT_SQL)
+        .bind(row.id, projectCarbonKey(row.carbon_responsible), row.carbon_responsible, now, now));
+    }
+    await env.DB.batch(initialStatements);
   } else {
     // Editar metadatos, responsable o estado no es una nueva alta.
     await saveProject.run();
@@ -9318,15 +9330,21 @@ var worker_app = {
         }
         const updatedAt = Date.now(), updatedBy = String(sess.email || sess.user || "web").slice(0, 120);
         let changed;
+        const historyStatement = carbonChanged && carbonResponsible
+          ? env.DB.prepare(PROJECT_CARBON_ASSIGNMENT_UPSERT_IF_CURRENT_SQL)
+            .bind(projectId, projectCarbonKey(carbonResponsible), carbonResponsible, updatedAt, updatedAt, projectId, carbonResponsible)
+          : null;
         if (siliconChanged && carbonChanged) {
-          changed = await env.DB.prepare(PROJECT_BOTH_RESPONSIBLES_CAS_SQL)
-            .bind(siliconResponsible, carbonResponsible, updatedAt, updatedBy, projectId, previousOwnerRaw, previousCarbonRaw).run();
+          const update = env.DB.prepare(PROJECT_BOTH_RESPONSIBLES_CAS_SQL)
+            .bind(siliconResponsible, carbonResponsible, updatedAt, updatedBy, projectId, previousOwnerRaw, previousCarbonRaw);
+          changed = historyStatement ? (await env.DB.batch([update, historyStatement]))[0] : await update.run();
         } else if (siliconChanged) {
           changed = await env.DB.prepare(PROJECT_SILICON_CAS_SQL)
             .bind(siliconResponsible, updatedAt, updatedBy, projectId, previousOwnerRaw).run();
         } else {
-          changed = await env.DB.prepare(PROJECT_CARBON_CAS_SQL)
-            .bind(carbonResponsible, updatedAt, updatedBy, projectId, previousCarbonRaw).run();
+          const update = env.DB.prepare(PROJECT_CARBON_CAS_SQL)
+            .bind(carbonResponsible, updatedAt, updatedBy, projectId, previousCarbonRaw);
+          changed = historyStatement ? (await env.DB.batch([update, historyStatement]))[0] : await update.run();
         }
         if (!changed || !changed.meta || Number(changed.meta.changes) !== 1) {
           const latest = await env.DB.prepare("SELECT id,status,owner,carbon_responsible,updated_at,updated_by FROM projects WHERE id=?")
@@ -9352,6 +9370,43 @@ var worker_app = {
           previous_silicon_responsible: previousSilicon,
           previous_carbon_responsible: previousCarbon,
           project: (await listProjects(env)).find((row) => row.id === projectId) || null });
+      } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
+    if (url.pathname === "/projects/agents/unassign" && req.method === "POST") {
+      try {
+        const sess = await requireAuth(env, req);
+        if (!sess) return json({ ok: false, error: "unauthorized" }, 401);
+        await ensureSchema(env);
+        const b = await req.json().catch(() => ({}));
+        const agent = projectCarbonResponsible(b && b.agent);
+        const agentKey = projectCarbonKey(agent);
+        const expected = Array.isArray(b && b.expected_projects)
+          ? [...new Set(b.expected_projects.map((id) => String(id || "").trim()).filter(Boolean))].sort()
+          : null;
+        if (!agentKey) return json({ ok: false, error: "agent requerido" }, 400);
+        if (!expected) return json({ ok: false, error: "expected_projects requerido" }, 400);
+        if (b.confirmed !== true) return json({ ok: false, error: "confirmación explícita requerida" }, 400);
+        const currentRows = ((await env.DB.prepare("SELECT id,name,carbon_responsible FROM projects WHERE COALESCE(status,'activo')!='archivado'").all()).results || [])
+          .filter((row) => projectCarbonKey(row.carbon_responsible) === agentKey)
+          .sort((a, z) => String(a.id).localeCompare(String(z.id)));
+        const currentIds = currentRows.map((row) => String(row.id));
+        if (JSON.stringify(currentIds) !== JSON.stringify(expected)) {
+          return json({ ok: false, error: "agent assignments conflict", current_projects: currentIds }, 409);
+        }
+        const updatedAt = Date.now(), updatedBy = String(sess.email || sess.user || "web").slice(0, 120);
+        const pairSql = currentRows.map(() => "(id=? AND COALESCE(carbon_responsible,'')=?)").join(" OR ");
+        const pairValues = currentRows.flatMap((row) => [row.id, String(row.carbon_responsible || "")]);
+        const changed = currentRows.length ? await env.DB.prepare(
+          "UPDATE projects SET carbon_responsible='',updated_at=?,updated_by=? " +
+          "WHERE COALESCE(status,'activo')!='archivado' AND (" + pairSql + ") " +
+          "AND (SELECT COUNT(*) FROM projects WHERE COALESCE(status,'activo')!='archivado' AND (" + pairSql + "))=?"
+        ).bind(updatedAt, updatedBy, ...pairValues, ...pairValues, currentRows.length).run() : null;
+        if (currentRows.length && (!changed || !changed.meta || Number(changed.meta.changes) !== currentRows.length)) {
+          return json({ ok: false, error: "agent assignments conflict" }, 409);
+        }
+        return json({ ok: true, changed: currentRows.length > 0, agent,
+          orphaned_projects: currentRows.map((row) => ({ id: row.id, name: row.name || row.id })),
+          projects: await listProjects(env) });
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
     if (url.pathname === "/projects/principal" && req.method === "GET") {

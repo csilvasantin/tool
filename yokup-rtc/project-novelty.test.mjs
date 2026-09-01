@@ -93,7 +93,7 @@ test('toda creación web, CLI o automática converge en el único POST/upsert', 
   assert.equal((source.match(/const r = await upsertProject\(env, b\)/g) || []).length, 1);
   assert.match(source, /url\.pathname === "\/projects" && req\.method === "POST"/);
   const upsert = source.slice(source.indexOf('async function upsertProject'), source.indexOf('__name(upsertProject'));
-  assert.match(upsert, /if \(!prev\)[\s\S]*env\.DB\.batch\(\[[\s\S]*saveProject,[\s\S]*PROJECT_NOVELTY_INSERT_SQL/);
+  assert.match(upsert, /if \(!prev\)[\s\S]*const initialStatements = \[[\s\S]*saveProject,[\s\S]*PROJECT_NOVELTY_INSERT_SQL[\s\S]*env\.DB\.batch\(initialStatements\)/);
   assert.match(upsert, /else \{[\s\S]*await saveProject\.run\(\)/);
 });
 

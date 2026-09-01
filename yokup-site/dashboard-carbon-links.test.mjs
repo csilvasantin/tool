@@ -46,7 +46,7 @@ test("el color del responsable es determinista y no depende del orden",()=>{
 });
 
 test("el DOM ofrece anclas Carbono propias y conserva la relación textual",()=>{
-  const agents=functionSource("paCarbonAgentsMarkup"),render=functionSource("paRender");
+  const agents=functionSource("paCarbonAgentsMarkup")+functionSource("paCarbonProjectMarkup"),render=functionSource("paRender");
   assert.match(agents,/data-carbon-agent-port=/);
   assert.match(agents,/aria-hidden="true"/);
   assert.match(agents,/data-carbon-project=/);

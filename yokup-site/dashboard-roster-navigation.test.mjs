@@ -62,7 +62,7 @@ test("Carbono se deriva de proyectos visibles con responsable y no del filtro de
 });
 
 test("Carbono pinta sólo responsables y chips de sus proyectos asociados",()=>{
-  const render=functionSource("paRender"),markup=functionSource("paCarbonAgentsMarkup");
+  const render=functionSource("paRender"),markup=functionSource("paCarbonAgentsMarkup")+functionSource("paCarbonProjectMarkup");
   assert.match(render,/paPaint\(carbonBox,PA_ROSTER_VIEW==="carbon"[\s\S]*paCarbonAgentsMarkup\(carbonAgents\)/);
   assert.match(markup,/data-carbon-agent=/);
   assert.match(markup,/data-carbon-project=/);
