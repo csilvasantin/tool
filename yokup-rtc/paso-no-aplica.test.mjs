@@ -55,3 +55,10 @@ test('un descarte no puntua: el marcador sigue cruzando solo done', () => {
   assert.match(source, /m\.status='done' /);
   assert.doesNotMatch(source, /m\.status IN \('done','no_aplica'\)/);
 });
+
+test('setTaskStatus, escritor comun, tambien exige motivo al descartar', () => {
+  const set = source.slice(source.indexOf('async function setTaskStatus'),
+                           source.indexOf('__name(setTaskStatus'));
+  assert.match(set, /\(st === "done" \|\| st === TASK_NO_APLICA\) && !String\(rp \|\| ""\)\.trim\(\)/);
+  assert.match(set, /motivo_required/);
+});

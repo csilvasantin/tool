@@ -4590,9 +4590,16 @@ async function setTaskStatus(env, mid, code, status, report, owner, image, image
   const rp = report != null ? String(report).slice(0, 2e3) : cur.report;
   // Una tarea hecha sin parte deja al equipo sin saber qué ocurrió y además
   // desaparece de /informes. El rechazo sucede antes de cualquier escritura.
-  if (st === "done" && !String(rp || "").trim()) {
-    return { error:"report_required", code:"report_required",
-      message:"no se puede terminar una tarea sin informe", applied:false };
+  // Vale igual para el descarte: `no_aplica` sin motivo es indistinguible de un
+  // abandono. La ruta HTTP ya lo exige, pero setTaskStatus es el escritor COMÚN
+  // y no puede fiarse de que todos sus llamantes hayan validado antes.
+  if ((st === "done" || st === TASK_NO_APLICA) && !String(rp || "").trim()) {
+    const descarte = st === TASK_NO_APLICA;
+    return { error: descarte ? "motivo_required" : "report_required",
+      code: descarte ? "motivo_required" : "report_required",
+      message: descarte
+        ? "no se puede descartar un paso sin motivo: di por qué no aplicaba a esta misión"
+        : "no se puede terminar una tarea sin informe", applied:false };
   }
   const mission = await env.DB.prepare("SELECT assignee,loc FROM tickets WHERE id=?").bind(mid).first();
   const ow = mission ? reportAgentIdentity(mission.assignee, mission.loc) : cur.owner;

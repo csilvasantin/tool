@@ -22,7 +22,7 @@ test("terminar una tarea sin informe se rechaza antes del UPDATE", () => {
   const start = source.indexOf("async function setTaskStatus(");
   const end = source.indexOf("__name(setTaskStatus", start);
   const block = source.slice(start, end);
-  assert.match(block, /st === "done" && !String\(rp \|\| ""\)\.trim\(\)/);
+  assert.match(block, /\(st === "done" \|\| st === TASK_NO_APLICA\) && !String\(rp \|\| ""\)\.trim\(\)/);
   assert.ok(block.indexOf('code:"report_required"') < block.indexOf("UPDATE mission_tasks"));
 });
 

@@ -10,8 +10,8 @@ const status=source.slice(statusStart,source.indexOf("__name(setTaskStatus,",sta
 
 test("mission_tasks persiste un fin factual separado de updated_at",()=>{
   assert.match(source,/ALTER TABLE mission_tasks ADD COLUMN ended_at INTEGER/);
-  assert.match(status,/ended_at=CASE WHEN \?='done' AND status!='done' THEN COALESCE\(ended_at,\?\)/);
-  assert.match(status,/WHEN \? IN \('pending','in_progress'\) AND status='done' THEN NULL/);
+  assert.match(status,/ended_at=CASE WHEN \? IN \('done','no_aplica'\) AND status NOT IN \('done','no_aplica'\) THEN COALESCE\(ended_at,\?\)/);
+  assert.match(status,/WHEN \? IN \('pending','in_progress'\) AND status IN \('done','no_aplica'\) THEN NULL/);
 });
 
 test("last_work de tarea exige ended_at y conserva su contrato visible",()=>{
