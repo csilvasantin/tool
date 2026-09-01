@@ -10,14 +10,17 @@
  * preferencia y mismas clases CSS).
  *
  *   await ykAvatar.ready          espera a la personalización compartida
- *   ykAvatar.img("Neo")           → URL del retrato, o ""
+ *   ykAvatar.img("Link")          → URL del retrato, o ""
  *   ykAvatar.html("subMorfeo")    → <span class="who who-av">…  (o el icono si no hay)
  */
 (function () {
   "use strict";
 
   var WORKER = "https://api.yokup.com";
-  var AVATARES = { neo: 1, morfeo: 1, smith: 1, trinity: 1, oraculo: 1 };
+  // link: principal de Claude·csilva@admira.com en el Mac Mini desde el 1-sep-2026.
+  // neo NO se quita: sigue siendo esa identidad en las demás máquinas y, sobre todo,
+  // firma misiones e informes ya cerrados que deben seguir enseñando su cara.
+  var AVATARES = { link: 1, neo: 1, morfeo: 1, smith: 1, trinity: 1, oraculo: 1 };
   var CUSTOM = { agents: {}, machines: {} };
 
   var esc = function (x) {
