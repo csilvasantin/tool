@@ -7662,11 +7662,24 @@ async function highscoreCurrentTotals(env, scores, inicio, fin) {
   const totals = new Map();
   const keyOf = (agent) => String(agent || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
     .toLowerCase().replace(/[^a-z0-9]+/g, "");
+  // SE AGRUPA POR IDENTIDAD CANÓNICA, NO POR EL LITERAL DEL NOMBRE (2026-09-01).
+  // highscoreDaily ya agrupa bien —con groupingIdentityKey, que canonicaliza el
+  // apellido: `Mini` y `MacMini` son la MISMA máquina y la normativa 02 zanjó que
+  // se escribe MacMini—. Pero aquí se volvía a agrupar por el nombre visible en
+  // crudo, así que el mismo agente reaparecía partido en dos filas y el marcador
+  // repartía sus puntos entre ambas.
+  // Medido el 1-sep en /highscore/daily: MorfeoMacMini 1172 + MorfeoMini 528 (su
+  // total real era 1748), LinkMacMini 128 + LinkMini 48, OraculoMacMini 430 +
+  // OraculoMini 90. Tres agentes con dos filas cada uno, en el MISMO Mac Mini, y
+  // el ranking que mira Carlos ordenaba con las mitades.
+  // El `agent_key` que sale al front NO cambia: sigue derivándose del nombre
+  // visible vigente, que es el que ya tenía la fila buena. Lo que desaparece es
+  // la fila fantasma con el apellido retirado.
   const add = (agent, machine, points) => {
     const visible = reportAgentIdentity(agent, machine) || String(agent || "").trim();
-    const key = keyOf(visible);
-    if (!key) return;
-    if (!totals.has(key)) totals.set(key, { agent_key: key, agent: visible, machine: String(machine || ""), points: 0 });
+    if (!keyOf(visible)) return;
+    const key = groupingIdentityKey(visible, machine) || keyOf(visible);
+    if (!totals.has(key)) totals.set(key, { agent_key: keyOf(visible), agent: visible, machine: String(machine || ""), points: 0 });
     totals.get(key).points += Number(points) || 0;
   };
   for (const row of scores || []) add(row.agent, row.machine,
