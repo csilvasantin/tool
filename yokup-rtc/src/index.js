@@ -4112,7 +4112,31 @@ function sameIdempotentDeclaration(existing, identity, projectId, subject) {
 }
 __name(sameIdempotentDeclaration, "sameIdempotentDeclaration");
 
-var TASK_STATUS = ["pending", "in_progress", "done"];
+// EL CUARTO ESTADO: «no aplicaba» (Carlos, 1-sep-2026).
+//
+// Por qué existe. El cierre exige que TODOS los pasos estén `done`
+// (fleetReconcileMission), y sólo había tres estados. Cuando el planificador
+// inventa pasos que el encargo nunca necesitó —FLT-1487 nació con «Conectar con
+// Neo / Descargar configuración / Crear cuenta en Link / Subir configuración /
+// Asignar permisos» para lo que era un cambio de identidad, no una migración de
+// servidor— el agente sólo podía elegir entre dejar la misión abierta para
+// siempre o marcar como HECHO trabajo que nadie hizo. Las dos mienten: una en el
+// estado y la otra en el recuento. Era el cuarto caso de cinco.
+//
+// `no_aplica` deja cerrar con verdad: CONCLUYE el árbol pero NO cuenta como
+// hecho y NO puntúa (el marcador cruza m.status='done', y este no lo es). Exige
+// motivo escrito, porque un paso descartado sin explicación es indistinguible de
+// uno abandonado. Y convierte «el planificador envenena cinco misiones» en un
+// número que se puede mirar cada mañana.
+var TASK_STATUS = ["pending", "in_progress", "done", "no_aplica"];
+// CONCLUIDO ≠ HECHO. Un paso concluido no vuelve a bloquear el cierre; sólo el
+// hecho suma. Toda comparación de cierre pasa por aquí para que no se separen.
+var TASK_NO_APLICA = "no_aplica";
+function tareaConcluida(t) {
+  const st = String((t && t.status) || t || "");
+  return st === "done" || st === TASK_NO_APLICA;
+}
+__name(tareaConcluida, "tareaConcluida");
 function validTaskCode(c) {
   return typeof c === "string" && TASK_CODE.test(c);
 }
@@ -4584,7 +4608,7 @@ async function setTaskStatus(env, mid, code, status, report, owner, image, image
   // Volver explícitamente a pending inicia un ciclo nuevo y limpia el sello.
   await env.DB.prepare("UPDATE mission_tasks SET status=?, report=?, owner=?, executor=?, image=?, image_kind=?, " +
     "started_at=CASE WHEN ?='in_progress' THEN COALESCE(started_at,?) WHEN ?='pending' AND status!='pending' THEN NULL ELSE started_at END, " +
-    "ended_at=CASE WHEN ?='done' AND status!='done' THEN COALESCE(ended_at,?) WHEN ? IN ('pending','in_progress') AND status='done' THEN NULL ELSE ended_at END, " +
+    "ended_at=CASE WHEN ? IN ('done','no_aplica') AND status NOT IN ('done','no_aplica') THEN COALESCE(ended_at,?) WHEN ? IN ('pending','in_progress') AND status IN ('done','no_aplica') THEN NULL ELSE ended_at END, " +
     "updated_at=? WHERE mission_id=? AND code=?")
     .bind(st, rp, ow, ex, im, ik, st, now, st, st, now, st, now, mid, code).run();
   const row = await env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
@@ -4825,7 +4849,7 @@ function convergeParentTasksStmt(env, mid, now) {
     "report=COALESCE(NULLIF(TRIM(report),''),(SELECT GROUP_CONCAT(h.code||': '||TRIM(h.report),' · ') FROM mission_tasks h WHERE h.mission_id=mission_tasks.mission_id AND h.code LIKE mission_tasks.code||'_'))," +
     "ended_at=COALESCE(ended_at,?),updated_at=? WHERE mission_id=? AND length(code)=1 AND status!='done'" +
     " AND EXISTS(SELECT 1 FROM mission_tasks h WHERE h.mission_id=mission_tasks.mission_id AND h.code LIKE mission_tasks.code||'_')" +
-    " AND NOT EXISTS(SELECT 1 FROM mission_tasks h WHERE h.mission_id=mission_tasks.mission_id AND h.code LIKE mission_tasks.code||'_' AND (h.status!='done' OR h.report IS NULL OR TRIM(h.report)=''))"
+    " AND NOT EXISTS(SELECT 1 FROM mission_tasks h WHERE h.mission_id=mission_tasks.mission_id AND h.code LIKE mission_tasks.code||'_' AND (h.status!='done' AND h.status!='no_aplica' OR h.report IS NULL OR TRIM(h.report)=''))"
   ).bind(now, now, mid);
 }
 __name(convergeParentTasksStmt, "convergeParentTasksStmt");
@@ -5923,7 +5947,12 @@ async function fleetReconcileMission(env, mid) {
   if (t.status === "cancelled") return { mission: mid, status: "cancelled" };
   const tasks = await listMissionTasks(env, mid);
   if (!tasks.length) return null;
-  const allDone = tasks.every((x) => x.status === "done");
+  // CONCLUIDO, no «todo done»: un paso `no_aplica` con su motivo ya no bloquea.
+  // Pero se exige AL MENOS UNA hecha de verdad: una misión cuyos pasos fueran
+  // todos «no aplicaba» no es una misión terminada, es una misión que nunca
+  // debió existir — y esa se cancela, no se resuelve.
+  const allDone = tasks.every(tareaConcluida) && tasks.some((x) => x.status === "done");
+  const noAplican = tasks.filter((x) => x.status === TASK_NO_APLICA).length;
   const hasInforme = tasks.some((x) => x.code === "z1" && x.status === "done" && String(x.report || "").trim());
   const reportsComplete = tasks.every((x) => x.status !== "done" || String(x.report || "").trim());
   const started = tasks.some((x) => x.status !== "pending");
@@ -5969,9 +5998,14 @@ async function fleetReconcileMission(env, mid) {
   if (next === "resolved") await ascendMissionProof(env, mid);
   const inboxStatus = next === "resolved" ? "done" : next === "in_progress" ? "in_progress" : "pending";
   const pushed = await fleetPushStatus(env, t, inboxStatus);
+  const descartes = noAplican ? ` · ${noAplican} paso(s) NO APLICABAN (no cuentan como hechos)` : "";
   await addEvent(env, mid, next === "resolved" ? "recover" : "log", "yokup",
-    `La misión pasa a ${next} por su árbol de tareas. Encargo #${fleetInboxId(mid)} → ${inboxStatus.toUpperCase()}${pushed ? "" : " (no se pudo avisar al bot-inbox)"}.`);
-  return { mission: mid, status: next, inbox: inboxStatus, pushed, blocked: allDone && !proof ? "sin-prueba" : null };
+    `La misión pasa a ${next} por su árbol de tareas. Encargo #${fleetInboxId(mid)} → ${inboxStatus.toUpperCase()}${pushed ? "" : " (no se pudo avisar al bot-inbox)"}.${descartes}`);
+  // Los descartes VIAJAN en la respuesta y en la cronología: un cierre que no
+  // dice cuántos pasos no aplicaban vuelve a contar 12/12 y a esconder el
+  // problema del planificador, que es justo lo que este estado viene a destapar.
+  return { mission: mid, status: next, inbox: inboxStatus, pushed, no_aplican: noAplican,
+    blocked: allDone && !proof ? "sin-prueba" : null };
 }
 __name(fleetReconcileMission, "fleetReconcileMission");
 
@@ -6135,9 +6169,13 @@ function tercios(tasks, standalone) {
   // devuelve null en vez de un «0/3» que aparentaría un plan que no existe.
   if (!top.length && !sub.length && !extra) return null;
   const hecho = (a) => a.filter((t) => t.status === "done").length;
+  // «No aplicaba» va en su PROPIA cuenta. Sumarlo a `done` sería exactamente la
+  // mentira que el estado viene a evitar: el texto diría la verdad y el número no.
+  const nada = (a) => a.filter((t) => t.status === TASK_NO_APLICA).length;
   if (standalone) {
     return {
       done: hecho(top), total: Math.max(1, top.length),
+      na: nada(top), sna: 0,
       sdone: 0, stotal: 0,
       topN: top.length, subN: 0,
       incompleto: false, standalone: true,
@@ -6146,6 +6184,7 @@ function tercios(tasks, standalone) {
   }
   return {
     done: hecho(top), total: 3,
+    na: nada(top), sna: nada(sub),
     sdone: hecho(sub), stotal: 9,
     topN: top.length, subN: sub.length,
     incompleto: top.length < 3 || sub.length < 9,
@@ -8543,7 +8582,7 @@ var worker_app = {
           await env.DB.batch([
             env.DB.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,image,image_kind,created_at,ended_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report,status='done',owner=excluded.owner,executor=COALESCE(excluded.executor,mission_tasks.executor),image=excluded.image,image_kind='final',ended_at=COALESCE(mission_tasks.ended_at,excluded.ended_at),updated_at=excluded.updated_at")
               .bind(mid,"z1","Informe del agente","done",principalOwner,executorOwner,report,rawImage,"final",now,now,now),
-            env.DB.prepare("UPDATE mission_tasks SET status='done',report=COALESCE(NULLIF(TRIM(report),''),?),ended_at=COALESCE(ended_at,?),updated_at=? WHERE mission_id=? AND code!='z1' AND status!='done'").bind(report,now,now,mid),
+            env.DB.prepare("UPDATE mission_tasks SET status='done',report=COALESCE(NULLIF(TRIM(report),''),?),ended_at=COALESCE(ended_at,?),updated_at=? WHERE mission_id=? AND code!='z1' AND status!='done' AND status!='no_aplica'").bind(report,now,now,mid),
             env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid,now,"log",owner,"📝 Informe standalone recuperado: "+report.slice(0,240))
           ]);
           let batch, targetBatch;
@@ -8633,7 +8672,7 @@ var worker_app = {
         env.DB.prepare(
           "UPDATE tickets SET status='resolved',resolved_at=COALESCE(resolved_at,?),proof_image=?,proof_kind='final',agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),points_end=?,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
         ).bind(now, image, runtime, host, puntosCierre, puntosCierre, now, mid),
-        env.DB.prepare("UPDATE mission_tasks SET status='done',report=COALESCE(NULLIF(TRIM(report),''),?),ended_at=COALESCE(ended_at,?),updated_at=? WHERE mission_id=? AND code!='z1' AND status!='done' AND EXISTS(SELECT 1 FROM tickets WHERE id=? AND role='standalone-task')").bind(report,now,now,mid,mid),
+        env.DB.prepare("UPDATE mission_tasks SET status='done',report=COALESCE(NULLIF(TRIM(report),''),?),ended_at=COALESCE(ended_at,?),updated_at=? WHERE mission_id=? AND code!='z1' AND status!='done' AND status!='no_aplica' AND EXISTS(SELECT 1 FROM tickets WHERE id=? AND role='standalone-task')").bind(report,now,now,mid,mid),
         convergeParentTasksStmt(env, mid, now),
         env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid, now, "log", owner, "📝 Informe: " + report.slice(0, 240)),
         env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid, now, "proof", owner, "📸 Pantallazo final: " + proofLabel(image))
@@ -8716,12 +8755,21 @@ var worker_app = {
       // Preflight estricto antes de validar imágenes, auto-reclamar el ticket o
       // sembrar planes. Reutilizar el informe ya guardado es válido; terminar sin
       // texto no lo es y debe dejar applied:false de verdad.
-      if (b.status === "done") {
+      if (b.status === "done" || b.status === TASK_NO_APLICA) {
         const before = await env.DB.prepare("SELECT report FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
         const effectiveReport = b.report != null ? String(b.report) : String(before && before.report || "");
-        if (!effectiveReport.trim()) return json({ ok:false, code:"report_required",
-          error:"no se puede terminar una tarea sin informe", mission:mid,
-          task_code:code, applied:false },409);
+        if (!effectiveReport.trim()) {
+          // Descartar un paso EXIGE motivo, y por eso el mensaje es distinto: un
+          // «no aplicaba» sin explicación es indistinguible de uno abandonado, y
+          // entonces el estado nuevo sólo serviría para vaciar árboles incómodos.
+          // Quien lo descarta tiene que decir POR QUÉ no era trabajo de esta misión.
+          const descarte = b.status === TASK_NO_APLICA;
+          return json({ ok:false, code: descarte ? "motivo_required" : "report_required",
+            error: descarte
+              ? "no se puede descartar un paso sin motivo: di por qué no aplicaba a esta misión"
+              : "no se puede terminar una tarea sin informe",
+            mission:mid, task_code:code, applied:false }, 409);
+        }
       }
       // 1) La prueba se comprueba después de autorizar al actor y antes de writes.
       let img = null;
@@ -8737,7 +8785,7 @@ var worker_app = {
       let tasks = await listMissionTasks(env, mid);
       let cur = tasks.find((t) => t.code === code);
       let nextSt = cur && TASK_STATUS.includes(b.status) ? b.status : cur && cur.status;
-      let cierraArbol = !!cur && nextSt === "done" && tasks.every((t) => t.code === code || t.status === "done");
+      let cierraArbol = !!cur && tareaConcluida(nextSt) && tasks.every((t) => t.code === code || tareaConcluida(t));
       if (cierraArbol) {
         const processEvidence = validateMissionProcessEvidence(tk);
         if (!processEvidence.ok) return json({ ok:false, code:processEvidence.code, field:processEvidence.field,
@@ -8779,7 +8827,7 @@ var worker_app = {
       // Degradar la misión a «en curso» sin decir nada era la respuesta por defecto y
       // dejaba el tablero mintiendo (FLT-982/983/984, rematadas a mano en D1).
       nextSt = TASK_STATUS.includes(b.status) ? b.status : cur.status;
-      cierraArbol = nextSt === "done" && tasks.every((t) => t.code === code || t.status === "done");
+      cierraArbol = tareaConcluida(nextSt) && tasks.every((t) => t.code === code || tareaConcluida(t));
       const row = await setTaskStatus(env, mid, code, b.status, b.report, actor.actor, img, cierraArbol ? "final" : "task");
       if (!row) return json({ ok: false, error: "no se pudo actualizar la tarea «" + code + "» de " + mid }, 500);
       if (row.error) return json({ ok:false, code:row.code, error:row.message,
