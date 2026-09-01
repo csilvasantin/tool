@@ -4834,6 +4834,13 @@ async function proposePlan(env, mid) {
   const triage = t ? t.ai_triage || "" : "";
   const isFleet = !!t && t.source === "fleet";
   let prompt;
+  // `full` (el texto integro del encargo) se declara AQUI, no dentro del if: lo
+  // necesitan tanto el prompt como el extractor de plan explicito y el filtro de
+  // respaldo, que viven despues del bloque. Declararlo dentro lo dejaba fuera de
+  // alcance y proposePlan reventaba con ReferenceError -- que el catch de
+  // fleetPlanPending se traga en silencio, dejando el esqueleto de fabrica. Cazado
+  // en produccion con FLT-1510: el alta cantaba "planificada" y el arbol era el molde.
+  let full = "";
   if (isFleet) {
     // El texto íntegro del encargo es el primer evento de la misión (fleetSync).
     // EL ENCARGO NO ES SIEMPRE EL PRIMER EVENTO (Morfeo, 2026-08-10). Esto cogia
@@ -4855,7 +4862,7 @@ async function proposePlan(env, mid) {
       return /^\s*reparto de ids\b|^\s*estado\s*→|^\s*misi[oó]n declarada/i.test(txt);
     };
     const util = (evs || []).find((e) => !esContable(e) && String(e.text || "").trim().length > 40);
-    const full = (util && util.text) || ((evs || [])[0] && evs[0].text) || subject;
+    full = (util && util.text) || ((evs || [])[0] && evs[0].text) || subject;
     // EL PROMPT SE CONTRADECÍA A SÍ MISMO (2026-09-01). Pedía «usa SOLO los pasos que
     // el encargo REALMENTE necesite» y, en la misma frase, «EXACTAMENTE 3 pasos con
     // EXACTAMENTE 3 subtareas» — repetido cuatro veces. Gana lo que se repite: doce
@@ -11976,6 +11983,7 @@ export {
   palabrasDeContenido,
   subtareaRespaldada,
   flattenSteps,
+  proposePlan,
   index_default as default
 };
 //# sourceMappingURL=index.js.map

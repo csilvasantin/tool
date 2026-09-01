@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { extraerPlanExplicito, palabrasDeContenido, subtareaRespaldada, flattenSteps } from './src/index.js';
+import { extraerPlanExplicito, palabrasDeContenido, subtareaRespaldada, flattenSteps, proposePlan } from './src/index.js';
 
 // ── El encargo que ya trae su plan se OBEDECE, no se reinventa ───────────────
 test('lee el plan a·b·c que el propio encargo escribe', () => {
@@ -73,4 +73,65 @@ test('el paso c queda exento: verificar y reportar es doctrina, no encargo', () 
     // ...pero fuera del paso c, sin respaldo, si se cae
     assert.equal(subtareaRespaldada(cierre, V, false), false);
   }
+});
+
+// ── El planificador ENTERO, ejecutado. Las pruebas de arriba son de funciones
+// puras y por eso NO cazaron el fallo que sí caza esta: `full` declarado dentro
+// del `if (isFleet)` y usado fuera reventaba proposePlan con ReferenceError, y el
+// catch de fleetPlanPending se lo tragaba dejando el esqueleto de fabrica. En
+// produccion el alta cantaba «planificada» y el arbol era el molde (FLT-1510).
+function envFalso({ encargo, respuestaIA }) {
+  const insertados = [];           // lo que REALMENTE se guarda como plan
+  let llamadasIA = 0;
+  const env = {
+    AI: { async run() { llamadasIA++; return { response: respuestaIA }; } },
+    DB: {
+      prepare(sql) {
+        const st = {
+          _v: [],
+          bind(...v) { st._v = v; return st; },
+          async first() {
+            return /FROM tickets/.test(sql)
+              ? { id: "FLT-1", subject: encargo, source: "fleet", assignee: "MorfeoMacMini", loc: "macmini" }
+              : null;
+          },
+          async all() {
+            return { results: /FROM events/.test(sql) ? [{ author: "Carlos", text: encargo }] : [] };
+          },
+          async run() {
+            // saveMissionPlan inserta fila a fila: (mission_id, code, title, ...)
+            if (/INSERT INTO mission_tasks/.test(sql)) insertados.push({ code: st._v[1], title: st._v[2] });
+            return {};
+          },
+        };
+        return st;
+      },
+      async batch() { return []; },
+      async exec() { return {}; },
+    },
+  };
+  return { env, insertados, ia: () => llamadasIA };
+}
+
+test('proposePlan se ejecuta ENTERO y guarda pasos, no revienta en silencio', async () => {
+  const encargo = "El apellido de maquina deja de ser parte del identificador del agente.";
+  const { env, insertados } = envFalso({ encargo, respuestaIA: JSON.stringify([
+    { code: "a", title: "Quitar el apellido del identificador", subtasks: ["Actualizar el identificador del agente", "Recompilar software"] },
+    { code: "b", title: "Mostrar la maquina como dato aparte", subtasks: [] },
+    { code: "c", title: "Verificar y reportar", subtasks: ["Publicar informe en la URL publica"] },
+  ]) });
+  await proposePlan(env, "FLT-1");
+  assert.ok(insertados.length, 'no se guardo ningun paso: proposePlan reventó por el camino');
+  const titulos = insertados.map((t) => t.title);
+  assert.ok(titulos.some((t) => /apellido del identificador/i.test(t)), 'lo respaldado tiene que entrar');
+  assert.ok(!titulos.some((t) => /Recompilar software/i.test(t)), 'una subtarea sin respaldo no puede entrar');
+  assert.ok(titulos.some((t) => /Publicar informe/i.test(t)), 'el cierre doctrinal sobrevive');
+});
+
+test('con plan explicito en el encargo no se llama a la IA', async () => {
+  const encargo = "Arreglar el buzon. a) Medir el estado actual del buzon. b) Corregir el direccionamiento. c) Verificar y reportar.";
+  const { env, insertados, ia } = envFalso({ encargo, respuestaIA: "[]" });
+  await proposePlan(env, "FLT-1");
+  assert.equal(ia(), 0, 'el plan estaba escrito en el encargo: no hay nada que preguntar');
+  assert.match(insertados[0].title, /Medir el estado actual/);
 });
