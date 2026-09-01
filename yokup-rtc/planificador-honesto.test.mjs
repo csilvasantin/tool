@@ -135,3 +135,18 @@ test('con plan explicito en el encargo no se llama a la IA', async () => {
   assert.equal(ia(), 0, 'el plan estaba escrito en el encargo: no hay nada que preguntar');
   assert.match(insertados[0].title, /Medir el estado actual/);
 });
+
+test('un subject recortado no puede tumbar un plan que si esta escrito', () => {
+  // El subject se guarda a ~118 chars con «…». Con el encargo real de FLT-1512 el
+  // recorte cae DENTRO de la «a)», asi que ahi no queda ningun plan que leer y el
+  // planificador se lo inventa. Por eso hay que mirar todos los candidatos, no uno.
+  const completo = "PRUEBA 3 DEL PLANIFICADOR (cancelar despues). Ordenar el buzon de Neo. " +
+    "a) Listar los 46 encargos abiertos de Neo en macmini y agruparlos por proyecto. " +
+    "b) Repartirlos entre los agentes vivos segun carga. c) Verificar el reparto y reportar al grupo.";
+  const recortado = completo.slice(0, 118) + "\u2026";
+  assert.ok(!/b\)/.test(recortado), 'el recorte real cae antes de la b)');
+  assert.equal(extraerPlanExplicito(recortado), null, 'del recorte no se puede sacar plan');
+  const p = extraerPlanExplicito(completo);
+  assert.ok(p && p.length === 3, 'del texto entero SI: tres pasos');
+  assert.match(p[1].title, /Repartirlos entre los agentes vivos/);
+});

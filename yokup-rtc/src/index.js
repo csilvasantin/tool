@@ -4846,6 +4846,7 @@ async function proposePlan(env, mid) {
   // fleetPlanPending se traga en silencio, dejando el esqueleto de fabrica. Cazado
   // en produccion con FLT-1510: el alta cantaba "planificada" y el arbol era el molde.
   let full = "";
+  let candidatos = [];
   if (isFleet) {
     // El texto íntegro del encargo es el primer evento de la misión (fleetSync).
     // EL ENCARGO NO ES SIEMPRE EL PRIMER EVENTO (Morfeo, 2026-08-10). Esto cogia
@@ -4867,7 +4868,14 @@ async function proposePlan(env, mid) {
       return /^\s*reparto de ids\b|^\s*estado\s*→|^\s*misi[oó]n declarada/i.test(txt);
     };
     const util = (evs || []).find((e) => !esContable(e) && String(e.text || "").trim().length > 40);
-    full = (util && util.text) || ((evs || [])[0] && evs[0].text) || subject;
+    // EL TEXTO MAS LARGO GANA, y se guardan todos los candidatos. El subject se
+    // almacena RECORTADO a ~118 caracteres con puntos suspensivos, asi que planificar
+    // sobre el es planificar sobre media frase: el plan a·b·c del encargo queda
+    // cortado en la «a)» y el extractor no ve ningun plan. Pasó con FLT-1512, cuyo
+    // encargo traia su a·b·c escrito y aun asi acabó inventado por la IA.
+    candidatos = [util && util.text, (evs || [])[0] && evs[0].text, subject]
+      .map((x) => String(x || "").trim()).filter(Boolean);
+    full = candidatos.reduce((a, b) => (b.length > a.length ? b : a), "");
     // EL PROMPT SE CONTRADECÍA A SÍ MISMO (2026-09-01). Pedía «usa SOLO los pasos que
     // el encargo REALMENTE necesite» y, en la misma frase, «EXACTAMENTE 3 pasos con
     // EXACTAMENTE 3 subtareas» — repetido cuatro veces. Gana lo que se repite: doce
@@ -4908,7 +4916,10 @@ Responde SOLO con un array JSON v\xE1lido, sin texto adicional, con esta forma e
   // dio de alta) escribió su plan a·b·c, ese ES el plan: obedecerlo cuesta cero
   // llamadas y no puede inventar nada. La IA queda para los encargos que llegan en
   // prosa, que son los que de verdad hay que descomponer.
-  const explicito = isFleet ? extraerPlanExplicito(full) : null;
+  // Se prueba en TODOS los candidatos, no solo en el elegido: basta con que UNO
+  // conserve el a·b·c entero para que no haya que preguntarle nada a la IA.
+  let explicito = null;
+  if (isFleet) for (const c of candidatos) { explicito = extraerPlanExplicito(c); if (explicito) break; }
   if (explicito) {
     const propios = flattenSteps(explicito, relleno0(isFleet), full);
     if (propios.length) return saveMissionPlan(env, mid, propios);
