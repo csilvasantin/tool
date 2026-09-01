@@ -16,10 +16,10 @@ import { readFile } from "node:fs/promises";
 const source = await readFile(new URL("./normativa.html", import.meta.url), "utf8");
 
 const REGLAS = [
-  "Identidad = persona + equipo físico",
-  "Diccionario único de sufijos",
+  "El nombre único es el identificador; el equipo acompaña",
+  "Diccionario único de equipos",
   "Los nombres antiguos se leen; no se propagan",
-  "Sin máquina no hay identidad completa",
+  "Todo trabajo dice en qué equipo se hizo",
   "Una referencia para todo el trabajo",
   "La doctrina que crece se renumera y se anuncia",
   "Una sola forma de decir la versión",
