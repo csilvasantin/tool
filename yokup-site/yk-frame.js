@@ -525,7 +525,8 @@
         n: he, sig: he + "/" + to,
         rows: [["con informe", he, ""], ["misiones cerradas", to, ""],
                ["faltan", fa, fa > 0 ? "debe" : ""]],
-        foot: fa > 0 ? "Hay misiones terminadas sin su parte." : "Todo el ciclo cerrado con informe."
+        foot: (fa > 0 ? "Hay cierres con deuda de informe. " : "Todo el ciclo cerrado tiene informe. ") +
+          "Resumen global · todas las fechas y proyectos."
       };
     }
     if (key === "tareas") {

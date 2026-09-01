@@ -70,7 +70,13 @@ export function buildReportsPageFilter(options, scopeClause = "1=1") {
   const binds = [];
   if (options.updated_from != null) { clauses.push("COALESCE(m.updated_at,0)>=?"); binds.push(options.updated_from); }
   if (options.updated_to != null) { clauses.push("COALESCE(m.updated_at,0)<?"); binds.push(options.updated_to); }
-  if (options.project) { clauses.push("t.project=?"); binds.push(options.project); }
+  // project_id es la llave canónica. `project` queda como compatibilidad para
+  // filas históricas anteriores a la migración; la vista nunca debe vaciarse
+  // porque una generación escribió sólo una de las dos columnas.
+  if (options.project) {
+    clauses.push("COALESCE(NULLIF(t.project_id,''),t.project)=?");
+    binds.push(options.project);
+  }
   const count_sql = clauses.join(" AND "), count_binds = binds.slice();
   if (options.cursor) {
     const cursor = options.cursor;

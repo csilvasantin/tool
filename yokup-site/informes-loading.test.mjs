@@ -64,7 +64,7 @@ test("proyecto temprano conserva loading; datos, deuda y avatar no se serializan
 
   tasks.resolve({ok:true,status:200,json:async()=>({tasks:[]})});
   await tick(); await tick();
-  assert.match(elements.reps.innerHTML, /Sin informes de hoy/,
+  assert.match(elements.reps.innerHTML, /Sin actividad reportada de todos los proyectos de hoy/,
     "el estado vacío sólo aparece después de una respuesta válida");
   avatar.resolve();
 });

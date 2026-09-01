@@ -2598,6 +2598,14 @@ async function hasMissionProof(env, mid) {
 }
 __name(hasMissionProof, "hasMissionProof");
 
+async function hasCanonicalFleetClosure(env, mid) {
+  if (!(await hasMissionProof(env, mid))) return false;
+  const tasks = await listMissionTasks(env, mid);
+  return tasks.some((task) => task.code === "z1" && task.status === "done" && String(task.report || "").trim()) &&
+    tasks.every((task) => task.status === "done" && String(task.report || "").trim());
+}
+__name(hasCanonicalFleetClosure, "hasCanonicalFleetClosure");
+
 // EL ÚNICO PUNTO DONDE LA PRUEBA ASCIENDE (FLT-989 a3/b1). Da igual por dónde se
 // cierre la misión —agente (/fleet/task-status), web (chips de /misiones) o cron
 // (fleetReconcile*/fleetSync)—: si la ficha aún no tiene proof_image y hay captura
@@ -4281,7 +4289,8 @@ async function listMissionReportsPage(env, scope, options) {
   const filter = buildReportsPageFilter(options, reportScopeClause(scope));
   const generatedAt = Date.now();
   const sql = `SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.report,m.image,m.image_kind,m.created_at,m.started_at,m.ended_at,m.updated_at,
-      t.subject,t.screen,t.loc,t.project,t.source,t.role AS mission_role,t.assignee,
+      t.subject,t.screen,t.loc,COALESCE(NULLIF(t.project_id,''),t.project) AS project,t.project_id,
+      t.source,t.role AS mission_role,t.assignee,
       t.live_surface AS process_surface,t.live_context AS process_context,
       CASE WHEN t.live_kind='process' THEN t.live_shot ELSE NULL END AS process_image,
       CASE WHEN t.live_kind='process' THEN t.live_at ELSE NULL END AS process_captured_at,
@@ -4304,18 +4313,23 @@ async function listMissionReportsPage(env, scope, options) {
       mission_timing_basis:valid ? (resolved ? "start_to_end" : "start_to_generated_at") : "missing_or_invalid_start" };
   });
   await attachReportDisplayRefs(env, rows);
-  let total = null;
+  let total = null, missionsReported = null;
   if (options.include_total) {
     const counted = await env.DB.prepare(
-      `SELECT COUNT(*) AS total FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${filter.count_sql}`
+      `SELECT COUNT(*) AS total,COUNT(DISTINCT m.mission_id) AS missions_reported
+         FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${filter.count_sql}`
     ).bind(...filter.count_binds).first();
     total = Number(counted && counted.total) || 0;
+    missionsReported = Number(counted && counted.missions_reported) || 0;
   }
   return {
     tasks:rows,
     next_cursor:hasMore && rows.length ? encodeReportsCursor(rows[rows.length - 1]) : null,
     has_more:hasMore,
     total,
+    summary:options.include_total ? { reports:total, missions_reported:missionsReported } : null,
+    scope:{ project_id:options.project || null, updated_from:options.updated_from,
+      updated_to:options.updated_to, timezone:"Europe/Madrid" },
     generated_at:generatedAt
   };
 }
@@ -4477,6 +4491,12 @@ async function setTaskStatus(env, mid, code, status, report, owner, image, image
   if (!cur) return null;
   const st = TASK_STATUS.includes(status) ? status : cur.status;
   const rp = report != null ? String(report).slice(0, 2e3) : cur.report;
+  // Una tarea hecha sin parte deja al equipo sin saber qué ocurrió y además
+  // desaparece de /informes. El rechazo sucede antes de cualquier escritura.
+  if (st === "done" && !String(rp || "").trim()) {
+    return { error:"report_required", code:"report_required",
+      message:"no se puede terminar una tarea sin informe", applied:false };
+  }
   const mission = await env.DB.prepare("SELECT assignee,loc FROM tickets WHERE id=?").bind(mid).first();
   const ow = mission ? reportAgentIdentity(mission.assignee, mission.loc) : cur.owner;
   const ex = owner != null && mission
@@ -4690,6 +4710,8 @@ async function missionRoute(req, env, url) {
     const b = await req.json().catch(() => ({}));
     const row = await setTaskStatus(env, mid, code, b.status, b.report, b.owner);
     if (!row) return json({ error: "not-found" }, 404);
+    if (row.error) return json({ ok:false, code:row.code, error:row.message,
+      mission:mid, task_code:code, applied:false }, 409);
     // El árbol manda: si con esta tarea la misión arranca o queda concluida, el
     // encargo del bot-inbox se entera (solo en las transiciones reales).
     const fleet = await fleetReconcileMission(env, mid);
@@ -4726,9 +4748,11 @@ __name(proofLabel, "proofLabel");
 // TODAS están done. Una hoja sin terminar se queda como está y se sigue viendo.
 function convergeParentTasksStmt(env, mid, now) {
   return env.DB.prepare(
-    "UPDATE mission_tasks SET status='done',ended_at=COALESCE(ended_at,?),updated_at=? WHERE mission_id=? AND length(code)=1 AND status!='done'" +
+    "UPDATE mission_tasks SET status='done'," +
+    "report=COALESCE(NULLIF(TRIM(report),''),(SELECT GROUP_CONCAT(h.code||': '||TRIM(h.report),' · ') FROM mission_tasks h WHERE h.mission_id=mission_tasks.mission_id AND h.code LIKE mission_tasks.code||'_'))," +
+    "ended_at=COALESCE(ended_at,?),updated_at=? WHERE mission_id=? AND length(code)=1 AND status!='done'" +
     " AND EXISTS(SELECT 1 FROM mission_tasks h WHERE h.mission_id=mission_tasks.mission_id AND h.code LIKE mission_tasks.code||'_')" +
-    " AND NOT EXISTS(SELECT 1 FROM mission_tasks h WHERE h.mission_id=mission_tasks.mission_id AND h.code LIKE mission_tasks.code||'_' AND h.status!='done')"
+    " AND NOT EXISTS(SELECT 1 FROM mission_tasks h WHERE h.mission_id=mission_tasks.mission_id AND h.code LIKE mission_tasks.code||'_' AND (h.status!='done' OR h.report IS NULL OR TRIM(h.report)=''))"
   ).bind(now, now, mid);
 }
 __name(convergeParentTasksStmt, "convergeParentTasksStmt");
@@ -5588,11 +5612,11 @@ async function fleetSync(env) {
     let st = FLEET_ST[it.status] || "open";
     const ts = epochMs(it.ts, now);
     const prev = await env.DB.prepare("SELECT id,subject,project,project_id,source,role,status,assignee,loc,proof_image,started_at,resolved_at FROM tickets WHERE id=?").bind(id).first();
-    // Un DONE del agente no basta: Yokup sólo finaliza cuando el cierre incluye
-    // un pantallazo real del trabajo. El bot puede haber terminado, pero la misión
-    // permanece EN CURSO hasta que /fleet/informe registre proof_image.
-    const proofRequired = st === "resolved" && epochMs(it.done_at, now) >= PROOF_REQUIRED_AFTER;
-    if (proofRequired && !(prev && await hasMissionProof(env, id))) {
+    // Un DONE del agente no basta: desde la fecha de obligatoriedad el espejo sólo
+    // acepta un cierre canónico completo (prueba + z1 + parte en cada tarea). El bot
+    // puede haber terminado, pero Yokup permanece EN CURSO hasta /fleet/informe.
+    const canonicalCloseRequired = st === "resolved" && epochMs(it.done_at, now) >= PROOF_REQUIRED_AFTER;
+    if (canonicalCloseRequired && !(prev && await hasCanonicalFleetClosure(env, id))) {
       st = "in_progress";
     }
     if (!prev) {
@@ -5827,11 +5851,11 @@ async function fleetReconcileMission(env, mid) {
   const tasks = await listMissionTasks(env, mid);
   if (!tasks.length) return null;
   const allDone = tasks.every((x) => x.status === "done");
-  const standalone = t.role === "standalone-task";
   const hasInforme = tasks.some((x) => x.code === "z1" && x.status === "done" && String(x.report || "").trim());
+  const reportsComplete = tasks.every((x) => x.status !== "done" || String(x.report || "").trim());
   const started = tasks.some((x) => x.status !== "pending");
   const proof = allDone ? await hasMissionProof(env, mid) : false;
-  const derived = allDone && proof && (!standalone || hasInforme) ? "resolved" : started || allDone ? "in_progress" : "open";
+  const derived = allDone && proof && hasInforme && reportsComplete ? "resolved" : started || allDone ? "in_progress" : "open";
   // El árbol se crea con todas las subtareas pendientes. Una captura de progreso
   // pone la misión en curso antes de que alguien toque ese árbol; por tanto, el
   // reconciliador solo puede PROMOVER el estado, nunca borrar ese progreso real.
@@ -5846,8 +5870,14 @@ async function fleetReconcileMission(env, mid) {
     // Si además no había cambio de estado que escribir, se responde aquí con el motivo.
     if (next === t.status) return { mission: mid, status: t.status, blocked: "sin-prueba", reason: txt };
   }
-  if (standalone && allDone && proof && !hasInforme && t.status !== "resolved") {
-    const txt = "⏸ La tarea standalone está hecha y tiene prueba, pero espera el informe canónico de /fleet/informe.";
+  if (allDone && proof && !reportsComplete && t.status !== "resolved") {
+    const txt = "⏸ El árbol está hecho, pero contiene tareas sin informe. Ninguna tarea puede cerrarse sin dejar su parte.";
+    const last = await env.DB.prepare("SELECT text FROM events WHERE ticket_id=? ORDER BY id DESC LIMIT 1").bind(mid).first();
+    if (!last || last.text !== txt) await addEvent(env, mid, "log", "yokup", txt);
+    if (next === t.status) return { mission:mid, status:t.status, blocked:"tareas-sin-informe", reason:txt };
+  }
+  if (allDone && proof && reportsComplete && !hasInforme && t.status !== "resolved") {
+    const txt = "⏸ El trabajo está hecho y probado, pero espera el informe canónico z1 de /fleet/informe.";
     const last = await env.DB.prepare("SELECT text FROM events WHERE ticket_id=? ORDER BY id DESC LIMIT 1").bind(mid).first();
     if (!last || last.text !== txt) await addEvent(env, mid, "log", "yokup", txt);
     if (next === t.status) return { mission:mid, status:t.status, blocked:"sin-informe", reason:txt };
@@ -5881,6 +5911,8 @@ async function fleetReconcileAll(env) {
     `SELECT t.id, t.status, t.assignee, t.loc, t.screen,
             COUNT(m.code) AS total,
             SUM(CASE WHEN m.status='done' THEN 1 ELSE 0 END) AS done,
+            SUM(CASE WHEN m.code='z1' AND m.status='done' AND m.report IS NOT NULL AND TRIM(m.report)!='' THEN 1 ELSE 0 END) AS informes,
+            SUM(CASE WHEN m.status='done' AND (m.report IS NULL OR TRIM(m.report)='') THEN 1 ELSE 0 END) AS done_sin_informe,
             SUM(CASE WHEN m.status<>'pending' THEN 1 ELSE 0 END) AS started
        FROM tickets t JOIN mission_tasks m ON m.mission_id = t.id
       WHERE t.source='fleet'
@@ -5893,7 +5925,8 @@ async function fleetReconcileAll(env) {
     if (r.status === "cancelled") continue;   // el barrido no revive una cancelada
     const allDone = r.done === r.total;
     const proof = allDone ? await hasMissionProof(env, r.id) : false;
-    const derived = allDone && proof ? "resolved" : r.started > 0 || allDone ? "in_progress" : "open";
+    const derived = allDone && proof && Number(r.informes) > 0 && Number(r.done_sin_informe) === 0
+      ? "resolved" : r.started > 0 || allDone ? "in_progress" : "open";
     // Mismo criterio monotónico que en el reconciliado individual: un árbol 0/N
     // no invalida una captura o un progreso que ya dejó la misión EN CURSO.
     const next = r.status === "in_progress" && derived === "open" ? "in_progress" : derived;
@@ -7776,7 +7809,11 @@ async function menuCounters(env) {
   // tienen su parte. Toda misión finalizada lo debe, así que total−hechos es la deuda.
   const inf = await env.DB.prepare(
     "SELECT COUNT(*) total, SUM(CASE WHEN EXISTS (" +
-    "  SELECT 1 FROM mission_tasks m WHERE m.mission_id=t.id AND m.report IS NOT NULL AND TRIM(m.report)!=''" +
+    "  SELECT 1 FROM mission_tasks z WHERE z.mission_id=t.id AND z.code='z1' AND z.status='done' AND z.report IS NOT NULL AND TRIM(z.report)!=''" +
+    ") AND NOT EXISTS (" +
+    "  SELECT 1 FROM mission_tasks m WHERE m.mission_id=t.id AND m.status='done' AND (m.report IS NULL OR TRIM(m.report)='')" +
+    ") AND NOT EXISTS (" +
+    "  SELECT 1 FROM mission_tasks p WHERE p.mission_id=t.id AND p.status NOT IN ('done','resolved','completed','cancelled')" +
     ") THEN 1 ELSE 0 END) hechos FROM tickets t WHERE t.source='fleet' AND t.status='resolved'"
   ).first();
   out.informes = { hechos: (inf && inf.hechos) | 0, total: (inf && inf.total) | 0 };
@@ -8257,19 +8294,37 @@ var worker_app = {
       const r = await env.DB.prepare("UPDATE notifs SET status='cerrada', closed_at=?, last_at=? WHERE id=? AND status='abierta'").bind(now, now, id).run();
       return json({ ok: true, cerradas: (r.meta && r.meta.changes) | 0 });
     }
-    // DEUDA DE INFORMES (FLT-1018): misiones de flota TERMINADAS sin un solo parte.
+    // DEUDA DE INFORMES: el cierre estricto exige z1, parte en cada tarea hecha y
+    // árbol terminal. Se exponen las tres anomalías sin inventar backfills.
     // Consulta propia y NO la lista de /fleet/missions, que va capada a 120 y saca
     // primero las abiertas: la deuda vieja —justo la que hay que perseguir— caía
     // fuera de esa ventana. Sin tope de fecha: una deuda vieja sigue siendo deuda.
     if (url.pathname === "/fleet/informes-deuda") {
       await ensureSchema(env);
-      const { results } = await env.DB.prepare(
+      const { results:missions } = await env.DB.prepare(
         "SELECT t.id, t.subject, t.assignee, t.loc, t.updated_at FROM tickets t " +
         "WHERE t.source='fleet' AND t.status='resolved' AND NOT EXISTS (" +
-        "  SELECT 1 FROM mission_tasks m WHERE m.mission_id=t.id AND m.report IS NOT NULL AND TRIM(m.report)!=''" +
+        "  SELECT 1 FROM mission_tasks m WHERE m.mission_id=t.id AND m.code='z1' AND m.status='done' AND m.report IS NOT NULL AND TRIM(m.report)!=''" +
         ") ORDER BY t.updated_at DESC"
       ).all();
-      return json({ ok: true, missions: results || [] });
+      const { results:tasksWithoutReport } = await env.DB.prepare(
+        "SELECT t.id,t.subject,t.assignee,t.loc,t.updated_at,m.code,m.title FROM tickets t JOIN mission_tasks m ON m.mission_id=t.id " +
+        "WHERE t.source='fleet' AND m.status='done' AND (m.report IS NULL OR TRIM(m.report)='') ORDER BY m.updated_at DESC"
+      ).all();
+      const { results:openTrees } = await env.DB.prepare(
+        "SELECT DISTINCT t.id,t.subject,t.assignee,t.loc,t.updated_at FROM tickets t JOIN mission_tasks m ON m.mission_id=t.id " +
+        "WHERE t.source='fleet' AND t.status='resolved' AND m.status NOT IN ('done','resolved','completed','cancelled') ORDER BY t.updated_at DESC"
+      ).all();
+      const debts = [
+        ...(missions || []).map((row) => ({ ...row, debt_kind:"missing_z1" })),
+        ...(tasksWithoutReport || []).map((row) => ({ ...row, debt_kind:"task_without_report" })),
+        ...(openTrees || []).map((row) => ({ ...row, debt_kind:"resolved_open_tree" }))
+      ];
+      return json({ ok:true, missions:missions || [], done_tasks_without_report:tasksWithoutReport || [],
+        resolved_with_open_tasks:openTrees || [], debts,
+        summary:{ missing_z1:(missions || []).length,
+          done_tasks_without_report:(tasksWithoutReport || []).length,
+          resolved_with_open_tasks:(openTrees || []).length, total:debts.length } });
     }
     if (url.pathname === "/fleet/sync" && req.method === "POST") {
       await ensureSchema(env);
@@ -8367,6 +8422,26 @@ var worker_app = {
       const principalOwner = reportAgentIdentity(t.assignee, t.loc) || t.assignee;
       const executorOwner = actor.actor !== principalOwner ? actor.actor : null;
       if (t.status === "cancelled") return json({ ok: false, code: "mission_closed", error: "la misión está cancelada", status: t.status, applied: false }, 409);
+      // z1 es el cierre de la misión, no un atajo que dé por ejecutado el plan.
+      // En una misión normal todas las tareas previas deben estar hechas Y tener
+      // informe. La tarea standalone es la excepción estructural: misión y tarea
+      // son la misma unidad y comparten honestamente el texto de este informe.
+      if (t.status !== "resolved" && t.role !== "standalone-task") {
+        const closureTasks = (await listMissionTasks(env, mid)).filter((task) => task.code !== "z1");
+        const canConverge = (task) => {
+          if (String(task.code || "").length !== 1) return false;
+          const children = closureTasks.filter((child) => String(child.code || "").startsWith(task.code) && String(child.code || "").length === 2);
+          return children.length > 0 && children.every((child) => child.status === "done" && String(child.report || "").trim());
+        };
+        const incomplete = closureTasks.filter((task) =>
+          !(task.status === "done" && String(task.report || "").trim()) && !canConverge(task));
+        if (!closureTasks.length || incomplete.length) {
+          return json({ ok:false, code:"mission_tasks_incomplete",
+            error:"no se puede cerrar: todas las tareas deben estar hechas y tener informe",
+            missing:incomplete.map((task) => ({ code:task.code, status:task.status,
+              report:!!String(task.report || "").trim() })), applied:false },409);
+        }
+      }
       if (t.status !== "resolved") {
         const processEvidence = validateMissionProcessEvidence(t);
         if (!processEvidence.ok) return json({ ok:false, code:processEvidence.code, field:processEvidence.field,
@@ -8391,7 +8466,7 @@ var worker_app = {
           await env.DB.batch([
             env.DB.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,image,image_kind,created_at,ended_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report,status='done',owner=excluded.owner,executor=COALESCE(excluded.executor,mission_tasks.executor),image=excluded.image,image_kind='final',ended_at=COALESCE(mission_tasks.ended_at,excluded.ended_at),updated_at=excluded.updated_at")
               .bind(mid,"z1","Informe del agente","done",principalOwner,executorOwner,report,rawImage,"final",now,now,now),
-            env.DB.prepare("UPDATE mission_tasks SET status='done',ended_at=COALESCE(ended_at,?),updated_at=? WHERE mission_id=? AND code!='z1' AND status!='done'").bind(now,now,mid),
+            env.DB.prepare("UPDATE mission_tasks SET status='done',report=COALESCE(NULLIF(TRIM(report),''),?),ended_at=COALESCE(ended_at,?),updated_at=? WHERE mission_id=? AND code!='z1' AND status!='done'").bind(report,now,now,mid),
             env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid,now,"log",owner,"📝 Informe standalone recuperado: "+report.slice(0,240))
           ]);
           let batch, targetBatch;
@@ -8481,7 +8556,7 @@ var worker_app = {
         env.DB.prepare(
           "UPDATE tickets SET status='resolved',resolved_at=COALESCE(resolved_at,?),proof_image=?,proof_kind='final',agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),points_end=?,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
         ).bind(now, image, runtime, host, puntosCierre, puntosCierre, now, mid),
-        env.DB.prepare("UPDATE mission_tasks SET status='done',ended_at=COALESCE(ended_at,?),updated_at=? WHERE mission_id=? AND code!='z1' AND status!='done' AND EXISTS(SELECT 1 FROM tickets WHERE id=? AND role='standalone-task')").bind(now,now,mid,mid),
+        env.DB.prepare("UPDATE mission_tasks SET status='done',report=COALESCE(NULLIF(TRIM(report),''),?),ended_at=COALESCE(ended_at,?),updated_at=? WHERE mission_id=? AND code!='z1' AND status!='done' AND EXISTS(SELECT 1 FROM tickets WHERE id=? AND role='standalone-task')").bind(report,now,now,mid,mid),
         convergeParentTasksStmt(env, mid, now),
         env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid, now, "log", owner, "📝 Informe: " + report.slice(0, 240)),
         env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid, now, "proof", owner, "📸 Pantallazo final: " + proofLabel(image))
@@ -8561,6 +8636,16 @@ var worker_app = {
         return json({ ok: true, task: row, proof: requestedImage, fleet: null, converged: true, resolved: true, applied: !exact });
       }
       if (tk.status === "cancelled") return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada y sus tareas/pruebas no se sobrescriben", status: tk.status, mission: mid, task_code: code, applied: false }, 409);
+      // Preflight estricto antes de validar imágenes, auto-reclamar el ticket o
+      // sembrar planes. Reutilizar el informe ya guardado es válido; terminar sin
+      // texto no lo es y debe dejar applied:false de verdad.
+      if (b.status === "done") {
+        const before = await env.DB.prepare("SELECT report FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
+        const effectiveReport = b.report != null ? String(b.report) : String(before && before.report || "");
+        if (!effectiveReport.trim()) return json({ ok:false, code:"report_required",
+          error:"no se puede terminar una tarea sin informe", mission:mid,
+          task_code:code, applied:false },409);
+      }
       // 1) La prueba se comprueba después de autorizar al actor y antes de writes.
       let img = null;
       if (b.image != null && String(b.image).trim() !== "") {
@@ -8620,6 +8705,8 @@ var worker_app = {
       cierraArbol = nextSt === "done" && tasks.every((t) => t.code === code || t.status === "done");
       const row = await setTaskStatus(env, mid, code, b.status, b.report, actor.actor, img, cierraArbol ? "final" : "task");
       if (!row) return json({ ok: false, error: "no se pudo actualizar la tarea «" + code + "» de " + mid }, 500);
+      if (row.error) return json({ ok:false, code:row.code, error:row.message,
+        mission:mid, task_code:code, applied:false },409);
       // 3) Una prueba de PASO no se presenta como prueba FINAL de misión. Sólo la
       // captura adjunta al movimiento que completa el árbol asciende al ticket.
       if (img) {

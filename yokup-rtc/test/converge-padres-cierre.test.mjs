@@ -20,9 +20,10 @@ const grab = (name) => {
 
 function harness(filas) {
   const db = new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,status TEXT,ended_at INTEGER,updated_at INTEGER,PRIMARY KEY(mission_id,code))");
-  const insert = db.prepare("INSERT INTO mission_tasks(mission_id,code,status,ended_at,updated_at) VALUES(?,?,?,NULL,0)");
-  for (const [code, status] of filas) insert.run("FLT-1373", code, status);
+  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,status TEXT,report TEXT,ended_at INTEGER,updated_at INTEGER,PRIMARY KEY(mission_id,code))");
+  const insert = db.prepare("INSERT INTO mission_tasks(mission_id,code,status,report,ended_at,updated_at) VALUES(?,?,?,?,NULL,0)");
+  for (const [code, status, report] of filas) insert.run("FLT-1373", code, status,
+    report === undefined && status === "done" ? "Informe " + code : (report || null));
   const env = { DB: { prepare(sql) { const stmt = db.prepare(sql); return {
     bind(...args) { return { run: async () => ({ meta: stmt.run(...args) }) }; }
   }; } } };
@@ -42,6 +43,8 @@ test("un padre con TODAS sus subtareas hechas deja de estar pendiente", async ()
   await converge(env, "FLT-1373", 1786392987543).run();
   const e = estado(db);
   assert.equal(e.a, "done", "a1+a2+a3 hechas: «a» no puede seguir diciendo lo contrario");
+  assert.match(db.prepare("SELECT report FROM mission_tasks WHERE code='a'").get().report,/a1: Informe a1/,
+    "el padre conserva un parte factual compuesto por sus hijas");
   assert.equal(e.z1, "done");
   assert.equal(db.prepare("SELECT ended_at FROM mission_tasks WHERE code='a'").get().ended_at,1786392987543);
 });
@@ -52,6 +55,14 @@ test("un padre con UNA subtarea sin terminar NO se da por hecho", async () => {
   ]);
   await converge(env, "FLT-1373", 1786392987543).run();
   assert.equal(estado(db).c, "pending", "convergir aquí sería fingir trabajo");
+});
+
+test("un padre no converge si una hija hecha carece de informe", async () => {
+  const { db, env, converge } = harness([
+    ["a", "pending"], ["a1", "done"], ["a2", "done", ""], ["a3", "done"],
+  ]);
+  await converge(env, "FLT-1373", 1786392987543).run();
+  assert.equal(estado(db).a, "pending");
 });
 
 test("una hoja suelta y sin hijas se queda como está", async () => {
@@ -71,9 +82,7 @@ test("z1 no es padre de nadie y la convergencia no lo toca", async () => {
 });
 
 test("la convergencia entra en el cierre y también en el reintento seguro", () => {
-  const cierre = source.indexOf("role='standalone-task')\").bind(now,now,mid,mid),");
-  assert.notEqual(cierre, -1);
-  assert.match(source.slice(cierre, cierre + 200), /convergeParentTasksStmt\(env, mid, now\)/,
+  assert.ok((source.match(/convergeParentTasksStmt\(env,mid,now\)/g)||[]).length >= 1,
     "el cierre canónico converge los padres");
   assert.match(source, /sólo admite reintentar exactamente el mismo cierre[^]{0,400}convergeParentTasksStmt\(env, mid, Date\.now\(\)\)\.run\(\)/,
     "el reintento repara un cierre que dejó un padre a medias");

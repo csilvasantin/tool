@@ -266,26 +266,41 @@ let PAGE={cursor:null,hasMore:false,total:null,legacy:false,legacyRest:[]};
 let RENDERED_GROUPS=[];
 const _ms=v=>{v=+v||0;return v>4102444800?v:v*1000;};
 const _pad=n=>(n<10?"0":"")+n;
-const _ymd=d=>d.getFullYear()+"-"+_pad(d.getMonth()+1)+"-"+_pad(d.getDate());
-function dayBounds(ymd){ const[y,m,d]=ymd.split("-").map(Number); const s=new Date(y,m-1,d,0,0,0,0).getTime(); return [s,s+86400000]; }
+const REPORT_TZ="Europe/Madrid";
+const MADRID_DTF=new Intl.DateTimeFormat("en-CA",{timeZone:REPORT_TZ,year:"numeric",month:"2-digit",day:"2-digit"});
+const MADRID_CLOCK=new Intl.DateTimeFormat("en-GB",{timeZone:REPORT_TZ,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"});
+function madridParts(ms,clock=false){const out={};(clock?MADRID_CLOCK:MADRID_DTF).formatToParts(new Date(ms)).forEach(p=>{if(p.type!=="literal")out[p.type]=+p.value;});return out;}
+function madridYmd(ms=Date.now()){const p=madridParts(ms);return p.year+"-"+_pad(p.month)+"-"+_pad(p.day);}
+function shiftYmd(ymd,days){const[y,m,d]=ymd.split("-").map(Number),n=new Date(Date.UTC(y,m-1,d+days));return n.getUTCFullYear()+"-"+_pad(n.getUTCMonth()+1)+"-"+_pad(n.getUTCDate());}
+function madridMidnight(ymd){
+  const[y,m,d]=ymd.split("-").map(Number),target=Date.UTC(y,m-1,d);let guess=target;
+  for(let i=0;i<3;i++){const p=madridParts(guess,true),local=Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second);guess=target-(local-guess);}
+  return guess;
+}
+function dayBounds(ymd){const s=madridMidnight(ymd);return [s,madridMidnight(shiftYmd(ymd,1))];}
 function inRange(when){
   const c=_ms(when); if(!c) return false;
   if(DFILTER.mode==="todas") return true;
   if(DFILTER.mode==="7d") return c>=Date.now()-7*86400000;
   let ymd;
   if(DFILTER.mode==="dia") ymd=DFILTER.day;
-  else if(DFILTER.mode==="ayer"){ const d=new Date(); d.setDate(d.getDate()-1); ymd=_ymd(d); }
-  else ymd=_ymd(new Date());
+  else if(DFILTER.mode==="ayer")ymd=shiftYmd(madridYmd(),-1);
+  else ymd=madridYmd();
   if(!ymd) return true;
   const [s,e]=dayBounds(ymd); return c>=s && c<e;
 }
 function filterLabel(){ return DFILTER.mode==="hoy"?"de hoy":DFILTER.mode==="ayer"?"de ayer":DFILTER.mode==="7d"?"de los últimos 7 días":DFILTER.mode==="dia"?("del "+DFILTER.day):null; }
+function emptyScopeLabel(){
+  const project=PROJECT_SCOPE?PROJECT_SCOPE:"todos los proyectos";
+  const period=filterLabel()||"de todas las fechas";
+  return {project,period};
+}
 function filterBounds(){
   if(DFILTER.mode==="todas")return [0,Date.now()+86400000];
   if(DFILTER.mode==="7d")return [Date.now()-7*86400000,Date.now()+60000];
   let ymd=DFILTER.day;
-  if(DFILTER.mode==="ayer"){const d=new Date();d.setDate(d.getDate()-1);ymd=_ymd(d);}
-  if(!ymd)ymd=_ymd(new Date());
+  if(DFILTER.mode==="ayer")ymd=shiftYmd(madridYmd(),-1);
+  if(!ymd)ymd=madridYmd();
   return dayBounds(ymd);
 }
 function applyFilter(){
@@ -387,15 +402,17 @@ async function loadDebe(){
   // Endpoint propio: /fleet/missions va capada a 120 y saca las abiertas primero,
   // así que la deuda vieja se quedaba fuera de la ventana. Aquí vienen TODAS.
   let d; try{ const r=await fetch(WORKER+"/fleet/informes-deuda",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
-  const sin=d.missions||[];
+  const sin=d.debts||d.missions||[];
   if(!sin.length){ box.hidden=true; box.innerHTML=""; return; }
+  const debtLabel=m=>m.debt_kind==="task_without_report"?("Tarea "+(m.code||"—")+" hecha sin informe"):
+    m.debt_kind==="resolved_open_tree"?"Misión cerrada con tareas abiertas":"Misión cerrada sin informe final z1";
   box.hidden=false;
-  box.innerHTML='<div class="debe-hd">⚠️ '+sin.length+(sin.length===1?' misión terminada sin informe':' misiones terminadas sin informe')+
-      '<span class="debe-sub">Toda misión finalizada debe su parte</span></div>'+
+  box.innerHTML='<div class="debe-hd">⚠️ '+sin.length+(sin.length===1?' anomalía de informe':' anomalías de informe')+
+      '<span class="debe-sub">Toda tarea y toda misión debe cerrar con parte; no se inventan retrospectivos</span></div>'+
     '<div class="debe-list">'+sin.map(m=>
       '<a class="debe-row" href="/ticket?id='+encodeURIComponent(m.id)+'" title="Abrir '+esc(m.id)+'">'+
         '<b>'+esc(m.id)+'</b>'+
-        '<span class="debe-tx">'+esc(String(m.subject||"—").slice(0,120))+'</span>'+
+        '<span class="debe-tx">'+esc(debtLabel(m)+' · '+String(m.subject||m.title||"—").slice(0,100))+'</span>'+
         '<span class="debe-ag">'+esc(m.assignee||m.persona||"—")+'</span>'+
       '</a>').join("")+'</div>';
 }
@@ -578,10 +595,9 @@ function render(list){
   box.setAttribute("aria-busy","false");
   if(!list.length){
     RENDERED_GROUPS=[];
-    const lbl=filterLabel();
-    box.innerHTML=headHTML()+(lbl
-      ? '<div class="empty"><b>Sin informes '+esc(lbl)+'</b>No hay partes con esa fecha. Prueba otro día o pulsa <b style="display:inline">Todas</b>.</div>'
-      : '<div class="empty"><b>Sin informes todavía</b>Los infraagentes reportan aquí — en cuanto una tarea tenga parte redactado, aparecerá en esta lista.</div>');
+    const scope=emptyScopeLabel();
+    box.innerHTML=headHTML()+'<div class="empty"><b>Sin actividad reportada de '+esc(scope.project)+' '+esc(scope.period)+'</b>'+
+      'No se cerró ni reportó trabajo en este proyecto y periodo. Puede haber informes en otros proyectos o fechas.</div>';
     COLUMN_RESIZE.apply();
     updatePageState();return;
   }

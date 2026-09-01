@@ -23,7 +23,7 @@ test("last_work de tarea exige ended_at y conserva su contrato visible",()=>{
 });
 
 test("los cierres masivos también sellan ended_at sin reescribir uno previo",()=>{
-  assert.match(source,/UPDATE mission_tasks SET status='done',ended_at=COALESCE\(ended_at,\?\),updated_at=\?/);
+  assert.match(source,/UPDATE mission_tasks SET status='done',[^"\n]*ended_at=COALESCE\(ended_at,\?\),updated_at=\?/);
   assert.match(source,/status='done', owner=COALESCE\(NULLIF\(owner,''\),'auto-cierre'\), ended_at=COALESCE\(ended_at,\?\)/);
   assert.match(source,/ended_at=COALESCE\(mission_tasks\.ended_at,excluded\.ended_at\)/);
 });

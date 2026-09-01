@@ -65,6 +65,17 @@ test('el endpoint de deuda no está capado ni ordena por abiertas', () => {
   assert.ok(!/LIMIT/.test(b), 'sin tope: la deuda vieja también cuenta');
 });
 
+test('la deuda distingue informe final, tarea muda y árbol abierto', () => {
+  assert.match(WORKER_SRC,/done_tasks_without_report/);
+  assert.match(WORKER_SRC,/resolved_with_open_tasks/);
+  assert.match(INF,/task_without_report/);
+  assert.match(INF,/resolved_open_tree/);
+});
+
+test('el hover declara que su cobertura es global e histórica', () => {
+  assert.match(FRAME,/Resumen global · todas las fechas y proyectos/);
+});
+
 test('la deuda NO se filtra por fecha: una deuda vieja sigue siendo deuda', () => {
   const i = INF.indexOf('async function loadDebe()');
   const b = INF.slice(i, i + 1400);

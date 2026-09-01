@@ -58,6 +58,21 @@ test("un proyecto seleccionado reinicia el snapshot y viaja al servidor",async()
   assert.equal(vm.runInContext("ALL.length",h.context),1);
 });
 
+test("el vacío explica proyecto y periodo sin negar informes globales",()=>{
+  assert.match(html,/Sin actividad reportada de/);
+  assert.match(html,/Puede haber informes en otros proyectos o fechas/);
+  assert.match(html,/timezone:\"Europe\/Madrid\"|Europe\/Madrid/);
+});
+
+test("Hoy usa Europe/Madrid también en los cambios de hora",async()=>{
+  const response=Promise.resolve({ok:true,json:async()=>({tasks:[],next_cursor:null,has_more:false,total:0})});
+  const h=setup([response]);await tick();await tick();
+  assert.equal(vm.runInContext('dayBounds("2026-03-29")[1]-dayBounds("2026-03-29")[0]',h.context),23*3600000);
+  assert.equal(vm.runInContext('dayBounds("2026-10-25")[1]-dayBounds("2026-10-25")[0]',h.context),25*3600000);
+  assert.equal(vm.runInContext('madridYmd(Date.UTC(2026,0,1,22,30))',h.context),"2026-01-01");
+  assert.equal(vm.runInContext('madridYmd(Date.UTC(2026,0,1,23,30))',h.context),"2026-01-02");
+});
+
 test("Cargar más añade 30, usa cursor y deduplica misión+tarea",async()=>{
   const first=Promise.resolve({ok:true,json:async()=>({tasks:Array.from({length:30},(_,i)=>row(i)),next_cursor:"opaque",has_more:true,total:59})});
   const second=Promise.resolve({ok:true,json:async()=>({tasks:[row(0,{report:"actualizado",updated_at:Date.now()+10}),...Array.from({length:29},(_,i)=>row(30+i))],next_cursor:null,has_more:false,total:null})});
