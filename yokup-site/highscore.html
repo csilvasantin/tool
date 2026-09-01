@@ -424,11 +424,14 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-lanes{gap:2px}
 .refresh-lane{display:grid;grid-template-columns:minmax(148px,210px) minmax(0,1fr) minmax(158px,190px);
   align-items:center;column-gap:4px;min-height:38px}
-.refresh-agent-meta{display:inline-flex;align-items:baseline;justify-content:flex-start;width:100%;min-width:0;color:var(--accent)}
+.refresh-agent-meta{display:inline-flex;align-items:baseline;justify-content:flex-start;gap:5px;width:100%;min-width:0;
+  overflow:hidden;color:var(--accent)}
 .refresh-agent{position:static;display:block;flex:0 1 auto;min-width:0;max-width:none;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;text-align:left;color:var(--accent);font-size:11px;font-weight:900;line-height:14px;
   border-radius:2px;cursor:help;pointer-events:auto}
 .refresh-agent:focus-visible{outline:1px solid var(--brand);outline-offset:2px}
+.refresh-agent-project{display:block;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:var(--ink);font-size:9px;font-weight:800;line-height:14px}
 .refresh-started,.refresh-ended{flex:0 0 auto;min-width:8ch;color:var(--ink);font-size:9px;font-weight:800;
   font-variant-numeric:tabular-nums;text-align:left;white-space:nowrap}
 .refresh-timing{display:inline-flex;align-items:baseline;justify-content:flex-end;gap:5px;width:100%;min-width:0;
@@ -813,7 +816,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .wrap{padding-top:46px}h1{font-size:17px}
   .refresh-race{padding:0 3px}
   .refresh-lane{grid-template-columns:minmax(112px,142px) minmax(54px,1fr) minmax(110px,124px);column-gap:2px;min-height:38px}
-  .refresh-agent{font-size:8px;line-height:10px}.refresh-started,.refresh-ended{font-size:7px}.refresh-timing{gap:2px}
+  .refresh-agent-meta{gap:3px}.refresh-agent{font-size:8px;line-height:10px}.refresh-agent-project{font-size:7px;line-height:10px}
+  .refresh-started,.refresh-ended{font-size:7px}.refresh-timing{gap:2px}
   .refresh-track{padding-left:var(--track-start);padding-right:var(--finish-width)}
   .refresh-mission{font-size:8px;line-height:12px}.refresh-mission-title{font-size:8px}
   .race-call{min-width:min(96px,calc(100% - var(--track-start) - var(--finish-width) - 8px));
@@ -825,7 +829,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .agent-scope-app-feedback{font-size:7.5px;text-align:left}}
 @media (min-width:621px) and (max-width:1100px){.refresh-lane{grid-template-columns:minmax(138px,190px) minmax(0,1fr) minmax(150px,184px)}}
 @media (min-width:621px) and (max-width:800px){.refresh-lane{grid-template-columns:minmax(128px,180px) minmax(0,1fr) minmax(142px,174px)}}
-@media (max-width:340px){.refresh-lane{grid-template-columns:minmax(92px,112px) minmax(42px,1fr) minmax(108px,118px);column-gap:1px}.refresh-agent{font-size:7px}.refresh-started,.refresh-ended{font-size:6.5px}.refresh-timing{gap:1px}}
+@media (max-width:340px){.refresh-lane{grid-template-columns:minmax(92px,112px) minmax(42px,1fr) minmax(108px,118px);column-gap:1px}.refresh-agent-meta{gap:1px}.refresh-agent{font-size:7px}.refresh-agent-project{font-size:6.5px}.refresh-started,.refresh-ended{font-size:6.5px}.refresh-timing{gap:1px}}
 @media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.rank-filter[aria-pressed="true"],.activity-now,.activity-now::after,.plaza.podium-live::after,.refresh-runner svg,.runner-run-a,.runner-run-b,.runner-run-c,.progression-step.new .progression-dot,.race-call,.race-call::before,.race-call::after{animation:none!important;transition:none!important}.refresh-runner .runner-run-b,.refresh-runner .runner-run-c{display:none}.runner-finish-win .gesto-a,.runner-finish-lose .gesto-a{animation:none;opacity:1}.runner-finish-win .gesto-b,.runner-finish-lose .gesto-b{display:none}}
 </style>
 <link rel="stylesheet" href="/highscore-runner-state.css?v=20260901-static-last-work-runner">
@@ -3972,6 +3976,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var fila = enlace.fila, clave = enlace.clave, resumen = enlace.resumen;
       var puesto = indice + 1, agente = normaliza(fila.agente), responsable = normaliza(resumen.responsible || agente);
       var identidadVisible = identidadVisualCorredor(responsable, fila);
+      // El proyecto junto al agente responde a «¿de qué proyecto es responsable?»:
+      // reutiliza la misma cascada canónica del Ranking (declarado hoy → trabajo
+      // → censo → Galaxia Admira). La faena puntual permanece dentro de la pista.
+      var proyectoResponsable = normaliza(fila.proyecto || resumen.project) || "—";
       var executor = normaliza(resumen.executor || responsable);
       var variant = typeof YkHighscoreRace !== "undefined" ? YkHighscoreRace.runnerVariant(fila)
         : (clave.split("").reduce(function (n, c) { return n + c.charCodeAt(0); }, 0) % 2 ? "dark" : "light");
@@ -4009,13 +4017,15 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         (staleState && enlace.trabajo.raceRevision ? 'data-race-revision="' + esc(enlace.trabajo.raceRevision) + '" data-stale-anchor="' +
           Number(staleState.record.server_started_at) + '" data-stale-cycles="' + Number(staleState.record.cycles) + '" ' : '') +
         (resumen.idle ? 'data-race-idle="true" ' : '') +
-        'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Responsable ' + esc(identidadVisible.nombre) + '. Hora de inicio ' + esc(resumen.startedClock) + esc(timingAria) +
+        'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Responsable ' + esc(identidadVisible.nombre) + '. Proyecto responsable ' + esc(proyectoResponsable) + '. Hora de inicio ' + esc(resumen.startedClock) + esc(timingAria) +
         (executor !== responsable ? '. Ejecuta ' + esc(executor) : '') + '. ' + heartbeat + '. ' +
         esc(resumen.title) + '. Tiempo de misión ' + esc(resumen.duration) +
         '. Tiempo de sesión ' + esc(resumen.sessionDuration) + '">' +
         '<span class="refresh-agent-meta"><span class="refresh-agent" data-race-role="agent" tabindex="0" title="' + esc(identidadVisible.machine) +
           '" aria-label="' + esc(identidadVisible.nombre) + ' · máquina ' + esc(identidadVisible.machine) + '">' +
-          esc(identidadVisible.nombre) + '</span></span>' +
+          esc(identidadVisible.nombre) + '</span><span class="refresh-agent-project" data-race-role="project" title="Proyecto responsable: ' +
+          esc(proyectoResponsable) + '" aria-label="Proyecto responsable ' + esc(proyectoResponsable) + '">// ' +
+          esc(proyectoResponsable) + '</span></span>' +
         '<div class="refresh-lane-center"><div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
         // EL ID INTERNO NO SE LEE (Carlos, 15-ago-2026). La calle abría con

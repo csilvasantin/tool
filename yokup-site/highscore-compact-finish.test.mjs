@@ -57,7 +57,7 @@ test("el carril ordena agente, pista y bloque horario derecho en hora Madrid",()
   assert.ok(rendered.indexOf('class="refresh-lane-center"') < rendered.indexOf('class="refresh-timing"'));
   assert.ok(rendered.indexOf('data-race-time="start"') < rendered.indexOf('data-race-time="end"'));
   assert.doesNotMatch(rendered,/>FINALIZADO<|>EN CURSO</);
-  assert.match(rendered,/aria-label="Responsable Niobe\. Hora de inicio 14:30:00\. Hora de finalización 15:04:05/);
+  assert.match(rendered,/aria-label="Responsable Niobe\. Proyecto responsable —\. Hora de inicio 14:30:00\. Hora de finalización 15:04:05/);
 });
 
 test("sin ended_at no inventa hora y el activo usa el hueco final como contador",()=>{
