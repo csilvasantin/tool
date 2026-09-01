@@ -58,20 +58,19 @@ test("el Dashboard incluye proyectos y equipos con agentes anidados",()=>{
   assert.match(source,/aria-live="polite"/);
 });
 
-test("proyectos y equipos son compactables y enseñan sus tres recuentos",()=>{
+test("proyectos y equipos son compactables y enseñan Silicio y Carbono",()=>{
   assert.match(source,/<details class="pa-col" id="projectAgentProjectsPane" open>/);
   assert.match(source,/<details class="pa-col" id="projectAgentTeamsPane" open>/);
   assert.doesNotMatch(source,/id="projectAgentAgentsPane"/);
   assert.match(source,/Proyectos <span class="pa-count" id="projectAgentProjectsN">/);
   assert.match(source,/Equipos físicos <span class="pa-count" id="projectAgentTeamsN">/);
-  assert.match(source,/· Agentes principales <span class="pa-count" id="projectAgentAgentsN">/);
-  assert.match(source,/· Subagentes <span class="pa-count" id="projectAgentSubsN">/);
-  assert.match(source,/· Infraagentes <span class="pa-count" id="projectAgentInfrasN">/);
+  assert.match(source,/· Agentes de Silicio <span class="pa-count" id="projectAgentSiliconN">/);
+  assert.match(source,/· Agentes de Carbono <span class="pa-count" id="projectAgentCarbonN">/);
+  assert.doesNotMatch(source,/id="projectAgentInfrasN"/);
   assert.match(source,/pa\("projectAgentProjectsN"\)\.textContent=visibleActive\+"\/"\+active/);
   assert.match(source,/pa\("projectAgentTeamsN"\)\.textContent=visibleTeams\.length\+"\/"\+teams\.length/);
-  assert.match(source,/pa\("projectAgentAgentsN"\)\.textContent=roleCounts\.main\.active\+"\/"\+roleCounts\.main\.total/);
-  assert.match(source,/pa\("projectAgentSubsN"\)\.textContent=roleCounts\.sub\.active\+"\/"\+roleCounts\.sub\.total/);
-  assert.match(source,/pa\("projectAgentInfrasN"\)\.textContent=roleCounts\.infra\.active\+"\/"\+roleCounts\.infra\.total/);
+  assert.match(source,/pa\("projectAgentSiliconN"\)\.textContent=roleCounts\.main\.active\+"\/"\+roleCounts\.main\.total/);
+  assert.match(source,/pa\("projectAgentCarbonN"\)\.textContent=String\(carbonAgents\.length\)/);
 });
 
 test("el mapa coloca proyectos a la izquierda y equipos con agentes a la derecha",()=>{
@@ -145,20 +144,21 @@ test("modelo y envoltorio son superficies internas del agente principal",()=>{
   assert.match(source,/agent\.surfaces\.map\(paRuntimeSurface\)/);
 });
 
-test("Sub e Infra se anidan en su agente principal y nunca cuentan como agentes",()=>{
+test("Sub queda como ejecución de Silicio e Infra se excluye de la vista",()=>{
   assert.match(source,/function paFamilyId\(value,machine\)/);
   assert.match(source,/ykAgentIdentity\.scoped\(parsed\.persona,resolved,"main"\)/);
+  assert.match(source,/if\(role==="infra"\)return/);
   assert.match(source,/if\(role==="main"\)family\.slots\.push\(agent\);else family\.helpers\.push/);
   assert.match(source,/class="pa-family-helpers"/);
-  assert.match(source,/helper\.role==="sub"\?"ejecución":"infra · QA"/);
+  assert.match(source,/Silicio · ejecución/);
   assert.match(source,/families=paAgentFamilies\(PROJECT_ROSTER\)/);
-  assert.match(source,/families\.length\+" agentes principales/);
+  assert.match(source,/families\.length\+" agentes de Silicio/);
   assert.match(source,/roleCounts\.main\.active\+"\/"\+roleCounts\.main\.total/);
-  assert.match(source,/teamRoleCounts\.main\.active\+'\/'\+teamRoleCounts\.main\.total\+' principales · '\+teamRoleCounts\.sub\.active\+'\/'\+teamRoleCounts\.sub\.total\+' Subagentes · '\+teamRoleCounts\.infra\.active\+'\/'\+teamRoleCounts\.infra\.total\+' Infraagentes'/);
+  assert.match(source,/teamRoleCounts\.main\.active\+'\/'\+teamRoleCounts\.main\.total\+' Agentes de Silicio · '\+teamCarbons\.length\+' Agentes de Carbono'/);
   assert.doesNotMatch(source,/PROJECT_ROSTER\.length\+" agentes/);
 });
 
-test("dos superficies, Sub e Infra producen una sola familia contable",()=>{
+test("dos superficies y Sub producen una familia; Infra no entra",()=>{
   const rows=[
     {id:"NeoMini",machine:"Mac Mini",team:"Mini",teamMachine:"Mac Mini",runtime:"Claude",host:"app",online:true,updated:4},
     {id:"NeoMini",machine:"Mac Mini",team:"Mini",teamMachine:"Mac Mini",runtime:"Claude",host:"cli",online:true,updated:3},
@@ -171,16 +171,17 @@ test("dos superficies, Sub e Infra producen una sola familia contable",()=>{
   const families=familyApi.paAgentFamilies(rows),neo=families.find(family=>family.id==="NeoMacMini");
   assert.equal(families.length,2);
   assert.equal(neo.surfaces.length,2);
-  assert.deepEqual(neo.helpers.map(helper=>helper.id).sort(),["InfraNeoMacMini","SubNeoMacMini"]);
-  assert.equal(neo.memberIds.length,3);
+  assert.deepEqual(neo.helpers.map(helper=>helper.id),["SubNeoMacMini"]);
+  assert.equal(neo.memberIds.length,2);
 });
 
-test("las asignaciones de Sub e Infra se agrupan en una sola familia de proyecto",()=>{
+test("las asignaciones Silicio se agrupan y las referencias Infra se filtran",()=>{
   assert.match(source,/function paProjectAgentGroups\(project\)/);
   assert.match(source,/function paProjectFamilyRefs\(project\)/);
   assert.match(source,/function paProjectRefsForFamily\(project,family\)/);
-  assert.match(source,/assignedGroups\.length\+' agentes principales/);
-  assert.match(source,/group\.helpers\.map\(ref=>esc\(ref\)\)/);
+  assert.match(source,/filter\(ref=>paAgentRole\(ref\)!=="infra"\)/);
+  assert.match(source,/assignedGroups\.length\+' agentes de Silicio/);
+  assert.doesNotMatch(source,/group\.helpers\.map\(ref=>esc\(ref\)\)/);
   assert.match(source,/async function paRemoveFamily\(project,familyId\)/);
   assert.match(source,/for\(const ref of refs\)/);
 });
