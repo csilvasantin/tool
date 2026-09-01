@@ -53,6 +53,27 @@ test("una ranura controlable registra la máquina aunque la app esté apagada", 
   assert.match(html, /inventarios de equipo para distinguir 0 de — y registrado de encendido/);
 });
 
+test("el runtime principal no depende del orden de presencia y prima Desktop App viva", () => {
+  const start = html.indexOf("function adoptaRuntimeCandidato(");
+  const end = html.indexOf("\n\n  function calcula", start);
+  assert.ok(start >= 0 && end > start, "falta selección canónica de runtime");
+  const context = vm.createContext({
+    normaliza: (value) => String(value == null ? "" : value).trim(), Number
+  });
+  vm.runInContext(`${html.slice(start, end)}
+    var a={runtime:"",runtimePeso:0,runtimeAt:0};
+    adoptaRuntime(a,"OpenCode","cli",1000,true);
+    adoptaRuntime(a,"Codex","app",1000,true);
+    var b={runtime:"",runtimePeso:0,runtimeAt:0};
+    adoptaRuntime(b,"Codex","app",1000,true);
+    adoptaRuntime(b,"OpenCode","cli",1000,true);
+    adoptaRuntime(b,"OpenCode","app",2000,false);
+    globalThis.resultado=[a,b];`, context);
+  assert.deepEqual(Array.from(context.resultado, (row) => row.runtime), ["Codex", "Codex"]);
+  assert.match(html, /adoptaRuntime\(f, p\.runtime, p\.host, t, true\)/);
+  assert.match(html, /adoptaRuntime\(f, slot\.runtime, slot\.host, control\.updated \|\| slot\.updated, false\)/);
+});
+
 test("Ventana Decisión ocupa dos líneas y conserva la cadencia horaria", () => {
   assert.match(html, /data-sort="ventanas"[^>]*aria-label="Ordenar por ventanas de decisión"><span class="sort-label-stack"><span>Ventana<\/span><span>Decisión<\/span><\/span>/);
   assert.doesNotMatch(html, /Ventanas hoy/i);
@@ -164,7 +185,7 @@ test("el indicador de actividad conserva texto accesible y detalle contextual", 
 });
 
 test("el estado de endpoint prima sobre la precedencia local y sobre presencia", () => {
-  const start = html.indexOf("function calcula() {");
+  const start = html.indexOf("function adoptaRuntimeCandidato(");
   const end = html.indexOf("\n\n  var brazosTimer", start);
   assert.ok(start >= 0 && end > start, "falta calcula");
   const now = Date.now();

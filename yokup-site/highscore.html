@@ -1456,6 +1456,26 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return resumen;
   }
 
+  // Una misma identidad física puede tener varios procesos vivos (por ejemplo,
+  // Desktop App Codex y un CLI OpenCode). El runtime del Highscore describe el
+  // proceso principal visible, no el orden accidental de /api/presence: una app
+  // viva prima sobre un CLI vivo y cualquier presencia prima sobre el catálogo
+  // de ranuras apagadas. Los desempates son estables para evitar parpadeos.
+  function adoptaRuntimeCandidato(destino, runtime, peso, updated) {
+    runtime = normaliza(runtime); if (!runtime) return;
+    var at = Number(updated) || 0, actualPeso = Number(destino.runtimePeso) || 0;
+    var actualAt = Number(destino.runtimeAt) || 0;
+    if (peso < actualPeso || (peso === actualPeso && at < actualAt)) return;
+    if (peso === actualPeso && at === actualAt && destino.runtime &&
+        runtime.toLowerCase() >= destino.runtime.toLowerCase()) return;
+    destino.runtime = runtime; destino.runtimePeso = peso; destino.runtimeAt = at;
+  }
+  function adoptaRuntime(destino, runtime, host, updated, vivo) {
+    host = normaliza(host).toLowerCase();
+    var peso = (vivo ? 100 : 0) + (host === "app" ? 20 : (host === "cli" ? 10 : 0));
+    adoptaRuntimeCandidato(destino, runtime, peso, updated);
+  }
+
   function calcula() {
     var por = {}, principal = {}, id = window.ykAgentIdentity, misionesPorId = {};
     datos.misiones.forEach(function (m) { if (m && m.id) misionesPorId[normaliza(m.id)] = m; });
@@ -1498,7 +1518,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (!por[d.key]) por[d.key] = { agente:d.base, base:d.base, suffix:d.suffix,
         objetivos:0, ptsObjetivos:0, ventanas:0, ptsVentanas:0,
         misiones:0, ptsMisiones:0, tareas:0, ptsTareas:0, seenDailyScore:false, seenTask:false,
-        vivo:false, haLatido:false, runtime:"",
+        vivo:false, haLatido:false, runtime:"", runtimePeso:0, runtimeAt:0,
         maquinas:[], maquinasVivas:[], actividad:"", actividadAt:0, actividadDetalle:"", progresion:null,
         proyecto:"", proyectoUrl:"", proyectoAt:0, proyectoPeso:0 };
       return por[d.key];
@@ -1540,7 +1560,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       adoptaActividad(destino, origen.actividad, origen.actividadAt, origen.actividadDetalle);
       if (!destino.progresion && origen.progresion) destino.progresion = origen.progresion;
       marcaProyecto(destino, origen.proyecto, origen.proyectoAt, origen.proyecto, origen.proyectoPeso);
-      if (!destino.runtime) destino.runtime = origen.runtime;
+      adoptaRuntimeCandidato(destino, origen.runtime, Number(origen.runtimePeso) || 0, origen.runtimeAt);
       origen.maquinas.forEach(function (m) { if (destino.maquinas.indexOf(m) < 0) destino.maquinas.push(m); });
       origen.maquinasVivas.forEach(function (m) { if (destino.maquinasVivas.indexOf(m) < 0) destino.maquinasVivas.push(m); });
     }
@@ -1581,7 +1601,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         if (fresco && f.maquinasVivas.indexOf(p.machine) < 0) f.maquinasVivas.push(p.machine);
       }
       if (fresco) {
-        f.vivo = true; if (p.runtime && !f.runtime) f.runtime = p.runtime;
+        f.vivo = true; adoptaRuntime(f, p.runtime, p.host, t, true);
         // El latido sólo es una pista de respaldo. Una tarea, ventana, misión u
         // objetivo activo manda aunque su timestamp sea anterior al heartbeat.
         marcaProyecto(f, p.project, t * 1000, p.focus, 0);
@@ -1598,7 +1618,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         var f = fila(slot && slot.persona, machine); if (!f) return;
         f.haLatido = true;
         if (f.maquinas.indexOf(machine) < 0) f.maquinas.push(machine);
-        if (!f.runtime && slot.runtime) f.runtime = slot.runtime;
+        adoptaRuntime(f, slot.runtime, slot.host, control.updated || slot.updated, false);
       });
     });
     // Actividad AHORA, no totales históricos. Una sola señal por agente:
@@ -1639,7 +1659,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (!por[targetKey]) por[targetKey] = { agente:f.base, base:f.base, suffix:pick.suffix,
         objetivos:0, ptsObjetivos:0, ventanas:0, ptsVentanas:0,
         misiones:0, ptsMisiones:0, tareas:0, ptsTareas:0, seenDailyScore:false, seenTask:false,
-        vivo:false, haLatido:false, runtime:"", maquinas:[], maquinasVivas:[],
+        vivo:false, haLatido:false, runtime:"", runtimePeso:0, runtimeAt:0, maquinas:[], maquinasVivas:[],
         actividad:"", actividadAt:0, actividadDetalle:"", progresion:null,
         proyecto:"", proyectoUrl:"", proyectoAt:0, proyectoPeso:0 };
       suma(por[targetKey], f); delete por[k];
