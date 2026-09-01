@@ -29,10 +29,11 @@ const neo={id:"NeoMacMini",team:"macmini",surfaces:[{online:true}],helpers:[{id:
 const oraculo={id:"OraculoMacMini",team:"macmini",surfaces:[{online:false}],helpers:[]};
 
 test("la cabecera pública solo ofrece Agentes de Silicio y Agentes de Carbono",()=>{
-  const start=source.indexOf('id="projectAgentTeamsPane"'),header=source.slice(start,source.indexOf('</summary>',start));
-  assert.match(header,/Agentes de Silicio <span class="pa-count" id="projectAgentSiliconN">/);
-  assert.match(header,/Agentes de Carbono <span class="pa-count" id="projectAgentCarbonN">/);
-  assert.doesNotMatch(header,/Agentes principales|Subagentes|Infraagentes|projectAgentAgentsN|projectAgentSubsN|projectAgentInfrasN/);
+  const start=source.indexOf('id="projectAgentRosterTabs"'),tabs=source.slice(start,source.indexOf('</div>',start));
+  assert.match(tabs,/Agentes de Silicio <span class="pa-count" id="projectAgentSiliconN">/);
+  assert.match(tabs,/Agentes de Carbono <span class="pa-count" id="projectAgentCarbonN">/);
+  assert.match(tabs,/Equipos físicos <span class="pa-count" id="projectAgentTeamsN">/);
+  assert.doesNotMatch(tabs,/Agentes principales|Subagentes|Infraagentes|projectAgentAgentsN|projectAgentSubsN|projectAgentInfrasN/);
   assert.match(source,/projectAgentSiliconN"\)\.textContent=roleCounts\.main\.active\+"\/"\+roleCounts\.main\.total/);
   assert.match(source,/projectAgentCarbonN"\)\.textContent=String\(carbonAgents\.length\)/);
 });
@@ -56,7 +57,7 @@ test("la lista Carbono comunica responsables únicos y conserva edición por pro
   assert.match(source,/data-carbon-agent=/);
   assert.match(source,/Responsable Carbono · /);
   assert.match(source,/data-carbon-project=/);
-  assert.match(source,/paCarbonAgents\(visibleProjects\.filter/);
+  assert.match(source,/carbonProjects=scopedProjects\.filter[\s\S]*paCarbonAgents\(carbonProjects\)/);
   assert.match(source,/data-pa-carbon-input=/);
   assert.match(source,/carbon_responsible:next,expected_carbon_responsible:previous/);
 });

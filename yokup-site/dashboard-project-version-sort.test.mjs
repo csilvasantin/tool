@@ -48,7 +48,8 @@ test("el clic no pliega la ficha ni inicia arrastre y anuncia el sentido",()=>{
 });
 
 test("el render ordena sólo una copia de los proyectos ya filtrados",()=>{
-  assert.match(source,/const visibleProjects=paSortProjectsByVersion\(PROJECT_ROWS\.filter\(/);
+  assert.match(source,/const scopedProjects=paSortProjectsByVersion\(PROJECT_ROWS\.filter\(/);
+  assert.match(source,/const visibleProjects=PA_ROSTER_VIEW==="carbon"\?carbonProjects:regularProjects/);
   assert.doesNotMatch(source,/PROJECT_ROWS\.sort\(/);
   assert.doesNotMatch(source,/PROJECT_CATALOG\.sort\(/);
 });

@@ -82,7 +82,9 @@ test("los cables se reutilizan entre refrescos y el flujo no reinicia",()=>{
 
 test("el pulso de 3 s no repinta fichas si nada ha cambiado",()=>{
   assert.match(functionSource("paPaint"),/PA_PAINTED\[box\.id\]===html/,"mismo HTML = no se toca el DOM");
-  assert.match(source,/paPaint\(teamsBox,/);
+  assert.match(source,/paPaint\(teamBox,/);
+  assert.match(source,/paPaint\(siliconBox,/);
+  assert.match(source,/paPaint\(carbonBox,/);
   assert.match(source,/paPaint\(projectsBox,/);
   assert.match(source,/data-pa-ago="/,"el tiempo relativo se rellena aparte para no ensuciar la firma del HTML");
   assert.match(functionSource("paTickAgo"),/data-pa-ago/);

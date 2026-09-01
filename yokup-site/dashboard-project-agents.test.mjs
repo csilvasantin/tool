@@ -58,14 +58,14 @@ test("el Dashboard incluye proyectos y equipos con agentes anidados",()=>{
   assert.match(source,/aria-live="polite"/);
 });
 
-test("proyectos y equipos son compactables y enseñan Silicio y Carbono",()=>{
+test("proyectos y organización son compactables y separan Equipos, Silicio y Carbono",()=>{
   assert.match(source,/<details class="pa-col" id="projectAgentProjectsPane" open>/);
   assert.match(source,/<details class="pa-col" id="projectAgentTeamsPane" open>/);
   assert.doesNotMatch(source,/id="projectAgentAgentsPane"/);
   assert.match(source,/Proyectos <span class="pa-count" id="projectAgentProjectsN">/);
-  assert.match(source,/Equipos físicos <span class="pa-count" id="projectAgentTeamsN">/);
-  assert.match(source,/· Agentes de Silicio <span class="pa-count" id="projectAgentSiliconN">/);
-  assert.match(source,/· Agentes de Carbono <span class="pa-count" id="projectAgentCarbonN">/);
+  assert.match(source,/role="tab" data-pa-roster-tab="teams"[\s\S]*Equipos físicos <span class="pa-count" id="projectAgentTeamsN">/);
+  assert.match(source,/role="tab" data-pa-roster-tab="silicon"[\s\S]*Agentes de Silicio <span class="pa-count" id="projectAgentSiliconN">/);
+  assert.match(source,/role="tab" data-pa-roster-tab="carbon"[\s\S]*Agentes de Carbono <span class="pa-count" id="projectAgentCarbonN">/);
   assert.doesNotMatch(source,/id="projectAgentInfrasN"/);
   assert.match(source,/pa\("projectAgentProjectsN"\)\.textContent=visibleActive\+"\/"\+active/);
   assert.match(source,/pa\("projectAgentTeamsN"\)\.textContent=visibleTeams\.length\+"\/"\+teams\.length/);
@@ -229,7 +229,7 @@ test("cada equipo físico contiene sus agentes latiendo y su flecha individual",
 });
 
 test("los agentes nacen compactados dentro de cada equipo",()=>{
-  assert.match(source,/const openTeams=new Set\(\[\.\.\.teamsBox\.querySelectorAll\("\[data-team-key\]\[open\]"\)\]/);
+  assert.match(source,/const openTeams=new Set\(\[\.\.\.document\.querySelectorAll\("#projectAgentTeams \[data-team-key\]\[open\],#projectAgentSilicon \[data-team-key\]\[open\]"\)\]/);
   assert.match(source,/openTeams\.has\(team\.key\)\?' open':''/);
   assert.doesNotMatch(source,/closedTeams\.has\(team\.key\)\?'':' open'/);
   assert.match(source,/\.pa-team-node:not\(\[open\]\)>\.pa-team-agents/);

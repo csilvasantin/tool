@@ -66,6 +66,11 @@ h1{font-size:clamp(23px,2.8vw,33px);line-height:1.12;letter-spacing:-.02em;margi
 @media(prefers-reduced-motion:reduce){.pa-link-flow{display:none}.pa-link-assigned{animation:none;opacity:.4}.pa-refresh-progress,.pa-refresh.is-cycling .pa-refresh-progress{animation:none;transition:none;transform:scaleX(1);opacity:.6}}
 .pa-col{position:relative;z-index:2;min-width:0;transform:translateX(var(--pa-x,0px));will-change:transform}.pa-col-title{display:flex;align-items:center;gap:5px;margin:0 0 7px;font-family:var(--mono);font-size:8.8px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);cursor:pointer;list-style:none;user-select:none}.pa-col-title::-webkit-details-marker{display:none}.pa-col-title::before{content:"›";color:var(--accent);font-size:14px;line-height:1;transition:transform .16s}.pa-col[open]>.pa-col-title::before{transform:rotate(90deg)}.pa-col-title::after{content:"";height:1px;background:var(--line);flex:1}.pa-count{border:1px solid var(--line);border-radius:999px;padding:2px 6px;color:var(--brand);font-size:8px;letter-spacing:.03em}.pa-show-all,.pa-filter,.pa-move{border:0;background:transparent;font:800 7.8px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:4px 2px;cursor:pointer;white-space:nowrap}.pa-show-all{color:var(--good)}.pa-filter{color:var(--dim)}.pa-show-all.active,.pa-filter.active{color:var(--accent);text-shadow:0 0 10px currentColor}.pa-move{color:var(--brand);font-size:11px;cursor:ew-resize;touch-action:none}.pa-move.dragging{color:var(--accent)}.pa-show-all:hover,.pa-show-all:focus-visible,.pa-filter:hover,.pa-filter:focus-visible,.pa-move:hover,.pa-move:focus-visible{color:var(--ink);outline:none}.pa-col:not([open])>.pa-col-title{margin-bottom:0}.pa-col-title:hover,.pa-col-title:focus-visible{color:var(--ink);outline:none}
 #projectAgentTeamsPane>.pa-col-title{flex-wrap:wrap;row-gap:4px}
+.pa-roster-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:0 0 7px;padding:4px;border:1px solid var(--line);border-radius:10px;background:rgba(2,8,13,.48)}
+.pa-roster-tab{min-height:40px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--mut);font:800 8px/1.25 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:7px 8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;text-align:center}
+.pa-roster-tab .pa-count{flex:none}.pa-roster-tab:hover{color:var(--ink);border-color:var(--line2)}.pa-roster-tab[aria-selected="true"]{color:var(--accent);border-color:var(--accent);background:rgba(255,216,102,.09);box-shadow:inset 0 -2px 0 var(--accent),0 0 14px rgba(255,216,102,.12)}.pa-roster-tab[aria-selected="true"]::before{content:"●";font-size:7px}.pa-roster-tab:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.pa-roster-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:7px;min-height:24px;margin:-2px 0 6px}.pa-roster-toolbar[hidden],.pa-roster-panel[hidden]{display:none!important}.pa-roster-panel{min-width:0}
+.pa-shell[data-pa-roster-view="carbon"] .pa-links{display:none}.pa-shell[data-pa-roster-view="carbon"] #projectAgentProjectsPane>.pa-col-title{color:var(--accent)}
 .pa-list{display:grid;gap:5px}.pa-agent-node,.pa-team-node,.pa-project-node{--pc:var(--brand);border:1px solid var(--line);border-radius:9px;background:rgba(2,8,13,.76);position:relative;transition:border-color .15s,box-shadow .15s}
 .pa-project-node,.pa-team-node{transform:translate(var(--pa-node-x,0px),var(--pa-node-y,0px));will-change:transform}.pa-project-node{padding:0}.pa-project-node::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--pc);box-shadow:0 0 14px var(--pc)}.pa-project-node.archivado{opacity:.55}.pa-project-node.drop{border-color:var(--good);box-shadow:0 0 0 2px rgba(136,255,170,.18),0 0 30px rgba(136,255,170,.14)}
 .pa-project-summary,.pa-team-summary{list-style:none;display:flex;align-items:center;gap:6px;cursor:pointer;position:relative}.pa-project-summary::-webkit-details-marker,.pa-team-summary::-webkit-details-marker{display:none}.pa-project-summary{padding:6px 52px 6px 6px}.pa-team-summary{padding:4px 46px 4px 5px;min-height:34px}.pa-project-summary:focus-visible,.pa-team-summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.pa-project-main{min-width:0;flex:1}.pa-project-controls{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:3px}.pa-project-detail{padding:0 7px 7px;border-top:1px solid rgba(120,243,255,.08)}.pa-expand{font:800 7.5px/1 var(--mono);letter-spacing:.03em;text-transform:uppercase;color:var(--brand);white-space:nowrap}.pa-expand::after{content:" ›"}.pa-project-node[open] .pa-expand::after{content:" ×"}
@@ -94,6 +99,7 @@ h1{font-size:clamp(23px,2.8vw,33px);line-height:1.12;letter-spacing:-.02em;margi
 @media(max-width:620px){.pa-responsible{grid-template-columns:minmax(0,1fr) auto}.pa-responsible label,.pa-responsible b{grid-column:1/-1}.pa-responsible span,.pa-silicon-link{grid-column:1/-1}.pa-responsible small{grid-column:1/-1}.pa-responsible input{grid-column:1}.pa-responsible button{grid-column:2;min-width:44px}.pa-project-summary{padding-right:31px}.pa-card-move{display:none}}
 @media(pointer:coarse){.pa-responsible button{min-width:44px;min-height:44px}}
 @media(max-width:620px){.pa-head{display:block}.pa-refresh{margin-top:10px}.pa-shell{padding:12px}.pa-project-summary{padding-right:45px}.pa-state{display:none}.pa-project-heading{gap:3px}}
+@media(max-width:620px){.pa-roster-tabs{grid-template-columns:1fr}.pa-roster-tab{min-height:44px;justify-content:flex-start;text-align:left}.pa-roster-toolbar{justify-content:flex-start;flex-wrap:wrap}}
 
 /* XPERIENCIAS EN VIVO — marcos cuadráticos con feed real (doctrina: nada de capturas) */
 .xp{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -141,7 +147,7 @@ h1{font-size:clamp(23px,2.8vw,33px);line-height:1.12;letter-spacing:-.02em;margi
 
   <details class="dash-section" id="projectAgentSection" open>
     <summary class="shd">Proyectos y agentes <span class="tot" id="projectAgentN">—</span></summary>
-    <section class="dash-section-body pa-shell" aria-label="Asociación de proyectos, equipos físicos y agentes">
+    <section class="dash-section-body pa-shell" id="projectAgentShell" data-pa-roster-view="teams" aria-label="Asociación de proyectos, equipos físicos y agentes">
     <div class="pa-head">
       <p>Arrastra la <b>flecha de un agente</b> desde su ordenador hasta el proyecto. Los proyectos muestran sólo su cabecera; pulsa <b>detalle</b> para ver equipos, agentes y actividad.</p>
       <button class="pa-refresh" id="projectAgentRefresh" type="button" aria-label="Actualizar ahora proyectos, equipos y agentes; actualización automática cada 60 segundos"><span class="pa-refresh-progress" aria-hidden="true"></span><span class="pa-refresh-label">↻ actualizar</span></button>
@@ -151,7 +157,7 @@ h1{font-size:clamp(23px,2.8vw,33px);line-height:1.12;letter-spacing:-.02em;margi
       <div class="pa-map" id="projectAgentMap">
         <svg class="pa-links" id="projectAgentSvg" aria-hidden="true" preserveAspectRatio="none"><defs><marker id="paArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"></path></marker></defs><g id="projectAgentLinks"></g><path class="pa-link-temp" id="projectAgentTemp" marker-end="url(#paArrow)"></path></svg>
         <details class="pa-col" id="projectAgentProjectsPane" open><summary class="pa-col-title">Proyectos <span class="pa-count" id="projectAgentProjectsN">—</span><button class="pa-show-all active" id="projectAgentProjectsAll" type="button" aria-pressed="true">Todos</button><button class="pa-filter" id="projectAgentProjectsUnassigned" type="button" aria-pressed="false">Sin equipo</button><button class="pa-move" type="button" data-pa-move="projects" aria-label="Mover columna Proyectos" title="Arrastra para mover · doble clic para centrar">↔</button></summary><div class="pa-list" id="projectAgentProjects"><div class="pa-loading">Cargando proyectos…</div></div></details>
-        <details class="pa-col" id="projectAgentTeamsPane" open><summary class="pa-col-title">Equipos físicos <span class="pa-count" id="projectAgentTeamsN">—</span> · Agentes de Silicio <span class="pa-count" id="projectAgentSiliconN">—</span> · Agentes de Carbono <span class="pa-count" id="projectAgentCarbonN">—</span><button class="pa-show-all active" id="projectAgentTeamsAll" type="button" aria-pressed="true">Todos</button><button class="pa-filter" id="projectAgentTeamsUnassigned" type="button" aria-pressed="false">Sin proyecto</button><button class="pa-move" type="button" data-pa-move="teams" aria-label="Mover columna Equipos y agentes" title="Arrastra para mover · doble clic para centrar">↔</button></summary><div class="pa-list" id="projectAgentTeams"><div class="pa-loading">Tomando el pulso…</div></div></details>
+        <details class="pa-col" id="projectAgentTeamsPane" open><summary class="pa-col-title">Organización <span class="pa-count" id="projectAgentRightN">—</span><button class="pa-move" type="button" data-pa-move="teams" aria-label="Mover columna de organización" title="Arrastra para mover · doble clic para centrar">↔</button></summary><div class="pa-roster-tabs" id="projectAgentRosterTabs" role="tablist" aria-label="Seleccionar subgrupo de organización"><button class="pa-roster-tab" id="projectAgentTeamsTab" type="button" role="tab" data-pa-roster-tab="teams" aria-selected="true" aria-controls="projectAgentTeams" tabindex="0">Equipos físicos <span class="pa-count" id="projectAgentTeamsN">—</span></button><button class="pa-roster-tab" id="projectAgentSiliconTab" type="button" role="tab" data-pa-roster-tab="silicon" aria-selected="false" aria-controls="projectAgentSilicon" tabindex="-1">Agentes de Silicio <span class="pa-count" id="projectAgentSiliconN">—</span></button><button class="pa-roster-tab" id="projectAgentCarbonTab" type="button" role="tab" data-pa-roster-tab="carbon" aria-selected="false" aria-controls="projectAgentCarbon" tabindex="-1">Agentes de Carbono <span class="pa-count" id="projectAgentCarbonN">—</span></button></div><div class="pa-roster-toolbar" id="projectAgentTeamControls"><button class="pa-show-all active" id="projectAgentTeamsAll" type="button" aria-pressed="true">Todos</button><button class="pa-filter" id="projectAgentTeamsUnassigned" type="button" aria-pressed="false">Sin proyecto</button></div><div class="pa-list pa-roster-panel" id="projectAgentTeams" role="tabpanel" aria-labelledby="projectAgentTeamsTab"><div class="pa-loading">Tomando el pulso…</div></div><div class="pa-list pa-roster-panel" id="projectAgentSilicon" role="tabpanel" aria-labelledby="projectAgentSiliconTab" hidden></div><div class="pa-list pa-roster-panel" id="projectAgentCarbon" role="tabpanel" aria-labelledby="projectAgentCarbonTab" hidden></div></details>
       </div>
     </div>
     </section>
@@ -253,6 +259,8 @@ let TEAM_SCOPE=null;
 let PROJECT_FILTER="all";
 let TEAM_FILTER="all";
 let PROJECT_VERSION_SORT="manual";
+const PA_ROSTER_VIEWS=["teams","silicon","carbon"];
+let PA_ROSTER_VIEW="teams";
 const COLUMN_OFFSETS={projects:0,teams:0};
 let COLUMN_DRAG=null;
 const NODE_OFFSETS=new Map();
@@ -415,6 +423,10 @@ function paCarbonAgentsMarkup(agents){
   if(!agents.length)return '<div class="pa-agent-empty">No hay responsables Carbono asignados en los proyectos visibles.</div>';
   return agents.map(agent=>'<article class="pa-carbon-node" data-carbon-agent="'+esc(agent.key)+'"><div class="pa-avatar">'+esc(agent.name.split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase()||"C")+'</div><div class="pa-name"><b>'+esc(agent.name)+'</b><span>Responsable Carbono · '+agent.projects.length+' proyecto'+(agent.projects.length===1?'':'s')+'</span><div class="pa-carbon-projects">'+agent.projects.map(project=>'<span class="pa-carbon-project" data-carbon-project="'+esc(project.id)+'">'+esc(project.name)+'</span>').join("")+'</div></div></article>').join("");
 }
+function paCarbonResponsibleMarkup(project){
+  const carbon=paCarbonResponsible(project),draft=paCarbonDraft(project),saving=PROJECT_RESPONSIBLES_PENDING.has(project.id),changed=draft.trim()!==carbon,inputId="pa-carbon-"+project.id;
+  return '<div class="pa-responsible pa-responsible-carbon" data-pa-carbon-row="'+esc(project.id)+'"'+(saving?' aria-busy="true"':'')+'><label for="'+esc(inputId)+'">Responsable Carbono</label><input id="'+esc(inputId)+'" data-pa-carbon-input="'+esc(project.id)+'" maxlength="80" autocomplete="name" placeholder="Sin asignar" value="'+esc(draft)+'"'+(saving?' disabled':'')+'><button type="button" data-pa-carbon-save="'+esc(project.id)+'"'+(saving||!changed?' disabled':'')+'>'+(saving?'Guardando…':'Guardar')+'</button><small data-pa-carbon-status="'+esc(project.id)+'" role="status" aria-live="polite"></small></div>';
+}
 function paCarbonDraft(project){return PROJECT_CARBON_DRAFTS.has(project.id)?PROJECT_CARBON_DRAFTS.get(project.id):paCarbonResponsible(project);}
 function paHighscoreAgent(value,machine){
   const raw=String(value||"").trim();
@@ -424,11 +436,10 @@ function paHighscoreAgent(value,machine){
 }
 function paHighscoreDetailUrl(agent,projectId){return YkHighscoreDetail.detailUrl({agent,projectId,period:"today",type:"all",order:"desc"});}
 function paProjectResponsibles(project,silicon){
-  const carbon=paCarbonResponsible(project),draft=paCarbonDraft(project),saving=PROJECT_RESPONSIBLES_PENDING.has(project.id),changed=draft.trim()!==carbon;
-  const inputId="pa-carbon-"+project.id,agent=paHighscoreAgent(silicon,(project.machines||[])[0]||"");
+  const agent=paHighscoreAgent(silicon,(project.machines||[])[0]||"");
   const siliconMarkup=agent?'<a class="pa-silicon-link" data-pa-silicon-link href="'+esc(paHighscoreDetailUrl(agent,project.id))+'" draggable="false" aria-label="Abrir detalle de Highscore de '+esc(agent)+' en '+esc(project.name||project.id)+'">👤 '+esc(agent)+'</a>':'<span>👤 '+esc(silicon||"Sin asignar")+'</span>';
   return '<div class="pa-responsibles" aria-label="Responsables de '+esc(project.name||project.id)+'">'+
-    '<div class="pa-responsible pa-responsible-carbon" data-pa-carbon-row="'+esc(project.id)+'"'+(saving?' aria-busy="true"':'')+'><label for="'+esc(inputId)+'">Responsable Carbono</label><input id="'+esc(inputId)+'" data-pa-carbon-input="'+esc(project.id)+'" maxlength="80" autocomplete="name" placeholder="Sin asignar" value="'+esc(draft)+'"'+(saving?' disabled':'')+'><button type="button" data-pa-carbon-save="'+esc(project.id)+'"'+(saving||!changed?' disabled':'')+'>'+(saving?'Guardando…':'Guardar')+'</button><small data-pa-carbon-status="'+esc(project.id)+'" role="status" aria-live="polite"></small></div>'+
+    paCarbonResponsibleMarkup(project)+
     '<div class="pa-responsible pa-responsible-silicon" data-pa-silicon-responsible="'+esc(project.id)+'"><b>Responsable Silicio</b>'+siliconMarkup+'</div></div>';
 }
 function paImportanceControl(project){
@@ -557,6 +568,29 @@ function paVerifiedPresence(rows,browsers,now){
   return snapshots.concat(verified,reported.filter(row=>!snapshotTeams.has(paTeamKey(row.machine))&&!verifiedTeams.has(paTeamKey(row.machine)))).sort((a,b)=>(b.updated||0)-(a.updated||0));
 }
 function paMessage(text,kind){ const el=pa("projectAgentMsg"); el.textContent=text||""; el.className="pa-msg"+(kind?" "+kind:""); }
+function paNormalizeRosterView(value){return PA_ROSTER_VIEWS.includes(value)?value:"teams";}
+function paRosterPanel(value){return pa(value==="carbon"?"projectAgentCarbon":value==="silicon"?"projectAgentSilicon":"projectAgentTeams");}
+function paSyncRosterTabs(){
+  PA_ROSTER_VIEW=paNormalizeRosterView(PA_ROSTER_VIEW);
+  const shell=pa("projectAgentShell"),controls=pa("projectAgentTeamControls");if(shell)shell.dataset.paRosterView=PA_ROSTER_VIEW;if(controls)controls.hidden=PA_ROSTER_VIEW==="carbon";
+  document.querySelectorAll("[data-pa-roster-tab]").forEach(tab=>{const active=tab.dataset.paRosterTab===PA_ROSTER_VIEW;tab.setAttribute("aria-selected",active?"true":"false");tab.tabIndex=active?0:-1;});
+  PA_ROSTER_VIEWS.forEach(view=>{const panel=paRosterPanel(view);if(panel)panel.hidden=view!==PA_ROSTER_VIEW;});
+}
+function paNextRosterView(current,key){
+  const index=Math.max(0,PA_ROSTER_VIEWS.indexOf(paNormalizeRosterView(current)));
+  if(key==="Home")return PA_ROSTER_VIEWS[0];if(key==="End")return PA_ROSTER_VIEWS.at(-1);
+  if(key==="ArrowRight"||key==="ArrowDown")return PA_ROSTER_VIEWS[(index+1)%PA_ROSTER_VIEWS.length];
+  if(key==="ArrowLeft"||key==="ArrowUp")return PA_ROSTER_VIEWS[(index-1+PA_ROSTER_VIEWS.length)%PA_ROSTER_VIEWS.length];
+  return "";
+}
+function paSetRosterView(value,focus){
+  const next=paNormalizeRosterView(value);if(next===PA_ROSTER_VIEW){if(focus!==false)pa(next==="carbon"?"projectAgentCarbonTab":next==="silicon"?"projectAgentSiliconTab":"projectAgentTeamsTab").focus();return;}
+  PA_ROSTER_VIEW=next;LINK_DRAG=null;LINK_CLICK_AGENT="";document.querySelectorAll("[data-project-node]").forEach(node=>node.classList.remove("drop"));
+  const group=pa("projectAgentLinks"),temp=pa("projectAgentTemp");if(group)group.innerHTML="";if(temp)temp.setAttribute("d","");
+  paRender();if(focus!==false){const tab=pa(next==="carbon"?"projectAgentCarbonTab":next==="silicon"?"projectAgentSiliconTab":"projectAgentTeamsTab");if(tab)tab.focus();}
+  const projects=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paCarbonResponsible(project)).length,agents=paCarbonAgents(PROJECT_ROWS.filter(project=>project.status!=="archivado")).length;
+  paMessage(next==="carbon"?"✓ Agentes de Carbono · "+agents+" responsables · "+projects+" proyectos asociados":next==="silicon"?"✓ Agentes de Silicio · agrupados por equipo físico":"✓ Equipos físicos · inventario y asociaciones", "ok");
+}
 function paPhysicalAgents(rows){
   const bySlot=new Map();
   (rows||[]).forEach(p=>{
@@ -678,7 +712,7 @@ async function paJson(path,options){
 }
 function paRender(){
   PROJECT_ROSTER=paProjectRoster(PROJECT_LIVE_ROSTER,PROJECT_ROWS);
-  const teamsBox=pa("projectAgentTeams"),projectsBox=pa("projectAgentProjects"),families=paAgentFamilies(PROJECT_ROSTER);
+  const teamBox=paRosterPanel("teams"),siliconBox=paRosterPanel("silicon"),carbonBox=paRosterPanel("carbon"),teamsBox=paRosterPanel(PA_ROSTER_VIEW),projectsBox=pa("projectAgentProjects"),families=paAgentFamilies(PROJECT_ROSTER);
   const teams=paPhysicalTeamCensus(PROJECT_TEAM_CENSUS,PROJECT_ROSTER);
   const projectScopeItems=PROJECT_CATALOG.map(project=>({key:String(project.id),label:String(project.name||project.id)})).sort((a,b)=>a.label.localeCompare(b.label,"es"));
   const teamScopeItems=teams.map(team=>({key:String(team.key),label:String(team.machine||team.key)})).sort((a,b)=>a.label.localeCompare(b.label,"es"));
@@ -687,10 +721,13 @@ function paRender(){
   paWriteProjectScope(PROJECT_SCOPE);paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);
   paRenderScopeFilter("project",projectScopeItems);paRenderScopeFilter("team",teamScopeItems);
   const visibleTeams=paVisibleTeams(teams,TEAM_SCOPE,TEAM_FILTER,PROJECT_ROWS);
-  const visibleProjects=paSortProjectsByVersion(PROJECT_ROWS.filter(project=>(PROJECT_FILTER!=="unassigned"||!(project.machines||[]).length)&&paScopeAllows(PROJECT_SCOPE,project.id)));
-  const carbonAgents=paCarbonAgents(visibleProjects.filter(project=>project.status!=="archivado"));
+  const scopedProjects=paSortProjectsByVersion(PROJECT_ROWS.filter(project=>paScopeAllows(PROJECT_SCOPE,project.id)));
+  const regularProjects=scopedProjects.filter(project=>PROJECT_FILTER!=="unassigned"||!(project.machines||[]).length);
+  const carbonProjects=scopedProjects.filter(project=>project.status!=="archivado"&&paCarbonResponsible(project));
+  const visibleProjects=PA_ROSTER_VIEW==="carbon"?carbonProjects:regularProjects;
+  const carbonAgents=paCarbonAgents(carbonProjects);
   const openProjects=new Set([...projectsBox.querySelectorAll("[data-project-node][open]")].map(node=>node.dataset.projectNode));
-  const openTeams=new Set([...teamsBox.querySelectorAll("[data-team-key][open]")].map(node=>node.dataset.teamKey));
+  const openTeams=new Set([...document.querySelectorAll("#projectAgentTeams [data-team-key][open],#projectAgentSilicon [data-team-key][open]")].map(node=>node.dataset.teamKey));
   const byId=new Map(PROJECT_ROSTER.map(a=>[a.id,a])),byFamily=new Map(families.map(a=>[a.id,a]));
   const active=PROJECT_CATALOG.filter(p=>p.status!=="archivado").length;
   const links=PROJECT_ROWS.reduce((n,p)=>n+(p.machines||[]).length+paProjectFamilyRefs(p).length,0);
@@ -700,6 +737,10 @@ function paRender(){
   pa("projectAgentTeamsN").textContent=visibleTeams.length+"/"+teams.length;
   pa("projectAgentSiliconN").textContent=roleCounts.main.active+"/"+roleCounts.main.total;
   pa("projectAgentCarbonN").textContent=String(carbonAgents.length);
+  pa("projectAgentRightN").textContent=PA_ROSTER_VIEW==="carbon"?carbonAgents.length+" responsables":PA_ROSTER_VIEW==="silicon"?roleCounts.main.active+"/"+roleCounts.main.total+" activos":visibleTeams.length+"/"+teams.length;
+  paSyncRosterTabs();
+  pa("projectAgentProjectsAll").hidden=PA_ROSTER_VIEW==="carbon";
+  pa("projectAgentProjectsUnassigned").hidden=PA_ROSTER_VIEW==="carbon";
   pa("projectAgentProjectsAll").classList.toggle("active",PROJECT_FILTER==="all");
   pa("projectAgentProjectsAll").setAttribute("aria-pressed",PROJECT_FILTER==="all");
   pa("projectAgentProjectsUnassigned").classList.toggle("active",PROJECT_FILTER==="unassigned");
@@ -709,6 +750,10 @@ function paRender(){
   pa("projectAgentTeamsUnassigned").classList.toggle("active",TEAM_FILTER==="unassigned");
   pa("projectAgentTeamsUnassigned").setAttribute("aria-pressed",TEAM_FILTER==="unassigned");
   const emptyTeams=TEAM_FILTER==="unassigned"?"No hay equipos sin proyecto asociado.":TEAM_SCOPE!==null?"No hay equipos seleccionados en Avanzado.":"No hay equipos en el censo físico.";
+  const physicalTeamsMarkup=visibleTeams.length?visibleTeams.map(team=>{
+    const projectCount=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasTeam(project,team.key)).length,roleCounts=paTeamRoleCounts(team),nodeKey=paNodeKey("team",team.key);
+    return '<article class="pa-team-node pa-team-inventory" data-team-key="'+esc(team.key)+'" data-pa-node-key="'+esc(nodeKey)+'" style="'+paNodeVars(nodeKey)+'"><div class="pa-team-summary"><div class="pa-avatar">▣</div><div class="pa-name"><b title="'+esc(team.machine)+'">'+esc(team.machine)+'</b><span>'+roleCounts.main.active+'/'+roleCounts.main.total+' Agentes de Silicio · '+projectCount+' proyecto'+(projectCount===1?'':'s')+'</span></div><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(team.machine)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-team="'+esc(team.key)+'" aria-label="Ocultar '+esc(team.machine)+'" title="Ocultar equipo">×</button></div></article>';
+  }).join(""):'<div class="pa-loading">'+emptyTeams+'</div>';
   const siliconTeamsMarkup=visibleTeams.length?visibleTeams.map(team=>{
     const projectCount=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasTeam(project,team.key)).length;
     const teamRoleCounts=paTeamRoleCounts(team),teamCarbons=paCarbonAgents(PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paProjectHasTeam(project,team.key))),teamRolesText=teamRoleCounts.main.active+'/'+teamRoleCounts.main.total+' Agentes de Silicio · '+teamCarbons.length+' Agentes de Carbono';
@@ -724,9 +769,12 @@ function paRender(){
     const nodeKey=paNodeKey("team",team.key);
     return '<details class="pa-team-node" data-team-key="'+esc(team.key)+'" data-pa-node-key="'+esc(nodeKey)+'" style="'+paNodeVars(nodeKey)+'"'+(openTeams.has(team.key)?' open':'')+'><summary class="pa-team-summary"><div class="pa-avatar">▣</div><div class="pa-name"><b title="'+esc(team.machine)+'">'+esc(team.machine)+'</b><span>'+teamRolesText+' · '+projectCount+' proyecto'+(projectCount===1?'':'s')+'</span></div><span class="pa-expand">agentes</span><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(team.machine)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-team="'+esc(team.key)+'" aria-label="Ocultar '+esc(team.machine)+'" title="Ocultar equipo">×</button></summary><div class="pa-team-agents">'+agents+'</div></details>';
   }).join(""):'<div class="pa-loading">'+emptyTeams+'</div>';
-  paPaint(teamsBox,'<section class="pa-roster-group pa-roster-carbon" aria-labelledby="paCarbonHeading"><div class="pa-roster-heading"><b id="paCarbonHeading">Agentes de Carbono</b><span>'+carbonAgents.length+' responsables únicos en proyectos visibles</span></div><div class="pa-carbon-list">'+paCarbonAgentsMarkup(carbonAgents)+'</div></section><section class="pa-roster-group pa-roster-silicon" aria-labelledby="paSiliconHeading"><div class="pa-roster-heading"><b id="paSiliconHeading">Agentes de Silicio</b><span>Agrupados por equipo físico</span></div>'+siliconTeamsMarkup+'</section>');
+  paPaint(teamBox,PA_ROSTER_VIEW==="teams"?'<section class="pa-roster-group pa-roster-teams" aria-labelledby="projectAgentTeamsTab"><div class="pa-roster-heading"><b>Equipos físicos</b><span>Inventario físico y proyectos asociados</span></div>'+physicalTeamsMarkup+'</section>':'');
+  paPaint(siliconBox,PA_ROSTER_VIEW==="silicon"?'<section class="pa-roster-group pa-roster-silicon" aria-labelledby="projectAgentSiliconTab"><div class="pa-roster-heading"><b>Agentes de Silicio</b><span>Agrupados por equipo físico</span></div>'+siliconTeamsMarkup+'</section>':'');
+  paPaint(carbonBox,PA_ROSTER_VIEW==="carbon"?'<section class="pa-roster-group pa-roster-carbon" aria-labelledby="projectAgentCarbonTab"><div class="pa-roster-heading"><b>Agentes de Carbono</b><span>'+carbonAgents.length+' responsables · '+carbonProjects.length+' proyectos asociados</span></div><div class="pa-carbon-list">'+paCarbonAgentsMarkup(carbonAgents)+'</div></section>':'');
   if(!PROJECT_ROWS.length){paPaint(projectsBox,'<div class="pa-loading">No hay proyectos dados de alta todavía.</div>');paTickAgo();paDrawLinks();return;}
-  const emptyProjects=PROJECT_FILTER==="unassigned"?"No hay proyectos sin equipo asociado.":PROJECT_SCOPE!==null?"No hay proyectos seleccionados en Opciones.":"No hay proyectos visibles.";
+  const carbonMode=PA_ROSTER_VIEW==="carbon";
+  const emptyProjects=carbonMode?"No hay proyectos con Responsable Carbono asignado.":PROJECT_FILTER==="unassigned"?"No hay proyectos sin equipo asociado.":PROJECT_SCOPE!==null?"No hay proyectos seleccionados en Opciones.":"No hay proyectos visibles.";
   paPaint(projectsBox,visibleProjects.length?visibleProjects.map(project=>{
     const assignedGroups=paProjectAgentGroups(project),assignedTeams=Array.isArray(project.machines)?project.machines:[];
     const archived=project.status==="archivado";
@@ -736,9 +784,13 @@ function paRender(){
     const silicon=paSiliconResponsible(project);
     const primaryId=paHighscoreAgent(silicon,assignedTeams[0]||"");
     const agentChips=assignedGroups.length?assignedGroups.map(group=>{const row=byFamily.get(group.id),memberRows=group.refs.map(ref=>byId.get(ref)).filter(Boolean),visible=row&&paProjectHasTeam(project,row.team),isPrimary=group.id===primaryId;return '<span class="pa-chip-family'+(visible?'':' legacy')+(isPrimary?' primary':'')+'" title="'+esc(isPrimary?'Responsable Silicio':memberRows.some(item=>!item.online)?'Agente de Silicio asignado · sin actividad':visible?'Agente de Silicio elegido':'Referencia de Silicio sin equipo asociado')+'"><span>👤 '+esc(group.id)+'</span><button type="button" data-pa-family-remove="'+esc(group.id)+'" data-project="'+esc(project.id)+'" aria-label="Quitar la familia '+esc(group.id)+'"'+(busy?' disabled':'')+'>×</button></span>';}).join(""):'<span class="pa-empty">Sin agentes de Silicio elegidos</span>';
-    const target=LINK_CLICK_AGENT&&!archived?'<button class="pa-target" type="button" data-pa-target="'+esc(project.id)+'"'+(busy?' disabled':'')+'>Conectar aquí</button>':'';
+    const target=!carbonMode&&LINK_CLICK_AGENT&&!archived?'<button class="pa-target" type="button" data-pa-target="'+esc(project.id)+'"'+(busy?' disabled':'')+'>Conectar aquí</button>':'';
     const nodeKey=paNodeKey("project",project.id);
-    return '<details class="pa-project-node '+esc(project.status||"activo")+'" data-project-node="'+esc(project.id)+'" data-pa-node-key="'+esc(nodeKey)+'" style="--pc:'+paColor(project.color)+';'+paNodeVars(nodeKey)+'"'+(openProjects.has(project.id)?' open':'')+'><summary class="pa-project-summary">'+projectIcon+'<div class="pa-project-main"><div class="pa-name"><div class="pa-project-heading"><b title="'+esc(project.name||project.id)+'">'+esc(project.name||project.id)+'</b>'+paImportanceControl(project)+'</div><span>'+(web?esc(new URL(web).hostname):esc(project.id))+'</span></div><div class="pa-project-controls">'+target+'<span class="pa-state '+esc(project.status||"activo")+'">'+esc(project.status||"activo")+'</span><span class="pa-expand">detalle</span></div></div><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(project.name||project.id)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-project="'+esc(project.id)+'" aria-label="Ocultar '+esc(project.name||project.id)+'" title="Ocultar proyecto">×</button><span class="pa-port" data-project-port="'+esc(project.id)+'">◆</span></summary><div class="pa-project-detail"><div class="pa-meta"><span>'+assignedTeams.length+' equipos</span><span>'+assignedGroups.length+' agentes de Silicio</span><span>'+(project.missions||0)+' en curso</span>'+(web?'<a href="'+esc(web)+'" target="_blank" rel="noopener noreferrer">abrir ↗</a>':'')+'</div>'+paProjectResponsibles(project,primaryId||silicon)+'<div class="pa-assigned">'+teamChips+'</div><div class="pa-assigned">'+agentChips+'</div></div></details>';
+    const projectPort=carbonMode?'':'<span class="pa-port" data-project-port="'+esc(project.id)+'">◆</span>';
+    const projectDetail=carbonMode
+      ? '<div class="pa-project-detail"><div class="pa-meta"><span>Proyecto asociado a '+esc(paCarbonResponsible(project))+'</span><span>'+(project.missions||0)+' en curso</span>'+(web?'<a href="'+esc(web)+'" target="_blank" rel="noopener noreferrer">abrir ↗</a>':'')+'</div><div class="pa-responsibles" aria-label="Responsable Carbono de '+esc(project.name||project.id)+'">'+paCarbonResponsibleMarkup(project)+'</div></div>'
+      : '<div class="pa-project-detail"><div class="pa-meta"><span>'+assignedTeams.length+' equipos</span><span>'+assignedGroups.length+' agentes de Silicio</span><span>'+(project.missions||0)+' en curso</span>'+(web?'<a href="'+esc(web)+'" target="_blank" rel="noopener noreferrer">abrir ↗</a>':'')+'</div>'+paProjectResponsibles(project,primaryId||silicon)+'<div class="pa-assigned">'+teamChips+'</div><div class="pa-assigned">'+agentChips+'</div></div>';
+    return '<details class="pa-project-node '+esc(project.status||"activo")+'" data-project-node="'+esc(project.id)+'" data-pa-node-key="'+esc(nodeKey)+'" style="--pc:'+paColor(project.color)+';'+paNodeVars(nodeKey)+'"'+(openProjects.has(project.id)?' open':'')+'><summary class="pa-project-summary">'+projectIcon+'<div class="pa-project-main"><div class="pa-name"><div class="pa-project-heading"><b title="'+esc(project.name||project.id)+'">'+esc(project.name||project.id)+'</b>'+paImportanceControl(project)+'</div><span>'+(web?esc(new URL(web).hostname):esc(project.id))+'</span></div><div class="pa-project-controls">'+target+'<span class="pa-state '+esc(project.status||"activo")+'">'+esc(project.status||"activo")+'</span><span class="pa-expand">detalle</span></div></div><button class="pa-card-move" type="button" data-pa-node-move="'+esc(nodeKey)+'" aria-label="Mover '+esc(project.name||project.id)+'" title="Arrastra la ficha · doble clic para centrar">✥</button><button class="pa-hide" type="button" data-pa-hide-project="'+esc(project.id)+'" aria-label="Ocultar '+esc(project.name||project.id)+'" title="Ocultar proyecto">×</button>'+projectPort+'</summary>'+projectDetail+'</details>';
   }).join(""):'<div class="pa-loading">'+emptyProjects+'</div>');
   teamsBox.querySelectorAll("[data-link-agent]").forEach(port=>{
     port.onpointerdown=paStartDrag;
@@ -852,6 +904,7 @@ function paSyncLink(group,key,state,curve,color){
 function paDrawLinks(){
   const map=pa("projectAgentMap"),svg=pa("projectAgentSvg"),group=pa("projectAgentLinks"),temp=pa("projectAgentTemp"); if(!map||!svg||!group)return;
   const rect=map.getBoundingClientRect();svg.setAttribute("viewBox","0 0 "+Math.max(1,rect.width)+" "+Math.max(1,rect.height));
+  if(PA_ROSTER_VIEW!=="silicon"){group.innerHTML="";temp.setAttribute('d','');return;}
   if(!(pa("projectAgentProjectsPane").open&&pa("projectAgentTeamsPane").open)){group.innerHTML="";temp.setAttribute('d','');return;}
   const colors=paConnectionColors();
   const live=new Set(PROJECT_ROWS.flatMap(project=>paProjectFamilyRefs(project).flatMap(agent=>{
@@ -1038,6 +1091,10 @@ pa("projectAgentProjectsAll").onclick=event=>{event.preventDefault();event.stopP
 pa("projectAgentProjectsUnassigned").onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_FILTER="unassigned";paRender();paMessage("Proyectos sin equipo asociado");};
 pa("projectAgentTeamsAll").onclick=event=>{event.preventDefault();event.stopPropagation();TEAM_FILTER="all";TEAM_SCOPE=null;paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);paRender();paMessage("✓ todos los equipos visibles","ok");};
 pa("projectAgentTeamsUnassigned").onclick=event=>{event.preventDefault();event.stopPropagation();TEAM_FILTER="unassigned";paRender();paMessage("Equipos sin proyecto asociado");};
+document.querySelectorAll("[data-pa-roster-tab]").forEach(tab=>{
+  tab.onclick=()=>paSetRosterView(tab.dataset.paRosterTab,true);
+  tab.onkeydown=event=>{const next=paNextRosterView(tab.dataset.paRosterTab,event.key);if(!next)return;event.preventDefault();paSetRosterView(next,true);};
+});
 document.querySelectorAll("[data-pa-move]").forEach(handle=>{handle.onpointerdown=paStartColumnMove;handle.onclick=event=>{event.preventDefault();event.stopPropagation();};handle.ondblclick=paResetColumn;});
 pa("projectAgentSection").addEventListener("toggle",event=>{if(event.currentTarget.open)requestAnimationFrame(paDrawLinks);});
 ["projectAgentProjectsPane","projectAgentTeamsPane"].forEach(id=>pa(id).addEventListener("toggle",()=>{paDrawLinks();requestAnimationFrame(paDrawLinks);}));
