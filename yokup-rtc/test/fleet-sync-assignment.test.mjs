@@ -64,7 +64,10 @@ test("mapping sin procedencia se reasigna y deja ambos tickets ajenos intactos",
 
 test("fleetSync usa feed público y fallback censado, nunca el privado 401",()=>{
   const start=source.indexOf("async function fleetSync(env)"),block=source.slice(start,source.indexOf("__name(fleetSync",start));
-  assert.match(source,/FLEET_INBOX = "https:\/\/admira-telegram[^\"]+\/api\/public\/inbox\?limit=200"/);
+  // Contrato cambiado el 1-sep-2026: se pide por el HOSTNAME INTERNO (`telegram`) y
+  // con full=1. Por la URL publica el worker no reconoce al llamante y sirve el
+  // resumen de 140 caracteres, con el que el planificador nunca ve un encargo entero.
+  assert.match(source,/FLEET_INBOX = "https:\/\/telegram\/api\/public\/inbox\?limit=200&full=1"/);
   assert.doesNotMatch(source,/FLEET_INBOX = [^\n]+\/api\/bot-inbox/);
   assert.match(block,/const assignment = await resolveFleetAssignment\(env, it\)/);
   const helper=source.slice(source.indexOf("async function reconcileFleetTicket"),source.indexOf("__name(reconcileFleetTicket"));assert.match(helper,/assignment\.complete/);

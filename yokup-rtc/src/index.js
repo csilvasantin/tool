@@ -5378,7 +5378,13 @@ var FLEET_API = "https://admira-fleet.csilvasantin.workers.dev";
 // gradual puede omitir target_machine (caso real #1112); resolveFleetAssignment
 // lo reconstruye sólo si el censo proyecto+agente+máquina da una pareja única.
 // El endpoint privado exige Authorization y no se usa desde este binding.
-var FLEET_INBOX = "https://admira-telegram.csilvasantin.workers.dev/api/public/inbox?limit=200";
+// POR EL HOSTNAME INTERNO Y CON full=1 (2026-09-01). Iba por la URL pública, y la
+// vista pública recorta el texto a 140 caracteres: el planificador NUNCA ha visto un
+// encargo entero y lo que faltaba se lo inventaba. Medido: encargo de 247 caracteres
+// que llegaba a la misión con 140. Por el service binding, el worker de telegram
+// reconoce al llamante interno (hostname `telegram`) y sirve el texto íntegro; el
+// saneado de secretos, comandos e IPs se le sigue aplicando igual.
+var FLEET_INBOX = "https://telegram/api/public/inbox?limit=200&full=1";
 // Estado del encargo → estado de la misión. 'ack' es acuse de recibo, no avance.
 var FLEET_ST = { pending: "open", ack: "open", in_progress: "in_progress", done: "resolved", cancelled: "cancelled" };
 // La captura pasa a ser contrato de cierre desde este despliegue. Las misiones
