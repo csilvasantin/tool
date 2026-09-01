@@ -82,10 +82,11 @@ test('/fleet/missions conserva fuentes canónicas, árbol público, orden y lím
   assert.equal(byId.has('FIELD-LIVE'), false, 'un ticket de campo no entra en el universo de misión');
 
   for (const row of rows) {
-    for (const forbidden of ['screen','note','agent_runtime','agent_host','ai_triage','report','image','proof_image',
+    for (const forbidden of ['screen','note','agent_runtime','agent_host','ai_triage','report','image',
       'live_shot','live_context','live_kind','live_surface','points_start','points_end']) {
       assert.equal(Object.hasOwn(row, forbidden), false, `el feed público no expone ${forbidden}`);
     }
+    assert.equal(Object.hasOwn(row, 'proof_image'), true, 'el feed público expone la prueba canónica');
   }
   assert.deepEqual(Object.keys(byId.get('DCL-LIVE').tasks[0]).sort(),
     ['code','created_at','has_report','mission_id','owner','status','title','updated_at'].sort());

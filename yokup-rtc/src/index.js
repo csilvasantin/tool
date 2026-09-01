@@ -6039,9 +6039,11 @@ function tercios(tasks, standalone) {
 __name(tercios, "tercios");
 
 // Lectura PÚBLICA para admira.live/status. Su SELECT es una allowlist mínima:
-// nunca serializa notas, informes, imágenes, contexto live, runtime/host, triage
-// ni eventos aunque esos campos se añadan a tickets. El árbol embebido conserva
-// sólo metadatos de planificación y el booleano has_report.
+// nunca serializa notas, el texto de los informes, capturas live, runtime/host,
+// triage ni eventos. La excepción deliberada es `proof_image`: es la prueba
+// canónica de un cierre y el tablero tiene que poder enseñarla sin cruzar
+// el perímetro. El árbol embebido conserva sólo metadatos de planificación y
+// el booleano has_report.
 async function fleetMissions(env) {
   const { results } = await env.DB.prepare(FLEET_MISSIONS_SQL).all();
   const rows = results || [];

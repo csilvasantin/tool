@@ -20,6 +20,6 @@ export const FIELD_MISSION_SCOPE_SQL_T = `(COALESCE(t.role,'')!='mission' AND (t
 export const FLEET_MISSIONS_LIMIT = 120;
 export const FLEET_MISSIONS_SQL =
   "SELECT id,subject,loc,project,project_id,role,source,status,assignee,created_at,updated_at,parent_id," +
-  "project_inherited,project_inherited_from FROM tickets WHERE " + AGENT_SOURCE_SQL +
+  "project_inherited,project_inherited_from,proof_image FROM tickets WHERE " + AGENT_SOURCE_SQL +
   " ORDER BY (status IN ('open','in_progress','unconcluded')) DESC,(status='open') DESC," +
   "(status='in_progress') DESC,created_at DESC,id ASC LIMIT " + FLEET_MISSIONS_LIMIT;
