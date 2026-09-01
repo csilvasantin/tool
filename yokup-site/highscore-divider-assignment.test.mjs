@@ -28,7 +28,7 @@ test("la banda HIGHSCORE+RANKING encabeza la página, por encima de la carrera",
 
 test("la primera columna conserva nombre y hora factual inmediata sin sacrificar la hora",()=>{
   assert.match(html,/class="refresh-agent-meta"><time class="refresh-assignment"[\s\S]*<span class="refresh-agent"/);
-  assert.match(html,/aria-label="Asignado ' \+ esc\(resumen\.assignmentClock\) \+ '\. Carril de la familia ' \+ esc\(agente\)[\s\S]*Responsable ' \+ esc\(responsable\)/);
+  assert.match(html,/aria-label="Asignado ' \+ esc\(resumen\.assignmentClock\) \+ '\. Carril de la familia ' \+ esc\(identidadVisible\.nombre\)[\s\S]*Responsable ' \+ esc\(identidadVisible\.nombre\)/);
   assert.doesNotMatch(html,/aria-label="Carril de la familia '[\s\S]*\. Asignado ' \+ esc\(resumen\.assignmentClock\)/);
   assert.match(html,/assignmentAt:Number\(item\.assignment_at\) \|\| 0/);
   assert.match(html,/assignmentClock:horaMadrid\(trabajo\.assignmentAt\)/);
@@ -36,12 +36,12 @@ test("la primera columna conserva nombre y hora factual inmediata sin sacrificar
   assert.match(html,/\.refresh-agent-meta\{[^}]*display:inline-flex[^}]*min-width:0/);
   assert.match(html,/\.refresh-agent\{[^}]*min-width:0[^}]*text-overflow:ellipsis/);
   assert.match(html,/\.refresh-assignment\{[^}]*flex:0 0 auto[^}]*white-space:nowrap/);
-  assert.match(html,/class="refresh-time" title="Estado y tiempos factuales"/);
+  assert.match(html,/class="refresh-time" title="Estado, duraciones y hora de finalización factuales"/);
 });
 
 test("desktop y móvil reservan ancho al nombre+hora manteniendo pista y elapsed",()=>{
-  assert.match(html,/grid-template-columns:minmax\(150px,210px\) minmax\(0,1fr\) minmax\(174px,208px\)/);
-  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(82px,112px\) minmax\(0,1fr\) minmax\(132px,146px\)/);
+  assert.match(html,/grid-template-columns:minmax\(106px,158px\) minmax\(0,1fr\) minmax\(218px,260px\)/);
+  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(70px,96px\) minmax\(0,1fr\) minmax\(126px,142px\)/);
   assert.match(html,/\.refresh-lane-last/);
   assert.match(html,/\.refresh-elapsed/);
 });

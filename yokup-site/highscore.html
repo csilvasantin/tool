@@ -422,11 +422,13 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
    trabajos a la vez y confundía la animación con la identidad del responsable. */
 .refresh-race{overflow:visible}
 .refresh-lanes{gap:2px}
-.refresh-lane{display:grid;grid-template-columns:minmax(150px,210px) minmax(0,1fr) minmax(174px,208px);
-  align-items:center;column-gap:6px;min-height:38px}
-.refresh-agent-meta{display:inline-flex;align-items:baseline;justify-content:flex-start;gap:5px;width:100%;min-width:0;color:var(--accent)}
+.refresh-lane{display:grid;grid-template-columns:minmax(106px,158px) minmax(0,1fr) minmax(218px,260px);
+  align-items:center;column-gap:4px;min-height:38px}
+.refresh-agent-meta{display:inline-flex;align-items:baseline;justify-content:flex-start;gap:3px;width:100%;min-width:0;color:var(--accent)}
 .refresh-agent{position:static;display:block;flex:0 1 auto;min-width:0;max-width:none;overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap;text-align:left;color:var(--accent);font-size:11px;font-weight:900;line-height:14px}
+  white-space:nowrap;text-align:left;color:var(--accent);font-size:11px;font-weight:900;line-height:14px;
+  border-radius:2px;cursor:help;pointer-events:auto}
+.refresh-agent:focus-visible{outline:1px solid var(--brand);outline-offset:2px}
 .refresh-assignment{flex:0 0 auto;min-width:5ch;color:var(--ink);font-size:9px;font-weight:800;
   font-variant-numeric:tabular-nums;text-align:left;white-space:nowrap}
 .refresh-lane-center{min-width:0}
@@ -441,12 +443,14 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-race.phase-go .refresh-lane:not(.refresh-lane-idle):not(.refresh-lane-last) .refresh-mission{opacity:0;visibility:hidden}
 .refresh-mission-detail{display:block}.refresh-mission-title{overflow:hidden;text-overflow:ellipsis;text-align:right}
 .refresh-mission-duration,.refresh-mission-idle{display:none!important}
-.refresh-time{display:flex;align-items:baseline;justify-content:flex-end;gap:5px;min-width:0;color:var(--accent);
-  font-size:10px;font-variant-numeric:tabular-nums;font-weight:900;text-align:right;white-space:nowrap}
+.refresh-time{display:flex;align-items:baseline;justify-content:flex-end;gap:3px;min-width:0;color:var(--accent);
+  font-size:9px;font-variant-numeric:tabular-nums;font-weight:900;text-align:right;white-space:nowrap}
 .refresh-work-state{overflow:hidden;color:var(--ink);font-size:8px;letter-spacing:.04em;text-overflow:ellipsis;white-space:nowrap}
 .refresh-time-sep{color:var(--dim)}
 .refresh-elapsed,.refresh-session-elapsed{overflow:hidden;color:var(--accent);text-overflow:ellipsis;white-space:nowrap}
 .refresh-session-elapsed[data-session-state="unknown"]{color:var(--dim)}
+.refresh-ended-group{display:inline-flex;align-items:baseline;gap:3px;min-width:0}
+.refresh-ended{overflow:hidden;color:var(--ink);text-overflow:ellipsis;white-space:nowrap}
 .refresh-lane-idle{--lane:var(--brand)}
 .refresh-lane-idle .refresh-lane-center{opacity:.82}
 .refresh-lane[data-work-state]:not([data-work-state="running"]) .refresh-runner{
@@ -812,8 +816,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .nom{font-size:7px}.pts{font-size:10px}
   .wrap{padding-top:46px}h1{font-size:17px}
   .refresh-race{padding:0 3px}
-  .refresh-lane{grid-template-columns:minmax(82px,112px) minmax(0,1fr) minmax(132px,146px);column-gap:3px;min-height:38px}
-  .refresh-agent{font-size:8px;line-height:10px}.refresh-assignment{font-size:8px}.refresh-time{gap:2px;font-size:7.5px}.refresh-work-state{font-size:6.5px}
+  .refresh-lane{grid-template-columns:minmax(70px,96px) minmax(0,1fr) minmax(126px,142px);column-gap:2px;min-height:38px}
+  .refresh-agent{font-size:8px;line-height:10px}.refresh-assignment{font-size:7px}.refresh-time{flex-wrap:wrap;gap:1px 2px;font-size:7px;line-height:9px}.refresh-work-state{font-size:6px}
+  .refresh-ended-group{flex-basis:100%;justify-content:flex-end;gap:2px}
   .refresh-track{padding-left:var(--track-start);padding-right:var(--finish-width)}
   .refresh-mission{font-size:8px;line-height:12px}.refresh-mission-title{font-size:8px}
   .race-call{min-width:min(96px,calc(100% - var(--track-start) - var(--finish-width) - 8px));
@@ -823,9 +828,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .agent-scope-children{padding-left:8px}.agent-scope-row.agent{grid-template-columns:minmax(0,1fr) auto}
   .agent-scope-primary{grid-template-columns:minmax(0,1fr) auto 28px;gap:5px}.agent-scope-switch-state{font-size:7px}
   .agent-scope-app-feedback{font-size:7.5px;text-align:left}}
-@media (min-width:621px) and (max-width:1100px){.refresh-lane{grid-template-columns:minmax(132px,180px) minmax(0,1fr) minmax(164px,190px)}}
-@media (min-width:621px) and (max-width:800px){.refresh-lane{grid-template-columns:minmax(112px,152px) minmax(0,1fr) minmax(150px,172px)}}
-@media (max-width:340px){.refresh-lane{grid-template-columns:minmax(72px,96px) minmax(58px,1fr) minmax(126px,138px);column-gap:2px}}
+@media (min-width:621px) and (max-width:1100px){.refresh-lane{grid-template-columns:minmax(96px,138px) minmax(0,1fr) minmax(206px,238px)}}
+@media (min-width:621px) and (max-width:800px){.refresh-lane{grid-template-columns:minmax(88px,122px) minmax(0,1fr) minmax(198px,224px)}}
+@media (max-width:340px){.refresh-lane{grid-template-columns:minmax(66px,88px) minmax(54px,1fr) minmax(122px,136px);column-gap:2px}}
 @media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.rank-filter[aria-pressed="true"],.activity-now,.activity-now::after,.plaza.podium-live::after,.refresh-runner svg,.runner-run-a,.runner-run-b,.runner-run-c,.progression-step.new .progression-dot,.race-call,.race-call::before,.race-call::after{animation:none!important;transition:none!important}.refresh-runner .runner-run-b,.refresh-runner .runner-run-c{display:none}.runner-finish-win .gesto-a,.runner-finish-lose .gesto-a{animation:none;opacity:1}.runner-finish-win .gesto-b,.runner-finish-lose .gesto-b{display:none}}
 </style>
 </head>
@@ -3884,6 +3889,21 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     } catch (_) { return "—"; }
   }
 
+  function identidadVisualCorredor(nombre, fila) {
+    var raw = normaliza(nombre), id = window.ykAgentIdentity;
+    var parsed = id && id.parse ? id.parse(raw) : null;
+    var visible = parsed && parsed.persona ? parsed.persona : raw;
+    var candidatos = [parsed && parsed.suffix, fila && fila.suffix].concat(
+      (fila && fila.maquinasVivas) || [], (fila && fila.maquinas) || []
+    );
+    var machine = "";
+    for (var i = 0; i < candidatos.length && !machine; i++) {
+      var candidato = normaliza(candidatos[i]);
+      machine = id && id.suffix ? id.suffix(candidato) : candidato;
+    }
+    return { nombre:visible || raw || "—", machine:machine || "—" };
+  }
+
   function resumenTrabajoActivo(trabajo) {
     var parado = trabajo.state !== "running";
     var reloj = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.workClock
@@ -3903,6 +3923,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       executor:trabajo.executor, responsible:trabajo.agente, kind:trabajo.kind, reachable:trabajo.reachable,
       presenceAt:trabajo.presenceAt, at:Number(trabajo.at) || 0, idle:parado,
       assignmentClock:horaMadrid(trabajo.assignmentAt), assignmentBasis:trabajo.assignmentBasis,
+      finishedAt:trabajo.state === "last_work" ? Number(trabajo.endedAt) || 0 : 0,
+      finishedClock:trabajo.state === "last_work" ? horaMadrid(trabajo.endedAt) : "—",
       duration:duracion, sessionDuration:sesion, sessionState:reloj.sessionState,
       sessionBasis:trabajo.sessionBasis, sessionLabel:sessionLabel,
       sessionSurface:trabajo.sessionSurface, timingBasis:trabajo.timingBasis };
@@ -3922,6 +3944,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         ? YkHighscoreRace.workClock(work, datos.trabajosGeneratedAt, elapsed) : { at:0, durationMs:null };
       var duracion = bloque.querySelector(".refresh-elapsed");
       var sesion = bloque.querySelector(".refresh-session-elapsed");
+      var fin = bloque.querySelector(".refresh-ended");
       var durationLabel = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.clockDurationLabel
         ? YkHighscoreRace.clockDurationLabel(reloj.missionDurationMs) : "—";
       var sessionLabel = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.clockDurationLabel
@@ -3931,7 +3954,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (sesion) sesion.setAttribute("title", sessionDescription);
       var estado = bloque.querySelector(".refresh-work-state");
       bloque.setAttribute("aria-label", (estado ? estado.textContent : "Estado no disponible") +
-        ". Tiempo de misión " + durationLabel + ". " + sessionDescription + " " + sessionLabel);
+        ". Tiempo de misión " + durationLabel + ". " + sessionDescription + " " + sessionLabel +
+        ". Hora de finalización " + (fin ? fin.textContent : "—"));
     });
   }
 
@@ -3958,6 +3982,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     }).filter(Boolean).map(function (enlace, indice) {
       var fila = enlace.fila, clave = enlace.clave, resumen = enlace.resumen;
       var puesto = indice + 1, agente = normaliza(fila.agente), responsable = normaliza(resumen.responsible || agente);
+      var identidadVisible = identidadVisualCorredor(responsable, fila);
       var executor = normaliza(resumen.executor || responsable);
       var variant = typeof YkHighscoreRace !== "undefined" ? YkHighscoreRace.runnerVariant(fila)
         : (clave.split("").reduce(function (n, c) { return n + c.charCodeAt(0); }, 0) % 2 ? "dark" : "light");
@@ -3981,14 +4006,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         (staleState && enlace.trabajo.raceRevision ? 'data-race-revision="' + esc(enlace.trabajo.raceRevision) + '" data-stale-anchor="' +
           Number(staleState.record.server_started_at) + '" data-stale-cycles="' + Number(staleState.record.cycles) + '" ' : '') +
         (resumen.idle ? 'data-race-idle="true" ' : '') +
-        'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Asignado ' + esc(resumen.assignmentClock) + '. Carril de la familia ' + esc(agente) +
-        '. Responsable ' + esc(responsable) + (executor !== responsable ? ', ejecuta ' + esc(executor) : '') + ', ' + heartbeat + '. ' +
+        'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Asignado ' + esc(resumen.assignmentClock) + '. Carril de la familia ' + esc(identidadVisible.nombre) +
+        '. Responsable ' + esc(identidadVisible.nombre) + ' en ' + esc(identidadVisible.machine) + (executor !== responsable ? ', ejecuta ' + esc(executor) : '') + ', ' + heartbeat + '. ' +
         esc(resumen.title) + '. Tiempo de misión ' + esc(resumen.duration) +
-        '. Tiempo de sesión ' + esc(resumen.sessionDuration) + '">' +
+        '. Tiempo de sesión ' + esc(resumen.sessionDuration) + '. Hora de finalización ' + esc(resumen.finishedClock) + '">' +
         '<span class="refresh-agent-meta"><time class="refresh-assignment"' + (enlace.trabajo.assignmentAt
           ? ' datetime="' + new Date(enlace.trabajo.assignmentAt).toISOString() + '" title="Hora factual de asignación" aria-label="Asignado a las ' + esc(resumen.assignmentClock) + '"'
           : ' title="Hora de asignación no disponible" aria-label="Hora de asignación no disponible"') + '>' + esc(resumen.assignmentClock) + '</time>' +
-        '<span class="refresh-agent" data-race-role="agent" title="Responsable ' + esc(responsable) + '">' + esc(responsable) + '</span></span>' +
+        '<span class="refresh-agent" data-race-role="agent" tabindex="0" title="' + esc(identidadVisible.machine) +
+          '" aria-label="' + esc(identidadVisible.nombre) + ' · máquina ' + esc(identidadVisible.machine) + '">' +
+          esc(identidadVisible.nombre) + '</span></span>' +
         '<div class="refresh-lane-center"><div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
         // EL ID INTERNO NO SE LEE (Carlos, 15-ago-2026). La calle abría con
@@ -4005,16 +4032,20 @@ body.resizing-columns{cursor:col-resize;user-select:none}
           '<span class="refresh-mission" data-race-role="mission" title="' + esc(resumen.title) +
           '"><span class="refresh-mission-title">' + esc(resumen.title) + '</span></span>') +
         runner + '<span class="refresh-finish" aria-hidden="true"></span></div></div>' +
-        '<div class="refresh-time" title="Estado y tiempos factuales" data-work-state="' + esc(isLast ? "last_work" : resumen.idle ? "assigned_stale" : "running") + '"' +
+        '<div class="refresh-time" title="Estado, duraciones y hora de finalización factuales" data-work-state="' + esc(isLast ? "last_work" : resumen.idle ? "assigned_stale" : "running") + '"' +
           ' data-work-start="' + (Number(enlace.trabajo.startedAt) || 0) + '" data-work-end="' + (Number(enlace.trabajo.endedAt) || 0) + '"' +
           ' data-session-duration="' + (enlace.trabajo.sessionDedicatedMs === null ? '' : Math.max(0, Number(enlace.trabajo.sessionDedicatedMs) || 0)) + '"' +
           ' data-session-state="' + esc(enlace.trabajo.sessionState || "unknown") + '"' +
           ' data-dedicated-basis="' + esc(enlace.trabajo.sessionBasis || "") + '"' +
-          ' aria-label="' + esc(resumen.state) + '. Tiempo de misión ' + esc(resumen.duration) + '. ' + esc(resumen.sessionLabel) + ' ' + esc(resumen.sessionDuration) + '">' +
+          ' aria-label="' + esc(resumen.state) + '. Tiempo de misión ' + esc(resumen.duration) + '. ' + esc(resumen.sessionLabel) + ' ' + esc(resumen.sessionDuration) + '. Hora de finalización ' + esc(resumen.finishedClock) + '">' +
           '<strong class="refresh-work-state">' + esc(resumen.state) + '</strong><span class="refresh-time-sep" aria-hidden="true">//</span>' +
           '<strong class="refresh-elapsed">' + esc(resumen.duration) + '</strong>' +
           '<span class="refresh-time-sep" aria-hidden="true">//</span><strong class="refresh-session-elapsed" data-session-state="' +
-          esc(enlace.trabajo.sessionState || "unknown") + '" title="' + esc(resumen.sessionLabel) + '">' + esc(resumen.sessionDuration) + '</strong></div></div>';
+          esc(enlace.trabajo.sessionState || "unknown") + '" title="' + esc(resumen.sessionLabel) + '">' + esc(resumen.sessionDuration) + '</strong>' +
+          '<span class="refresh-ended-group"><span class="refresh-time-sep" aria-hidden="true">//</span>' +
+          (resumen.finishedAt ? '<time class="refresh-ended" datetime="' + new Date(resumen.finishedAt).toISOString() +
+            '" title="Finalizó a las ' + esc(resumen.finishedClock) + '">' + esc(resumen.finishedClock) + '</time>' :
+            '<span class="refresh-ended" title="Hora de finalización no disponible">—</span>') + '</span></div></div>';
     }).filter(Boolean);
     var trabajoNoDisponible = !datos.trabajosAvailable && !trabajos.length;
     var etiquetaVacia = trabajoNoDisponible ? "TRABAJO NO DISPONIBLE" : "SIN TRABAJO ASIGNADO";

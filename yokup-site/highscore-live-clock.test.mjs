@@ -65,10 +65,10 @@ test("el tick sólo actualiza duraciones y aria; nunca reloj, progreso ni estado
 });
 
 test("la derecha muestra estado // misión // sesión y reserva ancho responsive", () => {
-  assert.match(html, /class="refresh-time"[\s\S]*class="refresh-work-state"[\s\S]*class="refresh-elapsed"[\s\S]*class="refresh-session-elapsed"/);
+  assert.match(html, /class="refresh-time"[\s\S]*class="refresh-work-state"[\s\S]*class="refresh-elapsed"[\s\S]*class="refresh-session-elapsed"[\s\S]*class="refresh-ended"/);
   assert.doesNotMatch(html, /class="refresh-now"/);
-  assert.match(html, /grid-template-columns:minmax\(150px,210px\) minmax\(0,1fr\) minmax\(174px,208px\)/);
-  assert.match(html, /@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(82px,112px\) minmax\(0,1fr\) minmax\(132px,146px\)/);
+  assert.match(html, /grid-template-columns:minmax\(106px,158px\) minmax\(0,1fr\) minmax\(218px,260px\)/);
+  assert.match(html, /@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(70px,96px\) minmax\(0,1fr\) minmax\(126px,142px\)/);
 });
 
 test("dorsal y toda su mecánica desaparecen de CSS DOM y JS", () => {

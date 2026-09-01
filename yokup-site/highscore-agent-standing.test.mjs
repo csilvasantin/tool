@@ -5,7 +5,7 @@ import fs from "node:fs";
 const html=fs.readFileSync(new URL("./highscore.html",import.meta.url),"utf8");
 
 test("nombre y hora nacen en una columna izquierda estable y legible",()=>{
-  assert.match(html,/\.refresh-agent-meta\{[^}]*justify-content:flex-start[^}]*gap:5px[^}]*width:100%/);
+  assert.match(html,/\.refresh-agent-meta\{[^}]*justify-content:flex-start[^}]*gap:3px[^}]*width:100%/);
   assert.match(html,/\.refresh-agent\{[^}]*flex:0 1 auto[^}]*text-overflow:ellipsis[^}]*text-align:left[^}]*color:var\(--accent\)/);
   assert.match(html,/\.refresh-assignment\{[^}]*flex:0 0 auto[^}]*min-width:5ch[^}]*color:var\(--ink\)[^}]*font-weight:800[^}]*tabular-nums/);
   assert.doesNotMatch(html,/refresh-lane-idle\{[^}]*opacity|refresh-lane-last\{[^}]*(?:opacity|filter)/);
@@ -51,16 +51,16 @@ test("running compite; stale cruza B\/N sin ganar y last queda quieto en meta",(
 });
 
 test("responsive conserva estado y tiempos fijos con nombre truncable en cinco anchos y zoom 200%",()=>{
-  assert.match(html,/grid-template-columns:minmax\(150px,210px\) minmax\(0,1fr\) minmax\(174px,208px\)/);
-  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(82px,112px\) minmax\(0,1fr\) minmax\(132px,146px\)/);
-  assert.match(html,/@media \(max-width:340px\)\{\.refresh-lane\{grid-template-columns:minmax\(72px,96px\) minmax\(58px,1fr\) minmax\(126px,138px\)/);
+  assert.match(html,/grid-template-columns:minmax\(106px,158px\) minmax\(0,1fr\) minmax\(218px,260px\)/);
+  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(70px,96px\) minmax\(0,1fr\) minmax\(126px,142px\)/);
+  assert.match(html,/@media \(max-width:340px\)\{\.refresh-lane\{grid-template-columns:minmax\(66px,88px\) minmax\(54px,1fr\) minmax\(122px,136px\)/);
   for(const width of [1265,1024,760,390,320]){
     const content=Math.min(1080,width-36), mobile=width<=620;
-    const agentMin=width<=340?72:mobile?82:width<=800?112:width<=1100?132:150;
-    const elapsedMin=width<=340?126:mobile?132:width<=800?150:width<=1100?164:174, gaps=mobile?6:12;
+    const agentMin=width<=340?66:mobile?70:width<=800?88:width<=1100?96:106;
+    const elapsedMin=width<=340?122:mobile?126:width<=800?198:width<=1100?206:218, gaps=mobile?4:8;
     assert.ok(content-agentMin-elapsedMin-gaps>=0,`${width}px conserva pista sin overflow`);
   }
-  assert.ok(1265/2-36-82-132-6>=0,"zoom 200% del escritorio conserva las tres columnas");
+  assert.ok(1265/2-36-70-126-4>=0,"zoom 200% del escritorio conserva las tres columnas");
   assert.match(html,/\.refresh-assignment\{[^}]*white-space:nowrap/);
   assert.match(html,/\.refresh-agent\{[^}]*min-width:0[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
 });
