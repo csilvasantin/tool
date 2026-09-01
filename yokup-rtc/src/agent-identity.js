@@ -48,6 +48,26 @@ const LEGACY_SUFFIXES = new Map([
   ["air16", "MBA16"], ["plata16", "MBA16"],
 ]);
 
+// El Mac Mini se ha escrito de dos formas: `Mini`, que fue la operativa hasta el
+// 3-ago-2026, y `MacMini`. La normativa 02 zanjó cuál vale el 4-ago con estas
+// palabras: «el apellido no se abrevia; el del Mac Mini es MacMini, así que Neo
+// en el Mac Mini es NeoMacMini, no NeoMini». Las dos se LEEN —hay meses de
+// misiones, ventanas e informes firmados con `Mini`— pero solo una se ESCRIBE.
+// Sin esto, el mismo agente sale partido en dos filas del Highscore.
+export function canonicalMachineSuffix(suffix) {
+  return suffix === "Mini" ? "MacMini" : suffix;
+}
+
+// Identidad canónica para AGRUPAR: misma persona, misma capa y misma máquina =
+// misma fila, se escriba el apellido como se escriba. La capa NO se funde:
+// subMorfeo e infraMorfeo son agentes distintos de Morfeo y puntúan aparte.
+export function groupingIdentityKey(agent, machine = "") {
+  const parsed = parseAgentIdentity(agent);
+  const suffix = canonicalMachineSuffix(parsed.suffix || machineSuffix(machine) || "");
+  const persona = identityKey(parsed.persona) || identityKey(agent);
+  return `${parsed.role}|${persona}|${identityKey(suffix)}`;
+}
+
 export function identityKey(value) {
   return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .toLowerCase().replace(/[^a-z0-9]+/g, "");

@@ -1,5 +1,6 @@
 import {
   baseAgentIdentity,
+  canonicalMachineSuffix,
   identityKey as agentIdentityKey,
   machineIdentityKey,
   machineIdentitySqlKey,
@@ -49,12 +50,15 @@ export function memberRefMatches(kind, ref, requested) {
   return identityKey(ref, kind) === identityKey(requested, kind);
 }
 
-// `MacMini` fue la forma física/histórica; la identidad operativa vigente se
-// escribe como `Mini`. Sólo son equivalentes para esa máquina: MBP/MBA conservan
-// sus sufijos exactos y siguen fallando cerrado ante cualquier contradicción.
-function canonicalDecisionSuffix(suffix) {
-  return suffix === "MacMini" ? "Mini" : suffix;
-}
+// Las dos formas del Mac Mini son equivalentes al COMPARAR, y la que se escribe
+// es `MacMini` (normativa 02). Hasta el 1-sep-2026 esto convergía al revés, a
+// `Mini`, mientras declarePrincipalProject escribía `MacMini`: dos rutas del
+// mismo worker canonizando en sentidos opuestos, y de ahí que un agente saliera
+// dos veces en el Highscore. LinkMacMini lo enseñó el día que nació — 40 puntos
+// en una fila por su misión y 8 en otra por su ventana.
+// MBP/MBA conservan sus sufijos exactos y siguen fallando cerrado ante
+// cualquier contradicción.
+const canonicalDecisionSuffix = canonicalMachineSuffix;
 
 // Toda decisión nueva se persiste con la identidad derivada de su equipo. Los
 // aliases planos históricos se canonizan; un apellido físico contradictorio
@@ -70,11 +74,11 @@ export function resolveDecisionIdentity(agentValue, machineValue) {
   if (parsed.suffix && canonicalDecisionSuffix(parsed.suffix) !== expectedSuffix) {
     return invalid(`agent ${rawAgent} contradice machine ${machine}`);
   }
-  // scopedAgentIdentity deriva MacMini de la máquina cuando recibe la persona
-  // plana. Para nuevas escrituras del Mini se le pasa el sufijo canónico de
-  // forma explícita; así también un alias histórico OraculoMacMini se lee pero
-  // converge a OraculoMini y nunca vuelve a persistirse.
-  const canonicalPersona = physicalSuffix === "MacMini" ? parsed.persona + "Mini" : parsed.persona;
+  // El apellido se impone SIEMPRE de forma explícita, no se deja derivar: si la
+  // entrada ya trae uno —`MorfeoMini`, un alias histórico—, scopedAgentIdentity
+  // lo reutilizaría tal cual y volvería a persistir la forma retirada. Así un
+  // MorfeoMini se lee y converge a MorfeoMacMini sin escribirse nunca más.
+  const canonicalPersona = parsed.persona + expectedSuffix;
   return {
     ok: true,
     agent: scopedAgentIdentity(canonicalPersona, machine, parsed.role),

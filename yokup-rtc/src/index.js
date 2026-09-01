@@ -1,7 +1,7 @@
 import puppeteer from "@cloudflare/puppeteer";
 import { handleAuthRequest, sessionTokenFromRequest, withCredentialCors } from "./auth-flow.js";
 import { machineRefKey, machineRefSqlKey, memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
-import { agentFamilyKey, agentFamilySqlKey, baseAgentIdentity, identityKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
+import { agentFamilyKey, agentFamilySqlKey, baseAgentIdentity, canonicalMachineSuffix, groupingIdentityKey, identityKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 import { buildReportsPageFilter, encodeReportsCursor, parseReportsPageOptions } from "./reports-pagination.js";
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
 import { AgentStopError, dispatchAgentStart, dispatchAgentStop, normalizeAgentStartTarget, normalizeAgentStopTarget, readAgentControlResult } from "./fleet-agent-stop.js";
@@ -7492,6 +7492,16 @@ function cliMisionTexto(raw) {
 }
 __name(cliMisionTexto, "cliMisionTexto");
 
+// Nombre vigente de una fila del marcador. Si no se reconoce la persona se
+// devuelve lo que llegó: un agente sin censo debe seguir viéndose, no borrarse.
+function canonicalHighscoreAgent(agent, machine) {
+  const parsed = parseAgentIdentity(agent);
+  const suffix = canonicalMachineSuffix(parsed.suffix || machineSuffix(machine) || "");
+  if (!suffix || parsed.legacy && !parsed.suffix) return String(agent || "").trim();
+  return scopedAgentIdentity(parsed.persona + suffix, machine, parsed.role);
+}
+__name(canonicalHighscoreAgent, "canonicalHighscoreAgent");
+
 async function highscoreDaily(env) {
   const ahora = Date.now(), inicio = madridDayStart(ahora), fin = madridDayStart(inicio + 36 * 60 * 60 * 1e3);
   // La comparación del podio usa el MISMO marcador visible (objetivos +
@@ -7510,9 +7520,16 @@ async function highscoreDaily(env) {
     // censo 'MacMini'. Agrupar por el literal partia a un agente en dos filas
     // —MorfeoMacMini salio duplicado, 9 misiones en una y 2 en otra— asi que se
     // agrupa por el APELLIDO canonico, que es lo que ya sabe machineSuffix.
-    const k = a.toLowerCase() + "|" + (machineSuffix(m) || m).toLowerCase();
+    // Y el AGENTE llegaba escrito de dos formas por la misma razón: la ruta de
+    // decisiones persistía `MorfeoMini` y la de misiones `MorfeoMacMini`. La
+    // máquina ya se agrupaba por apellido canónico, pero el agente se agrupaba
+    // por el literal, así que la mitad del arreglo no servía de nada: Morfeo
+    // salía con 528 puntos en una fila y 120 en otra. Se agrupa por identidad
+    // canónica —persona + capa + apellido— y se muestra la forma vigente, para
+    // que la fila no herede el nombre retirado del primer registro que llegó.
+    const k = groupingIdentityKey(a, m);
     if (!acc.has(k)) acc.set(k, {
-      agent: a, machine: m,
+      agent: canonicalHighscoreAgent(a, m), machine: m,
       objectives: 0, objective_points: 0, windows: 0, window_points: 0, missions: 0, mission_points: 0
     });
     return acc.get(k);

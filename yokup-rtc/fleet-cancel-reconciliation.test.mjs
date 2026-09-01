@@ -105,7 +105,9 @@ test('handler real cancela D1 sólo tras confirmar exactamente una fila del inbo
   assert.ok(mirrored.done_at);
   const event = local.prepare('SELECT kind,author,text FROM events WHERE ticket_id=?').get('FLT-1005');
   assert.equal(event.kind, 'log');
-  assert.equal(event.author, 'SubOraculoMini');
+  // El encargo llega firmado 'SubOraculoMini' (alias histórico) y se guarda con el
+  // apellido vigente: se lee lo viejo, se escribe lo canónico (normativa 02).
+  assert.equal(event.author, 'SubOraculoMacMini');
   assert.equal(event.text, '🗑 Eliminada: obsoleta.');
 });
 

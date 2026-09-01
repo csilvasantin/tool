@@ -149,7 +149,7 @@ test('OnIdle 1→2 abre inmediatamente tras cerrar la anterior',async()=>{
     const result=await response(env);
     assert.equal(result.status,200,JSON.stringify(result.json));
     assert.equal(result.json.ok,true);
-    assert.equal(state.decisions.at(-1).agent,'OraculoMini');
+    assert.equal(state.decisions.at(-1).agent,'OraculoMacMini');
   }
   finally {Date.now=original;}
 });

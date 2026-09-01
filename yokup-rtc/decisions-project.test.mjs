@@ -68,16 +68,16 @@ test('acepta sólo el contexto granular Generador de Presentaciones', () => {
   assert.deepEqual(resolveDecisionProject(exact, canonical), {
     ok:true, project:'Generador de Presentaciones', project_id:'generador-de-presentaciones',
     project_slug:'GENERADOR-DE-PRESENTACIONES', project_web:'www.admiranext.com',
-    agent:'OraculoMini', machine:'Mac Mini'
+    agent:'OraculoMacMini', machine:'Mac Mini'
   });
 });
 
 test('canoniza aliases planos y rechaza identidad scoped contradictoria', () => {
   assert.deepEqual(resolveDecisionIdentity('Oráculo', 'Mac Mini'), {
-    ok:true, agent:'OraculoMini', machine:'Mac Mini'
+    ok:true, agent:'OraculoMacMini', machine:'Mac Mini'
   });
   assert.deepEqual(resolveDecisionIdentity('SubOraculo', 'Mac Mini'), {
-    ok:true, agent:'SubOraculoMini', machine:'Mac Mini'
+    ok:true, agent:'SubOraculoMacMini', machine:'Mac Mini'
   });
   assert.equal(resolveDecisionIdentity('Oraculo16', 'Mac Mini').ok, false);
   assert.equal(resolveDecisionIdentity('InfraOraculoMini', 'MacBook Pro 16').ok, false);
@@ -85,16 +85,21 @@ test('canoniza aliases planos y rechaza identidad scoped contradictoria', () => 
   assert.equal(resolveDecisionIdentity('Oraculo', 'equipo-desconocido').ok, false);
 });
 
-test('GET OnIdle acepta la identidad canónica OraculoMini en el Mac Mini', () => {
+// Hasta el 1-sep-2026 esto fijaba lo contrario: que toda escritura nueva del Mac
+// Mini convergiera a `Mini`. Chocaba de frente con la normativa 02 (4-ago-2026,
+// «el apellido no se abrevia; el del Mac Mini es MacMini»), y como la ruta de
+// misiones sí escribía MacMini, el mismo agente salía en DOS filas del Highscore.
+// Se invierte la dirección: `Mini` se sigue leyendo, `MacMini` es lo que se escribe.
+test('GET OnIdle acepta la identidad canónica OraculoMacMini en el Mac Mini', () => {
   assert.match(source, /\/fleet\/onidle-state[\s\S]{0,500}resolveDecisionIdentity/);
-  assert.deepEqual(resolveDecisionIdentity('OraculoMini', 'admira-macmini'), {
-    ok:true, agent:'OraculoMini', machine:'admira-macmini'
+  assert.deepEqual(resolveDecisionIdentity('OraculoMacMini', 'admira-macmini'), {
+    ok:true, agent:'OraculoMacMini', machine:'admira-macmini'
   });
 });
 
-test('GET OnIdle lee el alias histórico y lo emite como OraculoMini', () => {
-  assert.deepEqual(resolveDecisionIdentity('OraculoMacMini', 'admira-macmini'), {
-    ok:true, agent:'OraculoMini', machine:'admira-macmini'
+test('GET OnIdle lee el alias histórico OraculoMini y lo emite como OraculoMacMini', () => {
+  assert.deepEqual(resolveDecisionIdentity('OraculoMini', 'admira-macmini'), {
+    ok:true, agent:'OraculoMacMini', machine:'admira-macmini'
   });
 });
 
