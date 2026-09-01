@@ -6621,15 +6621,36 @@ __name(highscoreTraceability, "highscoreTraceability");
 // pero conserva juntas las cinco magnitudes que el Highscore pinta hora/día.
 // Las tareas se reducen a una representante por familia A/B/C y misión: una
 // subtarea más reciente sustituye a su principal, nunca suma dos veces.
+// UN SOLO CRITERIO PARA AGRUPAR AGENTES EN EL MARCADOR (2026-09-01).
+// Había TRES sitios normalizando por su cuenta el nombre visible en crudo
+// —highscorePeriodMetrics, highscoreCurrentTotals y el mapa `old` de
+// highscoreHourlyContract— y bastaba con que uno no canonicalizara el apellido
+// para que el agente reapareciera partido: `Mini` y `MacMini` son la MISMA
+// máquina (normativa 02) y salían como dos filas repartiéndose los puntos.
+// Medido el 1-sep: MorfeoMacMini 1172 + MorfeoMini 528, con el ranking
+// ordenando por las mitades. Arreglar uno solo no servía de nada porque
+// highscoreHourlyContract UNE las claves de los tres, y la fila fantasma volvía
+// a entrar por la fuente que quedara sin arreglar.
+//
+// `agent_key` (lo que sale al front) se sigue derivando del NOMBRE VISIBLE: no
+// se toca el contrato de fuera, sólo la clave interna con la que se agrupa.
+function highscoreVisibleKey(agent) {
+  return String(agent || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+__name(highscoreVisibleKey, "highscoreVisibleKey");
+function highscoreGroupKey(agent, machine) {
+  return groupingIdentityKey(agent, machine) || highscoreVisibleKey(agent);
+}
+__name(highscoreGroupKey, "highscoreGroupKey");
+
 async function highscorePeriodMetrics(env, inicio, fin) {
   const totals = new Map();
-  const keyOf = (agent) => String(agent || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .toLowerCase().replace(/[^a-z0-9]+/g, "");
   const rowFor = (agent, machine) => {
     const visible = reportAgentIdentity(agent, machine) || String(agent || "").trim();
-    const key = keyOf(visible);
-    if (!key) return null;
-    if (!totals.has(key)) totals.set(key, { agent_key:key, agent:visible, machine:String(machine || ""),
+    if (!highscoreVisibleKey(visible)) return null;
+    const key = highscoreGroupKey(visible, machine);
+    if (!totals.has(key)) totals.set(key, { agent_key:highscoreVisibleKey(visible), agent:visible, machine:String(machine || ""),
       objectives:0, windows:0, missions:0, tasks:0, points:0 });
     return totals.get(key);
   };
@@ -7625,15 +7646,18 @@ async function highscoreHourlyContract(env, legacy, ahora, dayStart, dayEnd) {
     highscorePeriodMetrics(env, hourStart, hourEnd),
     highscorePeriodMetrics(env, dayStart, dayEnd)
   ]);
-  const old = new Map((legacy && legacy.scores || []).map((row) => [String(row.agent_key || "") ||
-    String(row.agent || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, ""), row]));
+  // Por la MISMA clave canónica que las otras dos fuentes: si aquí se indexara por
+  // `agent_key` (que es el nombre visible), la unión de abajo volvería a meter la
+  // fila fantasma del apellido retirado aunque las otras dos ya la hubieran fundido.
+  const old = new Map((legacy && legacy.scores || []).map((row) =>
+    [highscoreGroupKey(row.agent, row.machine), row]));
   const keys = new Set([...old.keys(), ...hourTotals.keys(), ...dayTotals.keys()]);
   const scores = [...keys].filter(Boolean).sort().map((key) => {
     const hour = hourTotals.get(key), day = dayTotals.get(key), previous = old.get(key) || {};
     const agent = previous.agent || day && day.agent || hour && hour.agent || "";
     const machine = previous.machine || day && day.machine || hour && hour.machine || "";
     const dayPoints = Number(day && day.points) || 0;
-    return { ...previous, agent_key:key, agent, machine,
+    return { ...previous, agent_key:previous.agent_key || highscoreVisibleKey(agent) || key, agent, machine,
       current:previous.current == null ? dayPoints : previous.current,
       reference:previous.reference == null ? dayPoints : previous.reference,
       reference_at:previous.reference_at == null ? null : previous.reference_at,
@@ -7660,8 +7684,7 @@ __name(highscoreHourlyContract, "highscoreHourlyContract");
 // puede inventar puntos ni una tendencia para el resto de usuarios.
 async function highscoreCurrentTotals(env, scores, inicio, fin) {
   const totals = new Map();
-  const keyOf = (agent) => String(agent || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const keyOf = highscoreVisibleKey;
   // SE AGRUPA POR IDENTIDAD CANÓNICA, NO POR EL LITERAL DEL NOMBRE (2026-09-01).
   // highscoreDaily ya agrupa bien —con groupingIdentityKey, que canonicaliza el
   // apellido: `Mini` y `MacMini` son la MISMA máquina y la normativa 02 zanjó que
@@ -7678,7 +7701,7 @@ async function highscoreCurrentTotals(env, scores, inicio, fin) {
   const add = (agent, machine, points) => {
     const visible = reportAgentIdentity(agent, machine) || String(agent || "").trim();
     if (!keyOf(visible)) return;
-    const key = groupingIdentityKey(visible, machine) || keyOf(visible);
+    const key = highscoreGroupKey(visible, machine);
     if (!totals.has(key)) totals.set(key, { agent_key: keyOf(visible), agent: visible, machine: String(machine || ""), points: 0 });
     totals.get(key).points += Number(points) || 0;
   };
@@ -7888,10 +7911,12 @@ async function highscoreDaily(env) {
     highscorePeriodMetrics(env, ayerInicio, inicio)
   ]);
   const scores = [...acc.values()];
-  const agentKey = (agent) => String(agent || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .toLowerCase().replace(/[^a-z0-9]+/g, "");
+  // El mapa de ayer viene de highscorePeriodMetrics, que desde el 1-sep agrupa por
+  // clave CANONICA. Buscarlo con el literal del nombre devolvia 0 y la comparacion
+  // «sube/baja/igual» salia siempre «sube»: hay que preguntar con la misma llave
+  // con la que se guardo. Lo cazo el test del marcador diario, no yo.
   for (const score of scores) {
-    const ayer = ayerMetricas.get(agentKey(score.agent));
+    const ayer = ayerMetricas.get(highscoreGroupKey(score.agent, score.machine));
     const yesterdayPoints = ayer ?
       (Number(ayer.objectives) || 0) * HIGHSCORE_WEIGHTS.objective +
       (Number(ayer.windows) || 0) * HIGHSCORE_WEIGHTS.window +

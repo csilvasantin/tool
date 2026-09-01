@@ -43,6 +43,11 @@ function harness(){
     grabVar("HIGHSCORE_WEIGHTS"),grabVar("HIGHSCORE_TASK_WEIGHTS"),grabVar("HIGHSCORE_RECENT_MS"),
     grabVar("HIGHSCORE_TREND_MS"),grabVar("HIGHSCORE_TREND_TOLERANCE_MS"),
     grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_PERSONAS"),
+    // highscoreVisibleKey y highscoreGroupKey son el criterio UNICO de agrupacion del
+    // marcador (1-sep-2026). Entran al sandbox como los demas: sin ellos las tres
+    // fuentes de puntos volverian a agrupar cada una por su cuenta y un agente
+    // reapareceria partido en dos filas (MorfeoMini / MorfeoMacMini).
+    grab("highscoreVisibleKey"),grab("highscoreGroupKey"),
     grab("madridHourKey"),grab("highscoreAgent"),grab("canonicalHighscoreAgent"),
     grab("highscoreTraceability"),grab("highscorePeriodMetrics"),grab("highscoreMetricPair"),grab("highscoreHourlyContract"),
     grab("highscoreCurrentTotals"),grab("highscoreHourlyTrend"),grab("highscoreDaily")
