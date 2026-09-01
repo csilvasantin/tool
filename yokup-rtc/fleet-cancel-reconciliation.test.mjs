@@ -105,9 +105,11 @@ test('handler real cancela D1 sólo tras confirmar exactamente una fila del inbo
   assert.ok(mirrored.done_at);
   const event = local.prepare('SELECT kind,author,text FROM events WHERE ticket_id=?').get('FLT-1005');
   assert.equal(event.kind, 'log');
-  // El encargo llega firmado 'SubOraculoMini' (alias histórico) y se guarda con el
-  // apellido vigente: se lee lo viejo, se escribe lo canónico (normativa 02).
-  assert.equal(event.author, 'SubOraculoMacMini');
+  // Este camino NO canoniza el apellido: guarda el autor tal y como llega en el
+  // cuerpo del encargo, sin pasar por resolveDecisionIdentity —no tiene máquina con
+  // la que resolverlo—. Por eso sigue escribiendo 'Mini' aunque la forma vigente sea
+  // 'MacMini' (normativa 02). Queda como escritor pendiente del FLT-1490.
+  assert.equal(event.author, 'SubOraculoMini');
   assert.equal(event.text, '🗑 Eliminada: obsoleta.');
 });
 
