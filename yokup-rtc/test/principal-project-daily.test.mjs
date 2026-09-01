@@ -19,6 +19,7 @@ function harness() {
   const db = new DatabaseSync(":memory:");
   db.exec("CREATE TABLE projects(id TEXT PRIMARY KEY,name TEXT,blurb TEXT,web TEXT,status TEXT,color TEXT,owner TEXT,sort_order INTEGER,created_at INTEGER,updated_at INTEGER,updated_by TEXT)");
   db.exec("CREATE TABLE project_members(project_id TEXT,kind TEXT,ref TEXT,PRIMARY KEY(project_id,kind,ref))");
+  db.exec("CREATE TABLE project_carbon_assignments(project_id TEXT,carbon_key TEXT,first_assigned_at INTEGER,PRIMARY KEY(project_id,carbon_key))");
   db.exec("CREATE TABLE agent_project_declarations(day TEXT,agent_key TEXT,agent TEXT,project_id TEXT,declared_by TEXT,statement TEXT,created_at INTEGER,updated_at INTEGER,PRIMARY KEY(day,agent_key))");
   db.exec("CREATE TABLE tickets(project TEXT,status TEXT)");
   db.exec("INSERT INTO projects(id,name,web,status) VALUES('xpaceos','XpaceOS','https://www.xpaceos.com','activo'),('yokup','Yokup','https://www.yokup.com','activo'),('viejo','Viejo','','archivado')");
