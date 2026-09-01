@@ -8,12 +8,12 @@ const blockStart = source.indexOf("function paImportance(project)");
 const blockEnd = source.indexOf("function paReplaceProject(project)", blockStart);
 const block = source.slice(blockStart, blockEnd);
 const esc = (value) => String(value).replace(/[&<>\"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[char]);
-const api = new Function("esc", "PROJECT_IMPORTANCE_PENDING", `${block}\nreturn {paImportance,paProjectVersion,paImportanceControl};`)(esc, new Map());
+const api = new Function("esc", "PROJECT_IMPORTANCE_PENDING", `let PROJECT_VERSION_SORT="manual";${block}\nreturn {paImportance,paProjectVersion,paImportanceControl};`)(esc, new Map());
 
 test("renderiza exactamente cinco botones a la derecha del nombre", () => {
   assert.match(source, /class="pa-project-heading"><b[^>]*>.*<\/b>'\+paImportanceControl\(project\)/);
   const html = api.paImportanceControl({id:"yokup",name:"Yokup",importance:0});
-  assert.equal((html.match(/<button /g) || []).length, 5);
+  assert.equal((html.match(/data-pa-importance-value=/g) || []).length, 5);
   assert.match(html, /role="group" aria-label="Importancia de Yokup: 0 de 5"/);
 });
 
@@ -28,7 +28,8 @@ test("la versión factual queda debajo de las estrellas con hora de Madrid", () 
   const project={id:"yokup",name:"Yokup",importance:3,updated_at:Date.parse("2026-09-01T18:05:06Z"),updated_by:"Carlos & equipo"};
   const html=api.paImportanceControl(project);
   assert.match(html,/class="pa-importance-stack"><div class="pa-importance/);
-  assert.match(html,/<\/div><time class="pa-project-version"/);
+  assert.match(html,/<\/div><button type="button" class="pa-project-version"/);
+  assert.match(html,/<time datetime="2026-09-01T18:05:06\.000Z">/);
   assert.match(html,/VERSIÓN · 01\.09\.2026 · 20:05/);
   assert.match(html,/datetime="2026-09-01T18:05:06\.000Z"/);
   assert.match(html,/por Carlos &amp; equipo/);
@@ -43,7 +44,7 @@ test("normaliza segundos históricos, respeta invierno y no inventa fechas", () 
 
 test("sólo el valor exacto está seleccionado para tecnología asistiva", () => {
   const html = api.paImportanceControl({id:"p",name:"P",importance:3});
-  assert.equal((html.match(/aria-pressed="true"/g) || []).length, 1);
+  assert.equal((html.match(/data-pa-importance-value="[1-5]"[^>]*aria-pressed="true"/g) || []).length, 1);
   assert.match(html, /data-pa-importance-value="3"[^>]*aria-label="Quitar importancia de P"[^>]*aria-pressed="true"/);
 });
 
@@ -93,10 +94,10 @@ test("un GET anterior al clic no pisa el valor pendiente o recién confirmado", 
 test("el responsive mantiene el grupo fijo y deja que el nombre se trunque", () => {
   assert.match(source, /\.pa-project-heading\{display:flex;align-items:flex-start;gap:6px;min-width:0\}/);
   assert.match(source, /\.pa-project-heading>b\{min-width:0;flex:1;padding-top:4px\}/);
-  assert.match(source, /\.pa-importance-stack\{display:grid;justify-items:end;gap:1px;flex:none;min-width:0;max-width:175px\}/);
+  assert.match(source, /\.pa-importance-stack\{display:grid;justify-items:end;gap:1px;flex:none;min-width:0;max-width:190px\}/);
   assert.match(source, /\.pa-importance\{display:inline-flex;align-items:center;gap:6px\}/);
   assert.match(source, /\.pa-importance button\{width:18px;height:24px/);
-  assert.match(source, /\.pa-project-version\{max-width:100%;[^}]*white-space:nowrap/);
+  assert.match(source, /\.pa-project-version\{[^}]*max-width:100%;[^}]*white-space:nowrap/);
 });
 
 test("paJson conserva status y payload para reconciliar errores canónicos", async () => {
