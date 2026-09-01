@@ -1,7 +1,8 @@
 import {
   baseAgentIdentity,
   identityKey as agentIdentityKey,
-  identitySqlKey as agentIdentitySqlKey,
+  machineIdentityKey,
+  machineIdentitySqlKey,
   machineSuffix,
   parseAgentIdentity,
   scopedAgentIdentity,
@@ -18,11 +19,9 @@ export function projectSlug(value) {
 
 export function identityKey(value, kind = "") {
   const source = kind === "agent" ? baseAgentIdentity(value) : value;
+  if (kind === "machine") return machineIdentityKey(source);
   let key = text(source, 80).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .toLowerCase().replace(/[^a-z0-9]+/g, "");
-  // project_members guarda el id de flota `admira-macmini`, mientras los
-  // relojes identifican la máquina por su rótulo `Mac Mini`.
-  if (kind === "machine") key = key.replace(/^admira/, "");
   return key;
 }
 
@@ -31,8 +30,7 @@ export function machineRefKey(value) {
 }
 
 export function machineRefSqlKey(expression) {
-  const raw = agentIdentitySqlKey(expression);
-  return `(CASE WHEN ${raw} LIKE 'admira%' THEN substr(${raw},7) ELSE ${raw} END)`;
+  return machineIdentitySqlKey(expression);
 }
 
 export function memberRefMatches(kind, ref, requested) {

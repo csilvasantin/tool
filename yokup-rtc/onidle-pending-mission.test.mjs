@@ -87,7 +87,9 @@ test('normalización SQL de familia y máquina equivale a la normalización JS',
     'InfraOráculoMini', 'SúbAgente OracleMini', 'ÍnfraOracleMacMini',
     'NeoMini', 'SubPersona Externa'
   ];
-  const machines = ['Mac Mini', 'MacMini', 'admira-macmini', 'Mác-Mini', 'mac_mini', 'MacMini.local', 'MacBook Pro 14'];
+  const miniAliases = ['Mac Mini', 'MacMini', 'admira-macmini', 'Mác-Mini', 'mac_mini', 'MacMini.local', 'Mac Mini Carlos'];
+  const mbp14Aliases = ['admira-macbookpronegro14', 'MacBook Pro 14', 'MacBookProNegro14'];
+  const machines = [...miniAliases, ...mbp14Aliases, 'MacBook Pro 16'];
   const insert = db.prepare('INSERT INTO aliases VALUES(?,?)');
   for (const value of agents) insert.run('agent', value);
   for (const value of machines) insert.run('machine', value);
@@ -104,13 +106,23 @@ test('normalización SQL de familia y máquina equivale a la normalización JS',
     assert.equal(row.normalized, machineRefKey(row.value), `SQL/JS máquina: ${row.value}`);
     assert.equal(row.normalized === machineRefKey('Mac Mini'), memberRefMatches('machine', row.value, 'Mac Mini'), row.value);
   }
+  for (const alias of miniAliases) {
+    assert.equal(machineRefKey(alias), machineRefKey('Mac Mini'), alias);
+    assert.equal(memberRefMatches('machine', alias, 'Mac Mini'), true, alias);
+    assert.equal(memberRefMatches('machine', alias, 'MacBook Pro 14'), false, alias);
+  }
+  for (const alias of mbp14Aliases) {
+    assert.equal(machineRefKey(alias), machineRefKey('MacBook Pro 14'), alias);
+    assert.equal(memberRefMatches('machine', alias, 'MacBook Pro 14'), true, alias);
+    assert.equal(memberRefMatches('machine', alias, 'Mac Mini'), false, alias);
+  }
 });
 
 test('carrera guard→batch: toda la familia Oraculo/Mini bloquea sin consumir cupo', async () => {
   const aliases = [
     ['OraculoMini','Mac Mini'], ['Oraculo','MacMini'], ['Oráculo','admira-macmini'],
     ['Oracle','Mác-Mini'], ['SubOraculoMini','mac_mini'], ['InfraOráculoMini','Mac Mini'],
-    ['SúbAgente OracleMini','Mac Mini'], ['ÍnfraOracleMacMini','admira-macmini']
+    ['SúbAgente OracleMini','MacMini.local'], ['ÍnfraOracleMacMini','Mac Mini Carlos']
   ];
   for (const [assignee,loc] of aliases) {
     const {db,env,publish} = harness({id:'FLT-PENDING',source:'fleet',status:'open',assignee,loc});
@@ -118,6 +130,22 @@ test('carrera guard→batch: toda la familia Oraculo/Mini bloquea sin consumir c
     assert.equal(result.published,false,assignee);assert.equal(result.reason,'pending_mission',assignee);
     assert.equal(db.prepare('SELECT COUNT(*) n FROM decisions').get().n,0,assignee);
     assert.equal(db.prepare("SELECT COUNT(*) n FROM onidle_ticks WHERE status='published'").get().n,0,assignee);
+  }
+});
+
+test('carrera guard→batch: todos los aliases físicos MBP14 bloquean sólo su máquina', async () => {
+  const mbp14Candidate = {
+    identity:{agent:'TrinityMBP14',machine:'MacBook Pro 14'},
+    project:{id:'yokup',name:'Yokup',slug:'yokup'}, identity_key:'trinitymbp14@macbookpro14'
+  };
+  for (const [index,loc] of ['admira-macbookpronegro14','MacBook Pro 14','MacBookProNegro14'].entries()) {
+    const assignee = index === 0 ? 'TrinityMBP14' : index === 1 ? 'SubTrinityMBP14' : 'InfraTrinityMBP14';
+    const {db,env,publish} = harness({id:'FLT-MBP14',source:'fleet',status:'open',assignee,loc});
+    const result = await publish(env,mbp14Candidate,Date.UTC(2026,8,1,10));
+    assert.equal(result.published,false,loc);
+    assert.equal(result.reason,'pending_mission',loc);
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM decisions').get().n,0,loc);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM onidle_ticks WHERE status='published'").get().n,0,loc);
   }
 });
 

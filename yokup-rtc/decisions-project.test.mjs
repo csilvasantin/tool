@@ -48,6 +48,14 @@ test('los ids D1 oraculo + admira-macmini casan con los rótulos del reloj', () 
   assert.equal(memberRefMatches('agent','oraculo','InfraOraculoMini'), true);
   assert.equal(memberRefMatches('machine','admira-macmini','Mac Mini'), true);
   assert.equal(memberRefMatches('machine','admira-macbookpro16','Mac Mini'), false);
+  for (const alias of ['MacMini.local','Mac Mini Carlos','admira-macmini','MacMini']) {
+    assert.equal(memberRefMatches('machine',alias,'Mac Mini'), true, alias);
+    assert.equal(memberRefMatches('machine',alias,'MacBook Pro 14'), false, alias);
+  }
+  for (const alias of ['admira-macbookpronegro14','MacBook Pro 14','MacBookProNegro14']) {
+    assert.equal(memberRefMatches('machine',alias,'MacBook Pro 14'), true, alias);
+    assert.equal(memberRefMatches('machine',alias,'Mac Mini'), false, alias);
+  }
 });
 
 test('acepta sólo el contexto granular Generador de Presentaciones', () => {

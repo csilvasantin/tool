@@ -3143,7 +3143,7 @@ async function notifyFleetAdministrativeCancellation(env, ticket, missionId, own
     ));
     let payload = null;
     try { payload = await response.clone().json(); } catch (e) {}
-    const confirmed = !!(response.ok && payload && payload.ok === true && Number(payload.updated) === 1);
+    const confirmed = !!(response.ok && payload && payload.ok === true && payload.updated === 1);
     return { required:true, updated:confirmed, inbox_id:numId };
   } catch (e) {
     return { required:true, updated:false, inbox_id:numId };

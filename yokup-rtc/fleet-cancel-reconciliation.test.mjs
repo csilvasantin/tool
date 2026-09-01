@@ -119,6 +119,22 @@ test('HTTP 200 updated:0 no muta ticket ni cronología local', async () => {
   assert.equal(local.prepare('SELECT COUNT(*) n FROM events WHERE ticket_id=?').get('FLT-1005').n, 0);
 });
 
+test('updated exige el entero numérico exacto 1; coerciones JSON no mutan D1', async (t) => {
+  for (const [name,updated] of [
+    ['string', '1'], ['boolean', true], ['array', [1]], ['null', null], ['object', {value:1}]
+  ]) await t.test(name, async () => {
+    await reset();
+    const override = async () => Response.json({ok:true,updated});
+    const {response,body} = await cancel(realBulkStatusBinding({override}));
+    assert.equal(response.status, 502);
+    assert.equal(body.code, 'cancel_reconciliation_failed');
+    assert.equal(body.local_cancelled, false);
+    assert.equal(local.prepare('SELECT status FROM tickets WHERE id=?').get('FLT-1005').status, 'open');
+    assert.equal(local.prepare('SELECT COUNT(*) n FROM events WHERE ticket_id=?').get('FLT-1005').n, 0);
+    assert.equal(inbox.prepare('SELECT status FROM telegram_inbox WHERE id=?').get(991).status, 'pending');
+  });
+});
+
 test('payload inválido o error HTTP del espejo tampoco mutan D1', async (t) => {
   for (const [name,override] of [
     ['json inválido', async () => new Response('not-json', {status:200})],

@@ -76,6 +76,28 @@ export function machineSuffix(machine) {
   return "";
 }
 
+// Clave de equipo físico, no de su rótulo. Todos los aliases del censo que
+// machineSuffix reconoce convergen en el mismo sufijo; los valores ajenos al
+// censo conservan la comparación exacta histórica, sin mezclarse entre sí.
+export function machineIdentityKey(value) {
+  const suffix = machineSuffix(value);
+  return suffix ? identityKey(suffix) : identityKey(value).replace(/^admira/, "");
+}
+
+export function machineIdentitySqlKey(expression) {
+  const raw = identitySqlKey(expression);
+  const aliases = MACHINES.flatMap(([suffix, values]) => values.map((value) => [
+    identityKey(suffix), identityKey(value)
+  ])).filter(([, alias]) => alias);
+  const aliasesJson = JSON.stringify(aliases).replaceAll("'", "''");
+  const fallback = `(CASE WHEN ${raw} LIKE 'admira%' THEN substr(${raw},7) ELSE ${raw} END)`;
+  return `COALESCE((SELECT json_extract(machine_alias.value,'$[0]') ` +
+    `FROM json_each('${aliasesJson}') AS machine_alias ` +
+    `WHERE ${raw}=json_extract(machine_alias.value,'$[1]') ` +
+    `OR ${raw} LIKE json_extract(machine_alias.value,'$[1]')||'%' ` +
+    `ORDER BY machine_alias.key ASC LIMIT 1),${fallback})`;
+}
+
 export function parseAgentIdentity(value) {
   let key = identityKey(value), role = "main";
   if (key.startsWith("infra")) { role = "infra"; key = key.slice(5); }
