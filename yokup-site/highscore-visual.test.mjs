@@ -87,7 +87,7 @@ test("la cabecera compacta conserva el sonido y elimina reloj y subtítulo", () 
 
 test("el podio usa una única tarjeta enlazada y coloca nombre debajo de puntos", () => {
   assert.match(html,/\.plaza\{[^}]*display:flex[^}]*flex-direction:column/);
-  assert.match(html,/return '<a class="plaza '[\s\S]*?<div class="pts">' \+ parejaPuntosHtml\(a\) \+ '<\/div>' \+[\s\S]*?<div class="nom"><span class="agent-name">' \+ esc\(a\.agente\)/);
+  assert.match(html,/return '<a class="plaza '[\s\S]*?<div class="pts">' \+ parejaPuntosHtml\(a\) \+ '<\/div>' \+[\s\S]*?<div class="nom"><span class="agent-name">' \+ esc\(nombreAgenteVisible\(a\.agente\)\)/);
   assert.match(html,/aria-label="Ver histórico de /);
   assert.doesNotMatch(html,/<div class="nom">' \+ agentNameHtml\(a\)/,
     "el botón de decisiones no puede quedar anidado dentro del enlace histórico");
@@ -101,7 +101,7 @@ test("la vida hace latir el propio número de posición y no añade un punto", (
   assert.match(html, /lista\.forEach\(function \(fila, indice\) \{ fila\.posicion = indice \+ 1; \}\)/);
   assert.match(html, /<td class="n">' \+ posicionHtml\(a, a\.posicion \|\| i \+ 1\)/);
   assert.match(html, /function agentNameHtml\(a\)/);
-  assert.match(html, /<div class="nom"><span class="agent-name">' \+ esc\(a\.agente\)/);
+  assert.match(html, /<div class="nom"><span class="agent-name">' \+ esc\(nombreAgenteVisible\(a\.agente\)\)/);
   assert.match(html, /número de posición parpadea en verde/);
   assert.doesNotMatch(html, /rank-live/);
   assert.doesNotMatch(html, /class="rank-cell"/);
@@ -273,7 +273,8 @@ test("el trabajo factual sigue por detrás del corredor sin solapar nombre ni re
   assert.match(html, /function actualizaCarreraPodio\(\)/);
   assert.match(html, /function trabajosEnCurso\(\)/);
   assert.match(html, /function resumenTrabajoActivo\(trabajo\)/);
-  assert.match(html, /stateLabel = trabajo\.state === "running" \? "EN CURSO" : trabajo\.state === "last_work" \? "FINALIZADO"/);
+  assert.match(html, /stateLabel = trabajo\.state === "running" \? "Trabajo activo" : trabajo\.state === "last_work" \? "Trabajo finalizado"/);
+  assert.doesNotMatch(html, /class="refresh-work-state"|class="refresh-time"/);
   assert.doesNotMatch(html, /function estelaMision|class="refresh-word"/);
   assert.match(html, /mision\.style\.left = ""; mision\.style\.width = ""/);
   assert.doesNotMatch(html, /desbordeMision|avanceMision/);
@@ -297,7 +298,9 @@ test("todos los agentes con trabajo en curso tienen calles ordenadas, identidad 
   // el estado de parado desde el 12-ago-2026, así que se comprueba con hueco.
   assert.match(html, /class="refresh-agent"[\s\S]*class="refresh-lane-center"[\s\S]*refresh-track[\s\S]*class="refresh-mission"[\s\S]*runner \+ '<span class="refresh-finish"/);
   assert.doesNotMatch(html, /refresh-mission-(?:ref|state|meta|project)/);
-  assert.match(html, /'<span class="refresh-agent-meta"><span class="refresh-agent" data-race-role="agent" tabindex="0" title="' \+ esc\(identidadVisible\.machine\)[\s\S]*data-race-time="start"[\s\S]*data-race-time="end"/);
+  assert.match(html, /'<span class="refresh-agent-meta"><span class="refresh-agent" data-race-role="agent" tabindex="0" title="' \+ esc\(identidadVisible\.machine\)[\s\S]*data-race-time="start"[\s\S]*marcaTemporal/);
+  assert.match(html, /refresh-ended refresh-elapsed[\s\S]*data-race-time="elapsed"[\s\S]*data-work-state="running"/);
+  assert.match(html, /class="refresh-ended" data-race-time="end"/);
   assert.doesNotMatch(html, /refresh-place|place-revealed/);
   assert.match(html, /\.refresh-agent\{position:static;display:block[^}]*text-align:left[^}]*color:var\(--accent\)[^}]*font-size:11px[^}]*line-height:14px/);
   assert.match(html, /\.refresh-lane-p1\{--lane:var\(--oro\);--runner-shirt:#ffd866;--runner-stripe:#8a4a2a\}/);

@@ -50,18 +50,18 @@ test("running compite; stale cruza B\/N sin ganar y last queda quieto en meta",(
   assert.match(html,/if \(noCorre\)[\s\S]*relleno\.style\.width = "0px"[\s\S]*return;/);
 });
 
-test("responsive conserva estado y tiempos fijos con nombre truncable en cinco anchos y zoom 200%",()=>{
-  assert.match(html,/grid-template-columns:minmax\(156px,226px\) minmax\(0,1fr\) minmax\(168px,210px\)/);
-  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(128px,176px\) minmax\(0,1fr\) minmax\(100px,124px\)/);
-  assert.match(html,/@media \(max-width:340px\)\{\.refresh-lane\{grid-template-columns:minmax\(116px,146px\) minmax\(54px,1fr\) minmax\(96px,108px\)/);
+test("responsive conserva identidad y tiempo primario junto a una pista amplia",()=>{
+  assert.match(html,/grid-template-columns:minmax\(220px,300px\) minmax\(0,1fr\)/);
+  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(150px,190px\) minmax\(54px,1fr\)/);
+  assert.match(html,/@media \(max-width:340px\)\{\.refresh-lane\{grid-template-columns:minmax\(146px,168px\) minmax\(54px,1fr\)/);
   for(const width of [1265,1024,760,390,320]){
     const mobile=width<=620,content=Math.min(1080,width-36)-(mobile?6:0);
-    const agentMin=width<=340?116:mobile?128:width<=800?140:width<=1100?148:156;
-    const elapsedMin=width<=340?96:mobile?100:width<=800?148:width<=1100?156:168,gaps=mobile?4:8;
+    const agentMin=width<=340?146:mobile?150:width<=800?180:width<=1100?196:220;
+    const gaps=mobile?2:4;
     const trackMin=width<=340?54:0;
-    assert.ok(content-agentMin-elapsedMin-gaps>=trackMin,`${width}px conserva pista sin overflow`);
+    assert.ok(content-agentMin-gaps>=trackMin,`${width}px conserva pista sin overflow`);
   }
-  assert.ok(1265/2-36-6-128-100-4>=0,"zoom 200% del escritorio conserva las tres columnas");
+  assert.ok(1265/2-36-6-150-2>=54,"zoom 200% del escritorio conserva las dos columnas");
   assert.match(html,/\.refresh-started,\.refresh-ended\{[^}]*white-space:nowrap/);
   assert.match(html,/\.refresh-agent\{[^}]*min-width:0[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
 });

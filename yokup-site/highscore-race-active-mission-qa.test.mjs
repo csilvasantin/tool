@@ -81,7 +81,7 @@ test("un participante factual crea una única calle", () => {
   assert.match(race.html,/SubOraculoMacMini/);
 });
 
-test("sin running muestra últimos trabajos B/N con hora, elapsed y pose de pie", () => {
+test("sin running muestra últimos trabajos B/N con hora final y zancada quieta", () => {
   const ended=Date.now()-60_000;
   const recent=["OraculoMacMini","MorfeoMacMini","TrinityMBP16"].map((agent,index)=>({
     ...work(agent,agent,"mission",`Último ${index+1}`,ended-index*60_000,"last_work"),
@@ -91,10 +91,10 @@ test("sin running muestra últimos trabajos B/N con hora, elapsed y pose de pie"
   assert.equal(race.participants,3);
   assert.equal((race.html.match(/refresh-lane-last/g)||[]).length,3);
   assert.equal((race.html.match(/data-race-role="runner"/g)||[]).length,3);
-  assert.equal((race.html.match(/class="runner-standing"/g)||[]).length,3);
-  assert.equal((race.html.match(/class="refresh-work-state">FINALIZADO<\/strong>/g)||[]).length,3);
-  assert.match(race.html,/>00:30:00<\/strong>/);
-  assert.match(race.html,/class="refresh-work-state">FINALIZADO<\/strong>/);
+  assert.equal((race.html.match(/class="runner-run-a"/g)||[]).length,3);
+  assert.equal((race.html.match(/data-race-time="end"/g)||[]).length,3);
+  assert.equal((race.html.match(/class="refresh-elapsed"/g)||[]).length,0);
+  assert.doesNotMatch(race.html,/>FINALIZADO<|>EN CURSO</);
 });
 
 test("fallo del endpoint borra la lectura anterior y declara no disponible", () => {
@@ -137,7 +137,7 @@ test("cuatro elegibles corren aunque sólo dos estén en el scope y ranking loca
 // TrinityMBP14 499. «La información tiene que ser veraz: podrían llegar a
 // aparecer, pero al correr no debería mostrar que están haciendo algo porque no
 // lo están haciendo». Aparecer, sí; afirmar, no.
-test("un participante con el proceso vivo pero el trabajo parado se rotula PARADO, no corriendo", () => {
+test("un participante con el proceso vivo pero el trabajo parado queda gris y no corre", () => {
   const item=work("NeoMBP14","SubNeoMBP14","task","Trabajo stale",Date.now()-330*60*1000,"assigned_stale");
   item.presence_at=Date.now();
   const race=renderRace([], [item], []);
@@ -147,7 +147,7 @@ test("un participante con el proceso vivo pero el trabajo parado se rotula PARAD
   // Pero ni corre ni se ampara en el proceso verificado.
   assert.match(race.html,/data-race-idle="true"/);
   assert.match(race.html,/refresh-lane-idle/);
-  assert.match(race.html,/class="refresh-work-state">SIN AVANCE<\/strong>/);
+  assert.doesNotMatch(race.html,/class="refresh-work-state"|>SIN AVANCE</);
   assert.doesNotMatch(race.html,/data-heartbeat="proceso-verificado"/);
 });
 
@@ -157,7 +157,7 @@ test("con el trabajo fresco sí se rotula el fundamento operativo y corre", () =
   const race=renderRace([], [item], []);
   assert.match(race.html,/data-work-state="running"/);
   assert.doesNotMatch(race.html,/data-race-idle="true"/);
-  assert.doesNotMatch(race.html,/class="refresh-work-state">SIN AVANCE<\/strong>/);
+  assert.doesNotMatch(race.html,/class="refresh-work-state"|>SIN AVANCE</);
 });
 
 test("ningún participante recupera un dorsal aunque haya más de tres", () => {

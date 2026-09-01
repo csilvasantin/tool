@@ -68,10 +68,11 @@ test("el histórico last_work queda en meta y conserva todo el rótulo detrás d
 test("la corrección geométrica conserva meta, controles y orden semántico del carril", () => {
   assert.match(html, /id="refreshRace" role="button" tabindex="0" aria-pressed="false"/);
   assert.match(renderSource,
-    /class="refresh-agent-meta"[\s\S]*class="refresh-lane-center"[\s\S]*data-race-role="mission"[\s\S]*runner \+ '<span class="refresh-finish"[\s\S]*class="refresh-time"/,
-    "agente, pista, meta y tiempos conservan su estructura y orden accesible");
+    /class="refresh-agent-meta"[\s\S]*marcaTemporal[\s\S]*class="refresh-lane-center"[\s\S]*data-race-role="mission"[\s\S]*runner \+ '<span class="refresh-finish"/,
+    "agente con tiempo primario, pista y meta conservan su estructura y orden accesible");
   assert.match(renderSource, /data-race-role="runner" aria-hidden="true"/);
   assert.match(renderSource, /class="refresh-finish" aria-hidden="true"/);
-  assert.match(renderSource, /data-work-state="' \+ esc\([\s\S]*class="refresh-work-state"[\s\S]*class="refresh-elapsed"/,
-    "los metadatos factuales permanecen fuera del rótulo animado");
+  assert.match(renderSource, /data-race-time="elapsed" data-work-state="running"[\s\S]*data-work-start=/,
+    "el contador factual permanece fuera del rótulo animado");
+  assert.doesNotMatch(renderSource, /class="refresh-time"|class="refresh-work-state"/);
 });

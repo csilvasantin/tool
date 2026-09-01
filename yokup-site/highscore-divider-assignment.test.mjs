@@ -27,20 +27,22 @@ test("la banda HIGHSCORE+RANKING encabeza la página, por encima de la carrera",
 });
 
 test("la primera columna ordena nombre, inicio factual y fin factual",()=>{
-  assert.match(html,/class="refresh-agent-meta"><span class="refresh-agent"[\s\S]*data-race-time="start"[\s\S]*data-race-time="end"/);
-  assert.match(html,/aria-label="Responsable ' \+ esc\(identidadVisible\.nombre\) \+ '\. Hora de inicio ' \+ esc\(resumen\.startedClock\) \+ '\. Hora de finalización ' \+ esc\(resumen\.finishedClock\)/);
+  assert.match(html,/class="refresh-agent-meta"><span class="refresh-agent"[\s\S]*data-race-time="start"[\s\S]*marcaTemporal/);
+  assert.match(html,/data-race-time="elapsed" data-work-state="running"/);
+  assert.match(html,/data-race-time="end" datetime="/);
+  assert.match(html,/aria-label="Responsable ' \+ esc\(identidadVisible\.nombre\) \+ '\. Hora de inicio ' \+ esc\(resumen\.startedClock\) \+ esc\(timingAria\)/);
   assert.match(html,/startedAt:Number\(item\.work_started_at\) \|\| 0/);
   assert.match(html,/startedClock:horaMadrid\(trabajo\.startedAt\)/);
   assert.doesNotMatch(html,/startedClock:horaMadrid\(trabajo\.(?:assignmentAt|at|presenceAt|endedAt)\)/);
   assert.match(html,/\.refresh-agent-meta\{[^}]*display:inline-flex[^}]*min-width:0/);
   assert.match(html,/\.refresh-agent\{[^}]*min-width:0[^}]*text-overflow:ellipsis/);
   assert.match(html,/\.refresh-started,\.refresh-ended\{[^}]*flex:0 0 auto[^}]*white-space:nowrap/);
-  assert.match(html,/class="refresh-time" title="Estado y duraciones factuales"/);
+  assert.doesNotMatch(html,/class="refresh-time"|class="refresh-work-state"/);
 });
 
-test("desktop y móvil reservan ancho al nombre+hora manteniendo pista y elapsed",()=>{
-  assert.match(html,/grid-template-columns:minmax\(156px,226px\) minmax\(0,1fr\) minmax\(168px,210px\)/);
-  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(128px,176px\) minmax\(0,1fr\) minmax\(100px,124px\)/);
+test("desktop y móvil reservan ancho al nombre+dos tiempos y dejan el resto a la pista",()=>{
+  assert.match(html,/grid-template-columns:minmax\(220px,300px\) minmax\(0,1fr\)/);
+  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(150px,190px\) minmax\(54px,1fr\)/);
   assert.match(html,/\.refresh-lane-last/);
   assert.match(html,/\.refresh-elapsed/);
 });

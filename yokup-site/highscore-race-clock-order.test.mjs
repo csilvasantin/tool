@@ -33,7 +33,8 @@ function renderRace(work) {
   };
   const context = vm.createContext({
     listaCache:[], listaCompletaCache:[],
-    datos:{ trabajos:[work], trabajosAvailable:true, trabajosMode:work.state === "last_work" ? "recent" : "active" },
+    datos:{ trabajos:[work], trabajosAvailable:true, trabajosMode:work.state === "last_work" ? "recent" : "active",
+      trabajosGeneratedAt:Number(work.work_started_at) + Number(work.elapsed_ms || 0), trabajosClientAt:0 },
     document:{ getElementById:(id) => nodes[id] },
     normaliza:(value) => String(value == null ? "" : value).trim(),
     esc:(value) => String(value == null ? "" : value)
@@ -77,19 +78,21 @@ function assertOrdered(haystack, needles, message) {
   }
 }
 
-test("running genera DOM y lectura accesible nombre -> inicio -> fin", () => {
+test("running genera DOM y lectura accesible nombre -> inicio -> tiempo transcurrido", () => {
   const rendered = renderRace(fixture("running", 0));
   assertOrdered(rendered,
-    ['data-race-role="agent"', 'data-race-time="start"', 'data-race-time="end"'],
+    ['data-race-role="agent"', 'data-race-time="start"', 'data-race-time="elapsed"'],
     "orden DOM de running");
   assertOrdered(laneAria(rendered),
-    ["Responsable Niobe", "Hora de inicio", "Hora de finalización"],
+    ["Responsable Niobe", "Hora de inicio", "Tiempo transcurrido"],
     "orden accesible de running");
   assert.match(rendered, /data-race-role="agent"[^>]*title="MacMini"[^>]*>Niobe<\/span>/,
     "la máquina sigue en el tooltip, no vuelve a ser apellido visible");
   assert.match(rendered, /data-race-time="start"[^>]*datetime="2026-09-01T13:14:41\.000Z"[^>]*>15:14:41<\/time>/,
     "inicio usa work_started_at y no assignment_at");
-  assert.match(rendered, /data-race-time="end"[^>]*>—<\/span>/,
+  assert.match(rendered, /data-race-time="elapsed"[^>]*data-work-state="running"[^>]*>00:01:00<\/strong>/,
+    "un trabajo abierto usa ese hueco para su contador vivo");
+  assert.doesNotMatch(rendered, /data-race-time="end"/,
     "un trabajo abierto no inventa hora de fin");
 });
 

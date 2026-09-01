@@ -422,7 +422,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
    trabajos a la vez y confundía la animación con la identidad del responsable. */
 .refresh-race{overflow:visible}
 .refresh-lanes{gap:2px}
-.refresh-lane{display:grid;grid-template-columns:minmax(156px,226px) minmax(0,1fr) minmax(168px,210px);
+.refresh-lane{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);
   align-items:center;column-gap:4px;min-height:38px}
 .refresh-agent-meta{display:inline-flex;align-items:baseline;justify-content:flex-start;gap:5px;width:100%;min-width:0;color:var(--accent)}
 .refresh-agent{position:static;display:block;flex:0 1 auto;min-width:0;max-width:none;overflow:hidden;text-overflow:ellipsis;
@@ -443,13 +443,8 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-race.phase-go .refresh-lane:not(.refresh-lane-idle):not(.refresh-lane-last) .refresh-mission{opacity:0;visibility:hidden}
 .refresh-mission-detail{display:block}.refresh-mission-title{overflow:hidden;text-overflow:ellipsis;text-align:right}
 .refresh-mission-duration,.refresh-mission-idle{display:none!important}
-.refresh-time{display:flex;align-items:baseline;justify-content:flex-end;gap:3px;min-width:0;color:var(--accent);
-  font-size:9px;font-variant-numeric:tabular-nums;font-weight:900;text-align:right;white-space:nowrap}
-.refresh-work-state{overflow:hidden;color:var(--ink);font-size:8px;letter-spacing:.04em;text-overflow:ellipsis;white-space:nowrap}
-.refresh-time-sep{color:var(--dim)}
-.refresh-elapsed,.refresh-session-elapsed{overflow:hidden;color:var(--accent);text-overflow:ellipsis;white-space:nowrap}
-.refresh-session-elapsed[data-session-state="unknown"]{color:var(--dim)}
 .refresh-ended{color:var(--accent)}
+.refresh-ended.refresh-elapsed{overflow:hidden;text-overflow:ellipsis;font-weight:900}
 .refresh-lane-idle{--lane:var(--brand)}
 .refresh-lane-idle .refresh-lane-center{opacity:.82}
 .refresh-lane[data-work-state]:not([data-work-state="running"]) .refresh-runner{
@@ -815,8 +810,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .nom{font-size:7px}.pts{font-size:10px}
   .wrap{padding-top:46px}h1{font-size:17px}
   .refresh-race{padding:0 3px}
-  .refresh-lane{grid-template-columns:minmax(128px,176px) minmax(0,1fr) minmax(100px,124px);column-gap:2px;min-height:38px}
-  .refresh-agent-meta{gap:3px;flex-wrap:wrap}.refresh-agent{font-size:8px;line-height:10px}.refresh-started,.refresh-ended{font-size:7px}.refresh-time{flex-wrap:wrap;gap:1px 2px;font-size:7px;line-height:9px}.refresh-work-state{font-size:6px}
+  .refresh-lane{grid-template-columns:minmax(150px,190px) minmax(54px,1fr);column-gap:2px;min-height:38px}
+  .refresh-agent-meta{gap:3px;flex-wrap:wrap}.refresh-agent{font-size:8px;line-height:10px}.refresh-started,.refresh-ended{font-size:7px}
   .refresh-track{padding-left:var(--track-start);padding-right:var(--finish-width)}
   .refresh-mission{font-size:8px;line-height:12px}.refresh-mission-title{font-size:8px}
   .race-call{min-width:min(96px,calc(100% - var(--track-start) - var(--finish-width) - 8px));
@@ -826,9 +821,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .agent-scope-children{padding-left:8px}.agent-scope-row.agent{grid-template-columns:minmax(0,1fr) auto}
   .agent-scope-primary{grid-template-columns:minmax(0,1fr) auto 28px;gap:5px}.agent-scope-switch-state{font-size:7px}
   .agent-scope-app-feedback{font-size:7.5px;text-align:left}}
-@media (min-width:621px) and (max-width:1100px){.refresh-lane{grid-template-columns:minmax(148px,214px) minmax(0,1fr) minmax(156px,198px)}}
-@media (min-width:621px) and (max-width:800px){.refresh-lane{grid-template-columns:minmax(140px,196px) minmax(0,1fr) minmax(148px,184px)}}
-@media (max-width:340px){.refresh-lane{grid-template-columns:minmax(116px,146px) minmax(54px,1fr) minmax(96px,108px);column-gap:2px}.refresh-agent-meta{gap:1px}.refresh-agent{font-size:7px}.refresh-started,.refresh-ended{font-size:6.5px}}
+@media (min-width:621px) and (max-width:1100px){.refresh-lane{grid-template-columns:minmax(196px,260px) minmax(0,1fr)}}
+@media (min-width:621px) and (max-width:800px){.refresh-lane{grid-template-columns:minmax(180px,238px) minmax(0,1fr)}}
+@media (max-width:340px){.refresh-lane{grid-template-columns:minmax(146px,168px) minmax(54px,1fr);column-gap:2px}.refresh-agent-meta{gap:1px}.refresh-agent{font-size:7px}.refresh-started,.refresh-ended{font-size:6.5px}}
 @media (prefers-reduced-motion:reduce){.pulsa,.rank-number.live,.rank-filter[aria-pressed="true"],.activity-now,.activity-now::after,.plaza.podium-live::after,.refresh-runner svg,.runner-run-a,.runner-run-b,.runner-run-c,.progression-step.new .progression-dot,.race-call,.race-call::before,.race-call::after{animation:none!important;transition:none!important}.refresh-runner .runner-run-b,.refresh-runner .runner-run-c{display:none}.runner-finish-win .gesto-a,.runner-finish-lose .gesto-a{animation:none;opacity:1}.runner-finish-win .gesto-b,.runner-finish-lose .gesto-b{display:none}}
 </style>
 <link rel="stylesheet" href="/highscore-runner-state.css?v=20260901-static-last-work-runner">
@@ -2183,7 +2178,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         (a.vivo ? ' title="Vivo · abrir histórico del agente"' : ' title="Abrir histórico del agente"') + '>' +
         '<div class="avatar">' + a.agente.charAt(0).toUpperCase() + '</div>' +
         '<div class="pts">' + parejaPuntosHtml(a) + '</div>' +
-        '<div class="nom"><span class="agent-name">' + esc(a.agente) + '</span></div>' +
+        '<div class="nom"><span class="agent-name">' + esc(nombreAgenteVisible(a.agente)) + '</span></div>' +
         '<div class="maq">' + esc(a.runtime || "—") + '</div>' +
         pintaMaquinas(a, 3) +
         '<div class="bloque">' + medallas[i] + '</div></a>';
@@ -2204,8 +2199,14 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // existía: valida que el agente y su equipo estén asociados al proyecto y pide
   // a Workers AI las mejoras. Aquí sólo está el gatillo. El cupo a mano es de 6 a
   // la hora frente a 1 en automático — lo marca quien mira la pantalla.
+  function nombreAgenteVisible(valor) {
+    var raw = normaliza(valor), identity = window.ykAgentIdentity;
+    var parsed = identity && identity.parse ? identity.parse(raw) : null;
+    return parsed && parsed.persona ? parsed.persona : raw;
+  }
+
   function agentNameHtml(a) {
-    var nombre = esc(a && a.agente || "");
+    var nombreBase = nombreAgenteVisible(a && a.agente || ""), nombre = esc(nombreBase);
     var proyecto = a && a.proyecto, origen = a && a.proyectoOrigen;
     // Galaxia Admira (origen defecto) es el paraguas, no una faena: no se abre
     // ventana de mejora sobre el default.
@@ -2215,7 +2216,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return '<button type="button" class="agent-name agent-launch" data-yk-launch="1"' +
       ' data-agente="' + esc(a.agente || "") + '" data-maquina="' + esc((a.maquinas && a.maquinas[0]) || "") + '"' +
       ' data-proyecto="' + esc(a.proyectoId) + '"' +
-      ' title="' + esc("Abrir una ventana de decisión para " + (a.agente || "") + " sobre " + proyecto) + '">' +
+      ' title="' + esc("Abrir una ventana de decisión para " + nombreBase + " sobre " + proyecto) + '">' +
       nombre + '</button>';
   }
 
@@ -3916,7 +3917,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       ? YkHighscoreRace.clockDurationLabel(reloj.sessionDurationMs) : "—";
     var sessionLabel = trabajo.sessionDedicatedMs === null
       ? "Horas operando no disponibles" : "Horas operando del agente";
-    var stateLabel = trabajo.state === "running" ? "EN CURSO" : trabajo.state === "last_work" ? "FINALIZADO" : "SIN AVANCE";
+    var stateLabel = trabajo.state === "running" ? "Trabajo activo" : trabajo.state === "last_work" ? "Trabajo finalizado" : "Sin avance";
     return { reference:trabajo.reference || "", title:trabajo.title, state:stateLabel,
       project:trabajo.projectName || "", projectId:trabajo.projectId || "", detailUrl:trabajo.detailUrl || "",
       executor:trabajo.executor, responsible:trabajo.agente, kind:trabajo.kind, reachable:trabajo.reachable,
@@ -3932,28 +3933,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function actualizaRelojesCarrera() {
     var elapsed = datos.trabajosClientAt ? Math.max(0, performance.now() - datos.trabajosClientAt) : 0;
-    document.querySelectorAll(".refresh-time[data-work-state]").forEach(function (bloque) {
-      var work = { state:bloque.getAttribute("data-work-state") || "",
-        work_started_at:Number(bloque.getAttribute("data-work-start")) || 0,
-        ended_at:Number(bloque.getAttribute("data-work-end")) || 0,
-        session_dedicated_ms:bloque.getAttribute("data-session-duration") === "" ? null : Number(bloque.getAttribute("data-session-duration")),
-        session_state:bloque.getAttribute("data-session-state") || "unknown" };
-      var sessionDescription = bloque.getAttribute("data-session-duration") === ""
-        ? "Horas operando no disponibles" : "Horas operando del agente";
+    document.querySelectorAll('.refresh-elapsed[data-work-state="running"]').forEach(function (duracion) {
+      var work = { state:"running",
+        work_started_at:Number(duracion.getAttribute("data-work-start")) || 0,
+        ended_at:0 };
       var reloj = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.workClock
         ? YkHighscoreRace.workClock(work, datos.trabajosGeneratedAt, elapsed) : { at:0, durationMs:null };
-      var duracion = bloque.querySelector(".refresh-elapsed");
-      var sesion = bloque.querySelector(".refresh-session-elapsed");
       var durationLabel = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.clockDurationLabel
         ? YkHighscoreRace.clockDurationLabel(reloj.missionDurationMs) : "—";
-      var sessionLabel = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.clockDurationLabel
-        ? YkHighscoreRace.clockDurationLabel(reloj.sessionDurationMs) : "—";
-      if (duracion) duracion.textContent = durationLabel;
-      if (sesion) sesion.textContent = sessionLabel;
-      if (sesion) sesion.setAttribute("title", sessionDescription);
-      var estado = bloque.querySelector(".refresh-work-state");
-      bloque.setAttribute("aria-label", (estado ? estado.textContent : "Estado no disponible") +
-        ". Tiempo de misión " + durationLabel + ". " + sessionDescription + " " + sessionLabel);
+      duracion.textContent = durationLabel;
+      duracion.setAttribute("aria-label", "Tiempo transcurrido " + durationLabel);
     });
   }
 
@@ -3998,13 +3987,23 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<svg class="runner-run-c" viewBox="0 0 24 24"><use href="#runnerRunC"></use></svg>' +
         '<svg class="runner-finish-win" viewBox="0 0 24 24"><use class="gesto-a" href="#runnerWinner"></use><use class="gesto-b" href="#runnerWinnerB"></use></svg>' +
         '<svg class="runner-finish-lose" viewBox="0 0 24 24"><use class="gesto-a" href="#runnerLoser"></use><use class="gesto-b" href="#runnerLoserB"></use></svg></span>';
+      var marcaTemporal = isLast && resumen.finishedAt
+        ? '<time class="refresh-ended" data-race-time="end" datetime="' + new Date(resumen.finishedAt).toISOString() +
+          '" title="Finalizó a las ' + esc(resumen.finishedClock) + '">' + esc(resumen.finishedClock) + '</time>'
+        : !resumen.idle
+          ? '<strong class="refresh-ended refresh-elapsed" data-race-time="elapsed" data-work-state="running" data-work-start="' +
+            (Number(enlace.trabajo.startedAt) || 0) + '" title="Tiempo transcurrido de la tarea">' + esc(resumen.duration) + '</strong>'
+          : '<span class="refresh-ended" data-race-time="end" title="Hora de finalización no disponible">—</span>';
+      var timingAria = isLast ? '. Hora de finalización ' + resumen.finishedClock
+        : resumen.idle ? '. Hora de finalización no disponible'
+          : '. Tiempo transcurrido ' + resumen.duration;
       return '<div class="refresh-lane ' + clasePuesto + (resumen.idle ? " refresh-lane-idle" : "") + (isLast ? " refresh-lane-last" : "") +
         '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
         'data-work-state="' + esc(isLast ? "last_work" : resumen.idle ? "assigned_stale" : "running") + '" ' +
         (staleState && enlace.trabajo.raceRevision ? 'data-race-revision="' + esc(enlace.trabajo.raceRevision) + '" data-stale-anchor="' +
           Number(staleState.record.server_started_at) + '" data-stale-cycles="' + Number(staleState.record.cycles) + '" ' : '') +
         (resumen.idle ? 'data-race-idle="true" ' : '') +
-        'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Responsable ' + esc(identidadVisible.nombre) + '. Hora de inicio ' + esc(resumen.startedClock) + '. Hora de finalización ' + esc(resumen.finishedClock) +
+        'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Responsable ' + esc(identidadVisible.nombre) + '. Hora de inicio ' + esc(resumen.startedClock) + esc(timingAria) +
         (executor !== responsable ? '. Ejecuta ' + esc(executor) : '') + '. ' + heartbeat + '. ' +
         esc(resumen.title) + '. Tiempo de misión ' + esc(resumen.duration) +
         '. Tiempo de sesión ' + esc(resumen.sessionDuration) + '">' +
@@ -4014,9 +4013,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         (resumen.startedAt ? '<time class="refresh-started" data-race-time="start" datetime="' + new Date(resumen.startedAt).toISOString() +
           '" title="Inició a las ' + esc(resumen.startedClock) + '">' + esc(resumen.startedClock) + '</time>' :
           '<span class="refresh-started" data-race-time="start" title="Hora de inicio no disponible">—</span>') +
-        (resumen.finishedAt ? '<time class="refresh-ended" data-race-time="end" datetime="' + new Date(resumen.finishedAt).toISOString() +
-          '" title="Finalizó a las ' + esc(resumen.finishedClock) + '">' + esc(resumen.finishedClock) + '</time>' :
-          '<span class="refresh-ended" data-race-time="end" title="Hora de finalización no disponible">—</span>') + '</span>' +
+        marcaTemporal + '</span>' +
         '<div class="refresh-lane-center"><div class="refresh-track">' +
         '<i class="refresh-fill" data-race-role="fill"></i>' +
         // EL ID INTERNO NO SE LEE (Carlos, 15-ago-2026). La calle abría con
@@ -4032,17 +4029,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
           (resumen.project ? " · " + resumen.project : "")) + '</span></a>' :
           '<span class="refresh-mission" data-race-role="mission" title="' + esc(resumen.title) +
           '"><span class="refresh-mission-title">' + esc(resumen.title) + '</span></span>') +
-        runner + '<span class="refresh-finish" aria-hidden="true"></span></div></div>' +
-        '<div class="refresh-time" title="Estado y duraciones factuales" data-work-state="' + esc(isLast ? "last_work" : resumen.idle ? "assigned_stale" : "running") + '"' +
-          ' data-work-start="' + (Number(enlace.trabajo.startedAt) || 0) + '" data-work-end="' + (Number(enlace.trabajo.endedAt) || 0) + '"' +
-          ' data-session-duration="' + (enlace.trabajo.sessionDedicatedMs === null ? '' : Math.max(0, Number(enlace.trabajo.sessionDedicatedMs) || 0)) + '"' +
-          ' data-session-state="' + esc(enlace.trabajo.sessionState || "unknown") + '"' +
-          ' data-dedicated-basis="' + esc(enlace.trabajo.sessionBasis || "") + '"' +
-          ' aria-label="' + esc(resumen.state) + '. Tiempo de misión ' + esc(resumen.duration) + '. ' + esc(resumen.sessionLabel) + ' ' + esc(resumen.sessionDuration) + '">' +
-          '<strong class="refresh-work-state">' + esc(resumen.state) + '</strong><span class="refresh-time-sep" aria-hidden="true">//</span>' +
-          '<strong class="refresh-elapsed">' + esc(resumen.duration) + '</strong>' +
-          '<span class="refresh-time-sep" aria-hidden="true">//</span><strong class="refresh-session-elapsed" data-session-state="' +
-          esc(enlace.trabajo.sessionState || "unknown") + '" title="' + esc(resumen.sessionLabel) + '">' + esc(resumen.sessionDuration) + '</strong></div></div>';
+        runner + '<span class="refresh-finish" aria-hidden="true"></span></div></div></div>';
     }).filter(Boolean);
     var trabajoNoDisponible = !datos.trabajosAvailable && !trabajos.length;
     var etiquetaVacia = trabajoNoDisponible ? "TRABAJO NO DISPONIBLE" : "SIN TRABAJO ASIGNADO";

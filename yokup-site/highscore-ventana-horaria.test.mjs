@@ -151,14 +151,19 @@ test("la línea vive bajo el agente y se refresca sola sin volver a pedir datos"
 // ── Clic en el agente → ventana sobre su proyecto (Carlos, 2026-08-05) ─────
 
 test("el nombre del agente es el gatillo, y sólo si hay proyecto de censo", () => {
-  const nombre = cuerpo("agentNameHtml");
-  const f = new Function("esc", `${nombre}\nreturn agentNameHtml;`)(
-    (v) => String(v == null ? "" : v).replaceAll("&", "&amp;").replaceAll('"', "&quot;"));
+  const visible = cuerpo("nombreAgenteVisible"), nombre = cuerpo("agentNameHtml");
+  const f = new Function("esc", "normaliza", "window", `${visible}\n${nombre}\nreturn agentNameHtml;`)(
+    (v) => String(v == null ? "" : v).replaceAll("&", "&amp;").replaceAll('"', "&quot;"),
+    (v) => String(v == null ? "" : v).trim(),
+    { ykAgentIdentity:{ parse:raw => ({ persona:raw === "NeoMBACrema" ? "Neo" : raw }) } });
   const conCenso = f({ agente:"NeoMBACrema", proyecto:"admiranext.com/webmaster",
     proyectoOrigen:"principal", proyectoId:"webmaster-admiranext", maquinas:["MacBookAirCrema"] });
   assert.match(conCenso, /data-yk-launch="1"/);
   assert.match(conCenso, /data-proyecto="webmaster-admiranext"/);
   assert.match(conCenso, /data-maquina="MacBookAirCrema"/);
+  assert.match(conCenso, /data-agente="NeoMBACrema"/);
+  assert.match(conCenso, />Neo<\/button>/);
+  assert.doesNotMatch(conCenso, />NeoMBACrema<\/button>/);
   // el default no abre ventana de mejora: Galaxia Admira es paraguas, no faena
   assert.doesNotMatch(f({ agente:"X", proyecto:"Galaxia Admira", proyectoOrigen:"defecto", proyectoId:"galaxia-admira" }),
     /data-yk-launch/);

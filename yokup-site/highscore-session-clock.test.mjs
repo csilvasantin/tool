@@ -26,14 +26,15 @@ test("sesión cerrada queda congelada y unknown o ausente se muestra como guion"
   assert.equal(race.clockDurationLabel(null),"—");
 });
 
-test("DOM expone sólo duración y estado de sesión, nunca PID ni session id",()=>{
-  assert.match(html,/data-session-duration=/);
-  assert.match(html,/data-session-state=/);
-  assert.match(html,/data-dedicated-basis=/);
+test("DOM deja un único reloj visible y nunca expone sesión, estado ni PID",()=>{
+  assert.doesNotMatch(html,/data-session-duration=/);
+  assert.doesNotMatch(html,/data-session-state=/);
+  assert.doesNotMatch(html,/data-dedicated-basis=/);
   assert.match(html,/Horas operando del agente/);
   assert.match(html,/Horas operando no disponibles/);
   assert.doesNotMatch(html,/Tiempo de trabajo; sin sesión medida|work_interval_fallback/);
-  assert.match(html,/refresh-work-state[\s\S]*refresh-elapsed[\s\S]*refresh-session-elapsed/);
+  assert.match(html,/refresh-ended refresh-elapsed/);
+  assert.doesNotMatch(html,/refresh-work-state|refresh-session-elapsed|class="refresh-time"/);
   assert.doesNotMatch(html,/class="refresh-now"/);
   assert.doesNotMatch(html,/data-(?:pid|session-id|incarnation)/);
   assert.doesNotMatch(html,/data-work-ref/);
