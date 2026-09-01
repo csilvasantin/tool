@@ -4,19 +4,19 @@ import fs from "node:fs";
 
 const html=fs.readFileSync(new URL("./highscore.html",import.meta.url),"utf8");
 
-test("nombre y hora nacen en una columna izquierda estable y legible",()=>{
-  assert.match(html,/\.refresh-agent-meta\{[^}]*justify-content:flex-start[^}]*gap:3px[^}]*width:100%/);
+test("nombre, inicio y fin nacen en una columna izquierda estable y legible",()=>{
+  assert.match(html,/\.refresh-agent-meta\{[^}]*justify-content:flex-start[^}]*gap:5px[^}]*width:100%/);
   assert.match(html,/\.refresh-agent\{[^}]*flex:0 1 auto[^}]*text-overflow:ellipsis[^}]*text-align:left[^}]*color:var\(--accent\)/);
-  assert.match(html,/\.refresh-assignment\{[^}]*flex:0 0 auto[^}]*min-width:5ch[^}]*color:var\(--ink\)[^}]*font-weight:800[^}]*tabular-nums/);
+  assert.match(html,/\.refresh-started,\.refresh-ended\{[^}]*flex:0 0 auto[^}]*min-width:8ch[^}]*color:var\(--ink\)[^}]*font-weight:800[^}]*tabular-nums/);
   assert.doesNotMatch(html,/refresh-lane-idle\{[^}]*opacity|refresh-lane-last\{[^}]*(?:opacity|filter)/);
   assert.match(html,/refresh-lane-idle \.refresh-lane-center\{opacity:/);
   assert.match(html,/refresh-lane-last \.refresh-lane-center\{filter:grayscale\(1\);opacity:/);
 });
 
-test("assignment_at ausente no produce datetime vacío",()=>{
-  assert.match(html,/enlace\.trabajo\.assignmentAt[\s\S]*datetime="'[\s\S]*aria-label="Asignado a las/);
-  assert.match(html,/title="Hora de asignación no disponible" aria-label="Hora de asignación no disponible"/);
-  assert.doesNotMatch(html,/datetime="' \+ \(enlace\.trabajo\.assignmentAt/);
+test("work_started_at ausente no produce datetime vacío",()=>{
+  assert.match(html,/resumen\.startedAt \? '<time class="refresh-started" data-race-time="start" datetime="'/);
+  assert.match(html,/class="refresh-started" data-race-time="start" title="Hora de inicio no disponible">—/);
+  assert.doesNotMatch(html,/datetime="' \+ \(enlace\.trabajo\.startedAt/);
 });
 
 test("amarillo e ink superan contraste AA sobre el fondo real",()=>{
@@ -51,16 +51,17 @@ test("running compite; stale cruza B\/N sin ganar y last queda quieto en meta",(
 });
 
 test("responsive conserva estado y tiempos fijos con nombre truncable en cinco anchos y zoom 200%",()=>{
-  assert.match(html,/grid-template-columns:minmax\(106px,158px\) minmax\(0,1fr\) minmax\(218px,260px\)/);
-  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(70px,96px\) minmax\(0,1fr\) minmax\(126px,142px\)/);
-  assert.match(html,/@media \(max-width:340px\)\{\.refresh-lane\{grid-template-columns:minmax\(66px,88px\) minmax\(54px,1fr\) minmax\(122px,136px\)/);
+  assert.match(html,/grid-template-columns:minmax\(156px,226px\) minmax\(0,1fr\) minmax\(168px,210px\)/);
+  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(128px,176px\) minmax\(0,1fr\) minmax\(100px,124px\)/);
+  assert.match(html,/@media \(max-width:340px\)\{\.refresh-lane\{grid-template-columns:minmax\(116px,146px\) minmax\(54px,1fr\) minmax\(96px,108px\)/);
   for(const width of [1265,1024,760,390,320]){
-    const content=Math.min(1080,width-36), mobile=width<=620;
-    const agentMin=width<=340?66:mobile?70:width<=800?88:width<=1100?96:106;
-    const elapsedMin=width<=340?122:mobile?126:width<=800?198:width<=1100?206:218, gaps=mobile?4:8;
-    assert.ok(content-agentMin-elapsedMin-gaps>=0,`${width}px conserva pista sin overflow`);
+    const mobile=width<=620,content=Math.min(1080,width-36)-(mobile?6:0);
+    const agentMin=width<=340?116:mobile?128:width<=800?140:width<=1100?148:156;
+    const elapsedMin=width<=340?96:mobile?100:width<=800?148:width<=1100?156:168,gaps=mobile?4:8;
+    const trackMin=width<=340?54:0;
+    assert.ok(content-agentMin-elapsedMin-gaps>=trackMin,`${width}px conserva pista sin overflow`);
   }
-  assert.ok(1265/2-36-70-126-4>=0,"zoom 200% del escritorio conserva las tres columnas");
-  assert.match(html,/\.refresh-assignment\{[^}]*white-space:nowrap/);
+  assert.ok(1265/2-36-6-128-100-4>=0,"zoom 200% del escritorio conserva las tres columnas");
+  assert.match(html,/\.refresh-started,\.refresh-ended\{[^}]*white-space:nowrap/);
   assert.match(html,/\.refresh-agent\{[^}]*min-width:0[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
 });

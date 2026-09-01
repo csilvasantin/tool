@@ -32,7 +32,7 @@ test("la calle muestra trabajo, responsable, state factual y hora Madrid",()=>{
 });
 
 test("texto, agente y estado con tiempos ocupan columnas propias sin marquee",()=>{
-  assert.match(source,/\.refresh-lane\{display:grid;grid-template-columns:minmax\(106px,158px\) minmax\(0,1fr\) minmax\(218px,260px\)/);
+  assert.match(source,/\.refresh-lane\{display:grid;grid-template-columns:minmax\(156px,226px\) minmax\(0,1fr\) minmax\(168px,210px\)/);
   assert.match(source,/\.refresh-agent\{[^}]*text-overflow:ellipsis[^}]*white-space:nowrap/);
   assert.match(source,/@media \(max-width:620px\)[\s\S]*?\.refresh-mission-title\{font-size:8px\}/);
   assert.doesNotMatch(source,/<marquee|function estelaMision|class="refresh-word"/);

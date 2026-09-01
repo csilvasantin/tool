@@ -47,27 +47,31 @@ test("el nombre visible pierde el apellido de máquina y el hover/foco conservan
   assert.match(mbp,/title="MBP14"[^>]*aria-label="Neo · máquina MBP14">Neo<\/span>/);
 });
 
-test("ended_at se muestra en hora Madrid exacta y no se sustituye por otro reloj",()=>{
+test("la cabecera izquierda ordena agente, inicio factual y fin factual en hora Madrid",()=>{
   const ended=Date.parse("2026-09-01T13:04:05Z");
   const rendered=render("NiobeMacMini","last_work",ended);
-  assert.match(rendered,new RegExp(`<time class="refresh-ended" datetime="${new Date(ended).toISOString()}"[^>]*>15:04:05<\\/time>`));
+  assert.match(rendered,/class="refresh-agent"[^>]*>Niobe<\/span>/);
+  assert.match(rendered,/class="refresh-started" data-race-time="start"[^>]*>14:30:00<\/time>/);
+  assert.match(rendered,new RegExp(`<time class="refresh-ended" data-race-time="end" datetime="${new Date(ended).toISOString()}"[^>]*>15:04:05<\\/time>`));
+  assert.ok(rendered.indexOf('class="refresh-agent"') < rendered.indexOf('data-race-time="start"'));
+  assert.ok(rendered.indexOf('data-race-time="start"') < rendered.indexOf('data-race-time="end"'));
   assert.match(rendered,/class="refresh-work-state">FINALIZADO<\/strong>/);
-  assert.match(rendered,/Hora de finalización 15:04:05/);
+  assert.match(rendered,/aria-label="Responsable Niobe\. Hora de inicio 14:30:00\. Hora de finalización 15:04:05/);
 });
 
 test("sin ended_at no inventa hora y EN CURSO conserva su estado",()=>{
   const missing=render("TrinityMBP14","last_work",0);
-  assert.match(missing,/class="refresh-ended" title="Hora de finalización no disponible">—<\/span>/);
+  assert.match(missing,/class="refresh-ended" data-race-time="end" title="Hora de finalización no disponible">—<\/span>/);
   assert.doesNotMatch(missing,/class="refresh-ended" datetime=/);
 
   const running=render("NeoMBP14","running",0);
   assert.match(running,/class="refresh-work-state">EN CURSO<\/strong>/);
-  assert.match(running,/class="refresh-ended" title="Hora de finalización no disponible">—<\/span>/);
+  assert.match(running,/class="refresh-ended" data-race-time="end" title="Hora de finalización no disponible">—<\/span>/);
 });
 
 test("el layout cede apellido a la cuarta marca y la apila sólo en móvil",()=>{
-  assert.match(html,/grid-template-columns:minmax\(106px,158px\) minmax\(0,1fr\) minmax\(218px,260px\)/);
+  assert.match(html,/grid-template-columns:minmax\(156px,226px\) minmax\(0,1fr\) minmax\(168px,210px\)/);
   assert.match(html,/@media \(max-width:620px\)[\s\S]*\.refresh-time\{[^}]*flex-wrap:wrap[^}]*font-size:7px/);
-  assert.match(html,/@media \(max-width:620px\)[\s\S]*\.refresh-ended-group\{[^}]*flex-basis:100%[^}]*justify-content:flex-end/);
-  assert.match(html,/@media \(max-width:340px\)\{\.refresh-lane\{grid-template-columns:minmax\(66px,88px\) minmax\(54px,1fr\) minmax\(122px,136px\)/);
+  assert.match(html,/@media \(max-width:620px\)[\s\S]*\.refresh-started,\.refresh-ended\{font-size:7px/);
+  assert.match(html,/@media \(max-width:340px\)\{\.refresh-lane\{grid-template-columns:minmax\(116px,146px\) minmax\(54px,1fr\) minmax\(96px,108px\)/);
 });

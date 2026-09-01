@@ -64,11 +64,11 @@ test("el tick sólo actualiza duraciones y aria; nunca reloj, progreso ni estado
   assert.match(html, /visibilitychange[\s\S]*actualizaRelojesCarrera\(\)[\s\S]*actualizaMarcador\(\)/);
 });
 
-test("la derecha muestra estado // misión // sesión y reserva ancho responsive", () => {
-  assert.match(html, /class="refresh-time"[\s\S]*class="refresh-work-state"[\s\S]*class="refresh-elapsed"[\s\S]*class="refresh-session-elapsed"[\s\S]*class="refresh-ended"/);
+test("la izquierda muestra agente, inicio y fin; la derecha conserva estado // misión // sesión", () => {
+  assert.match(html, /class="refresh-agent-meta"[\s\S]*class="refresh-agent"[\s\S]*data-race-time="start"[\s\S]*data-race-time="end"[\s\S]*class="refresh-time"[\s\S]*class="refresh-work-state"[\s\S]*class="refresh-elapsed"[\s\S]*class="refresh-session-elapsed"/);
   assert.doesNotMatch(html, /class="refresh-now"/);
-  assert.match(html, /grid-template-columns:minmax\(106px,158px\) minmax\(0,1fr\) minmax\(218px,260px\)/);
-  assert.match(html, /@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(70px,96px\) minmax\(0,1fr\) minmax\(126px,142px\)/);
+  assert.match(html, /grid-template-columns:minmax\(156px,226px\) minmax\(0,1fr\) minmax\(168px,210px\)/);
+  assert.match(html, /@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(128px,176px\) minmax\(0,1fr\) minmax\(100px,124px\)/);
 });
 
 test("dorsal y toda su mecánica desaparecen de CSS DOM y JS", () => {
