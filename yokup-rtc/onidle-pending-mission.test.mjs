@@ -89,7 +89,8 @@ test('normalización SQL de familia y máquina equivale a la normalización JS',
   ];
   const miniAliases = ['Mac Mini', 'MacMini', 'admira-macmini', 'Mác-Mini', 'mac_mini', 'MacMini.local', 'Mac Mini Carlos'];
   const mbp14Aliases = ['admira-macbookpronegro14', 'MacBook Pro 14', 'MacBookProNegro14'];
-  const machines = [...miniAliases, ...mbp14Aliases, 'MacBook Pro 16'];
+  const hostileAliases = ['MacMiniature','macmini-evil','MacBook Pro 140','macbookpro14evil','ThinkStationery'];
+  const machines = [...miniAliases, ...mbp14Aliases, 'MacBook Pro 16', ...hostileAliases];
   const insert = db.prepare('INSERT INTO aliases VALUES(?,?)');
   for (const value of agents) insert.run('agent', value);
   for (const value of machines) insert.run('machine', value);
@@ -116,6 +117,11 @@ test('normalización SQL de familia y máquina equivale a la normalización JS',
     assert.equal(memberRefMatches('machine', alias, 'MacBook Pro 14'), true, alias);
     assert.equal(memberRefMatches('machine', alias, 'Mac Mini'), false, alias);
   }
+  assert.equal(memberRefMatches('machine','MacMiniature','Mac Mini'), false);
+  assert.equal(memberRefMatches('machine','macmini-evil','Mac Mini'), false);
+  assert.equal(memberRefMatches('machine','MacBook Pro 140','MacBook Pro 14'), false);
+  assert.equal(memberRefMatches('machine','macbookpro14evil','MacBook Pro 14'), false);
+  assert.equal(memberRefMatches('machine','ThinkStationery','ThinkStation PGX'), false);
 });
 
 test('carrera guard→batch: toda la familia Oraculo/Mini bloquea sin consumir cupo', async () => {
@@ -146,6 +152,24 @@ test('carrera guard→batch: todos los aliases físicos MBP14 bloquean sólo su 
     assert.equal(result.reason,'pending_mission',loc);
     assert.equal(db.prepare('SELECT COUNT(*) n FROM decisions').get().n,0,loc);
     assert.equal(db.prepare("SELECT COUNT(*) n FROM onidle_ticks WHERE status='published'").get().n,0,loc);
+  }
+});
+
+test('carrera guard→batch: prefijos hostiles no bloquean Mini, MBP14 ni PGX', async () => {
+  const miniCandidate = candidate;
+  const mbp14Candidate = {
+    identity:{agent:'TrinityMBP14',machine:'MacBook Pro 14'},
+    project:{id:'yokup',name:'Yokup',slug:'yokup'}, identity_key:'trinitymbp14@macbookpro14'
+  };
+  for (const [loc,assignee,target] of [
+    ['MacMiniature','OraculoMini',miniCandidate], ['macmini-evil','OraculoMini',miniCandidate],
+    ['MacBook Pro 140','TrinityMBP14',mbp14Candidate], ['macbookpro14evil','TrinityMBP14',mbp14Candidate],
+    ['ThinkStationery','OraculoMini',miniCandidate]
+  ]) {
+    const {db,env,publish} = harness({id:'FLT-HOSTILE',source:'fleet',status:'open',assignee,loc});
+    const result = await publish(env,target,Date.UTC(2026,8,1,10));
+    assert.equal(result.published,true,loc);
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM decisions').get().n,1,loc);
   }
 });
 

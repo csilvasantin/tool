@@ -70,7 +70,7 @@ export function machineSuffix(machine) {
   for (const [suffix, aliases] of MACHINES) {
     if (aliases.some((alias) => {
       const candidate = identityKey(alias);
-      return key === candidate || key.startsWith(candidate);
+      return key === candidate;
     })) return suffix;
   }
   return "";
@@ -94,7 +94,6 @@ export function machineIdentitySqlKey(expression) {
   return `COALESCE((SELECT json_extract(machine_alias.value,'$[0]') ` +
     `FROM json_each('${aliasesJson}') AS machine_alias ` +
     `WHERE ${raw}=json_extract(machine_alias.value,'$[1]') ` +
-    `OR ${raw} LIKE json_extract(machine_alias.value,'$[1]')||'%' ` +
     `ORDER BY machine_alias.key ASC LIMIT 1),${fallback})`;
 }
 

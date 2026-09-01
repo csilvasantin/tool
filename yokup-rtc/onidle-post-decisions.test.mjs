@@ -215,6 +215,20 @@ test('GET onidle-state no atribuye a OraculoMini la misión activa de TrinityMBP
   } finally {Date.now=original;}
 });
 
+test('GET onidle-state no atribuye prefijos hostiles a una máquina canónica',async()=>{
+  const now=Date.UTC(2026,7,7,10),fresh=now-HOUR+1,original=Date.now;Date.now=()=>now;
+  const request=new Request('https://api.yokup.com/fleet/onidle-state?agent=OraculoMini&machine=admira-macmini');
+  try {
+    for (const loc of ['MacMiniature','macmini-evil','MacBook Pro 140','macbookpro14evil','ThinkStationery']) {
+      const box=decisionEnv({now,missions:[{id:'DCL-hostile',assignee:'OraculoMini',loc,status:'in_progress',created_at:fresh}]});
+      const result=await worker.fetch(request,box.env,{}),body=await result.json();
+      assert.equal(result.status,200,loc);
+      assert.equal(body.can_open,true,loc);
+      assert.equal(body.blockers.missions,0,loc);
+    }
+  } finally {Date.now=original;}
+});
+
 test('OnIdle bloquea exactamente al consumir 8/8',async()=>{
   const now=Date.UTC(2026,7,7,10),range=missionDayRange('2026-08-07');
   const decisions=Array.from({length:8},(_,i)=>({id:`DEC-${i}`,agent:'OraculoMacMini',machine:'admira-macmini',mission:'OnIdle horario',status:'decided',created_at:range.start+i*60_000,deadline:range.start+i*60_000+300_000}));
