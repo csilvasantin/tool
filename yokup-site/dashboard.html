@@ -59,7 +59,7 @@ h1{font-size:clamp(23px,2.8vw,33px);line-height:1.12;letter-spacing:-.02em;margi
 .pa-refresh:hover,.pa-refresh:focus-visible{border-color:var(--brand);outline:none}.pa-refresh:disabled{opacity:.45;cursor:wait}
 .pa-msg{min-height:18px;margin:0 0 10px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--dim)}.pa-msg.ok{color:var(--good)}.pa-msg.err{color:var(--warn)}
 .pa-scroll{overflow:visible;padding:2px 2px 8px}.pa-map{position:relative;display:grid;grid-template-columns:minmax(280px,520px) minmax(300px,560px);gap:clamp(88px,10vw,420px);justify-content:space-between;min-width:0;align-items:start}
-.pa-links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:1}.pa-link{fill:none;stroke-width:2;stroke-linecap:round;filter:drop-shadow(0 0 5px currentColor)}.pa-link-active{opacity:.66}.pa-link-flow{fill:none;stroke-width:3.1;stroke-linecap:round;stroke-dasharray:2 98;opacity:.96;filter:drop-shadow(0 0 7px currentColor);animation:pa-data-out 2.45s linear infinite}.pa-link-flow-back{animation-name:pa-data-back;animation-delay:-1.225s}.pa-link-assigned{opacity:.34;animation:pa-cable-breathe 3.6s ease-in-out infinite}.pa-link-temp{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-dasharray:7 5;filter:drop-shadow(0 0 7px var(--accent))}
+.pa-links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:1}.pa-link{fill:none;stroke-width:2;stroke-linecap:round;filter:drop-shadow(0 0 5px currentColor)}.pa-link-active{opacity:.66}.pa-link-flow{fill:none;stroke-width:3.1;stroke-linecap:round;stroke-dasharray:2 98;opacity:.96;filter:drop-shadow(0 0 7px currentColor);animation:pa-data-out 2.45s linear infinite}.pa-link-flow-back{animation-name:pa-data-back;animation-delay:-1.225s}.pa-link-assigned{opacity:.34;animation:pa-cable-breathe 3.6s ease-in-out infinite}.pa-link-carbon{stroke-width:2.2;stroke-dasharray:7 5;opacity:.72;filter:drop-shadow(0 0 5px currentColor)}.pa-link-temp{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-dasharray:7 5;filter:drop-shadow(0 0 7px var(--accent))}
 @keyframes pa-data-out{from{stroke-dashoffset:0}to{stroke-dashoffset:-100}}
 @keyframes pa-data-back{from{stroke-dashoffset:-100}to{stroke-dashoffset:0}}
 @keyframes pa-cable-breathe{0%,100%{opacity:.25;filter:drop-shadow(0 0 2px currentColor)}50%{opacity:.52;filter:drop-shadow(0 0 8px currentColor)}}
@@ -70,7 +70,7 @@ h1{font-size:clamp(23px,2.8vw,33px);line-height:1.12;letter-spacing:-.02em;margi
 .pa-roster-tab{min-height:40px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--mut);font:800 8px/1.25 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:7px 8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;text-align:center}
 .pa-roster-tab .pa-count{flex:none}.pa-roster-tab:hover{color:var(--ink);border-color:var(--line2)}.pa-roster-tab[aria-selected="true"]{color:var(--accent);border-color:var(--accent);background:rgba(255,216,102,.09);box-shadow:inset 0 -2px 0 var(--accent),0 0 14px rgba(255,216,102,.12)}.pa-roster-tab[aria-selected="true"]::before{content:"●";font-size:7px}.pa-roster-tab:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 .pa-roster-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:7px;min-height:24px;margin:-2px 0 6px}.pa-roster-toolbar[hidden],.pa-roster-panel[hidden]{display:none!important}.pa-roster-panel{min-width:0}
-.pa-shell[data-pa-roster-view="carbon"] .pa-links{display:none}.pa-shell[data-pa-roster-view="carbon"] #projectAgentProjectsPane>.pa-col-title{color:var(--accent)}
+.pa-shell[data-pa-roster-view="teams"] .pa-links{visibility:hidden}.pa-shell[data-pa-roster-view="silicon"] [data-link-kind="carbon"],.pa-shell[data-pa-roster-view="carbon"] [data-link-kind="silicon"]{visibility:hidden}.pa-shell[data-pa-roster-view="carbon"] #projectAgentProjectsPane>.pa-col-title{color:var(--accent)}
 .pa-list{display:grid;gap:5px}.pa-agent-node,.pa-team-node,.pa-project-node{--pc:var(--brand);border:1px solid var(--line);border-radius:9px;background:rgba(2,8,13,.76);position:relative;transition:border-color .15s,box-shadow .15s}
 .pa-project-node,.pa-team-node{transform:translate(var(--pa-node-x,0px),var(--pa-node-y,0px));will-change:transform}.pa-project-node{padding:0}.pa-project-node::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--pc);box-shadow:0 0 14px var(--pc)}.pa-project-node.archivado{opacity:.55}.pa-project-node.drop{border-color:var(--good);box-shadow:0 0 0 2px rgba(136,255,170,.18),0 0 30px rgba(136,255,170,.14)}
 .pa-project-summary,.pa-team-summary{list-style:none;display:flex;align-items:center;gap:6px;cursor:pointer;position:relative}.pa-project-summary::-webkit-details-marker,.pa-team-summary::-webkit-details-marker{display:none}.pa-project-summary{padding:6px 52px 6px 6px}.pa-team-summary{padding:4px 46px 4px 5px;min-height:34px}.pa-project-summary:focus-visible,.pa-team-summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.pa-project-main{min-width:0;flex:1}.pa-project-controls{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:3px}.pa-project-detail{padding:0 7px 7px;border-top:1px solid rgba(120,243,255,.08)}.pa-expand{font:800 7.5px/1 var(--mono);letter-spacing:.03em;text-transform:uppercase;color:var(--brand);white-space:nowrap}.pa-expand::after{content:" ›"}.pa-project-node[open] .pa-expand::after{content:" ×"}
@@ -88,7 +88,7 @@ h1{font-size:clamp(23px,2.8vw,33px);line-height:1.12;letter-spacing:-.02em;margi
 .pa-assigned{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px;min-height:22px}.pa-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:999px;padding:2px 3px 2px 7px;font:9px/1.2 var(--mono);color:var(--mut);background:rgba(120,243,255,.04)}.pa-chip.legacy{border-style:dashed;color:var(--accent)}.pa-chip button{width:17px;height:17px;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}.pa-chip button:hover{background:rgba(255,136,102,.16);color:var(--warn)}.pa-empty{font:10px/1.5 var(--mono);color:var(--warn)}
 .pa-decision{width:100%;border:1px solid rgba(255,216,102,.34);border-radius:7px;background:rgba(255,216,102,.06);color:var(--accent);font:800 8.8px/1.25 var(--mono);letter-spacing:.04em;text-align:left;padding:7px 8px;cursor:pointer}.pa-decision:hover,.pa-decision:focus-visible{border-color:var(--accent);background:rgba(255,216,102,.12);outline:none}.pa-decision:disabled{opacity:.5;cursor:wait}
 .pa-team-agents{display:grid;gap:5px;padding:5px}.pa-agent-node{padding:6px 6px 6px 35px;background:rgba(7,20,29,.92)}.pa-agent-node.offline{border-style:dashed;background:rgba(31,25,13,.46)}.pa-agent-node.offline .pa-avatar{color:var(--accent);border-color:rgba(255,216,102,.34);background:rgba(255,216,102,.06)}.pa-agent-node.selected{border-color:var(--accent);box-shadow:0 0 0 1px rgba(255,216,102,.16),0 0 22px rgba(255,216,102,.1)}.pa-actions{display:grid;gap:5px;margin-top:5px}.pa-agent-project{border:1px solid var(--line);border-radius:7px;padding:5px;background:rgba(120,243,255,.035)}.pa-agent-project>span{display:block;font:800 8px/1.2 var(--mono);color:var(--mut);margin:0 2px 4px}.pa-action-row{display:flex;gap:5px}.pa-action-row .pa-decision{flex:1}.pa-mini{border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--mut);font:800 9px/1 var(--mono);padding:6px 8px;cursor:pointer}.pa-mini:hover,.pa-mini:focus-visible{color:var(--warn);border-color:var(--warn);outline:none}.pa-agent-empty{font:8.5px/1.3 var(--mono);color:var(--dim)}
-.pa-roster-group{display:grid;gap:5px}.pa-roster-group+.pa-roster-group{margin-top:4px}.pa-roster-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:rgba(120,243,255,.035);font-family:var(--mono)}.pa-roster-heading b{color:var(--brand);font-size:9px;letter-spacing:.08em;text-transform:uppercase}.pa-roster-heading span{color:var(--dim);font-size:7.5px;text-align:right}.pa-carbon-list{display:grid;gap:5px}.pa-carbon-node{display:grid;grid-template-columns:28px minmax(0,1fr);gap:7px;align-items:start;padding:7px;border:1px solid rgba(255,216,102,.24);border-radius:9px;background:rgba(255,216,102,.035)}.pa-carbon-node .pa-avatar{color:var(--accent);border-color:rgba(255,216,102,.34);background:rgba(255,216,102,.06)}.pa-carbon-projects{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}.pa-carbon-project{border:1px solid var(--line);border-radius:999px;padding:3px 6px;color:var(--mut);font:7.5px/1.2 var(--mono);background:rgba(120,243,255,.035)}
+.pa-roster-group{display:grid;gap:5px}.pa-roster-group+.pa-roster-group{margin-top:4px}.pa-roster-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:rgba(120,243,255,.035);font-family:var(--mono)}.pa-roster-heading b{color:var(--brand);font-size:9px;letter-spacing:.08em;text-transform:uppercase}.pa-roster-heading span{color:var(--dim);font-size:7.5px;text-align:right}.pa-carbon-list{display:grid;gap:5px}.pa-carbon-node{position:relative;display:grid;grid-template-columns:28px minmax(0,1fr);gap:7px;align-items:start;padding:7px;border:1px solid rgba(255,216,102,.24);border-radius:9px;background:rgba(255,216,102,.035)}.pa-carbon-node .pa-avatar{color:var(--accent);border-color:rgba(255,216,102,.34);background:rgba(255,216,102,.06)}.pa-carbon-projects{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}.pa-carbon-project{border:1px solid var(--line);border-radius:999px;padding:3px 6px;color:var(--mut);font:7.5px/1.2 var(--mono);background:rgba(120,243,255,.035)}.pa-carbon-anchor{position:absolute;top:50%;width:9px;height:9px;border:1px solid currentColor;background:rgba(2,8,13,.94);color:var(--carbon-link,var(--accent));transform:translateY(-50%) rotate(45deg);box-shadow:0 0 8px currentColor;pointer-events:none}.pa-carbon-anchor-agent{left:-5px}.pa-carbon-anchor-project{right:-5px}
 .pa-surfaces{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}.pa-surface{border:1px solid rgba(120,243,255,.16);border-radius:999px;padding:2px 5px;font:7.5px/1.2 var(--mono);color:var(--brand);background:rgba(120,243,255,.035)}.pa-family-helpers{display:grid;gap:4px;margin-top:6px}.pa-helper{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;padding:5px 7px;border-left:2px solid var(--line2);border-radius:0 6px 6px 0;background:rgba(120,243,255,.035);font-family:var(--mono)}.pa-helper b{font-size:8.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pa-helper em{font-size:7px;color:var(--accent);font-style:normal;text-transform:uppercase}.pa-helper span{grid-column:1/-1;font-size:7.3px;color:var(--dim)}.pa-chip-family{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:9px;padding:4px 4px 4px 7px;font:9px/1.2 var(--mono);color:var(--mut);background:rgba(120,243,255,.04)}.pa-chip-family.primary{border-color:rgba(255,216,102,.48);color:var(--accent)}.pa-chip-family small{display:block;color:var(--dim);font-size:7px;margin-top:2px}.pa-chip-family button{width:18px;height:18px;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}.pa-chip-family button:hover{background:rgba(255,136,102,.16);color:var(--warn)}
 .pa-team-node:not([open])>.pa-team-agents,.pa-project-node:not([open])>.pa-project-detail{display:none}
 .pa-target{border:1px dashed var(--good);border-radius:7px;background:rgba(136,255,170,.05);color:var(--good);font:800 8px/1.2 var(--mono);letter-spacing:.03em;padding:6px 7px;cursor:pointer;white-space:nowrap}.pa-target:hover,.pa-target:focus-visible{background:rgba(136,255,170,.12);outline:none}.pa-target:disabled{opacity:.45;cursor:wait}
@@ -419,9 +419,24 @@ function paCarbonAgents(projects){
   });
   return [...agents.values()].map(agent=>({...agent,projects:agent.projects.sort((a,b)=>a.name.localeCompare(b.name,"es"))})).sort((a,b)=>a.name.localeCompare(b.name,"es"));
 }
+function paCarbonConnections(projects){
+  const connections=new Map();
+  (Array.isArray(projects)?projects:[]).forEach(project=>{
+    const projectId=String(project&&project.id||"").trim(),carbonName=paCarbonResponsible(project),carbonKey=paCarbonKey(carbonName);
+    if(!projectId||!carbonKey||project&&project.status==="archivado")return;
+    const key="carbon|"+carbonKey+"|"+projectId;
+    if(!connections.has(key))connections.set(key,{key,carbonKey,carbonName,projectId});
+  });
+  return [...connections.values()].sort((a,b)=>a.key.localeCompare(b.key,"es"));
+}
+function paCarbonLinkColor(value){
+  let hash=2166136261;
+  for(const char of paCarbonKey(value)){hash^=char.codePointAt(0);hash=Math.imul(hash,16777619);}
+  return "hsl("+((hash>>>0)%360)+" 84% 68%)";
+}
 function paCarbonAgentsMarkup(agents){
   if(!agents.length)return '<div class="pa-agent-empty">No hay responsables Carbono asignados en los proyectos visibles.</div>';
-  return agents.map(agent=>'<article class="pa-carbon-node" data-carbon-agent="'+esc(agent.key)+'"><div class="pa-avatar">'+esc(agent.name.split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase()||"C")+'</div><div class="pa-name"><b>'+esc(agent.name)+'</b><span>Responsable Carbono · '+agent.projects.length+' proyecto'+(agent.projects.length===1?'':'s')+'</span><div class="pa-carbon-projects">'+agent.projects.map(project=>'<span class="pa-carbon-project" data-carbon-project="'+esc(project.id)+'">'+esc(project.name)+'</span>').join("")+'</div></div></article>').join("");
+  return agents.map(agent=>'<article class="pa-carbon-node" data-carbon-agent="'+esc(agent.key)+'" style="--carbon-link:'+paCarbonLinkColor(agent.key)+'"><span class="pa-carbon-anchor pa-carbon-anchor-agent" data-carbon-agent-port="'+esc(agent.key)+'" aria-hidden="true"></span><div class="pa-avatar">'+esc(agent.name.split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase()||"C")+'</div><div class="pa-name"><b>'+esc(agent.name)+'</b><span>Responsable Carbono · '+agent.projects.length+' proyecto'+(agent.projects.length===1?'':'s')+'</span><div class="pa-carbon-projects">'+agent.projects.map(project=>'<span class="pa-carbon-project" data-carbon-project="'+esc(project.id)+'">'+esc(project.name)+'</span>').join("")+'</div></div></article>').join("");
 }
 function paCarbonResponsibleMarkup(project){
   const carbon=paCarbonResponsible(project),draft=paCarbonDraft(project),saving=PROJECT_RESPONSIBLES_PENDING.has(project.id),changed=draft.trim()!==carbon,inputId="pa-carbon-"+project.id;
@@ -586,7 +601,7 @@ function paNextRosterView(current,key){
 function paSetRosterView(value,focus){
   const next=paNormalizeRosterView(value);if(next===PA_ROSTER_VIEW){if(focus!==false)pa(next==="carbon"?"projectAgentCarbonTab":next==="silicon"?"projectAgentSiliconTab":"projectAgentTeamsTab").focus();return;}
   PA_ROSTER_VIEW=next;LINK_DRAG=null;LINK_CLICK_AGENT="";document.querySelectorAll("[data-project-node]").forEach(node=>node.classList.remove("drop"));
-  const group=pa("projectAgentLinks"),temp=pa("projectAgentTemp");if(group)group.innerHTML="";if(temp)temp.setAttribute("d","");
+  const temp=pa("projectAgentTemp");if(temp)temp.setAttribute("d","");
   paRender();if(focus!==false){const tab=pa(next==="carbon"?"projectAgentCarbonTab":next==="silicon"?"projectAgentSiliconTab":"projectAgentTeamsTab");if(tab)tab.focus();}
   const projects=PROJECT_ROWS.filter(project=>project.status!=="archivado"&&paCarbonResponsible(project)).length,agents=paCarbonAgents(PROJECT_ROWS.filter(project=>project.status!=="archivado")).length;
   paMessage(next==="carbon"?"✓ Agentes de Carbono · "+agents+" responsables · "+projects+" proyectos asociados":next==="silicon"?"✓ Agentes de Silicio · agrupados por equipo físico":"✓ Equipos físicos · inventario y asociaciones", "ok");
@@ -730,7 +745,7 @@ function paRender(){
   const openTeams=new Set([...document.querySelectorAll("#projectAgentTeams [data-team-key][open],#projectAgentSilicon [data-team-key][open]")].map(node=>node.dataset.teamKey));
   const byId=new Map(PROJECT_ROSTER.map(a=>[a.id,a])),byFamily=new Map(families.map(a=>[a.id,a]));
   const active=PROJECT_CATALOG.filter(p=>p.status!=="archivado").length;
-  const links=PROJECT_ROWS.reduce((n,p)=>n+(p.machines||[]).length+paProjectFamilyRefs(p).length,0);
+  const links=PROJECT_ROWS.reduce((n,p)=>n+(p.machines||[]).length+paProjectFamilyRefs(p).length,0)+paCarbonConnections(PROJECT_ROWS).length;
   pa("projectAgentN").textContent=active+" proyectos · "+teams.length+" equipos · "+families.length+" agentes de Silicio · "+carbonAgents.length+" agentes de Carbono · "+links+" uniones";
   const visibleActive=visibleProjects.filter(project=>project.status!=="archivado").length,roleCounts=paRoleCounts(families,visibleTeams);
   pa("projectAgentProjectsN").textContent=visibleActive+"/"+active;
@@ -786,7 +801,7 @@ function paRender(){
     const agentChips=assignedGroups.length?assignedGroups.map(group=>{const row=byFamily.get(group.id),memberRows=group.refs.map(ref=>byId.get(ref)).filter(Boolean),visible=row&&paProjectHasTeam(project,row.team),isPrimary=group.id===primaryId;return '<span class="pa-chip-family'+(visible?'':' legacy')+(isPrimary?' primary':'')+'" title="'+esc(isPrimary?'Responsable Silicio':memberRows.some(item=>!item.online)?'Agente de Silicio asignado · sin actividad':visible?'Agente de Silicio elegido':'Referencia de Silicio sin equipo asociado')+'"><span>👤 '+esc(group.id)+'</span><button type="button" data-pa-family-remove="'+esc(group.id)+'" data-project="'+esc(project.id)+'" aria-label="Quitar la familia '+esc(group.id)+'"'+(busy?' disabled':'')+'>×</button></span>';}).join(""):'<span class="pa-empty">Sin agentes de Silicio elegidos</span>';
     const target=!carbonMode&&LINK_CLICK_AGENT&&!archived?'<button class="pa-target" type="button" data-pa-target="'+esc(project.id)+'"'+(busy?' disabled':'')+'>Conectar aquí</button>':'';
     const nodeKey=paNodeKey("project",project.id);
-    const projectPort=carbonMode?'':'<span class="pa-port" data-project-port="'+esc(project.id)+'">◆</span>';
+    const projectPort=carbonMode?'<span class="pa-carbon-anchor pa-carbon-anchor-project" data-carbon-project-port="'+esc(project.id)+'" aria-hidden="true" style="--carbon-link:'+paCarbonLinkColor(paCarbonResponsible(project))+'"></span>':'<span class="pa-port" data-project-port="'+esc(project.id)+'">◆</span>';
     const projectDetail=carbonMode
       ? '<div class="pa-project-detail"><div class="pa-meta"><span>Proyecto asociado a '+esc(paCarbonResponsible(project))+'</span><span>'+(project.missions||0)+' en curso</span>'+(web?'<a href="'+esc(web)+'" target="_blank" rel="noopener noreferrer">abrir ↗</a>':'')+'</div><div class="pa-responsibles" aria-label="Responsable Carbono de '+esc(project.name||project.id)+'">'+paCarbonResponsibleMarkup(project)+'</div></div>'
       : '<div class="pa-project-detail"><div class="pa-meta"><span>'+assignedTeams.length+' equipos</span><span>'+assignedGroups.length+' agentes de Silicio</span><span>'+(project.missions||0)+' en curso</span>'+(web?'<a href="'+esc(web)+'" target="_blank" rel="noopener noreferrer">abrir ↗</a>':'')+'</div>'+paProjectResponsibles(project,primaryId||silicon)+'<div class="pa-assigned">'+teamChips+'</div><div class="pa-assigned">'+agentChips+'</div></div>';
@@ -888,11 +903,11 @@ const FLOW_T0=Date.now();
 function paFlowDelay(offset){return "animation-delay:"+Math.round(-(((Date.now()-FLOW_T0)%FLOW_CYCLE_MS)+(offset||0)))+"ms";}
 function paSyncLink(group,key,state,curve,color){
   if(!curve||!color)return "";
-  let node=group.querySelector('[data-link-key="'+CSS.escape(key)+'"]');
+  let node=group.querySelector('[data-link-kind="silicon"][data-link-key="'+CSS.escape(key)+'"]');
   if(node&&node.dataset.linkState!==state){node.remove();node=null;}
   if(!node){
     node=document.createElementNS("http://www.w3.org/2000/svg","g");
-    node.dataset.linkKey=key;node.dataset.linkState=state;
+    node.dataset.linkKey=key;node.dataset.linkKind="silicon";node.dataset.linkState=state;
     node.innerHTML=state==="assigned"
       ? '<path class="pa-link pa-link-assigned" marker-end="url(#paArrow)" data-link-state="assigned"></path>'
       : '<path class="pa-link pa-link-active" marker-end="url(#paArrow)" data-link-state="active"></path><path class="pa-link-flow pa-link-flow-out" pathLength="100" style="'+paFlowDelay(0)+'"></path><path class="pa-link-flow pa-link-flow-back" pathLength="100" style="'+paFlowDelay(FLOW_CYCLE_MS/2)+'"></path>';
@@ -901,11 +916,19 @@ function paSyncLink(group,key,state,curve,color){
   for(const path of node.children){path.setAttribute("d",curve);path.setAttribute("stroke",color);}
   return key;
 }
-function paDrawLinks(){
-  const map=pa("projectAgentMap"),svg=pa("projectAgentSvg"),group=pa("projectAgentLinks"),temp=pa("projectAgentTemp"); if(!map||!svg||!group)return;
-  const rect=map.getBoundingClientRect();svg.setAttribute("viewBox","0 0 "+Math.max(1,rect.width)+" "+Math.max(1,rect.height));
-  if(PA_ROSTER_VIEW!=="silicon"){group.innerHTML="";temp.setAttribute('d','');return;}
-  if(!(pa("projectAgentProjectsPane").open&&pa("projectAgentTeamsPane").open)){group.innerHTML="";temp.setAttribute('d','');return;}
+function paSyncCarbonLink(group,connection,curve,color){
+  if(!connection||!curve||!color)return "";
+  let node=group.querySelector('[data-link-kind="carbon"][data-link-key="'+CSS.escape(connection.key)+'"]');
+  if(!node){
+    node=document.createElementNS("http://www.w3.org/2000/svg","g");
+    node.dataset.linkKey=connection.key;node.dataset.linkKind="carbon";node.dataset.linkState="carbon";
+    node.innerHTML='<path class="pa-link pa-link-carbon" data-link-state="carbon"></path>';
+    group.appendChild(node);
+  }
+  for(const path of node.children){path.setAttribute("d",curve);path.setAttribute("stroke",color);}
+  return connection.key;
+}
+function paDrawSiliconLinks(map,rect,group){
   const colors=paConnectionColors();
   const live=new Set(PROJECT_ROWS.flatMap(project=>paProjectFamilyRefs(project).flatMap(agent=>{
     const agentNodes=[...map.querySelectorAll('[data-agent-family="'+CSS.escape(agent)+'"]')],target=map.querySelector('[data-project-port="'+CSS.escape(project.id)+'"]');
@@ -919,7 +942,24 @@ function paDrawLinks(){
       return paSyncLink(group,agentNode.dataset.agentNode+'|'+project.id,online?"active":"assigned",curve,color);
     }).filter(Boolean);
   })));
-  [...group.children].forEach(node=>{if(!live.has(node.dataset.linkKey))node.remove();});
+  [...group.querySelectorAll('[data-link-kind="silicon"]')].forEach(node=>{if(!live.has(node.dataset.linkKey))node.remove();});
+}
+function paDrawCarbonLinks(map,rect,group){
+  const projects=PROJECT_ROWS.filter(project=>paScopeAllows(PROJECT_SCOPE,project.id)&&project.status!=="archivado"&&paCarbonResponsible(project));
+  const live=new Set(paCarbonConnections(projects).map(connection=>{
+    const source=map.querySelector('[data-carbon-project-port="'+CSS.escape(connection.projectId)+'"]'),target=map.querySelector('[data-carbon-agent-port="'+CSS.escape(connection.carbonKey)+'"]');
+    if(!source||!target||!source.getClientRects().length||!target.getClientRects().length)return "";
+    return paSyncCarbonLink(group,connection,paCurve(paPoint(source,rect),paPoint(target,rect)),paCarbonLinkColor(connection.carbonKey));
+  }).filter(Boolean));
+  [...group.querySelectorAll('[data-link-kind="carbon"]')].forEach(node=>{if(!live.has(node.dataset.linkKey))node.remove();});
+}
+function paDrawLinks(){
+  const map=pa("projectAgentMap"),svg=pa("projectAgentSvg"),group=pa("projectAgentLinks"),temp=pa("projectAgentTemp"); if(!map||!svg||!group)return;
+  const rect=map.getBoundingClientRect();svg.setAttribute("viewBox","0 0 "+Math.max(1,rect.width)+" "+Math.max(1,rect.height));
+  if(matchMedia("(max-width:900px)").matches){group.innerHTML="";temp.setAttribute("d","");return;}
+  if(PA_ROSTER_VIEW==="teams"){temp.setAttribute("d","");return;}
+  if(!(pa("projectAgentProjectsPane").open&&pa("projectAgentTeamsPane").open)){group.innerHTML="";temp.setAttribute('d','');return;}
+  if(PA_ROSTER_VIEW==="silicon")paDrawSiliconLinks(map,rect,group);else if(PA_ROSTER_VIEW==="carbon")paDrawCarbonLinks(map,rect,group);
   if(!LINK_DRAG)temp.setAttribute('d','');
 }
 function paStartDrag(event){

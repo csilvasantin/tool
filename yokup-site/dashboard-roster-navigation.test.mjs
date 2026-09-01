@@ -69,20 +69,24 @@ test("Carbono pinta sólo responsables y chips de sus proyectos asociados",()=>{
   assert.match(render,/responsables · '\+carbonProjects\.length\+' proyectos asociados/);
 });
 
-test("la ficha de proyecto Carbono no incorpora Silicio, equipos, puertos ni conexiones",()=>{
+test("la ficha de proyecto Carbono no incorpora Silicio ni puertos interactivos, pero sí un ancla de nexo",()=>{
   const render=functionSource("paRender");
-  assert.match(render,/const projectPort=carbonMode\?'':'<span class="pa-port" data-project-port=/);
+  assert.match(render,/const projectPort=carbonMode\?'<span class="pa-carbon-anchor pa-carbon-anchor-project" data-carbon-project-port=/);
   assert.match(render,/const projectDetail=carbonMode[\s\S]*paCarbonResponsibleMarkup\(project\)[\s\S]*: '<div class="pa-project-detail">/);
   assert.match(render,/const target=!carbonMode&&LINK_CLICK_AGENT/);
+  assert.match(functionSource("paCarbonAgentsMarkup"),/data-carbon-agent-port=/);
+  assert.doesNotMatch(functionSource("paCarbonAgentsMarkup"),/data-link-agent=/);
   assert.match(source,/No hay proyectos con Responsable Carbono asignado/);
 });
 
-test("cambiar de subgrupo limpia selección, arrastre y cables",()=>{
+test("cambiar de subgrupo limpia selección y arrastre sin destruir las animaciones de Silicio",()=>{
   const setter=functionSource("paSetRosterView"),draw=functionSource("paDrawLinks");
   assert.match(setter,/LINK_DRAG=null;LINK_CLICK_AGENT=""/);
-  assert.match(setter,/projectAgentLinks/);
+  assert.doesNotMatch(setter,/projectAgentLinks|group\.innerHTML/);
   assert.match(setter,/temp\.setAttribute\("d",""\)/);
-  assert.match(draw,/if\(PA_ROSTER_VIEW!=="silicon"\)\{group\.innerHTML="";temp\.setAttribute\('d',''\);return;\}/);
+  assert.match(draw,/if\(PA_ROSTER_VIEW==="teams"\)\{temp\.setAttribute\("d",""\);return;\}/);
+  assert.match(draw,/PA_ROSTER_VIEW==="silicon"\)paDrawSiliconLinks[\s\S]*PA_ROSTER_VIEW==="carbon"\)paDrawCarbonLinks/);
+  assert.match(source,/data-link-kind="carbon"\][^}]*visibility:hidden/);
 });
 
 test("los controles de equipos y proyectos sin equipo desaparecen en Carbono",()=>{

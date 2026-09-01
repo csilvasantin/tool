@@ -75,7 +75,8 @@ test("los cables se reutilizan entre refrescos y el flujo no reinicia",()=>{
   assert.match(sync,/data-link-key|node\.dataset\.linkKey=key/,"cada unión necesita clave estable agente|proyecto");
   assert.match(sync,/node&&node\.dataset\.linkState!==state/,"solo se recrea el cable si cambia de estado");
   assert.match(sync,/for\(const path of node\.children\)\{path\.setAttribute\("d",curve\);path\.setAttribute\("stroke",color\)/,"redibujar = actualizar atributos, no recrear nodos");
-  assert.match(source,/function paDrawLinks\(\)[\s\S]*?if\(!live\.has\(node\.dataset\.linkKey\)\)node\.remove\(\)/,"los cables que ya no existen se retiran uno a uno");
+  assert.match(functionSource("paDrawSiliconLinks"),/if\(!live\.has\(node\.dataset\.linkKey\)\)node\.remove\(\)/,"los cables Silicio que ya no existen se retiran uno a uno");
+  assert.match(functionSource("paDrawCarbonLinks"),/if\(!live\.has\(node\.dataset\.linkKey\)\)node\.remove\(\)/,"los nexos Carbono que ya no existen se retiran uno a uno");
   assert.match(source,/const FLOW_CYCLE_MS=\d+/);
   assert.match(functionSource("paFlowDelay"),/animation-delay:.*FLOW_T0/s,"un cable nuevo entra en la fase del resto, no en el instante cero");
 });
