@@ -72,6 +72,7 @@ test("sin ended_at no inventa hora y EN CURSO conserva su estado",()=>{
 test("el layout cede apellido a la cuarta marca y la apila sólo en móvil",()=>{
   assert.match(html,/grid-template-columns:minmax\(156px,226px\) minmax\(0,1fr\) minmax\(168px,210px\)/);
   assert.match(html,/@media \(max-width:620px\)[\s\S]*\.refresh-time\{[^}]*flex-wrap:wrap[^}]*font-size:7px/);
+  assert.match(html,/@media \(max-width:620px\)[\s\S]*\.refresh-agent-meta\{[^}]*flex-wrap:wrap/);
   assert.match(html,/@media \(max-width:620px\)[\s\S]*\.refresh-started,\.refresh-ended\{font-size:7px/);
   assert.match(html,/@media \(max-width:340px\)\{\.refresh-lane\{grid-template-columns:minmax\(116px,146px\) minmax\(54px,1fr\) minmax\(96px,108px\)/);
 });
