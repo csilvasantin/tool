@@ -22,6 +22,11 @@ const MACHINES = [
 const PERSONAS = [
   ["Oraculo", ["oraculo", "oráculo", "oracle"]],
   ["Neo", ["neo"]],
+  // Link es la identidad principal de Claude con csilva@admira.com EN EL MAC MINI
+  // desde el 1-sep-2026 (FLT-1487), por la misma razón que Niobe más abajo: el
+  // mandamiento 12 asigna la identidad por máquina. Neo se queda — sigue siendo esa
+  // cuenta en MBP16 y MBAAzul, y firma todo lo ya cerrado (norma 03).
+  ["Link", ["link"]],
   ["Morfeo", ["morfeo", "morpheus"]],
   ["Trinity", ["trinity"]],
   ["Smith", ["smith", "cypher", "agente smith"]],

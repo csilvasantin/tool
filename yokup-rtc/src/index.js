@@ -1969,7 +1969,12 @@ __name(projectIndex, "projectIndex");
 function principalAgentIdentity(agent, machine = "") {
   const parsed = parseAgentIdentity(agent);
   const suffix = machineSuffix(machine) || parsed.suffix;
-  const known = ["Neo", "Morfeo", "Trinity", "Oraculo", "Smith", "WhiteRabbit", "Niobe"].includes(parsed.persona);
+  // Segunda copia a mano del censo de personas —la primera es PERSONAS en
+  // src/agent-identity.js y la tercera la regex de cleanMissionAttributions—, y hay
+  // que tocar las tres a la vez. Hoy Link existía en la flota y no aquí: declarar
+  // proyecto con ella devolvía exact_agent_required y ninguna pista de por qué.
+  // Unificar las tres es el FLT-1490.
+  const known = ["Neo", "Link", "Morfeo", "Trinity", "Oraculo", "Smith", "WhiteRabbit", "Niobe"].includes(parsed.persona);
   if (!known || !suffix) return null;
   const visible = canonicalProjectAgentRef(reportAgentIdentity(agent, machine || suffix));
   if (!visible || !parseAgentIdentity(visible).suffix) return null;
@@ -5122,7 +5127,7 @@ function cleanMissionAttributions(value) {
   let subject = String(value || "");
   const boundary = "(^|[.!?]\\s+)";
   const date = "(?:\\d{1,2}[-/](?:\\d{1,2}|ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[-/]\\d{2,4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+de\\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\\s+de\\s+\\d{4})";
-  const agent = "(?:(?:Sub|Infra)?(?:Oraculo|Oráculo|Morfeo|Neo|Trinity|Cypher|Smith|Agente\\s+Smith)[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*(?:\\s+en\\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 -]+)?)";
+  const agent = "(?:(?:Sub|Infra)?(?:Oraculo|Oráculo|Niobe|Morfeo|Neo|Link|Trinity|Cypher|Smith|Agente\\s+Smith)[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*(?:\\s+en\\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 -]+)?)";
   const sube = (_m, sep, ch) => sep + (ch ? ch.toUpperCase() : "");
   subject = subject.replace(new RegExp(boundary + "Encargo\\s+de\\s+Carlos\\s+el\\s+" + date + "\\s*(?::|\\.)\\s*(.?)", "gi"), sube);
   subject = subject.replace(new RegExp(boundary + "Responsable\\s*:?[ \\t]+" + agent + "\\s*\\.\\s*(.?)", "gi"), sube);
