@@ -38,7 +38,7 @@ test("la misión sólo reconcilia con z1, informes completos y prueba", () => {
 test("/fleet/informe no salta tareas abiertas y el standalone comparte su parte", () => {
   const route = source.slice(source.indexOf('url.pathname === "/fleet/informe"'), source.indexOf('url.pathname === "/fleet/cancel"'));
   assert.match(route, /code:"mission_tasks_incomplete"/);
-  assert.match(route, /task\.status === "done" && String\(task\.report \|\| ""\)\.trim\(\)/);
+  assert.match(route, /tareaConcluida\(task\) && String\(task\.report \|\| ""\)\.trim\(\)/);
   assert.match(route, /children\.every\(\(child\) => child\.status === "done" && String\(child\.report \|\| ""\)\.trim\(\)\)/);
   assert.match(route, /report=COALESCE\(NULLIF\(TRIM\(report\),''\),\?\)/);
   assert.ok(route.indexOf('code:"mission_tasks_incomplete"') < route.indexOf("notifyFleetInformeClosure"));

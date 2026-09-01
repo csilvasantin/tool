@@ -8554,13 +8554,17 @@ var worker_app = {
         const canConverge = (task) => {
           if (String(task.code || "").length !== 1) return false;
           const children = closureTasks.filter((child) => String(child.code || "").startsWith(task.code) && String(child.code || "").length === 2);
-          return children.length > 0 && children.every((child) => child.status === "done" && String(child.report || "").trim());
+          return children.length > 0 && children.every((child) => tareaConcluida(child) && String(child.report || "").trim());
         };
+        // CONCLUIDA CON TEXTO, no «done» a secas: un paso descartado trae su motivo
+        // y no puede bloquear el cierre — si no, el cuarto estado dejaría marcar el
+        // descarte pero seguiría sin dejar cerrar, que es donde estábamos.
+        // El texto se sigue exigiendo SIEMPRE, sea informe o motivo.
         const incomplete = closureTasks.filter((task) =>
-          !(task.status === "done" && String(task.report || "").trim()) && !canConverge(task));
+          !(tareaConcluida(task) && String(task.report || "").trim()) && !canConverge(task));
         if (!closureTasks.length || incomplete.length) {
           return json({ ok:false, code:"mission_tasks_incomplete",
-            error:"no se puede cerrar: todas las tareas deben estar hechas y tener informe",
+            error:"no se puede cerrar: todas las tareas deben estar hechas (o descartadas con motivo)",
             missing:incomplete.map((task) => ({ code:task.code, status:task.status,
               report:!!String(task.report || "").trim() })), applied:false },409);
         }
