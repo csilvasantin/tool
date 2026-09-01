@@ -18,6 +18,7 @@ function standaloneEnv() {
       if (sql.includes('SELECT id,source,proof_image,status,assignee,loc,created_at,live_shot')) return {...state.ticket};
       if (sql.includes('SELECT id,assignee,loc,status,source,screen,created_at,proof_image,proof_kind')) return {...state.ticket};
       if (sql.includes('SELECT id,source,status,assignee,loc,screen FROM tickets')) return {...state.ticket};
+      if (sql.includes('SELECT id,source,status,assignee,loc,screen,role FROM tickets')) return {...state.ticket};
       if (sql.includes('SELECT assignee,loc FROM tickets')) return {assignee:state.ticket.assignee,loc:state.ticket.loc};
       if (sql.includes('SELECT proof_image,proof_kind FROM tickets')) return {proof_image:state.ticket.proof_image,proof_kind:state.ticket.proof_kind};
       if (sql.includes('SELECT proof_image FROM tickets')) return {proof_image:state.ticket.proof_image};
@@ -73,6 +74,11 @@ function standaloneEnv() {
           state.tasks.set(args[1],{mission_id:args[0],code:args[1],title:args[2],status:'done',owner:args[4],executor:args[5],report:args[6],image:args[7],image_kind:args[8],created_at:args[9],updated_at:args[10]});
         } else if (sql.startsWith("UPDATE tickets SET status='resolved'")) {
           state.ticket.status='resolved'; state.ticket.proof_image=args[1]; state.ticket.proof_kind='final';
+        } else if (sql.startsWith("UPDATE tickets SET proof_image=?,proof_kind='final',agent_runtime=")) {
+          state.ticket.proof_image=args[0]; state.ticket.proof_kind='final';
+          state.ticket.agent_runtime=args[1]||state.ticket.agent_runtime;
+          state.ticket.agent_host=args[2]||state.ticket.agent_host;
+          state.ticket.points_end??=args[3]; state.ticket.points_start??=args[4];
         } else if (sql.startsWith('INSERT INTO events')) state.events.push({text:args[4],kind:args[2]});
       }
       return statements.map(()=>({meta:{changes:1}}));
@@ -151,4 +157,49 @@ test('standalone resuelto rechaza cualquier cambio y conserva el cierre',async()
   }
   assert.deepEqual({ticket:state.ticket,tasks:[...state.tasks.entries()]},before);
   assertCanonical(state);
+});
+
+test('árbol fleet: task-status resuelve antes y /fleet/informe completa z1 una sola vez',async()=>{
+  const {env,state}=standaloneEnv();
+  state.ticket.role='status-web';
+  state.tasks=new Map([
+    ['a',{mission_id:'FLT-1243',code:'a',title:'A',status:'done',owner:'SubOraculoMacMini',report:'A hecha',image:null,image_kind:'task',created_at:1,updated_at:1}],
+    ['b',{mission_id:'FLT-1243',code:'b',title:'B',status:'done',owner:'SubOraculoMacMini',report:'B hecha',image:null,image_kind:'task',created_at:1,updated_at:2}],
+    ['c',{mission_id:'FLT-1243',code:'c',title:'C',status:'in_progress',owner:'InfraOraculoMacMini',report:null,image:null,image_kind:null,created_at:1,updated_at:3}]
+  ]);
+  const task=await ok(await worker.fetch(taskRequest({code:'c',owner:'InfraOraculoMacMini'}),env,{}),'task-status C');
+  assert.equal(task.fleet.status,'resolved');
+  assert.equal(state.ticket.status,'resolved');
+  assert.equal(state.tasks.has('z1'),false,'el auto-reconcile todavía no inventa informe');
+
+  const repaired=await ok(await worker.fetch(informeRequest(),env,{}),'informe tras auto-resolve');
+  assert.equal(repaired.repaired_auto_resolved,true);
+  assertCanonical(state);
+  assert.equal(state.ticket.agent_runtime,'Codex');
+  assert.equal(state.ticket.agent_host,'app');
+  const events=state.events.length,pointsEnd=state.ticket.points_end;
+
+  const retry=await ok(await worker.fetch(informeRequest(),env,{}),'retry informe exacto');
+  assert.equal(retry.resumed,true);
+  assert.equal(retry.repaired_auto_resolved,undefined);
+  assert.equal(state.events.length,events,'el retry no duplica eventos de cierre');
+  assert.equal(state.ticket.points_end,pointsEnd,'el retry no recalcula ni duplica puntos');
+  assertCanonical(state);
+});
+
+test('árbol fleet auto-resuelto no acepta otra prueba ni muta un cierre con z1',async()=>{
+  const {env,state}=standaloneEnv();
+  state.ticket.role='status-web'; state.ticket.status='resolved';
+  state.ticket.proof_image=FINAL_IMAGE; state.ticket.proof_kind='final';
+  state.tasks.set('z1',{mission_id:'FLT-1243',code:'z1',title:'Informe',status:'done',owner:'OraculoMacMini',
+    report:'Informe final standalone',image:FINAL_IMAGE,image_kind:'final',created_at:1,updated_at:2});
+  const before=structuredClone({ticket:state.ticket,tasks:[...state.tasks.entries()],events:state.events});
+  const changed=new Request('https://api.yokup.com/fleet/informe',{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({mission:'FLT-1243',owner:'InfraOraculoMacMini',report:'Informe final standalone',
+      image:'https://api.yokup.com/media/fleet/otra.png',runtime:'OpenCode',host:'cli'})});
+  const response=await worker.fetch(changed,env,{}),body=await response.json();
+  assert.equal(response.status,409);
+  assert.equal(body.code,'mission_closed');
+  assert.equal(body.applied,false);
+  assert.deepEqual({ticket:state.ticket,tasks:[...state.tasks.entries()],events:state.events},before);
 });

@@ -8352,6 +8352,46 @@ var worker_app = {
           catch (e) { return json({ok:false,code:"closure_partial",mission:mid,resolved:false,local_resolved:true,proof_saved:true,inbox_updated:true,batch_updated:false,sync_required:true,proof_image:rawImage},502); }
           return json({ok:true,mission:mid,resolved:true,resumed:true,repaired_standalone:true,inbox_updated:true,proof_image:rawImage,batch,target_batch:targetBatch});
         }
+        // El árbol A/B/C puede resolver el ticket al marcar su último paso con
+        // prueba, antes de que Infra publique el informe z1. Ese orden es válido:
+        // no reabre el ticket ni cambia un cierre, sólo completa las piezas que el
+        // auto-reconcile no puede inventar. La excepción exige: misión de flota,
+        // ausencia total de z1 y la MISMA prueba final ya sellada en el ticket o
+        // en una tarea. Un cierre con z1 nunca entra aquí y continúa inmutable.
+        const finalTask = !previous ? await env.DB.prepare(
+          "SELECT image FROM mission_tasks WHERE mission_id=? AND image_kind='final' AND image IS NOT NULL AND image<>'' ORDER BY updated_at DESC LIMIT 1"
+        ).bind(mid).first() : null;
+        const sealedProof = t.proof_kind === "final" && t.proof_image ? t.proof_image : finalTask && finalTask.image;
+        const repairAutoResolved = t.source === "fleet" && !previous && sealedProof === rawImage;
+        if (repairAutoResolved) {
+          const normImage = await validateProofImage(env, rawImage, url.origin);
+          if (!normImage.value || normImage.value !== sealedProof) {
+            return json({ ok:false, code:"closure_evidence_invalid", field:"image",
+              error:"la prueba no coincide con la evidencia final validada del árbol", applied:false },400);
+          }
+          const inbox = await notifyFleetInformeClosure(env, t, mid, owner, report, sealedProof, runtime, host);
+          if (!inbox.updated) return json({ok:false,code:"closure_partial",mission:mid,resolved:false,
+            local_resolved:true,proof_saved:!!t.proof_image,inbox_updated:false,sync_required:true,proof_image:t.proof_image || null},502);
+          const now = Date.now(), puntosCierre = await puntosDeAgenteAhora(env, t.assignee || actor.actor);
+          await env.DB.batch([
+            env.DB.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,image,image_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+              .bind(mid,"z1","Informe del agente","done",principalOwner,executorOwner,report,sealedProof,"final",now,now),
+            env.DB.prepare("UPDATE tickets SET proof_image=?,proof_kind='final',agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),points_end=COALESCE(points_end,?),points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status='resolved'")
+              .bind(sealedProof,runtime,host,puntosCierre,puntosCierre,now,mid),
+            convergeParentTasksStmt(env,mid,now),
+            env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid,now,"log",owner,"📝 Informe tras cierre automático: "+report.slice(0,240)),
+            env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid,now,"proof",owner,"📸 Pantallazo final: "+proofLabel(sealedProof))
+          ]);
+          let batch, targetBatch;
+          try {
+            batch = await acceptBatchInformeClosure(env,t,mid,owner,report);
+            targetBatch = await reconcileBatchTargetMission(env,mid);
+            if (!targetBatch.ok) throw new Error(targetBatch.code || "target_batch_reconcile_failed");
+          } catch (e) { return json({ok:false,code:"closure_partial",mission:mid,resolved:false,
+            local_resolved:true,proof_saved:true,inbox_updated:true,batch_updated:false,sync_required:true,proof_image:sealedProof},502); }
+          return json({ok:true,mission:mid,resolved:true,resumed:true,repaired_auto_resolved:true,
+            inbox_updated:true,proof_image:sealedProof,batch,target_batch:targetBatch});
+        }
         const sameClosure = t.proof_kind === "final" && t.proof_image === rawImage && previous &&
           previous.owner === principalOwner && previous.report === report && previous.image === rawImage && previous.image_kind === "final";
         if (!sameClosure) return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada y sólo admite reintentar exactamente el mismo cierre", status: t.status, applied: false }, 409);

@@ -167,6 +167,18 @@ test("resolved/cancelled se rechazan antes de tocar informe, tarea o prueba", ()
   }
 });
 
+test("un árbol fleet auto-resuelto admite completar sólo su cierre faltante exacto", () => {
+  const informe = route("/fleet/informe", "// CANCELAR una misión");
+  assert.match(informe, /repairAutoResolved = t\.source === "fleet" && !previous && sealedProof === rawImage/);
+  assert.match(informe, /await validateProofImage\(env, rawImage, url\.origin\)/);
+  assert.match(informe, /INSERT INTO mission_tasks\(mission_id,code,title,status,owner,executor,report,image,image_kind/);
+  assert.match(informe, /proof_image=\?,proof_kind='final',agent_runtime=/);
+  assert.match(informe, /points_end=COALESCE\(points_end,\?\)/);
+  assert.match(informe, /repaired_auto_resolved:true/);
+  assert.match(informe, /const sameClosure = t\.proof_kind === "final"/,
+    "tras completar z1 el retry debe caer en la idempotencia exacta existente");
+});
+
 test("el cierre no declara éxito si D1 o bot-inbox quedan parciales", () => {
   const informe = route("/fleet/informe", "// CANCELAR una misión");
   assert.match(informe, /notifyFleetInformeClosure[\s\S]*?if \(!inbox\.updated\)[\s\S]*?env\.DB\.batch/);
