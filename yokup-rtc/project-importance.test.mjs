@@ -43,7 +43,7 @@ test("importance y expected_importance sólo aceptan enteros JSON 0..5", () => {
 });
 
 test("el id es exacto, y diferencia proyecto inexistente y archivado", () => {
-  assert.match(endpoint, /SELECT id,status,importance FROM projects WHERE id=\?/);
+  assert.match(endpoint, /SELECT id,status,importance,updated_at,updated_by FROM projects WHERE id=\?/);
   assert.doesNotMatch(endpoint, /projectSlug|projectIndex/);
   assert.match(endpoint, /project no existe en el censo.*404/);
   assert.match(endpoint, /project archivado.*409/);
@@ -53,6 +53,8 @@ test("la escritura usa compare-and-swap y responde al conflicto entre pestañas"
   assert.match(endpoint, /COALESCE\(importance,0\)=\?/);
   assert.match(endpoint, /current !== b\.expected_importance/);
   assert.match(endpoint, /importance conflict.*current_importance/);
+  assert.match(endpoint, /current_updated_at: Number\(previous\.updated_at\) \|\| 0/);
+  assert.match(endpoint, /current_updated_by: previous\.updated_by \|\| ""/);
 });
 
 test("repetir el valor actual es idempotente", () => {

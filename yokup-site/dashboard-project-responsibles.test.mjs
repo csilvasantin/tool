@@ -51,6 +51,8 @@ test("el guardado anuncia, bloquea sólo el proyecto y reconcilia conflicto entr
   assert.match(source,/role="status" aria-live="polite"/);
   assert.match(source,/PROJECT_RESPONSIBLES_PENDING\.add\(projectId\)/);
   assert.match(source,/current_carbon_responsible/);
+  assert.match(source,/current_updated_at/);
+  assert.match(source,/current_updated_by/);
   assert.match(source,/cambió en otra pestaña/);
   assert.match(source,/PROJECT_RESPONSIBLES_PENDING\.delete\(projectId\)/);
 });

@@ -102,7 +102,7 @@ test("la existencia del equipo no depende de que esté asignado a un proyecto", 
 
 test("la salida inicial usa el catálogo activo completo de /projects", () => {
   assert.doesNotMatch(source,/PROJECT_LAUNCH_HOSTS|paLaunchProjects/);
-  assert.match(source,/const sourceProjects=Array\.isArray\(projects\.projects\)\?projects\.projects:\[\]/);
+  assert.match(source,/const sourceProjects=paProtectProjectVersions\(Array\.isArray\(projects\.projects\)\?projects\.projects:\[\],versionRevision\)/);
   assert.match(source,/PROJECT_CATALOG=sourceProjects\.filter\(project=>project&&project\.id&&String\(project\.status\|\|"activo"\)\.toLowerCase\(\)!=="archivado"\)/);
   assert.match(source,/PROJECT_ROWS=paProjectsForScope\(\)/);
 });

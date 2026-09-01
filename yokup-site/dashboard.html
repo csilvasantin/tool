@@ -72,7 +72,7 @@ h1{font-size:clamp(23px,2.8vw,33px);line-height:1.12;letter-spacing:-.02em;margi
 .pa-node-top{display:flex;gap:6px;align-items:center}.pa-avatar,.pa-folder{width:25px;height:25px;border:1px solid var(--line2);border-radius:7px;display:grid;place-items:center;background:rgba(120,243,255,.07);font:700 8px/1 var(--mono);color:var(--brand);flex:none}.pa-folder{position:relative;width:46px;height:30px;overflow:hidden;font-size:13px;color:inherit;background:color-mix(in srgb,var(--pc) 9%,transparent);border-color:color-mix(in srgb,var(--pc) 45%,transparent)}.pa-folder span{grid-area:1/1}.pa-folder img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
 .pa-stop-list{display:flex;align-items:center;justify-content:flex-end;gap:4px;flex-wrap:wrap;margin-left:auto}.pa-stop{min-height:24px;border:1px solid rgba(255,92,92,.58);border-radius:7px;background:rgba(255,72,72,.09);color:#ff7272;font:800 7.4px/1.15 var(--mono);padding:4px 6px;cursor:pointer;white-space:nowrap}.pa-stop::first-letter{font-size:12px}.pa-stop:hover,.pa-stop:focus-visible{border-color:#ff7272;background:rgba(255,72,72,.2);box-shadow:0 0 12px rgba(255,72,72,.2);outline:2px solid rgba(255,114,114,.45);outline-offset:1px}.pa-stop:disabled{cursor:not-allowed;opacity:.38;box-shadow:none}.pa-stop-status{flex-basis:100%;font:7px/1.2 var(--mono);text-align:right;color:var(--dim)}.pa-stop-status.sending,.pa-stop-status.queued,.pa-stop-status.accepted,.pa-stop-status.running{color:var(--accent)}.pa-stop-status.stopped{color:var(--good)}.pa-stop-status.failed{color:var(--warn)}
 .pa-name{min-width:0;flex:1}.pa-name b{display:block;font-size:11.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pa-name span{display:block;font-family:var(--mono);font-size:7.7px;letter-spacing:.03em;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
-.pa-project-heading{display:flex;align-items:center;gap:6px;min-width:0}.pa-project-heading>b{min-width:0;flex:1}.pa-importance{display:inline-flex;align-items:center;gap:6px;flex:none}.pa-importance button{width:18px;height:24px;border:0;border-radius:4px;padding:0;background:transparent;color:rgba(255,216,102,.26);font:800 12px/1 var(--mono);cursor:pointer;text-align:center;touch-action:manipulation}.pa-importance button.filled{color:var(--accent);text-shadow:0 0 8px rgba(255,216,102,.45)}.pa-importance button:hover{color:#fff0ad;background:rgba(255,216,102,.09)}.pa-importance button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}.pa-importance button:disabled{cursor:wait;opacity:.48}.pa-importance.saving{filter:saturate(.65)}
+.pa-project-heading{display:flex;align-items:flex-start;gap:6px;min-width:0}.pa-project-heading>b{min-width:0;flex:1;padding-top:4px}.pa-importance-stack{display:grid;justify-items:end;gap:1px;flex:none;min-width:0;max-width:175px}.pa-importance{display:inline-flex;align-items:center;gap:6px}.pa-importance button{width:18px;height:24px;border:0;border-radius:4px;padding:0;background:transparent;color:rgba(255,216,102,.26);font:800 12px/1 var(--mono);cursor:pointer;text-align:center;touch-action:manipulation}.pa-importance button.filled{color:var(--accent);text-shadow:0 0 8px rgba(255,216,102,.45)}.pa-importance button:hover{color:#fff0ad;background:rgba(255,216,102,.09)}.pa-importance button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}.pa-importance button:disabled{cursor:wait;opacity:.48}.pa-importance.saving{filter:saturate(.65)}.pa-project-version{max-width:100%;color:var(--dim);font:700 8px/1.2 var(--mono);letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pa-state{font-family:var(--mono);font-size:7.2px;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--line);border-radius:999px;padding:2px 5px;color:var(--mut)}.pa-state.activo{color:var(--good);border-color:rgba(136,255,170,.28)}.pa-state.pausado{color:var(--accent);border-color:rgba(255,216,102,.28)}
 .pa-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;font-family:var(--mono);font-size:8.8px;color:var(--dim)}.pa-meta a{color:var(--brand);text-decoration:none}.pa-meta a:hover{text-decoration:underline}.pa-live{color:var(--good)}.pa-offline{color:var(--accent)}
 .pa-port{position:absolute;top:50%;transform:translateY(-50%);width:24px;height:28px;border:1px solid var(--line2);border-radius:7px;background:#0b1a24;color:var(--brand);display:grid;place-items:center;font-size:14px;cursor:grab;touch-action:none}.pa-port:active{cursor:grabbing}.pa-port:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.pa-agent-node .pa-port{left:5px}.pa-project-node .pa-port{top:auto;right:4px;bottom:4px;transform:none;cursor:default;color:var(--good)}.pa-hide,.pa-card-move{position:absolute;z-index:3;top:3px;width:18px;height:18px;border:0;border-radius:5px;background:transparent;font:800 12px/1 var(--mono)}.pa-hide{right:4px;color:var(--dim);cursor:pointer}.pa-card-move{right:24px;color:var(--brand);cursor:move;touch-action:none}.pa-card-move.dragging{background:rgba(255,216,102,.13);color:var(--accent)}.pa-hide:hover,.pa-hide:focus-visible{background:rgba(255,136,102,.14);color:var(--warn);outline:none}.pa-card-move:hover,.pa-card-move:focus-visible{background:rgba(120,243,255,.1);color:var(--ink);outline:none}
@@ -223,7 +223,7 @@ let PROJECT_ROSTER=[];
 let PROJECT_TEAM_CENSUS=[];
 let PROJECT_BUSY="";
 const PROJECT_IMPORTANCE_PENDING=new Map();
-let PROJECT_IMPORTANCE_REV=0;
+let PROJECT_VERSION_REV=0;
 const PROJECT_RESPONSIBLES_PENDING=new Set();
 const PROJECT_CARBON_DRAFTS=new Map();
 let PROJECT_DECISION_BUSY="";
@@ -368,6 +368,13 @@ function paWeb(value){
 }
 function paProjectsForScope(){return paScopeIsAll(PROJECT_SCOPE)?PROJECT_CATALOG.slice():PROJECT_CATALOG.filter(project=>paScopeAllows(PROJECT_SCOPE,project.id));}
 function paImportance(project){const value=Number(project&&project.importance);return Number.isInteger(value)&&value>=0&&value<=5?value:0;}
+function paProjectVersion(project){
+  const raw=Number(project&&project.updated_at),ms=Number.isFinite(raw)&&raw>0?(raw<1e12?raw*1000:raw):0,date=ms?new Date(ms):null;
+  if(!date||!Number.isFinite(date.getTime()))return {label:"VERSIÓN · SIN FECHA",title:"Versión del proyecto · sin fecha de actualización registrada",iso:""};
+  const parts=Object.fromEntries(new Intl.DateTimeFormat("es-ES",{timeZone:"Europe/Madrid",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(date).filter(part=>part.type!=="literal").map(part=>[part.type,part.value]));
+  const shortStamp=parts.day+"."+parts.month+"."+parts.year+" · "+parts.hour+":"+parts.minute,stamp=parts.day+"/"+parts.month+"/"+parts.year+" · "+parts.hour+":"+parts.minute+":"+parts.second,by=String(project&&project.updated_by||"").trim();
+  return {label:"VERSIÓN · "+shortStamp,title:"Versión del proyecto · última actualización: "+stamp+" · hora de Madrid"+(by?" · por "+by:""),iso:date.toISOString()};
+}
 function paSiliconResponsible(project){
   // Un campo explícito, incluso vacío, manda. El fallback NeoMacMini sólo existe
   // para respuestas históricas que todavía no publican `silicon_responsible`.
@@ -384,12 +391,12 @@ function paProjectResponsibles(project,silicon){
     '<div class="pa-responsible pa-responsible-silicon" data-pa-silicon-responsible="'+esc(project.id)+'"><b>Responsable Silicio</b><span>👤 '+esc(silicon||"Sin asignar")+'</span></div></div>';
 }
 function paImportanceControl(project){
-  const value=paImportance(project),name=String(project.name||project.id),saving=PROJECT_IMPORTANCE_PENDING.has(project.id);
+  const value=paImportance(project),name=String(project.name||project.id),saving=PROJECT_IMPORTANCE_PENDING.has(project.id),version=paProjectVersion(project);
   const buttons=[1,2,3,4,5].map(level=>{
     const selected=level===value,label=selected?"Quitar importancia de "+name:"Establecer importancia de "+name+" en "+level+" de 5";
     return '<button type="button" class="'+(level<=value?'filled':'')+'" data-pa-importance-project="'+esc(project.id)+'" data-pa-importance-value="'+level+'" aria-label="'+esc(label)+'" aria-pressed="'+(selected?'true':'false')+'" title="'+esc(label)+'"'+(saving?' disabled':'')+'>★</button>';
   }).join("");
-  return '<div class="pa-importance'+(saving?' saving':'')+'" role="group" aria-label="Importancia de '+esc(name)+': '+value+' de 5">'+buttons+'</div>';
+  return '<div class="pa-importance-stack"><div class="pa-importance'+(saving?' saving':'')+'" role="group" aria-label="Importancia de '+esc(name)+': '+value+' de 5">'+buttons+'</div><time class="pa-project-version" data-pa-project-version="'+esc(project.id)+'"'+(version.iso?' datetime="'+esc(version.iso)+'"':'')+' title="'+esc(version.title)+'" aria-label="'+esc(version.title)+'">'+esc(version.label)+'</time></div>';
 }
 function paFocusCarbon(projectId){requestAnimationFrame(()=>{const input=pa("projectAgentProjects").querySelector('[data-pa-carbon-input="'+CSS.escape(projectId)+'"]');if(input){input.focus();input.setSelectionRange(input.value.length,input.value.length);}});}
 async function paSaveCarbonResponsible(projectId){
@@ -406,7 +413,7 @@ async function paSaveCarbonResponsible(projectId){
     paReplaceProject(d.project);PROJECT_CARBON_DRAFTS.delete(projectId);paMessage("✓ Responsable Carbono de "+(d.project.name||d.project.id)+": "+(paCarbonResponsible(d.project)||"sin asignar"),"ok");
   }catch(e){
     const current=e&&e.payload&&typeof e.payload.current_carbon_responsible==="string"?e.payload.current_carbon_responsible:null;
-    if(current!==null){paReplaceProject({...project,carbon_responsible:current});paMessage("↻ Responsable Carbono cambió en otra pestaña · revisa antes de guardar","");}
+    if(current!==null){const currentUpdatedAt=Number(e&&e.payload&&e.payload.current_updated_at);paReplaceProject({...project,carbon_responsible:current,...(Number.isFinite(currentUpdatedAt)&&currentUpdatedAt>0?{updated_at:currentUpdatedAt,updated_by:String(e.payload.current_updated_by||"")}:{})});paMessage("↻ Responsable Carbono cambió en otra pestaña · revisa antes de guardar","");}
     else paMessage("✗ no se guardó Responsable Carbono · "+(e&&e.message||e),"err");
   }finally{PROJECT_RESPONSIBLES_PENDING.delete(projectId);paRender();paFocusCarbon(projectId);}
 }
@@ -414,6 +421,7 @@ function paReplaceProject(project){
   if(!project||!project.id)return;
   PROJECT_CATALOG=PROJECT_CATALOG.map(row=>row.id===project.id?project:row);
   PROJECT_ROWS=paProjectsForScope();
+  PROJECT_VERSION_REV++;
 }
 function paFocusImportance(projectId,value){requestAnimationFrame(()=>{const button=pa("projectAgentProjects").querySelector('[data-pa-importance-project="'+CSS.escape(projectId)+'"][data-pa-importance-value="'+value+'"]');if(button)button.focus();});}
 async function paSetProjectImportance(projectId,clicked){
@@ -421,7 +429,7 @@ async function paSetProjectImportance(projectId,clicked){
   const previous=PROJECT_CATALOG.find(row=>row.id===projectId);
   if(!previous)return paMessage("No se encontró el proyecto","err");
   const current=paImportance(previous),next=clicked===current?0:clicked;
-  PROJECT_IMPORTANCE_PENDING.set(projectId,{previous,current,next});PROJECT_IMPORTANCE_REV++;
+  PROJECT_IMPORTANCE_PENDING.set(projectId,{previous,current,next});
   paReplaceProject({...previous,importance:next});paRender();paFocusImportance(projectId,clicked);
   paMessage("Guardando importancia de "+(previous.name||previous.id)+"…");
   try{
@@ -429,11 +437,11 @@ async function paSetProjectImportance(projectId,clicked){
     if(!d.project)throw new Error("respuesta sin proyecto");
     paReplaceProject(d.project);paMessage("✓ importancia de "+(d.project.name||d.project.id)+": "+paImportance(d.project)+" de 5","ok");
   }catch(e){
-    const serverValue=Number(e&&e.payload&&e.payload.current_importance),hasServerValue=Number.isInteger(serverValue)&&serverValue>=0&&serverValue<=5;
-    paReplaceProject(hasServerValue?{...previous,importance:serverValue}:previous);
+    const serverValue=Number(e&&e.payload&&e.payload.current_importance),hasServerValue=Number.isInteger(serverValue)&&serverValue>=0&&serverValue<=5,serverUpdatedAt=Number(e&&e.payload&&e.payload.current_updated_at);
+    paReplaceProject(hasServerValue?{...previous,importance:serverValue,...(Number.isFinite(serverUpdatedAt)&&serverUpdatedAt>0?{updated_at:serverUpdatedAt,updated_by:String(e.payload.current_updated_by||"")}:{})}:previous);
     paMessage(hasServerValue?"↻ la importancia cambió en otra pestaña · valor actual: "+serverValue+" de 5":"✗ no se guardó la importancia · "+(e&&e.message||e),hasServerValue?"":"err");
   }
-  finally{PROJECT_IMPORTANCE_PENDING.delete(projectId);PROJECT_IMPORTANCE_REV++;paRender();paFocusImportance(projectId,clicked);}
+  finally{PROJECT_IMPORTANCE_PENDING.delete(projectId);paRender();paFocusImportance(projectId,clicked);}
 }
 function paPhysicalTeamCensus(machines,agents){
   const teams=new Map(),families=typeof paAgentFamilies==="function"?paAgentFamilies(agents||[]):agents||[];
@@ -829,7 +837,7 @@ async function paAssignTeam(project,team,remove){
   PROJECT_BUSY=project+"|team|"+team; paRender(); paMessage(remove?"Quitando equipo…":"Asociando equipo…");
   try{
     const d=await paJson("/projects/assign",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({project,kind:"machine",ref:team,remove:!!remove})});
-    if(d.project) PROJECT_ROWS=PROJECT_ROWS.map(row=>row.id===d.project.id?d.project:row);
+    if(d.project)paReplaceProject(d.project);
     else await paLoad();
     paMessage(remove?"✓ equipo y sus agentes retirados del proyecto":"✓ equipo asociado","ok");
   }catch(e){paMessage("✗ "+(e&&e.message||e),"err");}
@@ -845,12 +853,12 @@ async function paConnectAgent(project,agent){
     let current=projectRow;
     if(!paProjectHasTeam(current,row.team)){
       const machineResult=await paJson("/projects/assign",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({project,kind:"machine",ref:teamRef,remove:false})});
-      if(machineResult.project){PROJECT_ROWS=PROJECT_ROWS.map(item=>item.id===machineResult.project.id?machineResult.project:item);current=machineResult.project;}
+      if(machineResult.project){paReplaceProject(machineResult.project);current=machineResult.project;}
       else{await paLoad();current=PROJECT_ROWS.find(item=>item.id===project)||current;}
     }
     if(!(current.agents||[]).includes(agent)){
       const agentResult=await paJson("/projects/assign",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({project,kind:"agent",ref:agent,remove:false,machine:row.machine})});
-      if(agentResult.project)PROJECT_ROWS=PROJECT_ROWS.map(item=>item.id===agentResult.project.id?agentResult.project:item);else await paLoad();
+      if(agentResult.project)paReplaceProject(agentResult.project);else await paLoad();
     }
     LINK_CLICK_AGENT="";paMessage("✓ "+agent+" conectado · Ventana de Decisión disponible","ok");
   }catch(e){paMessage("✗ "+(e&&e.message||e),"err");}
@@ -863,7 +871,7 @@ async function paAssignAgent(project,agent,remove){
   PROJECT_BUSY=project+"|agent|"+agent;paRender();paMessage(remove?"Retirando agente…":"Eligiendo agente…");
   try{
     const d=await paJson("/projects/assign",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({project,kind:"agent",ref:agent,remove:!!remove,machine:row.machine})});
-    if(d.project)PROJECT_ROWS=PROJECT_ROWS.map(item=>item.id===d.project.id?d.project:item);else await paLoad();
+    if(d.project)paReplaceProject(d.project);else await paLoad();
     paMessage(remove?"✓ agente retirado":"✓ agente listo para ejecutar y decidir","ok");
   }catch(e){paMessage("✗ "+(e&&e.message||e),"err");}
   finally{PROJECT_BUSY="";paRender();}
@@ -877,7 +885,7 @@ async function paRemoveFamily(project,familyId){
     let current=projectRow;
     for(const ref of refs){
       const row=PROJECT_ROSTER.find(item=>item.id===ref),d=await paJson("/projects/assign",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({project,kind:"agent",ref,remove:true,machine:row&&row.machine||""})});
-      if(d.project){current=d.project;PROJECT_ROWS=PROJECT_ROWS.map(item=>item.id===d.project.id?d.project:item);}
+      if(d.project){current=d.project;paReplaceProject(d.project);}
     }
     paMessage("✓ "+familyId+" y sus auxiliares retirados","ok");
   }catch(e){paMessage("✗ "+(e&&e.message||e),"err");}
@@ -920,11 +928,17 @@ function paResetRefreshCycle(){
   refresh.classList.add("is-cycling");
   PROJECT_REFRESH_TIMER=setTimeout(()=>paLoad("auto"),PROJECT_REFRESH_MS);
 }
+function paProtectProjectVersions(sourceProjects,versionRevision){
+  if(versionRevision===PROJECT_VERSION_REV)return sourceProjects;
+  const current=new Map(PROJECT_CATALOG.map(project=>[project.id,{importance:paImportance(project),updated_at:project.updated_at,updated_by:project.updated_by||""}]));
+  sourceProjects.forEach(project=>{const known=current.get(project.id);if(known)Object.assign(project,known);});
+  return sourceProjects;
+}
 async function paLoad(reason="manual"){
   if(reason==="auto")PROJECT_REFRESH_TIMER=0;
   if(PROJECT_REFRESH_BUSY){paResetRefreshCycle();return false;}
   PROJECT_REFRESH_BUSY=true;
-  const importanceRevision=PROJECT_IMPORTANCE_REV;
+  const versionRevision=PROJECT_VERSION_REV;
   paResetRefreshCycle();
   const refresh=pa("projectAgentRefresh"); refresh.disabled=true;refresh.setAttribute("aria-busy","true");
   /* El ciclo automático NO vacía el mapa: lo que ya está en pantalla se queda
@@ -939,13 +953,9 @@ async function paLoad(reason="manual"){
   if(reason!=="auto")paMessage("Sincronizando proyectos y presencia física…");
   try{
     const [projects,census]=await Promise.all([paJson("/projects"),paFleetCensus(),pulse(false)]);
-    const sourceProjects=Array.isArray(projects.projects)?projects.projects:[];
+    const sourceProjects=paProtectProjectVersions(Array.isArray(projects.projects)?projects.projects:[],versionRevision);
     // Si este GET empezó antes de un clic, no puede devolver una foto vieja y
     // borrar el valor optimista/canónico que ya conoce esta pestaña.
-    if(importanceRevision!==PROJECT_IMPORTANCE_REV){
-      const current=new Map(PROJECT_CATALOG.map(project=>[project.id,paImportance(project)]));
-      sourceProjects.forEach(project=>{if(current.has(project.id))project.importance=current.get(project.id);});
-    }
     sourceProjects.forEach(project=>{if(PROJECT_IMPORTANCE_PENDING.has(project.id))project.importance=PROJECT_IMPORTANCE_PENDING.get(project.id).next;});
     PROJECT_CATALOG=sourceProjects.filter(project=>project&&project.id&&String(project.status||"activo").toLowerCase()!=="archivado");
     PROJECT_ROWS=paProjectsForScope();

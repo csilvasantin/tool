@@ -2197,13 +2197,38 @@ async function upsertProject(env, b) {
   if (/\p{Cc}/u.test(carbonResponsible)) {
     return { ok: false, error: "carbon_responsible contiene caracteres de control", status: 400 };
   }
+  const requestedMembers = new Map();
+  for (const kind of ["machine", "agent"]) {
+    const field = kind === "machine" ? "machines" : "agents";
+    if (!b || !Array.isArray(b[field])) continue;
+    requestedMembers.set(kind, [...new Set(b[field].map((item) => {
+      const ref = String(item || "").trim().slice(0, 80);
+      return kind === "agent" ? canonicalProjectAgentRef(ref) : ref;
+    }).filter(Boolean))].slice(0, 60).sort());
+  }
+  const previousMembers = prev && requestedMembers.size
+    ? (await env.DB.prepare("SELECT kind,ref FROM project_members WHERE project_id=? AND kind IN ('machine','agent')").bind(id).all()).results || []
+    : [];
+  const membershipChanged = [...requestedMembers].some(([kind, refs]) => {
+    const current = previousMembers.filter((item) => item.kind === kind).map((item) => kind === "agent" ? canonicalProjectAgentRef(item.ref) : String(item.ref)).sort();
+    return JSON.stringify(current) !== JSON.stringify(refs);
+  });
+  const metadataChanged = !prev || ["name", "blurb", "web", "status", "color"].some((key) => {
+    const previousValue = key === "status" ? String(prev[key] || "activo") : String(prev[key] || "");
+    const nextValue = key === "name" ? (name || prev.name || id)
+      : key === "blurb" ? val("blurb", 240)
+      : key === "web" ? val("web", 160).replace(/\/+$/, "")
+      : key === "status" ? status : val("color", 24);
+    return previousValue !== nextValue;
+  });
+  const versionChanged = metadataChanged || membershipChanged;
   const row = {
     id, name: name || (prev && prev.name) || id,
     blurb: val("blurb", 240), web: val("web", 160).replace(/\/+$/, ""),
     status, color: val("color", 24), owner: primaryResponsible,
     carbon_responsible: carbonResponsible,
-    created_at: prev ? prev.created_at : now, updated_at: now,
-    updated_by: String((b && b.by) || "").slice(0, 60)
+    created_at: prev ? prev.created_at : now, updated_at: versionChanged ? now : prev.updated_at,
+    updated_by: versionChanged ? String((b && b.by) || "").slice(0, 60) : String(prev.updated_by || "")
   };
   const saveProject = env.DB.prepare(PROJECT_METADATA_UPSERT_SQL)
     .bind(row.id, row.name, row.blurb, row.web, row.status, row.color, row.owner, row.carbon_responsible, row.created_at, row.updated_at, row.updated_by);
@@ -2219,12 +2244,10 @@ async function upsertProject(env, b) {
     await saveProject.run();
   }
   for (const kind of ["machine", "agent"]) {
-    const campo = kind === "machine" ? "machines" : "agents";
-    if (!b || !Array.isArray(b[campo])) continue;
-    const refs = [...new Set(b[campo].map((r) => {
-      const ref = String(r || "").trim().slice(0, 80);
-      return kind === "agent" ? canonicalProjectAgentRef(ref) : ref;
-    }).filter(Boolean))].slice(0, 60);
+    if (!requestedMembers.has(kind)) continue;
+    const refs = requestedMembers.get(kind);
+    const current = previousMembers.filter((item) => item.kind === kind).map((item) => kind === "agent" ? canonicalProjectAgentRef(item.ref) : String(item.ref)).sort();
+    if (prev && JSON.stringify(current) === JSON.stringify(refs)) continue;
     await env.DB.prepare("DELETE FROM project_members WHERE project_id=? AND kind=?").bind(id, kind).run();
     for (const ref of refs) {
       await env.DB.prepare("INSERT OR IGNORE INTO project_members (project_id,kind,ref,added_at) VALUES (?,?,?,?)")
@@ -8883,7 +8906,7 @@ var worker_app = {
         if (!Number.isInteger(b && b.expected_importance) || b.expected_importance < 0 || b.expected_importance > 5) {
           return json({ ok: false, error: "expected_importance debe ser un entero entre 0 y 5" }, 400);
         }
-        const previous = await env.DB.prepare("SELECT id,status,importance FROM projects WHERE id=?").bind(projectId).first();
+        const previous = await env.DB.prepare("SELECT id,status,importance,updated_at,updated_by FROM projects WHERE id=?").bind(projectId).first();
         if (!previous) return json({ ok: false, error: "project no existe en el censo" }, 404);
         if (String(previous.status || "activo").toLowerCase() === "archivado") {
           return json({ ok: false, error: "project archivado" }, 409);
@@ -8894,17 +8917,19 @@ var worker_app = {
             project: (await listProjects(env)).find((row) => row.id === projectId) || null });
         }
         if (current !== b.expected_importance) {
-          return json({ ok: false, error: "importance conflict", current_importance: current }, 409);
+          return json({ ok: false, error: "importance conflict", current_importance: current,
+            current_updated_at: Number(previous.updated_at) || 0, current_updated_by: previous.updated_by || "" }, 409);
         }
         const updatedAt = Date.now(), updatedBy = String(sess.email || sess.user || "web").slice(0, 120);
         const changed = await env.DB.prepare("UPDATE projects SET importance=?,updated_at=?,updated_by=? WHERE id=? AND COALESCE(importance,0)=? AND COALESCE(status,'activo')!='archivado'")
           .bind(b.importance, updatedAt, updatedBy, projectId, current).run();
         if (!changed || !changed.meta || Number(changed.meta.changes) !== 1) {
-          const latest = await env.DB.prepare("SELECT id,status,importance FROM projects WHERE id=?").bind(projectId).first();
+          const latest = await env.DB.prepare("SELECT id,status,importance,updated_at,updated_by FROM projects WHERE id=?").bind(projectId).first();
           if (!latest) return json({ ok: false, error: "project no existe en el censo" }, 404);
           if (String(latest.status || "activo").toLowerCase() === "archivado") return json({ ok: false, error: "project archivado" }, 409);
           const latestImportance = Number.isInteger(Number(latest.importance)) ? Number(latest.importance) : 0;
-          if (latestImportance !== b.importance) return json({ ok: false, error: "importance conflict", current_importance: latestImportance }, 409);
+          if (latestImportance !== b.importance) return json({ ok: false, error: "importance conflict", current_importance: latestImportance,
+            current_updated_at: Number(latest.updated_at) || 0, current_updated_by: latest.updated_by || "" }, 409);
         }
         return json({ ok: true, changed: true, previous_importance: current,
           project: (await listProjects(env)).find((row) => row.id === projectId) || null });
@@ -8937,7 +8962,7 @@ var worker_app = {
         if (hasCarbon && !Object.prototype.hasOwnProperty.call(b || {}, "expected_carbon_responsible")) {
           return json({ ok: false, error: "expected_carbon_responsible requerido" }, 400);
         }
-        const previous = await env.DB.prepare("SELECT id,status,owner,carbon_responsible FROM projects WHERE id=?")
+        const previous = await env.DB.prepare("SELECT id,status,owner,carbon_responsible,updated_at,updated_by FROM projects WHERE id=?")
           .bind(projectId).first();
         if (!previous) return json({ ok: false, error: "project no existe en el censo" }, 404);
         if (String(previous.status || "activo").toLowerCase() === "archivado") {
@@ -8968,7 +8993,9 @@ var worker_app = {
             (carbonChanged && expectedCarbon !== previousCarbon)) {
           return json({ ok: false, error: "responsibles conflict",
             current_silicon_responsible: previousSilicon,
-            current_carbon_responsible: previousCarbon }, 409);
+            current_carbon_responsible: previousCarbon,
+            current_updated_at: Number(previous.updated_at) || 0,
+            current_updated_by: previous.updated_by || "" }, 409);
         }
         if (!siliconChanged && !carbonChanged) {
           return json({ ok: true, changed: false,
@@ -8987,7 +9014,7 @@ var worker_app = {
             .bind(carbonResponsible, updatedAt, updatedBy, projectId, previousCarbonRaw).run();
         }
         if (!changed || !changed.meta || Number(changed.meta.changes) !== 1) {
-          const latest = await env.DB.prepare("SELECT id,status,owner,carbon_responsible FROM projects WHERE id=?")
+          const latest = await env.DB.prepare("SELECT id,status,owner,carbon_responsible,updated_at,updated_by FROM projects WHERE id=?")
             .bind(projectId).first();
           if (!latest) return json({ ok: false, error: "project no existe en el censo" }, 404);
           if (String(latest.status || "activo").toLowerCase() === "archivado") {
@@ -9002,7 +9029,9 @@ var worker_app = {
           }
           return json({ ok: false, error: "responsibles conflict",
             current_silicon_responsible: latestSilicon,
-            current_carbon_responsible: latestCarbon }, 409);
+            current_carbon_responsible: latestCarbon,
+            current_updated_at: Number(latest.updated_at) || 0,
+            current_updated_by: latest.updated_by || "" }, 409);
         }
         return json({ ok: true, changed: true,
           previous_silicon_responsible: previousSilicon,
@@ -9094,6 +9123,8 @@ var worker_app = {
         } else if (kind === "agent" && !(b && b.remove)) {
           return json({ ok: false, error: "machine requerida para asociar un agente", code: "exact_identity_required" }, 400);
         }
+        const beforeMembers = ((await env.DB.prepare("SELECT kind,ref FROM project_members WHERE project_id=? ORDER BY kind,ref").bind(p.id).all()).results || [])
+          .map((item) => item.kind + ":" + item.ref).join("\n");
         if (b && b.remove) {
           if (kind === "agent" && canonicalProjectAgentRef(ref) === "OraculoMini") {
             await env.DB.prepare("DELETE FROM project_members WHERE project_id=? AND kind='agent' AND lower(ref) IN ('oraculomini','oraculomacmini')")
@@ -9115,6 +9146,12 @@ var worker_app = {
         } else {
           await env.DB.prepare("INSERT OR IGNORE INTO project_members (project_id,kind,ref,added_at) VALUES (?,?,?,?)")
             .bind(p.id, kind, ref, Date.now()).run();
+        }
+        const afterMembers = ((await env.DB.prepare("SELECT kind,ref FROM project_members WHERE project_id=? ORDER BY kind,ref").bind(p.id).all()).results || [])
+          .map((item) => item.kind + ":" + item.ref).join("\n");
+        if (beforeMembers !== afterMembers) {
+          await env.DB.prepare("UPDATE projects SET updated_at=?,updated_by='projects/assign' WHERE id=?")
+            .bind(Date.now(), p.id).run();
         }
         return json({ ok: true, project: (await listProjects(env)).find((x) => x.id === p.id) || null });
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }

@@ -8,7 +8,7 @@ const blockStart = source.indexOf("function paImportance(project)");
 const blockEnd = source.indexOf("function paReplaceProject(project)", blockStart);
 const block = source.slice(blockStart, blockEnd);
 const esc = (value) => String(value).replace(/[&<>\"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[char]);
-const api = new Function("esc", "PROJECT_IMPORTANCE_PENDING", `${block}\nreturn {paImportance,paImportanceControl};`)(esc, new Map());
+const api = new Function("esc", "PROJECT_IMPORTANCE_PENDING", `${block}\nreturn {paImportance,paProjectVersion,paImportanceControl};`)(esc, new Map());
 
 test("renderiza exactamente cinco botones a la derecha del nombre", () => {
   assert.match(source, /class="pa-project-heading"><b[^>]*>.*<\/b>'\+paImportanceControl\(project\)/);
@@ -22,6 +22,23 @@ test("0, 3 y 5 rellenan cero, tres y cinco estrellas", () => {
   assert.equal(count(0), 0);
   assert.equal(count(3), 3);
   assert.equal(count(5), 5);
+});
+
+test("la versión factual queda debajo de las estrellas con hora de Madrid", () => {
+  const project={id:"yokup",name:"Yokup",importance:3,updated_at:Date.parse("2026-09-01T18:05:06Z"),updated_by:"Carlos & equipo"};
+  const html=api.paImportanceControl(project);
+  assert.match(html,/class="pa-importance-stack"><div class="pa-importance/);
+  assert.match(html,/<\/div><time class="pa-project-version"/);
+  assert.match(html,/VERSIÓN · 01\.09\.2026 · 20:05/);
+  assert.match(html,/datetime="2026-09-01T18:05:06\.000Z"/);
+  assert.match(html,/por Carlos &amp; equipo/);
+});
+
+test("normaliza segundos históricos, respeta invierno y no inventa fechas", () => {
+  const winter=Date.parse("2026-01-15T18:05:06Z");
+  assert.equal(api.paProjectVersion({updated_at:winter/1000}).label,"VERSIÓN · 15.01.2026 · 19:05");
+  assert.equal(api.paProjectVersion({updated_at:0}).label,"VERSIÓN · SIN FECHA");
+  assert.equal(api.paProjectVersion({updated_at:"no-es-fecha"}).iso,"");
 });
 
 test("sólo el valor exacto está seleccionado para tecnología asistiva", () => {
@@ -47,7 +64,7 @@ test("cada proyecto guarda de forma independiente, optimista y con rollback", ()
   assert.match(source, /const PROJECT_IMPORTANCE_PENDING=new Map\(\)/);
   assert.match(source, /PROJECT_IMPORTANCE_PENDING\.set\(projectId,\{previous,current,next\}\)/);
   assert.match(source, /paReplaceProject\(\{\.\.\.previous,importance:next\}\)/);
-  assert.match(source, /hasServerValue\?\{\.\.\.previous,importance:serverValue\}:previous/);
+  assert.match(source, /hasServerValue\?\{\.\.\.previous,importance:serverValue,\.\.\.\(Number\.isFinite\(serverUpdatedAt\)/);
   assert.match(source, /finally\{PROJECT_IMPORTANCE_PENDING\.delete\(projectId\)/);
 });
 
@@ -60,16 +77,26 @@ test("actualiza catálogo y filas, conserva foco y anuncia éxito o error", () =
 });
 
 test("un GET anterior al clic no pisa el valor pendiente o recién confirmado", () => {
-  assert.match(source, /const importanceRevision=PROJECT_IMPORTANCE_REV/);
-  assert.match(source, /if\(importanceRevision!==PROJECT_IMPORTANCE_REV\)/);
+  assert.match(source, /const versionRevision=PROJECT_VERSION_REV/);
+  assert.match(source, /paProtectProjectVersions\(Array\.isArray\(projects\.projects\)\?projects\.projects:\[\],versionRevision\)/);
   assert.match(source, /PROJECT_IMPORTANCE_PENDING\.has\(project\.id\)/);
+  const functionSource=source.match(/function paProtectProjectVersions\(sourceProjects,versionRevision\)\{[\s\S]*?\n\}/)?.[0]||"";
+  assert.ok(functionSource,"falta paProtectProjectVersions");
+  const protect=new Function("PROJECT_CATALOG","PROJECT_VERSION_REV","paImportance",functionSource+";return paProtectProjectVersions;")(
+    [{id:"p",importance:4,updated_at:200,updated_by:"servidor nuevo"}],2,api.paImportance
+  );
+  assert.deepEqual(protect([{id:"p",importance:1,updated_at:100,updated_by:"GET viejo"}],1),[
+    {id:"p",importance:4,updated_at:200,updated_by:"servidor nuevo"}
+  ]);
 });
 
 test("el responsive mantiene el grupo fijo y deja que el nombre se trunque", () => {
-  assert.match(source, /\.pa-project-heading\{display:flex;align-items:center;gap:6px;min-width:0\}/);
-  assert.match(source, /\.pa-project-heading>b\{min-width:0;flex:1\}/);
-  assert.match(source, /\.pa-importance\{display:inline-flex;align-items:center;gap:6px;flex:none\}/);
+  assert.match(source, /\.pa-project-heading\{display:flex;align-items:flex-start;gap:6px;min-width:0\}/);
+  assert.match(source, /\.pa-project-heading>b\{min-width:0;flex:1;padding-top:4px\}/);
+  assert.match(source, /\.pa-importance-stack\{display:grid;justify-items:end;gap:1px;flex:none;min-width:0;max-width:175px\}/);
+  assert.match(source, /\.pa-importance\{display:inline-flex;align-items:center;gap:6px\}/);
   assert.match(source, /\.pa-importance button\{width:18px;height:24px/);
+  assert.match(source, /\.pa-project-version\{max-width:100%;[^}]*white-space:nowrap/);
 });
 
 test("paJson conserva status y payload para reconciliar errores canónicos", async () => {
@@ -92,7 +119,7 @@ async function runImportanceFailure(error){
   const replaceEnd=source.indexOf("function paPhysicalTeamCensus",replaceStart);
   return new Function("failure",`
     let PROJECT_CATALOG=[{id:"p",name:"Proyecto",importance:0}],PROJECT_ROWS=[];
-    const PROJECT_IMPORTANCE_PENDING=new Map();let PROJECT_IMPORTANCE_REV=0;
+    const PROJECT_IMPORTANCE_PENDING=new Map();let PROJECT_VERSION_REV=0;
     const paProjectsForScope=()=>PROJECT_CATALOG.slice();
     const paJson=async()=>{throw failure;};
     const paRender=()=>{};const paMessage=()=>{};const requestAnimationFrame=()=>{};

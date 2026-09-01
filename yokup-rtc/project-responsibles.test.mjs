@@ -107,7 +107,7 @@ test("la edición dedicada exige sesión y atribuye updated_by al usuario autent
 });
 
 test("el endpoint usa el id exacto y distingue inexistente de archivado", () => {
-  assert.match(endpoint, /SELECT id,status,owner,carbon_responsible FROM projects WHERE id=\?/);
+  assert.match(endpoint, /SELECT id,status,owner,carbon_responsible,updated_at,updated_by FROM projects WHERE id=\?/);
   assert.doesNotMatch(endpoint, /projectSlug|projectIndex/);
   assert.match(endpoint, /project no existe en el censo.*404/);
   assert.match(endpoint, /project archivado.*409/);
@@ -140,6 +140,8 @@ test("cada campo incluido exige su expected y un conflicto devuelve los dos valo
   assert.match(endpoint, /hasCarbon && !Object\.prototype\.hasOwnProperty\.call\(b \|\| \{\}, "expected_carbon_responsible"\)/);
   assert.match(endpoint, /current_silicon_responsible: latestSilicon/);
   assert.match(endpoint, /current_carbon_responsible: latestCarbon/);
+  assert.match(endpoint, /current_updated_at: Number\(latest\.updated_at\) \|\| 0/);
+  assert.match(endpoint, /current_updated_by: latest\.updated_by \|\| ""/);
   assert.match(endpoint, /responsibles conflict/);
 });
 
