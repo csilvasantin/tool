@@ -32,7 +32,7 @@ import { validateCoachCompletion, validateCoachLaunch, coachLessonForSlot, coach
 import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
   onIdleEligibility, taskOperationalDetails, taskVisibleDetails } from "./mission-visible.js";
 import { DAILY_MISSION_CLOSE_AUTHOR, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_LEASE_MS, DAILY_MISSION_CLOSE_REASON, MISSION_UNCONCLUDED_AFTER_MS, dailyMissionCloseEventText, dailyMissionClosePlan } from "./daily-mission-close.js";
-import { selectOnIdleProposals } from "./onidle-proposals.js";
+import { selectOnIdleProposals, onIdleProposalTitleKey } from "./onidle-proposals.js";
 import { ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION, isCanonicalOnIdleDecision,
   isCanonicalOnIdleOptions, selectCanonicalLiveOnIdleDecision } from "./onidle-decision-contract.js";
 import { canonicalProjectAgentRef, canonicalProjectAgentRefs, YOKUP_MINI_MEMBER_BACKFILL_SQL } from "./project-member-identity.js";
@@ -3210,6 +3210,28 @@ async function notifyFleetAdministrativeCancellation(env, ticket, missionId, own
   }
 }
 __name(notifyFleetAdministrativeCancellation, "notifyFleetAdministrativeCancellation");
+// UNA PROPUESTA YA MATERIALIZADA NO SE VUELVE A DAR DE ALTA (Carlos, 1-sep-2026).
+// El dedup por título de OnIdle (`onIdleProposalTitleKey`, onidle-proposals.js)
+// protegía sólo la SELECCIÓN de propuestas. La MATERIALIZACIÓN no pasaba por él:
+// una ventana cuyo option_targets viene a null fabrica siempre un contenedor
+// nuevo, así que una lista de opciones que no cambia da de alta un gemelo por
+// ronda. Entre el 27-ago y el 1-sep-2026 eso produjo 81 MIS-DEC con el MISMO
+// asunto («Completar el sitemap: declara 7 rutas…»), todos de MorfeoMini ·
+// AdmiraNeXT, el 80% del marcador de ese agente.
+// Se busca por el MISMO criterio que el dedup para que las dos puertas —elegir
+// y materializar— coincidan, y se devuelve la viva para ADOPTARLA por la vía de
+// `target_mission_id`, que ya sabe validar proyecto, propiedad y enlaces.
+async function findLiveTwinMission(env, projectId, title, excludeMissionId) {
+  const key = onIdleProposalTitleKey(title);
+  if (!key || !projectId) return null;
+  const { results } = await env.DB.prepare(
+    "SELECT id,subject FROM tickets WHERE COALESCE(NULLIF(project_id,''),project)=? " +
+    "AND status IN ('open','in_progress','unconcluded') AND id<>? ORDER BY created_at ASC LIMIT 300"
+  ).bind(String(projectId), String(excludeMissionId || "")).all();
+  const twin = (results || []).find((row) => onIdleProposalTitleKey(row.subject) === key);
+  return twin ? String(twin.id) : null;
+}
+__name(findLiveTwinMission, "findLiveTwinMission");
 async function activateNextMissionBatchItem(env, batchId, triggerDecisionId) {
   const batch = await env.DB.prepare("SELECT * FROM mission_batches WHERE id=?").bind(batchId).first();
   if (!batch || batch.status !== "active") return missionBatchSnapshot(env, batchId);
@@ -3229,7 +3251,7 @@ async function activateNextMissionBatchItem(env, batchId, triggerDecisionId) {
       .bind(now, batchId).run();
   }
   const remaining = await reconcileQueuedBatchItems(env, batchId);
-  const next = remaining[0] || null;
+  let next = remaining[0] || null;
   if (!next) {
     await env.DB.prepare("UPDATE mission_batches SET status='completed', active_mission_id=NULL, updated_at=? WHERE id=?")
       .bind(Date.now(), batchId).run();
@@ -3244,6 +3266,14 @@ async function activateNextMissionBatchItem(env, batchId, triggerDecisionId) {
   });
   if (!projectContext.ok) return projectContext;
   const logText = "Misión activada desde la cola " + batch.decision_id + ". Requiere evidencia y aceptación del Agente antes de avanzar.";
+  // Sin referencia explícita, antes de crear contenedor se comprueba que el
+  // título no sea ya una misión VIVA del proyecto. Si lo es, se adopta esa en
+  // vez de duplicarla; la rama de abajo decide si es adoptable o si la tanda
+  // debe pausarse diciendo por qué. Nunca nacen dos misiones con el mismo asunto.
+  if (!next.target_mission_id) {
+    const twin = await findLiveTwinMission(env, projectContext.project_id, next.title, missionId);
+    if (twin) next = { ...next, target_mission_id:twin };
+  }
   if (next.target_mission_id) {
     const targetId = String(next.target_mission_id);
     const target = await env.DB.prepare(
