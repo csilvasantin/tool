@@ -32,9 +32,12 @@ test("la calle muestra trabajo, responsable, state factual y hora Madrid",()=>{
   assert.doesNotMatch(source,/misionDesdePresencia|presencia viva, sin foco declarado/);
 });
 
-test("texto, agente y tiempo primario ocupan dos columnas sin marquee",()=>{
-  assert.match(source,/\.refresh-lane\{display:grid;grid-template-columns:minmax\(220px,300px\) minmax\(0,1fr\)/);
+test("agente, pista y horas ocupan tres columnas reales sin marquee",()=>{
+  assert.match(source,/\.refresh-lane\{display:grid;grid-template-columns:minmax\(148px,210px\) minmax\(0,1fr\) minmax\(158px,190px\)/);
   assert.match(source,/\.refresh-agent\{[^}]*text-overflow:ellipsis[^}]*white-space:nowrap/);
+  assert.match(source,/\.refresh-timing\{display:inline-flex;[^}]*justify-content:flex-end/);
+  assert.ok(source.indexOf('class="refresh-agent-meta"') < source.indexOf('class="refresh-lane-center"'));
+  assert.ok(source.indexOf('class="refresh-lane-center"') < source.indexOf('class="refresh-timing"'));
   assert.match(source,/@media \(max-width:620px\)[\s\S]*?\.refresh-mission-title\{font-size:8px\}/);
   assert.doesNotMatch(source,/<marquee|function estelaMision|class="refresh-word"/);
 });

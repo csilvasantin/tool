@@ -4,8 +4,9 @@ import fs from "node:fs";
 
 const html=fs.readFileSync(new URL("./highscore.html",import.meta.url),"utf8");
 
-test("nombre, inicio y fin nacen en una columna izquierda estable y legible",()=>{
-  assert.match(html,/\.refresh-agent-meta\{[^}]*justify-content:flex-start[^}]*gap:5px[^}]*width:100%/);
+test("nombre y bloque horario nacen a ambos lados de la pista",()=>{
+  assert.match(html,/\.refresh-agent-meta\{[^}]*justify-content:flex-start[^}]*width:100%/);
+  assert.match(html,/\.refresh-timing\{[^}]*justify-content:flex-end[^}]*gap:5px[^}]*width:100%/);
   assert.match(html,/\.refresh-agent\{[^}]*flex:0 1 auto[^}]*text-overflow:ellipsis[^}]*text-align:left[^}]*color:var\(--accent\)/);
   assert.match(html,/\.refresh-started,\.refresh-ended\{[^}]*flex:0 0 auto[^}]*min-width:8ch[^}]*color:var\(--ink\)[^}]*font-weight:800[^}]*tabular-nums/);
   assert.doesNotMatch(html,/refresh-lane-idle\{[^}]*opacity|refresh-lane-last\{[^}]*(?:opacity|filter)/);
@@ -14,7 +15,7 @@ test("nombre, inicio y fin nacen en una columna izquierda estable y legible",()=
 });
 
 test("work_started_at ausente no produce datetime vacío",()=>{
-  assert.match(html,/resumen\.startedAt \? '<time class="refresh-started" data-race-time="start" datetime="'/);
+  assert.match(html,/var marcaInicio = resumen\.startedAt[\s\S]*'<time class="refresh-started" data-race-time="start" datetime="'/);
   assert.match(html,/class="refresh-started" data-race-time="start" title="Hora de inicio no disponible">—/);
   assert.doesNotMatch(html,/datetime="' \+ \(enlace\.trabajo\.startedAt/);
 });
@@ -50,18 +51,19 @@ test("running compite; stale cruza B\/N sin ganar y last queda quieto en meta",(
   assert.match(html,/if \(noCorre\)[\s\S]*relleno\.style\.width = "0px"[\s\S]*return;/);
 });
 
-test("responsive conserva identidad y tiempo primario junto a una pista amplia",()=>{
-  assert.match(html,/grid-template-columns:minmax\(220px,300px\) minmax\(0,1fr\)/);
-  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(150px,190px\) minmax\(54px,1fr\)/);
-  assert.match(html,/@media \(max-width:340px\)\{\.refresh-lane\{grid-template-columns:minmax\(146px,168px\) minmax\(54px,1fr\)/);
+test("responsive conserva identidad, pista y tiempo a la derecha",()=>{
+  assert.match(html,/grid-template-columns:minmax\(148px,210px\) minmax\(0,1fr\) minmax\(158px,190px\)/);
+  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(112px,142px\) minmax\(54px,1fr\) minmax\(110px,124px\)/);
+  assert.match(html,/@media \(max-width:340px\)\{\.refresh-lane\{grid-template-columns:minmax\(92px,112px\) minmax\(42px,1fr\) minmax\(108px,118px\)/);
   for(const width of [1265,1024,760,390,320]){
     const mobile=width<=620,content=Math.min(1080,width-36)-(mobile?6:0);
-    const agentMin=width<=340?146:mobile?150:width<=800?180:width<=1100?196:220;
-    const gaps=mobile?2:4;
-    const trackMin=width<=340?54:0;
-    assert.ok(content-agentMin-gaps>=trackMin,`${width}px conserva pista sin overflow`);
+    const agentMin=width<=340?92:mobile?112:width<=800?128:width<=1100?138:148;
+    const timingMin=width<=340?108:mobile?110:width<=800?142:width<=1100?150:158;
+    const gaps=width<=340?2:mobile?4:8;
+    const trackMin=width<=340?42:mobile?54:0;
+    assert.ok(content-agentMin-timingMin-gaps>=trackMin,`${width}px conserva pista sin overflow`);
   }
-  assert.ok(1265/2-36-6-150-2>=54,"zoom 200% del escritorio conserva las dos columnas");
+  assert.ok(1265/2-36-6-112-110-4>=54,"zoom 200% del escritorio conserva las tres columnas");
   assert.match(html,/\.refresh-started,\.refresh-ended\{[^}]*white-space:nowrap/);
   assert.match(html,/\.refresh-agent\{[^}]*min-width:0[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
 });

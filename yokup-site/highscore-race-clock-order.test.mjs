@@ -78,10 +78,10 @@ function assertOrdered(haystack, needles, message) {
   }
 }
 
-test("running genera DOM y lectura accesible nombre -> inicio -> tiempo transcurrido", () => {
+test("running genera DOM nombre -> pista -> bloque horario y lectura accesible factual", () => {
   const rendered = renderRace(fixture("running", 0));
   assertOrdered(rendered,
-    ['data-race-role="agent"', 'data-race-time="start"', 'data-race-time="elapsed"'],
+    ['data-race-role="agent"', 'class="refresh-lane-center"', 'class="refresh-timing"', 'data-race-time="start"', 'data-race-time="elapsed"'],
     "orden DOM de running");
   assertOrdered(laneAria(rendered),
     ["Responsable Niobe", "Hora de inicio", "Tiempo transcurrido"],
@@ -100,7 +100,7 @@ test("last_work conserva última misión y pone su fin después del inicio", () 
   const endedAt = Date.parse("2026-09-01T13:42:09.000Z");
   const rendered = renderRace(fixture("last_work", endedAt));
   assertOrdered(rendered,
-    ['data-race-role="agent"', 'data-race-time="start"', 'data-race-time="end"'],
+    ['data-race-role="agent"', 'class="refresh-lane-center"', 'class="refresh-timing"', 'data-race-time="start"', 'data-race-time="end"'],
     "orden DOM de last_work");
   assertOrdered(laneAria(rendered),
     ["Responsable Niobe", "Hora de inicio", "Hora de finalización"],
@@ -113,7 +113,7 @@ test("last_work conserva última misión y pone su fin después del inicio", () 
 test("last_work sin ended_at queda explícitamente desconocido y no fabrica epoch", () => {
   const rendered = renderRace(fixture("last_work", 0));
   assertOrdered(rendered,
-    ['data-race-role="agent"', 'data-race-time="start"', 'data-race-time="end"'],
+    ['data-race-role="agent"', 'class="refresh-lane-center"', 'class="refresh-timing"', 'data-race-time="start"', 'data-race-time="end"'],
     "orden DOM sin ended_at");
   assert.match(rendered, /data-race-time="end"[^>]*>—<\/span>/);
   assert.doesNotMatch(rendered, /1970-01-01|datetime="[^"]+"[^>]*data-race-time="end"/,
@@ -127,11 +127,13 @@ test("el bloque ordenado se contrae sin desbordar en móvil", () => {
   assert.match(rules(".refresh-lane"), /minmax\(0,1fr\)/,
     "la pista conserva una columna realmente contraíble");
   assert.match(rules(".refresh-agent-meta"), /min-width:0/,
-    "nombre y relojes pueden encogerse dentro del grid");
+    "el nombre puede encogerse dentro del grid");
+  assert.match(rules(".refresh-timing"), /min-width:0[^}]*white-space:nowrap/,
+    "el bloque horario se mantiene unido a la derecha");
   assert.match(rules(".refresh-agent"), /overflow:hidden[^}]*text-overflow:ellipsis/,
     "un nombre largo no ensancha la página");
-  assert.match(html, /@media \(max-width:620px\)[\s\S]*?\.refresh-agent-meta\{[^}]*flex-wrap:wrap/,
-    "en móvil nombre, inicio y fin pueden envolver dentro de su propia celda");
+  assert.match(html, /@media \(max-width:620px\)[\s\S]*?\.refresh-timing\{gap:2px/,
+    "en móvil el bloque horario reduce su separación sin cambiar de lado");
 });
 
 test("último trabajo mantiene zancada gris estática", () => {

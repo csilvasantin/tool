@@ -26,8 +26,8 @@ test("la banda HIGHSCORE+RANKING encabeza la página, por encima de la carrera",
   assert.doesNotMatch(html,/<header class="cab">\s*<h1/);
 });
 
-test("la primera columna ordena nombre, inicio factual y fin factual",()=>{
-  assert.match(html,/class="refresh-agent-meta"><span class="refresh-agent"[\s\S]*data-race-time="start"[\s\S]*marcaTemporal/);
+test("el DOM ordena nombre, pista y bloque temporal derecho",()=>{
+  assert.match(html,/class="refresh-agent-meta"><span class="refresh-agent"[\s\S]*class="refresh-lane-center"[\s\S]*class="refresh-timing"[\s\S]*marcaInicio \+ marcaTemporal/);
   assert.match(html,/data-race-time="elapsed" data-work-state="running"/);
   assert.match(html,/data-race-time="end" datetime="/);
   assert.match(html,/aria-label="Responsable ' \+ esc\(identidadVisible\.nombre\) \+ '\. Hora de inicio ' \+ esc\(resumen\.startedClock\) \+ esc\(timingAria\)/);
@@ -40,9 +40,9 @@ test("la primera columna ordena nombre, inicio factual y fin factual",()=>{
   assert.doesNotMatch(html,/class="refresh-time"|class="refresh-work-state"/);
 });
 
-test("desktop y móvil reservan ancho al nombre+dos tiempos y dejan el resto a la pista",()=>{
-  assert.match(html,/grid-template-columns:minmax\(220px,300px\) minmax\(0,1fr\)/);
-  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(150px,190px\) minmax\(54px,1fr\)/);
+test("desktop y móvil reservan pista central y reloj a la derecha",()=>{
+  assert.match(html,/grid-template-columns:minmax\(148px,210px\) minmax\(0,1fr\) minmax\(158px,190px\)/);
+  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(112px,142px\) minmax\(54px,1fr\) minmax\(110px,124px\)/);
   assert.match(html,/\.refresh-lane-last/);
   assert.match(html,/\.refresh-elapsed/);
 });

@@ -68,8 +68,8 @@ test("el histórico last_work queda en meta y conserva todo el rótulo detrás d
 test("la corrección geométrica conserva meta, controles y orden semántico del carril", () => {
   assert.match(html, /id="refreshRace" role="button" tabindex="0" aria-pressed="false"/);
   assert.match(renderSource,
-    /class="refresh-agent-meta"[\s\S]*marcaTemporal[\s\S]*class="refresh-lane-center"[\s\S]*data-race-role="mission"[\s\S]*runner \+ '<span class="refresh-finish"/,
-    "agente con tiempo primario, pista y meta conservan su estructura y orden accesible");
+    /class="refresh-agent-meta"[\s\S]*class="refresh-lane-center"[\s\S]*data-race-role="mission"[\s\S]*runner \+ '<span class="refresh-finish"[\s\S]*class="refresh-timing"[\s\S]*marcaInicio \+ marcaTemporal/,
+    "agente, pista/meta y bloque temporal conservan el nuevo orden");
   assert.match(renderSource, /data-race-role="runner" aria-hidden="true"/);
   assert.match(renderSource, /class="refresh-finish" aria-hidden="true"/);
   assert.match(renderSource, /data-race-time="elapsed" data-work-state="running"[\s\S]*data-work-start=/,

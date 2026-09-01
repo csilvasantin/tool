@@ -17,14 +17,16 @@ test("formatea únicamente duraciones factuales válidas",()=>{
   assert.equal(race.durationLabel((2*60+7)*60_000),"2 h 7 min");
 });
 
-test("el tiempo factual comparte el bloque izquierdo y deja la pista como segunda columna",()=>{
-  assert.match(html,/grid-template-columns:minmax\(220px,300px\) minmax\(0,1fr\)/);
-  assert.match(html,/class="refresh-agent-meta"[\s\S]*data-race-time="start"[\s\S]*marcaTemporal/);
+test("el tiempo factual vive en la tercera columna después de la pista",()=>{
+  assert.match(html,/grid-template-columns:minmax\(148px,210px\) minmax\(0,1fr\) minmax\(158px,190px\)/);
+  assert.match(html,/class="refresh-agent-meta"[\s\S]*class="refresh-lane-center"[\s\S]*class="refresh-timing"[\s\S]*marcaInicio \+ marcaTemporal/);
   assert.match(html,/data-race-time="elapsed" data-work-state="running"/);
   assert.match(html,/data-race-time="end" datetime=/);
   assert.doesNotMatch(html,/class="refresh-time"|class="refresh-work-state"|class="refresh-session-elapsed"/);
   assert.match(html,/<span class="refresh-agent"[^>]*>[\s\S]*<div class="refresh-lane-center">/,
     "el nombre queda antes de la pista, no montado sobre la meta");
+  assert.match(html,/<div class="refresh-lane-center">[\s\S]*<span class="refresh-timing"/,
+    "el reloj queda después de la pista");
   assert.doesNotMatch(html,/class="refresh-status"|class="refresh-now"/);
   assert.match(html,/<span class="refresh-mission"[^>]*><span class="refresh-mission-title">/);
   assert.match(html,/aria-label="Responsable '[\s\S]*Hora de inicio '[\s\S]*esc\(timingAria\)/);
