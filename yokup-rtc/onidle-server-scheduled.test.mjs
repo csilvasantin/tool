@@ -43,8 +43,12 @@ test("bloquea trabajo y sólo OnIDLE pending canónico del mismo scope",()=>{
   assert.match(publish,/json_array_length\(options\)=5/);
   assert.match(publish,/SELECT 1 FROM tickets t WHERE " \+ AGENT_SOURCE_SQL_T \+ " AND t\.status IN \('open','in_progress','unconcluded'\)/);
   assert.match(publish,/SELECT 1 FROM mission_tasks m JOIN tickets t ON t\.id=m\.mission_id/);
-  assert.equal((publish.match(/replace\(replace\(replace\(lower\(t\.assignee\),'infra',''\),'sub',''\),'macmini','mini'\)=/g)||[]).length,2);
-  assert.match(publish,/replace\(lower\(agent\),'macmini','mini'\)=replace\(lower\(\?\),'macmini','mini'\)/);
+  assert.match(publish,/const decisionFamilySql = agentFamilySqlKey\("agent"\)/);
+  assert.match(publish,/const ticketFamilySql = agentFamilySqlKey\("t\.assignee"\)/);
+  assert.match(publish,/decisionMachineSql = machineRefSqlKey\("machine"\)/);
+  assert.match(publish,/ticketMachineSql = machineRefSqlKey\("t\.loc"\)/);
+  assert.equal((publish.match(/ticketFamilySql/g)||[]).length,3);
+  assert.equal((publish.match(/ticketMachineSql/g)||[]).length,3);
   assert.match(source,/return out\.sort\(\(a, b\) => a\.identity_key\.localeCompare\(b\.identity_key\)\)/);
 });
 

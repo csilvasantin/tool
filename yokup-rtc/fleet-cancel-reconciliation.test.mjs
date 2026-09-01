@@ -1,62 +1,135 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {DatabaseSync} from 'node:sqlite';
+import worker from './src/index.js';
 
-const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
+const telegramSource = await readFile(
+  new URL('../../../github-csilvasantin/admira-telegram/src/index.js', import.meta.url),
+  'utf8'
+);
 
-function body(name) {
-  const start = source.indexOf(`async function ${name}(`);
-  assert.notEqual(start, -1, `falta ${name}`);
-  const open = source.indexOf('{', start);
-  let depth = 0, quote = '', escaped = false;
-  for (let index = open; index < source.length; index += 1) {
-    const char = source[index];
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (char === '\\') escaped = true;
-      else if (char === quote) quote = '';
-      continue;
+function d1(database) {
+  const statement = (sql, args = []) => ({
+    bind(...values) { return statement(sql, values); },
+    async first() { return database.prepare(sql).get(...args) || null; },
+    async all() { return {results: database.prepare(sql).all(...args)}; },
+    async run() { return {meta: database.prepare(sql).run(...args)}; }
+  });
+  return {
+    async exec(sql) { database.exec(sql); },
+    prepare(sql) { return statement(sql); },
+    async batch(statements) {
+      database.exec('BEGIN');
+      try {
+        const results = [];
+        for (const item of statements) results.push(await item.run());
+        database.exec('COMMIT');
+        return results;
+      } catch (error) {
+        database.exec('ROLLBACK');
+        throw error;
+      }
     }
-    if (char === '"' || char === "'" || char === '`') { quote = char; continue; }
-    if (char === '{') depth += 1;
-    else if (char === '}' && --depth === 0) return source.slice(start, index + 1);
-  }
-  throw new Error(`${name} incompleta`);
+  };
 }
 
-const cancellation = new Function('fleetEncargoId',
-  `${body('notifyFleetAdministrativeCancellation')}; return notifyFleetAdministrativeCancellation;`)(async () => '991');
+const local = new DatabaseSync(':memory:');
+const inbox = new DatabaseSync(':memory:');
+const env = {DB:d1(local), TELEGRAM:null};
+local.exec(`CREATE TABLE tickets(id TEXT PRIMARY KEY,screen TEXT,subject TEXT,loc TEXT,role TEXT,status TEXT,
+  priority TEXT,assignee TEXT,source TEXT,ai_triage TEXT,created_at INTEGER,updated_at INTEGER,resolved_at INTEGER);
+  CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT,ticket_id TEXT,ts INTEGER,kind TEXT,author TEXT,text TEXT);
+  CREATE TABLE fleet_ids(inbox_id INTEGER PRIMARY KEY,mission_id TEXT UNIQUE,created_at INTEGER);`);
+inbox.exec('CREATE TABLE telegram_inbox(id INTEGER PRIMARY KEY,status TEXT,note TEXT,done_at TEXT)');
 
-test('cancelación usa un estado admitido y deja trazabilidad de no ejecución', async () => {
-  let sent;
-  const env = {TELEGRAM:{fetch:async (request) => {
-    sent = await request.json();
-    return new Response(JSON.stringify({ok:true}), {status:200, headers:{'content-type':'application/json'}});
-  }}};
-  const result = await cancellation(env, {source:'fleet',screen:'NeoMini #991'}, 'FLT-1005', 'SubOraculoMini', 'obsoleta');
-  assert.equal(result.updated, true);
-  assert.equal(sent.status, 'done');
-  assert.match(sent.note, /cancelada sin ejecutar/i);
-  assert.deepEqual(sent.metadata, {resolution:'administrative_cancel', executed:false, mission_id:'FLT-1005'});
+function realBulkStatusBinding({override} = {}) {
+  return {fetch:async (request) => {
+    if (override) return override(request);
+    const body = await request.json();
+    assert.deepEqual(Object.keys(body).sort(), ['by','ids','note','status']);
+    assert.equal(body.status, 'done');
+    const updated = [];
+    for (const id of body.ids) {
+      const row = inbox.prepare('SELECT id FROM telegram_inbox WHERE id=?').get(id);
+      if (!row) continue;
+      inbox.prepare('UPDATE telegram_inbox SET status=?,note=?,done_at=? WHERE id=?')
+        .run(body.status, body.note, new Date().toISOString(), id);
+      updated.push(id);
+    }
+    return Response.json({ok:true,updated:updated.length});
+  }};
+}
+
+async function reset({withInbox = true} = {}) {
+  local.prepare('DELETE FROM events').run();
+  local.prepare('DELETE FROM fleet_ids').run();
+  local.prepare('DELETE FROM tickets').run();
+  inbox.prepare('DELETE FROM telegram_inbox').run();
+  local.prepare(`INSERT INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,created_at,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run('FLT-1005','NeoMini #991','Obsoleta','Mac Mini','agent','open','normal','NeoMini','fleet',1,1);
+  local.prepare('INSERT INTO fleet_ids(inbox_id,mission_id,created_at) VALUES(?,?,?)').run(991,'FLT-1005',1);
+  if (withInbox) inbox.prepare("INSERT INTO telegram_inbox(id,status,note) VALUES(991,'pending','original')").run();
+}
+
+async function cancel(telegram) {
+  env.TELEGRAM = telegram;
+  const response = await worker.fetch(new Request('https://yokup.com/fleet/cancel', {
+    method:'POST', headers:{'content-type':'application/json'},
+    body:JSON.stringify({mission:'FLT-1005',by:'SubOraculoMini',note:'obsoleta'})
+  }), env, {});
+  return {response, body:await response.json()};
+}
+
+test('fixture corresponde al bulk-status real: persiste note y no metadata', () => {
+  const start = telegramSource.indexOf('async function handleBotInboxBulkStatus');
+  const end = telegramSource.indexOf('\nasync function ', start + 20);
+  assert.ok(start >= 0 && end > start, 'existe handleBotInboxBulkStatus real');
+  const contract = telegramSource.slice(start, end);
+  assert.match(contract, /const note = String\(b\.note/);
+  assert.match(contract, /UPDATE telegram_inbox SET status=\?1, note=COALESCE/);
+  assert.match(contract, /done_at = CASE WHEN \?1='done' THEN \?3/);
+  assert.match(contract, /updated: updated\.length/);
+  assert.doesNotMatch(contract, /metadata/);
 });
 
-test('un rechazo o fallo de red del espejo nunca se presenta como actualizado', async () => {
-  const rejected = await cancellation({TELEGRAM:{fetch:async () =>
-    new Response(JSON.stringify({ok:false}), {status:400, headers:{'content-type':'application/json'}})}},
-    {source:'fleet'}, 'FLT-1', 'SubOraculoMini', '');
-  assert.equal(rejected.updated, false);
-  const failed = await cancellation({TELEGRAM:{fetch:async () => { throw new Error('offline'); }}},
-    {source:'fleet'}, 'FLT-1', 'SubOraculoMini', '');
-  assert.equal(failed.updated, false);
+test('handler real cancela D1 sólo tras confirmar exactamente una fila del inbox', async () => {
+  await reset();
+  const {response,body} = await cancel(realBulkStatusBinding());
+  assert.equal(response.status, 200);
+  assert.equal(body.cancelled, true);
+  assert.equal(local.prepare('SELECT status FROM tickets WHERE id=?').get('FLT-1005').status, 'cancelled');
+  const mirrored = inbox.prepare('SELECT status,note,done_at FROM telegram_inbox WHERE id=?').get(991);
+  assert.equal(mirrored.status, 'done');
+  assert.match(mirrored.note, /^Cancelación administrativa · NO EJECUTADO · Motivo: obsoleta$/);
+  assert.ok(mirrored.done_at);
+  const event = local.prepare('SELECT kind,author,text FROM events WHERE ticket_id=?').get('FLT-1005');
+  assert.equal(event.kind, 'log');
+  assert.equal(event.author, 'SubOraculoMini');
+  assert.equal(event.text, '🗑 Eliminada: obsoleta.');
 });
 
-test('/fleet/cancel reconcilia antes de mutar y devuelve 502 explícito si falla', () => {
-  const route = source.slice(source.indexOf('url.pathname === "/fleet/cancel"'),
-    source.indexOf('url.pathname === "/fleet/task-status"'));
-  const mirror = route.indexOf('notifyFleetAdministrativeCancellation');
-  const mutation = route.indexOf("UPDATE tickets SET status='cancelled'");
-  assert.ok(mirror >= 0 && mutation > mirror, 'el espejo se confirma antes de cancelar localmente');
-  assert.match(route, /cancel_reconciliation_failed/);
-  assert.match(route, /inbox_resolution:"administrative_cancel"/);
-  assert.doesNotMatch(route, /status:\s*"cancelled"/);
+test('HTTP 200 updated:0 no muta ticket ni cronología local', async () => {
+  await reset({withInbox:false});
+  const {response,body} = await cancel(realBulkStatusBinding());
+  assert.equal(response.status, 502);
+  assert.equal(body.code, 'cancel_reconciliation_failed');
+  assert.equal(body.local_cancelled, false);
+  assert.equal(local.prepare('SELECT status FROM tickets WHERE id=?').get('FLT-1005').status, 'open');
+  assert.equal(local.prepare('SELECT COUNT(*) n FROM events WHERE ticket_id=?').get('FLT-1005').n, 0);
+});
+
+test('payload inválido o error HTTP del espejo tampoco mutan D1', async (t) => {
+  for (const [name,override] of [
+    ['json inválido', async () => new Response('not-json', {status:200})],
+    ['payload inválido', async () => Response.json({ok:true})],
+    ['error HTTP', async () => Response.json({ok:false,updated:1}, {status:500})]
+  ]) await t.test(name, async () => {
+    await reset();
+    const {response} = await cancel(realBulkStatusBinding({override}));
+    assert.equal(response.status, 502);
+    assert.equal(local.prepare('SELECT status FROM tickets WHERE id=?').get('FLT-1005').status, 'open');
+    assert.equal(local.prepare('SELECT COUNT(*) n FROM events WHERE ticket_id=?').get('FLT-1005').n, 0);
+    assert.equal(inbox.prepare('SELECT status FROM telegram_inbox WHERE id=?').get(991).status, 'pending');
+  });
 });

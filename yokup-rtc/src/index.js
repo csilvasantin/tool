@@ -1,7 +1,7 @@
 import puppeteer from "@cloudflare/puppeteer";
 import { handleAuthRequest, sessionTokenFromRequest, withCredentialCors } from "./auth-flow.js";
-import { memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
-import { baseAgentIdentity, identityKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
+import { machineRefKey, machineRefSqlKey, memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
+import { agentFamilyKey, agentFamilySqlKey, baseAgentIdentity, identityKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 import { buildReportsPageFilter, encodeReportsCursor, parseReportsPageOptions } from "./reports-pagination.js";
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
 import { AgentStopError, dispatchAgentStart, dispatchAgentStop, normalizeAgentStartTarget, normalizeAgentStopTarget, readAgentControlResult } from "./fleet-agent-stop.js";
@@ -3124,6 +3124,7 @@ async function notifyFleetInformeClosure(env, ticket, missionId, owner, report, 
 }
 __name(notifyFleetInformeClosure, "notifyFleetInformeClosure");
 
+const FLEET_ADMIN_CANCEL_NOTE = "Cancelación administrativa · NO EJECUTADO";
 async function notifyFleetAdministrativeCancellation(env, ticket, missionId, owner, note) {
   const numId = await fleetEncargoId(env, missionId, ticket && ticket.screen);
   const required = !!(ticket && ticket.source === "fleet" && /^\d+$/.test(String(numId || "")));
@@ -3134,15 +3135,16 @@ async function notifyFleetAdministrativeCancellation(env, ticket, missionId, own
       "https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
         method:"POST", headers:{ "content-type":"application/json" },
         // bulk-status no admite `cancelled`: `done` representa aquí un cierre
-        // administrativo y la metadata impide presentarlo como trabajo ejecutado.
+        // administrativo. La semántica vive en note, el campo que el worker real
+        // persiste en telegram_inbox; metadata se omite porque ese contrato la ignora.
         body:JSON.stringify({ ids:[Number(numId)], status:"done", by:owner,
-          note:"Cierre administrativo: misión cancelada sin ejecutar. " + String(note || "").slice(0, 220),
-          metadata:{ resolution:"administrative_cancel", executed:false, mission_id:missionId } })
+          note:FLEET_ADMIN_CANCEL_NOTE + (note ? " · Motivo: " + String(note).slice(0, 220) : "") })
       }
     ));
     let payload = null;
     try { payload = await response.clone().json(); } catch (e) {}
-    return { required:true, updated:response.ok && !(payload && payload.ok === false), inbox_id:numId };
+    const confirmed = !!(response.ok && payload && payload.ok === true && Number(payload.updated) === 1);
+    return { required:true, updated:confirmed, inbox_id:numId };
   } catch (e) {
     return { required:true, updated:false, inbox_id:numId };
   }
@@ -3638,6 +3640,9 @@ __name(scheduledOnIdleAssignments, "scheduledOnIdleAssignments");
 
 async function publishScheduledOnIdle(env, candidate, now = Date.now()) {
   const { identity, project, identity_key:identityKeyValue } = candidate;
+  const familyKey = agentFamilyKey(identity.agent), physicalMachineKey = machineRefKey(identity.machine);
+  const decisionFamilySql = agentFamilySqlKey("agent"), decisionMachineSql = machineRefSqlKey("machine");
+  const ticketFamilySql = agentFamilySqlKey("t.assignee"), ticketMachineSql = machineRefSqlKey("t.loc");
   const state = await operationalOnIdleState(env, identity, project.id, now);
   if (!state.can_open) return { ok:true, published:false, reason:state.reason };
   const proposalResult = await canonicalOnIdleProposals(env, identity, project.id);
@@ -3663,9 +3668,7 @@ async function publishScheduledOnIdle(env, candidate, now = Date.now()) {
     "INSERT OR IGNORE INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id,option_targets) " +
     "SELECT ?,?,?,? ,?,?,0,'pending',?,?,?,?,?,?, '', '',? WHERE NOT EXISTS (" +
     "SELECT 1 FROM decisions WHERE status='pending' AND mission=? AND surface='highscore' AND project=? " +
-    "AND replace(lower(agent),'macmini','mini')=replace(lower(?),'macmini','mini') " +
-    "AND replace(replace(replace(lower(machine),'admira-',''),'-',''),' ','')=" +
-    "replace(replace(replace(lower(?),'admira-',''),'-',''),' ','') " +
+    "AND " + decisionFamilySql + "=? AND " + decisionMachineSql + "=? " +
     "AND json_valid(options) AND json_array_length(options)=5 " +
     "AND TRIM(json_extract(options,'$[0]'))<>'' AND TRIM(json_extract(options,'$[1]'))<>'' " +
     "AND TRIM(json_extract(options,'$[2]'))<>'' " +
@@ -3674,22 +3677,16 @@ async function publishScheduledOnIdle(env, candidate, now = Date.now()) {
     "AND lower(TRIM(json_extract(options,'$[1]')))<>lower(TRIM(json_extract(options,'$[2]'))) " +
     "AND json_extract(options,'$[3]')=? AND json_extract(options,'$[4]')=?) AND NOT EXISTS (" +
     "SELECT 1 FROM tickets t WHERE " + AGENT_SOURCE_SQL_T + " AND t.status IN ('open','in_progress','unconcluded') " +
-    "AND replace(replace(replace(lower(t.assignee),'infra',''),'sub',''),'macmini','mini')=" +
-    "replace(replace(replace(lower(?),'infra',''),'sub',''),'macmini','mini') " +
-    "AND replace(replace(replace(lower(t.loc),'admira-',''),'-',''),' ','')=" +
-    "replace(replace(replace(lower(?),'admira-',''),'-',''),' ','') ) AND NOT EXISTS (" +
+    "AND " + ticketFamilySql + "=? AND " + ticketMachineSql + "=?) AND NOT EXISTS (" +
     "SELECT 1 FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id " +
     "WHERE m.status IN ('in_progress','doing','active','unconcluded') AND " + AGENT_SOURCE_SQL_T +
     " AND t.status NOT IN ('resolved','cancelled') " +
-    "AND replace(replace(replace(lower(t.assignee),'infra',''),'sub',''),'macmini','mini')=" +
-    "replace(replace(replace(lower(?),'infra',''),'sub',''),'macmini','mini') " +
-    "AND replace(replace(replace(lower(t.loc),'admira-',''),'-',''),' ','')=" +
-    "replace(replace(replace(lower(?),'admira-',''),'-',''),' ','') )"
+    "AND " + ticketFamilySql + "=? AND " + ticketMachineSql + "=?)"
   ).bind(decisionId, identity.machine, identity.agent, "highscore", "Ventana OnIDLE " + ordinal + "/" + ONIDLE_DAILY_LIMIT,
     JSON.stringify(options), now, deadline, DECIDE_URL, ONIDLE_MISSION_MARKER, project.id,
     String(project.slug || decisionProjectSlug(project.name || project.id)).toUpperCase(), JSON.stringify(targets),
-    ONIDLE_MISSION_MARKER, project.id, identity.agent, identity.machine, ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION,
-    identity.agent, identity.machine, identity.agent, identity.machine);
+    ONIDLE_MISSION_MARKER, project.id, familyKey, physicalMachineKey, ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION,
+    familyKey, physicalMachineKey, familyKey, physicalMachineKey);
   const mark = env.DB.prepare(
     "UPDATE onidle_ticks SET status='published',published_at=? WHERE identity_key=? AND day=? AND ordinal=? " +
     "AND EXISTS(SELECT 1 FROM decisions WHERE id=? AND status='pending')"

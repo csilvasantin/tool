@@ -48,6 +48,22 @@ export function identityKey(value) {
     .toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+// Equivalente SQL (SQLite/D1) de identityKey para los caracteres que admite el
+// censo operativo. Se construye aquí, junto al diccionario, para que los guards
+// atómicos no mantengan una tercera normalización aproximada.
+export function identitySqlKey(expression) {
+  let sql = `lower(COALESCE(${expression},''))`;
+  for (const [from, to] of [
+    ['á','a'],['é','e'],['í','i'],['ó','o'],['ú','u'],['ü','u'],['ñ','n'],
+    ['Á','a'],['É','e'],['Í','i'],['Ó','o'],['Ú','u'],['Ü','u'],['Ñ','n']
+  ]) sql = `replace(${sql},'${from}','${to}')`;
+  for (const char of [' ','-','_','·','.',"'",'(',')','/','\\']) {
+    const escaped = char === "'" ? "''" : char;
+    sql = `replace(${sql},'${escaped}','')`;
+  }
+  return sql;
+}
+
 export function machineSuffix(machine) {
   const key = identityKey(machine);
   if (!key) return "";
@@ -134,7 +150,26 @@ export function reportAgentFamily(owner, machine) {
 }
 
 export function sameAgentFamily(a, b) {
-  return identityKey(baseAgentIdentity(a)) === identityKey(baseAgentIdentity(b));
+  return agentFamilyKey(a) === agentFamilyKey(b);
+}
+
+export function agentFamilyKey(value) {
+  return identityKey(baseAgentIdentity(value));
+}
+
+export function agentFamilySqlKey(expression) {
+  const raw = identitySqlKey(expression);
+  const roleless = `(CASE WHEN ${raw} LIKE 'infra%' THEN substr(${raw},6) ` +
+    `WHEN ${raw} LIKE 'sub%' THEN substr(${raw},4) ELSE ${raw} END)`;
+  const agentless = `(CASE WHEN ${roleless} LIKE 'agente%' THEN substr(${roleless},7) ELSE ${roleless} END)`;
+  const clauses = PERSONAS.map(([name, aliases]) => {
+    const candidates = [...new Set([name, ...aliases].map((alias) =>
+      identityKey(alias).replace(/^agente/, '')).filter(Boolean))];
+    return `WHEN ${candidates.map((alias) => `${agentless} LIKE '${alias}%'`).join(' OR ')} THEN '${identityKey(name)}'`;
+  });
+  // Para identidades ajenas al censo parseAgentIdentity conserva el valor crudo,
+  // incluido Sub/Infra; por eso el fallback es raw y no roleless.
+  return `(CASE ${clauses.join(' ')} ELSE ${raw} END)`;
 }
 
 export const AGENT_IDENTITY_SPEC = Object.freeze({

@@ -1,6 +1,7 @@
 import {
   baseAgentIdentity,
   identityKey as agentIdentityKey,
+  identitySqlKey as agentIdentitySqlKey,
   machineSuffix,
   parseAgentIdentity,
   scopedAgentIdentity,
@@ -23,6 +24,15 @@ export function identityKey(value, kind = "") {
   // relojes identifican la máquina por su rótulo `Mac Mini`.
   if (kind === "machine") key = key.replace(/^admira/, "");
   return key;
+}
+
+export function machineRefKey(value) {
+  return identityKey(value, "machine");
+}
+
+export function machineRefSqlKey(expression) {
+  const raw = agentIdentitySqlKey(expression);
+  return `(CASE WHEN ${raw} LIKE 'admira%' THEN substr(${raw},7) ELSE ${raw} END)`;
 }
 
 export function memberRefMatches(kind, ref, requested) {

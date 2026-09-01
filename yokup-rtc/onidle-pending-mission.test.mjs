@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {DatabaseSync} from 'node:sqlite';
 import {AGENT_SOURCE_SQL_T} from './src/mission-sources.js';
+import {agentFamilyKey, agentFamilySqlKey, sameAgentFamily} from './src/agent-identity.js';
+import {machineRefKey, machineRefSqlKey, memberRefMatches} from './src/decision-project.js';
 import {ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION, isCanonicalOnIdleDecision,
   isCanonicalOnIdleOptions} from './src/onidle-decision-contract.js';
 
@@ -63,24 +65,58 @@ function harness(raceTicket) {
     'onIdleTickDecisionId','ONIDLE_DAILY_LIMIT','ONIDLE_BACK_OPTION','ONIDLE_CUSTOM_OPTION',
     'isCanonicalOnIdleOptions','DECIDE_URL','ONIDLE_MISSION_MARKER','decisionProjectSlug',
     'AGENT_SOURCE_SQL_T','isCanonicalOnIdleDecision','ensureEntityDisplayRef',
+    'agentFamilyKey','machineRefKey','agentFamilySqlKey','machineRefSqlKey',
     `${body('publishScheduledOnIdle')}; return publishScheduledOnIdle;`);
   const publish = factory(operationalOnIdleState, async () => ({ok:true,proposals:[
     {title:'Mejora A',target_mission_id:'A'}, {title:'Mejora B',target_mission_id:'B'},
     {title:'Mejora C',target_mission_id:'C'}]}), () => '2026-09-01', () => 'DEC-RACE', 8,
     ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION, isCanonicalOnIdleOptions, 'https://yokup.com/decide',
-    MARKER, (value) => value, AGENT_SOURCE_SQL_T, isCanonicalOnIdleDecision, async () => {});
+    MARKER, (value) => value, AGENT_SOURCE_SQL_T, isCanonicalOnIdleDecision, async () => {},
+    agentFamilyKey, machineRefKey, agentFamilySqlKey, machineRefSqlKey);
   return {db, env:{DB}, publish};
 }
 
 const candidate = {identity:{agent:'OraculoMini',machine:'Mac Mini'}, project:{id:'yokup',name:'Yokup',slug:'yokup'},
   identity_key:'oraculomini@macmini'};
 
-test('carrera guard→batch: fleet open propia impide publicar y no consume cupo', async () => {
-  const {db,env,publish} = harness({id:'FLT-PENDING',source:'fleet',status:'open',assignee:'SubOraculoMini',loc:'admira-macmini'});
-  const result = await publish(env,candidate,Date.UTC(2026,8,1,10));
-  assert.equal(result.published,false);assert.equal(result.reason,'pending_mission');
-  assert.equal(db.prepare('SELECT COUNT(*) n FROM decisions').get().n,0);
-  assert.equal(db.prepare("SELECT COUNT(*) n FROM onidle_ticks WHERE status='published'").get().n,0);
+test('normalización SQL de familia y máquina equivale a la normalización JS', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec('CREATE TABLE aliases(kind TEXT,value TEXT)');
+  const agents = [
+    'OraculoMini', 'Oraculo', 'Oráculo', 'Oracle', 'SubOraculoMini',
+    'InfraOráculoMini', 'SúbAgente OracleMini', 'ÍnfraOracleMacMini',
+    'NeoMini', 'SubPersona Externa'
+  ];
+  const machines = ['Mac Mini', 'MacMini', 'admira-macmini', 'Mác-Mini', 'mac_mini', 'MacMini.local', 'MacBook Pro 14'];
+  const insert = db.prepare('INSERT INTO aliases VALUES(?,?)');
+  for (const value of agents) insert.run('agent', value);
+  for (const value of machines) insert.run('machine', value);
+
+  const agentRows = db.prepare(`SELECT value,${agentFamilySqlKey('value')} normalized FROM aliases WHERE kind='agent'`).all();
+  for (const row of agentRows) {
+    assert.equal(row.normalized, agentFamilyKey(row.value), `SQL/JS agente: ${row.value}`);
+    assert.equal(row.normalized === agentFamilyKey('OraculoMini'), sameAgentFamily(row.value, 'OraculoMini'), row.value);
+  }
+  const machineRows = db.prepare(`SELECT value,${machineRefSqlKey('value')} normalized FROM aliases WHERE kind='machine'`).all();
+  for (const row of machineRows) {
+    assert.equal(row.normalized, machineRefKey(row.value), `SQL/JS máquina: ${row.value}`);
+    assert.equal(row.normalized === machineRefKey('Mac Mini'), memberRefMatches('machine', row.value, 'Mac Mini'), row.value);
+  }
+});
+
+test('carrera guard→batch: toda la familia Oraculo/Mini bloquea sin consumir cupo', async () => {
+  const aliases = [
+    ['OraculoMini','Mac Mini'], ['Oraculo','MacMini'], ['Oráculo','admira-macmini'],
+    ['Oracle','Mác-Mini'], ['SubOraculoMini','mac_mini'], ['InfraOráculoMini','Mac Mini'],
+    ['SúbAgente OracleMini','Mac Mini'], ['ÍnfraOracleMacMini','admira-macmini']
+  ];
+  for (const [assignee,loc] of aliases) {
+    const {db,env,publish} = harness({id:'FLT-PENDING',source:'fleet',status:'open',assignee,loc});
+    const result = await publish(env,candidate,Date.UTC(2026,8,1,10));
+    assert.equal(result.published,false,assignee);assert.equal(result.reason,'pending_mission',assignee);
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM decisions').get().n,0,assignee);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM onidle_ticks WHERE status='published'").get().n,0,assignee);
+  }
 });
 
 test('guard atómico no bloquea fleet ajena, otra máquina ni field propia', async () => {
