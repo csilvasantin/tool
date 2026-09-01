@@ -6,6 +6,7 @@ import {readFile} from "node:fs/promises";
 import {madridDayKey,madridDayStart} from "../src/display-ref.js";
 import {missionDayRange} from "../src/mission-visible.js";
 import {identityKey,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity} from "../src/agent-identity.js";
+import {AGENT_SOURCE_SQL_T, MISSION_SCOPE_SQL_T} from "../src/mission-sources.js";
 
 const source=await readFile(new URL("../src/index.js",import.meta.url),"utf8");
 const grab=name=>{
@@ -30,11 +31,12 @@ function harness(){
   }}}}};
   const scopedMissionOwner=(owner,role,assignee,machine)=>scopedAgentIdentity(owner||assignee,machine,role);
   const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,
-    madridDayKey,madridDayStart,missionDayRange,identityKey,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedMissionOwner,__name:(fn)=>fn});
+    madridDayKey,madridDayStart,missionDayRange,identityKey,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedMissionOwner,
+    AGENT_SOURCE_SQL_T,MISSION_SCOPE_SQL_T,__name:(fn)=>fn});
   vm.runInContext([
     grabVar("HIGHSCORE_WEIGHTS"),grabVar("HIGHSCORE_TASK_WEIGHTS"),grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),
     grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_WORK_STARTED_SQL"),grabVar("HIGHSCORE_MISSION_PROGRESS_SQL"),
-    grabVar("HIGHSCORE_PERSONAS"),grabVar("AGENT_SOURCE_SQL_T"),grabVar("MISSION_SCOPE_SQL_T"),
+    grabVar("HIGHSCORE_PERSONAS"),
     grabVar("HIGHSCORE_HISTORY_PERIODS"),grab("highscoreAgent"),grab("madridHourKey"),grab("highscoreNaturalPeriods"),
     grab("highscoreHistoryRange"),grab("highscoreHistoryDayKeys"),grab("highscoreComparisonAxis"),grab("highscoreCanonicalHistoryFamily"),grab("highscoreProjectHistory"),grab("highscoreDailyRows"),grab("highscoreHistoryPayload"),grab("highscoreHistory")
   ].join("\n"),context);

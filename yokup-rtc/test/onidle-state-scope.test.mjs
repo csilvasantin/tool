@@ -5,6 +5,7 @@ import {memberRefMatches,resolveDecisionIdentity} from "../src/decision-project.
 import {sameAgentFamily} from "../src/agent-identity.js";
 import {onIdleEligibility} from "../src/mission-visible.js";
 import {selectCanonicalLiveOnIdleDecision} from "../src/onidle-decision-contract.js";
+import {AGENT_SOURCE_SQL,AGENT_SOURCE_SQL_T} from "../src/mission-sources.js";
 
 const source=fs.readFileSync(new URL("../src/index.js",import.meta.url),"utf8");
 const MARKER="OnIdle horario";
@@ -22,19 +23,22 @@ function body(name){
 function operationalHarness(rows){
   const sqlCalls=[];
   const env={DB:{prepare(sql){sqlCalls.push(sql);return {bind(){return this;},async all(){
-    if(sql.startsWith("SELECT id,status,assignee"))return {results:rows.missions||[]};
-    if(sql.startsWith("SELECT m.mission_id"))return {results:rows.tasks||[]};
+    if(sql.startsWith("SELECT id,status,assignee"))return {results:(rows.missions||[]).filter((row)=>
+      ['fleet','decision-batch','cli-declare'].includes(row.source) && ['open','in_progress','unconcluded'].includes(row.status))};
+    if(sql.startsWith("SELECT m.mission_id"))return {results:(rows.tasks||[]).filter((row)=>
+      ['fleet','decision-batch','cli-declare'].includes(row.source||'fleet'))};
     if(sql.includes("FROM decisions"))return {results:rows.decisions||[]};
     if(sql.startsWith("SELECT agent,machine FROM decisions"))return {results:rows.used||[]};
     throw new Error(`SQL inesperado: ${sql}`);
   }};}}};
-  const factory=new Function("selectCanonicalLiveOnIdleDecision","missionDayRange","madridDayKey","onIdleEligibility","ONIDLE_MISSION_MARKER","ONIDLE_DAILY_LIMIT","MISSION_UNCONCLUDED_AFTER_MS","sameAgentFamily","memberRefMatches",
+  const factory=new Function("selectCanonicalLiveOnIdleDecision","missionDayRange","madridDayKey","onIdleEligibility","ONIDLE_MISSION_MARKER","ONIDLE_DAILY_LIMIT","MISSION_UNCONCLUDED_AFTER_MS","sameAgentFamily","memberRefMatches","AGENT_SOURCE_SQL","AGENT_SOURCE_SQL_T",
     `${body("matchesOnIdleIdentity")}; ${body("operationalOnIdleState")}; return operationalOnIdleState;`);
-  return {run:factory(selectCanonicalLiveOnIdleDecision,()=>({start:1,end:2}),()=>"2026-08-13",onIdleEligibility,MARKER,8,3600000,sameAgentFamily,memberRefMatches),env,sqlCalls};
+  return {run:factory(selectCanonicalLiveOnIdleDecision,()=>({start:1,end:2}),()=>"2026-08-13",onIdleEligibility,MARKER,8,3600000,sameAgentFamily,memberRefMatches,AGENT_SOURCE_SQL,AGENT_SOURCE_SQL_T),env,sqlCalls};
 }
 
 const NOW=Date.UTC(2026,7,13,12);
-function activeMission(id,assignee,loc){return {id,status:"in_progress",assignee,loc,created_at:NOW-1000,started_at:NOW-1000,updated_at:NOW-1000,live_at:NOW-1000};}
+function activeMission(id,assignee,loc){return {id,status:"in_progress",source:"fleet",assignee,loc,created_at:NOW-1000,started_at:NOW-1000,updated_at:NOW-1000,live_at:NOW-1000};}
+function pendingMission(id,assignee,loc,source="fleet"){return {id,status:"open",source,assignee,loc,created_at:NOW-1000,updated_at:NOW-1000};}
 function activeTask(id,assignee,loc){return {mission_id:id,code:"a",status:"in_progress",assignee,loc,created_at:NOW-1000,started_at:NOW-1000,updated_at:NOW-1000};}
 function decision(id,{agent="OraculoMini",machine="Mac Mini",project="yokup",surface="highscore",mission=MARKER,options=OPTIONS,status="pending"}={}){
   return {id,agent,machine,project,surface,mission,options:JSON.stringify(options),status,deadline:999999,created_at:1};
@@ -47,7 +51,7 @@ test("blockers de misión y tarea pertenecen sólo a agent+machine exactos",asyn
     tasks:[activeTask("own-t","InfraOraculoMini","Mac Mini"),activeTask("other-machine-t","OraculoMBP14","MacBook Pro 14"),activeTask("other-agent-t","NeoMini","Mac Mini"),activeTask("missing-loc-t","OraculoMini","")]
   });
   const state=await run(env,identity,"yokup",NOW);
-  assert.deepEqual(state.blockers,{missions:1,tasks:1,decisions:0});
+  assert.deepEqual(state.blockers,{missions:1,pending_missions:0,tasks:1,decisions:0});
   assert.equal(state.reason,"active_task");
 });
 
@@ -61,6 +65,20 @@ test("trabajo ajeno no bloquea y los alias históricos del Mini sí casan",async
   assert.equal(sameAgentFamily("NeoMini",identity.agent),false);
   assert.equal(memberRefMatches("machine","MacBook Pro 14",identity.machine),false);
   assert.equal(memberRefMatches("machine","",identity.machine),false);
+});
+
+test("una fleet pending propia bloquea; ajena, otra máquina, field y terminal no",async()=>{
+  const identity=resolveDecisionIdentity("OraculoMini","Mac Mini");
+  const {run,env}=operationalHarness({missions:[
+    pendingMission("own","SubOraculoMini","Mac Mini"),
+    pendingMission("foreign","NeoMini","Mac Mini"),
+    pendingMission("other-host","OraculoMBP14","MacBook Pro 14"),
+    pendingMission("field","OraculoMini","Mac Mini","field"),
+    {...pendingMission("done","OraculoMini","Mac Mini"),status:"resolved"}
+  ]});
+  const state=await run(env,identity,"yokup",NOW);
+  assert.equal(state.can_open,false);assert.equal(state.reason,"pending_mission");
+  assert.equal(state.blockers.pending_missions,1);
 });
 
 test("Academy y OnIDLE concurrente ajeno nunca se presentan como decisión propia",async()=>{

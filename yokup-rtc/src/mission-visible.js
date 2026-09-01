@@ -107,24 +107,28 @@ export function taskOperationalDetails(task, now = Date.now()) {
 }
 
 export function onIdleEligibility({ missions = [], tasks = [], live_decisions = 0,
-  windows_today = 0, now = Date.now(), daily_limit = 8 } = {}) {
+  windows_today = 0, now = Date.now(), daily_limit = 8, block_pending_missions = false } = {}) {
   const missionStates = missions.map((row) => missionVisibleDetails(row, now, row.activity || false));
   const taskStates = tasks.map((row) => taskVisibleDetails(row, now));
   const blockers = {
     missions: missionStates.filter((row) => row.state === 'in_progress').length,
+    pending_missions:block_pending_missions
+      ? missionStates.filter((row) => row.state === 'pending').length : 0,
     tasks: taskStates.filter((row) => row.state === 'in_progress').length,
     decisions: Math.max(0, Number(live_decisions) || 0)
   };
   const used = Math.max(0, Number(windows_today) || 0);
   const limit = Math.max(0, Number(daily_limit) || 8);
   const quota = { used, limit, remaining:Math.max(0, limit - used) };
-  const canOpen = !blockers.missions && !blockers.tasks && !blockers.decisions && quota.remaining > 0;
+  const canOpen = !blockers.missions && !blockers.pending_missions && !blockers.tasks &&
+    !blockers.decisions && quota.remaining > 0;
   return { can_open:canOpen, blockers, quota,
     unconcluded:{
       missions:missionStates.filter((row) => row.state === 'unconcluded').length,
       tasks:taskStates.filter((row) => row.state === 'unconcluded').length
     }, reason:canOpen ? 'ready' : quota.remaining <= 0 ? 'daily_limit' :
-      blockers.decisions ? 'live_decision' : blockers.tasks ? 'active_task' : 'active_mission' };
+      blockers.decisions ? 'live_decision' : blockers.tasks ? 'active_task' : blockers.missions
+        ? 'active_mission' : 'pending_mission' };
 }
 
 export function missionVisibleCounts(rows) {

@@ -36,6 +36,8 @@ import { selectOnIdleProposals } from "./onidle-proposals.js";
 import { ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION, isCanonicalOnIdleDecision,
   isCanonicalOnIdleOptions, selectCanonicalLiveOnIdleDecision } from "./onidle-decision-contract.js";
 import { canonicalProjectAgentRef, canonicalProjectAgentRefs, YOKUP_MINI_MEMBER_BACKFILL_SQL } from "./project-member-identity.js";
+import { AGENT_SOURCE_SQL, AGENT_SOURCE_SQL_T, FIELD_SOURCE_SQL_T, MISSION_SCOPE_SQL,
+  MISSION_SCOPE_SQL_T, FIELD_MISSION_SCOPE_SQL_T, FLEET_MISSIONS_SQL } from "./mission-sources.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -3121,6 +3123,31 @@ async function notifyFleetInformeClosure(env, ticket, missionId, owner, report, 
   } catch (e) { return { required: true, updated: false, inbox_id: numId }; }
 }
 __name(notifyFleetInformeClosure, "notifyFleetInformeClosure");
+
+async function notifyFleetAdministrativeCancellation(env, ticket, missionId, owner, note) {
+  const numId = await fleetEncargoId(env, missionId, ticket && ticket.screen);
+  const required = !!(ticket && ticket.source === "fleet" && /^\d+$/.test(String(numId || "")));
+  if (!required) return { required:false, updated:true, inbox_id:numId || null };
+  if (!env.TELEGRAM) return { required:true, updated:false, inbox_id:numId };
+  try {
+    const response = await env.TELEGRAM.fetch(new Request(
+      "https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
+        method:"POST", headers:{ "content-type":"application/json" },
+        // bulk-status no admite `cancelled`: `done` representa aquí un cierre
+        // administrativo y la metadata impide presentarlo como trabajo ejecutado.
+        body:JSON.stringify({ ids:[Number(numId)], status:"done", by:owner,
+          note:"Cierre administrativo: misión cancelada sin ejecutar. " + String(note || "").slice(0, 220),
+          metadata:{ resolution:"administrative_cancel", executed:false, mission_id:missionId } })
+      }
+    ));
+    let payload = null;
+    try { payload = await response.clone().json(); } catch (e) {}
+    return { required:true, updated:response.ok && !(payload && payload.ok === false), inbox_id:numId };
+  } catch (e) {
+    return { required:true, updated:false, inbox_id:numId };
+  }
+}
+__name(notifyFleetAdministrativeCancellation, "notifyFleetAdministrativeCancellation");
 async function activateNextMissionBatchItem(env, batchId, triggerDecisionId) {
   const batch = await env.DB.prepare("SELECT * FROM mission_batches WHERE id=?").bind(batchId).first();
   if (!batch || batch.status !== "active") return missionBatchSnapshot(env, batchId);
@@ -3484,10 +3511,11 @@ __name(matchesOnIdleIdentity, "matchesOnIdleIdentity");
 
 async function operationalOnIdleState(env, identity, requestedProjectId = "", now = Date.now()) {
   const [missionResult, taskResult, decisionResult] = await Promise.all([
-    env.DB.prepare("SELECT id,status,assignee,loc,created_at,started_at,updated_at,live_at,source FROM tickets WHERE status IN ('in_progress','unconcluded')").all(),
+    env.DB.prepare("SELECT id,status,assignee,loc,created_at,started_at,updated_at,live_at,source FROM tickets WHERE " +
+      AGENT_SOURCE_SQL + " AND status IN ('open','in_progress','unconcluded')").all(),
     env.DB.prepare("SELECT m.mission_id,m.code,m.status,m.started_at,m.created_at,m.updated_at,t.assignee,t.loc " +
       "FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE m.status IN ('in_progress','doing','active','unconcluded') " +
-      "AND t.status NOT IN ('resolved','cancelled')").all(),
+      "AND " + AGENT_SOURCE_SQL_T + " AND t.status NOT IN ('resolved','cancelled')").all(),
     // Sólo una ventana OnIDLE canónica del mismo scope bloquea. Academy, una
     // decisión de otro proyecto/familia o una fila legacy incompleta no puede
     // secuestrar el botón ni presentarse como `existing`.
@@ -3513,7 +3541,7 @@ async function operationalOnIdleState(env, identity, requestedProjectId = "", no
   // ocho ventanas por agente y multiplicaba el límite diario de la plataforma.
   const windowsToday = usedRows.length;
   const eligibility = onIdleEligibility({ missions, tasks, live_decisions:live,
-    windows_today:windowsToday, now, daily_limit:ONIDLE_DAILY_LIMIT });
+    windows_today:windowsToday, now, daily_limit:ONIDLE_DAILY_LIMIT, block_pending_missions:true });
   return { ...eligibility, agent:identity.agent, machine:identity.machine,
     evaluated_at:now, operational_limit_ms:MISSION_UNCONCLUDED_AFTER_MS,
     state_semantics:"operational-hour-v1" };
@@ -3636,7 +3664,8 @@ async function publishScheduledOnIdle(env, candidate, now = Date.now()) {
     "SELECT ?,?,?,? ,?,?,0,'pending',?,?,?,?,?,?, '', '',? WHERE NOT EXISTS (" +
     "SELECT 1 FROM decisions WHERE status='pending' AND mission=? AND surface='highscore' AND project=? " +
     "AND replace(lower(agent),'macmini','mini')=replace(lower(?),'macmini','mini') " +
-    "AND lower(replace(machine,' ',''))=lower(replace(?,' ','')) " +
+    "AND replace(replace(replace(lower(machine),'admira-',''),'-',''),' ','')=" +
+    "replace(replace(replace(lower(?),'admira-',''),'-',''),' ','') " +
     "AND json_valid(options) AND json_array_length(options)=5 " +
     "AND TRIM(json_extract(options,'$[0]'))<>'' AND TRIM(json_extract(options,'$[1]'))<>'' " +
     "AND TRIM(json_extract(options,'$[2]'))<>'' " +
@@ -3644,13 +3673,23 @@ async function publishScheduledOnIdle(env, candidate, now = Date.now()) {
     "AND lower(TRIM(json_extract(options,'$[0]')))<>lower(TRIM(json_extract(options,'$[2]'))) " +
     "AND lower(TRIM(json_extract(options,'$[1]')))<>lower(TRIM(json_extract(options,'$[2]'))) " +
     "AND json_extract(options,'$[3]')=? AND json_extract(options,'$[4]')=?) AND NOT EXISTS (" +
-    "SELECT 1 FROM tickets WHERE status IN ('in_progress','unconcluded')) AND NOT EXISTS (" +
+    "SELECT 1 FROM tickets t WHERE " + AGENT_SOURCE_SQL_T + " AND t.status IN ('open','in_progress','unconcluded') " +
+    "AND replace(replace(replace(lower(t.assignee),'infra',''),'sub',''),'macmini','mini')=" +
+    "replace(replace(replace(lower(?),'infra',''),'sub',''),'macmini','mini') " +
+    "AND replace(replace(replace(lower(t.loc),'admira-',''),'-',''),' ','')=" +
+    "replace(replace(replace(lower(?),'admira-',''),'-',''),' ','') ) AND NOT EXISTS (" +
     "SELECT 1 FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id " +
-    "WHERE m.status IN ('in_progress','doing','active','unconcluded') AND t.status NOT IN ('resolved','cancelled'))"
+    "WHERE m.status IN ('in_progress','doing','active','unconcluded') AND " + AGENT_SOURCE_SQL_T +
+    " AND t.status NOT IN ('resolved','cancelled') " +
+    "AND replace(replace(replace(lower(t.assignee),'infra',''),'sub',''),'macmini','mini')=" +
+    "replace(replace(replace(lower(?),'infra',''),'sub',''),'macmini','mini') " +
+    "AND replace(replace(replace(lower(t.loc),'admira-',''),'-',''),' ','')=" +
+    "replace(replace(replace(lower(?),'admira-',''),'-',''),' ','') )"
   ).bind(decisionId, identity.machine, identity.agent, "highscore", "Ventana OnIDLE " + ordinal + "/" + ONIDLE_DAILY_LIMIT,
     JSON.stringify(options), now, deadline, DECIDE_URL, ONIDLE_MISSION_MARKER, project.id,
     String(project.slug || decisionProjectSlug(project.name || project.id)).toUpperCase(), JSON.stringify(targets),
-    ONIDLE_MISSION_MARKER, project.id, identity.agent, identity.machine, ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION);
+    ONIDLE_MISSION_MARKER, project.id, identity.agent, identity.machine, ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION,
+    identity.agent, identity.machine, identity.agent, identity.machine);
   const mark = env.DB.prepare(
     "UPDATE onidle_ticks SET status='published',published_at=? WHERE identity_key=? AND day=? AND ordinal=? " +
     "AND EXISTS(SELECT 1 FROM decisions WHERE id=? AND status='pending')"
@@ -3664,8 +3703,10 @@ async function publishScheduledOnIdle(env, candidate, now = Date.now()) {
     agent:identity.agent, machine:identity.machine, project_id:project.id
   }, ONIDLE_MISSION_MARKER);
   if (published) await ensureEntityDisplayRef(env, "window", decisionId, now);
+  const concurrent = published ? null : await operationalOnIdleState(env, identity, project.id, now);
   return { ok:true, published, decision_id:published ? decisionId : null,
-    reason:published ? "published" : "concurrent_block", ordinal, agent:identity.agent, machine:identity.machine, project_id:project.id };
+    reason:published ? "published" : concurrent && !concurrent.can_open ? concurrent.reason : "concurrent_block",
+    ordinal, agent:identity.agent, machine:identity.machine, project_id:project.id };
 }
 __name(publishScheduledOnIdle, "publishScheduledOnIdle");
 
@@ -4042,15 +4083,8 @@ __name(listMissionTasks, "listMissionTasks");
 // agregado seguía diciendo una. Que puntúe es precisamente el motivo de la
 // ruta; lo que impide que sea un grifo es la evidencia obligatoria, no la
 // exclusión del marcador.
-var AGENT_SOURCE_SQL = "source IN ('fleet','decision-batch','cli-declare')";
-var AGENT_SOURCE_SQL_T = "t.source IN ('fleet','decision-batch','cli-declare')";
-var FIELD_SOURCE_SQL_T = "(t.source IS NULL OR t.source NOT IN ('fleet','decision-batch','cli-declare'))";
-// La bandeja operativa acepta también las misiones antiguas/importadas cuya
-// fuente no es una de las tres puertas del marcador pero que sí declaran el rol.
-// No ampliamos AGENT_SOURCE_SQL: ese contrato pertenece al highscore histórico.
-var MISSION_SCOPE_SQL = "(role='mission' OR source IN ('fleet','decision-batch','cli-declare'))";
-var MISSION_SCOPE_SQL_T = "(t.role='mission' OR t.source IN ('fleet','decision-batch','cli-declare'))";
-var FIELD_MISSION_SCOPE_SQL_T = "(COALESCE(t.role,'')!='mission' AND (t.source IS NULL OR t.source NOT IN ('fleet','decision-batch','cli-declare')))";
+// La lista y sus variantes SQL viven en mission-sources.js para que una puerta
+// nueva no desaparezca de una ruta mientras sigue contando en otra.
 
 async function acquireDailyMissionClose(env, plan, now) {
   const token = typeof crypto.randomUUID === "function"
@@ -6007,15 +6041,12 @@ function tercios(tasks, standalone) {
 }
 __name(tercios, "tercios");
 
-// Lectura PÚBLICA para admira.live/status. El árbol de tareas va EMBEBIDO: los
-// /mission/* viven tras el perímetro (Google) y status no pasa el gate. No
-// expone nada que el bot-inbox público no publique ya.
+// Lectura PÚBLICA para admira.live/status. Su SELECT es una allowlist mínima:
+// nunca serializa notas, informes, imágenes, contexto live, runtime/host, triage
+// ni eventos aunque esos campos se añadan a tickets. El árbol embebido conserva
+// sólo metadatos de planificación y el booleano has_report.
 async function fleetMissions(env) {
-  const { results } = await env.DB.prepare(
-    // project_inherited va al final por el mismo motivo que en los INSERT: hay un
-    // contrato de forma en projects.test.mjs sobre el prefijo de este SELECT.
-    "SELECT id,screen,subject,loc,project,project_id,role,status,assignee,agent_runtime,agent_host,proof_image,live_shot,live_at,live_kind,live_surface,live_context,created_at,updated_at,note,parent_id,project_inherited,project_inherited_from,points_start,points_end FROM tickets WHERE source='fleet' ORDER BY (status='open') DESC,(status='in_progress') DESC, created_at DESC LIMIT 120"
-  ).all();
+  const { results } = await env.DB.prepare(FLEET_MISSIONS_SQL).all();
   const rows = results || [];
   if (!rows.length) return [];
   await attachDisplayRefs(env, "mission", rows, (row) => row.id, (row) => row.created_at);
@@ -6045,7 +6076,7 @@ async function fleetMissions(env) {
       project_inherited: r.project_inherited ? 1 : 0,
       project_inherited_from: r.project_inherited_from || "",
       persona: r.assignee,
-      source: "fleet",
+      source: r.source,
       tasks,
       // Una misión terminada SIN parte es deuda visible (Carlos, 24-jul-2026).
       has_report: tasks.some((t) => t.has_report),
@@ -8385,23 +8416,16 @@ var worker_app = {
       const note = String(b.note || b.reason || "").slice(0, 300).trim();
       const by = String(b.by || "yokup").slice(0, 40);
       if (!mid) return json({ ok: false, error: "mission requerida" }, 400);
-      const t = await env.DB.prepare("SELECT id,status,screen FROM tickets WHERE id=?").bind(mid).first();
+      const t = await env.DB.prepare("SELECT id,status,screen,source FROM tickets WHERE id=?").bind(mid).first();
       if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
       const now = Date.now();
+      const inbox = await notifyFleetAdministrativeCancellation(env, t, mid, by, note);
+      if (!inbox.updated) return json({ ok:false, code:"cancel_reconciliation_failed", mission:mid,
+        cancelled:false, local_cancelled:false, inbox_updated:false, sync_required:true }, 502);
       await env.DB.prepare("UPDATE tickets SET status='cancelled', note=?, updated_at=?, resolved_at=NULL WHERE id=?").bind(note || null, now, mid).run();
       await addEvent(env, mid, "log", by, "🗑 Eliminada" + (note ? ": " + note : "") + ".");
-      // Nº de encargo REAL (fleet_ids → screen → FLT): sin esto una cancelación cancelaba
-      // el encargo equivocado tras el reparto anticolisión y la misión resucitaba. (FLT-990 c)
-      const numId = await fleetEncargoId(env, mid, t.screen);
-      if (/^\d+$/.test(numId) && env.TELEGRAM) {
-        try {
-          await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
-            method: "POST", headers: { "content-type": "application/json" },
-            body: JSON.stringify({ ids: [Number(numId)], status: "cancelled", by: by, note: note || "cancelada desde yokup" })
-          }));
-        } catch (e) {}
-      }
-      return json({ ok: true, mission: mid, cancelled: true });
+      return json({ ok: true, mission: mid, cancelled: true, local_cancelled:true,
+        inbox_updated:inbox.updated, inbox_resolution:"administrative_cancel" });
     }
     // AVANCE POR PASOS visible: el agente marca su propia subtarea (a/b/c…) conforme
     // trabaja, para que el árbol se pinte SOLO y se vea la evolución. Igual que

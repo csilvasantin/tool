@@ -4,6 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {FLEET_MISSIONS_SQL} from './src/mission-sources.js';
 
 const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
 const missionReferenceSource = source.match(/function normalizeMissionReference\(raw\) \{[\s\S]*?\n\}/)?.[0] || '';
@@ -55,7 +56,7 @@ test('/projects/mission conserva ids opacos y sólo canoniza referencias FLT num
 });
 
 test('las listas de misiones llevan project_id, alias legado y nombre humano', () => {
-  assert.match(source, /SELECT id,screen,subject,loc,project,project_id,role,status/);
+  assert.match(FLEET_MISSIONS_SQL, /SELECT id,subject,loc,project,project_id,role,source,status/);
   assert.match(source, /project_name: resolveProject\(pidx, r\.project \|\| ""\)\.name/);
 });
 

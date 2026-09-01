@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {missionDayRange, missionVisibleCounts, missionVisibleDetails, missionVisibleState,
   onIdleEligibility, taskVisibleDetails} from './src/mission-visible.js';
+import {AGENT_SOURCE_SQL, FIELD_MISSION_SCOPE_SQL_T, MISSION_SCOPE_SQL, MISSION_SCOPE_SQL_T} from './src/mission-sources.js';
 
 const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
 
@@ -99,10 +100,10 @@ test('/tickets devuelve contrato aditivo sobre el mismo universo y página', () 
 });
 
 test('scope visible incluye role mission sin cambiar el contrato del highscore', () => {
-  assert.match(source, /var MISSION_SCOPE_SQL = "\(role='mission' OR source IN \('fleet','decision-batch','cli-declare'\)\)"/);
-  assert.match(source, /var MISSION_SCOPE_SQL_T = "\(t\.role='mission' OR t\.source IN \('fleet','decision-batch','cli-declare'\)\)"/);
-  assert.match(source, /var AGENT_SOURCE_SQL = "source IN \('fleet','decision-batch','cli-declare'\)"/);
-  assert.match(source, /COALESCE\(t\.role,''\)!='mission'/);
+  assert.equal(MISSION_SCOPE_SQL, "(role='mission' OR source IN ('fleet','decision-batch','cli-declare'))");
+  assert.equal(MISSION_SCOPE_SQL_T, "(t.role='mission' OR t.source IN ('fleet','decision-batch','cli-declare'))");
+  assert.equal(AGENT_SOURCE_SQL, "source IN ('fleet','decision-batch','cli-declare')");
+  assert.match(FIELD_MISSION_SCOPE_SQL_T, /COALESCE\(t\.role,''\)!='mission'/);
 });
 
 test('menú declara explícitamente alcance global y la misma semántica visible', () => {

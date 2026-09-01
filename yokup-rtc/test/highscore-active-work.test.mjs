@@ -7,6 +7,7 @@ import {
   baseAgentIdentity, parseAgentIdentity, reportAgentFamily, reportAgentIdentity,
   scopedAgentIdentity, sameAgentFamily,
 } from "../src/agent-identity.js";
+import {MISSION_SCOPE_SQL_T} from "../src/mission-sources.js";
 
 const source=await readFile(new URL("../src/index.js",import.meta.url),"utf8");
 const grab=name=>{
@@ -26,9 +27,9 @@ function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
   const TELEGRAM=presence===null?undefined:{fetch:async(request)=>({ok:true,json:async()=>
     String(request.url).includes("work-sessions") ? {ok:true,sessions:workSessions} : presence})};
   const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,Request,
-    baseAgentIdentity,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,__name:(fn)=>fn});
+    baseAgentIdentity,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,MISSION_SCOPE_SQL_T,__name:(fn)=>fn});
   vm.runInContext([
-    grabVar("HIGHSCORE_PERSONAS"),grabVar("MISSION_SCOPE_SQL_T"),grabVar("PRESENCE_URL"),
+    grabVar("HIGHSCORE_PERSONAS"),grabVar("PRESENCE_URL"),
     grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_WORK_STARTED_SQL"),grabVar("HIGHSCORE_MISSION_PROGRESS_SQL"),grabVar("HIGHSCORE_RACE_PROGRESS_SQL"),grabVar("HIGHSCORE_ASSIGNMENT_EVENT_SQL"),
     grabVar("HIGHSCORE_ACTIVE_WORK_MS"),grabVar("HIGHSCORE_LANE_WORK_MS"),grabVar("HIGHSCORE_RECENT_WORK_MS"),grabVar("HIGHSCORE_PROCESS_FRESH_MS"),grabVar("HIGHSCORE_CLOCK_SKEW_MS"),
     grab("projectSlug"),grab("projectIndex"),grab("resolveProject"),grab("hash"),grab("highscoreAgent"),grab("scopedMissionOwner"),grab("highscoreActiveWorkMillis"),grab("highscoreActiveWorkFamily"),

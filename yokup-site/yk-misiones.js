@@ -363,7 +363,7 @@
     return title;
   }
   function missionSourceLabel(t) {
-    return ({ "agent-iot": "🖥 Pantalla DOOH", monitor: "🌐 Servicio", service: "🌐 Servicio", agent: "🤖 Agente", agente: "🤖 Agente", presence: "🖥 Máquina", machine: "🖥 Máquina", fleet: "🎯 Misión" }[t && t.source] || "👤 Manual");
+    return ({ "agent-iot": "🖥 Pantalla DOOH", monitor: "🌐 Servicio", service: "🌐 Servicio", agent: "🤖 Agente", agente: "🤖 Agente", presence: "🖥 Máquina", machine: "🖥 Máquina", fleet: "🎯 Misión", "decision-batch": "🗳 Decisión", "cli-declare": "⌨️ Declarada" }[t && t.source] || "👤 Manual");
   }
   // ENLACE AL TRABAJO REALIZADO (Carlos, 2026-07-23): la miniatura de la misión no
   // es un adorno ni sólo un lightbox — es un ENLACE al trabajo ENTREGADO. Resuelve

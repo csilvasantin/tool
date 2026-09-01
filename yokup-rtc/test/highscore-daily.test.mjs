@@ -5,6 +5,7 @@ import {DatabaseSync} from "node:sqlite";
 import {readFile} from "node:fs/promises";
 import {madridDayKey,madridDayStart} from "../src/display-ref.js";
 import {machineSuffix} from "../src/agent-identity.js";
+import {AGENT_SOURCE_SQL, AGENT_SOURCE_SQL_T, FIELD_SOURCE_SQL_T} from "../src/mission-sources.js";
 
 const source=await readFile(new URL("../src/index.js",import.meta.url),"utf8");
 const grab=name=>{
@@ -31,6 +32,7 @@ function harness(){
   // APELLIDO canonico de la maquina, porque el mismo equipo llega escrito como
   // 'macmini', 'admira-macmini' o 'MacMini' segun quien escriba.
   const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,madridDayKey,madridDayStart,machineSuffix,
+    AGENT_SOURCE_SQL,AGENT_SOURCE_SQL_T,
     reportAgentIdentity:(agent)=>String(agent||""),
     scopedMissionOwner:(owner,_role,assignee)=>String(owner||assignee||""),
     __name:(fn)=>fn});
@@ -38,7 +40,7 @@ function harness(){
     grabVar("HIGHSCORE_WEIGHTS"),grabVar("HIGHSCORE_TASK_WEIGHTS"),grabVar("HIGHSCORE_RECENT_MS"),
     grabVar("HIGHSCORE_TREND_MS"),grabVar("HIGHSCORE_TREND_TOLERANCE_MS"),
     grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_PERSONAS"),
-    grabVar("AGENT_SOURCE_SQL"),grabVar("AGENT_SOURCE_SQL_T"),grab("madridHourKey"),grab("highscoreAgent"),
+    grab("madridHourKey"),grab("highscoreAgent"),
     grab("highscoreTraceability"),grab("highscorePeriodMetrics"),grab("highscoreMetricPair"),grab("highscoreHourlyContract"),
     grab("highscoreCurrentTotals"),grab("highscoreHourlyTrend"),grab("highscoreDaily")
   ].join("\n"),context);
@@ -479,12 +481,12 @@ test("la medianoche del marcador es la de Madrid, no la de UTC", () => {
 test("el ámbito de flota incluye las misiones nacidas de una ventana de decisión", () => {
   // El trabajo de agente entra por tres puertas; el ámbito «fleet» tiene que verlas:
   // bandeja, ventana de decisión y declaración CLI con evidencia.
-  assert.match(source, /var AGENT_SOURCE_SQL = "source IN \('fleet','decision-batch','cli-declare'\)"/);
+  assert.equal(AGENT_SOURCE_SQL, "source IN ('fleet','decision-batch','cli-declare')");
   assert.match(source, /if \(scope === "fleet"\) clauses\.push\(AGENT_SOURCE_SQL_T\)/);
   assert.match(source, /scope === "fleet" \? AGENT_SOURCE_SQL/);
   assert.doesNotMatch(source, /scope === "fleet" \? "WHERE t\.source='fleet'"/);
   assert.doesNotMatch(source, /scope === "fleet" \? "source='fleet'"/);
   // Y la bandeja de CAMPO deja de tragarse las misiones de los agentes.
-  assert.match(source, /source NOT IN \('fleet','decision-batch','cli-declare'\)/);
+  assert.match(FIELD_SOURCE_SQL_T, /source NOT IN \('fleet','decision-batch','cli-declare'\)/);
   assert.doesNotMatch(source, /source IS NULL OR t\.source!='fleet'/);
 });

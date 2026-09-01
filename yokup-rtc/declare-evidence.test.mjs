@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { AGENT_SOURCE_SQL, AGENT_SOURCE_SQL_T, FIELD_SOURCE_SQL_T } from "./src/mission-sources.js";
 
 // POST /declare es PÚBLICA a propósito: los agentes cierran su trabajo desde el
 // CLI, igual que abren ventanas de decisión sin login. Lo único que impide que
@@ -148,10 +149,10 @@ test("el trabajo declarado ENTRA en el marcador: tercera puerta", () => {
   // El marcador solo miraba 'fleet' y 'decision-batch'. Una puerta nueva que
   // no se anade deja el trabajo a cero — el mismo fallo que ya se corrigio el
   // 2026-08-04 con las ventanas de decision, repetido.
-  assert.match(source, /var AGENT_SOURCE_SQL = "source IN \('fleet','decision-batch','cli-declare'\)";/);
-  assert.match(source, /var AGENT_SOURCE_SQL_T = "t\.source IN \('fleet','decision-batch','cli-declare'\)";/);
+  assert.equal(AGENT_SOURCE_SQL, "source IN ('fleet','decision-batch','cli-declare')");
+  assert.equal(AGENT_SOURCE_SQL_T, "t.source IN ('fleet','decision-batch','cli-declare')");
   // y no puede colarse en la bandeja de CAMPO, cuyo ambito es «todo lo que no es fleet»
-  assert.match(source, /FIELD_SOURCE_SQL_T = "\(t\.source IS NULL OR t\.source NOT IN \('fleet','decision-batch','cli-declare'\)\)"/);
+  assert.equal(FIELD_SOURCE_SQL_T, "(t.source IS NULL OR t.source NOT IN ('fleet','decision-batch','cli-declare'))");
   assert.match(ruta, /"cli-declare"/);
 });
 

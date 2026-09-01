@@ -13,7 +13,8 @@ const baseBody={
 };
 
 function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMissions=[],backlog=[],activeBatches=[],activeMissionTasks=[]}={}) {
-  const state={missions,tasks,decisions:decisions.map(x=>({...x})),targetMissions,backlog,activeBatches,activeMissionTasks,displayRefs:new Map(),nextRef:0};
+  const state={missions:missions.map(x=>({source:'fleet',...x})),tasks,
+    decisions:decisions.map(x=>({...x})),targetMissions,backlog,activeBatches,activeMissionTasks,displayRefs:new Map(),nextRef:0};
   const projects=[{id:'yokup',name:'Yokup',web:'www.yokup.com',status:'activo'}];
   const members=[{project_id:'yokup',kind:'agent',ref:'OraculoMacMini'},{project_id:'yokup',kind:'machine',ref:'admira-macmini'}];
   const stmt=(sql,args=[])=>({
@@ -26,7 +27,7 @@ function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMis
       return null;
     },
     async all(){
-      if (sql.includes("FROM tickets WHERE status IN ('in_progress','unconcluded')")) return {results:state.missions};
+      if (sql.includes("FROM tickets WHERE ")&&sql.includes("status IN ('open','in_progress','unconcluded')")) return {results:state.missions};
       if (sql.includes('FROM mission_tasks m JOIN tickets t')&&sql.includes("m.status IN ('in_progress'")) return {results:state.tasks};
       if (sql.includes("FROM decisions WHERE status='pending'")) return {results:state.decisions.filter(d=>d.status==='pending')};
       if (sql.includes('AND mission=? AND created_at>=? AND created_at<?')) return {results:state.decisions.filter(d=>d.mission===args[0]&&d.created_at>=args[1]&&d.created_at<args[2]).map(d=>({agent:d.agent,machine:d.machine}))};

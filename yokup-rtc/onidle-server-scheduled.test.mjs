@@ -41,8 +41,9 @@ test("bloquea trabajo y sólo OnIDLE pending canónico del mismo scope",()=>{
   const publish=source.slice(source.indexOf("async function publishScheduledOnIdle"),source.indexOf("__name(publishScheduledOnIdle"));
   assert.match(publish,/SELECT 1 FROM decisions WHERE status='pending' AND mission=\? AND surface='highscore' AND project=\?/);
   assert.match(publish,/json_array_length\(options\)=5/);
-  assert.match(publish,/SELECT 1 FROM tickets WHERE status IN \('in_progress','unconcluded'\)/);
+  assert.match(publish,/SELECT 1 FROM tickets t WHERE " \+ AGENT_SOURCE_SQL_T \+ " AND t\.status IN \('open','in_progress','unconcluded'\)/);
   assert.match(publish,/SELECT 1 FROM mission_tasks m JOIN tickets t ON t\.id=m\.mission_id/);
+  assert.equal((publish.match(/replace\(replace\(replace\(lower\(t\.assignee\),'infra',''\),'sub',''\),'macmini','mini'\)=/g)||[]).length,2);
   assert.match(publish,/replace\(lower\(agent\),'macmini','mini'\)=replace\(lower\(\?\),'macmini','mini'\)/);
   assert.match(source,/return out\.sort\(\(a, b\) => a\.identity_key\.localeCompare\(b\.identity_key\)\)/);
 });

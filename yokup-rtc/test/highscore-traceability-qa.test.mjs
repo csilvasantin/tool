@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import vm from "node:vm";
 import { DatabaseSync } from "node:sqlite";
 import { readFile } from "node:fs/promises";
+import { AGENT_SOURCE_SQL_T } from "../src/mission-sources.js";
 
 const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
 const grab = (name) => {
@@ -30,8 +31,8 @@ function harness() {
     const result = (...args) => ({ results:statement.all(...args) });
     return { bind(...args) { return { all:async () => result(...args) }; }, all:async () => result() };
   } };
-  const context = vm.createContext({ Map, Set, Array, String, Number, Date, RegExp, Math, Object, __name:(fn) => fn });
-  vm.runInContext(["HIGHSCORE_WEIGHTS", "HIGHSCORE_TASK_WEIGHTS", "HIGHSCORE_RECENT_MS", "HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL", "HIGHSCORE_MISSION_STARTED_SQL", "HIGHSCORE_PERSONAS", "AGENT_SOURCE_SQL_T"]
+  const context = vm.createContext({ Map, Set, Array, String, Number, Date, RegExp, Math, Object, AGENT_SOURCE_SQL_T, __name:(fn) => fn });
+  vm.runInContext(["HIGHSCORE_WEIGHTS", "HIGHSCORE_TASK_WEIGHTS", "HIGHSCORE_RECENT_MS", "HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL", "HIGHSCORE_MISSION_STARTED_SQL", "HIGHSCORE_PERSONAS"]
     .map(grabVar).concat(grab("highscoreAgent"), grab("highscoreTraceability")).join("\n"), context);
   return { db, env:{DB}, trace:context.highscoreTraceability };
 }

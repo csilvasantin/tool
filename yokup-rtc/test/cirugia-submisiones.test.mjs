@@ -179,11 +179,12 @@ test('pieza3: caso natural (id == encargo) resuelve igual por fleet_ids', async 
   assert.equal(await F.fleetEncargoId(env, 'FLT-985', tk(env, 'FLT-985').screen), '985');
 });
 
-test('pieza3: informe y cancel usan fleetEncargoId (no el replace ingenuo)', () => {
+test('pieza3: informe y cancel resuelven fleetEncargoId en su reconciliador (no el replace ingenuo)', () => {
   const informe = source.slice(source.indexOf('"/fleet/informe"'), source.indexOf('"/fleet/cancel"'));
   const notify = source.match(/async function notifyFleetInformeClosure\([^]*?\n\}/)?.[0] || '';
   const cancel = source.slice(source.indexOf('"/fleet/cancel"'), source.indexOf('"/fleet/task-status"'));
   assert.match(informe, /notifyFleetInformeClosure\(env, t, mid/);
   assert.match(notify, /fleetEncargoId\(env, missionId, ticket && ticket\.screen\)/);
-  assert.match(cancel, /fleetEncargoId\(env, mid, t\.screen\)/);
+  assert.match(cancel, /notifyFleetAdministrativeCancellation\(env, t, mid/);
+  assert.match(source, /async function notifyFleetAdministrativeCancellation[\s\S]*?fleetEncargoId\(env, missionId, ticket && ticket\.screen\)/);
 });
