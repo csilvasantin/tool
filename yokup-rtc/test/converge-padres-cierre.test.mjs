@@ -20,8 +20,8 @@ const grab = (name) => {
 
 function harness(filas) {
   const db = new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,status TEXT,updated_at INTEGER,PRIMARY KEY(mission_id,code))");
-  const insert = db.prepare("INSERT INTO mission_tasks(mission_id,code,status,updated_at) VALUES(?,?,?,0)");
+  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,status TEXT,ended_at INTEGER,updated_at INTEGER,PRIMARY KEY(mission_id,code))");
+  const insert = db.prepare("INSERT INTO mission_tasks(mission_id,code,status,ended_at,updated_at) VALUES(?,?,?,NULL,0)");
   for (const [code, status] of filas) insert.run("FLT-1373", code, status);
   const env = { DB: { prepare(sql) { const stmt = db.prepare(sql); return {
     bind(...args) { return { run: async () => ({ meta: stmt.run(...args) }) }; }
@@ -43,6 +43,7 @@ test("un padre con TODAS sus subtareas hechas deja de estar pendiente", async ()
   const e = estado(db);
   assert.equal(e.a, "done", "a1+a2+a3 hechas: «a» no puede seguir diciendo lo contrario");
   assert.equal(e.z1, "done");
+  assert.equal(db.prepare("SELECT ended_at FROM mission_tasks WHERE code='a'").get().ended_at,1786392987543);
 });
 
 test("un padre con UNA subtarea sin terminar NO se da por hecho", async () => {
@@ -70,7 +71,7 @@ test("z1 no es padre de nadie y la convergencia no lo toca", async () => {
 });
 
 test("la convergencia entra en el cierre y también en el reintento seguro", () => {
-  const cierre = source.indexOf("role='standalone-task')\").bind(now,mid,mid),");
+  const cierre = source.indexOf("role='standalone-task')\").bind(now,now,mid,mid),");
   assert.notEqual(cierre, -1);
   assert.match(source.slice(cierre, cierre + 200), /convergeParentTasksStmt\(env, mid, now\)/,
     "el cierre canónico converge los padres");

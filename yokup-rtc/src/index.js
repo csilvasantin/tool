@@ -349,6 +349,10 @@ async function applySchema(env) {
   await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN created_at INTEGER").catch(() => {});
   // Inicio operativo estable: repetir reportes/heartbeats no reinicia el reloj.
   await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN started_at INTEGER").catch(() => {});
+  // Fin operativo estable: una tarea terminada conserva el instante de SU
+  // transición a done. `updated_at` no sirve para esto porque también cambia al
+  // añadir un informe, una evidencia o corregir el título después del cierre.
+  await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN ended_at INTEGER").catch(() => {});
   // El responsable de una tarea es siempre el agente principal de la misión.
   // Sub*/Infra* describen únicamente quién la ejecutó y no reciben puntuación.
   await env.DB.exec("ALTER TABLE mission_tasks ADD COLUMN executor TEXT").catch(() => {});
@@ -4050,7 +4054,7 @@ function scopedMissionOwner(raw, fallbackRole, assignee, machine) {
 __name(scopedMissionOwner, "scopedMissionOwner");
 async function listMissionTasks(env, mid) {
   const { results } = await env.DB.prepare(
-    "SELECT mission_id, code, title, status, owner, executor, report, image, image_kind, created_at, started_at, updated_at FROM mission_tasks WHERE mission_id=? ORDER BY code"
+    "SELECT mission_id, code, title, status, owner, executor, report, image, image_kind, created_at, started_at, ended_at, updated_at FROM mission_tasks WHERE mission_id=? ORDER BY code"
   ).bind(mid).all();
   const rows = results || [];
   await attachDisplayRefs(env, "task", rows, taskDisplayKey, (row) => row.created_at || row.updated_at);
@@ -4271,7 +4275,7 @@ __name(attachReportDisplayRefs, "attachReportDisplayRefs");
 async function listMissionReportsPage(env, scope, options) {
   const filter = buildReportsPageFilter(options, reportScopeClause(scope));
   const generatedAt = Date.now();
-  const sql = `SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.report,m.image,m.image_kind,m.created_at,m.started_at,m.updated_at,
+  const sql = `SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.report,m.image,m.image_kind,m.created_at,m.started_at,m.ended_at,m.updated_at,
       t.subject,t.screen,t.loc,t.project,t.source,t.role AS mission_role,t.assignee,
       t.live_surface AS process_surface,t.live_context AS process_context,
       CASE WHEN t.live_kind='process' THEN t.live_shot ELSE NULL END AS process_image,
@@ -4482,8 +4486,9 @@ async function setTaskStatus(env, mid, code, status, report, owner, image, image
   // Volver explícitamente a pending inicia un ciclo nuevo y limpia el sello.
   await env.DB.prepare("UPDATE mission_tasks SET status=?, report=?, owner=?, executor=?, image=?, image_kind=?, " +
     "started_at=CASE WHEN ?='in_progress' THEN COALESCE(started_at,?) WHEN ?='pending' AND status!='pending' THEN NULL ELSE started_at END, " +
+    "ended_at=CASE WHEN ?='done' AND status!='done' THEN COALESCE(ended_at,?) WHEN ? IN ('pending','in_progress') AND status='done' THEN NULL ELSE ended_at END, " +
     "updated_at=? WHERE mission_id=? AND code=?")
-    .bind(st, rp, ow, ex, im, ik, st, now, st, now, mid, code).run();
+    .bind(st, rp, ow, ex, im, ik, st, now, st, st, now, st, now, mid, code).run();
   const row = await env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
   if (row && ["in_progress","doing","active"].includes(String(row.status || "")) && mission)
     await bindPresenceWork(env, row.executor || row.owner, mission.loc, `${mid}:${code}`);
@@ -4716,10 +4721,10 @@ __name(proofLabel, "proofLabel");
 // TODAS están done. Una hoja sin terminar se queda como está y se sigue viendo.
 function convergeParentTasksStmt(env, mid, now) {
   return env.DB.prepare(
-    "UPDATE mission_tasks SET status='done',updated_at=? WHERE mission_id=? AND length(code)=1 AND status!='done'" +
+    "UPDATE mission_tasks SET status='done',ended_at=COALESCE(ended_at,?),updated_at=? WHERE mission_id=? AND length(code)=1 AND status!='done'" +
     " AND EXISTS(SELECT 1 FROM mission_tasks h WHERE h.mission_id=mission_tasks.mission_id AND h.code LIKE mission_tasks.code||'_')" +
     " AND NOT EXISTS(SELECT 1 FROM mission_tasks h WHERE h.mission_id=mission_tasks.mission_id AND h.code LIKE mission_tasks.code||'_' AND h.status!='done')"
-  ).bind(now, mid);
+  ).bind(now, now, mid);
 }
 __name(convergeParentTasksStmt, "convergeParentTasksStmt");
 async function lastEventKind(env, ticketId) {
@@ -5660,8 +5665,8 @@ async function fleetSync(env) {
         // una a una. Carlos, 2026-07-18.
         if (st === "resolved" && prev.status !== "resolved") {
           await env.DB.prepare(
-            "UPDATE mission_tasks SET status='done', owner=COALESCE(NULLIF(owner,''),'auto-cierre'), updated_at=? WHERE mission_id=? AND status='pending'"
-          ).bind(now, id).run();
+            "UPDATE mission_tasks SET status='done', owner=COALESCE(NULLIF(owner,''),'auto-cierre'), ended_at=COALESCE(ended_at,?), updated_at=? WHERE mission_id=? AND status='pending'"
+          ).bind(now, now, id).run();
           // Si finaliza apoyándose en la captura de un paso, asciende por el punto único (FLT-989 b1).
           await ascendMissionProof(env, id);
         }
@@ -7253,22 +7258,40 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
   // haya empezado después. Sin ningún running se conserva el contrato anterior:
   // sólo top-3 finalizados, sin rescatar asignaciones stale.
   if (!runningCount || participants.length < 3) {
-    const recentMissions = await env.DB.prepare(
-      `SELECT id,subject,assignee,loc,project,project_id,'mission' kind,resolved_at ended_at,started_at,created_at,` +
-        `${HIGHSCORE_ASSIGNMENT_EVENT_SQL} assignment_event_at,` +
-        `CASE WHEN source IN ('decision-batch','cli-declare') AND COALESCE(TRIM(assignee),'')<>'' AND COALESCE(TRIM(loc),'')<>'' THEN created_at END assignment_born_at,` +
-        `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,${HIGHSCORE_MISSION_PROGRESS_SQL} work_progress_at ` +
-        `FROM tickets t WHERE ${MISSION_SCOPE_SQL_T} AND status='resolved' AND resolved_at IS NOT NULL ` +
-        `AND resolved_at>=? AND resolved_at<=? ORDER BY resolved_at DESC`
-    ).bind(ahora - HIGHSCORE_RECENT_WORK_MS, ahora + HIGHSCORE_CLOCK_SKEW_MS).all().then((r) => r.results || []);
+    const [recentMissions, recentTasks] = await Promise.all([
+      env.DB.prepare(
+        `SELECT id,subject,assignee,loc,project,project_id,'mission' kind,resolved_at ended_at,started_at,created_at,` +
+          `${HIGHSCORE_ASSIGNMENT_EVENT_SQL} assignment_event_at,` +
+          `CASE WHEN source IN ('decision-batch','cli-declare') AND COALESCE(TRIM(assignee),'')<>'' AND COALESCE(TRIM(loc),'')<>'' THEN created_at END assignment_born_at,` +
+          `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,${HIGHSCORE_MISSION_PROGRESS_SQL} work_progress_at ` +
+          `FROM tickets t WHERE ${MISSION_SCOPE_SQL_T} AND status='resolved' AND resolved_at IS NOT NULL ` +
+          `AND resolved_at>=? AND resolved_at<=? ORDER BY resolved_at DESC`
+      ).bind(ahora - HIGHSCORE_RECENT_WORK_MS, ahora + HIGHSCORE_CLOCK_SKEW_MS).all().then((r) => r.results || []),
+      env.DB.prepare(
+        `SELECT m.mission_id,m.code,m.title,m.owner,m.executor,m.started_at,m.created_at,m.ended_at,` +
+          `m.started_at work_started_at,m.started_at work_progress_at,NULL assignment_event_at,` +
+          `t.assignee,t.loc,t.project,t.project_id,'task' kind FROM mission_tasks m ` +
+          `JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} AND m.status='done' ` +
+          `AND t.status!='cancelled' AND m.code!='z1' AND m.ended_at IS NOT NULL AND m.ended_at>=? AND m.ended_at<=? ` +
+          `ORDER BY m.ended_at DESC,length(m.code),m.code`
+      ).bind(ahora - HIGHSCORE_RECENT_WORK_MS, ahora + HIGHSCORE_CLOCK_SKEW_MS).all().then((r) => r.results || [])
+    ]);
     if (!runningCount) byFamily.clear();
     // Se recorren todos los cierres factuales de las últimas 24 h y se deduplican
-    // después por familia. Un LIMIT previo por filas dejaba fuera a Neo/Trinity
-    // cuando otra persona había cerrado muchas tareas más recientes.
-    for (const row of recentMissions.sort((a,b) =>
+    // después por familia. Misiones y tareas comparten la misma comparación por
+    // ended_at; un retoque posterior en report/updated_at no mueve el carril.
+    // Un LIMIT previo por filas dejaba fuera a Neo/Trinity cuando otra persona
+    // había cerrado muchas tareas más recientes.
+    for (const row of recentMissions.concat(recentTasks).sort((a,b) =>
       highscoreActiveWorkMillis(b.ended_at) - highscoreActiveWorkMillis(a.ended_at))) {
-      add(row.assignee, row.loc, row.kind, row, row.subject || "Último trabajo", row.assignee, "last_work",
-        String(row.id || ""));
+      if (row.kind === "task") {
+        const executor = scopedMissionOwner(row.executor || row.owner, "sub", row.assignee, row.loc);
+        add(executor, row.loc, row.kind, row, row.title || row.code || "Última tarea", row.assignee, "last_work",
+          `${String(row.mission_id || "")}:${String(row.code || "")}`);
+      } else {
+        add(row.assignee, row.loc, row.kind, row, row.subject || "Último trabajo", row.assignee, "last_work",
+          String(row.id || ""));
+      }
     }
     participants = [...byFamily.values()].sort((a,b) =>
       (a.state === "running" ? 0 : a.state === "assigned_stale" ? 1 : 2) -
@@ -8340,9 +8363,9 @@ var worker_app = {
             local_resolved:true, proof_saved:true, inbox_updated:false, sync_required:true, proof_image:rawImage }, 502);
           const now = Date.now();
           await env.DB.batch([
-            env.DB.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,image,image_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report,status='done',owner=excluded.owner,executor=COALESCE(excluded.executor,mission_tasks.executor),image=excluded.image,image_kind='final',updated_at=excluded.updated_at")
-              .bind(mid,"z1","Informe del agente","done",principalOwner,executorOwner,report,rawImage,"final",now,now),
-            env.DB.prepare("UPDATE mission_tasks SET status='done',updated_at=? WHERE mission_id=? AND code!='z1'").bind(now,mid),
+            env.DB.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,image,image_kind,created_at,ended_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report,status='done',owner=excluded.owner,executor=COALESCE(excluded.executor,mission_tasks.executor),image=excluded.image,image_kind='final',ended_at=COALESCE(mission_tasks.ended_at,excluded.ended_at),updated_at=excluded.updated_at")
+              .bind(mid,"z1","Informe del agente","done",principalOwner,executorOwner,report,rawImage,"final",now,now,now),
+            env.DB.prepare("UPDATE mission_tasks SET status='done',ended_at=COALESCE(ended_at,?),updated_at=? WHERE mission_id=? AND code!='z1' AND status!='done'").bind(now,now,mid),
             env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid,now,"log",owner,"📝 Informe standalone recuperado: "+report.slice(0,240))
           ]);
           let batch, targetBatch;
@@ -8376,8 +8399,8 @@ var worker_app = {
             local_resolved:true,proof_saved:!!t.proof_image,inbox_updated:false,sync_required:true,proof_image:t.proof_image || null},502);
           const now = Date.now(), puntosCierre = await puntosDeAgenteAhora(env, t.assignee || actor.actor);
           await env.DB.batch([
-            env.DB.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,image,image_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
-              .bind(mid,"z1","Informe del agente","done",principalOwner,executorOwner,report,sealedProof,"final",now,now),
+            env.DB.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,image,image_kind,created_at,ended_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+              .bind(mid,"z1","Informe del agente","done",principalOwner,executorOwner,report,sealedProof,"final",now,now,now),
             env.DB.prepare("UPDATE tickets SET proof_image=?,proof_kind='final',agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),points_end=COALESCE(points_end,?),points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status='resolved'")
               .bind(sealedProof,runtime,host,puntosCierre,puntosCierre,now,mid),
             convergeParentTasksStmt(env,mid,now),
@@ -8426,13 +8449,13 @@ var worker_app = {
       const puntosCierre = await puntosDeAgenteAhora(env, t.assignee || actor.actor);
       const writes = await env.DB.batch([
         env.DB.prepare(
-          "INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,image,image_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) " +
-          "ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report,status='done',owner=excluded.owner,executor=COALESCE(excluded.executor,mission_tasks.executor),image=excluded.image,image_kind='final',updated_at=excluded.updated_at"
-        ).bind(mid, "z1", "Informe del agente", "done", principalOwner, executorOwner, report, image, "final", now, now),
+          "INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,image,image_kind,created_at,ended_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) " +
+          "ON CONFLICT(mission_id,code) DO UPDATE SET report=excluded.report,status='done',owner=excluded.owner,executor=COALESCE(excluded.executor,mission_tasks.executor),image=excluded.image,image_kind='final',ended_at=COALESCE(mission_tasks.ended_at,excluded.ended_at),updated_at=excluded.updated_at"
+        ).bind(mid, "z1", "Informe del agente", "done", principalOwner, executorOwner, report, image, "final", now, now, now),
         env.DB.prepare(
           "UPDATE tickets SET status='resolved',resolved_at=COALESCE(resolved_at,?),proof_image=?,proof_kind='final',agent_runtime=COALESCE(NULLIF(?,''),agent_runtime),agent_host=COALESCE(NULLIF(?,''),agent_host),points_end=?,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
         ).bind(now, image, runtime, host, puntosCierre, puntosCierre, now, mid),
-        env.DB.prepare("UPDATE mission_tasks SET status='done',updated_at=? WHERE mission_id=? AND code!='z1' AND EXISTS(SELECT 1 FROM tickets WHERE id=? AND role='standalone-task')").bind(now,mid,mid),
+        env.DB.prepare("UPDATE mission_tasks SET status='done',ended_at=COALESCE(ended_at,?),updated_at=? WHERE mission_id=? AND code!='z1' AND status!='done' AND EXISTS(SELECT 1 FROM tickets WHERE id=? AND role='standalone-task')").bind(now,now,mid,mid),
         convergeParentTasksStmt(env, mid, now),
         env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid, now, "log", owner, "📝 Informe: " + report.slice(0, 240)),
         env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)").bind(mid, now, "proof", owner, "📸 Pantallazo final: " + proofLabel(image))

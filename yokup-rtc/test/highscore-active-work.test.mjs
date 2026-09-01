@@ -19,7 +19,7 @@ const grabVar=name=>{const m=new RegExp(`var ${name} = [^\\n]+;`).exec(source);a
 function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
   const db=new DatabaseSync(":memory:");
   db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,subject TEXT,loc TEXT,source TEXT,role TEXT,status TEXT,assignee TEXT,closure_reason TEXT,created_at INTEGER,started_at INTEGER,updated_at INTEGER,live_at INTEGER,resolved_at INTEGER,proof_image TEXT,project TEXT,project_id TEXT)");
-  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,started_at INTEGER,created_at INTEGER,updated_at INTEGER,executor TEXT)");
+  db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,started_at INTEGER,created_at INTEGER,updated_at INTEGER,executor TEXT,ended_at INTEGER)");
   db.exec("CREATE TABLE ideas(id TEXT PRIMARY KEY,title TEXT,status TEXT,author TEXT,author_identity TEXT,project TEXT,created_at INTEGER,updated_at INTEGER)");
   db.exec("CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT,ticket_id TEXT,ts INTEGER,kind TEXT,author TEXT,text TEXT)");
   db.exec("CREATE TABLE projects(id TEXT PRIMARY KEY,name TEXT)");
@@ -60,8 +60,8 @@ test("handON cli-declare legado aparece inmediatamente aunque no persistiera sta
   const {db,env,F}=harness();
   db.prepare("INSERT INTO tickets(id,subject,loc,source,role,status,assignee,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,proof_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .run("DCL-HANDON","handON de OraculoMini, saludo y reporte","MacMini","cli-declare","mission","in_progress","OraculoMini",null,NOW-MIN,null,NOW-MIN,NOW-MIN,null,null);
-  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
-    .run("DCL-HANDON","a","Saludar","in_progress","OraculoMini",null,NOW-MIN,NOW-MIN,"SubOraculoMini");
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run("DCL-HANDON","a","Saludar","in_progress","OraculoMini",null,NOW-MIN,NOW-MIN,"SubOraculoMini",null);
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(result.mode,"active"); assert.equal(result.running_count,1);
   assert.equal(result.participants[0].title,"handON de OraculoMini, saludo y reporte");
@@ -74,8 +74,8 @@ test("handON fleet resuelto sin started_at sustituye el trabajo viejo del carril
   mission(db,{id:"OLD",agent:"MorfeoMacMini",at:NOW-40*MIN,startedAt:NOW-60*MIN,status:"resolved",title:"Trabajo viejo"});
   db.prepare("INSERT INTO tickets(id,subject,loc,source,role,status,assignee,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,proof_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .run("FLT-HANDON","handON del jueves, Morfeo","MacMini","fleet","mission","resolved","MorfeoMacMini",null,NOW-2*MIN,null,NOW-MIN,NOW-MIN,NOW-MIN,"https://proof.test/handon.png");
-  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
-    .run("FLT-HANDON","z1","Informe del agente","done","MorfeoMacMini",null,NOW-MIN,NOW-MIN,"MorfeoMacMini");
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run("FLT-HANDON","z1","Informe del agente","done","MorfeoMacMini",null,NOW-MIN,NOW-MIN,"MorfeoMacMini",NOW-MIN);
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(result.mode,"recent"); assert.equal(result.count,1);
   assert.equal(result.participants[0].title,"handON del jueves, Morfeo");
@@ -108,8 +108,8 @@ test("un handON resuelto rellena una calle libre mientras otra familia sigue act
   mission(db,{id:"DCL-ACTIVA",agent:"OraculoMacMini",at:NOW-MIN,title:"QA activa"});
   db.prepare("INSERT INTO tickets(id,subject,loc,source,role,status,assignee,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,proof_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .run("FLT-1413","handON del jueves, Morfeo","MacMini","fleet","mission","resolved","MorfeoMacMini",null,NOW-4*MIN,null,NOW-2*MIN,NOW-2*MIN,NOW-2*MIN,"https://proof.test/handon.png");
-  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
-    .run("FLT-1413","z1","Informe del agente","done","MorfeoMacMini",null,NOW-3*MIN,NOW-2*MIN,"MorfeoMacMini");
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run("FLT-1413","z1","Informe del agente","done","MorfeoMacMini",null,NOW-3*MIN,NOW-2*MIN,"MorfeoMacMini",NOW-2*MIN);
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(result.mode,"active"); assert.equal(result.running_count,1); assert.equal(result.count,2);
   assert.deepEqual(result.participants.map(row=>[row.reference,row.state]),[
@@ -179,8 +179,8 @@ test("elapsed activo usa generated_at-start y report updated_at no compra progre
   const {db,env,F}=harness();
   mission(db,{at:NOW-45*MIN,startedAt:NOW-45*MIN});
   mission(db,{id:"M2",agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-MIN});
-  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
-    .run("M1","a","Avance","in_progress","SubOraculoMini",NOW-45*MIN,NOW-45*MIN,NOW-5*MIN,"SubOraculoMini");
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run("M1","a","Avance","in_progress","SubOraculoMini",NOW-45*MIN,NOW-45*MIN,NOW-5*MIN,"SubOraculoMini",null);
   const row=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW))).participants.find(item=>item.agent==="OraculoMacMini");
   assert.equal(row.state,"assigned_stale");
   assert.equal(row.work_started_at,NOW-45*MIN); assert.equal(row.work_progress_at,NOW-45*MIN);
@@ -215,8 +215,8 @@ test("task gana por prioridad dentro del mismo state y Sub/Infra colapsan por fa
   mission(db,{agent:"OraculoMini",at:NOW-40*MIN});
   mission(db,{id:"M2",agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-MIN});
   db.exec(`INSERT INTO mission_tasks VALUES
-    ('M1','a','Implementar','in_progress','OraculoMini',${NOW-35*MIN},${NOW-40*MIN},${NOW-6*MIN},'SubOraculoMini'),
-    ('M1','a1','QA','doing','OraculoMini',${NOW-30*MIN},${NOW-35*MIN},${NOW-5*MIN},'InfraOraculoMini')`);
+    ('M1','a','Implementar','in_progress','OraculoMini',${NOW-35*MIN},${NOW-40*MIN},${NOW-6*MIN},'SubOraculoMini',NULL),
+    ('M1','a1','QA','doing','OraculoMini',${NOW-30*MIN},${NOW-35*MIN},${NOW-5*MIN},'InfraOraculoMini',NULL)`);
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(result.count,2);
   const oraculo=result.participants.find((row)=>row.agent==="OraculoMacMini");
@@ -230,8 +230,8 @@ test("SubNeo y subTrinity ejecutan pero las calles visibles son NeoMBP14 y Trini
   mission(db,{id:"DCL-NEO",agent:"NeoMBP14",machine:"MacBookProNegro14",at:NOW-3*MIN,title:"Misión de Neo"});
   mission(db,{id:"FLT-TRINITY",agent:"subTrinity",machine:"MacBookProNegro14",at:NOW-2*MIN,title:"HandON de Trinity"});
   db.exec(`INSERT INTO mission_tasks VALUES
-    ('DCL-NEO','a','Ejecutar Neo','in_progress','NeoMBP14',${NOW-3*MIN},${NOW-3*MIN},${NOW-MIN},'SubNeo'),
-    ('FLT-TRINITY','a','Ejecutar Trinity','in_progress','subTrinity',${NOW-2*MIN},${NOW-2*MIN},${NOW-MIN},'subTrinity')`);
+    ('DCL-NEO','a','Ejecutar Neo','in_progress','NeoMBP14',${NOW-3*MIN},${NOW-3*MIN},${NOW-MIN},'SubNeo',NULL),
+    ('FLT-TRINITY','a','Ejecutar Trinity','in_progress','subTrinity',${NOW-2*MIN},${NOW-2*MIN},${NOW-MIN},'subTrinity',NULL)`);
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.deepEqual(result.participants.map(row=>row.agent).sort(),["NeoMBP14","TrinityMBP14"]);
   const neo=result.participants.find(row=>row.agent==="NeoMBP14");
@@ -276,8 +276,8 @@ test("sin running devuelve top3 finalizados deduplicados, no presencia ni asigna
   }
   // Un task más antiguo y de mayor prioridad no puede sustituir al último
   // trabajo real de la misma familia durante el dedupe del histórico.
-  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
-    .run("R1","a","Task antiguo","done","SubOraculoMini",NOW-40*MIN,NOW-40*MIN,NOW-10*MIN,"SubOraculoMini");
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run("R1","a","Task antiguo","done","SubOraculoMini",NOW-40*MIN,NOW-40*MIN,NOW-10*MIN,"SubOraculoMini",NOW-10*MIN);
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(result.mode,"recent"); assert.equal(result.running_count,0); assert.equal(result.count,3);
   assert.ok(result.participants.every(row=>row.state==="last_work" && row.ended_at && row.elapsed_ms===30*MIN));
@@ -295,8 +295,8 @@ test("presence sin trabajo no sintetiza lane",async()=>{
 test("misión open con tareas pending y presence queda fuera; claim in_progress sí entra",async()=>{
   const {db,env,F}=harness({presence:[processRow("Morfeo","MacMini")],now:NOW/1000});
   mission(db,{id:"FLT-1409",agent:"MorfeoMacMini",at:NOW-MIN,status:"open"});
-  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
-    .run("FLT-1409","a","Pendiente","pending","MorfeoMacMini",null,NOW-MIN,NOW-MIN,null);
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run("FLT-1409","a","Pendiente","pending","MorfeoMacMini",null,NOW-MIN,NOW-MIN,null,null);
   let result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(result.count,0,"presence no inventa actividad para FLT-1409");
   db.prepare("UPDATE tickets SET status='in_progress' WHERE id='FLT-1409'").run();
@@ -310,8 +310,8 @@ test("report o retítulo no renuevan race_revision de tarea o misión activa",as
   const {db,env,F}=harness({presence:[processRow("Morfeo","MacMini")],now:NOW/1000});
   mission(db,{id:"M1",agent:"MorfeoMacMini",at:NOW-30*MIN,startedAt:NOW-30*MIN});
   mission(db,{id:"M2",agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-MIN});
-  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
-    .run("M1","a","Original","in_progress","MorfeoMacMini",NOW-30*MIN,NOW-31*MIN,NOW-25*MIN,"SubMorfeoMacMini");
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run("M1","a","Original","in_progress","MorfeoMacMini",NOW-30*MIN,NOW-31*MIN,NOW-25*MIN,"SubMorfeoMacMini",null);
   const beforePayload=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(beforePayload.count,2,JSON.stringify(beforePayload));
   const before=beforePayload.participants.find((row)=>row.agent==="MorfeoMacMini");
@@ -329,13 +329,42 @@ test("report o retítulo no renuevan race_revision de tarea o misión activa",as
 test("un task finalizado sin ended_at factual no usa report updated_at como fin",async()=>{
   const {db,env,F}=harness();
   mission(db,{id:"R1",agent:"OraculoMacMini",at:NOW-10*MIN,startedAt:NOW-30*MIN,status:"resolved"});
-  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?)")
-    .run("R1","a","Informe tardío","done","OraculoMacMini",NOW-25*MIN,NOW-25*MIN,NOW-MIN,"InfraOraculoMini");
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run("R1","a","Informe tardío","done","OraculoMacMini",NOW-25*MIN,NOW-25*MIN,NOW-MIN,"InfraOraculoMini",null);
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(result.count,1,JSON.stringify(result));
   assert.equal(result.participants[0].kind,"mission");
   assert.equal(result.participants[0].ended_at,NOW-10*MIN);
   assert.equal(result.participants[0].elapsed_ms,20*MIN);
+});
+
+test("última tarea conserva referencia título proyecto y ended_at factuales",async()=>{
+  const {db,env,F}=harness();
+  mission(db,{id:"FLT-TAREA",agent:"NiobeMacMini",at:NOW-3*60*MIN,status:"open",title:"Misión contenedora"});
+  db.exec("INSERT INTO projects VALUES ('yokup','Yokup')");
+  db.prepare("UPDATE tickets SET project='Yokup',project_id='yokup' WHERE id='FLT-TAREA'").run();
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run("FLT-TAREA","b","Integrar referencias visuales","done","NiobeMacMini",NOW-15*MIN,
+      NOW-20*MIN,NOW-MIN,"SubNiobeMini",NOW-5*MIN);
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.mode,"recent"); assert.equal(result.count,1,JSON.stringify(result));
+  const row=result.participants[0];
+  assert.equal(row.state,"last_work"); assert.equal(row.kind,"task");
+  assert.equal(row.reference,"FLT-TAREA:b"); assert.equal(row.title,"Integrar referencias visuales");
+  assert.equal(row.executor,"SubNiobeMacMini"); assert.equal(row.project_id,"yokup");
+  assert.equal(row.project_name,"Yokup"); assert.equal(row.ended_at,NOW-5*MIN);
+  assert.equal(row.elapsed_ms,10*MIN);
+});
+
+test("tarea done sin ended_at queda fuera aunque updated_at sea reciente",async()=>{
+  const {db,env,F}=harness();
+  mission(db,{id:"FLT-SIN-FIN",agent:"NiobeMacMini",at:NOW-3*60*MIN,status:"open"});
+  db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run("FLT-SIN-FIN","b","Informe retocado","done","NiobeMacMini",NOW-30*MIN,
+      NOW-40*MIN,NOW-MIN,"SubNiobeMini",null);
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.count,0,JSON.stringify(result));
+  assert.equal(result.mode,"recent");
 });
 
 test("endpoint agregado expone sólo señales mínimas y ningún payload privado",()=>{

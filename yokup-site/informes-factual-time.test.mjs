@@ -27,7 +27,7 @@ test("Informes falla cerrado si el inicio falta o el fin precede al inicio",()=>
 });
 
 test("legacy y paginado publican started_at de tarea y la misma expresión de misión",()=>{
-  assert.match(worker,/SELECT mission_id, code, title, status, owner, executor, report, image, image_kind, created_at, started_at, updated_at/);
-  assert.match(worker,/SELECT m\.mission_id,m\.code,m\.title,m\.status,m\.owner,m\.executor,m\.report,m\.image,m\.image_kind,m\.created_at,m\.started_at,m\.updated_at/);
+  assert.match(worker,/SELECT mission_id, code, title, status, owner, executor, report, image, image_kind, created_at, started_at, ended_at, updated_at/);
+  assert.match(worker,/SELECT m\.mission_id,m\.code,m\.title,m\.status,m\.owner,m\.executor,m\.report,m\.image,m\.image_kind,m\.created_at,m\.started_at,m\.ended_at,m\.updated_at/);
   assert.ok((worker.match(/\$\{HIGHSCORE_WORK_STARTED_SQL\} AS mission_started/g)||[]).length>=2);
 });
