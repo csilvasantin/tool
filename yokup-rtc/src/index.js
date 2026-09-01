@@ -6639,8 +6639,39 @@ function highscoreVisibleKey(agent) {
     .toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 __name(highscoreVisibleKey, "highscoreVisibleKey");
+// UN AGENTE ES UNO, CORRA DONDE CORRA (Carlos, 1-sep-2026).
+// «Una cosa son los agentes y otra las máquinas físicas: un agente puede correr en
+// distintas máquinas, pero una máquina siempre será esa máquina.» Es el modelo que
+// yokup.com/dashboard ya enseña —Equipos Físicos, Agentes de Silicio y Agentes de
+// Carbono en tres listas— y que /fleet/equipo ya devuelve: seis agentes con nombre
+// único y la máquina como campo aparte.
+//
+// El marcador no lo seguía: agrupaba por persona + APELLIDO, así que el mismo agente
+// competía consigo mismo desde dos equipos. Medido el 1-sep: Morfeo en tres filas
+// (MacMini, MBA16, Mini), Neo en dos (MBAAzul, MBP14), y lo mismo Smith, Trinity,
+// Oraculo y Link. El ranking ordenaba con las mitades.
+//
+// Ahora la clave es rol + persona, SIN máquina. El equipo sigue viajando en la fila
+// como atributo descriptivo —que es lo que es— y se muestra el del trabajo más
+// reciente. El ROL no se funde: Sub e Infra son ejecutores distintos del mismo
+// encargo y el marcador los sigue distinguiendo; eso no es de qué máquina eres.
+// El NOMBRE que se enseña de una fila fundida es el del AGENTE, no el de una de sus
+// máquinas: si Morfeo suma desde el Mac Mini y desde el MBA16, la fila no puede
+// llamarse «MorfeoMBA16» sólo porque ese fuera el primer registro que llegó. El rol
+// se conserva (SubMorfeo sigue siendo SubMorfeo) porque no es de qué equipo eres.
+function highscoreAgentName(agent) {
+  const parsed = parseAgentIdentity(agent);
+  const persona = String(parsed.persona || "").trim();
+  if (!persona) return String(agent || "").trim();
+  return scopedAgentIdentity(persona, "", parsed.role) || persona;
+}
+__name(highscoreAgentName, "highscoreAgentName");
+
 function highscoreGroupKey(agent, machine) {
-  return groupingIdentityKey(agent, machine) || highscoreVisibleKey(agent);
+  const parsed = parseAgentIdentity(agent);
+  const persona = identityKey(parsed.persona) || highscoreVisibleKey(agent);
+  if (!persona) return highscoreVisibleKey(agent);
+  return `${parsed.role}|${persona}`;
 }
 __name(highscoreGroupKey, "highscoreGroupKey");
 
@@ -6650,7 +6681,8 @@ async function highscorePeriodMetrics(env, inicio, fin) {
     const visible = reportAgentIdentity(agent, machine) || String(agent || "").trim();
     if (!highscoreVisibleKey(visible)) return null;
     const key = highscoreGroupKey(visible, machine);
-    if (!totals.has(key)) totals.set(key, { agent_key:highscoreVisibleKey(visible), agent:visible, machine:String(machine || ""),
+    const nombre = highscoreAgentName(visible);
+    if (!totals.has(key)) totals.set(key, { agent_key:highscoreVisibleKey(nombre), agent:nombre, machine:String(machine || ""),
       objectives:0, windows:0, missions:0, tasks:0, points:0 });
     return totals.get(key);
   };
@@ -7702,8 +7734,13 @@ async function highscoreCurrentTotals(env, scores, inicio, fin) {
     const visible = reportAgentIdentity(agent, machine) || String(agent || "").trim();
     if (!keyOf(visible)) return;
     const key = highscoreGroupKey(visible, machine);
-    if (!totals.has(key)) totals.set(key, { agent_key: keyOf(visible), agent: visible, machine: String(machine || ""), points: 0 });
-    totals.get(key).points += Number(points) || 0;
+    const nombre = highscoreAgentName(visible);
+    if (!totals.has(key)) totals.set(key, { agent_key: keyOf(nombre), agent: nombre, machine: String(machine || ""), points: 0 });
+    const fila = totals.get(key);
+    // La máquina es un atributo, y el que vale es el del trabajo que estamos sumando:
+    // se conserva la última que aporta, no la primera que llegó.
+    if (String(machine || "").trim()) fila.machine = String(machine).trim();
+    fila.points += Number(points) || 0;
   };
   for (const row of scores || []) add(row.agent, row.machine,
     (Number(row.objective_points) || 0) + (Number(row.window_points) || 0) + (Number(row.mission_points) || 0));
@@ -7864,12 +7901,19 @@ async function highscoreDaily(env) {
     // salía con 528 puntos en una fila y 120 en otra. Se agrupa por identidad
     // canónica —persona + capa + apellido— y se muestra la forma vigente, para
     // que la fila no herede el nombre retirado del primer registro que llegó.
-    const k = groupingIdentityKey(a, m);
+    // POR AGENTE, NO POR AGENTE+MÁQUINA (Carlos, 1-sep-2026). Antes la clave llevaba
+    // el apellido, así que el mismo agente competía consigo mismo desde dos equipos.
+    // Se usa la MISMA función que las otras tres fuentes de puntos: si esta lista y
+    // la horaria agruparan distinto, el mismo payload daría dos cifras del mismo
+    // agente y no habría forma de saber cuál mira el tablero.
+    const k = highscoreGroupKey(a, m);
     if (!acc.has(k)) acc.set(k, {
-      agent: canonicalHighscoreAgent(a, m), machine: m,
+      agent: highscoreAgentName(a), machine: m,
       objectives: 0, objective_points: 0, windows: 0, window_points: 0, missions: 0, mission_points: 0
     });
-    return acc.get(k);
+    const fila_ = acc.get(k);
+    if (m) fila_.machine = m;   // atributo: vale la del trabajo más reciente
+    return fila_;
   };
   const filas = async (sql) => ((await env.DB.prepare(sql).bind(inicio, fin).all()).results || []);
 

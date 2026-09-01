@@ -4,7 +4,7 @@ import vm from "node:vm";
 import {DatabaseSync} from "node:sqlite";
 import {readFile} from "node:fs/promises";
 import {madridDayKey,madridDayStart} from "../src/display-ref.js";
-import {canonicalMachineSuffix,groupingIdentityKey,machineSuffix,parseAgentIdentity,scopedAgentIdentity} from "../src/agent-identity.js";
+import {canonicalMachineSuffix,groupingIdentityKey,identityKey,machineSuffix,parseAgentIdentity,scopedAgentIdentity} from "../src/agent-identity.js";
 import {AGENT_SOURCE_SQL, AGENT_SOURCE_SQL_T, FIELD_SOURCE_SQL_T} from "../src/mission-sources.js";
 
 const source=await readFile(new URL("../src/index.js",import.meta.url),"utf8");
@@ -34,7 +34,7 @@ function harness(){
   // groupingIdentityKey y canonicalMachineSuffix entran por lo mismo que machineSuffix:
   // el agente tambien llega escrito de dos formas (MorfeoMini / MorfeoMacMini) y sin
   // ellas el marcador volveria a partir a un agente en dos filas.
-  const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,madridDayKey,madridDayStart,machineSuffix,groupingIdentityKey,canonicalMachineSuffix,parseAgentIdentity,scopedAgentIdentity,
+  const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,madridDayKey,madridDayStart,machineSuffix,groupingIdentityKey,canonicalMachineSuffix,identityKey,parseAgentIdentity,scopedAgentIdentity,
     AGENT_SOURCE_SQL,AGENT_SOURCE_SQL_T,
     reportAgentIdentity:(agent)=>String(agent||""),
     scopedMissionOwner:(owner,_role,assignee)=>String(owner||assignee||""),
@@ -47,7 +47,9 @@ function harness(){
     // marcador (1-sep-2026). Entran al sandbox como los demas: sin ellos las tres
     // fuentes de puntos volverian a agrupar cada una por su cuenta y un agente
     // reapareceria partido en dos filas (MorfeoMini / MorfeoMacMini).
-    grab("highscoreVisibleKey"),grab("highscoreGroupKey"),
+    // highscoreAgentName entra por lo mismo: desde el 1-sep la fila del marcador se
+    // llama como el AGENTE, no como una de sus maquinas.
+    grab("highscoreVisibleKey"),grab("highscoreAgentName"),grab("highscoreGroupKey"),
     grab("madridHourKey"),grab("highscoreAgent"),grab("canonicalHighscoreAgent"),
     grab("highscoreTraceability"),grab("highscorePeriodMetrics"),grab("highscoreMetricPair"),grab("highscoreHourlyContract"),
     grab("highscoreCurrentTotals"),grab("highscoreHourlyTrend"),grab("highscoreDaily")
@@ -104,7 +106,7 @@ test("el marcador diario suma objetivos, ventanas y misiones del día de Madrid"
   assert.equal(d.day,madridDayKey(HOY));
   assert.deepEqual(d.weights,{objective:20,window:8,mission:40});
 
-  const rosa=d.scores.find(s=>s.agent==="NeoMBARosa");
+  const rosa=d.scores.find(s=>s.agent==="Neo");
   assert.ok(rosa,"NeoMBARosa tiene que puntuar: abrió ventanas y trabajó misiones hoy");
   assert.equal(rosa.machine,"MacBookAirRosa");
   assert.equal(rosa.windows,2,"solo las ventanas abiertas HOY");
@@ -115,7 +117,7 @@ test("el marcador diario suma objetivos, ventanas y misiones del día de Madrid"
   assert.equal(rosa.day_comparison,"sube");
   assert.ok(!d.traceability.unlinked.some(x=>x.id==="FLT-5"),"cerrar hoy una misión iniciada ayer no vuelve a puntuar ni entra en la traza diaria");
 
-  const oraculo=d.scores.find(s=>s.agent==="Oráculo");
+  const oraculo=d.scores.find(s=>s.agent==="Oraculo");
   assert.equal(oraculo.objectives,2,"solo los objetivos creados hoy");
   assert.equal(oraculo.objective_points,40);
   assert.equal(oraculo.yesterday_points,20);
@@ -123,7 +125,7 @@ test("el marcador diario suma objetivos, ventanas y misiones del día de Madrid"
   assert.equal(oraculo.machine,"","el objetivo no trae máquina: lo funde el marcador");
 
   assert.ok(!d.scores.some(s=>/steve|carlos|tecnico/i.test(s.agent)),"nadie ajeno a la flota entra en la tabla");
-  const azul=d.scores.find(s=>s.agent==="TrinityMBAAzul");
+  const azul=d.scores.find(s=>s.agent==="Trinity");
   assert.equal(azul.windows,1);
   assert.equal(azul.missions,0);
   assert.equal(azul.yesterday_points,0,"un agente nuevo hoy se compara contra cero");
@@ -162,9 +164,12 @@ test("la comparación diaria distingue subir, bajar e igualar con la fórmula vi
     ('SAME-H','MacMini','TrinityMacMini','hoy','decided',${HOY})`);
   const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
   assert.deepEqual(d.scores.map(row=>[row.agent,row.window_points,row.yesterday_points,row.day_comparison]).sort(),[
-    ["MorfeoMacMini",8,16,"baja"],
-    ["NeoMacMini",16,8,"sube"],
-    ["TrinityMacMini",8,8,"igual"]
+    // Las filas se llaman como el AGENTE desde el 1-sep: el marcador cuenta agentes,
+    // no parejas agente+equipo. Los datos de entrada de arriba siguen escribiendose
+    // con apellido, que es como se firman. Las cifras no cambian.
+    ["Morfeo",8,16,"baja"],
+    ["Neo",16,8,"sube"],
+    ["Trinity",8,8,"igual"]
   ]);
 });
 
@@ -173,7 +178,7 @@ test("FORMACION atribuye sólo la ventana al agente rotatorio, nunca a Carlos ni
   db.prepare("INSERT INTO decisions(id,machine,agent,question,status,chosen_by,project,parent_decision,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
     .run("DCL-form-academy","MacBookProNegro14","TrinityMBP14","Formación de la hora — Tecnología","expired","Carlos · Smith","admira-academy","FORMACION",HOY);
   const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
-  const trinity=d.scores.find(row=>row.agent==="TrinityMBP14");
+  const trinity=d.scores.find(row=>row.agent==="Trinity");
   assert.deepEqual({windows:trinity.windows,window_points:trinity.window_points,missions:trinity.missions,mission_points:trinity.mission_points},
     {windows:1,window_points:8,missions:0,mission_points:0});
   assert.equal(d.scores.some(row=>/Carlos|Smith/i.test(row.agent)),false,
@@ -250,10 +255,10 @@ test("la adopción OnIdle puntúa sólo la misión canónica y excluye el conten
     ('DCL-REAL','a','Tarea canónica','done','SubOraculoMacMini',${HOY},${HOY})`);
 
   const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
-  const row=d.scores.find(item=>item.agent==="OraculoMacMini");
+  const row=d.scores.find(item=>item.agent==="Oraculo");
   assert.ok(row);
   assert.equal(row.missions,1,"el contenedor cancelado no vuelve a contar como misión");
-  const principal=d.hourly.scores.find(item=>item.agent==="OraculoMacMini");
+  const principal=d.hourly.scores.find(item=>item.agent==="Oraculo");
   assert.deepEqual(principal.metrics.tasks,{hour:1,day:1},"la tarea residual del contenedor no da puntos");
   assert.deepEqual(principal.metrics.points,{hour:63,day:63},
     "ventana, misión y tarea puntúan una sola vez al agente principal");
@@ -275,7 +280,7 @@ test("MBP14: FLT-1204 enlaza una tarea done como inicio factual y suma misión +
     ('FLT-1204','c','Pendiente C','pending','InfraTrinityMBP14',${HOY},${HOY})`);
 
   const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
-  const trinity=d.scores.find(row=>row.agent==="TrinityMBP14");
+  const trinity=d.scores.find(row=>row.agent==="Trinity");
   assert.ok(trinity,"la identidad operativa exacta de MBP14 debe aparecer");
   assert.equal(trinity.machine,"macbookpronegro14");
   assert.equal(trinity.missions,1);
@@ -289,7 +294,7 @@ test("MBP14: FLT-1204 enlaza una tarea done como inicio factual y suma misión +
   assert.equal(chain.points.tasks,15);
   assert.equal(chain.points.total,55);
   assert.ok(!d.traceability.unlinked.some(row=>row.id==="FLT-1204:a1"));
-  const hourlyRow=d.hourly.scores.find(row=>row.agent==="TrinityMBP14");
+  const hourlyRow=d.hourly.scores.find(row=>row.agent==="Trinity");
   assert.equal(hourlyRow.current,55,
     "la clasificación horaria une misión y tarea cuando comparten identidad exacta");
   assert.deepEqual(hourlyRow.metrics.missions,{hour:1,day:1});
@@ -315,7 +320,7 @@ test("MBP16: FLT-1203 abierta CON PLAN sí puntúa — el marcador mide trabajo,
   // nadie habia movido un estado. El marcador media el tramite, no el trabajo.
   // Ahora una mision con PLAN GENERADO cuenta, este reclamada o no.
   const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
-  const neo=d.scores.find(row=>row.agent==="NeoMBP16");
+  const neo=d.scores.find(row=>row.agent==="Neo");
   assert.ok(neo, "una mision abierta CON plan tiene que puntuar");
   assert.equal(neo.missions,1);
   // Lo que NO cambia: las tareas pendientes siguen sin sumar. Puntua la mision
@@ -330,7 +335,7 @@ test("MBP16: una mision abierta SIN plan NO puntúa — sin plan no hay trabajo 
   db.exec(`INSERT INTO events(ticket_id,ts,kind,author,text) VALUES
     ('FLT-1299',${HOY},'log','NeoMBP16','Trabajo anunciado en Agora')`);
   const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
-  assert.ok(!d.scores.some(row=>row.agent==="NeoMBP16"),
+  assert.ok(!d.scores.some(row=>row.agent==="Neo"),
     "anunciar trabajo sin plan no puede puntuar: seria inflar el marcador con mensajes");
 });
 
@@ -343,7 +348,7 @@ test("logs genéricos y mensajes externos no son transiciones puntuables", async
     ('FLT-G',${HOY},'log','yokup','Trabajo anunciado y ya en curso según el chat'),
     ('FLT-E',${HOY},'log','AgoraMatrix','Misión entregada al CLI de Trinity en macbookpronegro14; pasa a EN CURSO.')`);
   const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
-  assert.ok(!d.scores.some(row=>row.agent==="NeoMBP16" || row.agent==="TrinityMBP14"));
+  assert.ok(!d.scores.some(row=>row.agent==="Neo" || row.agent==="Trinity"));
   assert.ok(!d.traceability.chains.some(row=>row.mission && ["FLT-G","FLT-E"].includes(row.mission.id)));
 });
 
@@ -405,7 +410,7 @@ test("el payload horario nace de totales autoritativos e incluye las familias A/
   const totals=JSON.parse(JSON.stringify(await F.highscoreCurrentTotals(env,[{
     agent:"OraculoMacMini",machine:"MacMini",objective_points:20,window_points:8,mission_points:40,
   }],inicio,fin)));
-  assert.deepEqual(totals.map(row=>[row.agent,row.points]),[["OraculoMacMini",108]]);
+  assert.deepEqual(totals.map(row=>[row.agent,row.points]),[["Oraculo",108]]);
   assert.match(source,/const legacyHourly = await highscoreHourlyTrend\(env, current, ahora\)/);
   assert.match(source,/const hourly = await highscoreHourlyContract\(env, legacyHourly, ahora, inicio, fin\)/);
   assert.match(source,/return \{ ok: true,[^}]*scores, traceability, hourly \}/);
@@ -433,7 +438,7 @@ async function contractAt(F, env, now) {
 test("primera hora activa: las cinco métricas entregan hora igual a día", async () => {
   const {db,env,F}=harness(),now=Date.UTC(2026,7,6,8,30),at=Date.UTC(2026,7,6,8,5);
   insertHourBundle(db,"FIRST",at);
-  const result=await contractAt(F,env,now),row=result.scores.find(x=>x.agent==="OraculoMacMini");
+  const result=await contractAt(F,env,now),row=result.scores.find(x=>x.agent==="Oraculo");
   assert.deepEqual(row.metrics,{
     objectives:{hour:1,day:1},windows:{hour:1,day:1},missions:{hour:1,day:1},tasks:{hour:2,day:2},points:{hour:108,day:108}
   });
@@ -444,7 +449,7 @@ test("primera hora activa: las cinco métricas entregan hora igual a día", asyn
 test("hora sin actividad: horario cero y total diario intacto", async () => {
   const {db,env,F}=harness(),now=Date.UTC(2026,7,6,13,30);
   insertHourBundle(db,"OLD",Date.UTC(2026,7,6,8,5));
-  const row=(await contractAt(F,env,now)).scores.find(x=>x.agent==="OraculoMacMini");
+  const row=(await contractAt(F,env,now)).scores.find(x=>x.agent==="Oraculo");
   assert.deepEqual(row.metrics,{
     objectives:{hour:0,day:1},windows:{hour:0,day:1},missions:{hour:0,day:1},tasks:{hour:0,day:2},points:{hour:0,day:108}
   });
@@ -454,7 +459,7 @@ test("varias horas: la hora actual no duplica el acumulado anterior", async () =
   const {db,env,F}=harness(),now=Date.UTC(2026,7,6,13,30);
   insertHourBundle(db,"EARLY",Date.UTC(2026,7,6,8,5));
   insertHourBundle(db,"NOW",Date.UTC(2026,7,6,13,5));
-  const row=(await contractAt(F,env,now)).scores.find(x=>x.agent==="OraculoMacMini");
+  const row=(await contractAt(F,env,now)).scores.find(x=>x.agent==="Oraculo");
   assert.deepEqual(row.metrics,{
     objectives:{hour:1,day:2},windows:{hour:1,day:2},missions:{hour:1,day:2},tasks:{hour:2,day:4},points:{hour:108,day:216}
   });
@@ -466,7 +471,7 @@ test("frontera de día Madrid excluye el minuto anterior a medianoche", async ()
     .run("I-PREV","Ayer","OraculoMacMini","nueva",Date.UTC(2026,7,3,21,59),Date.UTC(2026,7,3,21,59));
   db.prepare("INSERT INTO ideas(id,title,author,status,created_at,updated_at) VALUES(?,?,?,?,?,?)")
     .run("I-TODAY","Hoy","OraculoMacMini","nueva",Date.UTC(2026,7,3,22,5),Date.UTC(2026,7,3,22,5));
-  const result=await contractAt(F,env,now),row=result.scores.find(x=>x.agent==="OraculoMacMini");
+  const result=await contractAt(F,env,now),row=result.scores.find(x=>x.agent==="Oraculo");
   assert.deepEqual(row.metrics.objectives,{hour:1,day:1});
   assert.deepEqual(row.metrics.points,{hour:20,day:20});
   assert.equal(result.period.day_key,"2026-08-04");

@@ -1,42 +1,52 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import { groupingIdentityKey, reportAgentIdentity } from './src/agent-identity.js';
+import { parseAgentIdentity, identityKey } from './src/agent-identity.js';
 
 const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
-const totales = source.slice(source.indexOf('async function highscoreCurrentTotals'),
-                             source.indexOf('__name(highscoreCurrentTotals'));
+const trozo = (a, b) => source.slice(source.indexOf(a), source.indexOf(b));
+const clave = new Function('parseAgentIdentity', 'identityKey',
+  'const highscoreVisibleKey=(a)=>String(a||"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"");'
+  + '\nconst __name=()=>{};\n'
+  + trozo('function highscoreGroupKey', '__name(highscoreGroupKey')
+  + '\nreturn highscoreGroupKey;')(parseAgentIdentity, identityKey);
 
-test('Mini y MacMini son la MISMA maquina: misma clave de agrupacion', () => {
-  for (const persona of ['Morfeo', 'Link', 'Oraculo', 'Neo']) {
-    assert.equal(groupingIdentityKey(`${persona}Mini`, ''), groupingIdentityKey(`${persona}MacMini`, ''),
-      `${persona}Mini y ${persona}MacMini tienen que agrupar juntos`);
-  }
+// MODELO (Carlos, 1-sep-2026): «una cosa son los agentes y otra las máquinas físicas;
+// un agente puede correr en distintas máquinas, pero una máquina siempre será esa
+// máquina». Es lo que yokup.com/dashboard enseña en tres listas y lo que
+// /fleet/equipo ya devuelve. El marcador tiene que contar AGENTES, no parejas
+// agente+equipo.
+
+test('el mismo agente en distintas maquinas es UNA fila', () => {
+  const morfeo = ['MorfeoMacMini', 'MorfeoMBA16', 'MorfeoMini', 'Morfeo'].map((a) => clave(a, ''));
+  assert.equal(new Set(morfeo).size, 1, 'Morfeo es Morfeo corra donde corra');
+  assert.equal(new Set(['NeoMBAAzul', 'NeoMBP14', 'NeoMini'].map((a) => clave(a, ''))).size, 1);
+  assert.equal(new Set(['TrinityMBA16', 'TrinityMBP14'].map((a) => clave(a, ''))).size, 1);
 });
 
-test('personas distintas NO se mezclan aunque compartan maquina', () => {
-  assert.notEqual(groupingIdentityKey('MorfeoMacMini', ''), groupingIdentityKey('LinkMacMini', ''));
-  assert.notEqual(groupingIdentityKey('OraculoMacMini', ''), groupingIdentityKey('NiobeMacMini', ''));
+test('personas distintas NO se funden, compartan o no maquina', () => {
+  assert.notEqual(clave('MorfeoMacMini', ''), clave('LinkMacMini', ''));
+  assert.notEqual(clave('OraculoMacMini', ''), clave('NiobeMacMini', ''));
+  assert.notEqual(clave('SmithMBP14', ''), clave('TrinityMBP14', ''));
 });
 
-test('maquinas distintas siguen siendo filas distintas (eso lo decide FLT-1490, no esto)', () => {
-  assert.notEqual(groupingIdentityKey('NeoMBAAzul', ''), groupingIdentityKey('NeoMBP14', ''));
-  assert.notEqual(groupingIdentityKey('SmithMBP14', ''), groupingIdentityKey('SmithMBP16', ''));
+test('el ROL no es la maquina: Sub e Infra siguen siendo ejecutores distintos', () => {
+  assert.notEqual(clave('MorfeoMacMini', ''), clave('SubMorfeoMacMini', ''));
+  assert.notEqual(clave('MorfeoMacMini', ''), clave('InfraMorfeoMacMini', ''));
+  // …pero un Sub tampoco se parte por cambiar de equipo
+  assert.equal(clave('SubMorfeoMacMini', ''), clave('SubMorfeoMBA16', ''));
 });
 
-test('el marcador agrupa por identidad canonica, no por el literal del nombre', () => {
-  assert.match(totales, /const key = highscoreGroupKey\(visible, machine\)/);
-  // y el agent_key que sale al front sigue derivandose del nombre visible
-  assert.match(totales, /agent_key: keyOf\(visible\)/);
-  // el criterio esta definido UNA sola vez y lo usan las tres fuentes de puntos
+test('el criterio esta definido UNA vez y lo usan las tres fuentes de puntos', () => {
   assert.equal((source.match(/function highscoreGroupKey/g) || []).length, 1);
-  for (const fn of ["highscorePeriodMetrics", "highscoreCurrentTotals", "highscoreHourlyContract"]) {
-    const cuerpo = source.slice(source.indexOf(`function ${fn}`), source.indexOf(`__name(${fn}`));
+  for (const fn of ['highscorePeriodMetrics', 'highscoreCurrentTotals', 'highscoreHourlyContract']) {
+    const cuerpo = trozo(`function ${fn}`, `__name(${fn}`);
     assert.match(cuerpo, /highscoreGroupKey\(/, `${fn} tiene que agrupar por el criterio comun`);
   }
 });
 
-test('Sub e Infra no se funden con el agente principal', () => {
-  assert.notEqual(groupingIdentityKey('MorfeoMacMini', ''), groupingIdentityKey('SubMorfeoMacMini', ''));
-  assert.notEqual(groupingIdentityKey('MorfeoMacMini', ''), groupingIdentityKey('InfraMorfeoMacMini', ''));
+test('la maquina sigue viajando en la fila, como atributo', () => {
+  const totales = trozo('async function highscoreCurrentTotals', '__name(highscoreCurrentTotals');
+  assert.match(totales, /machine: String\(machine \|\| ""\)/);
+  assert.match(totales, /fila\.machine = String\(machine\)\.trim\(\)/);
 });
