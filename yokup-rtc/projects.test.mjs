@@ -119,6 +119,6 @@ test('lo encargado y sin empezar viaja aparte, no se esconde', () => {
 });
 
 test('/shot admite capturas reales de Ainimation Studio y DigitalAvatar', () => {
-  assert.match(source, /ainimation\\\.studio\|digitalavatar\\\.ai/);
+  assert.match(source, /isProjectShotAllowed\(target\)/);
   assert.match(source, /page\.screenshot\(\{ type: "png", clip: \{ x: 0, y: 0, width: 960, height: 600 \} \}\)/);
 });

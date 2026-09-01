@@ -37,6 +37,7 @@ import { ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION, isCanonicalOnIdleDecision,
   isCanonicalOnIdleOptions, selectCanonicalLiveOnIdleDecision } from "./onidle-decision-contract.js";
 import { canonicalProjectAgentRef, canonicalProjectAgentRefs, YOKUP_MINI_MEMBER_BACKFILL_SQL } from "./project-member-identity.js";
 import { PROJECT_BOTH_RESPONSIBLES_CAS_SQL, PROJECT_CARBON_CAS_SQL, PROJECT_METADATA_UPSERT_SQL, PROJECT_SILICON_CAS_SQL, projectCarbonResponsible, validateProjectResponsibleTypes } from "./project-responsibles.js";
+import { isProjectShotAllowed, normalizeProjectWeb } from "./project-web.js";
 import { AGENT_SOURCE_SQL, AGENT_SOURCE_SQL_T, FIELD_SOURCE_SQL_T, MISSION_SCOPE_SQL,
   MISSION_SCOPE_SQL_T, FIELD_MISSION_SCOPE_SQL_T, FLEET_MISSIONS_SQL } from "./mission-sources.js";
 var __defProp = Object.defineProperty;
@@ -2185,6 +2186,10 @@ async function upsertProject(env, b) {
   };
   const status = ["activo", "pausado", "archivado"].includes(String((b && b.status) || "").toLowerCase())
     ? String(b.status).toLowerCase() : (prev ? (prev.status || "activo") : "activo");
+  const requestedWeb = b && b.web !== undefined && b.web !== null
+    ? normalizeProjectWeb(b.web)
+    : { ok: true, value: prev ? String(prev.web || "") : "" };
+  if (!requestedWeb.ok) return { ok: false, error: requestedWeb.error, field: "web", status: 400 };
   const requestedSiliconResponsible = canonicalProjectAgentRef(b && b.silicon_responsible !== undefined
     ? String(b.silicon_responsible).trim().slice(0, 80)
     : b && b.primary_responsible !== undefined
@@ -2217,14 +2222,14 @@ async function upsertProject(env, b) {
     const previousValue = key === "status" ? String(prev[key] || "activo") : String(prev[key] || "");
     const nextValue = key === "name" ? (name || prev.name || id)
       : key === "blurb" ? val("blurb", 240)
-      : key === "web" ? val("web", 160).replace(/\/+$/, "")
+      : key === "web" ? requestedWeb.value
       : key === "status" ? status : val("color", 24);
     return previousValue !== nextValue;
   });
   const versionChanged = metadataChanged || membershipChanged;
   const row = {
     id, name: name || (prev && prev.name) || id,
-    blurb: val("blurb", 240), web: val("web", 160).replace(/\/+$/, ""),
+    blurb: val("blurb", 240), web: requestedWeb.value,
     status, color: val("color", 24), owner: primaryResponsible,
     carbon_responsible: carbonResponsible,
     created_at: prev ? prev.created_at : now, updated_at: versionChanged ? now : prev.updated_at,
@@ -8156,8 +8161,7 @@ var worker_app = {
     if (url.pathname === "/shot" && req.method === "GET") {
       if (!env.MEDIA) return json({ error: "sin bucket MEDIA" }, 500);
       const target = url.searchParams.get("url") || "";
-      const ALLOW = /^https?:\/\/(www\.)?(pixeria\.com|xpaceos\.com|yokup\.com|admira\.live|admira\.tv|admira\.store|clearchannel\.tv|admiranext\.com|ainimation\.studio|digitalavatar\.ai|carlossilva\.info)(\/|$|\?)/i;
-      if (!ALLOW.test(target)) return json({ error: "dominio no permitido" }, 400);
+      if (!isProjectShotAllowed(target)) return json({ error: "dominio no permitido" }, 400);
       const digest = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(target));
       const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
       const key = "shot/" + hash + ".png";
