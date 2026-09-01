@@ -47,7 +47,7 @@ test("cada proyecto guarda de forma independiente, optimista y con rollback", ()
   assert.match(source, /const PROJECT_IMPORTANCE_PENDING=new Map\(\)/);
   assert.match(source, /PROJECT_IMPORTANCE_PENDING\.set\(projectId,\{previous,current,next\}\)/);
   assert.match(source, /paReplaceProject\(\{\.\.\.previous,importance:next\}\)/);
-  assert.match(source, /catch\(e\)\{paReplaceProject\(previous\)/);
+  assert.match(source, /hasServerValue\?\{\.\.\.previous,importance:serverValue\}:previous/);
   assert.match(source, /finally\{PROJECT_IMPORTANCE_PENDING\.delete\(projectId\)/);
 });
 
@@ -56,7 +56,7 @@ test("actualiza catálogo y filas, conserva foco y anuncia éxito o error", () =
   assert.match(source, /PROJECT_ROWS=paProjectsForScope\(\)/);
   assert.match(source, /function paFocusImportance/);
   assert.match(source, /paMessage\("✓ importancia de /);
-  assert.match(source, /paMessage\("✗ no se guardó la importancia/);
+  assert.match(source, /"✗ no se guardó la importancia · "/);
 });
 
 test("un GET anterior al clic no pisa el valor pendiente o recién confirmado", () => {
@@ -68,6 +68,41 @@ test("un GET anterior al clic no pisa el valor pendiente o recién confirmado", 
 test("el responsive mantiene el grupo fijo y deja que el nombre se trunque", () => {
   assert.match(source, /\.pa-project-heading\{display:flex;align-items:center;gap:6px;min-width:0\}/);
   assert.match(source, /\.pa-project-heading>b\{min-width:0;flex:1\}/);
-  assert.match(source, /\.pa-importance\{display:inline-flex;align-items:center;gap:0;flex:none\}/);
-  assert.match(source, /@media\(max-width:620px\)[^\n]*\.pa-importance button\{width:17px\}/);
+  assert.match(source, /\.pa-importance\{display:inline-flex;align-items:center;gap:6px;flex:none\}/);
+  assert.match(source, /\.pa-importance button\{width:18px;height:24px/);
+});
+
+test("paJson conserva status y payload para reconciliar errores canónicos", async () => {
+  const start=source.indexOf("async function paJson(path,options)");
+  const end=source.indexOf("function paRender()",start);
+  const paJson=new Function("fetch","AbortSignal",`const PROJECTS_API="https://api.yokup.test";${source.slice(start,end)};return paJson;`)(
+    async()=>({ok:false,status:409,json:async()=>({ok:false,error:"importance conflict",current_importance:5})}),AbortSignal
+  );
+  await assert.rejects(()=>paJson("/projects/importance"),error=>{
+    assert.equal(error.status,409);
+    assert.equal(error.payload.current_importance,5);
+    return true;
+  });
+});
+
+async function runImportanceFailure(error){
+  const importanceStart=source.indexOf("function paImportance(project)");
+  const importanceEnd=source.indexOf("function paImportanceControl",importanceStart);
+  const replaceStart=source.indexOf("function paReplaceProject(project)");
+  const replaceEnd=source.indexOf("function paPhysicalTeamCensus",replaceStart);
+  return new Function("failure",`
+    let PROJECT_CATALOG=[{id:"p",name:"Proyecto",importance:0}],PROJECT_ROWS=[];
+    const PROJECT_IMPORTANCE_PENDING=new Map();let PROJECT_IMPORTANCE_REV=0;
+    const paProjectsForScope=()=>PROJECT_CATALOG.slice();
+    const paJson=async()=>{throw failure;};
+    const paRender=()=>{};const paMessage=()=>{};const requestAnimationFrame=()=>{};
+    ${source.slice(importanceStart,importanceEnd)}
+    ${source.slice(replaceStart,replaceEnd)}
+    return paSetProjectImportance("p",3).then(()=>PROJECT_CATALOG[0].importance);
+  `)(error);
+}
+
+test("un 409 adopta current_importance y un 500 restaura el valor anterior", async () => {
+  assert.equal(await runImportanceFailure(Object.assign(new Error("conflict"),{status:409,payload:{current_importance:5}})),5);
+  assert.equal(await runImportanceFailure(Object.assign(new Error("fallo"),{status:500,payload:{}})),0);
 });
