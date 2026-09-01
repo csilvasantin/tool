@@ -72,5 +72,13 @@ test("Niobe está en el diccionario y su apellido case con su máquina", () => {
   assert.equal(parseAgentIdentity("NiobeMacMini").legacy, false);
   assert.equal(parseAgentIdentity("SubNiobeMacMini").role, "sub");
   assert.equal(scopedAgentIdentity("Niobe", "MacMini"), "NiobeMacMini");
+  assert.equal(scopedAgentIdentity("NiobeMini", ""), "NiobeMacMini");
+  assert.equal(scopedAgentIdentity("SubNiobeMini", ""), "SubNiobeMacMini");
+  assert.equal(scopedAgentIdentity("InfraNiobeMini", ""), "InfraNiobeMacMini");
+  assert.equal(parseAgentIdentity("SubNiobeMini").suffix, machineSuffix("macmini"));
+  assert.equal(parseAgentIdentity("InfraNiobeMini").suffix, machineSuffix("macmini"));
   assert.equal(sameAgentFamily("Niobe", "NiobeMacMini"), true);
+  assert.equal(sameAgentFamily("SubNiobeMini", "InfraNiobeMacMini"), true);
+  assert.equal(sameAgentFamily("NiobeMacMini", "OraculoMacMini"), false,
+    "Niobe y Oraculo son familias distintas aunque compartan el mismo equipo");
 });

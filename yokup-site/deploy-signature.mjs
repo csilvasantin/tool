@@ -1,5 +1,5 @@
 const MAX_FIELD = 80;
-const PERSONAS = ["Oraculo", "Neo", "Morfeo", "Trinity", "Smith", "WhiteRabbit"];
+const PERSONAS = ["Oraculo", "Neo", "Morfeo", "Trinity", "Smith", "WhiteRabbit", "Niobe"];
 const INTERNAL = /^(?:ampere|erdos|noether|sol|terra|luna|claude|codex|grok|openai|anthropic)/i;
 // Apellido canónico = diccionario de la normativa (regla 02): el modelo tal cual lo
 // fija el diccionario, igual para todos. Los apellidos de la generación anterior

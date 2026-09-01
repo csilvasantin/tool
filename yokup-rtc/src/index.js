@@ -1965,7 +1965,7 @@ __name(projectIndex, "projectIndex");
 function principalAgentIdentity(agent, machine = "") {
   const parsed = parseAgentIdentity(agent);
   const suffix = machineSuffix(machine) || parsed.suffix;
-  const known = ["Neo", "Morfeo", "Trinity", "Oraculo", "Smith", "WhiteRabbit"].includes(parsed.persona);
+  const known = ["Neo", "Morfeo", "Trinity", "Oraculo", "Smith", "WhiteRabbit", "Niobe"].includes(parsed.persona);
   if (!known || !suffix) return null;
   const visible = canonicalProjectAgentRef(reportAgentIdentity(agent, machine || suffix));
   if (!visible || !parseAgentIdentity(visible).suffix) return null;
@@ -6133,7 +6133,7 @@ var HIGHSCORE_MISSION_PROGRESS_SQL = "MAX(COALESCE((SELECT MAX(mt.started_at) FR
 // otras tres vueltas monocromas, tampoco después de cerrar una tarea.
 var HIGHSCORE_RACE_PROGRESS_SQL = HIGHSCORE_WORK_STARTED_SQL;
 var HIGHSCORE_ASSIGNMENT_EVENT_SQL = "(SELECT MAX(e.ts) FROM events e WHERE e.ticket_id=t.id AND e.kind='assign')";
-var HIGHSCORE_PERSONAS = ["neo", "morfeo", "trinity", "oraculo", "smith", "whiterabbit", "cypher"];
+var HIGHSCORE_PERSONAS = ["neo", "morfeo", "trinity", "oraculo", "smith", "whiterabbit", "cypher", "niobe"];
 
 /** Quién firma un objetivo. Los autores llegan como los escribe cada sitio:
  *  «Oráculo», «Neo16 (Claude)», «Carlos · Oraculo» o un asiento del Consejo
@@ -6459,7 +6459,10 @@ function highscoreCanonicalHistoryFamily(agent, machine) {
   const family = reportAgentFamily(agent, machine);
   if (!family || !family.family_key || family.family_key.startsWith("external:")) return family;
   const parsed = parseAgentIdentity(family.family_name);
-  if (parsed.suffix !== "MacMini") return family;
+  // NiobeMacMini es una familia nueva y visible, no un alias de OraculoMini.
+  // Sólo se conserva el colapso legado MacMini→Mini de las personas históricas;
+  // los puntos anteriores de Oraculo nunca se reasignan automáticamente a Niobe.
+  if (parsed.suffix !== "MacMini" || parsed.persona === "Niobe") return family;
   return { ...family,
     family_key:`${identityKey(parsed.persona)}@mini`,
     family_name:`${parsed.persona}Mini`

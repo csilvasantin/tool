@@ -72,6 +72,20 @@ test("repetir la misma declaración diaria es no-op y cambiarla actualiza una fi
   assert.equal(db.prepare("SELECT COUNT(*) n FROM project_members").get().n, 1, "declarar no muta el censo estable");
 });
 
+test("Niobe declara proyecto como principal canónica del Mac Mini", async () => {
+  const { db, env, F } = harness();
+  const created = await F.declarePrincipalProject(env, {
+    agent: "NiobeMacMini", project: "yokup", declared_by: "NiobeMacMini"
+  });
+  assert.equal(created.ok, true);
+  assert.equal(created.declaration.agent, "NiobeMacMini");
+  const alias = await F.declarePrincipalProject(env, { agent: "NiobeMini", project: "yokup" });
+  assert.equal(alias.unchanged, true, "NiobeMini converge a la misma declaración física");
+  assert.deepEqual(JSON.parse(JSON.stringify(db.prepare("SELECT agent,agent_key,project_id FROM agent_project_declarations").get())), {
+    agent:"NiobeMacMini", agent_key:"niobemacmini", project_id:"yokup"
+  });
+});
+
 test("dos equipos de la misma persona conservan declaraciones independientes", async () => {
   const { env, F } = harness();
   await F.declarePrincipalProject(env, { agent: "NeoMacMini", project: "xpaceos" });

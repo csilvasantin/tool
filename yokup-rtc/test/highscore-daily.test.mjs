@@ -56,6 +56,9 @@ test("solo puntúan agentes de la flota: ni asientos del Consejo ni Carlos", () 
   assert.equal(F.highscoreAgent("Neo16 (Claude)"),"Neo16","el runtime entre paréntesis no es parte del nombre");
   assert.equal(F.highscoreAgent("Carlos · Oraculo"),"Oraculo","firma compartida: puntúa el agente, no el humano");
   assert.equal(F.highscoreAgent("MorfeoAir16"),"MorfeoAir16");
+  assert.equal(F.highscoreAgent("NiobeMacMini"),"NiobeMacMini");
+  assert.equal(F.highscoreAgent("SubNiobeMini"),"",
+    "los objetivos puntúan a la principal; la capa ejecutora se atribuye en mission_tasks");
   assert.equal(F.highscoreAgent("CEO · Steve Jobs"),"","un asiento del Consejo no es un agente");
   assert.equal(F.highscoreAgent("Carlos"),"");
   assert.equal(F.highscoreAgent(""),"");

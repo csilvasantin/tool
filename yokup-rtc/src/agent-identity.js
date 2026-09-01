@@ -108,8 +108,12 @@ export function parseAgentIdentity(value) {
     for (const alias of candidates) {
       if (!key.startsWith(alias)) continue;
       const tail = key.slice(alias.length);
+      // Niobe nace canónicamente como NiobeMacMini. Se acepta el apellido corto
+      // NiobeMini que ya usan los ejecutores, pero se reescribe al equipo físico
+      // completo. La excepción es deliberadamente sólo para Niobe: OraculoMini
+      // conserva su contrato histórico y nunca se convierte ni transfiere a Niobe.
       const suffix = MACHINES.map(([s]) => s).find((s) => identityKey(s) === tail) ||
-        LEGACY_SUFFIXES.get(tail) || "";
+        (name === "Niobe" && tail === "mini" ? "MacMini" : LEGACY_SUFFIXES.get(tail)) || "";
       return { role, persona: name, suffix, legacy: !suffix };
     }
   }

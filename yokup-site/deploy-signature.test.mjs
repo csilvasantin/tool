@@ -34,6 +34,9 @@ test("Oraculo, Smith, Sub e Infra firman con equipo canónico",()=>{
   assert.equal(validateDeployIdentity("InfraAgente Smith Azul","MBA Azul").deployer,"InfraSmithMBAAzul");
   assert.equal(validateDeployIdentity("SmithAzul","MacBookAirAzul").deployer,"SmithMBAAzul");
   assert.throws(()=>validateDeployIdentity("Agente Smith Azul","MacMini"),/no coincide/);
+  assert.equal(validateDeployIdentity("NiobeMacMini","MacMini").signature,"NiobeMacMini · MacMini");
+  assert.equal(validateDeployIdentity("SubNiobeMini","Mac Mini").deployer,"SubNiobeMacMini");
+  assert.equal(validateDeployIdentity("InfraNiobeMini","admira-macmini").deployer,"InfraNiobeMacMini");
 });
 
 test("Wrangler recibe hash y mensaje firmados sin shell",()=>{

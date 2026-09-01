@@ -31,7 +31,7 @@
   function validAgent(value, identity) {
     var parsed = identity.parse(value), canonical = parsed.suffix && parsed.role === "main"
       ? identity.display(parsed.persona, parsed.suffix) : "";
-    return !!canonical && /^(?:oraculo|neo|morfeo|trinity|smith|agentesmith|whiterabbit)/.test(key(canonical));
+    return !!canonical && /^(?:oraculo|neo|morfeo|trinity|smith|agentesmith|whiterabbit|niobe)/.test(key(canonical));
   }
   function taskIdentity(task, identity) {
     var owner = text(task.owner || task.agent_identity), generic = /^infra(?:agente)?$/i.test(owner) ? "infra" : /^sub(?:agente)?$/i.test(owner) ? "sub" : "";

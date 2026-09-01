@@ -205,6 +205,26 @@ test("ranking canonicaliza OraculoMacMini en OraculoMini, suma 875+40 y renumera
   assert.equal(legacyRequest.ranking.current_index,0);
 });
 
+test("NiobeMacMini recibe sólo sus puntos y Oraculo queda como familia histórica distinta",async()=>{
+  const {db,env,F}=harness(),now=Date.UTC(2026,7,13,18),at=Date.UTC(2026,7,13,8);
+  db.exec("INSERT INTO projects VALUES ('yokup','Yokup')");
+  db.exec(`INSERT INTO ideas(id,author,created_at,title,author_identity,project) VALUES
+    ('N-OBJ','NiobeMini',${at},'Objetivo Niobe','NiobeMacMini','yokup')`);
+  const insert=db.prepare("INSERT INTO tickets(id,source,role,status,assignee,loc,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,subject,project,project_id,proof_image) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+  insert.run('N-1','decision-batch','mission','resolved','NiobeMacMini','MacMini',null,at+1,at+1,at+1,at+1,at+1,'Misión Niobe','Yokup','yokup','proof');
+  insert.run('O-1','decision-batch','mission','resolved','OraculoMacMini','MacMini',null,at+2,at+2,at+2,at+2,at+2,'Misión histórica Oraculo','Yokup','yokup','proof');
+
+  const result=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,'NiobeMacMini','yokup','today',now)));
+  assert.equal(result.agent,'NiobeMacMini');
+  assert.equal(result.metrics.points,60);
+  assert.deepEqual(result.ranking.ordered,[
+    {agent:'NiobeMacMini',points:60,position:1},
+    {agent:'OraculoMini',points:40,position:2}
+  ]);
+  assert.equal(result.ranking.ordered.some(row=>row.agent==='OraculoMacMini'),false,
+    "Oraculo conserva su alias histórico propio, sin migrar sus puntos a Niobe");
+});
+
 test("ranking devuelve todos los puntuados, excluye cero y corta navegación en los extremos",async()=>{
   const {db,env,F}=harness(),now=Date.UTC(2026,7,13,18),today=Date.UTC(2026,7,13,8),yesterday=Date.UTC(2026,7,12,8);
   db.exec("INSERT INTO projects VALUES ('scope','Scope'),('otro','Otro')");
