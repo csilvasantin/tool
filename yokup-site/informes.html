@@ -29,12 +29,19 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:4px 0 
 h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .sub{color:var(--mut);font-size:14.5px;margin-bottom:14px}.sub b{color:var(--violet)}
 /* Filtro por FECHA del informe (updated_at) — por defecto: hoy. Igual que /tareas. */
-.tfilter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
+.report-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.tfilter{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .tf{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;border-radius:9px;border:1px solid var(--line);color:var(--mut);background:var(--card);cursor:pointer;transition:.2s}
 .tf:hover{color:var(--brand);border-color:var(--line2)}
 .tf.on{color:#02080d;background:var(--brand);border-color:var(--brand)}
 .tf-date{font-family:var(--mono);font-size:11px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:9px;padding:7px 10px;outline:none;cursor:pointer;color-scheme:dark}
 .tf-date:focus,.tf-date.on{border-color:var(--brand)}
+.view-switch{display:inline-flex;align-items:center;gap:3px;padding:3px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-family:var(--mono)}
+.view-label{padding:0 7px;color:var(--dim);font-size:9px;letter-spacing:.08em;text-transform:uppercase}
+.view-option{min-height:32px;padding:6px 10px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--mut);font:700 10px/1 var(--mono);letter-spacing:.045em;text-transform:uppercase;cursor:pointer}
+.view-option:hover{color:var(--brand);background:rgba(120,243,255,.05)}
+.view-option:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+.view-option[aria-pressed="true"]{color:#02080d;background:var(--brand);border-color:var(--brand)}
 
 /* ── HOJA DE CÁLCULO (columnas, estilo /misiones) ─────────────────────────────
    Cada informe es una FILA con columnas: Agente · Misión · Petición · Resultado ·
@@ -47,6 +54,26 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
    en pantallas estrechas la misma fila pasa a tarjeta, sin scrollbar permanente. */
 .sheet-wrap{width:100%;min-width:0;overflow-x:hidden;border:1px solid var(--line);border-radius:13px;background:var(--card)}
 .sheet{width:100%;min-width:0}
+.sheet-wrap[data-view="grid"]{overflow:visible;border:0;border-radius:0;background:transparent}
+.sheet[data-view="grid"]{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px}
+/* La cuadrícula recupera el lenguaje de las tarjetas de Informes anterior a la
+   hoja de cálculo (14d9820): borde fino, fondo Yokup, cabecera mono y parte con
+   barra cian. Se conservan las evidencias y métricas añadidas después. */
+.sheet[data-view="grid"]>.rep{min-width:0;border:1px solid var(--line);border-radius:13px;background:var(--card);padding:15px 17px;transition:.15s}
+.sheet[data-view="grid"]>.rep:hover{background:var(--card2);border-color:var(--line2)}
+.rhd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-family:var(--mono);margin-bottom:8px}
+.rcode{font-size:10px;color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:2px 7px;letter-spacing:.04em;text-transform:uppercase}
+.rown{font-size:10px;color:var(--mut);margin-left:auto;overflow-wrap:anywhere}
+.rttl{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:3px;overflow-wrap:anywhere}
+.rmeta{font-family:var(--mono);font-size:10px;line-height:1.4;color:var(--mut);margin-bottom:9px;overflow-wrap:anywhere}.rmeta .scr{color:var(--brand)}
+.rbody{font-size:13.5px;line-height:1.55;color:var(--ink);border-left:2px solid var(--line2);padding:2px 0 2px 12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.rep-evidence{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px}
+.rep-proof{min-width:0;border:1px solid var(--line);border-radius:9px;background:rgba(120,243,255,.025);padding:8px;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.rep-proof>span:first-child{font:700 8.5px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--dim)}
+.rep-proof .shot-img{width:100%;max-width:none}.rep-proof .shot-none{min-height:58px;display:flex;align-items:center}
+.rep-foot{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px;align-items:start;margin-top:10px}
+.rep-foot .hs-ev{max-width:none}.rep-foot .rep-pdf{grid-column:1/-1;margin-top:0}
+.rts{font-family:var(--mono);font-size:10px;line-height:1.45;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin-top:9px}
 .grow{width:100%;min-width:0;display:grid;grid-template-columns:minmax(0,var(--col-agente,138px)) minmax(0,var(--col-mision,170px)) minmax(0,var(--col-proceso,132px)) minmax(0,var(--col-captura,150px)) minmax(0,var(--col-informe,258px)) minmax(0,var(--col-tiempo,150px)) minmax(0,var(--col-puntos,172px));align-items:stretch}
 .ghead{position:sticky;top:0;z-index:2;background:var(--card2);border-bottom:1px solid var(--line2)}
 .ghead>div{position:relative;font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--brand);border-left:1px solid var(--line)}
@@ -167,11 +194,16 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .debe-row b{flex:none;font-family:var(--mono);font-size:11.5px;color:#ffb454;letter-spacing:.04em}
 .debe-tx{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .debe-ag{flex:none;font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.04em}
+.debe[data-view="grid"] .debe-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:9px}
+.debe[data-view="grid"] .debe-row{min-width:0;min-height:78px;align-content:start;align-items:flex-start;flex-wrap:wrap;border:1px solid rgba(255,180,84,.22);background:rgba(255,180,84,.035);padding:11px 12px}
+.debe[data-view="grid"] .debe-row:hover{border-color:rgba(255,180,84,.5);background:rgba(255,180,84,.10)}
+.debe[data-view="grid"] .debe-tx{flex:1 1 100%;white-space:normal;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.debe[data-view="grid"] .debe-ag{margin-left:auto}
 .page-state{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:14px 8px 2px;font:10.5px/1.4 var(--mono);color:var(--dim)}
 .load-more{min-height:40px;padding:8px 15px;border:1px solid var(--line2);border-radius:8px;background:var(--card2);color:var(--brand);font:700 10px/1 var(--mono);letter-spacing:.055em;text-transform:uppercase;cursor:pointer}
 .load-more:hover,.load-more:focus-visible{border-color:var(--brand);outline:none}.load-more[disabled]{opacity:.55;cursor:progress}
 @media(max-width:560px){.debe-ag{display:none}}
-@media(max-width:640px){.wrap{padding:16px 12px 40px}.col-resize{width:16px;right:-8px}.col-resize:before{left:7px}}
+@media(max-width:640px){.wrap{padding:16px 12px 40px}.report-controls{align-items:stretch}.tfilter{flex:1 1 100%}.view-switch{margin-left:auto}.col-resize{width:16px;right:-8px}.col-resize:before{left:7px}}
 @media(max-width:900px){
   .sheet-wrap{overflow-x:hidden}
   .ghead{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
@@ -184,6 +216,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 @media(max-width:520px){
   .grow.item{grid-template-columns:minmax(0,1fr);padding-inline:8px}
   .gc,.gc.rep{grid-column:1}.rep-tx{-webkit-line-clamp:6}.shot-img{max-width:min(100%,280px)}
+  .sheet[data-view="grid"],.rep-evidence,.rep-foot,.debe[data-view="grid"] .debe-list{grid-template-columns:minmax(0,1fr)}
+  .rep-foot .rep-pdf{grid-column:1}
 }
 /* intro plegable REUTILIZABLE — patrón .page-intro de /objetivos. */
 .page-intro{margin:0}
@@ -213,20 +247,27 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
     </div>
   </details>
 
-  <!-- Filtro por FECHA del informe. Por defecto sólo los de HOY (igual que /tareas). -->
-  <div class="tfilter" id="tfilter">
-    <button class="tf on" data-r="hoy">Hoy</button>
-    <button class="tf" data-r="ayer">Ayer</button>
-    <button class="tf" data-r="7d">Últimos 7 días</button>
-    <button class="tf" data-r="todas">Todas</button>
-    <input class="tf-date" id="tfDate" type="date" title="Ver los informes de un día concreto">
+  <div class="report-controls">
+    <!-- Filtro por FECHA del informe. Por defecto sólo los de HOY (igual que /tareas). -->
+    <div class="tfilter" id="tfilter">
+      <button class="tf on" data-r="hoy">Hoy</button>
+      <button class="tf" data-r="ayer">Ayer</button>
+      <button class="tf" data-r="7d">Últimos 7 días</button>
+      <button class="tf" data-r="todas">Todas</button>
+      <input class="tf-date" id="tfDate" type="date" title="Ver los informes de un día concreto">
+    </div>
+    <div class="view-switch" id="reportView" role="group" aria-label="Presentación de los informes">
+      <span class="view-label" aria-hidden="true">Vista</span>
+      <button class="view-option" type="button" data-report-view="grid" aria-pressed="true">Cuadrícula</button>
+      <button class="view-option" type="button" data-report-view="list" aria-pressed="false">Lista</button>
+    </div>
   </div>
 
   <!-- Deuda: misiones terminadas que aún no tienen parte. Oculta si no hay ninguna. -->
-  <div class="debe" id="debe" hidden></div>
+  <div class="debe" id="debe" hidden data-view="grid" role="region" aria-label="Anomalías de informe"></div>
 
-  <div class="sheet-wrap">
-    <div class="sheet" id="reps" role="table" aria-label="Informes de misiones" aria-busy="true"><div class="empty loading" role="status"><b>Cargando informes…</b>Reuniendo los partes de todas las misiones.</div></div>
+  <div class="sheet-wrap" id="reportsSurface" data-view="grid">
+    <div class="sheet" id="reps" role="list" aria-label="Informes de misiones en cuadrícula" aria-busy="true"><div class="empty loading" role="status"><b>Cargando informes…</b>Reuniendo los partes de todas las misiones.</div></div>
   </div>
   <div class="page-state" aria-live="polite"><span id="pageStatus" role="status">0 cargados</span><button class="load-more" id="loadMore" type="button" hidden>Cargar más</button></div>
   <div class="foot">Yokup · informes · tareas con <b>report</b> · fuente <b>D1</b> (mission_tasks)</div>
@@ -261,6 +302,7 @@ function reportAgent(t){
 const PAGE_LIMIT=30;
 let ALL=[], MLAST={}, DFILTER={mode:"hoy", day:""}, PROJECT_SCOPE=null, PROJECT_READY=false;
 let SORT={key:"tiempo",dir:"desc"};
+let REPORT_VIEW="grid";
 let LOAD_STATE="loading", LOAD_INFLIGHT=null, LOAD_ABORT=null, LOAD_SEQ=0;
 let PAGE={cursor:null,hasMore:false,total:null,legacy:false,legacyRest:[]};
 let RENDERED_GROUPS=[];
@@ -329,7 +371,9 @@ function updateMissionLast(rows){
 function updatePageState(){
   const status=$("pageStatus"),button=$("loadMore");if(!status||!button)return;
   const total=Number.isFinite(Number(PAGE.total))?Number(PAGE.total):null;
-  const visible=YkInformesGroups.visibleCount(RENDERED_GROUPS,COLLAPSED_FAMILIES),loaded=ALL.length;
+  const visible=REPORT_VIEW==="grid"
+    ? RENDERED_GROUPS.reduce((count,group)=>count+group.rows.length,0)
+    : YkInformesGroups.visibleCount(RENDERED_GROUPS,COLLAPSED_FAMILIES),loaded=ALL.length;
   status.textContent=visible+" visibles · "+loaded+" cargados"+(total==null||total===loaded?"":" de "+total);
   button.hidden=!PAGE.hasMore;button.disabled=!!LOAD_INFLIGHT;
   button.textContent=LOAD_INFLIGHT?"Cargando…":"Cargar más";
@@ -536,15 +580,38 @@ function headHTML(){
     return '<div role="columnheader" aria-sort="'+aria+'" data-column="'+key+'"><button class="sort-head" type="button" data-sort="'+key+'" aria-label="Ordenar por '+label+' en orden '+next+'"><span>'+label+'</span><span class="sort-arrow" aria-hidden="true">'+arrow+'</span></button><span class="col-resize" role="separator" aria-orientation="vertical" tabindex="0" data-resize="'+key+'" aria-valuemin="'+spec.min+'" aria-valuemax="'+spec.max+'"></span></div>';
   }).join("")+'</div>';
 }
+function normalizeReportView(value){return value==="list"?"list":"grid";}
+function syncReportView(){
+  REPORT_VIEW=normalizeReportView(REPORT_VIEW);
+  const box=$("reps"),surface=$("reportsSurface"),debt=$("debe"),control=$("reportView");
+  if(surface)surface.dataset.view=REPORT_VIEW;
+  if(debt)debt.dataset.view=REPORT_VIEW;
+  if(box){
+    box.dataset.view=REPORT_VIEW;
+    box.setAttribute("role",REPORT_VIEW==="list"?"table":"list");
+    box.setAttribute("aria-label",REPORT_VIEW==="list"?"Informes de misiones en lista":"Informes de misiones en cuadrícula");
+  }
+  if(control)control.querySelectorAll("[data-report-view]").forEach(button=>{
+    const active=button.dataset.reportView===REPORT_VIEW;
+    button.setAttribute("aria-pressed",active?"true":"false");
+  });
+}
+function setReportView(value,focus=false){
+  const next=normalizeReportView(value);
+  if(next===REPORT_VIEW){syncReportView();return;}
+  REPORT_VIEW=next;syncReportView();applyFilter();
+  if(focus){const control=$("reportView"),button=control&&control.querySelector('[data-report-view="'+next+'"]');if(button)button.focus();}
+}
+function reportHeadHTML(){return REPORT_VIEW==="list"?headHTML():"";}
 function renderLoading(){
   const box=$("reps"); box.setAttribute("aria-busy","true");
-  box.innerHTML=headHTML()+'<div class="empty loading" role="status"><b>Cargando informes…</b>Reuniendo datos y aplicando el proyecto seleccionado.</div>';
-  COLUMN_RESIZE.apply();
+  syncReportView();box.innerHTML=reportHeadHTML()+'<div class="empty loading" role="status"><b>Cargando informes…</b>Reuniendo datos y aplicando el proyecto seleccionado.</div>';
+  if(REPORT_VIEW==="list")COLUMN_RESIZE.apply();
 }
 function renderLoadError(){
   const box=$("reps"); box.setAttribute("aria-busy","false");
-  box.innerHTML=headHTML()+'<div class="empty" role="alert"><b>No se pudieron cargar los informes</b>Conservamos la vista en espera; se reintentará automáticamente.</div>';
-  COLUMN_RESIZE.apply();
+  syncReportView();box.innerHTML=reportHeadHTML()+'<div class="empty" role="alert"><b>No se pudieron cargar los informes</b>Conservamos la vista en espera; se reintentará automáticamente.</div>';
+  if(REPORT_VIEW==="list")COLUMN_RESIZE.apply();
 }
 // Miniatura clicable (lightbox) o «—» honesto. `mission`=tiñe de ámbar (proof de cierre).
 function shotHTML(src,title,alt,mission){ return src
@@ -591,6 +658,69 @@ const ROLE_LABEL={main:"principal",sub:"subagente",infra:"infraagente"};
 function familyDomId(key){let h=2166136261;for(const c of String(key)){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return "family-"+(h>>>0).toString(36);}
 function familyToggleLabel(name,count,expanded){return (expanded?"Ocultar ":"Mostrar ")+count+" informe"+(count===1?"":"s")+" de "+name;}
 function render(list){
+  syncReportView();
+  return REPORT_VIEW==="grid"?renderGrid(list):renderList(list);
+}
+function reportAge(value){
+  const ms=_ms(value);if(!ms)return "fecha no disponible";
+  const seconds=Math.max(0,Math.round((Date.now()-ms)/1000));
+  if(seconds<60)return "hace "+seconds+"s";
+  if(seconds<3600)return "hace "+Math.round(seconds/60)+"m";
+  if(seconds<86400)return "hace "+Math.round(seconds/3600)+"h";
+  return "hace "+Math.round(seconds/86400)+"d";
+}
+function renderGrid(list){
+  const box=$("reps");box.setAttribute("aria-busy","false");
+  if(!list.length){
+    RENDERED_GROUPS=[];
+    const scope=emptyScopeLabel();
+    box.innerHTML='<div class="empty"><b>Sin actividad reportada de '+esc(scope.project)+' '+esc(scope.period)+'</b>'+
+      'No se cerró ni reportó trabajo en este proyecto y periodo. Puede haber informes en otros proyectos o fechas.</div>';
+    updatePageState();return;
+  }
+  RENDERED_GROUPS=[{key:"__grid__",name:"Cuadrícula",rows:list}];
+  box.innerHTML=list.map(t=>{
+    const agent=t._executor||reportAgent(t),role=t._agent_role||t.role||"main";
+    const own=role==="main"?"🧠":role==="infra"?"📝":"⚙️";
+    const mission=missionPresentation(t),taskCode=String(t.code||"—").toUpperCase();
+    const cardId=familyDomId("report:"+taskKey(t));
+    const proc = t.idea_image
+      ? shotHTML(t.idea_image, "Ampliar la idea que originó la misión" + (t.idea_url ? " — " + t.idea_url : ""),
+          "La idea que lo originó", false)
+      : shotHTML(t.process_image,
+          t.process_image ? "Ampliar el proceso — el CLI trabajando" : "sin captura de proceso",
+          "Proceso del CLI", false);
+    const capMission=!t.image?(t.mission_proof||""):"";
+    const shot=t.image
+      ? shotHTML(t.image,"Ampliar la captura de prueba","Captura de prueba",false)
+      : shotHTML(capMission,capMission?"proof de la misión — captura de cierre":"sin captura de prueba","Proof de la misión",true);
+    const subject=String(t.subject||t.title||"Informe de misión");
+    const project=String(t.project_name||t.project||t.screen||"").trim();
+    return `<article class="rep" role="listitem" aria-labelledby="${cardId}">
+      <div class="rhd">
+        <a class="mid" href="/ticket?id=${encodeURIComponent(mission.id)}" title="Abrir misión · ID técnico ${esc(mission.id)}">🎯 ${esc(mission.primary)}</a>
+        <span class="rcode" title="Código de tarea">Tarea ${esc(taskCode)}</span>
+        ${mission.secondary?`<span class="mref">${esc(mission.secondary)}</span>`:""}${mission.copy?`<button class="mcopy" type="button" data-copy-mission="${esc(mission.id)}" title="Copiar ID técnico ${esc(mission.id)}" aria-label="Copiar ID técnico ${esc(mission.id)}">copiar ID</button>`:""}
+        <span class="rown" title="${esc(agent)}">${own} ${esc(agent)} · ${esc(ROLE_LABEL[role]||role)}</span>
+      </div>
+      <h2 class="rttl" id="${cardId}">${esc(t.title||subject)}</h2>
+      <div class="rmeta">${project?`<span class="scr">${esc(project)}</span> · `:""}misión: ${esc(subject)}</div>
+      <div class="rbody">${esc(t.report)}</div>
+      <div class="rep-evidence">
+        <div class="rep-proof"><span>Petición</span>${proc}</div>
+        <div class="rep-proof"><span>Resultado</span>${shot}</div>
+      </div>
+      <div class="rep-foot">
+        <div class="rep-proof"><span>Tiempo</span>${tiempoHTML(t)}</div>
+        <div class="rep-proof pts-cell"><span>Puntos</span>${puntosHTML(t)}</div>
+        <button class="rep-pdf" data-pdf="${esc(t.mission_id)}|${esc(t.code||'')}" title="Descargar el parte completo en PDF — con el informe entero y las dos capturas dentro del fichero">📄 PDF</button>
+      </div>
+      <div class="rts">actualizado ${esc(reportAge(t.updated_at))}</div>
+    </article>`;
+  }).join("");
+  updatePageState();
+}
+function renderList(list){
   const box=$("reps");
   box.setAttribute("aria-busy","false");
   if(!list.length){
@@ -708,6 +838,11 @@ $("reps").addEventListener("click",e=>{
 });
 $("lb").addEventListener("click",()=>$("lb").classList.remove("on"));
 document.addEventListener("keydown",e=>{ if(e.key==="Escape") $("lb").classList.remove("on"); });
+const REPORT_VIEW_CONTROL=$("reportView");
+if(REPORT_VIEW_CONTROL)REPORT_VIEW_CONTROL.addEventListener("click",event=>{
+  const button=event.target.closest&&event.target.closest("[data-report-view]");if(!button)return;
+  setReportView(button.dataset.reportView);
+});
 $("loadMore").addEventListener("click",loadMore);
 // Un cambio de fecha inicia un snapshot paginado nuevo y aborta el anterior.
 $("tfilter").querySelectorAll(".tf").forEach(b=>b.onclick=()=>{
