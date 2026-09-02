@@ -56,10 +56,10 @@ test("Detalle resume por DeepAgent y misión, con tareas plegadas por defecto",(
   assert.match(detail,/YkInformesView\.missionGroups\(family\.rows\)\.map\(rollup\)/);
   assert.match(detail,/class="family-group" role="rowgroup"/);
   assert.match(detail,/class="mission-summary-row"|mission-summary-row/);
-  assert.match(detail,/class="mission-group" role="rowgroup" data-mission=/);
-  assert.match(detail,/class="family-detail-rows"[^>]*\$\{expanded\?"":" hidden"\}/);
+  assert.match(detail,/class="mission-rollup-group" role="rowgroup" data-mission=/);
+  assert.match(detail,/class="mission-task-rows" data-family-detail="true"\$\{expanded\?"":" hidden"\}/);
   assert.match(detail,/DeepAgent · agente principal/);
-  assert.match(detail,/Subagentes y tareas, agrupados por misión/);
+  assert.ok(detail.indexOf("mission-summary-row")<detail.indexOf("mission-task-rows"),"cada resumen de misión precede inmediatamente a sus tareas");
 });
 
 test("si todos los grupos con resultados llegan plegados, abre el primero",()=>{
@@ -81,7 +81,7 @@ test("el desplegable de DeepAgent sólo abre el detalle solicitado",()=>{
   assert.match(html,/let EXPANDED_FAMILIES=\{\}/);
   assert.match(html,/const expanded=button\.getAttribute\("aria-expanded"\)==="true",nextExpanded=!expanded/);
   assert.match(html,/if\(nextExpanded\)EXPANDED_FAMILIES\[key\]=true;else delete EXPANDED_FAMILIES\[key\]/);
-  assert.match(html,/if\(rows\)rows\.hidden=!nextExpanded/);
+  assert.match(html,/rows\.querySelectorAll\("\[data-family-detail\]"\)\.forEach/);
   assert.match(html,/count===1\?"misión":"misiones"/);
 });
 

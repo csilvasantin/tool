@@ -10,7 +10,7 @@ test("Detalle nace seleccionado y el selector expone tres botones accesibles",()
   assert.match(html,/src="\/yk-informes-view\.js\?v=r3"/);
   assert.match(html,/id="reportView"><\/div>/);
   assert.match(html,/YkInformesView\.mount\(\$\("reportView"\)/);
-  assert.match(html,/targets:\[\$\("reportsSurface"\),\$\("reps"\),\$\("debe"\)\]/);
+  assert.match(html,/targets:\[\$\("reportsSurface"\),\$\("reps"\)\]/);
   assert.match(html,/id="reps" role="table" aria-label="Detalle de informes de misiones y tareas"/);
   assert.match(html,/let REPORT_VIEW=YkInformesView\.DETAIL/);
 });
@@ -41,10 +41,12 @@ test("Detalle conserva la hoja histórica y añade jerarquía DeepAgent → misi
   assert.match(detail,/headHTML\(\)\+families\.map/);
   assert.match(detail,/ykAvatar\.html\(family\.name\)/);
   assert.match(detail,/grow item\$\{rowClass\}/);
-  assert.match(detail,/class="mission-group" role="rowgroup"/);
+  assert.match(detail,/class="mission-rollup-group" role="rowgroup"/);
   assert.match(detail,/YkInformesView\.missionGroups\(family\.rows\)/);
   assert.match(detail,/data-mission-summary="true"/);
+  assert.match(detail,/class="mission-task-rows" data-family-detail="true"/);
   assert.match(detail,/item\.details\.map\(t=>detailRowHTML\(t\)\)/);
+  assert.ok(detail.indexOf("mission-summary-row")<detail.indexOf("mission-task-rows"),"las tareas viven debajo de su resumen de misión");
   assert.match(detail,/COLUMN_RESIZE\.apply\(\);updatePageState\(\)/);
   assert.match(html,/YkInformesView\.rowsForView\(list,REPORT_VIEW\)/);
   assert.match(html,/if\(REPORT_VIEW===YkInformesView\.GRID\)return renderGrid\(rows\)/);
@@ -62,8 +64,7 @@ test("Lista es el resumen compacto y no duplica la hoja Detalle",()=>{
 test("la interfaz usa Misión antes de Tarea y conserva FLT sólo como ID técnico",()=>{
   assert.match(html,/return \(number\?"Misión "\+number\+" · ":""\)\+"Tarea"\+\(taskCode\?" "\+taskCode:""\)/);
   assert.match(html,/return "Misión"\+\(number\?" "\+number:""\)/);
-  assert.match(html,/title="Abrir misión · ID técnico /);
-  assert.match(html,/humanWorkLabel\(m,m\.debt_kind==="task_without_report"\?"task":"mission"\)/);
+  assert.match(html,/title="Abrir \$\{kind==="mission"\?"misión":"tarea"\} · ID técnico/);
 });
 
 test("Bandeja desaparece de Informes",()=>{
@@ -81,16 +82,10 @@ test("filtros, paginación y detalle operan sobre los mismos informes en ambas v
   assert.ok(html.indexOf('id="reportView"')<html.indexOf('id="reps"'),"el selector vive fuera del renderer y sobrevive a filtros y paginación");
 });
 
-test("anomalías comparten presentación pero siguen separadas de informes y contadores",()=>{
-  assert.match(html,/id="debe" hidden role="region" aria-label="Anomalías de informe"/);
-  assert.match(html,/\.debe\[data-informes-view="grid"\] \.debe-list\{display:grid/);
-  assert.match(html,/YkInformesView\.anomalyContract\(d\.debts\|\|d\.missions\|\|\[\]\)/);
-  assert.match(html,/data-debt-key=/);
-  assert.match(html,/fetch\(WORKER\+"\/fleet\/informes-deuda"/);
-  const debt=html.slice(html.indexOf("async function loadDebe"),html.indexOf("// RESULTADO",html.indexOf("async function loadDebe")));
-  assert.doesNotMatch(debt,/\bALL\b|RENDERED_GROUPS|puntosHTML|inRange|PROJECT_SCOPE/);
+test("Detalle no mezcla la deuda histórica como un cuarto modo",()=>{
+  assert.doesNotMatch(html,/id="debe"|class="debe"|async function loadDebe|data-debt-key=/);
+  assert.doesNotMatch(html,/fetch\(WORKER\+"\/fleet\/informes-deuda"/);
   const count=html.slice(html.indexOf("function updatePageState"),html.indexOf("function pageUrl"));
   assert.match(count,/LAST_VIEW_ROWS\.length/);
   assert.doesNotMatch(count,/debe|debt|anomal/);
-  assert.ok(html.indexOf('id="reportsSurface"')<html.indexOf('id="debe"'),"Detalle ocupa el primer plano y la deuda permanece como región posterior independiente");
 });

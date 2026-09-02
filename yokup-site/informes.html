@@ -111,9 +111,12 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .family-name{color:var(--brand);letter-spacing:.035em;font-size:12px}.family-count{color:var(--dim);font-weight:400}
 .family-action{margin-left:auto;color:var(--mut);font-weight:400;font-size:9.5px;letter-spacing:.045em;text-transform:uppercase}
 .family-toggle:hover .family-action,.family-toggle:focus-visible .family-action{color:var(--brand)}
-.family-detail-rows{background:rgba(3,13,20,.44);border-top:1px dashed rgba(120,243,255,.24)}
-.family-detail-rows[hidden]{display:none}
-.family-detail-head{padding:8px 13px;color:var(--dim);font:700 9px/1.3 var(--mono);letter-spacing:.07em;text-transform:uppercase;background:rgba(120,243,255,.025)}
+.family-mission-summaries{display:block}
+.mission-rollup-group{display:block;border-bottom:1px solid var(--line2);background:rgba(120,243,255,.012)}
+.mission-rollup-group:last-child{border-bottom:0}
+.mission-rollup-group:nth-child(even){background:rgba(120,243,255,.025)}
+.mission-task-rows{background:rgba(3,13,20,.44);border-top:1px dashed rgba(120,243,255,.24)}
+.mission-task-rows[hidden]{display:none}
 .mission-summary-row{background:rgba(120,243,255,.018)}
 .mission-summary-row .role-badge{color:var(--brand)}
 .mission-rollup{align-self:center;color:var(--dim);font:700 9px/1.4 var(--mono);letter-spacing:.04em;text-align:center}
@@ -199,27 +202,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .empty.loading:after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(120,243,255,.08),transparent);animation:rep-load 1.15s infinite}
 @keyframes rep-load{to{transform:translateX(100%)}}
 .foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
-/* DEUDA DE INFORMES (Carlos, 24-jul-2026): las misiones terminadas SIN parte no
-   salen en la sábana — no existen como informe. Se nombran después del informe,
-   en ámbar, para que la falta se vea sin tapar Detalle. Sin deuda, la banda no está. */
-.debe{border:1px solid rgba(255,180,84,.34);background:rgba(255,180,84,.06);border-radius:14px;padding:14px 16px;margin:18px 0 16px}
-.debe-hd{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:#ffb454;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.debe-sub{color:var(--dim);font-size:10.5px;letter-spacing:.04em;text-transform:none}
-.debe-list{margin-top:10px;display:flex;flex-direction:column;gap:1px}
-.debe-row{display:flex;gap:12px;align-items:baseline;padding:7px 8px;border-radius:8px;text-decoration:none;color:var(--mut);font-size:13px}
-.debe-row:hover{background:rgba(255,180,84,.10);color:var(--ink)}
-.debe-row b{flex:none;font-family:var(--mono);font-size:11.5px;color:#ffb454;letter-spacing:.04em}
-.debe-tx{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.debe-ag{flex:none;font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.04em}
-.debe[data-informes-view="grid"] .debe-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:9px}
-.debe[data-informes-view="grid"] .debe-row{min-width:0;min-height:78px;align-content:start;align-items:flex-start;flex-wrap:wrap;border:1px solid rgba(255,180,84,.22);background:rgba(255,180,84,.035);padding:11px 12px}
-.debe[data-informes-view="grid"] .debe-row:hover{border-color:rgba(255,180,84,.5);background:rgba(255,180,84,.10)}
-.debe[data-informes-view="grid"] .debe-tx{flex:1 1 100%;white-space:normal;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
-.debe[data-informes-view="grid"] .debe-ag{margin-left:auto}
 .page-state{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:14px 8px 2px;font:10.5px/1.4 var(--mono);color:var(--dim)}
 .load-more{min-height:40px;padding:8px 15px;border:1px solid var(--line2);border-radius:8px;background:var(--card2);color:var(--brand);font:700 10px/1 var(--mono);letter-spacing:.055em;text-transform:uppercase;cursor:pointer}
 .load-more:hover,.load-more:focus-visible{border-color:var(--brand);outline:none}.load-more[disabled]{opacity:.55;cursor:progress}
-@media(max-width:560px){.debe-ag{display:none}}
 @media(max-width:640px){.wrap{padding:16px 12px 40px}.report-controls{align-items:stretch}.tfilter{flex:1 1 100%}#reportView{margin-left:auto}.col-resize{width:16px;right:-8px}.col-resize:before{left:7px}}
 @media(max-width:900px){
   .sheet-wrap{overflow-x:hidden}
@@ -235,7 +220,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   [data-informes-view="detail"] .grow.item{grid-template-columns:minmax(0,1fr);padding-inline:8px}
   [data-informes-view="detail"] .gc,[data-informes-view="detail"] .gc.rep{grid-column:1}.rep-tx{-webkit-line-clamp:6}.shot-img{max-width:min(100%,280px)}
   .report-list-row{grid-template-columns:minmax(0,1fr);gap:5px}.report-list-title,.report-list-body{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-  .sheet[data-informes-view="grid"],.rep-evidence,.rep-foot,.debe[data-informes-view="grid"] .debe-list{grid-template-columns:minmax(0,1fr)}
+  .sheet[data-informes-view="grid"],.rep-evidence,.rep-foot{grid-template-columns:minmax(0,1fr)}
   .rep-foot .rep-pdf{grid-column:1}
 }
 /* intro plegable REUTILIZABLE — patrón .page-intro de /objetivos. */
@@ -279,10 +264,6 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
     <div class="sheet" id="reps" role="table" aria-label="Detalle de informes de misiones y tareas" aria-busy="true"><div class="empty loading" role="status"><b>Cargando informes…</b>Reuniendo los partes de todas las misiones.</div></div>
   </div>
   <div class="page-state" aria-live="polite"><span id="pageStatus" role="status">0 cargados</span><button class="load-more" id="loadMore" type="button" hidden>Cargar más</button></div>
-
-  <!-- Deuda: misiones terminadas que aún no tienen parte. Va después del informe
-       para que la vista Detalle conserve el primer plano aprobado. -->
-  <div class="debe" id="debe" hidden role="region" aria-label="Anomalías de informe"></div>
 
   <div class="foot">Yokup · informes · tareas con <b>report</b> · fuente <b>D1</b> (mission_tasks)</div>
 
@@ -450,30 +431,6 @@ function loadMore(){
 }
 function refresh(){if(LOAD_INFLIGHT||PAGE.legacy||LOAD_STATE!=="ready")return Promise.resolve(false);return loadPage({refresh:true});}
 
-// ── DEUDA DE INFORMES ───────────────────────────────────────────────────────
-// «Todas las misiones finalizadas tienen que tener su informe» (Carlos, 24-jul-2026).
-// Una misión cerrada SIN parte no aparece en la sábana —no hay nada que pintar—, así
-// que se quedaba invisible justo la que hay que perseguir. Se nombra aquí arriba.
-// NO se filtra por fecha: una deuda vieja sigue siendo deuda hoy.
-async function loadDebe(){
-  const box=$("debe"); if(!box) return;
-  // Endpoint propio: /fleet/missions va capada a 120 y saca las abiertas primero,
-  // así que la deuda vieja se quedaba fuera de la ventana. Aquí vienen TODAS.
-  let d; try{ const r=await fetch(WORKER+"/fleet/informes-deuda",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
-  const debt=YkInformesView.anomalyContract(d.debts||d.missions||[]),sin=YkInformesView.canonicalMissionRows?YkInformesView.canonicalMissionRows(debt.rows):debt.rows;
-  if(!sin.length){ box.hidden=true; box.innerHTML=""; return; }
-  const debtLabel=m=>m.debt_kind==="task_without_report"?("Tarea "+(m.code||"—")+" hecha sin informe"):
-    m.debt_kind==="resolved_open_tree"?"Misión cerrada con tareas abiertas":"Misión cerrada sin informe final z1";
-  box.hidden=false;
-  box.innerHTML='<div class="debe-hd">⚠️ '+sin.length+(sin.length===1?' anomalía de informe':' anomalías de informe')+
-      '<span class="debe-sub">Toda tarea y toda misión debe cerrar con parte; no se inventan retrospectivos</span></div>'+
-    '<div class="debe-list">'+sin.map(m=>
-      '<a class="debe-row" data-debt-key="'+esc(YkInformesView.anomalyKey(m))+'" href="/ticket?id='+encodeURIComponent(m.id)+'" title="Abrir misión · ID técnico '+esc(m.id)+'">'+
-        '<b>'+esc(humanWorkLabel(m,m.debt_kind==="task_without_report"?"task":"mission"))+'</b>'+
-        '<span class="debe-tx">'+esc(debtLabel(m)+' · '+String(m.subject||m.title||"—").slice(0,100))+'</span>'+
-        '<span class="debe-ag">'+esc(m.assignee||m.persona||"—")+'</span>'+
-      '</a>').join("")+'</div>';
-}
 // RESULTADO = lo que se ve + lo que produjo (Carlos, 8-ago-2026). La columna se
 // llamaba «Captura» y sólo enseñaba una miniatura: decía QUE se hizo, no CUANTO
 // valio. El worker sella los puntos del agente al empezar y al cerrar, y aqui se
@@ -591,7 +548,7 @@ function syncReportSemantics(){
   box.setAttribute("aria-label",detail?"Detalle de informes de misiones y tareas":REPORT_VIEW===YkInformesView.GRID?"Informes de misiones y tareas en cuadrícula":"Informes de misiones y tareas en lista");
 }
 const REPORT_VIEW_CONTROL=YkInformesView.mount($("reportView"),{
-  targets:[$("reportsSurface"),$("reps"),$("debe")],controls:"reps debe",
+  targets:[$("reportsSurface"),$("reps")],controls:"reps",
   onChange:view=>{REPORT_VIEW=view;syncReportSemantics();applyFilter();}
 });
 REPORT_VIEW=REPORT_VIEW_CONTROL.getView();syncReportSemantics();
@@ -848,15 +805,16 @@ function renderDetail(list){
   box.innerHTML=headHTML()+families.map(family=>{
     const familyId=familyDomId(family.key),expanded=EXPANDED_FAMILIES[family.key]===true;
     const missions=YkInformesView.missionGroups(family.rows).map(rollup);
-    const summaries=missions.map(item=>detailRowHTML(item.row,{summary:true,familyName:family.name,taskCount:item.details.length,agentCount:item.agents.length})).join("");
-    const details=missions.map(item=>item.details.length?`<section class="mission-group" role="rowgroup" data-mission="${esc(item.key)}">${item.details.map(t=>detailRowHTML(t)).join("")}</section>`:"").join("");
-    const detailBody=details||'<div class="family-detail-head">Esta misión sólo tiene informe principal; no hay tareas de subagentes que desplegar.</div>';
+    const missionRows=missions.map(item=>{
+      const summary=detailRowHTML(item.row,{summary:true,familyName:family.name,taskCount:item.details.length,agentCount:item.agents.length});
+      const tasks=item.details.length?`<div class="mission-task-rows" data-family-detail="true"${expanded?"":" hidden"}>${item.details.map(t=>detailRowHTML(t)).join("")}</div>`:"";
+      return `<section class="mission-rollup-group" role="rowgroup" data-mission="${esc(item.key)}">${summary}${tasks}</section>`;
+    }).join("");
     const avatar=window.ykAvatar?ykAvatar.html(family.name):`<span class="who">🧠 ${esc(family.name)}</span>`;
     const scope=filterLabel()||"todas las fechas";
     return `<section class="family-group" role="rowgroup" data-family="${esc(family.key)}" aria-labelledby="${familyId}-label">
       <div class="family-summary" role="row"><div role="cell" aria-colspan="7"><button class="family-toggle" type="button" aria-expanded="${expanded?"true":"false"}" aria-controls="${familyId}" data-family-toggle="${esc(family.key)}" data-family-count="${missions.length}" data-family-name="${esc(family.name)}" aria-label="${esc(familyToggleLabel(family.name,missions.length,expanded))}"><span class="family-chevron" aria-hidden="true">▾</span><span class="family-toggle-avatar">${avatar}</span><span class="family-identity"><span class="family-kicker">DeepAgent · agente principal</span><span class="family-name" id="${familyId}-label">${esc(family.name)}</span><span class="family-count">${missionCountLabel(missions.length)} · ${family.rows.length} informe${family.rows.length===1?"":"s"} · ${esc(scope)}</span></span><span class="family-action">${expanded?"Ocultar detalle":"Ver subagentes"}</span></button></div></div>
-      <div class="family-mission-summaries">${summaries}</div>
-      <div class="family-detail-rows" id="${familyId}"${expanded?"":" hidden"}><div class="family-detail-head">Subagentes y tareas, agrupados por misión</div>${detailBody}</div>
+      <div class="family-mission-summaries" id="${familyId}">${missionRows}</div>
     </section>`;
   }).join("");
   COLUMN_RESIZE.apply();updatePageState();
@@ -865,7 +823,7 @@ $('reps').addEventListener("click",e=>{
   const button=e.target.closest&&e.target.closest("[data-family-toggle]");if(!button)return;
   const key=button.dataset.familyToggle,rows=$(button.getAttribute("aria-controls"));
   const expanded=button.getAttribute("aria-expanded")==="true",nextExpanded=!expanded;
-  button.setAttribute("aria-expanded",String(nextExpanded));if(rows)rows.hidden=!nextExpanded;
+  button.setAttribute("aria-expanded",String(nextExpanded));if(rows)rows.querySelectorAll("[data-family-detail]").forEach(detail=>{detail.hidden=!nextExpanded;});
   if(nextExpanded)EXPANDED_FAMILIES[key]=true;else delete EXPANDED_FAMILIES[key];
   const count=Number(button.dataset.familyCount)||0,name=button.dataset.familyName||"familia";
   button.setAttribute("aria-label",familyToggleLabel(name,count,nextExpanded));
@@ -927,7 +885,7 @@ $("tfDate").onchange=()=>{
   load();
 };
 
-// Datos, deuda, catálogo de proyectos (yk-frame) y personalización arrancan en
+// Datos, catálogo de proyectos (yk-frame) y personalización arrancan en
 // paralelo. La foto no bloquea /tasks/all: al llegar repinta sólo si ya hay datos.
 load();
 (window.ykAvatar ? ykAvatar.ready : Promise.resolve()).then(()=>{if(LOAD_STATE==="ready")applyFilter();});
@@ -938,8 +896,6 @@ setInterval(refresh,15000);
 // Detrás del refresco de datos a propósito: el orden de los temporizadores es
 // contrato para las pruebas, que disparan intervals[0] esperando el refresco.
 setInterval(()=>{cargaHighscore();},120000);
-// La deuda va por su cuenta: ni depende de los avatares ni del filtro de fecha.
-loadDebe(); setInterval(loadDebe,60000);
 </script>
 <script src="/informe-pdf.js?v=r1"></script>
 <script type="module" src="/avatar-widget.js?v=3"></script>

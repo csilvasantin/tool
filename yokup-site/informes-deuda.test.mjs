@@ -1,7 +1,6 @@
 // FLT-1018 (front) — el menú pinta INFORMES como COBERTURA, no como «curso/pend», y
-// /informes nombra arriba las misiones terminadas SIN parte: una misión cerrada sin
-// informe no tiene nada que pintar en la sábana, así que se quedaba invisible justo
-// la que hay que perseguir. (Carlos, 24-jul-2026.)
+// /informes muestra únicamente informes. La deuda sigue visible en la navegación,
+// pero no se mezcla como una cuarta vista debajo del modo Detalle.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -49,11 +48,9 @@ test('la deuda se marca visualmente y se explica en el title', () => {
   assert.match(CSS, /\.yk-nav-c\.yk-count-debe\{/, 'la clase existe en el CSS');
 });
 
-test('/informes lista las misiones terminadas sin parte', () => {
-  assert.match(INF, /id="debe" hidden/, 'la banda nace oculta');
-  assert.match(INF, /async function loadDebe\(\)/, 'hay carga propia de la deuda');
-  assert.match(INF, /\/fleet\/informes-deuda/, 'usa el endpoint propio, no la lista capada a 120');
-  assert.match(INF, /\/ticket\?id='\+encodeURIComponent\(m\.id\)/, 'cada fila abre su misión');
+test('/informes no mezcla las anomalías históricas con sus tres vistas', () => {
+  assert.doesNotMatch(INF, /id="debe"|class="debe"|async function loadDebe\(\)|\/fleet\/informes-deuda/);
+  assert.match(INF, /targets:\[\$\("reportsSurface"\),\$\("reps"\)\],controls:"reps"/);
 });
 
 test('el endpoint de deuda no está capado ni ordena por abiertas', () => {
@@ -68,24 +65,8 @@ test('el endpoint de deuda no está capado ni ordena por abiertas', () => {
 test('la deuda distingue informe final, tarea muda y árbol abierto', () => {
   assert.match(WORKER_SRC,/done_tasks_without_report/);
   assert.match(WORKER_SRC,/resolved_with_open_tasks/);
-  assert.match(INF,/task_without_report/);
-  assert.match(INF,/resolved_open_tree/);
 });
 
 test('el hover declara que su cobertura es global e histórica', () => {
   assert.match(FRAME,/Resumen global · todas las fechas y proyectos/);
-});
-
-test('la deuda NO se filtra por fecha: una deuda vieja sigue siendo deuda', () => {
-  const i = INF.indexOf('async function loadDebe()');
-  const b = INF.slice(i, i + 1400);
-  assert.ok(!/inRange\(/.test(b), 'loadDebe no aplica el filtro de fecha');
-  assert.match(INF, /loadDebe\(\); setInterval\(loadDebe/, 'se refresca por su cuenta');
-});
-
-test('sin deuda, la banda desaparece del todo', () => {
-  const i = INF.indexOf('async function loadDebe()');
-  const b = INF.slice(i, i + 1400);
-  assert.match(b, /if\(!sin\.length\)\{ box\.hidden=true; box\.innerHTML=""/,
-    'ni banda ni restos cuando no falta ninguno');
 });

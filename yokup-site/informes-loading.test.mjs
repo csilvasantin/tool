@@ -25,14 +25,13 @@ function element(innerHTML = "") {
 }
 const YkInformesView={GRID:"grid",LIST:"list",mount(_container,options){options.targets.forEach(target=>target&&target.setAttribute("data-informes-view","grid"));return {getView:()=>"grid"};},rowsForView:rows=>rows.slice(),anomalyContract:rows=>({rows}),anomalyKey:()=>"debt",rowKey:r=>(r.mission_id||"")+"\0"+(r.code||""),reportKind:r=>/^z\d+$/i.test(r.code||"")?"mission":"task",detailHref:r=>"/tareas?mission="+(r.mission_id||"")+"#"+(r.code||"")};
 
-test("proyecto temprano conserva loading; datos, deuda y avatar no se serializan", async () => {
+test("proyecto temprano conserva loading; datos y avatar no se serializan", async () => {
   const tasks = deferred(), avatar = deferred(), listeners = {}, intervals = [], calls = [];
   const elements = { reps:element('<div class="empty loading">Cargando informes…</div>'), reportsSurface:element(), reportView:element(), tfilter:element(), tfDate:element(), debe:element(), lb:element(), pageStatus:element(), loadMore:element() };
   elements.lb.querySelector = () => element();
   const fetch = (url) => {
     calls.push(url);
     if (url.includes("/tasks/all")) return tasks.promise;
-    if (url.includes("/fleet/informes-deuda")) return Promise.resolve({ok:true,status:200,json:async()=>({missions:[]})});
     if (url.includes("/highscore/daily")) return Promise.resolve({ok:true,status:200,json:async()=>({day:"2026-09-02",traceability:{chains:[]}})});
     throw new Error("fetch inesperado: " + url);
   };
@@ -56,7 +55,7 @@ test("proyecto temprano conserva loading; datos, deuda y avatar no se serializan
   vm.runInContext(main, context);
 
   assert.equal(calls.filter((url)=>url.includes("/tasks/all")).length, 1, "tasks arranca sin esperar avatar");
-  assert.equal(calls.filter((url)=>url.includes("/fleet/informes-deuda")).length, 1, "deuda arranca en paralelo");
+  assert.equal(calls.filter((url)=>url.includes("/fleet/informes-deuda")).length, 0, "la deuda no se mezcla con la vista Informes");
 
   listeners["yk:project-change"]({detail:{project_id:null,ready:true}});
   assert.match(elements.reps.innerHTML, /Cargando informes/);
