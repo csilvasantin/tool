@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import worker from "./src/index.js";
+import { OWN_MEDIA_ORIGINS } from "./src/proof-origin.js";
 
 const source = await readFile(new URL("./src/index.js", import.meta.url), "utf8");
 function extract(name) {
@@ -24,7 +25,8 @@ function extract(name) {
   throw new Error(`función incompleta: ${name}`);
 }
 
-const build = new Function(`
+// validateProofImage depende del modulo proof-origin: se le entrega igual que en el worker.
+const build = new Function('OWN_MEDIA_ORIGINS', `
   ${extract("normalizeProofImage")}
   ${extract("embeddedImageMatchesMime")}
   ${extract("imageBytesMatchMime")}
@@ -32,7 +34,7 @@ const build = new Function(`
   ${extract("validateProofImage")}
   return {embeddedImageMatchesMime,imageBytesMatchMime,unsafeEvidenceHost,validateProofImage};
 `);
-const { embeddedImageMatchesMime, imageBytesMatchMime, unsafeEvidenceHost, validateProofImage } = build();
+const { embeddedImageMatchesMime, imageBytesMatchMime, unsafeEvidenceHost, validateProofImage } = build(OWN_MEDIA_ORIGINS);
 
 test("data:image exige magic bytes coherentes con el MIME", () => {
   assert.equal(embeddedImageMatchesMime("data:image/png;base64,iVBORw0KGgo="), true);

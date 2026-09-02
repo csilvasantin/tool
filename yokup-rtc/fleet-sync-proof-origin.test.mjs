@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {missionProofOrigin,RTC_MEDIA_ORIGIN} from './src/proof-origin.js';
+import {missionProofOrigin,RTC_MEDIA_ORIGIN,OWN_MEDIA_ORIGINS} from './src/proof-origin.js';
 
 const source=await readFile(new URL('./src/index.js',import.meta.url),'utf8');
 
@@ -25,7 +25,8 @@ function extract(name) {
   throw new Error(`función incompleta: ${name}`);
 }
 
-const build=new Function(`
+// validateProofImage depende del modulo proof-origin: se le entrega igual que en el worker.
+const build=new Function('OWN_MEDIA_ORIGINS',`
   ${extract('normalizeProofImage')}
   ${extract('embeddedImageMatchesMime')}
   ${extract('imageBytesMatchMime')}
@@ -33,7 +34,7 @@ const build=new Function(`
   ${extract('validateProofImage')}
   return validateProofImage;
 `);
-const validateProofImage=build();
+const validateProofImage=build(OWN_MEDIA_ORIGINS);
 
 test('sync valida api.yokup.com y workers.dev contra R2 sin self-fetch',async()=>{
   const originalFetch=globalThis.fetch;
@@ -90,4 +91,22 @@ test('/fleet/sync consulta el proof final mediante el origen canónico',()=>{
   assert.match(sync,/canonicalCloseRequired && !\(prev && await hasCanonicalFleetClosure\(env, id\)\)/);
   assert.match(sync,/prev\.status === "resolved"[\s\S]*?await hasMissionProof\(env, id\)/);
   assert.doesNotMatch(proof,/validateProofImage\(env, row\.proof_image, "https:\/\/yokup-rtc/);
+});
+
+// EL CASO DE PRODUCCION (2026-09-02): la captura se sube a api.yokup.com pero el cierre
+// se pide por el nombre de workers.dev, asi que quien llama pasa un origen que NO es el
+// de la imagen. Antes de esto, `own` salia false, el worker se buscaba a si mismo por
+// fetch y devolvia «no se pudo verificar el contenido» con una imagen que responde 200.
+test('la media propia se reconoce aunque quien llama pase OTRO origen',async()=>{
+  const originalFetch=globalThis.fetch;
+  let fetches=0;
+  globalThis.fetch=async()=>{ fetches+=1; throw new Error('self-fetch loop'); };
+  const env={MEDIA:{async head(){ return {httpMetadata:{contentType:'image/jpeg'}}; }}};
+  try {
+    const url='https://api.yokup.com/media/fleet/a404eaff2d5f6243.jpeg';
+    const result=await validateProofImage(env,url,RTC_MEDIA_ORIGIN);   // <- origen distinto
+    assert.equal(result.value,url);
+    assert.ok(!result.error, String(result.error));
+  } finally { globalThis.fetch=originalFetch; }
+  assert.equal(fetches,0,'no puede volver a entrar al Worker por HTTP para verse a si mismo');
 });

@@ -11,3 +11,12 @@ test('host parecido, protocolo o ruta ajenos no obtienen trato de media propia',
   for (const url of ['https://api.yokup.com.evil.test/media/fleet/x.png','http://api.yokup.com/media/fleet/x.png','https://api.yokup.com/otro/x.png','basura'])
     assert.equal(missionProofOrigin(url),RTC_MEDIA_ORIGIN);
 });
+
+// La captura se sube a api.yokup.com y el cierre se pide por el nombre de workers.dev:
+// el worker tiene que reconocerse a si mismo en los dos, o intenta verificarse por fetch
+// contra si mismo y devuelve «no se pudo verificar el contenido» con una imagen buena.
+test('los dos nombres del worker cuentan como media propia',async()=>{
+  const {OWN_MEDIA_ORIGINS}=await import('./src/proof-origin.js');
+  assert.ok(OWN_MEDIA_ORIGINS.has('https://api.yokup.com'));
+  assert.ok(OWN_MEDIA_ORIGINS.has(RTC_MEDIA_ORIGIN));
+});

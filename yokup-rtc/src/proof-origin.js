@@ -1,5 +1,5 @@
 export const RTC_MEDIA_ORIGIN = 'https://yokup-rtc.csilvasantin.workers.dev';
-const OWN_MEDIA_ORIGINS = new Set([RTC_MEDIA_ORIGIN, 'https://api.yokup.com']);
+export const OWN_MEDIA_ORIGINS = new Set([RTC_MEDIA_ORIGIN, 'https://api.yokup.com']);
 
 export function missionProofOrigin(raw) {
   try {

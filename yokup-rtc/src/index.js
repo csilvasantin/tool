@@ -26,7 +26,7 @@ import {
   desiredStateForAction,
   validateCliAckBody
 } from "./cli-executor-contract.js";
-import { missionProofOrigin } from "./proof-origin.js";
+import { missionProofOrigin, OWN_MEDIA_ORIGINS } from "./proof-origin.js";
 import { SELLO_WORKER } from "./version-stamp.js";
 import { validateCoachCompletion, validateCoachLaunch, coachLessonForSlot, coachLessonForDimension, COACH_AUDIENCES, COACH_HOUR } from "./academy-coach.js";
 import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
@@ -2487,8 +2487,17 @@ async function validateProofImage(env, raw, origin) {
   }
   let parsed;
   try { parsed = new URL(norm.value); } catch (e) { return { value: null, error: "URL de imagen inválida" }; }
-  let own = false;
-  try { own = parsed.origin === new URL(origin).origin; } catch (e) {}
+  // EL WORKER RESPONDE EN VARIOS NOMBRES Y NO SE RECONOCIA A SI MISMO (2026-09-02).
+  // La captura se sube a api.yokup.com (es lo que usa mission-evidence.sh) pero el
+  // cierre se pide por yokup-rtc.*.workers.dev (lo que usa bot-inbox-paso.sh), asi que
+  // `own` salia false y el worker intentaba VERIFICAR SU PROPIA URL con un fetch a si
+  // mismo: la subpeticion revienta y el agente recibe «no se pudo verificar el contenido
+  // de la URL de prueba» con una imagen que responde 200 y es correcta. Cierre bloqueado
+  // sin que nada este mal. Ya habia un missionProofOrigin que conocia los dos nombres,
+  // pero solo lo usaba UN sitio: los cuatro endpoints vivos pasaban url.origin a pelo.
+  // Se decide aqui, en la validacion, para que no dependa de que cada llamada acierte.
+  let own = OWN_MEDIA_ORIGINS.has(parsed.origin);
+  if (!own) { try { own = parsed.origin === new URL(origin).origin; } catch (e) {} }
   if (own && /^\/media\/fleet\//.test(parsed.pathname)) {
     if (!env.MEDIA) return { value: null, error: "no se puede comprobar el objeto: bucket MEDIA no disponible" };
     const key = decodeURIComponent(parsed.pathname.replace(/^\/media\//, ""));
