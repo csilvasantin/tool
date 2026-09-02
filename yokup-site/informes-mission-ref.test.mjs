@@ -14,29 +14,29 @@ assert.ok(start>0&&end>start,"no se encontró el presentador de misión");
 const context=vm.createContext({});
 vm.runInContext(html.slice(start,end)+"\nthis.compactMissionRef=compactMissionRef;this.missionPresentation=missionPresentation;",context);
 
-test("DCL usa display_ref compacto como título y conserva el id copiable",()=>{
+test("DCL usa Misión como lenguaje visible y conserva el id copiable",()=>{
   const row={mission_id:"DCL-mshrt2y9ekot",mission_display_ref:"0047.06/08/2026.19:09"};
   assert.deepEqual(
     JSON.parse(JSON.stringify(context.missionPresentation(row))),
-    {id:"DCL-mshrt2y9ekot",primary:"0047 · 06/08 · 19:09",secondary:"",copy:true}
+    {id:"DCL-mshrt2y9ekot",primary:"Misión 0047",secondary:"06/08 · 19:09",copy:true}
   );
   assert.match(html,/data-copy-mission=/);
   assert.match(html,/navigator\.clipboard\.writeText\(id\)/);
   assert.match(html,/title="Abrir \$\{kind==="mission"\?"misión":"tarea"\} · ID técnico/);
 });
 
-test("FLT conserva FLT-1234 como referencia principal y añade la humana",()=>{
+test("FLT deja de ser visible y se presenta como Misión",()=>{
   const row={mission_id:"FLT-1234",mission_display_ref:"0048.06/08/2026.19:10"};
   assert.deepEqual(
     JSON.parse(JSON.stringify(context.missionPresentation(row))),
-    {id:"FLT-1234",primary:"FLT-1234",secondary:"0048 · 06/08 · 19:10",copy:false}
+    {id:"FLT-1234",primary:"Misión 1234",secondary:"06/08 · 19:10",copy:true}
   );
 });
 
-test("sin display_ref no inventa una referencia y mantiene el id",()=>{
+test("sin display_ref no expone un id opaco como título",()=>{
   assert.deepEqual(
     JSON.parse(JSON.stringify(context.missionPresentation({mission_id:"MIS-DEC-opaca"}))),
-    {id:"MIS-DEC-opaca",primary:"MIS-DEC-opaca",secondary:"",copy:true}
+    {id:"MIS-DEC-opaca",primary:"Misión",secondary:"",copy:true}
   );
 });
 

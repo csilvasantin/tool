@@ -1,13 +1,13 @@
 (function(root){
   "use strict";
 
-  var GRID="grid",LIST="list";
-  var STORAGE_KEY="yokup.informes.view.v1";
+  var DETAIL="detail",GRID="grid",LIST="list";
+  var STORAGE_KEY="yokup.informes.view.v2";
 
-  function normalize(value){return value===LIST?LIST:GRID;}
+  function normalize(value){return value===GRID||value===LIST?value:DETAIL;}
   function read(storage,key){
     try{return normalize(storage&&storage.getItem(key||STORAGE_KEY));}
-    catch(_){return GRID;}
+    catch(_){return DETAIL;}
   }
   function write(storage,key,value){
     try{if(storage)storage.setItem(key||STORAGE_KEY,normalize(value));return true;}
@@ -59,7 +59,7 @@
     function button(value,label){
       return '<button type="button" class="informes-view-option" data-informes-view-option="'+value+'" aria-pressed="'+(current===value?'true':'false')+'" aria-label="Mostrar informes en '+label.toLowerCase()+'"'+(target?' aria-controls="'+target.replace(/[<>&\"]/g,"")+'"':'')+'>'+label+'</button>';
     }
-    return '<div class="informes-view-switch" role="group" aria-label="Vista de informes">'+button(GRID,"Cuadrícula")+button(LIST,"Lista")+'</div>';
+    return '<div class="informes-view-switch" role="group" aria-label="Vista de informes">'+button(DETAIL,"Detalle")+button(GRID,"Cuadrícula")+button(LIST,"Lista")+'</div>';
   }
   function mount(container,options){
     if(!container)return null;
@@ -100,7 +100,7 @@
   }
 
   root.YkInformesView={
-    GRID:GRID,LIST:LIST,STORAGE_KEY:STORAGE_KEY,
+    DETAIL:DETAIL,GRID:GRID,LIST:LIST,STORAGE_KEY:STORAGE_KEY,
     normalize:normalize,read:read,write:write,rowKey:rowKey,reportKind:reportKind,
     detailHref:detailHref,rowsForView:rowsForView,dataContract:dataContract,
     anomalyKey:anomalyKey,anomalyContract:anomalyContract,

@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r17">
-<link rel="stylesheet" href="/yk-informes-view.css?v=r1">
+<link rel="stylesheet" href="/yk-informes-view.css?v=r2">
 <!-- Retrato de agente compartido con /misiones. Va en el <head> a propósito: el render
      de la tabla lo consulta y tiene que existir ya en el primer pintado. -->
 <script src="/yk-avatar.js?v=r2"></script>
@@ -20,7 +20,7 @@
 <script src="/yk-informes-sort.js?v=r1"></script>
 <script src="/yk-informes-columns.js?v=r1"></script>
 <script src="/yk-informes-groups.js?v=r2"></script>
-<script src="/yk-informes-view.js?v=r1"></script>
+<script src="/yk-informes-view.js?v=r2"></script>
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -50,7 +50,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
    en pantallas estrechas la misma fila pasa a tarjeta, sin scrollbar permanente. */
 .sheet-wrap{width:100%;min-width:0;overflow-x:hidden;border:1px solid var(--line);border-radius:13px;background:var(--card)}
 .sheet{width:100%;min-width:0}
-.sheet-wrap[data-informes-view="grid"]{overflow:visible;border:0;border-radius:0;background:transparent}
+.sheet-wrap[data-informes-view="grid"],.sheet-wrap[data-informes-view="list"]{overflow:visible;border:0;border-radius:0;background:transparent}
 .sheet[data-informes-view="grid"]{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px}
 /* La cuadrícula recupera el lenguaje de las tarjetas de Informes anterior a la
    hoja de cálculo (14d9820): borde fino, fondo Yokup, cabecera mono y parte con
@@ -70,6 +70,15 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .rep-foot{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px;align-items:start;margin-top:10px}
 .rep-foot .hs-ev{max-width:none}.rep-foot .rep-pdf{grid-column:1/-1;margin-top:0}
 .rts{font-family:var(--mono);font-size:10px;line-height:1.45;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin-top:9px}
+/* LISTA es el resumen compacto. DETALLE conserva la hoja histórica del 19-jul:
+   agente con retrato, evidencias, parte, tiempo y puntos en columnas. */
+.sheet[data-informes-view="list"]{display:flex;flex-direction:column;gap:7px}
+.report-list-row{display:grid;grid-template-columns:minmax(130px,.8fr) minmax(230px,1.35fr) minmax(0,2.2fr) auto;gap:14px;align-items:center;min-width:0;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--card);text-decoration:none;color:inherit;transition:.12s}
+.report-list-row:hover{border-color:var(--line2);background:var(--card2)}
+.report-list-ref{font:700 10.5px/1.35 var(--mono);color:var(--brand);letter-spacing:.025em}
+.report-list-title{min-width:0;color:var(--ink);font-size:12.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.report-list-body{min-width:0;color:var(--mut);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.report-list-agent{font:10.5px/1.35 var(--mono);color:var(--dim);white-space:nowrap}
 .grow{width:100%;min-width:0;display:grid;grid-template-columns:minmax(0,var(--col-agente,138px)) minmax(0,var(--col-mision,170px)) minmax(0,var(--col-proceso,132px)) minmax(0,var(--col-captura,150px)) minmax(0,var(--col-informe,258px)) minmax(0,var(--col-tiempo,150px)) minmax(0,var(--col-puntos,172px));align-items:stretch}
 .ghead{position:sticky;top:0;z-index:2;background:var(--card2);border-bottom:1px solid var(--line2)}
 .ghead>div{position:relative;font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--brand);border-left:1px solid var(--line)}
@@ -202,16 +211,18 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 @media(max-width:640px){.wrap{padding:16px 12px 40px}.report-controls{align-items:stretch}.tfilter{flex:1 1 100%}#reportView{margin-left:auto}.col-resize{width:16px;right:-8px}.col-resize:before{left:7px}}
 @media(max-width:900px){
   .sheet-wrap{overflow-x:hidden}
-  [data-informes-view="list"] .ghead{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-  [data-informes-view="list"] .grow.item{grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:4px 10px 10px}
-  [data-informes-view="list"] .gc{border-left:0;border-top:1px solid var(--line);padding:10px;align-items:flex-start;min-width:0}
-  [data-informes-view="list"] .gc:before{content:attr(data-label);display:block;margin-bottom:6px;color:var(--dim);font:700 8.5px/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase}
-  [data-informes-view="list"] .gc.rep{grid-column:1/-1}.shot-img{max-width:100%}
+  [data-informes-view="detail"] .ghead{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  [data-informes-view="detail"] .grow.item{grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:4px 10px 10px}
+  [data-informes-view="detail"] .gc{border-left:0;border-top:1px solid var(--line);padding:10px;align-items:flex-start;min-width:0}
+  [data-informes-view="detail"] .gc:before{content:attr(data-label);display:block;margin-bottom:6px;color:var(--dim);font:700 8.5px/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase}
+  [data-informes-view="detail"] .gc.rep{grid-column:1/-1}.shot-img{max-width:100%}
+  .report-list-row{grid-template-columns:minmax(110px,.8fr) minmax(160px,1.2fr) minmax(0,2fr)}.report-list-agent{display:none}
   .family-toggle{min-height:44px}.col-resize{display:none}
 }
 @media(max-width:520px){
-  [data-informes-view="list"] .grow.item{grid-template-columns:minmax(0,1fr);padding-inline:8px}
-  [data-informes-view="list"] .gc,[data-informes-view="list"] .gc.rep{grid-column:1}.rep-tx{-webkit-line-clamp:6}.shot-img{max-width:min(100%,280px)}
+  [data-informes-view="detail"] .grow.item{grid-template-columns:minmax(0,1fr);padding-inline:8px}
+  [data-informes-view="detail"] .gc,[data-informes-view="detail"] .gc.rep{grid-column:1}.rep-tx{-webkit-line-clamp:6}.shot-img{max-width:min(100%,280px)}
+  .report-list-row{grid-template-columns:minmax(0,1fr);gap:5px}.report-list-title,.report-list-body{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
   .sheet[data-informes-view="grid"],.rep-evidence,.rep-foot,.debe[data-informes-view="grid"] .debe-list{grid-template-columns:minmax(0,1fr)}
   .rep-foot .rep-pdf{grid-column:1}
 }
@@ -259,7 +270,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   <div class="debe" id="debe" hidden role="region" aria-label="Anomalías de informe"></div>
 
   <div class="sheet-wrap" id="reportsSurface">
-    <div class="sheet" id="reps" role="list" aria-label="Informes de misiones en cuadrícula" aria-busy="true"><div class="empty loading" role="status"><b>Cargando informes…</b>Reuniendo los partes de todas las misiones.</div></div>
+    <div class="sheet" id="reps" role="table" aria-label="Detalle de informes de misiones y tareas" aria-busy="true"><div class="empty loading" role="status"><b>Cargando informes…</b>Reuniendo los partes de todas las misiones.</div></div>
   </div>
   <div class="page-state" aria-live="polite"><span id="pageStatus" role="status">0 cargados</span><button class="load-more" id="loadMore" type="button" hidden>Cargar más</button></div>
   <div class="foot">Yokup · informes · tareas con <b>report</b> · fuente <b>D1</b> (mission_tasks)</div>
@@ -294,7 +305,7 @@ function reportAgent(t){
 const PAGE_LIMIT=30;
 let ALL=[], MLAST={}, DFILTER={mode:"hoy", day:""}, PROJECT_SCOPE=null, PROJECT_READY=false;
 let SORT={key:"tiempo",dir:"desc"};
-let REPORT_VIEW=YkInformesView.GRID;
+let REPORT_VIEW=YkInformesView.DETAIL;
 let LOAD_STATE="loading", LOAD_INFLIGHT=null, LOAD_ABORT=null, LOAD_SEQ=0;
 let PAGE={cursor:null,hasMore:false,total:null,legacy:false,legacyRest:[]};
 let RENDERED_GROUPS=[],LAST_VIEW_ROWS=[];
@@ -444,8 +455,8 @@ async function loadDebe(){
   box.innerHTML='<div class="debe-hd">⚠️ '+sin.length+(sin.length===1?' anomalía de informe':' anomalías de informe')+
       '<span class="debe-sub">Toda tarea y toda misión debe cerrar con parte; no se inventan retrospectivos</span></div>'+
     '<div class="debe-list">'+sin.map(m=>
-      '<a class="debe-row" data-debt-key="'+esc(YkInformesView.anomalyKey(m))+'" href="/ticket?id='+encodeURIComponent(m.id)+'" title="Abrir '+esc(m.id)+'">'+
-        '<b>'+esc(m.id)+'</b>'+
+      '<a class="debe-row" data-debt-key="'+esc(YkInformesView.anomalyKey(m))+'" href="/ticket?id='+encodeURIComponent(m.id)+'" title="Abrir misión · ID técnico '+esc(m.id)+'">'+
+        '<b>'+esc(humanWorkLabel(m,m.debt_kind==="task_without_report"?"task":"mission"))+'</b>'+
         '<span class="debe-tx">'+esc(debtLabel(m)+' · '+String(m.subject||m.title||"—").slice(0,100))+'</span>'+
         '<span class="debe-ag">'+esc(m.assignee||m.persona||"—")+'</span>'+
       '</a>').join("")+'</div>';
@@ -562,8 +573,9 @@ const COLUMN_SPECS={
 const COLUMN_RESIZE=YkInformesColumns.mount($("reps"),COLUMN_SPECS,{storageKey:"yokup.informes.columnWidths.v2"});
 function syncReportSemantics(){
   const box=$("reps");if(!box)return;
-  box.setAttribute("role",REPORT_VIEW===YkInformesView.LIST?"table":"list");
-  box.setAttribute("aria-label",REPORT_VIEW===YkInformesView.LIST?"Informes de misiones y tareas en lista":"Informes de misiones y tareas en cuadrícula");
+  const detail=REPORT_VIEW===YkInformesView.DETAIL;
+  box.setAttribute("role",detail?"table":"list");
+  box.setAttribute("aria-label",detail?"Detalle de informes de misiones y tareas":REPORT_VIEW===YkInformesView.GRID?"Informes de misiones y tareas en cuadrícula":"Informes de misiones y tareas en lista");
 }
 const REPORT_VIEW_CONTROL=YkInformesView.mount($("reportView"),{
   targets:[$("reportsSurface"),$("reps"),$("debe")],controls:"reps debe",
@@ -580,16 +592,16 @@ function headHTML(){
     return '<div role="columnheader" aria-sort="'+aria+'" data-column="'+key+'"><button class="sort-head" type="button" data-sort="'+key+'" aria-label="Ordenar por '+label+' en orden '+next+'"><span>'+label+'</span><span class="sort-arrow" aria-hidden="true">'+arrow+'</span></button><span class="col-resize" role="separator" aria-orientation="vertical" tabindex="0" data-resize="'+key+'" aria-valuemin="'+spec.min+'" aria-valuemax="'+spec.max+'"></span></div>';
   }).join("")+'</div>';
 }
-function reportHeadHTML(){return REPORT_VIEW==="list"?headHTML():"";}
+function reportHeadHTML(){return REPORT_VIEW===YkInformesView.DETAIL?headHTML():"";}
 function renderLoading(){
   const box=$("reps"); box.setAttribute("aria-busy","true");
   LAST_VIEW_ROWS=[];syncReportSemantics();box.innerHTML=reportHeadHTML()+'<div class="empty loading" role="status"><b>Cargando informes…</b>Reuniendo datos y aplicando el proyecto seleccionado.</div>';
-  if(REPORT_VIEW==="list")COLUMN_RESIZE.apply();
+  if(REPORT_VIEW===YkInformesView.DETAIL)COLUMN_RESIZE.apply();
 }
 function renderLoadError(){
   const box=$("reps"); box.setAttribute("aria-busy","false");
   LAST_VIEW_ROWS=[];syncReportSemantics();box.innerHTML=reportHeadHTML()+'<div class="empty" role="alert"><b>No se pudieron cargar los informes</b>Conservamos la vista en espera; se reintentará automáticamente.</div>';
-  if(REPORT_VIEW==="list")COLUMN_RESIZE.apply();
+  if(REPORT_VIEW===YkInformesView.DETAIL)COLUMN_RESIZE.apply();
 }
 // Miniatura clicable (lightbox) o «—» honesto. `mission`=tiñe de ámbar (proof de cierre).
 function shotHTML(src,title,alt,mission){ return src
@@ -615,19 +627,38 @@ function tiempoHTML(t){
   return '<span class="tcell">'+pref+'⏱ '+body+'</span>';
 }
 // Referencia humana canónica de la API: 0047.06/08/2026.19:09 →
-// 0047 · 06/08 · 19:09. Los FLT-<n> ya son comprensibles y conservan ese
-// rótulo principal; los ids opacos DCL/MIS ceden el título a display_ref y quedan
-// disponibles mediante «copiar ID», sin elipsis ambiguas en móvil.
+// 0047 · 06/08 · 19:09. Los prefijos internos (FLT/DCL/MIS) no son lenguaje de
+// producto: la interfaz dice Misión o Tarea y conserva el ID sólo en tooltip/copia.
 function compactMissionRef(raw){
   const value=String(raw||"").trim();
   const match=/^(\d{4})\.(\d{2})\/(\d{2})\/\d{4}\.(\d{2}:\d{2})$/.exec(value);
   return match?match[1]+" · "+match[2]+"/"+match[3]+" · "+match[4]:value;
 }
+function missionNumber(id,ref){
+  const technical=/^FLT-(\d+)$/i.exec(String(id||"").trim());
+  if(technical)return technical[1];
+  const canonical=/^(\d{4})\b/.exec(String(ref||"").trim());
+  return canonical?canonical[1]:"";
+}
+function humanWorkLabel(t,forcedKind){
+  const id=String((t&&t.mission_id)||(t&&t.id)||"").trim();
+  const ref=compactMissionRef(t&&t.mission_display_ref);
+  const explicit=String(t&&(t.report_scope||t.report_kind)||"").toLowerCase();
+  const code=String((t&&t.code)||"").trim();
+  const inferred=explicit==="mission"||explicit==="mision"?"mission":explicit==="task"||explicit==="tarea"?"task":code?( /^z\d+$/i.test(code)?"mission":"task" ):"mission";
+  const number=missionNumber(id,ref),kind=forcedKind||inferred;
+  if(kind==="task"){
+    const taskCode=code.toUpperCase();
+    return "Tarea"+(taskCode?" "+taskCode:"")+(number?" · Misión "+number:"");
+  }
+  return "Misión"+(number?" "+number:"");
+}
 function missionPresentation(t){
   const id=String(t.mission_id||"").trim();
   const ref=compactMissionRef(t.mission_display_ref);
-  const readable=/^FLT-\d+$/i.test(id);
-  return {id,primary:readable?id:(ref||id),secondary:readable?ref:"",copy:!readable&&!!id};
+  const primary=humanWorkLabel(t);
+  const secondary=ref.replace(/^\d{4}\s*·\s*/,"");
+  return {id,primary:primary||"Misión",secondary,copy:!!id};
 }
 // Plegado efímero: cada entrada a /informes empieza abierta. Persistirlo en
 // localStorage dejó a usuarios con «7 cargados» y cero filas durante días.
@@ -638,7 +669,9 @@ function familyToggleLabel(name,count,expanded){return (expanded?"Ocultar ":"Mos
 function render(list){
   const rows=YkInformesView.rowsForView(list,REPORT_VIEW);
   LAST_VIEW_ROWS=rows;syncReportSemantics();
-  return REPORT_VIEW===YkInformesView.GRID?renderGrid(rows):renderList(rows);
+  if(REPORT_VIEW===YkInformesView.GRID)return renderGrid(rows);
+  if(REPORT_VIEW===YkInformesView.LIST)return renderList(rows);
+  return renderDetail(rows);
 }
 function reportAge(value){
   const ms=_ms(value);if(!ms)return "fecha no disponible";
@@ -701,6 +734,27 @@ function renderGrid(list){
   updatePageState();
 }
 function renderList(list){
+  const box=$("reps");box.setAttribute("aria-busy","false");
+  if(!list.length){
+    RENDERED_GROUPS=[];
+    const scope=emptyScopeLabel();
+    box.innerHTML='<div class="empty"><b>Sin actividad reportada de '+esc(scope.project)+' '+esc(scope.period)+'</b>No se cerró ni reportó trabajo en este proyecto y periodo.</div>';
+    updatePageState();return;
+  }
+  RENDERED_GROUPS=[{key:"__list__",name:"Lista",rows:list}];
+  box.innerHTML=list.map(t=>{
+    const agent=t._executor||t.executor||reportAgent(t),mission=missionPresentation(t);
+    const detail=YkInformesView.detailHref(t),subject=String(t.title||t.subject||"Informe");
+    return `<a class="report-list-row" role="listitem" data-row-key="${esc(YkInformesView.rowKey(t))}" href="${esc(detail)}" title="Abrir ${esc(mission.primary)} · ID técnico ${esc(mission.id)}">
+      <span class="report-list-ref">${esc(mission.primary)}</span>
+      <span class="report-list-title">${esc(subject)}</span>
+      <span class="report-list-body">${esc(t.report)}</span>
+      <span class="report-list-agent">${esc(agent)}</span>
+    </a>`;
+  }).join("");
+  updatePageState();
+}
+function renderDetail(list){
   const box=$("reps");
   box.setAttribute("aria-busy","false");
   if(!list.length){

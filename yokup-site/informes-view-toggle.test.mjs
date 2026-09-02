@@ -5,14 +5,14 @@ import {readFile} from "node:fs/promises";
 
 const html=await readFile(new URL("./informes.html",import.meta.url),"utf8");
 
-test("Cuadrícula nace seleccionada y el selector expone dos botones accesibles",()=>{
-  assert.match(html,/href="\/yk-informes-view\.css\?v=r1"/);
-  assert.match(html,/src="\/yk-informes-view\.js\?v=r1"/);
+test("Detalle nace seleccionado y el selector expone tres botones accesibles",()=>{
+  assert.match(html,/href="\/yk-informes-view\.css\?v=r2"/);
+  assert.match(html,/src="\/yk-informes-view\.js\?v=r2"/);
   assert.match(html,/id="reportView"><\/div>/);
   assert.match(html,/YkInformesView\.mount\(\$\("reportView"\)/);
   assert.match(html,/targets:\[\$\("reportsSurface"\),\$\("reps"\),\$\("debe"\)\]/);
-  assert.match(html,/id="reps" role="list" aria-label="Informes de misiones en cuadrícula"/);
-  assert.match(html,/let REPORT_VIEW=YkInformesView\.GRID/);
+  assert.match(html,/id="reps" role="table" aria-label="Detalle de informes de misiones y tareas"/);
+  assert.match(html,/let REPORT_VIEW=YkInformesView\.DETAIL/);
 });
 
 test("la cuadrícula recupera la tarjeta histórica y conserva todas las evidencias actuales",()=>{
@@ -36,14 +36,31 @@ test("cambiar de vista usa el contrato persistente sin recargar datos",()=>{
   assert.match(html,/REPORT_VIEW=REPORT_VIEW_CONTROL\.getView\(\);syncReportSemantics\(\)/);
 });
 
-test("Lista conserva íntegra la hoja actual con grupos, sort y columnas",()=>{
-  const list=html.slice(html.indexOf("function renderList(list)"),html.indexOf("$('reps').addEventListener",html.indexOf("function renderList(list)")));
-  assert.match(list,/headHTML\(\)\+groups\.map/);
-  assert.match(list,/class="grow item" role="row"/);
-  assert.match(list,/class="family-group" role="rowgroup"/);
-  assert.match(list,/COLUMN_RESIZE\.apply\(\);updatePageState\(\)/);
+test("Detalle conserva íntegra la hoja histórica con retrato, grupos, sort y columnas",()=>{
+  const detail=html.slice(html.indexOf("function renderDetail(list)"),html.indexOf("$('reps').addEventListener",html.indexOf("function renderDetail(list)")));
+  assert.match(detail,/headHTML\(\)\+groups\.map/);
+  assert.match(detail,/ykAvatar\.html\(agent\)/);
+  assert.match(detail,/class="grow item" role="row"/);
+  assert.match(detail,/class="family-group" role="rowgroup"/);
+  assert.match(detail,/COLUMN_RESIZE\.apply\(\);updatePageState\(\)/);
   assert.match(html,/YkInformesView\.rowsForView\(list,REPORT_VIEW\)/);
-  assert.match(html,/REPORT_VIEW===YkInformesView\.GRID\?renderGrid\(rows\):renderList\(rows\)/);
+  assert.match(html,/if\(REPORT_VIEW===YkInformesView\.GRID\)return renderGrid\(rows\)/);
+  assert.match(html,/if\(REPORT_VIEW===YkInformesView\.LIST\)return renderList\(rows\)/);
+  assert.match(html,/return renderDetail\(rows\)/);
+});
+
+test("Lista es el resumen compacto y no duplica la hoja Detalle",()=>{
+  const list=html.slice(html.indexOf("function renderList(list)"),html.indexOf("function renderDetail(list)"));
+  assert.match(list,/class="report-list-row"/);
+  assert.match(list,/class="report-list-agent"/);
+  assert.doesNotMatch(list,/class="grow item"/);
+});
+
+test("la interfaz usa Misión o Tarea y conserva FLT sólo como ID técnico",()=>{
+  assert.match(html,/return "Tarea"\+\(taskCode\?" "\+taskCode:""\)\+\(number\?" · Misión "\+number:""\)/);
+  assert.match(html,/return "Misión"\+\(number\?" "\+number:""\)/);
+  assert.match(html,/title="Abrir misión · ID técnico /);
+  assert.match(html,/humanWorkLabel\(m,m\.debt_kind==="task_without_report"\?"task":"mission"\)/);
 });
 
 test("filtros, paginación y detalle operan sobre los mismos informes en ambas vistas",()=>{

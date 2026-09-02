@@ -1,6 +1,6 @@
 .informes-view-switch{
   display:inline-grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
+  grid-template-columns:repeat(3,minmax(0,1fr));
   max-width:100%;
   border:1px solid var(--line,#173d47);
   border-radius:10px;
