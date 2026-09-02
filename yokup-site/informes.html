@@ -99,15 +99,25 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .mission-group:last-child{border-bottom:0}
 .mission-group+.mission-group{border-top:2px solid rgba(120,243,255,.18)}
 .mission-group:nth-of-type(even){background:rgba(120,243,255,.025)}
+.family-group{display:block;border-bottom:1px solid var(--line2)}
+.family-group:last-child{border-bottom:0}
 .family-summary{background:rgba(120,243,255,.045);border-bottom:1px solid var(--line)}
-.family-toggle{width:100%;min-height:42px;padding:8px 13px;display:flex;align-items:center;gap:9px;border:0;background:transparent;color:var(--ink);font:600 11px/1.3 var(--mono);text-align:left;cursor:pointer}
+.family-toggle{width:100%;min-height:58px;padding:8px 13px;display:flex;align-items:center;gap:10px;border:0;background:transparent;color:var(--ink);font:600 11px/1.3 var(--mono);text-align:left;cursor:pointer}
 .family-toggle:hover{background:rgba(120,243,255,.06)}
 .family-toggle:focus-visible{outline:2px solid var(--brand);outline-offset:-3px}
 .family-chevron{color:var(--brand);transition:transform .15s}.family-toggle[aria-expanded="false"] .family-chevron{transform:rotate(-90deg)}
-.family-name{color:var(--brand);letter-spacing:.035em}.family-count{color:var(--dim);font-weight:400}
+.family-toggle-avatar .who-av{flex-direction:row;text-align:left}.family-toggle-avatar .agava{width:34px;height:34px}.family-toggle-avatar .who-av>span{display:none}
+.family-identity{display:flex;flex-direction:column;gap:3px;min-width:0}.family-kicker{color:var(--dim);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase}
+.family-name{color:var(--brand);letter-spacing:.035em;font-size:12px}.family-count{color:var(--dim);font-weight:400}
 .family-action{margin-left:auto;color:var(--mut);font-weight:400;font-size:9.5px;letter-spacing:.045em;text-transform:uppercase}
 .family-toggle:hover .family-action,.family-toggle:focus-visible .family-action{color:var(--brand)}
-.family-rows[hidden]{display:none}
+.family-detail-rows{background:rgba(3,13,20,.44);border-top:1px dashed rgba(120,243,255,.24)}
+.family-detail-rows[hidden]{display:none}
+.family-detail-head{padding:8px 13px;color:var(--dim);font:700 9px/1.3 var(--mono);letter-spacing:.07em;text-transform:uppercase;background:rgba(120,243,255,.025)}
+.mission-summary-row{background:rgba(120,243,255,.018)}
+.mission-summary-row .role-badge{color:var(--brand)}
+.mission-rollup{align-self:center;color:var(--dim);font:700 9px/1.4 var(--mono);letter-spacing:.04em;text-align:center}
+.mission-rollup b{display:block;color:var(--ink);font-size:11px}
 .gc{padding:12px 13px;border-left:1px solid var(--line);min-width:0;display:flex;flex-direction:column;justify-content:center;gap:5px}
 .gc:first-child{border-left:0}
 /* Misión */
@@ -656,19 +666,19 @@ function humanWorkLabel(t,forcedKind){
   }
   return "Misión"+(number?" "+number:"");
 }
-function missionPresentation(t){
+function missionPresentation(t,forcedKind){
   const id=String(t.mission_id||"").trim();
   const ref=compactMissionRef(t.mission_display_ref);
-  const primary=humanWorkLabel(t);
+  const primary=humanWorkLabel(t,forcedKind);
   const secondary=ref.replace(/^\d{4}\s*·\s*/,"");
   return {id,primary:primary||"Misión",secondary,copy:!!id};
 }
-// Plegado efímero: cada entrada a /informes empieza abierta. Persistirlo en
-// localStorage dejó a usuarios con «7 cargados» y cero filas durante días.
-let COLLAPSED_FAMILIES={};
+// Jerarquía efímera: cada entrada a /informes empieza resumida por DeepAgent y
+// misión. Sólo un clic explícito descubre las tareas y sus ejecutores.
+let EXPANDED_FAMILIES={};
 const ROLE_LABEL={main:"principal",sub:"subagente",infra:"infraagente"};
 function familyDomId(key){let h=2166136261;for(const c of String(key)){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return "family-"+(h>>>0).toString(36);}
-function familyToggleLabel(name,count,expanded){return (expanded?"Ocultar ":"Mostrar ")+count+" informe"+(count===1?"":"s")+" de "+name;}
+function familyToggleLabel(name,missions,expanded){return (expanded?"Ocultar":"Mostrar")+" detalle de "+missions+" misión"+(missions===1?"":"es")+" de "+name;}
 function render(list){
   const rows=YkInformesView.rowsForView(list,REPORT_VIEW);
   LAST_VIEW_ROWS=rows;syncReportSemantics();
@@ -768,15 +778,24 @@ function renderDetail(list){
     COLUMN_RESIZE.apply();
     updatePageState();return;
   }
-  const groups=YkInformesView.missionGroups(list);
-  RENDERED_GROUPS=groups;
-  box.innerHTML=headHTML()+groups.map(group=>{
-    const rows=group.rows.map(t=>{
+  function rollup(missionGroup){
+    const all=missionGroup.rows,missionRow=all.find(t=>YkInformesView.reportKind(t)==="mission")||all[0];
+    const row={...missionRow};
+    const process=all.find(t=>t.idea_image||t.process_image),result=all.find(t=>t.image)||all.find(t=>t.mission_proof);
+    if(process){row.idea_image=process.idea_image||"";row.idea_url=process.idea_url||"";row.process_image=process.process_image||"";}
+    if(result){row.image=result.image||"";row.mission_proof=result.mission_proof||row.mission_proof||"";}
+    const details=all.filter(t=>YkInformesView.reportKind(t)!=="mission");
+    const agents=[...new Set(details.map(t=>t._executor||t.executor||reportAgent(t)).filter(Boolean))];
+    return {key:missionGroup.key,row,details,agents,total:all.length};
+  }
+  function detailRowHTML(t,options={}){
+    const summary=!!options.summary;
     // El feed recompone esta identidad con tickets.loc, la máquina real de la
     // misión. owner queda como fallback durante el rollout del worker.
-    const agent=t._executor||t.executor||reportAgent(t),role=t._agent_role||t.executor_role||t.role||"main";
+    const agent=summary?options.familyName:(t._executor||t.executor||reportAgent(t));
+    const role=summary?"main":(t._agent_role||t.executor_role||t.role||"main");
     const own=role==="main"?"🧠":role==="infra"?"📝":"⚙️";
-    const mission=missionPresentation(t);
+    const mission=missionPresentation(t,summary?"mission":undefined);
     const taskCode=String(t.code||"—").toUpperCase();
     // Dos capturas, sin «—» gratuito y sin inventar (Carlos, 2026-07-23):
     //  · PROCESO (el «durante»): sólo evidencia tipada como `process` por el
@@ -803,12 +822,16 @@ function renderDetail(list){
     const shot = t.image
       ? shotHTML(t.image,"Ampliar la captura de prueba","Captura de prueba",false)
       : shotHTML(capMission, capMission?"proof de la misión — captura de cierre":"sin captura de prueba","Proof de la misión",true);
-    const detail=YkInformesView.detailHref(t),kind=YkInformesView.reportKind(t);
-    return `<div class="grow item" role="row" data-row-key="${esc(YkInformesView.rowKey(t))}">
-      <div class="gc" role="cell" data-label="Agente">${window.ykAvatar ? ykAvatar.html(agent) : `<span class="who" title="${esc(agent)}">${own} ${esc(agent)}</span>`}<span class="role-badge role-${esc(role)}">${esc(ROLE_LABEL[role]||role)}</span></div>
+    const kind=summary?"mission":YkInformesView.reportKind(t);
+    const detail=summary?("/ticket?id="+encodeURIComponent(t.mission_id||"")):YkInformesView.detailHref(t);
+    const rowClass=summary?" mission-summary-row":"";
+    const roleText=summary?"DeepAgent":(ROLE_LABEL[role]||role);
+    const rollupText=summary?`<span class="mission-rollup"><b>${options.taskCount} tarea${options.taskCount===1?"":"s"}</b>${options.agentCount} agente${options.agentCount===1?"":"s"}</span>`:"";
+    return `<div class="grow item${rowClass}" role="row" data-row-key="${esc(YkInformesView.rowKey(t))}"${summary?' data-mission-summary="true"':""}>
+      <div class="gc" role="cell" data-label="Agente">${summary?rollupText:(window.ykAvatar ? ykAvatar.html(agent) : `<span class="who" title="${esc(agent)}">${own} ${esc(agent)}</span>`)}<span class="role-badge role-${esc(role)}">${esc(roleText)}</span></div>
       <div class="gc mis" role="cell" data-label="Misión">
         <a class="mid" href="${esc(detail)}" title="Abrir ${kind==="mission"?"misión":"tarea"} · ID técnico ${esc(mission.id)}">🎯 ${esc(mission.primary)}</a>
-        <div class="mmeta"><span class="mcode">${kind==="mission"?"Informe de misión":"Tarea"} ${esc(taskCode)}</span>${mission.secondary?`<span class="mref">${esc(mission.secondary)}</span>`:""}${mission.copy?`<button class="mcopy" type="button" data-copy-mission="${esc(mission.id)}" title="Copiar ID técnico ${esc(mission.id)}" aria-label="Copiar ID técnico ${esc(mission.id)}">copiar ID</button>`:""}</div>
+        <div class="mmeta"><span class="mcode">${summary?"Resumen de misión":kind==="mission"?"Informe de misión":"Tarea "+esc(taskCode)}</span>${mission.secondary?`<span class="mref">${esc(mission.secondary)}</span>`:""}${mission.copy?`<button class="mcopy" type="button" data-copy-mission="${esc(mission.id)}" title="Copiar ID técnico ${esc(mission.id)}" aria-label="Copiar ID técnico ${esc(mission.id)}">copiar ID</button>`:""}</div>
         <div class="msubj" title="${esc(t.subject||'')}">${esc(t.subject||t.title||'')}</div>
       </div>
       <div class="gc shot" role="cell" data-label="Petición">${proc}</div>
@@ -818,20 +841,34 @@ function renderDetail(list){
       <div class="gc" role="cell" data-label="Tiempo">${tiempoHTML(t)}</div>
       <div class="gc pts-cell" role="cell" data-label="Puntos">${puntosHTML(t)}</div>
     </div>`;
-    }).join("");
-    return `<section class="mission-group" role="rowgroup" data-mission="${esc(group.key)}">${rows}</section>`;
+  }
+  const families=YkInformesGroups.group(list,window.ykAgentIdentity);
+  RENDERED_GROUPS=families;
+  box.innerHTML=headHTML()+families.map(family=>{
+    const familyId=familyDomId(family.key),expanded=EXPANDED_FAMILIES[family.key]===true;
+    const missions=YkInformesView.missionGroups(family.rows).map(rollup);
+    const summaries=missions.map(item=>detailRowHTML(item.row,{summary:true,familyName:family.name,taskCount:item.details.length,agentCount:item.agents.length})).join("");
+    const details=missions.map(item=>item.details.length?`<section class="mission-group" role="rowgroup" data-mission="${esc(item.key)}">${item.details.map(t=>detailRowHTML(t)).join("")}</section>`:"").join("");
+    const detailBody=details||'<div class="family-detail-head">Esta misión sólo tiene informe principal; no hay tareas de subagentes que desplegar.</div>';
+    const avatar=window.ykAvatar?ykAvatar.html(family.name):`<span class="who">🧠 ${esc(family.name)}</span>`;
+    const scope=filterLabel()||"todas las fechas";
+    return `<section class="family-group" role="rowgroup" data-family="${esc(family.key)}" aria-labelledby="${familyId}-label">
+      <div class="family-summary" role="row"><div role="cell" aria-colspan="7"><button class="family-toggle" type="button" aria-expanded="${expanded?"true":"false"}" aria-controls="${familyId}" data-family-toggle="${esc(family.key)}" data-family-count="${missions.length}" data-family-name="${esc(family.name)}" aria-label="${esc(familyToggleLabel(family.name,missions.length,expanded))}"><span class="family-chevron" aria-hidden="true">▾</span><span class="family-toggle-avatar">${avatar}</span><span class="family-identity"><span class="family-kicker">DeepAgent · agente principal</span><span class="family-name" id="${familyId}-label">${esc(family.name)}</span><span class="family-count">${missions.length} misión${missions.length===1?"":"es"} · ${family.rows.length} informe${family.rows.length===1?"":"s"} · ${esc(scope)}</span></span><span class="family-action">${expanded?"Ocultar detalle":"Ver subagentes"}</span></button></div></div>
+      <div class="family-mission-summaries">${summaries}</div>
+      <div class="family-detail-rows" id="${familyId}"${expanded?"":" hidden"}><div class="family-detail-head">Subagentes y tareas, agrupados por misión</div>${detailBody}</div>
+    </section>`;
   }).join("");
   COLUMN_RESIZE.apply();updatePageState();
 }
 $('reps').addEventListener("click",e=>{
   const button=e.target.closest&&e.target.closest("[data-family-toggle]");if(!button)return;
   const key=button.dataset.familyToggle,rows=$(button.getAttribute("aria-controls"));
-  const expanded=button.getAttribute("aria-expanded")!=="false";
-  button.setAttribute("aria-expanded",expanded?"false":"true");if(rows)rows.hidden=expanded;
-  if(expanded)COLLAPSED_FAMILIES[key]=true;else delete COLLAPSED_FAMILIES[key];
-  const nextExpanded=!expanded,count=Number(button.dataset.familyCount)||0,name=button.dataset.familyName||"familia";
+  const expanded=button.getAttribute("aria-expanded")==="true",nextExpanded=!expanded;
+  button.setAttribute("aria-expanded",String(nextExpanded));if(rows)rows.hidden=!nextExpanded;
+  if(nextExpanded)EXPANDED_FAMILIES[key]=true;else delete EXPANDED_FAMILIES[key];
+  const count=Number(button.dataset.familyCount)||0,name=button.dataset.familyName||"familia";
   button.setAttribute("aria-label",familyToggleLabel(name,count,nextExpanded));
-  const action=button.querySelector(".family-action");if(action)action.textContent=nextExpanded?"Ocultar informes":"Mostrar informes";
+  const action=button.querySelector(".family-action");if(action)action.textContent=nextExpanded?"Ocultar detalle":"Ver subagentes";
   updatePageState();
 });
 // Los ids opacos siguen disponibles sin ocupar el título principal ni truncarse.

@@ -36,13 +36,15 @@ test("cambiar de vista usa el contrato persistente sin recargar datos",()=>{
   assert.match(html,/REPORT_VIEW=REPORT_VIEW_CONTROL\.getView\(\);syncReportSemantics\(\)/);
 });
 
-test("Detalle conserva íntegra la hoja histórica con retrato, misiones, sort y columnas",()=>{
+test("Detalle conserva la hoja histórica y añade jerarquía DeepAgent → misión → tarea",()=>{
   const detail=html.slice(html.indexOf("function renderDetail(list)"),html.indexOf("$('reps').addEventListener",html.indexOf("function renderDetail(list)")));
-  assert.match(detail,/headHTML\(\)\+groups\.map/);
-  assert.match(detail,/ykAvatar\.html\(agent\)/);
-  assert.match(detail,/class="grow item" role="row"/);
+  assert.match(detail,/headHTML\(\)\+families\.map/);
+  assert.match(detail,/ykAvatar\.html\(family\.name\)/);
+  assert.match(detail,/grow item\$\{rowClass\}/);
   assert.match(detail,/class="mission-group" role="rowgroup"/);
-  assert.match(detail,/YkInformesView\.missionGroups\(list\)/);
+  assert.match(detail,/YkInformesView\.missionGroups\(family\.rows\)/);
+  assert.match(detail,/data-mission-summary="true"/);
+  assert.match(detail,/item\.details\.map\(t=>detailRowHTML\(t\)\)/);
   assert.match(detail,/COLUMN_RESIZE\.apply\(\);updatePageState\(\)/);
   assert.match(html,/YkInformesView\.rowsForView\(list,REPORT_VIEW\)/);
   assert.match(html,/if\(REPORT_VIEW===YkInformesView\.GRID\)return renderGrid\(rows\)/);

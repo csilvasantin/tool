@@ -28,7 +28,7 @@ test('las siete cabeceras son ordenables, accesibles y muestran dirección',()=>
   assert.match(html,/id="reps" role="table" aria-label="Detalle de informes de misiones y tareas"/);
   assert.match(html,/const detail=REPORT_VIEW===YkInformesView\.DETAIL/);
   assert.match(html,/box\.setAttribute\("role",detail\?"table":"list"\)/);
-  assert.match(html,/class="grow item" role="row"/);
+  assert.match(html,/class="grow item\$\{rowClass\}" role="row"/);
   assert.equal((html.match(/class="gc[^"\n]*" role="cell"/g)||[]).length,7);
   assert.match(html,/SORT\.dir==="asc"\?"desc":"asc"/);
   assert.match(html,/if\(next\)next\.focus\(\)/);

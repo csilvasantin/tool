@@ -74,6 +74,13 @@ test("Hoy usa Europe/Madrid también en los cambios de hora",async()=>{
   assert.equal(vm.runInContext('madridYmd(Date.UTC(2026,0,1,23,30))',h.context),"2026-01-02");
 });
 
+test("la primera carga nace siempre en Hoy y filtra por updated_at",()=>{
+  assert.match(html,/class="tf on" data-r="hoy">Hoy<\/button>/);
+  assert.match(html,/DFILTER=\{mode:"hoy", day:""\}/);
+  assert.match(html,/\.filter\(t=>inRange\(t\.updated_at\)\)/);
+  assert.match(html,/function pageUrl\(cursor,includeTotal\)[\s\S]*updated_from=[^\n]+updated_to=/);
+});
+
 test("Cargar más añade 30, usa cursor y deduplica misión+tarea",async()=>{
   const first=Promise.resolve({ok:true,json:async()=>({tasks:Array.from({length:30},(_,i)=>row(i)),next_cursor:"opaque",has_more:true,total:59})});
   const second=Promise.resolve({ok:true,json:async()=>({tasks:[row(0,{report:"actualizado",updated_at:Date.now()+10}),...Array.from({length:29},(_,i)=>row(30+i))],next_cursor:null,has_more:false,total:null})});

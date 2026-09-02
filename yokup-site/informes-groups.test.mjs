@@ -50,12 +50,16 @@ test("agrupar conserva orden de familias y filas producido por el sorter",()=>{
   assert.deepEqual(Array.from(groups[0].rows,r=>r.id),["b2","b1"]);
 });
 
-test("Detalle agrupa por misión sin plegados que oculten filas",()=>{
-  assert.match(html,/class="mission-group" role="rowgroup" data-mission=/);
-  assert.match(html,/YkInformesView\.missionGroups\(list\)/);
+test("Detalle resume por DeepAgent y misión, con tareas plegadas por defecto",()=>{
   const detail=html.slice(html.indexOf("function renderDetail(list)"),html.indexOf("$('reps').addEventListener",html.indexOf("function renderDetail(list)")));
-  assert.doesNotMatch(detail,/family-toggle|aria-expanded|hidden/);
-  assert.match(html,/class="role-badge role-\$\{esc\(role\)\}"/);
+  assert.match(detail,/YkInformesGroups\.group\(list,window\.ykAgentIdentity\)/);
+  assert.match(detail,/YkInformesView\.missionGroups\(family\.rows\)\.map\(rollup\)/);
+  assert.match(detail,/class="family-group" role="rowgroup"/);
+  assert.match(detail,/class="mission-summary-row"|mission-summary-row/);
+  assert.match(detail,/class="mission-group" role="rowgroup" data-mission=/);
+  assert.match(detail,/class="family-detail-rows"[^>]*\$\{expanded\?"":" hidden"\}/);
+  assert.match(detail,/DeepAgent · agente principal/);
+  assert.match(detail,/Subagentes y tareas, agrupados por misión/);
 });
 
 test("si todos los grupos con resultados llegan plegados, abre el primero",()=>{
@@ -70,7 +74,14 @@ test("contador visible distingue filas mostradas de informes cargados",()=>{
   assert.match(html,/visible\+" visibles · "\+loaded\+" cargados"/);
   assert.match(html,/const visible=LAST_VIEW_ROWS\.length,loaded=ALL\.length/);
   assert.match(html,/LAST_VIEW_ROWS=rows/);
-  assert.match(html,/RENDERED_GROUPS=groups/);
+  assert.match(html,/RENDERED_GROUPS=families/);
+});
+
+test("el desplegable de DeepAgent sólo abre el detalle solicitado",()=>{
+  assert.match(html,/let EXPANDED_FAMILIES=\{\}/);
+  assert.match(html,/const expanded=button\.getAttribute\("aria-expanded"\)==="true",nextExpanded=!expanded/);
+  assert.match(html,/if\(nextExpanded\)EXPANDED_FAMILIES\[key\]=true;else delete EXPANDED_FAMILIES\[key\]/);
+  assert.match(html,/if\(rows\)rows\.hidden=!nextExpanded/);
 });
 
 test("todas las miniaturas difieren carga y decodificación",()=>{

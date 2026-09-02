@@ -47,7 +47,7 @@ function harness(saved={},clientWidth=0,customSpecs){
 
 test("Agente encabeza tanto cabeceras como celdas y la ordenación sigue intacta",()=>{
   assert.match(html,/const SORT_COLUMNS=\[\s*\["agente","Agente"\],\["mision","Misión"\]/);
-  const row=html.slice(html.indexOf('return `<div class="grow item"'),html.indexOf('}).join("");',html.indexOf('return `<div class="grow item"')));
+  const row=html.slice(html.indexOf("function detailRowHTML"),html.indexOf("const families=",html.indexOf("function detailRowHTML")));
   assert.ok(row.indexOf("ykAvatar.html(agent)")<row.indexOf('class="gc mis"'));
   assert.match(html,/role="columnheader" aria-sort=/);
   assert.match(html,/class="sort-head" type="button" data-sort=/);
