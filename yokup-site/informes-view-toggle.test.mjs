@@ -90,5 +90,5 @@ test("anomalías comparten presentación pero siguen separadas de informes y con
   const count=html.slice(html.indexOf("function updatePageState"),html.indexOf("function pageUrl"));
   assert.match(count,/LAST_VIEW_ROWS\.length/);
   assert.doesNotMatch(count,/debe|debt|anomal/);
-  assert.ok(html.indexOf('id="debe"')<html.indexOf('id="reportsSurface"'),"la deuda permanece como región previa independiente");
+  assert.ok(html.indexOf('id="reportsSurface"')<html.indexOf('id="debe"'),"Detalle ocupa el primer plano y la deuda permanece como región posterior independiente");
 });

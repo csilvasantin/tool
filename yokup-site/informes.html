@@ -190,9 +190,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 @keyframes rep-load{to{transform:translateX(100%)}}
 .foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
 /* DEUDA DE INFORMES (Carlos, 24-jul-2026): las misiones terminadas SIN parte no
-   salen en la sábana de abajo — no existen como informe. Se nombran arriba, en
-   ámbar, para que la falta se vea y se pueda cerrar. Sin deuda, la banda no está. */
-.debe{border:1px solid rgba(255,180,84,.34);background:rgba(255,180,84,.06);border-radius:14px;padding:14px 16px;margin-bottom:16px}
+   salen en la sábana — no existen como informe. Se nombran después del informe,
+   en ámbar, para que la falta se vea sin tapar Detalle. Sin deuda, la banda no está. */
+.debe{border:1px solid rgba(255,180,84,.34);background:rgba(255,180,84,.06);border-radius:14px;padding:14px 16px;margin:18px 0 16px}
 .debe-hd{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:#ffb454;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .debe-sub{color:var(--dim);font-size:10.5px;letter-spacing:.04em;text-transform:none}
 .debe-list{margin-top:10px;display:flex;flex-direction:column;gap:1px}
@@ -265,13 +265,15 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
     <div id="reportView"></div>
   </div>
 
-  <!-- Deuda: misiones terminadas que aún no tienen parte. Oculta si no hay ninguna. -->
-  <div class="debe" id="debe" hidden role="region" aria-label="Anomalías de informe"></div>
-
   <div class="sheet-wrap" id="reportsSurface">
     <div class="sheet" id="reps" role="table" aria-label="Detalle de informes de misiones y tareas" aria-busy="true"><div class="empty loading" role="status"><b>Cargando informes…</b>Reuniendo los partes de todas las misiones.</div></div>
   </div>
   <div class="page-state" aria-live="polite"><span id="pageStatus" role="status">0 cargados</span><button class="load-more" id="loadMore" type="button" hidden>Cargar más</button></div>
+
+  <!-- Deuda: misiones terminadas que aún no tienen parte. Va después del informe
+       para que la vista Detalle conserve el primer plano aprobado. -->
+  <div class="debe" id="debe" hidden role="region" aria-label="Anomalías de informe"></div>
+
   <div class="foot">Yokup · informes · tareas con <b>report</b> · fuente <b>D1</b> (mission_tasks)</div>
 
   <!-- EXPERTO: JSON crudo de tickets del worker yokup-rtc -->
