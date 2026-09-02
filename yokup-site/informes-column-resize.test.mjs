@@ -9,9 +9,15 @@ const source=await readFile(new URL("./yk-informes-columns.js",import.meta.url),
 const FULL_SPECS={
   agente:{label:"Agente",default:138,min:100,max:260},mision:{label:"Misión",default:170,min:130,max:360},
   proceso:{label:"Petición",default:132,min:96,max:260},captura:{label:"Resultado",default:150,min:96,max:300},
-  informe:{label:"Informe",default:280,min:180,max:520},
-  tiempo:{label:"Tiempo",default:150,min:120,max:280},puntos:{label:"Puntos",default:116,min:96,max:220}
+  informe:{label:"Informe",default:258,min:180,max:520},
+  tiempo:{label:"Tiempo",default:150,min:120,max:280},puntos:{label:"Puntos",default:172,min:140,max:280}
 };
+
+test("la réplica de anchos coincide con el contrato declarado en la página",()=>{
+  for(const [key,spec] of Object.entries(FULL_SPECS)){
+    assert.ok(html.includes(key+':{label:"'+spec.label+'",default:'+spec.default+',min:'+spec.min+',max:'+spec.max+'}'),key+" coincide");
+  }
+});
 
 function harness(saved={},clientWidth=0,customSpecs){
   const rootListeners={},containerListeners={},values=new Map(Object.entries(saved));

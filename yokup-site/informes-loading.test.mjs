@@ -23,15 +23,17 @@ function element(innerHTML = "") {
     addEventListener(){}, querySelector(){ return null; }, querySelectorAll(){ return []; }
   };
 }
+const YkInformesView={GRID:"grid",LIST:"list",mount(_container,options){options.targets.forEach(target=>target&&target.setAttribute("data-informes-view","grid"));return {getView:()=>"grid"};},rowsForView:rows=>rows.slice(),anomalyContract:rows=>({rows}),anomalyKey:()=>"debt",rowKey:r=>(r.mission_id||"")+"\0"+(r.code||""),reportKind:r=>/^z\d+$/i.test(r.code||"")?"mission":"task",detailHref:r=>"/tareas?mission="+(r.mission_id||"")+"#"+(r.code||"")};
 
 test("proyecto temprano conserva loading; datos, deuda y avatar no se serializan", async () => {
   const tasks = deferred(), avatar = deferred(), listeners = {}, intervals = [], calls = [];
-  const elements = { reps:element('<div class="empty loading">Cargando informes…</div>'), tfilter:element(), tfDate:element(), debe:element(), lb:element(), pageStatus:element(), loadMore:element() };
+  const elements = { reps:element('<div class="empty loading">Cargando informes…</div>'), reportsSurface:element(), reportView:element(), tfilter:element(), tfDate:element(), debe:element(), lb:element(), pageStatus:element(), loadMore:element() };
   elements.lb.querySelector = () => element();
   const fetch = (url) => {
     calls.push(url);
     if (url.includes("/tasks/all")) return tasks.promise;
     if (url.includes("/fleet/informes-deuda")) return Promise.resolve({ok:true,status:200,json:async()=>({missions:[]})});
+    if (url.includes("/highscore/daily")) return Promise.resolve({ok:true,status:200,json:async()=>({day:"2026-09-02",traceability:{chains:[]}})});
     throw new Error("fetch inesperado: " + url);
   };
   const window = {
@@ -46,6 +48,7 @@ test("proyecto temprano conserva loading; datos, deuda y avatar no se serializan
     window, document, fetch, console, Date, Promise, encodeURIComponent, ykAvatar:window.ykAvatar,
     YkInformesSort:{sort:(rows)=>rows},
     YkInformesColumns:{mount:()=>({apply(){}})},
+    YkInformesView,
     YkInformesGroups:{group:(rows)=>[{key:"test",name:"Test",rows}],ensureVisible:(groups)=>groups,visibleCount:(groups)=>groups.reduce((n,g)=>n+g.rows.length,0)},
     AbortController,
     setInterval(fn){ intervals.push(fn); return intervals.length; }, setTimeout(){},

@@ -22,7 +22,7 @@ test("DCL usa display_ref compacto como título y conserva el id copiable",()=>{
   );
   assert.match(html,/data-copy-mission=/);
   assert.match(html,/navigator\.clipboard\.writeText\(id\)/);
-  assert.match(html,/title="Abrir misión · ID técnico/);
+  assert.match(html,/title="Abrir \$\{kind==="mission"\?"misión":"tarea"\} · ID técnico/);
 });
 
 test("FLT conserva FLT-1234 como referencia principal y añade la humana",()=>{
@@ -41,7 +41,7 @@ test("sin display_ref no inventa una referencia y mantiene el id",()=>{
 });
 
 test("la tarea se rotula explícitamente y móvil no usa elipsis para la referencia",()=>{
-  assert.match(html,/>Tarea \$\{esc\(taskCode\)\}/);
+  assert.match(html,/\$\{kind==="mission"\?"Informe de misión":"Tarea"\} \$\{esc\(taskCode\)\}/);
   assert.match(html,/\.mid\{[^}]*overflow-wrap:anywhere/);
   assert.match(html,/\.mref\{[^}]*overflow-wrap:anywhere/);
   assert.doesNotMatch(html,/\.mid\{[^}]*text-overflow:ellipsis/);

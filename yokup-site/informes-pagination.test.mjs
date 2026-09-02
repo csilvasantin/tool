@@ -10,10 +10,11 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function deferred(){let resolve;const promise=new Promise(ok=>{resolve=ok;});return {promise,resolve};}
 function element(){return {innerHTML:"",hidden:false,disabled:false,textContent:"",value:"",dataset:{},style:{setProperty(){}},classList:{add(){},remove(){},toggle(){}},setAttribute(k,v){this[k]=v;},getAttribute(k){return this[k];},addEventListener(){},querySelector(){return null;},querySelectorAll(){return []}};}
 function row(n,extra={}){return {mission_id:"M"+n,code:"a",report:"informe "+n,updated_at:Date.now()-n,executor:"OraculoMacMini",role:"main",family_key:"oraculo::macmini",family_name:"OraculoMacMini",...extra};}
+const YkInformesView={GRID:"grid",LIST:"list",mount(_container,options){options.targets.forEach(target=>target&&target.setAttribute("data-informes-view","grid"));return {getView:()=>"grid"};},rowsForView:rows=>rows.slice(),anomalyContract:rows=>({rows}),anomalyKey:()=>"debt",rowKey:r=>r.mission_id+"\0"+r.code,reportKind:r=>/^z\d+$/i.test(r.code||"")?"mission":"task",detailHref:r=>"/tareas?mission="+r.mission_id+"#"+r.code};
 
 function setup(taskResponses){
   const listeners={},intervals=[],calls=[];
-  const elements={reps:element(),tfilter:element(),tfDate:element(),debe:element(),lb:element(),pageStatus:element(),loadMore:element()};
+  const elements={reps:element(),reportsSurface:element(),reportView:element(),tfilter:element(),tfDate:element(),debe:element(),lb:element(),pageStatus:element(),loadMore:element()};
   elements.lb.querySelector=()=>element();
   let taskIndex=0;
   const fetch=url=>{calls.push(url);
@@ -25,7 +26,7 @@ function setup(taskResponses){
   const window={ykAvatar:{ready:Promise.resolve(),html:()=>"avatar"},ykAgentIdentity:null,addEventListener:(type,fn)=>{listeners[type]=fn;}};
   const document={getElementById:id=>elements[id],addEventListener(){},querySelector(){return null;}};
   const context=vm.createContext({window,document,fetch,Date,Promise,AbortController,encodeURIComponent,console,ykAvatar:window.ykAvatar,
-    YkInformesSort:{sort:rows=>rows},YkInformesColumns:{mount:()=>({apply(){}})},
+    YkInformesSort:{sort:rows=>rows},YkInformesColumns:{mount:()=>({apply(){}})},YkInformesView,
     YkInformesGroups:{group:rows=>[{key:"family",name:"Familia",rows:rows.map(r=>({...r,_executor:r.executor,_agent_role:r.role}))}],ensureVisible:groups=>groups,visibleCount:groups=>groups.reduce((n,g)=>n+g.rows.length,0)},
     setInterval:fn=>{intervals.push(fn);},setTimeout(){},localStorage:{getItem(){return null;},setItem(){}}});
   vm.runInContext(main,context);

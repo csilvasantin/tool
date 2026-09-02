@@ -73,7 +73,8 @@ test("si todos los grupos con resultados llegan plegados, abre el primero",()=>{
 
 test("contador visible distingue filas mostradas de informes cargados",()=>{
   assert.match(html,/visible\+" visibles · "\+loaded\+" cargados"/);
-  assert.match(html,/YkInformesGroups\.visibleCount\(RENDERED_GROUPS,COLLAPSED_FAMILIES\)/);
+  assert.match(html,/const visible=LAST_VIEW_ROWS\.length,loaded=ALL\.length/);
+  assert.match(html,/LAST_VIEW_ROWS=rows/);
   assert.match(html,/RENDERED_GROUPS=groups/);
 });
 
