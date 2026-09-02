@@ -87,5 +87,6 @@ test("móvil limpia el SVG oculto y escritorio lo redibuja al cambiar tamaño",(
   const draw=functionSource("paDrawLinks");
   assert.match(draw,/matchMedia\("\(max-width:900px\)"\)\.matches[\s\S]*group\.innerHTML=""/);
   assert.match(source,/@media\(max-width:900px\)\{[\s\S]{0,800}\.pa-links\{display:none\}/);
-  assert.match(source,/window\.addEventListener\("resize",\(\)=>requestAnimationFrame\(paDrawLinks\)\)/);
+  assert.match(source,/window\.addEventListener\("resize",\(\)=>requestAnimationFrame\(paRefreshNodeLayout\)\)/);
+  assert.match(functionSource("paRefreshNodeLayout"),/paConstrainVisibleNodes\(\);paDrawLinks\(\)/);
 });

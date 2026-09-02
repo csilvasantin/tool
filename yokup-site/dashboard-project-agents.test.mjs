@@ -303,11 +303,11 @@ test("arrastrar un agente asocia primero su máquina y después el propio agente
 test("las uniones agente-proyecto se dibujan con flechas",()=>{
   assert.match(source,/function paDrawLinks\(\)/);
   assert.match(source,/pa\("projectAgentProjectsPane"\)\.open&&pa\("projectAgentTeamsPane"\)\.open/);
-  assert.match(source,/\["projectAgentProjectsPane","projectAgentTeamsPane"\]\.forEach\(id=>pa\(id\)\.addEventListener\("toggle",\(\)=>\{paDrawLinks\(\);requestAnimationFrame\(paDrawLinks\);\}\)\)/);
+  assert.match(source,/\["projectAgentProjectsPane","projectAgentTeamsPane"\]\.forEach\(id=>pa\(id\)\.addEventListener\("toggle",\(\)=>\{paDrawLinks\(\);requestAnimationFrame\(paRefreshNodeLayout\);\}\)\)/);
   assert.match(source,/id="projectAgentSvg"[^>]*preserveAspectRatio="none"/);
   assert.match(source,/svg\.setAttribute\("viewBox","0 0 "\+Math\.max\(1,rect\.width\)\+" "\+Math\.max\(1,rect\.height\)\)/);
   assert.doesNotMatch(source,/pa\("projectAgentLinks"\)\.innerHTML=""/,"paRender no puede vaciar los cables: los reconcilia paDrawLinks");
-  assert.match(source,/new ResizeObserver\(\(\)=>requestAnimationFrame\(paDrawLinks\)\)\.observe\(pa\("projectAgentMap"\)\)/);
+  assert.match(source,/new ResizeObserver\(\(\)=>requestAnimationFrame\(paRefreshNodeLayout\)\)\.observe\(pa\("projectAgentMap"\)\)/);
   assert.match(source,/marker-end="url\(#paArrow\)"/);
   assert.match(source,/paProjectAgentRefs\(project\)/);
   assert.match(source,/data-agent-node=/);
@@ -349,7 +349,7 @@ test("las columnas se pueden mover horizontalmente y las flechas siguen su posic
   assert.match(source,/handle\.ondblclick=paResetColumn/);
   assert.match(source,/window\.addEventListener\("pointermove",paMoveColumn\)/);
   assert.match(source,/window\.addEventListener\("pointerup",paEndColumnMove\)/);
-  assert.match(source,/\.pa-col,\.pa-project-node,\.pa-team-node\{transform:none!important\}/);
+  assert.match(source,/\.pa-col,\.pa-project-node,\.pa-team-node,\.pa-agent-node,\.pa-carbon-node\{transform:none!important\}/);
 });
 
 test("cada ficha se puede mover libremente y sus conectores la siguen",()=>{
@@ -358,12 +358,12 @@ test("cada ficha se puede mover libremente y sus conectores la siguen",()=>{
   assert.match(source,/const NODE_OFFSETS=new Map\(\)/);
   assert.match(source,/function paStartNodeMove\(event\)/);
   assert.match(source,/function paMoveNode\(event\)/);
-  assert.match(source,/paSetNodeOffset\(NODE_DRAG\.key,x,y,NODE_DRAG\.node\);paDrawLinks\(\)/);
+  assert.match(source,/paSetNodeOffset\(NODE_DRAG\.key,next\.x,next\.y,NODE_DRAG\.node\);paDrawLinks\(\)/);
   assert.match(source,/handle\.onpointerdown=paStartNodeMove/);
   assert.match(source,/handle\.ondblclick=paResetNode/);
   assert.match(source,/window\.addEventListener\("pointermove",paMoveNode\)/);
   assert.match(source,/window\.addEventListener\("pointerup",paEndNodeMove\)/);
-  assert.match(source,/\.pa-project-node,\.pa-team-node\{transform:translate\(var\(--pa-node-x,0px\),var\(--pa-node-y,0px\)\)/);
+  assert.match(source,/\.pa-project-node,\.pa-team-node,\.pa-agent-node,\.pa-carbon-node\{transform:translate\(var\(--pa-node-x,0px\),var\(--pa-node-y,0px\)\)/);
   assert.doesNotMatch(source,/\.pa-agent-node,\.pa-team-node,\.pa-project-node\{[^}]*transition:[^}]*transform/);
 });
 
