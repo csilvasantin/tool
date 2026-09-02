@@ -32,14 +32,29 @@ test("hay tres tabs accesibles y exactamente uno nace seleccionado",()=>{
   for(const view of ["teams","silicon","carbon"]){
     assert.match(tabs,new RegExp(`data-pa-roster-tab="${view}"[^>]*aria-controls="projectAgent${view[0].toUpperCase()+view.slice(1)}"`));
   }
+  assert.match(tabs,/data-pa-roster-tab="carbon"[^>]*aria-selected="true"[^>]*tabindex="0"/);
+  assert.match(source,/id="projectAgentShell" data-pa-roster-view="carbon"/);
+  assert.match(source,/let PA_ROSTER_VIEW="carbon"/);
+  assert.equal(navigation.paNormalizeRosterView("desconocido"),"carbon");
 });
 
-test("cada tab controla un panel propio y los inactivos nacen ocultos y vacíos",()=>{
-  assert.match(source,/id="projectAgentTeams" role="tabpanel" aria-labelledby="projectAgentTeamsTab"/);
+test("Carbono nace visible y los otros paneles nacen ocultos y vacíos",()=>{
+  assert.match(source,/id="projectAgentTeams" role="tabpanel" aria-labelledby="projectAgentTeamsTab" hidden><\/div>/);
   assert.match(source,/id="projectAgentSilicon" role="tabpanel" aria-labelledby="projectAgentSiliconTab" hidden><\/div>/);
-  assert.match(source,/id="projectAgentCarbon" role="tabpanel" aria-labelledby="projectAgentCarbonTab" hidden><\/div>/);
+  assert.match(source,/id="projectAgentCarbon" role="tabpanel" aria-labelledby="projectAgentCarbonTab"><div class="pa-loading">Cargando responsables…<\/div><\/div>/);
+  assert.match(source,/id="projectAgentTeamControls" hidden/);
+  assert.match(source,/id="projectAgentProjectsAll"[^>]* hidden/);
+  assert.match(source,/id="projectAgentProjectsUnassigned"[^>]* hidden/);
   assert.match(functionSource("paSyncRosterTabs"),/panel\.hidden=view!==PA_ROSTER_VIEW/);
   assert.match(functionSource("paRender"),/paPaint\(teamBox,PA_ROSTER_VIEW==="teams"[\s\S]*paPaint\(siliconBox,PA_ROSTER_VIEW==="silicon"[\s\S]*paPaint\(carbonBox,PA_ROSTER_VIEW==="carbon"/);
+});
+
+test("la elección posterior depende sólo del tab pulsado y no vuelve al valor inicial",()=>{
+  const setter=functionSource("paSetRosterView"),render=functionSource("paRender");
+  assert.match(setter,/PA_ROSTER_VIEW=next/);
+  assert.doesNotMatch(setter,/PA_ROSTER_VIEW="carbon"/);
+  assert.doesNotMatch(render,/PA_ROSTER_VIEW\s*=(?!=)/);
+  assert.match(source,/tab\.onclick=\(\)=>paSetRosterView\(tab\.dataset\.paRosterTab,true\)/);
 });
 
 test("flechas, Inicio y Fin recorren el selector con retorno circular",()=>{

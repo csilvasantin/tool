@@ -36,7 +36,7 @@ test("el Dashboard vive en /dashboard y conserva /agentica sólo como retorno co
 });
 
 test("el título principal abre el contenido y Proyectos precede a la zona secundaria",()=>{
-  assert.match(source,/<div class="wrap">\s*<h1>Plataforma agéntica de gestión de Xperiencias<\/h1>\s*<p class="sub">[\s\S]*?<\/p>\s*<details class="dash-section" id="projectAgentSection" open>/);
+  assert.match(source,/<div class="wrap">\s*<h1>Plataforma agéntica de gestión de Xperiencias<\/h1>\s*<details class="dash-section" id="projectAgentSection" open>/);
   assert.match(source,/<details class="dash-section" id="pulseSection">\s*<summary class="shd">Pulso de la flota/);
   assert.match(source,/<details class="dash-section" id="projectAgentSection" open>\s*<summary class="shd">Proyectos y agentes/);
   assert.match(source,/<details class="dash-section" id="liveExperiencesSection">\s*<summary class="shd">Xperiencias en vivo/);
@@ -237,7 +237,7 @@ test("los agentes nacen compactados dentro de cada equipo",()=>{
 });
 
 test("proyectos y equipos se pueden ocultar por ficha y restaurar desde sus filtros",()=>{
-  assert.match(source,/id="projectAgentProjectsAll"[^>]*aria-pressed="true">Todos<\/button>/);
+  assert.match(source,/id="projectAgentProjectsAll"[^>]*aria-pressed="true"[^>]*>Todos<\/button>/);
   assert.match(source,/id="projectAgentTeamsAll"[^>]*aria-pressed="true">Todos<\/button>/);
   assert.match(source,/data-pa-hide-project=/);
   assert.match(source,/data-pa-hide-team=/);
