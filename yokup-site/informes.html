@@ -678,7 +678,8 @@ function missionPresentation(t,forcedKind){
 let EXPANDED_FAMILIES={};
 const ROLE_LABEL={main:"principal",sub:"subagente",infra:"infraagente"};
 function familyDomId(key){let h=2166136261;for(const c of String(key)){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return "family-"+(h>>>0).toString(36);}
-function familyToggleLabel(name,missions,expanded){return (expanded?"Ocultar":"Mostrar")+" detalle de "+missions+" misión"+(missions===1?"":"es")+" de "+name;}
+function missionCountLabel(count){return count+" "+(count===1?"misión":"misiones");}
+function familyToggleLabel(name,missions,expanded){return (expanded?"Ocultar":"Mostrar")+" detalle de "+missionCountLabel(missions)+" de "+name;}
 function render(list){
   const rows=YkInformesView.rowsForView(list,REPORT_VIEW);
   LAST_VIEW_ROWS=rows;syncReportSemantics();
@@ -853,7 +854,7 @@ function renderDetail(list){
     const avatar=window.ykAvatar?ykAvatar.html(family.name):`<span class="who">🧠 ${esc(family.name)}</span>`;
     const scope=filterLabel()||"todas las fechas";
     return `<section class="family-group" role="rowgroup" data-family="${esc(family.key)}" aria-labelledby="${familyId}-label">
-      <div class="family-summary" role="row"><div role="cell" aria-colspan="7"><button class="family-toggle" type="button" aria-expanded="${expanded?"true":"false"}" aria-controls="${familyId}" data-family-toggle="${esc(family.key)}" data-family-count="${missions.length}" data-family-name="${esc(family.name)}" aria-label="${esc(familyToggleLabel(family.name,missions.length,expanded))}"><span class="family-chevron" aria-hidden="true">▾</span><span class="family-toggle-avatar">${avatar}</span><span class="family-identity"><span class="family-kicker">DeepAgent · agente principal</span><span class="family-name" id="${familyId}-label">${esc(family.name)}</span><span class="family-count">${missions.length} misión${missions.length===1?"":"es"} · ${family.rows.length} informe${family.rows.length===1?"":"s"} · ${esc(scope)}</span></span><span class="family-action">${expanded?"Ocultar detalle":"Ver subagentes"}</span></button></div></div>
+      <div class="family-summary" role="row"><div role="cell" aria-colspan="7"><button class="family-toggle" type="button" aria-expanded="${expanded?"true":"false"}" aria-controls="${familyId}" data-family-toggle="${esc(family.key)}" data-family-count="${missions.length}" data-family-name="${esc(family.name)}" aria-label="${esc(familyToggleLabel(family.name,missions.length,expanded))}"><span class="family-chevron" aria-hidden="true">▾</span><span class="family-toggle-avatar">${avatar}</span><span class="family-identity"><span class="family-kicker">DeepAgent · agente principal</span><span class="family-name" id="${familyId}-label">${esc(family.name)}</span><span class="family-count">${missionCountLabel(missions.length)} · ${family.rows.length} informe${family.rows.length===1?"":"s"} · ${esc(scope)}</span></span><span class="family-action">${expanded?"Ocultar detalle":"Ver subagentes"}</span></button></div></div>
       <div class="family-mission-summaries">${summaries}</div>
       <div class="family-detail-rows" id="${familyId}"${expanded?"":" hidden"}><div class="family-detail-head">Subagentes y tareas, agrupados por misión</div>${detailBody}</div>
     </section>`;

@@ -82,6 +82,7 @@ test("el desplegable de DeepAgent sólo abre el detalle solicitado",()=>{
   assert.match(html,/const expanded=button\.getAttribute\("aria-expanded"\)==="true",nextExpanded=!expanded/);
   assert.match(html,/if\(nextExpanded\)EXPANDED_FAMILIES\[key\]=true;else delete EXPANDED_FAMILIES\[key\]/);
   assert.match(html,/if\(rows\)rows\.hidden=!nextExpanded/);
+  assert.match(html,/count===1\?"misión":"misiones"/);
 });
 
 test("todas las miniaturas difieren carga y decodificación",()=>{
