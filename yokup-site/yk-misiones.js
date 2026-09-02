@@ -130,6 +130,22 @@
   function visibleAgent(name, machine) {
     return window.ykAgentIdentity ? window.ykAgentIdentity.display(name, machine) : name;
   }
+  // Roles ESTRUCTURALES del ticket: no son nombres de nadie, no se pintan como origen.
+  var ROLES_ESTRUCTURALES = ["mission", "standalone-task", ""];
+  function delegacionHtml(t) {
+    var quien = String((t && t.role) || "").trim();
+    if (!quien || ROLES_ESTRUCTURALES.indexOf(quien) >= 0) return "";
+    var hace = String((t && t.assignee) || "").trim();
+    // mismo agente aunque lleve apellido de equipo: pedirtelo tu no es delegar
+    var raiz = function (v) { return v.toLowerCase().replace(/[^a-z0-9]/g, ""); };
+    if (hace && (raiz(quien).indexOf(raiz(hace)) === 0 || raiz(hace).indexOf(raiz(quien)) === 0)) return "";
+    // El canal se lee del propio origen: lo que entra por la web se firma «status-web».
+    var canal = /status-web/i.test(quien) ? "yokup.com" : "Telegram";
+    var nombre = quien.split("\u00b7")[0].trim() || quien;
+    return '<span class="deleg" title="' + esc("Delegada: te la pidio " + nombre + " por " + canal) +
+      '">\u21aa delegada por ' + esc(nombre) + " \u00b7 " + esc(canal) + "</span>";
+  }
+
   function whoHtml(name, machine, surface, agents, machOff) {
     if(arguments.length<=4){machOff=agents;agents=surface;surface=machine;machine="";}
     var cu = agentCustom(name);
@@ -734,12 +750,18 @@
       (CFG.projectIdLayout ? "" : '<span class="st">' + esc(sourceLabel) + "</span>") +
       (pm.flag ? '<span class="prioflag' + (esPrio ? " abs" : "") + '">' + (esPrio ? "⚡ " : "") + esc(pm.flag) + "</span>" : "") + "</div>";
     var shotHtml = '<div class="cel shot">' + missionPreviewHtml(t) + "</div>";
-    var subjectMetaHtml = CFG.projectIdLayout
+    // QUIEN PIDIO LA MISION, CUANDO NO FUE QUIEN LA HACE (Carlos, 2026-09-02: «que esas
+    // peticiones queden reflejadas como misiones delegadas, algo como por Telegram me ha
+    // pedido Morfeo que haga esto»). El dato ya se guardaba —la columna role del ticket
+    // lleva quien mando el encargo— pero no se enseñaba en ningun sitio, asi que en el
+    // tablero una mision delegada era indistinguible de una que el agente se puso solo.
+    // No se pinta cuando quien pide es quien la hace: eso no es delegar.
+        var subjectMetaHtml = CFG.projectIdLayout
       ? ""
       : '<span class="scr">' + esc(String(t.screen || "").replace(/^(svc|maq|agt|service|machine|agent):/, "").replace(/^https?:\/\/(www\.)?/, "")) + "</span>" +
         (t.loc ? "<span>" + esc(t.loc) + "</span>" : "") + "<span>" + ago(t.created_at) + "</span>";
     var attachmentHtml = +t.img_count > 0 ? '<span class="adjn" title="' + (+t.img_count) + ' imagen(es) adjunta(s) — ábrela para verlas">📎 ' + (+t.img_count) + "</span>" : "";
-    var metaHtml = subjectMetaHtml + attachmentHtml;
+    var metaHtml = subjectMetaHtml + attachmentHtml + delegacionHtml(t);
     // La misión empieza diciendo DE QUÉ PROYECTO es y debajo qué hay que hacer
     // (Carlos, 2026-08-05). Sin proyecto no se inventa un rótulo: se omite.
     var proyectoNombre = (t && (t.project_name || "")) || dominioDe(proyectoDe(t));

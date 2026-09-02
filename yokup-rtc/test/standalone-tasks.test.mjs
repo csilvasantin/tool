@@ -25,7 +25,7 @@ function harness() {
   }; }};
   const listMissionTasks = async (_env, id) => DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? ORDER BY code").bind(id).all().then((r) => r.results);
   const context = vm.createContext({String, Date, baseAgentIdentity, scopedAgentIdentity, reportAgentIdentity, listMissionTasks, __name: (fn) => fn});
-  vm.runInContext(["cleanMissionAttributions", "fleetSubject", "fleetStandaloneTask", "ensureFleetStandaloneTask"].map(grab).join("\n"), context);
+  vm.runInContext(["cleanMissionAttributions", "quitarPreambuloDeAgente", "fleetSubject", "fleetStandaloneTask", "ensureFleetStandaloneTask"].map(grab).join("\n"), context);
   return {db, env: {DB}, F: context};
 }
 

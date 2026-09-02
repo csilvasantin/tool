@@ -20,7 +20,7 @@ function harness(){
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{first:async()=>stmt.get(...args)||null,run:async()=>({meta:stmt.run(...args)}),all:async()=>({results:stmt.all(...args)})}},first:async()=>stmt.get()||null,all:async()=>({results:stmt.all()})}}};
   const listMissionTasks=async(_env,id)=>DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? ORDER BY code").bind(id).all().then(x=>x.results);
   const context=vm.createContext({Map,String,Number,Date,RegExp,Math,baseAgentIdentity,parseAgentIdentity,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,listMissionTasks,addEvent:async()=>{},__name:(fn)=>fn});
-  vm.runInContext(["cleanMissionAttributions","fleetSubject","inboxIdFromScreen","nextFreeFleetId","fleetSameEncargo","fleetMissionId","fleetAssignment","resolveFleetAssignment","fleetScreen","fleetMainTasks","ensureFleetMainTasks","reconcileFleetTicket"].map(grab).join("\n"),context);
+  vm.runInContext(["cleanMissionAttributions","quitarPreambuloDeAgente","fleetSubject","inboxIdFromScreen","nextFreeFleetId","fleetSameEncargo","fleetMissionId","fleetAssignment","resolveFleetAssignment","fleetScreen","fleetMainTasks","ensureFleetMainTasks","reconcileFleetTicket"].map(grab).join("\n"),context);
   return{db,env:{DB},F:context};
 }
 

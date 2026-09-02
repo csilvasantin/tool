@@ -5455,7 +5455,11 @@ function cleanMissionAttributions(value) {
 }
 __name(cleanMissionAttributions, "cleanMissionAttributions");
 function fleetSubject(text) {
-  const line = cleanMissionAttributions(String(text || "").replace(/^\s*\[TAREA SUELTA\]\s*/i, "").split("\n")[0]);
+  // El asunto sale de la PRIMERA LINEA, y en un encargo de agente esa linea es el
+  // preambulo de bot-say.sh: sin quitarlo, la mision se titula «Soy Morfeo y estoy
+  // corriendo en el ordenador MacMini.» y no dice nada de lo que hay que hacer.
+  const limpio = quitarPreambuloDeAgente(String(text || ""));
+  const line = cleanMissionAttributions(limpio.replace(/^\s*\[TAREA SUELTA\]\s*/i, "").split("\n")[0]);
   if (!line) return "Encargo de la flota";
   return line.length > 120 ? line.slice(0, 117) + "…" : line;
 }
@@ -5507,6 +5511,15 @@ function fleetScreen(it, assignment) {
 }
 __name(fleetScreen, "fleetScreen");
 
+// «Soy <Agente> y estoy corriendo en el ordenador <Equipo>.» — lo antepone bot-say.sh a
+// todo lo que publica un agente. Es firma, no contenido: se quita antes de juzgar nada.
+function quitarPreambuloDeAgente(texto) {
+  return String(texto || "")
+    .replace(/^\s*soy\s+.{2,60}?(?:corriendo en|en el ordenador)[^.\n]*[.\n]\s*/i, "")
+    .trim();
+}
+__name(quitarPreambuloDeAgente, "quitarPreambuloDeAgente");
+
 // ¿Es un encargo DE VERDAD o charla de Telegram que se coló en el inbox?
 // Una MISIÓN exige destinatario; y aun con destinatario se descarta el ruido
 // típico del grupo: saludos de identidad («Soy X y estoy corriendo en…»),
@@ -5520,9 +5533,16 @@ function fleetEsMision(it) {
   // Destinatario = persona O máquina («solo máquina: quien esté allí» del alta
   // de yokup.com/misiones). Sin ninguno de los dos, es charla.
   if (!it.target_persona && !it.target_machine) return false;
-  const t = String(it.text || "").trim();
+  // EL PREAMBULO SE QUITA, NO DESCARTA LA PETICION (2026-09-02). bot-say.sh antepone
+  // «Soy <Agente> y estoy corriendo en el ordenador <Equipo>.» a TODO lo que publica un
+  // agente, asi que esta regla —pensada para ignorar los saludos de presencia— clasificaba
+  // como charla CUALQUIER peticion de un agente a otro: ninguna llegaba a yokup. Carlos lo
+  // pidio al reves: que se vean como misiones delegadas. Comprobado en vivo con el encargo
+  // #1517, una peticion real a Neo que no materializo nada. Tercera aparicion del mismo
+  // fallo el mismo dia: ya estaba en el router de Telegram (esCharla) y en el vigilante de
+  // bandeja. Un saludo a secas se queda vacio al quitarle el preambulo y se descarta igual.
+  const t = quitarPreambuloDeAgente(String(it.text || "").trim());
   if (!t) return false;
-  if (/^soy\s+.{2,60}?(corriendo en|en el ordenador)/i.test(t)) return false;
   if (/^(ack\b|✓|✅|rel[eé] en verde|busco contexto|deploy\b|desplegado\b|recibido\b)/i.test(t)) return false;
   // Auto-anuncios de PRESENCIA de un agente (no son encargos): un bot que avisa de
   // que está disponible («… en <máquina> operativo · llamadme», «vuelvo a conectar»,
