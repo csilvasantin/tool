@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r17">
-<link rel="stylesheet" href="/yk-informes-view.css?v=r2">
+<link rel="stylesheet" href="/yk-informes-view.css?v=r3">
 <!-- Retrato de agente compartido con /misiones. Va en el <head> a propósito: el render
      de la tabla lo consulta y tiene que existir ya en el primer pintado. -->
 <script src="/yk-avatar.js?v=r2"></script>
@@ -20,7 +20,7 @@
 <script src="/yk-informes-sort.js?v=r1"></script>
 <script src="/yk-informes-columns.js?v=r1"></script>
 <script src="/yk-informes-groups.js?v=r2"></script>
-<script src="/yk-informes-view.js?v=r2"></script>
+<script src="/yk-informes-view.js?v=r3"></script>
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -95,8 +95,10 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .grow.item{border-bottom:1px solid var(--line);transition:.12s}
 .grow.item:last-child{border-bottom:0}
 .grow.item:hover{background:var(--card2)}
-.family-group{border-bottom:1px solid var(--line2)}
-.family-group:last-child{border-bottom:0}
+.mission-group{display:block;border-bottom:1px solid var(--line2);background:rgba(120,243,255,.012)}
+.mission-group:last-child{border-bottom:0}
+.mission-group+.mission-group{border-top:2px solid rgba(120,243,255,.18)}
+.mission-group:nth-of-type(even){background:rgba(120,243,255,.025)}
 .family-summary{background:rgba(120,243,255,.045);border-bottom:1px solid var(--line)}
 .family-toggle{width:100%;min-height:42px;padding:8px 13px;display:flex;align-items:center;gap:9px;border:0;background:transparent;color:var(--ink);font:600 11px/1.3 var(--mono);text-align:left;cursor:pointer}
 .family-toggle:hover{background:rgba(120,243,255,.06)}
@@ -241,9 +243,6 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 </head>
 <body data-yk-title="INFORMES" data-yk-zone="app">
 <div class="wrap">
-  <nav>
-    <a href="/incidencias" class="back">← Bandeja</a>
-  </nav>
   <details class="page-intro">
     <summary>
       <h1>Informes</h1>
@@ -352,7 +351,9 @@ function applyFilter(){
   if(LOAD_STATE==="error"){ renderLoadError(); return; }
   if(LOAD_STATE!=="ready"||!PROJECT_READY){ renderLoading(); return; }
   const filtered=ALL.filter(t=>!PROJECT_SCOPE||String(t.project||"")===PROJECT_SCOPE).filter(t=>inRange(t.updated_at));
-  render(YkInformesSort.sort(filtered,SORT.key,SORT.dir,{agentName:reportAgent,missionLast:MLAST}));
+  const sorted=YkInformesSort.sort(filtered,SORT.key,SORT.dir,{agentName:reportAgent,missionLast:MLAST});
+  const ordered=YkInformesView.canonicalMissionRows?YkInformesView.canonicalMissionRows(sorted):sorted;
+  render(ordered);
 }
 if(window.addEventListener)window.addEventListener("yk:project-change",event=>{
   const next=event.detail&&event.detail.project_id||null,wasReady=PROJECT_READY,changed=next!==PROJECT_SCOPE;
@@ -447,7 +448,7 @@ async function loadDebe(){
   // Endpoint propio: /fleet/missions va capada a 120 y saca las abiertas primero,
   // así que la deuda vieja se quedaba fuera de la ventana. Aquí vienen TODAS.
   let d; try{ const r=await fetch(WORKER+"/fleet/informes-deuda",{cache:"no-store"}); d=await r.json(); }catch(e){ return; }
-  const debt=YkInformesView.anomalyContract(d.debts||d.missions||[]),sin=debt.rows;
+  const debt=YkInformesView.anomalyContract(d.debts||d.missions||[]),sin=YkInformesView.canonicalMissionRows?YkInformesView.canonicalMissionRows(debt.rows):debt.rows;
   if(!sin.length){ box.hidden=true; box.innerHTML=""; return; }
   const debtLabel=m=>m.debt_kind==="task_without_report"?("Tarea "+(m.code||"—")+" hecha sin informe"):
     m.debt_kind==="resolved_open_tree"?"Misión cerrada con tareas abiertas":"Misión cerrada sin informe final z1";
@@ -649,7 +650,7 @@ function humanWorkLabel(t,forcedKind){
   const number=missionNumber(id,ref),kind=forcedKind||inferred;
   if(kind==="task"){
     const taskCode=code.toUpperCase();
-    return "Tarea"+(taskCode?" "+taskCode:"")+(number?" · Misión "+number:"");
+    return (number?"Misión "+number+" · ":"")+"Tarea"+(taskCode?" "+taskCode:"");
   }
   return "Misión"+(number?" "+number:"");
 }
@@ -765,10 +766,9 @@ function renderDetail(list){
     COLUMN_RESIZE.apply();
     updatePageState();return;
   }
-  const groups=YkInformesGroups.ensureVisible(YkInformesGroups.group(list,window.ykAgentIdentity),COLLAPSED_FAMILIES);
+  const groups=YkInformesView.missionGroups(list);
   RENDERED_GROUPS=groups;
   box.innerHTML=headHTML()+groups.map(group=>{
-    const familyId=familyDomId(group.key),collapsed=COLLAPSED_FAMILIES[group.key]===true;
     const rows=group.rows.map(t=>{
     // El feed recompone esta identidad con tickets.loc, la máquina real de la
     // misión. owner queda como fallback durante el rollout del worker.
@@ -817,9 +817,7 @@ function renderDetail(list){
       <div class="gc pts-cell" role="cell" data-label="Puntos">${puntosHTML(t)}</div>
     </div>`;
     }).join("");
-    return `<section class="family-group" role="rowgroup" data-family="${esc(group.key)}" aria-labelledby="${familyId}-label">
-      <div class="family-summary" role="row"><div role="cell" aria-colspan="${SORT_COLUMNS.length}"><button class="family-toggle" type="button" aria-expanded="${collapsed?"false":"true"}" aria-controls="${familyId}" aria-label="${esc(familyToggleLabel(group.name,group.rows.length,!collapsed))}" data-family-toggle="${esc(group.key)}" data-family-name="${esc(group.name)}" data-family-count="${group.rows.length}"><span class="family-chevron" aria-hidden="true">▾</span><span class="family-name" id="${familyId}-label">${esc(group.name)}</span><span class="family-count">${group.rows.length} informe${group.rows.length===1?"":"s"}</span><span class="family-action">${collapsed?"Mostrar informes":"Ocultar informes"}</span></button></div></div>
-      <div class="family-rows" id="${familyId}"${collapsed?" hidden":""}>${rows}</div></section>`;
+    return `<section class="mission-group" role="rowgroup" data-mission="${esc(group.key)}">${rows}</section>`;
   }).join("");
   COLUMN_RESIZE.apply();updatePageState();
 }

@@ -2,7 +2,9 @@
   "use strict";
 
   var DETAIL="detail",GRID="grid",LIST="list";
-  var STORAGE_KEY="yokup.informes.view.v2";
+  // Nueva clave: la recuperacion de la hoja historica debe abrir Detalle incluso
+  // si una version intermedia dejo Lista guardada en el navegador.
+  var STORAGE_KEY="yokup.informes.view.v3";
 
   function normalize(value){return value===GRID||value===LIST?value:DETAIL;}
   function read(storage,key){
@@ -34,6 +36,42 @@
   // La vista es exclusivamente una proyección visual: recibe el array ya filtrado
   // y ordenado y devuelve una copia superficial con exactamente las mismas filas.
   function rowsForView(rows){return Array.isArray(rows)?rows.slice():[];}
+  function missionKey(row,index){
+    return clean(row&&(row.mission_id||row.id))||("__row__"+String(index));
+  }
+  function codeOrder(row){
+    var code=clean(row&&row.code).toLowerCase(),mission=reportKind(row)==="mission";
+    if(mission)return [0,0,0,code];
+    var match=/^([a-z])(\d*)$/.exec(code);
+    if(match)return [1,match[1].charCodeAt(0)-96,match[2]?Number(match[2]):0,code];
+    return [2,0,0,code];
+  }
+  function compareCode(a,b){
+    var left=codeOrder(a),right=codeOrder(b);
+    for(var i=0;i<left.length;i++){
+      if(left[i]===right[i])continue;
+      if(typeof left[i]==="number"&&typeof right[i]==="number")return left[i]-right[i];
+      return String(left[i]).localeCompare(String(right[i]),"es",{numeric:true,sensitivity:"base"});
+    }
+    return 0;
+  }
+  // El orden recibido decide el orden de las misiones (fecha, agente, puntos...),
+  // pero una mision nunca se fragmenta: z1, A, A1..., B, B1..., C, C1...
+  function missionGroups(rows){
+    var groups=[],byMission=new Map();
+    rowsForView(rows).forEach(function(row,index){
+      var key=missionKey(row,index),group=byMission.get(key);
+      if(!group){group={key:key,rows:[]};byMission.set(key,group);groups.push(group);}
+      group.rows.push({row:row,index:index});
+    });
+    groups.forEach(function(group){
+      group.rows=group.rows.sort(function(a,b){return compareCode(a.row,b.row)||(a.index-b.index);}).map(function(item){return item.row;});
+    });
+    return groups;
+  }
+  function canonicalMissionRows(rows){
+    return missionGroups(rows).reduce(function(all,group){return all.concat(group.rows);},[]);
+  }
   function dataContract(rows,meta){
     var projected=rowsForView(rows),options=meta||{};
     var state=/^(loading|error)$/.test(options.state)?options.state:(projected.length?"ready":"empty");
@@ -102,7 +140,8 @@
   root.YkInformesView={
     DETAIL:DETAIL,GRID:GRID,LIST:LIST,STORAGE_KEY:STORAGE_KEY,
     normalize:normalize,read:read,write:write,rowKey:rowKey,reportKind:reportKind,
-    detailHref:detailHref,rowsForView:rowsForView,dataContract:dataContract,
+    detailHref:detailHref,rowsForView:rowsForView,missionGroups:missionGroups,
+    canonicalMissionRows:canonicalMissionRows,dataContract:dataContract,
     anomalyKey:anomalyKey,anomalyContract:anomalyContract,
     selectorMarkup:selectorMarkup,mount:mount
   };

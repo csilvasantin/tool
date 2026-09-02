@@ -6,8 +6,8 @@ import {readFile} from "node:fs/promises";
 const html=await readFile(new URL("./informes.html",import.meta.url),"utf8");
 
 test("Detalle nace seleccionado y el selector expone tres botones accesibles",()=>{
-  assert.match(html,/href="\/yk-informes-view\.css\?v=r2"/);
-  assert.match(html,/src="\/yk-informes-view\.js\?v=r2"/);
+  assert.match(html,/href="\/yk-informes-view\.css\?v=r3"/);
+  assert.match(html,/src="\/yk-informes-view\.js\?v=r3"/);
   assert.match(html,/id="reportView"><\/div>/);
   assert.match(html,/YkInformesView\.mount\(\$\("reportView"\)/);
   assert.match(html,/targets:\[\$\("reportsSurface"\),\$\("reps"\),\$\("debe"\)\]/);
@@ -36,12 +36,13 @@ test("cambiar de vista usa el contrato persistente sin recargar datos",()=>{
   assert.match(html,/REPORT_VIEW=REPORT_VIEW_CONTROL\.getView\(\);syncReportSemantics\(\)/);
 });
 
-test("Detalle conserva íntegra la hoja histórica con retrato, grupos, sort y columnas",()=>{
+test("Detalle conserva íntegra la hoja histórica con retrato, misiones, sort y columnas",()=>{
   const detail=html.slice(html.indexOf("function renderDetail(list)"),html.indexOf("$('reps').addEventListener",html.indexOf("function renderDetail(list)")));
   assert.match(detail,/headHTML\(\)\+groups\.map/);
   assert.match(detail,/ykAvatar\.html\(agent\)/);
   assert.match(detail,/class="grow item" role="row"/);
-  assert.match(detail,/class="family-group" role="rowgroup"/);
+  assert.match(detail,/class="mission-group" role="rowgroup"/);
+  assert.match(detail,/YkInformesView\.missionGroups\(list\)/);
   assert.match(detail,/COLUMN_RESIZE\.apply\(\);updatePageState\(\)/);
   assert.match(html,/YkInformesView\.rowsForView\(list,REPORT_VIEW\)/);
   assert.match(html,/if\(REPORT_VIEW===YkInformesView\.GRID\)return renderGrid\(rows\)/);
@@ -56,16 +57,21 @@ test("Lista es el resumen compacto y no duplica la hoja Detalle",()=>{
   assert.doesNotMatch(list,/class="grow item"/);
 });
 
-test("la interfaz usa Misión o Tarea y conserva FLT sólo como ID técnico",()=>{
-  assert.match(html,/return "Tarea"\+\(taskCode\?" "\+taskCode:""\)\+\(number\?" · Misión "\+number:""\)/);
+test("la interfaz usa Misión antes de Tarea y conserva FLT sólo como ID técnico",()=>{
+  assert.match(html,/return \(number\?"Misión "\+number\+" · ":""\)\+"Tarea"\+\(taskCode\?" "\+taskCode:""\)/);
   assert.match(html,/return "Misión"\+\(number\?" "\+number:""\)/);
   assert.match(html,/title="Abrir misión · ID técnico /);
   assert.match(html,/humanWorkLabel\(m,m\.debt_kind==="task_without_report"\?"task":"mission"\)/);
 });
 
+test("Bandeja desaparece de Informes",()=>{
+  assert.doesNotMatch(html,/← Bandeja/);
+});
+
 test("filtros, paginación y detalle operan sobre los mismos informes en ambas vistas",()=>{
   assert.match(html,/const filtered=ALL\.filter\(t=>!PROJECT_SCOPE/);
-  assert.match(html,/render\(YkInformesSort\.sort\(filtered,SORT\.key,SORT\.dir/);
+  assert.match(html,/const sorted=YkInformesSort\.sort\(filtered,SORT\.key,SORT\.dir/);
+  assert.match(html,/YkInformesView\.canonicalMissionRows\(sorted\)/);
   assert.match(html,/function loadMore\(\)/);
   assert.match(html,/const detail=YkInformesView\.detailHref\(t\),kind=YkInformesView\.reportKind\(t\)/);
   assert.match(html,/href="\$\{esc\(detail\)\}"/);

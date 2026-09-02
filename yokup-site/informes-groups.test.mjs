@@ -50,16 +50,11 @@ test("agrupar conserva orden de familias y filas producido por el sorter",()=>{
   assert.deepEqual(Array.from(groups[0].rows,r=>r.id),["b2","b1"]);
 });
 
-test("grupos nacen abiertos y el plegado es accesible pero no queda stale al volver",()=>{
-  assert.match(html,/class="family-toggle"[^>]*aria-expanded="\$\{collapsed\?"false":"true"\}"[^>]*aria-controls=/);
-  assert.match(html,/class="family-rows"[^>]*\$\{collapsed\?" hidden":""\}/);
-  assert.match(html,/let COLLAPSED_FAMILIES=\{\}/);
-  assert.doesNotMatch(html,/collapsedFamilies|localStorage\.setItem/);
-  assert.match(html,/aria-label="\$\{esc\(familyToggleLabel/);
-  assert.match(html,/class="family-action"/);
-  assert.match(html,/button\.setAttribute\("aria-expanded",expanded\?"false":"true"\)/);
-  assert.match(html,/if\(expanded\)COLLAPSED_FAMILIES\[key\]=true;else delete COLLAPSED_FAMILIES\[key\]/);
-  assert.match(html,/button\.setAttribute\("aria-label",familyToggleLabel/);
+test("Detalle agrupa por misión sin plegados que oculten filas",()=>{
+  assert.match(html,/class="mission-group" role="rowgroup" data-mission=/);
+  assert.match(html,/YkInformesView\.missionGroups\(list\)/);
+  const detail=html.slice(html.indexOf("function renderDetail(list)"),html.indexOf("$('reps').addEventListener",html.indexOf("function renderDetail(list)")));
+  assert.doesNotMatch(detail,/family-toggle|aria-expanded|hidden/);
   assert.match(html,/class="role-badge role-\$\{esc\(role\)\}"/);
 });
 

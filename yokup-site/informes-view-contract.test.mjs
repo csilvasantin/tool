@@ -88,6 +88,26 @@ test("Detalle, Cuadrícula y Lista conservan exactamente filas, identidad, orden
   assert.equal(grid.hasMore,true);
 });
 
+test("las filas permanecen agrupadas por misión y siguen el orden cierre, A, B, C",()=>{
+  const rows=[
+    {mission_id:"FLT-1430",code:"c",report:"tarea c"},
+    {mission_id:"FLT-1429",code:"b",report:"otra misión"},
+    {mission_id:"FLT-1430",code:"b1",report:"subtarea b1"},
+    {mission_id:"FLT-1430",code:"z1",report:"cierre"},
+    {mission_id:"FLT-1430",code:"a2",report:"subtarea a2"},
+    {mission_id:"FLT-1429",code:"a",report:"otra tarea"},
+    {mission_id:"FLT-1430",code:"a",report:"tarea a"},
+    {mission_id:"FLT-1430",code:"b",report:"tarea b"}
+  ];
+  const ordered=View.canonicalMissionRows(rows);
+  assert.deepEqual(Array.from(ordered,r=>r.mission_id+":"+r.code),[
+    "FLT-1430:z1","FLT-1430:a","FLT-1430:a2","FLT-1430:b","FLT-1430:b1","FLT-1430:c",
+    "FLT-1429:a","FLT-1429:b"
+  ]);
+  assert.deepEqual(Array.from(View.missionGroups(rows),g=>g.key),["FLT-1430","FLT-1429"]);
+  assert.deepEqual(Array.from(rows,r=>r.code),["c","b","b1","z1","a2","a","a","b"],"no muta el feed original");
+});
+
 test("loading, vacío, error y paginación son estados de datos, no de vista",()=>{
   const cases=[
     [[],{state:"loading",loaded:0,hasMore:false},"loading"],
