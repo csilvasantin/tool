@@ -2645,9 +2645,21 @@ async function resolveFleetMissionReference(env, raw) {
   const value = String(raw == null ? "" : raw).trim();
   const numeric = /^#?(\d+)$/.exec(value);
   if (numeric) {
+    const n = Number(numeric[1]);
     const mapped = await env.DB.prepare("SELECT mission_id FROM fleet_ids WHERE inbox_id=?")
-      .bind(Number(numeric[1])).first();
+      .bind(n).first();
     if (mapped && mapped.mission_id) return mapped.mission_id;
+    // EL RESPALDO A FLT-<n> NO PUEDE PISAR LA MISION DE OTRO ENCARGO (2026-09-02).
+    // El respaldo asume que el encargo N nacio como FLT-N, y eso solo vale mientras
+    // las numeraciones no se separen. Ya se separaron: FLT-1515 nacio del encargo
+    // #1487, y el encargo #1515 —una consulta de status-web— no tiene mision ninguna.
+    // Asi que al informar del #1515 el informe se fue contra FLT-1515, que es de otro
+    // agente. Hoy solo lo freno un owner_mismatch; si esa mision hubiera sido del
+    // mismo agente, el informe se habria escrito en la mision equivocada sin que
+    // saltara nada. Cuando SABEMOS que FLT-<n> nacio de otro encargo, no se adivina.
+    const ajena = await env.DB.prepare("SELECT inbox_id FROM fleet_ids WHERE mission_id=?")
+      .bind("FLT-" + n).first();
+    if (ajena && Number(ajena.inbox_id) !== n) return "";
   }
   return normalizeMissionReference(value);
 }
@@ -8778,6 +8790,14 @@ var worker_app = {
       if (!report) missing.push("report");
       if (!owner) missing.push("owner");
       if (!rawImage) missing.push("final_image");
+      // «faltan mission» no le dice nada a un agente que acaba de pasar el numero de SU
+      // encargo: el numero era bueno, lo que no hay es mision detras. Se le dice eso y
+      // como seguir, en vez de dejarle mirando una lista de campos.
+      if (!mid && /^#?\d+$/.test(String(b.mission || b.id || "").trim())) {
+        return json({ ok: false, code: "encargo_sin_mision", applied: false,
+          error: "el encargo #" + String(b.mission || b.id).replace("#", "") + " no tiene mision en yokup: no hay donde escribir el informe",
+          hint: "dale de alta con alta-mision.sh si merece mision propia, o cierralo con bot-inbox-ack.sh <id> done y la nota" }, 409);
+      }
       if (missing.length) return json({ ok: false, code: "closure_evidence_missing", error: "no se puede cerrar: faltan " + missing.join(", "), missing, applied: false }, 400);
       const t = await env.DB.prepare("SELECT id,assignee,loc,status,source,screen,created_at,proof_image,proof_kind,live_shot,live_at,live_kind,live_surface,live_context,role FROM tickets WHERE id=?").bind(mid).first();
       if (!t) return json({ ok: false, error: "la misión " + mid + " no existe" }, 404);
