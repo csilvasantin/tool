@@ -4,10 +4,10 @@ import {readFile} from 'node:fs/promises';
 import {DatabaseSync} from 'node:sqlite';
 import worker from './src/index.js';
 
-const telegramSource = await readFile(
-  new URL('../../../github-csilvasantin/admira-telegram/src/index.js', import.meta.url),
-  'utf8'
-);
+// The cross-repository source check is optional and explicit. Unit tests remain
+// portable; integration runs can point at the real sibling implementation.
+const telegramSourcePath = String(process.env.ADMIRA_TELEGRAM_SOURCE || '').trim();
+const telegramSource = telegramSourcePath ? await readFile(telegramSourcePath, 'utf8') : '';
 
 function d1(database) {
   const statement = (sql, args = []) => ({
@@ -43,7 +43,10 @@ local.exec(`CREATE TABLE tickets(id TEXT PRIMARY KEY,screen TEXT,subject TEXT,lo
   CREATE TABLE fleet_ids(inbox_id INTEGER PRIMARY KEY,mission_id TEXT UNIQUE,created_at INTEGER);`);
 inbox.exec('CREATE TABLE telegram_inbox(id INTEGER PRIMARY KEY,status TEXT,note TEXT,done_at TEXT)');
 
-function realBulkStatusBinding({override} = {}) {
+// This is the service-binding contract consumed by Yokup. Keep the boundary
+// fixture local: a clean checkout must not depend on an admira-telegram sibling
+// repository living at one developer-specific relative path.
+function bulkStatusContractBinding({override} = {}) {
   return {fetch:async (request) => {
     if (override) return override(request);
     const body = await request.json();
@@ -81,7 +84,9 @@ async function cancel(telegram) {
   return {response, body:await response.json()};
 }
 
-test('fixture corresponde al bulk-status real: persiste note y no metadata', () => {
+test('fixture corresponde al bulk-status real: persiste note y no metadata', {
+  skip: telegramSourcePath ? false : 'define ADMIRA_TELEGRAM_SOURCE para la comprobación entre repositorios'
+}, () => {
   const start = telegramSource.indexOf('async function handleBotInboxBulkStatus');
   const end = telegramSource.indexOf('\nasync function ', start + 20);
   assert.ok(start >= 0 && end > start, 'existe handleBotInboxBulkStatus real');
@@ -95,7 +100,7 @@ test('fixture corresponde al bulk-status real: persiste note y no metadata', () 
 
 test('handler real cancela D1 sólo tras confirmar exactamente una fila del inbox', async () => {
   await reset();
-  const {response,body} = await cancel(realBulkStatusBinding());
+  const {response,body} = await cancel(bulkStatusContractBinding());
   assert.equal(response.status, 200);
   assert.equal(body.cancelled, true);
   assert.equal(local.prepare('SELECT status FROM tickets WHERE id=?').get('FLT-1005').status, 'cancelled');
@@ -115,7 +120,7 @@ test('handler real cancela D1 sólo tras confirmar exactamente una fila del inbo
 
 test('HTTP 200 updated:0 no muta ticket ni cronología local', async () => {
   await reset({withInbox:false});
-  const {response,body} = await cancel(realBulkStatusBinding());
+  const {response,body} = await cancel(bulkStatusContractBinding());
   assert.equal(response.status, 502);
   assert.equal(body.code, 'cancel_reconciliation_failed');
   assert.equal(body.local_cancelled, false);
@@ -129,7 +134,7 @@ test('updated exige el entero numérico exacto 1; coerciones JSON no mutan D1', 
   ]) await t.test(name, async () => {
     await reset();
     const override = async () => Response.json({ok:true,updated});
-    const {response,body} = await cancel(realBulkStatusBinding({override}));
+    const {response,body} = await cancel(bulkStatusContractBinding({override}));
     assert.equal(response.status, 502);
     assert.equal(body.code, 'cancel_reconciliation_failed');
     assert.equal(body.local_cancelled, false);
@@ -146,7 +151,7 @@ test('payload inválido o error HTTP del espejo tampoco mutan D1', async (t) => 
     ['error HTTP', async () => Response.json({ok:false,updated:1}, {status:500})]
   ]) await t.test(name, async () => {
     await reset();
-    const {response} = await cancel(realBulkStatusBinding({override}));
+    const {response} = await cancel(bulkStatusContractBinding({override}));
     assert.equal(response.status, 502);
     assert.equal(local.prepare('SELECT status FROM tickets WHERE id=?').get('FLT-1005').status, 'open');
     assert.equal(local.prepare('SELECT COUNT(*) n FROM events WHERE ticket_id=?').get('FLT-1005').n, 0);

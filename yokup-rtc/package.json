@@ -1,1 +1,11 @@
-{"name":"yokup-rtc","private":true,"type":"module","dependencies":{"@cloudflare/puppeteer":"^1.1.0"}}
+{
+  "name": "yokup-rtc",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@cloudflare/puppeteer": "^1.1.0"
+  }
+}
