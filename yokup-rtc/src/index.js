@@ -3650,6 +3650,70 @@ function matchesOnIdleIdentity(row, identity) {
 }
 __name(matchesOnIdleIdentity, "matchesOnIdleIdentity");
 
+// ¿HA TRABAJADO ESTE AGENTE EN LA ULTIMA HORA? (Carlos, 3-sep-2026: «es una a la hora
+// por defecto y si hemos hecho trabajar al agente esa hora no se ejecuta la ventana de
+// decision».) La ventana horaria existe por el mandamiento 10 —«si NO tienes trabajo,
+// tira millas»—, asi que a un agente ocupado no hay nada que preguntarle: preguntarselo
+// es interrumpirle para que elija entre tres cosas que ya no va a hacer.
+//
+// Hacia falta porque el guarda de OnIdle solo mira las decisiones marcadas «OnIdle
+// horario» con surface «highscore», y la ventana automatica de la hora nace como
+// «Ventana automatica»: se saltaba el guarda entero. Hoy me han saltado quince mientras
+// trabajaba, y una de ellas ocupo el hueco de la propuesta que Carlos habia pedido.
+//
+// Trabajar es ACTIVIDAD, no tener algo abierto: una mision olvidada desde el martes no
+// convierte en ocupado a quien lleva la mañana parado.
+// LAS VENTANAS DE DECISION SON TRABAJO, Y SE VEN AGRUPADAS (Carlos, 3-sep-2026:
+// «agrupa las ventanas de decision y que aparezcan»). Puntuaban desde siempre —8 puntos
+// cada una— pero no constaban como trabajo en yokup: en /misiones no habia ni rastro de
+// una labor que un agente hace cada hora. Una fila por ventana habria metido unas 56 al
+// dia entre toda la flota y habria enterrado el tablero, asi que se agrupan: UNA mision
+// por agente y jornada, que va contando las suyas.
+async function anotarVentanaComoTrabajo(env, agent, machine, projectId, pregunta, now) {
+  try {
+    const dia = madridDayKey(now);
+    const range = missionDayRange(dia);
+    if (!range) return null;
+    const previa = await env.DB.prepare(
+      "SELECT id,subject FROM tickets WHERE source='decision-window' AND assignee=? AND created_at>=? AND created_at<? LIMIT 1"
+    ).bind(agent, range.start, range.end).first();
+    if (previa) {
+      const n = (Number((/·\s(\d+)\sventanas?/.exec(String(previa.subject || "")) || [])[1]) || 1) + 1;
+      await env.DB.prepare("UPDATE tickets SET subject=?, updated_at=? WHERE id=?")
+        .bind("Ventanas de decision del " + dia + " · " + n + " ventanas · ultima: " + String(pregunta || "").slice(0, 90), now, previa.id).run();
+      return previa.id;
+    }
+    const id = await nextFreeFleetId(env);
+    await env.DB.prepare(
+      "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,project,project_id,role,status,priority,assignee,source,ai_triage,created_at,started_at,updated_at) " +
+      "VALUES(?,?,?,?,?,?,'standalone-task','in_progress','normal',?,'decision-window','',?,?,?)"
+    ).bind(id, agent + "\u00b7" + machine + " ventanas", 
+           "Ventanas de decision del " + dia + " · 1 ventana · ultima: " + String(pregunta || "").slice(0, 90),
+           machine, projectId, projectId, agent, now, now, now).run();
+    await ensureEntityDisplayRef(env, "mission", id, now).catch(() => {});
+    return id;
+  } catch (e) { return null; }   // anotar el trabajo no puede tumbar la ventana
+}
+__name(anotarVentanaComoTrabajo, "anotarVentanaComoTrabajo");
+
+async function agenteTrabajoLaUltimaHora(env, identity, now = Date.now()) {
+  const desde = now - 60 * 60 * 1000;
+  const [mis, tar] = await Promise.all([
+    env.DB.prepare(
+      "SELECT id,assignee,loc,created_at,started_at,updated_at,source FROM tickets WHERE " + AGENT_SOURCE_SQL +
+      " AND (created_at>=? OR started_at>=? OR updated_at>=? OR resolved_at>=?)"
+    ).bind(desde, desde, desde, desde).all(),
+    env.DB.prepare(
+      "SELECT m.mission_id,t.assignee,t.loc FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id " +
+      "WHERE (m.started_at>=? OR m.updated_at>=?) AND " + AGENT_SOURCE_SQL_T
+    ).bind(desde, desde).all(),
+  ]);
+  const mias = (mis.results || []).filter((row) => matchesOnIdleIdentity(row, identity));
+  const suyas = (tar.results || []).filter((row) => matchesOnIdleIdentity(row, identity));
+  return { trabajo: mias.length + suyas.length, desde };
+}
+__name(agenteTrabajoLaUltimaHora, "agenteTrabajoLaUltimaHora");
+
 async function operationalOnIdleState(env, identity, requestedProjectId = "", now = Date.now()) {
   const [missionResult, taskResult, decisionResult] = await Promise.all([
     env.DB.prepare("SELECT id,status,assignee,loc,created_at,started_at,updated_at,live_at,source FROM tickets WHERE " +
@@ -11582,6 +11646,18 @@ Todo en español.`;
           return json({ ok: false, code: "manual_needs_session",
             error: "lanzar a mano exige sesión del perímetro: el cupo de 6/hora es de quien mira la pantalla" }, 401);
         }
+        // LA VENTANA HORARIA NO INTERRUMPE A QUIEN ESTA TRABAJANDO (Carlos, 3-sep-2026).
+        // Solo se aplica a la automatica: una que pide una persona, una continuacion o un
+        // override entran igual, porque ahi hay alguien decidiendo, no un reloj.
+        if (!continuation && !userOverride && !manual) {
+          const { trabajo, desde } = await agenteTrabajoLaUltimaHora(env, projectContext, now);
+          if (trabajo > 0) {
+            return json({ ok: false, code: "agente_ocupado", applied: false,
+              error: "no se abre ventana: " + agent + " ha trabajado en la ultima hora (" + trabajo + " movimientos)",
+              hint: "la ventana horaria es para cuando NO hay trabajo (mandamiento 10); vuelve a intentarlo cuando la hora este parada",
+              desde }, 409);
+          }
+        }
         if (!continuation && !userOverride && !onIdle) {
           // Las decisiones ordinarias comparten criterio con openInitialMissionDecision:
           // UNA VENTANA VIVA por agente —pendiente y dentro de plazo—, no una cada 60
@@ -11630,7 +11706,9 @@ Todo en español.`;
                 Math.max(0, Math.min(continuation ? opts.length - 2 : 2, +b.recommended || 0)), now, now + mins * 60000,
                 durl, dmission, dproject, dprojectSlug, dparent, dbatch, JSON.stringify(targetContract.targets)).run();
         const display_ref = await ensureEntityDisplayRef(env, "window", id, now);
-        return json({ ok: true, id, display_ref, deadline: now + mins * 60000, project: projectContext.project, project_id: dproject, project_slug: dprojectSlug, parent_decision: dparent, batch_id: dbatch, continuation, user_override: userOverride });
+        // Abrir una ventana es trabajo: queda anotado, agrupado por agente y jornada.
+        const trabajo_id = await anotarVentanaComoTrabajo(env, agent, machine, dproject, q, now);
+        return json({ ok: true, id, display_ref, trabajo_id, deadline: now + mins * 60000, project: projectContext.project, project_id: dproject, project_slug: dprojectSlug, parent_decision: dparent, batch_id: dbatch, continuation, user_override: userOverride });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     if (url.pathname === "/decisions" && req.method === "GET") {
