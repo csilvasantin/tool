@@ -29,7 +29,10 @@ const PERSONAS = [
   ["Link", ["link"]],
   ["Morfeo", ["morfeo", "morpheus"]],
   ["Trinity", ["trinity"]],
-  ["Smith", ["smith", "cypher", "agente smith"]],
+  // Un solo Smith: el color NO es apellido (Carlos, 3-sep-2026). Los nombres con color
+  // que ya firmó la flota se leen como Smith. «Smith Rosa/Azul/Crema/Plata» no van aquí:
+  // ese color es apellido de MÁQUINA y el parser ya lo convierte en SmithMBARosa, etc.
+  ["Smith", ["smith", "cypher", "agente smith", "smith gris", "smith negro", "smithgris", "smithnegro"]],
   ["WhiteRabbit", ["whiterabbit", "white rabbit"]],
   // Niobe corre de verdad en el MacMini (launchd com.admiranext.agente-niobe +
   // agent-inbox-niobe + sesión tmux + presencia), pero faltaba aquí, y una persona que

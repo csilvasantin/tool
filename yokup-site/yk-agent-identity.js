@@ -32,7 +32,7 @@
   var PERSONAS = [
     ["Oraculo",["oraculo","oráculo","oracle"]],
     ["Neo",["neo"]],["Morfeo",["morfeo","morpheus"]],["Trinity",["trinity"]],
-    ["Smith",["smith","cypher","agente smith"]],
+    ["Smith",["smith","cypher","agente smith","smith gris","smith negro","smithgris","smithnegro"]],
     ["WhiteRabbit",["whiterabbit","white rabbit"]],
     ["Niobe",["niobe"]],
     ["Persefone",["persefone","perséfone","persephone"]]
