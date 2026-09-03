@@ -44,6 +44,8 @@ const PERSONAS = [
   ["Niobe", ["niobe"]],
   // Persefone: OpenCode + NVIDIA Nemotron en MacBookAirCrema (Carlos, 3-sep-2026, misión 0148).
   ["Persefone", ["persefone", "perséfone", "persephone"]],
+  // Seraph: OpenCode + Qwen 3.6 en MacBookAirPlata (Carlos, 3-sep-2026, misión 0211).
+  ["Seraph", ["seraph", "serafín", "serafin"]],
 ];
 // Apellidos que se usaron antes y siguen vivos en datos ya guardados. Se leen,
 // pero al volver a escribir salen con el apellido actual.

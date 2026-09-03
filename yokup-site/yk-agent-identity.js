@@ -35,7 +35,8 @@
     ["Smith",["smith","cypher","agente smith","smith gris","smith negro","smithgris","smithnegro"]],
     ["WhiteRabbit",["whiterabbit","white rabbit"]],
     ["Niobe",["niobe"]],
-    ["Persefone",["persefone","perséfone","persephone"]]
+    ["Persefone",["persefone","perséfone","persephone"]],
+    ["Seraph",["seraph","serafín","serafin"]]
   ];
   var LEGACY_SUFFIXES = {
     "14":"MBP14", "16":"MBP16", "air16":"MBA16", "plata16":"MBA16",
