@@ -631,6 +631,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 @keyframes work-pulse{50%{color:#dfffe8;text-shadow:0 0 2px rgba(136,255,170,.4);opacity:.48}}
 @keyframes work-ring{50%{transform:scale(.82);opacity:.12}}
 .rt{font-size:9.5px;color:var(--dim);letter-spacing:.06em}
+.rt .llm{color:var(--brand);letter-spacing:.04em;margin-left:.35em}
 /* Ordenadores donde corre el agente. Encendido = latiendo ahora; apagado = conocido
    pero sin latido reciente. Un agente puede estar en varios a la vez (Smith en 8). */
 .maqs{display:flex;flex-wrap:wrap;gap:4px;max-width:340px}
@@ -1488,10 +1489,28 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         runtime.toLowerCase() >= destino.runtime.toLowerCase()) return;
     destino.runtime = runtime; destino.runtimePeso = peso; destino.runtimeAt = at;
   }
-  function adoptaRuntime(destino, runtime, host, updated, vivo) {
+  function adoptaRuntime(destino, runtime, host, updated, vivo, model) {
     host = normaliza(host).toLowerCase();
     var peso = (vivo ? 100 : 0) + (host === "app" ? 20 : (host === "cli" ? 10 : 0));
+    var antes = destino.runtimePeso, antesAt = destino.runtimeAt;
     adoptaRuntimeCandidato(destino, runtime, peso, updated);
+    // Si esta lectura es la que manda, con ella van su vía (app|cli) y su LLM.
+    if (destino.runtimePeso !== antes || destino.runtimeAt !== antesAt || !destino.via) {
+      destino.via = host; destino.modelo = normaliza(model);
+    }
+  }
+  // Bajo el nombre: CÓMO se le habla y CON QUÉ piensa (Carlos, 3-sep-2026). La vía es
+  // el nombre de la app de escritorio (Claude, Codex, OpenCode) o «CLI»; a su derecha
+  // el LLM real (Nemotron, Muse Spark, Fable…), sólo si la presencia lo conoce.
+  function viaComunicacion(a) {
+    var runtime = normaliza(a && a.runtime), via = normaliza(a && a.via).toLowerCase();
+    if (!runtime) return "";
+    return via === "cli" ? "CLI" : runtime;
+  }
+  function viaYModeloHtml(a) {
+    var via = viaComunicacion(a), modelo = normaliza(a && a.modelo);
+    if (!via) return "";
+    return ' <span class="rt">· ' + esc(via) + (modelo ? ' <span class="llm">' + esc(modelo) + '</span>' : '') + '</span>';
   }
 
   function calcula() {
@@ -1619,7 +1638,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         if (fresco && f.maquinasVivas.indexOf(p.machine) < 0) f.maquinasVivas.push(p.machine);
       }
       if (fresco) {
-        f.vivo = true; adoptaRuntime(f, p.runtime, p.host, t, true);
+        f.vivo = true; adoptaRuntime(f, p.runtime, p.host, t, true, p.model);
         // El latido sólo es una pista de respaldo. Una tarea, ventana, misión u
         // objetivo activo manda aunque su timestamp sea anterior al heartbeat.
         marcaProyecto(f, p.project, t * 1000, p.focus, 0);
@@ -1636,7 +1655,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         var f = fila(slot && slot.persona, machine); if (!f) return;
         f.haLatido = true;
         if (f.maquinas.indexOf(machine) < 0) f.maquinas.push(machine);
-        adoptaRuntime(f, slot.runtime, slot.host, control.updated || slot.updated, false);
+        adoptaRuntime(f, slot.runtime, slot.host, control.updated || slot.updated, false, slot.model);
       });
     });
     // Actividad AHORA, no totales históricos. Una sola señal por agente:
@@ -2253,7 +2272,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '<div class="pts"><span class="score-number score-day">' + esc(puntosPeriodo) + '</span>' +
           '<span class="score-period"> ' + esc(rotuloPeriodoPodio(PODIUM_PERIOD)) + '</span></div>' +
         '<div class="nom"><span class="agent-name">' + esc(nombreAgenteVisible(a.agente)) + '</span></div>' +
-        '<div class="maq">' + esc(a.runtime || "—") + '</div>' +
+        '<div class="maq">' + (viaComunicacion(a) ? esc(viaComunicacion(a)) + (a.modelo ? ' · ' + esc(a.modelo) : '') : "—") + '</div>' +
         pintaMaquinas(a, 3) +
         '<div class="bloque">' + medallas[i] + '</div></a>';
     }).join("");
@@ -3407,8 +3426,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     document.getElementById("filas").innerHTML = lista.map(function (a, i) {
       var alterna = i % 2 ? " alt" : "", progressId = "score-progress-" + hsAgentKey(a.agente);
       return '<tr class="score-main' + alterna + '"><td class="n">' + posicionHtml(a, a.posicion || i + 1) + '</td>' +
-        '<td class="ag">' + agentNameHtml(a) +
-        (a.runtime ? ' <span class="rt">· ' + esc(a.runtime) + '</span>' : '') +
+        '<td class="ag">' + agentNameHtml(a) + viaYModeloHtml(a) +
         relojVentanaHtml(a) + '</td>' +
         '<td>' + pintaMaquinas(a, 4) + '</td>' +
         '<td class="project-cell">' + proyectoHtml(a) + '</td>' +
