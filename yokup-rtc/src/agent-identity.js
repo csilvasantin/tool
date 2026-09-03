@@ -39,6 +39,8 @@ const PERSONAS = [
   // («NiobeMacMini» vs «NiobeMacMini»), que es el peor error posible de diagnosticar.
   // Lo destapó NiobeMacMini el 15-08-2026 intentando cerrar FLT-1445.
   ["Niobe", ["niobe"]],
+  // Persefone: OpenCode + NVIDIA Nemotron en MacBookAirCrema (Carlos, 3-sep-2026, misión 0148).
+  ["Persefone", ["persefone", "perséfone", "persephone"]],
 ];
 // Apellidos que se usaron antes y siguen vivos en datos ya guardados. Se leen,
 // pero al volver a escribir salen con el apellido actual.
