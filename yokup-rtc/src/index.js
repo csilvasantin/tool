@@ -3669,6 +3669,38 @@ __name(matchesOnIdleIdentity, "matchesOnIdleIdentity");
 // una labor que un agente hace cada hora. Una fila por ventana habria metido unas 56 al
 // dia entre toda la flota y habria enterrado el tablero, asi que se agrupan: UNA mision
 // por agente y jornada, que va contando las suyas.
+// LA VENTANA TAMBIEN VA A TELEGRAM (Carlos, 3-sep-2026: «que no solo aparezcan en
+// yokup.com sino tambien que se me envien a Telegram»). Una ventana que solo vive en una
+// pantalla que nadie mira no es una pregunta: es un monologo. Con el tope de 10 minutos,
+// si Carlos no esta delante de /decisiones cuando salta, caduca sin que la vea — hoy le
+// paso con la que me pidio expresamente.
+//
+// Se manda por el binding TELEGRAM que este worker ya tiene, reusando /api/bot-say en vez
+// de abrir una puerta nueva: menos superficie. Si Telegram falla, la ventana NO se cae;
+// avisar es un extra, no una condicion.
+async function avisarVentanaPorTelegram(env, { agent, machine, question, options, recommended, deadline, display_ref, projectId }) {
+  try {
+    const key = env.ADMIRA_TELEGRAM_PANEL_KEY || "";
+    if (!key || !env.TELEGRAM) return { enviado: false, motivo: "sin binding o sin clave" };
+    const lista = (Array.isArray(options) ? options : []).map((op, i) =>
+      (i === Number(recommended || 0) ? "★ " : "  ") + (i + 1) + ") " + String(op || "").slice(0, 220)
+    ).join("\n");
+    const minutos = Math.max(1, Math.round((Number(deadline) - Date.now()) / 60000));
+    const texto = "🗳 VENTANA DE DECISION · " + (display_ref || "") + "\n"
+      + agent + (machine ? " · " + machine : "") + (projectId ? " · " + projectId : "") + "\n\n"
+      + String(question || "").slice(0, 400) + "\n\n" + lista
+      + "\n\nCaduca en " + minutos + " min. Responde aqui con el numero, o en https://yokup.com/decisiones"
+      + "\nSi no contestas, el agente ejecuta la ★ (mandamiento 10).";
+    const r = await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-say", {
+      method: "POST",
+      headers: { "content-type": "application/json", "authorization": "Bearer " + key },
+      body: JSON.stringify({ persona: "Admirito", text: texto }),
+    }));
+    return { enviado: r.ok, status: r.status };
+  } catch (e) { return { enviado: false, motivo: String(e && e.message || e).slice(0, 80) }; }
+}
+__name(avisarVentanaPorTelegram, "avisarVentanaPorTelegram");
+
 async function anotarVentanaComoTrabajo(env, agent, machine, projectId, pregunta, now) {
   try {
     const dia = madridDayKey(now);
@@ -11708,7 +11740,10 @@ Todo en español.`;
         const display_ref = await ensureEntityDisplayRef(env, "window", id, now);
         // Abrir una ventana es trabajo: queda anotado, agrupado por agente y jornada.
         const trabajo_id = await anotarVentanaComoTrabajo(env, agent, machine, dproject, q, now);
-        return json({ ok: true, id, display_ref, trabajo_id, deadline: now + mins * 60000, project: projectContext.project, project_id: dproject, project_slug: dprojectSlug, parent_decision: dparent, batch_id: dbatch, continuation, user_override: userOverride });
+        const telegram = await avisarVentanaPorTelegram(env, { agent, machine, question: q, options: opts,
+          recommended: Math.max(0, Math.min(continuation ? opts.length - 2 : 2, +b.recommended || 0)),
+          deadline: now + mins * 60000, display_ref, projectId: dproject });
+        return json({ ok: true, id, display_ref, trabajo_id, telegram, deadline: now + mins * 60000, project: projectContext.project, project_id: dproject, project_slug: dprojectSlug, parent_decision: dparent, batch_id: dbatch, continuation, user_override: userOverride });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     if (url.pathname === "/decisions" && req.method === "GET") {
