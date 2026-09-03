@@ -1881,6 +1881,17 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return ({ hour:"esta hora", day:"hoy", week:"esta semana", month:"este mes" })[periodo] || "hoy";
   }
 
+  // El ranking es por AGENTE, no por la grafía histórica ni por el ordenador.
+  // En all_days aún conviven MorfeoMini, MorfeoMacMini y MorfeoMBA16; son el
+  // mismo Morfeo y sus puntos tienen que reunirse igual que ya hace la tabla
+  // diaria. Niobe sigue siendo Niobe: la identidad resuelve la persona, no
+  // confunde agentes distintos que hayan usado el mismo equipo físico.
+  function claveAgentePeriodo(value) {
+    var identity = window.ykAgentIdentity;
+    var base = identity && typeof identity.base === "function" ? identity.base(value) : value;
+    return claveAgenteCarrera(base);
+  }
+
   function puntosPodioPeriodo(a) {
     var metric = metricaHoraDia(a, "points");
     if (PODIUM_PERIOD === "hour") return Math.max(0, Number(metric.hour) || 0);
@@ -1888,11 +1899,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var history = datos.historial, range = history && history.periods && history.periods[PODIUM_PERIOD];
     var days = history && Array.isArray(history.all_days) ? history.all_days : [];
     if (!range || !range.start || !range.end) return 0;
-    var agentKey = claveAgenteCarrera(a && a.agente), points = 0;
+    var agentKey = claveAgentePeriodo(a && a.agente), points = 0;
     days.forEach(function (row) {
       if (!row || row.day < range.start || row.day > range.end) return;
       (Array.isArray(row.top) ? row.top : []).forEach(function (score) {
-        if (claveAgenteCarrera(score && score.agent) === agentKey) points += Math.max(0, Number(score.points) || 0);
+        if (claveAgentePeriodo(score && score.agent) === agentKey) points += Math.max(0, Number(score.points) || 0);
       });
     });
     return points;
@@ -4129,8 +4140,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var actividad = datos.actividadMeta || {}, pesos = actividad.weights || { objective:20, window:10, mission:40 };
     var registrados = actividad.recorded || { objectives:0, windows:0, missions:0 };
     var sinAutor = actividad.unattributed || { objectives:0, windows:0, missions:0 };
+    var sinAvanceMin = Math.round(((window.YkHighscoreRace && window.YkHighscoreRace.IDLE_AFTER_MS) || 20 * 60 * 1000) / 60000);
+    var ciclosGrises = Number(window.YkHighscoreRace && window.YkHighscoreRace.STALE_RACE_MAX_CYCLES) || 3;
+    var cicloSeg = Math.round((Number(CICLO_MS) || 42 * 1000) / 1000);
+    var grisTotalSeg = ciclosGrises * cicloSeg;
+    var grisTotal = Math.floor(grisTotalSeg / 60) + ':' + String(grisTotalSeg % 60).padStart(2, "0");
     var html = '<ul>' +
       '<li>Solo cuenta la actividad del <b>día actual en Madrid</b>; el marcador vuelve a cero cada medianoche.</li>' +
+      '<li><b>Periodos del podio:</b> Hora es la hora natural actual; Día va desde las 00:00; Semana va desde el lunes; ' +
+      'Mes va desde el día 1. Todos terminan en el momento actual. Semana y Mes pueden dar la misma cifra al comienzo del mes ' +
+      'si no hubo puntos en los días de esa semana anteriores al día 1.</li>' +
       '<li>Cada <b>objetivo creado hoy</b> por un agente identificado: <b>' + pesos.objective + '</b>.</li>' +
       '<li>Cada <b>ventana de decisión generada</b>: <b>' + pesos.window + '</b>. La apertura automática admite una sola ventana cada 60 minutos; ' +
       'una ventana por hora suma <b>240 puntos en 24 horas</b>. Es un <b>acumulado diario, no ventanas simultáneas</b>; ' +
@@ -4140,6 +4159,15 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       'La actividad del agente, subagente e infraagente se reúne en su familia sin duplicar A1…C3.</li>' +
       '<li><b>El latido no da puntos.</b> El propio <b>número de posición parpadea en verde</b> cuando recibió uno hace menos de 15 minutos. ' +
       'Los cinco indicadores muestran siempre una pareja numérica <b>hora / total del día</b>; una hora sin actividad se representa con <b>0</b>.</li>' +
+      '<li><b>Running Man en color:</b> existe trabajo canónico abierto y su última marca de avance material tiene como máximo <b>' +
+      sinAvanceMin + ' minutos</b>. Tener el proceso o la máquina conectados no basta: la presencia nunca hace correr ni colorea por sí sola.</li>' +
+      '<li><b>Running Man gris en movimiento · sin avance:</b> la misión o tarea continúa asignada, pero no tiene una marca fiable o lleva más de <b>' +
+      sinAvanceMin + ' minutos</b> sin progreso material. Recorre la pista sólo como aviso, sin puesto ni puntos extra, durante <b>' +
+      ciclosGrises + ' ciclos de ' + cicloSeg + ' segundos</b> —como máximo <b>' + grisTotal + '</b>— y después desaparece hasta que cambie el trabajo o vuelva a registrar avance.</li>' +
+      '<li><b>Running Man gris quieto · último trabajo:</b> la misión o tarea ya terminó. Sólo rellena una calle libre cuando hay menos de tres ' +
+      'trabajos activos; puede seguir visible hasta <b>24 horas desde el cierre</b>, pero desaparece antes si lo sustituye un trabajo activo o un cierre más reciente.</li>' +
+      '<li><b>No aparece corredor:</b> no hay una asignación demostrable en la última hora, una sesión exacta abierta ni un cierre elegible de las últimas 24 horas. ' +
+      'Si la fuente de trabajo no responde se indica “trabajo no disponible”; no se conserva una carrera antigua como si siguiera viva.</li>' +
       '<li><b>Ordenador:</b> en verde el que late ahora, apagado el conocido sin latido reciente. ' +
       'Un mismo agente corre en varios a la vez.</li>' +
       '<li><b>Proyecto:</b> manda el <b>proyecto principal declarado para hoy</b> — la asignación de Carlos. Si ese día se ha tocado además otra cosa, se dice en el detalle de la pastilla. Sin declaración, manda la tarea activa (ventana, misión u objetivo) y sólo después el proyecto estructural del censo.</li>' +

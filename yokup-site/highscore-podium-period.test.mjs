@@ -32,6 +32,7 @@ function ranking(period) {
   ];
   return new Function("rows", "period", `
     var PODIUM_PERIOD = period;
+    var window = {ykAgentIdentity:{base:function (value) { return String(value || ""); }}};
     var datos = {historial:{
       periods:{week:{start:"2026-08-31",end:"2026-09-03"},month:{start:"2026-09-01",end:"2026-09-03"}},
       all_days:[
@@ -44,6 +45,7 @@ function ranking(period) {
     function metricaHoraDia(row) { return row.metric; }
     function normaliza(value) { return String(value || ""); }
     function claveAgenteCarrera(value) { return normaliza(value).toLowerCase().replace(/[^a-z0-9]/g, ""); }
+    ${functionSource("claveAgentePeriodo")}
     ${functionSource("puntosPodioPeriodo")}
     ${functionSource("clasificacionPodio")}
     return clasificacionPodio(rows).map(function (row) { return row.agente; });
@@ -76,4 +78,29 @@ test("semana y mes usan el histórico real por agente y abren su mismo periodo",
   assert.match(html, /\/highscore\/history\?scope=global/);
   assert.match(functionSource("puntosPodioPeriodo"), /history\.all_days/);
   assert.match(html, /PODIUM_PERIOD === "week" \|\| PODIUM_PERIOD === "month" \? PODIUM_PERIOD : "today"/);
+});
+
+test("semana y mes reúnen alias y máquinas del mismo agente", () => {
+  const rows = [
+    {agente:"Morfeo", metric:{hour:0, day:0}},
+    {agente:"Oraculo", metric:{hour:0, day:0}},
+  ];
+  const result = new Function("rows", `
+    var PODIUM_PERIOD = "week";
+    var window = {ykAgentIdentity:{base:function (value) {
+      return String(value || "").replace(/^(?:Sub|Infra)/, "")
+        .replace(/(?:MacMini|Mini|MBP14|MBP16|MBA16|MBAAzul|MBARosa|MBACrema|MBAPlata)$/, "");
+    }}};
+    var datos = {historial:{periods:{week:{start:"2026-08-31",end:"2026-09-03"}},all_days:[
+      {day:"2026-08-31",top:[{agent:"MorfeoMini",points:170},{agent:"MorfeoMBA16",points:50}]},
+      {day:"2026-09-01",top:[{agent:"MorfeoMacMini",points:540},{agent:"OraculoMini",points:85}]}
+    ]}};
+    function metricaHoraDia() { return {hour:0,day:0}; }
+    function normaliza(value) { return String(value || ""); }
+    function claveAgenteCarrera(value) { return normaliza(value).toLowerCase().replace(/[^a-z0-9]/g, ""); }
+    ${functionSource("claveAgentePeriodo")}
+    ${functionSource("puntosPodioPeriodo")}
+    return rows.map(function (row) { return puntosPodioPeriodo(row); });
+  `)(rows);
+  assert.deepEqual(result, [760, 85]);
 });
