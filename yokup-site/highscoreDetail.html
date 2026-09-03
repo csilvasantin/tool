@@ -171,6 +171,9 @@ h1{margin:6px 0 4px;color:var(--brand);font-size:clamp(23px,5vw,42px);word-break
     var place=snap&&Number(snap.posicion)||rank.place||"—", total=snap&&Number(snap.total);
     if (!Number.isFinite(total)) total=data.available.daily&&data.available.tasks?calculated.total:"—";
     var taskCount=data.available.tasks?calculated.taskCount:"—";
+    // Nº de ventanas de decisión que lleva hoy este agente (Carlos, 3-sep-2026): el
+    // snapshot del ranking trae «ventanas»; si no, se cuenta de /highscore/daily.
+    var windowCount=snap&&Number.isFinite(Number(snap.ventanas))?Number(snap.ventanas):(data.available.daily?calculated.windowCount:"—");
     var fact=DETAIL.facts(agent,data.tasks,data.missions,data.incidents,ID), hours=DETAIL.timeline(agent,data.tasks,data.missions,data.incidents,ID);
     target.replaceChildren(); var hero=el("header","hero"), avatar=el("div","avatar",agent.charAt(0).toUpperCase()), avatarUrl=window.ykAvatar&&window.ykAvatar.img(agent);
     if (avatarUrl) { var image=document.createElement("img"); image.src=avatarUrl; image.alt="Avatar de "+agent; image.addEventListener("error",function(){ image.remove(); avatar.textContent=agent.charAt(0).toUpperCase(); }); avatar.replaceChildren(image); }
@@ -179,7 +182,7 @@ h1{margin:6px 0 4px;color:var(--brand);font-size:clamp(23px,5vw,42px);word-break
     var stats=el("section","stats"), scoreAvailable=!!snap||data.available.daily;
     stats.append(stat(place,"Puesto"),stat(total,"Puntos hoy"),stat(history?history.periods.week.points:"—","Semana · lunes a hoy"),
       stat(history?history.periods.month.points:"—","Mes · día 1 a hoy"),stat(history?history.periods.total.points:"—","Total histórico"),
-      stat(snap?snap.tareas:taskCount,"Tareas hoy")); target.appendChild(stats);
+      stat(snap?snap.tareas:taskCount,"Tareas hoy"),stat(windowCount,"Ventanas de decisión hoy")); target.appendChild(stats);
     // CUÁNTO FALTA HASTA SU PRÓXIMA VENTANA (Carlos, 2026-08-07). El dato lo da
     // /fleet/turnos, que cruza las dos condiciones —su hora cumplida Y su turno
     // dentro del reparto— y devuelve la más tardía. Se pide aparte y en

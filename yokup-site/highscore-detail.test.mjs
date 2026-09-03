@@ -87,7 +87,7 @@ test("estadísticas y hechos usan únicamente payloads operativos atribuibles", 
   ];
   const daily={scores:[{agent:"MorfeoMBP16",machine:"MacBook Pro 16",objective_points:20,window_points:8,mission_points:40}]};
   const score=D.scoreFor("MorfeoMBP16",daily,tasks,ID,now);
-  assert.deepEqual(JSON.parse(JSON.stringify(score)),{objectives:20,windows:8,missions:40,tasks:40,taskCount:2,total:108});
+  assert.deepEqual(JSON.parse(JSON.stringify(score)),{objectives:20,windows:8,missions:40,tasks:40,taskCount:2,windowCount:0,missionCount:0,total:108});
   assert.equal(D.taskCountToday("MorfeoMBP16",tasks,ID,now),2);
   const facts=D.facts("MorfeoMBP16",tasks,
     [{id:"M1",assignee:"Morfeo",loc:"MacBook Pro 16",status:"resolved"},{id:"M2",assignee:"MorfeoMBP16",loc:"MacBook Pro 16",status:"in_progress"}],

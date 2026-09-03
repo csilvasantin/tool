@@ -330,12 +330,15 @@
   }
 
   function scoreFor(agent, daily, tasks, identity, now) {
-    var objectives = 0, windows = 0, missions = 0, taskFamilies = Object.create(null);
+    var objectives = 0, windows = 0, missions = 0, windowCount = 0, missionCount = 0, taskFamilies = Object.create(null);
     (daily && daily.scores || []).forEach(function (row) {
       if (!sameFamily(row.agent, row.machine, agent, identity)) return;
       objectives += Number(row.objective_points) || 0;
       windows += Number(row.window_points) || 0;
       missions += Number(row.mission_points) || 0;
+      // CUÁNTAS ventanas y misiones lleva (no sólo cuántos puntos valen): Carlos, 3-sep-2026.
+      windowCount += Number(row.windows) || 0;
+      missionCount += Number(row.missions) || 0;
     });
     (tasks || []).forEach(function (task) {
       var match = text(task.code).toLowerCase().match(/^([a-c])(?:[1-3])?$/);
@@ -349,6 +352,7 @@
       return sum + 15 + (/^(?:doing|in_progress)$/.test(text(taskFamilies[family].status)) ? 10 : 0);
     }, 0);
     return { objectives:objectives, windows:windows, missions:missions, tasks:taskPoints, taskCount:taskCount,
+      windowCount:windowCount, missionCount:missionCount,
       total:objectives + windows + missions + taskPoints };
   }
 
