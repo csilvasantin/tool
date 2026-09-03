@@ -7548,7 +7548,7 @@ __name(highscoreDedicatedTiming, "highscoreDedicatedTiming");
 // calle; sólo es `running` si el progreso MATERIAL es de hace <=20 minutos.
 // Presence únicamente añade reachability y nunca cambia el estado del trabajo.
 async function highscoreActiveWork(env, ahora = Date.now()) {
-  const [missions, tasks, objectives, presence, pidx] = await Promise.all([
+  const [missions, tasks, decisions, objectives, presence, pidx] = await Promise.all([
     env.DB.prepare(`SELECT id,subject,assignee,loc,status,project,project_id,created_at,started_at,resolved_at,` +
       `${HIGHSCORE_ASSIGNMENT_EVENT_SQL} assignment_event_at,` +
       `CASE WHEN source IN ('decision-batch','cli-declare') AND COALESCE(TRIM(assignee),'')<>'' AND COALESCE(TRIM(loc),'')<>'' THEN created_at END assignment_born_at,` +
@@ -7563,6 +7563,16 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
       `AND m.status IN ('in_progress','doing','active') ` +
       `AND t.status='in_progress' ` +
       `AND COALESCE(t.status,'')!='cancelled'`).all().then((r) => r.results || []),
+    // Una ventana pendiente es trabajo real: el agente ya la ha abierto y está
+    // esperando la decisión de Carlos. Hasta ahora puntuaba en /highscore/daily
+    // (+8), pero no entraba en este censo y por eso el corredor enseñaba un
+    // trabajo viejo mientras el agente estaba esperando. Se representa como
+    // tarea viva desde created_at hasta deadline; al decidir o vencer desaparece
+    // y la misión materializada ocupa su lugar sin duplicar puntos.
+    env.DB.prepare(`SELECT id,question title,agent,machine,status,project project_id,created_at,deadline,` +
+      `created_at started_at,created_at work_started_at,created_at work_progress_at,` +
+      `created_at race_progress_at,created_at assignment_born_at,NULL assignment_event_at ` +
+      `FROM decisions WHERE status='pending' AND deadline>?`).bind(ahora).all().then((r) => r.results || []),
     env.DB.prepare("SELECT id,title,status,author,author_identity,project,updated_at,created_at FROM ideas WHERE status='estudio'").all()
       .then((r) => r.results || []),
     highscoreVerifiedPresence(env, ahora),
@@ -7620,8 +7630,10 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     if (scopedProject.id) {
       candidate.project_id = scopedProject.id;
       candidate.project_name = scopedProject.name;
-      candidate.detail_url = "/highscoreDetail?agent=" + encodeURIComponent(family.family_name) +
-        "&project_id=" + encodeURIComponent(scopedProject.id) + "&period=today&type=all";
+      const explicitDetailUrl = String(item && item.detail_url || "").trim();
+      candidate.detail_url = explicitDetailUrl.startsWith("/") ? explicitDetailUrl.slice(0, 300)
+        : "/highscoreDetail?agent=" + encodeURIComponent(family.family_name) +
+          "&project_id=" + encodeURIComponent(scopedProject.id) + "&period=today&type=all";
     }
     // Exactamente una encarnación vinculada: cero o varias son ambiguas y por
     // contrato no se suman ni se elige una de forma heurística.
@@ -7654,6 +7666,11 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     const executor = scopedMissionOwner(task.executor || task.owner, "sub", task.assignee, task.loc);
     add(executor, task.loc, "task", task, task.title || task.code || "Tarea activa", task.assignee, "",
       `${String(task.mission_id || "")}:${String(task.code || "")}`);
+  }
+  for (const decision of decisions) {
+    decision.detail_url = "/decisiones?project_id=" + encodeURIComponent(String(decision.project_id || ""));
+    add(decision.agent, decision.machine, "task", decision,
+      decision.title || "Esperando una decisión", decision.agent, "running", String(decision.id || ""));
   }
   for (const objective of objectives) {
     const executor = String(objective.author_identity || highscoreAgent(objective.author) || "").trim();

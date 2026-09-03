@@ -20,6 +20,7 @@ function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
   const db=new DatabaseSync(":memory:");
   db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,subject TEXT,loc TEXT,source TEXT,role TEXT,status TEXT,assignee TEXT,closure_reason TEXT,created_at INTEGER,started_at INTEGER,updated_at INTEGER,live_at INTEGER,resolved_at INTEGER,proof_image TEXT,project TEXT,project_id TEXT)");
   db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,started_at INTEGER,created_at INTEGER,updated_at INTEGER,executor TEXT,ended_at INTEGER)");
+  db.exec("CREATE TABLE decisions(id TEXT PRIMARY KEY,question TEXT,agent TEXT,machine TEXT,status TEXT,project TEXT,created_at INTEGER,deadline INTEGER)");
   db.exec("CREATE TABLE ideas(id TEXT PRIMARY KEY,title TEXT,status TEXT,author TEXT,author_identity TEXT,project TEXT,created_at INTEGER,updated_at INTEGER)");
   db.exec("CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT,ticket_id TEXT,ts INTEGER,kind TEXT,author TEXT,text TEXT)");
   db.exec("CREATE TABLE projects(id TEXT PRIMARY KEY,name TEXT)");
@@ -44,6 +45,34 @@ function mission(db,{id="M1",agent="OraculoMacMini",machine="MacMini",at=NOW-5*M
   const start=startedAt===undefined?at:startedAt;
   db.prepare("INSERT INTO tickets(id,subject,loc,source,role,status,assignee,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,proof_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(id,title,machine,"fleet","mission",status,agent,null,at,start,at,at,status==="resolved"?at:null,status==="resolved"?"https://proof.test/evidence.png":null);
 }
+function decision(db,{id="DEC-1",agent="OraculoMacMini",machine="admira-macmini",at=NOW-MIN,
+  deadline=NOW+4*MIN,status="pending",project="yokup",title="¿Qué mejora hacemos?"}={}){
+  db.prepare("INSERT INTO decisions VALUES (?,?,?,?,?,?,?,?)")
+    .run(id,title,agent,machine,status,project,at,deadline);
+}
+
+test("una ventana pendiente aparece inmediatamente como tarea viva y conserva sus +8 del marcador",async()=>{
+  const {db,env,F}=harness();
+  db.exec("INSERT INTO projects VALUES ('yokup','Yokup')");
+  decision(db,{id:"DEC-VIVA",title:"¿Qué entrenamiento conectamos con Pixeria?"});
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.mode,"active"); assert.equal(result.running_count,1); assert.equal(result.count,1);
+  const row=result.participants[0];
+  assert.equal(row.agent,"OraculoMacMini"); assert.equal(row.kind,"task");
+  assert.equal(row.reference,"DEC-VIVA"); assert.equal(row.state,"running");
+  assert.equal(row.title,"¿Qué entrenamiento conectamos con Pixeria?");
+  assert.equal(row.work_started_at,NOW-MIN); assert.equal(row.elapsed_ms,MIN);
+  assert.equal(row.project_name,"Yokup");
+  assert.equal(row.detail_url,"/decisiones?project_id=yokup");
+});
+
+test("una ventana decidida o vencida deja libre la pista para la misión materializada",async()=>{
+  const {db,env,F}=harness();
+  decision(db,{id:"DEC-VENCIDA",deadline:NOW-1});
+  decision(db,{id:"DEC-DECIDIDA",status:"decided"});
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.count,0); assert.equal(result.running_count,0); assert.equal(result.mode,"recent");
+});
 
 test("frontera exacta 20m: running hasta el límite y assigned_stale un milisegundo después",async()=>{
   const {db,env,F}=harness();
