@@ -71,8 +71,8 @@ test("el runtime principal no depende del orden de presencia y prima Desktop App
     adoptaRuntime(b,"OpenCode","app",2000,false);
     globalThis.resultado=[a,b];`, context);
   assert.deepEqual(Array.from(context.resultado, (row) => row.runtime), ["Codex", "Codex"]);
-  assert.match(html, /adoptaRuntime\(f, p\.runtime, p\.host, t, true\)/);
-  assert.match(html, /adoptaRuntime\(f, slot\.runtime, slot\.host, control\.updated \|\| slot\.updated, false\)/);
+  assert.match(html, /adoptaRuntime\(f, p\.runtime, p\.host, t, true(?:, p\.model)?\)/);
+  assert.match(html, /adoptaRuntime\(f, slot\.runtime, slot\.host, control\.updated \|\| slot\.updated, false(?:, slot\.model)?\)/);
 });
 
 test("Ventana Decisión ocupa dos líneas y conserva la cadencia horaria", () => {
