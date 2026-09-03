@@ -6458,7 +6458,7 @@ __name(fleetMissions, "fleetMissions");
 //
 // Los pesos son los que la propia página ya explicaba en su leyenda; viajan en el
 // payload (`weights`) para que marcador y backend no puedan discrepar nunca.
-var HIGHSCORE_WEIGHTS = { objective: 20, window: 8, mission: 40 };
+var HIGHSCORE_WEIGHTS = { objective: 20, window: 10, mission: 40 };
 var HIGHSCORE_TASK_WEIGHTS = { task: 15, active_bonus: 10 };
 var HIGHSCORE_RECENT_MS = 15 * 60 * 1e3;
 var HIGHSCORE_TREND_MS = 60 * 60 * 1e3;

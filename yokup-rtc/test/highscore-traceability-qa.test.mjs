@@ -49,8 +49,8 @@ test("los puntos explicados coinciden con los atribuibles: Consejo no recibe pun
   assert.equal(result.chains.length, 1);
   assert.equal(result.chains[0].origin.agent, "");
   assert.equal(result.chains[0].points.objective, 0, "una idea sin agente de la flota no puede explicar +20 inexistentes");
-  assert.equal(result.chains[0].points.windows, 8);
-  assert.equal(result.chains[0].points.total, 8);
+  assert.equal(result.chains[0].points.windows, 10);
+  assert.equal(result.chains[0].points.total, 10);
 });
 
 test("una cadena nacida en Ventana conserva origen único, orden cronológico y tareas de su misión", async () => {
@@ -70,7 +70,7 @@ test("una cadena nacida en Ventana conserva origen único, orden cronológico y 
   assert.equal(chain.mission.id, "FLT-W");
   assert.deepEqual(chain.tasks.map((task) => task.code), ["a","b"]);
   assert.equal(chain.latest_at, NOW-2000);
-  assert.equal(chain.points.total, 8 + 40 + 30);
+  assert.equal(chain.points.total, 10 + 40 + 30);
 });
 
 test("el corte diario y las relaciones ausentes son explícitos, no aproximados", async () => {

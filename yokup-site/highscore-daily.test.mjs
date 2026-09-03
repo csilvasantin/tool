@@ -31,7 +31,8 @@ test("objetivos, ventanas, misiones y tareas respetan el orden del marcador", ()
   assert.match(html, /a\.window_points/);
   assert.match(html, /a\.mission_points/);
   assert.match(html, /Cada <b>objetivo creado hoy<\/b>/);
-  assert.match(html, /Cada <b>ventana de decisión abierta hoy<\/b>/);
+  assert.match(html, /Cada <b>ventana de decisión generada<\/b>/);
+  assert.match(html, /una ventana por hora suma <b>240 puntos en 24 horas<\/b>/);
   assert.match(html, /Cada <b>misión ejecutada hoy<\/b>/);
 });
 

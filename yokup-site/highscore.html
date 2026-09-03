@@ -133,6 +133,14 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   box-shadow:0 7px 22px rgba(0,0,0,.5),0 0 0 2px var(--brand)}
 .podio-total .tot-mas{font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
 .podio-total:hover .tot-mas,.podio-total:focus-visible .tot-mas{color:var(--brand)}
+.podio-period{position:absolute;z-index:4;right:9%;top:7%;display:grid;grid-template-columns:1fr 1fr;
+  width:22%;padding:3px;background:rgba(2,8,13,.78);border:1px solid rgba(120,243,255,.42);border-radius:7px;
+  box-shadow:0 5px 18px rgba(0,0,0,.38);backdrop-filter:blur(3px)}
+.podio-period button{border:0;border-radius:4px;padding:7px 6px;background:transparent;color:var(--mut);
+  font:800 9.5px var(--mono);letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
+.podio-period button:hover,.podio-period button:focus-visible{color:var(--brand);outline:1px solid var(--brand)}
+.podio-period button[aria-pressed="true"]{background:rgba(120,243,255,.14);color:var(--brand);
+  box-shadow:inset 0 0 0 1px rgba(120,243,255,.3)}
 
 /* LOS 30 DÍAS DE LA FLOTA. Panel modal en vez de un bloque más en la página: la
    pregunta «¿rendimos más cada día?» se hace de vez en cuando, y ocupar sitio
@@ -238,7 +246,8 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   .dg-lista .l-que{grid-column:2/4;grid-row:2}
 }
 @media (max-width:620px){.podio-total{left:4%;top:4%;width:30%;padding:5px 7px}
-  .podio-total .pts{font-size:14px}.podio-total .tot-rot{font-size:8px}}
+  .podio-total .pts{font-size:14px}.podio-total .tot-rot{font-size:8px}
+  .podio-period{right:4%;top:4%;width:32%}.podio-period button{padding:5px 3px;font-size:8px}}
 .nom{font-size:12px;font-weight:800;letter-spacing:.03em;text-align:center;word-break:break-word;padding:0}
 .pts{display:inline-flex;align-items:center;gap:5px;font-size:18px;font-weight:900;margin:0;letter-spacing:.02em;white-space:nowrap}
 .p1 .pts{color:var(--oro)} .p2 .pts{color:var(--plata)} .p3 .pts{color:var(--bronce)}
@@ -916,7 +925,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     </table>
   </div>
   <details class="nota score-formula" id="formula">
-    <summary><span class="score-formula-title">Cómo se puntúa hoy</span><span class="score-formula-toggle" aria-hidden="true"></span></summary>
+    <summary><span class="score-formula-title">Cómo se puntúa</span><span class="score-formula-toggle" aria-hidden="true"></span></summary>
     <div class="score-formula-body" id="formulaBody"></div>
   </details>
 </div>
@@ -1852,6 +1861,29 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       '<div class="podio-velo"></div></div>';
   }
 
+  // El marcador general continúa siendo diario. Este estado gobierna sólo la
+  // escena del podio y nace siempre en día al cargar la página.
+  var PODIUM_PERIOD = "day";
+
+  function selectorPeriodoPodioHtml() {
+    return '<div class="podio-period" role="group" aria-label="Periodo del ranking del podio">' +
+      '<button type="button" data-podium-period="day" aria-pressed="' + (PODIUM_PERIOD === "day") + '">Día</button>' +
+      '<button type="button" data-podium-period="hour" aria-pressed="' + (PODIUM_PERIOD === "hour") + '">Hora</button></div>';
+  }
+
+  function clasificacionPodio(todos) {
+    return (Array.isArray(todos) ? todos.filter(Boolean) : []).slice().sort(function (a, b) {
+      var ma = metricaHoraDia(a, "points"), mb = metricaHoraDia(b, "points");
+      var pa = PODIUM_PERIOD === "hour" ? ma.hour : ma.day;
+      var pb = PODIUM_PERIOD === "hour" ? mb.hour : mb.day;
+      // En Hora, el total diario sólo desempata. El orden alfabético estabiliza
+      // el podio cuando ambos valores coinciden y evita saltos entre refrescos.
+      return (Number(pb) || 0) - (Number(pa) || 0) ||
+        (Number(mb.day) || 0) - (Number(ma.day) || 0) ||
+        normaliza(a.agente).localeCompare(normaliza(b.agente), "es");
+    });
+  }
+
   // Suma de TODA la lista que se está mirando, no de los tres del podio. Se
   // suman las MISMAS cifras que pinta cada fila (metricaHoraDia) en vez de
   // recalcular por otra vía: si el sumador y la tabla no salieran del mismo
@@ -2164,8 +2196,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function cierraDias() { document.getElementById("diasMod").classList.remove("on"); }
 
   function pintaPodio(top, todos) {
-    var orden = [top[1], top[0], top[2]], clases = ["p2", "p1", "p3"], medallas = ["2", "1", "3"];
-    document.getElementById("podio").innerHTML = escenaPodio() + totalPodioHtml(todos) + orden.map(function (a, i) {
+    var rankingPodio = clasificacionPodio(todos), podioTop = rankingPodio.slice(0, 3);
+    var orden = [podioTop[1], podioTop[0], podioTop[2]], clases = ["p2", "p1", "p3"], medallas = ["2", "1", "3"];
+    document.getElementById("podio").innerHTML = escenaPodio() + totalPodioHtml(todos) + selectorPeriodoPodioHtml() + orden.map(function (a, i) {
       // Una plaza sin agente no representa nada y, sin la clase p1/p2/p3,
       // conservaba ancho, padding y borde en la posición estática: era la barra
       // redondeada vacía que aparecía encima del arte del podio.
@@ -2173,7 +2206,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var clave = claveAgenteCarrera(a.agente), total = Number(a.total) || 0;
       var metric = metricaHoraDia(a,"points");
       var dailyTitle = tituloPuntosDiarios(estadoPuntosDiarios(a));
-      var scoreLabel = metric.hour + " puntos en esta hora y " + metric.day + " hoy";
+      var scoreLabel = (PODIUM_PERIOD === "hour" ? metric.hour + " puntos en esta hora" : metric.day + " puntos hoy") +
+        "; periodo del podio: " + (PODIUM_PERIOD === "hour" ? "hora" : "día");
       var detailProject = a.workProjectId || a.proyectoId;
       var detalleUrl = a.workDetailUrl || (detailProject ? "/highscoreDetail?agent=" + encodeURIComponent(a.agente) +
         "&project_id=" + encodeURIComponent(detailProject) + "&period=today&type=all" : "");
@@ -4069,14 +4103,15 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function pintaFormula(lista) {
     var formula = document.getElementById("formula"), n = document.getElementById("formulaBody");
     var hoyTareas = tareasDeHoy();
-    var actividad = datos.actividadMeta || {}, pesos = actividad.weights || { objective:20, window:8, mission:40 };
+    var actividad = datos.actividadMeta || {}, pesos = actividad.weights || { objective:20, window:10, mission:40 };
     var registrados = actividad.recorded || { objectives:0, windows:0, missions:0 };
     var sinAutor = actividad.unattributed || { objectives:0, windows:0, missions:0 };
     var html = '<ul>' +
       '<li>Solo cuenta la actividad del <b>día actual en Madrid</b>; el marcador vuelve a cero cada medianoche.</li>' +
       '<li>Cada <b>objetivo creado hoy</b> por un agente identificado: <b>' + pesos.objective + '</b>.</li>' +
-      '<li>Cada <b>ventana de decisión abierta hoy</b>: <b>' + pesos.window + '</b>. Es un <b>acumulado diario, no ventanas simultáneas</b>; ' +
-      'la apertura automática admite una sola ventana cada 60 minutos. Cerrarla o generar misiones no vuelve a sumarla.</li>' +
+      '<li>Cada <b>ventana de decisión generada</b>: <b>' + pesos.window + '</b>. La apertura automática admite una sola ventana cada 60 minutos; ' +
+      'una ventana por hora suma <b>240 puntos en 24 horas</b>. Es un <b>acumulado diario, no ventanas simultáneas</b>; ' +
+      'cerrarla o generar misiones no vuelve a sumarla.</li>' +
       '<li>Cada <b>misión ejecutada hoy</b> —su primera entrada real en curso—: <b>' + pesos.mission + '</b>. Los reintentos no duplican puntos.</li>' +
       '<li>Cada <b>tarea A·B·C trabajada hoy</b>: <b>15</b>, y <b>+10</b> si está en curso. ' +
       'La actividad del agente, subagente e infraagente se reúne en su familia sin duplicar A1…C3.</li>' +
@@ -4507,6 +4542,13 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // delega en el contenedor en vez de atarlo al nodo: si se atara, el primer
   // repintado del podio se llevaría el clic por delante sin avisar.
   document.getElementById("podio").addEventListener("click", function (e) {
+    var periodo = e.target && e.target.closest && e.target.closest("[data-podium-period]");
+    if (periodo) {
+      PODIUM_PERIOD = periodo.getAttribute("data-podium-period") === "hour" ? "hour" : "day";
+      pintaPodio(listaCache.slice(0, 3), listaCache);
+      if (!document.getElementById("podio").hidden) dibujaPodio(brazosBajos);
+      return;
+    }
     if (e.target && e.target.closest && e.target.closest("#podioTotal")) abreDias();
   });
   // El selector se repinta con el panel, así que también se delega.

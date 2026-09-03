@@ -93,11 +93,11 @@ test("histórico usa hechos canónicos, identidad exacta y deduplicación diaria
   const result=JSON.parse(JSON.stringify(await F.highscoreHistory(env,"MorfeoMBP16",now)));
   assert.equal(result.ok,true);
   assert.equal(result.agent,"MorfeoMBP16");
-  assert.deepEqual(result.periods.week,{start:"2026-08-10",end:"2026-08-11",objectives:1,windows:1,missions:1,tasks:2,points:108});
-  assert.deepEqual(result.periods.month,{start:"2026-08-01",end:"2026-08-11",objectives:1,windows:2,missions:1,tasks:2,points:116});
-  assert.deepEqual(result.periods.total,{start:"2026-08-01",end:"2026-08-11",objectives:1,windows:2,missions:1,tasks:2,points:116});
+  assert.deepEqual(result.periods.week,{start:"2026-08-10",end:"2026-08-11",objectives:1,windows:1,missions:1,tasks:2,points:110});
+  assert.deepEqual(result.periods.month,{start:"2026-08-01",end:"2026-08-11",objectives:1,windows:2,missions:1,tasks:2,points:120});
+  assert.deepEqual(result.periods.total,{start:"2026-08-01",end:"2026-08-11",objectives:1,windows:2,missions:1,tasks:2,points:120});
   assert.equal(result.evolution.days.at(-2).day,"2026-08-10");
-  assert.equal(result.evolution.days.at(-2).points,108);
+  assert.equal(result.evolution.days.at(-2).points,110);
   assert.equal(result.evolution.days.at(-1).day,"2026-08-11");
   assert.equal(result.evolution.days.at(-1).points,0);
   assert.ok(Number.isInteger(result.sampled_at)&&result.sampled_at>0);
@@ -129,7 +129,7 @@ test("hoy, ayer, semana, mes y año usan rangos naturales y una sola fuente fact
     ('M-T','a','done','MorfeoMBP16',${today+3000},'Principal A','SubMorfeo'),
     ('M-T','a1','done','MorfeoMBP16',${today+4000},'Subtarea A1','InfraMorfeo'),
     ('M-OTHER','a','done','MorfeoMBP16',${today+5000},'Tarea ajena','SubMorfeoMBP16')`);
-  const expected={today:83,yesterday:20,week:123,month:143,year:163};
+  const expected={today:85,yesterday:20,week:125,month:145,year:165};
   for(const [period,points] of Object.entries(expected)){
     const result=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,"MorfeoMBP16","yokup",period,now)));
     assert.equal(result.ok,true,period); assert.equal(result.period,period); assert.equal(result.metrics.points,points,period);
@@ -139,7 +139,7 @@ test("hoy, ayer, semana, mes y año usan rangos naturales y una sola fuente fact
     assert.ok(result.timeline.every(row=>row.project_id==="yokup"&&row.agent==="MorfeoMBP16"),period);
   }
   const todayResult=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,"MorfeoMBP16","yokup","today",now)));
-  assert.deepEqual(todayResult.metrics,{objectives:1,windows:1,missions:1,tasks:1,points:83});
+  assert.deepEqual(todayResult.metrics,{objectives:1,windows:1,missions:1,tasks:1,points:85});
   assert.equal(todayResult.timeline.length,5,"incluye las dos tareas reales, aunque sólo A1 puntúe");
   assert.deepEqual(todayResult.timeline.filter(row=>row.type==="task").map(row=>[row.id,row.points,row.scoring,row.executor]),[
     ["M-T:a1",15,true,"InfraMorfeoMBP16"],["M-T:a",0,false,"SubMorfeoMBP16"]
@@ -147,7 +147,7 @@ test("hoy, ayer, semana, mes y año usan rangos naturales y una sola fuente fact
   assert.equal(todayResult.range.start,Date.UTC(2026,7,12,22),"00:00 CEST");
   assert.deepEqual([todayResult.range.from,todayResult.range.to],["2026-08-13","2026-08-13"]);
   assert.deepEqual(todayResult.ranking,{project_id:"yokup",period:"today",
-    ordered:[{agent:"MorfeoMBP16",points:83,position:1},{agent:"MorfeoMBP14",points:20,position:2}],current_index:0,
+    ordered:[{agent:"MorfeoMBP16",points:85,position:1},{agent:"MorfeoMBP14",points:20,position:2}],current_index:0,
     previous:null,next:{agent:"MorfeoMBP14",points:20,position:2}});
   assert.equal(todayResult.latest_work,null,"sin cierre/progreso factual no inventa trabajo reciente");
   const yesterdayResult=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,"MorfeoMBP16","yokup","yesterday",now)));
@@ -299,14 +299,14 @@ test("ranking devuelve todos los puntuados, excluye cero y corta navegación en 
   ).run(`Y-${index}`,agent,machine,yesterday+index,'Ventana','decided','scope');
   const previousDay=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,'SmithMBP14','scope','yesterday',now)));
   assert.equal(previousDay.ranking.ordered.length,5);
-  assert.ok(previousDay.ranking.ordered.every(row=>row.points===8));
+  assert.ok(previousDay.ranking.ordered.every(row=>row.points===10));
   assert.deepEqual(previousDay.ranking.ordered.map(row=>row.position),[1,2,3,4,5]);
   assert.deepEqual(previousDay.ranking.ordered.map(row=>row.agent),[
     'MorfeoMBP16','NeoMBAAzul','OraculoMini','SmithMBP14','TrinityMBP14'
   ],"empate estable por identidad canónica");
   assert.deepEqual(previousDay.comparison_evolution.series.map(row=>row.agent),
     previousDay.ranking.ordered.map(row=>row.agent));
-  assert.ok(previousDay.comparison_evolution.series.every(row=>row.values.at(-1)===8));
+  assert.ok(previousDay.comparison_evolution.series.every(row=>row.values.at(-1)===10));
 
   const zero=JSON.parse(JSON.stringify(await F.highscoreProjectHistory(env,'TrinityMBA16','scope','today',now)));
   assert.equal(zero.metrics.points,0);

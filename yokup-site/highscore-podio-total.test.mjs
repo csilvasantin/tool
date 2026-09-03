@@ -50,7 +50,7 @@ test("suma TODA la lista, no los tres del podio", () => {
   // clase [^)]* corta en el cierre del slice y no ve la lista que viene detrás.
   const llamadas = html.match(/pintaPodio\((?:[^()]|\([^()]*\))*\)/g)
     .filter((c) => !c.includes("top, todos"));
-  assert.equal(llamadas.length, 3, "hay exactamente tres puntos de llamada");
+  assert.equal(llamadas.length, 4, "hay tres cargas de datos y un repintado al cambiar Día/Hora");
   for (const c of llamadas) {
     assert.match(c, /,\s*(listaCache|l)\)/, `${c} no pasa la lista completa`);
   }
