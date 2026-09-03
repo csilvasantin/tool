@@ -3607,15 +3607,26 @@ async function openInitialMissionDecision(env, input) {
 // agente. madridHourKey se conserva: lo usa el resto del día natural.
   // `manual` = la lanza una persona desde la pantalla, no el ciclo autónomo:
   // caben MANUAL_PER_HOUR en la misma hora en vez de una.
+  // UNA VENTANA ACTIVA POR AGENTE, NO UNA CADA 60 MINUTOS (Carlos, 3-sep-2026:
+  // «el limite es por agente no por hora»). El tope YA era por agente, pero contaba
+  // las ventanas CREADAS en los ultimos 60 minutos, y eso tenia una consecuencia que
+  // se vio hoy: la ventana automatica de las 06:13 —caducada y con opciones medidas
+  // el 7 de agosto, 540 horas antes— seguia ocupando el hueco, asi que la propuesta
+  // que pidio Carlos no podia abrirse; y en cuanto el hueco se libero, el ciclo
+  // automatico lo volvio a coger con las MISMAS opciones rancias. Una ventana que ya
+  // no admite respuesta no puede reservar el sitio de la que si.
+  // Ahora solo cuentan las ventanas VIVAS: pendientes y dentro de su plazo.
   const previas = ((await env.DB.prepare(
-    "SELECT id,created_at FROM decisions WHERE replace(lower(agent),'macmini','mini')=replace(lower(?),'macmini','mini') AND (parent_decision IS NULL OR parent_decision='') AND created_at > ? ORDER BY created_at DESC"
-  ).bind(agent, now - HOURLY_WINDOW_MS).all()).results) || [];
+    "SELECT id,created_at,deadline FROM decisions WHERE replace(lower(agent),'macmini','mini')=replace(lower(?),'macmini','mini') AND (parent_decision IS NULL OR parent_decision='') AND status='pending' AND deadline > ? ORDER BY created_at DESC"
+  ).bind(agent, now).all()).results) || [];
   const tope = input.manual === true ? MANUAL_PER_HOUR : 1;
   if (previas.length >= tope && input.user_override !== true) {
     const previous = previas[previas.length - 1];
+    // El hueco se libera cuando la ventana viva CADUCA, no 60 minutos despues de
+    // haberse creado: quien espera necesita saber la hora buena.
     return { ok: false, status: 409, error: "hourly_limit", manual: input.manual === true,
              limite: tope, usadas: previas.length, existing: previas[0].id,
-             nextAt: Number(previous.created_at) + HOURLY_WINDOW_MS };
+             nextAt: Number(previous.deadline) || (Number(previous.created_at) + HOURLY_WINDOW_MS) };
   }
   const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
   await backfillTodayDisplayRefs(env, now);
@@ -11572,21 +11583,24 @@ Todo en español.`;
             error: "lanzar a mano exige sesión del perímetro: el cupo de 6/hora es de quien mira la pantalla" }, 401);
         }
         if (!continuation && !userOverride && !onIdle) {
-          // Las decisiones ordinarias conservan el reloj móvil de 60 min de
-          // openInitialMissionDecision: 1 automática o MANUAL_PER_HOUR manuales.
+          // Las decisiones ordinarias comparten criterio con openInitialMissionDecision:
+          // UNA VENTANA VIVA por agente —pendiente y dentro de plazo—, no una cada 60
+          // minutos (Carlos, 3-sep-2026: «el limite es por agente no por hora»). Una
+          // caducada no reserva sitio: hoy la automatica de las 06:13, con opciones de
+          // hace 540 horas, impedia abrir la propuesta que Carlos habia pedido.
           // OnIdle ya pasó su guard canónico justo arriba (viva, trabajo fresco,
           // 8/día Madrid), por lo que repetir aquí 1/h impediría el siguiente
           // ciclo inmediatamente después del cierre.
           const previas = ((await env.DB.prepare(
-            "SELECT id,created_at FROM decisions WHERE replace(lower(agent),'macmini','mini')=replace(lower(?),'macmini','mini') AND (parent_decision IS NULL OR parent_decision='') AND created_at > ? ORDER BY created_at DESC"
-          ).bind(agent, now - HOURLY_WINDOW_MS).all()).results) || [];
+            "SELECT id,created_at,deadline FROM decisions WHERE replace(lower(agent),'macmini','mini')=replace(lower(?),'macmini','mini') AND (parent_decision IS NULL OR parent_decision='') AND status='pending' AND deadline > ? ORDER BY created_at DESC"
+          ).bind(agent, now).all()).results) || [];
           const tope = manual ? MANUAL_PER_HOUR : 1;
           if (previas.length >= tope) {
             // El hueco lo libera la MÁS VIEJA de las que siguen dentro de la hora.
             const masVieja = previas[previas.length - 1];
             return json({ ok: false, error: "hourly_limit", manual, limite: tope,
               usadas: previas.length, existing: previas[0].id,
-              nextAt: Number(masVieja.created_at) + HOURLY_WINDOW_MS }, 409);
+              nextAt: Number(masVieja.deadline) || (Number(masVieja.created_at) + HOURLY_WINDOW_MS) }, 409);
           }
           // TURNO — sólo para las automáticas. Cuando la lanza una persona manda
           // la persona: bloquearla porque «no es su turno» convertiría una ayuda

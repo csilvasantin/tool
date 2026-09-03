@@ -246,15 +246,20 @@ test('medianoche de Madrid reinicia el 8/8 y permite la nueva ventana',async()=>
 });
 
 test('la excepción OnIdle no relaja decisiones manuales, automáticas ni formato',async()=>{
-  const now=Date.UTC(2026,7,7,10),prior={id:'DEC-prior',agent:'OraculoMacMini',machine:'admira-macmini',mission:'otro',status:'decided',created_at:now-60_000,deadline:now-1};
+  const now=Date.UTC(2026,7,7,10),prior={id:'DEC-prior',agent:'OraculoMacMini',machine:'admira-macmini',mission:'otro',status:'pending',created_at:now-60_000,deadline:now+240_000};
   const original=Date.now;Date.now=()=>now;
   try {
-    let box=decisionEnv({now,decisions:[prior]});
+    // Sin ventana viva por medio: si la hubiera, el tope saltaria ANTES que el aviso
+    // de sesion y esta prueba dejaria de comprobar lo que dice comprobar.
+    let box=decisionEnv({now});
     let result=await response(box.env,{...baseBody,onidle:false,mission:'manual',manual:true});
     assert.equal(result.status,401);assert.equal(result.json.code,'manual_needs_session');
     box=decisionEnv({now,decisions:[prior]});
+    // Con una ventana VIVA por medio, quien rechaza es el guarda del reloj vivo y da
+    // la razon exacta —ya tienes una abierta— en vez del generico del tope. Sigue
+    // siendo 409: una automatica no se cuela mientras haya una esperando respuesta.
     result=await response(box.env,{...baseBody,onidle:false,mission:'automática'});
-    assert.equal(result.status,409);assert.equal(result.json.error,'hourly_limit');
+    assert.equal(result.status,409);assert.equal(result.json.error,'live_decision');
     box=decisionEnv({now});
     result=await response(box.env,{...baseBody,options:baseBody.options.slice(0,4)});
     assert.equal(result.status,400);assert.match(result.json.error,/3 mejoras/);

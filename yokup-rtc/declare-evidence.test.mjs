@@ -193,7 +193,7 @@ test("el cupo ampliado exige sesion: sin humano identificado no hay 6/hora", () 
 
 test("el 409 dice cuando se libera hueco, y lo libera la MAS VIEJA", () => {
   assert.match(source, /const masVieja = previas\[previas\.length - 1\];/);
-  assert.match(source, /nextAt: Number\(masVieja\.created_at\) \+ HOURLY_WINDOW_MS/);
+  assert.match(source, /nextAt: Number\(masVieja\.deadline\)/);
   assert.match(source, /limite: tope,\n\s*usadas: previas\.length/);
 });
 

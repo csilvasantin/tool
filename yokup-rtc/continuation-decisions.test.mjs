@@ -107,15 +107,24 @@ test('el reloj horario permanece para decisiones ordinarias y excluye OnIdle', (
   // la consulta mira los ultimos 60 min, no la clave de hora
   // openInitial mira solo la ultima (LIMIT 1); POST /decisions cuenta cuantas
   // decisiones ORDINARIAS caben, porque a mano el cupo es 6 y no 1.
-  assert.equal((source.match(/AND created_at > \? ORDER BY created_at DESC/g) || []).length, 2,
-    'las DOS puertas comparten el mismo reloj movil de 60 min');
+  // EL CRITERIO CAMBIO (Carlos, 3-sep-2026: «el limite es por agente no por hora»).
+  // Ya no es «una cada 60 minutos» sino UNA VIVA por agente: pendiente y dentro de
+  // plazo. Una caducada dejo de reservar sitio, que es lo que impedia abrir una
+  // propuesta real —la automatica de las 06:13, con opciones de hace 540 horas,
+  // ocupaba el hueco—. Lo que se conserva es que las DOS puertas compartan criterio.
+  // El «parent_decision» distingue las dos puertas del TOPE de los dos relojes vivos
+  // que ya existian: los cuatro miran ahora lo mismo, pero se fijan estas dos.
+  assert.equal((source.match(/parent_decision=''\) AND status='pending' AND deadline > \?/g) || []).length, 2,
+    'las DOS puertas del tope comparten criterio: una ventana VIVA por agente');
+  assert.doesNotMatch(source, /AND created_at > \? ORDER BY created_at DESC/,
+    'ninguna puerta puede volver al reloj de 60 minutos');
   assert.doesNotMatch(source, /madridHourKey\(row\.created_at\) === hour/,
     'ya no se compara por clave de hora natural');
   // y el 409 dice CUANDO se podra
   // openInitial libera con SU unica previa; POST /decisions con la mas vieja de
   // las que siguen dentro de la hora, que es la que deja hueco primero.
-  assert.match(source, /nextAt: Number\(previous\.created_at\) \+ HOURLY_WINDOW_MS/);
-  assert.match(source, /nextAt: Number\(masVieja\.created_at\) \+ HOURLY_WINDOW_MS/);
+  assert.match(source, /nextAt: Number\(previous\.deadline\)/);
+  assert.match(source, /nextAt: Number\(masVieja\.deadline\)/);
 });
 
 test('una continuación reutiliza el batch, reordena queued y habilita una única activación', () => {
