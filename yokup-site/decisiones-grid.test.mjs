@@ -29,7 +29,8 @@ function decision(status, extra = {}) {
 test('el histórico declara una hoja con los seis encabezados contratados', () => {
   assert.match(page, /id="decisionGrid"[^>]*role="table"/);
   assert.match(page, /class="decision-grid-head"[^>]*role="row"/);
-  assert.match(page, /id="decsHistList"[^>]*role="rowgroup"/);
+  assert.match(page, /id="decsHistList"/);
+  assert.match(source, /class=\"decision-grid-hour\" role=\"rowgroup\"/);
   const columns = Array.from(page.matchAll(/data-decision-col="([^"]+)"/g), match => match[1]);
   assert.deepEqual(columns, ['agent', 'project', 'decision', 'result', 'state', 'time']);
 });
@@ -126,8 +127,8 @@ test('la hoja permite scroll horizontal y pasa a rótulos por celda en móvil', 
   }
   assert.match(source, /@media\(max-width:560px\)[\s\S]*\.decision-grid-head\{display:none\}/);
   assert.match(source, /\.decision-grid-cell:before\{content:attr\(data-label\)/);
-  assert.match(source, /closedShown\.length \? renderDecisionGridRows\(closedShown\)/);
-  assert.match(source, /list\.innerHTML = live\.length \? renderGroups\(live, null\)/);
+  assert.match(source, /closedShown\.length\?decisionHistoryByHour\(closedShown,"list"\)/);
+  assert.match(source, /list\.innerHTML = live\.length \? decisionHistoryByHour\(live,"detail"\)/);
 });
 
 test('/equipo y los relojes vivos conservan su renderer y actualización en tiempo real', () => {
@@ -143,6 +144,6 @@ test('/equipo y los relojes vivos conservan su renderer y actualización en tiem
 test('filtros y rerender históricos siguen alimentando filas ordenables', () => {
   assert.match(source, /var histStatus = \(filter && filter !== "pending"\) \? filter : null/);
   assert.match(source, /closed\.filter\(function \(d\) \{ return d\.status === histStatus; \}\)/);
-  assert.match(source, /histList\.innerHTML = closedShown\.length \? renderDecisionGridRows\(closedShown\)/);
+  assert.match(source, /histList\.innerHTML=closedShown\.length\?decisionHistoryByHour\(closedShown,"list"\)/);
   assert.match(source, /histSig = null; paintChips\(\); renderFull\(\)/);
 });

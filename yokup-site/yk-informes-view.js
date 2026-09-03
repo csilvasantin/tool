@@ -92,12 +92,12 @@
     var projected=rowsForView(rows);
     return {rows:projected,keys:projected.map(anomalyKey)};
   }
-  function selectorMarkup(view,controls){
-    var current=normalize(view),target=clean(controls);
+  function selectorMarkup(view,controls,noun){
+    var current=normalize(view),target=clean(controls),subject=clean(noun)||"informes";
     function button(value,label){
-      return '<button type="button" class="informes-view-option" data-informes-view-option="'+value+'" aria-pressed="'+(current===value?'true':'false')+'" aria-label="Mostrar informes en '+label.toLowerCase()+'"'+(target?' aria-controls="'+target.replace(/[<>&\"]/g,"")+'"':'')+'>'+label+'</button>';
+      return '<button type="button" class="informes-view-option" data-informes-view-option="'+value+'" aria-pressed="'+(current===value?'true':'false')+'" aria-label="Mostrar '+subject+' en '+label.toLowerCase()+'"'+(target?' aria-controls="'+target.replace(/[<>&\"]/g,"")+'"':'')+'>'+label+'</button>';
     }
-    return '<div class="informes-view-switch" role="group" aria-label="Vista de informes">'+button(DETAIL,"Detalle")+button(GRID,"Cuadrícula")+button(LIST,"Lista")+'</div>';
+    return '<div class="informes-view-switch" role="group" aria-label="Vista de '+subject+'">'+button(DETAIL,"Detalle")+button(GRID,"Cuadrícula")+button(LIST,"Lista")+'</div>';
   }
   function mount(container,options){
     if(!container)return null;
@@ -108,9 +108,10 @@
     targets=Array.prototype.filter.call(targets,function(item){return !!item;});
     var view=read(storage,key);
     var controls=options.controls||targets.map(function(item){return item.id||"";}).filter(Boolean).join(" ");
-    container.innerHTML=selectorMarkup(view,controls);
+    var attribute=clean(options.attribute)||"data-informes-view";
+    container.innerHTML=selectorMarkup(view,controls,options.noun);
     function paint(){
-      targets.forEach(function(target){if(target&&target.setAttribute)target.setAttribute("data-informes-view",view);});
+      targets.forEach(function(target){if(target&&target.setAttribute)target.setAttribute(attribute,view);});
       var buttons=container.querySelectorAll?container.querySelectorAll("[data-informes-view-option]"):[];
       Array.prototype.forEach.call(buttons,function(button){button.setAttribute("aria-pressed",String(button.getAttribute("data-informes-view-option")===view));});
     }

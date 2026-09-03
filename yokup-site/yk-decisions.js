@@ -83,6 +83,18 @@
        + ".dec-sum-outcome b{color:var(--ink);font-weight:700}.dec-sum-outcome.ok b{color:var(--good,#3df08a)}.dec-sum-outcome.exp b{color:var(--warn,#ffb545)}"
        + ".dec-fold>summary .dec-stamp{border:0;margin:0;padding:0}"
        + ".dec-fold-body{padding:11px 13px 13px;border-top:1px solid var(--line)}";
+  /* El histórico diario se divide por la HORA DE APERTURA en Madrid. Detalle
+     conserva máquina → agente; Cuadrícula elimina esa jerarquía visual y Lista
+     mantiene la hoja ordenable, siempre sin mezclar filas entre horas. */
+  CSS += ".decision-history-alt{padding:0 14px 2px}.decision-hour-group{min-width:0;margin:0 0 14px}"
+       + ".decision-hour-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;padding:10px 2px;border-bottom:1px solid var(--line2);color:var(--brand);font:800 11px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase}"
+       + ".decision-hour-heading span{color:var(--dim);font-size:9px;letter-spacing:.04em}"
+       + ".decision-hour-detail{padding-top:10px}.decision-hour-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:9px;padding-top:10px}"
+       + ".decision-hour-grid>.dec{margin:0}.decision-grid-hour-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 13px;border-top:1px solid var(--line2);background:rgba(120,243,255,.055);color:var(--brand);font:800 10px/1.3 var(--mono);letter-spacing:.07em;text-transform:uppercase}"
+       + ".decision-grid-hour-h span{color:var(--dim);font-size:9px}.decision-grid-hour:first-child .decision-grid-hour-h{border-top:0}"
+       + "[data-decision-view=detail] .decision-grid-scroll,[data-decision-view=grid] .decision-grid-scroll{display:none}"
+       + "[data-decision-view=list] .decision-history-alt{display:none}"
+       + "@media(max-width:560px){.decision-history-alt{padding-inline:10px}.decision-hour-heading,.decision-grid-hour-h{align-items:flex-start;flex-direction:column;gap:4px}.decision-hour-grid{grid-template-columns:minmax(0,1fr)}}";
   function esc(x) { return String(x == null ? "" : x).replace(/[<>&"]/g, function (c) { return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]; }); }
   function cleanProjectName(x) { return String(x || "").replace(/^misi[oó]n\s*:?\s*/i, "").replace(/\s+/g, " ").trim().slice(0, 120); }
   function projectSlug(x) { return cleanProjectName(x).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
@@ -209,7 +221,7 @@
     var outcome = d.status === "decided" ? "✓ eligió <b>" + chosenText + "</b>"
       : d.status === "expired" ? "⏱★ recomendada <b>" + chosenText + "</b>"
       : "↩ <b>descartada</b>";
-    return "<details class=\"dec dec-fold\" aria-labelledby=\"" + projectId + "\">"
+    return "<details class=\"dec dec-fold\"" + (opts && opts.expanded ? " open" : "") + " aria-labelledby=\"" + projectId + "\">"
       + "<summary class=\"dec-sum\"><span class=\"dec-chevron\" aria-hidden=\"true\">›</span><div class=\"dec-sum-main\">"
       + "<div class=\"dec-sum-top\"><span class=\"dec-project-label\">PROYECTO</span><span class=\"dec-sum-project\" id=\"" + projectId + "\">" + esc(project) + "</span></div>"
       + "<div class=\"dec-sum-outcome " + outCls + "\">" + outcome + "</div>"
@@ -264,7 +276,7 @@
     return '<h3 class="dec-agent-title" id="' + id + '">' + face + '<span>' + esc(agent) + '</span></h3>';
   }
   function renderGroups(items, opts) {
-    var cardOpts = {nested:true,stamp:!!(opts && opts.stamp)};
+    var cardOpts = {nested:true,stamp:!!(opts && opts.stamp),expanded:!!(opts && opts.expanded)};
     return groupDecisions(items).map(function (machine, mi) {
       var mid = groupId("machine", machine.name, mi);
       var agents = machine.agents.map(function (agent, ai) {
@@ -361,6 +373,64 @@
       + '</div>';
   }
   function renderDecisionGridRows(items) { return (items || []).map(decisionGridRow).join(""); }
+  function madridParts(ts) {
+    var n=gridEpoch(ts),parts={};
+    if(!n)return null;
+    try {
+      new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Madrid",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",hourCycle:"h23"}).formatToParts(new Date(n)).forEach(function(part){if(part.type!=="literal")parts[part.type]=part.value;});
+    } catch (_) {
+      var local=new Date(n),pad=function(value){return String(value).padStart(2,"0");};
+      parts={year:String(local.getFullYear()),month:pad(local.getMonth()+1),day:pad(local.getDate()),hour:pad(local.getHours())};
+    }
+    return parts;
+  }
+  function ymd(ts) { var p=madridParts(ts);return p?p.year+"-"+p.month+"-"+p.day:""; }
+  function shiftYmd(value,days) {
+    var parts=String(value||"").split("-").map(Number),date=new Date(Date.UTC(parts[0]||1970,(parts[1]||1)-1,(parts[2]||1)+days));
+    return date.toISOString().slice(0,10);
+  }
+  function decisionInRange(d,mode,selectedDay,now) {
+    var day=ymd(d&&d.created_at),today=ymd(now||Date.now());
+    if(mode==="all")return true;
+    if(!day)return false;
+    if(mode==="7days")return day>=shiftYmd(today,-6)&&day<=today;
+    if(mode==="yesterday")return day===shiftYmd(today,-1);
+    if(mode==="custom")return day===selectedDay;
+    return day===today;
+  }
+  function decisionRangeLabel(mode,selectedDay,now) {
+    if(mode==="all")return "Todas";
+    if(mode==="7days")return "Últimos 7 días";
+    if(mode==="yesterday")return "Ayer";
+    if(mode==="custom"){
+      var bits=String(selectedDay||"").split("-");return bits.length===3?bits[2]+"/"+bits[1]+"/"+bits[0]:"Día elegido";
+    }
+    return "Hoy";
+  }
+  function decisionHourGroups(items) {
+    var groups={};
+    (items||[]).forEach(function(item){
+      var parts=madridParts(item&&item.created_at),key=parts?parts.year+"-"+parts.month+"-"+parts.day+"T"+parts.hour:"0000-00-00T00";
+      (groups[key]||(groups[key]={key:key,day:parts?parts.year+"-"+parts.month+"-"+parts.day:"",hour:parts?parts.hour:"",items:[]})).items.push(item);
+    });
+    return Object.keys(groups).sort().reverse().map(function(key){
+      groups[key].items.sort(function(a,b){return gridEpoch(b.created_at)-gridEpoch(a.created_at)||compareLabel(a.id,b.id);});return groups[key];
+    });
+  }
+  function decisionHourLabel(group,multipleDays) {
+    if(!group.day||!group.hour)return "Sin hora registrada";
+    var bits=String(group.day||"").split("-");
+    return (multipleDays&&bits.length===3?bits[2]+"/"+bits[1]+"/"+bits[0]+" · ":"")+group.hour+":00–"+group.hour+":59";
+  }
+  function decisionHistoryByHour(items,view) {
+    var groups=decisionHourGroups(items),multipleDays=groups.some(function(group){return group.day!==groups[0].day;}),mode=/^(grid|list)$/.test(view)?view:"detail";
+    return groups.map(function(group,index){
+      var label=decisionHourLabel(group,multipleDays),count=group.items.length+" "+(group.items.length===1?"decisión":"decisiones"),id="decision-hour-"+group.key.replace(/[^0-9a-z]/gi,"-")+"-"+index;
+      if(mode==="list")return '<div class="decision-grid-hour" role="rowgroup" aria-labelledby="'+id+'"><div class="decision-grid-hour-h" role="row"><div role="columnheader" aria-colspan="6" id="'+id+'">'+esc(label)+' <span>'+esc(count)+'</span></div></div>'+renderDecisionGridRows(group.items)+'</div>';
+      var body=mode==="grid"?'<div class="decision-hour-grid">'+group.items.map(function(item){return card(item,{nested:true,stamp:true});}).join("")+'</div>':'<div class="decision-hour-detail">'+renderGroups(group.items,{stamp:true,expanded:true})+'</div>';
+      return '<section class="decision-hour-group" aria-labelledby="'+id+'"><h2 class="decision-hour-heading" id="'+id+'">'+esc(label)+' <span>'+esc(count)+'</span></h2>'+body+'</section>';
+    }).join("");
+  }
   // ── HISTÓRICO ───────────────────────────────────────────────────────────────
   // Sale entero del worker. Se pide de la más reciente hacia atrás con el cursor
   // `next_until`; PAGE_MAX páginas de 500 acotan la petición para no traerse la
@@ -368,12 +438,6 @@
   // dice — nunca se presenta una lista recortada como si fuera completa.
   var PAGE = 500, PAGE_MAX = 4;
   function closedAt(d) { return +d.decided_at || +d.deadline || +d.created_at || 0; }
-  function ymd(ts) {
-    var d = ts instanceof Date ? ts : new Date(+ts || Date.now());
-    function p(n) { return String(n).padStart(2, "0"); }
-    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
-  }
-
   function targetSpec(search) {
     var params = new URLSearchParams(String(search || "").replace(/^\?/, ""));
     var id=String(params.get("decision_id")||"").trim();if(!id)return null;
@@ -403,6 +467,8 @@
     if (!document.getElementById("yk-decisions-css")) { var style = document.createElement("style"); style.id = "yk-decisions-css"; style.textContent = CSS; document.head.appendChild(style); }
     var histSec = full ? document.getElementById("decsHist") : null;
     var histList = full ? document.getElementById("decsHistList") : null;
+    var histAlt = full ? document.getElementById("decsHistAlt") : null;
+    var histGrid = full ? document.getElementById("decisionGrid") : null;
     // sig/histSig arrancan en null (no ""): con cero elementos la firma también es
 // "" y el primer render se saltaba, dejando la sección vacía sin su mensaje.
     var api = config.worker.replace(/\/$/, "") + "/decisions", decisions = [], sig = null, histSig = null, truncated = false, projectScope = null;
@@ -410,11 +476,11 @@
     // FILTRO de los chips (Carlos): null = todas; si no, un estado. Pulsar el chip
     // activo otra vez vuelve a todas. VIVAS actúa sobre la sección de relojes;
     // DECIDIDAS/VENCIDAS/CANCELADAS acotan el histórico a ese estado.
-    var filter = null;
+    var filter = null, rangeMode = "today", historyView = "detail";
     var dayInput = full ? document.getElementById("decisionDay") : null;
-    var selectedDay = ymd(new Date());
+    var selectedDay = ymd(Date.now());
     if (dayInput) { dayInput.value = selectedDay; dayInput.disabled=!!target; dayInput.addEventListener("change", function () {
-      selectedDay = dayInput.value || ymd(new Date()); sig = null; histSig = null; renderFull();
+      selectedDay = dayInput.value || ymd(Date.now()); rangeMode = "custom"; sig = null; histSig = null; paintRanges(); renderFull();
     }); }
     var STATUS_LABEL = {pending:"vivas", decided:"decididas", expired:"vencidas", cancelled:"canceladas"};
     var EMPTY_HIST = {
@@ -427,6 +493,30 @@
       var n = {pending: live.length, decided: 0, expired: 0, cancelled: 0};
       hist.forEach(function (d) { if (n[d.status] != null) n[d.status]++; });
       Object.keys(n).forEach(function (k) { var el = document.querySelector("[data-dec-count='" + k + "']"); if (el) el.textContent = n[k]; });
+    }
+    function paintRanges() {
+      Array.prototype.forEach.call(document.querySelectorAll("[data-decision-range]"),function(button){
+        button.setAttribute("aria-pressed",String(button.getAttribute("data-decision-range")===rangeMode));
+        button.disabled=!!target;
+      });
+    }
+    function selectRange(next) {
+      rangeMode=/^(yesterday|7days|all)$/.test(next)?next:"today";
+      selectedDay=rangeMode==="yesterday"?shiftYmd(ymd(Date.now()),-1):ymd(Date.now());
+      if(dayInput)dayInput.value=rangeMode==="today"||rangeMode==="yesterday"?selectedDay:"";
+      sig=null;histSig=null;paintRanges();renderFull();
+    }
+    function wireRanges() {
+      Array.prototype.forEach.call(document.querySelectorAll("[data-decision-range]"),function(button){
+        if(button.dataset.decisionRangeWired)return;button.dataset.decisionRangeWired="1";
+        button.addEventListener("click",function(){selectRange(button.getAttribute("data-decision-range"));});
+      });
+      paintRanges();
+    }
+    function setView(next) {
+      var normalized=/^(grid|list)$/.test(next)?next:"detail";
+      if(historyView===normalized&&histSig!==null)return historyView;
+      historyView=normalized;histSig=null;if(full&&!target)renderFull();return historyView;
     }
 
     function renderTargetState(message,error) {
@@ -447,7 +537,7 @@
     function renderFull() {
       if(target){renderTarget();return;}
       var dayItems = decisions.filter(function (d) { return !projectScope || String(d.project_id || "") === projectScope; })
-        .filter(function (d) { return ymd(d.created_at) === selectedDay; });
+        .filter(function (d) { return decisionInRange(d,rangeMode,selectedDay,Date.now()); });
       var live = dayItems.filter(function (d) { return d.status === "pending"; });
       var closed = dayItems.filter(function (d) { return d.status !== "pending"; })
         .sort(function (a, b) { return closedAt(b) - closedAt(a); });
@@ -463,7 +553,7 @@
         if (liveSig !== sig) {
           sig = liveSig;
           document.getElementById("decsN").textContent = live.length ? "· " + live.length + " esperando tu decisión" : "· sin decisiones abiertas";
-          list.innerHTML = live.length ? renderGroups(live, null)
+          list.innerHTML = live.length ? decisionHistoryByHour(live,"detail")
             : "<p class=\"decs-empty\">" + (filter === "pending" ? "Ninguna decisión viva ahora mismo." : "Ningún reloj corriendo ahora mismo.") + " Cuando un agente abra una decisión, aparecerá aquí con su cuenta atrás.</p>";
         }
       }
@@ -471,16 +561,24 @@
       histSec.hidden = !showHist;
       if (!showHist) return;
       var closedShown = histStatus ? closed.filter(function (d) { return d.status === histStatus; }) : closed;
-      var hSig = "f:" + filter + "|" + closedShown.map(function (d) { return d.id + ":" + d.status + ":" + (d.chosen_by || ""); }).join("|") + "|t" + truncated;
+      var hSig = "f:" + filter + "|r:"+rangeMode+":"+selectedDay+"|v:"+historyView+"|" + closedShown.map(function (d) { return d.id + ":" + d.status + ":" + (d.chosen_by || ""); }).join("|") + "|t" + truncated;
       if (hSig === histSig) return;
       histSig = hSig;
       document.getElementById("decsHistN").textContent = histStatus
-        ? "· " + closedShown.length + " " + STATUS_LABEL[histStatus] + " (filtrado)"
-        : "· " + closedShown.length + (closedShown.length === 1 ? " decisión cerrada" : " decisiones cerradas");
-      histList.innerHTML = closedShown.length ? renderDecisionGridRows(closedShown)
-        : "<p class=\"decs-empty\">" + (histStatus ? EMPTY_HIST[histStatus] : "Todavía no hay decisiones cerradas.") + "</p>";
+        ? "· " + closedShown.length + " " + STATUS_LABEL[histStatus] + " · " + decisionRangeLabel(rangeMode,selectedDay)
+        : "· " + closedShown.length + (closedShown.length === 1 ? " decisión cerrada" : " decisiones cerradas") + " · " + decisionRangeLabel(rangeMode,selectedDay);
+      var empty="<p class=\"decs-empty\">" + (histStatus ? EMPTY_HIST[histStatus] : "Todavía no hay decisiones cerradas en este periodo.") + "</p>";
+      if(histGrid)histGrid.hidden=historyView!=="list";
+      if(histAlt)histAlt.hidden=historyView==="list";
+      if(historyView==="list"){
+        if(histAlt)histAlt.innerHTML="";
+        histList.innerHTML=closedShown.length?decisionHistoryByHour(closedShown,"list"):empty;
+      }else{
+        histList.innerHTML="";
+        if(histAlt)histAlt.innerHTML=closedShown.length?decisionHistoryByHour(closedShown,historyView):empty;
+      }
       var histNote = document.getElementById("decsHistNote");
-      if (histNote) histNote.innerHTML = "Histórico completo del worker: <code>GET /decisions?all=1&amp;since=0</code> devuelve todas las decisiones de la flota, no solo las de la última hora, y con ellas quién eligió. Se ve lo mismo desde cualquier equipo."
+      if (histNote) histNote.innerHTML = "Las decisiones se agrupan por su hora de apertura en Madrid. Los relojes todavía vivos permanecen arriba; aquí se muestran las cerradas del periodo elegido. <code>GET /decisions?all=1&amp;since=0</code> conserva el histórico común de toda la flota."
         + (truncated ? " Ahora mismo hay más de " + (PAGE * PAGE_MAX) + " y esta lista llega solo hasta ahí: las más antiguas quedan fuera." : "");
     }
 
@@ -588,7 +686,7 @@
         await fetch(api + "/" + encodeURIComponent(b.dataset.dec) + "/choose", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({choice:choice,by:"Carlos",custom_text:customText})});
       } finally { load(); }
     });
-    if (full&&!target) wireChips();
+    if (full&&!target) { wireChips();wireRanges(); }
     if (full && window.addEventListener) window.addEventListener("yk:project-change", function (event) {
       if(target)return;
       projectScope = event.detail && event.detail.project_id || null;
@@ -596,6 +694,7 @@
     });
     if(target)renderTargetState("Cargando la decisión solicitada…",false);
     load(); setInterval(load, 15000);
+    return {setView:setView,getView:function(){return historyView;},selectRange:selectRange,render:render};
   }
-  window.YkDecisions = {mount:mount,_test:{card:card,projectName:projectName,stamp:stamp,groupDecisions:groupDecisions,renderGroups:renderGroups,stateText:stateText,decisionGridRow:decisionGridRow,renderDecisionGridRows:renderDecisionGridRows,durationText:durationText,decisionGridDetail:decisionGridDetail,targetSpec:targetSpec,targetDecisionError:targetDecisionError}};
+  window.YkDecisions = {mount:mount,_test:{card:card,projectName:projectName,stamp:stamp,groupDecisions:groupDecisions,renderGroups:renderGroups,stateText:stateText,decisionGridRow:decisionGridRow,renderDecisionGridRows:renderDecisionGridRows,durationText:durationText,decisionGridDetail:decisionGridDetail,decisionInRange:decisionInRange,decisionRangeLabel:decisionRangeLabel,decisionHourGroups:decisionHourGroups,decisionHistoryByHour:decisionHistoryByHour,targetSpec:targetSpec,targetDecisionError:targetDecisionError}};
 })();

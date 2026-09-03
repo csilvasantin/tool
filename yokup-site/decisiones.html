@@ -12,6 +12,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r17">
+<link rel="stylesheet" href="/yk-informes-view.css?v=r3">
 <style>
 /* Sección DECISIONES: los relojes vivos permanecen arriba y el histórico se
    presenta como una hoja operativa, una decisión por fila. */
@@ -31,8 +32,13 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px}
 .kpi[role=button]:hover{border-color:var(--line2)}
 .kpi[role=button]:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 .kpi.active{border-color:var(--brand);background:var(--card2);box-shadow:inset 0 0 0 1px var(--brand)}
-.kpi.kdate{min-width:198px;min-height:54px;margin-left:auto;color:var(--ink);color-scheme:dark;font-size:17px;letter-spacing:.05em;text-transform:none;padding:0 15px;border-radius:14px;cursor:pointer}
-.kpi.kdate::-webkit-calendar-picker-indicator{cursor:pointer;filter:invert(.75) sepia(1) saturate(3) hue-rotate(150deg)}
+.decision-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:-2px 0 18px}
+.decision-range{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.decision-range-button,.decision-range-date{min-height:38px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--mut);font:700 10px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:8px 12px;cursor:pointer}
+.decision-range-button:hover,.decision-range-button:focus-visible,.decision-range-date:focus-visible{border-color:var(--brand);color:var(--brand);outline:none}
+.decision-range-button[aria-pressed="true"]{border-color:var(--brand);background:var(--brand);color:var(--bg)}
+.decision-range-date{color:var(--ink);color-scheme:dark;text-transform:none}
+#decisionView{margin-left:auto}
 .foot{font-family:var(--mono);font-size:10.5px;line-height:1.6;color:var(--dim);margin-top:20px;padding-top:14px;border-top:1px solid var(--line)}
 .foot b{color:var(--mut)}
 .foot a{color:var(--brand)}
@@ -40,6 +46,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px}
   .wrap{padding:18px 14px 40px}
   .kpis{gap:8px}
   .kpi{font-size:10px;padding:8px 10px;flex:1 1 132px}
+  .decision-controls{align-items:stretch}.decision-range{width:100%}.decision-range-button{flex:1 1 auto}.decision-range-date{flex:1 1 150px}#decisionView{width:100%;margin-left:0}
 }
 /* intro plegable REUTILIZABLE — patrón .page-intro de /objetivos (plegado por
    defecto, píldora «Qué es esto ›» junto al titular; más espacio para lo vivo). */
@@ -72,7 +79,17 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px}
     <div class="kpi b"><b data-dec-count="decided">0</b> decididas</div>
     <div class="kpi c"><b data-dec-count="expired">0</b> vencidas</div>
     <div class="kpi d"><b data-dec-count="cancelled">0</b> canceladas</div>
-    <input type="date" id="decisionDay" class="kpi kdate" title="Día de las decisiones — por defecto hoy">
+  </div>
+
+  <div class="decision-controls">
+    <div class="decision-range" id="decisionRange" role="group" aria-label="Periodo de decisiones">
+      <button type="button" class="decision-range-button" data-decision-range="today" aria-pressed="true">Hoy</button>
+      <button type="button" class="decision-range-button" data-decision-range="yesterday" aria-pressed="false">Ayer</button>
+      <button type="button" class="decision-range-button" data-decision-range="7days" aria-pressed="false">Últimos 7 días</button>
+      <button type="button" class="decision-range-button" data-decision-range="all" aria-pressed="false">Todas</button>
+      <input type="date" id="decisionDay" class="decision-range-date" title="Ver las decisiones de un día concreto" aria-label="Ver las decisiones de un día concreto">
+    </div>
+    <div id="decisionView"></div>
   </div>
 
   <!-- VIVAS: reloj corriendo y opciones pulsables (POST /decisions/<id>/choose) -->
@@ -81,10 +98,10 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px}
     <div class="decs-list" id="decsList" aria-live="polite"></div>
   </section>
 
-  <!-- HISTÓRICO: una hoja, una decisión por fila. Los hooks data-* son el
-       contrato estable para ordenar/redimensionar sin acoplar el renderer. -->
+  <!-- HISTÓRICO: decisiones cerradas agrupadas por la hora en que se abrieron. -->
   <section class="decs hist" id="decsHist">
-    <div class="decs-hd">🗂 Histórico <span class="decs-n" id="decsHistN"></span></div>
+    <div class="decs-hd">🗂 Decisiones por hora <span class="decs-n" id="decsHistN"></span></div>
+    <div class="decision-history-alt" id="decsHistAlt"></div>
     <div class="decision-grid-scroll" tabindex="0" aria-label="Histórico de decisiones, desplazamiento horizontal">
       <div class="decision-grid" id="decisionGrid" role="table" aria-label="Histórico de decisiones">
         <div class="decision-grid-head" role="row">
@@ -95,7 +112,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px}
           <div role="columnheader" data-decision-col="state">Estado</div>
           <div role="columnheader" data-decision-col="time">Tiempo</div>
         </div>
-        <div class="decision-grid-body" id="decsHistList" role="rowgroup"></div>
+        <div class="decision-grid-body" id="decsHistList"></div>
       </div>
     </div>
     <p class="decs-note" id="decsHistNote"></p>
@@ -114,10 +131,20 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px}
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-avatar.js?v=r2"></script>
 <script src="/yk-frame.js?v=r31"></script>
+<script src="/yk-informes-view.js?v=r3"></script>
 <script src="/yk-decisions.js?v=decision-target-r1"></script>
 <script src="/yk-decisiones-grid.js?v=r1"></script>
 <script>
-YkDecisions.mount({worker:"https://api.yokup.com", mode:"full"});
+var DECISIONS_APP=YkDecisions.mount({worker:"https://api.yokup.com", mode:"full"});
+var DECISIONS_VIEW=YkInformesView.mount(document.getElementById("decisionView"),{
+  storageKey:"yokup.decisiones.view.v1",
+  noun:"decisiones",
+  controls:"decsHist",
+  target:document.getElementById("decsHist"),
+  attribute:"data-decision-view",
+  onChange:function(view){DECISIONS_APP.setView(view);}
+});
+DECISIONS_APP.setView(DECISIONS_VIEW.getView());
 YkDecisionesGrid.mount(document.getElementById("decisionGrid"));
 </script>
 </body>
