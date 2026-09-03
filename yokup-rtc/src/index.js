@@ -3785,6 +3785,10 @@ async function operationalOnIdleState(env, identity, requestedProjectId = "", no
 }
 __name(operationalOnIdleState, "operationalOnIdleState");
 
+// Cuanto tiempo veta un titulo ya ofrecido: una semana. Ni una ventana (se repetiria
+// la de hace un rato) ni para siempre (el backlog se agota y el generador enmudece).
+var ONIDLE_TITULO_GASTADO_MS = 7 * 24 * 60 * 60 * 1000;
+
 async function canonicalOnIdleProposals(env, identity, requestedProjectId) {
   if (!requestedProjectId) return { ok:false, status:400, code:"exact_project_required",
     error:"project_id exacto requerido para obtener propuestas" };
@@ -3801,10 +3805,20 @@ async function canonicalOnIdleProposals(env, identity, requestedProjectId) {
       "ORDER BY CASE lower(COALESCE(priority,'')) WHEN 'critical' THEN 0 WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 WHEN 'low' THEN 3 ELSE 4 END," +
       "COALESCE(created_at,updated_at) ASC,id ASC LIMIT 300"
     ).bind(projectId, projectName).all(),
+    // UN TITULO NO SE GASTA PARA SIEMPRE (2026-09-03). Esta consulta no tenia limite de
+    // tiempo: cada opcion ofrecida en cualquier ventana pasada quedaba vetada de por vida.
+    // yokup abrio 22 ventanas OnIdle entre el 7 y el 12 de agosto —hasta 66 titulos
+    // quemados— y desde entonces el generador devuelve CERO propuestas con doce tickets
+    // abiertos delante. Por eso los agentes caian al fichero de opciones a mano, que lleva
+    // sin tocarse desde el 7 de agosto: las ventanas automaticas salian con opciones de
+    // hace 540 horas, o no salian. Una mejora que Carlos no eligio hace un mes sigue
+    // pendiente hoy y merece volver a ofrecerse; lo que no queremos es repetirla en la
+    // ventana siguiente, y para eso basta una semana.
     env.DB.prepare(
       "SELECT agent,machine,project,options,option_targets FROM decisions WHERE mission=? " +
-      "AND (parent_decision IS NULL OR parent_decision='') AND (project=? OR lower(project)=lower(?)) ORDER BY created_at DESC"
-    ).bind(ONIDLE_MISSION_MARKER, projectId, projectName).all(),
+      "AND (parent_decision IS NULL OR parent_decision='') AND (project=? OR lower(project)=lower(?)) " +
+      "AND created_at >= ? ORDER BY created_at DESC"
+    ).bind(ONIDLE_MISSION_MARKER, projectId, projectName, Date.now() - ONIDLE_TITULO_GASTADO_MS).all(),
     env.DB.prepare(
       "SELECT active_mission_id,agent,machine,project_id FROM mission_batches " +
       "WHERE status='active' AND active_mission_id IS NOT NULL AND active_mission_id!=''"
