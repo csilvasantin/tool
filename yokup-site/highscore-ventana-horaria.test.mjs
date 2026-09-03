@@ -117,9 +117,9 @@ test("el tono evoluciona de cian a ámbar con el progreso", () => {
 test("el título dice la verdad en cada estado", () => {
   const a = api([]);
   assert.match(a.titulo({ abierta:false, at:0, restante:0 }),
-    /Puede abrir su ventana autónoma AHORA/);
+    /Puede tomar una decisión AHORA/);
   assert.match(a.titulo({ abierta:true, at:Date.UTC(2026, 7, 5, 9, 5), restante:55 * 60000 }),
-    /Abrió su ventana a las 11:05 · la siguiente dentro de 55:00/);
+    /Próxima toma de decisión en 55:00 \(a las 12:05\) · la última fue a las 11:05/);
 });
 
 test("el marcado lleva estado accesible y el degradado en el relleno", () => {
@@ -128,13 +128,13 @@ test("el marcado lleva estado accesible y el degradado en el relleno", () => {
   assert.match(abierta, /class="hourbar"/);
   assert.match(abierta, /data-abierta="1"/);
   assert.match(abierta, /role="img"/);
-  assert.match(abierta, /aria-label="Abrió su ventana/);
+  assert.match(abierta, /aria-label="Próxima toma de decisión en/);
   assert.match(abierta, /background:linear-gradient\(90deg,hsl\(186 92% 64%\),hsl\(\d+ 92% 64%\)\)/);
 
   const libre = api([]).html(NEO);
   assert.match(libre, /class="hourbar libre"/);
   assert.match(libre, /data-abierta="0"/);
-  assert.match(libre, /aria-label="Puede abrir su ventana autónoma AHORA/);
+  assert.match(libre, /aria-label="Puede tomar una decisión AHORA/);
 });
 
 test("la línea vive bajo el agente y se refresca sola sin volver a pedir datos", () => {

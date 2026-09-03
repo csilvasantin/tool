@@ -576,6 +576,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 /* LÍNEA DE LA VENTANA AUTÓNOMA, bajo cada agente. El reloj se pone a cero en
    cada ventana y corre 60 minutos; al cumplirse, el agente puede volver a abrir. El relleno lleva su propio degradado en línea (JS) porque el tono
    evoluciona con el progreso: cian al empezar, ámbar al filo. */
+.hourbar::before{content:"";position:absolute;left:0;right:0;top:-9px;bottom:-9px;cursor:help}/* zona sensible: 3px no se aciertan con el ratón */
 .hourbar{display:block;position:relative;height:3px;margin:5px 0 1px;border-radius:2px;
   background:rgba(120,243,255,.10);overflow:hidden}
 .hourbar>i{display:block;height:100%;border-radius:2px;transition:width .6s linear}
@@ -2379,10 +2380,13 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function tonoVentana(progreso) {
     return Math.round(186 - Math.max(0, Math.min(1, progreso)) * 148);
   }
+  // Al pasar el ratón, lo primero es CUÁNTO FALTA para su próxima toma de decisión
+  // (Carlos, 3-sep-2026: «como si fuera un alt»); la hora de la última va detrás.
   function tituloVentana(v) {
     return v.abierta
-      ? "Abrió su ventana a las " + horaCorta(v.at) + " · la siguiente dentro de " + faltaTexto(v.restante)
-      : "Puede abrir su ventana autónoma AHORA · esta hora todavía no la ha usado";
+      ? "Próxima toma de decisión en " + faltaTexto(v.restante) + " (a las " + horaCorta(v.at + VENTANA_MS) + ")" +
+        " · la última fue a las " + horaCorta(v.at)
+      : "Puede tomar una decisión AHORA · esta hora todavía no la ha usado";
   }
   function relojVentanaHtml(a) {
     var v = ventanaHoraria(a), pct = Math.round(v.progreso * 1000) / 10, t = tituloVentana(v);
