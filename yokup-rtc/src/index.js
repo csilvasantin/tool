@@ -1988,7 +1988,7 @@ function principalAgentIdentity(agent, machine = "") {
   // que tocar las tres a la vez. Hoy Link existía en la flota y no aquí: declarar
   // proyecto con ella devolvía exact_agent_required y ninguna pista de por qué.
   // Unificar las tres es el FLT-1490.
-  const known = ["Neo", "Link", "Morfeo", "Trinity", "Oraculo", "Smith", "WhiteRabbit", "Niobe"].includes(parsed.persona);
+  const known = ["Neo", "Link", "Morfeo", "Trinity", "Oraculo", "Smith", "WhiteRabbit", "Niobe", "Persefone"].includes(parsed.persona);
   if (!known || !suffix) return null;
   const visible = canonicalProjectAgentRef(reportAgentIdentity(agent, machine || suffix));
   if (!visible || !parseAgentIdentity(visible).suffix) return null;
@@ -9749,6 +9749,8 @@ var worker_app = {
         if (!machines.some((row) => memberRefMatches("machine", row.ref, launch.machine))) {
           return json({ ok:false, error:"asigna primero el proyecto al equipo físico", code:"team_not_assigned" }, 409);
         }
+        const launchIdentity = principalAgentIdentity(launch.persona, launch.machine);
+        if (!launchIdentity) return json({ ok:false, error:"identidad operativa exacta requerida", code:"exact_agent_required" }, 400);
         let dispatched;
         try { dispatched = await dispatchAgentStart(env, projectLaunchTarget(launch)); }
         catch (error) {
@@ -9758,8 +9760,14 @@ var worker_app = {
         const now=Date.now(),by=String(sess.email || "").slice(0,120);
         await env.DB.prepare("INSERT INTO project_launch_assignments(project_id,machine,platform,runtime,model,selection,persona,session_id,updated_at,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(project_id,machine) DO UPDATE SET platform=excluded.platform,runtime=excluded.runtime,model=excluded.model,selection=excluded.selection,persona=excluded.persona,session_id=excluded.session_id,updated_at=excluded.updated_at,updated_by=excluded.updated_by")
           .bind(launch.project,launch.machine,launch.host,launch.runtime,launch.model,launch.selection,launch.persona,launch.session_id,now,by).run();
+        const principal = await declarePrincipalProject(env, {
+          agent:launchIdentity.agent, machine:launch.machine, project:launch.project,
+          declared_by:by || "Dashboard",
+          statement:"Proyecto principal diario al lanzar " + launch.selection + " desde Dashboard"
+        });
+        if (!principal.ok) return json({ ok:false, error:principal.error, code:principal.code || "principal-project-failed" }, principal.status || 500);
         const saved=(await listProjects(env)).find((row)=>row.id===launch.project)||null;
-        return json({ ok:true, launch, control:dispatched.result, project:saved }, dispatched.result.status === "already_running" ? 200 : 202);
+        return json({ ok:true, launch, control:dispatched.result, principal_declaration:principal.declaration, project:saved }, dispatched.result.status === "already_running" ? 200 : 202);
       } catch (e) { return json({ ok:false, error:String(e) }, 500); }
     }
     // ORDEN de las fichas. Llega la lista COMPLETA de ids tal y como han quedado

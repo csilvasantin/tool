@@ -87,6 +87,16 @@ test("Niobe declara proyecto como principal canónica del Mac Mini", async () =>
   });
 });
 
+test("Persefone puede declarar el proyecto principal de la ranura Nemotron", async () => {
+  const { env, F } = harness();
+  const created = await F.declarePrincipalProject(env, {
+    agent: "Persefone", machine: "MacBookAirCrema", project: "xpaceos",
+    declared_by: "Dashboard"
+  });
+  assert.equal(created.ok, true);
+  assert.equal(created.declaration.agent, "PersefoneMBACrema");
+});
+
 test("dos equipos de la misma persona conservan declaraciones independientes", async () => {
   const { env, F } = harness();
   await F.declarePrincipalProject(env, { agent: "NeoMacMini", project: "xpaceos" });

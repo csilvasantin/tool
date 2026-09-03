@@ -12,11 +12,11 @@ test("normaliza las tres Desktop Apps y los tres modelos CLI sin confundir plata
   }
   assert.equal(normalizeProjectLaunch({project:"admira-tv",machine:"MacMini",persona:"Smith",runtime:"Grok",host:"cli",session_id:"smith",selection:"Grok"}).selection,"Grok");
   assert.equal(normalizeProjectLaunch({project:"admira-tv",machine:"MacMini",persona:"Niobe",runtime:"OpenCode",host:"cli",session_id:"niobe",selection:"Nemotron"}).selection,"Nemotron");
-  assert.equal(normalizeProjectLaunch({project:"admira-tv",machine:"MacMini",persona:"Niobe",runtime:"OpenCode",host:"cli",session_id:"niobe",selection:"Muse Spark",model:"Muse Spark 1.3"}).selection,"Muse Spark");
+  assert.equal(normalizeProjectLaunch({project:"admira-tv",machine:"MacMini",persona:"Niobe",runtime:"OpenCode",host:"cli",session_id:"niobe",selection:"Qwen",model:"Qwen 3 Coder"}).selection,"Qwen");
 });
 
-test("Muse Spark no se finge cuando OpenCode sólo demuestra Nemotron",()=>{
-  assert.throws(()=>normalizeProjectLaunch({project:"admira-tv",machine:"MacMini",persona:"Niobe",runtime:"OpenCode",host:"cli",session_id:"niobe",selection:"Muse Spark",model:"Nemotron 3 Ultra"}),/muse-spark-not-provisioned/);
+test("Qwen no se finge cuando OpenCode sólo demuestra Nemotron",()=>{
+  assert.throws(()=>normalizeProjectLaunch({project:"admira-tv",machine:"MacMini",persona:"Niobe",runtime:"OpenCode",host:"cli",session_id:"niobe",selection:"Qwen",model:"Nemotron 3 Ultra"}),/qwen-not-provisioned/);
 });
 
 test("el target remoto contiene sólo la identidad arrancable",()=>{
@@ -31,5 +31,8 @@ test("la ruta exige login, asociación física, persiste selección y despacha i
   assert.match(source,/dispatchAgentStart\(env, projectLaunchTarget\(launch\)\)/);
   assert.match(source,/CREATE TABLE IF NOT EXISTS project_launch_assignments/);
   assert.match(source,/ON CONFLICT\(project_id,machine\) DO UPDATE/);
+  assert.match(source,/const launchIdentity = principalAgentIdentity\(launch\.persona, launch\.machine\)/);
+  assert.match(source,/const principal = await declarePrincipalProject\(env/);
+  assert.match(source,/principal_declaration:principal\.declaration/);
   assert.match(source,/launches: launchRows\.filter/);
 });

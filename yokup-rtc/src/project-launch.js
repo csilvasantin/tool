@@ -2,7 +2,7 @@ const DESKTOP_RUNTIMES = new Set(["Claude", "Codex", "OpenCode"]);
 const CLI_MODELS = new Map([
   ["grok", { selection:"Grok", runtime:"Grok" }],
   ["nemotron", { selection:"Nemotron", runtime:"OpenCode" }],
-  ["muse spark", { selection:"Muse Spark", runtime:"OpenCode" }],
+  ["qwen", { selection:"Qwen", runtime:"OpenCode" }],
 ]);
 
 function text(value, field, max = 80) {
@@ -33,11 +33,11 @@ export function normalizeProjectLaunch(input) {
   const preset = CLI_MODELS.get(selectionRaw.toLowerCase());
   if (!preset || runtime !== preset.runtime) throw new Error("invalid-cli-selection");
   if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(session_id)) throw new Error("invalid-cli-session");
-  // Muse sólo puede reutilizar una sesión que ya demuestre ese modelo. Hasta que
+  // Qwen sólo puede reutilizar una sesión que ya demuestre ese modelo. Hasta que
   // el watcher anuncie modelos arrancables, no convertimos OpenCode/Nemotron en
-  // Muse por cambiar una etiqueta en el navegador.
-  if (preset.selection === "Muse Spark" && !/muse\s*[-_ ]?spark/i.test(model)) {
-    throw new Error("muse-spark-not-provisioned");
+  // Qwen por cambiar una etiqueta en el navegador.
+  if (preset.selection === "Qwen" && !/qwen/i.test(model)) {
+    throw new Error("qwen-not-provisioned");
   }
   return { project, machine, persona, runtime, host, session_id, selection:preset.selection, model };
 }
