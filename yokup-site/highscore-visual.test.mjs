@@ -87,7 +87,7 @@ test("la cabecera compacta conserva el sonido y elimina reloj y subtítulo", () 
 
 test("el podio usa una única tarjeta enlazada y coloca nombre debajo de puntos", () => {
   assert.match(html,/\.plaza\{[^}]*display:flex[^}]*flex-direction:column/);
-  assert.match(html,/return '<a class="plaza '[\s\S]*?<div class="pts">' \+ parejaPuntosHtml\(a\) \+ '<\/div>' \+[\s\S]*?<div class="nom"><span class="agent-name">' \+ esc\(nombreAgenteVisible\(a\.agente\)\)/);
+  assert.match(html,/return '<a class="plaza '[\s\S]*?<div class="pts"><span class="score-number score-day">' \+ esc\(puntosPeriodo\)[\s\S]*?<div class="nom"><span class="agent-name">' \+ esc\(nombreAgenteVisible\(a\.agente\)\)/);
   assert.match(html,/aria-label="Ver histórico de ' \+ esc\(nombreAgenteVisible\(a\.agente\)\)/);
   assert.doesNotMatch(html,/<div class="nom">' \+ agentNameHtml\(a\)/,
     "el botón de decisiones no puede quedar anidado dentro del enlace histórico");
@@ -321,13 +321,13 @@ test("todos los agentes con trabajo en curso tienen calles ordenadas, identidad 
   assert.match(html, /carrera\.classList\.toggle\("empty", corredores\.length === 0\)/);
 });
 
-test("el podio conserva el latido vivo y usa la misma pareja hora/día", () => {
+test("el podio conserva el latido vivo y muestra la puntuación del periodo elegido", () => {
   assert.doesNotMatch(html, /puntosPodioAnteriores/);
   assert.match(html, /a\.vivo \? ' podium-live' : ''/);
   assert.match(html, /\.plaza\.podium-live::after\{[^}]*border:2px solid rgba\(136,255,170,\.8\)[^}]*animation:podium-heartbeat/);
   assert.match(html, /@keyframes podium-heartbeat/);
-  assert.match(html, /<div class="pts">' \+ parejaPuntosHtml\(a\) \+ '<\/div>/);
-  assert.match(html, /var metric=metricaHoraDia\(a,"points"\)/);
+  assert.match(html, /var metric = metricaHoraDia\(a,"points"\), puntosPeriodo = puntosPodioPeriodo\(a\)/);
+  assert.match(html, /esc\(puntosPeriodo\)[\s\S]*rotuloPeriodoPodio\(PODIUM_PERIOD\)/);
   assert.match(html, /datos\.actividadMeta && datos\.actividadMeta\.hourly/);
 });
 

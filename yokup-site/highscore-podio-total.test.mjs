@@ -31,14 +31,16 @@ test("el sumador se coloca en espejo de la bandera, no en cualquier hueco", () =
   assert.match(total, /position:absolute/);
 });
 
-test("hereda la caja de las plazas: es el mismo tipo de dato y se lee igual", () => {
+test("conserva la familia visual de las plazas pero queda un 10% más compacta", () => {
   const total = cssRule(".podio-total"), plaza = cssRule(".plaza");
-  for (const prop of ["background", "border-radius", "backdrop-filter", "padding"]) {
+  for (const prop of ["background", "border-radius", "backdrop-filter"]) {
     const uno = total.match(new RegExp(`${prop}:([^;]*)`));
     const otro = plaza.match(new RegExp(`${prop}:([^;]*)`));
     assert.ok(uno && otro, `falta ${prop}`);
     assert.equal(uno[1].trim(), otro[1].trim(), `${prop} debe coincidir con .plaza`);
   }
+  assert.equal(porcentaje(total, "width"), porcentaje(plaza, "width") * .9);
+  assert.match(total, /padding:6px 9px/, "el relleno también baja aproximadamente un 10%");
 });
 
 test("suma TODA la lista, no los tres del podio", () => {
@@ -56,11 +58,11 @@ test("suma TODA la lista, no los tres del podio", () => {
   }
 });
 
-test("el total sale de las MISMAS cifras que pinta cada fila", () => {
+test("el total sale de las MISMAS cifras del periodo que pinta cada plaza", () => {
   // Recalcularlo por otra vía acabaría discrepando con la tabla de debajo, y un
   // total que no cuadra con lo que hay debajo es peor que no poner total.
   const fn = html.slice(html.indexOf("function totalPodioHtml"), html.indexOf("function pintaPodio"));
-  assert.match(fn, /metricaHoraDia\(a, "points"\)/);
+  assert.match(fn, /puntosPodioPeriodo\(a\)/);
   assert.doesNotMatch(fn, /a\.total/, "no se suma por una vía distinta a la de la tabla");
 });
 

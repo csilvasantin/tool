@@ -148,5 +148,5 @@ test("el reparto se pide al cargar y en cada refresco, y degrada en silencio", (
   assert.match(source, /datos\.turnos = r\[7\] \|\| null;/, "en la carga, ausente es ausente");
   assert.match(source, /if \(r\[7\]\) datos\.turnos = r\[7\];/,
     "en el refresco se conserva el anterior: envejece mejor que caer al cupo");
-  assert.match(source, /turnos: null \}/, "declarado en el estado, no inventado al vuelo");
+  assert.match(source, /turnos: null, historial: null \}/, "declarado en el estado, no inventado al vuelo");
 });

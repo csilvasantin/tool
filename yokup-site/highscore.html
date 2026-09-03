@@ -119,25 +119,25 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
    bajar a la tabla y sumar a mano. Va arriba a la IZQUIERDA, en espejo de la
    bandera que el arte lleva pintada a la derecha — misma altura y misma
    distancia al borde, para que la escena quede equilibrada y no parezca un
-   cartel pegado encima. Hereda la caja de .plaza: es el mismo tipo de dato y
-   tiene que leerse igual. */
-.podio-total{position:absolute;z-index:3;left:9%;top:7%;width:22%;
+   cartel pegado encima. Conserva la familia visual de .plaza, un 10% más
+   compacta para que informe sin competir con el podio. */
+.podio-total{position:absolute;z-index:3;left:9%;top:4%;width:19.8%;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-  padding:7px 10px;background:rgba(2,8,13,.74);border:1px solid rgba(120,243,255,.42);border-radius:6px;
+  padding:6px 9px;background:rgba(2,8,13,.74);border:1px solid rgba(120,243,255,.42);border-radius:6px;
   box-shadow:0 5px 18px rgba(0,0,0,.38);backdrop-filter:blur(3px)}
 .podio-total .pts{color:var(--brand)}
-.podio-total .tot-rot{font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+.podio-total .tot-rot{font-size:8.55px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
   color:var(--mut);text-align:center;line-height:1.3}
 .podio-total{cursor:pointer;font:inherit;color:inherit;text-align:center}
 .podio-total:hover,.podio-total:focus-visible{border-color:var(--brand);outline:none;
   box-shadow:0 7px 22px rgba(0,0,0,.5),0 0 0 2px var(--brand)}
-.podio-total .tot-mas{font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.podio-total .tot-mas{font-size:7.65px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
 .podio-total:hover .tot-mas,.podio-total:focus-visible .tot-mas{color:var(--brand)}
-.podio-period{position:absolute;z-index:4;right:9%;top:7%;display:grid;grid-template-columns:1fr 1fr;
-  width:22%;padding:3px;background:rgba(2,8,13,.78);border:1px solid rgba(120,243,255,.42);border-radius:7px;
+.podio-period{position:absolute;z-index:4;right:5%;top:4%;display:grid;grid-template-columns:repeat(4,1fr);
+  width:32%;padding:2.7px;background:rgba(2,8,13,.78);border:1px solid rgba(120,243,255,.42);border-radius:7px;
   box-shadow:0 5px 18px rgba(0,0,0,.38);backdrop-filter:blur(3px)}
-.podio-period button{border:0;border-radius:4px;padding:7px 6px;background:transparent;color:var(--mut);
-  font:800 9.5px var(--mono);letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
+.podio-period button{border:0;border-radius:4px;padding:6.3px 4px;background:transparent;color:var(--mut);
+  font:800 8.55px var(--mono);letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
 .podio-period button:hover,.podio-period button:focus-visible{color:var(--brand);outline:1px solid var(--brand)}
 .podio-period button[aria-pressed="true"]{background:rgba(120,243,255,.14);color:var(--brand);
   box-shadow:inset 0 0 0 1px rgba(120,243,255,.3)}
@@ -245,9 +245,9 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   .dg-lista .l-est{grid-column:3;grid-row:1}
   .dg-lista .l-que{grid-column:2/4;grid-row:2}
 }
-@media (max-width:620px){.podio-total{left:4%;top:4%;width:30%;padding:5px 7px}
-  .podio-total .pts{font-size:14px}.podio-total .tot-rot{font-size:8px}
-  .podio-period{right:4%;top:4%;width:32%}.podio-period button{padding:5px 3px;font-size:8px}}
+@media (max-width:620px){.podio-total{left:3%;top:2%;width:27%;padding:4.5px 6px}
+  .podio-total .pts{font-size:12.6px}.podio-total .tot-rot{font-size:7.2px}
+  .podio-period{right:2%;top:2%;width:46%}.podio-period button{padding:4.5px 2px;font-size:7.2px;letter-spacing:.04em}}
 .nom{font-size:12px;font-weight:800;letter-spacing:.03em;text-align:center;word-break:break-word;padding:0}
 .pts{display:inline-flex;align-items:center;gap:5px;font-size:18px;font-weight:900;margin:0;letter-spacing:.02em;white-space:nowrap}
 .p1 .pts{color:var(--oro)} .p2 .pts{color:var(--plata)} .p3 .pts{color:var(--bronce)}
@@ -1132,7 +1132,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     presencia: [], misiones: [], ideas: [], decisiones: [], proyectos: [],
     declaracionesPrincipales: [], controlMachines: [], presenceNow: 0, presenceAvailable: false,
     trabajos: [], trabajosAvailable: false, trabajosGeneratedAt: 0, trabajosClientAt: 0,
-    trabajosMode: "unavailable", turnos: null };
+    trabajosMode: "unavailable", turnos: null, historial: null };
   var DAILY_CACHE_KEY = "yokup.highscore.daily.v1";
   function guardaActividadDiaria(payload) {
     if (!payload || !Array.isArray(payload.scores) || payload.day !== claveDia(Date.now())) return;
@@ -1146,7 +1146,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   pon(8, "CONECTANDO CON LA FLOTA…");
-  /* BATCH TOTAL: las nueve llamadas salen A LA VEZ. Antes /tasks/all iba solo
+  /* BATCH TOTAL: las diez llamadas salen A LA VEZ. Antes /tasks/all iba solo
      por delante —únicamente para poner su cifra en la barra— y el resto esperaba
      su latencia entera sin motivo. La barra sigue contando el tablero: lo dice
      cuando la respuesta llega, no antes. */
@@ -1174,6 +1174,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     seguroYokup("/fleet/turnos", function (d) { return d && d.ok ? d : null; }),
     seguroYokup("/highscore/active-work", function (d) {
       return d && d.ok && Array.isArray(d.participants) ? d : null;
+    }),
+    seguroYokup("/highscore/history?scope=global", function (d) {
+      return d && d.ok && Array.isArray(d.all_days) ? d : null;
     })
   ])
     .then(function (r) {
@@ -1188,6 +1191,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       datos.presenceAvailable = !!(r[5] && Number(r[5].now || 0) > 0);
       datos.proyectos = r[6] && r[6].projects || [];
       datos.declaracionesPrincipales = r[6] && r[6].declarations || [];
+      datos.historial = r[9] || null; diasCache = datos.historial;
       datos.turnos = r[7] || null;
       datos.trabajosAvailable = !!r[8];
       datos.trabajos = r[8] && r[8].participants || [];
@@ -1867,17 +1871,39 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function selectorPeriodoPodioHtml() {
     return '<div class="podio-period" role="group" aria-label="Periodo del ranking del podio">' +
+      '<button type="button" data-podium-period="hour" aria-pressed="' + (PODIUM_PERIOD === "hour") + '">Hora</button>' +
       '<button type="button" data-podium-period="day" aria-pressed="' + (PODIUM_PERIOD === "day") + '">Día</button>' +
-      '<button type="button" data-podium-period="hour" aria-pressed="' + (PODIUM_PERIOD === "hour") + '">Hora</button></div>';
+      '<button type="button" data-podium-period="week" aria-pressed="' + (PODIUM_PERIOD === "week") + '">Semana</button>' +
+      '<button type="button" data-podium-period="month" aria-pressed="' + (PODIUM_PERIOD === "month") + '">Mes</button></div>';
+  }
+
+  function rotuloPeriodoPodio(periodo) {
+    return ({ hour:"esta hora", day:"hoy", week:"esta semana", month:"este mes" })[periodo] || "hoy";
+  }
+
+  function puntosPodioPeriodo(a) {
+    var metric = metricaHoraDia(a, "points");
+    if (PODIUM_PERIOD === "hour") return Math.max(0, Number(metric.hour) || 0);
+    if (PODIUM_PERIOD === "day") return Math.max(0, Number(metric.day) || 0);
+    var history = datos.historial, range = history && history.periods && history.periods[PODIUM_PERIOD];
+    var days = history && Array.isArray(history.all_days) ? history.all_days : [];
+    if (!range || !range.start || !range.end) return 0;
+    var agentKey = claveAgenteCarrera(a && a.agente), points = 0;
+    days.forEach(function (row) {
+      if (!row || row.day < range.start || row.day > range.end) return;
+      (Array.isArray(row.top) ? row.top : []).forEach(function (score) {
+        if (claveAgenteCarrera(score && score.agent) === agentKey) points += Math.max(0, Number(score.points) || 0);
+      });
+    });
+    return points;
   }
 
   function clasificacionPodio(todos) {
     return (Array.isArray(todos) ? todos.filter(Boolean) : []).slice().sort(function (a, b) {
       var ma = metricaHoraDia(a, "points"), mb = metricaHoraDia(b, "points");
-      var pa = PODIUM_PERIOD === "hour" ? ma.hour : ma.day;
-      var pb = PODIUM_PERIOD === "hour" ? mb.hour : mb.day;
-      // En Hora, el total diario sólo desempata. El orden alfabético estabiliza
-      // el podio cuando ambos valores coinciden y evita saltos entre refrescos.
+      var pa = puntosPodioPeriodo(a), pb = puntosPodioPeriodo(b);
+      // El total diario desempata cualquier periodo. El orden alfabético
+      // estabiliza el podio cuando ambos valores coinciden y evita saltos.
       return (Number(pb) || 0) - (Number(pa) || 0) ||
         (Number(mb.day) || 0) - (Number(ma.day) || 0) ||
         normaliza(a.agente).localeCompare(normaliza(b.agente), "es");
@@ -1897,23 +1923,17 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function totalPodioHtml(todos) {
     var lista = Array.isArray(todos) ? todos.filter(Boolean) : [];
     if (!lista.length) return "";
-    var hora = 0, dia = 0;
-    lista.forEach(function (a) {
-      var m = metricaHoraDia(a, "points");
-      hora += Math.max(0, Number(m.hour) || 0);
-      dia += Math.max(0, Number(m.day) || 0);
-    });
+    var puntos = 0;
+    lista.forEach(function (a) { puntos += puntosPodioPeriodo(a); });
     var rotulo = lista.length + (lista.length === 1 ? " agente" : " agentes");
-    var titulo = "Equipo de Silicio: " + hora + " puntos en esta hora y " + dia + " hoy, sumando " + rotulo;
+    var periodo = rotuloPeriodoPodio(PODIUM_PERIOD);
+    var titulo = "Equipo de Silicio: " + puntos + " puntos " + periodo + ", sumando " + rotulo;
     return '<button type="button" class="podio-total" id="podioTotal" aria-label="' + esc(titulo) + ' — pulsa para ver los últimos 30 días" title="' + esc(titulo) + ' · pulsa para ver los últimos 30 días">' +
       '<div class="pts">' +
-        '<span class="score-number score-hour ' + (hora > 0 ? "hour-positive" : "hour-zero") + '">' + esc(hora) + '</span>' +
-        '<span class="score-period" aria-hidden="true">hora</span>' +
-        '<span class="score-separator" aria-hidden="true">/</span>' +
-        '<span class="score-number score-day">' + esc(dia) + '</span>' +
-        '<span class="score-period" aria-hidden="true">hoy</span>' +
+        '<span class="score-number score-day">' + esc(puntos) + '</span>' +
+        '<span class="score-period" aria-hidden="true">puntos</span>' +
       '</div>' +
-      '<div class="tot-rot">equipo de silicio<br>' + esc(rotulo) + '</div>' +
+      '<div class="tot-rot">equipo de silicio · ' + esc(periodo) + '<br>' + esc(rotulo) + '</div>' +
       '<div class="tot-mas" aria-hidden="true">30 días ↗</div></button>';
   }
 
@@ -2167,7 +2187,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var mod = document.getElementById("diasMod");
     mod.classList.add("on");
     document.getElementById("diasCerrar").focus();
-    if (diasCache) return pintaDias(diasCache);
+    if (diasCache || datos.historial) return pintaDias(diasCache || datos.historial);
     document.getElementById("diasSub").textContent = "Cargando los últimos 30 días…";
     document.getElementById("diasCuerpo").innerHTML = "";
     fetch(YK + "/highscore/history?scope=global", { cache: "no-store" })
@@ -2204,20 +2224,23 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       // redondeada vacía que aparecía encima del arte del podio.
       if (!a) return "";
       var clave = claveAgenteCarrera(a.agente), total = Number(a.total) || 0;
-      var metric = metricaHoraDia(a,"points");
+      var metric = metricaHoraDia(a,"points"), puntosPeriodo = puntosPodioPeriodo(a);
       var dailyTitle = tituloPuntosDiarios(estadoPuntosDiarios(a));
-      var scoreLabel = (PODIUM_PERIOD === "hour" ? metric.hour + " puntos en esta hora" : metric.day + " puntos hoy") +
-        "; periodo del podio: " + (PODIUM_PERIOD === "hour" ? "hora" : "día");
+      var scoreLabel = puntosPeriodo + " puntos " + rotuloPeriodoPodio(PODIUM_PERIOD) +
+        "; periodo del podio: " + PODIUM_PERIOD;
       var detailProject = a.workProjectId || a.proyectoId;
-      var detalleUrl = a.workDetailUrl || (detailProject ? "/highscoreDetail?agent=" + encodeURIComponent(a.agente) +
-        "&project_id=" + encodeURIComponent(detailProject) + "&period=today&type=all" : "");
+      var detailPeriod = PODIUM_PERIOD === "week" || PODIUM_PERIOD === "month" ? PODIUM_PERIOD : "today";
+      var detallePeriodoUrl = detailProject ? "/highscoreDetail?agent=" + encodeURIComponent(a.agente) +
+        "&project_id=" + encodeURIComponent(detailProject) + "&period=" + detailPeriod + "&type=all" : "";
+      var detalleUrl = detailPeriod === "today" ? (a.workDetailUrl || detallePeriodoUrl) : detallePeriodoUrl;
       try { sessionStorage.setItem("yokup.highscore.detail." + clave, JSON.stringify(a)); } catch (_) {}
       return '<a class="plaza ' + clases[i] + (a.vivo ? ' podium-live' : '') + '"' + (detalleUrl ? ' href="' + esc(detalleUrl) + '"' : ' aria-disabled="true"') +
         ' aria-label="Ver histórico de ' + esc(nombreAgenteVisible(a.agente)) + ', puesto ' + medallas[i] + ', ' +
           esc(scoreLabel + ". " + dailyTitle) + '"' +
         (a.vivo ? ' title="Vivo · abrir histórico del agente"' : ' title="Abrir histórico del agente"') + '>' +
         '<div class="avatar">' + a.agente.charAt(0).toUpperCase() + '</div>' +
-        '<div class="pts">' + parejaPuntosHtml(a) + '</div>' +
+        '<div class="pts"><span class="score-number score-day">' + esc(puntosPeriodo) + '</span>' +
+          '<span class="score-period"> ' + esc(rotuloPeriodoPodio(PODIUM_PERIOD)) + '</span></div>' +
         '<div class="nom"><span class="agent-name">' + esc(nombreAgenteVisible(a.agente)) + '</span></div>' +
         '<div class="maq">' + esc(a.runtime || "—") + '</div>' +
         pintaMaquinas(a, 3) +
@@ -4253,6 +4276,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       seguroYokup("/fleet/turnos", function (d) { return d && d.ok ? d : null; }),
       seguroYokup("/highscore/active-work", function (d) {
         return d && d.ok && Array.isArray(d.participants) ? d : null;
+      }),
+      seguroYokup("/highscore/history?scope=global", function (d) {
+        return d && d.ok && Array.isArray(d.all_days) ? d : null;
       })
     ]).then(function (r) {
       datos.tareasFresh = Array.isArray(r[0]);
@@ -4289,6 +4315,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         datos.trabajos = []; datos.trabajosAvailable = false;
         datos.trabajosGeneratedAt = 0; datos.trabajosClientAt = 0; datos.trabajosMode = "unavailable";
       }
+      if (r[9]) { datos.historial = r[9]; diasCache = r[9]; }
       fallos = [];
       var listaCompleta = calcula(), l = aplicaAgentScope(listaCompleta);
       var cambioLider = listaCache && l[0] && listaCache[0] && l[0].agente !== listaCache[0].agente;
@@ -4544,7 +4571,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   document.getElementById("podio").addEventListener("click", function (e) {
     var periodo = e.target && e.target.closest && e.target.closest("[data-podium-period]");
     if (periodo) {
-      PODIUM_PERIOD = periodo.getAttribute("data-podium-period") === "hour" ? "hour" : "day";
+      var selectedPeriod = periodo.getAttribute("data-podium-period");
+      PODIUM_PERIOD = ["hour", "day", "week", "month"].indexOf(selectedPeriod) >= 0 ? selectedPeriod : "day";
       pintaPodio(listaCache.slice(0, 3), listaCache);
       if (!document.getElementById("podio").hidden) dibujaPodio(brazosBajos);
       return;

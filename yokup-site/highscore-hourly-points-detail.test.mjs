@@ -188,10 +188,10 @@ test("la columna PUNTOS pinta hora/día en una línea y con una sola base visual
     "la ausencia se representa con cero, nunca con guion");
 });
 
-test("el desplegable sigue contraído y el podio comparte hora/día", () => {
+test("el desplegable sigue contraído y el podio muestra el periodo elegido", () => {
   assert.match(source, /<button class="score-toggle" type="button" aria-expanded="false" aria-controls="' \+ esc\(progressId\)/);
   assert.match(source, /<tr class="score-progress' \+ alterna \+ '" id="' \+ esc\(progressId\) \+ '" hidden><td colspan="9">' \+ progresionHtml\(a\)/);
-  assert.match(source, /<div class="pts">' \+ parejaPuntosHtml\(a\) \+ '<\/div>/);
+  assert.match(source, /<div class="pts"><span class="score-number score-day">' \+ esc\(puntosPeriodo\)/);
 });
 
 test("hora y día comparten tamaño, peso y línea base; el diario tiene tres estados sin animación", () => {
