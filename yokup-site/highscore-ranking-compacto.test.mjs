@@ -7,9 +7,10 @@ const html = await readFile(new URL("./highscore.html", import.meta.url), "utf8"
 // Carlos, 15-ago-2026: con veintitantos agentes, quien entraba se comía una
 // tabla que no cabía en pantalla para enterarse de lo único que se mira de un
 // vistazo — quién va delante. Arranca con cinco filas y RANKING despliega.
-test("la tabla nace compacta con cinco filas", () => {
+test("la tabla nace COMPLETA; el modo compacto de cinco filas es opcional y se recuerda", () => {
   assert.match(html, /var RANKING_COMPACTO_FILAS = 5;/);
-  assert.match(html, /var rankingCompacto = true/, "compacta POR DEFECTO, no expandida");
+  assert.match(html, /var rankingCompacto = leeRankingCompacto\(\)/, "completa POR DEFECTO (Carlos, 3-sep-2026); compacta sólo si el usuario lo eligió");
+  assert.match(html, /localStorage\.getItem\(RANKING_COMPACTO_KEY\) === "1"/);
   assert.match(html, /rankingCompacto \? lista\.slice\(0, RANKING_COMPACTO_FILAS\) : lista/);
 });
 

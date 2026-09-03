@@ -3407,7 +3407,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // construidas y ordenándose para no verse) pero la lista completa se guarda,
   // así que desplegar no vuelve a pedir datos ni reordena nada.
   var RANKING_COMPACTO_FILAS = 5;
-  var rankingCompacto = true, rankingListaCache = [];
+  // COMPLETO POR DEFECTO (Carlos, 3-sep-2026: «en el ranking global tienen que aparecer
+  // todos los agentes que han puntuado durante ese día»). El modo compacto de cinco
+  // filas queda como opción del botón, recordada por navegador.
+  var RANKING_COMPACTO_KEY = "yokup.highscore.rankingCompacto";
+  function leeRankingCompacto() { try { return localStorage.getItem(RANKING_COMPACTO_KEY) === "1"; } catch (_) { return false; } }
+  var rankingCompacto = leeRankingCompacto(), rankingListaCache = [];
 
   function rankingRecorta(lista) {
     return rankingCompacto ? lista.slice(0, RANKING_COMPACTO_FILAS) : lista;
@@ -3429,6 +3434,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function alternaRanking() {
     rankingCompacto = !rankingCompacto;
     pintaTabla(rankingListaCache);
+    try { localStorage.setItem(RANKING_COMPACTO_KEY, rankingCompacto ? "1" : "0"); } catch (_) {}
   }
 
   function pintaTabla(listaEntera) {
