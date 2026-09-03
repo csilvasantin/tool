@@ -41,6 +41,7 @@ import { PROJECT_CARBON_ASSIGNMENTS_TABLE_SQL, PROJECT_CARBON_ASSIGNMENT_UPSERT_
 import { isProjectShotAllowed, normalizeProjectWeb } from "./project-web.js";
 import { AGENT_SOURCE_SQL, AGENT_SOURCE_SQL_T, FIELD_SOURCE_SQL_T, MISSION_SCOPE_SQL,
   MISSION_SCOPE_SQL_T, FIELD_MISSION_SCOPE_SQL_T, FLEET_MISSIONS_SQL } from "./mission-sources.js";
+import { normalizeProjectLaunch, projectLaunchTarget } from "./project-launch.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -407,6 +408,10 @@ async function applySchema(env) {
   // usa admira-fleet (machines[].id / silicon[].id): NO se inventa censo nuevo.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS project_members (project_id TEXT, kind TEXT, ref TEXT, added_at INTEGER, PRIMARY KEY (project_id, kind, ref))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_pmembers_ref ON project_members(kind, ref)");
+  // Selección de superficie por proyecto y máquina. Es intención operativa
+  // persistente; el estado vivo sigue viniendo del process_snapshot del watcher.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS project_launch_assignments (project_id TEXT NOT NULL, machine TEXT NOT NULL, platform TEXT NOT NULL, runtime TEXT NOT NULL, model TEXT DEFAULT '', selection TEXT NOT NULL, persona TEXT NOT NULL, session_id TEXT NOT NULL, updated_at INTEGER NOT NULL, updated_by TEXT DEFAULT '', PRIMARY KEY(project_id,machine))");
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_project_launch_machine ON project_launch_assignments(machine,project_id)");
   // PROYECTO PRINCIPAL DIARIO por identidad operativa exacta. Es una declaración
   // temporal y auditable: NO convierte al agente en miembro, NO cambia owner y
   // NO reescribe ids del censo. La clave día+agente hace idempotente repetir
@@ -2134,6 +2139,13 @@ async function listProjects(env) {
   const mem = (await env.DB.prepare("SELECT project_id, kind, ref FROM project_members").all()).results || [];
   const carbonAssignments = (await env.DB.prepare("SELECT project_id,carbon_key,first_assigned_at FROM project_carbon_assignments").all()).results || [];
   const carbonFirstByProject = new Map(carbonAssignments.map((row) => [String(row.project_id) + "|" + String(row.carbon_key), Number(row.first_assigned_at) || 0]));
+  let launchRows=[];
+  try {
+    launchRows=(await env.DB.prepare("SELECT project_id,machine,platform,runtime,model,selection,persona,session_id,updated_at,updated_by FROM project_launch_assignments").all()).results || [];
+  } catch (error) {
+    // Compatibilidad durante el despliegue: el listado sigue vivo si una réplica
+    // todavía no ha creado la tabla; ensureSchema la materializa en la siguiente.
+  }
   const declarations = await listPrincipalProjectDeclarations(env);
   // VIVA = EN CURSO (Carlos, FLT-985 c1). Hasta aquí `missions` sumaba también las
   // `open` —encargadas y sin empezar— y una ficha con varias misiones en la cola
@@ -2166,6 +2178,11 @@ async function listProjects(env) {
       machines: mem.filter((m) => m.project_id === p.id && m.kind === "machine").map((m) => m.ref),
       agents: canonicalProjectAgentRefs(mem.filter((m) => m.project_id === p.id && m.kind === "agent")
         .map((m) => m.ref)),
+      launches: launchRows.filter((row) => row.project_id === p.id).map((row) => ({
+        machine:row.machine, platform:row.platform, runtime:row.runtime, model:row.model || "",
+        selection:row.selection, persona:row.persona, session_id:row.session_id,
+        updated_at:Number(row.updated_at || 0), updated_by:row.updated_by || ""
+      })),
       daily_primary_agents: declarations.filter((d) => d.project_id === p.id).map((d) => ({
         day: d.day, agent: d.agent, agent_key: d.agent_key, declared_by: d.declared_by,
         statement: d.statement, updated_at: d.updated_at
@@ -9651,6 +9668,7 @@ var worker_app = {
         const prev = await env.DB.prepare("SELECT id FROM projects WHERE id=?").bind(id).first();
         if (!prev) return json({ ok: false, error: "no existe" }, 404);
         await env.DB.prepare("DELETE FROM project_members WHERE project_id=?").bind(id).run();
+        await env.DB.prepare("DELETE FROM project_launch_assignments WHERE project_id=?").bind(id).run();
         await env.DB.prepare("DELETE FROM projects WHERE id=?").bind(id).run();
         // Las misiones NO se quedan apuntando a un proyecto que ya no existe.
         await env.DB.prepare("UPDATE tickets SET project='',project_id=NULL WHERE project=? OR project_id=?").bind(id,id).run();
@@ -9690,6 +9708,10 @@ var worker_app = {
             await env.DB.prepare("DELETE FROM project_members WHERE project_id=? AND kind=? AND ref=?").bind(p.id, kind, ref).run();
           }
           if (kind === "machine") {
+            const launches=(await env.DB.prepare("SELECT machine FROM project_launch_assignments WHERE project_id=?").bind(p.id).all()).results||[];
+            for(const launch of launches)if(memberRefMatches("machine",launch.machine,ref)){
+              await env.DB.prepare("DELETE FROM project_launch_assignments WHERE project_id=? AND machine=?").bind(p.id,launch.machine).run();
+            }
             const removedSuffix = machineSuffix(ref);
             if (removedSuffix) {
               const agents = (await env.DB.prepare("SELECT ref FROM project_members WHERE project_id=? AND kind='agent'").bind(p.id).all()).results || [];
@@ -9712,6 +9734,33 @@ var worker_app = {
         }
         return json({ ok: true, project: (await listProjects(env)).find((x) => x.id === p.id) || null });
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
+    if (url.pathname === "/projects/launch" && req.method === "POST") {
+      try {
+        await ensureSchema(env);
+        const sess = await requireAuth(env, req);
+        if (!sess) return json({ ok:false, error:"unauthorized" }, 401);
+        let launch;
+        try { launch = normalizeProjectLaunch(await req.json().catch(() => ({}))); }
+        catch (error) { return json({ ok:false, error:String(error && error.message || "invalid-launch") }, 400); }
+        const project = await env.DB.prepare("SELECT id,status FROM projects WHERE id=?").bind(launch.project).first();
+        if (!project || project.status === "archivado") return json({ ok:false, error:"project activo requerido" }, 404);
+        const machines = (await env.DB.prepare("SELECT ref FROM project_members WHERE project_id=? AND kind='machine'").bind(launch.project).all()).results || [];
+        if (!machines.some((row) => memberRefMatches("machine", row.ref, launch.machine))) {
+          return json({ ok:false, error:"asigna primero el proyecto al equipo físico", code:"team_not_assigned" }, 409);
+        }
+        let dispatched;
+        try { dispatched = await dispatchAgentStart(env, projectLaunchTarget(launch)); }
+        catch (error) {
+          const known = error instanceof AgentStopError;
+          return json({ ok:false, error:known ? error.code : "project-launch-failed" }, known ? error.status : 500);
+        }
+        const now=Date.now(),by=String(sess.email || "").slice(0,120);
+        await env.DB.prepare("INSERT INTO project_launch_assignments(project_id,machine,platform,runtime,model,selection,persona,session_id,updated_at,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(project_id,machine) DO UPDATE SET platform=excluded.platform,runtime=excluded.runtime,model=excluded.model,selection=excluded.selection,persona=excluded.persona,session_id=excluded.session_id,updated_at=excluded.updated_at,updated_by=excluded.updated_by")
+          .bind(launch.project,launch.machine,launch.host,launch.runtime,launch.model,launch.selection,launch.persona,launch.session_id,now,by).run();
+        const saved=(await listProjects(env)).find((row)=>row.id===launch.project)||null;
+        return json({ ok:true, launch, control:dispatched.result, project:saved }, dispatched.result.status === "already_running" ? 200 : 202);
+      } catch (e) { return json({ ok:false, error:String(e) }, 500); }
     }
     // ORDEN de las fichas. Llega la lista COMPLETA de ids tal y como han quedado
     // en pantalla y se numera 0,1,2… Se ignoran los ids que no existan (una ficha
