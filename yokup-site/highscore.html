@@ -1496,8 +1496,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     adoptaRuntimeCandidato(destino, runtime, peso, updated);
     // Si esta lectura es la que manda, con ella van su vía (app|cli) y su LLM.
     if (destino.runtimePeso !== antes || destino.runtimeAt !== antesAt || !destino.via) {
-      destino.via = host; destino.modelo = normaliza(model);
+      destino.via = host; destino.modelo = modeloLegible(model);
     }
+  }
+  // Un id de bundle («com.apple.metadata.mdbulkimport»), una ruta o una palabra suelta
+  // no son un LLM: se vieron en el ranking el 3-sep por un detector que leía procesos
+  // vecinos. Mejor la celda sin modelo que con basura.
+  function modeloLegible(model) {
+    var m = normaliza(model);
+    if (!m || /^com\./i.test(m) || m.charAt(0) === "/" || m.length < 3) return "";
+    return m;
   }
   // Bajo el nombre: CÓMO se le habla y CON QUÉ piensa (Carlos, 3-sep-2026). La vía es
   // el nombre de la app de escritorio (Claude, Codex, OpenCode) o «CLI»; a su derecha

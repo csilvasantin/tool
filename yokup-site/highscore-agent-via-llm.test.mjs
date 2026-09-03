@@ -13,7 +13,7 @@ function functionSource(name){
 }
 const api=new Function(`
   function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-  ${["normaliza","adoptaRuntimeCandidato","adoptaRuntime","viaComunicacion","viaYModeloHtml"].map(functionSource).join("\n")}
+  ${["normaliza","adoptaRuntimeCandidato","adoptaRuntime","modeloLegible","viaComunicacion","viaYModeloHtml"].map(functionSource).join("\n")}
   return {adoptaRuntime,viaComunicacion,viaYModeloHtml};
 `)();
 function fila(){ return {runtime:"",runtimePeso:0,runtimeAt:0,via:"",modelo:""}; }
@@ -42,4 +42,13 @@ test("la vía y el LLM viajan con la lectura que manda (app viva pesa más que c
 test("la fila del ranking y el podio usan la vía y el LLM", ()=>{
   assert.match(source,/'<td class="ag">' \+ agentNameHtml\(a\) \+ viaYModeloHtml\(a\) \+/);
   assert.match(source,/'<div class="maq">' \+ \(viaComunicacion\(a\)/);
+});
+
+test("basura de procesos vecinos no se pinta como LLM (bundle ids, rutas, palabras sueltas)", ()=>{
+  for (const bad of ["com.apple.metadata.mdbulkimport","/Applications/Claude.app","de"]) {
+    const f=fila(); api.adoptaRuntime(f,"Codex","app",1000,true,bad);
+    assert.equal(f.modelo,"",bad); assert.equal(api.viaYModeloHtml(f),' <span class="rt">· Codex</span>');
+  }
+  const ok=fila(); api.adoptaRuntime(ok,"Codex","app",1000,true,"5.6 Sol");
+  assert.equal(ok.modelo,"5.6 Sol");
 });
