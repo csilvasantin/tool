@@ -2,6 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
+await import("./yk-agent-identity.js");
+const identity = globalThis.ykAgentIdentity;
+
 const html = await readFile(new URL("./highscore.html", import.meta.url), "utf8");
 
 function functionSource(name) {
@@ -103,6 +106,22 @@ function storedPeriod(value, throws = false) {
   `)(localStorage);
 }
 
+function canonicalWeeklyRows(rows, period = "week") {
+  return new Function("rows", "period", "identity", `
+    var window = { ykAgentIdentity:identity };
+    var PRIORIDAD_ACTIVIDAD = { objetivos:1, misiones:2, ventanas:3, tareas:4 };
+    function normaliza(value) { return String(value == null ? "" : value).trim(); }
+    function claveAgenteCarrera(value) {
+      return normaliza(value).normalize("NFD").replace(/[\\u0300-\\u036f]/g, "")
+        .toLowerCase().replace(/[^a-z0-9]+/g, "");
+    }
+    ${functionSource("hsAgentKey")}
+    ${functionSource("claveAgentePeriodo")}
+    ${functionSource("colapsaFilasRanking")}
+    return colapsaFilasRanking(rows, period);
+  `)(structuredClone(rows), period, identity);
+}
+
 test("hora, día y semana usan sus puntos factuales y reúnen alias de máquina", () => {
   const hour = periodMetrics("hour"), day = periodMetrics("day"), week = periodMetrics("week");
   assert.deepEqual(hour.map(row=>[row.agent,row.metrics.points]).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])), [
@@ -165,4 +184,44 @@ test("la preferencia valida el patrón del producto y el control cabe en móvil"
     "el área táctil de escritorio cumple al menos 24×24 px");
   assert.match(html, /@media \(max-width:620px\)\{[\s\S]{0,1800}\.ranking-period button\{width:24px;height:24px;/,
     "la vista móvil no reduce el área táctil por debajo de 24×24 px");
+});
+
+test("SEMANA colapsa alias y equipos en una fila canónica por agente", () => {
+  const rows = [
+    {agente:"NeoMacMini",base:"Neo",suffix:"MacMini",maquinas:["Mac Mini"],maquinasVivas:["Mac Mini"],
+      proyecto:"admira.live",runtime:"Codex",actividadAt:90,total:15},
+    {agente:"NeoMBP16",base:"Neo",suffix:"MBP16",maquinas:["MacBook Pro 16"],maquinasVivas:[],
+      proyecto:"yokup.com",runtime:"OpenCode",actividadAt:40,total:15},
+    {agente:"OráculoMacMini",base:"Oraculo",suffix:"MacMini",maquinas:["Mac Mini"],maquinasVivas:[],
+      proyecto:"yokup.com",runtime:"Codex",actividadAt:60,total:25},
+    {agente:"OracleMBP16",base:"Oraculo",suffix:"MBP16",maquinas:["MacBook Pro 16"],maquinasVivas:["MacBook Pro 16"],
+      proyecto:"admira.live",runtime:"Codex",actividadAt:80,total:25},
+    {agente:"Agente Smith Azul",base:"Smith",suffix:"MBAAzul",maquinas:["MacBook Air Azul"],maquinasVivas:[],
+      proyecto:"xpace.os",runtime:"Grok",actividadAt:30,total:30},
+    {agente:"CypherDGX",base:"Smith",suffix:"DGX",maquinas:["DGX Spark"],maquinasVivas:["DGX Spark"],
+      proyecto:"xpace.os",runtime:"OpenCode",actividadAt:70,total:30},
+    {agente:"MorfeoMBP14",base:"Morfeo",suffix:"MBP14",maquinas:["MacBookPro14"],maquinasVivas:[],
+      proyecto:"admira.live",runtime:"Claude",actividadAt:20,total:45},
+    {agente:"MorpheusMBARosa",base:"Morfeo",suffix:"MBARosa",maquinas:["MacBook Air Rosa"],maquinasVivas:[],
+      proyecto:"admira.live",runtime:"Claude",actividadAt:10,total:45},
+    {agente:"MorfeoMBA16",base:"Morfeo",suffix:"MBA16",maquinas:["MacBookAir16plata"],maquinasVivas:[],
+      proyecto:"admira.live",runtime:"Claude",actividadAt:5,total:45}
+  ];
+  const summarize = (input) => canonicalWeeklyRows(input).map((row) => ({
+    agent:identity.key(identity.base(row.agente)),
+    machines:[...new Set([...(row.maquinas || []), ...(row.maquinasVivas || [])])].sort()
+  })).sort((a,b) => a.agent.localeCompare(b.agent));
+  const expectedAgents = ["morfeo","neo","oraculo","smith"];
+  const forward = summarize(rows), reverse = summarize([...rows].reverse());
+  assert.deepEqual(forward.map(row => row.agent), expectedAgents,
+    "cada total semanal aparece una vez aunque existan varias máquinas/proyectos");
+  assert.deepEqual(reverse, forward, "invertir el feed no cambia filas ni metadatos fusionados");
+  assert.deepEqual(forward.find(row => row.agent === "neo").machines,
+    ["Mac Mini","MacBook Pro 16"]);
+  assert.equal(canonicalWeeklyRows(rows, "day").length, rows.length,
+    "DÍA conserva la separación física existente");
+  assert.equal(canonicalWeeklyRows(rows, "hour").length, rows.length,
+    "HORA conserva la separación física existente");
+  assert.match(functionSource("listaVisible"), /colapsaFilasRanking\(lista,\s*RANKING_PERIOD\)/,
+    "el colapso ocurre antes de filtrar, ordenar y pintar");
 });
