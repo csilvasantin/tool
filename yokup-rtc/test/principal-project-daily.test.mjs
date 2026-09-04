@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import vm from "node:vm";
 import { DatabaseSync } from "node:sqlite";
 import { readFile } from "node:fs/promises";
-import { identityKey, machineSuffix, parseAgentIdentity, reportAgentIdentity } from "../src/agent-identity.js";
+import { identityKey, isKnownPersona, machineSuffix, parseAgentIdentity, reportAgentIdentity } from "../src/agent-identity.js";
 import { madridDayKey } from "../src/display-ref.js";
 import { canonicalProjectAgentRef, canonicalProjectAgentRefs } from "../src/project-member-identity.js";
 
@@ -34,7 +34,7 @@ function harness() {
     all: async () => ({ results: stmt.all() })
   }; } };
   const context = vm.createContext({ Map, String, Date, Number, Object,
-    identityKey, machineSuffix, parseAgentIdentity, reportAgentIdentity, madridDayKey,
+    identityKey, isKnownPersona, machineSuffix, parseAgentIdentity, reportAgentIdentity, madridDayKey,
     canonicalProjectAgentRef, canonicalProjectAgentRefs,
     ensureSchema: async () => {}, __name: (fn) => fn });
   vm.runInContext([
@@ -120,4 +120,15 @@ test("contrato HTTP y esquema publican la fuente canónica sin tocar membresías
   const declarationBlock = grab("declarePrincipalProject");
   assert.doesNotMatch(declarationBlock, /project_members/);
   assert.doesNotMatch(declarationBlock, /UPDATE projects|UPDATE tickets/);
+});
+
+test("un consejero de GrokBot declara proyecto con su carné (FLT-1580) y Seraph ya no queda fuera", async () => {
+  const { env, F } = harness();
+  const woz = await F.declarePrincipalProject(env, { agent: "WozniakGrokBot", machine: "GrokBot", project: "yokup", by: "WozniakGrokBot" });
+  assert.equal(woz.ok, true, JSON.stringify(woz));
+  const filas = await F.listPrincipalProjectDeclarations(env);
+  assert.ok(filas.some((f) => f.agent === "WozniakGrokBot" && f.project_id === "yokup"));
+  const seraph = await F.declarePrincipalProject(env, { agent: "Seraph", machine: "MacBookAirPlata", project: "yokup" });
+  assert.equal(seraph.ok, true, "Seraph estaba en el diccionario pero no en la copia a mano: ahora hay una sola fuente");
+  assert.equal((await F.declarePrincipalProject(env, { agent: "Desconocido", machine: "GrokBot", project: "yokup" })).code, "exact_agent_required");
 });
