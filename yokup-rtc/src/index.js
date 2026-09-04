@@ -8228,11 +8228,9 @@ __name(canonicalHighscoreAgent, "canonicalHighscoreAgent");
 
 async function highscoreDaily(env) {
   const ahora = Date.now(), inicio = madridDayStart(ahora), fin = madridDayStart(inicio + 36 * 60 * 60 * 1e3);
-  // La comparación del podio usa el MISMO marcador visible (objetivos +
-  // ventanas + misiones), no `metrics.points`, que también contiene tareas.
-  // Mezclar ambas fórmulas haría que un 360 de hoy se comparase con un total de
-  // ayer que el usuario nunca vio. El comienzo se calcula como día de Madrid,
-  // no restando 24 h, para respetar los cambios de horario.
+  // La comparación usa el MISMO total completo que publica `scores`: objetivos,
+  // ventanas, misiones y tareas. El comienzo se calcula como día de Madrid, no
+  // restando 24 h, para respetar los cambios de horario.
   const ayerInicio = madridDayStart(inicio - 1);
   const acc = /* @__PURE__ */ new Map();
   const fila = (agent, machine) => {
@@ -8305,25 +8303,34 @@ async function highscoreDaily(env) {
     highscorePeriodMetrics(env, ayerInicio, inicio)
   ]);
   const scores = [...acc.values()];
-  // El mapa de ayer viene de highscorePeriodMetrics, que desde el 1-sep agrupa por
-  // clave CANONICA. Buscarlo con el literal del nombre devolvia 0 y la comparacion
-  // «sube/baja/igual» salia siempre «sube»: hay que preguntar con la misma llave
-  // con la que se guardo. Lo cazo el test del marcador diario, no yo.
-  for (const score of scores) {
-    const ayer = ayerMetricas.get(highscoreGroupKey(score.agent, score.machine));
-    const yesterdayPoints = ayer ?
-      (Number(ayer.objectives) || 0) * HIGHSCORE_WEIGHTS.objective +
-      (Number(ayer.windows) || 0) * HIGHSCORE_WEIGHTS.window +
-      (Number(ayer.missions) || 0) * HIGHSCORE_WEIGHTS.mission : 0;
-    const todayPoints = (Number(score.objective_points) || 0) +
-      (Number(score.window_points) || 0) + (Number(score.mission_points) || 0);
-    score.yesterday_points = yesterdayPoints;
-    score.day_comparison = todayPoints > yesterdayPoints ? "sube" : todayPoints < yesterdayPoints ? "baja" : "igual";
-  }
   const current = await highscoreCurrentTotals(env, scores, inicio, fin);
   const legacyHourly = await highscoreHourlyTrend(env, current, ahora);
   const hourly = await highscoreHourlyContract(env, legacyHourly, ahora, inicio, fin);
-  return { ok: true, day: madridDayKey(ahora), weights: HIGHSCORE_WEIGHTS, scores, traceability, hourly };
+  // `scores` era hasta aquí un acumulador legacy de sólo tres fuentes. Una tarea
+  // hecha hoy dentro de una misión iniciada ayer sumaba en `hourly.scores`, pero
+  // no podía crear la fila principal del agente: el navegador recibía puntos
+  // positivos y, a la vez, una lista que omitía a quien los había conseguido.
+  // La métrica diaria ya es la fuente autoritativa de las cuatro fuentes; se
+  // proyecta al contrato público y se conserva cualquier metadato legacy.
+  const legacyByAgent = new Map(scores.map((score) => [highscoreGroupKey(score.agent, score.machine), score]));
+  const completeScores = (hourly.scores || []).map((hourlyScore) => {
+    const metrics = hourlyScore.metrics || {}, day = (name) => Math.max(0, Number(metrics[name] && metrics[name].day) || 0);
+    const points = day("points"), objectives = day("objectives"), windows = day("windows"),
+      missions = day("missions"), tasks = day("tasks");
+    const previous = legacyByAgent.get(highscoreGroupKey(hourlyScore.agent, hourlyScore.machine)) || {};
+    const taskPoints = Math.max(0, points - objectives * HIGHSCORE_WEIGHTS.objective -
+      windows * HIGHSCORE_WEIGHTS.window - missions * HIGHSCORE_WEIGHTS.mission);
+    const yesterday = ayerMetricas.get(highscoreGroupKey(hourlyScore.agent, hourlyScore.machine));
+    const yesterdayPoints = Number(yesterday && yesterday.points) || 0;
+    return { ...previous, agent:hourlyScore.agent || previous.agent || "",
+      machine:hourlyScore.machine || previous.machine || "", objectives,
+      objective_points:objectives * HIGHSCORE_WEIGHTS.objective, windows,
+      window_points:windows * HIGHSCORE_WEIGHTS.window, missions,
+      mission_points:missions * HIGHSCORE_WEIGHTS.mission, tasks, task_points:taskPoints, points,
+      yesterday_points:yesterdayPoints,
+      day_comparison:points > yesterdayPoints ? "sube" : points < yesterdayPoints ? "baja" : "igual" };
+  }).filter((score) => score.points > 0);
+  return { ok: true, day: madridDayKey(ahora), weights: HIGHSCORE_WEIGHTS, scores:completeScores, traceability, hourly };
 }
 __name(highscoreDaily, "highscoreDaily");
 
