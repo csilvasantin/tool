@@ -32,8 +32,12 @@ test("Carlos es csilva@admira.com en los dos: la semilla del puente y el usuario
 });
 
 test("el alta del puente exige nombre y un email real, y deriva el id igual que el censo", () => {
-  const bad = normalizeCarbonYarigai({ name: "Moises3.0", email: "moises" }, carbonId, 1);
+  const bad = normalizeCarbonYarigai({ name: "Moises3.0", email: "moises@" }, carbonId, 1);
   assert.equal(bad.ok, false); assert.equal(bad.code, "email_invalid");
+  assert.equal(normalizeCarbonYarigai({ name: "Moises3.0", email: "" }, carbonId, 1).ok, false);
+  const byName = normalizeCarbonYarigai({ name: "Moises3.0", user: "Moises" }, carbonId, 2);
+  assert.equal(byName.ok, true); assert.equal(byName.row.email, "Moises");
+  assert.equal(yarigaiUser("Moises"), "Moises");
   const ok = normalizeCarbonYarigai({ name: " Moises3.0 ", email: "Moises@Admira.com", author: "NeoMBP14" }, carbonId, 5);
   assert.equal(ok.ok, true);
   assert.deepEqual(ok.row, { carbon_id: "moises3-0", name: "Moises3.0", email: "moises@admira.com", updated_at: 5, updated_by: "NeoMBP14" });

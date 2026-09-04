@@ -51,9 +51,13 @@ export function yarigaiUser(email) {
 export function normalizeCarbonYarigai(body, carbonIdFn, now) {
   const b = body || {};
   const name = String(b.name == null ? "" : b.name).trim().slice(0, 80);
-  const email = String(b.email == null ? "" : b.email).trim().toLowerCase().slice(0, 120);
+  const raw = String(b.email == null ? (b.user == null ? "" : b.user) : b.email).trim().slice(0, 120);
+  const email = raw.includes("@") ? raw.toLowerCase() : raw;
   if (!name) return { ok: false, code: "carbon_name_required", error: "hace falta el nombre del responsable tal y como figura en los proyectos" };
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, code: "email_invalid", error: "hace falta el email de Yarigai de esa persona" };
+  // Yarigai acepta «nombre o usuario del email»: vale un email (se usa su parte
+  // local) o el nombre con el que Yarigai resuelve a la persona (p. ej. «Moises»).
+  // Lo que NO vale es inventarlo: si Yarigai no lo resuelve, saldrá el error tal cual.
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) && !/^[\p{L}][\p{L} .'-]{1,79}$/u.test(email)) return { ok: false, code: "email_invalid", error: "hace falta el email de Yarigai o el nombre con el que Yarigai reconoce a esa persona" };
   const carbon_id = carbonIdFn(name);
   if (!carbon_id) return { ok: false, code: "carbon_id_invalid", error: "el nombre no produce un identificador válido" };
   return { ok: true, row: { carbon_id, name, email, updated_at: now, updated_by: String(b.author || b.updated_by || "").trim().slice(0, 80) } };
