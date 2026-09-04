@@ -256,8 +256,9 @@ details.pa-team-node:not([open])>.pa-team-agents,.pa-project-node:not([open])>.p
 
 <script>
 /* PULSO DE LA FLOTA — señales recientes, contrastadas con el reporter físico. */
-const PRESENCE="https://admira-telegram.csilvasantin.workers.dev/api/presence";
-const BROWSERS="https://admira-navegadores.csilvasantin.workers.dev/api/browsers";
+// Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633); workers.dev sigue vivo como respaldo.
+const PRESENCE="https://bot.yokup.com/api/presence";
+const BROWSERS="https://navegadores.yokup.com/api/browsers";
 const PROJECTS_API="https://api.yokup.com";
 const RECORD_PACE_REFRESH_MS=30000;
 const AGENT_FRESH_SECONDS=240;

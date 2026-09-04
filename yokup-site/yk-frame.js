@@ -173,7 +173,8 @@
   // el rango bloqueado: el respaldo no respaldaba nada.
   var WORKER = "https://api.yokup.com";
   var WORKER_FALLBACK = "https://rtc.yokup.com";
-  var TELEGRAM = "https://admira-telegram.csilvasantin.workers.dev";
+  // Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633); workers.dev sigue vivo como respaldo.
+  var TELEGRAM = "https://bot.yokup.com";
   // Sello del deploy, capturado mientras este script sigue siendo currentScript.
   // deploy.mjs versiona cada referencia /yk-frame.js?v=<sello>; version.json es
   // la confirmación pública. Nunca debe volver a vivir aquí una fecha manual.

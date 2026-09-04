@@ -129,7 +129,8 @@ select.pick:focus{border-color:var(--brand)}
 </div>
 
 <script>
-const WORKER="https://admira-asignaciones.csilvasantin.workers.dev";
+// Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633); workers.dev sigue vivo como respaldo.
+const WORKER="https://asignaciones.admira.store";
 const $=(s)=>document.querySelector(s);
 
 // 8 miembros del Consejo (roles C-suite · array COUNCIL, gen "leyendas").

@@ -173,7 +173,8 @@ label.fl{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.08
 </div>
 
 <script>
-const INBOX="https://admira-telegram.csilvasantin.workers.dev";
+// Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633); workers.dev sigue vivo como respaldo.
+const INBOX="https://bot.yokup.com";
 const PRESENCE=INBOX+"/api/presence";
 let ITEMS=[], FILTER="todas", SEL=new Set();
 const $=id=>document.getElementById(id);

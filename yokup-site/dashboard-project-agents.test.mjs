@@ -112,7 +112,8 @@ test("las asignaciones de Webmaster permanecen visibles aunque el agente no est�
 });
 
 test("el censo conserva identidades reportadas y las contrasta con el navegador físico",()=>{
-  assert.match(source,/const BROWSERS="https:\/\/admira-navegadores\.csilvasantin\.workers\.dev\/api\/browsers"/);
+  // Dominio propio navegadores.yokup.com (FLT-1633): LaLiga bloquea workers.dev en horas de fútbol.
+  assert.match(source,/const BROWSERS="https:\/\/navegadores\.yokup\.com\/api\/browsers"/);
   assert.match(source,/const AGENT_FRESH_SECONDS=240/);
   assert.match(source,/const AGENT_REFRESH_MS=3000/);
   assert.match(source,/function paPresencePersona\(row\)/);

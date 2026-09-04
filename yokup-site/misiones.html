@@ -827,7 +827,8 @@ load(); setInterval(load,12000);
 // encargos abiertos por pareja. "Libre" = pareja online con menos abiertas
 // (de persona y de pareja). El alta fija target_persona Y target_machine
 // (el routing por máquina del worker hace el resto).
-const TG="https://admira-telegram.csilvasantin.workers.dev";
+// Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633); workers.dev sigue vivo como respaldo.
+const TG="https://bot.yokup.com";
 const AGENTES=["Neo","Morfeo","Trinity","Oráculo","Smith","WhiteRabbit"];
 // Solo agentes PRINCIPALES: los sub*/infra* los gobierna su principal (no se les
 // asignan misiones desde aquí) y Cypher es el nombre legado de Smith.
@@ -837,7 +838,7 @@ const missionRef=m=>YkMisiones&&typeof YkMisiones.visibleId==="function"
   ?YkMisiones.visibleId(m||{})
   :(window.YkDisplayRef&&window.YkDisplayRef.of?window.YkDisplayRef.of(m||{}):"0000.--/--/----.--:--");
 const normM=s=>String(s||"").toLowerCase().replace(/[\s·._-]+/g,"");
-const NAV="https://admira-navegadores.csilvasantin.workers.dev";
+const NAV="https://navegadores.yokup.com";
 // MAQS: persona -> {canon:{online,norm,raw,runtime,host,inject,updated}} · el VALUE lleva el raw
 // (ComputerName real) para que el claim del worker case; la etiqueta, el canónico.
 let MAQS={}, SOLOMAQ={}, CARGA_P={}, CARGA_PM={}, CARGA_M={}, LIBRE=null, UNIV=[], ALTA_SEL={auto:true};

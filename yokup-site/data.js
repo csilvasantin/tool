@@ -17,7 +17,8 @@ window.Yokup = (function(){
   const CFG = window.YOKUP_CONFIG || { BACKEND:'local' };
   const BACKEND = ['api','supabase'].includes(CFG.BACKEND) ? CFG.BACKEND : 'local';
   const API = (CFG.YOKUP_API || '').replace(/\/+$/,'');
-  const OMNIP_API = 'https://omnipublicity-api.csilvasantin.workers.dev';
+  // Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633); workers.dev sigue vivo como respaldo.
+  const OMNIP_API = 'https://brain.digitalavatar.ai';
 
   // ---- helpers comunes ----
   const SURFACE_TYPES = ['pantalla','escaparate','mostrador','vending','pwa','audio','kiosk'];

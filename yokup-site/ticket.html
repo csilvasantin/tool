@@ -93,8 +93,9 @@ h1{font-size:clamp(20px,3vw,27px);letter-spacing:-.02em;margin:5px 0}
 <script>
 const WORKER="https://api.yokup.com";
 YkAdjuntos.init(WORKER);
-const TG="https://admira-telegram.csilvasantin.workers.dev";
-const NAV="https://admira-navegadores.csilvasantin.workers.dev";
+// Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633); workers.dev sigue vivo como respaldo.
+const TG="https://bot.yokup.com";
+const NAV="https://navegadores.yokup.com";
 const id=new URLSearchParams(location.search).get("id")||"";
 const esFlota=/^FLT-\d+$/.test(id);
 let TICKET=null;

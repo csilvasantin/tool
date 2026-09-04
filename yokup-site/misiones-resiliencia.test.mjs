@@ -84,6 +84,7 @@ test('acceso.js · signable() reconoce ambos hosts del worker y rechaza terceros
   assert.equal(signable('https://api.yokup.com/tickets'), true, 'api.yokup.com es firmable');
   assert.equal(signable('https://rtc.yokup.com/tickets'), true, 'rtc.yokup.com (fallback) es firmable');
   assert.equal(signable('https://admira-telegram.csilvasantin.workers.dev/api/presence'), false, 'un tercero NO es firmable');
+  assert.equal(signable('https://bot.yokup.com/api/presence'), false, 'bot.yokup.com (dominio propio del bot-inbox, FLT-1633) sigue siendo un tercero');
   assert.equal(signable('https://example.com/x'), false, 'un tercero NO es firmable');
   // Prefijo anclado: un host que sólo EMPIEZA parecido no cuela.
   assert.equal(signable('https://api.yokup.com.evil.example/x'), false, 'prefijo anclado, no cuela un homoglifo');

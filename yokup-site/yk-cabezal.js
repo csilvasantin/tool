@@ -133,8 +133,9 @@
     // reconcilia a ticket FLT-<id>. El selector desglosa cada equipo en SUS
     // agentes (parejas vistas en /api/presence, 🟢 = latido <15 min).
     // ════════════════════════════════════════════════════════════════════════
-    const TG = "https://admira-telegram.csilvasantin.workers.dev";
-    const NAV = "https://admira-navegadores.csilvasantin.workers.dev";
+    // Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633); workers.dev sigue vivo como respaldo.
+    const TG = "https://bot.yokup.com";
+    const NAV = "https://navegadores.yokup.com";
     const AGENTES = ["Neo", "Morfeo", "Trinity", "Oráculo", "Smith", "WhiteRabbit"];
     const RT_FIJO = { Neo: "Claude", Morfeo: "Claude", WhiteRabbit: "Claude", "Oráculo": "Codex", Trinity: "Codex", Smith: "Grok" };
     // Solo agentes PRINCIPALES: los sub*/infra* los gobierna su principal y

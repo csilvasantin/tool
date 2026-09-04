@@ -234,7 +234,8 @@ const WORKER_FB="https://rtc.yokup.com";
 // fetch con red de seguridad: si el host nuevo falla, reintenta una vez contra
 // rtc.yokup.com. Solo en la carga de entrada de ideas.
 const wfetch=(p,o)=>fetch(WORKER+p,o).catch(()=>fetch(WORKER_FB+p,o));
-const TG="https://admira-telegram.csilvasantin.workers.dev";
+// Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633); workers.dev sigue vivo como respaldo.
+const TG="https://bot.yokup.com";
 const $=s=>document.querySelector(s);
 const esc=x=>String(x==null?"":x).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
 const STLABEL={nueva:"Nueva",estudio:"En estudio",hecha:"Hecha",mision:"Misión",descartada:"Descartada"};

@@ -261,10 +261,11 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 5px}
 <script src="/yk-decisions.js?v=20260723a"></script>
 <script>
 const WORKER="https://api.yokup.com";
-const TG="https://admira-telegram.csilvasantin.workers.dev";
+// Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633); workers.dev sigue vivo como respaldo.
+const TG="https://bot.yokup.com";
 // Registro de flota: se LEE directo (abierto) y se ESCRIBE por yokup-rtc, que
 // guarda el FLEET_TOKEN — nunca viaja al navegador.
-const FLEET="https://admira-fleet.csilvasantin.workers.dev";
+const FLEET="https://fleet.yokup.com";
 // EL CENSO QUE COMPRUEBA, NO EL QUE SE DECLARA (2026-08-10). El `lastSeen` de
 // admira-fleet NO es un latido: es la hora en que se escribió la ficha. Por eso
 // diez equipos comparten el mismo sello al minuto —una escritura del censo— y

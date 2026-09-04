@@ -450,7 +450,8 @@ document.addEventListener("click", async e=>{
    una como activa o en reposo (idle ≥10 min, doctrina de status). Varias Smith en
    la misma máquina se cuentan como instancias (Smith se multiplica, Matrix).
    ═══════════════════════════════════════════════════════════════════════════ */
-const PRESENCE="https://admira-telegram.csilvasantin.workers.dev/api/presence";
+// Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633); workers.dev sigue vivo como respaldo.
+const PRESENCE="https://bot.yokup.com/api/presence";
 const SMITH_FRESH=900;
 // «En reposo» = el PROPIO agente sin foco ni tarea declarados y no autónomo
 // (Carlos, 2026-07-23). NO el idle de la máquina (HIDIdleTime), que en cajas
