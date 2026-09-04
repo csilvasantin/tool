@@ -63,6 +63,9 @@ test("el explorador recorre HORA, DÍA, SEMANA y MES con flechas y límites de t
   assert.match(html, /ArrowLeft[\s\S]*ArrowRight[\s\S]*ArrowUp[\s\S]*ArrowDown/);
   assert.match(html, /event(?:o)?\.key === "Home"[\s\S]*"hour"/);
   assert.match(html, /event(?:o)?\.key === "End"[\s\S]*"month"/);
+  assert.match(functionSource("scoreMissionState"), /initial\s*=\s*scoreMissionPeriod\(RANKING_PERIOD,\s*0\)/,
+    "el explorador hereda el periodo del ranking ya persistido por el producto");
+  assert.match(html, /localStorage\.setItem\(RANKING_PERIOD_KEY,\s*RANKING_PERIOD\)/);
 });
 
 test("la región anuncia periodo, carga y resultado, y mantiene controles táctiles", () => {
