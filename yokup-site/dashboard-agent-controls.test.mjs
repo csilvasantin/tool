@@ -65,3 +65,25 @@ test("teclado, foco y móvil conservan controles táctiles inequívocos",()=>{
   assert.match(source,/@media\(max-width:760px\)[^{]*\{[\s\S]*?\.pulse-btn\{min-height:44px/);
 });
 
+test("la tarjeta refleja pendiente, ejecución, éxito y error sin inventar el estado final",()=>{
+  const fn=source.match(/function pulseOperationPhase\(status\)\{[\s\S]*?\n\}/)?.[0];assert.ok(fn);
+  const context={};vm.runInNewContext(`${fn}\nthis.phase=pulseOperationPhase;`,context);
+  assert.equal(context.phase("queued"),"pending");assert.equal(context.phase("accepted"),"pending");
+  assert.equal(context.phase("running"),"running");assert.equal(context.phase("stopping"),"running");
+  assert.equal(context.phase("done"),"success");assert.equal(context.phase("stopped"),"success");
+  assert.equal(context.phase("failed"),"error");assert.equal(context.phase("rejected"),"error");
+  assert.match(source,/data-control-state="\$\{esc\(operation&&operation\.phase\|\|'idle'\)\}"/);
+  assert.match(source,/Arranque pendiente|Parada pendiente/);
+  assert.match(source,/Reintentar /);
+});
+
+test("las órdenes aceptadas se consultan por GET y los fallos liberan el reintento",async()=>{
+  const fn=source.match(/async function pulseReadControl\(commandId\)\{[\s\S]*?\n\}/)?.[0];assert.ok(fn);
+  const calls=[],context={encodeURIComponent,fetch:async(...args)=>{calls.push(args);return {ok:true,json:async()=>({ok:true,status:"running",command_id:"mock-1"})};}};
+  vm.runInNewContext(`${fn}\nthis.read=pulseReadControl;`,context);
+  const result=await context.read("mock-1");assert.equal(result.status,"running");
+  assert.equal(calls[0][0],"/fleet/agent/control?id=mock-1");assert.equal(calls[0][1].credentials,"include");
+  assert.match(source,/void pulsePollOperation\(result\.control_key,result\.action,operation\.command_id\)/);
+  assert.match(source,/PULSE_CONTROL_LEDGER\.delete\(String\(action\|\|""\)\.toLowerCase\(\)\+":"\+controlKey\)/);
+  assert.match(source,/if\(phase==="error"\)\{pulseForgetFailed/);
+});

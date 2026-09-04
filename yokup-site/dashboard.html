@@ -392,23 +392,28 @@ function pulseDefaultView(){return {cli:{compact:false,hidden:false},app:{compac
 function pulseReadView(){
   const base=pulseDefaultView();try{const saved=JSON.parse(localStorage.getItem(PULSE_VIEW_KEY)||"{}");Object.keys(base).forEach(key=>{base[key].compact=saved&&saved[key]&&saved[key].compact===true;base[key].hidden=saved&&saved[key]&&saved[key].hidden===true;});}catch(e){}return base;
 }
-const PULSE_VIEW=pulseReadView(),PULSE_CONTROL_LEDGER=new Map();
+const PULSE_VIEW=pulseReadView(),PULSE_CONTROL_LEDGER=new Map(),PULSE_OPERATIONS=new Map();
 let PULSE_CONTROL_MODEL=null,PULSE_GROUPS=null,PULSE_CONTROL_BUSY=false,PULSE_STATUS={message:"Controles seguros listos.",error:false};
 function pulseWriteView(){try{localStorage.setItem(PULSE_VIEW_KEY,JSON.stringify(PULSE_VIEW));}catch(e){}}
 function pulseStateText(state){return state==="active"?"Activo":state==="stopped"?"Detenido":state==="ambiguous"?"Control ambiguo":"Estado sin verificar";}
 function pulseSetStatus(message,error=false){
   PULSE_STATUS={message:String(message||""),error:!!error};const status=document.getElementById("pulseControlStatus");if(status){status.textContent=PULSE_STATUS.message;status.classList.toggle("err",PULSE_STATUS.error);status.classList.toggle("ok",!PULSE_STATUS.error&&!!PULSE_STATUS.message);}
 }
+function pulseOperationText(operation){
+  if(!operation)return "";const start=operation.action==="start";
+  return operation.phase==="pending"?(start?"Arranque pendiente":"Parada pendiente"):operation.phase==="running"?(start?"Arrancando":"Parando"):operation.phase==="success"?(start?"Arranque confirmado":"Parada confirmada"):(start?"Error al arrancar":"Error al parar");
+}
 function pulseControlButton(item){
-  const action=item&&item.eligible&&item.eligible.start?"start":item&&item.eligible&&item.eligible.stop?"stop":"",verb=action==="start"?"Arrancar":"Parar",disabled=!action||PULSE_CONTROL_BUSY;
+  const operation=item&&PULSE_OPERATIONS.get(item.control_key),action=item&&item.eligible&&item.eligible.start?"start":item&&item.eligible&&item.eligible.stop?"stop":"",verb=action==="start"?"Arrancar":"Parar",inFlight=operation&&(operation.phase==="pending"||operation.phase==="running"||operation.phase==="success"),disabled=!action||PULSE_CONTROL_BUSY||inFlight;
   const label=action?verb+" "+String(item.agent||item.persona||"agente")+" en "+String(item.machine||""):"Control no disponible: "+pulseStateText(item&&item.state);
-  return `<button type="button" class="pulse-btn ${action||'view'}" data-pulse-action="${esc(action)}" data-control-key="${esc(item&&item.control_key||'')}" data-pulse-focus="control:${esc(item&&item.control_key||'')}:${esc(action)}" aria-label="${esc(label)}"${disabled?' disabled':''}>${esc(action?verb:"No disponible")}</button>`;
+  const copy=operation?(operation.phase==="error"?"Reintentar "+verb.toLowerCase():pulseOperationText(operation)):(action?verb:"No disponible");
+  return `<button type="button" class="pulse-btn ${action||'view'}" data-pulse-action="${esc(action)}" data-control-key="${esc(item&&item.control_key||'')}" data-pulse-focus="control:${esc(item&&item.control_key||'')}:${esc(action)}" aria-label="${esc(label)}"${disabled?' disabled':''}>${esc(copy)}</button>`;
 }
 function pulseCard(p){
-  const href=p.detail_url||(window.YkAgentDetail?YkAgentDetail.detailUrl(p):""),name=p.agent||p.persona||"Agente",state=p.state||"unknown";
+  const href=p.detail_url||(window.YkAgentDetail?YkAgentDetail.detailUrl(p):""),name=p.agent||p.persona||"Agente",state=p.state||"unknown",operation=PULSE_OPERATIONS.get(p.control_key),controlState=operation?pulseOperationText(operation):pulseStateText(state);
   const content=`<div class="top"><span class="dot"></span><b>${esc(name)}</b><span class="rt">${esc(paRuntimeSurface(p))} · ${esc(pulseStateText(state))}</span></div><div class="mach">⌂ ${esc(p.machine||"")}</div><div class="focus" title="${esc(p.focus||"")}">${esc(p.focus||"—")}</div><div class="meta"><span class="mode">${esc(p.mode||"")}</span><span data-pa-ago="${Number(p.updated)||0}"></span></div>`;
   const main=href?`<a class="ag-link" href="${esc(href)}" data-pulse-focus="detail:${esc(href)}" aria-label="Abrir actividad e histórico de ${esc(name)} en ${esc(p.machine||"")}">${content}</a>`:`<div class="ag-static">${content}</div>`;
-  return `<article class="ag" data-agent-state="${esc(state)}">${main}<div class="agent-control-row"><span>${esc(pulseStateText(state))}</span>${pulseControlButton(p)}</div></article>`;
+  return `<article class="ag" data-agent-state="${esc(state)}" data-control-state="${esc(operation&&operation.phase||'idle')}">${main}<div class="agent-control-row"><span>${esc(controlState)}${operation&&operation.error?' · '+esc(operation.error):''}</span>${pulseControlButton(p)}</div></article>`;
 }
 function pulseGroupMarkup(group,unavailable=false){
   const key=String(group&&group.key||"unknown"),label=String(group&&group.label||"Sin superficie identificada"),items=Array.isArray(group&&group.items)?group.items:[],count=items.length,id="pulseGroup"+key.charAt(0).toUpperCase()+key.slice(1),empty=unavailable?"No se pudo comprobar esta superficie; se reintentará automáticamente.":key==="cli"?"No hay agentes CLI configurados.":key==="app"?"No hay agentes Desktop App configurados.":"No hay señales sin superficie identificada.";
@@ -416,7 +421,7 @@ function pulseGroupMarkup(group,unavailable=false){
   return `<section class="pulse-group${key==="unknown"?' pulse-group-residual':''}${compact?' compact':''}" data-pulse-group="${esc(key)}" aria-labelledby="${esc(id)}"><div class="pulse-group-head"><h3 id="${esc(id)}">${esc(label)}</h3><span class="tot" aria-live="polite" aria-atomic="true" aria-label="${count} agente${count===1?'':'s'}">${count}</span><div class="pulse-group-tools" role="toolbar" aria-label="Vista de ${esc(label)}"><button type="button" class="pulse-btn view" data-pulse-view="${compact?'expand':'compact'}" data-pulse-group-key="${esc(key)}" data-pulse-focus="view:${esc(key)}:density">${compact?'Ampliar':'Compactar'} ${esc(label)}</button><button type="button" class="pulse-btn view" data-pulse-view="${hidden?'show':'hide'}" data-pulse-group-key="${esc(key)}" data-pulse-focus="view:${esc(key)}:visibility" aria-expanded="${hidden?'false':'true'}">${hidden?'Mostrar':'Ocultar'} ${esc(label)}</button></div></div><div class="pulse"${hidden?' hidden':''}>${count?items.map(pulseCard).join(""):`<div class="off">${esc(empty)}</div>`}</div></section>`;
 }
 function pulseBatchButton(group,action,label){
-  const plan=PULSE_CONTROL_MODEL&&window.YkAgentControl?YkAgentControl.batchPlan(PULSE_CONTROL_MODEL,group,action):{count:0},disabled=PULSE_CONTROL_BUSY||!plan.count;
+  const plan=PULSE_CONTROL_MODEL&&window.YkAgentControl?YkAgentControl.batchPlan(PULSE_CONTROL_MODEL,group,action):{count:0,targets:[]},blocked=(plan.targets||[]).some(key=>{const operation=PULSE_OPERATIONS.get(key);return operation&&operation.phase!=="error";}),disabled=PULSE_CONTROL_BUSY||blocked||!plan.count;
   return `<button type="button" class="pulse-btn ${action}" data-pulse-batch="${esc(action)}" data-pulse-group-key="${esc(group)}" data-pulse-focus="batch:${esc(group)}:${esc(action)}" aria-label="${esc(label)}; ${Number(plan.count)||0} disponibles"${disabled?' disabled':''}>${esc(label)} · ${Number(plan.count)||0}</button>`;
 }
 function pulseGlobalToolbar(){
@@ -447,6 +452,34 @@ async function pulseSendControl(request){
   const response=await fetch(request.endpoint,{method:request.method||"POST",credentials:"include",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify(request.body)}),payload=await response.json().catch(()=>({}));
   if(!response.ok||payload.ok===false)throw new Error(payload.error||"control-rejected");return payload;
 }
+async function pulseReadControl(commandId){
+  const response=await fetch("/fleet/agent/control?id="+encodeURIComponent(commandId),{credentials:"include",cache:"no-store"}),payload=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(payload.error||"control-status-unavailable");return payload;
+}
+function pulseOperationPhase(status){
+  status=String(status||"").toLowerCase();if(status==="failed"||status==="rejected")return "error";if(status==="stopped"||status==="done"||status==="already_running"||status==="already_stopped")return "success";if(status==="running"||status==="stopping")return "running";return "pending";
+}
+function pulseForgetFailed(action,controlKey){PULSE_CONTROL_LEDGER.delete(String(action||"").toLowerCase()+":"+controlKey);}
+async function pulsePollOperation(controlKey,action,commandId,deadline=Date.now()+45000){
+  while(Date.now()<deadline){
+    try{
+      const result=await pulseReadControl(commandId),phase=pulseOperationPhase(result.status),operation={action,phase,command_id:commandId,error:phase==="error"?String(result.error||result.status||"control-failed"):""};PULSE_OPERATIONS.set(controlKey,operation);pulseRender();
+      if(phase==="success"){setTimeout(()=>pulse(false),700);return operation;}
+      if(phase==="error"){pulseForgetFailed(action,controlKey);pulseSetStatus("La orden no se completó · "+operation.error,true);return operation;}
+    }catch(error){if(Date.now()+1100>=deadline){const operation={action,phase:"error",command_id:commandId,error:String(error&&error.message||error||"control-status-unavailable")};PULSE_OPERATIONS.set(controlKey,operation);pulseForgetFailed(action,controlKey);pulseSetStatus("No se pudo verificar la orden · "+operation.error,true);pulseRender();return operation;}}
+    await new Promise(resolve=>setTimeout(resolve,1000));
+  }
+  const timeout={action,phase:"error",command_id:commandId,error:"Tiempo de verificación agotado"};PULSE_OPERATIONS.set(controlKey,timeout);pulseForgetFailed(action,controlKey);pulseSetStatus(timeout.error,true);pulseRender();return timeout;
+}
+function pulseTrackResult(result){
+  if(!result||!result.control_key)return;
+  let phase=pulseOperationPhase(result.status);const operation={action:result.action,phase,command_id:result.command_id||"",error:phase==="error"?String(result.error||result.status||"control-failed"):""};
+  if((phase==="pending"||phase==="running")&&!operation.command_id){phase=operation.phase="error";operation.error="Falta el identificador para verificar la orden";}
+  PULSE_OPERATIONS.set(result.control_key,operation);
+  if(phase==="error"){pulseForgetFailed(result.action,result.control_key);return;}
+  if(phase==="success"){setTimeout(()=>pulse(false),700);return;}
+  if((phase==="pending"||phase==="running")&&operation.command_id)void pulsePollOperation(result.control_key,result.action,operation.command_id);
+}
 function pulseResultMessage(result,label){
   if(result&&Number.isFinite(result.total)){const message=label+": "+result.succeeded+"/"+result.total+" órdenes aceptadas"+(result.failed?" · "+result.failed+" fallidas":"")+".";return {message,error:result.failed>0};}
   return {message:label+": "+(result&&result.ok?"orden aceptada":"orden no aceptada")+(result&&result.error?" · "+result.error:"")+".",error:!(result&&result.ok)};
@@ -461,7 +494,8 @@ async function pulseHandleClick(event){
   if(!window.confirm(confirmation))return;
   PULSE_CONTROL_BUSY=true;document.getElementById("pulse")?.setAttribute("aria-busy","true");pulseSetStatus((action==="start"?"Arrancando ":"Parando ")+label+"…");pulseRender();
   try{
-    const options={confirmed:true,send:pulseSendControl,ledger:PULSE_CONTROL_LEDGER},result=plan?await YkAgentControl.executeBatch(PULSE_CONTROL_MODEL,plan,options):await YkAgentControl.executeOne(PULSE_CONTROL_MODEL,controlKey,action,options),summary=pulseResultMessage(result,label);pulseSetStatus(summary.message,summary.error);
+    if(controlKey)PULSE_OPERATIONS.delete(controlKey);
+    const options={confirmed:true,send:pulseSendControl,ledger:PULSE_CONTROL_LEDGER},result=plan?await YkAgentControl.executeBatch(PULSE_CONTROL_MODEL,plan,options):await YkAgentControl.executeOne(PULSE_CONTROL_MODEL,controlKey,action,options);(result&&result.results||[result]).forEach(pulseTrackResult);const summary=pulseResultMessage(result,label);pulseSetStatus(summary.message,summary.error);
   }catch(error){pulseSetStatus(label+": "+String(error&&error.message||error||"control-failed"),true);}
   finally{PULSE_CONTROL_BUSY=false;document.getElementById("pulse")?.removeAttribute("aria-busy");pulseRender();setTimeout(()=>pulse(false),2200);}
 }
@@ -477,6 +511,7 @@ async function pulse(renderMap=true){
   const classified=window.YkPresenceGroups?YkPresenceGroups.classify(fresh,{identity:window.ykAgentIdentity,detailUrl:window.YkAgentDetail&&YkAgentDetail.detailUrl}):null;
   PROJECT_CONTROL_MACHINES=Array.isArray(d.control_machines)?d.control_machines:[];
   PULSE_CONTROL_MODEL=window.YkAgentControl?YkAgentControl.inventory({presence:d.presence||[],controlMachines:PROJECT_CONTROL_MACHINES},{identity:window.ykAgentIdentity,detailUrl:window.YkAgentDetail&&YkAgentDetail.detailUrl,now:Date.now()}):null;
+  if(PULSE_CONTROL_MODEL)PULSE_OPERATIONS.forEach((operation,key)=>{if(!PULSE_CONTROL_MODEL.by_key.has(key))PULSE_OPERATIONS.delete(key);});
   PULSE_GROUPS=PULSE_CONTROL_MODEL?pulseControlledGroups(classified,PULSE_CONTROL_MODEL):classified;
   const all=PULSE_CONTROL_MODEL&&PULSE_CONTROL_MODEL.items||[],visible=PULSE_GROUPS?PULSE_GROUPS.counts.total:fresh.length,active=all.filter(row=>row.state==="active").length,stopped=all.filter(row=>row.state==="stopped").length;
   const n=document.getElementById("pulseN"); if(n) n.textContent=visible+" agente"+(visible===1?"":"s")+" · "+active+" activo"+(active===1?"":"s")+(stopped?" · "+stopped+" detenido"+(stopped===1?"":"s"):"");
