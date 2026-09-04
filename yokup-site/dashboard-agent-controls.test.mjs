@@ -43,10 +43,10 @@ test("toda orden exige confirmación y la ejecución usa transporte inyectado",a
 
 test("un HTML 200 del site nunca se acepta como orden del API",async()=>{
   const sanitize=source.match(/function pulsePublicError\(value\)\{[\s\S]*?\n\}/)?.[0],fn=source.match(/async function pulseSendControl\(request\)\{[\s\S]*?\n\}/)?.[0];assert.ok(sanitize&&fn);
-  const calls=[],context={PROJECTS_API:"https://api.yokup.com",fetch:async(...args)=>{calls.push(args);return {ok:true,json:async()=>({})};}};
+  const calls=[],responses=[{}, {ok:true}, {ok:true,status:"queued"}, {ok:true,command_id:"42"}],context={PROJECTS_API:"https://api.yokup.com",fetch:async(...args)=>{calls.push(args);return {ok:true,json:async()=>responses.shift()};}};
   vm.runInNewContext(`${sanitize}\n${fn}\nthis.send=pulseSendControl;`,context);
-  await assert.rejects(()=>context.send({endpoint:"/fleet/agent/control",body:{action:"stop"}}),error=>error.message==="control-rejected");
-  assert.equal(calls[0][0],"https://api.yokup.com/fleet/agent/control");
+  for(let index=0;index<4;index++)await assert.rejects(()=>context.send({endpoint:"/fleet/agent/control",body:{action:"stop"}}),error=>error.message==="agent-control-status-invalid");
+  assert.equal(calls.length,4);assert.ok(calls.every(call=>call[0]==="https://api.yokup.com/fleet/agent/control"));
 });
 
 test("el resumen parcial es accesible y distingue fallos",()=>{

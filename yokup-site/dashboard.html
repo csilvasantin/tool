@@ -450,7 +450,8 @@ function pulseApplyView(action,key){
 }
 async function pulseSendControl(request){
   const response=await fetch(PROJECTS_API+request.endpoint,{method:request.method||"POST",credentials:"include",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify(request.body)}),payload=await response.json().catch(()=>({}));
-  if(!response.ok||payload.ok!==true)throw new Error(pulsePublicError(payload.error||"control-rejected"));return payload;
+  const status=String(payload&&payload.status||"").trim().toLowerCase(),commandId=String(payload&&payload.command_id||"").trim(),validStatus=new Set(["queued","accepted","running","stopping","stopped","done","already_running","already_stopped"]),validId=!!commandId&&commandId.length<=100&&/^[A-Za-z0-9._:-]+$/.test(commandId);
+  if(!response.ok||payload.ok!==true||!validStatus.has(status)||!validId)throw new Error(pulsePublicError(payload.error||"agent-control-status-invalid"));return {...payload,status,command_id:commandId};
 }
 async function pulseReadControl(commandId){
   const response=await fetch(PROJECTS_API+"/fleet/agent/control?id="+encodeURIComponent(commandId),{credentials:"include",cache:"no-store"}),payload=await response.json().catch(()=>({}));
