@@ -55,6 +55,25 @@ test("deduplica aliases y no expone session_id ni PID en el modelo público",()=
   assert.match(model.items[0].control_key,/^control:[a-z0-9]+$/);
 });
 
+test("agrupa cada familia por nombre base y después por máquina sin mezclar CLI y App",()=>{
+  const model=build([
+    live("Oraculo","Codex","cli","oraculo-16",311,{machine:"MacBook Pro 16"}),
+    live("Neo","Claude","cli","neo-mini",312),
+    live("OráculoMacMini","Codex","cli","oraculo-mini",313),
+    live("SubOraculo","Codex","cli","sub-oraculo-14",314,{machine:"MacBookPro14"}),
+    live("Neo","Claude","app","desktop:claude",315,{machine:"MacBook Pro 16"}),
+    live("Oraculo","Codex","app","desktop:codex",316),
+  ],[]);
+  const cli=model.items.filter(item=>item.surface==="cli");
+  const app=model.items.filter(item=>item.surface==="app");
+  assert.deepEqual(cli.map(item=>item.agent),[
+    "NeoMacMini","OraculoMacMini","SubOraculoMBP14","OraculoMBP16"
+  ]);
+  assert.deepEqual(cli.map(item=>item.family_key),["neo","oraculo","oraculo","oraculo"]);
+  assert.deepEqual(app.map(item=>item.agent),["NeoMBP16","OraculoMacMini"]);
+  assert.deepEqual(model.items.map(item=>item.surface),["cli","cli","cli","cli","app","app"]);
+});
+
 test("requestFor usa el endpoint unificado y recupera el target exacto sólo al ejecutar",()=>{
   const model=build([live("Oraculo","Codex","cli","oraculo",401)],[]),item=model.items[0];
   const request=control.requestFor(model,item.control_key,"stop");

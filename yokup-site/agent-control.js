@@ -21,7 +21,9 @@
     var machine=text(machineOverride||row.machine),persona=text(row.persona||row.agent),runtime=text(row.runtime),host=surface(row.host);
     var agent=identity&&typeof identity.scoped==="function"?identity.scoped(persona,machine):persona;
     var machineKey=identity&&typeof identity.suffix==="function"?identity.suffix(machine):machine;
-    return {agent:agent,persona:persona,machine:machine,machine_key:norm(machineKey||machine),runtime:runtime,surface:host,
+    var family=identity&&typeof identity.base==="function"?identity.base(persona):persona;
+    var familyKey=identity&&typeof identity.key==="function"?identity.key(family):norm(family);
+    return {agent:agent,persona:persona,family:family,family_key:familyKey,machine:machine,machine_key:norm(machineKey||machine),runtime:runtime,surface:host,
       public_key:[norm(agent),norm(machineKey||machine),norm(runtime),host].join("\u001f")};
   }
   function configuredTargets(controlMachines,identity){
@@ -82,12 +84,15 @@
       var href=detailUrl&&identityRow.surface!=="unknown"?text(detailUrl({persona:identityRow.persona,machine:identityRow.machine,
         runtime:identityRow.runtime,host:identityRow.surface})):"";
       items.push({control_key:controlKey,identity_key:key,agent:identityRow.agent,persona:identityRow.persona,
-        machine:identityRow.machine,runtime:identityRow.runtime,surface:identityRow.surface,state:state,reason:reason,
+        family:identityRow.family,family_key:identityRow.family_key,machine:identityRow.machine,machine_key:identityRow.machine_key,
+        runtime:identityRow.runtime,surface:identityRow.surface,state:state,reason:reason,
         eligible:{start:start,stop:stop},detail_url:href||null});
     });
     var order={cli:0,app:1,unknown:2};
-    items.sort(function(a,b){return order[a.surface]-order[b.surface]||norm(a.machine).localeCompare(norm(b.machine),"es")||
-      norm(a.agent).localeCompare(norm(b.agent),"es")||norm(a.runtime).localeCompare(norm(b.runtime),"es");});
+    items.sort(function(a,b){return order[a.surface]-order[b.surface]||a.family_key.localeCompare(b.family_key,"es")||
+      a.machine_key.localeCompare(b.machine_key,"es")||norm(a.runtime).localeCompare(norm(b.runtime),"es")||
+      norm(a.agent).localeCompare(norm(b.agent),"es")||norm(a.state).localeCompare(norm(b.state),"es")||
+      a.control_key.localeCompare(b.control_key,"es");});
     var counts={total:items.length,active:0,stopped:0,unknown:0,ambiguous:0,startable:0,stoppable:0};
     items.forEach(function(item){counts[item.state]=(counts[item.state]||0)+1;if(item.eligible.start)counts.startable++;if(item.eligible.stop)counts.stoppable++;});
     return {items:items,targets:targets,by_key:new Map(items.map(function(item){return[item.control_key,item];})),counts:counts};
