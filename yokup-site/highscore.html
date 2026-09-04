@@ -90,6 +90,25 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .podium-toggle[aria-expanded="true"]{color:var(--accent);transform:translateY(1px);
   text-shadow:3px 3px 0 #5a4310,0 0 12px rgba(255,216,102,.42)}
 
+/* La meta diaria permanece visible aunque el podio esté cerrado. Sale del
+   histórico factual y excluye hoy para que el récord no huya un punto por
+   delante del agente que acaba de batirlo. */
+.daily-record{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) minmax(0,.8fr);gap:1px;
+  margin:10px 0 12px;border:1px solid var(--line2);border-radius:9px;overflow:hidden;background:var(--line)}
+.daily-record[hidden]{display:none}
+.record-cell{min-width:0;padding:9px 12px;background:rgba(5,17,25,.96)}
+.record-kicker{display:block;margin-bottom:4px;color:var(--dim);font-size:8.5px;font-weight:900;
+  letter-spacing:.13em;text-transform:uppercase}
+.record-value{display:block;color:var(--ink);font-size:13px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.record-value strong{color:var(--accent);font-size:17px}
+.record-chase .record-value strong{color:var(--brand)}
+.record-gap{text-align:right}.record-gap .record-value strong{color:var(--good)}
+.record-progress{grid-column:1/-1;height:3px;background:rgba(120,243,255,.08)}
+.record-progress i{display:block;width:0;height:100%;background:linear-gradient(90deg,var(--brand),var(--good));
+  box-shadow:0 0 10px rgba(120,243,255,.5);transition:width .35s ease}
+.daily-record.record-beaten{border-color:rgba(136,255,170,.65);box-shadow:0 0 20px rgba(136,255,170,.12)}
+.daily-record.record-beaten .record-gap .record-value strong{color:var(--accent)}
+
 /* podio: la ilustración conserva siempre su proporción 16:9 y ocupa el mismo
    bloque que antes ocupaban los tres cajones generados con CSS. Los datos vivos
    quedan en placas pequeñas; el detalle completo sigue justo debajo, en la tabla. */
@@ -245,7 +264,9 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   .dg-lista .l-est{grid-column:3;grid-row:1}
   .dg-lista .l-que{grid-column:2/4;grid-row:2}
 }
-@media (max-width:620px){.podio-total{left:3%;top:2%;width:27%;padding:4.5px 6px}
+@media (max-width:620px){.daily-record{grid-template-columns:1fr 1fr}.record-cell{padding:8px 9px}
+  .record-record{grid-column:1/-1}.record-gap{text-align:left}.record-value{font-size:10px}.record-value strong{font-size:14px}
+  .podio-total{left:3%;top:2%;width:27%;padding:4.5px 6px}
   .podio-total .pts{font-size:12.6px}.podio-total .tot-rot{font-size:7.2px}
   .podio-period{right:2%;top:2%;width:46%}.podio-period button{padding:4.5px 2px;font-size:7.2px;letter-spacing:.04em}}
 .nom{font-size:12px;font-weight:800;letter-spacing:.03em;text-align:center;word-break:break-word;padding:0}
@@ -869,6 +890,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       <span aria-hidden="true">♪</span><span class="sr-only" id="estadoSonido">Sonido desactivado</span>
     </button></h1>
   <header class="cab">
+    <section class="daily-record" id="dailyRecord" aria-live="polite" aria-label="Récord diario histórico" hidden></section>
     <div class="refresh-race" id="refreshRace" role="button" tabindex="0" aria-pressed="false"
       title="Pausar carrera para leer las misiones" aria-label="Carrera de puntuación: 24 segundos hasta la meta. Pulsa para parar la carrera.">
       <svg class="runner-symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -950,6 +972,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script src="/highscore-race.js?v=v.12.08.2026.r1.trabajo-parado"></script>
 <script src="/highscore-desktop-app.js?v=v.2026.08.11.active-default-2"></script>
+<script src="/highscore-daily-record.js?v=v.2026.09.04.r1"></script>
 <script>
 (function () {
   "use strict";
@@ -1072,6 +1095,30 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function claveDia(epoch) {
     var n = Number(epoch) || 0; if (n > 0 && n < 1e11) n *= 1000;
     return n ? DIA_FMT.format(new Date(n)) : "";
+  }
+  function fechaRecord(day) {
+    var parts = String(day || "").split("-").map(Number);
+    if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return String(day || "");
+    return new Intl.DateTimeFormat("es-ES", { day:"numeric", month:"short", year:"numeric", timeZone:TIME_ZONE })
+      .format(new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12)));
+  }
+  function pintaRecordDiario() {
+    var box = document.getElementById("dailyRecord");
+    var api = typeof YkHighscoreDailyRecord !== "undefined" && YkHighscoreDailyRecord;
+    var chase = api && api.dailyRecord ? api.dailyRecord(datos.historial, claveDia(Date.now())) : null;
+    if (!box || !chase || !chase.available) { if (box) box.hidden = true; return; }
+    var leader = chase.leader, won = chase.remaining === 0;
+    var gap = won ? "NUEVO RÉCORD" : chase.remaining.toLocaleString("es-ES") + " pts";
+    var gapSub = won ? "+" + chase.beatenBy.toLocaleString("es-ES") + " sobre la marca" : "para batirlo";
+    box.classList.toggle("record-beaten", won); box.hidden = false;
+    box.innerHTML = '<div class="record-cell record-record"><span class="record-kicker">Récord diario histórico</span>' +
+      '<span class="record-value"><strong>' + esc(chase.record.points.toLocaleString("es-ES")) + '</strong> pts · ' +
+      esc(nombreAgenteVisible(chase.record.agent)) + ' · ' + esc(fechaRecord(chase.record.day)) + '</span></div>' +
+      '<div class="record-cell record-chase"><span class="record-kicker">Líder hoy</span><span class="record-value">' +
+      (leader ? '<strong>' + esc(leader.points.toLocaleString("es-ES")) + '</strong> · ' + esc(nombreAgenteVisible(leader.agent)) : '<strong>0</strong> · sin puntos') +
+      '</span></div><div class="record-cell record-gap"><span class="record-kicker">' + esc(gapSub) + '</span>' +
+      '<span class="record-value"><strong>' + esc(gap) + '</strong></span></div>' +
+      '<div class="record-progress" aria-hidden="true"><i style="width:' + chase.progress.toFixed(2) + '%"></i></div>';
   }
   function esHoy(epoch) { return claveDia(epoch) === claveDia(Date.now()); }
   function comoMs(epoch) {
@@ -4261,7 +4308,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function listo() {
     listaCompletaCache = calcula();
     hsRenderAgentScope(listaCompletaCache); listaCache = aplicaAgentScope(listaCompletaCache);
-    pintaPodio(listaCache.slice(0, 3), listaCache); pintaTabla(listaVisible(listaCache)); pintaFormula(listaCache); actualizaCarreraPodio();
+    pintaRecordDiario(); pintaPodio(listaCache.slice(0, 3), listaCache); pintaTabla(listaVisible(listaCache)); pintaFormula(listaCache); actualizaCarreraPodio();
     // Visita repetida de la sesión: la ceremonia ya se vio. Del final de la
     // barra al ranking, sin pulsa, sin cuenta atrás y sin fanfarria.
     if (window.__YK_PRESITE__ === false) { entra(); return; }
@@ -4396,7 +4443,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var cambioLider = listaCache && l[0] && listaCache[0] && l[0].agente !== listaCache[0].agente;
       listaCompletaCache = listaCompleta;
       listaCache = l;
-      hsRenderAgentScope(listaCompletaCache); pintaPodio(l.slice(0, 3), l); pintaTabla(listaVisible(l)); pintaFormula(l); actualizaCarreraPodio();
+      hsRenderAgentScope(listaCompletaCache); pintaRecordDiario(); pintaPodio(l.slice(0, 3), l); pintaTabla(listaVisible(l)); pintaFormula(l); actualizaCarreraPodio();
       if (cambioLider && sonando) fanfarriaPodio();   // récord batido
     }).finally(function () { refrescando = false; });
   }
