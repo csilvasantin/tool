@@ -18,6 +18,12 @@ const MACHINES = [
   ["Zenbook", ["asuszenbook", "asus zenbook", "admira-asuszenbook"]],
   ["DGX", ["dgxspark", "dgx spark", "dgx-spark", "spark-1e61", "spark1e61"]],
   ["PGX", ["thinkstationpgx", "thinkstation pgx", "thinkstation", "lenovo-thinkstation", "lenovothinkstation"]],
+  // GrokBot es el EQUIPO donde razonan los consejeros del Consejo de Silicio que viven
+  // como bots en la app Grok Bot (SpaceXAI, «sand»): no es un Mac de la flota, es la
+  // nube de xAI, y la norma 04 manda decir en qué equipo se hizo cada trabajo sin
+  // disfrazarlo de otro. Carlos, 4-sep-2026 (FLT-1580): «aumentar el equipo de
+  // AdmiraNeXT con la conexión con el Consejo».
+  ["GrokBot", ["grokbot", "grok bot", "grok-bot", "sand", "xai", "grok"]],
 ];
 const PERSONAS = [
   ["Oraculo", ["oraculo", "oráculo", "oracle"]],
@@ -46,6 +52,14 @@ const PERSONAS = [
   ["Persefone", ["persefone", "perséfone", "persephone"]],
   // Seraph: OpenCode + Qwen 3.6 en MacBookAirPlata (Carlos, 3-sep-2026, misión 0211).
   ["Seraph", ["seraph", "serafín", "serafin"]],
+  // Los consejeros del Consejo de Silicio que trabajan desde GrokBot (Carlos, 4-sep-2026,
+  // FLT-1580). Su apellido de equipo es GrokBot: WozniakGrokBot, JobsGrokBot,
+  // DisneyGrokBot, LucasGrokBot. El alias corto es el apellido de la persona real; el
+  // nombre completo también se lee para que «Steve Wozniak» firme como Wozniak.
+  ["Wozniak", ["wozniak", "steve wozniak", "stevewozniak", "woz"]],
+  ["Jobs", ["jobs", "steve jobs", "stevejobs"]],
+  ["Disney", ["disney", "walt disney", "waltdisney"]],
+  ["Lucas", ["lucas", "george lucas", "georgelucas"]],
 ];
 // Apellidos que se usaron antes y siguen vivos en datos ya guardados. Se leen,
 // pero al volver a escribir salen con el apellido actual.

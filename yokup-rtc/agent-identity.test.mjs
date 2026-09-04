@@ -66,6 +66,24 @@ test("una máquina vacía o desconocida nunca hereda Mini por prefijo vacío", (
 // validateMissionActor lo compara contra machineSuffix(loc) devolviendo 403
 // owner_mismatch con expected y received IDÉNTICOS. Le pasó a NiobeMacMini el
 // 15-08-2026 con FLT-1445, y el mensaje de error no daba ninguna pista.
+test("los consejeros de GrokBot tienen carné: persona del diccionario y equipo GrokBot (FLT-1580)", () => {
+  assert.equal(machineSuffix("grokbot"), "GrokBot");
+  assert.equal(machineSuffix("Grok Bot"), "GrokBot");
+  assert.equal(machineSuffix("sand"), "GrokBot", "el bundle de la app también se lee como equipo GrokBot");
+  for (const [persona, largo] of [["Wozniak", "Steve Wozniak"], ["Jobs", "Steve Jobs"], ["Disney", "Walt Disney"], ["Lucas", "George Lucas"]]) {
+    const id = `${persona}GrokBot`;
+    assert.equal(baseAgentIdentity(id), persona);
+    assert.equal(parseAgentIdentity(id).suffix, "GrokBot");
+    assert.equal(parseAgentIdentity(id).legacy, false, `${id} no es legado: es una identidad viva`);
+    assert.equal(scopedAgentIdentity(persona, "GrokBot"), id);
+    assert.equal(scopedAgentIdentity(largo, "grokbot"), id, "el nombre completo del bot firma con el apellido corto");
+    assert.equal(sameAgentFamily(persona, id), true);
+  }
+  assert.equal(parseAgentIdentity("SubWozniakGrokBot").role, "sub");
+  assert.equal(sameAgentFamily("WozniakGrokBot", "JobsGrokBot"), false, "cada consejero es su propia familia aunque compartan equipo");
+  assert.equal(sameAgentFamily("WozniakGrokBot", "MorfeoMacMini"), false);
+});
+
 test("Niobe está en el diccionario y su apellido case con su máquina", () => {
   assert.equal(baseAgentIdentity("NiobeMacMini"), "Niobe");
   assert.equal(parseAgentIdentity("NiobeMacMini").suffix, machineSuffix("macmini"));
