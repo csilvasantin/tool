@@ -423,7 +423,13 @@ const pa=id=>document.getElementById(id);
    que el anterior no se toca el DOM: sin reconstruir fichas no hay parpadeo ni
    se pierden hover, foco ni las animaciones de los cables que cuelgan de ellas. */
 const PA_PAINTED={};
-function paPaint(box,html){ if(!box)return false; if(PA_PAINTED[box.id]===html)return false; PA_PAINTED[box.id]=html; box.innerHTML=html; return true; }
+function paPaint(box,html){
+  if(!box)return false;if(PA_PAINTED[box.id]===html)return false;
+  const active=document.activeElement,focused=active&&box.contains(active)&&active.matches("a.ag-link[href]")?active.getAttribute("href"):"";
+  PA_PAINTED[box.id]=html;box.innerHTML=html;
+  if(focused){const next=[...box.querySelectorAll("a.ag-link[href]")].find(link=>link.getAttribute("href")===focused);if(next)next.focus({preventScroll:true});}
+  return true;
+}
 /* El «hace 12s» se pinta VACÍO y lo rellena este tic: así el HTML no cambia
    cada 3 s solo porque avance el reloj, y paPaint puede quedarse quieto. */
 function paTickAgo(){ document.querySelectorAll("[data-pa-ago]").forEach(el=>{ const text=agoS(Number(el.dataset.paAgo)||0); if(el.textContent!==text)el.textContent=text; }); }

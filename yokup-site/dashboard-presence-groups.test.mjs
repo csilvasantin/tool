@@ -38,11 +38,11 @@ test("las tarjetas y enlaces de detalle son únicos y se reutilizan en todos los
 });
 
 test("un pulso idéntico no reconstruye el nodo enfocado",()=>{
-  const paint=source.match(/const PA_PAINTED=\{\};\s*function paPaint\(box,html\)\{[^}]+\}/)?.[0];
+  const paint=source.match(/const PA_PAINTED=\{\};[\s\S]*?\/\* El «hace 12s»/)?.[0].replace(/\/\* El «hace 12s»[\s\S]*$/,"" );
   assert.ok(paint,"debe existir el pintado idempotente compartido");
-  const context={};vm.runInNewContext(`${paint}\nthis.paint=paPaint;`,context);
+  const context={document:{activeElement:null}};vm.runInNewContext(`${paint}\nthis.paint=paPaint;`,context);
   let writes=0,node=null;
-  const box={id:"pulse"};Object.defineProperty(box,"innerHTML",{set(){writes+=1;node={write:writes,focused:false};}});
+  const box={id:"pulse",contains(candidate){return candidate===node;},querySelectorAll(){return node?[node]:[];}};Object.defineProperty(box,"innerHTML",{set(){writes+=1;node={write:writes,focused:false,matches(){return true;},getAttribute(){return "/agentDetail?agent=Oraculo";},focus(){this.focused=true;}};}});
   assert.equal(context.paint(box,"<a>Oraculo</a>"),true);
   const focused=node;focused.focused=true;
   assert.equal(context.paint(box,"<a>Oraculo</a>"),false);
@@ -51,6 +51,24 @@ test("un pulso idéntico no reconstruye el nodo enfocado",()=>{
   assert.match(source,/if\(!classified\)\{paPaint\(box,pulseGroupsMarkup\(null,true\)\)/);
   assert.match(source,/paPaint\(box,pulseGroupsMarkup\(classified\)\)/);
   assert.doesNotMatch(source,/box\.innerHTML=pulseGroupsMarkup/);
+});
+
+test("un latido nuevo repinta pero restaura el enlace lógico sin desplazar",()=>{
+  const paint=source.match(/const PA_PAINTED=\{\};[\s\S]*?\/\* El «hace 12s»/)?.[0].replace(/\/\* El «hace 12s»[\s\S]*$/,"" );
+  assert.ok(paint);
+  const context={document:{activeElement:null}};vm.runInNewContext(`${paint}\nthis.paint=paPaint;`,context);
+  let node=null,writes=0,focusOptions=null;
+  const href="/agentDetail?agent=Oraculo&machine=MacMini&runtime=codex&surface=cli";
+  const makeNode=()=>({matches(selector){return selector==="a.ag-link[href]";},getAttribute(name){return name==="href"?href:null;},focus(options){focusOptions=options;context.document.activeElement=this;}});
+  const box={id:"pulse",contains(candidate){return candidate===node;},querySelectorAll(){return node?[node]:[];}};
+  Object.defineProperty(box,"innerHTML",{set(){writes+=1;node=makeNode();}});
+  context.paint(box,'<a data-pa-ago="100">Oraculo</a>');
+  context.document.activeElement=node;
+  const previous=node;
+  assert.equal(context.paint(box,'<a data-pa-ago="103">Oraculo</a>'),true);
+  assert.equal(writes,2);assert.notEqual(node,previous);
+  assert.equal(context.document.activeElement,node);
+  assert.equal(focusOptions&&focusOptions.preventScroll,true);
 });
 
 test("el tiempo relativo se actualiza fuera del HTML estable del pulso",()=>{
