@@ -78,12 +78,27 @@ test("la tarjeta refleja pendiente, ejecución, éxito y error sin inventar el e
 });
 
 test("las órdenes aceptadas se consultan por GET y los fallos liberan el reintento",async()=>{
-  const fn=source.match(/async function pulseReadControl\(commandId\)\{[\s\S]*?\n\}/)?.[0];assert.ok(fn);
+  const sanitize=source.match(/function pulsePublicError\(value\)\{[\s\S]*?\n\}/)?.[0],fn=source.match(/async function pulseReadControl\(commandId\)\{[\s\S]*?\n\}/)?.[0];assert.ok(sanitize&&fn);
   const calls=[],context={encodeURIComponent,fetch:async(...args)=>{calls.push(args);return {ok:true,json:async()=>({ok:true,status:"running",command_id:"mock-1"})};}};
-  vm.runInNewContext(`${fn}\nthis.read=pulseReadControl;`,context);
+  vm.runInNewContext(`${sanitize}\n${fn}\nthis.read=pulseReadControl;`,context);
   const result=await context.read("mock-1");assert.equal(result.status,"running");
   assert.equal(calls[0][0],"/fleet/agent/control?id=mock-1");assert.equal(calls[0][1].credentials,"include");
   assert.match(source,/void pulsePollOperation\(result\.control_key,result\.action,operation\.command_id\)/);
   assert.match(source,/PULSE_CONTROL_LEDGER\.delete\(String\(action\|\|""\)\.toLowerCase\(\)\+":"\+controlKey\)/);
   assert.match(source,/if\(phase==="error"\)\{pulseForgetFailed/);
+});
+
+test("un error remoto con secreto o ruta falla cerrado antes de estado y DOM",async()=>{
+  const phase=source.match(/function pulseOperationPhase\(status\)\{[\s\S]*?\n\}/)?.[0],sanitize=source.match(/function pulsePublicError\(value\)\{[\s\S]*?\n\}/)?.[0],forget=source.match(/function pulseForgetFailed\(action,controlKey\)\{[^\n]+/)?.[0],track=source.match(/function pulseTrackResult\(result\)\{[\s\S]*?\n\}/)?.[0];
+  assert.ok(phase&&sanitize&&forget&&track);
+  const operations=new Map(),ledger=new Map([["stop:control:abc",{ok:false}]]),context={PULSE_OPERATIONS:operations,PULSE_CONTROL_LEDGER:ledger,setTimeout(){},pulse(){},pulsePollOperation(){}};
+  vm.runInNewContext(`${phase}\n${sanitize}\n${forget}\n${track}\nthis.track=pulseTrackResult;`,context);
+  const remote="token=SUPER_SECRET /Users/private/key.pem";
+  context.track({control_key:"control:abc",action:"stop",status:"failed",ok:false,error:remote});
+  const operation=operations.get("control:abc"),markup=`<span>${operation.error}</span>`;
+  assert.equal(operation.error,"control-failed");assert.doesNotMatch(markup,/SUPER_SECRET|Users|key\.pem/);assert.equal(ledger.has("stop:control:abc"),false);
+
+  const read=source.match(/async function pulseReadControl\(commandId\)\{[\s\S]*?\n\}/)?.[0],readContext={encodeURIComponent,fetch:async()=>({ok:false,json:async()=>({error:remote})})};
+  vm.runInNewContext(`${sanitize}\n${read}\nthis.read=pulseReadControl;`,readContext);
+  await assert.rejects(()=>readContext.read("mock-2"),error=>error.message==="control-failed"&&!/SUPER_SECRET|Users/.test(error.message));
 });

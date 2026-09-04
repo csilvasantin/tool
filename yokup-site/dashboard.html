@@ -450,30 +450,34 @@ function pulseApplyView(action,key){
 }
 async function pulseSendControl(request){
   const response=await fetch(request.endpoint,{method:request.method||"POST",credentials:"include",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify(request.body)}),payload=await response.json().catch(()=>({}));
-  if(!response.ok||payload.ok===false)throw new Error(payload.error||"control-rejected");return payload;
+  if(!response.ok||payload.ok===false)throw new Error(pulsePublicError(payload.error||"control-rejected"));return payload;
 }
 async function pulseReadControl(commandId){
   const response=await fetch("/fleet/agent/control?id="+encodeURIComponent(commandId),{credentials:"include",cache:"no-store"}),payload=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(payload.error||"control-status-unavailable");return payload;
+  if(!response.ok)throw new Error(pulsePublicError(payload.error||"control-status-unavailable"));return payload;
 }
 function pulseOperationPhase(status){
   status=String(status||"").toLowerCase();if(status==="failed"||status==="rejected")return "error";if(status==="stopped"||status==="done"||status==="already_running"||status==="already_stopped")return "success";if(status==="running"||status==="stopping")return "running";return "pending";
+}
+function pulsePublicError(value){
+  const code=String(value||"").trim().toLowerCase(),allowed=new Set(["control-failed","control-rejected","control-status-unavailable","agent-control-command-not-found","agent-control-status-unavailable","agent-control-status-invalid","agent-control-command-mismatch","confirmation-required","transport-required","target-not-found","target-not-eligible","invalid-action","invalid-target","invalid-batch-plan","agent-offline-or-stale","ambiguous-agent-target","agent-changed-before-stop","start-command-rejected","stop-command-rejected","telegram-binding-unavailable","presence-unavailable"]);
+  return allowed.has(code)?code:"control-failed";
 }
 function pulseForgetFailed(action,controlKey){PULSE_CONTROL_LEDGER.delete(String(action||"").toLowerCase()+":"+controlKey);}
 async function pulsePollOperation(controlKey,action,commandId,deadline=Date.now()+45000){
   while(Date.now()<deadline){
     try{
-      const result=await pulseReadControl(commandId),phase=pulseOperationPhase(result.status),operation={action,phase,command_id:commandId,error:phase==="error"?String(result.error||result.status||"control-failed"):""};PULSE_OPERATIONS.set(controlKey,operation);pulseRender();
+      const result=await pulseReadControl(commandId),phase=pulseOperationPhase(result.status),operation={action,phase,command_id:commandId,error:phase==="error"?pulsePublicError(result.error||result.status):""};PULSE_OPERATIONS.set(controlKey,operation);pulseRender();
       if(phase==="success"){setTimeout(()=>pulse(false),700);return operation;}
       if(phase==="error"){pulseForgetFailed(action,controlKey);pulseSetStatus("La orden no se completó · "+operation.error,true);return operation;}
-    }catch(error){if(Date.now()+1100>=deadline){const operation={action,phase:"error",command_id:commandId,error:String(error&&error.message||error||"control-status-unavailable")};PULSE_OPERATIONS.set(controlKey,operation);pulseForgetFailed(action,controlKey);pulseSetStatus("No se pudo verificar la orden · "+operation.error,true);pulseRender();return operation;}}
+    }catch(error){if(Date.now()+1100>=deadline){const operation={action,phase:"error",command_id:commandId,error:pulsePublicError(error&&error.message||error)};PULSE_OPERATIONS.set(controlKey,operation);pulseForgetFailed(action,controlKey);pulseSetStatus("No se pudo verificar la orden · "+operation.error,true);pulseRender();return operation;}}
     await new Promise(resolve=>setTimeout(resolve,1000));
   }
   const timeout={action,phase:"error",command_id:commandId,error:"Tiempo de verificación agotado"};PULSE_OPERATIONS.set(controlKey,timeout);pulseForgetFailed(action,controlKey);pulseSetStatus(timeout.error,true);pulseRender();return timeout;
 }
 function pulseTrackResult(result){
   if(!result||!result.control_key)return;
-  let phase=pulseOperationPhase(result.status);const operation={action:result.action,phase,command_id:result.command_id||"",error:phase==="error"?String(result.error||result.status||"control-failed"):""};
+  let phase=pulseOperationPhase(result.status);const operation={action:result.action,phase,command_id:result.command_id||"",error:phase==="error"?pulsePublicError(result.error||result.status):""};
   if((phase==="pending"||phase==="running")&&!operation.command_id){phase=operation.phase="error";operation.error="Falta el identificador para verificar la orden";}
   PULSE_OPERATIONS.set(result.control_key,operation);
   if(phase==="error"){pulseForgetFailed(result.action,result.control_key);return;}
@@ -482,7 +486,7 @@ function pulseTrackResult(result){
 }
 function pulseResultMessage(result,label){
   if(result&&Number.isFinite(result.total)){const message=label+": "+result.succeeded+"/"+result.total+" órdenes aceptadas"+(result.failed?" · "+result.failed+" fallidas":"")+".";return {message,error:result.failed>0};}
-  return {message:label+": "+(result&&result.ok?"orden aceptada":"orden no aceptada")+(result&&result.error?" · "+result.error:"")+".",error:!(result&&result.ok)};
+  return {message:label+": "+(result&&result.ok?"orden aceptada":"orden no aceptada")+(result&&result.error?" · "+pulsePublicError(result.error):"")+".",error:!(result&&result.ok)};
 }
 async function pulseHandleClick(event){
   const button=event.target.closest&&event.target.closest("button[data-pulse-action],button[data-pulse-batch],button[data-pulse-view]");if(!button)return;event.preventDefault();event.stopPropagation();
@@ -496,7 +500,7 @@ async function pulseHandleClick(event){
   try{
     if(controlKey)PULSE_OPERATIONS.delete(controlKey);
     const options={confirmed:true,send:pulseSendControl,ledger:PULSE_CONTROL_LEDGER},result=plan?await YkAgentControl.executeBatch(PULSE_CONTROL_MODEL,plan,options):await YkAgentControl.executeOne(PULSE_CONTROL_MODEL,controlKey,action,options);(result&&result.results||[result]).forEach(pulseTrackResult);const summary=pulseResultMessage(result,label);pulseSetStatus(summary.message,summary.error);
-  }catch(error){pulseSetStatus(label+": "+String(error&&error.message||error||"control-failed"),true);}
+  }catch(error){pulseSetStatus(label+": "+pulsePublicError(error&&error.message||error),true);}
   finally{PULSE_CONTROL_BUSY=false;document.getElementById("pulse")?.removeAttribute("aria-busy");pulseRender();setTimeout(()=>pulse(false),2200);}
 }
 async function pulse(renderMap=true){
