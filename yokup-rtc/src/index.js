@@ -7459,7 +7459,9 @@ async function highscoreDailyRows(env, pertenece, ahora) {
     const familia = reportAgentFamily(agent, machine || "");
     const nombre = (familia && familia.family_name) || String(agent || "").trim();
     if (!nombre) return;
-    row.por_agente[nombre] = (row.por_agente[nombre] || 0) + points;
+    const total = row.por_agente[nombre] || { objectives:0, windows:0, missions:0, tasks:0, points:0 };
+    total[kind] += 1; total.points += points;
+    row.por_agente[nombre] = total;
   };
   for (const idea of ideas) {
     const agent = highscoreAgent(idea.author);
@@ -7565,7 +7567,14 @@ async function highscoreFleetHistory(env, ahora = Date.now()) {
   // primero de la semana.
   const ordena = (fila) => {
     fila.top = Object.keys(fila.por_agente || {})
-      .map((agent) => ({ agent, points: fila.por_agente[agent] }))
+      .map((agent) => {
+        const raw = fila.por_agente[agent], metrics = typeof raw === "number"
+          ? { objectives:0, windows:0, missions:0, tasks:0, points:raw }
+          : raw || {};
+        return { agent, objectives:Number(metrics.objectives) || 0, windows:Number(metrics.windows) || 0,
+          missions:Number(metrics.missions) || 0, tasks:Number(metrics.tasks) || 0,
+          points:Number(metrics.points) || 0 };
+      })
       .sort((a, b) => b.points - a.points || a.agent.localeCompare(b.agent, "es"));
     delete fila.por_agente;
     return fila;

@@ -80,13 +80,23 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
    que no puede hacer nada no debe parecer que puede. */
 /* La banda del RANKING es hermana de la de arriba pero un escalón por debajo:
    aquella titula la página, esta titula una tabla. */
-.rank-divider{display:flex;align-items:center;justify-content:center;width:100%;margin:14px 0 6px;padding:6px 0;
+.rank-divider{position:relative;display:flex;align-items:center;justify-content:center;width:100%;margin:14px 0 6px;padding:6px 0;
   border-top:1px solid rgba(120,243,255,.14);border-bottom:1px solid rgba(120,243,255,.14)}
 .ranking-toggle{font-size:.78em;opacity:.82;letter-spacing:.18em}
 .ranking-toggle:hover,.ranking-toggle:focus-visible{opacity:1}
 .ranking-toggle.on{opacity:1;color:var(--brand)}
 .ranking-toggle:disabled{opacity:.28;cursor:default;text-shadow:none}
 .ranking-toggle:disabled:hover{color:inherit;text-shadow:none}
+.ranking-period{position:absolute;right:4px;top:50%;transform:translateY(-50%);display:grid;
+  grid-template-columns:22px minmax(48px,auto) 22px;align-items:center;gap:2px;color:var(--mut);font-size:8px;
+  font-weight:900;letter-spacing:.08em;text-shadow:none}
+.ranking-period button{width:22px;height:22px;padding:0;border:1px solid rgba(120,243,255,.2);border-radius:4px;
+  background:rgba(3,12,18,.78);color:var(--brand);font:900 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer}
+.ranking-period button:hover,.ranking-period button:focus-visible{border-color:var(--brand);color:var(--ink);outline:none;
+  box-shadow:0 0 0 1px rgba(120,243,255,.2),0 0 9px rgba(120,243,255,.2)}
+.ranking-period-value{min-width:48px;text-align:center;color:var(--ink);font-size:8px;letter-spacing:.12em}
+.ranking-period-metric{display:inline-flex;align-items:baseline;gap:3px;white-space:nowrap}
+.ranking-period-metric .score-period{font-size:7px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
 .podium-toggle[aria-expanded="true"]{color:var(--accent);transform:translateY(1px);
   text-shadow:3px 3px 0 #5a4310,0 0 12px rgba(255,216,102,.42)}
 
@@ -852,6 +862,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .refresh-started,.refresh-ended{font-size:7px}.refresh-timing{gap:2px}
   .refresh-track{padding-left:var(--track-start);padding-right:var(--finish-width)}
   .refresh-mission{font-size:8px;line-height:12px}.refresh-mission-title{font-size:8px}
+  .ranking-period{right:2px;grid-template-columns:20px minmax(43px,auto) 20px;gap:1px;font-size:7px}
+  .ranking-period button{width:20px;height:20px;font-size:10px}.ranking-period-value{min-width:43px;font-size:7px}
   .race-call{min-width:min(96px,calc(100% - var(--track-start) - var(--finish-width) - 8px));
     padding:2px clamp(5px,1.8vw,11px);font-size:clamp(13px,4.2vw,18px);line-height:20px;letter-spacing:.1em}
   .score-progress td{padding-left:5px;padding-right:5px}.progression{grid-template-columns:88px repeat(6,76px);min-width:580px;gap:4px}
@@ -927,7 +939,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
        gobernaba. Aquí no hay duda: es el rótulo de lo que hay justo debajo, y
        el botón despliega esa misma tabla. -->
   <h2 class="rank-divider" id="rankDivider"><button class="podium-toggle ranking-toggle" id="rankingToggle" type="button"
-    aria-expanded="false" aria-controls="rankingScroll" title="Ver la tabla completa">RANKING</button></h2>
+    aria-expanded="false" aria-controls="rankingScroll" title="Ver la tabla completa">RANKING</button>
+    <span class="ranking-period" id="rankingPeriod" role="group" aria-label="Periodo del ranking: Día">
+      <button type="button" data-ranking-period-step="-1" aria-label="Subir periodo del ranking" aria-controls="rankingTable">↑</button>
+      <span class="ranking-period-value" id="rankingPeriodValue" role="status" aria-live="polite" aria-atomic="true">DÍA</span>
+      <button type="button" data-ranking-period-step="1" aria-label="Bajar periodo del ranking" aria-controls="rankingTable">↓</button>
+    </span></h2>
   <div class="table-scroll" id="rankingScroll">
     <table class="tabla" id="rankingTable">
       <colgroup>
@@ -1678,6 +1695,20 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       f.misiones += Number(a.missions) || 0;
       f.ptsMisiones += Number(a.mission_points) || 0;
     });
+    // El día sólo trae a quien puntuó hoy. Para que Semana no dependa de que el
+    // agente conserve presencia o trabajo actual, se siembran también las
+    // identidades que puntuaron desde el lunes. No se copian puntos aquí: la
+    // tabla los lee del histórico canónico mediante metricasRanking().
+    var week = datos.historial && datos.historial.periods && datos.historial.periods.week;
+    if (week && week.start && week.end) {
+      (datos.historial.all_days || []).forEach(function (day) {
+        if (!day || day.day < week.start || day.day > week.end) return;
+        (day.top || []).forEach(function (score) {
+          var agent = id && id.base ? id.base(score && score.agent) : score && score.agent;
+          fila(agent, "");
+        });
+      });
+    }
     // VIVO = latido RECIENTE; haLatido = existe al menos un registro histórico.
     // Ninguno de los dos suma puntos: presencia y rendimiento son dimensiones
     // distintas. El primero anima la posición; el segundo permite mostrar 0 o —.
@@ -1943,6 +1974,17 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // El marcador general continúa siendo diario. Este estado gobierna sólo la
   // escena del podio y nace siempre en día al cargar la página.
   var PODIUM_PERIOD = "day";
+  // La banda RANKING tiene un control propio y deliberadamente más corto. Hora,
+  // Día y Semana son los tres alcances operativos; Mes permanece en el podio y
+  // en la vista histórica, donde sí aporta contexto en vez de una tabla enorme.
+  var RANKING_PERIODS = ["hour", "day", "week"], RANKING_PERIOD_KEY = "yokup.highscore.rankingPeriod.v1";
+  function leePeriodoRanking() {
+    try {
+      var value = localStorage.getItem(RANKING_PERIOD_KEY);
+      return RANKING_PERIODS.indexOf(value) >= 0 ? value : "day";
+    } catch (_) { return "day"; }
+  }
+  var RANKING_PERIOD = leePeriodoRanking();
 
   function selectorPeriodoPodioHtml() {
     return '<div class="podio-period" role="group" aria-label="Periodo del ranking del podio">' +
@@ -1965,6 +2007,51 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var identity = window.ykAgentIdentity;
     var base = identity && typeof identity.base === "function" ? identity.base(value) : value;
     return claveAgenteCarrera(base);
+  }
+
+  function metricasRanking(a, periodo) {
+    periodo = RANKING_PERIODS.indexOf(periodo) >= 0 ? periodo : "day";
+    var fields = ["objectives", "windows", "missions", "tasks", "points"], result = {};
+    if (periodo === "hour" || periodo === "day") {
+      fields.forEach(function (field) {
+        var metric = metricaHoraDia(a, field);
+        result[field] = Math.max(0, Number(metric[periodo]) || 0);
+      });
+      return result;
+    }
+    fields.forEach(function (field) { result[field] = 0; });
+    var history = datos.historial, range = history && history.periods && history.periods.week;
+    var agentKey = claveAgentePeriodo(a && a.agente);
+    if (!range || !range.start || !range.end || !agentKey) return result;
+    (Array.isArray(history.all_days) ? history.all_days : []).forEach(function (row) {
+      if (!row || row.day < range.start || row.day > range.end) return;
+      (Array.isArray(row.top) ? row.top : []).forEach(function (score) {
+        if (claveAgentePeriodo(score && score.agent) !== agentKey) return;
+        fields.forEach(function (field) { result[field] += Math.max(0, Number(score && score[field]) || 0); });
+      });
+    });
+    return result;
+  }
+
+  function rotuloPeriodoRanking(periodo) {
+    return ({ hour:"Hora", day:"Día", week:"Semana" })[periodo] || "Día";
+  }
+
+  function cambiaPeriodoRanking(paso) {
+    var index = RANKING_PERIODS.indexOf(RANKING_PERIOD);
+    RANKING_PERIOD = RANKING_PERIODS[(index + Number(paso || 0) + RANKING_PERIODS.length) % RANKING_PERIODS.length];
+    try { localStorage.setItem(RANKING_PERIOD_KEY, RANKING_PERIOD); } catch (_) {}
+    actualizaPeriodoRanking();
+    pintaVistaFiltrada();
+  }
+
+  function actualizaPeriodoRanking() {
+    var control = document.getElementById("rankingPeriod"), value = document.getElementById("rankingPeriodValue");
+    var label = rotuloPeriodoRanking(RANKING_PERIOD);
+    if (value) value.textContent = label.toUpperCase();
+    if (control) { control.dataset.period = RANKING_PERIOD; control.setAttribute("aria-label", "Periodo del ranking: " + label); }
+    var table = document.getElementById("rankingTable");
+    if (table) table.dataset.period = RANKING_PERIOD;
   }
 
   function puntosPodioPeriodo(a) {
@@ -2675,15 +2762,34 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return '<span class="activity-now" title="' + esc(texto) + '" aria-label="' + esc(valor + " " + tipo + ". " + texto) + '">' + valor + '</span>';
   }
 
+  function metricaRankingHtml(a, key) {
+    var value = metricasRanking(a, RANKING_PERIOD)[key] || 0;
+    var label = METRIC_LABELS[key] || key, period = rotuloPeriodoRanking(RANKING_PERIOD).toLowerCase();
+    return '<span class="ranking-period-metric" role="text" aria-label="' + esc(value + " " + label + " en " + period) + '">' +
+      '<span class="score-number">' + esc(value) + '</span><span class="score-period" aria-hidden="true">' +
+      esc(period) + '</span></span>';
+  }
+
   function numeroVentanas(a) {
+    if (typeof RANKING_PERIOD !== "undefined") return metricaRankingHtml(a, "windows");
     var contenido = parejaMetricaHtml(a,"windows");
     var ayuda = "Ventanas de esta hora / acumuladas hoy. No son simultáneas; las automáticas abren una sola cada 60 minutos.";
     return '<span class="window-day-total" title="' + esc(ayuda) + '" aria-label="' + esc(ayuda) + '">' + contenido + '</span>';
   }
 
-  function indicadorMetricaHtml(a,key) { return parejaMetricaHtml(a,key); }
+  function indicadorMetricaHtml(a,key) {
+    return typeof RANKING_PERIOD !== "undefined" ? metricaRankingHtml(a,key) : parejaMetricaHtml(a,key);
+  }
 
   function puntosHtml(a, progressId) {
+    if (typeof RANKING_PERIOD !== "undefined") {
+      var value = metricasRanking(a, RANKING_PERIOD).points || 0;
+      var period = rotuloPeriodoRanking(RANKING_PERIOD).toLowerCase();
+      return '<button class="score-toggle" type="button" aria-expanded="false" aria-controls="' + esc(progressId) +
+        '" aria-label="' + esc(value + " puntos en " + period + ". Mostrar evolución") + '">' +
+        '<span class="ranking-period-metric"><span class="score-number score-day">' + esc(value) +
+        '</span><span class="score-period" aria-hidden="true">' + esc(period) + '</span></span></button>';
+    }
     var metric=metricaHoraDia(a,"points");
     var resumen=metric.hour+" puntos en esta hora, "+metric.day+" puntos hoy";
     return '<button class="score-toggle" type="button" aria-expanded="false" aria-controls="' + esc(progressId) +
@@ -3162,6 +3268,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // sus puntos. En el modo por defecto la presencia sólo poda a quien no ha puntuado;
   // una selección manual sigue mandando tal cual.
   function hsHaPuntuadoHoy(fila) {
+    if (typeof RANKING_PERIOD !== "undefined") return metricasRanking(fila, RANKING_PERIOD).points > 0;
     return (Number(fila && fila.total) || 0) > 0;
   }
   function aplicaAgentScope(lista, requestedScope) {
@@ -3338,13 +3445,20 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     if (campo === "agente") return normaliza(fila.agente);
     if (campo === "ordenador") return ordenadorPrincipal(fila);
     if (campo === "proyecto") return normaliza(fila.proyecto);
+    if (typeof RANKING_PERIOD !== "undefined" && ["objetivos","ventanas","misiones","tareas","puntos"].indexOf(campo) >= 0) {
+      var keys = { objetivos:"objectives", ventanas:"windows", misiones:"missions", tareas:"tasks", puntos:"points" };
+      return metricasRanking(fila, RANKING_PERIOD)[keys[campo]] || 0;
+    }
     if (campo === "puntos") return Number(fila.total) || 0;
     return Number(fila[campo]) || 0;
   }
 
   function listaOrdenada(lista) {
     var campo = ordenTabla.campo, direccion = ordenTabla.direccion;
-    if (!campo || !direccion) return lista.slice();
+    if (!campo || !direccion) return lista.slice().sort(function (a, b) {
+      return metricasRanking(b, RANKING_PERIOD).points - metricasRanking(a, RANKING_PERIOD).points ||
+        normaliza(a.agente).localeCompare(normaliza(b.agente), "es");
+    });
     return lista.slice().sort(function (a, b) {
       var va = valorOrden(a, campo), vb = valorOrden(b, campo), comparacion = 0;
       if (typeof va === "string") {
@@ -3487,7 +3601,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function pintaTabla(listaEntera) {
     rankingListaCache = Array.isArray(listaEntera) ? listaEntera : [];
     pintaRankingToggle(rankingListaCache.length);
-    var lista = rankingRecorta(rankingListaCache);
+    // La posición pertenece al orden visible del periodo activo. Se clona la
+    // fila para no contaminar el ranking diario que también usa el podio.
+    var lista = rankingRecorta(rankingListaCache).map(function (row, index) {
+      var copy = Object.assign({}, row); copy.posicion = index + 1; return copy;
+    });
     document.getElementById("filas").innerHTML = lista.map(function (a, i) {
       var alterna = i % 2 ? " alt" : "", progressId = "score-progress-" + hsAgentKey(a.agente);
       return '<tr class="score-main' + alterna + '"><td class="n">' + posicionHtml(a, a.posicion || i + 1) + '</td>' +
@@ -4687,6 +4805,27 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   });
   document.getElementById("podiumToggle").addEventListener("click", alternaPodio);
   document.getElementById("rankingToggle").addEventListener("click", alternaRanking);
+  var rankingPeriodControl = document.getElementById("rankingPeriod");
+  document.querySelectorAll("[data-ranking-period-step]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      cambiaPeriodoRanking(Number(button.getAttribute("data-ranking-period-step")) || 0);
+    });
+  });
+  rankingPeriodControl.addEventListener("keydown", function (evento) {
+    var step = 0, absolute = false;
+    if (evento.key === "ArrowLeft") step = -1;
+    else if (evento.key === "ArrowRight") step = 1;
+    else if (evento.key === "ArrowUp") step = -1;
+    else if (evento.key === "ArrowDown") step = 1;
+    else if (evento.key === "Home") { RANKING_PERIOD = "hour"; absolute = true; }
+    else if (evento.key === "End") { RANKING_PERIOD = "week"; absolute = true; }
+    else return;
+    evento.preventDefault();
+    if (!absolute) { cambiaPeriodoRanking(step); return; }
+    try { localStorage.setItem(RANKING_PERIOD_KEY, RANKING_PERIOD); } catch (_) {}
+    actualizaPeriodoRanking(); pintaVistaFiltrada();
+  });
+  actualizaPeriodoRanking();
   // El sumador se pinta y repinta con el podio, así que el manejador se
   // delega en el contenedor en vez de atarlo al nodo: si se atara, el primer
   // repintado del podio se llevaría el clic por delante sin avisar.
