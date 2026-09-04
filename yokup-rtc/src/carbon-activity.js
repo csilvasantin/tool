@@ -147,13 +147,13 @@ export function summarizeActivity(tareas, presencia) {
       const t = tareas.text.replace(/\s+/g, " ").trim();
       if (/falta el token/i.test(t)) out.error = "token";
       else if (/no tiene (ninguna )?tarea|sin tarea|no hay tarea/i.test(t)) out.task = "";
-      else out.task = t.replace(/^tarea en curso de [^:]+:\s*/i, "").slice(0, 200);
+      else out.task = t.replace(/^tarea en curso de [^:]+:\s*/i, "").replace(/^.{0,80}? tiene en curso:\s*/i, "").replace(/^[•·\-*]\s*/, "").slice(0, 200);
     } else out.error = tareas.error || "error";
   }
   if (presencia && presencia.ok) {
     out.raw_presence = presencia.text;
     const p = presencia.text.replace(/\s+/g, " ").trim();
-    if (!/falta el token/i.test(p)) out.office = p.slice(0, 160);
+    if (!/falta el token/i.test(p)) out.office = p.replace(/^.{0,80}? está fichad[oa] en\s*/i, "").replace(/\.$/, "").slice(0, 160);
   }
   return out;
 }

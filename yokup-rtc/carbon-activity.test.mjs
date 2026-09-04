@@ -7,7 +7,7 @@ import { CARBON_YARIGAI_SEED, carbonActivity, clearCarbonActivityCache, mcpClien
 
 const source = await readFile(new URL("./src/index.js", import.meta.url), "utf8");
 
-function fakeYarigai({ token = "ymcp_ok", tarea = "Tarea en curso de Carlos: conectar yarig.ai con el player de la taza", oficina = "Carlos está fichado en Madrid" } = {}) {
+function fakeYarigai({ token = "ymcp_ok", tarea = "Carlos Silva tiene en curso:\n• conectar yarig.ai con el player de la taza — Admira.tv", oficina = "Carlos Silva está fichado en Planeta - Nave." } = {}) {
   const calls = [];
   const fetchImpl = async (url, init) => {
     const body = JSON.parse(init.body);
@@ -54,8 +54,8 @@ test("con token: initialize → initialized → tareas+presencia por usuario, y 
   assert.equal(out.token_configured, true);
   const carlos = out.people[0];
   assert.equal(carlos.mapped, true);
-  assert.equal(carlos.now.task, "conectar yarig.ai con el player de la taza");
-  assert.equal(carlos.now.office, "Carlos está fichado en Madrid");
+  assert.equal(carlos.now.task, "conectar yarig.ai con el player de la taza — Admira.tv");
+  assert.equal(carlos.now.office, "Planeta - Nave");
   assert.equal(carlos.error, "");
   assert.equal(out.people[1].mapped, false);
   assert.equal(out.people[1].now, null);
