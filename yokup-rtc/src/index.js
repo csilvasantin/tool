@@ -1,7 +1,7 @@
 import puppeteer from "@cloudflare/puppeteer";
 import { handleAuthRequest, sessionTokenFromRequest, withCredentialCors } from "./auth-flow.js";
 import { machineRefKey, machineRefSqlKey, memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
-import { agentFamilyKey, agentFamilySqlKey, baseAgentIdentity, canonicalMachineSuffix, groupingIdentityKey, identityKey, identitySqlKey, isKnownPersona, machineIdentitySqlKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
+import { AGENT_IDENTITY_SPEC, agentFamilyKey, agentFamilySqlKey, baseAgentIdentity, canonicalMachineSuffix, groupingIdentityKey, identityKey, identitySqlKey, isKnownPersona, machineIdentitySqlKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 import { matchAgentDetailPresence, parseAgentDetailQuery, safeAgentDetailText } from "./agent-detail-contract.js";
 import { buildReportsPageFilter, encodeReportsCursor, parseReportsPageOptions } from "./reports-pagination.js";
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
@@ -7673,6 +7673,169 @@ async function highscoreFleetMissions(env, desdeDia, hastaDia) {
 }
 __name(highscoreFleetMissions, "highscoreFleetMissions");
 
+var HIGHSCORE_MISSION_DETAIL_PERIODS = ["hour", "day", "week", "month"];
+
+// El desplegable de PUNTOS comparte los cuatro periodos del ranking. Hora empieza
+// en el :00 del tramo absoluto (los offsets de Madrid son horas enteras, igual
+// que en highscoreHourlyContract); día, semana y mes empiezan en su medianoche
+// natural de Madrid. El fin es siempre el instante observado: una misión futura
+// o un reloj adelantado no puede colarse en el detalle.
+function highscoreMissionPeriodRange(period, ahora = Date.now()) {
+  const selected = String(period || "day").trim().toLowerCase();
+  if (!HIGHSCORE_MISSION_DETAIL_PERIODS.includes(selected)) return null;
+  const end = highscoreActiveWorkMillis(ahora);
+  if (!end) return null;
+  const natural = highscoreNaturalPeriods(end), today = missionDayRange(natural.today);
+  const start = selected === "hour" ? Math.floor(end / (60 * 60 * 1000)) * 60 * 60 * 1000
+    : selected === "day" ? today && today.start
+    : selected === "week" ? natural.week_start : natural.month_start;
+  if (!start || start > end) return null;
+  return { period:selected, start, end:end + 1,
+    start_day:madridDayKey(start), end_day:madridDayKey(end) };
+}
+__name(highscoreMissionPeriodRange, "highscoreMissionPeriodRange");
+
+// mission_tasks.report es texto operativo libre y /highscore/history es público.
+// El resumen sólo conserva prosa corta: elimina bloques/comandos, URLs, correos,
+// IPs y pares con nombres típicos de credenciales. El informe íntegro se consulta
+// en la ficha autenticada de la misión, nunca se replica en este payload.
+function highscorePublicTaskSummary(value) {
+  let text = String(value || "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`[^`\r\n]*`/g, " ")
+    .replace(/https?:\/\/\S+/gi, "[enlace]")
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[correo]")
+    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, "[ip]")
+    .replace(/\b(?:sk-[A-Z0-9_-]{12,}|gh[opusr]_[A-Z0-9_]{12,}|eyJ[A-Z0-9_-]{12,}\.[A-Z0-9_-]{8,}\.[A-Z0-9_-]{8,})\b/gi, "[credencial]")
+    .replace(/\b[A-Z0-9_-]*(?:TOKEN|SECRET|PASSWORD|PASSWD|API[_-]?KEY|PRIVATE[_-]?KEY)[A-Z0-9_-]*\b\s*[:=]?\s*[^\s,;]+/gi, "[credencial]")
+    .replace(/\b(?:authorization|bearer|password|passwd|secret|token|api[ _-]?key|private[ _-]?key)\b\s*[:=]?\s*[^\s,;]+/gi, "[credencial]")
+    .replace(/(?:\/Users\/|\/home\/|~\/)[^\s,;]+/g, "[ruta]")
+    .replace(/[\r\n\t#>*_]+/g, " ")
+    .replace(/\s+/g, " ").trim();
+  if (text.length > 180) text = text.slice(0, 177).replace(/\s+\S*$/, "") + "…";
+  return text;
+}
+__name(highscorePublicTaskSummary, "highscorePublicTaskSummary");
+
+// Contrato público del explorador de PUNTOS. Filtra en JS por persona base para
+// reunir aliases y máquinas (Lucas + LucasGrokBot) sin aproximaciones SQL que
+// puedan mezclar homónimos. La consulta usa el mismo scored_at y el mismo filtro
+// de alcance que el histórico global, de modo que el total y su explicación
+// hablan del mismo trabajo.
+async function highscoreAgentMissions(env, requestedAgent, period, ahora = Date.now()) {
+  const rawAgent = String(requestedAgent || "").trim();
+  const parsed = parseAgentIdentity(rawAgent), canonicalAgent = String(parsed.persona || rawAgent).trim();
+  const wantedKey = identityKey(baseAgentIdentity(rawAgent));
+  const range = highscoreMissionPeriodRange(period, ahora);
+  if (!wantedKey) return { ok:false, code:"agent_required", error:"agent requerido" };
+  if (!isKnownPersona(canonicalAgent)) return { ok:false, code:"unknown_agent", error:"agent no pertenece a una familia canónica" };
+  const rolelessKey = identityKey(rawAgent).replace(/^(?:infra|sub)/, "").replace(/^agente/, "");
+  const spec = AGENT_IDENTITY_SPEC.personas.find((item) => item.name === canonicalAgent);
+  const exactBaseAlias = !!spec && [spec.name, ...(spec.aliases || [])].some((value) => identityKey(value).replace(/^agente/, "") === rolelessKey);
+  if (!parsed.suffix && !exactBaseAlias) return { ok:false, code:"unknown_agent", error:"agent no pertenece a una familia canónica" };
+  if (!range) return { ok:false, code:"invalid_period", error:"period debe ser hour|day|week|month" };
+
+  const { results } = await env.DB.prepare(
+    `SELECT * FROM (SELECT t.id,t.subject,t.assignee,t.loc,t.status,t.project,t.project_id,t.created_at,` +
+    `${HIGHSCORE_MISSION_STARTED_SQL} scored_at,` +
+    `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,t.resolved_at finished_at,` +
+    `EXISTS(SELECT 1 FROM mission_tasks mt3 WHERE mt3.mission_id=t.id) con_plan ` +
+    `FROM tickets t WHERE ${AGENT_SOURCE_SQL_T}) ` +
+    `WHERE (status IN ('in_progress','resolved') OR (status='open' AND con_plan=1)) ` +
+    `AND scored_at>=? AND scored_at<? ORDER BY scored_at DESC,id ASC`
+  ).bind(range.start, range.end).all();
+  const missions = (results || []).filter((row) =>
+    identityKey(baseAgentIdentity(row.assignee)) === wantedKey);
+  await attachDisplayRefs(env, "mission", missions, (row) => row.id, (row) => row.created_at);
+
+  const ids = [...new Set(missions.map((row) => String(row.id || "")).filter(Boolean))];
+  const taskRows = ids.length ? await selectIn(env, ids, (ph) =>
+    `SELECT mission_id,code,title,status,report,created_at,started_at,ended_at,updated_at ` +
+    `FROM mission_tasks WHERE mission_id IN (${ph}) ORDER BY mission_id ASC,code ASC`) : [];
+  const projectIds = [...new Set(missions.map((row) => String(row.project_id || row.project || "").trim()).filter(Boolean))];
+  const projectRows = projectIds.length ? await selectIn(env, projectIds, (ph) =>
+    `SELECT id,name FROM projects WHERE id IN (${ph})`) : [];
+  const projects = new Map((projectRows || []).map((row) => [String(row.id || ""), String(row.name || "").trim()]));
+  const tasksByMission = new Map();
+  const activeTask = new Set(["doing", "in_progress", "active"]);
+  const taskRepresentatives = new Map();
+  for (const task of taskRows || []) {
+    const key = String(task.mission_id || "") + "|" + String(task.code || "").toLowerCase();
+    const previous = taskRepresentatives.get(key), stamp = highscoreActiveWorkMillis(task.updated_at);
+    const previousStamp = highscoreActiveWorkMillis(previous && previous.updated_at);
+    // D1 impone mission_id+code como PK, pero la defensa mantiene estable el
+    // contrato ante fixtures/importaciones: gana el hecho más reciente y, si
+    // empatan, una firma pública determinista, nunca el orden del feed.
+    const signature = JSON.stringify([task.status,task.title,task.report,task.started_at,task.ended_at]);
+    const previousSignature = previous ? JSON.stringify([previous.status,previous.title,previous.report,previous.started_at,previous.ended_at]) : "";
+    if (!previous || stamp > previousStamp || (stamp === previousStamp && signature.localeCompare(previousSignature) > 0)) {
+      taskRepresentatives.set(key, task);
+    }
+  }
+  const stableTasks = [...taskRepresentatives.values()].sort((a, b) =>
+    String(a.mission_id || "").localeCompare(String(b.mission_id || "")) ||
+    String(a.code || "").localeCompare(String(b.code || "")));
+  for (const task of stableTasks) {
+    const id = String(task.mission_id || "");
+    if (!ids.includes(id)) continue;
+    const status = String(task.status || "pending"), startedAt = highscoreActiveWorkMillis(task.started_at);
+    const finishedAt = highscoreActiveWorkMillis(task.ended_at);
+    const ongoing = activeTask.has(status.toLowerCase()) && !finishedAt;
+    const effectiveEnd = finishedAt || (ongoing ? range.end - 1 : 0);
+    const duration = startedAt && effectiveEnd >= startedAt ? effectiveEnd - startedAt : null;
+    const item = { code:String(task.code || ""), title:String(task.title || ""), status,
+      summary:highscorePublicTaskSummary(task.report),
+      started_at:startedAt || null, finished_at:finishedAt || null,
+      duration_ms:duration, ongoing };
+    if (!tasksByMission.has(id)) tasksByMission.set(id, []);
+    tasksByMission.get(id).push(item);
+  }
+
+  const activeMission = new Set(["open", "in_progress", "doing", "active"]), byId = new Map();
+  for (const row of missions) {
+    const id = String(row.id || "");
+    if (!id) continue;
+    const status = String(row.status || "open"), startedAt = highscoreActiveWorkMillis(row.work_started_at || row.scored_at);
+    const finishedAt = highscoreActiveWorkMillis(row.finished_at);
+    const ongoing = activeMission.has(status.toLowerCase()) && !finishedAt;
+    const effectiveEnd = finishedAt || (ongoing ? range.end - 1 : 0);
+    const duration = startedAt && effectiveEnd >= startedAt ? effectiveEnd - startedAt : null;
+    const machine = String(row.loc || "").trim(), projectId = String(row.project_id || row.project || "").trim();
+    const item = { id, display_ref:row.display_ref || null,
+      subject:String(row.subject || ""), title:String(row.subject || ""), agent:canonicalAgent,
+      machine, machines:machine ? [machine] : [], status, project_id:projectId,
+      project_name:projects.get(projectId) || String(row.project || projectId || ""),
+      at:highscoreActiveWorkMillis(row.scored_at) || null,
+      started_at:startedAt || null, finished_at:finishedAt || null,
+      duration_ms:duration, ongoing, points:HIGHSCORE_WEIGHTS.mission,
+      tasks:tasksByMission.get(id) || [], task_count:(tasksByMission.get(id) || []).length,
+      report_url:"/ticket?id=" + encodeURIComponent(id) };
+    const previous = byId.get(id);
+    if (!previous) byId.set(id, item);
+    else {
+      const machines = [...new Set(previous.machines.concat(item.machines))].sort((a, b) => a.localeCompare(b));
+      const signature = JSON.stringify([item.at,item.status,item.subject,item.project_id,item.project_name,item.machine]);
+      const previousSignature = JSON.stringify([previous.at,previous.status,previous.subject,previous.project_id,previous.project_name,previous.machine]);
+      const winner = Number(item.at || 0) > Number(previous.at || 0) ||
+        (Number(item.at || 0) === Number(previous.at || 0) && signature.localeCompare(previousSignature) > 0) ? item : previous;
+      winner.machines = machines;
+      if (!winner.machine && machines.length) winner.machine = machines[0];
+      if (!winner.tasks.length && (winner === item ? previous.tasks : item.tasks).length) {
+        winner.tasks = winner === item ? previous.tasks : item.tasks;
+        winner.task_count = winner.tasks.length;
+      }
+      byId.set(id, winner);
+    }
+  }
+  const list = [...byId.values()].sort((a, b) => Number(b.at || b.started_at || 0) - Number(a.at || a.started_at || 0) || a.id.localeCompare(b.id));
+  return { ok:true, scope:"agent-missions", agent:canonicalAgent, period:range.period,
+    timezone:"Europe/Madrid", generated_at:range.end - 1,
+    range:{ start_at:range.start, end_at:range.end - 1, start_day:range.start_day, end_day:range.end_day,
+      from:range.start_day, to:range.end_day },
+    total:list.length, missions:list };
+}
+__name(highscoreAgentMissions, "highscoreAgentMissions");
+
 async function highscoreHistory(env, requestedAgent, ahora = Date.now()) {
   const parsed = parseAgentIdentity(requestedAgent), suffix = parsed.suffix;
   if (parsed.role !== "main" || !suffix || !String(parsed.persona || "").trim()) {
@@ -8960,6 +9123,12 @@ var worker_app = {
       // mismo endpoint a propósito: es el mismo dato con otro alcance, y tener
       // dos rutas para la misma pregunta acaba en dos recuentos distintos.
       if (String(url.searchParams.get("scope") || "").toLowerCase() === "global") {
+        if (String(url.searchParams.get("detail") || "").toLowerCase() === "missions") {
+          const detail = await highscoreAgentMissions(env, agent, url.searchParams.get("period") || "day");
+          const response = json(detail, detail.ok ? 200 : 400);
+          response.headers.set("cache-control", "no-store");
+          return response;
+        }
         // Con `desde` se pide el DETALLE de un periodo en vez del agregado: es
         // el mismo alcance mirado de cerca, así que comparte ruta y filtro.
         const desde = String(url.searchParams.get("desde") || "").trim();
