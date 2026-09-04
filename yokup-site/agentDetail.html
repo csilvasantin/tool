@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<title>Detalle de agente · Yokup</title>
+<meta name="robots" content="noindex,nofollow">
+<script src="/acceso.js?v=20260811-r4-d77633add752"></script>
+<link rel="stylesheet" href="/yk-frame.css?v=r19">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--line:rgba(120,243,255,.18);--line2:rgba(120,243,255,.3);--mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:var(--mono)}a{color:var(--brand)}
+.wrap{max-width:1040px;margin:0 auto;padding:54px 20px 72px}.back{display:inline-flex;align-items:center;min-height:44px;margin-bottom:18px;color:var(--brand);font-size:11px;font-weight:900;letter-spacing:.08em;text-decoration:none}.back:hover,.back:focus-visible{color:var(--ink);outline:2px solid var(--brand);outline-offset:3px;border-radius:4px}
+.agent-hero{position:relative;overflow:hidden;padding:18px 20px;border:1px solid var(--line2);border-radius:14px;background:var(--card);box-shadow:0 18px 52px rgba(0,0,0,.3)}.agent-hero::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--dim);box-shadow:0 0 12px currentColor}.agent-hero[data-state="fresh"]::before{background:var(--good)}
+.agent-top{display:flex;align-items:center;gap:10px}.agent-dot{width:9px;height:9px;border-radius:50%;background:var(--dim);flex:none}.agent-hero[data-state="fresh"] .agent-dot{background:var(--good);box-shadow:0 0 14px var(--good)}.agent-top h1{min-width:0;margin:0;font-size:clamp(20px,3vw,30px);overflow-wrap:anywhere}.agent-runtime{margin-left:auto;flex:none;padding:4px 8px;border:1px solid var(--line2);border-radius:7px;color:var(--mut);font-size:9px;letter-spacing:.06em;text-transform:uppercase}.agent-machine{margin:12px 0 7px;color:var(--brand);font-size:11px;letter-spacing:.05em}.agent-focus{margin:0;color:var(--mut);font:13px/1.55 system-ui,sans-serif}.agent-meta{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0 0;color:var(--dim);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase}.agent-meta .fresh{color:var(--good)}.agent-meta .quiet{color:var(--accent)}
+.agent-panel{margin-top:16px;padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--card)}.panel-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:14px}.panel-heading h2{margin:0;color:var(--brand);font-size:12px;letter-spacing:.12em;text-transform:uppercase}.panel-heading span{color:var(--dim);font-size:9px;text-transform:uppercase}.current-work h3,.history-item h3{margin:0;color:var(--ink);font:700 14px/1.45 system-ui,sans-serif}.agent-facts{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:8px 16px;margin:16px 0}.agent-facts dt{color:var(--dim);font-size:9px;text-transform:uppercase}.agent-facts dd{margin:0;color:var(--mut);font-size:10px;overflow-wrap:anywhere}.agent-detail-link{display:inline-flex;align-items:center;min-height:40px;color:var(--brand);font-size:10px;font-weight:900;text-decoration:none}.agent-detail-link:hover,.agent-detail-link:focus-visible{text-decoration:underline;outline:2px solid var(--brand);outline-offset:3px;border-radius:4px}
+.history-list{display:grid;gap:9px}.history-item{padding:13px 14px;border:1px solid var(--line);border-radius:10px;background:rgba(2,8,13,.48)}.history-top{display:flex;justify-content:space-between;gap:10px;margin-bottom:7px}.history-kind,.history-status{color:var(--accent);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase}.history-status{color:var(--mut)}.history-context,.history-time{display:block;margin:7px 0 0;color:var(--dim);font-size:9.5px;line-height:1.45;overflow-wrap:anywhere}.agent-more,.agent-retry{min-height:44px;margin-top:14px;padding:9px 13px;border:1px solid var(--line2);border-radius:8px;background:rgba(120,243,255,.07);color:var(--brand);font:900 10px var(--mono);cursor:pointer}.agent-more:hover,.agent-more:focus-visible,.agent-retry:hover,.agent-retry:focus-visible{border-color:var(--brand);color:var(--ink);outline:2px solid var(--brand);outline-offset:2px}.agent-empty,.agent-state p{margin:0;color:var(--dim);font:12px/1.6 system-ui,sans-serif}.agent-state{padding:24px;border:1px solid var(--line);border-radius:14px;background:var(--card)}.agent-state h1{margin:0 0 10px;font-size:21px}.agent-sampled{margin:12px 0 0;color:var(--dim);font-size:9px}
+@media(max-width:620px){.wrap{padding:38px 14px 56px}.agent-top{align-items:flex-start;flex-wrap:wrap}.agent-runtime{margin-left:0;width:100%}.agent-facts{grid-template-columns:1fr;gap:4px}.agent-facts dd{margin-bottom:8px}.panel-heading{align-items:flex-start;flex-direction:column}.history-top{flex-wrap:wrap}.agent-panel{padding:15px}}
+</style>
+</head>
+<body data-yk-title="AGENTE" data-yk-zone="app" data-yk-parent="/dashboard">
+<main class="wrap">
+  <a class="back" href="/dashboard" aria-label="Volver al Dashboard">← Volver al Dashboard</a>
+  <div id="agentDetail" aria-live="polite" aria-busy="false"><section class="agent-state"><p>Cargando actividad del agente…</p></section></div>
+</main>
+<script src="/agent-detail.js?v=v.2026.09.04.r1"></script>
+<script src="/agent-detail-page.js?v=v.2026.09.04.r1"></script>
+<script src="/yk-frame.js?v=r19-parent1"></script>
+</body>
+</html>
