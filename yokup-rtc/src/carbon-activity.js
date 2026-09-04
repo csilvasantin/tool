@@ -83,9 +83,21 @@ export function mcpToolText(rpc) {
   return { ok: true, text };
 }
 
+async function readFirstSse(body) {
+  const reader = body.getReader(); const dec = new TextDecoder(); let buf = "";
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (value) buf += dec.decode(value, { stream: true });
+      if (parseMcpBody("text/event-stream", buf)) { try { await reader.cancel(); } catch {} return buf; }
+      if (done) return buf;
+    }
+  } catch { return buf; }
+}
+
 // Un cliente MCP mínimo: abre sesión, la inicializa y llama tools. Sin
 // dependencias, porque el worker no puede cargar el SDK de MCP.
-export function mcpClient({ url = YARIGAI_MCP_URL, token, fetchImpl = fetch, timeoutMs = 8000 } = {}) {
+export function mcpClient({ url = YARIGAI_MCP_URL, token, fetchImpl = fetch, timeoutMs = 12000 } = {}) {
   let session = "";
   const headers = () => {
     const h = { "content-type": "application/json", accept: "application/json, text/event-stream", "user-agent": "Mozilla/5.0 (compatible; yokup-rtc)" };
@@ -100,8 +112,12 @@ export function mcpClient({ url = YARIGAI_MCP_URL, token, fetchImpl = fetch, tim
       const r = await fetchImpl(url, { method: "POST", headers: headers(), body: JSON.stringify(body), signal: ctl ? ctl.signal : undefined });
       const sid = r.headers && r.headers.get ? r.headers.get("mcp-session-id") : "";
       if (sid) session = sid;
-      const text = await r.text();
-      return { status: r.status, rpc: parseMcpBody(r.headers && r.headers.get ? r.headers.get("content-type") : "", text) };
+      const ct = r.headers && r.headers.get ? r.headers.get("content-type") || "" : "";
+      // Un stream SSE puede quedarse abierto tras el mensaje: se lee hasta la primera
+      // respuesta JSON-RPC completa y se cancela el resto, en vez de esperar a que el
+      // servidor cierre (en Workers eso acababa en «The operation was aborted»).
+      const text = ct.includes("text/event-stream") && r.body && typeof r.body.getReader === "function" ? await readFirstSse(r.body) : await r.text();
+      return { status: r.status, rpc: parseMcpBody(ct, text) };
     } finally { if (timer) clearTimeout(timer); }
   };
   return {
@@ -159,7 +175,9 @@ export async function carbonActivity({ people, token, now = Date.now(), fetchImp
     try {
       if (!client && !initError) { client = mcpClient({ url, token, fetchImpl }); await client.init(); }
       if (initError) throw new Error(initError);
-      const [tareas, presencia] = await Promise.all([client.call("tareas", { de: key }), client.call("presencia", { de: key })]);
+      // En serie, no en paralelo: una sesión MCP atiende una petición cada vez.
+      const tareas = await client.call("tareas", { de: key });
+      const presencia = await client.call("presencia", { de: key });
       const s = summarizeActivity(tareas, presencia);
       const entry = { at: now, now: { task: s.task, office: s.office, raw_task: s.raw_task, raw_presence: s.raw_presence }, error: s.error };
       CACHE.set(key, entry);
