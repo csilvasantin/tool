@@ -38,8 +38,8 @@ function requireBinding(env) {
 export function normalizeCliTerminalRequest(input) {
   const action = String(input && input.action || "").trim().toLowerCase();
   if (action !== "read" && action !== "write" && action !== "focus" && action !== "unfocus") throw new AgentStopError("invalid-terminal-action", 400);
+  if (String(input && input.host || "").trim().toLowerCase() !== "cli") throw new AgentStopError("terminal-requires-cli", 400);
   const target = normalizeAgentStopTarget(input);
-  if (target.host !== "cli") throw new AgentStopError("terminal-requires-cli", 400);
   return { ...target, action, text:action === "write" ? terminalText(input && input.text) : "" };
 }
 

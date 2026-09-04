@@ -21,12 +21,20 @@ export function normalizeAgentStopTarget(input) {
   if (host !== "app" && host !== "cli") throw new AgentStopError("invalid-host", 400);
   const pid = Number(input && input.pid);
   if (!Number.isSafeInteger(pid) || pid <= 1) throw new AgentStopError("invalid-pid", 400);
+  const runtime = requiredText(input && input.runtime, "runtime", 30);
+  const session_id = requiredText(input && input.session_id, "session_id", 80);
+  if (host === "app" && session_id !== "desktop:" + runtime.toLowerCase()) {
+    throw new AgentStopError("desktop-session-runtime-mismatch", 400);
+  }
+  if (host === "cli" && !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(session_id)) {
+    throw new AgentStopError("unsafe-cli-session", 400);
+  }
   return {
     machine: requiredText(input && input.machine, "machine", 60),
     persona: requiredText(input && input.persona, "persona", 60),
-    runtime: requiredText(input && input.runtime, "runtime", 30),
+    runtime,
     host,
-    session_id: requiredText(input && input.session_id, "session_id", 80),
+    session_id,
     pid,
   };
 }
@@ -85,9 +93,21 @@ export function selectLiveAgentSession(rows, target, nowSeconds = Math.floor(Dat
 }
 
 function safeCommandId(value) {
-  if (Number.isSafeInteger(value) && value > 0) return value;
+  // D1 serializa un Number enlazado a una columna TEXT como "2367.0". Si el
+  // navegador consulta después "2367", la auditoría no encuentra la orden y el
+  // panel termina en control-failed aunque el watcher ya la haya completado.
+  // Los ids son identificadores opacos: se normalizan siempre a texto antes de
+  // devolverlos y persistirlos.
+  if (Number.isSafeInteger(value) && value > 0) return String(value);
   const id = String(value == null ? "" : value).trim();
   return id && id.length <= 100 && /^[A-Za-z0-9._:-]+$/.test(id) ? id : "";
+}
+
+function publicExecutionError(value) {
+  const detail = String(value == null ? "" : value).trim().toLowerCase();
+  if (detail === "watcher lease expired") return "agent-control-watcher-timeout";
+  if (detail.startsWith("desktop stop failed:")) return "desktop-stop-failed";
+  return detail ? "agent-control-execution-failed" : "";
 }
 
 export function sanitizeAgentStopResult(input) {
@@ -121,7 +141,7 @@ export async function readAgentControlResult(env, id) {
   if (action !== "start" && action !== "stop") throw new AgentStopError("agent-control-command-mismatch", 409);
   return {
     ok:status !== "failed" && status !== "rejected", command_id:safeId, action, status,
-    error:String(command.error || command.detail || "").slice(0, 300), updated_at:Number(command.updated_at || 0) || null
+    error:publicExecutionError(command.error || command.detail), updated_at:Number(command.updated_at || 0) || null
   };
 }
 
@@ -187,7 +207,9 @@ export async function dispatchAgentStart(env, input) {
   try { result = await response.json(); } catch {}
   if (!response.ok) {
     const status = response.status === 400 || response.status === 403 ? response.status : response.status === 409 ? 409 : 502;
-    throw new AgentStopError(String(result && result.error || "start-command-rejected"), status);
+    const upstream = String(result && result.error || "").trim().toLowerCase();
+    const publicCode = new Set(["desktop-session-runtime-mismatch", "unsafe-cli-session", "machine_watcher_stale", "start_target_not_advertised"]);
+    throw new AgentStopError(publicCode.has(upstream) ? upstream.replaceAll("_", "-") : "start-command-rejected", status);
   }
   if (String(result.status || "") === "already_running") {
     return { target, result:{ ok:true, command_id:"already-running", status:"already_running" } };

@@ -18,6 +18,8 @@ const deploySource = await readFile(new URL("./deploy.sh", import.meta.url), "ut
 test("el target exige los seis identificadores y un PID de proceso", () => {
   assert.deepEqual(normalizeAgentStopTarget(target), target);
   assert.throws(() => normalizeAgentStopTarget({ ...target, session_id:"" }), /invalid-session_id/);
+  assert.throws(() => normalizeAgentStopTarget({ ...target, session_id:"desktop:claude" }), /desktop-session-runtime-mismatch/);
+  assert.throws(() => normalizeAgentStopTarget({ ...target, host:"cli", session_id:"..\/shell" }), /unsafe-cli-session/);
   assert.throws(() => normalizeAgentStopTarget({ ...target, pid:1 }), /invalid-pid/);
   assert.throws(() => normalizeAgentStopTarget({ ...target, host:"web" }), /invalid-host/);
 });
@@ -68,7 +70,7 @@ test("el arranque usa el control interno y devuelve sólo el acuse saneado", asy
 
 test("respuesta pública sanea estado y rechaza ids no trazables", () => {
   assert.deepEqual(sanitizeAgentStopResult({ command_id:42, status:"queued" }), {
-    ok:true, command_id:42, status:"queued"
+    ok:true, command_id:"42", status:"queued"
   });
   assert.deepEqual(sanitizeAgentStopResult({ id:"cmd:9", status:"valor-interno", secret:"x" }), {
     ok:true, command_id:"cmd:9", status:"accepted"
@@ -76,14 +78,23 @@ test("respuesta pública sanea estado y rechaza ids no trazables", () => {
   assert.throws(() => sanitizeAgentStopResult({ command_id:"id con espacios", status:"queued" }), AgentStopError);
 });
 
-test("el polling protegido conserva sólo estado final y error acotado", async () => {
+test("el polling protegido conserva sólo estado final y un código público", async () => {
   const env={TELEGRAM:{async fetch(request){
     assert.equal(new URL(request.url).pathname,"/api/fleet/agent/commands/start-7");
     return Response.json({command:{action:"start",status:"failed",error:"desktop launched but fullscreen composer focus failed",input:"secreto",updated_at:77}});
   }}};
   assert.deepEqual(await readAgentControlResult(env,"start-7"),{
     ok:false,command_id:"start-7",action:"start",status:"failed",
-    error:"desktop launched but fullscreen composer focus failed",updated_at:77
+    error:"agent-control-execution-failed",updated_at:77
+  });
+});
+
+test("el polling traduce causas conocidas sin exponer el detalle del watcher", async () => {
+  const env={TELEGRAM:{async fetch(){
+    return Response.json({command:{action:"stop",status:"failed",error:"desktop stop failed: /Users/private/token"}});
+  }}};
+  assert.deepEqual(await readAgentControlResult(env,"42"),{
+    ok:false,command_id:"42",action:"stop",status:"failed",error:"desktop-stop-failed",updated_at:null
   });
 });
 

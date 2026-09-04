@@ -10,7 +10,8 @@
     PUBLIC_ERRORS=new Set(["invalid-action","target-not-found","target-not-eligible","invalid-target","invalid-host","invalid-pid",
       "invalid-machine","invalid-persona","invalid-runtime","invalid-session_id","desktop-session-runtime-mismatch","unsafe-cli-session",
       "agent-offline-or-stale","ambiguous-agent-target","agent-changed-before-stop","presence-unavailable","presence-invalid",
-      "start-service-unavailable","stop-service-unavailable","start-command-rejected","stop-command-rejected","agent-control-failed"]);
+      "start-service-unavailable","stop-service-unavailable","start-command-rejected","stop-command-rejected","agent-control-failed",
+      "agent-control-execution-failed","agent-control-watcher-timeout","desktop-stop-failed","machine-watcher-stale","start-target-not-advertised"]);
   function text(value){return String(value==null?"":value).trim();}
   function norm(value){return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();}
   function seconds(value){var number=Number(value)||0;return number>4102444800?Math.floor(number/1000):Math.floor(number);}

@@ -449,18 +449,18 @@ function pulseApplyView(action,key){
   pulseWriteView();pulseRender();
 }
 async function pulseSendControl(request){
-  const response=await fetch(request.endpoint,{method:request.method||"POST",credentials:"include",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify(request.body)}),payload=await response.json().catch(()=>({}));
-  if(!response.ok||payload.ok===false)throw new Error(pulsePublicError(payload.error||"control-rejected"));return payload;
+  const response=await fetch(PROJECTS_API+request.endpoint,{method:request.method||"POST",credentials:"include",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify(request.body)}),payload=await response.json().catch(()=>({}));
+  if(!response.ok||payload.ok!==true)throw new Error(pulsePublicError(payload.error||"control-rejected"));return payload;
 }
 async function pulseReadControl(commandId){
-  const response=await fetch("/fleet/agent/control?id="+encodeURIComponent(commandId),{credentials:"include",cache:"no-store"}),payload=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(pulsePublicError(payload.error||"control-status-unavailable"));return payload;
+  const response=await fetch(PROJECTS_API+"/fleet/agent/control?id="+encodeURIComponent(commandId),{credentials:"include",cache:"no-store"}),payload=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(pulsePublicError(payload.error||"control-status-unavailable"));if(!payload||typeof payload.status!=="string")throw new Error("agent-control-status-invalid");return payload;
 }
 function pulseOperationPhase(status){
   status=String(status||"").toLowerCase();if(status==="failed"||status==="rejected")return "error";if(status==="stopped"||status==="done"||status==="already_running"||status==="already_stopped")return "success";if(status==="running"||status==="stopping")return "running";return "pending";
 }
 function pulsePublicError(value){
-  const code=String(value||"").trim().toLowerCase(),allowed=new Set(["control-failed","control-rejected","control-status-unavailable","agent-control-command-not-found","agent-control-status-unavailable","agent-control-status-invalid","agent-control-command-mismatch","confirmation-required","transport-required","target-not-found","target-not-eligible","invalid-action","invalid-target","invalid-batch-plan","agent-offline-or-stale","ambiguous-agent-target","agent-changed-before-stop","start-command-rejected","stop-command-rejected","telegram-binding-unavailable","presence-unavailable"]);
+  const code=String(value||"").trim().toLowerCase(),allowed=new Set(["control-failed","control-rejected","control-status-unavailable","agent-control-command-not-found","agent-control-status-unavailable","agent-control-status-invalid","agent-control-command-mismatch","confirmation-required","transport-required","target-not-found","target-not-eligible","invalid-action","invalid-target","invalid-batch-plan","agent-offline-or-stale","ambiguous-agent-target","agent-changed-before-stop","start-command-rejected","stop-command-rejected","telegram-binding-unavailable","presence-unavailable","agent-control-execution-failed","agent-control-watcher-timeout","desktop-stop-failed","machine-watcher-stale","start-target-not-advertised","desktop-session-runtime-mismatch","unsafe-cli-session"]);
   return allowed.has(code)?code:"control-failed";
 }
 function pulseForgetFailed(action,controlKey){PULSE_CONTROL_LEDGER.delete(String(action||"").toLowerCase()+":"+controlKey);}

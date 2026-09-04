@@ -34,11 +34,19 @@ test("toda orden exige confirmación y la ejecución usa transporte inyectado",a
   assert.match(source,/YkAgentControl\.executeOne\(PULSE_CONTROL_MODEL,controlKey,action,options\)/);
   assert.match(source,/YkAgentControl\.executeBatch\(PULSE_CONTROL_MODEL,plan,options\)/);
   const fn=source.match(/async function pulseSendControl\(request\)\{[\s\S]*?\n\}/)?.[0];assert.ok(fn);
-  const calls=[],context={fetch:async(...args)=>{calls.push(args);return {ok:true,json:async()=>({ok:true,status:"accepted",command_id:"mock-1"})};}};
+  const calls=[],context={PROJECTS_API:"https://api.yokup.com",fetch:async(...args)=>{calls.push(args);return {ok:true,json:async()=>({ok:true,status:"accepted",command_id:"mock-1"})};}};
   vm.runInNewContext(`${fn}\nthis.send=pulseSendControl;`,context);
   const result=await context.send({endpoint:"/fleet/agent/control",method:"POST",body:{action:"start",machine:"MacMini"}});
-  assert.equal(result.command_id,"mock-1");assert.equal(calls.length,1);assert.equal(calls[0][0],"/fleet/agent/control");
+  assert.equal(result.command_id,"mock-1");assert.equal(calls.length,1);assert.equal(calls[0][0],"https://api.yokup.com/fleet/agent/control");
   assert.equal(calls[0][1].credentials,"include");assert.equal(JSON.parse(calls[0][1].body).action,"start");
+});
+
+test("un HTML 200 del site nunca se acepta como orden del API",async()=>{
+  const sanitize=source.match(/function pulsePublicError\(value\)\{[\s\S]*?\n\}/)?.[0],fn=source.match(/async function pulseSendControl\(request\)\{[\s\S]*?\n\}/)?.[0];assert.ok(sanitize&&fn);
+  const calls=[],context={PROJECTS_API:"https://api.yokup.com",fetch:async(...args)=>{calls.push(args);return {ok:true,json:async()=>({})};}};
+  vm.runInNewContext(`${sanitize}\n${fn}\nthis.send=pulseSendControl;`,context);
+  await assert.rejects(()=>context.send({endpoint:"/fleet/agent/control",body:{action:"stop"}}),error=>error.message==="control-rejected");
+  assert.equal(calls[0][0],"https://api.yokup.com/fleet/agent/control");
 });
 
 test("el resumen parcial es accesible y distingue fallos",()=>{
@@ -79,10 +87,10 @@ test("la tarjeta refleja pendiente, ejecución, éxito y error sin inventar el e
 
 test("las órdenes aceptadas se consultan por GET y los fallos liberan el reintento",async()=>{
   const sanitize=source.match(/function pulsePublicError\(value\)\{[\s\S]*?\n\}/)?.[0],fn=source.match(/async function pulseReadControl\(commandId\)\{[\s\S]*?\n\}/)?.[0];assert.ok(sanitize&&fn);
-  const calls=[],context={encodeURIComponent,fetch:async(...args)=>{calls.push(args);return {ok:true,json:async()=>({ok:true,status:"running",command_id:"mock-1"})};}};
+  const calls=[],context={PROJECTS_API:"https://api.yokup.com",encodeURIComponent,fetch:async(...args)=>{calls.push(args);return {ok:true,json:async()=>({ok:true,status:"running",command_id:"mock-1"})};}};
   vm.runInNewContext(`${sanitize}\n${fn}\nthis.read=pulseReadControl;`,context);
   const result=await context.read("mock-1");assert.equal(result.status,"running");
-  assert.equal(calls[0][0],"/fleet/agent/control?id=mock-1");assert.equal(calls[0][1].credentials,"include");
+  assert.equal(calls[0][0],"https://api.yokup.com/fleet/agent/control?id=mock-1");assert.equal(calls[0][1].credentials,"include");
   assert.match(source,/void pulsePollOperation\(result\.control_key,result\.action,operation\.command_id\)/);
   assert.match(source,/PULSE_CONTROL_LEDGER\.delete\(String\(action\|\|""\)\.toLowerCase\(\)\+":"\+controlKey\)/);
   assert.match(source,/if\(phase==="error"\)\{pulseForgetFailed/);
@@ -98,7 +106,7 @@ test("un error remoto con secreto o ruta falla cerrado antes de estado y DOM",as
   const operation=operations.get("control:abc"),markup=`<span>${operation.error}</span>`;
   assert.equal(operation.error,"control-failed");assert.doesNotMatch(markup,/SUPER_SECRET|Users|key\.pem/);assert.equal(ledger.has("stop:control:abc"),false);
 
-  const read=source.match(/async function pulseReadControl\(commandId\)\{[\s\S]*?\n\}/)?.[0],readContext={encodeURIComponent,fetch:async()=>({ok:false,json:async()=>({error:remote})})};
+  const read=source.match(/async function pulseReadControl\(commandId\)\{[\s\S]*?\n\}/)?.[0],readContext={PROJECTS_API:"https://api.yokup.com",encodeURIComponent,fetch:async()=>({ok:false,json:async()=>({error:remote})})};
   vm.runInNewContext(`${sanitize}\n${read}\nthis.read=pulseReadControl;`,readContext);
   await assert.rejects(()=>readContext.read("mock-2"),error=>error.message==="control-failed"&&!/SUPER_SECRET|Users/.test(error.message));
 });
