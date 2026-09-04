@@ -13,7 +13,8 @@ import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, 
 import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_NOVELTY_INSERT_SQL, MISSION_NOVELTY_RECENT_SQL, MISSION_NOVELTY_TABLE_SQL, missionNoveltyContract, missionNoveltyEventKey } from "./mission-novelty.js";
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
 import { resolveIdeaAuthor } from "./idea-author.js";
-import { CARBON_BEAT_WINDOW_MS, CARBON_MEMBERS_INDEX_SQL, CARBON_MEMBERS_TABLE_SQL, carbonBeat, carbonRow, carbonSeedSql, normalizeCarbonMember } from "./carbon-members.js";
+import { CARBON_BEAT_WINDOW_MS, CARBON_MEMBERS_INDEX_SQL, CARBON_MEMBERS_TABLE_SQL, carbonBeat, carbonRow, carbonSeedSql, normalizeCarbonMember, carbonId } from "./carbon-members.js";
+import { CARBON_YARIGAI_SEED, CARBON_YARIGAI_TABLE_SQL, carbonActivity, normalizeCarbonYarigai } from "./carbon-activity.js";
 import {
   CLI_CATALOGO,
   ackMatchesCommand,
@@ -424,6 +425,7 @@ async function applySchema(env) {
   // baja, sin latido y sin forma de comprobar que existen. La tabla las saca del
   // código y las pone donde ya vive el silicio. Ver src/carbon-members.js.
   await env.DB.exec(CARBON_MEMBERS_TABLE_SQL);
+  await env.DB.exec(CARBON_YARIGAI_TABLE_SQL);
   await env.DB.exec(CARBON_MEMBERS_INDEX_SQL);
   await env.DB.exec(CARBON_ROSTER_SEED_SQL);
   // RESPONSABLES DEL PROYECTO (FLT-1505). `owner` ya contiene al agente de
@@ -8792,6 +8794,44 @@ var worker_app = {
     // Google de Carlos sería pedirle que se haga pasar por él. Editar la ficha
     // de otra persona sí es gestión, pero el carril ya distingue lo uno de lo
     // otro para el silicio y no se inventa aquí un perímetro distinto.
+    // «En qué está» cada responsable de carbono, leído del MCP de Yarigai
+    // (src/carbon-activity.js). Sin YARIGAI_MCP_TOKEN responde honesto: sin datos.
+    if (url.pathname === "/carbon/activity" && req.method === "GET") {
+      try {
+        const projects = (await listProjects(env)).filter((p) => String(p.status || "activo").toLowerCase() !== "archivado");
+        const byId = new Map();
+        for (const p of projects) {
+          const name = String(p.carbon_responsible || "").trim(); const id = carbonId(name);
+          if (id && !byId.has(id)) byId.set(id, { carbon_id: id, name, email: "" });
+        }
+        let maps = (await env.DB.prepare("SELECT carbon_id,name,email FROM carbon_yarigai").all()).results || [];
+        // La semilla (Carlos = csilva@admira.com) se planta aquí, al primer uso, y no en
+        // ensureSchema: allí correría en cada petición y ensuciaría cualquier auditoría
+        // de escrituras (los tests de atomicidad la veían como una escritura fantasma).
+        if (!maps.length) {
+          for (const seed of CARBON_YARIGAI_SEED) await env.DB.prepare("INSERT OR IGNORE INTO carbon_yarigai (carbon_id,name,email,updated_at,updated_by) VALUES (?,?,?,?,?)").bind(seed.carbon_id, seed.name, seed.email, Date.now(), "seed").run();
+          maps = (await env.DB.prepare("SELECT carbon_id,name,email FROM carbon_yarigai").all()).results || [];
+        }
+        for (const m of maps) { const row = byId.get(m.carbon_id); if (row) row.email = m.email; }
+        const out = await carbonActivity({ people: [...byId.values()], token: String(env.YARIGAI_MCP_TOKEN || "") });
+        return json({ ...out, mapping_endpoint: "/carbon/yarigai" });
+      } catch (e) { return json({ ok: false, error: String(e) }, 500); }
+    }
+    if (url.pathname === "/carbon/yarigai" && req.method === "GET") {
+      const rows = (await env.DB.prepare("SELECT carbon_id,name,email,updated_at,updated_by FROM carbon_yarigai ORDER BY name").all()).results || [];
+      return json({ ok: true, rows });
+    }
+    // Alta del puente nombre→email. Un secreto de flota, no una sesión: lo da de alta
+    // quien opera el censo, no cualquiera con el panel abierto.
+    if (url.pathname === "/carbon/yarigai" && req.method === "POST") {
+      const auth = String(req.headers.get("x-fleet-token") || req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
+      if (!env.FLEET_TOKEN || auth !== env.FLEET_TOKEN) return json({ ok: false, error: "fleet token requerido", code: "fleet_token_required" }, 401);
+      const b = await req.json().catch(() => ({}));
+      const n = normalizeCarbonYarigai(b, carbonId, Date.now());
+      if (!n.ok) return json(n, 400);
+      await env.DB.prepare("INSERT INTO carbon_yarigai (carbon_id,name,email,updated_at,updated_by) VALUES (?,?,?,?,?) ON CONFLICT(carbon_id) DO UPDATE SET name=excluded.name,email=excluded.email,updated_at=excluded.updated_at,updated_by=excluded.updated_by").bind(n.row.carbon_id, n.row.name, n.row.email, n.row.updated_at, n.row.updated_by).run();
+      return json({ ok: true, row: n.row });
+    }
     if (url.pathname === "/fleet/carbon" && req.method === "GET") {
       await ensureSchema(env);
       const ahora = Date.now();
