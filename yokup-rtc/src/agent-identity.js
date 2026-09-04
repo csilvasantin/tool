@@ -143,6 +143,15 @@ export function machineIdentitySqlKey(expression) {
     `ORDER BY machine_alias.key ASC LIMIT 1),${fallback})`;
 }
 
+/** Una persona está en el diccionario (regla 02). Única fuente: PERSONAS de este fichero. */
+export function isKnownPersona(name) {
+  const n = String(name || "");
+  return PERSONAS.some(([persona]) => persona === n);
+}
+export function knownPersonas() {
+  return PERSONAS.map(([persona]) => persona);
+}
+
 export function parseAgentIdentity(value) {
   let key = identityKey(value), role = "main";
   if (key.startsWith("infra")) { role = "infra"; key = key.slice(5); }

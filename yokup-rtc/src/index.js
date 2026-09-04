@@ -1,7 +1,7 @@
 import puppeteer from "@cloudflare/puppeteer";
 import { handleAuthRequest, sessionTokenFromRequest, withCredentialCors } from "./auth-flow.js";
 import { machineRefKey, machineRefSqlKey, memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
-import { agentFamilyKey, agentFamilySqlKey, baseAgentIdentity, canonicalMachineSuffix, groupingIdentityKey, identityKey, identitySqlKey, machineIdentitySqlKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
+import { agentFamilyKey, agentFamilySqlKey, baseAgentIdentity, canonicalMachineSuffix, groupingIdentityKey, identityKey, identitySqlKey, isKnownPersona, machineIdentitySqlKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 import { matchAgentDetailPresence, parseAgentDetailQuery, safeAgentDetailText } from "./agent-detail-contract.js";
 import { buildReportsPageFilter, encodeReportsCursor, parseReportsPageOptions } from "./reports-pagination.js";
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
@@ -1989,7 +1989,9 @@ function principalAgentIdentity(agent, machine = "") {
   // que tocar las tres a la vez. Hoy Link existía en la flota y no aquí: declarar
   // proyecto con ella devolvía exact_agent_required y ninguna pista de por qué.
   // Unificar las tres es el FLT-1490.
-  const known = ["Neo", "Link", "Morfeo", "Trinity", "Oraculo", "Smith", "WhiteRabbit", "Niobe", "Persefone"].includes(parsed.persona);
+  // Única fuente: el diccionario PERSONAS de agent-identity.js (FLT-1490 cerrado por
+  // FLT-1580: la copia a mano dejaba fuera a Seraph y a los consejeros de GrokBot).
+  const known = isKnownPersona(parsed.persona);
   if (!known || !suffix) return null;
   const visible = canonicalProjectAgentRef(reportAgentIdentity(agent, machine || suffix));
   if (!visible || !parseAgentIdentity(visible).suffix) return null;
@@ -5572,7 +5574,7 @@ function cleanMissionAttributions(value) {
   let subject = String(value || "");
   const boundary = "(^|[.!?]\\s+)";
   const date = "(?:\\d{1,2}[-/](?:\\d{1,2}|ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[-/]\\d{2,4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+de\\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\\s+de\\s+\\d{4})";
-  const agent = "(?:(?:Sub|Infra)?(?:Oraculo|Oráculo|Niobe|Morfeo|Neo|Link|Trinity|Cypher|Smith|Agente\\s+Smith)[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*(?:\\s+en\\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 -]+)?)";
+  const agent = "(?:(?:Sub|Infra)?(?:Oraculo|Oráculo|Niobe|Morfeo|Neo|Link|Trinity|Cypher|Smith|Agente\\s+Smith|Persefone|Seraph|Wozniak|Jobs|Disney|Lucas)[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*(?:\\s+en\\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 -]+)?)";
   const sube = (_m, sep, ch) => sep + (ch ? ch.toUpperCase() : "");
   subject = subject.replace(new RegExp(boundary + "Encargo\\s+de\\s+Carlos\\s+el\\s+" + date + "\\s*(?::|\\.)\\s*(.?)", "gi"), sube);
   subject = subject.replace(new RegExp(boundary + "Responsable\\s*:?[ \\t]+" + agent + "\\s*\\.\\s*(.?)", "gi"), sube);
