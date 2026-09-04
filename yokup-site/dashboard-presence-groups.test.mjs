@@ -23,8 +23,8 @@ test("el renderer consume la clasificación compartida y no vuelve a decidir el 
 
 test("cada grupo tiene contador accesible y un vacío específico y honesto",()=>{
   assert.match(source,/aria-live="polite" aria-atomic="true" aria-label="\$\{count\} agente/);
-  assert.match(source,/No hay agentes CLI con señal reciente\./);
-  assert.match(source,/No hay agentes Desktop App con señal reciente\./);
+  assert.match(source,/No hay agentes CLI configurados\./);
+  assert.match(source,/No hay agentes Desktop App configurados\./);
   assert.match(source,/Sin superficie identificada/);
   assert.match(source,/No se pudo comprobar esta superficie; se reintentará automáticamente\./);
 });
@@ -32,7 +32,7 @@ test("cada grupo tiene contador accesible y un vacío específico y honesto",()=
 test("las tarjetas y enlaces de detalle son únicos y se reutilizan en todos los grupos",()=>{
   assert.match(source,/function pulseCard\(p\)/);
   assert.match(source,/items\.map\(pulseCard\)\.join\(""\)/);
-  assert.match(source,/class="ag ag-link"/);
+  assert.match(source,/class="ag-link"/);
   assert.match(source,/p\.detail_url\|\|/);
   assert.match(source,/setInterval\(pulse,AGENT_REFRESH_MS\)/);
 });
@@ -48,8 +48,8 @@ test("un pulso idéntico no reconstruye el nodo enfocado",()=>{
   assert.equal(context.paint(box,"<a>Oraculo</a>"),false);
   assert.equal(writes,1);assert.equal(node,focused);assert.equal(node.focused,true);
   assert.match(source,/catch\(e\)\{[^}]*paPaint\(box,pulseGroupsMarkup\(null,true\)\)/);
-  assert.match(source,/if\(!classified\)\{paPaint\(box,pulseGroupsMarkup\(null,true\)\)/);
-  assert.match(source,/paPaint\(box,pulseGroupsMarkup\(classified\)\)/);
+  assert.match(source,/if\(!PULSE_GROUPS\)\{paPaint\(box,pulseGroupsMarkup\(null,true\)\)/);
+  assert.match(source,/paPaint\(box,pulseGroupsMarkup\(PULSE_GROUPS\)\)/);
   assert.doesNotMatch(source,/box\.innerHTML=pulseGroupsMarkup/);
 });
 
@@ -59,7 +59,7 @@ test("un latido nuevo repinta pero restaura el enlace lógico sin desplazar",()=
   const context={document:{activeElement:null}};vm.runInNewContext(`${paint}\nthis.paint=paPaint;`,context);
   let node=null,writes=0,focusOptions=null;
   const href="/agentDetail?agent=Oraculo&machine=MacMini&runtime=codex&surface=cli";
-  const makeNode=()=>({matches(selector){return selector==="a.ag-link[href]";},getAttribute(name){return name==="href"?href:null;},focus(options){focusOptions=options;context.document.activeElement=this;}});
+  const makeNode=()=>({getAttribute(name){return name==="data-pulse-focus"?"detail:"+href:null;},focus(options){focusOptions=options;context.document.activeElement=this;}});
   const box={id:"pulse",contains(candidate){return candidate===node;},querySelectorAll(){return node?[node]:[];}};
   Object.defineProperty(box,"innerHTML",{set(){writes+=1;node=makeNode();}});
   context.paint(box,'<a data-pa-ago="100">Oraculo</a>');
@@ -73,7 +73,7 @@ test("un latido nuevo repinta pero restaura el enlace lógico sin desplazar",()=
 
 test("el tiempo relativo se actualiza fuera del HTML estable del pulso",()=>{
   assert.match(source,/<span data-pa-ago="\$\{Number\(p\.updated\)\|\|0\}"><\/span>/);
-  assert.match(source,/paPaint\(box,pulseGroupsMarkup\(classified\)\);paTickAgo\(\)/);
+  assert.match(source,/paPaint\(box,pulseGroupsMarkup\(PULSE_GROUPS\)\);paTickAgo\(\)/);
   assert.doesNotMatch(source,/pulseCard\(p\)[\s\S]*?<span>\$\{agoS\(p\.updated\)\}<\/span>[\s\S]*?\n\}/);
 });
 

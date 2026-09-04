@@ -15,10 +15,11 @@ test("la tarjeta CLI conserva los discriminantes públicos sin exponer session_i
   assert.equal(detail.detailUrl({persona:"Neo",machine:"",runtime:"Claude",host:"cli"}),"");
 });
 
-test("el Dashboard hace navegables las tarjetas verificadas APP y CLI con enlace nativo",()=>{
+test("el Dashboard hace navegables las tarjetas APP y CLI, incluso detenidas, sin anidar controles",()=>{
   assert.match(dashboard,/src="\/agent-detail\.js\?v=/);
-  assert.match(dashboard,/const href=p\.verified&&\(p\.detail_url\|\|\(window\.YkAgentDetail\?YkAgentDetail\.detailUrl\(p\):""\)\)/);
-  assert.match(dashboard,/<a class="\\?ag ag-link/);
+  assert.match(dashboard,/const href=p\.detail_url\|\|\(window\.YkAgentDetail\?YkAgentDetail\.detailUrl\(p\):""\)/);
+  assert.match(dashboard,/<a class="ag-link" href=/);
+  assert.match(dashboard,/<article class="ag"[^>]*>\$\{main\}<div class="agent-control-row">/);
   assert.match(dashboard,/aria-label="Abrir actividad e histórico de /);
   assert.match(dashboard,/\.ag-link:focus-visible\{[^}]*outline:2px solid var\(--brand\)/);
 });

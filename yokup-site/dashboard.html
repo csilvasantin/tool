@@ -18,6 +18,7 @@
 <script src="/highscore-daily-record.js?v=v.2026.09.04.r2"></script>
 <script src="/agent-detail.js?v=v.2026.09.04.r1"></script>
 <script src="/presence-groups.js?v=v.2026.09.04.r1"></script>
+<script src="/agent-control.js?v=v.2026.09.04.r1"></script>
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -52,10 +53,11 @@ h1{font-size:clamp(23px,2.8vw,33px);line-height:1.12;letter-spacing:-.02em;margi
 
 /* PULSO DE LA FLOTA */
 .pulse{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
-.fleet-pulse-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}.pulse-group{min-width:0;padding:12px;border:1px solid var(--line);border-radius:13px;background:rgba(10,22,32,.42)}.pulse-group-residual{grid-column:1/-1;border-style:dashed}.pulse-group-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.pulse-group-head h3{margin:0;color:var(--brand);font:900 10px/1.3 var(--mono);letter-spacing:.1em;text-transform:uppercase}.pulse-group-head .tot{flex:none;color:var(--mut);font:9px/1 var(--mono);border:1px solid var(--line);border-radius:999px;padding:3px 8px}.pulse-group>.pulse>.off{min-height:82px;display:grid;place-items:center}
-.ag{border:1px solid var(--line);border-radius:13px;background:var(--card);padding:14px 16px;position:relative;overflow:hidden}
-.ag-link{display:block;color:inherit;text-decoration:none;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .15s}.ag-link:hover{border-color:var(--brand);box-shadow:0 0 0 1px rgba(120,243,255,.14),0 14px 36px rgba(0,0,0,.24);transform:translateY(-1px)}.ag-link:focus-visible{border-color:var(--brand);outline:2px solid var(--brand);outline-offset:3px}
+.fleet-pulse-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}.pulse-global-toolbar{grid-column:1/-1;display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 10px;border:1px solid var(--line);border-radius:11px;background:rgba(10,22,32,.55)}.pulse-global-toolbar strong{margin-right:auto;color:var(--mut);font:900 9px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase}.pulse-control-status{grid-column:1/-1;min-height:18px;color:var(--dim);font:9.5px/1.45 var(--mono)}.pulse-control-status.ok{color:var(--good)}.pulse-control-status.err{color:var(--warn)}.pulse-group{min-width:0;padding:12px;border:1px solid var(--line);border-radius:13px;background:rgba(10,22,32,.42)}.pulse-group-residual{grid-column:1/-1;border-style:dashed}.pulse-group-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}.pulse-group-head h3{margin:0;color:var(--brand);font:900 10px/1.3 var(--mono);letter-spacing:.1em;text-transform:uppercase}.pulse-group-head .tot{flex:none;color:var(--mut);font:9px/1 var(--mono);border:1px solid var(--line);border-radius:999px;padding:3px 8px}.pulse-group-tools{margin-left:auto;display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}.pulse-btn{min-height:30px;border:1px solid var(--line2);border-radius:7px;background:rgba(2,8,13,.62);color:var(--brand);padding:5px 8px;font:800 8px/1.2 var(--mono);letter-spacing:.04em;text-transform:uppercase;cursor:pointer;white-space:nowrap}.pulse-btn:hover,.pulse-btn:focus-visible{border-color:var(--brand);outline:2px solid rgba(120,243,255,.35);outline-offset:1px}.pulse-btn.stop{color:var(--warn);border-color:rgba(255,136,102,.38)}.pulse-btn.start{color:var(--good);border-color:rgba(136,255,170,.34)}.pulse-btn.view{color:var(--mut)}.pulse-btn:disabled{opacity:.38;cursor:not-allowed;outline:none}.pulse-group>.pulse>.off{min-height:82px;display:grid;place-items:center}.pulse-group[hidden],.pulse[hidden]{display:none!important}
+.ag{border:1px solid var(--line);border-radius:13px;background:var(--card);position:relative;overflow:hidden;transition:border-color .15s,box-shadow .15s,transform .15s}.ag:hover{border-color:var(--brand);box-shadow:0 0 0 1px rgba(120,243,255,.14),0 14px 36px rgba(0,0,0,.24);transform:translateY(-1px)}
+.ag-link{display:block;color:inherit;text-decoration:none;cursor:pointer;padding:14px 16px 10px}.ag-link:focus-visible{outline:2px solid var(--brand);outline-offset:-3px;border-radius:11px}.ag-static{padding:14px 16px 10px}
 .ag::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--good);box-shadow:0 0 12px var(--good)}
+.ag[data-agent-state="stopped"]{border-style:dashed;background:rgba(31,25,13,.45)}.ag[data-agent-state="stopped"]::before{background:var(--accent);box-shadow:0 0 10px var(--accent)}.ag[data-agent-state="stopped"] .dot{background:var(--accent);box-shadow:none;animation:none}.ag[data-agent-state="unknown"],.ag[data-agent-state="ambiguous"]{opacity:.72}.ag[data-agent-state="unknown"]::before,.ag[data-agent-state="ambiguous"]::before{background:var(--dim);box-shadow:none}
 .ag .top{display:flex;align-items:center;gap:9px;font-family:var(--mono);margin-bottom:7px}
 .ag .dot{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 14px var(--good);animation:blink 2s infinite;flex:none}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
@@ -65,8 +67,9 @@ h1{font-size:clamp(23px,2.8vw,33px);line-height:1.12;letter-spacing:-.02em;margi
 .ag .focus{font-size:12px;line-height:1.5;color:var(--mut);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .ag .meta{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin-top:8px;display:flex;gap:10px}
 .ag .meta .mode{color:var(--accent)}
+.agent-control-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px 10px;border-top:1px solid rgba(120,243,255,.09)}.agent-control-row span{color:var(--dim);font:8px/1.25 var(--mono);text-transform:uppercase;letter-spacing:.05em}.agent-control-row .pulse-btn{min-width:76px}.pulse-group.compact .pulse{grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:7px}.pulse-group.compact .ag-link,.pulse-group.compact .ag-static{padding:9px 11px 7px}.pulse-group.compact .ag .focus{display:none}.pulse-group.compact .ag .top{margin-bottom:4px}.pulse-group.compact .agent-control-row{padding:6px 9px 7px}.pulse-group.compact .agent-control-row .pulse-btn{min-height:26px}
 .pulse .off{border:1px dashed var(--line2);border-radius:13px;padding:24px 18px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;line-height:1.7;grid-column:1/-1}
-@media(max-width:760px){.fleet-pulse-groups{grid-template-columns:1fr}.pulse-group-residual{grid-column:auto}.pulse-group{padding:10px}.pulse{grid-template-columns:1fr}}
+@media(max-width:760px){.fleet-pulse-groups{grid-template-columns:1fr}.pulse-global-toolbar,.pulse-control-status{grid-column:auto}.pulse-global-toolbar strong{flex-basis:100%}.pulse-group-residual{grid-column:auto}.pulse-group{padding:10px}.pulse{grid-template-columns:1fr}.pulse-group-head{align-items:flex-start;flex-wrap:wrap}.pulse-group-tools{width:100%;margin-left:0;justify-content:flex-start}.pulse-btn{min-height:44px;white-space:normal}.agent-control-row .pulse-btn{min-height:44px}}
 
 /* MAPA PROYECTOS × EQUIPOS × AGENTES */
 .pa-shell{border:1px solid var(--line2);border-radius:15px;background:linear-gradient(145deg,rgba(13,28,40,.94),rgba(6,17,25,.94));padding:16px;box-shadow:0 18px 60px rgba(0,0,0,.22);overflow:visible}
@@ -197,6 +200,8 @@ details.pa-team-node:not([open])>.pa-team-agents,.pa-project-node:not([open])>.p
   <details class="dash-section" id="pulseSection">
     <summary class="shd">Flota de Agentes Silicio <span class="tot" id="pulseN">—</span></summary>
     <div class="dash-section-body fleet-pulse-groups" id="pulse">
+      <div class="pulse-global-toolbar" role="toolbar" aria-label="Controles de la Flota de Agentes Silicio"><strong>Control de superficies</strong><button class="pulse-btn start" type="button" disabled>Arrancar todos los CLI</button><button class="pulse-btn stop" type="button" disabled>Parar todos los CLI</button><button class="pulse-btn start" type="button" disabled>Arrancar todos Desktop App</button><button class="pulse-btn stop" type="button" disabled>Parar todos Desktop App</button></div>
+      <p class="pulse-control-status" id="pulseControlStatus" role="status" aria-live="polite" aria-atomic="true">Cargando controles seguros…</p>
       <section class="pulse-group" aria-labelledby="pulseCliTitle"><div class="pulse-group-head"><h3 id="pulseCliTitle">Agentes CLI</h3><span class="tot">—</span></div><div class="pulse"><div class="off">Buscando agentes CLI…</div></div></section>
       <section class="pulse-group" aria-labelledby="pulseAppTitle"><div class="pulse-group-head"><h3 id="pulseAppTitle">Agentes Desktop App</h3><span class="tot">—</span></div><div class="pulse"><div class="off">Buscando agentes Desktop App…</div></div></section>
     </div>
@@ -382,17 +387,83 @@ function paRenderScopeFilter(kind,items){
   });
 }
 function agoS(s){ if(!s)return "—"; let d=Math.round(Date.now()/1000-s); if(d<60)return "hace "+d+"s"; if(d<3600)return "hace "+Math.round(d/60)+"m"; return "hace "+Math.round(d/3600)+"h"; }
+const PULSE_VIEW_KEY="yk.dashboard.silicon-fleet.view.v1";
+function pulseDefaultView(){return {cli:{compact:false,hidden:false},app:{compact:false,hidden:false},unknown:{compact:false,hidden:false}};}
+function pulseReadView(){
+  const base=pulseDefaultView();try{const saved=JSON.parse(localStorage.getItem(PULSE_VIEW_KEY)||"{}");Object.keys(base).forEach(key=>{base[key].compact=saved&&saved[key]&&saved[key].compact===true;base[key].hidden=saved&&saved[key]&&saved[key].hidden===true;});}catch(e){}return base;
+}
+const PULSE_VIEW=pulseReadView(),PULSE_CONTROL_LEDGER=new Map();
+let PULSE_CONTROL_MODEL=null,PULSE_GROUPS=null,PULSE_CONTROL_BUSY=false,PULSE_STATUS={message:"Controles seguros listos.",error:false};
+function pulseWriteView(){try{localStorage.setItem(PULSE_VIEW_KEY,JSON.stringify(PULSE_VIEW));}catch(e){}}
+function pulseStateText(state){return state==="active"?"Activo":state==="stopped"?"Detenido":state==="ambiguous"?"Control ambiguo":"Estado sin verificar";}
+function pulseSetStatus(message,error=false){
+  PULSE_STATUS={message:String(message||""),error:!!error};const status=document.getElementById("pulseControlStatus");if(status){status.textContent=PULSE_STATUS.message;status.classList.toggle("err",PULSE_STATUS.error);status.classList.toggle("ok",!PULSE_STATUS.error&&!!PULSE_STATUS.message);}
+}
+function pulseControlButton(item){
+  const action=item&&item.eligible&&item.eligible.start?"start":item&&item.eligible&&item.eligible.stop?"stop":"",verb=action==="start"?"Arrancar":"Parar",disabled=!action||PULSE_CONTROL_BUSY;
+  const label=action?verb+" "+String(item.agent||item.persona||"agente")+" en "+String(item.machine||""):"Control no disponible: "+pulseStateText(item&&item.state);
+  return `<button type="button" class="pulse-btn ${action||'view'}" data-pulse-action="${esc(action)}" data-control-key="${esc(item&&item.control_key||'')}" data-pulse-focus="control:${esc(item&&item.control_key||'')}:${esc(action)}" aria-label="${esc(label)}"${disabled?' disabled':''}>${esc(action?verb:"No disponible")}</button>`;
+}
 function pulseCard(p){
-  const href=p.verified&&(p.detail_url||(window.YkAgentDetail?YkAgentDetail.detailUrl(p):"")),open=href?`<a class="ag ag-link" href="${esc(href)}" aria-label="Abrir actividad e histórico de ${esc(p.persona)} en ${esc(p.machine||"")}">`:'<div class="ag">',close=href?'</a>':'</div>';
-  return `${open}<div class="top"><span class="dot"></span><b>${esc(p.persona)}</b><span class="rt">${esc(paRuntimeSurface(p))}${p.verified?" · verificado":" · latido reportado"}</span></div><div class="mach">⌂ ${esc(p.machine||"")}</div><div class="focus" title="${esc(p.focus||"")}">${esc(p.focus||"—")}</div><div class="meta"><span class="mode">${esc(p.mode||"")}</span><span data-pa-ago="${Number(p.updated)||0}"></span></div>${close}`;
+  const href=p.detail_url||(window.YkAgentDetail?YkAgentDetail.detailUrl(p):""),name=p.agent||p.persona||"Agente",state=p.state||"unknown";
+  const content=`<div class="top"><span class="dot"></span><b>${esc(name)}</b><span class="rt">${esc(paRuntimeSurface(p))} · ${esc(pulseStateText(state))}</span></div><div class="mach">⌂ ${esc(p.machine||"")}</div><div class="focus" title="${esc(p.focus||"")}">${esc(p.focus||"—")}</div><div class="meta"><span class="mode">${esc(p.mode||"")}</span><span data-pa-ago="${Number(p.updated)||0}"></span></div>`;
+  const main=href?`<a class="ag-link" href="${esc(href)}" data-pulse-focus="detail:${esc(href)}" aria-label="Abrir actividad e histórico de ${esc(name)} en ${esc(p.machine||"")}">${content}</a>`:`<div class="ag-static">${content}</div>`;
+  return `<article class="ag" data-agent-state="${esc(state)}">${main}<div class="agent-control-row"><span>${esc(pulseStateText(state))}</span>${pulseControlButton(p)}</div></article>`;
 }
 function pulseGroupMarkup(group,unavailable=false){
-  const key=String(group&&group.key||"unknown"),label=String(group&&group.label||"Sin superficie identificada"),items=Array.isArray(group&&group.items)?group.items:[],count=items.length,id="pulseGroup"+key.charAt(0).toUpperCase()+key.slice(1),empty=unavailable?"No se pudo comprobar esta superficie; se reintentará automáticamente.":key==="cli"?"No hay agentes CLI con señal reciente.":key==="app"?"No hay agentes Desktop App con señal reciente.":"No hay señales recientes sin superficie identificada.";
-  return `<section class="pulse-group${key==="unknown"?' pulse-group-residual':''}" data-pulse-group="${esc(key)}" aria-labelledby="${esc(id)}"><div class="pulse-group-head"><h3 id="${esc(id)}">${esc(label)}</h3><span class="tot" aria-live="polite" aria-atomic="true" aria-label="${count} agente${count===1?'':'s'}">${count}</span></div><div class="pulse">${count?items.map(pulseCard).join(""):`<div class="off">${esc(empty)}</div>`}</div></section>`;
+  const key=String(group&&group.key||"unknown"),label=String(group&&group.label||"Sin superficie identificada"),items=Array.isArray(group&&group.items)?group.items:[],count=items.length,id="pulseGroup"+key.charAt(0).toUpperCase()+key.slice(1),empty=unavailable?"No se pudo comprobar esta superficie; se reintentará automáticamente.":key==="cli"?"No hay agentes CLI configurados.":key==="app"?"No hay agentes Desktop App configurados.":"No hay señales sin superficie identificada.";
+  const view=PULSE_VIEW[key]||PULSE_VIEW.unknown,compact=view.compact,hidden=view.hidden;
+  return `<section class="pulse-group${key==="unknown"?' pulse-group-residual':''}${compact?' compact':''}" data-pulse-group="${esc(key)}" aria-labelledby="${esc(id)}"><div class="pulse-group-head"><h3 id="${esc(id)}">${esc(label)}</h3><span class="tot" aria-live="polite" aria-atomic="true" aria-label="${count} agente${count===1?'':'s'}">${count}</span><div class="pulse-group-tools" role="toolbar" aria-label="Vista de ${esc(label)}"><button type="button" class="pulse-btn view" data-pulse-view="${compact?'expand':'compact'}" data-pulse-group-key="${esc(key)}" data-pulse-focus="view:${esc(key)}:density">${compact?'Ampliar':'Compactar'} ${esc(label)}</button><button type="button" class="pulse-btn view" data-pulse-view="${hidden?'show':'hide'}" data-pulse-group-key="${esc(key)}" data-pulse-focus="view:${esc(key)}:visibility" aria-expanded="${hidden?'false':'true'}">${hidden?'Mostrar':'Ocultar'} ${esc(label)}</button></div></div><div class="pulse"${hidden?' hidden':''}>${count?items.map(pulseCard).join(""):`<div class="off">${esc(empty)}</div>`}</div></section>`;
+}
+function pulseBatchButton(group,action,label){
+  const plan=PULSE_CONTROL_MODEL&&window.YkAgentControl?YkAgentControl.batchPlan(PULSE_CONTROL_MODEL,group,action):{count:0},disabled=PULSE_CONTROL_BUSY||!plan.count;
+  return `<button type="button" class="pulse-btn ${action}" data-pulse-batch="${esc(action)}" data-pulse-group-key="${esc(group)}" data-pulse-focus="batch:${esc(group)}:${esc(action)}" aria-label="${esc(label)}; ${Number(plan.count)||0} disponibles"${disabled?' disabled':''}>${esc(label)} · ${Number(plan.count)||0}</button>`;
+}
+function pulseGlobalToolbar(){
+  const allCompact=PULSE_VIEW.cli.compact&&PULSE_VIEW.app.compact,allHidden=PULSE_VIEW.cli.hidden&&PULSE_VIEW.app.hidden;
+  return `<div class="pulse-global-toolbar" role="toolbar" aria-label="Controles de la Flota de Agentes Silicio"><strong>Control de superficies</strong>${pulseBatchButton('cli','start','Arrancar todos los CLI')}${pulseBatchButton('cli','stop','Parar todos los CLI')}${pulseBatchButton('app','start','Arrancar todos Desktop App')}${pulseBatchButton('app','stop','Parar todos Desktop App')}<button type="button" class="pulse-btn view" data-pulse-view="${allCompact?'expand-all':'compact-all'}" data-pulse-focus="view:all:density">${allCompact?'Ampliar todos':'Compactar todos'}</button><button type="button" class="pulse-btn view" data-pulse-view="${allHidden?'show-all':'hide-all'}" data-pulse-focus="view:all:visibility" aria-expanded="${allHidden?'false':'true'}">${allHidden?'Mostrar todos':'Ocultar todos'}</button></div><p class="pulse-control-status${PULSE_STATUS.error?' err':PULSE_STATUS.message?' ok':''}" id="pulseControlStatus" role="status" aria-live="polite" aria-atomic="true">${esc(PULSE_STATUS.message)}</p>`;
 }
 function pulseGroupsMarkup(classified,unavailable=false){
   const byKey=classified&&classified.by_key||{},fallback=key=>({key,label:key==="cli"?"Agentes CLI":key==="app"?"Agentes Desktop App":"Sin superficie identificada",items:[]}),cli=byKey.cli||fallback("cli"),app=byKey.app||fallback("app"),unknown=byKey.unknown||fallback("unknown");
-  return pulseGroupMarkup(cli,unavailable)+pulseGroupMarkup(app,unavailable)+(unknown.items.length?pulseGroupMarkup(unknown,unavailable):"");
+  return pulseGlobalToolbar()+pulseGroupMarkup(cli,unavailable)+pulseGroupMarkup(app,unavailable)+(unknown.items.length?pulseGroupMarkup(unknown,unavailable):"");
+}
+function pulseControlledGroups(classified,control){
+  const live=new Map((classified&&classified.groups||[]).flatMap(group=>group.items||[]).map(item=>[item.identity_key,item]));
+  const buckets={cli:[],app:[],unknown:[]};
+  (control&&control.items||[]).forEach(item=>{const row=live.get(item.identity_key)||{},state=item.state||"unknown",fallback=state==="stopped"?"Detenido · listo para arrancar":state==="ambiguous"?"Hay más de un destino exacto; control bloqueado":"Sin estado verificable";buckets[item.surface]&&buckets[item.surface].push({...row,...item,persona:item.persona,host:item.surface,focus:row.focus||fallback,mode:row.mode||(state==="active"?"activo":state),updated:row.updated||0});});
+  const definitions=[['cli','Agentes CLI'],['app','Agentes Desktop App'],['unknown','Sin superficie identificada']],groups=definitions.map(([key,label])=>({key,label,count:buckets[key].length,items:buckets[key]}));
+  return {groups,by_key:{cli:groups[0],app:groups[1],unknown:groups[2]},counts:{cli:buckets.cli.length,app:buckets.app.length,unknown:buckets.unknown.length,total:groups.reduce((sum,group)=>sum+group.count,0)}};
+}
+function pulseRender(){const box=document.getElementById("pulse");if(box&&PULSE_GROUPS){paPaint(box,pulseGroupsMarkup(PULSE_GROUPS));paTickAgo();}}
+function pulseApplyView(action,key){
+  const keys=key&&key!=="all"?[key]:["cli","app","unknown"];
+  if(action==="compact"||action==="expand")keys.forEach(name=>{if(PULSE_VIEW[name])PULSE_VIEW[name].compact=action==="compact";});
+  if(action==="hide"||action==="show")keys.forEach(name=>{if(PULSE_VIEW[name])PULSE_VIEW[name].hidden=action==="hide";});
+  if(action==="compact-all"||action==="expand-all")keys.forEach(name=>PULSE_VIEW[name].compact=action==="compact-all");
+  if(action==="hide-all"||action==="show-all")keys.forEach(name=>PULSE_VIEW[name].hidden=action==="hide-all");
+  pulseWriteView();pulseRender();
+}
+async function pulseSendControl(request){
+  const response=await fetch(request.endpoint,{method:request.method||"POST",credentials:"include",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify(request.body)}),payload=await response.json().catch(()=>({}));
+  if(!response.ok||payload.ok===false)throw new Error(payload.error||"control-rejected");return payload;
+}
+function pulseResultMessage(result,label){
+  if(result&&Number.isFinite(result.total)){const message=label+": "+result.succeeded+"/"+result.total+" órdenes aceptadas"+(result.failed?" · "+result.failed+" fallidas":"")+".";return {message,error:result.failed>0};}
+  return {message:label+": "+(result&&result.ok?"orden aceptada":"orden no aceptada")+(result&&result.error?" · "+result.error:"")+".",error:!(result&&result.ok)};
+}
+async function pulseHandleClick(event){
+  const button=event.target.closest&&event.target.closest("button[data-pulse-action],button[data-pulse-batch],button[data-pulse-view]");if(!button)return;event.preventDefault();event.stopPropagation();
+  if(button.dataset.pulseView){pulseApplyView(button.dataset.pulseView,button.dataset.pulseGroupKey||"all");return;}
+  if(PULSE_CONTROL_BUSY||!PULSE_CONTROL_MODEL||!window.YkAgentControl)return;
+  const action=button.dataset.pulseAction||button.dataset.pulseBatch,group=button.dataset.pulseGroupKey||"",controlKey=button.dataset.controlKey||"";
+  const item=controlKey&&PULSE_CONTROL_MODEL.by_key.get(controlKey),label=group?(group==="cli"?"Agentes CLI":"Desktop App"):(item&&item.agent||"Agente"),plan=group?YkAgentControl.batchPlan(PULSE_CONTROL_MODEL,group,action):null;
+  const confirmation=plan?"Confirmar "+(action==="start"?"el arranque":"la parada")+" de "+plan.count+" agente"+(plan.count===1?"":"s")+" de "+label+"?":"Confirmar "+(action==="start"?"el arranque":"la parada")+" de "+label+" en "+String(item&&item.machine||"")+"?";
+  if(!window.confirm(confirmation))return;
+  PULSE_CONTROL_BUSY=true;document.getElementById("pulse")?.setAttribute("aria-busy","true");pulseSetStatus((action==="start"?"Arrancando ":"Parando ")+label+"…");pulseRender();
+  try{
+    const options={confirmed:true,send:pulseSendControl,ledger:PULSE_CONTROL_LEDGER},result=plan?await YkAgentControl.executeBatch(PULSE_CONTROL_MODEL,plan,options):await YkAgentControl.executeOne(PULSE_CONTROL_MODEL,controlKey,action,options),summary=pulseResultMessage(result,label);pulseSetStatus(summary.message,summary.error);
+  }catch(error){pulseSetStatus(label+": "+String(error&&error.message||error||"control-failed"),true);}
+  finally{PULSE_CONTROL_BUSY=false;document.getElementById("pulse")?.removeAttribute("aria-busy");pulseRender();setTimeout(()=>pulse(false),2200);}
 }
 async function pulse(renderMap=true){
   let d,nav; try{
@@ -400,19 +471,21 @@ async function pulse(renderMap=true){
       fetch(PRESENCE,{cache:"no-store"}).then(r=>r.json()),
       fetch(BROWSERS,{cache:"no-store"}).then(r=>r.json()).catch(()=>({browsers:[]}))
     ]);d=responses[0];nav=responses[1];
-  }catch(e){const n=document.getElementById("pulseN"),box=document.getElementById("pulse");if(n)n.textContent="estado no disponible";paPaint(box,pulseGroupsMarkup(null,true));return;}
+  }catch(e){const n=document.getElementById("pulseN"),box=document.getElementById("pulse");if(n)n.textContent="estado no disponible";pulseSetStatus("No se pudo cargar el control de la flota; se reintentará automáticamente.",true);paPaint(box,pulseGroupsMarkup(null,true));return;}
   const now=Date.now()/1000;
   const fresh=paVerifiedPresence(d.presence||[],nav&&nav.browsers||[],now);
   const classified=window.YkPresenceGroups?YkPresenceGroups.classify(fresh,{identity:window.ykAgentIdentity,detailUrl:window.YkAgentDetail&&YkAgentDetail.detailUrl}):null;
   PROJECT_CONTROL_MACHINES=Array.isArray(d.control_machines)?d.control_machines:[];
-  const visible=classified?classified.counts.total:fresh.length,verified=classified?classified.groups.flatMap(group=>group.items).filter(row=>row.verified).length:fresh.filter(row=>row.verified).length;
-  const n=document.getElementById("pulseN"); if(n) n.textContent=visible+" señal"+(visible===1?"":"es")+" activa"+(visible===1?"":"s")+(verified?" · "+verified+" verificada"+(verified===1?"":"s"):"");
+  PULSE_CONTROL_MODEL=window.YkAgentControl?YkAgentControl.inventory({presence:d.presence||[],controlMachines:PROJECT_CONTROL_MACHINES},{identity:window.ykAgentIdentity,detailUrl:window.YkAgentDetail&&YkAgentDetail.detailUrl,now:Date.now()}):null;
+  PULSE_GROUPS=PULSE_CONTROL_MODEL?pulseControlledGroups(classified,PULSE_CONTROL_MODEL):classified;
+  const all=PULSE_CONTROL_MODEL&&PULSE_CONTROL_MODEL.items||[],visible=PULSE_GROUPS?PULSE_GROUPS.counts.total:fresh.length,active=all.filter(row=>row.state==="active").length,stopped=all.filter(row=>row.state==="stopped").length;
+  const n=document.getElementById("pulseN"); if(n) n.textContent=visible+" agente"+(visible===1?"":"s")+" · "+active+" activo"+(active===1?"":"s")+(stopped?" · "+stopped+" detenido"+(stopped===1?"":"s"):"");
   const box=document.getElementById("pulse");
   PROJECT_LIVE_ROSTER=paPhysicalAgents(fresh);
   PROJECT_ROSTER=paProjectRoster(PROJECT_LIVE_ROSTER,PROJECT_ROWS);
   if(renderMap)paRender();
-  if(!classified){paPaint(box,pulseGroupsMarkup(null,true));return;}
-  paPaint(box,pulseGroupsMarkup(classified));paTickAgo();
+  if(!PULSE_GROUPS){paPaint(box,pulseGroupsMarkup(null,true));return;}
+  paPaint(box,pulseGroupsMarkup(PULSE_GROUPS));paTickAgo();
 }
 
 /* MAPA PROYECTOS × AGENTES — las identidades salen del MISMO pulso que las
@@ -425,9 +498,9 @@ const pa=id=>document.getElementById(id);
 const PA_PAINTED={};
 function paPaint(box,html){
   if(!box)return false;if(PA_PAINTED[box.id]===html)return false;
-  const active=document.activeElement,focused=active&&box.contains(active)&&active.matches("a.ag-link[href]")?active.getAttribute("href"):"";
+  const active=document.activeElement,focused=active&&box.contains(active)?active.getAttribute("data-pulse-focus")||"":"";
   PA_PAINTED[box.id]=html;box.innerHTML=html;
-  if(focused){const next=[...box.querySelectorAll("a.ag-link[href]")].find(link=>link.getAttribute("href")===focused);if(next)next.focus({preventScroll:true});}
+  if(focused){const next=[...box.querySelectorAll("[data-pulse-focus]")].find(node=>node.getAttribute("data-pulse-focus")===focused);if(next)next.focus({preventScroll:true});}
   return true;
 }
 /* El «hace 12s» se pinta VACÍO y lo rellena este tic: así el HTML no cambia
@@ -1370,6 +1443,7 @@ async function paLoad(reason="manual"){
   return false;
 }
 pa("projectAgentRefresh").onclick=()=>paLoad("manual");
+pa("pulse").addEventListener("click",pulseHandleClick);
 pa("projectAgentProjectsAll").onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_FILTER="all";PROJECT_SCOPE=null;PROJECT_ROWS=paProjectsForScope();paWriteProjectScope(PROJECT_SCOPE);paRender();paMessage("✓ todos los proyectos visibles","ok");};
 pa("projectAgentProjectsUnassigned").onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_FILTER="unassigned";paRender();paMessage("Proyectos sin equipo asociado");};
 pa("projectAgentTeamsAll").onclick=event=>{event.preventDefault();event.stopPropagation();TEAM_FILTER="all";TEAM_SCOPE=null;paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);paRender();paMessage("✓ todos los equipos visibles","ok");};
