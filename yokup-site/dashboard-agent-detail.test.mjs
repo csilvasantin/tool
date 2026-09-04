@@ -34,6 +34,13 @@ test("la query y el endpoint preservan identidad pública y página pero descart
   assert.doesNotMatch(controller,/session_id/);
 });
 
+test("una URL normal sin paginación pide 25 filas desde el inicio",()=>{
+  const state=detail.queryState("?agent=Oraculo&machine=MacMini&runtime=Codex&surface=cli");
+  assert.equal(state.limit,25);
+  assert.equal(state.offset,0);
+  assert.match(detail.endpoint("https://api.yokup.com",state),/[?&]limit=25&offset=0$/);
+});
+
 test("la ficha declara actividad actual, histórico claro y estados honestos",()=>{
   assert.match(page,/id="agentDetail"[^>]*aria-live="polite"/);
   assert.match(controller,/Actividad actual/);

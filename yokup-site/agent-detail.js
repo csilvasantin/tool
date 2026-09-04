@@ -6,7 +6,7 @@
 
   function text(value){return String(value==null?"":value).trim();}
   function surface(value){value=text(value).toLowerCase();return value==="app"||value==="cli"?value:"";}
-  function integer(value,fallback,min,max){var number=Number(value);return Number.isInteger(number)?Math.max(min,Math.min(max,number)):fallback;}
+  function integer(value,fallback,min,max){if(value==null||text(value)==="")return fallback;var number=Number(value);return Number.isInteger(number)?Math.max(min,Math.min(max,number)):fallback;}
 
   function queryState(search){
     var params=new URLSearchParams(String(search||"").replace(/^\?/,""));
