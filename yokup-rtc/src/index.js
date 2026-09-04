@@ -1,7 +1,8 @@
 import puppeteer from "@cloudflare/puppeteer";
 import { handleAuthRequest, sessionTokenFromRequest, withCredentialCors } from "./auth-flow.js";
 import { machineRefKey, machineRefSqlKey, memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
-import { agentFamilyKey, agentFamilySqlKey, baseAgentIdentity, canonicalMachineSuffix, groupingIdentityKey, identityKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
+import { agentFamilyKey, agentFamilySqlKey, baseAgentIdentity, canonicalMachineSuffix, groupingIdentityKey, identityKey, identitySqlKey, machineIdentitySqlKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
+import { matchAgentDetailPresence, parseAgentDetailQuery, safeAgentDetailText } from "./agent-detail-contract.js";
 import { buildReportsPageFilter, encodeReportsCursor, parseReportsPageOptions } from "./reports-pagination.js";
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
 import { AgentStopError, dispatchAgentStart, dispatchAgentStop, normalizeAgentStartTarget, normalizeAgentStopTarget, readAgentControlResult } from "./fleet-agent-stop.js";
@@ -6583,6 +6584,143 @@ async function fleetMissions(env) {
 }
 __name(fleetMissions, "fleetMissions");
 
+// ── FICHA PÚBLICA DE UN AGENTE ─────────────────────────────────────────────
+// Una tarjeta del pulso describe una ENCARNACIÓN, no sólo una persona. El
+// contrato conserva agent+machine+runtime+surface (y session_id si el pulso lo
+// tiene), pero el histórico se atribuye a la identidad operativa exacta
+// persona+capa+máquina. Así Oraculo App y Oraculo CLI no comparten presencia,
+// mientras que ambos pueden explicar el mismo histórico canónico de trabajo.
+function agentDetailRoleSql(expression, role) {
+  const key = identitySqlKey(expression);
+  if (role === "sub") return `${key} LIKE 'sub%'`;
+  if (role === "infra") return `${key} LIKE 'infra%'`;
+  return `${key} NOT LIKE 'sub%' AND ${key} NOT LIKE 'infra%'`;
+}
+__name(agentDetailRoleSql, "agentDetailRoleSql");
+
+function agentDetailActivitySql(query, activeOnly = false) {
+  const personaKey = identityKey(query.parsed.persona);
+  const parts = [], binds = [];
+  if (query.parsed.role === "main") {
+    parts.push(
+      `SELECT t.id||':mission' id,'mission' kind,t.id mission_id,NULL task_code,` +
+      `t.subject title,t.subject mission_title,NULL task_title,t.status state,` +
+      `t.project,t.project_id,t.created_at,t.started_at,t.resolved_at ended_at,t.updated_at,` +
+      `COALESCE(t.resolved_at,t.started_at,t.updated_at,t.created_at) activity_at,` +
+      `(SELECT display_ref FROM display_refs WHERE entity_type='mission' AND entity_key=t.id) mission_display_ref,` +
+      `(SELECT display_ref FROM display_refs WHERE entity_type='mission' AND entity_key=t.id) display_ref ` +
+      `FROM tickets t WHERE ${MISSION_SCOPE_SQL_T} ` +
+      `AND ${agentFamilySqlKey("t.assignee") }=? AND ${machineIdentitySqlKey("t.loc") }=? ` +
+      `AND ${agentDetailRoleSql("t.assignee", "main")} ` +
+      (activeOnly ? "AND t.status='in_progress' " : "")
+    );
+    binds.push(personaKey, query.machine_key);
+  }
+  const executor = "COALESCE(NULLIF(TRIM(m.executor),''),'')";
+  parts.push(
+    `SELECT t.id||':'||m.code id,'task' kind,t.id mission_id,m.code task_code,` +
+    `m.title title,t.subject mission_title,m.title task_title,m.status state,` +
+    `t.project,t.project_id,m.created_at,m.started_at,m.ended_at,m.updated_at,` +
+    `COALESCE(m.ended_at,m.started_at,m.updated_at,m.created_at) activity_at,` +
+    `(SELECT display_ref FROM display_refs WHERE entity_type='mission' AND entity_key=t.id) mission_display_ref,` +
+    `(SELECT display_ref FROM display_refs WHERE entity_type='task' AND entity_key=t.id||':'||m.code) display_ref ` +
+    `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
+    `AND ${agentFamilySqlKey(executor)}=? AND ${machineIdentitySqlKey("t.loc") }=? ` +
+    `AND ${agentDetailRoleSql(executor, query.parsed.role)} ` +
+    `AND (m.status!='pending' OR m.started_at IS NOT NULL OR m.ended_at IS NOT NULL) ` +
+    (activeOnly ? "AND m.status IN ('in_progress','doing','active') AND t.status='in_progress' " : "")
+  );
+  binds.push(personaKey, query.machine_key);
+  return { sql:parts.join(" UNION ALL "), binds };
+}
+__name(agentDetailActivitySql, "agentDetailActivitySql");
+
+async function agentDetailPresence(env, query, now) {
+  if (!env.TELEGRAM) return { available:false, matched:false, fresh:false, ambiguous:false, live_at:null };
+  try {
+    const response = await env.TELEGRAM.fetch(new Request(PRESENCE_URL, { headers:{ accept:"application/json" } }));
+    if (!response.ok) return { available:false, matched:false, fresh:false, ambiguous:false, live_at:null };
+    const payload = await response.json();
+    const rows = Array.isArray(payload) ? payload : (payload.presence || payload.rows || []);
+    return { available:true, ...matchAgentDetailPresence(rows, query, now) };
+  } catch {
+    return { available:false, matched:false, fresh:false, ambiguous:false, live_at:null };
+  }
+}
+__name(agentDetailPresence, "agentDetailPresence");
+
+function agentDetailPublicItem(row, pidx) {
+  const project = resolveProject(pidx, row.project_id || row.project || "");
+  const missionId = String(row.mission_id || "").slice(0, 120);
+  const taskCode = String(row.task_code || "").slice(0, 40);
+  return {
+    id:String(row.id || "").slice(0, 180),
+    kind:row.kind === "task" ? "task" : "mission",
+    title:safeAgentDetailText(row.title, row.kind === "task" ? "Tarea" : "Misión"),
+    state:String(row.state || "unknown").slice(0, 30),
+    mission_id:missionId,
+    mission_display_ref:String(row.mission_display_ref || "").slice(0, 40) || null,
+    task_code:taskCode || null,
+    display_ref:String(row.display_ref || "").slice(0, 40) || null,
+    project_id:String(project.id || row.project_id || "").slice(0, 120) || null,
+    project_name:safeAgentDetailText(project.name) || null,
+    started_at:highscoreActiveWorkMillis(row.started_at) || null,
+    ended_at:highscoreActiveWorkMillis(row.ended_at) || null,
+    activity_at:highscoreActiveWorkMillis(row.activity_at) || null,
+    detail_url:"/tareas?mission=" + encodeURIComponent(missionId) + (taskCode ? "#" + encodeURIComponent(taskCode) : "")
+  };
+}
+__name(agentDetailPublicItem, "agentDetailPublicItem");
+
+async function agentDetail(env, query, now = Date.now()) {
+  const [presence, pidx] = await Promise.all([agentDetailPresence(env, query, now), projectIndex(env)]);
+  const historySource = agentDetailActivitySql(query, false);
+  const activeSource = agentDetailActivitySql(query, true);
+  const [page, counted, active] = await Promise.all([
+    env.DB.prepare(`SELECT * FROM (${historySource.sql}) activity ` +
+      `ORDER BY activity_at DESC,CASE kind WHEN 'task' THEN 0 ELSE 1 END,id DESC LIMIT ? OFFSET ?`)
+      .bind(...historySource.binds, query.limit, query.offset).all(),
+    env.DB.prepare(`SELECT COUNT(*) total FROM (${historySource.sql}) activity`)
+      .bind(...historySource.binds).first(),
+    env.DB.prepare(`SELECT * FROM (${activeSource.sql}) activity ` +
+      `ORDER BY CASE kind WHEN 'task' THEN 0 ELSE 1 END,activity_at DESC,id DESC LIMIT 1`)
+      .bind(...activeSource.binds).first()
+  ]);
+  const rows = (page && page.results) || [];
+  const total = Number(counted && counted.total) || 0;
+  let current = null;
+  if (active) {
+    const item = agentDetailPublicItem(active, pidx);
+    current = { ...item,
+      state:presence.available ? (presence.fresh ? "running" : "assigned_stale") : "unknown",
+      mission_title:safeAgentDetailText(active.mission_title) || null,
+      task_title:safeAgentDetailText(active.task_title) || null,
+      live_at:presence.live_at,
+      work_progress_at:item.activity_at,
+      reachable:presence.fresh };
+  } else if (presence.fresh) {
+    // `focus` es telemetría libre de proceso. Aunque el helper la pueda redactar
+    // para diagnóstico interno, esta ruta pública no la serializa: sin vínculo a
+    // una misión/tarea la descripción verificable es únicamente que está ocioso.
+    current = { id:null, kind:"presence", title:"Conectado sin misión o tarea activa",
+      state:"idle", mission_id:null, mission_display_ref:null, task_code:null, display_ref:null,
+      mission_title:null, task_title:null, project_id:null, project_name:null,
+      started_at:null, ended_at:null, activity_at:presence.live_at, detail_url:null,
+      live_at:presence.live_at, work_progress_at:null, reachable:true };
+  }
+  return { ok:true, contract:"agent-detail-v1", generated_at:now,
+    identity:{ agent:query.family.executor, family:query.family.family_name,
+      family_key:query.family.family_key, role:query.parsed.role, machine:query.machine,
+      machine_key:query.machine_key, runtime:query.runtime, surface:query.surface,
+      surface_key:query.surface_key },
+    presence:{ available:presence.available, matched:presence.matched, fresh:presence.fresh,
+      ambiguous:presence.ambiguous, live_at:presence.live_at },
+    current,
+    history:{ items:rows.map((row) => agentDetailPublicItem(row, pidx)), limit:query.limit,
+      offset:query.offset, total, has_more:query.offset + rows.length < total } };
+}
+__name(agentDetail, "agentDetail");
+
 // ── HIGHSCORE DIARIO ────────────────────────────────────────────────────────
 // El marcador (/highscore) pedía esta ruta desde el 2 de agosto y NADIE la había
 // escrito: la petición caía en el catch-all, el worker devolvía su portada en
@@ -8738,6 +8876,14 @@ var worker_app = {
         silicio_disponible: silicioOk, silicio, carbono,
         totales: { silicio: silicio.length, carbono: carbono.length,
           carbono_en_turno: carbono.filter((c) => c.estado === "en-turno").length } });
+    }
+    if (url.pathname === "/fleet/agent-detail" && req.method === "GET") {
+      await ensureSchema(env);
+      const query = parseAgentDetailQuery(url.searchParams);
+      if (!query.ok) return json({ ok:false, code:query.code, error:query.error }, 400);
+      const response = json(await agentDetail(env, query));
+      response.headers.set("cache-control", "no-store");
+      return response;
     }
     if (url.pathname === "/fleet/missions") {
       await ensureSchema(env);
