@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
+import vm from "node:vm";
 
 const source=await readFile(new URL("./dashboard.html",import.meta.url),"utf8");
 
@@ -34,6 +35,22 @@ test("las tarjetas y enlaces de detalle son únicos y se reutilizan en todos los
   assert.match(source,/class="ag ag-link"/);
   assert.match(source,/p\.detail_url\|\|/);
   assert.match(source,/setInterval\(pulse,AGENT_REFRESH_MS\)/);
+});
+
+test("un pulso idéntico no reconstruye el nodo enfocado",()=>{
+  const paint=source.match(/const PA_PAINTED=\{\};\s*function paPaint\(box,html\)\{[^}]+\}/)?.[0];
+  assert.ok(paint,"debe existir el pintado idempotente compartido");
+  const context={};vm.runInNewContext(`${paint}\nthis.paint=paPaint;`,context);
+  let writes=0,node=null;
+  const box={id:"pulse"};Object.defineProperty(box,"innerHTML",{set(){writes+=1;node={write:writes,focused:false};}});
+  assert.equal(context.paint(box,"<a>Oraculo</a>"),true);
+  const focused=node;focused.focused=true;
+  assert.equal(context.paint(box,"<a>Oraculo</a>"),false);
+  assert.equal(writes,1);assert.equal(node,focused);assert.equal(node.focused,true);
+  assert.match(source,/catch\(e\)\{[^}]*paPaint\(box,pulseGroupsMarkup\(null,true\)\)/);
+  assert.match(source,/if\(!classified\)\{paPaint\(box,pulseGroupsMarkup\(null,true\)\)/);
+  assert.match(source,/paPaint\(box,pulseGroupsMarkup\(classified\)\)/);
+  assert.doesNotMatch(source,/box\.innerHTML=pulseGroupsMarkup/);
 });
 
 test("los grupos se apilan en móvil sin alterar sus tarjetas",()=>{

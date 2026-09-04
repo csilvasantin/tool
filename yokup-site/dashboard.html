@@ -400,7 +400,7 @@ async function pulse(renderMap=true){
       fetch(PRESENCE,{cache:"no-store"}).then(r=>r.json()),
       fetch(BROWSERS,{cache:"no-store"}).then(r=>r.json()).catch(()=>({browsers:[]}))
     ]);d=responses[0];nav=responses[1];
-  }catch(e){const n=document.getElementById("pulseN"),box=document.getElementById("pulse");if(n)n.textContent="estado no disponible";if(box)box.innerHTML=pulseGroupsMarkup(null,true);return;}
+  }catch(e){const n=document.getElementById("pulseN"),box=document.getElementById("pulse");if(n)n.textContent="estado no disponible";paPaint(box,pulseGroupsMarkup(null,true));return;}
   const now=Date.now()/1000;
   const fresh=paVerifiedPresence(d.presence||[],nav&&nav.browsers||[],now);
   const classified=window.YkPresenceGroups?YkPresenceGroups.classify(fresh,{identity:window.ykAgentIdentity,detailUrl:window.YkAgentDetail&&YkAgentDetail.detailUrl}):null;
@@ -411,8 +411,8 @@ async function pulse(renderMap=true){
   PROJECT_LIVE_ROSTER=paPhysicalAgents(fresh);
   PROJECT_ROSTER=paProjectRoster(PROJECT_LIVE_ROSTER,PROJECT_ROWS);
   if(renderMap)paRender();
-  if(!classified){box.innerHTML=pulseGroupsMarkup(null,true);return;}
-  box.innerHTML=pulseGroupsMarkup(classified);
+  if(!classified){paPaint(box,pulseGroupsMarkup(null,true));return;}
+  paPaint(box,pulseGroupsMarkup(classified));
 }
 
 /* MAPA PROYECTOS × AGENTES — las identidades salen del MISMO pulso que las
