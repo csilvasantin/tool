@@ -11,11 +11,12 @@ function occurrences(pattern) {
 test("Plataforma agéntica es el primer contenido principal del Dashboard", () => {
   assert.match(
     source,
-    /<div class="wrap">\s*<h1>Plataforma agéntica de gestión de Xperiencias<\/h1>\s*<details class="dash-section" id="projectAgentSection" open>/,
+    /<div class="wrap">\s*<h1>Plataforma agéntica de gestión de Xperiencias<\/h1>\s*<section class="record-pace"[\s\S]*?<\/section>\s*<details class="dash-section" id="projectAgentSection" open>/,
   );
   const titleAt = source.indexOf("<h1>Plataforma agéntica de gestión de Xperiencias</h1>");
   const projectsAt = source.indexOf('id="projectAgentSection"');
-  assert.ok(titleAt >= 0 && titleAt < projectsAt, "el título precede directamente a Proyectos y agentes");
+  const recordAt = source.indexOf('id="recordPace"');
+  assert.ok(titleAt >= 0 && titleAt < recordAt && recordAt < projectsAt, "el título y el ritmo de récord preceden a Proyectos y agentes");
 });
 
 test("desaparece totalmente YOKUP · XPACE OS", () => {

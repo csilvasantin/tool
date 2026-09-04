@@ -34,6 +34,29 @@ test("ordena el líder actual si el API no trae el top ordenado", () => {
   assert.equal(recordApi.dailyRecord(unordered, "2026-09-04").leader.agent, "OraculoMacMini");
 });
 
+test("calcula el ritmo de récord con el reloj civil de Madrid", () => {
+  const chase = recordApi.dailyRecord(payload, "2026-09-04");
+  const pace = recordApi.recordPace(chase, "2026-09-04T10:00:00Z", "Europe/Madrid");
+  assert.equal(pace.elapsedHours, 12);
+  assert.equal(pace.remainingHours, 12);
+  assert.equal(pace.currentPerHour, 280 / 12);
+  assert.equal(pace.requiredPerHour, 2001 / 12);
+  assert.equal(pace.projected, 560);
+  assert.equal(pace.status, "behind");
+});
+
+test("el semáforo pasa a por encima cuando la proyección supera la meta", () => {
+  const fast = structuredClone(payload);
+  fast.all_days[1].top[0].points = 1200;
+  const pace = recordApi.recordPace(
+    recordApi.dailyRecord(fast, "2026-09-04"),
+    "2026-09-04T10:00:00Z",
+    "Europe/Madrid",
+  );
+  assert.equal(pace.projected, 2400);
+  assert.equal(pace.status, "ahead");
+});
+
 test("el Highscore carga y repinta la meta histórica con cada lectura viva", () => {
   assert.match(html, /id="dailyRecord"[^>]*aria-live="polite"/);
   assert.match(html, /src="\/highscore-daily-record\.js\?v=/);

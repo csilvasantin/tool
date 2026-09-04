@@ -38,15 +38,14 @@ test("el h1 permanece intacto y la antigua subfrase desaparece por completo", ()
     "no debe quedar CSS muerto reservando espacio para la subfrase");
 });
 
-test("el título enlaza directamente con Proyectos y agentes sin un hueco residual", () => {
+test("el título enlaza directamente con el ritmo de récord sin un hueco residual", () => {
   assert.match(source,
-    /<h1>Plataforma agéntica de gestión de Xperiencias<\/h1>\s*<details class="dash-section" id="projectAgentSection" open>/);
+    /<h1>Plataforma agéntica de gestión de Xperiencias<\/h1>\s*<section class="record-pace"/);
   const h1 = cssRule("h1");
   const h1Margin = h1.match(/margin\s*:\s*([0-9.]+)px\s+[^;]+\s+([0-9.]+)px/);
   assert.ok(h1Margin, "el h1 conserva márgenes explícitos");
   const titleBottom = Number(h1Margin[2]);
-  const projectRule = source.match(/(?:^|\n)#projectAgentSection\{([^}]*)\}/m)?.[1];
-  const sectionTop = projectRule ? px(projectRule, "margin-top") : px(cssRule(".dash-section"), "margin-top");
-  assert.ok(titleBottom + sectionTop <= 18,
-    `el hueco combinado hasta projectAgentSection sigue siendo ${titleBottom + sectionTop}px`);
+  const recordTop = px(cssRule(".record-pace"), "margin-top");
+  assert.ok(titleBottom + recordTop <= 18,
+    `el hueco combinado hasta la tarjeta sigue siendo ${titleBottom + recordTop}px`);
 });

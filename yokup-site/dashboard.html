@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="/yk-frame.css?v=r17">
 <script src="/yk-agent-identity.js?v=1"></script>
 <script src="/highscore-detail.js?v=weekly-control-r1"></script>
+<script src="/highscore-daily-record.js?v=v.2026.09.04.r2"></script>
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -32,6 +33,20 @@ h1{font-size:clamp(23px,2.8vw,33px);line-height:1.12;letter-spacing:-.02em;margi
 .dash-section[open]>.shd::before{transform:rotate(90deg)}
 .dash-section>.dash-section-body{margin-top:12px}
 .dash-section>.shd:hover,.dash-section>.shd:focus-visible{color:var(--ink);outline:none}
+
+/* RITMO DE RÉCORD — comparte la meta fija y el líder con Highscore. */
+.record-pace{margin-top:14px;border:1px solid var(--line2);border-radius:14px;background:linear-gradient(135deg,rgba(10,22,32,.97),rgba(4,13,20,.97));box-shadow:0 16px 46px rgba(0,0,0,.22);overflow:hidden;position:relative}
+.record-pace::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--dim);box-shadow:0 0 14px currentColor}
+.record-pace[data-state="ahead"]::before,.record-pace[data-state="won"]::before{background:var(--good)}
+.record-pace[data-state="behind"]::before{background:var(--warn)}
+.rp-top{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 14px 9px;border-bottom:1px solid var(--line)}
+.rp-heading{min-width:0}.rp-heading a{color:var(--brand);font:900 10px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;text-decoration:none}.rp-heading a:hover{text-decoration:underline}.rp-heading small{display:block;margin-top:4px;color:var(--dim);font:9px/1.35 var(--mono)}
+.rp-signal{flex:none;border:1px solid var(--line2);border-radius:999px;padding:5px 9px;color:var(--mut);font:900 8px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.record-pace[data-state="ahead"] .rp-signal,.record-pace[data-state="won"] .rp-signal{color:var(--good);border-color:rgba(136,255,170,.45);background:rgba(136,255,170,.07)}
+.record-pace[data-state="behind"] .rp-signal{color:var(--warn);border-color:rgba(255,136,102,.45);background:rgba(255,136,102,.07)}
+.rp-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}.rp-metric{min-width:0;padding:11px 14px;border-right:1px solid var(--line)}.rp-metric:last-child{border-right:0}.rp-metric span{display:block;color:var(--dim);font:800 8px/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase}.rp-metric strong{display:block;margin-top:5px;color:var(--ink);font:900 clamp(17px,1.7vw,23px)/1 var(--mono);white-space:nowrap}.rp-metric em{display:block;margin-top:4px;color:var(--mut);font:normal 9px/1.25 var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rp-current strong,.rp-target strong{color:var(--accent)}.record-pace[data-state="ahead"] .rp-projection strong,.record-pace[data-state="won"] .rp-projection strong{color:var(--good)}.record-pace[data-state="behind"] .rp-projection strong{color:var(--warn)}
+.rp-progress{height:3px;background:rgba(120,243,255,.07)}.rp-progress i{display:block;width:0;height:100%;background:linear-gradient(90deg,var(--brand),var(--good));box-shadow:0 0 10px rgba(120,243,255,.45);transition:width .35s ease}
+@media(max-width:720px){.rp-grid{grid-template-columns:1fr 1fr}.rp-metric:nth-child(2){border-right:0}.rp-metric:nth-child(-n+2){border-bottom:1px solid var(--line)}.rp-top{align-items:flex-start;flex-direction:column}.rp-signal{align-self:flex-start}}
 
 /* PULSO DE LA FLOTA */
 .pulse{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
@@ -144,6 +159,17 @@ details.pa-team-node:not([open])>.pa-team-agents,.pa-project-node:not([open])>.p
 <div class="wrap">
   <h1>Plataforma agéntica de gestión de Xperiencias</h1>
 
+  <section class="record-pace" id="recordPace" data-state="loading" aria-live="polite" aria-label="Ritmo para superar el récord diario de Yokup">
+    <div class="rp-top"><div class="rp-heading"><a href="/highscore">Ritmo de récord en tiempo real →</a><small id="recordPaceContext">Cargando el récord histórico y los puntos de hoy…</small></div><span class="rp-signal" id="recordPaceSignal">calculando</span></div>
+    <div class="rp-grid">
+      <div class="rp-metric rp-current"><span>Puntos actuales</span><strong id="recordPaceCurrent">—</strong><em id="recordPaceAgent">líder de hoy</em></div>
+      <div class="rp-metric rp-target"><span>Objetivo fijo</span><strong id="recordPaceTarget">—</strong><em>récord anterior + 1</em></div>
+      <div class="rp-metric"><span>Necesarios hasta las 24:00</span><strong id="recordPaceRequired">—</strong><em id="recordPaceRemaining">puntos por hora</em></div>
+      <div class="rp-metric rp-projection"><span>Proyección de cierre</span><strong id="recordPaceProjection">—</strong><em id="recordPaceDelta">según el ritmo de hoy</em></div>
+    </div>
+    <div class="rp-progress" aria-hidden="true"><i id="recordPaceProgress"></i></div>
+  </section>
+
   <details class="dash-section" id="projectAgentSection" open>
     <summary class="shd">Proyectos y agentes <span class="tot" id="projectAgentN">—</span></summary>
     <section class="dash-section-body pa-shell" id="projectAgentShell" data-pa-roster-view="carbon" aria-label="Asociación de proyectos, equipos físicos y agentes">
@@ -220,6 +246,7 @@ details.pa-team-node:not([open])>.pa-team-agents,.pa-project-node:not([open])>.p
 const PRESENCE="https://admira-telegram.csilvasantin.workers.dev/api/presence";
 const BROWSERS="https://admira-navegadores.csilvasantin.workers.dev/api/browsers";
 const PROJECTS_API="https://api.yokup.com";
+const RECORD_PACE_REFRESH_MS=30000;
 const AGENT_FRESH_SECONDS=240;
 const AGENT_STOP_FRESH_SECONDS=30;
 const AGENT_REFRESH_MS=3000;
@@ -252,6 +279,36 @@ const PROJECT_SCOPE_KEY="yokup.dashboard.projects.v1";
 const TEAM_SCOPE_KEY="yokup.dashboard.teams.v1";
 const SCOPE_DEFAULTS_KEY="yokup.dashboard.census-defaults.v1";
 const FLEET_CENSUS="/api/fleet-census";
+let RECORD_PACE_HISTORY=null;
+function rpNumber(value,digits=0){return Number(value||0).toLocaleString("es-ES",{minimumFractionDigits:digits,maximumFractionDigits:digits});}
+function renderRecordPace(){
+  const api=typeof YkHighscoreDailyRecord!=="undefined"&&YkHighscoreDailyRecord,card=document.getElementById("recordPace");
+  if(!api||!RECORD_PACE_HISTORY||!card)return;
+  const chase=api.dailyRecord(RECORD_PACE_HISTORY,api.zoneDateKey(Date.now(),"Europe/Madrid")),pace=api.recordPace(chase,Date.now(),"Europe/Madrid");
+  if(!chase.available||!pace.available){card.dataset.state="loading";document.getElementById("recordPaceContext").textContent="Aún no existe un día anterior con puntuación para fijar la meta.";return;}
+  const leader=chase.leader,delta=Math.round(pace.projected-chase.target),state=pace.status;
+  card.dataset.state=state;
+  document.getElementById("recordPaceCurrent").textContent=rpNumber(pace.current);
+  document.getElementById("recordPaceAgent").textContent=leader?leader.agent+" · "+rpNumber(pace.currentPerHour,1)+" pts/h":"sin puntos hoy";
+  document.getElementById("recordPaceTarget").textContent=rpNumber(chase.target);
+  document.getElementById("recordPaceRequired").textContent=rpNumber(pace.requiredPerHour,1)+"/h";
+  document.getElementById("recordPaceRemaining").textContent=rpNumber(chase.remaining)+" pts · "+rpNumber(pace.remainingHours,1)+" h restantes";
+  document.getElementById("recordPaceProjection").textContent=rpNumber(Math.round(pace.projected));
+  document.getElementById("recordPaceDelta").textContent=pace.won?"récord superado por "+rpNumber(chase.beatenBy):((delta>=0?"+":"−")+rpNumber(Math.abs(delta))+" frente al objetivo");
+  document.getElementById("recordPaceSignal").textContent=pace.won?"● nuevo récord":(pace.ahead?"● por encima del ritmo":"● por debajo del ritmo");
+  document.getElementById("recordPaceContext").textContent="Marca a batir: "+rpNumber(chase.record.points)+" · "+chase.record.agent+" · "+chase.record.day+" · hora de Madrid";
+  document.getElementById("recordPaceProgress").style.width=chase.progress.toFixed(2)+"%";
+}
+async function refreshRecordPace(){
+  try{
+    const response=await fetch(PROJECTS_API+"/highscore/history?scope=global",{cache:"no-store",signal:AbortSignal.timeout(15000)});
+    if(!response.ok)throw new Error("HTTP "+response.status);
+    const payload=await response.json();if(!payload||!payload.ok||!Array.isArray(payload.all_days))throw new Error("historial no disponible");
+    RECORD_PACE_HISTORY=payload;renderRecordPace();
+  }catch(error){
+    const context=document.getElementById("recordPaceContext");if(context&&!RECORD_PACE_HISTORY)context.textContent="No se pudo leer el marcador · reintentando automáticamente";
+  }
+}
 // Cada documento nace en TODOS. Los filtros son estado efímero de esta pestaña:
 // no se heredan de otra carga, de otra pestaña ni de enlaces compartidos.
 function paClearLegacyScopes(){
@@ -1315,6 +1372,9 @@ window.addEventListener("resize",()=>requestAnimationFrame(paRefreshNodeLayout))
 pa("projectAgentScroll").addEventListener("scroll",()=>requestAnimationFrame(paDrawLinks));
 if(window.ResizeObserver)new ResizeObserver(()=>requestAnimationFrame(paRefreshNodeLayout)).observe(pa("projectAgentMap"));
 paLoad();
+refreshRecordPace();
+setInterval(refreshRecordPace,RECORD_PACE_REFRESH_MS);
+setInterval(renderRecordPace,15000);
 setInterval(pulse,AGENT_REFRESH_MS);
 </script>
 <script type="module" src="/avatar-widget.js?v=3"></script>

@@ -35,7 +35,42 @@
       progress:Math.max(0, Math.min(100, target ? current / target * 100 : 0)) };
   }
 
-  var api = { topRows:topRows, dailyRecord:dailyRecord };
+  function zoneClock(now, timeZone) {
+    var parts = {}, date = now instanceof Date ? now : new Date(now == null ? Date.now() : now);
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone:timeZone || "Europe/Madrid", hour:"2-digit", minute:"2-digit", second:"2-digit", hourCycle:"h23"
+    }).formatToParts(date).forEach(function (part) { parts[part.type] = Number(part.value); });
+    return { hour:parts.hour || 0, minute:parts.minute || 0, second:parts.second || 0 };
+  }
+
+  function zoneDateKey(now, timeZone) {
+    var parts = {}, date = now instanceof Date ? now : new Date(now == null ? Date.now() : now);
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone:timeZone || "Europe/Madrid", year:"numeric", month:"2-digit", day:"2-digit"
+    }).formatToParts(date).forEach(function (part) { parts[part.type] = part.value; });
+    return parts.year + "-" + parts.month + "-" + parts.day;
+  }
+
+  /* Ritmo del líder de hoy frente a una meta fija (récord histórico + 1).
+   * Se calcula con el reloj civil de Madrid incluso si el navegador está en
+   * otra zona. La proyección usa el promedio transcurrido del día y el ritmo
+   * necesario reparte solamente los puntos que faltan entre las horas restantes. */
+  function recordPace(chase, now, timeZone) {
+    if (!chase || !chase.available) return { available:false };
+    var clock = zoneClock(now, timeZone), elapsedHours = clock.hour + clock.minute / 60 + clock.second / 3600;
+    var remainingHours = Math.max(0, 24 - elapsedHours), current = chase.leader ? Math.max(0, Number(chase.leader.points) || 0) : 0;
+    var currentPerHour = elapsedHours > 0 ? current / elapsedHours : 0;
+    var requiredPerHour = remainingHours > 0 ? chase.remaining / remainingHours : chase.remaining;
+    var projected = elapsedHours > 0 ? currentPerHour * 24 : current;
+    var won = chase.remaining === 0, ahead = won || projected >= chase.target;
+    return {
+      available:true, clock:clock, elapsedHours:elapsedHours, remainingHours:remainingHours,
+      current:current, currentPerHour:currentPerHour, requiredPerHour:requiredPerHour,
+      projected:projected, ahead:ahead, won:won, status:won ? "won" : (ahead ? "ahead" : "behind")
+    };
+  }
+
+  var api = { topRows:topRows, dailyRecord:dailyRecord, zoneClock:zoneClock, zoneDateKey:zoneDateKey, recordPace:recordPace };
   root.YkHighscoreDailyRecord = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);
