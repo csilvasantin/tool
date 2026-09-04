@@ -591,6 +591,12 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .score-mission-title{margin:0;color:var(--brand);font-size:9px;letter-spacing:.13em;text-transform:uppercase}
 .score-mission-summary{display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:3px 7px;color:var(--dim);
   font-size:7.5px;font-weight:800;letter-spacing:.035em}
+.score-mission-summary-filters{display:inline-flex;align-items:center;flex-wrap:wrap;gap:3px}
+.score-mission-summary-filter{appearance:none;min-width:24px;min-height:24px;padding:3px 5px;border:1px solid transparent;border-radius:4px;
+  background:transparent;color:inherit;font:inherit;letter-spacing:inherit;cursor:pointer;white-space:nowrap}
+.score-mission-summary-filter:hover{border-color:rgba(120,243,255,.28);color:var(--ink)}
+.score-mission-summary-filter[aria-pressed="true"]{border-color:rgba(120,243,255,.52);background:rgba(120,243,255,.12);color:var(--ink)}
+.score-mission-summary-filter:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
 .score-mission-summary-total{color:var(--ink);font-weight:950}.score-mission-summary-running{color:var(--good)}
 .score-mission-summary[data-state="loading"]{color:var(--brand)}.score-mission-summary[data-state="error"]{color:var(--warn)}
 .score-mission-summary-unknown{color:var(--warn)}
@@ -903,6 +909,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .progression-step{grid-template-columns:13px minmax(0,1fr);column-gap:3px}.progression-dot{width:13px;height:13px;border-width:1px}.progression-step::before{top:6px}
   .score-missions{padding:7px;min-width:580px}.score-mission-head{position:sticky;left:5px;align-items:flex-start;width:min(360px,calc(100vw - 24px))}
   .score-mission-heading{max-width:240px;gap:3px 6px}.score-mission-summary{gap:2px 5px;font-size:7px}
+  .score-mission-summary-filters{gap:2px}.score-mission-summary-filter{min-height:24px;padding:3px 4px}
   .score-mission{grid-template-columns:minmax(0,1fr) auto}.score-mission-task{grid-template-columns:22px 68px minmax(170px,1fr) auto}
   .agent-scope-children{padding-left:8px}.agent-scope-row.agent{grid-template-columns:minmax(0,1fr) auto}
   .agent-scope-primary{grid-template-columns:minmax(0,1fr) auto 28px;gap:5px}.agent-scope-switch-state{font-size:7px}
@@ -2951,6 +2958,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // persona base y periodo: cambiar de LucasGrokBot a Lucas no duplica llamadas
   // ni mezcla resultados, y una respuesta antigua nunca pisa el periodo nuevo.
   var SCORE_MISSION_PERIODS = ["hour", "day", "week", "month"];
+  var SCORE_MISSION_FILTERS = ["all", "open", "in_progress", "closed"];
   var SCORE_MISSION_CACHE = Object.create(null), SCORE_MISSION_ROWS = Object.create(null);
   var SCORE_MISSION_REQUEST = 0;
 
@@ -2960,6 +2968,14 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var step = Number(stepOrKey || 0), index = SCORE_MISSION_PERIODS.indexOf(selected);
     if (!Number.isFinite(step)) return selected;
     return SCORE_MISSION_PERIODS[(index + step % SCORE_MISSION_PERIODS.length + SCORE_MISSION_PERIODS.length) % SCORE_MISSION_PERIODS.length];
+  }
+
+  function scoreMissionFilter(current, stepOrKey) {
+    var selected = SCORE_MISSION_FILTERS.indexOf(current) >= 0 ? current : "all";
+    if (typeof stepOrKey === "string" && SCORE_MISSION_FILTERS.indexOf(stepOrKey) >= 0) return stepOrKey;
+    var step = Number(stepOrKey || 0), index = SCORE_MISSION_FILTERS.indexOf(selected);
+    if (!Number.isFinite(step)) return selected;
+    return SCORE_MISSION_FILTERS[(index + step % SCORE_MISSION_FILTERS.length + SCORE_MISSION_FILTERS.length) % SCORE_MISSION_FILTERS.length];
   }
 
   function scoreMissionAgentName(a) {
@@ -2985,7 +3001,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function scoreMissionState(a) {
     var key = claveAgentePeriodo(a && a.agente), initial = scoreMissionPeriod(RANKING_PERIOD, 0);
-    if (!SCORE_MISSION_CACHE[key]) SCORE_MISSION_CACHE[key] = { period:initial, status:"idle", payload:null, error:"", request:0, periods:Object.create(null) };
+    if (!SCORE_MISSION_CACHE[key]) SCORE_MISSION_CACHE[key] = { period:initial, filter:"all", status:"idle", payload:null, error:"", request:0, periods:Object.create(null) };
     return SCORE_MISSION_CACHE[key];
   }
 
@@ -3025,7 +3041,21 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return value + " " + (value === 1 ? singular : plural);
   }
 
-  function scoreMissionSummaryHtml(payload, status, agentName, period) {
+  function scoreMissionVisibleMissions(payload, filter) {
+    var rows = Array.isArray(payload && payload.missions) ? payload.missions : [], selected = scoreMissionFilter("all", filter);
+    var rank = { unknown:0, open:1, in_progress:2, closed:3 }, representatives = new Map();
+    rows.forEach(function (mission, index) {
+      var id = String(mission && mission.id == null ? "" : mission.id).trim(), key = id || "anonymous:" + index;
+      var bucket = scoreMissionStatusBucket(mission && mission.status), previous = representatives.get(key);
+      if (!previous) representatives.set(key, { mission:mission, bucket:bucket });
+      else if (rank[bucket] > rank[previous.bucket]) representatives.set(key, { mission:mission, bucket:bucket });
+    });
+    return Array.from(representatives.values()).filter(function (entry) {
+      return selected === "all" || entry.bucket === selected || (selected === "open" && entry.bucket === "unknown");
+    }).map(function (entry) { return entry.mission; });
+  }
+
+  function scoreMissionSummaryHtml(payload, status, agentName, period, filter, contentId) {
     var state = normaliza(status).toLowerCase(), periodLabel = rotuloPeriodoRanking(period);
     var prefix = '<span class="score-mission-summary" data-state="' + esc(state || "idle") + '" role="status" aria-live="polite" aria-atomic="true"';
     if (state === "loading") return prefix + ' aria-label="Cargando resumen de misiones">Cargando resumen…</span>';
@@ -3037,18 +3067,32 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var running = summary.in_progress + " en curso";
     var closed = scoreMissionCount(summary.closed, "cerrada", "cerradas");
     var unknown = summary.unknown ? scoreMissionCount(summary.unknown, "sin estado reconocido", "sin estado reconocido") : "";
+    var selected = ["all", "open", "in_progress", "closed"].indexOf(filter) >= 0 ? filter : "all";
+    var controls = contentId ? ' aria-controls="' + esc(contentId) + '"' : "";
     var aria = total + " de " + normaliza(agentName) + " en " + periodLabel + ": " + opened + ", " + running + " y " + closed +
       (unknown ? ". " + unknown + " incluidas prudentemente entre las abiertas" : "");
     return prefix + ' aria-label="' + esc(aria) + '">' +
-      '<span class="score-mission-summary-total">' + esc(total) + '</span>' +
-      '<span class="score-mission-summary-open">' + esc(opened) + '</span>' +
-      '<span class="score-mission-summary-running">' + esc(running) + '</span>' +
-      '<span class="score-mission-summary-closed">' + esc(closed) + '</span>' +
+      '<span class="score-mission-summary-filters" role="group" aria-label="Filtrar misiones por estado">' +
+      '<button type="button" class="score-mission-summary-filter" data-score-mission-filter="all" aria-pressed="' + (selected === "all") + '"' + controls + '><span class="score-mission-summary-total">' + esc(total) + '</span></button>' +
+      '<button type="button" class="score-mission-summary-filter" data-score-mission-filter="open" aria-pressed="' + (selected === "open") + '"' + controls + '><span class="score-mission-summary-open">' + esc(opened) + '</span></button>' +
+      '<button type="button" class="score-mission-summary-filter" data-score-mission-filter="in_progress" aria-pressed="' + (selected === "in_progress") + '"' + controls + '><span class="score-mission-summary-running">' + esc(running) + '</span></button>' +
+      '<button type="button" class="score-mission-summary-filter" data-score-mission-filter="closed" aria-pressed="' + (selected === "closed") + '"' + controls + '><span class="score-mission-summary-closed">' + esc(closed) + '</span></button></span>' +
       (unknown ? '<span class="score-mission-summary-unknown">' + esc(unknown) + '</span>' : '') + '</span>';
   }
 
-  function scoreMissionItemsHtml(payload) {
-    var missions = Array.isArray(payload && payload.missions) ? payload.missions : [];
+  function scoreMissionItemsHtml(payload, filter) {
+    // Mantiene el contrato histórico de un argumento para consumidores que sólo
+    // necesitan renderizar el payload completo.
+    var selected = "all", missions = Array.isArray(payload && payload.missions) ? payload.missions : [];
+    if (arguments.length > 1) {
+      selected = scoreMissionFilter("all", filter);
+      missions = scoreMissionVisibleMissions(payload, selected);
+    }
+    if (!missions.length) {
+      var empty = ({ open:"No hay misiones abiertas en este periodo.", in_progress:"No hay misiones en curso en este periodo.",
+        closed:"No hay misiones cerradas en este periodo." })[selected] || "No hay misiones factuales en este periodo.";
+      return '<p class="score-mission-state" data-score-mission-empty="' + esc(selected) + '">' + esc(empty) + '</p>';
+    }
     return '<div class="score-mission-list">' + missions.map(function (mission) {
       var ref = mission.display_ref || mission.id || "Misión", duration = scoreMissionDuration(mission.duration_ms);
       var missionState = scoreMissionStatusLabel(mission.status), project = mission.project_name || mission.project_id || "Proyecto no indicado";
@@ -3073,17 +3117,18 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function scoreMissionExplorerHtml(a, progressId) {
     var key = claveAgentePeriodo(a && a.agente), state = scoreMissionState(a), period = scoreMissionPeriod(state.period, 0);
+    state.filter = scoreMissionFilter("all", state.filter);
+    var filter = state.filter;
     var explorerId = "score-missions-" + key, contentId = explorerId + "-content", titleId = explorerId + "-title";
     var label = rotuloPeriodoRanking(period).toUpperCase(), content;
     if (state.status === "loading") content = '<p class="score-mission-state">Cargando misiones…</p>';
     else if (state.status === "error") content = '<p class="score-mission-state error">No se pudieron cargar las misiones.' +
       '<button type="button" class="score-mission-retry" data-score-mission-retry>Reintentar</button></p>';
-    else if (state.status === "empty") content = '<p class="score-mission-state">No hay misiones factuales en este periodo.</p>';
-    else if (state.status === "ready") content = scoreMissionItemsHtml(state.payload);
+    else if (state.status === "empty" || state.status === "ready") content = scoreMissionItemsHtml(state.payload, filter);
     else content = '<p class="score-mission-state">Abre PUNTOS para consultar las misiones del periodo.</p>';
-    var agentName = scoreMissionAgentName(a), summary = scoreMissionSummaryHtml(state.payload, state.status, agentName, period);
+    var agentName = scoreMissionAgentName(a), summary = scoreMissionSummaryHtml(state.payload, state.status, agentName, period, filter, contentId);
     return '<section class="score-missions" id="score-missions-' + esc(key) + '" data-agent-key="' + esc(key) + '" data-progress-id="' + esc(progressId) +
-      '" data-state="' + esc(state.status) + '" role="region" aria-labelledby="' + esc(titleId) + '" aria-busy="' + (state.status === "loading") + '">' +
+      '" data-state="' + esc(state.status) + '" data-filter="' + esc(state.filter) + '" role="region" aria-labelledby="' + esc(titleId) + '" aria-busy="' + (state.status === "loading") + '">' +
       '<div class="score-mission-head"><div class="score-mission-heading"><h3 class="score-mission-title" id="' + esc(titleId) + '">Misiones de ' + esc(agentName) + '</h3>' + summary + '</div>' +
       '<div class="score-mission-period" role="group" aria-label="Periodo de las misiones: ' + esc(rotuloPeriodoRanking(period)) + '">' +
       '<button type="button" data-score-mission-step="-1" aria-label="Periodo anterior" aria-controls="' + esc(contentId) + '">←</button>' +
@@ -3098,6 +3143,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var active = document.activeElement, restore = "";
     if (active && current.contains(active)) {
       if (active.hasAttribute("data-score-mission-step")) restore = '[data-score-mission-step="' + active.getAttribute("data-score-mission-step") + '"]';
+      else if (active.hasAttribute("data-score-mission-filter")) restore = '[data-score-mission-filter="' + active.getAttribute("data-score-mission-filter") + '"]';
       else if (active.hasAttribute("data-score-mission-retry")) restore = "[data-score-mission-retry]";
     }
     current.outerHTML = scoreMissionExplorerHtml(a, progressId);
@@ -3105,6 +3151,19 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var next = document.getElementById("score-missions-" + key), target = next && next.querySelector(restore);
       if (target) { try { target.focus({ preventScroll:true }); } catch (_) { target.focus(); } }
     }
+  }
+
+  function scoreMissionSetFilter(a, filter, explorerId, focus) {
+    var state = scoreMissionState(a), selected = scoreMissionFilter(state.filter, filter);
+    state.filter = selected;
+    var progressId = normaliza(explorerId).replace(/^score-missions-/, "score-progress-");
+    scoreMissionPaint(a, progressId);
+    if (focus) {
+      var explorer = document.getElementById(normaliza(explorerId));
+      var target = explorer && explorer.querySelector('[data-score-mission-filter="' + selected + '"]');
+      if (target) { try { target.focus({ preventScroll:true }); } catch (_) { target.focus(); } }
+    }
+    return selected;
   }
 
   function scoreMissionLoad(a, period, explorerId, force) {
@@ -3977,6 +4036,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (!explorer || !filas.contains(explorer)) return;
       var row = SCORE_MISSION_ROWS[explorer.getAttribute("data-agent-key")], state = row && scoreMissionState(row);
       if (!row || !state) return;
+      var filterButton = evento.target.closest("[data-score-mission-filter]");
+      if (filterButton) {
+        scoreMissionSetFilter(row, filterButton.getAttribute("data-score-mission-filter"), explorer.id, false);
+        return;
+      }
       var stepButton = evento.target.closest("[data-score-mission-step]");
       if (stepButton) {
         scoreMissionLoad(row, scoreMissionPeriod(state.period, Number(stepButton.getAttribute("data-score-mission-step")) || 0), explorer.id, false);
@@ -3991,6 +4055,22 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     if (!filas || filas.dataset.scoreMissionKeyboard === "on") return;
     filas.dataset.scoreMissionKeyboard = "on";
     filas.addEventListener("keydown", function (evento) {
+      var filterButton = evento.target && evento.target.closest && evento.target.closest("[data-score-mission-filter]");
+      if (filterButton && filas.contains(filterButton)) {
+        var filterExplorer = filterButton.closest(".score-missions");
+        var filterRow = filterExplorer && SCORE_MISSION_ROWS[filterExplorer.getAttribute("data-agent-key")];
+        if (!filterRow) return;
+        var filterState = scoreMissionState(filterRow), selected = filterButton.getAttribute("data-score-mission-filter"), nextFilter = "";
+        if (["ArrowLeft", "ArrowUp"].indexOf(evento.key) >= 0) nextFilter = scoreMissionFilter(selected, -1);
+        else if (["ArrowRight", "ArrowDown"].indexOf(evento.key) >= 0) nextFilter = scoreMissionFilter(selected, 1);
+        else if (evento.key === "Home") nextFilter = "all";
+        else if (evento.key === "End") nextFilter = "closed";
+        else if (evento.key === "Enter" || evento.key === " ") nextFilter = selected;
+        else return;
+        evento.preventDefault(); filterState.filter = scoreMissionFilter(filterState.filter, nextFilter);
+        scoreMissionSetFilter(filterRow, filterState.filter, filterExplorer.id, true);
+        return;
+      }
       var control = evento.target && evento.target.closest && evento.target.closest(".score-mission-period");
       if (!control || !filas.contains(control)) return;
       var explorer = control.closest(".score-missions"), row = explorer && SCORE_MISSION_ROWS[explorer.getAttribute("data-agent-key")];
