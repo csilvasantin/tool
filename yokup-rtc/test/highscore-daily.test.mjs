@@ -150,6 +150,59 @@ test("un día sin actividad devuelve un marcador vacío, no un error", async () 
   assert.equal(d.day,madridDayKey(Date.now()));
 });
 
+test("todo agente con puntos del día aparece aunque esté inactivo, sin presencia o cambie de máquina", async () => {
+  const {db,env,F}=harness(),at=madridDayStart(HOY)+1000;
+  // Neo ya terminó: el ranking debe conservar sus puntos aunque no siga activo.
+  db.prepare("INSERT INTO tickets(id,subject,loc,source,status,assignee,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)")
+    .run("DONE-NEO","Misión terminada","MacMini","decision-batch","resolved","NeoMacMini",at,at);
+  // Trinity sólo abrió una ventana. No hay ticket, tarea ni fuente de presencia
+  // asociada que pueda mantenerlo visible por otra vía.
+  db.prepare("INSERT INTO decisions(id,machine,agent,question,status,created_at) VALUES(?,?,?,?,?,?)")
+    .run("WINDOW-TRINITY","MacBookProNegro14","TrinityMBP14","Ventana sin presencia","decided",at+1);
+  // La misma persona trabajó desde dos máquinas y con dos apellidos operativos.
+  // El contrato agrega ambos hechos en la única fila pública del agente.
+  db.prepare("INSERT INTO decisions(id,machine,agent,question,status,created_at) VALUES(?,?,?,?,?,?)")
+    .run("WINDOW-MORFEO-MINI","MacMini","MorfeoMacMini","Ventana Mini","decided",at+2);
+  db.prepare("INSERT INTO decisions(id,machine,agent,question,status,created_at) VALUES(?,?,?,?,?,?)")
+    .run("WINDOW-MORFEO-16","MacBookPro16","MorfeoMBP16","Ventana MBP16","decided",at+3);
+  // Una firma reconocida sin máquina también debe entrar por su hecho puntuable.
+  db.prepare("INSERT INTO ideas(id,title,author,status,created_at) VALUES(?,?,?,?,?)")
+    .run("OBJECTIVE-NIOBE","Objetivo sin presencia","NiobeMacMini","nueva",at+4);
+  // Smith sólo puntúa por una tarea hecha hoy dentro de una misión que empezó
+  // ayer. Esta es la regresión clave: no existe en el acumulador legacy de
+  // objetivos/ventanas/misiones, pero sus 15 puntos diarios exigen una fila.
+  db.prepare("INSERT INTO tickets(id,subject,loc,source,status,assignee,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)")
+    .run("TASKONLY-SMITH","Misión iniciada ayer","MacBookAirAzul","decision-batch","in_progress","SmithMBAAzul",madridDayStart(HOY)-1000,at+5);
+  db.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,created_at,updated_at) VALUES(?,?,?,?,?,?,?)")
+    .run("TASKONLY-SMITH","a","Tarea terminada hoy","done","SubSmithMBAAzul",madridDayStart(HOY)-1000,at+5);
+  // Control negativo: una misión cancelada no aporta puntos ni fabrica una fila.
+  db.prepare("INSERT INTO tickets(id,subject,loc,source,status,assignee,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)")
+    .run("CANCELLED-CYPHER","Sin puntos","MacBookAirAzul","decision-batch","cancelled","CypherMBAAzul",at+6,at+6);
+
+  const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
+  const taskOnly=d.hourly.scores.find(row=>row.agent==="Smith");
+  assert.ok(taskOnly,"el total autoritativo confirma que Smith sí puntuó dentro del día");
+  assert.equal(taskOnly.metrics.tasks.day,1);
+  assert.equal(taskOnly.metrics.points.day,15);
+  const ranked=d.scores.map(row=>({
+    agent:row.agent,
+    points:row.points,
+    tasks:row.tasks,
+    task_points:row.task_points
+  })).sort((a,b)=>a.agent.localeCompare(b.agent));
+  assert.deepEqual(ranked,[
+    {agent:"Morfeo",points:20,tasks:0,task_points:0},
+    {agent:"Neo",points:40,tasks:0,task_points:0},
+    {agent:"Niobe",points:20,tasks:0,task_points:0},
+    {agent:"Smith",points:15,tasks:1,task_points:15},
+    {agent:"Trinity",points:10,tasks:0,task_points:0}
+  ]);
+  assert.equal(d.scores.filter(row=>row.agent==="Morfeo").length,1,
+    "las firmas MacMini y MBP16 no parten al agente ni pierden una de sus ventanas");
+  assert.equal(d.scores.some(row=>row.agent==="Cypher"),false,
+    "la inclusión depende de puntos positivos, no de pertenecer al censo");
+});
+
 test("la comparación diaria distingue subir, bajar e igualar con la fórmula visible", async () => {
   const {db,env,F}=harness();
   const ayer=madridDayStart(HOY)-60*60*1000;
@@ -413,7 +466,9 @@ test("el payload horario nace de totales autoritativos e incluye las familias A/
   assert.deepEqual(totals.map(row=>[row.agent,row.points]),[["Oraculo",110]]);
   assert.match(source,/const legacyHourly = await highscoreHourlyTrend\(env, current, ahora\)/);
   assert.match(source,/const hourly = await highscoreHourlyContract\(env, legacyHourly, ahora, inicio, fin\)/);
-  assert.match(source,/return \{ ok: true,[^}]*scores, traceability, hourly \}/);
+  assert.match(source,/const completeScores = \(hourly\.scores \|\| \[\]\)\.map/,
+    "scores se proyecta desde el total horario autoritativo, que también conoce las tareas");
+  assert.match(source,/return \{ ok: true,[^}]*scores:completeScores, traceability, hourly \}/);
 });
 
 function insertHourBundle(db, suffix, at, agent="OraculoMacMini") {
