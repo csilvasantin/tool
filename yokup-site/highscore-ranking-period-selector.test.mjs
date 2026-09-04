@@ -161,4 +161,8 @@ test("la preferencia valida el patrón del producto y el control cabe en móvil"
   assert.equal(storedPeriod(null),"day");
   assert.equal(storedPeriod("week",true),"day","storage bloqueado no rompe la carga");
   assert.match(html, /@media \(max-width:620px\)\{[\s\S]{0,1800}\.ranking-period\{/);
+  assert.match(html, /\.ranking-period button\{width:24px;height:24px;/,
+    "el área táctil de escritorio cumple al menos 24×24 px");
+  assert.match(html, /@media \(max-width:620px\)\{[\s\S]{0,1800}\.ranking-period button\{width:24px;height:24px;/,
+    "la vista móvil no reduce el área táctil por debajo de 24×24 px");
 });
