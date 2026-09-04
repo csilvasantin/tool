@@ -9,7 +9,8 @@ if [ "$STATUS" = done ]; then
   PROOF_URL="$(bash "$HERE/mission-proof.sh" "$ID" "${NOTE:-Trabajo terminado y verificado.}")"
   NOTE="${NOTE:+$NOTE · }📸 $PROOF_URL"
 fi
-BASE="${ADMIRA_TG_API:-https://admira-telegram.csilvasantin.workers.dev}"
+# Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633).
+BASE="${ADMIRA_TG_API:-https://bot.yokup.com}"
 if [ "$STATUS" = ack ]; then ENDPOINT="$BASE/api/bot-inbox/$ID/ack"; else ENDPOINT="$BASE/api/bot-inbox/$ID/status"; fi
 PAYLOAD="$(PERSONA="$PERSONA" MACHINE="$MACHINE" STATUS="$STATUS" NOTE="$NOTE" python3 -c 'import json,os
 d={"persona":os.environ["PERSONA"],"machine":os.environ["MACHINE"]}

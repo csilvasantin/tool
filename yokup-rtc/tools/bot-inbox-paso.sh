@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-API="${YOKUP_API:-https://yokup-rtc.csilvasantin.workers.dev}"
+# Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633).
+API="${YOKUP_API:-https://api.yokup.com}"
 MISSION="${1:?uso: bot-inbox-paso.sh <misión> <code> <status> [report] [image-url]}"
 CODE="${2:?falta code}"; STATUS="${3:?falta status}"; REPORT="${4:-}"; IMAGE="${5:-}"
 read -r _PERSONA _HOST OWNER _RUNTIME <<<"$(YOKUP_ROLE=sub bash "$HERE/quien-ejecuta.sh")"

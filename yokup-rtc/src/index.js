@@ -55,7 +55,8 @@ var CORS = {
 };
 var json = /* @__PURE__ */ __name((o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...CORS, "content-type": "application/json" } }), "json");
 var AUTH_CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
-var WL_API = "https://admira-whitelist.csilvasantin.workers.dev";
+// Dominio propio: LaLiga bloquea workers.dev/r2.dev en horas de fútbol (FLT-1633); workers.dev sigue vivo como respaldo.
+var WL_API = "https://whitelist.admira.store";
 var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@admira.com", "agonzalez@admira.com", "jsedano@admira.com"];
 var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/onidle-request", "/fleet/agent/stop", "/fleet/agent/control", "/fleet/cli/terminal", "/fleet/desktop/write", "/fleet/desktop/capture", "/fleet/desktop/verify-close", "/fleet/desktop/capture/clear", "/fleet/pty/ticket", "/equipo/machine", "/equipo/silicon", "/strategy", "/config"]);
 var _wl = { at: 0, set: null };
@@ -743,7 +744,8 @@ const COUNCIL = {
 //
 // DEGRADA EN SILENCIO. Si pixeria no responde, el consejero opina como siempre
 // —con su punto fuerte— en vez de no opinar. El material suma; su ausencia no resta.
-var STOCK_INDEX_URL = "https://pub-bf043a4daa3b43b7a0b769617729d074.r2.dev/stock/index.json";
+// Dominio propio: LaLiga bloquea workers.dev/r2.dev en horas de fútbol (FLT-1633); workers.dev sigue vivo como respaldo.
+var STOCK_INDEX_URL = "https://stock.admira.store/stock/index.json";
 var COUNCIL_KNOWLEDGE_PROMPT_MAX = 8;   // piezas que entran en el prompt, las más nuevas
 // ── LO QUE DIO CARLOS vs LO QUE TRAJO LA FORMACIÓN ─────────────────────────
 // admira.live manda al consejero a formarse: busca vídeos suyos en YouTube, los sube
@@ -3235,7 +3237,7 @@ async function notifyFleetInformeClosure(env, ticket, missionId, owner, report, 
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ persona, machine: ticket.loc || "", report, image, runtime, host, mission_id: missionId, mission_created_at: ticket.created_at })
     }));
-    const statusResponse = await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
+    const statusResponse = await env.TELEGRAM.fetch(new Request("https://bot.yokup.com/api/bot-inbox/bulk-status", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ ids: [Number(numId)], status: "done", by: persona, note: "auto: informe con proof en yokup" })
     }));
@@ -3252,7 +3254,7 @@ async function notifyFleetAdministrativeCancellation(env, ticket, missionId, own
   if (!env.TELEGRAM) return { required:true, updated:false, inbox_id:numId };
   try {
     const response = await env.TELEGRAM.fetch(new Request(
-      "https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
+      "https://bot.yokup.com/api/bot-inbox/bulk-status", {
         method:"POST", headers:{ "content-type":"application/json" },
         // bulk-status no admite `cancelled`: `done` representa aquí un cierre
         // administrativo. La semántica vive en note, el campo que el worker real
@@ -5319,7 +5321,8 @@ var CRITICAL_MACHINES = [
 // Umbral de caída: si el latido más fresco de la máquina supera estos minutos, se
 // considera offline. La presencia late ~cada 3 min; 20 min = varios latidos perdidos.
 var MACHINE_OFFLINE_MIN = 20;
-var PRESENCE_URL = "https://admira-telegram.csilvasantin.workers.dev/api/presence";
+// Dominio propio del bot-inbox (FLT-1633): va por el service binding TELEGRAM, el host solo nombra la ruta.
+var PRESENCE_URL = "https://bot.yokup.com/api/presence";
 
 function canonMachine(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
 __name(canonMachine, "canonMachine");
@@ -5545,11 +5548,12 @@ __name(listTickets, "listTickets");
 // como MISIONES source='fleet' con su mismo árbol de tareas abc/123, y
 // admira.live/status deja de inventarse la misión: pasa a ser el VISOR que las
 // lee de /fleet/missions.
-// Se pide por el service binding TELEGRAM (ver wrangler.toml): un fetch normal a
+// Se pide por el service binding FLEET_SVC (ver wrangler.toml): un fetch normal a
 // este host hace loopback contra el propio yokup-rtc (mismo subdominio
-// workers.dev) y devuelve su 404. El host se conserva porque admira-telegram
-// enruta por hostname: con "https://admira-telegram/" a secas también da 404.
-var FLEET_API = "https://admira-fleet.csilvasantin.workers.dev";
+// workers.dev) y devuelve su 404. Hace falta un host real porque el worker de
+// destino enruta por hostname: con "https://admira-fleet/" a secas también da 404.
+// Dominio propio fleet.yokup.com (FLT-1633): LaLiga bloquea workers.dev en horas de fútbol.
+var FLEET_API = "https://fleet.yokup.com";
 // Contrato público operativo: elimina chat/message/note. Durante el despliegue
 // gradual puede omitir target_machine (caso real #1112); resolveFleetAssignment
 // lo reconstruye sólo si el censo proyecto+agente+máquina da una pareja única.
@@ -6193,7 +6197,7 @@ async function fleetNudge(env, b) {
   const control = priority
     ? "agent-focus://foreground?runtime=" + encodeURIComponent(runtime) + "&host=" + encodeURIComponent(host)
     : "";
-  const r = await env.NAVEGADORES.fetch(new Request("https://admira-navegadores.csilvasantin.workers.dev/api/cmd", {
+  const r = await env.NAVEGADORES.fetch(new Request("https://navegadores.yokup.com/api/cmd", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: "Bearer " + env.NAV_CMD_TOKEN },
     body: JSON.stringify({ deviceId, action: "prompt", url: control, text, persona })
@@ -6264,7 +6268,7 @@ async function fleetPushStatus(env, ticket, status) {
   if (!id || !env.TELEGRAM) return false;
   try {
     const r = await env.TELEGRAM.fetch(new Request(
-      `https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/${id}/status`,
+      `https://bot.yokup.com/api/bot-inbox/${id}/status`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -10856,7 +10860,7 @@ var worker_app = {
         if (fleetInboxIds.length && env.TELEGRAM) {
           const inboxStatus = status === "resolved" ? "done" : status === "in_progress" ? "in_progress" : status === "cancelled" ? "cancelled" : "pending";
           try {
-            await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
+            await env.TELEGRAM.fetch(new Request("https://bot.yokup.com/api/bot-inbox/bulk-status", {
               method: "POST", headers: { "content-type": "application/json" },
               body: JSON.stringify({ ids: fleetInboxIds, status: inboxStatus, by: author, note: "Cambio en bloque desde yokup.com/misiones." })
             }));
@@ -12401,7 +12405,7 @@ Todo en español.`;
         }
         if (fleetInboxIds.length && env.TELEGRAM) {
           try {
-            await env.TELEGRAM.fetch(new Request("https://admira-telegram.csilvasantin.workers.dev/api/bot-inbox/bulk-status", {
+            await env.TELEGRAM.fetch(new Request("https://bot.yokup.com/api/bot-inbox/bulk-status", {
               method: "POST", headers: { "content-type": "application/json" },
               body: JSON.stringify({ ids: fleetInboxIds, status: "done", by: author, note: "Misi\u00f3n ELIMINADA desde yokup.com/misiones." })
             }));

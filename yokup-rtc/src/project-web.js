@@ -24,6 +24,7 @@ export function isProjectShotAllowed(raw) {
   const normalized = normalizeProjectWeb(raw);
   if (!normalized.ok || !normalized.value) return false;
   const hostname = new URL(normalized.value).hostname.toLowerCase();
-  if (hostname === "playertaza.csilvasantin.workers.dev") return true;
+  // Dominio propio playertaza.admira.store (FLT-1633): LaLiga bloquea workers.dev en horas de fútbol; el viejo se conserva.
+  if (hostname === "playertaza.csilvasantin.workers.dev" || hostname === "playertaza.admira.store") return true;
   return PROJECT_SHOT_HOSTS.has(hostname.replace(/^www\./, ""));
 }

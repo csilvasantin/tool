@@ -16,6 +16,7 @@ test("rechaza protocolos peligrosos, credenciales y URLs inválidas", () => {
 
 test("shot admite PlayerTaza exacto pero nunca el workers.dev completo", () => {
   assert.equal(isProjectShotAllowed("https://playertaza.csilvasantin.workers.dev"),true);
+  assert.equal(isProjectShotAllowed("https://playertaza.admira.store"),true);
   assert.equal(isProjectShotAllowed("https://otro.csilvasantin.workers.dev"),false);
   assert.equal(isProjectShotAllowed("https://workers.dev"),false);
   assert.equal(isProjectShotAllowed("https://www.pixeria.com"),true);

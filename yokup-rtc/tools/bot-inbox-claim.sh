@@ -2,7 +2,8 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ID="${1:?uso: bot-inbox-claim.sh <id>}"
-TG_API="${ADMIRA_TG_API:-https://admira-telegram.csilvasantin.workers.dev}"
+# Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633).
+TG_API="${ADMIRA_TG_API:-https://bot.yokup.com}"
 read -r PERSONA _HOST OWNER _RUNTIME <<<"$(YOKUP_ROLE=sub bash "$HERE/quien-ejecuta.sh")"
 . "$HERE/persona-id.sh"
 CLAIM="$(PERSONA="$PERSONA" MACHINE="$MACHINE" python3 -c 'import json,os; print(json.dumps({"persona":os.environ["PERSONA"],"machine":os.environ["MACHINE"]}))')"
@@ -12,7 +13,7 @@ printf '%s' "$RESPONSE" | python3 -c 'import json,sys; raise SystemExit(0 if jso
 # no tener misión todavía y el heartbeat de la línea siguiente falla contra una
 # FLT-<id> que aún no existe. Best-effort: si la red falla, el cron de /fleet/sync
 # lo recupera sin impedir que el agente trabaje. (Venía del vault de la flota.)
-curl -s -m 12 -X POST "${YOKUP_API:-https://yokup-rtc.csilvasantin.workers.dev}/fleet/sync" >/dev/null 2>&1 || true
+curl -s -m 12 -X POST "${YOKUP_API:-https://api.yokup.com}/fleet/sync" >/dev/null 2>&1 || true
 # Claim no se considera iniciado hasta que la petición (Desktop), el comando+salida
 # (CLI) o el transcript de sesión (agente sin GUI) quedan capturados y aceptados
 # por /fleet/progress.

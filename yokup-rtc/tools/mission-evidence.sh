@@ -11,7 +11,8 @@
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-API="${YOKUP_API:-https://yokup-rtc.csilvasantin.workers.dev}"
+# Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633).
+API="${YOKUP_API:-https://api.yokup.com}"
 MODE="${1:?uso: mission-evidence.sh heartbeat|progress|final <misión> ...}"
 MISSION="${2:?falta misión}"; shift 2
 # El transcript se puede fijar para TODA la sesión del agente: el claim y los

@@ -4,7 +4,8 @@
 # toca Ping cuando Carlos elige o vence el reloj.
 set -euo pipefail
 
-API="${YOKUP_DECISIONS_API:-https://yokup-rtc.csilvasantin.workers.dev/decisions}"
+# Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633).
+API="${YOKUP_DECISIONS_API:-https://api.yokup.com/decisions}"
 sound() { /usr/bin/afplay "/System/Library/Sounds/$1.aiff" >/dev/null 2>&1 || true; }
 
 watch_decision() {
