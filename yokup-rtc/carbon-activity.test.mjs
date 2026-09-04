@@ -37,7 +37,8 @@ test("el alta del puente exige nombre y un email real, y deriva el id igual que 
   assert.equal(normalizeCarbonYarigai({ name: "Moises3.0", email: "" }, carbonId, 1).ok, false);
   const byName = normalizeCarbonYarigai({ name: "Moises3.0", user: "Moises" }, carbonId, 2);
   assert.equal(byName.ok, true); assert.equal(byName.row.email, "Moises");
-  assert.equal(yarigaiUser("Moises"), "Moises");
+  assert.equal(yarigaiUser("Moises"), "moises");
+  assert.equal(summarizeActivity(null, { ok: true, text: "Aroa Gonzalez no está fichado ahora mismo." }).office, "");
   const ok = normalizeCarbonYarigai({ name: " Moises3.0 ", email: "Moises@Admira.com", author: "NeoMBP14" }, carbonId, 5);
   assert.equal(ok.ok, true);
   assert.deepEqual(ok.row, { carbon_id: "moises3-0", name: "Moises3.0", email: "moises@admira.com", updated_at: 5, updated_by: "NeoMBP14" });

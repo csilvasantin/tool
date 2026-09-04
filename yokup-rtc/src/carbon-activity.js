@@ -157,7 +157,8 @@ export function summarizeActivity(tareas, presencia) {
   if (presencia && presencia.ok) {
     out.raw_presence = presencia.text;
     const p = presencia.text.replace(/\s+/g, " ").trim();
-    if (!/falta el token/i.test(p)) out.office = p.replace(/^.{0,80}? está fichad[oa] en\s*/i, "").replace(/\.$/, "").slice(0, 160);
+    if (/no está fichad/i.test(p)) out.office = "";
+    else if (!/falta el token/i.test(p)) out.office = p.replace(/^.{0,80}? está fichad[oa] en\s*/i, "").replace(/\.$/, "").slice(0, 160);
   }
   return out;
 }
