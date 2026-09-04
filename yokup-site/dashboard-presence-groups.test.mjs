@@ -53,6 +53,12 @@ test("un pulso idéntico no reconstruye el nodo enfocado",()=>{
   assert.doesNotMatch(source,/box\.innerHTML=pulseGroupsMarkup/);
 });
 
+test("el tiempo relativo se actualiza fuera del HTML estable del pulso",()=>{
+  assert.match(source,/<span data-pa-ago="\$\{Number\(p\.updated\)\|\|0\}"><\/span>/);
+  assert.match(source,/paPaint\(box,pulseGroupsMarkup\(classified\)\);paTickAgo\(\)/);
+  assert.doesNotMatch(source,/pulseCard\(p\)[\s\S]*?<span>\$\{agoS\(p\.updated\)\}<\/span>[\s\S]*?\n\}/);
+});
+
 test("los grupos se apilan en móvil sin alterar sus tarjetas",()=>{
   assert.match(source,/\.fleet-pulse-groups\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
   assert.match(source,/@media\(max-width:760px\)\{\.fleet-pulse-groups\{grid-template-columns:1fr\}/);

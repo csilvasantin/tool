@@ -384,7 +384,7 @@ function paRenderScopeFilter(kind,items){
 function agoS(s){ if(!s)return "—"; let d=Math.round(Date.now()/1000-s); if(d<60)return "hace "+d+"s"; if(d<3600)return "hace "+Math.round(d/60)+"m"; return "hace "+Math.round(d/3600)+"h"; }
 function pulseCard(p){
   const href=p.verified&&(p.detail_url||(window.YkAgentDetail?YkAgentDetail.detailUrl(p):"")),open=href?`<a class="ag ag-link" href="${esc(href)}" aria-label="Abrir actividad e histórico de ${esc(p.persona)} en ${esc(p.machine||"")}">`:'<div class="ag">',close=href?'</a>':'</div>';
-  return `${open}<div class="top"><span class="dot"></span><b>${esc(p.persona)}</b><span class="rt">${esc(paRuntimeSurface(p))}${p.verified?" · verificado":" · latido reportado"}</span></div><div class="mach">⌂ ${esc(p.machine||"")}</div><div class="focus" title="${esc(p.focus||"")}">${esc(p.focus||"—")}</div><div class="meta"><span class="mode">${esc(p.mode||"")}</span><span>${agoS(p.updated)}</span></div>${close}`;
+  return `${open}<div class="top"><span class="dot"></span><b>${esc(p.persona)}</b><span class="rt">${esc(paRuntimeSurface(p))}${p.verified?" · verificado":" · latido reportado"}</span></div><div class="mach">⌂ ${esc(p.machine||"")}</div><div class="focus" title="${esc(p.focus||"")}">${esc(p.focus||"—")}</div><div class="meta"><span class="mode">${esc(p.mode||"")}</span><span data-pa-ago="${Number(p.updated)||0}"></span></div>${close}`;
 }
 function pulseGroupMarkup(group,unavailable=false){
   const key=String(group&&group.key||"unknown"),label=String(group&&group.label||"Sin superficie identificada"),items=Array.isArray(group&&group.items)?group.items:[],count=items.length,id="pulseGroup"+key.charAt(0).toUpperCase()+key.slice(1),empty=unavailable?"No se pudo comprobar esta superficie; se reintentará automáticamente.":key==="cli"?"No hay agentes CLI con señal reciente.":key==="app"?"No hay agentes Desktop App con señal reciente.":"No hay señales recientes sin superficie identificada.";
@@ -412,7 +412,7 @@ async function pulse(renderMap=true){
   PROJECT_ROSTER=paProjectRoster(PROJECT_LIVE_ROSTER,PROJECT_ROWS);
   if(renderMap)paRender();
   if(!classified){paPaint(box,pulseGroupsMarkup(null,true));return;}
-  paPaint(box,pulseGroupsMarkup(classified));
+  paPaint(box,pulseGroupsMarkup(classified));paTickAgo();
 }
 
 /* MAPA PROYECTOS × AGENTES — las identidades salen del MISMO pulso que las
