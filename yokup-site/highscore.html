@@ -587,6 +587,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .score-missions{margin-top:8px;padding:9px 10px;border:1px solid rgba(120,243,255,.2);border-radius:8px;
   background:rgba(2,8,13,.62);min-width:580px}
 .score-mission-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.score-mission-head-main{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 9px;min-width:0}
 .score-mission-heading{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 9px;min-width:0}
 .score-mission-title{margin:0;color:var(--brand);font-size:9px;letter-spacing:.13em;text-transform:uppercase}
 .score-mission-summary{display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:3px 7px;color:var(--dim);
@@ -600,6 +601,14 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .score-mission-summary-total{color:var(--ink);font-weight:950}.score-mission-summary-running{color:var(--good)}
 .score-mission-summary[data-state="loading"]{color:var(--brand)}.score-mission-summary[data-state="error"]{color:var(--warn)}
 .score-mission-summary-unknown{color:var(--warn)}
+.score-mission-pager{display:inline-grid;grid-template-columns:24px minmax(38px,auto) 24px;align-items:center;gap:2px;
+  padding-left:7px;border-left:1px solid rgba(120,243,255,.18);color:var(--mut)}
+.score-mission-page-button{appearance:none;width:24px;height:24px;min-width:24px;min-height:24px;padding:0;border:1px solid rgba(120,243,255,.24);
+  border-radius:4px;background:rgba(120,243,255,.05);color:var(--brand);font:900 11px/1 var(--mono);cursor:pointer}
+.score-mission-page-button:hover,.score-mission-page-button:focus-visible{border-color:var(--brand);color:var(--ink);outline:none;
+  box-shadow:0 0 8px rgba(120,243,255,.25)}
+.score-mission-page-button:disabled{opacity:.32;cursor:default;box-shadow:none}
+.score-mission-page-value{min-width:38px;color:var(--ink);font-size:8px;font-weight:900;letter-spacing:.06em;text-align:center;white-space:nowrap}
 .score-mission-period{display:grid;grid-template-columns:24px minmax(48px,auto) 24px;align-items:center;gap:2px}
 .score-mission-period button{appearance:none;min-width:24px;min-height:24px;width:24px;height:24px;padding:0;border:1px solid rgba(120,243,255,.24);
   border-radius:4px;background:rgba(120,243,255,.05);color:var(--brand);font:900 11px/1 var(--mono);cursor:pointer}
@@ -908,8 +917,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   .score-progress td{padding-left:5px;padding-right:5px}.progression{grid-template-columns:88px repeat(6,76px);min-width:580px;gap:4px}
   .progression-step{grid-template-columns:13px minmax(0,1fr);column-gap:3px}.progression-dot{width:13px;height:13px;border-width:1px}.progression-step::before{top:6px}
   .score-missions{padding:7px;min-width:580px}.score-mission-head{position:sticky;left:5px;align-items:flex-start;width:min(360px,calc(100vw - 24px))}
-  .score-mission-heading{max-width:240px;gap:3px 6px}.score-mission-summary{gap:2px 5px;font-size:7px}
+  .score-mission-head-main,.score-mission-heading{max-width:240px}.score-mission-head-main,.score-mission-heading{gap:3px 6px}.score-mission-summary{gap:2px 5px;font-size:7px}
   .score-mission-summary-filters{gap:2px}.score-mission-summary-filter{min-height:24px;padding:3px 4px}
+  .score-mission-pager{grid-template-columns:24px minmax(34px,auto) 24px;padding-left:5px}.score-mission-page-value{min-width:34px}
   .score-mission{grid-template-columns:minmax(0,1fr) auto}.score-mission-task{grid-template-columns:22px 68px minmax(170px,1fr) auto}
   .agent-scope-children{padding-left:8px}.agent-scope-row.agent{grid-template-columns:minmax(0,1fr) auto}
   .agent-scope-primary{grid-template-columns:minmax(0,1fr) auto 28px;gap:5px}.agent-scope-switch-state{font-size:7px}
@@ -2978,6 +2988,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return SCORE_MISSION_FILTERS[(index + step % SCORE_MISSION_FILTERS.length + SCORE_MISSION_FILTERS.length) % SCORE_MISSION_FILTERS.length];
   }
 
+  function scoreMissionPage(current, stepOrKey, total) {
+    var count = Math.max(0, Math.floor(Number(total) || 0)), last = Math.max(0, count - 1);
+    var selected = Math.min(last, Math.max(0, Math.floor(Number(current) || 0)));
+    if (stepOrKey === "first") return 0;
+    if (stepOrKey === "last") return last;
+    var step = Number(stepOrKey || 0);
+    if (!Number.isFinite(step)) return selected;
+    return Math.min(last, Math.max(0, selected + step));
+  }
+
   function scoreMissionAgentName(a) {
     return nombreAgenteVisible(a && a.agente || "");
   }
@@ -3001,7 +3021,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function scoreMissionState(a) {
     var key = claveAgentePeriodo(a && a.agente), initial = scoreMissionPeriod(RANKING_PERIOD, 0);
-    if (!SCORE_MISSION_CACHE[key]) SCORE_MISSION_CACHE[key] = { period:initial, filter:"all", status:"idle", payload:null, error:"", request:0, periods:Object.create(null) };
+    if (!SCORE_MISSION_CACHE[key]) SCORE_MISSION_CACHE[key] = { period:initial, filter:"all", page:0, status:"idle", payload:null, error:"", request:0, periods:Object.create(null) };
     return SCORE_MISSION_CACHE[key];
   }
 
@@ -3055,6 +3075,24 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     }).map(function (entry) { return entry.mission; });
   }
 
+  function scoreMissionPageModel(payload, filter, page) {
+    var missions = scoreMissionVisibleMissions(payload, filter), total = missions.length;
+    var index = scoreMissionPage(page, 0, total);
+    return { missions:missions, total:total, index:index, position:total ? index + 1 : 0,
+      mission:total ? missions[index] : null, canPrevious:total > 0 && index > 0, canNext:total > 0 && index < total - 1 };
+  }
+
+  function scoreMissionPagerHtml(model, contentId) {
+    model = model || { total:0, position:0, canPrevious:false, canNext:false };
+    var label = "Misión " + Number(model.position || 0) + " de " + Number(model.total || 0);
+    var controls = contentId ? ' aria-controls="' + esc(contentId) + '"' : "";
+    return '<span class="score-mission-pager" role="group" aria-label="Navegar misiones filtradas">' +
+      '<button type="button" class="score-mission-page-button" data-score-mission-page="-1" aria-label="Misión anterior"' + controls + (model.canPrevious ? "" : " disabled") + '>←</button>' +
+      '<span class="score-mission-page-value" role="status" aria-live="polite" aria-atomic="true" aria-label="' + esc(label) + '">' +
+      Number(model.position || 0) + '/' + Number(model.total || 0) + '</span>' +
+      '<button type="button" class="score-mission-page-button" data-score-mission-page="1" aria-label="Misión siguiente"' + controls + (model.canNext ? "" : " disabled") + '>→</button></span>';
+  }
+
   function scoreMissionSummaryHtml(payload, status, agentName, period, filter, contentId) {
     var state = normaliza(status).toLowerCase(), periodLabel = rotuloPeriodoRanking(period);
     var prefix = '<span class="score-mission-summary" data-state="' + esc(state || "idle") + '" role="status" aria-live="polite" aria-atomic="true"';
@@ -3080,13 +3118,17 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       (unknown ? '<span class="score-mission-summary-unknown">' + esc(unknown) + '</span>' : '') + '</span>';
   }
 
-  function scoreMissionItemsHtml(payload, filter) {
+  function scoreMissionItemsHtml(payload, filter, page) {
     // Mantiene el contrato histórico de un argumento para consumidores que sólo
     // necesitan renderizar el payload completo.
     var selected = "all", missions = Array.isArray(payload && payload.missions) ? payload.missions : [];
     if (arguments.length > 1) {
       selected = scoreMissionFilter("all", filter);
       missions = scoreMissionVisibleMissions(payload, selected);
+    }
+    if (arguments.length > 2) {
+      var pageModel = scoreMissionPageModel(payload, selected, page);
+      missions = pageModel.mission ? [pageModel.mission] : [];
     }
     if (!missions.length) {
       var empty = ({ open:"No hay misiones abiertas en este periodo.", in_progress:"No hay misiones en curso en este periodo.",
@@ -3120,16 +3162,20 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     state.filter = scoreMissionFilter("all", state.filter);
     var filter = state.filter;
     var explorerId = "score-missions-" + key, contentId = explorerId + "-content", titleId = explorerId + "-title";
-    var label = rotuloPeriodoRanking(period).toUpperCase(), content;
+    var label = rotuloPeriodoRanking(period).toUpperCase(), agentName = scoreMissionAgentName(a);
+    var summary = scoreMissionSummaryHtml(state.payload, state.status, agentName, period, filter, contentId);
+    var pageModel = scoreMissionPageModel(
+      state.status === "ready" || state.status === "empty" ? state.payload : null, filter, state.page);
+    state.page = pageModel.index;
+    var pager = scoreMissionPagerHtml(pageModel, contentId), content;
     if (state.status === "loading") content = '<p class="score-mission-state">Cargando misiones…</p>';
     else if (state.status === "error") content = '<p class="score-mission-state error">No se pudieron cargar las misiones.' +
       '<button type="button" class="score-mission-retry" data-score-mission-retry>Reintentar</button></p>';
-    else if (state.status === "empty" || state.status === "ready") content = scoreMissionItemsHtml(state.payload, filter);
+    else if (state.status === "empty" || state.status === "ready") content = scoreMissionItemsHtml(state.payload, filter, state.page);
     else content = '<p class="score-mission-state">Abre PUNTOS para consultar las misiones del periodo.</p>';
-    var agentName = scoreMissionAgentName(a), summary = scoreMissionSummaryHtml(state.payload, state.status, agentName, period, filter, contentId);
     return '<section class="score-missions" id="score-missions-' + esc(key) + '" data-agent-key="' + esc(key) + '" data-progress-id="' + esc(progressId) +
       '" data-state="' + esc(state.status) + '" data-filter="' + esc(state.filter) + '" role="region" aria-labelledby="' + esc(titleId) + '" aria-busy="' + (state.status === "loading") + '">' +
-      '<div class="score-mission-head"><div class="score-mission-heading"><h3 class="score-mission-title" id="' + esc(titleId) + '">Misiones de ' + esc(agentName) + '</h3>' + summary + '</div>' +
+      '<div class="score-mission-head"><div class="score-mission-head-main"><div class="score-mission-heading"><h3 class="score-mission-title" id="' + esc(titleId) + '">Misiones de ' + esc(agentName) + '</h3>' + summary + '</div>' + pager + '</div>' +
       '<div class="score-mission-period" role="group" aria-label="Periodo de las misiones: ' + esc(rotuloPeriodoRanking(period)) + '">' +
       '<button type="button" data-score-mission-step="-1" aria-label="Periodo anterior" aria-controls="' + esc(contentId) + '">←</button>' +
       '<span class="score-mission-period-value" role="status" aria-live="polite" aria-atomic="true">' + esc(label) + '</span>' +
@@ -3144,6 +3190,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     if (active && current.contains(active)) {
       if (active.hasAttribute("data-score-mission-step")) restore = '[data-score-mission-step="' + active.getAttribute("data-score-mission-step") + '"]';
       else if (active.hasAttribute("data-score-mission-filter")) restore = '[data-score-mission-filter="' + active.getAttribute("data-score-mission-filter") + '"]';
+      else if (active.hasAttribute("data-score-mission-page")) restore = '[data-score-mission-page="' + active.getAttribute("data-score-mission-page") + '"]';
       else if (active.hasAttribute("data-score-mission-retry")) restore = "[data-score-mission-retry]";
     }
     current.outerHTML = scoreMissionExplorerHtml(a, progressId);
@@ -3155,7 +3202,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function scoreMissionSetFilter(a, filter, explorerId, focus) {
     var state = scoreMissionState(a), selected = scoreMissionFilter(state.filter, filter);
-    state.filter = selected;
+    state.filter = selected; state.page = 0;
     var progressId = normaliza(explorerId).replace(/^score-missions-/, "score-progress-");
     scoreMissionPaint(a, progressId);
     if (focus) {
@@ -3166,8 +3213,25 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return selected;
   }
 
+  function scoreMissionSetPage(a, stepOrKey, explorerId, focus) {
+    var state = scoreMissionState(a), model = scoreMissionPageModel(state.payload, state.filter, state.page);
+    state.page = scoreMissionPage(model.index, stepOrKey, model.total);
+    var progressId = normaliza(explorerId).replace(/^score-missions-/, "score-progress-");
+    scoreMissionPaint(a, progressId);
+    if (focus) {
+      var explorer = document.getElementById(normaliza(explorerId));
+      var direction = stepOrKey === "first" ? "-1" : stepOrKey === "last" ? "1" : String(Number(stepOrKey) < 0 ? -1 : 1);
+      var target = explorer && explorer.querySelector('[data-score-mission-page="' + direction + '"]:not(:disabled)');
+      if (!target && explorer) target = explorer.querySelector('[data-score-mission-page]:not(:disabled)');
+      if (target && typeof target.focus === "function") { try { target.focus({ preventScroll:true }); } catch (_) { target.focus(); } }
+    }
+    return state.page;
+  }
+
   function scoreMissionLoad(a, period, explorerId, force) {
     var state = scoreMissionState(a), selected = scoreMissionPeriod(period, 0), cached = state.periods[selected];
+    var periodChanged = state.period !== selected;
+    if (periodChanged) state.page = 0;
     state.period = selected;
     var progressId = normaliza(explorerId).replace(/^score-missions-/, "score-progress-");
     if (cached && !force) {
@@ -4036,6 +4100,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (!explorer || !filas.contains(explorer)) return;
       var row = SCORE_MISSION_ROWS[explorer.getAttribute("data-agent-key")], state = row && scoreMissionState(row);
       if (!row || !state) return;
+      var pageButton = evento.target.closest("[data-score-mission-page]");
+      if (pageButton) {
+        scoreMissionSetPage(row, Number(pageButton.getAttribute("data-score-mission-page")) || 0, explorer.id, true);
+        return;
+      }
       var filterButton = evento.target.closest("[data-score-mission-filter]");
       if (filterButton) {
         scoreMissionSetFilter(row, filterButton.getAttribute("data-score-mission-filter"), explorer.id, false);
@@ -4055,6 +4124,21 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     if (!filas || filas.dataset.scoreMissionKeyboard === "on") return;
     filas.dataset.scoreMissionKeyboard = "on";
     filas.addEventListener("keydown", function (evento) {
+      var pageButton = evento.target && evento.target.closest && evento.target.closest("[data-score-mission-page]");
+      if (pageButton && filas.contains(pageButton)) {
+        var pageExplorer = pageButton.closest(".score-missions");
+        var pageRow = pageExplorer && SCORE_MISSION_ROWS[pageExplorer.getAttribute("data-agent-key")];
+        if (!pageRow) return;
+        var nextPage = "";
+        if (evento.key === "ArrowLeft") nextPage = -1;
+        else if (evento.key === "ArrowRight") nextPage = 1;
+        else if (evento.key === "Home") nextPage = "first";
+        else if (evento.key === "End") nextPage = "last";
+        else if (evento.key === "Enter" || evento.key === " ") nextPage = Number(pageButton.getAttribute("data-score-mission-page")) || 0;
+        else return;
+        evento.preventDefault(); scoreMissionSetPage(pageRow, nextPage, pageExplorer.id, true);
+        return;
+      }
       var filterButton = evento.target && evento.target.closest && evento.target.closest("[data-score-mission-filter]");
       if (filterButton && filas.contains(filterButton)) {
         var filterExplorer = filterButton.closest(".score-missions");
