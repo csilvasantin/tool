@@ -132,7 +132,7 @@ test("un segmento vacío explica el contexto sin retirar selector ni contadores"
   assert.match(explorer,/state\.filter\s*=\s*scoreMissionFilter\("all",\s*state\.filter\)/);
   assert.match(explorer,/filter\s*=\s*state\.filter/);
   assert.match(explorer,/scoreMissionSummaryHtml\([^;]*period,\s*filter,\s*contentId\)/);
-  assert.match(explorer,/scoreMissionItemsHtml\(state\.payload,\s*filter\)/);
+  assert.match(explorer,/scoreMissionItemsHtml\(state\.payload,\s*filter,\s*state\.page\)/);
   assert.match(explorer,/summary \+ '<\/div>'[\s\S]*score-mission-content/,
     "el selector permanece en el encabezado aunque el contenido filtrado quede vacío");
 });
