@@ -17,7 +17,7 @@ test("la tarjeta CLI conserva los discriminantes públicos sin exponer session_i
 
 test("el Dashboard hace navegables las tarjetas verificadas APP y CLI con enlace nativo",()=>{
   assert.match(dashboard,/src="\/agent-detail\.js\?v=/);
-  assert.match(dashboard,/const href=p\.verified&&window\.YkAgentDetail\?YkAgentDetail\.detailUrl\(p\):""/);
+  assert.match(dashboard,/const href=p\.verified&&\(p\.detail_url\|\|\(window\.YkAgentDetail\?YkAgentDetail\.detailUrl\(p\):""\)\)/);
   assert.match(dashboard,/<a class="\\?ag ag-link/);
   assert.match(dashboard,/aria-label="Abrir actividad e histórico de /);
   assert.match(dashboard,/\.ag-link:focus-visible\{[^}]*outline:2px solid var\(--brand\)/);
