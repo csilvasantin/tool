@@ -3411,8 +3411,71 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     });
   }
 
+  // Hora y Día conservan una fila por agente+equipo: es la identidad exacta
+  // que usa el scope manual. Semana, en cambio, agrega hechos por PERSONA en el
+  // histórico. Pintar una fila por cada suffix haría repetir el mismo total
+  // semanal dos o tres veces. El colapso ocurre después del scope y antes del
+  // filtro/orden: una selección exacta sigue respetándose, pero la tabla sólo
+  // representa una vez a la familia canónica.
+  function colapsaFilasRanking(lista, periodo) {
+    var rows = (Array.isArray(lista) ? lista : []).filter(Boolean);
+    if (periodo !== "week") return rows.slice();
+    var identity = window.ykAgentIdentity, byAgent = Object.create(null);
+    function stableKey(row) {
+      return [claveAgentePeriodo(row && row.agente), hsAgentKey(row && row.agente),
+        (row && row.maquinas || []).slice().sort().join("|"), normaliza(row && row.proyecto),
+        normaliza(row && row.runtime)].join("|");
+    }
+    function mergeList(target, source, field) {
+      (source[field] || []).forEach(function (value) {
+        if (target[field].indexOf(value) < 0) target[field].push(value);
+      });
+      target[field].sort(function (a, b) { return normaliza(a).localeCompare(normaliza(b), "es"); });
+    }
+    function newer(source, target, weightField, atField) {
+      var sourceWeight = Number(source[weightField]) || 0, targetWeight = Number(target[weightField]) || 0;
+      var sourceAt = Number(source[atField]) || 0, targetAt = Number(target[atField]) || 0;
+      return sourceWeight > targetWeight || (sourceWeight === targetWeight && sourceAt > targetAt);
+    }
+    rows.slice().sort(function (a, b) { return stableKey(a).localeCompare(stableKey(b), "es"); }).forEach(function (row) {
+      var key = claveAgentePeriodo(row.agente) || hsAgentKey(row.agente);
+      if (!key) return;
+      var target = byAgent[key];
+      if (!target) {
+        target = Object.assign({}, row);
+        target.base = identity && identity.base ? identity.base(row.agente) : (row.base || row.agente);
+        target.agente = target.base || row.agente; target.suffix = "";
+        target.maquinas = []; target.maquinasVivas = [];
+        mergeList(target, row, "maquinas"); mergeList(target, row, "maquinasVivas");
+        byAgent[key] = target; return;
+      }
+      mergeList(target, row, "maquinas"); mergeList(target, row, "maquinasVivas");
+      target.vivo = !!(target.vivo || row.vivo); target.haLatido = !!(target.haLatido || row.haLatido);
+      target.seenDailyScore = !!(target.seenDailyScore || row.seenDailyScore);
+      target.seenTask = !!(target.seenTask || row.seenTask);
+      if (!target.progresion && row.progresion) target.progresion = row.progresion;
+      if (newer(row, target, "runtimePeso", "runtimeAt")) {
+        ["runtime","runtimePeso","runtimeAt","via","modelo"].forEach(function (field) { target[field] = row[field]; });
+      }
+      if (newer(row, target, "proyectoPeso", "proyectoAt")) {
+        ["proyecto","proyectoUrl","proyectoAt","proyectoPeso","proyectoOrigen","proyectoId","proyectoFaena"]
+          .forEach(function (field) { target[field] = row[field]; });
+      }
+      var sourceActivity = PRIORIDAD_ACTIVIDAD[row.actividad] || 0;
+      var targetActivity = PRIORIDAD_ACTIVIDAD[target.actividad] || 0;
+      if (sourceActivity > targetActivity || (sourceActivity === targetActivity && Number(row.actividadAt || 0) > Number(target.actividadAt || 0))) {
+        ["actividad","actividadAt","actividadDetalle"].forEach(function (field) { target[field] = row[field]; });
+      }
+      var workRank = { running:3, assigned_stale:2, last_work:1 };
+      if ((workRank[row.workState] || 0) > (workRank[target.workState] || 0)) {
+        ["workState","workKind","workProjectId","workProjectName","workDetailUrl"].forEach(function (field) { target[field] = row[field]; });
+      }
+    });
+    return Object.keys(byAgent).sort().map(function (key) { return byAgent[key]; });
+  }
+
   function listaVisible(lista) {
-    return listaOrdenada(filtraVida(lista, filtroSoloVivos));
+    return listaOrdenada(filtraVida(colapsaFilasRanking(lista, RANKING_PERIOD), filtroSoloVivos));
   }
 
   function actualizaFiltroVida() {
