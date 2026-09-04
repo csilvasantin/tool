@@ -1695,14 +1695,14 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       f.misiones += Number(a.missions) || 0;
       f.ptsMisiones += Number(a.mission_points) || 0;
     });
-    // El día sólo trae a quien puntuó hoy. Para que Semana no dependa de que el
-    // agente conserve presencia o trabajo actual, se siembran también las
-    // identidades que puntuaron desde el lunes. No se copian puntos aquí: la
-    // tabla los lee del histórico canónico mediante metricasRanking().
-    var week = datos.historial && datos.historial.periods && datos.historial.periods.week;
-    if (week && week.start && week.end) {
+    // El día sólo trae a quien puntuó hoy. Para que Semana y Mes no dependan de
+    // presencia o trabajo actual, se siembran las identidades del mes natural
+    // (el rango más amplio del selector). No se copian puntos aquí: la tabla los
+    // lee del histórico canónico mediante metricasRanking().
+    var month = datos.historial && datos.historial.periods && datos.historial.periods.month;
+    if (month && month.start && month.end) {
       (datos.historial.all_days || []).forEach(function (day) {
-        if (!day || day.day < week.start || day.day > week.end) return;
+        if (!day || day.day < month.start || day.day > month.end) return;
         (day.top || []).forEach(function (score) {
           var agent = id && id.base ? id.base(score && score.agent) : score && score.agent;
           fila(agent, "");
@@ -1974,10 +1974,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // El marcador general continúa siendo diario. Este estado gobierna sólo la
   // escena del podio y nace siempre en día al cargar la página.
   var PODIUM_PERIOD = "day";
-  // La banda RANKING tiene un control propio y deliberadamente más corto. Hora,
-  // Día y Semana son los tres alcances operativos; Mes permanece en el podio y
-  // en la vista histórica, donde sí aporta contexto en vez de una tabla enorme.
-  var RANKING_PERIODS = ["hour", "day", "week"], RANKING_PERIOD_KEY = "yokup.highscore.rankingPeriod.v1";
+  // La banda RANKING recorre los cuatro alcances operativos que ya publica el
+  // contrato: Hora, Día, Semana y Mes natural de Madrid.
+  var RANKING_PERIODS = ["hour", "day", "week", "month"], RANKING_PERIOD_KEY = "yokup.highscore.rankingPeriod.v1";
   function leePeriodoRanking() {
     try {
       var value = localStorage.getItem(RANKING_PERIOD_KEY);
@@ -2013,14 +2012,18 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     periodo = RANKING_PERIODS.indexOf(periodo) >= 0 ? periodo : "day";
     var fields = ["objectives", "windows", "missions", "tasks", "points"], result = {};
     if (periodo === "hour" || periodo === "day") {
+      var members = Array.isArray(a && a.rankingMembers) && a.rankingMembers.length ? a.rankingMembers : [a];
       fields.forEach(function (field) {
-        var metric = metricaHoraDia(a, field);
-        result[field] = Math.max(0, Number(metric[periodo]) || 0);
+        result[field] = 0;
+        members.forEach(function (member) {
+          var metric = metricaHoraDia(member, field);
+          result[field] += Math.max(0, Number(metric[periodo]) || 0);
+        });
       });
       return result;
     }
     fields.forEach(function (field) { result[field] = 0; });
-    var history = datos.historial, range = history && history.periods && history.periods.week;
+    var history = datos.historial, range = history && history.periods && history.periods[periodo];
     var agentKey = claveAgentePeriodo(a && a.agente);
     if (!range || !range.start || !range.end || !agentKey) return result;
     (Array.isArray(history.all_days) ? history.all_days : []).forEach(function (row) {
@@ -2034,7 +2037,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   function rotuloPeriodoRanking(periodo) {
-    return ({ hour:"Hora", day:"Día", week:"Semana" })[periodo] || "Día";
+    return ({ hour:"Hora", day:"Día", week:"Semana", month:"Mes" })[periodo] || "Día";
   }
 
   function cambiaPeriodoRanking(paso) {
@@ -3411,15 +3414,13 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     });
   }
 
-  // Hora y Día conservan una fila por agente+equipo: es la identidad exacta
-  // que usa el scope manual. Semana, en cambio, agrega hechos por PERSONA en el
-  // histórico. Pintar una fila por cada suffix haría repetir el mismo total
-  // semanal dos o tres veces. El colapso ocurre después del scope y antes del
-  // filtro/orden: una selección exacta sigue respetándose, pero la tabla sólo
-  // representa una vez a la familia canónica.
+  // El selector representa PERSONAS, no sesiones ni equipos: cada periodo
+  // muestra una sola fila por identidad base. El colapso ocurre después del
+  // scope exacto y antes del filtro/orden, une metadatos estables y conserva los
+  // miembros operativos únicos para que Hora/Día sumen cada fuente una vez.
+  // Semana/Mes leen el histórico ya deduplicado una sola vez por persona.
   function colapsaFilasRanking(lista, periodo) {
     var rows = (Array.isArray(lista) ? lista : []).filter(Boolean);
-    if (periodo !== "week") return rows.slice();
     var identity = window.ykAgentIdentity, byAgent = Object.create(null);
     function stableKey(row) {
       return [claveAgentePeriodo(row && row.agente), hsAgentKey(row && row.agente),
@@ -3432,10 +3433,40 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       });
       target[field].sort(function (a, b) { return normaliza(a).localeCompare(normaliza(b), "es"); });
     }
+    function mergeProjects(target, source) {
+      var projects = Array.isArray(source.proyectos) ? source.proyectos.slice() : [];
+      if (source.proyecto) projects.push({ id:source.proyectoId || "", label:source.proyecto,
+        url:source.proyectoUrl || "", origin:source.proyectoOrigen || "" });
+      projects.forEach(function (project) {
+        var item = { id:normaliza(project && project.id), label:normaliza(project && project.label),
+          url:normaliza(project && project.url), origin:normaliza(project && project.origin) };
+        var key = [item.id,item.label,item.url].join("|");
+        if (!item.label || target.proyectos.some(function (current) {
+          return [current.id,current.label,current.url].join("|") === key;
+        })) return;
+        target.proyectos.push(item);
+      });
+      target.proyectos.sort(function (a, b) {
+        return [a.id,a.label,a.url].join("|").localeCompare([b.id,b.label,b.url].join("|"), "es");
+      });
+    }
     function newer(source, target, weightField, atField) {
       var sourceWeight = Number(source[weightField]) || 0, targetWeight = Number(target[weightField]) || 0;
       var sourceAt = Number(source[atField]) || 0, targetAt = Number(target[atField]) || 0;
       return sourceWeight > targetWeight || (sourceWeight === targetWeight && sourceAt > targetAt);
+    }
+    function memberKey(row) {
+      var machines = [].concat(row && row.maquinas || [], row && row.maquinasVivas || []);
+      var raw = normaliza(row && (row.base || row.agente));
+      var parsed = identity && identity.parse ? identity.parse(raw) : null;
+      var machine = row && (row.suffix || row.machine || row.maquina || row.loc) || machines[0] || "";
+      var suffix = identity && identity.suffix ? (identity.suffix(machine) || parsed && parsed.suffix || "") : machine;
+      return (identity && identity.key ? identity.key(parsed && parsed.persona || raw) : hsAgentKey(raw)) +
+        "|" + (identity && identity.key ? identity.key(suffix) : hsAgentKey(suffix));
+    }
+    function addMember(target, row) {
+      var key = memberKey(row);
+      if (!target.rankingMembers.some(function (member) { return memberKey(member) === key; })) target.rankingMembers.push(row);
     }
     rows.slice().sort(function (a, b) { return stableKey(a).localeCompare(stableKey(b), "es"); }).forEach(function (row) {
       var key = claveAgentePeriodo(row.agente) || hsAgentKey(row.agente);
@@ -3446,10 +3477,15 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         target.base = identity && identity.base ? identity.base(row.agente) : (row.base || row.agente);
         target.agente = target.base || row.agente; target.suffix = "";
         target.maquinas = []; target.maquinasVivas = [];
+        target.rankingMembers = []; target.proyectos = [];
+        addMember(target, row);
         mergeList(target, row, "maquinas"); mergeList(target, row, "maquinasVivas");
+        mergeProjects(target, row);
         byAgent[key] = target; return;
       }
+      addMember(target, row);
       mergeList(target, row, "maquinas"); mergeList(target, row, "maquinasVivas");
+      mergeProjects(target, row);
       target.vivo = !!(target.vivo || row.vivo); target.haLatido = !!(target.haLatido || row.haLatido);
       target.seenDailyScore = !!(target.seenDailyScore || row.seenDailyScore);
       target.seenTask = !!(target.seenTask || row.seenTask);
@@ -4881,7 +4917,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     else if (evento.key === "ArrowUp") step = -1;
     else if (evento.key === "ArrowDown") step = 1;
     else if (evento.key === "Home") { RANKING_PERIOD = "hour"; absolute = true; }
-    else if (evento.key === "End") { RANKING_PERIOD = "week"; absolute = true; }
+    else if (evento.key === "End") { RANKING_PERIOD = "month"; absolute = true; }
     else return;
     evento.preventDefault();
     if (!absolute) { cambiaPeriodoRanking(step); return; }

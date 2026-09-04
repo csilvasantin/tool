@@ -27,7 +27,8 @@
     ["MBAPlata",["mbaplata","macbookairplata","macbook air plata","mba plata","admira-macbookairplata"]],
     ["Zenbook",["asuszenbook","asus zenbook","admira-asuszenbook"]],
     ["DGX",["dgxspark","dgx spark","dgx-spark","spark-1e61","spark1e61"]],
-    ["PGX",["thinkstationpgx","thinkstation pgx","thinkstation","lenovo-thinkstation","lenovothinkstation"]]
+    ["PGX",["thinkstationpgx","thinkstation pgx","thinkstation","lenovo-thinkstation","lenovothinkstation"]],
+    ["GrokBot",["grokbot","grok bot","grok-bot","sand","xai","grok"]]
   ];
   var PERSONAS = [
     ["Oraculo",["oraculo","oráculo","oracle"]],
@@ -36,7 +37,14 @@
     ["WhiteRabbit",["whiterabbit","white rabbit"]],
     ["Niobe",["niobe"]],
     ["Persefone",["persefone","perséfone","persephone"]],
-    ["Seraph",["seraph","serafín","serafin"]]
+    ["Seraph",["seraph","serafín","serafin"]],
+    // Consejo de Silicio conectado por GrokBot. En la API ya son personas
+    // canónicas; el navegador mantiene la misma tabla para no partir sus puntos
+    // entre el alias plano y el apellido del equipo remoto.
+    ["Wozniak",["wozniak","steve wozniak","stevewozniak","woz"]],
+    ["Jobs",["jobs","steve jobs","stevejobs"]],
+    ["Disney",["disney","walt disney","waltdisney"]],
+    ["Lucas",["lucas","george lucas","georgelucas"]]
   ];
   var LEGACY_SUFFIXES = {
     "14":"MBP14", "16":"MBP16", "air16":"MBA16", "plata16":"MBA16",
@@ -55,7 +63,7 @@
     MacMini:"Mac Mini", MBP14:"MacBookPro14", MBP16:"MacBook Pro 16",
     MBA16:"MacBookAir16plata", MBAAzul:"MacBook Air Azul", MBARosa:"MacBook Air Rosa",
     MBACrema:"MacBook Air Crema", MBAPlata:"MacBook Air Plata", Zenbook:"Asus Zenbook",
-    DGX:"DGX Spark", PGX:"ThinkStation PGX"
+    DGX:"DGX Spark", PGX:"ThinkStation PGX", GrokBot:"GrokBot"
   };
   /* Apellido visible = el sufijo del diccionario, TAL CUAL. No hay tabla de apodos:
      NeoMBAAzul, NeoMacMini, SmithMBAAzul. Los apellidos cortos («Azul», «Mini») y
