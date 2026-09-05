@@ -6,7 +6,7 @@ import detail from "./agent-detail.js";
 
 const NOW=10_000;
 const slot=(persona,runtime,host,session_id,extra={})=>({persona,runtime,host,session_id,...extra});
-const machine=(name,slots)=>({machine:name,slots});
+const machine=(name,slots)=>({machine:name,slots,updated:NOW,capabilities:["cli_pause_preserve_session"]});
 const live=(persona,runtime,host,session_id,pid,extra={})=>({persona,machine:"MacMini",runtime,host,session_id,pid,
   updated:NOW-2,verified:1,source:"process_snapshot",online:true,...extra});
 const build=(presence,controlMachines)=>control.inventory({presence,controlMachines},{identity,detailUrl:detail.detailUrl,now:NOW});
@@ -75,15 +75,15 @@ test("agrupa cada familia por nombre base y después por máquina sin mezclar CL
 });
 
 test("requestFor usa el endpoint unificado y recupera el target exacto sólo al ejecutar",()=>{
-  const model=build([live("Oraculo","Codex","cli","oraculo",401)],[]),item=model.items[0];
+  const model=build([live("Oraculo","Codex","cli","oraculo",401)],[machine("MacMini",[slot("Oraculo","Codex","cli","oraculo")])]),item=model.items[0];
   const request=control.requestFor(model,item.control_key,"stop");
   assert.equal(request.endpoint,"/fleet/agent/control");assert.equal(request.method,"POST");
   assert.deepEqual(request.body,{action:"stop",machine:"MacMini",persona:"Oraculo",runtime:"Codex",host:"cli",session_id:"oraculo",pid:401});
-  assert.throws(()=>control.requestFor(model,item.control_key,"start"),/target-not-eligible/);
+  assert.throws(()=>control.requestFor(model,item.control_key,"start"),/cli_paused_by_carlos/);
 });
 
 test("la ejecución individual exige confirmación y el ledger evita duplicar la orden",async()=>{
-  const model=build([], [machine("MacMini",[slot("Neo","Claude","cli","neo")])]),item=model.items[0],ledger=new Map();
+  const model=build([], [machine("MacMini",[slot("Neo","Claude","app","desktop:claude")])]),item=model.items[0],ledger=new Map();
   let sends=0;const send=async()=>{sends++;return{ok:true,status:"accepted",command_id:"cmd-1"};};
   const cancelled=await control.executeOne(model,item.control_key,"start",{confirmed:false,send,ledger});
   assert.equal(cancelled.error,"confirmation-required");assert.equal(sends,0);
@@ -94,21 +94,21 @@ test("la ejecución individual exige confirmación y el ledger evita duplicar la
 });
 
 test("el plan masivo toma sólo elegibles de su grupo, excluye unknown y se acota a veinte",()=>{
-  const cli=Array.from({length:23},(_,index)=>slot("Agent"+index,"Codex","cli","session"+index));
+  const cli=Array.from({length:23},(_,index)=>slot("Agent"+String.fromCharCode(65+index),"Codex","app","desktop:codex"));
   const model=build([live("Unknown","Codex","","unknown",501)], [machine("MacMini",[
-    ...cli,slot("Desktop","Codex","app","desktop:codex")
+    ...cli,slot("Desktop","Codex","cli","desktop-excluded")
   ])]);
-  const plan=control.batchPlan(model,"cli","start");
+  const plan=control.batchPlan(model,"app","start");
   assert.equal(plan.ok,true);assert.equal(plan.count,20);assert.equal(plan.truncated,true);
-  assert.ok(plan.targets.every(key=>model.by_key.get(key).surface==="cli"&&model.by_key.get(key).eligible.start));
+  assert.ok(plan.targets.every(key=>model.by_key.get(key).surface==="app"&&model.by_key.get(key).eligible.start));
   assert.equal(control.batchPlan(model,"unknown","start").ok,false);
   assert.equal(control.limits.max_batch,20);assert.equal(control.limits.max_concurrency,4);
 });
 
 test("el batch conserva éxito parcial, error por agente, concurrencia acotada e idempotencia",async()=>{
   const model=build([], [machine("MacMini",[
-    slot("Neo","Claude","cli","neo"),slot("Morfeo","Claude","cli","morfeo"),slot("Trinity","Codex","cli","trinity")
-  ])]),plan=control.batchPlan(model,"cli","start"),ledger=new Map();
+    slot("Neo","Claude","app","desktop:claude"),slot("Morfeo","Claude","app","desktop:claude"),slot("Trinity","Codex","app","desktop:codex")
+  ])]),plan=control.batchPlan(model,"app","start"),ledger=new Map();
   let sends=0,inFlight=0,maxInFlight=0;
   const send=async request=>{sends++;inFlight++;maxInFlight=Math.max(maxInFlight,inFlight);await Promise.resolve();inFlight--;
     if(request.body.persona==="Morfeo")throw new Error("upstream:error-with-secret?token=x");
@@ -123,13 +123,13 @@ test("el batch conserva éxito parcial, error por agente, concurrencia acotada e
 });
 
 test("cargar el módulo o crear un plan no ejecuta ningún transporte",()=>{
-  let sends=0;const model=build([], [machine("MacMini",[slot("Neo","Claude","cli","neo")])]);
-  const plan=control.batchPlan(model,"cli","start",{send:()=>sends++});
+  let sends=0;const model=build([], [machine("MacMini",[slot("Neo","Claude","app","desktop:claude")])]);
+  const plan=control.batchPlan(model,"app","start",{send:()=>sends++});
   assert.equal(plan.count,1);assert.equal(sends,0);
 });
 
 test("estado, command_id y error del transporte se reducen al vocabulario público",async()=>{
-  const model=build([], [machine("MacMini",[slot("Neo","Claude","cli","neo")])]),item=model.items[0];
+  const model=build([], [machine("MacMini",[slot("Neo","Claude","app","desktop:claude")])]),item=model.items[0];
   const result=await control.executeOne(model,item.control_key,"start",{confirmed:true,send:async()=>({
     ok:false,status:"token=estado-secreto",command_id:"token con espacios",error:"api_key=supersecreto"
   })});
