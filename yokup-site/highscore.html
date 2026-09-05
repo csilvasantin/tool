@@ -957,6 +957,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 /* A paused or unbound session is stationary, never a cosmetic running signal. */
 .refresh-lane[data-race-held="true"] .refresh-runner svg{display:none!important;animation:none!important}
 .refresh-lane[data-race-held="true"] .refresh-runner .runner-standing{display:block!important;animation:none!important}
+.race-bonus{position:absolute;left:50%;top:28px;transform:translateX(-50%);color:#bcff62;background:#15240a;border:1px solid #8bc34a;border-radius:4px;padding:1px 5px;font:900 12px/14px monospace;z-index:8;text-shadow:none}
+.race-bonus[hidden]{display:none}
+#raceBonusStatus{font-size:12px;color:#b7d68d;min-height:1.5em;text-align:center}
 </style>
 <link rel="stylesheet" href="/highscore-runner-state.css?v=20260901-static-last-work-runner">
 </head>
@@ -1060,6 +1063,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     <summary><span class="score-formula-title">Cómo se puntúa</span><span class="score-formula-toggle" aria-hidden="true"></span></summary>
     <div class="score-formula-body" id="formulaBody"></div>
   </details>
+  <p id="raceBonusStatus" role="status" aria-live="polite">Bonus Track gratuito: +1 por victoria para la misión del ganador.</p>
   <p class="race-evidence-status" id="raceEvidenceStatus" role="status" aria-live="polite">Comprobando trabajo registrado…</p>
   <details class="work-observations" id="workObservations" hidden>
     <summary id="workObservationsSummary">Actividad sin verificar</summary>
@@ -1083,6 +1087,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 </section>
 
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
+<script src="/highscore-race-bonus.js?v=20260905-bonus1"></script>
 <script src="/highscore-race.js?v=v.12.08.2026.r1.trabajo-parado"></script>
 <script src="/highscore-work-clock.js?v=20260905-duration-r1"></script>
 <script src="/highscore-desktop-app.js?v=v.2026.08.11.active-default-2"></script>
@@ -1733,7 +1738,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (!d.base || NO_AGENTES.indexOf(d.base.toLowerCase()) >= 0) return null;
       if (!por[d.key]) por[d.key] = { agente:d.base, base:d.base, suffix:d.suffix,
         objetivos:0, ptsObjetivos:0, ventanas:0, ptsVentanas:0,
-        misiones:0, ptsMisiones:0, tareas:0, ptsTareas:0, seenDailyScore:false, seenTask:false,
+        misiones:0, ptsMisiones:0, ptsBonus:0, tareas:0, ptsTareas:0, seenDailyScore:false, seenTask:false,
         vivo:false, haLatido:false, runtime:"", runtimePeso:0, runtimeAt:0,
         maquinas:[], maquinasVivas:[], actividad:"", actividadAt:0, actividadDetalle:"", progresion:null,
         proyecto:"", proyectoUrl:"", proyectoAt:0, proyectoPeso:0 };
@@ -1768,6 +1773,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       destino.objetivos += origen.objetivos; destino.ptsObjetivos += origen.ptsObjetivos;
       destino.ventanas += origen.ventanas; destino.ptsVentanas += origen.ptsVentanas;
       destino.misiones += origen.misiones; destino.ptsMisiones += origen.ptsMisiones;
+      destino.ptsBonus = (destino.ptsBonus || 0) + (origen.ptsBonus || 0);
       destino.tareas += origen.tareas; destino.ptsTareas += origen.ptsTareas;
       destino.seenDailyScore = destino.seenDailyScore || origen.seenDailyScore;
       destino.seenTask = destino.seenTask || origen.seenTask;
@@ -1804,6 +1810,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       f.ptsVentanas += Number(a.window_points) || 0;
       f.misiones += Number(a.missions) || 0;
       f.ptsMisiones += Number(a.mission_points) || 0;
+      f.ptsBonus += Number(a.race_bonus_points) || 0;
     });
     // El día sólo trae a quien puntuó hoy. Para que Semana y Mes no dependan de
     // presencia o trabajo actual, se siembran las identidades de ambos rangos,
@@ -1963,7 +1970,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var lista = Object.keys(por).map(function (k) {
       var f = por[k];
       f.agente = id ? id.display(f.base, f.suffix) : f.base;
-      f.total = f.ptsObjetivos + f.ptsVentanas + f.ptsMisiones + f.ptsTareas;
+      f.total = f.ptsObjetivos + f.ptsVentanas + f.ptsMisiones + f.ptsTareas + (f.ptsBonus || 0);
       // Se observa una sola vez por refresco. Podio, tabla y repintados por
       // filtros reutilizan este resultado y nunca convierten un verde en rojo
       // por el mero hecho de pintar dos superficies seguidas.
@@ -5079,6 +5086,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var staleState = enlace.trabajo.state === "assigned_stale" ? estadoCarreraStale(enlace.trabajo) : null;
       var heartbeat = resumen.state.toLowerCase() + (resumen.reachable ? " · alcanzable" : "");
       var runner = '<span class="refresh-runner runner-' + variant + ' runner-skin-' + variant + '" data-race-role="runner" aria-hidden="true">' +
+        '<span class="race-bonus" hidden>+1</span>' +
         '<svg class="runner-standing" viewBox="0 0 24 24" fill="#b8c0c5"><use href="#runnerStanding" fill="#b8c0c5"></use></svg>' +
         '<svg class="runner-pose-ready" viewBox="0 0 24 24"><use href="#runnerReady"></use></svg>' +
         '<svg class="runner-pose-set" viewBox="0 0 24 24"><use href="#runnerSet"></use></svg>' +
@@ -5102,7 +5110,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         : '<span class="refresh-started" data-race-time="start" title="Hora de inicio no disponible">—</span>';
       return '<div class="refresh-lane ' + clasePuesto + (resumen.idle ? " refresh-lane-idle" : "") + (isLast ? " refresh-lane-last" : "") +
         '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
-        'data-work-state="' + esc(isLast ? "last_work" : resumen.idle ? "assigned_stale" : "running") + '" ' +
+        'data-race-mission="' + esc(enlace.trabajo.reference || '') + '" data-work-state="' + esc(isLast ? "last_work" : resumen.idle ? "assigned_stale" : "running") + '" ' +
         (!isLast&&(enlace.trabajo.cliPaused||["session_unverified","service_activity_unverified","awaiting_decision"].includes(enlace.trabajo.activityReason))?'data-race-held="true" ':'') +
         (staleState && enlace.trabajo.raceRevision ? 'data-race-revision="' + esc(enlace.trabajo.raceRevision) + '" data-stale-anchor="' +
           Number(staleState.record.server_started_at) + '" data-stale-cycles="' + Number(staleState.record.cycles) + '" ' : '') +
@@ -5184,6 +5192,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       '<li>Cada <b>misión ejecutada hoy</b> —su primera entrada real en curso—: <b>' + pesos.mission + '</b>. Los reintentos no duplican puntos.</li>' +
       '<li>Cada <b>tarea A·B·C trabajada hoy</b>: <b>15</b>, y <b>+10</b> si está en curso. ' +
       'La actividad del agente, subagente e infraagente se reúne en su familia sin duplicar A1…C3.</li>' +
+      '<li><b>Bonus Track gratuito:</b> cada victoria confirmada por Yokup suma <b>+1</b> a la misión del Running Man ganador y a su marcador. La carrera es compartida: recargar o abrir otra pestaña no repite el premio. Solo participa trabajo en curso vinculado a una misión; los corredores grises y las sesiones sin misión no reciben bonus.</li>' +
       '<li><b>El latido no da puntos.</b> El propio <b>número de posición parpadea en verde</b> cuando recibió uno hace menos de 15 minutos. ' +
       'Los cinco indicadores muestran siempre una pareja numérica <b>hora / total del día</b>; una hora sin actividad se representa con <b>0</b>.</li>' +
       '<li><b>Running Man en color:</b> existe trabajo canónico abierto y su última marca de avance material tiene como máximo <b>' +
@@ -5286,6 +5295,40 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   var ordenLlegadaFirma = "", ordenLlegadaPorAgente = Object.create(null);
   var REDUCE_MOTION = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
+  var bonusCarrera = window.YkRaceBonus ? window.YkRaceBonus.create({
+    fetch:window.fetch.bind(window),endpoint:YK+"/highscore/race",key:claveAgenteCarrera
+  }) : null;
+  var bonusCarreraGeneracion = 0;
+  function preparaBonusCarrera() {
+    if (!bonusCarrera) return;
+    var generation=++bonusCarreraGeneracion;
+    document.querySelectorAll(".race-bonus").forEach(function(el){el.hidden=true;});
+    bonusCarrera.start().then(function(race){
+      if(!race || generation!==bonusCarreraGeneracion)return;
+      sorteaOrdenLlegada(false);
+      if(carreraPausada)return;
+      var elapsed=Math.max(0,Math.min(CICLO_MS,race.server_now-race.started_at));
+      carreraInicio=performance.now()-elapsed;
+      if(REDUCE_MOTION)programaCarreraReducida(elapsed);
+      else pintaMomentoCarrera(elapsed);
+    });
+  }
+  function confirmaBonusCarrera(carril) {
+    if(!bonusCarrera || carril.getAttribute("data-work-state")!=="running")return;
+    var badge=carril.querySelector(".race-bonus");
+    if(badge && !badge.hidden)return;
+    var generation=bonusCarreraGeneracion;
+    bonusCarrera.finish(carril.getAttribute("data-agent-key"),carril.getAttribute("data-race-mission")).then(function(receipt){
+      if(!receipt || generation!==bonusCarreraGeneracion || !carril.isConnected)return;
+      var label=carril.querySelector(".race-bonus");
+      if(label){label.hidden=false;label.title="+1 punto guardado en la misión "+receipt.mission_id;}
+      var status=document.getElementById("raceBonusStatus");
+      if(status && status.dataset.race!==receipt.race_id){
+        status.dataset.race=receipt.race_id;
+        status.textContent="Bonus Track: "+receipt.agent+" gana +1 punto para su misión.";
+      }
+    });
+  }
   function sorteaOrdenLlegada(forzar) {
     var carriles = Array.from(document.querySelectorAll('.refresh-lane[data-agent-key][data-work-state="running"]'));
     var claves = carriles.map(function (carril) { return carril.getAttribute("data-agent-key") || ""; });
@@ -5306,6 +5349,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     }
     carriles.forEach(function (carril, indice) {
       var clave = claves[indice], orden = Number(ordenLlegadaPorAgente[clave]) || indice + 1;
+      if (typeof bonusCarrera !== "undefined" && bonusCarrera) {
+        var official=bonusCarrera.order(clave,carril.getAttribute("data-race-mission"));
+        if(official!==null)orden=official;
+      }
       carril.setAttribute("data-race-order", String(orden));
       carril.classList.toggle("race-winner", orden === 1);
       carril.classList.toggle("race-loser", orden !== 1);
@@ -5437,6 +5484,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       carril.classList.toggle("cosmetic-finished", carreraCosmetica && progresoAtleta >= 1);
       carril.classList.toggle("race-winner", !carreraCosmetica && ordenLlegada === 1);
       carril.classList.toggle("race-loser", !carreraCosmetica && ordenLlegada !== 1);
+      if(!carreraCosmetica && progresoAtleta>=1 && ordenLlegada===1 && typeof confirmaBonusCarrera==="function")
+        confirmaBonusCarrera(carril);
       if (relleno) {
         var avancePista = Math.max(0, Math.min(metaLinea - inicioPista, centroAtleta - inicioPista));
         relleno.style.width = avancePista + "px";
@@ -5589,6 +5638,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     carreraPausada = false;
     carreraTiempoPausado = 0;
     sorteaOrdenLlegada(true);
+    if(typeof preparaBonusCarrera === "function")preparaBonusCarrera();
     pintaControlCarrera();
     carreraInicio = performance.now();
     // READY/SET/GO siguen siendo información bajo reduced-motion: cambian de

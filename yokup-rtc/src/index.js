@@ -1,3 +1,4 @@
+import { raceBonus } from './race-bonus.js';
 import { grokbotServicePresence, grokbotTaskActivity } from './grokbot-work.js';
 import { desktopTurnParticipants } from './desktop-turn-participant.js';
 import { CLI_POLICY, cliPolicyBlocked, cliPolicyFor } from './cli-policy.js';
@@ -4969,7 +4970,8 @@ async function listAllMissionTasks(env, scope, filters = {}) {
             t.id AS parent_ticket_id, t.status AS mission_status, t.created_at AS mission_created,
             ${HIGHSCORE_WORK_STARTED_SQL} AS mission_started,
             t.resolved_at AS mission_resolved, t.proof_image AS mission_proof,
-            t.points_start AS points_start, t.points_end AS points_end
+            t.points_start AS points_start, t.points_end AS points_end,
+            (SELECT COUNT(*) FROM events eb WHERE eb.ticket_id=t.id AND eb.kind='race_bonus') AS race_bonus_points
        FROM mission_tasks m LEFT JOIN tickets t ON t.id = m.mission_id
        LEFT JOIN ideas i ON i.mission_id = t.id AND COALESCE(i.source_image,'') <> ''
        ${where}
@@ -7434,7 +7436,8 @@ async function highscoreTraceability(env, inicio, fin, ahora) {
     agent: t.owner || "", at: Number(t.updated_at || t.created_at) || 0,
     is_new: isNew(t.created_at || t.updated_at), points: 0 });
   unlinked.sort((a, b) => b.at - a.at || a.id.localeCompare(b.id));
-  return { version: 1, recent_after: ahora - HIGHSCORE_RECENT_MS, chains, unlinked,
+  const raceBonuses = await rows("SELECT ticket_id mission_id,author agent,ts at,text FROM events WHERE kind='race_bonus' AND ts>=? AND ts<?");
+  return { race_bonuses:raceBonuses.map(row => ({...row,points:1})), version: 1, recent_after: ahora - HIGHSCORE_RECENT_MS, chains, unlinked,
     coverage: { objectives: ideas.length, windows: decisions.length, missions: missions.length, tasks: tasks.length,
       linked_missions: linkedMissions.size, unlinked: unlinked.length } };
 }
@@ -7536,6 +7539,10 @@ async function highscorePeriodMetrics(env, inicio, fin) {
     row.tasks += 1;
     row.points += HIGHSCORE_TASK_WEIGHTS.task +
       (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0);
+  }
+  for (const bonus of await rows("SELECT author agent,COUNT(*) points FROM events WHERE kind='race_bonus' AND ts>=? AND ts<? GROUP BY author")) {
+    const row = rowFor(bonus.agent, "");
+    if (row) { row.race_bonus_points = (row.race_bonus_points || 0) + Number(bonus.points); row.points += Number(bonus.points); }
   }
   return totals;
 }
@@ -7716,6 +7723,9 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
     push("mission", { ...mission, title:mission.subject }, mission.scored_at, HIGHSCORE_WEIGHTS.mission,
       { agent:wanted.family_name, status:String(mission.status || ""), scoring:true });
 
+  const bonuses = await rows("SELECT e.id,e.ticket_id mission_id,e.author agent,e.ts,t.subject title FROM events e JOIN tickets t ON t.id=e.ticket_id WHERE e.kind='race_bonus' AND COALESCE(NULLIF(t.project_id,''),t.project)=? AND e.ts>=? AND e.ts<?", exactProjectId,range.start,range.end);
+  for (const bonus of bonuses) if (familyMatches(bonus.agent, ""))
+    push("race_bonus", {...bonus,id:"race:"+bonus.id,title:"Bonus Track +1 · "+bonus.title}, bonus.ts, 1, {agent:wanted.family_name,mission_id:bonus.mission_id,status:"won",scoring:true});
   const ownTasks = tasks.filter((task) => familyMatches(task.assignee, task.loc));
   const representatives = new Map();
   for (const task of ownTasks) {
@@ -7746,6 +7756,7 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
   for (const idea of ideas) rankingAdd(highscoreAgent(idea.author), "", HIGHSCORE_WEIGHTS.objective, idea.created_at);
   for (const decision of decisions) rankingAdd(decision.agent, decision.machine, HIGHSCORE_WEIGHTS.window, decision.created_at);
   for (const mission of missions) rankingAdd(mission.assignee, mission.loc, HIGHSCORE_WEIGHTS.mission, mission.scored_at);
+  for (const bonus of bonuses) rankingAdd(bonus.agent, "", 1, bonus.ts);
   const rankingTasks = new Map();
   for (const task of tasks) {
     const match = String(task.code || "").toLowerCase().match(/^([a-c])(?:[1-3])?$/), family = rankingFamily(task.assignee, task.loc);
@@ -7863,7 +7874,7 @@ async function highscoreProjectHistory(env, requestedAgent, projectId, period = 
     const bucket = byDay.get(item.day);
     if (!bucket) continue;
     const field = item.type === "objective" ? "objectives" : item.type === "window" ? "windows"
-      : item.type === "mission" ? "missions" : item.scoring ? "tasks" : "";
+      : item.type === "mission" ? "missions" : item.type === "task" && item.scoring ? "tasks" : "";
     if (field) { metrics[field] += 1; bucket[field] += 1; }
     metrics.points += item.points; bucket.points += item.points;
   }
@@ -7943,12 +7954,12 @@ async function highscoreDailyRows(env, pertenece, ahora) {
   const add = (at, kind, points, agent, machine, hourly = true) => {
     if (hourly) addHour(at, points, agent, machine);
     const row = bucket(at); if (!row) return;
-    row[kind] += 1; row.points += points;
+    row[kind] = (Number(row[kind]) || 0) + 1; row.points += points;
     const familia = highscoreCanonicalHistoryFamily(agent, machine || "");
     const nombre = (familia && familia.family_name) || String(agent || "").trim();
     if (!nombre) return;
     const total = row.por_agente[nombre] || { objectives:0, windows:0, missions:0, tasks:0, points:0 };
-    total[kind] += 1; total.points += points;
+    total[kind] = (Number(total[kind]) || 0) + 1; total.points += points;
     row.por_agente[nombre] = total;
   };
   for (const idea of ideas) {
@@ -7983,6 +7994,8 @@ async function highscoreDailyRows(env, pertenece, ahora) {
     (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0),
     task.assignee, task.loc);
 
+  for (const bonus of await rows("SELECT author agent,ts FROM events WHERE kind='race_bonus' AND ts>0 AND ts<?", fin))
+    if (familyMatches(bonus.agent, "")) add(bonus.ts, "race_bonus_points", 1, bonus.agent, "");
   const allDays = [...daily.values()].sort((a, b) => a.day.localeCompare(b.day));
   const currentHour = Math.floor(ahora / 3600000) * 3600000;
   const bestHours = new Map();
@@ -8154,6 +8167,7 @@ async function highscoreFleetMissions(env, desdeDia, hastaDia) {
   }
   const { results } = await env.DB.prepare(
     `SELECT * FROM (SELECT t.id,t.subject,t.assignee,t.loc,t.status,t.project,t.project_id,t.created_at,` +
+    `(SELECT COUNT(*) FROM events eb WHERE eb.ticket_id=t.id AND eb.kind='race_bonus') race_bonus_points,` +
     `${HIGHSCORE_MISSION_STARTED_SQL} scored_at,` +
     `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,t.resolved_at finished_at,` +
     `EXISTS(SELECT 1 FROM mission_tasks mt3 WHERE mt3.mission_id=t.id) con_plan ` +
@@ -8173,7 +8187,7 @@ async function highscoreFleetMissions(env, desdeDia, hastaDia) {
         at: Number(r.scored_at) || 0,
         started_at: highscoreActiveWorkMillis(r.work_started_at || r.scored_at) || null,
         finished_at: highscoreActiveWorkMillis(r.finished_at) || null,
-        points: HIGHSCORE_WEIGHTS.mission };
+        race_bonus_points:Number(r.race_bonus_points)||0, points: HIGHSCORE_WEIGHTS.mission + (Number(r.race_bonus_points)||0) };
     }) };
 }
 __name(highscoreFleetMissions, "highscoreFleetMissions");
@@ -8242,6 +8256,7 @@ async function highscoreAgentMissions(env, requestedAgent, period, ahora = Date.
 
   const { results } = await env.DB.prepare(
     `SELECT * FROM (SELECT t.id,t.subject,t.assignee,t.loc,t.status,t.project,t.project_id,t.created_at,` +
+    `(SELECT COUNT(*) FROM events eb WHERE eb.ticket_id=t.id AND eb.kind='race_bonus') race_bonus_points,` +
     `${HIGHSCORE_MISSION_STARTED_SQL} scored_at,` +
     `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,t.resolved_at finished_at,` +
     `EXISTS(SELECT 1 FROM mission_tasks mt3 WHERE mt3.mission_id=t.id) con_plan ` +
@@ -8312,7 +8327,7 @@ async function highscoreAgentMissions(env, requestedAgent, period, ahora = Date.
       project_name:projects.get(projectId) || String(row.project || projectId || ""),
       at:highscoreActiveWorkMillis(row.scored_at) || null,
       started_at:startedAt || null, finished_at:finishedAt || null,
-      duration_ms:duration, ongoing, points:HIGHSCORE_WEIGHTS.mission,
+      duration_ms:duration, ongoing, race_bonus_points:Number(row.race_bonus_points)||0, points:HIGHSCORE_WEIGHTS.mission + (Number(row.race_bonus_points)||0),
       tasks:tasksByMission.get(id) || [], task_count:(tasksByMission.get(id) || []).length,
       report_url:"/ticket?id=" + encodeURIComponent(id) };
     const previous = byId.get(id);
@@ -8780,6 +8795,7 @@ async function highscoreHourlyContract(env, legacy, ahora, dayStart, dayEnd) {
         windows:highscoreMetricPair(hour, day, "windows"),
         missions:highscoreMetricPair(hour, day, "missions"),
         tasks:highscoreMetricPair(hour, day, "tasks"),
+        race_bonus_points:highscoreMetricPair(hour, day, "race_bonus_points"),
         points:highscoreMetricPair(hour, day, "points")
       }
     };
@@ -8840,6 +8856,8 @@ async function highscoreCurrentTotals(env, scores, inicio, fin) {
       (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0);
     add(task.assignee, task.loc, points);
   }
+  for (const bonus of ((await env.DB.prepare("SELECT author agent,COUNT(*) points FROM events WHERE kind='race_bonus' AND ts>=? AND ts<? GROUP BY author").bind(inicio,fin).all()).results || []))
+    add(bonus.agent, "", bonus.points);
   return [...totals.values()].sort((a, b) => a.agent_key.localeCompare(b.agent_key));
 }
 __name(highscoreCurrentTotals, "highscoreCurrentTotals");
@@ -9042,7 +9060,8 @@ async function highscoreDaily(env) {
     const points = day("points"), objectives = day("objectives"), windows = day("windows"),
       missions = day("missions"), tasks = day("tasks");
     const previous = legacyByAgent.get(highscoreGroupKey(hourlyScore.agent, hourlyScore.machine)) || {};
-    const taskPoints = Math.max(0, points - objectives * HIGHSCORE_WEIGHTS.objective -
+    const raceBonusPoints = day("race_bonus_points");
+    const taskPoints = Math.max(0, points - raceBonusPoints - objectives * HIGHSCORE_WEIGHTS.objective -
       windows * HIGHSCORE_WEIGHTS.window - missions * HIGHSCORE_WEIGHTS.mission);
     const yesterday = ayerMetricas.get(highscoreGroupKey(hourlyScore.agent, hourlyScore.machine));
     const yesterdayPoints = Number(yesterday && yesterday.points) || 0;
@@ -9050,7 +9069,7 @@ async function highscoreDaily(env) {
       machine:hourlyScore.machine || previous.machine || "", objectives,
       objective_points:objectives * HIGHSCORE_WEIGHTS.objective, windows,
       window_points:windows * HIGHSCORE_WEIGHTS.window, missions,
-      mission_points:missions * HIGHSCORE_WEIGHTS.mission, tasks, task_points:taskPoints, points,
+      mission_points:missions * HIGHSCORE_WEIGHTS.mission, tasks, task_points:taskPoints, race_bonus_points:raceBonusPoints, points,
       yesterday_points:yesterdayPoints,
       day_comparison:points > yesterdayPoints ? "sube" : points < yesterdayPoints ? "baja" : "igual" };
   }).filter((score) => score.points > 0);
@@ -9705,6 +9724,19 @@ var worker_app = {
         ? await highscoreProjectHistory(env, agent, projectId, url.searchParams.get("period") || "today")
         : await highscoreHistory(env, agent);
       return json(history, history.ok ? 200 : 400);
+    }
+    if (url.pathname === "/highscore/race" && req.method === "POST") {
+      const origin = req.headers.get("origin");
+      if (origin && !["https://yokup.com", "https://www.yokup.com"].includes(origin))
+        return json({ok:false,code:"origin_not_allowed"},403);
+      let body; try { body = await req.json(); } catch { return json({ok:false,code:"bad_json"},400); }
+      await ensureSchema(env);
+      await ensureIdeasSchema(env);
+      await preemptAutomaticWork(env);
+      const result = await raceBonus(env, body, () => highscoreActiveWork(env));
+      const response = json(result, result.ok ? 200 : 400);
+      response.headers.set("cache-control", "no-store");
+      return response;
     }
     if (url.pathname === "/highscore/active-work" && req.method === "GET") {
       await ensureSchema(env);
@@ -11436,6 +11468,7 @@ var worker_app = {
         t.project_name = resolveProject(await projectIndex(env), t.project || "").name;
         await attachDisplayRefs(env, "mission", t, (row) => row.id, (row) => row.created_at);
         const { results } = await env.DB.prepare("SELECT * FROM events WHERE ticket_id=? ORDER BY id ASC").bind(id).all();
+        t.race_bonus_points = (results || []).filter(event => event.kind === "race_bonus").length;
         return json({ ticket: t, events: results || [] });
       } catch (e) {
         return json({ error: String(e) }, 500);

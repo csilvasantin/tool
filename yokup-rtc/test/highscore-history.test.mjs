@@ -359,3 +359,19 @@ test('la base histórica semanal conserva el mismo reparto físico y suma global
   const historical=await F.highscoreHistory(env,agent,now);assert.equal(historical.periods.week.points,points,agent);assert.equal(historical.evolution.days.at(-1).points,points,agent);
  }
 });
+
+test('race victories follow their own day and project, including older missions, without adding task counts',async()=>{
+ const {db,env,F}=harness(),now=Date.UTC(2026,7,11,12),start=Date.UTC(2026,7,1,10),yesterday=Date.UTC(2026,7,10,10);
+ db.exec("INSERT INTO projects VALUES('yokup','Yokup'),('other','Other')");
+ db.prepare("INSERT INTO tickets(id,source,status,assignee,loc,created_at,project_id) VALUES('M1','cli-declare','in_progress','OraculoMacMini','MacMini',?,'yokup')").run(start);
+ const event=db.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES('M1',?,'race_bonus','OraculoMacMini',?)");
+ event.run(yesterday,'Bonus Track +1 · race1');event.run(now-1,'Bonus Track +1 · race2');
+ const project=await F.highscoreProjectHistory(env,'OraculoMacMini','yokup','today',now);
+ assert.equal(project.metrics.points,1);assert.equal(project.metrics.tasks,0);assert.equal(project.metrics.missions,0);
+ assert.equal(project.timeline[0].type,'race_bonus');assert.equal(project.timeline[0].mission_id,'M1');
+ assert.equal(project.ranking.ordered[0].points,1);
+ const other=await F.highscoreProjectHistory(env,'OraculoMacMini','other','today',now);assert.equal(other.metrics.points,0);
+ const history=await F.highscoreHistory(env,'OraculoMacMini',now);
+ assert.equal(history.periods.week.points,2);assert.equal(history.periods.month.points,42);
+ assert.equal(history.periods.week.tasks,0);
+});

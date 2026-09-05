@@ -138,7 +138,7 @@ async function render(){
       <div>
         <div class="tid">${esc(t.id)} · ${t.source==='agent-iot'?'🤖 abierto por Agente IoT':'👤 manual'}</div>
         <h1>${esc(t.subject)}</h1>
-        <div class="meta"><span class="scr">${esc(t.screen)}</span>${t.loc?'<span>'+(window.ykMaquina?ykMaquina.html(t.loc):esc(t.loc))+'</span>':''}<span>abierto hace ${ago(t.created_at)}</span><span>👷 ${esc(t.assignee)}</span>${t.priority?'<span>prioridad '+esc(t.priority)+'</span>':''}</div>
+        <div class="meta"><span class="scr">${esc(t.screen)}</span>${t.loc?'<span>'+(window.ykMaquina?ykMaquina.html(t.loc):esc(t.loc))+'</span>':''}<span>abierto hace ${ago(t.created_at)}</span><span>👷 ${esc(t.assignee)}</span>${Number(t.race_bonus_points)>0?'<span title="Un punto por carrera ganada">🏁 Bonus Track +'+Number(t.race_bonus_points)+' puntos</span>':''}${t.priority?'<span>prioridad '+esc(t.priority)+'</span>':''}</div>
       </div>
       <span class="badge ${sb}"><i></i>${stt}</span>
     </div>

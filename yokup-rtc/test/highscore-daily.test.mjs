@@ -497,7 +497,7 @@ test("primera hora activa: las cinco métricas entregan hora igual a día", asyn
   insertHourBundle(db,"FIRST",at);
   const result=await contractAt(F,env,now),row=result.scores.find(x=>x.agent==="Oraculo");
   assert.deepEqual(row.metrics,{
-    objectives:{hour:1,day:1},windows:{hour:1,day:1},missions:{hour:1,day:1},tasks:{hour:2,day:2},points:{hour:110,day:110}
+    objectives:{hour:1,day:1},windows:{hour:1,day:1},missions:{hour:1,day:1},tasks:{hour:2,day:2},race_bonus_points:{hour:0,day:0},points:{hour:110,day:110}
   });
   assert.equal(result.period.timezone,"Europe/Madrid");
   assert.equal(result.period.hour_key,"2026-08-06T10");
@@ -508,7 +508,7 @@ test("hora sin actividad: horario cero y total diario intacto", async () => {
   insertHourBundle(db,"OLD",Date.UTC(2026,7,6,8,5));
   const row=(await contractAt(F,env,now)).scores.find(x=>x.agent==="Oraculo");
   assert.deepEqual(row.metrics,{
-    objectives:{hour:0,day:1},windows:{hour:0,day:1},missions:{hour:0,day:1},tasks:{hour:0,day:2},points:{hour:0,day:110}
+    objectives:{hour:0,day:1},windows:{hour:0,day:1},missions:{hour:0,day:1},tasks:{hour:0,day:2},race_bonus_points:{hour:0,day:0},points:{hour:0,day:110}
   });
 });
 
@@ -518,7 +518,7 @@ test("varias horas: la hora actual no duplica el acumulado anterior", async () =
   insertHourBundle(db,"NOW",Date.UTC(2026,7,6,13,5));
   const row=(await contractAt(F,env,now)).scores.find(x=>x.agent==="Oraculo");
   assert.deepEqual(row.metrics,{
-    objectives:{hour:1,day:2},windows:{hour:1,day:2},missions:{hour:1,day:2},tasks:{hour:2,day:4},points:{hour:110,day:220}
+    objectives:{hour:1,day:2},windows:{hour:1,day:2},missions:{hour:1,day:2},tasks:{hour:2,day:4},race_bonus_points:{hour:0,day:0},points:{hour:110,day:220}
   });
 });
 
@@ -574,4 +574,21 @@ test('Morfeo y Trinity separan dos equipos sin duplicar aliases ni variar el tot
  assert.equal(d.scores.reduce((n,row)=>n+row.points,0),inputs.length*d.weights.window);
  const hourly=Object.fromEntries(d.hourly.scores.map(row=>[row.agent+'|'+row.machine,row.metrics.points.day]));assert.deepEqual(hourly,totals);
  assert.equal(new Set(d.hourly.scores.map(row=>row.agent_key)).size,4,'los snapshots no se pisan por persona');
+});
+
+
+test("victory is one separate point in daily, hourly, snapshot and trace, never a task", async () => {
+  const {db,env,F}=harness();
+  insertHourBundle(db,"BONUS",HOY-10000);
+  const before=await F.highscoreDaily(env);
+  db.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,'race_bonus',?,?)")
+    .run("M-BONUS",HOY-1,"OraculoMacMini","Bonus Track +1 · carrera proof1");
+  const after=await F.highscoreDaily(env), old=before.scores.find(x=>x.agent==="Oraculo"), row=after.scores.find(x=>x.agent==="Oraculo");
+  assert.equal(row.points,old.points+1);
+  assert.equal(row.race_bonus_points,1);
+  assert.equal(row.task_points,old.task_points);
+  assert.equal(row.tasks,old.tasks);
+  assert.equal(after.hourly.scores.find(x=>x.agent==="Oraculo").current,before.hourly.scores.find(x=>x.agent==="Oraculo").current+1);
+  assert.equal(after.traceability.race_bonuses[0].mission_id,"M-BONUS");
+  assert.equal(after.traceability.race_bonuses[0].points,1);
 });

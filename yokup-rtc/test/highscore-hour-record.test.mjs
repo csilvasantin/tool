@@ -7,16 +7,16 @@ const fn=source.slice(source.indexOf('async function highscoreDailyRows('),sourc
 const key=ms=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(ms));
 async function run(facts,now){
  let queries=0;
- const env={DB:{prepare(sql){queries++; const rows=sql.includes('FROM ideas')?facts.ideas:sql.includes('FROM decisions')?facts.decisions:sql.includes('FROM mission_tasks m')?facts.tasks:facts.missions;return{bind(){return{all:async()=>({results:rows||[]})}}};}}};
+ const env={DB:{prepare(sql){queries++; const rows=sql.includes('FROM ideas')?facts.ideas:sql.includes('FROM decisions')?facts.decisions:sql.includes('FROM mission_tasks m')?facts.tasks:sql.includes("kind='race_bonus'")?facts.bonuses:facts.missions;return{bind(){return{all:async()=>({results:rows||[]})}}};}}};
  const c=vm.createContext({Date,Map,Number,String,Math,highscoreNaturalPeriods:()=>({day_end:now+1}),madridDayKey:key,
  highscoreAgent:x=>x,highscoreCanonicalHistoryFamily:(agent,machine)=>({family_name:agent.replace(/^(Sub|Infra)/,'')+(machine||'')}),
  HIGHSCORE_WEIGHTS:{objective:20,window:10,mission:40},HIGHSCORE_TASK_WEIGHTS:{task:15,active_bonus:10},HIGHSCORE_MISSION_STARTED_SQL:'started_at',AGENT_SOURCE_SQL_T:'1'});
  vm.runInContext(fn,c);const data=await c.highscoreDailyRows(env,()=>true,now);return {data:JSON.parse(JSON.stringify(data)),queries};
 }
-test('closed hour uses only factual events in that hour, not the daily total; no extra query',async()=>{
+test('closed hour uses only factual events in that hour, not the daily total; one query per scoring source',async()=>{
  const now=Date.parse('2026-09-05T10:30:00Z');
  const {data,queries}=await run({decisions:[{agent:'Neo',machine:'14',created_at:Date.parse('2026-09-05T08:20:00Z')},{agent:'Neo',machine:'14',created_at:Date.parse('2026-09-05T09:20:00Z')},{agent:'Neo',machine:'14',created_at:now-1}]},now);
- assert.equal(queries,4);assert.equal(data.allDays[0].points,30);assert.equal(data.hourRecords.records[0].points,10);
+ assert.equal(queries,5);assert.equal(data.allDays[0].points,30);assert.equal(data.hourRecords.records[0].points,10);
  assert.equal(data.hourRecords.records[0].start,Date.parse('2026-09-05T08:00:00Z'));
  assert.ok(data.hourRecords.records.every(r=>r.end<=Math.floor(now/3600000)*3600000));
 });
