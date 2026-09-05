@@ -38,7 +38,10 @@ function render({agent="MorfeoMacMini",principal="admira.live/control",workProje
 
 test("el bloque izquierdo muestra agente // proyecto responsable canónico",()=>{
   const rendered=render();
-  assert.match(rendered,/data-race-role="agent"[^>]*>MorfeoMacMini<\/span><span class="refresh-agent-machine">MacMini<\/span><span class="refresh-agent-project" data-race-role="project"[^>]*>\/\/ admira\.live\/control<\/span>/);
+  assert.match(rendered,/data-race-role="agent"[^>]*>Morfeo<\/span>/);
+  assert.match(rendered,/role="tooltip"[^>]*>MacMini · interfaz sin verificar<\/span>/);
+  assert.match(rendered,/class="refresh-agent-project" data-race-role="project"[^>]*>\/\/ admira\.live\/control<\/span>/);
+  assert.doesNotMatch(rendered,/class="refresh-agent-machine"/);
   assert.match(rendered,/Proyecto responsable admira\.live\/control\. Hora de inicio/);
   assert.match(rendered,/class="refresh-mission-title">Faena puntual · Yokup<\/span>/,
     "la faena puntual conserva su propio proyecto dentro de la pista");
