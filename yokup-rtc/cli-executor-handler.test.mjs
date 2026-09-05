@@ -2,13 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import worker from "./src/index.js";
 
-function harness() {
+function harness(cli="smith-grok") {
   const state = {
     dbTouched:0,
     commands:[
-      { id:"CLI-old-start", machine:"MacMini", cli:"grok", action:"start",
+      { id:"CLI-old-start", machine:"MacMini", cli, action:"start",
         status:"queued", detail:null, result_detail:null, created_at:900, updated_at:900 },
-      { id:"CLI-test-start", machine:"MacMini", cli:"grok", action:"start",
+      { id:"CLI-test-start", machine:"MacMini", cli, action:"start",
         status:"queued", detail:null, result_detail:null, created_at:1000, updated_at:1000 }
     ],
     cli:new Map()
@@ -26,7 +26,10 @@ function harness() {
           if (row) row.status="superseded";
           return { meta:{ changes:row ? 1 : 0 } };
         }
-        if (sql.includes("SET status='rejected'")) return { meta:{ changes:0 } };
+        if (sql.includes("SET status='rejected'")) {
+          const row=state.commands.find(item=>item.id===this.args[1] && item.status==='queued');
+          if(row)row.status='rejected'; return {meta:{changes:row?1:0}};
+        }
         if (sql.includes("INSERT INTO cli_state") && sql.includes("desired")) {
           const [machine,cli,desired,desiredCommandId,desiredAt]=this.args;
           const current=state.cli.get(machine+"|"+cli)||{machine,cli,alive:null,pid:null,seen_at:0};
@@ -109,33 +112,33 @@ test("las rutas pending/ack autentican, atan el target y conservan ACK idempoten
   assert.equal(response.status,200);
   assert.equal(body.machine,"MacMini");
   assert.deepEqual(body.items.map(({id,cli,action,desired})=>({id,cli,action,desired})),[{
-    id:"CLI-test-start",cli:"grok",action:"start",desired:"running"
+    id:"CLI-test-start",cli:"smith-grok",action:"start",desired:"running"
   }]);
   assert.equal(box.state.commands[0].status,"superseded","dos start históricos convergen en una sola intención");
 
   const wrongTarget=await worker.fetch(ack({
-    id:"CLI-test-start",machine:"MacBookPro14",cli:"grok",status:"running",alive:false,pid:null
+    id:"CLI-test-start",machine:"MacBookPro14",cli:"smith-grok",status:"running",alive:false,pid:null
   }),box.env,{});
   assert.equal(wrongTarget.status,404);
 
   const running=await worker.fetch(ack({
-    id:"CLI-test-start",machine:"MacMini",cli:"grok",status:"running",alive:false,pid:null,detail:"starting"
+    id:"CLI-test-start",machine:"MacMini",cli:"smith-grok",status:"running",alive:false,pid:null,detail:"starting"
   }),box.env,{});
   assert.equal(running.status,200);
   assert.equal(box.state.commands[1].status,"running");
   const runningLease=await worker.fetch(ack({
-    id:"CLI-test-start",machine:"MacMini",cli:"grok",status:"running",alive:false,pid:null,detail:"still starting"
+    id:"CLI-test-start",machine:"MacMini",cli:"smith-grok",status:"running",alive:false,pid:null,detail:"still starting"
   }),box.env,{}),runningLeaseBody=await runningLease.json();
   assert.equal(runningLeaseBody.command.duplicate,true);
   assert.equal(box.state.commands[1].result_detail,"still starting","running repetido renueva el lease");
 
   const contradictory=await worker.fetch(ack({
-    id:"CLI-test-start",machine:"MacMini",cli:"grok",status:"done",alive:false,pid:null
+    id:"CLI-test-start",machine:"MacMini",cli:"smith-grok",status:"done",alive:false,pid:null
   }),box.env,{});
   assert.equal(contradictory.status,409);
 
   const done=await worker.fetch(ack({
-    id:"CLI-test-start",machine:"MacMini",cli:"grok",status:"done",alive:true,pid:4321,detail:"ready"
+    id:"CLI-test-start",machine:"MacMini",cli:"smith-grok",status:"done",alive:true,pid:4321,detail:"ready"
   }),box.env,{});
   assert.equal(done.status,200);
   assert.equal(box.state.commands[1].status,"done");
@@ -143,22 +146,45 @@ test("las rutas pending/ack autentican, atan el target y conservan ACK idempoten
   assert.equal(box.state.commands[1].result_detail,"ready");
 
   const duplicate=await worker.fetch(ack({
-    id:"CLI-test-start",machine:"MacMini",cli:"grok",status:"done",alive:true,pid:4321,detail:"ready"
+    id:"CLI-test-start",machine:"MacMini",cli:"smith-grok",status:"done",alive:true,pid:4321,detail:"ready"
   }),box.env,{}),duplicateBody=await duplicate.json();
   assert.equal(duplicate.status,200);
   assert.equal(duplicateBody.command.duplicate,true);
 
   box.state.commands.push({
-    id:"CLI-test-mission",machine:"MacMini",cli:"grok",action:"mission",status:"queued",
+    id:"CLI-test-mission",machine:"MacMini",cli:"smith-grok",action:"mission",status:"queued",
     detail:"MISIÓN: comprueba literalmente este encargo",result_detail:null,created_at:2000,updated_at:2000
   });
   const missionPending=await worker.fetch(pending(),box.env,{}),missionBody=await missionPending.json();
   const mission=missionBody.items.find((item)=>item.id==="CLI-test-mission");
   assert.equal(mission.detail,"MISIÓN: comprueba literalmente este encargo");
   const missionDone=await worker.fetch(ack({
-    id:"CLI-test-mission",machine:"MacMini",cli:"grok",status:"done",alive:true,pid:4321,detail:"delivered"
+    id:"CLI-test-mission",machine:"MacMini",cli:"smith-grok",status:"done",alive:true,pid:4321,detail:"delivered"
   }),box.env,{});
   assert.equal(missionDone.status,200);
   assert.equal(box.state.commands[2].detail,"MISIÓN: comprueba literalmente este encargo");
   assert.equal(box.state.commands[2].result_detail,"delivered");
 });
+
+ test("CLI start y mission anteriores no se entregan ni pueden ACKrunning saltando pending",async()=>{
+ const box=harness('grok');
+ // Direct claim before polling must not resurrect the cached launch.
+ const claim=await worker.fetch(ack({id:'CLI-test-start',machine:'MacMini',cli:'grok',status:'running',alive:false,pid:null}),box.env,{});
+ assert.equal(claim.status,409);assert.equal((await claim.json()).code,'cli_paused_by_carlos');
+ box.state.commands.push({id:'CLI-old-mission',machine:'MacMini',cli:'grok',action:'mission',status:'queued',detail:'Misión humana preservada',created_at:Date.now(),updated_at:Date.now()});
+ const wrong=await worker.fetch(ack({id:'CLI-test-start',machine:'MacBookPro14',cli:'grok',status:'running',alive:false,pid:null}),box.env,{});assert.equal(wrong.status,404);
+ const missionClaim=await worker.fetch(ack({id:'CLI-old-mission',machine:'MacMini',cli:'grok',status:'running',alive:true,pid:42}),box.env,{});assert.equal(missionClaim.status,409);assert.equal((await missionClaim.json()).code,'cli_paused_by_carlos');
+ const response=await worker.fetch(pending(),box.env,{}),body=await response.json();
+ assert.deepEqual(body.items,[]);assert.equal(body.runtime_policy.cli_paused,true);
+ assert.equal(box.state.commands.find(x=>x.id==='CLI-old-mission').detail,'Misión humana preservada');
+ assert.ok(box.state.commands.every(x=>['rejected','superseded'].includes(x.status)));
+ });
+
+ test("ACKrunning de STOP CLI y replay siguen permitidos; no implica afirmar proceso parado",async()=>{
+ const box=harness('grok');box.state.commands=[{id:'CLI-stop',machine:'MacMini',cli:'grok',action:'stop',status:'queued',detail:null,created_at:Date.now(),updated_at:Date.now()}];
+ for(let i=0;i<2;i++){
+ const response=await worker.fetch(ack({id:'CLI-stop',machine:'MacMini',cli:'grok',status:'running',alive:true,pid:42,detail:'stop requested'}),box.env,{});
+ assert.equal(response.status,200);assert.equal(box.state.commands[0].status,'running');
+ }
+ assert.equal(box.state.cli.get('MacMini|grok').alive,1);
+ });

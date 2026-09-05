@@ -11067,6 +11067,7 @@ var worker_app = {
           const status = match.code === "command_target_mismatch" ? 404 : 409;
           return json({ ok:false, code:match.code, error:match.error || "ACK incompatible con la orden" }, status);
         }
+        if(CLI_POLICY.cli_paused && cliTipo(command.cli)==='cli' && command.action!=='stop' && ack.status==='running') return json({ok:false,code:CLI_POLICY.reason,error:CLI_POLICY.reason},409);
         transition = cliAckTransition(command.status, ack.status);
         if (!transition.ok) {
           return json({ ok:false, code:transition.code, status:transition.status,
