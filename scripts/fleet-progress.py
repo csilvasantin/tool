@@ -8,6 +8,7 @@ import urllib.request
 
 API_URL = 'https://api.yokup.com/fleet/progress'
 KINDS = ('coordination', 'implementation', 'verification')
+USER_AGENT = 'YokupFleetProgress/1.0'
 
 def payload_for(args):
     detail = args.detail.strip()
@@ -40,12 +41,18 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         payload = payload_for(args)
-        request = urllib.request.Request(API_URL, data=json.dumps(payload).encode(), headers={'Content-Type':'application/json'}, method='POST')
+        request = urllib.request.Request(API_URL, data=json.dumps(payload).encode(), headers={'Content-Type':'application/json', 'Accept':'application/json', 'User-Agent':USER_AGENT}, method='POST')
         with urllib.request.urlopen(request, timeout=10) as response:
             result = verify_response(json.load(response))
         print(json.dumps(result, ensure_ascii=False))
         return 0
-    except (ValueError, urllib.error.URLError, TimeoutError):
+    except urllib.error.HTTPError as error:
+        print(json.dumps({'ok': False, 'error':'http_rejected', 'http_status':error.code, 'detail':'La API o su transporte rechazó la llamada; actividad no confirmada.'}, ensure_ascii=False))
+        return 1
+    except (urllib.error.URLError, TimeoutError):
+        print(json.dumps({'ok': False, 'error':'network_unavailable', 'detail':'No se pudo contactar con la API; actividad no confirmada.'}, ensure_ascii=False))
+        return 1
+    except ValueError:
         # Do not echo arbitrary upstream bodies, request metadata or credentials.
         print(json.dumps({'ok': False, 'error':'Actividad no confirmada. Revisa misión abierta, owner, sesión exacta y API publicada.'}, ensure_ascii=False))
         return 1

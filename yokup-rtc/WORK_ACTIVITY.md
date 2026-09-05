@@ -22,7 +22,13 @@ El helper llama al contrato público canónico `/fleet/progress` con `activity`
 `{kind,detail}` y `work_session` `{runtime,host,session_id}`. Sólo declara éxito si
 la respuesta contiene `work_binding.bound:true` y `work_activity.accepted:true`,
 fecha y TTL válidos. Una API antigua o una sesión ambigua produce fallo explícito;
-no debe comunicarse como avance aceptado. El emisor no altera cuentas, procesos,
+no debe comunicarse como avance aceptado. El transporte usa el identificador propio `YokupFleetProgress/1.0`; no simula un
+navegador. Esta ruta es pública y no necesita credenciales. El cliente predeterminado
+de Python recibió HTTP 403 antes de llegar al contrato, mientras que el identificador
+propio obtuvo aceptación real. El helper distingue rechazo HTTP y fallo de red sin
+volcar cuerpos de respuesta ni secretos. No reintenta automáticamente.
+
+El emisor no altera cuentas, procesos,
 ventanas ni automatismos, y no genera capturas. La evidencia visual conserva su
 flujo independiente de [evidencia de proceso](PROCESS_EVIDENCE.md).
 
