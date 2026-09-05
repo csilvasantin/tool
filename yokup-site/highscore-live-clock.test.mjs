@@ -84,8 +84,9 @@ test("dorsal y toda su mecánica desaparecen de CSS DOM y JS", () => {
     "data-place puede conservarse únicamente como orden interno de carrera");
 });
 
-test("stale corre sólo B/N cosmético y last_work conserva pose quieta", () => {
-  assert.match(html, /data-work-state\]:not\(\[data-work-state="running"\]\) \.refresh-runner\{[\s\S]*--runner-skin:#b8c0c5;--runner-hair:#737f86;--runner-shirt:#a7b1b6;--runner-stripe:#e0e5e8/);
+test("stale se distingue en ámbar y last_work conserva pose gris quieta", () => {
+  assert.match(html, /data-work-state="assigned_stale"\] \.refresh-runner\{[^}]*--runner-shirt:#e9b95c/);
+  assert.match(html, /data-work-state="last_work"\] \.refresh-runner\{[\s\S]*--runner-skin:#b8c0c5;--runner-hair:#737f86;--runner-shirt:#a7b1b6;--runner-stripe:#e0e5e8/);
   assert.match(html, /data-work-state="last_work"\] \.runner-standing\{display:block;animation:none\}/);
   assert.match(html, /data-work-state="last_work"\] \.runner-run-a[\s\S]*display:none;animation:none/);
   assert.match(html, /carreraCosmetica = estadoTrabajo === "assigned_stale"/);

@@ -145,5 +145,5 @@ test("el bloque ordenado se contrae sin desbordar en móvil", () => {
 test("último trabajo mantiene zancada gris estática", () => {
   assert.match(stateCss, /data-work-state="last_work"\] \.runner-standing[\s\S]*display:none!important/);
   assert.match(stateCss, /data-work-state="last_work"\] \.runner-run-a[\s\S]*display:block!important[\s\S]*animation:none!important/);
-  assert.match(html, /data-work-state\]:not\(\[data-work-state="running"\]\) \.refresh-runner\{[\s\S]*--runner-skin:#b8c0c5/);
+  assert.match(html, /data-work-state="last_work"\] \.refresh-runner\{[\s\S]*--runner-skin:#b8c0c5/);
 });

@@ -11,8 +11,8 @@ test("Cómo se puntúa explica los periodos y por qué semana y mes pueden coinc
 
 test("Cómo se puntúa enumera todos los estados visibles del Running Man", () => {
   assert.match(html, /<b>Running Man en color:<\/b>/);
-  assert.match(html, /<b>Running Man gris en movimiento · sin avance:<\/b>/);
-  assert.match(html, /<b>Running Man gris quieto · último trabajo:<\/b>/);
+  assert.match(html, /<b>Running Man ámbar · trabajo en curso sin actividad confirmada:<\/b>/);
+  assert.match(html, /<b>Running Man gris quieto · trabajo finalizado:<\/b>/);
   assert.match(html, /<b>No aparece corredor:<\/b>/);
 });
 

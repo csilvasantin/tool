@@ -136,7 +136,7 @@ test("el scope manual muestra los mismos dos agentes en ranking y carrera", () =
 // TrinityMBP14 499. «La información tiene que ser veraz: podrían llegar a
 // aparecer, pero al correr no debería mostrar que están haciendo algo porque no
 // lo están haciendo». Aparecer, sí; afirmar, no.
-test("un participante con el proceso vivo pero el trabajo parado queda gris y no corre", () => {
+test("un participante con el proceso vivo pero el trabajo parado queda ámbar y no compite", () => {
   const item=work("NeoMBP14","SubNeoMBP14","task","Trabajo stale",Date.now()-330*60*1000,"assigned_stale");
   item.presence_at=Date.now();
   const race=renderRace([], [item]);

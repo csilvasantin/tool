@@ -506,7 +506,14 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-ended.refresh-elapsed{overflow:hidden;text-overflow:ellipsis;font-weight:900}
 .refresh-lane-idle{--lane:var(--brand)}
 .refresh-lane-idle .refresh-lane-center{opacity:.82}
-.refresh-lane[data-work-state]:not([data-work-state="running"]) .refresh-runner{
+/* An open assignment without current proof is distinct from completed history. */
+.refresh-lane[data-work-state="assigned_stale"]{--lane:#e9b95c}
+.refresh-lane[data-work-state="assigned_stale"] .refresh-runner{
+  --runner-shirt:#e9b95c;--runner-stripe:#fff0c2;color:#e9b95c;
+  filter:drop-shadow(0 0 3px rgba(233,185,92,.45))}
+.refresh-lane[data-work-state="assigned_stale"] .runner-standing,
+.refresh-lane[data-work-state="assigned_stale"] .runner-standing use{fill:#e9b95c}
+.refresh-lane[data-work-state="last_work"] .refresh-runner{
   --runner-skin:#b8c0c5;--runner-hair:#737f86;--runner-shirt:#a7b1b6;--runner-stripe:#e0e5e8;
   filter:drop-shadow(0 0 3px rgba(205,214,219,.72))}
 .refresh-lane-idle .refresh-mission,.refresh-lane-last .refresh-mission{position:absolute;left:var(--track-start);right:var(--finish-width);
@@ -4926,7 +4933,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       ? YkHighscoreRace.clockDurationLabel(reloj.sessionDurationMs) : "—";
     var sessionLabel = trabajo.sessionDedicatedMs === null
       ? "Horas operando no disponibles" : "Horas operando del agente";
-    var stateLabel = trabajo.activityReason==="awaiting_decision" ? "Esperando decisión · sin ejecución verificada" : trabajo.kind==="session" ? "Actividad Desktop APP verificada" : trabajo.cliPaused ? "CLI pausado por Carlos" : ["session_unverified","service_activity_unverified"].includes(trabajo.activityReason) ? "Trabajo registrado · sesión sin vincular" : trabajo.state === "running" ? "Trabajo activo" : trabajo.state === "last_work" ? "Trabajo finalizado" : "Sin avance";
+    var stateLabel = trabajo.activityReason==="awaiting_decision" ? "Esperando decisión · sin ejecución verificada" : trabajo.kind==="session" ? "Actividad Desktop APP verificada" : trabajo.cliPaused ? "CLI pausado por Carlos" : ["session_unverified","service_activity_unverified"].includes(trabajo.activityReason) ? "Trabajo registrado · sesión sin vincular" : trabajo.state === "running" ? "Trabajo activo" : trabajo.state === "last_work" ? "Trabajo finalizado" : "Trabajo en curso · actividad sin confirmar";
     return { reference:trabajo.reference || "", title:trabajo.title, state:stateLabel,
       project:trabajo.projectName || "", projectId:trabajo.projectId || "", detailUrl:trabajo.detailUrl || "",
       executor:trabajo.executor, responsible:trabajo.agente, kind:trabajo.kind, reachable:trabajo.reachable,
@@ -5192,15 +5199,15 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       '<li>Cada <b>misión ejecutada hoy</b> —su primera entrada real en curso—: <b>' + pesos.mission + '</b>. Los reintentos no duplican puntos.</li>' +
       '<li>Cada <b>tarea A·B·C trabajada hoy</b>: <b>15</b>, y <b>+10</b> si está en curso. ' +
       'La actividad del agente, subagente e infraagente se reúne en su familia sin duplicar A1…C3.</li>' +
-      '<li><b>Bonus Track gratuito:</b> cada victoria confirmada por Yokup suma <b>+1</b> a la misión del Running Man ganador y a su marcador. La carrera es compartida: recargar o abrir otra pestaña no repite el premio. Solo participa trabajo en curso vinculado a una misión; los corredores grises y las sesiones sin misión no reciben bonus.</li>' +
+      '<li><b>Bonus Track gratuito:</b> cada victoria confirmada por Yokup suma <b>+1</b> a la misión del Running Man ganador y a su marcador. La carrera es compartida: recargar o abrir otra pestaña no repite el premio. Solo participa trabajo en curso vinculado a una misión; los trabajos sin actividad confirmada y las sesiones sin misión no reciben bonus.</li>' +
       '<li><b>El latido no da puntos.</b> El propio <b>número de posición parpadea en verde</b> cuando recibió uno hace menos de 15 minutos. ' +
       'Los cinco indicadores muestran siempre una pareja numérica <b>hora / total del día</b>; una hora sin actividad se representa con <b>0</b>.</li>' +
       '<li><b>Running Man en color:</b> existe trabajo canónico abierto y su última marca de avance material tiene como máximo <b>' +
       sinAvanceMin + ' minutos</b>. Tener el proceso o la máquina conectados no basta: la presencia nunca hace correr ni colorea por sí sola.</li>' +
-      '<li><b>Running Man gris en movimiento · sin avance:</b> la misión o tarea continúa asignada, pero no tiene una marca fiable o lleva más de <b>' +
+      '<li><b>Running Man ámbar · trabajo en curso sin actividad confirmada:</b> la misión o tarea continúa asignada, pero no tiene una marca fiable o lleva más de <b>' +
       sinAvanceMin + ' minutos</b> sin progreso material. Recorre la pista sólo como aviso, sin puesto ni puntos extra, durante <b>' +
       ciclosGrises + ' ciclos de ' + cicloSeg + ' segundos</b> —como máximo <b>' + grisTotal + '</b>— y después desaparece hasta que cambie el trabajo o vuelva a registrar avance.</li>' +
-      '<li><b>Running Man gris quieto · último trabajo:</b> la misión o tarea ya terminó. Sólo rellena una calle libre cuando hay menos de tres ' +
+      '<li><b>Running Man gris quieto · trabajo finalizado:</b> la misión o tarea ya terminó. Sólo rellena una calle libre cuando hay menos de tres ' +
       'trabajos activos; puede seguir visible hasta <b>24 horas desde el cierre</b>, pero desaparece antes si lo sustituye un trabajo activo o un cierre más reciente.</li>' +
       '<li><b>No aparece corredor:</b> no hay una asignación demostrable en la última hora, una sesión exacta abierta ni un cierre elegible de las últimas 24 horas. ' +
       'Si la fuente de trabajo no responde se indica “trabajo no disponible”; no se conserva una carrera antigua como si siguiera viva.</li>' +
