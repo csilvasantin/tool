@@ -107,3 +107,11 @@ test('la cadencia de Training es horaria y no impone ni promete un cupo de entre
   const {api}=setup(),summary=api.summary({mode:'training',project_id:'yokup',status:'scheduled'});
   assert.match(summary,/cada hora/);assert.doesNotMatch(summary,/24|cupo|entregas diarias/);
 });
+
+test('sin consumidor compatible Learning y Training quedan inactivos, pero Manual sigue permitido',async()=>{
+  const {api,calls}=setup(async()=>response({ok:true,item:{...cli,mode:'manual',available_modes:['manual'],support_reason:'consumer_unavailable'}}));
+  api.configure([cli],[{...cli,mode:'learning',available_modes:['manual'],support_reason:'consumer_unavailable'}]);
+  const html=api.markup(cli);assert.match(html,/<option value="learning" selected disabled>/);assert.match(html,/<option value="training" disabled>/);assert.match(html,/Ejecutor no disponible/);
+  await api.change(change(cli,'training'));assert.equal(calls.length,0);
+  await api.change(change(cli,'manual'));assert.equal(calls.length,1);assert.equal(api.record(cli).mode,'manual');
+});

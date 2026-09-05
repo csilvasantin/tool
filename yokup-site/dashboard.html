@@ -440,11 +440,18 @@ function pulseModeSummary(record){
   const lastLabel=last&&labels[last.status];
   return detail+(labels[status]?" · "+labels[status]:"")+(reason?" · "+reason:"")+(date&&!Number.isNaN(date.getTime())?" · próxima "+date.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}):"")+(lastLabel&&lastDate&&!Number.isNaN(lastDate.getTime())?" · última "+lastDate.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})+": "+lastLabel:"");
 }
+function pulseModeSupport(record){
+  const reasons={consumer_unavailable:"Ejecutor no disponible en este ordenador.",telemetry_unavailable:"Sin señal reciente del ordenador. No se puede activar la actividad horaria.",surface_not_configured:"Esta superficie no está configurada.",human_activity_unknown:"No se puede comprobar si el ordenador está en uso."};
+  return reasons[record&&record.support_reason]||"";
+}
+function pulseModeAllowed(record,mode){
+  return mode==="manual"||!Array.isArray(record&&record.available_modes)||record.available_modes.includes(mode);
+}
 function pulseModeMarkup(item){
   const key=pulseModeKey(item),record=PULSE_MODES.get(key),mode=pulseModeValue(record&&record.mode),pending=PULSE_MODE_PENDING.has(key),supported=item.surface==="cli"||item.surface==="app",error=PULSE_MODE_ERRORS.get(key),unavailable=PULSE_MODE_ERROR||!PULSE_MODE_LOADED;
-  const note=error||(!supported?"Superficie sin identificar":pending?"Guardando modo…":unavailable?(PULSE_MODE_ERROR?"No se pudo leer el modo guardado. Se reintentará.":"Cargando modo guardado…"):pulseModeSummary(record));
+  const note=error||(!supported?"Superficie sin identificar":pending?"Guardando modo…":unavailable?(PULSE_MODE_ERROR?"No se pudo leer el modo guardado. Se reintentará.":"Cargando modo guardado…"):pulseModeSummary(record)+(pulseModeSupport(record)?" · "+pulseModeSupport(record):""));
   const label="Modo de "+String(item.agent||item.persona||"agente")+" · "+String(item.runtime||"")+" "+String(item.surface||"")+" en "+String(item.machine||"");
-  return `<div class="pulse-mode"><label><span>Modo</span><select data-pulse-mode="${esc(item.control_key||'')}" data-pulse-focus="mode:${esc(key)}" aria-label="${esc(label)}"${pending||unavailable||!supported?' disabled':''} aria-busy="${pending?'true':'false'}">${[["manual","Manual · desactivado"],["learning","Learning · Aprendiendo"],["training","Training · Entrenando"]].map(([value,title])=>`<option value="${value}"${mode===value?' selected':''}>${title}</option>`).join("")}</select></label><span class="pulse-mode-note${error||PULSE_MODE_ERROR?' err':''}" role="status">${esc(note)}</span></div>`;
+  return `<div class="pulse-mode"><label><span>Modo</span><select data-pulse-mode="${esc(item.control_key||'')}" data-pulse-focus="mode:${esc(key)}" aria-label="${esc(label)}"${pending||unavailable||!supported?' disabled':''} aria-busy="${pending?'true':'false'}">${[["manual","Manual · desactivado"],["learning","Learning · Aprendiendo"],["training","Training · Entrenando"]].map(([value,title])=>`<option value="${value}"${mode===value?' selected':''}${pulseModeAllowed(record,value)?'':' disabled'}>${title}</option>`).join("")}</select></label><span class="pulse-mode-note${error||PULSE_MODE_ERROR?' err':''}" role="status">${esc(note)}</span></div>`;
 }
 async function pulseModesRequest(options){
   const response=await fetch(PROJECTS_API+"/fleet/agent/mode",{cache:"no-store",credentials:"include",signal:AbortSignal.timeout(15000),...(options||{})});
@@ -469,12 +476,13 @@ async function pulseHandleMode(event){
   const item=PULSE_CONTROL_MODEL&&PULSE_CONTROL_MODEL.by_key.get(select.dataset.pulseMode);if(!item)return;
   const key=pulseModeKey(item),mode=pulseModeValue(select.value),current=PULSE_MODES.get(key);
   if(PULSE_MODE_PENDING.has(key)||!PULSE_MODE_LOADED||PULSE_MODE_ERROR||mode===pulseModeValue(current&&current.mode)){pulseRender();return;}
+  if(!pulseModeAllowed(current,mode)){pulseSetStatus(pulseModeSupport(current)||"Este modo no está disponible en este ordenador.",true);pulseRender();return;}
   const body={persona:item.persona,machine:item.machine,runtime:item.runtime,host:item.surface,mode};
   PULSE_MODE_REVISION++;PULSE_MODE_PENDING.add(key);PULSE_MODE_ERRORS.delete(key);pulseRender();
   try{const payload=await pulseModesRequest({method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
     if(!payload.item||pulseModeKey(payload.item)!==key||payload.item.mode!==mode)throw new Error("mode-unavailable");
     PULSE_MODES.set(key,payload.item);pulseSetStatus("Modo guardado para "+item.agent+" · "+(mode==="manual"?"Manual":mode==="learning"?"Learning":"Training")+".");
-  }catch(error){const known={project_required:"Asigna un proyecto principal antes de activar el modo.",project_ambiguous:"Hay varios proyectos principales. Resuelve la asignación antes de activar el modo.",unauthorized:"Inicia sesión para guardar el modo.","target-not-found":"Esta superficie ya no está disponible."};const message=known[error&&error.message]||"No se pudo confirmar el modo. Se volverá a comprobar.";if(!known[error&&error.message]){PULSE_MODE_ERROR=true;PULSE_MODE_FETCHED_AT=0;}PULSE_MODE_ERRORS.set(key,message);pulseSetStatus(message,true);}
+  }catch(error){const known={consumer_unavailable:"Ejecutor no disponible en este ordenador.",telemetry_unavailable:"Sin señal reciente del ordenador. No se pudo activar el modo.",project_required:"Asigna un proyecto principal antes de activar el modo.",project_ambiguous:"Hay varios proyectos principales. Resuelve la asignación antes de activar el modo.",unauthorized:"Inicia sesión para guardar el modo.","target-not-found":"Esta superficie ya no está disponible."};const message=known[error&&error.message]||"No se pudo confirmar el modo. Se volverá a comprobar.";if(!known[error&&error.message]){PULSE_MODE_ERROR=true;PULSE_MODE_FETCHED_AT=0;}PULSE_MODE_ERRORS.set(key,message);pulseSetStatus(message,true);}
   finally{PULSE_MODE_REVISION++;PULSE_MODE_PENDING.delete(key);pulseRender();}
 }
 function pulseCard(p){
