@@ -954,6 +954,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .refresh-ended:focus-visible{outline:1px solid var(--brand);outline-offset:2px}
 @media(max-width:600px){.refresh-lane{grid-template-columns:minmax(112px,150px) minmax(42px,1fr) 64px;column-gap:3px}.refresh-agent{font-size:9px;line-height:12px}.refresh-agent-project{font-size:8px;line-height:12px}.refresh-agent-meta{gap:3px}.refresh-ended{font-size:8px;min-width:8ch}}
 @media(max-width:340px){.refresh-lane{grid-template-columns:minmax(110px,130px) minmax(32px,1fr) 60px;column-gap:2px}.refresh-agent{font-size:8px}.refresh-agent-project{font-size:7.5px}}
+/* A paused or unbound session is stationary, never a cosmetic running signal. */
+.refresh-lane[data-race-held="true"] .refresh-runner svg{display:none!important;animation:none!important}
+.refresh-lane[data-race-held="true"] .refresh-runner .runner-standing{display:block!important;animation:none!important}
 </style>
 <link rel="stylesheet" href="/highscore-runner-state.css?v=20260901-static-last-work-runner">
 </head>
@@ -4524,6 +4527,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   function hsCliOrdena(machine, cli, accion, ciego) {
+    hsCliMensaje("CLI pausado por Carlos; utiliza el control de proceso con pausa verificada.",true);return;
     var clave = normaliza(machine) + "|" + normaliza(cli);
     if (CLI_PENDIENTES[clave]) return;
     if (ciego && !confirm("Nadie late en " + machine + ", así que no sabemos si " + cli + " ya está corriendo.\n\n" +
@@ -4555,6 +4559,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // estado del CLI —sigue vivo, ahora con trabajo—, así que fingir una espera de
   // "a ver si cambia algo" seria mentir sobre lo que se puede comprobar.
   function hsCliEnviaMision(machine, cli, texto) {
+    hsCliMensaje("CLI pausado por Carlos; utiliza Desktop APP para nuevos trabajos.",true);return;
     var limpio = normaliza(texto).replace(/\s+/g, " ").trim();
     if (!limpio) { hsCliMensaje("Escribe la misión antes de enviarla.", true); return; }
     if (limpio.length > 600) { hsCliMensaje("La misión no puede pasar de 600 caracteres (llevas " + limpio.length + ").", true); return; }
@@ -4592,24 +4597,25 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var machines = {}, now = Date.now()/1000;
     (datos.controlMachines||[]).forEach(function (machine) {
       var key=claveHoraria(machine.machine); if(!key)return;
-      machines[key]={machine:machine.machine,watcher:true,updated:Number(machine.updated||0),slots:machine.slots||[],items:{}};
+      machines[key]={machine:machine.machine,watcher:true,updated:Number(machine.updated||0),slots:machine.slots||[],capabilities:machine.capabilities||[],items:{}};
     });
     (datos.presencia||[]).forEach(function (row) {
-      if (!(row&&row.verified&&row.source==="process_snapshot"&&Number(row.updated||0)>=now-35)) return;
+      if (!(row&&(row.verified===true||row.verified===1)&&row.source==="process_snapshot"&&Number(row.updated||0)>=now-30&&Number(row.updated||0)<=now+5&&["app","cli"].includes(row.host))) return;
       var machineKey=claveHoraria(row.machine); if(!machineKey)return;
       var group=machines[machineKey]||(machines[machineKey]={machine:row.machine,watcher:false,updated:Number(row.updated||0),slots:[],items:{}});
       var item={machine:row.machine,persona:row.persona,runtime:row.runtime,host:row.host,session_id:row.session_id,
-        pid:Number(row.pid||0),active:true,attached:row.attached===true,model:row.model||"",project:row.project||"",
-        task:row.task||"",focus:row.focus||"",updated:Number(row.updated||0),declared_updated:Number(row.declared_updated||0),verified:true,watcher:group.watcher};
+        pid:Number(row.pid||0),active:row.online!==false&&row.online!==0&&Number(row.pid)>1,operational_state:row.operational_state==="paused"?"paused":"unknown",process_state:row.online===false||row.online===0?"closed":Number(row.pid)>1?"open":"unknown",attached:row.attached===true,model:row.model||"",project:row.project||"",
+        task:row.task||"",focus:row.focus||"",updated:Number(row.updated||0),declared_updated:Number(row.declared_updated||0),verified:true,watcher:group.watcher,pause_supported:group.updated>=now-30&&group.updated<=now+5&&(group.capabilities||[]).includes("cli_pause_preserve_session")};
       group.items[hsOpsKey(item)]=item;
     });
     Object.keys(machines).forEach(function (key) {
       var group=machines[key];
       (group.slots||[]).forEach(function (slot) {
+        if(!["app","cli"].includes(slot.host))return;
         var item={machine:group.machine,persona:slot.persona,runtime:slot.runtime,host:slot.host,session_id:slot.session_id,
-          pid:0,active:false,attached:false,model:"",project:"",task:"",focus:"",updated:group.updated,declared_updated:0,verified:true,watcher:true};
+          pid:0,active:false,process_state:group.updated>=now-30&&group.updated<=now+5?"closed":"unknown",attached:false,model:"",project:"",task:"",focus:"",updated:group.updated,declared_updated:0,verified:group.updated>=now-30&&group.updated<=now+5,watcher:group.updated>=now-30&&group.updated<=now+5};
         var itemKey=hsOpsKey(item); if(!group.items[itemKey])group.items[itemKey]=item;
-        else group.items[itemKey].watcher=true;
+        else group.items[itemKey].watcher=group.updated>=now-30&&group.updated<=now+5;
       });
     });
     return Object.keys(machines).map(function(key){var group=machines[key];return {machine:group.machine,watcher:group.watcher,
@@ -4624,16 +4630,18 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var key=hsOpsKey(item),pending=CLI_PENDIENTES[key],surface=item.host==="app"?"DesktopAPP":"CLI";
     var doing=item.task||item.focus||"Sin actividad declarada", project=item.project||"Sin proyecto declarado";
     var declarationAge=item.declared_updated?" · actividad declarada "+hsOpsAge(item.declared_updated):"";
-    var state=item.active?"Activo":"Parado", tone=item.active?"viva":"parada";
+    var state=item.process_state==="open"?"Abierto":item.process_state==="closed"?"Cerrado":"Sin señal", tone=item.active?"viva":item.process_state==="closed"?"parada":"muda";
+    var paused=item.host==="cli",policy=paused?"CLI pausado por Carlos · "+(item.operational_state==="paused"&&item.active?"Pausa confirmada · proceso suspendido":item.process_state==="closed"?"Parada confirmada":pending&&pending.action==="stop"?"Parada solicitada · sin confirmar":item.active?"Proceso aún abierto · parada sin confirmar":"No alcanzable · parada sin confirmar"):"";
     var action=item.active?"stop":"start", label=item.active?"■ Detener":"▶ Arrancar";
-    var disabled=pending||(!item.active&&!item.watcher)||(!item.active?false:!(item.verified&&item.pid>1));
+    var disabled=pending||(paused&&!item.pause_supported)||(!item.active&&(paused||!item.watcher||item.process_state!=="closed"))||(!item.active?false:!(item.verified&&item.pid>1));
+    if(paused&&!item.active)label="Pausado por Carlos";
     return '<div class="cli-ctl-row">'+
       '<span class="cli-ctl-name"><b class="cli-ctl-label">'+esc(item.persona+' · '+item.runtime)+'</b>'+
       '<span class="cli-ctl-surface '+(item.host==="app"?'app':'cli')+'">'+surface+'</span>'+
       '<span class="cli-ctl-state '+tone+'"><span class="cli-ctl-dot" aria-hidden="true">'+(item.active?'●':'○')+'</span>'+state+'</span></span>'+
       '<button class="cli-ctl-act '+action+'" type="button" data-op-key="'+esc(key)+'" data-op-action="'+action+'"'+
       (disabled?' disabled':'')+' aria-label="'+esc(label+' '+item.persona+' '+surface+' en '+item.machine)+'">'+esc(label)+'</button>'+
-      '<p class="cli-ctl-meta"><b>'+esc(project)+'</b> · '+esc(doing)+esc(declarationAge)+'<br>'+esc(item.active?('PID '+item.pid+' · '+(item.model||'modelo no declarado')+' · '+(item.host==='cli'?(item.attached?'terminal atendido':'autónomo / detached'):'aplicación de escritorio')):'ranura lista para arrancar')+' · censo '+hsOpsAge(item.updated)+'</p>'+
+      (policy?'<p class="cli-ctl-meta">'+esc(policy)+'</p>':'')+'<p class="cli-ctl-meta"><b>'+esc(project)+'</b> · '+esc(doing)+esc(declarationAge)+'<br>'+esc(item.active?('PID '+item.pid+' · '+(item.model||'modelo no declarado')+' · '+(item.host==='cli'?(item.attached?'terminal atendido':'autónomo / detached'):'aplicación de escritorio')):item.process_state==='unknown'?'estado del proceso sin verificar':paused?'arranque bloqueado por Carlos':'ranura lista para arrancar')+' · censo '+hsOpsAge(item.updated)+'</p>'+
       (pending?'<p class="cli-ctl-wait">Orden '+esc(pending.action==='start'?'de arranque':'de parada')+' enviada · esperando confirmación del proceso…</p>':'')+'</div>';
   }
   function hsRenderCliControl() {
@@ -4655,14 +4663,18 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     }).catch(function(error){hsCliMensaje('No se pudo verificar la flota: '+normaliza(error&&error.message),true);throw error;});
   }
   function hsOpsWatch(key,wanted,deadline) {
-    setTimeout(function(){hsCargaCliControl().then(function(){var item=hsOpsFind(key),done=item&&item.active===wanted;
-      if(done){delete CLI_PENDIENTES[key];hsRenderCliControl();hsCliMensaje('✓ Confirmado por el proceso: '+item.persona+' · '+(item.host==='app'?'DesktopAPP':'CLI')+' está '+(wanted?'activo':'parado')+' en '+item.machine+'.',false);return;}
-      if(Date.now()>=deadline){delete CLI_PENDIENTES[key];hsRenderCliControl();hsCliMensaje('La orden fue aceptada, pero el proceso no confirmó el estado antes de 45 s. Se conserva como pendiente, no como hecha.',true);return;}
+    setTimeout(function(){hsCargaCliControl().then(function(){var item=hsOpsFind(key),done=item&&item.verified&&item.updated>=Date.now()/1000-30&&item.updated<=Date.now()/1000+5&&(wanted?item.process_state==='open':item.process_state==='closed'||item.host==='cli'&&item.operational_state==='paused');
+      if(done){delete CLI_PENDIENTES[key];hsRenderCliControl();hsCliMensaje('✓ Confirmado por el proceso: '+item.persona+' · '+(item.host==='app'?'DesktopAPP':'CLI')+' está '+(wanted?'activo':item.operational_state==='paused'?'suspendido':'parado')+' en '+item.machine+'.',false);return;}
+      if(Date.now()>=deadline){if(CLI_PENDIENTES[key])CLI_PENDIENTES[key].unconfirmed=true;hsRenderCliControl();hsCliMensaje('La orden fue aceptada, pero el proceso no confirmó el estado antes de 45 s. Se conserva como pendiente, no como hecha.',true);return;}
       hsOpsWatch(key,wanted,deadline);
     }).catch(function(){if(Date.now()<deadline)hsOpsWatch(key,wanted,deadline);});},2000);
   }
   function hsOpsOrder(key,action) {
     if(CLI_PENDIENTES[key])return;var item=hsOpsFind(key);if(!item){hsCliMensaje('La ranura ya no existe en el último censo.',true);return;}
+    if(!['start','stop'].includes(action)||!['app','cli'].includes(item.host)){hsCliMensaje('Interfaz o acción sin verificar.',true);return;}
+    if(action==='stop'&&item.host==='cli'&&!item.pause_supported){hsCliMensaje('Pausa segura no disponible en este ordenador; no se enviará una terminación.',true);return;}
+    if(action==='start'&&item.host==='cli'){hsCliMensaje('CLI pausado por Carlos; utiliza Desktop APP.',true);return;}
+    if(!item.verified||item.updated<Date.now()/1000-30||item.updated>Date.now()/1000+5||action==='stop'&&(!item.active||item.pid<=1)||action==='start'&&item.process_state!=='closed'){hsCliMensaje('El proceso no está verificado. Actualiza antes de actuar.',true);return;}
     var surface=item.host==='app'?'DesktopAPP':'CLI';
     if(action==='stop'&&!confirm('Detener '+item.persona+' · '+surface+' en '+item.machine+' (PID '+item.pid+')?'))return;
     CLI_PENDIENTES[key]={action:action,desde:Date.now()};hsRenderCliControl();hsCliMensaje((action==='start'?'Arrancando ':'Deteniendo ')+item.persona+' · '+surface+' en '+item.machine+'…',false);
@@ -4707,10 +4719,20 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var agent=identity&&identity.display?identity.display(parsed&&parsed.persona||raw,machine):raw;
     return {agent:agent,machine:machine,key:claveAgenteCarrera(agent)};
   }
+  function hsWorkPolicy(item) {
+    var surface=normaliza(item&&item.session_surface).toLowerCase();
+    var bound=(surface==="app"||surface==="cli")&&item.session_state==="open"&&!!normaliza(item.dedicated_basis||item.session_basis);
+    var paused=item&&item.cli_paused===true||surface==="cli";
+    if(item.state==="last_work")return item;
+    if(paused)return Object.assign({},item,{state:"assigned_stale",cli_paused:true,activity_reason:"cli_paused_by_carlos"});
+    if(item.state==="running"&&!bound)return Object.assign({},item,{state:"assigned_stale",activity_reason:"session_unverified"});
+    return item;
+  }
   function trabajosEnCurso() {
     var seen = Object.create(null), priority = { objective:1, mission:2, task:3 };
     (datos.trabajos || []).forEach(function (item) {
       if (!item || !normaliza(item.agent) || !normaliza(item.executor)) return;
+      item=hsWorkPolicy(item);
       var key = hsWorkIdentity(item).key, previous = seen[key];
       var itemAt = Number(item.state === "last_work" ? item.ended_at : item.work_progress_at) || 0;
       var previousAt = Number(previous && (previous.state === "last_work" ? previous.ended_at : previous.work_progress_at)) || 0;
@@ -4733,7 +4755,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         timingBasis:item.timing_basis || "", presenceAt:Number(item.presence_at) || 0,
         sessionDedicatedMs:item.session_dedicated_ms===null||item.session_dedicated_ms===undefined||item.session_dedicated_ms===""?null:Number.isFinite(Number(item.session_dedicated_ms)) ? Number(item.session_dedicated_ms) : null,
         sessionState:item.session_state || "unknown", sessionBasis:item.dedicated_basis || item.session_basis || "",
-        sessionSurface:item.host || item.session_surface || "", runtime:item.runtime || "" };
+        sessionSurface:["app","cli"].includes(item.session_surface)?item.session_surface:"", runtime:item.runtime || "",
+        cliPaused:item.cli_paused===true,activityReason:item.activity_reason||"",operationalState:item.operational_state||"" };
     }).sort(function (a, b) { return (a.state === "running" ? -1 : 1) - (b.state === "running" ? -1 : 1) ||
       (b.state === "last_work" ? b.endedAt : b.at) - (a.state === "last_work" ? a.endedAt : a.at) ||
       a.agente.localeCompare(b.agente, "es"); });
@@ -4758,6 +4781,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
   function trabajosCarrera() {
     return trabajosEnCurso().filter(function (trabajo) {
+      if(trabajo.cliPaused||trabajo.activityReason==="session_unverified")return true;
       if (trabajo.state !== "assigned_stale") return true;
       var state = estadoCarreraStale(trabajo);
       return state && YkHighscoreRace.staleRaceVisible(state.record);
@@ -4766,6 +4790,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function completaCicloStale() {
     if (document.hidden) return;
     document.querySelectorAll('.refresh-lane[data-work-state="assigned_stale"][data-race-revision]').forEach(function (lane) {
+      if(lane.getAttribute("data-race-held")==="true")return;
       var revision = lane.getAttribute("data-race-revision") || "";
       var family = lane.getAttribute("data-agent-key") || "";
       var expected = Number(lane.getAttribute("data-stale-anchor")) || 0;
@@ -4820,7 +4845,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function contextoVisualCorredor(identidad, trabajo, fila) {
     var host = normaliza(trabajo && trabajo.sessionSurface).toLowerCase();
-    if (host === "app" || host === "cli") return identidad.machine + " · " + host.toUpperCase();
+    if (host === "app" || host === "cli") return identidad.machine + " · " + host.toUpperCase()+(host==="cli"&&trabajo.state!=="last_work"?" · pausado por Carlos":"");
     var known = Array.from(new Set(((fila && fila.interfaces) || []).map(function(value){return normaliza(value).toLowerCase();})))
       .filter(function(value){return value === "app" || value === "cli";}).sort();
     return identidad.machine + (known.length ? " · interfaces conocidas: " + known.map(function(value){return value.toUpperCase();}).join(" / ") + " · sesión sin vincular" : " · interfaz sin verificar");
@@ -4845,7 +4870,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       ? YkHighscoreRace.clockDurationLabel(reloj.sessionDurationMs) : "—";
     var sessionLabel = trabajo.sessionDedicatedMs === null
       ? "Horas operando no disponibles" : "Horas operando del agente";
-    var stateLabel = trabajo.state === "running" ? "Trabajo activo" : trabajo.state === "last_work" ? "Trabajo finalizado" : "Sin avance";
+    var stateLabel = trabajo.cliPaused ? "CLI pausado por Carlos" : trabajo.activityReason==="session_unverified" ? "Trabajo registrado · sesión sin vincular" : trabajo.state === "running" ? "Trabajo activo" : trabajo.state === "last_work" ? "Trabajo finalizado" : "Sin avance";
     return { reference:trabajo.reference || "", title:trabajo.title, state:stateLabel,
       project:trabajo.projectName || "", projectId:trabajo.projectId || "", detailUrl:trabajo.detailUrl || "",
       executor:trabajo.executor, responsible:trabajo.agente, kind:trabajo.kind, reachable:trabajo.reachable,
@@ -5026,6 +5051,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       return '<div class="refresh-lane ' + clasePuesto + (resumen.idle ? " refresh-lane-idle" : "") + (isLast ? " refresh-lane-last" : "") +
         '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
         'data-work-state="' + esc(isLast ? "last_work" : resumen.idle ? "assigned_stale" : "running") + '" ' +
+        (!isLast&&(enlace.trabajo.cliPaused||enlace.trabajo.activityReason==="session_unverified")?'data-race-held="true" ':'') +
         (staleState && enlace.trabajo.raceRevision ? 'data-race-revision="' + esc(enlace.trabajo.raceRevision) + '" data-stale-anchor="' +
           Number(staleState.record.server_started_at) + '" data-stale-cycles="' + Number(staleState.record.cycles) + '" ' : '') +
         (resumen.idle ? 'data-race-idle="true" ' : '') +
@@ -5307,7 +5333,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var puesto = Number(carril.getAttribute("data-place")) || 3;
       var ordenLlegada = Number(carril.getAttribute("data-race-order")) || puesto;
       var estadoTrabajo = carril.getAttribute("data-work-state") || "";
-      var carreraCosmetica = estadoTrabajo === "assigned_stale";
+      var carreraCosmetica = estadoTrabajo === "assigned_stale" && carril.getAttribute("data-race-held")!=="true";
       var trabajoFinalizado = estadoTrabajo === "last_work";
       var noCorre = !!estadoTrabajo && estadoTrabajo !== "running" && !carreraCosmetica;
       // SIN AVANCE recorre la geometría completa únicamente como señal

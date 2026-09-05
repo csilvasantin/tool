@@ -30,7 +30,7 @@ test("la calle muestra trabajo, responsable, state factual y hora Madrid",()=>{
   assert.match(source,/identidadVisible = identidadVisualCorredor\(responsable, fila\)/);
   assert.match(source,/nombreCorredorHtml\(identidadVisible, contextoVisible, "race-agent-context-" \+ indice\)/);
   assert.match(source,/aria-describedby="' \+ esc\(tooltipId\)/);
-  assert.match(source,/stateLabel = trabajo\.state === "running" \? "Trabajo activo"/);
+  assert.match(source,/stateLabel = trabajo\.cliPaused \? "CLI pausado por Carlos"[\s\S]*trabajo\.state === "running" \? "Trabajo activo"/);
   assert.doesNotMatch(source,/>EN CURSO<|>FINALIZADO</);
   assert.match(source,/assignmentClock:horaMadrid\(trabajo\.assignmentAt\)/);
   assert.match(source,/SIN TRABAJO VERIFICADO/);

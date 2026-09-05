@@ -13,7 +13,7 @@ test("el Dashboard consume el contrato seguro y conserva detenidos del censo",()
   assert.match(source,/YkAgentControl\.inventory\(\{presence:d\.presence\|\|\[\],controlMachines:PROJECT_CONTROL_MACHINES\}/);
   const model=control.inventory({presence:[],controlMachines:[{machine:"MacMini",slots:[{persona:"Oraculo",runtime:"Codex",host:"cli",session_id:"oraculo"}]}]},
     {identity,detailUrl:detail.detailUrl,now:2_000_000_000_000});
-  assert.equal(model.items.length,1);assert.equal(model.items[0].state,"stopped");assert.equal(model.items[0].eligible.start,true);
+  assert.equal(model.items.length,1);assert.equal(model.items[0].state,"stopped");assert.equal(model.items[0].eligible.start,false);assert.equal(model.items[0].policy_paused,true);assert.equal(model.items[0].process_state,"unknown");
   assert.equal(Object.hasOwn(model.items[0],"session_id"),false);assert.equal(Object.hasOwn(model.items[0],"pid"),false);
   assert.equal(model.targets.get(model.items[0].control_key).session_id,"oraculo");
   assert.match(source,/data-control-key="\$\{esc\(item&&item\.control_key\|\|'\'\)\}"/);

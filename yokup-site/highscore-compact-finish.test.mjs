@@ -25,7 +25,7 @@ function render(agent,state,endedAt){
   const work={family_key:agent.toLowerCase(),agent,executor:agent,kind:"mission",title:"Última misión factual",
     assignment_at:Date.parse("2026-09-01T12:00:00Z"),work_started_at:Date.parse("2026-09-01T12:30:00Z"),
     work_progress_at:Date.parse("2026-09-01T13:00:00Z"),ended_at:endedAt,state,
-    session_state:"closed",session_dedicated_ms:15*60_000};
+    session_state:state==="running"?"open":"closed",session_surface:state==="running"?"app":"",dedicated_basis:state==="running"?"process_birth":"",session_dedicated_ms:15*60_000};
   const context=vm.createContext({
     listaCache:[],listaCompletaCache:[{agente:agent}],
     listaVisible:rows=>rows,aplicaAgentScope:rows=>rows,interfazCliHtml:()=>"",
@@ -50,7 +50,7 @@ test("el nombre visible usa persona base y hover/foco conservan el equipo exacto
 
   const mbp=render("NeoMBP14","running",0);
   assert.match(mbp,/data-agent-key="neombp14"/);
-  assert.match(mbp,/title="MBP14 · interfaz sin verificar"[^>]*aria-label="Neo"[^>]*>Neo<\/span>/);
+  assert.match(mbp,/title="MBP14 · APP"[^>]*aria-label="Neo"[^>]*>Neo<\/span>/);
 });
 
 test("el carril ordena agente, pista y bloque horario derecho en hora Madrid",()=>{

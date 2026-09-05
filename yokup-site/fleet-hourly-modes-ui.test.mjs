@@ -111,7 +111,7 @@ test('la cadencia de Training es horaria y no impone ni promete un cupo de entre
 test('sin consumidor compatible Learning y Training quedan inactivos, pero Manual sigue permitido',async()=>{
   const {api,calls}=setup(async()=>response({ok:true,item:{...cli,mode:'manual',available_modes:['manual'],support_reason:'consumer_unavailable'}}));
   api.configure([cli],[{...cli,mode:'learning',available_modes:['manual'],support_reason:'consumer_unavailable'}]);
-  const html=api.markup(cli);assert.match(html,/<option value="learning" selected disabled>/);assert.match(html,/<option value="training" disabled>/);assert.match(html,/Ejecutor no disponible/);
+  const html=api.markup(cli);assert.match(html,/<option value="learning" selected disabled>/);assert.match(html,/<option value="training" disabled>/);assert.match(html,/CLI pausado por Carlos/);
   await api.change(change(cli,'training'));assert.equal(calls.length,0);
   await api.change(change(cli,'manual'));assert.equal(calls.length,1);assert.equal(api.record(cli).mode,'manual');
 });
@@ -133,11 +133,11 @@ test('aviso sin telemetría y opciones usan el mismo registro y se recuperan jun
   assert.match(html,/<option value="training">/);
 });
 
-test('Claude CLI sin acceso verificado explica el bloqueo y no habilita modos',async()=>{
+test('la pausa de Carlos prevalece sobre el bloqueo previo de acceso CLI y no habilita modos',async()=>{
   const {api,calls}=setup();
   api.configure([cli],[{...cli,mode:'manual',available_modes:['manual'],support_reason:'claude_cli_auth_verification_required'}]);
   const html=api.markup(cli);
-  assert.match(html,/Claude CLI requiere renovar la sesión y verificar el acceso/);
+  assert.match(html,/CLI pausado por Carlos/);
   assert.match(html,/<option value="learning" disabled>/);
   assert.match(html,/<option value="training" disabled>/);
   assert.doesNotMatch(html,/claude_cli_auth_verification_required/);

@@ -23,7 +23,7 @@ test('both known hosts remain separate and ambiguous legacy cannot select either
  const original=model([heartbeat()],[slot('app'),slot('cli')]),view=control.surfaceInventory(original,{identity});
  assert.equal(view.items.length,2);assert.deepEqual(view.items.map(x=>x.surface).sort(),['app','cli']);assert.equal(view.surface_diagnostics.unresolved,1);assert.equal(view.surface_diagnostics.items[0].reason,'ambiguous-surface');assert.equal(view.surface_diagnostics.items[0].resolved_surface,null);
  assert.equal(control.groupCards(view.items,{identity}).items.length,2);assert.equal(view.counts.total,2);
- for(const item of view.items){const req=control.requestFor(view,item.control_key,'start');assert.equal(req.body.host,item.surface);assert.equal(req.body.session_id,item.surface==='app'?'desktop:codex':'trinity');}
+ for(const item of view.items){if(item.surface==='cli'){assert.throws(()=>control.requestFor(view,item.control_key,'start'),/cli_paused_by_carlos/);continue;}const req=control.requestFor(view,item.control_key,'start');assert.equal(req.body.host,'app');assert.equal(req.body.session_id,'desktop:codex');}
 });
 test('stale configured hosts retain their cards as unavailable rather than disappear or become closed',()=>{
  const view=control.surfaceInventory(model([],[slot('app'),slot('cli')],now-500),{identity});assert.equal(view.items.length,2);assert.ok(view.items.every(x=>x.process_state==='unknown'));assert.equal(view.surface_diagnostics.total,0);

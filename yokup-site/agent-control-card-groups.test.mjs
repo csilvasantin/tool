@@ -5,7 +5,7 @@ import identity from './yk-agent-identity.js';
 import detail from './agent-detail.js';
 const now=1788584807;
 const slots=[{persona:'Niobe',runtime:'Codex',host:'app',session_id:'desktop:codex'},{persona:'Niobe',runtime:'OpenCode',host:'app',session_id:'desktop:opencode'},{persona:'Niobe',runtime:'OpenCode',host:'cli',session_id:'niobe'}];
-const build=(presence=[],configured=slots)=>control.inventory({presence,controlMachines:[{machine:'MacMini',updated:now,slots:configured}]},{identity,detailUrl:detail.detailUrl,now});
+const build=(presence=[],configured=slots)=>control.inventory({presence,controlMachines:[{machine:'MacMini',updated:now,capabilities:['cli_pause_preserve_session'],slots:configured}]},{identity,detailUrl:detail.detailUrl,now});
 const live=(runtime,host='app')=>({persona:'Niobe',machine:'MacMini',runtime,host,session_id:host==='app'?'desktop:'+runtime.toLowerCase():'niobe',pid:72,updated:now,verified:1,source:'process_snapshot'});
 
 test('Niobe conserva CLI real y una tarjeta App con dos destinos cerrados sin acción implícita',()=>{

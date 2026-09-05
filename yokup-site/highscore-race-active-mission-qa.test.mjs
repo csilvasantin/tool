@@ -152,7 +152,7 @@ test("un participante con el proceso vivo pero el trabajo parado queda gris y no
 
 test("con el trabajo fresco sí se rotula el fundamento operativo y corre", () => {
   const item=work("NeoMBP14","SubNeoMBP14","task","Trabajo vivo",Date.now()-3*60*1000,"running");
-  item.presence_at=Date.now();
+  Object.assign(item,{presence_at:Date.now(),session_state:"open",session_surface:"app",dedicated_basis:"process_birth"});
   const race=renderRace([], [item]);
   assert.match(race.html,/data-work-state="running"/);
   assert.doesNotMatch(race.html,/data-race-idle="true"/);
