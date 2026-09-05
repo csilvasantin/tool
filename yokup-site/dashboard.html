@@ -18,7 +18,7 @@
 <script src="/highscore-daily-record.js?v=v.2026.09.04.r2"></script>
 <script src="/agent-detail.js?v=v.2026.09.04.r1"></script>
 <script src="/presence-groups.js?v=v.2026.09.04.r1"></script>
-<script src="/agent-control.js?v=v.2026.09.05.r1"></script>
+<script src="/agent-control.js?v=v.2026.09.05.group-runtime-r2"></script>
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -55,7 +55,7 @@ h1{font-size:clamp(23px,2.8vw,33px);line-height:1.12;letter-spacing:-.02em;margi
 .pulse-section-shell{display:grid;grid-template-columns:128px minmax(0,1fr);column-gap:12px;margin-top:34px}.pulse-section-shell>#pulseSection{grid-area:1/1/2/3;margin:0;min-width:0}.pulse-section-shell>#pulseSection>.shd{max-width:128px;min-height:88px;box-sizing:border-box}.pulse-filter-header{grid-area:1/2/2/3;align-self:start;justify-self:end;position:relative;z-index:1;min-width:0}.pulse-filter-header .pulse-filters{justify-content:flex-end}.pulse-filter-header .pulse-btn{font-size:9px;text-transform:none;letter-spacing:0}
 @media(max-width:480px){.pulse-section-shell{grid-template-columns:100px minmax(0,1fr);column-gap:7px}.pulse-section-shell>#pulseSection>.shd{max-width:100px;font-size:10px}.pulse-filter-header .pulse-filters{gap:5px}.pulse-filter-header .pulse-btn{padding:5px 6px;min-height:36px;font-size:8px}}
 .pulse{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
-.fleet-pulse-groups{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-items:start}.pulse-global-toolbar{grid-column:1/-1;display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 10px;border:1px solid var(--line);border-radius:11px;background:rgba(10,22,32,.55)}.pulse-global-toolbar strong{margin-right:auto;color:var(--mut);font:900 9px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase}.pulse-control-status{grid-column:1/-1;min-height:18px;color:var(--dim);font:9.5px/1.45 var(--mono)}.pulse-control-status.ok{color:var(--good)}.pulse-control-status.err{color:var(--warn)}.pulse-group{min-width:0;padding:12px;border:1px solid var(--line);border-radius:13px;background:rgba(10,22,32,.42)}.pulse-group-residual{grid-column:1/-1;border-style:dashed}.pulse-group-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}.pulse-group-head h3{margin:0;color:var(--brand);font:900 10px/1.3 var(--mono);letter-spacing:.1em;text-transform:uppercase}.pulse-group-head .tot{flex:none;color:var(--mut);font:9px/1 var(--mono);border:1px solid var(--line);border-radius:999px;padding:3px 8px}.pulse-group-tools{margin-left:auto;display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}.pulse-btn{min-height:30px;border:1px solid var(--line2);border-radius:7px;background:rgba(2,8,13,.62);color:var(--brand);padding:5px 8px;font:800 8px/1.2 var(--mono);letter-spacing:.04em;text-transform:uppercase;cursor:pointer;white-space:nowrap}.pulse-btn:hover,.pulse-btn:focus-visible{border-color:var(--brand);outline:2px solid rgba(120,243,255,.35);outline-offset:1px}.pulse-btn.stop{color:var(--warn);border-color:rgba(255,136,102,.38)}.pulse-btn.start{color:var(--good);border-color:rgba(136,255,170,.34)}.pulse-btn.view{color:var(--mut)}.pulse-btn:disabled{opacity:.38;cursor:not-allowed;outline:none}.pulse-group>.pulse>.off{min-height:82px;display:grid;place-items:center}.pulse-group[hidden],.pulse[hidden]{display:none!important}
+.fleet-pulse-groups{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-items:start}.pulse-global-toolbar{grid-column:1/-1;display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 10px;border:1px solid var(--line);border-radius:11px;background:rgba(10,22,32,.55)}.pulse-global-toolbar strong{margin-right:auto;color:var(--mut);font:900 9px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase}.pulse-control-status{grid-column:1/-1;min-height:18px;color:var(--dim);font:9.5px/1.45 var(--mono)}.pulse-control-status.ok{color:var(--good)}.pulse-control-status.err{color:var(--warn)}.pulse-group{min-width:0;padding:12px;border:1px solid var(--line);border-radius:13px;background:rgba(10,22,32,.42)}.pulse-group-residual{grid-column:1/-1;border-style:dashed}.pulse-group-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}.pulse-group-filters{display:flex;align-items:center;gap:4px;flex-wrap:wrap}.pulse-group-filters .pulse-btn[aria-pressed="true"]{color:var(--ink);border-color:var(--brand);background:rgba(120,243,255,.12)}.pulse-filter-mixed{color:var(--mut);font:9px/1.3 var(--mono)}.pulse-group-head h3{margin:0;color:var(--brand);font:900 10px/1.3 var(--mono);letter-spacing:.1em;text-transform:uppercase}.pulse-group-head .tot{flex:none;color:var(--mut);font:9px/1 var(--mono);border:1px solid var(--line);border-radius:999px;padding:3px 8px}.pulse-group-tools{margin-left:auto;display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}.pulse-btn{min-height:30px;border:1px solid var(--line2);border-radius:7px;background:rgba(2,8,13,.62);color:var(--brand);padding:5px 8px;font:800 8px/1.2 var(--mono);letter-spacing:.04em;text-transform:uppercase;cursor:pointer;white-space:nowrap}.pulse-btn:hover,.pulse-btn:focus-visible{border-color:var(--brand);outline:2px solid rgba(120,243,255,.35);outline-offset:1px}.pulse-btn.stop{color:var(--warn);border-color:rgba(255,136,102,.38)}.pulse-btn.start{color:var(--good);border-color:rgba(136,255,170,.34)}.pulse-btn.view{color:var(--mut)}.pulse-btn:disabled{opacity:.38;cursor:not-allowed;outline:none}.pulse-group>.pulse>.off{min-height:82px;display:grid;place-items:center}.pulse-group[hidden],.pulse[hidden]{display:none!important}
 .ag{border:1px solid var(--line);border-radius:13px;background:var(--card);position:relative;overflow:hidden;transition:border-color .15s,box-shadow .15s,transform .15s}.ag:hover{border-color:var(--brand);box-shadow:0 0 0 1px rgba(120,243,255,.14),0 14px 36px rgba(0,0,0,.24);transform:translateY(-1px)}
 .ag-link{display:block;color:inherit;text-decoration:none;cursor:pointer;padding:14px 16px 10px}.ag-link:focus-visible{outline:2px solid var(--brand);outline-offset:-3px;border-radius:11px}.ag-static{padding:14px 16px 10px}
 .ag::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--good);box-shadow:0 0 12px var(--good)}
@@ -402,21 +402,45 @@ function pulseReadView(){
 const PULSE_VIEW=pulseReadView(),PULSE_CONTROL_LEDGER=new Map(),PULSE_OPERATIONS=new Map();
 let PULSE_CONTROL_MODEL=null,PULSE_GROUPS=null,PULSE_CONTROL_BUSY=false,PULSE_STATUS={message:"Controles seguros listos.",error:false};
 function pulseWriteView(){try{localStorage.setItem(PULSE_VIEW_KEY,JSON.stringify(PULSE_VIEW));}catch(e){}}
-const PULSE_FILTER_KEY="yk.dashboard.deepagents.process-filter.v1";
-const PULSE_FILTER_LABELS={all:"Todos",open:"Abiertos",closed:"Cerrados",unknown:"Sin señal"};
+const PULSE_GROUP_FILTER_KEY="yk.dashboard.deepagents.group-process-filters.v1";
+const PULSE_FILTER_LABELS={all:"Todos",open:"Abiertos",closed:"Cerrados",unknown:"No disponibles"};
+const PULSE_GROUP_KEYS=["cli","app","unknown"];
 function pulseNormalizeFilter(value){return Object.prototype.hasOwnProperty.call(PULSE_FILTER_LABELS,value)?value:"all";}
-function pulseReadFilter(){try{return pulseNormalizeFilter(localStorage.getItem(PULSE_FILTER_KEY));}catch(e){return "all";}}
-let PULSE_FILTER=pulseReadFilter();
+function pulseReadGroupFilters(){
+  const filters={cli:"open",app:"open",unknown:"open"};
+  try{const saved=JSON.parse(localStorage.getItem(PULSE_GROUP_FILTER_KEY)||"{}");PULSE_GROUP_KEYS.forEach(key=>{if(saved&&Object.prototype.hasOwnProperty.call(PULSE_FILTER_LABELS,saved[key]))filters[key]=saved[key];});}catch(e){}
+  return filters;
+}
+const PULSE_GROUP_FILTERS=pulseReadGroupFilters(),PULSE_REVEALED_GROUPS=new Set(),PULSE_RUNTIME_SELECTIONS=new Map(),PULSE_RUNTIME_INVALIDATED=new Set();
+function pulseGroupFilter(key){return PULSE_GROUP_FILTERS[key]||"open";}
+function pulseFilterConsensus(classified=PULSE_GROUPS){
+  const keys=["cli","app"];if(classified&&classified.by_key&&classified.by_key.unknown&&classified.by_key.unknown.items.length)keys.push("unknown");
+  const values=new Set(keys.map(pulseGroupFilter));return values.size===1?values.values().next().value:null;
+}
+let PULSE_FILTER=pulseFilterConsensus();
 function pulseFilterBucket(item){return item&&["open","waiting"].includes(item.process_state)?"open":item&&item.process_state==="closed"?"closed":"unknown";}
 function pulseFilterCounts(items){const counts={all:0,open:0,closed:0,unknown:0};(items||[]).forEach(item=>{counts.all++;counts[pulseFilterBucket(item)]++;});return counts;}
-function pulseFilterItems(items,filter=PULSE_FILTER){const key=pulseNormalizeFilter(filter);return (items||[]).filter(item=>key==="all"||pulseFilterBucket(item)===key);}
-function pulseFilterMarkup(classified,unavailable=false){
-  const items=(classified&&classified.groups||[]).flatMap(group=>group.items||[]),counts=pulseFilterCounts(items);
-  return '<div class="pulse-filters" role="group" aria-label="Filtrar deepAgents por estado del proceso">'+Object.entries(PULSE_FILTER_LABELS).map(([key,label])=>'<button type="button" class="pulse-btn" data-pulse-filter="'+key+'" data-pulse-focus="filter:'+key+'" aria-pressed="'+(key===PULSE_FILTER)+'"'+(unavailable?' disabled':'')+'>'+label+' <span class="filter-count">'+(unavailable?'—':counts[key])+'</span></button>').join("")+'</div>';
+function pulseFilterItems(items,filter=PULSE_FILTER){
+  const key=pulseNormalizeFilter(filter),rank={open:0,closed:1,unknown:2};
+  const identity=item=>[item&&item.agent||item&&item.persona||"",item&&item.machine||"",item&&item.identity_key||""].join("|");
+  return (items||[]).filter(item=>key==="all"||pulseFilterBucket(item)===key).sort((a,b)=>rank[pulseFilterBucket(a)]-rank[pulseFilterBucket(b)]||identity(a).localeCompare(identity(b),"es",{numeric:true,sensitivity:"base"})||identity(a).localeCompare(identity(b)));
 }
-function pulsePaintFilters(classified,unavailable=false){const box=document.getElementById("pulseN");if(box){paPaint(box,pulseFilterMarkup(classified,unavailable));pulseSizeHeader();}}
+function pulseGroupFilterMarkup(group,unavailable=false){
+  const counts=pulseFilterCounts(group.items),selected=pulseGroupFilter(group.key),label=String(group.label||group.key);
+  return '<div class="pulse-group-filters" role="group" aria-label="Filtrar '+esc(label)+'">'+Object.entries(PULSE_FILTER_LABELS).map(([key,text])=>'<button type="button" class="pulse-btn" data-pulse-filter="'+key+'" data-pulse-group-key="'+esc(group.key)+'" data-pulse-focus="filter:'+esc(group.key)+':'+key+'" aria-pressed="'+(key===selected)+'"'+(key==='unknown'?' title="Proceso sin señal suficiente; no significa cerrado"':'')+(unavailable?' disabled':'')+'>'+(key==='all'?'Total':text)+' <span class="filter-count">'+(unavailable?'—':counts[key])+'</span></button>').join("")+'</div>';
+}
+function pulseFilterMarkup(classified,unavailable=false){
+  const items=(classified&&classified.groups||[]).flatMap(group=>group.items||[]),counts=pulseFilterCounts(items),selected=pulseFilterConsensus(classified);
+  return '<div class="pulse-filters" role="group" aria-label="Filtrar todos los grupos de deepAgents por estado del proceso">'+Object.entries(PULSE_FILTER_LABELS).map(([key,label])=>'<button type="button" class="pulse-btn" data-pulse-filter="'+key+'" data-pulse-focus="filter:'+key+'" aria-pressed="'+(key===selected)+'"'+(unavailable?' disabled':'')+'>'+label+' <span class="filter-count">'+(unavailable?'—':counts[key])+'</span></button>').join("")+(selected===null?'<span class="pulse-filter-mixed" role="status">Filtros distintos por grupo</span>':'')+'</div>';
+}
+function pulsePaintFilters(classified,unavailable=false){PULSE_FILTER=pulseFilterConsensus(classified);const box=document.getElementById("pulseN");if(box){paPaint(box,pulseFilterMarkup(classified,unavailable));pulseSizeHeader();}}
 function pulseSizeHeader(){const box=document.getElementById("pulseN"),summary=document.querySelector("#pulseSection > summary");if(box&&summary)summary.style.minHeight=Math.max(36,box.getBoundingClientRect().height)+"px";}
-function pulseApplyFilter(value){PULSE_FILTER=pulseNormalizeFilter(value);try{localStorage.setItem(PULSE_FILTER_KEY,PULSE_FILTER);}catch(e){}const section=document.getElementById("pulseSection");if(section)section.open=true;pulseRender();}
+function pulseApplyFilter(value,groupKey="all"){
+  const filter=pulseNormalizeFilter(value),keys=groupKey==="all"?PULSE_GROUP_KEYS:PULSE_GROUP_KEYS.includes(groupKey)?[groupKey]:[];if(!keys.length)return;
+  keys.forEach(key=>{PULSE_GROUP_FILTERS[key]=filter;PULSE_REVEALED_GROUPS.add(key);});PULSE_FILTER=pulseFilterConsensus();
+  try{localStorage.setItem(PULSE_GROUP_FILTER_KEY,JSON.stringify(PULSE_GROUP_FILTERS));}catch(e){}
+  const section=document.getElementById("pulseSection");if(section)section.open=true;pulseRender();
+}
 
 function pulseStateText(state){return state==="active"?"Control disponible":state==="stopped"?"Arranque disponible":state==="ambiguous"?"Control ambiguo":"Control sin verificar";}
 function pulseProcessText(item){
@@ -495,6 +519,8 @@ async function pulseLoadModes(force=false){
   })();return PULSE_MODE_FETCH;
 }
 async function pulseHandleMode(event){
+  const runtime=event.target.closest&&event.target.closest("select[data-pulse-runtime]");
+  if(runtime&&runtime.dataset.pulseRuntime){pulseSelectRuntime(runtime.dataset.pulseRuntime,runtime.value);return;}
   const select=event.target.closest&&event.target.closest("select[data-pulse-mode]");if(!select)return;
   const item=PULSE_CONTROL_MODEL&&PULSE_CONTROL_MODEL.by_key.get(select.dataset.pulseMode);if(!item)return;
   const key=pulseModeKey(item),mode=pulseModeValue(select.value),current=PULSE_MODES.get(key);
@@ -509,30 +535,48 @@ async function pulseHandleMode(event){
   finally{PULSE_MODE_REVISION++;PULSE_MODE_PENDING.delete(key);pulseRender();}
 }
 function pulseProjectLabel(p){
+  if(p.runtime_selection_required){const labels=new Set((p.runtime_targets||[]).map(pulseProjectLabel));return labels.size===1?labels.values().next().value:"Proyecto pendiente de verificar";}
   const record=PULSE_MODES.get(pulseModeKey(p));
   if(record&&record.project_issue==="project_ambiguous")return "Asignación principal ambigua · revisa las declaraciones";
   if(record&&record.project_available===false)return "Proyecto pendiente de verificar";
   return String(record&&(record.project_name||record.project_id)||"Proyecto pendiente de verificar");
 }
+function pulseSelectRuntime(encodedCard,encodedTarget){
+  let cardKey,targetKey;try{cardKey=decodeURIComponent(encodedCard);targetKey=decodeURIComponent(encodedTarget);}catch(e){return;}
+  const card=(PULSE_GROUPS&&PULSE_GROUPS.groups||[]).flatMap(group=>group.items||[]).find(item=>item.card_key===cardKey);
+  if(!card||!card.runtime_selection_required)return;
+  if(!targetKey)PULSE_RUNTIME_SELECTIONS.delete(cardKey);
+  else if((card.runtime_targets||[]).some(target=>target.identity_key===targetKey)){PULSE_RUNTIME_SELECTIONS.set(cardKey,targetKey);PULSE_RUNTIME_INVALIDATED.delete(cardKey);}
+  else return;
+  pulseRender();
+}
+function pulseRuntimeMarkup(card,selected){
+  if(!card.runtime_selection_required)return "";
+  const key=encodeURIComponent(card.card_key),selectedKey=selected&&selected.identity_key,app=card.surface==="app",kind=app?"aplicación":"motor";
+  return `<div class="pulse-mode pulse-runtime"><label><span>${app?'Aplicación':'Motor'}</span><select data-pulse-runtime="${esc(key)}" data-pulse-focus="runtime:${esc(key)}" aria-label="Elegir ${kind} de ${esc(card.agent||card.persona)} en ${esc(card.machine)}"><option value=""${selectedKey?'':' selected'}>Selecciona ${app?'una aplicación':'un motor'}…</option>${(card.runtime_targets||[]).map(target=>`<option value="${esc(encodeURIComponent(target.identity_key))}"${selectedKey===target.identity_key?' selected':''}>${esc(target.runtime||'Sin identificar')} · ${esc(pulseProcessText(target))}${pulseModelLabel(target.model)?' · '+esc(pulseModelLabel(target.model)):''}</option>`).join("")}</select></label><span class="pulse-mode-note">Estado de la ficha: ${esc(pulseProcessText(card))}. ${selected?(app?'Los controles y el modo corresponden a la aplicación elegida.':'Los controles y el modo corresponden al motor elegido.'):(app?'Elige qué aplicación quieres controlar.':'Elige qué motor quieres controlar.')}</span></div>`;
+}
 function pulseCard(p){
+  const card=p,selected=card.runtime_selection_required&&PULSE_RUNTIME_SELECTIONS.has(card.card_key)&&window.YkAgentControl?YkAgentControl.selectedCardTarget(card,PULSE_RUNTIME_SELECTIONS.get(card.card_key)):null;
+  if(selected)p=selected;
   const href=p.detail_url||(window.YkAgentDetail?YkAgentDetail.detailUrl(p):""),name=p.agent||p.persona||"Agente",state=p.state||"unknown",operation=PULSE_OPERATIONS.get(p.control_key),controlState=operation?pulseOperationText(operation):pulseStateText(state);
   const model=pulseModelLabel(p.model);
-  const content=`<div class="top"><span class="dot"></span><b>${esc(name)}</b>${model?`<span class="llm">${esc(model)}</span>`:""}</div><div class="project"><span class="project-label">Proyecto</span>${esc(pulseProjectLabel(p))}</div><div class="surface"><span class="rt">${esc(p.runtime||"Agente")} · ${esc(pulseProcessText(p))}</span><div class="mach"><span class="machine-chip">⌂ ${esc(p.machine||"")}</span>${pulseCliChip(p)}</div></div><div class="focus" title="${esc(p.focus||"")}">${esc(p.focus||"—")}</div><div class="meta"><span data-pa-ago="${Number(p.updated)||0}"></span></div>`;
+  const content=`<div class="top"><span class="dot"></span><b>${esc(name)}</b>${model?`<span class="llm">${esc(model)}</span>`:""}</div><div class="project"><span class="project-label">Proyecto</span>${esc(pulseProjectLabel(p))}</div><div class="surface"><span class="rt">${esc(p.runtime||(card.runtime_selection_required?(card.runtime_targets||[]).length+" "+(card.surface==="app"?((card.runtime_targets||[]).length===1?"aplicación":"aplicaciones"):((card.runtime_targets||[]).length===1?"motor":"motores")):"Agente"))} · ${esc(pulseProcessText(p))}</span><div class="mach"><span class="machine-chip">⌂ ${esc(p.machine||"")}</span>${pulseCliChip(p)}</div></div><div class="focus" title="${esc(p.focus||"")}">${esc(p.focus||"—")}</div><div class="meta"><span data-pa-ago="${Number(p.updated)||0}"></span></div>`;
   const main=href?`<a class="ag-link" href="${esc(href)}" data-pulse-focus="detail:${esc(href)}" aria-label="Abrir actividad e histórico de ${esc(name)} en ${esc(p.machine||"")}">${content}</a>`:`<div class="ag-static">${content}</div>`;
-  return `<article class="ag" data-agent-state="${esc(state)}" data-process-state="${esc(p.process_state||'unknown')}" data-control-state="${esc(operation&&operation.phase||'idle')}">${main}<div class="agent-control-row"><span>${esc(controlState)}${operation&&operation.error?' · '+esc(operation.error):''}</span>${pulseControlButton(p)}</div>${pulseModeMarkup(p)}</article>`;
+  return `<article class="ag" data-agent-state="${esc(state)}" data-process-state="${esc(card.process_state||'unknown')}" data-control-state="${esc(operation&&operation.phase||'idle')}">${main}${pulseRuntimeMarkup(card,selected)}<div class="agent-control-row"><span>${esc(controlState)}${operation&&operation.error?' · '+esc(operation.error):''}</span>${pulseControlButton(p)}</div>${card.runtime_selection_required&&!selected?'':pulseModeMarkup(p)}</article>`;
 }
 function pulseGroupMarkup(group,unavailable=false){
-  const key=String(group&&group.key||"unknown"),label=String(group&&group.label||"Sin superficie identificada"),allItems=Array.isArray(group&&group.items)?group.items:[],items=pulseFilterItems(allItems),count=items.length,total=allItems.length,id="pulseGroup"+key.charAt(0).toUpperCase()+key.slice(1),empty=unavailable?"No se pudo comprobar esta superficie; se reintentará automáticamente.":total?"No hay deepAgents con el estado «"+PULSE_FILTER_LABELS[PULSE_FILTER]+"» en este grupo.":key==="cli"?"No hay deepAgents CLI configurados.":key==="app"?"No hay deepAgents Desktop App configurados.":"No hay señales sin superficie identificada.";
-  const view=PULSE_VIEW[key]||PULSE_VIEW.unknown,compact=view.compact,hidden=PULSE_FILTER==="all"&&view.hidden;
-  return `<section class="pulse-group${key==="unknown"?' pulse-group-residual':''}${compact?' compact':''}" data-pulse-group="${esc(key)}" aria-labelledby="${esc(id)}"><div class="pulse-group-head"><h3 id="${esc(id)}">${esc(label)}</h3><span class="tot" aria-live="polite" aria-atomic="true" aria-label="${count} de ${total} deepAgents visibles">${PULSE_FILTER==="all"?total:count+"/"+total}</span><div class="pulse-group-tools" role="toolbar" aria-label="Vista de ${esc(label)}"><button type="button" class="pulse-btn view" data-pulse-view="${compact?'expand':'compact'}" data-pulse-group-key="${esc(key)}" data-pulse-focus="view:${esc(key)}:density">${compact?'Ampliar':'Compactar'} ${esc(label)}</button><button type="button" class="pulse-btn view" data-pulse-view="${hidden?'show':'hide'}" data-pulse-group-key="${esc(key)}" data-pulse-focus="view:${esc(key)}:visibility" aria-expanded="${hidden?'false':'true'}"${PULSE_FILTER!=="all"?' disabled':''}>${PULSE_FILTER!=="all"?'Visible con filtro':hidden?'Mostrar':'Ocultar'} ${esc(label)}</button></div></div><div class="pulse"${hidden?' hidden':''}>${count?items.map(pulseCard).join(""):`<div class="off">${esc(empty)}</div>`}</div></section>`;
+  const key=String(group&&group.key||"unknown"),label=String(group&&group.label||"Sin superficie identificada"),allItems=Array.isArray(group&&group.items)?group.items:[],filter=pulseGroupFilter(key),items=pulseFilterItems(allItems,filter),count=items.length,total=allItems.length,id="pulseGroup"+key.charAt(0).toUpperCase()+key.slice(1),empty=unavailable?"No se pudo comprobar esta superficie; se reintentará automáticamente.":total?"No hay deepAgents con el estado «"+PULSE_FILTER_LABELS[filter]+"» en este grupo.":key==="cli"?"No hay deepAgents CLI configurados.":key==="app"?"No hay deepAgents Desktop App configurados.":"No hay señales sin superficie identificada.";
+  const view=PULSE_VIEW[key]||PULSE_VIEW.unknown,compact=view.compact,hidden=view.hidden&&!PULSE_REVEALED_GROUPS.has(key);
+  return `<section class="pulse-group${key==="unknown"?' pulse-group-residual':''}${compact?' compact':''}" data-pulse-group="${esc(key)}" aria-labelledby="${esc(id)}"><div class="pulse-group-head"><h3 id="${esc(id)}">${esc(label)}</h3>${pulseGroupFilterMarkup({key,label,items:allItems},unavailable)}<div class="pulse-group-tools" role="toolbar" aria-label="Vista de ${esc(label)}"><button type="button" class="pulse-btn view" data-pulse-view="${compact?'expand':'compact'}" data-pulse-group-key="${esc(key)}" data-pulse-focus="view:${esc(key)}:density">${compact?'Ampliar':'Compactar'} ${esc(label)}</button><button type="button" class="pulse-btn view" data-pulse-view="${hidden?'show':'hide'}" data-pulse-group-key="${esc(key)}" data-pulse-focus="view:${esc(key)}:visibility" aria-expanded="${hidden?'false':'true'}">${hidden?'Mostrar':'Ocultar'} ${esc(label)}</button></div></div><div class="pulse"${hidden?' hidden':''}>${count?items.map(pulseCard).join(""):`<div class="off">${esc(empty)}</div>`}</div></section>`;
 }
+
 function pulseBatchButton(group,action,label){
-  const plan=PULSE_CONTROL_MODEL&&window.YkAgentControl?YkAgentControl.batchPlan(PULSE_CONTROL_MODEL,group,action):{count:0,targets:[]},blocked=(plan.targets||[]).some(key=>{const operation=PULSE_OPERATIONS.get(key);return operation&&operation.phase!=="error";}),disabled=PULSE_CONTROL_BUSY||blocked||!plan.count;
-  return `<button type="button" class="pulse-btn ${action}" data-pulse-batch="${esc(action)}" data-pulse-group-key="${esc(group)}" data-pulse-focus="batch:${esc(group)}:${esc(action)}" aria-label="${esc(label)}; ${Number(plan.count)||0} disponibles"${disabled?' disabled':''}>${esc(label)} · ${Number(plan.count)||0}</button>`;
+  const plan=PULSE_CONTROL_MODEL&&window.YkAgentControl?YkAgentControl.batchPlan(PULSE_CONTROL_MODEL,group,action,{selections:PULSE_RUNTIME_SELECTIONS,requireSelections:PULSE_RUNTIME_INVALIDATED,identity:window.ykAgentIdentity}):{count:0,targets:[]},blocked=(plan.targets||[]).some(key=>{const operation=PULSE_OPERATIONS.get(key);return operation&&operation.phase!=="error";}),disabled=PULSE_CONTROL_BUSY||blocked||!plan.count;
+  return `<button type="button" class="pulse-btn ${action}" data-pulse-batch="${esc(action)}" data-pulse-group-key="${esc(group)}" data-pulse-focus="batch:${esc(group)}:${esc(action)}" title="${Number(plan.skipped_ambiguous)||0} fichas requieren elegir ${group==='app'?'aplicación':'motor'}" aria-label="${esc(label)}; ${Number(plan.count)||0} disponibles${plan.skipped_ambiguous?'; '+plan.skipped_ambiguous+' fichas requieren elegir '+(group==='app'?'aplicación':'motor'):''}"${disabled?' disabled':''}>${esc(label)} · ${Number(plan.count)||0}</button>`;
 }
 function pulseGlobalToolbar(){
-  const allCompact=PULSE_VIEW.cli.compact&&PULSE_VIEW.app.compact,allHidden=PULSE_VIEW.cli.hidden&&PULSE_VIEW.app.hidden;
-  return `<div class="pulse-global-toolbar" role="toolbar" aria-label="Controles de deepAgents"><strong>Control de superficies</strong>${pulseBatchButton('cli','start','Arrancar todos los CLI')}${pulseBatchButton('cli','stop','Parar todos los CLI')}${pulseBatchButton('app','start','Arrancar todos Desktop App')}${pulseBatchButton('app','stop','Parar todos Desktop App')}<button type="button" class="pulse-btn view" data-pulse-view="${allCompact?'expand-all':'compact-all'}" data-pulse-focus="view:all:density">${allCompact?'Ampliar todos':'Compactar todos'}</button><button type="button" class="pulse-btn view" data-pulse-view="${allHidden?'show-all':'hide-all'}" data-pulse-focus="view:all:visibility" aria-expanded="${allHidden?'false':'true'}"${PULSE_FILTER!=="all"?' disabled':''}>${allHidden?'Mostrar todos':'Ocultar todos'}</button></div><p class="pulse-control-status${PULSE_STATUS.error?' err':PULSE_STATUS.message?' ok':''}" id="pulseControlStatus" role="status" aria-live="polite" aria-atomic="true">${esc(PULSE_STATUS.message)}</p>`;
+  const allCompact=PULSE_VIEW.cli.compact&&PULSE_VIEW.app.compact,allHidden=["cli","app"].every(key=>PULSE_VIEW[key].hidden&&!PULSE_REVEALED_GROUPS.has(key));
+  return `<div class="pulse-global-toolbar" role="toolbar" aria-label="Controles de deepAgents"><strong>Control de superficies</strong>${pulseBatchButton('cli','start','Arrancar todos los CLI')}${pulseBatchButton('cli','stop','Parar todos los CLI')}${pulseBatchButton('app','start','Arrancar todos Desktop App')}${pulseBatchButton('app','stop','Parar todos Desktop App')}<button type="button" class="pulse-btn view" data-pulse-view="${allCompact?'expand-all':'compact-all'}" data-pulse-focus="view:all:density">${allCompact?'Ampliar todos':'Compactar todos'}</button><button type="button" class="pulse-btn view" data-pulse-view="${allHidden?'show-all':'hide-all'}" data-pulse-focus="view:all:visibility" aria-expanded="${allHidden?'false':'true'}">${allHidden?'Mostrar todos':'Ocultar todos'}</button></div><p class="pulse-control-status${PULSE_STATUS.error?' err':PULSE_STATUS.message?' ok':''}" id="pulseControlStatus" role="status" aria-live="polite" aria-atomic="true">${esc(PULSE_STATUS.message)}</p>`;
 }
 function pulseGroupsMarkup(classified,unavailable=false){
   const byKey=classified&&classified.by_key||{},fallback=key=>({key,label:key==="cli"?"deepAgents CLI":key==="app"?"deepAgents Desktop App":"Sin superficie identificada",items:[]}),cli=byKey.cli||fallback("cli"),app=byKey.app||fallback("app"),unknown=byKey.unknown||fallback("unknown");
@@ -540,11 +584,15 @@ function pulseGroupsMarkup(classified,unavailable=false){
 }
 function pulseControlledGroups(classified,control){
   const live=new Map((classified&&classified.groups||[]).flatMap(group=>group.items||[]).map(item=>[item.identity_key,item]));
-  const buckets={cli:[],app:[],unknown:[]};
-  (control&&control.items||[]).forEach(item=>{const row=live.get(item.identity_key)||{},state=item.state||"unknown",fallback=item.process_state==="open"?"Proceso abierto · sin actividad declarada":item.process_state==="waiting"?"Proceso abierto · en espera":item.process_state==="closed"?"Cerrado · proceso no detectado por el watcher":"Sin señal de proceso · no equivale a cerrado";buckets[item.surface]&&buckets[item.surface].push({...row,...item,persona:item.persona,host:item.surface,focus:row.focus||fallback,mode:row.mode||(state==="active"?"activo":state),updated:row.updated||0});});
+  const merged=(control&&control.items||[]).map(item=>{const row=live.get(item.identity_key)||{},state=item.state||"unknown",fallback=item.process_state==="open"?"Proceso abierto · sin actividad declarada":item.process_state==="waiting"?"Proceso abierto · en espera":item.process_state==="closed"?"Cerrado · proceso no detectado por el watcher":"Sin señal de proceso · no equivale a cerrado";return {...row,...item,persona:item.persona,host:item.surface,focus:row.focus||fallback,mode:row.mode||(state==="active"?"activo":state),updated:row.updated||0};});
+  const cards=window.YkAgentControl&&YkAgentControl.groupCards?YkAgentControl.groupCards(merged,{identity:window.ykAgentIdentity}).items:merged,buckets={cli:[],app:[],unknown:[]};
+  PULSE_RUNTIME_SELECTIONS.forEach((selected,key)=>{const card=cards.find(item=>item.card_key===key);if(!card||!(card.runtime_targets||[]).some(target=>target.identity_key===selected)){PULSE_RUNTIME_SELECTIONS.delete(key);PULSE_RUNTIME_INVALIDATED.add(key);}});
+  cards.forEach(card=>{if(PULSE_RUNTIME_INVALIDATED.has(card.card_key))Object.assign(card,{runtime_selection_required:true,runtime:"",model:"",control_key:"",identity_key:"",detail_url:null,state:"ambiguous",eligible:{start:false,stop:false}});});
+  cards.forEach(card=>{if(buckets[card.surface])buckets[card.surface].push(card);});
   const definitions=[['cli','deepAgents CLI'],['app','deepAgents Desktop App'],['unknown','Sin superficie identificada']],groups=definitions.map(([key,label])=>({key,label,count:buckets[key].length,items:buckets[key]}));
   return {groups,by_key:{cli:groups[0],app:groups[1],unknown:groups[2]},counts:{cli:buckets.cli.length,app:buckets.app.length,unknown:buckets.unknown.length,total:groups.reduce((sum,group)=>sum+group.count,0)}};
 }
+
 function pulseRender(){pulsePaintFilters(PULSE_GROUPS,!PULSE_GROUPS);const box=document.getElementById("pulse");if(box&&PULSE_GROUPS){paPaint(box,pulseGroupsMarkup(PULSE_GROUPS));paTickAgo();}}
 function pulseApplyView(action,key){
   const keys=key&&key!=="all"?[key]:["cli","app","unknown"];
@@ -552,6 +600,7 @@ function pulseApplyView(action,key){
   if(action==="hide"||action==="show")keys.forEach(name=>{if(PULSE_VIEW[name])PULSE_VIEW[name].hidden=action==="hide";});
   if(action==="compact-all"||action==="expand-all")keys.forEach(name=>PULSE_VIEW[name].compact=action==="compact-all");
   if(action==="hide-all"||action==="show-all")keys.forEach(name=>PULSE_VIEW[name].hidden=action==="hide-all");
+  if(["hide","show","hide-all","show-all"].includes(action))keys.forEach(name=>PULSE_REVEALED_GROUPS.delete(name));
   pulseWriteView();pulseRender();
 }
 async function pulseSendControl(request){
@@ -597,11 +646,11 @@ function pulseResultMessage(result,label){
 }
 async function pulseHandleClick(event){
   const button=event.target.closest&&event.target.closest("button[data-pulse-action],button[data-pulse-batch],button[data-pulse-view],button[data-pulse-filter]");if(!button)return;event.preventDefault();event.stopPropagation();
-  if(button.dataset.pulseFilter){pulseApplyFilter(button.dataset.pulseFilter);return;}
+  if(button.dataset.pulseFilter){pulseApplyFilter(button.dataset.pulseFilter,button.dataset.pulseGroupKey||"all");return;}
   if(button.dataset.pulseView){pulseApplyView(button.dataset.pulseView,button.dataset.pulseGroupKey||"all");return;}
   if(PULSE_CONTROL_BUSY||!PULSE_CONTROL_MODEL||!window.YkAgentControl)return;
   const action=button.dataset.pulseAction||button.dataset.pulseBatch,group=button.dataset.pulseGroupKey||"",controlKey=button.dataset.controlKey||"";
-  const item=controlKey&&PULSE_CONTROL_MODEL.by_key.get(controlKey),label=group?(group==="cli"?"deepAgents CLI":"Desktop App"):(item&&item.agent||"Agente"),plan=group?YkAgentControl.batchPlan(PULSE_CONTROL_MODEL,group,action):null;
+  const item=controlKey&&PULSE_CONTROL_MODEL.by_key.get(controlKey),label=group?(group==="cli"?"deepAgents CLI":"Desktop App"):(item&&item.agent||"Agente"),plan=group?YkAgentControl.batchPlan(PULSE_CONTROL_MODEL,group,action,{selections:PULSE_RUNTIME_SELECTIONS,requireSelections:PULSE_RUNTIME_INVALIDATED,identity:window.ykAgentIdentity}):null;
   const confirmation=plan?"Confirmar "+(action==="start"?"el arranque":"la parada")+" de "+plan.count+" agente"+(plan.count===1?"":"s")+" de "+label+"?":"Confirmar "+(action==="start"?"el arranque":"la parada")+" de "+label+" en "+String(item&&item.machine||"")+"?";
   if(!window.confirm(confirmation))return;
   PULSE_CONTROL_BUSY=true;document.getElementById("pulse")?.setAttribute("aria-busy","true");pulseSetStatus((action==="start"?"Arrancando ":"Parando ")+label+"…");pulseRender();

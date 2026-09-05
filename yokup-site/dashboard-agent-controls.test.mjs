@@ -25,7 +25,7 @@ test("cada superficie ofrece controles masivos y cada tarjeta un único control"
   assert.match(source,/function pulseControlButton\(item\)/);
   assert.match(source,/data-pulse-action=/);
   assert.match(source,/data-pulse-batch=/);
-  assert.match(source,/<article class="ag"[^>]*>\$\{main\}<div class="agent-control-row">/);
+  assert.match(source,/<article class="ag"[^>]*>\$\{main\}\$\{pulseRuntimeMarkup\(card,selected\)\}<div class="agent-control-row">/);
   assert.match(source,/event\.preventDefault\(\);event\.stopPropagation\(\)/);
 });
 
