@@ -8534,12 +8534,9 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
       `AND m.status IN ('in_progress','doing','active') ` +
       `AND t.status='in_progress' AND NOT EXISTS(SELECT 1 FROM fleet_hourly_work hw JOIN fleet_agent_mode_runs hr ON hr.id=hw.run_id WHERE hw.mission_id=t.id AND hr.status='paused') ` +
       `AND COALESCE(t.status,'')!='cancelled'`).all().then((r) => r.results || []),
-    // Una ventana pendiente es trabajo real: el agente ya la ha abierto y está
-    // esperando la decisión de Carlos. Hasta ahora puntuaba en /highscore/daily
-    // (+8), pero no entraba en este censo y por eso el corredor enseñaba un
-    // trabajo viejo mientras el agente estaba esperando. Se representa como
-    // tarea viva desde created_at hasta deadline; al decidir o vencer desaparece
-    // y la misión materializada ocupa su lugar sin duplicar puntos.
+    // Una ventana pendiente conserva su asignación y sus puntos, pero esperar
+    // una decisión no acredita ejecución. Sólo una señal de trabajo vinculada
+    // puede activar la carrera; al decidir o vencer la ventana desaparece.
     env.DB.prepare(`SELECT id,question title,agent,machine,status,parent_decision,mission,project project_id,created_at,deadline,` +
       `created_at started_at,created_at work_started_at,created_at work_progress_at,` +
       `created_at race_progress_at,created_at assignment_born_at,NULL assignment_event_at ` +
@@ -8622,6 +8619,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     if (serviceActivity) Object.assign(candidate, serviceActivity);
     if(policyPaused) Object.assign(candidate,{cli_paused:true,activity_reason:CLI_POLICY.reason,operational_state:'paused_by_policy'});
     else if(sessionUnverified) candidate.activity_reason='session_unverified';
+    else if(kind==='task' && item.status==='pending') candidate.activity_reason='awaiting_decision';
     if (timing) Object.assign(candidate, timing);
     const dedicated = highscoreDedicatedTiming(linked, timing, ahora);
     if (dedicated) Object.assign(candidate, dedicated);
@@ -8659,7 +8657,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
   for (const decision of decisions) {
     decision.detail_url = "/decisiones?project_id=" + encodeURIComponent(String(decision.project_id || ""));
     add(decision.agent, decision.machine, "task", decision,
-      decision.title || "Esperando una decisión", decision.agent, "running", String(decision.id || ""));
+      decision.title || "Esperando una decisión", decision.agent, "", String(decision.id || ""));
   }
   for (const objective of objectives) {
     const executor = String(objective.author_identity || highscoreAgent(objective.author) || "").trim();

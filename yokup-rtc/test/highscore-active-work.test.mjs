@@ -60,19 +60,49 @@ function decision(db,{id="DEC-1",agent="OraculoMacMini",machine="admira-macmini"
     .run(id,title,agent,machine,status,project,at,deadline);
 }
 
-test("una ventana pendiente aparece inmediatamente como tarea viva y conserva sus +8 del marcador",async()=>{
+test("una ventana pendiente conserva su asignación visible sin acreditar ejecución",async()=>{
   const {db,env,F}=harness();
   db.exec("INSERT INTO projects VALUES ('yokup','Yokup')");
   decision(db,{id:"DEC-VIVA",title:"¿Qué entrenamiento conectamos con Pixeria?"});
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
-  assert.equal(result.mode,"active"); assert.equal(result.running_count,1); assert.equal(result.count,1);
+  assert.equal(result.mode,"recent"); assert.equal(result.running_count,0); assert.equal(result.count,1);
   const row=result.participants[0];
   assert.equal(row.agent,"OraculoMacMini"); assert.equal(row.kind,"task");
-  assert.equal(row.reference,"DEC-VIVA"); assert.equal(row.state,"running");
+  assert.equal(row.reference,"DEC-VIVA"); assert.equal(row.state,"assigned_stale");
+  assert.equal(row.activity_reason,"awaiting_decision");
   assert.equal(row.title,"¿Qué entrenamiento conectamos con Pixeria?");
   assert.equal(row.work_started_at,NOW-MIN); assert.equal(row.elapsed_ms,MIN);
   assert.equal(row.project_name,"Yokup");
   assert.equal(row.detail_url,"/decisiones?project_id=yokup");
+});
+
+test("Morfeo con ventana automática y APP abierta sin turno no corre ni hereda interfaz",async()=>{
+  for(const row of [
+    {persona:'Morfeo',machine:'MacMini',runtime:'Claude',host:'app',updated:NOW/1000,source:'heartbeat',verified:0},
+    {...processRow('Morfeo','MacMini'),runtime:'Claude',host:'app',session_id:'desktop:claude',app_turn:null},
+  ]) {
+    const {db,env,F}=harness({presence:[row]});
+    decision(db,{id:'DEC-mtoivh1mfzvo',agent:'MorfeoMacMini',machine:'MacMini',title:'Ventana automatica de la hora · opciones de hace 598 h'});
+    const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+    assert.equal(result.running_count,0);
+    const actual=result.participants.find(p=>p.agent==='MorfeoMacMini');
+    assert.equal(actual.state,'assigned_stale');assert.equal(actual.activity_reason,'awaiting_decision');
+    assert.equal(actual.reference,'DEC-mtoivh1mfzvo');
+    assert.equal(actual.activity_at,undefined);assert.equal(actual.host,undefined);assert.equal(actual.session_surface,undefined);
+    assert.equal(db.prepare("SELECT status FROM decisions WHERE id='DEC-mtoivh1mfzvo'").get().status,'pending');
+  }
+});
+
+test("una decisión pendiente no esquiva la política CLI ni desplaza una misión APP en ejecución",async()=>{
+  const cli={...appSession('DEC-CLI'),surface:'cli',session_id:'oraculo'};
+  const {db,env,F}=harness({presence:[{...processRow('Oraculo','MacMini'),runtime:'Codex',session_id:'oraculo'}]},[cli]);
+  decision(db,{id:'DEC-CLI'});
+  const paused=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(paused.running_count,0);assert.equal(paused.participants[0].cli_paused,true);
+  assert.equal(paused.participants[0].activity_reason,CLI_POLICY.reason);
+  const app=appHarness(appSession('M1'));mission(app.db);decision(app.db);
+  const running=JSON.parse(JSON.stringify(await app.F.highscoreActiveWork(app.env,NOW)));
+  assert.equal(running.running_count,1);assert.equal(running.participants[0].reference,'M1');
 });
 
 test("una ventana decidida o vencida deja libre la pista para la misión materializada",async()=>{
