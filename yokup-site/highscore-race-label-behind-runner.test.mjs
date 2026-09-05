@@ -72,7 +72,7 @@ test("la corrección geométrica conserva meta, controles y orden semántico del
     "agente, pista/meta y bloque temporal conservan el nuevo orden");
   assert.match(renderSource, /data-race-role="runner" aria-hidden="true"/);
   assert.match(renderSource, /class="refresh-finish" aria-hidden="true"/);
-  assert.match(renderSource, /data-race-time="elapsed" data-work-state="running"[\s\S]*data-work-start=/,
+  assert.match(renderSource, /data-race-time="duration" data-work-state="'\+\(isLast\?'last_work'[\s\S]*resumen\.clockRunning\?'running':'unverified'[\s\S]*data-work-start=/,
     "el contador factual permanece fuera del rótulo animado");
   assert.doesNotMatch(renderSource, /class="refresh-time"|class="refresh-work-state"/);
 });

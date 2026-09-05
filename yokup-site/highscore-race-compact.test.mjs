@@ -82,7 +82,7 @@ test("compactar conserva orden de lectura y semántica accesible", () => {
   assert.match(html, /id="refreshLanes" role="list" aria-label="[^"]+"/);
   assert.match(raceSource, /role="listitem"/);
   assert.match(raceSource, /aria-label="Responsable ' \+ esc\(identidadVisible\.nombre\)[\s\S]*Hora de inicio ' \+ esc\(resumen\.startedClock\) \+ esc\(timingAria\)/);
-  assert.match(raceSource, /var timingAria = isLast \? '\. Hora de finalización '[\s\S]*: '\. Tiempo transcurrido '/);
+  assert.match(raceSource, /var timingAria = isLast \? '\. Duración final '[\s\S]*: '\. Tiempo transcurrido '/);
   assert.match(raceSource, /data-race-role="runner" aria-hidden="true"/);
   assert.match(html, /id="raceCall"[^>]*role="status"[^>]*aria-live="polite"/);
   assert.doesNotMatch(raceSource, /aria-hidden="true"[^>]*data-race-role="agent"/);

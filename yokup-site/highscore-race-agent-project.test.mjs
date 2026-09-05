@@ -68,5 +68,5 @@ test("la nueva etiqueta no altera las tres columnas ni la pista",()=>{
   const timing=rendered.indexOf('class="refresh-timing"');
   assert.ok(agent>=0 && track>agent && timing>track);
   assert.match(rendered,/class="refresh-track">[\s\S]*data-race-role="mission"[\s\S]*data-race-role="runner"/);
-  assert.match(rendered,/class="refresh-timing"[\s\S]*data-race-time="start"[\s\S]*data-race-time="elapsed"/);
+  assert.match(rendered,/class="refresh-timing"[\s\S]*data-race-time="start"[\s\S]*data-race-time="duration"/);
 });

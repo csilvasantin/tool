@@ -1,4 +1,5 @@
 import test from 'node:test';
+import workClock from './highscore-work-clock.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -12,7 +13,7 @@ function render(){
  const rows=targets.map((x,i)=>({agente:x.agent,proyecto:'Yokup',posicion:i+1,total:20,vivo:true,maquinas:[],maquinasVivas:[]}));
  const works=targets.map(x=>({family_key:x.agent.toLowerCase(),agent:x.agent,executor:'Infra'+x.agent,kind:'task',title:'Verificación independiente',project_id:'yokup',project_name:'Yokup',detail_url:'/misiones',work_started_at:now-60000,work_progress_at:now,elapsed_ms:60000,state:'running',session_surface:x.surface}));
  const nodes={refreshLanes:{innerHTML:''},refreshRace:{setAttribute(){},classList:{toggle(){}}}};
- const ctx=vm.createContext({listaCache:rows,listaCompletaCache:rows,datos:{trabajos:works,trabajosAvailable:true,trabajosMode:'active',trabajosGeneratedAt:now,trabajosClientAt:0},document:{getElementById:id=>nodes[id]},normaliza:v=>String(v??'').trim(),esc:v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;'),window:{ykAgentIdentity:identityContext.ykAgentIdentity},YkHighscoreRace:raceContext.module.exports,Number,String,Math,Date,Intl,performance:{now:()=>0}});
+ const ctx=vm.createContext({listaCache:rows,listaCompletaCache:rows,datos:{trabajos:works,trabajosAvailable:true,trabajosMode:'active',trabajosGeneratedAt:now,trabajosClientAt:0},document:{getElementById:id=>nodes[id]},normaliza:v=>String(v??'').trim(),esc:v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;'),window:{ykAgentIdentity:identityContext.ykAgentIdentity},YkHighscoreRace:raceContext.module.exports,YkWorkClock:workClock,Number,String,Math,Date,Intl,performance:{now:()=>0}});
  installRaceView(html,ctx);
  const start=html.indexOf('function claveAgenteCarrera('),end=html.indexOf('\n\n  function pintaFormula',start);
  vm.runInContext(html.slice(start,end)+'\nactualizaCarreraPodio();',ctx);
@@ -24,7 +25,7 @@ test('runningman abrevia únicamente presentación y conserva carriles por equip
  const keys=[...markup.matchAll(/data-agent-key="([^"]+)"/g)].map(x=>x[1]);assert.equal(new Set(keys).size,2);assert.ok(keys.includes('oraculomacmini'));assert.ok(keys.includes('oraculombp14'));
  assert.doesNotMatch(markup,/class="refresh-agent-machine"/,'el ordenador no consume una fila visible');
  assert.equal((markup.match(/data-race-role="project"/g)||[]).length,2,'proyectos conservados');
- assert.equal((markup.match(/data-race-time="elapsed"/g)||[]).length,2,'tiempo de trabajo conservado');
+ assert.equal((markup.match(/data-race-time="duration"/g)||[]).length,2,'tiempo de trabajo conservado');
 });
 test('hover y foco describen la máquina e interfaz exactas sin transferir superficies',()=>{
  const markup=render(),tags=[...markup.matchAll(/<span\b[^>]*data-race-role="agent"[^>]*>/g)].map(x=>x[0]);
