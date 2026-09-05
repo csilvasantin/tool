@@ -102,3 +102,8 @@ test('última ejecución y consumidor ausente se muestran sin afirmar una cápsu
   const {api}=setup();const summary=api.summary({mode:'learning',project_name:'Yokup',status:'unavailable',reason:'consumer_unavailable',last_run:{status:'failed',updated_at:2_000_000_000_000}});
   assert.match(summary,/ejecutor no disponible en este ordenador/);assert.match(summary,/última/);assert.match(summary,/No completado/);assert.doesNotMatch(summary,/Entrega verificada/);
 });
+
+test('la cadencia de Training es horaria y no impone ni promete un cupo de entregas diarias',()=>{
+  const {api}=setup(),summary=api.summary({mode:'training',project_id:'yokup',status:'scheduled'});
+  assert.match(summary,/cada hora/);assert.doesNotMatch(summary,/24|cupo|entregas diarias/);
+});
