@@ -1,3 +1,4 @@
+import { principalTargetKey, resolveAgentPrincipalProject } from './agent-principal-project.js';
 import puppeteer from "@cloudflare/puppeteer";
 import { handleAuthRequest, sessionTokenFromRequest, withCredentialCors } from "./auth-flow.js";
 import { machineRefKey, machineRefSqlKey, memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
@@ -1906,19 +1907,27 @@ __name(beatAge, "beatAge");
 // latido en worker_beats; ninguna tumba a la siguiente ni a la respuesta HTTP (corre
 // en ctx.waitUntil, en 2º plano). Todas son idempotentes o inofensivas en repetición;
 // el cerrojo D1 evita además el solape entre isolates de las que leen-y-escriben.
-async function hourlyModeProject(env, target, requestedProjectId = "", now = Date.now()) {
-  // Carry the last explicit principal forward across midnight while its canonical
-  // project assignment remains valid. Never infer it from the Dashboard filter.
-  const declarations=(await env.DB.prepare("SELECT d.*,p.status project_status FROM agent_project_declarations d JOIN projects p ON p.id=d.project_id WHERE d.day<=? ORDER BY d.day DESC,d.updated_at DESC").bind(madridDayKey(now)).all()).results || [];
-  const matches=declarations.filter(row=>groupingIdentityKey(row.agent)===groupingIdentityKey(target.agent || target.persona,target.machine));
-  const declaration=matches[0];
-  if (!declaration || declaration.project_status==='archivado') throw Object.assign(new Error('project_required'),{status:409});
-  if (matches.some(row=>row.day===declaration.day && row.updated_at===declaration.updated_at && row.project_id!==declaration.project_id)) throw Object.assign(new Error('project_ambiguous'),{status:409});
-  if (requestedProjectId && requestedProjectId!==declaration.project_id) throw Object.assign(new Error('principal_project_changed'),{status:409});
-  const project=await exactDecisionProjectAssignment(env,target.agent || target.persona,target.machine,declaration.project_id);
-  if (!project) throw Object.assign(new Error('project_required'),{status:409});
-  return project;
+async function agentPrincipalSnapshot(env,now=Date.now()) {
+  const yesterdayStart=madridDayStart(madridDayStart(now)-1);
+  const [projects,declarations,members,missions]=await Promise.all([
+    env.DB.prepare('SELECT * FROM projects').all(),
+    env.DB.prepare('SELECT day,agent_key,agent,project_id,created_at,updated_at FROM agent_project_declarations WHERE day<=?').bind(madridDayKey(now)).all(),
+    env.DB.prepare('SELECT project_id,kind,ref FROM project_members').all(),
+    env.DB.prepare("SELECT t.id,t.project_id,t.assignee,t.loc,t.role,t.source,t.status,t.started_at,t.resolved_at,t.live_at,t.live_kind,t.live_shot,material.material_at FROM tickets t LEFT JOIN (SELECT mission_id,MAX(CASE WHEN updated_at<4102444800 THEN updated_at*1000 ELSE updated_at END) material_at FROM mission_tasks WHERE TRIM(COALESCE(report,''))!='' AND status IN ('in_progress','doing','active','done','unconcluded') GROUP BY mission_id) material ON material.mission_id=t.id WHERE "+MISSION_SCOPE_SQL_T+" AND t.status IN ('in_progress','unconcluded','resolved') AND (CASE WHEN t.started_at<4102444800 THEN t.started_at*1000 ELSE t.started_at END>=? OR CASE WHEN t.resolved_at<4102444800 THEN t.resolved_at*1000 ELSE t.resolved_at END>=? OR (t.live_kind='process' AND t.live_shot IS NOT NULL AND CASE WHEN t.live_at<4102444800 THEN t.live_at*1000 ELSE t.live_at END>=?) OR material.material_at>=?)").bind(yesterdayStart,yesterdayStart,yesterdayStart,yesterdayStart).all()
+  ]);
+  return {projects:projects.results || [],declarations:declarations.results || [],members:members.results || [],missions:missions.results || [],now};
 }
+async function hourlyModeProject(env, target, requestedProjectId = "", now = Date.now()) {
+  const snapshot=await agentPrincipalSnapshot(env,now);
+  const resolved=resolveAgentPrincipalProject({...snapshot,target});
+  if (resolved.project_issue) throw Object.assign(new Error(resolved.project_issue),{status:409});
+  if (!resolved.project_available) throw Object.assign(new Error('project_required'),{status:409});
+  if (requestedProjectId && requestedProjectId!==resolved.project_id) throw Object.assign(new Error('principal_project_changed'),{status:409});
+  const project=selectDecisionProjectAssignment(snapshot.projects,snapshot.members,target.agent || target.persona,target.machine,resolved.project_id);
+  if (!project) throw Object.assign(new Error('project_required'),{status:409});
+  return {...project,...resolved};
+}
+
 async function hourlyModeActivity(env,target,project,now,ownRunId="") {
   const linked=ownRunId?await env.DB.prepare("SELECT w.mission_id FROM fleet_hourly_work w JOIN fleet_agent_mode_runs r ON r.id=w.run_id WHERE w.run_id=? AND r.identity_key=?").bind(ownRunId,modeTargetKey(target)).first():null;
   const [missions,tasks,decisions]=await Promise.all([
@@ -1939,18 +1948,32 @@ async function hourlyModeTelemetry(env) {
   return data;
 }
 async function hourlyModeInventory(env) {
+  const principal=await agentPrincipalSnapshot(env);
   const saved=await listAgentModes(env),items=new Map(saved.map(row=>[row.identity_key,row]));
   let telemetry;try { telemetry=await hourlyModeTelemetry(env); } catch { telemetry={presence:[],control_machines:[]}; }
   for (const row of [...telemetry.presence,...(telemetry.control_machines || []).flatMap(machine=>(machine.slots || []).map(slot=>({...slot,machine:machine.machine})))]) {
-    try { const target=normalizeModeTarget(row),key=modeTargetKey(target);if (!items.has(key)) items.set(key,{...target,identity_key:key,mode:'manual',status:'manual',reason:'manual',project_id:'',next_run:null,last_run:null}); } catch {}
+    let target;
+    try { target=normalizeModeTarget(row); }
+    catch {
+      const persona=String(row.agent || row.persona || '').trim(),machine=String(row.machine || '').trim();
+      if (!principalTargetKey(persona,machine)) continue;
+      target={agent:scopedAgentIdentity(persona,machine),persona:parseAgentIdentity(persona).persona || persona,machine,runtime:String(row.runtime || '').trim(),host:'unknown',metadata_only:true};
+    }
+    const key=modeTargetKey(target);
+    if (!items.has(key)) items.set(key,{...target,identity_key:key,mode:'manual',status:'manual',reason:'manual',project_id:'',next_run:null,last_run:null});
   }
   for (const row of items.values()) {
+    row.mode_project_id=row.mode==='manual'?'':row.project_id || '';
+    row.mode_project_name=row.mode==='manual'?'':row.project_name || row.mode_project_id;
+    Object.assign(row,resolveAgentPrincipalProject({...principal,target:row}));
+    row.project_mismatch=!!row.mode_project_id && row.mode_project_id!==row.project_id;
+    if (row.project_mismatch) { row.status='blocked';row.reason='principal_project_changed'; }
     const machine=(telemetry.control_machines || []).find(item=>memberRefMatches('machine',item.machine,row.machine));
     const capabilities=machine?.capabilities || [],now=Date.now()/1000,sampled=Number(machine?.updated || 0),fresh=sampled>0 && now-sampled<=30 && sampled<=now+5;
     const configured=(machine?.slots || []).some(slot=>modeTargetKey({...slot,machine:machine.machine})===row.identity_key);
     const observed=(telemetry.presence || []).some(item=>modeTargetKey(item)===row.identity_key && item.source==='process_snapshot' && (item.verified===true || item.verified===1) && Number(item.updated)>0 && now-Number(item.updated)<=30 && Number(item.updated)<=now+5);
-    const supported=fresh && (row.host==='cli'?configured:(configured || observed)) && capabilities.includes('hourly_modes') && capabilities.includes(row.host==='app'?'desktop_write':'hourly_cli_'+row.runtime.toLowerCase()) && (row.host==='app'?capabilities.includes('hourly_desktop_'+row.runtime.toLowerCase()):(machine.hourly_targets || []).some(target=>modeTargetKey({...target,machine:target.machine || machine.machine})===row.identity_key));
-    row.available_modes=supported?['manual','learning','training']:['manual'];
+    const supported=!row.metadata_only && ['app','cli'].includes(row.host) && fresh && (row.host==='cli'?configured:(configured || observed)) && capabilities.includes('hourly_modes') && capabilities.includes(row.host==='app'?'desktop_write':'hourly_cli_'+row.runtime.toLowerCase()) && (row.host==='app'?capabilities.includes('hourly_desktop_'+row.runtime.toLowerCase()):(machine.hourly_targets || []).some(target=>modeTargetKey({...target,machine:target.machine || machine.machine})===row.identity_key));
+    row.available_modes=row.metadata_only?[]:supported?['manual','learning','training']:['manual'];
     const unavailable=(machine?.hourly_unavailable || []).some(item=>item.runtime===row.runtime && item.host===row.host && item.reason==='auth_verification_required');
     row.support_reason=supported?'':!fresh?'telemetry_unavailable':unavailable?'claude_cli_auth_verification_required':'consumer_unavailable';
   }

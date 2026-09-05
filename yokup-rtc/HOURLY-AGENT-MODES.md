@@ -6,9 +6,10 @@ persistidas, `available_modes`, `support_reason`, proyecto, próxima oportunidad
 
 `POST /fleet/agent/mode` recibe `{persona|agent,machine,runtime,host,mode}`; `host`
 es `app|cli`, `mode` es `manual|learning|training`. El proyecto se resuelve desde
-la última declaración principal explícita; conserva validez entre días mientras
-siga asignado canónicamente al mismo agente/equipo. Un `project_id` opcional debe
-coincidir. Nunca se usa el filtro visible del Dashboard como asignación.
+el mismo resolver canónico usado por las fichas: declaración principal de hoy
+en Europe/Madrid, última misión real de hoy o ayer, última declaración anterior
+como default persistente, y AdmiraNeXT. Un `project_id` opcional debe coincidir
+y el proyecto debe seguir asignado canónicamente al mismo agente/equipo. Nunca se usa el filtro visible del Dashboard como asignación.
 
 El cron existente y su lease ejecutan `agentHourlyModes`. Cada superficie tiene
 una oportunidad por hora real UTC, empezando en la hora siguiente a activarse.
@@ -118,3 +119,44 @@ La señal `waiting` de una sesión no tiene todavía una fuente canónica fresca
 Un proceso abierto, el modo seleccionado o el tiempo HID no demuestran que un
 turno esté esperando. No se intercepta IPC privado para inferirlo. Codex Desktop,
 Codex CLI, Grok y OpenCode siguen sin adaptador de investigación verificado.
+
+
+## Proyecto principal visible y ejecución coherente
+
+`GET /fleet/agent/mode` resuelve también las tarjetas Manual. Cada item aporta
+`project_id`, `project_name`, `project_source`, `project_source_ref`,
+`project_source_day`, `project_source_at`, `project_resolved_day` y
+`project_available`. Las fuentes son `daily_primary`, `last_mission`,
+`configured_default` y `admiranext_fallback`, en ese orden.
+
+La declaración de hoy manda sobre cualquier misión. Una misión cuenta como real
+si tiene inicio, cierre o informe material de una tarea; debe pertenecer a la
+misma persona y máquina y tener actividad hoy o ayer según Europe/Madrid. Una
+misión de varios días puede aportar su informe de tarea reciente o captura real
+de proceso. `updated_at` del ticket y un latido sin captura no rejuvenecen trabajo.
+Se excluyen colas sin iniciar, ventanas de decisión, cancelaciones y fechas
+futuras. Al acabar ayer deja de ganar ese nivel; la última declaración anterior
+persiste como default explícito, sin inferir pertenencias a proyectos.
+
+El fallback usa el proyecto canónico `admiranext` (AdmiraNeXT), distinto de
+`galaxia-admira`. Si el censo no lo confirma, su nombre es solo una referencia de
+fallback y `project_available:false` impide tratarlo como asignación operativa.
+Empates exactos entre aliases con proyectos distintos producen
+`project_issue:project_ambiguous`, `project_available:false` y referencias del
+conflicto; no se elige un proyecto por orden alfabético.
+
+Los datos se leen en bloque por inventario, sin peticiones por tarjeta ni filtros
+globales del Dashboard. `mode_project_id` y `mode_project_name` conservan la
+selección guardada para un modo. Si difiere del principal actual,
+`project_mismatch:true` muestra `blocked / principal_project_changed` y la guarda
+impide trabajar en el proyecto anterior. Las preferencias no se editan ni se
+habilitan automáticamente: Carlos debe volver a elegir el modo. El mismo resolver
+se aplica al guardar, despachar y verificar una entrega.
+
+Este cambio no infiere el estado Waiting ni convierte ausencia de señal en un
+proceso cerrado; los contadores del inventario siguen particiones separadas.
+
+Las señales sin superficie identificada también reciben proyecto en el GET:
+`host:'unknown'`, `metadata_only:true`, `available_modes:[]`. Son metadatos de
+lectura; POST de modo, guardas y control mantienen su validación estricta de
+`app|cli`. No se inventa una superficie para resolver el proyecto.

@@ -60,15 +60,19 @@ export async function ensureHourlyModeSchema(env) {
 }
 export async function listAgentModes(env) {
   await ensureHourlyModeSchema(env);
-  const rows=(await env.DB.prepare("SELECT m.*, (SELECT id FROM fleet_agent_mode_runs r WHERE r.identity_key=m.identity_key ORDER BY r.hour_start DESC LIMIT 1) last_run_id FROM fleet_agent_modes m ORDER BY m.agent,m.machine,m.runtime,m.host").all()).results || [];
-  for (const row of rows) {
-    row.last_run = row.last_run_id ? await env.DB.prepare('SELECT * FROM fleet_agent_mode_runs WHERE id=?').bind(row.last_run_id).first() : null;
-    const project=row.project_id?await env.DB.prepare('SELECT name FROM projects WHERE id=?').bind(row.project_id).first():null;
-    row.project_name=project?.name || row.project_id;
+  const [modes,runs]=await Promise.all([
+    env.DB.prepare("SELECT m.*,p.name project_name FROM fleet_agent_modes m LEFT JOIN projects p ON p.id=m.project_id ORDER BY m.agent,m.machine,m.runtime,m.host").all(),
+    env.DB.prepare("SELECT r.* FROM fleet_agent_mode_runs r JOIN (SELECT identity_key,MAX(hour_start) hour_start FROM fleet_agent_mode_runs GROUP BY identity_key) latest ON latest.identity_key=r.identity_key AND latest.hour_start=r.hour_start").all()
+  ]);
+  const last=new Map((runs.results || []).map(row=>[row.identity_key,row]));
+  return (modes.results || []).map(row=>{
+    row.last_run=last.get(row.identity_key) || null;
+    row.project_name=row.project_name || row.project_id;
     delete row.requested_by;
-  }
-  return rows;
+    return row;
+  });
 }
+
 export async function saveAgentMode(env, body, requestedBy, projectFor, now = Date.now()) {
   const target=normalizeModeTarget(body), mode=text(body.mode).toLowerCase();
   if (!MODES.has(mode)) throw Object.assign(new Error('invalid_mode'),{status:400});
