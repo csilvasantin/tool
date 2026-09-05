@@ -44,6 +44,8 @@ function pinta(fila, tope) {
   vm.createContext(sandbox);
   vm.runInContext(identitySource, sandbox);
   vm.runInContext(escSource, sandbox);
+  vm.runInContext(functionSource("normaliza"), sandbox);
+  vm.runInContext(functionSource("interfazCliHtml"), sandbox);
   vm.runInContext(functionSource("pintaMaquinas"), sandbox);
   sandbox.__fila = fila; sandbox.__tope = tope;
   return vm.runInContext("pintaMaquinas(__fila, __tope)", sandbox);
@@ -103,6 +105,15 @@ test("una máquina fuera del diccionario se pinta tal cual, sin inventarle alias
 
 test("sin ordenadores conocidos sigue diciéndolo, no queda en blanco", () => {
   assert.match(pinta({ maquinasVivas: [], maquinas: [] }), /sin registro/);
+});
+
+test("CLI aparece una sola vez junto al equipo solo si la vía declarada es cli", () => {
+  for (const via of ["cli", "app", "", "unknown"]) {
+    const html = pinta({ maquinasVivas:["MacMini"], maquinas:["MacMini"], runtime:"Codex", via });
+    const cliCount = (html.match(/>CLI<\/span>/g) || []).length;
+    assert.equal(cliCount, via === "cli" ? 1 : 0);
+    if (via === "cli") assert.match(html, />MacMini<\/span>\s*<span[^>]*>CLI<\/span>/);
+  }
 });
 
 // El diccionario es la fuente única: si aquí se rompe, la columna vuelve a partir

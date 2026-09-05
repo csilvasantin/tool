@@ -77,8 +77,8 @@ test("el tiempo relativo se actualiza fuera del HTML estable del pulso",()=>{
   assert.doesNotMatch(source,/pulseCard\(p\)[\s\S]*?<span>\$\{agoS\(p\.updated\)\}<\/span>[\s\S]*?\n\}/);
 });
 
-test("los grupos se apilan en móvil sin alterar sus tarjetas",()=>{
-  assert.match(source,/\.fleet-pulse-groups\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+test("los grupos ocupan franjas completas apiladas tanto en escritorio como en móvil",()=>{
+  assert.match(source,/\.fleet-pulse-groups\{display:grid;grid-template-columns:minmax\(0,1fr\)/);
   assert.match(source,/@media\(max-width:760px\)\{\.fleet-pulse-groups\{grid-template-columns:1fr\}/);
   assert.match(source,/\.pulse\{grid-template-columns:1fr\}/);
 });

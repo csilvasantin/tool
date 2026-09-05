@@ -17,19 +17,20 @@ const api=new Function(`
   return {adoptaRuntime,viaComunicacion,viaYModeloHtml};
 `)();
 function fila(){ return {runtime:"",runtimePeso:0,runtimeAt:0,via:"",modelo:""}; }
-test("app de escritorio: la vía es el nombre de la app y a la derecha el LLM", ()=>{
+test("app de escritorio: el LLM junto al agente se muestra sin prefijo de app", ()=>{
   const f=fila(); api.adoptaRuntime(f,"OpenCode","app",1000,true,"Nemotron 3 Ultra");
   assert.equal(api.viaComunicacion(f),"OpenCode");
-  assert.equal(api.viaYModeloHtml(f),' <span class="rt">· OpenCode <span class="llm">Nemotron 3 Ultra</span></span>');
+  assert.equal(api.viaYModeloHtml(f),' <span class="rt"><span class="llm">Nemotron 3 Ultra</span></span>');
 });
-test("sesión de terminal: la vía es CLI, y el LLM sigue a su derecha", ()=>{
+test("sesión de terminal: la vía sigue siendo CLI pero junto al agente aparece el LLM", ()=>{
   const f=fila(); api.adoptaRuntime(f,"Claude","cli",1000,true,"Fable 5.1");
   assert.equal(api.viaComunicacion(f),"CLI");
-  assert.match(api.viaYModeloHtml(f),/· CLI <span class="llm">Fable 5\.1<\/span>/);
+  assert.match(api.viaYModeloHtml(f),/<span class="llm">Fable 5\.1<\/span>/);
+  assert.doesNotMatch(api.viaYModeloHtml(f),/CLI/);
 });
-test("sin LLM conocido no se inventa: sólo la vía", ()=>{
+test("sin LLM conocido no se inventa ni se sustituye por el runtime", ()=>{
   const f=fila(); api.adoptaRuntime(f,"Codex","cli",1000,true,"");
-  assert.equal(api.viaYModeloHtml(f),' <span class="rt">· CLI</span>');
+  assert.equal(api.viaYModeloHtml(f),'');
 });
 test("la vía y el LLM viajan con la lectura que manda (app viva pesa más que cli apagada)", ()=>{
   const f=fila();
@@ -47,7 +48,7 @@ test("la fila del ranking y el podio usan la vía y el LLM", ()=>{
 test("basura de procesos vecinos no se pinta como LLM (bundle ids, rutas, palabras sueltas)", ()=>{
   for (const bad of ["com.apple.metadata.mdbulkimport","/Applications/Claude.app","de"]) {
     const f=fila(); api.adoptaRuntime(f,"Codex","app",1000,true,bad);
-    assert.equal(f.modelo,"",bad); assert.equal(api.viaYModeloHtml(f),' <span class="rt">· Codex</span>');
+    assert.equal(f.modelo,"",bad); assert.equal(api.viaYModeloHtml(f),'');
   }
   const ok=fila(); api.adoptaRuntime(ok,"Codex","app",1000,true,"5.6 Sol");
   assert.equal(ok.modelo,"5.6 Sol");
