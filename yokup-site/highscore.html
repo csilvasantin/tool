@@ -642,7 +642,9 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   background:var(--brand);box-shadow:0 0 7px var(--brand)}
 body.resizing-columns{cursor:col-resize;user-select:none}
 .tabla .n{color:var(--dim);width:38px}
-.tabla .ag{font-weight:700}
+.tabla .ag{font-weight:700;white-space:nowrap}
+.tabla .maqs{flex-wrap:nowrap;gap:2px}
+.tabla .maq-b{padding:2px 4px;font-size:9px;letter-spacing:0}
 .tabla .num{text-align:right;font-variant-numeric:tabular-nums}
 .tabla .tot{text-align:right;font-weight:900;color:var(--accent);font-variant-numeric:tabular-nums}
 /* El nombre del agente es el gatillo de su ventana de decisión: parece texto y
@@ -2489,17 +2491,19 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   function agentNameHtml(a) {
-    var nombreBase = nombreAgenteVisible(a && a.agente || ""), nombre = esc(nombreBase);
+    var completo = nombreAgenteVisible(a && a.agente || "");
+    var parsed = window.ykAgentIdentity&&window.ykAgentIdentity.parse?window.ykAgentIdentity.parse(completo):null;
+    var nombreBase = parsed&&parsed.persona || completo, nombre = esc(nombreBase);
     var proyecto = a && a.proyecto, origen = a && a.proyectoOrigen;
     // Galaxia Admira (origen defecto) es el paraguas, no una faena: no se abre
     // ventana de mejora sobre el default.
     if (!proyecto || origen === "defecto" || !(a && a.proyectoId)) {
-      return '<span class="agent-name">' + nombre + '</span>';
+      return '<span class="agent-name" title="' + esc(completo) + '" aria-label="' + esc(completo) + '">' + nombre + '</span>';
     }
     return '<button type="button" class="agent-name agent-launch" data-yk-launch="1"' +
       ' data-agente="' + esc(a.agente || "") + '" data-maquina="' + esc((a.maquinas && a.maquinas[0]) || "") + '"' +
-      ' data-proyecto="' + esc(a.proyectoId) + '"' +
-      ' title="' + esc("Abrir una ventana de decisión para " + nombreBase + " sobre " + proyecto) + '">' +
+      ' data-proyecto="' + esc(a.proyectoId) + '" aria-label="' + esc(completo) + '"' +
+      ' title="' + esc("Abrir una ventana de decisión para " + completo + " sobre " + proyecto) + '">' +
       nombre + '</button>';
   }
 
@@ -4057,7 +4061,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var alterna = i % 2 ? " alt" : "", progressId = "score-progress-" + hsAgentKey(a.agente);
       var agentKey = claveAgentePeriodo(a.agente);
       SCORE_MISSION_ROWS[agentKey] = a;
-      return '<tr class="score-main' + alterna + '"><td class="n">' + posicionHtml(a, a.posicion || i + 1) + '</td>' +
+      return '<tr class="score-main' + alterna + '" data-agent-key="' + esc(agentKey) + '"><td class="n">' + posicionHtml(a, a.posicion || i + 1) + '</td>' +
         '<td class="ag">' + agentNameHtml(a) + viaYModeloHtml(a) +
         relojVentanaHtml(a) + '</td>' +
         '<td>' + pintaMaquinas(a, 4) + '</td>' +

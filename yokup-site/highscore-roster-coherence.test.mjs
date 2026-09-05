@@ -56,3 +56,11 @@ test('chips sólo presentan superficies declaradas y conservan APP más CLI sin 
  assert.equal(c.interfazCliHtml({runtime:'Claude',via:'unknown'}),'');
  const both=c.interfazCliHtml({interfaces:['app','cli','app']});assert.equal((both.match(/>APP</g)||[]).length,1);assert.equal((both.match(/>CLI</g)||[]).length,1);
 });
+test('ranking legible conserva identidad completa accesible al abreviar el nombre visible',()=>{
+ const c=load(context({esc:v=>String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}),['nombreAgenteVisible','agentNameHtml']);
+ for(const machine of ['MacMini','MBP14']){
+  const a={agente:'Morfeo'+machine,proyecto:'Yokup',proyectoOrigen:'declarado',proyectoId:'yokup',maquinas:[machine]};
+  const rendered=c.agentNameHtml(a);assert.match(rendered,/>Morfeo<\/button>/);assert.ok(rendered.includes(`aria-label="Morfeo${machine}"`));assert.ok(rendered.includes(`data-agente="Morfeo${machine}"`));
+  const plain=c.agentNameHtml({agente:a.agente});assert.ok(plain.includes(`title="Morfeo${machine}"`));
+ }
+});
