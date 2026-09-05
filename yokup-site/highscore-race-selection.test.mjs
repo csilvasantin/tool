@@ -81,7 +81,7 @@ test("equipo, presets y Clonar conservan el control de apps separado del filtro"
   const primaryHandlers = html.slice(teamStart, appStart);
   assert.doesNotMatch(primaryHandlers, /hsToggleDesktopApp|DESKTOP_APP_PENDING/);
   assert.match(html, /hsCloneAgentScopeToDashboard\(hsEffectiveAgentScope\(\),/);
-  assert.match(html, /hsActiveAgentKeys\(datos\.presencia, window\.ykAgentIdentity, datos\.presenceNow\)/);
+  assert.match(html, /hsActiveAgentKeys\(datos\.presencia, window\.ykAgentIdentity, datos\.presenceNow, trabajosEnCurso\(\)\)/);
 });
 
 test("Running Man aplica el mismo scope sin alterar las métricas de ranking ni podio", () => {

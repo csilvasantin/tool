@@ -2029,10 +2029,17 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     });
     // Tabla y carrera leen la MISMA afirmación server-side. Presencia, scope y
     // actividad local no pueden encender el parpadeo de una métrica.
-    var workByAgent = Object.create(null);
+    var workByAgent = Object.create(null), workStateRank = { running:3, assigned_stale:2, last_work:1 };
+    var workKindRank = { session:0, objective:1, mission:2, task:3 };
     if (datos.trabajosAvailable) (datos.trabajos || []).forEach(function (work) {
       if (!work) return;
-      workByAgent[hsWorkIdentity(work).key] = work;
+      var key = hsWorkIdentity(work).key, previous = workByAgent[key];
+      var rank = workStateRank[work.state] || 0, previousRank = workStateRank[previous && previous.state] || 0;
+      var kindRank = workKindRank[work.kind] || 0, previousKindRank = workKindRank[previous && previous.kind] || 0;
+      var at = Number(work.work_progress_at || work.activity_at) || 0;
+      var previousAt = Number(previous && (previous.work_progress_at || previous.activity_at)) || 0;
+      if (!previous || rank > previousRank || rank === previousRank &&
+          (kindRank > previousKindRank || kindRank === previousKindRank && at > previousAt)) workByAgent[key] = work;
     });
     lista.forEach(function (fila) {
       var work = workByAgent[claveAgenteCarrera(fila.agente)];
@@ -3403,10 +3410,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return scope instanceof Set && keys.length > 0 && keys.every(function (key) { return scope.has(key); });
   }
 
-  function hsActiveAgentKeys(presences, identity, nowSeconds) {
+  function hsActiveAgentKeys(presences, identity, nowSeconds, activeWork) {
     var id = identity || window.ykAgentIdentity, now = Number(nowSeconds || 0), active = new Set();
-    if (!Number.isFinite(now) || now <= 0 || !Array.isArray(presences)) return null;
-    (presences || []).forEach(function (presence) {
+    var presenceAvailable = Number.isFinite(now) && now > 0 && Array.isArray(presences);
+    var workAvailable = Array.isArray(activeWork);
+    if (!presenceAvailable && !workAvailable) return null;
+    (presenceAvailable ? presences : []).forEach(function (presence) {
       var updated = Number(presence && presence.updated || 0), pid = Number(presence && presence.pid || 0);
       var host = normaliza(presence && presence.host).toLowerCase();
       if (!(presence && presence.verified && presence.source === "process_snapshot" &&
@@ -3416,6 +3425,15 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var parsed = id && id.parse ? id.parse(raw) : null;
       if (!raw || (parsed && parsed.role && parsed.role !== "main")) return;
       active.add(hsAgentKey(id && id.display ? id.display(raw, machine) : raw));
+    });
+    // Presencia y trabajo se refrescan por separado. Si active-work ya verificó
+    // un turno Desktop, una respuesta tardía de presencia no puede ocultarlo.
+    // Los elementos llegan normalizados por trabajosEnCurso; un CLI pausado o
+    // cualquier fila no ejecutándose quedan fuera de esta unión.
+    (workAvailable ? activeWork : []).forEach(function (work) {
+      if (!work || work.state !== "running" || work.sessionSurface !== "app" || work.cliPaused) return;
+      var key = normaliza(work.key) || hsAgentKey(work.agente || work.agent);
+      if (key) active.add(key);
     });
     return active;
   }
@@ -3625,7 +3643,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       datos.presencia = payload.presence || []; datos.controlMachines = payload.control_machines || [];
       datos.presenceNow = Number(payload.now || 0); datos.presenceAvailable = datos.presenceNow > 0;
       if (AGENT_SCOPE_MODE === "active") {
-        var activeKeys = hsActiveAgentKeys(datos.presencia, window.ykAgentIdentity, datos.presenceNow);
+        var activeKeys = hsActiveAgentKeys(datos.presencia, window.ykAgentIdentity, datos.presenceNow, trabajosEnCurso());
         if (activeKeys instanceof Set) { AGENT_SCOPE = activeKeys; hsWriteAgentScope(AGENT_SCOPE, AGENT_SCOPE_MODE); }
       }
       hsRenderAgentScope(listaCompletaCache || []); pintaVistaFiltrada(); return payload;
@@ -3724,7 +3742,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var census = hsAgentScopeGroups(lista || [], datos.presencia || [], window.ykAgentIdentity, desktopApps), items = census.items;
     var keys = items.map(function (item) { return item.key; });
     var activeKeys = hsActiveAgentKeys(datos.presencia, window.ykAgentIdentity,
-      datos.presenceAvailable ? datos.presenceNow : 0);
+      datos.presenceAvailable ? datos.presenceNow : 0, trabajosEnCurso());
     hsEnsureAgentScopeMode(items, activeKeys);
     var effective = hsEffectiveAgentScope();
     var selected = effective === null ? items.length : items.filter(function (item) { return effective.has(item.key); }).length;
@@ -4977,6 +4995,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
   function hsPaintWorkUpdate() {
     if (!listaCompletaCache) return;
+    if (AGENT_SCOPE_MODE === "active") {
+      var activeKeys = hsActiveAgentKeys(datos.presencia, window.ykAgentIdentity,
+        datos.presenceAvailable ? datos.presenceNow : 0, trabajosEnCurso());
+      if (activeKeys instanceof Set) { AGENT_SCOPE = activeKeys; hsWriteAgentScope(AGENT_SCOPE, AGENT_SCOPE_MODE); }
+    }
     listaCompletaCache = calcula(); listaCache = aplicaAgentScope(listaCompletaCache);
     hsRenderAgentScope(listaCompletaCache); pintaPodio(listaCache.slice(0, 3), listaCache);
     pintaTabla(listaVisible(listaCache)); actualizaCarreraPodio();
@@ -5397,7 +5420,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         datos.presencia = r[2].presence || []; datos.controlMachines = r[2].controlMachines || [];
         datos.presenceNow = Number(r[2].now || 0); datos.presenceAvailable = datos.presenceNow > 0;
         if (AGENT_SCOPE_MODE === "active") {
-          var activeKeys = hsActiveAgentKeys(datos.presencia, window.ykAgentIdentity, datos.presenceNow);
+          var activeKeys = hsActiveAgentKeys(datos.presencia, window.ykAgentIdentity, datos.presenceNow, trabajosEnCurso());
           if (activeKeys instanceof Set) { AGENT_SCOPE = activeKeys; hsWriteAgentScope(AGENT_SCOPE, AGENT_SCOPE_MODE); }
         }
       } else if (!r[2] && hsAcceptPresenceRequest(presenceRequestSequence)) datos.presenceAvailable = false;

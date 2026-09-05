@@ -87,6 +87,16 @@ test("Activos exige snapshot verificado, PID, online, host operativo y reloj can
   assert.equal(api().active(rows,identity,0),null,"sin reloj de servidor no se fabrica una selección vacía");
 });
 
+test("dos turnos Desktop APP verificados entran juntos aunque presencia llegue tarde; CLI no entra",()=>{
+  const works=[
+    {key:"neombp14",agente:"NeoMBP14",state:"running",sessionSurface:"app",cliPaused:false},
+    {key:"trinitymbp14",agente:"TrinityMBP14",state:"running",sessionSurface:"app",cliPaused:false},
+    {key:"smithmbairplata",agente:"SmithMBAirPlata",state:"running",sessionSurface:"cli",cliPaused:true},
+    {key:"neombp14",agente:"NeoMBP14",state:"running",sessionSurface:"app",cliPaused:false}
+  ];
+  assert.deepEqual([...api().active([],identity,0,works)].sort(),["neombp14","trinitymbp14"]);
+});
+
 test("ausencia y legado equivalente a Todos conservan el universo completo",()=>{
   const A=api(),all=["morfeomacmini","neomacmini","niomacmini","oraculomacmini","smithmacmini","trinitymacmini"];
   const active=new Set(["morfeomacmini","neomacmini","oraculomacmini"]);
@@ -132,9 +142,12 @@ test("layout y ARIA priorizan el nombre sin desplazar runner ni feedback",()=>{
 
 test("los refrescos de presencia resincronizan el modo activo sin tocar el manual",()=>{
   const refresh=functionSource("hsRefreshDesktopApps");
-  assert.match(refresh,/if \(AGENT_SCOPE_MODE === "active"\)[\s\S]*hsActiveAgentKeys\(datos\.presencia, window\.ykAgentIdentity, datos\.presenceNow\)/);
+  assert.match(refresh,/if \(AGENT_SCOPE_MODE === "active"\)[\s\S]*hsActiveAgentKeys\(datos\.presencia, window\.ykAgentIdentity, datos\.presenceNow, trabajosEnCurso\(\)\)/);
   const scoreboard=functionSource("actualizaMarcador");
-  assert.match(scoreboard,/if \(AGENT_SCOPE_MODE === "active"\)[\s\S]*hsActiveAgentKeys\(datos\.presencia, window\.ykAgentIdentity, datos\.presenceNow\)/);
+  assert.match(scoreboard,/if \(AGENT_SCOPE_MODE === "active"\)[\s\S]*hsActiveAgentKeys\(datos\.presencia, window\.ykAgentIdentity, datos\.presenceNow, trabajosEnCurso\(\)\)/);
+  const workPaint=functionSource("hsPaintWorkUpdate");
+  assert.match(workPaint,/hsActiveAgentKeys\(datos\.presencia, window\.ykAgentIdentity,[\s\S]*trabajosEnCurso\(\)\)/,
+    "el polling ligero de active-work actualiza el ámbito sin esperar al refresco general");
   assert.match(html,/if \(activeKeys instanceof Set\) \{ AGENT_SCOPE = activeKeys; hsWriteAgentScope/,
     "un fallo transitorio no vacía el scope activo ya persistido");
 });
