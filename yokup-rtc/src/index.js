@@ -492,6 +492,8 @@ async function applySchema(env) {
   // encargo del bot-inbox al mission_id que se le repartió, para que sea ESTABLE
   // entre syncs aunque el id natural FLT-<rowid> ya estuviera cogido por otra misión.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_ids (inbox_id INTEGER PRIMARY KEY, mission_id TEXT UNIQUE, created_at INTEGER)").catch(() => {});
+  // Encargos repetidos que se acumulan en una misión viva en vez de parir otra (anti-ruido, DCL-b0e2a4).
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_dedupe (inbox_id INTEGER PRIMARY KEY, mission_id TEXT, created_at INTEGER)").catch(() => {});
   // Mando humano sobre procesos vivos. Se conserva tanto el intento como el
   // resultado del servicio interno para poder reconstruir quién pidió detener
   // qué sesión, sin mezclar estos mandos con los eventos de una misión concreta.
@@ -6162,6 +6164,40 @@ __name(quitarPreambuloDeAgente, "quitarPreambuloDeAgente");
 // acuses/relés («ACK…», «Relé en verde…», «Busco contexto…») y despliegues
 // anunciados por bot-say («DEPLOY …»). Pedido por Carlos (2026-07-15): los
 // mensajes de Telegram que no son misiones NO se elevan a misión ni a tarea.
+// ANTI-RUIDO (misión DCL-b0e2a4, Neo·MBP14, 05/09/2026). El 05/09 nacieron 110 misiones de
+// flota en un día: 55 con el asunto repetido y 11 que eran «Soy Admirito.» —el propio bot de
+// yokup anunciando una ventana— asignadas como trabajo a la persona destinataria. Tres guardas:
+//   · fleetEsRuido: el bot de yokup no encarga trabajo; un texto de menos de tres palabras o
+//     un saludo a secas tampoco.
+//   · fleetLiveTwin: mismo asunto y misma persona con una misión VIVA en 24 h → el encargo
+//     se acumula en ella (fleet_dedupe) en vez de abrir otra.
+//   · fleetHourlyQuotaFor: cupo por hora para los consejeros GrokBot; lo que sobra espera al
+//     siguiente sync (deferred), no se pierde.
+var FLEET_CHARLA_RE = /^(soy|hola|buenas|buenos d[ií]as|buenas (tardes|noches)|ok|vale|gracias|de nada)\b/i;
+var FLEET_GROKBOT_HOURLY_QUOTA = 8;
+function fleetEsRuido(it, limpio) {
+  const from = String(it && it.from_name || "").trim().toLowerCase();
+  if (from === "admirito" || /^\s*soy admirito\b/i.test(String(it && it.text || ""))) return true;
+  const words = String(limpio || "").replace(/[^\p{L}\p{N}]+/gu, " ").trim().split(/\s+/).filter(Boolean);
+  if (words.length < 3) return true;
+  if (FLEET_CHARLA_RE.test(String(limpio || "")) && words.length < 6) return true;
+  return false;
+}
+__name(fleetEsRuido, "fleetEsRuido");
+function fleetHourlyQuotaFor(assignee) {
+  return /grokbot$/i.test(String(assignee || "").trim()) ? FLEET_GROKBOT_HOURLY_QUOTA : 0;
+}
+__name(fleetHourlyQuotaFor, "fleetHourlyQuotaFor");
+async function fleetLiveTwin(env, subject, assignee, now) {
+  const key = onIdleProposalTitleKey(subject);
+  if (!key || !assignee) return null;
+  const { results } = await env.DB.prepare(
+    "SELECT id,subject FROM tickets WHERE source='fleet' AND status IN ('open','in_progress','unconcluded') AND created_at>=? AND " +
+    agentFamilySqlKey("assignee") + "=? ORDER BY created_at ASC LIMIT 200"
+  ).bind(now - 24 * 3600 * 1e3, agentFamilyKey(assignee)).all();
+  return (results || []).find((r) => onIdleProposalTitleKey(r.subject) === key) || null;
+}
+__name(fleetLiveTwin, "fleetLiveTwin");
 function fleetEsMision(it) {
   // Los compositores de conversación pueden usar el mismo buzón sin convertir
   // cada prompt en misión. Esta marca estructurada manda sobre texto/destino.
@@ -6179,6 +6215,7 @@ function fleetEsMision(it) {
   // bandeja. Un saludo a secas se queda vacio al quitarle el preambulo y se descarta igual.
   const t = quitarPreambuloDeAgente(String(it.text || "").trim());
   if (!t) return false;
+  if (fleetEsRuido(it, t)) return false;
   if (/^(ack\b|✓|✅|rel[eé] en verde|busco contexto|deploy\b|desplegado\b|recibido\b)/i.test(t)) return false;
   // Auto-anuncios de PRESENCIA de un agente (no son encargos): un bot que avisa de
   // que está disponible («… en <máquina> operativo · llamadme», «vuelvo a conectar»,
@@ -6500,7 +6537,7 @@ async function fleetSync(env) {
   }
   const now = Date.now();
   let created = 0, updated = 0;
-  const rejected = [];
+  const rejected = [], deduped = [], deferred = [];
   // presupuesto por llamada: lo nuevo primero, el resto en ventana rotatoria (ver arriba)
   const totalBuzon = items.length;
   const cursorPrev = await prefLeer(env, FLEET_SYNC_CURSOR, 0);
@@ -6510,6 +6547,8 @@ async function fleetSync(env) {
   for (const it of items) {
     if (!it || !it.id) continue;
     if (!fleetEsMision(it)) continue;   // charla de Telegram: ni misión ni tarea
+    // Un encargo ya acumulado en otra misión (anti-duplicado) no se reevalúa cada sync.
+    if (await env.DB.prepare("SELECT mission_id FROM fleet_dedupe WHERE inbox_id=?").bind(Number(it.id)).first()) continue;
     const assignment = await resolveFleetAssignment(env, it);
     const standalone = fleetStandaloneTask(it.text);
     const existingContext = await existingFleetMissionContext(env, it);
@@ -6577,6 +6616,26 @@ async function fleetSync(env) {
       // activa) llega ya 'resolved' y SÍ debe nacer, o nunca aparecería en /misiones.
       // Umbral: solo saltamos las cerradas hace más de 6 h.
       if (st === "resolved" && (now - epochMs(it.done_at, ts)) > 6 * 3600 * 1e3) continue;
+      // ANTI-DUPLICADO 24 h: mismo asunto y misma persona con una misión VIVA → el encargo se
+      // acumula en ella. No nace otra ni suma otros 40 puntos por el mismo trabajo.
+      const twinLive = await fleetLiveTwin(env, fleetSubject(it.text), assignment.assignee, now);
+      if (twinLive) {
+        await env.DB.prepare("INSERT OR REPLACE INTO fleet_dedupe(inbox_id,mission_id,created_at) VALUES(?,?,?)").bind(Number(it.id), twinLive.id, now).run();
+        await addEvent(env, twinLive.id, "log", it.from_name || "Carlos", "Encargo #" + it.id + " repetido: mismo asunto ya en curso; se acumula aquí sin abrir otra misión.");
+        deduped.push({ inbox_id:it.id, mission_id:twinLive.id });
+        continue;
+      }
+      // CUPO POR HORA de los consejeros GrokBot: lo que sobra espera al siguiente sync.
+      const quota = fleetHourlyQuotaFor(assignment.assignee);
+      if (quota) {
+        const recent = await env.DB.prepare(
+          "SELECT COUNT(*) c FROM tickets WHERE source='fleet' AND created_at>=? AND " + agentFamilySqlKey("assignee") + "=?"
+        ).bind(now - 3600 * 1e3, agentFamilyKey(assignment.assignee)).first();
+        if (Number(recent && recent.c || 0) >= quota) {
+          deferred.push({ inbox_id:it.id, code:"hourly_quota", assignee:assignment.assignee, quota });
+          continue;
+        }
+      }
       await env.DB.prepare(
         // Las dos columnas de herencia van AL FINAL a propósito: el test de contrato
         // cruzado fija el prefijo (…,project,project_id,role,…) como prueba de que el
@@ -6647,7 +6706,7 @@ async function fleetSync(env) {
   await prefEscribir(env, FLEET_SYNC_VISTO, lote.visto);
   return { ok:true, partial:rejected.length > 0, seen:items.length,
            inbox:totalBuzon, pending:lote.pendientes, more:lote.pendientes > 0,
-           created, updated, rejected };
+           created, updated, rejected, deduped, deferred };
 }
 __name(fleetSync, "fleetSync");
 

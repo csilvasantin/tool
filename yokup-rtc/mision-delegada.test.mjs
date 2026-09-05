@@ -14,8 +14,12 @@ function extraer(nombre) {
   return source.slice(i, source.indexOf('\n}\n', i) + 2);
 }
 
+// fleetEsMision se apoya en fleetEsRuido (anti-ruido, DCL-b0e2a4): va con su regex.
+const CHARLA = source.match(/var FLEET_CHARLA_RE = (.*);/)[1];
 const banco = new Function('cleanMissionAttributions', '__name', `
+  var FLEET_CHARLA_RE = ${CHARLA};
   ${extraer('quitarPreambuloDeAgente')}
+  ${extraer('fleetEsRuido')}
   ${extraer('fleetEsMision')}
   ${extraer('fleetSubject')}
   return { quitarPreambuloDeAgente, fleetEsMision, fleetSubject };
