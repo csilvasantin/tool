@@ -7796,7 +7796,20 @@ async function highscoreDailyRows(env, pertenece, ahora) {
       "AND COALESCE(t.status,'')!='cancelled' " +
       "AND m.updated_at>0 AND m.updated_at<? AND m.status IN ('in_progress','done')", fin)
   ]);
-  const daily = new Map();
+  const daily = new Map(), hours = new Map();
+  // Same retained facts, separate civil-hour buckets. Absolute epoch keys keep
+  // the two Madrid 02:00 hours at the autumn DST transition distinct.
+  const addHour = (at, points, agent, machine) => {
+    const stamp = Number(at) || 0;
+    if (stamp <= 0 || stamp > ahora) return;
+    const start = Math.floor(stamp / 3600000) * 3600000;
+    const family = highscoreCanonicalHistoryFamily(agent, machine || "");
+    const name = family && family.family_name || String(agent || "").trim();
+    if (!name) return;
+    const key = start + "|" + name;
+    if (!hours.has(key)) hours.set(key, { agent:name, start, end:start + 3600000, points:0 });
+    hours.get(key).points += points;
+  };
   const familyMatches = pertenece;
   const bucket = (at) => {
     const stamp = Number(at) || 0;
@@ -7809,7 +7822,8 @@ async function highscoreDailyRows(env, pertenece, ahora) {
   // segunda pasada porque es el único punto del código que ya sabe, a la vez,
   // el día, los puntos y de quién son: recalcularlo aparte abriría la puerta a
   // que el desglose no sumara el total.
-  const add = (at, kind, points, agent, machine) => {
+  const add = (at, kind, points, agent, machine, hourly = true) => {
+    if (hourly) addHour(at, points, agent, machine);
     const row = bucket(at); if (!row) return;
     row[kind] += 1; row.points += points;
     const familia = highscoreCanonicalHistoryFamily(agent, machine || "");
@@ -7830,7 +7844,7 @@ async function highscoreDailyRows(env, pertenece, ahora) {
   for (const mission of missions) if (familyMatches(mission.assignee, mission.loc))
     add(mission.scored_at, "missions", HIGHSCORE_WEIGHTS.mission, mission.assignee, mission.loc);
 
-  const representatives = new Map();
+  const representatives = new Map(), hourRepresentatives = new Map();
   for (const task of tasks) {
     const match = String(task.code || "").toLowerCase().match(/^([a-c])(?:[1-3])?$/);
     if (!match) continue;
@@ -7838,15 +7852,31 @@ async function highscoreDailyRows(env, pertenece, ahora) {
     const stamp = Number(task.updated_at) || 0;
     if (stamp <= 0 || stamp > ahora) continue;
     const key = madridDayKey(stamp) + "|" + String(task.mission_id || "") + "|" + match[1];
+    const hourKey = Math.floor(stamp / 3600000) + "|" + String(task.mission_id || "") + "|" + match[1];
+    const previousHour = hourRepresentatives.get(hourKey);
+    if (!previousHour || stamp >= Number(previousHour.updated_at)) hourRepresentatives.set(hourKey, task);
     const previous = representatives.get(key);
     if (!previous || stamp >= Number(previous.updated_at)) representatives.set(key, task);
   }
   for (const task of representatives.values()) add(task.updated_at, "tasks", HIGHSCORE_TASK_WEIGHTS.task +
     (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0),
+    task.assignee, task.loc, false);
+  for (const task of hourRepresentatives.values()) addHour(task.updated_at, HIGHSCORE_TASK_WEIGHTS.task +
+    (["doing", "in_progress"].includes(String(task.status || "")) ? HIGHSCORE_TASK_WEIGHTS.active_bonus : 0),
     task.assignee, task.loc);
 
   const allDays = [...daily.values()].sort((a, b) => a.day.localeCompare(b.day));
-  return { periods, allDays };
+  const currentHour = Math.floor(ahora / 3600000) * 3600000;
+  const bestHours = new Map();
+  for (const row of hours.values()) {
+    if (row.end > currentHour) continue;
+    const previous = bestHours.get(row.agent);
+    if (!previous || row.points > previous.points || (row.points === previous.points && row.start < previous.start)) bestHours.set(row.agent, row);
+  }
+  return { periods, allDays, hourRecords:{ timezone:"Europe/Madrid", current_start:currentHour,
+    coverage:{ start_at:hours.size ? [...hours.values()].reduce((first, row) => Math.min(first, row.start), Infinity) : null,
+      end_at:currentHour, source:"retained_facts" },
+    records:[...bestHours.values()].sort((a,b) => b.points - a.points || a.start - b.start || a.agent.localeCompare(b.agent)) } };
 }
 __name(highscoreDailyRows, "highscoreDailyRows");
 
@@ -7894,7 +7924,7 @@ __name(highscoreHistoryPayload, "highscoreHistoryPayload");
 // puede ser menor que la suma de los históricos individuales — mide el trabajo
 // hecho, no la suma de atribuciones.
 async function highscoreFleetHistory(env, ahora = Date.now()) {
-  const { periods, allDays } = await highscoreDailyRows(env, () => true, ahora);
+  const { periods, allDays, hourRecords } = await highscoreDailyRows(env, () => true, ahora);
   const payload = highscoreHistoryPayload(periods, allDays, { scope: "global", agent: null });
   const dias = payload.evolution.days;
   const tramo = (desde, hasta) => {
@@ -7915,6 +7945,7 @@ async function highscoreFleetHistory(env, ahora = Date.now()) {
   // meses, es un adorno. Son pocas filas (una por día vivido) y viajan enteras
   // para que el front pueda reagrupar sin volver a preguntar.
   payload.all_days = allDays;
+  payload.hour_records = hourRecords;
   // El desglose viaja como LISTA ORDENADA, no como objeto: quien lo pinta no
   // debería tener que ordenar para saber quién fue primero, y un objeto no
   // garantiza orden. Van todos los agentes del día, no solo tres: agrupando por

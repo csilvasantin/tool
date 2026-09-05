@@ -35,6 +35,58 @@
       progress:Math.max(0, Math.min(100, target ? current / target * 100 : 0)) };
   }
 
+  function periodKey(day, period) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day || ""))) return "";
+    if (period === "month") return day.slice(0, 7) + "-01";
+    if (period !== "week") return day;
+    var date = new Date(day + "T12:00:00Z"), weekday = (date.getUTCDay() + 6) % 7;
+    date.setUTCDate(date.getUTCDate() - weekday);
+    return date.toISOString().slice(0, 10);
+  }
+
+  // A record is the best CLOSED comparable period in the retained factual data.
+  // Current rows come from the same scope and metric as the podium, never a
+  // previous period's total or a rolling 60-minute trend.
+  function periodRecord(payload, period, now, currentRows, identityKey) {
+    period = ["hour", "day", "week", "month"].indexOf(period) >= 0 ? period : "day";
+    var millis = Number(now == null ? Date.now() : now), today = zoneDateKey(millis, "Europe/Madrid");
+    var keyOf = typeof identityKey === "function" ? identityKey : function (value) { return String(value || ""); };
+    var current = topRows({top:currentRows || []}), allowed = new Set(current.map(function (row) { return keyOf(row.agent); }));
+    var records = [], coverage = null, sourceAvailable = false;
+    if (period === "hour") {
+      var hourly = payload && payload.hour_records, boundary = Math.floor(millis / 3600000) * 3600000;
+      sourceAvailable = !!(hourly && Array.isArray(hourly.records));
+      coverage = hourly && hourly.coverage || null;
+      (sourceAvailable ? hourly.records : []).forEach(function (row) {
+        if (!row || !Number.isFinite(Number(row.start)) || !Number.isFinite(Number(row.end)) || Number(row.end) <= Number(row.start) || Number(row.end) > boundary || !allowed.has(keyOf(row.agent)) || !Number.isFinite(Number(row.points))) return;
+        records.push({agent:String(row.agent),points:Math.max(0,Number(row.points)),start:Number(row.start),end:Number(row.end)});
+      });
+    } else {
+      var days = payload && Array.isArray(payload.all_days) ? payload.all_days : null;
+      sourceAvailable = !!days;
+      var currentStart = periodKey(today,period), buckets = new Map();
+      (days || []).forEach(function (day) {
+        var start = periodKey(day && day.day,period);
+        if (!start || start >= currentStart) return;
+        topRows(day).forEach(function (row) {
+          var agentKey = keyOf(row.agent); if (!allowed.has(agentKey)) return;
+          var key = start + "|" + agentKey, entry = buckets.get(key);
+          if (!entry) { entry={agent:row.agent,points:0,day:start}; buckets.set(key,entry); }
+          entry.points += row.points;
+        });
+      });
+      records = Array.from(buckets.values());
+      coverage = {start_day:payload && payload.first_day || days && days.length && days[0].day || null,end_day:currentStart,source:"retained_facts"};
+    }
+    records.sort(function (a,b) { return b.points-a.points || String(a.day || a.start).localeCompare(String(b.day || b.start)) || a.agent.localeCompare(b.agent,"es"); });
+    var record = records[0] || null, leader = current[0] || null;
+    if (!record) return {available:false,sourceAvailable:sourceAvailable,period:period,record:null,leader:leader,coverage:coverage};
+    var target=record.points+1, points=leader?leader.points:0;
+    return {available:true,sourceAvailable:sourceAvailable,period:period,record:record,leader:leader,coverage:coverage,
+      target:target,remaining:Math.max(0,target-points),beatenBy:Math.max(0,points-record.points),
+      progress:Math.max(0,Math.min(100,points/target*100))};
+  }
+
   function zoneClock(now, timeZone) {
     var parts = {}, date = now instanceof Date ? now : new Date(now == null ? Date.now() : now);
     new Intl.DateTimeFormat("en-GB", {
@@ -70,7 +122,7 @@
     };
   }
 
-  var api = { topRows:topRows, dailyRecord:dailyRecord, zoneClock:zoneClock, zoneDateKey:zoneDateKey, recordPace:recordPace };
+  var api = { periodKey:periodKey, periodRecord:periodRecord, topRows:topRows, dailyRecord:dailyRecord, zoneClock:zoneClock, zoneDateKey:zoneDateKey, recordPace:recordPace };
   root.YkHighscoreDailyRecord = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

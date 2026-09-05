@@ -61,6 +61,9 @@ test("el Highscore carga y repinta la meta histórica con cada lectura viva", ()
   assert.match(html, /id="dailyRecord"[^>]*aria-live="polite"/);
   assert.match(html, /src="\/highscore-daily-record\.js\?v=/);
   assert.match(html, /function pintaRecordDiario\(\)/);
-  assert.equal((html.match(/pintaRecordDiario\(\); pintaPodio/g) || []).length, 2,
+  const initial = html.slice(html.indexOf("  function listo()"),html.indexOf("  function entra()"));
+  const refresh = html.slice(html.indexOf("  function actualizaMarcador("),html.indexOf("  function actualizaMarcador(")+9000);
+  assert.match(initial,/pintaRecordDiario\(\); pintaPodio/);
+  assert.match(refresh,/pintaRecordDiario\(\); pintaPodio/,
     "se pinta al entrar y después de cada actualización del marcador");
 });

@@ -66,7 +66,7 @@ html.con-presite #carga{background:#000 url("/img/highscore-presite-decathlon.we
 header.cab{position:relative;display:block;min-height:44px;margin:0}
 /* La cabecera es sólo la carrera. El titular va después de la última pista para
    actuar como divisor horizontal antes del ranking. */
-.score-divider{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin:7px 0 8px;padding:7px 0;
+.score-divider{position:relative;min-height:40px;display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin:7px 0 8px;padding:7px 0;
   border-top:1px solid var(--line2);border-bottom:1px solid var(--line2)}
 h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:0;color:var(--brand);
   text-shadow:3px 3px 0 #0a4a58}
@@ -283,7 +283,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
   .dg-lista .l-est{grid-column:3;grid-row:1}
   .dg-lista .l-que{grid-column:2/4;grid-row:2}
 }
-@media (max-width:620px){.daily-record{grid-template-columns:1fr 1fr}.record-cell{padding:8px 9px}
+@media (max-width:620px){.score-divider{justify-content:flex-start;padding-right:108px;font-size:15px;gap:5px}.daily-record{grid-template-columns:1fr 1fr}.record-cell{padding:8px 9px}
   .record-record{grid-column:1/-1}.record-gap{text-align:left}.record-value{font-size:10px}.record-value strong{font-size:14px}
   .podio-total{left:3%;top:2%;width:27%;padding:4.5px 6px}
   .podio-total .pts{font-size:12.6px}.podio-total .tot-rot{font-size:7.2px}
@@ -969,7 +969,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     title="Mostrar podio">HIGHSCORE</button>
     <button class="sonido" id="btnSonido" type="button" aria-pressed="false" title="Activar sonido">
       <span aria-hidden="true">♪</span><span class="sr-only" id="estadoSonido">Sonido desactivado</span>
-    </button></h1>
+    </button>
+    <span class="ranking-period highscore-period" id="highscorePeriod" role="group" aria-label="Periodo de Highscore: Día">
+      <button type="button" data-highscore-period-step="-1" aria-label="Subir periodo de Highscore" aria-controls="dailyRecord podio">↑</button>
+      <span class="ranking-period-value" id="highscorePeriodValue" role="status" aria-live="polite" aria-atomic="true">DÍA</span>
+      <button type="button" data-highscore-period-step="1" aria-label="Bajar periodo de Highscore" aria-controls="dailyRecord podio">↓</button>
+    </span></h1>
   <header class="cab">
     <section class="daily-record" id="dailyRecord" aria-live="polite" aria-label="Récord diario histórico" hidden></section>
     <div class="refresh-race" id="refreshRace" role="button" tabindex="0" aria-pressed="false"
@@ -1067,7 +1072,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 <script src="/yk-agent-identity.js?v=v.2026.08.02.202305"></script>
 <script src="/highscore-race.js?v=v.12.08.2026.r1.trabajo-parado"></script>
 <script src="/highscore-desktop-app.js?v=v.2026.08.11.active-default-2"></script>
-<script src="/highscore-daily-record.js?v=v.2026.09.04.r2"></script>
+<script src="/highscore-daily-record.js?v=v.2026.09.05.periods1"></script>
 <script>
 (function () {
   "use strict";
@@ -1200,22 +1205,38 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
   function pintaRecordDiario() {
     var box = document.getElementById("dailyRecord");
+    if (!box) return;
     var api = typeof YkHighscoreDailyRecord !== "undefined" && YkHighscoreDailyRecord;
-    var chase = api && api.dailyRecord ? api.dailyRecord(datos.historial, claveDia(Date.now())) : null;
-    if (!box || !chase || !chase.available) { if (box) box.hidden = true; return; }
-    var leader = chase.leader, won = chase.remaining === 0;
-    var gap = won ? "NUEVO RÉCORD" : chase.remaining.toLocaleString("es-ES") + " pts";
-    var gapSub = won ? "+" + chase.beatenBy.toLocaleString("es-ES") + " sobre la marca" : "para batirlo";
-    box.classList.toggle("record-beaten", won); box.hidden = false;
-    box.innerHTML = '<div class="record-cell record-record"><span class="record-kicker">Récord diario histórico</span>' +
-      '<span class="record-value"><strong>' + esc(chase.record.points.toLocaleString("es-ES")) + '</strong> pts · ' +
-      esc(nombreAgenteVisible(chase.record.agent)) + ' · ' + esc(fechaRecord(chase.record.day)) + '</span></div>' +
-      '<div class="record-cell record-chase"><span class="record-kicker">Líder hoy</span><span class="record-value">' +
-      (leader ? '<strong>' + esc(leader.points.toLocaleString("es-ES")) + '</strong> · ' + esc(nombreAgenteVisible(leader.agent)) : '<strong>0</strong> · sin puntos') +
-      '</span></div><div class="record-cell record-gap"><span class="record-kicker">' + esc(gapSub) + '</span>' +
-      '<span class="record-value"><strong>' + esc(gap) + '</strong></span></div>' +
+    var period = typeof PODIUM_PERIOD === "string" ? PODIUM_PERIOD : "day";
+    var rows = (listaCache || []).map(function (a) { return {agent:a.agente,points:puntosPodioPeriodo(a)}; });
+    var chase = api && api.periodRecord ? api.periodRecord(datos.historial,period,Date.now(),rows,claveAgentePeriodo) : null;
+    var labels = {hour:"hora",day:"día",week:"semana",month:"mes"};
+    var label = labels[period], leader = chase && chase.leader;
+    var fresh = period === "hour" || period === "day" ? datos.actividadFresh : datos.historialFresh;
+    var sourceNote = !fresh || !datos.historialFresh ? " · Datos pendientes de actualizar" : "";
+    box.hidden = false; box.dataset.period=period;
+    box.setAttribute("aria-label","Récord de " + label + " y líder " + rotuloPeriodoPodio(period));
+    box.classList.toggle("record-beaten",!!(chase && chase.available && chase.remaining === 0));
+    var currentHtml = '<div class="record-cell record-chase"><span class="record-kicker">Líder ' + esc(rotuloPeriodoPodio(period)) + '</span><span class="record-value">' +
+      (leader ? '<strong>' + esc(leader.points.toLocaleString("es-ES")) + '</strong> · ' + esc(nombreAgenteVisible(leader.agent)) : 'Sin puntos verificados') + '</span></div>';
+    if (!chase || !chase.available) {
+      box.innerHTML='<div class="record-cell record-record"><span class="record-kicker">Récord de ' + esc(label) + '</span><span class="record-value">' +
+        esc(chase && chase.sourceAvailable ? "Sin periodos anteriores registrados" : "Histórico no disponible") + '</span></div>' + currentHtml +
+        '<div class="record-cell record-gap"><span class="record-kicker">' + esc(sourceNote || "Carrera en directo") + '</span></div>';
+      return;
+    }
+    var record=chase.record, won=chase.remaining===0;
+    var stamp=period === "hour" ? new Intl.DateTimeFormat("es-ES",{timeZone:TIME_ZONE,day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",timeZoneName:"shortOffset"}).format(new Date(record.start)) : fechaRecord(record.day);
+    var recordLabel={hour:"Mejor hora registrada",day:"Récord diario registrado",week:"Mejor semana registrada",month:"Mejor mes registrado"}[period];
+    var coverage=chase.coverage||{}, from=coverage.start_day || (coverage.start_at ? claveDia(coverage.start_at) : "");
+    var coverageTitle="Datos registrados" + (from ? " desde " + from : "") + ". Periodo actual excluido." + sourceNote;
+    box.innerHTML='<div class="record-cell record-record" title="' + esc(coverageTitle) + '"><span class="record-kicker">' + esc(recordLabel) + '</span>' +
+      '<span class="record-value"><strong>' + esc(record.points.toLocaleString("es-ES")) + '</strong> pts · ' + esc(nombreAgenteVisible(record.agent)) + ' · ' + esc(stamp) + '</span></div>' + currentHtml +
+      '<div class="record-cell record-gap"><span class="record-kicker">' + esc((won ? "+" + chase.beatenBy.toLocaleString("es-ES") + " sobre la marca" : "para batirlo") + sourceNote) + '</span>' +
+      '<span class="record-value"><strong>' + esc(won ? "NUEVO RÉCORD" : chase.remaining.toLocaleString("es-ES") + " pts") + '</strong></span></div>' +
       '<div class="record-progress" aria-hidden="true"><i style="width:' + chase.progress.toFixed(2) + '%"></i></div>';
   }
+
   function esHoy(epoch) { return claveDia(epoch) === claveDia(Date.now()); }
   function comoMs(epoch) {
     var n = Number(epoch) || 0; if (n > 0 && n < 1e11) n *= 1000; return n;
@@ -2041,8 +2062,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       '<div class="podio-velo"></div></div>';
   }
 
-  // El marcador general continúa siendo diario. Este estado gobierna sólo la
-  // escena del podio y nace siempre en día al cargar la página.
+  // Highscore comparte periodo entre récord, marcador y podio. La carrera
+  // permanece en directo y el ranking conserva su periodo independiente.
   var PODIUM_PERIOD = "day";
   // La banda RANKING recorre los cuatro alcances operativos que ya publica el
   // contrato: Hora, Día, Semana y Mes natural de Madrid.
@@ -2055,12 +2076,18 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
   var RANKING_PERIOD = leePeriodoRanking();
 
-  function selectorPeriodoPodioHtml() {
-    return '<div class="podio-period" role="group" aria-label="Periodo del ranking del podio">' +
-      '<button type="button" data-podium-period="hour" aria-pressed="' + (PODIUM_PERIOD === "hour") + '">Hora</button>' +
-      '<button type="button" data-podium-period="day" aria-pressed="' + (PODIUM_PERIOD === "day") + '">Día</button>' +
-      '<button type="button" data-podium-period="week" aria-pressed="' + (PODIUM_PERIOD === "week") + '">Semana</button>' +
-      '<button type="button" data-podium-period="month" aria-pressed="' + (PODIUM_PERIOD === "month") + '">Mes</button></div>';
+  function actualizaPeriodoHighscore() {
+    var control=document.getElementById("highscorePeriod"),value=document.getElementById("highscorePeriodValue");
+    var label=rotuloPeriodoRanking(PODIUM_PERIOD);
+    if(value)value.textContent=label.toUpperCase();
+    if(control){control.dataset.period=PODIUM_PERIOD;control.setAttribute("aria-label","Periodo de Highscore: "+label+". Carrera en directo");}
+  }
+
+  function cambiaPeriodoHighscore(step, absolute) {
+    var periods=["hour","day","week","month"],index=periods.indexOf(PODIUM_PERIOD);
+    PODIUM_PERIOD=periods.indexOf(absolute)>=0?absolute:periods[(index+Number(step||0)+periods.length)%periods.length];
+    actualizaPeriodoHighscore(); pintaRecordDiario(); pintaPodio(listaCache.slice(0,3),listaCache);
+    if(!document.getElementById("podio").hidden)dibujaPodio(brazosBajos);
   }
 
   function rotuloPeriodoPodio(periodo) {
@@ -2460,7 +2487,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function pintaPodio(top, todos) {
     var rankingPodio = clasificacionPodio(todos), podioTop = rankingPodio.slice(0, 3);
     var orden = [podioTop[1], podioTop[0], podioTop[2]], clases = ["p2", "p1", "p3"], medallas = ["2", "1", "3"];
-    document.getElementById("podio").innerHTML = escenaPodio() + totalPodioHtml(todos) + selectorPeriodoPodioHtml() + orden.map(function (a, i) {
+    document.getElementById("podio").innerHTML = escenaPodio() + totalPodioHtml(todos) + orden.map(function (a, i) {
       // Una plaza sin agente no representa nada y, sin la clase p1/p2/p3,
       // conservaba ancho, padding y borde en la posición estática: era la barra
       // redondeada vacía que aparecía encima del arte del podio.
@@ -3762,7 +3789,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function pintaVistaFiltrada() {
     listaCache = aplicaAgentScope(listaCompletaCache || []);
-    pintaPodio(listaCache.slice(0, 3), listaCache); pintaTabla(listaVisible(listaCache)); actualizaCarreraPodio();
+    pintaRecordDiario(); pintaPodio(listaCache.slice(0, 3), listaCache); pintaTabla(listaVisible(listaCache)); actualizaCarreraPodio();
   }
 
   function hsRankingScopeSummary(mode, shown, total, lifeOnly, compactShown) {
@@ -5496,6 +5523,21 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   });
   document.getElementById("podiumToggle").addEventListener("click", alternaPodio);
   document.getElementById("rankingToggle").addEventListener("click", alternaRanking);
+  var highscorePeriodControl=document.getElementById("highscorePeriod");
+  highscorePeriodControl.addEventListener("click",function(event){
+    var button=event.target.closest && event.target.closest("[data-highscore-period-step]");
+    if(button)cambiaPeriodoHighscore(Number(button.getAttribute("data-highscore-period-step"))||0);
+  });
+  highscorePeriodControl.addEventListener("keydown",function(event){
+    var step=0,absolute="";
+    if(event.key==="ArrowLeft"||event.key==="ArrowUp")step=-1;
+    else if(event.key==="ArrowRight"||event.key==="ArrowDown")step=1;
+    else if(event.key==="Home")absolute="hour";
+    else if(event.key==="End")absolute="month";
+    else return;
+    event.preventDefault(); cambiaPeriodoHighscore(step,absolute);
+  });
+  actualizaPeriodoHighscore();
   var rankingPeriodControl = document.getElementById("rankingPeriod");
   document.querySelectorAll("[data-ranking-period-step]").forEach(function (button) {
     button.addEventListener("click", function () {
@@ -5521,14 +5563,6 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // delega en el contenedor en vez de atarlo al nodo: si se atara, el primer
   // repintado del podio se llevaría el clic por delante sin avisar.
   document.getElementById("podio").addEventListener("click", function (e) {
-    var periodo = e.target && e.target.closest && e.target.closest("[data-podium-period]");
-    if (periodo) {
-      var selectedPeriod = periodo.getAttribute("data-podium-period");
-      PODIUM_PERIOD = ["hour", "day", "week", "month"].indexOf(selectedPeriod) >= 0 ? selectedPeriod : "day";
-      pintaPodio(listaCache.slice(0, 3), listaCache);
-      if (!document.getElementById("podio").hidden) dibujaPodio(brazosBajos);
-      return;
-    }
     if (e.target && e.target.closest && e.target.closest("#podioTotal")) abreDias();
   });
   // El selector se repinta con el panel, así que también se delega.
