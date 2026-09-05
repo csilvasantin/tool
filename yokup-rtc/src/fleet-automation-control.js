@@ -1,3 +1,4 @@
+import { CLI_POLICY, cliPolicyBlocked, cliPolicyKeyBlocked, cliPolicyError } from './cli-policy.js';
 import { agentFamilyKey, machineIdentityKey } from './agent-identity.js';
 
 export const AUTOMATION_MODES = ['training','learning'];
@@ -8,6 +9,7 @@ export async function ensureAutomationSchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_automation_controls (scope TEXT PRIMARY KEY,enabled INTEGER NOT NULL DEFAULT 1,cutoff INTEGER NOT NULL DEFAULT 0,revision INTEGER NOT NULL DEFAULT 0,operation_id TEXT NOT NULL DEFAULT '',updated_at INTEGER NOT NULL DEFAULT 0)");
   await env.DB.exec('CREATE TABLE IF NOT EXISTS fleet_automation_decisions(decision_id TEXT PRIMARY KEY,mode TEXT NOT NULL,identity_key TEXT NOT NULL,created_at INTEGER NOT NULL)');
   await env.DB.exec('CREATE TABLE IF NOT EXISTS fleet_automation_commit_checks(id TEXT PRIMARY KEY,mode TEXT NOT NULL,identity_key TEXT NOT NULL,created_at INTEGER NOT NULL)');
+  if(CLI_POLICY.cli_paused) await env.DB.exec("CREATE TRIGGER IF NOT EXISTS cli_policy_commit_fence_v1078 BEFORE INSERT ON fleet_automation_commit_checks WHEN substr(NEW.identity_key,-4)='|cli' BEGIN SELECT RAISE(ABORT,'cli_paused_by_carlos'); END");
   await env.DB.exec(`CREATE TRIGGER IF NOT EXISTS automation_commit_fence BEFORE INSERT ON fleet_automation_commit_checks WHEN NOT (${automationFenceSql('NEW.mode','NEW.identity_key','NEW.created_at')}) BEGIN SELECT RAISE(ABORT,'automation_stopped'); END`);
 
 }
@@ -16,6 +18,7 @@ export async function automationControls(env) {
   return (await env.DB.prepare('SELECT * FROM fleet_automation_controls').all()).results || [];
 }
 export function automationPermission(rows,mode,key='',createdAt=null) {
+  if(cliPolicyKeyBlocked(key)) return {allowed:false,reason:CLI_POLICY.reason};
   const controls=rows.filter(row=>row.scope===mode || key && row.scope===mode+':'+key);
   return controls.some(row=>!row.enabled || createdAt!==null && Number(createdAt)<=Number(row.cutoff))
     ?{allowed:false,reason:'automation_stopped'}:{allowed:true,reason:'ready'};
@@ -27,7 +30,7 @@ export function categoryRevision(rows,mode) { return Number(rows.find(row=>row.s
 // SQL predicate used inside the publication statement itself, closing the gap
 // between the last asynchronous guard and a concurrent stop transaction.
 export function automationFenceSql(modeExpression,keyExpression,createdExpression) {
-  return `NOT EXISTS(SELECT 1 FROM fleet_automation_controls ac WHERE (ac.scope=${modeExpression} OR ac.scope=${modeExpression}||':'||${keyExpression}) AND (ac.enabled=0 OR ${createdExpression}<=ac.cutoff))`;
+  return `${CLI_POLICY.cli_paused ? `COALESCE(substr(${keyExpression},-4),'')!='|cli' AND ` : ''}NOT EXISTS(SELECT 1 FROM fleet_automation_controls ac WHERE (ac.scope=${modeExpression} OR ac.scope=${modeExpression}||':'||${keyExpression}) AND (ac.enabled=0 OR ${createdExpression}<=ac.cutoff))`;
 }
 export async function stopAutomationGate(env,mode,key='',now=Date.now()) {
   await ensureAutomationSchema(env);
@@ -40,6 +43,7 @@ export async function stopAutomationGate(env,mode,key='',now=Date.now()) {
 // Prepared rows already passed exact consumer/project checks. A single D1 batch
 // changes preferences and their gates; a newer stop wins via category revision.
 export async function activateAutomationTargets(env,mode,prepared,previousTargets,expectedRevision,requestedBy,now=Date.now(),replaceAll=true) {
+  if(prepared.some(row=>cliPolicyBlocked(row.target))) throw cliPolicyError();
   if(!AUTOMATION_MODES.includes(mode) || !prepared.length) throw Object.assign(new Error('targets_required'),{status:400});
   const families=new Set();
   for(const row of prepared) { const family=automationFamily(row.target);if(families.has(family))throw Object.assign(new Error('one_surface_per_agent'),{status:409});families.add(family); }

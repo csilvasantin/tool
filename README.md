@@ -1,6 +1,7 @@
 # Yokup
 
 Operación de agentes: al empezar/retomar y en hitos reales usa el [emisor de progreso y coordinación](yokup-rtc/WORK_ACTIVITY.md). No genera actividad desde idle o presencia.
+CLI aplazadas por orden de Carlos: [política persistente y parada segura](yokup-rtc/CLI-PAUSE-POLICY.md).
 
 Plataforma de **intervenciones técnicas** (incidencias · instalaciones · desinstalaciones ·
 mantenimiento) sobre los equipos de puntos de venta —estancos, kioscos, loterías, centros con

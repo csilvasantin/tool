@@ -1,3 +1,4 @@
+import { CLI_POLICY, cliPolicyBlocked, cliPolicyFor } from './cli-policy.js';
 import { WORK_ACTIVITY_TABLE_SQL, normalizeWorkActivity, recordWorkActivity, evaluateWorkActivity, workActivityProcessKey } from './work-activity.js';
 import { AUTOMATIC_DECISIONS, automationFamily, automationControls, automationPermission, automationAllowed, automationFenceSql, categoryRevision, stopAutomationGate, activateAutomationTargets, automationCommitStatement } from './fleet-automation-control.js';
 import { assignedWorkBlockers, legacyAcademyAvailability, pauseLegacyAcademy, pauseAutomaticRun } from './automatic-work-priority.js';
@@ -2066,11 +2067,13 @@ async function hourlyModeInventory(env) {
     row.available_modes=row.metadata_only?[]:supported?['manual','learning','training']:['manual'];
     const unavailable=(machine?.hourly_unavailable || []).some(item=>item.runtime===row.runtime && item.host===row.host && item.reason==='auth_verification_required');
     row.support_reason=supported?'':!fresh?'telemetry_unavailable':unavailable?'claude_cli_auth_verification_required':'consumer_unavailable';
+    Object.assign(row,cliPolicyFor(row));
+    if(cliPolicyBlocked(row)){row.available_modes=['manual'];row.support_reason=CLI_POLICY.reason;row.status='paused';row.reason=CLI_POLICY.reason;}
   }
   const controls=await automationControls(env);
   for(const row of items.values()) {
     const gate=row.mode!=='manual'?automationPermission(controls,row.mode,row.identity_key):{allowed:false};
-    row.automation_enabled=row.mode!=='manual'&&gate.allowed;
+    row.automation_enabled=row.mode!=='manual'&&gate.allowed&&!cliPolicyBlocked(row);
     if(row.mode!=='manual'&&!gate.allowed){row.status='paused';row.reason=gate.reason;}
     const last=row.last_run,inFlight=last&&['reserved','starting','resuming','dispatched','awaiting_delivery','completing','paused'].includes(last.status);
     row.execution_stop=last?.command_id&&inFlight&&(!gate.allowed||last.reason==='automation_stopped'||last.mode!==row.mode)?'unconfirmed':null;
@@ -2082,6 +2085,7 @@ async function hourlyModeGuard(env,id,now=Date.now(),expectedTarget=null) {
   const run=await env.DB.prepare('SELECT * FROM fleet_agent_mode_runs WHERE id=?').bind(id).first();
   if (!run || !['reserved','starting','resuming','dispatched','awaiting_delivery','completing'].includes(run.status) || now-run.created_at>45*60000) return {allowed:false,reason:'run_inactive'};
   const pref=await env.DB.prepare('SELECT * FROM fleet_agent_modes WHERE identity_key=?').bind(run.identity_key).first();
+  if (cliPolicyBlocked(pref)) return {allowed:false,reason:CLI_POLICY.reason};
   if (expectedTarget && (!pref || modeTargetKey(expectedTarget)!==pref.identity_key)) return {allowed:false,reason:'target_mismatch'};
   if (!pref || pref.mode!==run.mode || pref.mode==='manual' || pref.project_id!==run.project_id || pref.enabled_at>run.created_at) return {allowed:false,reason:'preference_changed'};
   const gate=await automationAllowed(env,run.mode,run.identity_key,run.created_at);
@@ -3700,7 +3704,11 @@ __name(findLiveTwinMission, "findLiveTwinMission");
 async function automaticDecisionContext(env,decision) {
   if(!decision || decision.status!=='expired' || !AUTOMATIC_DECISIONS.includes(decision.mission))return null;
   await ensureHourlyModeSchema(env);
-  if(decision.mission!=='Training horario')return {mode:'onidle',key:automationFamily(decision),created_at:decision.created_at};
+  if(decision.mission!=='Training horario'){
+    const surface=await onIdleAppPolicy(env,{agent:decision.agent,machine:decision.machine});
+    if(!surface.allowed)throw Object.assign(new Error(surface.reason),{status:409});
+    return {mode:'onidle',key:automationFamily(decision),created_at:decision.created_at};
+  }
   const link=await env.DB.prepare('SELECT identity_key,created_at FROM fleet_automation_decisions WHERE decision_id=?').bind(decision.id).first() || await env.DB.prepare('SELECT identity_key,created_at FROM fleet_agent_mode_runs WHERE decision_id=?').bind(decision.id).first();
   if(!link)throw Object.assign(new Error('automatic_target_unverified'),{status:409});
   return {mode:'training',key:link.identity_key,created_at:link.created_at};
@@ -4027,7 +4035,7 @@ async function guardedAutomaticDecisionInsert(env,values,mode='',key='',startedA
   await ensureHourlyModeSchema(env);
   const columns='id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id,option_targets';
   const sql='INSERT INTO decisions ('+columns+") SELECT ?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?,?"+(mode?' WHERE '+automationFenceSql('?','?','?'):'');
-  const statement=env.DB.prepare(sql).bind(...values,...(mode?[mode,mode,key,startedAt]:[]));
+  const statement=env.DB.prepare(sql).bind(...values,...(mode?[...(CLI_POLICY.cli_paused?[key]:[]),mode,mode,key,startedAt]:[]));
   const inserted=mode?(await env.DB.batch([statement,env.DB.prepare('INSERT INTO fleet_automation_decisions(decision_id,mode,identity_key,created_at) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM decisions WHERE id=?)').bind(values[0],mode,key,startedAt,values[0])]))[0]:await statement.run();
   if(!inserted.meta?.changes)throw Object.assign(new Error('automation_stopped'),{status:409});
 }
@@ -4212,7 +4220,21 @@ async function agenteTrabajoLaUltimaHora(env, identity, now = Date.now()) {
 }
 __name(agenteTrabajoLaUltimaHora, "agenteTrabajoLaUltimaHora");
 
+async function onIdleAppPolicy(env,identity,now=Date.now()) {
+  if(!CLI_POLICY.cli_paused) return {allowed:true};
+  if(cliPolicyBlocked(identity)) return {allowed:false,reason:CLI_POLICY.reason};
+  const observed=await highscoreVerifiedPresence(env,now);
+  const family=reportAgentFamily(identity.agent,identity.machine).family_key;
+  const apps=[...(observed.process_targets || new Map()).values()].filter(row=>row.family_key===family && row.host==='app' && row.session_id);
+  if(apps.length!==1) return {allowed:false,reason:apps.length?'ambiguous_app_surface':'app_surface_unverified'};
+  return {allowed:true,host:'app',runtime:apps[0].runtime};
+}
+__name(onIdleAppPolicy, "onIdleAppPolicy");
+
 async function operationalOnIdleState(env, identity, requestedProjectId = "", now = Date.now()) {
+  if(cliPolicyBlocked(identity)) return {can_open:false,reason:CLI_POLICY.reason,agent:identity.agent,machine:identity.machine,quota:{used:0,limit:ONIDLE_DAILY_LIMIT}};
+  const surfacePolicy=await onIdleAppPolicy(env,identity,now);
+  if(!surfacePolicy.allowed) return {can_open:false,reason:surfacePolicy.reason,agent:identity.agent,machine:identity.machine,quota:{used:0,limit:ONIDLE_DAILY_LIMIT}};
   const gate=await automationAllowed(env,'onidle',automationFamily(identity));
   if(!gate.allowed)return {can_open:false,reason:gate.reason,agent:identity.agent,machine:identity.machine,quota:{used:0,limit:ONIDLE_DAILY_LIMIT}};
   const [missionResult, taskResult, decisionResult] = await Promise.all([
@@ -4404,7 +4426,7 @@ async function publishScheduledOnIdle(env, candidate, now = Date.now()) {
     JSON.stringify(options), now, deadline, DECIDE_URL, ONIDLE_MISSION_MARKER, project.id,
     String(project.slug || decisionProjectSlug(project.name || project.id)).toUpperCase(), JSON.stringify(targets),
     ONIDLE_MISSION_MARKER, project.id, familyKey, physicalMachineKey, ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION,
-    familyKey, physicalMachineKey, familyKey, physicalMachineKey,automationFamily(identity),now);
+    familyKey, physicalMachineKey, familyKey, physicalMachineKey,...(CLI_POLICY.cli_paused?[automationFamily(identity)]:[]),automationFamily(identity),now);
   const mark = env.DB.prepare(
     "UPDATE onidle_ticks SET status='published',published_at=? WHERE identity_key=? AND day=? AND ordinal=? " +
     "AND EXISTS(SELECT 1 FROM decisions WHERE id=? AND status='pending')"
@@ -5147,6 +5169,7 @@ async function bindPresenceWork(env, persona, machine, workRef, selector) {
     const sessionId = String(selector.session_id || "").trim();
     if (!runtime || runtime.length > 80 || !["app","cli"].includes(host) || !sessionId || sessionId.length > 160 ||
         /[\u0000-\u001f]/.test(runtime + sessionId)) return unbound("invalid_session_selector");
+    if(cliPolicyBlocked({host})) return unbound(CLI_POLICY.reason);
     Object.assign(exact, {runtime,host,session_id:sessionId});
   }
   try {
@@ -5156,7 +5179,7 @@ async function bindPresenceWork(env, persona, machine, workRef, selector) {
     }));
     const body = await response.json();
     if (response.ok && body?.ok === true && body.bound === true) return {bound:true,reason:"bound"};
-    const reason = ["ambiguous_session","session_not_found","invalid_session_selector","invalid_binding"].includes(body?.error)
+    const reason = ["ambiguous_session","session_not_found","invalid_session_selector","invalid_binding",CLI_POLICY.reason].includes(body?.error)
       ? body.error : "binding_unavailable";
     return unbound(reason);
   } catch { return unbound("binding_unavailable"); }
@@ -8397,7 +8420,7 @@ async function highscoreVerifiedPresence(env, ahora) {
     ]);
     if (!response.ok) return { available:false, by_family:new Map(), sessions:new Map(), observations:[] };
     const payload = await response.json(), rows = Array.isArray(payload) ? payload : (payload.presence || payload.rows || []);
-    const byFamily = new Map(), observedSurfaces = new Map(), exactProcesses = new Map();
+    const byFamily = new Map(), observedSurfaces = new Map(), exactProcesses = new Map(), processTargets = new Map();
     for (const row of rows) {
       const at = highscoreActiveWorkMillis(row && row.updated);
       const pid = Number(row && row.pid);
@@ -8415,6 +8438,7 @@ async function highscoreVerifiedPresence(env, ahora) {
       const host = String(row.host).toLowerCase(), runtime = String(row.runtime || "").trim().slice(0,80);
       const key = `${family.family_key}|${host}|${runtime.toLowerCase()}`;
       if (runtime && row.session_id) exactProcesses.set(workActivityProcessKey(family.family_key, runtime, host, row.session_id), at);
+      if(runtime && row.session_id) processTargets.set([family.family_key,runtime.toLowerCase(),host,row.session_id,pid].join('|'),{family_key:family.family_key,runtime,host,session_id:String(row.session_id)});
       if (!observedSurfaces.has(key) || observedSurfaces.get(key).observed_at < at) observedSurfaces.set(key, {
         agent:family.family_name, family_key:family.family_key,
         machine:canonicalMachineSuffix(parseAgentIdentity(family.family_name).suffix), host, runtime,
@@ -8440,7 +8464,7 @@ async function highscoreVerifiedPresence(env, ahora) {
         sessions.set(key, list);
       }
     }
-    return { available:true, by_family:byFamily, sessions, exact_processes:exactProcesses, observations:[...observedSurfaces.values()] };
+    return { available:true, by_family:byFamily, sessions, exact_processes:exactProcesses, process_targets:processTargets, observations:[...observedSurfaces.values()] };
   } catch {
     return { available:false, by_family:new Map(), sessions:new Map(), observations:[] };
   }
@@ -8557,6 +8581,9 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
       status:item.status, ended_at:item.resolved_at, family_key:family.family_key, linked,
       exact_processes:presence.exact_processes, now:ahora }) : null;
     if (activity) state = "running";
+    const policyPaused = !forcedState && linked && linked.surface==='cli' && CLI_POLICY.cli_paused;
+    const sessionUnverified = !forcedState && state==='running' && !linkedOpen;
+    if(policyPaused || sessionUnverified) state='assigned_stale';
     // Una asignación abierta no ocupa indefinidamente la carrera. Para entrar
     // necesita un hecho material de la última hora o el proceso exacto verificado;
     // este último acredita la calle; el movimiento requiere progreso o actividad.
@@ -8588,6 +8615,8 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     // Exactamente una encarnación vinculada: cero o varias son ambiguas y por
     // contrato no se suman ni se elige una de forma heurística.
     if (activity) Object.assign(candidate, activity);
+    if(policyPaused) Object.assign(candidate,{cli_paused:true,activity_reason:CLI_POLICY.reason,operational_state:'paused_by_policy'});
+    else if(sessionUnverified) candidate.activity_reason='session_unverified';
     if (timing) Object.assign(candidate, timing);
     const dedicated = highscoreDedicatedTiming(linked, timing, ahora);
     if (dedicated) Object.assign(candidate, dedicated);
@@ -8639,6 +8668,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
   // El veto por asignación no añade corredores: las calles siguen requiriendo
   // evidencia material o una sesión exacta; historia rellena hasta tres.
   if (!runningCount || participants.length < 3) {
+    const assignmentCount=participants.length;
     const [recentMissions, recentTasks] = await Promise.all([
       env.DB.prepare(
         `SELECT id,subject,assignee,loc,project,project_id,'mission' kind,resolved_at ended_at,started_at,created_at,` +
@@ -8657,7 +8687,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
           `ORDER BY m.ended_at DESC,length(m.code),m.code`
       ).bind(ahora - HIGHSCORE_RECENT_WORK_MS, ahora + HIGHSCORE_CLOCK_SKEW_MS).all().then((r) => r.results || [])
     ]);
-    if (!runningCount) byFamily.clear();
+    // Keep canonical assignments when activity is unverified or paused; closures only fill free lanes.
     // Se recorren todos los cierres factuales de las últimas 24 h y se deduplican
     // después por familia. Misiones y tareas comparten la misma comparación por
     // ended_at; un retoque posterior en report/updated_at no mueve el carril.
@@ -8679,7 +8709,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
         (b.state === "running" ? 0 : b.state === "assigned_stale" ? 1 : 2) ||
       (a.state === "last_work" && b.state === "last_work"
         ? highscoreActiveWorkMillis(b.ended_at) - highscoreActiveWorkMillis(a.ended_at)
-        : b.active_at - a.active_at)).slice(0,3);
+        : b.active_at - a.active_at)).slice(0,Math.max(3,assignmentCount));
   }
   // An open application with no current material work stays visible without
   // becoming a competitor. Old finished work cannot hide this observability gap.
@@ -9345,6 +9375,7 @@ var worker_app = {
     // capture_surface,capture_context}. Un heartbeat
     // sin imagen puede activar la misión, pero NO refresca la antigüedad de una
     // captura anterior.
+    if (url.pathname === "/fleet/runtime-policy" && req.method === "GET") return json({ok:true,...CLI_POLICY});
     if (url.pathname === "/fleet/progress" && req.method === "POST") {
       try {
         await ensureSchema(env);
@@ -9361,6 +9392,7 @@ var worker_app = {
         let explicitActivity;
         try { explicitActivity = normalizeWorkActivity(b.activity, b.work_session); }
         catch (error) { return json({ ok:false, code:error.message, applied:false }, 400); }
+        if (cliPolicyBlocked(b.work_session || b)) return json({ok:false,code:CLI_POLICY.reason,applied:false},409);
         const rawImage = String(b.image || "").trim();
         let img = null, capturedAt = null, liveKind = null, captureSurface = null, captureContext = null;
         if (rawImage) {
@@ -9384,6 +9416,7 @@ var worker_app = {
         }
         const now = Date.now();
         const workBinding = await bindPresenceWork(env, actor.actor || t.assignee, t.loc, mid, b.work_session);
+        if(workBinding.reason===CLI_POLICY.reason) return json({ok:false,code:CLI_POLICY.reason,work_binding:workBinding,applied:false},409);
         if (img) {
           await env.DB.prepare(
             "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,started_at=CASE WHEN status='open' THEN COALESCE(started_at,?) ELSE started_at END,live_shot=?,live_at=?,live_kind=?,live_surface=?,live_context=?,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
@@ -10892,6 +10925,7 @@ var worker_app = {
       }
       if (!target) return json({ ok:false, error:"cli no esta en la lista blanca" }, 403);
       const { machine, cli } = target;
+      if(CLI_POLICY.cli_paused && target.kind==='cli' && action!=='stop') return json({ok:false,code:CLI_POLICY.reason,error:CLI_POLICY.reason},409);
       let detalle = null;
       if (action === "mission") {
         // A una SESION de terminal no se le manda texto: al otro lado hay una shell.
@@ -10978,6 +11012,7 @@ var worker_app = {
           if (row.status === "queued") rejected.push(row.id);
           continue;
         }
+        if(CLI_POLICY.cli_paused && target.kind==='cli' && action!=='stop') { if(row.status==='queued') rejected.push(row.id); continue; }
         const item = { id:String(row.id), cli:target.cli, action, detail:row.detail || null,
           created_at:Number(row.created_at), status:String(row.status || "queued") };
         if (action === "start" || action === "stop") latestControl.set(target.cli, item);
@@ -11009,7 +11044,7 @@ var worker_app = {
       const states = (await env.DB.prepare(
         "SELECT cli,desired,desired_command_id,desired_at FROM cli_state WHERE lower(machine)=lower(?)"
       ).bind(machine).all()).results || [];
-      return json({ ok:true, machine, items:valid.slice(0, 5), desired:states });
+      return json({ ok:true, machine, items:valid.slice(0, 5), desired:states, runtime_policy:CLI_POLICY });
     }
     if (url.pathname === "/fleet/cli/ack" && req.method === "POST") {
       const auth = await authorizeCliExecutor(env, req);

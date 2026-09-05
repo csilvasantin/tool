@@ -1,3 +1,4 @@
+import { CLI_POLICY, cliPolicyBlocked } from './cli-policy.js';
 import { reportAgentFamily } from './agent-identity.js';
 
 export const WORK_ACTIVITY_TTL_MS = 120_000;
@@ -20,6 +21,7 @@ export function workActivityProcessKey(family, runtime, host, session) {
 // A concurrent canonical closure must win; no event is stored on a closed mission.
 export async function recordWorkActivity(env, ticket, owner, activity, binding, now) {
   if (!activity) return { accepted:false, reason:'not_requested' };
+  if (cliPolicyBlocked(activity)) return {accepted:false,reason:CLI_POLICY.reason};
   const family = reportAgentFamily(owner, ticket.loc).family_key;
   if (family.startsWith('external:') || family !== reportAgentFamily(ticket.assignee, ticket.loc).family_key) return { accepted:false, reason:'owner_mismatch' };
   if (!binding?.bound) return { accepted:false, reason:binding?.reason || 'session_not_bound' };
@@ -42,6 +44,7 @@ export function evaluateWorkActivity({ signal, status, ended_at, family_key, lin
   if (!signal || status !== 'in_progress' || Number(ended_at) > 0 || signal.basis !== 'explicit_bound_progress' || signal.family_key !== family_key) return null;
   let normalized;
   try { normalized = normalizeWorkActivity(signal, signal); } catch { return null; }
+  if (cliPolicyBlocked(normalized)) return null;
   const at = Number(signal.observed_at);
   if (!Number.isSafeInteger(at) || at <= 0 || at > now + 5_000 || now - at > WORK_ACTIVITY_TTL_MS) return null;
   if (!linked || linked.state !== 'open' || linked.surface !== normalized.host || clean(linked.runtime).toLowerCase() !== normalized.runtime.toLowerCase() || linked.session_id !== normalized.session_id || !Number(linked.started_at) || Number(linked.started_at) > at || Number(linked.ended_at) > 0) return null;

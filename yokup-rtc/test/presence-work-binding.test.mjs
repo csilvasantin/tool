@@ -1,10 +1,11 @@
+import { CLI_POLICY, cliPolicyBlocked } from '../src/cli-policy.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 const source=readFileSync(new URL('../src/index.js',import.meta.url),'utf8');
 const code=source.match(/async function bindPresenceWork\([^]*?\n}\n__name\(bindPresenceWork, "bindPresenceWork"\);/)[0];
-const ctx=vm.createContext({Request,__name:()=>{}});vm.runInContext(code,ctx);
+const ctx=vm.createContext({CLI_POLICY,cliPolicyBlocked,Request,__name:()=>{}});vm.runInContext(code,ctx);
 const bind=ctx.bindPresenceWork;
 const plain=value=>JSON.parse(JSON.stringify(value));
 const target=['MorfeoMacMini','admira-macmini','FLT-TEST'];

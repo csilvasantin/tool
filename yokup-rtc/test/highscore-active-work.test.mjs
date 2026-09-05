@@ -1,3 +1,4 @@
+import { CLI_POLICY } from '../src/cli-policy.js';
 import { WORK_ACTIVITY_TABLE_SQL, evaluateWorkActivity, workActivityProcessKey } from '../src/work-activity.js';
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -31,7 +32,7 @@ function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{all:async()=>({results:stmt.all(...args)})}},all:async()=>({results:stmt.all()})}}};
   const TELEGRAM=presence===null?undefined:{fetch:async(request)=>({ok:true,json:async()=>
     String(request.url).includes("work-sessions") ? {ok:true,sessions:workSessions} : presence})};
-  const context=vm.createContext({evaluateWorkActivity,workActivityProcessKey,Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,Request,
+  const context=vm.createContext({CLI_POLICY,evaluateWorkActivity,workActivityProcessKey,Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,Request,
     machineSuffix,canonicalMachineSuffix,baseAgentIdentity,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,resolveDecisionIdentity,MISSION_SCOPE_SQL_T,__name:(fn)=>fn});
   vm.runInContext([
     grabVar("HIGHSCORE_PERSONAS"),grabVar("PRESENCE_URL"),
@@ -45,6 +46,8 @@ function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
 
 const NOW=1_786_460_000_000, MIN=60_000;
 const processRow=(persona,machine,updated=NOW)=>({persona,machine,updated:Math.floor(updated/1000),verified:1,source:"process_snapshot",online:null,pid:42,host:"cli"});
+function appSession(ref,persona='OraculoMacMini',machine='MacMini') { return {persona,machine,work_ref:ref,surface:'app',runtime:'Codex',session_id:'desktop:codex',started_at:NOW-60*MIN,state:'open',basis:'process_birth'}; }
+function appHarness(...sessions) { return harness({presence:sessions.map(row=>({...processRow(row.persona,row.machine),host:'app',runtime:row.runtime,session_id:row.session_id}))},sessions); }
 function mission(db,{id="M1",agent="OraculoMacMini",machine="MacMini",at=NOW-5*MIN,startedAt,status="in_progress",title="Misión"}={}){
   const start=startedAt===undefined?at:startedAt;
   db.prepare("INSERT INTO tickets(id,subject,loc,source,role,status,assignee,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,proof_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(id,title,machine,"fleet","mission",status,agent,null,at,start,at,at,status==="resolved"?at:null,status==="resolved"?"https://proof.test/evidence.png":null);
@@ -79,7 +82,7 @@ test("una ventana decidida o vencida deja libre la pista para la misión materia
 });
 
 test("frontera exacta 20m: running hasta el límite y assigned_stale un milisegundo después",async()=>{
-  const {db,env,F}=harness();
+  const {db,env,F}=appHarness(appSession('M1'));
   mission(db,{id:"M1",agent:"OraculoMacMini",at:NOW-20*MIN});
   mission(db,{id:"M2",agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-20*MIN-1});
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
@@ -90,7 +93,7 @@ test("frontera exacta 20m: running hasta el límite y assigned_stale un milisegu
 });
 
 test("handON cli-declare legado aparece inmediatamente aunque no persistiera started_at",async()=>{
-  const {db,env,F}=harness();
+  const {db,env,F}=appHarness(appSession('DCL-HANDON'));
   db.prepare("INSERT INTO tickets(id,subject,loc,source,role,status,assignee,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,proof_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .run("DCL-HANDON","handON de OraculoMini, saludo y reporte","MacMini","cli-declare","mission","in_progress","OraculoMini",null,NOW-MIN,null,NOW-MIN,NOW-MIN,null,null);
   db.prepare("INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?,?)")
@@ -137,7 +140,7 @@ test("FLT-1419 cerrado conserva el inicio de asignación aunque el primer progre
 });
 
 test("un handON resuelto rellena una calle libre mientras otra familia sigue activa",async()=>{
-  const {db,env,F}=harness();
+  const {db,env,F}=appHarness(appSession('DCL-ACTIVA'));
   mission(db,{id:"DCL-ACTIVA",agent:"OraculoMacMini",at:NOW-MIN,title:"QA activa"});
   db.prepare("INSERT INTO tickets(id,subject,loc,source,role,status,assignee,closure_reason,created_at,started_at,updated_at,live_at,resolved_at,proof_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .run("FLT-1413","handON del jueves, Morfeo","MacMini","fleet","mission","resolved","MorfeoMacMini",null,NOW-4*MIN,null,NOW-2*MIN,NOW-2*MIN,NOW-2*MIN,"https://proof.test/handon.png");
@@ -151,7 +154,7 @@ test("un handON resuelto rellena una calle libre mientras otra familia sigue act
 });
 
 test("un finalizado nunca sustituye el trabajo activo de su propia familia",async()=>{
-  const {db,env,F}=harness();
+  const {db,env,F}=appHarness(appSession('DCL-ACTIVA'));
   mission(db,{id:"DCL-ACTIVA",agent:"OraculoMacMini",at:NOW-5*MIN,title:"QA activa"});
   mission(db,{id:"DCL-CERRADA",agent:"OraculoMacMini",at:NOW-MIN,startedAt:NOW-20*MIN,status:"resolved",title:"Cerrada"});
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
@@ -160,7 +163,7 @@ test("un finalizado nunca sustituye el trabajo activo de su propia familia",asyn
 });
 
 test("presence familiar no resucita una asignación vieja sin sesión exacta",async()=>{
-  const {db,env,F}=harness({presence:[processRow("Neo","MacBook Pro 14")],now:NOW/1000});
+  const {db,env,F}=harness({presence:[processRow("Neo","MacBook Pro 14")],now:NOW/1000},[appSession("M1")]);
   mission(db,{id:"M1",agent:"OraculoMacMini",at:NOW-2*MIN});
   mission(db,{id:"M2",agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-8*60*MIN});
   const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
@@ -181,7 +184,7 @@ test("sesión abierta con work_ref exacto conserva la calle stale sin fingir ava
 });
 
 test("cuatro familias factuales conservan cuatro lanes aunque sólo dos avancen",async()=>{
-  const {db,env,F}=harness();
+  const {db,env,F}=appHarness(appSession('M1'),appSession('M2','MorfeoMacMini'));
   mission(db,{id:"M1",agent:"OraculoMacMini",at:NOW-MIN});
   mission(db,{id:"M2",agent:"MorfeoMacMini",at:NOW-20*MIN});
   mission(db,{id:"M3",agent:"NeoMBP14",machine:"MacBook Pro 14",at:NOW-21*MIN});
@@ -336,7 +339,8 @@ test("misión open con tareas pending y presence queda fuera; claim in_progress 
   db.prepare("UPDATE mission_tasks SET status='in_progress',executor='SubMorfeoMacMini',started_at=?,updated_at=? WHERE mission_id='FLT-1409' AND code='a'")
     .run(NOW-MIN,NOW-MIN);
   result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
-  assert.equal(result.count,1); assert.equal(result.participants[0].state,"running");
+  assert.equal(result.count,1); assert.equal(result.participants[0].state,"assigned_stale");
+  assert.equal(result.participants[0].activity_reason,"session_unverified");
 });
 
 test("report o retítulo no renuevan race_revision de tarea o misión activa",async()=>{
@@ -562,11 +566,13 @@ test("claim real elimina gap familiar entre superficies y conserva otra máquina
   const rows=[{...processRow("MorfeoMacMini","MacMini"),host:"app",runtime:"Claude"},
     {...processRow("MorfeoMini","admira-macmini"),host:"cli",runtime:"Claude"},
     {...processRow("MorfeoMBP14","MBP14"),host:"cli",runtime:"Claude"}];
-  const {db,env,F}=harness({presence:rows});
+  const sessions=[];
+  const {db,env,F}=harness({presence:rows},sessions);
   mission(db,{agent:"MorfeoMacMini",machine:"MacMini",status:"open",at:NOW-2*MIN});
   let payload=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(payload.observations.length,3); assert.equal(payload.count,0);
   db.exec("UPDATE tickets SET status='in_progress'");
+  sessions.push({...appSession("M1","MorfeoMacMini"),runtime:"Claude",session_id:"desktop:claude"});
   payload=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(payload.running_count,1); assert.equal(payload.observations.length,1);
   assert.equal(payload.observations[0].agent,"MorfeoMBP14");
@@ -607,3 +613,12 @@ test('coordinación exacta renueva movimiento sin reiniciar reloj y vence tarea 
   row=(await F.highscoreActiveWork(env,NOW)).participants.find(row=>row.reference==='COORD');
   assert.equal(row.state,'last_work'); assert.equal(row.activity_at,undefined); assert.equal(row.ended_at,NOW);
 });
+
+ test('CLI vinculado queda pausado por política y conserva trabajo e inicio; no afirma proceso cerrado',async()=>{
+ const sessions=[{...appSession('M1'),surface:'cli',session_id:'oraculo'}];
+ const {db,env,F}=harness({presence:[{...processRow('OraculoMacMini','MacMini'),runtime:'Codex',session_id:'oraculo'}]},sessions);
+ mission(db,{id:'M1',at:NOW-MIN});
+ const row=(await F.highscoreActiveWork(env,NOW)).participants[0];
+ assert.equal(row.state,'assigned_stale');assert.equal(row.cli_paused,true);assert.equal(row.operational_state,'paused_by_policy');
+ assert.equal(row.session_state,'open');assert.equal(row.work_started_at,NOW-MIN);assert.equal(row.activity_reason,'cli_paused_by_carlos');
+ });

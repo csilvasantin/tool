@@ -1,5 +1,6 @@
+import { cliPolicyBlocked, CLI_POLICY } from './cli-policy.js';
 const LIVE_MAX_AGE_SECONDS = 30;
-const STATUS_VALUES = new Set(["queued", "accepted", "running", "stopping", "stopped", "done", "failed", "rejected", "already_running", "already_stopped"]);
+const STATUS_VALUES = new Set(["queued", "accepted", "running", "stopping", "stopped", "done", "failed", "rejected", "already_running", "already_stopped", "paused"]);
 
 export class AgentStopError extends Error {
   constructor(code, status) {
@@ -194,6 +195,7 @@ export async function dispatchAgentStart(env, input) {
     throw new AgentStopError("telegram-binding-unavailable", 503);
   }
   const target = normalizeAgentStartTarget(input);
+  if (cliPolicyBlocked(target)) throw new AgentStopError(CLI_POLICY.reason, 409);
   let response;
   try {
     response = await env.TELEGRAM.fetch(new Request("https://telegram/api/fleet/agent/control", {

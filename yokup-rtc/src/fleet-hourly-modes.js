@@ -1,3 +1,4 @@
+import { CLI_POLICY, cliPolicyBlocked, cliPolicyError } from './cli-policy.js';
 import { ensureAutomationSchema, automationAllowed, automationFenceSql } from './fleet-automation-control.js';
 import { agentFamilyKey, groupingIdentityKey, machineIdentityKey, parseAgentIdentity, scopedAgentIdentity } from './agent-identity.js';
 import { assessOnIdleProposal, onIdleProposalTitleKey } from './onidle-proposals.js';
@@ -23,6 +24,7 @@ function sameTarget(row, target) {
 }
 export function evaluateModeOpportunity(pref, telemetry = {}, activity = {}, now = Date.now()) {
   if (!pref || pref.mode === 'manual') return {eligible:false,status:'manual',reason:'manual'};
+  if (cliPolicyBlocked(pref)) return {eligible:false,status:'paused',reason:CLI_POLICY.reason};
   if (activity.busy) return {eligible:false,status:'waiting',reason:activity.reason || 'active_mission'};
   const machine = (telemetry.control_machines || []).find(row => machineIdentityKey(row.machine) === machineIdentityKey(pref.machine));
   const sample = seconds(machine && (machine.updated || machine.updated_at));
@@ -58,6 +60,7 @@ export async function ensureHourlyModeSchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_agent_mode_runs (id TEXT PRIMARY KEY, identity_key TEXT NOT NULL, hour_start INTEGER NOT NULL, mode TEXT NOT NULL, project_id TEXT NOT NULL, status TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '', command_id TEXT, decision_id TEXT, capsule_id TEXT, deliverable_url TEXT, evidence_json TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE(identity_key,hour_start))");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_hourly_work (run_id TEXT PRIMARY KEY, mission_id TEXT UNIQUE NOT NULL, transcript TEXT, publish_claim INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)");
   await env.DB.exec(`CREATE TRIGGER IF NOT EXISTS automation_run_publication_fence BEFORE UPDATE OF status ON fleet_agent_mode_runs WHEN NEW.status IN ('completed','dispatched','awaiting_delivery','completing','resuming') AND NOT (${automationFenceSql('NEW.mode','NEW.identity_key','NEW.created_at')}) BEGIN SELECT RAISE(IGNORE); END`);
+  if(CLI_POLICY.cli_paused) await env.DB.exec("CREATE TRIGGER IF NOT EXISTS cli_policy_run_fence_v1078 BEFORE UPDATE OF status ON fleet_agent_mode_runs WHEN substr(NEW.identity_key,-4)='|cli' AND NEW.status IN ('completed','dispatched','awaiting_delivery','completing','resuming') BEGIN SELECT RAISE(IGNORE); END");
   await env.DB.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_hourly_capsule_once ON fleet_agent_mode_runs(capsule_id) WHERE capsule_id IS NOT NULL');
   await env.DB.exec('CREATE TABLE IF NOT EXISTS fleet_hourly_family_leases (family_key TEXT PRIMARY KEY, run_id TEXT NOT NULL UNIQUE, expires_at INTEGER NOT NULL)');
 }
@@ -79,6 +82,7 @@ export async function listAgentModes(env) {
 export async function saveAgentMode(env, body, requestedBy, projectFor, now = Date.now()) {
   const target=normalizeModeTarget(body), mode=text(body.mode).toLowerCase();
   if (!MODES.has(mode)) throw Object.assign(new Error('invalid_mode'),{status:400});
+  if(mode!=='manual' && cliPolicyBlocked(target)) throw cliPolicyError();
   const project=mode==='manual'?null:await projectFor(target,body.project_id || '',now);
   if (mode!=='manual' && !project?.id) throw Object.assign(new Error('project_required'),{status:409});
   await ensureHourlyModeSchema(env);
