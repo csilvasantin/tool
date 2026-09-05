@@ -13,10 +13,10 @@ const stale={agent:'MorfeoMacMini',executor:'MorfeoMacMini',family_key:'morfeo@m
   reference:'FLT-1827',kind:'mission',title:'Control remoto de admira.live',state:'assigned_stale',reachable:true,
   project_id:'admira-live',project_name:'Admira Live · Consejo',race_revision:'r1:1xtnz3v',
   work_started_at:1788596199778,work_progress_at:1788597432261,ended_at:null,elapsed_ms:4198178};
-function view(){
+function view(initialRows=[stale]){
   const storage=new Map([[race.staleRaceStorageKey('morfeomacmini'),JSON.stringify({revision:stale.race_revision,server_started_at:sampled-42000,cycles:3})]]);
   const nodes={refreshLanes:{innerHTML:''},refreshRace:{setAttribute(){},classList:{toggle(){}}}};
-  const ctx=vm.createContext({datos:{trabajos:[stale],trabajosAvailable:true,trabajosGeneratedAt:sampled,trabajosClientAt:0},
+  const ctx=vm.createContext({datos:{trabajos:initialRows,trabajosAvailable:true,trabajosGeneratedAt:sampled,trabajosClientAt:0},
     listaCompletaCache:[],listaCache:[],document:{getElementById:id=>nodes[id]},window:{ykAgentIdentity:identity},
     normaliza:v=>String(v??'').trim(),esc:v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;'),
     performance:{now:()=>100},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},
@@ -65,4 +65,65 @@ test('a later expired or failed source cannot retain a previously running Morfeo
   assert.doesNotMatch(render([stale],sampled+120001),/data-agent-key="morfeomacmini"/);
   ctx.hsApplyWorkSnapshot(null);ctx.actualizaCarreraPodio();
   assert.equal(ctx.datos.trabajosAvailable,false);assert.equal(ctx.trabajosCarrera().length,0);
+});
+
+
+// Two-agent fixture exercises the unchanged public contract. Neo's initial
+// fields are factual; Trinity's future bound row is a test fixture, not a claim
+// that its emitter has registered real production work.
+const dualAt=1788601544980;
+const neo={agent:'NeoMBP14',executor:'SubNeoMBP14',family_key:'neo@mbp14',machine:'MBP14',kind:'task',
+  reference:'DCL-f57e68d410b06c04e758e7bc:a',title:'Hero y posicionamiento XpaceOS',project_id:'xpaceos',project_name:'XpaceOS',
+  state:'assigned_stale',activity_reason:'session_unverified',reachable:true,race_revision:'r1:1y15afp',
+  work_started_at:1788601475881,work_progress_at:1788601475881,ended_at:null,elapsed_ms:69099};
+const trinity={...neo,agent:'TrinityMBP14',executor:'SubTrinityMBP14',family_key:'trinity@mbp14',
+  reference:'FIXTURE-TRINITY:a',title:'Fixture de verificación de contrato APP',project_id:'yokup',project_name:'Yokup',
+  race_revision:'fixture-trinity-r1',work_started_at:dualAt-120000,work_progress_at:dualAt-120000,elapsed_ms:120000};
+function appWork(row,runtime){return {...row,state:'running',activity_reason:'',session_surface:'app',session_state:'open',
+  dedicated_basis:'process_birth',runtime,activity_at:dualAt,activity_kind:'implementation',activity_basis:'explicit_bound_progress'};}
+
+test('dual MBP14 polling recovers exactly Neo and Trinity, preserving each project, start clock and APP hover',async()=>{
+  const {ctx,render}=view([neo,trinity]);
+  const initial=render([neo],dualAt);
+  assert.doesNotMatch(initial,/data-work-state="running"/);
+  assert.doesNotMatch(initial,/data-agent-key="trinitymbp14"/,'an open app observation is not a work lane');
+  const fresh=[appWork(neo,'Claude'),appWork(trinity,'Codex')];
+  const requests=[];
+  Object.assign(ctx,{workRequest:null,workRequestSequence:0,WORK_TIMEOUT_MS:8000,YK:'https://fixture.invalid',
+    AbortController,setTimeout,clearTimeout,fetch:(_url,options)=>new Promise(resolve=>requests.push({resolve,options})),
+    hsPaintWorkUpdate:()=>ctx.actualizaCarreraPodio()});
+  ctx.document.hidden=false;
+  const first=ctx.hsPollWork();assert.equal(ctx.hsPollWork(),first,'overlapping light refresh coalesces');
+  requests[0].resolve({ok:true,json:async()=>({ok:true,participants:[neo,...fresh,fresh[1]],generated_at:dualAt})});
+  await first;
+  const works=ctx.trabajosCarrera();
+  assert.equal(works.length,2);assert.ok(works.every(w=>w.state==='running'&&w.sessionSurface==='app'));
+  for(const [row,name,project,duration] of [[fresh[0],'Neo','XpaceOS','00:01:09'],[fresh[1],'Trinity','Yokup','00:02:00']]){
+    const result=render([row],dualAt);
+    assert.equal((result.match(new RegExp('data-agent-key="'+name.toLowerCase()+'mbp14"','g'))||[]).length,1);
+    assert.match(result,new RegExp('data-race-role="agent"[^>]*>'+name+'<'));
+    assert.match(result,new RegExp('data-race-role="project"[^>]*>\\/\\/ '+project+'<'));
+    assert.match(result,/MBP14 · APP/);
+    assert.match(result,new RegExp('data-race-time="duration"[^>]*>'+duration+'<'));
+    assert.equal(ctx.trabajosEnCurso()[0].startedAt,row.work_started_at);
+  }
+  const again=render(fresh,dualAt+20000);
+  assert.equal((again.match(/data-agent-key=/g)||[]).length,2);
+  assert.match(again,/>00:01:29</);assert.match(again,/>00:02:20</);
+});
+
+test('dual APP expiration or absence removes active status; CLI and another machine cannot fill the missing bound session',()=>{
+  const {ctx,render}=view([neo,trinity]);
+  const fresh=[appWork(neo,'Claude'),appWork(trinity,'Codex')];
+  assert.equal((render(fresh,dualAt).match(/data-work-state="running"/g)||[]).length,4,'lane and clock for both');
+  const expired=fresh.map(row=>({...row,state:'assigned_stale',activity_reason:'',activity_at:dualAt}));
+  const result=render(expired,dualAt+120001);
+  assert.doesNotMatch(result,/data-work-state="running"/);
+  assert.ok(ctx.trabajosEnCurso().every(w=>w.state==='assigned_stale'));
+  const missing=render([],dualAt+140000);assert.doesNotMatch(missing,/data-agent-key=/);
+  const wrongSurface=render([{...fresh[0],session_surface:'cli'},{...fresh[1],session_surface:'',session_state:'unknown'}],dualAt+140000);
+  assert.doesNotMatch(wrongSurface,/data-work-state="running"/);
+  assert.equal((wrongSurface.match(/data-race-held="true"/g)||[]).length,2);
+  const foreign=render([{...fresh[0],agent:'NeoMacMini',machine:'MacMini',family_key:'neo@macmini'}],dualAt);
+  assert.doesNotMatch(foreign,/data-agent-key="neombp14"/);
 });
