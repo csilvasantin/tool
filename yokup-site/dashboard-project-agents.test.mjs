@@ -121,11 +121,11 @@ test("el censo conserva identidades reportadas y las contrasta con el navegador 
   assert.match(source,/function paFreshPresence\(rows,now\)/);
   assert.doesNotMatch(source,/const slot=twin/);
   assert.match(source,/function paVerifiedPresence\(rows,browsers,now\)/);
-  assert.match(source,/row\.source==="process_snapshot"&&row\.verified/);
+  assert.match(source,/row\.source==="process_snapshot"&&\(row\.verified===1\|\|row\.verified===true\)/);
   assert.match(source,/if\(snapshotTeams\.has\(team\)\)return/);
   assert.match(source,/snapshots\.concat\(verified,reported\.filter/);
   assert.match(source,/browser\.reporter&&browser\.reporter\.persona/);
-  assert.match(source,/verifiedTeams\.has\(paTeamKey\(row\.machine\)\)/);
+  assert.match(source,/!browserKeys\.has\(\[row\.persona,row\.machine,row\.runtime,row\.host\]\.join\("\|"\)\)/);
   assert.match(source,/const fresh=paVerifiedPresence\(d\.presence\|\|\[\],nav&&nav\.browsers\|\|\[\],now\)/);
   assert.match(source,/setInterval\(pulse,AGENT_REFRESH_MS\)/);
 });
