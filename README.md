@@ -1,5 +1,7 @@
 # Yokup
 
+Operación de agentes: al empezar/retomar y en hitos reales usa el [emisor de progreso y coordinación](yokup-rtc/WORK_ACTIVITY.md). No genera actividad desde idle o presencia.
+
 Plataforma de **intervenciones técnicas** (incidencias · instalaciones · desinstalaciones ·
 mantenimiento) sobre los equipos de puntos de venta —estancos, kioscos, loterías, centros con
 cartelería digital / hilo musical / metahumans—, conectando esos centros con **técnicos**

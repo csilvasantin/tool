@@ -1,3 +1,4 @@
+import { WORK_ACTIVITY_TABLE_SQL, normalizeWorkActivity, recordWorkActivity, evaluateWorkActivity, workActivityProcessKey } from './work-activity.js';
 import { AUTOMATIC_DECISIONS, automationFamily, automationControls, automationPermission, automationAllowed, automationFenceSql, categoryRevision, stopAutomationGate, activateAutomationTargets, automationCommitStatement } from './fleet-automation-control.js';
 import { assignedWorkBlockers, legacyAcademyAvailability, pauseLegacyAcademy, pauseAutomaticRun } from './automatic-work-priority.js';
 import { principalTargetKey, resolveAgentPrincipalProject } from './agent-principal-project.js';
@@ -349,6 +350,7 @@ async function applySchema(env) {
   await env.DB.exec("ALTER TABLE cli_state ADD COLUMN desired_command_id TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE cli_state ADD COLUMN desired_at INTEGER").catch(() => {});
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_cli_commands_target_status ON cli_commands(machine,cli,status,created_at)");
+  await env.DB.exec(WORK_ACTIVITY_TABLE_SQL);
   await env.DB.exec("CREATE TABLE IF NOT EXISTS highscore_snapshots (agent_key TEXT NOT NULL, agent TEXT NOT NULL, machine TEXT, sampled_at INTEGER NOT NULL, points INTEGER NOT NULL, PRIMARY KEY(agent_key,sampled_at))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_highscore_snapshots_time ON highscore_snapshots(sampled_at)");
   // image: URL pública de la captura de prueba del informe (R2 /media/…). La tabla
@@ -8395,7 +8397,7 @@ async function highscoreVerifiedPresence(env, ahora) {
     ]);
     if (!response.ok) return { available:false, by_family:new Map(), sessions:new Map(), observations:[] };
     const payload = await response.json(), rows = Array.isArray(payload) ? payload : (payload.presence || payload.rows || []);
-    const byFamily = new Map(), observedSurfaces = new Map();
+    const byFamily = new Map(), observedSurfaces = new Map(), exactProcesses = new Map();
     for (const row of rows) {
       const at = highscoreActiveWorkMillis(row && row.updated);
       const pid = Number(row && row.pid);
@@ -8412,6 +8414,7 @@ async function highscoreVerifiedPresence(env, ahora) {
       // Keep only public identity metadata; no PID, focus, prompt or work text.
       const host = String(row.host).toLowerCase(), runtime = String(row.runtime || "").trim().slice(0,80);
       const key = `${family.family_key}|${host}|${runtime.toLowerCase()}`;
+      if (runtime && row.session_id) exactProcesses.set(workActivityProcessKey(family.family_key, runtime, host, row.session_id), at);
       if (!observedSurfaces.has(key) || observedSurfaces.get(key).observed_at < at) observedSurfaces.set(key, {
         agent:family.family_name, family_key:family.family_key,
         machine:canonicalMachineSuffix(parseAgentIdentity(family.family_name).suffix), host, runtime,
@@ -8431,12 +8434,13 @@ async function highscoreVerifiedPresence(env, ahora) {
             ended > ahora + HIGHSCORE_CLOCK_SKEW_MS || ended && ended < started) continue;
         const key = `${family.family_key}|${ref}`, list = sessions.get(key) || [];
         list.push({ started_at:started, ended_at:ended || null, state,
+          runtime:String(row.runtime || "").trim().slice(0,80), session_id:String(row.session_id || "").trim().slice(0,160),
           basis:String(row.basis || "process_birth").slice(0,40),
           surface:["app","cli"].includes(String(row.surface)) ? String(row.surface) : "" });
         sessions.set(key, list);
       }
     }
-    return { available:true, by_family:byFamily, sessions, observations:[...observedSurfaces.values()] };
+    return { available:true, by_family:byFamily, sessions, exact_processes:exactProcesses, observations:[...observedSurfaces.values()] };
   } catch {
     return { available:false, by_family:new Map(), sessions:new Map(), observations:[] };
   }
@@ -8485,8 +8489,8 @@ function highscoreDedicatedTiming(linked, timing, ahora) {
 __name(highscoreDedicatedTiming, "highscoreDedicatedTiming");
 
 // Estado único para tabla y carrera. Un assignment canónico siempre conserva su
-// calle; sólo es `running` si el progreso MATERIAL es de hace <=20 minutos.
-// Presence únicamente añade reachability y nunca cambia el estado del trabajo.
+// calle; `running` requiere progreso material reciente o actividad explícita
+// vigente ligada a esta misión y sesión. Presence sola sólo añade reachability.
 async function highscoreActiveWork(env, ahora = Date.now()) {
   const [missions, tasks, decisions, objectives, presence, pidx] = await Promise.all([
     env.DB.prepare(`SELECT id,subject,assignee,loc,status,project,project_id,created_at,started_at,resolved_at,EXISTS(SELECT 1 FROM fleet_hourly_work hw WHERE hw.mission_id=t.id) automatic_work,` +
@@ -8494,6 +8498,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
       `CASE WHEN source IN ('decision-batch','cli-declare') AND COALESCE(TRIM(assignee),'')<>'' AND COALESCE(TRIM(loc),'')<>'' THEN created_at END assignment_born_at,` +
       `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,` +
       `${HIGHSCORE_MISSION_PROGRESS_SQL} work_progress_at,` +
+      `(SELECT activity_json FROM fleet_work_activity wa WHERE wa.mission_id=t.id) activity_json,` +
       `${HIGHSCORE_RACE_PROGRESS_SQL} race_progress_at FROM tickets t ` +
       `WHERE ${MISSION_SCOPE_SQL_T} AND status='in_progress' AND NOT EXISTS(SELECT 1 FROM fleet_hourly_work hw JOIN fleet_agent_mode_runs hr ON hr.id=hw.run_id WHERE hw.mission_id=t.id AND hr.status='paused')`).all().then((r) => r.results || []),
     env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.started_at,m.created_at,m.updated_at,EXISTS(SELECT 1 FROM fleet_hourly_work hw WHERE hw.mission_id=t.id) automatic_work,` +
@@ -8538,7 +8543,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     const at = highscoreActiveWorkMillis(item.work_progress_at || (kind === "objective" ? item.updated_at : 0));
     const cutoff = ahora - HIGHSCORE_ACTIVE_WORK_MS;
     const recent = at > 0 && at >= cutoff && at <= ahora + HIGHSCORE_CLOCK_SKEW_MS;
-    const state = forcedState || (recent && !["open","pending","assigned","unconcluded"].includes(item.status) ? "running" : "assigned_stale");
+    let state = forcedState || (recent && !["open","pending","assigned","unconcluded"].includes(item.status) ? "running" : "assigned_stale");
     const presenceAt = presence.by_family.get(family.family_key) || 0;
     const laneRecent = at > 0 && at >= ahora - HIGHSCORE_LANE_WORK_MS && at <= ahora + HIGHSCORE_CLOCK_SKEW_MS;
     const linkedSessions = presence.sessions && presence.sessions.get(`${family.family_key}|${workRef}`) || [];
@@ -8548,9 +8553,13 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     // día anterior mientras sus misiones puntuadas de hoy quedaban ocultas.
     const linked = highscoreLinkedSession(linkedSessions);
     const linkedOpen = !!(linked && linked.state === "open");
+    const activity = !forcedState && kind === "mission" ? evaluateWorkActivity({ signal:item.activity_json,
+      status:item.status, ended_at:item.resolved_at, family_key:family.family_key, linked,
+      exact_processes:presence.exact_processes, now:ahora }) : null;
+    if (activity) state = "running";
     // Una asignación abierta no ocupa indefinidamente la carrera. Para entrar
     // necesita un hecho material de la última hora o el proceso exacto verificado;
-    // este último acredita la calle, pero nunca el movimiento (20 min).
+    // este último acredita la calle; el movimiento requiere progreso o actividad.
     if (!forcedState && !laneRecent && !linkedOpen) return;
     const raceProgressAt = highscoreActiveWorkMillis(item.race_progress_at ||
       (kind === "objective" ? item.created_at : 0));
@@ -8578,6 +8587,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     }
     // Exactamente una encarnación vinculada: cero o varias son ambiguas y por
     // contrato no se suman ni se elige una de forma heurística.
+    if (activity) Object.assign(candidate, activity);
     if (timing) Object.assign(candidate, timing);
     const dedicated = highscoreDedicatedTiming(linked, timing, ahora);
     if (dedicated) Object.assign(candidate, dedicated);
@@ -8600,8 +8610,9 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     const previousRank = previous && (previous.state === "running" ? 2 : previous.state === "assigned_stale" ? 1 : 0);
     if (previous && previous.assignment_priority > candidate.assignment_priority) return;
     if (!previous || candidate.assignment_priority > previous.assignment_priority || stateRank > previousRank ||
-        (stateRank === previousRank && priority[kind] > priority[previous.kind]) ||
-        (stateRank === previousRank && priority[kind] === priority[previous.kind] && at > previous.active_at))
+        (stateRank === previousRank && !!candidate.activity_at && !previous.activity_at) ||
+        (stateRank === previousRank && !!candidate.activity_at === !!previous.activity_at && priority[kind] > priority[previous.kind]) ||
+        (stateRank === previousRank && !!candidate.activity_at === !!previous.activity_at && priority[kind] === priority[previous.kind] && at > previous.active_at))
       byFamily.set(family.family_key, candidate);
   };
   for (const mission of missions) add(mission.assignee, mission.loc, "mission", mission, mission.subject || "Misión activa",
@@ -9347,6 +9358,9 @@ var worker_app = {
         if (t.status === "resolved" || t.status === "cancelled") {
           return json({ ok: false, code: "mission_closed", error: "la misión ya está cerrada", applied: false }, 409);
         }
+        let explicitActivity;
+        try { explicitActivity = normalizeWorkActivity(b.activity, b.work_session); }
+        catch (error) { return json({ ok:false, code:error.message, applied:false }, 400); }
         const rawImage = String(b.image || "").trim();
         let img = null, capturedAt = null, liveKind = null, captureSurface = null, captureContext = null;
         if (rawImage) {
@@ -9386,6 +9400,9 @@ var worker_app = {
             "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,started_at=CASE WHEN status='open' THEN COALESCE(started_at,?) ELSE started_at END,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
           ).bind(now, await puntosDeAgenteAhora(env, t.assignee || actor.actor, t.loc), now, mid).run();
         }
+        const workActivity = await recordWorkActivity(env, t, actor.actor || t.assignee, explicitActivity, workBinding, now);
+        if (explicitActivity && !workActivity.accepted) return json({ ok:false, code:workActivity.reason,
+          mission:mid, work_binding:workBinding, work_activity:workActivity, evidence_updated:!!img }, 409);
         // Telegram es un espejo completo de la misión: el usuario ve el avance y
         // la captura sin tener que abrir YOKUP.
         if (env.TELEGRAM) {
@@ -9397,7 +9414,7 @@ var worker_app = {
             })); } catch(e) {}
           }
         }
-        return json({ ok: true, mission: mid, work_binding:workBinding, evidence_updated: !!img, evidence_kind: liveKind, captured_at: capturedAt,
+        return json({ ok: true, mission: mid, work_binding:workBinding, work_activity:workActivity, evidence_updated: !!img, evidence_kind: liveKind, captured_at: capturedAt,
           capture_surface:captureSurface, capture_context:captureContext, degraded: liveKind === "final-fallback" });
       } catch (e) {
         return json({ ok: false, error: String(e) }, 500);

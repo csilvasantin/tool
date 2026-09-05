@@ -38,6 +38,6 @@ test('HTTP ok sin bound no declara enlace; errores no exponen detalles privados'
 });
 test('progress y task-status exponen fallo de enlace sin convertirlo en fallo del trabajo',()=>{
  assert.match(source,/const workBinding = await bindPresenceWork\(env, actor.actor \|\| t.assignee, t.loc, mid, b.work_session\)/);
- assert.match(source,/ok: true, mission: mid, work_binding:workBinding, evidence_updated/);
+ assert.match(source,/ok: true, mission: mid, work_binding:workBinding, work_activity:workActivity, evidence_updated/);
  assert.match(source,/row.work_binding = await bindPresenceWork\(env, row.executor \|\| row.owner/);
 });

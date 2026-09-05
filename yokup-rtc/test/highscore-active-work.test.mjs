@@ -1,3 +1,4 @@
+import { WORK_ACTIVITY_TABLE_SQL, evaluateWorkActivity, workActivityProcessKey } from '../src/work-activity.js';
 import test from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
@@ -26,10 +27,11 @@ function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
   db.exec("CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT,ticket_id TEXT,ts INTEGER,kind TEXT,author TEXT,text TEXT)");
   db.exec("CREATE TABLE projects(id TEXT PRIMARY KEY,name TEXT)");
   db.exec("CREATE TABLE fleet_hourly_work(run_id TEXT,mission_id TEXT); CREATE TABLE fleet_agent_mode_runs(id TEXT,status TEXT)");
+  db.exec(WORK_ACTIVITY_TABLE_SQL);
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{all:async()=>({results:stmt.all(...args)})}},all:async()=>({results:stmt.all()})}}};
   const TELEGRAM=presence===null?undefined:{fetch:async(request)=>({ok:true,json:async()=>
     String(request.url).includes("work-sessions") ? {ok:true,sessions:workSessions} : presence})};
-  const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,Request,
+  const context=vm.createContext({evaluateWorkActivity,workActivityProcessKey,Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,Request,
     machineSuffix,canonicalMachineSuffix,baseAgentIdentity,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,resolveDecisionIdentity,MISSION_SCOPE_SQL_T,__name:(fn)=>fn});
   vm.runInContext([
     grabVar("HIGHSCORE_PERSONAS"),grabVar("PRESENCE_URL"),
@@ -578,4 +580,30 @@ test("última misión cerrada no oculta hueco y aliases del mismo proceso no dup
   const payload=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
   assert.equal(payload.participants[0].state,"last_work");
   assert.equal(payload.observations.length,1); assert.equal(payload.observations[0].observed_at,NOW);
+});
+
+test('coordinación exacta renueva movimiento sin reiniciar reloj y vence tarea inicializada de la misma familia', async()=>{
+  const family='oraculo@macmini', start=NOW-40*MIN;
+  const process={...processRow('OraculoMacMini','MacMini'),runtime:'Codex',host:'app',session_id:'desktop:codex'};
+  const sessions=[{persona:'OraculoMacMini',machine:'MacMini',work_ref:'COORD',surface:'app',runtime:'Codex',session_id:'desktop:codex',started_at:start-1000,state:'open'}];
+  const {db,env,F}=harness({presence:[process]},sessions);
+  mission(db,{id:'COORD',at:start});
+  db.prepare('INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?,?)').run('COORD','a','Implementar','in_progress','OraculoMacMini',NOW-MIN,start,NOW-MIN,'SubOraculoMacMini',null);
+  const signal={family_key:family,kind:'coordination',detail:'Contrasto los resultados reales de los tres agentes',runtime:'Codex',host:'app',session_id:'desktop:codex',observed_at:NOW-1000,basis:'explicit_bound_progress'};
+  db.prepare('INSERT INTO fleet_work_activity VALUES (?,?,?)').run('COORD',JSON.stringify(signal),signal.observed_at);
+  let row=(await F.highscoreActiveWork(env,NOW)).participants[0];
+  assert.equal(row.reference,'COORD'); assert.equal(row.state,'running');
+  assert.equal(row.activity_text,signal.detail); assert.equal(row.work_started_at,start);
+  const revision=row.race_revision;
+  signal.observed_at=NOW;
+  db.prepare('UPDATE fleet_work_activity SET activity_json=?').run(JSON.stringify(signal));
+  row=(await F.highscoreActiveWork(env,NOW)).participants[0];
+  assert.equal(row.race_revision,revision); assert.equal(row.work_started_at,start);
+  db.prepare("UPDATE mission_tasks SET status='done', started_at=?").run(start);
+  mission(db,{id:'OTHER',agent:'NeoMBP14',machine:'MBP14',at:NOW});
+  const stale=(await F.highscoreActiveWork(env,NOW+120001)).participants.find(row=>row.reference==='COORD');
+  assert.equal(stale.state,'assigned_stale'); assert.equal(stale.activity_at,undefined);
+  db.prepare("UPDATE tickets SET status='resolved', resolved_at=?,proof_image='https://proof.test/closed.png' WHERE id='COORD'").run(NOW);
+  row=(await F.highscoreActiveWork(env,NOW)).participants.find(row=>row.reference==='COORD');
+  assert.equal(row.state,'last_work'); assert.equal(row.activity_at,undefined); assert.equal(row.ended_at,NOW);
 });
