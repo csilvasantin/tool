@@ -65,7 +65,7 @@ test("sin trabajo factual aparece una calle visual pero declara cero participant
   assert.equal(race.empty,true);
   assert.equal((race.html.match(/data-race-role="runner"/g)||[]).length,0);
   assert.match(race.html,/class="refresh-lane refresh-lane-empty"/);
-  assert.match(race.html,/SIN TRABAJO ASIGNADO/);
+  assert.match(race.html,/SIN TRABAJO VERIFICADO/);
   assert.doesNotMatch(race.html,/OraculoMacMini|refresh-fill|refresh-place|refresh-finish/);
   assert.deepEqual(rows,[{agente:"OraculoMacMini",posicion:1,total:975,vivo:true}],
     "la carrera no puede retirar ni mutar la fila del ranking");

@@ -13,5 +13,5 @@ export function installRaceView(html,context,scopedRows=null) {
  context.AGENT_SCOPE_MODE=scopedRows===null?'all':'manual';
  context.AGENT_SCOPE=scopedRows===null?null:new Set(scopedRows.map(r=>String(r.agente).toLowerCase().replace(/[^a-z0-9]/g,'')));
  context.Set=Set;
- vm.runInContext(['hsAgentKey','hsEffectiveAgentScope','hsAgentScopeAllows','aplicaAgentScope','interfazCliHtml'].map(n=>htmlFunction(html,n)).join('\n'),context);
+ vm.runInContext(['hsAgentKey','hsEffectiveAgentScope','hsAgentScopeAllows','aplicaAgentScope','interfazCliHtml','hsWorkEvidenceStatus'].map(n=>htmlFunction(html,n)).join('\n'),context);
 }
