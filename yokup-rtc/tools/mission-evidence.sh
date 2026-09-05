@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Cliente común de evidencia para Desktop, CLI y subagentes.
+#   activity  <misión> --session-id <exacta> --activity <kind> --detail <acción real>
+#             exige YOKUP_HOST=app; no captura ni se ejecuta en bucle
 #   heartbeat <misión>
 #   progress  <misión> [--image <png|jpg> --final-fallback]
 #   final     <misión> --report <texto> [--image <png|jpg>]
@@ -13,7 +15,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Dominio propio: LaLiga bloquea workers.dev en horas de fútbol (FLT-1633).
 API="${YOKUP_API:-https://api.yokup.com}"
-MODE="${1:?uso: mission-evidence.sh heartbeat|progress|final <misión> ...}"
+MODE="${1:?uso: mission-evidence.sh activity|heartbeat|progress|final <misión> ...}"
 MISSION="${2:?falta misión}"; shift 2
 # El transcript se puede fijar para TODA la sesión del agente: el claim y los
 # latidos también capturan evidencia y ahí no hay línea de comandos donde meter un
@@ -21,8 +23,12 @@ MISSION="${2:?falta misión}"; shift 2
 # —heartbeat, progress y final— pasan por su superficie. --transcript manda sobre él.
 IMAGE=""; PROCESS_IMAGE=""; CAPTURED_AT=""; PROCESS_CAPTURED_AT=""; REPORT=""; FALLBACK=false
 TRANSCRIPT="${YOKUP_TRANSCRIPT:-}"
+ACTIVITY_KIND=""; ACTIVITY_DETAIL=""; ACTIVITY_SESSION=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
+    --activity) ACTIVITY_KIND="${2:-}"; shift 2 ;;
+    --detail) ACTIVITY_DETAIL="${2:-}"; shift 2 ;;
+    --session-id) ACTIVITY_SESSION="${2:-}"; shift 2 ;;
     --image) IMAGE="${2:-}"; shift 2 ;;
     --process-image) PROCESS_IMAGE="${2:-}"; shift 2 ;;
     --captured-at) CAPTURED_AT="${2:-}"; shift 2 ;;
@@ -35,11 +41,61 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$MODE" in
-  heartbeat|progress) export YOKUP_ROLE="${YOKUP_ROLE:-sub}" ;;
+  activity|heartbeat|progress) export YOKUP_ROLE="${YOKUP_ROLE:-sub}" ;;
   final) export YOKUP_ROLE="${YOKUP_ROLE:-infra}" ;;
   *) echo "modo inválido: $MODE" >&2; exit 2 ;;
 esac
 read -r PERSONA HOST OWNER RUNTIME <<<"$(bash "$HERE/quien-ejecuta.sh")"
+
+# Actividad sólo por una acción explícita de este emisor; nunca por un temporizador
+# de presencia, por abrir la app o por terminar una tarea hija. La sesión y misión
+# se eligen de nuevo en la invocación que describe el trabajo real actual.
+ACTIVITY_JSON=""
+if [ "$MODE" = "activity" ] || [ -n "$ACTIVITY_KIND$ACTIVITY_DETAIL$ACTIVITY_SESSION" ]; then
+  [ "$MODE" != "final" ] || { echo "final no admite una señal de actividad viva" >&2; exit 2; }
+  [ "${YOKUP_HOST:-}" = "app" ] && [ "$HOST" = "app" ] || {
+    echo "actividad exige YOKUP_HOST=app explícito; CLI permanece pausado" >&2; exit 2;
+  }
+  ACTIVITY_JSON="$(ACTIVITY_KIND="$ACTIVITY_KIND" ACTIVITY_DETAIL="$ACTIVITY_DETAIL" ACTIVITY_SESSION="$ACTIVITY_SESSION" ACTIVITY_RUNTIME="$RUNTIME" python3 - <<'PYACT'
+import json,os,sys
+kind=os.environ['ACTIVITY_KIND']; detail=os.environ['ACTIVITY_DETAIL'].strip()
+session=os.environ['ACTIVITY_SESSION'].strip(); runtime=os.environ['ACTIVITY_RUNTIME'].strip()
+if (kind not in ('coordination','implementation','verification') or not 8 <= len(detail) <= 240
+    or not 1 <= len(session) <= 160 or not 1 <= len(runtime) <= 80
+    or any(ord(c)<32 for c in detail+session+runtime)):
+    sys.exit('actividad exige --activity válido, --detail real (8–240 caracteres) y --session-id exacto')
+print(json.dumps({'activity':{'kind':kind,'detail':detail},'detail':detail,
+                  'work_session':{'runtime':runtime,'host':'app','session_id':session}}))
+PYACT
+)"
+fi
+
+send_activity_payload() {
+  local payload="$1" response
+  response="$(printf '%s' "$payload" | curl -fsS -m 30 -X POST "$API/fleet/progress" \
+    -H 'Content-Type: application/json' -H 'User-Agent: YokupMissionEvidence/1.0' --data @-)" || return 1
+  printf '%s' "$response" | python3 -c '
+import json,sys
+try:
+    data=json.load(sys.stdin); a=data.get("work_activity") or {}; b=data.get("work_binding") or {}
+    at=a.get("activity_at")
+    if not (data.get("ok") is True and b.get("bound") is True and a.get("accepted") is True
+            and a.get("basis")=="explicit_bound_progress" and a.get("ttl_ms")==120000
+            and type(at) in (int,float) and at>0): raise ValueError()
+    print(json.dumps({"ok":True,"mission":data.get("mission"),"bound":True,"accepted":True,
+                      "activity_at":at,"activity_kind":a.get("activity_kind"),"ttl_ms":a["ttl_ms"],
+                      "evidence_updated":data.get("evidence_updated",False)}))
+except (ValueError,TypeError,AttributeError):
+    sys.exit("Actividad no confirmada: revisa misión abierta, identidad, sesión exacta y API. No se ha declarado éxito.")'
+}
+
+if [ "$MODE" = "activity" ]; then
+  # Sin captura: no trae una ventana al frente ni lee transcripts de otras sesiones.
+  PAYLOAD="$(ACTIVITY_JSON="$ACTIVITY_JSON" MISSION="$MISSION" OWNER="$OWNER" python3 -c 'import json,os; p=json.loads(os.environ["ACTIVITY_JSON"]); p.update(mission=os.environ["MISSION"],owner=os.environ["OWNER"]); print(json.dumps(p))')"
+  send_activity_payload "$PAYLOAD"
+  exit $?
+fi
+
 
 case "$HOST" in
   cli) CAPTURE_SURFACE="cli"; CAPTURE_CONTEXT="command_output" ;;
@@ -331,6 +387,13 @@ else
   [ -n "$IMAGE_URL" ] || { echo "final exige --image" >&2; exit 2; }
   PAYLOAD="$(MISSION="$MISSION" OWNER="$OWNER" IMAGE_URL="$IMAGE_URL" REPORT="$REPORT" HOST="$HOST" RUNTIME="$RUNTIME" python3 -c 'import json,os; print(json.dumps({"mission":os.environ["MISSION"],"owner":os.environ["OWNER"],"image":os.environ["IMAGE_URL"],"report":os.environ["REPORT"],"host":os.environ["HOST"],"runtime":os.environ["RUNTIME"]}))')"
   ENDPOINT="informe"
+fi
+
+
+if [ -n "$ACTIVITY_JSON" ]; then
+  PAYLOAD="$(ACTIVITY_JSON="$ACTIVITY_JSON" PAYLOAD="$PAYLOAD" python3 -c 'import json,os; p=json.loads(os.environ["PAYLOAD"]); p.update(json.loads(os.environ["ACTIVITY_JSON"])); print(json.dumps(p))')"
+  send_activity_payload "$PAYLOAD"
+  exit $?
 fi
 
 printf '%s' "$PAYLOAD" | curl -fsS -m 30 -X POST "$API/fleet/$ENDPOINT" -H 'Content-Type: application/json' --data @-

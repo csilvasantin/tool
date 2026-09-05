@@ -45,3 +45,35 @@ sin sustituir `work_started_at`, `ended_at`, `work_progress_at`, puntuación o
 coordinación vigente puede sustituir a una subtarea de la misma familia en la única
 pista de esa familia; no crea un segundo corredor ni puntos. Los emisores anteriores
 sin `activity` siguen siendo compatibles, pero no renuevan esta señal explícita.
+
+## Emisor común Desktop: recuperar el trabajo actual
+
+`tools/mission-evidence.sh` (instalado en `~/Claude/admira-vault/mission-evidence.sh`)
+admite el mismo avance explícito. Se usa desde el agente que realmente realiza
+la acción, con su identidad resuelta y la sesión exacta comprobada:
+
+```sh
+YOKUP_HOST=app YOKUP_ROLE=main YOKUP_RUNTIME=Claude \
+  bash ~/Claude/admira-vault/mission-evidence.sh activity FLT-identificador-real \
+  --session-id desktop:claude --activity implementation \
+  --detail 'Verifico el cambio que acabo de aplicar en la misión actual'
+```
+
+`activity` no captura pantalla, lee conversaciones ni mueve ventanas. No es un
+heartbeat automático: se invoca al iniciar/retomar y en hitos de trabajo real.
+Los mismos tres flags pueden acompañar `heartbeat` o `progress`; conservan su
+flujo de evidencia y adjuntan la señal al mismo envío. `final` no admite actividad.
+No se guardan misión, sesión ni detalle para reutilizarlos en futuras invocaciones.
+El host debe ser explícitamente `YOKUP_HOST=app`; CLI sigue pausado por política.
+Sin los tres flags, los modos de evidencia anteriores conservan su comportamiento
+pero **no declaran actividad reciente**. La aceptación exige `bound:true`,
+`accepted:true`, fecha, base y TTL del contrato; no se reintentan fallos ni se
+presenta una API antigua como éxito.
+
+La incidencia FLT-1827 mostró el límite: Claude APP seguía enlazado a la tarea
+`b` ya terminada, mientras la misión principal no tenía actividad explícita.
+Una app abierta o una declaración de presencia no permiten promover a la misión
+padre ni a la siguiente tarea. El agente debe elegir el trabajo abierto que está
+realizando ahora y publicar su avance real. Ese envío vuelve a enlazar su sesión
+exacta; un cierre, sesión equivocada o CLI pausado se rechaza. El Highscore conserva
+inicio, duración y revisión de carrera, y sólo recupera actividad durante su TTL.

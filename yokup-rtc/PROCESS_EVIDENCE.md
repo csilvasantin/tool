@@ -1,6 +1,6 @@
 # Evidencia de proceso desde el inicio
 
-Para comunicar actividad real de coordinación/ejecución sin una captura nueva, sigue [WORK_ACTIVITY.md](WORK_ACTIVITY.md) y el helper one-shot `scripts/fleet-progress.py`. Un heartbeat de captura o presencia no sustituye ese avance explícito.
+Para comunicar actividad real de coordinación/ejecución sin una captura nueva, sigue [WORK_ACTIVITY.md](WORK_ACTIVITY.md) y el modo `mission-evidence.sh activity` o el helper one-shot `scripts/fleet-progress.py`. Un heartbeat de captura o presencia no sustituye ese avance explícito.
 
 `tools/mission-evidence.sh` publica una captura de proceso ya en `heartbeat`,
 antes de esperar al primer refresco periódico. La procedencia se determina por
