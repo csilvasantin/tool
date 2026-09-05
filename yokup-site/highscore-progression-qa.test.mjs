@@ -113,7 +113,7 @@ test("móvil conserva las cinco etapas y la siguiente ventana con scroll horizon
   assert.match(html, /\.table-scroll\{[^}]*overflow-x:auto[^}]*overflow-y:hidden/);
   assert.match(html, /@media \(max-width:620px\)[\s\S]*\.progression\{grid-template-columns:88px repeat\(6,76px\);min-width:580px/);
   assert.match(html, /<tr class="score-progress' \+ alterna \+ '" id="' \+ esc\(progressId\) \+ '" hidden><td colspan="9">' \+ progresionHtml\(a\)/);
-  assert.match(html, /<tr class="score-main' \+ alterna \+ '"><td class="n">' \+ posicionHtml/);
+  assert.match(html, /<tr class="score-main' \+ alterna \+ '" data-agent-key="' \+ esc\(agentKey\) \+ '"><td class="n">' \+ posicionHtml/);
   assert.equal((html.match(/class="sort-head"/g) || []).length, 8);
 });
 
