@@ -174,6 +174,10 @@ test('GrokBot service task runs with real description and expires without becomi
  assert.match(output,/data-work-state="running"/);assert.match(output,/GrokBot · APP/);assert.match(output,/>Página drag-and-drop</);
  assert.equal(ctx.trabajosCarrera()[0].sessionSurface,'');assert.equal(ctx.trabajosCarrera()[0].reference,'GROK:b');
  for(const patch of [{machine:'MacMini',agent:'LucasMacMini',family_key:'lucas@macmini'},{host:'cli'},{runtime:'Codex'},{ended_at:dualAt},{activity_expires_at:dualAt},{service_observed_at:dualAt-120001},{activity_expires_at:dualAt+120001}])assert.doesNotMatch(render([{...service,...patch}],dualAt),/data-work-state="running"/);
+ const event={...service,reference:'FLT-1893:b',service_work_ref:'FLT-1893:b',activity_at:dualAt-480000,service_observed_at:dualAt-479000,activity_expires_at:dualAt+720000};
+ assert.match(render([event],dualAt),/data-work-state="running"/);
+ for(const patch of [{service_work_ref:'FLT-1893:a'},{service_observed_at:event.activity_at-5001},{activity_expires_at:dualAt+720001},{ended_at:dualAt}])assert.doesNotMatch(render([{...event,...patch}],dualAt),/data-work-state="running"/);
+ render([event],dualAt);ctx.performance.now=()=>720200;ctx.document.querySelectorAll=()=>[];ctx.hsPaintWorkUpdate=()=>{};ctx.actualizaRelojesCarrera();assert.equal(ctx.datos.trabajos[0].state,'assigned_stale');ctx.performance.now=()=>100;
  render([service],dualAt);ctx.performance.now=()=>120200;ctx.document.querySelectorAll=()=>[];let paints=0;ctx.hsPaintWorkUpdate=()=>paints++;
  ctx.actualizaRelojesCarrera();assert.equal(paints,1);assert.equal(ctx.datos.trabajos[0].state,'assigned_stale');
 });

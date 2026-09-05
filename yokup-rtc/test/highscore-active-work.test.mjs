@@ -646,7 +646,7 @@ test('service heartbeat alone, completed task and closed parent cannot start a G
  }
 });
 test('service evidence expires and never borrows another agent, machine, or a future/stale heartbeat',async()=>{
- for(const patch of [{persona:'Jobs'},{machine:'MacMini'},{persona:'LucasMacMini'},{host:'cli'},{updated:(NOW-120000)/1000},{updated:(NOW+6000)/1000}]){
+ for(const patch of [{persona:'Jobs'},{machine:'MacMini'},{persona:'LucasMacMini'},{host:'cli'},{focus:'misión FLT-1234 cerrada'},{focus:'misión FLT-1234 · paso a in_progress'},{updated:(NOW-120000)/1000},{updated:(NOW+6000)/1000}]){
   const {db,env,F}=harness({presence:[{...serviceRow(),...patch}]});grokTask(db);
   assert.equal((await F.highscoreActiveWork(env,NOW)).running_count,0,JSON.stringify(patch));
  }
@@ -658,4 +658,24 @@ test('a canonical completion removes a previously running service task at the ne
  assert.equal((await F.highscoreActiveWork(env,NOW)).running_count,1);
  db.prepare('UPDATE mission_tasks SET status=?,ended_at=? WHERE mission_id=?').run('done',NOW,'GROK');
  assert.equal((await F.highscoreActiveWork(env,NOW+1)).running_count,0);
+});
+
+test('GrokBot task-start service event remains valid for its exact active task beyond heartbeat TTL',async()=>{
+ for(const [focus,expected] of [['misión FLT-1234 · paso b in_progress',1],['misión FLT-1234 · paso a in_progress',0],['misión FLT-1234 cerrada',0]]){
+  const {db,env,F}=harness({presence:[{...serviceRow(),focus,updated:(NOW-8*MIN)/1000}]});
+  grokTask(db,{started:NOW-8*MIN});db.exec("UPDATE tickets SET id='FLT-1234'; UPDATE mission_tasks SET mission_id='FLT-1234'");
+  const out=await F.highscoreActiveWork(env,NOW);assert.equal(out.running_count,expected,focus);
+  if(expected){const row=out.participants[0];assert.equal(row.service_work_ref,'FLT-1234:b');assert.equal(row.activity_expires_at,NOW+12*MIN);
+   db.exec("UPDATE mission_tasks SET status='done'");assert.equal((await F.highscoreActiveWork(env,NOW+1)).running_count,0);}
+ }
+});
+
+test('contradictory GrokBot task events at the same instant are ambiguous in either order',async()=>{
+ const active={...serviceRow(),focus:'misión FLT-1234 · paso b in_progress'};
+ const other={...serviceRow(),focus:'misión FLT-1234 · paso a in_progress'};
+ for(const rows of [[active,other],[other,active]]){
+  const {db,env,F}=harness({presence:rows});grokTask(db);
+  db.exec("UPDATE tickets SET id='FLT-1234'; UPDATE mission_tasks SET mission_id='FLT-1234'");
+  assert.equal((await F.highscoreActiveWork(env,NOW)).running_count,0);
+ }
 });

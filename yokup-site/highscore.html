@@ -4749,7 +4749,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     if(item&&item.activity_basis==="grokbot_task_progress"){
       var now=datos.trabajosGeneratedAt+Math.max(0,performance.now()-(datos.trabajosClientAt||0));
       var service=hsWorkIdentity(item),seen=Number(item.service_observed_at)||0,at=Number(item.activity_at)||0,expires=Number(item.activity_expires_at)||0;
-      var valid=service.machine==="GrokBot"&&item.kind==="task"&&item.runtime==="Grok"&&item.host==="app"&&item.service_surface==="app"&&!!normaliza(item.reference)&&!item.cli_paused&&!item.ended_at&&at>0&&seen>0&&at<=now+5000&&seen<=now+5000&&expires<=Math.min(at+1200000,seen+120000)&&now<expires;
+      var valid=service.machine==="GrokBot"&&item.kind==="task"&&item.runtime==="Grok"&&item.host==="app"&&item.service_surface==="app"&&!!normaliza(item.reference)&&!item.cli_paused&&!item.ended_at&&at>0&&seen>0&&at<=now+5000&&seen<=now+5000&&expires<=Math.min(at+1200000,seen+(item.service_work_ref===item.reference&&seen>=at-5000?1200000:120000))&&now<expires;
       if(item.state==="last_work")return item;
       return valid&&item.state==="running"?item:Object.assign({},item,{state:"assigned_stale",activity_reason:"service_activity_unverified"});
     }
