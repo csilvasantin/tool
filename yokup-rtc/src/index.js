@@ -44,6 +44,7 @@ import { isProjectShotAllowed, normalizeProjectWeb } from "./project-web.js";
 import { AGENT_SOURCE_SQL, AGENT_SOURCE_SQL_T, FIELD_SOURCE_SQL_T, MISSION_SCOPE_SQL,
   MISSION_SCOPE_SQL_T, FIELD_MISSION_SCOPE_SQL_T, FLEET_MISSIONS_SQL } from "./mission-sources.js";
 import { normalizeProjectLaunch, projectLaunchTarget } from "./project-launch.js";
+import { ensureHourlyModeSchema, evaluateModeOpportunity, hourlySlot, learningPrompt, trainingPrompt, listAgentModes, modeTargetKey, normalizeModeTarget, runHourlyModes, saveAgentMode, validateTrainingProposals } from "./fleet-hourly-modes.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -1905,6 +1906,183 @@ __name(beatAge, "beatAge");
 // latido en worker_beats; ninguna tumba a la siguiente ni a la respuesta HTTP (corre
 // en ctx.waitUntil, en 2º plano). Todas son idempotentes o inofensivas en repetición;
 // el cerrojo D1 evita además el solape entre isolates de las que leen-y-escriben.
+async function hourlyModeProject(env, target, requestedProjectId = "", now = Date.now()) {
+  // Carry the last explicit principal forward across midnight while its canonical
+  // project assignment remains valid. Never infer it from the Dashboard filter.
+  const declarations=(await env.DB.prepare("SELECT d.*,p.status project_status FROM agent_project_declarations d JOIN projects p ON p.id=d.project_id WHERE d.day<=? ORDER BY d.day DESC,d.updated_at DESC").bind(madridDayKey(now)).all()).results || [];
+  const matches=declarations.filter(row=>groupingIdentityKey(row.agent)===groupingIdentityKey(target.agent || target.persona,target.machine));
+  const declaration=matches[0];
+  if (!declaration || declaration.project_status==='archivado') throw Object.assign(new Error('project_required'),{status:409});
+  if (matches.some(row=>row.day===declaration.day && row.updated_at===declaration.updated_at && row.project_id!==declaration.project_id)) throw Object.assign(new Error('project_ambiguous'),{status:409});
+  if (requestedProjectId && requestedProjectId!==declaration.project_id) throw Object.assign(new Error('principal_project_changed'),{status:409});
+  const project=await exactDecisionProjectAssignment(env,target.agent || target.persona,target.machine,declaration.project_id);
+  if (!project) throw Object.assign(new Error('project_required'),{status:409});
+  return project;
+}
+async function hourlyModeActivity(env,target,project,now) {
+  const [missions,tasks,decisions]=await Promise.all([
+    env.DB.prepare("SELECT id,assignee,loc FROM tickets WHERE "+AGENT_SOURCE_SQL+" AND status IN ('open','in_progress','unconcluded')").all(),
+    env.DB.prepare("SELECT t.assignee,t.loc,m.owner FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE m.status IN ('in_progress','doing','active','unconcluded') AND t.status NOT IN ('resolved','cancelled')").all(),
+    env.DB.prepare("SELECT agent,machine FROM decisions WHERE status='pending' AND deadline>?").bind(now).all()
+  ]);
+  if ((missions.results||[]).some(row=>matchesOnIdleIdentity(row,target)) || (tasks.results||[]).some(row=>matchesOnIdleIdentity(row,target))) return {busy:true,reason:'active_mission'};
+  if ((decisions.results||[]).some(row=>matchesOnIdleIdentity({assignee:row.agent,loc:row.machine},target))) return {busy:true,reason:'live_decision'};
+  return {busy:false};
+}
+async function hourlyModeTelemetry(env) {
+  if (!env.TELEGRAM) throw new Error('telemetry_unavailable');
+  const response=await env.TELEGRAM.fetch(new Request('https://telegram/api/presence',{headers:{accept:'application/json'}}));
+  if (!response.ok) throw new Error('telemetry_unavailable');
+  const data=await response.json();
+  if (!data.ok || !Array.isArray(data.presence)) throw new Error('telemetry_unavailable');
+  return data;
+}
+async function hourlyModeInventory(env) {
+  const saved=await listAgentModes(env),items=new Map(saved.map(row=>[row.identity_key,row]));
+  let telemetry;try { telemetry=await hourlyModeTelemetry(env); } catch { telemetry={presence:[],control_machines:[]}; }
+  for (const row of [...telemetry.presence,...(telemetry.control_machines || []).flatMap(machine=>(machine.slots || []).map(slot=>({...slot,machine:machine.machine})))]) {
+    try { const target=normalizeModeTarget(row),key=modeTargetKey(target);if (!items.has(key)) items.set(key,{...target,identity_key:key,mode:'manual',status:'manual',reason:'manual',project_id:'',next_run:null,last_run:null}); } catch {}
+  }
+  for (const row of items.values()) {
+    const machine=(telemetry.control_machines || []).find(item=>memberRefMatches('machine',item.machine,row.machine));
+    const capabilities=machine?.capabilities || [],now=Date.now()/1000,sampled=Number(machine?.updated || 0),fresh=sampled>0 && now-sampled<=30 && sampled<=now+5;
+    const configured=(machine?.slots || []).some(slot=>modeTargetKey({...slot,machine:machine.machine})===row.identity_key);
+    const observed=(telemetry.presence || []).some(item=>modeTargetKey(item)===row.identity_key && item.source==='process_snapshot' && (item.verified===true || item.verified===1) && Number(item.updated)>0 && now-Number(item.updated)<=30 && Number(item.updated)<=now+5);
+    const supported=fresh && (configured || observed) && capabilities.includes('hourly_modes') && capabilities.includes(row.host==='app'?'desktop_write':'terminal_write') && (row.host==='app'?capabilities.includes('hourly_desktop_'+row.runtime.toLowerCase()):capabilities.includes('hourly_learning_cli'));
+    row.available_modes=supported?['manual','learning','training']:['manual'];
+    row.support_reason=supported?'':fresh?'consumer_unavailable':'telemetry_unavailable';
+  }
+  return [...items.values()];
+}
+async function hourlyModeGuard(env,id,now=Date.now(),expectedTarget=null) {
+  await ensureHourlyModeSchema(env);
+  const run=await env.DB.prepare('SELECT * FROM fleet_agent_mode_runs WHERE id=?').bind(id).first();
+  if (!run || !['reserved','starting','resuming','dispatched','awaiting_delivery','completing'].includes(run.status) || now-run.created_at>45*60000) return {allowed:false,reason:'run_inactive'};
+  const pref=await env.DB.prepare('SELECT * FROM fleet_agent_modes WHERE identity_key=?').bind(run.identity_key).first();
+  if (expectedTarget && (!pref || modeTargetKey(expectedTarget)!==pref.identity_key)) return {allowed:false,reason:'target_mismatch'};
+  if (!pref || pref.mode!==run.mode || pref.mode==='manual' || pref.project_id!==run.project_id || pref.enabled_at>run.created_at) return {allowed:false,reason:'preference_changed'};
+  const lease=await env.DB.prepare('SELECT run_id FROM fleet_hourly_family_leases WHERE run_id=? AND expires_at>?').bind(id,now).first();
+  if (!lease) return {allowed:false,reason:'family_lease_expired'};
+  try { await hourlyModeProject(env,pref,run.project_id,now); } catch { return {allowed:false,reason:'principal_project_changed'}; }
+  const activity=await hourlyModeActivity(env,pref,{id:run.project_id},now);
+  if (activity.busy) return {allowed:false,reason:activity.reason};
+  return {allowed:true,reason:'ready'};
+}
+async function executeHourlyMode(env,run) {
+  const guard=await hourlyModeGuard(env,run.id,run.now);
+  if (!guard.allowed) return {status:'skipped',reason:guard.reason};
+  // Re-sample before a side effect; the first evaluation can be several awaits old.
+  const state=evaluateModeOpportunity(run.pref,await hourlyModeTelemetry(env),await hourlyModeActivity(env,run.pref,run.project,Date.now()),Date.now());
+  if (!state.eligible) return {status:'skipped',reason:state.reason};
+  if (state.start) {
+    const started=await dispatchAgentStart(env,normalizeAgentStartTarget(state.target));
+    return {status:'starting',reason:'waiting_for_process',command_id:started.result.command_id};
+  }
+  if (run.pref.mode==='training') {
+    const proposal=await canonicalOnIdleProposals(env,run.pref,run.project.id);
+    if (!proposal.ok || proposal.proposals?.length!==3) {
+      if (run.pref.host==='cli') return {status:'skipped',reason:'terminal_readiness_unavailable'};
+      const dispatch=await dispatchDesktopWrite(env,{...state.target,text:trainingPrompt(run)});
+      return {status:'dispatched',reason:'investigating_fresh_proposals',command_id:dispatch.result.command_id};
+    }
+    const finalGuard=await hourlyModeGuard(env,run.id);
+    if (!finalGuard.allowed) return {status:'skipped',reason:finalGuard.reason};
+    const finalState=evaluateModeOpportunity(run.pref,await hourlyModeTelemetry(env),await hourlyModeActivity(env,run.pref,run.project,Date.now()),Date.now());
+    if (!finalState.eligible || finalState.start) return {status:'skipped',reason:finalState.reason};
+    const decision=await openInitialMissionDecision(env,{agent:run.pref.agent,machine:run.pref.machine,project_id:run.project.id,
+      surface:'highscore',mission:'Training horario',question:'Training · mejora horaria · '+run.pref.runtime+' '+run.pref.host.toUpperCase(),
+      options:proposal.proposals.map(row=>row.title).concat([ONIDLE_BACK_OPTION,ONIDLE_CUSTOM_OPTION]),
+      option_targets:proposal.proposals.map(row=>({target_mission_id:row.target_mission_id})).concat([null,null]),recommended:0,minutes:5,url:DECIDE_URL});
+    if (!decision.ok) return {status:'skipped',reason:decision.code || decision.error || 'decision_unavailable'};
+    return {status:'completed',reason:'decision_published',decision_id:decision.id,deliverable_url:onIdleDecisionUrl(decision.id)};
+  }
+  const {tema,lessonId}=academyTemaDeFranja(Math.floor(run.hour_start/COACH_HOUR));
+  const prompt=learningPrompt(run,tema.nombre+' · '+lessonId),target={...state.target,text:prompt};
+  const lastGuard=await hourlyModeGuard(env,run.id);
+  if (!lastGuard.allowed) return {status:'skipped',reason:lastGuard.reason};
+  const dispatched=run.pref.host==='app' ? await dispatchDesktopWrite(env,target) : await dispatchCliTerminal(env,{...target,action:'write',text:prompt+'\n'});
+  return {status:'dispatched',reason:'awaiting_consumer',command_id:dispatched.result.command_id};
+}
+async function resumeHourlyModes(env,now) {
+  const rows=(await env.DB.prepare("SELECT * FROM fleet_agent_mode_runs WHERE status IN ('starting','dispatched') ORDER BY created_at LIMIT 40").all()).results || [];
+  for (const row of rows) {
+    if (!row.command_id) continue;
+    const pref=await env.DB.prepare('SELECT * FROM fleet_agent_modes WHERE identity_key=?').bind(row.identity_key).first();
+    if (!pref) continue;
+    let result;
+    try {
+      const command=row.status==='starting'?await readAgentControlResult(env,row.command_id):pref.host==='app'?await readDesktopResult(env,row.command_id,'write'):await readCliTerminalResult(env,row.command_id);
+      if (command.status==='failed') result={status:'failed',reason:command.error || 'consumer_failed'};
+      else if (['done','already_running'].includes(command.status)) {
+        if (row.status==='dispatched') result={status:pref.host==='app' && command.delivered!==true?'failed':'awaiting_delivery',reason:pref.host==='app' && command.delivered!==true?'not_delivered':row.mode==='learning'?'capsule_pending':'proposals_pending'};
+        else if (hourlySlot(now)!==row.hour_start) result={status:'skipped',reason:'hour_expired'};
+        else {
+          const project=await hourlyModeProject(env,pref,row.project_id,now);
+          const guard=await hourlyModeGuard(env,row.id,now);
+          if (!guard.allowed) result={status:'skipped',reason:guard.reason};
+          else {
+            const eligibility=evaluateModeOpportunity(pref,await hourlyModeTelemetry(env),await hourlyModeActivity(env,pref,project,now),now);
+            // Acknowledged launch without a process never loops into another launch.
+            if (!eligibility.eligible || eligibility.start) result={status:'failed',reason:'process_not_verified'};
+            else {
+              const claimed=await env.DB.prepare("UPDATE fleet_agent_mode_runs SET status='resuming',updated_at=? WHERE id=? AND status='starting'").bind(now,row.id).run();
+              if (!claimed.meta?.changes) continue;
+              result=await executeHourlyMode(env,{id:row.id,pref,project,eligibility,hour_start:row.hour_start,now});
+            }
+          }
+        }
+      }
+    } catch(error) { result={status:'failed',reason:String(error.code || error.message || 'consumer_status_failed').slice(0,120)}; }
+    if (result) {
+      await env.DB.prepare('UPDATE fleet_agent_mode_runs SET status=?,reason=?,command_id=COALESCE(?,command_id),decision_id=?,deliverable_url=?,updated_at=? WHERE id=?')
+        .bind(result.status,result.reason,result.command_id || null,result.decision_id || null,result.deliverable_url || null,now,row.id).run();
+      await env.DB.prepare('UPDATE fleet_agent_modes SET status=?,reason=? WHERE identity_key=? AND mode=?')
+        .bind(result.status,result.reason,row.identity_key,row.mode).run();
+      if (['skipped','failed','completed'].includes(result.status)) await env.DB.prepare('DELETE FROM fleet_hourly_family_leases WHERE run_id=?').bind(row.id).run();
+    }
+  }
+}
+function hourlyModeAdapters(env) {
+  return {readTelemetry:()=>hourlyModeTelemetry(env),projectFor:(...args)=>hourlyModeProject(env,...args),activityFor:(...args)=>hourlyModeActivity(env,...args),execute:run=>executeHourlyMode(env,run),resume:now=>resumeHourlyModes(env,now)};
+}
+async function completeHourlyTraining(env,run,pref,body) {
+  const now=Date.now(),project=await hourlyModeProject(env,pref,run.project_id,now);
+  const proposals=validateTrainingProposals(body.proposals,project,now);
+  const titleKeys=new Set(proposals.map(row=>onIdleProposalTitleKey(row.title)));
+  const [tickets,decisions]=await Promise.all([
+    env.DB.prepare("SELECT subject FROM tickets WHERE project_id=? AND lower(status) IN ('resolved','closed','cancelled')").bind(project.id).all(),
+    env.DB.prepare('SELECT options FROM decisions WHERE project=? AND created_at>?').bind(project.id,now-7*86400000).all()
+  ]);
+  const used=(tickets.results||[]).map(row=>row.subject);
+  for (const row of decisions.results||[]) { try { used.push(...JSON.parse(row.options)); } catch {} }
+  if (used.some(title=>titleKeys.has(onIdleProposalTitleKey(title)))) return {ok:false,status:409,error:'proposal_already_used'};
+  for (const proposal of proposals) {
+    const response=await fetch(proposal.source_url,{method:'HEAD',redirect:'error',signal:AbortSignal.timeout(10000)});
+    if (!response.ok) return {ok:false,status:422,error:'proposal_source_unavailable'};
+  }
+  const guard=await hourlyModeGuard(env,run.id,now);
+  if (!guard.allowed) return {ok:false,status:409,error:guard.reason};
+  const eligibility=evaluateModeOpportunity(pref,await hourlyModeTelemetry(env),await hourlyModeActivity(env,pref,project,Date.now()),Date.now());
+  if (!eligibility.eligible || eligibility.start) return {ok:false,status:409,error:eligibility.reason};
+  const claim=await env.DB.prepare("UPDATE fleet_agent_mode_runs SET status='completing',updated_at=? WHERE id=? AND status IN ('dispatched','awaiting_delivery')").bind(now,run.id).run();
+  if (!claim.meta?.changes) return {ok:false,status:409,error:'run_completion_in_progress'};
+  try {
+    const finalGuard=await hourlyModeGuard(env,run.id);
+    if (!finalGuard.allowed) throw new Error(finalGuard.reason);
+    const decision=await openInitialMissionDecision(env,{agent:pref.agent,machine:pref.machine,project_id:project.id,surface:'highscore',mission:'Training horario',
+      question:'Training · tres mejoras investigadas · '+pref.runtime+' '+pref.host.toUpperCase(),options:proposals.map(row=>row.title).concat([ONIDLE_BACK_OPTION,ONIDLE_CUSTOM_OPTION]),option_targets:[null,null,null,null,null],recommended:0,minutes:5,url:DECIDE_URL});
+    if (!decision.ok) throw new Error(decision.code || decision.error || 'decision_unavailable');
+    const deliverable=onIdleDecisionUrl(decision.id);
+    await env.DB.prepare("UPDATE fleet_agent_mode_runs SET status='completed',reason='decision_published',decision_id=?,deliverable_url=?,evidence_json=?,updated_at=? WHERE id=?")
+      .bind(decision.id,deliverable,JSON.stringify(proposals),Date.now(),run.id).run();
+    await env.DB.prepare("UPDATE fleet_agent_modes SET status='completed',reason='decision_published' WHERE identity_key=? AND mode='training'").bind(run.identity_key).run();
+    await env.DB.prepare('DELETE FROM fleet_hourly_family_leases WHERE run_id=?').bind(run.id).run();
+    return {ok:true,run_id:run.id,decision_id:decision.id,deliverable_url:deliverable};
+  } catch(error) {
+    await env.DB.prepare("UPDATE fleet_agent_mode_runs SET status='failed',reason=?,updated_at=? WHERE id=? AND status='completing'").bind(String(error.message).slice(0,120),Date.now(),run.id).run();
+    return {ok:false,status:409,error:String(error.message).slice(0,120)};
+  }
+}
 async function runScheduledRoutine(env, event) {
   const out = {};
   const step = async (name, fn) => {
@@ -1947,6 +2125,7 @@ async function runScheduledRoutine(env, event) {
   // OnIDLE nace únicamente aquí, bajo el mismo lease D1 de cron/piggyback. Los
   // clientes locales se limitan a observar; no publican ni reproducen avisos.
   await step("onIdle", () => runOnIdleTick(env));
+  await step("agentHourlyModes", () => runHourlyModes(env, hourlyModeAdapters(env)));
   // Consejo generador (idempotente por hueco de 3h; su propia bitácora council_ticks).
   await step("council", () => runCouncilTick(env));
   // Cápsula de la hora para admira.academy (idempotente por hora; clave primaria).
@@ -10234,6 +10413,67 @@ var worker_app = {
       try { target = normalizeAgentStopTarget(ticket.target); }
       catch { return json({ ok:false, error:"invalid-pty-target" }, 401); }
       return openPtyRoom(env, req, target, "viewer");
+    }
+    if (["/fleet/agent/mode","/fleet/agent/mode/guard","/fleet/agent/mode/complete","/fleet/agent/mode/runs"].includes(url.pathname)) {
+      const session=await requireAuth(env,req);
+      const executorAllowed=!session && url.pathname!=="/fleet/agent/mode" && (await authorizeCliExecutor(env,req)).ok;
+      if (!session && !executorAllowed) return json({ok:false,error:'unauthorized'},401);
+      await ensureSchema(env); await ensureHourlyModeSchema(env);
+      try {
+        if (url.pathname==='/fleet/agent/mode/guard' && req.method==='GET') {
+          const hasTarget=executorAllowed || url.searchParams.has('machine');
+          const target=hasTarget?normalizeModeTarget(Object.fromEntries(url.searchParams)):null;
+          return json({ok:true,...await hourlyModeGuard(env,String(url.searchParams.get('run_id') || ''),Date.now(),target)});
+        }
+        if (url.pathname==='/fleet/agent/mode/runs' && req.method==='GET') {
+          const id=String(url.searchParams.get('id') || '');
+          const run=await env.DB.prepare('SELECT * FROM fleet_agent_mode_runs WHERE id=?').bind(id).first();
+          return run?json({ok:true,run}):json({ok:false,error:'run_not_found'},404);
+        }
+        if (url.pathname==='/fleet/agent/mode' && req.method==='GET') return json({ok:true,items:await hourlyModeInventory(env)});
+        if (url.pathname==='/fleet/agent/mode' && req.method==='POST') {
+          const body=await req.json();
+          if (String(body.mode).toLowerCase()!=='manual') {
+            const key=modeTargetKey(normalizeModeTarget(body)),support=(await hourlyModeInventory(env)).find(row=>row.identity_key===key);
+            if (!support?.available_modes?.includes(String(body.mode).toLowerCase())) return json({ok:false,error:'consumer_unavailable'},409);
+          }
+          const item=await saveAgentMode(env,body,session.email,(...args)=>hourlyModeProject(env,...args));
+          const enriched=(await hourlyModeInventory(env)).find(row=>row.identity_key===item.identity_key);
+          return json({ok:true,item:enriched || item});
+        }
+        if (url.pathname==='/fleet/agent/mode/complete' && req.method==='POST') {
+          const body=await req.json(),runId=String(body.run_id || ''),capsuleId=String(body.capsule_id || '');
+          const run=await env.DB.prepare('SELECT * FROM fleet_agent_mode_runs WHERE id=?').bind(runId).first();
+          if (!run || !['learning','training'].includes(run.mode)) return json({ok:false,error:'run_not_found'},404);
+          const pref=await env.DB.prepare('SELECT * FROM fleet_agent_modes WHERE identity_key=?').bind(run.identity_key).first();
+          if (session && String(pref?.requested_by || '').toLowerCase()!==String(session.email || '').toLowerCase()) return json({ok:false,error:'run_forbidden'},403);
+          if (run.status==='completed') return run.mode==='training' || run.capsule_id===capsuleId?json({ok:true,reused:true,run}):json({ok:false,error:'already_completed'},409);
+          if (!run.command_id || !['dispatched','awaiting_delivery','failed'].includes(run.status)) return json({ok:false,error:'run_not_dispatched'},409);
+          if (run.mode==='training') {
+            const completed=await completeHourlyTraining(env,run,pref,body);
+            return json(completed,completed.ok?200:completed.status || 409);
+          }
+          const assets=await stockIndexFresh(),capsule=assets.find(row=>String(row.id)===capsuleId);
+          if (!capsule || String(capsule.type).toLowerCase()!=='capsula' || !stockHasTags(capsule,[runId]) || String(capsule.comment || '').trim().length<120 || !/^https:\/\//.test(String(capsule.prompt || ''))) return json({ok:false,error:'capsule_not_verified'},422);
+          let sourceUrl;try { sourceUrl=new URL(capsule.prompt); } catch { return json({ok:false,error:'capsule_source_invalid'},422); }
+          if (sourceUrl.href.length>2048 || sourceUrl.username || sourceUrl.password || sourceUrl.port || !sourceUrl.hostname.includes('.') || /^[\d.]+$/.test(sourceUrl.hostname) || sourceUrl.hostname.includes(':') || /(?:\.local|\.internal|\.localhost)$/.test(sourceUrl.hostname)) return json({ok:false,error:'capsule_source_invalid'},422);
+          const sourceResponse=await fetch(sourceUrl.href,{method:'HEAD',redirect:'error',signal:AbortSignal.timeout(10000)});
+          if (!sourceResponse.ok) return json({ok:false,error:'capsule_source_unavailable'},422);
+          const deliverable='https://www.pixeria.com/stock.html?highlight='+encodeURIComponent(capsuleId),now=Date.now();
+          const previous=await env.DB.prepare('SELECT id FROM fleet_agent_mode_runs WHERE capsule_id=? AND id<>?').bind(capsuleId,runId).first();
+          if (previous) return json({ok:false,error:'capsule_already_used'},409);
+          const changed=await env.DB.prepare("UPDATE fleet_agent_mode_runs SET status='completed',reason='capsule_verified',capsule_id=?,deliverable_url=?,updated_at=? WHERE id=? AND status IN ('dispatched','awaiting_delivery','failed') AND capsule_id IS NULL")
+            .bind(capsuleId,deliverable,now,runId).run();
+          if (!changed.meta?.changes) {
+            const saved=await env.DB.prepare('SELECT * FROM fleet_agent_mode_runs WHERE id=?').bind(runId).first();
+            return saved?.capsule_id===capsuleId?json({ok:true,reused:true,run:saved}):json({ok:false,error:'already_completed'},409);
+          }
+          await env.DB.prepare("UPDATE fleet_agent_modes SET status='completed',reason='capsule_verified' WHERE identity_key=? AND mode='learning'").bind(run.identity_key).run();
+          await env.DB.prepare('DELETE FROM fleet_hourly_family_leases WHERE run_id=?').bind(runId).run();
+          return json({ok:true,run_id:runId,capsule_id:capsuleId,deliverable_url:deliverable});
+        }
+        return json({ok:false,error:'method_not_allowed'},405);
+      } catch (error) { return json({ok:false,error:String(error.code || error.message || 'mode_failed').slice(0,120)},Number(error.status) || 500); }
     }
     if (PROTECTED.has(url.pathname) || url.pathname.startsWith("/mission/")) {
       const sess = await requireAuth(env, req);
