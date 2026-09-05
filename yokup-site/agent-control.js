@@ -32,7 +32,7 @@
     (Array.isArray(controlMachines)?controlMachines:[]).forEach(function(machine){
       (machine&&Array.isArray(machine.slots)?machine.slots:[]).forEach(function(slot){
         var base=canonical(slot,identity,machine.machine),session=text(slot&&slot.session_id);
-        out.push(Object.assign(base,{session_id:session,pid:0,configured:true,
+        out.push(Object.assign(base,{session_id:session,pid:0,configured:true,watcher_updated:seconds(machine.updated),
           target_key:[base.public_key,session].join("\u001f")}));
       });
     });
@@ -42,8 +42,9 @@
     return (Array.isArray(presence)?presence:[]).map(function(row){
       var base=canonical(row,identity),updated=seconds(row&&row.updated),pid=Number(row&&row.pid),session=text(row&&row.session_id);
       var fresh=updated>0&&updated>=nowSeconds-FRESH_SECONDS&&updated<=nowSeconds+5;
-      var verified=!!(row&&(row.verified===true||row.verified===1)&&row.source==="process_snapshot"&&row.online!==false&&row.online!==0);
-      return Object.assign(base,{session_id:session,pid:pid,updated:updated,fresh:fresh,verified:verified,configured:false,
+      var snapshot=!!(row&&(row.verified===true||row.verified===1)&&row.source==="process_snapshot"),offline=!!(row&&(row.online===false||row.online===0));
+      var verified=snapshot&&!offline;
+      return Object.assign(base,{session_id:session,pid:pid,updated:updated,fresh:fresh,verified:verified,snapshot:snapshot,offline:offline,activity:norm(row&&(row.status||row.activity)),configured:false,
         target_key:[base.public_key,session,String(Number.isSafeInteger(pid)?pid:0)].join("\u001f")});
     });
   }
@@ -60,6 +61,17 @@
   function validStop(target){
     return !!(target&&target.surface!=="unknown"&&target.machine&&target.persona&&target.runtime&&target.session_id&&
       target.fresh&&target.verified&&Number.isSafeInteger(target.pid)&&target.pid>1);
+  }
+  function processObservation(seen,configured,nowSeconds){
+    var snapshots=seen.filter(function(row){return row.fresh&&row.snapshot;}).sort(function(a,b){return b.updated-a.updated;}),
+      running=snapshots.filter(function(row){return !row.offline&&Number.isSafeInteger(row.pid)&&row.pid>1;});
+    if(running.length){
+      var row=running[0],waiting=/^(waiting|idle|esperando)$/.test(row.activity);
+      return {process_state:waiting?"waiting":"open",observation_reason:"process-snapshot",observed_at:row.updated};
+    }
+    var off=snapshots.find(function(row){return row.offline;}),watcher=configured.find(function(row){return row.watcher_updated>0&&row.watcher_updated>=nowSeconds-FRESH_SECONDS&&row.watcher_updated<=nowSeconds+5;});
+    if(off||watcher&&!seen.some(function(row){return row.fresh&&row.snapshot&&!row.offline;}))return {process_state:"closed",observation_reason:off?"process-stopped":"watcher-no-process",observed_at:off?off.updated:watcher.watcher_updated};
+    return {process_state:"unknown",observation_reason:seen.length?"snapshot-unavailable":"watcher-unavailable",observed_at:Math.max(0,...seen.map(function(row){return row.updated||0;}))};
   }
   function inventory(input,options){
     input=input||{};options=options||{};
@@ -84,10 +96,10 @@
         session_id:target.session_id,pid:target.pid});
       var href=detailUrl&&identityRow.surface!=="unknown"?text(detailUrl({persona:identityRow.persona,machine:identityRow.machine,
         runtime:identityRow.runtime,host:identityRow.surface})):"";
-      items.push({control_key:controlKey,identity_key:key,agent:identityRow.agent,persona:identityRow.persona,
+      items.push(Object.assign({control_key:controlKey,identity_key:key,agent:identityRow.agent,persona:identityRow.persona,
         family:identityRow.family,family_key:identityRow.family_key,machine:identityRow.machine,machine_key:identityRow.machine_key,
         runtime:identityRow.runtime,surface:identityRow.surface,state:state,reason:reason,
-        eligible:{start:start,stop:stop},detail_url:href||null});
+        eligible:{start:start,stop:stop},detail_url:href||null},processObservation(seen,configured,nowSeconds)));
     });
     var order={cli:0,app:1,unknown:2};
     items.sort(function(a,b){return order[a.surface]-order[b.surface]||a.family_key.localeCompare(b.family_key,"es")||

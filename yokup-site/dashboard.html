@@ -18,7 +18,7 @@
 <script src="/highscore-daily-record.js?v=v.2026.09.04.r2"></script>
 <script src="/agent-detail.js?v=v.2026.09.04.r1"></script>
 <script src="/presence-groups.js?v=v.2026.09.04.r1"></script>
-<script src="/agent-control.js?v=v.2026.09.04.r1"></script>
+<script src="/agent-control.js?v=v.2026.09.05.r1"></script>
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -57,7 +57,7 @@ h1{font-size:clamp(23px,2.8vw,33px);line-height:1.12;letter-spacing:-.02em;margi
 .ag{border:1px solid var(--line);border-radius:13px;background:var(--card);position:relative;overflow:hidden;transition:border-color .15s,box-shadow .15s,transform .15s}.ag:hover{border-color:var(--brand);box-shadow:0 0 0 1px rgba(120,243,255,.14),0 14px 36px rgba(0,0,0,.24);transform:translateY(-1px)}
 .ag-link{display:block;color:inherit;text-decoration:none;cursor:pointer;padding:14px 16px 10px}.ag-link:focus-visible{outline:2px solid var(--brand);outline-offset:-3px;border-radius:11px}.ag-static{padding:14px 16px 10px}
 .ag::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--good);box-shadow:0 0 12px var(--good)}
-.ag[data-agent-state="stopped"]{border-style:dashed;background:rgba(31,25,13,.45)}.ag[data-agent-state="stopped"]::before{background:var(--accent);box-shadow:0 0 10px var(--accent)}.ag[data-agent-state="stopped"] .dot{background:var(--accent);box-shadow:none;animation:none}.ag[data-agent-state="unknown"],.ag[data-agent-state="ambiguous"]{opacity:.72}.ag[data-agent-state="unknown"]::before,.ag[data-agent-state="ambiguous"]::before{background:var(--dim);box-shadow:none}
+.ag[data-process-state="closed"]{border-style:dashed;background:rgba(31,25,13,.45)}.ag[data-process-state="closed"]::before{background:var(--accent);box-shadow:0 0 10px var(--accent)}.ag[data-process-state="closed"] .dot{background:var(--accent);box-shadow:none;animation:none}.ag[data-process-state="unknown"]{opacity:.72}.ag[data-process-state="unknown"]::before{background:var(--dim);box-shadow:none}.ag[data-process-state="unknown"] .dot{background:var(--dim);box-shadow:none;animation:none}
 .ag .top{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-family:var(--mono);margin-bottom:7px}
 .ag .dot{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 14px var(--good);animation:blink 2s infinite;flex:none}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
@@ -68,8 +68,9 @@ h1{font-size:clamp(23px,2.8vw,33px);line-height:1.12;letter-spacing:-.02em;margi
 .ag .meta{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin-top:8px;display:flex;gap:10px}
 .ag .meta .mode{color:var(--accent)}
 .agent-control-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px 10px;border-top:1px solid rgba(120,243,255,.09)}.agent-control-row span{color:var(--dim);font:8px/1.25 var(--mono);text-transform:uppercase;letter-spacing:.05em}.agent-control-row .pulse-btn{min-width:76px}.pulse-group.compact .pulse{grid-template-columns:repeat(auto-fill,minmax(min(100%,205px),1fr));gap:7px}.pulse-group.compact .ag-link,.pulse-group.compact .ag-static{padding:9px 11px 7px}.pulse-group.compact .ag .focus{display:none}.pulse-group.compact .ag .top{margin-bottom:4px}.pulse-group.compact .agent-control-row{padding:6px 9px 7px}.pulse-group.compact .agent-control-row .pulse-btn{min-height:26px}
+.pulse-mode{padding:8px 10px;border-top:1px solid var(--line);font:10px/1.45 var(--mono)}.pulse-mode label{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--mut)}.pulse-mode select{flex:1;min-width:130px;max-width:100%;min-height:34px;background:var(--card);border:1px solid var(--line2);border-radius:7px;padding:5px;color:var(--ink);font:inherit}.pulse-mode select:focus-visible{outline:2px solid var(--brand);outline-offset:2px}.pulse-mode select:disabled{opacity:.55}.pulse-mode-note{display:block;margin-top:5px;color:var(--dim);overflow-wrap:anywhere}.pulse-mode-note.err{color:var(--warn)}
 .pulse .off{border:1px dashed var(--line2);border-radius:13px;padding:24px 18px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;line-height:1.7;grid-column:1/-1}
-@media(max-width:760px){.fleet-pulse-groups{grid-template-columns:1fr}.pulse-global-toolbar,.pulse-control-status{grid-column:auto}.pulse-global-toolbar strong{flex-basis:100%}.pulse-group-residual{grid-column:auto}.pulse-group{padding:10px}.pulse{grid-template-columns:1fr}.pulse-group-head{align-items:flex-start;flex-wrap:wrap}.pulse-group-tools{width:100%;margin-left:0;justify-content:flex-start}.pulse-btn{min-height:44px;white-space:normal}.agent-control-row .pulse-btn{min-height:44px}}
+@media(max-width:760px){.fleet-pulse-groups{grid-template-columns:1fr}.pulse-global-toolbar,.pulse-control-status{grid-column:auto}.pulse-global-toolbar strong{flex-basis:100%}.pulse-group-residual{grid-column:auto}.pulse-group{padding:10px}.pulse{grid-template-columns:1fr}.pulse-group-head{align-items:flex-start;flex-wrap:wrap}.pulse-group-tools{width:100%;margin-left:0;justify-content:flex-start}.pulse-btn{min-height:44px;white-space:normal}.agent-control-row .pulse-btn{min-height:44px}.pulse-mode select{min-height:44px}}
 
 /* MAPA PROYECTOS × EQUIPOS × AGENTES */
 .pa-shell{border:1px solid var(--line2);border-radius:15px;background:linear-gradient(145deg,rgba(13,28,40,.94),rgba(6,17,25,.94));padding:16px;box-shadow:0 18px 60px rgba(0,0,0,.22);overflow:visible}
@@ -178,7 +179,7 @@ details.pa-team-node:not([open])>.pa-team-agents,.pa-project-node:not([open])>.p
     <div class="rp-progress" aria-hidden="true"><i id="recordPaceProgress"></i></div>
   </section>
 
-  <details class="dash-section" id="projectAgentSection" open>
+  <details class="dash-section" id="projectAgentSection">
     <summary class="shd">Proyectos y agentes <span class="tot" id="projectAgentN">—</span></summary>
     <section class="dash-section-body pa-shell" id="projectAgentShell" data-pa-roster-view="carbon" aria-label="Asociación de proyectos, equipos físicos y agentes">
     <div class="pa-head">
@@ -396,7 +397,11 @@ function pulseReadView(){
 const PULSE_VIEW=pulseReadView(),PULSE_CONTROL_LEDGER=new Map(),PULSE_OPERATIONS=new Map();
 let PULSE_CONTROL_MODEL=null,PULSE_GROUPS=null,PULSE_CONTROL_BUSY=false,PULSE_STATUS={message:"Controles seguros listos.",error:false};
 function pulseWriteView(){try{localStorage.setItem(PULSE_VIEW_KEY,JSON.stringify(PULSE_VIEW));}catch(e){}}
-function pulseStateText(state){return state==="active"?"Activo":state==="stopped"?"Detenido":state==="ambiguous"?"Control ambiguo":"Estado sin verificar";}
+function pulseStateText(state){return state==="active"?"Control disponible":state==="stopped"?"Arranque disponible":state==="ambiguous"?"Control ambiguo":"Control sin verificar";}
+function pulseProcessText(item){
+  const state=item&&item.process_state;
+  return state==="open"?"Abierto":state==="closed"?"Cerrado":state==="waiting"?"En espera":"Sin señal de proceso";
+}
 function pulseSetStatus(message,error=false){
   PULSE_STATUS={message:String(message||""),error:!!error};const status=document.getElementById("pulseControlStatus");if(status){status.textContent=PULSE_STATUS.message;status.classList.toggle("err",PULSE_STATUS.error);status.classList.toggle("ok",!PULSE_STATUS.error&&!!PULSE_STATUS.message);}
 }
@@ -417,12 +422,64 @@ function pulseModelLabel(value){
 function pulseCliChip(p){
   return String(p&&p.host||"").trim().toLowerCase()==="cli"?'<span class="machine-chip cli-chip" title="Interfaz de línea de comandos">CLI</span>':"";
 }
+const PULSE_MODES=new Map(),PULSE_MODE_PENDING=new Set(),PULSE_MODE_ERRORS=new Map();
+let PULSE_MODE_LOADED=false,PULSE_MODE_ERROR=false,PULSE_MODE_FETCH=null,PULSE_MODE_FETCHED_AT=0,PULSE_MODE_REVISION=0;
+function pulseModeKey(item){
+  return window.YkPresenceGroups?YkPresenceGroups.exactIdentityKey({...item,host:item.host||item.surface},window.ykAgentIdentity):[item.persona||item.agent,item.machine,item.runtime,item.host||item.surface].map(value=>String(value||"").trim().toLowerCase()).join("|");
+}
+function pulseModeValue(value){return value==="learning"||value==="training"?value:"manual";}
+function pulseModeSummary(record){
+  const mode=pulseModeValue(record&&record.mode);
+  if(mode==="manual")return "Sin actividad horaria automática.";
+  const project=String(record&&(record.project_name||record.project_id)||"proyecto principal");
+  const detail=mode==="learning"?"Cápsula cada hora · "+project:"Ventana cada hora si está libre y sin uso humano · hasta 24/día · "+project;
+  const status=String(record&&record.status||"").toLowerCase(),labels={scheduled:"Programado",waiting:"En espera",blocked:"En espera",running:"En curso",paused:"Pausado",ready:"Listo",idle:"En espera",disabled:"Desactivado",error:"Requiere atención"};
+  const next=Number(record&&record.next_run)||0,date=next?new Date(next<4102444800?next*1000:next):null;
+  return detail+(labels[status]?" · "+labels[status]:"")+(date&&!Number.isNaN(date.getTime())?" · próxima "+date.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}):"");
+}
+function pulseModeMarkup(item){
+  const key=pulseModeKey(item),record=PULSE_MODES.get(key),mode=pulseModeValue(record&&record.mode),pending=PULSE_MODE_PENDING.has(key),supported=item.surface==="cli"||item.surface==="app",error=PULSE_MODE_ERRORS.get(key),unavailable=PULSE_MODE_ERROR||!PULSE_MODE_LOADED;
+  const note=error||(!supported?"Superficie sin identificar":pending?"Guardando modo…":unavailable?(PULSE_MODE_ERROR?"No se pudo leer el modo guardado. Se reintentará.":"Cargando modo guardado…"):pulseModeSummary(record));
+  const label="Modo de "+String(item.agent||item.persona||"agente")+" · "+String(item.runtime||"")+" "+String(item.surface||"")+" en "+String(item.machine||"");
+  return `<div class="pulse-mode"><label><span>Modo</span><select data-pulse-mode="${esc(item.control_key||'')}" data-pulse-focus="mode:${esc(key)}" aria-label="${esc(label)}"${pending||unavailable||!supported?' disabled':''} aria-busy="${pending?'true':'false'}">${[["manual","Manual · desactivado"],["learning","Learning · Aprendiendo"],["training","Training · Entrenando"]].map(([value,title])=>`<option value="${value}"${mode===value?' selected':''}>${title}</option>`).join("")}</select></label><span class="pulse-mode-note${error||PULSE_MODE_ERROR?' err':''}" role="status">${esc(note)}</span></div>`;
+}
+async function pulseModesRequest(options){
+  const response=await fetch(PROJECTS_API+"/fleet/agent/mode",{cache:"no-store",credentials:"include",signal:AbortSignal.timeout(15000),...(options||{})});
+  const payload=await response.json().catch(()=>null);
+  if(!response.ok||!payload||payload.ok!==true)throw new Error(payload&&(payload.code||payload.error)||"mode-unavailable");
+  return payload;
+}
+async function pulseLoadModes(force=false){
+  if(PULSE_MODE_FETCH)return PULSE_MODE_FETCH;
+  if(!force&&Date.now()-PULSE_MODE_FETCHED_AT<30000)return;
+  PULSE_MODE_FETCHED_AT=Date.now();const revision=PULSE_MODE_REVISION;
+  PULSE_MODE_FETCH=(async()=>{
+    try{const payload=await pulseModesRequest();if(!Array.isArray(payload.items))throw new Error("mode-unavailable");if(revision!==PULSE_MODE_REVISION)return;
+      const rows=new Map(payload.items.map(item=>[pulseModeKey(item),item]));
+      PULSE_MODES.forEach((record,key)=>{if(PULSE_MODE_PENDING.has(key))rows.set(key,record);});
+      PULSE_MODES.clear();rows.forEach((record,key)=>PULSE_MODES.set(key,record));PULSE_MODE_LOADED=true;PULSE_MODE_ERROR=false;
+    }catch(error){PULSE_MODE_ERROR=true;}finally{PULSE_MODE_FETCH=null;pulseRender();}
+  })();return PULSE_MODE_FETCH;
+}
+async function pulseHandleMode(event){
+  const select=event.target.closest&&event.target.closest("select[data-pulse-mode]");if(!select)return;
+  const item=PULSE_CONTROL_MODEL&&PULSE_CONTROL_MODEL.by_key.get(select.dataset.pulseMode);if(!item)return;
+  const key=pulseModeKey(item),mode=pulseModeValue(select.value),current=PULSE_MODES.get(key);
+  if(PULSE_MODE_PENDING.has(key)||!PULSE_MODE_LOADED||PULSE_MODE_ERROR||mode===pulseModeValue(current&&current.mode)){pulseRender();return;}
+  const body={persona:item.persona,machine:item.machine,runtime:item.runtime,host:item.surface,mode};
+  PULSE_MODE_REVISION++;PULSE_MODE_PENDING.add(key);PULSE_MODE_ERRORS.delete(key);pulseRender();
+  try{const payload=await pulseModesRequest({method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+    if(!payload.item||pulseModeKey(payload.item)!==key||payload.item.mode!==mode)throw new Error("mode-unavailable");
+    PULSE_MODES.set(key,payload.item);pulseSetStatus("Modo guardado para "+item.agent+" · "+(mode==="manual"?"Manual":mode==="learning"?"Learning":"Training")+".");
+  }catch(error){const known={project_required:"Asigna un proyecto principal antes de activar el modo.",project_ambiguous:"Hay varios proyectos principales. Resuelve la asignación antes de activar el modo.",unauthorized:"Inicia sesión para guardar el modo.","target-not-found":"Esta superficie ya no está disponible."};const message=known[error&&error.message]||"No se pudo guardar. Se conserva el modo anterior.";PULSE_MODE_ERRORS.set(key,message);pulseSetStatus(message,true);}
+  finally{PULSE_MODE_REVISION++;PULSE_MODE_PENDING.delete(key);pulseRender();}
+}
 function pulseCard(p){
   const href=p.detail_url||(window.YkAgentDetail?YkAgentDetail.detailUrl(p):""),name=p.agent||p.persona||"Agente",state=p.state||"unknown",operation=PULSE_OPERATIONS.get(p.control_key),controlState=operation?pulseOperationText(operation):pulseStateText(state);
   const model=pulseModelLabel(p.model);
-  const content=`<div class="top"><span class="dot"></span><b>${esc(name)}</b>${model?`<span class="llm">${esc(model)}</span>`:""}<span class="rt">${esc(p.runtime||"Agente")} · ${esc(pulseStateText(state))}</span></div><div class="mach"><span class="machine-chip">⌂ ${esc(p.machine||"")}</span>${pulseCliChip(p)}</div><div class="focus" title="${esc(p.focus||"")}">${esc(p.focus||"—")}</div><div class="meta"><span class="mode">${esc(p.mode||"")}</span><span data-pa-ago="${Number(p.updated)||0}"></span></div>`;
+  const content=`<div class="top"><span class="dot"></span><b>${esc(name)}</b>${model?`<span class="llm">${esc(model)}</span>`:""}<span class="rt">${esc(p.runtime||"Agente")} · ${esc(pulseProcessText(p))}</span></div><div class="mach"><span class="machine-chip">⌂ ${esc(p.machine||"")}</span>${pulseCliChip(p)}</div><div class="focus" title="${esc(p.focus||"")}">${esc(p.focus||"—")}</div><div class="meta"><span data-pa-ago="${Number(p.updated)||0}"></span></div>`;
   const main=href?`<a class="ag-link" href="${esc(href)}" data-pulse-focus="detail:${esc(href)}" aria-label="Abrir actividad e histórico de ${esc(name)} en ${esc(p.machine||"")}">${content}</a>`:`<div class="ag-static">${content}</div>`;
-  return `<article class="ag" data-agent-state="${esc(state)}" data-control-state="${esc(operation&&operation.phase||'idle')}">${main}<div class="agent-control-row"><span>${esc(controlState)}${operation&&operation.error?' · '+esc(operation.error):''}</span>${pulseControlButton(p)}</div></article>`;
+  return `<article class="ag" data-agent-state="${esc(state)}" data-process-state="${esc(p.process_state||'unknown')}" data-control-state="${esc(operation&&operation.phase||'idle')}">${main}<div class="agent-control-row"><span>${esc(controlState)}${operation&&operation.error?' · '+esc(operation.error):''}</span>${pulseControlButton(p)}</div>${pulseModeMarkup(p)}</article>`;
 }
 function pulseGroupMarkup(group,unavailable=false){
   const key=String(group&&group.key||"unknown"),label=String(group&&group.label||"Sin superficie identificada"),items=Array.isArray(group&&group.items)?group.items:[],count=items.length,id="pulseGroup"+key.charAt(0).toUpperCase()+key.slice(1),empty=unavailable?"No se pudo comprobar esta superficie; se reintentará automáticamente.":key==="cli"?"No hay agentes CLI configurados.":key==="app"?"No hay agentes Desktop App configurados.":"No hay señales sin superficie identificada.";
@@ -444,7 +501,7 @@ function pulseGroupsMarkup(classified,unavailable=false){
 function pulseControlledGroups(classified,control){
   const live=new Map((classified&&classified.groups||[]).flatMap(group=>group.items||[]).map(item=>[item.identity_key,item]));
   const buckets={cli:[],app:[],unknown:[]};
-  (control&&control.items||[]).forEach(item=>{const row=live.get(item.identity_key)||{},state=item.state||"unknown",fallback=state==="stopped"?"Detenido · listo para arrancar":state==="ambiguous"?"Hay más de un destino exacto; control bloqueado":"Sin estado verificable";buckets[item.surface]&&buckets[item.surface].push({...row,...item,persona:item.persona,host:item.surface,focus:row.focus||fallback,mode:row.mode||(state==="active"?"activo":state),updated:row.updated||0});});
+  (control&&control.items||[]).forEach(item=>{const row=live.get(item.identity_key)||{},state=item.state||"unknown",fallback=item.process_state==="closed"?"Cerrado · proceso no detectado por el watcher":state==="ambiguous"?"Hay más de un destino exacto; control bloqueado":"Sin señal de proceso · no equivale a cerrado";buckets[item.surface]&&buckets[item.surface].push({...row,...item,persona:item.persona,host:item.surface,focus:row.focus||fallback,mode:row.mode||(state==="active"?"activo":state),updated:row.updated||0});});
   const definitions=[['cli','Agentes CLI'],['app','Agentes Desktop App'],['unknown','Sin superficie identificada']],groups=definitions.map(([key,label])=>({key,label,count:buckets[key].length,items:buckets[key]}));
   return {groups,by_key:{cli:groups[0],app:groups[1],unknown:groups[2]},counts:{cli:buckets.cli.length,app:buckets.app.length,unknown:buckets.unknown.length,total:groups.reduce((sum,group)=>sum+group.count,0)}};
 }
@@ -514,6 +571,7 @@ async function pulseHandleClick(event){
   finally{PULSE_CONTROL_BUSY=false;document.getElementById("pulse")?.removeAttribute("aria-busy");pulseRender();setTimeout(()=>pulse(false),2200);}
 }
 async function pulse(renderMap=true){
+  void pulseLoadModes();
   let d,nav; try{
     const responses=await Promise.all([
       fetch(PRESENCE,{cache:"no-store"}).then(r=>r.json()),
@@ -527,8 +585,8 @@ async function pulse(renderMap=true){
   PULSE_CONTROL_MODEL=window.YkAgentControl?YkAgentControl.inventory({presence:d.presence||[],controlMachines:PROJECT_CONTROL_MACHINES},{identity:window.ykAgentIdentity,detailUrl:window.YkAgentDetail&&YkAgentDetail.detailUrl,now:Date.now()}):null;
   if(PULSE_CONTROL_MODEL)PULSE_OPERATIONS.forEach((operation,key)=>{if(!PULSE_CONTROL_MODEL.by_key.has(key))PULSE_OPERATIONS.delete(key);});
   PULSE_GROUPS=PULSE_CONTROL_MODEL?pulseControlledGroups(classified,PULSE_CONTROL_MODEL):classified;
-  const all=PULSE_CONTROL_MODEL&&PULSE_CONTROL_MODEL.items||[],visible=PULSE_GROUPS?PULSE_GROUPS.counts.total:fresh.length,active=all.filter(row=>row.state==="active").length,stopped=all.filter(row=>row.state==="stopped").length;
-  const n=document.getElementById("pulseN"); if(n) n.textContent=visible+" agente"+(visible===1?"":"s")+" · "+active+" activo"+(active===1?"":"s")+(stopped?" · "+stopped+" detenido"+(stopped===1?"":"s"):"");
+  const all=PULSE_CONTROL_MODEL&&PULSE_CONTROL_MODEL.items||[],visible=PULSE_GROUPS?PULSE_GROUPS.counts.total:fresh.length,active=all.filter(row=>row.process_state==="open"||row.process_state==="waiting").length,stopped=all.filter(row=>row.process_state==="closed").length;
+  const n=document.getElementById("pulseN"); if(n) n.textContent=visible+" agente"+(visible===1?"":"s")+" · "+active+" abierto"+(active===1?"":"s")+(stopped?" · "+stopped+" cerrado"+(stopped===1?"":"s"):"");
   const box=document.getElementById("pulse");
   PROJECT_LIVE_ROSTER=paPhysicalAgents(fresh);
   PROJECT_ROSTER=paProjectRoster(PROJECT_LIVE_ROSTER,PROJECT_ROWS);
@@ -1519,6 +1577,7 @@ async function paLoad(reason="manual"){paCarbonActivityRefresh();
 }
 pa("projectAgentRefresh").onclick=()=>paLoad("manual");
 pa("pulse").addEventListener("click",pulseHandleClick);
+pa("pulse").addEventListener("change",pulseHandleMode);
 pa("projectAgentProjectsAll").onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_FILTER="all";PROJECT_SCOPE=null;PROJECT_ROWS=paProjectsForScope();paWriteProjectScope(PROJECT_SCOPE);paRender();paMessage("✓ todos los proyectos visibles","ok");};
 pa("projectAgentProjectsUnassigned").onclick=event=>{event.preventDefault();event.stopPropagation();PROJECT_FILTER="unassigned";paRender();paMessage("Proyectos sin equipo asociado");};
 pa("projectAgentTeamsAll").onclick=event=>{event.preventDefault();event.stopPropagation();TEAM_FILTER="all";TEAM_SCOPE=null;paWriteScope(TEAM_SCOPE_KEY,TEAM_SCOPE);paRender();paMessage("✓ todos los equipos visibles","ok");};
