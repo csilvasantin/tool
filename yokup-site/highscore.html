@@ -1841,7 +1841,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       }
       if (fresco) {
         var processVerified = p.source === "process_snapshot" && (p.verified === 1 || p.verified === true) &&
-          p.online !== 0 && p.online !== false && Number(p.pid) > 1 && ["app","cli"].indexOf(p.host) >= 0 &&
+          p.online !== 0 && p.online !== false && !["closed","unknown","suspended","paused"].includes(p.process_state) &&
+          p.cli_paused !== true && p.operational_state !== "paused" && Number(p.pid) > 1 && ["app","cli"].indexOf(p.host) >= 0 &&
           t >= ahora - 30 && t <= ahora + 5;
         f.vivo = true; adoptaRuntime(f, p.runtime, p.host, t, processVerified, processVerified ? p.model : "");
         // El latido sólo es una pista de respaldo. Una tarea, ventana, misión u
@@ -2826,10 +2827,12 @@ body.resizing-columns{cursor:col-resize;user-select:none}
      máquina, dos grafías del mismo equipo se funden en UNA pastilla en vez de partir
      el equipo en dos: se normaliza, nunca se comparan literales. */
   function interfazCliHtml(a) {
-    var values=Array.isArray(a&&a.interfaces)&&a.interfaces.length?a.interfaces:[a&&a.via];
-    return Array.from(new Set(values.map(function(value){return normaliza(value).toLowerCase();}))).filter(function(value){return value==="cli"||value==="app";}).sort().map(function(value){
-      return '<span class="maq-b cli-chip" title="'+(value==="cli"?'Interfaz de línea de comandos':'Aplicación de escritorio')+'">'+value.toUpperCase()+'</span>';
-    }).join("");
+    // El inventario de interfaces no dice cómo se ejecuta ahora el agente.
+    // adoptaRuntime elige una sola presencia verificada; APP prima si coexisten.
+    var value=normaliza(a&&a.via).toLowerCase(),at=Number(a&&a.runtimeAt)||0;
+    var now=Date.now()/1000;
+    if(!["app","cli"].includes(value)||!(Number(a&&a.runtimePeso)>=100)||!at||at<now-30||at>now+5)return "";
+    return '<span class="maq-b cli-chip" title="'+(value==="cli"?'Interfaz de línea de comandos':'Aplicación de escritorio')+'">'+value.toUpperCase()+'</span>';
   }
   function pintaMaquinas(a, tope) {
     var id = typeof window !== "undefined" && window.ykAgentIdentity;

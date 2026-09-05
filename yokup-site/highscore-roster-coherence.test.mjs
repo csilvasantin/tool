@@ -51,10 +51,14 @@ test('scope manual usa misma identidad en ranking y corredores; refresh no intro
  assert.deepEqual(plain(c.result.completas.map(r=>r.agente)),['MorfeoMBP14']);assert.deepEqual(plain(c.result.trabajos.map(r=>r.key)),['morfeombp14']);
  rows.push({agente:'LucasGrokBot'});vm.runInContext('globalThis.result=actualizaCarreraPodio()',c);assert.equal(c.result.completas.length,1);
 });
-test('chips sólo presentan superficies declaradas y conservan APP más CLI sin duplicados',()=>{
- const c=load(context(),['interfazCliHtml']);assert.match(c.interfazCliHtml({via:'app'}),/>APP</);assert.match(c.interfazCliHtml({via:'cli'}),/>CLI</);
- assert.equal(c.interfazCliHtml({runtime:'Claude',via:'unknown'}),'');
- const both=c.interfazCliHtml({interfaces:['app','cli','app']});assert.equal((both.match(/>APP</g)||[]).length,1);assert.equal((both.match(/>CLI</g)||[]).length,1);
+test('el ordenador muestra una única ejecución vigente, nunca las interfaces del inventario',()=>{
+ const c=load(context(),['interfazCliHtml']),now=Date.now()/1000;
+ const row={via:'app',runtimePeso:120,runtimeAt:now,interfaces:['app','cli','app']};
+ assert.equal((c.interfazCliHtml(row).match(/>APP</g)||[]).length,1);
+ assert.doesNotMatch(c.interfazCliHtml(row),/>CLI</);
+ const cli=c.interfazCliHtml({...row,via:'cli',runtimePeso:110});assert.match(cli,/>CLI</);assert.doesNotMatch(cli,/>APP</);
+ for(const patch of [{runtimePeso:20},{runtimePeso:undefined},{runtimeAt:now-31},{runtimeAt:now+6},{via:'unknown'}])assert.equal(c.interfazCliHtml({...row,...patch}),'');
+ assert.equal(c.interfazCliHtml({interfaces:['app','cli']}),'');
 });
 test('ranking legible conserva identidad completa accesible al abreviar el nombre visible',()=>{
  const c=load(context({esc:v=>String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}),['nombreAgenteVisible','agentNameHtml']);

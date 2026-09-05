@@ -107,9 +107,9 @@ test("sin ordenadores conocidos sigue diciéndolo, no queda en blanco", () => {
   assert.match(pinta({ maquinasVivas: [], maquinas: [] }), /sin registro/);
 });
 
-test("CLI aparece una sola vez junto al equipo solo si la vía declarada es cli", () => {
+test("CLI aparece una sola vez junto al equipo solo con ejecución CLI verificada", () => {
   for (const via of ["cli", "app", "", "unknown"]) {
-    const html = pinta({ maquinasVivas:["MacMini"], maquinas:["MacMini"], runtime:"Codex", via });
+    const html = pinta({ maquinasVivas:["MacMini"], maquinas:["MacMini"], runtime:"Codex", via, runtimePeso:120, runtimeAt:Date.now()/1000 });
     const cliCount = (html.match(/>CLI<\/span>/g) || []).length;
     assert.equal(cliCount, via === "cli" ? 1 : 0);
     if (via === "cli") assert.match(html, />MacMini<\/span>\s*<span[^>]*>CLI<\/span>/);

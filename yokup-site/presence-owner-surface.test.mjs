@@ -46,8 +46,18 @@ test('Highscore mantiene APP sin modelo y CLI real; heartbeat/slot/futuro no rel
  const app={persona:'Oraculo',machine:'MacMini',runtime:'Codex',host:'app',pid:123,verified:1,source:'process_snapshot',updated:now,model:''};
  const cli={...app,persona:'Trinity',host:'cli',pid:456,model:'GPT-5.6'};
  const map=rankingModels([app,cli]);assert.equal(map.get('Oraculo|MacMini').modelo,'');assert.equal(map.get('Trinity|MacMini').modelo,'GPT-5.6');
- for(const patch of [{verified:0},{source:'heartbeat'},{updated:now-31},{updated:now+6},{online:0}]){
+ for(const patch of [{verified:0},{source:'heartbeat'},{updated:now-31},{updated:now+6},{online:0},{process_state:'closed'},{process_state:'unknown'},{cli_paused:true}]){
   const result=rankingModels([{...app,model:'GPT-5.6',...patch}]);
   assert.equal(result.get('Oraculo|MacMini').modelo,'',JSON.stringify(patch));
  }
+});
+
+test('APP actual gana al CLI pausado y a ranuras registradas en cualquier orden',()=>{
+ const app={persona:'Oraculo',machine:'MacMini',runtime:'Codex',host:'app',pid:123,verified:1,source:'process_snapshot',updated:now};
+ const cli={...app,host:'cli',pid:456,cli_paused:true,model:'Modelo CLI'};
+ for(const rows of [[app,cli],[cli,app]]){
+  const row=rankingModels(rows).get('Oraculo|MacMini');
+  assert.equal(row.via,'app');assert.equal(row.runtimePeso,120);assert.equal(row.runtimeAt,now);
+ }
+ const row=rankingModels([cli]).get('Oraculo|MacMini');assert.ok(row.runtimePeso<100,'un CLI pausado no es ejecución vigente');
 });
