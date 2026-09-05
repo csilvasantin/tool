@@ -298,7 +298,7 @@ test("los agentes con trabajo del ámbito elegido tienen calles ordenadas e iden
   // el estado de parado desde el 12-ago-2026, así que se comprueba con hueco.
   assert.match(html, /class="refresh-agent"[\s\S]*class="refresh-lane-center"[\s\S]*refresh-track[\s\S]*class="refresh-mission"[\s\S]*runner \+ '<span class="refresh-finish"/);
   assert.doesNotMatch(html, /refresh-mission-(?:ref|state|meta|project)/);
-  assert.match(html, /'<span class="refresh-agent-meta"><span class="refresh-agent" data-race-role="agent" tabindex="0" title="' \+ esc\(identidadVisible\.machine\)[\s\S]*class="refresh-lane-center"[\s\S]*class="refresh-timing"[\s\S]*marcaInicio \+ marcaTemporal/);
+  assert.match(html, /'<span class="refresh-agent-meta">' \+ nombreCorredorHtml\(identidadVisible, contextoVisible, "race-agent-context-" \+ indice\)[\s\S]*class="refresh-lane-center"[\s\S]*class="refresh-timing"[\s\S]*marcaInicio \+ marcaTemporal/);
   assert.match(html, /refresh-ended refresh-elapsed[\s\S]*data-race-time="elapsed"[\s\S]*data-work-state="running"/);
   assert.match(html, /class="refresh-ended" data-race-time="end"/);
   assert.doesNotMatch(html, /refresh-place|place-revealed/);

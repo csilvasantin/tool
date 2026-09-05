@@ -27,7 +27,7 @@ test("la banda HIGHSCORE+RANKING encabeza la página, por encima de la carrera",
 });
 
 test("el DOM ordena nombre, pista y bloque temporal derecho",()=>{
-  assert.match(html,/class="refresh-agent-meta"><span class="refresh-agent"[\s\S]*class="refresh-lane-center"[\s\S]*class="refresh-timing"[\s\S]*marcaInicio \+ marcaTemporal/);
+  assert.match(html,/class="refresh-agent-meta">' \+ nombreCorredorHtml\(identidadVisible, contextoVisible, "race-agent-context-" \+ indice\)[\s\S]*class="refresh-lane-center"[\s\S]*class="refresh-timing"[\s\S]*marcaInicio \+ marcaTemporal/);
   assert.match(html,/data-race-time="elapsed" data-work-state="running"/);
   assert.match(html,/data-race-time="end" datetime="/);
   assert.match(html,/aria-label="Responsable ' \+ esc\(identidadVisible\.nombre\) \+ '\. Proyecto responsable ' \+ esc\(proyectoResponsable\) \+ '\. Hora de inicio ' \+ esc\(resumen\.startedClock\) \+ esc\(timingAria\)/);

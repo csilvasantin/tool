@@ -38,9 +38,11 @@ function render(agent,state,endedAt){
   return nodes.refreshLanes.innerHTML;
 }
 
-test("el nombre visible conserva la máquina y hover/foco identifican el mismo equipo",()=>{
+test("el nombre visible usa persona base y hover/foco conservan el equipo exacto",()=>{
   const rendered=render("NiobeMacMini","last_work",Date.parse("2026-09-01T13:04:05Z"));
-  assert.match(rendered,/class="refresh-agent"[^>]*tabindex="0"[^>]*title="MacMini"[^>]*aria-label="NiobeMacMini · máquina MacMini">NiobeMacMini<\/span>/);
+  assert.match(rendered,/data-agent-key="niobemacmini"/);
+  assert.match(rendered,/class="refresh-agent"[^>]*tabindex="0"[^>]*title="MacMini · interfaz sin verificar"[^>]*aria-label="Niobe"[^>]*aria-describedby="race-agent-context-0">Niobe<\/span>/);
+  assert.match(rendered,/role="tooltip" id="race-agent-context-0">MacMini · interfaz sin verificar<\/span>/);
   assert.doesNotMatch(rendered,/>Niobe<\/span>/);
   assert.match(html,/\.refresh-agent:focus-visible\{[^}]*outline:/);
 
@@ -51,14 +53,14 @@ test("el nombre visible conserva la máquina y hover/foco identifican el mismo e
 test("el carril ordena agente, pista y bloque horario derecho en hora Madrid",()=>{
   const ended=Date.parse("2026-09-01T13:04:05Z");
   const rendered=render("NiobeMacMini","last_work",ended);
-  assert.match(rendered,/class="refresh-agent"[^>]*>NiobeMacMini<\/span>/);
+  assert.match(rendered,/class="refresh-agent"[^>]*>Niobe<\/span>/);
   assert.match(rendered,/class="refresh-started" data-race-time="start"[^>]*>14:30:00<\/time>/);
   assert.match(rendered,new RegExp(`<time class="refresh-ended" data-race-time="end" datetime="${new Date(ended).toISOString()}"[^>]*>15:04:05<\\/time>`));
   assert.ok(rendered.indexOf('class="refresh-agent"') < rendered.indexOf('data-race-time="start"'));
   assert.ok(rendered.indexOf('class="refresh-lane-center"') < rendered.indexOf('class="refresh-timing"'));
   assert.ok(rendered.indexOf('data-race-time="start"') < rendered.indexOf('data-race-time="end"'));
   assert.doesNotMatch(rendered,/>FINALIZADO<|>EN CURSO</);
-  assert.match(rendered,/aria-label="Responsable NiobeMacMini\. Proyecto responsable —\. Hora de inicio 14:30:00\. Hora de finalización 15:04:05/);
+  assert.match(rendered,/aria-label="Responsable Niobe\. Proyecto responsable —\. Hora de inicio 14:30:00\. Hora de finalización 15:04:05/);
 });
 
 test("sin ended_at no inventa hora y el activo usa el hueco final como contador",()=>{
