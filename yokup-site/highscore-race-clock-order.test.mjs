@@ -9,6 +9,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
+import {installRaceView} from "./highscore-race-test-support.mjs";
 
 const html = fs.readFileSync(new URL("./highscore.html", import.meta.url), "utf8");
 const stateCss = fs.readFileSync(new URL("./highscore-runner-state.css", import.meta.url), "utf8");
@@ -43,6 +44,7 @@ function renderRace(work) {
     YkHighscoreRace:raceHelperSandbox.module.exports,
     Number, String, Math, Date, Intl,
   });
+  installRaceView(html, context);
   vm.runInContext(`${raceSource}\nactualizaCarreraPodio();`, context);
   return nodes.refreshLanes.innerHTML;
 }
@@ -86,8 +88,8 @@ test("running genera DOM nombre -> pista -> bloque horario y lectura accesible f
   assertOrdered(laneAria(rendered),
     ["Responsable Niobe", "Hora de inicio", "Tiempo transcurrido"],
     "orden accesible de running");
-  assert.match(rendered, /data-race-role="agent"[^>]*title="MacMini"[^>]*>Niobe<\/span>/,
-    "la máquina sigue en el tooltip, no vuelve a ser apellido visible");
+  assert.match(rendered, /data-race-role="agent"[^>]*title="MacMini"[^>]*>NiobeMacMini<\/span>/,
+    "el nombre canónico y la máquina permanecen identificables");
   assert.match(rendered, /data-race-time="start"[^>]*datetime="2026-09-01T13:14:41\.000Z"[^>]*>15:14:41<\/time>/,
     "inicio usa work_started_at y no assignment_at");
   assert.match(rendered, /data-race-time="elapsed"[^>]*data-work-state="running"[^>]*>00:01:00<\/strong>/,

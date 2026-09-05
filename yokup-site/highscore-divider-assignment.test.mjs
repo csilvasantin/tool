@@ -34,7 +34,7 @@ test("el DOM ordena nombre, pista y bloque temporal derecho",()=>{
   assert.match(html,/startedAt:Number\(item\.work_started_at\) \|\| 0/);
   assert.match(html,/startedClock:horaMadrid\(trabajo\.startedAt\)/);
   assert.doesNotMatch(html,/startedClock:horaMadrid\(trabajo\.(?:assignmentAt|at|presenceAt|endedAt)\)/);
-  assert.match(html,/\.refresh-agent-meta\{[^}]*display:inline-flex[^}]*min-width:0/);
+  assert.match(html,/\.refresh-agent-meta\{[^}]*display:grid[^}]*grid-template-columns:minmax\(0,1fr\)[^}]*min-width:0/);
   assert.match(html,/\.refresh-agent\{[^}]*min-width:0[^}]*text-overflow:ellipsis/);
   assert.match(html,/\.refresh-started,\.refresh-ended\{[^}]*flex:0 0 auto[^}]*white-space:nowrap/);
   assert.doesNotMatch(html,/class="refresh-time"|class="refresh-work-state"/);

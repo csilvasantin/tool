@@ -84,11 +84,11 @@ test("equipo, presets y Clonar conservan el control de apps separado del filtro"
   assert.match(html, /hsActiveAgentKeys\(datos\.presencia, window\.ykAgentIdentity, datos\.presenceNow\)/);
 });
 
-test("Running Man usa el censo factual completo y no altera ranking ni podio", () => {
+test("Running Man aplica el mismo scope sin alterar las métricas de ranking ni podio", () => {
   assert.match(html, /filasElegibles = enlaces\.map\(function \(enlace\) \{ return enlace\.fila; \}\)/);
   assert.match(html, /YkHighscoreRace\.raceRows\(filasElegibles, clavesActivas\)/);
   assert.match(html, /: filasElegibles;/);
-  assert.match(html, /completas = listaCompletaCache \|\| \[\]/);
+  assert.match(html, /completas=listaVisible\(aplicaAgentScope\(listaCompletaCache\|\|\[\]\)\)/);
   assert.doesNotMatch(html, /filasElegibles\.slice\(0, 3\)/);
   // El sumador de la flota que se añadió al podio recibe listaCache, NO
   // filasElegibles: el Running Man sigue sin tocar ni ranking ni podio.

@@ -5,7 +5,7 @@ import fs from "node:fs";
 const html=fs.readFileSync(new URL("./highscore.html",import.meta.url),"utf8");
 
 test("nombre y bloque horario nacen a ambos lados de la pista",()=>{
-  assert.match(html,/\.refresh-agent-meta\{[^}]*justify-content:flex-start[^}]*width:100%/);
+  assert.match(html,/\.refresh-agent-meta\{[^}]*display:grid[^}]*grid-template-columns:minmax\(0,1fr\)[^}]*width:100%/);
   assert.match(html,/\.refresh-timing\{[^}]*justify-content:flex-end[^}]*gap:5px[^}]*width:100%/);
   assert.match(html,/\.refresh-agent\{[^}]*flex:0 1 auto[^}]*text-overflow:ellipsis[^}]*text-align:left[^}]*color:var\(--accent\)/);
   assert.match(html,/\.refresh-started,\.refresh-ended\{[^}]*flex:0 0 auto[^}]*min-width:8ch[^}]*color:var\(--ink\)[^}]*font-weight:800[^}]*tabular-nums/);

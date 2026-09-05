@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 
+await import("./yk-agent-identity.js");
 const html = readFileSync(new URL("./highscore.html", import.meta.url), "utf8");
 
 function functionSource(name) {
@@ -80,17 +81,15 @@ test("semana y mes usan el histórico real por agente y abren su mismo periodo",
   assert.match(html, /PODIUM_PERIOD === "week" \|\| PODIUM_PERIOD === "month" \? PODIUM_PERIOD : "today"/);
 });
 
-test("semana y mes reúnen alias y máquinas del mismo agente", () => {
+test("semana y mes reúnen alias de la misma máquina y separan equipos", () => {
   const rows = [
-    {agente:"Morfeo", metric:{hour:0, day:0}},
-    {agente:"Oraculo", metric:{hour:0, day:0}},
+    {agente:"MorfeoMacMini", metric:{hour:0, day:0}},
+    {agente:"MorfeoMBA16", metric:{hour:0, day:0}},
+    {agente:"OraculoMacMini", metric:{hour:0, day:0}},
   ];
-  const result = new Function("rows", `
+  const result = new Function("rows", "identity", `
     var PODIUM_PERIOD = "week";
-    var window = {ykAgentIdentity:{base:function (value) {
-      return String(value || "").replace(/^(?:Sub|Infra)/, "")
-        .replace(/(?:MacMini|Mini|MBP14|MBP16|MBA16|MBAAzul|MBARosa|MBACrema|MBAPlata)$/, "");
-    }}};
+    var window = {ykAgentIdentity:identity};
     var datos = {historial:{periods:{week:{start:"2026-08-31",end:"2026-09-03"}},all_days:[
       {day:"2026-08-31",top:[{agent:"MorfeoMini",points:170},{agent:"MorfeoMBA16",points:50}]},
       {day:"2026-09-01",top:[{agent:"MorfeoMacMini",points:540},{agent:"OraculoMini",points:85}]}
@@ -101,6 +100,6 @@ test("semana y mes reúnen alias y máquinas del mismo agente", () => {
     ${functionSource("claveAgentePeriodo")}
     ${functionSource("puntosPodioPeriodo")}
     return rows.map(function (row) { return puntosPodioPeriodo(row); });
-  `)(rows);
-  assert.deepEqual(result, [760, 85]);
+  `)(rows, globalThis.ykAgentIdentity);
+  assert.deepEqual(result, [710, 50, 85]);
 });

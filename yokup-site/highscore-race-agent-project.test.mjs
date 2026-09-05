@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
+import {installRaceView} from "./highscore-race-test-support.mjs";
 
 const html=fs.readFileSync(new URL("./highscore.html",import.meta.url),"utf8");
 const identitySource=fs.readFileSync(new URL("./yk-agent-identity.js",import.meta.url),"utf8");
@@ -30,17 +31,18 @@ function render({agent="MorfeoMacMini",principal="admira.live/control",workProje
     window:{ykAgentIdentity:identitySandbox.ykAgentIdentity},YkHighscoreRace:helperSandbox.module.exports,
     Number,String,Math,Date,Intl,performance:{now:()=>0},
   });
+  installRaceView(html, context);
   vm.runInContext(`${raceSource}\nactualizaCarreraPodio();`,context);
   return nodes.refreshLanes.innerHTML;
 }
 
 test("el bloque izquierdo muestra agente // proyecto responsable canónico",()=>{
   const rendered=render();
-  assert.match(rendered,/data-race-role="agent"[^>]*>Morfeo<\/span><span class="refresh-agent-project" data-race-role="project"[^>]*>\/\/ admira\.live\/control<\/span>/);
+  assert.match(rendered,/data-race-role="agent"[^>]*>MorfeoMacMini<\/span><span class="refresh-agent-machine">MacMini<\/span><span class="refresh-agent-project" data-race-role="project"[^>]*>\/\/ admira\.live\/control<\/span>/);
   assert.match(rendered,/Proyecto responsable admira\.live\/control\. Hora de inicio/);
   assert.match(rendered,/class="refresh-mission-title">Faena puntual · Yokup<\/span>/,
     "la faena puntual conserva su propio proyecto dentro de la pista");
-  assert.doesNotMatch(rendered,/MorfeoMacMini<\/span>|\/\/ MacMini/);
+  assert.doesNotMatch(rendered,/\/\/ MacMini/);
 });
 
 test("fila.proyecto gana al proyecto puntual y la ausencia queda explícita",()=>{
