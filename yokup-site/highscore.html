@@ -1611,10 +1611,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function adoptaRuntime(destino, runtime, host, updated, vivo, model) {
     host = normaliza(host).toLowerCase();
     var peso = (vivo ? 100 : 0) + (host === "app" ? 20 : (host === "cli" ? 10 : 0));
-    var antes = destino.runtimePeso, antesAt = destino.runtimeAt;
+    var antes = destino.runtimePeso, antesAt = destino.runtimeAt, antesRuntime = destino.runtime;
     adoptaRuntimeCandidato(destino, runtime, peso, updated);
     // Si esta lectura es la que manda, con ella van su vía (app|cli) y su LLM.
-    if (destino.runtimePeso !== antes || destino.runtimeAt !== antesAt || !destino.via) {
+    if (destino.runtimePeso !== antes || destino.runtimeAt !== antesAt || destino.runtime !== antesRuntime || !destino.via) {
       destino.via = host; destino.modelo = modeloLegible(model);
     }
   }
@@ -1626,18 +1626,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     if (!m || /^com\./i.test(m) || m.charAt(0) === "/" || m.length < 3) return "";
     return m;
   }
-  // Bajo el nombre: CÓMO se le habla y CON QUÉ piensa (Carlos, 3-sep-2026). La vía es
-  // el nombre de la app de escritorio (Claude, Codex, OpenCode) o «CLI»; a su derecha
-  // el LLM real (Nemotron, Muse Spark, Fable…), sólo si la presencia lo conoce.
+  // El podio conserva la vía de comunicación. En la tabla el modelo real va
+  // junto al nombre y la interfaz CLI se indica junto al ordenador.
   function viaComunicacion(a) {
     var runtime = normaliza(a && a.runtime), via = normaliza(a && a.via).toLowerCase();
     if (!runtime) return "";
     return via === "cli" ? "CLI" : runtime;
   }
   function viaYModeloHtml(a) {
-    var via = viaComunicacion(a), modelo = normaliza(a && a.modelo);
-    if (!via) return "";
-    return ' <span class="rt">· ' + esc(via) + (modelo ? ' <span class="llm">' + esc(modelo) + '</span>' : '') + '</span>';
+    var modelo = modeloLegible(a && a.modelo);
+    return modelo ? ' <span class="rt"><span class="llm">' + esc(modelo) + '</span></span>' : "";
   }
 
   function calcula() {
@@ -2769,6 +2767,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
      Y como MBP14 = MacBookPro14 = macbookpro14negro = MacBookProNegro14 son LA MISMA
      máquina, dos grafías del mismo equipo se funden en UNA pastilla en vez de partir
      el equipo en dos: se normaliza, nunca se comparan literales. */
+  function interfazCliHtml(a) {
+    return normaliza(a && a.via).toLowerCase() === "cli"
+      ? '<span class="maq-b cli-chip" title="Interfaz de línea de comandos">CLI</span>' : "";
+  }
   function pintaMaquinas(a, tope) {
     var id = typeof window !== "undefined" && window.ykAgentIdentity;
     var vivas = a.maquinasVivas.slice().sort();
@@ -2789,7 +2791,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         porAlias[alias] = { alias: alias, on: t.on, largos: [t.m] };
         todas.push(porAlias[alias]);
       });
-    if (!todas.length) return '<div class="maqs"><span class="maq-b">sin registro</span></div>';
+    if (!todas.length) return '<div class="maqs"><span class="maq-b">sin registro</span>' + interfazCliHtml(a) + '</div>';
     var largo = function (t) { return t.largos.join(" = "); };
     var muestra = tope ? todas.slice(0, tope) : todas, resto = todas.length - muestra.length;
     return '<div class="maqs" title="' + esc(todas.map(largo).join(" · ")) + '">' +
@@ -2797,7 +2799,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         return '<span class="maq-b' + (t.on ? ' on' : '') + '" title="' + esc(largo(t)) + '">' +
           esc(t.alias) + '</span>';
       }).join("") +
-      (resto > 0 ? '<span class="maq-mas">+' + resto + '</span>' : '') + '</div>';
+      (resto > 0 ? '<span class="maq-mas">+' + resto + '</span>' : '') + interfazCliHtml(a) + '</div>';
   }
 
   // El realce late sobre una CIFRA, no sobre el hueco donde no hay ninguna.
