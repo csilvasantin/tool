@@ -5,15 +5,19 @@ import {readFile} from "node:fs/promises";
 const source=await readFile(new URL("./highscore.html",import.meta.url),"utf8");
 
 test("Running Man consume el endpoint factual específico sin feeds truncados",()=>{
-  assert.equal((source.match(/seguroYokup\("\/highscore\/active-work"/g)||[]).length,2,
-    "carga inicial y refresco deben compartir el censo factual");
-  assert.match(source,/d && d\.ok && Array\.isArray\(d\.participants\)/);
-  assert.match(source,/datos\.trabajos = r\[8\]\.participants \|\| \[\]/);
+  assert.equal((source.match(/fetch\(YK \+ "\/highscore\/active-work"/g)||[]).length,1,
+    "la fuente factual se centraliza y no duplica feeds ni sondeos en vuelo");
+  assert.match(source,/hsRefreshWork\(false\),/,"carga inicial");
+  assert.match(source,/hsRefreshWork\(true\),/,"refresco completo comparte la consulta ligera");
+  assert.match(source,/function hsPollWork\(\)[\s\S]*?return hsRefreshWork\(true\)/,"sondeo independiente de la animación");
+  assert.match(source,/payload && payload\.ok && Array\.isArray\(payload\.participants\)/);
+  assert.match(source,/datos\.trabajos = valid \? payload\.participants : \[\]/);
+  assert.match(source,/datos\.workObservations = valid && Array\.isArray\(payload\.observations\)/,"observaciones separadas de los participantes");
 });
 
 test("la carrera nace de hechos dentro del mismo ámbito que el ranking",()=>{
   assert.match(source,/function trabajosEnCurso\(\)/);
-  assert.match(source,/trabajos=trabajosCarrera\(\)\.filter\(function\(work\)\{return scopeKeys\.has\(work\.key\);\}\)/);
+  assert.match(source,/todosTrabajos=trabajosCarrera\(\);\s*var trabajos=todosTrabajos\.filter\(function\(work\)\{return scopeKeys\.has\(work\.key\);\}\)/);
   assert.match(source,/byKey\[trabajo\.key\] \|\| \{ agente:trabajo\.agente/);
   assert.doesNotMatch(source,/filasElegibles\.slice\(0, 3\)/);
   assert.match(source,/data-participants/);
@@ -28,7 +32,8 @@ test("la calle muestra trabajo, responsable, state factual y hora Madrid",()=>{
   assert.match(source,/stateLabel = trabajo\.state === "running" \? "Trabajo activo"/);
   assert.doesNotMatch(source,/>EN CURSO<|>FINALIZADO</);
   assert.match(source,/assignmentClock:horaMadrid\(trabajo\.assignmentAt\)/);
-  assert.match(source,/SIN TRABAJO ASIGNADO/);
+  assert.match(source,/SIN TRABAJO VERIFICADO/);
+  assert.doesNotMatch(source,/SIN TRABAJO ASIGNADO/,"una fuente vacía no prueba ausencia de trabajo");
   assert.doesNotMatch(source,/misionDesdePresencia|presencia viva, sin foco declarado/);
 });
 

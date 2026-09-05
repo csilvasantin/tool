@@ -46,13 +46,13 @@ test("conserva la familia visual de las plazas pero queda un 10% más compacta",
 test("suma TODA la lista, no los tres del podio", () => {
   assert.match(html, /function totalPodioHtml\(todos\)/);
   assert.match(html, /function pintaPodio\(top, todos\)/);
-  // Los tres puntos de llamada tienen que pasar la lista completa; si uno se
+  // Todos los puntos de llamada tienen que pasar la lista completa; si uno se
   // olvidara, el total desaparecería en esa vista sin avisar.
   // El argumento lleva un slice(0, 3) dentro, así que el paréntesis anida: una
   // clase [^)]* corta en el cierre del slice y no ve la lista que viene detrás.
   const llamadas = html.match(/pintaPodio\((?:[^()]|\([^()]*\))*\)/g)
     .filter((c) => !c.includes("top, todos"));
-  assert.equal(llamadas.length, 4, "hay tres cargas de datos y un repintado al cambiar Día/Hora");
+  assert.equal(llamadas.length, 5, "carga, refresco completo, refresco ligero, selección y periodo conservan el total");
   for (const c of llamadas) {
     assert.match(c, /,\s*(listaCache|l)\)/, `${c} no pasa la lista completa`);
   }
