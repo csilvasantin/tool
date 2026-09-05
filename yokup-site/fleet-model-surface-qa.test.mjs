@@ -80,6 +80,33 @@ test("tarjeta muestra LLM junto al nombre y CLI junto a máquina, según host y 
   }
 });
 
+test("un proceso comprobado sin foco ni control conserva Abierto también en el cuerpo de la tarjeta", () => {
+  const now = 2_000_000_000;
+  const presence = [{ persona:"Morfeo", machine:"MacMini", runtime:"Claude", host:"app", model:"Fable 5.1",
+    updated:now, pid:5248, verified:true, source:"process_snapshot", online:true, mode:"pasivo" }];
+  const api = dashboardApi();
+  const inventory = control.inventory({ presence }, { identity, now:now * 1000 });
+  const row = api.pulseControlledGroups(groups.classify(presence, { identity }), inventory).by_key.app.items[0];
+  assert.equal(row.process_state, "open");
+  assert.equal(row.eligible.stop, false);
+  assert.equal(row.focus, "Proceso abierto · sin actividad declarada");
+  const html = api.pulseCard(row);
+  assert.match(html, /Claude · Abierto/);
+  assert.match(html, /Proceso abierto · sin actividad declarada/);
+  assert.doesNotMatch(html, /Sin señal de proceso|En espera/);
+});
+
+test("el foco alternativo sigue la observación y conserva una actividad declarada", () => {
+  const api = dashboardApi(), item = { identity_key:"morfeo|macmini|claude|app", persona:"Morfeo", machine:"MacMini", runtime:"Claude", surface:"app", state:"ambiguous" };
+  for (const [process_state, expected] of [["open", "Proceso abierto · sin actividad declarada"], ["waiting", "Proceso abierto · en espera"], ["closed", "Cerrado · proceso no detectado por el watcher"], ["unknown", "Sin señal de proceso · no equivale a cerrado"]]) {
+    const row = api.pulseControlledGroups(null, { items:[{...item, process_state}] }).by_key.app.items[0];
+    assert.equal(row.focus, expected);
+  }
+  const classified = { groups:[{items:[{identity_key:item.identity_key, focus:"Revisando el proyecto Yokup"}]}] };
+  const row = api.pulseControlledGroups(classified, {items:[{...item, process_state:"open"}]}).by_key.app.items[0];
+  assert.equal(row.focus, "Revisando el proyecto Yokup");
+});
+
 test("Highscore cambia modelo junto con runtime al resolver empates, independientemente del orden del censo", () => {
   const api = scoreApi();
   for (const rows of [ [["OpenCode", "Qwen3"], ["Codex", "GPT-5.6"]], [["Codex", "GPT-5.6"], ["OpenCode", "Qwen3"]] ]) {
