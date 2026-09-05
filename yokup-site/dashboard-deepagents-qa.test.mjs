@@ -44,3 +44,13 @@ test('compact card orders identity, project, then runtime with device and CLI on
  assert.doesNotMatch(card,/<actual>|unrelated-global-project/);
  const desktop=a.pulseCard({...row,surface:'app',host:'app'});assert.doesNotMatch(desktop,/>CLI<\/span>/);
 });
+test('filter click uses the productive event handler without dispatching controls or saving an agent mode',async()=>{
+ const original=JSON.stringify({cli:{compact:false,hidden:true},app:{compact:true,hidden:false}}),store=new Map([['yk.dashboard.silicon-fleet.view.v1',original]]),http=[],section={open:false},box={};
+ const context={window:{},esc:escape,localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v)},document:{getElementById:id=>id==='pulseSection'?section:box,querySelector:()=>null},fetch:(...args)=>{http.push(args);throw new Error('filter must not call network');},paPaint(){},paTickAgo(){}};
+ const start=source.indexOf('const PULSE_VIEW_KEY='),end=source.indexOf('async function pulse(renderMap=',start);
+ vm.runInNewContext(source.slice(start,end)+'\nthis.click=pulseHandleClick; this.config=rows=>{PULSE_GROUPS={groups:[{key:"cli",items:rows}]};};',context);
+ context.config(rows);
+ await context.click({target:{closest:()=>({dataset:{pulseFilter:'closed'}})},preventDefault(){},stopPropagation(){}});
+ assert.equal(section.open,true);assert.deepEqual(http,[]);assert.equal(store.get('yk.dashboard.silicon-fleet.view.v1'),original);
+ assert.equal(store.get('yk.dashboard.deepagents.process-filter.v1'),'closed');assert.equal(store.size,2);
+});
