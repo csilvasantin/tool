@@ -1,3 +1,4 @@
+import { resolveAgentPrincipalProject } from '../src/agent-principal-project.js';
 import { desktopTurnParticipants } from '../src/desktop-turn-participant.js';
 import { CLI_POLICY } from '../src/cli-policy.js';
 import { WORK_ACTIVITY_TABLE_SQL, evaluateWorkActivity, workActivityProcessKey } from '../src/work-activity.js';
@@ -33,7 +34,7 @@ function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{all:async()=>({results:stmt.all(...args)})}},all:async()=>({results:stmt.all()})}}};
   const TELEGRAM=presence===null?undefined:{fetch:async(request)=>({ok:true,json:async()=>
     String(request.url).includes("work-sessions") ? {ok:true,sessions:workSessions} : presence})};
-  const context=vm.createContext({desktopTurnParticipants,CLI_POLICY,evaluateWorkActivity,workActivityProcessKey,Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,Request,
+  const context=vm.createContext({desktopTurnParticipants,resolveAgentPrincipalProject,agentPrincipalSnapshot:async()=>({projects:[{id:"admiranext",name:"AdmiraNeXT",status:"activo"},{id:"yokup",name:"Yokup",status:"activo"}],declarations:[],missions:[],now:NOW}),CLI_POLICY,evaluateWorkActivity,workActivityProcessKey,Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,Request,
     machineSuffix,canonicalMachineSuffix,baseAgentIdentity,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,resolveDecisionIdentity,MISSION_SCOPE_SQL_T,__name:(fn)=>fn});
   vm.runInContext([
     grabVar("HIGHSCORE_PERSONAS"),grabVar("PRESENCE_URL"),
@@ -59,17 +60,28 @@ function decision(db,{id="DEC-1",agent="OraculoMacMini",machine="admira-macmini"
     .run(id,title,agent,machine,status,project,at,deadline);
 }
 
-const MID='FLT-1827', START=1788596199778, CHILD_START=1788597432261, CHILD_END=1788598045627;
-function morfeo(ref=MID){const session={...appSession(ref,'MorfeoMacMini'),runtime:'Claude',session_id:'desktop:claude',started_at:1788578952000};const h=appHarness(session);mission(h.db,{id:MID,agent:'MorfeoMacMini',at:START,startedAt:START});h.db.prepare('INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?,?)').run(MID,'b','Trabajo finalizado','done','MorfeoMacMini',CHILD_START,START,NOW-1000,'MorfeoMacMini',CHILD_END);return h;}
-function activity(db,{host='app',at=NOW}={}){const signal={kind:'implementation',detail:'Verificación aislada de actividad explícita en misión actual',runtime:'Claude',host,session_id:host==='app'?'desktop:claude':'morfeo',family_key:'morfeo@macmini',observed_at:at,basis:'explicit_bound_progress'};db.prepare('INSERT INTO fleet_work_activity VALUES (?,?,?)').run(MID,JSON.stringify(signal),at);}
-const result=async h=>JSON.parse(JSON.stringify(await h.F.highscoreActiveWork(h.env,NOW)));
-test('real FLT1827 shape: a fresh APP bound to finished child b does not activate parent or borrow the child end',async()=>{
- const h=morfeo(MID+':b');const out=await result(h);const rows=out.participants.filter(x=>x.agent==='MorfeoMacMini');assert.equal(rows.length,1);assert.equal(rows[0].reference,MID);assert.equal(rows[0].state,'assigned_stale');assert.equal(rows[0].activity_at,undefined);assert.equal(rows[0].session_surface,undefined);assert.equal(rows[0].work_started_at,START);assert.notEqual(rows[0].ended_at,CHILD_END);
+const BIRTH=NOW-3600000,START=NOW-300000;
+function turnRow(persona='Neo',machine='MBP14',runtime='Claude',patch={}){return {persona,machine,runtime,host:'app',session_id:runtime==='Claude'?'desktop:claude':'desktop:codex',verified:1,source:'process_snapshot',pid:runtime==='Claude'?558:589,updated:NOW/1000,process_birth:BIRTH/1000,app_turn:{state:'active',turn_key:'a'.repeat(64),started_at:START,observed_at:NOW-1000,ended_at:null,process_birth:BIRTH,basis:runtime==='Claude'?'claude_desktop_transcript':'codex_desktop_turn_store'},...patch};}
+async function run(rows,sessions=[],setup=()=>{}){const h=harness({presence:rows},sessions);setup(h.db);const before=h.db.prepare('select count(*) n from tickets').get().n;const data=JSON.parse(JSON.stringify(await h.F.highscoreActiveWork(h.env,NOW)));assert.equal(h.db.prepare('select count(*) n from tickets').get().n,before,'projection cannot create missions');return data;}
+test('two factual unlinked APP turns appear once each, retain their own start, default project and no fabricated work or points',async()=>{
+ const out=await run([turnRow(),turnRow('Trinity','MBP14','Codex')]);assert.equal(out.running_count,2);assert.equal(out.participants.length,2);
+ for(const r of out.participants){assert.equal(r.kind,'session');assert.equal(r.reference,'');assert.equal(r.project_id,'admiranext');assert.equal(r.state,'running');assert.equal(r.session_surface,'app');assert.equal(r.work_started_at,START);assert.equal(r.elapsed_ms,NOW-START);for(const k of ['points','mission_id','pid','session_id','turn_key','path','focus','content'])assert.equal(r[k],undefined,k);}
+ assert.equal(out.observations.length,0);
 });
-test('explicit same-owner APP activity restores one runner and preserves start and race revision',async()=>{
- const h=morfeo();const before=(await result(h)).participants.find(x=>x.agent==='MorfeoMacMini');activity(h.db);const out=await result(h);const rows=out.participants.filter(x=>x.agent==='MorfeoMacMini');assert.equal(rows.length,1);assert.equal(rows[0].state,'running');assert.equal(rows[0].activity_at,NOW);assert.equal(rows[0].session_surface,'app');assert.equal(rows[0].work_started_at,before.work_started_at);assert.equal(rows[0].race_revision,before.race_revision);assert.equal(out.running_count,1);
+test('reachability, CLI, stale evidence, ended turn and changed process birth cannot manufacture a session runner',async()=>{
+ const base=turnRow();for(const row of [{...base,app_turn:undefined},{...base,host:'cli'},{...base,updated:(NOW-30001)/1000},{...base,app_turn:{...base.app_turn,observed_at:NOW-120001}},{...base,app_turn:{...base.app_turn,state:'ended',ended_at:NOW-500}},{...base,process_birth:(BIRTH+1000)/1000}]){const out=await run([row]);assert.equal(out.running_count,0);assert.equal(out.participants.filter(r=>r.kind==='session').length,0);}
 });
-test('expired activity and canonical closure cannot keep Morfeo running; CLI policy remains effective',async()=>{
- const h=morfeo();activity(h.db,{at:NOW-120001});assert.equal((await result(h)).participants.find(x=>x.agent==='MorfeoMacMini').state,'assigned_stale');h.db.prepare('UPDATE tickets SET status=?,resolved_at=? WHERE id=?').run('resolved',NOW-1000,MID);assert.equal((await result(h)).running_count,0);
- const cli=morfeo();activity(cli.db,{host:'cli'});assert.equal((await result(cli)).running_count,0);assert.equal(CLI_POLICY.cli_paused,true);
+test('a live APP turn replaces a finished historical lane without changing stored historical facts',async()=>{
+ const out=await run([turnRow()],[],db=>mission(db,{id:'HISTORY',agent:'NeoMBP14',machine:'MBP14',at:NOW-10000,startedAt:NOW-600000,status:'resolved'}));assert.equal(out.participants.filter(r=>r.agent==='NeoMBP14').length,1);assert.equal(out.participants[0].kind,'session');assert.equal(out.participants[0].work_started_at,START);
+});
+test('two machines remain separate and two ambiguous active turns on one physical APP are not arbitrarily chosen',async()=>{
+ const one=turnRow();let out=await run([one,turnRow('Neo','MacMini')]);assert.equal(out.running_count,2);
+ out=await run([one,{...one,app_turn:{...one.app_turn,turn_key:'b'.repeat(64)}}]);assert.equal(out.running_count,0);
+});
+test('an exact active turn renews its stale linked mission without restarting mission time or race identity',async()=>{
+ const row=turnRow(),linked={persona:'NeoMBP14',machine:'MBP14',work_ref:'REAL',surface:'app',runtime:'Claude',session_id:'desktop:claude',started_at:BIRTH,state:'open',basis:'process_birth'};
+ const setup=db=>mission(db,{id:'REAL',agent:'NeoMBP14',machine:'MBP14',at:NOW-25*MIN,startedAt:NOW-25*MIN});
+ const before=await run([{...row,app_turn:undefined}],[linked],setup);assert.equal(before.participants[0].state,'assigned_stale');
+ const out=await run([row],[linked],setup);const r=out.participants.find(r=>r.agent==='NeoMBP14');assert.equal(out.running_count,1);assert.equal(r.reference,'REAL');assert.equal(r.kind,'mission');assert.equal(r.state,'running');assert.equal(r.work_started_at,before.participants[0].work_started_at);assert.equal(r.race_revision,before.participants[0].race_revision);
+ for(const change of [{runtime:'Codex'},{session_id:'other-session'},{started_at:BIRTH-1000}]){const bad=await run([row],[{...linked,...change}],setup);const current=bad.participants.find(r=>r.agent==='NeoMBP14');assert.equal(current.kind,'session');assert.equal(current.reference,'');}
 });
