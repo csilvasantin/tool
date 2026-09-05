@@ -102,6 +102,7 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .work-observations summary{cursor:pointer;color:var(--ink)}
 .work-observations ul{display:flex;flex-wrap:wrap;gap:4px 18px;padding:4px 0 0;list-style:none;margin:0}
 .work-observations li{max-width:100%;overflow-wrap:anywhere}
+.work-observation-surface{display:inline-block;border:1px solid rgba(120,243,255,.25);border-radius:4px;padding:0 4px;margin:0 2px;white-space:nowrap}
 .race-evidence-status{font-size:11px;line-height:1.5;color:var(--mut);margin:6px 0 0}
 .ranking-period-metric{display:inline-flex;align-items:baseline;gap:3px;white-space:nowrap}
 .ranking-period-metric .score-period{font-size:7px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
@@ -4867,16 +4868,29 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (seen.has(key)) return false; seen.add(key); return true;
     });
   }
+  function hsGroupWorkObservations(items) {
+    var groups = new Map();
+    (items || []).forEach(function (item) {
+      var identity = hsWorkIdentity(item), group = groups.get(identity.key);
+      if (!group) { group = { key:identity.key, agent:identity.agent, machine:identity.machine, surfaces:[] }; groups.set(identity.key, group); }
+      var host = normaliza(item.host).toLowerCase(), runtime = normaliza(item.runtime);
+      if (!group.surfaces.some(function (surface) { return surface.host === host && surface.runtime.toLowerCase() === runtime.toLowerCase(); })) group.surfaces.push({host:host,runtime:runtime});
+    });
+    return Array.from(groups.values()).sort(function (a, b) { return a.agent.localeCompare(b.agent, "es"); });
+  }
   function hsRenderWorkObservations() {
     var box = document.getElementById("workObservations"), list = document.getElementById("workObservationsList"), summary = document.getElementById("workObservationsSummary");
     if (!box || !list || !summary) return;
     var now = datos.trabajosGeneratedAt ? datos.trabajosGeneratedAt + Math.max(0, performance.now() - datos.trabajosClientAt) : 0;
     var items = hsVisibleWorkObservations(datos.trabajosAvailable ? datos.workObservations : [], now, hsEffectiveAgentScope());
-    box.hidden = items.length === 0;
-    summary.textContent = "Actividad sin verificar · " + items.length + " superficies sin trabajo vinculado";
-    list.innerHTML = items.map(function (item) {
-      var identity = hsWorkIdentity(item), surface = item.host === "app" ? "APP" : "CLI";
-      return '<li data-observation-agent="' + esc(identity.key) + '"><b>' + esc(identity.agent) + '</b> · ' + esc(item.runtime || "") + ' ' + surface + ' abierta · sin trabajo vinculado</li>';
+    var groups = hsGroupWorkObservations(items);
+    box.hidden = groups.length === 0;
+    summary.textContent = "Actividad sin verificar · " + groups.length + (groups.length === 1 ? " agente" : " agentes");
+    list.innerHTML = groups.map(function (group) {
+      var badges = group.surfaces.map(function (surface) {
+        return '<span class="work-observation-surface">' + esc(surface.runtime + (surface.runtime ? " " : "") + (surface.host === "app" ? "APP" : "CLI")) + '</span>';
+      }).join("");
+      return '<li data-observation-agent="' + esc(group.key) + '"><b>' + esc(group.agent) + '</b> · ' + badges + ' · abierto, sin trabajo vinculado</li>';
     }).join("");
   }
 

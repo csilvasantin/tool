@@ -58,3 +58,13 @@ test('light polling ignores animation pause, coalesces requests, and late timed-
  c.document.hidden=true;await c.hsPollWork();assert.equal(requests.length,2);
  assert.match(html,/setInterval\(hsPollWork, WORK_POLL_MS\)/);assert.match(html,/visibilitychange[^\n]*hsPollWork\(\)/);
 });
+test('observation presentation groups APP and CLI by agent and machine, retaining explicit badges without merging computers',()=>{
+ const nodes={workObservations:{},workObservationsList:{},workObservationsSummary:{}};
+ const now=1750000000000,base={agent:'Morfeo',machine:'MacMini',runtime:'Claude',process_state:'open',activity_state:'unverified',reason:'no_linked_work',observed_at:now};
+ const items=[{...base,host:'app'},{...base,host:'cli'},{...base,host:'app',machine:'MBP14'}];let scope=null;
+ const c=load({document:{getElementById:id=>nodes[id]},window:{ykAgentIdentity:globalThis.ykAgentIdentity},normaliza:v=>String(v||''),esc:v=>String(v||'').replaceAll('<','&lt;').replaceAll('"','&quot;'),performance:{now:()=>100},hsEffectiveAgentScope:()=>scope,datos:{trabajosAvailable:true,workObservations:items,trabajosGeneratedAt:now,trabajosClientAt:100}},['claveAgenteCarrera','hsWorkIdentity','hsVisibleWorkObservations','hsGroupWorkObservations','hsRenderWorkObservations']);
+ c.hsRenderWorkObservations();assert.equal(nodes.workObservationsSummary.textContent,'Actividad sin verificar · 2 agentes');
+ assert.equal((nodes.workObservationsList.innerHTML.match(/data-observation-agent=/g)||[]).length,2);assert.equal((nodes.workObservationsList.innerHTML.match(/data-observation-agent="morfeomacmini"/g)||[]).length,1);
+ const mini=nodes.workObservationsList.innerHTML.split('</li>')[0];assert.match(mini,/>Claude APP</);assert.match(mini,/>Claude CLI</);
+ scope=new Set(['morfeomacmini']);c.hsRenderWorkObservations();assert.equal(nodes.workObservationsSummary.textContent,'Actividad sin verificar · 1 agente');assert.doesNotMatch(nodes.workObservationsList.innerHTML,/MBP14/);assert.equal(items.length,3,'presentation leaves exact backend observations unchanged');
+});
