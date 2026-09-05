@@ -1600,21 +1600,20 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   // viva prima sobre un CLI vivo y cualquier presencia prima sobre el catálogo
   // de ranuras apagadas. Los desempates son estables para evitar parpadeos.
   function adoptaRuntimeCandidato(destino, runtime, peso, updated) {
-    runtime = normaliza(runtime); if (!runtime) return;
+    runtime = normaliza(runtime); if (!runtime) return false;
     var at = Number(updated) || 0, actualPeso = Number(destino.runtimePeso) || 0;
     var actualAt = Number(destino.runtimeAt) || 0;
-    if (peso < actualPeso || (peso === actualPeso && at < actualAt)) return;
+    if (peso < actualPeso || (peso === actualPeso && at < actualAt)) return false;
     if (peso === actualPeso && at === actualAt && destino.runtime &&
-        runtime.toLowerCase() >= destino.runtime.toLowerCase()) return;
+        runtime.toLowerCase() >= destino.runtime.toLowerCase()) return false;
     destino.runtime = runtime; destino.runtimePeso = peso; destino.runtimeAt = at;
+    return true;
   }
   function adoptaRuntime(destino, runtime, host, updated, vivo, model) {
     host = normaliza(host).toLowerCase();
     var peso = (vivo ? 100 : 0) + (host === "app" ? 20 : (host === "cli" ? 10 : 0));
-    var antes = destino.runtimePeso, antesAt = destino.runtimeAt, antesRuntime = destino.runtime;
-    adoptaRuntimeCandidato(destino, runtime, peso, updated);
     // Si esta lectura es la que manda, con ella van su vía (app|cli) y su LLM.
-    if (destino.runtimePeso !== antes || destino.runtimeAt !== antesAt || destino.runtime !== antesRuntime || !destino.via) {
+    if (adoptaRuntimeCandidato(destino, runtime, peso, updated)) {
       destino.via = host; destino.modelo = modeloLegible(model);
     }
   }
@@ -1722,7 +1721,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       adoptaActividad(destino, origen.actividad, origen.actividadAt, origen.actividadDetalle);
       if (!destino.progresion && origen.progresion) destino.progresion = origen.progresion;
       marcaProyecto(destino, origen.proyecto, origen.proyectoAt, origen.proyecto, origen.proyectoPeso);
-      adoptaRuntimeCandidato(destino, origen.runtime, Number(origen.runtimePeso) || 0, origen.runtimeAt);
+      if (adoptaRuntimeCandidato(destino, origen.runtime, Number(origen.runtimePeso) || 0, origen.runtimeAt)) {
+        destino.via = normaliza(origen.via).toLowerCase();
+        destino.modelo = modeloLegible(origen.modelo);
+      }
       origen.maquinas.forEach(function (m) { if (destino.maquinas.indexOf(m) < 0) destino.maquinas.push(m); });
       origen.maquinasVivas.forEach(function (m) { if (destino.maquinasVivas.indexOf(m) < 0) destino.maquinasVivas.push(m); });
     }
