@@ -47,15 +47,15 @@ function render(work){
   vm.runInContext(html.slice(first,last)+'\nactualizaCarreraPodio();',ctx);return nodes.refreshLanes.innerHTML;
 }
 const historical={agent:'OraculoMacMini',executor:'InfraOraculoMacMini',family_key:'oraculo@macmini',kind:'mission',title:'Verificación final0970',project_id:'yokup',project_name:'Yokup',state:'last_work',work_started_at:start,ended_at:end,elapsed_ms:end-start};
-test('productive renderer preserves actual final duration and places end clock only in descriptive context',()=>{
+test('productive renderer shows the actual end clock and retains duration in accessible detail',()=>{
   const result=render(historical);
-  assert.match(result,/data-race-time="duration"[^>]*>00:20:52<\/strong>/);
+  assert.match(result,/data-race-time="end"[^>]*>10:15:44<\/strong>/);
   assert.match(result,/title="Duración final · Inicio 09:54:51 · Final 10:15:44"/);
-  assert.doesNotMatch(result,/>10:15:44<\//);
+  assert.match(result,/aria-label="Finalizó a las 10:15:44 · Duración 00:20:52"/);
   assert.match(result,/data-race-role="agent"[\s\S]*data-race-role="project"/);
 });
-test('productive mapping keeps missing duration missing instead of coercing null to zero',()=>{
+test('productive mapping keeps missing end time missing instead of coercing null to midnight',()=>{
   const result=render({...historical,ended_at:null,elapsed_ms:null});
-  assert.match(result,/data-race-time="duration"[^>]*>—<\/strong>/);
+  assert.match(result,/data-race-time="end"[^>]*>—<\/strong>/);
   assert.doesNotMatch(result,/>00:00:00<\//);
 });

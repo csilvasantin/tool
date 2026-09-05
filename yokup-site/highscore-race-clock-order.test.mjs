@@ -101,16 +101,16 @@ test("running genera DOM nombre -> pista -> bloque horario y lectura accesible f
     "un trabajo abierto no inventa hora de fin");
 });
 
-test("last_work conserva duración final visible y fecha de cierre descriptiva", () => {
+test("last_work muestra hora de finalización visible y conserva duración en el detalle", () => {
   const endedAt = Date.parse("2026-09-01T13:42:09.000Z");
   const rendered = renderRace(fixture("last_work", endedAt));
   assertOrdered(rendered,
-    ['data-race-role="agent"', 'class="refresh-lane-center"', 'class="refresh-timing"', 'data-race-time="start"', 'data-race-time="duration"'],
+    ['data-race-role="agent"', 'class="refresh-lane-center"', 'class="refresh-timing"', 'data-race-time="start"', 'data-race-time="end"'],
     "orden DOM de last_work");
   assertOrdered(laneAria(rendered),
     ["Responsable Niobe", "Hora de inicio", "Duración final"],
     "orden accesible de last_work");
-  assert.match(rendered, /data-race-time="duration"[^>]*>00:27:28<\/strong>/);
+  assert.match(rendered, /data-race-time="end"[^>]*>15:42:09<\/strong>/);
   assert.match(rendered, /title="Duración final · Inicio 15:14:41 · Final 15:42:09"/);
   assert.match(rendered, /class="refresh-mission-title">Última misión factual<\/span>/,
     "la última misión no desaparece al quedar gris");
@@ -119,10 +119,10 @@ test("last_work conserva duración final visible y fecha de cierre descriptiva",
 test("last_work sin ended_at queda explícitamente desconocido y no fabrica epoch", () => {
   const rendered = renderRace({...fixture("last_work", 0),elapsed_ms:null});
   assertOrdered(rendered,
-    ['data-race-role="agent"', 'class="refresh-lane-center"', 'class="refresh-timing"', 'data-race-time="start"', 'data-race-time="duration"'],
+    ['data-race-role="agent"', 'class="refresh-lane-center"', 'class="refresh-timing"', 'data-race-time="start"', 'data-race-time="end"'],
     "orden DOM sin ended_at");
-  assert.match(rendered, /data-race-time="duration"[^>]*>—<\/strong>/);
-  assert.doesNotMatch(rendered, /1970-01-01|datetime="[^"]+"[^>]*data-race-time="duration"/,
+  assert.match(rendered, /data-race-time="end"[^>]*>—<\/strong>/);
+  assert.doesNotMatch(rendered, /1970-01-01|datetime="[^"]+"[^>]*data-race-time="end"/,
     "sin ended_at no hay un instante factual que serializar");
 });
 

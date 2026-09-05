@@ -2831,6 +2831,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     // adoptaRuntime elige una sola presencia verificada; APP prima si coexisten.
     var value=normaliza(a&&a.via).toLowerCase(),at=Number(a&&a.runtimeAt)||0;
     var now=Date.now()/1000;
+    // Carlos: GrokBot es APP. Es su tipo de ejecución, no una prueba de actividad.
+    var grokbot=[a&&a.suffix,a&&a.machine].concat(a&&a.maquinas||[],a&&a.maquinasVivas||[]).some(function(machine){return /^grokbot$/i.test(normaliza(machine));}) || /GrokBot$/i.test(normaliza(a&&a.agente));
+    if(grokbot)return '<span class="maq-b cli-chip" title="Aplicación GrokBot">APP</span>';
     if(!["app","cli"].includes(value)||!(Number(a&&a.runtimePeso)>=100)||!at||at<now-30||at>now+5)return "";
     return '<span class="maq-b cli-chip" title="'+(value==="cli"?'Interfaz de línea de comandos':'Aplicación de escritorio')+'">'+value.toUpperCase()+'</span>';
   }
@@ -5081,7 +5084,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         : resumen.idle ? '. Transcurrido registrado ' + resumen.duration + '. Actividad sin verificar'
           : '. Tiempo transcurrido ' + resumen.duration;
       var timingTitle=(isLast?'Duración final':resumen.idle?'Transcurrido hasta la última consulta; actividad sin verificar':'Tiempo transcurrido')+' · Inicio '+resumen.startedClock+(isLast?' · Final '+resumen.finishedClock:'');
-      var marcaTemporal = '<strong class="refresh-ended'+(!resumen.idle?' refresh-elapsed':'')+'" data-race-time="duration" data-work-state="'+(isLast?'last_work':resumen.idle?'assigned_stale':resumen.clockRunning?'running':'unverified')+'" data-work-start="'+
+      var marcaTemporal = isLast
+        ? '<strong class="refresh-ended" data-race-time="end" data-work-state="last_work" tabindex="0" title="'+esc(timingTitle)+'" aria-label="Finalizó a las '+esc(resumen.finishedClock)+' · Duración '+esc(resumen.duration)+'">'+esc(resumen.finishedClock)+'</strong>'
+        : '<strong class="refresh-ended'+(!resumen.idle?' refresh-elapsed':'')+'" data-race-time="duration" data-work-state="'+(isLast?'last_work':resumen.idle?'assigned_stale':resumen.clockRunning?'running':'unverified')+'" data-work-start="'+
         (Number(enlace.trabajo.startedAt)||0)+'" data-work-elapsed="'+(enlace.trabajo.elapsedMs===null||enlace.trabajo.elapsedMs===undefined?'':Number(enlace.trabajo.elapsedMs))+'" tabindex="0" title="'+esc(timingTitle)+'" aria-label="'+esc(timingTitle+' · '+resumen.duration)+'">'+esc(resumen.duration)+'</strong>';
       var marcaInicio = resumen.startedAt
         ? '<time class="refresh-started" data-race-time="start" datetime="' + new Date(resumen.startedAt).toISOString() +

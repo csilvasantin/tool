@@ -58,17 +58,17 @@ test("el carril ordena agente, pista y bloque horario derecho en hora Madrid",()
   const rendered=render("NiobeMacMini","last_work",ended);
   assert.match(rendered,/class="refresh-agent"[^>]*>Niobe<\/span>/);
   assert.match(rendered,/class="refresh-started" data-race-time="start"[^>]*>14:30:00<\/time>/);
-  assert.match(rendered,/class="refresh-ended" data-race-time="duration" data-work-state="last_work"[^>]*title="Duración final · Inicio 14:30:00 · Final 15:04:05"[^>]*>00:34:05<\/strong>/);
+  assert.match(rendered,/class="refresh-ended" data-race-time="end" data-work-state="last_work"[^>]*title="Duración final · Inicio 14:30:00 · Final 15:04:05"[^>]*>15:04:05<\/strong>/);
   assert.ok(rendered.indexOf('class="refresh-agent"') < rendered.indexOf('data-race-time="start"'));
   assert.ok(rendered.indexOf('class="refresh-lane-center"') < rendered.indexOf('class="refresh-timing"'));
-  assert.ok(rendered.indexOf('data-race-time="start"') < rendered.indexOf('data-race-time="duration"'));
+  assert.ok(rendered.indexOf('data-race-time="start"') < rendered.indexOf('data-race-time="end"'));
   assert.doesNotMatch(rendered,/>FINALIZADO<|>EN CURSO</);
   assert.match(rendered,/aria-label="Responsable Niobe\. Proyecto responsable —\. Hora de inicio 14:30:00\. Duración final 00:34:05\. Finalizó a las 15:04:05/);
 });
 
 test("sin ended_at no inventa hora y el activo usa el hueco final como contador",()=>{
   const missing=render("TrinityMBP14","last_work",0);
-  assert.match(missing,/class="refresh-ended" data-race-time="duration" data-work-state="last_work"[^>]*title="Duración final · Inicio 14:30:00 · Final —"[^>]*>—<\/strong>/);
+  assert.match(missing,/class="refresh-ended" data-race-time="end" data-work-state="last_work"[^>]*title="Duración final · Inicio 14:30:00 · Final —"[^>]*>—<\/strong>/);
   assert.doesNotMatch(missing,/class="refresh-ended" datetime=/);
 
   const running=render("NeoMBP14","running",0);

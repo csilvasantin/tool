@@ -68,3 +68,12 @@ test('ranking legible conserva identidad completa accesible al abreviar el nombr
   const plain=c.agentNameHtml({agente:a.agente});assert.ok(plain.includes(`title="Morfeo${machine}"`));
  }
 });
+
+test('GrokBot se clasifica APP aunque su presencia sea de servicio, sin alterar actividad',()=>{
+ const c=load(context(),['interfazCliHtml']);
+ for(const row of [{agente:'LucasGrokBot'},{suffix:'GrokBot'},{maquinas:['GrokBot'],via:'cli',interfaces:['app','cli']},{agente:'JobsGrokBot',runtime:'Grok',runtimePeso:20,runtimeAt:1}]){
+  const before=JSON.stringify(row),result=c.interfazCliHtml(row);
+  assert.equal((result.match(/>APP</g)||[]).length,1);assert.doesNotMatch(result,/>CLI</);assert.equal(JSON.stringify(row),before);
+ }
+ assert.equal(c.interfazCliHtml({agente:'SmithMacMini',runtime:'Grok',maquinas:['MacMini']}),'','Grok en un Mac no se convierte en GrokBot');
+});
