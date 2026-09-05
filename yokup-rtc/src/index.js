@@ -1,3 +1,4 @@
+import { assignedWorkBlockers, legacyAcademyAvailability, pauseLegacyAcademy, pauseAutomaticRun } from './automatic-work-priority.js';
 import { principalTargetKey, resolveAgentPrincipalProject } from './agent-principal-project.js';
 import puppeteer from "@cloudflare/puppeteer";
 import { handleAuthRequest, sessionTokenFromRequest, withCredentialCors } from "./auth-flow.js";
@@ -1135,6 +1136,7 @@ var SMITH_PROGRESS_STAGES = Object.freeze({
 });
 
 async function updateSmithCapsuleProgress(env, body) {
+  if (!legacyAcademyAvailability().allowed) return {ok:false,status:409,error:'consumer_unverified'};
   await ensureAcademyCapsuleSchema(env);
   const hourStart = Number(body && body.hourStart);
   const stage = String(body && body.stage || "").trim();
@@ -1251,6 +1253,7 @@ async function verifyAcademyCoachSource(env, body) {
 __name(verifyAcademyCoachSource, "verifyAcademyCoachSource");
 
 async function verifySmithCapsuleResult(env, body) {
+  if (!legacyAcademyAvailability().allowed) return {ok:false,status:409,error:'consumer_unverified'};
   await ensureAcademyCapsuleSchema(env);
   const hourStart = Number(body && body.hourStart);
   const videoId = String(body && body.videoAssetId || "").trim();
@@ -1332,6 +1335,7 @@ var ACADEMY_DECISION_MIN = 2;
 // en `isMissionDecision`. Con 24 ventanas al día, materializar serían 24 misiones
 // fantasma diarias.
 async function abreVentanaFormacion(env, { hourStart, tema, seat, capsula }) {
+  if (!legacyAcademyAvailability().allowed) return {ok:false,...legacyAcademyAvailability()};
   const turno = ACADEMY_TURNOS[Math.floor(hourStart / COACH_HOUR) % ACADEMY_TURNOS.length];
   const identidad = resolveDecisionIdentity(turno.agent, turno.machine);
   // Sin identidad canónica el Highscore descarta la fila en silencio y la ventana no
@@ -1385,6 +1389,7 @@ __name(academyHourFromDecisionId, "academyHourFromDecisionId");
 // Pixeria, cambiarle la temática debajo dejaría a la Academia enseñando una cosa y
 // diciendo que es otra. En ese caso se devuelve el motivo, no un ok falso.
 async function aplicaEleccionFormacion(env, decision) {
+  if (!legacyAcademyAvailability().allowed) return {ok:false,code:'consumer_unverified',cambiada:false};
   if (!decision || decision.parent_decision !== ACADEMY_DECISION_PARENT) return null;
   const efectivo = decision.status === "decided" ? Number(decision.chosen)
     : decision.status === "expired" ? Number(decision.recommended) : null;
@@ -1429,6 +1434,7 @@ __name(aplicaEleccionFormacion, "aplicaEleccionFormacion");
 // una hora pasada ya es historia y cambiarla no enseñaría nada a nadie.
 var ACADEMY_ELECCION_VENTANA_MS = 6 * 60 * 60 * 1000;
 async function aplicaEleccionesFormacion(env, ahora = Date.now()) {
+  if (!legacyAcademyAvailability().allowed) { await ensureAcademyCapsuleSchema(env); return pauseLegacyAcademy(env.DB,ahora); }
   const { results } = await env.DB.prepare(
     "SELECT * FROM decisions WHERE parent_decision=? AND status IN ('decided','expired') AND created_at >= ? ORDER BY created_at DESC LIMIT 12"
   ).bind(ACADEMY_DECISION_PARENT, ahora - ACADEMY_ELECCION_VENTANA_MS).all();
@@ -1448,6 +1454,11 @@ __name(aplicaEleccionesFormacion, "aplicaEleccionesFormacion");
 
 async function runAcademyCapsuleTick(env, ahora = Date.now()) {
   await ensureAcademyCapsuleSchema(env);
+  if (!legacyAcademyAvailability().allowed) {
+    const availability=await pauseLegacyAcademy(env.DB);
+    const row=await env.DB.prepare('SELECT * FROM academy_capsulas ORDER BY hour_start DESC LIMIT 1').first();
+    return {ok:true,nueva:false,...availability,capsula:academyCapsuleRow(row)};
+  }
   const hourStart = Math.floor(ahora / ACADEMY_HORA_MS) * ACADEMY_HORA_MS;
   const ya = await env.DB.prepare("SELECT * FROM academy_capsulas WHERE hour_start=?").bind(hourStart).first();
   if (ya) return { ok:true, nueva:false, capsula:academyCapsuleRow(ya) };
@@ -1928,16 +1939,42 @@ async function hourlyModeProject(env, target, requestedProjectId = "", now = Dat
   return {...project,...resolved};
 }
 
+async function assignedWorkSnapshot(env) {
+  await ensureHourlyModeSchema(env);
+  const [missions,tasks,paused]=await Promise.all([
+    env.DB.prepare("SELECT id,assignee,loc,status FROM tickets WHERE "+AGENT_SOURCE_SQL+" AND status IN ('open','in_progress','unconcluded')").all(),
+    env.DB.prepare("SELECT m.mission_id,m.code,m.status,m.owner,m.executor,t.assignee,t.loc,t.status parent_status FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE m.status IN ('open','pending','assigned','in_progress','doing','active','unconcluded') AND t.status NOT IN ('resolved','cancelled')").all(),
+    env.DB.prepare("SELECT w.mission_id FROM fleet_hourly_work w JOIN fleet_agent_mode_runs r ON r.id=w.run_id WHERE r.status='paused'").all()
+  ]);
+  const pausedIds=new Set((paused.results||[]).map(row=>row.mission_id));
+  return {missions:(missions.results||[]).filter(row=>!pausedIds.has(row.id)),tasks:(tasks.results||[]).filter(row=>!pausedIds.has(row.mission_id))};
+}
 async function hourlyModeActivity(env,target,project,now,ownRunId="") {
   const linked=ownRunId?await env.DB.prepare("SELECT w.mission_id FROM fleet_hourly_work w JOIN fleet_agent_mode_runs r ON r.id=w.run_id WHERE w.run_id=? AND r.identity_key=?").bind(ownRunId,modeTargetKey(target)).first():null;
-  const [missions,tasks,decisions]=await Promise.all([
-    env.DB.prepare("SELECT id,assignee,loc FROM tickets WHERE "+AGENT_SOURCE_SQL+" AND status IN ('open','in_progress','unconcluded')").all(),
-    env.DB.prepare("SELECT t.id,t.assignee,t.loc,m.owner FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE m.status IN ('in_progress','doing','active','unconcluded') AND t.status NOT IN ('resolved','cancelled')").all(),
-    env.DB.prepare("SELECT agent,machine FROM decisions WHERE status='pending' AND deadline>?").bind(now).all()
-  ]);
-  if ((missions.results||[]).some(row=>row.id!==linked?.mission_id && matchesOnIdleIdentity(row,target)) || (tasks.results||[]).some(row=>row.id!==linked?.mission_id && matchesOnIdleIdentity(row,target))) return {busy:true,reason:'active_mission'};
+  const snapshot=await assignedWorkSnapshot(env);
+  const blocked=assignedWorkBlockers(target,{...snapshot,ownMissionId:linked?.mission_id || ''});
+  if (blocked.length) return {busy:true,reason:'human_mission_assigned',blocked_by:blocked};
+  const decisions=await env.DB.prepare("SELECT agent,machine FROM decisions WHERE status='pending' AND deadline>? AND COALESCE(parent_decision,'')!='FORMACION'").bind(now).all();
   if ((decisions.results||[]).some(row=>matchesOnIdleIdentity({assignee:row.agent,loc:row.machine},target))) return {busy:true,reason:'live_decision'};
   return {busy:false};
+}
+async function preemptAutomaticWork(env,now=Date.now()) {
+  await ensureAcademyCapsuleSchema(env);
+  await pauseLegacyAcademy(env.DB,now);
+  const snapshot=await assignedWorkSnapshot(env);
+  const runs=await env.DB.prepare("SELECT r.id,p.agent,p.machine,w.mission_id FROM fleet_agent_mode_runs r JOIN fleet_agent_modes p ON p.identity_key=r.identity_key LEFT JOIN fleet_hourly_work w ON w.run_id=r.id WHERE r.status IN ('reserved','starting','resuming','dispatched','awaiting_delivery','completing')").all();
+  for (const run of runs.results||[]) {
+    const blocked=assignedWorkBlockers(run,{...snapshot,ownMissionId:run.mission_id || ''});
+    if (blocked.length) await pauseAutomaticRun(env.DB,run.id,blocked,now);
+  }
+  const decisions=await env.DB.prepare("SELECT d.id,d.agent,d.machine,d.status,w.mission_id FROM decisions d LEFT JOIN fleet_agent_mode_runs r ON r.decision_id=d.id LEFT JOIN fleet_hourly_work w ON w.run_id=r.id WHERE d.mission='Training horario' AND d.status='pending'").all();
+  for (const decision of decisions.results||[]) {
+    if (!assignedWorkBlockers(decision,{...snapshot,ownMissionId:decision.mission_id || ""}).length) continue;
+    await env.DB.batch([
+      env.DB.prepare("INSERT OR IGNORE INTO automatic_work_pauses(kind,ref,previous_status,reason,paused_at) VALUES('hourly_decision',?,'pending','human_mission_assigned',?)").bind(decision.id,now),
+      env.DB.prepare("UPDATE decisions SET status='paused' WHERE id=? AND status='pending'").bind(decision.id)
+    ]);
+  }
 }
 async function hourlyModeTelemetry(env) {
   if (!env.TELEGRAM) throw new Error('telemetry_unavailable');
@@ -1988,9 +2025,12 @@ async function hourlyModeGuard(env,id,now=Date.now(),expectedTarget=null) {
   if (!pref || pref.mode!==run.mode || pref.mode==='manual' || pref.project_id!==run.project_id || pref.enabled_at>run.created_at) return {allowed:false,reason:'preference_changed'};
   const lease=await env.DB.prepare('SELECT run_id FROM fleet_hourly_family_leases WHERE run_id=? AND expires_at>?').bind(id,now).first();
   if (!lease) return {allowed:false,reason:'family_lease_expired'};
-  let project;try { project=await hourlyModeProject(env,pref,run.project_id,now); } catch { return {allowed:false,reason:'principal_project_changed'}; }
   const activity=await hourlyModeActivity(env,pref,{id:run.project_id},now,id);
-  if (activity.busy) return {allowed:false,reason:activity.reason};
+  if (activity.busy) {
+    if (activity.reason==='human_mission_assigned') await pauseAutomaticRun(env.DB,id,activity.blocked_by,now);
+    return {allowed:false,reason:activity.reason,blocked_by:activity.blocked_by};
+  }
+  let project;try { project=await hourlyModeProject(env,pref,run.project_id,now); } catch { return {allowed:false,reason:'principal_project_changed'}; }
   return {allowed:true,reason:'ready',run_id:id,mode:run.mode,project_id:run.project_id,project_url:project?.web?new URL(/^https?:/.test(project.web)?project.web:'https://'+project.web).href:'',target:normalizeModeTarget(pref)};
 }
 async function executeHourlyMode(env,run) {
@@ -2000,6 +2040,8 @@ async function executeHourlyMode(env,run) {
   const state=evaluateModeOpportunity(run.pref,await hourlyModeTelemetry(env),await hourlyModeActivity(env,run.pref,run.project,Date.now()),Date.now());
   if (!state.eligible) return {status:'skipped',reason:state.reason};
   if (run.pref.host==='cli') {
+    const dispatchGuard=await hourlyModeGuard(env,run.id);
+    if (!dispatchGuard.allowed) return {status:'skipped',reason:dispatchGuard.reason};
     const projectUrl=new URL(/^https?:/.test(run.project.web || '')?run.project.web:'https://'+run.project.web).href;
     const response=await env.TELEGRAM.fetch(new Request('https://telegram/api/fleet/agent/hourly-run',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+env.ADMIRA_TELEGRAM_PANEL_KEY},body:JSON.stringify({...run.pref,run_id:run.id,project_id:run.project.id,project_url:projectUrl})}));
     const result=await response.json();if (!response.ok || !result.ok || !result.command_id) throw new Error(result.error || 'hourly_dispatch_failed');
@@ -2013,6 +2055,8 @@ async function executeHourlyMode(env,run) {
     const proposal=await canonicalOnIdleProposals(env,run.pref,run.project.id);
     if (!proposal.ok || proposal.proposals?.length!==3) {
       if (run.pref.host==='cli') return {status:'skipped',reason:'terminal_readiness_unavailable'};
+      const dispatchGuard=await hourlyModeGuard(env,run.id);
+      if (!dispatchGuard.allowed) return {status:'skipped',reason:dispatchGuard.reason};
       const dispatch=await dispatchDesktopWrite(env,{...state.target,text:trainingPrompt(run)});
       return {status:'dispatched',reason:'investigating_fresh_proposals',command_id:dispatch.result.command_id};
     }
@@ -2021,7 +2065,7 @@ async function executeHourlyMode(env,run) {
     const finalState=evaluateModeOpportunity(run.pref,await hourlyModeTelemetry(env),await hourlyModeActivity(env,run.pref,run.project,Date.now()),Date.now());
     if (!finalState.eligible || finalState.start) return {status:'skipped',reason:finalState.reason};
     const decision=await openInitialMissionDecision(env,{agent:run.pref.agent,machine:run.pref.machine,project_id:run.project.id,
-      surface:'highscore',mission:'Training horario',question:'Training · mejora horaria · '+run.pref.runtime+' '+run.pref.host.toUpperCase(),
+      surface:'highscore',mission:'Training horario',hourly_run_id:run.id,question:'Training · mejora horaria · '+run.pref.runtime+' '+run.pref.host.toUpperCase(),
       options:proposal.proposals.map(row=>row.title).concat([ONIDLE_BACK_OPTION,ONIDLE_CUSTOM_OPTION]),
       option_targets:proposal.proposals.map(row=>({target_mission_id:row.target_mission_id})).concat([null,null]),recommended:0,minutes:5,url:DECIDE_URL});
     if (!decision.ok) return {status:'skipped',reason:decision.code || decision.error || 'decision_unavailable'};
@@ -2188,6 +2232,8 @@ async function hourlyModeWork(env,body,now=Date.now()) {
   }
   if (body.stage==='publish_claim') {
     if (!existing.transcript) throw new Error('transcript_required');
+    const publishGuard=await hourlyModeGuard(env,id,Date.now(),target);
+    if (!publishGuard.allowed) throw Object.assign(new Error(publishGuard.reason),{status:409});
     const claimed=await env.DB.prepare('UPDATE fleet_hourly_work SET publish_claim=1 WHERE run_id=? AND publish_claim=0').bind(id).run();
     if (!claimed.meta?.changes) throw Object.assign(new Error('publish_already_attempted'),{status:409});
     return {ok:true,work_id:existing.mission_id};
@@ -3723,6 +3769,13 @@ async function ensureMissionBatchFromDecision(env, decision) {
   let options = [];
   try { options = JSON.parse(decision && decision.options || "[]"); } catch (e) {}
   if (!decision || !isMissionDecision(options, decision)) return null;
+  if (decision.mission==='Training horario' && decision.status==='expired') {
+    const blocked=assignedWorkBlockers(decision,await assignedWorkSnapshot(env));
+    if (blocked.length) {
+      await env.DB.prepare("UPDATE decisions SET status='paused' WHERE id=? AND status='expired'").bind(decision.id).run();
+      return {ok:false,status:409,error:'human_mission_assigned'};
+    }
+  }
   const effective = decision.status === "decided" ? Number(decision.chosen) : decision.status === "expired" ? Number(decision.recommended) : null;
   if (!Number.isInteger(effective)) return null;
   // «Volver atrás» es siempre la cuarta opción de la ventana inicial.
@@ -3788,6 +3841,7 @@ async function ensureMissionBatchFromDecision(env, decision) {
 }
 __name(ensureMissionBatchFromDecision, "ensureMissionBatchFromDecision");
 async function expireDecisionsAndStartBatches(env) {
+  await preemptAutomaticWork(env);
   await expireDecisions(env);
   // Antes de las tandas: una ventana de formación que acaba de vencer tiene que
   // aplicar su recomendada a la cápsula de su hora, igual que si la hubieran elegido.
@@ -3945,6 +3999,12 @@ async function openInitialMissionDecision(env, input) {
   }
   const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
   await backfillTodayDisplayRefs(env, now);
+  if (input.mission==='Training horario') {
+    if (!input.hourly_run_id) return {ok:false,status:409,error:'hourly_run_required'};
+    const finalGuard=await hourlyModeGuard(env,input.hourly_run_id);
+    if (!finalGuard.allowed) return {ok:false,status:409,error:finalGuard.reason};
+    if (principalTargetKey(finalGuard.target?.agent,finalGuard.target?.machine)!==principalTargetKey(identity.agent,identity.machine)) return {ok:false,status:409,error:'target_mismatch'};
+  }
   await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id,option_targets) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?,?)")
     .bind(id, machine, agent, String(input.surface || "").slice(0, 20), q, JSON.stringify(opts),
           Math.max(0, Math.min(2, +input.recommended || 0)), now, now + mins * 60000,
@@ -4065,7 +4125,7 @@ async function operationalOnIdleState(env, identity, requestedProjectId = "", no
   const [missionResult, taskResult, decisionResult] = await Promise.all([
     env.DB.prepare("SELECT id,status,assignee,loc,created_at,started_at,updated_at,live_at,source FROM tickets WHERE " +
       AGENT_SOURCE_SQL + " AND status IN ('open','in_progress','unconcluded')").all(),
-    env.DB.prepare("SELECT m.mission_id,m.code,m.status,m.started_at,m.created_at,m.updated_at,t.assignee,t.loc " +
+    env.DB.prepare("SELECT m.mission_id,m.code,m.status,m.owner,m.executor,m.started_at,m.created_at,m.updated_at,t.assignee,t.loc " +
       "FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE m.status IN ('in_progress','doing','active','unconcluded') " +
       "AND " + AGENT_SOURCE_SQL_T + " AND t.status NOT IN ('resolved','cancelled')").all(),
     // Sólo una ventana OnIDLE canónica del mismo scope bloquea. Academy, una
@@ -4080,7 +4140,7 @@ async function operationalOnIdleState(env, identity, requestedProjectId = "", no
   // compartido y la presencia de otro agente no prueban propiedad operativa;
   // aliases históricos de persona/máquina sí convergen mediante los resolvers.
   const missions = (missionResult.results || []).filter((row) => matchesOnIdleIdentity(row, identity));
-  const tasks = (taskResult.results || []).filter((row) => matchesOnIdleIdentity(row, identity));
+  const tasks = (taskResult.results || []).filter((row) => matchesOnIdleIdentity({...row,assignee:row.executor || row.owner || row.assignee,loc:parseAgentIdentity(row.executor || row.owner).suffix ? canonicalMachineSuffix(parseAgentIdentity(row.executor || row.owner).suffix) : row.loc}, identity));
   const live = selectCanonicalLiveOnIdleDecision(decisionResult.results || [], {
     agent:identity.agent, machine:identity.machine, project_id:requestedProjectId
   }, ONIDLE_MISSION_MARKER) ? 1 : 0;
@@ -4094,6 +4154,7 @@ async function operationalOnIdleState(env, identity, requestedProjectId = "", no
   const windowsToday = usedRows.length;
   const eligibility = onIdleEligibility({ missions, tasks, live_decisions:live,
     windows_today:windowsToday, now, daily_limit:ONIDLE_DAILY_LIMIT, block_pending_missions:true });
+  if (eligibility.can_open && (missions.length || tasks.length)) { eligibility.can_open=false; eligibility.reason="human_mission_assigned"; }
   return { ...eligibility, agent:identity.agent, machine:identity.machine,
     evaluated_at:now, operational_limit_ms:MISSION_UNCONCLUDED_AFTER_MS,
     state_semantics:"operational-hour-v1" };
@@ -6398,7 +6459,7 @@ async function fleetSync(env) {
         st === "in_progress" ? ts : null, now,
         st === "resolved" ? epochMs(it.done_at, now) : null,
         projectContext.inherited ? 1 : 0, projectContext.inherited_from || null,
-        await puntosDeAgenteAhora(env, assignment.assignee)
+        await puntosDeAgenteAhora(env, assignment.assignee, assignment.loc)
       ).run();
       // El texto íntegro del encargo queda como primer evento de la misión.
       await addEvent(env, id, "log", it.from_name || "Carlos", String(it.text || ""));
@@ -7267,26 +7328,9 @@ function highscoreVisibleKey(agent) {
     .toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 __name(highscoreVisibleKey, "highscoreVisibleKey");
-// UN AGENTE ES UNO, CORRA DONDE CORRA (Carlos, 1-sep-2026).
-// «Una cosa son los agentes y otra las máquinas físicas: un agente puede correr en
-// distintas máquinas, pero una máquina siempre será esa máquina.» Es el modelo que
-// yokup.com/dashboard ya enseña —Equipos Físicos, Agentes de Silicio y Agentes de
-// Carbono en tres listas— y que /fleet/equipo ya devuelve: seis agentes con nombre
-// único y la máquina como campo aparte.
-//
-// El marcador no lo seguía: agrupaba por persona + APELLIDO, así que el mismo agente
-// competía consigo mismo desde dos equipos. Medido el 1-sep: Morfeo en tres filas
-// (MacMini, MBA16, Mini), Neo en dos (MBAAzul, MBP14), y lo mismo Smith, Trinity,
-// Oraculo y Link. El ranking ordenaba con las mitades.
-//
-// Ahora la clave es rol + persona, SIN máquina. El equipo sigue viajando en la fila
-// como atributo descriptivo —que es lo que es— y se muestra el del trabajo más
-// reciente. El ROL no se funde: Sub e Infra son ejecutores distintos del mismo
-// encargo y el marcador los sigue distinguiendo; eso no es de qué máquina eres.
-// El NOMBRE que se enseña de una fila fundida es el del AGENTE, no el de una de sus
-// máquinas: si Morfeo suma desde el Mac Mini y desde el MBA16, la fila no puede
-// llamarse «MorfeoMBA16» sólo porque ese fuera el primer registro que llegó. El rol
-// se conserva (SubMorfeo sigue siendo SubMorfeo) porque no es de qué equipo eres.
+// La fila puntuable es persona + rol + equipo físico. Los alias del MISMO
+// equipo se reúnen; equipos diferentes nunca comparten puntos ni snapshot.
+// `agent` mantiene la persona visible y `machine` lleva el equipo canónico.
 function highscoreAgentName(agent) {
   const parsed = parseAgentIdentity(agent);
   const persona = String(parsed.persona || "").trim();
@@ -7299,7 +7343,8 @@ function highscoreGroupKey(agent, machine) {
   const parsed = parseAgentIdentity(agent);
   const persona = identityKey(parsed.persona) || highscoreVisibleKey(agent);
   if (!persona) return highscoreVisibleKey(agent);
-  return `${parsed.role}|${persona}`;
+  const suffix=canonicalMachineSuffix(parsed.suffix || machineSuffix(machine) || "");
+  return `${parsed.role}|${persona}|${identityKey(suffix || machine)}`;
 }
 __name(highscoreGroupKey, "highscoreGroupKey");
 
@@ -7310,7 +7355,7 @@ async function highscorePeriodMetrics(env, inicio, fin) {
     if (!highscoreVisibleKey(visible)) return null;
     const key = highscoreGroupKey(visible, machine);
     const nombre = highscoreAgentName(visible);
-    if (!totals.has(key)) totals.set(key, { agent_key:highscoreVisibleKey(nombre), agent:nombre, machine:String(machine || ""),
+    if (!totals.has(key)) totals.set(key, { agent_key:key, agent:nombre, machine:canonicalMachineSuffix(parseAgentIdentity(visible).suffix || machineSuffix(machine)) || String(machine || ""),
       objectives:0, windows:0, missions:0, tasks:0, points:0 });
     return totals.get(key);
   };
@@ -7751,7 +7796,7 @@ async function highscoreDailyRows(env, pertenece, ahora) {
   const add = (at, kind, points, agent, machine) => {
     const row = bucket(at); if (!row) return;
     row[kind] += 1; row.points += points;
-    const familia = reportAgentFamily(agent, machine || "");
+    const familia = highscoreCanonicalHistoryFamily(agent, machine || "");
     const nombre = (familia && familia.family_name) || String(agent || "").trim();
     if (!nombre) return;
     const total = row.por_agente[nombre] || { objectives:0, windows:0, missions:0, tasks:0, points:0 };
@@ -8136,12 +8181,12 @@ async function highscoreHistory(env, requestedAgent, ahora = Date.now()) {
   if (parsed.role !== "main" || !suffix || !String(parsed.persona || "").trim()) {
     return { ok:false, error:"agent debe ser una identidad principal con apellido de equipo" };
   }
-  const wanted = reportAgentFamily(requestedAgent, "");
+  const wanted = highscoreCanonicalHistoryFamily(requestedAgent, "");
   if (!wanted || !wanted.family_key || wanted.family_key.startsWith("external:")) {
     return { ok:false, error:"agent no pertenece a una familia canónica" };
   }
   const { periods, allDays } = await highscoreDailyRows(env, (agent, machine) => {
-    const family = reportAgentFamily(agent, machine);
+    const family = highscoreCanonicalHistoryFamily(agent, machine);
     return !!family && family.family_key === wanted.family_key;
   }, ahora);
   // El desglose por agente sólo tiene sentido en el global. Aquí sería una sola
@@ -8296,19 +8341,19 @@ __name(highscoreDedicatedTiming, "highscoreDedicatedTiming");
 // Presence únicamente añade reachability y nunca cambia el estado del trabajo.
 async function highscoreActiveWork(env, ahora = Date.now()) {
   const [missions, tasks, decisions, objectives, presence, pidx] = await Promise.all([
-    env.DB.prepare(`SELECT id,subject,assignee,loc,status,project,project_id,created_at,started_at,resolved_at,` +
+    env.DB.prepare(`SELECT id,subject,assignee,loc,status,project,project_id,created_at,started_at,resolved_at,EXISTS(SELECT 1 FROM fleet_hourly_work hw WHERE hw.mission_id=t.id) automatic_work,` +
       `${HIGHSCORE_ASSIGNMENT_EVENT_SQL} assignment_event_at,` +
       `CASE WHEN source IN ('decision-batch','cli-declare') AND COALESCE(TRIM(assignee),'')<>'' AND COALESCE(TRIM(loc),'')<>'' THEN created_at END assignment_born_at,` +
       `${HIGHSCORE_WORK_STARTED_SQL} work_started_at,` +
       `${HIGHSCORE_MISSION_PROGRESS_SQL} work_progress_at,` +
       `${HIGHSCORE_RACE_PROGRESS_SQL} race_progress_at FROM tickets t ` +
-      `WHERE ${MISSION_SCOPE_SQL_T} AND status='in_progress'`).all().then((r) => r.results || []),
-    env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.started_at,m.created_at,m.updated_at,` +
+      `WHERE ${MISSION_SCOPE_SQL_T} AND status='in_progress' AND NOT EXISTS(SELECT 1 FROM fleet_hourly_work hw JOIN fleet_agent_mode_runs hr ON hr.id=hw.run_id WHERE hw.mission_id=t.id AND hr.status='paused')`).all().then((r) => r.results || []),
+    env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.started_at,m.created_at,m.updated_at,EXISTS(SELECT 1 FROM fleet_hourly_work hw WHERE hw.mission_id=t.id) automatic_work,` +
       `m.started_at work_started_at,m.started_at work_progress_at,m.started_at race_progress_at,NULL assignment_event_at,` +
       `CASE WHEN COALESCE(TRIM(m.executor),'')<>'' THEN m.created_at END assignment_born_at,t.assignee,t.loc,t.project,t.project_id,t.resolved_at ` +
       `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
       `AND m.status IN ('in_progress','doing','active') ` +
-      `AND t.status='in_progress' ` +
+      `AND t.status='in_progress' AND NOT EXISTS(SELECT 1 FROM fleet_hourly_work hw JOIN fleet_agent_mode_runs hr ON hr.id=hw.run_id WHERE hw.mission_id=t.id AND hr.status='paused') ` +
       `AND COALESCE(t.status,'')!='cancelled'`).all().then((r) => r.results || []),
     // Una ventana pendiente es trabajo real: el agente ya la ha abierto y está
     // esperando la decisión de Carlos. Hasta ahora puntuaba en /highscore/daily
@@ -8316,10 +8361,10 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     // trabajo viejo mientras el agente estaba esperando. Se representa como
     // tarea viva desde created_at hasta deadline; al decidir o vencer desaparece
     // y la misión materializada ocupa su lugar sin duplicar puntos.
-    env.DB.prepare(`SELECT id,question title,agent,machine,status,project project_id,created_at,deadline,` +
+    env.DB.prepare(`SELECT id,question title,agent,machine,status,parent_decision,mission,project project_id,created_at,deadline,` +
       `created_at started_at,created_at work_started_at,created_at work_progress_at,` +
       `created_at race_progress_at,created_at assignment_born_at,NULL assignment_event_at ` +
-      `FROM decisions WHERE status='pending' AND deadline>?`).bind(ahora).all().then((r) => r.results || []),
+      `FROM decisions WHERE status='pending' AND deadline>? AND COALESCE(parent_decision,'')!='FORMACION'`).bind(ahora).all().then((r) => r.results || []),
     env.DB.prepare("SELECT id,title,status,author,author_identity,project,updated_at,created_at FROM ideas WHERE status='estudio'").all()
       .then((r) => r.results || []),
     highscoreVerifiedPresence(env, ahora),
@@ -8345,7 +8390,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     const at = highscoreActiveWorkMillis(item.work_progress_at || (kind === "objective" ? item.updated_at : 0));
     const cutoff = ahora - HIGHSCORE_ACTIVE_WORK_MS;
     const recent = at > 0 && at >= cutoff && at <= ahora + HIGHSCORE_CLOCK_SKEW_MS;
-    const state = forcedState || (recent ? "running" : "assigned_stale");
+    const state = forcedState || (recent && !["open","pending","assigned","unconcluded"].includes(item.status) ? "running" : "assigned_stale");
     const presenceAt = presence.by_family.get(family.family_key) || 0;
     const laneRecent = at > 0 && at >= ahora - HIGHSCORE_LANE_WORK_MS && at <= ahora + HIGHSCORE_CLOCK_SKEW_MS;
     const linkedSessions = presence.sessions && presence.sessions.get(`${family.family_key}|${workRef}`) || [];
@@ -8369,6 +8414,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     // canónico se omite del fallback histórico en vez de inventarlo.
     if (forcedState === "last_work" && (!timing || !Number(timing.ended_at))) return;
     const candidate = { family_key:family.family_key, agent:family.family_name, executor, kind,
+      machine:canonicalMachineSuffix(parseAgentIdentity(family.family_name).suffix || machineSuffix(machine)) || machine || "",
       reference:String(workRef || "").slice(0,120),
       title:visibleTitle(title, kind === "task" ? "Tarea activa" : kind === "mission" ? "Misión activa" : "Objetivo en curso"),
       state, active_at:at, work_progress_at:at, reachable:!!presenceAt,
@@ -8389,6 +8435,8 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     if (dedicated) Object.assign(candidate, dedicated);
     if (assignment) Object.assign(candidate, assignment);
     if (presenceAt) candidate.presence_at = presenceAt;
+    if (linked && ["app","cli"].includes(linked.surface)) candidate.host=linked.surface;
+    candidate.assignment_priority=item.automatic_work || item.parent_decision || item.mission==='Training horario' ? 0 : 1;
     const previous = byFamily.get(family.family_key);
     if (forcedState === "last_work") {
       // Un trabajo cerrado sólo rellena una calle libre. Nunca sustituye una
@@ -8402,7 +8450,8 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     }
     const stateRank = state === "running" ? 2 : state === "assigned_stale" ? 1 : 0;
     const previousRank = previous && (previous.state === "running" ? 2 : previous.state === "assigned_stale" ? 1 : 0);
-    if (!previous || stateRank > previousRank ||
+    if (previous && previous.assignment_priority > candidate.assignment_priority) return;
+    if (!previous || candidate.assignment_priority > previous.assignment_priority || stateRank > previousRank ||
         (stateRank === previousRank && priority[kind] > priority[previous.kind]) ||
         (stateRank === previousRank && priority[kind] === priority[previous.kind] && at > previous.active_at))
       byFamily.set(family.family_key, candidate);
@@ -8411,7 +8460,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     mission.assignee, "", String(mission.id || ""));
   for (const task of tasks) {
     const executor = scopedMissionOwner(task.executor || task.owner, "sub", task.assignee, task.loc);
-    add(executor, task.loc, "task", task, task.title || task.code || "Tarea activa", task.assignee, "",
+    add(executor, parseAgentIdentity(executor).suffix ? "" : task.loc, "task", task, task.title || task.code || "Tarea activa", executor, "",
       `${String(task.mission_id || "")}:${String(task.code || "")}`);
   }
   for (const decision of decisions) {
@@ -8428,11 +8477,8 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     (a.state === "running" ? 0 : 1) - (b.state === "running" ? 0 : 1) ||
     b.active_at - a.active_at || a.agent.localeCompare(b.agent, "es"));
   const runningCount = participants.filter((row) => row.state === "running").length;
-  // La pista conserva hasta tres calles legibles. Si hay una o dos familias
-  // activas, las calles libres muestran el último trabajo factual de otras
-  // familias; así un handON ya cerrado no desaparece sólo porque otro agente
-  // haya empezado después. Sin ningún running se conserva el contrato anterior:
-  // sólo top-3 finalizados, sin rescatar asignaciones stale.
+  // El veto por asignación no añade corredores: las calles siguen requiriendo
+  // evidencia material o una sesión exacta; historia rellena hasta tres.
   if (!runningCount || participants.length < 3) {
     const [recentMissions, recentTasks] = await Promise.all([
       env.DB.prepare(
@@ -8506,7 +8552,7 @@ async function highscoreHourlyContract(env, legacy, ahora, dayStart, dayEnd) {
     const agent = previous.agent || day && day.agent || hour && hour.agent || "";
     const machine = previous.machine || day && day.machine || hour && hour.machine || "";
     const dayPoints = Number(day && day.points) || 0;
-    return { ...previous, agent_key:previous.agent_key || highscoreVisibleKey(agent) || key, agent, machine,
+    return { ...previous, agent_key:key, agent, machine,
       current:previous.current == null ? dayPoints : previous.current,
       reference:previous.reference == null ? dayPoints : previous.reference,
       reference_at:previous.reference_at == null ? null : previous.reference_at,
@@ -8544,19 +8590,15 @@ async function highscoreCurrentTotals(env, scores, inicio, fin) {
   // total real era 1748), LinkMacMini 128 + LinkMini 48, OraculoMacMini 430 +
   // OraculoMini 90. Tres agentes con dos filas cada uno, en el MISMO Mac Mini, y
   // el ranking que mira Carlos ordenaba con las mitades.
-  // El `agent_key` que sale al front NO cambia: sigue derivándose del nombre
-  // visible vigente, que es el que ya tenía la fila buena. Lo que desaparece es
-  // la fila fantasma con el apellido retirado.
+  // Las muestras usan clave física compuesta; no se reasignan históricos ambiguos.
   const add = (agent, machine, points) => {
     const visible = reportAgentIdentity(agent, machine) || String(agent || "").trim();
     if (!keyOf(visible)) return;
     const key = highscoreGroupKey(visible, machine);
     const nombre = highscoreAgentName(visible);
-    if (!totals.has(key)) totals.set(key, { agent_key: keyOf(nombre), agent: nombre, machine: String(machine || ""), points: 0 });
+    if (!totals.has(key)) totals.set(key, { agent_key:key, agent:nombre, machine:canonicalMachineSuffix(parseAgentIdentity(visible).suffix || machineSuffix(machine)) || String(machine || ""), points: 0 });
     const fila = totals.get(key);
-    // La máquina es un atributo, y el que vale es el del trabajo que estamos sumando:
-    // se conserva la última que aporta, no la primera que llegó.
-    if (String(machine || "").trim()) fila.machine = String(machine).trim();
+    // La identidad fija el equipo; nunca se traslada un total a otra máquina.
     fila.points += Number(points) || 0;
   };
   for (const row of scores || []) add(row.agent, row.machine,
@@ -8633,14 +8675,16 @@ __name(highscoreHourlyTrend, "highscoreHourlyTrend");
 //     tarea (15 + 10 del bonus). El total bueno es el mismo que publica el
 //     Highscore como `hourly.scores[].current` — de ahi sale, y no de una suma
 //     paralela que puede divergir.
-async function puntosDeAgenteAhora(env, agente) {
+async function puntosDeAgenteAhora(env, agente, machine = "") {
   const nombre = String(agente || "").trim();
   if (!nombre) return null;
   try {
     const daily = await highscoreDaily(env);
     const totales = ((daily && daily.hourly && daily.hourly.scores) || []);
-    const buscado = identityKey(nombre);
-    const fila = totales.find((f) => identityKey(String(f.agent || "")) === buscado);
+    const parsed=parseAgentIdentity(nombre);
+    if (!parsed.suffix && !machineSuffix(machine)) return null;
+    const buscado=highscoreGroupKey(nombre,machine);
+    const fila=totales.find(f=>highscoreGroupKey(f.agent,f.machine)===buscado);
     // Un agente que aun no ha puntuado hoy tiene 0 de verdad: es un dato. El null
     // se reserva para "no se pudo saber", y la interfaz ya NO lo pinta como 0.
     return fila ? (Number(fila.current) || 0) : 0;
@@ -8716,24 +8760,19 @@ async function highscoreDaily(env) {
     // salía con 528 puntos en una fila y 120 en otra. Se agrupa por identidad
     // canónica —persona + capa + apellido— y se muestra la forma vigente, para
     // que la fila no herede el nombre retirado del primer registro que llegó.
-    // POR AGENTE, NO POR AGENTE+MÁQUINA (Carlos, 1-sep-2026). Antes la clave llevaba
-    // el apellido, así que el mismo agente competía consigo mismo desde dos equipos.
-    // Se usa la MISMA función que las otras tres fuentes de puntos: si esta lista y
-    // la horaria agruparan distinto, el mismo payload daría dos cifras del mismo
-    // agente y no habría forma de saber cuál mira el tablero.
+    // La identidad física coincide con los agregados horario e histórico.
     const k = highscoreGroupKey(a, m);
     if (!acc.has(k)) acc.set(k, {
-      agent: highscoreAgentName(a), machine: m,
+      agent:highscoreAgentName(a), machine:canonicalMachineSuffix(parseAgentIdentity(a).suffix || machineSuffix(m)) || m,
       objectives: 0, objective_points: 0, windows: 0, window_points: 0, missions: 0, mission_points: 0
     });
     const fila_ = acc.get(k);
-    if (m) fila_.machine = m;   // atributo: vale la del trabajo más reciente
+    // El bucket conserva su equipo canónico aunque la fuente use otro alias.
     return fila_;
   };
   const filas = async (sql) => ((await env.DB.prepare(sql).bind(inicio, fin).all()).results || []);
 
-  // OBJETIVOS: ideas creadas hoy. Sin máquina — el marcador funde la fila con la
-  // principal del agente, igual que hace con la presencia.
+  // Una firma sin equipo permanece sin equipo; no se presta al más reciente.
   for (const r of await filas(
     "SELECT author, COUNT(*) c FROM ideas WHERE created_at>=? AND created_at<? GROUP BY author"
   )) {
@@ -9181,7 +9220,7 @@ var worker_app = {
         if (img) {
           await env.DB.prepare(
             "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,started_at=CASE WHEN status='open' THEN COALESCE(started_at,?) ELSE started_at END,live_shot=?,live_at=?,live_kind=?,live_surface=?,live_context=?,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
-          ).bind(capturedAt, img, capturedAt, liveKind, captureSurface, captureContext, await puntosDeAgenteAhora(env, t.assignee || actor.actor), now, mid).run();
+          ).bind(capturedAt, img, capturedAt, liveKind, captureSurface, captureContext, await puntosDeAgenteAhora(env, t.assignee || actor.actor, t.loc), now, mid).run();
         // Red de seguridad del sello de SALIDA: las misiones nacen ya con
         // points_start (fleetSync), pero las creadas por otras vias o antes de ese
         // cambio llegan aqui sin el. Va con COALESCE en las DOS ramas, con captura
@@ -9192,7 +9231,7 @@ var worker_app = {
         } else {
           await env.DB.prepare(
             "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,started_at=CASE WHEN status='open' THEN COALESCE(started_at,?) ELSE started_at END,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
-          ).bind(now, await puntosDeAgenteAhora(env, t.assignee || actor.actor), now, mid).run();
+          ).bind(now, await puntosDeAgenteAhora(env, t.assignee || actor.actor, t.loc), now, mid).run();
         }
         // Telegram es un espejo completo de la misión: el usuario ve el avance y
         // la captura sin tener que abrir YOKUP.
@@ -9443,6 +9482,7 @@ var worker_app = {
     if (url.pathname === "/highscore/active-work" && req.method === "GET") {
       await ensureSchema(env);
       await ensureIdeasSchema(env);
+      await preemptAutomaticWork(env);
       const response = json(await highscoreActiveWork(env));
       response.headers.set("cache-control", "no-store");
       return response;
@@ -9735,7 +9775,7 @@ var worker_app = {
           const inbox = await notifyFleetInformeClosure(env, t, mid, owner, report, sealedProof, runtime, host);
           if (!inbox.updated) return json({ok:false,code:"closure_partial",mission:mid,resolved:false,
             local_resolved:true,proof_saved:!!t.proof_image,inbox_updated:false,sync_required:true,proof_image:t.proof_image || null},502);
-          const now = Date.now(), puntosCierre = await puntosDeAgenteAhora(env, t.assignee || actor.actor);
+          const now = Date.now(), puntosCierre = await puntosDeAgenteAhora(env, t.assignee || actor.actor, t.loc);
           await env.DB.batch([
             env.DB.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,image,image_kind,created_at,ended_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
               .bind(mid,"z1","Informe del agente","done",principalOwner,executorOwner,report,sealedProof,"final",now,now,now),
@@ -9784,7 +9824,7 @@ var worker_app = {
       // auto-claim, informe, proof ni resolved parcial que bloquee el reintento.
       const inbox = await notifyFleetInformeClosure(env, t, mid, owner, report, image, runtime, host);
       if (!inbox.updated) return json({ ok: false, code: "closure_partial", mission: mid, resolved: false, local_resolved: false, proof_saved: false, inbox_updated: false, sync_required: true, proof_image: null }, 502);
-      const puntosCierre = await puntosDeAgenteAhora(env, t.assignee || actor.actor);
+      const puntosCierre = await puntosDeAgenteAhora(env, t.assignee || actor.actor, t.loc);
       const writes = await env.DB.batch([
         env.DB.prepare(
           "INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,image,image_kind,created_at,ended_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) " +
@@ -11277,7 +11317,7 @@ var worker_app = {
         const historia = ((await env.DB.prepare(
           "SELECT * FROM academy_capsulas ORDER BY hour_start DESC LIMIT 12"
         ).all()).results || []).map(academyCapsuleRow);
-        return json({ ok:true, capsula:r.capsula, nueva:r.nueva, historia });
+        return json({ ok:true, capsula:r.capsula, nueva:r.nueva, status:r.status,reason:r.reason,historia });
       } catch (e) { return json({ ok:false, error:String(e) }, 500); }
     }
     // BUZÓN DE SMITH — lectura pública de trabajo no sensible. El CLI se lanza,
@@ -11286,6 +11326,7 @@ var worker_app = {
     // el cierre verificado/idempotente hace inocuo cualquier reintento.
     if (url.pathname === "/academy/capsula/smith/pending" && req.method === "GET") {
       try {
+        if (!legacyAcademyAvailability().allowed) { await runAcademyCapsuleTick(env); return json({ok:true,job:null,...legacyAcademyAvailability()}); }
         await runAcademyCapsuleTick(env);
         await ensureAcademyCapsuleSchema(env);
         const currentHour = Math.floor(Date.now() / ACADEMY_HORA_MS) * ACADEMY_HORA_MS;
@@ -11355,6 +11396,7 @@ var worker_app = {
         const body = await req.json().catch(() => null);
         const audience = String(body && body.audience || "").toLowerCase();
         if (!COACH_AUDIENCES.has(audience)) return json({ok:false,error:"Audiencia no válida"}, 400);
+        if (!legacyAcademyAvailability().allowed) { await runAcademyCapsuleTick(env); return json({ok:false,error:'consumer_unverified',...legacyAcademyAvailability()},409); }
         const coachNow = Date.now();
         const targetAt = (Math.floor(coachNow / COACH_HOUR) + 1) * COACH_HOUR;
         // El botón manual no inventa otra rueda: adelanta exactamente la cápsula

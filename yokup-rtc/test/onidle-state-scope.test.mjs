@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {memberRefMatches,resolveDecisionIdentity} from "../src/decision-project.js";
-import {sameAgentFamily} from "../src/agent-identity.js";
+import {canonicalMachineSuffix,parseAgentIdentity,sameAgentFamily} from "../src/agent-identity.js";
 import {onIdleEligibility} from "../src/mission-visible.js";
 import {selectCanonicalLiveOnIdleDecision} from "../src/onidle-decision-contract.js";
 import {AGENT_SOURCE_SQL,AGENT_SOURCE_SQL_T} from "../src/mission-sources.js";
@@ -31,9 +31,9 @@ function operationalHarness(rows){
     if(sql.startsWith("SELECT agent,machine FROM decisions"))return {results:rows.used||[]};
     throw new Error(`SQL inesperado: ${sql}`);
   }};}}};
-  const factory=new Function("selectCanonicalLiveOnIdleDecision","missionDayRange","madridDayKey","onIdleEligibility","ONIDLE_MISSION_MARKER","ONIDLE_DAILY_LIMIT","MISSION_UNCONCLUDED_AFTER_MS","sameAgentFamily","memberRefMatches","AGENT_SOURCE_SQL","AGENT_SOURCE_SQL_T",
+  const factory=new Function("selectCanonicalLiveOnIdleDecision","missionDayRange","madridDayKey","onIdleEligibility","ONIDLE_MISSION_MARKER","ONIDLE_DAILY_LIMIT","MISSION_UNCONCLUDED_AFTER_MS","sameAgentFamily","memberRefMatches","AGENT_SOURCE_SQL","AGENT_SOURCE_SQL_T","parseAgentIdentity","canonicalMachineSuffix",
     `${body("matchesOnIdleIdentity")}; ${body("operationalOnIdleState")}; return operationalOnIdleState;`);
-  return {run:factory(selectCanonicalLiveOnIdleDecision,()=>({start:1,end:2}),()=>"2026-08-13",onIdleEligibility,MARKER,8,3600000,sameAgentFamily,memberRefMatches,AGENT_SOURCE_SQL,AGENT_SOURCE_SQL_T),env,sqlCalls};
+  return {run:factory(selectCanonicalLiveOnIdleDecision,()=>({start:1,end:2}),()=>"2026-08-13",onIdleEligibility,MARKER,8,3600000,sameAgentFamily,memberRefMatches,AGENT_SOURCE_SQL,AGENT_SOURCE_SQL_T,parseAgentIdentity,canonicalMachineSuffix),env,sqlCalls};
 }
 
 const NOW=Date.UTC(2026,7,13,12);

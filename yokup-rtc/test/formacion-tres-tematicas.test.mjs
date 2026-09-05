@@ -39,6 +39,9 @@ function harness(){
   };
   const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,JSON,Promise,Error,parseInt,
     coachLessonForSlot,coachLessonForDimension,COACH_HOUR,
+    // Algorithm-only archival tests: production availability is false and is
+    // exercised separately in human-mission-idle / automatic priority tests.
+    legacyAcademyAvailability:()=>({allowed:true}),
     COUNCIL:{cto:{role:"CTO",alias:"Ada"},cco:{role:"CCO",alias:"Rick"},ceo:{role:"CEO",alias:"Steve"}},
     resolveDecisionIdentity:(agent,machine)=>({ok:true,agent,machine}),
     ensureAcademyCapsuleSchema:async()=>{},

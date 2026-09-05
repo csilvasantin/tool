@@ -1,3 +1,4 @@
+import {assignedWorkBlockers} from './src/automatic-work-priority.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
@@ -195,9 +196,9 @@ test('cancelación Manual permite registrar fallo honesto sin guard y nunca borr
 
 test('actividad excluye únicamente investigación enlazada al mismo run y destino',async()=>{
   const {env,work,id}=await workContext();await work({stage:'start'});
-  env.DB.raw.exec('CREATE TABLE decisions(agent TEXT,machine TEXT,status TEXT,deadline INTEGER)');
-  const context={modeTargetKey,AGENT_SOURCE_SQL:"source='cli-declare'",matchesOnIdleIdentity:(row,t)=>row.assignee==='MorfeoMacMini'};
-  vm.runInNewContext(fn('hourlyModeActivity')+';this.activity=hourlyModeActivity',context);
+  env.DB.raw.exec('CREATE TABLE decisions(agent TEXT,machine TEXT,status TEXT,deadline INTEGER,parent_decision TEXT)');
+  const context={modeTargetKey,assignedWorkBlockers,ensureHourlyModeSchema,AGENT_SOURCE_SQL:"source='cli-declare'",matchesOnIdleIdentity:(row,t)=>row.assignee==='MorfeoMacMini'};
+  vm.runInNewContext(fn('assignedWorkSnapshot')+fn('hourlyModeActivity')+';this.activity=hourlyModeActivity',context);
   assert.equal((await context.activity(env,target,{id:'yokup'},now,id)).busy,false);
   assert.equal((await context.activity(env,target,{id:'yokup'},now)).busy,true);
   env.DB.raw.exec("INSERT INTO tickets(id,assignee,loc,source,status) VALUES('OTHER','MorfeoMacMini','MacMini','cli-declare','in_progress')");
@@ -220,4 +221,19 @@ test('reconcile hourly_run valida acción/destino y nunca pisa callback completa
   await context.resume(env,now);
   const run=env.DB.raw.prepare('SELECT * FROM fleet_agent_mode_runs WHERE id=?').get(id);
   assert.equal(run.status,'completed');assert.equal(run.deliverable_url,'https://delivery.example/real');
+});
+
+test('respuesta tardía del ejecutor no revive run pausado ni pisa su motivo',async()=>{
+  const env=await setup();
+  const result=await runHourlyModes(env,{
+    readTelemetry:async()=>telemetry(),projectFor,activityFor:async()=>({busy:false}),
+    execute:async({id})=>{
+      env.DB.raw.prepare("UPDATE fleet_agent_mode_runs SET status='paused',reason='human_mission_assigned' WHERE id=?").run(id);
+      return {status:'dispatched',reason:'awaiting_consumer',command_id:'late-command'};
+    }
+  },now);
+  assert.equal(result.results[0].status,'paused');
+  const run=env.DB.raw.prepare('SELECT status,reason,command_id FROM fleet_agent_mode_runs').get();
+  assert.equal(run.status,'paused');assert.equal(run.reason,'human_mission_assigned');assert.equal(run.command_id,null);
+  assert.equal(env.DB.raw.prepare('SELECT status FROM fleet_agent_modes').get().status,'paused');
 });

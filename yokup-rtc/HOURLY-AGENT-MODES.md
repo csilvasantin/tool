@@ -160,3 +160,32 @@ Las señales sin superficie identificada también reciben proyecto en el GET:
 `host:'unknown'`, `metadata_only:true`, `available_modes:[]`. Son metadatos de
 lectura; POST de modo, guardas y control mantienen su validación estricta de
 `app|cli`. No se inventa una superficie para resolver el proyecto.
+
+## Prioridad de trabajo asignado (DCL-36161f, 2026-09-05)
+
+Learning/Training ceden ante misiones asignadas open, in_progress o unconcluded,
+y tareas del executor/owner real, sin caducidad por presencia. Familia y equipo
+canónicos comparten veto entre CLI/App; otra máquina no lo hereda. Solo se omite
+la investigación HWR enlazada al run/destino exactos, y las ya pausadas por este
+mecanismo. Los prefijos de nombre no conceden excepciones.
+
+Guardas antes de despacho, claim y entrega; consumidor revalida después del claim
+y antes de publicar. El barrido previo a expirar decisiones pausa runs y ventanas
+Training cuando aparece trabajo asignado. paused/human_mission_assigned conserva
+texto, activos y transcripción, sin fabricar cierre. Respuestas tardías no reviven
+la ejecución. automatic_work_pauses conserva causa y estado anterior. La selección
+de modo permanece; la siguiente hora reevalúa disponibilidad sin repetir el run.
+
+Academy antiguo no tiene consumidor verificado con guard de publicación: queda
+paused/consumer_unverified. Cron y GET no crean ventanas; smith/pending devuelve
+job:null; progress, result y Coach launch rechazan despacho/entrega. Solo se pausan
+ventanas pending; decided/expired y entregas verificadas conservan historia. Se
+reanuda mediante el selector Learning/Training en un destino soportado, no mediante
+la cola antigua. No se afirma controlar publicaciones de scripts externos desconocidos.
+
+Highscore reúne puntos por persona+rol+equipo canónico; agent es la persona y
+machine el equipo. Alias Mini/MacMini convergen; máquinas distintas se separan,
+conservando totales globales. Snapshots usan clave compuesta y no reasignan muestras
+históricas ambiguas. El corredor sigue exigiendo trabajo material o sesión exacta:
+la asignación sin señal veta formación pero no inventa actividad. host solo aparece
+con una sesión exacta enlazada; no se infiere interfaz ni runtime del ticket.

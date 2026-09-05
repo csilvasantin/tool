@@ -128,8 +128,12 @@ export async function runHourlyModes(env, adapters, now = Date.now()) {
         }
       }
     } catch (error) { result={status:'failed',reason:text(error.code || error.message || 'execution_failed').slice(0,120)}; }
-    await env.DB.prepare("UPDATE fleet_agent_mode_runs SET status=?,reason=?,command_id=?,decision_id=?,deliverable_url=?,updated_at=? WHERE id=?")
+    const applied=await env.DB.prepare("UPDATE fleet_agent_mode_runs SET status=?,reason=?,command_id=?,decision_id=?,deliverable_url=?,updated_at=? WHERE id=? AND status='reserved'")
       .bind(result.status,result.reason || '',result.command_id || null,result.decision_id || null,result.deliverable_url || null,now,id).run();
+    if (!applied.meta?.changes) {
+      const actual=await env.DB.prepare('SELECT status,reason FROM fleet_agent_mode_runs WHERE id=?').bind(id).first();
+      result={status:actual?.status || 'failed',reason:actual?.reason || 'run_changed'};
+    }
     await env.DB.prepare('UPDATE fleet_agent_modes SET next_run=?,status=?,reason=?,updated_at=? WHERE identity_key=? AND mode=?')
       .bind(hour+MODE_HOUR_MS,result.status,result.reason || '',now,pref.identity_key,pref.mode).run();
     if (['skipped','failed','completed'].includes(result.status)) await env.DB.prepare('DELETE FROM fleet_hourly_family_leases WHERE run_id=?').bind(id).run();

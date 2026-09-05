@@ -28,7 +28,7 @@ test("bloquea trabajo y sólo OnIDLE pending canónico del mismo scope",()=>{
   assert.match(source,/WHERE status='pending' AND mission=\? AND surface='highscore' AND project=\?/);
   assert.match(source,/selectCanonicalLiveOnIdleDecision/);
   const state=source.slice(source.indexOf("async function operationalOnIdleState"),source.indexOf("__name(operationalOnIdleState"));
-  assert.equal((state.match(/\.filter\(\(row\) => matchesOnIdleIdentity\(row, identity\)\)/g)||[]).length,2,
+  assert.equal((state.match(/matchesOnIdleIdentity\(/g)||[]).length,2,
     "misión y tarea se aíslan por la misma identidad operativa");
   const owner=source.slice(source.indexOf("function matchesOnIdleIdentity"),source.indexOf("__name(matchesOnIdleIdentity"));
   assert.match(owner,/sameAgentFamily\(row\.assignee, identity\.agent\)/);

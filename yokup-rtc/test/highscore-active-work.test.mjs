@@ -4,9 +4,10 @@ import vm from "node:vm";
 import {DatabaseSync} from "node:sqlite";
 import {readFile} from "node:fs/promises";
 import {
-  baseAgentIdentity, parseAgentIdentity, reportAgentFamily, reportAgentIdentity,
+  machineSuffix, canonicalMachineSuffix, baseAgentIdentity, parseAgentIdentity, reportAgentFamily, reportAgentIdentity,
   scopedAgentIdentity, sameAgentFamily,
 } from "../src/agent-identity.js";
+import {resolveDecisionIdentity} from "../src/decision-project.js";
 import {MISSION_SCOPE_SQL_T} from "../src/mission-sources.js";
 
 const source=await readFile(new URL("../src/index.js",import.meta.url),"utf8");
@@ -20,15 +21,16 @@ function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
   const db=new DatabaseSync(":memory:");
   db.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,subject TEXT,loc TEXT,source TEXT,role TEXT,status TEXT,assignee TEXT,closure_reason TEXT,created_at INTEGER,started_at INTEGER,updated_at INTEGER,live_at INTEGER,resolved_at INTEGER,proof_image TEXT,project TEXT,project_id TEXT)");
   db.exec("CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,started_at INTEGER,created_at INTEGER,updated_at INTEGER,executor TEXT,ended_at INTEGER)");
-  db.exec("CREATE TABLE decisions(id TEXT PRIMARY KEY,question TEXT,agent TEXT,machine TEXT,status TEXT,project TEXT,created_at INTEGER,deadline INTEGER)");
+  db.exec("CREATE TABLE decisions(id TEXT PRIMARY KEY,question TEXT,agent TEXT,machine TEXT,status TEXT,project TEXT,created_at INTEGER,deadline INTEGER,parent_decision TEXT,mission TEXT)");
   db.exec("CREATE TABLE ideas(id TEXT PRIMARY KEY,title TEXT,status TEXT,author TEXT,author_identity TEXT,project TEXT,created_at INTEGER,updated_at INTEGER)");
   db.exec("CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT,ticket_id TEXT,ts INTEGER,kind TEXT,author TEXT,text TEXT)");
   db.exec("CREATE TABLE projects(id TEXT PRIMARY KEY,name TEXT)");
+  db.exec("CREATE TABLE fleet_hourly_work(run_id TEXT,mission_id TEXT); CREATE TABLE fleet_agent_mode_runs(id TEXT,status TEXT)");
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{all:async()=>({results:stmt.all(...args)})}},all:async()=>({results:stmt.all()})}}};
   const TELEGRAM=presence===null?undefined:{fetch:async(request)=>({ok:true,json:async()=>
     String(request.url).includes("work-sessions") ? {ok:true,sessions:workSessions} : presence})};
   const context=vm.createContext({Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,Request,
-    baseAgentIdentity,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,MISSION_SCOPE_SQL_T,__name:(fn)=>fn});
+    machineSuffix,canonicalMachineSuffix,baseAgentIdentity,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,resolveDecisionIdentity,MISSION_SCOPE_SQL_T,__name:(fn)=>fn});
   vm.runInContext([
     grabVar("HIGHSCORE_PERSONAS"),grabVar("PRESENCE_URL"),
     grabVar("HIGHSCORE_INTERNAL_YOKUP_TRANSITION_SQL"),grabVar("HIGHSCORE_MISSION_STARTED_SQL"),grabVar("HIGHSCORE_WORK_STARTED_SQL"),grabVar("HIGHSCORE_MISSION_PROGRESS_SQL"),grabVar("HIGHSCORE_RACE_PROGRESS_SQL"),grabVar("HIGHSCORE_ASSIGNMENT_EVENT_SQL"),
@@ -47,7 +49,7 @@ function mission(db,{id="M1",agent="OraculoMacMini",machine="MacMini",at=NOW-5*M
 }
 function decision(db,{id="DEC-1",agent="OraculoMacMini",machine="admira-macmini",at=NOW-MIN,
   deadline=NOW+4*MIN,status="pending",project="yokup",title="¿Qué mejora hacemos?"}={}){
-  db.prepare("INSERT INTO decisions VALUES (?,?,?,?,?,?,?,?)")
+  db.prepare("INSERT INTO decisions(id,question,agent,machine,status,project,created_at,deadline) VALUES (?,?,?,?,?,?,?,?)")
     .run(id,title,agent,machine,status,project,at,deadline);
 }
 
@@ -498,4 +500,30 @@ test("dos encarnaciones vivas o una viva más otra unknown siguen ambiguas",()=>
   const open={state:"open",started_at:NOW-1000};
   assert.equal(F.highscoreLinkedSession([open,{...open,started_at:NOW-500}]),null);
   assert.equal(F.highscoreLinkedSession([open,{state:"unknown",started_at:NOW-2000}]),null);
+});
+
+test('misión humana factual prevalece sobre HWR reciente y pausa excluye tareas reabiertas',async()=>{
+  const {db,env,F}=harness();
+  mission(db,{id:'HUMAN',agent:'MorfeoMacMini',at:NOW-25*MIN});
+  mission(db,{id:'HWR-linked',agent:'MorfeoMacMini',at:NOW-MIN});
+  mission(db,{id:'OTHER-MACHINE',agent:'MorfeoMBP14',machine:'MacBookProNegro14',at:NOW-MIN});
+  db.exec("INSERT INTO fleet_hourly_work VALUES('run1','HWR-linked');INSERT INTO fleet_agent_mode_runs VALUES('run1','dispatched')");
+  let result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.participants.find(row=>row.agent==='MorfeoMacMini').reference,'HUMAN');
+  assert.equal(result.participants.find(row=>row.agent==='MorfeoMacMini').state,'assigned_stale');
+  assert.equal(result.participants.find(row=>row.agent==='MorfeoMBP14').reference,'OTHER-MACHINE');
+  db.exec("UPDATE fleet_agent_mode_runs SET status='paused';DELETE FROM tickets WHERE id='HUMAN'");
+  db.prepare('INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?,?)').run('HWR-linked','a','Investigación pausada','in_progress','MorfeoMacMini',NOW-MIN,NOW-MIN,NOW-MIN,'SubMorfeoMacMini',null);
+  result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(result.participants.some(row=>row.agent==='MorfeoMacMini'),false);
+});
+
+test('executor delegado no presta su trabajo a la familia ni máquina del coordinador',async()=>{
+  const {db,env,F}=harness();
+  mission(db,{id:'HUMAN-TEAM',agent:'TrinityMacMini',at:NOW-MIN});
+  db.prepare('INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?,?)').run('HUMAN-TEAM','b','Ejecución remota','in_progress','SubMorfeoMBP14',NOW-MIN,NOW-MIN,NOW-MIN,'SubMorfeoMBP14',null);
+  const result=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  const executor=result.participants.find(row=>row.agent==='MorfeoMBP14');
+  assert.equal(executor.reference,'HUMAN-TEAM:b');assert.equal(executor.machine,'MBP14');
+  assert.equal(result.participants.find(row=>row.agent==='TrinityMacMini').kind,'mission');
 });
