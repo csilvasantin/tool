@@ -110,6 +110,31 @@
     items.forEach(function(item){counts[item.state]=(counts[item.state]||0)+1;if(item.eligible.start)counts.startable++;if(item.eligible.stop)counts.stoppable++;});
     return {items:items,targets:targets,by_key:new Map(items.map(function(item){return[item.control_key,item];})),counts:counts};
   }
+  // Presentation has two real surfaces. Legacy rows with no host remain
+  // diagnostic data; matching them never transfers metadata or creates a command.
+  function surfaceInventory(model,options){
+    model=model||{};options=options||{};
+    var identity=options.identity||root.ykAgentIdentity||null,
+      rows=Array.isArray(model.items)?model.items:[],known=rows.filter(function(row){return surface(row.surface||row.host)!=="unknown";}),
+      legacy=rows.filter(function(row){return surface(row.surface||row.host)==="unknown";}),diagnostics=[];
+    function key(row){
+      var base=canonical(Object.assign({},row,{host:row.surface||row.host}),identity),
+        family=text(row.family_key)||base.family_key,machine=text(row.machine_key)||base.machine_key,runtime=norm(row.runtime);
+      return family&&machine&&runtime?[norm(family),norm(machine),runtime].join("\u001f"):"";
+    }
+    legacy.forEach(function(row){
+      var exactKey=key(row),matches=exactKey?known.filter(function(item){return key(item)===exactKey;}):[],
+        hosts=Array.from(new Set(matches.map(function(item){return surface(item.surface||item.host);}))).sort();
+      diagnostics.push({identity_key:text(row.identity_key),agent:text(row.agent||row.persona),machine:text(row.machine),runtime:text(row.runtime),
+        reason:hosts.length===1?"legacy-linked-to-explicit-surface":hosts.length>1?"ambiguous-surface":"surface-unavailable",
+        resolved_surface:hosts.length===1?hosts[0]:null,matching_surfaces:hosts});
+    });
+    var counts={total:known.length,active:0,stopped:0,unknown:0,ambiguous:0,startable:0,stoppable:0};
+    known.forEach(function(item){counts[item.state]=(counts[item.state]||0)+1;if(item.eligible&&item.eligible.start)counts.startable++;if(item.eligible&&item.eligible.stop)counts.stoppable++;});
+    return Object.assign({},model,{items:known,by_key:new Map(known.map(function(item){return[item.control_key,item];})),counts:counts,
+      surface_diagnostics:{items:diagnostics,total:diagnostics.length,linked:diagnostics.filter(function(item){return !!item.resolved_surface;}).length,
+        unresolved:diagnostics.filter(function(item){return !item.resolved_surface;}).length}});
+  }
   function requestFor(model,controlKey,action){
     action=norm(action);var item=model&&model.by_key&&model.by_key.get(controlKey),target=model&&model.targets&&model.targets.get(controlKey);
     if(action!=="start"&&action!=="stop")throw new Error("invalid-action");
@@ -201,7 +226,7 @@
     return {ok:failed===0,total:results.length,succeeded:succeeded,failed:failed,partial:succeeded>0&&failed>0,results:results};
   }
 
-  var api={inventory:inventory,groupCards:groupCards,selectedCardTarget:selectedCardTarget,requestFor:requestFor,batchPlan:batchPlan,executeOne:executeOne,executeBatch:executeBatch,
+  var api={inventory:inventory,surfaceInventory:surfaceInventory,groupCards:groupCards,selectedCardTarget:selectedCardTarget,requestFor:requestFor,batchPlan:batchPlan,executeOne:executeOne,executeBatch:executeBatch,
     limits:{fresh_seconds:FRESH_SECONDS,max_batch:MAX_BATCH,max_concurrency:MAX_CONCURRENCY}};
   root.YkAgentControl=api;
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
