@@ -98,6 +98,10 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .ranking-scope-summary{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 0 8px;color:var(--mut);font-size:11px;line-height:1.5}
 .ranking-scope-summary button{font:inherit;color:var(--ink);background:transparent;border:1px solid rgba(120,243,255,.3);border-radius:5px;padding:5px 8px;cursor:pointer}
 .ranking-scope-summary button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.work-observations{margin:6px 0 10px;color:var(--mut);font-size:11px;line-height:1.5}
+.work-observations summary{cursor:pointer;color:var(--ink)}
+.work-observations ul{display:flex;flex-wrap:wrap;gap:4px 18px;padding:4px 0 0;list-style:none;margin:0}
+.work-observations li{max-width:100%;overflow-wrap:anywhere}
 .race-evidence-status{font-size:11px;line-height:1.5;color:var(--mut);margin:6px 0 0}
 .ranking-period-metric{display:inline-flex;align-items:baseline;gap:3px;white-space:nowrap}
 .ranking-period-metric .score-period{font-size:7px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
@@ -984,6 +988,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     </div>
   </header>
   <p class="race-evidence-status" id="raceEvidenceStatus" role="status" aria-live="polite">Comprobando trabajo registrado…</p>
+  <details class="work-observations" id="workObservations" hidden open>
+    <summary id="workObservationsSummary">Actividad sin verificar</summary>
+    <ul id="workObservationsList"></ul>
+  </details>
   <div class="podio" id="podio" hidden></div>
 
   <!-- Los 30 días de TODA la flota. Se abre desde el sumador del podio. -->
@@ -1263,8 +1271,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   var datos = { tareas: [], tareasFresh: false, actividad: [], actividadMeta: null, actividadFresh: false,
     presencia: [], misiones: [], ideas: [], decisiones: [], proyectos: [],
     declaracionesPrincipales: [], controlMachines: [], presenceNow: 0, presenceAvailable: false,
-    trabajos: [], trabajosAvailable: false, trabajosGeneratedAt: 0, trabajosClientAt: 0,
+    trabajos: [], workObservations: [], trabajosAvailable: false, trabajosGeneratedAt: 0, trabajosClientAt: 0,
     trabajosMode: "unavailable", turnos: null, historial: null, historialFresh: false };
+  var WORK_POLL_MS = 20000, WORK_TIMEOUT_MS = 8000, workRequestSequence = 0, workRequest = null;
   var DAILY_CACHE_KEY = "yokup.highscore.daily.v1";
   function guardaActividadDiaria(payload) {
     if (!payload || !Array.isArray(payload.scores) || payload.day !== claveDia(Date.now())) return;
@@ -1304,9 +1313,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     // Reparto de turnos: quién abre cuándo. Es lo que hace honesta la cuenta
     // atrás de la fila desplegada; si no responde, esa cifra cae al cupo.
     seguroYokup("/fleet/turnos", function (d) { return d && d.ok ? d : null; }),
-    seguroYokup("/highscore/active-work", function (d) {
-      return d && d.ok && Array.isArray(d.participants) ? d : null;
-    }),
+    hsRefreshWork(false),
     seguroYokup("/highscore/history?scope=global", function (d) {
       return d && d.ok && Array.isArray(d.all_days) ? d : null;
     })
@@ -1325,11 +1332,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       datos.declaracionesPrincipales = r[6] && r[6].declarations || [];
       datos.historial = r[9] || null; datos.historialFresh = !!r[9]; diasCache = datos.historial;
       datos.turnos = r[7] || null;
-      datos.trabajosAvailable = !!r[8];
-      datos.trabajos = r[8] && r[8].participants || [];
-      datos.trabajosGeneratedAt = r[8] && Number(r[8].generated_at) || 0;
-      datos.trabajosClientAt = datos.trabajosGeneratedAt ? performance.now() : 0;
-      datos.trabajosMode = r[8] && normaliza(r[8].mode) || "unavailable";
+
       pon(76, "OBJETIVOS · VENTANAS · MISIONES · " + ((a && a.recorded && a.recorded.objectives) || 0) + " / " + ((a && a.recorded && a.recorded.windows) || 0) + " / " + ((a && a.recorded && a.recorded.missions) || 0));
       pon(94, "PRESENCIA · " + datos.presencia.length + " AGENTES");
       setTimeout(function () { pon(100, "LISTO"); listo(); }, 350);
@@ -4811,6 +4814,72 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     });
   }
 
+  function hsApplyWorkSnapshot(payload) {
+    var valid = !!(payload && payload.ok && Array.isArray(payload.participants));
+    datos.trabajosAvailable = valid;
+    datos.trabajos = valid ? payload.participants : [];
+    datos.workObservations = valid && Array.isArray(payload.observations) ? payload.observations : [];
+    datos.trabajosGeneratedAt = valid ? Number(payload.generated_at) || 0 : 0;
+    datos.trabajosClientAt = datos.trabajosGeneratedAt ? performance.now() : 0;
+    datos.trabajosMode = valid ? normaliza(payload.mode) || "active" : "unavailable";
+  }
+  function hsPaintWorkUpdate() {
+    if (!listaCompletaCache) return;
+    listaCompletaCache = calcula(); listaCache = aplicaAgentScope(listaCompletaCache);
+    hsRenderAgentScope(listaCompletaCache); pintaPodio(listaCache.slice(0, 3), listaCache);
+    pintaTabla(listaVisible(listaCache)); actualizaCarreraPodio();
+    // La pausa congela la animación, nunca la observación de trabajo.
+    if (carreraPausada) { pintaMomentoCarrera(carreraTiempoPausado); pintaControlCarrera(); }
+  }
+  function hsRefreshWork(render) {
+    if (workRequest) return workRequest;
+    var sequence = ++workRequestSequence, controller = new AbortController(), timeout;
+    var request = fetch(YK + "/highscore/active-work", { cache:"no-store", signal:controller.signal })
+      .then(function (response) { if (!response.ok) return null; return response.json(); })
+      .catch(function () { return null; });
+    var deadline = new Promise(function (resolve) {
+      timeout = setTimeout(function () { controller.abort(); resolve(null); }, WORK_TIMEOUT_MS);
+    });
+    workRequest = Promise.race([request, deadline]).then(function (payload) {
+      if (sequence !== workRequestSequence) return null;
+      hsApplyWorkSnapshot(payload);
+      if (render) hsPaintWorkUpdate();
+      return payload;
+    }).finally(function () {
+      clearTimeout(timeout);
+      if (sequence === workRequestSequence) workRequest = null;
+    });
+    return workRequest;
+  }
+  function hsPollWork() {
+    if (document.hidden) return Promise.resolve(null);
+    return hsRefreshWork(true);
+  }
+
+  function hsVisibleWorkObservations(items, now, scope) {
+    var seen = new Set();
+    return (Array.isArray(items) ? items : []).filter(function (item) {
+      if (!item || item.process_state !== "open" || item.activity_state !== "unverified" || item.reason !== "no_linked_work") return false;
+      var at = Number(item.observed_at) || 0, host = normaliza(item.host).toLowerCase(), identity = hsWorkIdentity(item);
+      if (!now || !at || now - at > 30000 || now - at < -5000 || !identity.machine || ["app", "cli"].indexOf(host) < 0) return false;
+      if (scope instanceof Set && !scope.has(identity.key)) return false;
+      var key = identity.key + "|" + host + "|" + normaliza(item.runtime).toLowerCase();
+      if (seen.has(key)) return false; seen.add(key); return true;
+    });
+  }
+  function hsRenderWorkObservations() {
+    var box = document.getElementById("workObservations"), list = document.getElementById("workObservationsList"), summary = document.getElementById("workObservationsSummary");
+    if (!box || !list || !summary) return;
+    var now = datos.trabajosGeneratedAt ? datos.trabajosGeneratedAt + Math.max(0, performance.now() - datos.trabajosClientAt) : 0;
+    var items = hsVisibleWorkObservations(datos.trabajosAvailable ? datos.workObservations : [], now, hsEffectiveAgentScope());
+    box.hidden = items.length === 0;
+    summary.textContent = "Actividad sin verificar · " + items.length + " superficies sin trabajo vinculado";
+    list.innerHTML = items.map(function (item) {
+      var identity = hsWorkIdentity(item), surface = item.host === "app" ? "APP" : "CLI";
+      return '<li data-observation-agent="' + esc(identity.key) + '"><b>' + esc(identity.agent) + '</b> · ' + esc(item.runtime || "") + ' ' + surface + ' abierta · sin trabajo vinculado</li>';
+    }).join("");
+  }
+
   function hsWorkEvidenceStatus(available, total, shown, mode) {
     if (!available) return { label:"TRABAJO NO DISPONIBLE", text:"No se pudo consultar el trabajo registrado. La ausencia de carriles no indica inactividad." };
     if (total > shown) return { label:"TRABAJO FUERA DE LA SELECCIÓN", text:shown + " de " + total + " participantes verificados en esta selección. Revisa el filtro de agentes para ver los demás." };
@@ -4820,6 +4889,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function actualizaCarreraPodio() {
     var contenedor = document.getElementById("refreshLanes");
+    if (typeof hsRenderWorkObservations === "function") hsRenderWorkObservations();
     var completas=listaVisible(aplicaAgentScope(listaCompletaCache||[])),byKey=Object.create(null);
     var scopeKeys=new Set(completas.map(function(row){return claveAgenteCarrera(row.agente);}));
     var todosTrabajos=trabajosCarrera();
@@ -5105,9 +5175,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         projects:d.projects || [], declarations:d.principal_declarations || []
       }; }),
       seguroYokup("/fleet/turnos", function (d) { return d && d.ok ? d : null; }),
-      seguroYokup("/highscore/active-work", function (d) {
-        return d && d.ok && Array.isArray(d.participants) ? d : null;
-      }),
+      hsRefreshWork(true),
       seguroYokup("/highscore/history?scope=global", function (d) {
         return d && d.ok && Array.isArray(d.all_days) ? d : null;
       })
@@ -5136,16 +5204,6 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       // todos. Si esta vuelta no contesta se conserva el anterior, que envejece
       // mejor que caer al cupo y prometer una ventana que no toca.
       if (r[7]) datos.turnos = r[7];
-      if (r[8]) {
-        datos.trabajos = r[8].participants || []; datos.trabajosAvailable = true;
-        datos.trabajosGeneratedAt = Number(r[8].generated_at) || 0;
-        datos.trabajosClientAt = datos.trabajosGeneratedAt ? performance.now() : 0;
-        datos.trabajosMode = normaliza(r[8].mode) || "active";
-      } else {
-        // Fallo cerrado: no se conserva una carrera antigua como si fuera actual.
-        datos.trabajos = []; datos.trabajosAvailable = false;
-        datos.trabajosGeneratedAt = 0; datos.trabajosClientAt = 0; datos.trabajosMode = "unavailable";
-      }
       datos.historialFresh = !!r[9];
       if (r[9]) { datos.historial = r[9]; diasCache = r[9]; }
       fallos = [];
@@ -5477,6 +5535,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     if (e.key === "Escape" && document.getElementById("diasMod").classList.contains("on")) cierraDias();
   });
   window.setInterval(actualizaRelojesCarrera, 1000);
+  window.setInterval(hsRenderWorkObservations, 1000);
+  window.setInterval(hsPollWork, WORK_POLL_MS);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) hsPollWork(); });
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) return;
     actualizaRelojesCarrera();
