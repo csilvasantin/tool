@@ -441,7 +441,7 @@ function pulseModeSummary(record){
   return detail+(labels[status]?" · "+labels[status]:"")+(reason?" · "+reason:"")+(date&&!Number.isNaN(date.getTime())?" · próxima "+date.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}):"")+(lastLabel&&lastDate&&!Number.isNaN(lastDate.getTime())?" · última "+lastDate.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})+": "+lastLabel:"");
 }
 function pulseModeSupport(record){
-  const reasons={consumer_unavailable:"Ejecutor no disponible en este ordenador.",telemetry_unavailable:"Sin señal reciente del ordenador. No se puede activar la actividad horaria.",surface_not_configured:"Esta superficie no está configurada.",human_activity_unknown:"No se puede comprobar si el ordenador está en uso."};
+  const reasons={consumer_unavailable:"Ejecutor no disponible en este ordenador.",claude_cli_auth_verification_required:"Claude CLI requiere renovar la sesión y verificar el acceso.",telemetry_unavailable:"Sin señal reciente del ordenador. No se puede activar la actividad horaria.",surface_not_configured:"Esta superficie no está configurada.",human_activity_unknown:"No se puede comprobar si el ordenador está en uso."};
   return reasons[record&&record.support_reason]||"";
 }
 function pulseModeAllowed(record,mode){

@@ -132,3 +132,14 @@ test('aviso sin telemetría y opciones usan el mismo registro y se recuperan jun
   assert.match(html,/<option value="learning">/);
   assert.match(html,/<option value="training">/);
 });
+
+test('Claude CLI sin acceso verificado explica el bloqueo y no habilita modos',async()=>{
+  const {api,calls}=setup();
+  api.configure([cli],[{...cli,mode:'manual',available_modes:['manual'],support_reason:'claude_cli_auth_verification_required'}]);
+  const html=api.markup(cli);
+  assert.match(html,/Claude CLI requiere renovar la sesión y verificar el acceso/);
+  assert.match(html,/<option value="learning" disabled>/);
+  assert.match(html,/<option value="training" disabled>/);
+  assert.doesNotMatch(html,/claude_cli_auth_verification_required/);
+  await api.change(change(cli,'learning'));assert.equal(calls.length,0);
+});
