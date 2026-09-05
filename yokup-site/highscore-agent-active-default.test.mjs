@@ -87,13 +87,13 @@ test("Activos exige snapshot verificado, PID, online, host operativo y reloj can
   assert.equal(api().active(rows,identity,0),null,"sin reloj de servidor no se fabrica una selección vacía");
 });
 
-test("ausencia y legado equivalente a Todos, incluso con extras, migran al snapshot activo",()=>{
+test("ausencia y legado equivalente a Todos conservan el universo completo",()=>{
   const A=api(),all=["morfeomacmini","neomacmini","niomacmini","oraculomacmini","smithmacmini","trinitymacmini"];
   const active=new Set(["morfeomacmini","neomacmini","oraculomacmini"]);
   for(const legacy of [null,new Set(all),new Set([...all,"retiradomacmini"])]){
     const result=A.migrate(legacy,"legacy",all,active);
-    assert.equal(result.mode,"active");
-    assert.deepEqual([...result.scope], [...active]);
+    assert.equal(result.mode,"all");
+    assert.equal(result.scope,null);
     assert.equal(result.changed,true);
   }
 });

@@ -11,9 +11,9 @@ test("Running Man consume el endpoint factual específico sin feeds truncados",(
   assert.match(source,/datos\.trabajos = r\[8\]\.participants \|\| \[\]/);
 });
 
-test("la carrera nace de hechos y el ranking completo sólo la enriquece",()=>{
+test("la carrera nace de hechos dentro del mismo ámbito que el ranking",()=>{
   assert.match(source,/function trabajosEnCurso\(\)/);
-  assert.match(source,/trabajos = trabajosCarrera\(\), completas = listaCompletaCache \|\| \[\]/);
+  assert.match(source,/trabajos=trabajosCarrera\(\)\.filter\(function\(work\)\{return scopeKeys\.has\(work\.key\);\}\)/);
   assert.match(source,/byKey\[trabajo\.key\] \|\| \{ agente:trabajo\.agente/);
   assert.doesNotMatch(source,/filasElegibles\.slice\(0, 3\)/);
   assert.match(source,/data-participants/);

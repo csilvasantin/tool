@@ -283,8 +283,8 @@ test("el trabajo factual sigue por detrás del corredor sin solapar nombre ni re
   assert.match(html, /carril\.querySelector\('\[data-race-role="mission"\]'\)/);
 });
 
-test("todos los agentes con trabajo en curso tienen calles ordenadas, identidad visual y semántica accesible", () => {
-  assert.match(html, /var trabajos = trabajosCarrera\(\), completas = listaCompletaCache \|\| \[\]/);
+test("los agentes con trabajo del ámbito elegido tienen calles ordenadas e identidad inequívoca", () => {
+  assert.match(html, /var completas=listaVisible\(aplicaAgentScope\(listaCompletaCache\|\|\[\]\)\)/);
   assert.match(html, /var corredores = trabajos\.map/);
   assert.doesNotMatch(html, /top = \(listaCache \|\| \[\]\)\.slice\(0, 3\)/);
   assert.match(html, /resumenTrabajoActivo\(trabajo\)/);

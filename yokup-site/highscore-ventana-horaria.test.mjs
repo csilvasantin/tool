@@ -162,8 +162,8 @@ test("el nombre del agente es el gatillo, y sólo si hay proyecto de censo", () 
   assert.match(conCenso, /data-proyecto="webmaster-admiranext"/);
   assert.match(conCenso, /data-maquina="MacBookAirCrema"/);
   assert.match(conCenso, /data-agente="NeoMBACrema"/);
-  assert.match(conCenso, />Neo<\/button>/);
-  assert.doesNotMatch(conCenso, />NeoMBACrema<\/button>/);
+  assert.match(conCenso, />NeoMBACrema<\/button>/);
+  assert.doesNotMatch(conCenso, />Neo<\/button>/);
   // el default no abre ventana de mejora: Galaxia Admira es paraguas, no faena
   assert.doesNotMatch(f({ agente:"X", proyecto:"Galaxia Admira", proyectoOrigen:"defecto", proyectoId:"galaxia-admira" }),
     /data-yk-launch/);

@@ -50,20 +50,20 @@ function periodMetrics(period) {
     },
     all_days:[
       {day:"2026-08-31",top:[
-        {agent:"AlfaMacMini",objectives:1,windows:0,missions:1,tasks:1,points:75},
-        {agent:"BetaMBP14",objectives:0,windows:1,missions:0,tasks:0,points:10}
+        {agent:"Alfa",objectives:1,windows:0,missions:1,tasks:1,points:75},
+        {agent:"Beta",objectives:0,windows:1,missions:0,tasks:0,points:10}
       ]},
       {day:"2026-09-02",top:[
-        {agent:"AlfaMBP16",objectives:0,windows:1,missions:0,tasks:1,points:25},
-        {agent:"BetaMBP14",objectives:1,windows:0,missions:0,tasks:0,points:20},
-        {agent:"GammaMBAAzul",objectives:2,windows:1,missions:1,tasks:2,points:120}
+        {agent:"Alfa",objectives:0,windows:1,missions:0,tasks:1,points:25},
+        {agent:"Beta",objectives:1,windows:0,missions:0,tasks:0,points:20},
+        {agent:"Gamma",objectives:2,windows:1,missions:1,tasks:2,points:120}
       ]},
       {day:"2026-09-30",top:[
-        {agent:"AlfaMacMini",objectives:1,windows:1,missions:0,tasks:1,points:40},
-        {agent:"BetaMBP14",objectives:0,windows:0,missions:1,tasks:1,points:35}
+        {agent:"Alfa",objectives:1,windows:1,missions:0,tasks:1,points:40},
+        {agent:"Beta",objectives:0,windows:0,missions:1,tasks:1,points:35}
       ]},
-      {day:"2026-08-30",top:[{agent:"BetaMBP14",points:999}]},
-      {day:"2026-10-01",top:[{agent:"GammaMBAAzul",points:888}]}
+      {day:"2026-08-30",top:[{agent:"Beta",points:999}]},
+      {day:"2026-10-01",top:[{agent:"Gamma",points:888}]}
     ]
   };
   return new Function("rows", "history", "period", `
@@ -179,7 +179,7 @@ test("hora, día, semana y mes usan sus puntos factuales y límites naturales", 
   assert.match(html, /var TIME_ZONE = "Europe\/Madrid"/);
   assert.deepEqual(week.find(row=>row.agent==="Alfa").metrics,
     {objectives:1,windows:1,missions:1,tasks:2,points:100},
-    "la semana agrega MacMini y MBP16 sin contar el día fuera de rango");
+    "la semana agrega días del mismo agente sin contar el día fuera de rango");
   assert.deepEqual(rankingOrder("hour"),["Beta","Alfa","Gamma"]);
   assert.deepEqual(rankingOrder("day"),["Alfa","Beta","Gamma"]);
   assert.deepEqual(rankingOrder("week"),["Gamma","Alfa","Beta"]);
@@ -240,7 +240,7 @@ test("la preferencia valida el patrón del producto y el control cabe en móvil"
     "la vista móvil no reduce el área táctil por debajo de 24×24 px");
 });
 
-test("los cuatro periodos colapsan alias y equipos en una fila canónica por agente", () => {
+test("los cuatro periodos conservan cada equipo y normalizan alias físicos", () => {
   const rows = [
     {agente:"NeoMacMini",base:"Neo",suffix:"MacMini",maquinas:["Mac Mini"],maquinasVivas:["Mac Mini"],
       proyecto:"admira.live",runtime:"Codex",actividadAt:90,total:15},
@@ -262,23 +262,23 @@ test("los cuatro periodos colapsan alias y equipos en una fila canónica por age
       proyecto:"admira.live",runtime:"Claude",actividadAt:5,total:45}
   ];
   const summarize = (input, period) => canonicalPeriodRows(input, period).map((row) => ({
-    agent:identity.key(identity.base(row.agente)),
+    agent:identity.key(row.agente),
     machines:[...new Set([...(row.maquinas || []), ...(row.maquinasVivas || [])])].sort()
   })).sort((a,b) => a.agent.localeCompare(b.agent));
-  const expectedAgents = ["morfeo","neo","oraculo","smith"];
+  const expectedAgents = ["morfeomba16","morfeombarosa","morfeombp14","neomacmini","neombp16","oraculomacmini","oraculombp16","smithdgx","smithmbaazul"].sort();
   ["hour","day","week","month"].forEach((period) => {
     const forward = summarize(rows, period), reverse = summarize([...rows].reverse(), period);
     assert.deepEqual(forward.map(row => row.agent), expectedAgents,
-      `${period} representa cada persona una sola vez aunque use varias máquinas/proyectos`);
+      `${period} mantiene las nueve identidades físicas distintas`);
     assert.deepEqual(reverse, forward, `${period} no depende del orden del feed`);
-    assert.deepEqual(forward.find(row => row.agent === "neo").machines,
-      ["Mac Mini","MacBook Pro 16"]);
+    assert.deepEqual(forward.find(row => row.agent === "neomacmini").machines,
+      ["Mac Mini"]);
   });
   assert.match(functionSource("listaVisible"), /colapsaFilasRanking\(lista,\s*RANKING_PERIOD\)/,
     "el colapso ocurre antes de filtrar, ordenar y pintar");
 });
 
-test("Lucas y Wozniak suman GrokBot una sola vez en cada periodo", () => {
+test("Lucas y Wozniak conservan GrokBot separado y deduplican su fila repetida", () => {
   const metric = (objectives, windows, missions, tasks, points) => ({objectives,windows,missions,tasks,points});
   const rows = [
     {agente:"Lucas",base:"Lucas",suffix:"",maquinas:["Mac Mini"],maquinasVivas:[],proyecto:"cine.example",
@@ -318,20 +318,21 @@ test("Lucas y Wozniak suman GrokBot una sola vez en cada periodo", () => {
     ]
   };
   const byAgent = (period, input = rows) => Object.fromEntries(consolidatedPeriod(input, history, period)
-    .map((row) => [identity.base(row.agent),row]));
+    .map((row) => [row.agent,row]));
   const hour = byAgent("hour"), day = byAgent("day"), week = byAgent("week"), month = byAgent("month");
-  assert.deepEqual(hour.Lucas.metrics, metric(3,1,1,2,100));
-  assert.deepEqual(day.Lucas.metrics, metric(5,3,2,4,200));
-  assert.deepEqual(week.Lucas.metrics, metric(3,1,1,2,75));
-  assert.deepEqual(month.Lucas.metrics, metric(4,2,1,3,100));
-  assert.deepEqual(hour.Wozniak.metrics, metric(1,1,1,1,70));
-  assert.deepEqual(day.Wozniak.metrics, metric(3,3,1,3,160));
-  assert.deepEqual(week.Wozniak.metrics, metric(1,1,1,1,60));
-  assert.deepEqual(month.Wozniak.metrics, metric(1,1,2,2,90));
-  assert.deepEqual(month.Neo.metrics, metric(1,1,0,0,30), "Neo no se mezcla con los aliases GrokBot");
-  assert.deepEqual(hour.Lucas.members.sort(), ["Lucas","LucasGrokBot"]);
-  assert.deepEqual(hour.Lucas.machines, ["GrokBot","Mac Mini"]);
-  assert.deepEqual(hour.Lucas.projects.sort(), ["cine","robot"]);
+  assert.deepEqual(hour.LucasGrokBot.metrics, metric(2,0,1,1,60));
+  assert.deepEqual(day.LucasGrokBot.metrics, metric(3,2,1,2,120));
+  assert.deepEqual(week.LucasGrokBot.metrics, metric(2,0,1,1,45));
+  assert.deepEqual(month.LucasGrokBot.metrics, metric(3,1,1,2,70));
+  assert.deepEqual(hour.WozniakGrokBot.metrics, metric(1,0,1,0,45));
+  assert.deepEqual(day.WozniakGrokBot.metrics, metric(2,1,1,1,95));
+  assert.deepEqual(week.WozniakGrokBot.metrics, metric(1,0,1,0,35));
+  assert.deepEqual(month.WozniakGrokBot.metrics, metric(1,0,1,0,35));
+  assert.equal(month.LucasMacMini.metrics.points,0,"histórico sin máquina no se adjudica al Mac Mini");
+  assert.deepEqual(month.NeoMacMini.metrics, metric(1,1,0,0,30));
+  assert.deepEqual(hour.LucasGrokBot.members, ["LucasGrokBot"]);
+  assert.deepEqual(hour.LucasGrokBot.machines, ["GrokBot"]);
+  assert.deepEqual(hour.LucasGrokBot.projects, ["robot"]);
   assert.deepEqual(consolidatedPeriod([...rows].reverse(), history, "month"),
     consolidatedPeriod(rows, history, "month"), "el resultado completo es estable con el feed invertido");
 });

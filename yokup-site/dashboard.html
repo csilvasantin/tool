@@ -441,7 +441,8 @@ function pulseModelLabel(value){
   return !model||/^com\./i.test(model)||model.startsWith("/")||model.length<3?"":model;
 }
 function pulseCliChip(p){
-  return String(p&&p.host||"").trim().toLowerCase()==="cli"?'<span class="machine-chip cli-chip" title="Interfaz de línea de comandos">CLI</span>':"";
+  const host=String(p&&p.host||"").trim().toLowerCase();
+  return host==="cli"||host==="app"?'<span class="machine-chip cli-chip" title="'+(host==="cli"?'Interfaz de línea de comandos':'Aplicación de escritorio')+'">'+host.toUpperCase()+'</span>':"";
 }
 const PULSE_MODES=new Map(),PULSE_MODE_PENDING=new Set(),PULSE_MODE_ERRORS=new Map();
 let PULSE_MODE_LOADED=false,PULSE_MODE_ERROR=false,PULSE_MODE_FETCH=null,PULSE_MODE_FETCHED_AT=0,PULSE_MODE_REVISION=0;
@@ -456,7 +457,7 @@ function pulseModeSummary(record){
   const project=String(record&&(record.project_name||record.project_id)||"proyecto principal");
   const detail=mode==="learning"?"Cápsula cada hora · "+project:"Ventana cada hora si está libre y sin uso humano · "+project;
   const status=String(record&&record.status||"").toLowerCase(),labels={scheduled:"Programado",waiting:"En espera",blocked:"En espera",running:"En curso",paused:"Pausado",ready:"Listo",idle:"En espera",disabled:"Desactivado",error:"Requiere atención",skipped:"Oportunidad aplazada",starting:"Arrancando",dispatched:"Encargo enviado",awaiting_delivery:"Pendiente de entrega",completed:"Entrega verificada",failed:"No completado",unavailable:"No disponible"};
-  const reasons={telemetry_unavailable:"sin señal reciente",human_activity_unknown:"no se pudo comprobar el uso humano",human_active:"ordenador en uso",agent_busy:"agente ocupado",active_mission:"misión activa",live_decision:"decisión pendiente",previous_run_pending:"entrega anterior pendiente",consumer_unavailable:"ejecutor no disponible en este ordenador",surface_not_configured:"superficie sin configurar",ambiguous_surface:"superficie ambigua",principal_project_changed:"cambió el proyecto principal",project_required:"falta proyecto principal",preference_changed:"modo cambiado"},reason=reasons[record&&record.reason];
+  const reasons={telemetry_unavailable:"sin señal reciente",human_activity_unknown:"no se pudo comprobar el uso humano",human_mission_assigned:"hay trabajo humano asignado que debe terminar primero",human_active:"ordenador en uso",agent_busy:"agente ocupado",active_mission:"misión activa",live_decision:"decisión pendiente",previous_run_pending:"entrega anterior pendiente",consumer_unavailable:"ejecutor no disponible en este ordenador",surface_not_configured:"superficie sin configurar",ambiguous_surface:"superficie ambigua",principal_project_changed:"cambió el proyecto principal",project_required:"falta proyecto principal",preference_changed:"modo cambiado"},reason=reasons[record&&record.reason];
   const next=Number(record&&record.next_run)||0,date=next?new Date(next<4102444800?next*1000:next):null;
   const last=record&&record.last_run,lastTime=Number(last&&(last.updated_at||last.created_at))||0,lastDate=lastTime?new Date(lastTime<4102444800?lastTime*1000:lastTime):null;
   const lastLabel=last&&labels[last.status];

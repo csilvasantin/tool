@@ -221,7 +221,7 @@ test("el estado de endpoint prima sobre la precedencia local y sobre presencia",
     claveDia:()=>"2026-08-05", claveObservacionDiaria:()=>"neo|macmini",
     NO_AGENTES:["", "-", "—"], Date, Number, Object
   });
-  vm.runInContext(`${html.slice(start, end)}\nglobalThis.primero = calcula();`, context);
+  vm.runInContext(`${html.slice(html.indexOf("  function hsWorkIdentity("), html.indexOf("  function trabajosEnCurso("))}\n${html.slice(start, end)}\nglobalThis.primero = calcula();`, context);
   assert.equal(context.primero[0].actividad, "tareas");
   assert.equal(context.primero[0].workState, "running");
   assert.equal(context.primero[0].workKind, "task");

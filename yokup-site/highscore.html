@@ -464,7 +464,8 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-lanes{gap:2px}
 .refresh-lane{display:grid;grid-template-columns:minmax(148px,210px) minmax(0,1fr) minmax(158px,190px);
   align-items:center;column-gap:4px;min-height:38px}
-.refresh-agent-meta{display:inline-flex;align-items:baseline;justify-content:flex-start;gap:5px;width:100%;min-width:0;
+.refresh-agent-machine{display:flex;align-items:center;gap:4px;flex-wrap:wrap;color:var(--mut);font:8px/1.3 var(--mono)}
+.refresh-agent-meta{display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:1px;width:100%;min-width:0;
   overflow:hidden;color:var(--accent)}
 .refresh-agent{position:static;display:block;flex:0 1 auto;min-width:0;max-width:none;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;text-align:left;color:var(--accent);font-size:11px;font-weight:900;line-height:14px;
@@ -1638,7 +1639,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   function calcula() {
-    var por = {}, principal = {}, id = window.ykAgentIdentity, misionesPorId = {};
+    var por = {}, id = window.ykAgentIdentity, misionesPorId = {};
     datos.misiones.forEach(function (m) { if (m && m.id) misionesPorId[normaliza(m.id)] = m; });
     function claveProyecto(s) {
       return normaliza(s).toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
@@ -1739,6 +1740,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     datos.actividad.forEach(function (a) {
       var f = fila(a.agent, a.machine); if (!f) return;
       f.seenDailyScore = true;
+      if(a.machine&&f.maquinas.indexOf(a.machine)<0)f.maquinas.push(a.machine);
       f.progresion = (typeof progresionTrazada === "function" && progresionTrazada(a)) ||
         a.progression || a.journey || a.lifecycle ||
         (typeof progresionNoEnlazada === "function" && progresionNoEnlazada(a)) || f.progresion;
@@ -1750,30 +1752,35 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       f.ptsMisiones += Number(a.mission_points) || 0;
     });
     // El día sólo trae a quien puntuó hoy. Para que Semana y Mes no dependan de
-    // presencia o trabajo actual, se siembran las identidades del mes natural
-    // (el rango más amplio del selector). No se copian puntos aquí: la tabla los
+    // presencia o trabajo actual, se siembran las identidades de ambos rangos,
+    // incluida la semana que cruza de mes. No se copian puntos aquí: la tabla los
     // lee del histórico canónico mediante metricasRanking().
-    var month = datos.historial && datos.historial.periods && datos.historial.periods.month;
-    if (month && month.start && month.end) {
+    var periods = datos.historial && datos.historial.periods || {};
+    var ranges = [periods.week,periods.month].filter(function(range){return range&&range.start&&range.end;});
+    if (ranges.length) {
       (datos.historial.all_days || []).forEach(function (day) {
-        if (!day || day.day < month.start || day.day > month.end) return;
+        if (!day || !ranges.some(function(range){return day.day>=range.start&&day.day<=range.end;})) return;
         (day.top || []).forEach(function (score) {
-          var agent = id && id.base ? id.base(score && score.agent) : score && score.agent;
-          fila(agent, "");
+          fila(score && score.agent, score && score.machine || "");
         });
       });
     }
+    (datos.trabajos || []).forEach(function(work){
+      var identity=hsWorkIdentity(work),f=fila(identity.agent,identity.machine);if(!f)return;
+      if(identity.machine&&f.maquinas.indexOf(identity.machine)<0)f.maquinas.push(identity.machine);
+      f.seenWork=true;
+    });
     // VIVO = latido RECIENTE; haLatido = existe al menos un registro histórico.
     // Ninguno de los dos suma puntos: presencia y rendimiento son dimensiones
     // distintas. El primero anima la posición; el segundo permite mostrar 0 o —.
     var ahora = Date.now() / 1000;
     datos.presencia.forEach(function (p) {
       var f = fila(p.persona, p.machine); if (!f) return;
+      if(["cli","app"].indexOf(p.host)>=0){f.interfaces=f.interfaces||[];if(f.interfaces.indexOf(p.host)<0)f.interfaces.push(p.host);}
       f.haLatido = true;
       var t = Number(p.updated) || 0; if (t > 1e11) t /= 1000;      // por si llega en ms
       var fresco = t > 0 && (ahora - t) < FRESCO_SEG;
       var d = datosId(p.persona, p.machine), bk = id ? id.key(d.base) : d.base.toLowerCase();
-      if (d.suffix && (!principal[bk] || t > principal[bk].at)) principal[bk] = { suffix:d.suffix, at:t };
       if (p.machine) {
         if (f.maquinas.indexOf(p.machine) < 0) f.maquinas.push(p.machine);
         if (fresco && f.maquinasVivas.indexOf(p.machine) < 0) f.maquinasVivas.push(p.machine);
@@ -1794,6 +1801,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (!machine) return;
       (control.slots || []).forEach(function (slot) {
         var f = fila(slot && slot.persona, machine); if (!f) return;
+        if(["cli","app"].indexOf(slot.host)>=0){f.interfaces=f.interfaces||[];if(f.interfaces.indexOf(slot.host)<0)f.interfaces.push(slot.host);}
         f.haLatido = true;
         if (f.maquinas.indexOf(machine) < 0) f.maquinas.push(machine);
         adoptaRuntime(f, slot.runtime, slot.host, control.updated || slot.updated, false, slot.model);
@@ -1826,22 +1834,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       marcaActividad(taskAgent, t.loc, "tareas", t.updated_at, t.title || t.code,
         mision.project_name || mision.project, [mision.subject, mision.screen, t.title].filter(Boolean).join(" "));
     });
-    // Tareas antiguas y objetivos sin equipo solo firmaban «Neo» o «Morfeo». Se adjudican a
-    // la máquina más recientemente observada de esa familia; las presencias con
-    // máquina propia siguen siendo filas separadas, así nunca se confunden MBP/MBA.
-    Object.keys(por).forEach(function (k) {
-      var f = por[k]; if (f.suffix) return;
-      var bk = id ? id.key(f.base) : f.base.toLowerCase(), pick = principal[bk];
-      if (!pick) return;
-      var targetKey = bk + "|" + pick.suffix;
-      if (!por[targetKey]) por[targetKey] = { agente:f.base, base:f.base, suffix:pick.suffix,
-        objetivos:0, ptsObjetivos:0, ventanas:0, ptsVentanas:0,
-        misiones:0, ptsMisiones:0, tareas:0, ptsTareas:0, seenDailyScore:false, seenTask:false,
-        vivo:false, haLatido:false, runtime:"", runtimePeso:0, runtimeAt:0, maquinas:[], maquinasVivas:[],
-        actividad:"", actividadAt:0, actividadDetalle:"", progresion:null,
-        proyecto:"", proyectoUrl:"", proyectoAt:0, proyectoPeso:0 };
-      suma(por[targetKey], f); delete por[k];
-    });
+    // Sin máquina declarada se conserva la identidad sin equipo: no se traslada
+    // su puntuación a la máquina que casualmente haya emitido el último latido.
     // PROYECTO PRINCIPAL DEL CENSO (Carlos, 2026-08-05). La columna se derivaba
     // SÓLO del trabajo reciente: un agente sin misión/objetivo con proyecto en
     // las últimas horas salía con «—» aunque el censo lo declare responsable de
@@ -1965,7 +1959,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var workByAgent = Object.create(null);
     if (datos.trabajosAvailable) (datos.trabajos || []).forEach(function (work) {
       if (!work) return;
-      workByAgent[claveAgenteCarrera(work.agent)] = work;
+      workByAgent[hsWorkIdentity(work).key] = work;
     });
     lista.forEach(function (fila) {
       var work = workByAgent[claveAgenteCarrera(fila.agente)];
@@ -2051,15 +2045,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return ({ hour:"esta hora", day:"hoy", week:"esta semana", month:"este mes" })[periodo] || "hoy";
   }
 
-  // El ranking es por AGENTE, no por la grafía histórica ni por el ordenador.
-  // En all_days aún conviven MorfeoMini, MorfeoMacMini y MorfeoMBA16; son el
-  // mismo Morfeo y sus puntos tienen que reunirse igual que ya hace la tabla
-  // diaria. Niobe sigue siendo Niobe: la identidad resuelve la persona, no
-  // confunde agentes distintos que hayan usado el mismo equipo físico.
-  function claveAgentePeriodo(value) {
-    var identity = window.ykAgentIdentity;
-    var base = identity && typeof identity.base === "function" ? identity.base(value) : value;
-    return claveAgenteCarrera(base);
+  // El periodo conserva persona y máquina; sólo se unifican alias del mismo equipo.
+  function claveAgentePeriodo(value, machine) {
+    var identity = window.ykAgentIdentity, parsed=identity&&identity.parse?identity.parse(value):null;
+    var canonical=identity&&identity.display?identity.display(parsed&&parsed.persona||value,machine||parsed&&parsed.suffix||""):value;
+    return claveAgenteCarrera(canonical);
   }
 
   function metricasRanking(a, periodo) {
@@ -2083,7 +2073,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     (Array.isArray(history.all_days) ? history.all_days : []).forEach(function (row) {
       if (!row || row.day < range.start || row.day > range.end) return;
       (Array.isArray(row.top) ? row.top : []).forEach(function (score) {
-        if (claveAgentePeriodo(score && score.agent) !== agentKey) return;
+        if (claveAgentePeriodo(score && score.agent, score && score.machine) !== agentKey) return;
         fields.forEach(function (field) { result[field] += Math.max(0, Number(score && score[field]) || 0); });
       });
     });
@@ -2122,7 +2112,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     days.forEach(function (row) {
       if (!row || row.day < range.start || row.day > range.end) return;
       (Array.isArray(row.top) ? row.top : []).forEach(function (score) {
-        if (claveAgentePeriodo(score && score.agent) === agentKey) points += Math.max(0, Number(score.points) || 0);
+        if (claveAgentePeriodo(score && score.agent, score && score.machine) === agentKey) points += Math.max(0, Number(score.points) || 0);
       });
     });
     return points;
@@ -2495,7 +2485,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function nombreAgenteVisible(valor) {
     var raw = normaliza(valor), identity = window.ykAgentIdentity;
     var parsed = identity && identity.parse ? identity.parse(raw) : null;
-    return parsed && parsed.persona ? parsed.persona : raw;
+    return identity&&identity.display?identity.display(parsed&&parsed.persona||raw,parsed&&parsed.suffix||""):raw;
   }
 
   function agentNameHtml(a) {
@@ -2770,13 +2760,15 @@ body.resizing-columns{cursor:col-resize;user-select:none}
      máquina, dos grafías del mismo equipo se funden en UNA pastilla en vez de partir
      el equipo en dos: se normaliza, nunca se comparan literales. */
   function interfazCliHtml(a) {
-    return normaliza(a && a.via).toLowerCase() === "cli"
-      ? '<span class="maq-b cli-chip" title="Interfaz de línea de comandos">CLI</span>' : "";
+    var values=Array.isArray(a&&a.interfaces)&&a.interfaces.length?a.interfaces:[a&&a.via];
+    return Array.from(new Set(values.map(function(value){return normaliza(value).toLowerCase();}))).filter(function(value){return value==="cli"||value==="app";}).sort().map(function(value){
+      return '<span class="maq-b cli-chip" title="'+(value==="cli"?'Interfaz de línea de comandos':'Aplicación de escritorio')+'">'+value.toUpperCase()+'</span>';
+    }).join("");
   }
   function pintaMaquinas(a, tope) {
     var id = typeof window !== "undefined" && window.ykAgentIdentity;
-    var vivas = a.maquinasVivas.slice().sort();
-    var frias = a.maquinas.filter(function (m) { return vivas.indexOf(m) < 0; }).sort();
+    var vivas = (a.maquinasVivas||[]).slice().sort();
+    var frias = (a.maquinas||[]).filter(function (m) { return vivas.indexOf(m) < 0; }).sort();
     var todas = [], porAlias = {};
     vivas.map(function (m) { return { m: m, on: true }; })
       .concat(frias.map(function (m) { return { m: m, on: false }; }))
@@ -3271,7 +3263,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
      doble clic calcula el ancho necesario para el contenido de esa columna. */
   var COLUMNAS_KEY = "yokup.highscore.columnas.v1";
   var AGENT_SCOPE_KEY = "yokup.highscore.agents.v1";
-  var AGENT_SCOPE_MODE_KEY = "yokup.highscore.agents.mode.v2";
+  var AGENT_SCOPE_MODE_KEY = "yokup.highscore.agents.mode.v3";
   var DASHBOARD_TEAM_SCOPE_KEY = "yokup.dashboard.teams.v1";
   var AGENT_SCOPE = hsReadAgentScope();
   var AGENT_SCOPE_MODE = hsReadAgentScopeMode();
@@ -3306,7 +3298,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function hsReadAgentScopeMode() {
     try {
       var mode = localStorage.getItem(AGENT_SCOPE_MODE_KEY);
-      return ["active", "manual", "all"].indexOf(mode) >= 0 ? mode : "legacy";
+      if(["active","manual","all"].indexOf(mode)>=0)return mode;
+      var previous=localStorage.getItem("yokup.highscore.agents.mode.v2");
+      return previous==="manual"?"manual":previous==="active"||previous==="all"?"legacy-default":"legacy";
     } catch (_) { return "legacy"; }
   }
 
@@ -3348,15 +3342,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
 
   function hsAgentScopeMigration(scope, mode, keys, activeKeys) {
+    if(mode==="legacy-default")return {scope:null,mode:"all",changed:true};
     if (mode !== "legacy") return { scope:scope, mode:mode, changed:false };
-    if (!(activeKeys instanceof Set)) return { scope:scope, mode:mode, changed:false };
-    // La versión anterior guardaba `null` —o el array completo— para «Todos».
-    // Ese estado no era una decisión selectiva y se migra al nuevo valor seguro:
-    // únicamente procesos Desktop App verificados y frescos. Un subconjunto sí
-    // fue una elección explícita y se conserva exactamente.
-    if (scope === null || hsCoversAgentKeys(scope, keys))
-      return { scope:new Set(Array.from(activeKeys || [])), mode:"active", changed:true };
-    return { scope:new Set(Array.from(scope)), mode:"manual", changed:true };
+    if (scope === null || hsCoversAgentKeys(scope, keys))return {scope:null,mode:"all",changed:true};
+    return {scope:new Set(Array.from(scope)),mode:"manual",changed:true};
   }
 
   function hsEnsureAgentScopeMode(items, activeKeys) {
@@ -3635,7 +3624,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       (typeof AGENT_SCOPE_MODE === "undefined" ? AGENT_SCOPE : hsEffectiveAgentScope());
     var porDefecto = arguments.length < 2 && typeof AGENT_SCOPE_MODE !== "undefined" && AGENT_SCOPE_MODE === "active";
     var filtrada = (lista || []).filter(function (fila) {
-      return hsAgentScopeAllows(effective, fila && fila.agente) || (porDefecto && hsHaPuntuadoHoy(fila));
+      return hsAgentScopeAllows(effective, fila && fila.agente) || (porDefecto && (hsHaPuntuadoHoy(fila)||["running","assigned_stale"].indexOf(fila&&fila.workState)>=0));
     });
     return filtrada.map(function (fila, indice) {
       var copia = Object.assign({}, fila); copia.posicion = indice + 1; return copia;
@@ -3770,8 +3759,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     });
   }
 
-  // El selector representa PERSONAS, no sesiones ni equipos: cada periodo
-  // muestra una sola fila por identidad base. El colapso ocurre después del
+  // Cada periodo conserva persona + equipo: sólo colapsan alias físicos.
+  // La consolidación ocurre después del
   // scope exacto y antes del filtro/orden, une metadatos estables y conserva los
   // miembros operativos únicos para que Hora/Día sumen cada fuente una vez.
   // Semana/Mes leen el histórico ya deduplicado una sola vez por persona.
@@ -3813,7 +3802,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     }
     function memberKey(row) {
       var machines = [].concat(row && row.maquinas || [], row && row.maquinasVivas || []);
-      var raw = normaliza(row && (row.base || row.agente));
+      var raw = normaliza(row && (row.agente || row.base));
       var parsed = identity && identity.parse ? identity.parse(raw) : null;
       var machine = row && (row.suffix || row.machine || row.maquina || row.loc) || machines[0] || "";
       var suffix = identity && identity.suffix ? (identity.suffix(machine) || parsed && parsed.suffix || "") : machine;
@@ -3825,13 +3814,15 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       if (!target.rankingMembers.some(function (member) { return memberKey(member) === key; })) target.rankingMembers.push(row);
     }
     rows.slice().sort(function (a, b) { return stableKey(a).localeCompare(stableKey(b), "es"); }).forEach(function (row) {
-      var key = claveAgentePeriodo(row.agente) || hsAgentKey(row.agente);
+      var key = memberKey(row);
       if (!key) return;
       var target = byAgent[key];
       if (!target) {
         target = Object.assign({}, row);
         target.base = identity && identity.base ? identity.base(row.agente) : (row.base || row.agente);
-        target.agente = target.base || row.agente; target.suffix = "";
+        var parsed = identity&&identity.parse?identity.parse(row.agente):null;
+        target.suffix = row.suffix || parsed&&parsed.suffix || (identity&&identity.suffix?identity.suffix((row.maquinas||[])[0]):"") || "";
+        target.agente = identity&&identity.display?identity.display(target.base,target.suffix):row.agente;
         target.maquinas = []; target.maquinasVivas = [];
         target.rankingMembers = []; target.proyectos = [];
         addMember(target, row);
@@ -3841,6 +3832,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       }
       addMember(target, row);
       mergeList(target, row, "maquinas"); mergeList(target, row, "maquinasVivas");
+      target.interfaces=Array.from(new Set([].concat(target.interfaces||target.via||[],row.interfaces||row.via||[]))).filter(Boolean);
       mergeProjects(target, row);
       target.vivo = !!(target.vivo || row.vivo); target.haLatido = !!(target.haLatido || row.haLatido);
       target.seenDailyScore = !!(target.seenDailyScore || row.seenDailyScore);
@@ -4616,11 +4608,17 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return normaliza(agente).toLowerCase().replace(/[^a-z0-9]/g, "");
   }
 
+  function hsWorkIdentity(item){
+    item=item||{};var identity=window.ykAgentIdentity,raw=normaliza(item.agent||item.agente),parsed=identity&&identity.parse?identity.parse(raw):null;
+    var family=normaliza(item.family_key).split("@"),machine=normaliza(item.machine||item.loc||parsed&&parsed.suffix||family[1]||"");
+    var agent=identity&&identity.display?identity.display(parsed&&parsed.persona||raw,machine):raw;
+    return {agent:agent,machine:machine,key:claveAgenteCarrera(agent)};
+  }
   function trabajosEnCurso() {
     var seen = Object.create(null), priority = { objective:1, mission:2, task:3 };
     (datos.trabajos || []).forEach(function (item) {
       if (!item || !normaliza(item.agent) || !normaliza(item.executor)) return;
-      var key = normaliza(item.family_key) || claveAgenteCarrera(item.agent), previous = seen[key];
+      var key = hsWorkIdentity(item).key, previous = seen[key];
       var itemAt = Number(item.state === "last_work" ? item.ended_at : item.work_progress_at) || 0;
       var previousAt = Number(previous && (previous.state === "last_work" ? previous.ended_at : previous.work_progress_at)) || 0;
       if (!previous || item.state === "last_work" && previous.state === "last_work" && itemAt > previousAt ||
@@ -4629,8 +4627,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
           item.state === previous.state && priority[item.kind] === priority[previous.kind] && itemAt > previousAt)) seen[key] = item;
     });
     return Object.keys(seen).map(function (key) {
-      var item = seen[key];
-      return { key:claveAgenteCarrera(item.agent), agente:item.agent, executor:item.executor,
+      var item = seen[key],identity=hsWorkIdentity(item);
+      return { key:identity.key, agente:identity.agent, machine:identity.machine, executor:item.executor,
         reference:item.reference || "",
         projectId:item.project_id || "", projectName:item.project_name || "", detailUrl:item.detail_url || "",
         kind:item.kind, title:item.title || (item.kind === "task" ? "Tarea activa" : item.kind === "mission" ? "Misión activa" : "Objetivo en curso"),
@@ -4642,7 +4640,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         timingBasis:item.timing_basis || "", presenceAt:Number(item.presence_at) || 0,
         sessionDedicatedMs:Number.isFinite(Number(item.session_dedicated_ms)) ? Number(item.session_dedicated_ms) : null,
         sessionState:item.session_state || "unknown", sessionBasis:item.dedicated_basis || item.session_basis || "",
-        sessionSurface:item.session_surface || "" };
+        sessionSurface:item.host || item.session_surface || "", runtime:item.runtime || "" };
     }).sort(function (a, b) { return (a.state === "running" ? -1 : 1) - (b.state === "running" ? -1 : 1) ||
       (b.state === "last_work" ? b.endedAt : b.at) - (a.state === "last_work" ? a.endedAt : a.at) ||
       a.agente.localeCompare(b.agente, "es"); });
@@ -4715,7 +4713,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   function identidadVisualCorredor(nombre, fila) {
     var raw = normaliza(nombre), id = window.ykAgentIdentity;
     var parsed = id && id.parse ? id.parse(raw) : null;
-    var visible = parsed && parsed.persona ? parsed.persona : raw;
+    var visible = id&&id.display?id.display(parsed&&parsed.persona||raw,parsed&&parsed.suffix||fila&&fila.suffix||""):raw;
     var candidatos = [parsed && parsed.suffix, fila && fila.suffix].concat(
       (fila && fila.maquinasVivas) || [], (fila && fila.maquinas) || []
     );
@@ -4771,7 +4769,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function actualizaCarreraPodio() {
     var contenedor = document.getElementById("refreshLanes");
-    var trabajos = trabajosCarrera(), completas = listaCompletaCache || [], byKey = Object.create(null);
+    var completas=listaVisible(aplicaAgentScope(listaCompletaCache||[])),byKey=Object.create(null);
+    var scopeKeys=new Set(completas.map(function(row){return claveAgenteCarrera(row.agente);}));
+    var trabajos=trabajosCarrera().filter(function(work){return scopeKeys.has(work.key);});
     completas.forEach(function (fila) { byKey[claveAgenteCarrera(fila && fila.agente)] = fila; });
     var corredores = trabajos.map(function (trabajo, index) {
       var base = byKey[trabajo.key] || { agente:trabajo.agente, posicion:completas.length + index + 1,
@@ -4840,7 +4840,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         '. Tiempo de sesión ' + esc(resumen.sessionDuration) + '">' +
         '<span class="refresh-agent-meta"><span class="refresh-agent" data-race-role="agent" tabindex="0" title="' + esc(identidadVisible.machine) +
           '" aria-label="' + esc(identidadVisible.nombre) + ' · máquina ' + esc(identidadVisible.machine) + '">' +
-          esc(identidadVisible.nombre) + '</span><span class="refresh-agent-project" data-race-role="project" title="Proyecto responsable: ' +
+          esc(identidadVisible.nombre) + '</span><span class="refresh-agent-machine">' + esc(identidadVisible.machine) + interfazCliHtml({via:enlace.trabajo.sessionSurface,interfaces:enlace.trabajo.sessionSurface?[enlace.trabajo.sessionSurface]:fila.interfaces}) + '</span><span class="refresh-agent-project" data-race-role="project" title="Proyecto responsable: ' +
           esc(proyectoResponsable) + '" aria-label="Proyecto responsable ' + esc(proyectoResponsable) + '">// ' +
           esc(proyectoResponsable) + '</span></span>' +
         '<div class="refresh-lane-center"><div class="refresh-track">' +
