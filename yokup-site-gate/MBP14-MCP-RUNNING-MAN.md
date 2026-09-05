@@ -29,3 +29,11 @@ La interfaz sí confundía visualmente `assigned_stale` y `last_work`: ambos ten
 Desde MBP14: `initialize`, `yokup_whoami` y `yokup_mission` por el puente stdio contra `https://yokup.com/mcp`, con identidad y misión correctas. Parser, límite de transcript, privacidad, finalización e instalador: 19 pruebas superadas. Las reproducciones históricas son pruebas locales; nunca se enviaron como actividad actual.
 
 El diagnóstico y los cambios están registrados mediante MCP en la misión 2741. No se registran mensajes a otros agentes ni se ejecuta trabajo nuevo en nombre de NeoMBP14.
+
+## Publicación y cierre
+
+Publicado y verificado en producción: **v.05.09.2026.r26.23:18**, código `a77646c35d84afddfa03b264e635de22c1196c72`, checkout limpio. La página real de Highscore confirmó el sello y la misión de esta corrección en su sesión APP durante la verificación.
+
+La misión **2741** queda **resuelta**, con A/B/C y cierre canónico completados; estado persistido releído mediante MCP y sin referencia activa en `/highscore/active-work`. Evidencia técnica: https://api.yokup.com/media/fleet/93e02f1194cf2f3e.png. Evidencia canónica del cierre: https://api.yokup.com/media/fleet/e13ccf8224f848cd.png.
+
+Límite de la validación: el MCP está conectado y su lectura real verificada, pero no se ha observado todavía un encargo nuevo de NeoMBP14 usando esta conexión. No se simula esa ejecución ni se mantiene abierta la misión de instalación para aparentarla.
