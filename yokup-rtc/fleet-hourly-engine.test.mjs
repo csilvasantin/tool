@@ -119,7 +119,7 @@ test('guard consumidor vincula el run con agente, máquina, runtime y superficie
   const env=await setup(),pref=env.DB.raw.prepare('SELECT * FROM fleet_agent_modes').get();
   env.DB.raw.prepare("INSERT INTO fleet_agent_mode_runs(id,identity_key,hour_start,mode,project_id,status,command_id,created_at,updated_at) VALUES('HMODE-guard',?,?,'learning','yokup','dispatched','17',?,?)").run(pref.identity_key,now,now,now);
   env.DB.raw.prepare("INSERT INTO fleet_hourly_family_leases VALUES('morfeo|macmini','HMODE-guard',?)").run(now+HOUR);
-  const context={ensureHourlyModeSchema,modeTargetKey,hourlyModeProject:projectFor,hourlyModeActivity:async()=>({busy:false})};
+  const context={URL,normalizeModeTarget,ensureHourlyModeSchema,modeTargetKey,hourlyModeProject:projectFor,hourlyModeActivity:async()=>({busy:false})};
   vm.runInNewContext(fn('hourlyModeGuard')+';this.guard=hourlyModeGuard',context);
   assert.equal((await context.guard(env,'HMODE-guard',now,normalizeModeTarget(target))).allowed,true);
   for (const change of [{persona:'Oraculo'},{machine:'MacBook Pro 16'},{runtime:'Codex'},{host:'cli'}]) {
@@ -138,4 +138,86 @@ test('dos superficies de la misma familia no despachan simultáneamente aunque a
   assert.equal(calls,1);
   const rows=env.DB.raw.prepare('SELECT status,reason FROM fleet_agent_mode_runs').all();
   assert.equal(rows.filter(row=>row.reason==='family_busy').length,1);
+});
+
+test('runner aislado usa capability por perfil exacto y despacha a cola sin inyectar ni abrir sesión',async()=>{
+  const cli={...target,host:'cli'},data=telemetry();
+  data.control_machines[0].capabilities.push('hourly_cli_claude');
+  data.control_machines[0].hourly_targets=[cli];data.control_machines[0].slots.push(cli);
+  const {evaluateModeOpportunity}=await import('./src/fleet-hourly-modes.js');
+  assert.equal(evaluateModeOpportunity({...cli,mode:'learning'},data,{},now).eligible,true);
+  assert.equal(evaluateModeOpportunity({...cli,persona:'Neo',mode:'learning'},data,{},now).eligible,false);
+  let queued;
+  const context={Request,URL,Date,hourlyModeGuard:async()=>({allowed:true}),hourlyModeTelemetry:async()=>data,hourlyModeActivity:async()=>({busy:false}),evaluateModeOpportunity};
+  vm.runInNewContext(fn('executeHourlyMode')+';this.execute=executeHourlyMode',context);
+  // Live clock telemetry used by the adapter: independent of historical fixture.
+  data.control_machines[0].updated=data.control_machines[0].human_sampled_at=Date.now()/1000;
+  const env={ADMIRA_TELEGRAM_PANEL_KEY:'test',TELEGRAM:{fetch:async req=>{queued=await req.json();return Response.json({ok:true,command_id:88});}}};
+  const result=await context.execute(env,{id:'HMODE-isolated',pref:{...cli,mode:'training'},project:{id:'yokup',web:'www.yokup.com'},now:Date.now()});
+  assert.equal(result.status,'dispatched');assert.equal(queued.run_id,'HMODE-isolated');assert.equal(queued.project_url,'https://www.yokup.com/');assert.equal(queued.host,'cli');assert.equal(queued.text,undefined);
+});
+
+async function workContext() {
+  const env=await setup();
+  env.DB.raw.exec("CREATE TABLE tickets(id TEXT PRIMARY KEY,screen TEXT,subject TEXT,loc TEXT,role TEXT,status TEXT,priority TEXT,assignee TEXT,source TEXT,ai_triage TEXT,project TEXT,project_id TEXT,created_at INTEGER,started_at INTEGER,updated_at INTEGER,live_at INTEGER); CREATE TABLE mission_tasks(mission_id TEXT,code TEXT,title TEXT,status TEXT,owner TEXT,executor TEXT,report TEXT,created_at INTEGER,started_at INTEGER,updated_at INTEGER);");
+  env.DB.batch=async statements=>{env.DB.raw.exec('BEGIN');try {const results=[];for(const statement of statements)results.push(await statement.run());env.DB.raw.exec('COMMIT');return results;}catch(e){env.DB.raw.exec('ROLLBACK');throw e;}};
+  const pref=env.DB.raw.prepare('SELECT * FROM fleet_agent_modes').get(),id='HMODE-'+'a'.repeat(28);
+  env.DB.raw.prepare("INSERT INTO fleet_agent_mode_runs(id,identity_key,hour_start,mode,project_id,status,created_at,updated_at) VALUES(?,?,?,'learning','yokup','dispatched',?,?)").run(id,pref.identity_key,now,now,now);
+  let allowed=true;
+  const context={URL,normalizeModeTarget,modeTargetKey,scopedAgentIdentity:(agent,machine,role)=>role+agent,hourlyModeGuard:async()=>({allowed,reason:allowed?'ready':'preference_changed'}),ensureEntityDisplayRef:async()=>{},hourlyModeProject:projectFor,validateTrainingProposals};
+  vm.runInNewContext(fn('hourlyModeWork')+';this.work=hourlyModeWork',context);
+  return {env,id,work:body=>context.work(env,{run_id:id,target,...body},now),revoke:()=>{allowed=false;}};
+}
+
+test('alta antes investigación crea misión+tarea exactas y CAS publica una sola vez',async()=>{
+  const {env,work,id}=await workContext();
+  const registered=await work({stage:'start'});assert.ok(registered.work_id.startsWith('HWR-'));
+  const task=env.DB.raw.prepare('SELECT * FROM mission_tasks').get();assert.equal(task.status,'in_progress');assert.ok(task.report.includes(id));assert.match(task.owner,/sub/i);
+  assert.equal((await work({stage:'start'})).reused,true);
+  await work({stage:'report',result:{title:'Contratos verificables',comment:'Observación concreta y aplicación al proyecto: '.repeat(5),source_url:'https://yokup.com/'}});
+  const attempts=await Promise.allSettled([work({stage:'publish_claim'}),work({stage:'publish_claim'})]);
+  assert.equal(attempts.filter(r=>r.status==='fulfilled').length,1);
+  assert.equal(env.DB.raw.prepare('SELECT publish_claim FROM fleet_hourly_work').get().publish_claim,1);
+  await assert.rejects(()=>work({stage:'report',result:{title:'Un informe cambiado',comment:'Otra observación '.repeat(15),source_url:'https://yokup.com/'}}),/transcript_immutable/);
+});
+
+test('cancelación Manual permite registrar fallo honesto sin guard y nunca borra entrega ni reabre cierre',async()=>{
+  const {env,work,revoke}=await workContext();
+  await work({stage:'start'});revoke();
+  const result=await work({stage:'fail',reason:'preference_changed'});assert.equal(result.status,'unconcluded');
+  assert.equal(env.DB.raw.prepare('SELECT status FROM fleet_agent_mode_runs').get().status,'failed');
+  assert.match(env.DB.raw.prepare('SELECT report FROM mission_tasks').get().report,/preference_changed/);
+  env.DB.raw.exec("UPDATE fleet_agent_mode_runs SET status='completed',deliverable_url='https://www.pixeria.com/stock';UPDATE tickets SET status='resolved'");
+  const closed=await work({stage:'fail',reason:'network_error'});assert.equal(closed.status,'resolved');
+  assert.equal(env.DB.raw.prepare('SELECT status FROM tickets').get().status,'resolved');
+  assert.equal(env.DB.raw.prepare('SELECT status FROM fleet_agent_mode_runs').get().status,'completed');
+});
+
+test('actividad excluye únicamente investigación enlazada al mismo run y destino',async()=>{
+  const {env,work,id}=await workContext();await work({stage:'start'});
+  env.DB.raw.exec('CREATE TABLE decisions(agent TEXT,machine TEXT,status TEXT,deadline INTEGER)');
+  const context={modeTargetKey,AGENT_SOURCE_SQL:"source='cli-declare'",matchesOnIdleIdentity:(row,t)=>row.assignee==='MorfeoMacMini'};
+  vm.runInNewContext(fn('hourlyModeActivity')+';this.activity=hourlyModeActivity',context);
+  assert.equal((await context.activity(env,target,{id:'yokup'},now,id)).busy,false);
+  assert.equal((await context.activity(env,target,{id:'yokup'},now)).busy,true);
+  env.DB.raw.exec("INSERT INTO tickets(id,assignee,loc,source,status) VALUES('OTHER','MorfeoMacMini','MacMini','cli-declare','in_progress')");
+  assert.equal((await context.activity(env,target,{id:'yokup'},now,id)).busy,true);
+});
+
+test('reconcile hourly_run valida acción/destino y nunca pisa callback completado durante lectura',async()=>{
+  const env=await setup();
+  const pref=await saveAgentMode(env,{...target,host:'cli',mode:'learning'},'carlos@example.test',projectFor,now-HOUR/2);
+  const id='HMODE-'+'b'.repeat(28);
+  env.DB.raw.prepare("INSERT INTO fleet_agent_mode_runs(id,identity_key,hour_start,mode,project_id,status,command_id,created_at,updated_at) VALUES(?,?,?,'learning','yokup','dispatched','99',?,?)").run(id,pref.identity_key,now,now,now);
+  const command={...target,host:'cli',action:'hourly_run',status:'done',input:JSON.stringify({run_id:id})};
+  env.TELEGRAM={fetch:async()=>Response.json({command})};
+  const readContext={Request,modeTargetKey};
+  vm.runInNewContext(fn('readHourlyModeCommand')+';this.read=readHourlyModeCommand',readContext);
+  assert.equal((await readContext.read(env,{id,command_id:'99'},pref)).status,'done');
+  command.persona='Neo';await assert.rejects(()=>readContext.read(env,{id,command_id:'99'},pref),/hourly_command_mismatch/);command.persona='Morfeo';
+  const context={hourlySlot,readHourlyModeCommand:async()=>{env.DB.raw.prepare("UPDATE fleet_agent_mode_runs SET status='completed',deliverable_url='https://delivery.example/real' WHERE id=?").run(id);return {status:'done'};}};
+  vm.runInNewContext(fn('resumeHourlyModes')+';this.resume=resumeHourlyModes',context);
+  await context.resume(env,now);
+  const run=env.DB.raw.prepare('SELECT * FROM fleet_agent_mode_runs WHERE id=?').get(id);
+  assert.equal(run.status,'completed');assert.equal(run.deliverable_url,'https://delivery.example/real');
 });

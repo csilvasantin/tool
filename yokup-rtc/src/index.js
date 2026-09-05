@@ -1919,13 +1919,14 @@ async function hourlyModeProject(env, target, requestedProjectId = "", now = Dat
   if (!project) throw Object.assign(new Error('project_required'),{status:409});
   return project;
 }
-async function hourlyModeActivity(env,target,project,now) {
+async function hourlyModeActivity(env,target,project,now,ownRunId="") {
+  const linked=ownRunId?await env.DB.prepare("SELECT w.mission_id FROM fleet_hourly_work w JOIN fleet_agent_mode_runs r ON r.id=w.run_id WHERE w.run_id=? AND r.identity_key=?").bind(ownRunId,modeTargetKey(target)).first():null;
   const [missions,tasks,decisions]=await Promise.all([
     env.DB.prepare("SELECT id,assignee,loc FROM tickets WHERE "+AGENT_SOURCE_SQL+" AND status IN ('open','in_progress','unconcluded')").all(),
-    env.DB.prepare("SELECT t.assignee,t.loc,m.owner FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE m.status IN ('in_progress','doing','active','unconcluded') AND t.status NOT IN ('resolved','cancelled')").all(),
+    env.DB.prepare("SELECT t.id,t.assignee,t.loc,m.owner FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE m.status IN ('in_progress','doing','active','unconcluded') AND t.status NOT IN ('resolved','cancelled')").all(),
     env.DB.prepare("SELECT agent,machine FROM decisions WHERE status='pending' AND deadline>?").bind(now).all()
   ]);
-  if ((missions.results||[]).some(row=>matchesOnIdleIdentity(row,target)) || (tasks.results||[]).some(row=>matchesOnIdleIdentity(row,target))) return {busy:true,reason:'active_mission'};
+  if ((missions.results||[]).some(row=>row.id!==linked?.mission_id && matchesOnIdleIdentity(row,target)) || (tasks.results||[]).some(row=>row.id!==linked?.mission_id && matchesOnIdleIdentity(row,target))) return {busy:true,reason:'active_mission'};
   if ((decisions.results||[]).some(row=>matchesOnIdleIdentity({assignee:row.agent,loc:row.machine},target))) return {busy:true,reason:'live_decision'};
   return {busy:false};
 }
@@ -1948,9 +1949,10 @@ async function hourlyModeInventory(env) {
     const capabilities=machine?.capabilities || [],now=Date.now()/1000,sampled=Number(machine?.updated || 0),fresh=sampled>0 && now-sampled<=30 && sampled<=now+5;
     const configured=(machine?.slots || []).some(slot=>modeTargetKey({...slot,machine:machine.machine})===row.identity_key);
     const observed=(telemetry.presence || []).some(item=>modeTargetKey(item)===row.identity_key && item.source==='process_snapshot' && (item.verified===true || item.verified===1) && Number(item.updated)>0 && now-Number(item.updated)<=30 && Number(item.updated)<=now+5);
-    const supported=fresh && (configured || observed) && capabilities.includes('hourly_modes') && capabilities.includes(row.host==='app'?'desktop_write':'terminal_write') && (row.host==='app'?capabilities.includes('hourly_desktop_'+row.runtime.toLowerCase()):capabilities.includes('hourly_learning_cli'));
+    const supported=fresh && (row.host==='cli'?configured:(configured || observed)) && capabilities.includes('hourly_modes') && capabilities.includes(row.host==='app'?'desktop_write':'hourly_cli_'+row.runtime.toLowerCase()) && (row.host==='app'?capabilities.includes('hourly_desktop_'+row.runtime.toLowerCase()):(machine.hourly_targets || []).some(target=>modeTargetKey({...target,machine:target.machine || machine.machine})===row.identity_key));
     row.available_modes=supported?['manual','learning','training']:['manual'];
-    row.support_reason=supported?'':fresh?'consumer_unavailable':'telemetry_unavailable';
+    const unavailable=(machine?.hourly_unavailable || []).some(item=>item.runtime===row.runtime && item.host===row.host && item.reason==='auth_verification_required');
+    row.support_reason=supported?'':!fresh?'telemetry_unavailable':unavailable?'claude_cli_auth_verification_required':'consumer_unavailable';
   }
   return [...items.values()];
 }
@@ -1963,10 +1965,10 @@ async function hourlyModeGuard(env,id,now=Date.now(),expectedTarget=null) {
   if (!pref || pref.mode!==run.mode || pref.mode==='manual' || pref.project_id!==run.project_id || pref.enabled_at>run.created_at) return {allowed:false,reason:'preference_changed'};
   const lease=await env.DB.prepare('SELECT run_id FROM fleet_hourly_family_leases WHERE run_id=? AND expires_at>?').bind(id,now).first();
   if (!lease) return {allowed:false,reason:'family_lease_expired'};
-  try { await hourlyModeProject(env,pref,run.project_id,now); } catch { return {allowed:false,reason:'principal_project_changed'}; }
-  const activity=await hourlyModeActivity(env,pref,{id:run.project_id},now);
+  let project;try { project=await hourlyModeProject(env,pref,run.project_id,now); } catch { return {allowed:false,reason:'principal_project_changed'}; }
+  const activity=await hourlyModeActivity(env,pref,{id:run.project_id},now,id);
   if (activity.busy) return {allowed:false,reason:activity.reason};
-  return {allowed:true,reason:'ready'};
+  return {allowed:true,reason:'ready',run_id:id,mode:run.mode,project_id:run.project_id,project_url:project?.web?new URL(/^https?:/.test(project.web)?project.web:'https://'+project.web).href:'',target:normalizeModeTarget(pref)};
 }
 async function executeHourlyMode(env,run) {
   const guard=await hourlyModeGuard(env,run.id,run.now);
@@ -1974,6 +1976,12 @@ async function executeHourlyMode(env,run) {
   // Re-sample before a side effect; the first evaluation can be several awaits old.
   const state=evaluateModeOpportunity(run.pref,await hourlyModeTelemetry(env),await hourlyModeActivity(env,run.pref,run.project,Date.now()),Date.now());
   if (!state.eligible) return {status:'skipped',reason:state.reason};
+  if (run.pref.host==='cli') {
+    const projectUrl=new URL(/^https?:/.test(run.project.web || '')?run.project.web:'https://'+run.project.web).href;
+    const response=await env.TELEGRAM.fetch(new Request('https://telegram/api/fleet/agent/hourly-run',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+env.ADMIRA_TELEGRAM_PANEL_KEY},body:JSON.stringify({...run.pref,run_id:run.id,project_id:run.project.id,project_url:projectUrl})}));
+    const result=await response.json();if (!response.ok || !result.ok || !result.command_id) throw new Error(result.error || 'hourly_dispatch_failed');
+    return {status:'dispatched',reason:'isolated_research_queued',command_id:result.command_id};
+  }
   if (state.start) {
     const started=await dispatchAgentStart(env,normalizeAgentStartTarget(state.target));
     return {status:'starting',reason:'waiting_for_process',command_id:started.result.command_id};
@@ -2003,15 +2011,22 @@ async function executeHourlyMode(env,run) {
   const dispatched=run.pref.host==='app' ? await dispatchDesktopWrite(env,target) : await dispatchCliTerminal(env,{...target,action:'write',text:prompt+'\n'});
   return {status:'dispatched',reason:'awaiting_consumer',command_id:dispatched.result.command_id};
 }
+async function readHourlyModeCommand(env,row,pref) {
+  const response=await env.TELEGRAM.fetch(new Request('https://telegram/api/fleet/agent/commands/'+encodeURIComponent(row.command_id),{headers:{accept:'application/json',authorization:'Bearer '+env.ADMIRA_TELEGRAM_PANEL_KEY}}));
+  if (!response.ok) throw new Error('hourly_command_unavailable');
+  const data=await response.json(),command=data.command || {},input=JSON.parse(command.input || '{}');
+  if (command.action!=='hourly_run' || input.run_id!==row.id || modeTargetKey(command)!==pref.identity_key || !['queued','running','done','failed'].includes(command.status)) throw new Error('hourly_command_mismatch');
+  return command;
+}
 async function resumeHourlyModes(env,now) {
   const rows=(await env.DB.prepare("SELECT * FROM fleet_agent_mode_runs WHERE status IN ('starting','dispatched') ORDER BY created_at LIMIT 40").all()).results || [];
   for (const row of rows) {
     if (!row.command_id) continue;
     const pref=await env.DB.prepare('SELECT * FROM fleet_agent_modes WHERE identity_key=?').bind(row.identity_key).first();
     if (!pref) continue;
-    let result;
+    let result,claimedForResume=false;
     try {
-      const command=row.status==='starting'?await readAgentControlResult(env,row.command_id):pref.host==='app'?await readDesktopResult(env,row.command_id,'write'):await readCliTerminalResult(env,row.command_id);
+      const command=row.status==='starting'?await readAgentControlResult(env,row.command_id):pref.host==='app'?await readDesktopResult(env,row.command_id,'write'):await readHourlyModeCommand(env,row,pref);
       if (command.status==='failed') result={status:'failed',reason:command.error || 'consumer_failed'};
       else if (['done','already_running'].includes(command.status)) {
         if (row.status==='dispatched') result={status:pref.host==='app' && command.delivered!==true?'failed':'awaiting_delivery',reason:pref.host==='app' && command.delivered!==true?'not_delivered':row.mode==='learning'?'capsule_pending':'proposals_pending'};
@@ -2027,6 +2042,7 @@ async function resumeHourlyModes(env,now) {
             else {
               const claimed=await env.DB.prepare("UPDATE fleet_agent_mode_runs SET status='resuming',updated_at=? WHERE id=? AND status='starting'").bind(now,row.id).run();
               if (!claimed.meta?.changes) continue;
+              claimedForResume=true;
               result=await executeHourlyMode(env,{id:row.id,pref,project,eligibility,hour_start:row.hour_start,now});
             }
           }
@@ -2034,12 +2050,18 @@ async function resumeHourlyModes(env,now) {
       }
     } catch(error) { result={status:'failed',reason:String(error.code || error.message || 'consumer_status_failed').slice(0,120)}; }
     if (result) {
-      await env.DB.prepare('UPDATE fleet_agent_mode_runs SET status=?,reason=?,command_id=COALESCE(?,command_id),decision_id=?,deliverable_url=?,updated_at=? WHERE id=?')
-        .bind(result.status,result.reason,result.command_id || null,result.decision_id || null,result.deliverable_url || null,now,row.id).run();
+      const changed=await env.DB.prepare('UPDATE fleet_agent_mode_runs SET status=?,reason=?,command_id=COALESCE(?,command_id),decision_id=?,deliverable_url=?,updated_at=? WHERE id=? AND status=?')
+        .bind(result.status,result.reason,result.command_id || null,result.decision_id || null,result.deliverable_url || null,now,row.id,claimedForResume?'resuming':row.status).run();
+      if (!changed.meta?.changes) continue;
       await env.DB.prepare('UPDATE fleet_agent_modes SET status=?,reason=? WHERE identity_key=? AND mode=?')
         .bind(result.status,result.reason,row.identity_key,row.mode).run();
       if (['skipped','failed','completed'].includes(result.status)) await env.DB.prepare('DELETE FROM fleet_hourly_family_leases WHERE run_id=?').bind(row.id).run();
     }
+  }
+  const failed=(await env.DB.prepare("SELECT r.id,r.reason,r.identity_key FROM fleet_agent_mode_runs r JOIN fleet_hourly_work w ON w.run_id=r.id WHERE r.status='failed' LIMIT 40").all()).results || [];
+  for (const row of failed) {
+    const pref=await env.DB.prepare('SELECT * FROM fleet_agent_modes WHERE identity_key=?').bind(row.identity_key).first();
+    if (pref) await hourlyModeWork(env,{stage:'fail',run_id:row.id,target:pref,reason:row.reason},now);
   }
 }
 function hourlyModeAdapters(env) {
@@ -2062,7 +2084,7 @@ async function completeHourlyTraining(env,run,pref,body) {
   }
   const guard=await hourlyModeGuard(env,run.id,now);
   if (!guard.allowed) return {ok:false,status:409,error:guard.reason};
-  const eligibility=evaluateModeOpportunity(pref,await hourlyModeTelemetry(env),await hourlyModeActivity(env,pref,project,Date.now()),Date.now());
+  const eligibility=evaluateModeOpportunity(pref,await hourlyModeTelemetry(env),await hourlyModeActivity(env,pref,project,Date.now(),run.id),Date.now());
   if (!eligibility.eligible || eligibility.start) return {ok:false,status:409,error:eligibility.reason};
   const claim=await env.DB.prepare("UPDATE fleet_agent_mode_runs SET status='completing',updated_at=? WHERE id=? AND status IN ('dispatched','awaiting_delivery')").bind(now,run.id).run();
   if (!claim.meta?.changes) return {ok:false,status:409,error:'run_completion_in_progress'};
@@ -2083,6 +2105,73 @@ async function completeHourlyTraining(env,run,pref,body) {
     return {ok:false,status:409,error:String(error.message).slice(0,120)};
   }
 }
+async function hourlyModeWork(env,body,now=Date.now()) {
+  const id=String(body.run_id || ''),target=normalizeModeTarget(body.target || {});
+  const run=await env.DB.prepare('SELECT * FROM fleet_agent_mode_runs WHERE id=?').bind(id).first();
+  if (!run || run.identity_key!==modeTargetKey(target)) throw Object.assign(new Error('target_mismatch'),{status:409});
+  const pref=await env.DB.prepare('SELECT * FROM fleet_agent_modes WHERE identity_key=?').bind(run.identity_key).first();
+  const existing=await env.DB.prepare('SELECT * FROM fleet_hourly_work WHERE run_id=?').bind(id).first();
+  if (body.stage==='fail') {
+    if (!existing) throw Object.assign(new Error('work_required'),{status:409});
+    const reason=String(body.reason || 'runner_failed').replace(/[^a-z0-9_:.-]/gi,'').slice(0,160);
+    const closed=await env.DB.prepare('SELECT status FROM tickets WHERE id=?').bind(existing.mission_id).first();
+    if (['resolved','unconcluded'].includes(closed?.status)) return {ok:true,work_id:existing.mission_id,status:closed.status};
+    const report='Investigación interrumpida · '+reason+(run.deliverable_url?' · Entrega ya verificada: '+run.deliverable_url:' · Sin entrega verificada.');
+    await env.DB.batch([
+      env.DB.prepare("UPDATE mission_tasks SET status='unconcluded',report=?,updated_at=? WHERE mission_id=? AND code='a' AND status!='done'").bind(report,now,existing.mission_id),
+      env.DB.prepare("UPDATE tickets SET status='unconcluded',updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')").bind(now,existing.mission_id),
+      env.DB.prepare("UPDATE fleet_agent_mode_runs SET status=CASE WHEN status='completed' THEN status ELSE 'failed' END,reason=?,updated_at=? WHERE id=?").bind(run.status==='completed'?'delivery_verified_work_pending':reason,now,id)
+    ]);
+    await env.DB.prepare('DELETE FROM fleet_hourly_family_leases WHERE run_id=?').bind(id).run();
+    return {ok:true,work_id:existing.mission_id,status:'unconcluded'};
+  }
+  const guard=await hourlyModeGuard(env,id,now,target);
+  if (!guard.allowed) throw Object.assign(new Error(guard.reason),{status:409});
+  if (body.stage==='start') {
+    if (existing) return {ok:true,work_id:existing.mission_id,owner:pref.agent,reused:true};
+    const mid='HWR-'+id.replace(/^HMODE-/,'');
+    const subject=(run.mode==='learning'?'Learning':'Training')+' · investigación horaria · '+run.project_id;
+    const owner=scopedAgentIdentity(pref.agent,pref.machine,'sub');
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO fleet_hourly_work(run_id,mission_id,created_at) VALUES(?,?,?)').bind(id,mid,now),
+      env.DB.prepare("INSERT INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,created_at,started_at,updated_at,live_at) VALUES(?,?,?,?,'standalone-task','in_progress','normal',?,'cli-declare','',?,?,?,?,?,?)")
+        .bind(mid,'hourly:'+id,subject,pref.machine,pref.agent,run.project_id,run.project_id,now,now,now,now),
+      env.DB.prepare("INSERT INTO mission_tasks(mission_id,code,title,status,owner,executor,report,created_at,started_at,updated_at) VALUES(?,'a',?,'in_progress',?,?,?, ?,?,?)")
+        .bind(mid,'Investigar fuentes públicas y entregar '+run.mode,owner,owner,'Investigación aislada autorizada; todavía sin entregable. Run '+id,now,now,now)
+    ]);
+    await ensureEntityDisplayRef(env,'mission',mid,now);
+    return {ok:true,work_id:mid,owner:pref.agent};
+  }
+  if (!existing) throw Object.assign(new Error('work_required'),{status:409});
+  if (body.stage==='report') {
+    // Only final structured output, no messages/tools/reasoning or local paths.
+    const result=body.result;
+    if (!result || typeof result!=='object' || JSON.stringify(result).length>14000) throw new Error('result_invalid');
+    const project=await hourlyModeProject(env,pref,run.project_id,now);
+    let output;
+    if (run.mode==='training') output={proposals:validateTrainingProposals(result.proposals,project,now)};
+    else {
+      const title=String(result.title || '').trim(),comment=String(result.comment || '').trim(),source_url=String(result.source_url || '');
+      if (title.length<8 || title.length>160 || comment.length<120 || comment.length>6000 || !source_url.startsWith('https://')) throw new Error('capsule_result_invalid');
+      output={title,comment,source_url};
+    }
+    const transcript=JSON.stringify({run_id:id,agent:pref.agent,runtime:pref.runtime,project_id:run.project_id,request:run.mode+' · analizar únicamente las fuentes públicas suministradas; sin herramientas ni acceso a sesiones',command:'claude --print --tools [vacío] --strict-mcp-config --no-session-persistence',final_response:output},null,2);
+    if (/Bearer\s+[A-Za-z0-9._-]{12,}|(?:sk-|ghp_|gho_)[A-Za-z0-9_-]{15,}|\/(?:Users|home)\//i.test(transcript)) throw new Error('transcript_sensitive');
+    const write=await env.DB.prepare('UPDATE fleet_hourly_work SET transcript=? WHERE run_id=? AND transcript IS NULL').bind(transcript,id).run();
+    if (!write.meta?.changes && existing.transcript!==transcript) throw Object.assign(new Error('transcript_immutable'),{status:409});
+    await env.DB.prepare("UPDATE mission_tasks SET report=?,updated_at=? WHERE mission_id=? AND code='a' AND status='in_progress'").bind(('Respuesta final real del ejecutor · '+JSON.stringify(output)).slice(0,1800),now,existing.mission_id).run();
+    await env.DB.prepare('UPDATE tickets SET live_at=?,updated_at=? WHERE id=? AND status=\'in_progress\'').bind(now,now,existing.mission_id).run();
+    return {ok:true,work_id:existing.mission_id,transcript_url:'https://api.yokup.com/fleet/agent/mode/transcript?run_id='+encodeURIComponent(id)};
+  }
+  if (body.stage==='publish_claim') {
+    if (!existing.transcript) throw new Error('transcript_required');
+    const claimed=await env.DB.prepare('UPDATE fleet_hourly_work SET publish_claim=1 WHERE run_id=? AND publish_claim=0').bind(id).run();
+    if (!claimed.meta?.changes) throw Object.assign(new Error('publish_already_attempted'),{status:409});
+    return {ok:true,work_id:existing.mission_id};
+  }
+  throw Object.assign(new Error('invalid_work_stage'),{status:400});
+}
+
 async function runScheduledRoutine(env, event) {
   const out = {};
   const step = async (name, fn) => {
@@ -10414,12 +10503,21 @@ var worker_app = {
       catch { return json({ ok:false, error:"invalid-pty-target" }, 401); }
       return openPtyRoom(env, req, target, "viewer");
     }
-    if (["/fleet/agent/mode","/fleet/agent/mode/guard","/fleet/agent/mode/complete","/fleet/agent/mode/runs"].includes(url.pathname)) {
+    if (url.pathname==='/fleet/agent/mode/transcript' && req.method==='GET') {
+      await ensureHourlyModeSchema(env);
+      const id=String(url.searchParams.get('run_id') || '');
+      const work=/^HMODE-[a-f0-9]{28}$/.test(id)?await env.DB.prepare('SELECT transcript FROM fleet_hourly_work WHERE run_id=?').bind(id).first():null;
+      if (!work?.transcript) return json({ok:false,error:'transcript_not_found'},404);
+      const safe=work.transcript.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      return new Response('<!doctype html><html lang="es"><meta charset="utf-8"><title>Informe de investigación horaria</title><style>body{max-width:900px;margin:36px auto;padding:24px;font:17px system-ui;color:#15232e;background:#f7fafc}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:15px/1.6 ui-monospace}h1{font-size:24px}</style><h1>Respuesta final del ejecutor · Yokup</h1><pre>'+safe+'</pre></html>',{headers:{'content-type':'text/html; charset=utf-8','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'",'cache-control':'no-store','x-robots-tag':'noindex'}});
+    }
+    if (["/fleet/agent/mode","/fleet/agent/mode/guard","/fleet/agent/mode/complete","/fleet/agent/mode/runs","/fleet/agent/mode/work"].includes(url.pathname)) {
       const session=await requireAuth(env,req);
       const executorAllowed=!session && url.pathname!=="/fleet/agent/mode" && (await authorizeCliExecutor(env,req)).ok;
       if (!session && !executorAllowed) return json({ok:false,error:'unauthorized'},401);
       await ensureSchema(env); await ensureHourlyModeSchema(env);
       try {
+        if (url.pathname==='/fleet/agent/mode/work' && req.method==='POST') return json(await hourlyModeWork(env,await req.json()));
         if (url.pathname==='/fleet/agent/mode/guard' && req.method==='GET') {
           const hasTarget=executorAllowed || url.searchParams.has('machine');
           const target=hasTarget?normalizeModeTarget(Object.fromEntries(url.searchParams)):null;
@@ -10428,7 +10526,8 @@ var worker_app = {
         if (url.pathname==='/fleet/agent/mode/runs' && req.method==='GET') {
           const id=String(url.searchParams.get('id') || '');
           const run=await env.DB.prepare('SELECT * FROM fleet_agent_mode_runs WHERE id=?').bind(id).first();
-          return run?json({ok:true,run}):json({ok:false,error:'run_not_found'},404);
+          const work=run?await env.DB.prepare('SELECT t.id,t.status,t.proof_image,t.proof_kind FROM fleet_hourly_work w JOIN tickets t ON t.id=w.mission_id WHERE w.run_id=?').bind(id).first():null;
+          return run?json({ok:true,run,work}):json({ok:false,error:'run_not_found'},404);
         }
         if (url.pathname==='/fleet/agent/mode' && req.method==='GET') return json({ok:true,items:await hourlyModeInventory(env)});
         if (url.pathname==='/fleet/agent/mode' && req.method==='POST') {
@@ -10453,8 +10552,9 @@ var worker_app = {
             const completed=await completeHourlyTraining(env,run,pref,body);
             return json(completed,completed.ok?200:completed.status || 409);
           }
+          const completionGuard=await hourlyModeGuard(env,runId);if (!completionGuard.allowed) return json({ok:false,error:completionGuard.reason},409);
           const assets=await stockIndexFresh(),capsule=assets.find(row=>String(row.id)===capsuleId);
-          if (!capsule || String(capsule.type).toLowerCase()!=='capsula' || !stockHasTags(capsule,[runId]) || String(capsule.comment || '').trim().length<120 || !/^https:\/\//.test(String(capsule.prompt || ''))) return json({ok:false,error:'capsule_not_verified'},422);
+          if (!capsule || String(capsule.type).toLowerCase()!=='capsula' || !(stockHasTags(capsule,[runId.replace(/^HMODE-/, '')]) || stockHasTags(capsule,[runId])) || String(capsule.comment || '').trim().length<120 || !/^https:\/\//.test(String(capsule.prompt || ''))) return json({ok:false,error:'capsule_not_verified'},422);
           let sourceUrl;try { sourceUrl=new URL(capsule.prompt); } catch { return json({ok:false,error:'capsule_source_invalid'},422); }
           if (sourceUrl.href.length>2048 || sourceUrl.username || sourceUrl.password || sourceUrl.port || !sourceUrl.hostname.includes('.') || /^[\d.]+$/.test(sourceUrl.hostname) || sourceUrl.hostname.includes(':') || /(?:\.local|\.internal|\.localhost)$/.test(sourceUrl.hostname)) return json({ok:false,error:'capsule_source_invalid'},422);
           const sourceResponse=await fetch(sourceUrl.href,{method:'HEAD',redirect:'error',signal:AbortSignal.timeout(10000)});
@@ -10462,6 +10562,7 @@ var worker_app = {
           const deliverable='https://www.pixeria.com/stock.html?highlight='+encodeURIComponent(capsuleId),now=Date.now();
           const previous=await env.DB.prepare('SELECT id FROM fleet_agent_mode_runs WHERE capsule_id=? AND id<>?').bind(capsuleId,runId).first();
           if (previous) return json({ok:false,error:'capsule_already_used'},409);
+          const finalCompletionGuard=await hourlyModeGuard(env,runId);if (!finalCompletionGuard.allowed) return json({ok:false,error:finalCompletionGuard.reason},409);
           const changed=await env.DB.prepare("UPDATE fleet_agent_mode_runs SET status='completed',reason='capsule_verified',capsule_id=?,deliverable_url=?,updated_at=? WHERE id=? AND status IN ('dispatched','awaiting_delivery','failed') AND capsule_id IS NULL")
             .bind(capsuleId,deliverable,now,runId).run();
           if (!changed.meta?.changes) {

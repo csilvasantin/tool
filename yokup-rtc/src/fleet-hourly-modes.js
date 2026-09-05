@@ -32,10 +32,14 @@ export function evaluateModeOpportunity(pref, telemetry = {}, activity = {}, now
   const live = (telemetry.presence || []).filter(row => sameTarget(row,pref) && row.source==='process_snapshot' && (row.verified===true || row.verified===1) && row.online!==false && row.online!==0 && seconds(row.updated)>0 && now/1000-seconds(row.updated)<=30 && seconds(row.updated)<=now/1000+5);
   if (live.length>1) return {eligible:false,status:'unavailable',reason:'ambiguous_surface'};
   const capabilities = Array.isArray(machine.capabilities) ? machine.capabilities : [];
-  const needed = pref.host==='app' ? 'desktop_write' : 'terminal_write';
+  const needed = pref.host==='app' ? 'desktop_write' : 'hourly_cli_'+pref.runtime.toLowerCase();
   if (!capabilities.includes(needed) || !capabilities.includes('hourly_modes')) return {eligible:false,status:'unavailable',reason:'consumer_unavailable'};
   if (pref.host==='app' && !capabilities.includes('hourly_desktop_'+pref.runtime.toLowerCase())) return {eligible:false,status:'unavailable',reason:'consumer_unavailable'};
-  if (pref.mode==='learning' && pref.host==='cli' && !capabilities.includes('hourly_learning_cli')) return {eligible:false,status:'unavailable',reason:'terminal_readiness_unavailable'};
+  if (pref.host==='cli') {
+    if ((machine.slots || []).filter(row=>sameTarget({...row,machine:machine.machine},pref)).length!==1) return {eligible:false,status:'unavailable',reason:'surface_not_configured'};
+    if (!(machine.hourly_targets || []).some(row=>sameTarget({...row,machine:row.machine || machine.machine},pref))) return {eligible:false,status:'unavailable',reason:'consumer_unavailable'};
+    return {eligible:true,status:live.length?'open':'closed',reason:'isolated_runner_ready',target:{...pref},start:false};
+  }
   if (!live.length) {
     const slots=(machine.slots || []).filter(row=>sameTarget({...row,machine:machine.machine},pref));
     if (slots.length!==1) return {eligible:false,status:'unavailable',reason:'surface_not_configured'};
@@ -50,6 +54,7 @@ export function evaluateModeOpportunity(pref, telemetry = {}, activity = {}, now
 export async function ensureHourlyModeSchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_agent_modes (identity_key TEXT PRIMARY KEY, agent TEXT NOT NULL, persona TEXT NOT NULL, machine TEXT NOT NULL, runtime TEXT NOT NULL, host TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'manual', project_id TEXT NOT NULL DEFAULT '', requested_by TEXT NOT NULL, enabled_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, next_run INTEGER, status TEXT NOT NULL DEFAULT 'manual', reason TEXT NOT NULL DEFAULT 'manual')");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_agent_mode_runs (id TEXT PRIMARY KEY, identity_key TEXT NOT NULL, hour_start INTEGER NOT NULL, mode TEXT NOT NULL, project_id TEXT NOT NULL, status TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '', command_id TEXT, decision_id TEXT, capsule_id TEXT, deliverable_url TEXT, evidence_json TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE(identity_key,hour_start))");
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_hourly_work (run_id TEXT PRIMARY KEY, mission_id TEXT UNIQUE NOT NULL, transcript TEXT, publish_claim INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)");
   await env.DB.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_hourly_capsule_once ON fleet_agent_mode_runs(capsule_id) WHERE capsule_id IS NOT NULL');
   await env.DB.exec('CREATE TABLE IF NOT EXISTS fleet_hourly_family_leases (family_key TEXT PRIMARY KEY, run_id TEXT NOT NULL UNIQUE, expires_at INTEGER NOT NULL)');
 }
@@ -130,7 +135,7 @@ export async function runHourlyModes(env, adapters, now = Date.now()) {
 }
 
 export function learningPrompt(run, lesson) {
-  return `Modo Learning horario autorizado para ${run.pref.agent} en ${run.pref.machine}, proyecto principal ${run.project.id}. Encargo ${run.id}. Estudia ${lesson}. Crea una cápsula ORIGINAL con aprendizaje útil y aplicación concreta a este proyecto; registra el trabajo en Yokup antes de ejecutarlo. Publica la cápsula en Pixeria (tipo capsula, etiqueta ${run.id}); incluye fuente verificable y al menos 120 caracteres de conocimiento. Al publicar, comunica {run_id:"${run.id}",capsule_id:"ID_REAL"} con POST autenticado https://api.yokup.com/fleet/agent/mode/complete. No afirmes completado sin publicación verificada. No cambies de proyecto ni abras otras misiones; si Carlos interviene, priorízalo y deja el encargo pendiente. Una sola cápsula para esta oportunidad.`;
+  return `Modo Learning horario autorizado para ${run.pref.agent} en ${run.pref.machine}, proyecto principal ${run.project.id}. Encargo ${run.id}. Estudia ${lesson}. Crea una cápsula ORIGINAL con aprendizaje útil y aplicación concreta a este proyecto; registra el trabajo en Yokup antes de ejecutarlo. Publica la cápsula en Pixeria (tipo capsula, etiqueta ${run.id.replace(/^HMODE-/, '')}); incluye fuente verificable y al menos 120 caracteres de conocimiento. Al publicar, comunica {run_id:"${run.id}",capsule_id:"ID_REAL"} con POST autenticado https://api.yokup.com/fleet/agent/mode/complete. No afirmes completado sin publicación verificada. No cambies de proyecto ni abras otras misiones; si Carlos interviene, priorízalo y deja el encargo pendiente. Una sola cápsula para esta oportunidad.`;
 }
 
 export function trainingPrompt(run) {
