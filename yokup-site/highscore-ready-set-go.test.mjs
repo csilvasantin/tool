@@ -14,7 +14,7 @@ test("la placa es única, persistente y ajena a active/stale/recent/empty/unavai
   assert.ok(lanes<call && call<html.indexOf('id="refreshCount"'));
   const renderer=html.slice(html.indexOf("function actualizaCarreraPodio("),html.indexOf("\n\n  function pintaFormula"));
   assert.doesNotMatch(renderer,/race-call|raceCall/);
-  assert.match(renderer,/TRABAJO NO DISPONIBLE|SIN TRABAJO ASIGNADO/);
+  assert.match(renderer,/TRABAJO NO DISPONIBLE|SIN TRABAJO VERIFICADO/);
   assert.match(renderer,/refresh-lane-idle/);
   assert.match(renderer,/refresh-lane-last/);
 });

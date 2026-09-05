@@ -315,7 +315,7 @@ test("los agentes con trabajo del ámbito elegido tienen calles ordenadas e iden
   assert.match(html, /class="runner-shirt" fill="var\(--runner-shirt,#f8f8f8\)"/);
   assert.match(html, /class="runner-accent" fill="var\(--runner-stripe,#3466cc\)"/);
   assert.match(html, /class="refresh-lane refresh-lane-empty" role="listitem" data-race-empty="true"/);
-  assert.match(html, /SIN TRABAJO ASIGNADO/);
+  assert.match(html, /SIN TRABAJO VERIFICADO/);
   assert.match(html, /contenedor\.innerHTML = corredores\.length \? corredores\.join\(""\) : corredorSinMision/);
   assert.match(html, /carrera\.setAttribute\("data-lanes", String\(corredores\.length \|\| 1\)\)/);
   assert.match(html, /carrera\.classList\.toggle\("empty", corredores\.length === 0\)/);
