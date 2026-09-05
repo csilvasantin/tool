@@ -23,10 +23,10 @@ function px(rule, property) {
   return Number(match[1]);
 }
 
-test("Proyectos y Equipos nacen abiertos pero las demás secciones siguen cerradas", () => {
-  for (const id of ["projectAgentSection", "projectAgentProjectsPane", "projectAgentTeamsPane"])
+test("las secciones nacen plegadas y los paneles interiores conservan su expansión", () => {
+  for (const id of ["projectAgentProjectsPane", "projectAgentTeamsPane"])
     assert.match(openingTag(id), /\sopen(?:\s|>)/, `#${id} debe nacer abierto`);
-  for (const id of ["pulseSection", "liveExperiencesSection", "modulesSection"])
+  for (const id of ["projectAgentSection", "pulseSection", "liveExperiencesSection", "modulesSection"])
     assert.doesNotMatch(openingTag(id), /\sopen(?:\s|>)/, `#${id} debe seguir cerrado`);
 });
 
