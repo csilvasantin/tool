@@ -4829,7 +4829,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
   }
   function trabajosCarrera() {
     return trabajosEnCurso().filter(function (trabajo) {
-      if(trabajo.cliPaused||["session_unverified","service_activity_unverified"].includes(trabajo.activityReason))return true;
+      if(trabajo.cliPaused||["session_unverified","service_activity_unverified","awaiting_decision"].includes(trabajo.activityReason))return true;
       if (trabajo.state !== "assigned_stale") return true;
       var state = estadoCarreraStale(trabajo);
       return state && YkHighscoreRace.staleRaceVisible(state.record);
@@ -4919,7 +4919,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       ? YkHighscoreRace.clockDurationLabel(reloj.sessionDurationMs) : "—";
     var sessionLabel = trabajo.sessionDedicatedMs === null
       ? "Horas operando no disponibles" : "Horas operando del agente";
-    var stateLabel = trabajo.kind==="session" ? "Actividad Desktop APP verificada" : trabajo.cliPaused ? "CLI pausado por Carlos" : ["session_unverified","service_activity_unverified"].includes(trabajo.activityReason) ? "Trabajo registrado · sesión sin vincular" : trabajo.state === "running" ? "Trabajo activo" : trabajo.state === "last_work" ? "Trabajo finalizado" : "Sin avance";
+    var stateLabel = trabajo.activityReason==="awaiting_decision" ? "Esperando decisión · sin ejecución verificada" : trabajo.kind==="session" ? "Actividad Desktop APP verificada" : trabajo.cliPaused ? "CLI pausado por Carlos" : ["session_unverified","service_activity_unverified"].includes(trabajo.activityReason) ? "Trabajo registrado · sesión sin vincular" : trabajo.state === "running" ? "Trabajo activo" : trabajo.state === "last_work" ? "Trabajo finalizado" : "Sin avance";
     return { reference:trabajo.reference || "", title:trabajo.title, state:stateLabel,
       project:trabajo.projectName || "", projectId:trabajo.projectId || "", detailUrl:trabajo.detailUrl || "",
       executor:trabajo.executor, responsible:trabajo.agente, kind:trabajo.kind, reachable:trabajo.reachable,
@@ -5103,7 +5103,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       return '<div class="refresh-lane ' + clasePuesto + (resumen.idle ? " refresh-lane-idle" : "") + (isLast ? " refresh-lane-last" : "") +
         '" role="listitem" data-place="' + puesto + '" data-agent-key="' + esc(clave) + '" ' +
         'data-work-state="' + esc(isLast ? "last_work" : resumen.idle ? "assigned_stale" : "running") + '" ' +
-        (!isLast&&(enlace.trabajo.cliPaused||["session_unverified","service_activity_unverified"].includes(enlace.trabajo.activityReason))?'data-race-held="true" ':'') +
+        (!isLast&&(enlace.trabajo.cliPaused||["session_unverified","service_activity_unverified","awaiting_decision"].includes(enlace.trabajo.activityReason))?'data-race-held="true" ':'') +
         (staleState && enlace.trabajo.raceRevision ? 'data-race-revision="' + esc(enlace.trabajo.raceRevision) + '" data-stale-anchor="' +
           Number(staleState.record.server_started_at) + '" data-stale-cycles="' + Number(staleState.record.cycles) + '" ' : '') +
         (resumen.idle ? 'data-race-idle="true" ' : '') +

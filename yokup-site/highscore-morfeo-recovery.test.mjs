@@ -181,3 +181,18 @@ test('GrokBot service task runs with real description and expires without becomi
  render([service],dualAt);ctx.performance.now=()=>120200;ctx.document.querySelectorAll=()=>[];let paints=0;ctx.hsPaintWorkUpdate=()=>paints++;
  ctx.actualizaRelojesCarrera();assert.equal(paints,1);assert.equal(ctx.datos.trabajos[0].state,'assigned_stale');
 });
+
+
+test('a pending decision stays still and does not manufacture a Desktop recovery',()=>{
+  const waiting={...stale,reference:'DEC-mtoivh1mfzvo',kind:'task',title:'Ventana automatica de la hora',
+    activity_reason:'awaiting_decision',race_revision:'decision-qa',work_started_at:sampled-60000,elapsed_ms:60000};
+  const {render,ctx}=view([waiting]);
+  const output=render([waiting]);
+  assert.match(output,/data-race-held="true"/);
+  assert.match(output,/Esperando decisión · sin ejecución verificada/i);
+  assert.doesNotMatch(output,/data-work-state="running"/);
+  assert.doesNotMatch(output,/MacMini · APP/);
+  assert.equal(ctx.trabajosEnCurso()[0].state,'assigned_stale');
+  assert.match(output,/data-race-time="duration"[^>]*>00:01:00</);
+  assert.match(render([waiting],sampled+20000),/data-race-time="duration"[^>]*>00:01:00</);
+});
