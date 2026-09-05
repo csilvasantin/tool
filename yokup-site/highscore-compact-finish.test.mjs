@@ -43,11 +43,12 @@ test("el nombre visible usa persona base y hover/foco conservan el equipo exacto
   assert.match(rendered,/data-agent-key="niobemacmini"/);
   assert.match(rendered,/class="refresh-agent"[^>]*tabindex="0"[^>]*title="MacMini · interfaz sin verificar"[^>]*aria-label="Niobe"[^>]*aria-describedby="race-agent-context-0">Niobe<\/span>/);
   assert.match(rendered,/role="tooltip" id="race-agent-context-0">MacMini · interfaz sin verificar<\/span>/);
-  assert.doesNotMatch(rendered,/>Niobe<\/span>/);
+  assert.doesNotMatch(rendered,/>NiobeMacMini<\/span>/);
   assert.match(html,/\.refresh-agent:focus-visible\{[^}]*outline:/);
 
   const mbp=render("NeoMBP14","running",0);
-  assert.match(mbp,/title="MBP14"[^>]*aria-label="NeoMBP14 · máquina MBP14">NeoMBP14<\/span>/);
+  assert.match(mbp,/data-agent-key="neombp14"/);
+  assert.match(mbp,/title="MBP14 · interfaz sin verificar"[^>]*aria-label="Neo"[^>]*>Neo<\/span>/);
 });
 
 test("el carril ordena agente, pista y bloque horario derecho en hora Madrid",()=>{
