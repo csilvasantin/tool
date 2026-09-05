@@ -9,7 +9,7 @@ import { principalTargetKey, resolveAgentPrincipalProject } from './agent-princi
 import puppeteer from "@cloudflare/puppeteer";
 import { handleAuthRequest, sessionTokenFromRequest, withCredentialCors } from "./auth-flow.js";
 import { machineRefKey, machineRefSqlKey, memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
-import { AGENT_IDENTITY_SPEC, agentFamilyKey, agentFamilySqlKey, baseAgentIdentity, canonicalMachineSuffix, groupingIdentityKey, identityKey, identitySqlKey, isKnownPersona, machineIdentitySqlKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
+import { AGENT_IDENTITY_SPEC, agentFamilyKey, agentFamilySqlKey, baseAgentIdentity, canonicalMachineSuffix, groupingIdentityKey, identityKey, identitySqlKey, isKnownPersona, machineIdentityKey, machineIdentitySqlKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 import { matchAgentDetailPresence, parseAgentDetailQuery, safeAgentDetailText } from "./agent-detail-contract.js";
 import { buildReportsPageFilter, encodeReportsCursor, parseReportsPageOptions } from "./reports-pagination.js";
 import { parseDecideOptions, ideaDeliberationText, buildDecideDecisionOptions } from "./ideas-decide.js";
@@ -50,7 +50,8 @@ import { PROJECT_BOTH_RESPONSIBLES_CAS_SQL, PROJECT_CARBON_CAS_SQL, PROJECT_META
 import { PROJECT_CARBON_ASSIGNMENTS_TABLE_SQL, PROJECT_CARBON_ASSIGNMENT_UPSERT_IF_CURRENT_SQL, PROJECT_CARBON_ASSIGNMENT_UPSERT_SQL, projectCarbonKey } from "./project-carbon-assignments.js";
 import { isProjectShotAllowed, normalizeProjectWeb } from "./project-web.js";
 import { AGENT_SOURCE_SQL, AGENT_SOURCE_SQL_T, FIELD_SOURCE_SQL_T, MISSION_SCOPE_SQL,
-  MISSION_SCOPE_SQL_T, FIELD_MISSION_SCOPE_SQL_T, FLEET_MISSIONS_SQL } from "./mission-sources.js";
+  MISSION_SCOPE_SQL_T, FIELD_MISSION_SCOPE_SQL_T, FLEET_MISSIONS_SQL,
+  normalizeFleetMissionsFilters, fleetMissionsQuery } from "./mission-sources.js";
 import { normalizeProjectLaunch, projectLaunchTarget } from "./project-launch.js";
 import { ensureHourlyModeSchema, evaluateModeOpportunity, hourlySlot, learningPrompt, trainingPrompt, listAgentModes, modeTargetKey, normalizeModeTarget, runHourlyModes, saveAgentMode, validateTrainingProposals } from "./fleet-hourly-modes.js";
 var __defProp = Object.defineProperty;
@@ -7039,8 +7040,21 @@ __name(tercios, "tercios");
 // canónica de un cierre y el tablero tiene que poder enseñarla sin cruzar
 // el perímetro. El árbol embebido conserva sólo metadatos de planificación y
 // el booleano has_report.
-async function fleetMissions(env) {
-  const { results } = await env.DB.prepare(FLEET_MISSIONS_SQL).all();
+async function fleetMissions(env, filters = null) {
+  // Sin filtros, el contrato histórico exacto (120 filas, mismo SQL compartido).
+  // Con filtros (agente, máquina, proyecto, estado, página) la misma consulta
+  // acotada: así ?agent=NeoMBP14 devuelve SUS misiones aunque otro agente haya
+  // creado 110 ese día. Misión DCL-d65ad512 (Neo·MBP14, 2026-09-05).
+  let results;
+  if (filters && filters.filtered) {
+    const q = fleetMissionsQuery(filters, {
+      agentSqlKey:agentFamilySqlKey, agentKey:agentFamilyKey,
+      machineSqlKey:machineIdentitySqlKey, machineKey:machineIdentityKey
+    });
+    results = (await env.DB.prepare(q.sql).bind(...q.binds).all()).results;
+  } else {
+    results = (await env.DB.prepare(FLEET_MISSIONS_SQL).all()).results;
+  }
   const rows = results || [];
   if (!rows.length) return [];
   await attachDisplayRefs(env, "mission", rows, (row) => row.id, (row) => row.created_at);
@@ -9688,7 +9702,21 @@ var worker_app = {
     }
     if (url.pathname === "/fleet/missions") {
       await ensureSchema(env);
-      return json({ missions: await fleetMissions(env) });
+      const filters = normalizeFleetMissionsFilters({
+        agent:url.searchParams.get("agent"), machine:url.searchParams.get("machine"),
+        project_id:url.searchParams.get("project_id"), status:url.searchParams.get("status"),
+        limit:url.searchParams.get("limit"), offset:url.searchParams.get("offset")
+      });
+      if (!filters.ok) return json({ ok:false, error:filters.error, applied:false }, 400);
+      const missions = await fleetMissions(env, filters);
+      if (!filters.filtered) return json({ missions });
+      const q = fleetMissionsQuery(filters, {
+        agentSqlKey:agentFamilySqlKey, agentKey:agentFamilyKey,
+        machineSqlKey:machineIdentitySqlKey, machineKey:machineIdentityKey
+      });
+      const total = await env.DB.prepare(q.countSql).bind(...q.countBinds).first();
+      return json({ missions, total:Number(total && total.c || 0), limit:filters.limit, offset:filters.offset,
+        filters:{ agent:filters.agent, machine:filters.machine, project_id:filters.projectId, status:filters.status } });
     }
     if (url.pathname === "/highscore/daily") {
       await ensureSchema(env);
@@ -12703,11 +12731,39 @@ Todo en español.`;
           cerrada = true;
         }
         if (b.resolve === true && persistedAtomically) cerrada = true;
+        // CONTRATO «ventana↔misión de una pieza» (misión DCL-d65ad512, Neo·MBP14, 05/09/2026).
+        // Si la misión nace CON decision_id y esa ventana ya activó un contenedor sintético
+        // (MIS-DEC-…), se adopta aquí mismo por la vía canónica (/fleet/batch/adopt): el
+        // trabajo real sustituye al hueco sin crédito duplicado. Antes había que llamar a
+        // adopt a mano con las cuatro llaves y nadie lo hacía: las tandas se quedaban
+        // «activas» para siempre con su contenedor vacío y la DCL flotaba sin lote.
+        let batch_adoption = null;
+        const declaredDecision = String(b.decision_id || "").trim().slice(0, 120);
+        if (declaredDecision && creada) {
+          try {
+            const bt = await env.DB.prepare("SELECT id,status,active_mission_id FROM mission_batches WHERE decision_id=?").bind(declaredDecision).first();
+            if (bt && bt.status === "active" && bt.active_mission_id && bt.active_mission_id !== missionId) {
+              batch_adoption = await adoptBatchTargetMission(env, {
+                batch_id:bt.id, decision_id:declaredDecision, container_mission_id:bt.active_mission_id,
+                target_mission_id:missionId, owner:identity.agent
+              });
+            } else if (bt) {
+              batch_adoption = { ok:true, adopted:false, reason:bt.active_mission_id === missionId ? "already_active" : "batch_" + bt.status };
+            }
+          } catch (e) { batch_adoption = { ok:false, error:String(e) }; }
+        }
+        // Y al resolver, el lote enlazado se cierra solo (mismo reconcile que usa el informe).
+        let batch_reconciliation = null;
+        if (cerrada) {
+          try { batch_reconciliation = await reconcileBatchTargetMission(env, missionId); }
+          catch (e) { batch_reconciliation = { ok:false, error:String(e) }; }
+        }
         const display_ref = await ensureEntityDisplayRef(env, "mission", missionId, now);
         return json({ ok: true, mission_id: missionId, display_ref, creada, cerrada,
           agent: identity.agent, machine: identity.machine, project: projectContext.project,
           project_id: projectContext.project_id,
-          tasks: tasks.map((t) => ({ code: t.code, status: t.status, evidencia: !!t.evidence })) });
+          tasks: tasks.map((t) => ({ code: t.code, status: t.status, evidencia: !!t.evidence })),
+          batch_adoption, batch_reconciliation });
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
 

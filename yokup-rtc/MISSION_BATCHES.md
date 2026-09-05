@@ -38,3 +38,35 @@ real, cierre o una continuación pendiente. Si sigue intacta, elimina únicament
 el ticket, las tres tareas pendientes y el evento sintético de activación, y
 deja el lote en `awaiting_continuation`. Repetir la misma llamada es un no-op
 idempotente.
+
+## Contrato «ventana↔misión de una pieza» (05/09/2026 · misión DCL-d65ad512)
+
+Lo que fallaba: la ventana creaba un contenedor sintético (`MIS-DEC-…-NN`) y el agente
+declaraba su trabajo aparte (`DCL-…`, `POST /declare`). Nadie enlazaba los dos hilos:
+la tanda se quedaba `active` para siempre con el contenedor vacío, la DCL flotaba sin
+lote y `/fleet/missions` (sin filtro por agente y capado a 120) la escondía en cuanto
+otro agente producía cien misiones en un día.
+
+Ahora hay tres vías, todas canónicas y sin crédito duplicado:
+
+1. **Antes de la ventana** — `POST /declare` las candidatas y `POST /decisions` con
+   `option_targets:[{target_mission_id},…,null,null]`. Al elegir o vencer, el lote activa
+   ESA misión (nada de contenedor). Verificado en vivo con la ventana 2783: al vencer,
+   `batch.active_mission_id = DCL-d65ad512…`. Script: `admira-vault/ventana.sh`.
+2. **Después de la ventana** — `POST /declare` con `decision_id`: si la tanda ya activó
+   un contenedor, el worker llama a la adopción canónica (`adoptBatchTargetMission`, la
+   misma de `/fleet/batch/adopt`) y responde `batch_adoption`. El contenedor queda
+   cancelado como `equivalent_mission`; la DCL pasa a ser la misión activa del lote.
+3. **Por título** — sin referencia, `activateNextMissionBatchItem` adopta la misión VIVA
+   del proyecto cuyo título coincide (`findLiveTwinMission`). Declarar con el mismo
+   asunto que la opción sirve como enlace implícito.
+
+Cierre: `POST /declare` con `resolve:true` (o el informe) llama a
+`reconcileBatchTargetMission` y responde `batch_reconciliation`; la tanda pasa a
+`awaiting_continuation` o `completed`. Script: `admira-vault/mision.sh cerrar <DCL> …`
+(evidencia de proceso → informe con captura → resolve, en ese orden).
+
+`GET /fleet/missions` admite `agent`, `machine`, `project_id`, `status` (`open`,
+`in_progress`, `unconcluded`, `resolved`, `cancelled` o `active`), `limit` (≤500) y
+`offset`; con filtros responde además `total`, `limit`, `offset` y `filters`. Sin
+parámetros conserva el contrato histórico de 120 filas.

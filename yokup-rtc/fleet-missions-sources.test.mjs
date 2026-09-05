@@ -8,7 +8,7 @@ import {CANONICAL_MISSION_SOURCES, FLEET_MISSIONS_LIMIT, FLEET_MISSIONS_SQL} fro
 const workerSource = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
 
 function fleetMissionsFunction(context) {
-  const start = workerSource.indexOf('async function fleetMissions(env)');
+  const start = workerSource.indexOf('async function fleetMissions(env, filters = null)');
   const end = workerSource.indexOf('__name(fleetMissions', start);
   assert.ok(start > 0 && end > start, 'fleetMissions existe en el worker');
   const block = workerSource.slice(start, end);
