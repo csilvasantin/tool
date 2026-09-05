@@ -28,7 +28,8 @@ test("la calle muestra trabajo, responsable, state factual y hora Madrid",()=>{
   assert.match(source,/responsable = normaliza\(resumen\.responsible \|\| agente\)/);
   assert.match(source,/executor = normaliza\(resumen\.executor \|\| responsable\)/);
   assert.match(source,/identidadVisible = identidadVisualCorredor\(responsable, fila\)/);
-  assert.match(source,/title="' \+ esc\(identidadVisible\.machine\)[\s\S]*aria-label="' \+ esc\(identidadVisible\.nombre\)[\s\S]*esc\(identidadVisible\.nombre\) \+ '<\/span>/);
+  assert.match(source,/nombreCorredorHtml\(identidadVisible, contextoVisible, "race-agent-context-" \+ indice\)/);
+  assert.match(source,/aria-describedby="' \+ esc\(tooltipId\)/);
   assert.match(source,/stateLabel = trabajo\.state === "running" \? "Trabajo activo"/);
   assert.doesNotMatch(source,/>EN CURSO<|>FINALIZADO</);
   assert.match(source,/assignmentClock:horaMadrid\(trabajo\.assignmentAt\)/);
