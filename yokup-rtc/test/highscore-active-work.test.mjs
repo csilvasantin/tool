@@ -527,3 +527,55 @@ test('executor delegado no presta su trabajo a la familia ni máquina del coordi
   assert.equal(executor.reference,'HUMAN-TEAM:b');assert.equal(executor.machine,'MBP14');
   assert.equal(result.participants.find(row=>row.agent==='TrinityMacMini').kind,'mission');
 });
+
+test("aplicación abierta sin trabajo se observa sin fabricar actividad ni puntos",async()=>{
+  const row={...processRow("MorfeoMacMini","admira-macmini"),host:"app",runtime:"Claude",
+    focus:"private conversation",task:"old closed work",busy:true};
+  const {env,F}=harness({presence:[row]});
+  const payload=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(payload.count,0); assert.equal(payload.running_count,0); assert.deepEqual(payload.participants,[]);
+  assert.equal(payload.observations.length,1);
+  const observation=payload.observations[0];
+  assert.equal(observation.agent,"MorfeoMacMini"); assert.equal(observation.machine,"MacMini");
+  assert.equal(observation.host,"app"); assert.equal(observation.runtime,"Claude");
+  assert.equal(observation.activity_state,"unverified"); assert.equal(observation.reason,"no_linked_work");
+  assert.equal(observation.process_state,"open"); assert.equal(observation.observed_at,NOW);
+  for(const forbidden of ["pid","focus","task","busy","points","reference","session_id"])
+    assert.equal(Object.hasOwn(observation,forbidden),false);
+});
+
+test("observaciones rechazan procesos sin prueba, antiguos, futuros, cerrados e identidad contradictoria",async()=>{
+  const base={...processRow("MorfeoMacMini","MacMini"),host:"app",runtime:"Claude"};
+  const invalid=[{verified:0},{source:"heartbeat"},{updated:(NOW-31000)/1000},
+    {updated:(NOW+6000)/1000},{online:0},{pid:0},{host:"unknown"},
+    {process_state:"closed"},{process_state:"unknown"},{machine:"MBP14"}];
+  for(const override of invalid){
+    const {env,F}=harness({presence:[{...base,...override}]});
+    const payload=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+    assert.deepEqual(payload.observations,[],JSON.stringify(override));
+  }
+});
+
+test("claim real elimina gap familiar entre superficies y conserva otra máquina",async()=>{
+  const rows=[{...processRow("MorfeoMacMini","MacMini"),host:"app",runtime:"Claude"},
+    {...processRow("MorfeoMini","admira-macmini"),host:"cli",runtime:"Claude"},
+    {...processRow("MorfeoMBP14","MBP14"),host:"cli",runtime:"Claude"}];
+  const {db,env,F}=harness({presence:rows});
+  mission(db,{agent:"MorfeoMacMini",machine:"MacMini",status:"open",at:NOW-2*MIN});
+  let payload=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(payload.observations.length,3); assert.equal(payload.count,0);
+  db.exec("UPDATE tickets SET status='in_progress'");
+  payload=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(payload.running_count,1); assert.equal(payload.observations.length,1);
+  assert.equal(payload.observations[0].agent,"MorfeoMBP14");
+});
+
+test("última misión cerrada no oculta hueco y aliases del mismo proceso no duplican observación",async()=>{
+  const rows=[{...processRow("MorfeoMacMini","MacMini"),host:"app",runtime:"Claude"},
+    {...processRow("MorfeoMini","admira-macmini",NOW-1000),host:"app",runtime:"Claude"}];
+  const {db,env,F}=harness({presence:rows});
+  mission(db,{agent:"MorfeoMacMini",status:"resolved",at:NOW-2*MIN});
+  const payload=JSON.parse(JSON.stringify(await F.highscoreActiveWork(env,NOW)));
+  assert.equal(payload.participants[0].state,"last_work");
+  assert.equal(payload.observations.length,1); assert.equal(payload.observations[0].observed_at,NOW);
+});

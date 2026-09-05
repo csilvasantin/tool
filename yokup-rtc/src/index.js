@@ -8249,19 +8249,20 @@ function highscoreAssignmentTiming(item, kind, ahora) {
 __name(highscoreAssignmentTiming, "highscoreAssignmentTiming");
 
 async function highscoreVerifiedPresence(env, ahora) {
-  if (!env.TELEGRAM) return { available:false, by_family:new Map(), sessions:new Map() };
+  if (!env.TELEGRAM) return { available:false, by_family:new Map(), sessions:new Map(), observations:[] };
   try {
     const [response, sessionResponse] = await Promise.all([
       env.TELEGRAM.fetch(new Request(PRESENCE_URL, { headers:{ accept:"application/json" } })),
       env.TELEGRAM.fetch(new Request("https://telegram/api/presence/work-sessions", { headers:{ accept:"application/json" } }))
     ]);
-    if (!response.ok) return { available:false, by_family:new Map(), sessions:new Map() };
+    if (!response.ok) return { available:false, by_family:new Map(), sessions:new Map(), observations:[] };
     const payload = await response.json(), rows = Array.isArray(payload) ? payload : (payload.presence || payload.rows || []);
-    const byFamily = new Map();
+    const byFamily = new Map(), observedSurfaces = new Map();
     for (const row of rows) {
       const at = highscoreActiveWorkMillis(row && row.updated);
       const pid = Number(row && row.pid);
       if (!row || row.verified !== 1 || row.source !== "process_snapshot" || row.online === 0 || row.online === false ||
+          ["closed","unknown"].includes(String(row.process_state || "").toLowerCase()) ||
           !Number.isSafeInteger(pid) || pid <= 1 || !["app", "cli"].includes(String(row.host || "").toLowerCase()) ||
           at < ahora - HIGHSCORE_PROCESS_FRESH_MS || at > ahora + HIGHSCORE_CLOCK_SKEW_MS) continue;
       const family = highscoreActiveWorkFamily(row.persona, row.machine);
@@ -8269,6 +8270,15 @@ async function highscoreVerifiedPresence(env, ahora) {
       if (!family || !physicalFamily || family.family_key !== physicalFamily.family_key ||
           family.family_key.startsWith("external:") || !parseAgentIdentity(family.family_name).suffix) continue;
       if (!byFamily.has(family.family_key) || at > byFamily.get(family.family_key)) byFamily.set(family.family_key, at);
+      // Reachability is an observation, never evidence of a running task.
+      // Keep only public identity metadata; no PID, focus, prompt or work text.
+      const host = String(row.host).toLowerCase(), runtime = String(row.runtime || "").trim().slice(0,80);
+      const key = `${family.family_key}|${host}|${runtime.toLowerCase()}`;
+      if (!observedSurfaces.has(key) || observedSurfaces.get(key).observed_at < at) observedSurfaces.set(key, {
+        agent:family.family_name, family_key:family.family_key,
+        machine:canonicalMachineSuffix(parseAgentIdentity(family.family_name).suffix), host, runtime,
+        process_state:"open", activity_state:"unverified", reason:"no_linked_work", observed_at:at
+      });
     }
     const sessions = new Map();
     if (sessionResponse.ok) {
@@ -8288,9 +8298,9 @@ async function highscoreVerifiedPresence(env, ahora) {
         sessions.set(key, list);
       }
     }
-    return { available:true, by_family:byFamily, sessions };
+    return { available:true, by_family:byFamily, sessions, observations:[...observedSurfaces.values()] };
   } catch {
-    return { available:false, by_family:new Map(), sessions:new Map() };
+    return { available:false, by_family:new Map(), sessions:new Map(), observations:[] };
   }
 }
 __name(highscoreVerifiedPresence, "highscoreVerifiedPresence");
@@ -8522,8 +8532,13 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
         ? highscoreActiveWorkMillis(b.ended_at) - highscoreActiveWorkMillis(a.ended_at)
         : b.active_at - a.active_at)).slice(0,3);
   }
+  // An open application with no current material work stays visible without
+  // becoming a competitor. Old finished work cannot hide this observability gap.
+  const linkedFamilies = new Set(participants.filter(row => row.state !== "last_work").map(row => row.family_key));
+  const observations = (presence.observations || []).filter(row => !linkedFamilies.has(row.family_key))
+    .sort((a,b) => a.agent.localeCompare(b.agent) || a.host.localeCompare(b.host) || a.runtime.localeCompare(b.runtime));
   return { ok:true, generated_at:ahora, timezone:"Europe/Madrid", presence_available:presence.available,
-    mode:runningCount ? "active" : "recent", running_count:runningCount, count:participants.length, participants };
+    mode:runningCount ? "active" : "recent", running_count:runningCount, count:participants.length, participants, observations };
 }
 __name(highscoreActiveWork, "highscoreActiveWork");
 

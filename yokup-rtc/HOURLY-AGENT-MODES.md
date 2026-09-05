@@ -189,3 +189,25 @@ conservando totales globales. Snapshots usan clave compuesta y no reasignan mues
 históricas ambiguas. El corredor sigue exigiendo trabajo material o sesión exacta:
 la asignación sin señal veta formación pero no inventa actividad. host solo aparece
 con una sesión exacta enlazada; no se infiere interfaz ni runtime del ticket.
+
+### Observación de aplicaciones sin trabajo vinculado
+
+`GET /highscore/active-work` devuelve `observations` además de `participants`.
+Una observación contiene `agent`, `family_key`, `machine`, `host`, `runtime`,
+`observed_at` (milisegundos), `process_state: open`,
+`activity_state: unverified` y `reason: no_linked_work`. Requiere PID válido,
+fuente `process_snapshot`, verificación y señal de los últimos 30 segundos;
+rechaza estado cerrado/desconocido explícito, offline y fecha futura fuera de la
+tolerancia. No expone PID, texto del foco, conversación ni identificadores de sesión.
+
+Las observaciones quedan fuera del corredor, sus contadores y puntuaciones.
+Una familia con trabajo actual verificable no aparece como hueco aunque use varias
+superficies; otra máquina conserva su identidad. Un trabajo histórico terminado
+no acredita la actividad actual. Reclamar la misión real y vincular su progreso
+retira la observación cuando el siguiente GET reconoce ese trabajo.
+
+Una aplicación abierta no prueba ejecución, espera ni inactividad. Este campo no
+habilita Learning/Training ni sustituye sus guardas. La comprobación acotada de
+Claude Desktop del 5 de septiembre no encontró un indicador AX Stop/generación
+inequívoco; no se añadió telemetría busy/Waiting inferida. El trabajo que sólo se
+ve en la aplicación necesita declaración/vinculación factual para ser corredor.
