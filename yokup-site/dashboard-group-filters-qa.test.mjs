@@ -11,7 +11,7 @@ const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>'
 function setup(saved={}){
  const store=new Map(Object.entries(saved)),section={open:false},box={},http=[];
  const context={window:{YkPresenceGroups:groups,ykAgentIdentity:identity},YkPresenceGroups:groups,esc:escape,
- localStorage:{getItem:k=>store.get(k)??null,setItem:(k,v)=>store.set(k,v)},document:{getElementById:id=>id==='pulseSection'?section:box,querySelector:()=>null},paPaint(){},paTickAgo(){},fetch:(...args)=>{http.push(args);throw new Error('filters must not call network');}};
+ localStorage:{getItem:k=>store.get(k)??null,setItem:(k,v)=>store.set(k,v)},document:{getElementById:id=>id==='automationModules'?null:id==='pulseSection'?section:box,querySelector:()=>null},paPaint(){},paTickAgo(){},fetch:(...args)=>{http.push(args);throw new Error('filters must not call network');}};
  const start=source.indexOf('const PULSE_VIEW_KEY='),end=source.indexOf('async function pulse(renderMap=',start);
  vm.runInNewContext(source.slice(start,end)+`this.api={read:pulseReadGroupFilters,current:pulseGroupFilter,consensus:pulseFilterConsensus,apply:pulseApplyFilter,items:pulseFilterItems,counts:pulseFilterCounts,click:pulseHandleClick,markup:pulseGroupsMarkup,configure(items){PULSE_GROUPS=pulseControlledGroups(null,{items});}};`,context);
  return {api:context.api,store,section,http};

@@ -5,7 +5,7 @@ import vm from 'node:vm';
 const source=await readFile(new URL('./dashboard.html',import.meta.url),'utf8');
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function api(saved={}){
- const writes=[];const context={localStorage:{getItem:key=>saved[key]??null,setItem:(key,value)=>writes.push([key,value])},window:{},esc:escape,paRuntimeSurface:row=>row.runtime||'',PROJECT_FILTER:'unrelated-global-project'};
+ const writes=[];const context={localStorage:{getItem:key=>saved[key]??null,setItem:(key,value)=>writes.push([key,value])},window:{},document:{getElementById:()=>null},esc:escape,paRuntimeSurface:row=>row.runtime||'',PROJECT_FILTER:'unrelated-global-project'};
  const start=source.indexOf('const PULSE_VIEW_KEY='),end=source.indexOf('function pulseRender()',start);
  vm.runInNewContext(source.slice(start,end)+'\nthis.api={pulseFilterBucket,pulseFilterCounts,pulseFilterItems,pulseFilterMarkup,pulseCard,pulseProjectLabel,pulseReadView,pulseReadGroupFilters,setFilter:v=>{PULSE_GROUP_KEYS.forEach(k=>PULSE_GROUP_FILTERS[k]=v);PULSE_FILTER=v;},project:r=>PULSE_MODES.set(pulseModeKey(r),r),view:()=>PULSE_VIEW};',context);
  return {...context.api,writes};
@@ -46,7 +46,7 @@ test('compact card orders identity, project, then runtime with device and CLI on
 });
 test('filter click uses the productive event handler without dispatching controls or saving an agent mode',async()=>{
  const original=JSON.stringify({cli:{compact:false,hidden:true},app:{compact:true,hidden:false}}),store=new Map([['yk.dashboard.silicon-fleet.view.v1',original]]),http=[],section={open:false},box={};
- const context={window:{},esc:escape,localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v)},document:{getElementById:id=>id==='pulseSection'?section:box,querySelector:()=>null},fetch:(...args)=>{http.push(args);throw new Error('filter must not call network');},paPaint(){},paTickAgo(){}};
+ const context={window:{},esc:escape,localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v)},document:{getElementById:id=>id==='automationModules'?null:id==='pulseSection'?section:box,querySelector:()=>null},fetch:(...args)=>{http.push(args);throw new Error('filter must not call network');},paPaint(){},paTickAgo(){}};
  const start=source.indexOf('const PULSE_VIEW_KEY='),end=source.indexOf('async function pulse(renderMap=',start);
  vm.runInNewContext(source.slice(start,end)+'\nthis.click=pulseHandleClick; this.config=rows=>{PULSE_GROUPS={groups:[{key:"cli",items:rows}]};};',context);
  context.config(rows);

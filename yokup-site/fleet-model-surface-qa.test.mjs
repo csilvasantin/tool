@@ -10,7 +10,7 @@ const dashboard = await readFile(new URL("./dashboard.html", import.meta.url), "
 const highscore = await readFile(new URL("./highscore.html", import.meta.url), "utf8");
 const escape = value => String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 function dashboardApi(saved = null) {
-  const context = { localStorage: { getItem: () => saved }, window: {}, esc: escape,
+  const context = { localStorage: { getItem: () => saved }, window: {}, document:{getElementById:()=>null}, esc: escape,
     paRuntimeSurface: row => row.runtime || "" };
   const start = dashboard.indexOf('const PULSE_VIEW_KEY=');
   const end = dashboard.indexOf('function pulseRender()', start);

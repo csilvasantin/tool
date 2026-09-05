@@ -17,7 +17,9 @@ test("el renderer consume la clasificación compartida y no vuelve a decidir el 
   assert.match(source,/src="\/presence-groups\.js\?v=/);
   assert.match(source,/YkPresenceGroups\.classify\(fresh,\{identity:window\.ykAgentIdentity,detailUrl:window\.YkAgentDetail&&YkAgentDetail\.detailUrl\}\)/);
   assert.match(source,/const byKey=classified&&classified\.by_key\|\|\{\}/);
-  assert.match(source,/unknown\.items\.length\?pulseGroupMarkup\(unknown,unavailable\):""/);
+  assert.doesNotMatch(source,/pulseGroupMarkup\(unknown,unavailable\)/);
+  assert.match(source,/YkAgentControl\.surfaceInventory\(PULSE_CONTROL_MODEL/);
+  assert.match(source,/no incluidos en el recuento ni en los controles/);
   assert.doesNotMatch(source,/fresh\.filter\([^\n]*host/);
 });
 
