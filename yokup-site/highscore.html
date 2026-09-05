@@ -4632,6 +4632,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var declarationAge=item.declared_updated?" · actividad declarada "+hsOpsAge(item.declared_updated):"";
     var state=item.process_state==="open"?"Abierto":item.process_state==="closed"?"Cerrado":"Sin señal", tone=item.active?"viva":item.process_state==="closed"?"parada":"muda";
     var paused=item.host==="cli",policy=paused?"CLI pausado por Carlos · "+(item.operational_state==="paused"&&item.active?"Pausa confirmada · proceso suspendido":item.process_state==="closed"?"Parada confirmada":pending&&pending.action==="stop"?"Parada solicitada · sin confirmar":item.active?"Proceso aún abierto · parada sin confirmar":"No alcanzable · parada sin confirmar"):"";
+    if(paused)tone="muda";
     var action=item.active?"stop":"start", label=item.active?"■ Detener":"▶ Arrancar";
     var disabled=pending||(paused&&!item.pause_supported)||(!item.active&&(paused||!item.watcher||item.process_state!=="closed"))||(!item.active?false:!(item.verified&&item.pid>1));
     if(paused&&!item.active)label="Pausado por Carlos";
@@ -4648,11 +4649,11 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var list=document.getElementById("cliCtlList"),count=document.getElementById("cliCtlCount"); if(!list||!count)return;
     var groups=hsOpsItems(),items=[].concat.apply([],groups.map(function(group){return group.items;}));
     var active=items.filter(function(item){return item.active;}).length;
-    count.textContent=active+' activos · '+groups.length+' eq';
+    count.textContent=active+' procesos abiertos · CLI en pausa · '+groups.length+' eq';
     if(!groups.length){list.innerHTML='<div class="cli-ctl-empty">No hay ningún watcher de procesos reciente. El estado es desconocido; no se inventa.</div>';return;}
     list.innerHTML=groups.map(function(group,index){
-      var open=CLI_ABIERTOS.has(group.machine),activeGroup=group.items.filter(function(item){return item.active;}).length,id='cliCtlMaquina'+index;
-      return '<fieldset class="cli-ctl-group"><legend class="sr-only">Superficies de '+esc(group.machine)+'</legend><button class="cli-ctl-machine" type="button" data-cli-maquina="'+esc(group.machine)+'" aria-controls="'+id+'" aria-expanded="'+open+'"><span class="cli-ctl-chevron" aria-hidden="true"></span><span class="cli-ctl-label">'+esc(group.machine)+'</span><span class="cli-ctl-tally'+(activeGroup?' viva':'')+'">'+activeGroup+'/'+group.items.length+'</span></button><div class="cli-ctl-clis" id="'+id+'"'+(open?'':' hidden')+'>'+group.items.sort(function(a,b){return Number(b.active)-Number(a.active)||a.persona.localeCompare(b.persona,"es");}).map(hsOpsRow).join('')+'</div></fieldset>';
+      var open=CLI_ABIERTOS.has(group.machine),activeGroup=group.items.filter(function(item){return item.active;}).length,appActive=group.items.some(function(item){return item.active&&item.host==='app';}),id='cliCtlMaquina'+index;
+      return '<fieldset class="cli-ctl-group"><legend class="sr-only">Superficies de '+esc(group.machine)+'</legend><button class="cli-ctl-machine" type="button" data-cli-maquina="'+esc(group.machine)+'" aria-controls="'+id+'" aria-expanded="'+open+'"><span class="cli-ctl-chevron" aria-hidden="true"></span><span class="cli-ctl-label">'+esc(group.machine)+'</span><span class="cli-ctl-tally'+(appActive?' viva':'')+'">'+activeGroup+'/'+group.items.length+'</span></button><div class="cli-ctl-clis" id="'+id+'"'+(open?'':' hidden')+'>'+group.items.sort(function(a,b){return Number(b.active)-Number(a.active)||a.persona.localeCompare(b.persona,"es");}).map(hsOpsRow).join('')+'</div></fieldset>';
     }).join('');
     list.querySelectorAll('[data-cli-maquina]').forEach(function(button){button.addEventListener('click',function(){var machine=button.getAttribute('data-cli-maquina');if(CLI_ABIERTOS.has(machine))CLI_ABIERTOS.delete(machine);else CLI_ABIERTOS.add(machine);hsRenderCliControl();});});
     list.querySelectorAll('[data-op-action]').forEach(function(button){button.addEventListener('click',function(){hsOpsOrder(button.getAttribute('data-op-key'),button.getAttribute('data-op-action'));});});

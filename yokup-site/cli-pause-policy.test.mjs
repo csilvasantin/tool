@@ -111,3 +111,11 @@ test('verified pause ACK is terminal success without calling the process closed'
   const c=context(dashboard,['pulseOperationText','pulseOperationPhase']);assert.equal(c.pulseOperationPhase(result.status),'success');assert.equal(c.pulseOperationText({action:'stop',phase:'success',paused:true}),'Pausa confirmada');
   assert.equal(item.process_state,'open');
 });
+test('paused CLI has neutral styling and zero enabled activity without changing physical state',()=>{
+  assert.match(dashboard,/data-cli-paused="\$\{pulseCliPaused\(card\)/);
+  assert.match(dashboard,/\.ag\[data-cli-paused="true"\]::before,\.ag\[data-cli-paused="true"\] \.dot\{background:var\(--dim\);box-shadow:none;animation:none\}/);
+  assert.match(dashboard,/actividad habilitada: 0/);
+  const t=Date.now()/1000,c=context(highscore,['hsOpsKey','hsOpsAge','hsOpsRow'],{claveHoraria:v=>String(v??''),CLI_PENDIENTES:{}});
+  const markup=c.hsOpsRow({...row('cli'),active:true,process_state:'open',operational_state:'paused',updated:t});
+  assert.match(markup,/cli-ctl-state muda/);assert.doesNotMatch(markup,/cli-ctl-state viva/);assert.match(markup,/>Abierto</);assert.match(markup,/Pausa confirmada/);
+});
