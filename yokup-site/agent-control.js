@@ -117,13 +117,58 @@
     if(!item.eligible[action])throw new Error("target-not-eligible");
     return {endpoint:"/fleet/agent/control",method:"POST",body:Object.assign({action:action},target)};
   }
-  function batchPlan(model,group,action){
+  // A card is a physical agent on an interface, while a command remains an
+  // exact runtime/session target. Aggregation must never manufacture a command.
+  function groupCards(items,options){
+    options=options||{};
+    var identity=options.identity||root.ykAgentIdentity||null,buckets=new Map();
+    (Array.isArray(items)?items:[]).forEach(function(item,index){
+      var base=canonical(Object.assign({},item,{host:item.surface||item.host}),identity),
+        family=text(item.family_key)||base.family_key,machineKey=text(item.machine_key)||base.machine_key,
+        key=[family,machineKey,base.surface].join("\u001f"),bucket=buckets.get(key);
+      // Missing identity is not evidence that two unrelated rows are one agent.
+      if(!family||!machineKey)key+="\u001f"+text(item.identity_key||item.control_key||index);
+      bucket=buckets.get(key);if(!bucket){bucket=[];buckets.set(key,bucket);}
+      bucket.push(item);
+    });
+    var cards=[],rank={open:0,waiting:1,closed:2,unknown:3};
+    buckets.forEach(function(rows,key){
+      var unique=new Map();rows.forEach(function(row){
+        var targetKey=text(row.identity_key||row.control_key),previous=unique.get(targetKey);
+        if(!previous||Number(row.observed_at||row.updated||0)>Number(previous.observed_at||previous.updated||0))unique.set(targetKey,row);
+      });
+      var variants=Array.from(unique.values()).sort(function(a,b){
+        return (rank[a.process_state]??3)-(rank[b.process_state]??3)||norm(a.runtime).localeCompare(norm(b.runtime))||text(a.identity_key).localeCompare(text(b.identity_key));
+      });
+      var representative=variants[0],multiple=variants.length>1,process=variants.some(function(row){return row.process_state==="open";})?"open":
+        variants.some(function(row){return row.process_state==="waiting";})?"waiting":
+        variants.every(function(row){return row.process_state==="closed";})?"closed":"unknown";
+      var card=Object.assign({},representative,{card_key:key,runtime_targets:variants,runtime_selection_required:multiple,
+        process_state:process,observed_at:Math.max(0,...variants.map(function(row){return Number(row.observed_at)||0;}))});
+      if(multiple)Object.assign(card,{runtime:"",model:"",control_key:"",identity_key:"",detail_url:null,
+        state:"ambiguous",reason:"runtime-selection-required",eligible:{start:false,stop:false}});
+      cards.push(card);
+    });
+    cards.sort(function(a,b){return (rank[a.process_state]??3)-(rank[b.process_state]??3)||a.card_key.localeCompare(b.card_key,"es");});
+    var counts={total:cards.length,open:0,waiting:0,closed:0,unknown:0,runtime_targets:0};
+    cards.forEach(function(card){counts[card.process_state]++;counts.runtime_targets+=card.runtime_targets.length;});
+    return {items:cards,counts:counts};
+  }
+  function selectedCardTarget(card,selection){
+    var variants=card&&Array.isArray(card.runtime_targets)?card.runtime_targets:[];
+    if(variants.length===1)return variants[0];
+    return text(selection)?variants.find(function(row){return row.identity_key===selection;})||null:null;
+  }
+  function batchPlan(model,group,action,options){
+    options=options||{};
     group=surface(group);action=norm(action);
     if(group==="unknown"||action!=="start"&&action!=="stop")return {ok:false,error:"invalid-batch-scope",group:group,action:action,targets:[]};
-    var targets=(model&&model.items||[]).filter(function(item){return item.surface===group&&item.eligible[action];})
-      .slice(0,MAX_BATCH).map(function(item){return item.control_key;});
-    return {ok:true,group:group,action:action,targets:targets,count:targets.length,truncated:(model&&model.items||[])
-      .filter(function(item){return item.surface===group&&item.eligible[action];}).length>MAX_BATCH,
+    var selections=options.selections instanceof Map?options.selections:new Map(),cards=groupCards(model&&model.items||[],options).items,
+      skipped=cards.filter(function(card){return card.surface===group&&card.runtime_selection_required&&!selectedCardTarget(card,selections.get(card.card_key))&&card.runtime_targets.some(function(row){return row.eligible[action];});}).length,
+      candidates=cards.map(function(card){return selectedCardTarget(card,selections.get(card.card_key));})
+        .filter(function(item){return item&&item.surface===group&&item.eligible[action];}),
+      targets=candidates.slice(0,MAX_BATCH).map(function(item){return item.control_key;});
+    return {ok:true,group:group,action:action,targets:targets,count:targets.length,skipped_ambiguous:skipped,truncated:candidates.length>MAX_BATCH,
       confirmation:"Confirmar "+action+" de "+targets.length+" agente"+(targets.length===1?"":"s")+" del grupo "+group.toUpperCase()};
   }
   function publicError(error,fallback){
@@ -156,7 +201,7 @@
     return {ok:failed===0,total:results.length,succeeded:succeeded,failed:failed,partial:succeeded>0&&failed>0,results:results};
   }
 
-  var api={inventory:inventory,requestFor:requestFor,batchPlan:batchPlan,executeOne:executeOne,executeBatch:executeBatch,
+  var api={inventory:inventory,groupCards:groupCards,selectedCardTarget:selectedCardTarget,requestFor:requestFor,batchPlan:batchPlan,executeOne:executeOne,executeBatch:executeBatch,
     limits:{fresh_seconds:FRESH_SECONDS,max_batch:MAX_BATCH,max_concurrency:MAX_CONCURRENCY}};
   root.YkAgentControl=api;
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
