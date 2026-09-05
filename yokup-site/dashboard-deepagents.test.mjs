@@ -66,3 +66,12 @@ test('un modo asociado al proyecto anterior explica cómo reactivar sin afirmar 
  const {api}=setup();const note=api.summary({mode:'learning',project_mismatch:true,mode_project_name:'Anterior',project_name:'Actual'});
  assert.match(note,/Modo pausado/);assert.match(note,/Anterior/);assert.match(note,/Actual/);assert.match(note,/Selecciona Manual/);assert.doesNotMatch(note,/Cápsula cada hora/);
 });
+
+test('un proyecto ambiguo o no disponible no aparece como fallback confirmado',()=>{
+ const {api}=setup(),cli=item('Morfeo','open');
+ api.record(cli,{project_id:'admiranext',project_name:'AdmiraNeXT',project_available:false,project_issue:'project_ambiguous'});
+ let html=api.card(cli);assert.match(html,/Asignación principal ambigua/);assert.doesNotMatch(html,/AdmiraNeXT/);
+ api.record(cli,{project_id:'admiranext',project_name:'AdmiraNeXT',project_available:false});
+ html=api.card(cli);assert.match(html,/Proyecto pendiente de verificar/);assert.doesNotMatch(html,/AdmiraNeXT/);
+ assert.doesNotMatch(source,/Controles de la deepAgents/);
+});

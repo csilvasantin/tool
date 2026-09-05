@@ -204,7 +204,7 @@ details.pa-team-node:not([open])>.pa-team-agents,.pa-project-node:not([open])>.p
   <details class="dash-section" id="pulseSection">
     <summary class="shd">deepAgents</summary>
     <div class="dash-section-body fleet-pulse-groups" id="pulse">
-      <div class="pulse-global-toolbar" role="toolbar" aria-label="Controles de la deepAgents"><strong>Control de superficies</strong><button class="pulse-btn start" type="button" disabled>Arrancar todos los CLI</button><button class="pulse-btn stop" type="button" disabled>Parar todos los CLI</button><button class="pulse-btn start" type="button" disabled>Arrancar todos Desktop App</button><button class="pulse-btn stop" type="button" disabled>Parar todos Desktop App</button></div>
+      <div class="pulse-global-toolbar" role="toolbar" aria-label="Controles de deepAgents"><strong>Control de superficies</strong><button class="pulse-btn start" type="button" disabled>Arrancar todos los CLI</button><button class="pulse-btn stop" type="button" disabled>Parar todos los CLI</button><button class="pulse-btn start" type="button" disabled>Arrancar todos Desktop App</button><button class="pulse-btn stop" type="button" disabled>Parar todos Desktop App</button></div>
       <p class="pulse-control-status" id="pulseControlStatus" role="status" aria-live="polite" aria-atomic="true">Cargando controles seguros…</p>
       <section class="pulse-group compact" aria-labelledby="pulseCliTitle"><div class="pulse-group-head"><h3 id="pulseCliTitle">deepAgents CLI</h3><span class="tot">—</span></div><div class="pulse"><div class="off">Buscando deepAgents CLI…</div></div></section>
       <section class="pulse-group compact" aria-labelledby="pulseAppTitle"><div class="pulse-group-head"><h3 id="pulseAppTitle">deepAgents Desktop App</h3><span class="tot">—</span></div><div class="pulse"><div class="off">Buscando deepAgents Desktop App…</div></div></section>
@@ -509,6 +509,8 @@ async function pulseHandleMode(event){
 }
 function pulseProjectLabel(p){
   const record=PULSE_MODES.get(pulseModeKey(p));
+  if(record&&record.project_issue==="project_ambiguous")return "Asignación principal ambigua · revisa las declaraciones";
+  if(record&&record.project_available===false)return "Proyecto pendiente de verificar";
   return String(record&&(record.project_name||record.project_id)||"Proyecto pendiente de verificar");
 }
 function pulseCard(p){
@@ -529,7 +531,7 @@ function pulseBatchButton(group,action,label){
 }
 function pulseGlobalToolbar(){
   const allCompact=PULSE_VIEW.cli.compact&&PULSE_VIEW.app.compact,allHidden=PULSE_VIEW.cli.hidden&&PULSE_VIEW.app.hidden;
-  return `<div class="pulse-global-toolbar" role="toolbar" aria-label="Controles de la deepAgents"><strong>Control de superficies</strong>${pulseBatchButton('cli','start','Arrancar todos los CLI')}${pulseBatchButton('cli','stop','Parar todos los CLI')}${pulseBatchButton('app','start','Arrancar todos Desktop App')}${pulseBatchButton('app','stop','Parar todos Desktop App')}<button type="button" class="pulse-btn view" data-pulse-view="${allCompact?'expand-all':'compact-all'}" data-pulse-focus="view:all:density">${allCompact?'Ampliar todos':'Compactar todos'}</button><button type="button" class="pulse-btn view" data-pulse-view="${allHidden?'show-all':'hide-all'}" data-pulse-focus="view:all:visibility" aria-expanded="${allHidden?'false':'true'}"${PULSE_FILTER!=="all"?' disabled':''}>${allHidden?'Mostrar todos':'Ocultar todos'}</button></div><p class="pulse-control-status${PULSE_STATUS.error?' err':PULSE_STATUS.message?' ok':''}" id="pulseControlStatus" role="status" aria-live="polite" aria-atomic="true">${esc(PULSE_STATUS.message)}</p>`;
+  return `<div class="pulse-global-toolbar" role="toolbar" aria-label="Controles de deepAgents"><strong>Control de superficies</strong>${pulseBatchButton('cli','start','Arrancar todos los CLI')}${pulseBatchButton('cli','stop','Parar todos los CLI')}${pulseBatchButton('app','start','Arrancar todos Desktop App')}${pulseBatchButton('app','stop','Parar todos Desktop App')}<button type="button" class="pulse-btn view" data-pulse-view="${allCompact?'expand-all':'compact-all'}" data-pulse-focus="view:all:density">${allCompact?'Ampliar todos':'Compactar todos'}</button><button type="button" class="pulse-btn view" data-pulse-view="${allHidden?'show-all':'hide-all'}" data-pulse-focus="view:all:visibility" aria-expanded="${allHidden?'false':'true'}"${PULSE_FILTER!=="all"?' disabled':''}>${allHidden?'Mostrar todos':'Ocultar todos'}</button></div><p class="pulse-control-status${PULSE_STATUS.error?' err':PULSE_STATUS.message?' ok':''}" id="pulseControlStatus" role="status" aria-live="polite" aria-atomic="true">${esc(PULSE_STATUS.message)}</p>`;
 }
 function pulseGroupsMarkup(classified,unavailable=false){
   const byKey=classified&&classified.by_key||{},fallback=key=>({key,label:key==="cli"?"deepAgents CLI":key==="app"?"deepAgents Desktop App":"Sin superficie identificada",items:[]}),cli=byKey.cli||fallback("cli"),app=byKey.app||fallback("app"),unknown=byKey.unknown||fallback("unknown");
