@@ -40,3 +40,11 @@ test('archived or unknown projects cannot be displayed as an available principal
  assert.equal(state.project_id,'admiranext');assert.equal(state.project_available,true);
  const missing=resolve({target,projects:[],now});assert.equal(missing.project_id,'admiranext');assert.equal(missing.project_available,false);
 });
+test('equal-time aliases with conflicting projects remain explicitly unavailable independent of row order',()=>{
+ const conflicts=[declaration('daily','2026-09-05','Oraculo'),declaration('mission','2026-09-05','OraculoMacMini')];
+ for(const declarations of [conflicts,[...conflicts].reverse()]){
+  const result=resolve({target,projects,declarations,now});assert.equal(result.project_issue,'project_ambiguous');assert.equal(result.project_available,false);
+ }
+ const tied=[mission('daily'),mission('mission')];
+ for(const missions of [tied,[...tied].reverse()])assert.equal(resolve({target,projects,missions,now}).project_issue,'project_ambiguous');
+});
