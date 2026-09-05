@@ -154,18 +154,18 @@
     cards.forEach(function(card){counts[card.process_state]++;counts.runtime_targets+=card.runtime_targets.length;});
     return {items:cards,counts:counts};
   }
-  function selectedCardTarget(card,selection){
+  function selectedCardTarget(card,selection,requireSelection){
     var variants=card&&Array.isArray(card.runtime_targets)?card.runtime_targets:[];
-    if(variants.length===1)return variants[0];
+    if(variants.length===1&&!card.runtime_selection_required&&!requireSelection)return variants[0];
     return text(selection)?variants.find(function(row){return row.identity_key===selection;})||null:null;
   }
   function batchPlan(model,group,action,options){
     options=options||{};
     group=surface(group);action=norm(action);
     if(group==="unknown"||action!=="start"&&action!=="stop")return {ok:false,error:"invalid-batch-scope",group:group,action:action,targets:[]};
-    var selections=options.selections instanceof Map?options.selections:new Map(),cards=groupCards(model&&model.items||[],options).items,
-      skipped=cards.filter(function(card){return card.surface===group&&card.runtime_selection_required&&!selectedCardTarget(card,selections.get(card.card_key))&&card.runtime_targets.some(function(row){return row.eligible[action];});}).length,
-      candidates=cards.map(function(card){return selectedCardTarget(card,selections.get(card.card_key));})
+    var selections=options.selections instanceof Map?options.selections:new Map(),required=options.requireSelections instanceof Set?options.requireSelections:new Set(),cards=groupCards(model&&model.items||[],options).items,
+      skipped=cards.filter(function(card){return card.surface===group&&(card.runtime_selection_required||required.has(card.card_key))&&!selectedCardTarget(card,selections.get(card.card_key),required.has(card.card_key))&&card.runtime_targets.some(function(row){return row.eligible[action];});}).length,
+      candidates=cards.map(function(card){return selectedCardTarget(card,selections.get(card.card_key),required.has(card.card_key));})
         .filter(function(item){return item&&item.surface===group&&item.eligible[action];}),
       targets=candidates.slice(0,MAX_BATCH).map(function(item){return item.control_key;});
     return {ok:true,group:group,action:action,targets:targets,count:targets.length,skipped_ambiguous:skipped,truncated:candidates.length>MAX_BATCH,

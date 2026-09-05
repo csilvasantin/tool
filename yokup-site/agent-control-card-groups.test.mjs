@@ -58,3 +58,14 @@ test('alias físicos se reúnen, otra persona/equipo/interfaz no se fusiona',()=
  const cards=control.groupCards(rows,{identity});assert.equal(cards.items.length,4);
  assert.equal(cards.items.find(c=>c.runtime_targets.length===2).runtime_targets.length,2);
 });
+
+test('perder selección exige nueva elección incluso cuando solo queda otro runtime y tampoco bulk lo sortea',()=>{
+ const model=build([],slots.filter(row=>row.runtime==='OpenCode'&&row.host==='app')),
+   card=control.groupCards(model.items,{identity}).items[0],required=new Set([card.card_key]);
+ assert.equal(card.runtime_targets.length,1);
+ assert.equal(control.selectedCardTarget({...card,runtime_selection_required:true}),null);
+ const plan=control.batchPlan(model,'app','start',{identity,requireSelections:required});
+ assert.equal(plan.count,0);assert.equal(plan.skipped_ambiguous,1);
+ const target=card.runtime_targets[0],selections=new Map([[card.card_key,target.identity_key]]);
+ assert.equal(control.batchPlan(model,'app','start',{identity,requireSelections:required,selections}).count,1);
+});
