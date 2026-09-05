@@ -1,8 +1,9 @@
+import {CLI_POLICY,cliPolicyBlocked} from '../src/cli-policy.js';
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {memberRefMatches,resolveDecisionIdentity} from "../src/decision-project.js";
-import {canonicalMachineSuffix,parseAgentIdentity,sameAgentFamily} from "../src/agent-identity.js";
+import {canonicalMachineSuffix,parseAgentIdentity,sameAgentFamily,reportAgentFamily} from "../src/agent-identity.js";
 import {onIdleEligibility} from "../src/mission-visible.js";
 import {selectCanonicalLiveOnIdleDecision} from "../src/onidle-decision-contract.js";
 import {automationAllowed,automationFamily} from "../src/fleet-automation-control.js";
@@ -23,6 +24,7 @@ function body(name){
 
 function operationalHarness(rows){
   const sqlCalls=[];
+  const highscoreVerifiedPresence=async()=>({process_targets:rows.process_targets??new Map([['app:oraculo:123',{family_key:reportAgentFamily('OraculoMacMini','Mac Mini').family_key,host:'app',runtime:'Codex',session_id:'desktop:codex',pid:123,updated:NOW/1000,verified:true,source:'process_snapshot'}]])});
   const env={DB:{async exec(){},prepare(sql){sqlCalls.push(sql);return {bind(){return this;},async all(){
     if(sql === "SELECT * FROM fleet_automation_controls")return {results:rows.controls||[]};
     if(sql.startsWith("SELECT id,status,assignee"))return {results:(rows.missions||[]).filter((row)=>
@@ -33,9 +35,9 @@ function operationalHarness(rows){
     if(sql.startsWith("SELECT agent,machine FROM decisions"))return {results:rows.used||[]};
     throw new Error(`SQL inesperado: ${sql}`);
   }};}}};
-  const factory=new Function("selectCanonicalLiveOnIdleDecision","missionDayRange","madridDayKey","onIdleEligibility","ONIDLE_MISSION_MARKER","ONIDLE_DAILY_LIMIT","MISSION_UNCONCLUDED_AFTER_MS","sameAgentFamily","memberRefMatches","AGENT_SOURCE_SQL","AGENT_SOURCE_SQL_T","parseAgentIdentity","canonicalMachineSuffix","automationAllowed","automationFamily",
-    `${body("matchesOnIdleIdentity")}; ${body("operationalOnIdleState")}; return operationalOnIdleState;`);
-  return {run:factory(selectCanonicalLiveOnIdleDecision,()=>({start:1,end:2}),()=>"2026-08-13",onIdleEligibility,MARKER,8,3600000,sameAgentFamily,memberRefMatches,AGENT_SOURCE_SQL,AGENT_SOURCE_SQL_T,parseAgentIdentity,canonicalMachineSuffix,automationAllowed,automationFamily),env,sqlCalls};
+  const factory=new Function("selectCanonicalLiveOnIdleDecision","missionDayRange","madridDayKey","onIdleEligibility","ONIDLE_MISSION_MARKER","ONIDLE_DAILY_LIMIT","MISSION_UNCONCLUDED_AFTER_MS","sameAgentFamily","memberRefMatches","AGENT_SOURCE_SQL","AGENT_SOURCE_SQL_T","parseAgentIdentity","canonicalMachineSuffix","automationAllowed","automationFamily","CLI_POLICY","cliPolicyBlocked","highscoreVerifiedPresence","reportAgentFamily",
+    `${body("matchesOnIdleIdentity")}; ${body("onIdleAppPolicy")}; ${body("operationalOnIdleState")}; return operationalOnIdleState;`);
+  return {run:factory(selectCanonicalLiveOnIdleDecision,()=>({start:1,end:2}),()=>"2026-08-13",onIdleEligibility,MARKER,8,3600000,sameAgentFamily,memberRefMatches,AGENT_SOURCE_SQL,AGENT_SOURCE_SQL_T,parseAgentIdentity,canonicalMachineSuffix,automationAllowed,automationFamily,CLI_POLICY,cliPolicyBlocked,highscoreVerifiedPresence,reportAgentFamily),env,sqlCalls};
 }
 
 const NOW=Date.UTC(2026,7,13,12);
@@ -86,7 +88,7 @@ test("una fleet pending propia bloquea; ajena, otra máquina, field y terminal n
 });
 
 test("Academy y OnIDLE concurrente ajeno nunca se presentan como decisión propia",async()=>{
-  const scope={agent:"OraculoMini",machine:"Mac Mini",project_id:"yokup"};
+  const scope={...resolveDecisionIdentity("OraculoMini","Mac Mini"),project_id:"yokup"};
   const academy=decision("academy",{agent:"TrinityMBA16",machine:"MacBook Air 16 DG",project:"admira-academy",surface:"academy",mission:"formacion:tecnologia",options:OPTIONS.slice(0,3)});
   const foreign=decision("foreign",{agent:"NeoMini"});const own=decision("own");
   assert.equal(selectCanonicalLiveOnIdleDecision([academy,foreign],scope,MARKER),null);
@@ -122,4 +124,20 @@ test("parada OnIdle respeta la familia exacta sin atribuirla al resto",async()=>
   assert.equal(state.can_open,false);assert.equal(state.reason,"automation_stopped");
   const foreign=operationalHarness({controls:[{scope:"onidle:"+automationFamily({agent:"NeoMini",machine:"Mac Mini"}),enabled:0,cutoff:NOW}]});
   assert.equal((await foreign.run(foreign.env,identity,"yokup",NOW)).can_open,true);
+});
+
+test('OnIdle exige APP única vinculable; no sustituye falta de señal por CLI o por otra familia',async()=>{
+  const identity=resolveDecisionIdentity('OraculoMini','Mac Mini');
+  const own={family_key:reportAgentFamily(identity.agent,identity.machine).family_key,host:'app',runtime:'Codex',session_id:'desktop:codex',pid:123};
+  for(const [targets,reason] of [
+    [new Map(),'app_surface_unverified'],
+    [new Map([['cli',{...own,host:'cli',session_id:'oraculo'}]]),'app_surface_unverified'],
+    [new Map([['foreign',{...own,family_key:'neo@macmini'}]]),'app_surface_unverified'],
+    [new Map([['first',own],['second',{...own,pid:124}] ]),'ambiguous_app_surface'],
+  ]){
+    const h=operationalHarness({process_targets:targets}),result=await h.run(h.env,identity,'yokup',NOW);
+    assert.equal(result.can_open,false);assert.equal(result.reason,reason);assert.equal(h.sqlCalls.length,0);
+  }
+  const h=operationalHarness({});const result=await h.run(h.env,{...identity,host:'cli'},'yokup',NOW);
+  assert.equal(result.can_open,false);assert.equal(result.reason,'cli_paused_by_carlos');assert.equal(h.sqlCalls.length,0);
 });
