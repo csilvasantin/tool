@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {automationAllowed} from './src/fleet-automation-control.js';
 import assert from 'node:assert/strict';
 import { assignedWorkBlockers, legacyAcademyAvailability } from './src/automatic-work-priority.js';
 import { evaluateModeOpportunity } from './src/fleet-hourly-modes.js';
@@ -110,7 +111,7 @@ async function activeDatabase(){
 
 test('the production guard revokes a live delivery when a human assignment arrives and leaves preferences intact',async()=>{
  const {db,env,now,id,pref,exact}=await activeDatabase();
- const ctx={ensureHourlyModeSchema,modeTargetKey,normalizeModeTarget,assignedWorkBlockers,pauseAutomaticRun,AGENT_SOURCE_SQL:'1=1',Set,URL,hourlyModeProject:async()=>({id:'yokup',web:'https://yokup.com'}),matchesOnIdleIdentity:()=>false};
+ const ctx={automationAllowed,ensureHourlyModeSchema,modeTargetKey,normalizeModeTarget,assignedWorkBlockers,pauseAutomaticRun,AGENT_SOURCE_SQL:'1=1',Set,URL,hourlyModeProject:async()=>({id:'yokup',web:'https://yokup.com'}),matchesOnIdleIdentity:()=>false};
  vm.runInNewContext(['assignedWorkSnapshot','hourlyModeActivity','hourlyModeGuard'].map(workerFunction).join('\n')+'\nthis.guard=hourlyModeGuard;',ctx);
  assert.equal((await ctx.guard(env,id,now,exact)).allowed,true);
  db.raw.exec("INSERT INTO tickets VALUES('DCL-human','MorfeoMini','MacMini','in_progress',1)");

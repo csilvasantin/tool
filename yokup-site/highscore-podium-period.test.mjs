@@ -53,12 +53,13 @@ function ranking(period) {
   `)(rows, period);
 }
 
-test("el podio arranca por día y ofrece hora, día, semana y mes junto a la bandera", () => {
+test("Highscore arranca por día y comparte el selector de cabecera con récord y podio", () => {
   assert.match(html, /var PODIUM_PERIOD = "day"/);
-  assert.match(html, /class="podio-period" role="group" aria-label="Periodo del ranking del podio"/);
-  assert.match(html, /data-podium-period="hour"[\s\S]*data-podium-period="day"[\s\S]*data-podium-period="week"[\s\S]*data-podium-period="month"/);
-  assert.match(html, /\.podio-period\{[^}]*right:5%;top:4%/s);
-  assert.match(html, /grid-template-columns:repeat\(4,1fr\)/);
+  assert.match(html, /id="highscorePeriod" role="group" aria-label="Periodo de Highscore: Día"/);
+  assert.match(html, /data-highscore-period-step="-1"/);
+  assert.match(html, /data-highscore-period-step="1"/);
+  assert.match(functionSource("cambiaPeriodoHighscore"), /\["hour",\s*"day",\s*"week",\s*"month"\]/);
+  assert.doesNotMatch(html, /data-podium-period="/);
   assert.match(html, /\.podio-total\{[^}]*top:4%;width:19\.8%/s);
 });
 
@@ -69,9 +70,11 @@ test("cada periodo ordena por sus puntos naturales", () => {
   assert.deepEqual(ranking("month"), ["Gamma", "Beta", "Alfa"]);
 });
 
-test("cambiar el periodo repinta sólo el podio con la lista filtrada actual", () => {
-  assert.match(html, /\["hour", "day", "week", "month"\]\.indexOf\(selectedPeriod\) >= 0 \? selectedPeriod : "day"/);
-  assert.match(html, /pintaPodio\(listaCache\.slice\(0, 3\), listaCache\)/);
+test("cambiar el periodo repinta récord y podio sin alterar ranking ni carrera", () => {
+  const change = functionSource("cambiaPeriodoHighscore");
+  assert.match(change, /pintaRecordDiario\(\)/);
+  assert.match(change, /pintaPodio\(listaCache\.slice\(0,\s*3\),\s*listaCache\)/);
+  assert.doesNotMatch(change, /RANKING_PERIOD\s*=|actualizaCarreraPodio|pintaTabla/);
   assert.doesNotMatch(functionSource("clasificacionPodio"), /pintaTabla|listaCache\s*=/);
 });
 
