@@ -273,7 +273,7 @@ test("el trabajo factual sigue por detrás del corredor sin solapar nombre ni re
   assert.match(html, /function actualizaCarreraPodio\(\)/);
   assert.match(html, /function trabajosEnCurso\(\)/);
   assert.match(html, /function resumenTrabajoActivo\(trabajo\)/);
-  assert.match(html, /stateLabel = trabajo\.kind==="session" \? "Actividad Desktop APP verificada" : trabajo\.cliPaused \? "CLI pausado por Carlos"[\s\S]*trabajo\.state === "running" \? "Trabajo activo" : trabajo\.state === "last_work" \? "Trabajo finalizado"/);
+  assert.match(html, /stateLabel = trabajo\.activityReason==="awaiting_decision" \? "Esperando decisión · sin ejecución verificada" : trabajo\.kind==="session" \? "Actividad Desktop APP verificada" : trabajo\.cliPaused \? "CLI pausado por Carlos"[\s\S]*trabajo\.state === "running" \? "Trabajo activo" : trabajo\.state === "last_work" \? "Trabajo finalizado"/);
   assert.doesNotMatch(html, /class="refresh-work-state"|class="refresh-time"/);
   assert.doesNotMatch(html, /function estelaMision|class="refresh-word"/);
   assert.match(html, /mision\.style\.left = ""; mision\.style\.width = ""/);
