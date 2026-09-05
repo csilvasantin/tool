@@ -5,11 +5,11 @@ import vm from "node:vm";
 
 const source=await readFile(new URL("./dashboard.html",import.meta.url),"utf8");
 
-test("el Pulso se presenta como Flota de Agentes Silicio con dos grupos principales",()=>{
-  assert.match(source,/<summary class="shd">Flota de Agentes Silicio /);
+test("el Pulso se presenta como deepAgents con dos grupos principales",()=>{
+  assert.match(source,/<summary class="shd">deepAgents<\/summary>/);
   assert.doesNotMatch(source,/<summary class="shd">Pulso de la flota /);
-  assert.match(source,/<h3 id="pulseCliTitle">Agentes CLI<\/h3>/);
-  assert.match(source,/<h3 id="pulseAppTitle">Agentes Desktop App<\/h3>/);
+  assert.match(source,/<h3 id="pulseCliTitle">deepAgents CLI<\/h3>/);
+  assert.match(source,/<h3 id="pulseAppTitle">deepAgents Desktop App<\/h3>/);
   assert.match(source,/data-pulse-group="\$\{esc\(key\)\}" aria-labelledby="\$\{esc\(id\)\}"/);
 });
 
@@ -22,9 +22,9 @@ test("el renderer consume la clasificación compartida y no vuelve a decidir el 
 });
 
 test("cada grupo tiene contador accesible y un vacío específico y honesto",()=>{
-  assert.match(source,/aria-live="polite" aria-atomic="true" aria-label="\$\{count\} agente/);
-  assert.match(source,/No hay agentes CLI configurados\./);
-  assert.match(source,/No hay agentes Desktop App configurados\./);
+  assert.match(source,/aria-live="polite" aria-atomic="true" aria-label="\$\{count\} de \$\{total\} deepAgents visibles/);
+  assert.match(source,/No hay deepAgents CLI configurados\./);
+  assert.match(source,/No hay deepAgents Desktop App configurados\./);
   assert.match(source,/Sin superficie identificada/);
   assert.match(source,/No se pudo comprobar esta superficie; se reintentará automáticamente\./);
 });
