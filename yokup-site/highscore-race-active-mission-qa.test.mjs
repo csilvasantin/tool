@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
-import {installRaceView} from "./highscore-race-test-support.mjs";
+import {installRaceView, htmlFunction} from "./highscore-race-test-support.mjs";
 
 const html = fs.readFileSync(new URL("./highscore.html", import.meta.url), "utf8");
 const identitySource = fs.readFileSync(new URL("./yk-agent-identity.js", import.meta.url), "utf8");
@@ -102,8 +102,10 @@ test("sin running muestra últimos trabajos B/N con hora final y zancada quieta"
 test("fallo del endpoint borra la lectura anterior y declara no disponible", () => {
   const race=renderRace([],[],[],false,"unavailable");
   assert.equal(race.participants,0); assert.match(race.html,/TRABAJO NO DISPONIBLE/);
-  assert.match(html,/datos\.trabajos = \[\]; datos\.trabajosAvailable = false/);
-  assert.match(html,/Datos de trabajo no disponibles\. /);
+  const state=vm.createContext({datos:{trabajos:[{agent:"Old"}],trabajosAvailable:true},performance:{now:()=>0},normaliza:v=>String(v||"")});
+  vm.runInContext(htmlFunction(html,"hsApplyWorkSnapshot"),state);state.hsApplyWorkSnapshot(null);
+  assert.equal(state.datos.trabajosAvailable,false);assert.equal(state.datos.trabajos.length,0);
+  assert.match(html,/No se pudo consultar el trabajo registrado/);
   assert.doesNotMatch(html,/se conserva la última lectura/);
 });
 

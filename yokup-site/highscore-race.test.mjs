@@ -17,10 +17,10 @@ test("la carrera exige trabajo factual pero no latido reciente", () => {
 });
 
 test("sin trabajo ni histórico queda una calle vacía honesta y sin corredor", () => {
-  assert.match(html, /var trabajoNoDisponible = !datos\.trabajosAvailable && !trabajos\.length/);
+  assert.match(html, /hsWorkEvidenceStatus\(datos\.trabajosAvailable, todosTrabajos\.length, corredores\.length, datos\.trabajosMode\)/);
   assert.doesNotMatch(html, /misionDesdePresencia|presencia viva, sin foco declarado/);
   assert.match(html, /class="refresh-lane refresh-lane-empty"/);
-  assert.match(html, /SIN TRABAJO ASIGNADO/);
+  assert.match(html, /SIN TRABAJO VERIFICADO/);
   assert.match(html, /TRABAJO NO DISPONIBLE/);
   assert.match(html, /data-race-empty="true"/);
 });
