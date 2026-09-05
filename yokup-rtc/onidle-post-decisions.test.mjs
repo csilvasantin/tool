@@ -12,7 +12,7 @@ const baseBody={
   recommended:0,minutes:5,onidle:true,mission:'OnIdle horario'
 };
 
-function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMissions=[],backlog=[],activeBatches=[],activeMissionTasks=[]}={}) {
+function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMissions=[],backlog=[],activeBatches=[],activeMissionTasks=[],presence}={}) {
   const state={missions:missions.map(x=>({source:'fleet',...x})),tasks,
     decisions:decisions.map(x=>({...x})),targetMissions,backlog,activeBatches,activeMissionTasks,displayRefs:new Map(),nextRef:0};
   const projects=[{id:'yokup',name:'Yokup',web:'www.yokup.com',status:'activo'}];
@@ -52,7 +52,16 @@ function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMis
     }
   });
   const DB={async exec(){},prepare(sql){return stmt(sql);},async batch(items){for(const item of items)await item.run();return items.map(()=>({meta:{changes:1}}));}};
-  return {env:{DB},state,now};
+  // An exact, fresh APP process is required by the production OnIdle policy.
+  // These tests still use the real worker and its policy; no readiness guard is stubbed.
+  const app={persona:'OraculoMacMini',machine:'admira-macmini',runtime:'Codex',
+    host:'app',session_id:'desktop:codex',pid:12345,verified:1,
+    source:'process_snapshot',process_state:'open',updated:now};
+  const TELEGRAM={async fetch(request){
+    return Response.json(new URL(request.url).pathname.endsWith('/work-sessions')
+      ? {sessions:[]} : {presence:presence ?? [app]});
+  }};
+  return {env:{DB,TELEGRAM},state,now};
 }
 
 function post(env,body=baseBody){
@@ -267,4 +276,24 @@ test('la excepción OnIdle no relaja decisiones manuales, automáticas ni format
     result=await response(box.env,{...baseBody,options:[baseBody.options[0],baseBody.options[0],...baseBody.options.slice(2)]});
     assert.equal(result.status,400);assert.equal(result.json.code,'invalid_onidle_options');
   } finally {Date.now=original;}
+});
+
+
+test('OnIdle exige una APP exacta fresca: ausencia, CLI, señal antigua o dos procesos no publican',async()=>{
+  const now=Date.now();
+  const app={persona:'OraculoMacMini',machine:'admira-macmini',runtime:'Codex',
+    host:'app',session_id:'desktop:codex',pid:12345,verified:1,
+    source:'process_snapshot',process_state:'open',updated:now};
+  for(const [presence,reason] of [
+    [[], 'app_surface_unverified'],
+    [[{...app,host:'cli',session_id:'terminal:codex'}], 'app_surface_unverified'],
+    [[{...app,updated:now-120_000}], 'app_surface_unverified'],
+    [[app,{...app,pid:12346,session_id:'desktop:codex:other'}], 'ambiguous_app_surface']
+  ]){
+    const {env,state}=decisionEnv({now,presence});
+    const result=await response(env);
+    assert.equal(result.status,409,JSON.stringify(result.json));
+    assert.equal(result.json.code,reason);
+    assert.equal(state.decisions.length,0);
+  }
 });

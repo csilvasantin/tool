@@ -1,3 +1,4 @@
+import {CLI_POLICY} from './src/cli-policy.js';
 import {automationFenceSql,automationFamily} from './src/fleet-automation-control.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -67,14 +68,14 @@ function harness(raceTicket) {
     'onIdleTickDecisionId','ONIDLE_DAILY_LIMIT','ONIDLE_BACK_OPTION','ONIDLE_CUSTOM_OPTION',
     'isCanonicalOnIdleOptions','DECIDE_URL','ONIDLE_MISSION_MARKER','decisionProjectSlug',
     'AGENT_SOURCE_SQL_T','isCanonicalOnIdleDecision','ensureEntityDisplayRef',
-    'agentFamilyKey','machineRefKey','agentFamilySqlKey','machineRefSqlKey','automationFenceSql','automationFamily',
+    'agentFamilyKey','machineRefKey','agentFamilySqlKey','machineRefSqlKey','automationFenceSql','automationFamily','CLI_POLICY',
     `${body('publishScheduledOnIdle')}; return publishScheduledOnIdle;`);
   const publish = factory(operationalOnIdleState, async () => ({ok:true,proposals:[
     {title:'Mejora A',target_mission_id:'A'}, {title:'Mejora B',target_mission_id:'B'},
     {title:'Mejora C',target_mission_id:'C'}]}), () => '2026-09-01', () => 'DEC-RACE', 8,
     ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION, isCanonicalOnIdleOptions, 'https://yokup.com/decide',
     MARKER, (value) => value, AGENT_SOURCE_SQL_T, isCanonicalOnIdleDecision, async () => {},
-    agentFamilyKey, machineRefKey, agentFamilySqlKey, machineRefSqlKey,automationFenceSql,automationFamily);
+    agentFamilyKey, machineRefKey, agentFamilySqlKey, machineRefSqlKey,automationFenceSql,automationFamily,CLI_POLICY);
   return {db, env:{DB}, publish};
 }
 
