@@ -7,7 +7,7 @@ const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&
 function api(saved={}){
  const writes=[];const context={localStorage:{getItem:key=>saved[key]??null,setItem:(key,value)=>writes.push([key,value])},window:{},esc:escape,paRuntimeSurface:row=>row.runtime||'',PROJECT_FILTER:'unrelated-global-project'};
  const start=source.indexOf('const PULSE_VIEW_KEY='),end=source.indexOf('function pulseRender()',start);
- vm.runInNewContext(source.slice(start,end)+'\nthis.api={pulseFilterBucket,pulseFilterCounts,pulseFilterItems,pulseFilterMarkup,pulseCard,pulseProjectLabel,pulseReadView,pulseReadFilter,setFilter:v=>PULSE_FILTER=v,project:r=>PULSE_MODES.set(pulseModeKey(r),r),view:()=>PULSE_VIEW};',context);
+ vm.runInNewContext(source.slice(start,end)+'\nthis.api={pulseFilterBucket,pulseFilterCounts,pulseFilterItems,pulseFilterMarkup,pulseCard,pulseProjectLabel,pulseReadView,pulseReadGroupFilters,setFilter:v=>{PULSE_GROUP_KEYS.forEach(k=>PULSE_GROUP_FILTERS[k]=v);PULSE_FILTER=v;},project:r=>PULSE_MODES.set(pulseModeKey(r),r),view:()=>PULSE_VIEW};',context);
  return {...context.api,writes};
 }
 const rows=Array.from({length:33},(_,i)=>({agent:'Agent'+i,persona:'Agent'+i,machine:'MacMini',runtime:'Claude',surface:i%2?'cli':'app',process_state:i<7?'open':i===7?'waiting':i<11?'closed':'unknown'}));
@@ -20,10 +20,10 @@ test('33 inventory rows partition into 8 open, 3 closed and 22 without signal wi
  for(const value of [undefined,'active','stopped','ambiguous','bogus'])assert.equal(a.pulseFilterBucket({process_state:value}),'unknown');
 });
 test('filter counts remain global when a segment is selected and preferences remain separate',()=>{
- const saved={'yk.dashboard.silicon-fleet.view.v1':JSON.stringify({cli:{compact:false,hidden:true},app:{compact:true,hidden:false}}),'yk.dashboard.deepagents.process-filter.v1':'closed'};
- const a=api(saved);assert.equal(a.pulseReadFilter(),'closed');const before=JSON.stringify(a.view());
+ const saved={'yk.dashboard.silicon-fleet.view.v1':JSON.stringify({cli:{compact:false,hidden:true},app:{compact:true,hidden:false}}),'yk.dashboard.deepagents.group-process-filters.v1':JSON.stringify({cli:'closed',app:'closed',unknown:'closed'})};
+ const a=api(saved);assert.equal(a.pulseReadGroupFilters().cli,'closed');const before=JSON.stringify(a.view());
  const markup=a.pulseFilterMarkup({groups:[{items:rows.slice(0,14)},{items:rows.slice(14)}]});
- for(const [label,count] of [['Todos',33],['Abiertos',8],['Cerrados',3],['Sin señal',22]])assert.ok(markup.includes(label+' <span class="filter-count">'+count+'</span>'));
+ for(const [label,count] of [['Todos',33],['Abiertos',8],['Cerrados',3],['No disponibles',22]])assert.ok(markup.includes(label+' <span class="filter-count">'+count+'</span>'));
  assert.match(markup,/data-pulse-filter="closed"[^>]*aria-pressed="true"/);
  assert.equal(a.pulseFilterItems(rows).length,3);assert.equal(JSON.stringify(a.view()),before);assert.deepEqual(a.writes,[]);
 });
@@ -52,5 +52,5 @@ test('filter click uses the productive event handler without dispatching control
  context.config(rows);
  await context.click({target:{closest:()=>({dataset:{pulseFilter:'closed'}})},preventDefault(){},stopPropagation(){}});
  assert.equal(section.open,true);assert.deepEqual(http,[]);assert.equal(store.get('yk.dashboard.silicon-fleet.view.v1'),original);
- assert.equal(store.get('yk.dashboard.deepagents.process-filter.v1'),'closed');assert.equal(store.size,2);
+ assert.deepEqual(JSON.parse(store.get('yk.dashboard.deepagents.group-process-filters.v1')),{cli:'closed',app:'closed',unknown:'closed'});assert.equal(store.size,2);
 });
