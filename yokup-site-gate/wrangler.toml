@@ -14,3 +14,18 @@ zone_name = "yokup.com"
 
 [observability]
 enabled = true
+
+# MCP uses the existing canonical mission database and internal service bindings.
+[[d1_databases]]
+binding = "DB"
+database_name = "yokup-tickets"
+database_id = "fc2d2810-0fb9-46bb-b05c-14c41fbd1b65"
+migrations_dir = "migrations"
+
+[[services]]
+binding = "RTC"
+service = "yokup-rtc"
+
+[[services]]
+binding = "TELEGRAM"
+service = "admira-telegram"

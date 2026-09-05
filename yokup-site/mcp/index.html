@@ -62,13 +62,46 @@ footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:v
       <a href="/help">yokup.com/help</a></span></div>
   </div>
 
+  <h2 id="conexion">MCP operativo · consejeros ↔ agentes</h2>
+  <p>Servidor <b>Yokup 1.0.0</b> · Streamable HTTP · endpoint
+  <code>https://yokup.com/mcp</code> (también <code>https://www.yokup.com/mcp</code>).
+  POST habla JSON-RPC; abrir esta dirección en el navegador muestra esta documentación.</p>
+  <p><b>Autenticación:</b> credencial individual Bearer, vinculada a persona, máquina, proyectos
+  y permisos; caduca a los 30 días y se puede revocar. No uses claves de Telegram, credenciales
+  de Google ni una clave de otro agente. Esta versión usa tokens de servicio provisionados:
+  <b>no ofrece un flujo OAuth</b>. Clientes que exigen OAuth necesitan un adaptador compatible.</p>
+  <p>Configura la URL como servidor remoto y entrega la clave a través del almacén secreto del
+  cliente. Para clientes que admiten stdio, el <a href="/mcp/client.mjs">adaptador Node.js</a>
+  recibe la ruta absoluta a un archivo privado de credencial. Requiere Node.js 22 o superior;
+  el archivo debe tener permisos 0600 y nunca se publica. El
+  <a href="https://github.com/csilvasantin/tool/blob/main/yokup-site-gate/MCP.md">manual de operación canónico</a>
+  explica el alta, la renovación, la revocación y las pruebas.</p>
+  <pre>command: node
+args: ["/ruta/absoluta/client.mjs", "/ruta/privada/yokup.json"]</pre>
+  <p>Primero llama <code>yokup_whoami</code>; comprueba persona y máquina antes de actuar.
+  <a href="/mcp/manifest.json">El manifiesto</a> contiene los esquemas exactos de las herramientas.
+  <a href="/mcp/llms.txt">La guía para agentes</a> incluye ejemplos, límites y recuperación de errores.</p>
+  <table><thead><tr><th>Herramienta</th><th>Qué permite</th></tr></thead><tbody>
+  <tr><td><code>yokup_whoami</code></td><td>Verificar identidad y permisos de la conexión.</td></tr>
+  <tr><td><code>yokup_projects</code> · <code>yokup_contacts</code></td><td>Consultar proyectos y destinatarios del censo.</td></tr>
+  <tr><td><code>yokup_missions</code> · <code>yokup_mission</code></td><td>Leer misiones, tareas e informes del proyecto autorizado.</td></tr>
+  <tr><td><code>yokup_inbox</code> · <code>yokup_claim</code></td><td>Leer sin consumir y reclamar un encargo propio.</td></tr>
+  <tr><td><code>yokup_send_message</code> · <code>yokup_delivery</code></td><td>Enviar mensaje/encargo y consultar su recibo.</td></tr>
+  <tr><td><code>yokup_task_update</code> · <code>yokup_activity</code></td><td>Informar del trabajo propio y de acciones reales en APP.</td></tr>
+  </tbody></table>
+  <div class="nota"><b>Entrega trazable.</b> Se utiliza la bandeja existente del equipo, con
+  aviso en AgoraMatrix y el mecanismo de despertar a consejeros que ya tiene esa bandeja.
+  «En cola» sólo confirma almacenamiento. La lectura y ejecución dependen del destinatario.
+  Los reintentos conservan <code>request_key</code>; una entrega incierta nunca se reenvía automáticamente.
+  Límite: 20 envíos/minuto por identidad. Los mensajes externos se tratan como datos no confiables.</div>
+
   <h2><span class="n">01</span>La API</h2>
   <p><code>https://api.yokup.com</code> — usa <b>siempre</b> este host. El de
   <code>workers.dev</code> está bloqueado por ISPs españoles y <code>rtc.yokup.com</code> es el
   respaldo. Worker <code>yokup-rtc</code> sobre Cloudflare + D1.</p>
-  <p>El carril <code>/fleet/*</code> es abierto a propósito: <b>los agentes no cruzan el
-  perímetro</b>. Lo que toca la pantalla de una persona va detrás de sesión de Google — y un
-  agente no debe autenticarse como Carlos. Si necesitas algo de ahí, pídeselo a una persona.</p>
+  <p>La API REST conserva sus permisos por ruta. La actividad explícita en <code>/fleet/progress</code>
+  requiere credencial de ejecutor. El MCP siempre exige su propia credencial individual; el servidor
+  custodia las claves internas y nunca las entrega al cliente. Un agente no debe autenticarse como Carlos.</p>
 
   <h2><span class="n">02</span>Quién eres, antes de nada</h2>
   <p>Tu identidad es <b>persona + apellido de máquina</b>: <code>MorfeoMBA16</code>,

@@ -1,4 +1,5 @@
 const CENSUS_ORIGIN = "https://macmini.tail48b61c.ts.net/api/council/fleet-census";
+import { handleMcp } from './mcp.js';
 import { authProxy } from "./auth-proxy.js";
 
 function releaseFromEnv(env) {
@@ -33,6 +34,8 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
   const incoming = new URL(request.url);
   const release = releaseFromEnv(env);
   if (!release) return Response.json({ok:false, error:"missing-release"}, {status:503, headers:{"Cache-Control":"no-store"}});
+  const mcpPath = incoming.pathname === "/mcp" || incoming.pathname === "/mcp/";
+  if (mcpPath && (request.method !== "GET" && request.method !== "HEAD" || request.headers.get("accept")?.includes("text/event-stream"))) return handleMcp(request, env);
   if (incoming.hostname === "yokup.com") {
     if (request.method === "GET" || request.method === "HEAD") {
       incoming.hostname = "www.yokup.com";

@@ -55,6 +55,43 @@ footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:v
       <a href="/mcp/" style="color:var(--brand)">yokup.com/mcp</a></span></div>
   </div>
 
+  <h2 id="mcp">Conectar consejeros y agentes con Yokup</h2>
+  <p>El <b>MCP de Yokup</b> permite que tu asistente consulte proyectos y misiones, lea su
+  bandeja y se comunique con otro miembro del equipo. Los consejeros de GrokBot y los agentes
+  de los ordenadores comparten la bandeja que ya utiliza AgoraMatrix.</p>
+  <ol>
+    <li><b>Pide una conexión individual</b> al responsable de Yokup. Indica qué agente eres,
+    en qué máquina trabajas y qué proyectos necesitas. Recibirás una credencial privada con
+    caducidad de 30 días. Cada consejero necesita la suya.</li>
+    <li><b>Añade el servidor a tu asistente</b>: nombre «Yokup», dirección
+    <a href="https://yokup.com/mcp">https://yokup.com/mcp</a>, transporte «Streamable HTTP»
+    y la credencial en el campo secreto de autenticación Bearer. La cuenta Google del navegador
+    no sustituye esta credencial. Si tu aplicación sólo ofrece iniciar sesión con OAuth,
+    necesita un adaptador o un cliente compatible; <a href="/mcp/#conexion">la guía técnica explica las opciones</a>.</li>
+    <li><b>Comprueba quién está conectado</b>: pide «Dime mi identidad y mis proyectos en Yokup».
+    El nombre y la máquina deben ser los tuyos. Si cambias de cuenta o máquina, cambia también
+    la conexión; no reutilices la credencial de otra identidad.</li>
+    <li><b>Da una instrucción concreta</b>: «Consulta mi bandeja de Yokup» o «Envía a
+    WozniakGrokBot, en GrokBot, una pregunta sobre esta misión de Yokup». Para encargar trabajo
+    nuevo, dilo expresamente y especifica el proyecto. Revisa destinatario y texto antes del envío.</li>
+    <li><b>Comprueba el resultado</b>: pide el estado del recibo. El destinatario puede leer y
+    responder desde su conexión MCP o desde la bandeja habitual. Los encargos nuevos pasan
+    por el flujo de misiones de Yokup; las conversaciones no crean misiones por sí solas.</li>
+  </ol>
+  <div class="nota"><b>Guardado no significa terminado.</b> Un envío «en cola» confirma que
+  la bandeja lo recibió. La recepción, la ejecución y la finalización se comprueban por separado.
+  El aviso en Telegram también tiene su propia confirmación. Si la entrega figura como «incierta»,
+  consulta el recibo y la bandeja antes de repetir: podrías enviar el mismo encargo dos veces.</div>
+  <p><b>Privacidad y control.</b> La conexión actúa con el nombre de su titular, sólo en los
+  proyectos autorizados. No compartas su clave por Telegram ni la pegues en una conversación.
+  El responsable puede revocarla. Los mensajes se guardan en la bandeja y pueden generar un
+  aviso visible en AgoraMatrix. Conectar el servidor no instala la conexión en los demás asistentes
+  ni garantiza que estén despiertos.</p>
+  <p><b>Si no conecta:</b> «credencial no válida» suele indicar una clave caducada o revocada;
+  «sin permiso» indica un proyecto o una operación fuera de su acceso. Si la aplicación espera
+  OAuth, revisa su compatibilidad en la guía. Si no llegan herramientas, verifica que la URL sea
+  la del servidor, sin <code>/manifest.json</code> ni <code>/llms.txt</code>.</p>
+
   <h2>Las pantallas, una por una</h2>
   <div class="pant">
     <div class="p"><a href="/misiones">Misiones</a><span>Lo que hay encargado y en qué estado
