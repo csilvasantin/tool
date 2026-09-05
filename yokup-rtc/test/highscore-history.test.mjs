@@ -5,7 +5,7 @@ import {DatabaseSync} from "node:sqlite";
 import {readFile} from "node:fs/promises";
 import {madridDayKey,madridDayStart} from "../src/display-ref.js";
 import {missionDayRange} from "../src/mission-visible.js";
-import {identityKey,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity} from "../src/agent-identity.js";
+import {groupingIdentityKey,identityKey,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity} from "../src/agent-identity.js";
 import {AGENT_SOURCE_SQL_T, MISSION_SCOPE_SQL_T} from "../src/mission-sources.js";
 
 const source=await readFile(new URL("../src/index.js",import.meta.url),"utf8");
@@ -344,4 +344,18 @@ test("identidad sin apellido o de ejecución se rechaza y la ruta es GET explíc
   assert.equal((await F.highscoreHistory(env,"SubMorfeoMBP16",Date.now())).ok,false);
   assert.match(source,/url\.pathname === "\/highscore\/history" && req\.method === "GET"/);
   assert.match(source,/return json\(history, history\.ok \? 200 : 400\)/);
+});
+
+test('la base histórica semanal conserva el mismo reparto físico y suma global que los hechos del día',async()=>{
+ const {db,env,F}=harness(),now=Date.UTC(2026,8,5,12),at=Date.UTC(2026,8,5,8);
+ const inputs=[['MorfeoMini','macmini'],['MorfeoMacMini','admira-macmini'],['MorfeoMBP14','MacBookProNegro14'],['TrinityMini','MacMini'],['TrinityMacMini','macmini'],['TrinityMBP14','MacBook Pro 14']];
+ inputs.forEach(([agent,machine],i)=>db.prepare('INSERT INTO decisions(id,agent,machine,created_at) VALUES(?,?,?,?)').run('history-split-'+i,agent,machine,at+i));
+ const {allDays}=await F.highscoreDailyRows(env,()=>true,now);assert.equal(allDays.length,1);
+ const byIdentity={};for(const [name,row] of Object.entries(allDays[0].por_agente)){const key=groupingIdentityKey(name);byIdentity[key]=(byIdentity[key]||0)+row.points;}
+ assert.equal(Object.keys(byIdentity).length,4);
+ assert.equal(allDays[0].points,60);
+ assert.equal(Object.values(byIdentity).reduce((n,v)=>n+v,0),allDays[0].points);
+ for(const [agent,points]of [['MorfeoMacMini',20],['MorfeoMBP14',10],['TrinityMacMini',20],['TrinityMBP14',10]]){
+  const historical=await F.highscoreHistory(env,agent,now);assert.equal(historical.periods.week.points,points,agent);assert.equal(historical.evolution.days.at(-1).points,points,agent);
+ }
 });

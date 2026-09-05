@@ -108,7 +108,7 @@ test("el marcador diario suma objetivos, ventanas y misiones del día de Madrid"
 
   const rosa=d.scores.find(s=>s.agent==="Neo");
   assert.ok(rosa,"NeoMBARosa tiene que puntuar: abrió ventanas y trabajó misiones hoy");
-  assert.equal(rosa.machine,"MacBookAirRosa");
+  assert.equal(rosa.machine,"MBARosa");
   assert.equal(rosa.windows,2,"solo las ventanas abiertas HOY");
   assert.equal(rosa.window_points,20);
   assert.equal(rosa.missions,3,"cuentan las dos puertas: bandeja de encargos Y ventana de decisión");
@@ -160,7 +160,7 @@ test("todo agente con puntos del día aparece aunque esté inactivo, sin presenc
   db.prepare("INSERT INTO decisions(id,machine,agent,question,status,created_at) VALUES(?,?,?,?,?,?)")
     .run("WINDOW-TRINITY","MacBookProNegro14","TrinityMBP14","Ventana sin presencia","decided",at+1);
   // La misma persona trabajó desde dos máquinas y con dos apellidos operativos.
-  // El contrato agrega ambos hechos en la única fila pública del agente.
+  // El contrato conserva cada equipo como identidad distinta sin perder puntos.
   db.prepare("INSERT INTO decisions(id,machine,agent,question,status,created_at) VALUES(?,?,?,?,?,?)")
     .run("WINDOW-MORFEO-MINI","MacMini","MorfeoMacMini","Ventana Mini","decided",at+2);
   db.prepare("INSERT INTO decisions(id,machine,agent,question,status,created_at) VALUES(?,?,?,?,?,?)")
@@ -185,20 +185,22 @@ test("todo agente con puntos del día aparece aunque esté inactivo, sin presenc
   assert.equal(taskOnly.metrics.tasks.day,1);
   assert.equal(taskOnly.metrics.points.day,15);
   const ranked=d.scores.map(row=>({
-    agent:row.agent,
+    agent:row.agent,machine:row.machine,
     points:row.points,
     tasks:row.tasks,
     task_points:row.task_points
   })).sort((a,b)=>a.agent.localeCompare(b.agent));
   assert.deepEqual(ranked,[
-    {agent:"Morfeo",points:20,tasks:0,task_points:0},
-    {agent:"Neo",points:40,tasks:0,task_points:0},
-    {agent:"Niobe",points:20,tasks:0,task_points:0},
-    {agent:"Smith",points:15,tasks:1,task_points:15},
-    {agent:"Trinity",points:10,tasks:0,task_points:0}
+    {agent:"Morfeo",machine:"MacMini",points:10,tasks:0,task_points:0},
+    {agent:"Morfeo",machine:"MBP16",points:10,tasks:0,task_points:0},
+    {agent:"Neo",machine:"MacMini",points:40,tasks:0,task_points:0},
+    {agent:"Niobe",machine:"MacMini",points:20,tasks:0,task_points:0},
+    {agent:"Smith",machine:"MBAAzul",points:15,tasks:1,task_points:15},
+    {agent:"Trinity",machine:"MBP14",points:10,tasks:0,task_points:0}
   ]);
-  assert.equal(d.scores.filter(row=>row.agent==="Morfeo").length,1,
-    "las firmas MacMini y MBP16 no parten al agente ni pierden una de sus ventanas");
+  assert.equal(d.scores.filter(row=>row.agent==="Morfeo").length,2,
+    "MacMini y MBP16 se distinguen y conservan ambas ventanas");
+  assert.equal(d.scores.reduce((n,row)=>n+row.points,0),105,"el reparto conserva el total global de hechos");
   assert.equal(d.scores.some(row=>row.agent==="Cypher"),false,
     "la inclusión depende de puntos positivos, no de pertenecer al censo");
 });
@@ -335,7 +337,7 @@ test("MBP14: FLT-1204 enlaza una tarea done como inicio factual y suma misión +
   const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
   const trinity=d.scores.find(row=>row.agent==="Trinity");
   assert.ok(trinity,"la identidad operativa exacta de MBP14 debe aparecer");
-  assert.equal(trinity.machine,"macbookpronegro14");
+  assert.equal(trinity.machine,"MBP14");
   assert.equal(trinity.missions,1);
   assert.equal(trinity.mission_points,40);
 
@@ -560,4 +562,16 @@ test("el ámbito de flota incluye las misiones nacidas de una ventana de decisi�
   // Y la bandeja de CAMPO deja de tragarse las misiones de los agentes.
   assert.match(FIELD_SOURCE_SQL_T, /source NOT IN \('fleet','decision-batch','cli-declare'\)/);
   assert.doesNotMatch(source, /source IS NULL OR t\.source!='fleet'/);
+});
+
+test('Morfeo y Trinity separan dos equipos sin duplicar aliases ni variar el total diario y horario',async()=>{
+ const {db,env,F}=harness();const at=HOY-1000;
+ const inputs=[['MorfeoMini','macmini'],['MorfeoMacMini','admira-macmini'],['MorfeoMBP14','MacBookProNegro14'],['TrinityMini','MacMini'],['TrinityMacMini','macmini'],['TrinityMBP14','MacBook Pro 14']];
+ inputs.forEach(([agent,machine],i)=>db.prepare('INSERT INTO decisions(id,agent,machine,question,status,created_at) VALUES(?,?,?,?,?,?)').run('split-'+i,agent,machine,'Ventana factual','decided',at+i));
+ const d=JSON.parse(JSON.stringify(await F.highscoreDaily(env)));
+ const totals=Object.fromEntries(d.scores.map(row=>[row.agent+'|'+row.machine,row.points]));
+ assert.deepEqual(totals,{'Morfeo|MacMini':20,'Morfeo|MBP14':10,'Trinity|MacMini':20,'Trinity|MBP14':10});
+ assert.equal(d.scores.reduce((n,row)=>n+row.points,0),inputs.length*d.weights.window);
+ const hourly=Object.fromEntries(d.hourly.scores.map(row=>[row.agent+'|'+row.machine,row.metrics.points.day]));assert.deepEqual(hourly,totals);
+ assert.equal(new Set(d.hourly.scores.map(row=>row.agent_key)).size,4,'los snapshots no se pisan por persona');
 });
