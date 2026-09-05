@@ -88,7 +88,13 @@ test('parent_decision y batch_id migran, persisten y viajan en GET/POST', () => 
   assert.match(source, /ALTER TABLE decisions ADD COLUMN parent_decision TEXT/);
   assert.match(source, /ALTER TABLE decisions ADD COLUMN batch_id TEXT/);
   assert.match(source, /ALTER TABLE decisions ADD COLUMN option_targets TEXT/);
-  assert.match(source, /project,project_slug,parent_decision,batch_id,option_targets\) VALUES/);
+  // The shared atomic INSERT SELECT keeps the same ordered payload fields.
+  const insert = source.match(/async function guardedAutomaticDecisionInsert\([^]*?\n\}/)?.[0] || '';
+  assert.match(insert, /const columns='id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id,option_targets'/);
+  assert.match(insert, /INSERT INTO decisions \(.*columns.*SELECT/);
+  assert.match(insert, /automationFenceSql\('\?','\?','\?'\)/, 'automatic windows retain the publication barrier');
+  assert.match(source, /guardedAutomaticDecisionInsert\(env,\[id,machine,agent,[^\n]*dproject,dprojectSlug,dparent,dbatch,JSON\.stringify\(targetContract\.targets\)\]/,
+    'project, parent, batch and targets are passed to the same ordered columns');
   assert.match(source, /parent_decision: d\.parent_decision \|\| "", batch_id: d\.batch_id \|\| ""/);
 });
 

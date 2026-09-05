@@ -5,6 +5,7 @@ import {memberRefMatches,resolveDecisionIdentity} from "../src/decision-project.
 import {canonicalMachineSuffix,parseAgentIdentity,sameAgentFamily} from "../src/agent-identity.js";
 import {onIdleEligibility} from "../src/mission-visible.js";
 import {selectCanonicalLiveOnIdleDecision} from "../src/onidle-decision-contract.js";
+import {automationAllowed,automationFamily} from "../src/fleet-automation-control.js";
 import {AGENT_SOURCE_SQL,AGENT_SOURCE_SQL_T} from "../src/mission-sources.js";
 
 const source=fs.readFileSync(new URL("../src/index.js",import.meta.url),"utf8");
@@ -22,7 +23,8 @@ function body(name){
 
 function operationalHarness(rows){
   const sqlCalls=[];
-  const env={DB:{prepare(sql){sqlCalls.push(sql);return {bind(){return this;},async all(){
+  const env={DB:{async exec(){},prepare(sql){sqlCalls.push(sql);return {bind(){return this;},async all(){
+    if(sql === "SELECT * FROM fleet_automation_controls")return {results:rows.controls||[]};
     if(sql.startsWith("SELECT id,status,assignee"))return {results:(rows.missions||[]).filter((row)=>
       ['fleet','decision-batch','cli-declare'].includes(row.source) && ['open','in_progress','unconcluded'].includes(row.status))};
     if(sql.startsWith("SELECT m.mission_id"))return {results:(rows.tasks||[]).filter((row)=>
@@ -31,9 +33,9 @@ function operationalHarness(rows){
     if(sql.startsWith("SELECT agent,machine FROM decisions"))return {results:rows.used||[]};
     throw new Error(`SQL inesperado: ${sql}`);
   }};}}};
-  const factory=new Function("selectCanonicalLiveOnIdleDecision","missionDayRange","madridDayKey","onIdleEligibility","ONIDLE_MISSION_MARKER","ONIDLE_DAILY_LIMIT","MISSION_UNCONCLUDED_AFTER_MS","sameAgentFamily","memberRefMatches","AGENT_SOURCE_SQL","AGENT_SOURCE_SQL_T","parseAgentIdentity","canonicalMachineSuffix",
+  const factory=new Function("selectCanonicalLiveOnIdleDecision","missionDayRange","madridDayKey","onIdleEligibility","ONIDLE_MISSION_MARKER","ONIDLE_DAILY_LIMIT","MISSION_UNCONCLUDED_AFTER_MS","sameAgentFamily","memberRefMatches","AGENT_SOURCE_SQL","AGENT_SOURCE_SQL_T","parseAgentIdentity","canonicalMachineSuffix","automationAllowed","automationFamily",
     `${body("matchesOnIdleIdentity")}; ${body("operationalOnIdleState")}; return operationalOnIdleState;`);
-  return {run:factory(selectCanonicalLiveOnIdleDecision,()=>({start:1,end:2}),()=>"2026-08-13",onIdleEligibility,MARKER,8,3600000,sameAgentFamily,memberRefMatches,AGENT_SOURCE_SQL,AGENT_SOURCE_SQL_T,parseAgentIdentity,canonicalMachineSuffix),env,sqlCalls};
+  return {run:factory(selectCanonicalLiveOnIdleDecision,()=>({start:1,end:2}),()=>"2026-08-13",onIdleEligibility,MARKER,8,3600000,sameAgentFamily,memberRefMatches,AGENT_SOURCE_SQL,AGENT_SOURCE_SQL_T,parseAgentIdentity,canonicalMachineSuffix,automationAllowed,automationFamily),env,sqlCalls};
 }
 
 const NOW=Date.UTC(2026,7,13,12);
@@ -109,4 +111,15 @@ test("la implementación filtra ambos conjuntos antes de calcular elegibilidad",
   assert.match(fn,/tasks\s*=\s*\(taskResult\.results \|\| \[\]\)\.filter/);
   assert.match(predicate,/sameAgentFamily\(row\.assignee, identity\.agent\)/);
   assert.match(predicate,/memberRefMatches\("machine", row\.loc, identity\.machine\)/);
+});
+
+// Exercise the real persisted-permission evaluator, not an always-true stub.
+test("parada OnIdle respeta la familia exacta sin atribuirla al resto",async()=>{
+  const identity=resolveDecisionIdentity("OraculoMini","Mac Mini");
+  const own="onidle:"+automationFamily(identity);
+  const blocked=operationalHarness({controls:[{scope:own,enabled:0,cutoff:NOW}]});
+  const state=await blocked.run(blocked.env,identity,"yokup",NOW);
+  assert.equal(state.can_open,false);assert.equal(state.reason,"automation_stopped");
+  const foreign=operationalHarness({controls:[{scope:"onidle:"+automationFamily({agent:"NeoMini",machine:"Mac Mini"}),enabled:0,cutoff:NOW}]});
+  assert.equal((await foreign.run(foreign.env,identity,"yokup",NOW)).can_open,true);
 });

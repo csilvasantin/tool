@@ -36,7 +36,13 @@ test('POST resuelve la intersección canónica agent+machine y falla cerrado', (
 });
 
 test('POST guarda id+slug; GET lista y detalle devuelven nombre, id y slug', () => {
-  assert.match(source, /project,project_slug,parent_decision,batch_id,option_targets\) VALUES/);
+  // The shared atomic INSERT SELECT keeps the same ordered payload fields.
+  const insert = source.match(/async function guardedAutomaticDecisionInsert\([^]*?\n\}/)?.[0] || '';
+  assert.match(insert, /const columns='id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id,option_targets'/);
+  assert.match(insert, /INSERT INTO decisions \(.*columns.*SELECT/);
+  assert.match(insert, /automationFenceSql\('\?','\?','\?'\)/, 'automatic windows retain the publication barrier');
+  assert.match(source, /guardedAutomaticDecisionInsert\(env,\[id,machine,agent,[^\n]*dproject,dprojectSlug,dparent,dbatch,JSON\.stringify\(targetContract\.targets\)\]/,
+    'project, parent, batch and targets are passed to the same ordered columns');
   assert.match(source, /project: projectContext\.project, project_id: dproject, project_slug: dprojectSlug/);
   assert.match(source, /project: resolvedProject\.name, project_id: resolvedProject\.id/);
   assert.match(source, /project_slug: d\.project_slug \|\| ""/);
