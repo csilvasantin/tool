@@ -165,3 +165,15 @@ test('client clock removes an expired standalone turn and stops a linked mission
  assert.equal(ctx.datos.trabajos[0].work_started_at,trinity.work_started_at);
  ctx.actualizaRelojesCarrera();assert.equal(paints,1,'expiry does not loop or revive a finished turn');
 });
+
+test('GrokBot service task runs with real description and expires without becoming Desktop or reviving a closed task',()=>{
+ const service={...neo,agent:'LucasGrokBot',executor:'LucasGrokBot',machine:'GrokBot',family_key:'lucas@grokbot',
+  reference:'GROK:b',title:'Página drag-and-drop',state:'running',host:'app',runtime:'Grok',service_surface:'app',
+  activity_basis:'grokbot_task_progress',activity_at:dualAt-60000,service_observed_at:dualAt,activity_expires_at:dualAt+120000};
+ const {ctx,render}=view([service]);const output=render([service],dualAt);
+ assert.match(output,/data-work-state="running"/);assert.match(output,/GrokBot · APP/);assert.match(output,/>Página drag-and-drop</);
+ assert.equal(ctx.trabajosCarrera()[0].sessionSurface,'');assert.equal(ctx.trabajosCarrera()[0].reference,'GROK:b');
+ for(const patch of [{machine:'MacMini',agent:'LucasMacMini',family_key:'lucas@macmini'},{host:'cli'},{runtime:'Codex'},{ended_at:dualAt},{activity_expires_at:dualAt},{service_observed_at:dualAt-120001},{activity_expires_at:dualAt+120001}])assert.doesNotMatch(render([{...service,...patch}],dualAt),/data-work-state="running"/);
+ render([service],dualAt);ctx.performance.now=()=>120200;ctx.document.querySelectorAll=()=>[];let paints=0;ctx.hsPaintWorkUpdate=()=>paints++;
+ ctx.actualizaRelojesCarrera();assert.equal(paints,1);assert.equal(ctx.datos.trabajos[0].state,'assigned_stale');
+});

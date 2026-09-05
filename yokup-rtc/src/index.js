@@ -1,3 +1,4 @@
+import { grokbotServicePresence, grokbotTaskActivity } from './grokbot-work.js';
 import { desktopTurnParticipants } from './desktop-turn-participant.js';
 import { CLI_POLICY, cliPolicyBlocked, cliPolicyFor } from './cli-policy.js';
 import { WORK_ACTIVITY_TABLE_SQL, normalizeWorkActivity, recordWorkActivity, evaluateWorkActivity, workActivityProcessKey } from './work-activity.js';
@@ -8465,7 +8466,7 @@ async function highscoreVerifiedPresence(env, ahora) {
         sessions.set(key, list);
       }
     }
-    return { available:true, by_family:byFamily, sessions, exact_processes:exactProcesses, process_targets:processTargets, desktop_turns:desktopTurnParticipants(rows,ahora), observations:[...observedSurfaces.values()] };
+    return { available:true, by_family:byFamily, sessions, exact_processes:exactProcesses, process_targets:processTargets, desktop_turns:desktopTurnParticipants(rows,ahora), service_presence:grokbotServicePresence(rows,ahora), observations:[...observedSurfaces.values()] };
   } catch {
     return { available:false, by_family:new Map(), sessions:new Map(), observations:[] };
   }
@@ -8526,7 +8527,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
       `(SELECT activity_json FROM fleet_work_activity wa WHERE wa.mission_id=t.id) activity_json,` +
       `${HIGHSCORE_RACE_PROGRESS_SQL} race_progress_at FROM tickets t ` +
       `WHERE ${MISSION_SCOPE_SQL_T} AND status='in_progress' AND NOT EXISTS(SELECT 1 FROM fleet_hourly_work hw JOIN fleet_agent_mode_runs hr ON hr.id=hw.run_id WHERE hw.mission_id=t.id AND hr.status='paused')`).all().then((r) => r.results || []),
-    env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.started_at,m.created_at,m.updated_at,EXISTS(SELECT 1 FROM fleet_hourly_work hw WHERE hw.mission_id=t.id) automatic_work,` +
+    env.DB.prepare(`SELECT m.mission_id,m.code,m.title,m.status,m.owner,m.executor,m.started_at,m.ended_at,m.created_at,m.updated_at,EXISTS(SELECT 1 FROM fleet_hourly_work hw WHERE hw.mission_id=t.id) automatic_work,` +
       `m.started_at work_started_at,m.started_at work_progress_at,m.started_at race_progress_at,NULL assignment_event_at,` +
       `CASE WHEN COALESCE(TRIM(m.executor),'')<>'' THEN m.created_at END assignment_born_at,t.assignee,t.loc,t.project,t.project_id,t.resolved_at ` +
       `FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id WHERE ${MISSION_SCOPE_SQL_T} ` +
@@ -8582,8 +8583,10 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
       status:item.status, ended_at:item.resolved_at, family_key:family.family_key, linked,
       exact_processes:presence.exact_processes, now:ahora }) : null;
     if (activity) state = "running";
+    const serviceActivity = !forcedState ? grokbotTaskActivity({family_key:family.family_key,kind,item,service_presence:presence.service_presence,now:ahora}) : null;
+    if(serviceActivity)state='running';
     const policyPaused = !forcedState && linked && linked.surface==='cli' && CLI_POLICY.cli_paused;
-    const sessionUnverified = !forcedState && state==='running' && !linkedOpen;
+    const sessionUnverified = !forcedState && state==='running' && !linkedOpen && !serviceActivity;
     if(policyPaused || sessionUnverified) state='assigned_stale';
     // Una asignación abierta no ocupa indefinidamente la carrera. Para entrar
     // necesita un hecho material de la última hora o el proceso exacto verificado;
@@ -8616,6 +8619,7 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     // Exactamente una encarnación vinculada: cero o varias son ambiguas y por
     // contrato no se suman ni se elige una de forma heurística.
     if (activity) Object.assign(candidate, activity);
+    if (serviceActivity) Object.assign(candidate, serviceActivity);
     if(policyPaused) Object.assign(candidate,{cli_paused:true,activity_reason:CLI_POLICY.reason,operational_state:'paused_by_policy'});
     else if(sessionUnverified) candidate.activity_reason='session_unverified';
     if (timing) Object.assign(candidate, timing);

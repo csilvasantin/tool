@@ -1,3 +1,4 @@
+import { grokbotServicePresence, grokbotTaskActivity } from '../src/grokbot-work.js';
 import { desktopTurnParticipants } from '../src/desktop-turn-participant.js';
 import { CLI_POLICY } from '../src/cli-policy.js';
 import { WORK_ACTIVITY_TABLE_SQL, evaluateWorkActivity, workActivityProcessKey } from '../src/work-activity.js';
@@ -33,7 +34,7 @@ function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{all:async()=>({results:stmt.all(...args)})}},all:async()=>({results:stmt.all()})}}};
   const TELEGRAM=presence===null?undefined:{fetch:async(request)=>({ok:true,json:async()=>
     String(request.url).includes("work-sessions") ? {ok:true,sessions:workSessions} : presence})};
-  const context=vm.createContext({desktopTurnParticipants,CLI_POLICY,evaluateWorkActivity,workActivityProcessKey,Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,Request,
+  const context=vm.createContext({grokbotServicePresence,grokbotTaskActivity,desktopTurnParticipants,CLI_POLICY,evaluateWorkActivity,workActivityProcessKey,Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,Request,
     machineSuffix,canonicalMachineSuffix,baseAgentIdentity,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,resolveDecisionIdentity,MISSION_SCOPE_SQL_T,__name:(fn)=>fn});
   vm.runInContext([
     grabVar("HIGHSCORE_PERSONAS"),grabVar("PRESENCE_URL"),
@@ -623,3 +624,38 @@ test('coordinación exacta renueva movimiento sin reiniciar reloj y vence tarea 
  assert.equal(row.state,'assigned_stale');assert.equal(row.cli_paused,true);assert.equal(row.operational_state,'paused_by_policy');
  assert.equal(row.session_state,'open');assert.equal(row.work_started_at,NOW-MIN);assert.equal(row.activity_reason,'cli_paused_by_carlos');
  });
+
+const serviceRow=(persona='Lucas')=>({persona,machine:'GrokBot',runtime:'Grok',host:'app',source:'heartbeat',verified:0,updated:NOW/1000});
+function grokTask(db,{status='in_progress',ended=null,started=NOW-5*MIN}={}){
+  mission(db,{id:'GROK',agent:'LucasGrokBot',machine:'GrokBot',at:NOW-10*MIN});
+  db.prepare('INSERT INTO mission_tasks VALUES (?,?,?,?,?,?,?,?,?,?)').run('GROK','b','Página drag-and-drop',status,'LucasGrokBot',started,NOW-10*MIN,started,'LucasGrokBot',ended);
+}
+test('GrokBot active task and fresh service presence run without a fabricated Desktop session',async()=>{
+ const {db,env,F}=harness({presence:[null,serviceRow()]});grokTask(db);
+ const out=await F.highscoreActiveWork(env,NOW),row=out.participants.find(r=>r.agent==='LucasGrokBot');
+ assert.equal(out.running_count,1);assert.equal(row.reference,'GROK:b');assert.equal(row.title,'Página drag-and-drop');
+ assert.equal(row.activity_basis,'grokbot_task_progress');assert.equal(row.activity_expires_at,NOW+120000);assert.equal(row.host,'app');
+ assert.equal(row.session_id,undefined);assert.equal(row.session_surface,undefined);assert.equal(row.session_dedicated_ms,undefined);
+});
+test('service heartbeat alone, completed task and closed parent cannot start a GrokBot runner',async()=>{
+ for(const mode of ['heartbeat','done','closed','cancelled','ended']){
+  const {db,env,F}=harness({presence:[serviceRow()]});
+  if(mode!=='heartbeat'){grokTask(db,{status:mode==='done'?'done':'in_progress',ended:mode==='ended'?NOW-1000:null});
+   if(['closed','cancelled'].includes(mode))db.prepare('UPDATE tickets SET status=?,resolved_at=? WHERE id=?').run(mode==='closed'?'resolved':'cancelled',NOW-1000,'GROK');}
+  assert.equal((await F.highscoreActiveWork(env,NOW)).running_count,0,mode);
+ }
+});
+test('service evidence expires and never borrows another agent, machine, or a future/stale heartbeat',async()=>{
+ for(const patch of [{persona:'Jobs'},{machine:'MacMini'},{persona:'LucasMacMini'},{host:'cli'},{updated:(NOW-120000)/1000},{updated:(NOW+6000)/1000}]){
+  const {db,env,F}=harness({presence:[{...serviceRow(),...patch}]});grokTask(db);
+  assert.equal((await F.highscoreActiveWork(env,NOW)).running_count,0,JSON.stringify(patch));
+ }
+ const {db,env,F}=harness({presence:[serviceRow()]});grokTask(db,{started:NOW-20*MIN});
+ assert.equal((await F.highscoreActiveWork(env,NOW)).running_count,0,'old active task is not renewed by heartbeat');
+});
+test('a canonical completion removes a previously running service task at the next read',async()=>{
+ const {db,env,F}=harness({presence:[serviceRow()]});grokTask(db);
+ assert.equal((await F.highscoreActiveWork(env,NOW)).running_count,1);
+ db.prepare('UPDATE mission_tasks SET status=?,ended_at=? WHERE mission_id=?').run('done',NOW,'GROK');
+ assert.equal((await F.highscoreActiveWork(env,NOW+1)).running_count,0);
+});

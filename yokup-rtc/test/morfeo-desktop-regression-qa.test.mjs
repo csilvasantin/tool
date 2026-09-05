@@ -1,3 +1,4 @@
+import { grokbotServicePresence, grokbotTaskActivity } from '../src/grokbot-work.js';
 import { desktopTurnParticipants } from '../src/desktop-turn-participant.js';
 import { CLI_POLICY } from '../src/cli-policy.js';
 import { WORK_ACTIVITY_TABLE_SQL, evaluateWorkActivity, workActivityProcessKey } from '../src/work-activity.js';
@@ -33,7 +34,7 @@ function harness(presence={ok:true,presence:[],now:NOW/1000},workSessions=[]){
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{all:async()=>({results:stmt.all(...args)})}},all:async()=>({results:stmt.all()})}}};
   const TELEGRAM=presence===null?undefined:{fetch:async(request)=>({ok:true,json:async()=>
     String(request.url).includes("work-sessions") ? {ok:true,sessions:workSessions} : presence})};
-  const context=vm.createContext({desktopTurnParticipants,CLI_POLICY,evaluateWorkActivity,workActivityProcessKey,Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,Request,
+  const context=vm.createContext({grokbotServicePresence,grokbotTaskActivity,desktopTurnParticipants,CLI_POLICY,evaluateWorkActivity,workActivityProcessKey,Map,Set,Array,String,Number,Date,RegExp,Math,Object,Promise,Request,
     machineSuffix,canonicalMachineSuffix,baseAgentIdentity,parseAgentIdentity,reportAgentFamily,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,resolveDecisionIdentity,MISSION_SCOPE_SQL_T,__name:(fn)=>fn});
   vm.runInContext([
     grabVar("HIGHSCORE_PERSONAS"),grabVar("PRESENCE_URL"),
