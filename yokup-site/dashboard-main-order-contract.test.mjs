@@ -11,7 +11,7 @@ function occurrences(pattern) {
 test("Plataforma agéntica es el primer contenido principal del Dashboard", () => {
   assert.match(
     source,
-    /<div class="wrap">\s*<h1>Plataforma agéntica de gestión de Xperiencias<\/h1>\s*<section class="record-pace"[\s\S]*?<\/section>\s*<details class="dash-section" id="projectAgentSection" open>/,
+    /<div class="wrap">\s*<h1>Plataforma agéntica de gestión de Xperiencias<\/h1>\s*<section class="record-pace"[\s\S]*?<\/section>\s*<details class="dash-section" id="projectAgentSection">/,
   );
   const titleAt = source.indexOf("<h1>Plataforma agéntica de gestión de Xperiencias</h1>");
   const projectsAt = source.indexOf('id="projectAgentSection"');
@@ -34,8 +34,7 @@ test("la reordenación conserva todos los bloques y su jerarquía", () => {
   });
   assert.deepEqual([...positions].sort((a, b) => a - b), positions);
   assert.equal(occurrences(/<h1>Plataforma agéntica de gestión de Xperiencias<\/h1>/g), 1);
-  assert.match(source, /id="projectAgentSection" open/);
-  for (const id of ordered.slice(1)) {
+  for (const id of ordered) {
     const tag = source.match(new RegExp(`<details\\b[^>]*id=["']${id}["'][^>]*>`));
     assert.ok(tag, `se conserva #${id}`);
     assert.doesNotMatch(tag[0], /\sopen(?:\s|>)/, `#${id} sigue compactado`);

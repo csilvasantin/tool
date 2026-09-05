@@ -36,9 +36,9 @@ test("el Dashboard vive en /dashboard y conserva /agentica sólo como retorno co
 });
 
 test("el título principal abre el contenido y Proyectos precede a la zona secundaria",()=>{
-  assert.match(source,/<div class="wrap">\s*<h1>Plataforma agéntica de gestión de Xperiencias<\/h1>\s*<section class="record-pace"[\s\S]*?<\/section>\s*<details class="dash-section" id="projectAgentSection" open>/);
+  assert.match(source,/<div class="wrap">\s*<h1>Plataforma agéntica de gestión de Xperiencias<\/h1>\s*<section class="record-pace"[\s\S]*?<\/section>\s*<details class="dash-section" id="projectAgentSection">/);
   assert.match(source,/<details class="dash-section" id="pulseSection">\s*<summary class="shd">Flota de Agentes Silicio/);
-  assert.match(source,/<details class="dash-section" id="projectAgentSection" open>\s*<summary class="shd">Proyectos y agentes/);
+  assert.match(source,/<details class="dash-section" id="projectAgentSection">\s*<summary class="shd">Proyectos y agentes/);
   assert.match(source,/<details class="dash-section" id="liveExperiencesSection">\s*<summary class="shd">Xperiencias en vivo/);
   assert.match(source,/<details class="dash-section" id="modulesSection">\s*<summary class="shd">Módulos<\/summary>\s*<div class="dash-section-body">[\s\S]*?<div class="foot">/);
   assert.doesNotMatch(source,/<details class="dash-section" id="(?:pulseSection|liveExperiencesSection|modulesSection)"[^>]*\sopen(?:\s|>)/);

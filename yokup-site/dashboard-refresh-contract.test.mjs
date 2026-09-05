@@ -23,9 +23,9 @@ function functionSource(name){
   throw new Error(`función ${name} incompleta`);
 }
 
-test("la asociación principal nace abierta y precede al contenido secundario",()=>{
+test("la asociación principal nace plegada y precede al contenido secundario",()=>{
   const association=openingTag("projectAgentSection");
-  assert.match(association,/\sopen(?:\s|>)/);
+  assert.doesNotMatch(association,/\sopen(?:\s|>)/);
   const associationAt=source.indexOf(association);
   for(const id of ["pulseSection","liveExperiencesSection","modulesSection"]){
     assert.ok(associationAt<source.indexOf(openingTag(id)),`#${id} debe quedar debajo de la asociación`);
