@@ -211,3 +211,21 @@ habilita Learning/Training ni sustituye sus guardas. La comprobación acotada de
 Claude Desktop del 5 de septiembre no encontró un indicador AX Stop/generación
 inequívoco; no se añadió telemetría busy/Waiting inferida. El trabajo que sólo se
 ve en la aplicación necesita declaración/vinculación factual para ser corredor.
+
+### Vinculación explícita de progreso a la sesión
+
+`POST /fleet/progress` y las actualizaciones de estado de tarea admiten
+`work_session: {runtime: "Claude", host: "app", session_id: "desktop:claude"}`.
+Los tres campos deben venir juntos y corresponder a la sesión real del agente;
+no se deducen de una captura. Persona y máquina proceden del actor y misión
+validados, no de ese objeto. El servicio de presencia exige una sola sesión
+abierta y fresca que coincida; nunca escoge entre APP y CLI arbitrariamente.
+
+La respuesta de progreso y la tarea actualizada incluyen
+`work_binding: {bound: true, reason: "bound"}` o `bound: false` con motivo seguro
+(`ambiguous_session`, `session_not_found`, `invalid_session_selector`,
+`service_unavailable`, `binding_unavailable` o `invalid_binding`). Sin selector
+se conserva el enlace automático únicamente cuando la sesión es única. Un fallo
+de enlace no borra ni rechaza el progreso factual ya registrado: `ok` acredita
+ese progreso, mientras `work_binding.bound` acredita por separado el vínculo.
+No debe comunicarse que la sesión quedó enlazada cuando `bound` sea falso.

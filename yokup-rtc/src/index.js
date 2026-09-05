@@ -5042,15 +5042,31 @@ function isVirginSkeleton(tasks) {
 }
 __name(isVirginSkeleton, "isVirginSkeleton");
 
-async function bindPresenceWork(env, persona, machine, workRef) {
-  if (!env.TELEGRAM || !persona || !machine || !workRef) return false;
+async function bindPresenceWork(env, persona, machine, workRef, selector) {
+  const unbound = reason => ({bound:false, reason});
+  if (!env.TELEGRAM) return unbound("service_unavailable");
+  if (!persona || !machine || !workRef) return unbound("invalid_binding");
+  const exact = {};
+  if (selector != null) {
+    if (!selector || typeof selector !== "object" || Array.isArray(selector)) return unbound("invalid_session_selector");
+    const runtime = String(selector.runtime || "").trim();
+    const host = String(selector.host || "").trim().toLowerCase();
+    const sessionId = String(selector.session_id || "").trim();
+    if (!runtime || runtime.length > 80 || !["app","cli"].includes(host) || !sessionId || sessionId.length > 160 ||
+        /[\u0000-\u001f]/.test(runtime + sessionId)) return unbound("invalid_session_selector");
+    Object.assign(exact, {runtime,host,session_id:sessionId});
+  }
   try {
     const response = await env.TELEGRAM.fetch(new Request("https://telegram/api/presence/work-bind", {
       method:"POST", headers:{"content-type":"application/json"},
-      body:JSON.stringify({persona, machine, work_ref:workRef})
+      body:JSON.stringify({persona, machine, work_ref:workRef, ...exact})
     }));
-    return response.ok;
-  } catch { return false; }
+    const body = await response.json();
+    if (response.ok && body?.ok === true && body.bound === true) return {bound:true,reason:"bound"};
+    const reason = ["ambiguous_session","session_not_found","invalid_session_selector","invalid_binding"].includes(body?.error)
+      ? body.error : "binding_unavailable";
+    return unbound(reason);
+  } catch { return unbound("binding_unavailable"); }
 }
 __name(bindPresenceWork, "bindPresenceWork");
 
@@ -5118,7 +5134,7 @@ async function mergeMissionPlan(env, mid, tasks, ticket) {
 }
 __name(mergeMissionPlan, "mergeMissionPlan");
 
-async function setTaskStatus(env, mid, code, status, report, owner, image, imageKind) {
+async function setTaskStatus(env, mid, code, status, report, owner, image, imageKind, workSession) {
   const cur = await env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
   if (!cur) return null;
   const st = TASK_STATUS.includes(status) ? status : cur.status;
@@ -5155,7 +5171,7 @@ async function setTaskStatus(env, mid, code, status, report, owner, image, image
     .bind(st, rp, ow, ex, im, ik, st, now, st, st, now, st, now, mid, code).run();
   const row = await env.DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? AND code=?").bind(mid, code).first();
   if (row && ["in_progress","doing","active"].includes(String(row.status || "")) && mission)
-    await bindPresenceWork(env, row.executor || row.owner, mission.loc, `${mid}:${code}`);
+    row.work_binding = await bindPresenceWork(env, row.executor || row.owner, mission.loc, `${mid}:${code}`, workSession);
   if (row) await attachDisplayRefs(env, "task", row, taskDisplayKey, (item) => item.created_at || item.updated_at);
   return row;
 }
@@ -5481,7 +5497,7 @@ async function missionRoute(req, env, url) {
     const code = decodeURIComponent(seg[3]).toLowerCase();
     if (!validTaskCode(code)) return json({ error: "code inv\xE1lido" }, 400);
     const b = await req.json().catch(() => ({}));
-    const row = await setTaskStatus(env, mid, code, b.status, b.report, b.owner);
+    const row = await setTaskStatus(env, mid, code, b.status, b.report, b.owner, undefined, undefined, b.work_session);
     if (!row) return json({ error: "not-found" }, 404);
     if (row.error) return json({ ok:false, code:row.code, error:row.message,
       mission:mid, task_code:code, applied:false }, 409);
@@ -9231,7 +9247,7 @@ var worker_app = {
           capturedAt = capture.value;
         }
         const now = Date.now();
-        await bindPresenceWork(env, actor.actor || t.assignee, t.loc, mid);
+        const workBinding = await bindPresenceWork(env, actor.actor || t.assignee, t.loc, mid, b.work_session);
         if (img) {
           await env.DB.prepare(
             "UPDATE tickets SET status=CASE WHEN status='open' THEN 'in_progress' ELSE status END,started_at=CASE WHEN status='open' THEN COALESCE(started_at,?) ELSE started_at END,live_shot=?,live_at=?,live_kind=?,live_surface=?,live_context=?,points_start=COALESCE(points_start,?),updated_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')"
@@ -9259,7 +9275,7 @@ var worker_app = {
             })); } catch(e) {}
           }
         }
-        return json({ ok: true, mission: mid, evidence_updated: !!img, evidence_kind: liveKind, captured_at: capturedAt,
+        return json({ ok: true, mission: mid, work_binding:workBinding, evidence_updated: !!img, evidence_kind: liveKind, captured_at: capturedAt,
           capture_surface:captureSurface, capture_context:captureContext, degraded: liveKind === "final-fallback" });
       } catch (e) {
         return json({ ok: false, error: String(e) }, 500);
@@ -10004,7 +10020,7 @@ var worker_app = {
       // dejaba el tablero mintiendo (FLT-982/983/984, rematadas a mano en D1).
       nextSt = TASK_STATUS.includes(b.status) ? b.status : cur.status;
       cierraArbol = tareaConcluida(nextSt) && tasks.every((t) => t.code === code || tareaConcluida(t));
-      const row = await setTaskStatus(env, mid, code, b.status, b.report, actor.actor, img, cierraArbol ? "final" : "task");
+      const row = await setTaskStatus(env, mid, code, b.status, b.report, actor.actor, img, cierraArbol ? "final" : "task", b.work_session);
       if (!row) return json({ ok: false, error: "no se pudo actualizar la tarea «" + code + "» de " + mid }, 500);
       if (row.error) return json({ ok:false, code:row.code, error:row.message,
         mission:mid, task_code:code, applied:false },409);
