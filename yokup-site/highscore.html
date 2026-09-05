@@ -4721,6 +4721,18 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return {agent:agent,machine:machine,key:claveAgenteCarrera(agent)};
   }
   function hsWorkPolicy(item) {
+    if(item&&item.kind==="session"){
+      var at=Number(item.activity_at)||0,expires=Number(item.activity_expires_at)||0;
+      var now=datos.trabajosGeneratedAt+Math.max(0,performance.now()-(datos.trabajosClientAt||0));
+      var basis={Claude:"claude_desktop_transcript",Codex:"codex_desktop_turn_store"};
+      if(item.state!=="running"||item.session_surface!=="app"||item.session_state!=="open"||item.session_basis!=="verified_app_turn"||
+        !basis[item.runtime]||item.activity_basis!==basis[item.runtime]||!at||!expires||!now||at>now+5000||now>=expires||item.ended_at||item.cli_paused)return null;
+      return Object.assign({},item,{title:"Actividad Desktop APP",reference:""});
+    }
+    if(item&&item.state==="running"&&item.activity_basis==="verified_app_turn"){
+      var turnNow=datos.trabajosGeneratedAt+Math.max(0,performance.now()-(datos.trabajosClientAt||0));
+      if(!Number(item.activity_expires_at)||turnNow>=Number(item.activity_expires_at))return Object.assign({},item,{state:"assigned_stale",activity_reason:"turn_expired"});
+    }
     var surface=normaliza(item&&item.session_surface).toLowerCase();
     var bound=(surface==="app"||surface==="cli")&&item.session_state==="open"&&!!normaliza(item.dedicated_basis||item.session_basis);
     var paused=item&&item.cli_paused===true||surface==="cli";
@@ -4730,13 +4742,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return item;
   }
   function trabajosEnCurso() {
-    var seen = Object.create(null), priority = { objective:1, mission:2, task:3 };
+    var seen = Object.create(null), priority = { session:0, objective:1, mission:2, task:3 };
     (datos.trabajos || []).forEach(function (item) {
       if (!item || !normaliza(item.agent) || !normaliza(item.executor)) return;
-      item=hsWorkPolicy(item);
+      item=hsWorkPolicy(item);if(!item)return;
       var key = hsWorkIdentity(item).key, previous = seen[key];
       var itemAt = Number(item.state === "last_work" ? item.ended_at : item.work_progress_at) || 0;
       var previousAt = Number(previous && (previous.state === "last_work" ? previous.ended_at : previous.work_progress_at)) || 0;
+      var boundMission=function(work){return work&&work.kind!=="session"&&work.state!=="last_work"&&work.session_surface==="app"&&work.session_state==="open"&&!!(work.dedicated_basis||work.session_basis);};
+      if(item.kind==="session"&&boundMission(previous))return;
+      if(previous&&previous.kind==="session"&&boundMission(item)){seen[key]=item;return;}
       if (!previous || item.state === "last_work" && previous.state === "last_work" && itemAt > previousAt ||
           item.state !== "last_work" && (item.state === "running" && previous.state !== "running" ||
           item.state === previous.state && priority[item.kind] > priority[previous.kind] ||
@@ -4757,7 +4772,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         sessionDedicatedMs:item.session_dedicated_ms===null||item.session_dedicated_ms===undefined||item.session_dedicated_ms===""?null:Number.isFinite(Number(item.session_dedicated_ms)) ? Number(item.session_dedicated_ms) : null,
         sessionState:item.session_state || "unknown", sessionBasis:item.dedicated_basis || item.session_basis || "",
         sessionSurface:["app","cli"].includes(item.session_surface)?item.session_surface:"", runtime:item.runtime || "",
-        cliPaused:item.cli_paused===true,activityReason:item.activity_reason||"",operationalState:item.operational_state||"" };
+        activityExpiresAt:Number(item.activity_expires_at)||0,cliPaused:item.cli_paused===true,activityReason:item.activity_reason||"",operationalState:item.operational_state||"" };
     }).sort(function (a, b) { return (a.state === "running" ? -1 : 1) - (b.state === "running" ? -1 : 1) ||
       (b.state === "last_work" ? b.endedAt : b.at) - (a.state === "last_work" ? a.endedAt : a.at) ||
       a.agente.localeCompare(b.agente, "es"); });
@@ -4871,7 +4886,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       ? YkHighscoreRace.clockDurationLabel(reloj.sessionDurationMs) : "—";
     var sessionLabel = trabajo.sessionDedicatedMs === null
       ? "Horas operando no disponibles" : "Horas operando del agente";
-    var stateLabel = trabajo.cliPaused ? "CLI pausado por Carlos" : trabajo.activityReason==="session_unverified" ? "Trabajo registrado · sesión sin vincular" : trabajo.state === "running" ? "Trabajo activo" : trabajo.state === "last_work" ? "Trabajo finalizado" : "Sin avance";
+    var stateLabel = trabajo.kind==="session" ? "Actividad Desktop APP verificada" : trabajo.cliPaused ? "CLI pausado por Carlos" : trabajo.activityReason==="session_unverified" ? "Trabajo registrado · sesión sin vincular" : trabajo.state === "running" ? "Trabajo activo" : trabajo.state === "last_work" ? "Trabajo finalizado" : "Sin avance";
     return { reference:trabajo.reference || "", title:trabajo.title, state:stateLabel,
       project:trabajo.projectName || "", projectId:trabajo.projectId || "", detailUrl:trabajo.detailUrl || "",
       executor:trabajo.executor, responsible:trabajo.agente, kind:trabajo.kind, reachable:trabajo.reachable,
@@ -4887,6 +4902,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 
   function actualizaRelojesCarrera() {
     var elapsed = datos.trabajosClientAt ? Math.max(0, performance.now() - datos.trabajosClientAt) : 0;
+    if((datos.trabajos||[]).some(function(row){return row.state==="running"&&(row.kind==="session"||row.activity_basis==="verified_app_turn")&&(!hsWorkPolicy(row)||hsWorkPolicy(row).state!=="running");})){
+      datos.trabajos=datos.trabajos.map(function(row){return row.kind==="session"||row.activity_basis==="verified_app_turn"?hsWorkPolicy(row):row;}).filter(Boolean);hsPaintWorkUpdate();
+    }
     document.querySelectorAll('.refresh-elapsed[data-work-state="running"]').forEach(function (duracion) {
       var work = { state:"running",
         work_started_at:Number(duracion.getAttribute("data-work-start")) || 0,
@@ -4984,7 +5002,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     if (!available) return { label:"TRABAJO NO DISPONIBLE", text:"No se pudo consultar el trabajo registrado. La ausencia de carriles no indica inactividad." };
     if (total > shown) return { label:"TRABAJO FUERA DE LA SELECCIÓN", text:shown + " de " + total + " participantes verificados en esta selección. Revisa el filtro de agentes para ver los demás." };
     if (!shown) return { label:"SIN TRABAJO VERIFICADO", text:"No hay trabajo verificado visible en este ámbito. Puede existir actividad todavía sin vincular a Yokup." };
-    return { label:"", text:mode === "recent" ? "Últimos trabajos finalizados. La actividad actual de otras sesiones no está verificada." : "Carriles de trabajo registrado con su última señal de avance. La ausencia de otro agente no confirma inactividad." };
+    return { label:"", text:mode === "recent" ? "Últimos trabajos finalizados. La actividad actual de otras sesiones no está verificada." : "Carriles de trabajo registrado o actividad Desktop APP verificada. La ausencia de otro agente no confirma inactividad." };
   }
 
   function actualizaCarreraPodio() {
@@ -5021,7 +5039,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       // El proyecto junto al agente responde a «¿de qué proyecto es responsable?»:
       // reutiliza la misma cascada canónica del Ranking (declarado hoy → trabajo
       // → censo → Galaxia Admira). La faena puntual permanece dentro de la pista.
-      var proyectoResponsable = normaliza(fila.proyecto || resumen.project) || "—";
+      var proyectoResponsable = normaliza(enlace.trabajo.kind==="session"?resumen.project:fila.proyecto || resumen.project) || "—";
       var executor = normaliza(resumen.executor || responsable);
       var variant = typeof YkHighscoreRace !== "undefined" ? YkHighscoreRace.runnerVariant(fila)
         : (clave.split("").reduce(function (n, c) { return n + c.charCodeAt(0); }, 0) % 2 ? "dark" : "light");
@@ -5058,7 +5076,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         (resumen.idle ? 'data-race-idle="true" ' : '') +
         'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Responsable ' + esc(identidadVisible.nombre) + '. Proyecto responsable ' + esc(proyectoResponsable) + '. Hora de inicio ' + esc(resumen.startedClock) + esc(timingAria) +
         (executor !== responsable ? '. Ejecuta ' + esc(executor) : '') + '. ' + heartbeat + '. ' +
-        esc(resumen.title) + '. Tiempo de misión ' + esc(resumen.duration) +
+        esc(resumen.title) + (enlace.trabajo.kind==='session'?'. Tiempo de actividad ':'. Tiempo de misión ') + esc(resumen.duration) +
         '. Tiempo de sesión ' + esc(resumen.sessionDuration) + '">' +
         '<span class="refresh-agent-meta">' + nombreCorredorHtml(identidadVisible, contextoVisible, "race-agent-context-" + indice) +
           '<span class="refresh-agent-project" data-race-role="project" title="Proyecto responsable: ' +

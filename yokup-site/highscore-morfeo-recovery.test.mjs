@@ -127,3 +127,41 @@ test('dual APP expiration or absence removes active status; CLI and another mach
   const foreign=render([{...fresh[0],agent:'NeoMacMini',machine:'MacMini',family_key:'neo@macmini'}],dualAt);
   assert.doesNotMatch(foreign,/data-agent-key="neombp14"/);
 });
+
+function sessionWork(row,runtime){return {...appWork(row,runtime),kind:'session',reference:'',title:'Activity with no invented mission',
+  session_basis:'verified_app_turn',dedicated_basis:'',activity_expires_at:dualAt+30000,
+  activity_basis:runtime==='Claude'?'claude_desktop_transcript':'codex_desktop_turn_store'};}
+test('verified Desktop-only turns show two neutral rows and zero synthetic score metrics without work references',()=>{
+ const {ctx,render}=view([neo,trinity]);
+ const sessions=[sessionWork(neo,'Claude'),sessionWork(trinity,'Codex')];
+ const result=render(sessions,dualAt);
+ assert.equal((result.match(/data-agent-key=/g)||[]).length,2);
+ assert.match(result,/>Neo</);assert.match(result,/>Trinity</);
+ assert.equal((result.match(/>Actividad Desktop APP<\/span>/g)||[]).length,2);
+ assert.match(result,/MBP14 · APP/);assert.match(result,/>\/\/ XpaceOS</);assert.match(result,/>\/\/ Yokup</);
+ assert.ok(ctx.trabajosCarrera().every(w=>w.reference===''&&w.kind==='session'));
+ assert.ok(ctx.listaCompletaCache.every(row=>row.total===0));
+ const metric=html.slice(html.indexOf('function numeroActividad('),html.indexOf('\n\n  function metricaRankingHtml'));
+ vm.runInContext(metric,ctx);
+ for(const type of ['objetivos','misiones','tareas','ventanas'])assert.equal(ctx.numeroActividad({workState:'running',workKind:'session'},type,8,type),8);
+});
+test('linked mission wins over a Desktop-only turn, independent of order, while ended/expired sessions have no stale tail',()=>{
+ const {ctx,render}=view([neo,trinity]);const session=sessionWork(neo,'Claude'),mission={...appWork(neo,'Claude'),state:'assigned_stale'};
+ for(const rows of [[session,mission],[mission,session]]){render(rows,dualAt);assert.equal(ctx.trabajosCarrera().length,1);assert.equal(ctx.trabajosCarrera()[0].kind,'task');assert.equal(ctx.trabajosCarrera()[0].reference,neo.reference);}
+ for(const patch of [{state:'last_work',ended_at:dualAt},{state:'assigned_stale'},{activity_expires_at:dualAt},{session_surface:'cli'},{activity_basis:'heartbeat'},{session_basis:''}])assert.doesNotMatch(render([{...session,...patch}],dualAt),/data-agent-key=/);
+ render([session],dualAt);ctx.performance.now=()=>30200;
+ assert.equal(ctx.trabajosCarrera().length,0,'client clock also expires the turn while waiting for next poll');
+});
+
+test('client clock removes an expired standalone turn and stops a linked mission without losing its record',()=>{
+ const {ctx,render}=view([neo,trinity]);
+ const session=sessionWork(neo,'Claude'),linked={...appWork(trinity,'Codex'),activity_basis:'verified_app_turn',activity_expires_at:dualAt+30000};
+ render([session,linked],dualAt);
+ ctx.performance.now=()=>30200;
+ let paints=0;ctx.hsPaintWorkUpdate=()=>{paints++;};ctx.document.querySelectorAll=()=>[];
+ ctx.actualizaRelojesCarrera();
+ assert.equal(paints,1);assert.equal(ctx.datos.trabajos.length,1);
+ assert.equal(ctx.datos.trabajos[0].reference,trinity.reference);assert.equal(ctx.datos.trabajos[0].state,'assigned_stale');
+ assert.equal(ctx.datos.trabajos[0].work_started_at,trinity.work_started_at);
+ ctx.actualizaRelojesCarrera();assert.equal(paints,1,'expiry does not loop or revive a finished turn');
+});

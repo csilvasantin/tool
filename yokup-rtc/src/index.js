@@ -1,3 +1,4 @@
+import { desktopTurnParticipants } from './desktop-turn-participant.js';
 import { CLI_POLICY, cliPolicyBlocked, cliPolicyFor } from './cli-policy.js';
 import { WORK_ACTIVITY_TABLE_SQL, normalizeWorkActivity, recordWorkActivity, evaluateWorkActivity, workActivityProcessKey } from './work-activity.js';
 import { AUTOMATIC_DECISIONS, automationFamily, automationControls, automationPermission, automationAllowed, automationFenceSql, categoryRevision, stopAutomationGate, activateAutomationTargets, automationCommitStatement } from './fleet-automation-control.js';
@@ -8464,7 +8465,7 @@ async function highscoreVerifiedPresence(env, ahora) {
         sessions.set(key, list);
       }
     }
-    return { available:true, by_family:byFamily, sessions, exact_processes:exactProcesses, process_targets:processTargets, observations:[...observedSurfaces.values()] };
+    return { available:true, by_family:byFamily, sessions, exact_processes:exactProcesses, process_targets:processTargets, desktop_turns:desktopTurnParticipants(rows,ahora), observations:[...observedSurfaces.values()] };
   } catch {
     return { available:false, by_family:new Map(), sessions:new Map(), observations:[] };
   }
@@ -8660,6 +8661,27 @@ async function highscoreActiveWork(env, ahora = Date.now()) {
     const executor = String(objective.author_identity || highscoreAgent(objective.author) || "").trim();
     add(executor, "", "objective", objective, objective.title || "Objetivo en curso", executor, "",
       `objective:${String(objective.id || "")}`);
+  }
+  const desktopTurns=presence.desktop_turns || [];
+  if(desktopTurns.length){
+    let principal=null;
+    try { principal=await agentPrincipalSnapshot(env,ahora); } catch { /* Activity remains factual if project metadata is unavailable. */ }
+    for(const session of desktopTurns){
+      const previous=byFamily.get(session.family_key);
+      const linked=previous && highscoreLinkedSession(presence.sessions?.get(`${session.family_key}|${previous.reference}`));
+      const sameTurn=linked && linked.state==='open' && linked.surface==='app' && linked.runtime===session.runtime &&
+        linked.session_id===session.session_id && linked.started_at===session.process_birth;
+      if(previous && sameTurn){
+        Object.assign(previous,{state:'running',activity_at:session.activity_at,activity_basis:'verified_app_turn',
+          activity_expires_at:session.activity_expires_at,activity_reason:'',runtime:session.runtime});
+        continue;
+      }
+      if(previous && previous.state==='running' && previous.session_surface==='app' && previous.session_state==='open' && previous.dedicated_basis) continue;
+      const project=principal ? resolveAgentPrincipalProject({...principal,target:{agent:session.agent,machine:session.machine}})
+        : {project_id:'',project_name:'Proyecto sin verificar',project_available:false,project_issue:'project_unavailable'};
+      const {session_id,process_birth,...publicSession}=session;
+      byFamily.set(session.family_key,{...publicSession,...project});
+    }
   }
   let participants = [...byFamily.values()].sort((a, b) =>
     (a.state === "running" ? 0 : 1) - (b.state === "running" ? 0 : 1) ||
