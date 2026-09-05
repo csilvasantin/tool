@@ -115,3 +115,20 @@ test('sin consumidor compatible Learning y Training quedan inactivos, pero Manua
   await api.change(change(cli,'training'));assert.equal(calls.length,0);
   await api.change(change(cli,'manual'));assert.equal(calls.length,1);assert.equal(api.record(cli).mode,'manual');
 });
+
+test('aviso sin telemetría y opciones usan el mismo registro y se recuperan juntos',async()=>{
+  let record={...app,mode:'manual',available_modes:['manual'],support_reason:'telemetry_unavailable'};
+  const {api,calls}=setup(async()=>response({ok:true,items:[record]}));
+  await api.load(true);
+  let html=api.markup(app);
+  assert.match(html,/Sin señal reciente del ordenador/);
+  assert.match(html,/<option value="learning" disabled>/);
+  assert.match(html,/<option value="training" disabled>/);
+  assert.match(html,/<option value="manual" selected>/);
+  await api.change(change(app,'learning'));assert.equal(calls.length,1);
+  record={...record,available_modes:['manual','learning','training'],support_reason:''};
+  await api.load(true);html=api.markup(app);
+  assert.doesNotMatch(html,/Sin señal reciente|No se puede activar/);
+  assert.match(html,/<option value="learning">/);
+  assert.match(html,/<option value="training">/);
+});
