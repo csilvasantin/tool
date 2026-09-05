@@ -88,8 +88,9 @@ test("running genera DOM nombre -> pista -> bloque horario y lectura accesible f
   assertOrdered(laneAria(rendered),
     ["Responsable Niobe", "Hora de inicio", "Tiempo transcurrido"],
     "orden accesible de running");
-  assert.match(rendered, /data-race-role="agent"[^>]*title="MacMini"[^>]*>NiobeMacMini<\/span>/,
-    "el nombre canónico y la máquina permanecen identificables");
+  assert.match(rendered, /data-race-role="agent"[^>]*title="MacMini · interfaz sin verificar"[^>]*>Niobe<\/span>/,
+    "nombre base visible y máquina exacta disponible en el contexto");
+  assert.match(rendered, /data-agent-key="niobemacmini"/, "identidad canónica de la calle conservada");
   assert.match(rendered, /data-race-time="start"[^>]*datetime="2026-09-01T13:14:41\.000Z"[^>]*>15:14:41<\/time>/,
     "inicio usa work_started_at y no assignment_at");
   assert.match(rendered, /data-race-time="elapsed"[^>]*data-work-state="running"[^>]*>00:01:00<\/strong>/,

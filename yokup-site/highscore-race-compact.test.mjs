@@ -64,7 +64,7 @@ test("la pista elimina por completo el dorsal y conserva al corredor sobre la mi
 });
 
 test("la misión vive dentro de la pista y sigue por detrás del corredor", () => {
-  assert.match(raceSource,/class="refresh-agent"[\s\S]*class="refresh-lane-center"[\s\S]*class="refresh-mission"[\s\S]*runner \+ '<span class="refresh-finish"/,
+  assert.match(raceSource,/nombreCorredorHtml\(identidadVisible, contextoVisible,[\s\S]*class="refresh-lane-center"[\s\S]*class="refresh-mission"[\s\S]*runner \+ '<span class="refresh-finish"/,
     "el DOM generado debe leerse agente, pista con misión y corredor por encima");
   assert.match(html,/\.refresh-mission\{position:absolute;z-index:1/);
   assert.match(cssRule(".refresh-runner"), /z-index:3/);

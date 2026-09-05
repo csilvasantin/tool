@@ -44,7 +44,7 @@ test('periodo respeta aliases físicos y no suma encima el acumulado diario',()=
 });
 test('scope manual usa misma identidad en ranking y corredores; refresh no introduce excluidos',()=>{
  const rows=[{agente:'MorfeoMacMini'},{agente:'MorfeoMBP14'},{agente:'NiobeMBP14'}];
- const c=load(context({AGENT_SCOPE:new Set(['morfeombp14']),AGENT_SCOPE_MODE:'manual',listaCompletaCache:rows,RANKING_PERIOD:'day',listaVisible:x=>x,trabajosCarrera:()=>[{key:'morfeomacmini'},{key:'morfeombp14'},{key:'niobembp14'}]}),['claveAgenteCarrera','hsAgentKey','hsAgentScopeAllows','hsEffectiveAgentScope','aplicaAgentScope']);
+ const c=load(context({document:{activeElement:null},AGENT_SCOPE:new Set(['morfeombp14']),AGENT_SCOPE_MODE:'manual',listaCompletaCache:rows,RANKING_PERIOD:'day',listaVisible:x=>x,trabajosCarrera:()=>[{key:'morfeomacmini'},{key:'morfeombp14'},{key:'niobembp14'}]}),['claveAgenteCarrera','hsAgentKey','hsAgentScopeAllows','hsEffectiveAgentScope','aplicaAgentScope']);
  // Run the production selection prefix, before rendering needs DOM or motion APIs.
  const prefix=fn('actualizaCarreraPodio').split('    completas.forEach')[0].replace('var contenedor = document.getElementById("refreshLanes");','');
  vm.runInContext(`${prefix}\nreturn {completas,trabajos};\n}\nglobalThis.result=actualizaCarreraPodio();`,c);
