@@ -1801,7 +1801,10 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         if (fresco && f.maquinasVivas.indexOf(p.machine) < 0) f.maquinasVivas.push(p.machine);
       }
       if (fresco) {
-        f.vivo = true; adoptaRuntime(f, p.runtime, p.host, t, true, p.model);
+        var processVerified = p.source === "process_snapshot" && (p.verified === 1 || p.verified === true) &&
+          p.online !== 0 && p.online !== false && Number(p.pid) > 1 && ["app","cli"].indexOf(p.host) >= 0 &&
+          t >= ahora - 30 && t <= ahora + 5;
+        f.vivo = true; adoptaRuntime(f, p.runtime, p.host, t, processVerified, processVerified ? p.model : "");
         // El latido sólo es una pista de respaldo. Una tarea, ventana, misión u
         // objetivo activo manda aunque su timestamp sea anterior al heartbeat.
         marcaProyecto(f, p.project, t * 1000, p.focus, 0);
@@ -1819,7 +1822,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         if(["cli","app"].indexOf(slot.host)>=0){f.interfaces=f.interfaces||[];if(f.interfaces.indexOf(slot.host)<0)f.interfaces.push(slot.host);}
         f.haLatido = true;
         if (f.maquinas.indexOf(machine) < 0) f.maquinas.push(machine);
-        adoptaRuntime(f, slot.runtime, slot.host, control.updated || slot.updated, false, slot.model);
+        adoptaRuntime(f, slot.runtime, slot.host, control.updated || slot.updated, false, "");
       });
     });
     // Actividad AHORA, no totales históricos. Una sola señal por agente:

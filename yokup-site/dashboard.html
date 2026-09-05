@@ -584,7 +584,7 @@ function pulseGroupsMarkup(classified,unavailable=false){
 }
 function pulseControlledGroups(classified,control){
   const live=new Map((classified&&classified.groups||[]).flatMap(group=>group.items||[]).map(item=>[item.identity_key,item]));
-  const merged=(control&&control.items||[]).map(item=>{const row=live.get(item.identity_key)||{},state=item.state||"unknown",fallback=item.process_state==="open"?"Proceso abierto · sin actividad declarada":item.process_state==="waiting"?"Proceso abierto · en espera":item.process_state==="closed"?"Cerrado · proceso no detectado por el watcher":"Sin señal de proceso · no equivale a cerrado";return {...row,...item,persona:item.persona,host:item.surface,focus:row.focus||fallback,mode:row.mode||(state==="active"?"activo":state),updated:row.updated||0};});
+  const merged=(control&&control.items||[]).map(item=>{const row=live.get(item.identity_key)||{},state=item.state||"unknown",fallback=item.process_state==="open"?"Proceso abierto · sin actividad declarada":item.process_state==="waiting"?"Proceso abierto · en espera":item.process_state==="closed"?"Cerrado · proceso no detectado por el watcher":"Sin señal de proceso · no equivale a cerrado";return {...row,...item,model:row.source==="process_snapshot"&&(row.verified===1||row.verified===true)&&item.process_state==="open"?row.model||"":"",persona:item.persona,host:item.surface,focus:row.focus||fallback,mode:row.mode||(state==="active"?"activo":state),updated:row.updated||0};});
   const cards=window.YkAgentControl&&YkAgentControl.groupCards?YkAgentControl.groupCards(merged,{identity:window.ykAgentIdentity}).items:merged,buckets={cli:[],app:[],unknown:[]};
   PULSE_RUNTIME_SELECTIONS.forEach((selected,key)=>{const card=cards.find(item=>item.card_key===key);if(!card||!(card.runtime_targets||[]).some(target=>target.identity_key===selected)){PULSE_RUNTIME_SELECTIONS.delete(key);PULSE_RUNTIME_INVALIDATED.add(key);}});
   cards.forEach(card=>{if(PULSE_RUNTIME_INVALIDATED.has(card.card_key))Object.assign(card,{runtime_selection_required:true,runtime:"",model:"",control_key:"",identity_key:"",detail_url:null,state:"ambiguous",eligible:{start:false,stop:false}});});
@@ -967,11 +967,9 @@ function paProjectIconMarkup(project){
   return web?'<a class="pa-folder pa-project-web" data-pa-project-web="'+esc(project.id)+'" href="'+esc(web)+'" target="_blank" rel="noopener noreferrer" draggable="false" aria-label="Abrir '+esc(name)+' en '+esc(host)+' · nueva pestaña" title="Abrir '+esc(host)+' ↗">'+fallback+image+'</a>':'<div class="pa-folder" aria-label="'+esc(versioned?'Vista previa pendiente de site':'Proyecto sin versión ni site')+'">'+fallback+'</div>';
 }
 function paPresencePersona(row){
-  const raw=String(row&&row.persona||"").trim(),account=String(row&&row.account||"").toLowerCase(),runtime=String(row&&row.runtime||"").toLowerCase();
+  const raw=String(row&&row.persona||"").trim();
   if(raw)return raw;
-  if(runtime.includes("claude")&&(account==="admira"||account==="gmail"))return account==="admira"?"Neo":"Morfeo";
-  if(runtime.includes("codex")&&(account==="admira"||account==="gmail"))return account==="admira"?"Trinity":"Oráculo";
-  return raw;
+  return ""; // Account/runtime alone cannot identify an APP versus CLI owner.
 }
 function paFreshPresence(rows,now){
   const selected=new Map(),sorted=(rows||[]).filter(row=>row.updated&&(now-row.updated)<AGENT_FRESH_SECONDS).sort((a,b)=>(b.updated||0)-(a.updated||0));
@@ -985,8 +983,9 @@ function paFreshPresence(rows,now){
 }
 function paVerifiedPresence(rows,browsers,now){
   const reported=paFreshPresence(rows,now),byTeam=new Map();
-  const snapshotTeams=new Set(reported.filter(row=>row.source==="process_snapshot"&&row.verified).map(row=>paTeamKey(row.machine)).filter(Boolean));
-  const snapshots=reported.filter(row=>snapshotTeams.has(paTeamKey(row.machine))&&row.source==="process_snapshot").map(row=>({...row,verified:true}));
+  const exactSnapshot=row=>row.source==="process_snapshot"&&(row.verified===1||row.verified===true)&&row.online!==false&&row.online!==0&&Number(row.pid)>1&&["app","cli"].includes(row.host)&&Number(row.updated)>=now-30&&Number(row.updated)<=now+5;
+  const snapshotTeams=new Set(reported.filter(exactSnapshot).map(row=>paTeamKey(row.machine)).filter(Boolean));
+  const snapshots=reported.filter(exactSnapshot).map(row=>({...row,verified:true}));
   reported.forEach(row=>{
     const team=paTeamKey(row.machine);if(!team)return;
     if(snapshotTeams.has(team))return;
@@ -1000,14 +999,17 @@ function paVerifiedPresence(rows,browsers,now){
     const parsed=window.ykAgentIdentity?ykAgentIdentity.parse(persona):{persona},key=team+"|"+String(parsed.persona||persona).toLowerCase(),previous=reporters.get(key);
     if(!previous||ts>previous.verifiedAt)reporters.set(key,{persona,machine,verifiedAt:ts,team});
   });
-  const verifiedTeams=new Set(),verified=[];
+  const verified=[];
   reporters.forEach(reporter=>{
     const candidates=byTeam.get(reporter.team)||[],wanted=window.ykAgentIdentity?ykAgentIdentity.base(reporter.persona):reporter.persona;
-    const source=candidates.find(row=>(window.ykAgentIdentity?ykAgentIdentity.base(row.persona):row.persona)===wanted)||candidates.find(row=>String(row.runtime||"").toLowerCase().includes("claude"))||candidates[0];
-    verifiedTeams.add(reporter.team);
-    verified.push({...source,persona:reporter.persona,machine:reporter.machine,updated:Math.max(source&&source.updated||0,reporter.verifiedAt),verified:true,verifiedAt:reporter.verifiedAt});
+    const exact=candidates.filter(row=>(window.ykAgentIdentity?ykAgentIdentity.base(row.persona):row.persona)===wanted && ["app","cli"].includes(row.host));
+    // A browser reporter identifies its own declared family, never whichever
+    // Claude process happened to be first. It cannot verify a desktop process.
+    if(!exact.length)return;
+    exact.forEach(source=>verified.push({...source,updated:source.updated,verified:false,source:"browser_heartbeat",model:"",verifiedAt:0}));
   });
-  return snapshots.concat(verified,reported.filter(row=>!snapshotTeams.has(paTeamKey(row.machine))&&!verifiedTeams.has(paTeamKey(row.machine)))).sort((a,b)=>(b.updated||0)-(a.updated||0));
+  const browserKeys=new Set(verified.map(row=>[row.persona,row.machine,row.runtime,row.host].join("|")));
+  return snapshots.concat(verified,reported.filter(row=>!snapshotTeams.has(paTeamKey(row.machine))&&!browserKeys.has([row.persona,row.machine,row.runtime,row.host].join("|"))).map(row=>({...row,verified:false,model:""}))).sort((a,b)=>(b.updated||0)-(a.updated||0));
 }
 function paMessage(text,kind){ const el=pa("projectAgentMsg"); el.textContent=text||""; el.className="pa-msg"+(kind?" "+kind:""); }
 function paNormalizeRosterView(value){return PA_ROSTER_VIEWS.includes(value)?value:"carbon";}

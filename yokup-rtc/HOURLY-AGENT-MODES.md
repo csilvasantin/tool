@@ -229,3 +229,24 @@ se conserva el enlace automático únicamente cuando la sesión es única. Un fa
 de enlace no borra ni rechaza el progreso factual ya registrado: `ok` acredita
 ese progreso, mientras `work_binding.bound` acredita por separado el vínculo.
 No debe comunicarse que la sesión quedó enlazada cuando `bound` sea falso.
+
+### Identidad por superficie y metadatos observados
+
+En Mac Mini, la configuración explícita distingue Codex APP (Oraculo) de Codex
+CLI (Trinity). Los controles comparan persona, máquina, runtime, host, sesión y
+PID exactos; un selector APP no puede apuntar al proceso CLI ni a su responsable.
+Esta corrección no renombra misiones, tareas o puntuaciones históricas.
+
+El merge de presencia sólo toma declaraciones de la misma familia, máquina,
+runtime y superficie. El modelo procede del snapshot de esa sesión; ni un latido
+CLI ni un slot cerrado rellenan el LLM de APP. Cuando cambia el dueño real de una
+encarnación de proceso, su antiguo `work_ref` se vacía para evitar trasladar una
+misión al nuevo dueño; los alias físicos Mini/MacMini y roles Sub/Infra de la
+misma familia conservan el vínculo. Después se requiere un enlace explícito de
+la misión o tarea real con `work_session`.
+
+Dashboard no construye identidades desde cuenta/runtime ni usa el primer Claude
+como respaldo de un reporter de navegador. Un reporter sólo complementa su
+propia identidad declarada, sin verificar el proceso. Dashboard y Highscore
+muestran LLM únicamente con snapshot verificado fresco (30 segundos); el valor
+queda vacío si la fuente no lo conoce.
