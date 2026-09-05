@@ -71,9 +71,33 @@ PYACT
 fi
 
 send_activity_payload() {
-  local payload="$1" response
-  response="$(printf '%s' "$payload" | curl -fsS -m 30 -X POST "$API/fleet/progress" \
-    -H 'Content-Type: application/json' -H 'User-Agent: YokupMissionEvidence/1.0' --data @-)" || return 1
+  local payload="$1" response token="" getter=""
+  # Sólo estas bases HTTPS reciben credenciales. Un override local o de terceros
+  # conserva el transporte sin auth y ni siquiera consulta la bóveda.
+  case "${API%/}" in
+    https://api.yokup.com|https://rtc.yokup.com)
+      token="${YOKUP_CLI_EXECUTOR_TOKEN:-}"
+      if [ -z "$token" ]; then
+        if [ -f "$HERE/vault-get.sh" ]; then getter="$HERE/vault-get.sh"
+        else getter="$HOME/Claude/admira-vault/vault-get.sh"; fi
+        token="$(bash "$getter" YOKUP_CLI_EXECUTOR_TOKEN 2>/dev/null)" || token=""
+      fi
+      if [ -z "$token" ]; then
+        echo "actividad exige YOKUP_CLI_EXECUTOR_TOKEN o acceso a vault-get.sh" >&2; return 1
+      fi
+      case "$token" in *$'\r'*|*$'\n'*) echo "credencial de actividad no válida" >&2; return 1;; esac
+      ;;
+  esac
+  # La cabecera viaja por un descriptor, nunca como argumento de curl. -q evita
+  # que un curlrc local active trazas o redirecciones que divulguen la credencial.
+  if [ -n "$token" ]; then
+    response="$(printf '%s' "$payload" | curl -q -fsS -m 30 -X POST "${API%/}/fleet/progress" \
+      -H 'Content-Type: application/json' -H 'User-Agent: YokupMissionEvidence/1.0' \
+      -H @<(printf 'Authorization: Bearer %s\n' "$token") --data @-)" || return 1
+  else
+    response="$(printf '%s' "$payload" | curl -q -fsS -m 30 -X POST "${API%/}/fleet/progress" \
+      -H 'Content-Type: application/json' -H 'User-Agent: YokupMissionEvidence/1.0' --data @-)" || return 1
+  fi
   printf '%s' "$response" | python3 -c '
 import json,sys
 try:
