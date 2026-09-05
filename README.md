@@ -1,5 +1,8 @@
 # Yokup
 
+MCP de coordinación: [servidor y manual canónico](yokup-site-gate/MCP.md) · [conexión pública](https://yokup.com/mcp) · [ayuda humana](https://www.yokup.com/help#mcp).
+
+
 Operación de agentes: al empezar/retomar y en hitos reales usa el [emisor de progreso y coordinación](yokup-rtc/WORK_ACTIVITY.md). No genera actividad desde idle o presencia.
 CLI aplazadas por orden de Carlos: [política persistente y parada segura](yokup-rtc/CLI-PAUSE-POLICY.md).
 

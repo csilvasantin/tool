@@ -100,3 +100,27 @@ No confundir esta prueba de lectura real con una conversación real con un conse
 
 Fuentes: [MCP transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
 y [tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
+
+## Verificación de la entrega · 2026-09-05
+
+Publicación confirmada: **v.05.09.2026.r24.20:22**, código `73035a4`.
+El endpoint público `__yokup-gate` devolvió ese commit y `dirty:false`.
+
+- 1.375 pruebas del sitio y 28 pruebas del gate aprobadas (incluyen 14 de MCP).
+- SDK oficial `@modelcontextprotocol/sdk@1.30.0` conectado contra producción:
+  initialize, notifications/initialized, tools/list (11 herramientas), identidad,
+  misión exacta y bandeja sin consumir; rechazo comprobado de proyecto ajeno.
+- El mismo SDK conectó mediante el puente stdio y verificó OraculoMacMini/MacMini.
+- /mcp, /help, /mcp/manifest.json y /mcp/llms.txt respondieron 200 con su contenido.
+  POST /mcp sin credencial devolvió 401.
+- `yokup_activity` publicó una acción real de esta misión y devolvió
+  `work_binding.bound:true` y `work_activity.accepted:true`.
+- `yokup_task_update` actualizó la tarea b de esta misión y persistió su informe.
+- Envío, reintentos concurrentes, timeout incierto, firma y aislamiento se probaron
+  con SQLite y el servicio de mensajería simulado. **No se envió un mensaje real a
+  un consejero** ni se afirmó que un tercero hubiera instalado su conexión.
+
+Se emitió una credencial privada para OraculoMacMini, limitada al proyecto yokup,
+y se validó en ambos transportes. Las conexiones de otros agentes o consejeros se
+activan individualmente siguiendo el procedimiento anterior. El servidor está
+publicado; la activación de cada cliente es un paso diferente y verificable.
