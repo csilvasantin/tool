@@ -22,7 +22,10 @@ test("el renderer consume la clasificación compartida y no vuelve a decidir el 
 });
 
 test("cada grupo tiene contador accesible y un vacío específico y honesto",()=>{
-  assert.match(source,/aria-live="polite" aria-atomic="true" aria-label="\$\{count\} de \$\{total\} deepAgents visibles/);
+  assert.match(source,/class="pulse-group-filters" role="group" aria-label="Filtrar /);
+  assert.match(source,/data-pulse-group-key="'\+esc\(group\.key\)\+'"/);
+  assert.match(source,/aria-pressed="'\+\(key===selected\)\+'"/);
+  assert.match(source,/class="filter-count">'\+\(unavailable\?'—':counts\[key\]\)/);
   assert.match(source,/No hay deepAgents CLI configurados\./);
   assert.match(source,/No hay deepAgents Desktop App configurados\./);
   assert.match(source,/Sin superficie identificada/);

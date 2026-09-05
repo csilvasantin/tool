@@ -19,7 +19,7 @@ test("el Dashboard hace navegables las tarjetas APP y CLI, incluso detenidas, si
   assert.match(dashboard,/src="\/agent-detail\.js\?v=/);
   assert.match(dashboard,/const href=p\.detail_url\|\|\(window\.YkAgentDetail\?YkAgentDetail\.detailUrl\(p\):""\)/);
   assert.match(dashboard,/<a class="ag-link" href=/);
-  assert.match(dashboard,/<article class="ag"[^>]*>\$\{main\}<div class="agent-control-row">/);
+  assert.match(dashboard,/<article class="ag"[^>]*>\$\{main\}\$\{pulseRuntimeMarkup\(card,selected\)\}<div class="agent-control-row">/);
   assert.match(dashboard,/aria-label="Abrir actividad e histórico de /);
   assert.match(dashboard,/\.ag-link:focus-visible\{[^}]*outline:2px solid var\(--brand\)/);
 });
