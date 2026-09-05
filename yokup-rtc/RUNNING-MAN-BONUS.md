@@ -83,3 +83,23 @@ correctas, una omitida; sitio 1.378 pruebas correctas, más una comprobación
 posterior del rechazo de contratos de carrera incompatibles. Navegador real
 headless: escritorio 1280×900, móvil 390×844 y movimiento reducido; un único
 +1 y una única solicitud de premio por vista, cero errores JS y desbordamientos.
+
+## Publicación y verificación reales · 05/09/2026
+
+- Código publicado: `aa7018350ae2cabf5b46fe55e53d4553efb76a16`.
+- API: `v.05.09.2026.r14.22:58`, worker `ec154d82-6757-4e90-af3d-c04420b6dce3`.
+- Web y gate: `v.05.09.2026.r25.22:59`, contenido público verificado con HTTP 200.
+- Producción anterior y main coincidían salvo el sello antes del despliegue.
+- Carrera real `a549e213-dff9-4718-b70c-0fb7a0b834cd`: ganó `OraculoMacMini`, misión
+  `DCL-1e1c17f16c096cf579650906`. Su bonus diario pasó de 0 a 1.
+  La confirmación anticipada fue rechazada; el reintento devolvió
+  `duplicate:true`, con un único evento. La traza diaria y la del proyecto
+  contienen el punto. Verificado a las `2026-09-05T21:00:50.052Z`.
+- Chrome con la sesión existente mostró el aviso de victoria y 1.651 puntos
+  de Oraculo tras ese primer bonus. No se simuló actividad para concederlo.
+- 1.379 pruebas del sitio incluidas en el deploy; 1.073 pruebas API correctas
+  y una omitida. La nueva prueba adicional rechaza respuestas incompatibles.
+- Una edición paralela sin commit en el checkout principal quedó intacta;
+  se publicó desde una copia main limpia, sin forzar ni descartar sus archivos.
+
+El registro de misión conserva los informes y la evidencia final del cierre.
