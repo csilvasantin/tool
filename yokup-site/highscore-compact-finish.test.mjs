@@ -10,6 +10,8 @@ vm.runInNewContext(identitySource,identitySandbox);
 const raceHelperSource=fs.readFileSync(new URL("./highscore-race.js",import.meta.url),"utf8");
 const raceHelperSandbox={module:{exports:{}},exports:{}};
 vm.runInNewContext(raceHelperSource,raceHelperSandbox);
+const clockSandbox={module:{exports:{}},exports:{}};
+vm.runInNewContext(fs.readFileSync(new URL("./highscore-work-clock.js",import.meta.url),"utf8"),clockSandbox);
 const start=html.indexOf("function claveAgenteCarrera(");
 const end=html.indexOf("\n\n  function pintaFormula",start);
 const raceSource=html.slice(start,end);
@@ -31,7 +33,7 @@ function render(agent,state,endedAt){
       trabajosGeneratedAt:Date.parse("2026-09-01T13:10:00Z"),trabajosClientAt:0},
     document:{getElementById:id=>nodes[id]},normaliza:value=>String(value==null?"":value).trim(),
     esc:value=>String(value==null?"":value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;"),
-    window:{ykAgentIdentity:identitySandbox.ykAgentIdentity},YkHighscoreRace:raceHelperSandbox.module.exports,
+    window:{ykAgentIdentity:identitySandbox.ykAgentIdentity},YkHighscoreRace:raceHelperSandbox.module.exports,YkWorkClock:clockSandbox.module.exports,
     Number,String,Math,Date,Intl,performance:{now:()=>0},
   });
   vm.runInContext(`${raceSource}\nactualizaCarreraPodio();`,context);
@@ -56,30 +58,30 @@ test("el carril ordena agente, pista y bloque horario derecho en hora Madrid",()
   const rendered=render("NiobeMacMini","last_work",ended);
   assert.match(rendered,/class="refresh-agent"[^>]*>Niobe<\/span>/);
   assert.match(rendered,/class="refresh-started" data-race-time="start"[^>]*>14:30:00<\/time>/);
-  assert.match(rendered,new RegExp(`<time class="refresh-ended" data-race-time="end" datetime="${new Date(ended).toISOString()}"[^>]*>15:04:05<\\/time>`));
+  assert.match(rendered,/class="refresh-ended" data-race-time="duration" data-work-state="last_work"[^>]*title="Duración final · Inicio 14:30:00 · Final 15:04:05"[^>]*>00:34:05<\/strong>/);
   assert.ok(rendered.indexOf('class="refresh-agent"') < rendered.indexOf('data-race-time="start"'));
   assert.ok(rendered.indexOf('class="refresh-lane-center"') < rendered.indexOf('class="refresh-timing"'));
-  assert.ok(rendered.indexOf('data-race-time="start"') < rendered.indexOf('data-race-time="end"'));
+  assert.ok(rendered.indexOf('data-race-time="start"') < rendered.indexOf('data-race-time="duration"'));
   assert.doesNotMatch(rendered,/>FINALIZADO<|>EN CURSO</);
-  assert.match(rendered,/aria-label="Responsable Niobe\. Proyecto responsable —\. Hora de inicio 14:30:00\. Hora de finalización 15:04:05/);
+  assert.match(rendered,/aria-label="Responsable Niobe\. Proyecto responsable —\. Hora de inicio 14:30:00\. Duración final 00:34:05\. Finalizó a las 15:04:05/);
 });
 
 test("sin ended_at no inventa hora y el activo usa el hueco final como contador",()=>{
   const missing=render("TrinityMBP14","last_work",0);
-  assert.match(missing,/class="refresh-ended" data-race-time="end" title="Hora de finalización no disponible">—<\/span>/);
+  assert.match(missing,/class="refresh-ended" data-race-time="duration" data-work-state="last_work"[^>]*title="Duración final · Inicio 14:30:00 · Final —"[^>]*>—<\/strong>/);
   assert.doesNotMatch(missing,/class="refresh-ended" datetime=/);
 
   const running=render("NeoMBP14","running",0);
   assert.doesNotMatch(running,/>EN CURSO<|>FINALIZADO</);
-  assert.match(running,/class="refresh-ended refresh-elapsed" data-race-time="elapsed" data-work-state="running"[^>]*>00:40:00<\/strong>/);
+  assert.match(running,/class="refresh-ended refresh-elapsed" data-race-time="duration" data-work-state="running"[^>]*>00:40:00<\/strong>/);
   assert.doesNotMatch(running,/data-race-time="end"/);
 });
 
 test("el layout reserva el bloque horario al otro lado de la pista",()=>{
-  assert.match(html,/grid-template-columns:minmax\(148px,210px\) minmax\(0,1fr\) minmax\(158px,190px\)/);
+  assert.match(html,/grid-template-columns:minmax\(148px,240px\) minmax\(0,1fr\) minmax\(68px,88px\)/);
   assert.match(html,/class="refresh-lane-center"[\s\S]*class="refresh-timing"/);
   assert.doesNotMatch(html,/class="refresh-time"|class="refresh-work-state"/);
   assert.match(html,/@media \(max-width:620px\)[\s\S]*\.refresh-timing\{gap:2px/);
   assert.match(html,/@media \(max-width:620px\)[\s\S]*\.refresh-started,\.refresh-ended\{font-size:7px/);
-  assert.match(html,/@media \(max-width:340px\)\{\.refresh-lane\{grid-template-columns:minmax\(92px,112px\) minmax\(42px,1fr\) minmax\(108px,118px\)/);
+  assert.match(html,/@media\(max-width:340px\)\{\.refresh-lane\{grid-template-columns:minmax\(110px,130px\) minmax\(32px,1fr\) 60px/);
 });

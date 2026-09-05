@@ -28,21 +28,23 @@ test("la banda HIGHSCORE+RANKING encabeza la página, por encima de la carrera",
 
 test("el DOM ordena nombre, pista y bloque temporal derecho",()=>{
   assert.match(html,/class="refresh-agent-meta">' \+ nombreCorredorHtml\(identidadVisible, contextoVisible, "race-agent-context-" \+ indice\)[\s\S]*class="refresh-lane-center"[\s\S]*class="refresh-timing"[\s\S]*marcaInicio \+ marcaTemporal/);
-  assert.match(html,/data-race-time="elapsed" data-work-state="running"/);
-  assert.match(html,/data-race-time="end" datetime="/);
+  assert.match(html,/data-race-time="duration" data-work-state="/);
+  assert.ok(html.includes("resumen.clockRunning?'running':'unverified'"));
+  assert.match(html,/data-race-time="start" datetime="/);
+  assert.match(html,/Duración final/);
   assert.match(html,/aria-label="Responsable ' \+ esc\(identidadVisible\.nombre\) \+ '\. Proyecto responsable ' \+ esc\(proyectoResponsable\) \+ '\. Hora de inicio ' \+ esc\(resumen\.startedClock\) \+ esc\(timingAria\)/);
-  assert.match(html,/startedAt:Number\(item\.work_started_at\) \|\| 0/);
-  assert.match(html,/startedClock:horaMadrid\(trabajo\.startedAt\)/);
+  assert.match(html,/startedAt:typeof YkWorkClock!=="undefined"\?YkWorkClock\.epochMs\(item\.work_started_at\)/);
+  assert.match(html,/startedClock:reloj\.invalid\?"—":horaMadrid\(trabajo\.startedAt\)/);
   assert.doesNotMatch(html,/startedClock:horaMadrid\(trabajo\.(?:assignmentAt|at|presenceAt|endedAt)\)/);
-  assert.match(html,/\.refresh-agent-meta\{[^}]*display:grid[^}]*grid-template-columns:minmax\(0,1fr\)[^}]*min-width:0/);
+  assert.match(html,/\.refresh-agent-meta\{display:flex;align-items:baseline;gap:5px;flex-wrap:nowrap/);
   assert.match(html,/\.refresh-agent\{[^}]*min-width:0[^}]*text-overflow:ellipsis/);
   assert.match(html,/\.refresh-started,\.refresh-ended\{[^}]*flex:0 0 auto[^}]*white-space:nowrap/);
   assert.doesNotMatch(html,/class="refresh-time"|class="refresh-work-state"/);
 });
 
 test("desktop y móvil reservan pista central y reloj a la derecha",()=>{
-  assert.match(html,/grid-template-columns:minmax\(148px,210px\) minmax\(0,1fr\) minmax\(158px,190px\)/);
-  assert.match(html,/@media \(max-width:620px\)[\s\S]*grid-template-columns:minmax\(112px,142px\) minmax\(54px,1fr\) minmax\(110px,124px\)/);
+  assert.match(html,/grid-template-columns:minmax\(148px,240px\) minmax\(0,1fr\) minmax\(68px,88px\)/);
+  assert.match(html,/@media\(max-width:600px\)[\s\S]*grid-template-columns:minmax\(112px,150px\) minmax\(42px,1fr\) 64px/);
   assert.match(html,/\.refresh-lane-last/);
   assert.match(html,/\.refresh-elapsed/);
 });
