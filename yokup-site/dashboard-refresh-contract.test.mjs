@@ -34,7 +34,7 @@ test("la asociación principal nace plegada y precede al contenido secundario",(
 
 test("Pulso, Xperiencias y Módulos nacen plegados y conservan un summary accesible",()=>{
   for(const [id,label] of [
-    ["pulseSection","Flota de Agentes Silicio"],
+    ["pulseSection","deepAgents"],
     ["liveExperiencesSection","Xperiencias en vivo"],
     ["modulesSection","Módulos"]
   ]){

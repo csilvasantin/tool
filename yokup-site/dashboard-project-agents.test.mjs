@@ -37,7 +37,7 @@ test("el Dashboard vive en /dashboard y conserva /agentica sólo como retorno co
 
 test("el título principal abre el contenido y Proyectos precede a la zona secundaria",()=>{
   assert.match(source,/<div class="wrap">\s*<h1>Plataforma agéntica de gestión de Xperiencias<\/h1>\s*<section class="record-pace"[\s\S]*?<\/section>\s*<details class="dash-section" id="projectAgentSection">/);
-  assert.match(source,/<details class="dash-section" id="pulseSection">\s*<summary class="shd">Flota de Agentes Silicio/);
+  assert.match(source,/<details class="dash-section" id="pulseSection">\s*<summary class="shd">deepAgents/);
   assert.match(source,/<details class="dash-section" id="projectAgentSection">\s*<summary class="shd">Proyectos y agentes/);
   assert.match(source,/<details class="dash-section" id="liveExperiencesSection">\s*<summary class="shd">Xperiencias en vivo/);
   assert.match(source,/<details class="dash-section" id="modulesSection">\s*<summary class="shd">Módulos<\/summary>\s*<div class="dash-section-body">[\s\S]*?<div class="foot">/);
@@ -64,7 +64,7 @@ test("proyectos y organización son compactables y separan Equipos, Silicio y Ca
   assert.doesNotMatch(source,/id="projectAgentAgentsPane"/);
   assert.match(source,/Proyectos <span class="pa-count" id="projectAgentProjectsN">/);
   assert.match(source,/role="tab" data-pa-roster-tab="teams"[\s\S]*Equipos físicos <span class="pa-count" id="projectAgentTeamsN">/);
-  assert.match(source,/role="tab" data-pa-roster-tab="silicon"[\s\S]*Agentes de Silicio <span class="pa-count" id="projectAgentSiliconN">/);
+  assert.match(source,/role="tab" data-pa-roster-tab="silicon"[\s\S]*deepAgents <span class="pa-count" id="projectAgentSiliconN">/);
   assert.match(source,/role="tab" data-pa-roster-tab="carbon"[\s\S]*Agentes de Carbono <span class="pa-count" id="projectAgentCarbonN">/);
   assert.doesNotMatch(source,/id="projectAgentInfrasN"/);
   assert.match(source,/pa\("projectAgentProjectsN"\)\.textContent=visibleActive\+"\/"\+active/);
@@ -153,9 +153,9 @@ test("Sub queda como ejecución de Silicio e Infra se excluye de la vista",()=>{
   assert.match(source,/class="pa-family-helpers"/);
   assert.match(source,/Silicio · ejecución/);
   assert.match(source,/families=paAgentFamilies\(PROJECT_ROSTER\)/);
-  assert.match(source,/families\.length\+" agentes de Silicio/);
+  assert.match(source,/families\.length\+" deepAgents/);
   assert.match(source,/roleCounts\.main\.active\+"\/"\+roleCounts\.main\.total/);
-  assert.match(source,/teamRoleCounts\.main\.active\+'\/'\+teamRoleCounts\.main\.total\+' Agentes de Silicio · '\+teamCarbons\.length\+' Agentes de Carbono'/);
+  assert.match(source,/teamRoleCounts\.main\.active\+'\/'\+teamRoleCounts\.main\.total\+' deepAgents · '\+teamCarbons\.length\+' Agentes de Carbono'/);
   assert.doesNotMatch(source,/PROJECT_ROSTER\.length\+" agentes/);
 });
 
@@ -181,7 +181,7 @@ test("las asignaciones Silicio se agrupan y las referencias Infra se filtran",()
   assert.match(source,/function paProjectFamilyRefs\(project\)/);
   assert.match(source,/function paProjectRefsForFamily\(project,family\)/);
   assert.match(source,/filter\(ref=>paAgentRole\(ref\)!=="infra"\)/);
-  assert.match(source,/assignedGroups\.length\+' agentes de Silicio/);
+  assert.match(source,/assignedGroups\.length\+' deepAgents/);
   assert.doesNotMatch(source,/group\.helpers\.map\(ref=>esc\(ref\)\)/);
   assert.match(source,/async function paRemoveFamily\(project,familyId\)/);
   assert.match(source,/for\(const ref of refs\)/);

@@ -28,9 +28,9 @@ function countsApi(){
 const neo={id:"NeoMacMini",team:"macmini",surfaces:[{online:true}],helpers:[{id:"SubNeoMacMini",role:"sub",online:true,assigned:true}]};
 const oraculo={id:"OraculoMacMini",team:"macmini",surfaces:[{online:false}],helpers:[]};
 
-test("la cabecera pública solo ofrece Agentes de Silicio y Agentes de Carbono",()=>{
+test("la cabecera pública solo ofrece deepAgents y Agentes de Carbono",()=>{
   const start=source.indexOf('id="projectAgentRosterTabs"'),tabs=source.slice(start,source.indexOf('</div>',start));
-  assert.match(tabs,/Agentes de Silicio <span class="pa-count" id="projectAgentSiliconN">/);
+  assert.match(tabs,/deepAgents <span class="pa-count" id="projectAgentSiliconN">/);
   assert.match(tabs,/Agentes de Carbono <span class="pa-count" id="projectAgentCarbonN">/);
   assert.match(tabs,/Equipos físicos <span class="pa-count" id="projectAgentTeamsN">/);
   assert.doesNotMatch(tabs,/Agentes principales|Subagentes|Infraagentes|projectAgentAgentsN|projectAgentSubsN|projectAgentInfrasN/);
@@ -82,8 +82,8 @@ test("Infra queda fuera de familias, proyectos, cables y contenido visible",()=>
 
 test("cada equipo y cada proyecto usan la nueva nomenclatura",()=>{
   const render=functionSource("paRender");
-  assert.match(render,/Agentes de Silicio · '\+teamCarbons\.length\+' Agentes de Carbono/);
-  assert.match(render,/assignedGroups\.length\+' agentes de Silicio/);
-  assert.match(render,/Sin agentes de Silicio elegidos/);
+  assert.match(render,/deepAgents · '\+teamCarbons\.length\+' Agentes de Carbono/);
+  assert.match(render,/assignedGroups\.length\+' deepAgents/);
+  assert.match(render,/Sin deepAgents elegidos/);
   assert.doesNotMatch(render,/agentes principales|Subagentes|Infraagentes/);
 });
