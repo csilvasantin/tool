@@ -1,3 +1,4 @@
+import {automationAllowed,automationFenceSql} from './src/fleet-automation-control.js';
 import {assignedWorkBlockers} from './src/automatic-work-priority.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -65,7 +66,7 @@ function fn(name) {
 }
 test('adaptador real Learning despacha al consumidor, y Training sin backlog encarga investigación en vez de simular ventana',async()=>{
   let writes=[],opened=0;
-  const context={Date,console,hourlyModeGuard:async()=>({allowed:true}),hourlyModeTelemetry:async()=>telemetry(),hourlyModeActivity:async()=>({busy:false}),evaluateModeOpportunity:()=>({eligible:true,target:{...target,pid:321,session_id:'desktop:claude'},start:false}),canonicalOnIdleProposals:async()=>({ok:false,proposals:[]}),dispatchDesktopWrite:async(_env,input)=>{writes.push(input);return {result:{command_id:'17'}};},academyTemaDeFranja:()=>({tema:{nombre:'Tecnología'},lessonId:'contratos-claros'}),COACH_HOUR:HOUR,learningPrompt:run=>'Learning '+run.id,trainingPrompt:run=>'Training '+run.id,openInitialMissionDecision:async()=>{opened++;return {ok:true,id:'DEC1'};}};
+  const context={automationAllowed,automationFenceSql,Date,console,hourlyModeGuard:async()=>({allowed:true}),hourlyModeTelemetry:async()=>telemetry(),hourlyModeActivity:async()=>({busy:false}),evaluateModeOpportunity:()=>({eligible:true,target:{...target,pid:321,session_id:'desktop:claude'},start:false}),canonicalOnIdleProposals:async()=>({ok:false,proposals:[]}),dispatchDesktopWrite:async(_env,input)=>{writes.push(input);return {result:{command_id:'17'}};},academyTemaDeFranja:()=>({tema:{nombre:'Tecnología'},lessonId:'contratos-claros'}),COACH_HOUR:HOUR,learningPrompt:run=>'Learning '+run.id,trainingPrompt:run=>'Training '+run.id,openInitialMissionDecision:async()=>{opened++;return {ok:true,id:'DEC1'};}};
   vm.runInNewContext(fn('executeHourlyMode')+';this.execute=executeHourlyMode',context);
   for (const mode of ['learning','training']) {
     const result=await context.execute({}, {id:'HMODE-test',pref:{...target,mode},project:{id:'yokup'},hour_start:now,now});
@@ -93,7 +94,7 @@ test('callback Training publica una ventana real de cinco opciones y conserva ev
   const run={id:'HMODE-training',identity_key:pref.identity_key,mode:'training',project_id:'yokup',status:'dispatched',created_at:now};
   env.DB.raw.prepare("INSERT INTO fleet_agent_mode_runs(id,identity_key,hour_start,mode,project_id,status,command_id,created_at,updated_at) VALUES(?,?,?,?,?,'dispatched','17',?,?)").run(run.id,pref.identity_key,now,'training','yokup',now,now);
   let publications=[];
-  const context={Date:{now:()=>now},AbortSignal,validateTrainingProposals,Set,URL,fetch:async()=>({ok:true}),hourlyModeProject:projectFor,onIdleProposalTitleKey:title=>title.toLowerCase(),hourlyModeGuard:async()=>({allowed:true}),evaluateModeOpportunity:()=>({eligible:true,start:false}),hourlyModeTelemetry:async()=>telemetry(),hourlyModeActivity:async()=>({busy:false}),ONIDLE_BACK_OPTION:'↩ Volver atrás',ONIDLE_CUSTOM_OPTION:'✍️ Custom',DECIDE_URL:'https://yokup.com/decisions',onIdleDecisionUrl:id=>'https://yokup.com/decisions?decision_id='+id,openInitialMissionDecision:async(_env,input)=>{publications.push(input);return {ok:true,id:'DEC-hourly'};}};
+  const context={automationAllowed,automationFenceSql,Date:{now:()=>now},AbortSignal,validateTrainingProposals,Set,URL,fetch:async()=>({ok:true}),hourlyModeProject:projectFor,onIdleProposalTitleKey:title=>title.toLowerCase(),hourlyModeGuard:async()=>({allowed:true}),evaluateModeOpportunity:()=>({eligible:true,start:false}),hourlyModeTelemetry:async()=>telemetry(),hourlyModeActivity:async()=>({busy:false}),ONIDLE_BACK_OPTION:'↩ Volver atrás',ONIDLE_CUSTOM_OPTION:'✍️ Custom',DECIDE_URL:'https://yokup.com/decisions',onIdleDecisionUrl:id=>'https://yokup.com/decisions?decision_id='+id,openInitialMissionDecision:async(_env,input)=>{publications.push(input);return {ok:true,id:'DEC-hourly'};}};
   vm.runInNewContext(fn('completeHourlyTraining')+';this.complete=completeHourlyTraining',context);
   const titles=['Corregir /dashboard para eliminar 3 errores de navegación','Reducir /api a 200 ms para evitar 2 esperas','Añadir /highscore para verificar 4 estados pendientes'];
   const body={proposals:titles.map(title=>({title,evidence:'Se ha observado directamente el comportamiento actual del proyecto y se conserva evidencia concreta de la incidencia.',source_url:'https://yokup.com/dashboard',observed_at:now}))};
@@ -109,7 +110,7 @@ test('callback Training publica una ventana real de cinco opciones y conserva ev
 test('ACK real Desktop entregado conserva Learning pendiente hasta verificar cápsula',async()=>{
   const env=await setup(),pref=env.DB.raw.prepare('SELECT * FROM fleet_agent_modes').get();
   env.DB.raw.prepare("INSERT INTO fleet_agent_mode_runs(id,identity_key,hour_start,mode,project_id,status,command_id,created_at,updated_at) VALUES('HMODE-learning',?,?,'learning','yokup','dispatched','17',?,?)").run(pref.identity_key,now,now,now);
-  const context={readDesktopResult:async()=>({status:'done',delivered:true})};
+  const context={automationAllowed,automationFenceSql,readDesktopResult:async()=>({status:'done',delivered:true})};
   vm.runInNewContext(fn('resumeHourlyModes')+';this.resume=resumeHourlyModes',context);
   await context.resume(env,now);
   const result=env.DB.raw.prepare('SELECT status,reason FROM fleet_agent_mode_runs').get();
@@ -120,7 +121,7 @@ test('guard consumidor vincula el run con agente, máquina, runtime y superficie
   const env=await setup(),pref=env.DB.raw.prepare('SELECT * FROM fleet_agent_modes').get();
   env.DB.raw.prepare("INSERT INTO fleet_agent_mode_runs(id,identity_key,hour_start,mode,project_id,status,command_id,created_at,updated_at) VALUES('HMODE-guard',?,?,'learning','yokup','dispatched','17',?,?)").run(pref.identity_key,now,now,now);
   env.DB.raw.prepare("INSERT INTO fleet_hourly_family_leases VALUES('morfeo|macmini','HMODE-guard',?)").run(now+HOUR);
-  const context={URL,normalizeModeTarget,ensureHourlyModeSchema,modeTargetKey,hourlyModeProject:projectFor,hourlyModeActivity:async()=>({busy:false})};
+  const context={automationAllowed,automationFenceSql,URL,normalizeModeTarget,ensureHourlyModeSchema,modeTargetKey,hourlyModeProject:projectFor,hourlyModeActivity:async()=>({busy:false})};
   vm.runInNewContext(fn('hourlyModeGuard')+';this.guard=hourlyModeGuard',context);
   assert.equal((await context.guard(env,'HMODE-guard',now,normalizeModeTarget(target))).allowed,true);
   for (const change of [{persona:'Oraculo'},{machine:'MacBook Pro 16'},{runtime:'Codex'},{host:'cli'}]) {
@@ -149,7 +150,7 @@ test('runner aislado usa capability por perfil exacto y despacha a cola sin inye
   assert.equal(evaluateModeOpportunity({...cli,mode:'learning'},data,{},now).eligible,true);
   assert.equal(evaluateModeOpportunity({...cli,persona:'Neo',mode:'learning'},data,{},now).eligible,false);
   let queued;
-  const context={Request,URL,Date,hourlyModeGuard:async()=>({allowed:true}),hourlyModeTelemetry:async()=>data,hourlyModeActivity:async()=>({busy:false}),evaluateModeOpportunity};
+  const context={automationAllowed,automationFenceSql,Request,URL,Date,hourlyModeGuard:async()=>({allowed:true}),hourlyModeTelemetry:async()=>data,hourlyModeActivity:async()=>({busy:false}),evaluateModeOpportunity};
   vm.runInNewContext(fn('executeHourlyMode')+';this.execute=executeHourlyMode',context);
   // Live clock telemetry used by the adapter: independent of historical fixture.
   data.control_machines[0].updated=data.control_machines[0].human_sampled_at=Date.now()/1000;
@@ -165,7 +166,7 @@ async function workContext() {
   const pref=env.DB.raw.prepare('SELECT * FROM fleet_agent_modes').get(),id='HMODE-'+'a'.repeat(28);
   env.DB.raw.prepare("INSERT INTO fleet_agent_mode_runs(id,identity_key,hour_start,mode,project_id,status,created_at,updated_at) VALUES(?,?,?,'learning','yokup','dispatched',?,?)").run(id,pref.identity_key,now,now,now);
   let allowed=true;
-  const context={URL,normalizeModeTarget,modeTargetKey,scopedAgentIdentity:(agent,machine,role)=>role+agent,hourlyModeGuard:async()=>({allowed,reason:allowed?'ready':'preference_changed'}),ensureEntityDisplayRef:async()=>{},hourlyModeProject:projectFor,validateTrainingProposals};
+  const context={automationAllowed,automationFenceSql,URL,normalizeModeTarget,modeTargetKey,scopedAgentIdentity:(agent,machine,role)=>role+agent,hourlyModeGuard:async()=>({allowed,reason:allowed?'ready':'preference_changed'}),ensureEntityDisplayRef:async()=>{},hourlyModeProject:projectFor,validateTrainingProposals};
   vm.runInNewContext(fn('hourlyModeWork')+';this.work=hourlyModeWork',context);
   return {env,id,work:body=>context.work(env,{run_id:id,target,...body},now),revoke:()=>{allowed=false;}};
 }
@@ -197,7 +198,7 @@ test('cancelación Manual permite registrar fallo honesto sin guard y nunca borr
 test('actividad excluye únicamente investigación enlazada al mismo run y destino',async()=>{
   const {env,work,id}=await workContext();await work({stage:'start'});
   env.DB.raw.exec('CREATE TABLE decisions(agent TEXT,machine TEXT,status TEXT,deadline INTEGER,parent_decision TEXT)');
-  const context={modeTargetKey,assignedWorkBlockers,ensureHourlyModeSchema,AGENT_SOURCE_SQL:"source='cli-declare'",matchesOnIdleIdentity:(row,t)=>row.assignee==='MorfeoMacMini'};
+  const context={automationAllowed,automationFenceSql,modeTargetKey,assignedWorkBlockers,ensureHourlyModeSchema,AGENT_SOURCE_SQL:"source='cli-declare'",matchesOnIdleIdentity:(row,t)=>row.assignee==='MorfeoMacMini'};
   vm.runInNewContext(fn('assignedWorkSnapshot')+fn('hourlyModeActivity')+';this.activity=hourlyModeActivity',context);
   assert.equal((await context.activity(env,target,{id:'yokup'},now,id)).busy,false);
   assert.equal((await context.activity(env,target,{id:'yokup'},now)).busy,true);
@@ -216,7 +217,7 @@ test('reconcile hourly_run valida acción/destino y nunca pisa callback completa
   vm.runInNewContext(fn('readHourlyModeCommand')+';this.read=readHourlyModeCommand',readContext);
   assert.equal((await readContext.read(env,{id,command_id:'99'},pref)).status,'done');
   command.persona='Neo';await assert.rejects(()=>readContext.read(env,{id,command_id:'99'},pref),/hourly_command_mismatch/);command.persona='Morfeo';
-  const context={hourlySlot,readHourlyModeCommand:async()=>{env.DB.raw.prepare("UPDATE fleet_agent_mode_runs SET status='completed',deliverable_url='https://delivery.example/real' WHERE id=?").run(id);return {status:'done'};}};
+  const context={automationAllowed,automationFenceSql,hourlySlot,readHourlyModeCommand:async()=>{env.DB.raw.prepare("UPDATE fleet_agent_mode_runs SET status='completed',deliverable_url='https://delivery.example/real' WHERE id=?").run(id);return {status:'done'};}};
   vm.runInNewContext(fn('resumeHourlyModes')+';this.resume=resumeHourlyModes',context);
   await context.resume(env,now);
   const run=env.DB.raw.prepare('SELECT * FROM fleet_agent_mode_runs WHERE id=?').get(id);

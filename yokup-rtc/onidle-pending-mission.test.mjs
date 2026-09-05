@@ -1,3 +1,4 @@
+import {automationFenceSql,automationFamily} from './src/fleet-automation-control.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -33,6 +34,7 @@ function body(name) {
 
 function harness(raceTicket) {
   const db = new DatabaseSync(':memory:');
+  db.exec("CREATE TABLE fleet_automation_controls(scope TEXT PRIMARY KEY,enabled INTEGER,cutoff INTEGER)");
   db.exec("CREATE TABLE tickets(id TEXT,source TEXT,status TEXT,assignee TEXT,loc TEXT)");
   db.exec("CREATE TABLE mission_tasks(mission_id TEXT,status TEXT)");
   db.exec("CREATE TABLE onidle_ticks(identity_key TEXT,day TEXT,ordinal INTEGER,agent TEXT,machine TEXT,project_id TEXT,decision_id TEXT UNIQUE,status TEXT,reserved_at INTEGER,published_at INTEGER,PRIMARY KEY(identity_key,day,ordinal))");
@@ -65,14 +67,14 @@ function harness(raceTicket) {
     'onIdleTickDecisionId','ONIDLE_DAILY_LIMIT','ONIDLE_BACK_OPTION','ONIDLE_CUSTOM_OPTION',
     'isCanonicalOnIdleOptions','DECIDE_URL','ONIDLE_MISSION_MARKER','decisionProjectSlug',
     'AGENT_SOURCE_SQL_T','isCanonicalOnIdleDecision','ensureEntityDisplayRef',
-    'agentFamilyKey','machineRefKey','agentFamilySqlKey','machineRefSqlKey',
+    'agentFamilyKey','machineRefKey','agentFamilySqlKey','machineRefSqlKey','automationFenceSql','automationFamily',
     `${body('publishScheduledOnIdle')}; return publishScheduledOnIdle;`);
   const publish = factory(operationalOnIdleState, async () => ({ok:true,proposals:[
     {title:'Mejora A',target_mission_id:'A'}, {title:'Mejora B',target_mission_id:'B'},
     {title:'Mejora C',target_mission_id:'C'}]}), () => '2026-09-01', () => 'DEC-RACE', 8,
     ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION, isCanonicalOnIdleOptions, 'https://yokup.com/decide',
     MARKER, (value) => value, AGENT_SOURCE_SQL_T, isCanonicalOnIdleDecision, async () => {},
-    agentFamilyKey, machineRefKey, agentFamilySqlKey, machineRefSqlKey);
+    agentFamilyKey, machineRefKey, agentFamilySqlKey, machineRefSqlKey,automationFenceSql,automationFamily);
   return {db, env:{DB}, publish};
 }
 

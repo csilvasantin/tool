@@ -45,9 +45,9 @@ export async function pauseLegacyAcademy(db, now = Date.now()) {
   return legacyAcademyAvailability();
 }
 
-export async function pauseAutomaticRun(db, runId, blockers, now = Date.now()) {
-  const reason='human_mission_assigned';
-  const detail='Pausada por misión asignada: '+blockers.map(row=>row.id+(row.code?':'+row.code:'')).join(', ').slice(0,400)+'. Investigación conservada; sin entrega ni cierre automático.';
+export async function pauseAutomaticRun(db, runId, blockers, now = Date.now(), requestedReason='human_mission_assigned') {
+  const reason=requestedReason;
+  const detail=reason==='automation_stopped'?'Automatismo detenido desde Módulos. Investigación conservada; sin entrega ni cierre automático.':'Pausada por misión asignada: '+blockers.map(row=>row.id+(row.code?':'+row.code:'')).join(', ').slice(0,400)+'. Investigación conservada; sin entrega ni cierre automático.';
   await db.prepare('CREATE TABLE IF NOT EXISTS automatic_work_pauses (kind TEXT NOT NULL,ref TEXT NOT NULL,previous_status TEXT,reason TEXT NOT NULL,paused_at INTEGER NOT NULL,PRIMARY KEY(kind,ref))').run();
   await db.batch([
     db.prepare("INSERT OR IGNORE INTO automatic_work_pauses SELECT 'hourly_run',id,status,?,? FROM fleet_agent_mode_runs WHERE id=? AND status IN ('reserved','starting','resuming','dispatched','awaiting_delivery','completing')").bind(detail,now,runId),

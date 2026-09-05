@@ -18,7 +18,7 @@
 <script src="/highscore-daily-record.js?v=v.2026.09.04.r2"></script>
 <script src="/agent-detail.js?v=v.2026.09.04.r1"></script>
 <script src="/presence-groups.js?v=v.2026.09.04.r1"></script>
-<script src="/agent-control.js?v=v.2026.09.05.group-runtime-r2"></script>
+<script src="/agent-control.js?v=v.2026.09.05.surface-modules-r1"></script>
 <style>
 :root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--violet:#aa88ff;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.30);--sans:var(--admira-font-sans,-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif);--mono:var(--admira-font-mono,ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -164,6 +164,7 @@ details.pa-team-node:not([open])>.pa-team-agents,.pa-project-node:not([open])>.p
 .pa-rail-empty{padding:8px;border:1px dashed var(--line);border-radius:7px;color:var(--dim);font-size:9px;line-height:1.4}
 
 .foot{margin-top:30px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
+.automation-module{border:1px solid var(--line);border-radius:12px;padding:15px;margin-bottom:12px;background:var(--card)}.automation-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.automation-module h3{font-size:15px}.automation-module p,.automation-intro{font-size:12px;line-height:1.5;color:var(--mut);margin:7px 0}.automation-module summary{cursor:pointer;font-size:12px;color:var(--brand);padding:10px 0}.automation-actions{display:flex;gap:6px;flex-wrap:wrap}.automation-actions button,.automation-agent select{color:var(--ink);background:var(--card2);border:1px solid var(--line2);border-radius:6px;padding:7px;font:inherit;font-size:11px}.automation-actions button{cursor:pointer}.automation-actions button:disabled{opacity:.45;cursor:default}.automation-agent{display:grid;grid-template-columns:minmax(140px,1fr) minmax(160px,1fr) auto;gap:8px;align-items:center;border-top:1px solid var(--line);padding:10px 0}.automation-agent>div:first-child{display:flex;flex-direction:column;gap:4px;font-size:12px}.automation-agent span{color:var(--mut)}.automation-agent select{width:100%;min-width:0}.automation-agent p{grid-column:1/-1;margin:0}.automation-scope{font-size:11px!important}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@media(max-width:600px){.automation-agent{grid-template-columns:1fr}.automation-agent p{grid-column:auto}}
 </style>
 </head>
 <body data-yk-title="DASHBOARD" data-yk-zone="app">
@@ -230,6 +231,7 @@ details.pa-team-node:not([open])>.pa-team-agents,.pa-project-node:not([open])>.p
   <details class="dash-section" id="modulesSection">
     <summary class="shd">Módulos</summary>
     <div class="dash-section-body">
+      <div id="automationModules" aria-label="Control de automatismos"><p>Cargando estado…</p></div>
       <div class="mods">
         <a class="mod" href="/incidencias"><div class="mi">🎯</div><b>Misiones</b><span>Incidencias de la flota descompuestas en tareas a/b/c — el helpdesk agéntico.</span><em>/incidencias →</em></a>
         <a class="mod" href="/informes"><div class="mi">📝</div><b>Informes</b><span>Informes de ejecución y QA del equipo, organizados por misión.</span><em>/informes →</em></a>
@@ -481,7 +483,7 @@ function pulseModeSummary(record){
   const project=String(record&&(record.project_name||record.project_id)||"proyecto principal");
   const detail=mode==="learning"?"Cápsula cada hora · "+project:"Ventana cada hora si está libre y sin uso humano · "+project;
   const status=String(record&&record.status||"").toLowerCase(),labels={scheduled:"Programado",waiting:"En espera",blocked:"En espera",running:"En curso",paused:"Pausado",ready:"Listo",idle:"En espera",disabled:"Desactivado",error:"Requiere atención",skipped:"Oportunidad aplazada",starting:"Arrancando",dispatched:"Encargo enviado",awaiting_delivery:"Pendiente de entrega",completed:"Entrega verificada",failed:"No completado",unavailable:"No disponible"};
-  const reasons={telemetry_unavailable:"sin señal reciente",human_activity_unknown:"no se pudo comprobar el uso humano",human_mission_assigned:"hay trabajo humano asignado que debe terminar primero",human_active:"ordenador en uso",agent_busy:"agente ocupado",active_mission:"misión activa",live_decision:"decisión pendiente",previous_run_pending:"entrega anterior pendiente",consumer_unavailable:"ejecutor no disponible en este ordenador",surface_not_configured:"superficie sin configurar",ambiguous_surface:"superficie ambigua",principal_project_changed:"cambió el proyecto principal",project_required:"falta proyecto principal",preference_changed:"modo cambiado"},reason=reasons[record&&record.reason];
+  const reasons={telemetry_unavailable:"sin señal reciente",human_activity_unknown:"no se pudo comprobar el uso humano",human_mission_assigned:"hay trabajo humano asignado que debe terminar primero",human_active:"ordenador en uso",agent_busy:"agente ocupado",active_mission:"misión activa",live_decision:"decisión pendiente",previous_run_pending:"entrega anterior pendiente",consumer_unavailable:"ejecutor no disponible en este ordenador",surface_not_configured:"superficie sin configurar",ambiguous_surface:"superficie ambigua",principal_project_changed:"cambió el proyecto principal",project_required:"falta proyecto principal",preference_changed:"modo cambiado",automation_stopped:"parada solicitada desde Módulos",interface_changed:"otra interfaz elegida"},reason=reasons[record&&record.reason];
   const next=Number(record&&record.next_run)||0,date=next?new Date(next<4102444800?next*1000:next):null;
   const last=record&&record.last_run,lastTime=Number(last&&(last.updated_at||last.created_at))||0,lastDate=lastTime?new Date(lastTime<4102444800?lastTime*1000:lastTime):null;
   const lastLabel=last&&labels[last.status];
@@ -534,6 +536,42 @@ async function pulseHandleMode(event){
   }catch(error){const known={consumer_unavailable:"Ejecutor no disponible en este ordenador.",telemetry_unavailable:"Sin señal reciente del ordenador. No se pudo activar el modo.",project_required:"Asigna un proyecto principal antes de activar el modo.",project_ambiguous:"Hay varios proyectos principales. Resuelve la asignación antes de activar el modo.",unauthorized:"Inicia sesión para guardar el modo.","target-not-found":"Esta superficie ya no está disponible."};const message=known[error&&error.message]||"No se pudo confirmar el modo. Se volverá a comprobar.";if(!known[error&&error.message]){PULSE_MODE_ERROR=true;PULSE_MODE_FETCHED_AT=0;}PULSE_MODE_ERRORS.set(key,message);pulseSetStatus(message,true);}
   finally{PULSE_MODE_REVISION++;PULSE_MODE_PENDING.delete(key);pulseRender();}
 }
+const AUTOMATION_SELECTIONS={training:new Map(),learning:new Map()},AUTOMATION_RESULTS=new Map();
+let AUTOMATION_STATE=null,AUTOMATION_BUSY=false,AUTOMATION_ERROR='',AUTOMATION_NOTICE='',AUTOMATION_FETCHED=0,AUTOMATION_FETCH=null,AUTOMATION_REVISION=0;
+function automationUiFamily(row){return window.ykAgentIdentity?ykAgentIdentity.key(ykAgentIdentity.base(row.agent||row.persona))+'|'+ykAgentIdentity.key(ykAgentIdentity.canonicalMachine(row.machine)||row.machine):String(row.agent||row.persona)+'|'+String(row.machine);}
+function automationUiReason(reason){return {automation_stopped:'Publicación bloqueada por parada solicitada',configuration_changed:'La configuración cambió. Actualiza antes de volver a activar.',one_surface_per_agent:'Elige una sola interfaz por agente.',targets_required:'Elige al menos un destino.',consumer_unavailable:'Ejecutor no disponible.',claude_cli_auth_verification_required:'Claude CLI requiere renovar la sesión y verificar el acceso.',telemetry_unavailable:'Sin señal reciente del ordenador.',project_required:'Falta un proyecto principal.',project_ambiguous:'Proyecto principal ambiguo.',principal_project_changed:'Ha cambiado el proyecto principal.',human_mission_assigned:'Primero debe terminar la misión humana asignada.',human_active:'Ordenador en uso.',human_activity_unknown:'Uso humano sin verificar.',pause_record_failed:'Publicación bloqueada; falta confirmar el registro de la pausa.',unauthorized:'Inicia sesión para usar estos controles.',interface_changed:'Otra interfaz fue elegida para este agente.'}[reason]||'No se pudo confirmar la operación. Actualiza el estado.';}
+function automationUiFamilies(items){const map=new Map();for(const item of items||[]){if(!['app','cli'].includes(item.host)||item.metadata_only)continue;const key=automationUiFamily(item);if(!map.has(key))map.set(key,[]);map.get(key).push(item);}return [...map.entries()].sort((a,b)=>String(a[1][0].agent).localeCompare(String(b[1][0].agent),'es'));}
+function automationModuleHtml(mode){
+  const title=mode==='training'?'Ventanas de mejora/decisión':'Cápsulas de conocimiento',state=AUTOMATION_STATE,category=state?.categories?.find(row=>row.mode===mode),families=automationUiFamilies(state?.items),selection=AUTOMATION_SELECTIONS[mode];
+  for(const [family,key] of selection){if(!families.some(([id,rows])=>id===family&&rows.some(row=>row.identity_key===key)))selection.delete(family);}
+  const configured=(state?.items||[]).filter(row=>row.mode===mode&&row.automation_enabled!==false),pending=(state?.items||[]).filter(row=>row.last_run?.mode===mode&&row.execution_stop==='unconfirmed').length;
+  const summary=!state?'Cargando estado…':category?.enabled===false?'Producción bloqueada':configured.length+' destinos configurados · cada hora si están libres';
+  const rows=families.map(([family,targets])=>{
+    const selectedKey=selection.get(family)||'',selected=targets.find(row=>row.identity_key===selectedKey),active=targets.find(row=>row.mode===mode),result=AUTOMATION_RESULTS.get(mode+'|'+family),familyId=encodeURIComponent(family);
+    const last=active?.last_run,link=last?.deliverable_url;let safeLink='';try{if(new URL(link).protocol==='https:')safeLink=link;}catch{}
+    const note=result||((active?pulseModeSummary(active)+' · ':'')+(!selected?'Selecciona una interfaz para activar.':!selected.available_modes?.includes(mode)?pulseModeSupport(selected):selected.mode!==mode?'Se programará para la próxima hora, sólo si está libre.':''));
+    return `<div class="automation-agent"><div><b>${esc(targets[0].agent||targets[0].persona)}</b><span>${esc(targets[0].machine||'')}</span></div><label><span class="sr-only">Interfaz de ${esc(targets[0].agent)} para ${esc(title)}</span><select data-automation-select="${mode}" data-family="${esc(familyId)}" data-pulse-focus="auto-select:${mode}:${esc(familyId)}"${AUTOMATION_BUSY?' disabled':''}><option value="">Selecciona interfaz…</option>${targets.map(row=>`<option value="${esc(encodeURIComponent(row.identity_key))}"${selectedKey===row.identity_key?' selected':''}>${row.host==='app'?'Desktop APP':'CLI'} · ${esc(row.runtime)}${row.available_modes?.includes(mode)?'':' · No disponible'}</option>`).join('')}</select></label><div class="automation-actions"><button data-automation-action="activate" data-mode="${mode}" data-family="${esc(familyId)}"${AUTOMATION_BUSY||!selected||!selected.available_modes?.includes(mode)?' disabled':''}>Activar</button><button data-automation-action="stop" data-mode="${mode}" data-family="${esc(familyId)}"${AUTOMATION_BUSY||!active?' disabled':''}>Detener</button></div><p role="status">${esc(note)}${active?.execution_stop==='unconfirmed'?' · Parada solicitada: ejecución aún sin confirmar.':''}${safeLink?` <a href="${esc(safeLink)}" target="_blank" rel="noopener">Último resultado ↗</a>`:''}</p></div>`;
+  }).join('');
+  const count=[...selection].filter(([family,key])=>families.some(([id,targets])=>id===family&&targets.some(row=>row.identity_key===key))).length;
+  return `<section class="automation-module" data-automation-module="${mode}"><div class="automation-heading"><div><h3>${title}</h3><p>${esc(summary)}${pending?' · '+pending+(pending===1?' ejecución sin confirmación de parada':' ejecuciones sin confirmación de parada'):''}</p></div><div class="automation-actions"><button data-automation-action="activate" data-mode="${mode}"${AUTOMATION_BUSY||!state||!count?' disabled':''}>Activar seleccionados (${count})</button><button data-automation-action="stop" data-mode="${mode}"${AUTOMATION_BUSY||!state?' disabled':''}>Detener todos</button></div></div><details data-automation-agents="${mode}"><summary>Agentes e interfaces · ${families.length}</summary>${rows||'<p>No hay interfaces registradas.</p>'}</details><p class="automation-scope">${mode==='training'?'La parada incluye las ventanas OnIdle automáticas pendientes. Activar seleccionados programa sólo estas interfaces; no reanuda el OnIdle anterior.':'Academy anterior: bloqueado · ejecutor sin verificar. No se activa desde este panel.'}</p></section>`;
+}
+function automationRender(){const box=document.getElementById('automationModules');if(!box)return;const opened=new Set([...box.querySelectorAll('details[open]')].map(el=>el.dataset.automationAgents));paPaint(box,`<p class="automation-intro">Las misiones humanas tienen prioridad. Estos controles detienen automatismos, sin cerrar las aplicaciones. Una interfaz por agente; activar no inicia trabajo durante el uso humano.</p>${AUTOMATION_ERROR?`<p role="alert" class="err">${esc(AUTOMATION_ERROR)}</p>`:''}${AUTOMATION_NOTICE?`<p role="status">${esc(AUTOMATION_NOTICE)}</p>`:''}${automationModuleHtml('training')}${automationModuleHtml('learning')}`);box.querySelectorAll('details').forEach(el=>{if(opened.has(el.dataset.automationAgents))el.open=true;});}
+async function automationRequest(options){const response=await fetch(PROJECTS_API+'/fleet/automation-modules',{credentials:'include',cache:'no-store',signal:AbortSignal.timeout(20000),...(options||{})});const data=await response.json();if(!response.ok)throw new Error(data.error||'module_unavailable');return data;}
+function automationAccept(state){if(!state||!Array.isArray(state.items)||!Array.isArray(state.categories))throw new Error('module_unavailable');AUTOMATION_STATE=state;for(const mode of ['training','learning'])for(const [family,targets] of automationUiFamilies(state.items)){if(!AUTOMATION_SELECTIONS[mode].has(family)){const configured=targets.filter(row=>row.mode===mode);if(configured.length===1)AUTOMATION_SELECTIONS[mode].set(family,configured[0].identity_key);}}}
+async function automationLoad(force=false){if(AUTOMATION_FETCH||AUTOMATION_BUSY)return AUTOMATION_FETCH;if(!force&&Date.now()-AUTOMATION_FETCHED<30000)return;AUTOMATION_FETCHED=Date.now();const revision=AUTOMATION_REVISION;AUTOMATION_FETCH=(async()=>{try{const state=await automationRequest();if(revision!==AUTOMATION_REVISION)return;automationAccept(state);AUTOMATION_ERROR='';}catch{AUTOMATION_ERROR='No se pudo leer el estado de los automatismos. Se reintentará.';}finally{AUTOMATION_FETCH=null;automationRender();}})();return AUTOMATION_FETCH;}
+async function automationHandle(event){
+  const select=event.target.closest?.('[data-automation-select]');if(select&&event.type==='change'){AUTOMATION_SELECTIONS[select.dataset.automationSelect].set(decodeURIComponent(select.dataset.family),select.value?decodeURIComponent(select.value):'');automationRender();return;}
+  const button=event.target.closest?.('[data-automation-action]');if(!button||AUTOMATION_BUSY||!AUTOMATION_STATE)return;
+  const mode=button.dataset.mode,action=button.dataset.automationAction,family=button.dataset.family?decodeURIComponent(button.dataset.family):'',items=AUTOMATION_STATE.items,body={action,mode,revision:AUTOMATION_STATE.categories.find(row=>row.mode===mode)?.revision};
+  if(action==='activate'){const selection=AUTOMATION_SELECTIONS[mode];body.targets=[...selection].filter(([id])=>!family||id===family).map(([,key])=>items.find(row=>row.identity_key===key)).filter(Boolean).map(row=>({persona:row.persona||row.agent,machine:row.machine,runtime:row.runtime,host:row.host}));body.scope=family?'individual':'all';}
+  else if(family){const targets=items.filter(row=>automationUiFamily(row)===family&&row.mode===mode);if(targets.length!==1){AUTOMATION_ERROR='No se pudo identificar un único automatismo para detener. Usa Detener todos.';automationRender();return;}body.target=targets[0];}
+  AUTOMATION_REVISION++;AUTOMATION_BUSY=true;AUTOMATION_ERROR='';AUTOMATION_NOTICE='';if(action==='activate')for(const row of body.targets)AUTOMATION_RESULTS.delete(mode+'|'+automationUiFamily(row));if(action==='stop')for(const key of AUTOMATION_RESULTS.keys())if(key.startsWith(mode+'|'))AUTOMATION_RESULTS.delete(key);automationRender();
+  try{const response=await automationRequest({method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});automationAccept(response.state);for(const result of response.results||[]){const row=items.find(item=>item.identity_key===result.identity_key);if(row)AUTOMATION_RESULTS.set(mode+'|'+automationUiFamily(row),result.ok?'Programado para la próxima hora.':automationUiReason(result.reason));}if(!response.ok)AUTOMATION_ERROR='La operación tiene resultados pendientes. Revisa cada agente.';else if(action==='stop')AUTOMATION_NOTICE=response.execution_stop==='unconfirmed'?'Parada solicitada: bloqueados nuevos lanzamientos y entregas en Yokup; ejecución pendiente de confirmación. Una publicación externa ya enviada podría finalizar.':'Automatismos detenidos. Las aplicaciones siguen disponibles.';
+  }catch(error){AUTOMATION_ERROR=automationUiReason(error.message);for(const row of body.targets||[])AUTOMATION_RESULTS.set(mode+'|'+automationUiFamily(row),AUTOMATION_ERROR);AUTOMATION_FETCHED=0;}finally{AUTOMATION_BUSY=false;automationRender();void pulseLoadModes(true);if(!AUTOMATION_FETCHED)void automationLoad(true);}
+}
+document.getElementById('automationModules')?.addEventListener('change',automationHandle);
+document.getElementById('automationModules')?.addEventListener('click',automationHandle);
+
 function pulseProjectLabel(p){
   if(p.runtime_selection_required){const labels=new Set((p.runtime_targets||[]).map(pulseProjectLabel));return labels.size===1?labels.values().next().value:"Proyecto pendiente de verificar";}
   const record=PULSE_MODES.get(pulseModeKey(p));
@@ -580,7 +618,8 @@ function pulseGlobalToolbar(){
 }
 function pulseGroupsMarkup(classified,unavailable=false){
   const byKey=classified&&classified.by_key||{},fallback=key=>({key,label:key==="cli"?"deepAgents CLI":key==="app"?"deepAgents Desktop App":"Sin superficie identificada",items:[]}),cli=byKey.cli||fallback("cli"),app=byKey.app||fallback("app"),unknown=byKey.unknown||fallback("unknown");
-  return pulseGlobalToolbar()+pulseGroupMarkup(cli,unavailable)+pulseGroupMarkup(app,unavailable)+(unknown.items.length?pulseGroupMarkup(unknown,unavailable):"");
+  const diagnostics=PULSE_CONTROL_MODEL?.surface_diagnostics,missing=Number(diagnostics?.unresolved||0);
+  return pulseGlobalToolbar()+pulseGroupMarkup(cli,unavailable)+pulseGroupMarkup(app,unavailable)+(missing?'<p class="pulse-mode-note">'+missing+' registros sin interfaz confirmada; no incluidos en el recuento ni en los controles.</p>':'');
 }
 function pulseControlledGroups(classified,control){
   const live=new Map((classified&&classified.groups||[]).flatMap(group=>group.items||[]).map(item=>[item.identity_key,item]));
@@ -589,8 +628,8 @@ function pulseControlledGroups(classified,control){
   PULSE_RUNTIME_SELECTIONS.forEach((selected,key)=>{const card=cards.find(item=>item.card_key===key);if(!card||!(card.runtime_targets||[]).some(target=>target.identity_key===selected)){PULSE_RUNTIME_SELECTIONS.delete(key);PULSE_RUNTIME_INVALIDATED.add(key);}});
   cards.forEach(card=>{if(PULSE_RUNTIME_INVALIDATED.has(card.card_key))Object.assign(card,{runtime_selection_required:true,runtime:"",model:"",control_key:"",identity_key:"",detail_url:null,state:"ambiguous",eligible:{start:false,stop:false}});});
   cards.forEach(card=>{if(buckets[card.surface])buckets[card.surface].push(card);});
-  const definitions=[['cli','deepAgents CLI'],['app','deepAgents Desktop App'],['unknown','Sin superficie identificada']],groups=definitions.map(([key,label])=>({key,label,count:buckets[key].length,items:buckets[key]}));
-  return {groups,by_key:{cli:groups[0],app:groups[1],unknown:groups[2]},counts:{cli:buckets.cli.length,app:buckets.app.length,unknown:buckets.unknown.length,total:groups.reduce((sum,group)=>sum+group.count,0)}};
+  const definitions=[['cli','deepAgents CLI'],['app','deepAgents Desktop App']],groups=definitions.map(([key,label])=>({key,label,count:buckets[key].length,items:buckets[key]}));
+  return {groups,by_key:{cli:groups[0],app:groups[1],unknown:{key:'unknown',items:[],count:0}},counts:{cli:buckets.cli.length,app:buckets.app.length,unknown:0,total:groups.reduce((sum,group)=>sum+group.count,0)}};
 }
 
 function pulseRender(){pulsePaintFilters(PULSE_GROUPS,!PULSE_GROUPS);const box=document.getElementById("pulse");if(box&&PULSE_GROUPS){paPaint(box,pulseGroupsMarkup(PULSE_GROUPS));paTickAgo();}}
@@ -661,7 +700,7 @@ async function pulseHandleClick(event){
   finally{PULSE_CONTROL_BUSY=false;document.getElementById("pulse")?.removeAttribute("aria-busy");pulseRender();setTimeout(()=>pulse(false),2200);}
 }
 async function pulse(renderMap=true){
-  void pulseLoadModes();
+  void pulseLoadModes();void automationLoad();
   let d,nav; try{
     const responses=await Promise.all([
       fetch(PRESENCE,{cache:"no-store"}).then(r=>r.json()),
@@ -673,6 +712,7 @@ async function pulse(renderMap=true){
   const classified=window.YkPresenceGroups?YkPresenceGroups.classify(fresh,{identity:window.ykAgentIdentity,detailUrl:window.YkAgentDetail&&YkAgentDetail.detailUrl}):null;
   PROJECT_CONTROL_MACHINES=Array.isArray(d.control_machines)?d.control_machines:[];
   PULSE_CONTROL_MODEL=window.YkAgentControl?YkAgentControl.inventory({presence:d.presence||[],controlMachines:PROJECT_CONTROL_MACHINES},{identity:window.ykAgentIdentity,detailUrl:window.YkAgentDetail&&YkAgentDetail.detailUrl,now:Date.now()}):null;
+  if(PULSE_CONTROL_MODEL&&YkAgentControl.surfaceInventory)PULSE_CONTROL_MODEL=YkAgentControl.surfaceInventory(PULSE_CONTROL_MODEL,{identity:window.ykAgentIdentity});
   if(PULSE_CONTROL_MODEL)PULSE_OPERATIONS.forEach((operation,key)=>{if(!PULSE_CONTROL_MODEL.by_key.has(key))PULSE_OPERATIONS.delete(key);});
   PULSE_GROUPS=PULSE_CONTROL_MODEL?pulseControlledGroups(classified,PULSE_CONTROL_MODEL):classified;
   pulsePaintFilters(PULSE_GROUPS,!PULSE_GROUPS);

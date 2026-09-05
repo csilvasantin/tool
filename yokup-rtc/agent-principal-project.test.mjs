@@ -1,3 +1,4 @@
+import {automationPermission} from './src/fleet-automation-control.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -74,7 +75,7 @@ test('proyecto operativo comparte resolver y bloquea preferencia antigua sin esc
 test('inventario resuelve Manual y expone mismatch sin modificar preferencias guardadas',async()=>{
  const saved=[{...normalizeModeTarget(target),identity_key:modeTargetKey(target),mode:'learning',project_id:'default',project_name:'default'}];
  const before=JSON.stringify(saved);
- const context={Date,principalTargetKey,scopedAgentIdentity:(agent)=>agent,parseAgentIdentity:(agent)=>({persona:agent}),resolveAgentPrincipalProject,normalizeModeTarget,modeTargetKey,memberRefMatches,agentPrincipalSnapshot:async()=>({projects,declarations:[decl('daily')],missions:[],now}),listAgentModes:async()=>structuredClone(saved),hourlyModeTelemetry:async()=>({presence:[{...target,persona:'Neo'},{...target,persona:'LinkMBAAzul',machine:'MacBook Air Azul',host:''}],control_machines:[]})};
+ const context={automationPermission,automationControls:async()=>[],Date,principalTargetKey,scopedAgentIdentity:(agent)=>agent,parseAgentIdentity:(agent)=>({persona:agent}),resolveAgentPrincipalProject,normalizeModeTarget,modeTargetKey,memberRefMatches,agentPrincipalSnapshot:async()=>({projects,declarations:[decl('daily')],missions:[],now}),listAgentModes:async()=>structuredClone(saved),hourlyModeTelemetry:async()=>({presence:[{...target,persona:'Neo'},{...target,persona:'LinkMBAAzul',machine:'MacBook Air Azul',host:''}],control_machines:[]})};
  vm.runInNewContext(fn('hourlyModeInventory')+';this.inventory=hourlyModeInventory',context);
  const items=await context.inventory({}),mode=items.find(x=>x.mode==='learning'),manual=items.find(x=>x.mode==='manual');
  assert.equal(mode.project_id,'daily');assert.equal(mode.mode_project_id,'default');assert.equal(mode.project_mismatch,true);assert.equal(mode.reason,'principal_project_changed');

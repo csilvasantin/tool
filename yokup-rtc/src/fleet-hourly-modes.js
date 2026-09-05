@@ -1,3 +1,4 @@
+import { ensureAutomationSchema, automationAllowed, automationFenceSql } from './fleet-automation-control.js';
 import { agentFamilyKey, groupingIdentityKey, machineIdentityKey, parseAgentIdentity, scopedAgentIdentity } from './agent-identity.js';
 import { assessOnIdleProposal, onIdleProposalTitleKey } from './onidle-proposals.js';
 
@@ -52,9 +53,11 @@ export function evaluateModeOpportunity(pref, telemetry = {}, activity = {}, now
 }
 
 export async function ensureHourlyModeSchema(env) {
+  await ensureAutomationSchema(env);
   await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_agent_modes (identity_key TEXT PRIMARY KEY, agent TEXT NOT NULL, persona TEXT NOT NULL, machine TEXT NOT NULL, runtime TEXT NOT NULL, host TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'manual', project_id TEXT NOT NULL DEFAULT '', requested_by TEXT NOT NULL, enabled_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, next_run INTEGER, status TEXT NOT NULL DEFAULT 'manual', reason TEXT NOT NULL DEFAULT 'manual')");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_agent_mode_runs (id TEXT PRIMARY KEY, identity_key TEXT NOT NULL, hour_start INTEGER NOT NULL, mode TEXT NOT NULL, project_id TEXT NOT NULL, status TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '', command_id TEXT, decision_id TEXT, capsule_id TEXT, deliverable_url TEXT, evidence_json TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE(identity_key,hour_start))");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS fleet_hourly_work (run_id TEXT PRIMARY KEY, mission_id TEXT UNIQUE NOT NULL, transcript TEXT, publish_claim INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)");
+  await env.DB.exec(`CREATE TRIGGER IF NOT EXISTS automation_run_publication_fence BEFORE UPDATE OF status ON fleet_agent_mode_runs WHEN NEW.status IN ('completed','dispatched','awaiting_delivery','completing','resuming') AND NOT (${automationFenceSql('NEW.mode','NEW.identity_key','NEW.created_at')}) BEGIN SELECT RAISE(IGNORE); END`);
   await env.DB.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_hourly_capsule_once ON fleet_agent_mode_runs(capsule_id) WHERE capsule_id IS NOT NULL');
   await env.DB.exec('CREATE TABLE IF NOT EXISTS fleet_hourly_family_leases (family_key TEXT PRIMARY KEY, run_id TEXT NOT NULL UNIQUE, expires_at INTEGER NOT NULL)');
 }
@@ -102,7 +105,7 @@ export async function runHourlyModes(env, adapters, now = Date.now()) {
   if (!prefs.length) return {ok:true,results:[]};
   const telemetry=await adapters.readTelemetry(), hour=hourlySlot(now), results=[];
   for (const pref of prefs) {
-    if (Number(pref.next_run)>hour) continue;
+    if (Number(pref.next_run)>hour || !(await automationAllowed(env,pref.mode,pref.identity_key)).allowed) continue;
     const id=await runId(pref.identity_key,hour);
     // One attempt per current hour only. The UNIQUE index also covers mode changes.
     const insert=await env.DB.prepare("INSERT OR IGNORE INTO fleet_agent_mode_runs (id,identity_key,hour_start,mode,project_id,status,reason,created_at,updated_at) VALUES (?,?,?,?,?,'reserved','evaluating',?,?)").bind(id,pref.identity_key,hour,pref.mode,pref.project_id,now,now).run();
@@ -123,7 +126,8 @@ export async function runHourlyModes(env, adapters, now = Date.now()) {
             const family=agentFamilyKey(pref.agent)+'|'+machineIdentityKey(pref.machine);
             const lease=await env.DB.prepare('INSERT INTO fleet_hourly_family_leases(family_key,run_id,expires_at) VALUES(?,?,?) ON CONFLICT(family_key) DO UPDATE SET run_id=excluded.run_id,expires_at=excluded.expires_at WHERE fleet_hourly_family_leases.expires_at<=?')
               .bind(family,id,now+45*60000,now).run();
-            result=lease.meta?.changes?await adapters.execute({id,pref,project,eligibility,hour_start:hour,now}):{status:'skipped',reason:'family_busy'};
+            const gate=await automationAllowed(env,pref.mode,pref.identity_key,now);
+            result=!gate.allowed?{status:'paused',reason:gate.reason}:lease.meta?.changes?await adapters.execute({id,pref,project,eligibility,hour_start:hour,now}):{status:'skipped',reason:'family_busy'};
           }
         }
       }

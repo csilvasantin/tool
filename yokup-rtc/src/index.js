@@ -1,3 +1,4 @@
+import { AUTOMATIC_DECISIONS, automationFamily, automationControls, automationPermission, automationAllowed, automationFenceSql, categoryRevision, stopAutomationGate, activateAutomationTargets, automationCommitStatement } from './fleet-automation-control.js';
 import { assignedWorkBlockers, legacyAcademyAvailability, pauseLegacyAcademy, pauseAutomaticRun } from './automatic-work-priority.js';
 import { principalTargetKey, resolveAgentPrincipalProject } from './agent-principal-project.js';
 import puppeteer from "@cloudflare/puppeteer";
@@ -1976,6 +1977,56 @@ async function preemptAutomaticWork(env,now=Date.now()) {
     ]);
   }
 }
+async function automationModuleState(env) {
+  const [items,controls]=await Promise.all([hourlyModeInventory(env),automationControls(env)]);
+  return {ok:true,items,controls,categories:['training','learning'].map(mode=>({mode,revision:categoryRevision(controls,mode),enabled:automationPermission(controls,mode).allowed})),legacy:{academy:{status:'blocked',reason:'consumer_unverified'},onidle:{status:automationPermission(controls,'onidle').allowed?'unchanged':'paused',reason:automationPermission(controls,'onidle').allowed?'existing_policy':'automation_stopped'}},scope:'selected_exact_targets',execution_stop:'cooperative_unconfirmed_until_consumer_ack'};
+}
+async function stopAutomationModule(env,mode,target=null,now=Date.now()) {
+  const key=target?modeTargetKey(target):'';
+  // Persist the barrier BEFORE finding work: even an isolate currently awaiting
+  // telemetry or publication must observe it at its final guard / SQL fence.
+  await stopAutomationGate(env,mode,key,now);
+  if(mode==='training')await stopAutomationGate(env,'onidle',target?automationFamily(target):'',now);
+  const rows=(await env.DB.prepare("SELECT r.*,p.agent,p.machine,p.runtime,p.host FROM fleet_agent_mode_runs r JOIN fleet_agent_modes p ON p.identity_key=r.identity_key WHERE r.mode=? AND r.status IN ('reserved','starting','resuming','dispatched','awaiting_delivery','completing')").bind(mode).all()).results||[];
+  const results=[];
+  for(const run of rows.filter(row=>!key || row.identity_key===key)) {
+    try {await pauseAutomaticRun(env.DB,run.id,[],now,'automation_stopped');results.push({run_id:run.id,ok:true,publication_blocked:true,execution_stop:run.command_id?'unconfirmed':'not_dispatched'});}
+    catch {results.push({run_id:run.id,ok:false,reason:'pause_record_failed',publication_blocked:true,execution_stop:'unconfirmed'});}
+  }
+  const decisions=(await env.DB.prepare("SELECT id,agent,machine,mission,parent_decision FROM decisions WHERE status='pending'").all()).results||[];
+  let windows=0;
+  for(const row of decisions) {
+    if(target && automationFamily(row)!==automationFamily(target))continue;
+    const managed=mode==='training'?AUTOMATIC_DECISIONS.includes(row.mission):row.parent_decision==='FORMACION';
+    if(!managed)continue;
+    const changed=await env.DB.prepare("UPDATE decisions SET status='paused' WHERE id=? AND status='pending'").bind(row.id).run();windows+=Number(changed.meta?.changes||0);
+  }
+  if(mode==='learning' && !target){await ensureAcademyCapsuleSchema(env);await pauseLegacyAcademy(env.DB,now);}
+  return {ok:results.every(row=>row.ok),mode,identity_key:key||null,publication_blocked:true,windows_paused:windows,results,execution_stop:results.some(row=>row.execution_stop==='unconfirmed')?'unconfirmed':'not_dispatched'};
+}
+async function changeAutomationModule(env,body,requestedBy,now=Date.now()) {
+  const mode=String(body.mode||''),action=String(body.action||'');
+  if(!['learning','training'].includes(mode)||!['activate','stop'].includes(action))throw Object.assign(new Error('invalid_action'),{status:400});
+  if(action==='stop')return stopAutomationModule(env,mode,body.target?normalizeModeTarget(body.target):null,now);
+  if(!Array.isArray(body.targets)||!body.targets.length||body.targets.length>100)throw Object.assign(new Error('targets_required'),{status:400});
+  const targets=body.targets.map(normalizeModeTarget),families=new Set();
+  for(const target of targets){const family=automationFamily(target);if(families.has(family))throw Object.assign(new Error('one_surface_per_agent'),{status:409});families.add(family);}
+  const inventory=await hourlyModeInventory(env),prepared=[],results=[];
+  for(const target of targets) {
+    const key=modeTargetKey(target),item=inventory.find(row=>row.identity_key===key);
+    try {
+      if(!item?.available_modes?.includes(mode))throw new Error(item?.support_reason||'consumer_unavailable');
+      const project=await hourlyModeProject(env,target,'',now);
+      prepared.push({target,key,project});
+    }catch(error){results.push({identity_key:key,ok:false,reason:String(error.code||error.message||'configuration_failed')});}
+  }
+  if(prepared.length) {
+    const applied=await activateAutomationTargets(env,mode,prepared,await listAgentModes(env),body.revision,requestedBy,now,body.scope!=='individual');
+    results.push(...applied.keys.map(key=>({identity_key:key,ok:true,status:'scheduled',reason:'next_hour'})));
+  }
+  return {ok:results.every(row=>row.ok),partial:results.some(row=>row.ok)&&results.some(row=>!row.ok),mode,results,activated:results.filter(row=>row.ok).length};
+}
+
 async function hourlyModeTelemetry(env) {
   if (!env.TELEGRAM) throw new Error('telemetry_unavailable');
   const response=await env.TELEGRAM.fetch(new Request('https://telegram/api/presence',{headers:{accept:'application/json'}}));
@@ -2014,6 +2065,14 @@ async function hourlyModeInventory(env) {
     const unavailable=(machine?.hourly_unavailable || []).some(item=>item.runtime===row.runtime && item.host===row.host && item.reason==='auth_verification_required');
     row.support_reason=supported?'':!fresh?'telemetry_unavailable':unavailable?'claude_cli_auth_verification_required':'consumer_unavailable';
   }
+  const controls=await automationControls(env);
+  for(const row of items.values()) {
+    const gate=row.mode!=='manual'?automationPermission(controls,row.mode,row.identity_key):{allowed:false};
+    row.automation_enabled=row.mode!=='manual'&&gate.allowed;
+    if(row.mode!=='manual'&&!gate.allowed){row.status='paused';row.reason=gate.reason;}
+    const last=row.last_run,inFlight=last&&['reserved','starting','resuming','dispatched','awaiting_delivery','completing','paused'].includes(last.status);
+    row.execution_stop=last?.command_id&&inFlight&&(!gate.allowed||last.reason==='automation_stopped'||last.mode!==row.mode)?'unconfirmed':null;
+  }
   return [...items.values()];
 }
 async function hourlyModeGuard(env,id,now=Date.now(),expectedTarget=null) {
@@ -2023,6 +2082,8 @@ async function hourlyModeGuard(env,id,now=Date.now(),expectedTarget=null) {
   const pref=await env.DB.prepare('SELECT * FROM fleet_agent_modes WHERE identity_key=?').bind(run.identity_key).first();
   if (expectedTarget && (!pref || modeTargetKey(expectedTarget)!==pref.identity_key)) return {allowed:false,reason:'target_mismatch'};
   if (!pref || pref.mode!==run.mode || pref.mode==='manual' || pref.project_id!==run.project_id || pref.enabled_at>run.created_at) return {allowed:false,reason:'preference_changed'};
+  const gate=await automationAllowed(env,run.mode,run.identity_key,run.created_at);
+  if(!gate.allowed)return gate;
   const lease=await env.DB.prepare('SELECT run_id FROM fleet_hourly_family_leases WHERE run_id=? AND expires_at>?').bind(id,now).first();
   if (!lease) return {allowed:false,reason:'family_lease_expired'};
   const activity=await hourlyModeActivity(env,pref,{id:run.project_id},now,id);
@@ -2031,6 +2092,8 @@ async function hourlyModeGuard(env,id,now=Date.now(),expectedTarget=null) {
     return {allowed:false,reason:activity.reason,blocked_by:activity.blocked_by};
   }
   let project;try { project=await hourlyModeProject(env,pref,run.project_id,now); } catch { return {allowed:false,reason:'principal_project_changed'}; }
+  const finalGate=await automationAllowed(env,run.mode,run.identity_key,run.created_at);
+  if(!finalGate.allowed)return finalGate;
   return {allowed:true,reason:'ready',run_id:id,mode:run.mode,project_id:run.project_id,project_url:project?.web?new URL(/^https?:/.test(project.web)?project.web:'https://'+project.web).href:'',target:normalizeModeTarget(pref)};
 }
 async function executeHourlyMode(env,run) {
@@ -2158,12 +2221,13 @@ async function completeHourlyTraining(env,run,pref,body) {
   try {
     const finalGuard=await hourlyModeGuard(env,run.id);
     if (!finalGuard.allowed) throw new Error(finalGuard.reason);
-    const decision=await openInitialMissionDecision(env,{agent:pref.agent,machine:pref.machine,project_id:project.id,surface:'highscore',mission:'Training horario',
+    const decision=await openInitialMissionDecision(env,{agent:pref.agent,machine:pref.machine,project_id:project.id,surface:'highscore',mission:'Training horario',hourly_run_id:run.id,
       question:'Training · tres mejoras investigadas · '+pref.runtime+' '+pref.host.toUpperCase(),options:proposals.map(row=>row.title).concat([ONIDLE_BACK_OPTION,ONIDLE_CUSTOM_OPTION]),option_targets:[null,null,null,null,null],recommended:0,minutes:5,url:DECIDE_URL});
     if (!decision.ok) throw new Error(decision.code || decision.error || 'decision_unavailable');
     const deliverable=onIdleDecisionUrl(decision.id);
-    await env.DB.prepare("UPDATE fleet_agent_mode_runs SET status='completed',reason='decision_published',decision_id=?,deliverable_url=?,evidence_json=?,updated_at=? WHERE id=?")
+    const applied=await env.DB.prepare("UPDATE fleet_agent_mode_runs SET status='completed',reason='decision_published',decision_id=?,deliverable_url=?,evidence_json=?,updated_at=? WHERE id=? AND status='completing'")
       .bind(decision.id,deliverable,JSON.stringify(proposals),Date.now(),run.id).run();
+    if(!applied.meta?.changes){await env.DB.prepare('UPDATE fleet_agent_mode_runs SET decision_id=COALESCE(decision_id,?),deliverable_url=COALESCE(deliverable_url,?) WHERE id=?').bind(decision.id,deliverable,run.id).run();return {ok:false,status:409,error:'automation_stopped',decision_id:decision.id};}
     await env.DB.prepare("UPDATE fleet_agent_modes SET status='completed',reason='decision_published' WHERE identity_key=? AND mode='training'").bind(run.identity_key).run();
     await env.DB.prepare('DELETE FROM fleet_hourly_family_leases WHERE run_id=?').bind(run.id).run();
     return {ok:true,run_id:run.id,decision_id:decision.id,deliverable_url:deliverable};
@@ -2234,7 +2298,7 @@ async function hourlyModeWork(env,body,now=Date.now()) {
     if (!existing.transcript) throw new Error('transcript_required');
     const publishGuard=await hourlyModeGuard(env,id,Date.now(),target);
     if (!publishGuard.allowed) throw Object.assign(new Error(publishGuard.reason),{status:409});
-    const claimed=await env.DB.prepare('UPDATE fleet_hourly_work SET publish_claim=1 WHERE run_id=? AND publish_claim=0').bind(id).run();
+    const claimed=await env.DB.prepare('UPDATE fleet_hourly_work SET publish_claim=1 WHERE run_id=? AND publish_claim=0 AND EXISTS(SELECT 1 FROM fleet_agent_mode_runs r WHERE r.id=fleet_hourly_work.run_id AND '+automationFenceSql('r.mode','r.identity_key','r.created_at')+')').bind(id).run();
     if (!claimed.meta?.changes) throw Object.assign(new Error('publish_already_attempted'),{status:409});
     return {ok:true,work_id:existing.mission_id};
   }
@@ -3631,9 +3695,20 @@ async function findLiveTwinMission(env, projectId, title, excludeMissionId) {
   return twin ? String(twin.id) : null;
 }
 __name(findLiveTwinMission, "findLiveTwinMission");
+async function automaticDecisionContext(env,decision) {
+  if(!decision || decision.status!=='expired' || !AUTOMATIC_DECISIONS.includes(decision.mission))return null;
+  await ensureHourlyModeSchema(env);
+  if(decision.mission!=='Training horario')return {mode:'onidle',key:automationFamily(decision),created_at:decision.created_at};
+  const link=await env.DB.prepare('SELECT identity_key,created_at FROM fleet_automation_decisions WHERE decision_id=?').bind(decision.id).first() || await env.DB.prepare('SELECT identity_key,created_at FROM fleet_agent_mode_runs WHERE decision_id=?').bind(decision.id).first();
+  if(!link)throw Object.assign(new Error('automatic_target_unverified'),{status:409});
+  return {mode:'training',key:link.identity_key,created_at:link.created_at};
+}
 async function activateNextMissionBatchItem(env, batchId, triggerDecisionId) {
   const batch = await env.DB.prepare("SELECT * FROM mission_batches WHERE id=?").bind(batchId).first();
   if (!batch || batch.status !== "active") return missionBatchSnapshot(env, batchId);
+  const decision=await env.DB.prepare('SELECT * FROM decisions WHERE id=?').bind(triggerDecisionId||batch.decision_id).first();
+  const automaticContext=await automaticDecisionContext(env,decision);
+  if(automaticContext && !(await automationAllowed(env,automaticContext.mode,automaticContext.key,automaticContext.created_at)).allowed)return pauseMissionBatch(env,batchId,'Automatismo detenido desde Módulos.');
   const active = await env.DB.prepare(
     "SELECT * FROM mission_batch_items WHERE batch_id=? AND status='active' ORDER BY position LIMIT 1"
   ).bind(batchId).first();
@@ -3707,6 +3782,7 @@ async function activateNextMissionBatchItem(env, batchId, triggerDecisionId) {
     const resolved = target.status === "resolved";
     const targetLog = "Tanda " + batch.decision_id + " enlazada por target_mission_id; no se crea contenedor duplicado.";
     const adopted = await env.DB.batch([
+      ...(automaticContext?[automationCommitStatement(env,automaticContext)]:[]),
       env.DB.prepare(
         "UPDATE tickets SET assignee=?,loc=?,updated_at=? WHERE id=? " +
         "AND COALESCE(assignee,'')=? AND COALESCE(loc,'')=?"
@@ -3720,7 +3796,7 @@ async function activateNextMissionBatchItem(env, batchId, triggerDecisionId) {
         "AND EXISTS (SELECT 1 FROM mission_batch_items WHERE batch_id=? AND mission_id=? AND target_mission_id=?)"
       ).bind(resolved ? "completed" : "active", resolved ? null : targetId, now, batchId, batchId, targetId, targetId)
     ]);
-    const linkedNow = adopted && adopted.slice(0,3).every((row) => Number(row && row.meta && row.meta.changes || 0) === 1);
+    const linkedNow = adopted && adopted.slice(automaticContext?1:0,(automaticContext?1:0)+3).every((row) => Number(row && row.meta && row.meta.changes || 0) === 1);
     if (!linkedNow) {
       const paused = await pauseMissionBatch(env, batchId, "La misión canónica cambió durante la adopción; requiere revisión.");
       return { ok:false, status:409, code:"target_mission_race", error:"target_mission_id cambió durante la adopción", batch:paused };
@@ -3736,6 +3812,7 @@ async function activateNextMissionBatchItem(env, batchId, triggerDecisionId) {
     return missionBatchSnapshot(env, batchId);
   }
   const atomic = [
+    ...(automaticContext?[automationCommitStatement(env,automaticContext)]:[]),
     env.DB.prepare(
       "INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,project_inherited,project_inherited_from,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
     ).bind(missionId, "decision-batch:" + batch.decision_id, next.title, batch.machine || "", "mission", "in_progress", "normal", batch.agent || "", "decision-batch", "", projectContext.project_id, projectContext.project_id, projectContext.inherited ? 1 : 0, projectContext.inherited_from || null, now, now)
@@ -3769,6 +3846,8 @@ async function ensureMissionBatchFromDecision(env, decision) {
   let options = [];
   try { options = JSON.parse(decision && decision.options || "[]"); } catch (e) {}
   if (!decision || !isMissionDecision(options, decision)) return null;
+  const automaticContext=await automaticDecisionContext(env,decision);
+  if(automaticContext && !(await automationAllowed(env,automaticContext.mode,automaticContext.key,automaticContext.created_at)).allowed)return {ok:false,status:409,error:'automation_stopped'};
   if (decision.mission==='Training horario' && decision.status==='expired') {
     const blocked=assignedWorkBlockers(decision,await assignedWorkSnapshot(env));
     if (blocked.length) {
@@ -3940,6 +4019,17 @@ __name(generateProjectImprovementOptions, "generateProjectImprovementOptions");
 // la tanda inicial, que es justo lo que /ideas/decide necesita. Devuelve {ok:true,
 // id, deadline, project…} o {ok:false, status, error, code?} para que el handler
 // traduzca a HTTP igual que el alta normal.
+async function guardedAutomaticDecisionInsert(env,values,mode='',key='',startedAt=Date.now()) {
+  // An INSERT ... SELECT checks the persisted stop in the same statement that
+  // creates the window. A request whose earlier guard passed cannot race it.
+  await ensureHourlyModeSchema(env);
+  const columns='id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id,option_targets';
+  const sql='INSERT INTO decisions ('+columns+") SELECT ?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?,?"+(mode?' WHERE '+automationFenceSql('?','?','?'):'');
+  const statement=env.DB.prepare(sql).bind(...values,...(mode?[mode,mode,key,startedAt]:[]));
+  const inserted=mode?(await env.DB.batch([statement,env.DB.prepare('INSERT INTO fleet_automation_decisions(decision_id,mode,identity_key,created_at) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM decisions WHERE id=?)').bind(values[0],mode,key,startedAt,values[0])]))[0]:await statement.run();
+  if(!inserted.meta?.changes)throw Object.assign(new Error('automation_stopped'),{status:409});
+}
+
 async function openInitialMissionDecision(env, input) {
   await ensureSchema(env);
   const rawOpts = Array.isArray(input.options) ? input.options : [];
@@ -3999,17 +4089,16 @@ async function openInitialMissionDecision(env, input) {
   }
   const id = "DEC-" + now.toString(36) + Math.random().toString(36).slice(2, 6);
   await backfillTodayDisplayRefs(env, now);
+  let automaticKey='';
   if (input.mission==='Training horario') {
     if (!input.hourly_run_id) return {ok:false,status:409,error:'hourly_run_required'};
     const finalGuard=await hourlyModeGuard(env,input.hourly_run_id);
     if (!finalGuard.allowed) return {ok:false,status:409,error:finalGuard.reason};
+    automaticKey=modeTargetKey(finalGuard.target);
     if (principalTargetKey(finalGuard.target?.agent,finalGuard.target?.machine)!==principalTargetKey(identity.agent,identity.machine)) return {ok:false,status:409,error:'target_mismatch'};
   }
-  await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id,option_targets) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?,?)")
-    .bind(id, machine, agent, String(input.surface || "").slice(0, 20), q, JSON.stringify(opts),
-          Math.max(0, Math.min(2, +input.recommended || 0)), now, now + mins * 60000,
-          String(input.url || "").slice(0, 300), String(input.mission || "").slice(0, 120),
-          projectContext.project_id, projectContext.project_slug, "", "", JSON.stringify(targetContract.targets)).run();
+  const automaticMode=input.mission==='Training horario'?'training':AUTOMATIC_DECISIONS.includes(input.mission)?'onidle':'';
+  await guardedAutomaticDecisionInsert(env,[id,machine,agent,String(input.surface||'').slice(0,20),q,JSON.stringify(opts),Math.max(0,Math.min(2,+input.recommended||0)),now,now+mins*60000,String(input.url||'').slice(0,300),String(input.mission||'').slice(0,120),projectContext.project_id,projectContext.project_slug,'','',JSON.stringify(targetContract.targets)],automaticMode,automaticMode==='onidle'?automationFamily(identity):automaticKey,now);
   const display_ref = await ensureEntityDisplayRef(env, "window", id, now);
   return { ok: true, id, deadline: now + mins * 60000, project: projectContext.project,
            project_id: projectContext.project_id, project_slug: projectContext.project_slug, display_ref };
@@ -4122,6 +4211,8 @@ async function agenteTrabajoLaUltimaHora(env, identity, now = Date.now()) {
 __name(agenteTrabajoLaUltimaHora, "agenteTrabajoLaUltimaHora");
 
 async function operationalOnIdleState(env, identity, requestedProjectId = "", now = Date.now()) {
+  const gate=await automationAllowed(env,'onidle',automationFamily(identity));
+  if(!gate.allowed)return {can_open:false,reason:gate.reason,agent:identity.agent,machine:identity.machine,quota:{used:0,limit:ONIDLE_DAILY_LIMIT}};
   const [missionResult, taskResult, decisionResult] = await Promise.all([
     env.DB.prepare("SELECT id,status,assignee,loc,created_at,started_at,updated_at,live_at,source FROM tickets WHERE " +
       AGENT_SOURCE_SQL + " AND status IN ('open','in_progress','unconcluded')").all(),
@@ -4306,12 +4397,12 @@ async function publishScheduledOnIdle(env, candidate, now = Date.now()) {
     "SELECT 1 FROM mission_tasks m JOIN tickets t ON t.id=m.mission_id " +
     "WHERE m.status IN ('in_progress','doing','active','unconcluded') AND " + AGENT_SOURCE_SQL_T +
     " AND t.status NOT IN ('resolved','cancelled') " +
-    "AND " + ticketFamilySql + "=? AND " + ticketMachineSql + "=?)"
+    "AND " + ticketFamilySql + "=? AND " + ticketMachineSql + "=?) AND "+automationFenceSql("'onidle'","?","?")
   ).bind(decisionId, identity.machine, identity.agent, "highscore", "Ventana OnIDLE " + ordinal + "/" + ONIDLE_DAILY_LIMIT,
     JSON.stringify(options), now, deadline, DECIDE_URL, ONIDLE_MISSION_MARKER, project.id,
     String(project.slug || decisionProjectSlug(project.name || project.id)).toUpperCase(), JSON.stringify(targets),
     ONIDLE_MISSION_MARKER, project.id, familyKey, physicalMachineKey, ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION,
-    familyKey, physicalMachineKey, familyKey, physicalMachineKey);
+    familyKey, physicalMachineKey, familyKey, physicalMachineKey,automationFamily(identity),now);
   const mark = env.DB.prepare(
     "UPDATE onidle_ticks SET status='published',published_at=? WHERE identity_key=? AND day=? AND ordinal=? " +
     "AND EXISTS(SELECT 1 FROM decisions WHERE id=? AND status='pending')"
@@ -10636,6 +10727,15 @@ var worker_app = {
       const safe=work.transcript.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       return new Response('<!doctype html><html lang="es"><meta charset="utf-8"><title>Informe de investigación horaria</title><style>body{max-width:900px;margin:36px auto;padding:24px;font:17px system-ui;color:#15232e;background:#f7fafc}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:15px/1.6 ui-monospace}h1{font-size:24px}</style><h1>Respuesta final del ejecutor · Yokup</h1><pre>'+safe+'</pre></html>',{headers:{'content-type':'text/html; charset=utf-8','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'",'cache-control':'no-store','x-robots-tag':'noindex'}});
     }
+    if(url.pathname==='/fleet/automation-modules') {
+      const session=await requireAuth(env,req);if(!session)return json({ok:false,error:'unauthorized'},401);
+      await ensureSchema(env);await ensureHourlyModeSchema(env);
+      try {
+        if(req.method==='GET')return json(await automationModuleState(env));
+        if(req.method==='POST'){const result=await changeAutomationModule(env,await req.json(),session.email);return json({...result,state:await automationModuleState(env)});}
+        return json({ok:false,error:'method_not_allowed'},405);
+      }catch(error){return json({ok:false,error:String(error.code||error.message||'module_unavailable')},error.status||500);}
+    }
     if (["/fleet/agent/mode","/fleet/agent/mode/guard","/fleet/agent/mode/complete","/fleet/agent/mode/runs","/fleet/agent/mode/work"].includes(url.pathname)) {
       const session=await requireAuth(env,req);
       const executorAllowed=!session && url.pathname!=="/fleet/agent/mode" && (await authorizeCliExecutor(env,req)).ok;
@@ -10661,9 +10761,16 @@ var worker_app = {
             const key=modeTargetKey(normalizeModeTarget(body)),support=(await hourlyModeInventory(env)).find(row=>row.identity_key===key);
             if (!support?.available_modes?.includes(String(body.mode).toLowerCase())) return json({ok:false,error:'consumer_unavailable'},409);
           }
-          const item=await saveAgentMode(env,body,session.email,(...args)=>hourlyModeProject(env,...args));
-          const enriched=(await hourlyModeInventory(env)).find(row=>row.identity_key===item.identity_key);
-          return json({ok:true,item:enriched || item});
+          const target=normalizeModeTarget(body),mode=String(body.mode).toLowerCase();
+          if(mode==='manual') {
+            for(const category of ['learning','training'])await stopAutomationModule(env,category,target);
+            const item=await saveAgentMode(env,body,session.email,(...args)=>hourlyModeProject(env,...args));
+            return json({ok:true,item:(await hourlyModeInventory(env)).find(row=>row.identity_key===item.identity_key)||item});
+          }
+          const revision=categoryRevision(await automationControls(env),mode);
+          const changed=await changeAutomationModule(env,{action:'activate',mode,targets:[target],scope:'individual',revision},session.email);
+          if(!changed.ok)return json({ok:false,error:changed.results[0]?.reason||'configuration_failed'},409);
+          return json({ok:true,item:(await hourlyModeInventory(env)).find(row=>row.identity_key===modeTargetKey(target))});
         }
         if (url.pathname==='/fleet/agent/mode/complete' && req.method==='POST') {
           const body=await req.json(),runId=String(body.run_id || ''),capsuleId=String(body.capsule_id || '');
@@ -12648,11 +12755,14 @@ Todo en español.`;
         const dmission = String(onIdle ? ONIDLE_MISSION_MARKER : (b.mission || "")).slice(0, 120);
         const dproject = projectContext.project_id;
         const dprojectSlug = projectContext.project_slug;
-        await env.DB.prepare("INSERT INTO decisions (id,machine,agent,surface,question,options,recommended,status,created_at,deadline,url,mission,project,project_slug,parent_decision,batch_id,option_targets) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?,?)")
-          .bind(id, machine, agent,
-                String(b.surface || "").slice(0, 20), q, JSON.stringify(opts),
-                Math.max(0, Math.min(continuation ? opts.length - 2 : 2, +b.recommended || 0)), now, now + mins * 60000,
-                durl, dmission, dproject, dprojectSlug, dparent, dbatch, JSON.stringify(targetContract.targets)).run();
+        const automaticMode=dmission==='Training horario'?'training':AUTOMATIC_DECISIONS.includes(dmission)?'onidle':'';
+        let automaticKey=automationFamily({agent,machine});
+        if(automaticMode==='training') {
+          const guard=await hourlyModeGuard(env,String(b.hourly_run_id||''));
+          if(!guard.allowed || automationFamily(guard.target)!==automaticKey)return json({ok:false,error:guard.reason||'target_mismatch'},409);
+          automaticKey=modeTargetKey(guard.target);
+        }
+        await guardedAutomaticDecisionInsert(env,[id,machine,agent,String(b.surface||'').slice(0,20),q,JSON.stringify(opts),Math.max(0,Math.min(continuation?opts.length-2:2,+b.recommended||0)),now,now+mins*60000,durl,dmission,dproject,dprojectSlug,dparent,dbatch,JSON.stringify(targetContract.targets)],automaticMode,automaticKey,now);
         const display_ref = await ensureEntityDisplayRef(env, "window", id, now);
         // Abrir una ventana es trabajo: queda anotado, agrupado por agente y jornada.
         const trabajo_id = await anotarVentanaComoTrabajo(env, agent, machine, dproject, q, now);
