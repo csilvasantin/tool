@@ -33,7 +33,8 @@ test("DOM deja un único reloj visible y nunca expone sesión, estado ni PID",()
   assert.match(html,/Horas operando del agente/);
   assert.match(html,/Horas operando no disponibles/);
   assert.doesNotMatch(html,/Tiempo de trabajo; sin sesión medida|work_interval_fallback/);
-  assert.match(html,/refresh-ended refresh-elapsed/);
+  assert.match(html,/data-race-time="duration"/);
+  assert.match(html,/refresh-elapsed/);
   assert.doesNotMatch(html,/refresh-work-state|refresh-session-elapsed|class="refresh-time"/);
   assert.doesNotMatch(html,/class="refresh-now"/);
   assert.doesNotMatch(html,/data-(?:pid|session-id|incarnation)/);
