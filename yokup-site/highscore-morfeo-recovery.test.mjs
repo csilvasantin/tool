@@ -17,7 +17,7 @@ function view(initialRows=[stale]){
   const storage=new Map([[race.staleRaceStorageKey('morfeomacmini'),JSON.stringify({revision:stale.race_revision,server_started_at:sampled-42000,cycles:3})]]);
   const nodes={refreshLanes:{innerHTML:''},refreshRace:{setAttribute(){},classList:{toggle(){}}}};
   const ctx=vm.createContext({datos:{trabajos:initialRows,trabajosAvailable:true,trabajosGeneratedAt:sampled,trabajosClientAt:0},
-    listaCompletaCache:[],listaCache:[],document:{getElementById:id=>nodes[id]},window:{ykAgentIdentity:identity},
+    listaCompletaCache:initialRows.map(w=>({agente:w.agent,total:0,proyecto:w.project_name,proyectoOrigen:"declarado"})),listaCache:[],document:{getElementById:id=>nodes[id]},window:{ykAgentIdentity:identity},
     normaliza:v=>String(v??'').trim(),esc:v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;'),
     performance:{now:()=>100},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},
     YkHighscoreRace:race,YkWorkClock:clock,Number,String,Math,Date,Intl});
@@ -128,7 +128,7 @@ test('dual APP expiration or absence removes active status; CLI and another mach
   assert.doesNotMatch(foreign,/data-agent-key="neombp14"/);
 });
 
-function sessionWork(row,runtime){return {...appWork(row,runtime),kind:'session',reference:'',title:'Activity with no invented mission',
+function sessionWork(row,runtime){return {...appWork(row,runtime),kind:'session',reference:'',title:'Actividad Desktop APP',
   session_basis:'verified_app_turn',dedicated_basis:'',activity_expires_at:dualAt+30000,
   activity_basis:runtime==='Claude'?'claude_desktop_transcript':'codex_desktop_turn_store'};}
 test('verified Desktop-only turns show two neutral rows and zero synthetic score metrics without work references',()=>{
@@ -137,7 +137,7 @@ test('verified Desktop-only turns show two neutral rows and zero synthetic score
  const result=render(sessions,dualAt);
  assert.equal((result.match(/data-agent-key=/g)||[]).length,2);
  assert.match(result,/>Neo</);assert.match(result,/>Trinity</);
- assert.equal((result.match(/>Actividad Desktop APP<\/span>/g)||[]).length,2);
+ assert.equal((result.match(/>Descripción del trabajo pendiente<\/span>/g)||[]).length,2);
  assert.match(result,/MBP14 · APP/);assert.match(result,/>\/\/ XpaceOS</);assert.match(result,/>\/\/ Yokup</);
  assert.ok(ctx.trabajosCarrera().every(w=>w.reference===''&&w.kind==='session'));
  assert.ok(ctx.listaCompletaCache.every(row=>row.total===0));

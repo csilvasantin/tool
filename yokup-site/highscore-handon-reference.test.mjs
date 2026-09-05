@@ -29,7 +29,7 @@ test("la calle de la carrera NO pinta el id interno, ni en el texto ni al pasar 
   assert.doesNotMatch(hastaLaMeta,/resumen\.reference/,
     "ni el rótulo visible ni su tooltip pueden pintar resumen.reference");
   assert.match(hastaLaMeta,/resumen\.title/,"el rótulo conserva el título del trabajo");
-  assert.match(hastaLaMeta,/resumen\.project/,"y el proyecto, que sí dice algo a quien mira");
+  assert.doesNotMatch(hastaLaMeta,/resumen\.project/,"el proyecto principal aparece sólo junto al agente");
 });
 
 // Quitar el id de la vista solo es gratis mientras la calle siga siendo un

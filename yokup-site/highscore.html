@@ -1994,6 +1994,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         // censo: si no está, el botón no se pinta (mejor sin botón que con uno
         // que la ruta va a rechazar).
         var enCenso = proyectoDeCenso(f);
+        f.proyectoPrincipal = enCenso && enCenso.label || "";
         f.proyectoId = (enCenso && enCenso.id) || "";
       } else {
         var censo = proyectoDeCenso(f);
@@ -3936,7 +3937,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         ["runtime","runtimePeso","runtimeAt","via","modelo"].forEach(function (field) { target[field] = row[field]; });
       }
       if (newer(row, target, "proyectoPeso", "proyectoAt")) {
-        ["proyecto","proyectoUrl","proyectoAt","proyectoPeso","proyectoOrigen","proyectoId","proyectoFaena"]
+        ["proyecto","proyectoUrl","proyectoAt","proyectoPeso","proyectoOrigen","proyectoId","proyectoFaena","proyectoPrincipal"]
           .forEach(function (field) { target[field] = row[field]; });
       }
       var sourceActivity = PRIORIDAD_ACTIVIDAD[row.actividad] || 0;
@@ -4720,6 +4721,24 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var agent=identity&&identity.display?identity.display(parsed&&parsed.persona||raw,machine):raw;
     return {agent:agent,machine:machine,key:claveAgenteCarrera(agent)};
   }
+  // FLT-1865: la espalda describe trabajo; el runtime y el cwd no son trabajo.
+  function descripcionTrabajoCorredor(item) {
+    var detail=normaliza(item.activity_text || item.work_description);
+    if(detail)return detail;
+    var title=normaliza(item.title);
+    if(item.kind==="session" && (!title || /^(Actividad Desktop APP)$/i.test(title)))return "Descripción del trabajo pendiente";
+    return title || "Descripción del trabajo pendiente";
+  }
+  function proyectoPrincipalCorredor(fila,trabajo) {
+    if(fila.proyectoOrigen==="declarado" && normaliza(fila.proyecto))return normaliza(fila.proyecto);
+    // Las sesiones reciben del servidor una resolución canónica, nunca su cwd.
+    if(trabajo.kind==="session" && ["daily_primary","configured_default","last_mission","admiranext_fallback"].includes(trabajo.projectSource)){
+      var project=(datos.proyectos||[]).find(function(p){return p.id===trabajo.projectId;});
+      return normaliza(project && (project.web || project.name) || trabajo.projectName).replace(/^https?:\/\/(?:www\.)?|^www\./i,"").replace(/\/$/,"") || "—";
+    }
+    if(fila.proyectoOrigen==="principal")return normaliza(fila.proyecto) || "—";
+    return normaliza(fila.proyectoPrincipal) || "—";
+  }
   function hsWorkPolicy(item) {
     if(item&&item.kind==="session"){
       var at=Number(item.activity_at)||0,expires=Number(item.activity_expires_at)||0;
@@ -4727,7 +4746,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var basis={Claude:"claude_desktop_transcript",Codex:"codex_desktop_turn_store"};
       if(item.state!=="running"||item.session_surface!=="app"||item.session_state!=="open"||item.session_basis!=="verified_app_turn"||
         !basis[item.runtime]||item.activity_basis!==basis[item.runtime]||!at||!expires||!now||at>now+5000||now>=expires||item.ended_at||item.cli_paused)return null;
-      return Object.assign({},item,{title:"Actividad Desktop APP",reference:""});
+      return Object.assign({},item,{title:descripcionTrabajoCorredor(item),reference:""});
     }
     if(item&&item.state==="running"&&item.activity_basis==="verified_app_turn"){
       var turnNow=datos.trabajosGeneratedAt+Math.max(0,performance.now()-(datos.trabajosClientAt||0));
@@ -4761,8 +4780,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var item = seen[key],identity=hsWorkIdentity(item);
       return { key:identity.key, agente:identity.agent, machine:identity.machine, executor:item.executor,
         reference:item.reference || "",
-        projectId:item.project_id || "", projectName:item.project_name || "", detailUrl:item.detail_url || "",
-        kind:item.kind, title:item.title || (item.kind === "task" ? "Tarea activa" : item.kind === "mission" ? "Misión activa" : "Objetivo en curso"),
+        projectId:item.project_id || "", projectName:item.project_name || "", projectSource:item.project_source || "", detailUrl:item.detail_url || "",
+        kind:item.kind, title:descripcionTrabajoCorredor(item),
         state:item.state || "assigned_stale", reachable:item.reachable === true,
         raceRevision:item.race_revision || "",
         assignmentAt:Number(item.assignment_at) || 0, assignmentBasis:item.assignment_basis || "",
@@ -5036,10 +5055,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var puesto = indice + 1, agente = normaliza(fila.agente), responsable = normaliza(resumen.responsible || agente);
       var identidadVisible = identidadVisualCorredor(responsable, fila);
       var contextoVisible = contextoVisualCorredor(identidadVisible, enlace.trabajo, fila);
-      // El proyecto junto al agente responde a «¿de qué proyecto es responsable?»:
-      // reutiliza la misma cascada canónica del Ranking (declarado hoy → trabajo
-      // → censo → Galaxia Admira). La faena puntual permanece dentro de la pista.
-      var proyectoResponsable = normaliza(enlace.trabajo.kind==="session"?resumen.project:fila.proyecto || resumen.project) || "—";
+      // Sólo el proyecto principal; la faena o el directorio no lo sustituyen.
+      var proyectoResponsable = proyectoPrincipalCorredor(fila,enlace.trabajo);
       var executor = normaliza(resumen.executor || responsable);
       var variant = typeof YkHighscoreRace !== "undefined" ? YkHighscoreRace.runnerVariant(fila)
         : (clave.split("").reduce(function (n, c) { return n + c.charCodeAt(0); }, 0) % 2 ? "dark" : "light");
@@ -5092,9 +5109,8 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         // su referencia legible (norma 5). Se quita también del tooltip: el que
         // pasa el ratón por encima es la misma persona.
         (resumen.detailUrl ? '<a class="refresh-mission" data-race-role="mission" href="' + esc(resumen.detailUrl) +
-          '" title="' + esc([resumen.title,resumen.project].filter(Boolean).join(" · ")) +
-          '"><span class="refresh-mission-title">' + esc(resumen.title +
-          (resumen.project ? " · " + resumen.project : "")) + '</span></a>' :
+          '" title="' + esc(resumen.title) +
+          '"><span class="refresh-mission-title">' + esc(resumen.title) + '</span></a>' :
           '<span class="refresh-mission" data-race-role="mission" title="' + esc(resumen.title) +
           '"><span class="refresh-mission-title">' + esc(resumen.title) + '</span></span>') +
         runner + '<span class="refresh-finish" aria-hidden="true"></span></div></div>' +
