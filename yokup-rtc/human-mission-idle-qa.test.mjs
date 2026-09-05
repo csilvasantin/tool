@@ -1,3 +1,4 @@
+import {cliPolicyBlocked,CLI_POLICY} from './src/cli-policy.js';
 import test from 'node:test';
 import {automationAllowed} from './src/fleet-automation-control.js';
 import assert from 'node:assert/strict';
@@ -15,7 +16,7 @@ test('an assigned human mission blocks both interfaces without a heartbeat expir
     for (const mode of ['learning','training']) {
       const actual = evaluateModeOpportunity({...target,host,mode},{},{busy:blockers.length>0,reason:'human_mission_assigned'});
       assert.equal(actual.eligible,false);
-      assert.equal(actual.reason,'human_mission_assigned');
+      assert.equal(actual.reason,host==='cli'?'cli_paused_by_carlos':'human_mission_assigned');
       assert.notEqual(actual.status,'completed');
     }
   }
@@ -111,7 +112,7 @@ async function activeDatabase(){
 
 test('the production guard revokes a live delivery when a human assignment arrives and leaves preferences intact',async()=>{
  const {db,env,now,id,pref,exact}=await activeDatabase();
- const ctx={automationAllowed,ensureHourlyModeSchema,modeTargetKey,normalizeModeTarget,assignedWorkBlockers,pauseAutomaticRun,AGENT_SOURCE_SQL:'1=1',Set,URL,hourlyModeProject:async()=>({id:'yokup',web:'https://yokup.com'}),matchesOnIdleIdentity:()=>false};
+ const ctx={cliPolicyBlocked,CLI_POLICY,automationAllowed,ensureHourlyModeSchema,modeTargetKey,normalizeModeTarget,assignedWorkBlockers,pauseAutomaticRun,AGENT_SOURCE_SQL:'1=1',Set,URL,hourlyModeProject:async()=>({id:'yokup',web:'https://yokup.com'}),matchesOnIdleIdentity:()=>false};
  vm.runInNewContext(['assignedWorkSnapshot','hourlyModeActivity','hourlyModeGuard'].map(workerFunction).join('\n')+'\nthis.guard=hourlyModeGuard;',ctx);
  assert.equal((await ctx.guard(env,id,now,exact)).allowed,true);
  db.raw.exec("INSERT INTO tickets VALUES('DCL-human','MorfeoMini','MacMini','in_progress',1)");
