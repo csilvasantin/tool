@@ -186,6 +186,38 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .cons .hoja .m .pt{font-family:var(--mono);font-size:10px;color:var(--good);white-space:nowrap}
 .cons .hoja .m .hh{font-family:var(--mono);font-size:10px;color:var(--dim);white-space:nowrap}
 .cons .hoja .estado{padding:10px 12px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--dim)}
+/* Columnas REDIMENSIONABLES: asa en el borde derecho de cada cabecera; el ancho se recuerda en el navegador. */
+.cons .hoja th{position:sticky;overflow:hidden;text-overflow:ellipsis}
+.cons .hoja th .rz{position:absolute;top:0;right:-3px;width:7px;height:100%;cursor:col-resize;z-index:4;touch-action:none}
+.cons .hoja th .rz:hover,.cons .hoja th .rz.on{background:rgba(120,243,255,.35)}
+.cons .hoja table.fijo{table-layout:fixed}
+.cons .hoja table.fijo td{overflow:hidden;text-overflow:ellipsis}
+/* Sub-cuadrícula de misiones dentro de la fila desplegada: misma retícula, un tono más oscuro. */
+.cons .hoja tr.det td>div{padding:6px 8px 8px 30px;overflow:auto}
+.cons .hoja table.sub{min-width:640px;font-size:11.5px;background:#050d14}
+.cons .hoja table.sub th{background:#081620;top:0;position:sticky}
+.cons .hoja table.sub th:first-child,.cons .hoja table.sub td:first-child{background:#081620;position:static}
+.cons .hoja table.sub td{height:26px}
+.cons .hoja table.sub td.id a{color:var(--brand);text-decoration:none}.cons .hoja table.sub td.id a:hover{text-decoration:underline}
+.cons .hoja table.sub td.sub{font-family:var(--sans);color:var(--mut);max-width:44ch;overflow:hidden;text-overflow:ellipsis}
+.cons .hoja table.sub td.st{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.cons .hoja table.sub td.st.in_progress,.cons .hoja table.sub td.st.doing{color:var(--accent)}
+.cons .hoja table.sub td.st.resolved,.cons .hoja table.sub td.st.done,.cons .hoja table.sub td.st.closed{color:var(--good)}
+.cons .hoja table.sub td.st.cancelled{color:var(--dim)}
+.cons .hoja table.sub td img{width:34px;height:20px;object-fit:cover;border-radius:3px;border:1px solid var(--line);display:block}
+.cons .hoja table.sub td .noimg{width:34px;height:20px;border-radius:3px;border:1px dashed rgba(255,136,102,.5);font-size:9px;color:var(--warn);display:flex;align-items:center;justify-content:center}
+.cons .hoja table.sub td .nc{color:var(--dim)}
+/* Última misión de un agente al pulsar su fila bajo el quesito. */
+.cons .qr{cursor:pointer}.cons .qr:hover b{color:var(--brand)}.cons .qr.on b{color:var(--brand)}
+.cons .qinfo{border:1px solid var(--line2);border-radius:8px;background:#07121a;padding:8px 10px;margin:4px 0 6px;font-family:var(--sans);font-size:12px;color:var(--mut);line-height:1.45;display:flex;flex-direction:column;gap:4px}
+.cons .qinfo .qi-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mono);font-size:10.5px}
+.cons .qinfo .qi-h a{color:var(--brand);text-decoration:none;font-weight:700}.cons .qinfo .qi-h a:hover{text-decoration:underline}
+.cons .qinfo .qi-h .st{font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:999px;border:1px solid var(--line);color:var(--dim)}
+.cons .qinfo .qi-h .st.in_progress{color:var(--accent);border-color:rgba(255,216,102,.4)}.cons .qinfo .qi-h .st.resolved{color:var(--good);border-color:rgba(136,255,170,.35)}
+.cons .qinfo .qi-s{color:var(--ink)}
+.cons .qinfo .qi-m{font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--dim);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.cons .qinfo img{width:120px;height:68px;object-fit:cover;border-radius:4px;border:1px solid var(--line2);display:block;margin-top:4px}
+.cons .qinfo .vacio{color:var(--dim);font-family:var(--mono);font-size:10.5px}
 .cons .hoja .estado.err{color:var(--warn)}
 .cons .disp{display:flex;flex-wrap:wrap;gap:6px}
 .cons .chip{border:1px solid rgba(136,255,170,.35);color:var(--good);border-radius:999px;padding:4px 9px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;display:inline-flex;align-items:center;gap:6px}
@@ -480,10 +512,27 @@ function inicioHoy(owner,machine,dia){
   return mejor;
 }
 const esConsejero=p=>canonM(p.machine)==="grokbot"||/grokbot$/i.test(canonM(p.owner));
+// Última misión de un agente: la más reciente del historial del día (Highscore) o, si no, de /fleet/missions.
+let QINFO="";
+function ultimaMision(owner){
+  const k=canonM(owner); let mejor=null, src="";
+  const h=HIST.get("dia"); if(h&&h.list) for(const m of h.list){ if(canonM(m.agent)===k){ const t=+m.at||+m.finished_at||+m.started_at||0; if(!mejor||t>(+mejor.at||0)){ mejor=Object.assign({},m,{at:t}); src="Highscore"; } } }
+  const c=MIS.get(k); if(c&&c.list){ if(mejor){ const x=c.list.find(m=>m.id===mejor.id); if(x&&x.proof_image) mejor.proof_image=x.proof_image; }
+    else for(const m of c.list){ const t=+m.updated_at||+m.created_at||0; if(!mejor||t>(+mejor.at||0)){ mejor={id:m.id,subject:m.subject,status:m.status,started_at:+m.created_at||0,finished_at:0,at:t,points:null,proof_image:m.proof_image}; src="/fleet/missions"; } } }
+  return mejor?{m:mejor,src}:null;
+}
+function qinfoHTML(owner){
+  const u=ultimaMision(owner); if(!u) return '<div class="qinfo"><div class="vacio">'+(HIST.get("dia")||MIS.get(canonM(owner))?'sin misiones hoy':'cargando…')+'</div></div>';
+  const m=u.m, st=String(m.status||"").toLowerCase(), ini=+m.started_at||0, fin=+m.finished_at||0;
+  return '<div class="qinfo"><div class="qi-h"><a href="/misiones#'+encodeURIComponent(m.id||"")+'">'+esc(m.id||"?")+'</a><span class="st '+esc(st)+'">'+esc(st||"?")+'</span><span>última misión · '+esc(u.src)+'</span></div>'+
+    '<div class="qi-s">'+esc(m.subject||"sin asunto")+'</div>'+
+    '<div class="qi-m"><span>'+(ini?'inicio '+hhmm(ini):'')+'</span><span>'+(fin?'fin '+hhmm(fin)+' · '+dur(ini,fin):'')+'</span>'+(m.points!=null?'<span>'+((+m.points||0)+(+m.race_bonus_points||0))+' pt</span>':'')+'<span>última señal '+hhmm(+m.at||0)+'</span></div>'+
+    (m.proof_image?'<a href="'+esc(m.proof_image)+'" target="_blank" rel="noopener" title="evidencia"><img src="'+esc(m.proof_image)+'" alt="evidencia de '+esc(m.id||"")+'" loading="lazy"></a>':'<div class="qi-m"><span class="vacio">sin evidencia adjunta</span></div>')+'</div>';
+}
 function listaQueso(titulo,partes,cmap,tot,dia){
-  const filas=partes.map(p=>{const ini=inicioHoy(p.owner,p.machine,dia), cargando=!MIS.has(canonM(p.owner));
-    return '<div class="qr" data-k="'+esc(canonM(p.owner))+'"><i class="sw" style="background:'+(cmap.get(p.owner)||"var(--s0)")+'"></i><b title="'+esc(p.owner)+'">'+esc(p.owner)+'</b><span class="pc">'+(tot>0?Math.round(100*(+p.datos.total||0)/tot):0)+' %</span>'+
-      (ini?'<span class="desde" title="empezó hoy a las '+hhmm(ini.t)+' · primera señal de hoy: '+esc(ini.src)+'">'+hhmm(ini.t)+' <small>'+esc(ini.src.split(" ")[0])+'</small></span>':'<span class="desde no" title="ninguna señal de hoy con hora">'+(cargando?'…':'sin hora')+'</span>')+'</div>';}).join("");
+  const filas=partes.map(p=>{const ini=inicioHoy(p.owner,p.machine,dia), cargando=!MIS.has(canonM(p.owner)), k=canonM(p.owner), on=QINFO===k;
+    return '<div class="qr'+(on?' on':'')+'" data-k="'+esc(k)+'" data-owner="'+esc(p.owner)+'" role="button" tabindex="0" aria-expanded="'+on+'" title="pulsa para ver su última misión"><i class="sw" style="background:'+(cmap.get(p.owner)||"var(--s0)")+'"></i><b title="'+esc(p.owner)+'">'+esc(p.owner)+'</b><span class="pc">'+(tot>0?Math.round(100*(+p.datos.total||0)/tot):0)+' %</span>'+
+      (ini?'<span class="desde" title="empezó hoy a las '+hhmm(ini.t)+' · primera señal de hoy: '+esc(ini.src)+'">'+hhmm(ini.t)+' <small>'+esc(ini.src.split(" ")[0])+'</small></span>':'<span class="desde no" title="ninguna señal de hoy con hora">'+(cargando?'…':'sin hora')+'</span>')+'</div>'+(on?qinfoHTML(p.owner):'');}).join("");
   return '<div class="ql"><h4>'+titulo+'<span>% · empezó hoy</span><b>'+partes.length+'</b></h4>'+(filas||'<div class="nadie">nadie ha declarado hoy</div>')+'</div>';
 }
 function listasQueso(){
@@ -511,6 +560,22 @@ async function cargaConsP(dias){
   const pr=(async()=>{ const out={t:Date.now(),list:null,err:"",dias}; try{ const r=await fetch(WORKER+"/fleet/consumo?dias="+dias,{cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status); const d=await r.json(); if(!d||!Array.isArray(d.por_agente)) throw new Error("respuesta incompleta"); out.list=d.por_agente; out.dias=+d.dias||dias; }catch(e){ out.err=String(e&&e.message||e); out.t=Date.now()-MIS_TTL+30000; } CONSP.set(dias,out); return out; })().finally(()=>CONSP_PEND.delete(dias));
   CONSP_PEND.set(dias,pr); return pr;
 }
+// Anchos de columna (asa en la cabecera), recordados en este navegador por tabla y columna.
+let COLW={}; try{ COLW=JSON.parse(localStorage.getItem("yk-cons-colw")||"{}")||{}; }catch(e){ COLW={}; }
+const colw=(t,k)=>{ const w=+COLW[t+"|"+k]; return w>=40&&w<=900?' style="width:'+w+'px;min-width:'+w+'px;max-width:'+w+'px"':''; };
+function guardaColw(){ try{ localStorage.setItem("yk-cons-colw",JSON.stringify(COLW)); }catch(e){} }
+// Ordenación del DETALLE de misiones (sub-cuadrícula): una sola preferencia para todos los agentes.
+let DSORT={k:"at",dir:-1};
+const DSORT_DEF={id:1,sub:1,ini:-1,fin:-1,dur:-1,pts:-1,st:1,ev:-1,at:-1};
+function valorMis(m,k){ switch(k){
+  case "id": return String(m.id||""); case "sub": return String(m.subject||"").toLowerCase();
+  case "ini": return +m.started_at||+m.at||0; case "fin": return +m.finished_at||0; case "at": return +m.at||+m.updated_at||0;
+  case "dur": return (+m.finished_at&&+m.started_at)?(+m.finished_at-+m.started_at):-1;
+  case "pts": return (+m.points||0)+(+m.race_bonus_points||0); case "st": return String(m.status||"");
+  case "ev": return m.proof_image?1:0; } return 0; }
+function ordenaMis(list){ const k=DSORT.k, d=DSORT.dir; return list.slice().sort((a,b)=>{ const va=valorMis(a,k), vb=valorMis(b,k); if(va<vb) return -d; if(va>vb) return d; return (+b.at||0)-(+a.at||0); }); }
+function thd(k,txt,num){ const on=DSORT.k===k; return '<th'+colw("d",k)+' data-dsort="'+k+'" data-col="'+k+'" class="'+(num?'num ':'')+(on?'on':'')+'" title="ordenar por '+esc(txt)+'">'+txt+(on?'<span class="dir">'+(DSORT.dir<0?"▼":"▲")+'</span>':'')+'<span class="rz" data-rz="d|'+k+'"></span></th>'; }
+const dur=(a,b)=>{ if(!(a>0&&b>0&&b>=a)) return "—"; const s=Math.round((b-a)/1000); if(s<90) return s+" s"; const m=Math.round(s/60); return m<90?m+" min":Math.floor(m/60)+" h "+(m%60)+" min"; };
 // Ordenación de la cuadrícula: pulsar una cabecera ordena por esa columna; pulsarla otra vez invierte.
 let SORT={k:"tokens",dir:-1};
 const SORT_DEF={agente:1,tipo:1,estado:-1,cap:-1,n:-1,res:-1,pts:-1,tokens:-1,pc:-1,cache:-1,salida:-1,desp:-1,ini:1};
@@ -532,7 +597,7 @@ function ordena(rows){
   const k=SORT.k, d=SORT.dir;
   return rows.slice().sort((a,b)=>{ const va=valorOrden(a,k), vb=valorOrden(b,k); if(va<vb) return -d; if(va>vb) return d; return ((b.tok?b.tok.total:0)-(a.tok?a.tok.total:0))||a.owner.localeCompare(b.owner); });
 }
-function th(k,txt,num){ const on=SORT.k===k; return '<th'+(num?' class="num"':'')+' data-sort="'+k+'" title="ordenar por '+esc(txt)+'"'+(on?' class="'+(num?'num ':'')+'on"':'')+'>'+txt+(on?'<span class="dir">'+(SORT.dir<0?"▼":"▲")+'</span>':'')+'</th>'; }
+function th(k,txt,num){ const on=SORT.k===k; return '<th'+colw("g",k)+' data-sort="'+k+'" data-col="'+k+'" class="'+(num?'num ':'')+(on?'on':'')+'" title="ordenar por '+esc(txt)+'">'+txt+(on?'<span class="dir">'+(SORT.dir<0?"▼":"▲")+'</span>':'')+'<span class="rz" data-rz="g|'+k+'"></span></th>'; }
 function filasPeriodo(){
   // Une agentes con misiones en el periodo (Highscore) y agentes con tokens en el periodo (consumo).
   if(!RK) return null; const per=PER[PERIODO], h=HIST.get(per.k==="hora"?"dia":per.k);
@@ -552,10 +617,11 @@ function filasPeriodo(){
 function filaMisionesPeriodo(r){
   if(!r.list.length) return '<div class="vacio">sin misiones '+esc(PER[PERIODO].l)+'</div>';
   const mc=MIS.get(r.k), byId=new Map(); if(mc&&mc.list) for(const m of mc.list) byId.set(m.id,m);
-  return r.list.slice().sort((a,b)=>(+b.at||0)-(+a.at||0)).map(m=>{const st=String(m.status||"").toLowerCase(), x=byId.get(m.id), img=x&&x.proof_image;
-    return '<div class="m"><a class="id" href="/misiones#'+encodeURIComponent(m.id||"")+'">'+esc(m.id||"?")+'</a><span class="sub" title="'+esc(m.subject||"")+'">'+esc(m.subject||"sin asunto")+'</span>'+
-      '<span class="hh" title="inicio">'+hhmm(+m.started_at||+m.at||0)+'</span><span class="pt" title="puntos">'+((+m.points||0)+(+m.race_bonus_points||0))+' pt</span><span class="st '+esc(st)+'">'+esc(st||"?")+'</span>'+
-      (img?'<a href="'+esc(img)+'" target="_blank" rel="noopener" title="evidencia"><img src="'+esc(img)+'" alt="" loading="lazy"></a>':(x?'<span class="noimg" title="misión sin captura: información incompleta">📷</span>':'<span class="noimg" style="border-color:var(--line);color:var(--dim)" title="evidencia no comprobada en este periodo">·</span>'))+'</div>';}).join("");
+  const filas=ordenaMis(r.list).map((m,i)=>{const st=String(m.status||"").toLowerCase(), x=byId.get(m.id), img=x&&x.proof_image, ini=+m.started_at||+m.at||0, fin=+m.finished_at||0;
+    return '<tr><td>'+(i+1)+'</td><td class="id"><a href="/misiones#'+encodeURIComponent(m.id||"")+'">'+esc(m.id||"?")+'</a></td><td class="sub" title="'+esc(m.subject||"")+'">'+esc(m.subject||"sin asunto")+'</td>'+
+      '<td class="num">'+(ini?hhmm(ini):"—")+'</td><td class="num">'+(fin?hhmm(fin):"—")+'</td><td class="num">'+dur(ini,fin)+'</td><td class="num">'+((+m.points||0)+(+m.race_bonus_points||0))+'</td>'+
+      '<td class="st '+esc(st)+'">'+esc(st||"?")+'</td><td>'+(img?'<a href="'+esc(img)+'" target="_blank" rel="noopener" title="evidencia"><img src="'+esc(img)+'" alt="" loading="lazy"></a>':(x?'<span class="noimg" title="misión sin captura: información incompleta">📷</span>':'<span class="nc" title="evidencia no comprobada en este periodo">·</span>'))+'</td></tr>';}).join("");
+  return '<table class="sub"><thead><tr><th>#</th>'+thd("id","misión")+thd("sub","asunto")+thd("ini","inicio",1)+thd("fin","fin",1)+thd("dur","duración",1)+thd("pts","puntos",1)+thd("st","estado")+thd("ev","📷")+'</tr></thead><tbody>'+filas+'</tbody></table>';
 }
 function cabeceraPeriodo(f){
   const per=f.per, nAg=f.rows.filter(r=>r.n>0).length, nMs=f.ms?f.ms.length:null;
@@ -581,7 +647,7 @@ function hojaHTML(f){
         :'<td class="num nd" colspan="5" title="sin parte de consumo en este periodo">sin parte de consumo</td>')+
       '<td class="nd">'+(ini?hhmm(ini.t)+' <small>'+esc(ini.src.split(" ")[0])+'</small>':(mc?'sin hora':'…'))+'</td>'+
       '</tr>'+
-      (ab?'<tr class="det"><td colspan="15"><div class="mis on">'+filaMisionesPeriodo(r)+'</div></td></tr>':''); }).join("");
+      (ab?'<tr class="det"><td colspan="15"><div>'+filaMisionesPeriodo(r)+'</div></td></tr>':''); }).join("");
   const err=(f.h&&f.h.err)?'<div class="estado err">misiones: '+esc(f.h.err)+'</div>':''; const errC=f.consErr?'<div class="estado err">tokens del periodo: '+esc(f.consErr)+'</div>':(f.cargandoCons?'<div class="estado">cargando tokens del periodo…</div>':'');
   return '<div class="hoja">'+err+errC+'<table><thead><tr><th>#</th>'+th("agente","agente")+th("tipo","tipo")+th("estado","estado")+th("cap","📷")+th("n","misiones",1)+th("res","cerradas",1)+th("pts","puntos",1)+th("tokens","tokens",1)+th("pc","%",1)+th("cache","caché",1)+th("salida","salida",1)+th("desp","despert.",1)+th("ini","empezó hoy")+'</tr></thead><tbody>'+
     (filas||'<tr><td colspan="15"><div class="estado">nadie '+esc(f.per.l)+'</div></td></tr>')+'</tbody></table></div>';
@@ -676,8 +742,19 @@ function renderConsumo(){
   // Pulsar un agente despliega (o pliega) sus misiones del día justo debajo.
   const rkEl=$("rk");
   async function toggleFila(r){ const k=canonM(r.dataset.owner); if(ABIERTOS.has(k)) ABIERTOS.delete(k); else ABIERTOS.add(k); pintaRanking(); if(ABIERTOS.has(k)&&PERIODO<=1){ await cargaMisiones(r.dataset.owner,r.dataset.machine,dia); pintaRanking(); } }
-  rkEl.addEventListener("click",e=>{ const a=e.target.closest("a"); if(a) return; const h=e.target.closest("th[data-sort]"); if(h){ const k=h.dataset.sort; SORT=SORT.k===k?{k,dir:-SORT.dir}:{k,dir:SORT_DEF[k]||-1}; pintaRanking(); return; } const b=e.target.closest("button[data-per]"); if(b){ PERIODO=Math.max(0,Math.min(PER.length-1,PERIODO+(+b.dataset.per))); pintaRanking(); cargaPeriodo(); return; } const r=e.target.closest("tr.f[data-owner]"); if(r) toggleFila(r); });
+  rkEl.addEventListener("click",e=>{ const a=e.target.closest("a"); if(a) return; if(e.target.closest(".rz")) return; const hd=e.target.closest("th[data-dsort]"); if(hd){ const k=hd.dataset.dsort; DSORT=DSORT.k===k?{k,dir:-DSORT.dir}:{k,dir:DSORT_DEF[k]||-1}; pintaRanking(); return; } const h=e.target.closest("th[data-sort]"); if(h){ const k=h.dataset.sort; SORT=SORT.k===k?{k,dir:-SORT.dir}:{k,dir:SORT_DEF[k]||-1}; pintaRanking(); return; } const b=e.target.closest("button[data-per]"); if(b){ PERIODO=Math.max(0,Math.min(PER.length-1,PERIODO+(+b.dataset.per))); pintaRanking(); cargaPeriodo(); return; } const r=e.target.closest("tr.f[data-owner]"); if(r) toggleFila(r); });
   rkEl.addEventListener("keydown",e=>{ const r=e.target.closest("tr.f[data-owner]"); if(r&&(e.key==="Enter"||e.key===" ")){ e.preventDefault(); toggleFila(r); } });
+  // Asa de ancho en las cabeceras (cuadrícula y sub-cuadrícula): arrastrar fija el ancho de esa columna.
+  rkEl.addEventListener("pointerdown",e=>{ const z=e.target.closest(".rz"); if(!z) return; e.preventDefault(); e.stopPropagation(); const th=z.parentElement, key=z.dataset.rz, x0=e.clientX, w0=th.getBoundingClientRect().width; z.setPointerCapture(e.pointerId); z.classList.add("on");
+    const mueve=ev=>{ const w=Math.max(40,Math.min(900,Math.round(w0+(ev.clientX-x0)))); th.style.width=th.style.minWidth=th.style.maxWidth=w+"px"; COLW[key]=w; };
+    const suelta=()=>{ z.classList.remove("on"); guardaColw(); z.removeEventListener("pointermove",mueve); z.removeEventListener("pointerup",suelta); z.removeEventListener("pointercancel",suelta); };
+    z.addEventListener("pointermove",mueve); z.addEventListener("pointerup",suelta); z.addEventListener("pointercancel",suelta); });
+  rkEl.addEventListener("dblclick",e=>{ const z=e.target.closest(".rz"); if(!z) return; delete COLW[z.dataset.rz]; guardaColw(); pintaRanking(); });
+  // Pulsar un agente o consejero bajo el quesito muestra su última misión.
+  const qlEl=$("qlistas");
+  function toggleQ(r){ const k=r.dataset.k; QINFO=QINFO===k?"":k; pintaRanking(); if(QINFO===k&&!HIST.get("dia")) cargaHist(PER[1],dia).then(pintaRanking); }
+  qlEl.addEventListener("click",e=>{ if(e.target.closest("a")) return; const r=e.target.closest(".qr[data-k]"); if(r) toggleQ(r); });
+  qlEl.addEventListener("keydown",e=>{ const r=e.target.closest(".qr[data-k]"); if(r&&(e.key==="Enter"||e.key===" ")){ e.preventDefault(); toggleQ(r); } });
 }
 // ── Divisor arrastrable entre el quesito y la cuadrícula (el ancho se recuerda en este navegador).
 const QW_DEF=290, QW_MIN=170, QW_MAX=760;

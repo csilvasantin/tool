@@ -122,3 +122,15 @@ test("los avisos viven en el plegable de la cabecera con su contador, la cuadrí
   assert.match(html, /id="divisor" role="separator"/);
   assert.match(html, /localStorage\.setItem\("yk-cons-qw"/);
 });
+
+test("el detalle de misiones es una sub-cuadrícula ordenable con columnas redimensionables y bajo el quesito cada agente enseña su última misión", () => {
+  assert.match(html, /<table class="sub">/);
+  assert.match(html, /thd\("ev","📷"\)/);
+  assert.match(html, /DSORT=DSORT\.k===k\?\{k,dir:-DSORT\.dir\}/);
+  assert.match(html, /class="rz" data-rz="g\|/);
+  assert.match(html, /class="rz" data-rz="d\|/);
+  assert.match(html, /localStorage\.setItem\("yk-cons-colw"/);
+  assert.match(html, /function ultimaMision\(owner\)/);
+  assert.match(html, /última misión · /);
+  assert.match(html, /sin evidencia adjunta/, "sin imagen no se inventa evidencia");
+});
