@@ -12951,11 +12951,16 @@ Todo en español.`;
         // no se firma sin evidencia.
         let cerrada = false;
         if (b.resolve === true && !persistedAtomically) {
-          await env.DB.prepare("UPDATE tickets SET status='resolved', resolved_at=?, updated_at=? WHERE id=?")
-            .bind(now, now, missionId).run();
+          // Misma prueba que en la rama atómica: la captura final asciende a proof_image. El 6-sep-2026
+          // esta rama (misión ya existente) cerraba sin guardar la imagen que acababa de validar.
+          await env.DB.prepare("UPDATE tickets SET status='resolved', resolved_at=?, updated_at=?, proof_image=?, proof_kind='final' WHERE id=?")
+            .bind(now, now, imagenFinal, missionId).run();
+          await addEvent(env, missionId, "proof", identity.agent, "📸 Pantallazo final declarado desde el CLI: " + proofLabel(imagenFinal));
           await addEvent(env, missionId, "accept", identity.agent,
             `Misión declarada resuelta desde el CLI · ${evidenciaMision.text}`);
           cerrada = true;
+        } else if (imagenFinal && !persistedAtomically) {
+          await env.DB.prepare("UPDATE tickets SET proof_image=COALESCE(NULLIF(proof_image,''),?), updated_at=? WHERE id=?").bind(imagenFinal, now, missionId).run();
         }
         if (b.resolve === true && persistedAtomically) cerrada = true;
         // CONTRATO «ventana↔misión de una pieza» (misión DCL-d65ad512, Neo·MBP14, 05/09/2026).

@@ -13,4 +13,5 @@ test("POST /declare no cierra una misión sin captura final: commit, sello o URL
   assert.match(declare, /Pantallazo final declarado desde el CLI/);
   assert.match(declare, /code: "image_invalid"/, "una imagen mala se rechaza con motivo, no se ignora");
   assert.match(declare, /COALESCE\(NULLIF\(proof_image,''\),\?\)/, "una captura sin resolve se guarda sin pisar una prueba previa");
+  assert.match(declare, /UPDATE tickets SET status='resolved', resolved_at=\?, updated_at=\?, proof_image=\?, proof_kind='final' WHERE id=\?/, "la rama de misión existente también guarda la captura (FLT-2585 salió resolved sin proof)");
 });
