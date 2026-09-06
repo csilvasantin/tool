@@ -591,7 +591,9 @@ async function vigilaConsumo(env, owner, machine, dia, datos, now) {
     const id = "NOTIF-" + crypto.randomUUID().replace(/-/g, "").slice(0, 10);
     await env.DB.prepare("INSERT INTO notifs (id,fingerprint,machine,owner,titulo,kind,image,status,first_at,last_at,seen_count,datos) VALUES (?,?,?,?,?,'consumo-alerta',NULL,'abierta',?,?,1,?)").bind(id, fp, machine, owner, titulo, now, now, cuerpo).run();
   }
-  // El propio agente habla al CEO en el grupo: cifras, motivo y medidas; Carlos decide.
+  // El propio agente habla al CEO en el grupo: cifras, motivo y medidas; Carlos decide. El resultado
+  // de Agora se guarda en el aviso (datos.agora) para no dar por enviado lo que no llegó.
+  let agora = { ok: false, status: 0, motivo: "sin binding o sin clave" };
   try {
     const key = env.ADMIRA_TELEGRAM_PANEL_KEY;
     if (key && env.TELEGRAM) {
@@ -601,10 +603,16 @@ async function vigilaConsumo(env, owner, machine, dia, datos, now) {
         + (datos.causa ? "Causa declarada: " + String(datos.causa).slice(0, 200) + "\n" : "")
         + "Medidas que propongo: " + medidas.join("; ") + "\n"
         + "CEO: dime si tomo la primera medida ahora o prefieres otra. Detalle: https://www.yokup.com/notificaciones";
-      await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-say", { method: "POST", headers: { "content-type": "application/json", "authorization": "Bearer " + key }, body: JSON.stringify({ persona: owner, text: texto }) }));
+      const r = await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-say", { method: "POST", headers: { "content-type": "application/json", "authorization": "Bearer " + key }, body: JSON.stringify({ persona: owner, text: texto }) }));
+      let cuerpoR = ""; try { cuerpoR = (await r.text()).slice(0, 160); } catch (e) { cuerpoR = ""; }
+      agora = { ok: r.ok, status: r.status, motivo: r.ok ? "" : cuerpoR, at: now };
     }
-  } catch (e) { /* el aviso de yokup ya queda; Agora es la segunda vía */ }
-  return { motivos, medidas };
+  } catch (e) { agora = { ok: false, status: 0, motivo: String(e && e.message || e).slice(0, 120) }; }
+  try {
+    const fila = await env.DB.prepare("SELECT id,datos FROM notifs WHERE fingerprint=? AND status='abierta'").bind(fp).first();
+    if (fila) { let d = {}; try { d = JSON.parse(fila.datos || "{}") || {}; } catch (e) { d = {}; } d.agora = agora; await env.DB.prepare("UPDATE notifs SET datos=? WHERE id=?").bind(JSON.stringify(d).slice(0, 4000), fila.id).run(); }
+  } catch (e) { /* sin traza, pero el aviso queda */ }
+  return { motivos, medidas, agora };
 }
 __name(vigilaConsumo, "vigilaConsumo");
 

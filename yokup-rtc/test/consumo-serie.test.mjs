@@ -22,4 +22,5 @@ test("✋ levantar la mano: cuando un parte pasa los topes, el agente avisa al C
   assert.match(source, /body: JSON\.stringify\(\{ persona: owner, text: texto \}\)/, "habla el propio agente, no Admirito");
   assert.match(source, /CEO: dime si tomo la primera medida ahora o prefieres otra/);
   assert.match(source, /now - Number\(viva\.last_at \|\| 0\) < CONSUMO_ALERTA_CADA_MS/, "no repite el aviso antes de 2 h");
+  assert.match(source, /d\.agora = agora;/, "el aviso guarda si Agora aceptó el mensaje: no se da por enviado lo que no llegó");
 });
