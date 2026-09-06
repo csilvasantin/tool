@@ -79,10 +79,19 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .cons .queso.hov .arc:not(.on){opacity:.32}
 .cons .hero{font-family:var(--mono);fill:var(--ink);font-size:22px;font-weight:700;letter-spacing:-.02em}
 .cons .hero2{font-family:var(--mono);fill:var(--dim);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase}
-.cons .ley{display:flex;flex-wrap:wrap;gap:4px 10px;justify-content:center;font-family:var(--mono);font-size:10.5px;color:var(--mut)}
-.cons .ley span{display:inline-flex;align-items:center;gap:5px;cursor:default}
+/* Bajo el quesito: AGENTES (los Mac) y CONSEJEROS (GrokBot) separados, una fila por cabeza con su % y a qué hora empezó hoy. */
+.cons .qls{width:100%;display:flex;flex-direction:column;gap:8px}
+.cons .ql h4{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:600;margin:0 0 4px;display:flex;justify-content:space-between}
+.cons .ql h4 span{color:var(--dim);letter-spacing:.04em;text-transform:none;font-weight:400}
+.cons .ql h4 b{color:var(--ink)}
+.cons .qr{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:6px;align-items:center;font-family:var(--mono);font-size:10.5px;color:var(--mut);padding:2px 0;border-top:1px solid rgba(120,243,255,.07)}
+.cons .qr b{color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cons .qr .pc{color:var(--mut);white-space:nowrap}
+.cons .qr .desde{color:var(--brand);white-space:nowrap}
+.cons .qr .desde small{color:var(--dim);font-size:9px;letter-spacing:.04em}
+.cons .qr .desde.no{color:var(--dim)}
+.cons .ql .nadie{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.04em}
 .cons .sw{width:9px;height:9px;border-radius:2px;flex:none}
-.cons .ley b{color:var(--ink);font-weight:600}
 .cons .lado{display:grid;grid-template-columns:1.25fr 1fr;gap:0}
 .cons .col{padding:14px 16px;min-width:0}
 .cons .col+.col{border-left:1px solid var(--line)}
@@ -365,7 +374,7 @@ async function cargaMisiones(owner,machine,dia){
 async function _cargaMisiones(k,owner,machine,dia){
   const out={t:Date.now(),list:null,err:""};
   try{
-    const r=await fetch(WORKER+"/fleet/missions?agent="+encodeURIComponent(owner)+"&limit=60",{cache:"no-store"});
+    const r=await fetch(WORKER+"/fleet/missions?agent="+encodeURIComponent(owner)+"&limit=40",{cache:"no-store"});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const d=await r.json(); const ms=Array.isArray(d&&d.missions)?d.missions:[];
     const ini=new Date(dia+"T00:00:00").getTime(), cm=canonM(machine);
@@ -389,6 +398,28 @@ function filaMisiones(owner){
       '<span class="pr">'+(pr?(+pr.done||0)+'/'+(+pr.total||0):'')+'</span><span class="st '+esc(st)+'">'+esc(st||"?")+'</span>'+
       (m.proof_image?'<a href="'+esc(m.proof_image)+'" target="_blank" rel="noopener" title="evidencia"><img src="'+esc(m.proof_image)+'" alt="" loading="lazy"></a>':'<span class="noimg" title="misión sin captura: información incompleta">📷</span>')+'</div>';}).join("");
 }
+// ¿A qué hora empezó hoy? La PRIMERA señal del día de esa persona en esa máquina: presencia (since /
+// process_birth), primera misión o tarea tocada, primer parte o aviso publicado. Se dice la fuente.
+function inicioHoy(owner,machine,dia){
+  const k=canonM(owner), ini=new Date(dia+"T00:00:00").getTime(); let mejor=null;
+  const cand=(t,src)=>{ t=+t||0; if(t>0&&t<4102444800) t*=1000; if(t>=ini&&t<=Date.now()+60000&&(!mejor||t<mejor.t)) mejor={t,src}; };
+  for(const a of PRES){ if(a&&a.persona&&a.machine&&canonM(a.persona+a.machine)===k){ cand(a.since,"presencia"); cand(a.process_birth,"arranque del proceso"); } }
+  const c=MIS.get(k); if(c&&c.list) for(const m of c.list){ cand(m.created_at,"misión "+(m.id||"")); cand(m.updated_at,"misión "+(m.id||"")); for(const t of (m.tasks||[])){ cand(t.created_at,"tarea "+(m.id||"")); cand(t.updated_at,"tarea "+(m.id||"")); } }
+  // El parte de consumo NO cuenta: lo publica un cron a la misma hora para todos y no dice cuándo empezó nadie.
+  for(const n of DATOS){ if(n&&canonM(n.owner)===k&&String(n.kind||"")!=="consumo"){ cand(n.first_at,"aviso "+String(n.kind||"")); } }
+  return mejor;
+}
+const esConsejero=p=>canonM(p.machine)==="grokbot"||/grokbot$/i.test(canonM(p.owner));
+function listaQueso(titulo,partes,cmap,tot,dia){
+  const filas=partes.map(p=>{const ini=inicioHoy(p.owner,p.machine,dia), cargando=!MIS.has(canonM(p.owner));
+    return '<div class="qr" data-k="'+esc(canonM(p.owner))+'"><i class="sw" style="background:'+(cmap.get(p.owner)||"var(--s0)")+'"></i><b title="'+esc(p.owner)+'">'+esc(p.owner)+'</b><span class="pc">'+(tot>0?Math.round(100*(+p.datos.total||0)/tot):0)+' %</span>'+
+      (ini?'<span class="desde" title="empezó hoy a las '+hhmm(ini.t)+' · primera señal de hoy: '+esc(ini.src)+'">'+hhmm(ini.t)+' <small>'+esc(ini.src.split(" ")[0])+'</small></span>':'<span class="desde no" title="ninguna señal de hoy con hora">'+(cargando?'…':'sin hora')+'</span>')+'</div>';}).join("");
+  return '<div class="ql"><h4>'+titulo+'<span>% · empezó hoy</span><b>'+partes.length+'</b></h4>'+(filas||'<div class="nadie">nadie ha declarado hoy</div>')+'</div>';
+}
+function listasQueso(){
+  if(!RK) return ""; const {deHoy,cmap,tot,dia}=RK;
+  return '<div class="qls">'+listaQueso("Agentes",deHoy.filter(p=>!esConsejero(p)),cmap,tot,dia)+listaQueso("Consejeros · GrokBot",deHoy.filter(esConsejero),cmap,tot,dia)+'</div>';
+}
 function filasRanking(){
   if(!RK) return "";
   const {top,cmap,tot,max,dia}=RK;
@@ -400,11 +431,14 @@ function filasRanking(){
       '<span class="num"><b>'+fmtTok(d.total)+'</b> · '+(tot>0?Math.round(100*(+d.total||0)/tot):0)+' %'+(f?' 🔥':'')+'</span></div>'+
       '<div class="mis'+(ab?' on':'')+'" data-mis="'+esc(p.owner)+'">'+(ab?filaMisiones(p.owner):'')+'</div>';}).join("");
 }
-function pintaRanking(){ const el=$("rk"); if(el&&RK) el.innerHTML=filasRanking(); }
+function pintaRanking(){ const el=$("rk"); if(el&&RK) el.innerHTML=filasRanking(); const ql=$("qlistas"); if(ql&&RK) ql.innerHTML=listasQueso(); }
 async function precargaMisiones(){
-  if(!RK) return; let cambio=false;
-  await Promise.all(RK.top.map(async p=>{ const k=canonM(p.owner), c=MIS.get(k); if(c&&Date.now()-c.t<MIS_TTL) return; await cargaMisiones(p.owner,p.machine,RK.dia); cambio=true; }));
-  if(cambio) pintaRanking();
+  // Todos los que han declarado hoy (no solo el top del ranking): la hora de inicio y la bandera de
+  // captura las necesita cada fila. Se repinta según llega CADA respuesta, porque alguna tarda 20 s.
+  // De dos en dos y por orden del ranking: siete a la vez se atascan en el worker (D1) y tardan más que en fila.
+  if(!RK) return; const cola=RK.deHoy.slice();
+  async function obrero(){ while(cola.length){ const p=cola.shift(), k=canonM(p.owner), c=MIS.get(k); if(c&&Date.now()-c.t<MIS_TTL) continue; await cargaMisiones(p.owner,p.machine,RK.dia); pintaRanking(); } }
+  await Promise.all([obrero(),obrero()]);
 }
 function renderConsumo(){
   const box=$("consCuerpo"), kpi=$("consKpi"); const hoy=hoyISO();
@@ -448,10 +482,9 @@ function renderConsumo(){
   const cmap=colorMap(deHoy.map(p=>p.owner));
   let segs=deHoy.map(p=>({k:canonM(p.owner),nombre:p.owner,v:+p.datos.total||0,color:cmap.get(p.owner)})).filter(g=>g.v>0);
   if(segs.length>SLOTS){ const resto=segs.slice(SLOTS-1); segs=segs.slice(0,SLOTS-1).concat([{k:"otros",nombre:"otros ("+resto.length+")",v:resto.reduce((s,g)=>s+g.v,0),color:"var(--s0)"}]); }
-  const ley=segs.map(g=>'<span data-k="'+esc(g.k)+'"><i class="sw" style="background:'+g.color+'"></i><b>'+esc(g.nombre)+'</b> '+(tot>0?Math.round(100*g.v/tot):0)+' %</span>').join("");
   // Ranking: los que más gastan, con barra proporcional al primero; cada fila se despliega con sus misiones del día.
   const top=deHoy.slice(0,6), max=+top[0].datos.total||1;
-  RK={top,cmap,tot,max,dia}; const rk=filasRanking();
+  RK={top,deHoy,cmap,tot,max,dia}; const rk=filasRanking();
   const filas=deHoy.map(p=>{const d=p.datos, f=focoAhorro(d), modelos=d.modelos&&typeof d.modelos==="object"?Object.keys(d.modelos).join(", "):"";
     return '<tr><td><span class="ag">'+esc(p.owner)+'</span><br><span class="rt">'+esc(d.runtime||"")+(modelos?' · '+esc(modelos):'')+'</span></td>'+
       '<td class="num">'+fmtTok(d.total)+'</td><td class="num">'+pcCache(d)+' %</td><td class="num">'+fmtTok(d.salida)+'</td>'+
@@ -461,7 +494,7 @@ function renderConsumo(){
   const top7=(CONS.por_agente||[]).slice(0,6).map(a=>esc(a.owner)+" "+fmtTok(a.total_tokens)).join(" · ");
   box.innerHTML=
     '<div class="cuerpo">'+
-      '<div class="queso" id="queso">'+quesito(segs,tot)+'<div class="ley">'+ley+'</div></div>'+
+      '<div class="queso" id="queso">'+quesito(segs,tot)+'<div id="qlistas">'+listasQueso()+'</div></div>'+
       '<div class="lado">'+
         '<div class="col"><h3>Los que más gastan <b>'+deHoy.length+' agentes</b></h3><div class="rk" id="rk">'+rk+'</div></div>'+
         '<div class="col"><h3>Disponibles · laten y no gastan <b>'+sinParte.length+'</b></h3><div class="disp">'+chipsDisp+'</div>'+

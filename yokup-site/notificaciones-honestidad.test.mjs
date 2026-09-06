@@ -84,3 +84,12 @@ test("el panel de consumo despliega las misiones del día por agente, parpadea e
   assert.match(html, /sin captura de pantalla: información incompleta/);
   assert.match(html, /no se pudieron leer las misiones/, "un fallo del feed de misiones no se presenta como «sin misiones»");
 });
+
+test("bajo el quesito, agentes y consejeros van separados, una fila por cabeza y con la hora de su primera señal de hoy", () => {
+  assert.match(html, /function inicioHoy\(owner,machine,dia\)/);
+  assert.match(html, /const esConsejero=/);
+  assert.match(html, /listaQueso\("Agentes"/);
+  assert.match(html, /listaQueso\("Consejeros · GrokBot"/);
+  assert.match(html, /primera señal de hoy: /);
+  assert.match(html, /ninguna señal de hoy con hora/, "sin señal no se inventa una hora");
+});
