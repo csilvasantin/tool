@@ -134,3 +134,11 @@ test("el detalle de misiones es una sub-cuadrícula ordenable con columnas redim
   assert.match(html, /última misión · /);
   assert.match(html, /sin evidencia adjunta/, "sin imagen no se inventa evidencia");
 });
+
+test("la zona de estadísticas se cierra con una cruz (abierta por defecto) y la cuadrícula lista solo a quien intervino en la franja, diciendo cuántos quedan fuera", () => {
+  assert.match(html, /class="qx" data-stats="0"/);
+  assert.match(html, /class="qabre" data-stats="1"/);
+  assert.match(html, /let PERIODO=1, STATS=true;/, "las estadísticas arrancan abiertas y no se recuerdan cerradas");
+  assert.match(html, /const activos=ms\?rows\.filter\(r=>r\.n>0\):rows/);
+  assert.match(html, /con consumo y sin misión en la franja \(no se listan\)/, "los que se ocultan se cuentan, no desaparecen en silencio");
+});

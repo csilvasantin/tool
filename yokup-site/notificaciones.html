@@ -81,7 +81,14 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .cons .divisor:hover,.cons .divisor.on{background:linear-gradient(to right,transparent 1px,var(--brand) 1px,var(--brand) 5px,transparent 5px)}
 .cons .divisor::after{content:"⋮";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--dim);font-size:12px;background:var(--card);padding:6px 0;line-height:1}
 .cons .cuerpo.arrastre{cursor:col-resize}.cons .cuerpo.arrastre *{user-select:none}
-.cons .queso{padding:14px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;min-width:0;overflow:hidden}
+.cons .queso{padding:14px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;min-width:0;overflow:hidden;position:relative}
+/* Cruz de cierre de la zona de estadísticas: siempre abierta al cargar; cerrada, la cuadrícula ocupa todo el ancho. */
+.cons .qx{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--dim);font:700 12px/1 var(--mono);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+.cons .qx:hover{color:var(--alarm);border-color:rgba(255,95,86,.45)}
+.cons .cuerpo.sinq{grid-template-columns:minmax(0,1fr)!important}
+.cons .cuerpo.sinq .queso,.cons .cuerpo.sinq .divisor{display:none}
+.cons .qabre{font:600 10px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--brand);background:transparent;border:1px solid var(--line2);border-radius:7px;padding:5px 8px;cursor:pointer}
+.cons .qabre:hover{background:rgba(120,243,255,.1)}
 .cons .queso svg{width:100%;max-width:210px;height:auto;display:block;overflow:visible}
 .cons .queso .arc{cursor:pointer;transition:opacity .15s}
 .cons .queso.hov .arc:not(.on){opacity:.32}
@@ -543,7 +550,7 @@ function listasQueso(){
 //    del historial del Highscore (la misma fuente que puntúa); los tokens, del parte del día para
 //    hora/día y del acumulado de /fleet/consumo para el resto (el servidor guarda 90 días como máximo).
 const PER=[{k:"hora",l:"de la última hora",cur:"hora"},{k:"dia",l:"del día",cur:"día"},{k:"semana",l:"de la semana",cur:"semana",dias:7},{k:"mes",l:"del mes",cur:"mes",dias:30},{k:"siempre",l:"de siempre",cur:"siempre",dias:365}];
-let PERIODO=1; const HIST=new Map(), HIST_PEND=new Map(), CONSP=new Map(), CONSP_PEND=new Map(); const HIST_TTL=2*60*1000;
+let PERIODO=1, STATS=true; const HIST=new Map(), HIST_PEND=new Map(), CONSP=new Map(), CONSP_PEND=new Map(); const HIST_TTL=2*60*1000;
 const isoDia=d=>d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());
 function rangoDe(per,dia){ const h=new Date(dia+"T00:00:00"); if(per.k==="siempre") return {desde:"2025-01-01",hasta:dia}; if(!per.dias) return {desde:dia,hasta:dia}; const d=new Date(h.getTime()-(per.dias-1)*86400000); return {desde:isoDia(d),hasta:dia}; }
 async function cargaHist(per,dia){
@@ -611,8 +618,11 @@ function filasPeriodo(){
   const keys=new Set([...porAg.keys(),...tok.keys()]);
   const rows=[...keys].map(k=>{ const g=porAg.get(k), t=tok.get(k); const owner=t?t.owner:g.nombre, machine=(t&&t.machine)||(g&&g.machine)||"";
     return {k,owner,machine,runtime:t?t.runtime:"",n:g?g.n:0,res:g?g.res:0,pts:g?g.pts:0,list:g?g.list:[],tok:t||null}; });
-  const tot=rows.reduce((s,r)=>s+(r.tok?r.tok.total:0),0);
-  return {per,h,ms,rows:ordena(rows),tot,consErr,consDias,cargandoHist:!h,cargandoCons:!(per.k==="hora"||per.k==="dia")&&!CONSP.get(per.dias)};
+  // Solo quien ha ESTADO ACTIVO en el periodo (con misiones en esa franja). Quien tiene consumo pero
+  // ninguna misión en la franja no se lista; se dice cuántos son para que no desaparezcan en silencio.
+  const activos=ms?rows.filter(r=>r.n>0):rows, ocultos=rows.length-activos.length;
+  const tot=activos.reduce((s,r)=>s+(r.tok?r.tok.total:0),0);
+  return {per,h,ms,rows:ordena(activos),ocultos,tot,consErr,consDias,cargandoHist:!h,cargandoCons:!(per.k==="hora"||per.k==="dia")&&!CONSP.get(per.dias)};
 }
 function filaMisionesPeriodo(r){
   if(!r.list.length) return '<div class="vacio">sin misiones '+esc(PER[PERIODO].l)+'</div>';
@@ -626,8 +636,8 @@ function filaMisionesPeriodo(r){
 function cabeceraPeriodo(f){
   const per=f.per, nAg=f.rows.filter(r=>r.n>0).length, nMs=f.ms?f.ms.length:null;
   const txt=f.cargandoHist?'Cargando las misiones '+esc(per.l)+'…':(f.h&&f.h.err)?'No se pudieron leer las misiones '+esc(per.l)+' ('+esc(f.h.err)+').':'Los <b>'+nAg+'</b> agentes que han intervenido en las <b>'+nMs+'</b> misiones <em>'+esc(per.l)+'</em>';
-  const rango=f.h&&f.h.rango?(per.k==="hora"?'última hora · ':'')+f.h.rango.desde+(f.h.rango.hasta!==f.h.rango.desde?' → '+f.h.rango.hasta:'')+' · fuente Highscore'+((per.dias&&per.dias>1)?' · tokens '+f.consDias+' días':''):'';
-  return '<div class="per"><div class="txt">'+txt+'</div>'+
+  const rango=f.h&&f.h.rango?(per.k==="hora"?'última hora · ':'')+f.h.rango.desde+(f.h.rango.hasta!==f.h.rango.desde?' → '+f.h.rango.hasta:'')+' · fuente Highscore'+((per.dias&&per.dias>1)?' · tokens '+f.consDias+' días':'')+(f.ocultos?' · '+f.ocultos+' con consumo y sin misión en la franja (no se listan)':''):'';
+  return '<div class="per">'+(STATS?'':'<button type="button" class="qabre" data-stats="1" title="volver a mostrar el gráfico y las listas">📊 estadísticas</button>')+'<div class="txt">'+txt+'</div>'+
     '<div class="nav"><button type="button" data-per="-1" title="bajar a un periodo más corto" aria-label="periodo anterior"'+(PERIODO<=0?' disabled':'')+'>◀</button><span class="cur">'+esc(per.cur)+'</span><button type="button" data-per="1" title="subir a un periodo más largo" aria-label="periodo siguiente"'+(PERIODO>=PER.length-1?' disabled':'')+'>▶</button></div>'+
     (rango?'<div class="rango">'+esc(rango)+'</div>':'')+'</div>';
 }
@@ -721,8 +731,8 @@ function renderConsumo(){
       '<td class="num" title="hora del parte">'+hhmm(+p.last_at||0)+'</td></tr>';}).join("");
   const top7=(CONS.por_agente||[]).slice(0,6).map(a=>esc(a.owner)+" "+fmtTok(a.total_tokens)).join(" · ");
   box.innerHTML=
-    '<div class="cuerpo">'+
-      '<div class="queso" id="queso">'+quesito(segs,tot)+'<div id="qlistas">'+listasQueso()+'</div></div>'+
+    '<div class="cuerpo'+(STATS?'':' sinq')+'">'+
+      '<div class="queso" id="queso"><button type="button" class="qx" data-stats="0" title="cerrar las estadísticas para ganar espacio en la cuadrícula" aria-label="cerrar estadísticas">✕</button>'+quesito(segs,tot)+'<div id="qlistas">'+listasQueso()+'</div></div>'+
       '<div class="divisor" id="divisor" role="separator" aria-orientation="vertical" aria-label="ancho del gráfico (arrastra; doble clic para restaurar)" tabindex="0"></div>'+
       '<div class="lado">'+
         '<div class="col"><div class="rk" id="rk">'+rk+'</div></div>'+
@@ -735,6 +745,7 @@ function renderConsumo(){
       (top7?'<div class="nota"><b>'+(CONS.dias||7)+' días</b> · '+top7+'</div>':'')+
     '</details>';
   precargaMisiones(); cargaPeriodo(); montaDivisor();
+  box.addEventListener("click",e=>{ const b=e.target.closest("[data-stats]"); if(!b) return; STATS=b.dataset.stats==="1"; box.querySelector(".cuerpo").classList.toggle("sinq",!STATS); pintaRanking(); });
   // Al pasar por un segmento o su leyenda se resalta ese agente y el resto se atenúa.
   const q=$("queso");
   q.addEventListener("mouseover",e=>{const t=e.target.closest("[data-k]");if(!t)return;q.classList.add("hov");q.querySelectorAll(".arc").forEach(x=>x.classList.toggle("on",x.dataset.k===t.dataset.k));});
