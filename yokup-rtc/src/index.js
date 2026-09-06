@@ -11171,6 +11171,32 @@ var worker_app = {
       const safe=work.transcript.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       return new Response('<!doctype html><html lang="es"><meta charset="utf-8"><title>Informe de investigación horaria</title><style>body{max-width:900px;margin:36px auto;padding:24px;font:17px system-ui;color:#15232e;background:#f7fafc}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:15px/1.6 ui-monospace}h1{font-size:24px}</style><h1>Respuesta final del ejecutor · Yokup</h1><pre>'+safe+'</pre></html>',{headers:{'content-type':'text/html; charset=utf-8','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'",'cache-control':'no-store','x-robots-tag':'noindex'}});
     }
+    // INTERRUPTOR DE ESCRITURA AUTOMÁTICA A TELEGRAM (FLT-100009 · encargo #2717, 6-sep-2026).
+    // El flag vive en el worker admira-telegram (D1 · ajustes.telegram_auto_publish), que es
+    // el único que tiene el token del bot. Aquí sólo se LEE (público) y, con sesión del
+    // perímetro, se CAMBIA reenviando al binding con la clave del panel: el navegador nunca
+    // ve esa clave. UI: yokup.com/notificaciones (Consumo de tokens).
+    if (url.pathname === '/fleet/telegram-auto') {
+      if (!env.TELEGRAM) return json({ ok:false, error:'sin binding TELEGRAM' }, 503);
+      try {
+        if (req.method === 'GET') {
+          const r = await env.TELEGRAM.fetch(new Request('https://telegram/api/telegram-auto', { headers:{ accept:'application/json' } }));
+          return json(await r.json().catch(() => ({ ok:false, error:'respuesta ilegible' })), r.status);
+        }
+        if (req.method === 'POST') {
+          const session = await requireAuth(env, req);
+          if (!session) return json({ ok:false, error:'unauthorized' }, 401);
+          const b = await req.json().catch(() => ({}));
+          const r = await env.TELEGRAM.fetch(new Request('https://telegram/api/telegram-auto', {
+            method:'POST',
+            headers:{ 'content-type':'application/json', 'authorization':'Bearer ' + (env.ADMIRA_TELEGRAM_PANEL_KEY || '') },
+            body: JSON.stringify({ auto_publish: b.auto_publish === true || b.auto_publish === 'on', by: String(session.email || 'sesion').slice(0, 80) }),
+          }));
+          return json(await r.json().catch(() => ({ ok:false, error:'respuesta ilegible' })), r.status);
+        }
+        return json({ ok:false, error:'method_not_allowed' }, 405);
+      } catch (error) { return json({ ok:false, error:String(error && error.message || error) }, 502); }
+    }
     if(url.pathname==='/fleet/automation-modules') {
       const session=await requireAuth(env,req);if(!session)return json({ok:false,error:'unauthorized'},401);
       await ensureSchema(env);await ensureHourlyModeSchema(env);
