@@ -11190,7 +11190,12 @@ var worker_app = {
           const r = await env.TELEGRAM.fetch(new Request('https://telegram/api/telegram-auto', {
             method:'POST',
             headers:{ 'content-type':'application/json', 'authorization':'Bearer ' + (env.ADMIRA_TELEGRAM_PANEL_KEY || '') },
-            body: JSON.stringify({ auto_publish: b.auto_publish === true || b.auto_publish === 'on', by: String(session.email || 'sesion').slice(0, 80) }),
+            // Dos interruptores (encargo #2728): Ágora→Telegram (auto_publish) y Flota→Telegram (fleet_publish). Se reenvía sólo lo que venga.
+            body: JSON.stringify({
+              ...(b.auto_publish !== undefined ? { auto_publish: b.auto_publish === true || b.auto_publish === 'on' } : {}),
+              ...(b.fleet_publish !== undefined ? { fleet_publish: b.fleet_publish === true || b.fleet_publish === 'on' } : {}),
+              by: String(session.email || 'sesion').slice(0, 80),
+            }),
           }));
           return json(await r.json().catch(() => ({ ok:false, error:'respuesta ilegible' })), r.status);
         }
