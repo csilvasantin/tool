@@ -462,7 +462,21 @@ function presenciaDe(owner,machine){
     if(!mejor||(e.viva&&!mejor.viva)||(e.viva===mejor.viva&&e.updated>mejor.updated)) mejor=e; }
   return mejor;
 }
-function ocupado(owner,machine){ const p=presenciaDe(owner,machine); return !!(p&&p.tarea&&(Date.now()-p.updated)<OCUPADO_MS)?p:null; }
+// OCUPADO con tres fuentes, porque una sola miente: Codex (Oráculo) no ejecuta now.sh y su presencia va
+// sin tarea aunque esté trabajando (Carlos, 6-sep-2026). 1) presencia con tarea reciente; 2) trabajo en
+// curso según el Highscore (/highscore/active-work); 3) una misión suya tocada en los últimos 10 min.
+let ACTIVO=[];
+function ocupado(owner,machine){
+  const k=canonM(owner), lim=Date.now()-OCUPADO_MS;
+  const p=presenciaDe(owner,machine); if(p&&p.tarea&&p.updated>=lim) return {tarea:p.tarea,updated:p.updated,src:"presencia"};
+  let mejor=null;
+  for(const w of ACTIVO){ if(!w||canonM(w.agent||"")!==k) continue; const t=Math.max(+w.work_progress_at||0,+w.active_at||0,+w.activity_at||0,+w.work_started_at||0); if(t<lim||w.ended_at) continue; if(!mejor||t>mejor.updated) mejor={tarea:(w.reference?w.reference+" · ":"")+(w.title||w.kind||"trabajo en curso"),updated:t,src:"Highscore"+(/unverified/.test(String(w.activity_reason||w.state||""))?" · sesión sin verificar":"")}; }
+  if(mejor) return mejor;
+  const h=HIST.get("dia"); if(h&&h.list) for(const m of h.list){ if(canonM(m.agent||"")!==k) continue; const t=Math.max(+m.at||0,+m.started_at||0,+m.finished_at||0); if(t>=lim&&(!mejor||t>mejor.updated)) mejor={tarea:(m.id||"")+" · "+(m.subject||""),updated:t,src:"misión tocada "+hhmm(t)}; }
+  const c=MIS.get(k); if(c&&c.list) for(const m of c.list){ const t=+m.updated_at||0; if(t>=lim&&(!mejor||t>mejor.updated)) mejor={tarea:(m.id||"")+" · "+(m.subject||""),updated:t,src:"misión actualizada "+hhmm(t)}; }
+  return mejor;
+}
+async function loadActivo(){ try{ const r=await fetch(WORKER+"/highscore/active-work",{cache:"no-store"}); const d=await r.json(); if(d&&Array.isArray(d.participants)) ACTIVO=d.participants; }catch(e){} }
 async function cargaMisiones(owner,machine,dia){
   const k=canonM(owner), c=MIS.get(k); if(c&&Date.now()-c.t<MIS_TTL) return c;
   if(MIS_PEND.has(k)) return MIS_PEND.get(k);   // una petición en vuelo por agente: pulsar no la duplica
@@ -646,11 +660,11 @@ function hojaHTML(f){
   const cmap=RK.cmap, dia=RK.dia;
   const filas=f.rows.map((r,i)=>{ const t=r.tok, oc=ocupado(r.owner,r.machine), ab=ABIERTOS.has(r.k), mc=MIS.has(r.k), ini=inicioHoy(r.owner,r.machine,dia), cj=esConsejero({owner:r.owner,machine:r.machine});
     const pc=t&&t.entrada+t.cache>0?Math.round(100*t.cache/(t.entrada+t.cache)):null;
-    return '<tr class="f'+(ab?' abierto':'')+'" role="button" tabindex="0" aria-expanded="'+ab+'" data-owner="'+esc(r.owner)+'" data-machine="'+esc(r.machine)+'" data-k="'+esc(r.k)+'" title="'+esc(oc?'ocupado: '+oc.tarea:(t&&t.foco||""))+'">'+
+    return '<tr class="f'+(ab?' abierto':'')+'" role="button" tabindex="0" aria-expanded="'+ab+'" data-owner="'+esc(r.owner)+'" data-machine="'+esc(r.machine)+'" data-k="'+esc(r.k)+'" title="'+esc(oc?'ocupado ('+oc.src+'): '+oc.tarea:(t&&t.foco||""))+'">'+
       '<td>'+(i+1)+'</td>'+
       '<td class="ag"><span class="fl">▶</span><i class="sw'+(oc?' ocupado':'')+'" style="background:'+(cmap.get(r.owner)||"var(--s0)")+'"></i>'+esc(r.owner)+(t&&t.foco?' <span title="'+esc(t.foco)+'">🔥</span>':'')+'</td>'+
       '<td class="tipo'+(cj?' cj':'')+'">'+(cj?'consejero':'agente')+'</td>'+
-      '<td class="est'+(oc?' oc':'')+'">'+(oc?'● ocupado':'○ libre')+'</td>'+
+      '<td class="est'+(oc?' oc':'')+'" title="'+esc(oc?oc.src+': '+oc.tarea:'sin tarea en presencia, sin trabajo en curso en el Highscore y sin misión tocada en 10 min')+'">'+(oc?'● ocupado'+(/sin verificar/.test(oc.src)?' ?':''):'○ libre')+'</td>'+
       '<td>'+capturaCelda(r.owner,r.machine)+'</td>'+
       '<td class="num">'+r.n+'</td><td class="num">'+r.res+'</td><td class="num">'+r.pts+'</td>'+
       (t?'<td class="num">'+fmtTok(t.total)+'</td><td class="num pc">'+(f.tot>0?Math.round(100*t.total/f.tot):0)+' %</td><td class="num pc">'+(pc==null?'—':pc+' %')+'</td><td class="num">'+fmtTok(t.salida)+'</td><td class="num'+(t.dups?' foco':'')+'">'+(t.desp==null?'—':t.desp+(t.dups?' ·'+t.dups+'dup':''))+'</td>'
@@ -788,6 +802,7 @@ async function loadConsumo(){
     CONS=d; CONS_ERR="";
   }catch(e){ CONS_ERR=String(e&&e.message||e); }
   try{ const r=await fetch(PRESENCIA,{cache:"no-store"}); const d=await r.json(); if(d&&Array.isArray(d.presence)) PRES=d.presence; }catch(e){}
+  await loadActivo();
   renderConsumo();
 }
 

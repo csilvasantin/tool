@@ -142,3 +142,11 @@ test("la zona de estadísticas se cierra con una cruz (abierta por defecto) y la
   assert.match(html, /const activos=ms\?rows\.filter\(r=>r\.n>0\):rows/);
   assert.match(html, /con consumo y sin misión en la franja \(no se listan\)/, "los que se ocultan se cuentan, no desaparecen en silencio");
 });
+
+test("«ocupado» no depende solo de la tarea de presencia: cuenta el trabajo en curso del Highscore y las misiones tocadas en 10 min, y dice la fuente", () => {
+  assert.match(html, /\/highscore\/active-work/);
+  assert.match(html, /src:"presencia"/);
+  assert.match(html, /src:"Highscore"/);
+  assert.match(html, /misión tocada /);
+  assert.match(html, /sesión sin verificar/, "un trabajo sin sesión verificada se marca, no se oculta");
+});
