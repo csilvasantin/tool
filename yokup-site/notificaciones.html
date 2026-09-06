@@ -117,6 +117,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 @media(prefers-reduced-motion:reduce){.cons .sw.ocupado{animation:none;box-shadow:0 0 0 2px var(--accent)}}
 .cons .cap{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--good);white-space:nowrap}
 .cons .cap.no{color:var(--warn)}
+.cons .cap.nd{color:var(--dim)}
 .cons .mis{display:none;flex-direction:column;gap:5px;padding:4px 0 8px 18px;margin:-2px 0 4px 4px;border-left:2px solid var(--line)}
 .cons .mis.on{display:flex}
 .cons .m{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;gap:8px;align-items:center;font-size:12px;min-width:0}
@@ -418,7 +419,7 @@ async function cargaMisiones(owner,machine,dia){
 async function _cargaMisiones(k,owner,machine,dia){
   const out={t:Date.now(),list:null,err:""};
   try{
-    const r=await fetch(WORKER+"/fleet/missions?agent="+encodeURIComponent(owner)+"&limit=40",{cache:"no-store"});
+    const r=await fetch(WORKER+"/fleet/missions?agent="+encodeURIComponent(owner)+"&limit=120",{cache:"no-store"});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const d=await r.json(); const ms=Array.isArray(d&&d.missions)?d.missions:[];
     const ini=new Date(dia+"T00:00:00").getTime(), cm=canonM(machine);
@@ -427,10 +428,22 @@ async function _cargaMisiones(k,owner,machine,dia){
   }catch(e){ out.err=String(e&&e.message||e); out.t=Date.now()-MIS_TTL+60000; }
   MIS.set(k,out); return out;
 }
-function capturaOK(owner,machine){
+// La evidencia se entrega AL CERRAR la misión (mission-evidence.sh final / consumo del MCP): una misión
+// abierta o en curso no tiene captura todavía y no es un fallo. Se mide sobre las CERRADAS de hoy.
+const esCerrada=st=>/resolved|done|closed|cerrad|complet/i.test(String(st||""));
+function capturaDe(owner,machine){
+  const c=MIS.get(canonM(owner)); if(!c||!c.list) return null;
+  const cerradas=c.list.filter(m=>esCerrada(m.status)), con=cerradas.filter(m=>m.proof_image).length;
   const cm=canonM(machine), hace7=Date.now()-7*86400000;
-  if(DATOS.some(n=>n&&n.image&&canonM(n.machine)===cm&&(n.last_at_ms||_ms(n.last_at))>=hace7)) return true;
-  const c=MIS.get(canonM(owner)); return !!(c&&c.list&&c.list.some(m=>m.proof_image));
+  const vig=DATOS.some(n=>n&&n.image&&canonM(n.machine)===cm&&(n.last_at_ms||_ms(n.last_at))>=hace7);
+  return {cerradas:cerradas.length,con,sin:cerradas.length-con,vig};
+}
+function capturaOK(owner,machine){ const c=capturaDe(owner,machine); return !!(c&&(c.vig||(c.cerradas>0&&c.sin===0))); }
+function capturaCelda(owner,machine){
+  const c=capturaDe(owner,machine);
+  if(!c) return '<span class="cap nd" title="comprobando capturas…">…</span>';
+  if(!c.cerradas) return '<span class="cap nd" title="sin misiones cerradas hoy: nada que evidenciar todavía'+(c.vig?' · el vigilante sí entrega capturas':'')+'">📷 '+(c.vig?'vigilante':'— sin cerradas')+'</span>';
+  return '<span class="cap'+(c.sin?' no':'')+'" title="'+c.con+' de '+c.cerradas+' misiones cerradas hoy con captura'+(c.sin?' · '+c.sin+' sin captura: información incompleta':'')+'">📷 '+c.con+'/'+c.cerradas+(c.sin?' sin captura':'')+'</span>';
 }
 function filaMisiones(owner){
   const c=MIS.get(canonM(owner));
@@ -485,7 +498,6 @@ async function cargaConsP(dias){
   const pr=(async()=>{ const out={t:Date.now(),list:null,err:"",dias}; try{ const r=await fetch(WORKER+"/fleet/consumo?dias="+dias,{cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status); const d=await r.json(); if(!d||!Array.isArray(d.por_agente)) throw new Error("respuesta incompleta"); out.list=d.por_agente; out.dias=+d.dias||dias; }catch(e){ out.err=String(e&&e.message||e); out.t=Date.now()-MIS_TTL+30000; } CONSP.set(dias,out); return out; })().finally(()=>CONSP_PEND.delete(dias));
   CONSP_PEND.set(dias,pr); return pr;
 }
-const esCerrada=st=>/resolved|done|closed|cerrad|complet/i.test(String(st||""));
 function filasPeriodo(){
   // Une agentes con misiones en el periodo (Highscore) y agentes con tokens en el periodo (consumo).
   if(!RK) return null; const per=PER[PERIODO], h=HIST.get(per.k==="hora"?"dia":per.k);
@@ -522,14 +534,14 @@ function cabeceraPeriodo(f){
 function hojaHTML(f){
   if(f.cargandoHist&&!f.rows.length) return '<div class="hoja"><div class="estado">cargando…</div></div>';
   const cmap=RK.cmap, dia=RK.dia;
-  const filas=f.rows.map((r,i)=>{ const t=r.tok, oc=ocupado(r.owner,r.machine), ab=ABIERTOS.has(r.k), mc=MIS.has(r.k), cap=capturaOK(r.owner,r.machine), ini=inicioHoy(r.owner,r.machine,dia), cj=esConsejero({owner:r.owner,machine:r.machine});
+  const filas=f.rows.map((r,i)=>{ const t=r.tok, oc=ocupado(r.owner,r.machine), ab=ABIERTOS.has(r.k), mc=MIS.has(r.k), ini=inicioHoy(r.owner,r.machine,dia), cj=esConsejero({owner:r.owner,machine:r.machine});
     const pc=t&&t.entrada+t.cache>0?Math.round(100*t.cache/(t.entrada+t.cache)):null;
     return '<tr class="f'+(ab?' abierto':'')+'" role="button" tabindex="0" aria-expanded="'+ab+'" data-owner="'+esc(r.owner)+'" data-machine="'+esc(r.machine)+'" data-k="'+esc(r.k)+'" title="'+esc(oc?'ocupado: '+oc.tarea:(t&&t.foco||""))+'">'+
       '<td>'+(i+1)+'</td>'+
       '<td class="ag"><span class="fl">▶</span><i class="sw'+(oc?' ocupado':'')+'" style="background:'+(cmap.get(r.owner)||"var(--s0)")+'"></i>'+esc(r.owner)+(t&&t.foco?' <span title="'+esc(t.foco)+'">🔥</span>':'')+'</td>'+
       '<td class="tipo'+(cj?' cj':'')+'">'+(cj?'consejero':'agente')+'</td>'+
       '<td class="est'+(oc?' oc':'')+'">'+(oc?'● ocupado':'○ libre')+'</td>'+
-      '<td><span class="cap'+(cap?'':' no')+'" title="'+(mc?(cap?'esta máquina entrega capturas de pantalla':'sin captura de pantalla: información incompleta'):'comprobando capturas…')+'">'+(mc?(cap?'📷':'📷 sin captura'):'…')+'</span></td>'+
+      '<td>'+capturaCelda(r.owner,r.machine)+'</td>'+
       '<td class="num">'+r.n+'</td><td class="num">'+r.res+'</td><td class="num">'+r.pts+'</td>'+
       (t?'<td class="num">'+fmtTok(t.total)+'</td><td class="num pc">'+(f.tot>0?Math.round(100*t.total/f.tot):0)+' %</td><td class="num pc">'+(pc==null?'—':pc+' %')+'</td><td class="num">'+fmtTok(t.salida)+'</td><td class="num'+(t.dups?' foco':'')+'">'+(t.desp==null?'—':t.desp+(t.dups?' ·'+t.dups+'dup':''))+'</td>'
         :'<td class="num nd" colspan="5" title="sin parte de consumo en este periodo">sin parte de consumo</td>')+
@@ -544,14 +556,15 @@ function filasRanking(){ const f=filasPeriodo(); if(!f) return ""; return cabece
 function pintaRanking(){ const el=$("rk"); if(el&&RK) el.innerHTML=filasRanking(); const ql=$("qlistas"); if(ql&&RK) ql.innerHTML=listasQueso(); }
 async function cargaPeriodo(){
   if(!RK) return; const per=PER[PERIODO];
-  const tareas=[cargaHist(per,RK.dia).then(pintaRanking)]; if(per.dias&&per.dias>1) tareas.push(cargaConsP(per.dias).then(pintaRanking));
+  const tareas=[cargaHist(per,RK.dia).then(()=>{ pintaRanking(); if(PERIODO<=1) precargaMisiones(); })]; if(per.dias&&per.dias>1) tareas.push(cargaConsP(per.dias).then(pintaRanking));
   await Promise.all(tareas);
 }
 async function precargaMisiones(){
   // Todos los que han declarado hoy (no solo el top del ranking): la hora de inicio y la bandera de
   // captura las necesita cada fila. Se repinta según llega CADA respuesta, porque alguna tarda 20 s.
   // De dos en dos y por orden del ranking: siete a la vez se atascan en el worker (D1) y tardan más que en fila.
-  if(!RK) return; const cola=RK.deHoy.slice();
+  if(!RK) return; const cola=RK.deHoy.map(p=>({owner:p.owner,machine:p.machine})), vistos=new Set(cola.map(p=>canonM(p.owner)));
+  const f=filasPeriodo(); if(f) for(const r of f.rows){ if(!vistos.has(r.k)){ vistos.add(r.k); cola.push({owner:r.owner,machine:r.machine}); } }
   async function obrero(){ while(cola.length){ const p=cola.shift(), k=canonM(p.owner), c=MIS.get(k); if(c&&Date.now()-c.t<MIS_TTL) continue; await cargaMisiones(p.owner,p.machine,RK.dia); pintaRanking(); } }
   await Promise.all([obrero(),obrero()]);
 }

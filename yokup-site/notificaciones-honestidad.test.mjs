@@ -81,7 +81,9 @@ test("el panel de consumo despliega las misiones del día por agente, parpadea e
   assert.match(html, /@keyframes yk-blink/);
   assert.match(html, /prefers-reduced-motion:reduce/);
   assert.match(html, /aria-expanded=/);
-  assert.match(html, /sin captura de pantalla: información incompleta/);
+  assert.match(html, /function capturaDe\(owner,machine\)/);
+  assert.match(html, /misiones cerradas hoy con captura/, "la captura se mide sobre las cerradas: una misión en curso aún no la tiene");
+  assert.match(html, /sin captura: información incompleta/);
   assert.match(html, /no se pudieron leer las misiones/, "un fallo del feed de misiones no se presenta como «sin misiones»");
 });
 
