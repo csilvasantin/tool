@@ -130,3 +130,27 @@ test('publicar NO exige perímetro: el vigilante no tiene navegador', () => {
   assert.ok(SRC.indexOf('url.pathname === "/fleet/notificacion"') < gate,
     'la ruta se resuelve antes del guardia de sesión, como el resto de /fleet/*');
 });
+
+// FLT-2448 — MANDAMIENTO 15 «Cuenta tus tokens» (Carlos, 6-sep-2026): los agentes y
+// consejeros declaran su consumo en Notificaciones. Un parte por agente, máquina y día;
+// las cifras van en `datos`; el parte de ayer se cierra cuando llega el de hoy.
+test('consumo: la huella lleva el kind y el día, y las cifras van en datos', () => {
+  const b = SRC.slice(SRC.indexOf('url.pathname === "/fleet/notificacion" && req.method === "POST"'), SRC.indexOf('url.pathname === "/fleet/notificaciones"'));
+  assert.match(b, /const esConsumo = kind === "consumo"/);
+  assert.match(b, /\+ \(esConsumo \? "\|consumo\|" \+ dia : ""\)/, 'huella máquina|dueño|consumo|día');
+  assert.match(b, /datos=COALESCE\(\?,datos\)/, 'un refresco actualiza las cifras');
+  assert.match(b, /UPDATE notifs SET status='cerrada'[^;]*kind='consumo'/, 'el parte anterior del mismo agente se cierra al llegar el nuevo');
+  assert.match(SRC, /ALTER TABLE notifs ADD COLUMN datos TEXT/, 'columna aditiva');
+});
+
+test('consumo: /fleet/consumo agrega por agente y máquina los últimos días', () => {
+  const b = ruta('/fleet/consumo');
+  assert.match(b, /kind='consumo' AND last_at>=\?/);
+  assert.match(b, /por_agente/);
+  assert.match(b, /total_tokens \+= Number\(d\.total \|\| d\.total_tokens \|\| 0\)/);
+});
+
+test('consumo no bloquea la máquina: un kind distinto de sistema es backlog', () => {
+  const r = contracts.notificationContract({ status: 'abierta', kind: 'consumo', last_at: Date.now() - 1000 }, Date.now());
+  assert.equal(r.activity_state, 'backlog'); assert.equal(r.blocks_machine, false);
+});

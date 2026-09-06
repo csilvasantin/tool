@@ -279,6 +279,10 @@ async function applySchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS notifs (id TEXT PRIMARY KEY, fingerprint TEXT, machine TEXT, owner TEXT, titulo TEXT, kind TEXT, image TEXT, status TEXT DEFAULT 'abierta', first_at INTEGER, last_at INTEGER, closed_at INTEGER, seen_count INTEGER DEFAULT 1)");
   await env.DB.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_notif_fp ON notifs(fingerprint) WHERE status='abierta'");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_notif_st ON notifs(status, last_at)");
+  // FLT-2448 (Carlos, 6-sep-2026, mandamiento 15 «Cuenta tus tokens»): las notificaciones de
+  // consumo llevan sus cifras en `datos` (JSON). Columna aditiva; en una D1 ya creada ALTER
+  // falla si existe y se ignora.
+  try { await env.DB.exec("ALTER TABLE notifs ADD COLUMN datos TEXT"); } catch (e) { /* ya existe */ }
   await env.DB.exec("CREATE TABLE IF NOT EXISTS prefs (key TEXT PRIMARY KEY, value TEXT, updated_at INTEGER)");
   // RELOJES DE DECISIÓN (Carlos, 2026-07-21): un equipo de silicio publica aquí
   // lo que tiene pendiente de decidir, con sus 3 opciones y una cuenta atrás.
@@ -9954,8 +9958,14 @@ var worker_app = {
       const image = String(b.image || "").trim().slice(0, 400) || null;
       // CIERRE: el vigilante avisa de que el diálogo ya no está. Se cierra la fila
       // viva de esa huella; no se borra, para que quede el rastro de cuánto duró.
-      const fp = machine.toLowerCase() + "|" + owner.toLowerCase();
       const now = Date.now();
+      // CONSUMO (mandamiento 15): una fila por agente, máquina y día; el parte del día se
+      // refresca (título y datos) y al llegar el del día siguiente se cierra el anterior.
+      const esConsumo = kind === "consumo";
+      const dia = esConsumo ? (String(b.dia || "").trim().slice(0, 10) || new Date(now).toISOString().slice(0, 10)) : "";
+      const fp = machine.toLowerCase() + "|" + owner.toLowerCase() + (esConsumo ? "|consumo|" + dia : "");
+      let datos = null;
+      if (esConsumo && b.datos && typeof b.datos === "object") { try { datos = JSON.stringify(b.datos).slice(0, 4000); } catch { datos = null; } }
       if (b.cerrada === true || b.resuelta === true) {
         const r = await env.DB.prepare(
           "UPDATE notifs SET status='cerrada', closed_at=?, last_at=? WHERE fingerprint=? AND status='abierta'"
@@ -9967,15 +9977,41 @@ var worker_app = {
         // Ya avisada: se refresca (y se queda la PRIMERA captura, que es la del
         // momento en que apareció; sustituirla sólo si antes no había ninguna).
         await env.DB.prepare(
-          "UPDATE notifs SET last_at=?, seen_count=seen_count+1, titulo=COALESCE(NULLIF(?,''),titulo), image=COALESCE(image,?) WHERE id=?"
-        ).bind(now, titulo, image, viva.id).run();
+          "UPDATE notifs SET last_at=?, seen_count=seen_count+1, titulo=COALESCE(NULLIF(?,''),titulo), image=COALESCE(image,?), datos=COALESCE(?,datos) WHERE id=?"
+        ).bind(now, titulo, image, datos, viva.id).run();
         return json({ ok: true, id: viva.id, nueva: false });
+      }
+      if (esConsumo) {
+        await env.DB.prepare(
+          "UPDATE notifs SET status='cerrada', closed_at=?, last_at=? WHERE status='abierta' AND kind='consumo' AND lower(machine)=? AND lower(owner)=?"
+        ).bind(now, now, machine.toLowerCase(), owner.toLowerCase()).run();
       }
       const id = "NOTIF-" + crypto.randomUUID().replace(/-/g, "").slice(0, 10);
       await env.DB.prepare(
-        "INSERT INTO notifs (id,fingerprint,machine,owner,titulo,kind,image,status,first_at,last_at,seen_count) VALUES (?,?,?,?,?,?,?,'abierta',?,?,1)"
-      ).bind(id, fp, machine, owner, titulo, kind, image, now, now).run();
+        "INSERT INTO notifs (id,fingerprint,machine,owner,titulo,kind,image,status,first_at,last_at,seen_count,datos) VALUES (?,?,?,?,?,?,?,'abierta',?,?,1,?)"
+      ).bind(id, fp, machine, owner, titulo, kind, image, now, now, datos).run();
       return json({ ok: true, id, nueva: true });
+    }
+    // Consumo de tokens por agente y máquina (mandamiento 15): los partes de los últimos N días,
+    // con sus cifras, y el total por agente. Lo alimentan consumo-tokens.py (cada Mac) y la
+    // herramienta consumo_reportar del MCP de admira.live (consejeros de GrokBot).
+    if (url.pathname === "/fleet/consumo" && req.method === "GET") {
+      await ensureSchema(env);
+      const dias = Math.min(90, Math.max(1, Number(url.searchParams.get("dias") || 7)));
+      const desde = Date.now() - dias * 86400000;
+      const { results } = await env.DB.prepare(
+        "SELECT id,machine,owner,titulo,status,first_at,last_at,datos,fingerprint FROM notifs WHERE kind='consumo' AND last_at>=? ORDER BY last_at DESC LIMIT 500"
+      ).bind(desde).all();
+      const partes = (results || []).map((r) => { let d = null; try { d = r.datos ? JSON.parse(r.datos) : null; } catch { d = null; }
+        return { id: r.id, machine: r.machine, owner: r.owner, dia: String(r.fingerprint || "").split("|").pop(), titulo: r.titulo, status: r.status, last_at: r.last_at, datos: d }; });
+      const porAgente = {};
+      for (const p of partes) {
+        const k = p.owner + " · " + p.machine; const a = porAgente[k] || (porAgente[k] = { owner: p.owner, machine: p.machine, dias: 0, total_tokens: 0, entrada: 0, cache: 0, salida: 0 });
+        const d = p.datos || {}; a.dias++; a.total_tokens += Number(d.total || d.total_tokens || 0); a.entrada += Number(d.entrada || d.input_tokens || 0); a.cache += Number(d.cache || d.cached_input_tokens || 0); a.salida += Number(d.salida || d.output_tokens || 0);
+      }
+      const response = json({ ok: true, dias, partes, por_agente: Object.values(porAgente).sort((x, y) => y.total_tokens - x.total_tokens) });
+      response.headers.set("cache-control", "no-store");
+      return response;
     }
     // Lectura para la sección /notificaciones. Abiertas primero, más recientes arriba.
     if (url.pathname === "/fleet/notificaciones" && req.method === "GET") {
