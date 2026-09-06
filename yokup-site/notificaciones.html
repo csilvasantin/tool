@@ -92,9 +92,9 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .cons .qr .desde.no{color:var(--dim)}
 .cons .ql .nadie{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.04em}
 .cons .sw{width:9px;height:9px;border-radius:2px;flex:none}
-.cons .lado{display:grid;grid-template-columns:1.25fr 1fr;gap:0}
+.cons .lado{display:flex;flex-direction:column;min-width:0}
 .cons .col{padding:14px 16px;min-width:0}
-.cons .col+.col{border-left:1px solid var(--line)}
+.cons .col+.col{border-top:1px solid var(--line)}
 .cons h3{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-bottom:10px;font-weight:600}
 .cons h3 b{color:var(--ink)}
 .cons .rk{display:flex;flex-direction:column;gap:7px}
@@ -130,6 +130,50 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .cons .m img{width:34px;height:21px;object-fit:cover;border-radius:3px;border:1px solid var(--line);display:block}
 .cons .m .noimg{width:34px;height:21px;border-radius:3px;border:1px dashed rgba(255,136,102,.5);font-size:9px;color:var(--warn);display:flex;align-items:center;justify-content:center}
 .cons .mis .vacio{color:var(--dim);font-family:var(--mono);font-size:10.5px;letter-spacing:.04em}
+/* ── CUADRÍCULA tipo hoja de cálculo: retícula fina, cabecera fija, números en mono a la derecha,
+      numeración de filas y una fila desplegable con las misiones del periodo bajo cada agente. */
+.cons .per{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.cons .per .txt{font-size:13.5px;color:var(--mut);line-height:1.4}
+.cons .per .txt b{color:var(--ink);font-weight:700;font-family:var(--mono)}
+.cons .per .txt em{color:var(--brand);font-style:normal;font-weight:700}
+.cons .per .nav{display:inline-flex;align-items:center;gap:4px;margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.cons .per .nav button{font:inherit;color:var(--brand);background:transparent;border:1px solid var(--line2);border-radius:7px;padding:4px 8px;cursor:pointer;line-height:1}
+.cons .per .nav button:hover:not(:disabled){background:rgba(120,243,255,.1)}
+.cons .per .nav button:disabled{opacity:.3;cursor:default}
+.cons .per .nav .cur{min-width:9ch;text-align:center;color:var(--ink);font-weight:700;letter-spacing:.1em}
+.cons .per .rango{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);width:100%}
+.cons .hoja{overflow:auto;max-height:420px;border:1px solid var(--line2);border-radius:8px;background:
+  linear-gradient(rgba(120,243,255,.04) 1px,transparent 1px) 0 0/100% 28px, #07121a}
+.cons .hoja table{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;font-size:12px;font-family:var(--mono)}
+.cons .hoja th,.cons .hoja td{border-right:1px solid rgba(120,243,255,.12);border-bottom:1px solid rgba(120,243,255,.12);padding:0 9px;height:28px;white-space:nowrap;vertical-align:middle}
+.cons .hoja th{position:sticky;top:0;z-index:2;background:#0b1b26;color:var(--dim);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;text-align:left;border-bottom:1px solid var(--line2)}
+.cons .hoja th.num,.cons .hoja td.num{text-align:right;font-variant-numeric:tabular-nums}
+.cons .hoja th:first-child,.cons .hoja td:first-child{position:sticky;left:0;z-index:1;background:#0b1b26;color:var(--dim);text-align:right;width:3ch;font-size:10px}
+.cons .hoja th:first-child{z-index:3}
+.cons .hoja tbody tr.f{cursor:pointer}
+.cons .hoja tbody tr.f:hover td{background:rgba(120,243,255,.05)}
+.cons .hoja tbody tr.f.abierto td{background:rgba(120,243,255,.09)}
+.cons .hoja td.ag{color:var(--ink);font-weight:700}
+.cons .hoja td.ag .fl{display:inline-block;color:var(--dim);font-size:9px;margin-right:5px;transition:transform .15s}
+.cons .hoja tr.abierto td.ag .fl{transform:rotate(90deg)}
+.cons .hoja td.ag .sw{display:inline-block;vertical-align:-1px;margin-right:6px}
+.cons .hoja td.tipo{color:var(--dim);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+.cons .hoja td.tipo.cj{color:var(--accent)}
+.cons .hoja td.est{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.cons .hoja td.est.oc{color:var(--accent)}
+.cons .hoja td.pc{color:var(--mut)}
+.cons .hoja td.foco{color:var(--warn)}
+.cons .hoja td.nd{color:var(--dim)}
+.cons .hoja td .cap{margin:0}
+.cons .hoja tr.det td{padding:0;height:auto;background:#050d14;position:static}
+/* La fila desplegada no ensancha la tabla: ancho 0 para el cálculo y min-width 100 % para pintarse. */
+.cons .hoja tr.det td>div{width:0;min-width:100%}
+.cons .hoja tr.det .mis{display:flex;margin:0;padding:6px 10px 8px 34px;border-left:0;font-family:var(--sans)}
+.cons .hoja tr.det .m{grid-template-columns:auto minmax(0,1fr) auto auto auto auto}
+.cons .hoja .m .pt{font-family:var(--mono);font-size:10px;color:var(--good);white-space:nowrap}
+.cons .hoja .m .hh{font-family:var(--mono);font-size:10px;color:var(--dim);white-space:nowrap}
+.cons .hoja .estado{padding:10px 12px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--dim)}
+.cons .hoja .estado.err{color:var(--warn)}
 .cons .disp{display:flex;flex-wrap:wrap;gap:6px}
 .cons .chip{border:1px solid rgba(136,255,170,.35);color:var(--good);border-radius:999px;padding:4px 9px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;display:inline-flex;align-items:center;gap:6px}
 .cons .chip small{color:var(--dim);font-size:9px;letter-spacing:.06em;text-transform:uppercase}
@@ -153,7 +197,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .cons .nota{padding:10px 16px 12px;color:var(--mut);font-size:12.5px;line-height:1.5}
 .cons .nota b{color:var(--ink);font-weight:600}
 @media(max-width:900px){ .cons .cuerpo{grid-template-columns:1fr} .cons .queso{border-right:0;border-bottom:1px solid var(--line)} }
-@media(max-width:560px){ .cons .lado{grid-template-columns:1fr} .cons .col+.col{border-left:0;border-top:1px solid var(--line)} .cons .r .rt{display:none} }
+@media(max-width:560px){ .cons .r .rt{display:none} .cons .per .nav{margin-left:0} }
 #lb{position:fixed;inset:0;background:rgba(2,8,13,.94);display:none;align-items:center;justify-content:center;z-index:9999;padding:24px;cursor:zoom-out}
 #lb img{max-width:100%;max-height:100%;border-radius:10px;border:1px solid var(--line2)}
 @media(max-width:760px){ .n{grid-template-columns:1fr} .n .shot{border-right:0;border-bottom:1px solid var(--line)} }
@@ -320,7 +364,7 @@ const canon=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").rep
 // queda un número que distingue la máquina (MacBookProNegro14 = MacBookPro14 = NeoMBP14), y se
 // conserva cuando es lo único que la distingue (MacBookAirRosa). Así el parte «NeoMacBookPro14»
 // casa con la presencia «Neo · MacBookProNegro14» y nadie sale como «sin declarar» por un alias.
-const canonM=s=>{const b=canon(s).replace(/^admira/,"");const sc=b.replace(/(negro|crema|azul|rosa|plata|gris|blanco)/g,"");return /\d/.test(sc)?sc:b;};
+const canonM=s=>{const b=canon(s).replace(/^admira/,"").replace(/mbp/g,"macbookpro").replace(/mba/g,"macbookair");const sc=b.replace(/(negro|crema|azul|rosa|plata|gris|blanco)/g,"");return /\d/.test(sc)?sc:b;};
 const pcCache=d=>{const e=+d.entrada||0,c=+d.cache||0;return e+c>0?Math.round(100*c/(e+c)):0;};
 // El foco de ahorro sale de la causa declarada y de los duplicados: es lo que hay que cambiar mañana.
 function focoAhorro(d){
@@ -420,18 +464,89 @@ function listasQueso(){
   if(!RK) return ""; const {deHoy,cmap,tot,dia}=RK;
   return '<div class="qls">'+listaQueso("Agentes",deHoy.filter(p=>!esConsejero(p)),cmap,tot,dia)+listaQueso("Consejeros · GrokBot",deHoy.filter(esConsejero),cmap,tot,dia)+'</div>';
 }
-function filasRanking(){
-  if(!RK) return "";
-  const {top,cmap,tot,max,dia}=RK;
-  return top.map(p=>{const d=p.datos, f=focoAhorro(d), c=cmap.get(p.owner)||"var(--s0)", oc=ocupado(p.owner,p.machine), ab=ABIERTOS.has(canonM(p.owner)), cap=capturaOK(p.owner,p.machine), mc=MIS.has(canonM(p.owner));
-    return '<div class="r'+(f?' foco':'')+(ab?' abierto':'')+'" role="button" tabindex="0" aria-expanded="'+ab+'" data-owner="'+esc(p.owner)+'" data-machine="'+esc(p.machine)+'" title="'+esc(oc?'ocupado: '+oc.tarea:(f||d.causa||""))+'">'+
-      '<span class="ag" title="'+esc(d.runtime||"")+'"><span class="fl">▶</span><i class="sw'+(oc?' ocupado':'')+'" style="background:'+c+';display:inline-block;vertical-align:-1px;margin-right:6px"></i>'+esc(p.owner)+'<span class="rt">'+esc(d.runtime||"")+'</span></span>'+
-      '<span class="cap'+(cap?'':' no')+'" title="'+(mc?(cap?'esta máquina entrega capturas de pantalla':'sin captura de pantalla: información incompleta'):'comprobando capturas…')+'">'+(mc?(cap?'📷':'📷 sin captura'):'…')+'</span>'+
-      '<span class="bar"><i style="width:'+Math.max(2,Math.round(100*(+d.total||0)/max))+'%;background:'+c+'"></i></span>'+
-      '<span class="num"><b>'+fmtTok(d.total)+'</b> · '+(tot>0?Math.round(100*(+d.total||0)/tot):0)+' %'+(f?' 🔥':'')+'</span></div>'+
-      '<div class="mis'+(ab?' on':'')+'" data-mis="'+esc(p.owner)+'">'+(ab?filaMisiones(p.owner):'')+'</div>';}).join("");
+// ── PERIODO de la cuadrícula: ◀ baja a la hora, ▶ sube a semana, mes o siempre. Las misiones salen
+//    del historial del Highscore (la misma fuente que puntúa); los tokens, del parte del día para
+//    hora/día y del acumulado de /fleet/consumo para el resto (el servidor guarda 90 días como máximo).
+const PER=[{k:"hora",l:"de la última hora",cur:"hora"},{k:"dia",l:"del día",cur:"día"},{k:"semana",l:"de la semana",cur:"semana",dias:7},{k:"mes",l:"del mes",cur:"mes",dias:30},{k:"siempre",l:"de siempre",cur:"siempre",dias:365}];
+let PERIODO=1; const HIST=new Map(), HIST_PEND=new Map(), CONSP=new Map(), CONSP_PEND=new Map(); const HIST_TTL=2*60*1000;
+const isoDia=d=>d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());
+function rangoDe(per,dia){ const h=new Date(dia+"T00:00:00"); if(per.k==="siempre") return {desde:"2025-01-01",hasta:dia}; if(!per.dias) return {desde:dia,hasta:dia}; const d=new Date(h.getTime()-(per.dias-1)*86400000); return {desde:isoDia(d),hasta:dia}; }
+async function cargaHist(per,dia){
+  const key=per.k==="hora"?"dia":per.k, c=HIST.get(key); if(c&&Date.now()-c.t<HIST_TTL) return c; if(HIST_PEND.has(key)) return HIST_PEND.get(key);
+  const pr=(async()=>{ const out={t:Date.now(),list:null,err:"",rango:rangoDe(PER.find(x=>x.k===key),dia)};
+    try{ const r=await fetch(WORKER+"/highscore/history?scope=global&desde="+out.rango.desde+"&hasta="+out.rango.hasta,{cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status);
+      const d=await r.json(); if(!d||!Array.isArray(d.missions)) throw new Error("respuesta incompleta"); out.list=d.missions; }
+    catch(e){ out.err=String(e&&e.message||e); out.t=Date.now()-HIST_TTL+30000; }
+    HIST.set(key,out); return out; })().finally(()=>HIST_PEND.delete(key));
+  HIST_PEND.set(key,pr); return pr;
 }
+async function cargaConsP(dias){
+  const c=CONSP.get(dias); if(c&&Date.now()-c.t<MIS_TTL) return c; if(CONSP_PEND.has(dias)) return CONSP_PEND.get(dias);
+  const pr=(async()=>{ const out={t:Date.now(),list:null,err:"",dias}; try{ const r=await fetch(WORKER+"/fleet/consumo?dias="+dias,{cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status); const d=await r.json(); if(!d||!Array.isArray(d.por_agente)) throw new Error("respuesta incompleta"); out.list=d.por_agente; out.dias=+d.dias||dias; }catch(e){ out.err=String(e&&e.message||e); out.t=Date.now()-MIS_TTL+30000; } CONSP.set(dias,out); return out; })().finally(()=>CONSP_PEND.delete(dias));
+  CONSP_PEND.set(dias,pr); return pr;
+}
+const esCerrada=st=>/resolved|done|closed|cerrad|complet/i.test(String(st||""));
+function filasPeriodo(){
+  // Une agentes con misiones en el periodo (Highscore) y agentes con tokens en el periodo (consumo).
+  if(!RK) return null; const per=PER[PERIODO], h=HIST.get(per.k==="hora"?"dia":per.k);
+  let ms=h&&h.list?h.list.slice():null;
+  if(ms&&per.k==="hora"){ const lim=Date.now()-3600000; ms=ms.filter(m=>Math.max(+m.at||0,+m.started_at||0,+m.finished_at||0)>=lim); }
+  const porAg=new Map();
+  for(const m of (ms||[])){ if(!m||!m.agent) continue; const k=canonM(m.agent); const g=porAg.get(k)||{k,nombre:m.agent,machine:m.machine||"",n:0,res:0,pts:0,list:[]}; g.n++; if(esCerrada(m.status)) g.res++; g.pts+=(+m.points||0)+(+m.race_bonus_points||0); g.list.push(m); porAg.set(k,g); }
+  const tok=new Map(); let consErr="", consDias=per.dias||1;
+  if(per.k==="hora"||per.k==="dia"){ for(const p of RK.deHoy){ const d=p.datos; tok.set(canonM(p.owner),{owner:p.owner,machine:p.machine,runtime:d.runtime||"",total:+d.total||0,entrada:+d.entrada||0,cache:+d.cache||0,salida:+d.salida||0,desp:+d.despertares||0,dups:+d.duplicados||0,foco:focoAhorro(d)}); } }
+  else { const c=CONSP.get(per.dias); if(c&&c.list){ consDias=c.dias; for(const a of c.list) tok.set(canonM(a.owner),{owner:a.owner,machine:a.machine||"",runtime:"",total:+a.total_tokens||0,entrada:+a.entrada||0,cache:+a.cache||0,salida:+a.salida||0,desp:null,dups:0,foco:""}); } else if(c&&c.err) consErr=c.err; }
+  const keys=new Set([...porAg.keys(),...tok.keys()]);
+  const rows=[...keys].map(k=>{ const g=porAg.get(k), t=tok.get(k); const owner=t?t.owner:g.nombre, machine=(t&&t.machine)||(g&&g.machine)||"";
+    return {k,owner,machine,runtime:t?t.runtime:"",n:g?g.n:0,res:g?g.res:0,pts:g?g.pts:0,list:g?g.list:[],tok:t||null}; });
+  const tot=rows.reduce((s,r)=>s+(r.tok?r.tok.total:0),0);
+  rows.sort((a,b)=>((b.tok?b.tok.total:0)-(a.tok?a.tok.total:0))||(b.n-a.n)||a.owner.localeCompare(b.owner));
+  return {per,h,ms,rows,tot,consErr,consDias,cargandoHist:!h,cargandoCons:!(per.k==="hora"||per.k==="dia")&&!CONSP.get(per.dias)};
+}
+function filaMisionesPeriodo(r){
+  if(!r.list.length) return '<div class="vacio">sin misiones '+esc(PER[PERIODO].l)+'</div>';
+  const mc=MIS.get(r.k), byId=new Map(); if(mc&&mc.list) for(const m of mc.list) byId.set(m.id,m);
+  return r.list.slice().sort((a,b)=>(+b.at||0)-(+a.at||0)).map(m=>{const st=String(m.status||"").toLowerCase(), x=byId.get(m.id), img=x&&x.proof_image;
+    return '<div class="m"><a class="id" href="/misiones#'+encodeURIComponent(m.id||"")+'">'+esc(m.id||"?")+'</a><span class="sub" title="'+esc(m.subject||"")+'">'+esc(m.subject||"sin asunto")+'</span>'+
+      '<span class="hh" title="inicio">'+hhmm(+m.started_at||+m.at||0)+'</span><span class="pt" title="puntos">'+((+m.points||0)+(+m.race_bonus_points||0))+' pt</span><span class="st '+esc(st)+'">'+esc(st||"?")+'</span>'+
+      (img?'<a href="'+esc(img)+'" target="_blank" rel="noopener" title="evidencia"><img src="'+esc(img)+'" alt="" loading="lazy"></a>':(x?'<span class="noimg" title="misión sin captura: información incompleta">📷</span>':'<span class="noimg" style="border-color:var(--line);color:var(--dim)" title="evidencia no comprobada en este periodo">·</span>'))+'</div>';}).join("");
+}
+function cabeceraPeriodo(f){
+  const per=f.per, nAg=f.rows.filter(r=>r.n>0).length, nMs=f.ms?f.ms.length:null;
+  const txt=f.cargandoHist?'Cargando las misiones '+esc(per.l)+'…':(f.h&&f.h.err)?'No se pudieron leer las misiones '+esc(per.l)+' ('+esc(f.h.err)+').':'Los <b>'+nAg+'</b> agentes que han intervenido en las <b>'+nMs+'</b> misiones <em>'+esc(per.l)+'</em>';
+  const rango=f.h&&f.h.rango?(per.k==="hora"?'última hora · ':'')+f.h.rango.desde+(f.h.rango.hasta!==f.h.rango.desde?' → '+f.h.rango.hasta:'')+' · fuente Highscore'+((per.dias&&per.dias>1)?' · tokens '+f.consDias+' días':''):'';
+  return '<div class="per"><div class="txt">'+txt+'</div>'+
+    '<div class="nav"><button type="button" data-per="-1" title="bajar a un periodo más corto" aria-label="periodo anterior"'+(PERIODO<=0?' disabled':'')+'>◀</button><span class="cur">'+esc(per.cur)+'</span><button type="button" data-per="1" title="subir a un periodo más largo" aria-label="periodo siguiente"'+(PERIODO>=PER.length-1?' disabled':'')+'>▶</button></div>'+
+    (rango?'<div class="rango">'+esc(rango)+'</div>':'')+'</div>';
+}
+function hojaHTML(f){
+  if(f.cargandoHist&&!f.rows.length) return '<div class="hoja"><div class="estado">cargando…</div></div>';
+  const cmap=RK.cmap, dia=RK.dia;
+  const filas=f.rows.map((r,i)=>{ const t=r.tok, oc=ocupado(r.owner,r.machine), ab=ABIERTOS.has(r.k), mc=MIS.has(r.k), cap=capturaOK(r.owner,r.machine), ini=inicioHoy(r.owner,r.machine,dia), cj=esConsejero({owner:r.owner,machine:r.machine});
+    const pc=t&&t.entrada+t.cache>0?Math.round(100*t.cache/(t.entrada+t.cache)):null;
+    return '<tr class="f'+(ab?' abierto':'')+'" role="button" tabindex="0" aria-expanded="'+ab+'" data-owner="'+esc(r.owner)+'" data-machine="'+esc(r.machine)+'" data-k="'+esc(r.k)+'" title="'+esc(oc?'ocupado: '+oc.tarea:(t&&t.foco||""))+'">'+
+      '<td>'+(i+1)+'</td>'+
+      '<td class="ag"><span class="fl">▶</span><i class="sw'+(oc?' ocupado':'')+'" style="background:'+(cmap.get(r.owner)||"var(--s0)")+'"></i>'+esc(r.owner)+(t&&t.foco?' <span title="'+esc(t.foco)+'">🔥</span>':'')+'</td>'+
+      '<td class="tipo'+(cj?' cj':'')+'">'+(cj?'consejero':'agente')+'</td>'+
+      '<td class="est'+(oc?' oc':'')+'">'+(oc?'● ocupado':'○ libre')+'</td>'+
+      '<td><span class="cap'+(cap?'':' no')+'" title="'+(mc?(cap?'esta máquina entrega capturas de pantalla':'sin captura de pantalla: información incompleta'):'comprobando capturas…')+'">'+(mc?(cap?'📷':'📷 sin captura'):'…')+'</span></td>'+
+      '<td class="num">'+r.n+'</td><td class="num">'+r.res+'</td><td class="num">'+r.pts+'</td>'+
+      (t?'<td class="num">'+fmtTok(t.total)+'</td><td class="num pc">'+(f.tot>0?Math.round(100*t.total/f.tot):0)+' %</td><td class="num pc">'+(pc==null?'—':pc+' %')+'</td><td class="num">'+fmtTok(t.salida)+'</td><td class="num'+(t.dups?' foco':'')+'">'+(t.desp==null?'—':t.desp+(t.dups?' ·'+t.dups+'dup':''))+'</td>'
+        :'<td class="num nd" colspan="5" title="sin parte de consumo en este periodo">sin parte de consumo</td>')+
+      '<td class="nd">'+(ini?hhmm(ini.t)+' <small>'+esc(ini.src.split(" ")[0])+'</small>':(mc?'sin hora':'…'))+'</td>'+
+      '</tr>'+
+      (ab?'<tr class="det"><td colspan="15"><div class="mis on">'+filaMisionesPeriodo(r)+'</div></td></tr>':''); }).join("");
+  const err=(f.h&&f.h.err)?'<div class="estado err">misiones: '+esc(f.h.err)+'</div>':''; const errC=f.consErr?'<div class="estado err">tokens del periodo: '+esc(f.consErr)+'</div>':(f.cargandoCons?'<div class="estado">cargando tokens del periodo…</div>':'');
+  return '<div class="hoja">'+err+errC+'<table><thead><tr><th>#</th><th>agente</th><th>tipo</th><th>estado</th><th>📷</th><th class="num">misiones</th><th class="num">cerradas</th><th class="num">puntos</th><th class="num">tokens</th><th class="num">%</th><th class="num">caché</th><th class="num">salida</th><th class="num">despert.</th><th>empezó hoy</th></tr></thead><tbody>'+
+    (filas||'<tr><td colspan="15"><div class="estado">nadie '+esc(f.per.l)+'</div></td></tr>')+'</tbody></table></div>';
+}
+function filasRanking(){ const f=filasPeriodo(); if(!f) return ""; return cabeceraPeriodo(f)+hojaHTML(f); }
 function pintaRanking(){ const el=$("rk"); if(el&&RK) el.innerHTML=filasRanking(); const ql=$("qlistas"); if(ql&&RK) ql.innerHTML=listasQueso(); }
+async function cargaPeriodo(){
+  if(!RK) return; const per=PER[PERIODO];
+  const tareas=[cargaHist(per,RK.dia).then(pintaRanking)]; if(per.dias&&per.dias>1) tareas.push(cargaConsP(per.dias).then(pintaRanking));
+  await Promise.all(tareas);
+}
 async function precargaMisiones(){
   // Todos los que han declarado hoy (no solo el top del ranking): la hora de inicio y la bandera de
   // captura las necesita cada fila. Se repinta según llega CADA respuesta, porque alguna tarda 20 s.
@@ -496,7 +611,7 @@ function renderConsumo(){
     '<div class="cuerpo">'+
       '<div class="queso" id="queso">'+quesito(segs,tot)+'<div id="qlistas">'+listasQueso()+'</div></div>'+
       '<div class="lado">'+
-        '<div class="col"><h3>Los que más gastan <b>'+deHoy.length+' agentes</b></h3><div class="rk" id="rk">'+rk+'</div></div>'+
+        '<div class="col"><div class="rk" id="rk">'+rk+'</div></div>'+
         '<div class="col"><h3>Disponibles · laten y no gastan <b>'+sinParte.length+'</b></h3><div class="disp">'+chipsDisp+'</div>'+
           '<div class="sin">late hoy y no ha declarado: '+sinParte.length+' · vivos hoy: '+vivos.size+'</div></div>'+
       '</div>'+
@@ -505,16 +620,16 @@ function renderConsumo(){
       '<div class="tw"><table><thead><tr><th>agente · runtime</th><th class="num">total</th><th class="num">caché</th><th class="num">salida</th><th class="num">llamadas</th><th class="num">despertares</th><th>causa y foco de ahorro</th><th class="num">parte</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+
       (top7?'<div class="nota"><b>'+(CONS.dias||7)+' días</b> · '+top7+'</div>':'')+
     '</details>';
-  precargaMisiones();
+  precargaMisiones(); cargaPeriodo();
   // Al pasar por un segmento o su leyenda se resalta ese agente y el resto se atenúa.
   const q=$("queso");
   q.addEventListener("mouseover",e=>{const t=e.target.closest("[data-k]");if(!t)return;q.classList.add("hov");q.querySelectorAll(".arc").forEach(x=>x.classList.toggle("on",x.dataset.k===t.dataset.k));});
   q.addEventListener("mouseleave",()=>{q.classList.remove("hov");q.querySelectorAll(".arc.on").forEach(x=>x.classList.remove("on"));});
   // Pulsar un agente despliega (o pliega) sus misiones del día justo debajo.
   const rkEl=$("rk");
-  async function toggleFila(r){ const k=canonM(r.dataset.owner); if(ABIERTOS.has(k)) ABIERTOS.delete(k); else ABIERTOS.add(k); pintaRanking(); if(ABIERTOS.has(k)){ await cargaMisiones(r.dataset.owner,r.dataset.machine,dia); pintaRanking(); } }
-  rkEl.addEventListener("click",e=>{ const r=e.target.closest(".r[data-owner]"); if(r) toggleFila(r); });
-  rkEl.addEventListener("keydown",e=>{ const r=e.target.closest(".r[data-owner]"); if(r&&(e.key==="Enter"||e.key===" ")){ e.preventDefault(); toggleFila(r); } });
+  async function toggleFila(r){ const k=canonM(r.dataset.owner); if(ABIERTOS.has(k)) ABIERTOS.delete(k); else ABIERTOS.add(k); pintaRanking(); if(ABIERTOS.has(k)&&PERIODO<=1){ await cargaMisiones(r.dataset.owner,r.dataset.machine,dia); pintaRanking(); } }
+  rkEl.addEventListener("click",e=>{ const a=e.target.closest("a"); if(a) return; const b=e.target.closest("button[data-per]"); if(b){ PERIODO=Math.max(0,Math.min(PER.length-1,PERIODO+(+b.dataset.per))); pintaRanking(); cargaPeriodo(); return; } const r=e.target.closest("tr.f[data-owner]"); if(r) toggleFila(r); });
+  rkEl.addEventListener("keydown",e=>{ const r=e.target.closest("tr.f[data-owner]"); if(r&&(e.key==="Enter"||e.key===" ")){ e.preventDefault(); toggleFila(r); } });
 }
 async function loadConsumo(){
   try{

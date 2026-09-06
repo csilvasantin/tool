@@ -93,3 +93,17 @@ test("bajo el quesito, agentes y consejeros van separados, una fila por cabeza y
   assert.match(html, /primera señal de hoy: /);
   assert.match(html, /ninguna señal de hoy con hora/, "sin señal no se inventa una hora");
 });
+
+test("la cuadrícula de agentes tiene selector de periodo (hora ◀ día ▶ semana, mes, siempre), cuenta agentes y misiones del periodo y no afirma cero mientras carga", () => {
+  assert.match(html, /const PER=\[\{k:"hora"/);
+  assert.match(html, /\{k:"siempre"/);
+  assert.match(html, /\/highscore\/history\?scope=global&desde=/);
+  assert.match(html, /agentes que han intervenido en las <b>/);
+  assert.match(html, /data-per="-1"/);
+  assert.match(html, /data-per="1"/);
+  assert.match(html, /Cargando las misiones /);
+  assert.match(html, /No se pudieron leer las misiones /);
+  assert.match(html, /sin parte de consumo en este periodo/);
+  assert.match(html, /class="hoja"/);
+  assert.match(html, /replace\(\/mbp\/g,"macbookpro"\)/, "NeoMBP14 del Highscore es NeoMacBookPro14 del parte");
+});
