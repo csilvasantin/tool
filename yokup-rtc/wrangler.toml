@@ -29,6 +29,9 @@
 # ignora el parámetro y sirve la actual—, así que un despliegue que pisara algo
 # ya no es reconstruible a posteriori: hay que comparar ANTES de desplegar.
 name = "yokup-rtc"
+# Cuenta de Cloudflare dueña del worker (la de csilvasantin@gmail.com, como admira-vault y
+# admira-estado). Explícita para que un token de OTRA cuenta falle claro y pronto (6-sep-2026).
+account_id = "5b14266aa29050f8e5acd442c61b9783"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
 compatibility_flags = ["nodejs_compat"]  # @cloudflare/puppeteer usa node:buffer (Browser Rendering)

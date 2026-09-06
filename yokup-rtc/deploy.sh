@@ -95,6 +95,35 @@ SUCIO=false
 } > src/version-stamp.js
 echo "  ✓ $SELLO · $ADMIRA_RELEASE_AGENT · $ADMIRA_RELEASE_MACHINE"
 
+# CREDENCIAL POR CUENTA, NO POR MÁQUINA (Carlos, 6-sep-2026: «csilva@admira.com y
+# csilvasantin@gmail.com son el mismo usuario, o sea yo»). Este worker vive en la cuenta
+# de gmail (account_id de wrangler.toml). El 6-sep el deploy desde el MacMini falló con
+# «Authentication error 10000» porque el entorno traía el token de la cuenta admira.com
+# (YOKUP_CLOUDFLARE_API_TOKEN) y sólo salió con la sesión OAuth de wrangler de ESE Mac,
+# que otro Mac no tiene. Regla: si hay CLOUDFLARE_API_TOKEN en el entorno se comprueba
+# que sea de la cuenta del worker; si no lo hay, se toma CLOUDFLARE_API_TOKEN de la
+# bóveda (que es de la cuenta gmail); un token de otra cuenta se descarta con aviso y
+# se cae a la sesión OAuth si existe. Así cualquier Mac de la flota puede publicar.
+echo "→ Credencial de Cloudflare…"
+CUENTA_WORKER="$(sed -nE 's/^account_id *= *"([0-9a-f]+)".*/\1/p' wrangler.toml | head -1)"
+cuenta_del_token() {   # imprime el account_id al que da acceso el token (vacío si no vale)
+  curl -fsS -m 15 "https://api.cloudflare.com/client/v4/accounts?per_page=50" -H "Authorization: Bearer $1" 2>/dev/null \
+    | jq -r '.result[]?.id' 2>/dev/null | grep -x "$CUENTA_WORKER" | head -1
+}
+if [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && [ -z "$(cuenta_del_token "$CLOUDFLARE_API_TOKEN")" ]; then
+  echo "  ⚠ el CLOUDFLARE_API_TOKEN del entorno no es de la cuenta $CUENTA_WORKER: se descarta"
+  unset CLOUDFLARE_API_TOKEN
+fi
+if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+  VAULT_TOKEN="$(bash "$HOME/Claude/admira-vault/vault-get.sh" CLOUDFLARE_API_TOKEN 2>/dev/null || true)"
+  if [ -n "$VAULT_TOKEN" ] && [ -n "$(cuenta_del_token "$VAULT_TOKEN")" ]; then
+    export CLOUDFLARE_API_TOKEN="$VAULT_TOKEN"
+    echo "  ✓ token de la bóveda (CLOUDFLARE_API_TOKEN) · cuenta $CUENTA_WORKER"
+  else
+    echo "  · sin token válido de la bóveda: se usará la sesión OAuth de wrangler de este Mac (si la hay)"
+  fi
+fi
+unset VAULT_TOKEN
 echo "→ Cloudflare Workers…"
 # `npx wrangler` a secas resuelve la ÚLTIMA versión publicada, así que el
 # despliegue de producción depende de lo que npm publique esa mañana: el 07-08-2026
