@@ -26,6 +26,8 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .page-intro>summary::-webkit-details-marker{display:none}
 .pi-toggle{margin-left:auto;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .pi-body{padding:0 16px 16px}
+.page-intro.vivo>summary .pi-toggle{color:var(--alarm);font-weight:700}
+.pi-body .tfilter{margin-top:4px}
 .tfilter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
 .tf{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;border-radius:9px;border:1px solid var(--line);color:var(--mut);background:var(--card);cursor:pointer;transition:.2s}
 .tf:hover{color:var(--brand);border-color:var(--line2)}
@@ -72,8 +74,14 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .cons .kp{display:flex;gap:6px 14px;flex-wrap:wrap;margin-left:auto;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--mut)}
 .cons .k b{color:var(--brand);font-size:13px;letter-spacing:-.01em;margin-right:4px}
 .cons .k.warn b{color:var(--warn)}.cons .k.good b{color:var(--good)}
-.cons .cuerpo{display:grid;grid-template-columns:minmax(230px,300px) 1fr;gap:0}
-.cons .queso{padding:14px 16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:10px}
+.cons .cuerpo{display:grid;grid-template-columns:var(--qw,290px) 6px minmax(0,1fr);gap:0}
+/* Divisor ARRASTRABLE entre el quesito y la cuadrícula: ancho del quesito en --qw (se recuerda en el
+   navegador); doble clic lo devuelve al ancho por defecto. */
+.cons .divisor{cursor:col-resize;background:linear-gradient(to right,transparent 2px,var(--line2) 2px,var(--line2) 4px,transparent 4px);position:relative;touch-action:none;user-select:none}
+.cons .divisor:hover,.cons .divisor.on{background:linear-gradient(to right,transparent 1px,var(--brand) 1px,var(--brand) 5px,transparent 5px)}
+.cons .divisor::after{content:"⋮";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--dim);font-size:12px;background:var(--card);padding:6px 0;line-height:1}
+.cons .cuerpo.arrastre{cursor:col-resize}.cons .cuerpo.arrastre *{user-select:none}
+.cons .queso{padding:14px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;min-width:0;overflow:hidden}
 .cons .queso svg{width:100%;max-width:210px;height:auto;display:block;overflow:visible}
 .cons .queso .arc{cursor:pointer;transition:opacity .15s}
 .cons .queso.hov .arc:not(.on){opacity:.32}
@@ -148,6 +156,10 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .cons .hoja table{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;font-size:12px;font-family:var(--mono)}
 .cons .hoja th,.cons .hoja td{border-right:1px solid rgba(120,243,255,.12);border-bottom:1px solid rgba(120,243,255,.12);padding:0 9px;height:28px;white-space:nowrap;vertical-align:middle}
 .cons .hoja th{position:sticky;top:0;z-index:2;background:#0b1b26;color:var(--dim);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;text-align:left;border-bottom:1px solid var(--line2)}
+.cons .hoja th[data-sort]{cursor:pointer;user-select:none}
+.cons .hoja th[data-sort]:hover{color:var(--brand)}
+.cons .hoja th[data-sort].on{color:var(--brand)}
+.cons .hoja th .dir{color:var(--brand);margin-left:3px;font-size:8px}
 .cons .hoja th.num,.cons .hoja td.num{text-align:right;font-variant-numeric:tabular-nums}
 .cons .hoja th:first-child,.cons .hoja td:first-child{position:sticky;left:0;z-index:1;background:#0b1b26;color:var(--dim);text-align:right;width:3ch;font-size:10px}
 .cons .hoja th:first-child{z-index:3}
@@ -197,7 +209,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .cons .foco{color:var(--warn);font-weight:700}
 .cons .nota{padding:10px 16px 12px;color:var(--mut);font-size:12.5px;line-height:1.5}
 .cons .nota b{color:var(--ink);font-weight:600}
-@media(max-width:900px){ .cons .cuerpo{grid-template-columns:1fr} .cons .queso{border-right:0;border-bottom:1px solid var(--line)} }
+@media(max-width:900px){ .cons .cuerpo{grid-template-columns:1fr!important} .cons .divisor{display:none} .cons .queso{border-bottom:1px solid var(--line)} }
 @media(max-width:560px){ .cons .r .rt{display:none} .cons .per .nav{margin-left:0} }
 #lb{position:fixed;inset:0;background:rgba(2,8,13,.94);display:none;align-items:center;justify-content:center;z-index:9999;padding:24px;cursor:zoom-out}
 #lb img{max-width:100%;max-height:100%;border-radius:10px;border:1px solid var(--line2)}
@@ -209,13 +221,21 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 <div class="wrap">
   <nav><a class="back" href="/incidencias">← Bandeja</a></nav>
 
-  <details class="page-intro">
+  <details class="page-intro" id="intro">
     <summary>
       <h1>Notificaciones</h1>
-      <span class="pi-toggle">Qué es esto <span class="pi-chevron">›</span></span>
+      <span class="pi-toggle"><span id="piAvisos">avisos</span> · qué es esto <span class="pi-chevron">›</span></span>
     </summary>
     <div class="pi-body">
       <p class="sub">Un diálogo del sistema confirmado en los últimos 90 segundos aparece como <b>aviso en vivo que requiere atención</b>. Entre 90 segundos y cinco minutos queda sin confirmar. Después pasa a histórico, igual que los avisos informativos, conservando su edad real sin afirmar que el equipo siga detenido.</p>
+      <div class="tfilter" id="filtros">
+        <button class="tf on" data-f="abiertas" aria-pressed="true">Pendientes</button>
+        <button class="tf" data-f="todas" aria-pressed="false">Todas</button>
+        <button class="tf" data-f="consumo" aria-pressed="false">Partes de consumo</button>
+        <span class="tf" id="resumen" role="status" aria-live="polite" style="cursor:default;border-color:transparent"></span>
+      </div>
+      <div class="load-error" id="loadError" role="status" aria-live="polite" hidden><span id="loadErrorText"></span><button id="retryLoad" type="button">Reintentar</button></div>
+      <div class="grid" id="lista"><div class="empty">Cargando…</div></div>
     </div>
   </details>
 
@@ -224,15 +244,6 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
     <div id="consCuerpo"><div class="nota">Cargando partes de consumo…</div></div>
   </section>
 
-  <div class="tfilter" id="filtros">
-    <button class="tf on" data-f="abiertas" aria-pressed="true">Pendientes</button>
-    <button class="tf" data-f="todas" aria-pressed="false">Todas</button>
-    <button class="tf" data-f="consumo" aria-pressed="false">Partes de consumo</button>
-    <span class="tf" id="resumen" role="status" aria-live="polite" style="cursor:default;border-color:transparent"></span>
-  </div>
-
-  <div class="load-error" id="loadError" role="status" aria-live="polite" hidden><span id="loadErrorText"></span><button id="retryLoad" type="button">Reintentar</button></div>
-  <div class="grid" id="lista"><div class="empty">Cargando…</div></div>
   <div class="foot">Yokup · notificaciones del sistema · vigilante por máquina · fuente <b>D1</b> (notifs)</div>
 </div>
 <div id="lb" role="dialog" aria-modal="true" aria-label="Captura ampliada" tabindex="-1"><img id="lbImg" alt=""></div>
@@ -298,6 +309,8 @@ function render(){
   const affected=SNAPSHOT_STALE?0:(RESUMEN.affected_machines|0);
   $("resumen").textContent = (live===1?"1 aviso en vivo":live+" avisos en vivo")+
     " · "+unconfirmed+" sin confirmar · "+historicos+" históricos";
+  const pend=live+unconfirmed+historicos; $("piAvisos").textContent=(live?"⚠ "+live+" en vivo · ":"")+pend+(pend===1?" aviso pendiente":" avisos pendientes");
+  $("intro").classList.toggle("vivo",live>0);
   $("resumen").title=affected+" máquinas afectadas ahora · "+
     (RESUMEN.stale|0)+" diálogos sin señal · "+(RESUMEN.backlog|0)+" avisos informativos";
   if(!list.length){
@@ -498,6 +511,28 @@ async function cargaConsP(dias){
   const pr=(async()=>{ const out={t:Date.now(),list:null,err:"",dias}; try{ const r=await fetch(WORKER+"/fleet/consumo?dias="+dias,{cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status); const d=await r.json(); if(!d||!Array.isArray(d.por_agente)) throw new Error("respuesta incompleta"); out.list=d.por_agente; out.dias=+d.dias||dias; }catch(e){ out.err=String(e&&e.message||e); out.t=Date.now()-MIS_TTL+30000; } CONSP.set(dias,out); return out; })().finally(()=>CONSP_PEND.delete(dias));
   CONSP_PEND.set(dias,pr); return pr;
 }
+// Ordenación de la cuadrícula: pulsar una cabecera ordena por esa columna; pulsarla otra vez invierte.
+let SORT={k:"tokens",dir:-1};
+const SORT_DEF={agente:1,tipo:1,estado:-1,cap:-1,n:-1,res:-1,pts:-1,tokens:-1,pc:-1,cache:-1,salida:-1,desp:-1,ini:1};
+function valorOrden(r,k){
+  const t=r.tok;
+  switch(k){
+    case "agente": return r.owner.toLowerCase();
+    case "tipo": return esConsejero({owner:r.owner,machine:r.machine})?"consejero":"agente";
+    case "estado": return ocupado(r.owner,r.machine)?1:0;
+    case "cap": { const c=capturaDe(r.owner,r.machine); return c?(c.sin>0?0:(c.cerradas>0?2:(c.vig?2:1))):-1; }
+    case "n": return r.n; case "res": return r.res; case "pts": return r.pts;
+    case "tokens": return t?t.total:-1; case "pc": return t?t.total:-1;
+    case "cache": return t&&t.entrada+t.cache>0?t.cache/(t.entrada+t.cache):-1;
+    case "salida": return t?t.salida:-1; case "desp": return t&&t.desp!=null?t.desp:-1;
+    case "ini": { const i=inicioHoy(r.owner,r.machine,RK.dia); return i?i.t:Infinity; }
+  } return 0;
+}
+function ordena(rows){
+  const k=SORT.k, d=SORT.dir;
+  return rows.slice().sort((a,b)=>{ const va=valorOrden(a,k), vb=valorOrden(b,k); if(va<vb) return -d; if(va>vb) return d; return ((b.tok?b.tok.total:0)-(a.tok?a.tok.total:0))||a.owner.localeCompare(b.owner); });
+}
+function th(k,txt,num){ const on=SORT.k===k; return '<th'+(num?' class="num"':'')+' data-sort="'+k+'" title="ordenar por '+esc(txt)+'"'+(on?' class="'+(num?'num ':'')+'on"':'')+'>'+txt+(on?'<span class="dir">'+(SORT.dir<0?"▼":"▲")+'</span>':'')+'</th>'; }
 function filasPeriodo(){
   // Une agentes con misiones en el periodo (Highscore) y agentes con tokens en el periodo (consumo).
   if(!RK) return null; const per=PER[PERIODO], h=HIST.get(per.k==="hora"?"dia":per.k);
@@ -512,8 +547,7 @@ function filasPeriodo(){
   const rows=[...keys].map(k=>{ const g=porAg.get(k), t=tok.get(k); const owner=t?t.owner:g.nombre, machine=(t&&t.machine)||(g&&g.machine)||"";
     return {k,owner,machine,runtime:t?t.runtime:"",n:g?g.n:0,res:g?g.res:0,pts:g?g.pts:0,list:g?g.list:[],tok:t||null}; });
   const tot=rows.reduce((s,r)=>s+(r.tok?r.tok.total:0),0);
-  rows.sort((a,b)=>((b.tok?b.tok.total:0)-(a.tok?a.tok.total:0))||(b.n-a.n)||a.owner.localeCompare(b.owner));
-  return {per,h,ms,rows,tot,consErr,consDias,cargandoHist:!h,cargandoCons:!(per.k==="hora"||per.k==="dia")&&!CONSP.get(per.dias)};
+  return {per,h,ms,rows:ordena(rows),tot,consErr,consDias,cargandoHist:!h,cargandoCons:!(per.k==="hora"||per.k==="dia")&&!CONSP.get(per.dias)};
 }
 function filaMisionesPeriodo(r){
   if(!r.list.length) return '<div class="vacio">sin misiones '+esc(PER[PERIODO].l)+'</div>';
@@ -549,7 +583,7 @@ function hojaHTML(f){
       '</tr>'+
       (ab?'<tr class="det"><td colspan="15"><div class="mis on">'+filaMisionesPeriodo(r)+'</div></td></tr>':''); }).join("");
   const err=(f.h&&f.h.err)?'<div class="estado err">misiones: '+esc(f.h.err)+'</div>':''; const errC=f.consErr?'<div class="estado err">tokens del periodo: '+esc(f.consErr)+'</div>':(f.cargandoCons?'<div class="estado">cargando tokens del periodo…</div>':'');
-  return '<div class="hoja">'+err+errC+'<table><thead><tr><th>#</th><th>agente</th><th>tipo</th><th>estado</th><th>📷</th><th class="num">misiones</th><th class="num">cerradas</th><th class="num">puntos</th><th class="num">tokens</th><th class="num">%</th><th class="num">caché</th><th class="num">salida</th><th class="num">despert.</th><th>empezó hoy</th></tr></thead><tbody>'+
+  return '<div class="hoja">'+err+errC+'<table><thead><tr><th>#</th>'+th("agente","agente")+th("tipo","tipo")+th("estado","estado")+th("cap","📷")+th("n","misiones",1)+th("res","cerradas",1)+th("pts","puntos",1)+th("tokens","tokens",1)+th("pc","%",1)+th("cache","caché",1)+th("salida","salida",1)+th("desp","despert.",1)+th("ini","empezó hoy")+'</tr></thead><tbody>'+
     (filas||'<tr><td colspan="15"><div class="estado">nadie '+esc(f.per.l)+'</div></td></tr>')+'</tbody></table></div>';
 }
 function filasRanking(){ const f=filasPeriodo(); if(!f) return ""; return cabeceraPeriodo(f)+hojaHTML(f); }
@@ -623,6 +657,7 @@ function renderConsumo(){
   box.innerHTML=
     '<div class="cuerpo">'+
       '<div class="queso" id="queso">'+quesito(segs,tot)+'<div id="qlistas">'+listasQueso()+'</div></div>'+
+      '<div class="divisor" id="divisor" role="separator" aria-orientation="vertical" aria-label="ancho del gráfico (arrastra; doble clic para restaurar)" tabindex="0"></div>'+
       '<div class="lado">'+
         '<div class="col"><div class="rk" id="rk">'+rk+'</div></div>'+
         '<div class="col"><h3>Disponibles · laten y no gastan <b>'+sinParte.length+'</b></h3><div class="disp">'+chipsDisp+'</div>'+
@@ -633,7 +668,7 @@ function renderConsumo(){
       '<div class="tw"><table><thead><tr><th>agente · runtime</th><th class="num">total</th><th class="num">caché</th><th class="num">salida</th><th class="num">llamadas</th><th class="num">despertares</th><th>causa y foco de ahorro</th><th class="num">parte</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+
       (top7?'<div class="nota"><b>'+(CONS.dias||7)+' días</b> · '+top7+'</div>':'')+
     '</details>';
-  precargaMisiones(); cargaPeriodo();
+  precargaMisiones(); cargaPeriodo(); montaDivisor();
   // Al pasar por un segmento o su leyenda se resalta ese agente y el resto se atenúa.
   const q=$("queso");
   q.addEventListener("mouseover",e=>{const t=e.target.closest("[data-k]");if(!t)return;q.classList.add("hov");q.querySelectorAll(".arc").forEach(x=>x.classList.toggle("on",x.dataset.k===t.dataset.k));});
@@ -641,8 +676,21 @@ function renderConsumo(){
   // Pulsar un agente despliega (o pliega) sus misiones del día justo debajo.
   const rkEl=$("rk");
   async function toggleFila(r){ const k=canonM(r.dataset.owner); if(ABIERTOS.has(k)) ABIERTOS.delete(k); else ABIERTOS.add(k); pintaRanking(); if(ABIERTOS.has(k)&&PERIODO<=1){ await cargaMisiones(r.dataset.owner,r.dataset.machine,dia); pintaRanking(); } }
-  rkEl.addEventListener("click",e=>{ const a=e.target.closest("a"); if(a) return; const b=e.target.closest("button[data-per]"); if(b){ PERIODO=Math.max(0,Math.min(PER.length-1,PERIODO+(+b.dataset.per))); pintaRanking(); cargaPeriodo(); return; } const r=e.target.closest("tr.f[data-owner]"); if(r) toggleFila(r); });
+  rkEl.addEventListener("click",e=>{ const a=e.target.closest("a"); if(a) return; const h=e.target.closest("th[data-sort]"); if(h){ const k=h.dataset.sort; SORT=SORT.k===k?{k,dir:-SORT.dir}:{k,dir:SORT_DEF[k]||-1}; pintaRanking(); return; } const b=e.target.closest("button[data-per]"); if(b){ PERIODO=Math.max(0,Math.min(PER.length-1,PERIODO+(+b.dataset.per))); pintaRanking(); cargaPeriodo(); return; } const r=e.target.closest("tr.f[data-owner]"); if(r) toggleFila(r); });
   rkEl.addEventListener("keydown",e=>{ const r=e.target.closest("tr.f[data-owner]"); if(r&&(e.key==="Enter"||e.key===" ")){ e.preventDefault(); toggleFila(r); } });
+}
+// ── Divisor arrastrable entre el quesito y la cuadrícula (el ancho se recuerda en este navegador).
+const QW_DEF=290, QW_MIN=170, QW_MAX=760;
+function qwGuardado(){ try{ const v=+localStorage.getItem("yk-cons-qw"); return v>=QW_MIN&&v<=QW_MAX?v:QW_DEF; }catch(e){ return QW_DEF; } }
+function montaDivisor(){
+  const cuerpo=$("consCuerpo").querySelector(".cuerpo"), d=$("divisor"); if(!cuerpo||!d) return;
+  const pon=w=>{ w=Math.max(QW_MIN,Math.min(QW_MAX,Math.round(w))); cuerpo.style.setProperty("--qw",w+"px"); try{ localStorage.setItem("yk-cons-qw",String(w)); }catch(e){} return w; };
+  cuerpo.style.setProperty("--qw",qwGuardado()+"px");
+  d.addEventListener("pointerdown",e=>{ e.preventDefault(); const x0=e.clientX, w0=cuerpo.querySelector(".queso").getBoundingClientRect().width; d.setPointerCapture(e.pointerId); d.classList.add("on"); cuerpo.classList.add("arrastre");
+    const mueve=ev=>pon(w0+(ev.clientX-x0)); const suelta=()=>{ d.classList.remove("on"); cuerpo.classList.remove("arrastre"); d.removeEventListener("pointermove",mueve); d.removeEventListener("pointerup",suelta); d.removeEventListener("pointercancel",suelta); };
+    d.addEventListener("pointermove",mueve); d.addEventListener("pointerup",suelta); d.addEventListener("pointercancel",suelta); });
+  d.addEventListener("dblclick",()=>pon(QW_DEF));
+  d.addEventListener("keydown",e=>{ const w=cuerpo.querySelector(".queso").getBoundingClientRect().width; if(e.key==="ArrowLeft"){ pon(w-20); e.preventDefault(); } if(e.key==="ArrowRight"){ pon(w+20); e.preventDefault(); } if(e.key==="Home"){ pon(QW_DEF); e.preventDefault(); } });
 }
 async function loadConsumo(){
   try{

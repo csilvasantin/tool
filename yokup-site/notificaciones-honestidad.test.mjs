@@ -109,3 +109,16 @@ test("la cuadrícula de agentes tiene selector de periodo (hora ◀ día ▶ sem
   assert.match(html, /class="hoja"/);
   assert.match(html, /replace\(\/mbp\/g,"macbookpro"\)/, "NeoMBP14 del Highscore es NeoMacBookPro14 del parte");
 });
+
+test("los avisos viven en el plegable de la cabecera con su contador, la cuadrícula ordena por cabecera y el divisor del gráfico se arrastra", () => {
+  const intro=html.slice(html.indexOf('<details class="page-intro" id="intro">'), html.indexOf('</details>', html.indexOf('id="intro"')));
+  assert.match(intro, /id="filtros"/, "los filtros de avisos están dentro del plegable");
+  assert.match(intro, /id="lista"/, "la lista de avisos está dentro del plegable");
+  assert.match(html, /id="piAvisos"/);
+  assert.match(html, /avisos pendientes/);
+  assert.match(html, /th\("cap","📷"\)/);
+  assert.match(html, /th\("res","cerradas",1\)/);
+  assert.match(html, /SORT=SORT\.k===k\?\{k,dir:-SORT\.dir\}/, "pulsar otra vez invierte el orden");
+  assert.match(html, /id="divisor" role="separator"/);
+  assert.match(html, /localStorage\.setItem\("yk-cons-qw"/);
+});
