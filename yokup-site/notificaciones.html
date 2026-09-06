@@ -98,6 +98,11 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .cons .grp button:hover{color:var(--brand)}
 .cons .grp button.on{background:var(--brand);color:#04232a}
 .cons .est{color:var(--accent);font-weight:700;cursor:help}
+/* EN VIVO (Carlos, 6-sep-2026): el consumo no para; cada Mac publica su parte cada 5 min y aquí se ve cuándo llegó el último. */
+.cons .vivo{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--good);display:inline-flex;align-items:center;gap:6px}
+.cons .vivo i{width:7px;height:7px;border-radius:50%;background:currentColor;animation:yk-blink 1.2s steps(2,start) infinite}
+.cons .vivo.viejo{color:var(--warn)}.cons .vivo.viejo i{animation:none}
+@media(prefers-reduced-motion:reduce){.cons .vivo i{animation:none}}
 .cons .queso .arc{cursor:pointer;transition:opacity .15s}
 .cons .queso.hov .arc:not(.on){opacity:.32}
 .cons .hero{font-family:var(--mono);fill:var(--ink);font-size:22px;font-weight:700;letter-spacing:-.02em}
@@ -287,7 +292,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   </details>
 
   <section class="cons" id="consumo" aria-labelledby="consumoTitulo">
-    <div class="ch"><h2 id="consumoTitulo">📟 Consumo de tokens</h2><span class="dia" id="consDia">hoy</span><div class="kp" id="consKpi"></div></div>
+    <div class="ch"><h2 id="consumoTitulo">📟 Consumo de tokens</h2><span class="dia" id="consDia">hoy</span><span class="vivo" id="consVivo" title="cuándo llegó el último parte de consumo"></span><div class="kp" id="consKpi"></div></div>
     <div id="consCuerpo"><div class="nota">Cargando partes de consumo…</div></div>
   </section>
 
@@ -416,7 +421,7 @@ function rcId(maq){ var n=String(maq||"").toLowerCase().replace(/[\s·._-]+/g,""
 //    de todos, en una tabla. Lo que no se mide no se optimiza; lo que no se declara se señala.
 //    Quién «late hoy y no ha declarado» sale de cruzar la presencia de la flota con los partes.
 const PRESENCIA="https://draw-gen.csilvasantin.workers.dev/presence";
-let CONS=null, CONS_ERR="", PRES=[];
+let CONS=null, CONS_ERR="", PRES=[]; let SERIE=new Map();   // canonM(owner) → puntos [{ts,dia,total,entrada,cache,salida}] de las últimas 24 h
 const fmtTok=n=>{n=+n||0;return n>=1e9?(n/1e9).toFixed(2)+" G":n>=1e6?(n/1e6).toFixed(1)+" M":n>=1e3?Math.round(n/1e3)+" k":String(n);};
 const pad2=n=>String(n).padStart(2,"0");
 function hoyISO(){const d=new Date();return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());}
@@ -451,13 +456,13 @@ function quesitoSinMedida(){
   return '<svg viewBox="0 0 200 200" role="img" aria-label="Sin medida de tokens por hora"><circle cx="100" cy="100" r="75" fill="none" stroke="var(--line2)" stroke-width="34" stroke-dasharray="4 6"/>'+
     '<text class="hero" x="100" y="97" text-anchor="middle">—</text><text class="hero2" x="100" y="113" text-anchor="middle">sin medida por hora</text></svg>';
 }
-function quesito(segs,tot){
+function quesito(segs,tot,etiqueta){
   // segs: [{k,nombre,v,color}] ya ordenados por peso; 2 px de hueco (trazo del color de la tarjeta).
   const cx=100,cy=100,r=92,ri=58; let a=-Math.PI/2;
   const paths=segs.map(g=>{ const f=tot>0?g.v/tot:0, a1=a+f*2*Math.PI; const d=arco(cx,cy,r,ri,a,a1); a=a1;
     return '<path class="arc" data-k="'+esc(g.k)+'" d="'+d+'" fill="'+g.color+'" stroke="var(--card)" stroke-width="2" stroke-linejoin="round"><title>'+esc(g.nombre)+' · '+fmtTok(g.v)+' · '+Math.round(100*f)+' %</title></path>'; }).join("");
   return '<svg viewBox="0 0 200 200" role="img" aria-label="Reparto del consumo de hoy por agente">'+paths+
-    '<text class="hero" x="100" y="97" text-anchor="middle">'+fmtTok(tot)+'</text><text class="hero2" x="100" y="113" text-anchor="middle">tokens · 100 %</text></svg>';
+    '<text class="hero" x="100" y="97" text-anchor="middle">'+fmtTok(tot)+'</text><text class="hero2" x="100" y="113" text-anchor="middle">'+esc(etiqueta||"tokens · 100 %")+'</text></svg>';
 }
 // ── MISIONES DEL DÍA por agente (se despliegan bajo su fila al pulsar), OCUPADO (presencia con
 //    tarea en los últimos 10 min → parpadea) y CAPTURA (si esa máquina ha entregado alguna imagen:
@@ -568,7 +573,7 @@ function listaQueso(titulo,filas,cmap,tot,dia,per){
     let cuando="";
     if(per.k==="hora"||per.k==="dia"){ const ini=inicioHoy(r.owner,r.machine,dia); cuando=ini?'<span class="desde" title="empezó hoy a las '+hhmm(ini.t)+' · primera señal de hoy: '+esc(ini.src)+'">'+hhmm(ini.t)+' <small>'+esc(ini.src.split(" ")[0])+'</small></span>':'<span class="desde no" title="ninguna señal de hoy con hora">'+(cargando?'…':'sin hora')+'</span>'; }
     else { const t0=r.list.reduce((m,x)=>{const v=+x.started_at||+x.at||0; return v&&(!m||v<m)?v:m;},0); cuando=t0?'<span class="desde" title="primera misión del periodo: '+ddmm(t0)+' '+hhmm(t0)+'">'+ddmm(t0)+' <small>'+hhmm(t0)+'</small></span>':'<span class="desde no">sin misión</span>'; }
-    return '<div class="qr'+(on?' on':'')+'" data-k="'+esc(k)+'" data-owner="'+esc(r.owner)+'" role="button" tabindex="0" aria-expanded="'+on+'" title="pulsa para ver su última misión"><i class="sw" style="background:'+(cmap.get(r.owner)||"var(--s0)")+'"></i><b title="'+esc(r.owner)+'">'+esc(r.owner)+'</b><span class="pc" title="'+(t?fmtTok(t.total)+' tokens'+(t.est?' · estimación sin medidor local':''):(per.k==="hora"?'sin medida por hora'+(r.tokDia?' · parte de hoy: '+fmtTok(r.tokDia.total)+' tokens':''):'sin parte de consumo en el periodo'))+'">'+(t&&t.est?'<span class="est">≈</span>':'')+(t&&tot>0?Math.round(100*t.total/tot)+' %':'—')+'</span>'+cuando+'</div>'+(on?qinfoHTML(r.owner):'');}).join("");
+    return '<div class="qr'+(on?' on':'')+'" data-k="'+esc(k)+'" data-owner="'+esc(r.owner)+'" role="button" tabindex="0" aria-expanded="'+on+'" title="pulsa para ver su última misión"><i class="sw" style="background:'+(cmap.get(r.owner)||"var(--s0)")+'"></i><b title="'+esc(r.owner)+'">'+esc(r.owner)+'</b><span class="pc" title="'+(t?fmtTok(t.total)+' tokens'+(t.est?' · estimación sin medidor local':''):(per.k==="hora"?'sin serie horaria'+(r.tokDia?' · parte de hoy: '+fmtTok(r.tokDia.total)+' tokens':''):'sin parte de consumo en el periodo'))+'">'+(t&&t.est?'<span class="est">≈</span>':'')+(t&&tot>0?Math.round(100*t.total/tot)+' %':'—')+'</span>'+cuando+'</div>'+(on?qinfoHTML(r.owner):'');}).join("");
   return '<div class="ql"><h4>'+titulo+'<span>% · '+((per.k==="hora"||per.k==="dia")?'empezó hoy':'primera misión')+'</span><b>'+filas.length+'</b></h4>'+(html||'<div class="nadie">nadie '+esc(per.l)+'</div>')+'</div>';
 }
 const filasGrupo=rows=>GRUPO==="flota"?rows:rows.filter(r=>esConsejero({owner:r.owner,machine:r.machine})===(GRUPO==="consejeros"));
@@ -655,16 +660,25 @@ function filasPeriodo(){
   const tok=new Map(), tokDia=new Map(); let consErr="", consDias=per.dias||1, diasPartes=null;
   for(const p of RK.deHoy){ const d=p.datos; tokDia.set(canonM(p.owner),{owner:p.owner,machine:p.machine,runtime:d.runtime||"",total:+d.total||0,entrada:+d.entrada||0,cache:+d.cache||0,salida:+d.salida||0,desp:+d.despertares||0,dups:+d.duplicados||0,foco:focoAhorro(d),est:esEstimado(d)}); }
   if(per.k==="dia"){ for(const [k,v] of tokDia) tok.set(k,v); diasPartes=[RK.dia]; }
-  else if(per.k==="hora"){ diasPartes=[]; }
+  else if(per.k==="hora"){
+    // ÚLTIMA HORA REAL: diferencia entre el último parte y el parte de hace ≥60 min del mismo día (serie del
+    // worker, partes cada 5 min). Si el primer parte del día tiene menos de una hora, la diferencia va desde
+    // ese primer parte y se marca parcial. Sin serie (o con un solo punto) no se afirma nada.
+    diasPartes=[]; const ahora=Date.now(), lim=ahora-3600000;
+    for(const [k,td] of tokDia){ const pts=SERIE.get(k)||[]; if(pts.length<2) continue; const p1=pts[pts.length-1]; if(ahora-(+p1.ts)>20*60000) continue;
+      let p0=null; for(const q of pts){ if(+q.ts<=lim&&q.dia===p1.dia) p0=q; } const base=p0||pts.find(q=>q.dia===p1.dia); if(!base||base===p1) continue;
+      const dlt=x=>Math.max(0,(+p1[x]||0)-(+base[x]||0));
+      tok.set(k,Object.assign({},td,{total:dlt("total"),entrada:dlt("entrada"),cache:dlt("cache"),salida:dlt("salida"),desp:null,dups:0,foco:"",horario:true,desde:+base.ts,hasta:+p1.ts,parcial:!p0})); }
+  }
   else { const c=CONSP.get(per.dias); if(c&&c.list){ consDias=c.dias; diasPartes=c.dias_partes||[]; for(const a of c.list) tok.set(canonM(a.owner),{owner:a.owner,machine:a.machine||"",runtime:"",total:+a.total_tokens||0,entrada:+a.entrada||0,cache:+a.cache||0,salida:+a.salida||0,desp:null,dups:0,foco:"",est:false}); } else if(c&&c.err) consErr=c.err; }
   const keys=new Set([...porAg.keys(),...tok.keys()]);
   const rows=[...keys].map(k=>{ const g=porAg.get(k), t=tok.get(k), td=tokDia.get(k); const owner=t?t.owner:(td?td.owner:g.nombre), machine=(t&&t.machine)||(td&&td.machine)||(g&&g.machine)||"";
     return {k,owner,machine,runtime:t?t.runtime:(td?td.runtime:""),n:g?g.n:0,res:g?g.res:0,pts:g?g.pts:0,list:g?g.list:[],tok:t||null,tokDia:td||null}; });
   // Solo quien ha ESTADO ACTIVO en el periodo (con misiones en esa franja). Quien tiene consumo pero
   // ninguna misión en la franja no se lista; se dice cuántos son para que no desaparezcan en silencio.
-  const activos=ms?rows.filter(r=>r.n>0):rows, ocultos=per.k==="hora"?0:rows.length-activos.length;
+  const activos=ms?rows.filter(r=>r.n>0):rows, ocultos=rows.length-activos.length;
   const tot=activos.reduce((s,r)=>s+(r.tok?r.tok.total:0),0);
-  return {per,h,ms,rows:ordena(activos),ocultos,tot,consErr,consDias,diasPartes,sinMedida:per.k==="hora",cargandoHist:!h,cargandoCons:!(per.k==="hora"||per.k==="dia")&&!CONSP.get(per.dias)};
+  return {per,h,ms,rows:ordena(activos),ocultos,tot,consErr,consDias,diasPartes,horario:per.k==="hora",sinMedida:per.k==="hora"&&tok.size===0,cargandoHist:!h,cargandoCons:!(per.k==="hora"||per.k==="dia")&&!CONSP.get(per.dias)};
 }
 // COSTE POR MISIÓN (encargo #2581): consumo_reportar y consumo-tokens.py declaran tokens por agente y día,
 // no por misión. Hasta que lo declaren, el coste de cada misión es un REPARTO ESTIMADO del parte diario del
@@ -708,8 +722,8 @@ function hojaHTML(f){
       '<td class="est'+(oc?' oc':'')+'" title="'+esc(oc?oc.src+': '+oc.tarea:'sin tarea en presencia, sin trabajo en curso en el Highscore y sin misión tocada en 10 min')+'">'+(oc?'● ocupado'+(/sin verificar/.test(oc.src)?' ?':''):'○ libre')+'</td>'+
       '<td>'+capturaCelda(r.owner,r.machine)+'</td>'+
       '<td class="num">'+r.n+'</td><td class="num">'+r.res+'</td><td class="num">'+r.pts+'</td>'+
-      (t?'<td class="num">'+(t.est?'<span class="est" title="estimación declarada sin medidor local (consumo_reportar): no es una medida">≈ </span>':'')+fmtTok(t.total)+'</td><td class="num pc">'+(f.tot>0?Math.round(100*t.total/f.tot):0)+' %</td><td class="num pc">'+(pc==null?'—':pc+' %')+'</td><td class="num">'+fmtTok(t.salida)+'</td><td class="num'+(t.dups?' foco':'')+'">'+(t.desp==null?'—':t.desp+(t.dups?' ·'+t.dups+'dup':''))+'</td>'
-        :f.sinMedida?'<td class="num nd" colspan="5" title="el consumo se declara por día, no por hora'+(r.tokDia?' · parte de hoy: '+fmtTok(r.tokDia.total)+' tokens':'')+'">sin medida por hora'+(r.tokDia?' · hoy '+fmtTok(r.tokDia.total):'')+'</td>'
+      (t?'<td class="num"'+(t.horario?' title="Δ entre el parte de las '+hhmm(t.desde)+' y el de las '+hhmm(t.hasta)+(t.parcial?' (primer parte del día: menos de una hora)':'')+'"':'')+'>'+(t.horario?'Δ ':'')+(t.est?'<span class="est" title="estimación declarada sin medidor local (consumo_reportar): no es una medida">≈ </span>':'')+fmtTok(t.total)+(t.parcial?' <small class="nd">parcial</small>':'')+'</td><td class="num pc">'+(f.tot>0?Math.round(100*t.total/f.tot):0)+' %</td><td class="num pc">'+(pc==null?'—':pc+' %')+'</td><td class="num">'+fmtTok(t.salida)+'</td><td class="num'+(t.dups?' foco':'')+'">'+(t.desp==null?'—':t.desp+(t.dups?' ·'+t.dups+'dup':''))+'</td>'
+        :f.horario?'<td class="num nd" colspan="5" title="sin serie de partes de la última hora (hacen falta partes cada 5 min: consumo-tokens-install.sh en su Mac, o consumo_reportar periódico)'+(r.tokDia?' · parte de hoy: '+fmtTok(r.tokDia.total)+' tokens':'')+'">sin serie horaria'+(r.tokDia?' · hoy '+fmtTok(r.tokDia.total):'')+'</td>'
         :'<td class="num nd" colspan="5" title="sin parte de consumo en este periodo">sin parte de consumo</td>')+
       '<td class="nd">'+(ini?hhmm(ini.t)+' <small>'+esc(ini.src.split(" ")[0])+'</small>':(mc?'sin hora':'…'))+'</td>'+
       '</tr>'+
@@ -728,7 +742,7 @@ function pintaEstadisticas(f){
   const con=rowsG.filter(r=>r.tok);
   let segs=con.map(r=>({k:r.k,nombre:r.owner,v:r.tok.total,color:cmap.get(r.owner)})).filter(g=>g.v>0);
   if(segs.length>SLOTS){ const resto=segs.slice(SLOTS-1); segs=segs.slice(0,SLOTS-1).concat([{k:"otros",nombre:"otros ("+resto.length+")",v:resto.reduce((s,g)=>s+g.v,0),color:"var(--s0)"}]); }
-  const qs=$("qsvg"); if(qs) qs.innerHTML=f.sinMedida?quesitoSinMedida():quesito(segs,totG); const qg=$("qgrupo"); if(qg) qg.innerHTML=grupoHTML();
+  const qs=$("qsvg"); if(qs) qs.innerHTML=f.sinMedida?quesitoSinMedida():quesito(segs,totG,f.horario?"Δ última hora":""); const qg=$("qgrupo"); if(qg) qg.innerHTML=grupoHTML();
   f=Object.assign({},f,{tot:totG});
   const ql=$("qlistas"); if(ql) ql.innerHTML=listasQueso(f);
   const sum=k=>con.reduce((s,r)=>s+(+r.tok[k]||0),0);
@@ -736,14 +750,15 @@ function pintaEstadisticas(f){
   const conDesp=con.filter(r=>r.tok.desp!=null), desp=conDesp.reduce((s,r)=>s+r.tok.desp,0), dups=con.reduce((s,r)=>s+(+r.tok.dups||0),0);
   const diasTxt=f.diasPartes&&f.diasPartes.length>0&&f.per.dias?' · partes de '+f.diasPartes.length+(f.diasPartes.length===1?' día ('+f.diasPartes[0]+')':' días ('+f.diasPartes[0]+' → '+f.diasPartes[f.diasPartes.length-1]+')'):'';
   const kpi=$("consKpi"); if(kpi) kpi.innerHTML=(f.sinMedida
-    ?'<span class="k warn" title="el consumo se declara por día (consumo-tokens.py y consumo_reportar); no existe medida por hora"><b>—</b>sin medida por hora · parte de hoy '+fmtTok(RK.tot)+(GRUPO!=="flota"?' ('+GRUPO+': '+fmtTok(rowsG.reduce((s,r)=>s+(r.tokDia?r.tokDia.total:0),0))+')':'')+'</span>'
+    ?'<span class="k warn" title="sin serie de partes en la última hora: hacen falta partes cada 5 min (consumo-tokens-install.sh en cada Mac)"><b>—</b>sin serie horaria · parte de hoy '+fmtTok(RK.tot)+(GRUPO!=="flota"?' ('+GRUPO+': '+fmtTok(rowsG.reduce((s,r)=>s+(r.tokDia?r.tokDia.total:0),0))+')':'')+'</span>'
+    :f.horario?'<span class="k" title="diferencia entre partes de la serie (cada 5 min) en los últimos 60 min"><b>Δ '+fmtTok(f.tot)+'</b>última hora'+(GRUPO!=="flota"?' · '+GRUPO:'')+' · '+con.length+' con serie</span>'
     :'<span class="k" title="'+esc(f.per.k==="dia"?'parte del día':'acumulado de los partes del periodo'+diasTxt)+'"><b>'+(con.some(r=>r.tok.est)?'≈ ':'')+fmtTok(f.tot)+'</b>'+esc(f.per.cur)+(GRUPO!=="flota"?' · '+GRUPO:'')+' · '+con.length+' con parte'+esc(diasTxt)+'</span>')+
-    (f.sinMedida?'<span class="k"><b>—</b>caché</span><span class="k"><b>—</b>salida</span><span class="k"><b>—</b>despertares</span>':
+    (f.sinMedida?'<span class="k"><b>—</b>caché</span><span class="k"><b>—</b>salida</span><span class="k"><b>—</b>despertares</span>':f.horario?'<span class="k'+(pc<80?' warn':' good')+'"><b>'+pc+' %</b>caché</span><span class="k"><b>Δ '+fmtTok(sal)+'</b>salida</span><span class="k"><b>—</b>despertares</span>':
     '<span class="k'+(pc<80?' warn':' good')+'"><b>'+pc+' %</b>caché</span>'+
     '<span class="k"><b>'+fmtTok(sal)+'</b>salida</span>'+
     '<span class="k'+(dups>0?' warn':'')+'"><b>'+(conDesp.length?desp:"—")+'</b>despertares'+(dups?' · '+dups+' dup':'')+'</span>')+
     '<span class="k'+(RK.sinParte?' warn':' good')+'" title="laten hoy y no han declarado consumo"><b>'+(RK.sinParte||0)+'</b>vivos sin declarar</span>';
-  const cd=$("consDia"); if(cd) cd.textContent=(f.per.k==="dia"?(RK.dia===hoyISO()?"hoy · ":"último parte · ")+RK.dia:f.per.k==="hora"?"última hora · misiones sí, tokens no (se declaran por día)":f.h&&f.h.rango?f.per.cur+" · "+f.h.rango.desde+" → "+f.h.rango.hasta+diasTxt:f.per.cur);
+  const cd=$("consDia"); if(cd) cd.textContent=(f.per.k==="dia"?(RK.dia===hoyISO()?"hoy · ":"último parte · ")+RK.dia:f.per.k==="hora"?(f.sinMedida?"última hora · sin serie de partes todavía":"última hora · Δ entre partes (cada 5 min) · "+RK.dia):f.h&&f.h.rango?f.per.cur+" · "+f.h.rango.desde+" → "+f.h.rango.hasta+diasTxt:f.per.cur);
 }
 function pintaRanking(){ const f=filasPeriodo(); const el=$("rk"); if(el&&RK&&f) el.innerHTML=cabeceraPeriodo(f)+hojaHTML(f); pintaEstadisticas(f); }
 async function cargaPeriodo(){
@@ -862,16 +877,25 @@ function montaDivisor(){
   d.addEventListener("dblclick",()=>pon(QW_DEF));
   d.addEventListener("keydown",e=>{ const w=cuerpo.querySelector(".queso").getBoundingClientRect().width; if(e.key==="ArrowLeft"){ pon(w-20); e.preventDefault(); } if(e.key==="ArrowRight"){ pon(w+20); e.preventDefault(); } if(e.key==="Home"){ pon(QW_DEF); e.preventDefault(); } });
 }
+function pintaVivo(){
+  const el=$("consVivo"); if(!el||!CONS) return;
+  let ult=0; for(const p of (CONS.partes||[])) ult=Math.max(ult,+p.last_at||0); for(const pts of SERIE.values()) for(const q of pts) ult=Math.max(ult,+q.ts||0);
+  if(!ult){ el.textContent=""; return; }
+  const s=Math.max(0,Math.round((Date.now()-ult)/1000)), viejo=s>6*60;
+  el.className="vivo"+(viejo?" viejo":""); el.innerHTML='<i></i>'+(viejo?'último parte hace '+(s<3600?Math.round(s/60)+' min':Math.floor(s/3600)+' h')+' · sin latido de 5 min':'en vivo · último parte hace '+(s<90?s+' s':Math.round(s/60)+' min'));
+}
+setInterval(pintaVivo,1000);
 async function loadConsumo(){
   try{
     const r=await fetch(WORKER+"/fleet/consumo?dias=7",{cache:"no-store"});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const d=await r.json(); if(!d||!d.ok||!Array.isArray(d.partes)) throw new Error("respuesta incompleta");
     CONS=d; CONS_ERR="";
+    SERIE=new Map(); for(const [k,pts] of Object.entries(d.serie||{})){ if(!Array.isArray(pts)) continue; const key=canonM(String(k).split("|")[0]); SERIE.set(key,(SERIE.get(key)||[]).concat(pts).sort((a,b)=>(+a.ts)-(+b.ts))); }
   }catch(e){ CONS_ERR=String(e&&e.message||e); }
   try{ const r=await fetch(PRESENCIA,{cache:"no-store"}); const d=await r.json(); if(d&&Array.isArray(d.presence)) PRES=d.presence; }catch(e){}
   await loadActivo();
-  renderConsumo();
+  renderConsumo(); pintaVivo();
 }
 
 async function load(){

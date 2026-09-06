@@ -283,6 +283,11 @@ async function applySchema(env) {
   // consumo llevan sus cifras en `datos` (JSON). Columna aditiva; en una D1 ya creada ALTER
   // falla si existe y se ignora.
   try { await env.DB.exec("ALTER TABLE notifs ADD COLUMN datos TEXT"); } catch (e) { /* ya existe */ }
+  // SERIE DE CONSUMO (Carlos, 6-sep-2026: «el consumo es un elemento vivo»): cada parte que llega deja un
+  // punto (owner, máquina, día, ts, totales). Con partes cada 5 min sale el marcador en vivo y la última
+  // hora REAL como diferencia entre puntos, en vez del parte diario disfrazado de hora.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS consumo_serie (id INTEGER PRIMARY KEY AUTOINCREMENT, owner TEXT, machine TEXT, dia TEXT, ts INTEGER, total INTEGER, entrada INTEGER, cache INTEGER, salida INTEGER)");
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS consumo_serie_owner_ts ON consumo_serie(owner, ts)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS prefs (key TEXT PRIMARY KEY, value TEXT, updated_at INTEGER)");
   // RELOJES DE DECISIÓN (Carlos, 2026-07-21): un equipo de silicio publica aquí
   // lo que tiene pendiente de decidir, con sus 3 opciones y una cuenta atrás.
@@ -533,6 +538,20 @@ async function ensureSchema(env) {
   return schemaReady;
 }
 __name(ensureSchema, "ensureSchema");
+
+// Un punto de serie por parte de consumo (owner, máquina, día); si el total no cambió y el anterior es de
+// hace menos de 4 min, no se repite. Lo llaman las dos ramas de POST /fleet/notificacion (fila viva y nueva).
+async function registraSerieConsumo(env, owner, machine, dia, datos, now) {
+  if (!datos || typeof datos !== "object") return;
+  const n = (v) => Math.max(0, Math.round(Number(v) || 0));
+  const total = n(datos.total || datos.total_tokens), entrada = n(datos.entrada || datos.input_tokens), cache = n(datos.cache || datos.cached_input_tokens), salida = n(datos.salida || datos.output_tokens);
+  const last = await env.DB.prepare("SELECT ts,total FROM consumo_serie WHERE owner=? AND machine=? AND dia=? ORDER BY ts DESC LIMIT 1").bind(owner, machine, dia).first();
+  if (!last || Number(last.total) !== total || now - Number(last.ts) >= 240000) {
+    await env.DB.prepare("INSERT INTO consumo_serie(owner,machine,dia,ts,total,entrada,cache,salida) VALUES(?,?,?,?,?,?,?,?)").bind(owner, machine, dia, now, total, entrada, cache, salida).run();
+  }
+}
+__name(registraSerieConsumo, "registraSerieConsumo");
+
 
 // ── REFERENCIAS HUMANAS COMUNES ─────────────────────────────────────────────
 // `display_ref` no sustituye ninguna PK. Se asigna una sola vez y se persiste;
@@ -9979,6 +9998,7 @@ var worker_app = {
         await env.DB.prepare(
           "UPDATE notifs SET last_at=?, seen_count=seen_count+1, titulo=COALESCE(NULLIF(?,''),titulo), image=COALESCE(image,?), datos=COALESCE(?,datos) WHERE id=?"
         ).bind(now, titulo, image, datos, viva.id).run();
+        if (esConsumo) await registraSerieConsumo(env, owner, machine, dia, b.datos, now);
         return json({ ok: true, id: viva.id, nueva: false });
       }
       if (esConsumo) {
@@ -9990,6 +10010,7 @@ var worker_app = {
       await env.DB.prepare(
         "INSERT INTO notifs (id,fingerprint,machine,owner,titulo,kind,image,status,first_at,last_at,seen_count,datos) VALUES (?,?,?,?,?,?,?,'abierta',?,?,1,?)"
       ).bind(id, fp, machine, owner, titulo, kind, image, now, now, datos).run();
+      if (esConsumo) await registraSerieConsumo(env, owner, machine, dia, b.datos, now);
       return json({ ok: true, id, nueva: true });
     }
     // Consumo de tokens por agente y máquina (mandamiento 15): los partes de los últimos N días,
@@ -10009,7 +10030,15 @@ var worker_app = {
         const k = p.owner + " · " + p.machine; const a = porAgente[k] || (porAgente[k] = { owner: p.owner, machine: p.machine, dias: 0, total_tokens: 0, entrada: 0, cache: 0, salida: 0 });
         const d = p.datos || {}; a.dias++; a.total_tokens += Number(d.total || d.total_tokens || 0); a.entrada += Number(d.entrada || d.input_tokens || 0); a.cache += Number(d.cache || d.cached_input_tokens || 0); a.salida += Number(d.salida || d.output_tokens || 0);
       }
-      const response = json({ ok: true, dias, partes, por_agente: Object.values(porAgente).sort((x, y) => y.total_tokens - x.total_tokens) });
+      // Serie de las últimas 24 h (un punto por parte recibido, partes cada 5 min desde consumo-tokens-install.sh).
+      const serie = {};
+      try {
+        const { results: puntos } = await env.DB.prepare(
+          "SELECT owner,machine,dia,ts,total,entrada,cache,salida FROM consumo_serie WHERE ts>=? ORDER BY ts ASC LIMIT 6000"
+        ).bind(Date.now() - 86400000).all();
+        for (const r of (puntos || [])) { const k = r.owner + "|" + r.machine; (serie[k] || (serie[k] = [])).push({ ts: r.ts, dia: r.dia, total: r.total, entrada: r.entrada, cache: r.cache, salida: r.salida }); }
+      } catch (e) { /* sin serie aún */ }
+      const response = json({ ok: true, dias, ahora: Date.now(), partes, por_agente: Object.values(porAgente).sort((x, y) => y.total_tokens - x.total_tokens), serie });
       response.headers.set("cache-control", "no-store");
       return response;
     }

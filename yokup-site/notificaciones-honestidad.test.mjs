@@ -163,7 +163,7 @@ test("encargo #2581: quesito por grupo (flota, agentes, consejeros) con % relati
   assert.match(html, /\["consejeros","Consejeros"\]/);
   assert.match(html, /button\[data-grupo\]/);
   assert.match(html, /const filasGrupo=rows=>GRUPO==="flota"\?rows:/);
-  assert.match(html, /quesito\(segs,totG\)/, "el 100 % del quesito es el total del grupo elegido");
+  assert.match(html, /quesito\(segs,totG,/, "el 100 % del quesito es el total del grupo elegido");
   assert.match(html, /function costeMisiones\(r\)/);
   assert.match(html, /consumo_reportar no declara tokens por misión/, "el coste por misión se declara estimado y dice por qué");
   assert.match(html, /thd\("tok","tokens ≈",1\)/);
@@ -172,10 +172,21 @@ test("encargo #2581: quesito por grupo (flota, agentes, consejeros) con % relati
 });
 
 test("en «hora» no se afirma consumo: los tokens se declaran por día y la vista lo dice; semana y mes dicen de cuántos días de partes salen", () => {
-  assert.match(html, /else if\(per\.k==="hora"\)\{ diasPartes=\[\]; \}/, "en hora no se cargan tokens al periodo");
+  assert.match(html, /const dlt=x=>Math\.max\(0,\(\+p1\[x\]\|\|0\)-\(\+base\[x\]\|\|0\)\)/, "en hora los tokens son la diferencia entre partes, nunca el parte diario");
   assert.match(html, /sin medida por hora/);
   assert.match(html, /function quesitoSinMedida\(\)/);
-  assert.match(html, /f\.sinMedida\?quesitoSinMedida\(\):quesito\(segs,totG\)/);
+  assert.match(html, /f\.sinMedida\?quesitoSinMedida\(\):quesito\(segs,totG,/);
   assert.match(html, /partes de '\+f\.diasPartes\.length/);
   assert.match(html, /out\.dias_partes=\[\.\.\.new Set\(\(d\.partes\|\|\[\]\)\.map\(p=>p&&p\.dia\)/);
+});
+
+test("marcador vivo: la última hora es la diferencia real entre partes de la serie (cada 5 min) y se ve cuándo llegó el último parte", () => {
+  assert.match(html, /SERIE=new Map\(\); for\(const \[k,pts\] of Object\.entries\(d\.serie\|\|\{\}\)\)/);
+  assert.match(html, /const dlt=x=>Math\.max\(0,\(\+p1\[x\]\|\|0\)-\(\+base\[x\]\|\|0\)\)/, "Δ = último parte − parte de hace ≥60 min");
+  assert.match(html, /parcial:!p0/, "si el primer parte tiene menos de una hora, se marca parcial");
+  assert.match(html, /if\(ahora-\(\+p1\.ts\)>20\*60000\) continue;/, "un parte viejo no se presenta como la última hora");
+  assert.match(html, /sinMedida:per\.k==="hora"&&tok\.size===0/);
+  assert.match(html, /sin serie horaria/);
+  assert.match(html, /function pintaVivo\(\)/);
+  assert.match(html, /sin latido de 5 min/, "si el parte tiene más de 6 min, se dice");
 });
