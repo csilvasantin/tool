@@ -61,32 +61,66 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .load-error{border:1px solid rgba(255,136,102,.45);border-radius:10px;background:rgba(255,136,102,.08);color:var(--warn);padding:10px 13px;margin:-6px 0 14px;font-size:13px;line-height:1.45}
 .load-error button{margin-left:8px;border:1px solid currentColor;border-radius:7px;background:transparent;color:inherit;padding:5px 9px;font:inherit;cursor:pointer}
 .foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
-/* ── Consumo de tokens (mandamiento 15 «Cuenta tus tokens»): los partes del día de TODOS
-      (agentes de los Mac y consejeros de GrokBot) en una tabla, con el foco de ahorro a la vista. */
-.cons{border:1px solid var(--line);border-radius:16px;background:var(--card);margin-bottom:18px;overflow:hidden}
-.cons .ch{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 18px 10px;border-bottom:1px solid var(--line)}
-.cons .ch h2{font-size:17px;font-weight:650;letter-spacing:-.01em}
-.cons .dia{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
-.cons .kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));border-bottom:1px solid var(--line)}
-.cons .k{padding:12px 18px;border-right:1px solid var(--line)}.cons .k:last-child{border-right:0}
-.cons .k b{display:block;font-family:var(--mono);font-size:20px;color:var(--brand);letter-spacing:-.01em}
-.cons .k span{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+/* ── Consumo de tokens (mandamiento 15 «Cuenta tus tokens»), COMPACTO: un quesito con el 100 %
+      del día repartido por agente/consejero, a la derecha quién más gasta y quién late sin gastar,
+      y el detalle (tabla de partes) plegado. Colores por entidad, no por puesto en el ranking. */
+.cons{border:1px solid var(--line);border-radius:16px;background:var(--card);margin-bottom:18px;overflow:hidden;
+  --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--s8:#e66767;--s0:#4d6570}
+.cons .ch{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line)}
+.cons .ch h2{font-size:16px;font-weight:650;letter-spacing:-.01em}
+.cons .dia{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.cons .kp{display:flex;gap:6px 14px;flex-wrap:wrap;margin-left:auto;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--mut)}
+.cons .k b{color:var(--brand);font-size:13px;letter-spacing:-.01em;margin-right:4px}
 .cons .k.warn b{color:var(--warn)}.cons .k.good b{color:var(--good)}
+.cons .cuerpo{display:grid;grid-template-columns:minmax(230px,300px) 1fr;gap:0}
+.cons .queso{padding:14px 16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:10px}
+.cons .queso svg{width:100%;max-width:210px;height:auto;display:block;overflow:visible}
+.cons .queso .arc{cursor:pointer;transition:opacity .15s}
+.cons .queso.hov .arc:not(.on){opacity:.32}
+.cons .hero{font-family:var(--mono);fill:var(--ink);font-size:22px;font-weight:700;letter-spacing:-.02em}
+.cons .hero2{font-family:var(--mono);fill:var(--dim);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase}
+.cons .ley{display:flex;flex-wrap:wrap;gap:4px 10px;justify-content:center;font-family:var(--mono);font-size:10.5px;color:var(--mut)}
+.cons .ley span{display:inline-flex;align-items:center;gap:5px;cursor:default}
+.cons .sw{width:9px;height:9px;border-radius:2px;flex:none}
+.cons .ley b{color:var(--ink);font-weight:600}
+.cons .lado{display:grid;grid-template-columns:1.25fr 1fr;gap:0}
+.cons .col{padding:14px 16px;min-width:0}
+.cons .col+.col{border-left:1px solid var(--line)}
+.cons h3{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-bottom:10px;font-weight:600}
+.cons h3 b{color:var(--ink)}
+.cons .rk{display:flex;flex-direction:column;gap:7px}
+.cons .r{display:grid;grid-template-columns:minmax(0,auto) minmax(48px,1fr) auto;align-items:center;gap:8px;font-size:12.5px}
+.cons .r .ag{color:var(--ink);font-weight:600;font-family:var(--mono);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:24ch}
+.cons .r .rt{color:var(--dim);font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;margin-left:5px}
+.cons .r .bar{height:6px;border-radius:3px;background:rgba(120,243,255,.08);overflow:hidden;min-width:40px}
+.cons .r .bar i{display:block;height:100%;border-radius:0 3px 3px 0;min-width:2px}
+.cons .r .num{font-family:var(--mono);font-size:11.5px;color:var(--mut);white-space:nowrap;text-align:right}
+.cons .r .num b{color:var(--ink);font-weight:600}
+.cons .r.foco .num{color:var(--warn)}
+.cons .disp{display:flex;flex-wrap:wrap;gap:6px}
+.cons .chip{border:1px solid rgba(136,255,170,.35);color:var(--good);border-radius:999px;padding:4px 9px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;display:inline-flex;align-items:center;gap:6px}
+.cons .chip small{color:var(--dim);font-size:9px;letter-spacing:.06em;text-transform:uppercase}
+.cons .chip.ok{border-color:rgba(136,255,170,.35);color:var(--good)}
+.cons .chip.warn{border-color:rgba(255,136,102,.45);color:var(--warn)}
+.cons .sin{padding:0;margin-top:10px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);line-height:1.6}
+.cons details{border-top:1px solid var(--line)}
+.cons details>summary{list-style:none;cursor:pointer;padding:10px 16px;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.cons details>summary::-webkit-details-marker{display:none}
+.cons details>summary:hover{color:var(--brand)}
 .cons .tw{overflow-x:auto}
-.cons table{width:100%;border-collapse:collapse;font-size:13px}
-.cons th{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
-.cons td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.cons table{width:100%;border-collapse:collapse;font-size:12.5px}
+.cons th{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);text-align:left;padding:8px 12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);white-space:nowrap}
+.cons td{padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
 .cons tbody tr:last-child td{border-bottom:0}
 .cons td.num,.cons th.num{text-align:right;font-family:var(--mono);white-space:nowrap}
-.cons .ag{color:var(--brand);font-weight:700;font-family:var(--mono);font-size:12.5px}
-.cons .rt{color:var(--dim);font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em}
-.cons td.causa{color:var(--mut);font-size:12.5px;line-height:1.45;min-width:26ch;max-width:44ch}
+.cons td .ag{color:var(--brand);font-weight:700;font-family:var(--mono);font-size:12px}
+.cons td .rt{color:var(--dim);font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.cons td.causa{color:var(--mut);font-size:12px;line-height:1.45;min-width:26ch;max-width:44ch}
 .cons .foco{color:var(--warn);font-weight:700}
-.cons .sin{padding:12px 18px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line);font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
-.cons .chip{border:1px solid rgba(255,136,102,.45);color:var(--warn);border-radius:999px;padding:4px 9px}
-.cons .chip.ok{border-color:rgba(136,255,170,.35);color:var(--good)}
-.cons .nota{padding:10px 18px 14px;color:var(--mut);font-size:12.5px;line-height:1.5}
+.cons .nota{padding:10px 16px 12px;color:var(--mut);font-size:12.5px;line-height:1.5}
 .cons .nota b{color:var(--ink);font-weight:600}
+@media(max-width:900px){ .cons .cuerpo{grid-template-columns:1fr} .cons .queso{border-right:0;border-bottom:1px solid var(--line)} }
+@media(max-width:560px){ .cons .lado{grid-template-columns:1fr} .cons .col+.col{border-left:0;border-top:1px solid var(--line)} .cons .r .rt{display:none} }
 #lb{position:fixed;inset:0;background:rgba(2,8,13,.94);display:none;align-items:center;justify-content:center;z-index:9999;padding:24px;cursor:zoom-out}
 #lb img{max-width:100%;max-height:100%;border-radius:10px;border:1px solid var(--line2)}
 @media(max-width:760px){ .n{grid-template-columns:1fr} .n .shot{border-right:0;border-bottom:1px solid var(--line)} }
@@ -108,7 +142,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   </details>
 
   <section class="cons" id="consumo" aria-labelledby="consumoTitulo">
-    <div class="ch"><h2 id="consumoTitulo">📟 Consumo de tokens</h2><span class="dia" id="consDia">hoy</span><span class="dia" style="margin-left:auto">mandamiento 15 · fuente <b>/fleet/consumo</b></span></div>
+    <div class="ch"><h2 id="consumoTitulo">📟 Consumo de tokens</h2><span class="dia" id="consDia">hoy</span><div class="kp" id="consKpi"></div></div>
     <div id="consCuerpo"><div class="nota">Cargando partes de consumo…</div></div>
   </section>
 
@@ -264,9 +298,28 @@ function focoAhorro(d){
   if(/estimaci/.test(c)||/estimacion|sin-medidor/.test(String(d.origen||""))) return "cifra estimada: falta medidor";
   return "";
 }
+// Colores por ENTIDAD: cada agente recibe su hue por orden alfabético estable, no por su puesto
+// en el ranking, para que al refrescar nadie cambie de color. Paleta categórica validada (8 pasos
+// para superficie oscura: CVD ΔE ≥ 8.4, contraste ≥ 3:1); del noveno en adelante se pliega en «otros».
+const SLOTS=8;
+function colorMap(nombres){ const m=new Map(); [...new Set(nombres)].sort((a,b)=>a.localeCompare(b)).forEach((n,i)=>m.set(n,i<SLOTS?"var(--s"+(i+1)+")":"var(--s0)")); return m; }
+function arco(cx,cy,r,ri,a0,a1){
+  const P=(r,a)=>[cx+r*Math.cos(a),cy+r*Math.sin(a)];
+  if(a1-a0>=2*Math.PI-1e-6){ return "M"+P(r,0).join(" ")+"A"+r+" "+r+" 0 1 1 "+P(r,Math.PI).join(" ")+"A"+r+" "+r+" 0 1 1 "+P(r,0).join(" ")+"M"+P(ri,0).join(" ")+"A"+ri+" "+ri+" 0 1 0 "+P(ri,Math.PI).join(" ")+"A"+ri+" "+ri+" 0 1 0 "+P(ri,0).join(" ")+"Z"; }
+  const big=a1-a0>Math.PI?1:0, o0=P(r,a0),o1=P(r,a1),i0=P(ri,a0),i1=P(ri,a1);
+  return "M"+o0.join(" ")+"A"+r+" "+r+" 0 "+big+" 1 "+o1.join(" ")+"L"+i1.join(" ")+"A"+ri+" "+ri+" 0 "+big+" 0 "+i0.join(" ")+"Z";
+}
+function quesito(segs,tot){
+  // segs: [{k,nombre,v,color}] ya ordenados por peso; 2 px de hueco (trazo del color de la tarjeta).
+  const cx=100,cy=100,r=92,ri=58; let a=-Math.PI/2;
+  const paths=segs.map(g=>{ const f=tot>0?g.v/tot:0, a1=a+f*2*Math.PI; const d=arco(cx,cy,r,ri,a,a1); a=a1;
+    return '<path class="arc" data-k="'+esc(g.k)+'" d="'+d+'" fill="'+g.color+'" stroke="var(--card)" stroke-width="2" stroke-linejoin="round"><title>'+esc(g.nombre)+' · '+fmtTok(g.v)+' · '+Math.round(100*f)+' %</title></path>'; }).join("");
+  return '<svg viewBox="0 0 200 200" role="img" aria-label="Reparto del consumo de hoy por agente">'+paths+
+    '<text class="hero" x="100" y="97" text-anchor="middle">'+fmtTok(tot)+'</text><text class="hero2" x="100" y="113" text-anchor="middle">tokens · 100 %</text></svg>';
+}
 function renderConsumo(){
-  const box=$("consCuerpo"); const hoy=hoyISO();
-  if(!CONS){ box.innerHTML='<div class="nota">'+(CONS_ERR?'No se pudieron leer los partes de consumo ('+esc(CONS_ERR)+'). No hay datos suficientes para afirmar cuánto se ha gastado.':'Cargando partes de consumo…')+'</div>'; return; }
+  const box=$("consCuerpo"), kpi=$("consKpi"); const hoy=hoyISO();
+  if(!CONS){ kpi.innerHTML=""; box.innerHTML='<div class="nota">'+(CONS_ERR?'No se pudieron leer los partes de consumo ('+esc(CONS_ERR)+'). No hay datos suficientes para afirmar cuánto se ha gastado.':'Cargando partes de consumo…')+'</div>'; return; }
   const partes=(CONS.partes||[]).filter(p=>p&&p.datos&&typeof p.datos==="object");
   const dias=[...new Set(partes.map(p=>p.dia))].filter(Boolean).sort();
   const dia=dias.includes(hoy)?hoy:(dias[dias.length-1]||hoy);
@@ -276,20 +329,43 @@ function renderConsumo(){
   const sum=k=>deHoy.reduce((s,p)=>s+(+p.datos[k]||0),0);
   const tot=sum("total"), ent=sum("entrada"), cac=sum("cache"), sal=sum("salida"), desp=sum("despertares"), dups=sum("duplicados");
   const pc=ent+cac>0?Math.round(100*cac/(ent+cac)):0;
-  // Quién late hoy (presencia) y no tiene parte del día. Las capas sub/infra gastan dentro de su principal.
+  // Quién late hoy (presencia) y no tiene parte del día: está disponible y no gasta. Las capas
+  // sub/infra gastan dentro de su principal. Si además no declara tarea, se marca «sin tarea».
   const declarados=new Set(deHoy.map(p=>canonM(p.owner)));
   const ini=new Date(dia+"T00:00:00").getTime()/1000, vivos=new Map();
   for(const a of PRES){
     if(!a||!(+a.updated>=ini)||!a.persona||!a.machine) continue;
     if(/^(sub|infra)/i.test(String(a.persona))) continue;
-    const k=canonM(a.persona+a.machine); if(!vivos.has(k)) vivos.set(k,{persona:a.persona,machine:a.machine,runtime:a.runtime||""});
+    const k=canonM(a.persona+a.machine), prev=vivos.get(k);
+    const e={persona:a.persona,machine:a.machine,runtime:a.runtime||"",tarea:String(a.task||"").trim(),updated:+a.updated||0};
+    if(!prev||(!prev.tarea&&e.tarea)||(e.updated>prev.updated&&!!e.tarea===!!prev.tarea)) vivos.set(k,e);
   }
   const sinParte=[...vivos.values()].filter(a=>!declarados.has(canonM(a.persona+a.machine))).sort((x,y)=>String(x.persona).localeCompare(String(y.persona)));
+  kpi.innerHTML=
+    '<span class="k"><b>'+fmtTok(tot)+'</b>flota · '+deHoy.length+' partes</span>'+
+    '<span class="k'+(pc<80?' warn':' good')+'"><b>'+pc+' %</b>caché</span>'+
+    '<span class="k"><b>'+fmtTok(sal)+'</b>salida</span>'+
+    '<span class="k'+(dups>0?' warn':'')+'"><b>'+desp+'</b>despertares'+(dups?' · '+dups+' dup':'')+'</span>'+
+    '<span class="k'+(sinParte.length?' warn':' good')+'" title="laten hoy y no han declarado consumo"><b>'+sinParte.length+'</b>vivos sin declarar</span>';
+  const chipsDisp=sinParte.length
+    ? sinParte.map(a=>'<span class="chip" title="'+esc(a.runtime)+(a.tarea?' · '+esc(a.tarea):'')+'">'+esc(a.persona+a.machine)+(a.tarea?'':'<small>sin tarea</small>')+'</span>').join("")
+    : '<span class="chip ok">todos los que laten hoy han declarado</span>';
   if(!deHoy.length){
-    box.innerHTML='<div class="nota">Nadie ha declarado consumo el '+esc(dia)+'. En cada Mac lo publica <b>consumo-tokens.py</b>; los consejeros de GrokBot, <b>consumo_reportar</b> del MCP.'+
-      (sinParte.length?'</div><div class="sin">late hoy y no ha declarado:'+sinParte.map(a=>'<span class="chip">'+esc(a.persona+a.machine)+'</span>').join("")+'</div>':'</div>');
+    box.innerHTML='<div class="nota">Nadie ha declarado consumo el '+esc(dia)+'. En cada Mac lo publica <b>consumo-tokens.py</b>; los consejeros de GrokBot, <b>consumo_reportar</b> del MCP.</div>'+
+      '<div class="col"><h3>Disponibles · laten y no gastan <b>'+sinParte.length+'</b></h3><div class="disp">'+chipsDisp+'</div><div class="sin">late hoy y no ha declarado: '+sinParte.length+'</div></div>';
     return;
   }
+  // Quesito: un segmento por agente/consejero; del noveno en adelante, «otros».
+  const cmap=colorMap(deHoy.map(p=>p.owner));
+  let segs=deHoy.map(p=>({k:canonM(p.owner),nombre:p.owner,v:+p.datos.total||0,color:cmap.get(p.owner)})).filter(g=>g.v>0);
+  if(segs.length>SLOTS){ const resto=segs.slice(SLOTS-1); segs=segs.slice(0,SLOTS-1).concat([{k:"otros",nombre:"otros ("+resto.length+")",v:resto.reduce((s,g)=>s+g.v,0),color:"var(--s0)"}]); }
+  const ley=segs.map(g=>'<span data-k="'+esc(g.k)+'"><i class="sw" style="background:'+g.color+'"></i><b>'+esc(g.nombre)+'</b> '+(tot>0?Math.round(100*g.v/tot):0)+' %</span>').join("");
+  // Ranking: los que más gastan, con barra proporcional al primero y el foco de ahorro si lo hay.
+  const top=deHoy.slice(0,6), max=+top[0].datos.total||1;
+  const rk=top.map(p=>{const d=p.datos, f=focoAhorro(d), c=cmap.get(p.owner)||"var(--s0)";
+    return '<div class="r'+(f?' foco':'')+'" title="'+esc(f||d.causa||"")+'"><span class="ag"><i class="sw" style="background:'+c+';display:inline-block;vertical-align:-1px;margin-right:6px"></i>'+esc(p.owner)+'<span class="rt">'+esc(d.runtime||"")+'</span></span>'+
+      '<span class="bar"><i style="width:'+Math.max(2,Math.round(100*(+d.total||0)/max))+'%;background:'+c+'"></i></span>'+
+      '<span class="num"><b>'+fmtTok(d.total)+'</b> · '+(tot>0?Math.round(100*(+d.total||0)/tot):0)+' %'+(f?' 🔥':'')+'</span></div>';}).join("");
   const filas=deHoy.map(p=>{const d=p.datos, f=focoAhorro(d), modelos=d.modelos&&typeof d.modelos==="object"?Object.keys(d.modelos).join(", "):"";
     return '<tr><td><span class="ag">'+esc(p.owner)+'</span><br><span class="rt">'+esc(d.runtime||"")+(modelos?' · '+esc(modelos):'')+'</span></td>'+
       '<td class="num">'+fmtTok(d.total)+'</td><td class="num">'+pcCache(d)+' %</td><td class="num">'+fmtTok(d.salida)+'</td>'+
@@ -298,16 +374,22 @@ function renderConsumo(){
       '<td class="num" title="hora del parte">'+hhmm(+p.last_at||0)+'</td></tr>';}).join("");
   const top7=(CONS.por_agente||[]).slice(0,6).map(a=>esc(a.owner)+" "+fmtTok(a.total_tokens)).join(" · ");
   box.innerHTML=
-    '<div class="kp">'+
-      '<div class="k"><b>'+fmtTok(tot)+'</b><span>tokens flota · '+deHoy.length+' partes</span></div>'+
-      '<div class="k'+(pc<80?' warn':' good')+'"><b>'+pc+' %</b><span>caché de entrada</span></div>'+
-      '<div class="k"><b>'+fmtTok(sal)+'</b><span>salida generada</span></div>'+
-      '<div class="k'+(dups>0?' warn':'')+'"><b>'+desp+'</b><span>despertares'+(dups?' · '+dups+' dup':'')+'</span></div>'+
-      '<div class="k'+(sinParte.length?' warn':' good')+'"><b>'+sinParte.length+'</b><span>vivos sin declarar</span></div>'+
+    '<div class="cuerpo">'+
+      '<div class="queso" id="queso">'+quesito(segs,tot)+'<div class="ley">'+ley+'</div></div>'+
+      '<div class="lado">'+
+        '<div class="col"><h3>Los que más gastan <b>'+deHoy.length+' agentes</b></h3><div class="rk">'+rk+'</div></div>'+
+        '<div class="col"><h3>Disponibles · laten y no gastan <b>'+sinParte.length+'</b></h3><div class="disp">'+chipsDisp+'</div>'+
+          '<div class="sin">late hoy y no ha declarado: '+sinParte.length+' · vivos hoy: '+vivos.size+'</div></div>'+
+      '</div>'+
     '</div>'+
-    '<div class="tw"><table><thead><tr><th>agente · runtime</th><th class="num">total</th><th class="num">caché</th><th class="num">salida</th><th class="num">llamadas</th><th class="num">despertares</th><th>causa y foco de ahorro</th><th class="num">parte</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+
-    '<div class="sin">'+(sinParte.length?'late hoy y no ha declarado:'+sinParte.map(a=>'<span class="chip" title="'+esc(a.runtime)+'">'+esc(a.persona+a.machine)+'</span>').join(""):'<span class="chip ok">todos los que laten hoy han declarado</span>')+'</div>'+
-    (top7?'<div class="nota"><b>'+(CONS.dias||7)+' días</b> · '+top7+'</div>':'');
+    '<details><summary>Detalle de los partes · causa y foco de ahorro ›</summary>'+
+      '<div class="tw"><table><thead><tr><th>agente · runtime</th><th class="num">total</th><th class="num">caché</th><th class="num">salida</th><th class="num">llamadas</th><th class="num">despertares</th><th>causa y foco de ahorro</th><th class="num">parte</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+
+      (top7?'<div class="nota"><b>'+(CONS.dias||7)+' días</b> · '+top7+'</div>':'')+
+    '</details>';
+  // Al pasar por un segmento o su leyenda se resalta ese agente y el resto se atenúa.
+  const q=$("queso");
+  q.addEventListener("mouseover",e=>{const t=e.target.closest("[data-k]");if(!t)return;q.classList.add("hov");q.querySelectorAll(".arc").forEach(x=>x.classList.toggle("on",x.dataset.k===t.dataset.k));});
+  q.addEventListener("mouseleave",()=>{q.classList.remove("hov");q.querySelectorAll(".arc.on").forEach(x=>x.classList.remove("on"));});
 }
 async function loadConsumo(){
   try{
