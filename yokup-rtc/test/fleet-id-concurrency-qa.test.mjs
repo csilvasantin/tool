@@ -14,6 +14,7 @@ function concurrentEnv(){
   const rendezvous=()=>new Promise(resolve=>{waiters.push(resolve);if(waiters.length===2){const release=waiters;waiters=[];for(const done of release)done();}});
   const DB={prepare(sql){const directFirst=async()=>{
     if(sql.startsWith("SELECT MAX(CAST(SUBSTR(id,5)"))return {mx:2000};
+    if(sql.startsWith("SELECT MAX(CAST(SUBSTR(mission_id,5)"))return {mx:Math.max(0,...[...mappings.values()].map(v=>Number(String(v).replace(/^FLT-/,""))||0))};
     if(sql.startsWith("SELECT MAX(inbox_id)"))return {mx:Math.max(0,...mappings.keys())};
     throw new Error(`direct first SQL no soportado: ${sql}`);
   };return{first:directFirst,bind(...args){return{
@@ -21,6 +22,8 @@ function concurrentEnv(){
       if(sql.startsWith("SELECT mission_id FROM fleet_ids WHERE inbox_id="))return mappings.has(args[0])?{mission_id:mappings.get(args[0])}:null;
       if(sql.startsWith("SELECT subject,screen,source FROM tickets WHERE id="))return {subject:"misión ajena",screen:"",source:"incident"};
       if(sql.startsWith("SELECT MAX(CAST(SUBSTR(id,5)"))return {mx:2000};
+      // serie propia de misiones (FLT-2705): el MAX también mira los ids ya reservados en fleet_ids
+      if(sql.startsWith("SELECT MAX(CAST(SUBSTR(mission_id,5)"))return {mx:Math.max(0,...[...mappings.values()].map(v=>Number(String(v).replace(/^FLT-/,""))||0))};
       if(sql.startsWith("SELECT MAX(inbox_id)"))return {mx:Math.max(0,...mappings.keys())};
       if(sql.startsWith("SELECT 1 x FROM tickets")){takenCalls++;if(takenCalls<=2)await rendezvous();return missionOwners.has(args[0])?{x:1}:null;}
       throw new Error(`first SQL no soportado: ${sql}`);
@@ -39,7 +42,7 @@ function concurrentEnv(){
 }
 
 test("dos repartos concurrentes obtienen ids distintos y mappings confirmados",async()=>{
-  const {DB,mappings}=concurrentEnv(),context=vm.createContext({Number,String,Date,Math,__name:fn=>fn,
+  const {DB,mappings}=concurrentEnv(),context=vm.createContext({Number,String,Date,Math,__name:fn=>fn,FLEET_MISSION_SERIES_START:100001,
     fleetSubject:text=>String(text||"").split("\n")[0].trim(),inboxIdFromScreen:()=>"",addEvent:async()=>{}});
   vm.runInContext(["nextFreeFleetId","fleetSameEncargo","fleetMissionId"].map(grab).join("\n"),context);
   const [a,b]=await Promise.all([

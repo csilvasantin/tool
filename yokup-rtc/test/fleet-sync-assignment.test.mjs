@@ -19,7 +19,7 @@ function harness(){
   db.exec("CREATE TABLE project_members(project_id TEXT,kind TEXT,ref TEXT)");
   const DB={prepare(sql){const stmt=db.prepare(sql);return{bind(...args){return{first:async()=>stmt.get(...args)||null,run:async()=>({meta:stmt.run(...args)}),all:async()=>({results:stmt.all(...args)})}},first:async()=>stmt.get()||null,all:async()=>({results:stmt.all()})}}};
   const listMissionTasks=async(_env,id)=>DB.prepare("SELECT * FROM mission_tasks WHERE mission_id=? ORDER BY code").bind(id).all().then(x=>x.results);
-  const context=vm.createContext({Map,String,Number,Date,RegExp,Math,baseAgentIdentity,parseAgentIdentity,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,listMissionTasks,addEvent:async()=>{},__name:(fn)=>fn});
+  const context=vm.createContext({Map,String,Number,Date,RegExp,Math,FLEET_MISSION_SERIES_START:100001,baseAgentIdentity,parseAgentIdentity,reportAgentIdentity,scopedAgentIdentity,sameAgentFamily,listMissionTasks,addEvent:async()=>{},__name:(fn)=>fn});
   vm.runInContext(["cleanMissionAttributions","quitarPreambuloDeAgente","fleetSubject","inboxIdFromScreen","nextFreeFleetId","fleetSameEncargo","fleetMissionId","fleetAssignment","resolveFleetAssignment","fleetScreen","fleetMainTasks","ensureFleetMainTasks","reconcileFleetTicket"].map(grab).join("\n"),context);
   return{db,env:{DB},F:context};
 }
@@ -58,8 +58,10 @@ test("mapping sin procedencia se reasigna y deja ambos tickets ajenos intactos",
   db.prepare("INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run("FLT-1140","x #8",it.text,"x","otro","incident","r","open","Trinity",null,null,1,"otro",null);
   db.prepare("INSERT INTO fleet_ids VALUES(?,?,?)").run(1112,"FLT-1140",1);
   const before=JSON.stringify(db.prepare("SELECT * FROM tickets ORDER BY id").all()),id=await F.fleetMissionId(env,it);
-  assert.equal(id,"FLT-1141");assert.equal(JSON.stringify(db.prepare("SELECT * FROM tickets ORDER BY id").all()),before);
-  assert.equal(db.prepare("SELECT mission_id FROM fleet_ids WHERE inbox_id=1112").get().mission_id,"FLT-1141");
+  // Serie propia de misiones (FLT-2705): el mapping reparado ya no toma «el siguiente tras FLT-1140»
+  // sino el primer número libre de la serie, nunca el del encargo ni el de una misión ajena.
+  assert.equal(id,"FLT-100001");assert.equal(JSON.stringify(db.prepare("SELECT * FROM tickets ORDER BY id").all()),before);
+  assert.equal(db.prepare("SELECT mission_id FROM fleet_ids WHERE inbox_id=1112").get().mission_id,"FLT-100001");
 });
 
 test("fleetSync usa feed público y fallback censado, nunca el privado 401",()=>{

@@ -331,7 +331,10 @@ test("un encargo que YA tiene mision se actualiza sin exigirle proyecto", async(
   // llevaban días congeladas en in_progress con el encargo ya cerrado, porque el
   // guard de proyecto se aplicaba también a las ACTUALIZACIONES y las mataba antes.
   state.allowDeclaration=false; state.allowInherited=false;
-  state.tickets.push({id:"FLT-701", source:"fleet", status:"in_progress", project_id:"xpaceos", subject:"Ya existe"});
+  // El ticket lleva su procedencia («#701» en el screen), como todo ticket sincronizado real:
+  // sin ella el reparto no puede probar que FLT-701 es ESTE encargo. Antes lo probaba por
+  // accidente un FLT-701 que dejaba otra prueba de este fichero (regla vieja FLT-<rowid>).
+  state.tickets.push({id:"FLT-701", screen:"OraculoMacMini·admira-macmini #701", source:"fleet", status:"in_progress", project_id:"xpaceos", subject:"Ya existe"});
   state.fleetIds.set(701,"FLT-701");
   env.TELEGRAM={async fetch(){return Response.json({items:[
     {id:701,text:"Encargo que ya tiene mision",target_persona:"Oraculo",target_machine:"admira-macmini",

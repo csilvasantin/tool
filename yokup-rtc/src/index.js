@@ -3180,6 +3180,8 @@ async function resolveFleetMissionReference(env, raw) {
     const mapped = await env.DB.prepare("SELECT mission_id FROM fleet_ids WHERE inbox_id=?")
       .bind(n).first();
     if (mapped && mapped.mission_id) return mapped.mission_id;
+    // Un número de la serie propia (≥ FLT-100001) sólo puede ser una misión, nunca un encargo.
+    if (n >= FLEET_MISSION_SERIES_START) return "FLT-" + n;
     // EL RESPALDO A FLT-<n> NO PUEDE PISAR LA MISION DE OTRO ENCARGO (2026-09-02).
     // El respaldo asume que el encargo N nacio como FLT-N, y eso solo vale mientras
     // las numeraciones no se separen. Ya se separaron: FLT-1515 nacio del encargo
@@ -6440,10 +6442,23 @@ __name(epochMs, "epochMs");
 // mientras esté LIBRE (las 167 misiones existentes ya valen su rowid y se adoptan
 // tal cual, sin duplicar); si ya está cogido por OTRA misión, el encargo recibe el
 // SIGUIENTE id realmente libre (MAX real de tickets + 1) y la ajena NO se toca.
+// ── SERIE PROPIA DE MISIONES (FLT-2705 · Carlos, 6-sep-2026) ─────────────────
+// «La misión y el encargo no deberían tener el mismo número.» Hasta hoy el id
+// natural de una misión sincronizada era el rowid del encargo (FLT-2702 ← #2702) y
+// las altas directas se colaban en la misma serie (FLT-2704 junto a los encargos
+// #2700-#2703): dos contadores de dos bases distintas significando dos cosas con un
+// mismo número, y de ahí el parche anticolisión de arriba. Desde ahora toda misión
+// NUEVA recibe un número de su propia serie, a partir de FLT-100001: seis cifras =
+// misión; el «#» de cuatro cifras = encargo. El cruce encargo↔misión vive en
+// fleet_ids (inbox_id ↔ mission_id) y en el «#n» del screen del ticket. Las misiones
+// ya existentes conservan su número (norma 3: los nombres antiguos se leen, no se
+// propagan) y siguen adoptándose en cada sync sin duplicar.
+const FLEET_MISSION_SERIES_START = 100001;
 async function nextFreeFleetId(env, atLeast) {
-  const a = await env.DB.prepare("SELECT MAX(CAST(SUBSTR(id,5) AS INTEGER)) mx FROM tickets WHERE id GLOB 'FLT-[0-9]*'").first();
-  const b = await env.DB.prepare("SELECT MAX(inbox_id) mx FROM fleet_ids").first();
-  let n = Math.max(Number(a && a.mx) || 0, Number(b && b.mx) || 0, Number(atLeast) || 0) + 1;
+  const a = await env.DB.prepare("SELECT MAX(CAST(SUBSTR(id,5) AS INTEGER)) mx FROM tickets WHERE id GLOB 'FLT-[0-9]*' AND CAST(SUBSTR(id,5) AS INTEGER)>=?").bind(FLEET_MISSION_SERIES_START).first();
+  // Un id reservado en fleet_ids por un sync concurrente cuenta aunque su ticket aún no exista.
+  const b = await env.DB.prepare("SELECT MAX(CAST(SUBSTR(mission_id,5) AS INTEGER)) mx FROM fleet_ids WHERE mission_id GLOB 'FLT-[0-9]*' AND CAST(SUBSTR(mission_id,5) AS INTEGER)>=?").bind(FLEET_MISSION_SERIES_START).first();
+  let n = Math.max(Number(a && a.mx) || 0, Number(b && b.mx) || 0, Number(atLeast) || 0, FLEET_MISSION_SERIES_START - 1) + 1;
   for (let i = 0; i < 1e4; i++) {
     const taken = await env.DB.prepare("SELECT 1 x FROM tickets WHERE id=? UNION SELECT 1 x FROM fleet_ids WHERE mission_id=?").bind("FLT-" + n, "FLT-" + n).first();
     if (!taken) return "FLT-" + n;
@@ -6486,16 +6501,17 @@ async function fleetMissionId(env, it) {
       return mapped.mission_id;
     }
   }
-  const candidate = "FLT-" + rowid;
-  const prev = await env.DB.prepare("SELECT subject,screen,source FROM tickets WHERE id=?").bind(candidate).first();
-  let missionId, collided = false;
-  if (!prev) {
-    missionId = candidate;                              // libre → id natural = rowid
-  } else if (prev.source === "fleet" && (fleetSameEncargo(prev.subject, it.text) || inboxIdFromScreen(prev.screen) === String(rowid))) {
-    missionId = candidate;                              // el MISMO encargo ya sincronizado → adoptar (no duplica)
+  // FLT-<rowid> ya NO es el id natural (serie propia, FLT-2705). Sólo se ADOPTA si esa
+  // misión histórica existe y es demostrablemente el MISMO encargo; si no, la misión
+  // nace en la serie propia y el número del encargo queda como referencia cruzada.
+  const historic = "FLT-" + rowid;
+  const prev = await env.DB.prepare("SELECT subject,screen,source FROM tickets WHERE id=?").bind(historic).first();
+  let missionId, adopted = false;
+  if (prev && prev.source === "fleet" && (fleetSameEncargo(prev.subject, it.text) || inboxIdFromScreen(prev.screen) === String(rowid))) {
+    missionId = historic;                               // misión histórica del MISMO encargo → adoptar (no duplica)
+    adopted = true;
   } else {
-    missionId = await nextFreeFleetId(env, rowid);      // COLISIÓN con misión ajena → no pisar, siguiente libre
-    collided = true;
+    missionId = await nextFreeFleetId(env);             // misión nueva → serie propia, nunca el número del encargo
   }
   // Reservar no basta: dos sync concurrentes pueden observar el mismo hueco y
   // competir por UNIQUE(mission_id). INSERT OR IGNORE hace perder a uno sin error;
@@ -6517,13 +6533,13 @@ async function fleetMissionId(env, it) {
     // que la actualización haya quedado exactamente confirmada.
     if (confirmed && confirmed.mission_id && (!repairing || confirmed.mission_id === missionId)) {
       const finalId = confirmed.mission_id;
-      if (collided && finalId !== candidate) {
-        await addEvent(env, finalId, "log", "yokup", `Reparto de ids: ${candidate} ya pertenecía a otra misión; este encargo (#${rowid}) recibió ${finalId} para no pisarla.`).catch(() => {});
+      if (!adopted && !repairing && finalId === missionId) {
+        await addEvent(env, finalId, "log", "yokup", `Encargo #${rowid} → ${finalId} (serie propia de misiones; el número del encargo no es el de la misión).`).catch(() => {});
       }
       return finalId;
     }
-    missionId = await nextFreeFleetId(env, Math.max(rowid, Number(String(missionId).replace(/^FLT-/, "")) || 0));
-    collided = true;
+    missionId = await nextFreeFleetId(env, Number(String(missionId).replace(/^FLT-/, "")) || 0);
+    adopted = false;
   }
   throw new Error(`No se pudo confirmar un mission_id único para el encargo #${rowid}`);
 }
@@ -13856,6 +13872,11 @@ export {
   subtareaRespaldada,
   flattenSteps,
   proposePlan,
+  // Reparto de ids de flota (serie propia de misiones, FLT-2705): se exportan para probarlos.
+  FLEET_MISSION_SERIES_START,
+  nextFreeFleetId,
+  fleetMissionId,
+  resolveFleetMissionReference,
   index_default as default
 };
 //# sourceMappingURL=index.js.map

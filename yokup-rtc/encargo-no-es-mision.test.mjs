@@ -15,10 +15,11 @@ function extraer(nombre) {
   return source.slice(i, source.indexOf('\n}\n', i) + 2);
 }
 
-const resolver = new Function('normalizeMissionReference', `
+// La serie propia de misiones (FLT-2705) empieza en 100001: se inyecta como en el worker.
+const resolver = new Function('normalizeMissionReference', 'FLEET_MISSION_SERIES_START', `
   ${extraer('resolveFleetMissionReference')}
   return resolveFleetMissionReference;
-`)((v) => (/^#?\d+$/.test(String(v).trim()) ? 'FLT-' + String(v).replace('#', '').trim() : String(v).trim()));
+`)((v) => (/^#?\d+$/.test(String(v).trim()) ? 'FLT-' + String(v).replace('#', '').trim() : String(v).trim()), 100001);
 
 // D1 de mentira con el reparto REAL que provoco el fallo.
 const REPARTO = [{ inbox_id: 1487, mission_id: 'FLT-1515' }];
