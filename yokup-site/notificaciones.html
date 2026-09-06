@@ -90,6 +90,14 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .cons .qabre{font:600 10px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--brand);background:transparent;border:1px solid var(--line2);border-radius:7px;padding:5px 8px;cursor:pointer}
 .cons .qabre:hover{background:rgba(120,243,255,.1)}
 .cons .queso svg{width:100%;max-width:210px;height:auto;display:block;overflow:visible}
+/* Grupo del quesito (encargo #2581 de Wozniak, 6-sep-2026): Flota · Agentes · Consejeros GrokBot, con el %
+   relativo DENTRO del grupo; con el total de flota los consejeros salían al 0 % y no servía para autorregular. */
+.cons .grp{display:inline-flex;gap:0;border:1px solid var(--line2);border-radius:8px;overflow:hidden;margin-top:26px}
+.cons .grp button{font:600 9.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--mut);background:transparent;border:0;border-right:1px solid var(--line);padding:6px 9px;cursor:pointer}
+.cons .grp button:last-child{border-right:0}
+.cons .grp button:hover{color:var(--brand)}
+.cons .grp button.on{background:var(--brand);color:#04232a}
+.cons .est{color:var(--accent);font-weight:700;cursor:help}
 .cons .queso .arc{cursor:pointer;transition:opacity .15s}
 .cons .queso.hov .arc:not(.on){opacity:.32}
 .cons .hero{font-family:var(--mono);fill:var(--ink);font-size:22px;font-weight:700;letter-spacing:-.02em}
@@ -548,6 +556,7 @@ function qinfoHTML(owner){
   return '<div class="qinfo"><div class="qi-h"><a href="/misiones#'+encodeURIComponent(m.id||"")+'">'+esc(m.id||"?")+'</a><span class="st '+esc(st)+'">'+esc(st||"?")+'</span><span>última misión · '+esc(u.src)+'</span></div>'+
     '<div class="qi-s">'+esc(m.subject||"sin asunto")+'</div>'+
     '<div class="qi-m"><span>'+(ini?'inicio '+hhmm(ini):'')+'</span><span>'+(fin?'fin '+hhmm(fin)+' · '+dur(ini,fin):'')+'</span>'+(m.points!=null?'<span>'+((+m.points||0)+(+m.race_bonus_points||0))+' pt</span>':'')+'<span>última señal '+hhmm(+m.at||0)+'</span></div>'+
+    (function(){ const f=filasPeriodo(), r=f&&f.rows.find(x=>x.k===canonM(owner)); const c=r?costeMisiones(r).get(m.id):null; return c?'<div class="qi-m"><span class="est" title="'+esc(costeTitulo(c))+'">≈ '+fmtTok(c.tok)+' tokens</span><span>entrada '+fmtTok(c.ent)+' · caché '+fmtTok(c.cac)+' · salida '+fmtTok(c.sal)+'</span><span>estimado</span></div>':''; })()+
     (m.proof_image?'<a href="'+esc(m.proof_image)+'" target="_blank" rel="noopener" title="evidencia"><img src="'+esc(m.proof_image)+'" alt="evidencia de '+esc(m.id||"")+'" loading="lazy"></a>':'<div class="qi-m"><span class="vacio">sin evidencia adjunta</span></div>')+'</div>';
 }
 function listaQueso(titulo,filas,cmap,tot,dia,per){
@@ -555,19 +564,26 @@ function listaQueso(titulo,filas,cmap,tot,dia,per){
     let cuando="";
     if(per.k==="hora"||per.k==="dia"){ const ini=inicioHoy(r.owner,r.machine,dia); cuando=ini?'<span class="desde" title="empezó hoy a las '+hhmm(ini.t)+' · primera señal de hoy: '+esc(ini.src)+'">'+hhmm(ini.t)+' <small>'+esc(ini.src.split(" ")[0])+'</small></span>':'<span class="desde no" title="ninguna señal de hoy con hora">'+(cargando?'…':'sin hora')+'</span>'; }
     else { const t0=r.list.reduce((m,x)=>{const v=+x.started_at||+x.at||0; return v&&(!m||v<m)?v:m;},0); cuando=t0?'<span class="desde" title="primera misión del periodo: '+ddmm(t0)+' '+hhmm(t0)+'">'+ddmm(t0)+' <small>'+hhmm(t0)+'</small></span>':'<span class="desde no">sin misión</span>'; }
-    return '<div class="qr'+(on?' on':'')+'" data-k="'+esc(k)+'" data-owner="'+esc(r.owner)+'" role="button" tabindex="0" aria-expanded="'+on+'" title="pulsa para ver su última misión"><i class="sw" style="background:'+(cmap.get(r.owner)||"var(--s0)")+'"></i><b title="'+esc(r.owner)+'">'+esc(r.owner)+'</b><span class="pc" title="'+(t?fmtTok(t.total)+' tokens':'sin parte de consumo en el periodo')+'">'+(t&&tot>0?Math.round(100*t.total/tot)+' %':'—')+'</span>'+cuando+'</div>'+(on?qinfoHTML(r.owner):'');}).join("");
+    return '<div class="qr'+(on?' on':'')+'" data-k="'+esc(k)+'" data-owner="'+esc(r.owner)+'" role="button" tabindex="0" aria-expanded="'+on+'" title="pulsa para ver su última misión"><i class="sw" style="background:'+(cmap.get(r.owner)||"var(--s0)")+'"></i><b title="'+esc(r.owner)+'">'+esc(r.owner)+'</b><span class="pc" title="'+(t?fmtTok(t.total)+' tokens'+(t.est?' · estimación sin medidor local':''):'sin parte de consumo en el periodo')+'">'+(t&&t.est?'<span class="est">≈</span>':'')+(t&&tot>0?Math.round(100*t.total/tot)+' %':'—')+'</span>'+cuando+'</div>'+(on?qinfoHTML(r.owner):'');}).join("");
   return '<div class="ql"><h4>'+titulo+'<span>% · '+((per.k==="hora"||per.k==="dia")?'empezó hoy':'primera misión')+'</span><b>'+filas.length+'</b></h4>'+(html||'<div class="nadie">nadie '+esc(per.l)+'</div>')+'</div>';
 }
+const filasGrupo=rows=>GRUPO==="flota"?rows:rows.filter(r=>esConsejero({owner:r.owner,machine:r.machine})===(GRUPO==="consejeros"));
 function listasQueso(f){
   if(!f) f=filasPeriodo(); if(!f) return "";
-  const cmap=colorMap(f.rows.map(r=>r.owner));
-  return '<div class="qls">'+listaQueso("Agentes",f.rows.filter(r=>!esConsejero({owner:r.owner,machine:r.machine})),cmap,f.tot,RK.dia,f.per)+listaQueso("Consejeros · GrokBot",f.rows.filter(r=>esConsejero({owner:r.owner,machine:r.machine})),cmap,f.tot,RK.dia,f.per)+'</div>';
+  const rows=filasGrupo(f.rows), tot=rows.reduce((s,r)=>s+(r.tok?r.tok.total:0),0), cmap=colorMap(rows.map(r=>r.owner));
+  const ag=rows.filter(r=>!esConsejero({owner:r.owner,machine:r.machine})), cj=rows.filter(r=>esConsejero({owner:r.owner,machine:r.machine}));
+  return '<div class="qls">'+(GRUPO!=="consejeros"?listaQueso("Agentes",ag,cmap,tot,RK.dia,f.per):'')+(GRUPO!=="agentes"?listaQueso("Consejeros · GrokBot",cj,cmap,tot,RK.dia,f.per):'')+'</div>';
 }
+const grupoHTML=()=>'<div class="grp" role="group" aria-label="grupo del gráfico">'+[["flota","Flota"],["agentes","Agentes"],["consejeros","Consejeros"]].map(([k,l])=>'<button type="button" data-grupo="'+k+'" class="'+(GRUPO===k?'on':'')+'" aria-pressed="'+(GRUPO===k)+'" title="'+(k==="flota"?"toda la flota":k==="agentes"?"solo los agentes de los Mac":"solo los consejeros de GrokBot, con el % entre ellos")+'">'+l+'</button>').join("")+'</div>';
 // ── PERIODO de la cuadrícula: ◀ baja a la hora, ▶ sube a semana, mes o siempre. Las misiones salen
 //    del historial del Highscore (la misma fuente que puntúa); los tokens, del parte del día para
 //    hora/día y del acumulado de /fleet/consumo para el resto (el servidor guarda 90 días como máximo).
 const PER=[{k:"hora",l:"de la última hora",cur:"hora"},{k:"dia",l:"del día",cur:"día"},{k:"semana",l:"de la semana",cur:"semana",dias:7},{k:"mes",l:"del mes",cur:"mes",dias:30},{k:"siempre",l:"de siempre",cur:"siempre",dias:365}];
-let PERIODO=1, STATS=true; const HIST=new Map(), HIST_PEND=new Map(), CONSP=new Map(), CONSP_PEND=new Map(); const HIST_TTL=2*60*1000;
+let PERIODO=1, STATS=true; let GRUPO="flota"; try{ GRUPO=["flota","agentes","consejeros"].includes(localStorage.getItem("yk-cons-grupo"))?localStorage.getItem("yk-cons-grupo"):"flota"; }catch(e){}
+// Un parte declarado SIN medidor local (consejeros de GrokBot hasta que Carbono dé feed real) es una estimación
+// y se marca ≈ siempre: nunca un cero ni una cifra exacta silenciosa.
+const esEstimado=d=>/estimaci|sin medidor|sin-medidor/i.test(String((d&&d.origen)||"")+" "+String((d&&d.causa)||""));
+const HIST=new Map(), HIST_PEND=new Map(), CONSP=new Map(), CONSP_PEND=new Map(); const HIST_TTL=2*60*1000;
 const isoDia=d=>d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());
 function rangoDe(per,dia){ const h=new Date(dia+"T00:00:00"); if(per.k==="siempre") return {desde:"2025-01-01",hasta:dia}; if(!per.dias) return {desde:dia,hasta:dia}; const d=new Date(h.getTime()-(per.dias-1)*86400000); return {desde:isoDia(d),hasta:dia}; }
 async function cargaHist(per,dia){
@@ -590,12 +606,12 @@ const colw=(t,k)=>{ const w=+COLW[t+"|"+k]; return w>=40&&w<=900?' style="width:
 function guardaColw(){ try{ localStorage.setItem("yk-cons-colw",JSON.stringify(COLW)); }catch(e){} }
 // Ordenación del DETALLE de misiones (sub-cuadrícula): una sola preferencia para todos los agentes.
 let DSORT={k:"at",dir:-1};
-const DSORT_DEF={id:1,sub:1,ini:-1,fin:-1,dur:-1,pts:-1,st:1,ev:-1,at:-1};
+const DSORT_DEF={id:1,sub:1,ini:-1,fin:-1,dur:-1,pts:-1,tok:-1,st:1,ev:-1,at:-1};
 function valorMis(m,k){ switch(k){
   case "id": return String(m.id||""); case "sub": return String(m.subject||"").toLowerCase();
   case "ini": return +m.started_at||+m.at||0; case "fin": return +m.finished_at||0; case "at": return +m.at||+m.updated_at||0;
   case "dur": return (+m.finished_at&&+m.started_at)?(+m.finished_at-+m.started_at):-1;
-  case "pts": return (+m.points||0)+(+m.race_bonus_points||0); case "st": return String(m.status||"");
+  case "pts": return (+m.points||0)+(+m.race_bonus_points||0); case "st": return String(m.status||""); case "tok": return m.__tok==null?-1:+m.__tok;
   case "ev": return m.proof_image?1:0; } return 0; }
 function ordenaMis(list){ const k=DSORT.k, d=DSORT.dir; return list.slice().sort((a,b)=>{ const va=valorMis(a,k), vb=valorMis(b,k); if(va<vb) return -d; if(va>vb) return d; return (+b.at||0)-(+a.at||0); }); }
 function thd(k,txt,num){ const on=DSORT.k===k; return '<th'+colw("d",k)+' data-dsort="'+k+'" data-col="'+k+'" class="'+(num?'num ':'')+(on?'on':'')+'" title="ordenar por '+esc(txt)+'">'+txt+(on?'<span class="dir">'+(DSORT.dir<0?"▼":"▲")+'</span>':'')+'<span class="rz" data-rz="d|'+k+'"></span></th>'; }
@@ -630,8 +646,8 @@ function filasPeriodo(){
   const porAg=new Map();
   for(const m of (ms||[])){ if(!m||!m.agent) continue; const k=canonM(m.agent); const g=porAg.get(k)||{k,nombre:m.agent,machine:m.machine||"",n:0,res:0,pts:0,list:[]}; g.n++; if(esCerrada(m.status)) g.res++; g.pts+=(+m.points||0)+(+m.race_bonus_points||0); g.list.push(m); porAg.set(k,g); }
   const tok=new Map(); let consErr="", consDias=per.dias||1;
-  if(per.k==="hora"||per.k==="dia"){ for(const p of RK.deHoy){ const d=p.datos; tok.set(canonM(p.owner),{owner:p.owner,machine:p.machine,runtime:d.runtime||"",total:+d.total||0,entrada:+d.entrada||0,cache:+d.cache||0,salida:+d.salida||0,desp:+d.despertares||0,dups:+d.duplicados||0,foco:focoAhorro(d)}); } }
-  else { const c=CONSP.get(per.dias); if(c&&c.list){ consDias=c.dias; for(const a of c.list) tok.set(canonM(a.owner),{owner:a.owner,machine:a.machine||"",runtime:"",total:+a.total_tokens||0,entrada:+a.entrada||0,cache:+a.cache||0,salida:+a.salida||0,desp:null,dups:0,foco:""}); } else if(c&&c.err) consErr=c.err; }
+  if(per.k==="hora"||per.k==="dia"){ for(const p of RK.deHoy){ const d=p.datos; tok.set(canonM(p.owner),{owner:p.owner,machine:p.machine,runtime:d.runtime||"",total:+d.total||0,entrada:+d.entrada||0,cache:+d.cache||0,salida:+d.salida||0,desp:+d.despertares||0,dups:+d.duplicados||0,foco:focoAhorro(d),est:esEstimado(d)}); } }
+  else { const c=CONSP.get(per.dias); if(c&&c.list){ consDias=c.dias; for(const a of c.list) tok.set(canonM(a.owner),{owner:a.owner,machine:a.machine||"",runtime:"",total:+a.total_tokens||0,entrada:+a.entrada||0,cache:+a.cache||0,salida:+a.salida||0,desp:null,dups:0,foco:"",est:false}); } else if(c&&c.err) consErr=c.err; }
   const keys=new Set([...porAg.keys(),...tok.keys()]);
   const rows=[...keys].map(k=>{ const g=porAg.get(k), t=tok.get(k); const owner=t?t.owner:g.nombre, machine=(t&&t.machine)||(g&&g.machine)||"";
     return {k,owner,machine,runtime:t?t.runtime:"",n:g?g.n:0,res:g?g.res:0,pts:g?g.pts:0,list:g?g.list:[],tok:t||null}; });
@@ -641,14 +657,27 @@ function filasPeriodo(){
   const tot=activos.reduce((s,r)=>s+(r.tok?r.tok.total:0),0);
   return {per,h,ms,rows:ordena(activos),ocultos,tot,consErr,consDias,cargandoHist:!h,cargandoCons:!(per.k==="hora"||per.k==="dia")&&!CONSP.get(per.dias)};
 }
+// COSTE POR MISIÓN (encargo #2581): consumo_reportar y consumo-tokens.py declaran tokens por agente y día,
+// no por misión. Hasta que lo declaren, el coste de cada misión es un REPARTO ESTIMADO del parte diario del
+// agente proporcional al tiempo de cada misión (mínimo un minuto), y va marcado ≈ con la cuenta en el tooltip.
+function costeMisiones(r){
+  const out=new Map(); const t=r.tok; if(!t||!(PERIODO<=1)||!t.total||!r.list.length) return out;
+  const ahora=Date.now(); const dur=m=>{ const a=+m.started_at||+m.at||0, b=+m.finished_at||(a?Math.min(ahora,+m.at||ahora):0); return Math.max(60000,(a&&b&&b>a)?b-a:60000); };
+  const total=r.list.reduce((s,m)=>s+dur(m),0)||1;
+  for(const m of r.list){ const f=dur(m)/total; out.set(m.id,{tok:Math.round(t.total*f),ent:Math.round(t.entrada*f),cac:Math.round(t.cache*f),sal:Math.round(t.salida*f),pct:Math.round(100*f),declarado:!!t.est}); }
+  return out;
+}
+const costeTitulo=c=>'≈ estimado: '+c.pct+' % del parte diario del agente por tiempo de misión · entrada '+fmtTok(c.ent)+' · caché '+fmtTok(c.cac)+' · salida '+fmtTok(c.sal)+(c.declarado?' · el parte ya es una estimación sin medidor':'')+' · consumo_reportar no declara tokens por misión';
 function filaMisionesPeriodo(r){
   if(!r.list.length) return '<div class="vacio">sin misiones '+esc(PER[PERIODO].l)+'</div>';
   const mc=MIS.get(r.k), byId=new Map(); if(mc&&mc.list) for(const m of mc.list) byId.set(m.id,m);
-  const filas=ordenaMis(r.list).map((m,i)=>{const st=String(m.status||"").toLowerCase(), x=byId.get(m.id), img=x&&x.proof_image, ini=+m.started_at||+m.at||0, fin=+m.finished_at||0;
+  const costes=costeMisiones(r);
+  const filas=ordenaMis(r.list.map(m=>Object.assign({},m,{__tok:costes.has(m.id)?costes.get(m.id).tok:-1}))).map((m,i)=>{const st=String(m.status||"").toLowerCase(), x=byId.get(m.id), img=x&&x.proof_image, ini=+m.started_at||+m.at||0, fin=+m.finished_at||0, c=costes.get(m.id);
     return '<tr><td>'+(i+1)+'</td><td class="id"><a href="/misiones#'+encodeURIComponent(m.id||"")+'">'+esc(m.id||"?")+'</a></td><td class="sub" title="'+esc(m.subject||"")+'">'+esc(m.subject||"sin asunto")+'</td>'+
       '<td class="num">'+(ini?hhmm(ini):"—")+'</td><td class="num">'+(fin?hhmm(fin):"—")+'</td><td class="num">'+dur(ini,fin)+'</td><td class="num">'+((+m.points||0)+(+m.race_bonus_points||0))+'</td>'+
+      '<td class="num">'+(c?'<span class="est" title="'+esc(costeTitulo(c))+'">≈ '+fmtTok(c.tok)+'</span>':'<span class="nc" title="sin parte diario del agente o periodo sin parte: no se estima">—</span>')+'</td>'+
       '<td class="st '+esc(st)+'">'+esc(st||"?")+'</td><td>'+(img?'<a href="'+esc(img)+'" target="_blank" rel="noopener" title="evidencia"><img src="'+esc(img)+'" alt="" loading="lazy"></a>':(x?'<span class="noimg" title="misión sin captura: información incompleta">📷</span>':'<span class="nc" title="evidencia no comprobada en este periodo">·</span>'))+'</td></tr>';}).join("");
-  return '<table class="sub"><thead><tr><th>#</th>'+thd("id","misión")+thd("sub","asunto")+thd("ini","inicio",1)+thd("fin","fin",1)+thd("dur","duración",1)+thd("pts","puntos",1)+thd("st","estado")+thd("ev","📷")+'</tr></thead><tbody>'+filas+'</tbody></table>';
+  return '<table class="sub"><thead><tr><th>#</th>'+thd("id","misión")+thd("sub","asunto")+thd("ini","inicio",1)+thd("fin","fin",1)+thd("dur","duración",1)+thd("pts","puntos",1)+thd("tok","tokens ≈",1)+thd("st","estado")+thd("ev","📷")+'</tr></thead><tbody>'+filas+'</tbody></table>';
 }
 function cabeceraPeriodo(f){
   const per=f.per, nAg=f.rows.filter(r=>r.n>0).length, nMs=f.ms?f.ms.length:null;
@@ -670,7 +699,7 @@ function hojaHTML(f){
       '<td class="est'+(oc?' oc':'')+'" title="'+esc(oc?oc.src+': '+oc.tarea:'sin tarea en presencia, sin trabajo en curso en el Highscore y sin misión tocada en 10 min')+'">'+(oc?'● ocupado'+(/sin verificar/.test(oc.src)?' ?':''):'○ libre')+'</td>'+
       '<td>'+capturaCelda(r.owner,r.machine)+'</td>'+
       '<td class="num">'+r.n+'</td><td class="num">'+r.res+'</td><td class="num">'+r.pts+'</td>'+
-      (t?'<td class="num">'+fmtTok(t.total)+'</td><td class="num pc">'+(f.tot>0?Math.round(100*t.total/f.tot):0)+' %</td><td class="num pc">'+(pc==null?'—':pc+' %')+'</td><td class="num">'+fmtTok(t.salida)+'</td><td class="num'+(t.dups?' foco':'')+'">'+(t.desp==null?'—':t.desp+(t.dups?' ·'+t.dups+'dup':''))+'</td>'
+      (t?'<td class="num">'+(t.est?'<span class="est" title="estimación declarada sin medidor local (consumo_reportar): no es una medida">≈ </span>':'')+fmtTok(t.total)+'</td><td class="num pc">'+(f.tot>0?Math.round(100*t.total/f.tot):0)+' %</td><td class="num pc">'+(pc==null?'—':pc+' %')+'</td><td class="num">'+fmtTok(t.salida)+'</td><td class="num'+(t.dups?' foco':'')+'">'+(t.desp==null?'—':t.desp+(t.dups?' ·'+t.dups+'dup':''))+'</td>'
         :'<td class="num nd" colspan="5" title="sin parte de consumo en este periodo">sin parte de consumo</td>')+
       '<td class="nd">'+(ini?hhmm(ini.t)+' <small>'+esc(ini.src.split(" ")[0])+'</small>':(mc?'sin hora':'…'))+'</td>'+
       '</tr>'+
@@ -684,17 +713,19 @@ function filasRanking(){ const f=filasPeriodo(); if(!f) return ""; return cabece
 // (hora, día, semana, mes, siempre), con los mismos activos y tokens que la cuadrícula.
 function pintaEstadisticas(f){
   if(!RK) return; f=f||filasPeriodo(); if(!f) return;
-  const cmap=colorMap(f.rows.map(r=>r.owner)); RK.cmap=cmap;
-  const con=f.rows.filter(r=>r.tok);
+  const rowsG=filasGrupo(f.rows), totG=rowsG.reduce((s,r)=>s+(r.tok?r.tok.total:0),0);
+  const cmap=colorMap(rowsG.map(r=>r.owner)); RK.cmap=colorMap(f.rows.map(r=>r.owner));
+  const con=rowsG.filter(r=>r.tok);
   let segs=con.map(r=>({k:r.k,nombre:r.owner,v:r.tok.total,color:cmap.get(r.owner)})).filter(g=>g.v>0);
   if(segs.length>SLOTS){ const resto=segs.slice(SLOTS-1); segs=segs.slice(0,SLOTS-1).concat([{k:"otros",nombre:"otros ("+resto.length+")",v:resto.reduce((s,g)=>s+g.v,0),color:"var(--s0)"}]); }
-  const qs=$("qsvg"); if(qs) qs.innerHTML=quesito(segs,f.tot);
+  const qs=$("qsvg"); if(qs) qs.innerHTML=quesito(segs,totG); const qg=$("qgrupo"); if(qg) qg.innerHTML=grupoHTML();
+  f=Object.assign({},f,{tot:totG});
   const ql=$("qlistas"); if(ql) ql.innerHTML=listasQueso(f);
   const sum=k=>con.reduce((s,r)=>s+(+r.tok[k]||0),0);
   const ent=sum("entrada"), cac=sum("cache"), sal=sum("salida"), pc=ent+cac>0?Math.round(100*cac/(ent+cac)):0;
   const conDesp=con.filter(r=>r.tok.desp!=null), desp=conDesp.reduce((s,r)=>s+r.tok.desp,0), dups=con.reduce((s,r)=>s+(+r.tok.dups||0),0);
   const kpi=$("consKpi"); if(kpi) kpi.innerHTML=
-    '<span class="k"><b>'+fmtTok(f.tot)+'</b>'+esc(f.per.cur)+' · '+con.length+' con parte</span>'+
+    '<span class="k"><b>'+(con.some(r=>r.tok.est)?'≈ ':'')+fmtTok(f.tot)+'</b>'+esc(f.per.cur)+(GRUPO!=="flota"?' · '+GRUPO:'')+' · '+con.length+' con parte</span>'+
     '<span class="k'+(pc<80?' warn':' good')+'"><b>'+pc+' %</b>caché</span>'+
     '<span class="k"><b>'+fmtTok(sal)+'</b>salida</span>'+
     '<span class="k'+(dups>0?' warn':'')+'"><b>'+(conDesp.length?desp:"—")+'</b>despertares'+(dups?' · '+dups+' dup':'')+'</span>'+
@@ -770,7 +801,7 @@ function renderConsumo(){
   const top7=(CONS.por_agente||[]).slice(0,6).map(a=>esc(a.owner)+" "+fmtTok(a.total_tokens)).join(" · ");
   box.innerHTML=
     '<div class="cuerpo'+(STATS?'':' sinq')+'">'+
-      '<div class="queso" id="queso"><button type="button" class="qx" data-stats="0" title="cerrar las estadísticas para ganar espacio en la cuadrícula" aria-label="cerrar estadísticas">✕</button><div id="qsvg">'+quesito(segs,tot)+'</div><div id="qlistas"></div></div>'+
+      '<div class="queso" id="queso"><button type="button" class="qx" data-stats="0" title="cerrar las estadísticas para ganar espacio en la cuadrícula" aria-label="cerrar estadísticas">✕</button><div id="qgrupo">'+grupoHTML()+'</div><div id="qsvg">'+quesito(segs,tot)+'</div><div id="qlistas"></div></div>'+
       '<div class="divisor" id="divisor" role="separator" aria-orientation="vertical" aria-label="ancho del gráfico (arrastra; doble clic para restaurar)" tabindex="0"></div>'+
       '<div class="lado">'+
         '<div class="col"><div class="rk" id="rk">'+rk+'</div></div>'+
@@ -783,7 +814,7 @@ function renderConsumo(){
       (top7?'<div class="nota"><b>'+(CONS.dias||7)+' días</b> · '+top7+'</div>':'')+
     '</details>';
   pintaEstadisticas(); precargaMisiones(); cargaPeriodo(); montaDivisor();
-  box.addEventListener("click",e=>{ const b=e.target.closest("[data-stats]"); if(!b) return; STATS=b.dataset.stats==="1"; box.querySelector(".cuerpo").classList.toggle("sinq",!STATS); pintaRanking(); });
+  box.addEventListener("click",e=>{ const g=e.target.closest("button[data-grupo]"); if(g){ GRUPO=g.dataset.grupo; try{ localStorage.setItem("yk-cons-grupo",GRUPO); }catch(err){} pintaRanking(); return; } const b=e.target.closest("[data-stats]"); if(!b) return; STATS=b.dataset.stats==="1"; box.querySelector(".cuerpo").classList.toggle("sinq",!STATS); pintaRanking(); });
   // Al pasar por un segmento o su leyenda se resalta ese agente y el resto se atenúa.
   const q=$("queso");
   q.addEventListener("mouseover",e=>{const t=e.target.closest("[data-k]");if(!t)return;q.classList.add("hov");q.querySelectorAll(".arc").forEach(x=>x.classList.toggle("on",x.dataset.k===t.dataset.k));});

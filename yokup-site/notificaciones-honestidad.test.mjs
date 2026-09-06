@@ -158,3 +158,15 @@ test("al cambiar la segmentación (hora, día, semana…) el quesito, las listas
   assert.match(html, /primera misión del periodo/);
   assert.match(html, /sin parte de consumo en el periodo/);
 });
+
+test("encargo #2581: quesito por grupo (flota, agentes, consejeros) con % relativo, coste por misión estimado y marcado, y partes sin medidor con ≈", () => {
+  assert.match(html, /\["consejeros","Consejeros"\]/);
+  assert.match(html, /button\[data-grupo\]/);
+  assert.match(html, /const filasGrupo=rows=>GRUPO==="flota"\?rows:/);
+  assert.match(html, /quesito\(segs,totG\)/, "el 100 % del quesito es el total del grupo elegido");
+  assert.match(html, /function costeMisiones\(r\)/);
+  assert.match(html, /consumo_reportar no declara tokens por misión/, "el coste por misión se declara estimado y dice por qué");
+  assert.match(html, /thd\("tok","tokens ≈",1\)/);
+  assert.match(html, /const esEstimado=d=>\/estimaci\|sin medidor\|sin-medidor\/i/);
+  assert.match(html, /estimación declarada sin medidor local/, "un parte sin medidor nunca sale como cifra exacta");
+});
