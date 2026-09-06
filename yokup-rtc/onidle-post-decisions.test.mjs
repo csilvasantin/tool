@@ -12,9 +12,9 @@ const baseBody={
   recommended:0,minutes:5,onidle:true,mission:'OnIdle horario'
 };
 
-function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMissions=[],backlog=[],research=[],activeBatches=[],activeMissionTasks=[],presence}={}) {
+function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMissions=[],backlog=[],research=[],activeBatches=[],activeMissionTasks=[],recentMissions=[],recentTasks=[],presence}={}) {
   const state={missions:missions.map(x=>({source:'fleet',...x})),tasks,
-    decisions:decisions.map(x=>({...x})),targetMissions,backlog,research:research.map(x=>({...x})),activeBatches,activeMissionTasks,displayRefs:new Map(),nextRef:0};
+    decisions:decisions.map(x=>({...x})),targetMissions,backlog,research:research.map(x=>({...x})),activeBatches,activeMissionTasks,recentMissions,recentTasks,displayRefs:new Map(),nextRef:0};
   const projects=[{id:'yokup',name:'Yokup',web:'www.yokup.com',status:'activo'}];
   const members=[{project_id:'yokup',kind:'agent',ref:'OraculoMacMini'},{project_id:'yokup',kind:'machine',ref:'admira-macmini'}];
   const stmt=(sql,args=[])=>({
@@ -29,6 +29,8 @@ function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMis
     async all(){
       if (sql.includes("FROM tickets WHERE ")&&sql.includes("status IN ('open','in_progress','unconcluded')")) return {results:state.missions};
       if (sql.includes('FROM mission_tasks m JOIN tickets t')&&sql.includes("m.status IN ('in_progress'")) return {results:state.tasks};
+      if (sql.startsWith('SELECT id,assignee,loc,created_at,started_at,updated_at,source FROM tickets WHERE')&&sql.includes('(created_at>=?')) return {results:state.recentMissions};
+      if (sql.startsWith('SELECT m.mission_id,t.assignee,t.loc FROM mission_tasks m JOIN tickets t')&&sql.includes('(m.started_at>=?')) return {results:state.recentTasks};
       if (sql.includes("FROM decisions WHERE status='pending'")) return {results:state.decisions.filter(d=>d.status==='pending')};
       if (sql.includes('AND mission=? AND created_at>=? AND created_at<?')) return {results:state.decisions.filter(d=>d.mission===args[0]&&d.created_at>=args[1]&&d.created_at<args[2]).map(d=>({agent:d.agent,machine:d.machine}))};
       if (sql.includes('SELECT DISTINCT b.id,b.agent,b.machine FROM mission_batches')) return {results:[]};
@@ -263,6 +265,31 @@ test('OnIdle mantiene bloqueos por decisión viva, misión fresca y tarea fresca
     try {const result=await response(env);assert.equal(result.status,409,label);assert.equal(result.json.error,'onidle_blocked',label);assert.equal(result.json.code,reason,label);}
     finally {Date.now=original;}
   }
+});
+
+test('OnIdle ready publica tras trabajo histórico, pero misión o tarea viva siguen bloqueando',async()=>{
+  const now=Date.UTC(2026,7,7,10),fresh=now-HOUR+1,original=Date.now;Date.now=()=>now;
+  const recentMissions=[{id:'DCL-done',assignee:'OraculoMacMini',loc:'admira-macmini',source:'fleet',updated_at:fresh}];
+  try {
+    let box=decisionEnv({now,recentMissions});
+    let result=await response(box.env);
+    assert.equal(result.status,200,JSON.stringify(result.json));
+    assert.equal(result.json.ok,true);
+
+    // La excepción pertenece sólo a OnIdle: una automática ordinaria conserva
+    // el guard histórico y no interrumpe trabajo reciente.
+    box=decisionEnv({now,recentMissions});
+    result=await response(box.env,{...baseBody,onidle:false,mission:'automática'});
+    assert.equal(result.status,409);assert.equal(result.json.code,'agente_ocupado');
+
+    for (const [input,reason] of [
+      [{missions:[{id:'DCL-live',assignee:'OraculoMacMini',loc:'admira-macmini',status:'in_progress',created_at:fresh}]},'active_mission'],
+      [{tasks:[{mission_id:'DCL-live',code:'a',assignee:'OraculoMacMini',loc:'admira-macmini',status:'in_progress',started_at:fresh}]},'active_task']
+    ]) {
+      box=decisionEnv({now,...input});result=await response(box.env);
+      assert.equal(result.status,409);assert.equal(result.json.code,reason);
+    }
+  } finally {Date.now=original;}
 });
 
 test('OnIdle aísla misión y tarea por familia más máquina, no por actividad ajena',async()=>{

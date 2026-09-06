@@ -13040,7 +13040,11 @@ Todo en español.`;
         // LA VENTANA HORARIA NO INTERRUMPE A QUIEN ESTA TRABAJANDO (Carlos, 3-sep-2026).
         // Solo se aplica a la automatica: una que pide una persona, una continuacion o un
         // override entran igual, porque ahi hay alguien decidiendo, no un reloj.
-        if (!continuation && !userOverride && !manual) {
+        // OnIdle ya pasó operationalOnIdleState, su única autoridad de
+        // elegibilidad. El historial de la última hora incluye precisamente la
+        // misión que acaba de cerrarse; volver a consultarlo aquí contradice el
+        // estado ready e impide abrir la ventana posterior al cierre.
+        if (!continuation && !userOverride && !manual && !onIdle) {
           const { trabajo, desde } = await agenteTrabajoLaUltimaHora(env, projectContext, now);
           if (trabajo > 0) {
             return json({ ok: false, code: "agente_ocupado", applied: false,

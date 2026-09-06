@@ -40,10 +40,10 @@ test('el guarda corta la automatica antes de crearla, y lo dice claro', () => {
   assert.match(puerta, /mandamiento 10/);
 });
 
-test('no estorba a quien decide: manual, continuacion y override entran igual', () => {
+test('no estorba a manual, continuacion, override ni al OnIdle ya autorizado', () => {
   const puerta = source.slice(source.indexOf('LA VENTANA HORARIA NO INTERRUMPE'),
                               source.indexOf('if (!continuation && !userOverride && !onIdle)'));
-  assert.match(puerta, /if \(!continuation && !userOverride && !manual\)/);
+  assert.match(puerta, /if \(!continuation && !userOverride && !manual && !onIdle\)/);
 });
 
 // «agrupa las ventanas de decision y que aparezcan». Puntuaban (8 puntos cada una) pero
