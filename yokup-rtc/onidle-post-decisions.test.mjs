@@ -164,12 +164,17 @@ test('investigación autenticada guarda exactamente tres mejoras nuevas sin crea
     researched(now,'Corregir API /fleet/onidle-proposals: 10 obsoletas y verificar 3 nuevas'),
     researched(now,'Completar /highscore con 3 filtros y verificar los 3')
   ];
-  const originalNow=Date.now,originalFetch=globalThis.fetch;
-  Date.now=()=>now; globalThis.fetch=async()=>new Response(null,{status:204});
+  const originalNow=Date.now,originalFetch=globalThis.fetch,sourceCalls=[];
+  Date.now=()=>now; globalThis.fetch=async(url,options)=>{
+    sourceCalls.push({url:String(url),options});
+    return options.method==='HEAD'?new Response(null,{status:403}):new Response('x',{status:206});
+  };
   try {
     const saved=await recordResearch(env,{agent:'OraculoMacMini',machine:'admira-macmini',project_id:'yokup',proposals});
     const body=await saved.json();
     assert.equal(saved.status,201,JSON.stringify(body)); assert.equal(body.available,3);
+    assert.equal(sourceCalls.length,6);assert.ok(sourceCalls.filter(call=>call.options.method==='HEAD').every(call=>call.options.headers['user-agent']==='Yokup-OnIdle-Source-Check/1.0'));
+    assert.ok(sourceCalls.filter(call=>call.options.method==='GET').every(call=>call.options.headers.range==='bytes=0-1023'&&call.options.redirect==='error'));
     assert.equal(state.research.length,3); assert.equal(state.targetMissions.length,0); assert.equal(state.decisions.length,0);
     const response=await worker.fetch(new Request('https://api.yokup.com/fleet/onidle-proposals?agent=OraculoMacMini&machine=admira-macmini&project_id=yokup'),env,{});
     const rows=(await response.text()).trim().split('\n').map(JSON.parse);
@@ -204,6 +209,10 @@ test('investigación falla cerrada por auth, cantidad, evidencia, fuente o títu
     const box=decisionEnv({now});globalThis.fetch=async()=>new Response(null,{status:503});
     const unavailable=await recordResearch(box.env,{agent:'OraculoMacMini',machine:'admira-macmini',project_id:'yokup',proposals});
     assert.equal(unavailable.status,422);assert.equal(box.state.research.length,0);
+    let fetchCalls=0;globalThis.fetch=async()=>{fetchCalls++;return new Response(null,{status:204});};
+    const foreign=await recordResearch(box.env,{agent:'OraculoMacMini',machine:'admira-macmini',project_id:'yokup',
+      proposals:proposals.map((row,index)=>index?row:{...row,source_url:'https://example.com/dashboard'})});
+    assert.equal(foreign.status,400);assert.equal(fetchCalls,0);assert.equal(box.state.research.length,0);
   } finally {Date.now=originalNow;globalThis.fetch=originalFetch;}
 });
 

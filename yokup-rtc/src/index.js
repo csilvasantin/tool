@@ -4292,6 +4292,26 @@ __name(operationalOnIdleState, "operationalOnIdleState");
 // la de hace un rato) ni para siempre (el backlog se agota y el generador enmudece).
 var ONIDLE_TITULO_GASTADO_MS = 7 * 24 * 60 * 60 * 1000;
 
+async function publicOnIdleSourceAvailable(sourceUrl) {
+  const headers = { "user-agent":"Yokup-OnIdle-Source-Check/1.0", accept:"text/html,application/json;q=0.9,*/*;q=0.1" };
+  try {
+    const head = await fetch(sourceUrl, { method:"HEAD", headers, redirect:"error",
+      signal:AbortSignal.timeout(10000) });
+    if (head.ok) return true;
+  } catch {}
+  // Pages/CDNs pueden bloquear HEAD entre Workers aunque el recurso público
+  // responda a un navegador. GET conserva redirect:error y solicita sólo el
+  // primer KiB; no seguimos otra URL ni descargamos el documento completo.
+  try {
+    const response = await fetch(sourceUrl, { method:"GET", headers:{...headers, range:"bytes=0-1023"},
+      redirect:"error", signal:AbortSignal.timeout(10000) });
+    const available = response.ok;
+    if (response.body && typeof response.body.cancel === "function") await response.body.cancel().catch(() => {});
+    return available;
+  } catch { return false; }
+}
+__name(publicOnIdleSourceAvailable, "publicOnIdleSourceAvailable");
+
 async function canonicalOnIdleProposals(env, identity, requestedProjectId) {
   if (!requestedProjectId) return { ok:false, status:400, code:"exact_project_required",
     error:"project_id exacto requerido para obtener propuestas" };
@@ -4418,13 +4438,9 @@ async function recordCanonicalOnIdleResearch(env, input, req) {
     return { ok:false, status:409, code:"proposal_already_known",
       error:"la propuesta ya existe o fue ofrecida recientemente" };
   }
-  try {
-    const checks = await Promise.all(proposals.map((row) => fetch(row.source_url, {
-      method:"HEAD", redirect:"error", signal:AbortSignal.timeout(10000)
-    })));
-    if (checks.some((response) => !response.ok)) return { ok:false, status:422,
-      code:"proposal_source_unavailable", error:"proposal_source_unavailable" };
-  } catch { return { ok:false, status:422, code:"proposal_source_unavailable", error:"proposal_source_unavailable" }; }
+  const checks = await Promise.all(proposals.map((row) => publicOnIdleSourceAvailable(row.source_url)));
+  if (checks.some((available) => !available)) return { ok:false, status:422,
+    code:"proposal_source_unavailable", error:"proposal_source_unavailable" };
   const batchId = "ONIDLE-RESEARCH-" + crypto.randomUUID().replace(/-/g, "").slice(0, 20);
   const inserts = proposals.map((row, position) => env.DB.prepare(
     "INSERT INTO onidle_proposal_research (batch_id,position,agent,machine,project_id,title,evidence,source_url,observed_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)"
