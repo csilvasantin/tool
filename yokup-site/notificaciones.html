@@ -550,15 +550,18 @@ function qinfoHTML(owner){
     '<div class="qi-m"><span>'+(ini?'inicio '+hhmm(ini):'')+'</span><span>'+(fin?'fin '+hhmm(fin)+' · '+dur(ini,fin):'')+'</span>'+(m.points!=null?'<span>'+((+m.points||0)+(+m.race_bonus_points||0))+' pt</span>':'')+'<span>última señal '+hhmm(+m.at||0)+'</span></div>'+
     (m.proof_image?'<a href="'+esc(m.proof_image)+'" target="_blank" rel="noopener" title="evidencia"><img src="'+esc(m.proof_image)+'" alt="evidencia de '+esc(m.id||"")+'" loading="lazy"></a>':'<div class="qi-m"><span class="vacio">sin evidencia adjunta</span></div>')+'</div>';
 }
-function listaQueso(titulo,partes,cmap,tot,dia){
-  const filas=partes.map(p=>{const ini=inicioHoy(p.owner,p.machine,dia), cargando=!MIS.has(canonM(p.owner)), k=canonM(p.owner), on=QINFO===k;
-    return '<div class="qr'+(on?' on':'')+'" data-k="'+esc(k)+'" data-owner="'+esc(p.owner)+'" role="button" tabindex="0" aria-expanded="'+on+'" title="pulsa para ver su última misión"><i class="sw" style="background:'+(cmap.get(p.owner)||"var(--s0)")+'"></i><b title="'+esc(p.owner)+'">'+esc(p.owner)+'</b><span class="pc">'+(tot>0?Math.round(100*(+p.datos.total||0)/tot):0)+' %</span>'+
-      (ini?'<span class="desde" title="empezó hoy a las '+hhmm(ini.t)+' · primera señal de hoy: '+esc(ini.src)+'">'+hhmm(ini.t)+' <small>'+esc(ini.src.split(" ")[0])+'</small></span>':'<span class="desde no" title="ninguna señal de hoy con hora">'+(cargando?'…':'sin hora')+'</span>')+'</div>'+(on?qinfoHTML(p.owner):'');}).join("");
-  return '<div class="ql"><h4>'+titulo+'<span>% · empezó hoy</span><b>'+partes.length+'</b></h4>'+(filas||'<div class="nadie">nadie ha declarado hoy</div>')+'</div>';
+function listaQueso(titulo,filas,cmap,tot,dia,per){
+  const html=filas.map(r=>{const k=r.k, on=QINFO===k, t=r.tok, cargando=!MIS.has(k);
+    let cuando="";
+    if(per.k==="hora"||per.k==="dia"){ const ini=inicioHoy(r.owner,r.machine,dia); cuando=ini?'<span class="desde" title="empezó hoy a las '+hhmm(ini.t)+' · primera señal de hoy: '+esc(ini.src)+'">'+hhmm(ini.t)+' <small>'+esc(ini.src.split(" ")[0])+'</small></span>':'<span class="desde no" title="ninguna señal de hoy con hora">'+(cargando?'…':'sin hora')+'</span>'; }
+    else { const t0=r.list.reduce((m,x)=>{const v=+x.started_at||+x.at||0; return v&&(!m||v<m)?v:m;},0); cuando=t0?'<span class="desde" title="primera misión del periodo: '+ddmm(t0)+' '+hhmm(t0)+'">'+ddmm(t0)+' <small>'+hhmm(t0)+'</small></span>':'<span class="desde no">sin misión</span>'; }
+    return '<div class="qr'+(on?' on':'')+'" data-k="'+esc(k)+'" data-owner="'+esc(r.owner)+'" role="button" tabindex="0" aria-expanded="'+on+'" title="pulsa para ver su última misión"><i class="sw" style="background:'+(cmap.get(r.owner)||"var(--s0)")+'"></i><b title="'+esc(r.owner)+'">'+esc(r.owner)+'</b><span class="pc" title="'+(t?fmtTok(t.total)+' tokens':'sin parte de consumo en el periodo')+'">'+(t&&tot>0?Math.round(100*t.total/tot)+' %':'—')+'</span>'+cuando+'</div>'+(on?qinfoHTML(r.owner):'');}).join("");
+  return '<div class="ql"><h4>'+titulo+'<span>% · '+((per.k==="hora"||per.k==="dia")?'empezó hoy':'primera misión')+'</span><b>'+filas.length+'</b></h4>'+(html||'<div class="nadie">nadie '+esc(per.l)+'</div>')+'</div>';
 }
-function listasQueso(){
-  if(!RK) return ""; const {deHoy,cmap,tot,dia}=RK;
-  return '<div class="qls">'+listaQueso("Agentes",deHoy.filter(p=>!esConsejero(p)),cmap,tot,dia)+listaQueso("Consejeros · GrokBot",deHoy.filter(esConsejero),cmap,tot,dia)+'</div>';
+function listasQueso(f){
+  if(!f) f=filasPeriodo(); if(!f) return "";
+  const cmap=colorMap(f.rows.map(r=>r.owner));
+  return '<div class="qls">'+listaQueso("Agentes",f.rows.filter(r=>!esConsejero({owner:r.owner,machine:r.machine})),cmap,f.tot,RK.dia,f.per)+listaQueso("Consejeros · GrokBot",f.rows.filter(r=>esConsejero({owner:r.owner,machine:r.machine})),cmap,f.tot,RK.dia,f.per)+'</div>';
 }
 // ── PERIODO de la cuadrícula: ◀ baja a la hora, ▶ sube a semana, mes o siempre. Las misiones salen
 //    del historial del Highscore (la misma fuente que puntúa); los tokens, del parte del día para
@@ -677,7 +680,28 @@ function hojaHTML(f){
     (filas||'<tr><td colspan="15"><div class="estado">nadie '+esc(f.per.l)+'</div></td></tr>')+'</tbody></table></div>';
 }
 function filasRanking(){ const f=filasPeriodo(); if(!f) return ""; return cabeceraPeriodo(f)+hojaHTML(f); }
-function pintaRanking(){ const el=$("rk"); if(el&&RK) el.innerHTML=filasRanking(); const ql=$("qlistas"); if(ql&&RK) ql.innerHTML=listasQueso(); }
+// ESTADÍSTICAS POR PERIODO: el quesito, las listas y los indicadores siguen a la franja elegida
+// (hora, día, semana, mes, siempre), con los mismos activos y tokens que la cuadrícula.
+function pintaEstadisticas(f){
+  if(!RK) return; f=f||filasPeriodo(); if(!f) return;
+  const cmap=colorMap(f.rows.map(r=>r.owner)); RK.cmap=cmap;
+  const con=f.rows.filter(r=>r.tok);
+  let segs=con.map(r=>({k:r.k,nombre:r.owner,v:r.tok.total,color:cmap.get(r.owner)})).filter(g=>g.v>0);
+  if(segs.length>SLOTS){ const resto=segs.slice(SLOTS-1); segs=segs.slice(0,SLOTS-1).concat([{k:"otros",nombre:"otros ("+resto.length+")",v:resto.reduce((s,g)=>s+g.v,0),color:"var(--s0)"}]); }
+  const qs=$("qsvg"); if(qs) qs.innerHTML=quesito(segs,f.tot);
+  const ql=$("qlistas"); if(ql) ql.innerHTML=listasQueso(f);
+  const sum=k=>con.reduce((s,r)=>s+(+r.tok[k]||0),0);
+  const ent=sum("entrada"), cac=sum("cache"), sal=sum("salida"), pc=ent+cac>0?Math.round(100*cac/(ent+cac)):0;
+  const conDesp=con.filter(r=>r.tok.desp!=null), desp=conDesp.reduce((s,r)=>s+r.tok.desp,0), dups=con.reduce((s,r)=>s+(+r.tok.dups||0),0);
+  const kpi=$("consKpi"); if(kpi) kpi.innerHTML=
+    '<span class="k"><b>'+fmtTok(f.tot)+'</b>'+esc(f.per.cur)+' · '+con.length+' con parte</span>'+
+    '<span class="k'+(pc<80?' warn':' good')+'"><b>'+pc+' %</b>caché</span>'+
+    '<span class="k"><b>'+fmtTok(sal)+'</b>salida</span>'+
+    '<span class="k'+(dups>0?' warn':'')+'"><b>'+(conDesp.length?desp:"—")+'</b>despertares'+(dups?' · '+dups+' dup':'')+'</span>'+
+    '<span class="k'+(RK.sinParte?' warn':' good')+'" title="laten hoy y no han declarado consumo"><b>'+(RK.sinParte||0)+'</b>vivos sin declarar</span>';
+  const cd=$("consDia"); if(cd) cd.textContent=(f.per.k==="dia"?(RK.dia===hoyISO()?"hoy · ":"último parte · ")+RK.dia:f.per.k==="hora"?"última hora · "+RK.dia:f.h&&f.h.rango?f.per.cur+" · "+f.h.rango.desde+" → "+f.h.rango.hasta:f.per.cur);
+}
+function pintaRanking(){ const f=filasPeriodo(); const el=$("rk"); if(el&&RK&&f) el.innerHTML=cabeceraPeriodo(f)+hojaHTML(f); pintaEstadisticas(f); }
 async function cargaPeriodo(){
   if(!RK) return; const per=PER[PERIODO];
   const tareas=[cargaHist(per,RK.dia).then(()=>{ pintaRanking(); if(PERIODO<=1) precargaMisiones(); })]; if(per.dias&&per.dias>1) tareas.push(cargaConsP(per.dias).then(pintaRanking));
@@ -736,7 +760,7 @@ function renderConsumo(){
   if(segs.length>SLOTS){ const resto=segs.slice(SLOTS-1); segs=segs.slice(0,SLOTS-1).concat([{k:"otros",nombre:"otros ("+resto.length+")",v:resto.reduce((s,g)=>s+g.v,0),color:"var(--s0)"}]); }
   // Ranking: los que más gastan, con barra proporcional al primero; cada fila se despliega con sus misiones del día.
   const top=deHoy.slice(0,6), max=+top[0].datos.total||1;
-  RK={top,deHoy,cmap,tot,max,dia}; const rk=filasRanking();
+  RK={top,deHoy,cmap,tot,max,dia,sinParte:sinParte.length}; const rk=filasRanking();
   const filas=deHoy.map(p=>{const d=p.datos, f=focoAhorro(d), modelos=d.modelos&&typeof d.modelos==="object"?Object.keys(d.modelos).join(", "):"";
     return '<tr><td><span class="ag">'+esc(p.owner)+'</span><br><span class="rt">'+esc(d.runtime||"")+(modelos?' · '+esc(modelos):'')+'</span></td>'+
       '<td class="num">'+fmtTok(d.total)+'</td><td class="num">'+pcCache(d)+' %</td><td class="num">'+fmtTok(d.salida)+'</td>'+
@@ -746,7 +770,7 @@ function renderConsumo(){
   const top7=(CONS.por_agente||[]).slice(0,6).map(a=>esc(a.owner)+" "+fmtTok(a.total_tokens)).join(" · ");
   box.innerHTML=
     '<div class="cuerpo'+(STATS?'':' sinq')+'">'+
-      '<div class="queso" id="queso"><button type="button" class="qx" data-stats="0" title="cerrar las estadísticas para ganar espacio en la cuadrícula" aria-label="cerrar estadísticas">✕</button>'+quesito(segs,tot)+'<div id="qlistas">'+listasQueso()+'</div></div>'+
+      '<div class="queso" id="queso"><button type="button" class="qx" data-stats="0" title="cerrar las estadísticas para ganar espacio en la cuadrícula" aria-label="cerrar estadísticas">✕</button><div id="qsvg">'+quesito(segs,tot)+'</div><div id="qlistas"></div></div>'+
       '<div class="divisor" id="divisor" role="separator" aria-orientation="vertical" aria-label="ancho del gráfico (arrastra; doble clic para restaurar)" tabindex="0"></div>'+
       '<div class="lado">'+
         '<div class="col"><div class="rk" id="rk">'+rk+'</div></div>'+
@@ -758,7 +782,7 @@ function renderConsumo(){
       '<div class="tw"><table><thead><tr><th>agente · runtime</th><th class="num">total</th><th class="num">caché</th><th class="num">salida</th><th class="num">llamadas</th><th class="num">despertares</th><th>causa y foco de ahorro</th><th class="num">parte</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+
       (top7?'<div class="nota"><b>'+(CONS.dias||7)+' días</b> · '+top7+'</div>':'')+
     '</details>';
-  precargaMisiones(); cargaPeriodo(); montaDivisor();
+  pintaEstadisticas(); precargaMisiones(); cargaPeriodo(); montaDivisor();
   box.addEventListener("click",e=>{ const b=e.target.closest("[data-stats]"); if(!b) return; STATS=b.dataset.stats==="1"; box.querySelector(".cuerpo").classList.toggle("sinq",!STATS); pintaRanking(); });
   // Al pasar por un segmento o su leyenda se resalta ese agente y el resto se atenúa.
   const q=$("queso");

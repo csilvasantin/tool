@@ -150,3 +150,11 @@ test("«ocupado» no depende solo de la tarea de presencia: cuenta el trabajo en
   assert.match(html, /misión tocada /);
   assert.match(html, /sesión sin verificar/, "un trabajo sin sesión verificada se marca, no se oculta");
 });
+
+test("al cambiar la segmentación (hora, día, semana…) el quesito, las listas y los indicadores siguen al periodo", () => {
+  assert.match(html, /function pintaEstadisticas\(f\)/);
+  assert.match(html, /pintaEstadisticas\(f\); \}/, "pintar la cuadrícula repinta también las estadísticas");
+  assert.match(html, /id="qsvg"/);
+  assert.match(html, /primera misión del periodo/);
+  assert.match(html, /sin parte de consumo en el periodo/);
+});

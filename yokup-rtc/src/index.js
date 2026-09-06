@@ -12780,11 +12780,24 @@ Todo en español.`;
         // justo el tipo de registro falso que esta ruta viene a evitar.
         const todasHechas = tasks.every((t) => t.status === "done");
         const evidenciaMision = b.resolve === true ? declaredEvidence(b.evidence) : null;
+        // PRUEBA DE EJECUCIÓN (Carlos, 6-sep-2026): un commit, un sello o una URL dicen QUÉ se
+        // publicó, no enseñan que se hizo. Cerrar desde el CLI exige la misma captura final que
+        // /fleet/task-status (closure_evidence_missing): hoy tres misiones de Oráculo salían
+        // «resolved» en yokup.com/notificaciones sin imagen de proof of execution.
+        let imagenFinal = null;
+        if (b.image != null && String(b.image).trim() !== "") {
+          const norm = await validateProofImage(env, b.image, url.origin);
+          if (!norm.value) return json({ ok: false, code: "image_invalid", field: "image", error: "image no válida: " + norm.error }, 400);
+          imagenFinal = norm.value;
+        }
         if (b.resolve === true) {
           if (!todasHechas) return json({ ok: false, code: "tasks_pending",
             error: "no se cierra una misión con tareas sin hacer" }, 400);
           if (!evidenciaMision) return json({ ok: false, code: "evidence_required",
             error: "cerrar la misión exige evidencia: commit, sello de despliegue o URL" }, 400);
+          if (!imagenFinal) return json({ ok: false, code: "closure_evidence_missing", field: "image", missing: ["final_image"],
+            error: "no se cierra sin prueba de ejecución: falta la captura final (image)",
+            hint: "repite esta misma declaración añadiendo «image» (URL http(s) de la captura o data:image/…;base64); yokup.sh declarar la captura sola en Desktop con --captura, o declara sin resolve y cierra con mission-evidence.sh final" }, 400);
         }
 
         // Una misión existente sólo la declara SU agente. Si no, cualquiera
@@ -12893,9 +12906,13 @@ Todo en español.`;
               .bind(now, missionId, t.code));
           }
           if (b.resolve === true) {
-            statements.push(env.DB.prepare("UPDATE tickets SET status='resolved',resolved_at=?,updated_at=? WHERE id=?").bind(now, now, missionId));
+            statements.push(env.DB.prepare("UPDATE tickets SET status='resolved',resolved_at=?,updated_at=?,proof_image=?,proof_kind='final' WHERE id=?").bind(now, now, imagenFinal, missionId));
+            statements.push(env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)")
+              .bind(missionId, now, "proof", identity.agent, "📸 Pantallazo final declarado desde el CLI: " + proofLabel(imagenFinal)));
             statements.push(env.DB.prepare("INSERT INTO events(ticket_id,ts,kind,author,text) VALUES(?,?,?,?,?)")
               .bind(missionId, now, "accept", identity.agent, `Misión declarada resuelta desde el CLI · ${evidenciaMision.text}`));
+          } else if (imagenFinal) {
+            statements.push(env.DB.prepare("UPDATE tickets SET proof_image=COALESCE(NULLIF(proof_image,''),?),updated_at=? WHERE id=?").bind(imagenFinal, now, missionId));
           }
           // D1 batch es atómico: ticket, proyecto, plan y eventos nacen juntos.
           // Si falla cualquier sentencia no queda una misión parcial u huérfana.
