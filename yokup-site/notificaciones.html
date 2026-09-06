@@ -61,6 +61,32 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .load-error{border:1px solid rgba(255,136,102,.45);border-radius:10px;background:rgba(255,136,102,.08);color:var(--warn);padding:10px 13px;margin:-6px 0 14px;font-size:13px;line-height:1.45}
 .load-error button{margin-left:8px;border:1px solid currentColor;border-radius:7px;background:transparent;color:inherit;padding:5px 9px;font:inherit;cursor:pointer}
 .foot{margin-top:26px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot b{color:var(--brand)}
+/* ── Consumo de tokens (mandamiento 15 «Cuenta tus tokens»): los partes del día de TODOS
+      (agentes de los Mac y consejeros de GrokBot) en una tabla, con el foco de ahorro a la vista. */
+.cons{border:1px solid var(--line);border-radius:16px;background:var(--card);margin-bottom:18px;overflow:hidden}
+.cons .ch{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 18px 10px;border-bottom:1px solid var(--line)}
+.cons .ch h2{font-size:17px;font-weight:650;letter-spacing:-.01em}
+.cons .dia{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.cons .kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));border-bottom:1px solid var(--line)}
+.cons .k{padding:12px 18px;border-right:1px solid var(--line)}.cons .k:last-child{border-right:0}
+.cons .k b{display:block;font-family:var(--mono);font-size:20px;color:var(--brand);letter-spacing:-.01em}
+.cons .k span{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.cons .k.warn b{color:var(--warn)}.cons .k.good b{color:var(--good)}
+.cons .tw{overflow-x:auto}
+.cons table{width:100%;border-collapse:collapse;font-size:13px}
+.cons th{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+.cons td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.cons tbody tr:last-child td{border-bottom:0}
+.cons td.num,.cons th.num{text-align:right;font-family:var(--mono);white-space:nowrap}
+.cons .ag{color:var(--brand);font-weight:700;font-family:var(--mono);font-size:12.5px}
+.cons .rt{color:var(--dim);font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em}
+.cons td.causa{color:var(--mut);font-size:12.5px;line-height:1.45;min-width:26ch;max-width:44ch}
+.cons .foco{color:var(--warn);font-weight:700}
+.cons .sin{padding:12px 18px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line);font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.cons .chip{border:1px solid rgba(255,136,102,.45);color:var(--warn);border-radius:999px;padding:4px 9px}
+.cons .chip.ok{border-color:rgba(136,255,170,.35);color:var(--good)}
+.cons .nota{padding:10px 18px 14px;color:var(--mut);font-size:12.5px;line-height:1.5}
+.cons .nota b{color:var(--ink);font-weight:600}
 #lb{position:fixed;inset:0;background:rgba(2,8,13,.94);display:none;align-items:center;justify-content:center;z-index:9999;padding:24px;cursor:zoom-out}
 #lb img{max-width:100%;max-height:100%;border-radius:10px;border:1px solid var(--line2)}
 @media(max-width:760px){ .n{grid-template-columns:1fr} .n .shot{border-right:0;border-bottom:1px solid var(--line)} }
@@ -81,9 +107,15 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
     </div>
   </details>
 
+  <section class="cons" id="consumo" aria-labelledby="consumoTitulo">
+    <div class="ch"><h2 id="consumoTitulo">📟 Consumo de tokens</h2><span class="dia" id="consDia">hoy</span><span class="dia" style="margin-left:auto">mandamiento 15 · fuente <b>/fleet/consumo</b></span></div>
+    <div id="consCuerpo"><div class="nota">Cargando partes de consumo…</div></div>
+  </section>
+
   <div class="tfilter" id="filtros">
     <button class="tf on" data-f="abiertas" aria-pressed="true">Pendientes</button>
     <button class="tf" data-f="todas" aria-pressed="false">Todas</button>
+    <button class="tf" data-f="consumo" aria-pressed="false">Partes de consumo</button>
     <span class="tf" id="resumen" role="status" aria-live="polite" style="cursor:default;border-color:transparent"></span>
   </div>
 
@@ -127,7 +159,7 @@ const QUE={
   installer:"Instalador esperando confirmación"
 };
 const queEs=o=>QUE[String(o||"").toLowerCase()]||("Diálogo de "+(o||"el sistema"));
-const KIND={bloqueo:"Bloqueo operativo",flota:"Aviso de flota",release:"Aviso de versión",auth:"Aviso de acceso",autenticacion:"Aviso de acceso",conexion:"Aviso de conexión","correccion-informe":"Corrección de informe",sistema:"Diálogo del sistema"};
+const KIND={bloqueo:"Bloqueo operativo",flota:"Aviso de flota",release:"Aviso de versión",auth:"Aviso de acceso",autenticacion:"Aviso de acceso",conexion:"Aviso de conexión","correccion-informe":"Corrección de informe",consumo:"Parte de consumo",sistema:"Diálogo del sistema"};
 const kindLabel=k=>KIND[String(k||"").toLowerCase()]||("Aviso "+String(k||"general"));
 
 function shotFallback(img,reason){
@@ -146,7 +178,9 @@ function checkShot(img){
 
 function render(){
   const box=$("lista");
-  const list=VISTA==="abiertas" ? DATOS.filter(n=>n.status==="abierta") : DATOS;
+  const esCons=n=>String(n.kind||"").toLowerCase()==="consumo";
+  // Los partes de consumo no son avisos que atender: viven en el panel de arriba y en su filtro.
+  const list=VISTA==="abiertas" ? DATOS.filter(n=>n.status==="abierta"&&!esCons(n)) : VISTA==="consumo" ? DATOS.filter(esCons) : DATOS;
   const live=SNAPSHOT_STALE?0:(RESUMEN.live|0), unconfirmed=SNAPSHOT_STALE?0:(RESUMEN.unconfirmed|0);
   const historicos=(RESUMEN.stale|0)+(RESUMEN.backlog|0)+(SNAPSHOT_STALE?((RESUMEN.live|0)+(RESUMEN.unconfirmed|0)):0);
   const affected=SNAPSHOT_STALE?0:(RESUMEN.affected_machines|0);
@@ -157,6 +191,8 @@ function render(){
   if(!list.length){
     box.innerHTML=VISTA==="abiertas"
       ? '<div class="empty"><b>Sin avisos pendientes</b>No hay avisos recientes ni pendientes históricos abiertos.</div>'
+      : VISTA==="consumo"
+      ? '<div class="empty"><b>Sin partes de consumo</b>Nadie ha declarado tokens todavía. En cada Mac lo publica consumo-tokens.py; los consejeros de GrokBot, consumo_reportar del MCP.</div>'
       : '<div class="empty"><b>Sin registro</b>Todavía no se ha detectado ninguna notificación del sistema en la flota.</div>';
     return;
   }
@@ -204,6 +240,86 @@ function espera_entre(a,b){ const s=Math.max(0,Math.round((b-a)/1000)); if(s<90)
 // y un único prefijo «admira-» (FLT-1019).
 function rcId(maq){ var n=String(maq||"").toLowerCase().replace(/[\s·._-]+/g,""); if(n.slice(0,6)==="admira") n=n.slice(6); return n?"admira-"+n:""; }
 
+// ── CONSUMO (mandamiento 15 «Cuenta tus tokens», Carlos 6-sep-2026): los partes del día,
+//    de todos, en una tabla. Lo que no se mide no se optimiza; lo que no se declara se señala.
+//    Quién «late hoy y no ha declarado» sale de cruzar la presencia de la flota con los partes.
+const PRESENCIA="https://draw-gen.csilvasantin.workers.dev/presence";
+let CONS=null, CONS_ERR="", PRES=[];
+const fmtTok=n=>{n=+n||0;return n>=1e9?(n/1e9).toFixed(2)+" G":n>=1e6?(n/1e6).toFixed(1)+" M":n>=1e3?Math.round(n/1e3)+" k":String(n);};
+const pad2=n=>String(n).padStart(2,"0");
+function hoyISO(){const d=new Date();return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());}
+const canon=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/gi,"").toLowerCase();
+// Misma regla que whoami.sh (Carlos, 13-ago-2026): el color de la carcasa NO es nombre cuando
+// queda un número que distingue la máquina (MacBookProNegro14 = MacBookPro14 = NeoMBP14), y se
+// conserva cuando es lo único que la distingue (MacBookAirRosa). Así el parte «NeoMacBookPro14»
+// casa con la presencia «Neo · MacBookProNegro14» y nadie sale como «sin declarar» por un alias.
+const canonM=s=>{const b=canon(s).replace(/^admira/,"");const sc=b.replace(/(negro|crema|azul|rosa|plata|gris|blanco)/g,"");return /\d/.test(sc)?sc:b;};
+const pcCache=d=>{const e=+d.entrada||0,c=+d.cache||0;return e+c>0?Math.round(100*c/(e+c)):0;};
+// El foco de ahorro sale de la causa declarada y de los duplicados: es lo que hay que cambiar mañana.
+function focoAhorro(d){
+  const c=String(d.causa||"").toLowerCase();
+  if(/heartbeat|latido/.test(c)) return "latidos: un despertar sin trabajo nuevo cuesta una línea, no una sesión";
+  if((+d.duplicados||0)>0) return (+d.duplicados)+" ecos duplicados: se cierran, no se rehacen";
+  if(/contexto largo/.test(c)) return "contexto largo: sesión nueva por misión, no una que dure todo el día";
+  if(/estimaci/.test(c)||/estimacion|sin-medidor/.test(String(d.origen||""))) return "cifra estimada: falta medidor";
+  return "";
+}
+function renderConsumo(){
+  const box=$("consCuerpo"); const hoy=hoyISO();
+  if(!CONS){ box.innerHTML='<div class="nota">'+(CONS_ERR?'No se pudieron leer los partes de consumo ('+esc(CONS_ERR)+'). No hay datos suficientes para afirmar cuánto se ha gastado.':'Cargando partes de consumo…')+'</div>'; return; }
+  const partes=(CONS.partes||[]).filter(p=>p&&p.datos&&typeof p.datos==="object");
+  const dias=[...new Set(partes.map(p=>p.dia))].filter(Boolean).sort();
+  const dia=dias.includes(hoy)?hoy:(dias[dias.length-1]||hoy);
+  const vistos=new Set();
+  const deHoy=partes.filter(p=>p.dia===dia).sort((a,b)=>(+b.last_at||0)-(+a.last_at||0)).filter(p=>{const k=canonM(p.owner)+"|"+canonM(p.machine);if(vistos.has(k))return false;vistos.add(k);return true;}).sort((a,b)=>(+b.datos.total||0)-(+a.datos.total||0));
+  $("consDia").textContent=(dia===hoy?"hoy · ":"último parte · ")+dia;
+  const sum=k=>deHoy.reduce((s,p)=>s+(+p.datos[k]||0),0);
+  const tot=sum("total"), ent=sum("entrada"), cac=sum("cache"), sal=sum("salida"), desp=sum("despertares"), dups=sum("duplicados");
+  const pc=ent+cac>0?Math.round(100*cac/(ent+cac)):0;
+  // Quién late hoy (presencia) y no tiene parte del día. Las capas sub/infra gastan dentro de su principal.
+  const declarados=new Set(deHoy.map(p=>canonM(p.owner)));
+  const ini=new Date(dia+"T00:00:00").getTime()/1000, vivos=new Map();
+  for(const a of PRES){
+    if(!a||!(+a.updated>=ini)||!a.persona||!a.machine) continue;
+    if(/^(sub|infra)/i.test(String(a.persona))) continue;
+    const k=canonM(a.persona+a.machine); if(!vivos.has(k)) vivos.set(k,{persona:a.persona,machine:a.machine,runtime:a.runtime||""});
+  }
+  const sinParte=[...vivos.values()].filter(a=>!declarados.has(canonM(a.persona+a.machine))).sort((x,y)=>String(x.persona).localeCompare(String(y.persona)));
+  if(!deHoy.length){
+    box.innerHTML='<div class="nota">Nadie ha declarado consumo el '+esc(dia)+'. En cada Mac lo publica <b>consumo-tokens.py</b>; los consejeros de GrokBot, <b>consumo_reportar</b> del MCP.'+
+      (sinParte.length?'</div><div class="sin">late hoy y no ha declarado:'+sinParte.map(a=>'<span class="chip">'+esc(a.persona+a.machine)+'</span>').join("")+'</div>':'</div>');
+    return;
+  }
+  const filas=deHoy.map(p=>{const d=p.datos, f=focoAhorro(d), modelos=d.modelos&&typeof d.modelos==="object"?Object.keys(d.modelos).join(", "):"";
+    return '<tr><td><span class="ag">'+esc(p.owner)+'</span><br><span class="rt">'+esc(d.runtime||"")+(modelos?' · '+esc(modelos):'')+'</span></td>'+
+      '<td class="num">'+fmtTok(d.total)+'</td><td class="num">'+pcCache(d)+' %</td><td class="num">'+fmtTok(d.salida)+'</td>'+
+      '<td class="num">'+(+d.llamadas||0)+'</td><td class="num">'+(+d.despertares||0)+((+d.duplicados||0)?' <span class="foco">('+(+d.duplicados)+' dup)</span>':'')+'</td>'+
+      '<td class="causa">'+(f?'<span class="foco">🔥 '+esc(f)+'</span><br>':'')+esc(d.causa||"sin causa declarada")+'</td>'+
+      '<td class="num" title="hora del parte">'+hhmm(+p.last_at||0)+'</td></tr>';}).join("");
+  const top7=(CONS.por_agente||[]).slice(0,6).map(a=>esc(a.owner)+" "+fmtTok(a.total_tokens)).join(" · ");
+  box.innerHTML=
+    '<div class="kp">'+
+      '<div class="k"><b>'+fmtTok(tot)+'</b><span>tokens flota · '+deHoy.length+' partes</span></div>'+
+      '<div class="k'+(pc<80?' warn':' good')+'"><b>'+pc+' %</b><span>caché de entrada</span></div>'+
+      '<div class="k"><b>'+fmtTok(sal)+'</b><span>salida generada</span></div>'+
+      '<div class="k'+(dups>0?' warn':'')+'"><b>'+desp+'</b><span>despertares'+(dups?' · '+dups+' dup':'')+'</span></div>'+
+      '<div class="k'+(sinParte.length?' warn':' good')+'"><b>'+sinParte.length+'</b><span>vivos sin declarar</span></div>'+
+    '</div>'+
+    '<div class="tw"><table><thead><tr><th>agente · runtime</th><th class="num">total</th><th class="num">caché</th><th class="num">salida</th><th class="num">llamadas</th><th class="num">despertares</th><th>causa y foco de ahorro</th><th class="num">parte</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+
+    '<div class="sin">'+(sinParte.length?'late hoy y no ha declarado:'+sinParte.map(a=>'<span class="chip" title="'+esc(a.runtime)+'">'+esc(a.persona+a.machine)+'</span>').join(""):'<span class="chip ok">todos los que laten hoy han declarado</span>')+'</div>'+
+    (top7?'<div class="nota"><b>'+(CONS.dias||7)+' días</b> · '+top7+'</div>':'');
+}
+async function loadConsumo(){
+  try{
+    const r=await fetch(WORKER+"/fleet/consumo?dias=7",{cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const d=await r.json(); if(!d||!d.ok||!Array.isArray(d.partes)) throw new Error("respuesta incompleta");
+    CONS=d; CONS_ERR="";
+  }catch(e){ CONS_ERR=String(e&&e.message||e); }
+  try{ const r=await fetch(PRESENCIA,{cache:"no-store"}); const d=await r.json(); if(d&&Array.isArray(d.presence)) PRES=d.presence; }catch(e){}
+  renderConsumo();
+}
+
 async function load(){
   try{
     const r=await fetch(WORKER+"/fleet/notificaciones?todas=1",{cache:"no-store"});
@@ -246,6 +362,7 @@ $("lb").addEventListener("keydown",e=>{if(e.key==="Escape")closeLightbox();});
 $("retryLoad").addEventListener("click",load);
 
 load(); setInterval(load,20000);
+loadConsumo(); setInterval(loadConsumo,60000);
 </script>
 <script src="/yk-frame.js?v=r32"></script>
 </body>

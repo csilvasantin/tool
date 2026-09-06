@@ -60,3 +60,15 @@ test("el menú cuenta máquinas distintas y explica todos los estados sin la men
   assert.match(frame, /históricos/);
   assert.doesNotMatch(frame, /equipos parados/);
 });
+
+test("el panel de consumo (mandamiento 15) lee /fleet/consumo, señala a quien late sin declarar y no mezcla partes con avisos", () => {
+  assert.match(html, /\/fleet\/consumo\?dias=7/);
+  assert.match(html, /id="consumo" aria-labelledby="consumoTitulo"/);
+  assert.match(html, /vivos sin declarar/);
+  assert.match(html, /late hoy y no ha declarado/);
+  assert.match(html, /No se pudieron leer los partes de consumo/, "un fallo del feed no afirma un consumo cero");
+  assert.match(html, /data-f="consumo" aria-pressed="false">Partes de consumo/);
+  assert.match(html, /n\.status==="abierta"&&!esCons\(n\)/, "los partes no cuentan como avisos pendientes");
+  assert.match(html, /consumo:"Parte de consumo"/);
+  assert.match(html, /function focoAhorro/);
+});
