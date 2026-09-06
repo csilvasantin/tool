@@ -33,7 +33,10 @@ function body(name) {
   throw new Error(`${name} incompleta`);
 }
 
-function harness(raceTicket) {
+function harness(raceTicket, proposals = [
+  {title:'Mejora A',target_mission_id:'A'}, {title:'Mejora B',target_mission_id:'B'},
+  {title:'Mejora C',target_mission_id:'C'}
+]) {
   const db = new DatabaseSync(':memory:');
   db.exec("CREATE TABLE fleet_automation_controls(scope TEXT PRIMARY KEY,enabled INTEGER,cutoff INTEGER)");
   db.exec("CREATE TABLE tickets(id TEXT,source TEXT,status TEXT,assignee TEXT,loc TEXT)");
@@ -70,9 +73,7 @@ function harness(raceTicket) {
     'AGENT_SOURCE_SQL_T','isCanonicalOnIdleDecision','ensureEntityDisplayRef',
     'agentFamilyKey','machineRefKey','agentFamilySqlKey','machineRefSqlKey','automationFenceSql','automationFamily','CLI_POLICY',
     `${body('publishScheduledOnIdle')}; return publishScheduledOnIdle;`);
-  const publish = factory(operationalOnIdleState, async () => ({ok:true,proposals:[
-    {title:'Mejora A',target_mission_id:'A'}, {title:'Mejora B',target_mission_id:'B'},
-    {title:'Mejora C',target_mission_id:'C'}]}), () => '2026-09-01', () => 'DEC-RACE', 8,
+  const publish = factory(operationalOnIdleState, async () => ({ok:true,proposals}), () => '2026-09-01', () => 'DEC-RACE', 8,
     ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION, isCanonicalOnIdleOptions, 'https://yokup.com/decide',
     MARKER, (value) => value, AGENT_SOURCE_SQL_T, isCanonicalOnIdleDecision, async () => {},
     agentFamilyKey, machineRefKey, agentFamilySqlKey, machineRefSqlKey,automationFenceSql,automationFamily,CLI_POLICY);
@@ -186,6 +187,20 @@ test('guard atómico no bloquea fleet ajena, otra máquina ni field propia', asy
     assert.equal((await publish(env,candidate,Date.UTC(2026,8,1,10))).published,true,row.id);
     assert.equal(db.prepare('SELECT COUNT(*) n FROM decisions').get().n,1,row.id);
   }
+});
+
+test('tres propuestas investigadas publican cinco opciones con targets nulos sin crear misiones antes de elegir',async()=>{
+  const proposals=[
+    {title:'Reducir /dashboard de 3 s a 1 s y verificar carga',target_mission_id:null,explicit_new:true},
+    {title:'Corregir API /onidle con 10 obsoletas y verificar 3 nuevas',target_mission_id:null,explicit_new:true},
+    {title:'Completar /highscore con 3 filtros y verificar los 3',target_mission_id:null,explicit_new:true}
+  ];
+  const {db,env,publish}=harness(null,proposals),result=await publish(env,candidate,Date.UTC(2026,8,1,10));
+  assert.equal(result.published,true);
+  const decision=db.prepare('SELECT options,option_targets FROM decisions').get();
+  assert.equal(JSON.parse(decision.options).length,5);
+  assert.deepEqual(JSON.parse(decision.option_targets),[null,null,null,null,null]);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM tickets').get().n,0);
 });
 
 test('scheduler y petición manual propagan pending_mission sin crear otra decisión', () => {

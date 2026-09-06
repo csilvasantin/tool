@@ -46,17 +46,19 @@ test('excluye terminales, activas, usadas y duplicados de id o título',()=>{
   assert.deepEqual(result.proposals.map(row=>row.target_mission_id),['MIS-1','MIS-2','MIS-3']);
 });
 
-test('target null y el catálogo genérico quedan fuera aunque estén marcados como nuevos',()=>{
+test('target null exige investigación nueva, concreta y fresca',()=>{
   const result=selectOnIdleProposals([
     {title:'Ambigua sin misión',target_mission_id:null,status:'open',created_at:1},
     {title:'Nueva explícita',target_mission_id:null,explicit_new:true,status:'new',created_at:2},
+    proposal('Reducir /status de 216 KB a 80 KB y verificar el peso',null,{explicit_new:true,status:'new'}),
     proposal('Reducir /dos de 10 pasos a 5 y verificar 5','MIS-2'),
     proposal('Corregir API /tres: 3 errores y verificar 0','MIS-3')
   ],{now:NOW});
-  assert.equal(result.ok,false);
-  assert.equal(result.available,2);
-  assert.equal(result.action,'investigate');
-  assert.equal(result.rejected.generic,2);
+  assert.equal(result.ok,true);
+  assert.deepEqual(result.proposals[0],{
+    title:'Reducir /status de 216 KB a 80 KB y verificar el peso',target_mission_id:null,explicit_new:true
+  });
+  assert.equal(result.rejected.generic,1);
 });
 
 test('falla cerrado y no devuelve lista parcial si quedan menos de tres',()=>{

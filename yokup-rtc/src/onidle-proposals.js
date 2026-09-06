@@ -75,9 +75,10 @@ export function selectOnIdleProposals(candidates, context = {}) {
     if (!title || !titleKey || TERMINAL.has(status) || ACTIVE.has(status) || usedTitles.has(titleKey)) continue;
     if (target) {
       if (!TARGET_ID.test(target) || explicitNew || usedTargets.has(target) || activeTargets.has(target)) continue;
-    } else {
-      // Ya no existe «mejora nueva» de catálogo: primero se investiga y se crea
-      // una evidencia real; después esa evidencia puede entrar como candidatura.
+    } else if (!explicitNew) {
+      // Un texto sin misión ni investigación canónica sigue siendo relleno.
+      // `explicit_new` sólo se admite cuando pasa el mismo contrato de evidencia
+      // fresca, acción, alcance y métrica que una misión del backlog.
       rejected.generic++;
       continue;
     }
@@ -96,7 +97,9 @@ export function selectOnIdleProposals(candidates, context = {}) {
     if (seenTitles.has(titleKey) || (row.target_mission_id && seenTargets.has(row.target_mission_id))) continue;
     seenTitles.add(titleKey);
     if (row.target_mission_id) seenTargets.add(row.target_mission_id);
-    selected.push({ title:row.title, target_mission_id:row.target_mission_id });
+    selected.push(row.target_mission_id
+      ? { title:row.title, target_mission_id:row.target_mission_id }
+      : { title:row.title, target_mission_id:null, explicit_new:true });
     if (selected.length === 3) break;
   }
   if (selected.length !== 3) {

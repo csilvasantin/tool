@@ -42,7 +42,7 @@ import { validateCoachCompletion, validateCoachLaunch, coachLessonForSlot, coach
 import { missionDayRange, missionVisibleCounts, missionVisibleDetails,
   onIdleEligibility, taskOperationalDetails, taskVisibleDetails } from "./mission-visible.js";
 import { DAILY_MISSION_CLOSE_AUTHOR, DAILY_MISSION_CLOSE_EVENT_KIND, DAILY_MISSION_CLOSE_LEASE_MS, DAILY_MISSION_CLOSE_REASON, MISSION_UNCONCLUDED_AFTER_MS, dailyMissionCloseEventText, dailyMissionClosePlan } from "./daily-mission-close.js";
-import { selectOnIdleProposals, onIdleProposalTitleKey } from "./onidle-proposals.js";
+import { ONIDLE_EVIDENCE_MAX_AGE_MS, selectOnIdleProposals, onIdleProposalTitleKey } from "./onidle-proposals.js";
 import { ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION, isCanonicalOnIdleDecision,
   isCanonicalOnIdleOptions, selectCanonicalLiveOnIdleDecision } from "./onidle-decision-contract.js";
 import { canonicalProjectAgentRef, canonicalProjectAgentRefs, YOKUP_MINI_MEMBER_BACKFILL_SQL } from "./project-member-identity.js";
@@ -315,6 +315,12 @@ async function applySchema(env) {
   // ledger sólo registra la publicación idempotente y nunca contiene secretos.
   await env.DB.exec("CREATE TABLE IF NOT EXISTS onidle_ticks (identity_key TEXT NOT NULL, day TEXT NOT NULL, ordinal INTEGER NOT NULL, agent TEXT NOT NULL, machine TEXT NOT NULL, project_id TEXT NOT NULL, decision_id TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'reserved', reserved_at INTEGER NOT NULL, published_at INTEGER, PRIMARY KEY(identity_key,day,ordinal))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_onidle_ticks_status ON onidle_ticks(status,reserved_at)");
+  // Investigación fresca para OnIdle. Son borradores de alternativas, no
+  // tickets ni misiones: sólo la elección de Carlos puede materializarlos.
+  // El batch de tres filas evita publicar una lista parcial si una escritura
+  // falla y conserva la evidencia usada para aceptar cada propuesta.
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS onidle_proposal_research (batch_id TEXT NOT NULL, position INTEGER NOT NULL, agent TEXT NOT NULL, machine TEXT NOT NULL, project_id TEXT NOT NULL, title TEXT NOT NULL, evidence TEXT NOT NULL, source_url TEXT NOT NULL, observed_at INTEGER NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(batch_id,position))");
+  await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_onidle_research_scope ON onidle_proposal_research(project_id,created_at DESC)");
   // Peticiones humanas de ventana inmediata. El navegador nunca crea decisiones:
   // deja una intención idempotente y el servidor la resuelve con el mismo
   // publicador OnIDLE que usa scheduled(), bajo lease y guardas operativas.
@@ -2142,7 +2148,7 @@ async function executeHourlyMode(env,run) {
     const decision=await openInitialMissionDecision(env,{agent:run.pref.agent,machine:run.pref.machine,project_id:run.project.id,
       surface:'highscore',mission:'Training horario',hourly_run_id:run.id,question:'Training · mejora horaria · '+run.pref.runtime+' '+run.pref.host.toUpperCase(),
       options:proposal.proposals.map(row=>row.title).concat([ONIDLE_BACK_OPTION,ONIDLE_CUSTOM_OPTION]),
-      option_targets:proposal.proposals.map(row=>({target_mission_id:row.target_mission_id})).concat([null,null]),recommended:0,minutes:5,url:DECIDE_URL});
+      option_targets:proposal.proposals.map(row=>row.target_mission_id?{target_mission_id:row.target_mission_id}:null).concat([null,null]),recommended:0,minutes:5,url:DECIDE_URL});
     if (!decision.ok) return {status:'skipped',reason:decision.code || decision.error || 'decision_unavailable'};
     return {status:'completed',reason:'decision_published',decision_id:decision.id,deliverable_url:onIdleDecisionUrl(decision.id)};
   }
@@ -4294,7 +4300,8 @@ async function canonicalOnIdleProposals(env, identity, requestedProjectId) {
     error:"project_id no pertenece a la asignación canónica de agent+machine" };
   const projectId = String(assignment.id);
   const projectName = String(assignment.name);
-  const [backlogResult, decisionResult, activeBatchResult, activeTaskResult] = await Promise.all([
+  const now = Date.now();
+  const [backlogResult, decisionResult, activeBatchResult, activeTaskResult, researchResult, knownTicketResult] = await Promise.all([
     env.DB.prepare(
       "SELECT id,subject,status,priority,assignee,loc,project,project_id,created_at,updated_at FROM tickets " +
       "WHERE (project_id=? OR (COALESCE(project_id,'')='' AND lower(project)=lower(?))) " +
@@ -4325,6 +4332,14 @@ async function canonicalOnIdleProposals(env, identity, requestedProjectId) {
       "WHERE lower(COALESCE(m.status,'')) IN ('in_progress','doing','active','unconcluded') " +
       "AND lower(COALESCE(t.status,'')) NOT IN ('resolved','cancelled','closed') " +
       "AND (t.project_id=? OR (COALESCE(t.project_id,'')='' AND lower(t.project)=lower(?)))"
+    ).bind(projectId, projectName).all(),
+    env.DB.prepare(
+      "SELECT batch_id,position,agent,machine,project_id,title,evidence,source_url,observed_at,created_at " +
+      "FROM onidle_proposal_research WHERE project_id=? AND observed_at>=? " +
+      "ORDER BY created_at DESC,batch_id DESC,position ASC LIMIT 100"
+    ).bind(projectId, now - ONIDLE_EVIDENCE_MAX_AGE_MS).all(),
+    env.DB.prepare(
+      "SELECT subject FROM tickets WHERE (project_id=? OR (COALESCE(project_id,'')='' AND lower(project)=lower(?)))"
     ).bind(projectId, projectName).all()
   ]);
   const usedTargetIds = [], usedTitles = [];
@@ -4341,18 +4356,87 @@ async function canonicalOnIdleProposals(env, identity, requestedProjectId) {
     .filter((row) => String(row.project_id || "") === projectId)
     .map((row) => row.active_mission_id)
     .concat((activeTaskResult.results || []).map((row) => row.mission_id));
-  const now = Date.now();
   const backlogCandidates = (backlogResult.results || []).map((row) => ({
     title:row.subject, target_mission_id:row.id, status:row.status,
     priority:row.priority, created_at:row.created_at,
     updated_at:row.updated_at, evidence_at:row.updated_at || row.created_at
   }));
-  return { ...selectOnIdleProposals(backlogCandidates, {
+  const context = {
     used_target_ids:usedTargetIds, used_titles:usedTitles,
     active_mission_ids:activeMissionIds, now
-  }), project_id:projectId, agent:identity.agent, machine:identity.machine };
+  };
+  const backlogSelection = selectOnIdleProposals(backlogCandidates, context);
+  if (backlogSelection.ok) return { ...backlogSelection, source:"backlog",
+    project_id:projectId, agent:identity.agent, machine:identity.machine };
+  const researchRows = (researchResult.results || []).filter((row) => matchesOnIdleIdentity({
+    assignee:row.agent, loc:row.machine
+  }, identity));
+  const latestBatch = researchRows.length ? String(researchRows[0].batch_id || "") : "";
+  const researchCandidates = researchRows.filter((row) => String(row.batch_id || "") === latestBatch).map((row) => ({
+    title:row.title, target_mission_id:null, explicit_new:true, status:"new", priority:"research",
+    created_at:Number(row.created_at) + Number(row.position || 0), evidence_at:row.observed_at
+  }));
+  const researchSelection = selectOnIdleProposals(researchCandidates, { ...context,
+    used_titles:usedTitles.concat((knownTicketResult.results || []).map((row) => row.subject))
+  });
+  if (researchSelection.ok) return { ...researchSelection, source:"fresh_research", batch_id:latestBatch,
+    backlog_rejected:backlogSelection.rejected, project_id:projectId, agent:identity.agent, machine:identity.machine };
+  return { ...backlogSelection, research_available:researchSelection.available,
+    project_id:projectId, agent:identity.agent, machine:identity.machine };
 }
 __name(canonicalOnIdleProposals, "canonicalOnIdleProposals");
+
+async function recordCanonicalOnIdleResearch(env, input, req) {
+  const auth = await authorizeCliExecutor(env, req);
+  if (!auth.ok) return { ok:false, status:auth.status, code:auth.code, error:auth.error };
+  const identity = resolveDecisionIdentity(input && input.agent, input && input.machine);
+  if (!identity.ok) return { ok:false, status:400, code:"exact_identity_required", error:identity.error };
+  const requestedProjectId = String(input && input.project_id || "").trim();
+  const assignment = requestedProjectId && await exactDecisionProjectAssignment(
+    env, identity.agent, identity.machine, requestedProjectId
+  );
+  if (!assignment) return { ok:false, status:400, code:"exact_project_required",
+    error:"project_id no pertenece a la asignación canónica de agent+machine" };
+  const now = Date.now();
+  let proposals;
+  try { proposals = validateTrainingProposals(input && input.proposals, assignment, now); }
+  catch (error) { return { ok:false, status:error.status || 400,
+    code:String(error.message || "invalid_proposals"), error:String(error.message || "invalid_proposals") }; }
+  const [ticketRows, decisionRows] = await Promise.all([
+    env.DB.prepare(
+      "SELECT id,subject,status FROM tickets WHERE (project_id=? OR (COALESCE(project_id,'')='' AND lower(project)=lower(?)))"
+    ).bind(String(assignment.id), String(assignment.name)).all(),
+    env.DB.prepare("SELECT options FROM decisions WHERE project=? AND created_at>=?")
+      .bind(String(assignment.id), now - ONIDLE_TITULO_GASTADO_MS).all()
+  ]);
+  const knownTitles = new Set((ticketRows.results || []).map((row) => onIdleProposalTitleKey(row.subject)).filter(Boolean));
+  for (const row of decisionRows.results || []) {
+    try { for (const title of JSON.parse(row.options || "[]").slice(0, 3)) knownTitles.add(onIdleProposalTitleKey(title)); }
+    catch {}
+  }
+  if (proposals.some((row) => knownTitles.has(onIdleProposalTitleKey(row.title)))) {
+    return { ok:false, status:409, code:"proposal_already_known",
+      error:"la propuesta ya existe o fue ofrecida recientemente" };
+  }
+  try {
+    const checks = await Promise.all(proposals.map((row) => fetch(row.source_url, {
+      method:"HEAD", redirect:"error", signal:AbortSignal.timeout(10000)
+    })));
+    if (checks.some((response) => !response.ok)) return { ok:false, status:422,
+      code:"proposal_source_unavailable", error:"proposal_source_unavailable" };
+  } catch { return { ok:false, status:422, code:"proposal_source_unavailable", error:"proposal_source_unavailable" }; }
+  const batchId = "ONIDLE-RESEARCH-" + crypto.randomUUID().replace(/-/g, "").slice(0, 20);
+  const inserts = proposals.map((row, position) => env.DB.prepare(
+    "INSERT INTO onidle_proposal_research (batch_id,position,agent,machine,project_id,title,evidence,source_url,observed_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)"
+  ).bind(batchId, position, identity.agent, identity.machine, String(assignment.id), row.title,
+    row.evidence, row.source_url, row.observed_at, now));
+  if (typeof env.DB.batch === "function") await env.DB.batch(inserts);
+  else for (const insert of inserts) await insert.run();
+  return { ok:true, status:201, batch_id:batchId, available:3, source:"fresh_research",
+    project_id:String(assignment.id), agent:identity.agent, machine:identity.machine,
+    proposals:proposals.map((row) => ({ title:row.title, target_mission_id:null, explicit_new:true })) };
+}
+__name(recordCanonicalOnIdleResearch, "recordCanonicalOnIdleResearch");
 
 function onIdleTickDecisionId(identity, day, ordinal) {
   return "DEC-ONIDLE-" + String(day || "").replace(/[^0-9]/g, "") + "-" +
@@ -4401,7 +4485,8 @@ async function publishScheduledOnIdle(env, candidate, now = Date.now()) {
   const options = proposalResult.proposals.map((row) => String(row.title || "").slice(0, 200))
     .concat([ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION]);
   if (!isCanonicalOnIdleOptions(options)) return { ok:true, published:false, reason:"invalid_canonical_options" };
-  const targets = proposalResult.proposals.map((row) => ({ target_mission_id:String(row.target_mission_id) }))
+  const targets = proposalResult.proposals.map((row) => row.target_mission_id
+    ? { target_mission_id:String(row.target_mission_id) } : null)
     .concat([null, null]);
   const deadline = now + 5 * 60000;
   const reserve = env.DB.prepare(
@@ -11956,9 +12041,18 @@ var worker_app = {
     // Fuente única de las tres alternativas OnIdle. El cuerpo es JSONL para que
     // el launchd pueda consumirlo sin fichero intermedio; nunca devuelve 1/2
     // candidatas ni rellena huecos con texto libre.
-    if (url.pathname === "/fleet/onidle-proposals" && req.method === "GET") {
+    if (url.pathname === "/fleet/onidle-proposals" && (req.method === "GET" || req.method === "POST")) {
       try {
         await ensureSchema(env);
+        if (req.method === "POST") {
+          let body;
+          try { body = await req.json(); }
+          catch { return json({ok:false,code:"bad_json",error:"bad json"},400); }
+          const recorded = await recordCanonicalOnIdleResearch(env, body, req);
+          const response = json(recorded, recorded.status || (recorded.ok ? 201 : 400));
+          response.headers.set("cache-control", "no-store");
+          return response;
+        }
         const identity = resolveDecisionIdentity(url.searchParams.get("agent"), url.searchParams.get("machine"));
         if (!identity.ok) return json({ ok:false, code:"exact_identity_required", error:identity.error }, 400);
         const result = await canonicalOnIdleProposals(env, identity, String(url.searchParams.get("project_id") || "").trim());

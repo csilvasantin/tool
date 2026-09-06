@@ -12,9 +12,9 @@ const baseBody={
   recommended:0,minutes:5,onidle:true,mission:'OnIdle horario'
 };
 
-function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMissions=[],backlog=[],activeBatches=[],activeMissionTasks=[],presence}={}) {
+function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMissions=[],backlog=[],research=[],activeBatches=[],activeMissionTasks=[],presence}={}) {
   const state={missions:missions.map(x=>({source:'fleet',...x})),tasks,
-    decisions:decisions.map(x=>({...x})),targetMissions,backlog,activeBatches,activeMissionTasks,displayRefs:new Map(),nextRef:0};
+    decisions:decisions.map(x=>({...x})),targetMissions,backlog,research:research.map(x=>({...x})),activeBatches,activeMissionTasks,displayRefs:new Map(),nextRef:0};
   const projects=[{id:'yokup',name:'Yokup',web:'www.yokup.com',status:'activo'}];
   const members=[{project_id:'yokup',kind:'agent',ref:'OraculoMacMini'},{project_id:'yokup',kind:'machine',ref:'admira-macmini'}];
   const stmt=(sql,args=[])=>({
@@ -38,6 +38,10 @@ function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMis
       if (sql.startsWith('SELECT agent,machine,project,options,option_targets FROM decisions WHERE mission=')) return {results:state.decisions.filter(row=>row.mission===args[0]&&(row.project===args[1]||String(row.project).toLowerCase()===String(args[2]).toLowerCase())&&!row.parent_decision)};
       if (sql.startsWith('SELECT active_mission_id,agent,machine,project_id FROM mission_batches')) return {results:state.activeBatches};
       if (sql.startsWith('SELECT DISTINCT m.mission_id FROM mission_tasks m JOIN tickets t')) return {results:state.activeMissionTasks.map(mission_id=>({mission_id}))};
+      if (sql.startsWith('SELECT batch_id,position,agent,machine,project_id,title,evidence,source_url,observed_at,created_at')) return {results:state.research.filter(row=>row.project_id===args[0]&&row.observed_at>=args[1]).sort((a,b)=>b.created_at-a.created_at||String(b.batch_id).localeCompare(String(a.batch_id))||a.position-b.position)};
+      if (sql.startsWith('SELECT id,subject,status FROM tickets WHERE')) return {results:[...state.targetMissions,...state.backlog].filter(row=>row.project_id===args[0]||(!row.project_id&&String(row.project).toLowerCase()===String(args[1]).toLowerCase()))};
+      if (sql.startsWith('SELECT subject FROM tickets WHERE')) return {results:[...state.targetMissions,...state.backlog].filter(row=>row.project_id===args[0]||(!row.project_id&&String(row.project).toLowerCase()===String(args[1]).toLowerCase())).map(row=>({subject:row.subject}))};
+      if (sql.startsWith('SELECT options FROM decisions WHERE project=')) return {results:state.decisions.filter(row=>row.project===args[0]&&row.created_at>=args[1]).map(row=>({options:row.options}))};
       if (sql==='SELECT * FROM projects') return {results:projects};
       if (sql==='SELECT project_id,kind,ref FROM project_members') return {results:members};
       if (sql.includes('SELECT id,created_at FROM decisions WHERE replace(lower(agent)')) return {results:state.decisions.filter(d=>agentKey(d.agent)===agentKey(args[0])&&!d.parent_decision&&d.created_at>args[1]).sort((a,b)=>b.created_at-a.created_at)};
@@ -47,6 +51,7 @@ function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMis
     },
     async run(){
       if (sql.startsWith('INSERT INTO decisions')) state.decisions.push({id:args[0],machine:args[1],agent:args[2],status:'pending',created_at:args[7],deadline:args[8],mission:args[10],parent_decision:args[13],option_targets:args[15]});
+      if (sql.startsWith('INSERT INTO onidle_proposal_research')) state.research.push({batch_id:args[0],position:args[1],agent:args[2],machine:args[3],project_id:args[4],title:args[5],evidence:args[6],source_url:args[7],observed_at:args[8],created_at:args[9]});
       if (sql.startsWith('INSERT OR IGNORE INTO display_refs')) state.displayRefs.set(args[1],args[5]);
       return {meta:{changes:1}};
     }
@@ -61,7 +66,7 @@ function decisionEnv({now=Date.now(),missions=[],tasks=[],decisions=[],targetMis
     return Response.json(new URL(request.url).pathname.endsWith('/work-sessions')
       ? {sessions:[]} : {presence:presence ?? [app]});
   }};
-  return {env:{DB,TELEGRAM},state,now};
+  return {env:{DB,TELEGRAM,YOKUP_CLI_EXECUTOR_TOKEN:'executor-test-token'},state,now};
 }
 
 function post(env,body=baseBody){
@@ -69,6 +74,15 @@ function post(env,body=baseBody){
 }
 
 async function response(env,body){const r=await post(env,body),json=await r.json();return {status:r.status,json};}
+
+const researched=(now,title)=>({title,
+  evidence:'Observación directa y reproducible del estado actual de Yokup, con alcance, causa visible y criterio de comprobación conservados para esta propuesta.',
+  source_url:'https://www.yokup.com/dashboard',observed_at:now});
+
+async function recordResearch(env,body,token='executor-test-token'){
+  return worker.fetch(new Request('https://api.yokup.com/fleet/onidle-proposals',{method:'POST',
+    headers:{'content-type':'application/json','authorization':'Bearer '+token},body:JSON.stringify(body)}),env,{});
+}
 
 test('GET proposals usa el backlog global del proyecto y excluye usadas/activas globales',async()=>{
   const fresh=Date.now()-60_000;
@@ -141,6 +155,56 @@ test('GET proposals rechaza evidencia de hace 65 horas aunque el título sea med
   const body=await response.json();
   assert.equal(response.status,409); assert.equal(body.available,0);
   assert.equal(body.rejected.stale,3);
+});
+
+test('investigación autenticada guarda exactamente tres mejoras nuevas sin crear misión y GET las entrega con targets nulos',async()=>{
+  const now=Date.UTC(2026,8,6,10),{env,state}=decisionEnv({now});
+  const proposals=[
+    researched(now,'Reducir /dashboard de 3 s a 1 s y verificar la carga'),
+    researched(now,'Corregir API /fleet/onidle-proposals: 10 obsoletas y verificar 3 nuevas'),
+    researched(now,'Completar /highscore con 3 filtros y verificar los 3')
+  ];
+  const originalNow=Date.now,originalFetch=globalThis.fetch;
+  Date.now=()=>now; globalThis.fetch=async()=>new Response(null,{status:204});
+  try {
+    const saved=await recordResearch(env,{agent:'OraculoMacMini',machine:'admira-macmini',project_id:'yokup',proposals});
+    const body=await saved.json();
+    assert.equal(saved.status,201,JSON.stringify(body)); assert.equal(body.available,3);
+    assert.equal(state.research.length,3); assert.equal(state.targetMissions.length,0); assert.equal(state.decisions.length,0);
+    const response=await worker.fetch(new Request('https://api.yokup.com/fleet/onidle-proposals?agent=OraculoMacMini&machine=admira-macmini&project_id=yokup'),env,{});
+    const rows=(await response.text()).trim().split('\n').map(JSON.parse);
+    assert.equal(response.status,200); assert.equal(rows.length,3);
+    assert.ok(rows.every(row=>row.target_mission_id===null&&row.explicit_new===true));
+    assert.deepEqual(rows.map(row=>row.title),proposals.map(row=>row.title));
+    state.targetMissions.push({id:'CLOSED-LATER',subject:proposals[0].title,status:'resolved',project:'yokup',project_id:'yokup'});
+    const closed=await worker.fetch(new Request('https://api.yokup.com/fleet/onidle-proposals?agent=OraculoMacMini&machine=admira-macmini&project_id=yokup'),env,{});
+    const closedBody=await closed.json();assert.equal(closed.status,409);assert.equal(closedBody.research_available,2);
+  } finally {Date.now=originalNow;globalThis.fetch=originalFetch;}
+});
+
+test('investigación falla cerrada por auth, cantidad, evidencia, fuente o título ya conocido sin persistir parcialmente',async()=>{
+  const now=Date.UTC(2026,8,6,10),known='Corregir API /fleet/onidle-proposals: 10 obsoletas y verificar 3 nuevas';
+  const proposals=[
+    researched(now,'Reducir /dashboard de 3 s a 1 s y verificar la carga'),
+    researched(now,known),
+    researched(now,'Completar /highscore con 3 filtros y verificar los 3')
+  ];
+  const originalNow=Date.now,originalFetch=globalThis.fetch;Date.now=()=>now;
+  try {
+    for (const [box,body,token,status] of [
+      [decisionEnv({now}),{agent:'OraculoMacMini',machine:'admira-macmini',project_id:'yokup',proposals},'incorrecto',401],
+      [decisionEnv({now}),{agent:'OraculoMacMini',machine:'admira-macmini',project_id:'yokup',proposals:proposals.slice(0,2)},'executor-test-token',400],
+      [decisionEnv({now}),{agent:'OraculoMacMini',machine:'admira-macmini',project_id:'yokup',proposals:proposals.map((row,index)=>index?row:{...row,observed_at:now-16*60_000})},'executor-test-token',400],
+      [decisionEnv({now,targetMissions:[{id:'DONE',subject:known,status:'resolved',project:'yokup',project_id:'yokup'}]}),{agent:'OraculoMacMini',machine:'admira-macmini',project_id:'yokup',proposals},'executor-test-token',409]
+    ]) {
+      globalThis.fetch=async()=>new Response(null,{status:204});
+      const response=await recordResearch(box.env,body,token);assert.equal(response.status,status,await response.text());
+      assert.equal(box.state.research.length,0);assert.equal(box.state.decisions.length,0);
+    }
+    const box=decisionEnv({now});globalThis.fetch=async()=>new Response(null,{status:503});
+    const unavailable=await recordResearch(box.env,{agent:'OraculoMacMini',machine:'admira-macmini',project_id:'yokup',proposals});
+    assert.equal(unavailable.status,422);assert.equal(box.state.research.length,0);
+  } finally {Date.now=originalNow;globalThis.fetch=originalFetch;}
 });
 
 test('GET proposals exige project_id exacto aunque agent+machine tengan una sola asignación',async()=>{
