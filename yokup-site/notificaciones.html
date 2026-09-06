@@ -89,6 +89,13 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .cons .cuerpo.sinq .queso,.cons .cuerpo.sinq .divisor{display:none}
 .cons .qabre{font:600 10px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--brand);background:transparent;border:1px solid var(--line2);border-radius:7px;padding:5px 8px;cursor:pointer}
 .cons .qabre:hover{background:rgba(120,243,255,.1)}
+/* Interruptor de escritura automática a Telegram (encargo #2717 · FLT-100009): estado claro ON/OFF. */
+.cons .tgauto{font:700 10px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:7px 11px;border-radius:9px;cursor:pointer;border:1px solid var(--line2);background:transparent;color:var(--mut)}
+.cons .tgauto.on{color:var(--good);border-color:rgba(68,214,132,.5)}
+.cons .tgauto.off{color:var(--alarm);border-color:rgba(255,95,86,.55);background:rgba(255,95,86,.10)}
+.cons .tgauto.dud{color:var(--dim);border-style:dashed}
+.cons .tgauto:disabled{opacity:.55;cursor:wait}
+.cons .tgauto:hover:not(:disabled){filter:brightness(1.15)}
 .cons .queso svg{width:100%;max-width:210px;height:auto;display:block;overflow:visible}
 /* Grupo del quesito (encargo #2581 de Wozniak, 6-sep-2026): Flota · Agentes · Consejeros GrokBot, con el %
    relativo DENTRO del grupo; con el total de flota los consejeros salían al 0 % y no servía para autorregular. */
@@ -292,7 +299,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
   </details>
 
   <section class="cons" id="consumo" aria-labelledby="consumoTitulo">
-    <div class="ch"><h2 id="consumoTitulo">📟 Consumo de tokens</h2><span class="dia" id="consDia">hoy</span><span class="vivo" id="consVivo" title="cuándo llegó el último parte de consumo"></span><div class="kp" id="consKpi"></div></div>
+    <div class="ch"><h2 id="consumoTitulo">📟 Consumo de tokens</h2><span class="dia" id="consDia">hoy</span><span class="vivo" id="consVivo" title="cuándo llegó el último parte de consumo"></span><button class="tgauto dud" id="tgAuto" type="button" aria-pressed="true" title="Escritura automática de los bots a Telegram (AgoraMatrix)">Telegram automático: …</button><div class="kp" id="consKpi"></div></div>
     <div id="consCuerpo"><div class="nota">Cargando partes de consumo…</div></div>
   </section>
 
@@ -944,6 +951,37 @@ $("retryLoad").addEventListener("click",load);
 
 load(); setInterval(load,20000);
 loadConsumo(); setInterval(loadConsumo,60000);
+// ── Interruptor de escritura automática a Telegram (encargo #2717 · FLT-100009, 6-sep-2026) ──
+// El flag vive en el worker admira-telegram (D1 · ajustes.telegram_auto_publish); se lee por
+// api.yokup.com/fleet/telegram-auto y se cambia con la sesión de Google del perímetro. OFF =
+// ningún bot publica en el grupo (se mide y se guarda igual); ON = comportamiento de siempre.
+function pintaTgAuto(d){
+  const b=$("tgAuto"); if(!b) return;
+  if(!d||!d.ok){ b.className="tgauto dud"; b.textContent="Telegram automático: ?"; b.title="No se pudo leer el interruptor"; return; }
+  const on=!!d.auto_publish; b.dataset.on=on?"1":"0"; b.setAttribute("aria-pressed",on?"true":"false");
+  b.className="tgauto "+(on?"on":"off"); b.textContent="Telegram automático: "+(on?"ON":"OFF");
+  b.title=(on?"Los bots publican automáticamente en el grupo. Pulsa para PARAR.":"Escritura automática PARADA: nada se publica en Telegram (se mide y se guarda). Pulsa para ACTIVAR.")
+    +(d.updated_by?" · último cambio: "+d.updated_by+(d.updated_at?" "+hhmm(_ms(d.updated_at)):""):"")
+    +(d.suppressed?" · mensajes suprimidos: "+d.suppressed:"");
+}
+async function loadTgAuto(){
+  try{ const r=await fetch(WORKER+"/fleet/telegram-auto",{cache:"no-store"}); pintaTgAuto(await r.json()); }catch(e){ pintaTgAuto(null); }
+}
+async function toggleTgAuto(){
+  const b=$("tgAuto"); if(!b) return; const on=b.dataset.on==="1";
+  if(!confirm(on?"¿PARAR la escritura automática a Telegram?\nNingún bot publicará en el grupo hasta volver a activarlo. Se sigue midiendo y guardando.":"¿ACTIVAR la escritura automática a Telegram?")) return;
+  b.disabled=true;
+  try{
+    const r=await fetch(WORKER+"/fleet/telegram-auto",{method:"POST",credentials:"include",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify({auto_publish:!on})});
+    const d=await r.json().catch(()=>({}));
+    if(r.status===401) alert("Hace falta la sesión de Google del perímetro para cambiar el interruptor.");
+    else if(!d.ok) alert("No se pudo cambiar: "+(d.error||r.status));
+    else pintaTgAuto(d);
+  }catch(e){ alert("Sin respuesta del worker."); }
+  finally{ b.disabled=false; }
+}
+$("tgAuto").addEventListener("click",toggleTgAuto);
+loadTgAuto(); setInterval(loadTgAuto,60000);
 </script>
 <script src="/yk-frame.js?v=r32"></script>
 </body>
