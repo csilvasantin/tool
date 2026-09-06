@@ -1,4 +1,5 @@
 import { parseAgentIdentity, machineSuffix, canonicalMachineSuffix, groupingIdentityKey, isKnownPersona, identityKey } from '../../yokup-rtc/src/agent-identity.js';
+import { identidadPorClave } from './identidad-flota.mjs';
 
 export const MCP_VERSION = '1.0.0';
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26'];
@@ -43,11 +44,30 @@ export function validate(schema, value) {
  return false;
 }
 async function authenticate(request,env) {
- const token = /^Bearer (ykm_[A-Za-z0-9_-]{43})$/.exec(request.headers.get('authorization')||'')?.[1];
+ const token = /^Bearer ([A-Za-z0-9_-]{1,128})$/.exec(request.headers.get('authorization')||'')?.[1];
  if(!token) return null;
- const row = await env.DB.prepare('SELECT * FROM yokup_mcp_credentials WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?').bind(await hash(token),Date.now()).first();
- if(!row) return null;
- return {...row,projects:JSON.parse(row.projects),scopes:JSON.parse(row.scopes)};
+ // Existing individual credentials remain authoritative and do not depend on
+ // the fleet seed or the project service being available.
+ if(/^ykm_[A-Za-z0-9_-]{43}$/.test(token)) {
+  const row = await env.DB.prepare('SELECT * FROM yokup_mcp_credentials WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?').bind(await hash(token),Date.now()).first();
+  if(row) return {...row,projects:JSON.parse(row.projects),scopes:JSON.parse(row.scopes)};
+ }
+ // Fleet keys are never stored or logged here. Their derived identity is useful
+ // only together with the current Yokup census; an unavailable/ambiguous census
+ // therefore fails closed instead of granting a remembered project list.
+ if(!/^[A-Za-z0-9_-]{40}$/.test(token) || !env.MCP_FLOTA_SEED) return null;
+ const fleet=await identidadPorClave(token,env.MCP_FLOTA_SEED);
+ if(!fleet) return null;
+ // The shared directory spells physical machines in full, while Yokup writes
+ // compact suffixes (MacBookPro14 -> MBP14). Map through Yokup's canonical
+ // machine dictionary, and reject directory personas that Yokup does not yet
+ // distinguish instead of accidentally collapsing an alias into another actor.
+ const suffix=canonicalMachineSuffix(machineSuffix(fleet.equipo));
+ if(!suffix || !isKnownPersona(fleet.persona) || parseAgentIdentity(fleet.persona).persona!==fleet.persona) return null;
+ const target=canonicalTarget(fleet.persona+suffix,fleet.equipo);
+ const data=await service(env,'RTC','/projects');
+ const authorized=(data.projects||[]).filter(p=>p.status!=='archivado' && member(p,target)).map(p=>p.id);
+ return {actor:target.actor,machine:target.machine,projects:authorized,scopes:['read','inbox','send','work'],expires_at:null};
 }
 async function service(env, binding, path, body) {
  const headers = {'Content-Type':'application/json','User-Agent':'YokupMCP/1.0'};

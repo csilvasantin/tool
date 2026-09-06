@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
+import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {handleMcp,hash,TOOLS} from './src/mcp.js';
+import {claveFlota} from './src/identidad-flota.mjs';
 import {handleRequest} from './src/index.js';
-const token='ykm_'+'A'.repeat(43), other='ykm_'+'B'.repeat(43);
+const token='ykm_'+'A'.repeat(43), other='ykm_'+'B'.repeat(43), fleetSeed='test-only-fleet-seed';
 async function setup(){
  const db=new DatabaseSync(':memory:');
  db.exec(await readFile(new URL('./migrations/0001_mcp.sql',import.meta.url),'utf8'));
@@ -17,9 +19,15 @@ async function setup(){
  await add(token,'OraculoMacMini','MacMini',['read','inbox','send','work']);await add(other,'JobsGrokBot','GrokBot',['read','send']);
  const state={sent:[],calls:[],timeout:false};
  const stmt=(sql,args=[])=>({bind:(...a)=>stmt(sql,a),first:async()=>db.prepare(sql).get(...args)||null,all:async()=>({results:db.prepare(sql).all(...args)}),run:async()=>({meta:{changes:Number(db.prepare(sql).run(...args).changes)}})});
- const env={DB:{prepare:stmt},MCP_TELEGRAM_TOKEN:'server-secret',MCP_EXECUTOR_TOKEN:'executor-secret',RTC:{fetch:async(req)=>{
+ const env={DB:{prepare:stmt},MCP_TELEGRAM_TOKEN:'server-secret',MCP_EXECUTOR_TOKEN:'executor-secret',MCP_FLOTA_SEED:fleetSeed,RTC:{fetch:async(req)=>{
  state.calls.push(req);
- if(new URL(req.url).pathname==='/projects')return Response.json({projects:[{id:'yokup',status:'activo',agents:['Oraculo','JobsGrokBot'],machines:['MacMini','GrokBot']}]});
+ if(new URL(req.url).pathname==='/projects')return Response.json({projects:[
+  {id:'yokup',status:'activo',agents:['Oraculo','JobsGrokBot'],machines:['MacMini','GrokBot']},
+  {id:'wrong-machine',status:'activo',agents:['Oraculo'],machines:['MacBookPro16']},
+  {id:'wrong-agent',status:'activo',agents:['Trinity'],machines:['MacMini']},
+  {id:'mbp14',status:'activo',agents:['Neo'],machines:['MacBookProNegro14']},
+  {id:'archived',status:'archivado',agents:['Oraculo'],machines:['MacMini']}
+ ]});
  return Response.json({ok:true,work_binding:{bound:true},work_activity:{accepted:true}});
  }},TELEGRAM:{fetch:async(req)=>{
  state.calls.push(req);assert.equal(req.headers.get('authorization'),'Bearer server-secret');
@@ -43,6 +51,35 @@ test('missing, expired and revoked credentials fail closed',async()=>{
  const h=await setup();assert.equal((await handleMcp(h.request({}, {headers:{Authorization:'Bearer bad'}}),h.env)).status,401);
  h.db.prepare('UPDATE yokup_mcp_credentials SET expires_at=1').run();assert.equal((await handleMcp(h.request({}),h.env)).status,401);
  h.db.prepare('UPDATE yokup_mcp_credentials SET expires_at=?,revoked_at=1').run(Date.now()+10000);assert.equal((await handleMcp(h.request({}),h.env)).status,401);
+});
+test('individual credential remains authoritative without fleet seed or census',async()=>{
+ const h=await setup();delete h.env.MCP_FLOTA_SEED;h.env.RTC.fetch=async()=>{throw new Error('census unavailable')};
+ const r=await handleMcp(h.request({jsonrpc:'2.0',id:1,method:'ping'}),h.env);assert.equal(r.status,200);assert.deepEqual((await r.json()).result,{});
+});
+test('valid fleet key derives exact identity, scopes and projects from current census',async()=>{
+ const h=await setup();const key=await claveFlota(fleetSeed,'Oraculo','MacMini');
+ const who=await h.call('yokup_whoami',{}, {headers:{Authorization:'Bearer '+key}});
+ assert.deepEqual(who.result.structuredContent,{actor:'OraculoMacMini',machine:'MacMini',projects:['yokup'],scopes:['read','inbox','send','work'],expires_at:null});
+ assert.ok(!JSON.stringify(who).includes(fleetSeed));assert.ok(!JSON.stringify(who).includes(key));
+ const mbp14=await claveFlota(fleetSeed,'Neo','MacBookPro14');
+ const neo=await h.call('yokup_whoami',{}, {headers:{Authorization:'Bearer '+mbp14}});
+ assert.deepEqual(neo.result.structuredContent.projects,['mbp14']);assert.equal(neo.result.structuredContent.actor,'NeoMBP14');
+});
+test('missing, invalid or unseeded fleet key fails closed',async()=>{
+ const h=await setup(), key=await claveFlota(fleetSeed,'Oraculo','MacMini');
+ for(const authorization of ['', 'Bearer '+('Z'.repeat(40)), 'Bearer '+key+'extra']) {
+  assert.equal((await handleMcp(h.request({}, {headers:{Authorization:authorization}}),h.env)).status,401);
+ }
+ delete h.env.MCP_FLOTA_SEED;
+ assert.equal((await handleMcp(h.request({}, {headers:{Authorization:'Bearer '+key}}),h.env)).status,401);
+});
+test('directory persona that Yokup cannot distinguish fails closed',async()=>{
+ const h=await setup(), key=await claveFlota(fleetSeed,'Cypher','MacMini');
+ assert.equal((await handleMcp(h.request({}, {headers:{Authorization:'Bearer '+key}}),h.env)).status,401);
+});
+test('vendored fleet identity module matches the canonical published checksum',async()=>{
+ const source=await readFile(new URL('./src/identidad-flota.mjs',import.meta.url));
+ assert.equal(createHash('sha256').update(source).digest('hex'),'acb31b993408e26514a0a08c2748f455788a225a57849b8cbaf46788cee68c9e');
 });
 test('origin, protocol, accept, size and malformed JSON are rejected',async()=>{
  const h=await setup();
