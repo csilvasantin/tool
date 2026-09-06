@@ -552,6 +552,62 @@ async function registraSerieConsumo(env, owner, machine, dia, datos, now) {
 }
 __name(registraSerieConsumo, "registraSerieConsumo");
 
+// ✋ LEVANTAR LA MANO (Carlos, 6-sep-2026): cuando un agente se pasa de consumo, lo dice ÉL MISMO al CEO en
+// AgoraMatrix (una sola bandeja) y deja un aviso «consumo-alerta» en yokup.com/notificaciones, con cifras
+// y las medidas que propone. Umbrales del mandamiento 15: el 5-sep un latido cada 5 min quemó 185 M en una
+// noche; el 6-sep una sesión de todo el día pasó de 300 M con 348 k por llamada. Una mano por agente y
+// día como mucho cada 2 h, para avisar sin convertirse en ruido.
+var CONSUMO_LIMITE = { hora: 30e6, dia: 250e6, porLlamada: 150e3, duplicados: 20 };
+var CONSUMO_ALERTA_CADA_MS = 2 * 60 * 60 * 1000;
+function fmtTokens(n) { n = Number(n) || 0; return n >= 1e9 ? (n / 1e9).toFixed(2) + " G" : n >= 1e6 ? (n / 1e6).toFixed(1) + " M" : n >= 1e3 ? Math.round(n / 1e3) + " k" : String(n); }
+async function vigilaConsumo(env, owner, machine, dia, datos, now) {
+  if (!datos || typeof datos !== "object") return null;
+  const n = (v) => Math.max(0, Math.round(Number(v) || 0));
+  const total = n(datos.total || datos.total_tokens), llamadas = n(datos.llamadas), duplicados = n(datos.duplicados), despertares = n(datos.despertares);
+  let hora = null;
+  try {
+    const { results } = await env.DB.prepare("SELECT ts,total FROM consumo_serie WHERE owner=? AND machine=? AND dia=? ORDER BY ts ASC LIMIT 2000").bind(owner, machine, dia).all();
+    const pts = results || [], p1 = pts[pts.length - 1]; let p0 = null;
+    for (const q of pts) { if (Number(q.ts) <= now - 3600000) p0 = q; }
+    if (p1 && p0 && p0 !== p1) hora = Math.max(0, Number(p1.total) - Number(p0.total));
+  } catch (e) { hora = null; }
+  const porLlamada = llamadas > 0 ? Math.round(total / llamadas) : 0;
+  const motivos = [], medidas = [];
+  if (hora != null && hora > CONSUMO_LIMITE.hora) { motivos.push(fmtTokens(hora) + " en la última hora (tope " + fmtTokens(CONSUMO_LIMITE.hora) + ")"); }
+  if (total > CONSUMO_LIMITE.dia) { motivos.push(fmtTokens(total) + " hoy (tope " + fmtTokens(CONSUMO_LIMITE.dia) + ")"); }
+  if (porLlamada > CONSUMO_LIMITE.porLlamada) { motivos.push(fmtTokens(porLlamada) + " por llamada: contexto largo (tope " + fmtTokens(CONSUMO_LIMITE.porLlamada) + ")"); medidas.push("cerrar esta sesión y abrir una nueva por misión (norma 29)"); }
+  if (duplicados >= CONSUMO_LIMITE.duplicados) { motivos.push(duplicados + " ecos duplicados"); medidas.push("cerrar los ecos duplicados en vez de rehacerlos"); }
+  if (/heartbeat|latido/i.test(String(datos.causa || "")) && despertares >= 20) { medidas.push("apagar el latido automático o pasarlo al modelo más barato con contexto corto"); }
+  if (!motivos.length) return null;
+  if (!medidas.length) medidas.push("revisar la causa declarada y parar lo que no produce trabajo nuevo");
+  const fp = machine.toLowerCase() + "|" + owner.toLowerCase() + "|consumo-alerta|" + dia;
+  const viva = await env.DB.prepare("SELECT id,last_at FROM notifs WHERE fingerprint=? AND status='abierta'").bind(fp).first();
+  const titulo = ("✋ " + owner + " levanta la mano: " + motivos.join(" · ") + " · propone: " + medidas.join("; ")).slice(0, 300);
+  const cuerpo = JSON.stringify({ total, hora, porLlamada, llamadas, duplicados, despertares, motivos, medidas, causa: String(datos.causa || "").slice(0, 300), limites: CONSUMO_LIMITE }).slice(0, 4000);
+  if (viva) {
+    if (now - Number(viva.last_at || 0) < CONSUMO_ALERTA_CADA_MS) { await env.DB.prepare("UPDATE notifs SET titulo=?, datos=?, seen_count=seen_count+1 WHERE id=?").bind(titulo, cuerpo, viva.id).run(); return { id: viva.id, repetida: false }; }
+    await env.DB.prepare("UPDATE notifs SET titulo=?, datos=?, last_at=?, seen_count=seen_count+1 WHERE id=?").bind(titulo, cuerpo, now, viva.id).run();
+  } else {
+    const id = "NOTIF-" + crypto.randomUUID().replace(/-/g, "").slice(0, 10);
+    await env.DB.prepare("INSERT INTO notifs (id,fingerprint,machine,owner,titulo,kind,image,status,first_at,last_at,seen_count,datos) VALUES (?,?,?,?,?,'consumo-alerta',NULL,'abierta',?,?,1,?)").bind(id, fp, machine, owner, titulo, now, now, cuerpo).run();
+  }
+  // El propio agente habla al CEO en el grupo: cifras, motivo y medidas; Carlos decide.
+  try {
+    const key = env.ADMIRA_TELEGRAM_PANEL_KEY;
+    if (key && env.TELEGRAM) {
+      const texto = "✋ " + owner + " · " + machine + " levanta la mano (mandamiento 15, consumo)\n"
+        + "Llevo " + fmtTokens(total) + " tokens hoy" + (hora != null ? " · Δ última hora " + fmtTokens(hora) : "") + (porLlamada ? " · " + fmtTokens(porLlamada) + " por llamada" : "") + (duplicados ? " · " + duplicados + " duplicados" : "") + "\n"
+        + "Me paso en: " + motivos.join("; ") + "\n"
+        + (datos.causa ? "Causa declarada: " + String(datos.causa).slice(0, 200) + "\n" : "")
+        + "Medidas que propongo: " + medidas.join("; ") + "\n"
+        + "CEO: dime si tomo la primera medida ahora o prefieres otra. Detalle: https://www.yokup.com/notificaciones";
+      await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-say", { method: "POST", headers: { "content-type": "application/json", "authorization": "Bearer " + key }, body: JSON.stringify({ persona: owner, text: texto }) }));
+    }
+  } catch (e) { /* el aviso de yokup ya queda; Agora es la segunda vía */ }
+  return { motivos, medidas };
+}
+__name(vigilaConsumo, "vigilaConsumo");
+
 
 // ── REFERENCIAS HUMANAS COMUNES ─────────────────────────────────────────────
 // `display_ref` no sustituye ninguna PK. Se asigna una sola vez y se persiste;
@@ -9998,7 +10054,7 @@ var worker_app = {
         await env.DB.prepare(
           "UPDATE notifs SET last_at=?, seen_count=seen_count+1, titulo=COALESCE(NULLIF(?,''),titulo), image=COALESCE(image,?), datos=COALESCE(?,datos) WHERE id=?"
         ).bind(now, titulo, image, datos, viva.id).run();
-        if (esConsumo) await registraSerieConsumo(env, owner, machine, dia, b.datos, now);
+        if (esConsumo) { await registraSerieConsumo(env, owner, machine, dia, b.datos, now); await vigilaConsumo(env, owner, machine, dia, b.datos, now); }
         return json({ ok: true, id: viva.id, nueva: false });
       }
       if (esConsumo) {
@@ -10010,7 +10066,7 @@ var worker_app = {
       await env.DB.prepare(
         "INSERT INTO notifs (id,fingerprint,machine,owner,titulo,kind,image,status,first_at,last_at,seen_count,datos) VALUES (?,?,?,?,?,?,?,'abierta',?,?,1,?)"
       ).bind(id, fp, machine, owner, titulo, kind, image, now, now, datos).run();
-      if (esConsumo) await registraSerieConsumo(env, owner, machine, dia, b.datos, now);
+      if (esConsumo) { await registraSerieConsumo(env, owner, machine, dia, b.datos, now); await vigilaConsumo(env, owner, machine, dia, b.datos, now); }
       return json({ ok: true, id, nueva: true });
     }
     // Consumo de tokens por agente y máquina (mandamiento 15): los partes de los últimos N días,

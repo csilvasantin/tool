@@ -190,3 +190,11 @@ test("marcador vivo: la última hora es la diferencia real entre partes de la se
   assert.match(html, /function pintaVivo\(\)/);
   assert.match(html, /sin latido de 5 min/, "si el parte tiene más de 6 min, se dice");
 });
+
+test("✋ mano levantada: el aviso consumo-alerta se etiqueta, cuenta como pendiente y marca al agente en la cuadrícula y en la lista", () => {
+  assert.match(html, /"consumo-alerta":"✋ Mano levantada · consumo"/);
+  assert.match(html, /function manoLevantada\(owner\)/);
+  assert.match(html, /String\(n\.kind\|\|""\)==="consumo-alerta"/);
+  assert.equal((html.match(/manoHTML\(r\.owner\)/g)||[]).length, 2, "cuadrícula y lista");
+  assert.match(html, /n\.status==="abierta"&&!esCons\(n\)/, "la mano no se filtra como los partes: sigue pendiente hasta atenderla");
+});
