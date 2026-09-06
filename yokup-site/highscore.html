@@ -956,11 +956,16 @@ body.resizing-columns{cursor:col-resize;user-select:none}
 .refresh-agent-meta{display:flex;align-items:baseline;gap:5px;flex-wrap:nowrap}
 .refresh-agent-identity{flex:0 1 auto;max-width:52%}
 .refresh-agent-project{flex:1 1 0;align-self:baseline}
-.refresh-lane{grid-template-columns:minmax(148px,240px) minmax(0,1fr) minmax(68px,88px)}
-.refresh-timing .refresh-started{position:absolute;width:1px;min-width:0;height:1px;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+/* Dos relojes a la derecha (inicio · transcurrido): la columna crece para que el corredor en meta no tape la hora de inicio. */
+.refresh-lane{grid-template-columns:minmax(148px,240px) minmax(0,1fr) minmax(150px,170px)}
+.refresh-timing{padding-left:22px}
+/* La HORA DE INICIO va a la izquierda del tiempo transcurrido (Carlos, 6-sep-2026): antes se
+   pintaba solo para lectores de pantalla y en la calle no se veía cuándo empezó la misión. */
+.refresh-timing .refresh-started{color:var(--mut);font-weight:700;min-width:6ch;text-align:right}
+.refresh-timing .refresh-started::after{content:"·";color:var(--dim);margin-left:5px;font-weight:400}
 .refresh-ended:focus-visible{outline:1px solid var(--brand);outline-offset:2px}
-@media(max-width:600px){.refresh-lane{grid-template-columns:minmax(112px,150px) minmax(42px,1fr) 64px;column-gap:3px}.refresh-agent{font-size:9px;line-height:12px}.refresh-agent-project{font-size:8px;line-height:12px}.refresh-agent-meta{gap:3px}.refresh-ended{font-size:8px;min-width:8ch}}
-@media(max-width:340px){.refresh-lane{grid-template-columns:minmax(110px,130px) minmax(32px,1fr) 60px;column-gap:2px}.refresh-agent{font-size:8px}.refresh-agent-project{font-size:7.5px}}
+@media(max-width:600px){.refresh-lane{grid-template-columns:minmax(112px,150px) minmax(42px,1fr) 118px;column-gap:3px}.refresh-timing{padding-left:14px}.refresh-agent{font-size:9px;line-height:12px}.refresh-agent-project{font-size:8px;line-height:12px}.refresh-agent-meta{gap:3px}.refresh-ended{font-size:8px;min-width:8ch}}
+@media(max-width:340px){.refresh-lane{grid-template-columns:minmax(110px,130px) minmax(32px,1fr) 104px;column-gap:2px}.refresh-agent{font-size:8px}.refresh-agent-project{font-size:7.5px}}
 /* A paused or unbound session is stationary, never a cosmetic running signal. */
 .refresh-lane[data-race-held="true"] .refresh-runner svg{display:none!important;animation:none!important}
 .refresh-lane[data-race-held="true"] .refresh-runner .runner-standing{display:block!important;animation:none!important}
@@ -5075,6 +5080,31 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     return { label:"", text:mode === "recent" ? "Últimos trabajos finalizados. La actividad actual de otras sesiones no está verificada." : "Carriles de trabajo registrado o actividad Desktop APP verificada. La ausencia de otro agente no confirma inactividad." };
   }
 
+  // PARRILLA FIJA (Carlos, 6-sep-2026): una carrera dura 42 s pero el trabajo activo se
+  // consulta cada 20 s y una sesión de escritorio caduca a los 36 s sin actividad, así que
+  // los corredores entraban y salían a mitad de carrera (Morfeo desaparecía y volvía). Desde
+  // que suena READY hasta la META la parrilla no cambia: quien deja de verse se CONSERVA con
+  // su última lectura (marcado data-race-kept) y quien llega ESPERA a la próxima carrera.
+  // Al acabar la carrera se levanta el cerrojo y se reconstruye con lo que haya de verdad.
+  var rosterCarrera = null, ultimoCorredor = Object.create(null), pendientesCarrera = 0;
+  function aplicaParrilla(enlaces) {
+    enlaces.forEach(function (e) { ultimoCorredor[e.clave] = e; });
+    if (!rosterCarrera) { pendientesCarrera = 0; return enlaces; }
+    var porClave = Object.create(null);
+    enlaces.forEach(function (e) { porClave[e.clave] = e; });
+    pendientesCarrera = enlaces.filter(function (e) { return rosterCarrera.indexOf(e.clave) < 0; }).length;
+    return rosterCarrera.map(function (clave) {
+      if (porClave[clave]) return porClave[clave];
+      var previo = ultimoCorredor[clave];
+      return previo ? Object.assign({}, previo, { conservado:true }) : null;
+    }).filter(Boolean);
+  }
+  function fijaParrilla() {
+    rosterCarrera = Array.prototype.map.call(document.querySelectorAll('#refreshLanes .refresh-lane[data-agent-key]'),
+      function (lane) { return lane.getAttribute("data-agent-key"); });
+    pendientesCarrera = 0;
+  }
+  function liberaParrilla() { rosterCarrera = null; }
   function actualizaCarreraPodio() {
     var contenedor = document.getElementById("refreshLanes");
     var focused = document.activeElement, focusedLane = focused && focused.getAttribute && focused.getAttribute("data-race-role") === "agent" && focused.closest ? focused.closest(".refresh-lane") : null;
@@ -5099,9 +5129,9 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var filasCarrera = typeof YkHighscoreRace !== "undefined" && YkHighscoreRace.raceRows
       ? YkHighscoreRace.raceRows(filasElegibles, clavesActivas)
       : filasElegibles;
-    corredores = filasCarrera.map(function (fila) {
+    corredores = aplicaParrilla(filasCarrera.map(function (fila) {
       return enlaces.find(function (enlace) { return enlace.fila === fila; }) || null;
-    }).filter(Boolean).map(function (enlace, indice) {
+    }).filter(Boolean)).map(function (enlace, indice) {
       var fila = enlace.fila, clave = enlace.clave, resumen = enlace.resumen;
       var puesto = indice + 1, agente = normaliza(fila.agente), responsable = normaliza(resumen.responsible || agente);
       var identidadVisible = identidadVisualCorredor(responsable, fila);
@@ -5114,7 +5144,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       var clasePuesto = puesto <= 3 ? "refresh-lane-p" + puesto : "refresh-lane-rank";
       var isLast = enlace.trabajo.state === "last_work";
       var staleState = enlace.trabajo.state === "assigned_stale" ? estadoCarreraStale(enlace.trabajo) : null;
-      var heartbeat = resumen.state.toLowerCase() + (resumen.reachable ? " · alcanzable" : "");
+      var heartbeat = resumen.state.toLowerCase() + (resumen.reachable ? " · alcanzable" : "") + (enlace.conservado ? " · conservado hasta el final de la carrera" : "");
       var runner = '<span class="refresh-runner runner-' + variant + ' runner-skin-' + variant + '" data-race-role="runner" aria-hidden="true">' +
         '<span class="race-bonus" hidden>+1</span>' +
         '<svg class="runner-standing" viewBox="0 0 24 24" fill="#b8c0c5"><use href="#runnerStanding" fill="#b8c0c5"></use></svg>' +
@@ -5144,7 +5174,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
         (!isLast&&(enlace.trabajo.cliPaused||["session_unverified","service_activity_unverified","awaiting_decision"].includes(enlace.trabajo.activityReason))?'data-race-held="true" ':'') +
         (staleState && enlace.trabajo.raceRevision ? 'data-race-revision="' + esc(enlace.trabajo.raceRevision) + '" data-stale-anchor="' +
           Number(staleState.record.server_started_at) + '" data-stale-cycles="' + Number(staleState.record.cycles) + '" ' : '') +
-        (resumen.idle ? 'data-race-idle="true" ' : '') +
+        (resumen.idle ? 'data-race-idle="true" ' : '') + (enlace.conservado ? 'data-race-kept="true" ' : '') +
         'data-heartbeat="' + heartbeat.replace(/ /g, "-") + '" aria-label="Responsable ' + esc(identidadVisible.nombre) + '. Proyecto responsable ' + esc(proyectoResponsable) + '. Hora de inicio ' + esc(resumen.startedClock) + esc(timingAria) +
         (executor !== responsable ? '. Ejecuta ' + esc(executor) : '') + '. ' + heartbeat + '. ' +
         esc(resumen.title) + (enlace.trabajo.kind==='session'?'. Tiempo de actividad ':'. Tiempo de misión ') + esc(resumen.duration) +
@@ -5173,7 +5203,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     }).filter(Boolean);
     var evidence = hsWorkEvidenceStatus(datos.trabajosAvailable, todosTrabajos.length, corredores.length, datos.trabajosMode);
     var evidenceNode = document.getElementById("raceEvidenceStatus");
-    if (evidenceNode) evidenceNode.textContent = evidence.text;
+    if (evidenceNode) evidenceNode.textContent = evidence.text + (pendientesCarrera ? " · " + pendientesCarrera + (pendientesCarrera === 1 ? " agente espera" : " agentes esperan") + " a la próxima carrera" : "");
     var etiquetaVacia = evidence.label || "SIN TRABAJO VERIFICADO";
     var corredorSinMision = '<div class="refresh-lane refresh-lane-empty" role="listitem" data-race-empty="true" ' +
       'aria-label="' + etiquetaVacia.toLowerCase() + '"><div class="refresh-track">' +
@@ -5608,7 +5638,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       }, marca - desde));
     });
     if (CICLO_MS > desde) carreraTimersReducidos.push(setTimeout(function () {
-      if (!carreraPausada) { completaCicloStale(); actualizaMarcador().then(iniciaCarrera); }
+      if (!carreraPausada) { completaCicloStale(); liberaParrilla(); actualizaMarcador().then(iniciaCarrera); }
     }, CICLO_MS - desde));
   }
   function avanzaCarrera(ahora) {
@@ -5620,6 +5650,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
       return;
     }
     completaCicloStale();
+    liberaParrilla();
     actualizaMarcador().then(iniciaCarrera);
   }
   function pintaControlCarrera() {
@@ -5667,6 +5698,7 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     limpiaTimersCarreraReducida();
     carreraPausada = false;
     carreraTiempoPausado = 0;
+    fijaParrilla();
     sorteaOrdenLlegada(true);
     if(typeof preparaBonusCarrera === "function")preparaBonusCarrera();
     pintaControlCarrera();

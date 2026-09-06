@@ -18,7 +18,7 @@ test("formatea únicamente duraciones factuales válidas",()=>{
 });
 
 test("el tiempo factual vive en la tercera columna después de la pista",()=>{
-  assert.match(html,/grid-template-columns:minmax\(148px,240px\) minmax\(0,1fr\) minmax\(68px,88px\)/);
+  assert.match(html,/grid-template-columns:minmax\(148px,240px\) minmax\(0,1fr\) minmax\(150px,170px\)/);
   assert.match(html,/class="refresh-agent-meta"[\s\S]*class="refresh-lane-center"[\s\S]*class="refresh-timing"[\s\S]*marcaInicio \+ marcaTemporal/);
   assert.match(html,/data-race-time="duration" data-work-state="/);
   assert.ok(html.includes("resumen.clockRunning?'running':'unverified'"));

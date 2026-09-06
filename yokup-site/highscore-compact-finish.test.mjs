@@ -78,10 +78,10 @@ test("sin ended_at no inventa hora y el activo usa el hueco final como contador"
 });
 
 test("el layout reserva el bloque horario al otro lado de la pista",()=>{
-  assert.match(html,/grid-template-columns:minmax\(148px,240px\) minmax\(0,1fr\) minmax\(68px,88px\)/);
+  assert.match(html,/grid-template-columns:minmax\(148px,240px\) minmax\(0,1fr\) minmax\(150px,170px\)/);
   assert.match(html,/class="refresh-lane-center"[\s\S]*class="refresh-timing"/);
   assert.doesNotMatch(html,/class="refresh-time"|class="refresh-work-state"/);
   assert.match(html,/@media \(max-width:620px\)[\s\S]*\.refresh-timing\{gap:2px/);
   assert.match(html,/@media \(max-width:620px\)[\s\S]*\.refresh-started,\.refresh-ended\{font-size:7px/);
-  assert.match(html,/@media\(max-width:340px\)\{\.refresh-lane\{grid-template-columns:minmax\(110px,130px\) minmax\(32px,1fr\) 60px/);
+  assert.match(html,/@media\(max-width:340px\)\{\.refresh-lane\{grid-template-columns:minmax\(110px,130px\) minmax\(32px,1fr\) 104px/);
 });

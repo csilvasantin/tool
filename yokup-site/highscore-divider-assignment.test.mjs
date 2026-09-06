@@ -43,8 +43,8 @@ test("el DOM ordena nombre, pista y bloque temporal derecho",()=>{
 });
 
 test("desktop y móvil reservan pista central y reloj a la derecha",()=>{
-  assert.match(html,/grid-template-columns:minmax\(148px,240px\) minmax\(0,1fr\) minmax\(68px,88px\)/);
-  assert.match(html,/@media\(max-width:600px\)[\s\S]*grid-template-columns:minmax\(112px,150px\) minmax\(42px,1fr\) 64px/);
+  assert.match(html,/grid-template-columns:minmax\(148px,240px\) minmax\(0,1fr\) minmax\(150px,170px\)/);
+  assert.match(html,/@media\(max-width:600px\)[\s\S]*grid-template-columns:minmax\(112px,150px\) minmax\(42px,1fr\) 118px/);
   assert.match(html,/\.refresh-lane-last/);
   assert.match(html,/\.refresh-elapsed/);
 });

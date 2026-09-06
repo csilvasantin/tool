@@ -71,7 +71,8 @@ test("la derecha muestra duración; fechas permanecen en detalle semántico", ()
   assert.match(html, /data-race-time="start" datetime=/);
   assert.match(html, /Duración final/);
   assert.match(html, /timingTitle[\s\S]*Final/);
-  assert.match(html, /\.refresh-timing \.refresh-started\{position:absolute;width:1px/);
+  // Desde el 6-sep-2026 la hora de inicio se VE a la izquierda del tiempo transcurrido (Carlos).
+  assert.match(html, /\.refresh-timing \.refresh-started\{color:var\(--mut\);font-weight:700/);
   assert.doesNotMatch(html, /class="refresh-time"|class="refresh-work-state"|class="refresh-session-elapsed"/);
   assert.doesNotMatch(html, /class="refresh-now"/);
   assert.match(html, /grid-template-columns:minmax\(148px,210px\) minmax\(0,1fr\) minmax\(158px,190px\)/);

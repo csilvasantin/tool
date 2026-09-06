@@ -38,7 +38,8 @@ test("dos tabs con el mismo ancla no consumen dos veces el mismo ciclo",()=>{
 
 test("sólo el cierre real del ciclo consume y la retirada es visual",()=>{
   assert.match(html,/if \(document\.hidden\) return/);
-  assert.match(html,/completaCicloStale\(\); actualizaMarcador\(\)\.then\(iniciaCarrera\)/);
+  // El cierre real del ciclo consume el presupuesto stale y, desde el 6-sep-2026, levanta el cerrojo de la parrilla.
+  assert.match(html,/completaCicloStale\(\); liberaParrilla\(\); actualizaMarcador\(\)\.then\(iniciaCarrera\)/);
   assert.match(html,/trabajosCarrera\(\)/);
   assert.match(html,/window\.addEventListener\("storage"/);
   assert.match(html,/new BroadcastChannel\("yk\.highscore\.stale-race\.v1"\)/);
