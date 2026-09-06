@@ -174,7 +174,8 @@ test('investigación autenticada guarda exactamente tres mejoras nuevas sin crea
     const body=await saved.json();
     assert.equal(saved.status,201,JSON.stringify(body)); assert.equal(body.available,3);
     assert.equal(sourceCalls.length,6);assert.ok(sourceCalls.filter(call=>call.options.method==='HEAD').every(call=>call.options.headers['user-agent']==='Yokup-OnIdle-Source-Check/1.0'));
-    assert.ok(sourceCalls.filter(call=>call.options.method==='GET').every(call=>call.options.headers.range==='bytes=0-1023'&&call.options.redirect==='error'));
+    assert.ok(sourceCalls.every(call=>call.options.redirect==='manual'));
+    assert.ok(sourceCalls.filter(call=>call.options.method==='GET').every(call=>call.options.headers.range==='bytes=0-1023'));
     assert.equal(state.research.length,3); assert.equal(state.targetMissions.length,0); assert.equal(state.decisions.length,0);
     const response=await worker.fetch(new Request('https://api.yokup.com/fleet/onidle-proposals?agent=OraculoMacMini&machine=admira-macmini&project_id=yokup'),env,{});
     const rows=(await response.text()).trim().split('\n').map(JSON.parse);

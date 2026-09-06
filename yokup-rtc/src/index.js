@@ -4295,16 +4295,17 @@ var ONIDLE_TITULO_GASTADO_MS = 7 * 24 * 60 * 60 * 1000;
 async function publicOnIdleSourceAvailable(sourceUrl) {
   const headers = { "user-agent":"Yokup-OnIdle-Source-Check/1.0", accept:"text/html,application/json;q=0.9,*/*;q=0.1" };
   try {
-    const head = await fetch(sourceUrl, { method:"HEAD", headers, redirect:"error",
+    const head = await fetch(sourceUrl, { method:"HEAD", headers, redirect:"manual",
       signal:AbortSignal.timeout(10000) });
     if (head.ok) return true;
   } catch {}
   // Pages/CDNs pueden bloquear HEAD entre Workers aunque el recurso público
-  // responda a un navegador. GET conserva redirect:error y solicita sólo el
-  // primer KiB; no seguimos otra URL ni descargamos el documento completo.
+  // responda a un navegador. Cloudflare Workers sólo admite redirect follow/manual:
+  // manual conserva el cierre seguro porque sólo aceptamos 2xx y nunca seguimos
+  // una redirección. GET solicita sólo el primer KiB del documento.
   try {
     const response = await fetch(sourceUrl, { method:"GET", headers:{...headers, range:"bytes=0-1023"},
-      redirect:"error", signal:AbortSignal.timeout(10000) });
+      redirect:"manual", signal:AbortSignal.timeout(10000) });
     const available = response.ok;
     if (response.body && typeof response.body.cancel === "function") await response.body.cancel().catch(() => {});
     return available;
