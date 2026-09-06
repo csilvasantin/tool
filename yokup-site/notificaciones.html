@@ -89,7 +89,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .cons h3{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-bottom:10px;font-weight:600}
 .cons h3 b{color:var(--ink)}
 .cons .rk{display:flex;flex-direction:column;gap:7px}
-.cons .r{display:grid;grid-template-columns:minmax(0,auto) minmax(48px,1fr) auto;align-items:center;gap:8px;font-size:12.5px}
+.cons .r{display:grid;grid-template-columns:minmax(0,auto) auto minmax(48px,1fr) auto;align-items:center;gap:8px;font-size:12.5px}
 .cons .r .ag{color:var(--ink);font-weight:600;font-family:var(--mono);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:24ch}
 .cons .r .rt{color:var(--dim);font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;margin-left:5px}
 .cons .r .bar{height:6px;border-radius:3px;background:rgba(120,243,255,.08);overflow:hidden;min-width:40px}
@@ -97,6 +97,30 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
 .cons .r .num{font-family:var(--mono);font-size:11.5px;color:var(--mut);white-space:nowrap;text-align:right}
 .cons .r .num b{color:var(--ink);font-weight:600}
 .cons .r.foco .num{color:var(--warn)}
+.cons .r{cursor:pointer;border-radius:8px;padding:3px 6px;margin:0 -6px;transition:background .15s}
+.cons .r:hover,.cons .r:focus-visible{background:rgba(120,243,255,.06);outline:none}
+.cons .r.abierto{background:rgba(120,243,255,.09)}
+.cons .r .ag .fl{display:inline-block;transition:transform .15s;color:var(--dim);margin-right:4px;font-size:10px}
+.cons .r.abierto .ag .fl{transform:rotate(90deg)}
+/* El agente OCUPADO (presencia con tarea en los últimos 10 min) parpadea; sin animación si el lector la rechaza. */
+.cons .sw.ocupado{animation:yk-blink 1s steps(2,start) infinite;box-shadow:0 0 0 2px rgba(255,216,102,.55)}
+@keyframes yk-blink{to{visibility:hidden}}
+@media(prefers-reduced-motion:reduce){.cons .sw.ocupado{animation:none;box-shadow:0 0 0 2px var(--accent)}}
+.cons .cap{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--good);white-space:nowrap}
+.cons .cap.no{color:var(--warn)}
+.cons .mis{display:none;flex-direction:column;gap:5px;padding:4px 0 8px 18px;margin:-2px 0 4px 4px;border-left:2px solid var(--line)}
+.cons .mis.on{display:flex}
+.cons .m{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;gap:8px;align-items:center;font-size:12px;min-width:0}
+.cons .m .id{font-family:var(--mono);color:var(--brand);font-size:11px;text-decoration:none;white-space:nowrap}
+.cons .m .id:hover{text-decoration:underline}
+.cons .m .sub{color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cons .m .st{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:999px;border:1px solid var(--line);color:var(--dim);white-space:nowrap}
+.cons .m .st.in_progress,.cons .m .st.doing{color:var(--accent);border-color:rgba(255,216,102,.4)}
+.cons .m .st.done,.cons .m .st.closed,.cons .m .st.cerrada{color:var(--good);border-color:rgba(136,255,170,.35)}
+.cons .m .pr{font-family:var(--mono);font-size:10px;color:var(--dim);white-space:nowrap}
+.cons .m img{width:34px;height:21px;object-fit:cover;border-radius:3px;border:1px solid var(--line);display:block}
+.cons .m .noimg{width:34px;height:21px;border-radius:3px;border:1px dashed rgba(255,136,102,.5);font-size:9px;color:var(--warn);display:flex;align-items:center;justify-content:center}
+.cons .mis .vacio{color:var(--dim);font-family:var(--mono);font-size:10.5px;letter-spacing:.04em}
 .cons .disp{display:flex;flex-wrap:wrap;gap:6px}
 .cons .chip{border:1px solid rgba(136,255,170,.35);color:var(--good);border-radius:999px;padding:4px 9px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;display:inline-flex;align-items:center;gap:6px}
 .cons .chip small{color:var(--dim);font-size:9px;letter-spacing:.06em;text-transform:uppercase}
@@ -317,6 +341,71 @@ function quesito(segs,tot){
   return '<svg viewBox="0 0 200 200" role="img" aria-label="Reparto del consumo de hoy por agente">'+paths+
     '<text class="hero" x="100" y="97" text-anchor="middle">'+fmtTok(tot)+'</text><text class="hero2" x="100" y="113" text-anchor="middle">tokens · 100 %</text></svg>';
 }
+// ── MISIONES DEL DÍA por agente (se despliegan bajo su fila al pulsar), OCUPADO (presencia con
+//    tarea en los últimos 10 min → parpadea) y CAPTURA (si esa máquina ha entregado alguna imagen:
+//    notificación con captura o misión con evidencia; si no, la información está incompleta).
+const MIS=new Map(), MIS_PEND=new Map(), ABIERTOS=new Set(); const OCUPADO_MS=10*60*1000, MIS_TTL=5*60*1000;
+let RK=null;
+function presenciaDe(owner,machine){
+  // Casa persona+máquina (el parte «NeoMacBookPro14» con la presencia «Neo · MacBookProNegro14»); NUNCA
+  // por máquina sola, o Trinity heredaría la tarea de Neo. Si esa persona tiene varias sesiones en la
+  // misma máquina, manda la que declara tarea reciente; si ninguna, la más reciente.
+  const k=canonM(owner); let mejor=null;
+  for(const a of PRES){ if(!a||!a.persona||!a.machine) continue; if(canonM(a.persona+a.machine)!==k) continue;
+    const e={tarea:String(a.task||"").trim(),updated:(+a.updated||0)*1000}; e.viva=!!(e.tarea&&(Date.now()-e.updated)<OCUPADO_MS);
+    if(!mejor||(e.viva&&!mejor.viva)||(e.viva===mejor.viva&&e.updated>mejor.updated)) mejor=e; }
+  return mejor;
+}
+function ocupado(owner,machine){ const p=presenciaDe(owner,machine); return !!(p&&p.tarea&&(Date.now()-p.updated)<OCUPADO_MS)?p:null; }
+async function cargaMisiones(owner,machine,dia){
+  const k=canonM(owner), c=MIS.get(k); if(c&&Date.now()-c.t<MIS_TTL) return c;
+  if(MIS_PEND.has(k)) return MIS_PEND.get(k);   // una petición en vuelo por agente: pulsar no la duplica
+  const pr=_cargaMisiones(k,owner,machine,dia).finally(()=>MIS_PEND.delete(k)); MIS_PEND.set(k,pr); return pr;
+}
+async function _cargaMisiones(k,owner,machine,dia){
+  const out={t:Date.now(),list:null,err:""};
+  try{
+    const r=await fetch(WORKER+"/fleet/missions?agent="+encodeURIComponent(owner)+"&limit=60",{cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const d=await r.json(); const ms=Array.isArray(d&&d.missions)?d.missions:[];
+    const ini=new Date(dia+"T00:00:00").getTime(), cm=canonM(machine);
+    out.list=ms.filter(m=>m&&(+m.updated_at||+m.created_at||0)>=ini&&(!m.machine||canonM(m.machine)===cm||canonM(m.persona||m.assignee||"")===k))
+      .sort((a,b)=>(+b.updated_at||0)-(+a.updated_at||0));
+  }catch(e){ out.err=String(e&&e.message||e); out.t=Date.now()-MIS_TTL+60000; }
+  MIS.set(k,out); return out;
+}
+function capturaOK(owner,machine){
+  const cm=canonM(machine), hace7=Date.now()-7*86400000;
+  if(DATOS.some(n=>n&&n.image&&canonM(n.machine)===cm&&(n.last_at_ms||_ms(n.last_at))>=hace7)) return true;
+  const c=MIS.get(canonM(owner)); return !!(c&&c.list&&c.list.some(m=>m.proof_image));
+}
+function filaMisiones(owner){
+  const c=MIS.get(canonM(owner));
+  if(!c) return '<div class="vacio">cargando misiones del día…</div>';
+  if(c.err) return '<div class="vacio">no se pudieron leer las misiones ('+esc(c.err)+')</div>';
+  if(!c.list.length) return '<div class="vacio">sin misiones hoy</div>';
+  return c.list.map(m=>{const pr=m.progress&&typeof m.progress==="object"?m.progress:null, st=String(m.status||"").toLowerCase();
+    return '<div class="m"><a class="id" href="/misiones#'+encodeURIComponent(m.id||"")+'">'+esc(m.id||"?")+'</a><span class="sub" title="'+esc(m.subject||"")+'">'+esc(m.subject||"sin asunto")+'</span>'+
+      '<span class="pr">'+(pr?(+pr.done||0)+'/'+(+pr.total||0):'')+'</span><span class="st '+esc(st)+'">'+esc(st||"?")+'</span>'+
+      (m.proof_image?'<a href="'+esc(m.proof_image)+'" target="_blank" rel="noopener" title="evidencia"><img src="'+esc(m.proof_image)+'" alt="" loading="lazy"></a>':'<span class="noimg" title="misión sin captura: información incompleta">📷</span>')+'</div>';}).join("");
+}
+function filasRanking(){
+  if(!RK) return "";
+  const {top,cmap,tot,max,dia}=RK;
+  return top.map(p=>{const d=p.datos, f=focoAhorro(d), c=cmap.get(p.owner)||"var(--s0)", oc=ocupado(p.owner,p.machine), ab=ABIERTOS.has(canonM(p.owner)), cap=capturaOK(p.owner,p.machine), mc=MIS.has(canonM(p.owner));
+    return '<div class="r'+(f?' foco':'')+(ab?' abierto':'')+'" role="button" tabindex="0" aria-expanded="'+ab+'" data-owner="'+esc(p.owner)+'" data-machine="'+esc(p.machine)+'" title="'+esc(oc?'ocupado: '+oc.tarea:(f||d.causa||""))+'">'+
+      '<span class="ag" title="'+esc(d.runtime||"")+'"><span class="fl">▶</span><i class="sw'+(oc?' ocupado':'')+'" style="background:'+c+';display:inline-block;vertical-align:-1px;margin-right:6px"></i>'+esc(p.owner)+'<span class="rt">'+esc(d.runtime||"")+'</span></span>'+
+      '<span class="cap'+(cap?'':' no')+'" title="'+(mc?(cap?'esta máquina entrega capturas de pantalla':'sin captura de pantalla: información incompleta'):'comprobando capturas…')+'">'+(mc?(cap?'📷':'📷 sin captura'):'…')+'</span>'+
+      '<span class="bar"><i style="width:'+Math.max(2,Math.round(100*(+d.total||0)/max))+'%;background:'+c+'"></i></span>'+
+      '<span class="num"><b>'+fmtTok(d.total)+'</b> · '+(tot>0?Math.round(100*(+d.total||0)/tot):0)+' %'+(f?' 🔥':'')+'</span></div>'+
+      '<div class="mis'+(ab?' on':'')+'" data-mis="'+esc(p.owner)+'">'+(ab?filaMisiones(p.owner):'')+'</div>';}).join("");
+}
+function pintaRanking(){ const el=$("rk"); if(el&&RK) el.innerHTML=filasRanking(); }
+async function precargaMisiones(){
+  if(!RK) return; let cambio=false;
+  await Promise.all(RK.top.map(async p=>{ const k=canonM(p.owner), c=MIS.get(k); if(c&&Date.now()-c.t<MIS_TTL) return; await cargaMisiones(p.owner,p.machine,RK.dia); cambio=true; }));
+  if(cambio) pintaRanking();
+}
 function renderConsumo(){
   const box=$("consCuerpo"), kpi=$("consKpi"); const hoy=hoyISO();
   if(!CONS){ kpi.innerHTML=""; box.innerHTML='<div class="nota">'+(CONS_ERR?'No se pudieron leer los partes de consumo ('+esc(CONS_ERR)+'). No hay datos suficientes para afirmar cuánto se ha gastado.':'Cargando partes de consumo…')+'</div>'; return; }
@@ -348,7 +437,7 @@ function renderConsumo(){
     '<span class="k'+(dups>0?' warn':'')+'"><b>'+desp+'</b>despertares'+(dups?' · '+dups+' dup':'')+'</span>'+
     '<span class="k'+(sinParte.length?' warn':' good')+'" title="laten hoy y no han declarado consumo"><b>'+sinParte.length+'</b>vivos sin declarar</span>';
   const chipsDisp=sinParte.length
-    ? sinParte.map(a=>'<span class="chip" title="'+esc(a.runtime)+(a.tarea?' · '+esc(a.tarea):'')+'">'+esc(a.persona+a.machine)+(a.tarea?'':'<small>sin tarea</small>')+'</span>').join("")
+    ? sinParte.map(a=>{const oc=ocupado(a.persona,a.machine);return '<span class="chip" title="'+esc(a.runtime)+(a.tarea?' · '+esc(a.tarea):'')+'">'+(oc?'<i class="sw ocupado" style="background:var(--accent)"></i>':'')+esc(a.persona+a.machine)+(a.tarea?'':'<small>sin tarea</small>')+'</span>';}).join("")
     : '<span class="chip ok">todos los que laten hoy han declarado</span>';
   if(!deHoy.length){
     box.innerHTML='<div class="nota">Nadie ha declarado consumo el '+esc(dia)+'. En cada Mac lo publica <b>consumo-tokens.py</b>; los consejeros de GrokBot, <b>consumo_reportar</b> del MCP.</div>'+
@@ -360,12 +449,9 @@ function renderConsumo(){
   let segs=deHoy.map(p=>({k:canonM(p.owner),nombre:p.owner,v:+p.datos.total||0,color:cmap.get(p.owner)})).filter(g=>g.v>0);
   if(segs.length>SLOTS){ const resto=segs.slice(SLOTS-1); segs=segs.slice(0,SLOTS-1).concat([{k:"otros",nombre:"otros ("+resto.length+")",v:resto.reduce((s,g)=>s+g.v,0),color:"var(--s0)"}]); }
   const ley=segs.map(g=>'<span data-k="'+esc(g.k)+'"><i class="sw" style="background:'+g.color+'"></i><b>'+esc(g.nombre)+'</b> '+(tot>0?Math.round(100*g.v/tot):0)+' %</span>').join("");
-  // Ranking: los que más gastan, con barra proporcional al primero y el foco de ahorro si lo hay.
+  // Ranking: los que más gastan, con barra proporcional al primero; cada fila se despliega con sus misiones del día.
   const top=deHoy.slice(0,6), max=+top[0].datos.total||1;
-  const rk=top.map(p=>{const d=p.datos, f=focoAhorro(d), c=cmap.get(p.owner)||"var(--s0)";
-    return '<div class="r'+(f?' foco':'')+'" title="'+esc(f||d.causa||"")+'"><span class="ag"><i class="sw" style="background:'+c+';display:inline-block;vertical-align:-1px;margin-right:6px"></i>'+esc(p.owner)+'<span class="rt">'+esc(d.runtime||"")+'</span></span>'+
-      '<span class="bar"><i style="width:'+Math.max(2,Math.round(100*(+d.total||0)/max))+'%;background:'+c+'"></i></span>'+
-      '<span class="num"><b>'+fmtTok(d.total)+'</b> · '+(tot>0?Math.round(100*(+d.total||0)/tot):0)+' %'+(f?' 🔥':'')+'</span></div>';}).join("");
+  RK={top,cmap,tot,max,dia}; const rk=filasRanking();
   const filas=deHoy.map(p=>{const d=p.datos, f=focoAhorro(d), modelos=d.modelos&&typeof d.modelos==="object"?Object.keys(d.modelos).join(", "):"";
     return '<tr><td><span class="ag">'+esc(p.owner)+'</span><br><span class="rt">'+esc(d.runtime||"")+(modelos?' · '+esc(modelos):'')+'</span></td>'+
       '<td class="num">'+fmtTok(d.total)+'</td><td class="num">'+pcCache(d)+' %</td><td class="num">'+fmtTok(d.salida)+'</td>'+
@@ -377,7 +463,7 @@ function renderConsumo(){
     '<div class="cuerpo">'+
       '<div class="queso" id="queso">'+quesito(segs,tot)+'<div class="ley">'+ley+'</div></div>'+
       '<div class="lado">'+
-        '<div class="col"><h3>Los que más gastan <b>'+deHoy.length+' agentes</b></h3><div class="rk">'+rk+'</div></div>'+
+        '<div class="col"><h3>Los que más gastan <b>'+deHoy.length+' agentes</b></h3><div class="rk" id="rk">'+rk+'</div></div>'+
         '<div class="col"><h3>Disponibles · laten y no gastan <b>'+sinParte.length+'</b></h3><div class="disp">'+chipsDisp+'</div>'+
           '<div class="sin">late hoy y no ha declarado: '+sinParte.length+' · vivos hoy: '+vivos.size+'</div></div>'+
       '</div>'+
@@ -386,10 +472,16 @@ function renderConsumo(){
       '<div class="tw"><table><thead><tr><th>agente · runtime</th><th class="num">total</th><th class="num">caché</th><th class="num">salida</th><th class="num">llamadas</th><th class="num">despertares</th><th>causa y foco de ahorro</th><th class="num">parte</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+
       (top7?'<div class="nota"><b>'+(CONS.dias||7)+' días</b> · '+top7+'</div>':'')+
     '</details>';
+  precargaMisiones();
   // Al pasar por un segmento o su leyenda se resalta ese agente y el resto se atenúa.
   const q=$("queso");
   q.addEventListener("mouseover",e=>{const t=e.target.closest("[data-k]");if(!t)return;q.classList.add("hov");q.querySelectorAll(".arc").forEach(x=>x.classList.toggle("on",x.dataset.k===t.dataset.k));});
   q.addEventListener("mouseleave",()=>{q.classList.remove("hov");q.querySelectorAll(".arc.on").forEach(x=>x.classList.remove("on"));});
+  // Pulsar un agente despliega (o pliega) sus misiones del día justo debajo.
+  const rkEl=$("rk");
+  async function toggleFila(r){ const k=canonM(r.dataset.owner); if(ABIERTOS.has(k)) ABIERTOS.delete(k); else ABIERTOS.add(k); pintaRanking(); if(ABIERTOS.has(k)){ await cargaMisiones(r.dataset.owner,r.dataset.machine,dia); pintaRanking(); } }
+  rkEl.addEventListener("click",e=>{ const r=e.target.closest(".r[data-owner]"); if(r) toggleFila(r); });
+  rkEl.addEventListener("keydown",e=>{ const r=e.target.closest(".r[data-owner]"); if(r&&(e.key==="Enter"||e.key===" ")){ e.preventDefault(); toggleFila(r); } });
 }
 async function loadConsumo(){
   try{

@@ -72,3 +72,15 @@ test("el panel de consumo (mandamiento 15) lee /fleet/consumo, señala a quien l
   assert.match(html, /consumo:"Parte de consumo"/);
   assert.match(html, /function focoAhorro/);
 });
+
+test("el panel de consumo despliega las misiones del día por agente, parpadea el ocupado y señala quién no entrega capturas", () => {
+  assert.match(html, /\/fleet\/missions\?agent=/);
+  assert.match(html, /async function cargaMisiones/);
+  assert.match(html, /function ocupado\(owner,machine\)/);
+  assert.match(html, /OCUPADO_MS=10\*60\*1000/);
+  assert.match(html, /@keyframes yk-blink/);
+  assert.match(html, /prefers-reduced-motion:reduce/);
+  assert.match(html, /aria-expanded=/);
+  assert.match(html, /sin captura de pantalla: información incompleta/);
+  assert.match(html, /no se pudieron leer las misiones/, "un fallo del feed de misiones no se presenta como «sin misiones»");
+});
