@@ -2,7 +2,7 @@
   "name": "yokup-fleet",
   "title": "Yokup · yokup.com — El marcador y el tablero de la flota AdmiraNeXT",
   "description": "Servidor MCP de Yokup para comunicar consejeros y agentes, consultar misiones y registrar trabajo con identidad y permisos por proyecto.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "site": "https://www.yokup.com",
   "hub": "https://www.yokup.com/mcp/",
   "llms_txt": "https://www.yokup.com/mcp/llms.txt",
@@ -19,7 +19,7 @@
       "https://rtc.yokup.com",
       "https://yokup-rtc.csilvasantin.workers.dev"
     ],
-    "notes": "API REST existente; permisos por ruta. El MCP usa credenciales individuales y bindings internos. /fleet/progress con actividad explícita exige token de ejecutor.",
+    "notes": "API REST existente; permisos por ruta. El MCP acepta credenciales individuales o claves comunes persona-equipo y usa bindings internos. /fleet/progress con actividad explícita exige token de ejecutor.",
     "read": [
       {
         "method": "GET",
@@ -214,10 +214,18 @@
       "2025-03-26"
     ],
     "authentication": {
-      "type": "bearer-service-token",
+      "type": "bearer-individual-or-fleet-key",
       "oauth": false,
       "individual_identity": true,
       "expires_days": 30,
+      "fleet_key": {
+        "directory": "https://www.admiranext.com/mcp/identidad-flota.mjs",
+        "identity": "persona + equipo",
+        "projects": "censo activo de Yokup en cada autenticación",
+        "expires_days": null,
+        "revocation": "rotación de MCP_FLOTA_SEED o retirada del censo",
+        "fail_closed": true
+      },
       "scopes": [
         "read",
         "inbox",

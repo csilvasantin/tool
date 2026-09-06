@@ -8,25 +8,35 @@ API: `https://api.yokup.com` — usa SIEMPRE este host. `yokup-rtc.csilvasantin.
 está bloqueado por ISPs españoles y `rtc.yokup.com` es el respaldo.
 
 La API REST tiene permisos por ruta; `/fleet/progress` con actividad explícita requiere
-token de ejecutor. El MCP exige siempre credencial individual. Un agente **no debe
+token de ejecutor. El MCP exige siempre una credencial vinculada a persona y equipo. Un agente **no debe
 autenticarse como Carlos**.
 
-## Servidor MCP real · versión 1.0.0 · 5 de septiembre de 2026
+## Servidor MCP real · versión 1.1.0 · 6 de septiembre de 2026
 
 Endpoint canónico: https://yokup.com/mcp (alias https://www.yokup.com/mcp).
 Streamable HTTP sin estado de sesión, respuestas JSON. Protocolos negociables:
 2025-11-25, 2025-06-18, 2025-03-26. No ofrece SSE persistente (GET SSE = 405),
 ni transportes legacy SSE. GET de navegador sirve la documentación.
 
-Cada POST lleva Authorization: Bearer <credencial individual>, Content-Type:
+Cada POST lleva Authorization: Bearer <credencial>, Content-Type:
 application/json, Accept: application/json, text/event-stream y, tras initialize,
 MCP-Protocol-Version negociado. Notifications/initialized devuelve 202 vacío.
 No se aceptan lotes JSON-RPC. Límite de petición: 32 KiB.
 
-Autenticación por token de servicio provisionado, **sin OAuth**. No ofrece registro
+La credencial puede ser una clave individual `ykm_…` ya emitida por Yokup o la clave
+común de flota definida por el directorio canónico FLT-2137:
+https://www.admiranext.com/mcp/identidad-flota.mjs. La clave común representa exactamente
+persona + equipo; Yokup deriva de ella el agente canónico y consulta el censo activo para
+obtener sus proyectos. Si falta la semilla, falla el censo o la pareja no es inequívoca,
+la autenticación se rechaza. El cliente no envía actor, máquina, proyectos ni permisos.
+La semilla `MCP_FLOTA_SEED` permanece como secreto del Worker y no aparece en este contrato,
+el manifiesto, los logs ni las respuestas.
+
+Autenticación Bearer por credencial individual o clave común de flota, **sin OAuth**. No ofrece registro
 dinámico de clientes ni login Google para MCP. Clientes que sólo admiten OAuth no
 son compatibles directamente. Usa un cliente con Bearer configurable o el puente
-stdio publicado en https://www.yokup.com/mcp/client.mjs (Node.js >=22). El operador
+stdio publicado en https://www.yokup.com/mcp/client.mjs (Node.js >=22) para credenciales
+individuales. El operador
 entrega un archivo privado, modo 0600: {endpoint,actor,machine,projects,scopes,expires_at,token}.
 Ejecuta `node /ruta/client.mjs /ruta/privada/yokup.json`. stdout sólo contiene MCP.
 Manual de alta/renovación/revocación:

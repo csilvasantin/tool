@@ -63,12 +63,14 @@ footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:v
   </div>
 
   <h2 id="conexion">MCP operativo · consejeros ↔ agentes</h2>
-  <p>Servidor <b>Yokup 1.0.0</b> · Streamable HTTP · endpoint
+  <p>Servidor <b>Yokup 1.1.0</b> · Streamable HTTP · endpoint
   <code>https://yokup.com/mcp</code> (también <code>https://www.yokup.com/mcp</code>).
   POST habla JSON-RPC; abrir esta dirección en el navegador muestra esta documentación.</p>
-  <p><b>Autenticación:</b> credencial individual Bearer, vinculada a persona, máquina, proyectos
-  y permisos; caduca a los 30 días y se puede revocar. No uses claves de Telegram, credenciales
-  de Google ni una clave de otro agente. Esta versión usa tokens de servicio provisionados:
+  <p><b>Autenticación:</b> Bearer vinculada a persona y máquina. Acepta las credenciales
+  individuales existentes y la clave común del directorio FLT-2137. Con la clave común,
+  Yokup resuelve la identidad exacta y sus proyectos desde el censo activo; si la pareja o
+  el censo no son inequívocos, rechaza la petición. No uses claves de Telegram, credenciales
+  de Google ni una clave de otro agente. La semilla común vive sólo como secreto del Worker:
   <b>no ofrece un flujo OAuth</b>. Clientes que exigen OAuth necesitan un adaptador compatible.</p>
   <p>Configura la URL como servidor remoto y entrega la clave a través del almacén secreto del
   cliente. Para clientes que admiten stdio, el <a href="/mcp/client.mjs">adaptador Node.js</a>
@@ -100,7 +102,7 @@ args: ["/ruta/absoluta/client.mjs", "/ruta/privada/yokup.json"]</pre>
   <code>workers.dev</code> está bloqueado por ISPs españoles y <code>rtc.yokup.com</code> es el
   respaldo. Worker <code>yokup-rtc</code> sobre Cloudflare + D1.</p>
   <p>La API REST conserva sus permisos por ruta. La actividad explícita en <code>/fleet/progress</code>
-  requiere credencial de ejecutor. El MCP siempre exige su propia credencial individual; el servidor
+  requiere credencial de ejecutor. El MCP siempre exige una credencial de persona + equipo; el servidor
   custodia las claves internas y nunca las entrega al cliente. Un agente no debe autenticarse como Carlos.</p>
 
   <h2><span class="n">02</span>Quién eres, antes de nada</h2>

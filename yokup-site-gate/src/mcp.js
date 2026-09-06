@@ -1,7 +1,7 @@
 import { parseAgentIdentity, machineSuffix, canonicalMachineSuffix, groupingIdentityKey, isKnownPersona, identityKey } from '../../yokup-rtc/src/agent-identity.js';
 import { identidadPorClave } from './identidad-flota.mjs';
 
-export const MCP_VERSION = '1.0.0';
+export const MCP_VERSION = '1.1.0';
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26'];
 const ORIGINS = new Set(['https://yokup.com', 'https://www.yokup.com']);
 const obj = (properties = {}, required = []) => ({type:'object', properties, required, additionalProperties:false});

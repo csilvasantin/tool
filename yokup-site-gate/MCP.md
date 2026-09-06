@@ -1,7 +1,7 @@
 # MCP canónico de Yokup
 
-Versión 1.0.0 · 2026-09-05 · OraculoMacMini · Codex APP.
-Misión: DCL-a0cc0743865fde5531039f1d (2152.05/09/2026.20:11).
+Versión 1.1.0 · 2026-09-06 · InfraOraculoMacMini · Codex APP.
+Misión: FLT-2143.
 
 - Servidor: https://yokup.com/mcp
 - Ayuda humana: https://www.yokup.com/help#mcp
@@ -23,6 +23,14 @@ de Telegram y la de ejecutor viven sólo como secretos del gate, nunca en los
 archivos públicos ni en respuestas. No hay OAuth en esta versión: es un conector
 de servicio para clientes con Bearer o stdio. No anuncia compatibilidad directa
 con clientes que requieren OAuth.
+
+Desde 1.1.0 también se acepta la clave común persona + equipo del directorio
+FLT-2137. El gate vendoriza `src/identidad-flota.mjs` y fija su SHA-256 en pruebas.
+Deriva la identidad con el secreto Worker `MCP_FLOTA_SEED` y vuelve a consultar el
+censo de Yokup para limitar los proyectos. La semilla y la clave recibida no se
+guardan, registran, transmiten al binding RTC ni devuelven. Sin semilla, sin censo o
+con una identidad ambigua, falla cerrado. Las credenciales individuales existentes
+siguen siendo autoritativas aunque la semilla o el censo no estén disponibles.
 
 Los mensajes/encargos reutilizan bot-inbox, incluido el aviso a AgoraMatrix y su
 mecanismo de despertar consejeros GrokBot. `kind=message` no crea misión;
@@ -48,6 +56,8 @@ npx wrangler@4.119.0 d1 execute yokup-tickets --remote --file migrations/0001_mc
 Instalar los secretos `MCP_TELEGRAM_TOKEN` (valor de ADMIRA_TELEGRAM_PANEL_KEY en
 la bóveda) y `MCP_EXECUTOR_TOKEN` (YOKUP_CLI_EXECUTOR_TOKEN). Pasarlos por stdin a
 `wrangler secret put`, sin argumentos que contengan sus valores ni registro en git.
+Instalar también `MCP_FLOTA_SEED` desde `s:MCP_FLOTA_SEED` por stdin. Comprobar sólo
+el nombre del binding con `wrangler secret list`; no imprimir ni comparar su valor.
 El despliegue normal de `yokup-site/deploy.mjs` publica sitio y gate con estos
 bindings. No publicar desde una rama divergente: integrar primero en origin/main
 según las guardas existentes. Conservar los secretos en sucesivos despliegues.
