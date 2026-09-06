@@ -1,0 +1,226 @@
+{
+  "contract": "mission-duplicates-v1-live-regression",
+  "source": "GET https://api.yokup.com/fleet/missions",
+  "observed_at": "2026-09-06T01:29:00Z",
+  "note": "Minimal public fields from the 18-row active admira-live Superman loop observed at mission selection; FLT-2306 changed to cancelled during QA.",
+  "rows": [
+    {
+      "id": "FLT-2306",
+      "subject": "Aviso Wozniak: trono Superman listo (story FLT-1893 / TG#1957 / encargo 2159). Box /workspace/superman-xpacio/ (asset…",
+      "project_id": "admira-live",
+      "status": "open",
+      "assignee": "OraculoMacMini",
+      "loc": "macmini",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2272",
+      "subject": "TG2264 Oráculo trono Superman. a) Box+salas HTTP200. b) Aviso Oráculo Agora+encargo 2270. c) Evidencia+done 2264/2263…",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2271",
+      "subject": "TG2264 lote Oráculo trono Superman. a) Box+salas HTTP200 OK. b) Aviso Oráculo Agora. c) Evidencia+done Telegram 2264/…",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2268",
+      "subject": "TG2264/2263/2261/2259 eco Oráculo trono Superman FLT-1893 (refs TG2056/2057/2065/2119).",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2236",
+      "subject": "TG #2001+#2002 Oráculo trono Superman (story FLT-1893), webhook encargo 2101 (ya done en Telegram).",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2225",
+      "subject": "TG#2092 bandeja 2220+2221 · Oráculo trono Superman FLT-1893.",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2224",
+      "subject": "TG#2092 / webhook TG2099 · Aviso Oráculo trono Superman (story FLT-1893).",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2221",
+      "subject": "TG#2092 · Aviso Oráculo trono Superman (story FLT-1893).",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2211",
+      "subject": "TG lote 2200-2204 aviso Oráculo trono Superman FLT-1893.",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2208",
+      "subject": "Avisar a Oráculo dónde quedó el trono Superman (TG lote 2200/2201/2203/2204 · story FLT-1893 · webhook 2096).",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2203",
+      "subject": "TG2181 lote 2193+ aviso Oráculo trono Superman FLT-1893.",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2201",
+      "subject": "Avisar Oráculo trono Superman TG1999 FLT-1893 (webhook 2090 cerrado; bandeja 2193/2191/2188/2186/2184).",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2193",
+      "subject": "TG2181 Oráculo trono Superman FLT-1893. a) Confirmar box+salas live. b) Aviso Oráculo Agora/Telegram. c) Evidencia+in…",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2184",
+      "subject": "Avisar a Oráculo dónde quedó el trono Superman (TG1999 · story FLT-1893 · TG2178/2177).",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2178",
+      "subject": "Avisar a Oráculo dónde quedó el trono Superman (TG1999 · story FLT-1893 · TG2082).",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2177",
+      "subject": "Avisar a Oráculo dónde quedó el trono Superman (TG1999 · story FLT-1893 · encargos Telegram 2078/2080/2082).",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2139",
+      "subject": "TG#1957 / webhook eco Oráculo trono Superman story FLT-1893 (encargos 2129+2131; payload citaba 2080). a) Confirmar b…",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2131",
+      "subject": "TG #1957 · encargo Telegram 2070 · avisar Oráculo trono Superman (story FLT-1893).",
+      "project_id": "admira-live",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    }
+  ],
+  "separation_controls": [
+    {
+      "id": "FLT-2216",
+      "subject": "Avisar a Oráculo dónde quedó el trono Superman (TG #2091+#2092 · story FLT-1893 · webhook encargo 2094 eco).",
+      "project_id": "pixeria",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2214",
+      "subject": "Avisar a Oráculo dónde quedó el trono Superman (TG #2091+#2092 · story FLT-1893 · webhook encargo 2094).",
+      "project_id": "pixeria",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2210",
+      "subject": "Avisar Oráculo trono Superman TG lote 2200/2201/2203/2204 story FLT-1893 webhook 2096.",
+      "project_id": "pixeria",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2188",
+      "subject": "TG2178/2177 · Oráculo trono Superman FLT-1893.",
+      "project_id": "pixeria",
+      "status": "in_progress",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2306",
+      "subject": "Aviso Wozniak: trono Superman listo (story FLT-1893 / TG#1957 / encargo 2159). Box /workspace/superman-xpacio/ (asset…",
+      "project_id": "admira-live",
+      "status": "cancelled",
+      "assignee": "OraculoMacMini",
+      "loc": "macmini",
+      "parent_id": null
+    },
+    {
+      "id": "FLT-2301",
+      "subject": "Avisar Oráculo trono Superman TG#1957 FLT-1893. a) Confirmar box y salas live HTTP 200. b) Publicar Agora/Telegram a …",
+      "project_id": "admira-live",
+      "status": "resolved",
+      "assignee": "WozniakGrokBot",
+      "loc": "grokbot",
+      "parent_id": null
+    }
+  ]
+}
