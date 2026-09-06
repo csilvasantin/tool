@@ -301,6 +301,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 <script src="/yk-agent-identity.js?v=v.2026.08.02.224605"></script>
 <script src="/yk-maquina.js?v=r1"></script>
 <script src="/yk-misiones.js?v=v.2026.08.02.224605"></script>
+<script src="/yk-mission-duplicates.js?v=1"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r4"></script>
 <script>
@@ -379,6 +380,9 @@ let SORT={k:"fecha",dir:"desc"};
 // Misiones MADRE desplegadas (FLT-990 b3). Por defecto REPLEGADAS: una madre no
 // alarga el tablero con sus hijas hasta que se abre.
 const OPEN_GRP=new Set();
+// Grupos de alarma de duplicados abiertos. Empiezan replegados: una ráfaga de
+// ecos ocupa una sola línea, pero todos sus registros siguen inspeccionables.
+const OPEN_DUP=new Set();
 // Agrupa las filas por parent_id: cada MADRE lleva sus HIJAS en un cajón replegable
 // justo debajo, en vez de sembrarlas sueltas por la lista. Las misiones planas (sin
 // parent_id) se pintan igual que siempre. DOS niveles (lo garantiza /fleet/parent,
@@ -410,8 +414,25 @@ function groupedHtml(list){
         +   '</div>'
         + '</div>';
   }
+  function duplicateHtml(t){
+    const d=t._duplicate||{}, members=t._members||[], key=d.key||t.id, abierta=OPEN_DUP.has(key);
+    const panelId="dup-members-"+String(t.id||"").replace(/[^a-zA-Z0-9_-]/g,"-");
+    const labels={open:"pendiente",pending:"pendiente",unassigned:"sin asignar",in_progress:"en curso",unconcluded:"no concluida",resolved:"finalizada",cancelled:"eliminada"};
+    const stateText=Object.entries(d.states||{}).map(([state,count])=>count+" "+(labels[state]||state)).join(" · ");
+    const agents=(t._agents||[]).join(" · "), project=t.project_name||t.project_id||t.project||"proyecto sin identificar";
+    return '<section class="yk-dup'+(abierta?' abierta':'')+'" data-dup="'+esc(key)+'" role="group" aria-label="'+members.length+' misiones equivalentes">'
+      +'<div class="yk-dup-alert">'
+      +'<button type="button" class="yk-dup-tg" data-dup-tg="'+esc(key)+'" aria-controls="'+esc(panelId)+'" aria-expanded="'+(abierta?'true':'false')+'">'
+      +'<span class="yk-dup-caret">▸</span><strong>⚠ '+members.length+' misiones equivalentes</strong>'
+      +'<span class="yk-dup-ref">'+esc(d.reference||"mismo encargo")+' · '+esc(project)+'</span>'
+      +'<span class="yk-dup-meta">'+esc(stateText)+(agents?' · '+esc(agents):'')+'</span>'
+      +'<span class="yk-dup-action">'+(abierta?'ocultar':'inspeccionar')+' miembros</span></button>'
+      +'<button type="button" class="yk-dup-select" title="Seleccionar las '+members.length+' misiones del grupo">seleccionar '+members.length+'</button>'
+      +'</div><div class="yk-dup-members'+(abierta?'':' plegado')+'" id="'+esc(panelId)+'" role="region" aria-label="Miembros del grupo '+esc(d.reference||"equivalente")+'">'
+      +members.map(member=>nodeHtml(member,0)).join("")+'</div></section>';
+  }
   let html="";
-  list.forEach(t=>{ if(esHija(t)) return; html+=nodeHtml(t, 0); });
+  list.forEach(t=>{ if(esHija(t)) return; html+=(t._members&&t._members.length>1)?duplicateHtml(t):nodeHtml(t, 0); });
   return html;
 }
 const SORTERS={
@@ -511,14 +532,14 @@ function bindHead(el){
   });
 }
 
-// Una orden puede repetirse, pero cada agente conserva su propia misión comparable.
-// Solo se colapsan duplicados del MISMO asunto, equipo, agente Y estado visible;
-// así un contador positivo siempre conserva al menos una fila en su filtro. Dos ejecuciones
-// independientes (p. ej. Codex y Claude) nunca deben desaparecer bajo una sola fila.
-// Solo en la bandeja de FLOTA (en campo, dos incidencias con el mismo texto son
-// distintas y no deben fundirse). Representante = la de id más bajo (la que abre «abrir →»).
+// El worker identifica ecos equivalentes con anclas trazables de story/TG y un
+// aislamiento estricto por proyecto y clase de estado. El fallback legacy conserva
+// la igualdad exacta previa. Sólo se aplica a FLOTA; campo nunca se agrupa.
 function agrupaFlota(tks){
-  const norm=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/\s+/g," ").trim();
+  if(typeof YkMissionDuplicates!=="undefined") return YkMissionDuplicates.group(tks,{machineOf:YkMisiones.machineOf});
+  // Compatibilidad durante el rollout: el HTML puede servirse antes que el módulo
+  // versionado. En ese instante sólo se aplica la igualdad exacta histórica.
+  const norm=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim();
   const num=x=>parseInt(String(x).replace(/\D/g,""),10)||0;
   const by=new Map();
   tks.forEach(t=>{ const k=norm(t.subject)+"||"+YkMisiones.machineOf(t)+"||"+norm(t.assignee)+"||"+String(t.visible_state||"");
@@ -529,10 +550,11 @@ function agrupaFlota(tks){
     const s=ms.slice().sort((a,b)=>num(a.id)-num(b.id));
     const rep=Object.assign({},s[0]);
     const agents=[...new Set(s.map(m=>m.assignee).filter(Boolean))];
+    const machines=[...new Set(s.map(m=>YkMisiones.machineOf(m)).filter(Boolean))];
     const n=s.length, done=s.filter(m=>m.status==="resolved").length, prog=s.filter(m=>m.status==="in_progress").length,
       cancelled=s.filter(m=>m.status==="cancelled").length;
     const visible={};s.forEach(m=>{const key=m.visible_state||"";if(key)visible[key]=(visible[key]||0)+1;});
-    rep._agents=agents; rep._ids=s.map(m=>m.id); rep._n=n; rep._done=done;
+    rep._agents=agents; rep._machines=machines; rep._ids=s.map(m=>m.id); rep._members=s; rep._n=n; rep._done=done;
     rep.status = done===n ? "resolved" : cancelled===n ? "cancelled" : prog>0 ? "in_progress" : "open";
     if(Object.keys(visible).length)rep.visible_state=visible.resolved===n?"resolved":visible.cancelled===n?"cancelled":visible.in_progress?"in_progress":visible.unconcluded?"unconcluded":visible.pending?"pending":"unassigned";
     rep.assignee = agents.length<=1 ? (agents[0]||rep.assignee||"") : (agents.length+" agentes ("+done+"/"+n+")");
@@ -652,8 +674,8 @@ async function load(){
   let tks=(SCOPE==="fleet") ? agrupaFlota(rawTickets) : rawTickets; const st=d.stats||{};
   // Índice de misiones para el picker de reasignación (equipo/agente actuales por id).
   ROWS_BY_ID={};
-  tks.forEach(t=>{ ROWS_BY_ID[t.id]={maq:YkMisiones.machineOf(t)||"",rawmaq:(t.machine||t.loc||""),agente:t.assignee||"",project_id:t.project_id||t.project||"",subject:t.subject||"",loc:t.loc||"",screen:t.screen||"",inbox_id:t.inbox_id}; });
-  MIS_ALL=tks; try{ renderFlota(generation,scopeAtStart); }catch(e){}   // resumen de flota (modo avanzado)
+  rawTickets.forEach(t=>{ ROWS_BY_ID[t.id]={maq:YkMisiones.machineOf(t)||"",rawmaq:(t.machine||t.loc||""),agente:t.assignee||"",project_id:t.project_id||t.project||"",subject:t.subject||"",loc:t.loc||"",screen:t.screen||"",inbox_id:t.inbox_id}; });
+  MIS_ALL=rawTickets; try{ renderFlota(generation,scopeAtStart); }catch(e){}   // resumen de flota (modo avanzado)
   // «No concluida» es una categoría derivada al cumplir 60 min sin cierre. Conserva
   // el estado operativo interno para que la misión pueda seguir avanzando.
   const _ms60=v=>{v=+v||0;return v>4102444800?v:v*1000;};
@@ -695,18 +717,19 @@ async function load(){
     const missionSource=t=>t.role==="mission"||["fleet","decision-batch","cli-declare"].includes(t.source);
     base=base.filter(t=>t.status!=="cancelled" && (t.status!=="resolved" || (missionSource(t) && (Date.now()-_ms(t.resolved_at||t.updated_at))<FRESH)));
   }
-  else if(FILTER!=="todas") base=base.filter(t=>YkMisiones.coincideEstado(t,FILTER));
+  else if(FILTER!=="todas") base=base.filter(t=>(t._members||[t]).some(member=>YkMisiones.coincideEstado(member,FILTER)));
   // Selectores CRUZADOS y solo con quien TIENE misiones en el contexto actual:
   // agentes según el equipo elegido, equipos según el agente elegido.
   // agentes reales del grupo (una misión difundida agrupa varios): _agents si existe.
   const agentesDe=t=>t._agents||(t.assignee?[t.assignee]:[]);
+  const equiposDe=t=>t._machines||(YkMisiones.machineOf(t)?[YkMisiones.machineOf(t)]:[]);
   // AGENTE: agentes con misión en la vista (cruzados con el equipo) MÁS, SIEMPRE, los
   // agentes PRINCIPALES VIVOS de la presencia (🟢 latido <15 min) aunque no tengan
   // misión aquí — un vivo ocioso es seleccionable y da lista vacía (honesto). El 🟢 va
   // solo en la etiqueta; el value sigue siendo el nombre pelado que casa con assignee.
   const selEq=$("selEquipo").value, selAg=$("selAgente").value;
   const agMision=[...new Set(base
-    .filter(t=>!selEq||YkMisiones.machineOf(t)===selEq)
+    .filter(t=>!selEq||equiposDe(t).includes(selEq))
     .flatMap(agentesDe).filter(Boolean))];
   const agVivos=agentesVivos(selEq);
   llenaSel("selAgente","🤖 Agente · todos",
@@ -715,20 +738,20 @@ async function load(){
   // EQUIPO: simétrico — máquinas con misión en la vista MÁS las máquinas VIVAS (🟢).
   const eqMision=[...new Set(base
     .filter(t=>!selAg||agentesDe(t).includes(selAg))
-    .map(t=>YkMisiones.machineOf(t)).filter(Boolean))];
+    .flatMap(equiposDe).filter(Boolean))];
   const eqVivas=maquinasVivas(selAg);
   llenaSel("selEquipo","🖥 Equipo · todos",
     [...new Set([...eqMision,...eqVivas])].sort()
       .map(m=>({v:m,label:(eqVivas.includes(m)?"🟢 ":"")+m})));
   let list=base;
   if($("selAgente").value) list=list.filter(t=>agentesDe(t).includes($("selAgente").value));
-  if($("selEquipo").value) list=list.filter(t=>YkMisiones.machineOf(t)===$("selEquipo").value);
+  if($("selEquipo").value) list=list.filter(t=>equiposDe(t).includes($("selEquipo").value));
   // buscador: título, id, agente, equipo y screen — sin distinguir mayúsculas ni acentos
   const q=($("busca").value||"").trim();
   if(q){
     const nrm=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
     const nq=nrm(q);
-    list=list.filter(t=>[t.subject,t.id,t.assignee,agentesDe(t).join(" "),YkMisiones.machineOf(t),t.screen].some(v=>nrm(v).includes(nq)));
+    list=list.filter(t=>(t._members||[t]).some(member=>[member.subject,member.id,member.assignee,YkMisiones.machineOf(member),member.screen].some(v=>nrm(v).includes(nq))));
   }
   const sk=SORTERS[SORT.k]||SORTERS.fecha;
   list=list.slice().sort((a,b)=>{const va=sk(a),vb=sk(b);const c=va<vb?-1:(va>vb?1:0);return SORT.dir==="asc"?c:-c;});
@@ -758,7 +781,7 @@ async function load(){
     // _prog = resumen en tercios (contador/barra). _tasks = array crudo del plan,
     // que estadoDe usa para leer «En curso» del RASTRO REAL (tareas in_progress/done
     // dejadas por un agente CLI que ejecuta sin reclamar), no sólo del claim. (23-jul)
-    list.forEach(t=>{ const g=_g[t.id]||null; t._prog=YkMisiones.tercios(g||[],t.role==="standalone-task"); t._tasks=g; });
+    list.forEach(t=>{ (t._members||[t]).forEach(member=>{ const g=_g[member.id]||null; member._prog=YkMisiones.tercios(g||[],member.role==="standalone-task"); member._tasks=g; }); });
   }catch(e){if(!isCurrent())return;}
   if(!isCurrent())return;
   el.innerHTML=headHtml()+groupedHtml(list);
@@ -1186,6 +1209,22 @@ $("list").addEventListener("click",ev=>{
 // ---- Desplegar/replegar las HIJAS de una misión madre (FLT-990 b3) ---------
 // En captura, ANTES del listener de fila: el clic en la barra de grupo NO
 // selecciona la madre, solo abre/cierra su cajón. Sin recargar la lista.
+$("list").addEventListener("click",ev=>{
+  const toggle=ev.target.closest(".yk-dup-tg"), select=ev.target.closest(".yk-dup-select");
+  if(!toggle&&!select) return;
+  ev.stopPropagation(); ev.preventDefault();
+  const grp=(toggle||select).closest(".yk-dup"), members=grp&&grp.querySelector(".yk-dup-members");
+  if(select){
+    [...grp.querySelectorAll(".selrow")].forEach(cb=>{cb.checked=true;SEL.add(cb.dataset.id);});
+    refreshBulk($("list")); return;
+  }
+  const key=toggle.dataset.dupTg, abierta=OPEN_DUP.has(key);
+  if(abierta)OPEN_DUP.delete(key);else OPEN_DUP.add(key);
+  grp.classList.toggle("abierta",!abierta);if(members)members.classList.toggle("plegado",abierta);
+  toggle.setAttribute("aria-expanded",abierta?"false":"true");
+  const action=toggle.querySelector(".yk-dup-action");if(action)action.textContent=(abierta?"inspeccionar":"ocultar")+" miembros";
+},true);
+
 $("list").addEventListener("click",ev=>{
   const bar=ev.target.closest(".yk-grp-bar"); if(!bar) return;
   ev.stopPropagation(); ev.preventDefault();

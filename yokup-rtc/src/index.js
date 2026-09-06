@@ -19,6 +19,7 @@ import { authorizeDesktopCaptureClear, clearDesktopCapture, dispatchDesktopCaptu
 import { PtyRoom } from "./pty-room.js";
 import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, madridDayStart, sortDisplayRefCandidates } from "./display-ref.js";
 import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_NOVELTY_INSERT_SQL, MISSION_NOVELTY_RECENT_SQL, MISSION_NOVELTY_TABLE_SQL, missionNoveltyContract, missionNoveltyEventKey } from "./mission-novelty.js";
+import { annotateMissionDuplicates } from "./mission-duplicates.js";
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
 import { resolveIdeaAuthor } from "./idea-author.js";
 import { CARBON_BEAT_WINDOW_MS, CARBON_MEMBERS_INDEX_SQL, CARBON_MEMBERS_TABLE_SQL, carbonBeat, carbonRow, carbonSeedSql, normalizeCarbonMember, carbonId } from "./carbon-members.js";
@@ -6065,6 +6066,7 @@ async function listTickets(env, scope, limit, offset, filters = {}) {
     row.visible_state_at = visible.transition_at;
     row.visible_state_reason = visible.reason;
   }
+  annotateMissionDuplicates(rows);
   await attachImgCount(env, rows);
   // Nombre humano del proyecto junto al id, para que la lista no tenga que
   // cruzar /projects sólo para pintar un rótulo.
@@ -6089,7 +6091,8 @@ async function listTickets(env, scope, limit, offset, filters = {}) {
     scope, day:universe.day, project_id:universe.project_id, limit:take, offset:skip,
     returned:rows.length, total, has_more:skip + rows.length < total,
     state:universe.soloVivas ? "vivas" : "todas",
-    state_semantics:"visible-v1", source_semantics:"mission-role-or-agent-source-v1"
+    state_semantics:"visible-v1", source_semantics:"mission-role-or-agent-source-v1",
+    duplicate_semantics:"mission-duplicates-v1", duplicate_scope:"response-page"
   }};
 }
 
@@ -7234,7 +7237,7 @@ async function fleetMissions(env, filters = null) {
   // `project` viaja como ID del censo; quien pinta (status, /misiones) quiere el
   // nombre humano y no tiene por qué conocer la tabla.
   const pidx = await projectIndex(env);
-  return rows.map((r) => {
+  const missions = rows.map((r) => {
     const tasks = byMission[r.id] || [];
     return Object.assign({}, r, {
       machine: r.loc,
@@ -7252,6 +7255,7 @@ async function fleetMissions(env, filters = null) {
       progress: tercios(tasks, r.role === "standalone-task")
     });
   });
+  return annotateMissionDuplicates(missions);
 }
 __name(fleetMissions, "fleetMissions");
 

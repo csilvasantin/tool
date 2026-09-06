@@ -191,6 +191,25 @@
   .yk-grp-bar{padding:5px 12px}.yk-kids .yk-grp-bar{padding-left:20px}
 }
 
+/* ------- Alarma de misiones equivalentes ------- */
+.yk-dup{border-bottom:1px solid rgba(255,216,102,.28);background:rgba(255,216,102,.025)}
+.yk-dup-alert{display:flex;align-items:stretch;gap:0;border-left:3px solid var(--accent,#ffd866)}
+.yk-dup-tg{min-width:0;flex:1;display:grid;grid-template-columns:auto auto minmax(120px,1fr) auto auto;align-items:center;gap:9px;
+  padding:10px 13px;background:transparent;border:0;color:var(--mut);font:10px/1.35 var(--mono);letter-spacing:.04em;text-align:left;cursor:pointer}
+.yk-dup-tg:hover{background:rgba(255,216,102,.06);color:var(--ink)}
+.yk-dup-tg:focus-visible,.yk-dup-select:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+.yk-dup-tg strong{color:var(--accent,#ffd866);font-size:11px;text-transform:uppercase;white-space:nowrap}
+.yk-dup-ref{color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.yk-dup-meta{color:var(--mut);white-space:nowrap}
+.yk-dup-action{color:var(--brand);text-transform:uppercase;white-space:nowrap}
+.yk-dup-caret{color:var(--accent,#ffd866);transition:transform .15s}.yk-dup.abierta .yk-dup-caret{transform:rotate(90deg)}
+.yk-dup-select{flex:none;margin:7px 9px 7px 0;padding:5px 9px;border:1px solid rgba(255,216,102,.35);border-radius:7px;background:transparent;
+  color:var(--accent,#ffd866);font:9px/1.2 var(--mono);letter-spacing:.05em;text-transform:uppercase;cursor:pointer;white-space:nowrap}
+.yk-dup-select:hover{background:rgba(255,216,102,.1)}
+.yk-dup-members{background:var(--card2)}.yk-dup-members.plegado{display:none}
+.yk-dup-members>.tk{border-left:3px solid rgba(255,216,102,.45);border-bottom:1px solid var(--line)}
+@media(max-width:720px){.yk-dup-tg{grid-template-columns:auto 1fr;padding:9px}.yk-dup-ref,.yk-dup-meta,.yk-dup-action{grid-column:2}.yk-dup-select{align-self:center}}
+
 /* ------- Árbol de TAREAS abc/123 ------- */
 .tree{font-family:var(--mono)}
 .tree .thd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}

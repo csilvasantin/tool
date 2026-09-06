@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 import {DatabaseSync} from 'node:sqlite';
 import {CANONICAL_MISSION_SOURCES, FLEET_MISSIONS_LIMIT, FLEET_MISSIONS_SQL} from './src/mission-sources.js';
+import {annotateMissionDuplicates} from './src/mission-duplicates.js';
 
 const workerSource = await readFile(new URL('./src/index.js', import.meta.url), 'utf8');
 
@@ -52,6 +53,7 @@ test('/fleet/missions conserva fuentes canónicas, árbol público, orden y lím
   ];
   const context = {
     FLEET_MISSIONS_SQL,
+    annotateMissionDuplicates,
     attachDisplayRefs:async () => {},
     taskDisplayKey:(row) => `${row.mission_id}:${row.code}`,
     selectIn:async (_env, ids, sqlFor) => {
