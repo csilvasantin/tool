@@ -447,6 +447,10 @@ function arco(cx,cy,r,ri,a0,a1){
   const big=a1-a0>Math.PI?1:0, o0=P(r,a0),o1=P(r,a1),i0=P(ri,a0),i1=P(ri,a1);
   return "M"+o0.join(" ")+"A"+r+" "+r+" 0 "+big+" 1 "+o1.join(" ")+"L"+i1.join(" ")+"A"+ri+" "+ri+" 0 "+big+" 0 "+i0.join(" ")+"Z";
 }
+function quesitoSinMedida(){
+  return '<svg viewBox="0 0 200 200" role="img" aria-label="Sin medida de tokens por hora"><circle cx="100" cy="100" r="75" fill="none" stroke="var(--line2)" stroke-width="34" stroke-dasharray="4 6"/>'+
+    '<text class="hero" x="100" y="97" text-anchor="middle">—</text><text class="hero2" x="100" y="113" text-anchor="middle">sin medida por hora</text></svg>';
+}
 function quesito(segs,tot){
   // segs: [{k,nombre,v,color}] ya ordenados por peso; 2 px de hueco (trazo del color de la tarjeta).
   const cx=100,cy=100,r=92,ri=58; let a=-Math.PI/2;
@@ -564,7 +568,7 @@ function listaQueso(titulo,filas,cmap,tot,dia,per){
     let cuando="";
     if(per.k==="hora"||per.k==="dia"){ const ini=inicioHoy(r.owner,r.machine,dia); cuando=ini?'<span class="desde" title="empezó hoy a las '+hhmm(ini.t)+' · primera señal de hoy: '+esc(ini.src)+'">'+hhmm(ini.t)+' <small>'+esc(ini.src.split(" ")[0])+'</small></span>':'<span class="desde no" title="ninguna señal de hoy con hora">'+(cargando?'…':'sin hora')+'</span>'; }
     else { const t0=r.list.reduce((m,x)=>{const v=+x.started_at||+x.at||0; return v&&(!m||v<m)?v:m;},0); cuando=t0?'<span class="desde" title="primera misión del periodo: '+ddmm(t0)+' '+hhmm(t0)+'">'+ddmm(t0)+' <small>'+hhmm(t0)+'</small></span>':'<span class="desde no">sin misión</span>'; }
-    return '<div class="qr'+(on?' on':'')+'" data-k="'+esc(k)+'" data-owner="'+esc(r.owner)+'" role="button" tabindex="0" aria-expanded="'+on+'" title="pulsa para ver su última misión"><i class="sw" style="background:'+(cmap.get(r.owner)||"var(--s0)")+'"></i><b title="'+esc(r.owner)+'">'+esc(r.owner)+'</b><span class="pc" title="'+(t?fmtTok(t.total)+' tokens'+(t.est?' · estimación sin medidor local':''):'sin parte de consumo en el periodo')+'">'+(t&&t.est?'<span class="est">≈</span>':'')+(t&&tot>0?Math.round(100*t.total/tot)+' %':'—')+'</span>'+cuando+'</div>'+(on?qinfoHTML(r.owner):'');}).join("");
+    return '<div class="qr'+(on?' on':'')+'" data-k="'+esc(k)+'" data-owner="'+esc(r.owner)+'" role="button" tabindex="0" aria-expanded="'+on+'" title="pulsa para ver su última misión"><i class="sw" style="background:'+(cmap.get(r.owner)||"var(--s0)")+'"></i><b title="'+esc(r.owner)+'">'+esc(r.owner)+'</b><span class="pc" title="'+(t?fmtTok(t.total)+' tokens'+(t.est?' · estimación sin medidor local':''):(per.k==="hora"?'sin medida por hora'+(r.tokDia?' · parte de hoy: '+fmtTok(r.tokDia.total)+' tokens':''):'sin parte de consumo en el periodo'))+'">'+(t&&t.est?'<span class="est">≈</span>':'')+(t&&tot>0?Math.round(100*t.total/tot)+' %':'—')+'</span>'+cuando+'</div>'+(on?qinfoHTML(r.owner):'');}).join("");
   return '<div class="ql"><h4>'+titulo+'<span>% · '+((per.k==="hora"||per.k==="dia")?'empezó hoy':'primera misión')+'</span><b>'+filas.length+'</b></h4>'+(html||'<div class="nadie">nadie '+esc(per.l)+'</div>')+'</div>';
 }
 const filasGrupo=rows=>GRUPO==="flota"?rows:rows.filter(r=>esConsejero({owner:r.owner,machine:r.machine})===(GRUPO==="consejeros"));
@@ -597,7 +601,7 @@ async function cargaHist(per,dia){
 }
 async function cargaConsP(dias){
   const c=CONSP.get(dias); if(c&&Date.now()-c.t<MIS_TTL) return c; if(CONSP_PEND.has(dias)) return CONSP_PEND.get(dias);
-  const pr=(async()=>{ const out={t:Date.now(),list:null,err:"",dias}; try{ const r=await fetch(WORKER+"/fleet/consumo?dias="+dias,{cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status); const d=await r.json(); if(!d||!Array.isArray(d.por_agente)) throw new Error("respuesta incompleta"); out.list=d.por_agente; out.dias=+d.dias||dias; }catch(e){ out.err=String(e&&e.message||e); out.t=Date.now()-MIS_TTL+30000; } CONSP.set(dias,out); return out; })().finally(()=>CONSP_PEND.delete(dias));
+  const pr=(async()=>{ const out={t:Date.now(),list:null,err:"",dias}; try{ const r=await fetch(WORKER+"/fleet/consumo?dias="+dias,{cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status); const d=await r.json(); if(!d||!Array.isArray(d.por_agente)) throw new Error("respuesta incompleta"); out.list=d.por_agente; out.dias=+d.dias||dias; out.dias_partes=[...new Set((d.partes||[]).map(p=>p&&p.dia).filter(Boolean))].sort(); }catch(e){ out.err=String(e&&e.message||e); out.t=Date.now()-MIS_TTL+30000; } CONSP.set(dias,out); return out; })().finally(()=>CONSP_PEND.delete(dias));
   CONSP_PEND.set(dias,pr); return pr;
 }
 // Anchos de columna (asa en la cabecera), recordados en este navegador por tabla y columna.
@@ -645,17 +649,22 @@ function filasPeriodo(){
   if(ms&&per.k==="hora"){ const lim=Date.now()-3600000; ms=ms.filter(m=>Math.max(+m.at||0,+m.started_at||0,+m.finished_at||0)>=lim); }
   const porAg=new Map();
   for(const m of (ms||[])){ if(!m||!m.agent) continue; const k=canonM(m.agent); const g=porAg.get(k)||{k,nombre:m.agent,machine:m.machine||"",n:0,res:0,pts:0,list:[]}; g.n++; if(esCerrada(m.status)) g.res++; g.pts+=(+m.points||0)+(+m.race_bonus_points||0); g.list.push(m); porAg.set(k,g); }
-  const tok=new Map(); let consErr="", consDias=per.dias||1;
-  if(per.k==="hora"||per.k==="dia"){ for(const p of RK.deHoy){ const d=p.datos; tok.set(canonM(p.owner),{owner:p.owner,machine:p.machine,runtime:d.runtime||"",total:+d.total||0,entrada:+d.entrada||0,cache:+d.cache||0,salida:+d.salida||0,desp:+d.despertares||0,dups:+d.duplicados||0,foco:focoAhorro(d),est:esEstimado(d)}); } }
-  else { const c=CONSP.get(per.dias); if(c&&c.list){ consDias=c.dias; for(const a of c.list) tok.set(canonM(a.owner),{owner:a.owner,machine:a.machine||"",runtime:"",total:+a.total_tokens||0,entrada:+a.entrada||0,cache:+a.cache||0,salida:+a.salida||0,desp:null,dups:0,foco:"",est:false}); } else if(c&&c.err) consErr=c.err; }
+  // LOS TOKENS SE DECLARAN POR DÍA (Carlos, 6-sep-2026: «no puede ser que en 26 minutos hayamos consumido
+  // lo mismo que en todo el día»). En «hora» no hay medida: el parte diario se guarda aparte (tokDia) para
+  // el tooltip y la fila no afirma consumo. En semana/mes/siempre se dice de cuántos días de partes sale.
+  const tok=new Map(), tokDia=new Map(); let consErr="", consDias=per.dias||1, diasPartes=null;
+  for(const p of RK.deHoy){ const d=p.datos; tokDia.set(canonM(p.owner),{owner:p.owner,machine:p.machine,runtime:d.runtime||"",total:+d.total||0,entrada:+d.entrada||0,cache:+d.cache||0,salida:+d.salida||0,desp:+d.despertares||0,dups:+d.duplicados||0,foco:focoAhorro(d),est:esEstimado(d)}); }
+  if(per.k==="dia"){ for(const [k,v] of tokDia) tok.set(k,v); diasPartes=[RK.dia]; }
+  else if(per.k==="hora"){ diasPartes=[]; }
+  else { const c=CONSP.get(per.dias); if(c&&c.list){ consDias=c.dias; diasPartes=c.dias_partes||[]; for(const a of c.list) tok.set(canonM(a.owner),{owner:a.owner,machine:a.machine||"",runtime:"",total:+a.total_tokens||0,entrada:+a.entrada||0,cache:+a.cache||0,salida:+a.salida||0,desp:null,dups:0,foco:"",est:false}); } else if(c&&c.err) consErr=c.err; }
   const keys=new Set([...porAg.keys(),...tok.keys()]);
-  const rows=[...keys].map(k=>{ const g=porAg.get(k), t=tok.get(k); const owner=t?t.owner:g.nombre, machine=(t&&t.machine)||(g&&g.machine)||"";
-    return {k,owner,machine,runtime:t?t.runtime:"",n:g?g.n:0,res:g?g.res:0,pts:g?g.pts:0,list:g?g.list:[],tok:t||null}; });
+  const rows=[...keys].map(k=>{ const g=porAg.get(k), t=tok.get(k), td=tokDia.get(k); const owner=t?t.owner:(td?td.owner:g.nombre), machine=(t&&t.machine)||(td&&td.machine)||(g&&g.machine)||"";
+    return {k,owner,machine,runtime:t?t.runtime:(td?td.runtime:""),n:g?g.n:0,res:g?g.res:0,pts:g?g.pts:0,list:g?g.list:[],tok:t||null,tokDia:td||null}; });
   // Solo quien ha ESTADO ACTIVO en el periodo (con misiones en esa franja). Quien tiene consumo pero
   // ninguna misión en la franja no se lista; se dice cuántos son para que no desaparezcan en silencio.
-  const activos=ms?rows.filter(r=>r.n>0):rows, ocultos=rows.length-activos.length;
+  const activos=ms?rows.filter(r=>r.n>0):rows, ocultos=per.k==="hora"?0:rows.length-activos.length;
   const tot=activos.reduce((s,r)=>s+(r.tok?r.tok.total:0),0);
-  return {per,h,ms,rows:ordena(activos),ocultos,tot,consErr,consDias,cargandoHist:!h,cargandoCons:!(per.k==="hora"||per.k==="dia")&&!CONSP.get(per.dias)};
+  return {per,h,ms,rows:ordena(activos),ocultos,tot,consErr,consDias,diasPartes,sinMedida:per.k==="hora",cargandoHist:!h,cargandoCons:!(per.k==="hora"||per.k==="dia")&&!CONSP.get(per.dias)};
 }
 // COSTE POR MISIÓN (encargo #2581): consumo_reportar y consumo-tokens.py declaran tokens por agente y día,
 // no por misión. Hasta que lo declaren, el coste de cada misión es un REPARTO ESTIMADO del parte diario del
@@ -700,6 +709,7 @@ function hojaHTML(f){
       '<td>'+capturaCelda(r.owner,r.machine)+'</td>'+
       '<td class="num">'+r.n+'</td><td class="num">'+r.res+'</td><td class="num">'+r.pts+'</td>'+
       (t?'<td class="num">'+(t.est?'<span class="est" title="estimación declarada sin medidor local (consumo_reportar): no es una medida">≈ </span>':'')+fmtTok(t.total)+'</td><td class="num pc">'+(f.tot>0?Math.round(100*t.total/f.tot):0)+' %</td><td class="num pc">'+(pc==null?'—':pc+' %')+'</td><td class="num">'+fmtTok(t.salida)+'</td><td class="num'+(t.dups?' foco':'')+'">'+(t.desp==null?'—':t.desp+(t.dups?' ·'+t.dups+'dup':''))+'</td>'
+        :f.sinMedida?'<td class="num nd" colspan="5" title="el consumo se declara por día, no por hora'+(r.tokDia?' · parte de hoy: '+fmtTok(r.tokDia.total)+' tokens':'')+'">sin medida por hora'+(r.tokDia?' · hoy '+fmtTok(r.tokDia.total):'')+'</td>'
         :'<td class="num nd" colspan="5" title="sin parte de consumo en este periodo">sin parte de consumo</td>')+
       '<td class="nd">'+(ini?hhmm(ini.t)+' <small>'+esc(ini.src.split(" ")[0])+'</small>':(mc?'sin hora':'…'))+'</td>'+
       '</tr>'+
@@ -718,19 +728,22 @@ function pintaEstadisticas(f){
   const con=rowsG.filter(r=>r.tok);
   let segs=con.map(r=>({k:r.k,nombre:r.owner,v:r.tok.total,color:cmap.get(r.owner)})).filter(g=>g.v>0);
   if(segs.length>SLOTS){ const resto=segs.slice(SLOTS-1); segs=segs.slice(0,SLOTS-1).concat([{k:"otros",nombre:"otros ("+resto.length+")",v:resto.reduce((s,g)=>s+g.v,0),color:"var(--s0)"}]); }
-  const qs=$("qsvg"); if(qs) qs.innerHTML=quesito(segs,totG); const qg=$("qgrupo"); if(qg) qg.innerHTML=grupoHTML();
+  const qs=$("qsvg"); if(qs) qs.innerHTML=f.sinMedida?quesitoSinMedida():quesito(segs,totG); const qg=$("qgrupo"); if(qg) qg.innerHTML=grupoHTML();
   f=Object.assign({},f,{tot:totG});
   const ql=$("qlistas"); if(ql) ql.innerHTML=listasQueso(f);
   const sum=k=>con.reduce((s,r)=>s+(+r.tok[k]||0),0);
   const ent=sum("entrada"), cac=sum("cache"), sal=sum("salida"), pc=ent+cac>0?Math.round(100*cac/(ent+cac)):0;
   const conDesp=con.filter(r=>r.tok.desp!=null), desp=conDesp.reduce((s,r)=>s+r.tok.desp,0), dups=con.reduce((s,r)=>s+(+r.tok.dups||0),0);
-  const kpi=$("consKpi"); if(kpi) kpi.innerHTML=
-    '<span class="k"><b>'+(con.some(r=>r.tok.est)?'≈ ':'')+fmtTok(f.tot)+'</b>'+esc(f.per.cur)+(GRUPO!=="flota"?' · '+GRUPO:'')+' · '+con.length+' con parte</span>'+
+  const diasTxt=f.diasPartes&&f.diasPartes.length>0&&f.per.dias?' · partes de '+f.diasPartes.length+(f.diasPartes.length===1?' día ('+f.diasPartes[0]+')':' días ('+f.diasPartes[0]+' → '+f.diasPartes[f.diasPartes.length-1]+')'):'';
+  const kpi=$("consKpi"); if(kpi) kpi.innerHTML=(f.sinMedida
+    ?'<span class="k warn" title="el consumo se declara por día (consumo-tokens.py y consumo_reportar); no existe medida por hora"><b>—</b>sin medida por hora · parte de hoy '+fmtTok(RK.tot)+(GRUPO!=="flota"?' ('+GRUPO+': '+fmtTok(rowsG.reduce((s,r)=>s+(r.tokDia?r.tokDia.total:0),0))+')':'')+'</span>'
+    :'<span class="k" title="'+esc(f.per.k==="dia"?'parte del día':'acumulado de los partes del periodo'+diasTxt)+'"><b>'+(con.some(r=>r.tok.est)?'≈ ':'')+fmtTok(f.tot)+'</b>'+esc(f.per.cur)+(GRUPO!=="flota"?' · '+GRUPO:'')+' · '+con.length+' con parte'+esc(diasTxt)+'</span>')+
+    (f.sinMedida?'<span class="k"><b>—</b>caché</span><span class="k"><b>—</b>salida</span><span class="k"><b>—</b>despertares</span>':
     '<span class="k'+(pc<80?' warn':' good')+'"><b>'+pc+' %</b>caché</span>'+
     '<span class="k"><b>'+fmtTok(sal)+'</b>salida</span>'+
-    '<span class="k'+(dups>0?' warn':'')+'"><b>'+(conDesp.length?desp:"—")+'</b>despertares'+(dups?' · '+dups+' dup':'')+'</span>'+
+    '<span class="k'+(dups>0?' warn':'')+'"><b>'+(conDesp.length?desp:"—")+'</b>despertares'+(dups?' · '+dups+' dup':'')+'</span>')+
     '<span class="k'+(RK.sinParte?' warn':' good')+'" title="laten hoy y no han declarado consumo"><b>'+(RK.sinParte||0)+'</b>vivos sin declarar</span>';
-  const cd=$("consDia"); if(cd) cd.textContent=(f.per.k==="dia"?(RK.dia===hoyISO()?"hoy · ":"último parte · ")+RK.dia:f.per.k==="hora"?"última hora · "+RK.dia:f.h&&f.h.rango?f.per.cur+" · "+f.h.rango.desde+" → "+f.h.rango.hasta:f.per.cur);
+  const cd=$("consDia"); if(cd) cd.textContent=(f.per.k==="dia"?(RK.dia===hoyISO()?"hoy · ":"último parte · ")+RK.dia:f.per.k==="hora"?"última hora · misiones sí, tokens no (se declaran por día)":f.h&&f.h.rango?f.per.cur+" · "+f.h.rango.desde+" → "+f.h.rango.hasta+diasTxt:f.per.cur);
 }
 function pintaRanking(){ const f=filasPeriodo(); const el=$("rk"); if(el&&RK&&f) el.innerHTML=cabeceraPeriodo(f)+hojaHTML(f); pintaEstadisticas(f); }
 async function cargaPeriodo(){

@@ -170,3 +170,12 @@ test("encargo #2581: quesito por grupo (flota, agentes, consejeros) con % relati
   assert.match(html, /const esEstimado=d=>\/estimaci\|sin medidor\|sin-medidor\/i/);
   assert.match(html, /estimación declarada sin medidor local/, "un parte sin medidor nunca sale como cifra exacta");
 });
+
+test("en «hora» no se afirma consumo: los tokens se declaran por día y la vista lo dice; semana y mes dicen de cuántos días de partes salen", () => {
+  assert.match(html, /else if\(per\.k==="hora"\)\{ diasPartes=\[\]; \}/, "en hora no se cargan tokens al periodo");
+  assert.match(html, /sin medida por hora/);
+  assert.match(html, /function quesitoSinMedida\(\)/);
+  assert.match(html, /f\.sinMedida\?quesitoSinMedida\(\):quesito\(segs,totG\)/);
+  assert.match(html, /partes de '\+f\.diasPartes\.length/);
+  assert.match(html, /out\.dias_partes=\[\.\.\.new Set\(\(d\.partes\|\|\[\]\)\.map\(p=>p&&p\.dia\)/);
+});
