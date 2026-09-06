@@ -106,9 +106,12 @@ echo "  ✓ $SELLO · $ADMIRA_RELEASE_AGENT · $ADMIRA_RELEASE_MACHINE"
 # se cae a la sesión OAuth si existe. Así cualquier Mac de la flota puede publicar.
 echo "→ Credencial de Cloudflare…"
 CUENTA_WORKER="$(sed -nE 's/^account_id *= *"([0-9a-f]+)".*/\1/p' wrangler.toml | head -1)"
-cuenta_del_token() {   # imprime el account_id al que da acceso el token (vacío si no vale)
-  curl -fsS -m 15 "https://api.cloudflare.com/client/v4/accounts?per_page=50" -H "Authorization: Bearer $1" 2>/dev/null \
-    | jq -r '.result[]?.id' 2>/dev/null | grep -x "$CUENTA_WORKER" | head -1
+cuenta_del_token() {   # imprime el account_id si el token puede DESPLEGAR WORKERS en la cuenta del worker (vacío si no)
+  # No basta con que el token «vea» la cuenta: el 6-sep el CLOUDFLARE_API_TOKEN de la bóveda (permiso de
+  # Pages) pasaba esa criba y luego wrangler moría con «Authentication error 10000» al tocar
+  # /workers/services. Se comprueba el permiso real sobre Workers Scripts.
+  curl -fsS -m 15 "https://api.cloudflare.com/client/v4/accounts/$CUENTA_WORKER/workers/scripts?per_page=1" -H "Authorization: Bearer $1" 2>/dev/null \
+    | jq -r 'if .success then "'"$CUENTA_WORKER"'" else empty end' 2>/dev/null | head -1
 }
 if [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && [ -z "$(cuenta_del_token "$CLOUDFLARE_API_TOKEN")" ]; then
   echo "  ⚠ el CLOUDFLARE_API_TOKEN del entorno no es de la cuenta $CUENTA_WORKER: se descarta"
@@ -120,7 +123,7 @@ if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
     export CLOUDFLARE_API_TOKEN="$VAULT_TOKEN"
     echo "  ✓ token de la bóveda (CLOUDFLARE_API_TOKEN) · cuenta $CUENTA_WORKER"
   else
-    echo "  · sin token válido de la bóveda: se usará la sesión OAuth de wrangler de este Mac (si la hay)"
+    echo "  · la bóveda no tiene un token con permiso de Workers para esta cuenta (CLOUDFLARE_API_TOKEN sólo llega a Pages): se usa la sesión OAuth de wrangler de este Mac (si la hay)"
   fi
 fi
 unset VAULT_TOKEN
