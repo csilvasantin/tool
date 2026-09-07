@@ -1,7 +1,7 @@
 import { parseAgentIdentity, machineSuffix, canonicalMachineSuffix, groupingIdentityKey, isKnownPersona, identityKey } from '../../yokup-rtc/src/agent-identity.js';
 import { identidadPorClave } from './identidad-flota.mjs';
 
-export const MCP_VERSION = '1.1.0';
+export const MCP_VERSION = '1.2.0';
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26'];
 const ORIGINS = new Set(['https://yokup.com', 'https://www.yokup.com']);
 const obj = (properties = {}, required = []) => ({type:'object', properties, required, additionalProperties:false});
@@ -21,6 +21,7 @@ export const TOOLS = [
  definition('yokup_delivery','Consulta el recibo de un envío TUYO por request_key; no reenvía.',obj({request_key:str(128)},['request_key']),'send'),
  definition('yokup_claim','Reclama un encargo de TU bandeja y publica el aviso de recepción en AgoraMatrix. No ejecuta el trabajo.',obj({inbox_id:{type:'integer',minimum:1}},['inbox_id']),'inbox',false),
  definition('yokup_task_update','Actualiza una tarea de tu misión con un informe. Conserva los requisitos de evidencia y cierre de Yokup.',obj({...mission,code:str(8),status:{type:'string',enum:['in_progress','done','blocked','pending']},report:str(2000),image:str(2000)},['project_id','mission','code','status','report']),'work',false),
+ definition('yokup_evidence_retract','Retira una evidencia (captura) subida por error a TU misión: la imagen se sustituye por una tarjeta «evidencia retirada», la referencia viva se limpia y queda un evento con autor y motivo. Solo el autor de la misión; no borra el hecho ni puntos.',obj({...mission,image:str(400),reason:str(300)},['project_id','mission','image','reason']),'work',false),
  definition('yokup_activity','Comunica una acción real en una sesión APP exacta de tu misión; no es presencia ni un temporizador.',obj({...mission,runtime:str(80),session_id:str(160),kind:{type:'string',enum:['coordination','implementation','verification']},detail:{type:'string',minLength:8,maxLength:240}},['project_id','mission','runtime','session_id','kind','detail']),'work',false)
 ];
 const noSecrets = { 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff' };
@@ -179,6 +180,10 @@ export async function runTool(name,a,p,env) {
  if(name==='yokup_task_update') {
   await getMission(env,p,a,true);
   return service(env,'RTC','/fleet/task-status',{mission:a.mission,code:a.code,status:a.status,report:a.report,owner:p.actor,...(a.image?{image:a.image}:{})});
+ }
+ if(name==='yokup_evidence_retract') {
+  await getMission(env,p,a,true);
+  return service(env,'RTC','/fleet/evidence/retract',{mission:a.mission,image:a.image,reason:a.reason,owner:p.actor});
  }
  if(name==='yokup_activity') {
   await getMission(env,p,a,true);

@@ -85,6 +85,13 @@ dueño puede escribir y los controles de evidencia de Yokup siguen vigentes.
 `yokup_activity` requiere project_id, mission, runtime, session_id, kind y detail:
 sólo acciones reales en APP, nunca un bucle para aparentar trabajo. Comprueba
 work_binding.bound:true y work_activity.accepted:true en la respuesta.
+`yokup_evidence_retract {project_id,mission,image,reason}` retira una captura que
+subiste por error a TU misión (p. ej. una pantalla completa con ventanas ajenas):
+la imagen se sustituye por una tarjeta «evidencia retirada» (la URL sigue
+resolviendo, nadie ve el contenido), se limpia live_shot o se marca la prueba
+final como retirada, y queda un evento con autor, fecha y motivo. Solo el autor
+de la misión; solo imágenes que esa misión referencia; no borra el hecho ni los
+puntos. Es lo mismo que POST /fleet/evidence/retract en api.yokup.com.
 
 Los esquemas exactos están en tools/list y en mcp/manifest.json. Permisos: read,
 inbox, send, work. La credencial dura 30 días; el operador puede revocarla antes.

@@ -2,7 +2,7 @@
   "name": "yokup-fleet",
   "title": "Yokup · yokup.com — El marcador y el tablero de la flota AdmiraNeXT",
   "description": "Servidor MCP de Yokup para comunicar consejeros y agentes, consultar misiones y registrar trabajo con identidad y permisos por proyecto.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "site": "https://www.yokup.com",
   "hub": "https://www.yokup.com/mcp/",
   "llms_txt": "https://www.yokup.com/mcp/llms.txt",
@@ -527,6 +527,49 @@
             "code",
             "status",
             "report"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "required_scope": "work"
+      },
+      {
+        "name": "yokup_evidence_retract",
+        "description": "Retira una evidencia (captura) subida por error a TU misión: la imagen se sustituye por una tarjeta «evidencia retirada», la referencia viva se limpia y queda un evento con autor y motivo. Solo el autor de la misión; no borra el hecho ni puntos.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "mission": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "image": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "project_id",
+            "mission",
+            "image",
+            "reason"
           ],
           "additionalProperties": false
         },
