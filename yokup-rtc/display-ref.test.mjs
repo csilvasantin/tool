@@ -4,12 +4,30 @@ import fs from "node:fs";
 import {
   epochMillis,
   formatDisplayRef,
+  formatMissionDelDia,
   madridDayKey,
+  parseMissionDelDia,
   sortDisplayRefCandidates,
 } from "./src/display-ref.js";
 
 const source = fs.readFileSync(new URL("./src/index.js", import.meta.url), "utf8");
 const migration = fs.readFileSync(new URL("./migrations/0003_display_refs.sql", import.meta.url), "utf8");
+
+test("misión del día: Hoy #N hoy y DD mon · #N en historial; parseo Hoy #N | 7 sep #N | FLT", () => {
+  const during = Date.parse("2026-09-07T10:00:00+02:00");
+  const laterDay = Date.parse("2026-09-08T10:00:00+02:00");
+  const today = formatMissionDelDia(175, "2026-09-07", during);
+  assert.equal(today.label, "Hoy #175");
+  assert.equal(today.n, 175);
+  assert.equal(today.day, "2026-09-07");
+  const hist = formatMissionDelDia(12, "2026-09-07", laterDay);
+  assert.equal(hist.label, "7 sep · #12");
+  assert.deepEqual(parseMissionDelDia("Hoy #175", during), { kind: "hoy", n: 175, day: "2026-09-07" });
+  assert.deepEqual(parseMissionDelDia("7 sep #12", during), { kind: "hist", n: 12, day: "2026-09-07" });
+  assert.deepEqual(parseMissionDelDia("7 sep · #12", during), { kind: "hist", n: 12, day: "2026-09-07" });
+  assert.equal(parseMissionDelDia("FLT-100061").id, "FLT-100061");
+  assert.equal(parseMissionDelDia("0175.07/09/2026.08:38").n, 175);
+});
 
 test("formato canónico exacto en Europe/Madrid, sin prefijos", () => {
   const instant = Date.parse("2026-08-04T06:49:00Z");
@@ -72,7 +90,7 @@ test("las respuestas de las cuatro vistas reciben display_ref de forma aditiva",
   for (const type of ["objective", "window", "mission", "task"]) {
     assert.match(source, new RegExp(`attachDisplayRefs\\(env, "${type}"`));
   }
-  assert.match(source, /list\[i\]\.display_ref = refs\.get\(displayRefMapKey/);
+  assert.match(source, /list\[i\]\.display_ref = humanDisplayRef\(entityType, rec\)/);
   assert.match(source, /display_ref: chosen\.display_ref/);
   assert.match(source, /row\.mission_display_ref = missionRefs\.get\(row\.mission_id\) \|\| ""/);
 });

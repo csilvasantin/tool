@@ -746,7 +746,8 @@
     var host = t.agent_host === "cli" ? "CLI" : t.agent_host === "app" ? "Desktop App" : "";
     var surface = [rt, host].filter(Boolean).join(" · ");
     var sourceLabel = missionSourceLabel(t);
-    var idHtml = '<div class="tkid" title="Referencia interna: ' + esc(t.id) + '">' + esc(visibleId(t)) +
+    var idHtml = '<div class="tkid" title="ID técnico: ' + esc(t.id) + '">' +
+      (window.YkDisplayRef && window.YkDisplayRef.screenHtml ? window.YkDisplayRef.screenHtml(t, esc) : esc(visibleId(t))) +
       (CFG.projectIdLayout ? "" : '<span class="st">' + esc(sourceLabel) + "</span>") +
       (pm.flag ? '<span class="prioflag' + (esPrio ? " abs" : "") + '">' + (esPrio ? "⚡ " : "") + esc(pm.flag) + "</span>" : "") + "</div>";
     var shotHtml = '<div class="cel shot">' + missionPreviewHtml(t) + "</div>";

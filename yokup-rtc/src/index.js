@@ -17,7 +17,7 @@ import { AgentStopError, dispatchAgentStart, dispatchAgentStop, normalizeAgentSt
 import { dispatchCliTerminal, normalizeCliTerminalRequest, readCliTerminalResult, verifyCliTerminalTarget } from "./fleet-cli-terminal.js";
 import { authorizeDesktopCaptureClear, clearDesktopCapture, dispatchDesktopCapture, dispatchDesktopVerifyClose, dispatchDesktopWrite, readDesktopResult } from "./fleet-desktop.js";
 import { PtyRoom } from "./pty-room.js";
-import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, madridDayKey, madridDayStart, sortDisplayRefCandidates } from "./display-ref.js";
+import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, formatMissionDelDia, madridDayKey, madridDayStart, parseMissionDelDia, sortDisplayRefCandidates } from "./display-ref.js";
 import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_NOVELTY_INSERT_SQL, MISSION_NOVELTY_RECENT_SQL, MISSION_NOVELTY_TABLE_SQL, missionNoveltyContract, missionNoveltyEventKey } from "./mission-novelty.js";
 import { annotateMissionDuplicates } from "./mission-duplicates.js";
 import { PROJECT_NOVELTY_INDEX_SQL, PROJECT_NOVELTY_INSERT_SQL, PROJECT_NOVELTY_RECENT_SQL, PROJECT_NOVELTY_TABLE_SQL, projectNoveltyContract, projectNoveltyEventKey } from "./project-novelty.js";
@@ -660,9 +660,11 @@ async function readEntityDisplayRefs(env, items) {
     for (let i = 0; i < keys.length; i += 80) {
       const chunk = keys.slice(i, i + 80), placeholders = chunk.map(() => "?").join(",");
       const result = await env.DB.prepare(
-        `SELECT entity_type,entity_key,display_ref FROM display_refs WHERE entity_type=? AND entity_key IN (${placeholders})`
+        `SELECT entity_type,entity_key,display_ref,day,seq FROM display_refs WHERE entity_type=? AND entity_key IN (${placeholders})`
       ).bind(entityType, ...chunk).all();
-      for (const row of result.results || []) found.set(displayRefMapKey(row.entity_type, row.entity_key), row.display_ref);
+      for (const row of result.results || []) found.set(displayRefMapKey(row.entity_type, row.entity_key), {
+        raw: row.display_ref, day: row.day, seq: row.seq, entity_type: row.entity_type, entity_key: row.entity_key
+      });
     }
   }
   return found;
@@ -715,11 +717,19 @@ async function ensureManyEntityDisplayRefs(env, rawItems) {
 }
 __name(ensureManyEntityDisplayRefs, "ensureManyEntityDisplayRefs");
 
+function humanDisplayRef(entityType, rec) {
+  if (!rec) return "";
+  if (entityType === "mission" && rec.seq != null && rec.day) return formatMissionDelDia(rec.seq, rec.day).label;
+  return rec.raw || "";
+}
+__name(humanDisplayRef, "humanDisplayRef");
+
 async function ensureEntityDisplayRef(env, entityType, entityKey, createdAt) {
   const refs = await ensureManyEntityDisplayRefs(env, [{ entity_type:entityType, entity_key:entityKey, entity_created_at:createdAt }]);
-  const visible = refs.get(displayRefMapKey(entityType, String(entityKey || "").trim()));
-  if (!visible) throw new Error("no se pudo persistir display_ref");
-  return visible;
+  const rec = refs.get(displayRefMapKey(entityType, String(entityKey || "").trim()));
+  const visible = humanDisplayRef(entityType, rec);
+  if (!visible && !(rec && rec.raw)) throw new Error("no se pudo persistir display_ref");
+  return visible || rec.raw;
 }
 __name(ensureEntityDisplayRef, "ensureEntityDisplayRef");
 
@@ -757,10 +767,36 @@ async function attachDisplayRefs(env, entityType, rows, keyOf, createdOf) {
   // de una página nunca decide quién recibe el número menor.
   await backfillDisplayRefDays(env, items.map((item) => madridDayKey(item.entity_created_at)));
   const refs = await ensureManyEntityDisplayRefs(env, items);
-  for (let i = 0; i < list.length; i++) list[i].display_ref = refs.get(displayRefMapKey(entityType, String(items[i].entity_key || "").trim())) || "";
+  for (let i = 0; i < list.length; i++) {
+    const rec = refs.get(displayRefMapKey(entityType, String(items[i].entity_key || "").trim()));
+    const alias = rec && rec.seq != null ? formatMissionDelDia(rec.seq, rec.day) : null;
+    list[i].display_ref = humanDisplayRef(entityType, rec);
+    if (entityType === "mission" && alias) {
+      list[i].display_n = alias.n;
+      list[i].display_day = alias.day;
+    }
+  }
   return rows;
 }
 __name(attachDisplayRefs, "attachDisplayRefs");
+
+async function resolveMissionDelDia(env, query) {
+  const parsed = parseMissionDelDia(query);
+  if (!parsed) return { ok: false, code: "alias_unrecognized", query: String(query || "") };
+  if (parsed.kind === "flt") {
+    const row = await env.DB.prepare("SELECT id,created_at FROM tickets WHERE id=?").bind(parsed.id).first();
+    if (!row) return { ok: false, code: "not_found", kind: "flt", id: parsed.id };
+    await attachDisplayRefs(env, "mission", [row], (r) => r.id, (r) => r.created_at);
+    return { ok: true, id: row.id, display_ref: row.display_ref, display_n: row.display_n, display_day: row.display_day };
+  }
+  const hit = await env.DB.prepare(
+    "SELECT entity_key,day,seq FROM display_refs WHERE entity_type='mission' AND day=? AND seq=?"
+  ).bind(parsed.day, parsed.n).first();
+  if (!hit) return { ok: false, code: "not_found", kind: parsed.kind, n: parsed.n, day: parsed.day };
+  const alias = formatMissionDelDia(hit.seq, hit.day);
+  return { ok: true, id: hit.entity_key, display_ref: alias.label, display_n: alias.n, display_day: alias.day };
+}
+__name(resolveMissionDelDia, "resolveMissionDelDia");
 
 // ── IDEAS / OBJETIVOS ─────────────────────────────────────────────────────────
 // Las 8 sillas del Consejo AdmiraNeXT (== array CONSEJO de yokup-site/objetivos.html):
@@ -9968,8 +10004,16 @@ var worker_app = {
       response.headers.set("cache-control", "no-store");
       return response;
     }
+    if (url.pathname === "/fleet/alias" && req.method === "GET") {
+      await ensureSchema(env);
+      await ensureDisplayRefSchema(env);
+      const q = String(url.searchParams.get("q") || "").trim();
+      if (!q) return json({ ok: false, error: "q requerido (Hoy #N | 7 sep #N | FLT-…)" }, 400);
+      return json(await resolveMissionDelDia(env, q));
+    }
     if (url.pathname === "/fleet/missions") {
       await ensureSchema(env);
+      const aliasQ = String(url.searchParams.get("q") || "").trim();
       const filters = normalizeFleetMissionsFilters({
         agent:url.searchParams.get("agent"), machine:url.searchParams.get("machine"),
         project_id:url.searchParams.get("project_id"), status:url.searchParams.get("status"),
@@ -9977,6 +10021,11 @@ var worker_app = {
       });
       if (!filters.ok) return json({ ok:false, error:filters.error, applied:false }, 400);
       const missions = await fleetMissions(env, filters);
+      if (aliasQ) {
+        const hit = await resolveMissionDelDia(env, aliasQ);
+        const filtered = hit && hit.ok ? missions.filter((m) => m.id === hit.id) : [];
+        return json({ missions: filtered, alias: hit });
+      }
       if (!filters.filtered) return json({ missions });
       const q = fleetMissionsQuery(filters, {
         agentSqlKey:agentFamilySqlKey, agentKey:agentFamilyKey,

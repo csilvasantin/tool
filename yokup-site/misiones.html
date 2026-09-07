@@ -7,14 +7,14 @@
 <link rel="icon" type="image/png" href="/favicon-32x32.png?v=v.2026.08.02.224605" sizes="32x32">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=v.2026.08.02.224605">
 <script src="/acceso.js?v=20260811-r4-d77633add752"></script>
-<script src="/yk-display-ref.js?v=1"></script>
+<script src="/yk-display-ref.js?v=2"></script>
 <title>Misiones · Yokup</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#02080d">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r17">
-<link rel="stylesheet" href="/yk-misiones.css?v=v.2026.08.02.224605">
+<link rel="stylesheet" href="/yk-misiones.css?v=v.2026.09.07.r1">
 <link rel="stylesheet" href="/yk-cabezal.css?v=r3">
 <style>
 /* Segmentación dentro del raíl de opciones: apilada y a lo ancho del panel. */
@@ -300,7 +300,7 @@ h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 10px;displa
 
 <script src="/yk-agent-identity.js?v=v.2026.08.02.224605"></script>
 <script src="/yk-maquina.js?v=r1"></script>
-<script src="/yk-misiones.js?v=v.2026.08.02.224605"></script>
+<script src="/yk-misiones.js?v=v.2026.09.07.r1"></script>
 <script src="/yk-mission-duplicates.js?v=1"></script>
 <script src="/yk-adjuntos.js?v=r3"></script>
 <script src="/yk-cabezal.js?v=r4"></script>
@@ -751,7 +751,10 @@ async function load(){
   if(q){
     const nrm=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
     const nq=nrm(q);
-    list=list.filter(t=>(t._members||[t]).some(member=>[member.subject,member.id,member.assignee,YkMisiones.machineOf(member),member.screen].some(v=>nrm(v).includes(nq))));
+    list=list.filter(t=>(t._members||[t]).some(function(member){
+      if (window.YkDisplayRef && window.YkDisplayRef.matchesQuery && window.YkDisplayRef.matchesQuery(member, q)) return true;
+      return [member.subject,member.id,member.assignee,member.display_ref,YkMisiones.machineOf(member),member.screen].some(v=>nrm(v).includes(nq));
+    }));
   }
   const sk=SORTERS[SORT.k]||SORTERS.fecha;
   list=list.slice().sort((a,b)=>{const va=sk(a),vb=sk(b);const c=va<vb?-1:(va>vb?1:0);return SORT.dir==="asc"?c:-c;});

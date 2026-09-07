@@ -61,6 +61,59 @@ export function formatDisplayRef(sequence, value) {
   return `${number}.${part.day}/${part.month}/${part.year}.${part.hour}:${part.minute}`;
 }
 
+/** N de la misión del día: el seq persistido (sin padding). FLT no se toca. */
+export const MONTHS_ES = Object.freeze(["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]);
+
+export function dailyN(sequence) {
+  return Math.max(0, Math.floor(Number(sequence) || 0));
+}
+
+export function formatHistAlias(sequence, dayOrTs) {
+  const n = dailyN(sequence);
+  let day = "", mon = "", d = "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(dayOrTs || ""))) {
+    const [y, m, dd] = String(dayOrTs).split("-");
+    day = `${y}-${m}-${dd}`;
+    mon = MONTHS_ES[Number(m) - 1] || m;
+    d = String(Number(dd));
+  } else {
+    const part = madridParts(dayOrTs);
+    day = `${part.year}-${part.month}-${part.day}`;
+    mon = MONTHS_ES[Number(part.month) - 1] || part.month;
+    d = String(Number(part.day));
+  }
+  return { n, day, label: `${d} ${mon} · #${n}` };
+}
+
+/** Rótulo humano de la misión del día. Interno = FLT. Fuera = Hoy #N o DD mon · #N. */
+export function formatMissionDelDia(sequence, dayOrTs, now = Date.now()) {
+  const hist = formatHistAlias(sequence, dayOrTs);
+  const isToday = hist.day === madridDayKey(now);
+  const hoy = `Hoy #${hist.n}`;
+  return { n: hist.n, day: hist.day, hoy, hist: hist.label, isToday, label: isToday ? hoy : hist.label };
+}
+
+export function parseMissionDelDia(query, now = Date.now()) {
+  const q = String(query || "").trim().replace(/\s+/g, " ");
+  if (!q) return null;
+  const flt = /^(FLT-\d+)$/i.exec(q);
+  if (flt) return { kind: "flt", id: flt[1].replace(/^flt/i, "FLT") };
+  const hoy = /^hoy\s*#?\s*(\d+)$/i.exec(q);
+  if (hoy) return { kind: "hoy", n: Number(hoy[1]), day: madridDayKey(now) };
+  const hist = /^(\d{1,2})\s*(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\.?\s*[·.,]?\s*#?\s*(\d+)$/i.exec(q);
+  if (hist) {
+    const mon = MONTHS_ES.indexOf(hist[2].toLowerCase()) + 1;
+    const year = madridParts(now).year;
+    const day = `${year}-${String(mon).padStart(2, "0")}-${String(Number(hist[1])).padStart(2, "0")}`;
+    return { kind: "hist", n: Number(hist[3]), day };
+  }
+  const legacy = /^(\d{1,4})\.(\d{2})\/(\d{2})\/(\d{4})\./.exec(q);
+  if (legacy) {
+    return { kind: "legacy", n: Number(legacy[1]), day: `${legacy[4]}-${legacy[3]}-${legacy[2]}` };
+  }
+  return null;
+}
+
 export const DISPLAY_REF_ENTITY_TYPES = Object.freeze(["objective", "window", "mission", "task"]);
 
 export function sortDisplayRefCandidates(rows) {
