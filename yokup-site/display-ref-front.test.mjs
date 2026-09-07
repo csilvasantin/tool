@@ -12,9 +12,21 @@ test('display_ref del worker siempre gana y no se altera',()=>{
   assert.equal(windowObj.YkDisplayRef.of({display_ref:'0042.04/08/2026.09:17',created_at:1}),'0042.04/08/2026.09:17');
 });
 
-test('fallback común usa 0000, fecha completa con año y hora de Madrid',()=>{
-  assert.equal(windowObj.YkDisplayRef.of({created_at:Date.UTC(2026,7,4,6,49)}),'0000.04/08/2026.08:49');
-  assert.equal(windowObj.YkDisplayRef.of({}),'0000.--/--/----.--:--');
+// MISIÓN DEL DÍA (Carlos → Wozniak → Smith, encargo #2815, 7-sep-2026): hacia fuera una misión
+// se nombra «Hoy #N» (contador del día en Madrid) y en historial «7 sep · #N»; el FLT sigue
+// dentro y se pinta en gris. El fallback 0000.DD/MM/AAAA.HH:MM de la regla anterior desaparece:
+// sin alias no se inventa nada y en pantalla queda el FLT.
+test('misión del día: Hoy #N si es de hoy, «D mon · #N» en historial, y sin alias no se inventa nada',()=>{
+  const hoy=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  assert.equal(windowObj.YkDisplayRef.of({display_n:12,display_day:hoy,created_at:1}),'Hoy #12');
+  assert.equal(windowObj.YkDisplayRef.of({display_n:12,display_day:'2026-09-07',created_at:1}).replace('Hoy #12','7 sep · #12'),'7 sep · #12');
+  assert.equal(windowObj.YkDisplayRef.of({display_n:3,display_day:'2026-08-04',created_at:1}),'4 ago · #3');
+  assert.equal(windowObj.YkDisplayRef.of({created_at:Date.UTC(2026,7,4,6,49)}),'', 'sin alias del worker no se inventa una secuencia');
+  assert.equal(windowObj.YkDisplayRef.of({}),'');
+  assert.match(windowObj.YkDisplayRef.screenHtml({id:'FLT-100061',display_n:12,display_day:hoy},s=>s),/<span class="mision-dia">Hoy #12<\/span><span class="flt-id">FLT-100061<\/span>/,'alias grande + FLT en gris');
+  assert.match(windowObj.YkDisplayRef.screenHtml({id:'FLT-100061'},s=>s),/<span class="mision-dia">FLT-100061<\/span>/,'sin alias, en pantalla queda el FLT');
+  assert.ok(windowObj.YkDisplayRef.matchesQuery({id:'FLT-100061',display_n:12,display_day:hoy},'hoy #12'));
+  assert.ok(windowObj.YkDisplayRef.matchesQuery({id:'FLT-100061',display_n:12,display_day:hoy},'FLT-100061'));
 });
 
 test('las cuatro vistas cargan la fuente común y conservan ids técnicos en acciones',()=>{
@@ -32,9 +44,11 @@ test('Objetivos, Decisiones, Misiones y Tareas pintan la referencia humana',()=>
   assert.match(files['yk-misiones.js'],/class="scode"[\s\S]*visibleId\(t\)/);
 });
 
-test('la normativa incluye año y documenta el fallback no inventado',()=>{
-  assert.match(files['normativa.html'],/NNNN\.DD\/MM\/AAAA\.HH:MM/);
-  assert.match(files['normativa.html'],/0000\.DD\/MM\/AAAA\.HH:MM/);
+test('la normativa documenta la misión del día: Hoy #N fuera, FLT dentro, y cómo se resuelve',()=>{
+  assert.match(files['normativa.html'],/Hoy #N/);
+  assert.match(files['normativa.html'],/FLT-########/);
+  assert.match(files['normativa.html'],/\/fleet\/alias\?q=/);
+  assert.doesNotMatch(files['normativa.html'],/0000\.DD\/MM\/AAAA\.HH:MM/,'el fallback 0000 de la regla anterior ya no se documenta');
 });
 
 test('Tareas no confunde la referencia de la misión con la de cada tarea',()=>{
