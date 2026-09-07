@@ -653,6 +653,19 @@ function displayRefMapKey(entityType, entityKey) {
 }
 __name(displayRefMapKey, "displayRefMapKey");
 
+function recFromStored(row) {
+  const raw = String(row && row.display_ref || "");
+  const parsed = parseMissionDelDia(raw) || {};
+  return {
+    raw,
+    seq: row && row.seq != null ? row.seq : (parsed.n != null ? parsed.n : null),
+    day: row && row.day || parsed.day || "",
+    entity_type: row && row.entity_type,
+    entity_key: row && row.entity_key
+  };
+}
+__name(recFromStored, "recFromStored");
+
 async function readEntityDisplayRefs(env, items) {
   const found = new Map();
   for (const entityType of DISPLAY_REF_ENTITY_TYPES) {
@@ -660,11 +673,9 @@ async function readEntityDisplayRefs(env, items) {
     for (let i = 0; i < keys.length; i += 80) {
       const chunk = keys.slice(i, i + 80), placeholders = chunk.map(() => "?").join(",");
       const result = await env.DB.prepare(
-        `SELECT entity_type,entity_key,display_ref,day,seq FROM display_refs WHERE entity_type=? AND entity_key IN (${placeholders})`
+        `SELECT entity_type,entity_key,display_ref FROM display_refs WHERE entity_type=? AND entity_key IN (${placeholders})`
       ).bind(entityType, ...chunk).all();
-      for (const row of result.results || []) found.set(displayRefMapKey(row.entity_type, row.entity_key), {
-        raw: row.display_ref, day: row.day, seq: row.seq, entity_type: row.entity_type, entity_key: row.entity_key
-      });
+      for (const row of result.results || []) found.set(displayRefMapKey(row.entity_type, row.entity_key), recFromStored(row));
     }
   }
   return found;
