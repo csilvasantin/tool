@@ -38,6 +38,9 @@ test("el censo agrupa un sitio por host y los proyectos con ruta heredan sus pue
   assert.deepEqual(sitios[0].proyectos.map((p) => p.id), ["yokup"]);
   assert.deepEqual(sitios[0].hereda.map((p) => p.id), ["smith-ascii"]);
   assert.deepEqual(hostDe("admira.tv/cms"), { host: "admira.tv", path: "/cms" });
+  const tv = sitiosDelCenso([{ id: "generador-de-informes", name: "Informes", web: "admira.live/informes" }, { id: "admira-live", name: "Admira Live", web: "https://www.admira.live" }, { id: "admira-tv", name: "Admira TV", web: "admira.tv" }]);
+  assert.deepEqual(tv.map((s) => s.host), ["admira.live", "admira.tv"].map((d) => (d === "admira.live" ? "www.admira.live" : d)), "www y raíz son el mismo sitio; se mide por el host que declare el censo");
+  assert.deepEqual(tv[0].hereda.map((p) => p.id), ["generador-de-informes"]);
 });
 
 test("del manifiesto solo salen endpoints MCP de verdad, sin llms ni ficheros", () => {

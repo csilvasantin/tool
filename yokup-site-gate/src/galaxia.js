@@ -28,17 +28,24 @@ export function hostDe(web) {
   } catch (_) { return null; }
 }
 
-/** Sitios del censo: un sitio por host; los proyectos con ruta heredan las puertas del host. */
+/**
+ * Sitios del censo: un sitio por dominio; los proyectos con ruta heredan las puertas del dominio.
+ * «admira.tv/cms» y «https://www.admira.tv» son el MISMO sitio (el censo escribe el dominio de
+ * varias formas): se agrupa sin el «www.» y se mide por el host que declare el censo, con www si
+ * alguien lo escribió así. Las redirecciones www↔raíz se siguen al medir.
+ */
 export function sitiosDelCenso(proyectos) {
-  const porHost = new Map();
+  const porDominio = new Map();
   for (const p of proyectos || []) {
     const h = hostDe(p.web || p.project_web);
     if (!h) continue;
-    const s = porHost.get(h.host) || { host: h.host, base: "https://" + h.host, proyectos: [], hereda: [] };
+    const dominio = h.host.replace(/^www\./, "");
+    const s = porDominio.get(dominio) || { host: h.host, base: "https://" + h.host, proyectos: [], hereda: [] };
+    if (h.host.startsWith("www.") && !s.host.startsWith("www.")) { s.host = h.host; s.base = "https://" + h.host; }
     (h.path ? s.hereda : s.proyectos).push({ id: p.id, name: p.name, web: p.web || p.project_web });
-    porHost.set(h.host, s);
+    porDominio.set(dominio, s);
   }
-  return [...porHost.values()].sort((a, b) => a.host.localeCompare(b.host));
+  return [...porDominio.values()].sort((a, b) => a.host.replace(/^www\./, "").localeCompare(b.host.replace(/^www\./, "")));
 }
 
 async function pedir(fetchImpl, url, init = {}) {
@@ -128,7 +135,7 @@ export async function galaxia(request, ctx, fetchImpl = fetch) {
     const c = await censo(fetchImpl);
     if (!host) payload = c;
     else {
-      const sitio = c.sitios.find((s) => s.host === host);
+      const sitio = c.sitios.find((s) => s.host === host || s.host.replace(/^www\./, "") === host.replace(/^www\./, ""));
       if (!sitio) { status = 404; payload = { ok: false, error: "ese sitio no está en el censo de proyectos de yokup", sitios: c.sitios.map((s) => s.host) }; }
       else payload = await medirSitio(sitio, fetchImpl);
     }
