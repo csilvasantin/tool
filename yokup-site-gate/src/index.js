@@ -1,6 +1,7 @@
 const CENSUS_ORIGIN = "https://macmini.tail48b61c.ts.net/api/council/fleet-census";
 import { handleMcp } from './mcp.js';
 import { authProxy } from "./auth-proxy.js";
+import { galaxia } from "./galaxia.js";
 
 function releaseFromEnv(env) {
   try { return JSON.parse(String(env.RELEASE_JSON || "")); } catch (_) { return null; }
@@ -57,6 +58,7 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
     return authProxy(request, fetchImpl);
   }
   if (incoming.pathname === "/api/fleet-census") return fleetCensus(request, ctx, fetchImpl);
+  if (incoming.pathname === "/mcp/galaxia.json") return galaxia(request, ctx, fetchImpl);
   if ((incoming.pathname === "/agentica" || incoming.pathname === "/agentica.html") && (request.method === "GET" || request.method === "HEAD")) {
     return Response.redirect(new URL("/dashboard", incoming), 301);
   }

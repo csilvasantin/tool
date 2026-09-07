@@ -189,3 +189,7 @@ La traza de qué puntuó cada misión está en `traceability.chains[]`, indexabl
 ## Para personas
 
 La puerta de carbono es [yokup.com/help](https://www.yokup.com/help).
+
+## La Galaxia, medida (7-sep-2026)
+- GET https://www.yokup.com/mcp/galaxia.json → censo de sitios (uno por dominio del censo de proyectos; los proyectos con ruta heredan las puertas).
+- GET https://www.yokup.com/mcp/galaxia.json?sitio=<host> → /help, /mcp, llms.txt, manifest.json y cada servidor MCP declarado (initialize + tools/list sin clave). Cache de una hora. Solo se mide lo que está en el censo.

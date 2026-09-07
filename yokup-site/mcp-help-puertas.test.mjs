@@ -75,17 +75,14 @@ test("el catch-all no se come las dos puertas", async () => {
 // Carlos pidió el listado de TODOS los proyectos, no solo de los sitios: los que son
 // una sección de otro dominio heredan sus puertas, y eso hay que decirlo o parece que
 // faltan diez. El cuadrante vive en /mcp porque es donde lo va a buscar un agente.
-test("el cuadrante lista los 20 proyectos del censo y dice quién hereda", () => {
-  const i = mcp.indexOf("El cuadrante de la suite");
-  assert.ok(i > 0, "falta la sección del cuadrante");
-  const tabla = mcp.slice(i, mcp.indexOf("</table>", i));
-  const filas = tabla.match(/<tr><td><code>/g) || [];
-  assert.equal(filas.length, 20, "los 20 del censo, ni uno menos");
-  for (const p of ["yokup","admiranext","admira-live","admira-academy","ainimation-studio",
-                   "pixeria","digitalavatar","admira-tv","xpaceos","clearchannel-tv",
-                   "smith-ascii","fleetcontrol","yokup-ideas-objetivos"]) {
-    assert.ok(tabla.includes("<code>" + p + "</code>"), "falta " + p);
-  }
-  assert.match(tabla, /hereda/, "las secciones heredan la puerta de su dominio");
-  assert.match(mcp, /Auditado[^<]*9 de agosto de 2026/, "un cuadrante sin fecha envejece mintiendo");
+test("la Galaxia se mide en vivo: la sección pide el censo y cada sitio al guardián, y lo declara en manifest y llms", () => {
+  const i = mcp.indexOf("La Galaxia, medida");
+  assert.ok(i > 0, "falta la sección de la Galaxia");
+  assert.match(mcp, /fetch\("\/mcp\/galaxia\.json"/, "el censo se pide al guardián, no se escribe a mano");
+  assert.match(mcp, /galaxia\.json\?sitio=/, "cada sitio se mide por separado (cupo de subpeticiones del worker)");
+  assert.match(mcp, /heredan/, "las secciones heredan la puerta de su dominio");
+  assert.doesNotMatch(mcp, /Auditado[^<]*9 de agosto de 2026/, "la tabla a mano de agosto ya no está: mentía al mes");
+  assert.equal(manifest.galaxia.censo, "https://www.yokup.com/mcp/galaxia.json");
+  assert.match(manifest.galaxia.sitio, /\?sitio=<host>$/);
+  assert.match(llms, /galaxia\.json\?sitio=<host>/);
 });

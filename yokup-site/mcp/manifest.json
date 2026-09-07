@@ -627,5 +627,11 @@
       "name": "admira.academy",
       "hub": "https://admira.academy/help/"
     }
-  ]
+  ],
+  "galaxia": {
+    "desc": "Las dos puertas de cada solución de la Galaxia Admira, medidas en vivo por el guardián de yokup (norma 24).",
+    "censo": "https://www.yokup.com/mcp/galaxia.json",
+    "sitio": "https://www.yokup.com/mcp/galaxia.json?sitio=<host>",
+    "ttl_segundos": 3600
+  }
 }

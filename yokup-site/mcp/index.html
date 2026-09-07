@@ -34,6 +34,8 @@ td code{font-size:12px}
 td.d{color:var(--mut)}
 .tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:1px 6px;border-radius:999px;border:1px solid var(--line2);color:var(--good);white-space:nowrap}
 .tag.cerrada{color:var(--accent);border-color:rgba(255,216,102,.4)}
+.tag.mal{color:var(--warn);border-color:rgba(255,136,102,.4)}
+.galaxia table{font-size:12.5px}.galaxia td{vertical-align:top}.galaxia-pie{font-family:var(--mono);font-size:11px}
 .aviso{margin:16px 0;padding:14px 16px;border:1px solid rgba(255,136,102,.35);border-radius:12px;background:rgba(255,136,102,.06)}
 .aviso b{color:var(--warn)}
 ul{margin:0 0 10px 20px;color:var(--mut)}li{margin-bottom:7px}
@@ -194,39 +196,76 @@ curl -s -X POST https://api.yokup.com/fleet/informe -H 'content-type: applicatio
       (<code>yokup</code>, <code>admira-academy</code>), no la web.</li>
   </ul>
 
-  <h2><span class="n">08</span>El cuadrante de la suite</h2>
-  <p>Los 20 proyectos del censo y el estado de sus dos puertas. Los que son una sección de otro
-  sitio <b>heredan</b> las puertas de su dominio: no hace falta una por carpeta, hace falta una por
-  sitio. <b>Auditado y puesto al día el 9 de agosto de 2026</b> comprobando cada ruta contra una inexistente, para
-  no tragarse los 200 falsos de los <i>catch-all</i>.</p>
-  <table>
-    <tr><th>Proyecto</th><th>Web</th><th>/help</th><th>/mcp</th><th>Notas</th></tr>
-    <tr><td><code>admiranext</code></td><td class="d">www.admiranext.com</td><td><span class="tag">sí</span></td><td><span class="tag">sí</span></td><td class="d">con manifest.json y llms.txt</td></tr>
-    <tr><td><code>xpaceos</code></td><td class="d">www.xpaceos.com</td><td><span class="tag">sí</span></td><td><span class="tag">sí</span></td><td class="d">con manifest.json</td></tr>
-    <tr><td><code>clearchannel-tv</code></td><td class="d">www.clearchannel.tv</td><td><span class="tag">sí</span></td><td><span class="tag">sí</span></td><td class="d">con manifest.json</td></tr>
-    <tr><td><code>yokup</code></td><td class="d">www.yokup.com</td><td><span class="tag">sí</span></td><td><span class="tag">sí</span></td><td class="d">esta página; con manifest.json y llms.txt</td></tr>
-    <tr><td><code>admira-tv</code></td><td class="d">admira.tv</td><td><span class="tag">sí</span></td><td><span class="tag">sí</span></td><td class="d">manifiesto hecho el 9-ago; servidor MCP vivo en mcp-tv.admira.store</td></tr>
-    <tr><td><code>admira-live</code></td><td class="d">www.admira.live</td><td><span class="tag">sí</span></td><td><span class="tag cerrada">a medias</span></td><td class="d">/mcp/ funciona, pero /mcp sin barra devuelve la home</td></tr>
-    <tr><td><code>admira-academy</code></td><td class="d">admira.academy</td><td><span class="tag">sí</span></td><td><span class="tag">sí</span></td><td class="d">hecha el 9-ago con manifest.json y llms.txt</td></tr>
-    <tr><td><code>pixeria</code></td><td class="d">www.pixeria.com</td><td><span class="tag">sí</span></td><td><span class="tag">sí</span></td><td class="d">hecha el 9-ago; las dos tras la verja, porque el sitio está cerrado hasta el lanzamiento</td></tr>
-    <tr><td><code>digitalavatar</code></td><td class="d">digitalavatar.ai</td><td><span class="tag">sí</span></td><td><span class="tag">sí</span></td><td class="d">/help hecha el 9-ago; el /mcp ya tenía manifest.json</td></tr>
-    <tr><td><code>ainimation-studio</code></td><td class="d">www.ainimation.studio</td><td><span class="tag">sí</span></td><td><span class="tag">sí</span></td><td class="d">las dos hechas el 9-ago; su /mcp declara que aún no hay API, en vez de inventarla</td></tr>
-    <tr><td><code>generador-de-presentaciones</code></td><td class="d">www.admiranext.com</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de admiranext.com</td></tr>
-    <tr><td><code>generador-de-presites</code></td><td class="d">www.admiranext.com/presites</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de admiranext.com</td></tr>
-    <tr><td><code>generador-presupuestos</code></td><td class="d">www.admiranext.com/presupuestos</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de admiranext.com</td></tr>
-    <tr><td><code>webmaster-admiranext</code></td><td class="d">www.admiranext.com/webmaster</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de admiranext.com</td></tr>
-    <tr><td><code>fleetcontrol</code></td><td class="d">www.admira.live/control</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de admira.live</td></tr>
-    <tr><td><code>generador-de-informes</code></td><td class="d">admira.live/informes</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de admira.live</td></tr>
-    <tr><td><code>director-interactivo</code></td><td class="d">www.ainimation.studio/studio.html</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de ainimation.studio</td></tr>
-    <tr><td><code>neo-metahuman</code></td><td class="d">digitalavatar.ai/metahuman.html</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de digitalavatar.ai</td></tr>
-    <tr><td><code>smith-ascii</code></td><td class="d">www.yokup.com/misiones</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">hereda</span></td><td class="d">sección de yokup.com</td></tr>
-    <tr><td><code>yokup-ideas-objetivos</code></td><td class="d">—</td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">n/a</span></td><td><span class="tag" style="color:var(--dim);border-color:var(--line)">n/a</span></td><td class="d">no tiene web propia</td></tr>
-  </table>
-  <p>Lo que falta ya está declarado como misión en Yokup, una por puerta, con el responsable del
-  proyecto escrito en el encargo: nada de esto se queda en terreno de nadie. Si te toca una,
-  <a href="/mcp/manifest.json">este manifiesto</a> y <a href="/mcp/llms.txt">este llms.txt</a>
-  sirven de plantilla — y el <a href="/help">/help</a> de al lado, de ejemplo de cómo se le habla
-  a una persona.</p>
+  <h2><span class="n">08</span>La Galaxia, medida: las dos puertas de cada solución</h2>
+  <p>Un sitio por dominio del <a href="https://api.yokup.com/projects">censo de proyectos</a>; los
+  proyectos que son una sección de otro sitio <b>heredan</b> sus puertas. Esto ya no es una tabla
+  escrita a mano (la de agosto mentía al mes): cada fila la mide el guardián de yokup en vivo
+  —<code>/help</code>, <code>/mcp</code>, <code>llms.txt</code>, <code>manifest.json</code> y cada
+  servidor MCP que el manifiesto declare, con <code>initialize</code> y <code>tools/list</code> sin
+  clave— y se guarda una hora en el edge. En crudo: <a href="/mcp/galaxia.json">/mcp/galaxia.json</a>
+  (censo) y <code>/mcp/galaxia.json?sitio=&lt;host&gt;</code> (la medida de un sitio).
+  Decisión de Carlos, 7-sep-2026: los MCP son la forma de comunicarnos entre todas las soluciones.</p>
+  <div id="galaxia" class="galaxia">
+    <table>
+      <thead><tr><th>Solución</th><th>/help</th><th>/mcp</th><th>llms</th><th>manifest</th><th>Servidor MCP</th><th>Herramientas</th></tr></thead>
+      <tbody id="galaxia-filas"><tr><td colspan="7" class="d" id="galaxia-estado">Midiendo la Galaxia…</td></tr></tbody>
+    </table>
+    <p class="d galaxia-pie" id="galaxia-pie"></p>
+    <noscript><p>Sin JavaScript, la medida está en <a href="/mcp/galaxia.json">/mcp/galaxia.json</a>.</p></noscript>
+  </div>
+  <p>Lo que falla aquí es una misión en Yokup para el responsable del proyecto: nada de esto se
+  queda en terreno de nadie. Si te toca una puerta, <a href="/mcp/manifest.json">este manifiesto</a>
+  y <a href="/mcp/llms.txt">este llms.txt</a> sirven de plantilla, y el <a href="/help">/help</a>
+  de al lado, de ejemplo de cómo se le habla a una persona.</p>
+  <script>
+  (function () {
+    var filas = document.getElementById("galaxia-filas"), pie = document.getElementById("galaxia-pie");
+    function esc(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+    function tag(ok, texto, clase) { return '<span class="tag' + (clase ? " " + clase : ok ? "" : " mal") + '">' + esc(texto) + "</span>"; }
+    function puerta(p, verja) {
+      if (!p) return tag(false, "?");
+      if (p.ok) return tag(true, "sí");
+      if (p.status === 401 || p.status === 403) return tag(false, verja ? "verja" : "401", "cerrada");
+      return tag(false, p.status ? String(p.status) : "sin respuesta");
+    }
+    function servidor(m) {
+      if (!m.servidores || !m.servidores.length) return '<span class="tag mal">ninguno</span>';
+      return m.servidores.map(function (s) {
+        var host = s.endpoint.replace(/^https:\/\//, "").replace(/\/mcp$/, "");
+        if (s.estado === "abierto") return tag(true, "abierto") + ' <span class="d">' + esc(host) + " · " + esc(s.servidor.name) + " " + esc(s.servidor.version || "") + "</span>";
+        if (s.estado === "con clave") return tag(false, "con clave", "cerrada") + ' <span class="d">' + esc(host) + "</span>";
+        return tag(false, s.estado) + ' <span class="d">' + esc(host) + "</span>";
+      }).join("<br>");
+    }
+    function herramientas(m) {
+      var n = 0; (m.servidores || []).forEach(function (s) { n += (s.herramientas || []).length; });
+      var abiertas = (m.servidores || []).some(function (s) { return s.estado === "abierto"; });
+      if (!abiertas) return '<span class="d">—</span>';
+      var nombres = []; (m.servidores || []).forEach(function (s) { nombres = nombres.concat(s.herramientas || []); });
+      return '<span title="' + esc(nombres.join(", ")) + '">' + n + "</span>";
+    }
+    function fila(s, m) {
+      var proys = (s.proyectos || []).map(function (p) { return "<code>" + esc(p.id) + "</code>"; }).join(" ");
+      var hered = (s.hereda || []).length ? '<div class="d">+ ' + s.hereda.map(function (p) { return esc(p.id); }).join(", ") + " (heredan)</div>" : "";
+      if (!m) return "<tr><td>" + proys + '<div class="d">' + esc(s.host) + "</div>" + hered + '</td><td colspan="6" class="d">sin medida (' + esc(s.error || "el guardián no respondió") + ")</td></tr>";
+      return "<tr><td>" + proys + '<div class="d"><a href="' + esc(s.base) + '">' + esc(s.host) + "</a></div>" + hered + "</td><td>" + puerta(m.puertas.help, m.verja) + "</td><td>" + puerta(m.puertas.mcp, m.verja) + "</td><td>" + puerta(m.puertas.llms, m.verja) + "</td><td>" + puerta(m.puertas.manifest, m.verja) + (m.puertas.manifest && m.puertas.manifest.name ? '<div class="d">' + esc(m.puertas.manifest.name) + "</div>" : "") + "</td><td>" + servidor(m) + "</td><td>" + herramientas(m) + "</td></tr>";
+    }
+    fetch("/mcp/galaxia.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (c) {
+      if (!c.ok) throw new Error(c.error || "censo sin respuesta");
+      var sitios = c.sitios, medidas = {};
+      filas.innerHTML = sitios.map(function (s) { return fila(s, null); }).join("");
+      var hechos = 0, vivos = 0, abiertos = 0;
+      return Promise.all(sitios.map(function (s) {
+        return fetch("/mcp/galaxia.json?sitio=" + encodeURIComponent(s.host)).then(function (r) { return r.json(); }).catch(function (e) { return { ok: false, error: String(e) }; }).then(function (m) {
+          medidas[s.host] = m.ok ? m : null; if (!m.ok) s.error = m.error; hechos++;
+          if (m.ok) { (m.servidores || []).forEach(function (x) { if (x.estado === "abierto" || x.estado === "con clave") vivos++; if (x.estado === "abierto") abiertos++; }); }
+          filas.innerHTML = sitios.map(function (x) { return fila(x, medidas[x.host]); }).join("");
+          pie.textContent = hechos + " de " + sitios.length + " sitios medidos · " + vivos + " servidores MCP vivos (" + abiertos + " sin clave) · censo de " + new Date(c.medido).toLocaleString("es-ES", { timeZone: "Europe/Madrid" }) + " · cada medida vale una hora";
+        });
+      }));
+    }).catch(function (e) { var est = document.getElementById("galaxia-estado"); if (est) est.textContent = "No se ha podido medir: " + e.message; else pie.textContent = "No se ha podido medir: " + e.message; });
+  })();
+  </script>
 
   <h2><span class="n">09</span>Convenciones que se comprueban solas</h2>
   <ul>
