@@ -25,6 +25,15 @@ test("sin trabajo ni histórico queda una calle vacía honesta y sin corredor", 
   assert.match(html, /data-race-empty="true"/);
 });
 
+test("sin nadie corriendo, la pista vacía dice que todos nuestros agentes están calentando 🙂 (Carlos, 7-sep-2026)", () => {
+  assert.match(html, /Todos nuestros agentes están calentando 🙂/, "el rótulo que ve el humano");
+  assert.match(html, /var calentando = !!datos\.trabajosAvailable;/, "solo cuando el trabajo SE PUDO consultar: si no, se dice TRABAJO NO DISPONIBLE");
+  assert.match(html, /data-race-warmup="' \+ \(calentando \? 'true' : 'false'\) \+ '"/);
+  assert.match(html, /data-race-reason="' \+ esc\(etiquetaVacia\)/, "el motivo técnico no se pierde: queda en el atributo, el aria-label y el tooltip");
+  assert.match(html, /\.refresh-lane-empty\[data-race-warmup="true"\] \.refresh-mission-title\{white-space:normal;overflow:visible/, "y no se recorta como «TRABAJO FUERA DE LA SE…»");
+  assert.doesNotMatch(html, /refresh-lane-empty[^\n]*refresh-runner[^\n]*<use/, "sin Running Man en la pista vacía");
+});
+
 test("variante de piel estable y dos corredores visibles con bigote", () => {
   const dark = race.runnerVariant({agente:"MorfeoMBP16"});
   assert.equal(race.runnerVariant({agente:"MorfeoMBP16"}), dark);

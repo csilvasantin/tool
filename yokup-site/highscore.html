@@ -349,6 +349,10 @@ h1{font-size:clamp(20px,3.2vw,31px);font-weight:900;letter-spacing:.08em;margin:
 .refresh-race.phase-go .refresh-lane-empty .refresh-mission{opacity:1;visibility:visible}
 .refresh-lane-empty .refresh-mission-title{width:auto}
 .refresh-lane-empty .refresh-runner{bottom:11px}
+/* Pista vacía «calentando»: centrada, en minúsculas y sin recortar (el rótulo técnico se
+   recortaba en «TRABAJO FUERA DE LA SE…»). */
+.refresh-lane-empty[data-race-warmup="true"] .refresh-mission{left:0;right:0;max-width:none;text-align:center;text-transform:none;letter-spacing:.04em;font-size:12px;color:var(--mut)}
+.refresh-lane-empty[data-race-warmup="true"] .refresh-mission-title{white-space:normal;overflow:visible;text-overflow:clip}
 /* Calle PARADA: el trabajo existe y sigue asignado, pero no avanza. El corredor se
    queda en la salida, la pista se apaga y el rótulo se ancla a la derecha —como en
    la calle vacía— porque pegado a la salida se saldría de la pista por la izquierda.
@@ -5205,9 +5209,17 @@ body.resizing-columns{cursor:col-resize;user-select:none}
     var evidenceNode = document.getElementById("raceEvidenceStatus");
     if (evidenceNode) evidenceNode.textContent = evidence.text + (pendientesCarrera ? " · " + pendientesCarrera + (pendientesCarrera === 1 ? " agente espera" : " agentes esperan") + " a la próxima carrera" : "");
     var etiquetaVacia = evidence.label || "SIN TRABAJO VERIFICADO";
+    // CALENTANDO (Carlos, 7-sep-2026): si no hay ningún agente corriendo, la pista vacía no
+    // grita una etiqueta técnica ni la corta en «TRABAJO FUERA DE LA SE…»: dice que todos
+    // nuestros agentes están calentando 🙂, sin Running Man. El motivo real (fuera de la
+    // selección, sin trabajo verificado) queda en data-race-reason, en el aria-label, en el
+    // tooltip y en la línea de evidencia de debajo. Solo si el trabajo NO SE PUDO CONSULTAR
+    // se dice tal cual: eso no es calentar, es no saber (mandamiento 2).
+    var calentando = !!datos.trabajosAvailable;
+    var textoVacio = calentando ? "Todos nuestros agentes están calentando 🙂" : etiquetaVacia;
     var corredorSinMision = '<div class="refresh-lane refresh-lane-empty" role="listitem" data-race-empty="true" ' +
-      'aria-label="' + etiquetaVacia.toLowerCase() + '"><div class="refresh-track">' +
-      '<span class="refresh-mission" data-race-role="mission"><span class="refresh-mission-title">' + etiquetaVacia + '</span></span></div></div>';
+      'data-race-warmup="' + (calentando ? 'true' : 'false') + '" data-race-reason="' + esc(etiquetaVacia) + '" aria-label="' + etiquetaVacia.toLowerCase() + '"><div class="refresh-track">' +
+      '<span class="refresh-mission" data-race-role="mission" title="' + esc(etiquetaVacia) + '"><span class="refresh-mission-title">' + esc(textoVacio) + '</span></span></div></div>';
     contenedor.innerHTML = corredores.length ? corredores.join("") : corredorSinMision;
     if (focusedAgentKey && contenedor.querySelectorAll) {
       var sameLane = Array.from(contenedor.querySelectorAll(".refresh-lane")).find(function(lane){return lane.getAttribute("data-agent-key") === focusedAgentKey;});
