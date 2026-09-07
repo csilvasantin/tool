@@ -121,11 +121,13 @@ async function censo(fetchImpl) {
   return { ok: true, sitios: sitiosDelCenso(proyectos), medido: new Date().toISOString(), ttl: TTL_SEGUNDOS };
 }
 
-export async function galaxia(request, ctx, fetchImpl = fetch) {
+export async function galaxia(request, ctx, fetchImpl = fetch, version = "") {
   if (request.method !== "GET") return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET" } });
   const url = new URL(request.url);
   const host = String(url.searchParams.get("sitio") || "").toLowerCase().trim();
-  const cacheKey = new Request(url.origin + "/mcp/galaxia.json" + (host ? "?sitio=" + encodeURIComponent(host) : ""), { method: "GET" });
+  // La clave de caché lleva el sello del guardián: una publicación nueva mide de nuevo en vez de
+  // servir una hora lo que midió el guardián anterior.
+  const cacheKey = new Request(url.origin + "/mcp/galaxia.json?v=" + encodeURIComponent(version) + (host ? "&sitio=" + encodeURIComponent(host) : ""), { method: "GET" });
   // En Node (pruebas) no hay caches.*: se mide sin caché.
   const cache = globalThis.caches && globalThis.caches.default;
   const hit = cache ? await cache.match(cacheKey) : null;
