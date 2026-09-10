@@ -6,7 +6,7 @@ const source = await readFile(new URL('./src/index.js', import.meta.url), 'utf8'
 // ELECCIÓN TARDÍA Y AVISO DE CADUCIDAD (Carlos, 10-sep-2026, ventana 0020): contrato en la fuente.
 test('elegir acepta ventanas pending o expired, por id o por referencia humana, y solo rechaza las ya decididas', () => {
   const choose = source.slice(source.indexOf('/^\\/decisions\\/[^/]+\\/choose$/'), source.indexOf('/^\\/decisions\\/[^/]+$/'));
-  assert.match(choose, /WHERE display_ref=\? ORDER BY created_at DESC LIMIT 1/, 'la referencia humana (0020.10/09/2026.06:37) vale como id');
+  assert.match(choose, /FROM display_refs WHERE entity_type='window' AND display_ref=\?/, 'la referencia humana (0020.10/09/2026.06:37) vale como id: se resuelve en display_refs');
   assert.match(choose, /d\.status !== "pending" && d\.status !== "expired"/, 'expired ya no es un muro');
   assert.match(choose, /relabelBatchContainerAfterLateChoice\(env, chosen, idx, o\)/, 'tras caducar, el contenedor pasa a la opción elegida');
 });

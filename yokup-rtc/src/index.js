@@ -13573,7 +13573,11 @@ Todo en español.`;
         // La ventana se puede nombrar por su id (DEC-…) o por su referencia humana (0020.10/09/2026.06:37):
         // es lo que ve Carlos en Telegram y en /decisiones.
         let d = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(ref).first();
-        if (!d) d = await env.DB.prepare("SELECT * FROM decisions WHERE display_ref=? ORDER BY created_at DESC LIMIT 1").bind(ref).first();
+        if (!d) {
+          // La referencia humana vive en display_refs (entity_type 'window' → id de la decisión).
+          const viaRef = await env.DB.prepare("SELECT entity_key FROM display_refs WHERE entity_type='window' AND display_ref=? ORDER BY entity_created_at DESC LIMIT 1").bind(ref).first().catch(() => null);
+          if (viaRef && viaRef.entity_key) d = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(viaRef.entity_key).first();
+        }
         if (!d) return json({ ok: false, error: "not_found" }, 404);
         const id = d.id;
         // ELECCIÓN TARDÍA (Carlos, 10-sep-2026, ventana 0020): una ventana caducada ya no es un muro.
