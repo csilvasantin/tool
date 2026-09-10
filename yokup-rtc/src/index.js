@@ -4093,9 +4093,59 @@ async function expireDecisionsAndStartBatches(env) {
 __name(expireDecisionsAndStartBatches, "expireDecisionsAndStartBatches");
 async function expireDecisions(env) {
   const now = Date.now();
+  // Antes de caducarlas, se anotan las que caducan SIN elección para avisar a Carlos por
+  // Telegram (10-sep-2026, ventana 0020): una ventana que muere en silencio no fue una pregunta.
+  let caducan = [];
+  try {
+    const { results } = await env.DB.prepare(
+      "SELECT id,display_ref,agent,machine,recommended,options,project_id,question FROM decisions WHERE status='pending' AND deadline < ? AND COALESCE(parent_decision,'') <> 'FORMACION' LIMIT 20"
+    ).bind(now).all();
+    caducan = results || [];
+  } catch (e) { caducan = []; }
   await env.DB.prepare("UPDATE decisions SET status='expired' WHERE status='pending' AND deadline < ?").bind(now).run();
+  for (const d of caducan) await avisarCaducidadPorTelegram(env, d).catch(() => null);
 }
 __name(expireDecisions, "expireDecisions");
+
+// ELECCIÓN TARDÍA: si la tanda ya arrancó con la ★, el contenedor deja de llamarse como la
+// recomendada y pasa a la opción que eligió Carlos, y lo cuenta en su historial. Nada se
+// borra: la misión es la misma, solo cambia el rótulo y la opción que representa.
+async function relabelBatchContainerAfterLateChoice(env, decision, idx, options) {
+  if (!decision || !decision.batch_id) return null;
+  const item = await env.DB.prepare(
+    "SELECT * FROM mission_batch_items WHERE batch_id=? AND mission_id IS NOT NULL AND status NOT IN ('completed','cancelled') ORDER BY position LIMIT 1"
+  ).bind(decision.batch_id).first();
+  if (!item || Number(item.option_index) === Number(idx)) return null;
+  const ticket = await env.DB.prepare("SELECT id,status FROM tickets WHERE id=? AND source='decision-batch'").bind(item.mission_id).first();
+  if (!ticket || ticket.status === "resolved" || ticket.status === "cancelled") return null;
+  const title = String(options[idx] || "").slice(0, 300);
+  const t = Date.now();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE mission_batch_items SET option_index=?, title=?, updated_at=? WHERE batch_id=? AND position=?").bind(idx, title, t, decision.batch_id, item.position),
+    env.DB.prepare("UPDATE tickets SET subject=?, updated_at=? WHERE id=?").bind(title, t, item.mission_id),
+  ]);
+  await addEvent(env, item.mission_id, "log", String(decision.chosen_by || "Carlos"), "🗳 Elección tardía: se eligió la opción " + (Number(idx) + 1) + " tras caducar la ventana " + (decision.display_ref || decision.id) + "; el contenedor deja la ★ y pasa a «" + title.slice(0, 90) + "».");
+  return { relabelled: item.mission_id, title };
+}
+__name(relabelBatchContainerAfterLateChoice, "relabelBatchContainerAfterLateChoice");
+
+async function avisarCaducidadPorTelegram(env, d) {
+  const key = env.ADMIRA_TELEGRAM_PANEL_KEY || "";
+  if (!key || !env.TELEGRAM) return { enviado: false };
+  let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) { o = []; }
+  const rec = Number(d.recommended || 0);
+  const texto = "⌛ VENTANA CADUCADA SIN ELECCION · " + (d.display_ref || d.id) + "\n"
+    + (d.agent || "") + (d.machine ? " · " + d.machine : "") + (d.project_id ? " · " + d.project_id : "") + "\n"
+    + String(d.question || "").slice(0, 160) + "\n\n"
+    + "El agente ejecuta la ★ (opcion " + (rec + 1) + "): " + String(o[rec] || "").slice(0, 160) + "\n"
+    + "Aun puedes elegir otra: responde al aviso de la ventana con el numero, o en https://yokup.com/decisiones";
+  const r = await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-say", {
+    method: "POST", headers: { "content-type": "application/json", "authorization": "Bearer " + key },
+    body: JSON.stringify({ persona: "Admirito", text: texto }),
+  }));
+  return { enviado: r.ok, status: r.status };
+}
+__name(avisarCaducidadPorTelegram, "avisarCaducidadPorTelegram");
 async function startDecisionBatches(env) {
   // Sólo decisiones que todavía no han actualizado su tanda. Antes se
   // recorrían las 100 últimas en CADA GET, aunque 98 ya estuvieran procesadas.
@@ -13517,12 +13567,21 @@ Todo en español.`;
     if (/^\/decisions\/[^/]+\/choose$/.test(url.pathname) && req.method === "POST") {
       try {
         await ensureSchema(env);
-        const id = decodeURIComponent(url.pathname.split("/")[2]);
+        const ref = decodeURIComponent(url.pathname.split("/")[2]);
         const b = await req.json();
         const idx = +b.choice;
-        const d = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(id).first();
+        // La ventana se puede nombrar por su id (DEC-…) o por su referencia humana (0020.10/09/2026.06:37):
+        // es lo que ve Carlos en Telegram y en /decisiones.
+        let d = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(ref).first();
+        if (!d) d = await env.DB.prepare("SELECT * FROM decisions WHERE display_ref=? ORDER BY created_at DESC LIMIT 1").bind(ref).first();
         if (!d) return json({ ok: false, error: "not_found" }, 404);
-        if (d.status !== "pending") return json({ ok: false, error: "decision_closed", status: d.status, chosen: d.chosen }, 409);
+        const id = d.id;
+        // ELECCIÓN TARDÍA (Carlos, 10-sep-2026, ventana 0020): una ventana caducada ya no es un muro.
+        // El 8-sep las ventanas 0124 y 0153 caducaron sin clic aunque Carlos había elegido en el
+        // chat: el 409 impedía registrarlo y el contenedor se quedó con la ★. Ahora se acepta la
+        // elección de una ventana pending O expired; solo se rechaza si ya estaba decidida.
+        if (d.status !== "pending" && d.status !== "expired") return json({ ok: false, error: "decision_closed", status: d.status, chosen: d.chosen }, 409);
+        const eraCaducada = d.status === "expired";
         let o = []; try { o = JSON.parse(d.options || "[]"); } catch (e) {}
         if (!(idx >= 0 && idx < o.length)) return json({ ok: false, error: "choice fuera de rango" }, 400);
         const initial = isInitialMissionDecision(o);
@@ -13537,8 +13596,11 @@ Todo en español.`;
         await env.DB.prepare("UPDATE decisions SET status=?, chosen=?, chosen_by=?, decided_at=? WHERE id=?")
           .bind(back ? "cancelled" : "decided", idx, String(b.by || "Carlos").slice(0, 40), Date.now(), id).run();
         const chosen = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(id).first();
-        const batch = back ? null : await ensureMissionBatchFromDecision(env, chosen);
+        let batch = back ? null : await ensureMissionBatchFromDecision(env, chosen);
         if (batch && batch.ok === false) return json(batch, batch.status || 400);
+        // Si la tanda ya había arrancado con la ★ al caducar, el contenedor pasa a la opción elegida.
+        const relabel = eraCaducada && !back ? await relabelBatchContainerAfterLateChoice(env, chosen, idx, o) : null;
+        if (relabel) batch = { ...(batch && typeof batch === "object" ? batch : {}), relabelled: relabel.relabelled, title: relabel.title };
         // Elegir temática en una ventana de formación cambia la cápsula de esa hora
         // AQUÍ MISMO, no en el siguiente barrido: quien pulsa espera ver la Academia
         // cambiada al recargar, no dentro de un minuto.
