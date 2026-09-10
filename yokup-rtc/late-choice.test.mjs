@@ -26,3 +26,10 @@ test('una ventana que caduca sin elección avisa por Telegram y deja la puerta a
   const aviso = source.slice(source.indexOf('async function avisarCaducidadPorTelegram'), source.indexOf('__name(avisarCaducidadPorTelegram'));
   assert.match(aviso, /VENTANA CADUCADA SIN ELECCION/); assert.match(aviso, /Aun puedes elegir otra/);
 });
+
+test("los avisos de ventana y de caducidad salen con humano:true (saltan telegram_auto_publish)", () => {
+  const ventana = source.slice(source.indexOf('async function avisarVentanaPorTelegram'), source.indexOf('__name(avisarVentanaPorTelegram'));
+  const caducidad = source.slice(source.indexOf('async function avisarCaducidadPorTelegram'), source.indexOf('__name(avisarCaducidadPorTelegram'));
+  assert.match(ventana, /humano: true/);
+  assert.match(caducidad, /humano: true/);
+});

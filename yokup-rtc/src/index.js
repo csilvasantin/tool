@@ -4141,7 +4141,7 @@ async function avisarCaducidadPorTelegram(env, d) {
     + "Aun puedes elegir otra: responde al aviso de la ventana con el numero, o en https://yokup.com/decisiones";
   const r = await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-say", {
     method: "POST", headers: { "content-type": "application/json", "authorization": "Bearer " + key },
-    body: JSON.stringify({ persona: "Admirito", text: texto }),
+    body: JSON.stringify({ persona: "Admirito", text: texto, humano: true }),
   }));
   return { enviado: r.ok, status: r.status };
 }
@@ -4371,9 +4371,12 @@ async function avisarVentanaPorTelegram(env, { agent, machine, question, options
     const r = await env.TELEGRAM.fetch(new Request("https://telegram/api/bot-say", {
       method: "POST",
       headers: { "content-type": "application/json", "authorization": "Bearer " + key },
-      body: JSON.stringify({ persona: "Admirito", text: texto }),
+      // humano:true → el aviso va a una persona y salta el interruptor telegram_auto_publish
+      // (10-sep-2026: con el interruptor en OFF la ventana 0044 nunca llegó al grupo).
+      body: JSON.stringify({ persona: "Admirito", text: texto, humano: true }),
     }));
-    return { enviado: r.ok, status: r.status };
+    let d = null; try { d = typeof r.clone === "function" ? await r.clone().json() : null; } catch (e) { d = null; }
+    return { enviado: !!r.ok && !(d && d.ok === false), status: r.status, posted: !!(d && d.posted) };
   } catch (e) { return { enviado: false, motivo: String(e && e.message || e).slice(0, 80) }; }
 }
 __name(avisarVentanaPorTelegram, "avisarVentanaPorTelegram");
