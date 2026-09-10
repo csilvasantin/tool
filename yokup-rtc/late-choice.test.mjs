@@ -33,3 +33,10 @@ test("los avisos de ventana y de caducidad salen con humano:true (saltan telegra
   assert.match(ventana, /humano: true/);
   assert.match(caducidad, /humano: true/);
 });
+
+test("si la tanda no arranca, la elección ya registrada se devuelve como ok con aviso (no 409)", () => {
+  const choose = source.slice(source.indexOf('/^\\/decisions\\/[^/]+\\/choose$/'), source.indexOf('/^\\/decisions\\/[^/]+$/'));
+  assert.doesNotMatch(choose, /if \(batch && batch\.ok === false\) return json\(batch/);
+  assert.match(choose, /avisoTanda/);
+  assert.match(choose, /aviso: avisoTanda/);
+});
