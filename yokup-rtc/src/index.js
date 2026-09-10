@@ -13604,12 +13604,14 @@ Todo en español.`;
           .bind(back ? "cancelled" : "decided", idx, String(b.by || "Carlos").slice(0, 40), Date.now(), id).run();
         const chosen = await env.DB.prepare("SELECT * FROM decisions WHERE id=?").bind(id).first();
         let batch = back ? null : await ensureMissionBatchFromDecision(env, chosen);
-        // LA ELECCIÓN YA ESTÁ REGISTRADA: si la tanda no arranca (misión canónica enlazada en otra
-        // tanda, ownership…) se devuelve ok:true con el aviso, no un 409. El 10-sep la 0062 quedó
-        // decidida y el bot contestó «✗ no se pudo registrar» porque este 409 tapaba la elección.
-        const avisoTanda = batch && batch.ok === false
-          ? "elección registrada, pero la tanda no arranca: " + String(batch.error || batch.code || "").slice(0, 160)
-          : "";
+        // LA ELECCIÓN YA ESTÁ REGISTRADA cuando la tanda falla (misión canónica enlazada en otra
+        // tanda, ownership, proyecto cruzado…). OnIdle sigue fallando cerrado (mismo status y code),
+        // pero la respuesta DICE que la elección quedó: el 10-sep la 0062 quedó decidida y el bot
+        // contestó «✗ no se pudo registrar» porque el 409 tapaba la elección.
+        if (batch && batch.ok === false) {
+          return json({ ...batch, eleccion_registrada: true, id, display_ref: chosen.display_ref, chosen: idx, option: o[idx],
+            aviso: "elección registrada, pero la tanda no arranca: " + String(batch.error || batch.code || "").slice(0, 160) }, batch.status || 400);
+        }
         // Si la tanda ya había arrancado con la ★ al caducar, el contenedor pasa a la opción elegida.
         const relabel = eraCaducada && !back ? await relabelBatchContainerAfterLateChoice(env, chosen, idx, o) : null;
         if (relabel) batch = { ...(batch && typeof batch === "object" ? batch : {}), relabelled: relabel.relabelled, title: relabel.title };
@@ -13618,7 +13620,7 @@ Todo en español.`;
         // cambiada al recargar, no dentro de un minuto.
         const formacion = await aplicaEleccionFormacion(env, chosen);
         await attachDisplayRefs(env, "window", chosen, (row) => row.id, (row) => row.created_at);
-        return json({ ok: true, id, display_ref: chosen.display_ref, chosen: idx, option: o[idx], cancelled: back, batch, formacion, ...(avisoTanda ? { aviso: avisoTanda } : {}) });
+        return json({ ok: true, id, display_ref: chosen.display_ref, chosen: idx, option: o[idx], cancelled: back, batch, formacion });
       } catch (e) { return json({ error: String(e) }, 500); }
     }
     if (/^\/decisions\/[^/]+$/.test(url.pathname) && req.method === "GET") {
