@@ -104,6 +104,47 @@ test("redirect GIS valida CSRF, crea handoff opaco y sólo el backend emite sesi
   assert.equal((await handleAuthRequest(callback(), env, deps(seen))).status, 401, "state no admite replay");
 });
 
+test("redirect GIS sin cookie __Host- (POST cruzado de Google) consume el state D1 one-shot", async () => {
+  const env = { DB:new FakeDB() };
+  const issued = await handleAuthRequest(request("/auth/challenge", {
+    method:"POST", headers:{"content-type":"application/json"},
+    body:JSON.stringify({flow:"redirect",return_to:"/misiones"})
+  }), env, deps());
+  const challenge = await issued.json();
+  const csrf = "gis-csrf-value";
+  const seen = { value:challenge.nonce };
+  const callback = () => new Request(AUTH_CALLBACK_URI, {
+    method:"POST",
+    headers:{"content-type":"application/x-www-form-urlencoded","cookie":`g_csrf_token=${csrf}`},
+    body:new URLSearchParams({credential:"id-token-secret",g_csrf_token:csrf,state:challenge.state})
+  });
+  const response = await handleAuthRequest(callback(), env, deps(seen));
+  assert.equal(response.status, 303, "callback GIS no exige la cookie __Host- si CSRF+state D1 son válidos");
+  assert.equal(new URL(response.headers.get("location")).pathname, "/auth/handoff");
+  const replay = await handleAuthRequest(callback(), env, deps(seen));
+  assert.equal(replay.status, 401);
+  const body = await replay.json();
+  assert.equal(body.error, "challenge_invalid");
+});
+
+test("redirect GIS con cookie de challenge distinta al state falla cerrado", async () => {
+  const env = { DB:new FakeDB() };
+  const issued = await handleAuthRequest(request("/auth/challenge", {
+    method:"POST", headers:{"content-type":"application/json"},
+    body:JSON.stringify({flow:"redirect",return_to:"/misiones"})
+  }), env, deps());
+  const challenge = await issued.json();
+  const csrf = "gis-csrf-value";
+  const bad = new Request(AUTH_CALLBACK_URI, {
+    method:"POST",
+    headers:{"content-type":"application/x-www-form-urlencoded","cookie":`__Host-yk_challenge=otro; g_csrf_token=${csrf}`},
+    body:new URLSearchParams({credential:"id-token-secret",g_csrf_token:csrf,state:challenge.state})
+  });
+  const response = await handleAuthRequest(bad, env, deps({value:challenge.nonce}));
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).error, "challenge_invalid");
+});
+
 test("handoff Yokup acepta www o null opaco, ignora cookie vieja y rechaza credenciales", () => {
   const req = (headers) => new Request("https://api.yokup.com/auth/handoff", {method:"POST", headers, body:"code=" + "a".repeat(43)});
   assert.equal(handoffOriginAllowed(req({origin:"https://www.yokup.com"})), true);

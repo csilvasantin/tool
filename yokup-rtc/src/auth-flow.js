@@ -104,7 +104,15 @@ export async function issueChallenge(env, returnPath, flow = "popup", now = Date
 
 export async function consumeChallenge(env, request, state, flow, now = Date.now()) {
   const cookieState = parseCookies(request.headers.get("cookie"))[CHALLENGE_COOKIE] || "";
-  if (!state || !cookieState || state !== cookieState) return null;
+  if (!state) return null;
+  // Popup is same-site: the __Host- cookie MUST bind the browser that started login.
+  // Redirect GIS is a cross-site POST from accounts.google.com onto www.yokup.com.
+  // Chrome/Safari often omit the first-party __Host- cookie on that POST (partition,
+  // apex vs www, or a retry after the one-shot was already marked). CSRF (g_csrf_token)
+  // is checked before this call. D1 state is unguessable, TTL'd and one-shot — that is
+  // enough for redirect. If the cookie IS present, it must still match (FLT-100212).
+  if (cookieState && state !== cookieState) return null;
+  if (flow !== "redirect" && (!cookieState || state !== cookieState)) return null;
   await ensureChallengeSchema(env);
   const row = await env.DB.prepare("SELECT state,nonce,return_path,flow,expires_at,used_at FROM auth_challenges WHERE state=?").bind(state).first();
   if (!row || row.flow !== flow || row.used_at || Number(row.expires_at) < now) return null;
