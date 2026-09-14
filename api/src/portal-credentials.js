@@ -15,11 +15,9 @@ export async function portalCredentials(request,env,kind,account,path){
   if(!Number.isInteger(days)||days<1||days>90)fail(400,'La duración debe ser de 1 a 90 días.');
   const scopes=Array.isArray(b.scopes)?[...new Set(b.scopes)]:[];
   if(!scopes.length||scopes.some(s=>!Object.hasOwn(PORTAL_SCOPES[kind],s)))fail(400,'Selecciona permisos válidos para este portal.');
-  const token='ykp_'+random(),id=crypto.randomUUID(),now=Date.now(),expires=now+days*86400000;
-  const inserted=await statement(env,`INSERT INTO portal_mcp_tokens(id,token_hash,kind,account_id,label,scopes,audience,created_at,expires_at)
-   SELECT ?,?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM portal_mcp_tokens WHERE kind=? AND account_id=? AND revoked_at IS NULL AND expires_at>?)<20 AND EXISTS(SELECT 1 FROM ${kind==='installer'?'installer_accounts':'retailer_accounts'} WHERE id=? AND password_hash=?)`,id,await hash(token),kind,account.id,label,JSON.stringify(scopes),audience(kind),now,expires,kind,account.id,now,account.id,account.password_hash).run();
-  if(!inserted.meta.changes)fail(409,'Ya tienes 20 tokens activos. Revoca uno antes de crear otro.');
-  return response(request,{id,token,label,scopes,expires_at:expires,endpoint:audience(kind),show_once:true},201);
+  const issued=await issuePortalToken(env,kind,account,label,scopes,days);
+  if(!issued)fail(409,'Ya tienes 20 tokens activos. Revoca uno antes de crear otro.');
+  return response(request,issued,201);
  }
  const revoke=/^\/mcp-tokens\/([a-f0-9-]{36})\/revoke$/.exec(path);
  if(revoke&&request.method==='POST'){
@@ -30,6 +28,13 @@ export async function portalCredentials(request,env,kind,account,path){
  }
  if(path==='/mcp-audit'&&request.method==='GET')return response(request,{events:await rows(env,`SELECT a.id,a.tool,a.outcome,a.http_status,a.created_at,a.completed_at,t.label AS integration FROM portal_mcp_audit a JOIN portal_mcp_tokens t ON t.id=a.token_id WHERE a.kind=? AND a.account_id=? ORDER BY a.created_at DESC LIMIT 100`,kind,account.id)});
  return response(request,{error:'Ruta no encontrada.'},404);
+}
+export async function issuePortalToken(env,kind,account,label,scopes,days=7){
+  const token='ykp_'+random(),id=crypto.randomUUID(),now=Date.now(),expires=now+days*86400000;
+  const inserted=await statement(env,`INSERT INTO portal_mcp_tokens(id,token_hash,kind,account_id,label,scopes,audience,created_at,expires_at)
+   SELECT ?,?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM portal_mcp_tokens WHERE kind=? AND account_id=? AND revoked_at IS NULL AND expires_at>?)<20 AND EXISTS(SELECT 1 FROM ${kind==='installer'?'installer_accounts':'retailer_accounts'} WHERE id=? AND password_hash=?)`,id,await hash(token),kind,account.id,label,JSON.stringify(scopes),audience(kind),now,expires,kind,account.id,now,account.id,account.password_hash).run();
+  if(!inserted.meta.changes)return null;
+  return {id,token,label,scopes,expires_at:expires,endpoint:audience(kind),show_once:true};
 }
 export async function authenticatePortalToken(request,env,kind){
  const value=/^Bearer (ykp_[a-f0-9]{64})$/.exec(request.headers.get('authorization')||'')?.[1];

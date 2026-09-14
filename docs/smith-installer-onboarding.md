@@ -13,10 +13,11 @@ Esta entrega documenta y prepara el lote; no acredita que las 20 cuentas estén 
 | Servicio | Endpoint | Función |
 | --- | --- | --- |
 | MCP general Yokup | `https://yokup.com/mcp` | Identidad de agente, proyectos, misiones e informes. Su token de flota no da acceso a cuentas de instaladores. |
-| API de alta | `https://data.yokup.com/api/installer/register` | Crear una cuenta y obtener su sesión. Es REST, no una herramienta MCP. |
+| MCP alta | `https://data.yokup.com/mcp/installer` → `installer_register` | Crear una cuenta (pública, sin token de titular). Por defecto `radius_km=40`. |
+| API de alta | `https://data.yokup.com/api/installer/register` | Alternativa REST con `Origin: https://www.yokup.com`. |
 | MCP instalador | `https://data.yokup.com/mcp/installer` | Operar una cuenta existente con su token delegado `ykp_…`. |
 
-**No existen `installer_create`, `installer_register` ni alta masiva de cuentas en el MCP actual.** El MCP de retailer tampoco crea instaladores. El procedimiento implementado es API REST para el alta inicial y MCP para verificar y operar cada cuenta. Si Smith solo dispone de un cliente MCP y no puede ejecutar HTTP/Node, este alta no se puede completar solo con las herramientas actuales: necesita el bootstrap REST o que se implemente una herramienta específica; no debe inventarla.
+**`installer_register` ya existe** en el MCP del instalador y aparece en `tools/list` sin Bearer. Campos: name, email, password, country, city, latitude/longitude (alias lat/long), radius_km (40 por defecto), skills[], language, available, notify_zone, request_key, demo. Con `demo:true` o `available:false` el perfil queda no disponible. El MCP de retailer no crea instaladores. El token de flota de Yokup no opera estas cuentas. No hay alta masiva: una llamada por perfil, reutilizando `request_key` al reintentar.
 
 La documentación y los schemas son públicos; las sesiones, contraseñas y los tokens son privados. Schema real: https://www.yokup.com/mcp/installer.json . Documentación general: https://www.yokup.com/mcp/portales . No hay OAuth automático en esta versión.
 

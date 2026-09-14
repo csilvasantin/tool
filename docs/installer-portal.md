@@ -69,8 +69,9 @@ la cola requieren completar el adaptador real de Admira.
 
 ## Garantías y estados
 
-- Radio **estrictamente menor de 40 km**, conforme a la frase de Carlos; distancia
-  geodésica Haversine, radio terrestre 6371.0088 km. No es distancia de conducción.
+- Radio **estrictamente menor** que el `radius_km` de cada cuenta (40 km por
+  defecto, 1–200). Distancia geodésica Haversine, radio terrestre 6371.0088 km.
+  No es distancia de conducción. El perfil público expone `radius_km`.
 - Prefiltro SQL por caja geográfica e índice `(available,latitude,longitude)`;
   después círculo exacto. Polos y antimeridiano cubiertos por pruebas.
 - Solo instaladores disponibles y con especialidad coincidente reciben avisos.
@@ -101,6 +102,7 @@ Aplicar la migración aditiva antes de publicar el Worker:
 ```sh
 cd api
 npx wrangler@4.119.0 d1 execute yokup-db --remote --file migrations/0001_installer_portal.sql
+npx wrangler@4.119.0 d1 execute yokup-db --remote --file migrations/0008_installer_radius.sql
 npx wrangler@4.119.0 deploy
 ```
 

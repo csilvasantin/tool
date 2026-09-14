@@ -16,8 +16,9 @@ export function distanceKm(a, b) {
  const h = Math.sin(dlat/2)**2 + Math.cos(radians(a.latitude))*Math.cos(radians(b.latitude))*Math.sin(dlon/2)**2;
  return 6371.0088 * 2 * Math.asin(Math.sqrt(Math.max(0, Math.min(1, h))));
 }
-export function boundingBox(latitude, longitude) {
- const delta=40/6371.0088, degrees=180/Math.PI, latDelta=delta*degrees;
+export function boundingBox(latitude, longitude, radiusKm=40) {
+ const km=Number(radiusKm); const radius=Number.isFinite(km)&&km>0?Math.min(200,km):40;
+ const delta=radius/6371.0088, degrees=180/Math.PI, latDelta=delta*degrees;
  const south=Math.max(-90,latitude-latDelta), north=Math.min(90,latitude+latDelta);
  const allLongitudes=south<=-90 || north>=90;
  const lonDelta=allLongitudes?180:Math.asin(Math.min(1,Math.sin(delta)/Math.cos(latitude/degrees)))*degrees;
@@ -37,12 +38,18 @@ function profile(body) {
  if (!/^[A-Z]{2}$/.test(country)) fail(400, 'País no válido.');
  const skills = Array.isArray(body.skills) ? [...new Set(body.skills)] : [];
  if (!skills.length || skills.some(s => !SKILLS.has(s))) fail(400, 'Selecciona una especialidad.');
+ const radiusRaw=body.radius_km??body.radiusKm??40;
+ if(typeof radiusRaw!=='number'||!Number.isFinite(radiusRaw)||radiusRaw<1||radiusRaw>200) fail(400,'El radio de zona debe estar entre 1 y 200 km.');
+ const demo=body.demo===true?1:0;
  return {name:text(body.name,2,100), country, city:text(body.city,2,120),
-  latitude:coordinate(body.latitude,90), longitude:coordinate(body.longitude,180), skills:JSON.stringify(skills),
-  language:body.language==='en'?'en':'es', available:body.available===false?0:1};
+  latitude:coordinate(body.latitude??body.lat,90), longitude:coordinate(body.longitude??body.long,180), skills:JSON.stringify(skills),
+  language:body.language==='en'?'en':'es', available:(demo||body.available===false)?0:1,
+  radius_km:Math.round(radiusRaw*100)/100, notify_zone:body.notify_zone===false?0:1, demo};
 }
 function publicProfile(row) {
- const {password_hash,salt,...rest}=row; return {...rest, skills:JSON.parse(row.skills), available:!!row.available};
+ const {password_hash,salt,...rest}=row;
+ return {...rest, skills:JSON.parse(row.skills), available:!!row.available, notify_zone:row.notify_zone!==0,
+  demo:!!row.demo, radius_km:Number(row.radius_km)||40};
 }
 async function passwordHash(password, salt) {
  const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
@@ -101,7 +108,7 @@ export async function handleInstaller(request,env,principal) {
     if(account) fail(409,'No se pudo crear la cuenta. Si ya tienes una, inicia sesión.');
     const p=profile(body), salt=random(), id=crypto.randomUUID(), digest=await passwordHash(password,salt);
     try {
-     await statement(env,`INSERT INTO installer_accounts(id,email,name,password_hash,salt,country,city,latitude,longitude,skills,language,available,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,id,email,p.name,digest,salt,p.country,p.city,p.latitude,p.longitude,p.skills,p.language,p.available,Date.now()).run();
+     await statement(env,`INSERT INTO installer_accounts(id,email,name,password_hash,salt,country,city,latitude,longitude,skills,language,available,radius_km,notify_zone,demo,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,id,email,p.name,digest,salt,p.country,p.city,p.latitude,p.longitude,p.skills,p.language,p.available,p.radius_km,p.notify_zone,p.demo,Date.now()).run();
     } catch(e) { if(String(e).includes('UNIQUE')) fail(409,'No se pudo crear la cuenta. Si ya tienes una, inicia sesión.'); throw e; }
     account=await statement(env,'SELECT * FROM installer_accounts WHERE id=?',id).first();
    } else {
@@ -120,7 +127,7 @@ export async function handleInstaller(request,env,principal) {
   if(path==='/me' && method==='GET') return response(request,{profile:publicProfile(account)});
   if(path==='/me' && method==='PATCH') {
    const p=profile(await jsonBody(request));
-   await statement(env,`UPDATE installer_accounts SET name=?,country=?,city=?,latitude=?,longitude=?,skills=?,language=?,available=? WHERE id=?`,p.name,p.country,p.city,p.latitude,p.longitude,p.skills,p.language,p.available,account.id).run();
+   await statement(env,`UPDATE installer_accounts SET name=?,country=?,city=?,latitude=?,longitude=?,skills=?,language=?,available=?,radius_km=?,notify_zone=?,demo=? WHERE id=?`,p.name,p.country,p.city,p.latitude,p.longitude,p.skills,p.language,p.available,p.radius_km,p.notify_zone,p.demo,account.id).run();
    return response(request,{profile:publicProfile(await statement(env,'SELECT * FROM installer_accounts WHERE id=?',account.id).first())});
   }
   if(path==='/inbox' && method==='GET') {
@@ -143,7 +150,8 @@ export async function handleInstaller(request,env,principal) {
    if(verb==='accept') {
     if(!account.available) fail(409,'Activa tu disponibilidad antes de aceptar.');
     const incident=await statement(env,`SELECT i.*,d.latitude,d.longitude,d.skill FROM installer_incidents i JOIN installer_devices d ON d.id=i.device_id JOIN installer_notifications n ON n.incident_id=i.id WHERE i.id=? AND n.installer_id=?`,id,account.id).first();
-    if(!incident || distanceKm(account,incident)>=40 || !JSON.parse(account.skills).includes(incident.skill)) fail(403,'La incidencia no está en tu zona o especialidad.');
+    const radius=Number(account.radius_km)||40;
+    if(!incident || distanceKm(account,incident)>=radius || !JSON.parse(account.skills).includes(incident.skill)) fail(403,'La incidencia no está en tu zona o especialidad.');
     const result=await statement(env,`UPDATE installer_incidents SET status='assigned',installer_id=?,assigned_at=? WHERE id=? AND status='open'`,account.id,Date.now(),id).run();
     if(!result.meta.changes) fail(409,'Esta incidencia ya tiene instalador o está cerrada.');
    } else {
@@ -203,14 +211,16 @@ export async function ingestEvent(request,env) {
 export async function dispatchNotifications(env) {
  const incidents=await rows(env,`SELECT i.id,d.latitude,d.longitude,d.skill FROM installer_incidents i JOIN installer_devices d ON d.id=i.device_id WHERE i.status='open'`);
  for(const incident of incidents) {
-  const box=boundingBox(incident.latitude,incident.longitude);
+  const box=boundingBox(incident.latitude,incident.longitude,200);
   const longitudeSql=box.allLongitudes?'1=1':box.west>box.east?'(longitude>=? OR longitude<=?)':'longitude BETWEEN ? AND ?';
   const args=[box.south,box.north,...(box.allLongitudes?[]:[box.west,box.east]),incident.id];
-  const installers=await rows(env,`SELECT id,latitude,longitude,skills FROM installer_accounts a WHERE available=1 AND latitude BETWEEN ? AND ? AND ${longitudeSql} AND NOT EXISTS(SELECT 1 FROM installer_notifications n WHERE n.installer_id=a.id AND n.incident_id=?)`,...args);
+  const installers=await rows(env,`SELECT id,latitude,longitude,skills,radius_km,notify_zone FROM installer_accounts a WHERE available=1 AND latitude BETWEEN ? AND ? AND ${longitudeSql} AND NOT EXISTS(SELECT 1 FROM installer_notifications n WHERE n.installer_id=a.id AND n.incident_id=?)`,...args);
   const statements=[];
   for(const installer of installers) {
+   if(installer.notify_zone===0) continue;
    const distance=distanceKm(installer,incident);
-   if(distance<40 && JSON.parse(installer.skills).includes(incident.skill)) statements.push(statement(env,`INSERT OR IGNORE INTO installer_notifications(id,incident_id,installer_id,distance_km,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM installer_incidents WHERE id=? AND status='open')`,crypto.randomUUID(),incident.id,installer.id,distance,Date.now(),incident.id));
+   const radius=Number(installer.radius_km)||40;
+   if(distance<radius && JSON.parse(installer.skills).includes(incident.skill)) statements.push(statement(env,`INSERT OR IGNORE INTO installer_notifications(id,incident_id,installer_id,distance_km,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM installer_incidents WHERE id=? AND status='open')`,crypto.randomUUID(),incident.id,installer.id,distance,Date.now(),incident.id));
   }
   for(let start=0;start<statements.length;start+=80) await env.DB.batch(statements.slice(start,start+80));
  }

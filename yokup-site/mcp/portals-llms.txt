@@ -28,7 +28,7 @@ Estos tokens solo funcionan en su endpoint y para su cuenta. No sirven en el otr
 
 ## Transporte y conexión
 
-Streamable HTTP con respuestas JSON, sin SSE persistente ni sesiones de transporte. Versiones admitidas: 2025-11-25, 2025-06-18 y 2025-03-26. Métodos: initialize, ping, tools/list, tools/call; notificaciones initialized/cancelled reciben 202. GET autenticado recibe 405 al no ofrecer streaming; sin token, 401. No se ejecutan herramientas enviadas como notificaciones.
+Streamable HTTP con respuestas JSON, sin SSE persistente ni sesiones de transporte. Versiones admitidas: 2025-11-25, 2025-06-18 y 2025-03-26. Métodos: initialize, ping, tools/list, tools/call; notificaciones initialized/cancelled reciben 202. GET recibe 405 al no ofrecer streaming. Sin token se admiten initialize, ping, tools/list (herramientas públicas) y tools/call de installer_register. El resto exige Bearer. Un token inválido recibe 401. No se ejecutan herramientas enviadas como notificaciones.
 
 Cabeceras POST:
 
@@ -67,7 +67,7 @@ Para instaladores, cambia el endpoint y utiliza su propio token. No copies el ar
 
 ## Herramientas y reglas compartidas
 
-Instalador: installer_whoami, installer_profile, installer_inbox, installer_accept, installer_resolve, installer_notification_read.
+Instalador: installer_register (pública, sin token), installer_whoami, installer_profile, installer_inbox, installer_accept, installer_resolve, installer_notification_read.
 Comercio: retailer_whoami, retailer_dashboard, retailer_site_create, retailer_device_create, retailer_incident_create, retailer_intervention_rate.
 
 No existe herramienta de consulta SQL, ejecución de comandos, suplantación de cuenta, elección arbitraria de URL ni control remoto del IoT. Las operaciones reutilizan los handlers de los portales y su propietario autenticado. Se conservan el radio estricto menor de 40 km, especialidad/disponibilidad, aceptación atómica por un único técnico, resolución solo del asignado, valoración única por el titular y revisión con historial.
@@ -109,4 +109,4 @@ node --test api/installer-portal.test.mjs api/retailer-portal.test.mjs api/porta
 
 ## Smith: 20 instaladores DEMO en la península ibérica
 
-Guía operativa: https://www.yokup.com/mcp/smith-instaladores.html . Texto completo para agentes: https://www.yokup.com/mcp/smith-instaladores.txt . Lote de 20 perfiles: https://www.yokup.com/mcp/smith-installers-iberia.json . El MCP actual no crea cuentas; la guía documenta el alta REST y posterior verificación MCP por titular. Datos ficticios, no disponibles; esta documentación no ejecuta las altas.
+Guía operativa: https://www.yokup.com/mcp/smith-instaladores.html . Texto completo para agentes: https://www.yokup.com/mcp/smith-instaladores.txt . Lote de 20 perfiles: https://www.yokup.com/mcp/smith-installers-iberia.json . El alta puede hacerse con installer_register (MCP público) o con REST POST /api/installer/register. Datos ficticios, no disponibles; esta documentación no ejecuta las altas.

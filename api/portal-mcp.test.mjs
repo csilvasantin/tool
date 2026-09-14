@@ -133,6 +133,49 @@ test('public stdio bridge is the same source and never accepts arbitrary hosts',
  assert.match(source,/redirect:'error'/);assert.match(source,/info.mode&0o077/);
 });
 
+async function publicRpc(env,kind,method='tools/list',params={},options={}){
+ const message={jsonrpc:'2.0',id:1,method,params},headers={'Content-Type':'application/json',Accept:'application/json, text/event-stream','MCP-Protocol-Version':'2025-11-25',...options.headers};
+ const req=new Request('https://data.yokup.com/mcp/'+kind,{method:options.method||'POST',headers,body:options.method==='GET'?undefined:options.raw??JSON.stringify(message)});
+ const r=await handlePortalMcp(req,env,kind),raw=await r.text();return {status:r.status,body:raw?JSON.parse(raw):null,headers:r.headers};
+}
+
+test('unauthenticated installer MCP lists installer_register and DEMO alta persists radius_km 40',async()=>{
+ const {env}=setup();
+ const listed=await publicRpc(env,'installer');
+ assert.equal(listed.status,200);
+ assert.deepEqual(listed.body.result.tools.map(t=>t.name),['installer_register']);
+ assert.equal(listed.body.result.tools[0].public,true);
+ const init=await publicRpc(env,'installer','initialize',{protocolVersion:'2025-11-25',clientInfo:{name:'test',version:'1'},capabilities:{}});
+ assert.equal(init.body.result.serverInfo.name,'yokup-installer');
+ assert.equal((await publicRpc(env,'installer','tools/call',{name:'installer_whoami',arguments:{}})).status,401);
+ assert.deepEqual((await publicRpc(env,'retailer')).body.result.tools.map(t=>t.name),[]);
+ const args={name:'DEMO MCP Register',email:'smith-mcp-register@example.invalid',password:'correct-horse-battery',country:'ES',city:'Barcelona',lat:41.3874,long:2.1686,radius_km:40,skills:['screen'],language:'es',available:false,notify_zone:true,demo:true,request_key:key()};
+ const created=await publicRpc(env,'installer','tools/call',{name:'installer_register',arguments:args});
+ assert.equal(created.body.result.isError,false);
+ const data=output(created);
+ assert.equal(data.http_status,201);
+ assert.ok(data.profile.id);
+ assert.equal(data.profile.email,'smith-mcp-register@example.invalid');
+ assert.equal(data.profile.available,false);
+ assert.equal(data.profile.radius_km,40);
+ assert.equal(data.profile.demo,true);
+ assert.match(data.mcp_token.token,/^ykp_[a-f0-9]{64}$/);
+ assert.equal(data.mcp_token.show_once,true);
+ assert.ok(!JSON.stringify(data.profile).includes(args.password));
+ const replay=output(await publicRpc(env,'installer','tools/call',{name:'installer_register',arguments:args}));
+ assert.equal(replay.replayed,true);
+ assert.equal(replay.profile.id,data.profile.id);
+ assert.equal(replay.mcp_token,undefined);
+ const token=data.mcp_token.token;
+ const who=output(await rpc(env,{kind:'installer',token},'tools/call',{name:'installer_whoami',arguments:{}}));
+ assert.equal(who.account_id,data.profile.id);
+ const profile=output(await rpc(env,{kind:'installer',token},'tools/call',{name:'installer_profile',arguments:{}}));
+ assert.equal(profile.profile.radius_km,40);
+ assert.equal(profile.profile.available,false);
+ const missingCoords=await publicRpc(env,'installer','tools/call',{name:'installer_register',arguments:{...args,lat:undefined,long:undefined,request_key:key()}});
+ assert.equal(missingCoords.body.error.code,-32602);
+});
+
 test('legacy CRUD rejects injected SQL identifiers before touching private portal data',async()=>{
  const {env,db}=setup(),a=await actor(env,'installer');
  db.exec("CREATE TABLE technicians(id TEXT PRIMARY KEY,name TEXT); INSERT INTO technicians VALUES('legacy-1','Original');");

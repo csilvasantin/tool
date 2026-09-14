@@ -15,15 +15,29 @@ test('registration persists private profile, HttpOnly cookie and rejects missing
  const {env,db}=setup(), a=account(), reg=await call(env,'/register',a);
  assert.equal(reg.status,201);assert.ok(reg.headers.get('set-cookie').includes('HttpOnly; Secure; SameSite=Strict'));
  assert.equal(reg.body.profile.email,a.email);assert.equal(reg.body.profile.password_hash,undefined);
+ assert.equal(reg.body.profile.radius_km,40);assert.equal(reg.body.profile.notify_zone,true);
  assert.notEqual(db.prepare('SELECT password_hash FROM installer_accounts').get().password_hash,a.password);
  assert.equal((await call(env,'/me')).status,401);
  assert.equal((await call(env,'/me',undefined,reg.cookie)).status,200);
+ assert.equal((await call(env,'/me',undefined,reg.cookie)).body.profile.radius_km,40);
  assert.equal((await call(env,'/me',a,reg.cookie,'PATCH','https://evil.example')).status,403);
  assert.equal((await call(env,'/register',a)).status,409);
  assert.equal((await call(env,'/login',{email:a.email,password:'wrong-password-123'})).status,401);
  assert.equal((await call(env,'/login',{email:a.email,password:a.password})).status,200);
  await call(env,'/logout',{},reg.cookie);
  assert.equal((await call(env,'/me',undefined,reg.cookie)).status,401);
+});
+test('DEMO and radius_km persist on profile; notify_zone false skips alerts; wider radius receives farther jobs',async()=>{
+ const {env,db}=setup();
+ const demo=await call(env,'/register',account({available:true,demo:true,radius_km:40}));
+ assert.equal(demo.status,201);assert.equal(demo.body.profile.available,false);assert.equal(demo.body.profile.radius_km,40);assert.equal(demo.body.profile.demo,true);
+ const quiet=await call(env,'/register',account({notify_zone:false}));
+ const far=await call(env,'/register',account({latitude:41.3874+(50/6371.0088)*180/Math.PI,radius_km:80}));
+ await ingestEvent(await signed(env,event()),env);
+ const notified=db.prepare('SELECT installer_id FROM installer_notifications').all().map(r=>r.installer_id);
+ assert.ok(!notified.includes(demo.body.profile.id));
+ assert.ok(!notified.includes(quiet.body.profile.id));
+ assert.ok(notified.includes(far.body.profile.id));
 });
 test('invalid input cannot create partial accounts and auth limits apply',async()=>{
  const {env,db}=setup();
