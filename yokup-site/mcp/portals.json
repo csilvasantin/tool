@@ -1,0 +1,22 @@
+{
+  "name": "yokup-portals",
+  "version": "1.0.0",
+  "documentation": "https://www.yokup.com/mcp/portales",
+  "llms_txt": "https://www.yokup.com/mcp/portals-llms.txt",
+  "servers": [
+    {
+      "name": "yokup-installer",
+      "endpoint": "https://data.yokup.com/mcp/installer",
+      "manifest": "https://www.yokup.com/mcp/installer.json",
+      "authentication": "individual-bearer",
+      "oauth_supported": false
+    },
+    {
+      "name": "yokup-retailer",
+      "endpoint": "https://data.yokup.com/mcp/retailer",
+      "manifest": "https://www.yokup.com/mcp/retailer.json",
+      "authentication": "individual-bearer",
+      "oauth_supported": false
+    }
+  ]
+}

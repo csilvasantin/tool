@@ -1,3 +1,4 @@
+import {portalCredentials} from './portal-credentials.js';
 /** Installer portal: isolated accounts, authenticated inbox and signed Admira ingestion. */
 const ORIGINS = new Set(['https://www.yokup.com', 'https://yokup.com', 'http://localhost:8788', 'http://127.0.0.1:8788']);
 const SKILLS = new Set(['screen', 'player', 'network', 'audio', 'sensor', 'kiosk', 'hvac']);
@@ -80,7 +81,7 @@ function response(request,body,status=200,cookie) {
  if(cookie) headers['Set-Cookie']=cookie;
  return new Response(JSON.stringify(body),{status,headers});
 }
-export async function handleInstaller(request,env) {
+export async function handleInstaller(request,env,principal) {
  const url=new URL(request.url), method=request.method;
  try {
   let path; try { path=decodeURIComponent(url.pathname.replace('/api/installer','')); } catch { fail(400,'Ruta no válida.'); }
@@ -108,7 +109,8 @@ export async function handleInstaller(request,env) {
    }
    return response(request,{profile:publicProfile(account)},path==='/register'?201:200,await session(env,account.id));
   }
-  const account=await authenticated(request,env);
+  const account=principal||await authenticated(request,env);
+  if(path.startsWith('/mcp-tokens')||path==='/mcp-audit')return await portalCredentials(request,env,'installer',account,path);
   if(path==='/logout' && method==='POST') {
    const token=request.headers.get('cookie').split(';').map(s=>s.trim()).find(s=>s.startsWith(COOKIE+'=')).slice(COOKIE.length+1);
    await statement(env,'DELETE FROM installer_sessions WHERE token_hash=?',await hash(token)).run();

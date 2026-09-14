@@ -676,5 +676,21 @@
     "censo": "https://www.yokup.com/mcp/galaxia.json",
     "sitio": "https://www.yokup.com/mcp/galaxia.json?sitio=<host>",
     "ttl_segundos": 3600
-  }
+  },
+  "related_servers": [
+    {
+      "name": "yokup-installer",
+      "endpoint": "https://data.yokup.com/mcp/installer",
+      "manifest": "https://www.yokup.com/mcp/installer.json",
+      "authentication": "individual-bearer",
+      "oauth_supported": false
+    },
+    {
+      "name": "yokup-retailer",
+      "endpoint": "https://data.yokup.com/mcp/retailer",
+      "manifest": "https://www.yokup.com/mcp/retailer.json",
+      "authentication": "individual-bearer",
+      "oauth_supported": false
+    }
+  ]
 }

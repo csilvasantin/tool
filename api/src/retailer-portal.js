@@ -1,3 +1,4 @@
+import {portalCredentials} from './portal-credentials.js';
 import { ORIGINS, SKILLS, encoder, fail, random, hash, statement, rows, coordinate, text, passwordHash, jsonBody, rateLimit, response, dispatchNotifications } from './installer-portal.js';
 const COOKIE='__Host-yk_retailer';
 const cookieToken=request=>(request.headers.get('cookie')||'').split(';').map(s=>s.trim()).find(s=>s.startsWith(COOKIE+'='))?.slice(COOKIE.length+1);
@@ -19,7 +20,7 @@ async function dashboard(env,owner){
  const stats=await statement(env,`SELECT COUNT(CASE WHEN i.status='open' THEN 1 END) AS open,COUNT(CASE WHEN i.status='assigned' THEN 1 END) AS assigned,COUNT(CASE WHEN i.status='resolved' AND r.incident_id IS NULL THEN 1 END) AS awaiting_rating FROM installer_incidents i JOIN retailer_device_links l ON l.device_id=i.device_id JOIN retailer_sites s ON s.id=l.site_id LEFT JOIN retailer_ratings r ON r.incident_id=i.id WHERE s.retailer_id=?`,owner).first();
  return {sites,devices,incidents,stats};
 }
-export async function handleRetailer(request,env){
+export async function handleRetailer(request,env,principal){
  try{
   const path=decodeURIComponent(new URL(request.url).pathname.replace('/api/retailer','')),method=request.method;
   if(method==='OPTIONS')return response(request,{});
@@ -39,7 +40,8 @@ export async function handleRetailer(request,env){
    }else{const digest=await passwordHash(password,account?.salt||'missing-account-constant');if(!account||digest!==account.password_hash)fail(401,'Correo o contraseña incorrectos.');}
    return response(request,{profile:publicAccount(account)},path==='/register'?201:200,await createSession(env,account.id));
   }
-  const account=await authenticated(request,env),owner=account.id;
+  const account=principal||await authenticated(request,env),owner=account.id;
+  if(path.startsWith('/mcp-tokens')||path==='/mcp-audit')return await portalCredentials(request,env,'retailer',account,path);
   if(path==='/me'&&method==='GET')return response(request,{profile:publicAccount(account)});
   if(path==='/logout'&&method==='POST'){await statement(env,'DELETE FROM retailer_sessions WHERE token_hash=?',await hash(cookieToken(request))).run();return response(request,{ok:true},200,`${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`);}
   if(path==='/dashboard'&&method==='GET')return response(request,await dashboard(env,owner));

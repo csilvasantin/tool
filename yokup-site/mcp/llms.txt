@@ -200,3 +200,9 @@ La puerta de carbono es [yokup.com/help](https://www.yokup.com/help).
 ## La Galaxia, medida (7-sep-2026)
 - GET https://www.yokup.com/mcp/galaxia.json → censo de sitios (uno por dominio del censo de proyectos; los proyectos con ruta heredan las puertas).
 - GET https://www.yokup.com/mcp/galaxia.json?sitio=<host> → /help, /mcp, llms.txt, manifest.json y cada servidor MCP declarado (initialize + tools/list sin clave). Cache de una hora. Solo se mide lo que está en el censo.
+
+## MCP de los portales operativos
+Documentación pública: https://www.yokup.com/mcp/portales
+Guía para agentes: https://www.yokup.com/mcp/portals-llms.txt
+Índice: https://www.yokup.com/mcp/portals.json
+Son servidores independientes con tokens delegados por el titular de cada cuenta. La credencial de flota no da acceso a datos de comercios ni instaladores.

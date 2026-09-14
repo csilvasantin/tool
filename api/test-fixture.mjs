@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 import {handleInstaller} from './src/installer-portal.js';
 const ORIGIN='https://www.yokup.com';
 function setup(){
- const db=new DatabaseSync(':memory:');for(const file of ['0001_installer_portal.sql','0002_retailer_portal.sql'])db.exec(readFileSync(new URL('./migrations/'+file,import.meta.url),'utf8'));
+ const db=new DatabaseSync(':memory:');for(const file of ['0001_installer_portal.sql','0002_retailer_portal.sql','0003_portal_mcp.sql'])db.exec(readFileSync(new URL('./migrations/'+file,import.meta.url),'utf8'));
  const prepare=sql=>({bind(...args){const exec=()=>db.prepare(sql);return {first:async()=>exec().get(...args)||null,all:async()=>({results:exec().all(...args)}),run:async()=>({meta:{changes:Number(exec().run(...args).changes)}})}; }});
  const env={INSTALLER_ADMIRA_SECRET:'test-only-secret',DB:{prepare,batch:async statements=>{db.exec('BEGIN');try{const out=[];for(const s of statements)out.push(await s.run());db.exec('COMMIT');return out;}catch(e){db.exec('ROLLBACK');throw e;}}}};
  return {db,env};
