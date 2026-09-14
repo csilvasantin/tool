@@ -18,7 +18,9 @@ export function desktopTurnParticipant(row,now=Date.now()) {
   if(!basis||turn.basis!==basis||!(turn.state==='active'||ended)||(ended?!end:!!end)||!start||!observed||
     !/^[a-f0-9]{64}$/.test(turn.turn_key||'')||epoch(turn.process_birth)!==birth||start<birth||
     start>observed||observed>now+5000||start>now+5000)return null;
-  if(!ended&&observed<now-120000)return null;
+  // Un turno activo cuya última observación tiene hasta 10 min también cuenta: mientras el agente ejecuta un
+  // comando largo la transcripción no cambia y antes la calle caía a los 2 min (visto el 14-sep a las 19:48).
+  if(!ended&&observed<now-TURN_GRACE_MS)return null;
   if(ended&&(end<start||end>now+5000||end<now-TURN_GRACE_MS))return null;
   const parsed=parseAgentIdentity(row.persona),physical=canonicalMachineSuffix(machineSuffix(row.machine));
   if(!physical||!parsed.persona||parsed.suffix&&canonicalMachineSuffix(parsed.suffix)!==physical)return null;
@@ -28,7 +30,7 @@ export function desktopTurnParticipant(row,now=Date.now()) {
     kind:'session',reference:'',title:'Actividad Desktop APP',state:'running',reachable:true,
     runtime:row.runtime,session_id:String(row.session_id),process_birth:birth,host:'app',session_surface:'app',session_state:'open',session_basis:'verified_app_turn',
     turn_state:ended?'ended':'active',
-    activity_basis:basis,activity_at:ended?end:observed,activity_expires_at:ended?Math.min(at+30000,end+TURN_GRACE_MS):Math.min(at+30000,observed+120000),
+    activity_basis:basis,activity_at:ended?end:observed,activity_expires_at:Math.min(at+30000,(ended?end:observed)+TURN_GRACE_MS),
     work_started_at:start,work_progress_at:ended?end:observed,ended_at:ended?end:null,elapsed_ms:(ended?end:now)-start,timing_basis:'desktop_turn',
     race_revision:'session:'+turn.turn_key,active_at:ended?end:observed,presence_at:at,assignment_priority:0};
 }

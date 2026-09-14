@@ -12,7 +12,7 @@ test('Claude and Codex verified active turns have independent session clocks and
 test('missing, stale, future, ended, foreign or wrong process evidence never becomes a participant',()=>{
  const base=row();
  for(const patch of [{app_turn:null},{host:'cli'},{verified:0},{source:'heartbeat'},{pid:0},{session_id:''},{updated:now-30001},{updated:now+5001},{process_birth:birth+1},{persona:'NeoMacMini'},{machine:'MacMini'}])assert.equal(desktopTurnParticipant({...base,...patch},now),null,JSON.stringify(patch));
- for(const patch of [{state:'ended'},{ended_at:now},{state:'ended',ended_at:now-600001},{state:'ended',ended_at:now-120000,started_at:now-60000},{observed_at:now-120001},{observed_at:now+5001},{started_at:now+1},{started_at:birth-1},{process_birth:birth+1},{basis:'unverified'},{turn_key:'raw-session-name'}])assert.equal(desktopTurnParticipant({...base,app_turn:{...base.app_turn,...patch}},now),null,JSON.stringify(patch));
+ for(const patch of [{state:'ended'},{ended_at:now},{state:'ended',ended_at:now-600001},{state:'ended',ended_at:now-120000,started_at:now-60000},{observed_at:now-600001},{observed_at:now+5001},{started_at:now+1},{started_at:birth-1},{process_birth:birth+1},{basis:'unverified'},{turn_key:'raw-session-name'}])assert.equal(desktopTurnParticipant({...base,app_turn:{...base.app_turn,...patch}},now),null,JSON.stringify(patch));
 });
 test('duplicate snapshots collapse while concurrent process incarnations remain ambiguous',()=>{
  const a=row();assert.equal(desktopTurnParticipants([a,a],now).length,1);

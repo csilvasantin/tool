@@ -70,7 +70,7 @@ test('two factual unlinked APP turns appear once each, retain their own start, d
  assert.equal(out.observations.length,0);
 });
 test('reachability, CLI, stale evidence, ended turn and changed process birth cannot manufacture a session runner',async()=>{
- const base=turnRow();for(const row of [{...base,app_turn:undefined},{...base,host:'cli'},{...base,updated:(NOW-30001)/1000},{...base,app_turn:{...base.app_turn,observed_at:NOW-120001}},{...base,app_turn:{...base.app_turn,state:'ended',ended_at:NOW-10*60*1000-1}},{...base,process_birth:(BIRTH+1000)/1000}]){const out=await run([row]);assert.equal(out.running_count,0);assert.equal(out.participants.filter(r=>r.kind==='session').length,0);}
+ const base=turnRow();for(const row of [{...base,app_turn:undefined},{...base,host:'cli'},{...base,updated:(NOW-30001)/1000},{...base,app_turn:{...base.app_turn,observed_at:NOW-10*60*1000-1}},{...base,app_turn:{...base.app_turn,state:'ended',ended_at:NOW-10*60*1000-1}},{...base,process_birth:(BIRTH+1000)/1000}]){const out=await run([row]);assert.equal(out.running_count,0);assert.equal(out.participants.filter(r=>r.kind==='session').length,0);}
 });
 test('a live APP turn replaces a finished historical lane without changing stored historical facts',async()=>{
  const out=await run([turnRow()],[],db=>mission(db,{id:'HISTORY',agent:'NeoMBP14',machine:'MBP14',at:NOW-10000,startedAt:NOW-600000,status:'resolved'}));assert.equal(out.participants.filter(r=>r.agent==='NeoMBP14').length,1);assert.equal(out.participants[0].kind,'session');assert.equal(out.participants[0].work_started_at,START);
