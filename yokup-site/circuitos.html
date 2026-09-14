@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/acceso.js?v=20260811-r4-d77633add752"></script>
+<title>Circuitos de Cartelería Digital · Yokup</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#02080d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
+<link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<link rel="stylesheet" href="/yk-frame.css?v=r17">
+<style>
+:root{--bg:#02080d;--card:#0a1620;--card2:#0d1c28;--ink:#dff8ff;--mut:#75aab9;--dim:#4d7a88;--brand:#78f3ff;--accent:#ffd866;--good:#88ffaa;--warn:#ff8866;--line:rgba(120,243,255,.16);--line2:rgba(120,243,255,.3)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+.wrap{max-width:1100px;margin:0 auto;padding:22px 24px 48px}
+h1{font-size:clamp(23px,3vw,31px);letter-spacing:-.02em;margin:4px 0 4px}
+.sub{color:var(--mut);font-size:14.5px;margin-bottom:18px;max-width:760px;line-height:1.5}
+.sub a{color:var(--brand)}
+.create{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;border:1px solid var(--line);border-radius:14px;background:var(--card);padding:16px;margin-bottom:22px}
+.create label{display:grid;gap:5px;color:var(--dim);font:10px var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.create :is(input,select){min-height:42px;border:1px solid var(--line);border-radius:10px;background:var(--card2);color:var(--ink);font:14px var(--sans);padding:9px 11px;min-width:0}
+.create :is(input,select):focus{outline:2px solid var(--brand);outline-offset:1px}
+.create button{min-height:42px;border:1px solid var(--brand);border-radius:10px;background:var(--brand);color:#02080d;font:12px var(--mono);letter-spacing:.05em;text-transform:uppercase;cursor:pointer;padding:0 16px}
+.create button:disabled{opacity:.55;cursor:wait}
+.create .hint{grid-column:1/-1;color:var(--dim);font:11px var(--mono)}
+.msg{grid-column:1/-1;min-height:16px;font:12px var(--mono);color:var(--dim)}.msg.ok{color:var(--good)}.msg.err{color:var(--warn)}
+.msg a{color:var(--brand)}
+.newcanal[hidden]{display:none!important}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.circ{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:15px;display:grid;gap:8px;min-width:0}
+.circ.nocanal{border-color:rgba(255,216,102,.35)}
+.circ h3{font-size:16px;overflow-wrap:anywhere}
+.circ .id{font:12px var(--mono);color:var(--mut)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:11px var(--mono);border:1px solid var(--line);border-radius:999px;padding:3px 9px;color:var(--mut)}
+.chip.warn{border-color:rgba(255,216,102,.4);color:var(--accent)}
+.chip.src{color:var(--good);border-color:rgba(136,255,170,.35)}
+.state{color:var(--mut);font:12px var(--mono);margin:6px 0 12px}
+.foot{margin-top:24px;font:10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}.foot a{color:var(--brand)}
+</style>
+</head>
+<body data-yk-title="CIRCUITOS" data-yk-zone="app">
+<div class="wrap">
+  <h1>Circuitos de Cartelería Digital</h1>
+  <p class="sub">Un circuito agrupa pantallas de la red. Los que des de alta aquí se guardan en el registro único de Admira y aparecen en <a href="https://admira.tv/digitalsignage/#circuitos" target="_blank" rel="noopener">admira.tv · Cartelería Digital</a>. Si eliges canal, entra en él; si no, se ve como «sin canal» hasta que alguien lo asigne.</p>
+
+  <form class="create" id="create" novalidate>
+    <label>ID del circuito
+      <input id="circuit" name="circuit" required pattern="[a-z0-9][a-z0-9_\-]{1,39}" maxlength="40" placeholder="farmacias-bcn" autocomplete="off" spellcheck="false">
+    </label>
+    <label>Nombre
+      <input id="name" name="name" maxlength="60" placeholder="Farmacias Barcelona" autocomplete="off">
+    </label>
+    <label>Canal
+      <select id="project" name="project"><option value="">Sin canal</option></select>
+    </label>
+    <label class="newcanal" hidden>ID del canal nuevo
+      <input id="newProject" maxlength="40" pattern="[a-z0-9][a-z0-9_\-]{1,39}" placeholder="canal-farma" autocomplete="off" spellcheck="false">
+    </label>
+    <label class="newcanal" hidden>Nombre del canal
+      <input id="newProjectName" maxlength="60" placeholder="Canal Farma" autocomplete="off">
+    </label>
+    <button type="submit" id="go">Dar de alta</button>
+    <p class="hint">ID: minúsculas, números, «-» o «_», de 2 a 40 caracteres. Es el prefijo de las pantallas (p. ej. <b>farmacias-bcn</b>-mupi).</p>
+    <p class="msg" id="msg" role="status" aria-live="polite"></p>
+  </form>
+
+  <p class="state" id="state" role="status" aria-live="polite">Cargando circuitos…</p>
+  <div class="grid" id="list" role="list"></div>
+
+  <p class="foot">Registro: <a href="https://api.admira.store/grid/circuits" target="_blank" rel="noopener">api.admira.store/grid/circuits</a> · Canales: admira.tv/cms</p>
+</div>
+<script>
+const WORKER="https://api.yokup.com";
+const ID_RE=/^[a-z0-9][a-z0-9_-]{1,39}$/;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
+const ERR={"bad-circuit":"El ID del circuito no es válido.","bad-project":"El ID del canal no es válido.","unauthorized":"Tu sesión ha caducado. Vuelve a entrar.",
+  "admira_circuits_not_configured":"La conexión con Admira no está configurada.","project-full":"Ese canal ya tiene 40 circuitos.","too-many-projects":"No caben más canales.",
+  "registry-full":"El registro de circuitos está lleno.","admira_unavailable":"Admira no responde ahora mismo."};
+function say(text,kind,html){ const m=$("msg"); m.className="msg"+(kind?" "+kind:""); if(html) m.innerHTML=html; else m.textContent=text; }
+
+function render(d){
+  const sel=$("project"), keep=sel.value;
+  sel.innerHTML='<option value="">Sin canal</option>'+(d.projects||[]).map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join("")+'<option value="__new">+ Canal nuevo…</option>';
+  if([...sel.options].some(o=>o.value===keep)) sel.value=keep;
+  const rows=d.circuits||[];
+  $("state").textContent=rows.length?rows.length+" circuitos · "+rows.filter(r=>!r.projects.length).length+" sin canal":"Todavía no hay circuitos.";
+  $("list").innerHTML=rows.map(r=>{
+    const canal=r.projects.length?r.projects.map(p=>'<span class="chip">'+esc(p.name)+'</span>').join(""):'<span class="chip warn">Sin canal</span>';
+    const src=r.source==="yokup"?'<span class="chip src">Alta en Yokup</span>':"";
+    return '<article class="circ'+(r.projects.length?"":" nocanal")+'" role="listitem"><h3>'+esc(r.name)+'</h3><span class="id">'+esc(r.id)+'</span><div class="chips">'+canal+src+'</div></article>';
+  }).join("");
+}
+async function load(){
+  try{ const r=await fetch(WORKER+"/circuits",{cache:"no-store"}); const d=await r.json(); if(!r.ok||!d.ok) throw new Error(d.error||r.status); render(d); }
+  catch(e){ $("state").textContent="No se pudieron cargar los circuitos: "+(ERR[e.message]||e.message); }
+}
+$("project").addEventListener("change",()=>document.querySelectorAll(".newcanal").forEach(n=>n.hidden=$("project").value!=="__new"));
+$("create").addEventListener("submit",async ev=>{
+  ev.preventDefault();
+  const circuit=$("circuit").value.trim().toLowerCase(), isNew=$("project").value==="__new";
+  const project=isNew?$("newProject").value.trim().toLowerCase():$("project").value;
+  if(!ID_RE.test(circuit)){ say(ERR["bad-circuit"],"err"); $("circuit").focus(); return; }
+  if(isNew&&!ID_RE.test(project)){ say(ERR["bad-project"],"err"); $("newProject").focus(); return; }
+  const body={circuit,name:$("name").value.trim(),project};
+  if(isNew) body.project_name=$("newProjectName").value.trim();
+  $("go").disabled=true; say("Dando de alta en Admira…");
+  try{
+    const r=await fetch(WORKER+"/circuits",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!r.ok||!d.ok) throw new Error(d.error||r.status);
+    say("","ok",esc(d.created?"Circuito «"+d.circuit.id+"» dado de alta":"Circuito «"+d.circuit.id+"» actualizado")+(d.project?" en "+esc(d.project.name):" sin canal")+'. <a href="'+esc(d.admira_url)+'" target="_blank" rel="noopener">Verlo en admira.tv ↗</a>');
+    $("create").reset(); document.querySelectorAll(".newcanal").forEach(n=>n.hidden=true);
+    load();
+  }catch(e){ say(ERR[e.message]||("No se pudo dar de alta: "+e.message),"err"); }
+  finally{ $("go").disabled=false; }
+});
+load();
+</script>
+<script src="/yk-frame.js?v=r31"></script>
+</body>
+</html>

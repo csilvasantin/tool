@@ -17,6 +17,7 @@ import { AgentStopError, dispatchAgentStart, dispatchAgentStop, normalizeAgentSt
 import { dispatchCliTerminal, normalizeCliTerminalRequest, readCliTerminalResult, verifyCliTerminalTarget } from "./fleet-cli-terminal.js";
 import { authorizeDesktopCaptureClear, clearDesktopCapture, dispatchDesktopCapture, dispatchDesktopVerifyClose, dispatchDesktopWrite, readDesktopResult } from "./fleet-desktop.js";
 import { PtyRoom } from "./pty-room.js";
+import { handleCircuits } from "./admira-circuits.js";
 import { DISPLAY_REF_ENTITY_TYPES, epochMillis, formatDisplayRef, formatMissionDelDia, madridDayKey, madridDayStart, parseMissionDelDia, sortDisplayRefCandidates } from "./display-ref.js";
 import { MISSION_NOVELTY_DECISION_INDEX_SQL, MISSION_NOVELTY_INDEX_SQL, MISSION_NOVELTY_INSERT_SQL, MISSION_NOVELTY_RECENT_SQL, MISSION_NOVELTY_TABLE_SQL, missionNoveltyContract, missionNoveltyEventKey } from "./mission-novelty.js";
 import { annotateMissionDuplicates } from "./mission-duplicates.js";
@@ -11935,6 +11936,8 @@ var worker_app = {
         return json({ error: String(e) }, 500);
       }
     }
+    // Circuitos de Cartelería Digital: alta en el registro único de admira (src/admira-circuits.js).
+    if (url.pathname === "/circuits") return handleCircuits(req, env, { json, requireAuth });
     if (url.pathname === "/incidents") {
       try {
         const r = await fetch("https://api.admira.store/signage/screens", { cf: { cacheTtl: 5 } });
