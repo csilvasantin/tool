@@ -60,3 +60,31 @@ test('only central signed receipt marks Admira registered; immutable binding, ow
  assert.equal((await req(env,'/site-imports',null,a.cookie)).body.imports[0].synced,1);
  const d=(await req(env,'/dashboard',null,a.cookie)).body;assert.equal(d.sites.filter(s=>s.sync_status==='synced').length,1);
 });
+test('publishing an Excel atomically creates public map records; no private account fields escape',async()=>{
+ const {env,db}=setup(),a=await owner(env),b={rows:[site(),site(2)],publish_maps:true,request_key:'publish-maps-123'};
+ const imported=await req(env,'/sites/import',b,a.cookie);assert.equal(imported.status,201);assert.equal(imported.body.map_status,'published');assert.equal(imported.body.published,2);
+ const catalogue=db.prepare('SELECT * FROM admira_retailer_locations').all();assert.equal(catalogue.length,2);
+ for(const row of catalogue){const loc=JSON.parse(row.public_json);assert.equal(loc.id,'yokup-'+row.site_id);assert.deepEqual(loc.coords,[2.1686,41.3874]);assert.deepEqual(loc.surfaces,[]);assert.ok(!row.public_json.includes(a.body.profile.email));assert.ok(!row.public_json.includes(a.body.profile.id));}
+ const dash=(await req(env,'/dashboard',null,a.cookie)).body;assert.equal(dash.sites.filter(s=>s.catalog_id).length,2);
+ assert.equal((await req(env,'/sites/import',b,a.cookie)).body.replayed,true);assert.equal(db.prepare('SELECT COUNT(*) n FROM admira_retailer_locations').get().n,2);
+ assert.equal((await req(env,'/sites/import',{...b,publish_maps:false},a.cookie)).status,409);
+ assert.equal((await req(env,'/site-imports',null,a.cookie)).body.imports[0].published,2);
+});
+test('old imports stay private; explicit owner publication and repeated Excel are safe',async()=>{
+ const {env,db}=setup(),a=await owner(env),b=await owner(env);
+ await req(env,'/sites/import',{rows:[site()],request_key:'legacy-private'},a.cookie);
+ const id=db.prepare('SELECT id FROM retailer_sites').get().id;
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM admira_retailer_locations').get().n,0);
+ assert.equal((await req(env,'/sites/'+id+'/publish',{publish_maps:true},b.cookie)).status,404);
+ assert.equal((await req(env,'/sites/'+id+'/publish',{},a.cookie)).status,400);
+ assert.equal((await req(env,'/sites/'+id+'/publish',{publish_maps:true},a.cookie)).status,200);
+ assert.equal((await req(env,'/sites/'+id+'/publish',{publish_maps:true},a.cookie)).status,200);
+ const repeated=await req(env,'/sites/import',{rows:[site()],publish_maps:true,request_key:'republish-safe'},a.cookie);assert.equal(repeated.body.created,0);assert.equal(repeated.body.duplicates,1);assert.equal(repeated.body.published,1);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM admira_retailer_locations').get().n,1);
+});
+test('catalogue write failure rolls back the private locations and entire import receipt',async()=>{
+ const {env,db}=setup(),a=await owner(env);
+ db.exec("CREATE TRIGGER reject_catalog BEFORE INSERT ON admira_retailer_locations BEGIN SELECT RAISE(ABORT,'test catalogue rollback'); END;");
+ const result=await req(env,'/sites/import',{rows:[site()],publish_maps:true,request_key:'rollback-catalog'},a.cookie);assert.equal(result.status,500);
+ for(const table of ['retailer_sites','retailer_site_imports','admira_retailer_locations'])assert.equal(db.prepare('SELECT COUNT(*) n FROM '+table).get().n,0);
+});

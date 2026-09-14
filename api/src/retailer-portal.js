@@ -1,3 +1,4 @@
+import {publishOwnedSite} from './retailer-map-catalog.js';
 import {siteImports,circuitSiteImports} from './retailer-site-imports.js';
 import {portalCredentials} from './portal-credentials.js';
 import { ORIGINS, SKILLS, encoder, fail, random, hash, statement, rows, coordinate, text, passwordHash, jsonBody, rateLimit, response, dispatchNotifications } from './installer-portal.js';
@@ -14,7 +15,7 @@ async function createSession(env,id){const token=random();await statement(env,'I
 async function ownDevice(env,id,owner){const d=await statement(env,`SELECT d.*,l.site_id,l.circuit_id,l.admira_device_id,s.retailer_id FROM installer_devices d JOIN retailer_device_links l ON l.device_id=d.id JOIN retailer_sites s ON s.id=l.site_id WHERE d.id=? AND s.retailer_id=?`,id,owner).first();if(!d)fail(404,'Equipo no encontrado en tus establecimientos.');return d;}
 async function ownIncident(env,id,owner){const i=await statement(env,`SELECT i.* FROM installer_incidents i JOIN retailer_device_links l ON l.device_id=i.device_id JOIN retailer_sites s ON s.id=l.site_id WHERE i.id=? AND s.retailer_id=?`,id,owner).first();if(!i)fail(404,'Incidencia no encontrada en tus establecimientos.');return i;}
 async function dashboard(env,owner){
- const sites=await rows(env,'SELECT s.*,i.external_ref,i.sync_status,i.admira_store_id AS imported_admira_store_id FROM retailer_sites s LEFT JOIN retailer_site_import_items i ON i.site_id=s.id WHERE s.retailer_id=? ORDER BY s.created_at',owner);
+ const sites=await rows(env,'SELECT s.*,i.external_ref,i.sync_status,i.admira_store_id AS imported_admira_store_id,c.id AS catalog_id,c.created_at AS published_at FROM retailer_sites s LEFT JOIN retailer_site_import_items i ON i.site_id=s.id LEFT JOIN admira_retailer_locations c ON c.site_id=s.id WHERE s.retailer_id=? ORDER BY s.created_at',owner);
  const devices=await rows(env,`SELECT d.*,l.site_id,l.circuit_id,l.admira_store_id,l.admira_device_id,l.linked_at FROM installer_devices d JOIN retailer_device_links l ON l.device_id=d.id JOIN retailer_sites s ON s.id=l.site_id WHERE s.retailer_id=? ORDER BY d.name`,owner);
  const incidents=await rows(env,`SELECT i.*,d.name AS device_name,d.skill,l.site_id,l.circuit_id,l.admira_device_id,s.name AS site_name,t.name AS technician_name,rd.description,rd.priority,rr.stars,rr.satisfied,rr.comment,rr.followup_id,rr.created_at AS rated_at
  FROM installer_incidents i JOIN installer_devices d ON d.id=i.device_id JOIN retailer_device_links l ON l.device_id=d.id JOIN retailer_sites s ON s.id=l.site_id LEFT JOIN installer_accounts t ON t.id=i.installer_id LEFT JOIN retailer_incident_details rd ON rd.incident_id=i.id LEFT JOIN retailer_ratings rr ON rr.incident_id=i.id WHERE s.retailer_id=? AND (i.status!='resolved' OR i.id IN (SELECT ri.id FROM installer_incidents ri JOIN retailer_device_links rl ON rl.device_id=ri.device_id JOIN retailer_sites rs ON rs.id=rl.site_id WHERE rs.retailer_id=? AND ri.status='resolved' ORDER BY ri.created_at DESC LIMIT 200)) ORDER BY i.created_at DESC`,owner,owner);
@@ -47,6 +48,8 @@ export async function handleRetailer(request,env,principal){
   if(path==='/logout'&&method==='POST'){await statement(env,'DELETE FROM retailer_sessions WHERE token_hash=?',await hash(cookieToken(request))).run();return response(request,{ok:true},200,`${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`);}
   if(path==='/dashboard'&&method==='GET')return response(request,await dashboard(env,owner));
   if(['/sites/import-preview','/sites/import','/site-imports'].includes(path)){const result=await siteImports(request,env,owner,path);if(result)return result;}
+  const publishSite=/^\/sites\/([a-f0-9-]{36})\/publish$/.exec(path);
+  if(publishSite&&method==='POST'){const consent=await jsonBody(request);if(consent.publish_maps!==true)fail(400,'Confirma la publicación de esta ubicación en los mapas públicos.');await rateLimit(env,'retail-publish:'+owner,60,3600000);return await publishOwnedSite(request,env,owner,publishSite[1]);}
   if(path==='/sites'&&method==='POST'){
    const b=await jsonBody(request),id=crypto.randomUUID(),name=text(b.name,2,120),kind=text(b.kind,2,40),country=text(b.country,2,2).toUpperCase(),city=text(b.city,2,120),address=text(b.address,5,300),latitude=coordinate(b.latitude,90),longitude=coordinate(b.longitude,180);
    if(!/^[A-Z]{2}$/.test(country)||!['kiosk','tobacco','supermarket','hospitality','other'].includes(kind))fail(400,'Tipo o país no válido.');

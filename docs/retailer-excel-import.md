@@ -1,6 +1,6 @@
 # Alta de ubicaciones desde Excel
 
-Misión Yokup #301 · DCL-56308f2ae49a4f93b9cf305a. 14 septiembre 2026.
+Misiones Yokup #301 · DCL-56308f2ae49a4f93b9cf305a y #305 · DCL-ae524c500bf6193c614a6237. 14 septiembre 2026.
 
 En `/retailer`, tras crear la cuenta o entrar, «Importar Excel» aparece junto al selector de establecimientos. Descarga una plantilla `.xlsx` con una hoja vacía de ubicaciones y otra de instrucciones. Admite `.xlsx` y `.xls`, hasta 5 MB, 500 establecimientos por archivo y 32 hojas. Permite elegir hoja, revisar filas, corregir el archivo y confirmar. Para más ubicaciones se pueden importar varios archivos.
 
@@ -12,23 +12,28 @@ El archivo se procesa en un Web Worker local al navegador, con un límite de lec
 
 ## Persistencia y duplicados
 
-La API vuelve a validar el contenido y la cuenta. La vista previa no escribe. Si hay una fila incorrecta, no se importa ninguna. El lote se guarda en una sola transacción: establecimientos, referencias de importación y recibo. Un fallo revierte las tres partes. Repetir el mismo `request_key` y cuerpo recupera el resultado; reutilizarlo con otros datos da 409.
+La API vuelve a validar el contenido y la cuenta. La vista previa no escribe. Si hay una fila incorrecta, no se importa ninguna. El lote se guarda en una sola transacción: establecimientos, referencias de importación, recibo y proyección pública del catálogo (cuando se confirma su publicación). Un fallo revierte todas las partes. Repetir el mismo `request_key` y cuerpo recupera el resultado; reutilizarlo con otros datos da 409.
 
-Deduplicación dentro del archivo y contra los establecimientos del titular: país, ciudad, dirección y nombre normalizados; además el código propio debe identificar una sola ubicación. Si existen datos distintos, se pide corregir y no se sobrescriben. Las coordenadas forman parte de la comparación del contenido. No se fusionan cuentas ni se toma el código propio como ID de Admira. El lote conserva el nombre de archivo y los recuentos. El historial muestra las últimas 20 importaciones y cuántas altas ha confirmado Admira.
+Deduplicación dentro del archivo y contra los establecimientos del titular: país, ciudad, dirección y nombre normalizados; además el código propio debe identificar una sola ubicación. Si existen datos distintos, se pide corregir y no se sobrescriben. Las coordenadas forman parte de la comparación del contenido. No se fusionan cuentas ni se toma el código propio como ID de Admira. El lote conserva el nombre de archivo y los recuentos. El historial muestra las últimas 20 importaciones y cuántas ubicaciones están publicadas en los mapas.
 
 ## API de comercio
 
 Sesión de retailer y origen autorizado. Base `/api/retailer`.
 
 - `POST /sites/import-preview`: `{rows:[{external_ref,name,kind,country,city,address,latitude,longitude,source_row?}]}`. Devuelve filas y resumen de nuevas, duplicadas y errores.
-- `POST /sites/import`: mismo `rows`, más `request_key` (8–100 caracteres) y `filename` (máximo 160). Sin errores, guarda todo y devuelve el recibo. 422 conserva los errores por fila; 409 indica conflicto; 401 exige autenticación.
-- `GET /site-imports`: historial del titular con recuentos de sincronización.
+- `POST /sites/import`: mismo `rows`, más `request_key` (8–100 caracteres) y `filename` (máximo 160), más `publish_maps:true` para publicar en ambos mapas tras el aviso visible. Omitirlo conserva la compatibilidad con clientes que solo guardan datos privados. Sin errores, guarda todo y devuelve el recibo. 422 conserva los errores por fila; 409 indica conflicto; 401 exige autenticación.
+- `GET /site-imports`: historial del titular con recuentos de publicación (`published`) y vinculación al circuito (`synced`).
+- `POST /sites/:id/publish`: `{publish_maps:true}` publica una ubicación propia previamente privada. No modifica la ubicación; repetir es seguro.
 
 Máximo 512 KiB de JSON y 30 solicitudes de previsualización/importación por hora y cuenta. Cada sentencia de inserción agrupa ocho ubicaciones para respetar el límite de parámetros de D1. El importador no crea dispositivos ni activa su monitorización.
 
-## Alta real en Admira: contrato preparado, conexión pendiente
+## Catálogo compartido y mapas
 
-Guardar en Yokup no prueba que exista un alta en admira.app. Las ubicaciones importadas quedan `pending` en `retailer_site_import_items`. Solo el servicio central autenticado puede confirmar el ID real asignado. No hay productor de Admira configurado en esta entrega.
+Al confirmar la importación desde el portal, las ubicaciones se registran en `admira_retailer_locations` y están disponibles en el catálogo real de admira.app y clearchannel.tv, servido por `brain.digitalavatar.ai`. Ambos dominios usan la misma aplicación `clearchannel-tv`. Véase `retailer-map-catalog.md` para el contrato y despliegue. El listado de Yokup muestra cada establecimiento aunque no tenga equipos y enlaza directamente a su punto en ambos mapas.
+
+## Vinculación a circuitos y equipos
+
+Publicar una ubicación no le asigna un circuito autorizado ni crea equipos. La vinculación queda `pending` en `retailer_site_import_items` hasta que el servicio central autenticado confirma su ID de circuito. Este contrato sigue disponible por separado; no debe utilizarse como prueba de publicación cartográfica.
 
 Se reutiliza la autenticación HMAC de `docs/retailer-portal.md`, con `ADMIRA_CIRCUIT_SECRET`, timestamp y firma del método, ruta y cuerpo exactos. Este secreto pertenece exclusivamente al backend central y nunca se entrega al navegador ni a los comercios.
 
@@ -40,6 +45,6 @@ Este enlace es de establecimiento. Los equipos se enlazan después mediante el c
 
 ## Despliegue y pruebas
 
-Aplicar una vez `api/migrations/0004_retailer_site_imports.sql` sobre D1, antes del Worker y el frontend. Es una migración aditiva. No modifica registros existentes. Desplegar el frontend mediante el script oficial del proyecto.
+Aplicar una vez `api/migrations/0004_retailer_site_imports.sql` sobre D1, y `api/migrations/0005_retailer_map_catalog.sql`, antes del Worker y el frontend. Es una migración aditiva. No modifica registros existentes. Desplegar el frontend mediante el script oficial del proyecto.
 
 Pruebas: `node --test api/*.test.mjs` y `node --test yokup-site/retailer-import.test.mjs`, además de las suites de publicación. Casos específicos: 500 filas, aislamiento de cuentas, duplicados, conflictos de código, validación, transacción fallida y reintento, recibos centrales firmados e inmutables, lectura real XLS/XLSX, fórmulas, elección de hoja, códigos con ceros y números de fila originales. Verificación del formulario en navegador con SQLite local y datos de prueba, nunca sobre comercios reales.

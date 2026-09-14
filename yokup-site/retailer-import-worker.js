@@ -16,7 +16,8 @@ self.onmessage=async({data})=>{
     ['Límites','Hasta 500 ubicaciones y 5 MB por archivo. Puedes importar varios archivos.'],
     ['Valores','Sin fórmulas. Se admiten punto o coma decimal en coordenadas.'],
     ['Importación','Revisa todas las filas. No se sobrescriben establecimientos existentes.'],
-    ['Admira','Las altas quedan pendientes hasta que el servicio central confirma su registro.']
+    ['Mapas públicos','Al confirmar se publican nombre, tipo, dirección y coordenadas en admira.app y clearchannel.tv.'],
+    ['Equipos','La importación no crea pantallas ni activa su monitorización.']
    ]),'Instrucciones');
    const buffer=XLSX.write(book,{bookType:'xlsx',type:'array'});self.postMessage({buffer},[buffer]);return;
   }

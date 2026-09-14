@@ -8,7 +8,7 @@ async function api(path,body){
  const result=await r.json();if(!r.ok)throw Error(result.error||'No se pudo completar la importación.');return result;
 }
 function worker(data){return new Promise((resolve,reject)=>{
- const w=new Worker('/retailer-import-worker.js?v=1'),timer=setTimeout(()=>finish(Error('La lectura tarda demasiado. Reduce el tamaño del archivo.')),15000);
+ const w=new Worker('/retailer-import-worker.js?v=2'),timer=setTimeout(()=>finish(Error('La lectura tarda demasiado. Reduce el tamaño del archivo.')),15000);
  function finish(error,result){clearTimeout(timer);w.terminate();error?reject(error):resolve(result);}
  w.onmessage=e=>finish(e.data.error?Object.assign(Error(e.data.error),{sheets:e.data.sheets,sheet:e.data.sheet}):null,e.data);w.onerror=()=>finish(Error('No se pudo cargar el lector de Excel. Vuelve a intentarlo.'));w.postMessage(data);
 });}
@@ -17,7 +17,7 @@ function reset(){epoch++;buffer=null;rows=null;key=null;filename='';$('#import-f
 async function history(){const current=epoch;try{
  const result=await api('/site-imports');if(current!==epoch)return;const host=$('#import-history');host.replaceChildren();if(!result.imports.length)return;
  const details=document.createElement('details');details.append(node('summary','Importaciones de ubicaciones · '+result.imports.length));
- for(const item of result.imports){const p=node('p',`${item.filename}: ${item.result.created} nuevas, ${item.result.duplicates} ya existentes. ${item.sites?`${item.synced||0} de ${item.sites} confirmadas en Admira.`:'No se añadieron nuevas ubicaciones.'}`);details.append(p);}host.append(details);
+ for(const item of result.imports){const p=node('p',`${item.filename}: ${item.result.created} nuevas, ${item.result.duplicates} ya existentes. ${item.sites?`${item.published||0} de ${item.sites} publicadas en los mapas.`:'No se añadieron nuevas ubicaciones.'}`);details.append(p);}host.append(details);
  }catch{}}
 function preview(result){
  const host=$('#import-preview');host.replaceChildren();const table=document.createElement('table'),thead=document.createElement('thead'),head=document.createElement('tr');
@@ -44,7 +44,7 @@ $('#import-file').onchange=async e=>{
 $('#import-sheet').onchange=e=>read(e.target.value);$('#import-recheck').onclick=()=>read($('#import-sheet').value||undefined);
 $('#import-form').onsubmit=async e=>{
  e.preventDefault();if(!rows||busy)return;lock(true);const current=epoch;status('Guardando ubicaciones…');
- try{const result=await api('/sites/import',{filename,rows,request_key:key});if(current!==epoch)return;rows=null;status(`${result.created} ubicaciones añadidas; ${result.duplicates} ya existentes. Guardadas en Yokup. Alta en Admira pendiente de confirmación.`);document.dispatchEvent(new Event('retailer-sites-imported'));history();}
+ try{const result=await api('/sites/import',{filename,rows,request_key:key,publish_maps:true});if(current!==epoch)return;rows=null;status(`${result.created} ubicaciones añadidas; ${result.duplicates} ya existentes. ${result.published||0} publicadas en el catálogo de admira.app y clearchannel.tv. Puedes abrir sus mapas desde Mis establecimientos.`);document.dispatchEvent(new Event('retailer-sites-imported'));history();}
  catch(e){if(current===epoch)status(e.name==='TimeoutError'?'No se ha confirmado el resultado. Puedes reintentar este mismo envío sin duplicar las ubicaciones.':e.message);}
  finally{if(current===epoch)lock(false);}
 };

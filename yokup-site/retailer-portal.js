@@ -1,7 +1,7 @@
 (() => {
 const API='https://data.yokup.com/api/retailer';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)], names={screen:'Pantalla',audio:'Hilo musical',hvac:'Climatización',player:'Player',network:'Red',kiosk:'Kiosco interactivo',sensor:'Sensor / IoT'};
-let profile=null,mode='register',data={sites:[],devices:[],incidents:[],stats:{}},filter='all',loading=false,incidentRequest=null,ratingId=null;
+let profile=null,mode='register',data={sites:[],devices:[],incidents:[],stats:{}},filter='all',loading=false,incidentRequest=null,ratingId=null,sitePage=0,publishSiteId=null;
 const el=(tag,content,cls)=>{const node=document.createElement(tag);if(content!==undefined)node.textContent=content;if(cls)node.className=cls;return node;};
 const date=ms=>ms?new Date(ms).toLocaleString('es',{dateStyle:'short',timeStyle:'short'}):'';
 async function api(path,body,method){const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);try{const r=await fetch(API+path,{method:method||(body?'POST':'GET'),credentials:'include',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:controller.signal});const result=await r.json();if(!r.ok)throw Object.assign(new Error(result.error||'No se pudo completar la operación.'),{status:r.status});return result;}catch(e){if(e.name==='AbortError')throw new Error('La conexión ha tardado demasiado. Actualiza para comprobar si se guardó antes de repetir.');throw e;}finally{clearTimeout(timeout);}}
@@ -15,7 +15,25 @@ function newSite(){modal('site-dialog');$('#country').value='ES';}
 function newDevice(){if(!data.sites.length){newSite();$('#site-form .form-status').textContent='Primero guarda el establecimiento donde está el equipo.';return;}modal('device-dialog');options($('#device-form [name=site_id]'),data.sites,$('#site-filter').value);}
 function newIncident(deviceId){if(!data.sites.length){newSite();return;}if(!data.devices.length){newDevice();return;}modal('incident-dialog');options($('#incident-form [name=device_id]'),data.devices.map(d=>({id:d.id,name:d.name+' · '+data.sites.find(s=>s.id===d.site_id)?.name})),deviceId);incidentRequest=crypto.randomUUID();}
 function newRating(incident){ratingId=incident.id;modal('rating-dialog');$('#rating-context').textContent=incident.device_name+' · '+incident.technician_name;}
+function renderSites(){
+ const q=$('#site-search').value.trim().toLocaleLowerCase('es');
+ const sites=data.sites.filter(s=>[s.name,s.address,s.city,s.country,s.external_ref||''].join(' ').toLocaleLowerCase('es').includes(q));
+ const pages=Math.max(1,Math.ceil(sites.length/20));sitePage=Math.min(sitePage,pages-1);
+ $('#locations-count').textContent=data.sites.length+' establecimientos';$('#sites-page').textContent=(sitePage+1)+' / '+pages;$('#sites-prev').disabled=sitePage===0;$('#sites-next').disabled=sitePage>=pages-1;
+ const host=$('#sites-list');host.replaceChildren();
+ if(!sites.length)host.append(el('p',q?'No hay establecimientos con esa búsqueda.':'Añade un establecimiento o importa tu Excel desde la sección Mis equipos.','muted'));
+ for(const s of sites.slice(sitePage*20,sitePage*20+20)){
+  const card=el('article',undefined,'site-card');card.append(el('h3',s.name),el('p',[s.address,s.city,s.country].join(' · ')),el('p',s.latitude+', '+s.longitude,'small muted'));
+  if(s.external_ref)card.append(el('p','Código: '+s.external_ref,'small'));
+  card.append(el('span',s.catalog_id?'Publicado en los mapas':'Solo en Yokup','pill'));
+  const actions=el('div',undefined,'site-actions');const equipment=el('button','Ver equipos','text-button');equipment.onclick=()=>{$('#site-filter').value=s.id;render();$('#devices').scrollIntoView({behavior:'smooth'});};actions.append(equipment);
+  if(s.catalog_id){for(const [label,base] of [['Mapa Admira','https://admira.app/'],['Mapa Clear Channel','https://www.clearchannel.tv/']]){const link=el('a',label+' ↗','text-button');link.href=base+'?locationId='+encodeURIComponent(s.catalog_id);link.target='_blank';link.rel='noopener';actions.append(link);}}
+  else{const button=el('button','Publicar en mapas','text-button');button.onclick=()=>{publishSiteId=s.id;modal('publish-site-dialog');$('#publish-site-context').textContent=[s.name,s.address,s.city].join(' · ');};actions.append(button);}
+  card.append(actions);host.append(card);
+ }
+}
 function render(){
+ renderSites();
  const selected=$('#site-filter').value;options($('#site-filter'),data.sites,selected,'Todos mis establecimientos');
  $('#open-count').textContent=data.stats.open||0;$('#assigned-count').textContent=data.stats.assigned||0;$('#rating-count').textContent=data.stats.awaiting_rating||0;
  const devices=$('#devices');devices.replaceChildren();const list=data.devices.filter(d=>!selected||d.site_id===selected);
@@ -37,12 +55,14 @@ document.addEventListener('retailer-sites-imported',load);
 $('#register-tab').onclick=()=>setMode('register');$('#login-tab').onclick=()=>setMode('login');
 $('#access-form').onsubmit=async e=>{e.preventDefault();const button=$('#access-submit');button.disabled=true;$('#access-status').textContent='Entrando…';try{const result=await api(mode==='register'?'/register':'/login',Object.fromEntries(new FormData(e.target)));signedIn(result.profile);$('#workspace').scrollIntoView({behavior:'smooth'});}catch(e){$('#access-status').textContent=e.message;}finally{button.disabled=false;}};
 $('#signout').onclick=async()=>{try{await api('/logout',{});signedOut();}catch(e){$('#workspace-status').textContent=e.message;}};
+$('#site-search').oninput=()=>{sitePage=0;renderSites();};$('#sites-prev').onclick=()=>{sitePage--;renderSites();};$('#sites-next').onclick=()=>{sitePage++;renderSites();};
+$('#publish-site-form').onsubmit=e=>{e.preventDefault();submit(e.target,()=>api('/sites/'+encodeURIComponent(publishSiteId)+'/publish',{publish_maps:true}));};
 $('#new-site').onclick=newSite;$('#new-device').onclick=newDevice;$('#new-incident').onclick=()=>newIncident();$('#refresh').onclick=load;$('#site-filter').onchange=render;$$('[data-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.filter;render();});$$('[data-close]').forEach(b=>b.onclick=()=>$('#'+b.dataset.close).close());
 $('#site-form').onsubmit=e=>{e.preventDefault();submit(e.target,b=>api('/sites',{...b,latitude:Number(b.latitude),longitude:Number(b.longitude)}));};$('#device-form').onsubmit=e=>{e.preventDefault();submit(e.target,b=>api('/devices',b));};$('#incident-form').onsubmit=e=>{e.preventDefault();submit(e.target,b=>api('/incidents',{...b,request_key:incidentRequest}));};$('#rating-form').onsubmit=e=>{e.preventDefault();submit(e.target,b=>api('/incidents/'+encodeURIComponent(ratingId)+'/rating',{stars:Number(b.stars),satisfied:b.satisfied==='yes',comment:b.comment}));};
 $('#rating-form [name=satisfied]').onchange=e=>{$('#rating-form [name=comment]').minLength=e.target.value==='no'?10:0;$('#rating-form [name=comment]').required=e.target.value==='no';};
 $('#locate-site').onclick=()=>{const status=$('#site-form .form-status');if(!navigator.geolocation){status.textContent='Introduce las coordenadas del comercio.';return;}$('#locate-site').disabled=true;navigator.geolocation.getCurrentPosition(p=>{$('#site-form [name=latitude]').value=p.coords.latitude.toFixed(6);$('#site-form [name=longitude]').value=p.coords.longitude.toFixed(6);status.textContent='';$('#locate-site').disabled=false;},()=>{status.textContent='No se pudo obtener tu ubicación. Introduce las coordenadas del comercio.';$('#locate-site').disabled=false;},{timeout:10000});};
 const countryNames=new Intl.DisplayNames(['es'],{type:'region'}),countries=[];for(let a=65;a<=90;a++)for(let b=65;b<=90;b++){const code=String.fromCharCode(a,b),name=countryNames.of(code);if(name&&name!==code&&!['XA','XB','ZZ','EU','EZ','UN'].includes(code))countries.push({id:code,name});}options($('#country'),countries.sort((a,b)=>a.name.localeCompare(b.name,'es')),'ES');
-api('/health').then(s=>{$('#admira-status').textContent=s.admira_configured?'El responsable de tu circuito puede vincular los equipos y consultar intervenciones y valoraciones desde Admira.':'Las incidencias manuales ya conectan con los instaladores. La sincronización automática con el inventario de admira.app está pendiente de activar.';}).catch(()=>{$('#admira-status').textContent='No se ha podido comprobar la conexión con Admira.';});
+api('/health').then(s=>{$('#admira-status').textContent=s.admira_configured?'El responsable de tu circuito puede vincular los equipos y consultar intervenciones y valoraciones desde Admira.':'Las ubicaciones publicadas aparecen en los mapas de Admira y Clear Channel. La conexión de equipos y su monitorización automática sigue pendiente.';}).catch(()=>{$('#admira-status').textContent='No se ha podido comprobar la conexión con Admira.';});
 api('/me').then(r=>signedIn(r.profile)).catch(e=>{if(e.status!==401)$('#access-status').textContent='No se ha podido conectar con el portal. Vuelve a intentarlo.';});
 setInterval(()=>{if(!document.hidden)load();},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
 })();

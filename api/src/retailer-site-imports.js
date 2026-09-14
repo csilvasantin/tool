@@ -1,3 +1,4 @@
+import {publishStatements} from './retailer-map-catalog.js';
 import {fail,hash,statement,rows,text,rateLimit,response} from './installer-portal.js';
 import {MAX_SITES,normalizeSite,naturalKey,siteContent} from '../../yokup-site/retailer-import-schema.mjs';
 
@@ -13,27 +14,27 @@ async function body(request){
 async function review(env,owner,input){
  const existing=await rows(env,'SELECT s.*,i.external_ref FROM retailer_sites s LEFT JOIN retailer_site_import_items i ON i.site_id=s.id WHERE s.retailer_id=?',owner);
  const byPlace=new Map(existing.map(s=>[naturalKey(s),s])),byCode=new Map(existing.filter(s=>s.external_ref).map(s=>[s.external_ref,s]));
- const result=[],fresh=[];let duplicates=0;
+ const result=[],fresh=[],existingSites=[];let duplicates=0;
  for(let n=0;n<input.length;n++){
   try{
    const s=normalizeSite(input[n]),key=naturalKey(s),coded=s.external_ref&&byCode.get(s.external_ref),located=byPlace.get(key),previous=coded||located;
    if(coded&&naturalKey(coded)!==key)throw Error('Este código ya identifica otra ubicación. Corrígelo; no se sobrescriben datos.');
-   if(previous){if(siteContent(previous)!==siteContent(s))throw Error('Esta ubicación ya existe con datos diferentes. Revisa la fila; no se sobrescribe.');duplicates++;result.push({row:Number.isInteger(input[n]?.source_row)?input[n].source_row:n+2,status:'duplicate',site:s,message:'Ya registrada o repetida en esta hoja.'});continue;}
+   if(previous){if(siteContent(previous)!==siteContent(s))throw Error('Esta ubicación ya existe con datos diferentes. Revisa la fila; no se sobrescribe.');if(previous.id)existingSites.push(previous);duplicates++;result.push({row:Number.isInteger(input[n]?.source_row)?input[n].source_row:n+2,status:'duplicate',site:s,message:'Ya registrada o repetida en esta hoja.'});continue;}
    byPlace.set(key,s);if(s.external_ref)byCode.set(s.external_ref,s);fresh.push(s);result.push({row:Number.isInteger(input[n]?.source_row)?input[n].source_row:n+2,status:'new',site:s,message:'Lista para importar.'});
   }catch(e){result.push({row:Number.isInteger(input[n]?.source_row)?input[n].source_row:n+2,status:'error',message:e.message});}
  }
- return {rows:result,fresh,summary:{total:input.length,created:fresh.length,duplicates,errors:result.filter(r=>r.status==='error').length}};
+ return {rows:result,fresh,existingSites,summary:{total:input.length,created:fresh.length,duplicates,errors:result.filter(r=>r.status==='error').length}};
 }
 export async function siteImports(request,env,owner,path){
  if(path==='/site-imports'&&request.method==='GET'){
-  const imports=await rows(env,`SELECT b.id,b.filename,b.created_at,b.result,COUNT(i.site_id) AS sites,SUM(CASE WHEN i.sync_status='synced' THEN 1 ELSE 0 END) AS synced FROM retailer_site_imports b LEFT JOIN retailer_site_import_items i ON i.import_id=b.id WHERE b.retailer_id=? GROUP BY b.id ORDER BY b.created_at DESC LIMIT 20`,owner);
+  const imports=await rows(env,`SELECT b.id,b.filename,b.created_at,b.result,COUNT(i.site_id) AS sites,SUM(CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END) AS published,SUM(CASE WHEN i.sync_status='synced' THEN 1 ELSE 0 END) AS synced FROM retailer_site_imports b LEFT JOIN retailer_site_import_items i ON i.import_id=b.id LEFT JOIN admira_retailer_locations c ON c.site_id=i.site_id WHERE b.retailer_id=? GROUP BY b.id ORDER BY b.created_at DESC LIMIT 20`,owner);
   return response(request,{imports:imports.map(b=>({...b,result:JSON.parse(b.result)}))});
  }
  if(!['/sites/import-preview','/sites/import'].includes(path)||request.method!=='POST')return null;
  await rateLimit(env,'retail-import:'+owner,30,3600000);
  const b=await body(request);let digest,requestKey;
  if(path==='/sites/import'){
-  requestKey=text(b.request_key,8,100);digest=await hash(JSON.stringify(b.rows));
+  requestKey=text(b.request_key,8,100);digest=await hash(JSON.stringify(b.publish_maps===true?{rows:b.rows,publish_maps:true}:b.rows));
   const previous=await statement(env,'SELECT * FROM retailer_site_imports WHERE retailer_id=? AND request_key=?',owner,requestKey).first();
   if(previous){if(previous.payload_hash!==digest)fail(409,'Este envío ya se utilizó con otros datos.');return response(request,{...JSON.parse(previous.result),replayed:true});}
  }
@@ -41,14 +42,17 @@ export async function siteImports(request,env,owner,path){
  if(path.endsWith('preview'))return response(request,{rows:checked.rows,summary:checked.summary});
  if(checked.summary.errors)return response(request,{error:'Corrige las filas indicadas antes de importar. No se ha guardado ninguna.',rows:checked.rows,summary:checked.summary},422);
  const id=crypto.randomUUID(),now=Date.now(),filename=text(b.filename||'Ubicaciones',1,160);
- const result={id,...checked.summary,admira_status:'pending',message:'Ubicaciones guardadas en Yokup. Alta en Admira pendiente de confirmación.'};
+ const publish=b.publish_maps===true;
+ const result={id,...checked.summary,map_status:publish?'published':'private',published:publish?checked.fresh.length+new Set(checked.existingSites.map(s=>s.id)).size:0,admira_status:publish?'catalog_registered':'pending',message:publish?'Ubicaciones guardadas y publicadas en el catálogo de los mapas.':'Ubicaciones guardadas en Yokup. Publicación en mapas pendiente.'};
  const ops=[statement(env,'INSERT INTO retailer_site_imports VALUES(?,?,?,?,?,?,?)',id,owner,requestKey,digest,filename,JSON.stringify(result),now)];
  // Eight rows per statement stay below D1's bound-parameter limit. One atomic batch.
  for(let n=0;n<checked.fresh.length;n+=8){
   const chunk=checked.fresh.slice(n,n+8).map(s=>({...s,id:crypto.randomUUID()}));
   ops.push(statement(env,'INSERT INTO retailer_sites(id,retailer_id,name,kind,country,city,address,latitude,longitude,created_at) VALUES '+chunk.map(()=>'(?,?,?,?,?,?,?,?,?,?)').join(','),...chunk.flatMap(s=>[s.id,owner,s.name,s.kind,s.country,s.city,s.address,s.latitude,s.longitude,now])));
   ops.push(statement(env,'INSERT INTO retailer_site_import_items(site_id,retailer_id,import_id,natural_key,external_ref) VALUES '+chunk.map(()=>'(?,?,?,?,?)').join(','),...chunk.flatMap(s=>[s.id,owner,id,naturalKey(s),s.external_ref])));
+  if(publish)ops.push(...publishStatements(env,chunk,now));
  }
+ if(publish)ops.push(...publishStatements(env,[...new Map(checked.existingSites.map(s=>[s.id,s])).values()],now));
  try{await env.DB.batch(ops);}catch(e){
   if(String(e).includes('UNIQUE')){
    const receipt=await statement(env,'SELECT * FROM retailer_site_imports WHERE retailer_id=? AND request_key=?',owner,requestKey).first();
