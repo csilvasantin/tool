@@ -17,7 +17,7 @@ export async function portalCredentials(request,env,kind,account,path){
   if(!scopes.length||scopes.some(s=>!Object.hasOwn(PORTAL_SCOPES[kind],s)))fail(400,'Selecciona permisos válidos para este portal.');
   const token='ykp_'+random(),id=crypto.randomUUID(),now=Date.now(),expires=now+days*86400000;
   const inserted=await statement(env,`INSERT INTO portal_mcp_tokens(id,token_hash,kind,account_id,label,scopes,audience,created_at,expires_at)
-   SELECT ?,?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM portal_mcp_tokens WHERE kind=? AND account_id=? AND revoked_at IS NULL AND expires_at>?)<20`,id,await hash(token),kind,account.id,label,JSON.stringify(scopes),audience(kind),now,expires,kind,account.id,now).run();
+   SELECT ?,?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM portal_mcp_tokens WHERE kind=? AND account_id=? AND revoked_at IS NULL AND expires_at>?)<20 AND EXISTS(SELECT 1 FROM ${kind==='installer'?'installer_accounts':'retailer_accounts'} WHERE id=? AND password_hash=?)`,id,await hash(token),kind,account.id,label,JSON.stringify(scopes),audience(kind),now,expires,kind,account.id,now,account.id,account.password_hash).run();
   if(!inserted.meta.changes)fail(409,'Ya tienes 20 tokens activos. Revoca uno antes de crear otro.');
   return response(request,{id,token,label,scopes,expires_at:expires,endpoint:audience(kind),show_once:true},201);
  }

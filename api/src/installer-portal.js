@@ -69,9 +69,10 @@ async function authenticated(request,env) {
  if(!account) fail(401,'Tu sesión ha caducado. Vuelve a entrar.');
  return account;
 }
-async function session(env,id) {
+async function session(env,id,expectedHash) {
  const token=random();
- await statement(env,'INSERT INTO installer_sessions VALUES(?,?,?)',await hash(token),id,Date.now()+30*86400000).run();
+ const created=await statement(env,'INSERT INTO installer_sessions SELECT ?,?,? FROM installer_accounts WHERE id=? AND password_hash=?',await hash(token),id,Date.now()+30*86400000,id,expectedHash).run();
+ if(!created.meta.changes)fail(401,'La contraseña ha cambiado. Vuelve a entrar.');
  return `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`;
 }
 function response(request,body,status=200,cookie) {
@@ -107,7 +108,7 @@ export async function handleInstaller(request,env,principal) {
     const digest=await passwordHash(password,account?.salt||'missing-account-constant');
     if(!account || digest!==account.password_hash) fail(401,'Correo o contraseña incorrectos.');
    }
-   return response(request,{profile:publicProfile(account)},path==='/register'?201:200,await session(env,account.id));
+   return response(request,{profile:publicProfile(account)},path==='/register'?201:200,await session(env,account.id,account.password_hash));
   }
   const account=principal||await authenticated(request,env);
   if(path.startsWith('/mcp-tokens')||path==='/mcp-audit')return await portalCredentials(request,env,'installer',account,path);

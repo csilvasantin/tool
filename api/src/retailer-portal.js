@@ -11,7 +11,7 @@ async function authenticated(request,env){
  const account=await statement(env,`SELECT a.* FROM retailer_sessions s JOIN retailer_accounts a ON a.id=s.retailer_id WHERE s.token_hash=? AND s.expires_at>?`,await hash(token),Date.now()).first();
  if(!account)fail(401,'Tu sesión ha caducado. Vuelve a entrar.');return account;
 }
-async function createSession(env,id){const token=random();await statement(env,'INSERT INTO retailer_sessions VALUES(?,?,?)',await hash(token),id,Date.now()+30*86400000).run();return `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`;}
+async function createSession(env,id,expectedHash){const token=random();const created=await statement(env,'INSERT INTO retailer_sessions SELECT ?,?,? FROM retailer_accounts WHERE id=? AND password_hash=?',await hash(token),id,Date.now()+30*86400000,id,expectedHash).run();if(!created.meta.changes)fail(401,'La contraseña ha cambiado. Vuelve a entrar.');return `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`;}
 async function ownDevice(env,id,owner){const d=await statement(env,`SELECT d.*,l.site_id,l.circuit_id,l.admira_device_id,s.retailer_id FROM installer_devices d JOIN retailer_device_links l ON l.device_id=d.id JOIN retailer_sites s ON s.id=l.site_id WHERE d.id=? AND s.retailer_id=?`,id,owner).first();if(!d)fail(404,'Equipo no encontrado en tus establecimientos.');return d;}
 async function ownIncident(env,id,owner){const i=await statement(env,`SELECT i.* FROM installer_incidents i JOIN retailer_device_links l ON l.device_id=i.device_id JOIN retailer_sites s ON s.id=l.site_id WHERE i.id=? AND s.retailer_id=?`,id,owner).first();if(!i)fail(404,'Incidencia no encontrada en tus establecimientos.');return i;}
 async function dashboard(env,owner){
@@ -40,7 +40,7 @@ export async function handleRetailer(request,env,principal){
     try{await statement(env,'INSERT INTO retailer_accounts VALUES(?,?,?,?,?,?)',id,email,name,await passwordHash(password,salt),salt,Date.now()).run();}catch(e){if(String(e).includes('UNIQUE'))fail(409,'La cuenta ya existe.');throw e;}
     account=await statement(env,'SELECT * FROM retailer_accounts WHERE id=?',id).first();
    }else{const digest=await passwordHash(password,account?.salt||'missing-account-constant');if(!account||digest!==account.password_hash)fail(401,'Correo o contraseña incorrectos.');}
-   return response(request,{profile:publicAccount(account)},path==='/register'?201:200,await createSession(env,account.id));
+   return response(request,{profile:publicAccount(account)},path==='/register'?201:200,await createSession(env,account.id,account.password_hash));
   }
   const account=principal||await authenticated(request,env),owner=account.id;
   if(path.startsWith('/mcp-tokens')||path==='/mcp-audit')return await portalCredentials(request,env,'retailer',account,path);
