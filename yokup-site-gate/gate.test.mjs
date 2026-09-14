@@ -149,3 +149,11 @@ test("el host bare canonicaliza navegación y nunca sirve o reenvía login", asy
   assert.equal(assets, 0);
   assert.equal(network, 0);
 });
+
+test('installer portal aliases serve the installer asset, never the SPA fallback',async()=>{
+ for(const path of ['/portal','/portal/','/instalador','/instalador/','/alta-instalador','/alta-instalador.html']){
+  const seen=[];
+  const response=await handleRequest(new Request('https://www.yokup.com'+path),env(async request=>{seen.push(new URL(request.url).pathname);return new Response('installer');}),{});
+  assert.equal(await response.text(),'installer');assert.deepEqual(seen,['/instalador.html']);
+ }
+});

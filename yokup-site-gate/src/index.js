@@ -75,6 +75,7 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
   // _redirects de Pages no lo ve nadie, y una ruta que no enruta cae al
   // catch-all y sirve la portada con un 200 — la forma más cara de decir que
   // algo no existe, porque ni siquiera parece un error.
+  else if (["/portal", "/portal/", "/instalador/", "/alta-instalador", "/alta-instalador.html"].includes(incoming.pathname)) candidates = ["/instalador.html"];
   else if (incoming.pathname === "/carbono" || incoming.pathname === "/carbono/") candidates = ["/agentes.html"];
   else if (incoming.pathname === "/mcp" || incoming.pathname === "/mcp/") candidates = ["/mcp/index.html"];
   else if (incoming.pathname === "/help" || incoming.pathname === "/help/") candidates = ["/help/index.html"];

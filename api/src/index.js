@@ -1,3 +1,4 @@
+import { handleInstaller, sweepInstallers } from './installer-portal.js';
 /**
  * yokup-api — Cloudflare Worker
  * API entre el frontend estático de Yokup y Cloudflare D1 (SQLite).
@@ -46,7 +47,9 @@ const JSON_ARRAY_COLS = {
 const BOOL_COLS = { stores: ["from_admira"] };
 
 export default {
+  scheduled(controller, env, ctx) { ctx.waitUntil(sweepInstallers(env)); },
   async fetch(request, env) {
+    if (new URL(request.url).pathname.startsWith("/api/installer/")) return handleInstaller(request, env);
     if (request.method === "OPTIONS")
       return new Response(null, { status: 204, headers: cors(request) });
 
