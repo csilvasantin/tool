@@ -27,3 +27,7 @@ test('formula cells, missing and duplicate headers are rejected; preview keeps o
  sheet.G3.f='20+20';parsed=await run({buffer:XLSX.write(book,{bookType:'xlsx',type:'array'})});assert.match(parsed.error,/fórmulas/);
  assert.throws(()=>schema.headerFields(['nombre','nombre']),/repetidas/);assert.throws(()=>schema.headerFields(['nombre']),/Falta/);
 });
+
+test('published template matches the reader headers and contains no sample establishments',()=>{
+ const {XLSX}=harness();const bytes=readFileSync(new URL('./templates/ubicaciones-retailer.xlsx',import.meta.url));const book=XLSX.read(bytes,{type:'array'});const grid=XLSX.utils.sheet_to_json(book.Sheets.Ubicaciones,{header:1});assert.equal(grid.length,1);assert.deepEqual(Array.from(grid[0]),schema.HEADERS);assert.ok(book.Sheets.Instrucciones);
+});

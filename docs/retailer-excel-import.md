@@ -4,6 +4,8 @@ Misión Yokup #301 · DCL-56308f2ae49a4f93b9cf305a. 14 septiembre 2026.
 
 En `/retailer`, tras crear la cuenta o entrar, «Importar Excel» aparece junto al selector de establecimientos. Descarga una plantilla `.xlsx` con una hoja vacía de ubicaciones y otra de instrucciones. Admite `.xlsx` y `.xls`, hasta 5 MB, 500 establecimientos por archivo y 32 hojas. Permite elegir hoja, revisar filas, corregir el archivo y confirmar. Para más ubicaciones se pueden importar varios archivos.
 
+Plantilla directa: `https://www.yokup.com/templates/ubicaciones-retailer.xlsx`.
+
 Columnas: `codigo` (opcional, referencia propia), `nombre`, `tipo`, `pais` (dos letras), `ciudad`, `direccion`, `latitud`, `longitud`. Se admiten también sus nombres ingleses. Tipos: estanco, kiosco, supermercado, hostelería u otro. Coordenadas obligatorias, con punto o coma decimal. No se geocodifica automáticamente una dirección ni se sustituyen coordenadas vacías por cero. Las cabeceras comienzan en A1. Las fórmulas se rechazan; pegar sus valores antes de importar.
 
 El archivo se procesa en un Web Worker local al navegador, con un límite de lectura de 15 segundos. Solo se envían las filas al backend propio; no se guarda el binario original ni se envía a servicios de terceros. Se usa SheetJS CE 0.20.3, copia local obtenida del [CDN oficial](https://docs.sheetjs.com/docs/getting-started/installation/standalone/); licencia en `yokup-site/vendor/SHEETJS-LICENSE.txt`.

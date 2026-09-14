@@ -42,10 +42,6 @@ $('#import-file').onchange=async e=>{
  const current=++epoch;filename=file.name;lock(true);try{const bytes=await file.arrayBuffer();if(current!==epoch)return;buffer=bytes;read();}catch{if(current===epoch){status('No se ha podido leer el archivo.');lock(false);}}
 };
 $('#import-sheet').onchange=e=>read(e.target.value);$('#import-recheck').onclick=()=>read($('#import-sheet').value||undefined);
-$('#import-template').onclick=async()=>{
- const button=$('#import-template');button.disabled=true;
- try{const result=await worker({action:'template'}),url=URL.createObjectURL(new Blob([result.buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));const link=document.createElement('a');link.href=url;link.download='plantilla-ubicaciones-yokup.xlsx';link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}catch(e){status(e.message);}finally{button.disabled=false;}
-};
 $('#import-form').onsubmit=async e=>{
  e.preventDefault();if(!rows||busy)return;lock(true);const current=epoch;status('Guardando ubicaciones…');
  try{const result=await api('/sites/import',{filename,rows,request_key:key});if(current!==epoch)return;rows=null;status(`${result.created} ubicaciones añadidas; ${result.duplicates} ya existentes. Guardadas en Yokup. Alta en Admira pendiente de confirmación.`);document.dispatchEvent(new Event('retailer-sites-imported'));history();}
