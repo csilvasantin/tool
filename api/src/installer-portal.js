@@ -1,6 +1,6 @@
 /** Installer portal: isolated accounts, authenticated inbox and signed Admira ingestion. */
 const ORIGINS = new Set(['https://www.yokup.com', 'https://yokup.com', 'http://localhost:8788', 'http://127.0.0.1:8788']);
-const SKILLS = new Set(['screen', 'player', 'network', 'audio', 'sensor', 'kiosk']);
+const SKILLS = new Set(['screen', 'player', 'network', 'audio', 'sensor', 'kiosk', 'hvac']);
 const COOKIE = '__Host-yk_installer';
 const encoder = new TextEncoder();
 const fail = (status, message) => { throw Object.assign(new Error(message), {status}); };
@@ -121,11 +121,12 @@ export async function handleInstaller(request,env) {
    return response(request,{profile:publicProfile(await statement(env,'SELECT * FROM installer_accounts WHERE id=?',account.id).first())});
   }
   if(path==='/inbox' && method==='GET') {
-   const notifications=await rows(env,`SELECT n.id AS notification_id,n.distance_km,n.created_at AS notified_at,n.read_at,i.id,i.title,i.reason,i.status,i.installer_id,i.created_at,i.resolution,d.name AS device_name,d.skill,d.latitude,d.longitude,
+   const notifications=await rows(env,`SELECT n.id AS notification_id,n.distance_km,n.created_at AS notified_at,n.read_at,i.id,i.title,i.reason,i.status,i.installer_id,i.created_at,i.resolution,rd.description,rd.priority,rr.stars AS rating_stars,rr.comment AS rating_comment,rr.satisfied,d.name AS device_name,d.skill,d.latitude,d.longitude,
    CASE WHEN i.installer_id=? THEN d.address ELSE NULL END AS address
-   FROM installer_notifications n JOIN installer_incidents i ON i.id=n.incident_id JOIN installer_devices d ON d.id=i.device_id WHERE n.installer_id=? ORDER BY n.created_at DESC LIMIT 100`,account.id,account.id);
+   FROM installer_notifications n JOIN installer_incidents i ON i.id=n.incident_id JOIN installer_devices d ON d.id=i.device_id LEFT JOIN retailer_incident_details rd ON rd.incident_id=i.id LEFT JOIN retailer_ratings rr ON rr.incident_id=i.id AND rr.installer_id=? WHERE n.installer_id=? ORDER BY n.created_at DESC LIMIT 100`,account.id,account.id,account.id);
    const stats=await statement(env,`SELECT COUNT(CASE WHEN n.read_at IS NULL THEN 1 END) AS unread,COUNT(CASE WHEN i.installer_id=? AND i.status='assigned' THEN 1 END) AS assigned,COUNT(CASE WHEN i.installer_id=? AND i.status='resolved' THEN 1 END) AS resolved FROM installer_notifications n JOIN installer_incidents i ON i.id=n.incident_id WHERE n.installer_id=?`,account.id,account.id,account.id).first();
-   return response(request,{stats,notifications:notifications.map(n=>({...n,mine:n.installer_id===account.id,installer_id:undefined,
+   const reputation=await statement(env,'SELECT COUNT(*) AS count,AVG(stars) AS average FROM retailer_ratings WHERE installer_id=?',account.id).first();
+   return response(request,{stats,reputation,notifications:notifications.map(n=>({...n,mine:n.installer_id===account.id,installer_id:undefined,
     latitude:n.installer_id===account.id?n.latitude:undefined,longitude:n.installer_id===account.id?n.longitude:undefined}))});
   }
   const read=/^\/notifications\/([\w-]+)\/read$/.exec(path);
@@ -170,7 +171,9 @@ export async function ingestEvent(request,env) {
  let event; try {event=JSON.parse(raw);} catch {fail(400,'JSON no válido.');}
  const id=text(event.event_id,1,160), device=event.device;
  if(!device || !['heartbeat','fault'].includes(event.type)) fail(400,'Evento no válido.');
- const deviceId=text(device.id,1,160), name=text(device.name,1,160), address=text(device.address,1,300);
+ let deviceId=text(device.id,1,160);
+ if(device.circuit_id){const link=await statement(env,'SELECT device_id FROM retailer_device_links WHERE circuit_id=? AND admira_device_id=?',text(device.circuit_id,1,120),deviceId).first();if(!link)fail(404,'Equipo del circuito no vinculado a Yokup.');deviceId=link.device_id;}
+ const name=text(device.name,1,160), address=text(device.address,1,300);
  const latitude=coordinate(device.latitude,90), longitude=coordinate(device.longitude,180);
  if(!SKILLS.has(device.skill)) fail(400,'Especialidad de equipo no válida.');
  const occurred=Date.parse(event.occurred_at);
@@ -185,7 +188,7 @@ export async function ingestEvent(request,env) {
  if(receipt.payload_hash!==payloadHash) fail(409,'event_id ya usado con otro contenido.');
  const operations=[statement(env,`INSERT INTO installer_devices(id,name,latitude,longitude,address,skill,last_seen,timeout_seconds)
  SELECT ?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM installer_events WHERE id=? AND applied=0)
- ON CONFLICT(id) DO UPDATE SET name=excluded.name,latitude=excluded.latitude,longitude=excluded.longitude,address=excluded.address,skill=excluded.skill,last_seen=excluded.last_seen,timeout_seconds=excluded.timeout_seconds WHERE excluded.last_seen>=installer_devices.last_seen`,deviceId,name,latitude,longitude,address,device.skill,occurred,timeout,id)];
+ ON CONFLICT(id) DO UPDATE SET name=excluded.name,latitude=excluded.latitude,longitude=excluded.longitude,address=excluded.address,skill=excluded.skill,last_seen=excluded.last_seen,timeout_seconds=excluded.timeout_seconds,monitoring=1 WHERE excluded.last_seen>=installer_devices.last_seen`,deviceId,name,latitude,longitude,address,device.skill,occurred,timeout,id)];
  if(event.type==='fault') operations.push(statement(env,`INSERT OR IGNORE INTO installer_incidents(id,device_id,title,reason,status,created_at)
  SELECT ?,?,?,'fault','open',? WHERE EXISTS(SELECT 1 FROM installer_events WHERE id=? AND applied=0)
  AND EXISTS(SELECT 1 FROM installer_devices WHERE id=? AND last_seen<=?)`,'event:'+await hash(id),deviceId,title,now,id,deviceId,occurred));
@@ -217,5 +220,8 @@ export async function sweepInstallers(env) {
  await env.DB.batch([
   statement(env,'DELETE FROM installer_sessions WHERE expires_at<?',now),
   statement(env,'DELETE FROM installer_rate_limits WHERE expires_at<?',now),
+  statement(env,'DELETE FROM retailer_sessions WHERE expires_at<?',now),
  ]);
 }
+
+export { ORIGINS, SKILLS, encoder, fail, random, hash, statement, rows, coordinate, text, passwordHash, jsonBody, rateLimit, response };

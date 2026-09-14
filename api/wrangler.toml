@@ -33,6 +33,7 @@ binding = "DB"
 database_name = "yokup-db"
 database_id = "0c087ca2-ae5b-4589-a377-e9e615603c8d"
 
+# ADMIRA_CIRCUIT_SECRET: HMAC required for /api/circuit/link and /api/circuit/status.
 # INSTALLER_ADMIRA_SECRET: HMAC required for /api/installer/events.
 # Secret opcional (set con `wrangler secret put`, NUNCA en el repo):
 #   ADMIRA_WEBHOOK_SECRET -> HMAC del webhook de Admira (F1). Sin él, modo dev (acepta).

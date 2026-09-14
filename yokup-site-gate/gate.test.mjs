@@ -157,3 +157,11 @@ test('installer portal aliases serve the installer asset, never the SPA fallback
   assert.equal(await response.text(),'installer');assert.deepEqual(seen,['/instalador.html']);
  }
 });
+
+ test('retailer aliases preserve the dedicated commerce portal',async()=>{
+ for(const path of ['/retailer','/retailer/','/comercio','/comercio/','/alta-punto','/alta-punto.html']){
+  const seen=[];
+  const response=await handleRequest(new Request('https://www.yokup.com'+path),env(async request=>{seen.push(new URL(request.url).pathname);return new Response('retailer');}),{});
+  assert.equal(await response.text(),'retailer');assert.deepEqual(seen,['/retailer.html']);
+ }
+});

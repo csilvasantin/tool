@@ -1,3 +1,4 @@
+import { handleRetailer, handleCircuit } from './retailer-portal.js';
 import { handleInstaller, sweepInstallers } from './installer-portal.js';
 /**
  * yokup-api — Cloudflare Worker
@@ -49,6 +50,8 @@ const BOOL_COLS = { stores: ["from_admira"] };
 export default {
   scheduled(controller, env, ctx) { ctx.waitUntil(sweepInstallers(env)); },
   async fetch(request, env) {
+    if (new URL(request.url).pathname.startsWith('/api/retailer/')) return handleRetailer(request, env);
+    if (new URL(request.url).pathname.startsWith('/api/circuit/')) return handleCircuit(request, env);
     if (new URL(request.url).pathname.startsWith("/api/installer/")) return handleInstaller(request, env);
     if (request.method === "OPTIONS")
       return new Response(null, { status: 204, headers: cors(request) });
