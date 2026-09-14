@@ -1,0 +1,284 @@
+{
+  "batch_id": "smith-iberia-20260914-v1",
+  "purpose": "20 instaladores ficticios de prueba; no son profesionales reales.",
+  "coordinate_note": "Coordenadas aproximadas de ciudades peninsulares, no domicilios de personas.",
+  "total": 20,
+  "profiles": [
+    {
+      "name": "DEMO Smith 01 · Madrid",
+      "email": "smith-iberia-20260914-01@example.invalid",
+      "country": "ES",
+      "city": "Madrid",
+      "latitude": 40.4168,
+      "longitude": -3.7038,
+      "skills": [
+        "screen",
+        "player"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 02 · Barcelona",
+      "email": "smith-iberia-20260914-02@example.invalid",
+      "country": "ES",
+      "city": "Barcelona",
+      "latitude": 41.3874,
+      "longitude": 2.1686,
+      "skills": [
+        "audio",
+        "network"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 03 · Valencia",
+      "email": "smith-iberia-20260914-03@example.invalid",
+      "country": "ES",
+      "city": "Valencia",
+      "latitude": 39.4699,
+      "longitude": -0.3763,
+      "skills": [
+        "hvac"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 04 · Sevilla",
+      "email": "smith-iberia-20260914-04@example.invalid",
+      "country": "ES",
+      "city": "Sevilla",
+      "latitude": 37.3891,
+      "longitude": -5.9845,
+      "skills": [
+        "screen",
+        "network"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 05 · Málaga",
+      "email": "smith-iberia-20260914-05@example.invalid",
+      "country": "ES",
+      "city": "Málaga",
+      "latitude": 36.7213,
+      "longitude": -4.4214,
+      "skills": [
+        "sensor",
+        "kiosk"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 06 · Murcia",
+      "email": "smith-iberia-20260914-06@example.invalid",
+      "country": "ES",
+      "city": "Murcia",
+      "latitude": 37.9922,
+      "longitude": -1.1307,
+      "skills": [
+        "screen",
+        "player"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 07 · Alicante",
+      "email": "smith-iberia-20260914-07@example.invalid",
+      "country": "ES",
+      "city": "Alicante",
+      "latitude": 38.3452,
+      "longitude": -0.481,
+      "skills": [
+        "audio",
+        "network"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 08 · Zaragoza",
+      "email": "smith-iberia-20260914-08@example.invalid",
+      "country": "ES",
+      "city": "Zaragoza",
+      "latitude": 41.6488,
+      "longitude": -0.8891,
+      "skills": [
+        "hvac"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 09 · Bilbao",
+      "email": "smith-iberia-20260914-09@example.invalid",
+      "country": "ES",
+      "city": "Bilbao",
+      "latitude": 43.263,
+      "longitude": -2.935,
+      "skills": [
+        "screen",
+        "network"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 10 · Valladolid",
+      "email": "smith-iberia-20260914-10@example.invalid",
+      "country": "ES",
+      "city": "Valladolid",
+      "latitude": 41.6523,
+      "longitude": -4.7245,
+      "skills": [
+        "sensor",
+        "kiosk"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 11 · A Coruña",
+      "email": "smith-iberia-20260914-11@example.invalid",
+      "country": "ES",
+      "city": "A Coruña",
+      "latitude": 43.3623,
+      "longitude": -8.4115,
+      "skills": [
+        "screen",
+        "player"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 12 · Vigo",
+      "email": "smith-iberia-20260914-12@example.invalid",
+      "country": "ES",
+      "city": "Vigo",
+      "latitude": 42.2406,
+      "longitude": -8.7207,
+      "skills": [
+        "audio",
+        "network"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 13 · Salamanca",
+      "email": "smith-iberia-20260914-13@example.invalid",
+      "country": "ES",
+      "city": "Salamanca",
+      "latitude": 40.9701,
+      "longitude": -5.6635,
+      "skills": [
+        "hvac"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 14 · Badajoz",
+      "email": "smith-iberia-20260914-14@example.invalid",
+      "country": "ES",
+      "city": "Badajoz",
+      "latitude": 38.8794,
+      "longitude": -6.9707,
+      "skills": [
+        "screen",
+        "network"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 15 · Lisboa",
+      "email": "smith-iberia-20260914-15@example.invalid",
+      "country": "PT",
+      "city": "Lisboa",
+      "latitude": 38.7223,
+      "longitude": -9.1393,
+      "skills": [
+        "sensor",
+        "kiosk"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 16 · Porto",
+      "email": "smith-iberia-20260914-16@example.invalid",
+      "country": "PT",
+      "city": "Porto",
+      "latitude": 41.1579,
+      "longitude": -8.6291,
+      "skills": [
+        "screen",
+        "player"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 17 · Braga",
+      "email": "smith-iberia-20260914-17@example.invalid",
+      "country": "PT",
+      "city": "Braga",
+      "latitude": 41.5454,
+      "longitude": -8.4265,
+      "skills": [
+        "audio",
+        "network"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 18 · Coimbra",
+      "email": "smith-iberia-20260914-18@example.invalid",
+      "country": "PT",
+      "city": "Coimbra",
+      "latitude": 40.2033,
+      "longitude": -8.4103,
+      "skills": [
+        "hvac"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 19 · Évora",
+      "email": "smith-iberia-20260914-19@example.invalid",
+      "country": "PT",
+      "city": "Évora",
+      "latitude": 38.5714,
+      "longitude": -7.9135,
+      "skills": [
+        "screen",
+        "network"
+      ],
+      "language": "es",
+      "available": false
+    },
+    {
+      "name": "DEMO Smith 20 · Faro",
+      "email": "smith-iberia-20260914-20@example.invalid",
+      "country": "PT",
+      "city": "Faro",
+      "latitude": 37.0194,
+      "longitude": -7.9304,
+      "skills": [
+        "sensor",
+        "kiosk"
+      ],
+      "language": "es",
+      "available": false
+    }
+  ]
+}

@@ -105,3 +105,8 @@ Migración aditiva `api/migrations/0003_portal_mcp.sql`. Deploy API y luego web 
 ```sh
 node --test api/installer-portal.test.mjs api/retailer-portal.test.mjs api/portal-mcp.test.mjs
 ```
+
+
+## Smith: 20 instaladores DEMO en la península ibérica
+
+Guía operativa: https://www.yokup.com/mcp/smith-instaladores.html . Texto completo para agentes: https://www.yokup.com/mcp/smith-instaladores.txt . Lote de 20 perfiles: https://www.yokup.com/mcp/smith-installers-iberia.json . El MCP actual no crea cuentas; la guía documenta el alta REST y posterior verificación MCP por titular. Datos ficticios, no disponibles; esta documentación no ejecuta las altas.

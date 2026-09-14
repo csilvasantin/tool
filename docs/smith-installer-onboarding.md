@@ -1,0 +1,137 @@
+# Smith · alta de 20 instaladores ficticios en la península ibérica
+
+Contrato comprobado contra el código de Yokup el 14 de septiembre de 2026. Misión #327 · DCL-e1ef335522646b77b23a4577.
+
+Guía pública: https://www.yokup.com/mcp/smith-instaladores.html
+Versión de texto para agentes: https://www.yokup.com/mcp/smith-instaladores.txt
+Datos preparados: https://www.yokup.com/mcp/smith-installers-iberia.json
+
+Esta entrega documenta y prepara el lote; no acredita que las 20 cuentas estén creadas. Smith debe ejecutar el alta, comprobar cada resultado y entregar los IDs persistidos. No debe afirmar que existen instaladores reales.
+
+## Qué servidor utilizar
+
+| Servicio | Endpoint | Función |
+| --- | --- | --- |
+| MCP general Yokup | `https://yokup.com/mcp` | Identidad de agente, proyectos, misiones e informes. Su token de flota no da acceso a cuentas de instaladores. |
+| API de alta | `https://data.yokup.com/api/installer/register` | Crear una cuenta y obtener su sesión. Es REST, no una herramienta MCP. |
+| MCP instalador | `https://data.yokup.com/mcp/installer` | Operar una cuenta existente con su token delegado `ykp_…`. |
+
+**No existen `installer_create`, `installer_register` ni alta masiva de cuentas en el MCP actual.** El MCP de retailer tampoco crea instaladores. El procedimiento implementado es API REST para el alta inicial y MCP para verificar y operar cada cuenta. Si Smith solo dispone de un cliente MCP y no puede ejecutar HTTP/Node, este alta no se puede completar solo con las herramientas actuales: necesita el bootstrap REST o que se implemente una herramienta específica; no debe inventarla.
+
+La documentación y los schemas son públicos; las sesiones, contraseñas y los tokens son privados. Schema real: https://www.yokup.com/mcp/installer.json . Documentación general: https://www.yokup.com/mcp/portales . No hay OAuth automático en esta versión.
+
+## Lote preparado
+
+20 perfiles: 14 en España y 6 en Portugal, todos peninsulares. Madrid, Barcelona, Valencia, Sevilla, Málaga, Murcia, Alicante, Zaragoza, Bilbao, Valladolid, A Coruña, Vigo, Salamanca, Badajoz, Lisboa, Porto, Braga, Coimbra, Évora y Faro.
+
+Cada entrada de `profiles` es un cuerpo de registro completo excepto `password`:
+
+```json
+{"name":"DEMO Smith 01 · Madrid","email":"smith-iberia-20260914-01@example.invalid","country":"ES","city":"Madrid","latitude":40.4168,"longitude":-3.7038,"skills":["screen","player"],"language":"es","available":false}
+```
+
+- Identidades sintéticas y correos no entregables `@example.invalid`; no utilizar nombres, contactos o domicilios de personas reales.
+- Coordenadas aproximadas de las ciudades, no posiciones de trabajadores. Se guardan como `latitude` y `longitude`, sin invertirlas.
+- `available:false` desde el primer INSERT: quedan fuera del envío de nuevas incidencias y no pueden aceptarlas. No activar estos perfiles para probar trabajos reales.
+- `DEMO` en el nombre es una etiqueta visible, no un tenant aislado ni un rol técnico especial. La API actual no tiene un campo `is_test`.
+- Especialidades válidas: `screen`, `audio`, `hvac`, `player`, `network`, `kiosk`, `sensor`. `language` solo admite `es` o `en`; no enviar `pt` como si estuviera implementado.
+- Mantener los correos del lote para reconocer reintentos. Crear una contraseña aleatoria distinta de al menos 12 caracteres por cuenta y guardarla ANTES de enviar el alta. Nunca publicarla en Git, consola, misión o chat.
+
+## Ejecución por Smith
+
+Trabajar en un directorio privado fuera del repositorio, permisos 0700; archivos de credenciales 0600. Los comandos siguientes son ejemplos para el perfil 01. Repetir de forma secuencial para los índices 1–20, usando un directorio distinto por perfil. No ejecutar un bucle ciego de reintentos.
+
+### 1. Preparar una contraseña y un cuerpo privado
+
+Descargar el JSON público como `smith-installers-iberia.json`. En el directorio privado del lote, ejecutar este ejemplo una sola vez por índice; `flag: "wx"` evita sobrescribir una contraseña al reintentar:
+
+```sh
+umask 077
+node --input-type=module - 1 <<'JS'
+import {readFileSync,mkdirSync,writeFileSync} from 'node:fs';
+import {randomBytes} from 'node:crypto';
+const n=Number(process.argv[2]);
+if(!Number.isInteger(n)||n<1||n>20)throw Error('Índice entre 1 y 20');
+const dataset=JSON.parse(readFileSync('smith-installers-iberia.json','utf8'));
+const directory=String(n).padStart(2,'0');
+mkdirSync(directory,{mode:0o700});
+const body={...dataset.profiles[n-1],password:randomBytes(24).toString('base64url')};
+writeFileSync(directory+'/register.json',JSON.stringify(body),{mode:0o600,flag:'wx'});
+JS
+```
+
+Conservar ese archivo en cada reintento. No confundir la marca de lote con `request_key`: el endpoint REST de registro no acepta una clave de idempotencia de negocio; la unicidad del email evita una segunda cuenta con el mismo correo.
+
+### 2. Crear la cuenta y guardar su sesión sin mostrarla
+
+```sh
+curl --silent --show-error --max-time 30 \
+  https://data.yokup.com/api/installer/register \
+  -H 'Origin: https://www.yokup.com' -H 'Content-Type: application/json' \
+  --data-binary @01/register.json --cookie-jar 01/session.cookies \
+  --output 01/register-response.json --write-out '%{http_code}\n'
+```
+
+No añadir `-L`, trazas, `-v` ni copiar las cookies al informe. El éxito es **HTTP 201**, con `{profile:{id,email,name,country,city,latitude,longitude,skills,language,available,...}}` y la cookie HttpOnly de sesión. Comprobar que email, nombre, coordenadas y `available:false` coinciden con el lote; registrar el `profile.id`. Un HTTP 200 de otra ruta no acredita un alta nueva.
+
+El alta no envía una invitación por correo. Un correo `.invalid` no sirve para recuperar acceso por email; conservar las contraseñas privadas. No se necesita un token de flota para registrar, y no debe enviarse a esta ruta. Las escrituras REST requieren el `Origin` autorizado mostrado arriba.
+
+### 3. Emitir un token de lectura de ESA cuenta
+
+```sh
+curl --silent --show-error --max-time 30 \
+  https://data.yokup.com/api/installer/mcp-tokens \
+  -H 'Origin: https://www.yokup.com' -H 'Content-Type: application/json' \
+  --cookie 01/session.cookies \
+  --data '{"label":"Smith DEMO Iberia 01","scopes":["installer:read"],"expires_in_days":7}' \
+  --output 01/token-response.json --write-out '%{http_code}\n'
+```
+
+Éxito **HTTP 201**: `id`, `token`, `endpoint`, `scopes`, `expires_at`, `show_once:true`. El token se entrega una vez. Crear un archivo para el cliente sin imprimirlo:
+
+```sh
+node --input-type=module <<'JS'
+import {readFileSync,writeFileSync} from 'node:fs';
+const r=JSON.parse(readFileSync('01/token-response.json','utf8'));
+if(r.endpoint!=='https://data.yokup.com/mcp/installer'||!/^ykp_[a-f0-9]{64}$/.test(r.token||''))throw Error('Token no confirmado');
+writeFileSync('01/mcp-private.json',JSON.stringify({endpoint:r.endpoint,token:r.token}),{mode:0o600,flag:'wx'});
+JS
+```
+
+20 cuentas requieren 20 credenciales, cada una vinculada a su titular. El token de Smith en `yokup.com/mcp` no sustituye a ninguna de ellas. No conceder `installer:accept` o `installer:resolve` a este lote de prueba.
+
+### 4. Verificar mediante el MCP real
+
+Descargar y revisar el cliente público https://www.yokup.com/mcp/portal-client.mjs . Requiere Node.js 20 o superior y no necesita dependencias. Ejemplo desde el directorio privado, con el cliente descargado:
+
+```sh
+node portal-client.mjs 01/mcp-private.json <<'JSONL'
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"Smith-DEMO-Iberia","version":"1.0"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/list"}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"installer_whoami","arguments":{}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"installer_profile","arguments":{}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"installer_inbox","arguments":{}}}
+JSONL
+```
+
+Comprobar `isError:false`, que el ID del titular coincide con el alta, el perfil sigue no disponible y el token solo tiene lectura. El resultado de `tools/list` es la autoridad sobre las herramientas permitidas. Un listado público de schemas no concede permisos. Un `200` HTTP con error JSON-RPC o `isError:true` no es éxito.
+
+Para un cliente HTTP: POST al endpoint MCP canónico con `Authorization: Bearer <token privado>`, `Content-Type: application/json`, `Accept: application/json, text/event-stream` y `MCP-Protocol-Version: 2025-11-25`. Pasar la cabecera mediante el almacén privado del cliente, nunca como token en la URL ni argumento visible de un comando. El puente stdio ya construye estas cabeceras.
+
+## Límites, reintentos y recuperación
+
+- Registro y login comparten **20 peticiones por IP cada 15 minutos**, además de 10 por email cada 15 minutos. Son intentos, no solo éxitos; las 20 altas consumen toda una ventana limpia. Otras sesiones pueden haber usado ese presupuesto. Ante 429 detener el lote y esperar al reinicio de la ventana; no cambiar de IP para eludir el límite. No hacer logins redundantes: reutilizar la sesión recibida al registrar.
+- Contraseña 12–128 caracteres; nombre 2–100; ciudad 2–120; código de país de dos letras; latitud −90..90 y longitud −180..180. Conservar ES/PT y los valores del lote.
+- Registrar inmediatamente por fila: índice, email sintético, ID confirmado, estado y hora. Mantener contraseñas/cookies/tokens aparte, en archivos privados. Un fallo parcial no obliga a empezar las 20 cuentas de nuevo.
+- 409 al registrar: el email puede existir. No contarlo como creado ni cambiarlo para duplicar. Si Smith conserva la contraseña del mismo lote, puede usar `POST /api/installer/login` con `{email,password}` (misma cabecera Origin), guardar la cookie y comparar `GET /api/installer/me` con el perfil esperado. Si no puede confirmar que es la cuenta del lote, detener esa fila y reportar el conflicto.
+- Timeout/5xx durante el alta: estado incierto. Conservar contraseña y email; tras comprobar límites, intentar login con esas mismas credenciales para reconciliar. No generar otra identidad. Un login fallido no debe presentarse como prueba absoluta de que una petición anterior no acabará creando la cuenta.
+- Timeout al emitir token: no volver a emitir indefinidamente. `GET /api/installer/mcp-tokens`, con la sesión privada, lista IDs y etiquetas sin revelar tokens. Revocar el token de ese intento si quedó creado pero se perdió su valor y crear uno nuevo. Revocación: `POST /api/installer/mcp-tokens/:token_id/revoke`, sesión del titular, Origin autorizado y JSON `{}`.
+- La revocación de tokens no elimina la cuenta. No existe una herramienta MCP de borrado de instaladores en esta versión. Mantener `available:false`; una limpieza definitiva debe tramitarse por el operador autorizado.
+- Las herramientas MCP de escritura disponibles para otras cuentas exigen `request_key`; ninguna de ellas debe usarse para simular reparaciones o valoraciones reales.
+
+## Criterio de entrega de Smith
+
+Entregar una tabla de 20 filas con índice, nombre DEMO, ciudad, país, especialidades, ID confirmado, `available:false` y comprobación MCP. Resumir creadas, recuperadas de un intento anterior, pendientes y errores; sumar exactamente 20. No incluir contraseñas, tokens, cookies ni afirmar cobertura real de mantenimiento. Si no pudo verificar todas, informar el número exacto pendiente. Registrar el resultado en su propia misión con su identidad comprobada en Yokup.
+
+Instrucción breve reutilizable: «Usa esta guía y su JSON para dar de alta y verificar los 20 instaladores ficticios. Conserva nombres DEMO y available:false. Haz el bootstrap REST por cuenta, emite tokens solo de lectura y verifica cada titular por MCP. Respeta los límites y reconcilia resultados inciertos. Devuelve IDs confirmados y recuentos; nunca credenciales».

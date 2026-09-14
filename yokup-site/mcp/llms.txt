@@ -206,3 +206,8 @@ Documentación pública: https://www.yokup.com/mcp/portales
 Guía para agentes: https://www.yokup.com/mcp/portals-llms.txt
 Índice: https://www.yokup.com/mcp/portals.json
 Son servidores independientes con tokens delegados por el titular de cada cuenta. La credencial de flota no da acceso a datos de comercios ni instaladores.
+
+
+## Smith: 20 instaladores DEMO en la península ibérica
+
+Guía operativa: https://www.yokup.com/mcp/smith-instaladores.html . Texto completo para agentes: https://www.yokup.com/mcp/smith-instaladores.txt . Lote de 20 perfiles: https://www.yokup.com/mcp/smith-installers-iberia.json . El MCP actual no crea cuentas; la guía documenta el alta REST y posterior verificación MCP por titular. Datos ficticios, no disponibles; esta documentación no ejecuta las altas.
