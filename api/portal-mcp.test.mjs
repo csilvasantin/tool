@@ -1,4 +1,5 @@
 import {test} from 'node:test';
+import worker from './src/index.js';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {setup,call,account,event,signed} from './test-fixture.mjs';
@@ -130,4 +131,17 @@ test('public stdio bridge is the same source and never accepts arbitrary hosts',
  const source=readFileSync(new URL('./tools/portal-mcp-stdio.mjs',import.meta.url),'utf8');
  assert.equal(readFileSync(new URL('../yokup-site/mcp/portal-client.mjs',import.meta.url),'utf8'),source);
  assert.match(source,/redirect:'error'/);assert.match(source,/info.mode&0o077/);
+});
+
+test('legacy CRUD rejects injected SQL identifiers before touching private portal data',async()=>{
+ const {env,db}=setup(),a=await actor(env,'installer');
+ db.exec("CREATE TABLE technicians(id TEXT PRIMARY KEY,name TEXT); INSERT INTO technicians VALUES('legacy-1','Original');");
+ async function legacy(method,path,payload){return worker.fetch(new Request('https://data.yokup.com/api/'+path,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),env);}
+ const injected={'name = (SELECT token_hash FROM portal_mcp_tokens LIMIT 1), name':'malicious'};
+ assert.equal((await legacy('PATCH','technicians/legacy-1',injected)).status,400);
+ assert.equal((await legacy('POST','technicians',{'name) SELECT token_hash FROM portal_mcp_tokens --':'malicious'})).status,400);
+ assert.equal(db.prepare('SELECT name FROM technicians').get().name,'Original');
+ const valid=await legacy('PATCH','technicians/legacy-1',{name:'Nombre legítimo'});assert.equal(valid.status,200);assert.equal(db.prepare('SELECT name FROM technicians').get().name,'Nombre legítimo');
+ assert.equal((await rpc(env,a)).status,200);
+ for(const table of ['portal_mcp_tokens','portal_mcp_audit','installer_accounts','retailer_accounts'])assert.equal((await worker.fetch(new Request('https://data.yokup.com/api/'+table),env)).status,404);
 });

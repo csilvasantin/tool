@@ -177,7 +177,19 @@ async function listAll(env, table) {
   return hydrateRows(table, r.results);
 }
 
+// Legacy REST shares this database with private portal accounts and tokens.
+// Values are bound, but SQL identifiers must also be validated before interpolation.
+function payloadColumns(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload))
+    throw Object.assign(new Error('Expected a JSON object'), {status:400});
+  const columns = Object.keys(payload);
+  if (columns.some(column => !/^[a-z_][a-z0-9_]*$/i.test(column)))
+    throw Object.assign(new Error('Invalid field name'), {status:400});
+  return columns;
+}
+
 async function insert(env, table, payload) {
+  payloadColumns(payload);
   const row = withDefaults(table, payload);
   const cols = Object.keys(row);
   const placeholders = cols.map(() => "?").join(", ");
@@ -190,7 +202,7 @@ async function insert(env, table, payload) {
 }
 
 async function patch(env, table, id, payload) {
-  const cols = Object.keys(payload).filter((c) => c !== "id");
+  const cols = payloadColumns(payload).filter((c) => c !== "id");
   if (!cols.length) {
     const cur = await env.DB.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(id).first();
     return cur ? [hydrateRow(table, cur)] : [];
