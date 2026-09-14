@@ -1,6 +1,8 @@
 import {ORIGINS,hash,random,statement,rows,text,passwordHash,jsonBody,rateLimit,response,fail} from './installer-portal.js';
 const CLIENT='861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com';
-export const ADMIN='csilva@admira.com';
+import {ADMIN,superuser,bindSuperuser} from './portal-roles.js';
+import {googlePortal,finishGoogleSignup} from './portal-google.js';
+export {ADMIN};
 const GOOGLE_COOKIE='__Host-yk_portal_google',ADMIN_COOKIE='__Host-yk_portal_admin';
 const cookie=(r,name)=>r.headers.get('cookie')?.split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='))?.slice(name.length+1)||'';
 const setCookie=(name,token,age)=>`${name}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${age}`;
@@ -64,12 +66,19 @@ export async function handleAccess(request,env){
    const token=random(),nonce=random();await statement(env,'INSERT INTO portal_google_challenges VALUES(?,?,?,0)',await hash(token),nonce,Date.now()+300000).run();
    return response(request,{nonce,google_client_id:CLIENT},200,setCookie(GOOGLE_COOKIE,token,300));
   }
-  if(path==='/google/admin'){
-   const p=await googleIdentity(request,env,b);if(p.email!==ADMIN||p.hd!=='admira.com')fail(403,'Esta cuenta no tiene acceso de superusuario.');
-   const token=random();await statement(env,'INSERT INTO portal_admin_sessions VALUES(?,?,?,?)',await hash(token),p.email,p.sub,Date.now()+3600000).run();
-   return response(request,{ok:true,email:p.email},200,setCookie(ADMIN_COOKIE,token,3600));
+  if(path==='/google/admin'||path==='/google/login'){
+   if(path==='/google/login'&&!['installer','retailer'].includes(b.kind))fail(400,'Selecciona tu portal.');
+   const p=await googleIdentity(request,env,b),role=await bindSuperuser(env,p);
+   if(role){
+    const token=random(),created=await statement(env,'INSERT INTO portal_admin_sessions SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM portal_superusers WHERE email=? AND google_sub=? AND revoked_at IS NULL)',await hash(token),p.email,p.sub,Date.now()+3600000,p.email,p.sub).run();
+    if(!created.meta.changes)fail(403,'La autorización ha cambiado.');
+    return response(request,{ok:true,email:p.email,role:'superuser',redirect:'/superusuario'},200,setCookie(ADMIN_COOKIE,token,3600));
+   }
+   if(path==='/google/admin')fail(403,'Esta cuenta no tiene acceso de superusuario.');
+   return await googlePortal(request,env,b,p);
   }
   const kind=b.kind;if(!['installer','retailer'].includes(kind))fail(400,'Selecciona tu portal.');
+  if(path==='/google/register')return await finishGoogleSignup(request,env,b);
   if(path==='/password/complete')return response(request,await finishReset(env,kind,b.token,b.password));
   if(path==='/google/recover'){
    const p=await googleIdentity(request,env,b),account=await statement(env,`SELECT id FROM ${table(kind)} WHERE email=?`,p.email).first();
@@ -94,12 +103,13 @@ export async function handleAccess(request,env){
 }
 export async function adminIdentity(request,env){
  const t=cookie(request,ADMIN_COOKIE);if(!t)fail(401,'Accede con Google como superusuario.');
- const row=await statement(env,'SELECT email FROM portal_admin_sessions WHERE token_hash=? AND expires_at>?',await hash(t),Date.now()).first();if(row?.email!==ADMIN)fail(401,'La sesión de superusuario ha caducado.');return row;
+ const row=await statement(env,'SELECT email,google_sub FROM portal_admin_sessions WHERE token_hash=? AND expires_at>?',await hash(t),Date.now()).first();const role=row?await superuser(env,row.email):null;if(!role||(role.google_sub&&role.google_sub!==row.google_sub))fail(401,'La sesión de superusuario ha caducado.');return row;
 }
 export async function adminLogout(request,env){await statement(env,'DELETE FROM portal_admin_sessions WHERE token_hash=?',await hash(cookie(request,ADMIN_COOKIE))).run();return response(request,{ok:true},200,setCookie(ADMIN_COOKIE,'',0));}
 export async function sweepPortalAccess(env){
  const now=Date.now();await env.DB.batch([
   statement(env,'DELETE FROM portal_google_challenges WHERE expires_at<?',now-3600000),
+  statement(env,'DELETE FROM portal_google_signup WHERE expires_at<?',now-3600000),
   statement(env,'DELETE FROM portal_admin_sessions WHERE expires_at<?',now),
   statement(env,'DELETE FROM portal_password_resets WHERE expires_at<?',now-86400000)
  ]);

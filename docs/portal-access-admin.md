@@ -1,10 +1,16 @@
 # Recuperación y superusuario de portales
 
-Misión #341 · DCL-dadc9d02919f9ee00fab5640 · 14 septiembre 2026.
+Misiones #341 y #366 · DCL-ea2a760d10a0e56c485fee08 · 14 septiembre 2026.
 
 ## Acceso Google
 
-`/superusuario` utiliza Google Identity Services con el cliente web ya utilizado por Yokup. No requiere contraseña del portal ni crea una cuenta de instalador/retailer para el administrador. La API acepta exclusivamente `csilva@admira.com` con `hd=admira.com`, email verificado y firma Google válida. No acepta otro usuario de admira.com, el Gmail del propietario, tokens de flota ni cookies de los portales como privilegio administrativo.
+Ambos portales ofrecen «Continuar con Google» en Crear cuenta y Entrar. `/api/portal-access/google/login` verifica Google y resuelve el rol en el servidor. La dirección `csilva@admira.com` (con `hd=admira.com`) es la cuenta principal. Las otras cuentas necesitan una autorización activa en `portal_superusers`; quedan vinculadas al `sub` de Google en el primer acceso. No se acepta un rol ni un email declarados por el cliente. `/superusuario` es el destino tras autenticarse, no otro formulario de acceso.
+
+Solo la cuenta principal puede dar o revocar permisos desde la sección Superusuarios. Los cambios se auditan en `portal_role_audit`. Revocar elimina sus sesiones y cada petición administrativa vuelve a comprobar la autorización. No se permite revocar la cuenta principal. Las cuentas autorizadas deben usar Gmail o Google Workspace, con titularidad acreditada por Google.
+
+Para un usuario habitual, Google inicia una sesión del portal elegido. Una cuenta existente se vincula por dirección acreditada a un `sub` estable; no se duplican perfiles ni se permite vincular otra identidad Google a la misma cuenta. Una cuenta nueva completa su perfil: nombre para retailer; ubicación y especialidades para instalador. No se pide contraseña durante el alta Google. Un ticket de 15 minutos, ligado al navegador y al portal, permite guardar el perfil una sola vez. Las cuentas nuevas no tienen una contraseña compartida o predeterminada: pueden usar recuperación para establecer una si lo desean. Se conservan las cuentas de ambos portales separadas.
+
+Rutas nuevas: `POST /api/portal-access/google/login` recibe `credential`, `kind` e `intent` (`login` o `register`); devuelve `role:superuser` y destino `/superusuario`, el perfil autenticado, o `needs_profile` con ticket. `POST /api/portal-access/google/register` recibe ticket, kind y perfil; ignora cualquier email o rol de esos datos. `GET /api/portal-admin/superusers` lista autorizaciones y `POST` aplica `grant|revoke` con email, únicamente desde la sesión principal. Nunca hay un endpoint público para concederse permisos.
 
 Cada login solicita un challenge aleatorio de cinco minutos ligado a cookie HttpOnly y nonce. Se verifica RS256 mediante las claves JWK oficiales de Google (cacheadas cinco minutos), issuer, audience, expiración, antigüedad, email_verified y nonce. El challenge se consume una vez. La sesión administrativa se guarda con hash del token, caduca a la hora y usa cookie Secure/HttpOnly/SameSite=Strict. Las escrituras exigen un Origin permitido. SDK de Google cargado solo al pedir acceso, no al abrir enlaces de recuperación.
 
@@ -38,6 +44,8 @@ El aviso queda en el portal del técnico y la asignación aparece en el portal d
 
 ## Despliegue y verificación
 
-Aplicar migración aditiva 0007 antes de desplegar el Worker; preserva las cuentas existentes. El cron limpia challenges/sesiones caducadas y tokens de recuperación antiguos. Publicar los enlaces y las nuevas páginas mediante el script oficial de Yokup.
+Aplicar migraciones aditivas 0007 y 0009 (con 0008 de radio de instaladores) antes de desplegar el Worker; preserva las cuentas existentes. El cron limpia challenges/sesiones caducadas y tokens de recuperación antiguos. Publicar los enlaces y las nuevas páginas mediante el script oficial de Yokup.
 
 Pruebas: `node --test api/*.test.mjs`; verifican firma y claims Google, rechazo de otros correos, challenges de un solo uso, caducidad, recuperación de ambos tipos de cuenta, revocación de sesiones/MCP, aislamiento entre portales, acceso privado, candidatos y asignación concurrente/auditada. Vista conjunta y asignación comprobadas con datos ficticios en SQLite local. La prueba positiva en Google real debe hacerse con la cuenta autorizada del usuario; una sesión local de prueba no acredita un login real de csilva@admira.com.
+
+Pruebas de #366: registro/login Google de ambos portales, permisos concedidos y revocados, protección de cuenta principal, identidad inmutable, rechazo de rol/email manipulados, alta incompleta, tickets robados/caducados/reutilizados y creación concurrente. La UI se prueba con Google simulado únicamente en SQLite local; producción verifica el botón real sin suplantar al usuario.

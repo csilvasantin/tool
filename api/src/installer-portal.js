@@ -237,4 +237,4 @@ export async function sweepInstallers(env) {
  ]);
 }
 
-export { ORIGINS, SKILLS, encoder, fail, random, hash, statement, rows, coordinate, text, passwordHash, jsonBody, rateLimit, response };
+export { profile as installerProfile, publicProfile as publicInstaller, session as installerSession, ORIGINS, SKILLS, encoder, fail, random, hash, statement, rows, coordinate, text, passwordHash, jsonBody, rateLimit, response };

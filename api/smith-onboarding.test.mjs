@@ -19,7 +19,7 @@ test('Smith public batch bootstraps 20 unavailable accounts and verifies each by
   const invoke=async(method,params)=>{
    const r=await handlePortalMcp(new Request('https://data.yokup.com/mcp/installer',{method:'POST',headers:{Authorization:'Bearer '+token.body.token,'Content-Type':'application/json',Accept:'application/json, text/event-stream','MCP-Protocol-Version':'2025-11-25'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})}),env,'installer');assert.equal(r.status,200);return (await r.json()).result;
   };
-  const tools=await invoke('tools/list',{});assert.deepEqual(tools.tools.map(t=>t.name),['installer_whoami','installer_profile','installer_inbox']);
+  const tools=await invoke('tools/list',{});assert.deepEqual(tools.tools.map(t=>t.name),['installer_register','installer_whoami','installer_profile','installer_inbox']);
   const result=await invoke('tools/call',{name:'installer_profile',arguments:{}});assert.equal(result.isError,false);
   const profile=result.structuredContent.profile;assert.equal(profile.id,account.body.profile.id);assert.equal(profile.email,p.email);assert.equal(profile.available,false);assert.equal(profile.latitude,p.latitude);assert.equal(profile.longitude,p.longitude);
  }

@@ -1,4 +1,5 @@
 import {ORIGINS,statement,rows,text,jsonBody,rateLimit,response,fail,distanceKm} from './installer-portal.js';
+import {manageSuperusers,ADMIN} from './portal-roles.js';
 import {adminIdentity,adminLogout} from './portal-access.js';
 const incidentSql=`SELECT i.*,d.latitude,d.longitude,d.skill,d.name AS device_name,s.name AS site_name,s.id AS site_id,r.name AS retailer_name,t.name AS installer_name FROM installer_incidents i JOIN installer_devices d ON d.id=i.device_id LEFT JOIN retailer_device_links l ON l.device_id=d.id LEFT JOIN retailer_sites s ON s.id=l.site_id LEFT JOIN retailer_accounts r ON r.id=s.retailer_id LEFT JOIN installer_accounts t ON t.id=i.installer_id`;
 async function assignment(request,env,actor,b){
@@ -23,8 +24,9 @@ export async function handleAdmin(request,env){
   const actor=await adminIdentity(request,env),url=new URL(request.url),path=url.pathname.slice('/api/portal-admin'.length);
   if(request.method!=='GET'&&!ORIGINS.has(request.headers.get('origin')))fail(403,'Origen no permitido.');
   await rateLimit(env,'portal-admin:'+actor.email,120,60000);
-  if(path==='/me'&&request.method==='GET')return response(request,{email:actor.email,role:'superuser'});
+  if(path==='/me'&&request.method==='GET')return response(request,{email:actor.email,role:'superuser',can_manage_superusers:actor.email===ADMIN});
   if(path==='/logout'&&request.method==='POST')return await adminLogout(request,env);
+  if(path==='/superusers'&&['GET','POST'].includes(request.method))return await manageSuperusers(request,env,actor);
   if(path==='/assign'&&request.method==='POST')return await assignment(request,env,actor,await jsonBody(request));
   if(path==='/candidates'&&request.method==='GET'){
    const id=url.searchParams.get('incident_id'),siteId=url.searchParams.get('site_id');

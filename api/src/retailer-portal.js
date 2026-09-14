@@ -122,3 +122,5 @@ export async function handleCircuit(request,env){
   return response(request,{error:'Ruta no encontrada.'},404);
  }catch(e){if(!e.status)console.error('Circuit request failed',e.message);return response(request,{error:e.status?e.message:'No se pudo completar la sincronización.'},e.status||500);}
 }
+
+export {createSession as retailerSession, publicAccount as publicRetailer};
