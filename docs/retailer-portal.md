@@ -81,3 +81,9 @@ node --test api/installer-portal.test.mjs api/retailer-portal.test.mjs
 Pruebas con SQLite real: aislamiento entre titulares, cookies separadas, incidentes compartidos, resolución y valoración, revisión sin pérdida de historial, firma/ruta/idempotencia de enlace, colisiones de inventario, scoped status, mapeo de eventos, HVAC y visibilidad de incidencias antiguas activas. La suite existente del site y gate se ejecuta por `yokup-site/deploy.mjs`.
 
 Despliegue: aplicar 0002 a `yokup-db`, desplegar `api/wrangler.toml`, publicar Pages y gate mediante el script oficial desde origin/main actualizado. Verificar rutas y salud por HTTP. No usar datos ficticios en producción para disparar alertas a instaladores reales.
+
+## Establecimientos → circuitos de Cartelería Digital (14-09-2026)
+
+Cada establecimiento que da de alta el comercio (a mano o por Excel) es un **circuito** en el registro único de Admira, `api.admira.store/grid/circuits`, y aparece «sin canal» en `admira.tv/digitalsignage/#circuitos` hasta que un operador lo asigna a un canal desde el CMS. Id: nombre del establecimiento en minúsculas + 6 caracteres de su UUID (p. ej. `estanco-jardinets-9f1c2d`), guardado en `retailer_site_circuits` (migración `0005`, aplicada).
+
+`src/admira-circuit-sync.js` corre después de responder al comercio (`waitUntil` tras `POST /sites` o `/sites/import`) y en el cron; reintenta hasta 8 veces y queda `failed` con `last_error`. Solo viajan id, nombre y ciudad; nunca email, dirección ni coordenadas. Secreto `ADMIRA_CIRCUIT_SERVICE_KEY` solo en el Worker (copia en la bóveda). No sustituye al enlace firmado de equipos `/api/circuit/link`.

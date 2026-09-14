@@ -1,6 +1,7 @@
 import {handlePortalMcp} from './portal-mcp.js';
 import { handleRetailer, handleCircuit } from './retailer-portal.js';
 import { handleInstaller, sweepInstallers } from './installer-portal.js';
+import { syncRetailerCircuits } from './admira-circuit-sync.js';
 /**
  * yokup-api — Cloudflare Worker
  * API entre el frontend estático de Yokup y Cloudflare D1 (SQLite).
@@ -49,11 +50,16 @@ const JSON_ARRAY_COLS = {
 const BOOL_COLS = { stores: ["from_admira"] };
 
 export default {
-  scheduled(controller, env, ctx) { ctx.waitUntil(sweepInstallers(env)); },
-  async fetch(request, env) {
+  scheduled(controller, env, ctx) { ctx.waitUntil(sweepInstallers(env)); ctx.waitUntil(syncRetailerCircuits(env)); },
+  async fetch(request, env, ctx) {
     const mcp=/^\/mcp\/(installer|retailer)$/.exec(new URL(request.url).pathname);
     if(mcp)return handlePortalMcp(request,env,mcp[1]);
-    if (new URL(request.url).pathname.startsWith('/api/retailer/')) return handleRetailer(request, env);
+    if (new URL(request.url).pathname.startsWith('/api/retailer/')) {
+      const res = await handleRetailer(request, env);
+      // Establecimiento creado o importado → circuito en Admira, después de responder (src/admira-circuit-sync.js).
+      if (ctx && request.method === 'POST' && res.status === 201 && /\/api\/retailer\/sites(?:\/import)?$/.test(new URL(request.url).pathname)) ctx.waitUntil(syncRetailerCircuits(env).catch(() => null));
+      return res;
+    }
     if (new URL(request.url).pathname.startsWith('/api/circuit/')) return handleCircuit(request, env);
     if (new URL(request.url).pathname.startsWith("/api/installer/")) return handleInstaller(request, env);
     if (request.method === "OPTIONS")
