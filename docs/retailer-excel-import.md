@@ -33,7 +33,9 @@ Al confirmar la importación desde el portal, las ubicaciones se registran en `a
 
 ## Vinculación a circuitos y equipos
 
-Publicar una ubicación no le asigna un circuito autorizado ni crea equipos. La vinculación queda `pending` en `retailer_site_import_items` hasta que el servicio central autenticado confirma su ID de circuito. Este contrato sigue disponible por separado; no debe utilizarse como prueba de publicación cartográfica.
+El alta/importación también activa el sincronizador de circuitos incorporado en la rama principal: `admira-circuit-sync.js` crea un circuito de cartelería digital en `api.admira.store/grid/circuits`, con reintentos y estado propio en `retailer_site_circuits`. Este proceso usa `ADMIRA_CIRCUIT_SERVICE_KEY` y no crea equipos.
+
+El contrato anterior de enlace externo en `retailer_site_import_items` se mantiene para la confirmación autenticada de IDs de otro inventario. Su estado `pending` no debe interpretarse como un fallo de publicación cartográfica ni como el estado del nuevo sincronizador de circuitos.
 
 Se reutiliza la autenticación HMAC de `docs/retailer-portal.md`, con `ADMIRA_CIRCUIT_SECRET`, timestamp y firma del método, ruta y cuerpo exactos. Este secreto pertenece exclusivamente al backend central y nunca se entrega al navegador ni a los comercios.
 
@@ -45,6 +47,6 @@ Este enlace es de establecimiento. Los equipos se enlazan después mediante el c
 
 ## Despliegue y pruebas
 
-Aplicar una vez `api/migrations/0004_retailer_site_imports.sql` sobre D1, y `api/migrations/0005_retailer_map_catalog.sql`, antes del Worker y el frontend. Es una migración aditiva. No modifica registros existentes. Desplegar el frontend mediante el script oficial del proyecto.
+Aplicar una vez `api/migrations/0004_retailer_site_imports.sql` sobre D1, y `api/migrations/0006_retailer_map_catalog.sql`, antes del Worker y el frontend. Es una migración aditiva. No modifica registros existentes. Desplegar el frontend mediante el script oficial del proyecto.
 
 Pruebas: `node --test api/*.test.mjs` y `node --test yokup-site/retailer-import.test.mjs`, además de las suites de publicación. Casos específicos: 500 filas, aislamiento de cuentas, duplicados, conflictos de código, validación, transacción fallida y reintento, recibos centrales firmados e inmutables, lectura real XLS/XLSX, fórmulas, elección de hoja, códigos con ceros y números de fila originales. Verificación del formulario en navegador con SQLite local y datos de prueba, nunca sobre comercios reales.
