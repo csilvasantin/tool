@@ -1,0 +1,4 @@
+Natural Earth, 1:110m land polygons. Public domain.
+https://www.naturalearthdata.com/about/terms-of-use/
+Source: https://github.com/nvkelso/natural-earth-vector/blob/master/geojson/ne_110m_land.geojson
+Downloaded 2026-09-15. Properties removed; geometry unchanged.
