@@ -26,7 +26,7 @@ export const HOSTING_COST_MAP_SEED = Object.freeze([
     project_id: UNASSIGNED_PROJECT_ID,
     monthly_usd: 0,
     share_pct: 0,
-    note: "FLT-100478 seed · sin proyecto xtanco en censo → _unassigned",
+    note: "FLT-100478 seed marketplace worker unassigned",
   },
   {
     id: "d1:admira-marketplace-db",
@@ -35,7 +35,7 @@ export const HOSTING_COST_MAP_SEED = Object.freeze([
     project_id: UNASSIGNED_PROJECT_ID,
     monthly_usd: 0,
     share_pct: 0,
-    note: "FLT-100478 seed · marketplace D1 → _unassigned",
+    note: "FLT-100478 seed marketplace d1 unassigned",
   },
   {
     id: "worker:yokup",
@@ -44,7 +44,7 @@ export const HOSTING_COST_MAP_SEED = Object.freeze([
     project_id: "yokup",
     monthly_usd: 0,
     share_pct: 0,
-    note: "FLT-100478 seed · worker yokup → proyecto yokup",
+    note: "FLT-100478 seed worker yokup",
   },
   {
     id: "d1:yokup-tickets",
@@ -53,7 +53,7 @@ export const HOSTING_COST_MAP_SEED = Object.freeze([
     project_id: "yokup",
     monthly_usd: 0,
     share_pct: 0,
-    note: "FLT-100478 seed · D1 yokup-tickets → proyecto yokup",
+    note: "FLT-100478 seed d1 yokup-tickets",
   },
   {
     id: "worker:admira-telegram",
@@ -62,7 +62,7 @@ export const HOSTING_COST_MAP_SEED = Object.freeze([
     project_id: "telegram",
     monthly_usd: 0,
     share_pct: 0,
-    note: "FLT-100478 seed · worker admira-telegram → proyecto telegram",
+    note: "FLT-100478 seed worker admira-telegram",
   },
   {
     id: "d1:admira-telegram",
@@ -71,7 +71,7 @@ export const HOSTING_COST_MAP_SEED = Object.freeze([
     project_id: "telegram",
     monthly_usd: 0,
     share_pct: 0,
-    note: "FLT-100478 seed · D1 admira-telegram → proyecto telegram",
+    note: "FLT-100478 seed d1 admira-telegram",
   },
 ]);
 

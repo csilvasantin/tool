@@ -529,12 +529,15 @@ async function applySchema(env) {
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_display_refs_day_seq ON display_refs(day,seq)");
   // FLT-100480 · mapa editable de coste de hosting (CF worker/D1/KV/R2 → proyecto).
   // Valores = estimaciones mensuales del mapa; NO se inventan líneas de factura CF.
-  // Seeds vía exec (como carbon_roster): prepare().run en applySchema rompe mocks de cierre.
-  await env.DB.exec(HOSTING_COST_MAP_TABLE_SQL);
-  await env.DB.exec(HOSTING_COST_MAP_INDEX_SQL);
-  for (const stmt of HOSTING_COST_MAP_SEED_SQL.split(";").map((s) => s.trim()).filter(Boolean)) {
-    await env.DB.exec(stmt);
-  }
+  // Aislado: un fallo de seed NUNCA tumba ensureSchema (1101 en todo /fleet/*).
+  try {
+    await env.DB.exec(HOSTING_COST_MAP_TABLE_SQL);
+    await env.DB.exec(HOSTING_COST_MAP_INDEX_SQL);
+    for (const stmt of String(HOSTING_COST_MAP_SEED_SQL || "").split(";")) {
+      const sql = stmt.trim();
+      if (sql) await env.DB.exec(sql);
+    }
+  } catch (e) { /* hosting map opcional: no tumbar ensureSchema */ }
 }
 __name(applySchema, "applySchema");
 // FLT-1015 · El esquema no cambia entre dos requests del mismo isolate. La
@@ -10271,9 +10274,12 @@ var worker_app = {
         return { id: r.id, machine: r.machine, owner: r.owner, dia: String(r.fingerprint || "").split("|").pop(), titulo: r.titulo, status: r.status, last_at: r.last_at, datos: d }; });
       const members = (await env.DB.prepare("SELECT project_id,kind,ref FROM project_members WHERE kind='agent'").all()).results || [];
       const projects = (await env.DB.prepare("SELECT id,name,status FROM projects").all()).results || [];
-      const hostingRows = (await env.DB.prepare(
-        "SELECT id,kind,resource,project_id,monthly_usd,share_pct,note,updated_at,updated_by FROM hosting_cost_map ORDER BY project_id, kind, resource"
-      ).all()).results || [];
+      let hostingRows = [];
+      try {
+        hostingRows = (await env.DB.prepare(
+          "SELECT id,kind,resource,project_id,monthly_usd,share_pct,note,updated_at,updated_by FROM hosting_cost_map ORDER BY project_id, kind, resource"
+        ).all()).results || [];
+      } catch (e) { hostingRows = []; }
       const payload = aggregateConsumoByProject({ partes, members, projects, hostingRows, rates: TOKEN_USD_RATES, dias });
       payload.ahora = Date.now();
       payload.hosting_period = "calendar_month_estimate";
