@@ -15,7 +15,7 @@ export function worldStyle() {
 export class GlobeRotation {
   constructor({readCenter, writeCenter, requestFrame, cancelFrame, reducedMotion = false}) {
     Object.assign(this, {readCenter, writeCenter, requestFrame, cancelFrame});
-    this.enabled = !reducedMotion;
+    this.enabled = false;
     this.visible = true;
     this.ready = false;
     this.frame = null;
@@ -123,11 +123,11 @@ export function startHomeGlobe() {
   reset.addEventListener('click', () => {
     touched = false;
     map.jumpTo({center: [-20, 18], zoom: homeZoom(), bearing: 0, pitch: 0});
-    rotation.update({enabled: !motion.matches}); setButton();
+    rotation.update({enabled: false}); setButton();
   });
   retry.addEventListener('click', initialise);
   document.addEventListener('visibilitychange', visible);
-  motion.addEventListener('change', () => { if (rotation) { rotation.update({enabled: !motion.matches}); setButton(); } });
+  motion.addEventListener('change', () => { if (rotation) { rotation.update({enabled: false}); setButton(); } });
   window.addEventListener('pagehide', cleanup);
   window.addEventListener('pageshow', event => { if (event.persisted) initialise(); });
   initialise();

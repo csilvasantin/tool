@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {pilotReply} from './call-pilot.mjs';
+test('scripted pilot collects availability without claiming a confirmed appointment',()=>{assert.ok(pilotReply(0,'').error);const a=pilotReply(0,'La pantalla sigue apagada');assert.equal(a.index,1);assert.equal(a.done,false);const b=pilotReply(1,'Mañana de 9 a 12, abre Laura');assert.equal(b.outcome,'availability');assert.match(b.say,/pendiente/);});
+test('asking for a person creates an explicit handoff outcome',()=>{assert.equal(pilotReply(0,'Quiero hablar con una persona').outcome,'human_handoff');});

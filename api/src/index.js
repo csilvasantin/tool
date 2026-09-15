@@ -1,3 +1,5 @@
+import {handleCallsMcp} from './calls-mcp.js';
+import {handleCalls,syncCalls} from './calls.js';
 import {handleAccess,sweepPortalAccess} from './portal-access.js';
 import {handleAdmin} from './portal-admin.js';
 import {handlePortalMcp} from './portal-mcp.js';
@@ -52,8 +54,10 @@ const JSON_ARRAY_COLS = {
 const BOOL_COLS = { stores: ["from_admira"] };
 
 export default {
-  scheduled(controller, env, ctx) { ctx.waitUntil(sweepInstallers(env)); ctx.waitUntil(sweepPortalAccess(env)); ctx.waitUntil(syncRetailerCircuits(env)); },
+  scheduled(controller, env, ctx) { ctx.waitUntil(syncCalls(env)); ctx.waitUntil(sweepInstallers(env)); ctx.waitUntil(sweepPortalAccess(env)); ctx.waitUntil(syncRetailerCircuits(env)); },
   async fetch(request, env, ctx) {
+    if(new URL(request.url).pathname==='/mcp/calls')return handleCallsMcp(request,env);
+    if(new URL(request.url).pathname.startsWith('/api/calls/'))return handleCalls(request,env);
     if(new URL(request.url).pathname.startsWith('/api/portal-access/'))return handleAccess(request,env);
     if(new URL(request.url).pathname.startsWith('/api/portal-admin/'))return handleAdmin(request,env);
     const mcp=/^\/mcp\/(installer|retailer)$/.exec(new URL(request.url).pathname);

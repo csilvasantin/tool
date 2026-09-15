@@ -6,7 +6,7 @@ Fecha: 15 de septiembre de 2026. Misión: **Hoy #34**, `DCL-c756e5e241db1f402845
 
 Carlos solicita convertir el flujo de gestión IoT 360 en una misión y desarrollar el generador de llamadas en **https://www.yokup.com/llamadas**, con la opción paralela de realizar las llamadas mediante humanos.
 
-Este documento define el desarrollo. La creación de la misión no acredita una página /llamadas publicada, telefonía conectada ni llamadas realizadas. Las tareas de implementación y piloto permanecen pendientes.
+Este documento conserva el alcance objetivo. Carlos ha pedido validar primero con una alternativa gratuita. La entrega inicial y sus límites se documentan en [Centro de llamadas y piloto gratuito](yokup-llamadas.md): WebRTC humano y asistente de prueba con guion; no telefonía PSTN ni IA conversacional. La validación técnica no acredita una llamada de audio entre dos participantes ni completa el generador telefónico original.
 
 La modalidad humana es una opción disponible desde el inicio, además de una vía de escalado. Un operador puede gestionar toda la conversación sin utilizar un agente de voz. Ambas modalidades usan el mismo expediente, agenda, permisos y resultados.
 

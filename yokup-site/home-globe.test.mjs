@@ -15,20 +15,20 @@ function rig(reducedMotion = false) {
   return {rotation, pending, writes, center: () => center,
     advance(time) { const entry = pending.entries().next().value; assert.ok(entry, 'animation frame queued'); pending.delete(entry[0]); entry[1](time); }};
 }
-test('starts rotating automatically only once the globe is ready', () => {
-  const r = rig(); assert.equal(r.rotation.enabled, true); assert.equal(r.pending.size, 0);
-  r.rotation.update({ready: true}); r.advance(0); r.advance(100);
+test('starts stationary and rotates only after explicit activation', () => {
+  const r = rig(); assert.equal(r.rotation.enabled, false); assert.equal(r.pending.size, 0);
+  r.rotation.update({ready: true, enabled: true}); r.advance(0); r.advance(100);
   assert.ok(Math.abs(r.center().lng - (-19.76)) < .00001);
   assert.equal(r.center().lat, 18); assert.equal(r.pending.size, 1);
 });
 test('rotation uses elapsed time rather than display refresh rate', () => {
-  const a = rig(), b = rig(); a.rotation.update({ready: true}); b.rotation.update({ready: true});
+  const a = rig(), b = rig(); a.rotation.update({ready: true, enabled: true}); b.rotation.update({ready: true, enabled: true});
   for (let t=0;t<=1000;t+=20) a.advance(t);
   for (let t=0;t<=1000;t+=10) b.advance(t);
   assert.ok(Math.abs(a.center().lng-b.center().lng) < .00001);
 });
 test('pause cancels frames; resume and background-tab return do not jump', () => {
-  const r = rig(); r.rotation.update({ready: true}); r.advance(0); r.advance(100);
+  const r = rig(); r.rotation.update({ready: true, enabled: true}); r.advance(0); r.advance(100);
   const before = r.center().lng;
   r.rotation.update({enabled: false}); assert.equal(r.pending.size, 0);
   r.rotation.update({enabled: true}); r.advance(60000); assert.equal(r.center().lng, before);
@@ -41,11 +41,11 @@ test('reduced motion starts still, but the user can explicitly resume', () => {
   r.rotation.update({enabled: true}); r.advance(0); r.advance(100); assert.equal(r.writes.length, 1);
 });
 test('slow frames are bounded and dispose cancels animation', () => {
-  const r = rig(); r.rotation.update({ready: true}); r.advance(0); r.advance(1000000);
+  const r = rig(); r.rotation.update({ready: true, enabled: true}); r.advance(0); r.advance(1000000);
   assert.ok(r.center().lng < -19); r.rotation.dispose(); assert.equal(r.pending.size, 0);
 });
 test('longitude wraps around the world without changing latitude', () => {
-  const r = rig(); r.rotation.update({ready: true});
+  const r = rig(); r.rotation.update({ready: true, enabled: true});
   for(let t=0;t<=200000;t+=100)r.advance(t);
   assert.ok(r.writes.every(c => c.lng >= -180 && c.lng < 180 && c.lat === 18));
 });
