@@ -48,6 +48,11 @@ import { ONIDLE_EVIDENCE_MAX_AGE_MS, selectOnIdleProposals, onIdleProposalTitleK
 import { ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION, isCanonicalOnIdleDecision,
   isCanonicalOnIdleOptions, selectCanonicalLiveOnIdleDecision } from "./onidle-decision-contract.js";
 import { canonicalProjectAgentRef, canonicalProjectAgentRefs, YOKUP_MINI_MEMBER_BACKFILL_SQL } from "./project-member-identity.js";
+import {
+  TOKEN_USD_RATES, HOSTING_COST_MAP_SEED, HOSTING_COST_MAP_TABLE_SQL,
+  HOSTING_COST_MAP_INDEX_SQL, HOSTING_COST_MAP_SEED_SQL,
+  aggregateConsumoByProject, normalizeHostingMapItem,
+} from "./consumo-proyectos.js";
 import { PROJECT_BOTH_RESPONSIBLES_CAS_SQL, PROJECT_CARBON_CAS_SQL, PROJECT_METADATA_UPSERT_SQL, PROJECT_SILICON_CAS_SQL, projectCarbonResponsible, validateProjectResponsibleTypes } from "./project-responsibles.js";
 import { PROJECT_CARBON_ASSIGNMENTS_TABLE_SQL, PROJECT_CARBON_ASSIGNMENT_UPSERT_IF_CURRENT_SQL, PROJECT_CARBON_ASSIGNMENT_UPSERT_SQL, projectCarbonKey } from "./project-carbon-assignments.js";
 import { isProjectShotAllowed, normalizeProjectWeb } from "./project-web.js";
@@ -63,7 +68,7 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 var CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-  "Access-Control-Allow-Headers": "content-type,authorization"
+  "Access-Control-Allow-Headers": "content-type,authorization,x-fleet-token"
 };
 var json = /* @__PURE__ */ __name((o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...CORS, "content-type": "application/json" } }), "json");
 var AUTH_CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleusercontent.com";
@@ -522,6 +527,17 @@ async function applySchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS display_ref_counters (day TEXT PRIMARY KEY, next_value INTEGER NOT NULL)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS display_refs (entity_type TEXT NOT NULL, entity_key TEXT NOT NULL, day TEXT NOT NULL, seq INTEGER NOT NULL, entity_created_at INTEGER NOT NULL, display_ref TEXT NOT NULL, assigned_at INTEGER NOT NULL, PRIMARY KEY(entity_type,entity_key), UNIQUE(day,seq))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_display_refs_day_seq ON display_refs(day,seq)");
+  // FLT-100480 · mapa editable de coste de hosting (CF worker/D1/KV/R2 → proyecto).
+  // Valores = estimaciones mensuales del mapa; NO se inventan líneas de factura CF.
+  // Aislado: un fallo de seed NUNCA tumba ensureSchema (1101 en todo /fleet/*).
+  try {
+    await env.DB.exec(HOSTING_COST_MAP_TABLE_SQL);
+    await env.DB.exec(HOSTING_COST_MAP_INDEX_SQL);
+    for (const stmt of String(HOSTING_COST_MAP_SEED_SQL || "").split(";")) {
+      const sql = stmt.trim();
+      if (sql) await env.DB.exec(sql);
+    }
+  } catch (e) { /* hosting map opcional: no tumbar ensureSchema */ }
 }
 __name(applySchema, "applySchema");
 // FLT-1015 · El esquema no cambia entre dos requests del mismo isolate. La
@@ -10244,6 +10260,78 @@ var worker_app = {
       const response = json({ ok: true, dias, ahora: Date.now(), partes, por_agente: Object.values(porAgente).sort((x, y) => y.total_tokens - x.total_tokens), serie });
       response.headers.set("cache-control", "no-store");
       return response;
+    }
+    // FLT-100480 · consumo agregado por proyecto Yokup + hosting_cost_map (público como /fleet/consumo).
+    // Atribución equal-split: agent en N proyectos reparte tokens a 1/N; sin proyecto → _unassigned.
+    if (url.pathname === "/fleet/consumo/proyectos" && req.method === "GET") {
+      await ensureSchema(env);
+      const dias = Math.min(90, Math.max(1, Number(url.searchParams.get("dias") || 7)));
+      const desde = Date.now() - dias * 86400000;
+      const { results } = await env.DB.prepare(
+        "SELECT id,machine,owner,titulo,status,first_at,last_at,datos,fingerprint FROM notifs WHERE kind='consumo' AND last_at>=? ORDER BY last_at DESC LIMIT 500"
+      ).bind(desde).all();
+      const partes = (results || []).map((r) => { let d = null; try { d = r.datos ? JSON.parse(r.datos) : null; } catch { d = null; }
+        return { id: r.id, machine: r.machine, owner: r.owner, dia: String(r.fingerprint || "").split("|").pop(), titulo: r.titulo, status: r.status, last_at: r.last_at, datos: d }; });
+      const members = (await env.DB.prepare("SELECT project_id,kind,ref FROM project_members WHERE kind='agent'").all()).results || [];
+      const projects = (await env.DB.prepare("SELECT id,name,status FROM projects").all()).results || [];
+      let hostingRows = [];
+      try {
+        hostingRows = (await env.DB.prepare(
+          "SELECT id,kind,resource,project_id,monthly_usd,share_pct,note,updated_at,updated_by FROM hosting_cost_map ORDER BY project_id, kind, resource"
+        ).all()).results || [];
+      } catch (e) { hostingRows = []; }
+      const payload = aggregateConsumoByProject({ partes, members, projects, hostingRows, rates: TOKEN_USD_RATES, dias });
+      payload.ahora = Date.now();
+      payload.hosting_period = "calendar_month_estimate";
+      const response = json(payload);
+      response.headers.set("cache-control", "no-store");
+      return response;
+    }
+    // FLT-100480 · mapa de hosting (lectura pública; escritura con sesión Google o FLEET_TOKEN).
+    if (url.pathname === "/fleet/consumo/hosting-map") {
+      await ensureSchema(env);
+      if (req.method === "GET") {
+        const rows = (await env.DB.prepare(
+          "SELECT id,kind,resource,project_id,monthly_usd,share_pct,note,updated_at,updated_by FROM hosting_cost_map ORDER BY project_id, kind, resource"
+        ).all()).results || [];
+        const response = json({ ok: true, items: rows, rates: TOKEN_USD_RATES });
+        response.headers.set("cache-control", "no-store");
+        return response;
+      }
+      if (req.method === "POST") {
+        const sess = await requireAuth(env, req);
+        const auth = String(req.headers.get("x-fleet-token") || req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
+        const fleetOk = !!(env.FLEET_TOKEN && auth === env.FLEET_TOKEN);
+        if (!sess && !fleetOk) return json({ ok: false, error: "unauthorized", code: "auth_required" }, 401);
+        let b; try { b = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
+        const itemsIn = Array.isArray(b && b.items) ? b.items : null;
+        if (!itemsIn) return json({ ok: false, error: "items[] requerido" }, 400);
+        const now = Date.now();
+        const by = String((sess && sess.email) || (b && b.by) || (fleetOk ? "fleet-token" : "")).slice(0, 80);
+        const normalized = [];
+        for (const raw of itemsIn) {
+          const n = normalizeHostingMapItem(raw, now, by);
+          if (!n.ok) return json({ ok: false, error: n.error, item: raw }, 400);
+          normalized.push(n.item);
+        }
+        // Upsert/replace set: borra ids no enviados si replace=true; por defecto upsert.
+        const replace = b && b.replace === true;
+        if (replace) {
+          await env.DB.prepare("DELETE FROM hosting_cost_map").run();
+        }
+        for (const it of normalized) {
+          await env.DB.prepare(
+            "INSERT INTO hosting_cost_map(id,kind,resource,project_id,monthly_usd,share_pct,note,updated_at,updated_by) VALUES(?,?,?,?,?,?,?,?,?) " +
+            "ON CONFLICT(id) DO UPDATE SET kind=excluded.kind,resource=excluded.resource,project_id=excluded.project_id," +
+            "monthly_usd=excluded.monthly_usd,share_pct=excluded.share_pct,note=excluded.note,updated_at=excluded.updated_at,updated_by=excluded.updated_by"
+          ).bind(it.id, it.kind, it.resource, it.project_id, it.monthly_usd, it.share_pct, it.note, it.updated_at, it.updated_by).run();
+        }
+        const rows = (await env.DB.prepare(
+          "SELECT id,kind,resource,project_id,monthly_usd,share_pct,note,updated_at,updated_by FROM hosting_cost_map ORDER BY project_id, kind, resource"
+        ).all()).results || [];
+        return json({ ok: true, items: rows, upserted: normalized.length, replace });
+      }
+      return json({ ok: false, error: "method_not_allowed" }, 405);
     }
     // Lectura para la sección /notificaciones. Abiertas primero, más recientes arriba.
     if (url.pathname === "/fleet/notificaciones" && req.method === "GET") {

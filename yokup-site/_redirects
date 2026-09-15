@@ -17,4 +17,6 @@
 # Declararla solo aquí dejaba /carbono cayendo al catch-all: portada con un 200.
 /carbono          /agentes.html      200
 /carbono/         /agentes.html      200
+/consumos         /consumos.html     200
+/consumos/        /consumos.html     200
 /*                /index.html   200
