@@ -75,17 +75,7 @@ export const HOSTING_COST_MAP_SEED = Object.freeze([
   },
 ]);
 
-export const HOSTING_COST_MAP_TABLE_SQL = `CREATE TABLE IF NOT EXISTS hosting_cost_map (
-  id TEXT PRIMARY KEY,
-  kind TEXT NOT NULL,
-  resource TEXT NOT NULL,
-  project_id TEXT NOT NULL,
-  monthly_usd REAL NOT NULL DEFAULT 0,
-  share_pct REAL NOT NULL DEFAULT 0,
-  note TEXT,
-  updated_at INTEGER,
-  updated_by TEXT
-)`;
+export const HOSTING_COST_MAP_TABLE_SQL = "CREATE TABLE IF NOT EXISTS hosting_cost_map (id TEXT PRIMARY KEY, kind TEXT NOT NULL, resource TEXT NOT NULL, project_id TEXT NOT NULL, monthly_usd REAL NOT NULL DEFAULT 0, share_pct REAL NOT NULL DEFAULT 0, note TEXT, updated_at INTEGER, updated_by TEXT)";
 export const HOSTING_COST_MAP_INDEX_SQL = `CREATE INDEX IF NOT EXISTS idx_hcm_project ON hosting_cost_map(project_id)`;
 
 /** INSERT OR IGNORE único vía exec (como otros seeds del schema; no uses prepare().run en applySchema). */
