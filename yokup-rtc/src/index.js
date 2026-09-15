@@ -558,6 +558,18 @@ __name(ensureSchema, "ensureSchema");
 
 // Un punto de serie por parte de consumo (owner, máquina, día); si el total no cambió y el anterior es de
 // hace menos de 4 min, no se repite. Lo llaman las dos ramas de POST /fleet/notificacion (fila viva y nueva).
+async function ensureHostingCostMap(env) {
+  await env.DB.exec(HOSTING_COST_MAP_TABLE_SQL);
+  await env.DB.exec(HOSTING_COST_MAP_INDEX_SQL);
+  const seedNow = Date.now();
+  for (const s of HOSTING_COST_MAP_SEED) {
+    await env.DB.prepare(
+      "INSERT OR IGNORE INTO hosting_cost_map(id,kind,resource,project_id,monthly_usd,share_pct,note,updated_at,updated_by) VALUES(?,?,?,?,?,?,?,?,?)"
+    ).bind(s.id, s.kind, s.resource, s.project_id, s.monthly_usd, s.share_pct, s.note, seedNow, "flt-100480-seed").run();
+  }
+}
+__name(ensureHostingCostMap, "ensureHostingCostMap");
+
 async function registraSerieConsumo(env, owner, machine, dia, datos, now) {
   if (!datos || typeof datos !== "object") return;
   const n = (v) => Math.max(0, Math.round(Number(v) || 0));
@@ -10276,6 +10288,7 @@ var worker_app = {
       const projects = (await env.DB.prepare("SELECT id,name,status FROM projects").all()).results || [];
       let hostingRows = [];
       try {
+        await ensureHostingCostMap(env);
         hostingRows = (await env.DB.prepare(
           "SELECT id,kind,resource,project_id,monthly_usd,share_pct,note,updated_at,updated_by FROM hosting_cost_map ORDER BY project_id, kind, resource"
         ).all()).results || [];
@@ -10290,13 +10303,27 @@ var worker_app = {
     // FLT-100480 · mapa de hosting (lectura pública; escritura con sesión Google o FLEET_TOKEN).
     if (url.pathname === "/fleet/consumo/hosting-map") {
       await ensureSchema(env);
+      const listHostingMap = async () => {
+        try {
+          return (await env.DB.prepare(
+            "SELECT id,kind,resource,project_id,monthly_usd,share_pct,note,updated_at,updated_by FROM hosting_cost_map ORDER BY project_id, kind, resource"
+          ).all()).results || [];
+        } catch (e) {
+          await ensureHostingCostMap(env);
+          return (await env.DB.prepare(
+            "SELECT id,kind,resource,project_id,monthly_usd,share_pct,note,updated_at,updated_by FROM hosting_cost_map ORDER BY project_id, kind, resource"
+          ).all()).results || [];
+        }
+      };
       if (req.method === "GET") {
-        const rows = (await env.DB.prepare(
-          "SELECT id,kind,resource,project_id,monthly_usd,share_pct,note,updated_at,updated_by FROM hosting_cost_map ORDER BY project_id, kind, resource"
-        ).all()).results || [];
-        const response = json({ ok: true, items: rows, rates: TOKEN_USD_RATES });
-        response.headers.set("cache-control", "no-store");
-        return response;
+        try {
+          const rows = await listHostingMap();
+          const response = json({ ok: true, items: rows, rates: TOKEN_USD_RATES });
+          response.headers.set("cache-control", "no-store");
+          return response;
+        } catch (e) {
+          return json({ ok: false, error: String(e && e.message || e), items: [] }, 500);
+        }
       }
       if (req.method === "POST") {
         const sess = await requireAuth(env, req);
@@ -10314,7 +10341,7 @@ var worker_app = {
           if (!n.ok) return json({ ok: false, error: n.error, item: raw }, 400);
           normalized.push(n.item);
         }
-        // Upsert/replace set: borra ids no enviados si replace=true; por defecto upsert.
+        try { await ensureHostingCostMap(env); } catch (e) { /* create best-effort */ }
         const replace = b && b.replace === true;
         if (replace) {
           await env.DB.prepare("DELETE FROM hosting_cost_map").run();
@@ -10326,9 +10353,7 @@ var worker_app = {
             "monthly_usd=excluded.monthly_usd,share_pct=excluded.share_pct,note=excluded.note,updated_at=excluded.updated_at,updated_by=excluded.updated_by"
           ).bind(it.id, it.kind, it.resource, it.project_id, it.monthly_usd, it.share_pct, it.note, it.updated_at, it.updated_by).run();
         }
-        const rows = (await env.DB.prepare(
-          "SELECT id,kind,resource,project_id,monthly_usd,share_pct,note,updated_at,updated_by FROM hosting_cost_map ORDER BY project_id, kind, resource"
-        ).all()).results || [];
+        const rows = await listHostingMap();
         return json({ ok: true, items: rows, upserted: normalized.length, replace });
       }
       return json({ ok: false, error: "method_not_allowed" }, 405);
