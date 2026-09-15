@@ -75,8 +75,7 @@ export const HOSTING_COST_MAP_SEED = Object.freeze([
   },
 ]);
 
-export const HOSTING_COST_MAP_SCHEMA_SQL = `
-CREATE TABLE IF NOT EXISTS hosting_cost_map (
+export const HOSTING_COST_MAP_TABLE_SQL = `CREATE TABLE IF NOT EXISTS hosting_cost_map (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL,
   resource TEXT NOT NULL,
@@ -86,9 +85,18 @@ CREATE TABLE IF NOT EXISTS hosting_cost_map (
   note TEXT,
   updated_at INTEGER,
   updated_by TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_hcm_project ON hosting_cost_map(project_id);
-`;
+)`;
+export const HOSTING_COST_MAP_INDEX_SQL = `CREATE INDEX IF NOT EXISTS idx_hcm_project ON hosting_cost_map(project_id)`;
+
+/** INSERT OR IGNORE único vía exec (como otros seeds del schema; no uses prepare().run en applySchema). */
+export const HOSTING_COST_MAP_SCHEMA_SQL = HOSTING_COST_MAP_TABLE_SQL; // compat
+export const HOSTING_COST_MAP_SEED_SQL = HOSTING_COST_MAP_SEED.map((s) =>
+  "INSERT OR IGNORE INTO hosting_cost_map(id,kind,resource,project_id,monthly_usd,share_pct,note,updated_at,updated_by) VALUES(" +
+  [s.id, s.kind, s.resource, s.project_id].map((v) => "'" + String(v).replace(/'/g, "''") + "'").join(",") +
+  "," + Number(s.monthly_usd) + "," + Number(s.share_pct) + "," +
+  "'" + String(s.note || "").replace(/'/g, "''") + "',0,'flt-100480-seed')"
+).join(";\n") + ";";
+
 
 export function tokensUsdEstimate(entrada, cache, salida, rates = TOKEN_USD_RATES) {
   const e = Number(entrada) || 0;

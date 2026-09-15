@@ -49,7 +49,8 @@ import { ONIDLE_BACK_OPTION, ONIDLE_CUSTOM_OPTION, isCanonicalOnIdleDecision,
   isCanonicalOnIdleOptions, selectCanonicalLiveOnIdleDecision } from "./onidle-decision-contract.js";
 import { canonicalProjectAgentRef, canonicalProjectAgentRefs, YOKUP_MINI_MEMBER_BACKFILL_SQL } from "./project-member-identity.js";
 import {
-  TOKEN_USD_RATES, HOSTING_COST_MAP_SEED, HOSTING_COST_MAP_SCHEMA_SQL,
+  TOKEN_USD_RATES, HOSTING_COST_MAP_SEED, HOSTING_COST_MAP_TABLE_SQL,
+  HOSTING_COST_MAP_INDEX_SQL, HOSTING_COST_MAP_SEED_SQL,
   aggregateConsumoByProject, normalizeHostingMapItem,
 } from "./consumo-proyectos.js";
 import { PROJECT_BOTH_RESPONSIBLES_CAS_SQL, PROJECT_CARBON_CAS_SQL, PROJECT_METADATA_UPSERT_SQL, PROJECT_SILICON_CAS_SQL, projectCarbonResponsible, validateProjectResponsibleTypes } from "./project-responsibles.js";
@@ -528,12 +529,11 @@ async function applySchema(env) {
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_display_refs_day_seq ON display_refs(day,seq)");
   // FLT-100480 · mapa editable de coste de hosting (CF worker/D1/KV/R2 → proyecto).
   // Valores = estimaciones mensuales del mapa; NO se inventan líneas de factura CF.
-  await env.DB.exec(HOSTING_COST_MAP_SCHEMA_SQL);
-  const seedNow = Date.now();
-  for (const s of HOSTING_COST_MAP_SEED) {
-    await env.DB.prepare(
-      "INSERT OR IGNORE INTO hosting_cost_map(id,kind,resource,project_id,monthly_usd,share_pct,note,updated_at,updated_by) VALUES(?,?,?,?,?,?,?,?,?)"
-    ).bind(s.id, s.kind, s.resource, s.project_id, s.monthly_usd, s.share_pct, s.note, seedNow, "flt-100480-seed").run();
+  // Seeds vía exec (como carbon_roster): prepare().run en applySchema rompe mocks de cierre.
+  await env.DB.exec(HOSTING_COST_MAP_TABLE_SQL);
+  await env.DB.exec(HOSTING_COST_MAP_INDEX_SQL);
+  for (const stmt of HOSTING_COST_MAP_SEED_SQL.split(";").map((s) => s.trim()).filter(Boolean)) {
+    await env.DB.exec(stmt);
   }
 }
 __name(applySchema, "applySchema");

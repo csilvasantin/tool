@@ -8,7 +8,7 @@ import {
   TOKEN_USD_RATES,
   UNASSIGNED_PROJECT_ID,
   HOSTING_COST_MAP_SEED,
-  HOSTING_COST_MAP_SCHEMA_SQL,
+  HOSTING_COST_MAP_TABLE_SQL, HOSTING_COST_MAP_SEED_SQL,
 } from "../src/consumo-proyectos.js";
 
 const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
@@ -98,9 +98,11 @@ test("projectIdsForOwner usa memberRefMatches (persona sin apellido)", () => {
 
 test("worker cablea schema + rutas consumo/proyectos y hosting-map", () => {
   assert.match(source, /from "\.\/consumo-proyectos\.js"/);
-  assert.match(source, /HOSTING_COST_MAP_SCHEMA_SQL/);
+  assert.match(source, /HOSTING_COST_MAP_TABLE_SQL/);
+  assert.match(source, /HOSTING_COST_MAP_SEED_SQL/);
   assert.match(moduleSrc, /CREATE TABLE IF NOT EXISTS hosting_cost_map/);
-  assert.ok(HOSTING_COST_MAP_SCHEMA_SQL.includes("hosting_cost_map"));
+  assert.ok(HOSTING_COST_MAP_TABLE_SQL.includes("hosting_cost_map"));
+  assert.ok(HOSTING_COST_MAP_SEED_SQL.includes("INSERT OR IGNORE"));
   assert.match(source, /pathname === "\/fleet\/consumo\/proyectos"/);
   assert.match(source, /pathname === "\/fleet\/consumo\/hosting-map"/);
   assert.match(source, /HOSTING_COST_MAP_SEED/);
