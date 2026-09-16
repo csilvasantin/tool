@@ -5518,6 +5518,40 @@ async function bindPresenceWork(env, persona, machine, workRef, selector) {
 }
 __name(bindPresenceWork, "bindPresenceWork");
 
+// ATAR LA SESIÓN AL TRABAJO TAMBIÉN DESDE EL CLI (16-09-2026, misión DCL-50bc90c3245a3e463a6d9f80).
+//
+// Para salir como `running` en /highscore/active-work no basta con un avance material
+// reciente: el estado se fuerza a `assigned_stale` si no hay una sesión atada a ESA
+// referencia exacta (`sessionUnverified`). Esa atadura sólo existía en setTaskStatus
+// —la vía del panel y del MCP— y en la captura de proceso. Pero /declare, que es por
+// donde declaran TODOS los agentes de consola (yokup.sh → Neo, Trinity, Morfeo,
+// Oráculo), insertaba las tareas y escribía started_at sin atar nada.
+//
+// Efecto medido el 16-09: un agente declaraba su paso, el avance figuraba de hace 29
+// segundos y el marcador seguía diciendo `assigned_stale`; 17 sesiones abiertas con
+// `no_linked_work` y running_count 0. La flota entera aparecía parada mientras
+// trabajaba. No era la ventana de 20 minutos: era que nadie ataba la sesión.
+//
+// Se ata igual que setTaskStatus, con el ejecutor y la máquina que ya llevan las filas
+// —no con una identidad recalculada aparte— y el resultado VIAJA EN LA RESPUESTA: un
+// enlace que falla tiene que decir su motivo (ambiguous_session, session_not_found…),
+// porque hasta hoy fallaba en silencio y el cliente se quedaba creyendo que constaba.
+async function bindDeclaredWork(env, missionId, codes, workSession) {
+  const bindings = {};
+  if (!missionId || !codes || !codes.length) return bindings;
+  const mission = await env.DB.prepare("SELECT loc FROM tickets WHERE id=?").bind(missionId).first();
+  if (!mission) return bindings;
+  for (const code of codes) {
+    const row = await env.DB.prepare("SELECT owner,executor FROM mission_tasks WHERE mission_id=? AND code=?")
+      .bind(missionId, code).first();
+    if (!row) continue;
+    bindings[code] = await bindPresenceWork(env, row.executor || row.owner, mission.loc,
+      `${missionId}:${code}`, workSession);
+  }
+  return bindings;
+}
+__name(bindDeclaredWork, "bindDeclaredWork");
+
 // Funde tasks en el plan vigente sin destruir nada. Devuelve qué entró, qué se
 // retituló y qué se ignoró CON EL MOTIVO: un merge que calla lo que descartó es
 // indistinguible de uno que no hizo nada.
@@ -13409,10 +13443,14 @@ Todo en español.`;
           catch (e) { batch_reconciliation = { ok:false, error:String(e) }; }
         }
         const display_ref = await ensureEntityDisplayRef(env, "mission", missionId, now);
+        // Una tarea declarada EN CURSO es trabajo vivo: se ata su sesión, como hace el panel.
+        const enCurso = tasks.filter((t) => ["in_progress", "doing", "active"].includes(t.status));
+        const work_bindings = await bindDeclaredWork(env, missionId, enCurso.map((t) => t.code), b.work_session);
         return json({ ok: true, mission_id: missionId, display_ref, creada, cerrada,
           agent: identity.agent, machine: identity.machine, project: projectContext.project,
           project_id: projectContext.project_id,
-          tasks: tasks.map((t) => ({ code: t.code, status: t.status, evidencia: !!t.evidence })),
+          tasks: tasks.map((t) => ({ code: t.code, status: t.status, evidencia: !!t.evidence,
+            work_binding: work_bindings[t.code] || null })),
           batch_adoption, batch_reconciliation });
       } catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
