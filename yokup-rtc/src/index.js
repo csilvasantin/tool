@@ -6078,6 +6078,26 @@ async function lastEventKind(env, ticketId) {
   return r ? r.kind : null;
 }
 __name(lastEventKind, "lastEventKind");
+// Último evento CON su hora: el cierre automático de una incidencia de player
+// necesita saber desde CUÁNDO está recuperada, no sólo que lo está.
+async function lastEvent(env, ticketId) {
+  const r = await env.DB.prepare("SELECT kind,ts FROM events WHERE ticket_id=? ORDER BY id DESC LIMIT 1").bind(ticketId).first();
+  return r ? { kind: r.kind, ts: Number(r.ts) || 0 } : null;
+}
+__name(lastEvent, "lastEvent");
+// CIERRE AUTOMÁTICO DE INCIDENCIAS DE PLAYER (FLT-100514, Carlos 14-sep-2026 vía #3320·b).
+// Hasta hoy el reconcile abría la incidencia cuando el censo decía «offline» y, al
+// volver la señal, dejaba un evento «recover» «pendiente de verificación y cierre»
+// que nadie verificaba: el 16-sep tcl-terminator llevaba 5 h emitiendo con su
+// incidencia abierta y reuniones-2-mupi 3 h. Ahora la incidencia se cierra sola
+// cuando el latido lleva 5 minutos seguidos sano tras recuperarse; si en esos 5
+// minutos vuelve a caer, se anota «relapse» y el contador vuelve a cero. Sigue
+// habiendo UNA incidencia activa por player (idx_active_screen): la recaída no abre otra.
+var FIELD_AUTOCLOSE_MS = 5 * 60000;
+var FIELD_MONITOR_AUTHOR = "Agente IoT";
+var FIELD_AUTOCLOSE_TEXT = "Cierre autom\xE1tico: 5 minutos seguidos de latido sano tras recuperar la se\xF1al de emisi\xF3n.";
+var FIELD_RELAPSE_TEXT = "La pantalla ha vuelto a perder la se\xF1al de emisi\xF3n antes de 5 minutos sana: el contador de cierre autom\xE1tico vuelve a cero.";
+var FIELD_RECOVER_TEXT = "La pantalla ha recuperado la se\xF1al de emisi\xF3n. Se cierra sola si aguanta 5 minutos sana.";
 async function createTicket(env, s) {
   const existing = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status NOT IN ('resolved','cancelled')").bind(s.screen).first();
   if (existing) return existing.id;
@@ -6273,10 +6293,21 @@ async function reconcile(env) {
     const open = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status NOT IN ('resolved','cancelled')").bind(s.screen).first();
     if (!s.online) {
       if (!open) await createTicket(env, { screen: s.screen, loc: s.locName || s.loc || "", role: s.role, age: s.age_seconds });
-    } else if (open) {
-      if (await lastEventKind(env, open.id) !== "recover") {
+      else if (await lastEventKind(env, open.id) === "recover") {
+        // Recaída dentro de la ventana de cierre: se anota y el contador vuelve a cero.
         await env.DB.prepare("UPDATE tickets SET updated_at=? WHERE id=?").bind(now, open.id).run();
-        await addEvent(env, open.id, "recover", "Agente IoT", "La pantalla ha recuperado la se\xF1al de emisi\xF3n. Pendiente de verificaci\xF3n y cierre.");
+        await addEvent(env, open.id, "relapse", FIELD_MONITOR_AUTHOR, FIELD_RELAPSE_TEXT);
+      }
+    } else if (open) {
+      const last = await lastEvent(env, open.id);
+      if (!last || last.kind !== "recover") {
+        await env.DB.prepare("UPDATE tickets SET updated_at=? WHERE id=?").bind(now, open.id).run();
+        await addEvent(env, open.id, "recover", FIELD_MONITOR_AUTHOR, FIELD_RECOVER_TEXT);
+      } else if (now - last.ts >= FIELD_AUTOCLOSE_MS) {
+        await env.DB.prepare("UPDATE tickets SET status='resolved', updated_at=?, resolved_at=? WHERE id=? AND status NOT IN ('resolved','cancelled')")
+          .bind(now, now, open.id).run();
+        await addEvent(env, open.id, "close", FIELD_MONITOR_AUTHOR, FIELD_AUTOCLOSE_TEXT);
+        await notifySubs(env);
       }
     }
   }
