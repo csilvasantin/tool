@@ -65,6 +65,52 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // index.js
+// ── Grifo TURN: quién puede pedir credencial y cuántas ──────────────────────
+// Las dos páginas que ofrecen llamada (yokup.com/asistencia y /contactanos) piden la
+// credencial desde el navegador del visitante. Ese es el único uso legítimo.
+var TURN_ORIGENES = new Set(["https://yokup.com", "https://www.yokup.com"]);
+var TURN_TTL_S = 600;
+var TURN_CUPO_HORA = 10;
+
+// Devuelve el origen permitido de la petición, o "" si no lo está. Acepta Referer
+// cuando no hay Origin (alguna webview lo omite en GET), pero nunca una petición sin
+// ninguno de los dos: un curl pelado se queda fuera.
+function turnOrigenPermitido(request) {
+  const origen = String(request.headers.get("Origin") || "").trim();
+  if (origen) return TURN_ORIGENES.has(origen) ? origen : "";
+  const referer = String(request.headers.get("Referer") || "").trim();
+  if (!referer) return "";
+  try {
+    const desde = new URL(referer).origin;
+    return TURN_ORIGENES.has(desde) ? desde : "";
+  } catch { return ""; }
+}
+__name(turnOrigenPermitido, "turnOrigenPermitido");
+
+// Cupo por IP y hora. Sin IP no se acuña: preferimos negar una llamada rara a dejar el
+// grifo abierto a quien sepa esconderse. La tabla se crea sola y se limpia sola.
+async function turnCupo(env, ip, ahora) {
+  const limpia = String(ip || "").trim().slice(0, 64);
+  if (!limpia || !env.DB) return { ok: false, usadas: 0 };
+  const hora = Math.floor(ahora / 3600000);
+  try {
+    await env.DB.exec("CREATE TABLE IF NOT EXISTS turn_mints (ip TEXT NOT NULL, hora INTEGER NOT NULL, n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(ip,hora))");
+    await env.DB.prepare("INSERT INTO turn_mints(ip,hora,n) VALUES(?,?,1) ON CONFLICT(ip,hora) DO UPDATE SET n=n+1")
+      .bind(limpia, hora).run();
+    const fila = await env.DB.prepare("SELECT n FROM turn_mints WHERE ip=? AND hora=?").bind(limpia, hora).first();
+    const usadas = Number(fila && fila.n || 0);
+    // Barrido perezoso: sin esto la tabla crece para siempre por una cuenta que sólo
+    // sirve durante una hora.
+    if (usadas === 1) await env.DB.prepare("DELETE FROM turn_mints WHERE hora < ?").bind(hora - 2).run();
+    return { ok: usadas <= TURN_CUPO_HORA, usadas };
+  } catch {
+    // Si la contabilidad falla no se acuña: un error de base de datos no puede
+    // convertirse en barra libre.
+    return { ok: false, usadas: 0 };
+  }
+}
+__name(turnCupo, "turnCupo");
+
 var CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
@@ -12072,15 +12118,37 @@ var worker_app = {
       try { return json(await fleetNudge(env, b)); } catch (e) { return json({ ok: false, error: String(e) }, 500); }
     }
     if (url.pathname === "/turn") {
+      // GRIFO DE CREDENCIALES, NO DATO PÚBLICO (16-09-2026, inventario de superficie
+      // pública · misión DCL-118df4c8137e9b1c945e62d0). Esta ruta no devuelve
+      // información: ACUÑA una credencial TURN de la cuenta de Cloudflare y se la da a
+      // quien la pida. Estaba abierta a todo internet con ttl de una hora y CORS *, así
+      // que cualquiera podía sacar relé ilimitado a cargo nuestro. La llamada de
+      // asistencia y la de contáctanos son ANÓNIMAS a propósito —las usa gente de la
+      // calle—, así que no se puede exigir login: se acota por origen y por cupo.
+      //
+      // El origen es un badén, no una cerradura: una cabecera se falsifica. La cerradura
+      // es el cupo por IP. Y el ttl baja de 3600 a 600: una llamada pide su credencial al
+      // empezar, no necesita una hora de margen.
+      const turnOrigen = turnOrigenPermitido(req);
+      // json() del worker sólo acepta (objeto, estado) y siempre pone el CORS global con
+      // *. Aquí la cabecera importa —se devuelve el origen exacto, no el comodín—, así
+      // que la respuesta se construye a mano en vez de fingir un tercer argumento.
+      const turnCors = { ...CORS, "Access-Control-Allow-Origin": turnOrigen || "https://yokup.com",
+        "Vary": "Origin", "Cache-Control": "no-store", "content-type": "application/json" };
+      const turnJson = (cuerpo, estado) => new Response(JSON.stringify(cuerpo), { status: estado, headers: turnCors });
+      if (!turnOrigen) return turnJson({ error: "origen no autorizado", code: "bad_origin" }, 403);
+      const cupo = await turnCupo(env, req.headers.get("CF-Connecting-IP") || "", Date.now());
+      if (!cupo.ok) return turnJson({ error: "demasiadas credenciales desde esta IP", code: "rate_limited",
+        limite: TURN_CUPO_HORA, usadas: cupo.usadas }, 429);
       try {
         const r = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${env.TURN_KEY_ID}/credentials/generate`, {
           method: "POST",
           headers: { Authorization: `Bearer ${env.TURN_TOKEN}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ ttl: 3600 })
+          body: JSON.stringify({ ttl: TURN_TTL_S })
         });
-        return new Response(await r.text(), { headers: { ...CORS, "content-type": "application/json" } });
+        return new Response(await r.text(), { headers: turnCors });
       } catch (e) {
-        return json({ error: String(e) }, 500);
+        return turnJson({ error: String(e) }, 500);
       }
     }
     // Circuitos de Cartelería Digital: alta en el registro único de admira (src/admira-circuits.js).
