@@ -68,7 +68,14 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 // ── Grifo TURN: quién puede pedir credencial y cuántas ──────────────────────
 // Las dos páginas que ofrecen llamada (yokup.com/asistencia y /contactanos) piden la
 // credencial desde el navegador del visitante. Ese es el único uso legítimo.
-var TURN_ORIGENES = new Set(["https://yokup.com", "https://www.yokup.com"]);
+//
+// admira.live entra aquí el 17-09-2026 porque yokup.com se está mudando allí (orden de
+// Carlos): /asistencia pasa a servirse también desde www.admira.live y sin este origen
+// la sala no puede negociar la llamada (403 bad_origin). No afloja la seguridad de ayer:
+// el origen sigue siendo un badén —una cabecera se falsifica— y la cerradura de verdad
+// sigue siendo el cupo por IP, que no se toca. Cuando yokup.com se apague, se quitan sus
+// dos entradas y queda sólo admira.live.
+var TURN_ORIGENES = new Set(["https://yokup.com", "https://www.yokup.com", "https://admira.live", "https://www.admira.live"]);
 var TURN_TTL_S = 600;
 var TURN_CUPO_HORA = 10;
 

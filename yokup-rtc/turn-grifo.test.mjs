@@ -66,8 +66,16 @@ test("las páginas de yokup pueden pedir credencial; un curl pelado no", async (
   assert.equal(ctx.origen(pide({})), "", "sin Origin ni Referer no se acuña nada");
 });
 
+test("y las de admira.live también, porque yokup.com se está mudando allí", async () => {
+  // 17-09-2026: /asistencia pasa a vivir en www.admira.live. Sin esto, la sala se
+  // publica pero no puede negociar la llamada.
+  assert.equal(ctx.origen(pide({ Origin: "https://www.admira.live" })), "https://www.admira.live");
+  assert.equal(ctx.origen(pide({ Origin: "https://admira.live" })), "https://admira.live");
+});
+
 test("un origen ajeno no vale, ni aunque se parezca", async () => {
-  for (const o of ["https://yokup.com.evil.net", "http://yokup.com", "https://admira.live", "null"]) {
+  for (const o of ["https://yokup.com.evil.net", "http://yokup.com", "https://admira.live.evil.net",
+                   "http://www.admira.live", "https://admiralive.com", "null"]) {
     assert.equal(ctx.origen(pide({ Origin: o })), "", `${o} no debería pasar`);
   }
 });
