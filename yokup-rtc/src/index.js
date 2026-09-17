@@ -331,17 +331,28 @@ function hash(s) {
   return h;
 }
 __name(hash, "hash");
+// D1 `exec()` ejecuta SENTENCIA POR LÍNEA: una SQL repartida en varias líneas le llega
+// cortada y revienta con «incomplete input». Pasó el 17-09-2026 con las tablas del
+// supervisor de visión, escritas en plantilla multilínea: applySchema petaba y con ella
+// TODAS las rutas que aseguran esquema (/highscore/daily, /projects, /fleet/missions…).
+// Producción devolvía 1101. Aplanar aquí es de una línea y protege a cualquier SQL futura
+// que llegue bonita de formatear; el mismo tropiezo ya se había pagado con hosting_cost_map.
+// Se aplica a TODAS las constantes, no sólo a las que hoy vienen partidas: la regla «si va
+// a exec, va aplanada» se puede comprobar de un vistazo; «acuérdate de mirar cada una»,
+// no. YOKUP_MINI_MEMBER_BACKFILL_SQL ya estaba partida y habría petado a continuación.
+function unaLinea(sql) { return String(sql).replace(/\s+/g, " ").trim(); }
+__name(unaLinea, "unaLinea");
 async function applySchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY, screen TEXT, subject TEXT, loc TEXT, role TEXT, status TEXT, priority TEXT, assignee TEXT, source TEXT, ai_triage TEXT, created_at INTEGER, updated_at INTEGER, resolved_at INTEGER)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id TEXT, ts INTEGER, kind TEXT, author TEXT, text TEXT)");
   await env.DB.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_active_screen ON tickets(screen) WHERE status NOT IN ('resolved','cancelled')");
   await env.DB.exec("DROP INDEX IF EXISTS idx_open_screen");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_ev_tkt ON events(ticket_id)");
-  await env.DB.exec(SUPERVISOR_STATIONS_SQL);
-  await env.DB.exec(SUPERVISOR_OBSERVATIONS_SQL);
-  await env.DB.exec(SUPERVISOR_OBSERVATIONS_INDEX_SQL);
-  await env.DB.exec(SUPERVISOR_REQUESTS_SQL);
-  await env.DB.exec(SUPERVISOR_ALERTS_SQL);
+  await env.DB.exec(unaLinea(SUPERVISOR_STATIONS_SQL));
+  await env.DB.exec(unaLinea(SUPERVISOR_OBSERVATIONS_SQL));
+  await env.DB.exec(unaLinea(SUPERVISOR_OBSERVATIONS_INDEX_SQL));
+  await env.DB.exec(unaLinea(SUPERVISOR_REQUESTS_SQL));
+  await env.DB.exec(unaLinea(SUPERVISOR_ALERTS_SQL));
   await env.DB.exec("CREATE TABLE IF NOT EXISTS subs (endpoint TEXT PRIMARY KEY, created_at INTEGER)");
   // NOTIFICACIONES DEL SISTEMA (FLT-1020, Carlos 24-jul-2026): «si algún equipo de
   // AdmiraNeXT tiene una notificación del sistema hay que avisar». Un diálogo modal
@@ -426,9 +437,9 @@ async function applySchema(env) {
   // NOVEDADES DE MISIÓN: el contador open/in_progress es estado mutable y puede
   // volver al mismo total entre dos sondeos. Este log append-only da al navegador
   // un cursor monotónico que no desaparece cuando la misión avanza o se cierra.
-  await env.DB.exec(MISSION_NOVELTY_TABLE_SQL);
-  await env.DB.exec(MISSION_NOVELTY_INDEX_SQL);
-  await env.DB.exec(MISSION_NOVELTY_DECISION_INDEX_SQL);
+  await env.DB.exec(unaLinea(MISSION_NOVELTY_TABLE_SQL));
+  await env.DB.exec(unaLinea(MISSION_NOVELTY_INDEX_SQL));
+  await env.DB.exec(unaLinea(MISSION_NOVELTY_DECISION_INDEX_SQL));
   // Histórico compartido del Highscore. Una muestra por agente y minuto basta
   // para comparar la última hora sin depender del navegador que lo consulta.
   // Ordenes de encendido/apagado de los CLI de la flota. La orden la crea alguien
@@ -444,7 +455,7 @@ async function applySchema(env) {
   await env.DB.exec("ALTER TABLE cli_state ADD COLUMN desired_command_id TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE cli_state ADD COLUMN desired_at INTEGER").catch(() => {});
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_cli_commands_target_status ON cli_commands(machine,cli,status,created_at)");
-  await env.DB.exec(WORK_ACTIVITY_TABLE_SQL);
+  await env.DB.exec(unaLinea(WORK_ACTIVITY_TABLE_SQL));
   await env.DB.exec("CREATE TABLE IF NOT EXISTS highscore_snapshots (agent_key TEXT NOT NULL, agent TEXT NOT NULL, machine TEXT, sampled_at INTEGER NOT NULL, points INTEGER NOT NULL, PRIMARY KEY(agent_key,sampled_at))");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_highscore_snapshots_time ON highscore_snapshots(sampled_at)");
   // image: URL pública de la captura de prueba del informe (R2 /media/…). La tabla
@@ -504,8 +515,8 @@ async function applySchema(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT, blurb TEXT, web TEXT, status TEXT DEFAULT 'activo', color TEXT, importance INTEGER NOT NULL DEFAULT 0 CHECK (importance BETWEEN 0 AND 5), carbon_responsible TEXT NOT NULL DEFAULT '', created_at INTEGER, updated_at INTEGER, updated_by TEXT)");
   // Sólo las altas posteriores a este esquema escriben aquí. No se hace backfill:
   // el despliegue establece baseline y no anuncia como nuevos proyectos históricos.
-  await env.DB.exec(PROJECT_NOVELTY_TABLE_SQL);
-  await env.DB.exec(PROJECT_NOVELTY_INDEX_SQL);
+  await env.DB.exec(unaLinea(PROJECT_NOVELTY_TABLE_SQL));
+  await env.DB.exec(unaLinea(PROJECT_NOVELTY_INDEX_SQL));
   // Un proyecto toca VARIAS máquinas y VARIOS agentes. `kind` distingue los dos
   // planos que la sección Equipo ya separa (átomos/bits) y `ref` es el id que
   // usa admira-fleet (machines[].id / silicon[].id): NO se inventa censo nuevo.
@@ -525,18 +536,18 @@ async function applySchema(env) {
   // escritos a mano en la constante ROSTER de este mismo fichero: sin alta, sin
   // baja, sin latido y sin forma de comprobar que existen. La tabla las saca del
   // código y las pone donde ya vive el silicio. Ver src/carbon-members.js.
-  await env.DB.exec(CARBON_MEMBERS_TABLE_SQL);
-  await env.DB.exec(CARBON_YARIGAI_TABLE_SQL);
-  await env.DB.exec(CARBON_MEMBERS_INDEX_SQL);
-  await env.DB.exec(CARBON_ROSTER_SEED_SQL);
+  await env.DB.exec(unaLinea(CARBON_MEMBERS_TABLE_SQL));
+  await env.DB.exec(unaLinea(CARBON_YARIGAI_TABLE_SQL));
+  await env.DB.exec(unaLinea(CARBON_MEMBERS_INDEX_SQL));
+  await env.DB.exec(unaLinea(CARBON_ROSTER_SEED_SQL));
   // RESPONSABLES DEL PROYECTO (FLT-1505). `owner` ya contiene al agente de
   // silicio; se conserva y se sigue exponiendo como `primary_responsible` para no
   // romper clientes históricos. Carbono vive en una columna independiente: un
   // nombre humano nunca debe mezclarse con el censo de agentes operativos.
   await env.DB.exec("ALTER TABLE projects ADD COLUMN owner TEXT").catch(() => {});
   await env.DB.exec("ALTER TABLE projects ADD COLUMN carbon_responsible TEXT NOT NULL DEFAULT ''").catch(() => {});
-  await env.DB.exec(PROJECT_CARBON_ASSIGNMENTS_TABLE_SQL);
-  await env.DB.exec(YOKUP_MINI_MEMBER_BACKFILL_SQL);
+  await env.DB.exec(unaLinea(PROJECT_CARBON_ASSIGNMENTS_TABLE_SQL));
+  await env.DB.exec(unaLinea(YOKUP_MINI_MEMBER_BACKFILL_SQL));
   // ORDEN de las fichas, el que Carlos deja al arrastrarlas. Va en la tabla y no
   // en el navegador a propósito: el orden es del proyecto, no del portátil desde
   // el que se miró. NULL = nunca se ha tocado → cae al orden de siempre.
@@ -598,11 +609,11 @@ async function applySchema(env) {
   // Valores = estimaciones mensuales del mapa; NO se inventan líneas de factura CF.
   // Aislado: un fallo de seed NUNCA tumba ensureSchema (1101 en todo /fleet/*).
   try {
-    await env.DB.exec(HOSTING_COST_MAP_TABLE_SQL);
-    await env.DB.exec(HOSTING_COST_MAP_INDEX_SQL);
+    await env.DB.exec(unaLinea(HOSTING_COST_MAP_TABLE_SQL));
+    await env.DB.exec(unaLinea(HOSTING_COST_MAP_INDEX_SQL));
     for (const stmt of String(HOSTING_COST_MAP_SEED_SQL || "").split(";")) {
       const sql = stmt.trim();
-      if (sql) await env.DB.exec(sql);
+      if (sql) await env.DB.exec(unaLinea(sql));
     }
   } catch (e) { /* hosting map opcional: no tumbar ensureSchema */ }
 }
@@ -626,8 +637,8 @@ __name(ensureSchema, "ensureSchema");
 // Un punto de serie por parte de consumo (owner, máquina, día); si el total no cambió y el anterior es de
 // hace menos de 4 min, no se repite. Lo llaman las dos ramas de POST /fleet/notificacion (fila viva y nueva).
 async function ensureHostingCostMap(env) {
-  await env.DB.exec(HOSTING_COST_MAP_TABLE_SQL);
-  await env.DB.exec(HOSTING_COST_MAP_INDEX_SQL);
+  await env.DB.exec(unaLinea(HOSTING_COST_MAP_TABLE_SQL));
+  await env.DB.exec(unaLinea(HOSTING_COST_MAP_INDEX_SQL));
   const seedNow = Date.now();
   for (const s of HOSTING_COST_MAP_SEED) {
     await env.DB.prepare(
