@@ -23,5 +23,6 @@ test("el único APP_NAV conserva YO KUP + Dashboard…Highscore y activa Highsco
     ["SUPERVISOR","/supervisor"],["INFORMES","/informes"],["NOTIFICACIONES","/notificaciones"],["HIGHSCORE","/highscore"]
   ]);
   assert.match(frame,/if \(it\.active\) a\.setAttribute\("aria-current", "page"\)/);
-  assert.match(frame,/var logo = el\("a", "yk-logo",[\s\S]*Yo<b>kup<\/b>/);
+  // Logo: el de Admira pixelado (Carlos, 17-09-2026), no ya el wordmark Yokup.
+  assert.match(frame,/var logo = el\("a", "yk-logo",[\s\S]*admira-logo-retro\.svg/);
 });
