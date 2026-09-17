@@ -11,7 +11,7 @@ const source = await readFile(file, "utf8");
 const required = [
   ["GET /fleet/onidle-state", /url\.pathname\s*===\s*["']\/fleet\/onidle-state["']\s*&&\s*req\.method\s*===\s*["']GET["']/],
   ["GET /fleet/cli", /url\.pathname\s*===\s*["']\/fleet\/cli["']\s*&&\s*req\.method\s*===\s*["']GET["']/],
-  ["Supervisor autenticado", /url\.pathname\.startsWith\(["']\/supervisor\/["']\)[\s\S]{0,260}requireAuth\(env,\s*req\)[\s\S]{0,320}handleSupervisorRequest/]
+  ["Supervisor autenticado", /url\.pathname\.startsWith\(["']\/supervisor\/["']\)[\s\S]{0,260}requireAuth\([^,]+,\s*req\)[\s\S]{0,420}handleSupervisorRequest/]
 ];
 const missing = required.filter(([, pattern]) => !pattern.test(source)).map(([name]) => name);
 if (missing.length) {
