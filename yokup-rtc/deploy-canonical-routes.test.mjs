@@ -21,6 +21,7 @@ test("el gate acepta el worker canónico y rechaza el fallback sin handlers", as
   assert.equal(rejected.status, 1);
   assert.match(rejected.stderr, /GET \/fleet\/onidle-state/);
   assert.match(rejected.stderr, /GET \/fleet\/cli/);
+  assert.match(rejected.stderr, /Supervisor autenticado/);
 });
 
 test("deploy exige main exacto, limpio y valida fuente más bundle dry-run", () => {

@@ -1,4 +1,14 @@
-const AUTH_ORIGINS = new Set(["https://www.yokup.com", "https://yokup.com"]);
+// Quién puede tener sesión de Yokup. admira.live entra el 17-09-2026 porque yokup.com se
+// está mudando allí (orden de Carlos): sus páginas necesitan la MISMA sesión, no otra.
+// La lista de QUIÉN entra no cambia —sigue siendo por correo, en la whitelist—; esto sólo
+// dice desde qué casas nuestras se puede pedir.
+const AUTH_ORIGINS = new Set(["https://www.yokup.com", "https://yokup.com", "https://www.admira.live", "https://admira.live"]);
+// El flujo de REDIRECCIÓN de Google aterriza en una página concreta (AUTH_CALLBACK_URI) y
+// vuelve a una casa concreta (PUBLIC_ORIGIN), las dos de yokup. Mientras eso sea así, ese
+// flujo sólo se le ofrece a yokup: desde admira.live se usa el de ventana (popup), que no
+// sale del sitio. Si se le diera a admira.live sin más, el usuario acabaría aterrizando en
+// yokup.com después de entrar — un viaje que nadie pidió.
+const REDIRECT_ORIGINS = new Set(["https://www.yokup.com", "https://yokup.com"]);
 const GOOGLE_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 const CHALLENGE_COOKIE = "__Host-yk_challenge";
 const SESSION_COOKIE = "__Host-yk_session";
@@ -62,19 +72,31 @@ export function withCredentialCors(response, request) {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+// SameSite=None, no Lax (17-09-2026). La cookie es host-only de api.yokup.com. Desde
+// www.yokup.com eso era «same-site» y Lax bastaba; desde www.admira.live es OTRO sitio y
+// una cookie Lax sencillamente NO se manda: abrir el CORS no habría servido de nada.
+// Lo que Lax nos daba gratis era protección CSRF, y eso se recupera en requireAuth
+// (index.js), que ahora exige que la petición venga de una de nuestras casas. Sin esa
+// pareja, esto sería aflojar la seguridad; con ella, es moverla de sitio.
 export function sessionCookie(token, maxAge = 12 * 60 * 60) {
-  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
+  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=None`;
 }
 
 export function clearSessionCookie() {
-  return `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
+  // Para borrar una cookie hay que repetir sus atributos: con SameSite distinto, el
+  // navegador se queda con la vieja y el logout no cierra nada.
+  return `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=None`;
 }
 
-function challengeCookie(state, maxAge = CHALLENGE_TTL_MS / 1000, sameSite = "Lax") {
+// El challenge también cruza de sitio: en el flujo de ventana desde admira.live, esta
+// cookie tiene que acompañar al POST de /auth/login o consumeChallenge no encontrará con
+// qué atar el navegador. Que viaje NO afloja el atado: la cookie sigue teniendo que
+// coincidir con el `state`, es HttpOnly, dura 10 minutos y es de un solo uso.
+function challengeCookie(state, maxAge = CHALLENGE_TTL_MS / 1000, sameSite = "None") {
   return `${CHALLENGE_COOKIE}=${encodeURIComponent(state)}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=${sameSite}`;
 }
 
-function clearChallengeCookie(sameSite = "Lax") {
+function clearChallengeCookie(sameSite = "None") {
   return `${CHALLENGE_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=${sameSite}`;
 }
 
@@ -99,7 +121,12 @@ export async function issueChallenge(env, returnPath, flow = "popup", now = Date
   const path = safeReturnPath(returnPath);
   await env.DB.prepare("INSERT INTO auth_challenges(state,nonce,return_path,flow,expires_at,used_at) VALUES(?,?,?,?,?,NULL)")
     .bind(state, nonce, path, flow, now + CHALLENGE_TTL_MS).run();
-  return { state, nonce, returnPath: path, cookie: challengeCookie(state, CHALLENGE_TTL_MS / 1000, flow === "redirect" ? "None" : "Lax"), expiresAt: now + CHALLENGE_TTL_MS };
+  // SameSite=None también en el flujo de VENTANA (17-09-2026). Antes aquí ponía "Lax"
+  // para popup, porque el popup era siempre de yokup.com y eso era mismo sitio. Desde
+  // admira.live no lo es: la cookie salía Lax, el navegador no la devolvía en el POST de
+  // /auth/login y consumeChallenge —que EXIGE la cookie en este flujo— tumbaba el login.
+  // Se vio en producción pidiendo un reto desde el origen nuevo, no en la teoría.
+  return { state, nonce, returnPath: path, cookie: challengeCookie(state, CHALLENGE_TTL_MS / 1000, "None"), expiresAt: now + CHALLENGE_TTL_MS };
 }
 
 export async function consumeChallenge(env, request, state, flow, now = Date.now()) {
@@ -230,9 +257,15 @@ export async function handleAuthRequest(request, env, deps) {
     } }), request);
   }
   if (url.pathname === "/auth/challenge" && request.method === "POST") {
-    if (!authOrigin(request)) return authJson({ ok:false, error:"origin_not_allowed" }, 403, request);
+    const origen = authOrigin(request);
+    if (!origen) return authJson({ ok:false, error:"origin_not_allowed" }, 403, request);
     const body = await request.json().catch(() => ({}));
     const flow = body.flow === "redirect" ? "redirect" : "popup";
+    // El de redirección vuelve a PUBLIC_ORIGIN, que es yokup. Ofrecérselo a otra casa
+    // sería mandar al usuario a un sitio que no es el suyo: se dice, no se disimula.
+    if (flow === "redirect" && !REDIRECT_ORIGINS.has(origen)) {
+      return authJson({ ok:false, error:"redirect_flow_solo_en_yokup" }, 400, request);
+    }
     // return_to queda en D1, nunca viaja a Google ni comparte URL con el token.
     const challenge = await issueChallenge(env, flow === "redirect" ? body.return_to : "/", flow);
     return authJson({ ok:true, state:challenge.state, nonce:challenge.nonce, expires_at:challenge.expiresAt, login_uri:flow === "redirect" ? AUTH_CALLBACK_URI : undefined }, 200, request, { "Set-Cookie":challenge.cookie });

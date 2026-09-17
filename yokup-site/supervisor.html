@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/acceso.js?v=20260811-r4-d77633add752"></script>
+<title>Agente supervisor · Yokup</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#02080d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
+<link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
+<link rel="stylesheet" href="/yk-frame.css?v=r18">
+<link rel="stylesheet" href="/yk-supervisor.css?v=r1">
+</head>
+<body data-yk-title="SUPERVISOR" data-yk-zone="app">
+<main class="sv-shell">
+  <header class="sv-hero">
+    <div>
+      <p class="sv-kicker"><span aria-hidden="true"></span> Agente de visión · vigilancia local</p>
+      <h1>Supervisor de pantallas</h1>
+      <p class="sv-lead">Una cámara observa la emisión, la visión artificial confirma la incidencia y Yokup abre el ticket. Dos lecturas críticas consecutivas evitan falsas alarmas.</p>
+    </div>
+    <div class="sv-project" id="projectBadge" aria-live="polite">
+      <span>Proyecto activo</span>
+      <strong id="projectName">Cargando…</strong>
+    </div>
+  </header>
+
+  <section class="sv-grid" aria-label="Puesto de supervisión">
+    <article class="sv-card sv-vision">
+      <div class="sv-card-head">
+        <div>
+          <p class="sv-overline">Visión en directo</p>
+          <h2 id="stationHeading">CanalKiosk · Jardinets</h2>
+        </div>
+        <div class="sv-state idle" id="liveState"><i aria-hidden="true"></i><span>En espera</span></div>
+      </div>
+
+      <div class="sv-stage" id="stage">
+        <video id="camera" muted playsinline aria-label="Vista de la cámara del supervisor"></video>
+        <canvas id="frameCanvas" class="sv-still" aria-hidden="true"></canvas>
+        <canvas id="visionOverlay" class="sv-overlay" aria-hidden="true"></canvas>
+        <div class="sv-empty" id="cameraEmpty">
+          <div class="sv-lens" aria-hidden="true"><span></span></div>
+          <strong>Preparado para observar</strong>
+          <span>Selecciona un proyecto y activa la cámara.</span>
+        </div>
+        <div class="sv-reticle" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <div class="sv-scanline" aria-hidden="true"></div>
+        <div class="sv-stage-meta" aria-hidden="true">
+          <span id="stageStation">STATION · JARDINETS-KIOSK-01</span>
+          <span id="stageClock">SIN SEÑAL</span>
+        </div>
+      </div>
+
+      <div class="sv-actions" role="group" aria-label="Controles de supervisión">
+        <button class="sv-btn primary" id="startButton" type="button"><span aria-hidden="true">◉</span> Iniciar supervisor</button>
+        <button class="sv-btn danger" id="stopButton" type="button" disabled><span aria-hidden="true">■</span> Detener</button>
+        <button class="sv-btn" id="scanButton" type="button" disabled><span aria-hidden="true">⌖</span> Analizar ahora</button>
+        <label class="sv-btn upload" id="uploadLabel" for="uploadInput"><span aria-hidden="true">⇧</span> Probar una imagen</label>
+        <input id="uploadInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+      </div>
+      <p class="sv-runtime" id="runtimeMessage" role="status" aria-live="polite">La cámara permanece apagada hasta que pulses iniciar.</p>
+    </article>
+
+    <aside class="sv-card sv-control">
+      <div class="sv-card-head compact">
+        <div><p class="sv-overline">Configuración</p><h2>Puesto observado</h2></div>
+        <span class="sv-cycle">CICLO <b>12 s</b></span>
+      </div>
+      <form id="stationForm" class="sv-form" autocomplete="off">
+        <label><span>ID estable del puesto</span><input id="stationId" maxlength="64" value="jardinets-kiosk-01" required pattern="[A-Za-z0-9_-]+" spellcheck="false"></label>
+        <label><span>Nombre visible</span><input id="stationLabel" maxlength="80" value="CanalKiosk · Jardinets" required></label>
+        <label><span>Ubicación</span><input id="stationLocation" maxlength="120" value="Jardinets de Gràcia"></label>
+        <div class="sv-form-row">
+          <label><span>Pantallas esperadas</span><input id="expectedScreens" type="number" min="1" max="8" value="1" inputmode="numeric"></label>
+          <label><span>ID pantalla Admira <em>opcional</em></span><input id="canonicalScreen" maxlength="160" placeholder="p. ej. BCN-JAR-01" spellcheck="false"></label>
+        </div>
+        <label class="sv-switch">
+          <input id="voiceEnabled" type="checkbox" checked>
+          <span aria-hidden="true"></span>
+          <b>Voz de alarma</b>
+          <small>Pronuncia el aviso sólo después de crear el ticket.</small>
+        </label>
+      </form>
+      <div class="sv-privacy">
+        <span aria-hidden="true">◈</span>
+        <p><strong>Privacidad por diseño</strong>La cámara se abre sin audio. Los fotogramas se reducen y procesan en memoria; no se archivan en el navegador ni en Yokup.</p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="sv-kpis" aria-label="Estado del puesto">
+    <article><span>Pantallas visibles</span><strong id="visibleKpi">—</strong><small id="expectedKpi">de 1 esperada</small></article>
+    <article><span>Emitiendo</span><strong id="activeKpi">—</strong><small>contenido detectado</small></article>
+    <article><span>Confianza</span><strong id="confidenceKpi">—</strong><small>del último análisis</small></article>
+    <article><span>Lectura de escena</span><strong id="luminanceKpi">—</strong><small id="darkRatioKpi">luminancia local</small></article>
+    <article><span>Último latido</span><strong id="lastSeenKpi">—</strong><small id="modelKpi">esperando visión</small></article>
+  </section>
+
+  <section class="sv-lower">
+    <article class="sv-card sv-report">
+      <div class="sv-card-head compact">
+        <div><p class="sv-overline">Informe actual</p><h2>Lo que ve el agente</h2></div>
+        <button class="sv-icon-btn" id="refreshButton" type="button" aria-label="Actualizar estado" title="Actualizar estado">↻</button>
+      </div>
+      <p class="sv-summary" id="visionSummary">Aún no hay una observación visual.</p>
+      <div class="sv-detections" id="detections"><p class="sv-muted">Las pantallas detectadas aparecerán aquí con su estado y confianza.</p></div>
+      <a class="sv-ticket" id="ticketLink" href="/incidencias" hidden>
+        <span class="sv-ticket-icon" aria-hidden="true">!</span>
+        <span><small>Incidencia abierta</small><strong id="ticketText">Ver ticket</strong></span>
+        <b aria-hidden="true">→</b>
+      </a>
+    </article>
+
+    <article class="sv-card sv-history">
+      <div class="sv-card-head compact">
+        <div><p class="sv-overline">Memoria operativa</p><h2>Últimas observaciones</h2></div>
+        <span class="sv-retention">24 lecturas</span>
+      </div>
+      <ol id="historyList" class="sv-timeline"><li class="empty">Sin observaciones para este puesto.</li></ol>
+    </article>
+  </section>
+
+  <footer class="sv-foot">
+    <span><i class="good"></i> visión saludable</span>
+    <span><i class="warn"></i> requiere validación</span>
+    <span><i class="critical"></i> incidencia confirmada</span>
+    <p>El supervisor nunca deduce movimiento o congelación a partir de una sola imagen.</p>
+  </footer>
+</main>
+
+<script type="module" src="/yk-supervisor.js?v=r1"></script>
+<script type="module" src="/avatar-widget.js?v=3"></script>
+<script src="/yk-frame.js?v=r32"></script>
+</body>
+</html>

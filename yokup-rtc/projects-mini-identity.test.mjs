@@ -57,7 +57,8 @@ test("/projects canoniza salida, owner, reemplazo y remove histórico", () => {
   assert.match(source, /agents: canonicalProjectAgentRefs\([\s\S]*\.map\(\(m\) => m\.ref\)\)/);
   assert.match(source, /return kind === "agent" \? canonicalProjectAgentRef\(ref\) : ref/);
   assert.match(source, /lower\(ref\) IN \('oraculomini','oraculomacmini'\)/);
-  assert.match(source, /env\.DB\.exec\(YOKUP_MINI_MEMBER_BACKFILL_SQL\)/);
+    // Igual que arriba: importa que el backfill se ejecute, no si la cadena va aplanada.
+  assert.match(source, /env\.DB\.exec\((?:unaLinea\()?YOKUP_MINI_MEMBER_BACKFILL_SQL/);
   assert.ok(source.indexOf('ALTER TABLE projects ADD COLUMN owner TEXT') <
-    source.indexOf('env.DB.exec(YOKUP_MINI_MEMBER_BACKFILL_SQL)'), "owner debe existir antes del backfill");
+    source.search(/env\.DB\.exec\((?:unaLinea\()?YOKUP_MINI_MEMBER_BACKFILL_SQL/), "owner debe existir antes del backfill");
 });

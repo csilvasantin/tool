@@ -204,7 +204,10 @@ test("la semilla del worker se calcula una vez y con fecha fija, no en cada arra
   // Y se ejecuta con exec (una escritura idempotente) en vez de leer primero:
   // ensureSchema corre en CADA petición y un SELECT de guarda sería una lectura
   // por petición para no escribir nada casi nunca.
-  assert.match(source, /await env\.DB\.exec\(CARBON_ROSTER_SEED_SQL\)/);
+    // unaLinea() envuelve lo que va a exec desde el 17-09-2026 (D1 parte por líneas y una
+  // SQL multilínea tumbaba applySchema entera). Lo que esta prueba vigila es que la
+  // semilla se ejecute ahí, no cómo se le pasa la cadena.
+  assert.match(source, /await env\.DB\.exec\((?:unaLinea\()?CARBON_ROSTER_SEED_SQL/);
 });
 
 test("el worker deja de servir el equipo humano desde una constante escrita a mano", () => {
