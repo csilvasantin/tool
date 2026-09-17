@@ -9,7 +9,7 @@ const signed = { version:"v.17.09.2026.r9.20:00", gitShort:"abc1234", ok:true };
 const env = (assetFetch = async () => new Response("asset", { status:200 })) => ({ RELEASE_JSON:JSON.stringify(signed), ASSETS:{ fetch:assetFetch } });
 const get = (path) => handleRequest(new Request("https://www.yokup.com" + path), env(), {});
 
-test("cada página de empresa mudada redirige 302 a la misma ruta en admira.live", async () => {
+test("cada página de empresa mudada redirige 301 permanente a la misma ruta en admira.live", async () => {
   const casos = [
     ["/dashboard","https://www.admira.live/dashboard"],
     ["/dashboard.html","https://www.admira.live/dashboard"],
@@ -29,7 +29,7 @@ test("cada página de empresa mudada redirige 302 a la misma ruta en admira.live
   ];
   for (const [ruta, destino] of casos) {
     const r = await get(ruta);
-    assert.equal(r.status, 302, ruta + " debe ser 302");
+    assert.equal(r.status, 301, ruta + " debe ser 301");
     assert.equal(r.headers.get("location"), destino, ruta + " → " + destino);
   }
 });
@@ -47,7 +47,7 @@ test("la querystring se conserva en la redirección", async () => {
 test("el PRODUCTO de incidencias y app NO redirigen: los sirve yokup", async () => {
   for (const ruta of ["/retailer","/instalador","/alta-punto","/llamadas","/contactanos","/app","/ticket","/circuitos"]) {
     const r = await get(ruta);
-    assert.notEqual(r.status, 302, ruta + " no debe redirigir a admira.live");
+    assert.notEqual(r.status, 301, ruta + " no debe redirigir a admira.live");
     assert.equal(await r.text(), "asset", ruta + " lo sigue sirviendo yokup");
   }
 });
@@ -57,7 +57,7 @@ test("/auth, /version.json y /__yokup-gate siguen intactos (no redirigen)", asyn
   assert.equal((await get("/__yokup-gate")).status, 200);
   // /auth/callback lo maneja authProxy, no la redirección
   const cb = await handleRequest(new Request("https://www.yokup.com/auth/callback", { method:"POST" }), env(), {});
-  assert.notEqual(cb.status, 302);
+  assert.notEqual(cb.status, 301);
 });
 
 test("una redirección no toca ASSETS (no sirve la página antes de redirigir)", async () => {

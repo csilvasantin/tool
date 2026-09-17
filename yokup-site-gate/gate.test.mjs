@@ -70,7 +70,7 @@ test("resuelve páginas HTML limpias sin delegar redirecciones al motor de asset
 test("Highscore ya no se sirve en yokup: redirige a admira.live conservando la querystring (FLT-100557)", async () => {
   let tocado = false;
   const response = await handleRequest(new Request("https://www.yokup.com/highscore?e2e=nuevo"), env(async () => { tocado = true; return new Response("no debería"); }), {});
-  assert.equal(response.status, 302);
+  assert.equal(response.status, 301);
   assert.equal(response.headers.get("location"), "https://www.admira.live/highscore?e2e=nuevo");
   assert.equal(tocado, false, "no toca assets: redirige antes");
 });
