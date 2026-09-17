@@ -20,7 +20,7 @@ test("el único APP_NAV conserva YO KUP + Dashboard…Highscore y activa Highsco
   assert.deepEqual(labels,[
     ["DASHBOARD","/dashboard"],["OBJETIVOS","/objetivos"],["DECISIONES","/decisiones"],
     ["MISIONES","/misiones"],["TAREAS","/tareas"],["INCIDENCIAS","/incidencias"],
-    ["INFORMES","/informes"],["NOTIFICACIONES","/notificaciones"],["HIGHSCORE","/highscore"]
+    ["SUPERVISOR","/supervisor"],["INFORMES","/informes"],["NOTIFICACIONES","/notificaciones"],["HIGHSCORE","/highscore"]
   ]);
   assert.match(frame,/if \(it\.active\) a\.setAttribute\("aria-current", "page"\)/);
   assert.match(frame,/var logo = el\("a", "yk-logo",[\s\S]*Yo<b>kup<\/b>/);

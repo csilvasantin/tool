@@ -42,13 +42,14 @@ EXACTAMENTE 2 hosts, así que cambiarlo en unos ficheros y no en `acceso.js` man
 **Si vuelves a tocar esto, sondea los hosts por HTTP**: los tests mockean `fetch` y NO detectan
 que un host haya dejado de existir. Es lo que dejó esta avería 5 días invisible.
 
-## Archivos reales servidos (200, contenido propio) — 15
+## Archivos reales servidos (200, contenido propio) — 16
 
 | Ruta prod | Archivo local | Tipo | Notas |
 |-----------|---------------|------|-------|
 | `/` | `index.html` | HTML | Landing (Edición Clear Channel, maplibre). Fuera del perímetro. |
 | `/app` | `app.html` | HTML | App del técnico (PWA). Fuera del perímetro. |
 | `/incidencias` | `incidencias.html` | HTML | **Perímetro** · bandeja de tickets |
+| `/supervisor` | `supervisor.html` | HTML | **Perímetro** · agente de visión para cartelería; no archiva fotogramas |
 | `/ticket?id=…` | `ticket.html` | HTML | **Perímetro** · ficha de ticket (querystring, página única) |
 | `/agentes` | `agentes.html` | HTML | **Perímetro** · panel de agentes |
 | `/asistencia` | `asistencia.html` | HTML | **Perímetro** · videollamada WebRTC |

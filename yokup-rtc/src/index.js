@@ -61,6 +61,7 @@ import { AGENT_SOURCE_SQL, AGENT_SOURCE_SQL_T, FIELD_SOURCE_SQL_T, MISSION_SCOPE
   normalizeFleetMissionsFilters, fleetMissionsQuery } from "./mission-sources.js";
 import { normalizeProjectLaunch, projectLaunchTarget } from "./project-launch.js";
 import { ensureHourlyModeSchema, evaluateModeOpportunity, hourlySlot, learningPrompt, trainingPrompt, listAgentModes, modeTargetKey, normalizeModeTarget, runHourlyModes, saveAgentMode, validateTrainingProposals } from "./fleet-hourly-modes.js";
+import { handleSupervisorRequest, SUPERVISOR_STATIONS_SQL, SUPERVISOR_OBSERVATIONS_SQL, SUPERVISOR_OBSERVATIONS_INDEX_SQL, SUPERVISOR_REQUESTS_SQL, SUPERVISOR_ALERTS_SQL } from "./supervisor.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -328,6 +329,11 @@ async function applySchema(env) {
   await env.DB.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_active_screen ON tickets(screen) WHERE status NOT IN ('resolved','cancelled')");
   await env.DB.exec("DROP INDEX IF EXISTS idx_open_screen");
   await env.DB.exec("CREATE INDEX IF NOT EXISTS idx_ev_tkt ON events(ticket_id)");
+  await env.DB.exec(SUPERVISOR_STATIONS_SQL);
+  await env.DB.exec(SUPERVISOR_OBSERVATIONS_SQL);
+  await env.DB.exec(SUPERVISOR_OBSERVATIONS_INDEX_SQL);
+  await env.DB.exec(SUPERVISOR_REQUESTS_SQL);
+  await env.DB.exec(SUPERVISOR_ALERTS_SQL);
   await env.DB.exec("CREATE TABLE IF NOT EXISTS subs (endpoint TEXT PRIMARY KEY, created_at INTEGER)");
   // NOTIFICACIONES DEL SISTEMA (FLT-1020, Carlos 24-jul-2026): «si algún equipo de
   // AdmiraNeXT tiene una notificación del sistema hay que avisar». Un diálogo modal
@@ -6158,8 +6164,15 @@ async function createIncident(env, inc) {
   const plantilla = await carbonRoster(env);
   const assignee = (String((inc && inc.assignee) || "").slice(0, 60)) || (plantilla[hash(resource) % plantilla.length].name);
   await backfillTodayDisplayRefs(env, now);
-  await env.DB.prepare("INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,project_inherited,project_inherited_from,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+  const inserted = await env.DB.prepare("INSERT OR IGNORE INTO tickets(id,screen,subject,loc,role,status,priority,assignee,source,ai_triage,project,project_id,project_inherited,project_inherited_from,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .bind(id, resource, subject, loc, kind, "open", prio, assignee, source, "", projectContext.project_id, projectContext.project_id, projectContext.inherited ? 1 : 0, projectContext.inherited_from || null, now, now).run();
+  if (!Number(inserted && inserted.meta && inserted.meta.changes)) {
+    const canonical = await env.DB.prepare("SELECT id FROM tickets WHERE screen=? AND status NOT IN ('resolved','cancelled')").bind(resource).first();
+    if (canonical && canonical.id) return canonical.id;
+    const error = new Error("incident_insert_conflict");
+    error.status = 409; error.code = "incident_insert_conflict";
+    throw error;
+  }
   await ensureEntityDisplayRef(env, "mission", id, now);
   await addEvent(env, id, "log", (inc && inc.by) || "Monitor", (inc && inc.detail) || subject);
   await notifySubs(env);
@@ -11676,6 +11689,17 @@ var worker_app = {
         }
         return json({ok:false,error:'method_not_allowed'},405);
       } catch (error) { return json({ok:false,error:String(error.code || error.message || 'mode_failed').slice(0,120)},Number(error.status) || 500); }
+    }
+    if (url.pathname.startsWith("/supervisor/")) {
+      const session = await requireAuth(env, req);
+      if (!session) return json({ error:"unauthorized" }, 401);
+      try {
+        return await handleSupervisorRequest(req, env, url, {
+          json, ensureSchema, createIncident, resolveIncident, session
+        });
+      } catch (error) {
+        return json({ ok:false, error:"supervisor_failed", detail:String(error && error.message || error).slice(0, 180) }, 500);
+      }
     }
     if (PROTECTED.has(url.pathname) || url.pathname.startsWith("/mission/")) {
       const sess = await requireAuth(env, req);

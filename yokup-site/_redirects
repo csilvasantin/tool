@@ -19,4 +19,6 @@
 /carbono/         /agentes.html      200
 /consumos         /consumos.html     200
 /consumos/        /consumos.html     200
+/supervisor       /supervisor.html   200
+/supervisor/      /supervisor.html   200
 /*                /index.html   200

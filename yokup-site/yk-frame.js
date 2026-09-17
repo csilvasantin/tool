@@ -229,6 +229,7 @@
     ["MISIONES",    "/misiones"],
     ["TAREAS",      "/tareas"],
     ["INCIDENCIAS", "/incidencias"],
+    ["SUPERVISOR",  "/supervisor"],
     ["INFORMES",    "/informes"],
     // FLT-1020: un diálogo del sistema en cualquier equipo lo deja PARADO. Va en la
     // barra para que se vea desde cualquier página, no sólo si entras a buscarlo.
@@ -815,7 +816,7 @@
       "admira-live": "ADMIRA.LIVE", misiones: "MISIONES", tareas: "TAREAS",
       decisiones: "DECISIONES", objetivos: "OBJETIVOS", ideas: "OBJETIVOS",
       dashboard: "DASHBOARD", informes: "INFORMES", status: "STATUS", equipo: "EQUIPO",
-      asistencia: "ASISTENCIA", intervencion: "INTERVENCIÓN"
+      asistencia: "ASISTENCIA", intervencion: "INTERVENCIÓN", supervisor: "SUPERVISOR"
     };
     return map[seg] || "";
   }
