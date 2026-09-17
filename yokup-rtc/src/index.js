@@ -7,7 +7,7 @@ import { AUTOMATIC_DECISIONS, automationFamily, automationControls, automationPe
 import { assignedWorkBlockers, legacyAcademyAvailability, pauseLegacyAcademy, pauseAutomaticRun } from './automatic-work-priority.js';
 import { principalTargetKey, resolveAgentPrincipalProject } from './agent-principal-project.js';
 import puppeteer from "@cloudflare/puppeteer";
-import { handleAuthRequest, sessionTokenFromRequest, withCredentialCors } from "./auth-flow.js";
+import { handleAuthRequest, sessionTokenFromRequest, withCredentialCors, authOrigin } from "./auth-flow.js";
 import { machineRefKey, machineRefSqlKey, memberRefMatches, resolveDecisionIdentity, resolveDecisionProject, selectDecisionProjectAssignment, projectSlug as decisionProjectSlug } from "./decision-project.js";
 import { AGENT_IDENTITY_SPEC, agentFamilyKey, agentFamilySqlKey, baseAgentIdentity, canonicalMachineSuffix, groupingIdentityKey, identityKey, identitySqlKey, isKnownPersona, machineIdentityKey, machineIdentitySqlKey, machineSuffix, parseAgentIdentity, reportAgentFamily, reportAgentIdentity, scopedAgentIdentity, sameAgentFamily } from "./agent-identity.js";
 import { matchAgentDetailPresence, parseAgentDetailQuery, safeAgentDetailText } from "./agent-detail-contract.js";
@@ -223,6 +223,14 @@ async function openPtyRoom(env, request, target, role) {
 }
 __name(openPtyRoom, "openPtyRoom");
 async function requireAuth(env, req) {
+  // La cookie de sesión pasó a SameSite=None (17-09-2026) para que admira.live pueda usar
+  // la misma sesión que yokup.com. Lax nos protegía gratis del CSRF: con None, cualquier
+  // página del mundo puede hacer que el navegador mande esa cookie aquí. Así que la puerta
+  // mira de dónde viene: si hay Origin y no es una de NUESTRAS casas, no hay sesión.
+  // Sin Origin (un CLI, curl, otro worker) se sigue entrando: ahí no hay navegador al que
+  // engañar, y quien llama pone el Bearer a mano.
+  const origen = String(req.headers.get("origin") || "");
+  if (origen && !authOrigin(req)) return null;
   return readSession(env, sessionTokenFromRequest(req));
 }
 __name(requireAuth, "requireAuth");

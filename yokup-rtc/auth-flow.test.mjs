@@ -216,7 +216,7 @@ test("challenge y nonce son single-use; login rota cookie HttpOnly sin devolver 
   const response = await handleAuthRequest(loginRequest(), env, deps(seen));
   assert.equal(response.status, 200); assert.deepEqual(await response.json(), {ok:true,email:"allowed@example.com",name:"Allowed"});
   const cookies = response.headers.get("set-cookie");
-  assert.match(cookies, new RegExp(AUTH_COOKIE_NAMES.session + "=")); assert.match(cookies, /HttpOnly/); assert.match(cookies, /Secure/); assert.match(cookies, /SameSite=Lax/);
+  assert.match(cookies, new RegExp(AUTH_COOKIE_NAMES.session + "=")); assert.match(cookies, /HttpOnly/); assert.match(cookies, /Secure/); assert.match(cookies, /SameSite=None/);
   assert.doesNotMatch(cookies, /id-token-secret/);
   assert.equal((await handleAuthRequest(loginRequest(), env, deps(seen))).status, 401, "replay rechazado");
 });
@@ -234,8 +234,75 @@ test("origin, preflight y logout fallan cerrados", async () => {
 });
 
 test("cookie __Host- y CORS no conceden credenciales a orígenes ajenos", () => {
-  assert.match(sessionCookie("abc"), /^__Host-yk_session=abc; Path=\/;/); assert.match(sessionCookie("abc"), /HttpOnly; Secure; SameSite=Lax/);
+  assert.match(sessionCookie("abc"), /^__Host-yk_session=abc; Path=\/;/); assert.match(sessionCookie("abc"), /HttpOnly; Secure; SameSite=None/);
   const evil = new Request("https://api.yokup.com/x", {headers:{origin:"https://evil.example"}});
   const response = withCredentialCors(new Response("ok", {headers:{"Access-Control-Allow-Origin":"*"}}), evil);
   assert.equal(response.headers.get("access-control-allow-origin"), "*"); assert.equal(response.headers.get("access-control-allow-credentials"), null);
+});
+
+// ── admira.live: la misma sesión, desde la otra casa ────────────────────────────────
+// yokup.com se está mudando a www.admira.live (17-09-2026). Sus páginas tienen que poder
+// usar la MISMA sesión, no una paralela. Lo que sigue fija las tres cosas que eso mueve.
+const espejo = "https://www.admira.live";
+const pideDesde = (origen, path, init = {}) => {
+  const headers = new Headers(init.headers || {}); headers.set("origin", origen);
+  return new Request("https://api.yokup.com" + path, { ...init, headers });
+};
+
+test("admira.live puede pedir sesión, y un desconocido sigue sin poder", async () => {
+  const env = { DB:new FakeDB() };
+  const reto = await handleAuthRequest(pideDesde(espejo, "/auth/challenge", {
+    method:"POST", headers:{"content-type":"application/json"}, body:"{}" }), env, deps());
+  assert.equal(reto.status, 200);
+  assert.equal(reto.headers.get("access-control-allow-origin"), espejo, "el CORS tiene que devolver el origen exacto");
+  assert.equal(reto.headers.get("access-control-allow-credentials"), "true");
+  for (const ajeno of ["https://evil.example", "https://admira.live.evil.net", "http://www.admira.live"]) {
+    const fuera = await handleAuthRequest(pideDesde(ajeno, "/auth/challenge", {
+      method:"POST", headers:{"content-type":"application/json"}, body:"{}" }), env, deps());
+    assert.equal(fuera.status, 403, ajeno + " no debería poder pedir sesión");
+  }
+});
+
+test("la cookie cruza de sitio, que para eso se abrió: SameSite=None y sigue siendo __Host-", () => {
+  // Es el cambio con más filo del lote: sin None, la cookie de api.yokup.com no viaja a
+  // admira.live y abrir el CORS no habría servido de nada. La contrapartida (CSRF) se
+  // paga en requireAuth, que exige que la petición venga de una de nuestras casas.
+  const galleta = sessionCookie("abc");
+  assert.match(galleta, /^__Host-yk_session=/, "el prefijo __Host- no se negocia");
+  assert.match(galleta, /Secure/); assert.match(galleta, /HttpOnly/);
+  assert.match(galleta, /SameSite=None/);
+  assert.equal(/Domain=/.test(galleta), false, "__Host- prohíbe Domain: la cookie es sólo de api.yokup.com");
+});
+
+test("el flujo de redirección no se le ofrece a admira.live: aterrizaría en yokup", async () => {
+  // El callback de Google y la vuelta son páginas de yokup. Decir que sí y mandar al
+  // usuario a otra casa sería peor que decir que no.
+  const env = { DB:new FakeDB() };
+  const negado = await handleAuthRequest(pideDesde(espejo, "/auth/challenge", {
+    method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({flow:"redirect"}) }), env, deps());
+  assert.equal(negado.status, 400);
+  assert.equal((await negado.json()).error, "redirect_flow_solo_en_yokup");
+  // Y desde yokup sigue funcionando igual que antes.
+  const bueno = await handleAuthRequest(pideDesde(origin, "/auth/challenge", {
+    method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({flow:"redirect"}) }), env, deps());
+  assert.equal(bueno.status, 200);
+  assert.equal((await bueno.json()).login_uri, AUTH_CALLBACK_URI);
+});
+
+test("una sesión abierta en admira.live vale en las dos casas: es la misma sesión", async () => {
+  const env = { DB:new FakeDB() };
+  const retoResp = await handleAuthRequest(pideDesde(espejo, "/auth/challenge", {
+    method:"POST", headers:{"content-type":"application/json"}, body:"{}" }), env, deps());
+  const reto = await retoResp.json();
+  const galleta = retoResp.headers.get("set-cookie").split(";")[0];
+  const visto = { value:reto.nonce };
+  const entrada = await handleAuthRequest(pideDesde(espejo, "/auth/login", {
+    method:"POST", headers:{"content-type":"application/json", cookie:galleta},
+    body:JSON.stringify({credential:"id-token-secret", state:reto.state}) }), env, deps(visto));
+  assert.equal(entrada.status, 200);
+  const sesion = entrada.headers.get("set-cookie").split(";")[0];
+  // La misma cookie, preguntada desde yokup.com, sigue siendo sesión válida.
+  const desdeYokup = await handleAuthRequest(pideDesde(origin, "/auth/session", { headers:{cookie:sesion} }), env, deps());
+  assert.equal(desdeYokup.status, 200);
+  assert.equal((await desdeYokup.json()).email, "allowed@example.com");
 });

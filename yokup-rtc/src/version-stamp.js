@@ -1,12 +1,12 @@
 // Generado por deploy.sh en cada publicación. No editar a mano.
 export const SELLO_WORKER = {
-  "version": "v.16.09.2026.r3.18:05",
-  "deployedAt": "2026-09-16T16:05:34Z",
-  "deployer": "MorfeoMacMini",
-  "machine": "MacMini",
-  "signature": "MorfeoMacMini · MacMini",
-  "git": "5a8622673d648277ccbf7144dfa56ab7c26f52c2",
-  "gitShort": "5a86226",
-  "gitFull": "5a8622673d648277ccbf7144dfa56ab7c26f52c2",
+  "version": "v.17.09.2026.r1.12:48",
+  "deployedAt": "2026-09-17T10:48:37Z",
+  "deployer": "NeoMBP16",
+  "machine": "MacBookPro16",
+  "signature": "NeoMBP16 · MacBookPro16",
+  "git": "9ea9ccc9020798c2d763dc49ba3486af16b0580b",
+  "gitShort": "9ea9ccc",
+  "gitFull": "9ea9ccc9020798c2d763dc49ba3486af16b0580b",
   "dirty": false
 };
