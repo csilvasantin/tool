@@ -57,23 +57,22 @@ test("/carbono sirve el panel del equipo de carbono, no la portada", async () =>
 });
 
 test("resuelve páginas HTML limpias sin delegar redirecciones al motor de assets", async () => {
+  // /dashboard ahora redirige a admira.live (FLT-100557); se usa /supervisor, que sigue en yokup.
   const seen = [];
-  const response = await handleRequest(new Request("https://www.yokup.com/dashboard"), env(async (request) => {
+  const response = await handleRequest(new Request("https://www.yokup.com/supervisor"), env(async (request) => {
     seen.push(new URL(request.url).pathname);
-    return new URL(request.url).pathname === "/dashboard.html" ? new Response("dashboard") : new Response("no", {status:404});
+    return new URL(request.url).pathname === "/supervisor.html" ? new Response("supervisor") : new Response("no", {status:404});
   }), {});
-  assert.equal(await response.text(), "dashboard");
-  assert.deepEqual(seen, ["/dashboard.html"]);
+  assert.equal(await response.text(), "supervisor");
+  assert.deepEqual(seen, ["/supervisor.html"]);
 });
 
-test("Highscore usa un shell físico ligado al commit y conserva la URL limpia", async () => {
-  const seen = [];
-  const response = await handleRequest(new Request("https://www.yokup.com/highscore?e2e=nuevo"), env(async (request) => {
-    seen.push(request.url);
-    return new Response("highscore nuevo");
-  }), {});
-  assert.equal(await response.text(), "highscore nuevo");
-  assert.deepEqual(seen, ["https://www.yokup.com/highscore-d8a4ce0.html?e2e=nuevo"]);
+test("Highscore ya no se sirve en yokup: redirige a admira.live conservando la querystring (FLT-100557)", async () => {
+  let tocado = false;
+  const response = await handleRequest(new Request("https://www.yokup.com/highscore?e2e=nuevo"), env(async () => { tocado = true; return new Response("no debería"); }), {});
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("location"), "https://www.admira.live/highscore?e2e=nuevo");
+  assert.equal(tocado, false, "no toca assets: redirige antes");
 });
 
 test("version.json procede del sello inyectado, no del baseline de assets", async () => {

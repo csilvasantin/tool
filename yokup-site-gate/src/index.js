@@ -31,6 +31,29 @@ async function fleetCensus(request, ctx, fetchImpl = fetch) {
   return response;
 }
 
+// Páginas de empresa mudadas a admira.live: ruta de yokup → ruta de admira.live.
+// Sólo estas redirigen; lo que no está aquí sigue sirviéndose en yokup (producto y
+// /auth). status es (propia) de admira.live; app NO viaja (descarga del técnico).
+const MUDADAS_A_ADMIRA_LIVE = {
+  "/highscore":"/highscore", "/highscore.html":"/highscore",
+  "/highscoreDetail":"/highscoreDetail", "/highscoreDetail.html":"/highscoreDetail",
+  "/consumos":"/consumos", "/consumos.html":"/consumos",
+  "/decisiones":"/decisiones", "/decisiones.html":"/decisiones",
+  "/tareas":"/tareas", "/tareas.html":"/tareas",
+  "/misiones":"/misiones", "/misiones.html":"/misiones",
+  "/notificaciones":"/notificaciones", "/notificaciones.html":"/notificaciones",
+  "/objetivos":"/objetivos", "/objetivos.html":"/objetivos",
+  "/normativa":"/normativa", "/normativa.html":"/normativa",
+  "/asignaciones":"/asignaciones/", "/asignaciones/":"/asignaciones/",
+  "/admira-live":"/admira-live", "/admira-live.html":"/admira-live",
+  "/incidencias":"/incidencias", "/incidencias.html":"/incidencias",
+  "/dashboard":"/dashboard", "/dashboard.html":"/dashboard",
+  "/equipo":"/equipo", "/equipo.html":"/equipo",
+  "/asistencia":"/asistencia", "/asistencia.html":"/asistencia",
+  "/informes":"/informes-flota", "/informes.html":"/informes-flota",
+  "/status":"/status", "/status.html":"/status"
+};
+
 export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
   const incoming = new URL(request.url);
   const release = releaseFromEnv(env);
@@ -59,15 +82,26 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
   }
   if (incoming.pathname === "/api/fleet-census") return fleetCensus(request, ctx, fetchImpl);
   if (incoming.pathname === "/mcp/galaxia.json") return galaxia(request, ctx, fetchImpl, release.version);
+  // ── REDIRECCIONES A admira.live (Carlos, 17-09-2026 · FLT-100557) ───────────────
+  // La plataforma de EMPRESA se mudó a admira.live (tramos 1-4) y el espejo era
+  // idéntico byte a byte. Ahora yokup deja de servir esas páginas y redirige a su
+  // casa nueva. yokup.com se queda con el PRODUCTO de incidencias (portales, alta,
+  // llamadas, app, retailer, instalador) y con /auth, que NO se tocan. 302 a
+  // propósito: es reversible mientras dure la mudanza. Se conserva la querystring.
+  // /informes → /informes-flota (en admira.live /informes es OTRA app, el Generador).
+  if (request.method === "GET" || request.method === "HEAD") {
+    const destino = MUDADAS_A_ADMIRA_LIVE[incoming.pathname];
+    if (destino) {
+      return Response.redirect("https://www.admira.live" + destino + incoming.search, 302);
+    }
+  }
   if ((incoming.pathname === "/agentica" || incoming.pathname === "/agentica.html") && (request.method === "GET" || request.method === "HEAD")) {
     return Response.redirect(new URL("/dashboard", incoming), 301);
   }
   let candidates;
-  const releaseKey = String(release.gitShort || "").trim();
-  if ((incoming.pathname === "/highscore" || incoming.pathname === "/highscore.html") && /^[a-f0-9]{7,40}$/i.test(releaseKey)) {
-    candidates = [`/highscore-${releaseKey}.html`];
-  }
-  else if (incoming.pathname === "/") candidates = ["/index.html"];
+  // (El shell físico de /highscore ligado al commit se retiró el 17-09-2026: /highscore
+  //  redirige a admira.live antes de llegar aquí — FLT-100557.)
+  if (incoming.pathname === "/") candidates = ["/index.html"];
   // CARBONO. La página del equipo de personas vive en agentes.html por los
   // enlaces vivos que apuntan ahí, pero «agente» es SILICIO en toda la
   // plataforma y el mismo rótulo para las dos mitades del equipo se lee mal.
