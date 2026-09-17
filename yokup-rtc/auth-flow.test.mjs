@@ -306,3 +306,18 @@ test("una sesión abierta en admira.live vale en las dos casas: es la misma sesi
   assert.equal(desdeYokup.status, 200);
   assert.equal((await desdeYokup.json()).email, "allowed@example.com");
 });
+
+test("el reto del flujo de ventana cruza de sitio, o el login de admira.live no entra", async () => {
+  // Cazado en producción: el reto salía SameSite=Lax porque el popup era siempre de
+  // yokup. Desde admira.live el navegador no lo devuelve y consumeChallenge, que EXIGE
+  // la cookie en este flujo, tumbaba el login justo en el último paso.
+  const env = { DB:new FakeDB() };
+  for (const casa of [espejo, origin]) {
+    const r = await handleAuthRequest(pideDesde(casa, "/auth/challenge", {
+      method:"POST", headers:{"content-type":"application/json"}, body:"{}" }), env, deps());
+    const galleta = r.headers.get("set-cookie");
+    assert.match(galleta, new RegExp("^" + AUTH_COOKIE_NAMES.challenge + "="), casa);
+    assert.match(galleta, /SameSite=None/, "el reto de " + casa + " tiene que poder volver");
+    assert.match(galleta, /HttpOnly/); assert.match(galleta, /Secure/);
+  }
+});

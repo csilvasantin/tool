@@ -121,7 +121,12 @@ export async function issueChallenge(env, returnPath, flow = "popup", now = Date
   const path = safeReturnPath(returnPath);
   await env.DB.prepare("INSERT INTO auth_challenges(state,nonce,return_path,flow,expires_at,used_at) VALUES(?,?,?,?,?,NULL)")
     .bind(state, nonce, path, flow, now + CHALLENGE_TTL_MS).run();
-  return { state, nonce, returnPath: path, cookie: challengeCookie(state, CHALLENGE_TTL_MS / 1000, flow === "redirect" ? "None" : "Lax"), expiresAt: now + CHALLENGE_TTL_MS };
+  // SameSite=None también en el flujo de VENTANA (17-09-2026). Antes aquí ponía "Lax"
+  // para popup, porque el popup era siempre de yokup.com y eso era mismo sitio. Desde
+  // admira.live no lo es: la cookie salía Lax, el navegador no la devolvía en el POST de
+  // /auth/login y consumeChallenge —que EXIGE la cookie en este flujo— tumbaba el login.
+  // Se vio en producción pidiendo un reto desde el origen nuevo, no en la teoría.
+  return { state, nonce, returnPath: path, cookie: challengeCookie(state, CHALLENGE_TTL_MS / 1000, "None"), expiresAt: now + CHALLENGE_TTL_MS };
 }
 
 export async function consumeChallenge(env, request, state, flow, now = Date.now()) {
