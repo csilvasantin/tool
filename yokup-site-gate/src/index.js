@@ -86,13 +86,13 @@ export async function handleRequest(request, env, ctx, fetchImpl = fetch) {
   // La plataforma de EMPRESA se mudó a admira.live (tramos 1-4) y el espejo era
   // idéntico byte a byte. Ahora yokup deja de servir esas páginas y redirige a su
   // casa nueva. yokup.com se queda con el PRODUCTO de incidencias (portales, alta,
-  // llamadas, app, retailer, instalador) y con /auth, que NO se tocan. 302 a
-  // propósito: es reversible mientras dure la mudanza. Se conserva la querystring.
+  // llamadas, app, retailer, instalador) y con /auth, que NO se tocan. 301
+  // permanente: Carlos validó el corte el 17-09-2026. Se conserva la querystring.
   // /informes → /informes-flota (en admira.live /informes es OTRA app, el Generador).
   if (request.method === "GET" || request.method === "HEAD") {
     const destino = MUDADAS_A_ADMIRA_LIVE[incoming.pathname];
     if (destino) {
-      return Response.redirect("https://www.admira.live" + destino + incoming.search, 302);
+      return Response.redirect("https://www.admira.live" + destino + incoming.search, 301);
     }
   }
   if ((incoming.pathname === "/agentica" || incoming.pathname === "/agentica.html") && (request.method === "GET" || request.method === "HEAD")) {
