@@ -81,5 +81,5 @@ $('#browser-alerts').onclick=async()=>{if(!('Notification'in window)){$('#dashbo
 $('#cancel-resolution').onclick=()=>$('#resolution-dialog').close();$('#resolution-form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('.primary');button.disabled=true;try{await api('/incidents/'+encodeURIComponent(activeIncident)+'/resolve',{resolution:new FormData(e.target).get('resolution')});$('#resolution-dialog').close();await refresh();}catch(e){$('#resolution-status').textContent=e.message;}finally{button.disabled=false;}};
 language(lang);initMap();api('/me').then(result=>{user=result.profile;showUser();}).catch(e=>{if(e.status!==401)$('#form-status').textContent=e.message;});
 setInterval(()=>{if(!document.hidden)refresh();},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
-})();
 if(rememberedUser())setMode('login');
+})();

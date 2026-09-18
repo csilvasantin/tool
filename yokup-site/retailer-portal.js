@@ -71,5 +71,5 @@ const countryNames=new Intl.DisplayNames(['es'],{type:'region'}),countries=[];fo
 api('/health').then(s=>{$('#admira-status').textContent=s.admira_configured?'El responsable de tu circuito puede vincular los equipos y consultar intervenciones y valoraciones desde Admira.':'Las ubicaciones publicadas aparecen en los mapas de Admira y Clear Channel. La conexión de equipos y su monitorización automática sigue pendiente.';}).catch(()=>{$('#admira-status').textContent='No se ha podido comprobar la conexión con Admira.';});
 api('/me').then(r=>signedIn(r.profile)).catch(e=>{if(e.status!==401)$('#access-status').textContent='No se ha podido conectar con el portal. Vuelve a intentarlo.';});
 setInterval(()=>{if(!document.hidden)load();},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
-})();
 if(rememberedUser())setMode('login');
+})();
