@@ -31,9 +31,9 @@ test("paradas: quieto 60 s en un sitio = una parada; de paso no cuenta", () => {
 });
 
 test("paradas: un paseo lento sin pararse no genera parada gigante", () => {
-  // Avanza 10 m cada 20 s: dentro de 15 m de un punto entran ~1-2, nunca 45 s en el mismo radio.
+  // Avanza 15 m cada 20 s: cada punto se sale del radio del anterior, nunca hay tiempo quieto.
   const pts = [];
-  for (let i = 0; i < 20; i++) pts.push(P(i * 10, 0, S(i * 20)));
+  for (let i = 0; i < 20; i++) pts.push(P(i * 15, 0, S(i * 20)));
   const ps = paradas(pts);
   assert.equal(ps.length, 0, "caminar continuo no es una parada");
 });

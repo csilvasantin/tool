@@ -52,14 +52,14 @@ test("metros: haversine con valores conocidos (Plaça Catalunya → Sagrada Fam�
   assert.ok(Math.abs(metros(0, 0, 0, 0.0001) - 11.1) < 0.2, "0,0001° de longitud en el ecuador ≈ 11 m");
 });
 
-test("debeGuardarHistorial: el primero siempre; luego solo si se movió ≥ 8 m o pasaron ≥ 30 s", () => {
+test("debeGuardarHistorial: el primero siempre; luego solo si se movió ≥ 5 m o pasaron ≥ 15 s", () => {
   const now = 1_000_000_000_000;
   const ult = { lat: 41.3870, lng: 2.1700, ts: now - 5000 };
   assert.equal(debeGuardarHistorial(null, { lat: 1, lng: 1 }, now), true);
   assert.equal(debeGuardarHistorial(ult, { lat: 41.38701, lng: 2.17001 }, now), false, "1 m y 5 s: no");
   assert.equal(debeGuardarHistorial(ult, { lat: 41.3871, lng: 2.1700 }, now), true, "~11 m: sí");
   assert.equal(debeGuardarHistorial({ ...ult, ts: now - HISTORIAL_MIN_MS }, { lat: 41.3870, lng: 2.1700 }, now), true, "quieto pero 30 s: sí");
-  assert.equal(HISTORIAL_MIN_M, 8);
+  assert.equal(HISTORIAL_MIN_M, 5);
 });
 
 test("ventanaHistorial: por defecto la última hora; acepta ms, segundos e ISO; acota a 7 días; ordena", () => {
