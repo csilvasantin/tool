@@ -24,6 +24,36 @@ test("el gate acepta el worker canónico y rechaza el fallback sin handlers", as
   assert.match(rejected.stderr, /Supervisor autenticado/);
 });
 
+test("el gate tolera preparación autenticada larga y rechaza invertir auth y handler", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "yokup-supervisor-gate-"));
+  const canonicalRoutes = `
+if (url.pathname === "/fleet/onidle-state" && req.method === "GET") return fleetState();
+if (url.pathname === "/fleet/cli" && req.method === "GET") return fleetCli();
+`;
+  const authenticated = join(dir, "authenticated.js");
+  await writeFile(authenticated, `${canonicalRoutes}
+if (url.pathname.startsWith("/supervisor/")) {
+  const session = await requireAuth(env, req);
+  ${"const authenticatedSetup = true;\n".repeat(24)}
+  return handleSupervisorRequest(req, env, url);
+}
+`);
+  const accepted = spawnSync(process.execPath, [gate.pathname, authenticated], { encoding: "utf8" });
+  assert.equal(accepted.status, 0, accepted.stderr);
+
+  const inverted = join(dir, "inverted.js");
+  await writeFile(inverted, `${canonicalRoutes}
+if (url.pathname.startsWith("/supervisor/")) {
+  const response = await handleSupervisorRequest(req, env, url);
+  const session = await requireAuth(env, req);
+  return response;
+}
+`);
+  const rejected = spawnSync(process.execPath, [gate.pathname, inverted], { encoding: "utf8" });
+  assert.equal(rejected.status, 1);
+  assert.match(rejected.stderr, /Supervisor autenticado/);
+});
+
 test("deploy exige main exacto, limpio y valida fuente más bundle dry-run", () => {
   assert.match(deploy, /git fetch -q origin main\n/);
   assert.doesNotMatch(deploy, /git fetch[^\n]+\|\| true/,
