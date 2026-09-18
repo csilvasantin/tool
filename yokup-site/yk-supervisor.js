@@ -7,6 +7,7 @@ const PREFS_KEY = "yokup.supervisor.preferences.v1";
 const ADMIRA_REMOTE_HOSTS = new Set(["admira.tv", "www.admira.tv"]);
 const ADMIRA_REMOTE_PATH = "/remotecontrol/";
 const ADMIRA_SCREEN_ID = /^[a-z0-9][a-z0-9_-]{0,79}$/;
+const MIN_REMOTE_TARGET_SIZE = 44;
 
 function compactIdentityText(value, maxLength = 120) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
@@ -55,10 +56,15 @@ export function normalizeScreenIdentity(screen) {
     ? confidenceValue : null;
   const project = normalizedIdentityEntity(raw && raw.project, raw && raw.project_id, raw && raw.project_name);
   const player = normalizedIdentityEntity(raw && raw.player, raw && raw.player_id, raw && raw.player_name);
+  const rawContent = raw && raw.content && typeof raw.content === "object" ? raw.content : null;
+  const contentTitle = compactIdentityText(rawContent && rawContent.title, 180);
+  const contentType = compactIdentityText(rawContent && rawContent.type, 40);
+  const content = contentTitle ? {title:contentTitle, type:contentType || null} : null;
   const evidence = Array.isArray(raw && raw.evidence)
     ? [...new Set(raw.evidence.map((item) => compactIdentityText(item, 180)).filter(Boolean))].slice(0, 5)
     : [];
-  const verified = status === "matched" && source === "admira-mcp" && Boolean(project && player);
+  const verified = status === "matched" && source === "admira-mcp"
+    && Boolean(project && project.id && player && player.id);
   const remoteRaw = raw && raw.remote && typeof raw.remote === "object" ? raw.remote : null;
   const remoteUrl = verified ? safeRemoteControlUrl(remoteRaw && remoteRaw.url, player && player.id) : "";
   const remote = remoteUrl ? {
@@ -68,7 +74,7 @@ export function normalizeScreenIdentity(screen) {
   return {
     status, source:source === "admira-mcp" ? source : null, confidence,
     verified, project:verified ? project : null, player:verified ? player : null,
-    evidence, remote
+    content:verified ? content : null, evidence, remote
   };
 }
 
@@ -150,7 +156,7 @@ export function screenTargetAnnouncement(screens) {
     const stateReading = confidence === null ? "estado sin confianza" : `confianza del estado ${confidence} por ciento`;
     const identity = normalizeScreenIdentity(screen);
     const identityReading = identity.verified
-      ? `proyecto ${identity.project.name}, player ${identity.player.name}, verificado por Admira MCP`
+      ? `proyecto ${identity.project.name}, player ${identity.player.name}${identity.content ? `, emitiendo ${identity.content.title}` : ""}, verificado por Admira MCP`
       : screenIdentityLabel(identity).toLowerCase();
     return `${screenTargetId(index, screen)}, ${screenStateLabel(screen && screen.state)}, ${stateReading}, ${position}, ${identityReading}`;
   }).join(". ");
@@ -164,7 +170,7 @@ export function screenTargetSemanticKey(screens) {
     const located = Boolean(screen && Array.isArray(screen.bbox) && screen.bbox.length === 4 && screen.bbox.every(Number.isFinite));
     const identity = normalizeScreenIdentity(screen);
     const identityKey = identity.verified
-      ? `matched:${identity.project.id}:${identity.player.id}` : identity.status;
+      ? `matched:${identity.project.id}:${identity.player.id}:${identity.content && identity.content.title || "sin-contenido"}` : identity.status;
     return `${screenTargetId(index, screen)}:${String(screen && screen.state || "unknown")}:${located ? "located" : "unlocated"}:${identityKey}`;
   }).join("|");
 }
@@ -186,6 +192,58 @@ export function screenTargetPlan(screens, mediaWidth, mediaHeight, viewportWidth
       box
     };
   }).filter(Boolean);
+}
+
+function expandedRemoteTargetBox(box, viewportWidth, viewportHeight) {
+  const vw = Math.max(1, Number(viewportWidth) || 1);
+  const vh = Math.max(1, Number(viewportHeight) || 1);
+  const width = Math.min(vw, Math.max(MIN_REMOTE_TARGET_SIZE, box.width));
+  const height = Math.min(vh, Math.max(MIN_REMOTE_TARGET_SIZE, box.height));
+  const x = Math.min(Math.max(0, box.x - (width - box.width) / 2), Math.max(0, vw - width));
+  const y = Math.min(Math.max(0, box.y - (height - box.height) / 2), Math.max(0, vh - height));
+  const pixel = (value) => Number(value.toFixed(4));
+  return {x:pixel(x), y:pixel(y), width:pixel(width), height:pixel(height)};
+}
+
+function remoteTargetBoxesOverlap(a, b) {
+  return a.x < b.x + b.width && b.x < a.x + a.width
+    && a.y < b.y + b.height && b.y < a.y + a.height;
+}
+
+function remoteActionsFromTargets(targets, viewportWidth, viewportHeight) {
+  const actions = (Array.isArray(targets) ? targets : []).map((target) => {
+    const identity = target && target.identity;
+    const playerId = compactIdentityText(identity && identity.player && identity.player.id, 80);
+    const href = identity && identity.verified && identity.remote
+      ? safeRemoteControlUrl(identity.remote.url, playerId) : "";
+    if (!href || !target.box || !identity.project || !identity.player) return null;
+    return {
+      id:target.id,
+      href,
+      project:identity.project.name,
+      player:identity.player.name,
+      playerId,
+      content:identity.content && identity.content.title || "",
+      box:expandedRemoteTargetBox(target.box, viewportWidth, viewportHeight)
+    };
+  }).filter(Boolean);
+  const ambiguous = new Set();
+  for (let first = 0; first < actions.length; first += 1) {
+    for (let second = first + 1; second < actions.length; second += 1) {
+      if (!remoteTargetBoxesOverlap(actions[first].box, actions[second].box)) continue;
+      ambiguous.add(actions[first]);
+      ambiguous.add(actions[second]);
+    }
+  }
+  return actions.filter((action) => !ambiguous.has(action));
+}
+
+export function screenRemoteActionPlan(screens, mediaWidth, mediaHeight, viewportWidth, viewportHeight) {
+  return remoteActionsFromTargets(
+    screenTargetPlan(screens, mediaWidth, mediaHeight, viewportWidth, viewportHeight),
+    viewportWidth,
+    viewportHeight
+  );
 }
 
 function targetPalette(tone) {
@@ -334,7 +392,7 @@ function boot() {
   const dom = {
     projectBadge:byId("projectBadge"), projectName:byId("projectName"), stationHeading:byId("stationHeading"),
     liveState:byId("liveState"), stage:byId("stage"), camera:byId("camera"), frame:byId("frameCanvas"),
-    overlay:byId("visionOverlay"), cameraEmpty:byId("cameraEmpty"), targetStatus:byId("targetStatus"), stageStation:byId("stageStation"),
+    overlay:byId("visionOverlay"), targetActions:byId("targetActions"), cameraEmpty:byId("cameraEmpty"), targetStatus:byId("targetStatus"), stageStation:byId("stageStation"),
     stageClock:byId("stageClock"), start:byId("startButton"), stop:byId("stopButton"), scan:byId("scanButton"),
     upload:byId("uploadInput"), uploadButton:byId("uploadButton"), runtime:byId("runtimeMessage"), form:byId("stationForm"),
     stationId:byId("stationId"), stationLabel:byId("stationLabel"), stationLocation:byId("stationLocation"),
@@ -603,17 +661,83 @@ function boot() {
     return screenStateLabel(screenState);
   }
 
+  function renderTargetActions(targets, viewportWidth, viewportHeight) {
+    if (!dom.targetActions) return;
+    const focused = dom.targetActions.contains(document.activeElement) ? document.activeElement : null;
+    const focusedKey = focused && focused.dataset ? focused.dataset.actionKey : "";
+    const existing = new Map([...dom.targetActions.children].map((link) => [link.dataset.actionKey || "", link]));
+    const retained = new Set();
+    remoteActionsFromTargets(targets, viewportWidth, viewportHeight).forEach((action, index) => {
+      const actionKey = `${action.id}\n${action.playerId}\n${action.href}`;
+      let link = existing.get(actionKey);
+      if (!link) {
+        link = document.createElement("a");
+        link.className = "sv-target-action";
+        const hint = document.createElement("span");
+        const hintTitle = document.createElement("b");
+        const hintContext = document.createElement("small");
+        const hintContent = document.createElement("small");
+        hintTitle.className = "sv-target-action-title";
+        hintContext.className = "sv-target-action-context";
+        hintContent.className = "sv-target-action-content";
+        hint.append(hintTitle, hintContext, hintContent);
+        link.appendChild(hint);
+      }
+      retained.add(link);
+      link.dataset.actionKey = actionKey;
+      link.href = action.href;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.referrerPolicy = "no-referrer";
+      link.draggable = false;
+      link.dataset.target = action.id;
+      link.dataset.player = action.playerId;
+      link.style.left = `${action.box.x}px`;
+      link.style.top = `${action.box.y}px`;
+      link.style.width = `${action.box.width}px`;
+      link.style.height = `${action.box.height}px`;
+      const contentCopy = action.content ? `, emitiendo ${action.content}` : "";
+      link.setAttribute("aria-label", `Abrir mando de ${action.id}: proyecto ${action.project}, player ${action.player}${contentCopy}. Abre en una pestaña nueva.`);
+      link.title = `${action.project} · ${action.player}${action.content ? ` · ${action.content}` : ""}`;
+      const hintTitle = link.querySelector(".sv-target-action-title");
+      const hintContext = link.querySelector(".sv-target-action-context");
+      const hintContent = link.querySelector(".sv-target-action-content");
+      hintTitle.textContent = "ABRIR MANDO ↗";
+      hintContext.textContent = `${action.project} · ${action.player}`;
+      hintContent.textContent = action.content;
+      hintContent.hidden = !action.content;
+      const position = dom.targetActions.children[index] || null;
+      if (position !== link) dom.targetActions.insertBefore(link, position);
+    });
+    [...dom.targetActions.children].forEach((link) => {
+      if (!retained.has(link)) link.remove();
+    });
+    if (focusedKey && document.activeElement !== focused) {
+      const restored = [...retained].find((link) => link.dataset.actionKey === focusedKey);
+      if (restored) restored.focus({preventScroll:true});
+    }
+  }
+
   function drawBoxes() {
-    const rect = dom.stage.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
-    if (!rect.width || !rect.height) return;
-    dom.overlay.width = Math.round(rect.width * dpr);
-    dom.overlay.height = Math.round(rect.height * dpr);
+    const viewportWidth = dom.targetActions ? dom.targetActions.clientWidth : dom.stage.clientWidth;
+    const viewportHeight = dom.targetActions ? dom.targetActions.clientHeight : dom.stage.clientHeight;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (!viewportWidth || !viewportHeight) {
+      renderTargetActions([], 0, 0);
+      return;
+    }
+    dom.overlay.width = Math.round(viewportWidth * dpr);
+    dom.overlay.height = Math.round(viewportHeight * dpr);
     const context = dom.overlay.getContext("2d");
-    if (!context) return;
+    if (!context) {
+      renderTargetActions([], viewportWidth, viewportHeight);
+      return;
+    }
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    context.clearRect(0, 0, rect.width, rect.height);
-    const targets = screenTargetPlan(state.lastScreens, state.mediaWidth, state.mediaHeight, rect.width, rect.height);
-    const painted = drawTargetOverlay(context, targets, rect.width, rect.height);
+    context.clearRect(0, 0, viewportWidth, viewportHeight);
+    const targets = screenTargetPlan(state.lastScreens, state.mediaWidth, state.mediaHeight, viewportWidth, viewportHeight);
+    const painted = drawTargetOverlay(context, targets, viewportWidth, viewportHeight);
+    renderTargetActions(targets, viewportWidth, viewportHeight);
     dom.stage.classList.toggle("has-targets", painted > 0);
   }
 
@@ -674,6 +798,7 @@ function boot() {
       fields.className = "sv-identity-fields";
       appendIdentityField(fields, "Proyecto", identity.project.name);
       appendIdentityField(fields, "Player", identity.player.name);
+      appendIdentityField(fields, "Emitiendo ahora", identity.content && identity.content.title || "Sin título publicado");
       if (identity.confidence !== null) appendIdentityField(fields, "Coincidencia", `${Math.round(identity.confidence * 100)}%`);
       panel.appendChild(fields);
     }
@@ -705,13 +830,17 @@ function boot() {
       remote.target = "_blank";
       remote.rel = "noopener noreferrer";
       remote.referrerPolicy = "no-referrer";
-      remote.setAttribute("aria-label", `${identity.remote.label}. Abre en una pestaña nueva.`);
+      const remoteContentCopy = identity.content ? `, emitiendo ${identity.content.title}` : "";
+      remote.setAttribute("aria-label", `${identity.remote.label}: proyecto ${identity.project.name}, player ${identity.player.name}${remoteContentCopy}. Abre en una pestaña nueva.`);
+      remote.title = identity.remote.label;
       const remoteCopy = document.createElement("span");
       const remoteOverline = document.createElement("small");
       const remoteLabel = document.createElement("strong");
-      remoteOverline.textContent = "MANDO A DISTANCIA VERIFICADO";
-      remoteLabel.textContent = identity.remote.label;
-      remoteCopy.append(remoteOverline, remoteLabel);
+      const remoteCapabilities = document.createElement("em");
+      remoteOverline.textContent = "MANDO ADMIRA VERIFICADO";
+      remoteLabel.textContent = `${identity.project.name} · ${identity.player.name}`;
+      remoteCapabilities.textContent = `${identity.content ? `Ahora: ${identity.content.title} · ` : ""}Playlist · primero/anterior/siguiente/último · pausa · mute · volumen · HUD`;
+      remoteCopy.append(remoteOverline, remoteLabel, remoteCapabilities);
       const arrow = document.createElement("b");
       arrow.setAttribute("aria-hidden", "true");
       arrow.textContent = "↗";

@@ -94,6 +94,7 @@ test("el fallback manual y la privacidad forman parte visible del producto", () 
 
 test("cada pantalla se convierte en un objetivo identificado sobre la previsualización", () => {
   assert.match(html, /<canvas id="visionOverlay"[^>]*aria-hidden="true"/);
+  assert.match(html, /id="targetActions" class="sv-target-actions" role="group"/);
   assert.match(html, /id="targetStatus"[^>]*role="status"[^>]*aria-live="polite"/);
   assert.match(html, /id="detections" role="list" aria-label="Pantallas identificadas"/);
   assert.match(js, /export function screenTargetPlan\(/);
@@ -103,6 +104,10 @@ test("cada pantalla se convierte en un objetivo identificado sobre la previsuali
   assert.match(js, /drawTargetLabel\(context, target, box, palette\.color/);
   assert.match(js, /TARGET LOCK \/\/ \$\{target\.id\}/);
   assert.match(js, /classList\.toggle\("has-targets", painted > 0\)/);
+  assert.match(js, /dom\.targetActions\.clientWidth/);
+  assert.match(js, /renderTargetActions\(targets, viewportWidth, viewportHeight\)/);
+  assert.match(js, /existing = new Map\(\[\.\.\.dom\.targetActions\.children\]/, "cada repintado reutiliza los enlaces estables");
+  assert.match(js, /restored\.focus\(\{preventScroll:true\}\)/, "el foco se conserva durante un nuevo análisis");
   assert.match(css, /\.sv-stage\.has-targets \.sv-overlay\{animation:sv-target-acquire/);
   assert.match(css, /prefers-reduced-motion:reduce[^}]*\.sv-stage\.has-targets \.sv-overlay/);
   assert.match(js, /STATE \$\{target\.stateConfidence\}%/);
@@ -121,9 +126,24 @@ test("la ficha contrasta proyecto y player y sólo expone mandos Admira verifica
   assert.match(js, /!ADMIRA_REMOTE_HOSTS\.has\(hostname\).*parsed\.pathname !== ADMIRA_REMOTE_PATH/);
   assert.match(js, /remote\.rel = "noopener noreferrer"/);
   assert.match(js, /remote\.referrerPolicy = "no-referrer"/);
-  assert.match(js, /MANDO A DISTANCIA VERIFICADO/);
+  assert.match(js, /appendIdentityField\(fields, "Emitiendo ahora", identity\.content/);
+  assert.match(js, /MANDO ADMIRA VERIFICADO/);
+  assert.match(js, /Playlist · primero\/anterior\/siguiente\/último · pausa · mute · volumen · HUD/);
   assert.match(js, /El mando aparecerá sólo después de verificar proyecto y player/);
   assert.doesNotMatch(js, /\.innerHTML\s*=/, "la identidad y sus evidencias se insertan como texto, no HTML remoto");
+});
+
+test("el target verificado es un enlace nativo al mando oficial con contexto accesible", () => {
+  assert.match(js, /export function screenRemoteActionPlan\(/);
+  assert.match(js, /link\.className = "sv-target-action"/);
+  assert.match(js, /link\.target = "_blank"/);
+  assert.match(js, /link\.rel = "noopener noreferrer"/);
+  assert.match(js, /link\.referrerPolicy = "no-referrer"/);
+  assert.match(js, /link\.setAttribute\("aria-label", `Abrir mando de \$\{action\.id\}: proyecto \$\{action\.project\}, player \$\{action\.player\}/);
+  assert.match(css, /\.sv-target-actions\{position:absolute;z-index:11;inset:0;pointer-events:none\}/);
+  assert.match(css, /\.sv-target-action\{position:absolute;[^}]*pointer-events:auto/);
+  assert.match(css, /\.sv-target-action\{position:absolute;min-width:44px;min-height:44px/);
+  assert.match(css, /\.sv-target-action:hover,\.sv-target-action:focus-visible/);
 });
 
 test("el visor adopta el HUD Matrix sin sacrificar movimiento reducido", () => {
