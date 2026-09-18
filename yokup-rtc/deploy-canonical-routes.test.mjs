@@ -51,7 +51,21 @@ if (url.pathname.startsWith("/supervisor/")) {
 `);
   const rejected = spawnSync(process.execPath, [gate.pathname, inverted], { encoding: "utf8" });
   assert.equal(rejected.status, 1);
-  assert.match(rejected.stderr, /Supervisor autenticado/);
+  assert.match(rejected.stderr, /Supervisor sin autenticación previa/);
+
+  const crossed = join(dir, "crossed-routes.js");
+  await writeFile(crossed, `${canonicalRoutes}
+if (url.pathname.startsWith("/supervisor/")) {
+  return handleSupervisorRequest(req, env, url);
+}
+if (url.pathname.startsWith("/supervisor/")) {
+  const session = await requireAuth(env, req);
+  return handleSupervisorRequest(req, env, url);
+}
+`);
+  const crossedRejected = spawnSync(process.execPath, [gate.pathname, crossed], { encoding: "utf8" });
+  assert.equal(crossedRejected.status, 1);
+  assert.match(crossedRejected.stderr, /Supervisor sin autenticación previa/);
 });
 
 test("deploy exige main exacto, limpio y valida fuente más bundle dry-run", () => {
