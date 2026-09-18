@@ -13,6 +13,7 @@ export const SUPERVISOR_AI_GLOBAL_LIMIT = 120;
 export const SUPERVISOR_AI_CALLS_PER_ANALYSIS = 2;
 export const SUPERVISOR_MAX_DETECTED_SCREENS = 8;
 export const SUPERVISOR_QUERY_MAX_TOKENS = 1_200;
+export const SUPERVISOR_DETECTION_TARGET = "physical digital signage display screen, television, monitor, or tablet computer, including powered-off screens";
 export const SUPERVISOR_MIN_IDENTITY_CONFIDENCE = 0.8;
 export const ADMIRA_TV_MCP_ENDPOINT = "https://mcp-tv.admira.store/mcp";
 
@@ -597,7 +598,10 @@ function sortScreenBoxes(boxes) {
 
 export function normalizeScreenDetections(result) {
   const objects = result && (result.objects || result.result && result.result.objects);
-  if (!Array.isArray(objects)) return [];
+  // Una respuesta de transporte/stream no equivale a cero pantallas. Detect no
+  // admite streaming: si el binding no entrega explícitamente objects[], se
+  // falla cerrado en vez de afirmar al usuario que el objetivo ha desaparecido.
+  if (!Array.isArray(objects)) throw new Error("vision_invalid_detection");
   const boxes = sortScreenBoxes(objects.slice(0, SUPERVISOR_MAX_DETECTED_SCREENS * 4)
     .map(normalizeDetectionBox).filter(Boolean));
   const unique = [];
@@ -718,9 +722,14 @@ export function deriveObservation(vision, expectedScreens, metrics = {}) {
       status = "warning"; issueCode = "uncertain";
     }
   }
+  const summary = issueCode === "missing_screen"
+    ? expected === 1
+      ? "No se ha podido delimitar la pantalla esperada en esta lectura."
+      : `Se han delimitado ${visible} de ${expected} pantallas esperadas en esta lectura.`
+    : text(vision && vision.summary, 320) || "Sin descripción visual.";
   return {
     status, issueCode, confidence, visibleScreens:visible, activeScreens:active,
-    summary:text(vision && vision.summary, 320) || "Sin descripción visual.", screens,
+    summary, screens,
     luminance, darkRatio
   };
 }
@@ -859,7 +868,7 @@ function issueCopy(issueCode, label) {
     black_screen:[`Supervisor: pantalla en negro · ${name}`, "Pantalla en negro"],
     no_signal:[`Supervisor: pantalla sin señal · ${name}`, "Pantalla sin señal"],
     player_error:[`Supervisor: error visible en pantalla · ${name}`, "Error en pantalla"],
-    missing_screen:[`Supervisor: falta una pantalla en escena · ${name}`, "Pantalla no visible"]
+    missing_screen:[`Supervisor: objetivo visual no delimitado · ${name}`, "Pantalla pendiente de localizar"]
   };
   return copy[issueCode] || [`Supervisor: incidencia visual · ${name}`, "Incidencia visual detectada"];
 }
@@ -1144,8 +1153,9 @@ export async function handleSupervisorRequest(req, env, url, deps) {
     try {
       const detectionResult = await env.AI.run(SUPERVISOR_MODEL, {
         task:"detect", image,
-        target:"physical digital signage display screen, television, or monitor, including powered-off screens",
-        max_objects:SUPERVISOR_MAX_DETECTED_SCREENS
+        target:SUPERVISOR_DETECTION_TARGET,
+        max_objects:SUPERVISOR_MAX_DETECTED_SCREENS,
+        stream:false
       });
       detections = normalizeScreenDetections(detectionResult);
     } catch (error) {

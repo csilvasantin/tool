@@ -432,7 +432,7 @@ function boot() {
     const issues = {
       healthy:"Emisión correcta", screen_off:"Pantalla apagada", black_screen:"Pantalla en negro",
       no_signal:"Sin señal", player_error:"Error visible", camera_dark:"Cámara a oscuras",
-      missing_screen:"Falta una pantalla", low_confidence:"Lectura por confirmar", uncertain:"Estado incierto"
+      missing_screen:"Objetivo no delimitado", low_confidence:"Lectura por confirmar", uncertain:"Estado incierto"
     };
     if (issues[issueCode]) return issues[issueCode];
     return {healthy:"Saludable", warning:"Revisar", critical:"Incidencia", idle:"En espera"}[status] || "Observando";

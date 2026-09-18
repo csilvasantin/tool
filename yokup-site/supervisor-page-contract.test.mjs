@@ -31,6 +31,12 @@ test("la captura es sólo vídeo, acotada y secuencial", () => {
   assert.doesNotMatch(js, /MediaRecorder|audioContext|getUserMedia\([^)]*audio:true/i);
 });
 
+test("un fallo de delimitación nunca se presenta como ausencia física de la pantalla", () => {
+  assert.match(js, /missing_screen:"Objetivo no delimitado"/);
+  assert.doesNotMatch(js, /missing_screen:"Falta una pantalla"/);
+  assert.match(html, /src="\/yk-supervisor\.js\?v=r7"/);
+});
+
 test("admira-tv es el proyecto efectivo normal y sólo una capacidad firmada permite cambiarlo", () => {
   for (const field of ["observation_id", "captured_at", "project_id", "station_id", "canonical_screen", "expected_screens", "metrics", "image"]) {
     assert.match(js, new RegExp(`${field}:`), `falta ${field}`);

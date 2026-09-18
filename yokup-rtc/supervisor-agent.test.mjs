@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import {
   ADMIRA_TV_MCP_ENDPOINT,
   SUPERVISOR_AI_CALLS_PER_ANALYSIS,
+  SUPERVISOR_DETECTION_TARGET,
   SUPERVISOR_MODEL,
   SUPERVISOR_MAX_DETECTED_SCREENS,
   SUPERVISOR_QUERY_MAX_TOKENS,
@@ -76,6 +77,12 @@ test("interpreta JSON cercado y separa reproducción, apagado y cámara oscura",
   assert.equal(doubtful.issueCode, "low_confidence");
   const missing = deriveObservation({sceneVisible:true,screens:[],summary:"No aparece la pantalla."}, 1, {luminance:0.4,dark_ratio:0.1});
   assert.equal(missing.status, "warning", "una cámara movida no abre un parte de pantalla");
+  assert.equal(missing.issueCode, "missing_screen");
+  assert.match(missing.summary, /No se ha podido delimitar la pantalla esperada en esta lectura/);
+  assert.doesNotMatch(missing.summary, /falta|no aparece/i, "un fallo de detección no afirma ausencia física");
+  const partial = deriveObservation({sceneVisible:true,screens:[{state:"playing",confidence:.98}]}, 2, {luminance:.4,dark_ratio:.1});
+  assert.equal(partial.issueCode, "missing_screen");
+  assert.equal(partial.summary, "Se han delimitado 1 de 2 pantallas esperadas en esta lectura.");
   const darkCamera = deriveObservation({sceneVisible:false,screens:[],summary:"No se ve."}, 1, {luminance:0.001,dark_ratio:0.999});
   assert.equal(darkCamera.status, "warning");
   assert.equal(darkCamera.issueCode, "camera_dark");
@@ -135,6 +142,17 @@ test("normaliza, ordena y limita las cajas oficiales de detect con identidades d
   assert.deepEqual(detections[1], {id:"SCREEN-02",label:"Pantalla 02",bbox:[.55,.1,.35,.4]});
   assert.ok(detections.some(({bbox}) => bbox[0] === 0 && bbox[1] === 0 && bbox[2] === 1 && bbox[3] === 1));
   assert.equal(detections.at(-1).id, "SCREEN-08");
+});
+
+test("la caja realista de una tableta pequeña se conserva como objetivo visible", () => {
+  const detections = normalizeScreenDetections({objects:[{
+    x_min:.42578125,y_min:.705078125,x_max:.59765625,y_max:.982421875
+  }]});
+  assert.deepEqual(detections, [{
+    id:"SCREEN-01",label:"Pantalla 01",bbox:[.425781,.705078,.171875,.277344]
+  }]);
+  assert.throws(() => normalizeScreenDetections({}), /vision_invalid_detection/,
+    "un error de transporte no se convierte en cero pantallas");
 });
 
 test("fusiona estados sólo por ID exacto aunque query responda en orden cruzado", () => {
@@ -923,7 +941,9 @@ test("el análisis ejecuta detect oficial y devuelve objetivos identificados con
   const detect = calls.find(({input}) => input.task === "detect");
   assert.equal(detect.model, SUPERVISOR_MODEL);
   assert.equal(detect.input.max_objects, SUPERVISOR_MAX_DETECTED_SCREENS);
-  assert.match(detect.input.target, /digital signage.*television.*monitor.*powered-off/i);
+  assert.equal(detect.input.target, SUPERVISOR_DETECTION_TARGET);
+  assert.match(detect.input.target, /digital signage.*television.*monitor.*tablet computer.*powered-off/i);
+  assert.equal(detect.input.stream, false, "detect no admite streaming y debe pedir respuesta factual");
   const query = calls.find(({input}) => input.task === "query");
   assert.match(query.input.question, /"id":"SCREEN-01","x_min":0\.08,"y_min":0\.1,"x_max":0\.43,"y_max":0\.5/);
   assert.match(query.input.question, /coordenadas están normalizadas de 0 a 1.*x_min, y_min, x_max, y_max/);
@@ -1293,6 +1313,15 @@ test("el lease caducado se recupera y cualquier fallo de visión libera lease y 
   assert.equal(failedResponse.status, 502);
   assert.equal(failedDB.leases.size, 0);
   assert.equal(failedDB.requests.has("obs-vision-error"), false);
+
+  const invalidDB = fakeDatabase();
+  const invalidEnv = {DB:invalidDB,AI:{run:async () => ({})}};
+  const invalidRequest = analysisRequest({station_id:"puesto-stream",observation_id:"obs-invalid-detect"});
+  const invalidResponse = await handleSupervisorRequest(invalidRequest, invalidEnv, new URL(invalidRequest.url), supervisorDeps());
+  assert.equal(invalidResponse.status, 502);
+  assert.match((await invalidResponse.json()).detail, /vision_invalid_detection/);
+  assert.equal(invalidDB.leases.size, 0);
+  assert.equal(invalidDB.requests.has("obs-invalid-detect"), false);
 });
 
 test("dos fotogramas apagados crean un único ticket y devuelven la voz robot", async () => {
