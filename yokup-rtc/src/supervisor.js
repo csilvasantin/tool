@@ -15,6 +15,8 @@ export const SUPERVISOR_MAX_DETECTED_SCREENS = 8;
 export const SUPERVISOR_QUERY_MAX_TOKENS = 1_200;
 export const SUPERVISOR_DETECTION_TARGET = "physical digital signage display screen, television, monitor, or tablet computer, including powered-off screens";
 export const SUPERVISOR_MIN_IDENTITY_CONFIDENCE = 0.8;
+export const SUPERVISOR_DARK_LUMINANCE_THRESHOLD = 0.015;
+export const SUPERVISOR_DARK_RATIO_THRESHOLD = 0.97;
 export const ADMIRA_TV_MCP_ENDPOINT = "https://mcp-tv.admira.store/mcp";
 
 const ADMIRA_SUPERVISOR_TOOLS = new Set(["circuits", "circuit_screens", "on_air", "player_status"]);
@@ -698,13 +700,20 @@ export function deriveObservation(vision, expectedScreens, metrics = {}) {
     : 0;
   const luminance = clamp(metrics.luminance);
   const darkRatio = clamp(metrics.dark_ratio);
+  const objectivelyDark = luminance < SUPERVISOR_DARK_LUMINANCE_THRESHOLD
+    && darkRatio > SUPERVISOR_DARK_RATIO_THRESHOLD;
+  const sceneUnreadable = vision && vision.sceneVisible === false;
   let status = "healthy", issueCode = "healthy";
 
-  // Si toda la cámara está a oscuras no se acusa a la pantalla: puede ser una
-  // lente tapada o el local sin luz. Se pide intervención sin abrir un ticket de
-  // pantalla apagada hasta que la escena sea interpretable.
-  if (vision && vision.sceneVisible === false || (luminance < 0.015 && darkRatio > 0.97)) {
+  // La oscuridad se decide con los píxeles del fotograma, no con una inferencia
+  // textual del modelo. Así una respuesta contradictoria de visión nunca puede
+  // etiquetar como oscura una escena cuya luminancia demuestra que es visible.
+  if (objectivelyDark) {
+    confidence = 0;
     status = "warning"; issueCode = "camera_dark";
+  } else if (sceneUnreadable) {
+    confidence = 0;
+    status = "warning"; issueCode = "low_confidence";
   } else {
     const failed = screens.find((screen) => CRITICAL_STATES.has(screen.state) && screen.confidence >= SUPERVISOR_MIN_INCIDENT_CONFIDENCE);
     const uncertainFailure = screens.find((screen) => CRITICAL_STATES.has(screen.state));
@@ -722,11 +731,15 @@ export function deriveObservation(vision, expectedScreens, metrics = {}) {
       status = "warning"; issueCode = "uncertain";
     }
   }
-  const summary = issueCode === "missing_screen"
+  const summary = objectivelyDark
+    ? "El fotograma está demasiado oscuro para valorar las pantallas en esta lectura."
+    : issueCode === "missing_screen"
     ? expected === 1
       ? "No se ha podido delimitar la pantalla esperada en esta lectura."
       : `Se han delimitado ${visible} de ${expected} pantallas esperadas en esta lectura.`
-    : text(vision && vision.summary, 320) || "Sin descripción visual.";
+    : sceneUnreadable && !objectivelyDark
+      ? "El fotograma no confirma oscuridad, pero la visión no ha podido interpretar la escena en esta lectura."
+      : text(vision && vision.summary, 320) || "Sin descripción visual.";
   return {
     status, issueCode, confidence, visibleScreens:visible, activeScreens:active,
     summary, screens,
@@ -1072,8 +1085,16 @@ export async function handleSupervisorRequest(req, env, url, deps) {
   if (!Number.isFinite(capturedAt) || capturedAt <= 0) return json({ok:false,error:"captured_at_required"}, 400);
   if (Math.abs(Date.now() - capturedAt) > 10 * 60_000) return json({ok:false,error:"captured_at_out_of_range"}, 400);
   const rawMetrics = body.metrics || {};
-  if (!Number.isFinite(Number(rawMetrics.luminance)) || !Number.isFinite(Number(rawMetrics.dark_ratio))) {
+  const frameMetrics = {
+    luminance:Number(rawMetrics.luminance),
+    dark_ratio:Number(rawMetrics.dark_ratio)
+  };
+  if (!Number.isFinite(frameMetrics.luminance) || !Number.isFinite(frameMetrics.dark_ratio)) {
     return json({ok:false,error:"metrics_required"}, 400);
+  }
+  if (frameMetrics.luminance < 0 || frameMetrics.luminance > 1
+    || frameMetrics.dark_ratio < 0 || frameMetrics.dark_ratio > 1) {
+    return json({ok:false,error:"metrics_out_of_range"}, 400);
   }
   const station = {
     id:stationId,
@@ -1204,7 +1225,7 @@ export async function handleSupervisorRequest(req, env, url, deps) {
       return json({ok:false,error:"observation_conflict"}, 409);
     }
 
-    const observation = deriveObservation(vision, station.expectedScreens, rawMetrics);
+    const observation = deriveObservation(vision, station.expectedScreens, frameMetrics);
     const next = nextSupervisorState(previous, observation, now);
     let ticketId = next.openTicketId, transition = "observed", speechOnceKey = "";
     const resource = text(`supervisor:${station.projectId}:${station.canonicalScreen || stationId}`, 160);

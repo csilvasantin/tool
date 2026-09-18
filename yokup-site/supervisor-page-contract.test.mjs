@@ -34,7 +34,7 @@ test("la captura es sólo vídeo, acotada y secuencial", () => {
 test("un fallo de delimitación nunca se presenta como ausencia física de la pantalla", () => {
   assert.match(js, /missing_screen:"Objetivo no delimitado"/);
   assert.doesNotMatch(js, /missing_screen:"Falta una pantalla"/);
-  assert.match(html, /src="\/yk-supervisor\.js\?v=r7"/);
+  assert.match(html, /src="\/yk-supervisor\.js\?v=r8"/);
 });
 
 test("admira-tv es el proyecto efectivo normal y sólo una capacidad firmada permite cambiarlo", () => {
@@ -226,6 +226,9 @@ test("el análisis tiene timeout menor que el lease y se reprograma sin confundi
   assert.match(js, /if \(shouldRefreshState && isCurrent\(\)\) void refreshState\(\{quiet:true\}\)/);
   assert.match(js, /function invalidateAnalysis[\s\S]*?state\.abort\.abort\(\)/,
     "stop y cambio de scope siguen usando el mismo AbortController");
+  assert.match(js, /transientLiveState = presentation\.liveState/);
+  assert.match(js, /if \(isCurrent\(\) && transientLiveState\) setLiveState\(transientLiveState\.status, transientLiveState\.label\);\s*else if \(isCurrent\(\) && state\.lastStation\)/,
+    "station_busy conserva Lectura en curso y no recupera el diagnóstico anterior en finally");
 });
 
 test("la lectura auxiliar de estado tiene timeout y nunca puede congelar la cámara", () => {

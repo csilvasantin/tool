@@ -1,11 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  analysisScopeMatches, boxToPixels, computeFrameMetrics, normalizeStationId, scaleCaptureSize,
+  analysisFailurePresentation, analysisScopeMatches, boxToPixels, computeFrameMetrics, normalizeStationId, scaleCaptureSize,
   normalizeScreenIdentity, safeRemoteControlUrl, screenIdentityLabel, screenStateConfidence,
   screenRemoteActionPlan, screenTargetAnnouncement, screenTargetId, screenTargetPlan, screenTargetSemanticKey,
   nextAnalysisDelay, voiceEventKey
 } from "./yk-supervisor.js";
+
+test("un lease ocupado se presenta como lectura en curso, no como el diagnóstico anterior", () => {
+  assert.deepEqual(analysisFailurePresentation("station_busy"), {
+    message:"Este puesto ya tiene una lectura en curso.",
+    liveState:{status:"scanning", label:"Lectura en curso"}
+  });
+  assert.deepEqual(analysisFailurePresentation("station_busy", {status:"warning", label:"Cámara a oscuras"}).liveState,
+    {status:"scanning", label:"Lectura en curso"}, "un warning anterior no se presenta como lectura actual");
+  assert.deepEqual(analysisFailurePresentation("station_busy", {status:"critical", label:"Pantalla apagada"}).liveState,
+    {status:"critical", label:"Lectura en curso · Pantalla apagada"}, "una incidencia confirmada no queda oculta por el lease");
+  assert.equal(analysisFailurePresentation("supervisor_rate_limited").liveState, null);
+  assert.equal(analysisFailurePresentation("fallo_desconocido").message, "No se pudo completar el análisis: fallo_desconocido");
+});
 
 test("la captura conserva proporción y nunca supera 960 px", () => {
   assert.deepEqual(scaleCaptureSize(1920, 1080), {width:960, height:540});

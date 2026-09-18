@@ -101,6 +101,25 @@ export function nextAnalysisDelay(startedAt, completedAt, targetMs = ANALYSIS_IN
   return Math.max(minimum, target - elapsed);
 }
 
+export function analysisFailurePresentation(errorCode, previousDiagnosis = null) {
+  const code = String(errorCode || "");
+  const previousCritical = code === "station_busy" && previousDiagnosis
+    && previousDiagnosis.status === "critical" && previousDiagnosis.label;
+  const descriptions = {
+    scan_too_frequent:"Yokup está protegiendo el intervalo entre lecturas.",
+    supervisor_rate_limited:"Se ha alcanzado el cupo de visión. Yokup reintentará en el siguiente intervalo.",
+    station_busy:"Este puesto ya tiene una lectura en curso."
+  };
+  return {
+    message:descriptions[code] || `No se pudo completar el análisis: ${code}`,
+    liveState:code === "station_busy"
+      ? previousCritical
+        ? {status:"critical", label:`Lectura en curso · ${previousDiagnosis.label}`}
+        : {status:"scanning", label:"Lectura en curso"}
+      : null
+  };
+}
+
 export function computeFrameMetrics(imageData) {
   const pixels = imageData && imageData.data ? imageData.data : imageData;
   if (!pixels || !pixels.length) return {luminance:0, dark_ratio:1};
@@ -1138,7 +1157,7 @@ function boot() {
     message("La visión artificial está leyendo la escena…");
     const controller = new AbortController();
     state.abort = controller;
-    let timeoutTriggered = false, retainedFrame = false, shouldRefreshState = false;
+    let timeoutTriggered = false, retainedFrame = false, shouldRefreshState = false, transientLiveState = null;
     const timeout = window.setTimeout(() => {
       timeoutTriggered = true;
       controller.abort();
@@ -1182,12 +1201,14 @@ function boot() {
         else setLiveState("warning", "Tiempo agotado");
       } else if (error.name !== "AbortError" && isCurrent()) {
         state.nextDelay = error.retryAfter || ANALYSIS_INTERVAL_MS;
-        const friendly = error.message === "scan_too_frequent" ? "Yokup está protegiendo el intervalo entre lecturas."
-          : error.message === "supervisor_rate_limited" ? "Se ha alcanzado el cupo de visión. Yokup reintentará en el siguiente intervalo."
-          : error.message === "station_busy" ? "Este puesto ya tiene una lectura en curso."
-          : `No se pudo completar el análisis: ${error.message}`;
-        message(friendly, "error");
-        if (state.lastStation) setLiveState(state.lastStation.status, statusCopy(state.lastStation.status, state.lastStation.issue_code));
+        const presentation = analysisFailurePresentation(error.message, state.lastStation ? {
+          status:state.lastStation.status,
+          label:statusCopy(state.lastStation.status, state.lastStation.issue_code)
+        } : null);
+        transientLiveState = presentation.liveState;
+        message(presentation.message, "error");
+        if (transientLiveState) setLiveState(transientLiveState.status, transientLiveState.label);
+        else if (state.lastStation) setLiveState(state.lastStation.status, statusCopy(state.lastStation.status, state.lastStation.issue_code));
         else setLiveState("warning", "Sin respuesta");
       }
     } finally {
@@ -1197,7 +1218,8 @@ function boot() {
       if (state.abort === controller) state.abort = null;
       state.analyzing = false;
       dom.stage.classList.remove("analyzing");
-      if (isCurrent() && state.lastStation) setLiveState(state.lastStation.status, statusCopy(state.lastStation.status, state.lastStation.issue_code));
+      if (isCurrent() && transientLiveState) setLiveState(transientLiveState.status, transientLiveState.label);
+      else if (isCurrent() && state.lastStation) setLiveState(state.lastStation.status, statusCopy(state.lastStation.status, state.lastStation.issue_code));
       updateButtons();
       if (continuous && state.monitoring && !state.hiddenPaused && !document.hidden) scheduleNext(state.nextDelay);
       if (shouldRefreshState && isCurrent()) void refreshState({quiet:true});

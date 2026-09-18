@@ -86,9 +86,28 @@ test("interpreta JSON cercado y separa reproducción, apagado y cámara oscura",
   const darkCamera = deriveObservation({sceneVisible:false,screens:[],summary:"No se ve."}, 1, {luminance:0.001,dark_ratio:0.999});
   assert.equal(darkCamera.status, "warning");
   assert.equal(darkCamera.issueCode, "camera_dark");
+  const justInsideDarkness = deriveObservation({sceneVisible:false,screens:[]}, 1, {luminance:0.014999,dark_ratio:0.970001});
+  assert.equal(justInsideDarkness.issueCode, "camera_dark", "ambos lados interiores del umbral confirman oscuridad");
+  const falseDarkCamera = deriveObservation({sceneVisible:false,screens:[],summary:"La cámara está oscura."}, 1, {luminance:0.474,dark_ratio:0.0601});
+  assert.equal(falseDarkCamera.status, "warning");
+  assert.equal(falseDarkCamera.issueCode, "low_confidence", "el modelo no puede contradecir la luminancia real del fotograma");
+  assert.match(falseDarkCamera.summary, /no confirma oscuridad/i);
+  assert.doesNotMatch(falseDarkCamera.summary, /cámara está oscura/i);
+  const contradictoryConfidence = deriveObservation({
+    sceneVisible:false, screens:[{state:"off",confidence:.99}], summary:"Oscura."
+  }, 1, {luminance:0.474,dark_ratio:0.0601});
+  assert.equal(contradictoryConfidence.issueCode, "low_confidence");
+  assert.equal(contradictoryConfidence.confidence, 0, "una escena declarada ilegible no conserva confianza de estados contradictorios");
+  const justTooBright = deriveObservation({sceneVisible:false,screens:[]}, 1, {luminance:0.015,dark_ratio:0.999});
+  assert.equal(justTooBright.issueCode, "low_confidence", "el umbral de luminancia es estricto");
+  const notDarkEnough = deriveObservation({sceneVisible:false,screens:[]}, 1, {luminance:0.001,dark_ratio:0.97});
+  assert.equal(notDarkEnough.issueCode, "low_confidence", "el umbral de píxeles oscuros es estricto");
   const coveredLens = deriveObservation(parseVisionAnswer({answer:'{"scene_visible":true,"screens":[{"state":"off","confidence":0.99}],"summary":"Oscuridad total."}'}), 1, {luminance:0.001,dark_ratio:0.999});
   assert.equal(coveredLens.status, "warning", "oscuridad total no se confunde con una pantalla apagada");
   assert.equal(coveredLens.issueCode, "camera_dark");
+  assert.equal(coveredLens.confidence, 0, "la confianza de estado de pantalla no se conserva cuando el fotograma es ilegible");
+  assert.match(coveredLens.summary, /demasiado oscuro para valorar las pantallas/i);
+  assert.doesNotMatch(coveredLens.summary, /apagada/i);
 });
 
 test("un query truncado falla cerrado antes de persistir o abrir incidencias", () => {
@@ -119,7 +138,8 @@ test("tipos inválidos de query fallan seguros y nunca confirman una incidencia"
   ]});
   const observation = deriveObservation(mergeVisionWithDetections(parsed, detections), 2, {luminance:.4,dark_ratio:.1});
   assert.equal(observation.status, "warning");
-  assert.equal(observation.issueCode, "camera_dark");
+  assert.equal(observation.issueCode, "low_confidence");
+  assert.match(observation.summary, /no confirma oscuridad/i);
 });
 
 test("normaliza, ordena y limita las cajas oficiales de detect con identidades deterministas", () => {
@@ -422,6 +442,26 @@ function analysisRequest(body = {}) {
     })
   });
 }
+
+test("la API rechaza métricas manipuladas fuera de rango antes de visión o persistencia", async () => {
+  const DB = fakeDatabase();
+  let aiCalls = 0;
+  const env = {DB, AI:supervisorAi(healthyVision, () => { aiCalls += 1; })};
+  for (const [index, metrics] of [
+    {luminance:-1,dark_ratio:1},
+    {luminance:0,dark_ratio:2},
+    {luminance:1.01,dark_ratio:0},
+    {luminance:0,dark_ratio:-0.01}
+  ].entries()) {
+    const request = analysisRequest({observation_id:`obs-metrics-range-${index}`, metrics});
+    const response = await handleSupervisorRequest(request, env, new URL(request.url), supervisorDeps());
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {ok:false,error:"metrics_out_of_range"});
+  }
+  assert.equal(aiCalls, 0);
+  assert.equal(DB.requests.size, 0);
+  assert.equal(DB.leases.size, 0);
+});
 
 const healthyVision = () => ({
   answer:'{"scene_visible":true,"screens":[{"id":"SCREEN-01","state":"playing","confidence":0.98}],"summary":"Pantalla emitiendo."}'
