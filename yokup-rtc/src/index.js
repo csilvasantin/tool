@@ -1,6 +1,6 @@
 import { raceBonus } from './race-bonus.js';
 import { grokbotServicePresence, grokbotTaskActivity } from './grokbot-work.js';
-import { validarUbicacion, invitadosVivos, UBICACION_TTL_MS, debeGuardarHistorial, ventanaHistorial, recorridos, HISTORIAL_RETENCION_MS, HISTORIAL_MAX_FILAS } from "./ubicacion.js";
+import { validarUbicacion, invitadosVivos, UBICACION_TTL_MS, debeGuardarHistorial, ventanaHistorial, recorridos, zonasCalientes, paradas, HISTORIAL_RETENCION_MS, HISTORIAL_MAX_FILAS } from "./ubicacion.js";
 import { desktopTurnParticipants } from './desktop-turn-participant.js';
 import { CLI_POLICY, cliPolicyBlocked, cliPolicyFor } from './cli-policy.js';
 import { WORK_ACTIVITY_TABLE_SQL, normalizeWorkActivity, recordWorkActivity, evaluateWorkActivity, workActivityProcessKey } from './work-activity.js';
@@ -10488,6 +10488,24 @@ var worker_app = {
         const { results } = await env.DB.prepare(sql).bind(...binds).all();
         const rows = results || [];
         return new Response(JSON.stringify({ ok: true, evento, desde, hasta, filas: rows.length, recortado: rows.length >= HISTORIAL_MAX_FILAS, recorridos: recorridos(rows) }),
+          { status: 200, headers: { ...CORS, "content-type": "application/json", "Cache-Control": "no-store" } });
+      } catch (e) { return json({ ok: false, error: String(e && e.message || e) }, 500); }
+    }
+    if (url.pathname === "/ubicacion/zonas" && req.method === "GET") {
+      try {
+        await ensureUbicacionSchema(env);
+        const evento = String(url.searchParams.get("evento") || "").trim().slice(0, 80);
+        if (!evento) return json({ ok: false, error: "evento requerido" }, 400);
+        const invitado = String(url.searchParams.get("invitado") || "").trim().slice(0, 80);
+        const { desde, hasta } = ventanaHistorial({ desde: url.searchParams.get("desde"), hasta: url.searchParams.get("hasta") });
+        const sql = "SELECT invitado,nombre,vip,lat,lng,acc,ts FROM ubicacion_historial WHERE evento=? AND ts>=? AND ts<=?" + (invitado ? " AND invitado=?" : "") + " ORDER BY ts DESC LIMIT ?";
+        const binds = invitado ? [evento, desde, hasta, invitado, HISTORIAL_MAX_FILAS] : [evento, desde, hasta, HISTORIAL_MAX_FILAS];
+        const { results } = await env.DB.prepare(sql).bind(...binds).all();
+        const rows = results || [];
+        const body = { ok: true, evento, desde, hasta, filas: rows.length, recortado: rows.length >= HISTORIAL_MAX_FILAS, zonas: zonasCalientes(rows) };
+        // Con ?invitado= se añaden sus paradas concretas (para la ficha de un recorrido).
+        if (invitado) { const rec = recorridos(rows)[0]; body.paradas = rec ? paradas(rec.puntos) : []; }
+        return new Response(JSON.stringify(body),
           { status: 200, headers: { ...CORS, "content-type": "application/json", "Cache-Control": "no-store" } });
       } catch (e) { return json({ ok: false, error: String(e && e.message || e) }, 500); }
     }

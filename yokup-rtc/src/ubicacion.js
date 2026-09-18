@@ -82,6 +82,63 @@ export function ventanaHistorial(q, now = Date.now()) {
   return { desde: Math.floor(desde), hasta: Math.floor(hasta) };
 }
 
+// ── PERMANENCIA / dwell time (Carlos, 18-09-2026 · FLT-100569) ──────────────────────────────────────
+// "Grabar los puntos por donde hemos pasado y el tiempo que hemos estado en cada uno para saber qué le
+// gusta más a la gente." Una PARADA es un tramo del recorrido en el que el invitado no se aleja más de
+// PARADA_RADIO_M metros del punto donde se paró durante al menos PARADA_MIN_MS. Las paradas de TODOS
+// los invitados se agrupan en ZONAS (paradas a menos de ZONA_RADIO_M son el mismo sitio): la zona que
+// más tiempo acumula es la que más gusta.
+export const PARADA_RADIO_M = 15;     // dentro de este radio se considera "el mismo sitio"
+export const PARADA_MIN_MS = 45000;   // 45 s quieto para contar como parada (por debajo es "de paso")
+export const ZONA_RADIO_M = 20;       // dos paradas a menos de esto son la misma zona
+
+/** Puntos ordenados [lat,lng,ts,acc] de UN invitado → sus paradas [{lat,lng,desde,hasta,ms,n}]. */
+export function paradas(puntos, { radioM = PARADA_RADIO_M, minMs = PARADA_MIN_MS } = {}) {
+  const p = Array.isArray(puntos) ? puntos : [];
+  const out = [];
+  let i = 0;
+  while (i < p.length) {
+    // Tramo maximal cuyos puntos caen todos dentro de radioM del primero: el diámetro queda acotado a
+    // 2·radioM, así un paseo lento no se "arrastra" y se funde en una sola parada gigante.
+    const aLat = p[i][0], aLng = p[i][1];
+    let j = i + 1, sLat = aLat, sLng = aLng, n = 1;
+    while (j < p.length && metros(aLat, aLng, p[j][0], p[j][1]) <= radioM) {
+      sLat += p[j][0]; sLng += p[j][1]; n++; j++;
+    }
+    const desde = p[i][2], hasta = p[j - 1][2], ms = hasta - desde;
+    if (ms >= minMs && n >= 2) {
+      out.push({ lat: Math.round((sLat / n) * 1e6) / 1e6, lng: Math.round((sLng / n) * 1e6) / 1e6, desde, hasta, ms, n });
+    }
+    i = j; // los puntos "de paso" (dentro del radio pero sin tiempo) no se reescanean
+  }
+  return out;
+}
+
+/** Filas del historial → zonas donde se acumula permanencia, de la que más gusta a la que menos. */
+export function zonasCalientes(rows, { radioM = PARADA_RADIO_M, minMs = PARADA_MIN_MS, zonaM = ZONA_RADIO_M } = {}) {
+  const todas = [];
+  for (const g of recorridos(rows)) {
+    for (const s of paradas(g.puntos, { radioM, minMs })) todas.push({ ...s, invitado: g.invitado });
+  }
+  todas.sort((a, b) => b.ms - a.ms); // la parada más larga siembra su zona
+  const zonas = [];
+  for (const s of todas) {
+    let z = null;
+    for (const cand of zonas) if (metros(cand.lat, cand.lng, s.lat, s.lng) <= zonaM) { z = cand; break; }
+    if (!z) { z = { lat: s.lat, lng: s.lng, ms: 0, visitas: 0, invitados: new Set(), _wLat: 0, _wLng: 0, _w: 0 }; zonas.push(z); }
+    z.ms += s.ms; z.visitas += 1; z.invitados.add(s.invitado);
+    z._wLat += s.lat * s.ms; z._wLng += s.lng * s.ms; z._w += s.ms; // centro ponderado por permanencia
+    z.lat = z._wLat / z._w; z.lng = z._wLng / z._w;
+  }
+  const out = zonas.map((z) => ({
+    lat: Math.round(z.lat * 1e6) / 1e6, lng: Math.round(z.lng * 1e6) / 1e6,
+    permanencia_ms: z.ms, visitas: z.visitas, invitados: z.invitados.size,
+    permanencia_media_ms: Math.round(z.ms / z.visitas),
+  }));
+  out.sort((a, b) => b.permanencia_ms - a.permanencia_ms);
+  return out;
+}
+
 /** Filas del historial (cualquier orden) → recorridos por invitado: puntos ordenados, metros y tiempos. */
 export function recorridos(rows) {
   const por = new Map();
