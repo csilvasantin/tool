@@ -10,7 +10,7 @@ export async function sendTelegramAlerts(env){
   if(!claimed.meta.changes)continue;
   const text=['🔧 Yokup · nueva oportunidad de trabajo'+(n.priority==='urgent'?' · URGENTE':''),n.title,`${n.device_name} · a ${Number(n.distance_km).toFixed(1).replace('.',',')} km`,'Acéptala en https://www.yokup.com/instalador'].join('\n');
   let ok=false;
-  try{ok=(await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:n.chat_id,text,disable_web_page_preview:true})})).ok;}catch{}
+  try{const r=await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:n.chat_id,text,disable_web_page_preview:true})});ok=r.ok;if(!ok)console.warn('telegram',r.status,(await r.text()).slice(0,200));}catch(e){console.warn('telegram',String(e));}
   if(!ok)await env.DB.prepare('DELETE FROM installer_telegram_sent WHERE notification_id=?').bind(n.id).run();
  }
 }
