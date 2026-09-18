@@ -273,6 +273,13 @@ html.yk-framed body{ padding-top: var(--yk-bar-h); }
   background: rgba(120,243,255,.12);
   box-shadow: 0 0 14px rgba(120,243,255,.25);
 }
+.yk-proj.locked .yk-proj-btn,
+.yk-proj.locked .yk-proj-btn:hover{
+  opacity:1; cursor:default;
+  border-color:var(--yk-line2); background:rgba(120,243,255,.05); box-shadow:none;
+}
+.yk-proj.locked .yk-proj-cx{ color:var(--yk-dim) }
+.yk-proj.locked .yk-proj-menu{ display:none!important }
 .yk-proj-btn b{ color: var(--yk-brand); font-weight: 700 }
 .yk-proj-ic{ font-size: 13px; line-height: 1 }
 .yk-proj-dot{ width:6px; height:6px; flex:0 0 6px; border-radius:50%; background:#fff;

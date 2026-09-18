@@ -248,11 +248,20 @@
     INCIDENCIAS: "incidencias", INFORMES: "informes", NOTIFICACIONES: "notificaciones"
   };
 
-  // Scope global de proyecto (FLT-1218). Sin selección válida empieza en Todos.
+  // Scope global de proyecto (FLT-1218). Sin selección válida empieza en Todos,
+  // salvo una superficie que declare un default obligatorio en su propio body.
   // Una elección explícita viaja por query + storage versionado; ambos guardan sólo
   // el `id` canónico del censo, nunca nombres, dominios o inferencias por pathname.
   var PROJECT_SCOPE_KEY = "yokup.project.scope.v1";
-  var PROJECT_SCOPE = null, PROJECT_CATALOG = [];
+  function projectSurfacePolicy() {
+    var body = document.body, access = window.YkAccess && typeof window.YkAccess.get === "function" ? window.YkAccess.get() : null;
+    var defaultId = String(body && body.getAttribute("data-yk-project-default") || "").trim();
+    var defaultLabel = String(body && body.getAttribute("data-yk-project-default-label") || defaultId).trim();
+    var mode = String(body && body.getAttribute("data-yk-project-switch") || "").trim().toLowerCase();
+    var canChange = mode !== "superuser" || Boolean(access && access.capabilities && access.capabilities.supervisor_project_switch === true);
+    return {defaultId:defaultId,defaultLabel:defaultLabel,required:Boolean(defaultId),canChange:canChange};
+  }
+  var PROJECT_SCOPE = projectSurfacePolicy().defaultId || null, PROJECT_CATALOG = [];
   // Highscore es una clasificación global por agente. Arrastrar hasta ella el
   // project_id persistido por otra sección hacía que el cabezal prometiera un
   // alcance que ni /highscore/daily ni /highscore/active-work aplican: la tabla
@@ -272,11 +281,19 @@
     var query = String(queryId || "").trim(), stored = String(storedId || "").trim();
     return ids.indexOf(query) >= 0 ? query : (ids.indexOf(stored) >= 0 ? stored : null);
   }
+  function resolveProjectSurfaceScope(queryId, storedId, catalog, policy) {
+    var rules = policy || {}, fallback = resolveProjectScope(rules.defaultId, "", catalog);
+    if (!rules.defaultId) return resolveProjectScope(queryId, storedId, catalog);
+    if (!rules.canChange) return fallback;
+    return resolveProjectScope(queryId, storedId, catalog) || fallback;
+  }
   window.YkProjectScope = {
     get: function () { return PROJECT_SCOPE; },
+    canChange: function () { return projectSurfacePolicy().canChange; },
+    defaultId: function () { return projectSurfacePolicy().defaultId || null; },
     matches: projectScopeMatch,
     catalog: function () { return PROJECT_CATALOG.slice(); },
-    _test: {resolve:resolveProjectScope}
+    _test: {resolve:resolveProjectScope,resolveSurface:resolveProjectSurfaceScope}
   };
   function projectHost(project) {
     var raw = String(project && project.web || "").trim();
@@ -2465,7 +2482,7 @@
       btn.setAttribute("aria-expanded", open ? "true" : "false");
     }
 
-    function unreadProjectIds(){var active={};PROJECT_CATALOG.forEach(function(project){active[String(project.id)]=true;});return projectNovelty.unreadIds().filter(function(id){return active[id];});}
+    function unreadProjectIds(){var policy=projectSurfacePolicy();if(policy.required&&!policy.canChange)return [];var active={};PROJECT_CATALOG.forEach(function(project){active[String(project.id)]=true;});return projectNovelty.unreadIds().filter(function(id){return active[id];});}
     function paintProjectSignal(){
       var unread=unreadProjectIds(),base=btn.getAttribute("data-yk-base-label")||"Cambiar filtro de proyecto";
       wrap.classList.toggle("has-new",unread.length>0);
@@ -2493,44 +2510,49 @@
       if (globalProjectScopeSurface(location.pathname)) return null;
       try { query = new URL(location.href).searchParams.get("project_id") || ""; } catch (e) {}
       try { stored = localStorage.getItem(PROJECT_SCOPE_KEY) || ""; } catch (e) {}
-      return resolveProjectScope(query, stored, PROJECT_CATALOG);
+      return resolveProjectSurfaceScope(query, stored, PROJECT_CATALOG, projectSurfacePolicy());
     }
     function rememberProject(projectId) {
-      var globalOnly = globalProjectScopeSurface(location.pathname);
+      var globalOnly = globalProjectScopeSurface(location.pathname), policy=projectSurfacePolicy();
       try {
-        if (!globalOnly) {
+        if (!globalOnly && (!policy.required || policy.canChange)) {
           if (projectId) localStorage.setItem(PROJECT_SCOPE_KEY, projectId);
           else localStorage.removeItem(PROJECT_SCOPE_KEY);
         }
       } catch (e) {}
       try {
         var url = new URL(location.href);
-        if (projectId) url.searchParams.set("project_id", projectId);
+        if (projectId && (!policy.required || policy.canChange) && projectId !== policy.defaultId) url.searchParams.set("project_id", projectId);
         else url.searchParams.delete("project_id");
         history.replaceState(history.state, "", url.pathname + url.search + url.hash);
       } catch (e) {}
     }
     function publishProject(projectId, persist) {
-      PROJECT_SCOPE = globalProjectScopeSurface(location.pathname) ? null : validProjectId(projectId);
+      var policy=projectSurfacePolicy();
+      PROJECT_SCOPE = globalProjectScopeSurface(location.pathname) ? null : resolveProjectSurfaceScope(projectId, "", PROJECT_CATALOG, policy);
       if (persist) rememberProject(PROJECT_SCOPE);
       // CustomEvent se entrega síncronamente: los consumidores limpian o repintan
       // su DOM viejo antes de que el botón pueda anunciar el nuevo proyecto.
-      window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:PROJECT_SCOPE,project:activeProject()}}));
+      window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:PROJECT_SCOPE,project:activeProject(),can_change_project:policy.canChange,source:policy.required?"surface-policy":"global"}}));
       paintProject();
     }
     function paintProject() {
-      var ap = activeProject(), host = projectHost(ap);
+      var policy=projectSurfacePolicy(),ap = activeProject(), host = projectHost(ap);
       var allButtonLabel=projectTotalLabel("TODOS"),allOptionLabel=projectTotalLabel("Todos");
-      var name = ap ? (ap.name || ap.id) : allButtonLabel, full = ap && host ? name + " · " + host : name,unread=unreadProjectIds(),unreadMap={};unread.forEach(function(id){unreadMap[id]=true;});
+      var name = ap ? (ap.id===policy.defaultId&&policy.defaultLabel?policy.defaultLabel:(ap.name || ap.id)) : (policy.required?(policy.defaultLabel||policy.defaultId):allButtonLabel), full = ap && host&&host.toLowerCase()!==String(name).toLowerCase() ? name + " · " + host : name,unread=unreadProjectIds(),unreadMap={};unread.forEach(function(id){unreadMap[id]=true;});
+      wrap.classList.toggle("locked",policy.required&&!policy.canChange);
+      btn.disabled=policy.required&&!policy.canChange;
       btn.innerHTML = '<span class="yk-proj-dot" aria-hidden="true"></span>'
         + '<span class="yk-proj-nm"><b class="yk-pj-full">' + esc(full) + '</b><b class="yk-pj-short">' + esc(name) + '</b></span>'
-        + '<span class="yk-proj-cx" aria-hidden="true">▾</span>';
-      btn.setAttribute("data-yk-base-label", "Proyecto: " + full + ". Cambiar filtro");
+        + '<span class="yk-proj-cx" aria-hidden="true">' + (policy.required&&!policy.canChange?"▣":"▾") + '</span>';
+      btn.setAttribute("data-yk-base-label", policy.required&&!policy.canChange ? "Proyecto fijo: " + full : "Proyecto: " + full + ". Cambiar filtro");
       btn.setAttribute("data-yk-project-total",String(projectTotal));
-      btn.title = "Proyecto · " + full;
+      btn.title = policy.required&&!policy.canChange ? "Proyecto fijo del Supervisor · " + full : "Proyecto · " + full;
       menu.innerHTML = "";
       var selectableProjects = globalProjectScopeSurface(location.pathname) ? [] : PROJECT_CATALOG;
-      [{id:null,name:"Todos",web:"Todos los proyectos"}].concat(selectableProjects).forEach(function (p) {
+      var options=policy.required?selectableProjects:[{id:null,name:"Todos",web:"Todos los proyectos"}].concat(selectableProjects);
+      if(policy.required&&!policy.canChange)options=[];
+      options.forEach(function (p) {
         var on = p.id === PROJECT_SCOPE;
         var option = el("button", "yk-proj-opt" + (on ? " on" : ""),
           '<span class="yk-proj-ic" aria-hidden="true">' + (p.id ? "📁" : "◉") + '</span>'
@@ -2559,23 +2581,26 @@
         projectTotal=metadata.total;
         PROJECT_SCOPE = requestedProjectId();
         rememberProject(PROJECT_SCOPE);
-        window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:PROJECT_SCOPE,project:activeProject(),ready:true}}));
+        var policy=projectSurfacePolicy();
+        window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:PROJECT_SCOPE,project:activeProject(),ready:true,can_change_project:policy.canChange,source:policy.required?"surface-policy":"global"}}));
         paintProject();announceProjects(result);if(isMenuOpen()){ackRenderedProjects();var firstOpen=menu.querySelector("button");if(firstOpen)firstOpen.focus();}return true;
       }).catch(function () {
-        if(seq!==projectLoadSeq)return false;if(!PROJECT_CATALOG.length){projectTotal=0;PROJECT_SCOPE=null;paintProject();window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:null,project:null,ready:true,error:true}}));}return false;
+        if(seq!==projectLoadSeq)return false;if(!PROJECT_CATALOG.length){var policy=projectSurfacePolicy();projectTotal=0;PROJECT_SCOPE=policy.defaultId||null;paintProject();window.dispatchEvent(new CustomEvent("yk:project-change", {detail:{project_id:PROJECT_SCOPE,project:null,ready:true,error:true,can_change_project:policy.canChange,source:policy.required?"surface-policy":"global"}}));}return false;
       });
     }
     loadProjects();
     window.addEventListener("yk:projects-changed",function(){loadProjects();});
     window.addEventListener("storage", function (event) {
       if(event.key===projectNovelty.key&&event.newValue){projectNovelty.sync(event.newValue);paintProject();return;}
-      if (event.key !== PROJECT_SCOPE_KEY || !PROJECT_CATALOG.length) return;
+      if (event.key !== PROJECT_SCOPE_KEY || !PROJECT_CATALOG.length || projectSurfacePolicy().required&&!projectSurfacePolicy().canChange) return;
       publishProject(validProjectId(event.newValue), true);
     });
+    window.addEventListener("yk:access-ready",function(){if(!PROJECT_CATALOG.length)return;PROJECT_SCOPE=requestedProjectId();rememberProject(PROJECT_SCOPE);paintProject();var policy=projectSurfacePolicy();window.dispatchEvent(new CustomEvent("yk:project-change",{detail:{project_id:PROJECT_SCOPE,project:activeProject(),ready:true,can_change_project:policy.canChange,source:policy.required?"surface-policy":"global"}}));});
     if(projectChannel)projectChannel.onmessage=function(event){var data=event&&event.data;if(data&&data.type==="project-novelty"){projectNovelty.sync(data.state);paintProject();}};
 
     btn.addEventListener("click", function (e) {
       e.stopPropagation();
+      if (projectSurfacePolicy().required && !projectSurfacePolicy().canChange) return;
       var open = !isMenuOpen();
       setMenu(open);
       if (open) { ackRenderedProjects(); var f = menu.querySelector("button"); if (f) f.focus(); }

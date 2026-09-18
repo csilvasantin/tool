@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {boxToPixels, computeFrameMetrics, normalizeStationId, scaleCaptureSize, voiceEventKey} from "./yk-supervisor.js";
+import {
+  analysisScopeMatches, boxToPixels, computeFrameMetrics, normalizeStationId, scaleCaptureSize, voiceEventKey
+} from "./yk-supervisor.js";
 
 test("la captura conserva proporción y nunca supera 960 px", () => {
   assert.deepEqual(scaleCaptureSize(1920, 1080), {width:960, height:540});
@@ -29,4 +31,13 @@ test("identidad de puesto estable y alarma de voz ligada a ticket persistido", (
   assert.equal(voiceEventKey({alert:true, voice:"fallback", speech:{once_key:"FLT-1:once",text:"Pantalla apagada"}, ticket:{id:"FLT-1"}}), "FLT-1:once");
   assert.equal(voiceEventKey({alert:false, voice:"Pantalla apagada", ticket:{id:"FLT-1"}}), "");
   assert.equal(voiceEventKey({alert:true, voice:"Pantalla apagada", ticket:null}), "");
+});
+
+test("una respuesta de análisis sólo pertenece al proyecto y puesto capturados", () => {
+  const scope = {sequence:7, projectId:"admira-tv", stationId:"jardinets-kiosk-01"};
+  assert.equal(analysisScopeMatches(scope, {...scope}), true);
+  assert.equal(analysisScopeMatches(scope, {...scope, sequence:8}), false);
+  assert.equal(analysisScopeMatches(scope, {...scope, projectId:"xpaceos"}), false);
+  assert.equal(analysisScopeMatches(scope, {...scope, stationId:"otro-puesto"}), false);
+  assert.equal(analysisScopeMatches(null, scope), false);
 });

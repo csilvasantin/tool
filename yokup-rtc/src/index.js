@@ -62,7 +62,8 @@ import { AGENT_SOURCE_SQL, AGENT_SOURCE_SQL_T, FIELD_SOURCE_SQL_T, MISSION_SCOPE
   normalizeFleetMissionsFilters, fleetMissionsQuery } from "./mission-sources.js";
 import { normalizeProjectLaunch, projectLaunchTarget } from "./project-launch.js";
 import { ensureHourlyModeSchema, evaluateModeOpportunity, hourlySlot, learningPrompt, trainingPrompt, listAgentModes, modeTargetKey, normalizeModeTarget, runHourlyModes, saveAgentMode, validateTrainingProposals } from "./fleet-hourly-modes.js";
-import { handleSupervisorRequest, SUPERVISOR_STATIONS_SQL, SUPERVISOR_OBSERVATIONS_SQL, SUPERVISOR_OBSERVATIONS_INDEX_SQL, SUPERVISOR_REQUESTS_SQL, SUPERVISOR_ALERTS_SQL } from "./supervisor.js";
+import { handleSupervisorRequest, SUPERVISOR_STATIONS_SQL, SUPERVISOR_OBSERVATIONS_SQL, SUPERVISOR_OBSERVATIONS_INDEX_SQL, SUPERVISOR_REQUESTS_SQL, SUPERVISOR_ALERTS_SQL, SUPERVISOR_STATION_LEASES_SQL, SUPERVISOR_AI_USAGE_SQL } from "./supervisor.js";
+import { normalizeAccessDirectory, supervisorAccessForSession, supervisorSessionInfo } from "./supervisor-access.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -130,23 +131,48 @@ var AUTH_CLIENT_ID = "861856772040-e1ri6kpu6maagtb6crdfbb923hsaalgb.apps.googleu
 // Dominio propio: LaLiga bloquea workers.dev/r2.dev en horas de fútbol (FLT-1633); workers.dev sigue vivo como respaldo.
 var WL_API = "https://whitelist.admira.store";
 var WL_FALLBACK = ["csilva@admira.com", "csilvasantin@gmail.com", "mzavaleta@admira.com", "agonzalez@admira.com", "jsedano@admira.com"];
+var WL_FETCH_TIMEOUT_MS = 2500;
+var WL_CACHE_MS = 3e5;
+var WL_FALLBACK_CACHE_MS = 15e3;
 var PROTECTED = /* @__PURE__ */ new Set(["/copilot", "/tickets", "/tickets/status", "/tickets/delete", "/tasks/all", "/ticket", "/ticket/note", "/ticket/status", "/ticket/simulate", "/incidents", "/stats", "/agents", "/ai-triage", "/ai-summary", "/ai-suggest", "/kb-search", "/push/subscribe", "/fleet/nudge", "/fleet/onidle-request", "/fleet/agent/stop", "/fleet/agent/control", "/fleet/cli/terminal", "/fleet/desktop/write", "/fleet/desktop/capture", "/fleet/desktop/verify-close", "/fleet/desktop/capture/clear", "/fleet/pty/ticket", "/equipo/machine", "/equipo/silicon", "/strategy", "/config"]);
-var _wl = { at: 0, set: null };
-async function whitelist() {
-  if (_wl.set && Date.now() - _wl.at < 3e5) return _wl.set;
+var _wl = { at: 0, ttl: 0, directory: null };
+function emergencyAccessDirectory() {
+  // La lista de emergencia sólo mantiene abierta la verja básica. A propósito no
+  // contiene superusuarios: una caída del directorio nunca puede elevar permisos.
+  return {emails:new Set(WL_FALLBACK.map((e) => e.toLowerCase())), superusers:new Set()};
+}
+__name(emergencyAccessDirectory, "emergencyAccessDirectory");
+async function accessDirectory() {
+  if (_wl.directory && Date.now() - _wl.at < _wl.ttl) return _wl.directory;
   try {
-    const r = await fetch(WL_API + "/list", { cf: { cacheTtl: 60 } });
+    const r = await fetch(WL_API + "/list", {
+      cf:{cacheTtl:60}, headers:{"cache-control":"no-cache"},
+      signal:AbortSignal.timeout(WL_FETCH_TIMEOUT_MS)
+    });
+    if (!r.ok) throw new Error("whitelist_unavailable");
     const d = await r.json();
-    const s = new Set((d.emails || []).map((e) => String(e).toLowerCase().trim()));
-    if (s.size) {
-      _wl = { at: Date.now(), set: s };
-      return s;
+    const directory = normalizeAccessDirectory(d);
+    if (directory.emails.size) {
+      _wl = {at:Date.now(), ttl:WL_CACHE_MS, directory};
+      return directory;
     }
   } catch (e) {
   }
-  return new Set(WL_FALLBACK.map((e) => e.toLowerCase()));
+  const directory = emergencyAccessDirectory();
+  // Cache breve también para el fallo: sin ella cada endpoint protegido lanzaría
+  // otro fetch/timeout durante una caída y multiplicaría la presión aguas arriba.
+  _wl = {at:Date.now(), ttl:WL_FALLBACK_CACHE_MS, directory};
+  return directory;
+}
+__name(accessDirectory, "accessDirectory");
+async function whitelist() {
+  return (await accessDirectory()).emails;
 }
 __name(whitelist, "whitelist");
+async function currentSupervisorAccess(session) {
+  return supervisorAccessForSession(await accessDirectory(), session);
+}
+__name(currentSupervisorAccess, "currentSupervisorAccess");
 var b64u = /* @__PURE__ */ __name((buf) => {
   const u = new Uint8Array(buf);
   let s = "";
@@ -354,6 +380,8 @@ async function applySchema(env) {
   await env.DB.exec(unaLinea(SUPERVISOR_OBSERVATIONS_INDEX_SQL));
   await env.DB.exec(unaLinea(SUPERVISOR_REQUESTS_SQL));
   await env.DB.exec(unaLinea(SUPERVISOR_ALERTS_SQL));
+  await env.DB.exec(unaLinea(SUPERVISOR_STATION_LEASES_SQL));
+  await env.DB.exec(unaLinea(SUPERVISOR_AI_USAGE_SQL));
   await env.DB.exec("CREATE TABLE IF NOT EXISTS subs (endpoint TEXT PRIMARY KEY, created_at INTEGER)");
   // NOTIFICACIONES DEL SISTEMA (FLT-1020, Carlos 24-jul-2026): «si algún equipo de
   // AdmiraNeXT tiene una notificación del sistema hay que avisar». Un diálogo modal
@@ -9884,7 +9912,11 @@ __name(menuCounters, "menuCounters");
 var worker_app = {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
-    const authResponse = await handleAuthRequest(req, env, { clientId:AUTH_CLIENT_ID, whitelist, makeSession, readSession, revokeSession });
+    const authResponse = await handleAuthRequest(req, env, {
+      clientId:AUTH_CLIENT_ID, whitelist, makeSession, readSession, revokeSession,
+      sessionAllowed:async (_environment, session) => (await currentSupervisorAccess(session)).allowed === true,
+      sessionInfo:async (_environment, session) => supervisorSessionInfo(await currentSupervisorAccess(session))
+    });
     if (authResponse) return authResponse;
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
     // ── AUTOCURACIÓN DE LA RUTINA PROGRAMADA, INDEPENDIENTE DEL CRON (FLT-1016 c) ─
@@ -11787,8 +11819,9 @@ var worker_app = {
       const session = await requireAuth(env, req);
       if (!session) return json({ error:"unauthorized" }, 401);
       try {
+        const access = await currentSupervisorAccess(session);
         return await handleSupervisorRequest(req, env, url, {
-          json, ensureSchema, createIncident, resolveIncident, session
+          json, ensureSchema, createIncident, resolveIncident, session, access
         });
       } catch (error) {
         return json({ ok:false, error:"supervisor_failed", detail:String(error && error.message || error).slice(0, 180) }, 500);

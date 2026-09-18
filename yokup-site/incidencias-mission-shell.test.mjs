@@ -84,7 +84,7 @@ test("el primer fetch y yk_seen esperan el scope canónico incluso en Todos", ()
   assert.match(html, /window\.addEventListener\("yk:project-change"[\s\S]*SCOPE_READY=true;[\s\S]*seen=new Set/);
   assert.doesNotMatch(html, /new Set\(JSON\.parse\(localStorage\.getItem\("yk_seen"\)/);
   assert.match(frame, /project_id:PROJECT_SCOPE,project:activeProject\(\),ready:true/);
-  assert.match(frame, /project_id:null,project:null,ready:true,error:true/);
+  assert.match(frame, /project_id:PROJECT_SCOPE,project:null,ready:true,error:true,can_change_project:policy\.canChange/);
   assert.doesNotMatch(frame, /if \(PROJECT_SCOPE\) window\.dispatchEvent\(new CustomEvent\("yk:project-change"/);
 });
 
