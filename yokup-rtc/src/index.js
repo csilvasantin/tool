@@ -1,5 +1,6 @@
 import { raceBonus } from './race-bonus.js';
 import { grokbotServicePresence, grokbotTaskActivity } from './grokbot-work.js';
+import { validarUbicacion, invitadosVivos, UBICACION_TTL_MS } from "./ubicacion.js";
 import { desktopTurnParticipants } from './desktop-turn-participant.js';
 import { CLI_POLICY, cliPolicyBlocked, cliPolicyFor } from './cli-policy.js';
 import { WORK_ACTIVITY_TABLE_SQL, normalizeWorkActivity, recordWorkActivity, evaluateWorkActivity, workActivityProcessKey } from './work-activity.js';
@@ -633,6 +634,16 @@ async function ensureSchema(env) {
   return schemaReady;
 }
 __name(ensureSchema, "ensureSchema");
+// UBICACIÓN EN TIEMPO REAL (FLT-100564): la tabla se crea sola y en una sola línea (D1 exec).
+var ubicacionSchemaReady = null;
+async function ensureUbicacionSchema(env) {
+  if (!ubicacionSchemaReady) {
+    ubicacionSchemaReady = env.DB.exec("CREATE TABLE IF NOT EXISTS ubicaciones (evento TEXT NOT NULL, invitado TEXT NOT NULL, nombre TEXT, vip INTEGER DEFAULT 0, lat REAL NOT NULL, lng REAL NOT NULL, acc REAL, ts INTEGER NOT NULL, PRIMARY KEY(evento, invitado))")
+      .catch((e) => { ubicacionSchemaReady = null; throw e; });
+  }
+  return ubicacionSchemaReady;
+}
+__name(ensureUbicacionSchema, "ensureUbicacionSchema");
 
 // Un punto de serie por parte de consumo (owner, máquina, día); si el total no cambió y el anterior es de
 // hace menos de 4 min, no se repite. Lo llaman las dos ramas de POST /fleet/notificacion (fila viva y nueva).
@@ -10397,6 +10408,35 @@ var worker_app = {
     // Consumo de tokens por agente y máquina (mandamiento 15): los partes de los últimos N días,
     // con sus cifras, y el total por agente. Lo alimentan consumo-tokens.py (cada Mac) y la
     // herramienta consumo_reportar del MCP de admira.live (consejeros de GrokBot).
+    // ── UBICACIÓN EN TIEMPO REAL de invitados (Carlos, 18-09-2026 · FLT-100564) ──────
+    // Posiciones VIVAS de los invitados de un evento (AdmiraXperience) para el mapa de
+    // admira.live/ubicacion. La fuente es el teléfono del invitado; el contrato no depende
+    // de ella (un lector BLE propio reportaría por aquí igual). Una fila por evento+invitado;
+    // sin renovar en 90 s deja de pintarse. Lectura pública (CORS *), como el resto de /fleet.
+    if (url.pathname === "/ubicacion/report" && req.method === "POST") {
+      try {
+        await ensureUbicacionSchema(env);
+        const v = validarUbicacion(await req.json().catch(() => null));
+        if (!v.ok) return json({ ok: false, error: v.error }, 400);
+        const now = Date.now();
+        await env.DB.prepare("INSERT INTO ubicaciones(evento,invitado,nombre,vip,lat,lng,acc,ts) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(evento,invitado) DO UPDATE SET nombre=excluded.nombre,vip=excluded.vip,lat=excluded.lat,lng=excluded.lng,acc=excluded.acc,ts=excluded.ts")
+          .bind(v.evento, v.invitado, v.nombre, v.vip, v.lat, v.lng, v.acc, now).run();
+        return json({ ok: true, evento: v.evento, invitado: v.invitado, ts: now, ttl_ms: UBICACION_TTL_MS });
+      } catch (e) { return json({ ok: false, error: String(e && e.message || e) }, 500); }
+    }
+    if (url.pathname === "/ubicacion/live" && req.method === "GET") {
+      try {
+        await ensureUbicacionSchema(env);
+        const evento = String(url.searchParams.get("evento") || "").trim().slice(0, 80);
+        if (!evento) return json({ ok: false, error: "evento requerido" }, 400);
+        const now = Date.now();
+        const { results } = await env.DB.prepare("SELECT invitado,nombre,vip,lat,lng,acc,ts FROM ubicaciones WHERE evento=? AND ts>?")
+          .bind(evento, now - UBICACION_TTL_MS).all();
+        // no-store: es una foto en vivo, ni el borde ni el navegador deben guardarla.
+        return new Response(JSON.stringify({ ok: true, evento, now, ttl_ms: UBICACION_TTL_MS, invitados: invitadosVivos(results || [], now) }),
+          { status: 200, headers: { ...CORS, "content-type": "application/json", "Cache-Control": "no-store" } });
+      } catch (e) { return json({ ok: false, error: String(e && e.message || e) }, 500); }
+    }
     if (url.pathname === "/fleet/consumo" && req.method === "GET") {
       await ensureSchema(env);
       const dias = Math.min(90, Math.max(1, Number(url.searchParams.get("dias") || 7)));
