@@ -21,7 +21,7 @@ export async function linkTelegramChats(env){
  const api=`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}`;
  const offset=Number((await env.DB.prepare("SELECT value FROM telegram_state WHERE key='offset'").bind().first())?.value||0);
  let updates=[];
- try{const r=await fetch(`${api}/getUpdates?offset=${offset}&timeout=0&allowed_updates=%5B%22message%22%5D`);if(!r.ok){console.warn('telegram getUpdates',r.status);return;}updates=(await r.json()).result||[];}catch(e){console.warn('telegram getUpdates',String(e));return;}
+ try{const r=await fetch(`${api}/getUpdates?offset=${offset}&timeout=0&allowed_updates=%5B%22message%22%5D`);if(!r.ok){console.warn('telegram getUpdates',r.status);return;}updates=(await r.json()).result||[];if(updates.length)console.log('telegram updates',updates.length);}catch(e){console.warn('telegram getUpdates',String(e));return;}
  for(const u of updates){
   const m=u.message,code=/^\/start\s+([a-f0-9]{12,64})$/.exec((m?.text||'').trim())?.[1];
   if(!code||!m.chat)continue;
@@ -31,4 +31,10 @@ export async function linkTelegramChats(env){
   try{await fetch(`${api}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:m.chat.id,text:`✅ Telegram vinculado a Yokup. Aquí recibirás los avisos de trabajo de ${link.name}.`})});}catch{}
  }
  if(updates.length)await env.DB.prepare("INSERT OR REPLACE INTO telegram_state(key,value) VALUES('offset',?)").bind(String(updates.at(-1).update_id+1)).run();
+}
+
+// @usuario público del bot configurado, para saber a qué bot hay que escribir.
+export async function telegramBot(env){
+ if(!env.TELEGRAM_BOT_TOKEN)return null;
+ try{const r=await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getMe`);return r.ok?'@'+(await r.json()).result.username:'token no válido';}catch{return null;}
 }
