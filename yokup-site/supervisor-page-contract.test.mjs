@@ -70,11 +70,13 @@ test("una alarma confirmada mientras la pestaña está oculta se conserva hasta 
   assert.match(js, /pendingSpeech:null/);
   assert.match(js, /state\.pendingSpeech = \{key, text:String\(text\), lang:/);
   assert.match(js, /function speakPendingAlert\(\)/);
-  assert.match(js, /if \(!pending \|\| !dom\.voice\.checked \|\| !\("speechSynthesis" in window\) \|\| document\.hidden\) return false/);
+  assert.match(js, /if \(!dom\.voice\.checked \|\| !\("speechSynthesis" in window\) \|\| document\.hidden\) return false/);
   assert.match(js, /window\.speechSynthesis\.speak\(utterance\);[\s\S]*?state\.pendingSpeech = null;[\s\S]*?sessionStorage\.setItem\(storageKey, "1"\)/,
     "el once_key sólo se consume después de entregar la voz");
-  assert.match(js, /else \{ speakPendingAlert\(\); resumeAfterVisibility\(\); \}/,
-    "volver a la pestaña reintenta la alarma antes de reabrir la cámara");
+  assert.match(js, /presentDeferredVisual\(\);\s*spe[a-zA-Z]*PendingAlert\(\)/,
+    "volver a la pestaña presenta el resultado vigente y después reintenta la alarma");
+  assert.match(js, /pending\.scope && !analysisScopeMatches\(pending\.scope, currentAnalysisScope\(\)\)/,
+    "una voz diferida tampoco cruza de puesto o proyecto");
 });
 
 test("el fallback manual y la privacidad forman parte visible del producto", () => {
@@ -88,6 +90,93 @@ test("el fallback manual y la privacidad forman parte visible del producto", () 
   assert.doesNotMatch(js, /indexedDB|caches\.open|localStorage\.setItem\([^,]+,\s*(?:frame|image)/i);
   assert.match(css, /\.sv-stage\.analyzing \.sv-scanline/);
   assert.match(css, /\.sv-ticket\[hidden\]\{display:none\}/, "un ticket inexistente no deja una tarjeta fantasma");
+});
+
+test("cada pantalla se convierte en un objetivo identificado sobre la previsualización", () => {
+  assert.match(html, /<canvas id="visionOverlay"[^>]*aria-hidden="true"/);
+  assert.match(html, /id="targetStatus"[^>]*role="status"[^>]*aria-live="polite"/);
+  assert.match(html, /id="detections" role="list" aria-label="Pantallas identificadas"/);
+  assert.match(js, /export function screenTargetPlan\(/);
+  assert.match(js, /screenTargetId\(index, screen\)/, "el HUD prefiere el identificador devuelto por visión");
+  assert.match(js, /drawTargetCorners\(context, box, palette\.color\)/);
+  assert.match(js, /drawTargetReticle\(context, box, palette\.color\)/);
+  assert.match(js, /drawTargetLabel\(context, target, box, palette\.color/);
+  assert.match(js, /classList\.toggle\("has-targets", painted > 0\)/);
+  assert.match(css, /\.sv-stage\.has-targets \.sv-overlay\{animation:sv-target-acquire/);
+  assert.match(css, /prefers-reduced-motion:reduce[^}]*\.sv-stage\.has-targets \.sv-overlay/);
+  assert.match(js, /STATE \$\{target\.stateConfidence\}%/);
+  assert.match(js, /ESTADO —/);
+  assert.match(js, /screens:\$\{screenTargetSemanticKey\(state\.lastScreens\)\}/);
+  assert.match(js, /if \(!dom\.targetStatus \|\| state\.targetStatusKey === key\) return false/,
+    "el live region no reanuncia el mismo estado semántico");
+});
+
+test("el HUD y el fondo se publican atómicamente desde el mismo fotograma", () => {
+  const captureStart = js.indexOf("function captureDrawable");
+  const captureEnd = js.indexOf("function screenTone", captureStart);
+  const capture = js.slice(captureStart, captureEnd);
+  assert.match(capture, /document\.createElement\("canvas"\)/, "la captura usa un canvas fuera del DOM");
+  assert.match(capture, /const image = buffer\.toDataURL\("image\/jpeg", JPEG_QUALITY\)/);
+  assert.match(capture, /return \{image, metrics, width:size\.width, height:size\.height, buffer\}/,
+    "la copia enviada y la que después se presenta nacen del mismo buffer");
+  assert.doesNotMatch(capture, /dom\.frame/, "capturar vídeo no modifica el still visible");
+
+  const videoStart = js.indexOf("async function analyzeVideo");
+  const videoEnd = js.indexOf("async function startMonitoring", videoStart);
+  const video = js.slice(videoStart, videoEnd);
+  assert.match(video, /captureDrawable\(dom\.camera, dom\.camera\.videoWidth, dom\.camera\.videoHeight\)/);
+  assert.doesNotMatch(video, /presentCapturedFrame|dom\.frame|has-still/,
+    "durante la inferencia conserva el último still+lock y nunca superpone cajas sobre vídeo vivo");
+
+  const visualStart = js.indexOf("function renderAnalysisVisual");
+  const visualEnd = js.indexOf("function deferAnalysisVisual", visualStart);
+  const visual = js.slice(visualStart, visualEnd);
+  assert.ok(visual.indexOf("presentCapturedFrame(frame)") >= 0);
+  assert.ok(visual.indexOf("presentCapturedFrame(frame)") < visual.indexOf("renderScreens(result.screens || [])"),
+    "el frame vigente se presenta antes de pintar su HUD en la misma tarea");
+
+  const uploadStart = js.indexOf("async function analyzeUpload");
+  const uploadEnd = js.indexOf("async function pauseForVisibility", uploadStart);
+  const upload = js.slice(uploadStart, uploadEnd);
+  const uploadPresent = upload.indexOf("presentCapturedFrame(frame)");
+  const uploadSubmit = upload.indexOf("await submitFrame(frame, false)");
+  assert.ok(uploadPresent >= 0 && uploadPresent < uploadSubmit,
+    "upload puede mostrar su copia pendiente y envía exactamente ese mismo frame");
+  assert.match(js, /function releaseCapturedFrame[\s\S]*?frame\.image = "";[\s\S]*?frame\.buffer\.width = 0/);
+  assert.match(js, /function invalidateAnalysis[\s\S]*?discardPendingFrame\(\)/);
+});
+
+test("ocultar pausa la cámara sin abortar el POST y limpia también un still manual", () => {
+  const pauseStart = js.indexOf("async function pauseForVisibility");
+  const pauseEnd = js.indexOf("async function resumeAfterVisibility", pauseStart);
+  const pause = js.slice(pauseStart, pauseEnd);
+  assert.match(pause, /clearTimer\(\)/);
+  assert.match(pause, /stopTracks\(\)/);
+  assert.match(pause, /clearPresentedFrame\(\)/, "también limpia un upload ya completado aunque no haya monitorización");
+  assert.doesNotMatch(pause, /invalidateAnalysis|\.abort\(/, "visibilitychange no cancela una inferencia válida");
+  assert.match(js, /deferVisual:document\.hidden \|\| state\.hiddenPaused/);
+  assert.match(js, /analysisScopeMatches\(deferred\.scope, current\)/,
+    "el resultado diferido sólo puede volver al mismo scope");
+});
+
+test("el análisis tiene timeout menor que el lease y se reprograma sin confundir stop con timeout", () => {
+  const timeout = Number(js.match(/const ANALYSIS_TIMEOUT_MS = ([\d_]+);/)[1].replaceAll("_", ""));
+  assert.ok(timeout > 10_000 && timeout < 120_000);
+  assert.match(js, /timeoutTriggered = true;\s*controller\.abort\(\)/);
+  assert.match(js, /window\.clearTimeout\(timeout\)/);
+  assert.match(js, /if \(timeoutTriggered && isCurrent\(\)\)/,
+    "sólo el temporizador vigente muestra tiempo agotado");
+  assert.match(js, /if \(continuous && state\.monitoring && !state\.hiddenPaused && !document\.hidden\) scheduleNext\(state\.nextDelay\)/);
+  assert.match(js, /function invalidateAnalysis[\s\S]*?state\.abort\.abort\(\)/,
+    "stop y cambio de scope siguen usando el mismo AbortController");
+});
+
+test("probar una imagen es un control de teclado nativo", () => {
+  assert.match(html, /<button class="sv-btn upload" id="uploadButton" type="button">/);
+  assert.match(html, /<input id="uploadInput" type="file"[^>]*hidden>/);
+  assert.match(js, /dom\.uploadButton\.addEventListener\("click", \(\) => dom\.upload\.click\(\)\)/);
+  assert.match(js, /dom\.uploadButton\.disabled = dom\.upload\.disabled/);
+  assert.doesNotMatch(html, /<label class="sv-btn upload"/);
 });
 
 test("una lectura antigua de estado no puede repintar otro puesto o proyecto", () => {
@@ -105,7 +194,7 @@ test("una respuesta POST antigua no puede pintar estado, ticket ni alarma en otr
   assert.match(js, /project_id:scope\.projectId,[\s\S]*?station_id:scope\.stationId/,
     "el POST usa el alcance capturado, no el estado mutable posterior");
   const staleGuard = js.indexOf("if (!isCurrent()) return;", js.indexOf("async function submitFrame"));
-  const paint = js.indexOf("handleAnalysis(result, frame);", staleGuard);
+  const paint = js.indexOf("handleAnalysis(result, frame,", staleGuard);
   assert.ok(staleGuard >= 0 && paint > staleGuard, "la vigencia se comprueba antes de pintar y hablar");
   assert.match(js, /error\.name !== "AbortError" && isCurrent\(\)/,
     "un fallo tardío tampoco sustituye el mensaje del alcance actual");

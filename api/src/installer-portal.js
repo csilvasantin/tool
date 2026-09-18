@@ -1,4 +1,5 @@
 import {portalCredentials} from './portal-credentials.js';
+import {demoLogin} from './demo-accounts.js';
 /** Installer portal: isolated accounts, authenticated inbox and signed Admira ingestion. */
 const ORIGINS = new Set(['https://www.yokup.com', 'https://yokup.com', 'http://localhost:8788', 'http://127.0.0.1:8788']);
 const SKILLS = new Set(['screen', 'player', 'network', 'audio', 'sensor', 'kiosk', 'hvac']);
@@ -99,7 +100,9 @@ export async function handleInstaller(request,env,principal) {
   if(method!=='GET' && !ORIGINS.has(request.headers.get('origin'))) fail(403,'Origen no permitido.');
   if((path==='/register'||path==='/login') && method==='POST') {
    await rateLimit(env,'auth-ip:'+(request.headers.get('CF-Connecting-IP')||'local'),20,15*60000);
-   const body=await jsonBody(request), email=text(body.email,3,254).toLowerCase();
+   const body=await jsonBody(request), demo=path==='/login'&&demoLogin('installer',body);
+   if(demo){const account=await statement(env,'SELECT * FROM installer_accounts WHERE email=?',demo).first();if(!account)fail(401,'Correo o contraseña incorrectos.');return response(request,{profile:publicProfile(account)},200,await session(env,account.id,account.password_hash));}
+   const email=text(body.email,3,254).toLowerCase();
    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail(400,'Correo electrónico no válido.');
    await rateLimit(env,'auth-email:'+await hash(email),10,15*60000);
    const password=text(body.password,12,128);

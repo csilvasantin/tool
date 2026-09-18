@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import {
+  SUPERVISOR_AI_CALLS_PER_ANALYSIS,
   SUPERVISOR_MODEL,
+  SUPERVISOR_MAX_DETECTED_SCREENS,
   SUPERVISOR_ALERTS_SQL,
   SUPERVISOR_AI_USAGE_SQL,
   SUPERVISOR_OBSERVATIONS_SQL,
@@ -13,8 +15,10 @@ import {
   claimSupervisorAlert,
   deriveObservation,
   handleSupervisorRequest,
+  mergeVisionWithDetections,
   nextSupervisorState,
   normalizeObservationId,
+  normalizeScreenDetections,
   normalizeStationId,
   parseVisionAnswer,
   validateImageDataUri
@@ -24,6 +28,8 @@ const indexSource = await readFile(new URL("./src/index.js", import.meta.url), "
 
 test("el modelo de visión y las rutas viven detrás de la sesión Yokup", () => {
   assert.equal(SUPERVISOR_MODEL, "@cf/moondream/moondream3.1-9B-A2B");
+  assert.equal(SUPERVISOR_AI_CALLS_PER_ANALYSIS, 2);
+  assert.equal(SUPERVISOR_MAX_DETECTED_SCREENS, 8);
   assert.match(indexSource, /url\.pathname\.startsWith\("\/supervisor\/"\)/);
   assert.match(indexSource, /const session = await requireAuth\(env, req\)/);
   assert.match(indexSource, /SUPERVISOR_STATIONS_SQL/);
@@ -71,15 +77,129 @@ test("interpreta JSON cercado y separa reproducción, apagado y cámara oscura",
   assert.equal(coveredLens.issueCode, "camera_dark");
 });
 
+test("tipos inválidos de query fallan seguros y nunca confirman una incidencia", () => {
+  const parsed = parseVisionAnswer({answer:JSON.stringify({
+    scene_visible:"false",
+    screens:[
+      {id:"SCREEN-01",state:"off",confidence:true},
+      {id:"SCREEN-02",state:"error",confidence:"0.99"},
+      {id:"SCREEN-03",state:"black",confidence:99}
+    ]
+  })});
+  assert.equal(parsed.sceneVisible, false);
+  assert.deepEqual(parsed.screens.map(({confidence}) => confidence), [0, 0, 0]);
+  const detections = normalizeScreenDetections({objects:[
+    {x_min:.05,y_min:.1,x_max:.45,y_max:.8},
+    {x_min:.55,y_min:.1,x_max:.95,y_max:.8}
+  ]});
+  const observation = deriveObservation(mergeVisionWithDetections(parsed, detections), 2, {luminance:.4,dark_ratio:.1});
+  assert.equal(observation.status, "warning");
+  assert.equal(observation.issueCode, "camera_dark");
+});
+
+test("normaliza, ordena y limita las cajas oficiales de detect con identidades deterministas", () => {
+  const objects = [
+    {x_min:.55,y_min:.1,x_max:.9,y_max:.5},
+    {x_min:.08,y_min:.11,x_max:.43,y_max:.51},
+    {x_min:.081,y_min:.111,x_max:.431,y_max:.511}, // duplicada
+    {x_min:.4,y_min:.4,x_max:.4,y_max:.8}, // degenerada
+    {x_min:0,y_min:0,x_max:1,y_max:1}, // una pantalla puede llenar el encuadre
+    {x_min:"no",y_min:.2,x_max:.4,y_max:.5},
+    {x_min:null,y_min:.2,x_max:.4,y_max:.5},
+    {x_min:.1,y_min:.2,x_max:99,y_max:.5},
+    ...Array.from({length:12}, (_, index) => ({
+      x_min:.02 + index * .03,y_min:.65,x_max:.04 + index * .03,y_max:.72
+    }))
+  ];
+  const detections = normalizeScreenDetections({objects});
+  assert.equal(detections.length, 8);
+  assert.deepEqual(detections[0], {id:"SCREEN-01",label:"Pantalla 01",bbox:[.08,.11,.35,.4]});
+  assert.deepEqual(detections[1], {id:"SCREEN-02",label:"Pantalla 02",bbox:[.55,.1,.35,.4]});
+  assert.ok(detections.some(({bbox}) => bbox[0] === 0 && bbox[1] === 0 && bbox[2] === 1 && bbox[3] === 1));
+  assert.equal(detections.at(-1).id, "SCREEN-08");
+});
+
+test("fusiona estados sólo por ID exacto aunque query responda en orden cruzado", () => {
+  const detections = normalizeScreenDetections({objects:[
+    {x_min:.55,y_min:.1,x_max:.9,y_max:.5},
+    {x_min:.08,y_min:.1,x_max:.43,y_max:.5}
+  ]});
+  const vision = parseVisionAnswer({answer:JSON.stringify({
+    scene_visible:true,
+    screens:[
+      {id:"SCREEN-02",state:"off",confidence:.96,description:"derecha apagada"},
+      {id:"SCREEN-01",state:"playing",confidence:.98,description:"izquierda activa"}
+    ],
+    summary:"Dos pantallas."
+  })});
+  const merged = mergeVisionWithDetections(vision, detections);
+  assert.deepEqual(merged.screens.map(({id,state,bbox}) => ({id,state,bbox})), [
+    {id:"SCREEN-01",state:"playing",bbox:[.08,.1,.35,.4]},
+    {id:"SCREEN-02",state:"off",bbox:[.55,.1,.35,.4]}
+  ]);
+  assert.deepEqual(mergeVisionWithDetections(vision, []).screens, []);
+});
+
+test("un ID ausente, duplicado o desconocido queda unknown y nunca genera estado crítico", () => {
+  const detections = normalizeScreenDetections({objects:[
+    {x_min:.05,y_min:.1,x_max:.3,y_max:.5},
+    {x_min:.36,y_min:.1,x_max:.62,y_max:.5},
+    {x_min:.68,y_min:.1,x_max:.94,y_max:.5}
+  ]});
+  const vision = parseVisionAnswer({answer:JSON.stringify({
+    scene_visible:true,
+    screens:[
+      {id:"SCREEN-01",state:"playing",confidence:.99,description:"activa"},
+      {id:"SCREEN-02",state:"off",confidence:.99,description:"apagada"},
+      {id:"SCREEN-02",state:"off",confidence:.99,description:"duplicada"},
+      {id:"SCREEN-99",state:"off",confidence:.99,description:"desconocida"},
+      {state:"off",confidence:.99,description:"sin id"}
+    ],
+    summary:"Respuesta ambigua."
+  })});
+  const merged = mergeVisionWithDetections(vision, detections);
+  assert.deepEqual(merged.screens.map(({id,state,confidence}) => ({id,state,confidence})), [
+    {id:"SCREEN-01",state:"playing",confidence:.99},
+    {id:"SCREEN-02",state:"unknown",confidence:0},
+    {id:"SCREEN-03",state:"unknown",confidence:0}
+  ]);
+  const observation = deriveObservation(merged, 3, {luminance:.4,dark_ratio:.1});
+  assert.equal(observation.status, "warning");
+  assert.notEqual(observation.status, "critical");
+});
+
+test("un duplicado tardío tampoco puede convertir un target ambiguo en incidencia", () => {
+  const detections = normalizeScreenDetections({objects:[
+    {x_min:.1,y_min:.1,x_max:.8,y_max:.8}
+  ]});
+  const padding = Array.from({length:16}, (_, index) => ({
+    id:`SCREEN-${String(index + 20).padStart(2, "0")}`,
+    state:"playing",confidence:.99
+  }));
+  const vision = parseVisionAnswer({answer:JSON.stringify({
+    scene_visible:true,
+    screens:[
+      {id:"SCREEN-01",state:"off",confidence:.99,description:"primera lectura"},
+      ...padding,
+      {id:"SCREEN-01",state:"off",confidence:.99,description:"duplicado tardío"}
+    ]
+  })});
+  const merged = mergeVisionWithDetections(vision, detections);
+  assert.deepEqual(merged.screens.map(({id,state,confidence}) => ({id,state,confidence})), [
+    {id:"SCREEN-01",state:"unknown",confidence:0}
+  ]);
+  assert.notEqual(deriveObservation(merged, 1).status, "critical");
+});
+
 test("la alarma necesita dos lecturas críticas y sólo habla en la transición", () => {
   const observation = {status:"critical",issueCode:"screen_off",confidence:.97,summary:"Apagada",visibleScreens:1,activeScreens:0,screens:[],luminance:.1,darkRatio:.8};
   const first = nextSupervisorState(null, observation, 1000);
   assert.equal(first.confirmed, false);
   assert.equal(first.alert, false);
-  const second = nextSupervisorState({status:"critical",consecutive_failures:1}, observation, 2000);
+  const second = nextSupervisorState({status:"critical",issue_code:"screen_off",consecutive_failures:1}, observation, 2000);
   assert.equal(second.confirmed, true);
   assert.equal(second.alert, true);
-  const third = nextSupervisorState({status:"critical",consecutive_failures:2,open_ticket_id:"INC-1"}, observation, 3000);
+  const third = nextSupervisorState({status:"critical",issue_code:"screen_off",consecutive_failures:2,open_ticket_id:"INC-1"}, observation, 3000);
   assert.equal(third.alert, false);
   assert.equal(third.openTicketId, "INC-1");
 });
@@ -87,13 +207,25 @@ test("la alarma necesita dos lecturas críticas y sólo habla en la transición"
 test("un ticket abierto se recupera al pasar critical → warning → healthy, sin repetir en healthy", () => {
   const warning = {status:"warning",issueCode:"camera_dark",confidence:.4,summary:"Cámara oscura",visibleScreens:0,activeScreens:0,screens:[],luminance:.01,darkRatio:.99};
   const healthy = {status:"healthy",issueCode:"healthy",confidence:.99,summary:"Emitiendo",visibleScreens:1,activeScreens:1,screens:[],luminance:.4,darkRatio:.1};
-  const afterWarning = nextSupervisorState({status:"critical",consecutive_failures:2,open_ticket_id:"INC-1"}, warning, 4000);
+  const afterWarning = nextSupervisorState({status:"critical",issue_code:"screen_off",consecutive_failures:2,open_ticket_id:"INC-1"}, warning, 4000);
   assert.equal(afterWarning.recovered, false);
   assert.equal(afterWarning.openTicketId, "INC-1");
   const afterHealthy = nextSupervisorState({status:"warning",consecutive_failures:0,open_ticket_id:afterWarning.openTicketId}, healthy, 5000);
   assert.equal(afterHealthy.recovered, true);
   const repeatedHealthy = nextSupervisorState({status:"healthy",consecutive_failures:0,open_ticket_id:afterHealthy.openTicketId}, healthy, 6000);
   assert.equal(repeatedHealthy.recovered, false);
+});
+
+test("dos averías críticas distintas no se confirman como una sola incidencia", () => {
+  const screenOff = {status:"critical",issueCode:"screen_off",confidence:.98,summary:"Apagada",visibleScreens:1,activeScreens:0,screens:[],luminance:.1,darkRatio:.8};
+  const noSignal = {...screenOff, issueCode:"no_signal", summary:"Sin señal"};
+  const changed = nextSupervisorState({status:"critical",issue_code:"screen_off",consecutive_failures:1}, noSignal, 2000);
+  assert.equal(changed.consecutiveFailures, 1);
+  assert.equal(changed.confirmed, false);
+  assert.equal(changed.alert, false);
+  const confirmed = nextSupervisorState({status:"critical",issue_code:"no_signal",consecutive_failures:1}, noSignal, 3000);
+  assert.equal(confirmed.consecutiveFailures, 2);
+  assert.equal(confirmed.alert, true);
 });
 
 function fakeDatabase() {
@@ -157,8 +289,9 @@ function fakeDatabase() {
         leases.set(args[0], {station_id:args[0],lease_id:args[1],observation_id:args[2],expires_at:args[3],updated_at:args[4]});
       } else if (sql.startsWith("INSERT INTO supervisor_ai_usage")) {
         const key = `${args[0]}|${args[1]}`, current = usage.get(key);
-        if (current && Number(current.used) >= Number(args[3])) return {meta:{changes:0}};
-        usage.set(key, {window_start:args[0],scope:args[1],used:Number(current && current.used || 0) + 1,updated_at:args[2]});
+        const units = Number(args[2]), limit = Number(args[4]);
+        if (Number(current && current.used || 0) + units > limit) return {meta:{changes:0}};
+        usage.set(key, {window_start:args[0],scope:args[1],used:Number(current && current.used || 0) + units,updated_at:args[3]});
       } else if (sql.startsWith("INSERT OR IGNORE INTO supervisor_alerts")) {
         if (alerts.has(args[0])) return {meta:{changes:0}};
         alerts.set(args[0], {once_key:args[0],station_id:args[1],ticket_id:args[2],issue_code:args[3],created_at:args[4]});
@@ -255,12 +388,23 @@ function analysisRequest(body = {}) {
 }
 
 const healthyVision = () => ({
-  answer:'{"scene_visible":true,"screens":[{"state":"playing","confidence":0.98}],"summary":"Pantalla emitiendo."}'
+  answer:'{"scene_visible":true,"screens":[{"id":"SCREEN-01","state":"playing","confidence":0.98}],"summary":"Pantalla emitiendo."}'
 });
 
 const offVision = () => ({
-  answer:'{"scene_visible":true,"screens":[{"state":"off","confidence":0.98}],"summary":"Pantalla apagada."}'
+  answer:'{"scene_visible":true,"screens":[{"id":"SCREEN-01","state":"off","confidence":0.98}],"summary":"Pantalla apagada."}'
 });
+
+const detectedVision = () => ({
+  objects:[{x_min:.1,y_min:.1,x_max:.9,y_max:.8}]
+});
+
+function supervisorAi(analysis = healthyVision, onCall = null) {
+  return {run:async (model, input) => {
+    if (onCall) onCall(model, input);
+    return input.task === "detect" ? detectedVision() : analysis();
+  }};
+}
 
 function sqliteSupervisorDatabase() {
   const raw = new DatabaseSync(":memory:");
@@ -296,7 +440,7 @@ function sqliteSupervisorDatabase() {
 
 test("el batch propietario usa SQL SQLite real y confirma estación, observación y replay juntos", async () => {
   const DB = sqliteSupervisorDatabase();
-  const env = {DB, AI:{run:async () => healthyVision()}};
+  const env = {DB, AI:supervisorAi()};
   const request = analysisRequest({station_id:"puesto-sql-real",observation_id:"obs-sql-real-01"});
   const response = await handleSupervisorRequest(request, env, new URL(request.url), supervisorDeps());
 
@@ -311,20 +455,60 @@ test("el batch propietario usa SQL SQLite real y confirma estación, observació
 test("sin project_id el backend fija admira-tv y persiste ese proyecto canónico", async () => {
   const DB = fakeDatabase();
   let aiCalls = 0;
-  const env = {DB, AI:{run:async () => { aiCalls += 1; return healthyVision(); }}};
+  const env = {DB, AI:supervisorAi(healthyVision, () => { aiCalls += 1; })};
   const request = analysisRequest();
   const response = await handleSupervisorRequest(request, env, new URL(request.url), supervisorDeps());
 
   assert.equal(response.status, 200);
   assert.equal((await response.json()).station.project_id, "admira-tv");
   assert.equal(DB.station().project_id, "admira-tv");
-  assert.equal(aiCalls, 1);
+  assert.equal(aiCalls, 2);
+});
+
+test("el análisis ejecuta detect oficial y devuelve objetivos identificados con geometría autoritativa", async () => {
+  const DB = fakeDatabase(), calls = [];
+  const env = {DB, AI:{run:async (model, input) => {
+    calls.push({model,input});
+    if (input.task === "detect") return {objects:[
+      {x_min:.55,y_min:.1,x_max:.9,y_max:.5},
+      {x_min:.08,y_min:.1,x_max:.43,y_max:.5}
+    ]};
+    return {answer:JSON.stringify({
+      scene_visible:true,
+      screens:[
+        {id:"SCREEN-02",state:"off",confidence:.94,description:"objetivo derecho apagado"},
+        {id:"SCREEN-01",state:"playing",confidence:.99,description:"objetivo izquierdo activo"}
+      ],
+      summary:"Dos objetivos localizados."
+    })};
+  }}};
+  const request = analysisRequest({expected_screens:2,observation_id:"obs-detect-contract"});
+  const response = await handleSupervisorRequest(request, env, new URL(request.url), supervisorDeps());
+  const data = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(calls.map(({input}) => input.task), ["detect","query"]);
+  const detect = calls.find(({input}) => input.task === "detect");
+  assert.equal(detect.model, SUPERVISOR_MODEL);
+  assert.equal(detect.input.max_objects, SUPERVISOR_MAX_DETECTED_SCREENS);
+  assert.match(detect.input.target, /digital signage.*television.*monitor.*powered-off/i);
+  const query = calls.find(({input}) => input.task === "query");
+  assert.match(query.input.question, /"id":"SCREEN-01","x_min":0\.08,"y_min":0\.1,"x_max":0\.43,"y_max":0\.5/);
+  assert.match(query.input.question, /coordenadas están normalizadas de 0 a 1.*x_min, y_min, x_max, y_max/);
+  assert.match(query.input.question, /Conserva exactamente cada id/);
+  assert.deepEqual(data.screens.map(({id,label,state,bbox}) => ({id,label,state,bbox})), [
+    {id:"SCREEN-01",label:"Pantalla 01",state:"playing",bbox:[.08,.1,.35,.4]},
+    {id:"SCREEN-02",label:"Pantalla 02",state:"off",bbox:[.55,.1,.35,.4]}
+  ]);
+  assert.equal(data.station.visible_screens, 2);
+  assert.equal(data.station.active_screens, 1);
+  assert.ok([...DB.usage.values()].every(({used}) => used === SUPERVISOR_AI_CALLS_PER_ANALYSIS));
 });
 
 test("un usuario normal no cambia de proyecto aunque falsifique rol o capability en el body", async () => {
   const DB = fakeDatabase();
   let aiCalls = 0, incidentCalls = 0;
-  const env = {DB, AI:{run:async () => { aiCalls += 1; return healthyVision(); }}};
+  const env = {DB, AI:supervisorAi(healthyVision, () => { aiCalls += 1; })};
   const request = analysisRequest({
     project_id:"xpaceos",
     role:"superuser",
@@ -346,7 +530,7 @@ test("un usuario normal no cambia de proyecto aunque falsifique rol o capability
 test("una sesión firmada pero retirada de la whitelist no conserva acceso al Supervisor", async () => {
   const DB = fakeDatabase();
   let aiCalls = 0;
-  const env = {DB, AI:{run:async () => { aiCalls += 1; return healthyVision(); }}};
+  const env = {DB, AI:supervisorAi(healthyVision, () => { aiCalls += 1; })};
   const request = analysisRequest({observation_id:"obs-revoked-user"});
   const response = await handleSupervisorRequest(request, env, new URL(request.url), supervisorDeps({
     access:{defaultProjectId:"admira-tv",defaultProjectLabel:"admira.tv",allowed:false,canChangeProject:false}
@@ -361,7 +545,7 @@ test("una sesión firmada pero retirada de la whitelist no conserva acceso al Su
 test("un superusuario puede analizar un proyecto activo alternativo", async () => {
   const DB = fakeDatabase();
   let aiCalls = 0;
-  const env = {DB, AI:{run:async () => { aiCalls += 1; return healthyVision(); }}};
+  const env = {DB, AI:supervisorAi(healthyVision, () => { aiCalls += 1; })};
   const request = analysisRequest({project_id:"xpaceos",observation_id:"obs-policy-admin-1"});
   const response = await handleSupervisorRequest(request, env, new URL(request.url), supervisorDeps({
     session:{email:"admin@example.com"},
@@ -371,14 +555,14 @@ test("un superusuario puede analizar un proyecto activo alternativo", async () =
   assert.equal(response.status, 200);
   assert.equal((await response.json()).station.project_id, "xpaceos");
   assert.equal(DB.station().project_id, "xpaceos");
-  assert.equal(aiCalls, 1);
+  assert.equal(aiCalls, 2);
 });
 
 test("ni siquiera un superusuario usa proyectos inexistentes o archivados", async () => {
   for (const projectId of ["no-existe", "archivado"]) {
     const DB = fakeDatabase();
     let aiCalls = 0;
-    const env = {DB, AI:{run:async () => { aiCalls += 1; return healthyVision(); }}};
+    const env = {DB, AI:supervisorAi(healthyVision, () => { aiCalls += 1; })};
     const request = analysisRequest({project_id:projectId,observation_id:`obs-${projectId}-0001`});
     const response = await handleSupervisorRequest(request, env, new URL(request.url), supervisorDeps({
       session:{email:"admin@example.com"},
@@ -394,7 +578,7 @@ test("ni siquiera un superusuario usa proyectos inexistentes o archivados", asyn
 
 test("state aplica la misma política y evita leer una estación de otro proyecto", async () => {
   const DB = fakeDatabase();
-  const env = {DB, AI:{run:async () => healthyVision()}};
+  const env = {DB, AI:supervisorAi()};
   const adminDeps = supervisorDeps({
     session:{email:"admin@example.com"},
     access:{defaultProjectId:"admira-tv",defaultProjectLabel:"admira.tv",allowed:true,canChangeProject:true}
@@ -423,7 +607,7 @@ test("state aplica la misma política y evita leer una estación de otro proyect
 test("el replay sólo reutiliza una respuesta si coinciden station_id y project_id", async () => {
   const DB = fakeDatabase();
   let aiCalls = 0;
-  const env = {DB, AI:{run:async () => { aiCalls += 1; return healthyVision(); }}};
+  const env = {DB, AI:supervisorAi(healthyVision, () => { aiCalls += 1; })};
   const first = analysisRequest({station_id:"puesto-a",observation_id:"obs-replay-bound-1"});
   assert.equal((await handleSupervisorRequest(first, env, new URL(first.url), supervisorDeps())).status, 200);
 
@@ -439,13 +623,13 @@ test("el replay sólo reutiliza una respuesta si coinciden station_id y project_
   }));
   assert.equal(projectCollision.status, 409);
   assert.deepEqual(await projectCollision.json(), {ok:false,error:"observation_conflict"});
-  assert.equal(aiCalls, 1, "ninguna colisión vuelve a ejecutar visión");
+  assert.equal(aiCalls, 2, "ninguna colisión vuelve a ejecutar visión");
 });
 
 test("POST oculta el proyecto dueño de una estación salvo a quien puede cambiar proyecto", async () => {
   const DB = fakeDatabase();
   let aiCalls = 0;
-  const env = {DB, AI:{run:async () => { aiCalls += 1; return healthyVision(); }}};
+  const env = {DB, AI:supervisorAi(healthyVision, () => { aiCalls += 1; })};
   const adminDeps = supervisorDeps({
     session:{email:"admin@example.com"},
     access:{defaultProjectId:"admira-tv",defaultProjectLabel:"admira.tv",allowed:true,canChangeProject:true}
@@ -462,7 +646,7 @@ test("POST oculta el proyecto dueño de una estación salvo a quien puede cambia
   const privilegedResponse = await handleSupervisorRequest(privileged, env, new URL(privileged.url), adminDeps);
   assert.equal(privilegedResponse.status, 409);
   assert.deepEqual(await privilegedResponse.json(), {ok:false,error:"station_project_conflict",project_id:"xpaceos"});
-  assert.equal(aiCalls, 1, "los conflictos se cortan antes de visión");
+  assert.equal(aiCalls, 2, "los conflictos se cortan antes de visión");
   assert.equal(DB.leases.size, 0);
   assert.equal(DB.requests.has("obs-private-user-1"), false);
   assert.equal(DB.requests.has("obs-private-admin-1"), false);
@@ -471,7 +655,7 @@ test("POST oculta el proyecto dueño de una estación salvo a quien puede cambia
 test("el recurso de cada incidente queda aislado por origen Supervisor y proyecto", async () => {
   const resourceFor = async (projectId) => {
     const DB = fakeDatabase(), incidents = [];
-    const env = {DB, AI:{run:async () => offVision()}};
+    const env = {DB, AI:supervisorAi(offVision)};
     const deps = supervisorDeps({
       session:{email:"admin@example.com"},
       access:{defaultProjectId:"admira-tv",defaultProjectLabel:"admira.tv",allowed:true,canChangeProject:true},
@@ -507,8 +691,9 @@ test("un lease D1 serializa dos observation_id concurrentes de la misma estació
     releaseVision = {started:resolve, finish:null};
   });
   const visionResult = new Promise((resolve) => { releaseVision.finish = () => resolve(healthyVision()); });
-  const env = {DB, AI:{run:async () => {
+  const env = {DB, AI:{run:async (_model, input) => {
     aiCalls += 1;
+    if (input.task === "detect") return detectedVision();
     releaseVision.started();
     return visionResult;
   }}};
@@ -521,7 +706,7 @@ test("un lease D1 serializa dos observation_id concurrentes de la misma estació
   const secondResponse = await handleSupervisorRequest(second, env, new URL(second.url), supervisorDeps());
   assert.equal(secondResponse.status, 409);
   assert.deepEqual(await secondResponse.json(), {ok:false,error:"station_busy"});
-  assert.equal(aiCalls, 1);
+  assert.equal(aiCalls, 2);
   assert.equal(DB.leases.size, 1, "el segundo request no libera el lease del primero");
   assert.equal(DB.requests.has("obs-concurrent-two"), false);
 
@@ -532,12 +717,14 @@ test("un lease D1 serializa dos observation_id concurrentes de la misma estació
 
 test("un reclaim del mismo observation_id no puede ser borrado ni finalizado por el propietario anterior", async () => {
   const DB = fakeDatabase();
-  let aiCalls = 0, releaseFirst, markFirstStarted;
+  let aiCalls = 0, queryCalls = 0, releaseFirst, markFirstStarted;
   const firstStarted = new Promise((resolve) => { markFirstStarted = resolve; });
   const firstVision = new Promise((resolve) => { releaseFirst = () => resolve(healthyVision()); });
-  const env = {DB, AI:{run:async () => {
+  const env = {DB, AI:{run:async (_model, input) => {
     aiCalls += 1;
-    if (aiCalls === 1) { markFirstStarted(); return firstVision; }
+    if (input.task === "detect") return detectedVision();
+    queryCalls += 1;
+    if (queryCalls === 1) { markFirstStarted(); return firstVision; }
     return healthyVision();
   }}};
   const first = analysisRequest({station_id:"puesto-reclaim",observation_id:"obs-reclaim-owner"});
@@ -572,14 +759,14 @@ test("un reclaim del mismo observation_id no puede ser borrado ni finalizado por
 test("si otro observation_id recupera el lease antes del batch, ninguna escritura stale se confirma", async () => {
   const DB = fakeDatabase();
   let aiCalls = 0;
-  const env = {DB, AI:{run:async () => { aiCalls += 1; return healthyVision(); }}};
+  const env = {DB, AI:supervisorAi(healthyVision, () => { aiCalls += 1; })};
   DB.stealLeaseBeforeBatch("puesto-lease-robado");
   const request = analysisRequest({station_id:"puesto-lease-robado",observation_id:"obs-stale-batch-1"});
   const response = await handleSupervisorRequest(request, env, new URL(request.url), supervisorDeps());
 
   assert.equal(response.status, 409);
   assert.deepEqual(await response.json(), {ok:false,error:"observation_conflict"});
-  assert.equal(aiCalls, 1);
+  assert.equal(aiCalls, 2);
   assert.equal(DB.station(), null, "el upsert de estación comparte la guarda de lease");
   assert.equal(DB.observations().length, 0, "la observación comparte la guarda de lease");
   assert.equal(DB.requests.has("obs-stale-batch-1"), false, "la reserva antigua se limpia sin tocar al sucesor");
@@ -589,24 +776,24 @@ test("si otro observation_id recupera el lease antes del batch, ninguna escritur
 test("el cupo D1 por usuario y proyecto corta la rotación de station_id antes de Workers AI", async () => {
   const DB = fakeDatabase();
   let aiCalls = 0;
-  const env = {DB, AI:{run:async () => { aiCalls += 1; return healthyVision(); }}};
+  const env = {DB, AI:supervisorAi(healthyVision, () => { aiCalls += 1; })};
   const originalNow = Date.now;
   Date.now = () => 1_800_000_000_000;
   try {
-    for (let index = 1; index <= 12; index += 1) {
+    for (let index = 1; index <= 6; index += 1) {
       const request = analysisRequest({station_id:`puesto-cuota-${index}`,observation_id:`obs-quota-${String(index).padStart(2,"0")}`});
       const response = await handleSupervisorRequest(request, env, new URL(request.url), supervisorDeps());
       assert.equal(response.status, 200, `petición permitida ${index}`);
       DB.age();
     }
-    const blocked = analysisRequest({station_id:"puesto-cuota-13",observation_id:"obs-quota-13"});
+    const blocked = analysisRequest({station_id:"puesto-cuota-07",observation_id:"obs-quota-07"});
     const blockedResponse = await handleSupervisorRequest(blocked, env, new URL(blocked.url), supervisorDeps());
     assert.equal(blockedResponse.status, 429);
     const payload = await blockedResponse.json();
     assert.equal(payload.error, "supervisor_rate_limited");
     assert.ok(payload.retry_after_ms > 0);
     assert.equal(aiCalls, 12, "la petición fuera de cupo no consume inferencia");
-    assert.equal(DB.requests.has("obs-quota-13"), false, "la reserva rechazada queda limpia");
+    assert.equal(DB.requests.has("obs-quota-07"), false, "la reserva rechazada queda limpia");
     assert.equal(DB.leases.size, 0);
   } finally {
     Date.now = originalNow;
@@ -618,7 +805,7 @@ test("el lease caducado se recupera y cualquier fallo de visión libera lease y 
   recoveredDB.leases.set("puesto-caducado", {
     station_id:"puesto-caducado",lease_id:"worker-caido",observation_id:"obs-antigua",expires_at:Date.now() - 1,updated_at:Date.now() - 10
   });
-  const recoveredEnv = {DB:recoveredDB,AI:{run:async () => healthyVision()}};
+  const recoveredEnv = {DB:recoveredDB,AI:supervisorAi()};
   const recoveredRequest = analysisRequest({station_id:"puesto-caducado",observation_id:"obs-after-expiry"});
   assert.equal((await handleSupervisorRequest(recoveredRequest, recoveredEnv, new URL(recoveredRequest.url), supervisorDeps())).status, 200);
   assert.equal(recoveredDB.leases.size, 0);
@@ -634,7 +821,7 @@ test("el lease caducado se recupera y cualquier fallo de visión libera lease y 
 
 test("dos fotogramas apagados crean un único ticket y devuelven la voz robot", async () => {
   const DB = fakeDatabase(), incidents = [];
-  const env = {DB, AI:{run:async () => ({answer:'{"scene_visible":true,"screens":[{"state":"off","confidence":0.97,"description":"sin luz"}],"summary":"La pantalla está apagada."}'})}};
+  const env = {DB, AI:supervisorAi(() => ({answer:'{"scene_visible":true,"screens":[{"id":"SCREEN-01","state":"off","confidence":0.97,"description":"sin luz"}],"summary":"La pantalla está apagada."}'}))};
   const deps = {
     json:(body,status=200) => new Response(JSON.stringify(body), {status,headers:{"content-type":"application/json"}}),
     ensureSchema:async () => {},
@@ -676,7 +863,7 @@ test("dos fotogramas apagados crean un único ticket y devuelven la voz robot", 
 test("un batch fallido después de crear el ticket conserva la voz pendiente para el reintento", async () => {
   const DB = fakeDatabase();
   let incidentCalls = 0;
-  const env = {DB, AI:{run:async () => offVision()}};
+  const env = {DB, AI:supervisorAi(offVision)};
   const deps = supervisorDeps({
     createIncident:async () => { incidentCalls += 1; return "INC-RECOVER-1"; }
   });

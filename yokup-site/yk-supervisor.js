@@ -1,5 +1,6 @@
 const API = "https://api.yokup.com";
 const ANALYSIS_INTERVAL_MS = 12_000;
+const ANALYSIS_TIMEOUT_MS = 45_000;
 const MAX_CAPTURE_EDGE = 960;
 const JPEG_QUALITY = 0.72;
 const PREFS_KEY = "yokup.supervisor.preferences.v1";
@@ -38,12 +39,179 @@ export function boxToPixels(box, mediaWidth, mediaHeight, viewportWidth, viewpor
   const renderedWidth = mw * scale, renderedHeight = mh * scale;
   const left = (vw - renderedWidth) / 2, top = (vh - renderedHeight) / 2;
   const values = box.map((value) => Math.min(1, Math.max(0, value)));
+  const right = Math.min(1, values[0] + values[2]), bottom = Math.min(1, values[1] + values[3]);
+  if (right <= values[0] || bottom <= values[1]) return null;
+  const pixel = (value) => Number(value.toFixed(4));
   return {
-    x:left + values[0] * renderedWidth,
-    y:top + values[1] * renderedHeight,
-    width:values[2] * renderedWidth,
-    height:values[3] * renderedHeight
+    x:pixel(left + values[0] * renderedWidth),
+    y:pixel(top + values[1] * renderedHeight),
+    width:pixel((right - values[0]) * renderedWidth),
+    height:pixel((bottom - values[1]) * renderedHeight)
   };
+}
+
+export function screenTargetId(index, screen = null) {
+  const supplied = String(screen && (screen.target_id || screen.id) || "").trim().toUpperCase();
+  if (/^SCREEN-\d{2,3}$/.test(supplied)) return supplied;
+  const target = Math.max(1, Math.trunc(Number(index) || 0) + 1);
+  return `SCREEN-${String(target).padStart(2, "0")}`;
+}
+
+export function screenStateLabel(screenState) {
+  return ({playing:"Emitiendo",on:"Encendida",content:"Emitiendo",off:"Apagada",black:"En negro",no_signal:"Sin señal",error:"Error",unknown:"Incierta"})[screenState] || "Incierta";
+}
+
+export function screenStateConfidence(screen) {
+  const value = screen && screen.confidence;
+  return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= 1
+    ? Math.round(value * 100) : null;
+}
+
+export function screenTargetAnnouncement(screens) {
+  const targets = Array.isArray(screens) ? screens : [];
+  if (!targets.length) return "No se ha localizado ninguna pantalla en la última lectura.";
+  const detail = targets.map((screen, index) => {
+    const confidence = screenStateConfidence(screen);
+    const position = screen && Array.isArray(screen.bbox) && screen.bbox.length === 4 && screen.bbox.every(Number.isFinite)
+      ? "localizada" : "sin posición precisa";
+    const stateReading = confidence === null ? "estado sin confianza" : `confianza del estado ${confidence} por ciento`;
+    return `${screenTargetId(index, screen)}, ${screenStateLabel(screen && screen.state)}, ${stateReading}, ${position}`;
+  }).join(". ");
+  return `${targets.length} ${targets.length === 1 ? "pantalla identificada" : "pantallas identificadas"}. ${detail}.`;
+}
+
+export function screenTargetSemanticKey(screens) {
+  const targets = Array.isArray(screens) ? screens : [];
+  if (!targets.length) return "none";
+  return targets.map((screen, index) => {
+    const located = Boolean(screen && Array.isArray(screen.bbox) && screen.bbox.length === 4 && screen.bbox.every(Number.isFinite));
+    return `${screenTargetId(index, screen)}:${String(screen && screen.state || "unknown")}:${located ? "located" : "unlocated"}`;
+  }).join("|");
+}
+
+export function screenTargetPlan(screens, mediaWidth, mediaHeight, viewportWidth, viewportHeight) {
+  return (Array.isArray(screens) ? screens : []).map((screen, index) => {
+    const box = boxToPixels(screen && screen.bbox, mediaWidth, mediaHeight, viewportWidth, viewportHeight);
+    if (!box) return null;
+    const state = String(screen && screen.state || "unknown");
+    const tone = ["playing", "on", "content"].includes(state) ? "healthy"
+      : ["off", "black", "no_signal", "error"].includes(state) ? "critical" : "warning";
+    return {
+      id:screenTargetId(index, screen),
+      state,
+      status:screenStateLabel(state),
+      tone,
+      stateConfidence:screenStateConfidence(screen),
+      box
+    };
+  }).filter(Boolean);
+}
+
+function targetPalette(tone) {
+  if (tone === "critical") return {color:"#ff5f6d", wash:"rgba(255,95,109,.035)"};
+  if (tone === "healthy") return {color:"#88ffaa", wash:"rgba(136,255,170,.025)"};
+  return {color:"#ffd866", wash:"rgba(255,216,102,.03)"};
+}
+
+function drawTargetCorners(context, box, color) {
+  const length = Math.max(8, Math.min(24, box.width * .2, box.height * .24));
+  const x1 = box.x, y1 = box.y, x2 = box.x + box.width, y2 = box.y + box.height;
+  context.strokeStyle = color;
+  context.lineWidth = 2.5;
+  context.lineCap = "square";
+  context.beginPath();
+  context.moveTo(x1, y1 + length); context.lineTo(x1, y1); context.lineTo(x1 + length, y1);
+  context.moveTo(x2 - length, y1); context.lineTo(x2, y1); context.lineTo(x2, y1 + length);
+  context.moveTo(x2, y2 - length); context.lineTo(x2, y2); context.lineTo(x2 - length, y2);
+  context.moveTo(x1 + length, y2); context.lineTo(x1, y2); context.lineTo(x1, y2 - length);
+  context.stroke();
+}
+
+function drawTargetReticle(context, box, color) {
+  const centerX = box.x + box.width / 2, centerY = box.y + box.height / 2;
+  const radius = Math.max(6, Math.min(13, Math.min(box.width, box.height) * .12));
+  const reach = radius + Math.max(5, radius * .55);
+  context.strokeStyle = color;
+  context.fillStyle = color;
+  context.lineWidth = 1;
+  context.beginPath();
+  context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  context.moveTo(centerX - reach, centerY); context.lineTo(centerX - radius * .45, centerY);
+  context.moveTo(centerX + radius * .45, centerY); context.lineTo(centerX + reach, centerY);
+  context.moveTo(centerX, centerY - reach); context.lineTo(centerX, centerY - radius * .45);
+  context.moveTo(centerX, centerY + radius * .45); context.lineTo(centerX, centerY + reach);
+  context.stroke();
+  context.beginPath();
+  context.arc(centerX, centerY, 1.8, 0, Math.PI * 2);
+  context.fill();
+}
+
+function drawTargetLabel(context, target, box, color, viewportWidth, viewportHeight) {
+  const detail = target.stateConfidence === null
+    ? `${target.status.toUpperCase()}  ·  ESTADO —`
+    : `${target.status.toUpperCase()}  ·  STATE ${target.stateConfidence}%`;
+  const paddingX = 7, labelHeight = 34;
+  context.font = "700 9px ui-monospace, SFMono-Regular, Menlo, monospace";
+  const targetWidth = context.measureText(target.id).width;
+  const detailWidth = context.measureText(detail).width;
+  const labelWidth = Math.min(Math.max(104, targetWidth, detailWidth) + paddingX * 2, Math.max(1, viewportWidth - 12));
+  const labelX = Math.min(Math.max(6, box.x), Math.max(6, viewportWidth - labelWidth - 6));
+  let labelY = box.y - labelHeight - 6;
+  if (labelY < 6) labelY = box.y + box.height + labelHeight + 6 <= viewportHeight
+    ? box.y + box.height + 6
+    : Math.min(Math.max(6, box.y + 5), Math.max(6, viewportHeight - labelHeight - 6));
+
+  context.fillStyle = "rgba(2,8,13,.9)";
+  context.fillRect(labelX, labelY, labelWidth, labelHeight);
+  context.strokeStyle = color;
+  context.lineWidth = 1;
+  context.strokeRect(labelX + .5, labelY + .5, labelWidth - 1, labelHeight - 1);
+  context.fillStyle = color;
+  context.fillRect(labelX, labelY, 3, labelHeight);
+  const availableTextWidth = Math.max(1, labelWidth - paddingX * 2);
+  context.fillText(target.id, labelX + paddingX, labelY + 13, availableTextWidth);
+  context.fillStyle = "rgba(223,248,255,.9)";
+  context.fillText(detail, labelX + paddingX, labelY + 26, availableTextWidth);
+
+  const anchorX = Math.min(Math.max(labelX + labelWidth / 2, box.x), box.x + box.width);
+  const anchorY = labelY < box.y ? labelY + labelHeight : labelY;
+  const boxAnchorY = labelY < box.y ? box.y : box.y + box.height;
+  context.strokeStyle = color;
+  context.globalAlpha = .65;
+  context.beginPath();
+  context.moveTo(anchorX, anchorY);
+  context.lineTo(anchorX, boxAnchorY);
+  context.stroke();
+  context.globalAlpha = 1;
+}
+
+export function drawTargetOverlay(context, targets, viewportWidth, viewportHeight) {
+  if (!context) return 0;
+  let painted = 0;
+  (Array.isArray(targets) ? targets : []).forEach((target) => {
+    if (!target || !target.box) return;
+    const box = target.box, palette = targetPalette(target.tone);
+    painted += 1;
+    context.save();
+    context.fillStyle = palette.wash;
+    context.fillRect(box.x, box.y, box.width, box.height);
+    context.strokeStyle = palette.color;
+    context.globalAlpha = .45;
+    context.lineWidth = 1;
+    context.setLineDash([4, 5]);
+    context.strokeRect(box.x + .5, box.y + .5, Math.max(0, box.width - 1), Math.max(0, box.height - 1));
+    context.setLineDash([]);
+    context.globalAlpha = 1;
+    context.shadowColor = palette.color;
+    context.shadowBlur = 8;
+    drawTargetCorners(context, box, palette.color);
+    context.shadowBlur = 4;
+    drawTargetReticle(context, box, palette.color);
+    context.shadowBlur = 0;
+    drawTargetLabel(context, target, box, palette.color, viewportWidth, viewportHeight);
+    context.restore();
+  });
+  return painted;
 }
 
 export function normalizeStationId(value) {
@@ -74,9 +242,9 @@ function boot() {
   const dom = {
     projectBadge:byId("projectBadge"), projectName:byId("projectName"), stationHeading:byId("stationHeading"),
     liveState:byId("liveState"), stage:byId("stage"), camera:byId("camera"), frame:byId("frameCanvas"),
-    overlay:byId("visionOverlay"), cameraEmpty:byId("cameraEmpty"), stageStation:byId("stageStation"),
+    overlay:byId("visionOverlay"), cameraEmpty:byId("cameraEmpty"), targetStatus:byId("targetStatus"), stageStation:byId("stageStation"),
     stageClock:byId("stageClock"), start:byId("startButton"), stop:byId("stopButton"), scan:byId("scanButton"),
-    upload:byId("uploadInput"), uploadLabel:byId("uploadLabel"), runtime:byId("runtimeMessage"), form:byId("stationForm"),
+    upload:byId("uploadInput"), uploadButton:byId("uploadButton"), runtime:byId("runtimeMessage"), form:byId("stationForm"),
     stationId:byId("stationId"), stationLabel:byId("stationLabel"), stationLocation:byId("stationLocation"),
     expected:byId("expectedScreens"), canonical:byId("canonicalScreen"), voice:byId("voiceEnabled"),
     visible:byId("visibleKpi"), expectedKpi:byId("expectedKpi"), active:byId("activeKpi"),
@@ -90,7 +258,9 @@ function boot() {
   const state = {
     projectId:defaultProjectId, projectName:defaultProjectLabel, monitoring:false, hiddenPaused:false, analyzing:false,
     stream:null, timer:0, abort:null, analysisSeq:0, refreshAbort:null, refreshSeq:0, lockTask:null, releaseLock:null, conflict:false,
-    mediaWidth:16, mediaHeight:9, lastScreens:[], lastStation:null, lastMetrics:null, pendingSpeech:null, nextDelay:ANALYSIS_INTERVAL_MS
+    mediaWidth:16, mediaHeight:9, lastScreens:[], lastStation:null, lastMetrics:null, pendingFrame:null,
+    deferredVisual:null, pendingSpeech:null, targetStatusKey:`message:${dom.targetStatus && dom.targetStatus.textContent || ""}`,
+    nextDelay:ANALYSIS_INTERVAL_MS
   };
 
   function message(text, tone = "") {
@@ -116,23 +286,56 @@ function boot() {
 
   function updateButtons() {
     const hasProject = Boolean(state.projectId);
-    dom.start.disabled = state.monitoring || !hasProject || state.conflict;
+    dom.start.disabled = state.monitoring || state.analyzing || !hasProject || state.conflict;
     dom.stop.disabled = !state.monitoring;
     dom.scan.disabled = !state.monitoring || state.hiddenPaused || state.analyzing;
     dom.upload.disabled = state.monitoring || !hasProject || state.analyzing || state.conflict;
-    dom.uploadLabel.classList.toggle("disabled", dom.upload.disabled);
-    dom.uploadLabel.setAttribute("aria-disabled", String(dom.upload.disabled));
+    dom.uploadButton.disabled = dom.upload.disabled;
     [dom.stationId, dom.stationLabel, dom.stationLocation, dom.expected, dom.canonical].forEach((input) => {
       input.disabled = state.monitoring || state.analyzing;
     });
   }
 
+  function currentAnalysisScope() {
+    return {
+      sequence:state.analysisSeq,
+      projectId:state.projectId,
+      stationId:readConfig(false).station_id
+    };
+  }
+
+  function releaseCapturedFrame(frame) {
+    if (!frame) return;
+    frame.image = "";
+    if (frame.buffer) {
+      frame.buffer.width = 0;
+      frame.buffer.height = 0;
+      frame.buffer = null;
+    }
+  }
+
+  function discardPendingFrame() {
+    const pending = state.pendingFrame;
+    state.pendingFrame = null;
+    releaseCapturedFrame(pending);
+  }
+
+  function discardDeferredVisual() {
+    const deferred = state.deferredVisual;
+    state.deferredVisual = null;
+    if (deferred) releaseCapturedFrame(deferred.frame);
+  }
+
   function invalidateAnalysis(reason = "") {
-    if (!state.analyzing) return false;
-    state.analysisSeq += 1;
-    if (state.abort) state.abort.abort();
-    if (reason) message(reason);
-    return true;
+    const active = state.analyzing;
+    if (active) {
+      state.analysisSeq += 1;
+      if (state.abort) state.abort.abort();
+    }
+    discardPendingFrame();
+    discardDeferredVisual();
+    if (active && reason) message(reason);
+    return active;
   }
 
   function applyProject(projectId, project) {
@@ -141,6 +344,10 @@ function boot() {
     const changed = state.projectId !== next;
     if (state.monitoring && changed) stopMonitoring("El proyecto ha cambiado. Reinicia el supervisor para usar el nuevo alcance.");
     else if (changed) invalidateAnalysis("El proyecto ha cambiado. La lectura anterior se ha descartado.");
+    if (changed) {
+      clearPresentedFrame();
+      clearScreenTargets("Proyecto cambiado. Esperando una nueva lectura visual.");
+    }
     state.projectId = next;
     state.projectName = next === defaultProjectId ? defaultProjectLabel : project && (project.name || project.id) || next || "";
     dom.projectBadge.classList.toggle("missing", !next);
@@ -234,10 +441,8 @@ function boot() {
     dom.camera.srcObject = stream;
     dom.camera.muted = true;
     await dom.camera.play();
-    state.mediaWidth = dom.camera.videoWidth || 16;
-    state.mediaHeight = dom.camera.videoHeight || 9;
-    dom.stage.classList.remove("has-still");
-    dom.stage.classList.add("has-media");
+    clearPresentedFrame({showVideo:true});
+    clearScreenTargets("Cámara activa. Buscando pantallas.");
     return true;
   }
 
@@ -259,20 +464,41 @@ function boot() {
     state.lockTask = null;
   }
 
-  function captureDrawable(drawable, sourceWidth, sourceHeight, showStill) {
+  function clearPresentedFrame({showVideo = false} = {}) {
+    const context = dom.frame.getContext("2d");
+    if (context) context.clearRect(0, 0, dom.frame.width, dom.frame.height);
+    dom.frame.width = 1;
+    dom.frame.height = 1;
+    dom.stage.classList.remove("has-still");
+    dom.stage.classList.toggle("has-media", Boolean(showVideo && state.stream));
+    state.mediaWidth = showVideo ? dom.camera.videoWidth || 16 : 16;
+    state.mediaHeight = showVideo ? dom.camera.videoHeight || 9 : 9;
+  }
+
+  function presentCapturedFrame(frame) {
+    if (!frame || !frame.buffer || !frame.width || !frame.height) return false;
+    dom.frame.width = frame.width;
+    dom.frame.height = frame.height;
+    const context = dom.frame.getContext("2d", {alpha:false});
+    if (!context) return false;
+    context.drawImage(frame.buffer, 0, 0, frame.width, frame.height);
+    state.mediaWidth = frame.width;
+    state.mediaHeight = frame.height;
+    dom.stage.classList.add("has-still", "has-media");
+    return true;
+  }
+
+  function captureDrawable(drawable, sourceWidth, sourceHeight) {
     const size = scaleCaptureSize(sourceWidth, sourceHeight, MAX_CAPTURE_EDGE);
-    dom.frame.width = size.width;
-    dom.frame.height = size.height;
-    const context = dom.frame.getContext("2d", {alpha:false, willReadFrequently:true});
+    const buffer = document.createElement("canvas");
+    buffer.width = size.width;
+    buffer.height = size.height;
+    const context = buffer.getContext("2d", {alpha:false, willReadFrequently:true});
+    if (!context) throw new Error("No se pudo preparar el fotograma.");
     context.drawImage(drawable, 0, 0, size.width, size.height);
     const metrics = computeFrameMetrics(context.getImageData(0, 0, size.width, size.height));
-    const image = dom.frame.toDataURL("image/jpeg", JPEG_QUALITY);
-    state.mediaWidth = size.width;
-    state.mediaHeight = size.height;
-    if (showStill) {
-      dom.stage.classList.add("has-still", "has-media");
-    }
-    return {image, metrics, width:size.width, height:size.height};
+    const image = buffer.toDataURL("image/jpeg", JPEG_QUALITY);
+    return {image, metrics, width:size.width, height:size.height, buffer};
   }
 
   function screenTone(screenState) {
@@ -282,7 +508,7 @@ function boot() {
   }
 
   function screenLabel(screenState) {
-    return ({playing:"Emitiendo",on:"Encendida",content:"Emitiendo",off:"Apagada",black:"En negro",no_signal:"Sin señal",error:"Error",unknown:"Incierta"})[screenState] || "Incierta";
+    return screenStateLabel(screenState);
   }
 
   function drawBoxes() {
@@ -291,28 +517,32 @@ function boot() {
     dom.overlay.width = Math.round(rect.width * dpr);
     dom.overlay.height = Math.round(rect.height * dpr);
     const context = dom.overlay.getContext("2d");
-    context.scale(dpr, dpr);
+    if (!context) return;
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, rect.width, rect.height);
-    state.lastScreens.forEach((screen, index) => {
-      const box = boxToPixels(screen.bbox, state.mediaWidth, state.mediaHeight, rect.width, rect.height);
-      if (!box) return;
-      const tone = screenTone(screen.state);
-      const color = tone === "critical" ? "#ff5f6d" : tone === "healthy" ? "#88ffaa" : "#ffd866";
-      context.strokeStyle = color;
-      context.lineWidth = 1.5;
-      context.strokeRect(box.x, box.y, box.width, box.height);
-      const label = `${index + 1} · ${screenLabel(screen.state).toUpperCase()} · ${Math.round((Number(screen.confidence) || 0) * 100)}%`;
-      context.font = "700 10px ui-monospace, monospace";
-      const labelWidth = Math.min(box.width, context.measureText(label).width + 12);
-      context.fillStyle = color;
-      context.fillRect(box.x, Math.max(0, box.y - 20), labelWidth, 20);
-      context.fillStyle = "#02080d";
-      context.fillText(label, box.x + 6, Math.max(13, box.y - 6));
-    });
+    const targets = screenTargetPlan(state.lastScreens, state.mediaWidth, state.mediaHeight, rect.width, rect.height);
+    const painted = drawTargetOverlay(context, targets, rect.width, rect.height);
+    dom.stage.classList.toggle("has-targets", painted > 0);
+  }
+
+  function setTargetStatus(text, semanticKey) {
+    const key = String(semanticKey || text || "");
+    if (!dom.targetStatus || state.targetStatusKey === key) return false;
+    state.targetStatusKey = key;
+    dom.targetStatus.textContent = String(text || "");
+    return true;
+  }
+
+  function clearScreenTargets(announcement = "Sin objetivos localizados.") {
+    state.lastScreens = [];
+    dom.stage.classList.remove("has-targets");
+    setTargetStatus(announcement, `message:${announcement}`);
+    drawBoxes();
   }
 
   function renderScreens(screens) {
     state.lastScreens = Array.isArray(screens) ? screens : [];
+    setTargetStatus(screenTargetAnnouncement(state.lastScreens), `screens:${screenTargetSemanticKey(state.lastScreens)}`);
     dom.detections.replaceChildren();
     if (!state.lastScreens.length) {
       const empty = document.createElement("p");
@@ -328,12 +558,18 @@ function boot() {
       const head = document.createElement("div");
       head.className = "sv-detection-head";
       const title = document.createElement("strong");
-      title.textContent = `Pantalla ${index + 1} · ${screenLabel(screen.state)}`;
+      const target = screenTargetId(index, screen);
+      title.textContent = `${target} · ${screenLabel(screen.state)}`;
       const confidence = document.createElement("span");
-      confidence.textContent = `${Math.round((Number(screen.confidence) || 0) * 100)}%`;
+      const stateConfidence = screenStateConfidence(screen);
+      confidence.textContent = stateConfidence === null ? "ESTADO —" : `STATE ${stateConfidence}%`;
       head.append(title, confidence);
       const copy = document.createElement("p");
       copy.textContent = screen.description || "Sin detalle adicional.";
+      card.setAttribute("role", "listitem");
+      card.setAttribute("aria-label", stateConfidence === null
+        ? `${target}, ${screenLabel(screen.state)}, estado sin confianza`
+        : `${target}, ${screenLabel(screen.state)}, confianza del estado ${stateConfidence} por ciento`);
       card.append(head, copy);
       dom.detections.appendChild(card);
     });
@@ -458,7 +694,12 @@ function boot() {
 
   function speakPendingAlert() {
     const pending = state.pendingSpeech;
-    if (!pending || !dom.voice.checked || !("speechSynthesis" in window) || document.hidden) return false;
+    if (!pending) return false;
+    if (pending.scope && !analysisScopeMatches(pending.scope, currentAnalysisScope())) {
+      state.pendingSpeech = null;
+      return false;
+    }
+    if (!dom.voice.checked || !("speechSynthesis" in window) || document.hidden) return false;
     const storageKey = `yokup.supervisor.spoken:${pending.key}`;
     try {
       if (sessionStorage.getItem(storageKey)) { state.pendingSpeech = null; return false; }
@@ -478,19 +719,48 @@ function boot() {
     return true;
   }
 
-  function speakAlert(result) {
+  function speakAlert(result, scope) {
     const key = voiceEventKey(result);
     if (!key || !dom.voice.checked || !("speechSynthesis" in window)) return;
     const storageKey = `yokup.supervisor.spoken:${key}`;
     try { if (sessionStorage.getItem(storageKey)) return; } catch (_) {}
     const text = result.speech && result.speech.text || result.voice;
-    state.pendingSpeech = {key, text:String(text), lang:result.speech && result.speech.lang || "es-ES"};
+    state.pendingSpeech = {key, text:String(text), lang:result.speech && result.speech.lang || "es-ES", scope};
     speakPendingAlert();
   }
 
-  function handleAnalysis(result, frame) {
-    if (result.station) renderStation(result.station, {...frame.metrics});
+  function renderAnalysisVisual(result, frame) {
+    if (!presentCapturedFrame(frame)) throw new Error("No se pudo presentar el fotograma analizado.");
     renderScreens(result.screens || []);
+  }
+
+  function deferAnalysisVisual(result, frame, scope) {
+    discardDeferredVisual();
+    state.deferredVisual = {screens:Array.isArray(result.screens) ? result.screens : [], frame, scope};
+    return true;
+  }
+
+  function presentDeferredVisual() {
+    const deferred = state.deferredVisual;
+    if (!deferred || document.hidden) return false;
+    state.deferredVisual = null;
+    const current = currentAnalysisScope();
+    if (!analysisScopeMatches(deferred.scope, current)) {
+      releaseCapturedFrame(deferred.frame);
+      return false;
+    }
+    try {
+      if (!presentCapturedFrame(deferred.frame)) return false;
+      renderScreens(deferred.screens);
+      return true;
+    } finally {
+      releaseCapturedFrame(deferred.frame);
+    }
+  }
+
+  function handleAnalysis(result, frame, {deferVisual = false, scope = null} = {}) {
+    const retainedFrame = deferVisual ? deferAnalysisVisual(result, frame, scope) : (renderAnalysisVisual(result, frame), false);
+    if (result.station) renderStation(result.station, {...frame.metrics});
     renderTicket(result.ticket || (result.station && result.station.ticket_id ? {id:result.station.ticket_id} : null));
     dom.model.textContent = String(result.model || "visión IA").replace(/^@cf\//, "");
     if (result.transition === "incident_confirmed") message(`Incidencia ${result.ticket && result.ticket.id || "creada"}. La alarma ha sido confirmada.`, "error");
@@ -498,24 +768,27 @@ function boot() {
     else if (result.transition === "recovery_detected") message("La emisión vuelve a verse. El ticket queda pendiente de verificación humana.", "ok");
     else if (result.reused) message("Esta observación ya estaba procesada; no se repite la alarma.");
     else message("Observación completada. Siguiente lectura en 12 segundos.", "ok");
-    speakAlert(result);
+    speakAlert(result, scope);
+    return retainedFrame;
   }
 
   async function submitFrame(frame, continuous) {
-    if (state.analyzing) return;
-    if (!state.projectId) throw new Error("El proyecto del Supervisor no está disponible.");
-    const config = readConfig(true);
+    if (state.analyzing) { releaseCapturedFrame(frame); return; }
+    if (!state.projectId) {
+      releaseCapturedFrame(frame);
+      throw new Error("El proyecto del Supervisor no está disponible.");
+    }
+    let config;
+    try { config = readConfig(true); }
+    catch (error) { releaseCapturedFrame(frame); throw error; }
     const scope = Object.freeze({
       sequence:++state.analysisSeq,
       projectId:state.projectId,
       stationId:config.station_id
     });
-    const isCurrent = () => analysisScopeMatches(scope, {
-      sequence:state.analysisSeq,
-      projectId:state.projectId,
-      stationId:readConfig(false).station_id
-    });
+    const isCurrent = () => analysisScopeMatches(scope, currentAnalysisScope());
     state.analyzing = true;
+    state.pendingFrame = frame;
     state.nextDelay = ANALYSIS_INTERVAL_MS;
     updateButtons();
     dom.stage.classList.add("analyzing");
@@ -523,6 +796,11 @@ function boot() {
     message("La visión artificial está leyendo la escena…");
     const controller = new AbortController();
     state.abort = controller;
+    let timeoutTriggered = false, retainedFrame = false;
+    const timeout = window.setTimeout(() => {
+      timeoutTriggered = true;
+      controller.abort();
+    }, ANALYSIS_TIMEOUT_MS);
     try {
       const payload = {
         observation_id:observationId(), captured_at:Date.now(), project_id:scope.projectId,
@@ -530,20 +808,31 @@ function boot() {
         expected_screens:config.expected_screens, canonical_screen:config.canonical_screen,
         image:frame.image, metrics:frame.metrics
       };
-      const response = await fetch(`${API}/supervisor/analyze`, {
-        method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(payload), signal:controller.signal
+      let requestBody = JSON.stringify(payload);
+      payload.image = "";
+      frame.image = "";
+      const request = fetch(`${API}/supervisor/analyze`, {
+        method:"POST", headers:{"content-type":"application/json"}, body:requestBody, signal:controller.signal
       });
+      requestBody = "";
+      const response = await request;
       const result = await response.json().catch(() => ({}));
+      window.clearTimeout(timeout);
       if (!isCurrent()) return;
       if (!response.ok || result.ok === false) {
         const error = new Error(result.error || `HTTP ${response.status}`);
         error.retryAfter = Number(result.retry_after_ms) || 0;
         throw error;
       }
-      handleAnalysis(result, frame);
+      retainedFrame = handleAnalysis(result, frame, {deferVisual:document.hidden || state.hiddenPaused, scope});
       await refreshState({quiet:true});
     } catch (error) {
-      if (error.name !== "AbortError" && isCurrent()) {
+      if (timeoutTriggered && isCurrent()) {
+        state.nextDelay = ANALYSIS_INTERVAL_MS;
+        message("La visión ha superado el tiempo de espera. Yokup reintentará en el siguiente ciclo.", "error");
+        if (state.lastStation) setLiveState(state.lastStation.status, statusCopy(state.lastStation.status, state.lastStation.issue_code));
+        else setLiveState("warning", "Tiempo agotado");
+      } else if (error.name !== "AbortError" && isCurrent()) {
         state.nextDelay = error.retryAfter || ANALYSIS_INTERVAL_MS;
         const friendly = error.message === "scan_too_frequent" ? "Yokup está protegiendo el intervalo entre lecturas."
           : error.message === "supervisor_rate_limited" ? "Se ha alcanzado el cupo de visión. Yokup reintentará en el siguiente intervalo."
@@ -554,7 +843,9 @@ function boot() {
         else setLiveState("warning", "Sin respuesta");
       }
     } finally {
-      frame.image = "";
+      window.clearTimeout(timeout);
+      if (state.pendingFrame === frame) state.pendingFrame = null;
+      if (!retainedFrame) releaseCapturedFrame(frame);
       if (state.abort === controller) state.abort = null;
       state.analyzing = false;
       dom.stage.classList.remove("analyzing");
@@ -565,13 +856,14 @@ function boot() {
 
   async function analyzeVideo() {
     clearTimer();
-    if (!state.monitoring || state.hiddenPaused || state.analyzing || !state.stream) return;
+    if (!state.monitoring || state.hiddenPaused || !state.stream) return;
+    if (state.analyzing) { scheduleNext(500); return; }
     if (!dom.camera.videoWidth || dom.camera.readyState < 2) {
       message("Esperando el primer fotograma de la cámara…");
       scheduleNext(500);
       return;
     }
-    const frame = captureDrawable(dom.camera, dom.camera.videoWidth, dom.camera.videoHeight, false);
+    const frame = captureDrawable(dom.camera, dom.camera.videoWidth, dom.camera.videoHeight);
     state.lastMetrics = frame.metrics;
     dom.luminance.textContent = `${Math.round(frame.metrics.luminance * 100)}%`;
     dom.darkRatio.textContent = `${Math.round(frame.metrics.dark_ratio * 100)}% de píxeles oscuros`;
@@ -614,9 +906,9 @@ function boot() {
     state.abort = null;
     stopTracks();
     releaseStationLock();
-    dom.stage.classList.remove("has-media", "has-still", "analyzing");
-    state.lastScreens = [];
-    drawBoxes();
+    dom.stage.classList.remove("analyzing");
+    clearPresentedFrame();
+    clearScreenTargets("Supervisor detenido. Sin objetivos localizados.");
     setLiveState(state.lastStation ? state.lastStation.status : "idle", state.lastStation ? statusCopy(state.lastStation.status, state.lastStation.issue_code) : "En espera");
     updateButtons();
     if (!quiet) message(reason);
@@ -641,8 +933,11 @@ function boot() {
           image.src = url;
         });
       }
-      const frame = captureDrawable(bitmap, bitmap.width || bitmap.naturalWidth, bitmap.height || bitmap.naturalHeight, true);
-      if (typeof bitmap.close === "function") bitmap.close();
+      let frame;
+      try { frame = captureDrawable(bitmap, bitmap.width || bitmap.naturalWidth, bitmap.height || bitmap.naturalHeight); }
+      finally { if (typeof bitmap.close === "function") bitmap.close(); }
+      presentCapturedFrame(frame);
+      clearScreenTargets("Nueva imagen preparada. Buscando pantallas.");
       state.lastMetrics = frame.metrics;
       dom.luminance.textContent = `${Math.round(frame.metrics.luminance * 100)}%`;
       dom.darkRatio.textContent = `${Math.round(frame.metrics.dark_ratio * 100)}% de píxeles oscuros`;
@@ -655,26 +950,41 @@ function boot() {
   }
 
   async function pauseForVisibility() {
-    if (!state.monitoring || state.hiddenPaused) return;
-    state.hiddenPaused = true;
     clearTimer();
-    stopTracks();
-    dom.stage.classList.remove("has-media");
-    setLiveState("idle", "En pausa");
+    if (state.monitoring) {
+      if (state.hiddenPaused) return;
+      state.hiddenPaused = true;
+      stopTracks();
+    }
+    clearPresentedFrame();
+    clearScreenTargets(state.analyzing
+      ? "Vista oculta. El análisis continúa sin conservar la imagen en pantalla."
+      : "Vista oculta. Sin imagen activa.");
+    if (state.monitoring) setLiveState("idle", "En pausa");
     updateButtons();
-    message("Supervisión pausada: la pestaña está oculta y la cámara se ha cerrado.");
+    message(state.analyzing
+      ? "Vista pausada y cámara cerrada. El análisis en curso terminará en segundo plano."
+      : "Vista pausada: la pestaña está oculta y no conserva ningún fotograma.");
   }
 
   async function resumeAfterVisibility() {
-    if (!state.monitoring || !state.hiddenPaused) return;
+    if (document.hidden) return;
+    if (!state.monitoring || !state.hiddenPaused) {
+      presentDeferredVisual();
+      speakPendingAlert();
+      return;
+    }
     try {
+      await openCamera();
       state.hiddenPaused = false;
       updateButtons();
-      await openCamera();
+      presentDeferredVisual();
+      speakPendingAlert();
       message("Cámara reactivada. Reanudando la supervisión…", "ok");
       scheduleNext(350);
     } catch (error) {
       stopMonitoring(`No se pudo reactivar la cámara: ${error.message}`);
+      speakPendingAlert();
     }
   }
 
@@ -696,18 +1006,21 @@ function boot() {
   dom.voice.addEventListener("change", () => { if (dom.voice.checked) speakPendingAlert(); });
   dom.stationId.addEventListener("change", () => {
     invalidateAnalysis("El puesto ha cambiado. La lectura anterior se ha descartado.");
+    clearPresentedFrame();
+    clearScreenTargets("Puesto cambiado. Esperando una nueva lectura visual.");
     state.conflict = false;
     refreshState();
   });
   dom.start.addEventListener("click", startMonitoring);
   dom.stop.addEventListener("click", () => stopMonitoring());
   dom.scan.addEventListener("click", () => { clearTimer(); analyzeVideo(); });
+  dom.uploadButton.addEventListener("click", () => dom.upload.click());
   dom.upload.addEventListener("change", () => analyzeUpload(dom.upload.files && dom.upload.files[0]));
   dom.refresh.addEventListener("click", () => refreshState());
   window.addEventListener("yk:project-change", (event) => applyProject(event.detail && event.detail.project_id, event.detail && event.detail.project));
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) pauseForVisibility();
-    else { speakPendingAlert(); resumeAfterVisibility(); }
+    else resumeAfterVisibility();
   });
   window.addEventListener("pagehide", () => stopMonitoring("", true));
   if (typeof ResizeObserver === "function") new ResizeObserver(drawBoxes).observe(dom.stage);
