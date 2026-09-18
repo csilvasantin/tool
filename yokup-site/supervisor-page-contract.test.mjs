@@ -213,8 +213,20 @@ test("el análisis tiene timeout menor que el lease y se reprograma sin confundi
   assert.match(js, /if \(timeoutTriggered && isCurrent\(\)\)/,
     "sólo el temporizador vigente muestra tiempo agotado");
   assert.match(js, /if \(continuous && state\.monitoring && !state\.hiddenPaused && !document\.hidden\) scheduleNext\(state\.nextDelay\)/);
+  assert.match(js, /state\.nextDelay = nextAnalysisDelay\(analysisStartedAt, analysisCompletedAt\)/,
+    "la cadencia se descuenta desde el inicio del análisis, no desde su respuesta");
+  assert.doesNotMatch(js, /await refreshState\(\{quiet:true\}\);[\s\S]{0,300}finally/,
+    "la sincronización histórica no bloquea el siguiente ciclo");
+  assert.match(js, /if \(shouldRefreshState && isCurrent\(\)\) void refreshState\(\{quiet:true\}\)/);
   assert.match(js, /function invalidateAnalysis[\s\S]*?state\.abort\.abort\(\)/,
     "stop y cambio de scope siguen usando el mismo AbortController");
+});
+
+test("la lectura auxiliar de estado tiene timeout y nunca puede congelar la cámara", () => {
+  assert.match(js, /const STATE_REFRESH_TIMEOUT_MS = 5_000/);
+  assert.match(js, /timeoutTriggered = true;\s*controller\.abort\(\);[\s\S]*STATE_REFRESH_TIMEOUT_MS/);
+  assert.match(js, /window\.clearTimeout\(timeout\)/);
+  assert.match(html, /CICLO OBJETIVO <b>12 s<\/b>/);
 });
 
 test("probar una imagen es un control de teclado nativo", () => {

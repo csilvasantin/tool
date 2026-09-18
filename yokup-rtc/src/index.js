@@ -11826,7 +11826,8 @@ var worker_app = {
             : fetch(input, init)
         });
         return await handleSupervisorRequest(req, env, url, {
-          json, ensureSchema, createIncident, resolveIncident, session, access, admiraMcpCall
+          json, ensureSchema, createIncident, resolveIncident, session, access, admiraMcpCall,
+          waitUntil:(promise) => ctx.waitUntil(promise)
         });
       } catch (error) {
         return json({ ok:false, error:"supervisor_failed", detail:String(error && error.message || error).slice(0, 180) }, 500);

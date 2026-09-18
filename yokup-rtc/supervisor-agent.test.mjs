@@ -7,6 +7,7 @@ import {
   SUPERVISOR_AI_CALLS_PER_ANALYSIS,
   SUPERVISOR_MODEL,
   SUPERVISOR_MAX_DETECTED_SCREENS,
+  SUPERVISOR_QUERY_MAX_TOKENS,
   SUPERVISOR_ALERTS_SQL,
   SUPERVISOR_AI_USAGE_SQL,
   SUPERVISOR_OBSERVATIONS_SQL,
@@ -25,6 +26,7 @@ import {
   normalizeStationId,
   parseVisionAnswer,
   readAdmiraSupervisorCatalog,
+  supervisorQueryMaxTokens,
   validateImageDataUri
 } from "./src/supervisor.js";
 
@@ -49,6 +51,7 @@ test("el modelo de visión y las rutas viven detrás de la sesión Yokup", () =>
   assert.match(indexSource, /sessionAllowed:async \(_environment, session\) => \(await currentSupervisorAccess\(session\)\)\.allowed === true/);
   assert.match(indexSource, /const access = await currentSupervisorAccess\(session\)/);
   assert.match(indexSource, /json, ensureSchema, createIncident, resolveIncident, session, access/);
+  assert.match(indexSource, /waitUntil:\(promise\) => ctx\.waitUntil\(promise\)/);
 });
 
 test("normaliza el puesto y rechaza imágenes que no sean data URI de imagen", () => {
@@ -79,6 +82,17 @@ test("interpreta JSON cercado y separa reproducción, apagado y cámara oscura",
   const coveredLens = deriveObservation(parseVisionAnswer({answer:'{"scene_visible":true,"screens":[{"state":"off","confidence":0.99}],"summary":"Oscuridad total."}'}), 1, {luminance:0.001,dark_ratio:0.999});
   assert.equal(coveredLens.status, "warning", "oscuridad total no se confunde con una pantalla apagada");
   assert.equal(coveredLens.issueCode, "camera_dark");
+});
+
+test("un query truncado falla cerrado antes de persistir o abrir incidencias", () => {
+  assert.throws(() => parseVisionAnswer({
+    finish_reason:"length",
+    answer:'{"scene_visible":true,"screens":[{"id":"SCREEN-01","state":"off","confidence":0.99}]}'
+  }), /vision_truncated/);
+  assert.equal(supervisorQueryMaxTokens(0), 512);
+  assert.equal(supervisorQueryMaxTokens(1), 512);
+  assert.equal(supervisorQueryMaxTokens(8), 1_184);
+  assert.ok(supervisorQueryMaxTokens(99) <= SUPERVISOR_QUERY_MAX_TOKENS);
 });
 
 test("tipos inválidos de query fallan seguros y nunca confirman una incidencia", () => {
@@ -914,6 +928,12 @@ test("el análisis ejecuta detect oficial y devuelve objetivos identificados con
   assert.match(query.input.question, /"id":"SCREEN-01","x_min":0\.08,"y_min":0\.1,"x_max":0\.43,"y_max":0\.5/);
   assert.match(query.input.question, /coordenadas están normalizadas de 0 a 1.*x_min, y_min, x_max, y_max/);
   assert.match(query.input.question, /Conserva exactamente cada id/);
+  assert.match(query.input.question, /máximo 3 textos, 8 palabras cada uno/);
+  assert.match(query.input.question, /máximo 20 palabras, sin personas/);
+  assert.equal(query.input.reasoning, false);
+  assert.equal(query.input.temperature, 0);
+  assert.equal(query.input.max_tokens, supervisorQueryMaxTokens(2));
+  assert.equal("top_p" in query.input, false);
   assert.deepEqual(data.screens.map(({id,label,state,bbox}) => ({id,label,state,bbox})), [
     {id:"SCREEN-01",label:"Pantalla 01",state:"playing",bbox:[.08,.1,.35,.4]},
     {id:"SCREEN-02",label:"Pantalla 02",state:"off",bbox:[.55,.1,.35,.4]}
@@ -921,6 +941,44 @@ test("el análisis ejecuta detect oficial y devuelve objetivos identificados con
   assert.equal(data.station.visible_screens, 2);
   assert.equal(data.station.active_screens, 1);
   assert.ok([...DB.usage.values()].every(({used}) => used === SUPERVISOR_AI_CALLS_PER_ANALYSIS));
+});
+
+test("la query visual empieza sin esperar a que termine el catálogo MCP", async () => {
+  const DB = fakeDatabase(), fixture = admiraMcpFixture();
+  let releaseCatalog;
+  const catalogGate = new Promise((resolve) => { releaseCatalog = resolve; });
+  let announceQuery;
+  const queryStarted = new Promise((resolve) => { announceQuery = resolve; });
+  const env = {DB, AI:{run:async (_model, input) => {
+    if (input.task === "detect") return detectedVision();
+    announceQuery();
+    return healthyVision();
+  }}};
+  const admiraMcpCall = async (calls) => {
+    await catalogGate;
+    return fixture(calls);
+  };
+  const request = analysisRequest({observation_id:"obs-pipeline-mcp-01"});
+  const pending = handleSupervisorRequest(request, env, new URL(request.url), supervisorDeps({admiraMcpCall}));
+  const queryWon = await Promise.race([
+    queryStarted.then(() => true),
+    new Promise((resolve) => setTimeout(() => resolve(false), 500))
+  ]);
+  releaseCatalog();
+  const response = await pending;
+  assert.equal(queryWon, true, "la telemetría Admira no debe bloquear el inicio de query");
+  assert.equal(response.status, 200);
+});
+
+test("la retención posterior al commit sale del camino de respuesta con waitUntil", async () => {
+  const DB = fakeDatabase(), background = [];
+  const request = analysisRequest({observation_id:"obs-retention-background"});
+  const response = await handleSupervisorRequest(request, {DB, AI:supervisorAi()}, new URL(request.url), supervisorDeps({
+    waitUntil:(task) => background.push(task)
+  }));
+  assert.equal(response.status, 200);
+  assert.equal(background.length, 1);
+  await Promise.all(background);
 });
 
 test("un usuario normal no cambia de proyecto aunque falsifique rol o capability en el body", async () => {

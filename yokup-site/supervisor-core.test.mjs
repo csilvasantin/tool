@@ -3,13 +3,22 @@ import assert from "node:assert/strict";
 import {
   analysisScopeMatches, boxToPixels, computeFrameMetrics, normalizeStationId, scaleCaptureSize,
   normalizeScreenIdentity, safeRemoteControlUrl, screenIdentityLabel, screenStateConfidence,
-  screenRemoteActionPlan, screenTargetAnnouncement, screenTargetId, screenTargetPlan, screenTargetSemanticKey, voiceEventKey
+  screenRemoteActionPlan, screenTargetAnnouncement, screenTargetId, screenTargetPlan, screenTargetSemanticKey,
+  nextAnalysisDelay, voiceEventKey
 } from "./yk-supervisor.js";
 
 test("la captura conserva proporción y nunca supera 960 px", () => {
   assert.deepEqual(scaleCaptureSize(1920, 1080), {width:960, height:540});
   assert.deepEqual(scaleCaptureSize(1200, 1600), {width:720, height:960});
   assert.deepEqual(scaleCaptureSize(640, 480), {width:640, height:480});
+});
+
+test("el ciclo de análisis mide de inicio a inicio sin solapar lecturas", () => {
+  assert.equal(nextAnalysisDelay(1_000, 2_200), 10_800);
+  assert.equal(nextAnalysisDelay(1_000, 13_000), 250);
+  assert.equal(nextAnalysisDelay(1_000, 19_000), 250);
+  assert.equal(nextAnalysisDelay(2_000, 1_000), 12_000, "un reloj inválido conserva la cadencia completa");
+  assert.equal(nextAnalysisDelay(1_000, 2_000, 8_000, 500), 7_000);
 });
 
 test("luminancia y proporción oscura salen de los píxeles, no de la IA", () => {
