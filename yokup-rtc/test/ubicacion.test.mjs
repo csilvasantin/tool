@@ -43,3 +43,50 @@ test("invitadosVivos descarta las posiciones caducadas, añade edad y ordena por
   assert.deepEqual(invitadosVivos([], now), []);
   assert.deepEqual(invitadosVivos(null, now), []);
 });
+
+import { metros, debeGuardarHistorial, ventanaHistorial, recorridos, HISTORIAL_MIN_M, HISTORIAL_MIN_MS, HISTORIAL_VENTANA_MAX_MS } from "../src/ubicacion.js";
+
+test("metros: haversine con valores conocidos (Plaça Catalunya → Sagrada Família ≈ 2,3 km)", () => {
+  assert.equal(Math.round(metros(41.3870, 2.1700, 41.4036, 2.1744) / 100) * 100, 1900);
+  assert.equal(metros(41.3870, 2.1700, 41.3870, 2.1700), 0);
+  assert.ok(Math.abs(metros(0, 0, 0, 0.0001) - 11.1) < 0.2, "0,0001° de longitud en el ecuador ≈ 11 m");
+});
+
+test("debeGuardarHistorial: el primero siempre; luego solo si se movió ≥ 8 m o pasaron ≥ 30 s", () => {
+  const now = 1_000_000_000_000;
+  const ult = { lat: 41.3870, lng: 2.1700, ts: now - 5000 };
+  assert.equal(debeGuardarHistorial(null, { lat: 1, lng: 1 }, now), true);
+  assert.equal(debeGuardarHistorial(ult, { lat: 41.38701, lng: 2.17001 }, now), false, "1 m y 5 s: no");
+  assert.equal(debeGuardarHistorial(ult, { lat: 41.3871, lng: 2.1700 }, now), true, "~11 m: sí");
+  assert.equal(debeGuardarHistorial({ ...ult, ts: now - HISTORIAL_MIN_MS }, { lat: 41.3870, lng: 2.1700 }, now), true, "quieto pero 30 s: sí");
+  assert.equal(HISTORIAL_MIN_M, 8);
+});
+
+test("ventanaHistorial: por defecto la última hora; acepta ms, segundos e ISO; acota a 7 días; ordena", () => {
+  const now = 1_700_000_000_000;
+  assert.deepEqual(ventanaHistorial({}, now), { desde: now - 3600000, hasta: now });
+  assert.deepEqual(ventanaHistorial({ desde: now - 1000, hasta: now }, now), { desde: now - 1000, hasta: now });
+  assert.deepEqual(ventanaHistorial({ desde: 1700000000, hasta: 1700000100 }, now), { desde: 1700000000000, hasta: 1700000100000 }, "segundos → ms");
+  assert.deepEqual(ventanaHistorial({ desde: "2023-11-14T22:13:20.000Z" }, now).desde, 1700000000000);
+  assert.deepEqual(ventanaHistorial({ hasta: now - 1000, desde: now }, now), { desde: now - 1000, hasta: now }, "invertida se ordena");
+  const v = ventanaHistorial({ desde: now - 30 * 24 * 3600000, hasta: now }, now);
+  assert.equal(v.hasta - v.desde, HISTORIAL_VENTANA_MAX_MS, "más de 7 días se recorta por el principio");
+  assert.equal(ventanaHistorial({ desde: "basura" }, now).desde, now - 3600000);
+});
+
+test("recorridos: agrupa por invitado, ordena por tiempo, suma metros y ordena por actividad reciente", () => {
+  const t = 1_000_000_000_000;
+  const rows = [
+    { invitado: "ana", nombre: "Ana", vip: 1, lat: 41.3870, lng: 2.1700, acc: 5, ts: t + 60000 },
+    { invitado: "ana", nombre: "Ana", vip: 1, lat: 41.3860, lng: 2.1700, acc: 5, ts: t },
+    { invitado: "luis", nombre: null, vip: 0, lat: 41.4, lng: 2.2, acc: null, ts: t + 10000 },
+    { invitado: "", lat: 0, lng: 0, ts: t },
+  ];
+  const r = recorridos(rows);
+  assert.deepEqual(r.map((x) => x.invitado), ["ana", "luis"]);
+  assert.equal(r[0].n, 2); assert.equal(r[0].puntos[0][2], t, "ordenado por ts aunque llegara al revés");
+  assert.ok(r[0].metros >= 105 && r[0].metros <= 118, "0,001° de latitud ≈ 111 m (" + r[0].metros + ")");
+  assert.deepEqual([r[0].desde, r[0].hasta, r[0].vip], [t, t + 60000, true]);
+  assert.deepEqual([r[1].nombre, r[1].metros, r[1].puntos[0][3]], ["luis", 0, null]);
+  assert.deepEqual(recorridos(null), []);
+});
