@@ -26,7 +26,7 @@ function rememberUser(user,on){try{on?localStorage.setItem(REMEMBER_KEY,JSON.str
 function setMode(next){mode=next;const login=mode==='login',edit=mode==='edit';$$('.register-only').forEach(el=>{el.hidden=login;el.querySelectorAll('input,select').forEach(input=>{input.disabled=login;});});
  $('#account-form [name=email]').closest('label').hidden=edit;$('#account-form [name=password]').closest('label').hidden=edit;
  for(const name of ['email','password'])$(`[name=${name}]`).disabled=edit;
- $('[name=password]').autocomplete=login?'current-password':'new-password';$('#account-form [name=email]').type=login?'text':'email';$('#account-form [name=password]').minLength=login?1:12;$('#account-form .remember-line').style.display=login?'flex':'none';if(login){const u=rememberedUser();if(u){$('#account-form [name=email]').value=u;$('#account-form [name=remember]').checked=true;}}
+ $('[name=password]').autocomplete=login?'current-password':'new-password';$('#account-form [name=email]').type=login?'text':'email';$('#account-form [name=password]').minLength=login?1:12;$('#account-form .remember-line').style.display=login?'flex':'none';$('[data-i18n=password]').textContent=login?t('Contraseña','Password'):t('Contraseña · mínimo 12 caracteres','Password · at least 12 characters');if(login){const u=rememberedUser();if(u){$('#account-form [name=email]').value=u;$('#account-form [name=remember]').checked=true;}}
  $('#register-tab').classList.toggle('active',!login);$('#login-tab').classList.toggle('active',login);$('#register-tab').setAttribute('aria-selected',String(!login));$('#login-tab').setAttribute('aria-selected',String(login));$('.tabs').hidden=edit;
  $('#submit-account').textContent=edit?t('Guardar perfil →','Save profile →'):login?t('Entrar →','Sign in →'):t('Crear mi cuenta →','Create my account →');$('#form-status').textContent='';googleAuth?.reset();
 }
@@ -81,5 +81,5 @@ $('#browser-alerts').onclick=async()=>{if(!('Notification'in window)){$('#dashbo
 $('#cancel-resolution').onclick=()=>$('#resolution-dialog').close();$('#resolution-form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('.primary');button.disabled=true;try{await api('/incidents/'+encodeURIComponent(activeIncident)+'/resolve',{resolution:new FormData(e.target).get('resolution')});$('#resolution-dialog').close();await refresh();}catch(e){$('#resolution-status').textContent=e.message;}finally{button.disabled=false;}};
 language(lang);initMap();api('/me').then(result=>{user=result.profile;showUser();}).catch(e=>{if(e.status!==401)$('#form-status').textContent=e.message;});
 setInterval(()=>{if(!document.hidden)refresh();},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
-})();
 if(rememberedUser())setMode('login');
+})();
