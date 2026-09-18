@@ -1,6 +1,7 @@
 const API = "https://api.yokup.com";
 const ANALYSIS_INTERVAL_MS = 12_000;
 const ANALYSIS_TIMEOUT_MS = 45_000;
+const STATE_REFRESH_TIMEOUT_MS = 5_000;
 const MAX_CAPTURE_EDGE = 960;
 const JPEG_QUALITY = 0.72;
 const PREFS_KEY = "yokup.supervisor.preferences.v1";
@@ -89,6 +90,34 @@ export function scaleCaptureSize(width, height, maxEdge = MAX_CAPTURE_EDGE) {
   const sourceHeight = Math.max(1, Number(height) || 1);
   const scale = Math.min(1, Math.max(1, Number(maxEdge) || MAX_CAPTURE_EDGE) / Math.max(sourceWidth, sourceHeight));
   return {width:Math.max(1, Math.round(sourceWidth * scale)), height:Math.max(1, Math.round(sourceHeight * scale))};
+}
+
+export function nextAnalysisDelay(startedAt, completedAt, targetMs = ANALYSIS_INTERVAL_MS, minimumMs = 250) {
+  const started = Number(startedAt), completed = Number(completedAt);
+  const target = Math.max(250, Number(targetMs) || ANALYSIS_INTERVAL_MS);
+  const minimum = Math.max(250, Number(minimumMs) || 250);
+  const elapsed = Number.isFinite(started) && Number.isFinite(completed) && completed >= started
+    ? completed - started : 0;
+  return Math.max(minimum, target - elapsed);
+}
+
+export function analysisFailurePresentation(errorCode, previousDiagnosis = null) {
+  const code = String(errorCode || "");
+  const previousCritical = code === "station_busy" && previousDiagnosis
+    && previousDiagnosis.status === "critical" && previousDiagnosis.label;
+  const descriptions = {
+    scan_too_frequent:"Yokup está protegiendo el intervalo entre lecturas.",
+    supervisor_rate_limited:"Se ha alcanzado el cupo de visión. Yokup reintentará en el siguiente intervalo.",
+    station_busy:"Este puesto ya tiene una lectura en curso."
+  };
+  return {
+    message:descriptions[code] || `No se pudo completar el análisis: ${code}`,
+    liveState:code === "station_busy"
+      ? previousCritical
+        ? {status:"critical", label:`Lectura en curso · ${previousDiagnosis.label}`}
+        : {status:"scanning", label:"Lectura en curso"}
+      : null
+  };
 }
 
 export function computeFrameMetrics(imageData) {
@@ -422,7 +451,7 @@ function boot() {
     const issues = {
       healthy:"Emisión correcta", screen_off:"Pantalla apagada", black_screen:"Pantalla en negro",
       no_signal:"Sin señal", player_error:"Error visible", camera_dark:"Cámara a oscuras",
-      missing_screen:"Falta una pantalla", low_confidence:"Lectura por confirmar", uncertain:"Estado incierto"
+      missing_screen:"Objetivo no delimitado", low_confidence:"Lectura por confirmar", uncertain:"Estado incierto"
     };
     if (issues[issueCode]) return issues[issueCode];
     return {healthy:"Saludable", warning:"Revisar", critical:"Incidencia", idle:"En espera"}[status] || "Observando";
@@ -976,6 +1005,11 @@ function boot() {
     if (state.refreshAbort) state.refreshAbort.abort();
     const controller = new AbortController();
     state.refreshAbort = controller;
+    let timeoutTriggered = false;
+    const timeout = window.setTimeout(() => {
+      timeoutTriggered = true;
+      controller.abort();
+    }, STATE_REFRESH_TIMEOUT_MS);
     const isCurrent = () => sequence === state.refreshSeq && projectId === state.projectId
       && stationId === readConfig(false).station_id;
     try {
@@ -1006,9 +1040,11 @@ function boot() {
       updateButtons();
       return result;
     } catch (error) {
-      if (error.name !== "AbortError" && isCurrent() && !quiet) message(`No se pudo leer el estado: ${error.message}`, "error");
+      if (timeoutTriggered && isCurrent() && !quiet) message("La sincronización de estado tarda demasiado. Puedes seguir supervisando.", "error");
+      else if (error.name !== "AbortError" && isCurrent() && !quiet) message(`No se pudo leer el estado: ${error.message}`, "error");
       return null;
     } finally {
+      window.clearTimeout(timeout);
       if (state.refreshAbort === controller) state.refreshAbort = null;
     }
   }
@@ -1079,7 +1115,7 @@ function boot() {
     }
   }
 
-  function handleAnalysis(result, frame, {deferVisual = false, scope = null} = {}) {
+  function handleAnalysis(result, frame, {deferVisual = false, scope = null, durationMs = 0} = {}) {
     const retainedFrame = deferVisual ? deferAnalysisVisual(result, frame, scope) : (renderAnalysisVisual(result, frame), false);
     if (result.station) renderStation(result.station, {...frame.metrics});
     renderTicket(result.ticket || (result.station && result.station.ticket_id ? {id:result.station.ticket_id} : null));
@@ -1088,7 +1124,10 @@ function boot() {
     else if (result.transition === "incident_reused") message(`Incidencia ${result.ticket && result.ticket.id || "existente"} ya vinculada. No se repite la alarma.`, "error");
     else if (result.transition === "recovery_detected") message("La emisión vuelve a verse. El ticket queda pendiente de verificación humana.", "ok");
     else if (result.reused) message("Esta observación ya estaba procesada; no se repite la alarma.");
-    else message("Observación completada. Siguiente lectura en 12 segundos.", "ok");
+    else {
+      const seconds = Math.max(0.1, Number(durationMs) / 1_000 || 0.1).toFixed(1).replace(".", ",");
+      message(`Observación completada en ${seconds} s. Ciclo objetivo: 12 segundos.`, "ok");
+    }
     speakAlert(result, scope);
     return retainedFrame;
   }
@@ -1108,6 +1147,7 @@ function boot() {
       stationId:config.station_id
     });
     const isCurrent = () => analysisScopeMatches(scope, currentAnalysisScope());
+    const analysisStartedAt = performance.now();
     state.analyzing = true;
     state.pendingFrame = frame;
     state.nextDelay = ANALYSIS_INTERVAL_MS;
@@ -1117,7 +1157,7 @@ function boot() {
     message("La visión artificial está leyendo la escena…");
     const controller = new AbortController();
     state.abort = controller;
-    let timeoutTriggered = false, retainedFrame = false;
+    let timeoutTriggered = false, retainedFrame = false, shouldRefreshState = false, transientLiveState = null;
     const timeout = window.setTimeout(() => {
       timeoutTriggered = true;
       controller.abort();
@@ -1145,8 +1185,14 @@ function boot() {
         error.retryAfter = Number(result.retry_after_ms) || 0;
         throw error;
       }
-      retainedFrame = handleAnalysis(result, frame, {deferVisual:document.hidden || state.hiddenPaused, scope});
-      await refreshState({quiet:true});
+      const analysisCompletedAt = performance.now();
+      state.nextDelay = nextAnalysisDelay(analysisStartedAt, analysisCompletedAt);
+      retainedFrame = handleAnalysis(result, frame, {
+        deferVisual:document.hidden || state.hiddenPaused,
+        scope,
+        durationMs:analysisCompletedAt - analysisStartedAt
+      });
+      shouldRefreshState = true;
     } catch (error) {
       if (timeoutTriggered && isCurrent()) {
         state.nextDelay = ANALYSIS_INTERVAL_MS;
@@ -1155,12 +1201,14 @@ function boot() {
         else setLiveState("warning", "Tiempo agotado");
       } else if (error.name !== "AbortError" && isCurrent()) {
         state.nextDelay = error.retryAfter || ANALYSIS_INTERVAL_MS;
-        const friendly = error.message === "scan_too_frequent" ? "Yokup está protegiendo el intervalo entre lecturas."
-          : error.message === "supervisor_rate_limited" ? "Se ha alcanzado el cupo de visión. Yokup reintentará en el siguiente intervalo."
-          : error.message === "station_busy" ? "Este puesto ya tiene una lectura en curso."
-          : `No se pudo completar el análisis: ${error.message}`;
-        message(friendly, "error");
-        if (state.lastStation) setLiveState(state.lastStation.status, statusCopy(state.lastStation.status, state.lastStation.issue_code));
+        const presentation = analysisFailurePresentation(error.message, state.lastStation ? {
+          status:state.lastStation.status,
+          label:statusCopy(state.lastStation.status, state.lastStation.issue_code)
+        } : null);
+        transientLiveState = presentation.liveState;
+        message(presentation.message, "error");
+        if (transientLiveState) setLiveState(transientLiveState.status, transientLiveState.label);
+        else if (state.lastStation) setLiveState(state.lastStation.status, statusCopy(state.lastStation.status, state.lastStation.issue_code));
         else setLiveState("warning", "Sin respuesta");
       }
     } finally {
@@ -1170,8 +1218,11 @@ function boot() {
       if (state.abort === controller) state.abort = null;
       state.analyzing = false;
       dom.stage.classList.remove("analyzing");
+      if (isCurrent() && transientLiveState) setLiveState(transientLiveState.status, transientLiveState.label);
+      else if (isCurrent() && state.lastStation) setLiveState(state.lastStation.status, statusCopy(state.lastStation.status, state.lastStation.issue_code));
       updateButtons();
       if (continuous && state.monitoring && !state.hiddenPaused && !document.hidden) scheduleNext(state.nextDelay);
+      if (shouldRefreshState && isCurrent()) void refreshState({quiet:true});
     }
   }
 

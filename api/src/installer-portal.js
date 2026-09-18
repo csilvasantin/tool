@@ -1,5 +1,6 @@
 import {portalCredentials} from './portal-credentials.js';
 import {demoLogin} from './demo-accounts.js';
+import {sendTelegramAlerts,linkTelegramChats,telegramBot} from './installer-telegram.js';
 /** Installer portal: isolated accounts, authenticated inbox and signed Admira ingestion. */
 const ORIGINS = new Set(['https://www.yokup.com', 'https://yokup.com', 'http://localhost:8788', 'http://127.0.0.1:8788']);
 const SKILLS = new Set(['screen', 'player', 'network', 'audio', 'sensor', 'kiosk', 'hvac']);
@@ -95,7 +96,7 @@ export async function handleInstaller(request,env,principal) {
  try {
   let path; try { path=decodeURIComponent(url.pathname.replace('/api/installer','')); } catch { fail(400,'Ruta no válida.'); }
   if(method==='OPTIONS') return response(request,{});
-  if(path==='/health') return response(request,{ok:true, radius_km:40, admira_configured:!!env.INSTALLER_ADMIRA_SECRET, notifications:['in_app'], version:1});
+  if(path==='/health') return response(request,{ok:true, radius_km:40, admira_configured:!!env.INSTALLER_ADMIRA_SECRET, notifications:env.TELEGRAM_BOT_TOKEN?['in_app','telegram']:['in_app'], telegram_bot:await telegramBot(env), version:1});
   if(path==='/events' && method==='POST') return response(request,await ingestEvent(request,env),202);
   if(method!=='GET' && !ORIGINS.has(request.headers.get('origin'))) fail(403,'Origen no permitido.');
   if((path==='/register'||path==='/login') && method==='POST') {
@@ -227,11 +228,13 @@ export async function dispatchNotifications(env) {
   }
   for(let start=0;start<statements.length;start+=80) await env.DB.batch(statements.slice(start,start+80));
  }
+ await sendTelegramAlerts(env);
 }
 export async function sweepInstallers(env) {
  const now=Date.now();
  const devices=await rows(env,'SELECT id,last_seen FROM installer_devices WHERE monitoring=1 AND last_seen+timeout_seconds*1000<?',now);
  for(const device of devices) await statement(env,`INSERT OR IGNORE INTO installer_incidents(id,device_id,title,reason,status,created_at) SELECT ?,?,'Equipo sin conexión','offline','open',? WHERE EXISTS(SELECT 1 FROM installer_devices WHERE id=? AND last_seen=? AND monitoring=1 AND last_seen+timeout_seconds*1000<?)`,'offline:'+await hash(device.id+':'+device.last_seen),device.id,now,device.id,device.last_seen,now).run();
+ await linkTelegramChats(env);
  await dispatchNotifications(env);
  await env.DB.batch([
   statement(env,'DELETE FROM installer_sessions WHERE expires_at<?',now),
