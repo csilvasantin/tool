@@ -64,10 +64,20 @@ export function normalizeScreenIdentity(screen) {
   const evidence = Array.isArray(raw && raw.evidence)
     ? [...new Set(raw.evidence.map((item) => compactIdentityText(item, 180)).filter(Boolean))].slice(0, 5)
     : [];
+  const rawConfirmation = raw && raw.confirmation && typeof raw.confirmation === "object" ? raw.confirmation : null;
+  const confirmationCount = Number(rawConfirmation && rawConfirmation.count);
+  const confirmationRequired = Number(rawConfirmation && rawConfirmation.required);
+  const confirmationStatus = compactIdentityText(rawConfirmation && rawConfirmation.status, 16).toLowerCase();
+  const confirmation = ["pending", "confirmed"].includes(confirmationStatus)
+    && Number.isInteger(confirmationCount) && confirmationCount >= 0
+    && Number.isInteger(confirmationRequired) && confirmationRequired >= 1
+    ? {status:confirmationStatus,count:confirmationCount,required:confirmationRequired}
+    : null;
   const verified = status === "matched" && source === "admira-mcp"
     && Boolean(project && project.id && player && player.id);
   const remoteRaw = raw && raw.remote && typeof raw.remote === "object" ? raw.remote : null;
-  const remoteUrl = verified ? safeRemoteControlUrl(remoteRaw && remoteRaw.url, player && player.id) : "";
+  const remoteUrl = verified && confirmation && confirmation.status === "confirmed"
+    ? safeRemoteControlUrl(remoteRaw && remoteRaw.url, player && player.id) : "";
   const remote = remoteUrl ? {
     url:remoteUrl,
     label:compactIdentityText(remoteRaw && remoteRaw.label, 80) || `Mando de ${player.name}`
@@ -75,11 +85,14 @@ export function normalizeScreenIdentity(screen) {
   return {
     status, source:source === "admira-mcp" ? source : null, confidence,
     verified, project:verified ? project : null, player:verified ? player : null,
-    content:verified ? content : null, evidence, remote
+    content:verified ? content : null, evidence, confirmation, remote
   };
 }
 
 export function screenIdentityLabel(identity) {
+  if (identity && identity.verified && identity.confirmation && identity.confirmation.status === "pending") {
+    return `Confirmando ${identity.confirmation.count}/${identity.confirmation.required}`;
+  }
   if (identity && identity.verified) return "Verificado por Admira MCP";
   return ({ambiguous:"Coincidencia ambigua", unmatched:"Sin coincidencia", unavailable:"Sin verificar"})[identity && identity.status]
     || "Sin verificar";
@@ -185,7 +198,7 @@ export function screenTargetAnnouncement(screens) {
     const stateReading = confidence === null ? "estado sin confianza" : `confianza del estado ${confidence} por ciento`;
     const identity = normalizeScreenIdentity(screen);
     const identityReading = identity.verified
-      ? `proyecto ${identity.project.name}, player ${identity.player.name}${identity.content ? `, emitiendo ${identity.content.title}` : ""}, verificado por Admira MCP`
+      ? `proyecto ${identity.project.name}, player ${identity.player.name}${identity.content ? `, contenido identificado ${identity.content.title}` : ""}, ${identity.confirmation && identity.confirmation.status === "pending" ? `confirmando ${identity.confirmation.count} de ${identity.confirmation.required}` : "verificado por Admira MCP"}`
       : screenIdentityLabel(identity).toLowerCase();
     return `${screenTargetId(index, screen)}, ${screenStateLabel(screen && screen.state)}, ${stateReading}, ${position}, ${identityReading}`;
   }).join(". ");
@@ -199,7 +212,7 @@ export function screenTargetSemanticKey(screens) {
     const located = Boolean(screen && Array.isArray(screen.bbox) && screen.bbox.length === 4 && screen.bbox.every(Number.isFinite));
     const identity = normalizeScreenIdentity(screen);
     const identityKey = identity.verified
-      ? `matched:${identity.project.id}:${identity.player.id}:${identity.content && identity.content.title || "sin-contenido"}` : identity.status;
+      ? `matched:${identity.project.id}:${identity.player.id}:${identity.content && identity.content.title || "sin-contenido"}:${identity.confirmation && `${identity.confirmation.status}:${identity.confirmation.count}/${identity.confirmation.required}` || "legacy"}` : identity.status;
     return `${screenTargetId(index, screen)}:${String(screen && screen.state || "unknown")}:${located ? "located" : "unlocated"}:${identityKey}`;
   }).join("|");
 }
@@ -786,6 +799,9 @@ function boot() {
   }
 
   function screenIdentityStatusCopy(identity) {
+    if (identity.verified && identity.confirmation && identity.confirmation.status === "pending") {
+      return `Proyecto, player y contenido identificados. Validando lectura ${identity.confirmation.count}/${identity.confirmation.required} antes de habilitar el mando.`;
+    }
     if (identity.verified) return "Proyecto y player confirmados contra el catálogo de Admira.";
     if (identity.status === "ambiguous") return "El contenido coincide con más de un player; hace falta otra lectura.";
     if (identity.status === "unmatched") return "El contenido observado no coincide con ningún player del catálogo.";
@@ -827,7 +843,7 @@ function boot() {
       fields.className = "sv-identity-fields";
       appendIdentityField(fields, "Proyecto", identity.project.name);
       appendIdentityField(fields, "Player", identity.player.name);
-      appendIdentityField(fields, "Emitiendo ahora", identity.content && identity.content.title || "Sin título publicado");
+      appendIdentityField(fields, "Contenido identificado", identity.content && identity.content.title || "Sin título publicado");
       if (identity.confidence !== null) appendIdentityField(fields, "Coincidencia", `${Math.round(identity.confidence * 100)}%`);
       panel.appendChild(fields);
     }
@@ -868,7 +884,7 @@ function boot() {
       const remoteCapabilities = document.createElement("em");
       remoteOverline.textContent = "MANDO ADMIRA VERIFICADO";
       remoteLabel.textContent = `${identity.project.name} · ${identity.player.name}`;
-      remoteCapabilities.textContent = `${identity.content ? `Ahora: ${identity.content.title} · ` : ""}Playlist · primero/anterior/siguiente/último · pausa · mute · volumen · HUD`;
+      remoteCapabilities.textContent = `${identity.content ? `Identificado: ${identity.content.title} · ` : ""}Playlist · primero/anterior/siguiente/último · pausa · mute · volumen · HUD`;
       remoteCopy.append(remoteOverline, remoteLabel, remoteCapabilities);
       const arrow = document.createElement("b");
       arrow.setAttribute("aria-hidden", "true");
@@ -879,7 +895,9 @@ function boot() {
       const unavailable = document.createElement("p");
       unavailable.className = "sv-remote-unavailable";
       unavailable.textContent = identity.verified
-        ? "Este player no publica un mando remoto en el catálogo."
+        ? identity.confirmation && identity.confirmation.status === "pending"
+          ? `Confirmando la identidad (${identity.confirmation.count}/${identity.confirmation.required}); el mando aparecerá automáticamente.`
+          : "Este player no publica un mando remoto en el catálogo."
         : "El mando aparecerá sólo después de verificar proyecto y player.";
       panel.appendChild(unavailable);
     }

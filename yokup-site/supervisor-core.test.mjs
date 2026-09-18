@@ -61,7 +61,7 @@ test("el plan HUD identifica y sitúa cada objetivo sobre la imagen", () => {
   assert.equal(plan.length, 2);
   assert.deepEqual(plan[0], {
     id:"SCREEN-07", state:"playing", status:"Emitiendo", tone:"healthy", stateConfidence:98,
-    identity:{status:"unavailable", source:null, confidence:null, verified:false, project:null, player:null, content:null, evidence:[], remote:null},
+    identity:{status:"unavailable", source:null, confidence:null, verified:false, project:null, player:null, content:null, evidence:[], confirmation:null, remote:null},
     box:{x:100, y:331.25, width:500, height:225}
   });
   assert.equal(plan[1].id, "SCREEN-08");
@@ -78,6 +78,7 @@ test("la identidad sólo se considera verificada si procede de Admira MCP", () =
     player:{id:"dgx-01", name:"DGX · Player Windows"},
     content:{title:"Huey Lewis · The Power of Love", type:"video"},
     evidence:["Claim visual DGX", "Claim visual DGX", "Canal activo"],
+    confirmation:{status:"confirmed",count:2,required:2},
     remote:{url:"https://admira.tv/remotecontrol/?screen=dgx-01&solo=1", label:"Abrir mando DGX"}
   }};
   assert.deepEqual(normalizeScreenIdentity(screen), {
@@ -85,11 +86,12 @@ test("la identidad sólo se considera verificada si procede de Admira MCP", () =
     project:{id:"admira-tv", name:"admira.tv"}, player:{id:"dgx-01", name:"DGX · Player Windows"},
     content:{title:"Huey Lewis · The Power of Love", type:"video"},
     evidence:["Claim visual DGX", "Canal activo"],
+    confirmation:{status:"confirmed",count:2,required:2},
     remote:{url:"https://admira.tv/remotecontrol/?screen=dgx-01&solo=1", label:"Abrir mando DGX"}
   });
   assert.equal(screenIdentityLabel(normalizeScreenIdentity(screen)), "Verificado por Admira MCP");
   assert.match(screenTargetAnnouncement([screen]), /proyecto admira\.tv, player DGX · Player Windows/);
-  assert.match(screenTargetAnnouncement([screen]), /emitiendo Huey Lewis · The Power of Love/);
+  assert.match(screenTargetAnnouncement([screen]), /contenido identificado Huey Lewis · The Power of Love/);
 
   const invented = normalizeScreenIdentity({identity:{
     status:"matched", source:"vision-model", project:{id:"p", name:"Inventado"},
@@ -103,12 +105,42 @@ test("la identidad sólo se considera verificada si procede de Admira MCP", () =
   assert.equal(screenIdentityLabel(invented), "Sin verificar");
 });
 
+test("una identidad pendiente muestra el candidato pero no expone el mando", () => {
+  const pending = normalizeScreenIdentity({identity:{
+    status:"matched",source:"admira-mcp",project:{id:"grandegracia",name:"GrandeGracia"},
+    player:{id:"dgx-spark",name:"DGX"},content:{title:"Matrix",type:"video"},
+    confirmation:{status:"pending",count:1,required:3},
+    remote:{url:"https://admira.tv/remotecontrol/?screen=dgx-spark&solo=1"}
+  }});
+  assert.equal(pending.verified, true);
+  assert.deepEqual(pending.confirmation, {status:"pending",count:1,required:3});
+  assert.equal(pending.remote, null);
+  assert.equal(screenIdentityLabel(pending), "Confirmando 1/3");
+  assert.deepEqual(screenRemoteActionPlan([{
+    target_id:"SCREEN-01",bbox:[.1,.1,.4,.5],identity:{
+      status:"matched",source:"admira-mcp",project:{id:"grandegracia",name:"GrandeGracia"},
+      player:{id:"dgx-spark",name:"DGX"},confirmation:{status:"pending",count:1,required:3},
+      remote:{url:"https://admira.tv/remotecontrol/?screen=dgx-spark&solo=1"}
+    }
+  }], 1000, 1000, 1000, 1000), []);
+
+  const legacyWithoutConfirmation = normalizeScreenIdentity({identity:{
+    status:"matched",source:"admira-mcp",project:{id:"grandegracia",name:"GrandeGracia"},
+    player:{id:"dgx-spark",name:"DGX"},
+    remote:{url:"https://admira.tv/remotecontrol/?screen=dgx-spark&solo=1"}
+  }});
+  assert.equal(legacyWithoutConfirmation.verified, true);
+  assert.equal(legacyWithoutConfirmation.confirmation, null);
+  assert.equal(legacyWithoutConfirmation.remote, null, "un payload antiguo nunca evita la barrera temporal");
+});
+
 test("sólo un target verificado y con mando exacto se convierte en enlace pulsable", () => {
   const verified = {target_id:"SCREEN-04", state:"playing", confidence:.96, bbox:[.2,.1,.5,.6], identity:{
     status:"matched", source:"admira-mcp", confidence:.95,
     project:{id:"grandegracia", name:"GrandeGracia"},
     player:{id:"dgx-spark", name:"dgx-spark"},
     content:{title:"The Power of Love", type:"video"},
+    confirmation:{status:"confirmed",count:2,required:2},
     remote:{url:"https://admira.tv/remotecontrol/?screen=dgx-spark&solo=1"}
   }};
   const actions = screenRemoteActionPlan([verified], 1600, 900, 1000, 1000);
@@ -125,7 +157,8 @@ test("sólo un target verificado y con mando exacto se convierte en enlace pulsa
 test("los mandos pequeños conservan 44 px, respetan bordes y fallan cerrado si se solapan", () => {
   const identity = (player) => ({
     status:"matched", source:"admira-mcp", project:{id:"grandegracia", name:"GrandeGracia"},
-    player:{id:player, name:player}, remote:{url:`https://admira.tv/remotecontrol/?screen=${player}&solo=1`}
+    player:{id:player, name:player}, confirmation:{status:"confirmed",count:2,required:2},
+    remote:{url:`https://admira.tv/remotecontrol/?screen=${player}&solo=1`}
   });
   const edge = screenRemoteActionPlan([{
     target_id:"SCREEN-01", bbox:[.99,.99,.01,.01], identity:identity("edge-player")
@@ -180,6 +213,7 @@ test("el mando debe pertenecer al mismo player que acredita la identidad", () =>
     project:{id:"grandegracia", name:"GrandeGracia"},
     player:{id:"player-a", name:"Player A"},
     evidence:["coincidencia única"],
+    confirmation:{status:"confirmed",count:2,required:2},
     remote:{url:"https://admira.tv/remotecontrol/?screen=player-b&solo=1", label:"Mando B"}
   }});
   assert.equal(identity.verified, true);

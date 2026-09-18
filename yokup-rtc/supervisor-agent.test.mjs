@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import {
   ADMIRA_TV_MCP_ENDPOINT,
+  SUPERVISOR_ANALYSIS_MODEL,
   SUPERVISOR_AI_CALLS_PER_ANALYSIS,
   SUPERVISOR_DETECTION_TARGET,
   SUPERVISOR_MODEL,
@@ -11,11 +12,14 @@ import {
   SUPERVISOR_QUERY_MAX_TOKENS,
   SUPERVISOR_ALERTS_SQL,
   SUPERVISOR_AI_USAGE_SQL,
+  SUPERVISOR_IDENTITY_TRACKS_SQL,
   SUPERVISOR_OBSERVATIONS_SQL,
   SUPERVISOR_REQUESTS_SQL,
   SUPERVISOR_STATION_LEASES_SQL,
   SUPERVISOR_STATIONS_SQL,
+  buildSupervisorVisualInput,
   claimSupervisorAlert,
+  correlateAdmiraVisualIdentities,
   correlateAdmiraIdentities,
   createAdmiraMcpClient,
   deriveObservation,
@@ -26,7 +30,11 @@ import {
   normalizeScreenDetections,
   normalizeStationId,
   parseVisionAnswer,
+  parseSupervisorVisualAnswer,
+  planAdmiraIdentityConfirmations,
+  readAdmiraPlayerFrame,
   readAdmiraSupervisorCatalog,
+  readAdmiraVisualReferences,
   supervisorQueryMaxTokens,
   validateImageDataUri
 } from "./src/supervisor.js";
@@ -35,6 +43,7 @@ const indexSource = await readFile(new URL("./src/index.js", import.meta.url), "
 
 test("el modelo de visión y las rutas viven detrás de la sesión Yokup", () => {
   assert.equal(SUPERVISOR_MODEL, "@cf/moondream/moondream3.1-9B-A2B");
+  assert.equal(SUPERVISOR_ANALYSIS_MODEL, "@cf/mistralai/mistral-small-3.1-24b-instruct");
   assert.equal(SUPERVISOR_AI_CALLS_PER_ANALYSIS, 2);
   assert.equal(SUPERVISOR_MAX_DETECTED_SCREENS, 8);
   assert.match(indexSource, /url\.pathname\.startsWith\("\/supervisor\/"\)/);
@@ -45,9 +54,11 @@ test("el modelo de visión y las rutas viven detrás de la sesión Yokup", () =>
   assert.match(indexSource, /SUPERVISOR_ALERTS_SQL/);
   assert.match(indexSource, /SUPERVISOR_STATION_LEASES_SQL/);
   assert.match(indexSource, /SUPERVISOR_AI_USAGE_SQL/);
+  assert.match(indexSource, /SUPERVISOR_IDENTITY_TRACKS_SQL/);
   assert.match(SUPERVISOR_STATION_LEASES_SQL, /station_id TEXT PRIMARY KEY/);
   assert.match(SUPERVISOR_STATION_LEASES_SQL, /lease_id TEXT NOT NULL/);
   assert.match(SUPERVISOR_AI_USAGE_SQL, /PRIMARY KEY\(window_start,scope\)/);
+  assert.match(SUPERVISOR_IDENTITY_TRACKS_SQL, /PRIMARY KEY\(station_id,target_id\)/);
   assert.match(indexSource, /sessionInfo:async \(_environment, session\) => supervisorSessionInfo\(await currentSupervisorAccess\(session\)\)/);
   assert.match(indexSource, /sessionAllowed:async \(_environment, session\) => \(await currentSupervisorAccess\(session\)\)\.allowed === true/);
   assert.match(indexSource, /const access = await currentSupervisorAccess\(session\)/);
@@ -72,6 +83,12 @@ test("interpreta JSON cercado y separa reproducción, apagado y cámara oscura",
   const off = deriveObservation(parseVisionAnswer({answer:'{"scene_visible":true,"screens":[{"state":"off","confidence":0.96}],"summary":"Pantalla apagada."}'}), 1, {luminance:0.2,dark_ratio:0.4});
   assert.equal(off.status, "critical");
   assert.equal(off.issueCode, "screen_off");
+  const categoricalOff = deriveObservation({sceneVisible:true,screens:[{
+    state:"off",confidence:null,classification:"categorical"
+  }],summary:"Pantalla apagada."}, 1, {luminance:0.2,dark_ratio:0.4});
+  assert.equal(categoricalOff.status, "critical");
+  assert.equal(categoricalOff.issueCode, "screen_off");
+  assert.equal(categoricalOff.confidence, 0, "una categoría sin score no fabrica un porcentaje");
   const doubtful = deriveObservation(parseVisionAnswer({answer:'{"scene_visible":true,"screens":[{"state":"off","confidence":0.61}],"summary":"No está claro."}'}), 1, {luminance:0.2,dark_ratio:0.4});
   assert.equal(doubtful.status, "warning");
   assert.equal(doubtful.issueCode, "low_confidence");
@@ -83,6 +100,11 @@ test("interpreta JSON cercado y separa reproducción, apagado y cámara oscura",
   const partial = deriveObservation({sceneVisible:true,screens:[{state:"playing",confidence:.98}]}, 2, {luminance:.4,dark_ratio:.1});
   assert.equal(partial.issueCode, "missing_screen");
   assert.equal(partial.summary, "Se han delimitado 1 de 2 pantallas esperadas en esta lectura.");
+  const extraCritical = deriveObservation({sceneVisible:true,screens:[
+    {state:"playing",confidence:.94},{state:"off",confidence:.99}
+  ],summary:"Dos objetivos"}, 1, {luminance:.4,dark_ratio:.1});
+  assert.equal(extraCritical.status, "warning");
+  assert.equal(extraCritical.issueCode, "unexpected_screen", "una caja falsa extra no abre una incidencia");
   const darkCamera = deriveObservation({sceneVisible:false,screens:[],summary:"No se ve."}, 1, {luminance:0.001,dark_ratio:0.999});
   assert.equal(darkCamera.status, "warning");
   assert.equal(darkCamera.issueCode, "camera_dark");
@@ -291,6 +313,7 @@ function fakeDatabase() {
   const alerts = new Map();
   const leases = new Map();
   const usage = new Map();
+  const identityTracks = new Map();
   let failBatch = false;
   let stealBatchLease = "";
   const projects = new Map([
@@ -317,6 +340,9 @@ function fakeDatabase() {
     },
     async all() {
       if (sql.includes("FROM supervisor_observations")) return {results:observations.slice().reverse()};
+      if (sql.includes("FROM supervisor_identity_tracks")) {
+        return {results:[...identityTracks.values()].filter((row) => row.station_id === args[0])};
+      }
       return {results:[]};
     },
     async run() {
@@ -351,6 +377,16 @@ function fakeDatabase() {
       } else if (sql.startsWith("INSERT OR IGNORE INTO supervisor_alerts")) {
         if (alerts.has(args[0])) return {meta:{changes:0}};
         alerts.set(args[0], {once_key:args[0],station_id:args[1],ticket_id:args[2],issue_code:args[3],created_at:args[4]});
+      } else if (sql.startsWith("INSERT INTO supervisor_identity_tracks")) {
+        const owner = requests.get(args[11]);
+        if (!owner || owner.status !== "processing" || owner.response_json !== args[12]) return {meta:{changes:0}};
+        const leaseOwner = leases.get(args[13]);
+        if (!leaseOwner || leaseOwner.lease_id !== args[14] || Number(leaseOwner.expires_at) <= Number(args[15])) return {meta:{changes:0}};
+        identityTracks.set(`${args[0]}|${args[1]}`, {
+          station_id:args[0],target_id:args[1],player_id:args[2],project_id:args[3],bbox_json:args[4],
+          confirmations:args[5],required_confirmations:args[6],last_captured_at:args[7],last_shot_at:args[8],
+          last_observation_id:args[9],updated_at:args[10]
+        });
       } else if (sql.startsWith("UPDATE supervisor_requests SET status='done'")) {
         const row = requests.get(args[2]);
         if (!row || row.status !== "processing" || row.response_json !== args[3]) return {meta:{changes:0}};
@@ -379,6 +415,14 @@ function fakeDatabase() {
         requests.delete(args[0]);
       } else if (sql.startsWith("DELETE FROM supervisor_ai_usage")) {
         for (const [key, row] of usage) if (Number(row.window_start) < Number(args[0])) usage.delete(key);
+      } else if (sql.startsWith("DELETE FROM supervisor_identity_tracks WHERE station_id=")) {
+        const owner = requests.get(args[1]);
+        const leaseOwner = leases.get(args[3]);
+        if (!owner || owner.status !== "processing" || owner.response_json !== args[2] ||
+          !leaseOwner || leaseOwner.lease_id !== args[4] || Number(leaseOwner.expires_at) <= Number(args[5])) return {meta:{changes:0}};
+        for (const [key, row] of identityTracks) if (row.station_id === args[0]) identityTracks.delete(key);
+      } else if (sql.startsWith("DELETE FROM supervisor_identity_tracks WHERE updated_at<")) {
+        for (const [key, row] of identityTracks) if (Number(row.updated_at) < Number(args[0])) identityTracks.delete(key);
       } else if (sql.startsWith("DELETE FROM supervisor_observations") && observations.length > 120) {
         observations.splice(0, observations.length - 120);
       }
@@ -403,6 +447,7 @@ function fakeDatabase() {
     requests,
     leases,
     usage,
+    identityTracks,
     projects,
     failBatchOnce:() => { failBatch = true; },
     stealLeaseBeforeBatch:(stationId) => { stealBatchLease = stationId; },
@@ -577,7 +622,7 @@ test("el catálogo MCP atribuye proyecto por circuit_screens, no por parecido de
   assert.deepEqual(callBatch.calls.map(({name}) => name), ["circuits","circuit_screens","on_air","player_status"]);
 });
 
-test("el correlador sólo identifica con huella corroborada y construye el mando canónico del player verificado", async () => {
+test("el correlador OCR identifica el candidato pero nunca construye un mando", async () => {
   const catalog = await readAdmiraSupervisorCatalog(admiraMcpFixture());
   const detections = normalizeScreenDetections(detectedVision());
   const correlated = correlateAdmiraIdentities(
@@ -591,8 +636,8 @@ test("el correlador sólo identifica con huella corroborada y construye el mando
   assert.deepEqual(identity.project, {id:"grandegracia",name:"GrandeGracia"});
   assert.equal(identity.player.id, "dgx-spark");
   assert.equal(identity.player.runtime, "AdmiraNeXT Linux Player");
-  assert.equal(identity.remote.url, "https://admira.tv/remotecontrol/?screen=dgx-spark&solo=1");
-  assert.equal(identity.remote.url.includes("evil.invalid"), false, "ignora URLs del modelo y del MCP");
+  assert.equal(identity.method, "ocr-text");
+  assert.equal(identity.remote, null, "el OCR no puede habilitar un mando aunque acierte el título");
   assert.equal("candidatePlayerId" in correlated.screens[0], false, "la selección inyectada por visión se descarta");
   assert.equal("identityConfidence" in correlated.screens[0], false, "la confianza de identidad la genera el backend");
 
@@ -892,7 +937,8 @@ test("el query visual es ciego al catálogo y los campos de identidad inyectados
   assert.equal(data.screens[0].identity.status, "matched");
   assert.equal(data.screens[0].identity.player.id, "dgx-spark");
   assert.equal(data.screens[0].identity.content.title, hostileTitle);
-  assert.equal(data.screens[0].identity.remote.url, "https://admira.tv/remotecontrol/?screen=dgx-spark&solo=1");
+  assert.equal(data.screens[0].identity.remote, null);
+  assert.equal(data.screens[0].identity.confirmation.count, 0);
   assert.deepEqual([...new Set(admiraMcpCall.calls.map(({name}) => name))], ["circuits","circuit_screens","on_air","player_status"]);
 });
 
@@ -901,7 +947,8 @@ function sqliteSupervisorDatabase() {
   raw.exec([
     "CREATE TABLE projects(id TEXT PRIMARY KEY,name TEXT,status TEXT)",
     SUPERVISOR_STATIONS_SQL, SUPERVISOR_OBSERVATIONS_SQL, SUPERVISOR_REQUESTS_SQL,
-    SUPERVISOR_ALERTS_SQL, SUPERVISOR_STATION_LEASES_SQL, SUPERVISOR_AI_USAGE_SQL
+    SUPERVISOR_ALERTS_SQL, SUPERVISOR_STATION_LEASES_SQL, SUPERVISOR_AI_USAGE_SQL,
+    SUPERVISOR_IDENTITY_TRACKS_SQL
   ].join(";"));
   raw.prepare("INSERT INTO projects(id,name,status) VALUES(?,?,?)").run("admira-tv", "Admira TV", "activo");
   const statement = (sql, args = []) => ({
@@ -988,8 +1035,9 @@ test("el análisis ejecuta detect oficial y devuelve objetivos identificados con
   assert.match(query.input.question, /"id":"SCREEN-01","x_min":0\.08,"y_min":0\.1,"x_max":0\.43,"y_max":0\.5/);
   assert.match(query.input.question, /coordenadas están normalizadas de 0 a 1.*x_min, y_min, x_max, y_max/);
   assert.match(query.input.question, /Conserva exactamente cada id/);
-  assert.match(query.input.question, /máximo 3 textos, 8 palabras cada uno/);
-  assert.match(query.input.question, /máximo 20 palabras, sin personas/);
+  assert.match(query.input.question, /Transcribe sólo texto realmente legible/);
+  assert.match(query.input.question, /cada lista a tres elementos/);
+  assert.doesNotMatch(query.input.question, /"máximo \d+/i);
   assert.equal(query.input.reasoning, false);
   assert.equal(query.input.temperature, 0);
   assert.equal(query.input.max_tokens, supervisorQueryMaxTokens(2));
@@ -1159,6 +1207,17 @@ test("el replay sólo reutiliza una respuesta si coinciden station_id y project_
   }));
   assert.equal(projectCollision.status, 409);
   assert.deepEqual(await projectCollision.json(), {ok:false,error:"observation_conflict"});
+
+  const replayRequest = () => analysisRequest({station_id:"puesto-a",observation_id:"obs-replay-bound-1"});
+  const immediate = replayRequest();
+  const immediateReplay = await handleSupervisorRequest(immediate, env, new URL(immediate.url), supervisorDeps());
+  assert.equal(immediateReplay.status, 200);
+  assert.equal((await immediateReplay.json()).reused, true);
+  DB.requests.get("obs-replay-bound-1").updated_at = Date.now() - 121_000;
+  const expired = replayRequest();
+  const expiredReplay = await handleSupervisorRequest(expired, env, new URL(expired.url), supervisorDeps());
+  assert.equal(expiredReplay.status, 409);
+  assert.deepEqual(await expiredReplay.json(), {ok:false,error:"observation_expired"});
   assert.equal(aiCalls, 2, "ninguna colisión vuelve a ejecutar visión");
 });
 
@@ -1434,6 +1493,43 @@ test("un batch fallido después de crear el ticket conserva la voz pendiente par
   assert.equal(incidentCalls, 2, "el ticket se vuelve a pedir de forma idempotente, pero la voz no se pierde");
 });
 
+test("un ticket creado antes de un batch fallido se recupera al volver la pantalla a healthy", async () => {
+  const DB = fakeDatabase();
+  let currentVision = offVision;
+  const resolved = [];
+  const env = {DB, AI:supervisorAi(() => currentVision())};
+  const deps = supervisorDeps({
+    createIncident:async () => "INC-ORPHAN-1",
+    resolveIncident:async (_env, resource) => {
+      resolved.push(resource);
+      return "INC-ORPHAN-1";
+    }
+  });
+  const request = (id, metrics = {luminance:.1,dark_ratio:.8}) => analysisRequest({
+    station_id:"puesto-ticket-huerfano",observation_id:id,metrics
+  });
+
+  const first = request("obs-orphan-1");
+  assert.equal((await handleSupervisorRequest(first, env, new URL(first.url), deps)).status, 200);
+  DB.age();
+
+  DB.failBatchOnce();
+  const failed = request("obs-orphan-2");
+  await assert.rejects(handleSupervisorRequest(failed, env, new URL(failed.url), deps), /batch_failed/);
+  assert.equal(DB.station().open_ticket_id, null, "el batch fallido no pudo guardar el id del ticket");
+
+  currentVision = healthyVision;
+  DB.age();
+  const healthy = request("obs-orphan-3", {luminance:.4,dark_ratio:.1});
+  const response = await handleSupervisorRequest(healthy, env, new URL(healthy.url), deps);
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.transition, "recovery_detected");
+  assert.equal(data.ticket.id, "INC-ORPHAN-1");
+  assert.deepEqual(resolved, ["supervisor:admira-tv:puesto-ticket-huerfano"]);
+  assert.equal(DB.station().open_ticket_id, null, "la estación sana no conserva un ticket abierto");
+});
+
 test("la voz se reclama una sola vez por ticket e incidencia aunque concurran observaciones", async () => {
   const DB = fakeDatabase();
   const env = {DB};
@@ -1441,4 +1537,403 @@ test("la voz se reclama una sola vez por ticket e incidencia aunque concurran ob
   const second = await claimSupervisorAlert(env, "jardinets-1", "INC-SUP-1", "screen_off", 1001);
   assert.deepEqual(first, {claimed:true,onceKey:"INC-SUP-1:screen_off"});
   assert.deepEqual(second, {claimed:false,onceKey:"INC-SUP-1:screen_off"});
+});
+
+test("el selector visual sólo acepta estados y slots compactos, sin IDs inventados", () => {
+  const detections = normalizeScreenDetections({objects:[
+    {x_min:.1,y_min:.1,x_max:.4,y_max:.5},
+    {x_min:.55,y_min:.1,x_max:.9,y_max:.5}
+  ]});
+  const parsed = parseSupervisorVisualAnswer({response:"T2=P0,T1=P1"}, detections, 2);
+  assert.deepEqual(parsed.screens.map(({state,referenceSlot}) => ({state,referenceSlot})), [
+    {state:"playing",referenceSlot:1},
+    {state:"playing",referenceSlot:0}
+  ]);
+  const omittedSelector = parseSupervisorVisualAnswer({response:"T1=P,T2=O0"}, detections, 2);
+  assert.deepEqual(omittedSelector.screens.map(({state,referenceSlot}) => ({state,referenceSlot})), [
+    {state:"playing",referenceSlot:0},
+    {state:"off",referenceSlot:0}
+  ]);
+  assert.throws(() => parseSupervisorVisualAnswer({response:"T1=P1\nusa dgx-spark"}, detections, 2), /vision_invalid_selector/);
+  assert.throws(() => parseSupervisorVisualAnswer({response:"T1=P3,T2=P0"}, detections, 2), /vision_invalid_selector/);
+  assert.throws(() => parseSupervisorVisualAnswer({response:"T1=P1"}, detections, 2), /vision_invalid_selector/);
+  assert.throws(() => parseSupervisorVisualAnswer({response:"T1=P1,T1=P0"}, detections, 2), /vision_invalid_selector/);
+});
+
+test("la coincidencia visual resuelve slot a proyecto, player, contenido y mando sólo en servidor", () => {
+  const detections = normalizeScreenDetections({objects:[
+    {x_min:.1,y_min:.1,x_max:.4,y_max:.5},
+    {x_min:.55,y_min:.1,x_max:.9,y_max:.5}
+  ]});
+  const vision = parseSupervisorVisualAnswer({response:"T1=P1,T2=P0"}, detections, 1);
+  const candidate = {
+    player:{id:"dgx-spark",name:"DGX",runtime:"AdmiraNeXT Linux Player"},
+    project:{id:"grandegracia",name:"GrandeGracia"},
+    content:{title:"The Matrix end credits",type:"video"},
+    identityEligible:true,remoteEligible:true,ambiguousProject:false,ambiguousContent:false
+  };
+  const visual = {status:"available",complete:true,references:[{
+    slot:1,candidate,shotAt:1_800_000_000_000,itemId:"matrix-01"
+  }]};
+  const correlated = correlateAdmiraVisualIdentities(vision, visual);
+  assert.equal(correlated.screens[0].identity.status, "matched");
+  assert.equal(correlated.screens[0].identity.project.id, "grandegracia");
+  assert.equal(correlated.screens[0].identity.player.id, "dgx-spark");
+  assert.equal(correlated.screens[0].identity.content.title, "The Matrix end credits");
+  assert.equal(correlated.screens[0].identity.remote.url, "https://admira.tv/remotecontrol/?screen=dgx-spark&solo=1");
+  assert.equal(correlated.screens[1].identity.status, "unmatched");
+
+  const duplicate = correlateAdmiraVisualIdentities(
+    parseSupervisorVisualAnswer({response:"T1=P1,T2=P1"}, detections, 1), visual
+  );
+  assert.deepEqual(duplicate.screens.map(({identity}) => identity.status), ["ambiguous","ambiguous"]);
+  assert.ok(duplicate.screens.every(({identity}) => identity.remote === null));
+});
+
+test("el mando exige dos confirmaciones geométricas o tres con cobertura parcial", () => {
+  const base = Date.now();
+  const detections = normalizeScreenDetections({objects:[{x_min:.1,y_min:.1,x_max:.5,y_max:.6}]});
+  const candidate = {
+    player:{id:"dgx-spark",name:"DGX",runtime:"AdmiraNeXT"},
+    project:{id:"grandegracia",name:"GrandeGracia"},
+    content:{title:"Matrix",type:"video"},identityEligible:true,remoteEligible:true,
+    ambiguousProject:false,ambiguousContent:false
+  };
+  const reference = (shotAt) => ({slot:1,candidate,shotAt,itemId:"matrix"});
+  const vision = correlateAdmiraVisualIdentities(
+    parseSupervisorVisualAnswer({response:"T1=P1"}, detections, 1),
+    {status:"available",complete:true,references:[reference(base)]}
+  );
+  const first = planAdmiraIdentityConfirmations(vision, {
+    status:"available",complete:true,references:[reference(base)]
+  }, [], {stationId:"station-1",observationId:"obs-1",capturedAt:base,observedAt:base});
+  assert.equal(first.vision.screens[0].identity.remote, null);
+  assert.deepEqual(first.vision.screens[0].identity.confirmation, {status:"pending",count:1,required:2});
+  const ocrOnly = {
+    ...vision,
+    screens:vision.screens.map((screen) => ({
+      ...screen,
+      identity:{...screen.identity,method:"ocr-text",remote:{url:"https://admira.tv/remotecontrol/?screen=dgx-spark&solo=1"}}
+    }))
+  };
+  const blockedOcr = planAdmiraIdentityConfirmations(ocrOnly, {
+    status:"available",complete:true,references:[reference(base)]
+  }, [], {stationId:"station-1",observationId:"obs-ocr",capturedAt:base,observedAt:base});
+  assert.equal(blockedOcr.vision.screens[0].identity.remote, null);
+  assert.deepEqual(blockedOcr.vision.screens[0].identity.confirmation, {status:"pending",count:0,required:2});
+  assert.deepEqual(blockedOcr.rows, [], "el fallback OCR nunca crea una racha capaz de habilitar el mando");
+  const stored = (row) => ({
+    station_id:row.stationId,target_id:row.targetId,player_id:row.playerId,project_id:row.projectId,
+    bbox_json:JSON.stringify(row.bbox),confirmations:row.confirmations,required_confirmations:row.required,
+    last_captured_at:row.lastCapturedAt,last_shot_at:row.lastShotAt,last_observation_id:row.observationId,updated_at:row.updatedAt
+  });
+  const secondAt = base + 6_000;
+  const renumberedVision = {
+    ...vision,
+    screens:vision.screens.map((screen) => ({...screen,id:"SCREEN-07"}))
+  };
+  const second = planAdmiraIdentityConfirmations(renumberedVision, {
+    status:"available",complete:true,references:[reference(secondAt)]
+  }, first.rows.map(stored), {stationId:"station-1",observationId:"obs-2",capturedAt:secondAt,observedAt:secondAt});
+  assert.deepEqual(second.vision.screens[0].identity.confirmation, {status:"confirmed",count:2,required:2});
+  assert.equal(second.rows[0].targetId, "SCREEN-07", "el track sobrevive a la renumeración geométrica del detector");
+  assert.equal(second.vision.screens[0].identity.remote.url, "https://admira.tv/remotecontrol/?screen=dgx-spark&solo=1");
+  assert.equal(second.vision.screens[0].identity.confidence, null);
+
+  const partial = planAdmiraIdentityConfirmations(vision, {
+    status:"available",complete:false,references:[reference(secondAt)]
+  }, first.rows.map(stored), {stationId:"station-1",observationId:"obs-partial-2",capturedAt:secondAt,observedAt:secondAt});
+  assert.deepEqual(partial.vision.screens[0].identity.confirmation, {status:"pending",count:2,required:3});
+  const thirdAt = base + 12_000;
+  const third = planAdmiraIdentityConfirmations(vision, {
+    status:"available",complete:false,references:[reference(thirdAt)]
+  }, partial.rows.map(stored), {stationId:"station-1",observationId:"obs-partial-3",capturedAt:thirdAt,observedAt:thirdAt});
+  assert.deepEqual(third.vision.screens[0].identity.confirmation, {status:"confirmed",count:3,required:3});
+});
+
+test("el catálogo visual actualiza el contenido y conserva cobertura parcial sin inventar capturas", async () => {
+  const candidate = (id) => ({
+    player:{id,name:id,runtime:"AdmiraNeXT"},project:{id:"grandegracia",name:"GrandeGracia"},
+    content:{title:`stale ${id}`,type:"video"},identityEligible:true,remoteEligible:true,
+    ambiguousProject:false,ambiguousContent:false,titleKey:"",assetKey:""
+  });
+  const catalog = {status:"available",candidates:[candidate("player-z"),candidate("player-a")]};
+  const complete = await readAdmiraVisualReferences(catalog, {readFrame:async (id) => ({
+    playerId:id,itemId:`item-${id}`,shotAt:1_800_000_000_000,ageMs:1_000,
+    bytes:new Uint8Array([0xff,0xd8,0xff,0xd9]),content:{title:`live ${id}`,type:"video"}
+  })});
+  assert.equal(complete.status, "available");
+  assert.deepEqual(complete.references.map(({slot,candidate:item}) => [slot,item.player.id,item.content.title]), [
+    [1,"player-a","live player-a"],
+    [2,"player-z","live player-z"]
+  ]);
+  const partial = await readAdmiraVisualReferences(catalog, {readFrame:async (id) => id === "player-a" ? null : ({
+    playerId:id,itemId:"item-z",shotAt:1,bytes:new Uint8Array([1]),content:{title:"z",type:"video"}
+  })});
+  assert.equal(partial.status, "available");
+  assert.equal(partial.complete, false);
+  assert.equal(partial.missing, 1);
+  assert.deepEqual(partial.references.map(({slot,candidate:item}) => [slot,item.player.id]), [[1,"player-z"]]);
+});
+
+test("el lector de framebuffer verifica host fijo, JPEG, frescura y transición de item", async () => {
+  const jpeg = new Uint8Array(600);
+  jpeg.set([0xff,0xd8,0xff,0xe0]);
+  const timestamp = 1_800_000_000_000;
+  const makeFetch = ({transition = false,currentId = "item-dgx",playlist = false} = {}) => {
+    let metaCalls = 0;
+    return async (input) => {
+      const url = new URL(String(input));
+      if (url.hostname === "brain.digitalavatar.ai") {
+        assert.equal(playlist, true);
+        return json({ok:true,items:[{id:"item-dgx",title:"Contenido del framebuffer",type:"video"}]});
+      }
+      assert.equal(url.hostname, "api.admira.store");
+      assert.equal(url.searchParams.get("screen"), "dgx-spark");
+      if (url.pathname.endsWith("/now")) return json({
+        ok:true,screen:"dgx-spark",item:{id:currentId,title:"Contenido actual",type:"video"}
+      });
+      if (url.searchParams.get("meta") === "1") {
+        metaCalls += 1;
+        return json({ok:true,ts:timestamp,itemId:transition && metaCalls > 1 ? "item-next" : "item-dgx",bytes:jpeg.length});
+      }
+      return new Response(jpeg, {headers:{"content-type":"image/jpeg","content-length":String(jpeg.length)}});
+    };
+  };
+  const current = await readAdmiraPlayerFrame("dgx-spark", {fetchImpl:makeFetch(),now:timestamp + 1_000});
+  assert.equal(current.content.title, "Contenido actual");
+  assert.equal(current.bytes.length, jpeg.length);
+  const historical = await readAdmiraPlayerFrame("dgx-spark", {
+    fetchImpl:makeFetch({currentId:"item-next",playlist:true}),now:timestamp + 1_000
+  });
+  assert.equal(historical.content.title, "Contenido del framebuffer");
+  assert.equal(await readAdmiraPlayerFrame("dgx-spark", {
+    fetchImpl:makeFetch({transition:true}),now:timestamp + 1_000
+  }), null);
+  assert.equal(await readAdmiraPlayerFrame("dgx-spark", {
+    fetchImpl:makeFetch(),now:timestamp + 100_000
+  }), null);
+  assert.equal(await readAdmiraPlayerFrame("dgx-spark", {
+    fetchImpl:makeFetch(),now:timestamp + 1_000,capturedAt:timestamp + 21_000
+  }), null, "una captura de cámara desalineada no se atribuye al framebuffer actual");
+  let expiredCalls = 0;
+  assert.equal(await readAdmiraPlayerFrame("dgx-spark", {
+    fetchImpl:async () => { expiredCalls += 1; throw new Error("no debe salir a red"); },
+    deadlineAt:Date.now() - 1
+  }), null);
+  assert.equal(expiredCalls, 0, "un deadline vencido corta el pool antes de abrir conexiones");
+  const deadlineStartedAt = Date.now();
+  let timedCalls = 0;
+  assert.equal(await readAdmiraPlayerFrame("dgx-spark", {
+    fetchImpl:async (_input, {signal}) => {
+      timedCalls += 1;
+      return new Promise((_resolve, reject) => {
+        if (signal.aborted) reject(signal.reason);
+        else signal.addEventListener("abort", () => reject(signal.reason), {once:true});
+      });
+    },
+    timeoutMs:4_000,
+    deadlineAt:deadlineStartedAt + 40
+  }), null);
+  assert.equal(timedCalls, 2);
+  assert.ok(Date.now() - deadlineStartedAt < 500, "el deadline compartido no conserva el antiguo suelo de un segundo");
+});
+
+test("la entrada Mistral contiene sólo imágenes T/R y nunca nombres del catálogo", async () => {
+  const jpeg = new Uint8Array([0xff,0xd8,0xff,0xd9]);
+  const transforms = [];
+  let draws = 0, outputs = 0;
+  const images = {
+    info:async () => ({width:1_000,height:500}),
+    input:() => {
+      const handle = {
+        transform:(options) => { transforms.push(options); return handle; },
+        draw:() => { draws += 1; return handle; },
+        output:async () => { outputs += 1; return {response:() => new Response(jpeg, {headers:{"content-type":"image/jpeg"}})}; }
+      };
+      return handle;
+    }
+  };
+  const detections = normalizeScreenDetections({objects:[{x_min:.4,y_min:.6,x_max:.6,y_max:.9}]});
+  const built = await buildSupervisorVisualInput(images, "data:image/jpeg;base64,/9j/2Q==", detections, [{
+    slot:1,bytes:jpeg,candidate:{player:{id:"dgx-spark"},project:{id:"grandegracia"}}
+  }]);
+  const serialized = JSON.stringify(built.messages);
+  assert.equal(built.targetCount, 1);
+  assert.equal(built.referenceCount, 1);
+  assert.match(serialized, /Targets T1/);
+  assert.match(serialized, /references R1/);
+  assert.match(serialized, /Required shape: T1=U0/);
+  assert.doesNotMatch(serialized, /T1=P1/);
+  assert.doesNotMatch(serialized, /dgx-spark|grandegracia/);
+  const contentTransforms = transforms.filter(({width,height}) => width === 248 && height === 144);
+  const labelTransforms = transforms.filter(({width,height}) => width === 256 && height === 44);
+  assert.ok(contentTransforms.some(({trim}) => trim && trim.width > 0 && trim.height > 0));
+  assert.equal(contentTransforms.length, 2, "cada celda usa una sola transformación combinada");
+  assert.equal(labelTransforms.length, 1, "la banda R1 horneada se recorta una sola vez");
+  assert.equal(transforms.length, 3);
+  assert.equal(draws, 3, "la banda de etiquetas y los dos recortes se componen una vez");
+  assert.equal(outputs, 1, "T1 y R1 se renderizan en una única tira mixta");
+  assert.equal(built.messages[1].content.filter(({type}) => type === "image_url").length, 1);
+
+  const withoutReferences = await buildSupervisorVisualInput(
+    images, "data:image/jpeg;base64,/9j/2Q==", detections, []
+  );
+  const noReferencePrompt = JSON.stringify(withoutReferences.messages);
+  assert.match(noReferencePrompt, /there are no reference cells/);
+  assert.match(noReferencePrompt, /Required shape: T1=U0/);
+  assert.doesNotMatch(noReferencePrompt, /T1=P1|references R1/);
+});
+
+test("un target y de una a tres referencias usan una sola tira y como máximo diez operaciones", async () => {
+  const jpeg = new Uint8Array([0xff,0xd8,0xff,0xd9]);
+  const detections = normalizeScreenDetections({objects:[{x_min:.4,y_min:.6,x_max:.6,y_max:.9}]});
+  for (let referenceCount = 1; referenceCount <= 3; referenceCount += 1) {
+    const outputOperations = [];
+    const images = {
+      info:async () => ({width:1_000,height:500}),
+      input:() => {
+        let operations = 0;
+        const handle = {
+          operationCount:() => operations,
+          transform:() => { operations += 1; return handle; },
+          draw:(source) => {
+            operations += 1 + (typeof source.operationCount === "function" ? source.operationCount() : 0);
+            return handle;
+          },
+          output:async () => {
+            outputOperations.push(operations);
+            return {response:() => new Response(jpeg)};
+          }
+        };
+        return handle;
+      }
+    };
+    const references = Array.from({length:referenceCount}, (_, index) => ({
+      slot:index + 1,bytes:jpeg,candidate:{player:{id:`player-${index + 1}`},project:{id:"admira-tv"}}
+    }));
+    const built = await buildSupervisorVisualInput(
+      images, "data:image/jpeg;base64,/9j/2Q==", detections, references
+    );
+    assert.deepEqual(outputOperations, [4 + referenceCount * 2]);
+    assert.ok(outputOperations[0] <= 10);
+    assert.equal(built.messages[1].content.filter(({type}) => type === "image_url").length, 1);
+  }
+});
+
+test("ocho targets y ocho referencias respetan ocho operaciones por cada output Images", async () => {
+  const jpeg = new Uint8Array([0xff,0xd8,0xff,0xd9]);
+  let transforms = 0, draws = 0, outputs = 0;
+  const outputOperations = [];
+  const images = {
+    info:async () => ({width:1_000,height:800}),
+    input:() => {
+      let operations = 0;
+      const handle = {
+        operationCount:() => operations,
+        transform:() => { transforms += 1; operations += 1; return handle; },
+        draw:(source) => {
+          draws += 1;
+          operations += 1 + (typeof source.operationCount === "function" ? source.operationCount() : 0);
+          return handle;
+        },
+        output:async () => {
+          outputs += 1;
+          outputOperations.push(operations);
+          return {response:() => new Response(jpeg)};
+        }
+      };
+      return handle;
+    }
+  };
+  const objects = Array.from({length:8}, (_, index) => {
+    const column = index % 4, row = Math.floor(index / 4);
+    return {x_min:column * .24,y_min:row * .48,x_max:column * .24 + .2,y_max:row * .48 + .4};
+  });
+  const detections = normalizeScreenDetections({objects});
+  const references = Array.from({length:8}, (_, index) => ({
+    slot:index + 1,bytes:jpeg,candidate:{player:{id:`player-${index + 1}`},project:{id:"admira-tv"}}
+  }));
+  const built = await buildSupervisorVisualInput(
+    images, "data:image/jpeg;base64,/9j/2Q==", detections, references
+  );
+  assert.equal(built.targetCount, 8);
+  assert.equal(built.referenceCount, 8);
+  assert.equal(outputs, 4);
+  assert.equal(transforms, 16);
+  assert.equal(draws, 16);
+  assert.equal((transforms + draws) / outputs, 8);
+  assert.deepEqual(outputOperations, [8,8,8,8]);
+  assert.ok(outputOperations.every((operations) => operations <= 10));
+  assert.equal(built.messages[1].content.filter(({type}) => type === "image_url").length, 4);
+});
+
+test("la ruta visual de producción entrega identidad y usa Mistral como segunda inferencia", async () => {
+  const DB = fakeDatabase(), calls = [];
+  const firstCapturedAt = Date.now();
+  let frameTime = firstCapturedAt;
+  const env = {
+    DB,
+    IMAGES:{input:() => ({}),info:async () => ({width:1,height:1})},
+    AI:{run:async (model, input) => {
+      calls.push({model,input});
+      if (input.task === "detect") return detectedVision();
+      return {response:"T1=P1"};
+    }}
+  };
+  const fixture = admiraMcpFixture({title:"Título MCP rezagado"});
+  const deps = supervisorDeps({
+    admiraMcpCall:fixture,
+    readAdmiraVisualReferences:async (catalog) => ({
+      status:"available",complete:true,competitors:1,references:[{
+        slot:1,shotAt:frameTime,itemId:"matrix-01",bytes:new Uint8Array([0xff,0xd8,0xff,0xd9]),
+        candidate:{...catalog.candidates[0],content:{title:"Matrix acreditada por framebuffer",type:"video"}}
+      }]
+    }),
+    buildSupervisorVisualInput:async (_images, _image, _detections, references) => {
+      assert.equal(references.length, 1);
+      return {messages:[{role:"user",content:"T1/R1"}],targetCount:1,referenceCount:1,maxTokens:16};
+    }
+  });
+  const request = analysisRequest({observation_id:"obs-visual-dgx-01",captured_at:firstCapturedAt});
+  const response = await handleSupervisorRequest(request, env, new URL(request.url), deps);
+  const data = await response.json();
+  assert.equal(response.status, 200);
+  assert.deepEqual(calls.map(({model}) => model), [SUPERVISOR_MODEL,SUPERVISOR_ANALYSIS_MODEL]);
+  assert.equal(data.screens[0].identity.status, "matched");
+  assert.equal(data.screens[0].identity.project.id, "grandegracia");
+  assert.equal(data.screens[0].identity.player.id, "dgx-spark");
+  assert.equal(data.screens[0].identity.content.title, "Matrix acreditada por framebuffer");
+  assert.equal(data.screens[0].identity.remote, null);
+  assert.deepEqual(data.screens[0].identity.confirmation, {status:"pending",count:1,required:2});
+  assert.equal(data.identity_catalog.visual_status, "available");
+  assert.equal(data.model, SUPERVISOR_ANALYSIS_MODEL);
+
+  DB.age();
+  frameTime = firstCapturedAt + 6_000;
+  const secondRequest = analysisRequest({observation_id:"obs-visual-dgx-02",captured_at:frameTime});
+  const secondResponse = await handleSupervisorRequest(secondRequest, env, new URL(secondRequest.url), deps);
+  const confirmed = await secondResponse.json();
+  assert.equal(secondResponse.status, 200);
+  assert.deepEqual(confirmed.screens[0].identity.confirmation, {status:"confirmed",count:2,required:2});
+  assert.equal(confirmed.screens[0].identity.confidence, null);
+  assert.equal(confirmed.screens[0].identity.remote.url, "https://admira.tv/remotecontrol/?screen=dgx-spark&solo=1");
+});
+
+test("los ecos literales del contrato antiguo no se conservan como huella visual", () => {
+  const parsed = parseVisionAnswer({answer:JSON.stringify({
+    scene_visible:true,
+    screens:[{
+      id:"SCREEN-01",state:"playing",confidence:0,
+      description:"máximo 15 palabras",
+      fingerprint:{
+        visible_text:["máximo 3 textos, 8 palabras cada uno"],
+        visual_description:"máximo 20 palabras, sin personas",
+        dominant_colors:["máximo 3 colores"]
+      }
+    }],
+    summary:"lectura"
+  })});
+  assert.equal(parsed.screens[0].description, "");
+  assert.deepEqual(parsed.screens[0].fingerprint, {visibleText:[],visualDescription:"",dominantColors:[]});
 });
