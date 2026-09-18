@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/app/apple-touch-icon.png">
 <link rel="stylesheet" href="https://www.carlossilva.info/admira-design/tokens.css">
 <link rel="stylesheet" href="/yk-frame.css?v=r21">
-<link rel="stylesheet" href="/yk-supervisor.css?v=r1">
+<link rel="stylesheet" href="/yk-supervisor.css?v=r2">
 </head>
 <body data-yk-title="SUPERVISOR" data-yk-zone="app" data-yk-project-default="admira-tv" data-yk-project-default-label="admira.tv" data-yk-project-switch="superuser">
 <main class="sv-shell">
@@ -41,6 +41,7 @@
         <video id="camera" muted playsinline aria-label="Vista de la cámara del supervisor"></video>
         <canvas id="frameCanvas" class="sv-still" aria-hidden="true"></canvas>
         <canvas id="visionOverlay" class="sv-overlay" aria-hidden="true"></canvas>
+        <p id="targetStatus" class="sv-sr-only" role="status" aria-live="polite" aria-atomic="true">Sin objetivos localizados.</p>
         <div class="sv-empty" id="cameraEmpty">
           <div class="sv-lens" aria-hidden="true"><span></span></div>
           <strong>Preparado para observar</strong>
@@ -58,7 +59,7 @@
         <button class="sv-btn primary" id="startButton" type="button"><span aria-hidden="true">◉</span> Iniciar supervisor</button>
         <button class="sv-btn danger" id="stopButton" type="button" disabled><span aria-hidden="true">■</span> Detener</button>
         <button class="sv-btn" id="scanButton" type="button" disabled><span aria-hidden="true">⌖</span> Analizar ahora</button>
-        <label class="sv-btn upload" id="uploadLabel" for="uploadInput"><span aria-hidden="true">⇧</span> Probar una imagen</label>
+        <button class="sv-btn upload" id="uploadButton" type="button"><span aria-hidden="true">⇧</span> Probar una imagen</button>
         <input id="uploadInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
       </div>
       <p class="sv-runtime" id="runtimeMessage" role="status" aria-live="polite">La cámara permanece apagada hasta que pulses iniciar.</p>
@@ -94,7 +95,7 @@
   <section class="sv-kpis" aria-label="Estado del puesto">
     <article><span>Pantallas visibles</span><strong id="visibleKpi">—</strong><small id="expectedKpi">de 1 esperada</small></article>
     <article><span>Emitiendo</span><strong id="activeKpi">—</strong><small>contenido detectado</small></article>
-    <article><span>Confianza</span><strong id="confidenceKpi">—</strong><small>del último análisis</small></article>
+    <article><span>Confianza del estado</span><strong id="confidenceKpi">—</strong><small>del último análisis</small></article>
     <article><span>Lectura de escena</span><strong id="luminanceKpi">—</strong><small id="darkRatioKpi">luminancia local</small></article>
     <article><span>Último latido</span><strong id="lastSeenKpi">—</strong><small id="modelKpi">esperando visión</small></article>
   </section>
@@ -106,7 +107,7 @@
         <button class="sv-icon-btn" id="refreshButton" type="button" aria-label="Actualizar estado" title="Actualizar estado">↻</button>
       </div>
       <p class="sv-summary" id="visionSummary">Aún no hay una observación visual.</p>
-      <div class="sv-detections" id="detections"><p class="sv-muted">Las pantallas detectadas aparecerán aquí con su estado y confianza.</p></div>
+      <div class="sv-detections" id="detections" role="list" aria-label="Pantallas identificadas"><p class="sv-muted">Las pantallas detectadas aparecerán aquí con su estado y confianza.</p></div>
       <a class="sv-ticket" id="ticketLink" href="/incidencias" hidden>
         <span class="sv-ticket-icon" aria-hidden="true">!</span>
         <span><small>Incidencia abierta</small><strong id="ticketText">Ver ticket</strong></span>
@@ -131,7 +132,7 @@
   </footer>
 </main>
 
-<script type="module" src="/yk-supervisor.js?v=r2"></script>
+<script type="module" src="/yk-supervisor.js?v=r3"></script>
 <script type="module" src="/avatar-widget.js?v=3"></script>
 <script src="/yk-frame.js?v=r35"></script>
 </body>
